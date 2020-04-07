@@ -23,19 +23,17 @@ import (
 	"runtime/debug"
 	"sync"
 	"sync/atomic"
-	"time"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/codes"
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/flux/memory"
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/kit/errors"
-	"github.com/influxdata/influxdb/kit/prom"
-	"github.com/influxdata/influxdb/kit/tracing"
-	influxlogger "github.com/influxdata/influxdb/logger"
-	"github.com/influxdata/influxdb/query"
-	"github.com/opentracing/opentracing-go"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/errors"
+	"github.com/influxdata/influxdb/v2/kit/prom"
+	"github.com/influxdata/influxdb/v2/kit/tracing"
+	influxlogger "github.com/influxdata/influxdb/v2/logger"
+	"github.com/influxdata/influxdb/v2/query"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -47,6 +45,7 @@ const orgLabel = "org"
 // Controller provides a central location to manage all incoming queries.
 // The controller is responsible for compiling, queueing, and executing queries.
 type Controller struct {
+	config     Config
 	lastID     uint64
 	queriesMu  sync.RWMutex
 	queries    map[QueryID]*Query
@@ -173,6 +172,7 @@ func New(config Config) (*Controller, error) {
 		mm.unlimited = true
 	}
 	ctrl := &Controller{
+		config:       c,
 		queries:      make(map[QueryID]*Query),
 		queryQueue:   make(chan *Query, c.QueueSize),
 		done:         make(chan struct{}),
@@ -263,7 +263,7 @@ func (c *Controller) createQuery(ctx context.Context, ct flux.CompilerType) (*Qu
 	compileLabelValues[len(compileLabelValues)-1] = string(ct)
 
 	cctx, cancel := context.WithCancel(ctx)
-	parentSpan, parentCtx := StartSpanFromContext(
+	parentSpan, parentCtx := tracing.StartSpanFromContextWithPromMetrics(
 		cctx,
 		"all",
 		c.metrics.allDur.WithLabelValues(labelValues...),
@@ -415,10 +415,13 @@ func (c *Controller) executeQuery(q *Query) {
 			Code: codes.Internal,
 			Msg:  "impossible state transition",
 		})
+
 		return
 	}
 
 	q.c.createAllocator(q)
+	// Record unused memory before start.
+	q.recordUnusedMemory()
 	exec, err := q.program.Start(ctx, q.alloc)
 	if err != nil {
 		q.setErr(err)
@@ -505,6 +508,14 @@ func (c *Controller) PrometheusCollectors() []prometheus.Collector {
 	return collectors
 }
 
+func (c *Controller) GetUnusedMemoryBytes() int64 {
+	return c.memory.getUnusedMemoryBytes()
+}
+
+func (c *Controller) GetUsedMemoryBytes() int64 {
+	return c.config.MaxMemoryBytes - c.GetUnusedMemoryBytes()
+}
+
 // Query represents a single request.
 type Query struct {
 	id QueryID
@@ -522,7 +533,7 @@ type Query struct {
 	cancel      func()
 
 	parentCtx               context.Context
-	parentSpan, currentSpan *span
+	parentSpan, currentSpan *tracing.Span
 	stats                   flux.Statistics
 
 	done   sync.Once
@@ -558,6 +569,11 @@ func (q *Query) Cancel() {
 // function should be used to check if an error happened.
 func (q *Query) Results() <-chan flux.Result {
 	return q.results
+}
+
+func (q *Query) recordUnusedMemory() {
+	unused := q.c.GetUnusedMemoryBytes()
+	q.c.metrics.memoryUnused.WithLabelValues(q.labelValues...).Set(float64(unused))
 }
 
 // Done signals to the Controller that this query is no longer
@@ -613,14 +629,17 @@ func (q *Query) Done() {
 		// Release the additional memory associated with this query.
 		if q.memoryManager != nil {
 			q.memoryManager.Release()
+			// Record unused memory after finish.
+			q.recordUnusedMemory()
 		}
 
-		// count query request
+		// Count query request.
 		if q.err != nil || len(q.runtimeErrs) > 0 {
 			q.c.countQueryRequest(q, labelRuntimeError)
 		} else {
 			q.c.countQueryRequest(q, labelSuccess)
 		}
+
 	})
 	<-q.doneCh
 }
@@ -741,7 +760,7 @@ TRANSITION:
 		return q.parentCtx, true
 	}
 	var currentCtx context.Context
-	q.currentSpan, currentCtx = StartSpanFromContext(
+	q.currentSpan, currentCtx = tracing.StartSpanFromContextWithPromMetrics(
 		q.parentCtx,
 		newState.String(),
 		dur.WithLabelValues(labelValues...),
@@ -954,38 +973,6 @@ func isFinishedState(state State) bool {
 	default:
 		return false
 	}
-}
-
-// span is a simple wrapper around opentracing.Span in order to
-// get access to the duration of the span for metrics reporting.
-type span struct {
-	s        opentracing.Span
-	start    time.Time
-	Duration time.Duration
-	hist     prometheus.Observer
-	gauge    prometheus.Gauge
-}
-
-func StartSpanFromContext(ctx context.Context, operationName string, hist prometheus.Observer, gauge prometheus.Gauge) (*span, context.Context) {
-	start := time.Now()
-	s, sctx := opentracing.StartSpanFromContext(ctx, operationName, opentracing.StartTime(start))
-	gauge.Inc()
-	return &span{
-		s:     s,
-		start: start,
-		hist:  hist,
-		gauge: gauge,
-	}, sctx
-}
-
-func (s *span) Finish() {
-	finish := time.Now()
-	s.Duration = finish.Sub(s.start)
-	s.s.FinishWithOptions(opentracing.FinishOptions{
-		FinishTime: finish,
-	})
-	s.hist.Observe(s.Duration.Seconds())
-	s.gauge.Dec()
 }
 
 // handleFluxError will take a flux.Error and convert it into an influxdb.Error.

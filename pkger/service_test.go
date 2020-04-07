@@ -11,12 +11,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/mock"
-	"github.com/influxdata/influxdb/notification"
-	icheck "github.com/influxdata/influxdb/notification/check"
-	"github.com/influxdata/influxdb/notification/endpoint"
-	"github.com/influxdata/influxdb/notification/rule"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/mock"
+	"github.com/influxdata/influxdb/v2/notification"
+	icheck "github.com/influxdata/influxdb/v2/notification/check"
+	"github.com/influxdata/influxdb/v2/notification/endpoint"
+	"github.com/influxdata/influxdb/v2/notification/rule"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
@@ -30,6 +30,7 @@ func TestService(t *testing.T) {
 			dashSVC:     mock.NewDashboardService(),
 			labelSVC:    mock.NewLabelService(),
 			endpointSVC: mock.NewNotificationEndpointService(),
+			orgSVC:      mock.NewOrganizationService(),
 			ruleSVC:     mock.NewNotificationRuleStore(),
 			taskSVC:     mock.NewTaskService(),
 			teleSVC:     mock.NewTelegrafConfigStore(),
@@ -40,12 +41,16 @@ func TestService(t *testing.T) {
 		}
 
 		return NewService(
+			WithIDGenerator(opt.idGen),
+			WithTimeGenerator(opt.timeGen),
+			WithStore(opt.store),
 			WithBucketSVC(opt.bucketSVC),
 			WithCheckSVC(opt.checkSVC),
 			WithDashboardSVC(opt.dashSVC),
 			WithLabelSVC(opt.labelSVC),
 			WithNotificationEndpointSVC(opt.endpointSVC),
 			WithNotificationRuleSVC(opt.ruleSVC),
+			WithOrganizationService(opt.orgSVC),
 			WithSecretSVC(opt.secretSVC),
 			WithTaskSVC(opt.taskSVC),
 			WithTelegrafSVC(opt.teleSVC),
@@ -78,13 +83,15 @@ func TestService(t *testing.T) {
 					require.Len(t, diff.Buckets, 2)
 
 					expected := DiffBucket{
-						ID:   SafeID(1),
-						Name: "rucket_11",
+						ID:      SafeID(1),
+						PkgName: "rucket_11",
 						Old: &DiffBucketValues{
+							Name:           "rucket_11",
 							Description:    "old desc",
 							RetentionRules: retentionRules{newRetentionRule(30 * time.Hour)},
 						},
 						New: DiffBucketValues{
+							Name:           "rucket_11",
 							Description:    "bucket 1 description",
 							RetentionRules: retentionRules{newRetentionRule(time.Hour)},
 						},
@@ -107,8 +114,9 @@ func TestService(t *testing.T) {
 					require.Len(t, diff.Buckets, 2)
 
 					expected := DiffBucket{
-						Name: "rucket_11",
+						PkgName: "rucket_11",
 						New: DiffBucketValues{
+							Name:           "rucket_11",
 							Description:    "bucket 1 description",
 							RetentionRules: retentionRules{newRetentionRule(time.Hour)},
 						},
@@ -145,13 +153,14 @@ func TestService(t *testing.T) {
 				require.Len(t, checks, 2)
 				check0 := checks[0]
 				assert.True(t, check0.IsNew())
-				assert.Equal(t, "check_0", check0.Name)
+				assert.Equal(t, "check_0", check0.PkgName)
 				assert.Zero(t, check0.ID)
 				assert.Nil(t, check0.Old)
 
 				check1 := checks[1]
 				assert.False(t, check1.IsNew())
-				assert.Equal(t, "display name", check1.Name)
+				assert.Equal(t, "check_1", check1.PkgName)
+				assert.Equal(t, "display name", check1.New.GetName())
 				assert.NotZero(t, check1.ID)
 				assert.Equal(t, existing, check1.Old.Check)
 			})
@@ -181,22 +190,26 @@ func TestService(t *testing.T) {
 					require.Len(t, diff.Labels, 3)
 
 					expected := DiffLabel{
-						ID:   SafeID(1),
-						Name: "label_1",
+						ID:      SafeID(1),
+						PkgName: "label_1",
 						Old: &DiffLabelValues{
+							Name:        "label_1",
 							Color:       "old color",
 							Description: "old description",
 						},
 						New: DiffLabelValues{
+							Name:        "label_1",
 							Color:       "#FFFFFF",
 							Description: "label 1 description",
 						},
 					}
 					assert.Contains(t, diff.Labels, expected)
 
-					expected.Name = "label_2"
+					expected.PkgName = "label_2"
+					expected.New.Name = "label_2"
 					expected.New.Color = "#000000"
 					expected.New.Description = "label 2 description"
+					expected.Old.Name = "label_2"
 					assert.Contains(t, diff.Labels, expected)
 				})
 			})
@@ -215,15 +228,17 @@ func TestService(t *testing.T) {
 					require.Len(t, diff.Labels, 3)
 
 					expected := DiffLabel{
-						Name: "label_1",
+						PkgName: "label_1",
 						New: DiffLabelValues{
+							Name:        "label_1",
 							Color:       "#FFFFFF",
 							Description: "label 1 description",
 						},
 					}
 					assert.Contains(t, diff.Labels, expected)
 
-					expected.Name = "label_2"
+					expected.PkgName = "label_2"
+					expected.New.Name = "label_2"
 					expected.New.Color = "#000000"
 					expected.New.Description = "label 2 description"
 					assert.Contains(t, diff.Labels, expected)
@@ -272,8 +287,8 @@ func TestService(t *testing.T) {
 				require.Len(t, existingEndpoints, 1)
 
 				expected := DiffNotificationEndpoint{
-					ID:   SafeID(1),
-					Name: "http_none_auth_notification_endpoint",
+					ID:      SafeID(1),
+					PkgName: "http_none_auth_notification_endpoint",
 					Old: &DiffNotificationEndpointValues{
 						NotificationEndpoint: existing,
 					},
@@ -390,12 +405,14 @@ func TestService(t *testing.T) {
 				require.Len(t, diff.Variables, 4)
 
 				expected := DiffVariable{
-					ID:   SafeID(1),
-					Name: "var_const_3",
+					ID:      SafeID(1),
+					PkgName: "var_const_3",
 					Old: &DiffVariableValues{
+						Name:        "var_const_3",
 						Description: "old desc",
 					},
 					New: DiffVariableValues{
+						Name:        "var_const_3",
 						Description: "var_const_3 desc",
 						Args: &influxdb.VariableArguments{
 							Type:   "constant",
@@ -403,12 +420,13 @@ func TestService(t *testing.T) {
 						},
 					},
 				}
-				assert.Equal(t, expected, diff.Variables[1])
+				assert.Equal(t, expected, diff.Variables[0])
 
 				expected = DiffVariable{
 					// no ID here since this one would be new
-					Name: "var_map_4",
+					PkgName: "var_map_4",
 					New: DiffVariableValues{
+						Name:        "var_map_4",
 						Description: "var_map_4 desc",
 						Args: &influxdb.VariableArguments{
 							Type:   "map",
@@ -416,7 +434,7 @@ func TestService(t *testing.T) {
 						},
 					},
 				}
-				assert.Equal(t, expected, diff.Variables[2])
+				assert.Equal(t, expected, diff.Variables[1])
 			})
 		})
 	})
@@ -450,6 +468,7 @@ func TestService(t *testing.T) {
 					expected := SummaryBucket{
 						ID:                SafeID(time.Hour),
 						OrgID:             SafeID(orgID),
+						PkgName:           "rucket_11",
 						Name:              "rucket_11",
 						Description:       "bucket 1 description",
 						RetentionPeriod:   time.Hour,
@@ -476,7 +495,7 @@ func TestService(t *testing.T) {
 						}
 					}
 					stubExisting("rucket_11", 3)
-					stubExisting("rucket_222", 4)
+					stubExisting("rucket_22", 4)
 
 					fakeBktSVC := mock.NewBucketService()
 					fakeBktSVC.UpdateBucketFn = func(_ context.Context, id influxdb.ID, upd influxdb.BucketUpdate) (*influxdb.Bucket, error) {
@@ -493,6 +512,7 @@ func TestService(t *testing.T) {
 					expected := SummaryBucket{
 						ID:                SafeID(3),
 						OrgID:             SafeID(orgID),
+						PkgName:           "rucket_11",
 						Name:              "rucket_11",
 						Description:       "bucket 1 description",
 						RetentionPeriod:   time.Hour,
@@ -623,9 +643,10 @@ func TestService(t *testing.T) {
 					require.Len(t, sum.Labels, 3)
 
 					assert.Contains(t, sum.Labels, SummaryLabel{
-						ID:    1,
-						OrgID: SafeID(orgID),
-						Name:  "label_1",
+						ID:      1,
+						OrgID:   SafeID(orgID),
+						PkgName: "label_1",
+						Name:    "label_1",
 						Properties: struct {
 							Color       string `json:"color"`
 							Description string `json:"description"`
@@ -636,9 +657,10 @@ func TestService(t *testing.T) {
 					})
 
 					assert.Contains(t, sum.Labels, SummaryLabel{
-						ID:    2,
-						OrgID: SafeID(orgID),
-						Name:  "label_2",
+						ID:      2,
+						OrgID:   SafeID(orgID),
+						PkgName: "label_2",
+						Name:    "label_2",
 						Properties: struct {
 							Color       string `json:"color"`
 							Description string `json:"description"`
@@ -718,9 +740,10 @@ func TestService(t *testing.T) {
 					require.Len(t, sum.Labels, 3)
 
 					assert.Contains(t, sum.Labels, SummaryLabel{
-						ID:    1,
-						OrgID: SafeID(orgID),
-						Name:  "label_1",
+						ID:      1,
+						OrgID:   SafeID(orgID),
+						PkgName: "label_1",
+						Name:    "label_1",
 						Properties: struct {
 							Color       string `json:"color"`
 							Description string `json:"description"`
@@ -731,9 +754,10 @@ func TestService(t *testing.T) {
 					})
 
 					assert.Contains(t, sum.Labels, SummaryLabel{
-						ID:    2,
-						OrgID: SafeID(orgID),
-						Name:  "label_2",
+						ID:      2,
+						OrgID:   SafeID(orgID),
+						PkgName: "label_2",
+						Name:    "label_2",
 						Properties: struct {
 							Color       string `json:"color"`
 							Description string `json:"description"`
@@ -771,7 +795,7 @@ func TestService(t *testing.T) {
 					dash1 := sum.Dashboards[0]
 					assert.Equal(t, SafeID(1), dash1.ID)
 					assert.Equal(t, SafeID(orgID), dash1.OrgID)
-					assert.Equal(t, "dash_1", dash1.Name)
+					assert.Equal(t, "display name", dash1.Name)
 					require.Len(t, dash1.Charts, 1)
 				})
 			})
@@ -793,7 +817,7 @@ func TestService(t *testing.T) {
 						return nil
 					}
 
-					pkg.mDashboards = append(pkg.mDashboards, pkg.mDashboards[0])
+					pkg.mDashboards["dash_1_copy"] = pkg.mDashboards["dash_1"]
 
 					svc := newTestService(WithDashboardSVC(fakeDashSVC))
 
@@ -1193,7 +1217,7 @@ func TestService(t *testing.T) {
 						return nil
 					}
 
-					pkg.mNotificationRules = append(pkg.mNotificationRules, pkg.mNotificationRules[0])
+					pkg.mNotificationRules["rule_UUID_copy"] = pkg.mNotificationRules["rule_UUID"]
 
 					svc := newTestService(
 						WithNotificationEndpointSVC(fakeEndpointSVC),
@@ -1289,7 +1313,7 @@ func TestService(t *testing.T) {
 					require.NoError(t, err)
 
 					require.Len(t, sum.TelegrafConfigs, 1)
-					assert.Equal(t, "first_tele_config", sum.TelegrafConfigs[0].TelegrafConfig.Name)
+					assert.Equal(t, "display name", sum.TelegrafConfigs[0].TelegrafConfig.Name)
 					assert.Equal(t, "desc", sum.TelegrafConfigs[0].TelegrafConfig.Description)
 				})
 			})
@@ -1311,7 +1335,7 @@ func TestService(t *testing.T) {
 						return nil
 					}
 
-					pkg.mTelegrafs = append(pkg.mTelegrafs, pkg.mTelegrafs[0])
+					pkg.mTelegrafs["first_tele_config_copy"] = pkg.mTelegrafs["first_tele_config"]
 
 					svc := newTestService(WithTelegrafSVC(fakeTeleSVC))
 
@@ -1660,311 +1684,350 @@ func TestService(t *testing.T) {
 			}
 
 			t.Run("dashboard", func(t *testing.T) {
-				tests := []struct {
-					name         string
-					newName      string
-					expectedView influxdb.View
-				}{
-					{
-						name:    "gauge",
-						newName: "new name",
-						expectedView: influxdb.View{
-							ViewContents: influxdb.ViewContents{
-								Name: "view name",
-							},
-							Properties: influxdb.GaugeViewProperties{
-								Type:              influxdb.ViewPropertyTypeGauge,
-								DecimalPlaces:     influxdb.DecimalPlaces{IsEnforced: true, Digits: 1},
-								Note:              "a note",
-								Prefix:            "pre",
-								TickPrefix:        "true",
-								Suffix:            "suf",
-								TickSuffix:        "false",
-								Queries:           []influxdb.DashboardQuery{newQuery()},
-								ShowNoteWhenEmpty: true,
-								ViewColors:        newColors("min", "max", "threshold"),
-							},
-						},
-					},
-					{
-						name:    "heatmap",
-						newName: "new name",
-						expectedView: influxdb.View{
-							ViewContents: influxdb.ViewContents{
-								Name: "view name",
-							},
-							Properties: influxdb.HeatmapViewProperties{
-								Type:              influxdb.ViewPropertyTypeHeatMap,
-								Note:              "a note",
-								Queries:           []influxdb.DashboardQuery{newQuery()},
-								ShowNoteWhenEmpty: true,
-								ViewColors:        []string{"#8F8AF4", "#8F8AF4", "#8F8AF4"},
-								XColumn:           "x",
-								YColumn:           "y",
-								XDomain:           []float64{0, 10},
-								YDomain:           []float64{0, 100},
-								XAxisLabel:        "x_label",
-								XPrefix:           "x_prefix",
-								XSuffix:           "x_suffix",
-								YAxisLabel:        "y_label",
-								YPrefix:           "y_prefix",
-								YSuffix:           "y_suffix",
-								BinSize:           10,
-								TimeFormat:        "",
+				t.Run("with single chart", func(t *testing.T) {
+					tests := []struct {
+						name         string
+						newName      string
+						expectedView influxdb.View
+					}{
+						{
+							name:    "gauge",
+							newName: "new name",
+							expectedView: influxdb.View{
+								ViewContents: influxdb.ViewContents{
+									Name: "view name",
+								},
+								Properties: influxdb.GaugeViewProperties{
+									Type:              influxdb.ViewPropertyTypeGauge,
+									DecimalPlaces:     influxdb.DecimalPlaces{IsEnforced: true, Digits: 1},
+									Note:              "a note",
+									Prefix:            "pre",
+									TickPrefix:        "true",
+									Suffix:            "suf",
+									TickSuffix:        "false",
+									Queries:           []influxdb.DashboardQuery{newQuery()},
+									ShowNoteWhenEmpty: true,
+									ViewColors:        newColors("min", "max", "threshold"),
+								},
 							},
 						},
-					},
-					{
-						name:    "histogram",
-						newName: "new name",
-						expectedView: influxdb.View{
-							ViewContents: influxdb.ViewContents{
-								Name: "view name",
-							},
-							Properties: influxdb.HistogramViewProperties{
-								Type:              influxdb.ViewPropertyTypeHistogram,
-								Note:              "a note",
-								Queries:           []influxdb.DashboardQuery{newQuery()},
-								ShowNoteWhenEmpty: true,
-								ViewColors:        []influxdb.ViewColor{{Type: "scale", Hex: "#8F8AF4", Value: 0}, {Type: "scale", Hex: "#8F8AF4", Value: 0}, {Type: "scale", Hex: "#8F8AF4", Value: 0}},
-								FillColumns:       []string{},
-								XColumn:           "_value",
-								XDomain:           []float64{0, 10},
-								XAxisLabel:        "x_label",
-								BinCount:          30,
-								Position:          "stacked",
-							},
-						},
-					},
-					{
-						name:    "scatter",
-						newName: "new name",
-						expectedView: influxdb.View{
-							ViewContents: influxdb.ViewContents{
-								Name: "view name",
-							},
-							Properties: influxdb.ScatterViewProperties{
-								Type:              influxdb.ViewPropertyTypeScatter,
-								Note:              "a note",
-								Queries:           []influxdb.DashboardQuery{newQuery()},
-								ShowNoteWhenEmpty: true,
-								ViewColors:        []string{"#8F8AF4", "#8F8AF4", "#8F8AF4"},
-								XColumn:           "x",
-								YColumn:           "y",
-								XDomain:           []float64{0, 10},
-								YDomain:           []float64{0, 100},
-								XAxisLabel:        "x_label",
-								XPrefix:           "x_prefix",
-								XSuffix:           "x_suffix",
-								YAxisLabel:        "y_label",
-								YPrefix:           "y_prefix",
-								YSuffix:           "y_suffix",
-								TimeFormat:        "",
+						{
+							name:    "heatmap",
+							newName: "new name",
+							expectedView: influxdb.View{
+								ViewContents: influxdb.ViewContents{
+									Name: "view name",
+								},
+								Properties: influxdb.HeatmapViewProperties{
+									Type:              influxdb.ViewPropertyTypeHeatMap,
+									Note:              "a note",
+									Queries:           []influxdb.DashboardQuery{newQuery()},
+									ShowNoteWhenEmpty: true,
+									ViewColors:        []string{"#8F8AF4", "#8F8AF4", "#8F8AF4"},
+									XColumn:           "x",
+									YColumn:           "y",
+									XDomain:           []float64{0, 10},
+									YDomain:           []float64{0, 100},
+									XAxisLabel:        "x_label",
+									XPrefix:           "x_prefix",
+									XSuffix:           "x_suffix",
+									YAxisLabel:        "y_label",
+									YPrefix:           "y_prefix",
+									YSuffix:           "y_suffix",
+									BinSize:           10,
+									TimeFormat:        "",
+								},
 							},
 						},
-					},
-					{
-						name: "without new name single stat",
-						expectedView: influxdb.View{
-							ViewContents: influxdb.ViewContents{
-								Name: "view name",
-							},
-							Properties: influxdb.SingleStatViewProperties{
-								Type:              influxdb.ViewPropertyTypeSingleStat,
-								DecimalPlaces:     influxdb.DecimalPlaces{IsEnforced: true, Digits: 1},
-								Note:              "a note",
-								Queries:           []influxdb.DashboardQuery{newQuery()},
-								Prefix:            "pre",
-								TickPrefix:        "false",
-								ShowNoteWhenEmpty: true,
-								Suffix:            "suf",
-								TickSuffix:        "true",
-								ViewColors:        []influxdb.ViewColor{{Type: "text", Hex: "red"}},
-							},
-						},
-					},
-					{
-						name:    "with new name single stat",
-						newName: "new name",
-						expectedView: influxdb.View{
-							ViewContents: influxdb.ViewContents{
-								Name: "view name",
-							},
-							Properties: influxdb.SingleStatViewProperties{
-								Type:              influxdb.ViewPropertyTypeSingleStat,
-								DecimalPlaces:     influxdb.DecimalPlaces{IsEnforced: true, Digits: 1},
-								Note:              "a note",
-								Queries:           []influxdb.DashboardQuery{newQuery()},
-								Prefix:            "pre",
-								TickPrefix:        "false",
-								ShowNoteWhenEmpty: true,
-								Suffix:            "suf",
-								TickSuffix:        "true",
-								ViewColors:        []influxdb.ViewColor{{Type: "text", Hex: "red"}},
+						{
+							name:    "histogram",
+							newName: "new name",
+							expectedView: influxdb.View{
+								ViewContents: influxdb.ViewContents{
+									Name: "view name",
+								},
+								Properties: influxdb.HistogramViewProperties{
+									Type:              influxdb.ViewPropertyTypeHistogram,
+									Note:              "a note",
+									Queries:           []influxdb.DashboardQuery{newQuery()},
+									ShowNoteWhenEmpty: true,
+									ViewColors:        []influxdb.ViewColor{{Type: "scale", Hex: "#8F8AF4", Value: 0}, {Type: "scale", Hex: "#8F8AF4", Value: 0}, {Type: "scale", Hex: "#8F8AF4", Value: 0}},
+									FillColumns:       []string{},
+									XColumn:           "_value",
+									XDomain:           []float64{0, 10},
+									XAxisLabel:        "x_label",
+									BinCount:          30,
+									Position:          "stacked",
+								},
 							},
 						},
-					},
-					{
-						name:    "single stat plus line",
-						newName: "new name",
-						expectedView: influxdb.View{
-							ViewContents: influxdb.ViewContents{
-								Name: "view name",
-							},
-							Properties: influxdb.LinePlusSingleStatProperties{
-								Type:              influxdb.ViewPropertyTypeSingleStatPlusLine,
-								Axes:              newAxes(),
-								DecimalPlaces:     influxdb.DecimalPlaces{IsEnforced: true, Digits: 1},
-								Legend:            influxdb.Legend{Type: "type", Orientation: "horizontal"},
-								Note:              "a note",
-								Prefix:            "pre",
-								Suffix:            "suf",
-								Queries:           []influxdb.DashboardQuery{newQuery()},
-								ShadeBelow:        true,
-								ShowNoteWhenEmpty: true,
-								ViewColors:        []influxdb.ViewColor{{Type: "text", Hex: "red"}},
-								XColumn:           "x",
-								YColumn:           "y",
-								Position:          "stacked",
-							},
-						},
-					},
-					{
-						name:    "xy",
-						newName: "new name",
-						expectedView: influxdb.View{
-							ViewContents: influxdb.ViewContents{
-								Name: "view name",
-							},
-							Properties: influxdb.XYViewProperties{
-								Type:              influxdb.ViewPropertyTypeXY,
-								Axes:              newAxes(),
-								Geom:              "step",
-								Legend:            influxdb.Legend{Type: "type", Orientation: "horizontal"},
-								Note:              "a note",
-								Queries:           []influxdb.DashboardQuery{newQuery()},
-								ShadeBelow:        true,
-								ShowNoteWhenEmpty: true,
-								ViewColors:        []influxdb.ViewColor{{Type: "text", Hex: "red"}},
-								XColumn:           "x",
-								YColumn:           "y",
-								Position:          "overlaid",
-								TimeFormat:        "",
+						{
+							name:    "scatter",
+							newName: "new name",
+							expectedView: influxdb.View{
+								ViewContents: influxdb.ViewContents{
+									Name: "view name",
+								},
+								Properties: influxdb.ScatterViewProperties{
+									Type:              influxdb.ViewPropertyTypeScatter,
+									Note:              "a note",
+									Queries:           []influxdb.DashboardQuery{newQuery()},
+									ShowNoteWhenEmpty: true,
+									ViewColors:        []string{"#8F8AF4", "#8F8AF4", "#8F8AF4"},
+									XColumn:           "x",
+									YColumn:           "y",
+									XDomain:           []float64{0, 10},
+									YDomain:           []float64{0, 100},
+									XAxisLabel:        "x_label",
+									XPrefix:           "x_prefix",
+									XSuffix:           "x_suffix",
+									YAxisLabel:        "y_label",
+									YPrefix:           "y_prefix",
+									YSuffix:           "y_suffix",
+									TimeFormat:        "",
+								},
 							},
 						},
-					},
-					{
-						name:    "markdown",
-						newName: "new name",
-						expectedView: influxdb.View{
-							ViewContents: influxdb.ViewContents{
-								Name: "view name",
-							},
-							Properties: influxdb.MarkdownViewProperties{
-								Type: influxdb.ViewPropertyTypeMarkdown,
-								Note: "a note",
+						{
+							name: "without new name single stat",
+							expectedView: influxdb.View{
+								ViewContents: influxdb.ViewContents{
+									Name: "view name",
+								},
+								Properties: influxdb.SingleStatViewProperties{
+									Type:              influxdb.ViewPropertyTypeSingleStat,
+									DecimalPlaces:     influxdb.DecimalPlaces{IsEnforced: true, Digits: 1},
+									Note:              "a note",
+									Queries:           []influxdb.DashboardQuery{newQuery()},
+									Prefix:            "pre",
+									TickPrefix:        "false",
+									ShowNoteWhenEmpty: true,
+									Suffix:            "suf",
+									TickSuffix:        "true",
+									ViewColors:        []influxdb.ViewColor{{Type: "text", Hex: "red"}},
+								},
 							},
 						},
-					},
-					{
-						name:    "table",
-						newName: "new name",
-						expectedView: influxdb.View{
-							ViewContents: influxdb.ViewContents{
-								Name: "view name",
+						{
+							name:    "with new name single stat",
+							newName: "new name",
+							expectedView: influxdb.View{
+								ViewContents: influxdb.ViewContents{
+									Name: "view name",
+								},
+								Properties: influxdb.SingleStatViewProperties{
+									Type:              influxdb.ViewPropertyTypeSingleStat,
+									DecimalPlaces:     influxdb.DecimalPlaces{IsEnforced: true, Digits: 1},
+									Note:              "a note",
+									Queries:           []influxdb.DashboardQuery{newQuery()},
+									Prefix:            "pre",
+									TickPrefix:        "false",
+									ShowNoteWhenEmpty: true,
+									Suffix:            "suf",
+									TickSuffix:        "true",
+									ViewColors:        []influxdb.ViewColor{{Type: "text", Hex: "red"}},
+								},
 							},
-							Properties: influxdb.TableViewProperties{
-								Type:              influxdb.ViewPropertyTypeTable,
-								Note:              "a note",
-								ShowNoteWhenEmpty: true,
-								Queries:           []influxdb.DashboardQuery{newQuery()},
-								ViewColors:        []influxdb.ViewColor{{Type: "scale", Hex: "#8F8AF4", Value: 0}, {Type: "scale", Hex: "#8F8AF4", Value: 0}, {Type: "scale", Hex: "#8F8AF4", Value: 0}},
-								TableOptions: influxdb.TableOptions{
-									VerticalTimeAxis: true,
-									SortBy: influxdb.RenamableField{
-										InternalName: "_time",
+						},
+						{
+							name:    "single stat plus line",
+							newName: "new name",
+							expectedView: influxdb.View{
+								ViewContents: influxdb.ViewContents{
+									Name: "view name",
+								},
+								Properties: influxdb.LinePlusSingleStatProperties{
+									Type:              influxdb.ViewPropertyTypeSingleStatPlusLine,
+									Axes:              newAxes(),
+									DecimalPlaces:     influxdb.DecimalPlaces{IsEnforced: true, Digits: 1},
+									Legend:            influxdb.Legend{Type: "type", Orientation: "horizontal"},
+									Note:              "a note",
+									Prefix:            "pre",
+									Suffix:            "suf",
+									Queries:           []influxdb.DashboardQuery{newQuery()},
+									ShadeBelow:        true,
+									ShowNoteWhenEmpty: true,
+									ViewColors:        []influxdb.ViewColor{{Type: "text", Hex: "red"}},
+									XColumn:           "x",
+									YColumn:           "y",
+									Position:          "stacked",
+								},
+							},
+						},
+						{
+							name:    "xy",
+							newName: "new name",
+							expectedView: influxdb.View{
+								ViewContents: influxdb.ViewContents{
+									Name: "view name",
+								},
+								Properties: influxdb.XYViewProperties{
+									Type:              influxdb.ViewPropertyTypeXY,
+									Axes:              newAxes(),
+									Geom:              "step",
+									Legend:            influxdb.Legend{Type: "type", Orientation: "horizontal"},
+									Note:              "a note",
+									Queries:           []influxdb.DashboardQuery{newQuery()},
+									ShadeBelow:        true,
+									ShowNoteWhenEmpty: true,
+									ViewColors:        []influxdb.ViewColor{{Type: "text", Hex: "red"}},
+									XColumn:           "x",
+									YColumn:           "y",
+									Position:          "overlaid",
+									TimeFormat:        "",
+								},
+							},
+						},
+						{
+							name:    "markdown",
+							newName: "new name",
+							expectedView: influxdb.View{
+								ViewContents: influxdb.ViewContents{
+									Name: "view name",
+								},
+								Properties: influxdb.MarkdownViewProperties{
+									Type: influxdb.ViewPropertyTypeMarkdown,
+									Note: "a note",
+								},
+							},
+						},
+						{
+							name:    "table",
+							newName: "new name",
+							expectedView: influxdb.View{
+								ViewContents: influxdb.ViewContents{
+									Name: "view name",
+								},
+								Properties: influxdb.TableViewProperties{
+									Type:              influxdb.ViewPropertyTypeTable,
+									Note:              "a note",
+									ShowNoteWhenEmpty: true,
+									Queries:           []influxdb.DashboardQuery{newQuery()},
+									ViewColors:        []influxdb.ViewColor{{Type: "scale", Hex: "#8F8AF4", Value: 0}, {Type: "scale", Hex: "#8F8AF4", Value: 0}, {Type: "scale", Hex: "#8F8AF4", Value: 0}},
+									TableOptions: influxdb.TableOptions{
+										VerticalTimeAxis: true,
+										SortBy: influxdb.RenamableField{
+											InternalName: "_time",
+										},
+										Wrapping:       "truncate",
+										FixFirstColumn: true,
 									},
-									Wrapping:       "truncate",
-									FixFirstColumn: true,
-								},
-								FieldOptions: []influxdb.RenamableField{
-									{
-										InternalName: "_time",
-										DisplayName:  "time (ms)",
-										Visible:      true,
+									FieldOptions: []influxdb.RenamableField{
+										{
+											InternalName: "_time",
+											DisplayName:  "time (ms)",
+											Visible:      true,
+										},
 									},
-								},
-								TimeFormat: "YYYY:MM:DD",
-								DecimalPlaces: influxdb.DecimalPlaces{
-									IsEnforced: true,
-									Digits:     1,
+									TimeFormat: "YYYY:MM:DD",
+									DecimalPlaces: influxdb.DecimalPlaces{
+										IsEnforced: true,
+										Digits:     1,
+									},
 								},
 							},
 						},
-					},
-				}
-
-				for _, tt := range tests {
-					fn := func(t *testing.T) {
-						expectedCell := &influxdb.Cell{
-							ID:           5,
-							CellProperty: influxdb.CellProperty{X: 1, Y: 2, W: 3, H: 4},
-							View:         &tt.expectedView,
-						}
-						expected := &influxdb.Dashboard{
-							ID:          3,
-							Name:        "bucket name",
-							Description: "desc",
-							Cells:       []*influxdb.Cell{expectedCell},
-						}
-
-						dashSVC := mock.NewDashboardService()
-						dashSVC.FindDashboardByIDF = func(_ context.Context, id influxdb.ID) (*influxdb.Dashboard, error) {
-							if id != expected.ID {
-								return nil, errors.New("uh ohhh, wrong id here: " + id.String())
-							}
-							return expected, nil
-						}
-						dashSVC.GetDashboardCellViewF = func(_ context.Context, id influxdb.ID, cID influxdb.ID) (*influxdb.View, error) {
-							if id == expected.ID && cID == expectedCell.ID {
-								return &tt.expectedView, nil
-							}
-							return nil, errors.New("wrongo ids")
-						}
-
-						svc := newTestService(WithDashboardSVC(dashSVC), WithLabelSVC(mock.NewLabelService()))
-
-						resToClone := ResourceToClone{
-							Kind: KindDashboard,
-							ID:   expected.ID,
-							Name: tt.newName,
-						}
-						pkg, err := svc.CreatePkg(context.TODO(), CreateWithExistingResources(resToClone))
-						require.NoError(t, err)
-
-						newPkg := encodeAndDecode(t, pkg)
-
-						dashs := newPkg.Summary().Dashboards
-						require.Len(t, dashs, 1)
-
-						actual := dashs[0]
-						expectedName := expected.Name
-						if tt.newName != "" {
-							expectedName = tt.newName
-						}
-						assert.Equal(t, expectedName, actual.Name)
-						assert.Equal(t, expected.Description, actual.Description)
-
-						require.Len(t, actual.Charts, 1)
-						ch := actual.Charts[0]
-						assert.Equal(t, int(expectedCell.X), ch.XPosition)
-						assert.Equal(t, int(expectedCell.Y), ch.YPosition)
-						assert.Equal(t, int(expectedCell.H), ch.Height)
-						assert.Equal(t, int(expectedCell.W), ch.Width)
-						assert.Equal(t, tt.expectedView.Properties, ch.Properties)
 					}
-					t.Run(tt.name, fn)
-				}
+
+					for _, tt := range tests {
+						fn := func(t *testing.T) {
+							expectedCell := &influxdb.Cell{
+								ID:           5,
+								CellProperty: influxdb.CellProperty{X: 1, Y: 2, W: 3, H: 4},
+								View:         &tt.expectedView,
+							}
+							expected := &influxdb.Dashboard{
+								ID:          3,
+								Name:        "bucket name",
+								Description: "desc",
+								Cells:       []*influxdb.Cell{expectedCell},
+							}
+
+							dashSVC := mock.NewDashboardService()
+							dashSVC.FindDashboardByIDF = func(_ context.Context, id influxdb.ID) (*influxdb.Dashboard, error) {
+								if id != expected.ID {
+									return nil, errors.New("uh ohhh, wrong id here: " + id.String())
+								}
+								return expected, nil
+							}
+							dashSVC.GetDashboardCellViewF = func(_ context.Context, id influxdb.ID, cID influxdb.ID) (*influxdb.View, error) {
+								if id == expected.ID && cID == expectedCell.ID {
+									return &tt.expectedView, nil
+								}
+								return nil, errors.New("wrongo ids")
+							}
+
+							svc := newTestService(WithDashboardSVC(dashSVC), WithLabelSVC(mock.NewLabelService()))
+
+							resToClone := ResourceToClone{
+								Kind: KindDashboard,
+								ID:   expected.ID,
+								Name: tt.newName,
+							}
+							pkg, err := svc.CreatePkg(context.TODO(), CreateWithExistingResources(resToClone))
+							require.NoError(t, err)
+
+							newPkg := encodeAndDecode(t, pkg)
+
+							dashs := newPkg.Summary().Dashboards
+							require.Len(t, dashs, 1)
+
+							actual := dashs[0]
+							expectedName := expected.Name
+							if tt.newName != "" {
+								expectedName = tt.newName
+							}
+							assert.Equal(t, expectedName, actual.Name)
+							assert.Equal(t, expected.Description, actual.Description)
+
+							require.Len(t, actual.Charts, 1)
+							ch := actual.Charts[0]
+							assert.Equal(t, int(expectedCell.X), ch.XPosition)
+							assert.Equal(t, int(expectedCell.Y), ch.YPosition)
+							assert.Equal(t, int(expectedCell.H), ch.Height)
+							assert.Equal(t, int(expectedCell.W), ch.Width)
+							assert.Equal(t, tt.expectedView.Properties, ch.Properties)
+						}
+						t.Run(tt.name, fn)
+					}
+				})
+
+				t.Run("handles duplicate dashboard names", func(t *testing.T) {
+					dashSVC := mock.NewDashboardService()
+					dashSVC.FindDashboardByIDF = func(_ context.Context, id influxdb.ID) (*influxdb.Dashboard, error) {
+						return &influxdb.Dashboard{
+							ID:          id,
+							Name:        "dash name",
+							Description: "desc",
+						}, nil
+					}
+
+					svc := newTestService(WithDashboardSVC(dashSVC), WithLabelSVC(mock.NewLabelService()))
+
+					resourcesToClone := []ResourceToClone{
+						{
+							Kind: KindDashboard,
+							ID:   1,
+						},
+						{
+							Kind: KindDashboard,
+							ID:   2,
+						},
+					}
+					pkg, err := svc.CreatePkg(context.TODO(), CreateWithExistingResources(resourcesToClone...))
+					require.NoError(t, err)
+
+					newPkg := encodeAndDecode(t, pkg)
+
+					dashs := newPkg.Summary().Dashboards
+					require.Len(t, dashs, len(resourcesToClone))
+
+					for i := range resourcesToClone {
+						actual := dashs[i]
+						assert.Equal(t, "dash name", actual.Name)
+						assert.Equal(t, "desc", actual.Description)
+					}
+				})
 			})
 
 			t.Run("label", func(t *testing.T) {
@@ -2160,7 +2223,7 @@ func TestService(t *testing.T) {
 			t.Run("notification rules", func(t *testing.T) {
 				newRuleBase := func(id int) rule.Base {
 					return rule.Base{
-						ID:          9000,
+						ID:          influxdb.ID(id),
 						Name:        "old_name",
 						Description: "desc",
 						EndpointID:  influxdb.ID(id),
@@ -2176,53 +2239,162 @@ func TestService(t *testing.T) {
 					}
 				}
 
-				tests := []struct {
-					name     string
-					newName  string
-					endpoint influxdb.NotificationEndpoint
-					rule     influxdb.NotificationRule
-				}{
-					{
-						name:    "pager duty",
-						newName: "pager_duty_name",
-						endpoint: &endpoint.PagerDuty{
-							Base: endpoint.Base{
-								ID:          newTestIDPtr(13),
-								Name:        "endpoint_0",
-								Description: "desc",
-								Status:      influxdb.TaskStatusActive,
+				t.Run("single rule export", func(t *testing.T) {
+					tests := []struct {
+						name     string
+						newName  string
+						endpoint influxdb.NotificationEndpoint
+						rule     influxdb.NotificationRule
+					}{
+						{
+							name:    "pager duty",
+							newName: "pager_duty_name",
+							endpoint: &endpoint.PagerDuty{
+								Base: endpoint.Base{
+									ID:          newTestIDPtr(13),
+									Name:        "endpoint_0",
+									Description: "desc",
+									Status:      influxdb.TaskStatusActive,
+								},
+								ClientURL:  "http://example.com",
+								RoutingKey: influxdb.SecretField{Key: "-routing-key"},
 							},
-							ClientURL:  "http://example.com",
-							RoutingKey: influxdb.SecretField{Key: "-routing-key"},
-						},
-						rule: &rule.PagerDuty{
-							Base:            newRuleBase(13),
-							MessageTemplate: "Template",
-						},
-					},
-					{
-						name: "slack",
-						endpoint: &endpoint.Slack{
-							Base: endpoint.Base{
-								ID:          newTestIDPtr(13),
-								Name:        "endpoint_0",
-								Description: "desc",
-								Status:      influxdb.TaskStatusInactive,
+							rule: &rule.PagerDuty{
+								Base:            newRuleBase(13),
+								MessageTemplate: "Template",
 							},
-							URL:   "http://example.com",
-							Token: influxdb.SecretField{Key: "tokne"},
 						},
-						rule: &rule.Slack{
-							Base:            newRuleBase(13),
-							Channel:         "abc",
-							MessageTemplate: "SLACK TEMPlate",
+						{
+							name: "slack",
+							endpoint: &endpoint.Slack{
+								Base: endpoint.Base{
+									ID:          newTestIDPtr(13),
+									Name:        "endpoint_0",
+									Description: "desc",
+									Status:      influxdb.TaskStatusInactive,
+								},
+								URL:   "http://example.com",
+								Token: influxdb.SecretField{Key: "tokne"},
+							},
+							rule: &rule.Slack{
+								Base:            newRuleBase(13),
+								Channel:         "abc",
+								MessageTemplate: "SLACK TEMPlate",
+							},
 						},
-					},
-					{
-						name: "http none",
-						endpoint: &endpoint.HTTP{
+						{
+							name: "http none",
+							endpoint: &endpoint.HTTP{
+								Base: endpoint.Base{
+									ID:          newTestIDPtr(13),
+									Name:        "endpoint_0",
+									Description: "desc",
+									Status:      influxdb.TaskStatusInactive,
+								},
+								AuthMethod: "none",
+								Method:     "GET",
+								URL:        "http://example.com",
+							},
+							rule: &rule.HTTP{
+								Base: newRuleBase(13),
+							},
+						},
+					}
+
+					for _, tt := range tests {
+						fn := func(t *testing.T) {
+							endpointSVC := mock.NewNotificationEndpointService()
+							endpointSVC.FindNotificationEndpointByIDF = func(ctx context.Context, id influxdb.ID) (influxdb.NotificationEndpoint, error) {
+								if id != tt.endpoint.GetID() {
+									return nil, errors.New("uh ohhh, wrong id here: " + id.String())
+								}
+								return tt.endpoint, nil
+							}
+							ruleSVC := mock.NewNotificationRuleStore()
+							ruleSVC.FindNotificationRuleByIDF = func(ctx context.Context, id influxdb.ID) (influxdb.NotificationRule, error) {
+								return tt.rule, nil
+							}
+
+							svc := newTestService(
+								WithNotificationEndpointSVC(endpointSVC),
+								WithNotificationRuleSVC(ruleSVC),
+							)
+
+							resToClone := ResourceToClone{
+								Kind: KindNotificationRule,
+								ID:   tt.rule.GetID(),
+								Name: tt.newName,
+							}
+							pkg, err := svc.CreatePkg(context.TODO(), CreateWithExistingResources(resToClone))
+							require.NoError(t, err)
+
+							newPkg := encodeAndDecode(t, pkg)
+
+							sum := newPkg.Summary()
+							require.Len(t, sum.NotificationRules, 1)
+
+							actualRule := sum.NotificationRules[0]
+							assert.Zero(t, actualRule.ID)
+							assert.Zero(t, actualRule.EndpointID)
+							assert.Zero(t, actualRule.EndpointType)
+							assert.NotEmpty(t, actualRule.EndpointName)
+
+							baseEqual := func(t *testing.T, base rule.Base) {
+								t.Helper()
+								expectedName := base.Name
+								if tt.newName != "" {
+									expectedName = tt.newName
+								}
+								assert.Equal(t, expectedName, actualRule.Name)
+								assert.Equal(t, base.Description, actualRule.Description)
+								assert.Equal(t, base.Every.TimeDuration().String(), actualRule.Every)
+								assert.Equal(t, base.Offset.TimeDuration().String(), actualRule.Offset)
+
+								for _, sRule := range base.StatusRules {
+									expected := SummaryStatusRule{CurrentLevel: sRule.CurrentLevel.String()}
+									if sRule.PreviousLevel != nil {
+										expected.PreviousLevel = sRule.PreviousLevel.String()
+									}
+									assert.Contains(t, actualRule.StatusRules, expected)
+								}
+								for _, tRule := range base.TagRules {
+									expected := SummaryTagRule{
+										Key:      tRule.Key,
+										Value:    tRule.Value,
+										Operator: tRule.Operator.String(),
+									}
+									assert.Contains(t, actualRule.TagRules, expected)
+								}
+							}
+
+							switch p := tt.rule.(type) {
+							case *rule.HTTP:
+								baseEqual(t, p.Base)
+							case *rule.PagerDuty:
+								baseEqual(t, p.Base)
+								assert.Equal(t, p.MessageTemplate, actualRule.MessageTemplate)
+							case *rule.Slack:
+								baseEqual(t, p.Base)
+								assert.Equal(t, p.MessageTemplate, actualRule.MessageTemplate)
+							}
+
+							require.Len(t, pkg.Summary().NotificationEndpoints, 1)
+
+							actualEndpoint := pkg.Summary().NotificationEndpoints[0].NotificationEndpoint
+							assert.Equal(t, tt.endpoint.GetName(), actualEndpoint.GetName())
+							assert.Equal(t, tt.endpoint.GetDescription(), actualEndpoint.GetDescription())
+							assert.Equal(t, tt.endpoint.GetStatus(), actualEndpoint.GetStatus())
+						}
+						t.Run(tt.name, fn)
+					}
+				})
+
+				t.Run("handles rules duplicate names", func(t *testing.T) {
+					endpointSVC := mock.NewNotificationEndpointService()
+					endpointSVC.FindNotificationEndpointByIDF = func(ctx context.Context, id influxdb.ID) (influxdb.NotificationEndpoint, error) {
+						return &endpoint.HTTP{
 							Base: endpoint.Base{
-								ID:          newTestIDPtr(13),
+								ID:          &id,
 								Name:        "endpoint_0",
 								Description: "desc",
 								Status:      influxdb.TaskStatusInactive,
@@ -2230,174 +2402,218 @@ func TestService(t *testing.T) {
 							AuthMethod: "none",
 							Method:     "GET",
 							URL:        "http://example.com",
-						},
-						rule: &rule.HTTP{
-							Base: newRuleBase(13),
-						},
-					},
-				}
-
-				for _, tt := range tests {
-					fn := func(t *testing.T) {
-						endpointSVC := mock.NewNotificationEndpointService()
-						endpointSVC.FindNotificationEndpointByIDF = func(ctx context.Context, id influxdb.ID) (influxdb.NotificationEndpoint, error) {
-							if id != tt.endpoint.GetID() {
-								return nil, errors.New("uh ohhh, wrong id here: " + id.String())
-							}
-							return tt.endpoint, nil
-						}
-						ruleSVC := mock.NewNotificationRuleStore()
-						ruleSVC.FindNotificationRuleByIDF = func(ctx context.Context, id influxdb.ID) (influxdb.NotificationRule, error) {
-							return tt.rule, nil
-						}
-
-						svc := newTestService(
-							WithNotificationEndpointSVC(endpointSVC),
-							WithNotificationRuleSVC(ruleSVC),
-						)
-
-						resToClone := ResourceToClone{
-							Kind: KindNotificationRule,
-							ID:   tt.rule.GetID(),
-							Name: tt.newName,
-						}
-						pkg, err := svc.CreatePkg(context.TODO(), CreateWithExistingResources(resToClone))
-						require.NoError(t, err)
-
-						newPkg := encodeAndDecode(t, pkg)
-
-						sum := newPkg.Summary()
-						require.Len(t, sum.NotificationRules, 1)
-
-						actualRule := sum.NotificationRules[0]
-						assert.Zero(t, actualRule.ID)
-						assert.Zero(t, actualRule.EndpointID)
-						assert.Zero(t, actualRule.EndpointType)
-						assert.Equal(t, "endpoint_0", actualRule.EndpointName)
-
-						baseEqual := func(t *testing.T, base rule.Base) {
-							t.Helper()
-							expectedName := base.Name
-							if tt.newName != "" {
-								expectedName = tt.newName
-							}
-							assert.Equal(t, expectedName, actualRule.Name)
-							assert.Equal(t, base.Description, actualRule.Description)
-							assert.Equal(t, base.Every.TimeDuration().String(), actualRule.Every)
-							assert.Equal(t, base.Offset.TimeDuration().String(), actualRule.Offset)
-
-							for _, sRule := range base.StatusRules {
-								expected := SummaryStatusRule{CurrentLevel: sRule.CurrentLevel.String()}
-								if sRule.PreviousLevel != nil {
-									expected.PreviousLevel = sRule.PreviousLevel.String()
-								}
-								assert.Contains(t, actualRule.StatusRules, expected)
-							}
-							for _, tRule := range base.TagRules {
-								expected := SummaryTagRule{
-									Key:      tRule.Key,
-									Value:    tRule.Value,
-									Operator: tRule.Operator.String(),
-								}
-								assert.Contains(t, actualRule.TagRules, expected)
-							}
-						}
-
-						switch p := tt.rule.(type) {
-						case *rule.HTTP:
-							baseEqual(t, p.Base)
-						case *rule.PagerDuty:
-							baseEqual(t, p.Base)
-							assert.Equal(t, p.MessageTemplate, actualRule.MessageTemplate)
-						case *rule.Slack:
-							baseEqual(t, p.Base)
-							assert.Equal(t, p.MessageTemplate, actualRule.MessageTemplate)
-						}
-
-						require.Len(t, pkg.Summary().NotificationEndpoints, 1)
-
-						actualEndpoint := pkg.Summary().NotificationEndpoints[0].NotificationEndpoint
-						assert.Equal(t, tt.endpoint.GetName(), actualEndpoint.GetName())
-						assert.Equal(t, tt.endpoint.GetDescription(), actualEndpoint.GetDescription())
-						assert.Equal(t, tt.endpoint.GetStatus(), actualEndpoint.GetStatus())
+						}, nil
 					}
-					t.Run(tt.name, fn)
-				}
+					ruleSVC := mock.NewNotificationRuleStore()
+					ruleSVC.FindNotificationRuleByIDF = func(ctx context.Context, id influxdb.ID) (influxdb.NotificationRule, error) {
+						return &rule.HTTP{
+							Base: newRuleBase(int(id)),
+						}, nil
+					}
+
+					svc := newTestService(
+						WithNotificationEndpointSVC(endpointSVC),
+						WithNotificationRuleSVC(ruleSVC),
+					)
+
+					resourcesToClone := []ResourceToClone{
+						{
+							Kind: KindNotificationRule,
+							ID:   1,
+						},
+						{
+							Kind: KindNotificationRule,
+							ID:   2,
+						},
+					}
+					pkg, err := svc.CreatePkg(context.TODO(), CreateWithExistingResources(resourcesToClone...))
+					require.NoError(t, err)
+
+					newPkg := encodeAndDecode(t, pkg)
+
+					sum := newPkg.Summary()
+					require.Len(t, sum.NotificationRules, len(resourcesToClone))
+
+					expectedSameEndpointName := sum.NotificationRules[0].EndpointName
+					assert.NotZero(t, expectedSameEndpointName)
+					assert.NotEqual(t, "endpoint_0", expectedSameEndpointName)
+
+					for i := range resourcesToClone {
+						actual := sum.NotificationRules[i]
+						assert.Equal(t, "old_name", actual.Name)
+						assert.Equal(t, "desc", actual.Description)
+						assert.Equal(t, expectedSameEndpointName, actual.EndpointName)
+					}
+
+					require.Len(t, sum.NotificationEndpoints, 1)
+					assert.Equal(t, "endpoint_0", sum.NotificationEndpoints[0].NotificationEndpoint.GetName())
+				})
 			})
 
 			t.Run("tasks", func(t *testing.T) {
-				tests := []struct {
-					name    string
-					newName string
-					task    influxdb.Task
-				}{
-					{
-						name:    "every offset is set",
-						newName: "new name",
-						task: influxdb.Task{
-							ID:     1,
-							Name:   "name_9000",
-							Every:  time.Minute.String(),
-							Offset: 10 * time.Second,
-							Type:   influxdb.TaskSystemType,
-							Flux:   `option task = { name: "larry" } from(bucket: "rucket") |> yield()`,
+				t.Run("single task exports", func(t *testing.T) {
+					tests := []struct {
+						name    string
+						newName string
+						task    influxdb.Task
+					}{
+						{
+							name:    "every offset is set",
+							newName: "new name",
+							task: influxdb.Task{
+								ID:     1,
+								Name:   "name_9000",
+								Every:  time.Minute.String(),
+								Offset: 10 * time.Second,
+								Type:   influxdb.TaskSystemType,
+								Flux:   `option task = { name: "larry" } from(bucket: "rucket") |> yield()`,
+							},
 						},
-					},
-					{
-						name: "cron is set",
-						task: influxdb.Task{
-							ID:   1,
-							Name: "name_0",
-							Cron: "2 * * * *",
-							Type: influxdb.TaskSystemType,
-							Flux: `option task = { name: "larry" } from(bucket: "rucket") |> yield()`,
+						{
+							name: "cron is set",
+							task: influxdb.Task{
+								ID:   1,
+								Name: "name_0",
+								Cron: "2 * * * *",
+								Type: influxdb.TaskSystemType,
+								Flux: `option task = { name: "larry" } from(bucket: "rucket") |> yield()`,
+							},
 						},
-					},
-				}
-
-				for _, tt := range tests {
-					fn := func(t *testing.T) {
-						endpointSVC := mock.NewTaskService()
-						endpointSVC.FindTaskByIDFn = func(ctx context.Context, id influxdb.ID) (*influxdb.Task, error) {
-							if id != tt.task.ID {
-								return nil, errors.New("wrong id provided: " + id.String())
-							}
-							return &tt.task, nil
-						}
-
-						svc := newTestService(WithTaskSVC(endpointSVC))
-
-						resToClone := ResourceToClone{
-							Kind: KindTask,
-							ID:   tt.task.ID,
-							Name: tt.newName,
-						}
-						pkg, err := svc.CreatePkg(context.TODO(), CreateWithExistingResources(resToClone))
-						require.NoError(t, err)
-
-						newPkg := encodeAndDecode(t, pkg)
-
-						sum := newPkg.Summary()
-
-						tasks := sum.Tasks
-						require.Len(t, tasks, 1)
-
-						expectedName := tt.task.Name
-						if tt.newName != "" {
-							expectedName = tt.newName
-						}
-						actual := tasks[0]
-						assert.Equal(t, expectedName, actual.Name)
-						assert.Equal(t, tt.task.Cron, actual.Cron)
-						assert.Equal(t, tt.task.Description, actual.Description)
-						assert.Equal(t, tt.task.Every, actual.Every)
-						assert.Equal(t, durToStr(tt.task.Offset), actual.Offset)
-
-						expectedQuery := `from(bucket: "rucket") |> yield()`
-						assert.Equal(t, expectedQuery, actual.Query)
 					}
-					t.Run(tt.name, fn)
-				}
+
+					for _, tt := range tests {
+						fn := func(t *testing.T) {
+							taskSVC := mock.NewTaskService()
+							taskSVC.FindTaskByIDFn = func(ctx context.Context, id influxdb.ID) (*influxdb.Task, error) {
+								if id != tt.task.ID {
+									return nil, errors.New("wrong id provided: " + id.String())
+								}
+								return &tt.task, nil
+							}
+
+							svc := newTestService(WithTaskSVC(taskSVC))
+
+							resToClone := ResourceToClone{
+								Kind: KindTask,
+								ID:   tt.task.ID,
+								Name: tt.newName,
+							}
+							pkg, err := svc.CreatePkg(context.TODO(), CreateWithExistingResources(resToClone))
+							require.NoError(t, err)
+
+							newPkg := encodeAndDecode(t, pkg)
+
+							sum := newPkg.Summary()
+
+							tasks := sum.Tasks
+							require.Len(t, tasks, 1)
+
+							expectedName := tt.task.Name
+							if tt.newName != "" {
+								expectedName = tt.newName
+							}
+							actual := tasks[0]
+							assert.Equal(t, expectedName, actual.Name)
+							assert.Equal(t, tt.task.Cron, actual.Cron)
+							assert.Equal(t, tt.task.Description, actual.Description)
+							assert.Equal(t, tt.task.Every, actual.Every)
+							assert.Equal(t, durToStr(tt.task.Offset), actual.Offset)
+
+							expectedQuery := `from(bucket: "rucket") |> yield()`
+							assert.Equal(t, expectedQuery, actual.Query)
+						}
+						t.Run(tt.name, fn)
+					}
+				})
+
+				t.Run("handles multiple tasks of same name", func(t *testing.T) {
+					taskSVC := mock.NewTaskService()
+					taskSVC.FindTaskByIDFn = func(ctx context.Context, id influxdb.ID) (*influxdb.Task, error) {
+						return &influxdb.Task{
+							ID:          id,
+							Type:        influxdb.TaskSystemType,
+							Name:        "same name",
+							Description: "desc",
+							Status:      influxdb.TaskStatusActive,
+							Flux:        `from(bucket: "foo")`,
+							Every:       "5m0s",
+						}, nil
+					}
+
+					svc := newTestService(WithTaskSVC(taskSVC))
+
+					resourcesToClone := []ResourceToClone{
+						{
+							Kind: KindTask,
+							ID:   1,
+						},
+						{
+							Kind: KindTask,
+							ID:   2,
+						},
+					}
+					pkg, err := svc.CreatePkg(context.TODO(), CreateWithExistingResources(resourcesToClone...))
+					require.NoError(t, err)
+
+					newPkg := encodeAndDecode(t, pkg)
+
+					sum := newPkg.Summary()
+
+					tasks := sum.Tasks
+					require.Len(t, tasks, len(resourcesToClone))
+
+					for _, actual := range sum.Tasks {
+						assert.Equal(t, "same name", actual.Name)
+						assert.Equal(t, "desc", actual.Description)
+						assert.Equal(t, influxdb.Active, actual.Status)
+						assert.Equal(t, `from(bucket: "foo")`, actual.Query)
+						assert.Equal(t, "5m0s", actual.Every)
+					}
+				})
+			})
+
+			t.Run("telegraf configs", func(t *testing.T) {
+				t.Run("allows for duplicate telegraf names to be exported", func(t *testing.T) {
+					teleStore := mock.NewTelegrafConfigStore()
+					teleStore.FindTelegrafConfigByIDF = func(ctx context.Context, id influxdb.ID) (*influxdb.TelegrafConfig, error) {
+						return &influxdb.TelegrafConfig{
+							ID:          id,
+							OrgID:       9000,
+							Name:        "same name",
+							Description: "desc",
+							Config:      "some config string",
+						}, nil
+					}
+
+					svc := newTestService(WithTelegrafSVC(teleStore))
+
+					resourcesToClone := []ResourceToClone{
+						{
+							Kind: KindTelegraf,
+							ID:   1,
+						},
+						{
+							Kind: KindTelegraf,
+							ID:   2,
+						},
+					}
+					pkg, err := svc.CreatePkg(context.TODO(), CreateWithExistingResources(resourcesToClone...))
+					require.NoError(t, err)
+
+					newPkg := encodeAndDecode(t, pkg)
+
+					sum := newPkg.Summary()
+
+					teles := sum.TelegrafConfigs
+					require.Len(t, teles, len(resourcesToClone))
+
+					for i := range resourcesToClone {
+						actual := teles[i]
+						assert.Equal(t, "same name", actual.TelegrafConfig.Name)
+						assert.Equal(t, "desc", actual.TelegrafConfig.Description)
+						assert.Equal(t, "some config string", actual.TelegrafConfig.Config)
+					}
+				})
 			})
 
 			t.Run("variable", func(t *testing.T) {
@@ -2826,7 +3042,7 @@ func TestService(t *testing.T) {
 			rules := summary.NotificationRules
 			require.Len(t, rules, 1)
 			assert.Equal(t, expectedRule.Name, rules[0].Name)
-			assert.Equal(t, expectedRule.Type(), rules[0].EndpointName)
+			assert.NotEmpty(t, rules[0].EndpointName)
 
 			require.Len(t, summary.Tasks, 1)
 			task1 := summary.Tasks[0]
@@ -2835,6 +3051,100 @@ func TestService(t *testing.T) {
 			vars := summary.Variables
 			require.Len(t, vars, 1)
 			assert.Equal(t, "variable", vars[0].Name)
+		})
+	})
+
+	t.Run("InitStack", func(t *testing.T) {
+		safeCreateFn := func(ctx context.Context, stack Stack) error {
+			return nil
+		}
+
+		type createFn func(ctx context.Context, stack Stack) error
+
+		newFakeStore := func(fn createFn) *fakeStore {
+			return &fakeStore{
+				createFn: fn,
+			}
+		}
+
+		now := time.Time{}.Add(10 * 24 * time.Hour)
+
+		t.Run("when store call is successful", func(t *testing.T) {
+			svc := newTestService(
+				WithIDGenerator(newFakeIDGen(3)),
+				WithTimeGenerator(newTimeGen(now)),
+				WithStore(newFakeStore(safeCreateFn)),
+			)
+
+			stack, err := svc.InitStack(context.Background(), 9000, Stack{OrgID: 3333})
+			require.NoError(t, err)
+
+			assert.Equal(t, influxdb.ID(3), stack.ID)
+			assert.Equal(t, now, stack.CreatedAt)
+			assert.Equal(t, now, stack.UpdatedAt)
+		})
+
+		t.Run("handles unexpected error paths", func(t *testing.T) {
+			tests := []struct {
+				name            string
+				expectedErrCode string
+				store           func() *fakeStore
+				orgSVC          func() influxdb.OrganizationService
+			}{
+				{
+					name:            "unexpected store err",
+					expectedErrCode: influxdb.EInternal,
+					store: func() *fakeStore {
+						return newFakeStore(func(ctx context.Context, stack Stack) error {
+							return errors.New("unexpected error")
+						})
+					},
+				},
+				{
+					name:            "unexpected conflict store err",
+					expectedErrCode: influxdb.EInternal,
+					store: func() *fakeStore {
+						return newFakeStore(func(ctx context.Context, stack Stack) error {
+							return &influxdb.Error{Code: influxdb.EConflict}
+						})
+					},
+				},
+				{
+					name:            "org does not exist produces conflict error",
+					expectedErrCode: influxdb.EConflict,
+					store: func() *fakeStore {
+						return newFakeStore(safeCreateFn)
+					},
+					orgSVC: func() influxdb.OrganizationService {
+						orgSVC := mock.NewOrganizationService()
+						orgSVC.FindOrganizationByIDF = func(ctx context.Context, id influxdb.ID) (*influxdb.Organization, error) {
+							return nil, &influxdb.Error{Code: influxdb.ENotFound}
+						}
+						return orgSVC
+					},
+				},
+			}
+
+			for _, tt := range tests {
+				fn := func(t *testing.T) {
+					var orgSVC influxdb.OrganizationService = mock.NewOrganizationService()
+					if tt.orgSVC != nil {
+						orgSVC = tt.orgSVC()
+					}
+
+					svc := newTestService(
+						WithIDGenerator(newFakeIDGen(3)),
+						WithTimeGenerator(newTimeGen(now)),
+						WithStore(tt.store()),
+						WithOrganizationService(orgSVC),
+					)
+
+					_, err := svc.InitStack(context.Background(), 9000, Stack{OrgID: 3333})
+					require.Error(t, err)
+					assert.Equal(t, tt.expectedErrCode, influxdb.ErrorCode(err))
+				}
+				t.Run(tt.name, fn)
+			}
 		})
 	})
 }
@@ -2846,4 +3156,53 @@ func newTestIDPtr(i int) *influxdb.ID {
 
 func levelPtr(l notification.CheckLevel) *notification.CheckLevel {
 	return &l
+}
+
+type fakeStore struct {
+	createFn func(ctx context.Context, stack Stack) error
+}
+
+var _ Store = (*fakeStore)(nil)
+
+func (s *fakeStore) CreateStack(ctx context.Context, stack Stack) error {
+	if s.createFn != nil {
+		return s.createFn(ctx, stack)
+	}
+	panic("not implemented")
+}
+
+func (s *fakeStore) ReadStackByID(ctx context.Context, id influxdb.ID) (Stack, error) {
+	panic("not implemented")
+}
+
+func (s *fakeStore) UpdateStack(ctx context.Context, stack Stack) error {
+	panic("not implemented")
+}
+
+func (s *fakeStore) DeleteStack(ctx context.Context, id influxdb.ID) error {
+	panic("not implemented")
+}
+
+type fakeIDGen func() influxdb.ID
+
+func newFakeIDGen(id influxdb.ID) fakeIDGen {
+	return func() influxdb.ID {
+		return id
+	}
+}
+
+func (f fakeIDGen) ID() influxdb.ID {
+	return f()
+}
+
+type fakeTimeGen func() time.Time
+
+func newTimeGen(t time.Time) fakeTimeGen {
+	return func() time.Time {
+		return t
+	}
+}
+
+func (t fakeTimeGen) Now() time.Time {
+	return t()
 }

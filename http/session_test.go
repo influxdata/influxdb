@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	platform "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/mock"
+	platform "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/mock"
 	"go.uber.org/zap/zaptest"
 )
 

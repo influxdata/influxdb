@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -10,21 +11,21 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/bolt"
-	"github.com/influxdata/influxdb/cmd/influx/config"
-	"github.com/influxdata/influxdb/cmd/influx/internal"
-	"github.com/influxdata/influxdb/http"
-	"github.com/influxdata/influxdb/internal/fs"
-	"github.com/influxdata/influxdb/kit/cli"
-	"github.com/influxdata/influxdb/kv"
-	"github.com/influxdata/influxdb/pkg/httpc"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/bolt"
+	"github.com/influxdata/influxdb/v2/cmd/influx/config"
+	"github.com/influxdata/influxdb/v2/cmd/influx/internal"
+	"github.com/influxdata/influxdb/v2/http"
+	"github.com/influxdata/influxdb/v2/internal/fs"
+	"github.com/influxdata/influxdb/v2/kit/cli"
+	"github.com/influxdata/influxdb/v2/kv"
+	"github.com/influxdata/influxdb/v2/pkg/httpc"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 )
 
-const maxTCPConnections = 128
+const maxTCPConnections = 10
 
 func main() {
 	influxCmd := influxCmd()
@@ -68,19 +69,28 @@ type genericCLIOpts struct {
 	runEWrapFn cobraRunEMiddleware
 }
 
-func (o genericCLIOpts) newCmd(use string, runE func(*cobra.Command, []string) error) *cobra.Command {
+func (o genericCLIOpts) newCmd(use string, runE func(*cobra.Command, []string) error, useRunEMiddleware bool) *cobra.Command {
 	cmd := &cobra.Command{
 		Args: cobra.NoArgs,
 		Use:  use,
 		RunE: runE,
 	}
-	if runE != nil && o.runEWrapFn != nil {
+
+	canWrapRunE := runE != nil && o.runEWrapFn != nil
+	if useRunEMiddleware && canWrapRunE {
 		cmd.RunE = o.runEWrapFn(runE)
+	} else if canWrapRunE {
+		cmd.RunE = runE
 	}
+
 	cmd.SetOut(o.w)
 	cmd.SetIn(o.in)
 	cmd.SetErr(o.errW)
 	return cmd
+}
+
+func (o genericCLIOpts) writeJSON(v interface{}) error {
+	return writeJSON(o.w, v)
 }
 
 func (o genericCLIOpts) newTabWriter() *internal.TabWriter {
@@ -148,7 +158,7 @@ func (b *cmdInfluxBuilder) cmd(childCmdFns ...func(f *globalFlags, opt genericCL
 		setViperOptions()
 	})
 
-	cmd := b.newCmd("influx", nil)
+	cmd := b.newCmd("influx", nil, false)
 	cmd.Short = "Influx Client"
 	cmd.SilenceUsage = true
 
@@ -290,14 +300,9 @@ func writeConfigToPath(tok, org, path, dir string) error {
 	p := &config.DefaultConfig
 	p.Token = tok
 	p.Org = org
-	pp := map[string]config.Config{
-		"default": *p,
-	}
 
-	return config.LocalConfigsSVC{
-		Path: path,
-		Dir:  dir,
-	}.WriteConfigs(pp)
+	_, err := config.NewLocalConfigSVC(path, dir).CreateConfig(*p)
+	return err
 }
 
 func checkSetup(host string, skipVerify bool) error {
@@ -327,6 +332,7 @@ func checkSetupRunEMiddleware(f *globalFlags) cobraRunEMiddleware {
 			}
 
 			if setupErr := checkSetup(f.Host, f.skipVerify); setupErr != nil && influxdb.EUnauthorized != influxdb.ErrorCode(setupErr) {
+				cmd.OutOrStderr().Write([]byte(fmt.Sprintf("Error: %s\n", internal.ErrorFmt(err).Error())))
 				return internal.ErrorFmt(setupErr)
 			}
 
@@ -430,10 +436,39 @@ func (f flagOpts) mustRegister(cmd *cobra.Command) {
 	cli.BindOptions(cmd, f)
 }
 
+func registerPrintOptions(cmd *cobra.Command, headersP, jsonOutP *bool) {
+	var opts flagOpts
+	if headersP != nil {
+		opts = append(opts, cli.Opt{
+			DestP:   headersP,
+			Flag:    "hide-headers",
+			EnvVar:  "HIDE_HEADERS",
+			Desc:    "Hide the table headers; defaults false",
+			Default: false,
+		})
+	}
+	if jsonOutP != nil {
+		opts = append(opts, cli.Opt{
+			DestP:   jsonOutP,
+			Flag:    "json",
+			EnvVar:  "OUTPUT_JSON",
+			Desc:    "Output data as json; defaults false",
+			Default: false,
+		})
+	}
+	opts.mustRegister(cmd)
+}
+
 func setViperOptions() {
 	viper.SetEnvPrefix("INFLUX")
 	viper.AutomaticEnv()
 	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
+}
+
+func writeJSON(w io.Writer, v interface{}) error {
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "\t")
+	return enc.Encode(v)
 }
 
 func newBucketService() (influxdb.BucketService, error) {

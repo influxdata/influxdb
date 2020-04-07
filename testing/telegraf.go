@@ -8,10 +8,10 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	platform "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/mock"
-	"github.com/influxdata/influxdb/telegraf/plugins/inputs"
-	"github.com/influxdata/influxdb/telegraf/plugins/outputs"
+	platform "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/mock"
+	"github.com/influxdata/influxdb/v2/telegraf/plugins/inputs"
+	"github.com/influxdata/influxdb/v2/telegraf/plugins/outputs"
 )
 
 // TelegrafConfigFields includes prepopulated data for mapping tests.

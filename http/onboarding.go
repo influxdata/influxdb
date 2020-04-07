@@ -4,11 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 
 	"github.com/influxdata/httprouter"
-	platform "github.com/influxdata/influxdb"
+	platform "github.com/influxdata/influxdb/v2"
 	"go.uber.org/zap"
 )
 
@@ -23,9 +24,9 @@ type SetupBackend struct {
 // NewSetupBackend returns a new instance of SetupBackend.
 func NewSetupBackend(log *zap.Logger, b *APIBackend) *SetupBackend {
 	return &SetupBackend{
-		HTTPErrorHandler:  b.HTTPErrorHandler,
-		log:               log,
-		OnboardingService: b.OnboardingService,
+		HTTPErrorHandler: b.HTTPErrorHandler,
+		log:              log,
+		// OnboardingService: b.OnboardingService,
 	}
 }
 
@@ -83,7 +84,7 @@ func (h *SetupHandler) handlePostSetup(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	results, err := h.OnboardingService.Generate(ctx, req)
+	results, err := h.OnboardingService.OnboardInitialUser(ctx, req)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
@@ -166,8 +167,8 @@ func (s *SetupService) IsOnboarding(ctx context.Context) (bool, error) {
 	return ir.Allowed, nil
 }
 
-// Generate OnboardingResults.
-func (s *SetupService) Generate(ctx context.Context, or *platform.OnboardingRequest) (*platform.OnboardingResults, error) {
+// OnboardInitialUser OnboardingResults.
+func (s *SetupService) OnboardInitialUser(ctx context.Context, or *platform.OnboardingRequest) (*platform.OnboardingResults, error) {
 	u, err := NewURL(s.Addr, prefixSetup)
 	if err != nil {
 		return nil, err
@@ -209,4 +210,8 @@ func (s *SetupService) Generate(ctx context.Context, or *platform.OnboardingRequ
 		Auth:   oResp.Auth.toPlatform(),
 		Bucket: bkt,
 	}, nil
+}
+
+func (s *SetupService) OnboardUser(ctx context.Context, or *platform.OnboardingRequest) (*platform.OnboardingResults, error) {
+	return nil, errors.New("not yet implemented")
 }

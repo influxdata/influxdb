@@ -1,5 +1,4 @@
 // Libraries
-import {get, isEmpty} from 'lodash'
 import {Dispatch} from 'react'
 
 // Actions
@@ -9,16 +8,16 @@ import {
   reloadTagSelectors,
   Action as QueryBuilderAction,
 } from 'src/timeMachine/actions/queryBuilder'
-import {setValues} from 'src/variables/actions/creators'
 import {convertCheckToCustom} from 'src/alerting/actions/alertBuilder'
+import {setDashboardTimeRange} from 'src/dashboards/actions/ranges'
 
 // Selectors
-import {getTimeRangeByDashboardID} from 'src/dashboards/selectors'
 import {getActiveQuery} from 'src/timeMachine/selectors'
 
 // Utils
 import {createView} from 'src/views/helpers'
 import {createCheckQueryFromAlertBuilder} from 'src/alerting/utils/customCheck'
+import {currentContext} from 'src/shared/selectors/currentContext'
 
 // Types
 import {TimeMachineState} from 'src/timeMachine/reducers'
@@ -37,7 +36,6 @@ import {
   TimeMachineID,
   XYViewProperties,
   GetState,
-  RemoteDataState,
 } from 'src/types'
 import {Color} from 'src/types/colors'
 import {HistogramPosition, LinePosition} from '@influxdata/giraffe'
@@ -48,7 +46,6 @@ export type Action =
   | SetActiveTimeMachineAction
   | SetActiveTabAction
   | SetNameAction
-  | SetTimeRangeAction
   | SetAutoRefreshAction
   | SetTypeAction
   | SetActiveQueryText
@@ -99,7 +96,6 @@ export type Action =
 type ExternalActions =
   | ReturnType<typeof loadBuckets>
   | ReturnType<typeof saveAndExecuteQueries>
-  | ReturnType<typeof setValues>
 
 interface SetActiveTimeMachineAction {
   type: 'SET_ACTIVE_TIME_MACHINE'
@@ -143,18 +139,10 @@ export const setName = (name: string): SetNameAction => ({
   payload: {name},
 })
 
-interface SetTimeRangeAction {
-  type: 'SET_TIME_RANGE'
-  payload: {timeRange: TimeRange}
-}
+export const setTimeRange = (timeRange: TimeRange) => (dispatch, getState) => {
+  const contextID = currentContext(getState())
 
-const setTimeRangeSync = (timeRange: TimeRange): SetTimeRangeAction => ({
-  type: 'SET_TIME_RANGE',
-  payload: {timeRange},
-})
-
-export const setTimeRange = (timeRange: TimeRange) => dispatch => {
-  dispatch(setTimeRangeSync(timeRange))
+  dispatch(setDashboardTimeRange(contextID, timeRange))
   dispatch(saveAndExecuteQueries())
   dispatch(reloadTagSelectors())
 }
@@ -666,30 +654,14 @@ export const setXAxisLabel = (xAxisLabel: string): SetXAxisLabelAction => ({
   payload: {xAxisLabel},
 })
 
-export const loadNewVEO = (dashboardID: string) => (
-  dispatch: Dispatch<Action | ExternalActions>,
-  getState: GetState
+export const loadNewVEO = () => (
+  dispatch: Dispatch<Action | ExternalActions>
 ): void => {
-  const state = getState()
-  const timeRange = getTimeRangeByDashboardID(state, dashboardID)
-
   dispatch(
     setActiveTimeMachine('veo', {
       view: createView<XYViewProperties>('xy'),
-      timeRange,
     })
   )
-
-  const values = get(
-    state,
-    `resources.variables.values.${dashboardID}.values`,
-    {}
-  )
-
-  if (!isEmpty(values)) {
-    dispatch(setValues('veo', RemoteDataState.Done, values))
-  }
-  // no need to refresh variable values since there is no query in a new view
 }
 
 export const loadCustomCheckQueryState = () => (

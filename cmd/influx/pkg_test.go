@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"io/ioutil"
@@ -14,10 +15,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/influxdata/influxdb/mock"
-
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/pkger"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/mock"
+	"github.com/influxdata/influxdb/v2/pkger"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -202,7 +202,7 @@ func TestCmdPkg(t *testing.T) {
 					for _, labelName := range orgIDOpt.LabelNames {
 						pkg.Objects = append(pkg.Objects, pkger.Object{
 							APIVersion: pkger.APIVersion,
-							Type:       pkger.KindLabel,
+							Kind:       pkger.KindLabel,
 							Metadata:   pkger.Resource{"name": labelName},
 						})
 					}
@@ -210,7 +210,7 @@ func TestCmdPkg(t *testing.T) {
 						for _, k := range orgIDOpt.ResourceKinds {
 							pkg.Objects = append(pkg.Objects, pkger.Object{
 								APIVersion: pkger.APIVersion,
-								Type:       k,
+								Kind:       k,
 								Metadata: pkger.Resource{
 									"name": k.String(),
 								},
@@ -222,7 +222,7 @@ func TestCmdPkg(t *testing.T) {
 
 					pkg.Objects = append(pkg.Objects, pkger.Object{
 						APIVersion: pkger.APIVersion,
-						Type:       pkger.KindBucket,
+						Kind:       pkger.KindBucket,
 						Metadata:   pkger.Resource{"name": "bucket1"},
 					})
 					return &pkg, nil
@@ -338,7 +338,7 @@ func TestCmdPkg(t *testing.T) {
 						name := rc.Kind.String() + strconv.Itoa(int(rc.ID))
 						pkg.Objects = append(pkg.Objects, pkger.Object{
 							APIVersion: pkger.APIVersion,
-							Type:       rc.Kind,
+							Kind:       rc.Kind,
 							Metadata:   pkger.Resource{"name": name},
 						})
 					}
@@ -445,6 +445,122 @@ func TestCmdPkg(t *testing.T) {
 			cmd.SetArgs([]string{"pkg", "validate"})
 
 			require.Error(t, cmd.Execute())
+		})
+	})
+
+	t.Run("stack", func(t *testing.T) {
+		t.Run("init", func(t *testing.T) {
+			tests := []struct {
+				name          string
+				args          []string
+				envVars       map[string]string
+				expectedStack pkger.Stack
+				shouldErr     bool
+			}{
+				{
+					name: "when only org and token provided is successful",
+					args: []string{"--org-id=" + influxdb.ID(1).String()},
+					expectedStack: pkger.Stack{
+						OrgID: 1,
+					},
+				},
+				{
+					name: "when org and name provided provided is successful",
+					args: []string{
+						"--org-id=" + influxdb.ID(1).String(),
+						"--stack-name=foo",
+					},
+					expectedStack: pkger.Stack{
+						OrgID: 1,
+						Name:  "foo",
+					},
+				},
+				{
+					name: "when all flags provided provided is successful",
+					args: []string{
+						"--org-id=" + influxdb.ID(1).String(),
+						"--stack-name=foo",
+						"--stack-description=desc",
+						"--package-url=http://example.com/1",
+						"--package-url=http://example.com/2",
+					},
+					expectedStack: pkger.Stack{
+						OrgID:       1,
+						Name:        "foo",
+						Description: "desc",
+						URLs: []string{
+							"http://example.com/1",
+							"http://example.com/2",
+						},
+					},
+				},
+				{
+					name: "when all shorthand flags provided provided is successful",
+					args: []string{
+						"--org-id=" + influxdb.ID(1).String(),
+						"-n=foo",
+						"-d=desc",
+						"-u=http://example.com/1",
+						"-u=http://example.com/2",
+					},
+					expectedStack: pkger.Stack{
+						OrgID:       1,
+						Name:        "foo",
+						Description: "desc",
+						URLs: []string{
+							"http://example.com/1",
+							"http://example.com/2",
+						},
+					},
+				},
+			}
+
+			for _, tt := range tests {
+				fn := func(t *testing.T) {
+					defer addEnvVars(t, envVarsZeroMap)()
+
+					outBuf := new(bytes.Buffer)
+					defer func() {
+						if t.Failed() && outBuf.Len() > 0 {
+							t.Log(outBuf.String())
+						}
+					}()
+
+					builder := newInfluxCmdBuilder(
+						in(new(bytes.Buffer)),
+						out(outBuf),
+					)
+
+					rootCmd := builder.cmd(func(f *globalFlags, opt genericCLIOpts) *cobra.Command {
+						echoSVC := &fakePkgSVC{
+							initStackFn: func(ctx context.Context, userID influxdb.ID, stack pkger.Stack) (pkger.Stack, error) {
+								stack.ID = 9000
+								return stack, nil
+							},
+						}
+						return newCmdPkgBuilder(fakeSVCFn(echoSVC), opt).cmd()
+					})
+
+					baseArgs := []string{"pkg", "stack", "init", "--json"}
+
+					rootCmd.SetArgs(append(baseArgs, tt.args...))
+
+					err := rootCmd.Execute()
+					if tt.shouldErr {
+						require.Error(t, err)
+					} else {
+						require.NoError(t, err)
+						var stack pkger.Stack
+						testDecodeJSONBody(t, outBuf, &stack)
+						if tt.expectedStack.ID == 0 {
+							tt.expectedStack.ID = 9000
+						}
+						assert.Equal(t, tt.expectedStack, stack)
+					}
+				}
+
+				t.Run(tt.name, fn)
+			}
 		})
 	})
 }
@@ -586,9 +702,17 @@ func testPkgWritesToBuffer(newCmdFn func(w io.Writer) *cobra.Command, args pkgFi
 }
 
 type fakePkgSVC struct {
-	createFn func(ctx context.Context, setters ...pkger.CreatePkgSetFn) (*pkger.Pkg, error)
-	dryRunFn func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg) (pkger.Summary, pkger.Diff, error)
-	applyFn  func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.Summary, error)
+	initStackFn func(ctx context.Context, userID influxdb.ID, stack pkger.Stack) (pkger.Stack, error)
+	createFn    func(ctx context.Context, setters ...pkger.CreatePkgSetFn) (*pkger.Pkg, error)
+	dryRunFn    func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg) (pkger.Summary, pkger.Diff, error)
+	applyFn     func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.Summary, error)
+}
+
+func (f *fakePkgSVC) InitStack(ctx context.Context, userID influxdb.ID, stack pkger.Stack) (pkger.Stack, error) {
+	if f.initStackFn != nil {
+		return f.initStackFn(ctx, userID, stack)
+	}
+	panic("not implemented")
 }
 
 func (f *fakePkgSVC) CreatePkg(ctx context.Context, setters ...pkger.CreatePkgSetFn) (*pkger.Pkg, error) {
@@ -634,4 +758,11 @@ func idsStr(ids ...influxdb.ID) string {
 		idStrs = append(idStrs, id.String())
 	}
 	return strings.Join(idStrs, ",")
+}
+
+func testDecodeJSONBody(t *testing.T, r io.Reader, v interface{}) {
+	t.Helper()
+
+	err := json.NewDecoder(r).Decode(v)
+	require.NoError(t, err)
 }

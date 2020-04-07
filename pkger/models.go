@@ -12,11 +12,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/notification"
-	icheck "github.com/influxdata/influxdb/notification/check"
-	"github.com/influxdata/influxdb/notification/endpoint"
-	"github.com/influxdata/influxdb/notification/rule"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/notification"
+	icheck "github.com/influxdata/influxdb/v2/notification/check"
+	"github.com/influxdata/influxdb/v2/notification/endpoint"
+	"github.com/influxdata/influxdb/v2/notification/rule"
 )
 
 // Package kind types.
@@ -53,19 +53,6 @@ var kinds = map[Kind]bool{
 	KindNotificationRule:              true,
 	KindTask:                          true,
 	KindTelegraf:                      true,
-	KindVariable:                      true,
-}
-
-var kindsUniqByName = map[Kind]bool{
-	KindBucket:                        true,
-	KindCheck:                         true,
-	KindCheckDeadman:                  true,
-	KindCheckThreshold:                true,
-	KindLabel:                         true,
-	KindNotificationEndpoint:          true,
-	KindNotificationEndpointHTTP:      true,
-	KindNotificationEndpointPagerDuty: true,
-	KindNotificationEndpointSlack:     true,
 	KindVariable:                      true,
 }
 
@@ -189,22 +176,26 @@ func (d Diff) HasConflicts() bool {
 
 // DiffBucketValues are the varying values for a bucket.
 type DiffBucketValues struct {
+	Name           string         `json:"name"`
 	Description    string         `json:"description"`
 	RetentionRules retentionRules `json:"retentionRules"`
 }
 
 // DiffBucket is a diff of an individual bucket.
 type DiffBucket struct {
-	ID   SafeID            `json:"id"`
-	Name string            `json:"name"`
-	New  DiffBucketValues  `json:"new"`
-	Old  *DiffBucketValues `json:"old,omitempty"` // using omitempty here to signal there was no prev state with a nil
+	Remove  bool              `json:"remove"`
+	ID      SafeID            `json:"id"`
+	PkgName string            `json:"pkgName"`
+	New     DiffBucketValues  `json:"new"`
+	Old     *DiffBucketValues `json:"old,omitempty"` // using omitempty here to signal there was no prev state with a nil
 }
 
 func newDiffBucket(b *bucket, i *influxdb.Bucket) DiffBucket {
 	diff := DiffBucket{
-		Name: b.Name(),
+		Remove:  b.shouldRemove,
+		PkgName: b.PkgName(),
 		New: DiffBucketValues{
+			Name:           b.Name(),
 			Description:    b.Description,
 			RetentionRules: b.RetentionRules,
 		},
@@ -212,6 +203,7 @@ func newDiffBucket(b *bucket, i *influxdb.Bucket) DiffBucket {
 	if i != nil {
 		diff.ID = SafeID(i.ID)
 		diff.Old = &DiffBucketValues{
+			Name:        i.Name,
 			Description: i.Description,
 		}
 		if i.RetentionPeriod > 0 {
@@ -235,23 +227,36 @@ type DiffCheckValues struct {
 	influxdb.Check
 }
 
+// MarshalJSON implementation here is forced by the embedded check value here.
+func (d DiffCheckValues) MarshalJSON() ([]byte, error) {
+	if d.Check == nil {
+		return json.Marshal(nil)
+	}
+	return json.Marshal(d.Check)
+}
+
 // UnmarshalJSON decodes the check values.
 func (d *DiffCheckValues) UnmarshalJSON(b []byte) (err error) {
 	d.Check, err = icheck.UnmarshalJSON(b)
-	return
+	if influxdb.EInternal == influxdb.ErrorCode(err) {
+		return nil
+	}
+	return err
 }
 
 // DiffCheck is a diff of an individual check.
 type DiffCheck struct {
-	ID   SafeID           `json:"id"`
-	Name string           `json:"name"`
-	New  DiffCheckValues  `json:"new"`
-	Old  *DiffCheckValues `json:"old"`
+	Remove  bool             `json:"remove"`
+	ID      SafeID           `json:"id"`
+	PkgName string           `json:"pkgName"`
+	New     DiffCheckValues  `json:"new"`
+	Old     *DiffCheckValues `json:"old"`
 }
 
 func newDiffCheck(c *check, iCheck influxdb.Check) DiffCheck {
 	diff := DiffCheck{
-		Name: c.Name(),
+		Remove:  c.shouldRemove,
+		PkgName: c.PkgName(),
 		New: DiffCheckValues{
 			Check: c.summarize().Check,
 		},
@@ -300,16 +305,18 @@ type DiffChart SummaryChart
 
 // DiffLabelValues are the varying values for a label.
 type DiffLabelValues struct {
+	Name        string `json:"name"`
 	Color       string `json:"color"`
 	Description string `json:"description"`
 }
 
 // DiffLabel is a diff of an individual label.
 type DiffLabel struct {
-	ID   SafeID           `json:"id"`
-	Name string           `json:"name"`
-	New  DiffLabelValues  `json:"new"`
-	Old  *DiffLabelValues `json:"old,omitempty"` // using omitempty here to signal there was no prev state with a nil
+	Remove  bool             `json:"remove"`
+	ID      SafeID           `json:"id"`
+	PkgName string           `json:"pkgName"`
+	New     DiffLabelValues  `json:"new"`
+	Old     *DiffLabelValues `json:"old,omitempty"` // using omitempty here to signal there was no prev state with a nil
 }
 
 // IsNew indicates whether a pkg label is going to be new to the platform.
@@ -323,8 +330,10 @@ func (d DiffLabel) hasConflict() bool {
 
 func newDiffLabel(l *label, i *influxdb.Label) DiffLabel {
 	diff := DiffLabel{
-		Name: l.Name(),
+		Remove:  l.shouldRemove,
+		PkgName: l.PkgName(),
 		New: DiffLabelValues{
+			Name:        l.Name(),
 			Color:       l.Color,
 			Description: l.Description,
 		},
@@ -332,6 +341,7 @@ func newDiffLabel(l *label, i *influxdb.Label) DiffLabel {
 	if i != nil {
 		diff.ID = SafeID(i.ID)
 		diff.Old = &DiffLabelValues{
+			Name:        i.Name,
 			Color:       i.Properties["color"],
 			Description: i.Properties["description"],
 		}
@@ -358,23 +368,36 @@ type DiffNotificationEndpointValues struct {
 	influxdb.NotificationEndpoint
 }
 
+// MarshalJSON implementation here is forced by the embedded check value here.
+func (d DiffNotificationEndpointValues) MarshalJSON() ([]byte, error) {
+	if d.NotificationEndpoint == nil {
+		return json.Marshal(nil)
+	}
+	return json.Marshal(d.NotificationEndpoint)
+}
+
 // UnmarshalJSON decodes the notification endpoint. This is necessary unfortunately.
 func (d *DiffNotificationEndpointValues) UnmarshalJSON(b []byte) (err error) {
 	d.NotificationEndpoint, err = endpoint.UnmarshalJSON(b)
+	if influxdb.EInvalid == influxdb.ErrorCode(err) {
+		return nil
+	}
 	return
 }
 
 // DiffNotificationEndpoint is a diff of an individual notification endpoint.
 type DiffNotificationEndpoint struct {
-	ID   SafeID                          `json:"id"`
-	Name string                          `json:"name"`
-	New  DiffNotificationEndpointValues  `json:"new"`
-	Old  *DiffNotificationEndpointValues `json:"old"`
+	ID      SafeID                          `json:"id"`
+	Remove  bool                            `json:"remove"`
+	PkgName string                          `json:"pkgName"`
+	New     DiffNotificationEndpointValues  `json:"new"`
+	Old     *DiffNotificationEndpointValues `json:"old"`
 }
 
 func newDiffNotificationEndpoint(ne *notificationEndpoint, i influxdb.NotificationEndpoint) DiffNotificationEndpoint {
 	diff := DiffNotificationEndpoint{
-		Name: ne.Name(),
+		Remove:  ne.shouldRemove,
+		PkgName: ne.PkgName(),
 		New: DiffNotificationEndpointValues{
 			NotificationEndpoint: ne.summarize().NotificationEndpoint,
 		},
@@ -468,22 +491,26 @@ func newDiffTelegraf(t *telegraf) DiffTelegraf {
 
 // DiffVariableValues are the varying values for a variable.
 type DiffVariableValues struct {
+	Name        string                      `json:"name"`
 	Description string                      `json:"description"`
 	Args        *influxdb.VariableArguments `json:"args"`
 }
 
 // DiffVariable is a diff of an individual variable.
 type DiffVariable struct {
-	ID   SafeID              `json:"id"`
-	Name string              `json:"name"`
-	New  DiffVariableValues  `json:"new"`
-	Old  *DiffVariableValues `json:"old,omitempty"` // using omitempty here to signal there was no prev state with a nil
+	ID      SafeID              `json:"id"`
+	Remove  bool                `json:"remove"`
+	PkgName string              `json:"pkgName"`
+	New     DiffVariableValues  `json:"new"`
+	Old     *DiffVariableValues `json:"old,omitempty"` // using omitempty here to signal there was no prev state with a nil
 }
 
 func newDiffVariable(v *variable, iv *influxdb.Variable) DiffVariable {
 	diff := DiffVariable{
-		Name: v.Name(),
+		Remove:  v.shouldRemove,
+		PkgName: v.PkgName(),
 		New: DiffVariableValues{
+			Name:        v.Name(),
 			Description: v.Description,
 			Args:        v.influxVarArgs(),
 		},
@@ -491,6 +518,7 @@ func newDiffVariable(v *variable, iv *influxdb.Variable) DiffVariable {
 	if iv != nil {
 		diff.ID = SafeID(iv.ID)
 		diff.Old = &DiffVariableValues{
+			Name:        iv.Name,
 			Description: iv.Description,
 			Args:        iv.Arguments,
 		}
@@ -530,6 +558,7 @@ type SummaryBucket struct {
 	ID          SafeID `json:"id,omitempty"`
 	OrgID       SafeID `json:"orgID,omitempty"`
 	Name        string `json:"name"`
+	PkgName     string `json:"pkgName"`
 	Description string `json:"description"`
 	// TODO: return retention rules?
 	RetentionPeriod   time.Duration  `json:"retentionPeriod"`
@@ -538,6 +567,7 @@ type SummaryBucket struct {
 
 // SummaryCheck provides a summary of a pkg check.
 type SummaryCheck struct {
+	PkgName           string          `json:"pkgName"`
 	Check             influxdb.Check  `json:"check"`
 	Status            influxdb.Status `json:"status"`
 	LabelAssociations []SummaryLabel  `json:"labelAssociations"`
@@ -545,6 +575,7 @@ type SummaryCheck struct {
 
 func (s *SummaryCheck) UnmarshalJSON(b []byte) error {
 	var out struct {
+		PkgName           string          `json:"pkgName"`
 		Status            string          `json:"status"`
 		LabelAssociations []SummaryLabel  `json:"labelAssociations"`
 		Check             json.RawMessage `json:"check"`
@@ -552,6 +583,7 @@ func (s *SummaryCheck) UnmarshalJSON(b []byte) error {
 	if err := json.Unmarshal(b, &out); err != nil {
 		return err
 	}
+	s.PkgName = out.PkgName
 	s.Status = influxdb.Status(out.Status)
 	s.LabelAssociations = out.LabelAssociations
 
@@ -657,6 +689,7 @@ func (s *SummaryChart) UnmarshalJSON(b []byte) error {
 
 // SummaryNotificationEndpoint provides a summary of a pkg notification endpoint.
 type SummaryNotificationEndpoint struct {
+	PkgName              string                        `json:"pkgName"`
 	NotificationEndpoint influxdb.NotificationEndpoint `json:"notificationEndpoint"`
 	LabelAssociations    []SummaryLabel                `json:"labelAssociations"`
 }
@@ -665,12 +698,14 @@ type SummaryNotificationEndpoint struct {
 // the notification endpoint does not have a means ot unmarshal itself.
 func (s *SummaryNotificationEndpoint) UnmarshalJSON(b []byte) error {
 	var a struct {
+		PkgName              string          `json:"pkgName"`
 		NotificationEndpoint json.RawMessage `json:"notificationEndpoint"`
 		LabelAssociations    []SummaryLabel  `json:"labelAssociations"`
 	}
 	if err := json.Unmarshal(b, &a); err != nil {
 		return err
 	}
+	s.PkgName = a.PkgName
 	s.LabelAssociations = a.LabelAssociations
 
 	e, err := endpoint.UnmarshalJSON(a.NotificationEndpoint)
@@ -715,6 +750,7 @@ type (
 type SummaryLabel struct {
 	ID         SafeID `json:"id"`
 	OrgID      SafeID `json:"orgID"`
+	PkgName    string `json:"pkgName"`
 	Name       string `json:"name"`
 	Properties struct {
 		Color       string `json:"color"`
@@ -755,11 +791,29 @@ type SummaryTelegraf struct {
 // SummaryVariable provides a summary of a pkg variable.
 type SummaryVariable struct {
 	ID                SafeID                      `json:"id,omitempty"`
+	PkgName           string                      `json:"pkgName"`
 	OrgID             SafeID                      `json:"orgID,omitempty"`
 	Name              string                      `json:"name"`
 	Description       string                      `json:"description"`
 	Arguments         *influxdb.VariableArguments `json:"arguments"`
 	LabelAssociations []SummaryLabel              `json:"labelAssociations"`
+}
+
+type identity struct {
+	name         *references
+	displayName  *references
+	shouldRemove bool
+}
+
+func (i *identity) Name() string {
+	if displayName := i.displayName.String(); displayName != "" {
+		return displayName
+	}
+	return i.name.String()
+}
+
+func (i *identity) PkgName() string {
+	return i.name.String()
 }
 
 const (
@@ -794,11 +848,11 @@ const (
 const bucketNameMinLength = 2
 
 type bucket struct {
+	identity
+
 	id             influxdb.ID
 	OrgID          influxdb.ID
 	Description    string
-	name           *references
-	displayName    *references
 	RetentionRules retentionRules
 	labels         sortedLabels
 
@@ -819,17 +873,6 @@ func (b *bucket) Labels() []*label {
 	return b.labels
 }
 
-func (b *bucket) Name() string {
-	if displayName := b.displayName.String(); displayName != "" {
-		return displayName
-	}
-	return b.name.String()
-}
-
-func (b *bucket) PkgName() string {
-	return b.name.String()
-}
-
 func (b *bucket) ResourceType() influxdb.ResourceType {
 	return KindBucket.ResourceType()
 }
@@ -843,6 +886,7 @@ func (b *bucket) summarize() SummaryBucket {
 		ID:                SafeID(b.ID()),
 		OrgID:             SafeID(b.OrgID),
 		Name:              b.Name(),
+		PkgName:           b.PkgName(),
 		Description:       b.Description,
 		RetentionPeriod:   b.RetentionRules.RP(),
 		LabelAssociations: toSummaryLabels(b.labels...),
@@ -864,7 +908,8 @@ func (b *bucket) valid() []validationErr {
 }
 
 func (b *bucket) shouldApply() bool {
-	return b.existing == nil ||
+	return b.shouldRemove ||
+		b.existing == nil ||
 		b.Description != b.existing.Description ||
 		b.Name() != b.existing.Name ||
 		b.RetentionRules.RP() != b.existing.RetentionPeriod
@@ -963,11 +1008,11 @@ const (
 const checkNameMinLength = 1
 
 type check struct {
+	identity
+
 	id            influxdb.ID
 	orgID         influxdb.ID
 	kind          checkKind
-	name          *references
-	displayName   *references
 	description   string
 	every         time.Duration
 	level         string
@@ -1001,17 +1046,6 @@ func (c *check) Labels() []*label {
 	return c.labels
 }
 
-func (c *check) Name() string {
-	if displayName := c.displayName.String(); displayName != "" {
-		return displayName
-	}
-	return c.name.String()
-}
-
-func (c *check) PkgName() string {
-	return c.name.String()
-}
-
 func (c *check) ResourceType() influxdb.ResourceType {
 	return KindCheck.ResourceType()
 }
@@ -1040,6 +1074,7 @@ func (c *check) summarize() SummaryCheck {
 	}
 
 	sum := SummaryCheck{
+		PkgName:           c.PkgName(),
 		Status:            c.Status(),
 		LabelAssociations: toSummaryLabels(c.labels...),
 	}
@@ -1264,10 +1299,10 @@ const (
 const labelNameMinLength = 2
 
 type label struct {
+	identity
+
 	id          influxdb.ID
 	OrgID       influxdb.ID
-	name        *references
-	displayName *references
 	Color       string
 	Description string
 	associationMapping
@@ -1276,17 +1311,6 @@ type label struct {
 	// exists in the platform. If a resource already exists(exists=true)
 	// then the ID should be populated.
 	existing *influxdb.Label
-}
-
-func (l *label) Name() string {
-	if displayName := l.displayName.String(); displayName != "" {
-		return displayName
-	}
-	return l.name.String()
-}
-
-func (l *label) PkgName() string {
-	return l.name.String()
 }
 
 func (l *label) ID() influxdb.ID {
@@ -1305,9 +1329,10 @@ func (l *label) shouldApply() bool {
 
 func (l *label) summarize() SummaryLabel {
 	return SummaryLabel{
-		ID:    SafeID(l.ID()),
-		OrgID: SafeID(l.OrgID),
-		Name:  l.Name(),
+		ID:      SafeID(l.ID()),
+		OrgID:   SafeID(l.OrgID),
+		PkgName: l.PkgName(),
+		Name:    l.Name(),
 		Properties: struct {
 			Color       string `json:"color"`
 			Description string `json:"description"`
@@ -1411,11 +1436,11 @@ const (
 )
 
 type notificationEndpoint struct {
+	identity
+
 	kind        notificationKind
 	id          influxdb.ID
 	OrgID       influxdb.ID
-	name        *references
-	displayName *references
 	description string
 	method      string
 	password    *references
@@ -1446,17 +1471,6 @@ func (n *notificationEndpoint) Labels() []*label {
 	return n.labels
 }
 
-func (n *notificationEndpoint) Name() string {
-	if displayName := n.displayName.String(); displayName != "" {
-		return displayName
-	}
-	return n.name.String()
-}
-
-func (n *notificationEndpoint) PkgName() string {
-	return n.name.String()
-}
-
 func (n *notificationEndpoint) ResourceType() influxdb.ResourceType {
 	return KindNotificationEndpointSlack.ResourceType()
 }
@@ -1465,7 +1479,7 @@ func (n *notificationEndpoint) base() endpoint.Base {
 	e := endpoint.Base{
 		Name:        n.Name(),
 		Description: n.description,
-		Status:      influxdb.Active,
+		Status:      n.influxStatus(),
 	}
 	if id := n.ID(); id > 0 {
 		e.ID = &id
@@ -1478,10 +1492,8 @@ func (n *notificationEndpoint) base() endpoint.Base {
 
 func (n *notificationEndpoint) summarize() SummaryNotificationEndpoint {
 	base := n.base()
-	if n.status != "" {
-		base.Status = influxdb.Status(n.status)
-	}
 	sum := SummaryNotificationEndpoint{
+		PkgName:           n.PkgName(),
 		LabelAssociations: toSummaryLabels(n.labels...),
 	}
 
@@ -1518,6 +1530,14 @@ func (n *notificationEndpoint) summarize() SummaryNotificationEndpoint {
 		}
 	}
 	return sum
+}
+
+func (n *notificationEndpoint) influxStatus() influxdb.Status {
+	status := influxdb.Active
+	if n.status != "" {
+		status = influxdb.Status(n.status)
+	}
+	return status
 }
 
 var validEndpointHTTPMethods = map[string]bool{
@@ -1629,9 +1649,10 @@ const (
 )
 
 type notificationRule struct {
+	identity
+
 	id    influxdb.ID
 	orgID influxdb.ID
-	name  *references
 
 	channel     string
 	description string
@@ -1659,10 +1680,6 @@ func (r *notificationRule) ID() influxdb.ID {
 
 func (r *notificationRule) Labels() []*label {
 	return r.labels
-}
-
-func (r *notificationRule) Name() string {
-	return r.name.String()
 }
 
 func (r *notificationRule) ResourceType() influxdb.ResourceType {
@@ -1812,7 +1829,13 @@ func (r *notificationRule) valid() []validationErr {
 		})
 	}
 
-	return vErrs
+	if len(vErrs) > 0 {
+		return []validationErr{
+			objectValidationErr(fieldSpec, vErrs...),
+		}
+	}
+
+	return nil
 }
 
 func toSummaryStatusRules(statusRules []struct{ curLvl, prevLvl string }) []SummaryStatusRule {
@@ -1870,9 +1893,10 @@ const (
 )
 
 type task struct {
+	identity
+
 	id          influxdb.ID
 	orgID       influxdb.ID
-	name        *references
 	cron        string
 	description string
 	every       time.Duration
@@ -1895,10 +1919,6 @@ func (t *task) Labels() []*label {
 	return t.labels
 }
 
-func (t *task) Name() string {
-	return t.name.String()
-}
-
 func (t *task) ResourceType() influxdb.ResourceType {
 	return KindTask.ResourceType()
 }
@@ -1913,7 +1933,7 @@ func (t *task) Status() influxdb.Status {
 var fluxRegex = regexp.MustCompile(`import\s+\".*\"`)
 
 func (t *task) flux() string {
-	taskOpts := []string{fmt.Sprintf("name: %q", t.name)}
+	taskOpts := []string{fmt.Sprintf("name: %q", t.Name())}
 	if t.cron != "" {
 		taskOpts = append(taskOpts, fmt.Sprintf("cron: %q", t.cron))
 	}
@@ -1986,7 +2006,14 @@ func (t *task) valid() []validationErr {
 			Msg:   "must be 1 of [active, inactive]",
 		})
 	}
-	return vErrs
+
+	if len(vErrs) > 0 {
+		return []validationErr{
+			objectValidationErr(fieldSpec, vErrs...),
+		}
+	}
+
+	return nil
 }
 
 type mapperTasks []*task
@@ -2004,7 +2031,8 @@ const (
 )
 
 type telegraf struct {
-	name   *references
+	identity
+
 	config influxdb.TelegrafConfig
 
 	labels sortedLabels
@@ -2016,10 +2044,6 @@ func (t *telegraf) ID() influxdb.ID {
 
 func (t *telegraf) Labels() []*label {
 	return t.labels
-}
-
-func (t *telegraf) Name() string {
-	return t.name.String()
 }
 
 func (t *telegraf) ResourceType() influxdb.ResourceType {
@@ -2039,6 +2063,24 @@ func (t *telegraf) summarize() SummaryTelegraf {
 	}
 }
 
+func (t *telegraf) valid() []validationErr {
+	var vErrs []validationErr
+	if t.config.Config == "" {
+		vErrs = append(vErrs, validationErr{
+			Field: fieldTelegrafConfig,
+			Msg:   "no config provided",
+		})
+	}
+
+	if len(vErrs) > 0 {
+		return []validationErr{
+			objectValidationErr(fieldSpec, vErrs...),
+		}
+	}
+
+	return nil
+}
+
 type mapperTelegrafs []*telegraf
 
 func (m mapperTelegrafs) Association(i int) labelAssociater {
@@ -2056,10 +2098,10 @@ const (
 )
 
 type variable struct {
+	identity
+
 	id          influxdb.ID
 	OrgID       influxdb.ID
-	name        *references
-	displayName *references
 	Description string
 	Type        string
 	Query       string
@@ -2087,17 +2129,6 @@ func (v *variable) Labels() []*label {
 	return v.labels
 }
 
-func (v *variable) Name() string {
-	if displayName := v.displayName.String(); displayName != "" {
-		return displayName
-	}
-	return v.name.String()
-}
-
-func (v *variable) PkgName() string {
-	return v.name.String()
-}
-
 func (v *variable) ResourceType() influxdb.ResourceType {
 	return KindVariable.ResourceType()
 }
@@ -2111,6 +2142,7 @@ func (v *variable) shouldApply() bool {
 
 func (v *variable) summarize() SummaryVariable {
 	return SummaryVariable{
+		PkgName:           v.PkgName(),
 		ID:                SafeID(v.ID()),
 		OrgID:             SafeID(v.OrgID),
 		Name:              v.Name(),
@@ -2121,6 +2153,13 @@ func (v *variable) summarize() SummaryVariable {
 }
 
 func (v *variable) influxVarArgs() *influxdb.VariableArguments {
+	// this zero value check is for situations where we want to marshal/unmarshal
+	// a variable and not have the invalid args blow up during unmarshaling. When
+	// that validation is decoupled from the unmarshaling, we can clean this up.
+	if v.Type == "" {
+		return nil
+	}
+
 	args := &influxdb.VariableArguments{
 		Type: v.Type,
 	}
@@ -2192,10 +2231,13 @@ const (
 	fieldDashCharts = "charts"
 )
 
+const dashboardNameMinLength = 2
+
 type dashboard struct {
+	identity
+
 	id          influxdb.ID
 	OrgID       influxdb.ID
-	name        *references
 	Description string
 	Charts      []chart
 
@@ -2208,10 +2250,6 @@ func (d *dashboard) ID() influxdb.ID {
 
 func (d *dashboard) Labels() []*label {
 	return d.labels
-}
-
-func (d *dashboard) Name() string {
-	return d.name.String()
 }
 
 func (d *dashboard) ResourceType() influxdb.ResourceType {
@@ -2240,6 +2278,19 @@ func (d *dashboard) summarize() SummaryDashboard {
 		})
 	}
 	return iDash
+}
+
+func (d *dashboard) valid() []validationErr {
+	var vErrs []validationErr
+	if err, ok := isValidName(d.Name(), dashboardNameMinLength); !ok {
+		vErrs = append(vErrs, err)
+	}
+	if len(vErrs) == 0 {
+		return nil
+	}
+	return []validationErr{
+		objectValidationErr(fieldSpec, vErrs...),
+	}
 }
 
 type mapperDashboards []*dashboard

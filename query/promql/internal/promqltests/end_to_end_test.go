@@ -3,7 +3,7 @@ package promqltests
 import (
 	"testing"
 
-	_ "github.com/influxdata/influxdb/query/builtin"
+	_ "github.com/influxdata/influxdb/v2/query/builtin"
 )
 
 func TestPromQLEndToEnd(t *testing.T) {

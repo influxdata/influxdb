@@ -3,13 +3,14 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"time"
 
 	"github.com/influxdata/flux/repl"
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/cmd/influx/internal"
-	"github.com/influxdata/influxdb/http"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/cmd/influx/internal"
+	"github.com/influxdata/influxdb/v2/http"
 	"github.com/spf13/cobra"
 )
 
@@ -23,7 +24,7 @@ func cmdTask(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 		return nil
 	}
 
-	cmd := opt.newCmd("task", runE)
+	cmd := opt.newCmd("task", runE, false)
 	cmd.Short = "Task management commands"
 
 	cmd.AddCommand(
@@ -38,16 +39,22 @@ func cmdTask(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	return cmd
 }
 
+var taskPrintFlags struct {
+	json        bool
+	hideHeaders bool
+}
+
 var taskCreateFlags struct {
 	org organization
 }
 
 func taskCreateCmd(opt genericCLIOpts) *cobra.Command {
-	cmd := opt.newCmd("create [query literal or @/path/to/query.flux]", taskCreateF)
+	cmd := opt.newCmd("create [query literal or @/path/to/query.flux]", taskCreateF, true)
 	cmd.Args = cobra.ExactArgs(1)
 	cmd.Short = "Create task"
 
 	taskCreateFlags.org.register(cmd, false)
+	registerPrintOptions(cmd, &taskPrintFlags.hideHeaders, &taskPrintFlags.json)
 
 	return cmd
 }
@@ -93,29 +100,14 @@ func taskCreateF(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	w := internal.NewTabWriter(os.Stdout)
-	w.WriteHeaders(
-		"ID",
-		"Name",
-		"OrganizationID",
-		"Organization",
-		"AuthorizationID",
-		"Status",
-		"Every",
-		"Cron",
+	return printTasks(
+		cmd.OutOrStdout(),
+		taskPrintOpts{
+			hideHeaders: taskPrintFlags.hideHeaders,
+			json:        taskPrintFlags.json,
+			task:        t,
+		},
 	)
-	w.Write(map[string]interface{}{
-		"ID":             t.ID.String(),
-		"Name":           t.Name,
-		"OrganizationID": t.OrganizationID.String(),
-		"Organization":   t.Organization,
-		"Status":         t.Status,
-		"Every":          t.Every,
-		"Cron":           t.Cron,
-	})
-	w.Flush()
-
-	return nil
 }
 
 var taskFindFlags struct {
@@ -127,11 +119,12 @@ var taskFindFlags struct {
 }
 
 func taskFindCmd(opt genericCLIOpts) *cobra.Command {
-	cmd := opt.newCmd("list", taskFindF)
+	cmd := opt.newCmd("list", taskFindF, true)
 	cmd.Short = "List tasks"
 	cmd.Aliases = []string{"find", "ls"}
 
 	taskFindFlags.org.register(cmd, false)
+	registerPrintOptions(cmd, &taskPrintFlags.hideHeaders, &taskPrintFlags.json)
 	cmd.Flags().StringVarP(&taskFindFlags.id, "id", "i", "", "task ID")
 	cmd.Flags().StringVarP(&taskFindFlags.user, "user-id", "n", "", "task owner ID")
 	cmd.Flags().IntVarP(&taskFindFlags.limit, "limit", "", influxdb.TaskDefaultPageSize, "the number of tasks to find")
@@ -201,32 +194,14 @@ func taskFindF(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	w := internal.NewTabWriter(os.Stdout)
-	w.HideHeaders(!taskFindFlags.headers)
-	w.WriteHeaders(
-		"ID",
-		"Name",
-		"OrganizationID",
-		"Organization",
-		"AuthorizationID",
-		"Status",
-		"Every",
-		"Cron",
+	return printTasks(
+		cmd.OutOrStdout(),
+		taskPrintOpts{
+			hideHeaders: taskPrintFlags.hideHeaders,
+			json:        taskPrintFlags.json,
+			tasks:       tasks,
+		},
 	)
-	for _, t := range tasks {
-		w.Write(map[string]interface{}{
-			"ID":             t.ID.String(),
-			"Name":           t.Name,
-			"OrganizationID": t.OrganizationID.String(),
-			"Organization":   t.Organization,
-			"Status":         t.Status,
-			"Every":          t.Every,
-			"Cron":           t.Cron,
-		})
-	}
-	w.Flush()
-
-	return nil
 }
 
 var taskUpdateFlags struct {
@@ -235,9 +210,10 @@ var taskUpdateFlags struct {
 }
 
 func taskUpdateCmd(opt genericCLIOpts) *cobra.Command {
-	cmd := opt.newCmd("update", taskUpdateF)
+	cmd := opt.newCmd("update", taskUpdateF, true)
 	cmd.Short = "Update task"
 
+	registerPrintOptions(cmd, &taskPrintFlags.hideHeaders, &taskPrintFlags.json)
 	cmd.Flags().StringVarP(&taskUpdateFlags.id, "id", "i", "", "task ID (required)")
 	cmd.Flags().StringVarP(&taskUpdateFlags.status, "status", "", "", "update task status")
 	cmd.MarkFlagRequired("id")
@@ -261,7 +237,7 @@ func taskUpdateF(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	update := influxdb.TaskUpdate{}
+	var update influxdb.TaskUpdate
 	if taskUpdateFlags.status != "" {
 		update.Status = &taskUpdateFlags.status
 	}
@@ -279,29 +255,14 @@ func taskUpdateF(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	w := internal.NewTabWriter(os.Stdout)
-	w.WriteHeaders(
-		"ID",
-		"Name",
-		"OrganizationID",
-		"Organization",
-		"AuthorizationID",
-		"Status",
-		"Every",
-		"Cron",
+	return printTasks(
+		cmd.OutOrStdout(),
+		taskPrintOpts{
+			hideHeaders: taskPrintFlags.hideHeaders,
+			json:        taskPrintFlags.json,
+			task:        t,
+		},
 	)
-	w.Write(map[string]interface{}{
-		"ID":             t.ID.String(),
-		"Name":           t.Name,
-		"OrganizationID": t.OrganizationID.String(),
-		"Organization":   t.Organization,
-		"Status":         t.Status,
-		"Every":          t.Every,
-		"Cron":           t.Cron,
-	})
-	w.Flush()
-
-	return nil
 }
 
 var taskDeleteFlags struct {
@@ -309,9 +270,10 @@ var taskDeleteFlags struct {
 }
 
 func taskDeleteCmd(opt genericCLIOpts) *cobra.Command {
-	cmd := opt.newCmd("delete", taskDeleteF)
+	cmd := opt.newCmd("delete", taskDeleteF, true)
 	cmd.Short = "Delete task"
 
+	registerPrintOptions(cmd, &taskPrintFlags.hideHeaders, &taskPrintFlags.json)
 	cmd.Flags().StringVarP(&taskDeleteFlags.id, "id", "i", "", "task id (required)")
 	cmd.MarkFlagRequired("id")
 
@@ -345,33 +307,68 @@ func taskDeleteF(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	w := internal.NewTabWriter(os.Stdout)
-	w.WriteHeaders(
+	return printTasks(
+		cmd.OutOrStdout(),
+		taskPrintOpts{
+			hideHeaders: taskPrintFlags.hideHeaders,
+			json:        taskPrintFlags.json,
+			task:        t,
+		},
+	)
+}
+
+type taskPrintOpts struct {
+	hideHeaders bool
+	json        bool
+	task        *http.Task
+	tasks       []http.Task
+}
+
+func printTasks(w io.Writer, opts taskPrintOpts) error {
+	if opts.json {
+		var v interface{} = opts.tasks
+		if opts.task != nil {
+			v = opts.task
+		}
+		return writeJSON(w, v)
+	}
+
+	tabW := internal.NewTabWriter(os.Stdout)
+	defer tabW.Flush()
+
+	tabW.HideHeaders(opts.hideHeaders)
+
+	tabW.WriteHeaders(
 		"ID",
 		"Name",
-		"OrganizationID",
+		"Organization ID",
 		"Organization",
-		"AuthorizationID",
 		"Status",
 		"Every",
 		"Cron",
 	)
-	w.Write(map[string]interface{}{
-		"ID":             t.ID.String(),
-		"Name":           t.Name,
-		"OrganizationID": t.OrganizationID.String(),
-		"Organization":   t.Organization,
-		"Status":         t.Status,
-		"Every":          t.Every,
-		"Cron":           t.Cron,
-	})
-	w.Flush()
+
+	if opts.task != nil {
+		opts.tasks = append(opts.tasks, *opts.task)
+	}
+
+	for _, t := range opts.tasks {
+		tabW.Write(map[string]interface{}{
+			"ID":              t.ID.String(),
+			"Name":            t.Name,
+			"Organization ID": t.OrganizationID.String(),
+			"Organization":    t.Organization,
+			"Status":          t.Status,
+			"Every":           t.Every,
+			"Cron":            t.Cron,
+		})
+	}
 
 	return nil
 }
 
 func taskLogCmd(opt genericCLIOpts) *cobra.Command {
-	cmd := opt.newCmd("log", nil)
+	cmd := opt.newCmd("log", nil, false)
 	cmd.Run = seeHelp
 	cmd.Short = "Log related commands"
 
@@ -388,10 +385,11 @@ var taskLogFindFlags struct {
 }
 
 func taskLogFindCmd(opt genericCLIOpts) *cobra.Command {
-	cmd := opt.newCmd("list", taskLogFindF)
+	cmd := opt.newCmd("list", taskLogFindF, true)
 	cmd.Short = "List logs for task"
 	cmd.Aliases = []string{"find", "ls"}
 
+	registerPrintOptions(cmd, &taskPrintFlags.hideHeaders, &taskPrintFlags.json)
 	cmd.Flags().StringVarP(&taskLogFindFlags.taskID, "task-id", "", "", "task id (required)")
 	cmd.Flags().StringVarP(&taskLogFindFlags.runID, "run-id", "", "", "run id")
 	cmd.MarkFlagRequired("task-id")
@@ -431,26 +429,30 @@ func taskLogFindF(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	w := internal.NewTabWriter(os.Stdout)
-	w.WriteHeaders(
-		"RunID",
-		"Time",
-		"Message",
-	)
+	w := cmd.OutOrStdout()
+	if taskPrintFlags.json {
+		return writeJSON(w, logs)
+	}
+
+	tabW := internal.NewTabWriter(w)
+	defer tabW.Flush()
+
+	tabW.HideHeaders(taskPrintFlags.hideHeaders)
+
+	tabW.WriteHeaders("RunID", "Time", "Message")
 	for _, log := range logs {
-		w.Write(map[string]interface{}{
+		tabW.Write(map[string]interface{}{
 			"RunID":   log.RunID,
 			"Time":    log.Time,
 			"Message": log.Message,
 		})
 	}
-	w.Flush()
 
 	return nil
 }
 
 func taskRunCmd(opt genericCLIOpts) *cobra.Command {
-	cmd := opt.newCmd("run", nil)
+	cmd := opt.newCmd("run", nil, false)
 	cmd.Run = seeHelp
 	cmd.Short = "List runs for a task"
 	cmd.AddCommand(
@@ -470,10 +472,11 @@ var taskRunFindFlags struct {
 }
 
 func taskRunFindCmd(opt genericCLIOpts) *cobra.Command {
-	cmd := opt.newCmd("list", taskRunFindF)
+	cmd := opt.newCmd("list", taskRunFindF, true)
 	cmd.Short = "List runs for a task"
 	cmd.Aliases = []string{"find", "ls"}
 
+	registerPrintOptions(cmd, &taskPrintFlags.hideHeaders, &taskPrintFlags.json)
 	cmd.Flags().StringVarP(&taskRunFindFlags.taskID, "task-id", "", "", "task id (required)")
 	cmd.Flags().StringVarP(&taskRunFindFlags.runID, "run-id", "", "", "run id")
 	cmd.Flags().StringVarP(&taskRunFindFlags.afterTime, "after", "", "", "after time for filtering")
@@ -525,8 +528,21 @@ func taskRunFindF(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	w := internal.NewTabWriter(os.Stdout)
-	w.WriteHeaders(
+	w := cmd.OutOrStdout()
+	if taskPrintFlags.json {
+		if runs == nil {
+			// guarantee we never return a null value from CLI
+			runs = make([]*influxdb.Run, 0)
+		}
+		return writeJSON(w, runs)
+	}
+
+	tabW := internal.NewTabWriter(w)
+	defer tabW.Flush()
+
+	tabW.HideHeaders(taskPrintFlags.hideHeaders)
+
+	tabW.WriteHeaders(
 		"ID",
 		"TaskID",
 		"Status",
@@ -542,7 +558,7 @@ func taskRunFindF(cmd *cobra.Command, args []string) error {
 		finishedAt := r.FinishedAt.Format(time.RFC3339Nano)
 		requestedAt := r.RequestedAt.Format(time.RFC3339Nano)
 
-		w.Write(map[string]interface{}{
+		tabW.Write(map[string]interface{}{
 			"ID":           r.ID,
 			"TaskID":       r.TaskID,
 			"Status":       r.Status,
@@ -552,7 +568,6 @@ func taskRunFindF(cmd *cobra.Command, args []string) error {
 			"RequestedAt":  requestedAt,
 		})
 	}
-	w.Flush()
 
 	return nil
 }
@@ -562,7 +577,7 @@ var runRetryFlags struct {
 }
 
 func taskRunRetryCmd(opt genericCLIOpts) *cobra.Command {
-	cmd := opt.newCmd("retry", runRetryF)
+	cmd := opt.newCmd("retry", runRetryF, true)
 	cmd.Short = "retry a run"
 
 	cmd.Flags().StringVarP(&runRetryFlags.taskID, "task-id", "i", "", "task id (required)")

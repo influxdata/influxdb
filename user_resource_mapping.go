@@ -161,6 +161,10 @@ func (m *UserResourceMapping) memberPerms() ([]Permission, error) {
 		ps = append(ps, MemberPermissions(m.ResourceID)...)
 	}
 
+	if m.ResourceType == BucketsResourceType {
+		ps = append(ps, MemberBucketPermission(m.ResourceID))
+	}
+
 	return ps, nil
 }
 

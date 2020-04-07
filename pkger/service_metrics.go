@@ -3,9 +3,9 @@ package pkger
 import (
 	"context"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/kit/metric"
-	"github.com/influxdata/influxdb/kit/prom"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/metric"
+	"github.com/influxdata/influxdb/v2/kit/prom"
 )
 
 type mwMetrics struct {
@@ -25,6 +25,12 @@ func MWMetrics(reg *prom.Registry) SVCMiddleware {
 			next: svc,
 		}
 	}
+}
+
+func (s *mwMetrics) InitStack(ctx context.Context, userID influxdb.ID, newStack Stack) (Stack, error) {
+	rec := s.rec.Record("init_stack")
+	stack, err := s.next.InitStack(ctx, userID, newStack)
+	return stack, rec(err)
 }
 
 func (s *mwMetrics) CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*Pkg, error) {

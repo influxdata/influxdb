@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/kv"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kv"
 )
 
 var (
@@ -270,13 +270,29 @@ func (s *Store) DeleteUser(ctx context.Context, tx kv.Tx, id influxdb.ID) error 
 		return ErrInternalServiceError(err)
 	}
 
-	// clean up users password
+	// Clean up users password.
 	ub, err := tx.Bucket(userpasswordBucket)
 	if err != nil {
 		return UnavailablePasswordServiceError(err)
 	}
+	if err := ub.Delete(encodedID); err != nil {
+		return err
+	}
 
-	return ub.Delete(encodedID)
+	// Clean up user URMs.
+	urms, err := s.ListURMs(ctx, tx, influxdb.UserResourceMappingFilter{UserID: id})
+	if err != nil {
+		return err
+	}
+	// Do not fail fast on error.
+	// Try to avoid as much as possible the effects of partial deletion.
+	aggErr := NewAggregateError()
+	for _, urm := range urms {
+		if err := s.DeleteURM(ctx, tx, urm.ResourceID, urm.UserID); err != nil {
+			aggErr.Add(err)
+		}
+	}
+	return aggErr.Err()
 }
 
 func (s *Store) GetPassword(ctx context.Context, tx kv.Tx, id influxdb.ID) (string, error) {

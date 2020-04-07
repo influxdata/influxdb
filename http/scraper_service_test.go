@@ -11,12 +11,12 @@ import (
 	"testing"
 
 	"github.com/influxdata/httprouter"
-	"github.com/influxdata/influxdb"
-	platcontext "github.com/influxdata/influxdb/context"
-	httpMock "github.com/influxdata/influxdb/http/mock"
-	kithttp "github.com/influxdata/influxdb/kit/transport/http"
-	"github.com/influxdata/influxdb/mock"
-	platformtesting "github.com/influxdata/influxdb/testing"
+	"github.com/influxdata/influxdb/v2"
+	platcontext "github.com/influxdata/influxdb/v2/context"
+	httpMock "github.com/influxdata/influxdb/v2/http/mock"
+	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
+	"github.com/influxdata/influxdb/v2/mock"
+	platformtesting "github.com/influxdata/influxdb/v2/testing"
 	"go.uber.org/zap/zaptest"
 )
 

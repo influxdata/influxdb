@@ -1,17 +1,28 @@
 package pkger
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"regexp"
 	"sort"
 	"strings"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/notification"
-	icheck "github.com/influxdata/influxdb/notification/check"
-	"github.com/influxdata/influxdb/notification/endpoint"
-	"github.com/influxdata/influxdb/notification/rule"
+	"github.com/influxdata/influxdb/v2"
+	ierrors "github.com/influxdata/influxdb/v2/kit/errors"
+	"github.com/influxdata/influxdb/v2/notification"
+	icheck "github.com/influxdata/influxdb/v2/notification/check"
+	"github.com/influxdata/influxdb/v2/notification/endpoint"
+	"github.com/influxdata/influxdb/v2/notification/rule"
+	"github.com/influxdata/influxdb/v2/pkger/internal/wordplay"
+	"github.com/influxdata/influxdb/v2/snowflake"
 )
+
+var idGenerator = snowflake.NewDefaultIDGenerator()
+
+// NameGenerator generates a random name. Includes an optional fuzz option to
+// further randomize the name.
+type NameGenerator func() string
 
 // ResourceToClone is a resource that will be cloned.
 type ResourceToClone struct {
@@ -29,6 +40,352 @@ func (r ResourceToClone) OK() error {
 		return errors.New("must provide an ID")
 	}
 	return nil
+}
+
+var kindPriorities = map[Kind]int{
+	KindLabel:                         1,
+	KindBucket:                        2,
+	KindCheck:                         3,
+	KindCheckDeadman:                  4,
+	KindCheckThreshold:                5,
+	KindNotificationEndpoint:          6,
+	KindNotificationEndpointHTTP:      7,
+	KindNotificationEndpointPagerDuty: 8,
+	KindNotificationEndpointSlack:     9,
+	KindNotificationRule:              10,
+	KindTask:                          11,
+	KindVariable:                      12,
+	KindDashboard:                     13,
+	KindTelegraf:                      14,
+}
+
+type exportKey struct {
+	orgID influxdb.ID
+	id    influxdb.ID
+	name  string
+	kind  Kind
+}
+
+func newExportKey(orgID, id influxdb.ID, k Kind, name string) exportKey {
+	return exportKey{
+		orgID: orgID,
+		id:    id,
+		name:  name,
+		kind:  k,
+	}
+}
+
+type resourceExporter struct {
+	nameGen NameGenerator
+
+	bucketSVC   influxdb.BucketService
+	checkSVC    influxdb.CheckService
+	dashSVC     influxdb.DashboardService
+	labelSVC    influxdb.LabelService
+	endpointSVC influxdb.NotificationEndpointService
+	ruleSVC     influxdb.NotificationRuleStore
+	taskSVC     influxdb.TaskService
+	teleSVC     influxdb.TelegrafConfigStore
+	varSVC      influxdb.VariableService
+
+	mObjects  map[exportKey]Object
+	mPkgNames map[string]bool
+}
+
+func newResourceExporter(svc *Service) *resourceExporter {
+	return &resourceExporter{
+		nameGen:     wordplay.GetRandomName,
+		bucketSVC:   svc.bucketSVC,
+		checkSVC:    svc.checkSVC,
+		dashSVC:     svc.dashSVC,
+		labelSVC:    svc.labelSVC,
+		endpointSVC: svc.endpointSVC,
+		ruleSVC:     svc.ruleSVC,
+		taskSVC:     svc.taskSVC,
+		teleSVC:     svc.teleSVC,
+		varSVC:      svc.varSVC,
+		mObjects:    make(map[exportKey]Object),
+		mPkgNames:   make(map[string]bool),
+	}
+}
+
+func (ex *resourceExporter) Export(ctx context.Context, resourcesToClone []ResourceToClone, labelNames ...string) error {
+	cloneAssFn, err := ex.resourceCloneAssociationsGen(ctx, labelNames...)
+	if err != nil {
+		return err
+	}
+
+	resourcesToClone = uniqResourcesToClone(resourcesToClone)
+	// sorting this in priority order guarantees that the dependencies/associations
+	// for a resource are handled prior to the resource being processed.
+	// 	i.e. if a bucket depends on a label, then labels need to be run first
+	//		to guarantee they are available before a bucket is exported.
+	sort.Slice(resourcesToClone, func(i, j int) bool {
+		iName, jName := resourcesToClone[i].Name, resourcesToClone[j].Name
+		iKind, jKind := resourcesToClone[i].Kind, resourcesToClone[j].Kind
+
+		if iKind.is(jKind) {
+			return iName < jName
+		}
+		return kindPriorities[iKind] < kindPriorities[jKind]
+	})
+
+	for _, r := range resourcesToClone {
+		err := ex.resourceCloneToKind(ctx, r, cloneAssFn)
+		if err != nil {
+			return internalErr(fmt.Errorf("failed to clone resource: resource_id=%s resource_kind=%s err=%q", r.ID, r.Kind, err))
+		}
+	}
+
+	return nil
+}
+
+func (ex *resourceExporter) Objects() []Object {
+	objects := make([]Object, 0, len(ex.mObjects))
+	for _, obj := range ex.mObjects {
+		objects = append(objects, obj)
+	}
+
+	sort.Slice(objects, func(i, j int) bool {
+		iName, jName := objects[i].Name(), objects[j].Name()
+		iKind, jKind := objects[i].Kind, objects[j].Kind
+
+		if iKind.is(jKind) {
+			return iName < jName
+		}
+		return kindPriorities[iKind] < kindPriorities[jKind]
+	})
+
+	return objects
+}
+
+func (ex *resourceExporter) uniqByNameResID() influxdb.ID {
+	// we only need an id when we have resources that are not unique by name via the
+	// metastore. resoureces that are unique by name will be provided a default stamp
+	// making looksup unique since each resource will be unique by name.
+	const uniqByNameResID = 0
+	return uniqByNameResID
+}
+
+type cloneAssociationsFn func(context.Context, ResourceToClone) (associations []Resource, skipResource bool, err error)
+
+func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceToClone, cFn cloneAssociationsFn) (e error) {
+	defer func() {
+		if e != nil {
+			e = ierrors.Wrap(e, "cloning resource")
+		}
+	}()
+
+	ass, skipResource, err := cFn(ctx, r)
+	if err != nil {
+		return err
+	}
+	if skipResource {
+		return nil
+	}
+
+	mapResource := func(orgID, uniqResID influxdb.ID, k Kind, object Object) {
+		// overwrite the default metadata.name field with export generated one here
+		object.Metadata[fieldName] = ex.uniqName()
+
+		if len(ass) > 0 {
+			object.Spec[fieldAssociations] = ass
+		}
+		key := newExportKey(orgID, uniqResID, k, object.Spec.stringShort(fieldName))
+		ex.mObjects[key] = object
+	}
+
+	uniqByNameResID := ex.uniqByNameResID()
+
+	switch {
+	case r.Kind.is(KindBucket):
+		bkt, err := ex.bucketSVC.FindBucketByID(ctx, r.ID)
+		if err != nil {
+			return err
+		}
+		mapResource(bkt.OrgID, uniqByNameResID, KindBucket, BucketToObject(r.Name, *bkt))
+	case r.Kind.is(KindCheck),
+		r.Kind.is(KindCheckDeadman),
+		r.Kind.is(KindCheckThreshold):
+		ch, err := ex.checkSVC.FindCheckByID(ctx, r.ID)
+		if err != nil {
+			return err
+		}
+		mapResource(ch.GetOrgID(), uniqByNameResID, KindCheck, CheckToObject(r.Name, ch))
+	case r.Kind.is(KindDashboard):
+		dash, err := ex.findDashboardByIDFull(ctx, r.ID)
+		if err != nil {
+			return err
+		}
+		mapResource(dash.OrganizationID, dash.ID, KindDashboard, DashboardToObject(*dash, r.Name))
+	case r.Kind.is(KindLabel):
+		l, err := ex.labelSVC.FindLabelByID(ctx, r.ID)
+		if err != nil {
+			return err
+		}
+		mapResource(l.OrgID, uniqByNameResID, KindLabel, LabelToObject(r.Name, *l))
+	case r.Kind.is(KindNotificationEndpoint),
+		r.Kind.is(KindNotificationEndpointHTTP),
+		r.Kind.is(KindNotificationEndpointPagerDuty),
+		r.Kind.is(KindNotificationEndpointSlack):
+		e, err := ex.endpointSVC.FindNotificationEndpointByID(ctx, r.ID)
+		if err != nil {
+			return err
+		}
+		mapResource(e.GetOrgID(), uniqByNameResID, KindNotificationEndpoint, NotificationEndpointToObject(r.Name, e))
+	case r.Kind.is(KindNotificationRule):
+		rule, ruleEndpoint, err := ex.getEndpointRule(ctx, r.ID)
+		if err != nil {
+			return err
+		}
+
+		endpointKey := newExportKey(ruleEndpoint.GetOrgID(), uniqByNameResID, KindNotificationEndpoint, ruleEndpoint.GetName())
+		object, ok := ex.mObjects[endpointKey]
+		if !ok {
+			mapResource(ruleEndpoint.GetOrgID(), uniqByNameResID, KindNotificationEndpoint, NotificationEndpointToObject("", ruleEndpoint))
+			object = ex.mObjects[endpointKey]
+		}
+		endpointObjectName := object.Name()
+
+		mapResource(rule.GetOrgID(), rule.GetID(), KindNotificationRule, ruleToObject(rule, endpointObjectName, r.Name))
+	case r.Kind.is(KindTask):
+		t, err := ex.taskSVC.FindTaskByID(ctx, r.ID)
+		if err != nil {
+			return err
+		}
+		mapResource(t.OrganizationID, t.ID, KindTask, taskToObject(*t, r.Name))
+	case r.Kind.is(KindTelegraf):
+		t, err := ex.teleSVC.FindTelegrafConfigByID(ctx, r.ID)
+		if err != nil {
+			return err
+		}
+		mapResource(t.OrgID, t.ID, KindTelegraf, telegrafToObject(*t, r.Name))
+	case r.Kind.is(KindVariable):
+		v, err := ex.varSVC.FindVariableByID(ctx, r.ID)
+		if err != nil {
+			return err
+		}
+		mapResource(v.OrganizationID, uniqByNameResID, KindVariable, VariableToObject(r.Name, *v))
+	default:
+		return errors.New("unsupported kind provided: " + string(r.Kind))
+	}
+
+	return nil
+}
+
+func (ex *resourceExporter) resourceCloneAssociationsGen(ctx context.Context, labelNames ...string) (cloneAssociationsFn, error) {
+	mLabelNames := make(map[string]bool)
+	for _, labelName := range labelNames {
+		mLabelNames[labelName] = true
+	}
+
+	mLabelIDs, err := getLabelIDMap(ctx, ex.labelSVC, labelNames)
+	if err != nil {
+		return nil, err
+	}
+
+	cloneFn := func(ctx context.Context, r ResourceToClone) ([]Resource, bool, error) {
+		if r.Kind.is(KindUnknown) {
+			return nil, true, nil
+		}
+		if r.Kind.is(KindLabel) {
+			// check here verifies the label maps to an id of a valid label name
+			shouldSkip := len(mLabelIDs) > 0 && !mLabelIDs[r.ID]
+			return nil, shouldSkip, nil
+		}
+
+		labels, err := ex.labelSVC.FindResourceLabels(ctx, influxdb.LabelMappingFilter{
+			ResourceID:   r.ID,
+			ResourceType: r.Kind.ResourceType(),
+		})
+		if err != nil {
+			return nil, false, ierrors.Wrap(err, "finding resource labels")
+		}
+
+		if len(mLabelNames) > 0 {
+			shouldSkip := true
+			for _, l := range labels {
+				if _, ok := mLabelNames[l.Name]; ok {
+					shouldSkip = false
+					break
+				}
+			}
+			if shouldSkip {
+				return nil, true, nil
+			}
+		}
+
+		var associations []Resource
+		for _, l := range labels {
+			if len(mLabelNames) > 0 {
+				if _, ok := mLabelNames[l.Name]; !ok {
+					continue
+				}
+			}
+
+			labelObject := LabelToObject("", *l)
+			labelObject.Metadata[fieldName] = ex.uniqName()
+
+			k := newExportKey(l.OrgID, ex.uniqByNameResID(), KindLabel, l.Name)
+			existing, ok := ex.mObjects[k]
+			if ok {
+				associations = append(associations, Resource{
+					fieldKind: KindLabel.String(),
+					fieldName: existing.Name(),
+				})
+				continue
+			}
+			associations = append(associations, Resource{
+				fieldKind: KindLabel.String(),
+				fieldName: labelObject.Name(),
+			})
+			ex.mObjects[k] = labelObject
+		}
+		return associations, false, nil
+	}
+
+	return cloneFn, nil
+}
+
+func (ex *resourceExporter) getEndpointRule(ctx context.Context, id influxdb.ID) (influxdb.NotificationRule, influxdb.NotificationEndpoint, error) {
+	rule, err := ex.ruleSVC.FindNotificationRuleByID(ctx, id)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	ruleEndpoint, err := ex.endpointSVC.FindNotificationEndpointByID(ctx, rule.GetEndpointID())
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return rule, ruleEndpoint, nil
+}
+
+func (ex *resourceExporter) findDashboardByIDFull(ctx context.Context, id influxdb.ID) (*influxdb.Dashboard, error) {
+	dash, err := ex.dashSVC.FindDashboardByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	for _, cell := range dash.Cells {
+		v, err := ex.dashSVC.GetDashboardCellView(ctx, id, cell.ID)
+		if err != nil {
+			return nil, err
+		}
+		cell.View = v
+	}
+	return dash, nil
+}
+
+func (ex *resourceExporter) uniqName() string {
+	uuid := idGenerator.ID().String()
+	for i := 1; i < 250; i++ {
+		name := fmt.Sprintf("%s_%s", ex.nameGen(), uuid[10:])
+		if !ex.mPkgNames[name] {
+			return name
+		}
+	}
+	// if all else fails, generate a UUID for the name
+	return uuid
 }
 
 func uniqResourcesToClone(resources []ResourceToClone) []ResourceToClone {
@@ -57,40 +414,34 @@ func uniqResourcesToClone(resources []ResourceToClone) []ResourceToClone {
 	return out
 }
 
-func bucketToObject(bkt influxdb.Bucket, name string) Object {
+// BucketToObject converts a influxdb.Bucket into an Object.
+func BucketToObject(name string, bkt influxdb.Bucket) Object {
 	if name == "" {
 		name = bkt.Name
 	}
-	k := Object{
-		APIVersion: APIVersion,
-		Type:       KindBucket,
-		Metadata:   convertToMetadataResource(name),
-		Spec:       make(Resource),
-	}
-	assignNonZeroStrings(k.Spec, map[string]string{fieldDescription: bkt.Description})
+
+	o := newObject(KindBucket, name)
+	assignNonZeroStrings(o.Spec, map[string]string{fieldDescription: bkt.Description})
 	if bkt.RetentionPeriod != 0 {
-		k.Spec[fieldBucketRetentionRules] = retentionRules{newRetentionRule(bkt.RetentionPeriod)}
+		o.Spec[fieldBucketRetentionRules] = retentionRules{newRetentionRule(bkt.RetentionPeriod)}
 	}
-	return k
+	return o
 }
 
-func checkToObject(ch influxdb.Check, name string) Object {
+func CheckToObject(name string, ch influxdb.Check) Object {
 	if name == "" {
 		name = ch.GetName()
 	}
-	k := Object{
-		APIVersion: APIVersion,
-		Metadata:   convertToMetadataResource(name),
-		Spec: Resource{
-			fieldStatus: influxdb.TaskStatusActive,
-		},
-	}
-	assignNonZeroStrings(k.Spec, map[string]string{fieldDescription: ch.GetDescription()})
+	o := newObject(KindCheck, name)
+	assignNonZeroStrings(o.Spec, map[string]string{
+		fieldDescription: ch.GetDescription(),
+		fieldStatus:      influxdb.TaskStatusActive,
+	})
 
 	assignBase := func(base icheck.Base) {
-		k.Spec[fieldQuery] = strings.TrimSpace(base.Query.Text)
-		k.Spec[fieldCheckStatusMessageTemplate] = base.StatusMessageTemplate
-		assignNonZeroFluxDurs(k.Spec, map[string]*notification.Duration{
+		o.Spec[fieldQuery] = strings.TrimSpace(base.Query.Text)
+		o.Spec[fieldCheckStatusMessageTemplate] = base.StatusMessageTemplate
+		assignNonZeroFluxDurs(o.Spec, map[string]*notification.Duration{
 			fieldEvery:  base.Every,
 			fieldOffset: base.Offset,
 		})
@@ -106,30 +457,30 @@ func checkToObject(ch influxdb.Check, name string) Object {
 			})
 		}
 		if len(tags) > 0 {
-			k.Spec[fieldCheckTags] = tags
+			o.Spec[fieldCheckTags] = tags
 		}
 	}
 
 	switch cT := ch.(type) {
 	case *icheck.Deadman:
-		k.Type = KindCheckDeadman
+		o.Kind = KindCheckDeadman
 		assignBase(cT.Base)
-		assignNonZeroFluxDurs(k.Spec, map[string]*notification.Duration{
+		assignNonZeroFluxDurs(o.Spec, map[string]*notification.Duration{
 			fieldCheckTimeSince: cT.TimeSince,
 			fieldCheckStaleTime: cT.StaleTime,
 		})
-		k.Spec[fieldLevel] = cT.Level.String()
-		assignNonZeroBools(k.Spec, map[string]bool{fieldCheckReportZero: cT.ReportZero})
+		o.Spec[fieldLevel] = cT.Level.String()
+		assignNonZeroBools(o.Spec, map[string]bool{fieldCheckReportZero: cT.ReportZero})
 	case *icheck.Threshold:
-		k.Type = KindCheckThreshold
+		o.Kind = KindCheckThreshold
 		assignBase(cT.Base)
 		var thresholds []Resource
 		for _, th := range cT.Thresholds {
 			thresholds = append(thresholds, convertThreshold(th))
 		}
-		k.Spec[fieldCheckThresholds] = thresholds
+		o.Spec[fieldCheckThresholds] = thresholds
 	}
-	return k
+	return o
 }
 
 func convertThreshold(th icheck.ThresholdConfig) Resource {
@@ -409,7 +760,7 @@ func convertQueries(iQueries []influxdb.DashboardQuery) queries {
 	return out
 }
 
-// DashboardToObject converts an influxdb.Dashboard to a pkger.Resource.
+// DashboardToObject converts an influxdb.Dashboard to an Object.
 func DashboardToObject(dash influxdb.Dashboard, name string) Object {
 	if name == "" {
 		name = dash.Name
@@ -435,95 +786,78 @@ func DashboardToObject(dash influxdb.Dashboard, name string) Object {
 		charts = append(charts, convertChartToResource(ch))
 	}
 
-	return Object{
-		APIVersion: APIVersion,
-		Type:       KindDashboard,
-		Metadata:   convertToMetadataResource(name),
-		Spec: Resource{
-			fieldDescription: dash.Description,
-			fieldDashCharts:  charts,
-		},
-	}
+	o := newObject(KindDashboard, name)
+	o.Spec[fieldDescription] = dash.Description
+	o.Spec[fieldDashCharts] = charts
+	return o
 }
 
-func labelToObject(l influxdb.Label, name string) Object {
+// LabelToObject converts an influxdb.Label to an Object.
+func LabelToObject(name string, l influxdb.Label) Object {
 	if name == "" {
 		name = l.Name
 	}
-	k := Object{
-		APIVersion: APIVersion,
-		Type:       KindLabel,
-		Metadata:   convertToMetadataResource(name),
-		Spec:       make(Resource),
-	}
 
-	assignNonZeroStrings(k.Spec, map[string]string{
+	o := newObject(KindLabel, name)
+	assignNonZeroStrings(o.Spec, map[string]string{
 		fieldDescription: l.Properties["description"],
 		fieldLabelColor:  l.Properties["color"],
 	})
-	return k
+	return o
 }
 
-func endpointKind(e influxdb.NotificationEndpoint, name string) Object {
+func NotificationEndpointToObject(name string, e influxdb.NotificationEndpoint) Object {
 	if name == "" {
 		name = e.GetName()
 	}
-	k := Object{
-		APIVersion: APIVersion,
-		Metadata:   convertToMetadataResource(name),
-		Spec:       make(Resource),
-	}
-	assignNonZeroStrings(k.Spec, map[string]string{
+
+	o := newObject(KindNotificationEndpoint, name)
+	assignNonZeroStrings(o.Spec, map[string]string{
 		fieldDescription: e.GetDescription(),
 		fieldStatus:      string(e.GetStatus()),
 	})
 
 	switch actual := e.(type) {
 	case *endpoint.HTTP:
-		k.Type = KindNotificationEndpointHTTP
-		k.Spec[fieldNotificationEndpointHTTPMethod] = actual.Method
-		k.Spec[fieldNotificationEndpointURL] = actual.URL
-		k.Spec[fieldType] = actual.AuthMethod
-		assignNonZeroSecrets(k.Spec, map[string]influxdb.SecretField{
+		o.Kind = KindNotificationEndpointHTTP
+		o.Spec[fieldNotificationEndpointHTTPMethod] = actual.Method
+		o.Spec[fieldNotificationEndpointURL] = actual.URL
+		o.Spec[fieldType] = actual.AuthMethod
+		assignNonZeroSecrets(o.Spec, map[string]influxdb.SecretField{
 			fieldNotificationEndpointPassword: actual.Password,
 			fieldNotificationEndpointToken:    actual.Token,
 			fieldNotificationEndpointUsername: actual.Username,
 		})
 	case *endpoint.PagerDuty:
-		k.Type = KindNotificationEndpointPagerDuty
-		k.Spec[fieldNotificationEndpointURL] = actual.ClientURL
-		assignNonZeroSecrets(k.Spec, map[string]influxdb.SecretField{
+		o.Kind = KindNotificationEndpointPagerDuty
+		o.Spec[fieldNotificationEndpointURL] = actual.ClientURL
+		assignNonZeroSecrets(o.Spec, map[string]influxdb.SecretField{
 			fieldNotificationEndpointRoutingKey: actual.RoutingKey,
 		})
 	case *endpoint.Slack:
-		k.Type = KindNotificationEndpointSlack
-		k.Spec[fieldNotificationEndpointURL] = actual.URL
-		assignNonZeroSecrets(k.Spec, map[string]influxdb.SecretField{
+		o.Kind = KindNotificationEndpointSlack
+		o.Spec[fieldNotificationEndpointURL] = actual.URL
+		assignNonZeroSecrets(o.Spec, map[string]influxdb.SecretField{
 			fieldNotificationEndpointToken: actual.Token,
 		})
 	}
 
-	return k
+	return o
 }
 
 func ruleToObject(iRule influxdb.NotificationRule, endpointName, name string) Object {
 	if name == "" {
 		name = iRule.GetName()
 	}
-	k := Object{
-		APIVersion: APIVersion,
-		Type:       KindNotificationRule,
-		Metadata:   convertToMetadataResource(name),
-		Spec: Resource{
-			fieldNotificationRuleEndpointName: endpointName,
-		},
-	}
-	assignNonZeroStrings(k.Spec, map[string]string{
+
+	o := newObject(KindNotificationRule, name)
+	o.Spec[fieldNotificationRuleEndpointName] = endpointName
+	assignNonZeroStrings(o.Spec, map[string]string{
 		fieldDescription: iRule.GetDescription(),
 	})
 
 	assignBase := func(base rule.Base) {
-		assignNonZeroFluxDurs(k.Spec, map[string]*notification.Duration{
+		assignNonZeroFluxDurs(o.Spec, map[string]*notification.Duration{
 			fieldEvery:  base.Every,
 			fieldOffset: base.Offset,
 		})
@@ -537,7 +871,7 @@ func ruleToObject(iRule influxdb.NotificationRule, endpointName, name string) Ob
 			})
 		}
 		if len(tagRes) > 0 {
-			k.Spec[fieldNotificationRuleTagRules] = tagRes
+			o.Spec[fieldNotificationRuleTagRules] = tagRes
 		}
 
 		var statusRuleRes []Resource
@@ -551,7 +885,7 @@ func ruleToObject(iRule influxdb.NotificationRule, endpointName, name string) Ob
 			statusRuleRes = append(statusRuleRes, sRes)
 		}
 		if len(statusRuleRes) > 0 {
-			k.Spec[fieldNotificationRuleStatusRules] = statusRuleRes
+			o.Spec[fieldNotificationRuleStatusRules] = statusRuleRes
 		}
 	}
 
@@ -560,14 +894,14 @@ func ruleToObject(iRule influxdb.NotificationRule, endpointName, name string) Ob
 		assignBase(t.Base)
 	case *rule.PagerDuty:
 		assignBase(t.Base)
-		k.Spec[fieldNotificationRuleMessageTemplate] = t.MessageTemplate
+		o.Spec[fieldNotificationRuleMessageTemplate] = t.MessageTemplate
 	case *rule.Slack:
 		assignBase(t.Base)
-		k.Spec[fieldNotificationRuleMessageTemplate] = t.MessageTemplate
-		assignNonZeroStrings(k.Spec, map[string]string{fieldNotificationRuleChannel: t.Channel})
+		o.Spec[fieldNotificationRuleMessageTemplate] = t.MessageTemplate
+		assignNonZeroStrings(o.Spec, map[string]string{fieldNotificationRuleChannel: t.Channel})
 	}
 
-	return k
+	return o
 }
 
 // regex used to rip out the hard coded task option stuffs
@@ -580,86 +914,81 @@ func taskToObject(t influxdb.Task, name string) Object {
 
 	query := strings.TrimSpace(taskFluxRegex.ReplaceAllString(t.Flux, ""))
 
-	k := Object{
-		APIVersion: APIVersion,
-		Type:       KindTask,
-		Metadata:   convertToMetadataResource(name),
-		Spec: Resource{
-			fieldQuery: strings.TrimSpace(query),
-		},
-	}
-	assignNonZeroStrings(k.Spec, map[string]string{
+	o := newObject(KindTask, name)
+	assignNonZeroStrings(o.Spec, map[string]string{
 		fieldTaskCron:    t.Cron,
 		fieldDescription: t.Description,
 		fieldEvery:       t.Every,
 		fieldOffset:      durToStr(t.Offset),
+		fieldQuery:       strings.TrimSpace(query),
 	})
-	return k
+	return o
 }
 
 func telegrafToObject(t influxdb.TelegrafConfig, name string) Object {
 	if name == "" {
 		name = t.Name
 	}
-	k := Object{
-		APIVersion: APIVersion,
-		Type:       KindTelegraf,
-		Metadata:   convertToMetadataResource(name),
-		Spec: Resource{
-			fieldTelegrafConfig: t.Config,
-		},
-	}
-	assignNonZeroStrings(k.Spec, map[string]string{
-		fieldDescription: t.Description,
+
+	o := newObject(KindTelegraf, name)
+	assignNonZeroStrings(o.Spec, map[string]string{
+		fieldTelegrafConfig: t.Config,
+		fieldDescription:    t.Description,
 	})
-	return k
+	return o
 }
 
 // VariableToObject converts an influxdb.Variable to a pkger.Object.
-func VariableToObject(v influxdb.Variable, name string) Object {
+func VariableToObject(name string, v influxdb.Variable) Object {
 	if name == "" {
 		name = v.Name
 	}
 
-	k := Object{
-		APIVersion: APIVersion,
-		Type:       KindVariable,
-		Metadata:   convertToMetadataResource(name),
-		Spec:       make(Resource),
-	}
-	assignNonZeroStrings(k.Spec, map[string]string{fieldDescription: v.Description})
+	o := newObject(KindVariable, name)
+
+	assignNonZeroStrings(o.Spec, map[string]string{fieldDescription: v.Description})
 
 	args := v.Arguments
 	if args == nil {
-		return k
+		return o
 	}
-	k.Spec[fieldType] = args.Type
+	o.Spec[fieldType] = args.Type
 
 	switch args.Type {
 	case fieldArgTypeConstant:
 		vals, ok := args.Values.(influxdb.VariableConstantValues)
 		if ok {
-			k.Spec[fieldValues] = []string(vals)
+			o.Spec[fieldValues] = []string(vals)
 		}
 	case fieldArgTypeMap:
 		vals, ok := args.Values.(influxdb.VariableMapValues)
 		if ok {
-			k.Spec[fieldValues] = map[string]string(vals)
+			o.Spec[fieldValues] = map[string]string(vals)
 		}
 	case fieldArgTypeQuery:
 		vals, ok := args.Values.(influxdb.VariableQueryValues)
 		if ok {
-			k.Spec[fieldLanguage] = vals.Language
-			k.Spec[fieldQuery] = strings.TrimSpace(vals.Query)
+			o.Spec[fieldLanguage] = vals.Language
+			o.Spec[fieldQuery] = strings.TrimSpace(vals.Query)
 		}
 	}
 
-	return k
+	return o
 }
 
-func convertToMetadataResource(name string) Resource {
-	return Resource{
-		"name": name,
+func newObject(kind Kind, name string) Object {
+	return Object{
+		APIVersion: APIVersion,
+		Kind:       kind,
+		Metadata: Resource{
+			// this timestamp is added to make the resource unique. Should also indicate
+			// to the end user that this is machine readable and the spec.name field is
+			// the one they want to edit when a name change is desired.
+			fieldName: idGenerator.ID().String(),
+		},
+		Spec: Resource{
+			fieldName: name,
+		},
 	}
 }
 

@@ -3,7 +3,7 @@ package authorizer
 import (
 	"context"
 
-	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2"
 )
 
 var _ influxdb.DashboardService = (*DashboardService)(nil)
@@ -21,47 +21,15 @@ func NewDashboardService(s influxdb.DashboardService) *DashboardService {
 	}
 }
 
-func newDashboardPermission(a influxdb.Action, orgID, id influxdb.ID) (*influxdb.Permission, error) {
-	return influxdb.NewPermissionAtID(id, a, influxdb.DashboardsResourceType, orgID)
-}
-
-func authorizeReadDashboard(ctx context.Context, orgID, id influxdb.ID) error {
-	p, err := newDashboardPermission(influxdb.ReadAction, orgID, id)
-	if err != nil {
-		return err
-	}
-
-	if err := IsAllowed(ctx, *p); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func authorizeWriteDashboard(ctx context.Context, orgID, id influxdb.ID) error {
-	p, err := newDashboardPermission(influxdb.WriteAction, orgID, id)
-	if err != nil {
-		return err
-	}
-
-	if err := IsAllowed(ctx, *p); err != nil {
-		return err
-	}
-
-	return nil
-}
-
 // FindDashboardByID checks to see if the authorizer on context has read access to the id provided.
 func (s *DashboardService) FindDashboardByID(ctx context.Context, id influxdb.ID) (*influxdb.Dashboard, error) {
 	b, err := s.s.FindDashboardByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
-
-	if err := authorizeReadDashboard(ctx, b.OrganizationID, id); err != nil {
+	if _, _, err := AuthorizeRead(ctx, influxdb.DashboardsResourceType, id, b.OrganizationID); err != nil {
 		return nil, err
 	}
-
 	return b, nil
 }
 
@@ -69,41 +37,18 @@ func (s *DashboardService) FindDashboardByID(ctx context.Context, id influxdb.ID
 func (s *DashboardService) FindDashboards(ctx context.Context, filter influxdb.DashboardFilter, opt influxdb.FindOptions) ([]*influxdb.Dashboard, int, error) {
 	// TODO: we'll likely want to push this operation into the database eventually since fetching the whole list of data
 	// will likely be expensive.
-	bs, _, err := s.s.FindDashboards(ctx, filter, opt)
+	ds, _, err := s.s.FindDashboards(ctx, filter, opt)
 	if err != nil {
 		return nil, 0, err
 	}
-
-	// This filters without allocating
-	// https://github.com/golang/go/wiki/SliceTricks#filtering-without-allocating
-	dashboards := bs[:0]
-	for _, b := range bs {
-		err := authorizeReadDashboard(ctx, b.OrganizationID, b.ID)
-		if err != nil && influxdb.ErrorCode(err) != influxdb.EUnauthorized {
-			return nil, 0, err
-		}
-
-		if influxdb.ErrorCode(err) == influxdb.EUnauthorized {
-			continue
-		}
-
-		dashboards = append(dashboards, b)
-	}
-
-	return dashboards, len(dashboards), nil
+	return AuthorizeFindDashboards(ctx, ds)
 }
 
 // CreateDashboard checks to see if the authorizer on context has write access to the global dashboards resource.
 func (s *DashboardService) CreateDashboard(ctx context.Context, b *influxdb.Dashboard) error {
-	p, err := influxdb.NewPermission(influxdb.WriteAction, influxdb.DashboardsResourceType, b.OrganizationID)
-	if err != nil {
+	if _, _, err := AuthorizeCreate(ctx, influxdb.DashboardsResourceType, b.OrganizationID); err != nil {
 		return err
 	}
-
-	if err := IsAllowed(ctx, *p); err != nil {
-		return err
-	}
-
 	return s.s.CreateDashboard(ctx, b)
 }
 
@@ -113,11 +58,9 @@ func (s *DashboardService) UpdateDashboard(ctx context.Context, id influxdb.ID, 
 	if err != nil {
 		return nil, err
 	}
-
-	if err := authorizeWriteDashboard(ctx, b.OrganizationID, id); err != nil {
+	if _, _, err := AuthorizeWrite(ctx, influxdb.DashboardsResourceType, id, b.OrganizationID); err != nil {
 		return nil, err
 	}
-
 	return s.s.UpdateDashboard(ctx, id, upd)
 }
 
@@ -127,11 +70,9 @@ func (s *DashboardService) DeleteDashboard(ctx context.Context, id influxdb.ID) 
 	if err != nil {
 		return err
 	}
-
-	if err := authorizeWriteDashboard(ctx, b.OrganizationID, id); err != nil {
+	if _, _, err := AuthorizeWrite(ctx, influxdb.DashboardsResourceType, id, b.OrganizationID); err != nil {
 		return err
 	}
-
 	return s.s.DeleteDashboard(ctx, id)
 }
 
@@ -140,11 +81,9 @@ func (s *DashboardService) AddDashboardCell(ctx context.Context, id influxdb.ID,
 	if err != nil {
 		return err
 	}
-
-	if err := authorizeWriteDashboard(ctx, b.OrganizationID, id); err != nil {
+	if _, _, err := AuthorizeWrite(ctx, influxdb.DashboardsResourceType, id, b.OrganizationID); err != nil {
 		return err
 	}
-
 	return s.s.AddDashboardCell(ctx, id, c, opts)
 }
 
@@ -153,11 +92,9 @@ func (s *DashboardService) RemoveDashboardCell(ctx context.Context, dashboardID 
 	if err != nil {
 		return err
 	}
-
-	if err := authorizeWriteDashboard(ctx, b.OrganizationID, dashboardID); err != nil {
+	if _, _, err := AuthorizeWrite(ctx, influxdb.DashboardsResourceType, dashboardID, b.OrganizationID); err != nil {
 		return err
 	}
-
 	return s.s.RemoveDashboardCell(ctx, dashboardID, cellID)
 }
 
@@ -166,11 +103,9 @@ func (s *DashboardService) UpdateDashboardCell(ctx context.Context, dashboardID 
 	if err != nil {
 		return nil, err
 	}
-
-	if err := authorizeWriteDashboard(ctx, b.OrganizationID, dashboardID); err != nil {
+	if _, _, err := AuthorizeWrite(ctx, influxdb.DashboardsResourceType, dashboardID, b.OrganizationID); err != nil {
 		return nil, err
 	}
-
 	return s.s.UpdateDashboardCell(ctx, dashboardID, cellID, upd)
 }
 
@@ -179,11 +114,9 @@ func (s *DashboardService) GetDashboardCellView(ctx context.Context, dashboardID
 	if err != nil {
 		return nil, err
 	}
-
-	if err := authorizeReadDashboard(ctx, b.OrganizationID, dashboardID); err != nil {
+	if _, _, err := AuthorizeRead(ctx, influxdb.DashboardsResourceType, dashboardID, b.OrganizationID); err != nil {
 		return nil, err
 	}
-
 	return s.s.GetDashboardCellView(ctx, dashboardID, cellID)
 }
 
@@ -192,11 +125,9 @@ func (s *DashboardService) UpdateDashboardCellView(ctx context.Context, dashboar
 	if err != nil {
 		return nil, err
 	}
-
-	if err := authorizeWriteDashboard(ctx, b.OrganizationID, dashboardID); err != nil {
+	if _, _, err := AuthorizeWrite(ctx, influxdb.DashboardsResourceType, dashboardID, b.OrganizationID); err != nil {
 		return nil, err
 	}
-
 	return s.s.UpdateDashboardCellView(ctx, dashboardID, cellID, upd)
 }
 
@@ -205,10 +136,8 @@ func (s *DashboardService) ReplaceDashboardCells(ctx context.Context, id influxd
 	if err != nil {
 		return err
 	}
-
-	if err := authorizeWriteDashboard(ctx, b.OrganizationID, id); err != nil {
+	if _, _, err := AuthorizeWrite(ctx, influxdb.DashboardsResourceType, id, b.OrganizationID); err != nil {
 		return err
 	}
-
 	return s.s.ReplaceDashboardCells(ctx, id, c)
 }

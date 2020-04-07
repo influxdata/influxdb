@@ -362,36 +362,7 @@ class Root extends PureComponent {
                             </Route>
                           </Route>
                           <Route path="settings">
-                            {CLOUD ? (
-                              <IndexRoute component={VariablesIndex} />
-                            ) : (
-                              <>
-                                <IndexRoute component={MembersIndex} />
-                                <Route
-                                  path="members"
-                                  component={MembersIndex}
-                                />
-                              </>
-                            )}
-
-                            <Route path="templates" component={TemplatesIndex}>
-                              <Route
-                                path="import"
-                                component={TemplateImportOverlay}
-                              />
-                              <Route
-                                path=":id/export"
-                                component={TemplateExportOverlay}
-                              />
-                              <Route
-                                path=":id/view"
-                                component={TemplateViewOverlay}
-                              />
-                              <Route
-                                path=":id/static/view"
-                                component={StaticTemplateViewOverlay}
-                              />
-                            </Route>
+                            <IndexRoute component={VariablesIndex} />
                             <Route path="variables" component={VariablesIndex}>
                               <Route
                                 path="import"
@@ -414,13 +385,25 @@ class Root extends PureComponent {
                                 component={UpdateVariableOverlay}
                               />
                             </Route>
-                            <Route path="labels" component={LabelsIndex} />
-                            <Route path="profile" component={OrgProfilePage}>
+                            <Route path="templates" component={TemplatesIndex}>
                               <Route
-                                path="rename"
-                                component={RenameOrgOverlay}
+                                path="import"
+                                component={TemplateImportOverlay}
+                              />
+                              <Route
+                                path=":id/export"
+                                component={TemplateExportOverlay}
+                              />
+                              <Route
+                                path=":id/view"
+                                component={TemplateViewOverlay}
+                              />
+                              <Route
+                                path=":id/static/view"
+                                component={StaticTemplateViewOverlay}
                               />
                             </Route>
+                            <Route path="labels" component={LabelsIndex} />
                           </Route>
                           <Route path="alerting" component={AlertingIndex}>
                             <Route
@@ -460,6 +443,12 @@ class Root extends PureComponent {
                             path="checks/:checkID"
                             component={CheckHistory}
                           />
+                          <Route path="about" component={OrgProfilePage}>
+                            <Route path="rename" component={RenameOrgOverlay} />
+                          </Route>
+                          {!CLOUD && (
+                            <Route path="members" component={MembersIndex} />
+                          )}
                         </Route>
                       </Route>
                     </Route>

@@ -9,10 +9,10 @@ import (
 	"path"
 	"testing"
 
-	"github.com/influxdata/influxdb/logger"
-	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/tsdb"
-	"github.com/influxdata/influxdb/tsdb/seriesfile"
+	"github.com/influxdata/influxdb/v2/logger"
+	"github.com/influxdata/influxdb/v2/models"
+	"github.com/influxdata/influxdb/v2/tsdb"
+	"github.com/influxdata/influxdb/v2/tsdb/seriesfile"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -218,7 +218,7 @@ func TestSeriesFile_DeleteSeriesID(t *testing.T) {
 	}
 
 	// Delete and ensure deletion.
-	if err := sfile.DeleteSeriesID(id); err != nil {
+	if err := sfile.DeleteSeriesIDs([]tsdb.SeriesID{id}); err != nil {
 		t.Fatal(err)
 	} else if !sfile.IsDeleted(id) {
 		t.Fatal("expected deletion before compaction")
@@ -301,7 +301,7 @@ func TestSeriesFile_Compaction(t *testing.T) {
 
 		if id := sfile.SeriesID(collection.Names[i], collection.Tags[i], nil); id.IsZero() {
 			t.Fatal("expected series id")
-		} else if err := sfile.DeleteSeriesID(id); err != nil {
+		} else if err := sfile.DeleteSeriesIDs([]tsdb.SeriesID{id}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -387,7 +387,7 @@ func BenchmarkSeriesFile_Compaction(b *testing.B) {
 
 		// Delete a subset of keys.
 		for i := 0; i < len(ids); i += 10 {
-			if err := sfile.DeleteSeriesID(ids[i]); err != nil {
+			if err := sfile.DeleteSeriesIDs([]tsdb.SeriesID{ids[i]}); err != nil {
 				b.Fatal(err)
 			}
 		}

@@ -3,10 +3,13 @@ package tenant
 import (
 	"context"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/kit/metric"
-	"github.com/influxdata/influxdb/kit/prom"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/metric"
+	"github.com/influxdata/influxdb/v2/kit/prom"
 )
+
+var _ influxdb.UserService = (*UserMetrics)(nil)
+var _ influxdb.PasswordsService = (*PasswordMetrics)(nil)
 
 type UserMetrics struct {
 	// RED metrics
@@ -15,12 +18,11 @@ type UserMetrics struct {
 	userService influxdb.UserService
 }
 
-var _ influxdb.UserService = (*UserMetrics)(nil)
-
 // NewUserMetrics returns a metrics service middleware for the User Service.
-func NewUserMetrics(reg *prom.Registry, s influxdb.UserService) *UserMetrics {
+func NewUserMetrics(reg *prom.Registry, s influxdb.UserService, opts ...MetricsOption) *UserMetrics {
+	o := applyOpts(opts...)
 	return &UserMetrics{
-		rec:         metric.New(reg, "user"),
+		rec:         metric.New(reg, o.applySuffix("user")),
 		userService: s,
 	}
 }
@@ -58,5 +60,39 @@ func (m *UserMetrics) UpdateUser(ctx context.Context, id influxdb.ID, upd influx
 func (m *UserMetrics) DeleteUser(ctx context.Context, id influxdb.ID) error {
 	rec := m.rec.Record("delete_user")
 	err := m.userService.DeleteUser(ctx, id)
+	return rec(err)
+}
+
+type PasswordMetrics struct {
+	// RED metrics
+	rec *metric.REDClient
+
+	pwdService influxdb.PasswordsService
+}
+
+// NewPasswordMetrics returns a metrics service middleware for the Password Service.
+func NewPasswordMetrics(reg *prom.Registry, s influxdb.PasswordsService, opts ...MetricsOption) *PasswordMetrics {
+	o := applyOpts(opts...)
+	return &PasswordMetrics{
+		rec:        metric.New(reg, o.applySuffix("password")),
+		pwdService: s,
+	}
+}
+
+func (m *PasswordMetrics) SetPassword(ctx context.Context, userID influxdb.ID, password string) error {
+	rec := m.rec.Record("set_password")
+	err := m.pwdService.SetPassword(ctx, userID, password)
+	return rec(err)
+}
+
+func (m *PasswordMetrics) ComparePassword(ctx context.Context, userID influxdb.ID, password string) error {
+	rec := m.rec.Record("compare_password")
+	err := m.pwdService.ComparePassword(ctx, userID, password)
+	return rec(err)
+}
+
+func (m *PasswordMetrics) CompareAndSetPassword(ctx context.Context, userID influxdb.ID, old, new string) error {
+	rec := m.rec.Record("compare_and_set_password")
+	err := m.pwdService.CompareAndSetPassword(ctx, userID, old, new)
 	return rec(err)
 }

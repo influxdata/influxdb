@@ -5,7 +5,7 @@ import (
 	"io/ioutil"
 	"testing"
 
-	"github.com/influxdata/influxdb/cmd/influx/config"
+	"github.com/influxdata/influxdb/v2/cmd/influx/config"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

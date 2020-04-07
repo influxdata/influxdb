@@ -45,7 +45,7 @@ describe('The Query Builder', () => {
 
       cy.get('.giraffe-plot').should('exist')
 
-      cy.contains('Save As').click()
+      cy.getByTestID('save-query-as').click()
 
       // open the dashboard selector dropdown
       cy.getByTestID('save-as-dashboard-cell--dropdown').click()
@@ -66,7 +66,7 @@ describe('The Query Builder', () => {
 
       // force a click on the hidden dashboard nav item (cypress can't do the hover)
       // i assure you i spent a nonzero amount of time trying to do this the way a user would
-      cy.getByTestID('nav-menu_dashboard').click({force: true})
+      cy.getByTestID('nav-item-dashboards').click()
 
       cy.contains('Basic Ole Dashboard').click()
       cy.getByTestID('cell-context--toggle').click()
@@ -78,7 +78,7 @@ describe('The Query Builder', () => {
       cy.contains('Submit').click()
       cy.getByTestID('save-cell--button').click()
 
-      cy.getByTestID('nav-menu_dashboard').click({force: true})
+      cy.getByTestID('nav-item-dashboards').click()
 
       cy.contains('Basic Ole Dashboard').click()
       cy.getByTestID('cell-context--toggle').click()

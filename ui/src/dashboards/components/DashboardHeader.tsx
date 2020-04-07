@@ -26,7 +26,7 @@ import {
 } from 'src/dashboards/actions/ranges'
 
 // Selectors
-import {getTimeRangeByDashboardID} from 'src/dashboards/selectors'
+import {getTimeRange} from 'src/dashboards/selectors'
 import {getByID} from 'src/resources/selectors'
 import {getOrg} from 'src/organizations/selectors'
 
@@ -207,7 +207,7 @@ const mstp = (state: AppState): StateProps => {
     state.currentDashboard.id
   )
 
-  const timeRange = getTimeRangeByDashboardID(state, state.currentDashboard.id)
+  const timeRange = getTimeRange(state)
   const org = getOrg(state)
 
   return {

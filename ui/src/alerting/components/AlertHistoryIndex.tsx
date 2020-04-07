@@ -9,6 +9,7 @@ import EventTable from 'src/eventViewer/components/EventTable'
 import AlertHistoryControls from 'src/alerting/components/AlertHistoryControls'
 import AlertHistoryQueryParams from 'src/alerting/components/AlertHistoryQueryParams'
 import GetResources from 'src/resources/components/GetResources'
+import CloudUpgradeButton from 'src/shared/components/CloudUpgradeButton'
 
 // Constants
 import {
@@ -77,6 +78,7 @@ const AlertHistoryIndex: FC<Props> = ({params: {orgID}, resourceIDs}) => {
                   title="Check Statuses"
                   testID="alert-history-title"
                 />
+                <CloudUpgradeButton />
               </Page.Header>
               <Page.ControlBar fullWidth={true}>
                 <AlertHistoryQueryParams

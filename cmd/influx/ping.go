@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/influxdata/influxdb/kit/check"
+	"github.com/influxdata/influxdb/v2/kit/check"
 	"github.com/spf13/cobra"
 )
 
@@ -43,7 +43,7 @@ func cmdPing(f *globalFlags, opts genericCLIOpts) *cobra.Command {
 		return nil
 	}
 
-	cmd := opts.newCmd("ping", runE)
+	cmd := opts.newCmd("ping", runE, true)
 	cmd.Short = "Check the InfluxDB /health endpoint"
 	cmd.Long = `Checks the health of a running InfluxDB instance by querying /health. Does not require valid token.`
 

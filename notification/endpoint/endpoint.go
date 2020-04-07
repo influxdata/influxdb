@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2"
 )
 
 // types of endpoints.
@@ -14,7 +14,7 @@ const (
 	HTTPType      = "http"
 )
 
-var typeToEndpoint = map[string](func() influxdb.NotificationEndpoint){
+var typeToEndpoint = map[string]func() influxdb.NotificationEndpoint{
 	SlackType:     func() influxdb.NotificationEndpoint { return &Slack{} },
 	PagerDutyType: func() influxdb.NotificationEndpoint { return &PagerDuty{} },
 	HTTPType:      func() influxdb.NotificationEndpoint { return &HTTP{} },
@@ -30,13 +30,16 @@ func UnmarshalJSON(b []byte) (influxdb.NotificationEndpoint, error) {
 			Msg: "unable to detect the notification endpoint type from json",
 		}
 	}
+
 	convertedFunc, ok := typeToEndpoint[raw.Type]
 	if !ok {
 		return nil, &influxdb.Error{
-			Msg: fmt.Sprintf("invalid notification endpoint type %s", raw.Type),
+			Code: influxdb.EInvalid,
+			Msg:  fmt.Sprintf("invalid notification endpoint type %s", raw.Type),
 		}
 	}
 	converted := convertedFunc()
+
 	if err := json.Unmarshal(b, converted); err != nil {
 		return nil, &influxdb.Error{
 			Code: influxdb.EInternal,

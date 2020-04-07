@@ -4,9 +4,9 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/influxdata/influxdb/nats"
-	"github.com/influxdata/influxdb/storage"
-	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/v2/nats"
+	"github.com/influxdata/influxdb/v2/storage"
+	"github.com/influxdata/influxdb/v2/tsdb"
 	"go.uber.org/zap"
 )
 

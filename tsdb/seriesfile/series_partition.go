@@ -11,12 +11,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/influxdata/influxdb/kit/tracing"
-	"github.com/influxdata/influxdb/logger"
-	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/pkg/fs"
-	"github.com/influxdata/influxdb/pkg/rhh"
-	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/v2/kit/tracing"
+	"github.com/influxdata/influxdb/v2/logger"
+	"github.com/influxdata/influxdb/v2/models"
+	"github.com/influxdata/influxdb/v2/pkg/fs"
+	"github.com/influxdata/influxdb/v2/pkg/rhh"
+	"github.com/influxdata/influxdb/v2/tsdb"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
@@ -368,9 +368,9 @@ func (p *SeriesPartition) Compacting() bool {
 	return p.compacting
 }
 
-// DeleteSeriesID flags a series as permanently deleted.
-// If the series is reintroduced later then it must create a new id.
-func (p *SeriesPartition) DeleteSeriesID(id tsdb.SeriesID) error {
+// DeleteSeriesID flags a list of series as permanently deleted.
+// If a series is reintroduced later then it must create a new id.
+func (p *SeriesPartition) DeleteSeriesIDs(ids []tsdb.SeriesID) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -378,15 +378,19 @@ func (p *SeriesPartition) DeleteSeriesID(id tsdb.SeriesID) error {
 		return ErrSeriesPartitionClosed
 	}
 
-	// Already tombstoned, ignore.
-	if p.index.IsDeleted(id) {
-		return nil
-	}
+	var n uint64
+	for _, id := range ids {
+		// Already tombstoned, ignore.
+		if p.index.IsDeleted(id) {
+			continue
+		}
 
-	// Write tombstone entry. The type is ignored in tombstones.
-	_, err := p.writeLogEntry(AppendSeriesEntry(nil, SeriesEntryTombstoneFlag, id.WithType(models.Empty), nil))
-	if err != nil {
-		return err
+		// Write tombstone entries. The type is ignored in tombstones.
+		_, err := p.writeLogEntry(AppendSeriesEntry(nil, SeriesEntryTombstoneFlag, id.WithType(models.Empty), nil))
+		if err != nil {
+			return err
+		}
+		n++
 	}
 
 	// Flush active segment write.
@@ -397,8 +401,11 @@ func (p *SeriesPartition) DeleteSeriesID(id tsdb.SeriesID) error {
 	}
 
 	// Mark tombstone in memory.
-	p.index.Delete(id)
-	p.tracker.SubSeries(1)
+	for _, id := range ids {
+		p.index.Delete(id)
+	}
+	p.tracker.SubSeries(n)
+
 	return nil
 }
 

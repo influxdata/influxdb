@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/influxdata/influxdb/storage/reads/datatypes"
+	"github.com/influxdata/influxdb/v2/storage/reads/datatypes"
 )
 
 func TestPredicatePopTagEscape(t *testing.T) {

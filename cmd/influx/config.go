@@ -1,10 +1,7 @@
 package main
 
 import (
-	"fmt"
-
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/cmd/influx/config"
+	"github.com/influxdata/influxdb/v2/cmd/influx/config"
 	"github.com/spf13/cobra"
 )
 
@@ -16,10 +13,7 @@ func cmdConfig(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	builder := cmdConfigBuilder{
 		genericCLIOpts: opt,
 		globalFlags:    f,
-		svc: config.LocalConfigsSVC{
-			Path: path,
-			Dir:  dir,
-		},
+		svc:            config.NewLocalConfigSVC(path, dir),
 	}
 	builder.globalFlags = f
 	return builder.cmd()
@@ -35,13 +29,17 @@ type cmdConfigBuilder struct {
 	active bool
 	org    string
 
+	json        bool
+	hideHeaders bool
+
 	svc config.ConfigsService
 }
 
 func (b *cmdConfigBuilder) cmd() *cobra.Command {
-	cmd := b.newCmd("config", nil)
+	cmd := b.newCmd("config", b.cmdSwitchActiveRunEFn, false)
 	cmd.Short = "Config management commands"
-	cmd.Run = seeHelp
+	cmd.Args = cobra.ExactArgs(1)
+
 	cmd.AddCommand(
 		b.cmdCreate(),
 		b.cmdDelete(),
@@ -51,10 +49,22 @@ func (b *cmdConfigBuilder) cmd() *cobra.Command {
 	return cmd
 }
 
+func (b *cmdConfigBuilder) cmdSwitchActiveRunEFn(cmd *cobra.Command, args []string) error {
+	cfg, err := b.svc.SwitchActive(args[0])
+	if err != nil {
+		return err
+	}
+
+	return b.printConfigs(configPrintOpts{
+		config: cfg,
+	})
+}
+
 func (b *cmdConfigBuilder) cmdCreate() *cobra.Command {
-	cmd := b.newCmd("create", nil)
-	cmd.RunE = b.cmdCreateRunEFn
+	cmd := b.newCmd("create", b.cmdCreateRunEFn, false)
 	cmd.Short = "Create config"
+
+	b.registerPrintFlags(cmd)
 	cmd.Flags().StringVarP(&b.name, "name", "n", "", "The config name (required)")
 	cmd.MarkFlagRequired("name")
 	cmd.Flags().StringVarP(&b.token, "token", "t", "", "The config token (required)")
@@ -68,58 +78,27 @@ func (b *cmdConfigBuilder) cmdCreate() *cobra.Command {
 }
 
 func (b *cmdConfigBuilder) cmdCreateRunEFn(*cobra.Command, []string) error {
-	pp, err := b.svc.ParseConfigs()
-	if err != nil {
-		return err
-	}
-	p := config.Config{
+	cfg, err := b.svc.CreateConfig(config.Config{
+		Name:   b.name,
 		Host:   b.url,
 		Token:  b.token,
 		Org:    b.org,
 		Active: b.active,
-	}
-	if _, ok := pp[b.name]; ok {
-		return &influxdb.Error{
-			Code: influxdb.EConflict,
-			Msg:  fmt.Sprintf("name %q already exists", b.name),
-		}
-	}
-	pp[b.name] = p
-	active := ""
-	if p.Active {
-		active = "*"
-		if err := pp.Switch(b.name); err != nil {
-			return err
-		}
-	}
-	if err = b.svc.WriteConfigs(pp); err != nil {
+	})
+	if err != nil {
 		return err
 	}
-	w := b.newTabWriter()
-	w.WriteHeaders(
-		"Active",
-		"Name",
-		"URL",
-		"Org",
-		"Created",
-	)
 
-	w.Write(map[string]interface{}{
-		"Active":  active,
-		"Name":    b.name,
-		"URL":     p.Host,
-		"Org":     p.Org,
-		"Created": true,
+	return b.printConfigs(configPrintOpts{
+		config: cfg,
 	})
-	w.Flush()
-	return nil
 }
 
 func (b *cmdConfigBuilder) cmdDelete() *cobra.Command {
-	cmd := b.newCmd("delete", nil)
-	cmd.RunE = b.cmdDeleteRunEFn
+	cmd := b.newCmd("delete", b.cmdDeleteRunEFn, false)
 	cmd.Short = "Delete config"
 
+	b.registerPrintFlags(cmd)
 	cmd.Flags().StringVarP(&b.name, "name", "n", "", "The config name (required)")
 	cmd.MarkFlagRequired("name")
 
@@ -127,44 +106,23 @@ func (b *cmdConfigBuilder) cmdDelete() *cobra.Command {
 }
 
 func (b *cmdConfigBuilder) cmdDeleteRunEFn(cmd *cobra.Command, args []string) error {
-	pp, err := b.svc.ParseConfigs()
+	cfg, err := b.svc.DeleteConfig(b.name)
 	if err != nil {
 		return err
 	}
-	p, ok := pp[b.name]
-	if !ok {
-		return &influxdb.Error{
-			Code: influxdb.ENotFound,
-			Msg:  fmt.Sprintf("name %q is not found", b.name),
-		}
-	}
-	delete(pp, b.name)
-	if err = b.svc.WriteConfigs(pp); err != nil {
-		return err
-	}
-	w := b.newTabWriter()
-	w.WriteHeaders(
-		"Name",
-		"URL",
-		"Org",
-		"Deleted",
-	)
 
-	w.Write(map[string]interface{}{
-		"Name":    b.name,
-		"URL":     p.Host,
-		"Org":     p.Org,
-		"Deleted": true,
+	return b.printConfigs(configPrintOpts{
+		delete: true,
+		config: cfg,
 	})
-	w.Flush()
-	return nil
 }
 
 func (b *cmdConfigBuilder) cmdUpdate() *cobra.Command {
-	cmd := b.newCmd("set", b.cmdUpdateRunEFn)
+	cmd := b.newCmd("set", b.cmdUpdateRunEFn, false)
 	cmd.Aliases = []string{"update"}
-	cmd.RunE = b.cmdUpdateRunEFn
 	cmd.Short = "Update config"
+
+	b.registerPrintFlags(cmd)
 	cmd.Flags().StringVarP(&b.name, "name", "n", "", "The config name (required)")
 	cmd.MarkFlagRequired("name")
 
@@ -176,90 +134,93 @@ func (b *cmdConfigBuilder) cmdUpdate() *cobra.Command {
 }
 
 func (b *cmdConfigBuilder) cmdUpdateRunEFn(*cobra.Command, []string) error {
-	pp, err := b.svc.ParseConfigs()
+	cfg, err := b.svc.UpdateConfig(config.Config{
+		Name:   b.name,
+		Host:   b.url,
+		Token:  b.token,
+		Org:    b.org,
+		Active: b.active,
+	})
 	if err != nil {
 		return err
 	}
-	p0, ok := pp[b.name]
-	if !ok {
-		return &influxdb.Error{
-			Code: influxdb.ENotFound,
-			Msg:  fmt.Sprintf("name %q is not found", b.name),
-		}
-	}
-	if b.token != "" {
-		p0.Token = b.token
-	}
-	if b.url != "" {
-		p0.Host = b.url
-	}
-	if b.org != "" {
-		p0.Org = b.org
-	}
-	pp[b.name] = p0
-	active := ""
-	if b.active {
-		active = "*"
-		if err := pp.Switch(b.name); err != nil {
-			return err
-		}
-	}
-	if err = b.svc.WriteConfigs(pp); err != nil {
-		return err
-	}
-	w := b.newTabWriter()
-	w.WriteHeaders(
-		"Active",
-		"Name",
-		"URL",
-		"Org",
-		"Updated",
-	)
 
-	w.Write(map[string]interface{}{
-		"Active":  active,
-		"Name":    b.name,
-		"URL":     p0.Host,
-		"Org":     p0.Org,
-		"Updated": true,
+	return b.printConfigs(configPrintOpts{
+		config: cfg,
 	})
-	w.Flush()
-	return nil
 }
 
 func (b *cmdConfigBuilder) cmdList() *cobra.Command {
-	cmd := b.newCmd("list", nil)
-	cmd.RunE = b.cmdListRunEFn
+	cmd := b.newCmd("list", b.cmdListRunEFn, false)
 	cmd.Aliases = []string{"ls"}
 	cmd.Short = "List configs"
+	b.registerPrintFlags(cmd)
 	return cmd
 }
 
 func (b *cmdConfigBuilder) cmdListRunEFn(*cobra.Command, []string) error {
-	pp, err := b.svc.ParseConfigs()
+	cfgs, err := b.svc.ListConfigs()
 	if err != nil {
 		return err
 	}
-	w := b.newTabWriter()
-	w.WriteHeaders(
-		"Active",
-		"Name",
-		"URL",
-		"Org",
-	)
-	for n, p := range pp {
-		var active string
-		if p.Active {
-			active = "*"
+
+	return b.printConfigs(configPrintOpts{configs: cfgs})
+}
+
+func (b *cmdConfigBuilder) registerPrintFlags(cmd *cobra.Command) {
+	registerPrintOptions(cmd, &b.hideHeaders, &b.json)
+}
+
+func (b *cmdConfigBuilder) printConfigs(opts configPrintOpts) error {
+	if b.json {
+		var v interface{} = opts.configs
+		if opts.configs == nil {
+			v = opts.config
 		}
-		w.Write(map[string]interface{}{
-			"Active": active,
-			"Name":   n,
-			"URL":    p.Host,
-			"Org":    p.Org,
-		})
+		return b.writeJSON(v)
 	}
 
-	w.Flush()
+	w := b.newTabWriter()
+	defer w.Flush()
+
+	w.HideHeaders(b.hideHeaders)
+
+	headers := []string{"Active", "Name", "URL", "Org"}
+	if opts.delete {
+		headers = append(headers, "Deleted")
+	}
+	w.WriteHeaders(headers...)
+
+	if opts.configs == nil {
+		opts.configs = config.Configs{
+			opts.config.Name: opts.config,
+		}
+	}
+	for _, c := range opts.configs {
+		var active string
+		if c.Active {
+			active = "*"
+		}
+		m := map[string]interface{}{
+			"Active": active,
+			"Name":   c.Name,
+			"URL":    c.Host,
+			"Org":    c.Org,
+		}
+		if opts.delete {
+			m["Deleted"] = true
+		}
+
+		w.Write(m)
+	}
+
 	return nil
 }
+
+type (
+	configPrintOpts struct {
+		delete  bool
+		config  config.Config
+		configs config.Configs
+	}
+)

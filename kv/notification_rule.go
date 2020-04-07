@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/influxdata/influxdb/notification/rule"
+	"github.com/influxdata/influxdb/v2/notification/rule"
 	"go.uber.org/zap"
 
-	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2"
 )
 
 var (

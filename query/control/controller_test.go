@@ -20,10 +20,10 @@ import (
 	"github.com/influxdata/flux/plan"
 	"github.com/influxdata/flux/plan/plantest"
 	"github.com/influxdata/flux/stdlib/universe"
-	"github.com/influxdata/influxdb/query"
-	_ "github.com/influxdata/influxdb/query/builtin"
-	"github.com/influxdata/influxdb/query/control"
-	"github.com/influxdata/influxdb/query/stdlib/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2/query"
+	_ "github.com/influxdata/influxdb/v2/query/builtin"
+	"github.com/influxdata/influxdb/v2/query/control"
+	"github.com/influxdata/influxdb/v2/query/stdlib/influxdata/influxdb"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	"go.uber.org/zap/zaptest"
@@ -93,6 +93,29 @@ func validateRequestTotals(t testing.TB, reg *prometheus.Registry, success, comp
 	validate("compile_error", compile)
 	validate("runtime_error", runtime)
 	validate("queue_error", queue)
+}
+
+func validateUnusedMemory(t testing.TB, reg *prometheus.Registry, c control.Config) {
+	t.Helper()
+	metrics, err := reg.Gather()
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := FindMetric(
+		metrics,
+		"query_control_memory_unused_bytes",
+		map[string]string{
+			"org": "",
+		},
+	)
+	var got int64
+	if m != nil {
+		got = int64(*m.Gauge.Value)
+	}
+	want := c.MaxMemoryBytes - (int64(c.ConcurrencyQuota) * c.InitialMemoryBytesQuotaPerQuery)
+	if got != want {
+		t.Errorf("unexpected memory unused bytes: got %d want: %d", got, want)
+	}
 }
 
 func TestController_QuerySuccess(t *testing.T) {
@@ -908,6 +931,7 @@ func TestController_Error_MaxMemory(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer shutdown(t, ctrl)
+	reg := setupPromRegistry(ctrl)
 
 	compiler := &mock.Compiler{
 		CompileFn: func(ctx context.Context) (flux.Program, error) {
@@ -938,6 +962,7 @@ func TestController_Error_MaxMemory(t *testing.T) {
 		return
 	}
 	consumeResults(t, q)
+	validateUnusedMemory(t, reg, config)
 }
 
 // This tests that we can continuously run queries that do not use
@@ -964,6 +989,7 @@ func TestController_NoisyNeighbor(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer shutdown(t, ctrl)
+	reg := setupPromRegistry(ctrl)
 
 	wellBehavedNeighbor := &mock.Compiler{
 		CompileFn: func(ctx context.Context) (flux.Program, error) {
@@ -1045,6 +1071,7 @@ func TestController_NoisyNeighbor(t *testing.T) {
 	for err := range errCh {
 		t.Fatalf("unexpected error: %s", err)
 	}
+	validateUnusedMemory(t, reg, config)
 }
 
 // This tests that a query that should be allowed is killed
@@ -1064,6 +1091,7 @@ func TestController_Error_NoRemainingMemory(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer shutdown(t, ctrl)
+	reg := setupPromRegistry(ctrl)
 
 	compiler := &mock.Compiler{
 		CompileFn: func(ctx context.Context) (flux.Program, error) {
@@ -1091,6 +1119,7 @@ func TestController_Error_NoRemainingMemory(t *testing.T) {
 		t.Fatalf("unexpected error: %s", err)
 	}
 	consumeResults(t, q)
+	validateUnusedMemory(t, reg, config)
 }
 
 // This test ensures the memory that the extra memory allocated
@@ -1105,6 +1134,7 @@ func TestController_MemoryRelease(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer shutdown(t, ctrl)
+	reg := setupPromRegistry(ctrl)
 
 	compiler := &mock.Compiler{
 		CompileFn: func(ctx context.Context) (flux.Program, error) {
@@ -1134,6 +1164,7 @@ func TestController_MemoryRelease(t *testing.T) {
 			return
 		}
 	}
+	validateUnusedMemory(t, reg, config)
 }
 
 // Set an irregular memory quota so that doubling the limit continuously
@@ -1150,6 +1181,7 @@ func TestController_IrregularMemoryQuota(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer shutdown(t, ctrl)
+	reg := setupPromRegistry(ctrl)
 
 	compiler := &mock.Compiler{
 		CompileFn: func(ctx context.Context) (flux.Program, error) {
@@ -1180,6 +1212,7 @@ func TestController_IrregularMemoryQuota(t *testing.T) {
 		return
 	}
 	consumeResults(t, q)
+	validateUnusedMemory(t, reg, config)
 }
 
 // This tests that if we run a bunch of queries that reserve memory,
@@ -1207,6 +1240,7 @@ func TestController_ReserveMemoryWithoutExceedingMax(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer shutdown(t, ctrl)
+	reg := setupPromRegistry(ctrl)
 
 	compiler := &mock.Compiler{
 		CompileFn: func(ctx context.Context) (flux.Program, error) {
@@ -1252,6 +1286,7 @@ func TestController_ReserveMemoryWithoutExceedingMax(t *testing.T) {
 	for err := range errCh {
 		t.Fatalf("unexpected error: %s", err)
 	}
+	validateUnusedMemory(t, reg, config)
 }
 
 func consumeResults(tb testing.TB, q flux.Query) {

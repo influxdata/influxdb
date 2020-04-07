@@ -3,7 +3,7 @@ package launcher
 import (
 	"context"
 
-	"github.com/influxdata/influxdb/http"
+	"github.com/influxdata/influxdb/v2/http"
 )
 
 type flushers []http.Flusher

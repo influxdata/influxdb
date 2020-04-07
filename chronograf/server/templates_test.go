@@ -3,7 +3,7 @@ package server
 import (
 	"testing"
 
-	"github.com/influxdata/influxdb/chronograf"
+	"github.com/influxdata/influxdb/v2/chronograf"
 )
 
 func TestValidTemplateRequest(t *testing.T) {

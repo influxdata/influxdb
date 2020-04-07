@@ -3,8 +3,8 @@ package predicate
 import (
 	"fmt"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/storage/reads/datatypes"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/storage/reads/datatypes"
 )
 
 // LogicalOperator is a string type of logical operator.

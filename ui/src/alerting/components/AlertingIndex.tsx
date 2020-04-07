@@ -1,15 +1,16 @@
 // Libraries
-import React, {FunctionComponent} from 'react'
+import React, {FunctionComponent, useState} from 'react'
 import {connect} from 'react-redux'
 
 //Components
-import {Grid, GridRow, GridColumn, Page} from '@influxdata/clockface'
+import {Page, SelectGroup, ButtonShape} from '@influxdata/clockface'
 import ChecksColumn from 'src/checks/components/ChecksColumn'
 import RulesColumn from 'src/notifications/rules/components/RulesColumn'
 import EndpointsColumn from 'src/notifications/endpoints/components/EndpointsColumn'
 import GetAssetLimits from 'src/cloud/components/GetAssetLimits'
 import AssetLimitAlert from 'src/cloud/components/AssetLimitAlert'
 import GetResources from 'src/resources/components/GetResources'
+import CloudUpgradeButton from 'src/shared/components/CloudUpgradeButton'
 
 // Utils
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
@@ -27,18 +28,33 @@ interface StateProps {
   limitedResources: string
 }
 
+type ActiveColumn = 'checks' | 'endpoints' | 'rules'
+
 const AlertingIndex: FunctionComponent<StateProps> = ({
   children,
   limitStatus,
   limitedResources,
 }) => {
+  const [activeColumn, setActiveColumn] = useState<ActiveColumn>('checks')
+
+  const pageContentsClassName = `alerting-index alerting-index__${activeColumn}`
+
+  const handleTabClick = (selectGroupOptionID: ActiveColumn): void => {
+    setActiveColumn(selectGroupOptionID)
+  }
+
   return (
     <>
-      <Page titleTag={pageTitleSuffixer(['Monitoring & Alerting'])}>
-        <Page.Header fullWidth={false}>
-          <Page.Title title="Monitoring & Alerting" />
+      <Page titleTag={pageTitleSuffixer(['Alerts'])}>
+        <Page.Header fullWidth={true}>
+          <Page.Title title="Alerts" />
+          <CloudUpgradeButton />
         </Page.Header>
-        <Page.Contents fullWidth={false} scrollable={false}>
+        <Page.Contents
+          fullWidth={true}
+          scrollable={false}
+          className={pageContentsClassName}
+        >
           <GetResources resources={[ResourceType.Labels]}>
             <GetAssetLimits>
               <AssetLimitAlert
@@ -46,27 +62,52 @@ const AlertingIndex: FunctionComponent<StateProps> = ({
                 limitStatus={limitStatus}
                 className="load-data--asset-alert"
               />
-              <Grid className="alerting-index">
-                <GridRow testID="grid--row">
-                  <GridColumn widthLG={4} widthMD={4} widthSM={4} widthXS={12}>
-                    <GetResources resources={[ResourceType.Checks]}>
-                      <ChecksColumn />
-                    </GetResources>
-                  </GridColumn>
-                  <GridColumn widthLG={4} widthMD={4} widthSM={4} widthXS={12}>
-                    <GetResources
-                      resources={[ResourceType.NotificationEndpoints]}
-                    >
-                      <EndpointsColumn />
-                    </GetResources>
-                  </GridColumn>
-                  <GridColumn widthLG={4} widthMD={4} widthSM={4} widthXS={12}>
-                    <GetResources resources={[ResourceType.NotificationRules]}>
-                      <RulesColumn />
-                    </GetResources>
-                  </GridColumn>
-                </GridRow>
-              </Grid>
+              <SelectGroup
+                className="alerting-index--selector"
+                shape={ButtonShape.StretchToFit}
+              >
+                <SelectGroup.Option
+                  value="checks"
+                  id="checks"
+                  onClick={handleTabClick}
+                  name="alerting-active-tab"
+                  active={activeColumn === 'checks'}
+                  testID="alerting-tab--checks"
+                >
+                  Checks
+                </SelectGroup.Option>
+                <SelectGroup.Option
+                  value="endpoints"
+                  id="endpoints"
+                  onClick={handleTabClick}
+                  name="alerting-active-tab"
+                  active={activeColumn === 'endpoints'}
+                  testID="alerting-tab--endpoints"
+                >
+                  Notification Endpoints
+                </SelectGroup.Option>
+                <SelectGroup.Option
+                  value="rules"
+                  id="rules"
+                  onClick={handleTabClick}
+                  name="alerting-active-tab"
+                  active={activeColumn === 'rules'}
+                  testID="alerting-tab--rules"
+                >
+                  Notification Rules
+                </SelectGroup.Option>
+              </SelectGroup>
+              <div className="alerting-index--columns">
+                <GetResources resources={[ResourceType.Checks]}>
+                  <ChecksColumn />
+                </GetResources>
+                <GetResources resources={[ResourceType.NotificationEndpoints]}>
+                  <EndpointsColumn />
+                </GetResources>
+                <GetResources resources={[ResourceType.NotificationRules]}>
+                  <RulesColumn />
+                </GetResources>
+              </div>
             </GetAssetLimits>
           </GetResources>
         </Page.Contents>

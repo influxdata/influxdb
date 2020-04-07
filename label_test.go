@@ -3,8 +3,8 @@ package influxdb_test
 import (
 	"testing"
 
-	"github.com/influxdata/influxdb"
-	influxtest "github.com/influxdata/influxdb/testing"
+	"github.com/influxdata/influxdb/v2"
+	influxtest "github.com/influxdata/influxdb/v2/testing"
 )
 
 const (

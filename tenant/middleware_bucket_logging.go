@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2"
 	"go.uber.org/zap"
 )
 
@@ -31,7 +31,7 @@ func (l *BucketLogger) CreateBucket(ctx context.Context, u *influxdb.Bucket) (er
 			l.logger.Error("failed to create bucket", zap.Error(err), dur)
 			return
 		}
-		l.logger.Info("bucket create", dur)
+		l.logger.Debug("bucket create", dur)
 	}(time.Now())
 	return l.bucketService.CreateBucket(ctx, u)
 }
@@ -44,7 +44,7 @@ func (l *BucketLogger) FindBucketByID(ctx context.Context, id influxdb.ID) (u *i
 			l.logger.Error(msg, zap.Error(err), dur)
 			return
 		}
-		l.logger.Info("bucket find by ID", dur)
+		l.logger.Debug("bucket find by ID", dur)
 	}(time.Now())
 	return l.bucketService.FindBucketByID(ctx, id)
 }
@@ -57,7 +57,7 @@ func (l *BucketLogger) FindBucketByName(ctx context.Context, orgID influxdb.ID, 
 			l.logger.Error(msg, zap.Error(err), dur)
 			return
 		}
-		l.logger.Info("bucket find by name", dur)
+		l.logger.Debug("bucket find by name", dur)
 	}(time.Now())
 	return l.bucketService.FindBucketByName(ctx, orgID, name)
 }
@@ -69,7 +69,7 @@ func (l *BucketLogger) FindBucket(ctx context.Context, filter influxdb.BucketFil
 			l.logger.Error("failed to find bucket matching the given filter", zap.Error(err), dur)
 			return
 		}
-		l.logger.Info("bucket find", dur)
+		l.logger.Debug("bucket find", dur)
 	}(time.Now())
 	return l.bucketService.FindBucket(ctx, filter)
 }
@@ -81,7 +81,7 @@ func (l *BucketLogger) FindBuckets(ctx context.Context, filter influxdb.BucketFi
 			l.logger.Error("failed to find bucket matching the given filter", zap.Error(err), dur)
 			return
 		}
-		l.logger.Info("buckets find", dur)
+		l.logger.Debug("buckets find", dur)
 	}(time.Now())
 	return l.bucketService.FindBuckets(ctx, filter)
 }
@@ -93,7 +93,7 @@ func (l *BucketLogger) UpdateBucket(ctx context.Context, id influxdb.ID, upd inf
 			l.logger.Error("failed to update bucket", zap.Error(err), dur)
 			return
 		}
-		l.logger.Info("bucket update", dur)
+		l.logger.Debug("bucket update", dur)
 	}(time.Now())
 	return l.bucketService.UpdateBucket(ctx, id, upd)
 }
@@ -106,7 +106,7 @@ func (l *BucketLogger) DeleteBucket(ctx context.Context, id influxdb.ID) (err er
 			l.logger.Error(msg, zap.Error(err), dur)
 			return
 		}
-		l.logger.Info("bucket delete", dur)
+		l.logger.Debug("bucket delete", dur)
 	}(time.Now())
 	return l.bucketService.DeleteBucket(ctx, id)
 }

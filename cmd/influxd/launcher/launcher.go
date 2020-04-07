@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"net"
 	nethttp "net/http"
 	_ "net/http/pprof" // needed to add pprof to our binary.
@@ -16,45 +15,46 @@ import (
 	"time"
 
 	"github.com/influxdata/flux"
-	platform "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/authorizer"
-	"github.com/influxdata/influxdb/bolt"
-	"github.com/influxdata/influxdb/chronograf/server"
-	"github.com/influxdata/influxdb/cmd/influxd/inspect"
-	"github.com/influxdata/influxdb/endpoints"
-	"github.com/influxdata/influxdb/gather"
-	"github.com/influxdata/influxdb/http"
-	"github.com/influxdata/influxdb/inmem"
-	"github.com/influxdata/influxdb/internal/fs"
-	"github.com/influxdata/influxdb/kit/cli"
-	"github.com/influxdata/influxdb/kit/prom"
-	"github.com/influxdata/influxdb/kit/signals"
-	"github.com/influxdata/influxdb/kit/tracing"
-	kithttp "github.com/influxdata/influxdb/kit/transport/http"
-	"github.com/influxdata/influxdb/kv"
-	influxlogger "github.com/influxdata/influxdb/logger"
-	"github.com/influxdata/influxdb/nats"
-	"github.com/influxdata/influxdb/pkger"
-	infprom "github.com/influxdata/influxdb/prometheus"
-	"github.com/influxdata/influxdb/query"
-	"github.com/influxdata/influxdb/query/control"
-	"github.com/influxdata/influxdb/query/stdlib/influxdata/influxdb"
-	"github.com/influxdata/influxdb/snowflake"
-	"github.com/influxdata/influxdb/source"
-	"github.com/influxdata/influxdb/storage"
-	storageflux "github.com/influxdata/influxdb/storage/flux"
-	"github.com/influxdata/influxdb/storage/readservice"
-	taskbackend "github.com/influxdata/influxdb/task/backend"
-	"github.com/influxdata/influxdb/task/backend/coordinator"
-	"github.com/influxdata/influxdb/task/backend/executor"
-	"github.com/influxdata/influxdb/task/backend/middleware"
-	"github.com/influxdata/influxdb/task/backend/scheduler"
-	"github.com/influxdata/influxdb/telemetry"
-	_ "github.com/influxdata/influxdb/tsdb/tsi1" // needed for tsi1
-	_ "github.com/influxdata/influxdb/tsdb/tsm1" // needed for tsm1
-	"github.com/influxdata/influxdb/vault"
-	pzap "github.com/influxdata/influxdb/zap"
-	opentracing "github.com/opentracing/opentracing-go"
+	platform "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/authorizer"
+	"github.com/influxdata/influxdb/v2/bolt"
+	"github.com/influxdata/influxdb/v2/chronograf/server"
+	"github.com/influxdata/influxdb/v2/cmd/influxd/inspect"
+	"github.com/influxdata/influxdb/v2/endpoints"
+	"github.com/influxdata/influxdb/v2/gather"
+	"github.com/influxdata/influxdb/v2/http"
+	"github.com/influxdata/influxdb/v2/inmem"
+	"github.com/influxdata/influxdb/v2/internal/fs"
+	"github.com/influxdata/influxdb/v2/kit/cli"
+	"github.com/influxdata/influxdb/v2/kit/prom"
+	"github.com/influxdata/influxdb/v2/kit/signals"
+	"github.com/influxdata/influxdb/v2/kit/tracing"
+	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
+	"github.com/influxdata/influxdb/v2/kv"
+	influxlogger "github.com/influxdata/influxdb/v2/logger"
+	"github.com/influxdata/influxdb/v2/nats"
+	"github.com/influxdata/influxdb/v2/pkger"
+	infprom "github.com/influxdata/influxdb/v2/prometheus"
+	"github.com/influxdata/influxdb/v2/query"
+	"github.com/influxdata/influxdb/v2/query/control"
+	"github.com/influxdata/influxdb/v2/query/stdlib/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2/snowflake"
+	"github.com/influxdata/influxdb/v2/source"
+	"github.com/influxdata/influxdb/v2/storage"
+	storageflux "github.com/influxdata/influxdb/v2/storage/flux"
+	"github.com/influxdata/influxdb/v2/storage/readservice"
+	taskbackend "github.com/influxdata/influxdb/v2/task/backend"
+	"github.com/influxdata/influxdb/v2/task/backend/coordinator"
+	"github.com/influxdata/influxdb/v2/task/backend/executor"
+	"github.com/influxdata/influxdb/v2/task/backend/middleware"
+	"github.com/influxdata/influxdb/v2/task/backend/scheduler"
+	"github.com/influxdata/influxdb/v2/telemetry"
+	"github.com/influxdata/influxdb/v2/tenant"
+	_ "github.com/influxdata/influxdb/v2/tsdb/tsi1" // needed for tsi1
+	_ "github.com/influxdata/influxdb/v2/tsdb/tsm1" // needed for tsm1
+	"github.com/influxdata/influxdb/v2/vault"
+	pzap "github.com/influxdata/influxdb/v2/zap"
+	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 	jaegerconfig "github.com/uber/jaeger-client-go/config"
@@ -260,11 +260,58 @@ func buildLauncherCommand(l *Launcher, cmd *cobra.Command) {
 			Default: "",
 			Desc:    "TLS key for HTTPs",
 		},
+		{
+			DestP:   &l.enableNewMetaStore,
+			Flag:    "new-meta-store",
+			Default: false,
+			Desc:    "enables the new meta store",
+		},
+		{
+			DestP:   &l.newMetaStoreReadOnly,
+			Flag:    "new-meta-store-read-only",
+			Default: true,
+			Desc:    "toggles read-only mode for the new meta store, if so, the reads are duplicated between the old and new store (has meaning only if the new meta store is enabled)",
+		},
+		{
+			DestP:   &l.noTasks,
+			Flag:    "no-tasks",
+			Default: false,
+			Desc:    "disables the task scheduler",
+		},
+		{
+			DestP:   &l.concurrencyQuota,
+			Flag:    "query-concurrency",
+			Default: 10,
+			Desc:    "the number of queries that are allowed to execute concurrently",
+		},
+		{
+			DestP:   &l.initialMemoryBytesQuotaPerQuery,
+			Flag:    "query-initial-memory-bytes",
+			Default: 0,
+			Desc:    "the initial number of bytes allocated for a query when it is started. If this is unset, then query-memory-bytes will be used",
+		},
+		{
+			DestP:   &l.memoryBytesQuotaPerQuery,
+			Flag:    "query-memory-bytes",
+			Default: 10 * 1024 * 1024, // 10MB
+			Desc:    "maximum number of bytes a query is allowed to use at any given time. This must be greater or equal to query-initial-memory-bytes",
+		},
+		{
+			DestP:   &l.maxMemoryBytes,
+			Flag:    "query-max-memory-bytes",
+			Default: 0,
+			Desc:    "the maximum amount of memory used for queries. If this is unset, then this number is query-concurrency * query-memory-bytes",
+		},
+		{
+			DestP:   &l.queueSize,
+			Flag:    "query-queue-size",
+			Default: 10,
+			Desc:    "the number of queries that are allowed to be awaiting execution before new queries are rejected",
+		},
 	}
 
 	cli.BindOptions(cmd, opts)
 	cmd.AddCommand(inspect.NewCommand())
-
 }
 
 // Launcher represents the main program execution.
@@ -288,7 +335,18 @@ type Launcher struct {
 	enginePath      string
 	secretStore     string
 
+	enableNewMetaStore   bool
+	newMetaStoreReadOnly bool
+
+	// Query options.
+	concurrencyQuota                int
+	initialMemoryBytesQuotaPerQuery int
+	memoryBytesQuotaPerQuery        int
+	maxMemoryBytes                  int
+	queueSize                       int
+
 	boltClient    *bolt.Client
+	kvStore       kv.Store
 	kvService     *kv.Service
 	engine        Engine
 	StorageConfig storage.Config
@@ -303,7 +361,8 @@ type Launcher struct {
 	natsServer *nats.Server
 	natsPort   int
 
-	scheduler          *scheduler.TreeScheduler
+	noTasks            bool
+	scheduler          stoppingScheduler
 	executor           *executor.Executor
 	taskControlService taskbackend.TaskControlService
 
@@ -315,6 +374,11 @@ type Launcher struct {
 	Stdout     io.Writer
 	Stderr     io.Writer
 	apibackend *http.APIBackend
+}
+
+type stoppingScheduler interface {
+	scheduler.Scheduler
+	Stop()
 }
 
 // NewLauncher returns a new instance of Launcher connected to standard in/out/err.
@@ -487,12 +551,14 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	case BoltStore:
 		store := bolt.NewKVStore(m.log.With(zap.String("service", "kvstore-bolt")), m.boltPath)
 		store.WithDB(m.boltClient.DB())
+		m.kvStore = store
 		m.kvService = kv.NewService(m.log.With(zap.String("store", "kv")), store, serviceConfig)
 		if m.testing {
 			flushers = append(flushers, store)
 		}
 	case MemoryStore:
 		store := inmem.NewKVStore()
+		m.kvStore = store
 		m.kvService = kv.NewService(m.log.With(zap.String("store", "kv")), store, serviceConfig)
 		if m.testing {
 			flushers = append(flushers, store)
@@ -529,7 +595,6 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		userLogSvc                platform.UserOperationLogService         = m.kvService
 		bucketLogSvc              platform.BucketOperationLogService       = m.kvService
 		orgLogSvc                 platform.OrganizationOperationLogService = m.kvService
-		onboardingSvc             platform.OnboardingService               = m.kvService
 		scraperTargetSvc          platform.ScraperTargetStoreService       = m.kvService
 		telegrafSvc               platform.TelegrafConfigStore             = m.kvService
 		userResourceSvc           platform.UserResourceMappingService      = m.kvService
@@ -538,6 +603,36 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		lookupSvc                 platform.LookupService                   = m.kvService
 		notificationEndpointStore platform.NotificationEndpointService     = m.kvService
 	)
+
+	store, err := tenant.NewStore(m.kvStore)
+	if err != nil {
+		m.log.Error("Failed creating new meta store", zap.Error(err))
+		return err
+	}
+
+	userSvcForAuth := userSvc
+	if m.enableNewMetaStore {
+		var ts platform.TenantService
+		if m.newMetaStoreReadOnly {
+			store, err := tenant.NewReadOnlyStore(m.kvStore)
+			if err != nil {
+				m.log.Error("Failed creating new meta store", zap.Error(err))
+				return err
+			}
+			oldSvc := m.kvService
+			newSvc := tenant.NewService(store)
+			ts = tenant.NewDuplicateReadTenantService(m.log, oldSvc, newSvc)
+		} else {
+			ts = tenant.NewService(store)
+		}
+		userSvcForAuth = ts
+
+		userSvc = tenant.NewAuthedUserService(tenant.NewUserLogger(m.log.With(zap.String("store", "new")), tenant.NewUserMetrics(m.reg, ts, tenant.WithSuffix("new"))))
+		orgSvc = tenant.NewAuthedOrgService(tenant.NewOrgLogger(m.log.With(zap.String("store", "new")), tenant.NewOrgMetrics(m.reg, ts, tenant.WithSuffix("new"))))
+		userResourceSvc = tenant.NewAuthedURMService(ts, tenant.NewURMLogger(m.log.With(zap.String("store", "new")), tenant.NewUrmMetrics(m.reg, ts, tenant.WithSuffix("new"))))
+		bucketSvc = tenant.NewAuthedBucketService(tenant.NewBucketLogger(m.log.With(zap.String("store", "new")), tenant.NewBucketMetrics(m.reg, ts, tenant.WithSuffix("new"))), userResourceSvc)
+		passwdsSvc = tenant.NewAuthedPasswordService(tenant.NewPasswordLogger(m.log.With(zap.String("store", "new")), tenant.NewPasswordMetrics(m.reg, ts, tenant.WithSuffix("new"))))
+	}
 
 	switch m.secretStore {
 	case "bolt":
@@ -585,14 +680,6 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		backupService platform.BackupService = m.engine
 	)
 
-	// TODO(cwolff): Figure out a good default per-query memory limit:
-	//   https://github.com/influxdata/influxdb/issues/13642
-	const (
-		concurrencyQuota         = 10
-		memoryBytesQuotaPerQuery = math.MaxInt64
-		QueueSize                = 10
-	)
-
 	deps, err := influxdb.NewDependencies(
 		storageflux.NewReader(readservice.NewStore(m.engine)),
 		m.engine,
@@ -607,11 +694,13 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	}
 
 	m.queryController, err = control.New(control.Config{
-		ConcurrencyQuota:         concurrencyQuota,
-		MemoryBytesQuotaPerQuery: int64(memoryBytesQuotaPerQuery),
-		QueueSize:                QueueSize,
-		Logger:                   m.log.With(zap.String("service", "storage-reads")),
-		ExecutorDependencies:     []flux.Dependency{deps},
+		ConcurrencyQuota:                m.concurrencyQuota,
+		InitialMemoryBytesQuotaPerQuery: int64(m.initialMemoryBytesQuotaPerQuery),
+		MemoryBytesQuotaPerQuery:        int64(m.memoryBytesQuotaPerQuery),
+		MaxMemoryBytes:                  int64(m.maxMemoryBytes),
+		QueueSize:                       m.queueSize,
+		Logger:                          m.log.With(zap.String("service", "storage-reads")),
+		ExecutorDependencies:            []flux.Dependency{deps},
 	})
 	if err != nil {
 		m.log.Error("Failed to create query controller", zap.Error(err))
@@ -637,22 +726,31 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		m.reg.MustRegister(executorMetrics.PrometheusCollectors()...)
 		schLogger := m.log.With(zap.String("service", "task-scheduler"))
 
-		sch, sm, err := scheduler.NewScheduler(
-			executor,
-			taskbackend.NewSchedulableTaskService(m.kvService),
-			scheduler.WithOnErrorFn(func(ctx context.Context, taskID scheduler.ID, scheduledAt time.Time, err error) {
-				schLogger.Info(
-					"error in scheduler run",
-					zap.String("taskID", platform.ID(taskID).String()),
-					zap.Time("scheduledAt", scheduledAt),
-					zap.Error(err))
-			}),
-		)
-		if err != nil {
-			m.log.Fatal("could not start task scheduler", zap.Error(err))
+		var sch stoppingScheduler = &scheduler.NoopScheduler{}
+		if !m.noTasks {
+			var (
+				sm  *scheduler.SchedulerMetrics
+				err error
+			)
+			sch, sm, err = scheduler.NewScheduler(
+				executor,
+				taskbackend.NewSchedulableTaskService(m.kvService),
+				scheduler.WithOnErrorFn(func(ctx context.Context, taskID scheduler.ID, scheduledAt time.Time, err error) {
+					schLogger.Info(
+						"error in scheduler run",
+						zap.String("taskID", platform.ID(taskID).String()),
+						zap.Time("scheduledAt", scheduledAt),
+						zap.Error(err))
+				}),
+			)
+			if err != nil {
+				m.log.Fatal("could not start task scheduler", zap.Error(err))
+			}
+			m.reg.MustRegister(sm.PrometheusCollectors()...)
 		}
+
 		m.scheduler = sch
-		m.reg.MustRegister(sm.PrometheusCollectors()...)
+
 		coordLogger := m.log.With(zap.String("service", "task-coordinator"))
 		taskCoord := coordinator.NewCoordinator(
 			coordLogger,
@@ -792,7 +890,6 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		SourceService:                   sourceSvc,
 		VariableService:                 variableSvc,
 		PasswordsService:                passwdsSvc,
-		OnboardingService:               onboardingSvc,
 		InfluxQLService:                 storageQueryService,
 		FluxService:                     storageQueryService,
 		TaskService:                     taskSvc,
@@ -812,6 +909,8 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 
 	m.reg.MustRegister(m.apibackend.PrometheusCollectors()...)
 
+	authAgent := new(authorizer.AuthAgent)
+
 	var pkgSVC pkger.SVC
 	{
 		b := m.apibackend
@@ -820,12 +919,14 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		pkgerLogger := m.log.With(zap.String("service", "pkger"))
 		pkgSVC = pkger.NewService(
 			pkger.WithLogger(pkgerLogger),
+			pkger.WithStore(pkger.NewStoreKV(m.kvStore)),
 			pkger.WithBucketSVC(authorizer.NewBucketService(b.BucketService, b.UserResourceMappingService)),
 			pkger.WithCheckSVC(authorizer.NewCheckService(b.CheckService, authedURMSVC, authedOrgSVC)),
 			pkger.WithDashboardSVC(authorizer.NewDashboardService(b.DashboardService)),
 			pkger.WithLabelSVC(authorizer.NewLabelServiceWithOrg(b.LabelService, b.OrgLookupService)),
 			pkger.WithNotificationEndpointSVC(authorizer.NewNotificationEndpointService(b.NotificationEndpointService, authedURMSVC, authedOrgSVC)),
 			pkger.WithNotificationRuleSVC(authorizer.NewNotificationRuleStore(b.NotificationRuleStore, authedURMSVC, authedOrgSVC)),
+			pkger.WithOrganizationService(authorizer.NewOrgService(b.OrganizationService)),
 			pkger.WithSecretSVC(authorizer.NewSecretService(b.SecretService)),
 			pkger.WithTaskSVC(authorizer.NewTaskService(pkgerLogger, b.TaskService)),
 			pkger.WithTelegrafSVC(authorizer.NewTelegrafConfigService(b.TelegrafService, b.UserResourceMappingService)),
@@ -834,6 +935,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		pkgSVC = pkger.MWTracing()(pkgSVC)
 		pkgSVC = pkger.MWMetrics(m.reg)(pkgSVC)
 		pkgSVC = pkger.MWLogging(pkgerLogger)(pkgSVC)
+		pkgSVC = pkger.MWAuth(authAgent)(pkgSVC)
 	}
 
 	var pkgHTTPServer *pkger.HTTPServer
@@ -842,8 +944,18 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		pkgHTTPServer = pkger.NewHTTPServer(pkgServerLogger, pkgSVC)
 	}
 
+	var onboardHTTPServer *tenant.OnboardHandler
 	{
-		platformHandler := http.NewPlatformHandler(m.apibackend, http.WithResourceHandler(pkgHTTPServer))
+		onboardSvc := tenant.NewOnboardService(store, authSvc)                                            // basic service
+		onboardSvc = tenant.NewAuthedOnboardSvc(onboardSvc)                                               // with auth
+		onboardSvc = tenant.NewOnboardingMetrics(m.reg, onboardSvc, tenant.WithSuffix("new"))             // with metrics
+		onboardSvc = tenant.NewOnboardingLogger(m.log.With(zap.String("handler", "onboard")), onboardSvc) // with logging
+
+		onboardHTTPServer = tenant.NewHTTPOnboardHandler(m.log, onboardSvc)
+	}
+
+	{
+		platformHandler := http.NewPlatformHandler(m.apibackend, userSvcForAuth, http.WithResourceHandler(pkgHTTPServer), http.WithResourceHandler(onboardHTTPServer))
 
 		httpLogger := m.log.With(zap.String("service", "http"))
 		m.httpServer.Handler = http.NewHandlerFromRegistry(
@@ -940,6 +1052,11 @@ func (m *Launcher) BucketService() platform.BucketService {
 // UserService returns the internal user service.
 func (m *Launcher) UserService() platform.UserService {
 	return m.apibackend.UserService
+}
+
+// UserResourceMappingService returns the internal user resource mapping service.
+func (m *Launcher) UserResourceMappingService() platform.UserResourceMappingService {
+	return m.apibackend.UserResourceMappingService
 }
 
 // AuthorizationService returns the internal authorization service.

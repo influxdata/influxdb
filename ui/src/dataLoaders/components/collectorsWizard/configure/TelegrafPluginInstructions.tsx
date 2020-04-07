@@ -4,8 +4,7 @@ import {connect} from 'react-redux'
 import {includes, get} from 'lodash'
 
 // Components
-import {Form, Input} from '@influxdata/clockface'
-import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
+import {Form, Input, DapperScrollbars} from '@influxdata/clockface'
 import OnboardingButtons from 'src/onboarding/components/OnboardingButtons'
 import PluginsSideBar from 'src/dataLoaders/components/collectorsWizard/configure/PluginsSideBar'
 
@@ -89,7 +88,7 @@ export class TelegrafPluginInstructions extends PureComponent<Props> {
               visible={this.sideBarVisible}
             />
             <div className="data-loading--column-panel">
-              <FancyScrollbar
+              <DapperScrollbars
                 autoHide={false}
                 className="data-loading--scroll-content"
               >
@@ -114,7 +113,7 @@ export class TelegrafPluginInstructions extends PureComponent<Props> {
                     size={ComponentSize.Medium}
                   />
                 </Form.Element>
-              </FancyScrollbar>
+              </DapperScrollbars>
             </div>
           </div>
         </div>

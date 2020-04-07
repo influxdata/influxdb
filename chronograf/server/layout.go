@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	"github.com/bouk/httprouter"
-	"github.com/influxdata/influxdb/chronograf"
+	"github.com/influxdata/influxdb/v2/chronograf"
 )
 
 type link struct {

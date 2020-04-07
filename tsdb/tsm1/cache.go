@@ -9,10 +9,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/influxdata/influxdb/kit/tracing"
-	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/storage/wal"
-	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/v2/kit/tracing"
+	"github.com/influxdata/influxdb/v2/models"
+	"github.com/influxdata/influxdb/v2/storage/wal"
+	"github.com/influxdata/influxdb/v2/tsdb"
 	"github.com/influxdata/influxql"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
@@ -701,17 +701,43 @@ func (t *cacheTracker) SetAge(d time.Duration) {
 	t.metrics.Age.With(labels).Set(d.Seconds())
 }
 
+const (
+	valueTypeUndefined = 0
+	valueTypeFloat64   = 1
+	valueTypeInteger   = 2
+	valueTypeString    = 3
+	valueTypeBoolean   = 4
+	valueTypeUnsigned  = 5
+)
+
 func valueType(v Value) byte {
 	switch v.(type) {
 	case FloatValue:
-		return 1
+		return valueTypeFloat64
 	case IntegerValue:
-		return 2
+		return valueTypeInteger
 	case StringValue:
-		return 3
+		return valueTypeString
 	case BooleanValue:
-		return 4
+		return valueTypeBoolean
+	case UnsignedValue:
+		return valueTypeUnsigned
 	default:
-		return 0
+		return valueTypeUndefined
 	}
 }
+
+var (
+	valueTypeBlockType = [8]byte{
+		valueTypeUndefined: blockUndefined,
+		valueTypeFloat64:   BlockFloat64,
+		valueTypeInteger:   BlockInteger,
+		valueTypeString:    BlockString,
+		valueTypeBoolean:   BlockBoolean,
+		valueTypeUnsigned:  BlockUnsigned,
+		6:                  blockUndefined,
+		7:                  blockUndefined,
+	}
+)
+
+func valueTypeToBlockType(typ byte) byte { return valueTypeBlockType[typ&7] }

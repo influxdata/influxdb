@@ -6,7 +6,7 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/repl"
 	_ "github.com/influxdata/flux/stdlib"
-	_ "github.com/influxdata/influxdb/query/stdlib"
+	_ "github.com/influxdata/influxdb/v2/query/stdlib"
 	"github.com/spf13/cobra"
 )
 
@@ -15,7 +15,7 @@ var queryFlags struct {
 }
 
 func cmdQuery(f *globalFlags, opts genericCLIOpts) *cobra.Command {
-	cmd := opts.newCmd("query [query literal or @/path/to/query.flux]", fluxQueryF)
+	cmd := opts.newCmd("query [query literal or @/path/to/query.flux]", fluxQueryF, true)
 	cmd.Short = "Execute a Flux query"
 	cmd.Long = `Execute a literal Flux query provided as a string,
 or execute a literal Flux query contained in a file by specifying the file prefixed with an @ sign.`

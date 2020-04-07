@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/kv"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kv"
 )
 
 // FindBucketByID returns a single bucket by ID.
@@ -108,6 +108,38 @@ func (s *Service) FindBuckets(ctx context.Context, filter influxdb.BucketFilter,
 		return nil, 0, err
 	}
 
+	// NOTE: this is a remnant of the old system.
+	// There are org that do not have system buckets stored, but still need to be displayed.
+	needsSystemBuckets := true
+	for _, b := range buckets {
+		if b.Type == influxdb.BucketTypeSystem {
+			needsSystemBuckets = false
+			break
+		}
+	}
+
+	if needsSystemBuckets {
+		tb := &influxdb.Bucket{
+			ID:              influxdb.TasksSystemBucketID,
+			Type:            influxdb.BucketTypeSystem,
+			Name:            influxdb.TasksSystemBucketName,
+			RetentionPeriod: influxdb.TasksSystemBucketRetention,
+			Description:     "System bucket for task logs",
+		}
+
+		buckets = append(buckets, tb)
+
+		mb := &influxdb.Bucket{
+			ID:              influxdb.MonitoringSystemBucketID,
+			Type:            influxdb.BucketTypeSystem,
+			Name:            influxdb.MonitoringSystemBucketName,
+			RetentionPeriod: influxdb.MonitoringSystemBucketRetention,
+			Description:     "System bucket for monitoring logs",
+		}
+
+		buckets = append(buckets, mb)
+	}
+
 	return buckets, len(buckets), nil
 }
 
@@ -124,12 +156,7 @@ func (s *Service) CreateBucket(ctx context.Context, b *influxdb.Bucket) error {
 			return err
 		}
 
-		err := s.store.CreateBucket(ctx, tx, b)
-		if err != nil {
-			return err
-		}
-
-		return s.addOrgRelationToResource(ctx, tx, b.OrgID, b.ID, influxdb.BucketsResourceType)
+		return s.store.CreateBucket(ctx, tx, b)
 	})
 }
 

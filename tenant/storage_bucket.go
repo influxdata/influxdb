@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/kv"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kv"
 )
 
 var (
@@ -25,7 +25,7 @@ func bucketIndexKey(o influxdb.ID, name string) ([]byte, error) {
 	}
 	k := make([]byte, influxdb.IDLength+len(name))
 	copy(k, orgID)
-	copy(k[influxdb.IDLength:], []byte(name))
+	copy(k[influxdb.IDLength:], name)
 	return k, nil
 }
 

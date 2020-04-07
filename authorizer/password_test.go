@@ -4,10 +4,10 @@ import (
 	"context"
 	"testing"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/authorizer"
-	icontext "github.com/influxdata/influxdb/context"
-	"github.com/influxdata/influxdb/mock"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/authorizer"
+	icontext "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -30,9 +30,7 @@ func TestPasswordService(t *testing.T) {
 			}
 			s := authorizer.NewPasswordService(fakeSVC)
 
-			ctx := icontext.SetAuthorizer(context.Background(), &Authorizer{
-				Permissions: []influxdb.Permission{permission},
-			})
+			ctx := icontext.SetAuthorizer(context.Background(), mock.NewMockAuthorizer(false, []influxdb.Permission{permission}))
 
 			err := s.SetPassword(ctx, 1, "password")
 			require.NoError(t, err)
@@ -90,9 +88,7 @@ func TestPasswordService(t *testing.T) {
 					}
 					s := authorizer.NewPasswordService(fakeSVC)
 
-					ctx := icontext.SetAuthorizer(context.Background(), &Authorizer{
-						Permissions: []influxdb.Permission{tt.badPermission},
-					})
+					ctx := icontext.SetAuthorizer(context.Background(), mock.NewMockAuthorizer(false, []influxdb.Permission{tt.badPermission}))
 
 					err := s.SetPassword(ctx, goodUserID, "password")
 					require.Error(t, err)

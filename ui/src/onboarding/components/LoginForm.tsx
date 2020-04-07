@@ -92,7 +92,7 @@ export const LoginForm: FC<Props> = ({
         </Grid.Row>
       </Grid>
       <Heading
-        element={HeadingElement.H5}
+        element={HeadingElement.H6}
         type={Typeface.Rubik}
         weight={FontWeight.Regular}
         onClick={handleForgotPasswordClick}

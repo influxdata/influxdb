@@ -3,7 +3,7 @@ package telemetry
 import (
 	"time"
 
-	"github.com/influxdata/influxdb/prometheus"
+	"github.com/influxdata/influxdb/v2/prometheus"
 	dto "github.com/prometheus/client_model/go"
 )
 

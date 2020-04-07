@@ -20,7 +20,6 @@ import {
 } from 'src/schemas'
 
 // Actions
-import {refreshDashboardVariableValues} from 'src/dashboards/actions/thunks'
 import {setView} from 'src/views/actions/creators'
 import {notify} from 'src/shared/actions/notifications'
 import {setCells, setCell, removeCell} from 'src/cells/actions/creators'
@@ -47,22 +46,15 @@ import {
 } from 'src/types'
 
 // Utils
-import {getViewsForDashboard} from 'src/views/selectors'
 import {getNewDashboardCell} from 'src/dashboards/utils/cellGetters'
 import {getByID} from 'src/resources/selectors'
 
 export const deleteCell = (dashboardID: string, cellID: string) => async (
-  dispatch,
-  getState: GetState
+  dispatch
 ): Promise<void> => {
   try {
-    const views = getViewsForDashboard(getState(), dashboardID).filter(
-      view => view.cellID !== cellID
-    )
-
     await Promise.all([
       deleteDashboardsCell({dashboardID: dashboardID, cellID: cellID}),
-      dispatch(refreshDashboardVariableValues(dashboardID, views)),
     ])
 
     dispatch(removeCell({dashboardID, id: cellID}))
@@ -121,10 +113,6 @@ export const createCellWithView = (
     )
 
     // Refresh variables in use on dashboard
-    const views = [...getViewsForDashboard(state, dashboardID), newView]
-
-    await dispatch(refreshDashboardVariableValues(dashboardID, views))
-
     const normView = normalize<View, ViewEntities, string>(newView, viewSchema)
 
     dispatch(setView(cellID, RemoteDataState.Done, normView))

@@ -20,7 +20,7 @@ export const buildVarsOption = (variables: VariableAssignment[]): File => ({
         },
         init: {
           type: 'ObjectExpression',
-          properties: variables.map(assignmentToProperty),
+          properties: variables.filter(v => !!v).map(assignmentToProperty),
         },
       },
     },

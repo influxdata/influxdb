@@ -1,13 +1,46 @@
-## v2.0.0-beta.7 [unreleased]
+## unreleased
+
+### Features
+
+1. [17490](https://github.com/influxdata/influxdb/pull/17490): `influx config -`, to switch back to previous activated configuration
+1. [17581](https://github.com/influxdata/influxdb/pull/17581): Introduce new navigation menu
+
+### Bug Fixes
+
+1. [17612](https://github.com/influxdata/influxdb/pull/17612): Fix card size and layout jank in dashboards index view
+1. [17651](https://github.com/influxdata/influxdb/pull/17651): Fix check graph font and lines defaulting to black causing graph to be unreadable
+
+### UI Improvements
+
+1. [17583](https://github.com/influxdata/influxdb/pull/17583): Update layout of Alerts page to work on all screen sizes
+
+## v2.0.0-beta.7 [2020-03-27]
 
 ### Features
 
 1. [17232](https://github.com/influxdata/influxdb/pull/17232): Allow dashboards to optionally be displayed in light mode
 1. [17273](https://github.com/influxdata/influxdb/pull/17273): Add shell completions command for the influx cli
+1. [17353](https://github.com/influxdata/influxdb/pull/17353): Make all pkg resources unique by metadata.name field
+1. [17363](https://github.com/influxdata/influxdb/pull/17363): Telegraf config tokens can no longer be retrieved after creation, but new tokens can be created after a telegraf has been setup
+1. [17400](https://github.com/influxdata/influxdb/pull/17400): Be able to delete bucket by name via cli
+1. [17396](https://github.com/influxdata/influxdb/pull/17396): Add module to write line data to specified url, org, and bucket
+1. [17398](https://github.com/influxdata/influxdb/pull/17398): Extend influx cli write command with ability to process CSV data
+1. [17448](https://github.com/influxdata/influxdb/pull/17448): Add foundation for pkger stacks, stateful package management
+1. [17462](https://github.com/influxdata/influxdb/pull/17462): Flag to disable scheduling of tasks
+1. [17470](https://github.com/influxdata/influxdb/pull/17470): Add ability to output cli output as json and hide table headers
+1. [17472](https://github.com/influxdata/influxdb/pull/17472): Add an easy way to switch config via cli
 
 ### Bug Fixes
 
 1. [17240](https://github.com/influxdata/influxdb/pull/17240): NodeJS logo displays properly in Firefox
+1. [17363](https://github.com/influxdata/influxdb/pull/17363): Fixed telegraf configuration bugs where system buckets were appearing in the buckets dropdown
+1. [17391](https://github.com/influxdata/influxdb/pull/17391): Fixed threshold check bug where checks could not be created when a field had a space in the name
+1. [17384](https://github.com/influxdata/influxdb/pull/17384): Reuse slices built by iterator to reduce allocations
+1. [17404](https://github.com/influxdata/influxdb/pull/17404): Updated duplicate check error message to be more explicit and actionable
+1. [17515](https://github.com/influxdata/influxdb/pull/17515): Editing a table cell shows the proper values and respects changes
+1. [17521](https://github.com/influxdata/influxdb/pull/17521): Table view scrolling should be slightly smoother
+1. [17601](https://github.com/influxdata/influxdb/pull/17601): URL table values on single columns are being correctly parsed
+1. [17552](https://github.com/influxdata/influxdb/pull/17552): Fixed a regression bug that insert aggregate functions where the cursor is rather than a new line
 
 ### UI Improvements
 

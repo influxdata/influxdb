@@ -3,10 +3,9 @@ import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import {Form} from '@influxdata/clockface'
+import {Form, DapperScrollbars} from '@influxdata/clockface'
 import DataStreaming from 'src/dataLoaders/components/verifyStep/DataStreaming'
 import OnboardingButtons from 'src/onboarding/components/OnboardingButtons'
-import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 
 // Types
 import {CollectorsStepProps} from 'src/dataLoaders/components/collectorsWizard/CollectorsWizard'
@@ -41,7 +40,7 @@ export class VerifyCollectorStep extends PureComponent<Props> {
 
     return (
       <Form onSubmit={onExit} className="data-loading--form">
-        <FancyScrollbar
+        <DapperScrollbars
           autoHide={false}
           className="data-loading--scroll-content"
         >
@@ -57,7 +56,7 @@ export class VerifyCollectorStep extends PureComponent<Props> {
             token={token}
             configID={telegrafConfigID}
           />
-        </FancyScrollbar>
+        </DapperScrollbars>
         <OnboardingButtons
           onClickBack={onDecrementCurrentStepIndex}
           nextButtonText="Finish"

@@ -14,8 +14,8 @@ class TooltipArguments extends PureComponent<Props> {
   public render() {
     return (
       <article>
-        <div className="flux-functions-toolbar--heading">Arguments</div>
-        <div className="flux-functions-toolbar--snippet">{this.arguments}</div>
+        <div className="flux-function-docs--heading">Arguments</div>
+        <div className="flux-function-docs--snippet">{this.arguments}</div>
       </article>
     )
   }
@@ -26,7 +26,7 @@ class TooltipArguments extends PureComponent<Props> {
     if (argsList.length > 0) {
       return argsList.map(a => {
         return (
-          <div className="flux-functions-toolbar--arguments" key={a.name}>
+          <div className="flux-function-docs--arguments" key={a.name}>
             <span>{a.name}:</span>
             <span>{a.type}</span>
             <div>{a.desc}</div>
@@ -35,7 +35,7 @@ class TooltipArguments extends PureComponent<Props> {
       })
     }
 
-    return <div className="flux-functions-toolbar--arguments">None</div>
+    return <div className="flux-function-docs--arguments">None</div>
   }
 }
 

@@ -2,15 +2,16 @@ package tenant_test
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"sort"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/inmem"
-	"github.com/influxdata/influxdb/kv"
-	"github.com/influxdata/influxdb/tenant"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/inmem"
+	"github.com/influxdata/influxdb/v2/kv"
+	"github.com/influxdata/influxdb/v2/tenant"
 )
 
 func TestURM(t *testing.T) {
@@ -20,8 +21,17 @@ func TestURM(t *testing.T) {
 
 	simpleSetup := func(t *testing.T, store *tenant.Store, tx kv.Tx) {
 		for i := 1; i <= 10; i++ {
-			err := store.CreateURM(context.Background(), tx, &influxdb.UserResourceMapping{
-				UserID:       influxdb.ID(i + 1),
+			// User must exist to create urm.
+			uid := influxdb.ID(i + 1)
+			err := store.CreateUser(context.Background(), tx, &influxdb.User{
+				ID:   uid,
+				Name: fmt.Sprintf("user%d", i),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = store.CreateURM(context.Background(), tx, &influxdb.UserResourceMapping{
+				UserID:       uid,
 				UserType:     influxdb.Owner,
 				MappingType:  influxdb.UserMappingType,
 				ResourceType: influxdb.OrgsResourceType,
@@ -49,7 +59,7 @@ func TestURM(t *testing.T) {
 				}
 
 				if len(urms) != 10 {
-					t.Fatalf("ten records are created and we recieved %d", len(urms))
+					t.Fatalf("ten records are created and we received %d", len(urms))
 				}
 				var expected []*influxdb.UserResourceMapping
 				for i := 1; i <= 10; i++ {
@@ -71,6 +81,36 @@ func TestURM(t *testing.T) {
 
 				if !reflect.DeepEqual(urms, expected) {
 					t.Fatalf("expected identical urms: \n%s", cmp.Diff(urms, expected))
+				}
+			},
+		},
+		{
+			name:  "create - user not found",
+			setup: simpleSetup,
+			results: func(t *testing.T, store *tenant.Store, tx kv.Tx) {
+				users, err := store.ListUsers(context.Background(), tx)
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				maxID := influxdb.ID(0)
+				for _, u := range users {
+					if u.ID > maxID {
+						maxID = u.ID
+					}
+				}
+
+				err = store.CreateURM(context.Background(), tx, &influxdb.UserResourceMapping{
+					UserID:       maxID + 1,
+					UserType:     influxdb.Owner,
+					MappingType:  influxdb.UserMappingType,
+					ResourceType: influxdb.OrgsResourceType,
+					ResourceID:   influxdb.ID(1),
+				})
+				if err == nil {
+					t.Fatal("expected error got none")
+				} else if influxdb.ErrorCode(err) != influxdb.ENotFound {
+					t.Fatalf("expected not found error got: %v", err)
 				}
 			},
 		},
@@ -110,7 +150,7 @@ func TestURM(t *testing.T) {
 				}
 
 				if len(urms) != 10 {
-					t.Fatalf("ten records are created and we recieved %d", len(urms))
+					t.Fatalf("ten records are created and we received %d", len(urms))
 				}
 				var expected []*influxdb.UserResourceMapping
 				for i := 1; i <= 10; i++ {

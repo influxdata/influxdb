@@ -12,13 +12,13 @@ import (
 	"sync"
 
 	"github.com/cespare/xxhash"
-	"github.com/influxdata/influxdb/kit/tracing"
-	"github.com/influxdata/influxdb/logger"
-	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/pkg/binaryutil"
-	"github.com/influxdata/influxdb/pkg/lifecycle"
-	"github.com/influxdata/influxdb/pkg/rhh"
-	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/v2/kit/tracing"
+	"github.com/influxdata/influxdb/v2/logger"
+	"github.com/influxdata/influxdb/v2/models"
+	"github.com/influxdata/influxdb/v2/pkg/binaryutil"
+	"github.com/influxdata/influxdb/v2/pkg/lifecycle"
+	"github.com/influxdata/influxdb/v2/pkg/rhh"
+	"github.com/influxdata/influxdb/v2/tsdb"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
@@ -249,14 +249,21 @@ func (f *SeriesFile) CreateSeriesListIfNotExists(collection *tsdb.SeriesCollecti
 	return nil
 }
 
-// DeleteSeriesID flags a series as permanently deleted.
-// If the series is reintroduced later then it must create a new id.
-func (f *SeriesFile) DeleteSeriesID(id tsdb.SeriesID) error {
-	p := f.SeriesIDPartition(id)
-	if p == nil {
-		return ErrInvalidSeriesPartitionID
+// DeleteSeriesID flags a list of series as permanently deleted.
+// If a series is reintroduced later then it must create a new id.
+func (f *SeriesFile) DeleteSeriesIDs(ids []tsdb.SeriesID) error {
+	m := make(map[int][]tsdb.SeriesID)
+	for _, id := range ids {
+		partitionID := f.SeriesIDPartitionID(id)
+		m[partitionID] = append(m[partitionID], id)
 	}
-	return p.DeleteSeriesID(id)
+
+	var g errgroup.Group
+	for partitionID, partitionIDs := range m {
+		partitionID, partitionIDs := partitionID, partitionIDs
+		g.Go(func() error { return f.partitions[partitionID].DeleteSeriesIDs(partitionIDs) })
+	}
+	return g.Wait()
 }
 
 // IsDeleted returns true if the ID has been deleted before.

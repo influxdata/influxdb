@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/models"
 )
 
 // MetricsCollection is the struct including metrics and other requirements.

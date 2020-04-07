@@ -7,12 +7,12 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/authorizer"
-	influxdbcontext "github.com/influxdata/influxdb/context"
-	"github.com/influxdata/influxdb/mock"
-	"github.com/influxdata/influxdb/notification/endpoint"
-	influxdbtesting "github.com/influxdata/influxdb/testing"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/authorizer"
+	influxdbcontext "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/mock"
+	"github.com/influxdata/influxdb/v2/notification/endpoint"
+	influxdbtesting "github.com/influxdata/influxdb/v2/testing"
 )
 
 var notificationEndpointCmpOptions = cmp.Options{
@@ -114,7 +114,7 @@ func TestNotificationEndpointService_FindNotificationEndpointByID(t *testing.T) 
 			s := authorizer.NewNotificationEndpointService(tt.fields.NotificationEndpointService, mock.NewUserResourceMappingService(), mock.NewOrganizationService())
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			_, err := s.FindNotificationEndpointByID(ctx, tt.args.id)
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
@@ -197,7 +197,7 @@ func TestNotificationEndpointService_FindNotificationEndpoints(t *testing.T) {
 				mock.NewOrganizationService())
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			oid := influxdb.ID(10)
 			edps, _, err := s.FindNotificationEndpoints(ctx, influxdb.NotificationEndpointFilter{OrgID: &oid})
@@ -323,7 +323,7 @@ func TestNotificationEndpointService_UpdateNotificationEndpoint(t *testing.T) {
 				mock.NewOrganizationService())
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{tt.args.permissions})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			_, err := s.UpdateNotificationEndpoint(ctx, tt.args.id, &endpoint.Slack{}, influxdb.ID(1))
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
@@ -443,7 +443,7 @@ func TestNotificationEndpointService_PatchNotificationEndpoint(t *testing.T) {
 				mock.NewOrganizationService())
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{tt.args.permissions})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			_, err := s.PatchNotificationEndpoint(ctx, tt.args.id, influxdb.NotificationEndpointUpdate{})
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
@@ -554,7 +554,7 @@ func TestNotificationEndpointService_DeleteNotificationEndpoint(t *testing.T) {
 			)
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{tt.args.permissions})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			_, _, err := s.DeleteNotificationEndpoint(ctx, tt.args.id)
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
@@ -661,7 +661,7 @@ func TestNotificationEndpointService_CreateNotificationEndpoint(t *testing.T) {
 				mock.NewOrganizationService(),
 			)
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			err := s.CreateNotificationEndpoint(ctx, &endpoint.Slack{
 				Base: endpoint.Base{

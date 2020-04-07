@@ -7,15 +7,15 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/authorizer"
-	icontext "github.com/influxdata/influxdb/context"
-	httpmock "github.com/influxdata/influxdb/http/mock"
-	"github.com/influxdata/influxdb/inmem"
-	"github.com/influxdata/influxdb/kit/transport/http"
-	"github.com/influxdata/influxdb/kv"
-	"github.com/influxdata/influxdb/mock"
-	itesting "github.com/influxdata/influxdb/testing"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/authorizer"
+	icontext "github.com/influxdata/influxdb/v2/context"
+	httpmock "github.com/influxdata/influxdb/v2/http/mock"
+	"github.com/influxdata/influxdb/v2/inmem"
+	"github.com/influxdata/influxdb/v2/kit/transport/http"
+	"github.com/influxdata/influxdb/v2/kv"
+	"github.com/influxdata/influxdb/v2/mock"
+	itesting "github.com/influxdata/influxdb/v2/testing"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -33,7 +33,7 @@ func setup(t *testing.T) (func(auth influxdb.Authorizer) *httptest.Server, func(
 	ctx := context.Background()
 	// Need this to make resource creation work.
 	// We are not testing authorization in the setup.
-	ctx = icontext.SetAuthorizer(ctx, mock.Authorization{})
+	ctx = icontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(true, nil))
 	if err := svc.Initialize(ctx); err != nil {
 		t.Fatal(err)
 	}

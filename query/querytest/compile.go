@@ -6,8 +6,8 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/flux"
-	platform "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/query"
+	platform "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/query"
 )
 
 type BucketsAccessedTestCase struct {

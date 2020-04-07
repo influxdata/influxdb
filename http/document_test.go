@@ -11,11 +11,11 @@ import (
 	"time"
 
 	"github.com/influxdata/httprouter"
-	"github.com/influxdata/influxdb"
-	pcontext "github.com/influxdata/influxdb/context"
-	kithttp "github.com/influxdata/influxdb/kit/transport/http"
-	"github.com/influxdata/influxdb/mock"
-	influxtesting "github.com/influxdata/influxdb/testing"
+	"github.com/influxdata/influxdb/v2"
+	pcontext "github.com/influxdata/influxdb/v2/context"
+	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
+	"github.com/influxdata/influxdb/v2/mock"
+	influxtesting "github.com/influxdata/influxdb/v2/testing"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -93,7 +93,7 @@ var (
 		},
 		Content: "content5",
 	}
-	doc6        = influxdb.Document{
+	doc6 = influxdb.Document{
 		ID: doc6ID,
 		Meta: influxdb.DocumentMeta{
 			Name: "doc6",

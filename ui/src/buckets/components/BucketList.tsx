@@ -1,38 +1,30 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
-import {connect} from 'react-redux'
-import {get} from 'lodash'
 import memoizeOne from 'memoize-one'
 
 // Components
-import BucketCard, {PrettyBucket} from 'src/buckets/components/BucketCard'
+import BucketCard from 'src/buckets/components/BucketCard'
+import DemoDataBucketCard from 'src/buckets/components/DemoDataBucketCard'
 import {ResourceList} from '@influxdata/clockface'
-
-// Actions
-import {setBucketInfo} from 'src/dataLoaders/actions/steps'
 
 // Selectors
 import {getSortedResources} from 'src/shared/utils/sort'
 
 // Types
-import {OverlayState} from 'src/types'
-import {DataLoaderType} from 'src/types/dataLoaders'
-import {setDataLoadersType} from 'src/dataLoaders/actions/dataLoaders'
-import {AppState} from 'src/types'
+import {Bucket, OwnBucket} from 'src/types'
 import {Sort} from '@influxdata/clockface'
-import {SortTypes} from 'src/shared/utils/sort'
 
 // Utils
-import {prettyBuckets} from 'src/shared/utils/prettyBucket'
+import {SortTypes} from 'src/shared/utils/sort'
 
-type SortKey = keyof PrettyBucket | 'retentionRules[0].everySeconds'
+type SortKey = keyof Bucket | 'retentionRules[0].everySeconds'
 
-interface OwnProps {
-  buckets: PrettyBucket[]
+interface Props {
+  buckets: Bucket[]
   emptyState: JSX.Element
-  onUpdateBucket: (b: PrettyBucket) => void
-  onDeleteBucket: (b: PrettyBucket) => void
+  onUpdateBucket: (b: OwnBucket) => void
+  onDeleteBucket: (b: OwnBucket) => void
   onFilterChange: (searchTerm: string) => void
   sortKey: string
   sortDirection: Sort
@@ -42,39 +34,13 @@ interface OwnProps {
   ) => (nextSort: Sort, sortKey: SortKey) => void
 }
 
-interface DispatchProps {
-  onSetBucketInfo: typeof setBucketInfo
-  onSetDataLoadersType: typeof setDataLoadersType
-}
-
-interface StateProps {
-  dataLoaderType: DataLoaderType
-}
-
-type Props = OwnProps & StateProps & DispatchProps
-
-interface State {
-  bucketID: string
-  bucketOverlayState: OverlayState
-}
-
-class BucketList extends PureComponent<Props & WithRouterProps, State> {
+class BucketList extends PureComponent<Props & WithRouterProps> {
   private memGetSortedResources = memoizeOne<typeof getSortedResources>(
     getSortedResources
   )
 
-  constructor(props) {
-    super(props)
-    const bucketID = get(this, 'props.buckets.0.id', null)
-
-    this.state = {
-      bucketID,
-      bucketOverlayState: OverlayState.Closed,
-    }
-  }
-
   public render() {
-    const {emptyState, sortKey, sortDirection, onClickColumn} = this.props
+    const {sortKey, sortDirection, onClickColumn} = this.props
     return (
       <>
         <ResourceList>
@@ -94,7 +60,7 @@ class BucketList extends PureComponent<Props & WithRouterProps, State> {
               testID="retention-sorter"
             />
           </ResourceList.Header>
-          <ResourceList.Body emptyState={emptyState}>
+          <ResourceList.Body emptyState={this.props.emptyState}>
             {this.listBuckets}
           </ResourceList.Body>
         </ResourceList>
@@ -114,15 +80,19 @@ class BucketList extends PureComponent<Props & WithRouterProps, State> {
       sortType,
       onDeleteBucket,
       onFilterChange,
+      onUpdateBucket,
     } = this.props
     const sortedBuckets = this.memGetSortedResources(
-      prettyBuckets(buckets),
+      buckets,
       sortKey,
       sortDirection,
       sortType
     )
 
     return sortedBuckets.map(bucket => {
+      if (bucket.type === 'demodata') {
+        return <DemoDataBucketCard key={bucket.id} bucket={bucket} />
+      }
       return (
         <BucketCard
           key={bucket.id}
@@ -130,62 +100,26 @@ class BucketList extends PureComponent<Props & WithRouterProps, State> {
           onEditBucket={this.handleStartEdit}
           onDeleteBucket={onDeleteBucket}
           onDeleteData={this.handleStartDeleteData}
-          onAddData={this.handleStartAddData}
-          onUpdateBucket={this.handleUpdateBucket}
+          onUpdateBucket={onUpdateBucket}
           onFilterChange={onFilterChange}
         />
       )
     })
   }
 
-  private handleStartEdit = (bucket: PrettyBucket) => {
+  private handleStartEdit = (bucket: OwnBucket) => {
     const {orgID} = this.props.params
 
     this.props.router.push(`/orgs/${orgID}/load-data/buckets/${bucket.id}/edit`)
   }
 
-  private handleStartDeleteData = (bucket: PrettyBucket) => {
+  private handleStartDeleteData = (bucket: OwnBucket) => {
     const {orgID} = this.props.params
 
     this.props.router.push(
       `/orgs/${orgID}/load-data/buckets/${bucket.id}/delete-data`
     )
   }
-
-  private handleStartAddData = (
-    bucket: PrettyBucket,
-    dataLoaderType: DataLoaderType,
-    link: string
-  ) => {
-    const {onSetBucketInfo, onSetDataLoadersType, router} = this.props
-    onSetBucketInfo(bucket.orgID, bucket.name, bucket.id)
-
-    this.setState({
-      bucketID: bucket.id,
-    })
-
-    onSetDataLoadersType(dataLoaderType)
-    router.push(link)
-  }
-
-  private handleUpdateBucket = (updatedBucket: PrettyBucket) => {
-    this.props.onUpdateBucket(updatedBucket)
-    this.setState({bucketOverlayState: OverlayState.Closed})
-  }
 }
 
-const mstp = (state: AppState): StateProps => {
-  return {
-    dataLoaderType: state.dataLoading.dataLoaders.type,
-  }
-}
-
-const mdtp: DispatchProps = {
-  onSetBucketInfo: setBucketInfo,
-  onSetDataLoadersType: setDataLoadersType,
-}
-
-export default connect<StateProps, DispatchProps, OwnProps>(
-  mstp,
-  mdtp
-)(withRouter<Props>(BucketList))
+export default withRouter<Props>(BucketList)

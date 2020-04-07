@@ -11,17 +11,16 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"reflect"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/fatih/color"
-	"github.com/influxdata/influxdb"
-	ihttp "github.com/influxdata/influxdb/http"
-	ierror "github.com/influxdata/influxdb/kit/errors"
-	"github.com/influxdata/influxdb/pkger"
+	"github.com/influxdata/influxdb/v2"
+	ihttp "github.com/influxdata/influxdb/v2/http"
+	ierror "github.com/influxdata/influxdb/v2/kit/errors"
+	"github.com/influxdata/influxdb/v2/pkger"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 	input "github.com/tcnksm/go-input"
@@ -42,11 +41,16 @@ type cmdPkgBuilder struct {
 	file                string
 	files               []string
 	filters             []string
+	description         string
 	disableColor        bool
 	disableTableBorders bool
+	hideHeaders         bool
+	json                bool
+	name                string
 	org                 organization
 	quiet               bool
 	recurse             bool
+	stackID             string
 	urls                []string
 
 	applyOpts struct {
@@ -82,20 +86,22 @@ func (b *cmdPkgBuilder) cmd() *cobra.Command {
 		b.cmdPkgExport(),
 		b.cmdPkgSummary(),
 		b.cmdPkgValidate(),
+		b.cmdStack(),
 	)
+
 	return cmd
 }
 
 func (b *cmdPkgBuilder) cmdPkgApply() *cobra.Command {
-	cmd := b.newCmd("pkg", b.pkgApplyRunEFn)
+	cmd := b.newCmd("pkg", b.pkgApplyRunEFn, true)
 	cmd.Short = "Apply a pkg to create resources"
 
 	b.org.register(cmd, false)
 	b.registerPkgFileFlags(cmd)
+	b.registerPkgPrintOpts(cmd)
 	cmd.Flags().BoolVarP(&b.quiet, "quiet", "q", false, "Disable output printing")
 	cmd.Flags().StringVar(&b.applyOpts.force, "force", "", `TTY input, if package will have destructive changes, proceed if set "true"`)
-	cmd.Flags().BoolVarP(&b.disableColor, "disable-color", "c", false, "Disable color in output")
-	cmd.Flags().BoolVar(&b.disableTableBorders, "disable-table-borders", false, "Disable table borders")
+	cmd.Flags().StringVar(&b.stackID, "stack-id", "", "Stack ID to associate pkg application")
 
 	b.applyOpts.secrets = []string{}
 	cmd.Flags().StringSliceVar(&b.applyOpts.secrets, "secret", nil, "Secrets to provide alongside the package; format should --secret=SECRET_KEY=SECRET_VALUE --secret=SECRET_KEY_2=SECRET_VALUE_2")
@@ -112,10 +118,6 @@ func (b *cmdPkgBuilder) pkgApplyRunEFn(cmd *cobra.Command, args []string) error 
 
 	svc, orgSVC, err := b.svcFn()
 	if err != nil {
-		return err
-	}
-
-	if err := b.org.validOrgFlags(&flags); err != nil {
 		return err
 	}
 
@@ -137,7 +139,19 @@ func (b *cmdPkgBuilder) pkgApplyRunEFn(cmd *cobra.Command, args []string) error 
 		}
 	}
 
-	drySum, diff, err := svc.DryRun(context.Background(), influxOrgID, 0, pkg, pkger.ApplyWithEnvRefs(providedEnvRefs))
+	var stackID influxdb.ID
+	if b.stackID != "" {
+		if err := stackID.DecodeFromString(b.stackID); err != nil {
+			return err
+		}
+	}
+
+	opts := []pkger.ApplyOptFn{
+		pkger.ApplyWithEnvRefs(providedEnvRefs),
+		pkger.ApplyWithStackID(stackID),
+	}
+
+	drySum, diff, err := svc.DryRun(context.Background(), influxOrgID, 0, pkg, opts...)
 	if err != nil {
 		return err
 	}
@@ -154,8 +168,8 @@ func (b *cmdPkgBuilder) pkgApplyRunEFn(cmd *cobra.Command, args []string) error 
 		}
 	}
 
-	if !b.quiet {
-		b.printPkgDiff(diff)
+	if err := b.printPkgDiff(diff); err != nil {
+		return err
 	}
 
 	isForced, _ := strconv.ParseBool(b.applyOpts.force)
@@ -171,20 +185,20 @@ func (b *cmdPkgBuilder) pkgApplyRunEFn(cmd *cobra.Command, args []string) error 
 		return errors.New("package has conflicts with existing resources and cannot safely apply")
 	}
 
-	summary, err := svc.Apply(context.Background(), influxOrgID, 0, pkg, pkger.ApplyWithEnvRefs(providedEnvRefs), pkger.ApplyWithSecrets(providedSecrets))
+	opts = append(opts, pkger.ApplyWithSecrets(providedSecrets))
+
+	summary, err := svc.Apply(context.Background(), influxOrgID, 0, pkg, opts...)
 	if err != nil {
 		return err
 	}
 
-	if !b.quiet {
-		b.printPkgSummary(summary)
-	}
+	b.printPkgSummary(summary)
 
 	return nil
 }
 
 func (b *cmdPkgBuilder) cmdPkgExport() *cobra.Command {
-	cmd := b.newCmd("export", b.pkgExportRunEFn)
+	cmd := b.newCmd("export", b.pkgExportRunEFn, true)
 	cmd.Short = "Export existing resources as a package"
 	cmd.AddCommand(b.cmdPkgExportAll())
 
@@ -258,7 +272,7 @@ func (b *cmdPkgBuilder) pkgExportRunEFn(cmd *cobra.Command, args []string) error
 }
 
 func (b *cmdPkgBuilder) cmdPkgExportAll() *cobra.Command {
-	cmd := b.newCmd("all", b.pkgExportAllRunEFn)
+	cmd := b.newCmd("all", b.pkgExportAllRunEFn, true)
 	cmd.Short = "Export all existing resources for an organization as a package"
 
 	cmd.Flags().StringVarP(&b.file, "file", "f", "", "output file for created pkg; defaults to std out if no file provided; the extension of provided file (.yml/.json) will dictate encoding")
@@ -318,16 +332,14 @@ func (b *cmdPkgBuilder) cmdPkgSummary() *cobra.Command {
 			return err
 		}
 
-		b.printPkgSummary(pkg.Summary())
-		return nil
+		return b.printPkgSummary(pkg.Summary())
 	}
 
-	cmd := b.newCmd("summary", runE)
+	cmd := b.newCmd("summary", runE, false)
 	cmd.Short = "Summarize the provided package"
 
 	b.registerPkgFileFlags(cmd)
-	cmd.Flags().BoolVarP(&b.disableColor, "disable-color", "c", false, "Disable color in output")
-	cmd.Flags().BoolVar(&b.disableTableBorders, "disable-table-borders", false, "Disable table borders")
+	b.registerPkgPrintOpts(cmd)
 
 	return cmd
 }
@@ -341,12 +353,83 @@ func (b *cmdPkgBuilder) cmdPkgValidate() *cobra.Command {
 		return pkg.Validate()
 	}
 
-	cmd := b.newCmd("validate", runE)
+	cmd := b.newCmd("validate", runE, false)
 	cmd.Short = "Validate the provided package"
 
 	b.registerPkgFileFlags(cmd)
 
 	return cmd
+}
+
+func (b *cmdPkgBuilder) cmdStack() *cobra.Command {
+	cmd := b.newCmd("stack", nil, false)
+	cmd.Short = "Stack management commands"
+	cmd.AddCommand(b.cmdStackInit())
+	return cmd
+}
+
+func (b *cmdPkgBuilder) cmdStackInit() *cobra.Command {
+	cmd := b.newCmd("init", b.stackInitRunEFn, true)
+	cmd.Short = "Initialize a stack"
+
+	cmd.Flags().StringVarP(&b.name, "stack-name", "n", "", "Name given to created stack")
+	cmd.Flags().StringVarP(&b.description, "stack-description", "d", "", "Description given to created stack")
+	cmd.Flags().StringArrayVarP(&b.urls, "package-url", "u", nil, "Package urls to associate with new stack")
+	registerPrintOptions(cmd, &b.hideHeaders, &b.json)
+
+	b.org.register(cmd, false)
+
+	return cmd
+}
+
+func (b *cmdPkgBuilder) stackInitRunEFn(cmd *cobra.Command, args []string) error {
+	pkgSVC, orgSVC, err := b.svcFn()
+	if err != nil {
+		return err
+	}
+
+	orgID, err := b.org.getID(orgSVC)
+	if err != nil {
+		return err
+	}
+
+	const fakeUserID = 0 // is 0 because user is pulled from token...
+	stack, err := pkgSVC.InitStack(context.Background(), fakeUserID, pkger.Stack{
+		OrgID:       orgID,
+		Name:        b.name,
+		Description: b.description,
+		URLs:        b.urls,
+	})
+	if err != nil {
+		return err
+	}
+
+	if b.json {
+		return b.writeJSON(stack)
+	}
+
+	tabW := b.newTabWriter()
+	defer tabW.Flush()
+
+	tabW.HideHeaders(b.hideHeaders)
+
+	tabW.WriteHeaders("ID", "OrgID", "Name", "Description", "URLs", "Created At")
+	tabW.Write(map[string]interface{}{
+		"ID":          stack.ID,
+		"OrgID":       stack.OrgID,
+		"Name":        stack.Name,
+		"Description": stack.Description,
+		"URLs":        stack.URLs,
+		"Created At":  stack.CreatedAt,
+	})
+
+	return nil
+}
+
+func (b *cmdPkgBuilder) registerPkgPrintOpts(cmd *cobra.Command) {
+	cmd.Flags().BoolVarP(&b.disableColor, "disable-color", "c", false, "Disable color in output")
+	cmd.Flags().BoolVar(&b.disableTableBorders, "disable-table-borders", false, "Disable table borders")
+	registerPrintOptions(cmd, nil, &b.json)
 }
 
 func (b *cmdPkgBuilder) registerPkgFileFlags(cmd *cobra.Command) {
@@ -432,8 +515,13 @@ func (b *cmdPkgBuilder) readPkg() (*pkger.Pkg, bool, error) {
 	}
 	pkgs = append(pkgs, urlPkgs...)
 
+	// the pkger.ValidSkipParseError option allows our server to be the one to validate the
+	// the pkg is accurate. If a user has an older version of the CLI and cloud gets updated
+	// with new validation rules,they'll get immediate access to that change without having to
+	// rol their CLI build.
+
 	if _, err := b.inStdIn(); err != nil {
-		pkg, err := pkger.Combine(pkgs...)
+		pkg, err := pkger.Combine(pkgs, pkger.ValidSkipParseError())
 		return pkg, false, err
 	}
 
@@ -441,7 +529,7 @@ func (b *cmdPkgBuilder) readPkg() (*pkger.Pkg, bool, error) {
 	if err != nil {
 		return nil, true, err
 	}
-	pkg, err := pkger.Combine(append(pkgs, stdinPkg)...)
+	pkg, err := pkger.Combine(append(pkgs, stdinPkg), pkger.ValidSkipParseError())
 	return pkg, true, err
 }
 
@@ -596,19 +684,16 @@ func newPkgerSVC() (pkger.SVC, influxdb.OrganizationService, error) {
 	return &pkger.HTTPRemoteService{Client: httpClient}, orgSvc, nil
 }
 
-func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) {
-	red := color.New(color.FgRed).SprintFunc()
-	green := color.New(color.FgHiGreen, color.Bold).SprintFunc()
-
-	diffLn := func(isNew bool, old, new interface{}) string {
-		if isNew {
-			return green(new)
-		}
-		if reflect.DeepEqual(old, new) {
-			return fmt.Sprint(new)
-		}
-		return fmt.Sprintf("%s\n%s", red(old), green(new))
+func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
+	if b.quiet {
+		return nil
 	}
+
+	if b.json {
+		return b.writeJSON(diff)
+	}
+
+	green := color.New(color.FgHiGreen, color.Bold).SprintFunc()
 
 	boolDiff := func(b bool) string {
 		bb := strconv.FormatBool(b)
@@ -618,61 +703,95 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) {
 		return bb
 	}
 
-	tablePrintFn := b.tablePrinterGen()
+	diffPrinterGen := func(title string, headers []string) *diffPrinter {
+		commonHeaders := []string{"Package Name", "ID", "Resource Name"}
+
+		printer := newDiffPrinter(b.w, !b.disableColor, !b.disableTableBorders)
+		printer.
+			Title(title).
+			SetHeaders(append(commonHeaders, headers...)...)
+		return printer
+	}
+
 	if labels := diff.Labels; len(labels) > 0 {
-		headers := []string{"New", "ID", "Name", "Color", "Description"}
-		tablePrintFn("LABELS", headers, len(labels), func(i int) []string {
-			l := labels[i]
-			var old pkger.DiffLabelValues
+		printer := diffPrinterGen("Labels", []string{"Color", "Description"})
+
+		appendValues := func(id pkger.SafeID, pkgName string, v pkger.DiffLabelValues) []string {
+			return []string{pkgName, id.String(), v.Name, v.Color, v.Description}
+		}
+
+		for _, l := range labels {
+			var oldRow []string
 			if l.Old != nil {
-				old = *l.Old
+				oldRow = appendValues(l.ID, l.PkgName, *l.Old)
 			}
 
-			return []string{
-				boolDiff(l.IsNew()),
-				l.ID.String(),
-				l.Name,
-				diffLn(l.IsNew(), old.Color, l.New.Color),
-				diffLn(l.IsNew(), old.Description, l.New.Description),
+			newRow := appendValues(l.ID, l.PkgName, l.New)
+			switch {
+			case l.IsNew():
+				printer.AppendDiff(nil, newRow)
+			case l.Remove:
+				printer.AppendDiff(oldRow, nil)
+			default:
+				printer.AppendDiff(oldRow, newRow)
 			}
-		})
+		}
+		printer.Render()
 	}
 
 	if bkts := diff.Buckets; len(bkts) > 0 {
-		headers := []string{"New", "ID", "Name", "Retention Period", "Description"}
-		tablePrintFn("BUCKETS", headers, len(bkts), func(i int) []string {
-			b := bkts[i]
-			var old pkger.DiffBucketValues
+		printer := diffPrinterGen("Buckets", []string{"Retention Period", "Description"})
+
+		appendValues := func(id pkger.SafeID, pkgName string, v pkger.DiffBucketValues) []string {
+			return []string{pkgName, id.String(), v.Name, v.RetentionRules.RP().String(), v.Description}
+		}
+
+		for _, b := range bkts {
+			var oldRow []string
 			if b.Old != nil {
-				old = *b.Old
+				oldRow = appendValues(b.ID, b.PkgName, *b.Old)
 			}
-			return []string{
-				boolDiff(b.IsNew()),
-				b.ID.String(),
-				b.Name,
-				diffLn(b.IsNew(), old.RetentionRules.RP().String(), b.New.RetentionRules.RP().String()),
-				diffLn(b.IsNew(), old.Description, b.New.Description),
+
+			newRow := appendValues(b.ID, b.PkgName, b.New)
+			switch {
+			case b.IsNew():
+				printer.AppendDiff(nil, newRow)
+			case b.Remove:
+				printer.AppendDiff(oldRow, nil)
+			default:
+				printer.AppendDiff(oldRow, newRow)
 			}
-		})
+		}
+		printer.Render()
 	}
 
 	if checks := diff.Checks; len(checks) > 0 {
-		headers := []string{"New", "ID", "Name", "Description"}
-		tablePrintFn("CHECKS", headers, len(checks), func(i int) []string {
-			c := checks[i]
-			var oldDesc string
+		printer := diffPrinterGen("Checks", []string{"Description"})
+
+		appendValues := func(id pkger.SafeID, pkgName string, v pkger.DiffCheckValues) []string {
+			return []string{pkgName, id.String(), v.Check.GetName(), v.Check.GetDescription()}
+		}
+
+		for _, c := range checks {
+			var oldRow []string
 			if c.Old != nil {
-				oldDesc = c.Old.GetDescription()
+				oldRow = appendValues(c.ID, c.PkgName, *c.Old)
 			}
-			return []string{
-				boolDiff(c.IsNew()),
-				c.ID.String(),
-				c.Name,
-				diffLn(c.IsNew(), oldDesc, c.New.GetDescription()),
+
+			newRow := appendValues(c.ID, c.PkgName, c.New)
+			switch {
+			case c.IsNew():
+				printer.AppendDiff(nil, newRow)
+			case c.Remove:
+				printer.AppendDiff(oldRow, nil)
+			default:
+				printer.AppendDiff(oldRow, newRow)
 			}
-		})
+		}
+		printer.Render()
 	}
 
+	tablePrintFn := b.tablePrinterGen()
 	if dashes := diff.Dashboards; len(dashes) > 0 {
 		headers := []string{"New", "Name", "Description", "Num Charts"}
 		tablePrintFn("DASHBOARDS", headers, len(dashes), func(i int) []string {
@@ -687,15 +806,29 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) {
 	}
 
 	if endpoints := diff.NotificationEndpoints; len(endpoints) > 0 {
-		headers := []string{"New", "ID", "Name"}
-		tablePrintFn("NOTIFICATION ENDPOINTS", headers, len(endpoints), func(i int) []string {
-			v := endpoints[i]
-			return []string{
-				boolDiff(v.IsNew()),
-				v.ID.String(),
-				v.Name,
+		printer := diffPrinterGen("Notification Endpoints", nil)
+
+		appendValues := func(id pkger.SafeID, pkgName string, v pkger.DiffNotificationEndpointValues) []string {
+			return []string{pkgName, id.String(), v.NotificationEndpoint.GetName()}
+		}
+
+		for _, e := range endpoints {
+			var oldRow []string
+			if e.Old != nil {
+				oldRow = appendValues(e.ID, e.PkgName, *e.Old)
 			}
-		})
+
+			newRow := appendValues(e.ID, e.PkgName, e.New)
+			switch {
+			case e.IsNew():
+				printer.AppendDiff(nil, newRow)
+			case e.Remove:
+				printer.AppendDiff(oldRow, nil)
+			default:
+				printer.AppendDiff(oldRow, newRow)
+			}
+		}
+		printer.Render()
 	}
 
 	if rules := diff.NotificationRules; len(rules) > 0 {
@@ -745,30 +878,33 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) {
 	}
 
 	if vars := diff.Variables; len(vars) > 0 {
-		headers := []string{"New", "ID", "Name", "Description", "Arg Type", "Arg Values"}
-		tablePrintFn("VARIABLES", headers, len(vars), func(i int) []string {
-			v := vars[i]
-			var old pkger.DiffVariableValues
+		printer := diffPrinterGen("Variables", []string{"Description", "Arg Type", "Arg Values"})
+
+		appendValues := func(id pkger.SafeID, pkgName string, v pkger.DiffVariableValues) []string {
+			var argType string
+			if v.Args != nil {
+				argType = v.Args.Type
+			}
+			return []string{pkgName, id.String(), v.Name, v.Description, argType, printVarArgs(v.Args)}
+		}
+
+		for _, v := range vars {
+			var oldRow []string
 			if v.Old != nil {
-				old = *v.Old
+				oldRow = appendValues(v.ID, v.PkgName, *v.Old)
 			}
-			var oldArgType string
-			if old.Args != nil {
-				oldArgType = old.Args.Type
+
+			newRow := appendValues(v.ID, v.PkgName, v.New)
+			switch {
+			case v.IsNew():
+				printer.AppendDiff(nil, newRow)
+			case v.Remove:
+				printer.AppendDiff(oldRow, nil)
+			default:
+				printer.AppendDiff(oldRow, newRow)
 			}
-			var newArgType string
-			if v.New.Args != nil {
-				newArgType = v.New.Args.Type
-			}
-			return []string{
-				boolDiff(v.IsNew()),
-				v.ID.String(),
-				v.Name,
-				diffLn(v.IsNew(), old.Description, v.New.Description),
-				diffLn(v.IsNew(), oldArgType, newArgType),
-				diffLn(v.IsNew(), printVarArgs(old.Args), printVarArgs(v.New.Args)),
-			}
-		})
+		}
+		printer.Render()
 	}
 
 	if len(diff.LabelMappings) > 0 {
@@ -785,15 +921,28 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) {
 			}
 		})
 	}
+
+	return nil
 }
 
-func (b *cmdPkgBuilder) printPkgSummary(sum pkger.Summary) {
+func (b *cmdPkgBuilder) printPkgSummary(sum pkger.Summary) error {
+	if b.quiet {
+		return nil
+	}
+
+	if b.json {
+		return b.writeJSON(sum)
+	}
+
+	commonHeaders := []string{"Package Name", "ID", "Resource Name"}
+
 	tablePrintFn := b.tablePrinterGen()
 	if labels := sum.Labels; len(labels) > 0 {
-		headers := []string{"ID", "Name", "Description", "Color"}
+		headers := append(commonHeaders, "Description", "Color")
 		tablePrintFn("LABELS", headers, len(labels), func(i int) []string {
 			l := labels[i]
 			return []string{
+				l.PkgName,
 				l.ID.String(),
 				l.Name,
 				l.Properties.Description,
@@ -803,10 +952,11 @@ func (b *cmdPkgBuilder) printPkgSummary(sum pkger.Summary) {
 	}
 
 	if buckets := sum.Buckets; len(buckets) > 0 {
-		headers := []string{"ID", "Name", "Retention", "Description"}
+		headers := append(commonHeaders, "Retention", "Description")
 		tablePrintFn("BUCKETS", headers, len(buckets), func(i int) []string {
 			bucket := buckets[i]
 			return []string{
+				bucket.PkgName,
 				bucket.ID.String(),
 				bucket.Name,
 				formatDuration(bucket.RetentionPeriod),
@@ -816,10 +966,11 @@ func (b *cmdPkgBuilder) printPkgSummary(sum pkger.Summary) {
 	}
 
 	if checks := sum.Checks; len(checks) > 0 {
-		headers := []string{"ID", "Name", "Description"}
+		headers := append(commonHeaders, "Description")
 		tablePrintFn("CHECKS", headers, len(checks), func(i int) []string {
 			c := checks[i].Check
 			return []string{
+				checks[i].PkgName,
 				c.GetID().String(),
 				c.GetName(),
 				c.GetDescription(),
@@ -836,10 +987,11 @@ func (b *cmdPkgBuilder) printPkgSummary(sum pkger.Summary) {
 	}
 
 	if endpoints := sum.NotificationEndpoints; len(endpoints) > 0 {
-		headers := []string{"ID", "Name", "Description", "Status"}
+		headers := append(commonHeaders, "Description", "Status")
 		tablePrintFn("NOTIFICATION ENDPOINTS", headers, len(endpoints), func(i int) []string {
 			v := endpoints[i]
 			return []string{
+				v.PkgName,
 				v.NotificationEndpoint.GetID().String(),
 				v.NotificationEndpoint.GetName(),
 				v.NotificationEndpoint.GetDescription(),
@@ -895,11 +1047,12 @@ func (b *cmdPkgBuilder) printPkgSummary(sum pkger.Summary) {
 	}
 
 	if vars := sum.Variables; len(vars) > 0 {
-		headers := []string{"ID", "Name", "Description", "Arg Type", "Arg Values"}
+		headers := append(commonHeaders, "Description", "Arg Type", "Arg Values")
 		tablePrintFn("VARIABLES", headers, len(vars), func(i int) []string {
 			v := vars[i]
 			args := v.Arguments
 			return []string{
+				v.PkgName,
 				v.ID.String(),
 				v.Name,
 				v.Description,
@@ -929,12 +1082,182 @@ func (b *cmdPkgBuilder) printPkgSummary(sum pkger.Summary) {
 			return []string{secrets[i]}
 		})
 	}
+
+	return nil
 }
 
 func (b *cmdPkgBuilder) tablePrinterGen() func(table string, headers []string, count int, rowFn func(i int) []string) {
 	return func(table string, headers []string, count int, rowFn func(i int) []string) {
 		tablePrinter(b.w, table, headers, count, !b.disableColor, !b.disableTableBorders, rowFn)
 	}
+}
+
+type diffPrinter struct {
+	w      io.Writer
+	writer *tablewriter.Table
+
+	colorAdd     tablewriter.Colors
+	colorFooter  tablewriter.Colors
+	colorHeaders tablewriter.Colors
+	colorRemove  tablewriter.Colors
+	title        string
+
+	appendCalls int
+	headerLen   int
+}
+
+func newDiffPrinter(w io.Writer, hasColor, hasBorder bool) *diffPrinter {
+	wr := tablewriter.NewWriter(w)
+	wr.SetBorder(hasBorder)
+	wr.SetRowLine(hasBorder)
+
+	var (
+		colorAdd    = tablewriter.Colors{}
+		colorFooter = tablewriter.Colors{}
+		colorHeader = tablewriter.Colors{}
+		colorRemove = tablewriter.Colors{}
+	)
+	if hasColor {
+		colorAdd = tablewriter.Colors{tablewriter.FgHiGreenColor, tablewriter.Bold}
+		colorFooter = tablewriter.Color(tablewriter.FgHiBlueColor, tablewriter.Bold)
+		colorHeader = tablewriter.Colors{tablewriter.FgCyanColor, tablewriter.Bold}
+		colorRemove = tablewriter.Colors{tablewriter.FgRedColor, tablewriter.Bold}
+	}
+	return &diffPrinter{
+		w:            w,
+		writer:       wr,
+		colorAdd:     colorAdd,
+		colorFooter:  colorFooter,
+		colorHeaders: colorHeader,
+		colorRemove:  colorRemove,
+	}
+}
+
+func (d *diffPrinter) Render() {
+	if d.appendCalls == 0 {
+		return
+	}
+
+	// set the title and the add/remove legend
+	title := color.New(color.FgYellow, color.Bold).Sprint(strings.ToUpper(d.title))
+	add := color.New(color.FgHiGreen, color.Bold).Sprint("+add")
+	remove := color.New(color.FgRed, color.Bold).Sprint("-remove")
+	fmt.Fprintf(d.w, "%s    %s | %s | unchanged\n", title, add, remove)
+
+	d.setFooter()
+	d.writer.Render()
+	fmt.Fprintln(d.w)
+}
+
+func (d *diffPrinter) Title(title string) *diffPrinter {
+	d.title = title
+	return d
+}
+
+func (d *diffPrinter) SetHeaders(headers ...string) *diffPrinter {
+	headers = d.prepend(headers, "+/-")
+	d.headerLen = len(headers)
+
+	d.writer.SetHeader(headers)
+
+	headerColors := make([]tablewriter.Colors, d.headerLen)
+	for i := range headerColors {
+		headerColors[i] = d.colorHeaders
+	}
+	d.writer.SetHeaderColor(headerColors...)
+
+	return d
+}
+
+func (d *diffPrinter) setFooter() *diffPrinter {
+	footers := make([]string, d.headerLen)
+	if d.headerLen > 1 {
+		footers[len(footers)-2] = "TOTAL"
+		footers[len(footers)-1] = strconv.Itoa(d.appendCalls)
+	} else {
+		footers[0] = "TOTAL: " + strconv.Itoa(d.appendCalls)
+	}
+
+	d.writer.SetFooter(footers)
+	colors := make([]tablewriter.Colors, d.headerLen)
+	if d.headerLen > 1 {
+		colors[len(colors)-2] = d.colorFooter
+		colors[len(colors)-1] = d.colorFooter
+	} else {
+		colors[0] = d.colorFooter
+	}
+	d.writer.SetFooterColor(colors...)
+
+	return d
+}
+
+func (d *diffPrinter) Append(slc []string) {
+	d.writer.Append(d.prepend(slc, ""))
+}
+
+func (d *diffPrinter) AppendDiff(remove, add []string) {
+	defer func() { d.appendCalls++ }()
+
+	if d.appendCalls > 0 {
+		d.appendBufferLine()
+	}
+
+	lenAdd, lenRemove := len(add), len(remove)
+	preppedAdd, preppedRemove := d.prepend(add, "+"), d.prepend(remove, "-")
+	if lenRemove > 0 && lenAdd == 0 {
+		d.writer.Rich(preppedRemove, d.redRow(len(preppedRemove)))
+		return
+	}
+	if lenAdd > 0 && lenRemove == 0 {
+		d.writer.Rich(preppedAdd, d.greenRow(len(preppedAdd)))
+		return
+	}
+
+	var (
+		addColors    = make([]tablewriter.Colors, len(preppedAdd))
+		removeColors = make([]tablewriter.Colors, len(preppedRemove))
+		hasDiff      bool
+	)
+	for i := 0; i < lenRemove; i++ {
+		if add[i] != remove[i] {
+			hasDiff = true
+			// offset to skip prepended +/- column
+			addColors[i+1], removeColors[i+1] = d.colorAdd, d.colorRemove
+		}
+	}
+
+	if !hasDiff {
+		d.writer.Append(d.prepend(add, ""))
+		return
+	}
+
+	addColors[0], removeColors[0] = d.colorAdd, d.colorRemove
+	d.writer.Rich(d.prepend(remove, "-"), removeColors)
+	d.writer.Rich(d.prepend(add, "+"), addColors)
+}
+
+func (d *diffPrinter) appendBufferLine() {
+	d.writer.Append([]string{})
+}
+
+func (d *diffPrinter) redRow(i int) []tablewriter.Colors {
+	return colorRow(d.colorRemove, i)
+}
+
+func (d *diffPrinter) greenRow(i int) []tablewriter.Colors {
+	return colorRow(d.colorAdd, i)
+}
+
+func (d *diffPrinter) prepend(slc []string, val string) []string {
+	return append([]string{val}, slc...)
+}
+
+func colorRow(color tablewriter.Colors, i int) []tablewriter.Colors {
+	colors := make([]tablewriter.Colors, i)
+	for i := range colors {
+		colors[i] = color
+	}
+	return colors
 }
 
 func tablePrinter(wr io.Writer, table string, headers []string, count int, hasColor, hasTableBorders bool, rowFn func(i int) []string) {
@@ -971,16 +1294,19 @@ func tablePrinter(wr io.Writer, table string, headers []string, count int, hasCo
 	}
 	w.SetFooter(footers)
 	if hasColor {
+		headerColor := tablewriter.Color(tablewriter.FgHiCyanColor, tablewriter.Bold)
+		footerColor := tablewriter.Color(tablewriter.FgHiBlueColor, tablewriter.Bold)
+
 		var colors []tablewriter.Colors
 		for i := 0; i < len(headers); i++ {
-			colors = append(colors, tablewriter.Color(tablewriter.FgHiCyanColor))
+			colors = append(colors, headerColor)
 		}
 		w.SetHeaderColor(colors...)
 		if len(headers) > 1 {
-			colors[len(colors)-2] = tablewriter.Color(tablewriter.FgHiBlueColor)
-			colors[len(colors)-1] = tablewriter.Color(tablewriter.FgHiBlueColor)
+			colors[len(colors)-2] = footerColor
+			colors[len(colors)-1] = footerColor
 		} else {
-			colors[0] = tablewriter.Color(tablewriter.FgHiBlueColor)
+			colors[0] = footerColor
 		}
 		w.SetFooterColor(colors...)
 	}

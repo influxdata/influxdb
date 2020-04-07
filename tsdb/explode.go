@@ -3,8 +3,8 @@ package tsdb
 import (
 	"encoding/binary"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/models"
 )
 
 // DecodeName converts tsdb internal serialization back to organization and bucket IDs.

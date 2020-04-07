@@ -10,14 +10,14 @@ import (
 	"net/http"
 
 	"github.com/influxdata/httprouter"
-	"github.com/influxdata/influxdb"
-	pcontext "github.com/influxdata/influxdb/context"
-	"github.com/influxdata/influxdb/http/metric"
-	"github.com/influxdata/influxdb/kit/tracing"
-	kithttp "github.com/influxdata/influxdb/kit/transport/http"
-	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/storage"
-	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/v2"
+	pcontext "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/http/metric"
+	"github.com/influxdata/influxdb/v2/kit/tracing"
+	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
+	"github.com/influxdata/influxdb/v2/models"
+	"github.com/influxdata/influxdb/v2/storage"
+	"github.com/influxdata/influxdb/v2/tsdb"
 	"go.uber.org/zap"
 )
 

@@ -8,12 +8,12 @@ import (
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/lang"
-	"github.com/influxdata/influxdb"
-	icontext "github.com/influxdata/influxdb/context"
-	"github.com/influxdata/influxdb/kit/tracing"
-	"github.com/influxdata/influxdb/query"
-	"github.com/influxdata/influxdb/task/backend"
-	"github.com/influxdata/influxdb/task/backend/scheduler"
+	"github.com/influxdata/influxdb/v2"
+	icontext "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/kit/tracing"
+	"github.com/influxdata/influxdb/v2/query"
+	"github.com/influxdata/influxdb/v2/task/backend"
+	"github.com/influxdata/influxdb/v2/task/backend/scheduler"
 	"go.uber.org/zap"
 )
 
@@ -207,6 +207,9 @@ func (e *Executor) createPromise(ctx context.Context, run *influxdb.Run) (*promi
 	t, err := e.ts.FindTaskByID(ctx, run.TaskID)
 	if err != nil {
 		return nil, err
+	}
+	if !t.Authorization.GetUserID().Valid() {
+		t.Authorization.UserID = t.OwnerID
 	}
 
 	ctx, cancel := context.WithCancel(ctx)

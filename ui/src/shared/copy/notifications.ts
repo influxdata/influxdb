@@ -121,6 +121,11 @@ export const TelegrafConfigCreationError: Notification = {
   message: `Failed to save configurations`,
 }
 
+export const TokenCreationError: Notification = {
+  ...defaultErrorNotification,
+  message: `Failed to create a new Telegraf Token`,
+}
+
 //  Task Notifications
 //  ----------------------------------------------------------------------------
 export const addTaskLabelFailed = (): Notification => ({

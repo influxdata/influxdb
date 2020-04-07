@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2"
 	"go.uber.org/zap"
 )
 
@@ -31,7 +31,7 @@ func (l *URMLogger) CreateUserResourceMapping(ctx context.Context, u *influxdb.U
 			l.logger.Error("failed to create urm", zap.Error(err), dur)
 			return
 		}
-		l.logger.Info("urm create", dur)
+		l.logger.Debug("urm create", dur)
 	}(time.Now())
 	return l.urmService.CreateUserResourceMapping(ctx, u)
 }
@@ -43,7 +43,7 @@ func (l *URMLogger) FindUserResourceMappings(ctx context.Context, filter influxd
 			l.logger.Error("failed to find urms matching the given filter", zap.Error(err), dur)
 			return
 		}
-		l.logger.Info("urm find", dur)
+		l.logger.Debug("urm find", dur)
 	}(time.Now())
 	return l.urmService.FindUserResourceMappings(ctx, filter)
 }
@@ -56,7 +56,7 @@ func (l *URMLogger) DeleteUserResourceMapping(ctx context.Context, resourceID, u
 			l.logger.Error(msg, zap.Error(err), dur)
 			return
 		}
-		l.logger.Info("urm delete", dur)
+		l.logger.Debug("urm delete", dur)
 	}(time.Now())
 	return l.urmService.DeleteUserResourceMapping(ctx, resourceID, userID)
 }

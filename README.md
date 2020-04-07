@@ -6,7 +6,7 @@ InfluxDB is an open source time series platform. This includes APIs for storing 
 
 The list of InfluxDB Client Libraries that are compatible with the latest version can be found in [our documentation](https://v2.docs.influxdata.com/v2.0/reference/api/client-libraries/).
 
-If you are looking for the 1.x line of releases, there are branches for each of those. InfluxDB 1.8 will be the next (and likely last) release in the 1.x line and the [working branch is here](https://github.com/influxdata/influxdb/tree/1.8). The [InfluxDB 1.x Go Client can be found here](https://github.com/influxdata/influxdb1-client).
+If you are looking for the 1.x line of releases, there are branches for each minor version as well as a `master-1.x` branch that will contain the code for the next 1.x release. The master-1.x [working branch is here](https://github.com/influxdata/influxdb/tree/master-1.x). The [InfluxDB 1.x Go Client can be found here](https://github.com/influxdata/influxdb1-client).
 
 ## State of the Project
 

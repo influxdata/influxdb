@@ -516,6 +516,7 @@ export const buckets = [
     orgID: '034a0adc49a6b000',
     name: 'newbuck',
     retentionRules: [],
+    readableRetention: 'forever',
     labels: [],
   },
   {
@@ -529,6 +530,7 @@ export const buckets = [
     orgID: '034a0adc49a6b000',
     name: 'newbuck1',
     retentionRules: [],
+    readableRetention: 'forever',
     labels: [],
   },
 ]

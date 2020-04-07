@@ -2,15 +2,15 @@ package kv
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
-	"github.com/influxdata/influxdb/resource/noop"
-
 	"github.com/benbjohnson/clock"
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/rand"
-	"github.com/influxdata/influxdb/resource"
-	"github.com/influxdata/influxdb/snowflake"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/rand"
+	"github.com/influxdata/influxdb/v2/resource"
+	"github.com/influxdata/influxdb/v2/resource/noop"
+	"github.com/influxdata/influxdb/v2/snowflake"
 	"go.uber.org/zap"
 )
 
@@ -45,6 +45,10 @@ type Service struct {
 	variableStore *IndexStore
 
 	Migrator *Migrator
+
+	urmByUserIndex *Index
+
+	disableAuthorizationsForMaxPermissions func(context.Context) bool
 }
 
 // NewService returns an instance of a Service.
@@ -63,6 +67,22 @@ func NewService(log *zap.Logger, kv Store, configs ...ServiceConfig) *Service {
 		endpointStore:  newEndpointStore(),
 		variableStore:  newVariableStore(),
 		Migrator:       NewMigrator(log),
+		urmByUserIndex: NewIndex(NewIndexMapping(
+			urmBucket,
+			urmByUserIndexBucket,
+			func(v []byte) ([]byte, error) {
+				var urm influxdb.UserResourceMapping
+				if err := json.Unmarshal(v, &urm); err != nil {
+					return nil, err
+				}
+
+				id, _ := urm.UserID.Encode()
+				return id, nil
+			},
+		)),
+		disableAuthorizationsForMaxPermissions: func(context.Context) bool {
+			return false
+		},
 	}
 
 	// kv service migrations
@@ -77,12 +97,16 @@ func NewService(log *zap.Logger, kv Store, configs ...ServiceConfig) *Service {
 				return nil
 			},
 		),
+		// add index user resource mappings by user id
+		s.urmByUserIndex.Migration(),
 		// and new migrations below here (and move this comment down):
 	)
 
 	if len(configs) > 0 {
 		s.Config = configs[0]
-	} else {
+	}
+
+	if s.Config.SessionLength == 0 {
 		s.Config.SessionLength = influxdb.DefaultSessionLength
 	}
 
@@ -91,13 +115,18 @@ func NewService(log *zap.Logger, kv Store, configs ...ServiceConfig) *Service {
 		s.clock = clock.New()
 	}
 
+	if s.Config.URMByUserIndexReadPathEnabled {
+		WithIndexReadPathEnabled(s.urmByUserIndex)
+	}
+
 	return s
 }
 
 // ServiceConfig allows us to configure Services
 type ServiceConfig struct {
-	SessionLength time.Duration
-	Clock         clock.Clock
+	SessionLength                 time.Duration
+	Clock                         clock.Clock
+	URMByUserIndexReadPathEnabled bool
 }
 
 // AutoMigrationStore is a Store which also describes whether or not
@@ -242,4 +271,11 @@ func (s *Service) WithStore(store Store) {
 // Should only be used in tests for mocking.
 func (s *Service) WithSpecialOrgBucketIDs(gen influxdb.IDGenerator) {
 	s.OrgBucketIDs = gen
+}
+
+// WithMaxPermissionFunc sets the useAuthorizationsForMaxPermissions function
+// which can trigger whether or not max permissions uses the users authorizations
+// to derive maximum permissions.
+func (s *Service) WithMaxPermissionFunc(fn func(context.Context) bool) {
+	s.disableAuthorizationsForMaxPermissions = fn
 }

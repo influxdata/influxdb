@@ -1,6 +1,14 @@
 // Libraries
 import React, {FC} from 'react'
-import {AppWrapper, Page} from '@influxdata/clockface'
+import {
+  AppWrapper,
+  FontWeight,
+  FunnelPage,
+  Heading,
+  HeadingElement,
+  InfluxDBCloudLogo,
+  Typeface,
+} from '@influxdata/clockface'
 
 // Components
 import ErrorBoundary from 'src/shared/components/ErrorBoundary'
@@ -8,20 +16,29 @@ import LoginPageContents from 'src/onboarding/containers/LoginPageContents'
 
 export const LoginPage: FC = () => (
   <ErrorBoundary>
-    <AppWrapper className="sign-up--page">
-      <Page titleTag="Sign Up for InfluxDB Cloud">
-        <Page.Contents
-          scrollable={true}
-          fullWidth={true}
-          className="sign-up--page-contents"
+    <AppWrapper>
+      <FunnelPage
+        enableGraphic={true}
+        logo={<InfluxDBCloudLogo cloud={true} className="login-page--logo" />}
+      >
+        <Heading
+          element={HeadingElement.H1}
+          type={Typeface.Rubik}
+          weight={FontWeight.Light}
+          className="heading--margins"
         >
-          <h2 className="cf-funnel-page--title">
-            Create your Free InfluxDB Cloud Account
-          </h2>
-          <h5 className="cf-funnel-page--subtitle">No credit card required</h5>
-          <LoginPageContents />
-        </Page.Contents>
-      </Page>
+          Create your Free InfluxDB Cloud Account
+        </Heading>
+        <Heading
+          element={HeadingElement.H5}
+          type={Typeface.Rubik}
+          weight={FontWeight.Regular}
+          className="heading--margins"
+        >
+          No credit card required
+        </Heading>
+        <LoginPageContents />
+      </FunnelPage>
     </AppWrapper>
   </ErrorBoundary>
 )

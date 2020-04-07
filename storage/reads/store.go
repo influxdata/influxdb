@@ -4,9 +4,9 @@ import (
 	"context"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/storage/reads/datatypes"
-	"github.com/influxdata/influxdb/tsdb/cursors"
+	"github.com/influxdata/influxdb/v2/models"
+	"github.com/influxdata/influxdb/v2/storage/reads/datatypes"
+	"github.com/influxdata/influxdb/v2/tsdb/cursors"
 )
 
 type ResultSet interface {

@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/http"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/http"
 	"github.com/spf13/cobra"
 	input "github.com/tcnksm/go-input"
 )
@@ -24,9 +24,11 @@ type cmdSecretBuilder struct {
 
 	svcFn secretSVCsFn
 
-	key   string
-	value string
-	org   organization
+	json        bool
+	hideHeaders bool
+	key         string
+	value       string
+	org         organization
 }
 
 func newCmdSecretBuilder(svcsFn secretSVCsFn, opt genericCLIOpts) *cmdSecretBuilder {
@@ -37,7 +39,7 @@ func newCmdSecretBuilder(svcsFn secretSVCsFn, opt genericCLIOpts) *cmdSecretBuil
 }
 
 func (b *cmdSecretBuilder) cmd() *cobra.Command {
-	cmd := b.newCmd("secret", nil)
+	cmd := b.newCmd("secret", nil, false)
 	cmd.Short = "Secret management commands"
 	cmd.Run = seeHelp
 	cmd.AddCommand(
@@ -49,23 +51,14 @@ func (b *cmdSecretBuilder) cmd() *cobra.Command {
 }
 
 func (b *cmdSecretBuilder) cmdUpdate() *cobra.Command {
-	cmd := b.newCmd("update", b.cmdUpdateRunEFn)
+	cmd := b.newCmd("update", b.cmdUpdateRunEFn, true)
 	cmd.Short = "Update secret"
+
 	cmd.Flags().StringVarP(&b.key, "key", "k", "", "The secret key (required)")
 	cmd.Flags().StringVarP(&b.value, "value", "v", "", "Optional secret value for scripting convenience, using this might expose the secret to your local history")
 	cmd.MarkFlagRequired("key")
 	b.org.register(cmd, false)
-
-	return cmd
-}
-
-func (b *cmdSecretBuilder) cmdDelete() *cobra.Command {
-	cmd := b.newCmd("delete", b.cmdDeleteRunEFn)
-	cmd.Short = "Delete secret"
-
-	cmd.Flags().StringVarP(&b.key, "key", "k", "", "The secret key (required)")
-	cmd.MarkFlagRequired("key")
-	b.org.register(cmd, false)
+	b.registerPrintFlags(cmd)
 
 	return cmd
 }
@@ -86,27 +79,38 @@ func (b *cmdSecretBuilder) cmdUpdateRunEFn(cmd *cobra.Command, args []string) er
 		Writer: b.genericCLIOpts.w,
 		Reader: b.genericCLIOpts.in,
 	}
-	var secret string
+	var secretVal string
 	if b.value != "" {
-		secret = b.value
+		secretVal = b.value
 	} else {
-		secret = getSecretFn(ui)
+		secretVal = getSecretFn(ui)
 	}
 
-	if err := scrSVC.PatchSecrets(ctx, orgID, map[string]string{b.key: secret}); err != nil {
+	err = scrSVC.PatchSecrets(ctx, orgID, map[string]string{
+		b.key: secretVal,
+	})
+	if err != nil {
 		return fmt.Errorf("failed to update secret with key %q: %v", b.key, err)
 	}
 
-	w := b.newTabWriter()
-	w.WriteHeaders("Key", "OrgID", "Updated")
-	w.Write(map[string]interface{}{
-		"Key":     b.key,
-		"OrgID":   orgID,
-		"Updated": true,
+	return b.printSecrets(secretPrintOpt{
+		secret: secret{
+			key:   b.key,
+			orgID: orgID,
+		},
 	})
-	w.Flush()
+}
 
-	return nil
+func (b *cmdSecretBuilder) cmdDelete() *cobra.Command {
+	cmd := b.newCmd("delete", b.cmdDeleteRunEFn, true)
+	cmd.Short = "Delete secret"
+
+	cmd.Flags().StringVarP(&b.key, "key", "k", "", "The secret key (required)")
+	cmd.MarkFlagRequired("key")
+	b.org.register(cmd, false)
+	b.registerPrintFlags(cmd)
+
+	return cmd
 }
 
 func (b *cmdSecretBuilder) cmdDeleteRunEFn(cmd *cobra.Command, args []string) error {
@@ -124,29 +128,27 @@ func (b *cmdSecretBuilder) cmdDeleteRunEFn(cmd *cobra.Command, args []string) er
 		return fmt.Errorf("failed to delete secret with key %q: %v", b.key, err)
 	}
 
-	w := b.newTabWriter()
-	w.WriteHeaders("Key", "OrgID", "Deleted")
-	w.Write(map[string]interface{}{
-		"Key":     b.key,
-		"OrgID":   orgID,
-		"Deleted": true,
+	return b.printSecrets(secretPrintOpt{
+		deleted: true,
+		secret: secret{
+			key:   b.key,
+			orgID: orgID,
+		},
 	})
-	w.Flush()
-
-	return nil
 }
 
 func (b *cmdSecretBuilder) cmdFind() *cobra.Command {
-	cmd := b.newCmd("list", b.cmdFindRunEFn)
+	cmd := b.newCmd("list", b.cmdFindRunEFn, true)
 	cmd.Short = "List secrets"
 	cmd.Aliases = []string{"find", "ls"}
+
 	b.org.register(cmd, false)
+	b.registerPrintFlags(cmd)
 
 	return cmd
 }
 
 func (b *cmdSecretBuilder) cmdFindRunEFn(cmd *cobra.Command, args []string) error {
-
 	scrSVC, orgSVC, _, err := b.svcFn()
 	if err != nil {
 		return err
@@ -157,23 +159,78 @@ func (b *cmdSecretBuilder) cmdFindRunEFn(cmd *cobra.Command, args []string) erro
 		return err
 	}
 
-	secrets, err := scrSVC.GetSecretKeys(context.Background(), orgID)
+	platformSecrets, err := scrSVC.GetSecretKeys(context.Background(), orgID)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve secret keys: %s", err)
 	}
 
-	w := b.newTabWriter()
-	w.WriteHeaders("Key", "OrganizationID")
-	for _, s := range secrets {
-		w.Write(map[string]interface{}{
-			"Key":            s,
-			"OrganizationID": orgID,
+	secrets := make([]secret, 0, len(platformSecrets))
+	for _, key := range platformSecrets {
+		secrets = append(secrets, secret{
+			key:   key,
+			orgID: orgID,
 		})
 	}
-	w.Flush()
+
+	return b.printSecrets(secretPrintOpt{
+		secrets: secrets,
+	})
+}
+
+func (b *cmdSecretBuilder) registerPrintFlags(cmd *cobra.Command) {
+	registerPrintOptions(cmd, &b.hideHeaders, &b.json)
+}
+
+func (b *cmdSecretBuilder) printSecrets(opt secretPrintOpt) error {
+	if b.json {
+		var v interface{} = opt.secrets
+		if opt.secrets == nil {
+			v = opt.secret
+		}
+		return b.writeJSON(v)
+	}
+
+	w := b.newTabWriter()
+	defer w.Flush()
+
+	w.HideHeaders(b.hideHeaders)
+
+	headers := []string{"Key", "Organization ID"}
+	if opt.deleted {
+		headers = append(headers, "Deleted")
+	}
+	w.WriteHeaders(headers...)
+
+	if opt.secrets == nil {
+		opt.secrets = append(opt.secrets, opt.secret)
+	}
+
+	for _, s := range opt.secrets {
+		m := map[string]interface{}{
+			"Key":             s.key,
+			"Organization ID": s.orgID.String(),
+		}
+		if opt.deleted {
+			m["Deleted"] = true
+		}
+		w.Write(m)
+	}
 
 	return nil
 }
+
+type (
+	secretPrintOpt struct {
+		deleted bool
+		secret  secret
+		secrets []secret
+	}
+
+	secret struct {
+		key   string
+		orgID influxdb.ID
+	}
+)
 
 func newSecretSVCs() (influxdb.SecretService, influxdb.OrganizationService, func(*input.UI) string, error) {
 	httpClient, err := newHTTPClient()

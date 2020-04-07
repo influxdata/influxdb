@@ -5,14 +5,15 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/influxdata/influxdb"
-	icontext "github.com/influxdata/influxdb/context"
-	"github.com/influxdata/influxdb/kit/tracing"
+	"github.com/influxdata/influxdb/v2"
+	icontext "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"go.uber.org/zap"
 )
 
 var (
-	urmBucket = []byte("userresourcemappingsv1")
+	urmBucket            = []byte("userresourcemappingsv1")
+	urmByUserIndexBucket = []byte("userresourcemappingsbyuserindexv1")
 
 	// ErrInvalidURMID is used when the service was provided
 	// an invalid ID format.
@@ -122,10 +123,32 @@ func userResourceMappingPredicate(filter influxdb.UserResourceMappingFilter) Cur
 	}
 }
 
-func (s *Service) findUserResourceMappings(ctx context.Context, tx Tx, filter influxdb.UserResourceMappingFilter) ([]*influxdb.UserResourceMapping, error) {
-	ms := []*influxdb.UserResourceMapping{}
-	pred := userResourceMappingPredicate(filter)
+func (s *Service) findUserResourceMappings(ctx context.Context, tx Tx, filter influxdb.UserResourceMappingFilter) (ms []*influxdb.UserResourceMapping, _ error) {
 	filterFn := filterMappingsFn(filter)
+	if filter.UserID.Valid() {
+		// urm by user index lookup
+		userID, _ := filter.UserID.Encode()
+		if err := s.urmByUserIndex.Walk(ctx, tx, userID, func(k, v []byte) error {
+			m := &influxdb.UserResourceMapping{}
+			if err := json.Unmarshal(v, m); err != nil {
+				return CorruptURMError(err)
+			}
+
+			if filterFn(m) {
+				ms = append(ms, m)
+			}
+
+			return nil
+		}); err != nil {
+			return nil, err
+		}
+
+		if len(ms) > 0 {
+			return
+		}
+	}
+
+	pred := userResourceMappingPredicate(filter)
 	err := s.forEachUserResourceMapping(ctx, tx, pred, func(m *influxdb.UserResourceMapping) bool {
 		if filterFn(m) {
 			ms = append(ms, m)
@@ -157,6 +180,11 @@ func (s *Service) CreateUserResourceMapping(ctx context.Context, m *influxdb.Use
 	})
 }
 
+// CreateUserResourceMappingTx is used when importing kv as a library
+func (s *Service) CreateUserResourceMappingTx(ctx context.Context, tx Tx, m *influxdb.UserResourceMapping) error {
+	return s.createUserResourceMapping(ctx, tx, m)
+}
+
 func (s *Service) createUserResourceMapping(ctx context.Context, tx Tx, m *influxdb.UserResourceMapping) error {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
@@ -182,6 +210,16 @@ func (s *Service) createUserResourceMapping(ctx context.Context, tx Tx, m *influ
 
 	if err := b.Put(key, v); err != nil {
 		return UnavailableURMServiceError(err)
+	}
+
+	userID, err := m.UserID.Encode()
+	if err != nil {
+		return err
+	}
+
+	// insert urm into by user index
+	if err := s.urmByUserIndex.Insert(tx, userID, key); err != nil {
+		return err
 	}
 
 	if m.ResourceType == influxdb.OrgsResourceType {
@@ -343,6 +381,17 @@ func (s *Service) deleteUserResourceMapping(ctx context.Context, tx Tx, filter i
 	if err := b.Delete(key); err != nil {
 		return UnavailableURMServiceError(err)
 	}
+
+	userID, err := ms[0].UserID.Encode()
+	if err != nil {
+		return err
+	}
+
+	// remove user resource mapping from by user index
+	if err := s.urmByUserIndex.Delete(tx, userID, key); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -372,6 +421,16 @@ func (s *Service) deleteUserResourceMappings(ctx context.Context, tx Tx, filter 
 
 		if err := b.Delete(key); err != nil {
 			return UnavailableURMServiceError(err)
+		}
+
+		userID, err := m.UserID.Encode()
+		if err != nil {
+			return err
+		}
+
+		// remove user resource mapping from by user index
+		if err := s.urmByUserIndex.Delete(tx, userID, key); err != nil {
+			return err
 		}
 	}
 	return nil

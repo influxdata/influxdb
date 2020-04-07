@@ -4,8 +4,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	platform "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/mock"
+	platform "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/mock"
 )
 
 func TestPaging_decodeFindOptions(t *testing.T) {

@@ -1,4 +1,4 @@
-module github.com/influxdata/influxdb
+module github.com/influxdata/influxdb/v2
 
 go 1.13
 
@@ -28,7 +28,7 @@ require (
 	github.com/ghodss/yaml v1.0.0
 	github.com/glycerine/go-unsnap-stream v0.0.0-20181221182339-f9677308dec2 // indirect
 	github.com/glycerine/goconvey v0.0.0-20180728074245-46e3a41ad493 // indirect
-	github.com/go-chi/chi v4.0.2+incompatible
+	github.com/go-chi/chi v4.1.0+incompatible
 	github.com/gogo/protobuf v1.2.1
 	github.com/golang/gddo v0.0.0-20181116215533-9bd4a3295021
 	github.com/golang/protobuf v1.3.2
@@ -42,7 +42,7 @@ require (
 	github.com/hashicorp/raft v1.0.0 // indirect
 	github.com/hashicorp/vault/api v1.0.2
 	github.com/influxdata/cron v0.0.0-20191203200038-ded12750aac6
-	github.com/influxdata/flux v0.64.0
+	github.com/influxdata/flux v0.65.0
 	github.com/influxdata/httprouter v1.3.1-0.20191122104820-ee83e2772f69
 	github.com/influxdata/influxql v0.0.0-20180925231337-1cbfca8e56b6
 	github.com/influxdata/usage-client v0.0.0-20160829180054-6d3895376368
@@ -64,7 +64,7 @@ require (
 	github.com/nats-io/nats-streaming-server v0.11.2
 	github.com/nats-io/nkeys v0.0.2 // indirect
 	github.com/nats-io/nuid v1.0.0 // indirect
-	github.com/olekukonko/tablewriter v0.0.1
+	github.com/olekukonko/tablewriter v0.0.4
 	github.com/onsi/ginkgo v1.7.0 // indirect
 	github.com/onsi/gomega v1.4.3 // indirect
 	github.com/opentracing/opentracing-go v1.1.0

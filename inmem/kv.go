@@ -8,7 +8,7 @@ import (
 	"sync"
 
 	"github.com/google/btree"
-	"github.com/influxdata/influxdb/kv"
+	"github.com/influxdata/influxdb/v2/kv"
 )
 
 // ensure *KVStore implement kv.Store interface
@@ -193,6 +193,32 @@ func (b *Bucket) Get(key []byte) ([]byte, error) {
 	}
 
 	return j.value, nil
+}
+
+// Get retrieves a batch of values for the provided keys.
+func (b *Bucket) GetBatch(keys ...[]byte) ([][]byte, error) {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+
+	values := make([][]byte, len(keys))
+
+	for idx, key := range keys {
+		i := b.btree.Get(&item{key: key})
+
+		if i == nil {
+			// leave value as nil slice
+			continue
+		}
+
+		j, ok := i.(*item)
+		if !ok {
+			return nil, fmt.Errorf("error item is type %T not *item", i)
+		}
+
+		values[idx] = j.value
+	}
+
+	return values, nil
 }
 
 // Put sets the key value pair provided.

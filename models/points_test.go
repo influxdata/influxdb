@@ -17,7 +17,10 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/models"
+	"github.com/influxdata/influxdb/v2/tsdb"
+	"github.com/stretchr/testify/assert"
 )
 
 var (
@@ -357,6 +360,32 @@ func BenchmarkParseKey(b *testing.B) {
 	line := `cpu,region=us-west,host=serverA,env=prod,target=servers,zone=1c,tag1=value1,tag2=value2,tag3=value3,tag4=value4,tag5=value5`
 	for i := 0; i < b.N; i++ {
 		models.ParseKey([]byte(line))
+	}
+}
+
+var (
+	dummyName []byte
+)
+
+func BenchmarkParseMeasurement(b *testing.B) {
+	benchmarks := []struct {
+		input string
+	}{
+		{input: "m,\x00=value"},
+		{input: "m\\ q,\x00=value"},
+		{input: "m,\x00=v\\ alue"},
+		{input: "m,\x00=value,tag0=val0"},
+		{input: "m,\x00=v\\ alue,tag0=val0"},
+	}
+
+	for _, bm := range benchmarks {
+		b.Run(bm.input, func(b *testing.B) {
+			var name []byte
+			for i := 0; i < b.N; i++ {
+				name, _ = models.ParseMeasurement([]byte(bm.input))
+			}
+			dummyName = name
+		})
 	}
 }
 
@@ -829,6 +858,23 @@ func TestParsePointFloatMultipleDecimals(t *testing.T) {
 	_, err := models.ParsePointsString(`cpu,host=serverA,region=us-west value=1.1.1`, "mm")
 	if err == nil {
 		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverA,region=us-west value=1.1.1`)
+	}
+}
+
+func TestParseWithLineBreaks(t *testing.T) {
+	ss := []string{
+		"cpu,host=serverA,region=us-west value=1i\ncpu,host=serverA,region=us-west value=2i",
+		"cpu,host=serverA,region=us-west value=1i\n\ncpu,host=serverA,region=us-west value=2i",
+		"cpu,host=serverA,region=us-west value=1i\r\ncpu,host=serverA,region=us-west value=2i",
+	}
+	for _, s := range ss {
+		pp, err := models.ParsePointsString(s, "mm")
+		if err != nil {
+			t.Errorf(`ParsePoints("%s") mismatch. got %v, exp nil`, s, err)
+		}
+		if l := len(pp); l != 2 {
+			t.Errorf(`ParsePoints("%s") mismatch. got %v, exp 2`, s, l)
+		}
 	}
 }
 
@@ -2755,6 +2801,71 @@ func TestParseName(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestParseMeasurement(t *testing.T) {
+	testCases := []struct {
+		input  string
+		exp    string
+		expErr error
+	}{
+		{input: "%s,\x00=value", exp: "value"},
+		{input: "%s\\ q,\x00=value", exp: "value"},
+		{input: "%s,\x00=v\\ alue", exp: "v alue"},
+		{input: "%s,\x00=value,tag0=val0", exp: "value"},
+		{input: "%s,\x00=v\\ alue,tag0=val0", exp: "v alue"},
+		{input: "%s,tag0=val0", exp: "", expErr: models.ErrMeasurementTagExpected}, // missing \x00
+		{input: "%s", exp: "", expErr: models.ErrMeasurementTagExpected},           // missing tags
+		{input: "", exp: "", expErr: models.ErrInvalidKey},                         // invalid key
+	}
+
+	makeName := func(s string) string {
+		if len(s) < 2 {
+			return "<empty>"
+		}
+		return s[2:]
+	}
+
+	t.Run("measurement did not require escaping", func(t *testing.T) {
+		orgBucketEnc := tsdb.EncodeName(influxdb.ID(0xff00ff), influxdb.ID(0xff11ff))
+		orgBucket := string(models.EscapeMeasurement(orgBucketEnc[:]))
+		for _, tc := range testCases {
+			t.Run(makeName(tc.input), func(t *testing.T) {
+				var key string
+				if len(tc.input) > 0 {
+					key = fmt.Sprintf(tc.input, orgBucket)
+				}
+
+				name, err := models.ParseMeasurement([]byte(key))
+				if !bytes.Equal([]byte(tc.exp), name) {
+					t.Errorf("%s produced measurement %s but expected %s", tc.input, string(name), tc.exp)
+				}
+
+				assert.Equal(t, tc.expErr, err)
+			})
+		}
+	})
+
+	t.Run("measurement required escaping", func(t *testing.T) {
+		orgBucketEnc := tsdb.EncodeName(influxdb.ID(0xff2cff), influxdb.ID(0xff20ff))
+		orgBucket := string(models.EscapeMeasurement(orgBucketEnc[:]))
+		for _, tc := range testCases {
+			t.Run(makeName(tc.input), func(t *testing.T) {
+				var key string
+				if len(tc.input) > 0 {
+					key = fmt.Sprintf(tc.input, orgBucket)
+				}
+
+				name, err := models.ParseMeasurement([]byte(key))
+				if !bytes.Equal([]byte(tc.exp), name) {
+					t.Errorf("%s produced measurement %s but expected %s", tc.input, string(name), tc.exp)
+				}
+
+				assert.Equal(t, tc.expErr, err)
+			})
+		}
+	})
+
 }
 
 func TestValidTagTokens(t *testing.T) {

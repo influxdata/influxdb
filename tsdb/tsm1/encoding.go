@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"runtime"
 
-	"github.com/influxdata/influxdb/pkg/pool"
+	"github.com/influxdata/influxdb/v2/pkg/pool"
 	"github.com/influxdata/influxql"
 )
 
@@ -24,6 +24,9 @@ const (
 
 	// BlockUnsigned designates a block encodes uint64 values.
 	BlockUnsigned = byte(4)
+
+	// blockUndefined represents an undefined block type value.
+	blockUndefined = BlockUnsigned + 1
 
 	// encodedBlockHeaderSize is the size of the header for an encoded block.  There is one
 	// byte encoding the type of the block.

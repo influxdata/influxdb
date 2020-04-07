@@ -7,11 +7,11 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/authorizer"
-	influxdbcontext "github.com/influxdata/influxdb/context"
-	"github.com/influxdata/influxdb/mock"
-	influxdbtesting "github.com/influxdata/influxdb/testing"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/authorizer"
+	influxdbcontext "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/mock"
+	influxdbtesting "github.com/influxdata/influxdb/v2/testing"
 )
 
 var sourceCmpOptions = cmp.Options{
@@ -104,7 +104,7 @@ func TestSourceService_DefaultSource(t *testing.T) {
 			s := authorizer.NewSourceService(tt.fields.SourceService)
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			_, err := s.DefaultSource(ctx)
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
@@ -192,7 +192,7 @@ func TestSourceService_FindSourceByID(t *testing.T) {
 			s := authorizer.NewSourceService(tt.fields.SourceService)
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			_, err := s.FindSourceByID(ctx, tt.args.id)
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
@@ -316,7 +316,7 @@ func TestSourceService_FindSources(t *testing.T) {
 			s := authorizer.NewSourceService(tt.fields.SourceService)
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			sources, _, err := s.FindSources(ctx, influxdb.DefaultSourceFindOptions)
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
@@ -431,7 +431,7 @@ func TestSourceService_UpdateSource(t *testing.T) {
 			s := authorizer.NewSourceService(tt.fields.SourceService)
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{tt.args.permissions})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			_, err := s.UpdateSource(ctx, tt.args.id, influxdb.SourceUpdate{})
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
@@ -536,7 +536,7 @@ func TestSourceService_DeleteSource(t *testing.T) {
 			s := authorizer.NewSourceService(tt.fields.SourceService)
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{tt.args.permissions})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			err := s.DeleteSource(ctx, tt.args.id)
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
@@ -618,7 +618,7 @@ func TestSourceService_CreateSource(t *testing.T) {
 			s := authorizer.NewSourceService(tt.fields.SourceService)
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			err := s.CreateSource(ctx, &influxdb.Source{OrganizationID: tt.args.orgID})
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)

@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/tsdb"
-	"github.com/influxdata/influxdb/tsdb/seriesfile"
+	"github.com/influxdata/influxdb/v2/models"
+	"github.com/influxdata/influxdb/v2/tsdb"
+	"github.com/influxdata/influxdb/v2/tsdb/seriesfile"
 	"go.uber.org/zap"
 )
 
@@ -113,7 +113,7 @@ func NewTest(t *testing.T) *Test {
 		}
 
 		// delete one series
-		if err := seriesFile.DeleteSeriesID(tsdb.NewSeriesID(ids[0])); err != nil {
+		if err := seriesFile.DeleteSeriesIDs([]tsdb.SeriesID{tsdb.NewSeriesID(ids[0])}); err != nil {
 			return err
 		}
 

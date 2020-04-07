@@ -6,9 +6,25 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	platform "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/mock"
+	platform "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/mock"
 )
+
+var onboardCmpOptions = cmp.Options{
+	cmp.Comparer(func(x, y *platform.OnboardingResults) bool {
+		if x == nil && y == nil {
+			return true
+		}
+		if x != nil && y == nil || y != nil && x == nil {
+			return false
+		}
+
+		return x.User.Name == y.User.Name && x.User.OAuthID == y.User.OAuthID && x.User.Status == y.User.Status &&
+			x.Org.Name == y.Org.Name && x.Org.Description == y.Org.Description &&
+			x.Bucket.Type == y.Bucket.Type && x.Bucket.Description == y.Bucket.Description && x.Bucket.RetentionPolicyName == y.Bucket.RetentionPolicyName && x.Bucket.RetentionPeriod == y.Bucket.RetentionPeriod && x.Bucket.Name == y.Bucket.Name &&
+			(x.Auth != nil && y.Auth != nil && cmp.Equal(x.Auth.Permissions, y.Auth.Permissions)) // its possible auth wont exist on the basic service level
+	}),
+}
 
 // OnboardingFields will include the IDGenerator, TokenGenerator
 // and IsOnboarding
@@ -19,8 +35,8 @@ type OnboardingFields struct {
 	IsOnboarding   bool
 }
 
-// Generate testing
-func Generate(
+// OnboardInitialUser testing
+func OnboardInitialUser(
 	init func(OnboardingFields, *testing.T) (platform.OnboardingService, func()),
 	t *testing.T,
 ) {
@@ -28,9 +44,8 @@ func Generate(
 		request *platform.OnboardingRequest
 	}
 	type wants struct {
-		errCode  string
-		results  *platform.OnboardingResults
-		password string
+		errCode string
+		results *platform.OnboardingResults
 	}
 	tests := []struct {
 		name   string
@@ -148,7 +163,6 @@ func Generate(
 				},
 			},
 			wants: wants{
-				password: "password1",
 				results: &platform.OnboardingResults{
 					User: &platform.User{
 						ID:     MustIDBase16(oneID),
@@ -195,7 +209,7 @@ func Generate(
 			s, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
-			results, err := s.Generate(ctx, tt.args.request)
+			results, err := s.OnboardInitialUser(ctx, tt.args.request)
 			if (err != nil) != (tt.wants.errCode != "") {
 				t.Logf("Error: %v", err)
 				t.Fatalf("expected error code '%s' got '%v'", tt.wants.errCode, err)
@@ -206,13 +220,8 @@ func Generate(
 					t.Fatalf("expected error code to match '%s' got '%v'", tt.wants.errCode, code)
 				}
 			}
-			if diff := cmp.Diff(results, tt.wants.results); diff != "" {
+			if diff := cmp.Diff(results, tt.wants.results, onboardCmpOptions); diff != "" {
 				t.Errorf("onboarding results are different -got/+want\ndiff %s", diff)
-			}
-			if results != nil {
-				if err = s.ComparePassword(ctx, results.User.ID, tt.wants.password); err != nil {
-					t.Errorf("onboarding set password is wrong")
-				}
 			}
 		})
 	}

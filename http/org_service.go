@@ -8,10 +8,10 @@ import (
 	"strings"
 
 	"github.com/influxdata/httprouter"
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/kit/tracing"
-	kithttp "github.com/influxdata/influxdb/kit/transport/http"
-	"github.com/influxdata/influxdb/pkg/httpc"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/tracing"
+	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
+	"github.com/influxdata/influxdb/v2/pkg/httpc"
 	"go.uber.org/zap"
 )
 
@@ -248,13 +248,13 @@ func (h *OrgHandler) handleGetOrgs(w http.ResponseWriter, r *http.Request) {
 	if name := qp.Get(Org); name != "" {
 		filter.Name = &name
 	}
-	id, err := decodeIDFromQuery(qp, OrgID)
-	if err != nil {
-		h.API.Err(w, err)
-		return
-	}
-	if id > 0 {
-		filter.ID = &id
+	if orgID := qp.Get("orgID"); orgID != "" {
+		id, err := influxdb.IDFromString(orgID)
+		if err != nil {
+			h.API.Err(w, err)
+			return
+		}
+		filter.ID = id
 	}
 
 	orgs, _, err := h.OrgSVC.FindOrganizations(r.Context(), filter)

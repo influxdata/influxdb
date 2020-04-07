@@ -15,7 +15,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/influxdata/influxdb/pkg/escape"
+	"github.com/influxdata/influxdb/v2/pkg/escape"
 )
 
 const (
@@ -74,6 +74,14 @@ var (
 	// ErrInvalidKevValuePairs is returned when the number of key, value pairs
 	// is odd, indicating a missing value.
 	ErrInvalidKevValuePairs = errors.New("key/value pairs is an odd length")
+
+	// ErrMeasurementTagExpected is returned by ParseMeasurement when parsing a
+	// series key where the first tag key is not a measurement.
+	ErrMeasurementTagExpected = errors.New("measurement tag expected")
+
+	// ErrInvalidKey is returned by ParseMeasurement when parsing a an empty
+	// or invalid series key.
+	ErrInvalidKey = errors.New("invalid key")
 )
 
 const (
@@ -377,6 +385,34 @@ func ParseName(buf []byte) []byte {
 	}
 
 	return UnescapeMeasurement(name)
+}
+
+// ParseMeasurement returns the value of the tag identified by MeasurementTagKey; otherwise,
+// an error is returned.
+//
+// buf must be a normalized series key, such that the tags are
+// lexicographically sorted and therefore the measurement tag is first.
+func ParseMeasurement(buf []byte) ([]byte, error) {
+	pos, name := scanTo(buf, 0, ',')
+
+	// it's an empty key, so there are no tags
+	if len(name) == 0 {
+		return nil, ErrInvalidKey
+	}
+
+	i := pos + 1
+	var key, value []byte
+	i, key = scanTo(buf, i, '=')
+	if string(key) != MeasurementTagKey {
+		return nil, ErrMeasurementTagExpected
+	}
+
+	_, value = scanTagValue(buf, i+1)
+	if bytes.IndexByte(value, '\\') != -1 {
+		// hasEscape
+		return unescapeTag(value), nil
+	}
+	return value, nil
 }
 
 // ValidPrecision checks if the precision is known.

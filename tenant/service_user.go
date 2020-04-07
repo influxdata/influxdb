@@ -3,8 +3,8 @@ package tenant
 import (
 	"context"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/kv"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kv"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -136,7 +136,7 @@ func (s *Service) SetPassword(ctx context.Context, userID influxdb.ID, password 
 	if len(password) < 8 {
 		return EShortPassword
 	}
-	passHash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	passHash, err := encryptPassword(password)
 	if err != nil {
 		return err
 	}
@@ -146,7 +146,7 @@ func (s *Service) SetPassword(ctx context.Context, userID influxdb.ID, password 
 		if err != nil {
 			return EIncorrectUser
 		}
-		return s.store.SetPassword(ctx, tx, userID, string(passHash))
+		return s.store.SetPassword(ctx, tx, userID, passHash)
 	})
 }
 
@@ -191,4 +191,12 @@ func (s *Service) CompareAndSetPassword(ctx context.Context, userID influxdb.ID,
 	}
 
 	return s.SetPassword(ctx, userID, new)
+}
+
+func encryptPassword(password string) (string, error) {
+	passHash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return "", err
+	}
+	return string(passHash), nil
 }

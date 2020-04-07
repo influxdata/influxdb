@@ -4,15 +4,15 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/influxdata/influxdb/http"
-	"github.com/influxdata/influxdb/kit/signals"
+	"github.com/influxdata/influxdb/v2/http"
+	"github.com/influxdata/influxdb/v2/kit/signals"
 	"github.com/spf13/cobra"
 )
 
 var deleteFlags http.DeleteRequest
 
 func cmdDelete(f *globalFlags, opt genericCLIOpts) *cobra.Command {
-	cmd := opt.newCmd("delete", fluxDeleteF)
+	cmd := opt.newCmd("delete", fluxDeleteF, true)
 	cmd.Short = "Delete points from influxDB"
 	cmd.Long = `Delete points from influxDB, by specify start, end time
 	and a sql like predicate string.`

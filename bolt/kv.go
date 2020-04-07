@@ -10,8 +10,8 @@ import (
 	"time"
 
 	bolt "github.com/coreos/bbolt"
-	"github.com/influxdata/influxdb/kit/tracing"
-	"github.com/influxdata/influxdb/kv"
+	"github.com/influxdata/influxdb/v2/kit/tracing"
+	"github.com/influxdata/influxdb/v2/kv"
 	"go.uber.org/zap"
 )
 
@@ -195,6 +195,21 @@ func (b *Bucket) Get(key []byte) ([]byte, error) {
 	}
 
 	return val, nil
+}
+
+// GetBatch retrieves the values for the provided keys.
+func (b *Bucket) GetBatch(keys ...[]byte) ([][]byte, error) {
+	values := make([][]byte, len(keys))
+	for idx, key := range keys {
+		val := b.bucket.Get(key)
+		if len(val) == 0 {
+			continue
+		}
+
+		values[idx] = val
+	}
+
+	return values, nil
 }
 
 // Put sets the value at the provided key.

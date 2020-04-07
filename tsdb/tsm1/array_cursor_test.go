@@ -10,8 +10,8 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/influxdb/pkg/fs"
-	"github.com/influxdata/influxdb/tsdb/cursors"
+	"github.com/influxdata/influxdb/v2/pkg/fs"
+	"github.com/influxdata/influxdb/v2/tsdb/cursors"
 	"github.com/stretchr/testify/assert"
 )
 

@@ -2,25 +2,40 @@ package tenant
 
 import (
 	"context"
+	"encoding/json"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/kit/tracing"
-	"github.com/influxdata/influxdb/kv"
-	"github.com/influxdata/influxdb/snowflake"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/tracing"
+	"github.com/influxdata/influxdb/v2/kv"
+	"github.com/influxdata/influxdb/v2/snowflake"
 )
 
 const MaxIDGenerationN = 100
 const ReservedIDs = 1000
 
 type Store struct {
-	kvStore kv.Store
-	IDGen   influxdb.IDGenerator
+	kvStore        kv.Store
+	IDGen          influxdb.IDGenerator
+	urmByUserIndex *kv.Index
 }
 
 func NewStore(kvStore kv.Store) (*Store, error) {
 	st := &Store{
 		kvStore: kvStore,
 		IDGen:   snowflake.NewDefaultIDGenerator(),
+		urmByUserIndex: kv.NewIndex(kv.NewIndexMapping(
+			urmBucket,
+			urmByUserIndexBucket,
+			func(v []byte) ([]byte, error) {
+				var urm influxdb.UserResourceMapping
+				if err := json.Unmarshal(v, &urm); err != nil {
+					return nil, err
+				}
+
+				id, _ := urm.UserID.Encode()
+				return id, nil
+			},
+		), kv.WithIndexReadPathEnabled),
 	}
 	return st, st.setup()
 }

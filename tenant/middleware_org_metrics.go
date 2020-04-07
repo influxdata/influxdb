@@ -3,9 +3,9 @@ package tenant
 import (
 	"context"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/kit/metric"
-	"github.com/influxdata/influxdb/kit/prom"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/metric"
+	"github.com/influxdata/influxdb/v2/kit/prom"
 )
 
 type OrgMetrics struct {
@@ -18,9 +18,10 @@ type OrgMetrics struct {
 var _ influxdb.OrganizationService = (*OrgMetrics)(nil)
 
 // NewOrgMetrics returns a metrics service middleware for the Organization Service.
-func NewOrgMetrics(reg *prom.Registry, s influxdb.OrganizationService) *OrgMetrics {
+func NewOrgMetrics(reg *prom.Registry, s influxdb.OrganizationService, opts ...MetricsOption) *OrgMetrics {
+	o := applyOpts(opts...)
 	return &OrgMetrics{
-		rec:        metric.New(reg, "org"),
+		rec:        metric.New(reg, o.applySuffix("org")),
 		orgService: s,
 	}
 }

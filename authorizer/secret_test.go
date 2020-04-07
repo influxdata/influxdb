@@ -6,11 +6,11 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/authorizer"
-	influxdbcontext "github.com/influxdata/influxdb/context"
-	"github.com/influxdata/influxdb/mock"
-	influxdbtesting "github.com/influxdata/influxdb/testing"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/authorizer"
+	influxdbcontext "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/mock"
+	influxdbtesting "github.com/influxdata/influxdb/v2/testing"
 )
 
 var secretCmpOptions = cmp.Options{
@@ -55,7 +55,7 @@ func TestSecretService_LoadSecret(t *testing.T) {
 			},
 			args: args{
 				permission: influxdb.Permission{
-					Action: "read",
+					Action: influxdb.ReadAction,
 					Resource: influxdb.Resource{
 						Type:  influxdb.SecretsResourceType,
 						OrgID: influxdbtesting.IDPtr(10),
@@ -85,7 +85,7 @@ func TestSecretService_LoadSecret(t *testing.T) {
 			},
 			args: args{
 				permission: influxdb.Permission{
-					Action: "read",
+					Action: influxdb.ReadAction,
 					Resource: influxdb.Resource{
 						Type:  influxdb.SecretsResourceType,
 						OrgID: influxdbtesting.IDPtr(10),
@@ -118,7 +118,7 @@ func TestSecretService_LoadSecret(t *testing.T) {
 			},
 			args: args{
 				permission: influxdb.Permission{
-					Action: "read",
+					Action: influxdb.ReadAction,
 					Resource: influxdb.Resource{
 						Type: influxdb.SecretsResourceType,
 						ID:   influxdbtesting.IDPtr(10),
@@ -141,7 +141,7 @@ func TestSecretService_LoadSecret(t *testing.T) {
 			s := authorizer.NewSecretService(tt.fields.SecretService)
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			_, err := s.LoadSecret(ctx, tt.args.org, tt.args.key)
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
@@ -183,7 +183,7 @@ func TestSecretService_GetSecretKeys(t *testing.T) {
 			},
 			args: args{
 				permission: influxdb.Permission{
-					Action: "read",
+					Action: influxdb.ReadAction,
 					Resource: influxdb.Resource{
 						Type:  influxdb.SecretsResourceType,
 						OrgID: influxdbtesting.IDPtr(1),
@@ -214,7 +214,7 @@ func TestSecretService_GetSecretKeys(t *testing.T) {
 			},
 			args: args{
 				permission: influxdb.Permission{
-					Action: "read",
+					Action: influxdb.ReadAction,
 					Resource: influxdb.Resource{
 						Type:  influxdb.SecretsResourceType,
 						OrgID: influxdbtesting.IDPtr(1),
@@ -244,7 +244,7 @@ func TestSecretService_GetSecretKeys(t *testing.T) {
 			},
 			args: args{
 				permission: influxdb.Permission{
-					Action: "read",
+					Action: influxdb.ReadAction,
 					Resource: influxdb.Resource{
 						Type:  influxdb.SecretsResourceType,
 						OrgID: influxdbtesting.IDPtr(10),
@@ -267,7 +267,7 @@ func TestSecretService_GetSecretKeys(t *testing.T) {
 			s := authorizer.NewSecretService(tt.fields.SecretService)
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			secrets, err := s.GetSecretKeys(ctx, tt.args.org)
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
@@ -310,7 +310,7 @@ func TestSecretService_PatchSecrets(t *testing.T) {
 				org: influxdb.ID(1),
 				permissions: []influxdb.Permission{
 					{
-						Action: "write",
+						Action: influxdb.WriteAction,
 						Resource: influxdb.Resource{
 							Type:  influxdb.SecretsResourceType,
 							OrgID: influxdbtesting.IDPtr(1),
@@ -335,7 +335,7 @@ func TestSecretService_PatchSecrets(t *testing.T) {
 				org: influxdb.ID(1),
 				permissions: []influxdb.Permission{
 					{
-						Action: "read",
+						Action: influxdb.ReadAction,
 						Resource: influxdb.Resource{
 							Type:  influxdb.SecretsResourceType,
 							OrgID: influxdbtesting.IDPtr(10),
@@ -357,7 +357,7 @@ func TestSecretService_PatchSecrets(t *testing.T) {
 			s := authorizer.NewSecretService(tt.fields.SecretService)
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{tt.args.permissions})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			patches := make(map[string]string)
 			err := s.PatchSecrets(ctx, tt.args.org, patches)
@@ -397,7 +397,7 @@ func TestSecretService_DeleteSecret(t *testing.T) {
 				org: influxdb.ID(1),
 				permissions: []influxdb.Permission{
 					{
-						Action: "write",
+						Action: influxdb.WriteAction,
 						Resource: influxdb.Resource{
 							Type:  influxdb.SecretsResourceType,
 							OrgID: influxdbtesting.IDPtr(1),
@@ -422,7 +422,7 @@ func TestSecretService_DeleteSecret(t *testing.T) {
 				org: 10,
 				permissions: []influxdb.Permission{
 					{
-						Action: "read",
+						Action: influxdb.ReadAction,
 						Resource: influxdb.Resource{
 							Type:  influxdb.SecretsResourceType,
 							OrgID: influxdbtesting.IDPtr(1),
@@ -444,7 +444,7 @@ func TestSecretService_DeleteSecret(t *testing.T) {
 			s := authorizer.NewSecretService(tt.fields.SecretService)
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{tt.args.permissions})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			err := s.DeleteSecret(ctx, tt.args.org)
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
@@ -482,7 +482,7 @@ func TestSecretService_PutSecret(t *testing.T) {
 			args: args{
 				orgID: influxdb.ID(10),
 				permission: influxdb.Permission{
-					Action: "write",
+					Action: influxdb.WriteAction,
 					Resource: influxdb.Resource{
 						Type:  influxdb.SecretsResourceType,
 						OrgID: influxdbtesting.IDPtr(10),
@@ -505,7 +505,7 @@ func TestSecretService_PutSecret(t *testing.T) {
 			args: args{
 				orgID: 10,
 				permission: influxdb.Permission{
-					Action: "write",
+					Action: influxdb.WriteAction,
 					Resource: influxdb.Resource{
 						Type: influxdb.SecretsResourceType,
 						ID:   influxdbtesting.IDPtr(1),
@@ -526,7 +526,7 @@ func TestSecretService_PutSecret(t *testing.T) {
 			s := authorizer.NewSecretService(tt.fields.SecretService)
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			err := s.PutSecret(ctx, tt.args.orgID, "", "")
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
@@ -565,14 +565,14 @@ func TestSecretService_PutSecrets(t *testing.T) {
 				orgID: influxdb.ID(10),
 				permissions: []influxdb.Permission{
 					{
-						Action: "write",
+						Action: influxdb.WriteAction,
 						Resource: influxdb.Resource{
 							Type:  influxdb.SecretsResourceType,
 							OrgID: influxdbtesting.IDPtr(10),
 						},
 					},
 					{
-						Action: "read",
+						Action: influxdb.ReadAction,
 						Resource: influxdb.Resource{
 							Type:  influxdb.SecretsResourceType,
 							OrgID: influxdbtesting.IDPtr(10),
@@ -597,14 +597,14 @@ func TestSecretService_PutSecrets(t *testing.T) {
 				orgID: influxdb.ID(2),
 				permissions: []influxdb.Permission{
 					{
-						Action: "write",
+						Action: influxdb.WriteAction,
 						Resource: influxdb.Resource{
 							Type:  influxdb.SecretsResourceType,
 							OrgID: influxdbtesting.IDPtr(1),
 						},
 					},
 					{
-						Action: "read",
+						Action: influxdb.ReadAction,
 						Resource: influxdb.Resource{
 							Type:  influxdb.SecretsResourceType,
 							OrgID: influxdbtesting.IDPtr(2),
@@ -635,7 +635,7 @@ func TestSecretService_PutSecrets(t *testing.T) {
 				orgID: 10,
 				permissions: []influxdb.Permission{
 					{
-						Action: "write",
+						Action: influxdb.WriteAction,
 						Resource: influxdb.Resource{
 							Type:  influxdb.SecretsResourceType,
 							OrgID: influxdbtesting.IDPtr(10),
@@ -666,7 +666,7 @@ func TestSecretService_PutSecrets(t *testing.T) {
 				orgID: 10,
 				permissions: []influxdb.Permission{
 					{
-						Action: "read",
+						Action: influxdb.ReadAction,
 						Resource: influxdb.Resource{
 							Type:  influxdb.SecretsResourceType,
 							OrgID: influxdbtesting.IDPtr(10),
@@ -688,7 +688,7 @@ func TestSecretService_PutSecrets(t *testing.T) {
 			s := authorizer.NewSecretService(tt.fields.SecretService)
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{tt.args.permissions})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			secrets := make(map[string]string)
 			err := s.PutSecrets(ctx, tt.args.orgID, secrets)

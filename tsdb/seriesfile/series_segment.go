@@ -11,9 +11,9 @@ import (
 	"regexp"
 	"strconv"
 
-	"github.com/influxdata/influxdb/pkg/fs"
-	"github.com/influxdata/influxdb/pkg/mmap"
-	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/v2/pkg/fs"
+	"github.com/influxdata/influxdb/v2/pkg/mmap"
+	"github.com/influxdata/influxdb/v2/tsdb"
 )
 
 const (

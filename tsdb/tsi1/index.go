@@ -18,16 +18,17 @@ import (
 	"unsafe"
 
 	"github.com/cespare/xxhash"
-	"github.com/influxdata/influxdb/kit/tracing"
-	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/pkg/lifecycle"
-	"github.com/influxdata/influxdb/pkg/slices"
-	"github.com/influxdata/influxdb/query"
-	"github.com/influxdata/influxdb/tsdb"
-	"github.com/influxdata/influxdb/tsdb/seriesfile"
+	"github.com/influxdata/influxdb/v2/kit/tracing"
+	"github.com/influxdata/influxdb/v2/models"
+	"github.com/influxdata/influxdb/v2/pkg/lifecycle"
+	"github.com/influxdata/influxdb/v2/pkg/slices"
+	"github.com/influxdata/influxdb/v2/query"
+	"github.com/influxdata/influxdb/v2/tsdb"
+	"github.com/influxdata/influxdb/v2/tsdb/seriesfile"
 	"github.com/influxdata/influxql"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 )
 
 // ErrCompactionInterrupted is returned if compactions are disabled or
@@ -371,11 +372,6 @@ func (i *Index) Path() string { return i.path }
 // PartitionAt returns the partition by index.
 func (i *Index) PartitionAt(index int) *Partition {
 	return i.partitions[index]
-}
-
-// partition returns the appropriate Partition for a provided series key.
-func (i *Index) partition(key []byte) *Partition {
-	return i.partitions[int(xxhash.Sum64(key)&(i.PartitionN-1))]
 }
 
 // partitionIdx returns the index of the partition that key belongs in.
@@ -732,11 +728,23 @@ func (i *Index) InitializeSeries(*tsdb.SeriesCollection) error {
 	return nil
 }
 
-// DropSeries drops the provided series from the index.  If cascade is true
+// DropSeries drops the provided set of series from the index.  If cascade is true
 // and this is the last series to the measurement, the measurment will also be dropped.
-func (i *Index) DropSeries(seriesID tsdb.SeriesID, key []byte, cascade bool) error {
-	// Remove from partition.
-	if err := i.partition(key).DropSeries(seriesID); err != nil {
+func (i *Index) DropSeries(items []DropSeriesItem, cascade bool) error {
+	// Split into batches for each partition.
+	m := make(map[int][]tsdb.SeriesID)
+	for _, item := range items {
+		partitionID := i.partitionIdx(item.Key)
+		m[partitionID] = append(m[partitionID], item.SeriesID)
+	}
+
+	// Remove from all partitions in parallel.
+	var g errgroup.Group
+	for partitionID, ids := range m {
+		partitionID, ids := partitionID, ids
+		g.Go(func() error { return i.partitions[partitionID].DropSeries(ids) })
+	}
+	if err := g.Wait(); err != nil {
 		return err
 	}
 
@@ -744,29 +752,38 @@ func (i *Index) DropSeries(seriesID tsdb.SeriesID, key []byte, cascade bool) err
 		return nil
 	}
 
-	// Extract measurement name & tags.
-	name, tags := models.ParseKeyBytes(key)
+	// Clear tag value cache & determine unique set of measurement names.
+	nameSet := make(map[string]struct{})
+	for _, item := range items {
+		// Extract measurement name & tags.
+		name, tags := models.ParseKeyBytes(item.Key)
+		nameSet[string(name)] = struct{}{}
 
-	// If there are cached sets for any of the tag pairs, they will need to be
-	// updated with the series id.
-	i.tagValueCache.RLock()
-	if i.tagValueCache.measurementContainsSets(name) {
-		for _, pair := range tags {
-			i.tagValueCache.delete(name, pair.Key, pair.Value, seriesID) // Takes a lock on the series id set
+		// If there are cached sets for any of the tag pairs, they will need to be
+		// updated with the series id.
+		i.tagValueCache.RLock()
+		if i.tagValueCache.measurementContainsSets(name) {
+			for _, pair := range tags {
+				i.tagValueCache.delete(name, pair.Key, pair.Value, item.SeriesID) // Takes a lock on the series id set
+			}
 		}
-	}
-	i.tagValueCache.RUnlock()
-
-	// Check if that was the last series for the measurement in the entire index.
-	if ok, err := i.MeasurementHasSeries(name); err != nil {
-		return err
-	} else if ok {
-		return nil
+		i.tagValueCache.RUnlock()
 	}
 
-	// If no more series exist in the measurement then delete the measurement.
-	if err := i.DropMeasurement(name); err != nil {
-		return err
+	for name := range nameSet {
+		namebytes := []byte(name)
+
+		// Check if that was the last series for the measurement in the entire index.
+		if ok, err := i.MeasurementHasSeries(namebytes); err != nil {
+			return err
+		} else if ok {
+			continue
+		}
+
+		// If no more series exist in the measurement then delete the measurement.
+		if err := i.DropMeasurement(namebytes); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -1663,4 +1680,9 @@ func (itr *filterUndeletedSeriesIDIterator) Next() (tsdb.SeriesIDElem, error) {
 		}
 		return e, nil
 	}
+}
+
+type DropSeriesItem struct {
+	SeriesID tsdb.SeriesID
+	Key      []byte
 }

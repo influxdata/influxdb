@@ -1,5 +1,5 @@
 // Package tsm1 provides a TSDB in the Time Structured Merge tree format.
-package tsm1 // import "github.com/influxdata/influxdb/tsdb/tsm1"
+package tsm1
 
 import (
 	"bytes"
@@ -15,25 +15,25 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/kit/tracing"
-	"github.com/influxdata/influxdb/logger"
-	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/pkg/lifecycle"
-	"github.com/influxdata/influxdb/pkg/limiter"
-	"github.com/influxdata/influxdb/pkg/metrics"
-	"github.com/influxdata/influxdb/query"
-	"github.com/influxdata/influxdb/tsdb"
-	"github.com/influxdata/influxdb/tsdb/seriesfile"
-	"github.com/influxdata/influxdb/tsdb/tsi1"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/tracing"
+	"github.com/influxdata/influxdb/v2/logger"
+	"github.com/influxdata/influxdb/v2/models"
+	"github.com/influxdata/influxdb/v2/pkg/lifecycle"
+	"github.com/influxdata/influxdb/v2/pkg/limiter"
+	"github.com/influxdata/influxdb/v2/pkg/metrics"
+	"github.com/influxdata/influxdb/v2/query"
+	"github.com/influxdata/influxdb/v2/tsdb"
+	"github.com/influxdata/influxdb/v2/tsdb/seriesfile"
+	"github.com/influxdata/influxdb/v2/tsdb/tsi1"
 	"github.com/influxdata/influxql"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
 
 //go:generate env GO111MODULE=on go run github.com/benbjohnson/tmpl -data=@array_cursor.gen.go.tmpldata array_cursor.gen.go.tmpl array_cursor_iterator.gen.go.tmpl
-//go:generate env GO111MODULE=on go run github.com/influxdata/influxdb/tools/tmpl -i -data=file_store.gen.go.tmpldata file_store.gen.go.tmpl=file_store.gen.go
-//go:generate env GO111MODULE=on go run github.com/influxdata/influxdb/tools/tmpl -i -d isArray=y -data=file_store.gen.go.tmpldata file_store.gen.go.tmpl=file_store_array.gen.go
+//go:generate env GO111MODULE=on go run github.com/influxdata/influxdb/v2/tools/tmpl -i -data=file_store.gen.go.tmpldata file_store.gen.go.tmpl=file_store.gen.go
+//go:generate env GO111MODULE=on go run github.com/influxdata/influxdb/v2/tools/tmpl -i -d isArray=y -data=file_store.gen.go.tmpldata file_store.gen.go.tmpl=file_store_array.gen.go
 //go:generate env GO111MODULE=on go run github.com/benbjohnson/tmpl -data=@encoding.gen.go.tmpldata encoding.gen.go.tmpl
 //go:generate env GO111MODULE=on go run github.com/benbjohnson/tmpl -data=@compact.gen.go.tmpldata compact.gen.go.tmpl
 //go:generate env GO111MODULE=on go run github.com/benbjohnson/tmpl -data=@reader.gen.go.tmpldata reader.gen.go.tmpl
@@ -93,8 +93,12 @@ type Snapshotter interface {
 
 type noSnapshotter struct{}
 
-func (noSnapshotter) AcquireSegments(_ context.Context, fn func([]string) error) error    { return fn(nil) }
-func (noSnapshotter) CommitSegments(_ context.Context, _ []string, fn func() error) error { return fn() }
+func (noSnapshotter) AcquireSegments(_ context.Context, fn func([]string) error) error {
+	return fn(nil)
+}
+func (noSnapshotter) CommitSegments(_ context.Context, _ []string, fn func() error) error {
+	return fn()
+}
 
 // WithSnapshotter sets the callbacks for the engine to use when creating snapshots.
 func WithSnapshotter(snapshotter Snapshotter) EngineOption {
@@ -1455,14 +1459,14 @@ func AppendSeriesFieldKeyBytes(dst, seriesKey, field []byte) []byte {
 
 var (
 	blockToFieldType = [8]influxql.DataType{
-		BlockFloat64:  influxql.Float,
-		BlockInteger:  influxql.Integer,
-		BlockBoolean:  influxql.Boolean,
-		BlockString:   influxql.String,
-		BlockUnsigned: influxql.Unsigned,
-		5:             influxql.Unknown,
-		6:             influxql.Unknown,
-		7:             influxql.Unknown,
+		BlockFloat64:   influxql.Float,
+		BlockInteger:   influxql.Integer,
+		BlockBoolean:   influxql.Boolean,
+		BlockString:    influxql.String,
+		BlockUnsigned:  influxql.Unsigned,
+		blockUndefined: influxql.Unknown,
+		6:              influxql.Unknown,
+		7:              influxql.Unknown,
 	}
 )
 

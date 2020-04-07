@@ -4359,6 +4359,64 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  /packages/stacks:
+    post:
+      operationId: CreatePkg
+      tags:
+        - InfluxPackages
+      summary: Create a new Influx package
+      requestBody:
+        description: Influx package to create.
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                orgID:
+                  type: string
+                name:
+                  type: string
+                description:
+                  type: string
+                urls:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '201':
+          description: Influx stack created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  orgID:
+                    type: string
+                  name:
+                    type: string
+                  description:
+                    type: string
+                  urls:
+                    type: array
+                    items:
+                      type: string
+                  createdAt:
+                    type: string
+                    format: date-time
+                    readOnly: true
+                  updatedAt:
+                    type: string
+                    format: date-time
+                    readOnly: true
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   /tasks:
     get:
       operationId: GetTasks
@@ -7151,6 +7209,8 @@ components:
           type: boolean
         orgID:
           type: string
+        stackID:
+          type: string
         package:
           $ref: "#/components/schemas/Pkg"
         packages:
@@ -7258,6 +7318,8 @@ components:
                     type: string
                   orgID:
                     type: string
+                  pkgName:
+                    type: string
                   name:
                     type: string
                   description:
@@ -7275,6 +7337,8 @@ components:
                   - $ref: "#/components/schemas/CheckDiscriminator"
                   - type: object
                     properties:
+                      pkgName:
+                        type: string
                       labelAssociations:
                         type: array
                         items:
@@ -7334,6 +7398,8 @@ components:
                   - $ref: "#/components/schemas/NotificationEndpointDiscrimator"
                   - type: object
                     properties:
+                      pkgName:
+                        type: string
                       labelAssociations:
                         type: array
                         items:
@@ -7422,6 +7488,8 @@ components:
               items:
                 type: object
                 properties:
+                  pkgName:
+                    type: string
                   id:
                     type: string
                   orgID:
@@ -7444,13 +7512,17 @@ components:
               items:
                 type: object
                 properties:
+                  remove:
+                    type: boolean
                   id:
                     type: string
-                  name:
+                  pkgName:
                     type: string
                   new:
                     type: object
                     properties:
+                      name:
+                        type: string
                       description:
                         type: string
                       retentionRules:
@@ -7458,6 +7530,8 @@ components:
                   old:
                     type: object
                     properties:
+                      name:
+                        type: string
                       description:
                         type: string
                       retentionRules:
@@ -7467,9 +7541,11 @@ components:
               items:
                 type: object
                 properties:
+                  remove:
+                    type: boolean
                   id:
                     type: string
-                  name:
+                  pkgName:
                     type: string
                   new:
                     $ref: "#/components/schemas/CheckDiscriminator"
@@ -7493,13 +7569,17 @@ components:
               items:
                 type: object
                 properties:
+                  remove:
+                    type: boolean
                   id:
                     type: string
-                  name:
+                  pkgName:
                     type: string
                   new:
                     type: object
                     properties:
+                      name:
+                        type: string
                       color:
                         type: string
                       description:
@@ -7507,6 +7587,8 @@ components:
                   old:
                     type: object
                     properties:
+                      name:
+                        type: string
                       color:
                         type: string
                       description:
@@ -7533,9 +7615,11 @@ components:
               items:
                 type: object
                 properties:
+                  remove:
+                    type: boolean
                   id:
                     type: string
-                  name:
+                  pkgName:
                     type: string
                   new:
                     $ref: "#/components/schemas/NotificationEndpointDiscrimator"
@@ -7612,13 +7696,17 @@ components:
               items:
                 type: object
                 properties:
+                  remove:
+                    type: boolean
                   id:
                     type: string
-                  name:
+                  pkgName:
                     type: string
                   new:
                     type: object
                     properties:
+                      name:
+                        type: string
                       description:
                         type: string
                       args:
@@ -7626,6 +7714,8 @@ components:
                   old:
                     type: object
                     properties:
+                      name:
+                        type: string
                       description:
                         type: string
                       args:
@@ -7653,6 +7743,8 @@ components:
         id:
           type: string
         orgID:
+          type: string
+        pkgName:
           type: string
         name:
           type: string
@@ -8780,7 +8872,7 @@ components:
           description: Colors define color encoding of data into a visualization
           type: array
           items:
-            type: string
+            $ref: "#/components/schemas/DashboardColor"
     Axes:
       description: The viewport for a View's visualizations
       type: object

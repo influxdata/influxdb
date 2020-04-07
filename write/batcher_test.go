@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	platform "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/mock"
+	platform "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/mock"
 )
 
 func TestScanLines(t *testing.T) {
@@ -425,5 +425,13 @@ func TestBatcher_WriteTimeout(t *testing.T) {
 
 	if got != "" {
 		t.Errorf(" Batcher.Write() with timeout got %s", got)
+	}
+}
+
+func TestBatcher_WriteWithoutService(t *testing.T) {
+	b := Batcher{}
+	err := b.Write(context.Background(), platform.ID(1), platform.ID(1), strings.NewReader("m1,t1=v1 f1=1"))
+	if err == nil || !strings.Contains(err.Error(), "write service required") {
+		t.Errorf(" Batcher.Write() error expected, but got %v", err)
 	}
 }

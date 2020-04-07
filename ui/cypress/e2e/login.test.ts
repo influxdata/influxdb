@@ -22,7 +22,7 @@ describe('The Login Page', () => {
     cy.getByInputName('password').type(user.password)
     cy.get('button[type=submit]').click()
 
-    cy.getByTestID('nav-menu').should('exist')
+    cy.getByTestID('tree-nav').should('exist')
   })
 
   describe('login failure', () => {

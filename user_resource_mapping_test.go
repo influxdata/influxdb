@@ -3,8 +3,10 @@ package influxdb_test
 import (
 	"testing"
 
-	platform "github.com/influxdata/influxdb"
-	platformtesting "github.com/influxdata/influxdb/testing"
+	"github.com/influxdata/influxdb/v2"
+	platform "github.com/influxdata/influxdb/v2"
+	platformtesting "github.com/influxdata/influxdb/v2/testing"
+	"github.com/stretchr/testify/require"
 )
 
 func TestOwnerMappingValidate(t *testing.T) {
@@ -96,6 +98,78 @@ func TestOwnerMappingValidate(t *testing.T) {
 			if err := m.Validate(); (err != nil) != tt.wantErr {
 				t.Errorf("OwnerMapping.Validate() error = %v, wantErr %v", err, tt.wantErr)
 			}
+		})
+	}
+}
+
+func TestOwnerMappingToPermissions(t *testing.T) {
+	type wants struct {
+		perms platform.Permission
+		err   bool
+	}
+
+	ResourceID, _ := platform.IDFromString("020f755c3c082000")
+
+	tests := []struct {
+		name  string
+		urm   platform.UserResourceMapping
+		wants wants
+	}{
+		{
+			name: "Org Member Has Permission To Read Org",
+			urm: platform.UserResourceMapping{
+				UserID:       platformtesting.MustIDBase16("debac1e0deadbeef"),
+				UserType:     platform.Member,
+				ResourceType: platform.OrgsResourceType,
+				ResourceID:   platformtesting.MustIDBase16("020f755c3c082000"),
+			},
+			wants: wants{
+				err:   false,
+				perms: influxdb.Permission{Action: "read", Resource: influxdb.Resource{Type: "orgs", ID: ResourceID}}},
+		},
+		{
+			name: "Org Owner Has Permission To Write Org",
+			urm: platform.UserResourceMapping{
+				UserID:       platformtesting.MustIDBase16("debac1e0deadbeef"),
+				UserType:     platform.Owner,
+				ResourceType: platform.OrgsResourceType,
+				ResourceID:   platformtesting.MustIDBase16("020f755c3c082000"),
+			},
+			wants: wants{
+				err:   false,
+				perms: influxdb.Permission{Action: "write", Resource: influxdb.Resource{Type: "orgs", ID: ResourceID}}},
+		},
+		{
+			name: "Org Owner Has Permission To Read Org",
+			urm: platform.UserResourceMapping{
+				UserID:       platformtesting.MustIDBase16("debac1e0deadbeef"),
+				UserType:     platform.Owner,
+				ResourceType: platform.OrgsResourceType,
+				ResourceID:   platformtesting.MustIDBase16("020f755c3c082000"),
+			},
+			wants: wants{
+				err:   false,
+				perms: influxdb.Permission{Action: "read", Resource: influxdb.Resource{Type: "orgs", ID: ResourceID}}},
+		},
+		{
+			name: "Bucket Member User Has Permission To Read Bucket",
+			urm: platform.UserResourceMapping{
+				UserID:       platformtesting.MustIDBase16("debac1e0deadbeef"),
+				UserType:     platform.Member,
+				ResourceType: platform.BucketsResourceType,
+				ResourceID:   platformtesting.MustIDBase16("020f755c3c082000"),
+			},
+			wants: wants{
+				err:   false,
+				perms: influxdb.Permission{Action: "read", Resource: influxdb.Resource{Type: "buckets", ID: ResourceID}}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			perms, err := tt.urm.ToPermissions()
+
+			require.Contains(t, perms, tt.wants.perms)
+			require.Equal(t, tt.wants.err, err != nil)
 		})
 	}
 }

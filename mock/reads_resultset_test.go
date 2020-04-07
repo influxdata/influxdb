@@ -6,10 +6,10 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/influxdb/mock"
-	"github.com/influxdata/influxdb/pkg/data/gen"
-	"github.com/influxdata/influxdb/storage/reads"
-	"github.com/influxdata/influxdb/tsdb/cursors"
+	"github.com/influxdata/influxdb/v2/mock"
+	"github.com/influxdata/influxdb/v2/pkg/data/gen"
+	"github.com/influxdata/influxdb/v2/storage/reads"
+	"github.com/influxdata/influxdb/v2/tsdb/cursors"
 )
 
 func mustNewSpecFromToml(tb testing.TB, toml string) *gen.Spec {

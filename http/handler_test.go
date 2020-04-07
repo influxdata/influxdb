@@ -6,8 +6,8 @@ import (
 	_ "net/http/pprof"
 	"testing"
 
-	"github.com/influxdata/influxdb/kit/prom"
-	"github.com/influxdata/influxdb/kit/prom/promtest"
+	"github.com/influxdata/influxdb/v2/kit/prom"
+	"github.com/influxdata/influxdb/v2/kit/prom/promtest"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 )

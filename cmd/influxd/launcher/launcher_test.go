@@ -7,10 +7,10 @@ import (
 	nethttp "net/http"
 	"testing"
 
-	platform "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/cmd/influxd/launcher"
-	"github.com/influxdata/influxdb/http"
-	_ "github.com/influxdata/influxdb/query/builtin"
+	platform "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/cmd/influxd/launcher"
+	"github.com/influxdata/influxdb/v2/http"
+	_ "github.com/influxdata/influxdb/v2/query/builtin"
 )
 
 // Default context.
@@ -24,7 +24,7 @@ func TestLauncher_Setup(t *testing.T) {
 	defer l.Shutdown(ctx)
 
 	svc := &http.SetupService{Addr: l.URL()}
-	if results, err := svc.Generate(ctx, &platform.OnboardingRequest{
+	if results, err := svc.OnboardInitialUser(ctx, &platform.OnboardingRequest{
 		User:     "USER",
 		Password: "PASSWORD",
 		Org:      "ORG",
