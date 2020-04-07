@@ -13,7 +13,9 @@ import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
 import GetAssetLimits from 'src/cloud/components/GetAssetLimits'
 import AssetLimitAlert from 'src/cloud/components/AssetLimitAlert'
-import DashboardsSortDropdown from 'src/dashboards/components/dashboard_index/DashboardsSortDropdown'
+import ResourceSortDropdown, {
+  SortKey,
+} from 'src/shared/components/resource_sort_dropdown/ResourceSortDropdown'
 import CloudUpgradeButton from 'src/shared/components/CloudUpgradeButton'
 
 // Utils
@@ -24,7 +26,7 @@ import {extractDashboardLimits} from 'src/cloud/utils/limits'
 import {createDashboard as createDashboardAction} from 'src/dashboards/actions/thunks'
 
 // Types
-import {AppState, Dashboard} from 'src/types'
+import {AppState, ResourceType} from 'src/types'
 import {LimitStatus} from 'src/cloud/actions/limits'
 import {ComponentStatus, Sort} from '@influxdata/clockface'
 import {SortTypes} from 'src/shared/utils/sort'
@@ -43,8 +45,6 @@ interface OwnProps {
 }
 
 type Props = DispatchProps & StateProps & OwnProps
-
-export type SortKey = keyof Dashboard | 'meta.updatedAt'
 
 interface State {
   searchTerm: string
@@ -86,7 +86,8 @@ class DashboardIndex extends PureComponent<Props, State> {
                 onSearch={this.handleFilterDashboards}
                 searchTerm={searchTerm}
               />
-              <DashboardsSortDropdown
+              <ResourceSortDropdown
+                resourceType={ResourceType.Dashboards}
                 sortDirection={sortDirection}
                 sortKey={sortKey}
                 sortType={sortType}

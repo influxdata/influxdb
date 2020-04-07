@@ -42,6 +42,7 @@ import {InjectedRouter, WithRouterProps} from 'react-router'
 import {Sort} from '@influxdata/clockface'
 import {SortTypes} from 'src/shared/utils/sort'
 import {extractTaskLimits} from 'src/cloud/utils/limits'
+import {SortKey} from 'src/shared/components/resource_sort_dropdown/ResourceSortDropdown'
 
 // Selectors
 import {getAll} from 'src/resources/selectors'
@@ -83,8 +84,6 @@ interface State {
   sortDirection: Sort
   sortType: SortTypes
 }
-
-export type SortKey = keyof Task
 
 const Filter = FilterList<Task>()
 

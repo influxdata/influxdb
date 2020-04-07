@@ -11,9 +11,9 @@ import EmptyTasksList from 'src/tasks/components/EmptyTasksList'
 import {Task} from 'src/types'
 import {SortTypes} from 'src/shared/utils/sort'
 import {Sort} from '@influxdata/clockface'
-import {SortKey} from 'src/tasks/containers/TasksPage'
 import {selectTask, addTaskLabel, runTask} from 'src/tasks/actions/thunks'
 import {checkTaskLimits as checkTaskLimitsAction} from 'src/cloud/actions/limits'
+import {SortKey} from 'src/shared/components/resource_sort_dropdown/ResourceSortDropdown'
 
 // Selectors
 import {getSortedResources} from 'src/shared/utils/sort'

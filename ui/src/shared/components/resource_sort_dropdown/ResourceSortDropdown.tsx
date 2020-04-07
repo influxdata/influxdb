@@ -1,78 +1,37 @@
 // Libraries
-import React, {FC} from 'react'
+import React from 'react'
 
 // Components
 import {Dropdown} from '@influxdata/clockface'
 
+// Utilities
+import {generateSortItems} from 'src/shared/components/resource_sort_dropdown/generateSortItems'
+
 // Types
 import {Sort} from '@influxdata/clockface'
-import {SortKey} from 'src/tasks/containers/TasksPage'
+import {
+  SortKey,
+  SortDropdownItem,
+} from 'src/shared/components/resource_sort_dropdown/generateSortItems'
 import {SortTypes} from 'src/shared/utils/sort'
+import {ResourceType} from 'src/types'
 
 interface ComponentProps {
+  resourceType: ResourceType
   sortDirection: Sort
   sortKey: SortKey
   sortType: SortTypes
   onSelect: (sortKey: SortKey, sortDirection: Sort, sortType: SortTypes) => void
 }
 
-interface SortDropdownItem {
-  label: string
-  sortKey: SortKey
-  sortType: SortTypes
-  sortDirection: Sort
-}
-
-const TasksSortDropdown: FC<ComponentProps> = ({
+function ResourceSortDropdown({
   sortDirection,
   sortKey,
   sortType,
   onSelect,
-}) => {
-  const sortDropdownItems: SortDropdownItem[] = [
-    {
-      label: 'Name (A → Z)',
-      sortKey: 'name',
-      sortType: SortTypes.String,
-      sortDirection: Sort.Ascending,
-    },
-    {
-      label: 'Name (Z → A)',
-      sortKey: 'name',
-      sortType: SortTypes.String,
-      sortDirection: Sort.Descending,
-    },
-    {
-      label: 'Active',
-      sortKey: 'status',
-      sortType: SortTypes.String,
-      sortDirection: Sort.Ascending,
-    },
-    {
-      label: 'Inactive',
-      sortKey: 'status',
-      sortType: SortTypes.String,
-      sortDirection: Sort.Descending,
-    },
-    {
-      label: 'Completed (Oldest)',
-      sortKey: 'latestCompleted',
-      sortType: SortTypes.Date,
-      sortDirection: Sort.Ascending,
-    },
-    {
-      label: 'Completed (Newest)',
-      sortKey: 'latestCompleted',
-      sortType: SortTypes.Date,
-      sortDirection: Sort.Descending,
-    },
-    {
-      label: 'Schedule',
-      sortKey: 'every',
-      sortType: SortTypes.String,
-      sortDirection: Sort.Ascending,
-    },
-  ]
+  resourceType,
+}: ComponentProps) {
+  const sortDropdownItems = generateSortItems(resourceType)
 
   const {label} = sortDropdownItems.find(
     item =>
@@ -99,7 +58,7 @@ const TasksSortDropdown: FC<ComponentProps> = ({
           key={`${item.sortKey}${item.sortDirection}`}
           value={item}
           onClick={handleItemClick}
-          testID={`task-sort--${item.sortKey}-${item.sortDirection}`}
+          testID={`dashboard-sort--${item.sortKey}-${item.sortDirection}`}
           selected={
             item.sortKey === sortKey &&
             item.sortType === sortType &&
@@ -121,4 +80,7 @@ const TasksSortDropdown: FC<ComponentProps> = ({
   )
 }
 
-export default TasksSortDropdown
+export {
+  SortKey,
+} from 'src/shared/components/resource_sort_dropdown/generateSortItems'
+export default ResourceSortDropdown

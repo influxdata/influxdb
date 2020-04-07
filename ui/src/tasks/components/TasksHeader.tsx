@@ -14,14 +14,15 @@ import {
 } from '@influxdata/clockface'
 import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
-import TasksSortDropdown from 'src/tasks/components/TasksSortDropdown'
+import ResourceSortDropdown from 'src/shared/components/resource_sort_dropdown/ResourceSortDropdown'
 import CloudUpgradeButton from 'src/shared/components/CloudUpgradeButton'
 
 // Types
 import {LimitStatus} from 'src/cloud/actions/limits'
 import {setSearchTerm as setSearchTermAction} from 'src/tasks/actions/creators'
-import {SortKey} from 'src/tasks/containers/TasksPage'
+import {SortKey} from 'src/shared/components/resource_sort_dropdown/ResourceSortDropdown'
 import {SortTypes} from 'src/shared/utils/sort'
+import {ResourceType} from 'src/types'
 
 interface Props {
   onCreateTask: () => void
@@ -67,7 +68,8 @@ export default class TasksHeader extends PureComponent<Props> {
               onSearch={setSearchTerm}
               searchTerm={searchTerm}
             />
-            <TasksSortDropdown
+            <ResourceSortDropdown
+              resourceType={ResourceType.Tasks}
               sortKey={sortKey}
               sortType={sortType}
               sortDirection={sortDirection}
