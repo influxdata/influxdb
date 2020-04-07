@@ -812,22 +812,47 @@ func bucket2dbrp(bucket string) (string, string, error) {
 // of an "org" and "bucket" are mapped to v1 "database" and "retention
 // policies".
 func (h *Handler) serveWriteV2(w http.ResponseWriter, r *http.Request, user meta.User) {
+	precision := r.URL.Query().Get("precision")
+	switch precision {
+	case "ns":
+		precision = "n"
+	case "us":
+		precision = "u"
+	case "ms", "s", "":
+		// same as v1 so do nothing
+	default:
+		err := fmt.Sprintf("invalid precision %q (use ns, us, ms or s)", precision)
+		h.httpError(w, err, http.StatusBadRequest)
+	}
+
 	db, rp, err := bucket2dbrp(r.URL.Query().Get("bucket"))
 	if err != nil {
 		h.httpError(w, err.Error(), http.StatusNotFound)
 		return
 	}
-	h.serveWrite(db, rp, w, r, user)
+	h.serveWrite(db, rp, precision, w, r, user)
 }
 
 // serveWriteV1 handles v1 style writes.
 func (h *Handler) serveWriteV1(w http.ResponseWriter, r *http.Request, user meta.User) {
-	h.serveWrite(r.URL.Query().Get("db"), r.URL.Query().Get("rp"), w, r, user)
+	precision := r.URL.Query().Get("precision")
+	switch precision {
+	case "", "n", "ns", "u", "ms", "s", "m", "h":
+		// it's valid
+	default:
+		err := fmt.Sprintf("invalid precision %q (use n, u, ms, s, m or h)", precision)
+		h.httpError(w, err, http.StatusBadRequest)
+	}
+
+	db := r.URL.Query().Get("db")
+	rp := r.URL.Query().Get("rp")
+
+	h.serveWrite(db, rp, precision, w, r, user)
 }
 
 // serveWrite receives incoming series data in line protocol format and writes
 // it to the database.
-func (h *Handler) serveWrite(database string, retentionPolicy string, w http.ResponseWriter, r *http.Request, user meta.User) {
+func (h *Handler) serveWrite(database, retentionPolicy, precision string, w http.ResponseWriter, r *http.Request, user meta.User) {
 	atomic.AddInt64(&h.stats.WriteRequests, 1)
 	atomic.AddInt64(&h.stats.ActiveWriteRequests, 1)
 	defer func(start time.Time) {
@@ -906,7 +931,7 @@ func (h *Handler) serveWrite(database string, retentionPolicy string, w http.Res
 		h.Logger.Info("Write body received by handler", zap.ByteString("body", buf.Bytes()))
 	}
 
-	points, parseError := models.ParsePointsWithPrecision(buf.Bytes(), time.Now().UTC(), r.URL.Query().Get("precision"))
+	points, parseError := models.ParsePointsWithPrecision(buf.Bytes(), time.Now().UTC(), precision)
 	// Not points parsed correctly so return the error now
 	if parseError != nil && len(points) == 0 {
 		if parseError.Error() == "EOF" {
