@@ -139,12 +139,12 @@ func (PushDownFilterRule) Rewrite(pn plan.Node) (plan.Node, bool, error) {
 		return pn, false, nil
 	}
 
-	if len(filterSpec.Fn.Fn.Block.Parameters.List) != 1 {
+	if len(filterSpec.Fn.Fn.Parameters.List) != 1 {
 		// I would expect that type checking would catch this, but just to be safe...
 		return pn, false, nil
 	}
 
-	paramName := filterSpec.Fn.Fn.Block.Parameters.List[0].Key.Name
+	paramName := filterSpec.Fn.Fn.Parameters.List[0].Key.Name
 
 	pushable, notPushable, err := semantic.PartitionPredicates(bodyExpr, func(e semantic.Expression) (bool, error) {
 		return isPushableExpr(paramName, e)
@@ -194,7 +194,7 @@ func (PushDownFilterRule) Rewrite(pn plan.Node) (plan.Node, bool, error) {
 	}
 
 	newFilterSpec := filterSpec.Copy().(*universe.FilterProcedureSpec)
-	newFilterSpec.Fn.Fn.Block.Body = &semantic.Block{
+	newFilterSpec.Fn.Fn.Block = &semantic.Block{
 		Body: []semantic.Statement{
 			&semantic.ReturnStatement{Argument: notPushable},
 		},

@@ -260,11 +260,15 @@ func NewWhereOperation(metricName string, labels []*LabelMatcher) (*flux.Operati
 			Fn: interpreter.ResolvedFunction{
 				Scope: nil,
 				Fn: &semantic.FunctionExpression{
-					Block: &semantic.FunctionBlock{
-						Parameters: &semantic.FunctionParameters{
-							List: []*semantic.FunctionParameter{{Key: &semantic.Identifier{Name: "r"}}},
+					Parameters: &semantic.FunctionParameters{
+						List: []*semantic.FunctionParameter{{Key: &semantic.Identifier{Name: "r"}}},
+					},
+					Block: &semantic.Block{
+						Body: []semantic.Statement{
+							&semantic.ReturnStatement{
+								Argument: node,
+							},
 						},
-						Body: node,
 					},
 				},
 			},

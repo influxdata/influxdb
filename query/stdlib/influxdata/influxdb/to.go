@@ -350,7 +350,7 @@ func (t *ToTransformation) Process(id execute.DatasetID, tbl flux.Table) error {
 		// If a field function is specified then we exclude any column that
 		// is referenced in the function expression from being a tag column.
 		if t.spec.Spec.FieldFn.Fn != nil {
-			recordParam := t.spec.Spec.FieldFn.Fn.Block.Parameters.List[0].Key.Name
+			recordParam := t.spec.Spec.FieldFn.Fn.Parameters.List[0].Key.Name
 			exprNode := t.spec.Spec.FieldFn.Fn
 			colVisitor := newFieldFunctionVisitor(recordParam, tbl.Cols())
 
