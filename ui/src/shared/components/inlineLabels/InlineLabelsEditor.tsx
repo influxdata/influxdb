@@ -4,7 +4,12 @@ import {connect} from 'react-redux'
 import _ from 'lodash'
 
 // Components
-import {SquareButton, IconFont, ComponentColor} from '@influxdata/clockface'
+import {
+  ButtonBase,
+  ButtonShape,
+  ButtonBaseRef,
+  ComponentColor,
+} from '@influxdata/clockface'
 import InlineLabelPopover from 'src/shared/components/inlineLabels/InlineLabelPopover'
 import CreateLabelOverlay from 'src/labels/components/CreateLabelOverlay'
 
@@ -53,7 +58,7 @@ interface State {
 
 @ErrorHandling
 class InlineLabelsEditor extends Component<Props, State> {
-  private popoverTrigger = createRef<HTMLDivElement>()
+  private popoverTrigger = createRef<ButtonBaseRef>()
 
   constructor(props: Props) {
     super(props)
@@ -71,19 +76,19 @@ class InlineLabelsEditor extends Component<Props, State> {
 
     return (
       <>
+        {this.popover}
         <div className="inline-labels--editor">
-          <div className="inline-labels--add-wrapper" ref={this.popoverTrigger}>
-            <div className="inline-labels--add">
-              <SquareButton
-                color={ComponentColor.Secondary}
-                titleText="Add labels"
-                icon={IconFont.Plus}
-                testID="inline-labels--add"
-              />
-            </div>
-            {this.noLabelsIndicator}
-          </div>
-          {this.popover}
+          <ButtonBase
+            color={ComponentColor.Secondary}
+            titleText="Add labels"
+            shape={ButtonShape.Square}
+            className="inline-labels--add"
+            testID="inline-labels--add"
+            ref={this.popoverTrigger}
+          >
+            <div className="inline-labels--add-icon" />
+          </ButtonBase>
+          {this.noLabelsIndicator}
         </div>
         <CreateLabelOverlay
           isVisible={isCreatingLabel === OverlayState.Open}
@@ -125,10 +130,16 @@ class InlineLabelsEditor extends Component<Props, State> {
       return
     }
 
+    const handleClick = (): void => {
+      if (this.popoverTrigger.current) {
+        this.popoverTrigger.current.click()
+      }
+    }
+
     return (
       <div
         className="cf-label cf-label--xs cf-label--colorless"
-        onClick={this.handleShowPopover}
+        onClick={handleClick}
         data-testid="inline-labels--empty"
       >
         <span className="cf-label--name">Add a label</span>

@@ -25,7 +25,7 @@ class InlineLabelsCreateLabelButton extends Component<Props> {
         onClick={this.handleClick}
         data-testid="inline-labels--create-new"
       >
-        Create new label "<strong>{`${name}`}</strong>"
+        Create "<strong>{`${name}`}</strong>"
       </div>
     )
   }

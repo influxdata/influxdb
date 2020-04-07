@@ -93,7 +93,7 @@ class InlineLabelsList extends Component<Props> {
     if (allLabelsUsed) {
       return (
         <EmptyState
-          size={ComponentSize.Small}
+          size={ComponentSize.ExtraSmall}
           testID="inline-labels-list--used-all"
         >
           <EmptyState.Text>
@@ -108,7 +108,7 @@ class InlineLabelsList extends Component<Props> {
     if (!searchTerm) {
       return (
         <EmptyState
-          size={ComponentSize.Small}
+          size={ComponentSize.ExtraSmall}
           testID="inline-labels-list--none-exist"
         >
           <EmptyState.Text>Start typing to create a new label</EmptyState.Text>
