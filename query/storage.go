@@ -7,8 +7,8 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/memory"
-	"github.com/influxdata/flux/semantic"
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/storage/reads/datatypes"
 	"github.com/influxdata/influxdb/v2/tsdb/cursors"
 )
 
@@ -27,9 +27,8 @@ type ReadFilterSpec struct {
 	OrganizationID influxdb.ID
 	BucketID       influxdb.ID
 
-	Bounds execute.Bounds
-
-	Predicate *semantic.FunctionExpression
+	Bounds    execute.Bounds
+	Predicate *datatypes.Predicate
 }
 
 type ReadGroupSpec struct {

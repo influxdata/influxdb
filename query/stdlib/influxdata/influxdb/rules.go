@@ -134,7 +134,7 @@ func (PushDownFilterRule) Rewrite(pn plan.Node) (plan.Node, bool, error) {
 		return pn, false, nil
 	}
 
-	bodyExpr, ok := getFunctionBodyExpr(filterSpec.Fn.Fn.Block)
+	bodyExpr, ok := filterSpec.Fn.Fn.GetFunctionBodyExpression()
 	if !ok {
 		return pn, false, nil
 	}
@@ -159,16 +159,25 @@ func (PushDownFilterRule) Rewrite(pn plan.Node) (plan.Node, bool, error) {
 	}
 	pushable, _ = rewritePushableExpr(pushable)
 
-	newFromSpec := fromSpec.Copy().(*ReadRangePhysSpec)
-	if newFromSpec.FilterSet {
-		newBody := semantic.ExprsToConjunction(newFromSpec.Filter.Block.Body.(semantic.Expression), pushable)
-		newFromSpec.Filter.Block.Body = newBody
-	} else {
-		newFromSpec.FilterSet = true
-		// NOTE: We lose the scope here, but that is ok because we can't push down the scope to storage.
-		newFromSpec.Filter = filterSpec.Fn.Fn.Copy().(*semantic.FunctionExpression)
-		newFromSpec.Filter.Block.Body = pushable
+	// Convert the pushable expression to a storage predicate.
+	predicate, err := ToStoragePredicate(pushable, paramName)
+	if err != nil {
+		return nil, false, err
 	}
+
+	// If the filter has already been set, then combine the existing predicate
+	// with the new one.
+	if fromSpec.Filter != nil {
+		mergedPredicate, err := mergePredicates(ast.AndOperator, fromSpec.Filter, predicate)
+		if err != nil {
+			return nil, false, err
+		}
+		predicate = mergedPredicate
+	}
+
+	// Copy the specification and set the predicate.
+	newFromSpec := fromSpec.Copy().(*ReadRangePhysSpec)
+	newFromSpec.Filter = predicate
 
 	if notPushable == nil {
 		// All predicates could be pushed down, so eliminate the filter
@@ -185,7 +194,11 @@ func (PushDownFilterRule) Rewrite(pn plan.Node) (plan.Node, bool, error) {
 	}
 
 	newFilterSpec := filterSpec.Copy().(*universe.FilterProcedureSpec)
-	newFilterSpec.Fn.Fn.Block.Body = notPushable
+	newFilterSpec.Fn.Fn.Block.Body = &semantic.Block{
+		Body: []semantic.Statement{
+			&semantic.ReturnStatement{Argument: notPushable},
+		},
+	}
 	if err := pn.ReplaceSpec(newFilterSpec); err != nil {
 		return nil, false, err
 	}
@@ -622,26 +635,4 @@ func (SortedPivotRule) Rewrite(pn plan.Node) (plan.Node, bool, error) {
 		return nil, false, err
 	}
 	return pn, false, nil
-}
-
-// getFunctionBodyExpr will return the return value expression from
-// the function block. This will only return an expression if there
-// is exactly one expression in the block. It will return false
-// as the second argument if the statement is more complex.
-func getFunctionBodyExpr(fn *semantic.FunctionBlock) (semantic.Expression, bool) {
-	switch e := fn.Body.(type) {
-	case *semantic.Block:
-		if len(e.Body) != 1 {
-			return nil, false
-		}
-		returnExpr, ok := e.Body[0].(*semantic.ReturnStatement)
-		if !ok {
-			return nil, false
-		}
-		return returnExpr.Argument, true
-	case semantic.Expression:
-		return e, true
-	default:
-		return nil, false
-	}
 }
