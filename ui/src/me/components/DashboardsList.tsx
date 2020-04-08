@@ -1,10 +1,17 @@
 // Libraries
-import React, {PureComponent} from 'react'
+import React, {FC, useState, ChangeEvent} from 'react'
 import {Link} from 'react-router'
 import {connect} from 'react-redux'
+import {sortBy} from 'lodash'
 
 // Components
-import {EmptyState} from '@influxdata/clockface'
+import {
+  EmptyState,
+  DapperScrollbars,
+  Input,
+  IconFont,
+  InputRef,
+} from '@influxdata/clockface'
 
 // Types
 import {Dashboard, Organization, AppState, ResourceType} from 'src/types'
@@ -22,34 +29,70 @@ interface StateProps {
 
 type Props = StateProps
 
-class DashboardList extends PureComponent<Props> {
-  public render() {
-    const {dashboards, org} = this.props
+const DashboardList: FC<Props> = ({dashboards, org}) => {
+  const [searchTerm, setSearchTerm] = useState<string>('')
 
-    if (this.isEmpty) {
-      return (
-        <EmptyState size={ComponentSize.ExtraSmall}>
-          <EmptyState.Text>You don't have any Dashboards</EmptyState.Text>
-        </EmptyState>
+  const handleInputChange = (e: ChangeEvent<InputRef>): void => {
+    setSearchTerm(e.target.value)
+  }
+
+  let dashboardsList = (
+    <EmptyState size={ComponentSize.ExtraSmall}>
+      <EmptyState.Text>You don't have any Dashboards</EmptyState.Text>
+    </EmptyState>
+  )
+
+  if (dashboards && dashboards.length) {
+    let recentlyModifiedDashboards = sortBy(dashboards, [
+      'meta.updatedAt',
+    ]).reverse()
+
+    if (searchTerm.length) {
+      recentlyModifiedDashboards = recentlyModifiedDashboards.filter(
+        dashboard =>
+          dashboard.name.toLowerCase().includes(searchTerm.toLowerCase())
       )
     }
 
-    return (
-      <>
-        <ul className="link-list">
-          {dashboards.map(({id, name}) => (
-            <li key={id}>
-              <Link to={`/orgs/${org.id}/dashboards/${id}`}>{name}</Link>
-            </li>
+    dashboardsList = (
+      <DapperScrollbars autoSizeHeight={true} style={{maxHeight: '400px'}}>
+        <div className="recent-dashboards">
+          {recentlyModifiedDashboards.map(({id, name}) => (
+            <Link
+              key={id}
+              to={`/orgs/${org.id}/dashboards/${id}`}
+              className="recent-dashboards--item"
+            >
+              {name}
+            </Link>
           ))}
-        </ul>
-      </>
+        </div>
+      </DapperScrollbars>
     )
+
+    if (searchTerm && !recentlyModifiedDashboards.length) {
+      dashboardsList = (
+        <EmptyState size={ComponentSize.ExtraSmall}>
+          <EmptyState.Text>
+            No dashboards match <b>{searchTerm}</b>
+          </EmptyState.Text>
+        </EmptyState>
+      )
+    }
   }
 
-  private get isEmpty(): boolean {
-    return !this.props.dashboards.length
-  }
+  return (
+    <>
+      <Input
+        className="recent-dashboards--filter"
+        value={searchTerm}
+        icon={IconFont.Search}
+        placeholder="Filter dashboards..."
+        onChange={handleInputChange}
+      />
+      {dashboardsList}
+    </>
+  )
 }
 
 const mstp = (state: AppState): StateProps => {

@@ -31,7 +31,7 @@ export default class SupportLinks extends PureComponent {
           <h4>Some Handy Guides and Tutorials</h4>
         </Panel.Header>
         <Panel.Body>
-          <ul className="link-list tutorials">
+          <ul className="tutorials-list">
             {supportLinks.map(({link, title}) => (
               <li key={title}>
                 <a href={link} target="_blank">
