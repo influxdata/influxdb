@@ -419,28 +419,28 @@ where
         assert!(remaining_size <= u32::MAX as u32);
 
         // seek back and write in the remaining block size.
-        let _ = w.seek(SeekFrom::Start(remaining_size_offset))?;
-        let _ = w.write(&remaining_size.to_be_bytes())?;
+        w.seek(SeekFrom::Start(remaining_size_offset))?;
+        w.write(&remaining_size.to_be_bytes())?;
         hasher.update(&remaining_size.to_be_bytes());
 
         // hash block type for checksum
         hasher.update(&marker_bytes);
 
         // seek and write in the summary size.
-        let _ = w.seek(SeekFrom::Start(summary_size_offset))?;
-        let _ = w.write(&[summary_size as u8])?;
+        w.seek(SeekFrom::Start(summary_size_offset))?;
+        w.write(&[summary_size as u8])?;
         hasher.update(&[summary_size as u8]);
 
         // seek and write the data block offset in the reserved offset
-        let _ = w.seek(SeekFrom::Start(data_offset_offset))?;
+        w.seek(SeekFrom::Start(data_offset_offset))?;
         assert!(data_offset <= u16::MAX as u64); // ensure we write size in 2 bytes
-        let _ = w.write(&(data_offset as u16).to_be_bytes())?;
+        w.write(&(data_offset as u16).to_be_bytes())?;
         hasher.update(&(data_offset as u16).to_be_bytes());
 
         // seek and write the data block size in the reserved offset
-        let _ = w.seek(SeekFrom::Start(data_size_offset))?;
+        w.seek(SeekFrom::Start(data_size_offset))?;
         assert!(data_size <= u32::MAX as u64);
-        let _ = w.write(&(data_size as u32).to_be_bytes())?;
+        w.write(&(data_size as u32).to_be_bytes())?;
         hasher.update(&(data_size as u32).to_be_bytes());
 
         // combine hasher with summary hasher and data block hasher.
@@ -448,9 +448,9 @@ where
         hasher.combine(&data_block_hasher);
 
         // seek back and write the checksum in.
-        let _ = w.seek(SeekFrom::Start(0))?;
+        w.seek(SeekFrom::Start(0))?;
         let checksum = hasher.finalize();
-        let _ = w.write(&checksum.to_be_bytes())?;
+        w.write(&checksum.to_be_bytes())?;
 
         Ok(offset as u64)
     }
@@ -627,7 +627,7 @@ impl BlockSummary<f64> for FloatBlockSummary {
         let mut total: usize = 0;
         let mut buf = [0; 10]; // Maximum varint size for 64-bit number.
         let n = self.count.encode_var(&mut buf);
-        let _ = w.write(&buf[..n])?;
+        w.write(&buf[..n])?;
         total += n;
         h.write(&buf[..n]);
 
@@ -721,7 +721,7 @@ impl BlockSummary<i64> for IntegerBlockSummary {
 
         let mut buf = [0; 10]; // Maximum varint size for 64-bit number.
         let n = self.count.encode_var(&mut buf);
-        let _ = w.write(&buf[..n])?;
+        w.write(&buf[..n])?;
         total += n;
         h.write(&buf[..n]);
 
@@ -960,7 +960,7 @@ impl BlockSummary<u64> for UnsignedBlockSummary {
 
         let mut buf = [0; 10]; // Maximum varint size for 64-bit number.
         let n = self.count.encode_var(&mut buf);
-        let _ = w.write(&buf[..n])?;
+        w.write(&buf[..n])?;
         total += n;
         h.write(&buf[..n]);
 
@@ -1284,7 +1284,7 @@ mod test {
         // add the summary into expected value
         let mut summary_buf = Cursor::new(vec![]);
         let mut h = crc32fast::Hasher::new();
-        let _ = block
+        block
             .summary
             .unwrap()
             .write_to(&mut summary_buf, &mut h)
@@ -1293,7 +1293,7 @@ mod test {
 
         // add the block data into expected value
         let mut data_buf = Cursor::new(vec![]);
-        let _ = block.data.write_to(&mut data_buf, &mut h).unwrap();
+        block.data.write_to(&mut data_buf, &mut h).unwrap();
         exp.extend(data_buf.get_ref());
 
         assert_eq!(buf.get_ref(), &exp);
