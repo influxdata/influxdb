@@ -488,11 +488,34 @@ func (t *TSMReader) TimeRangeIterator(key []byte, min, max int64) *TimeRangeIter
 	t.mu.RUnlock()
 
 	return &TimeRangeIterator{
-		r:    t,
-		iter: iter,
-		tr: TimeRange{
-			Min: min,
-			Max: max,
+		timeRangeBlockReader: timeRangeBlockReader{
+			r:    t,
+			iter: iter,
+			tr: TimeRange{
+				Min: min,
+				Max: max,
+			},
+		},
+	}
+}
+
+// TimeRangeMaxTimeIterator returns an iterator over the keys, starting at the provided
+// key. Calling the HasData and MaxTime accessors will be restricted to the
+// interval [min, max] for the current key and MaxTime ≤ max.
+// Next must be called before calling any of the accessors.
+func (t *TSMReader) TimeRangeMaxTimeIterator(key []byte, min, max int64) *TimeRangeMaxTimeIterator {
+	t.mu.RLock()
+	iter := t.index.Iterator(key)
+	t.mu.RUnlock()
+
+	return &TimeRangeMaxTimeIterator{
+		timeRangeBlockReader: timeRangeBlockReader{
+			r:    t,
+			iter: iter,
+			tr: TimeRange{
+				Min: min,
+				Max: max,
+			},
 		},
 	}
 }
