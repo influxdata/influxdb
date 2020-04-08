@@ -284,7 +284,6 @@ where
     fn write_to<W: Write, H: Hasher>(&self, w: &mut W, h: &mut H) -> Result<u64, StorageError>;
 }
 
-#[allow(dead_code)]
 #[derive(Default)]
 /// `Block` is a container for a compressed block of timestamps and associated values.
 ///
@@ -300,6 +299,7 @@ where
     T: BlockType,
 {
     // checksum is only calculated when the block is serialised.
+    #[allow(dead_code)]
     checksum: Option<u32>,
     id: u32,
     summary: Option<T::BlockSummary>,
