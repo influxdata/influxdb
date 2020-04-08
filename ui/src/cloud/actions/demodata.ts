@@ -4,10 +4,19 @@ import {
   getDemoDataBucketMembership as getDemoDataBucketMembershipAJAX,
   deleteDemoDataBucketMembership as deleteDemoDataBucketMembershipAJAX,
 } from 'src/cloud/apis/demodata'
+import {createDashboardFromTemplate} from 'src/templates/api'
+
+// Actions
+import {getBuckets} from 'src/buckets/actions/thunks'
+
+// Selectors
+import {getOrg} from 'src/organizations/selectors'
+
+// Constants
+import {DemoDataTemplates} from 'src/cloud/constants'
 
 // Types
-import {Bucket, RemoteDataState, GetState} from 'src/types'
-import {getBuckets} from 'src/buckets/actions/thunks'
+import {Bucket, RemoteDataState, GetState, DemoBucket} from 'src/types'
 
 export type Actions =
   | ReturnType<typeof setDemoDataStatus>
@@ -46,20 +55,30 @@ export const getDemoDataBuckets = () => async (
   }
 }
 
-export const getDemoDataBucketMembership = (bucketID: string) => async (
+export const getDemoDataBucketMembership = (bucket: DemoBucket) => async (
   dispatch,
   getState: GetState
 ) => {
+  const state = getState()
   const {
     me: {id: userID},
-  } = getState()
+  } = state
+  const {id: orgID} = getOrg(state)
 
   try {
-    await getDemoDataBucketMembershipAJAX(bucketID, userID)
-
+    await getDemoDataBucketMembershipAJAX(bucket.id, userID)
     dispatch(getBuckets())
-    // TODO: check for success and error appropriately
-    // TODO: instantiate dashboard template
+
+    const template = DemoDataTemplates[bucket.name]
+    if (template) {
+      await createDashboardFromTemplate(template, orgID)
+    } else {
+      throw new Error(
+        `Could not find template for demodata bucket ${bucket.name}`
+      )
+    }
+
+    // TODO: notify success and error appropriately
   } catch (error) {
     console.error(error)
   }
