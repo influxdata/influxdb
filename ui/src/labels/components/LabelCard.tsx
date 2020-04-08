@@ -38,25 +38,28 @@ export default class LabelCard extends PureComponent<Props> {
       : 'No description'
 
     return (
-      <>
-        <ResourceCard
-          className="label-card"
-          testID="label-card"
-          contextMenu={<LabelContextMenu label={label} onDelete={onDelete} />}
-          name={
-            <LabelComponent
-              id={label.id}
-              name={label.name}
-              color={label.properties.color}
-              description={label.properties.description}
-              size={ComponentSize.Small}
-              onClick={this.handleClick}
-            />
-          }
+      <ResourceCard
+        className="label-card"
+        testID="label-card"
+        contextMenu={<LabelContextMenu label={label} onDelete={onDelete} />}
+        name={
+          <LabelComponent
+            id={label.id}
+            name={label.name}
+            color={label.properties.color}
+            description={label.properties.description}
+            size={ComponentSize.Small}
+            onClick={this.handleClick}
+          />
+        }
+      >
+        <p
+          className={descriptionClassName}
+          data-testid="label-card--description"
         >
-          <p className={descriptionClassName}>{description}</p>
-        </ResourceCard>
-      </>
+          {description}
+        </p>
+      </ResourceCard>
     )
   }
 
