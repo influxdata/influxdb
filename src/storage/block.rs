@@ -1,7 +1,8 @@
 //! Responsible for storing and serialising blocks of time-series data.
 //!
-//! The block module provide an API for creating, updating, reading and writing blocks of
+//! The block module provides an API for creating, updating, reading and writing blocks of
 //! time-series data, in the form of compressed data blocks.
+//!
 //! Currently the following block types are supported:
 //!
 //! - f64 (float blocks);
@@ -10,7 +11,7 @@
 //! Other block types are ready to be supported when the appropriate encoders
 //! have been implemented.
 //!
-//! Multiple blocks can stored in a serialised format within the same file.
+//! Multiple blocks can be stored in a serialised format within the same file.
 //! To facilitate that, blocks have an initial portion that is a _fixed size_,
 //! with a variable-sized component following a fixed-size value indicating the
 //! size of the variable portion. Therefore, it is possible to read the first part
@@ -18,14 +19,14 @@
 //!
 //! ## Block Format
 //!
-//! The contents of a single Block is as follows:
+//! The contents of a single Block are as follows:
 //!
 //! - Checksum (4 bytes): can be used to verify integrity of the rest of the block.
 //! - Block ID (4 bytes): the ID of the series associated with the block.
-//! - Min timestamp (8 bytes): timestamp of the earliest value in block.
-//! - Max timestamp (8 bytes): timestamp of the latest value in block.
+//! - Min timestamp (8 bytes): timestamp of the earliest value in the block.
+//! - Max timestamp (8 bytes): timestamp of the latest value in the block.
 //! - Remaining Size (4 bytes): indicates how many bytes follow in the rest of the block.
-//! - Block Type (1 bytes): indicates the type of block data to follow (e.g., for an f64, i64, u64,
+//! - Block Type (1 byte): indicates the type of block data to follow (e.g., for an f64, i64, u64,
 //!   string or bool).
 //! - Block Summary Size (1 byte): the size in bytes of the block's summary.
 //! - Block Data Offset (2 bytes): the offset in the block of the beginning of the block data
@@ -59,7 +60,7 @@
 //! Bool Blocks only the track within their Summaries the number values encoded
 //! in their block data.
 //!
-//! Integer, Unsigned and Float Blocks however track more information in their
+//! Integer, Unsigned and Float Blocks, however, track more information in their
 //! Block Summaries, including:
 //!
 //! - Count (var-int): number of values in block;
@@ -69,8 +70,7 @@
 //! - Min (var-int): smallest value in block;
 //! - Max (var-int): largest value in block;
 //!
-//!
-//! String and Bool summaries serialise in a very similar way:
+//! String and Bool Summaries serialise in a very similar way:
 //!
 //!```text
 //!╔═STRING/BOOL BLOCK SUMMARY═╗
@@ -107,7 +107,7 @@
 //!
 //! The signed integer block uses a "Big Int" representation for the sum value, to
 //! ensure that large i64 values can be summarised correctly in the block. Therefore,
-//! storing the sum of the values in the block involved storing three separate values:
+//! storing the sum of the values in the block involves storing three separate values:
 //! a fixed size sign value indicating the sign of the sum, the number of bytes
 //! the sum is stored in, and the bytes storing the actual sum value.
 //!
@@ -122,7 +122,6 @@
 //!║└──────┘└────────┘└────────┘└────────┘└──────┘└──────┘└──────┘└──────┘ ║
 //!╚═══════════════════════════════════════════════════════════════════════╝
 //! ```
-//!
 //!
 //! #### UnsignedBlock Summary
 //!
@@ -140,7 +139,6 @@
 //!║└──────┘└────────┘└────────┘└──────┘└──────┘└──────┘└──────┘ ║
 //!╚═════════════════════════════════════════════════════════════╝
 //! ```
-//!
 //!
 //! ### Block Data
 //!
@@ -204,7 +202,7 @@ impl<'a> BlockType<'a> for u64 {
     type BlockSummary = UnsignedBlockSummary;
 }
 
-/// Types implementing Encoder are able to encode themselves into compressed
+/// Types implementing `Encoder` are able to encode themselves into compressed
 /// blocks of data.
 pub trait Encoder {
     fn encode(&self, dst: &mut Vec<u8>) -> Result<(), StorageError>;
@@ -250,7 +248,7 @@ impl Encoder for Vec<bool> {
     }
 }
 
-/// Hasher provides a sub-set of the core::hash::Hasher API.
+/// `Hasher` provides a sub-set of the `core::hash::Hasher` API.
 ///
 /// Specifically, only raw byte streams can be written, ensuring that the caller
 /// is responsible for specifying the endianness of any values.
@@ -264,12 +262,12 @@ impl Hasher for crc32fast::Hasher {
     }
 }
 
-/// BlockSummary tracks statistics about the contents of the data in a block.
+/// `BlockSummary` tracks statistics about the contents of the data in a block.
 pub trait BlockSummary<T>: Clone
 where
     T: Sized,
 {
-    /// Initialises a new summary if values is not empty.
+    /// Initialises a new summary if `values` is not empty.
     fn new(values: &[(i64, T)]) -> Option<Self>;
 
     /// Adds the provided values to the summary. The caller is responsible for
@@ -279,22 +277,22 @@ where
     /// Returns the earliest and latest timestamps in the block.
     fn time_range(&self) -> (i64, i64);
 
-    /// serialises the summary to the provided Writer, and produces a checksum
-    /// on the provided Hasher.
+    /// Serialises the summary to the provided `Writer`, and produces a checksum
+    /// on the provided `Hasher`.
     ///
-    /// write_to returns the number of bytes written to w, and any error encountered.
+    /// `write_to` returns the number of bytes written to `w` or any error encountered.
     fn write_to<W: Write, H: Hasher>(&self, w: &mut W, h: &mut H) -> Result<u64, StorageError>;
 }
 
 #[allow(dead_code)]
 #[derive(Default)]
-/// Block is a container for a compressed block of timestamps and associated values.
+/// `Block` is a container for a compressed block of timestamps and associated values.
 ///
-/// Blocks comprise a server-assigned ID, a Block Summary, and the Block Data itself.
-/// Adding data to the Block will ensure that the summary and data are updated correctly.
+/// Blocks comprise a server-assigned ID, a `BlockSummary`, and the `BlockData` itself.
+/// Adding data to the `Block` will ensure that the summary and data are updated correctly.
 ///
 /// Currently it is the caller's responsibility to ensure that the contents of
-/// any values written in are ordered by time, though the Block implementation
+/// any values written in are ordered by time, though the `Block` implementation
 /// will ensure that values added in subsequent calls to `push` are sorted with
 /// respect to the contents of previous calls.
 pub struct Block<'a, T>
@@ -322,8 +320,8 @@ where
         }
     }
 
-    /// push adds all timestamps and values to the block.
-    /// Note: currently push requires `values` to be sorted by timestamp.
+    /// `push` adds all timestamps and values to the block.
+    /// Note: currently `push` requires `values` to be sorted by timestamp.
     pub fn push(&mut self, values: &[(i64, T)]) {
         match &mut self.summary {
             None => {
@@ -334,13 +332,13 @@ where
         self.data.push(values);
     }
 
-    /// values returns a sorted copy of values in the block, which are guaranteed
+    /// `values` returns a sorted copy of values in the block, which are guaranteed
     /// to be sorted by timestamp.
     pub fn values(&mut self) -> Vec<(i64, T)> {
         self.data.values()
     }
 
-    /// summary returns the current summary for this block. The summary is updated
+    /// `summary` returns the current summary for this block. The summary is updated
     /// whenever new values are pushed into the block.
     pub fn summary(&self) -> Option<T::BlockSummary> {
         match &self.summary {
@@ -349,7 +347,7 @@ where
         }
     }
 
-    /// write_to serialises the block into the provided writer w.
+    /// `write_to` serialises the block into the provided writer `w`.
     pub fn write_to<W>(&mut self, w: &mut W) -> Result<u64, StorageError>
     where
         W: Write + Seek,
@@ -464,10 +462,10 @@ where
     }
 }
 
-/// BlockData represents the underlying compressed time-series data, comprising
+/// `BlockData` represents the underlying compressed time-series data, comprising
 /// a timestamp block and a value block.
 ///
-/// BlockData ensures that data is sorted on read only, maximising write
+/// `BlockData` ensures that data is sorted on read only, maximising write
 /// performance.
 struct BlockData<T> {
     values: Vec<(i64, T)>, // TODO(edd): this data layout needs to change.
@@ -507,7 +505,7 @@ where
         self.sorted = true;
     }
 
-    /// values returns a sorted copy of values in the block.
+    /// `values` returns a sorted copy of values in the block.
     /// values only sorts the block if necessary.
     fn values(&mut self) -> Vec<(i64, T)> {
         if !self.sorted {
@@ -516,7 +514,7 @@ where
         self.values.clone()
     }
 
-    /// write_to serialises the block to the provided Writer, compressing the
+    /// `write_to` serialises the block to the provided `Writer`, compressing the
     /// timestamps and values using the most appropriate encoder for the data.
     fn write_to<W, H>(&mut self, w: &mut W, h: &mut H) -> Result<u64, StorageError>
     where
@@ -563,14 +561,14 @@ where
     }
 }
 
-/// FloatBlockSummary provides a summary of a float block, tracking:
+/// `FloatBlockSummary` provides a summary of a float block, tracking:
 ///
 /// - count of values in block;
 /// - total sum of values in block;
 /// - first and last values written to the block; and
 /// - smallest and largest values written to the block.
-///
-///  TODO(edd) need to support big float representation...
+
+// TODO(edd) need to support big float representation...
 #[derive(Clone, Default)]
 pub struct FloatBlockSummary {
     count: u32, // max number of values in block ~4.2 Billion
@@ -630,7 +628,7 @@ impl BlockSummary<f64> for FloatBlockSummary {
         (self.first.0, self.last.0)
     }
 
-    /// write_to serialises the summary to the provided writer and calculates a
+    /// `write_to` serialises the summary to the provided writer and calculates a
     /// checksum of the data written. The number of bytes written is returned.
     fn write_to<W, H>(&self, w: &mut W, h: &mut H) -> Result<u64, StorageError>
     where
@@ -655,14 +653,14 @@ impl BlockSummary<f64> for FloatBlockSummary {
     }
 }
 
-/// IntegerBlockSummary provides a summary of a signed integer block, tracking:
+/// `IntegerBlockSummary` provides a summary of a signed integer block, tracking:
 ///
 /// - count of values in block;
 /// - total sum of values in block;
 /// - first and last values written to the block; and
 /// - smallest and largest values written to the block.
 ///
-/// IntegerBlockSummary maintains sum using a big int to ensure multiple large
+/// `IntegerBlockSummary` maintains the sum using a big int to ensure multiple large
 /// values can be summarised in the block.
 #[derive(Clone, Default)]
 pub struct IntegerBlockSummary {
@@ -723,7 +721,7 @@ impl BlockSummary<i64> for IntegerBlockSummary {
         (self.first.0, self.last.0)
     }
 
-    /// write_to serialises the summary to the provided writer and calculates a
+    /// `write_to` serialises the summary to the provided writer and calculates a
     /// checksum. The number of bytes written is returned.
     fn write_to<W, H>(&self, w: &mut W, h: &mut H) -> Result<u64, StorageError>
     where
@@ -772,7 +770,7 @@ impl BlockSummary<i64> for IntegerBlockSummary {
     }
 }
 
-/// BoolBlockSummary provides a summary of a bool block, tracking the count of
+/// `BoolBlockSummary` provides a summary of a bool block, tracking the count of
 /// values in the block.
 #[derive(Clone, Default)]
 pub struct BoolBlockSummary {
@@ -821,7 +819,7 @@ impl BlockSummary<bool> for BoolBlockSummary {
         (self.first.0, self.last.0)
     }
 
-    /// write_to serialises the summary to the provided writer and calculates a
+    /// `write_to` serialises the summary to the provided writer and calculates a
     /// checksum. The number of bytes written is returned.
     fn write_to<W: Write, H: Hasher>(&self, w: &mut W, h: &mut H) -> Result<u64, StorageError> {
         let mut buf = [0; 10]; // Maximum varint size for 64-bit number.
@@ -833,7 +831,7 @@ impl BlockSummary<bool> for BoolBlockSummary {
     }
 }
 
-/// StringBlockSummary provides a summary of a string block, tracking the count of
+/// `StringBlockSummary` provides a summary of a string block, tracking the count of
 /// values in the block.
 #[derive(Clone, Default)]
 pub struct StringBlockSummary<'a> {
@@ -882,7 +880,7 @@ impl<'a> BlockSummary<&'a str> for StringBlockSummary<'a> {
         (self.first.0, self.last.0)
     }
 
-    /// write_to serialises the summary to the provided writer and calculates a
+    /// `write_to` serialises the summary to the provided writer and calculates a
     /// checksum. The number of bytes written is returned.
     fn write_to<W: Write, H: Hasher>(&self, w: &mut W, h: &mut H) -> Result<u64, StorageError> {
         let mut buf = [0; 10]; // Maximum varint size for 64-bit number.
@@ -894,14 +892,14 @@ impl<'a> BlockSummary<&'a str> for StringBlockSummary<'a> {
     }
 }
 
-/// UnsignedBlockSummary provides a summary of an unsigned integer block, tracking:
+/// `UnsignedBlockSummary` provides a summary of an unsigned integer block, tracking:
 ///
 /// - count of values in block;
 /// - total sum of values in block;
 /// - first and last values written to the block; and
 /// - smallest and largest values written to the block.
 ///
-/// UnsignedBlockSummary maintains sum using a big uint to ensure multiple large
+/// `UnsignedBlockSummary` maintains the sum using a big uint to ensure multiple large
 /// values can be summarised in the block.
 #[derive(Clone, Default)]
 pub struct UnsignedBlockSummary {
@@ -962,7 +960,7 @@ impl BlockSummary<u64> for UnsignedBlockSummary {
         (self.first.0, self.last.0)
     }
 
-    /// write_to serialises the summary to the provided writer and calculates a
+    /// `write_to` serialises the summary to the provided writer and calculates a
     /// checksum. The number of bytes written is returned.
     fn write_to<W, H>(&self, w: &mut W, h: &mut H) -> Result<u64, StorageError>
     where
