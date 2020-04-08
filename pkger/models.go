@@ -174,21 +174,23 @@ func (d Diff) HasConflicts() bool {
 	return false
 }
 
-// DiffBucketValues are the varying values for a bucket.
-type DiffBucketValues struct {
-	Name           string         `json:"name"`
-	Description    string         `json:"description"`
-	RetentionRules retentionRules `json:"retentionRules"`
-}
+type (
+	// DiffBucket is a diff of an individual bucket.
+	DiffBucket struct {
+		Remove  bool              `json:"remove"`
+		ID      SafeID            `json:"id"`
+		PkgName string            `json:"pkgName"`
+		New     DiffBucketValues  `json:"new"`
+		Old     *DiffBucketValues `json:"old,omitempty"` // using omitempty here to signal there was no prev state with a nil
+	}
 
-// DiffBucket is a diff of an individual bucket.
-type DiffBucket struct {
-	Remove  bool              `json:"remove"`
-	ID      SafeID            `json:"id"`
-	PkgName string            `json:"pkgName"`
-	New     DiffBucketValues  `json:"new"`
-	Old     *DiffBucketValues `json:"old,omitempty"` // using omitempty here to signal there was no prev state with a nil
-}
+	// DiffBucketValues are the varying values for a bucket.
+	DiffBucketValues struct {
+		Name           string         `json:"name"`
+		Description    string         `json:"description"`
+		RetentionRules retentionRules `json:"retentionRules"`
+	}
+)
 
 func newDiffBucket(b *bucket, i *influxdb.Bucket) DiffBucket {
 	diff := DiffBucket{
@@ -275,21 +277,23 @@ func (d DiffCheck) IsNew() bool {
 	return d.Old == nil
 }
 
-// DiffDashboardValues are values for a dashboard.
-type DiffDashboardValues struct {
-	Name   string      `json:"name"`
-	Desc   string      `json:"description"`
-	Charts []DiffChart `json:"charts"`
-}
+type (
+	// DiffDashboard is a diff of an individual dashboard.
+	DiffDashboard struct {
+		ID      SafeID               `json:"id"`
+		Remove  bool                 `json:"remove"`
+		PkgName string               `json:"pkgName"`
+		New     DiffDashboardValues  `json:"new"`
+		Old     *DiffDashboardValues `json:"old"`
+	}
 
-// DiffDashboard is a diff of an individual dashboard.
-type DiffDashboard struct {
-	ID      SafeID               `json:"id"`
-	Remove  bool                 `json:"remove"`
-	PkgName string               `json:"pkgName"`
-	New     DiffDashboardValues  `json:"new"`
-	Old     *DiffDashboardValues `json:"old"`
-}
+	// DiffDashboardValues are values for a dashboard.
+	DiffDashboardValues struct {
+		Name   string      `json:"name"`
+		Desc   string      `json:"description"`
+		Charts []DiffChart `json:"charts"`
+	}
+)
 
 func newDiffDashboard(d *dashboard) DiffDashboard {
 	diff := DiffDashboard{
@@ -342,32 +346,34 @@ func newDiffDashboard(d *dashboard) DiffDashboard {
 
 // IsNew indicates whether the pkg dashboard is new to the platform.
 func (d DiffDashboard) IsNew() bool {
-	return d.Old != nil
+	return d.ID == 0
 }
 
 // DiffChart is a diff of oa chart. Since all charts are new right now.
 // the SummaryChart is reused here.
 type DiffChart SummaryChart
 
-// DiffLabelValues are the varying values for a label.
-type DiffLabelValues struct {
-	Name        string `json:"name"`
-	Color       string `json:"color"`
-	Description string `json:"description"`
-}
+type (
+	// DiffLabel is a diff of an individual label.
+	DiffLabel struct {
+		Remove  bool             `json:"remove"`
+		ID      SafeID           `json:"id"`
+		PkgName string           `json:"pkgName"`
+		New     DiffLabelValues  `json:"new"`
+		Old     *DiffLabelValues `json:"old,omitempty"` // using omitempty here to signal there was no prev state with a nil
+	}
 
-// DiffLabel is a diff of an individual label.
-type DiffLabel struct {
-	Remove  bool             `json:"remove"`
-	ID      SafeID           `json:"id"`
-	PkgName string           `json:"pkgName"`
-	New     DiffLabelValues  `json:"new"`
-	Old     *DiffLabelValues `json:"old,omitempty"` // using omitempty here to signal there was no prev state with a nil
-}
+	// DiffLabelValues are the varying values for a label.
+	DiffLabelValues struct {
+		Name        string `json:"name"`
+		Color       string `json:"color"`
+		Description string `json:"description"`
+	}
+)
 
 // IsNew indicates whether a pkg label is going to be new to the platform.
 func (d DiffLabel) IsNew() bool {
-	return d.ID == SafeID(0)
+	return d.ID == 0
 }
 
 func (d DiffLabel) hasConflict() bool {
@@ -460,34 +466,37 @@ func newDiffNotificationEndpoint(ne *notificationEndpoint, i influxdb.Notificati
 // IsNew indicates if the resource will be new to the platform or if it edits
 // an existing resource.
 func (d DiffNotificationEndpoint) IsNew() bool {
-	return d.Old == nil
+	return d.ID == 0
 }
 
-type DiffNotificationRuleValues struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
+type (
+	// DiffNotificationRule is a diff of an individual notification rule.
+	DiffNotificationRule struct {
+		ID      SafeID `json:"id"`
+		Remove  bool   `json:"bool"`
+		PkgName string `json:"pkgName"`
 
-	// These 3 fields represent the relationship of the rule to the endpoint.
-	EndpointID   SafeID `json:"endpointID"`
-	EndpointName string `json:"endpointName"`
-	EndpointType string `json:"endpointType"`
+		New DiffNotificationRuleValues  `json:"new"`
+		Old *DiffNotificationRuleValues `json:"old"`
+	}
 
-	Every           string              `json:"every"`
-	Offset          string              `json:"offset"`
-	MessageTemplate string              `json:"messageTemplate"`
-	StatusRules     []SummaryStatusRule `json:"statusRules"`
-	TagRules        []SummaryTagRule    `json:"tagRules"`
-}
+	// DiffNotificationRuleValues are the values for an individual rule.
+	DiffNotificationRuleValues struct {
+		Name        string `json:"name"`
+		Description string `json:"description"`
 
-// DiffNotificationRule is a diff of an individual notification rule. This resource is always new.
-type DiffNotificationRule struct {
-	ID      SafeID `json:"id"`
-	Remove  bool   `json:"bool"`
-	PkgName string `json:"pkgName"`
+		// These 3 fields represent the relationship of the rule to the endpoint.
+		EndpointID   SafeID `json:"endpointID"`
+		EndpointName string `json:"endpointName"`
+		EndpointType string `json:"endpointType"`
 
-	New DiffNotificationRuleValues  `json:"new"`
-	Old *DiffNotificationRuleValues `json:"old"`
-}
+		Every           string              `json:"every"`
+		Offset          string              `json:"offset"`
+		MessageTemplate string              `json:"messageTemplate"`
+		StatusRules     []SummaryStatusRule `json:"statusRules"`
+		TagRules        []SummaryTagRule    `json:"tagRules"`
+	}
+)
 
 func newDiffNotificationRule(r *notificationRule, iEndpoint influxdb.NotificationEndpoint) DiffNotificationRule {
 	sum := DiffNotificationRule{
@@ -562,30 +571,66 @@ func newDiffNotificationRule(r *notificationRule, iEndpoint influxdb.Notificatio
 // IsNew indicates if the resource will be new to the platform or if it edits
 // an existing resource.
 func (d DiffNotificationRule) IsNew() bool {
-	return d.Old != nil
+	return d.ID == 0
 }
 
-// DiffTask is a diff of an individual task. This resource is always new.
-type DiffTask struct {
-	Name        string          `json:"name"`
-	Cron        string          `json:"cron"`
-	Description string          `json:"description"`
-	Every       string          `json:"every"`
-	Offset      string          `json:"offset"`
-	Query       string          `json:"query"`
-	Status      influxdb.Status `json:"status"`
-}
+type (
+	// DiffTask is a diff of an individual task.
+	DiffTask struct {
+		ID      SafeID          `json:"id"`
+		Remove  bool            `json:"remove"`
+		PkgName string          `json:"pkgName"`
+		New     DiffTaskValues  `json:"new"`
+		Old     *DiffTaskValues `json:"old"`
+	}
+
+	// DiffTaskValues are the values for an individual task.
+	DiffTaskValues struct {
+		Name        string          `json:"name"`
+		Cron        string          `json:"cron"`
+		Description string          `json:"description"`
+		Every       string          `json:"every"`
+		Offset      string          `json:"offset"`
+		Query       string          `json:"query"`
+		Status      influxdb.Status `json:"status"`
+	}
+)
 
 func newDiffTask(t *task) DiffTask {
-	return DiffTask{
-		Name:        t.Name(),
-		Cron:        t.cron,
-		Description: t.description,
-		Every:       durToStr(t.every),
-		Offset:      durToStr(t.offset),
-		Query:       t.query,
-		Status:      t.Status(),
+	diff := DiffTask{
+		ID:      SafeID(t.ID()),
+		PkgName: t.PkgName(),
+		New: DiffTaskValues{
+			Name:        t.Name(),
+			Cron:        t.cron,
+			Description: t.description,
+			Every:       durToStr(t.every),
+			Offset:      durToStr(t.offset),
+			Query:       t.query,
+			Status:      t.Status(),
+		},
 	}
+
+	if !t.Exists() {
+		return diff
+	}
+
+	diff.Old = &DiffTaskValues{
+		Name:        t.existing.Name,
+		Cron:        t.existing.Cron,
+		Description: t.existing.Description,
+		Every:       t.existing.Every,
+		Offset:      t.existing.Offset.String(),
+		Query:       t.existing.Flux,
+		Status:      influxdb.Status(t.existing.Status),
+	}
+
+	return diff
+}
+
+// IsNew indicates whether a pkg task is going to be new to the platform.
+func (d DiffTask) IsNew() bool {
+	return d.ID == 0
 }
 
 // DiffTelegraf is a diff of an individual telegraf. This resource is always new.
@@ -599,21 +644,23 @@ func newDiffTelegraf(t *telegraf) DiffTelegraf {
 	}
 }
 
-// DiffVariableValues are the varying values for a variable.
-type DiffVariableValues struct {
-	Name        string                      `json:"name"`
-	Description string                      `json:"description"`
-	Args        *influxdb.VariableArguments `json:"args"`
-}
+type (
+	// DiffVariable is a diff of an individual variable.
+	DiffVariable struct {
+		ID      SafeID              `json:"id"`
+		Remove  bool                `json:"remove"`
+		PkgName string              `json:"pkgName"`
+		New     DiffVariableValues  `json:"new"`
+		Old     *DiffVariableValues `json:"old,omitempty"` // using omitempty here to signal there was no prev state with a nil
+	}
 
-// DiffVariable is a diff of an individual variable.
-type DiffVariable struct {
-	ID      SafeID              `json:"id"`
-	Remove  bool                `json:"remove"`
-	PkgName string              `json:"pkgName"`
-	New     DiffVariableValues  `json:"new"`
-	Old     *DiffVariableValues `json:"old,omitempty"` // using omitempty here to signal there was no prev state with a nil
-}
+	// DiffVariableValues are the varying values for a variable.
+	DiffVariableValues struct {
+		Name        string                      `json:"name"`
+		Description string                      `json:"description"`
+		Args        *influxdb.VariableArguments `json:"args"`
+	}
+)
 
 func newDiffVariable(v *variable, iv *influxdb.Variable) DiffVariable {
 	diff := DiffVariable{
@@ -2026,13 +2073,18 @@ type task struct {
 	status      string
 
 	labels sortedLabels
+
+	existing *influxdb.Task
 }
 
 func (t *task) Exists() bool {
-	return false
+	return t.existing != nil
 }
 
 func (t *task) ID() influxdb.ID {
+	if t.existing != nil {
+		return t.existing.ID
+	}
 	return t.id
 }
 
@@ -2368,6 +2420,9 @@ type dashboard struct {
 }
 
 func (d *dashboard) ID() influxdb.ID {
+	if d.existing != nil {
+		return d.existing.ID
+	}
 	return d.id
 }
 
