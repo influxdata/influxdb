@@ -340,11 +340,8 @@ where
 
     /// `summary` returns the current summary for this block. The summary is updated
     /// whenever new values are pushed into the block.
-    pub fn summary(&self) -> Option<T::BlockSummary> {
-        match &self.summary {
-            Some(summary) => Some(summary.clone()),
-            None => None,
-        }
+    pub fn summary(&self) -> &Option<T::BlockSummary> {
+        &self.summary
     }
 
     /// `write_to` serialises the block into the provided writer `w`.
@@ -362,7 +359,7 @@ where
                 description: "empty block".to_string(),
             });
         }
-        let summary = self.summary().unwrap(); // unwrapping seems OK since it's not None?
+        let summary = self.summary().as_ref().unwrap(); // unwrapping seems OK since it's not None?
 
         // hasher is used to compute a checksum, which will be written to the
         // front of the Block when it's serialised.
@@ -1268,7 +1265,7 @@ mod test {
         );
 
         // Check header is updated.
-        let header = block.summary().unwrap();
+        let header = block.summary().as_ref().unwrap();
         assert_eq!(header.count, 6);
     }
 
