@@ -1,6 +1,7 @@
 //! Responsible for storing and serialising blocks of time-series data.
 //!
-//! The block module provide an API for creating, updating, reading and writing blocks of time-series data, in the form of compressed data blocks.
+//! The block module provide an API for creating, updating, reading and writing blocks of
+//! time-series data, in the form of compressed data blocks.
 //! Currently the following block types are supported:
 //!
 //! - f64 (float blocks);
@@ -24,9 +25,11 @@
 //! - Min timestamp (8 bytes): timestamp of the earliest value in block.
 //! - Max timestamp (8 bytes): timestamp of the latest value in block.
 //! - Remaining Size (4 bytes): indicates how many bytes follow in the rest of the block.
-//! - Block Type (1 bytes): indicates the type of block data to follow (e.g., for an f64, i64, u64, string or bool).
+//! - Block Type (1 bytes): indicates the type of block data to follow (e.g., for an f64, i64, u64,
+//!   string or bool).
 //! - Block Summary Size (1 byte): the size in bytes of the block's summary.
-//! - Block Data Offset (2 bytes): the offset in the block of the beginning of the block data section.
+//! - Block Data Offset (2 bytes): the offset in the block of the beginning of the block data
+//!   section.
 //! - Block Data Size (4 bytes): the size in bytes of the block data section.
 //! - Block Summary Data (N bytes): the block summary section data.
 //! - Block Data (N bytes): the block data section.
@@ -46,9 +49,9 @@
 //!```
 //!
 //! Notice that the first part of the block is all a fixed size: this means that
-//! the remainder of a block (and all the work that goes along with de-serialising summaries and data)
-//! can be skipped if the block is not of interest, e.g., due to being outside of
-//! a time-range.
+//! the remainder of a block (and all the work that goes along with de-serialising summaries and
+//! data) can be skipped if the block is not of interest, e.g., due to being outside of a
+//! time-range.
 //!
 //! ### Block Summaries
 //!
