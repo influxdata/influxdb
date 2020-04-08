@@ -31,8 +31,8 @@ import {staticTemplates as statics} from 'src/templates/constants/defaultTemplat
 
 // Selectors
 import {getAll} from 'src/resources/selectors/getAll'
-import {SortDirection} from 'react-virtualized'
 
+// Constants
 const staticTemplates: StaticTemplate[] = _.map(statics, (template, name) => ({
   name,
   template: template as TemplateOrSummary,
