@@ -15,6 +15,7 @@ import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader
 import VariableList from 'src/variables/components/VariableList'
 import Filter from 'src/shared/components/FilterList'
 import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
+import ResourceSortDropdown from 'src/shared/components/resource_sort_dropdown/ResourceSortDropdown'
 import GetResources from 'src/resources/components/GetResources'
 import {Sort} from '@influxdata/clockface'
 
@@ -22,6 +23,7 @@ import {Sort} from '@influxdata/clockface'
 import {AppState, OverlayState, ResourceType, Variable} from 'src/types'
 import {ComponentSize} from '@influxdata/clockface'
 import {SortTypes} from 'src/shared/utils/sort'
+import {SortKey} from 'src/shared/components/resource_sort_dropdown/ResourceSortDropdown'
 
 interface StateProps {
   variables: Variable[]
@@ -41,8 +43,6 @@ interface State {
   sortType: SortTypes
 }
 
-type SortKey = keyof Variable
-
 const FilterList = Filter<Variable>()
 
 class VariablesTab extends PureComponent<Props, State> {
@@ -59,11 +59,20 @@ class VariablesTab extends PureComponent<Props, State> {
     const {searchTerm, sortKey, sortDirection, sortType} = this.state
 
     const leftHeaderItems = (
-      <SearchWidget
-        placeholderText="Filter variables..."
-        searchTerm={searchTerm}
-        onSearch={this.handleFilterChange}
-      />
+      <>
+        <SearchWidget
+          placeholderText="Filter variables..."
+          searchTerm={searchTerm}
+          onSearch={this.handleFilterChange}
+        />
+        <ResourceSortDropdown
+          onSelect={this.handleSort}
+          resourceType={ResourceType.Variables}
+          sortDirection={sortDirection}
+          sortKey={sortKey}
+          sortType={sortType}
+        />
+      </>
     )
 
     const rightHeaderItems = (
@@ -95,7 +104,6 @@ class VariablesTab extends PureComponent<Props, State> {
                 sortKey={sortKey}
                 sortDirection={sortDirection}
                 sortType={sortType}
-                onClickColumn={this.handleClickColumn}
               />
             )}
           </FilterList>
@@ -104,9 +112,12 @@ class VariablesTab extends PureComponent<Props, State> {
     )
   }
 
-  private handleClickColumn = (nextSort: Sort, sortKey: SortKey) => {
-    const sortType = SortTypes.String
-    this.setState({sortKey, sortDirection: nextSort, sortType})
+  private handleSort = (
+    sortKey: SortKey,
+    sortDirection: Sort,
+    sortType: SortTypes
+  ): void => {
+    this.setState({sortKey, sortDirection, sortType})
   }
 
   private get emptyState(): JSX.Element {

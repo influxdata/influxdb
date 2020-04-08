@@ -1,11 +1,12 @@
 import {Sort} from '@influxdata/clockface'
 import {SortTypes} from 'src/shared/utils/sort'
-import {ResourceType, Dashboard, Task} from 'src/types'
+import {ResourceType, Dashboard, Task, Variable} from 'src/types'
 
 export type DashboardSortKey = keyof Dashboard | 'meta.updatedAt'
 export type TaskSortKey = keyof Task
+export type VariableSortKey = keyof Variable | 'arguments.type'
 
-export type SortKey = DashboardSortKey | TaskSortKey
+export type SortKey = DashboardSortKey | TaskSortKey | VariableSortKey
 
 export interface SortDropdownItem {
   label: string
@@ -92,6 +93,33 @@ export const generateSortItems = (
         {
           label: 'Schedule (Least Often)',
           sortKey: 'every',
+          sortType: SortTypes.String,
+          sortDirection: Sort.Descending,
+        },
+      ]
+    case ResourceType.Variables:
+      return [
+        {
+          label: 'Name (A → Z)',
+          sortKey: 'name',
+          sortType: SortTypes.String,
+          sortDirection: Sort.Ascending,
+        },
+        {
+          label: 'Name (Z → A)',
+          sortKey: 'name',
+          sortType: SortTypes.String,
+          sortDirection: Sort.Descending,
+        },
+        {
+          label: 'Type (A → Z)',
+          sortKey: 'arguments.type',
+          sortType: SortTypes.String,
+          sortDirection: Sort.Ascending,
+        },
+        {
+          label: 'Type (Z → A)',
+          sortKey: 'arguments.type',
           sortType: SortTypes.String,
           sortDirection: Sort.Descending,
         },
