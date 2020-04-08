@@ -4,6 +4,9 @@ version = "0.1.0"
 authors = ["Paul Dix <paul@pauldix.net>"]
 edition = "2018"
 
+[profile.release]
+debug = true
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
@@ -39,6 +42,7 @@ serde_urlencoded = "0.6.1"
 nom = "5.1.1"
 snafu = "0.6.2"
 either = "1.5.3"
+smallvec = "1.2.0"
 
 [dev-dependencies]
 criterion = "0.3"
@@ -49,6 +53,10 @@ tempfile = "3.1.0"
 
 [[bench]]
 name = "encoders"
+harness = false
+
+[[bench]]
+name = "line_parser"
 harness = false
 
 [build-dependencies]
