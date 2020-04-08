@@ -21,7 +21,7 @@ const TabbedPageHeader: SFC<Props> = ({childrenLeft, childrenRight}) => {
   }
 
   return (
-    <div className="tabbed-page--header">
+    <div className="tabbed-page--header" data-testid="tabbed-page--header">
       {leftHeader}
       {rightHeader}
     </div>

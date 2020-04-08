@@ -42,7 +42,7 @@ describe('Variables', () => {
   })
 
   it('keeps user input in text area when attempting to import invalid JSON', () => {
-    cy.get('.tabbed-page-section--header').within(() => {
+    cy.getByTestID('tabbed-page--header').within(() => {
       cy.contains('Create').click()
     })
 
