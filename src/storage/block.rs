@@ -525,12 +525,7 @@ where
         //
         // Currently this is cloning all the stamps and values, which is really
         // not good.
-        let mut ts: Vec<i64> = Vec::with_capacity(self.values.len());
-        let mut values = Vec::with_capacity(self.values.len());
-        for (t, v) in self.values() {
-            ts.push(t);
-            values.push(v);
-        }
+        let (ts, values): (Vec<_>, Vec<_>) = self.values.iter().cloned().unzip();
 
         let mut total = 0;
 
