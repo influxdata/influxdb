@@ -57,7 +57,7 @@
 //! ### Block Summaries
 //!
 //! Different block types have different Summaries. For example, String Blocks and
-//! Bool Blocks only the track within their Summaries the number values encoded
+//! Bool Blocks only track within their Summaries the number values encoded
 //! in their block data.
 //!
 //! Integer, Unsigned and Float Blocks, however, track more information in their
