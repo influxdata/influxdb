@@ -18,7 +18,7 @@ import {Dashboard, AppState, RemoteDataState, ResourceType} from 'src/types'
 import {Sort} from '@influxdata/clockface'
 import {getAll} from 'src/resources/selectors'
 import {SortTypes} from 'src/shared/utils/sort'
-import {SortKey} from 'src/dashboards/components/dashboard_index/DashboardsIndex'
+import {SortKey} from 'src/shared/components/resource_sort_dropdown/ResourceSortDropdown'
 
 interface OwnProps {
   onFilterChange: (searchTerm: string) => void

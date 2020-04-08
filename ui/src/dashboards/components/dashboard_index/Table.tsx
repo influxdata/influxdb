@@ -14,7 +14,7 @@ import {getLabels} from 'src/labels/actions/thunks'
 // Types
 import {AppState, Dashboard, RemoteDataState} from 'src/types'
 import {Sort, ComponentSize} from '@influxdata/clockface'
-import {SortKey} from 'src/dashboards/components/dashboard_index/DashboardsIndex'
+import {SortKey} from 'src/shared/components/resource_sort_dropdown/ResourceSortDropdown'
 import {SortTypes} from 'src/shared/utils/sort'
 
 interface OwnProps {
