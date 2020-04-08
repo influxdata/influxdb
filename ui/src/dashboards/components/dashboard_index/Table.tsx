@@ -61,12 +61,14 @@ class DashboardsTable extends PureComponent<Props> {
     } = this.props
 
     if (status === RemoteDataState.Done && !dashboards.length) {
-      <DashobardsTableEmpty
-        searchTerm={searchTerm}
-        onCreateDashboard={onCreateDashboard}
-        summonImportFromTemplateOverlay={this.summonImportFromTemplateOverlay}
-        summonImportOverlay={this.summonImportOverlay}
-      />
+      return (
+        <DashobardsTableEmpty
+          searchTerm={searchTerm}
+          onCreateDashboard={onCreateDashboard}
+          summonImportFromTemplateOverlay={this.summonImportFromTemplateOverlay}
+          summonImportOverlay={this.summonImportOverlay}
+        />
+      )
     }
 
     return (
