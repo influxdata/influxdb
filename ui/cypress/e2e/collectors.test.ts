@@ -225,8 +225,11 @@ describe('Collectors', () => {
           })
         })
 
-        cy.getByTestID('name-sorter')
+        cy.getByTestID('resource-sorter--button')
           .click()
+          .then(() => {
+            cy.getByTestID('resource-sorter--name-desc').click()
+          })
           .then(() => {
             // NOTE: this then is just here to let me scope this variable (alex)
             const teletubbies = telegrafs
