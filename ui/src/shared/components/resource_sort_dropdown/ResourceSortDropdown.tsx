@@ -48,7 +48,11 @@ function ResourceSortDropdown({
   }
 
   const button = (active, onClick) => (
-    <Dropdown.Button onClick={onClick} active={active}>
+    <Dropdown.Button
+      onClick={onClick}
+      active={active}
+      testID="resource-sorter--button"
+    >
       {`Sort by ${label}`}
     </Dropdown.Button>
   )
@@ -60,7 +64,7 @@ function ResourceSortDropdown({
           key={`${item.sortKey}${item.sortDirection}`}
           value={item}
           onClick={handleItemClick}
-          testID={`dashboard-sort--${item.sortKey}-${item.sortDirection}`}
+          testID={`resource-sorter--${item.sortKey}-${item.sortDirection}`}
           selected={
             item.sortKey === sortKey &&
             item.sortType === sortType &&
@@ -78,6 +82,7 @@ function ResourceSortDropdown({
       button={button}
       menu={menu}
       style={{flexBasis: `${width}px`, width: `${width}px`}}
+      testID="resource-sorter"
     />
   )
 }
