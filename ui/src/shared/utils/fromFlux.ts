@@ -225,13 +225,13 @@ export default function fromFlux(csv) {
     */
   Object.entries(names)
     .map(([k, v]) => {
-      const colNames = Object.keys(v) as string[]
+      const colNames = Object.keys(v)
 
       colNames.forEach(n => {
         output[n].data.length = runningTotal
       })
 
-      return [k as string, colNames]
+      return [k, colNames]
     })
     .filter(([_, v]) => v.length === 1)
     .map(([k, v]) => [k, v[0]])
