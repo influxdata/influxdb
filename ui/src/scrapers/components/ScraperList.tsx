@@ -14,8 +14,6 @@ import {Sort} from '@influxdata/clockface'
 // Selectors
 import {getSortedResources} from 'src/shared/utils/sort'
 
-type SortKey = keyof Scraper
-
 interface Props {
   scrapers: Scraper[]
   emptyState: JSX.Element
