@@ -656,8 +656,7 @@ impl BlockSummary<f64> for FloatBlockSummary {
         total += n;
         h.write(&buf[..n]);
 
-        let f64s = vec![self.sum, self.first.1, self.last.1, self.min, self.max];
-        for v in f64s {
+        for v in &[self.sum, self.first.1, self.last.1, self.min, self.max] {
             let n = v.to_bits().encode_var(&mut buf);
             total += w.write(&buf[..n])?;
             h.write(&buf[..n]);
@@ -776,8 +775,7 @@ impl BlockSummary<i64> for IntegerBlockSummary {
         h.write(&sum_bytes);
 
         // The rest of the summary values are varint encoded i64s.
-        let i64s = vec![self.first.1, self.last.1, self.min, self.max];
-        for v in i64s {
+        for v in &[self.first.1, self.last.1, self.min, self.max] {
             let n = v.encode_var(&mut buf);
             total += w.write(&buf[..n])?;
             h.write(&buf[..n]);
@@ -1012,8 +1010,7 @@ impl BlockSummary<u64> for UnsignedBlockSummary {
         h.write(&sum_bytes);
 
         // The rest of the summary values are varint encoded i64s.
-        let u64s = vec![self.first.1, self.last.1, self.min, self.max];
-        for v in u64s {
+        for v in &[self.first.1, self.last.1, self.min, self.max] {
             let n = v.encode_var(&mut buf);
             total += w.write(&buf[..n])?;
             h.write(&buf[..n]);
