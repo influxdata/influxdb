@@ -129,28 +129,6 @@ func (s *Service) CreateOrganization(ctx context.Context, o *influxdb.Organizati
 			if err != nil {
 				return err
 			}
-			err = s.store.CreateURM(ctx, tx, &influxdb.UserResourceMapping{
-				UserID:       userID,
-				UserType:     influxdb.Owner,
-				MappingType:  influxdb.UserMappingType,
-				ResourceType: influxdb.BucketsResourceType,
-				ResourceID:   tb.ID,
-			})
-			if err != nil {
-				return err
-			}
-			err = s.store.CreateURM(ctx, tx, &influxdb.UserResourceMapping{
-				UserID:       userID,
-				UserType:     influxdb.Owner,
-				MappingType:  influxdb.UserMappingType,
-				ResourceType: influxdb.BucketsResourceType,
-				ResourceID:   mb.ID,
-			})
-
-			if err != nil {
-				return err
-			}
-
 		}
 		return nil
 	})

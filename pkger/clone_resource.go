@@ -232,7 +232,7 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 		if err != nil {
 			return err
 		}
-		mapResource(e.GetOrgID(), uniqByNameResID, KindNotificationEndpoint, endpointKind(e, r.Name))
+		mapResource(e.GetOrgID(), uniqByNameResID, KindNotificationEndpoint, NotificationEndpointToObject(r.Name, e))
 	case r.Kind.is(KindNotificationRule):
 		rule, ruleEndpoint, err := ex.getEndpointRule(ctx, r.ID)
 		if err != nil {
@@ -242,12 +242,12 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 		endpointKey := newExportKey(ruleEndpoint.GetOrgID(), uniqByNameResID, KindNotificationEndpoint, ruleEndpoint.GetName())
 		object, ok := ex.mObjects[endpointKey]
 		if !ok {
-			mapResource(ruleEndpoint.GetOrgID(), uniqByNameResID, KindNotificationEndpoint, endpointKind(ruleEndpoint, ""))
+			mapResource(ruleEndpoint.GetOrgID(), uniqByNameResID, KindNotificationEndpoint, NotificationEndpointToObject("", ruleEndpoint))
 			object = ex.mObjects[endpointKey]
 		}
 		endpointObjectName := object.Name()
 
-		mapResource(rule.GetOrgID(), rule.GetID(), KindNotificationRule, ruleToObject(rule, endpointObjectName, r.Name))
+		mapResource(rule.GetOrgID(), rule.GetID(), KindNotificationRule, NotificationRuleToObject(r.Name, endpointObjectName, rule))
 	case r.Kind.is(KindTask):
 		t, err := ex.taskSVC.FindTaskByID(ctx, r.ID)
 		if err != nil {
@@ -806,7 +806,8 @@ func LabelToObject(name string, l influxdb.Label) Object {
 	return o
 }
 
-func endpointKind(e influxdb.NotificationEndpoint, name string) Object {
+// NotificationEndpointToObject converts an notification endpoint into a pkger Object.
+func NotificationEndpointToObject(name string, e influxdb.NotificationEndpoint) Object {
 	if name == "" {
 		name = e.GetName()
 	}
@@ -845,13 +846,14 @@ func endpointKind(e influxdb.NotificationEndpoint, name string) Object {
 	return o
 }
 
-func ruleToObject(iRule influxdb.NotificationRule, endpointName, name string) Object {
+// NotificationRuleToObject converts an notification rule into a pkger Object.
+func NotificationRuleToObject(name, endpointPkgName string, iRule influxdb.NotificationRule) Object {
 	if name == "" {
 		name = iRule.GetName()
 	}
 
 	o := newObject(KindNotificationRule, name)
-	o.Spec[fieldNotificationRuleEndpointName] = endpointName
+	o.Spec[fieldNotificationRuleEndpointName] = endpointPkgName
 	assignNonZeroStrings(o.Spec, map[string]string{
 		fieldDescription: iRule.GetDescription(),
 	})

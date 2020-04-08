@@ -368,9 +368,20 @@ type DiffNotificationEndpointValues struct {
 	influxdb.NotificationEndpoint
 }
 
+// MarshalJSON implementation here is forced by the embedded check value here.
+func (d DiffNotificationEndpointValues) MarshalJSON() ([]byte, error) {
+	if d.NotificationEndpoint == nil {
+		return json.Marshal(nil)
+	}
+	return json.Marshal(d.NotificationEndpoint)
+}
+
 // UnmarshalJSON decodes the notification endpoint. This is necessary unfortunately.
 func (d *DiffNotificationEndpointValues) UnmarshalJSON(b []byte) (err error) {
 	d.NotificationEndpoint, err = endpoint.UnmarshalJSON(b)
+	if influxdb.EInvalid == influxdb.ErrorCode(err) {
+		return nil
+	}
 	return
 }
 
@@ -406,8 +417,7 @@ func (d DiffNotificationEndpoint) IsNew() bool {
 	return d.Old == nil
 }
 
-// DiffNotificationRule is a diff of an individual notification rule. This resource is always new.
-type DiffNotificationRule struct {
+type DiffNotificationRuleValues struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
 
@@ -419,29 +429,94 @@ type DiffNotificationRule struct {
 	Every           string              `json:"every"`
 	Offset          string              `json:"offset"`
 	MessageTemplate string              `json:"messageTemplate"`
-	Status          influxdb.Status     `json:"status"`
 	StatusRules     []SummaryStatusRule `json:"statusRules"`
 	TagRules        []SummaryTagRule    `json:"tagRules"`
 }
 
+// DiffNotificationRule is a diff of an individual notification rule. This resource is always new.
+type DiffNotificationRule struct {
+	ID      SafeID `json:"id"`
+	Remove  bool   `json:"bool"`
+	PkgName string `json:"pkgName"`
+
+	New DiffNotificationRuleValues  `json:"new"`
+	Old *DiffNotificationRuleValues `json:"old"`
+}
+
 func newDiffNotificationRule(r *notificationRule, iEndpoint influxdb.NotificationEndpoint) DiffNotificationRule {
 	sum := DiffNotificationRule{
-		Name:            r.Name(),
-		Description:     r.description,
-		EndpointName:    r.endpointName.String(),
-		Every:           r.every.String(),
-		Offset:          r.offset.String(),
-		MessageTemplate: r.msgTemplate,
-		Status:          r.Status(),
-		StatusRules:     toSummaryStatusRules(r.statusRules),
-		TagRules:        toSummaryTagRules(r.tagRules),
+		ID:      SafeID(r.ID()),
+		Remove:  r.shouldRemove,
+		PkgName: r.PkgName(),
+		New: DiffNotificationRuleValues{
+			Name:            r.Name(),
+			Description:     r.description,
+			EndpointName:    r.endpointName.String(),
+			Every:           r.every.String(),
+			Offset:          r.offset.String(),
+			MessageTemplate: r.msgTemplate,
+			StatusRules:     toSummaryStatusRules(r.statusRules),
+			TagRules:        toSummaryTagRules(r.tagRules),
+		},
 	}
 	if iEndpoint != nil {
-		sum.EndpointID = SafeID(iEndpoint.GetID())
-		sum.EndpointType = iEndpoint.Type()
+		sum.New.EndpointID = SafeID(iEndpoint.GetID())
+		sum.New.EndpointType = iEndpoint.Type()
+	}
+
+	if r.existing == nil {
+		return sum
+	}
+
+	sum.Old = &DiffNotificationRuleValues{
+		Name:         r.existing.rule.GetName(),
+		Description:  r.existing.rule.GetDescription(),
+		EndpointName: r.existing.endpointName,
+		EndpointID:   SafeID(r.existing.rule.GetEndpointID()),
+		EndpointType: r.existing.endpointType,
+	}
+
+	assignBase := func(b rule.Base) {
+		if b.Every != nil {
+			sum.Old.Every = b.Every.TimeDuration().String()
+		}
+		if b.Offset != nil {
+			sum.Old.Offset = b.Offset.TimeDuration().String()
+		}
+		for _, tr := range b.TagRules {
+			sum.Old.TagRules = append(sum.Old.TagRules, SummaryTagRule{
+				Key:      tr.Key,
+				Value:    tr.Value,
+				Operator: tr.Operator.String(),
+			})
+		}
+		for _, sr := range b.StatusRules {
+			sRule := SummaryStatusRule{CurrentLevel: sr.CurrentLevel.String()}
+			if sr.PreviousLevel != nil {
+				sRule.PreviousLevel = sr.PreviousLevel.String()
+			}
+			sum.Old.StatusRules = append(sum.Old.StatusRules, sRule)
+		}
+	}
+
+	switch p := r.existing.rule.(type) {
+	case *rule.HTTP:
+		assignBase(p.Base)
+	case *rule.Slack:
+		assignBase(p.Base)
+		sum.Old.MessageTemplate = p.MessageTemplate
+	case *rule.PagerDuty:
+		assignBase(p.Base)
+		sum.Old.MessageTemplate = p.MessageTemplate
 	}
 
 	return sum
+}
+
+// IsNew indicates if the resource will be new to the platform or if it edits
+// an existing resource.
+func (d DiffNotificationRule) IsNew() bool {
+	return d.Old != nil
 }
 
 // DiffTask is a diff of an individual task. This resource is always new.
@@ -1468,7 +1543,7 @@ func (n *notificationEndpoint) base() endpoint.Base {
 	e := endpoint.Base{
 		Name:        n.Name(),
 		Description: n.description,
-		Status:      influxdb.Active,
+		Status:      n.influxStatus(),
 	}
 	if id := n.ID(); id > 0 {
 		e.ID = &id
@@ -1481,9 +1556,6 @@ func (n *notificationEndpoint) base() endpoint.Base {
 
 func (n *notificationEndpoint) summarize() SummaryNotificationEndpoint {
 	base := n.base()
-	if n.status != "" {
-		base.Status = influxdb.Status(n.status)
-	}
 	sum := SummaryNotificationEndpoint{
 		PkgName:           n.PkgName(),
 		LabelAssociations: toSummaryLabels(n.labels...),
@@ -1522,6 +1594,14 @@ func (n *notificationEndpoint) summarize() SummaryNotificationEndpoint {
 		}
 	}
 	return sum
+}
+
+func (n *notificationEndpoint) influxStatus() influxdb.Status {
+	status := influxdb.Active
+	if n.status != "" {
+		status = influxdb.Status(n.status)
+	}
+	return status
 }
 
 var validEndpointHTTPMethods = map[string]bool{
@@ -1651,14 +1731,25 @@ type notificationRule struct {
 	endpointName *references
 	endpointType string
 
+	existing *existingRule
+
 	labels sortedLabels
 }
 
+type existingRule struct {
+	rule         influxdb.NotificationRule
+	endpointName string
+	endpointType string
+}
+
 func (r *notificationRule) Exists() bool {
-	return false
+	return r.existing != nil
 }
 
 func (r *notificationRule) ID() influxdb.ID {
+	if r.existing != nil {
+		return r.existing.rule.GetID()
+	}
 	return r.id
 }
 

@@ -443,16 +443,7 @@ func Create(t *testing.T, init func(*testing.T, TenantFields) (influxdb.TenantSe
 				if err != nil {
 					t.Fatal(err)
 				}
-				// TODO(affo): this shouldn't be needed.
-				//  This URM should not be created.
-				want = append(want, &influxdb.UserResourceMapping{
-					UserID:       u.ID,
-					UserType:     userType,
-					MappingType:  influxdb.UserMappingType,
-					ResourceType: influxdb.BucketsResourceType,
-					ResourceID:   b.ID,
-				})
-				sort.Sort(urmByResourceID(want))
+
 				sort.Sort(urmByResourceID(urms))
 				if diff := cmp.Diff(want, urms); diff != "" {
 					t.Errorf("unexpected urms -want/+got:\n\t%s", diff)

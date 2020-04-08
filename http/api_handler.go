@@ -69,7 +69,6 @@ type APIBackend struct {
 	SourceService                   influxdb.SourceService
 	VariableService                 influxdb.VariableService
 	PasswordsService                influxdb.PasswordsService
-	OnboardingService               influxdb.OnboardingService
 	InfluxQLService                 query.ProxyQueryService
 	FluxService                     query.ProxyQueryService
 	TaskService                     influxdb.TaskService
@@ -179,9 +178,6 @@ func NewAPIHandler(b *APIBackend, opts ...APIHandlerOptFn) *APIHandler {
 	sessionHandler := NewSessionHandler(b.Logger, sessionBackend)
 	h.Mount(prefixSignIn, sessionHandler)
 	h.Mount(prefixSignOut, sessionHandler)
-
-	setupBackend := NewSetupBackend(b.Logger.With(zap.String("handler", "setup")), b)
-	h.Mount(prefixSetup, NewSetupHandler(b.Logger, setupBackend))
 
 	sourceBackend := NewSourceBackend(b.Logger.With(zap.String("handler", "source")), b)
 	sourceBackend.SourceService = authorizer.NewSourceService(b.SourceService)

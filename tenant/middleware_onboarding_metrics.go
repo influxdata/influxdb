@@ -1,0 +1,44 @@
+package tenant
+
+import (
+	"context"
+
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/metric"
+	"github.com/influxdata/influxdb/v2/kit/prom"
+)
+
+var _ influxdb.OnboardingService = (*OnboardingMetrics)(nil)
+
+type OnboardingMetrics struct {
+	// RED metrics
+	rec *metric.REDClient
+
+	onboardingService influxdb.OnboardingService
+}
+
+// NewOnboardingMetrics returns a metrics service middleware for the User Service.
+func NewOnboardingMetrics(reg *prom.Registry, s influxdb.OnboardingService, opts ...MetricsOption) *OnboardingMetrics {
+	o := applyOpts(opts...)
+	return &OnboardingMetrics{
+		rec:               metric.New(reg, o.applySuffix("onboard")),
+		onboardingService: s,
+	}
+}
+
+func (m *OnboardingMetrics) IsOnboarding(ctx context.Context) (bool, error) {
+	rec := m.rec.Record("is_onboarding")
+	available, err := m.onboardingService.IsOnboarding(ctx)
+	return available, rec(err)
+}
+
+func (m *OnboardingMetrics) OnboardInitialUser(ctx context.Context, req *influxdb.OnboardingRequest) (*influxdb.OnboardingResults, error) {
+	rec := m.rec.Record("onboard_initial_user")
+	res, err := m.onboardingService.OnboardInitialUser(ctx, req)
+	return res, rec(err)
+}
+func (m *OnboardingMetrics) OnboardUser(ctx context.Context, req *influxdb.OnboardingRequest) (*influxdb.OnboardingResults, error) {
+	rec := m.rec.Record("onboard_user")
+	res, err := m.onboardingService.OnboardUser(ctx, req)
+	return res, rec(err)
+}

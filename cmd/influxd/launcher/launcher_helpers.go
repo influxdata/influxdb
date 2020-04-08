@@ -104,7 +104,7 @@ func (tl *TestLauncher) ShutdownOrFail(tb testing.TB, ctx context.Context) {
 	}
 }
 
-// SetupOrFail creates a new user, bucket, org, and auth token.
+// Setup creates a new user, bucket, org, and auth token.
 func (tl *TestLauncher) Setup() error {
 	results, err := tl.OnBoard(&platform.OnboardingRequest{
 		User:     "USER",
@@ -223,7 +223,7 @@ func (tl *TestLauncher) MustExecuteQuery(query string) *QueryResults {
 // ExecuteQuery executes the provided query against the ith query node.
 // Callers of ExecuteQuery must call Done on the returned QueryResults.
 func (tl *TestLauncher) ExecuteQuery(q string) (*QueryResults, error) {
-	ctx := influxdbcontext.SetAuthorizer(context.Background(), &mock.Authorization{})
+	ctx := influxdbcontext.SetAuthorizer(context.Background(), mock.NewMockAuthorizer(true, nil))
 	fq, err := tl.QueryController().Query(ctx, &query.Request{
 		Authorization:  tl.Auth,
 		OrganizationID: tl.Auth.OrgID,

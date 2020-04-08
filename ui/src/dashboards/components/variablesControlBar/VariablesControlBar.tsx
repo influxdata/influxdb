@@ -20,7 +20,7 @@ import {
 import {filterUnusedVars} from 'src/shared/utils/filterUnusedVars'
 
 // Actions
-import {moveVariable} from 'src/variables/actions/creators'
+import {moveVariable} from 'src/variables/actions/thunks'
 
 // Types
 import {AppState, Variable} from 'src/types'
@@ -36,7 +36,6 @@ interface StateProps {
   variables: Variable[]
   variablesStatus: RemoteDataState
   inPresentationMode: boolean
-  dashboardID: string
   show: boolean
 }
 
@@ -107,7 +106,7 @@ class VariablesControlBar extends PureComponent<Props, State> {
   }
 
   private get barContents(): JSX.Element {
-    const {dashboardID, variables, variablesStatus} = this.props
+    const {variables, variablesStatus} = this.props
     return (
       <div className="variables-control-bar--full">
         {variables.map((v, i) => (
@@ -116,7 +115,6 @@ class VariablesControlBar extends PureComponent<Props, State> {
               name={v.name}
               id={v.id}
               index={i}
-              dashboardID={dashboardID}
               moveDropdown={this.handleMoveDropdown}
             />
           </ErrorBoundary>
@@ -142,8 +140,8 @@ class VariablesControlBar extends PureComponent<Props, State> {
     originalIndex: number,
     newIndex: number
   ): void => {
-    const {dashboardID, moveVariable} = this.props
-    moveVariable(originalIndex, newIndex, dashboardID)
+    const {moveVariable} = this.props
+    moveVariable(originalIndex, newIndex)
   }
 }
 
@@ -153,7 +151,7 @@ const mdtp = {
 
 const mstp = (state: AppState): StateProps => {
   const dashboardID = state.currentDashboard.id
-  const variables = getVariables(state, dashboardID)
+  const variables = getVariables(state)
   const variablesStatus = getDashboardVariablesStatus(state)
   const show = state.userSettings.showVariablesControls
 
@@ -172,7 +170,6 @@ const mstp = (state: AppState): StateProps => {
     ),
     variablesStatus,
     inPresentationMode,
-    dashboardID,
     show,
   }
 }

@@ -247,7 +247,8 @@ func (g *groupResultSet) groupBySort() (int, error) {
 			nr.SortKey = make([]byte, 0, l)
 			for _, v := range vals {
 				nr.SortKey = append(nr.SortKey, v...)
-				nr.SortKey = append(nr.SortKey, ',')
+				// separate sort key values with ascii null character
+				nr.SortKey = append(nr.SortKey, '\000')
 			}
 
 			seriesRows = append(seriesRows, &nr)

@@ -832,20 +832,45 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
 	}
 
 	if rules := diff.NotificationRules; len(rules) > 0 {
-		headers := []string{"New", "Name", "Description", "Every", "Offset", "Endpoint Name", "Endpoint ID", "Endpoint Type"}
-		tablePrintFn("NOTIFICATION RULES", headers, len(rules), func(i int) []string {
-			v := rules[i]
+		printer := diffPrinterGen("Notification Rules", []string{
+			"Description",
+			"Every",
+			"Offset",
+			"Endpoint Name",
+			"Endpoint ID",
+			"Endpoint Type",
+		})
+
+		appendValues := func(id pkger.SafeID, pkgName string, v pkger.DiffNotificationRuleValues) []string {
 			return []string{
-				green(true),
+				pkgName,
+				id.String(),
 				v.Name,
-				v.Description,
 				v.Every,
 				v.Offset,
 				v.EndpointName,
 				v.EndpointID.String(),
 				v.EndpointType,
 			}
-		})
+		}
+
+		for _, e := range rules {
+			var oldRow []string
+			if e.Old != nil {
+				oldRow = appendValues(e.ID, e.PkgName, *e.Old)
+			}
+
+			newRow := appendValues(e.ID, e.PkgName, e.New)
+			switch {
+			case e.IsNew():
+				printer.AppendDiff(nil, newRow)
+			case e.Remove:
+				printer.AppendDiff(oldRow, nil)
+			default:
+				printer.AppendDiff(oldRow, newRow)
+			}
+		}
+		printer.Render()
 	}
 
 	if teles := diff.Telegrafs; len(teles) > 0 {

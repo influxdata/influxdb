@@ -227,10 +227,9 @@ export const executePreviewQuery = (query: string) => async (
     // which means we have to drag around all this asAssignment
     // garbage to be able to run a query instead of just being able
     // to executeQuery as normal
-    const variableAssignments = getVariables(
-      state,
-      state.timeMachines.activeTimeMachineID
-    ).map(v => asAssignment(v))
+    const variableAssignments = getVariables(state)
+      .map(v => asAssignment(v))
+      .filter(v => !!v)
     const windowVars = getWindowVars(query, variableAssignments)
     const extern = buildVarsOption([...variableAssignments, ...windowVars])
     const result = await runQuery(orgID, query, extern).promise

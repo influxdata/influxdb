@@ -7,7 +7,6 @@ import {connect} from 'react-redux'
 import {TreeNav} from '@influxdata/clockface'
 import CloudExclude from 'src/shared/components/cloud/CloudExclude'
 import CloudOnly from 'src/shared/components/cloud/CloudOnly'
-import {FeatureFlag} from 'src/shared/utils/featureFlag'
 
 // Actions
 import {showOverlay, dismissOverlay} from 'src/overlays/actions/overlays'
@@ -15,7 +14,6 @@ import {showOverlay, dismissOverlay} from 'src/overlays/actions/overlays'
 // Constants
 import {
   CLOUD_URL,
-  CLOUD_LOGOUT_PATH,
   CLOUD_USAGE_PATH,
   CLOUD_BILLING_PATH,
 } from 'src/shared/constants'
@@ -49,43 +47,9 @@ const UserWidget: FC<Props> = ({
     return null
   }
 
-  const logoutURL = `${CLOUD_URL}${CLOUD_LOGOUT_PATH}`
-
   const handleSwitchOrganizations = (): void => {
     handleShowOverlay('switch-organizations', {}, handleDismissOverlay)
   }
-
-  const logoutLink = (
-    <>
-      <FeatureFlag name="regionBasedLoginPage">
-        <TreeNav.UserItem
-          id="logout"
-          label="Logout"
-          linkElement={className => <Link className={className} to="/logout" />}
-        />
-      </FeatureFlag>
-      <FeatureFlag name="regionBasedLoginPage" equals={false}>
-        <CloudExclude>
-          <TreeNav.UserItem
-            id="logout"
-            label="Logout"
-            linkElement={className => (
-              <Link className={className} to="/logout" />
-            )}
-          />
-        </CloudExclude>
-        <CloudOnly>
-          <TreeNav.UserItem
-            id="logout"
-            label="Logout"
-            linkElement={className => (
-              <a className={className} href={logoutURL} />
-            )}
-          />
-        </CloudOnly>
-      </FeatureFlag>
-    </>
-  )
 
   return (
     <TreeNav.User username={me.name} team={org.name}>
@@ -122,7 +86,11 @@ const UserWidget: FC<Props> = ({
           )}
         />
       </CloudExclude>
-      {logoutLink}
+      <TreeNav.UserItem
+        id="logout"
+        label="Logout"
+        linkElement={className => <Link className={className} to="/logout" />}
+      />
     </TreeNav.User>
   )
 }

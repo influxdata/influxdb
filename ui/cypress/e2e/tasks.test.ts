@@ -327,7 +327,10 @@ http.post(
       // verify that it is the correct data
       cy.getByInputValue(secondTask)
 
-      cy.get('div.cf-nav--item.active').click()
+      cy.get('.cf-tree-nav--item__active').within(() => {
+        // Get the element that has a click handler within the nav item
+        cy.get('.cf-tree-nav--item-block').click()
+      })
       // navigate back to the first one to verify that the name is correct
       cy.getByTestID('task-card--name')
         .contains(firstTask)

@@ -22,6 +22,7 @@ import {
 // Actions
 import {setView} from 'src/views/actions/creators'
 import {notify} from 'src/shared/actions/notifications'
+import {setDashboard} from 'src/dashboards/actions/creators'
 import {setCells, setCell, removeCell} from 'src/cells/actions/creators'
 
 // Utils
@@ -84,13 +85,14 @@ export const createCellWithView = (
         throw new Error(resp.data.message)
       }
 
-      const {entities, result} = normalize<
-        Dashboard,
-        DashboardEntities,
-        string
-      >(resp.data, dashboardSchema)
+      const normDash = normalize<Dashboard, DashboardEntities, string>(
+        resp.data,
+        dashboardSchema
+      )
+      const {entities, result} = normDash
 
       dashboard = entities.dashboards[result]
+      dispatch(setDashboard(resp.data.id, RemoteDataState.Done, normDash))
     }
 
     const cell: NewCell = getNewDashboardCell(state, dashboard, clonedCell)
@@ -115,11 +117,11 @@ export const createCellWithView = (
     // Refresh variables in use on dashboard
     const normView = normalize<View, ViewEntities, string>(newView, viewSchema)
 
-    dispatch(setView(cellID, RemoteDataState.Done, normView))
     dispatch(setCell(cellID, RemoteDataState.Done, normCell))
-  } catch (err) {
-    notify(copy.cellAddFailed())
-    throw err
+    dispatch(setView(cellID, RemoteDataState.Done, normView))
+  } catch (error) {
+    dispatch(notify(copy.cellAddFailed(error.message)))
+    throw error
   }
 }
 
@@ -142,9 +144,10 @@ export const createDashboardWithView = (
     }
 
     await dispatch(createCellWithView(resp.data.id, view))
+    dispatch(notify(copy.dashboardCreateSuccess()))
   } catch (error) {
     console.error(error)
-    notify(copy.cellAddFailed())
+    dispatch(notify(copy.cellAddFailed(error.message)))
     throw error
   }
 }
@@ -171,6 +174,7 @@ export const updateCells = (dashboardID: string, cells: Cell[]) => async (
 
     dispatch(setCells(dashboardID, RemoteDataState.Done, normCells))
   } catch (error) {
+    dispatch(notify(copy.cellUpdateFailed()))
     console.error(error)
   }
 }
@@ -187,6 +191,7 @@ export const copyCell = (dashboard: Dashboard, cell: Cell) => dispatch => {
     dispatch(setCell(cell.id, RemoteDataState.Done, normCell))
     dispatch(notify(copy.cellAdded()))
   } catch (error) {
+    dispatch(notify(copy.cellCopyFailed()))
     console.error(error)
   }
 }

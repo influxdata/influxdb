@@ -131,7 +131,7 @@ func TestURMService_FindUserResourceMappings(t *testing.T) {
 			s := authorizer.NewURMService(tt.fields.OrgService, tt.fields.UserResourceMappingService)
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			urms, _, err := s.FindUserResourceMappings(ctx, influxdb.UserResourceMappingFilter{})
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
@@ -241,7 +241,7 @@ func TestURMService_WriteUserResourceMapping(t *testing.T) {
 			s := authorizer.NewURMService(tt.fields.OrgService, tt.fields.UserResourceMappingService)
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			t.Run("create urm", func(t *testing.T) {
 				err := s.CreateUserResourceMapping(ctx, &influxdb.UserResourceMapping{ResourceType: influxdb.BucketsResourceType, ResourceID: 1})

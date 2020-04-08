@@ -19,7 +19,6 @@ import {setView, Action} from 'src/views/actions/creators'
 
 // Selectors
 import {getViewsForDashboard} from 'src/views/selectors'
-import {getTimeRange} from 'src/dashboards/selectors/index'
 import {getByID} from 'src/resources/selectors'
 
 // Types
@@ -102,8 +101,6 @@ export const getViewForTimeMachine = (
     const state = getState()
     let view = getByID<View>(state, ResourceType.Views, cellID) as QueryView
 
-    const timeRange = getTimeRange(state, dashboardID)
-
     if (!view) {
       dispatch(setView(cellID, RemoteDataState.Loading))
       view = (await getViewAJAX(dashboardID, cellID)) as QueryView
@@ -113,7 +110,6 @@ export const getViewForTimeMachine = (
       setActiveTimeMachine(timeMachineID, {
         contextID: dashboardID,
         view,
-        timeRange,
       })
     )
     dispatch(executeQueries())

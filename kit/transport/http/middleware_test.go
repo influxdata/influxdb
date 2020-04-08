@@ -67,7 +67,7 @@ func TestCors(t *testing.T) {
 			name:           "OPTIONS with Origin",
 			method:         "OPTIONS",
 			headers:        []string{"Origin", "http://myapp.com"},
-			expectedStatus: http.StatusOK,
+			expectedStatus: http.StatusNoContent,
 		},
 		{
 			name:           "GET with Origin",
@@ -75,9 +75,7 @@ func TestCors(t *testing.T) {
 			headers:        []string{"Origin", "http://anotherapp.com"},
 			expectedStatus: http.StatusOK,
 			expectedHeaders: map[string]string{
-				"Access-Control-Allow-Methods": "POST, GET, OPTIONS, PUT, DELETE",
-				"Access-Control-Allow-Origin":  "http://anotherapp.com",
-				"Access-Control-Allow-Headers": "Accept, Content-Type, Content-Length, Accept-Encoding, Authorization, User-Agent",
+				"Access-Control-Allow-Origin": "http://anotherapp.com",
 			},
 		},
 	}

@@ -265,7 +265,7 @@ export const deleteDashboard = (dashboardID: string, name: string) => async (
     dispatch(notify(copy.dashboardDeleted(name)))
     dispatch(checkDashboardLimits())
   } catch (error) {
-    dispatch(notify(copy.dashboardDeleteFailed(name, error.data.message)))
+    dispatch(notify(copy.dashboardDeleteFailed(name, error.message)))
   }
 }
 
@@ -478,7 +478,7 @@ export const saveVEOView = (dashboardID: string) => async (
     }
   } catch (error) {
     console.error(error)
-    dispatch(notify(copy.cellAddFailed()))
+    dispatch(notify(copy.cellAddFailed(error.message)))
     throw error
   }
 }

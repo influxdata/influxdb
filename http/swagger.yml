@@ -8872,7 +8872,7 @@ components:
           description: Colors define color encoding of data into a visualization
           type: array
           items:
-            type: string
+            $ref: "#/components/schemas/DashboardColor"
     Axes:
       description: The viewport for a View's visualizations
       type: object
