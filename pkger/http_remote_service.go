@@ -2,7 +2,6 @@ package pkger
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 
 	"github.com/influxdata/influxdb/v2"
@@ -43,14 +42,12 @@ func (s *HTTPRemoteService) InitStack(ctx context.Context, userID influxdb.ID, s
 
 	id, err := influxdb.IDFromString(respBody.ID)
 	if err != nil {
-		fmt.Println("IN HERE with id: ", respBody.ID)
 		return Stack{}, err
 	}
 	newStack.ID = *id
 
 	orgID, err := influxdb.IDFromString(respBody.OrgID)
 	if err != nil {
-		fmt.Println("IN HERE with orgID: ", respBody.OrgID)
 		return Stack{}, err
 	}
 	newStack.OrgID = *orgID

@@ -5,7 +5,7 @@ import (
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/metric"
-	"github.com/influxdata/influxdb/v2/kit/prom"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 var _ influxdb.UserService = (*UserMetrics)(nil)
@@ -19,7 +19,7 @@ type UserMetrics struct {
 }
 
 // NewUserMetrics returns a metrics service middleware for the User Service.
-func NewUserMetrics(reg *prom.Registry, s influxdb.UserService, opts ...MetricsOption) *UserMetrics {
+func NewUserMetrics(reg prometheus.Registerer, s influxdb.UserService, opts ...MetricsOption) *UserMetrics {
 	o := applyOpts(opts...)
 	return &UserMetrics{
 		rec:         metric.New(reg, o.applySuffix("user")),
@@ -71,7 +71,7 @@ type PasswordMetrics struct {
 }
 
 // NewPasswordMetrics returns a metrics service middleware for the Password Service.
-func NewPasswordMetrics(reg *prom.Registry, s influxdb.PasswordsService, opts ...MetricsOption) *PasswordMetrics {
+func NewPasswordMetrics(reg prometheus.Registerer, s influxdb.PasswordsService, opts ...MetricsOption) *PasswordMetrics {
 	o := applyOpts(opts...)
 	return &PasswordMetrics{
 		rec:        metric.New(reg, o.applySuffix("password")),

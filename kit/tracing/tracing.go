@@ -74,9 +74,9 @@ func annotateSpan(span opentracing.Span, handlerName string, req *http.Request) 
 	if route := httprouter.MatchedRouteFromContext(req.Context()); route != "" {
 		span.SetTag("route", route)
 	}
+	span.SetTag("method", req.Method)
 	if ctx := chi.RouteContext(req.Context()); ctx != nil {
 		span.SetTag("route", ctx.RoutePath)
-		span.SetTag("method", ctx.RouteMethod)
 	}
 	span.SetTag("handler", handlerName)
 	span.LogKV("path", req.URL.Path)

@@ -48,7 +48,7 @@ func exec(dbPath, out string) error {
 			return err
 		}
 
-		pkg.Objects = append(pkg.Objects, pkger.DashboardToObject(d2, d2.Name))
+		pkg.Objects = append(pkg.Objects, pkger.DashboardToObject(d2.Name, d2))
 
 		for _, v := range vs {
 			name := strings.ToLower(v.Name)

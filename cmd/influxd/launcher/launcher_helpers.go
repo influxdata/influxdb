@@ -104,7 +104,7 @@ func (tl *TestLauncher) ShutdownOrFail(tb testing.TB, ctx context.Context) {
 	}
 }
 
-// SetupOrFail creates a new user, bucket, org, and auth token.
+// Setup creates a new user, bucket, org, and auth token.
 func (tl *TestLauncher) Setup() error {
 	results, err := tl.OnBoard(&platform.OnboardingRequest{
 		User:     "USER",
@@ -117,7 +117,6 @@ func (tl *TestLauncher) Setup() error {
 	}
 
 	tl.User = results.User
-	fmt.Println(tl.User)
 	tl.Org = results.Org
 	tl.Bucket = results.Bucket
 	tl.Auth = results.Auth

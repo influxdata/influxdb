@@ -5,7 +5,7 @@ import (
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/metric"
-	"github.com/influxdata/influxdb/v2/kit/prom"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 var _ influxdb.OnboardingService = (*OnboardingMetrics)(nil)
@@ -18,7 +18,7 @@ type OnboardingMetrics struct {
 }
 
 // NewOnboardingMetrics returns a metrics service middleware for the User Service.
-func NewOnboardingMetrics(reg *prom.Registry, s influxdb.OnboardingService, opts ...MetricsOption) *OnboardingMetrics {
+func NewOnboardingMetrics(reg prometheus.Registerer, s influxdb.OnboardingService, opts ...MetricsOption) *OnboardingMetrics {
 	o := applyOpts(opts...)
 	return &OnboardingMetrics{
 		rec:               metric.New(reg, o.applySuffix("onboard")),
