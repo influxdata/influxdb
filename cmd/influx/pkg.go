@@ -899,20 +899,32 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
 	}
 
 	if tasks := diff.Tasks; len(tasks) > 0 {
-		headers := []string{"New", "Name", "Description", "Cycle"}
-		tablePrintFn("TASKS", headers, len(tasks), func(i int) []string {
-			t := tasks[i]
-			timing := fmt.Sprintf("every: %s offset: %s", t.Every, t.Offset)
-			if t.Cron != "" {
-				timing = t.Cron
+		printer := diffPrinterGen("Tasks", []string{"Description", "Cycle"})
+		appendValues := func(id pkger.SafeID, pkgName string, v pkger.DiffTaskValues) []string {
+			timing := v.Cron
+			if v.Cron == "" {
+				timing = fmt.Sprintf("every: %s offset: %s", v.Every, v.Offset)
 			}
-			return []string{
-				boolDiff(true),
-				t.Name,
-				green(t.Description),
-				green(timing),
+			return []string{pkgName, id.String(), v.Description, timing}
+		}
+
+		for _, e := range tasks {
+			var oldRow []string
+			if e.Old != nil {
+				oldRow = appendValues(e.ID, e.PkgName, *e.Old)
 			}
-		})
+
+			newRow := appendValues(e.ID, e.PkgName, e.New)
+			switch {
+			case e.IsNew():
+				printer.AppendDiff(nil, newRow)
+			case e.Remove:
+				printer.AppendDiff(oldRow, nil)
+			default:
+				printer.AppendDiff(oldRow, newRow)
+			}
+		}
+		printer.Render()
 	}
 
 	if vars := diff.Variables; len(vars) > 0 {
