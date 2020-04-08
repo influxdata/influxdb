@@ -14,6 +14,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import GetResources from 'src/resources/components/GetResources'
 import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'
+import ResourceSortDropdown from 'src/shared/components/resource_sort_dropdown/ResourceSortDropdown'
 
 // Types
 import {AppState, ResourceType, TemplateSummary} from 'src/types'
@@ -25,11 +26,12 @@ import {
   IconFont,
   SelectGroup,
 } from '@influxdata/clockface'
-
+import {SortKey} from 'src/shared/components/resource_sort_dropdown/ResourceSortDropdown'
 import {staticTemplates as statics} from 'src/templates/constants/defaultTemplates'
 
 // Selectors
 import {getAll} from 'src/resources/selectors/getAll'
+import {SortDirection} from 'react-virtualized'
 
 const staticTemplates: StaticTemplate[] = _.map(statics, (template, name) => ({
   name,
@@ -54,8 +56,6 @@ interface State {
   activeTab: string
 }
 
-type SortKey = 'meta.name'
-
 const FilterStaticTemplates = FilterList<StaticTemplate>()
 const FilterTemplateSummaries = FilterList<TemplateSummary>()
 
@@ -75,7 +75,7 @@ class TemplatesPage extends PureComponent<Props, State> {
 
   public render() {
     const {onImport} = this.props
-    const {activeTab} = this.state
+    const {activeTab, sortType, sortKey, sortDirection} = this.state
 
     const leftHeaderItems = (
       <>
@@ -102,6 +102,13 @@ class TemplatesPage extends PureComponent<Props, State> {
             User Templates
           </SelectGroup.Option>
         </SelectGroup>
+        <ResourceSortDropdown
+          resourceType={ResourceType.Templates}
+          sortType={sortType}
+          sortKey={sortKey}
+          sortDirection={sortDirection}
+          onSelect={this.handleSort}
+        />
       </>
     )
 
@@ -127,9 +134,12 @@ class TemplatesPage extends PureComponent<Props, State> {
     this.setState({activeTab: val})
   }
 
-  private handleClickColumn = (nextSort: Sort, sortKey: SortKey) => {
-    const sortType = SortTypes.String
-    this.setState({sortKey, sortDirection: nextSort, sortType})
+  private handleSort = (
+    sortKey: SortKey,
+    sortDirection: Sort,
+    sortType: SortTypes
+  ): void => {
+    this.setState({sortKey, sortDirection, sortType})
   }
 
   private get templatesList(): JSX.Element {
@@ -153,7 +163,6 @@ class TemplatesPage extends PureComponent<Props, State> {
                 sortKey={sortKey}
                 sortDirection={sortDirection}
                 sortType={sortType}
-                onClickColumn={this.handleClickColumn}
               />
             )
           }}
@@ -179,7 +188,6 @@ class TemplatesPage extends PureComponent<Props, State> {
                   sortKey={sortKey}
                   sortDirection={sortDirection}
                   sortType={sortType}
-                  onClickColumn={this.handleClickColumn}
                 />
               )
             }}

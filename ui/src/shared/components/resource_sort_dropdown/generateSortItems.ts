@@ -1,17 +1,26 @@
 import {Sort} from '@influxdata/clockface'
 import {SortTypes} from 'src/shared/utils/sort'
-import {ResourceType, Dashboard, Task, Variable, Label} from 'src/types'
+import {
+  ResourceType,
+  Dashboard,
+  Task,
+  Variable,
+  Label,
+  Template,
+} from 'src/types'
 
 export type DashboardSortKey = keyof Dashboard | 'meta.updatedAt'
 export type TaskSortKey = keyof Task
 export type VariableSortKey = keyof Variable | 'arguments.type'
 export type LabelSortKey = keyof Label | 'properties.description'
+export type TemplateSortKey = keyof Template | 'meta.name' | 'meta.description'
 
 export type SortKey =
   | DashboardSortKey
   | TaskSortKey
   | VariableSortKey
   | LabelSortKey
+  | TemplateSortKey
 
 export interface SortDropdownItem {
   label: string
@@ -152,6 +161,33 @@ export const generateSortItems = (
         {
           label: 'Description (Z → A)',
           sortKey: 'properties.description',
+          sortType: SortTypes.String,
+          sortDirection: Sort.Descending,
+        },
+      ]
+    case ResourceType.Templates:
+      return [
+        {
+          label: 'Name (A → Z)',
+          sortKey: 'meta.name',
+          sortType: SortTypes.String,
+          sortDirection: Sort.Ascending,
+        },
+        {
+          label: 'Name (Z → A)',
+          sortKey: 'meta.name',
+          sortType: SortTypes.String,
+          sortDirection: Sort.Descending,
+        },
+        {
+          label: 'Description (A → Z)',
+          sortKey: 'meta.description',
+          sortType: SortTypes.String,
+          sortDirection: Sort.Ascending,
+        },
+        {
+          label: 'Description (Z → A)',
+          sortKey: 'meta.description',
           sortType: SortTypes.String,
           sortDirection: Sort.Descending,
         },
