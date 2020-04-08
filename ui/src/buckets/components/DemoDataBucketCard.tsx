@@ -3,7 +3,7 @@ import React, {FC} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
-import {ResourceCard} from '@influxdata/clockface'
+import {ResourceCard, Label} from '@influxdata/clockface'
 
 // Types
 import {DemoBucket} from 'src/types'
@@ -33,14 +33,24 @@ const DemoDataBucketCard: FC<Props & WithRouterProps> = ({
       }
       metaData={[
         <span
-          className="demod-bucket"
+          className="system-bucket"
           key={`system-bucket-indicator-${bucket.id}`}
         >
           Demo Data Bucket
         </span>,
         <>Retention: {bucket.readableRetention}</>,
       ]}
-    />
+    >
+      <Label
+        id="1"
+        key="1"
+        name="No Cost"
+        color="#757888"
+        description=""
+        onDelete={null}
+        onClick={null}
+      />
+    </ResourceCard>
   )
 }
 
