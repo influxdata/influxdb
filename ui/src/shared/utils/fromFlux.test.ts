@@ -1,4 +1,4 @@
-import {fromFlux} from './fromFlux'
+import fromFlux from './fromFlux'
 
 describe('fromFlux', () => {
   test('can parse a Flux CSV with mismatched schemas', () => {
@@ -18,83 +18,81 @@ describe('fromFlux', () => {
 
     const actual = fromFlux(CSV)
 
-    console.log('neat', actual)
-
-    expect(actual.table.getColumn('result', 'string')).toEqual([
+    expect(actual.table.columns['result'].data).toEqual([
       '_result',
       '_result',
       '_result',
       '_result',
     ])
 
-    expect(actual.table.getColumn('_start', 'time')).toEqual([
+    expect(actual.table.columns['_start'].data).toEqual([
       1549064312524,
       1549064312524,
       1549064312524,
       1549064312524,
     ])
 
-    expect(actual.table.getColumn('_stop', 'time')).toEqual([
+    expect(actual.table.columns['_stop'].data).toEqual([
       1549064342524,
       1549064342524,
       1549064342524,
       1549064342524,
     ])
 
-    expect(actual.table.getColumn('_time', 'time')).toEqual([
+    expect(actual.table.columns['_time'].data).toEqual([
       1549064313000,
       1549064323000,
       1549064313000,
       1549064323000,
     ])
 
-    expect(actual.table.getColumn('_value (number)', 'number')).toEqual([
+    expect(actual.table.columns['_value (number)'].data).toEqual([
       10,
       20,
       undefined,
       undefined,
     ])
 
-    expect(actual.table.getColumn('_value (string)', 'string')).toEqual([
+    expect(actual.table.columns['_value (string)'].data).toEqual([
       undefined,
       undefined,
       'thirty',
       'fourty',
     ])
 
-    expect(actual.table.getColumn('_field', 'string')).toEqual([
+    expect(actual.table.columns['_field'].data).toEqual([
       'usage_guest',
       'usage_guest',
       'usage_guest',
       'usage_guest',
     ])
 
-    expect(actual.table.getColumn('_measurement', 'string')).toEqual([
+    expect(actual.table.columns['_measurement'].data).toEqual([
       'cpu',
       'cpu',
       'cpu',
       'cpu',
     ])
 
-    expect(actual.table.getColumn('cpu', 'string')).toEqual([
+    expect(actual.table.columns['cpu'].data).toEqual([
       'cpu-total',
       'cpu-total',
       'cpu0',
       'cpu0',
     ])
 
-    expect(actual.table.getColumn('host', 'string')).toEqual([
+    expect(actual.table.columns['host'].data).toEqual([
       'oox4k.local',
       'oox4k.local',
       'oox4k.local',
       'oox4k.local',
     ])
 
-    expect(actual.table.getColumn('table', 'number')).toEqual([0, 1, 2, 3])
+    expect(actual.table.columns['table'].data).toEqual([0, 1, 2, 3])
 
-    expect(actual.table.getColumnName('_value (number)')).toEqual('_value')
+    //expect(actual.table.getColumnName('_value (number)')).toEqual('_value')
 
-    expect(actual.table.getColumnName('_value (string)')).toEqual('_value')
+    //expect(actual.table.getColumnName('_value (string)')).toEqual('_value')
 
     expect(actual.fluxGroupKeyUnion).toEqual([
       '_value (number)',
@@ -118,11 +116,11 @@ describe('fromFlux', () => {
 
     const actual = fromFlux(CSV).table
 
-    expect(actual.getColumn('result')).toEqual(['_result', '_result'])
-    expect(actual.getColumn('a')).toEqual(['usage_guest', 'usage_guest'])
-    expect(actual.getColumn('b')).toEqual(['cpu', 'cpu'])
-    expect(actual.getColumn('c')).toEqual([4, 5])
-    expect(actual.getColumn('d')).toEqual([6, 6])
+    expect(actual.columns['result'].data).toEqual(['_result', '_result'])
+    expect(actual.columns['a'].data).toEqual(['usage_guest', 'usage_guest'])
+    expect(actual.columns['b'].data).toEqual(['cpu', 'cpu'])
+    expect(actual.columns['c'].data).toEqual([4, 5])
+    expect(actual.columns['d'].data).toEqual([6, 6])
   })
 
   test('returns a group key union', () => {
@@ -151,7 +149,7 @@ describe('fromFlux', () => {
 
     const {table} = fromFlux(CSV)
 
-    expect(table.getColumn('_value')).toEqual([10, null])
+    expect(table.columns['_value'].data).toEqual([10, null])
   })
 
   test('handles newlines inside string values', () => {
@@ -177,9 +175,9 @@ there",5
 
     const {table} = fromFlux(CSV)
 
-    expect(table.getColumn('value')).toEqual([5, 5, 6, 5, 5, 6])
+    expect(table.columns['value'].data).toEqual([5, 5, 6, 5, 5, 6])
 
-    expect(table.getColumn('message')).toEqual([
+    expect(table.columns['message'].data).toEqual([
       'howdy',
       'hello\n\nthere',
       'hi',
@@ -187,5 +185,20 @@ there",5
       'hello\n\nthere',
       'hi',
     ])
+  })
+
+  test('handles errors that show up on any page', () => {
+    const CSV = `#group,true,false,false,true
+#datatype,string,string,string,string
+#default,,,,
+,a,b,c,d
+
+#group,false,false,true,false
+#datatype,string,string,string,string
+#default,,,,
+,error,reference
+,query terminated: reached maximum allowed memory limits,576`
+
+    expect(() => fromFlux(CSV)).toThrowError('[576] query terminated: reached maximum allowed memory limits')
   })
 })

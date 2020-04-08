@@ -1,52 +1,52 @@
-import Papa from 'papaparse';
+import Papa from 'papaparse'
 
 const TO_COLUMN_TYPE = {
-    boolean: 'boolean',
-    unsignedLong: 'number',
-    long: 'number',
-    double: 'number',
-    string: 'string',
-    'dateTime:RFC3339': 'time'
-};
+  boolean: 'boolean',
+  unsignedLong: 'number',
+  long: 'number',
+  double: 'number',
+  string: 'string',
+  'dateTime:RFC3339': 'time',
+}
 
 function parseValue(value, columnType) {
-    if (value === undefined) {
-        return undefined;
-    }
+  if (value === undefined) {
+    return undefined
+  }
 
-    if (value === 'null') {
-        return null;
-    }
+  if (value === 'null') {
+    return null
+  }
 
-    if (value === 'NaN') {
-        return NaN;
-    }
+  if (value === 'NaN') {
+    return NaN
+  }
 
-    if (columnType === 'boolean' && value === 'true') {
-        return true;
-    }
+  if (columnType === 'boolean' && value === 'true') {
+    return true
+  }
 
-    if (columnType === 'boolean' && value === 'false') {
-        return false;
-    }
+  if (columnType === 'boolean' && value === 'false') {
+    return false
+  }
 
-    if (columnType === 'string') {
-        return value;
-    }
+  if (columnType === 'string') {
+    return value
+  }
 
-    if (columnType === 'time') {
-        return Date.parse(value);
-    }
+  if (columnType === 'time') {
+    return Date.parse(value)
+  }
 
-    if (columnType === 'number' && value === '') {
-        return null;
-    }
+  if (columnType === 'number' && value === '') {
+    return null
+  }
 
-    if (columnType === 'number') {
-        return Number(value);
-    }
+  if (columnType === 'number') {
+    return Number(value)
+  }
 
-    return null;
+  return null
 }
 
 /*
@@ -93,7 +93,7 @@ function parseValue(value, columnType) {
     */
 
 export default function fromFlux(csv) {
-    /*
+  /*
          A Flux CSV response can contain multiple CSV files each joined by a newline.
          See https://github.com/influxdata/flux/blob/master/docs/SPEC.md#multiple-tables.
 
@@ -107,79 +107,98 @@ export default function fromFlux(csv) {
 
          [0]: https://github.com/influxdata/influxdb/issues/15017
      */
-    const output = {},
-        groupKey = {};
-    let startIdx = 0;
+  const output = {},
+    groupKey = {}
+  let startIdx = 0
 
-    const chunks = [],
-        regerz = /\n\s*\n#/g;
-    let match, lastRange = 0;
+  const chunks = [],
+    regerz = /\n\s*\n#/g
+  let match,
+    lastRange = 0
 
-    while ((match = regerz.exec(csv)) !== null) {
-        chunks.push({
-            start: lastRange,
-            stop: match.index,
-        });
-        lastRange = match.index + match[0].length - 1;
-    }
+  while ((match = regerz.exec(csv)) !== null) {
     chunks.push({
-        start: lastRange,
-        stop: csv.length,
-    });
+      start: lastRange,
+      stop: match.index,
+    })
+    lastRange = match.index + match[0].length - 1
+  }
+  chunks.push({
+    start: lastRange,
+    stop: csv.length,
+  })
 
-    let runningTotal = 0,
-        ni,
-        headerLocation,
-        no,
-        na,
-        colName, colType, colKey,
-        annotations, parsed;
+  let runningTotal = 0,
+    ni,
+    headerLocation,
+    no,
+    na,
+    colName,
+    colType,
+    colKey,
+    annotations,
+    parsed
 
-    for(ni = 0; ni < chunks.length; ni++) {
-        annotations = {};
-        parsed = Papa.parse(csv.substring(chunks[ni].start, chunks[ni].stop)).data;
+  for (ni = 0; ni < chunks.length; ni++) {
+    annotations = {}
+    parsed = Papa.parse(csv.substring(chunks[ni].start, chunks[ni].stop)).data
 
-        headerLocation = 0;
-        while (/^\s*#/.test(parsed[headerLocation][0])) {
-            headerLocation++;
-        }
-
-        for (no = 0; no < headerLocation; no++) {
-            annotations[parsed[no][0]] = parsed[no].reduce((p, c, i) => {
-                p[parsed[headerLocation][i]] = c;
-                return p;
-            }, {});
-        }
-
-        for (no = 1; no < parsed[headerLocation].length; no++) {
-            colName = parsed[headerLocation][no];
-            colType = annotations['#datatype'][colName];
-            colKey = `${colName} ${colType}`;
-
-            if (!output.hasOwnProperty(colKey)) {
-                output[colKey] = {
-                    name: colName,
-                    group: annotations['#group'][colName],
-                    type: TO_COLUMN_TYPE[colType],
-                    default: annotations['#default'][colName],
-                    data: []
-                };
-            }
-
-            for (na = headerLocation + 1; na < parsed.length; na++) {
-                output[colKey].data[runningTotal + na - headerLocation - 1] = parseValue(
-                    parsed[na][no] || output[colKey].default,
-                    output[colKey].type
-                );
-            }
-        }
-
-        runningTotal += parsed.length - headerLocation;
+    headerLocation = 0
+    while (/^\s*#/.test(parsed[headerLocation][0])) {
+      headerLocation++
     }
 
-    annotations = [];
+    if (parsed[headerLocation][1] === 'error' && parsed[headerLocation][2] === 'reference') {
+      const ref = parsed[headerLocation + 1][2]
+      const msg = parsed[headerLocation + 1][1]
 
-    /*
+      throw new Error(`[${ref}] ${msg}`)
+    }
+
+    for (no = 0; no < headerLocation; no++) {
+      annotations[parsed[no][0]] = parsed[no].reduce((p, c, i) => {
+        p[parsed[headerLocation][i]] = c
+        return p
+      }, {})
+    }
+
+    for (no = 1; no < parsed[headerLocation].length; no++) {
+      colName = parsed[headerLocation][no]
+
+      colType = annotations['#datatype'][colName]
+      colKey = `${colName} (${TO_COLUMN_TYPE[colType]})`
+      if (
+        annotations['#group'] &&
+        annotations['#group'].hasOwnProperty(colName) &&
+        annotations['#group'][colName] === 'true'
+      ) {
+        groupKey[colKey] = true
+      }
+
+      if (!output.hasOwnProperty(colKey)) {
+        output[colKey] = {
+          name: colName,
+          group: annotations['#group'][colName],
+          type: TO_COLUMN_TYPE[colType],
+          default: annotations['#default'][colName],
+          data: [],
+        }
+      }
+
+      for (na = headerLocation + 1; na < parsed.length; na++) {
+        output[colKey].data[
+          runningTotal + na - headerLocation - 1
+        ] = parseValue(
+          parsed[na][no] || output[colKey].default,
+          output[colKey].type
+        )
+      }
+    }
+
+    runningTotal += parsed.length - headerLocation - 1
+  }
+
+  /*
         Each column in a parsed `Table` can only have a single type, but because we
         combine columns from multiple Flux tables into a single table, we may
         encounter conflicting types for a given column during parsing.
@@ -192,39 +211,43 @@ export default function fromFlux(csv) {
         stage of parsing is to rename all column keys from the `$NAME ($TYPE)` format
         to just `$NAME` if we can do so safely. That is what this function does.
     */
-    const colNameCounts = Object.values(output)
-        .map(c => {
-            c.data.length = runningTotal;
-            return c.name;
-        })
-        .reduce((prev, curr) => {
-            if (!prev.hasOwnProperty(curr)) {
-                prev[curr] = 0;
-            }
+  const colNameCounts = Object.values(output)
+    .map((c: any) => {
+      c.data.length = runningTotal
+      return c.name
+    })
+    .reduce((prev, curr) => {
+      if (!prev.hasOwnProperty(curr)) {
+        prev[curr] = 0
+      }
 
-            prev[curr]++;
+      prev[curr]++
 
-            return prev;
-        }, {});
+      return prev
+    }, {})
 
-    Object.keys(colNameCounts)
-        .filter(name => colNameCounts[name] === 1)
-        .forEach(uniqueName => {
-            const [columnKey, column] = Object.entries(output).find(
-                ([_, col]) => col.name === uniqueName
-            );
+  Object.keys(colNameCounts)
+    .filter(name => colNameCounts[name] === 1)
+    .forEach(uniqueName => {
+      const [columnKey, column] = Object.entries(output).find(
+        ([_, col]) => (col as any).name === uniqueName
+      )
 
-            output[uniqueName] = column;
+      output[uniqueName] = column
+      if (groupKey.hasOwnProperty(columnKey)) {
+        groupKey[uniqueName] = true
+        delete groupKey[columnKey]
+      }
 
-            delete output[columnKey];
-        });
+      delete output[columnKey]
+    })
 
-    return {
-        table: {
-            columnKeys: Object.keys(output),
-            columns: output,
-            length: runningTotal
-        },
-        fluxGroupKeyUnion: Object.keys(groupKey)
-    };
+  return {
+    table: {
+      columnKeys: Object.keys(output),
+      columns: output,
+      length: runningTotal,
+    },
+    fluxGroupKeyUnion: Object.keys(groupKey),
+  }
 }
