@@ -168,6 +168,7 @@ use crate::storage::StorageError;
 use integer_encoding::*;
 use num::bigint::{BigInt, BigUint};
 
+use std::convert::TryInto;
 use std::io::{Seek, SeekFrom, Write};
 use std::{u16, u32};
 
@@ -281,7 +282,7 @@ where
     /// on the provided `Hasher`.
     ///
     /// `write_to` returns the number of bytes written to `w` or any error encountered.
-    fn write_to<W: Write, H: Hasher>(&self, w: &mut W, h: &mut H) -> Result<u64, StorageError>;
+    fn write_to<W: Write, H: Hasher>(&self, w: &mut W, h: &mut H) -> Result<usize, StorageError>;
 }
 
 #[derive(Default)]
@@ -345,7 +346,7 @@ where
     }
 
     /// `write_to` serialises the block into the provided writer `w`.
-    pub fn write_to<W>(&mut self, w: &mut W) -> Result<u64, StorageError>
+    pub fn write_to<W>(&mut self, w: &mut W) -> Result<usize, StorageError>
     where
         W: Write + Seek,
     {
@@ -384,7 +385,7 @@ where
         hasher.update(&max_time_bytes);
 
         // 4 byte remaining block size place-holder
-        let remaining_size_offset = offset as u64;
+        let remaining_size_offset = offset;
         offset += w.write(&[0; 4])?;
 
         // write the block type - do not hash for checksum until later.
@@ -392,34 +393,39 @@ where
         offset += w.write(&marker_bytes)?;
 
         // 1 byte place-holder for summary size
-        let summary_size_offset = offset as u64;
+        let summary_size_offset = offset;
         offset += w.write(&[0; 1])?;
 
         // 2 byte place-holder for block data offset
-        let data_offset_offset = offset as u64;
+        let data_offset_offset = offset;
         offset += w.write(&[0; 2])?;
 
         // 4 byte place-holder for block data size
-        let data_size_offset = offset as u64;
+        let data_size_offset = offset;
         offset += w.write(&[0; 4])?;
 
         // write the summary - n bytes
         let mut summary_hasher = crc32fast::Hasher::new(); // combined later
         let summary_size = summary.write_to(w, &mut summary_hasher)?;
-        offset += summary_size as usize;
+        offset += summary_size;
 
         // write the data block - n bytes
         let mut data_block_hasher = crc32fast::Hasher::new(); // combined later
-        let data_offset = offset as u64;
+        let data_offset = offset;
         let data_size = self.data.write_to(w, &mut data_block_hasher)?;
-        offset += data_size as usize;
+        offset += data_size;
 
         // 1 byte for block type + remainder of bytes written into block.
-        let remaining_size = 1_u32 + offset as u32 - summary_size_offset as u32;
-        assert!(remaining_size <= u32::MAX as u32);
+        let remaining_size: u32 = (1 + offset - summary_size_offset)
+            .try_into()
+            .expect("remaining_size did not fit in u32");
 
         // seek back and write in the remaining block size.
-        w.seek(SeekFrom::Start(remaining_size_offset))?;
+        w.seek(SeekFrom::Start(
+            remaining_size_offset
+                .try_into()
+                .expect("remaining_size_offset did not fit in u64"),
+        ))?;
         w.write(&remaining_size.to_be_bytes())?;
         hasher.update(&remaining_size.to_be_bytes());
 
@@ -427,21 +433,40 @@ where
         hasher.update(&marker_bytes);
 
         // seek and write in the summary size.
-        w.seek(SeekFrom::Start(summary_size_offset))?;
-        w.write(&[summary_size as u8])?;
-        hasher.update(&[summary_size as u8]);
+        w.seek(SeekFrom::Start(
+            summary_size_offset
+                .try_into()
+                .expect("summary_size_offset did not fit in u64"),
+        ))?;
+        let summary_size: u8 = summary_size
+            .try_into()
+            .expect("summary_size did not fit in u8");
+        w.write(&[summary_size])?;
+        hasher.update(&[summary_size]);
 
         // seek and write the data block offset in the reserved offset
-        w.seek(SeekFrom::Start(data_offset_offset))?;
-        assert!(data_offset <= u16::MAX as u64); // ensure we write size in 2 bytes
-        w.write(&(data_offset as u16).to_be_bytes())?;
-        hasher.update(&(data_offset as u16).to_be_bytes());
+        w.seek(SeekFrom::Start(
+            data_offset_offset
+                .try_into()
+                .expect("data_offset_offset did not fit in u64"),
+        ))?;
+        // ensure we write size in 2 bytes
+        let data_offset: u16 = data_offset
+            .try_into()
+            .expect("data_offset did not fit in u16");
+        w.write(&(data_offset).to_be_bytes())?;
+        hasher.update(&(data_offset).to_be_bytes());
 
         // seek and write the data block size in the reserved offset
-        w.seek(SeekFrom::Start(data_size_offset))?;
-        assert!(data_size <= u32::MAX as u64);
-        w.write(&(data_size as u32).to_be_bytes())?;
-        hasher.update(&(data_size as u32).to_be_bytes());
+        w.seek(SeekFrom::Start(
+            data_size_offset
+                .try_into()
+                .expect("data_size_offset did not fit in u64"),
+        ))?;
+        let data_size: u32 = data_size.try_into().expect("data_size did not fit in u32");
+
+        w.write(&(data_size).to_be_bytes())?;
+        hasher.update(&(data_size).to_be_bytes());
 
         // combine hasher with summary hasher and data block hasher.
         hasher.combine(&summary_hasher);
@@ -452,7 +477,7 @@ where
         let checksum = hasher.finalize();
         w.write(&checksum.to_be_bytes())?;
 
-        Ok(offset as u64)
+        Ok(offset)
     }
 }
 
@@ -510,7 +535,7 @@ where
 
     /// `write_to` serialises the block to the provided `Writer`, compressing the
     /// timestamps and values using the most appropriate encoder for the data.
-    fn write_to<W, H>(&mut self, w: &mut W, h: &mut H) -> Result<u64, StorageError>
+    fn write_to<W, H>(&mut self, w: &mut W, h: &mut H) -> Result<usize, StorageError>
     where
         W: Write,
         H: Hasher,
@@ -546,7 +571,7 @@ where
         total += w.write(&data_buf)?; // values block
         h.write(&data_buf);
 
-        Ok(total as u64)
+        Ok(total)
     }
 }
 
@@ -619,7 +644,7 @@ impl BlockSummary<f64> for FloatBlockSummary {
 
     /// `write_to` serialises the summary to the provided writer and calculates a
     /// checksum of the data written. The number of bytes written is returned.
-    fn write_to<W, H>(&self, w: &mut W, h: &mut H) -> Result<u64, StorageError>
+    fn write_to<W, H>(&self, w: &mut W, h: &mut H) -> Result<usize, StorageError>
     where
         W: Write,
         H: Hasher,
@@ -638,7 +663,7 @@ impl BlockSummary<f64> for FloatBlockSummary {
             h.write(&buf[..n]);
         }
 
-        Ok(total as u64)
+        Ok(total)
     }
 }
 
@@ -712,7 +737,7 @@ impl BlockSummary<i64> for IntegerBlockSummary {
 
     /// `write_to` serialises the summary to the provided writer and calculates a
     /// checksum. The number of bytes written is returned.
-    fn write_to<W, H>(&self, w: &mut W, h: &mut H) -> Result<u64, StorageError>
+    fn write_to<W, H>(&self, w: &mut W, h: &mut H) -> Result<usize, StorageError>
     where
         W: Write,
         H: Hasher,
@@ -736,8 +761,11 @@ impl BlockSummary<i64> for IntegerBlockSummary {
         //
         // TODO(edd): handle this.. In practice we should not need more than
         // 65,535 bytes to represent a BigInt...
-        assert!(sum_bytes.len() <= u16::MAX as usize);
-        let len: u16 = sum_bytes.len() as u16; // ensure length written two bytes.
+        // ensure length written two bytes.
+        let len: u16 = sum_bytes
+            .len()
+            .try_into()
+            .expect("sum_bytes.len() did not fit in u16");
         let len_bytes = len.to_be_bytes();
         total += w.write(&len_bytes)?;
         h.write(&len_bytes);
@@ -755,7 +783,7 @@ impl BlockSummary<i64> for IntegerBlockSummary {
             h.write(&buf[..n]);
         }
 
-        Ok(total as u64)
+        Ok(total)
     }
 }
 
@@ -810,13 +838,13 @@ impl BlockSummary<bool> for BoolBlockSummary {
 
     /// `write_to` serialises the summary to the provided writer and calculates a
     /// checksum. The number of bytes written is returned.
-    fn write_to<W: Write, H: Hasher>(&self, w: &mut W, h: &mut H) -> Result<u64, StorageError> {
+    fn write_to<W: Write, H: Hasher>(&self, w: &mut W, h: &mut H) -> Result<usize, StorageError> {
         let mut buf = [0; 10]; // Maximum varint size for 64-bit number.
         let n = self.count.encode_var(&mut buf);
         let total = w.write(&buf[..n])?;
         h.write(&buf[..n]);
 
-        Ok(total as u64)
+        Ok(total)
     }
 }
 
@@ -871,13 +899,13 @@ impl<'a> BlockSummary<&'a str> for StringBlockSummary<'a> {
 
     /// `write_to` serialises the summary to the provided writer and calculates a
     /// checksum. The number of bytes written is returned.
-    fn write_to<W: Write, H: Hasher>(&self, w: &mut W, h: &mut H) -> Result<u64, StorageError> {
+    fn write_to<W: Write, H: Hasher>(&self, w: &mut W, h: &mut H) -> Result<usize, StorageError> {
         let mut buf = [0; 10]; // Maximum varint size for 64-bit number.
         let n = self.count.encode_var(&mut buf);
         let total = w.write(&buf[..n])?;
         h.write(&buf[..n]);
 
-        Ok(total as u64)
+        Ok(total)
     }
 }
 
@@ -951,7 +979,7 @@ impl BlockSummary<u64> for UnsignedBlockSummary {
 
     /// `write_to` serialises the summary to the provided writer and calculates a
     /// checksum. The number of bytes written is returned.
-    fn write_to<W, H>(&self, w: &mut W, h: &mut H) -> Result<u64, StorageError>
+    fn write_to<W, H>(&self, w: &mut W, h: &mut H) -> Result<usize, StorageError>
     where
         W: Write,
         H: Hasher,
@@ -969,8 +997,12 @@ impl BlockSummary<u64> for UnsignedBlockSummary {
         // TODO(edd): handle this.. In practice we should not need more than
         // 65,535 bytes to represent a BigUint...
         let sum_bytes = self.sum.to_bytes_be();
-        assert!(sum_bytes.len() <= u16::MAX as usize); // ensure length can be written two bytes.
-        let sum_bytes_len_bytes = (sum_bytes.len() as u16).to_be_bytes();
+        // ensure length can be written two bytes.
+        let sum_bytes_len: u16 = sum_bytes
+            .len()
+            .try_into()
+            .expect("sum_bytes.len() did not fit in u16");
+        let sum_bytes_len_bytes = sum_bytes_len.to_be_bytes();
         total += w.write(&sum_bytes_len_bytes)?;
         h.write(&sum_bytes_len_bytes);
 
@@ -987,7 +1019,7 @@ impl BlockSummary<u64> for UnsignedBlockSummary {
             h.write(&buf[..n]);
         }
 
-        Ok(total as u64)
+        Ok(total)
     }
 }
 
@@ -1297,6 +1329,6 @@ mod test {
         exp.extend(data_buf.get_ref());
 
         assert_eq!(buf.get_ref(), &exp);
-        assert_eq!(n, buf.get_ref().len() as u64);
+        assert_eq!(n, buf.get_ref().len());
     }
 }
