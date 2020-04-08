@@ -885,17 +885,29 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
 		printer.Render()
 	}
 
-	tablePrintFn := b.tablePrinterGen()
 	if teles := diff.Telegrafs; len(teles) > 0 {
-		headers := []string{"New", "Name", "Description"}
-		tablePrintFn("TELEGRAF CONFIGS", headers, len(teles), func(i int) []string {
-			t := teles[i]
-			return []string{
-				boolDiff(true),
-				t.Name,
-				green(t.Description),
+		printer := diffPrinterGen("Telegraf Configurations", []string{"Description"})
+		appendValues := func(id pkger.SafeID, pkgName string, v influxdb.TelegrafConfig) []string {
+			return []string{pkgName, id.String(), v.Name, v.Description}
+		}
+
+		for _, e := range teles {
+			var oldRow []string
+			if e.Old != nil {
+				oldRow = appendValues(e.ID, e.PkgName, *e.Old)
 			}
-		})
+
+			newRow := appendValues(e.ID, e.PkgName, e.New)
+			switch {
+			case e.IsNew():
+				printer.AppendDiff(nil, newRow)
+			case e.Remove:
+				printer.AppendDiff(oldRow, nil)
+			default:
+				printer.AppendDiff(oldRow, newRow)
+			}
+		}
+		printer.Render()
 	}
 
 	if tasks := diff.Tasks; len(tasks) > 0 {
@@ -905,7 +917,7 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
 			if v.Cron == "" {
 				timing = fmt.Sprintf("every: %s offset: %s", v.Every, v.Offset)
 			}
-			return []string{pkgName, id.String(), v.Description, timing}
+			return []string{pkgName, id.String(), v.Name, v.Description, timing}
 		}
 
 		for _, e := range tasks {
@@ -957,6 +969,7 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
 		printer.Render()
 	}
 
+	tablePrintFn := b.tablePrinterGen()
 	if len(diff.LabelMappings) > 0 {
 		headers := []string{"New", "Resource Type", "Resource Name", "Resource ID", "Label Name", "Label ID"}
 		tablePrintFn("LABEL MAPPINGS", headers, len(diff.LabelMappings), func(i int) []string {
