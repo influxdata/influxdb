@@ -8,6 +8,7 @@ import {
   Label,
   Template,
   Bucket,
+  Telegraf,
 } from 'src/types'
 
 export type DashboardSortKey = keyof Dashboard | 'meta.updatedAt'
@@ -16,6 +17,7 @@ export type VariableSortKey = keyof Variable | 'arguments.type'
 export type LabelSortKey = keyof Label | 'properties.description'
 export type TemplateSortKey = keyof Template | 'meta.name' | 'meta.description'
 export type BucketSortKey = keyof Bucket | 'retentionRules[0].everySeconds'
+export type TelegrafSortKey = keyof Telegraf
 
 export type SortKey =
   | DashboardSortKey
@@ -24,6 +26,7 @@ export type SortKey =
   | LabelSortKey
   | TemplateSortKey
   | BucketSortKey
+  | TelegrafSortKey
 
 export interface SortDropdownItem {
   label: string
@@ -218,6 +221,33 @@ export const generateSortItems = (
         {
           label: 'Retention (Descending)',
           sortKey: 'retentionRules[0].everySeconds',
+          sortType: SortTypes.String,
+          sortDirection: Sort.Descending,
+        },
+      ]
+    case ResourceType.Telegrafs:
+      return [
+        {
+          label: 'Name (A → Z)',
+          sortKey: 'name',
+          sortType: SortTypes.String,
+          sortDirection: Sort.Ascending,
+        },
+        {
+          label: 'Name (Z → A)',
+          sortKey: 'name',
+          sortType: SortTypes.String,
+          sortDirection: Sort.Descending,
+        },
+        {
+          label: 'Description (Ascending)',
+          sortKey: 'description',
+          sortType: SortTypes.String,
+          sortDirection: Sort.Ascending,
+        },
+        {
+          label: 'Description (Descending)',
+          sortKey: 'description',
           sortType: SortTypes.String,
           sortDirection: Sort.Descending,
         },

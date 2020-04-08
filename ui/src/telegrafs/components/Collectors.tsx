@@ -22,6 +22,7 @@ import {FilteredList} from 'src/telegrafs/components/CollectorList'
 import TelegrafExplainer from 'src/telegrafs/components/TelegrafExplainer'
 import NoBucketsWarning from 'src/buckets/components/NoBucketsWarning'
 import GetResources from 'src/resources/components/GetResources'
+import ResourceSortDropdown from 'src/shared/components/resource_sort_dropdown/ResourceSortDropdown'
 
 // Actions
 import {updateTelegraf, deleteTelegraf} from 'src/telegrafs/actions/thunks'
@@ -30,13 +31,14 @@ import {updateTelegraf, deleteTelegraf} from 'src/telegrafs/actions/thunks'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
-import {Telegraf, OverlayState, AppState, Bucket, ResourceType} from 'src/types'
+import {OverlayState, AppState, Bucket, ResourceType} from 'src/types'
 import {
   setTelegrafConfigID,
   setTelegrafConfigName,
   clearDataLoaders,
 } from 'src/dataLoaders/actions/dataLoaders'
 import {SortTypes} from 'src/shared/utils/sort'
+import {SortKey} from 'src/shared/components/resource_sort_dropdown/ResourceSortDropdown'
 
 // Selectors
 import {getOrg} from 'src/organizations/selectors'
@@ -68,8 +70,6 @@ interface State {
   sortType: SortTypes
 }
 
-type SortKey = keyof Telegraf
-
 @ErrorHandling
 class Collectors extends PureComponent<Props, State> {
   constructor(props: Props) {
@@ -91,11 +91,20 @@ class Collectors extends PureComponent<Props, State> {
     const {searchTerm, sortKey, sortDirection, sortType} = this.state
 
     const collecorsLeftHeaderItems = (
-      <SearchWidget
-        placeholderText="Filter telegraf configurations..."
-        searchTerm={searchTerm}
-        onSearch={this.handleFilterChange}
-      />
+      <>
+        <SearchWidget
+          placeholderText="Filter telegraf configurations..."
+          searchTerm={searchTerm}
+          onSearch={this.handleFilterChange}
+        />
+        <ResourceSortDropdown
+          resourceType={ResourceType.Telegrafs}
+          sortDirection={sortDirection}
+          sortKey={sortKey}
+          sortType={sortType}
+          onSelect={this.handleSort}
+        />
+      </>
     )
 
     const collecorsRightHeaderItems = (
@@ -137,7 +146,6 @@ class Collectors extends PureComponent<Props, State> {
                   sortKey={sortKey}
                   sortDirection={sortDirection}
                   sortType={sortType}
-                  onClickColumn={this.handleClickColumn}
                 />
               </GetResources>
             </Grid.Column>
@@ -156,9 +164,12 @@ class Collectors extends PureComponent<Props, State> {
     )
   }
 
-  private handleClickColumn = (nextSort: Sort, sortKey: SortKey) => {
-    const sortType = SortTypes.String
-    this.setState({sortKey, sortDirection: nextSort, sortType})
+  private handleSort = (
+    sortKey: SortKey,
+    sortDirection: Sort,
+    sortType: SortTypes
+  ): void => {
+    this.setState({sortKey, sortDirection, sortType})
   }
 
   private get hasNoBuckets(): boolean {
