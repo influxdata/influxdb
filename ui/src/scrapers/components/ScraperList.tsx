@@ -24,7 +24,6 @@ interface Props {
   sortKey: string
   sortDirection: Sort
   sortType: SortTypes
-  onClickColumn: (nextSort: Sort, sortKey: SortKey) => void
 }
 
 export default class ScraperList extends PureComponent<Props> {
@@ -33,41 +32,15 @@ export default class ScraperList extends PureComponent<Props> {
   )
 
   public render() {
-    const {emptyState, sortKey, sortDirection, onClickColumn} = this.props
+    const {emptyState} = this.props
 
     return (
-      <>
-        <ResourceList>
-          <ResourceList.Header>
-            <ResourceList.Sorter
-              name={this.headerKeys[0]}
-              sortKey={this.headerKeys[0]}
-              sort={sortKey === this.headerKeys[0] ? sortDirection : Sort.None}
-              onClick={onClickColumn}
-            />
-            <ResourceList.Sorter
-              name={this.headerKeys[1]}
-              sortKey={this.headerKeys[1]}
-              sort={sortKey === this.headerKeys[1] ? sortDirection : Sort.None}
-              onClick={onClickColumn}
-            />
-            <ResourceList.Sorter
-              name={this.headerKeys[2]}
-              sortKey={this.headerKeys[2]}
-              sort={sortKey === this.headerKeys[2] ? sortDirection : Sort.None}
-              onClick={onClickColumn}
-            />
-          </ResourceList.Header>
-          <ResourceList.Body emptyState={emptyState}>
-            {this.scrapersList}
-          </ResourceList.Body>
-        </ResourceList>
-      </>
+      <ResourceList>
+        <ResourceList.Body emptyState={emptyState}>
+          {this.scrapersList}
+        </ResourceList.Body>
+      </ResourceList>
     )
-  }
-
-  private get headerKeys(): SortKey[] {
-    return ['name', 'url', 'bucket']
   }
 
   public get scrapersList(): JSX.Element[] {

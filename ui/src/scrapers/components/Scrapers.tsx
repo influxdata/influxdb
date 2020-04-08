@@ -11,6 +11,7 @@ import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader
 import ScraperList from 'src/scrapers/components/ScraperList'
 import NoBucketsWarning from 'src/buckets/components/NoBucketsWarning'
 import FilterList from 'src/shared/components/FilterList'
+import ResourceSortDropdown from 'src/shared/components/resource_sort_dropdown/ResourceSortDropdown'
 
 // Actions
 import {updateScraper, deleteScraper} from 'src/scrapers/actions/thunks'
@@ -27,6 +28,7 @@ import {
   ComponentStatus,
 } from '@influxdata/clockface'
 import {AppState, Bucket, Scraper, Organization, ResourceType} from 'src/types'
+import {SortKey} from 'src/shared/components/resource_sort_dropdown/ResourceSortDropdown'
 
 // Selectors
 import {getOrg} from 'src/organizations/selectors'
@@ -52,8 +54,6 @@ interface State {
   sortType: SortTypes
 }
 
-type SortKey = keyof Scraper
-
 const FilterScrapers = FilterList<Scraper>()
 
 @ErrorHandling
@@ -73,16 +73,27 @@ class Scrapers extends PureComponent<Props, State> {
     const {searchTerm, sortKey, sortDirection, sortType} = this.state
     const {scrapers} = this.props
 
+    const leftHeaderItems = (
+      <>
+        <SearchWidget
+          placeholderText="Filter scrapers..."
+          searchTerm={searchTerm}
+          onSearch={this.handleFilterChange}
+        />
+        <ResourceSortDropdown
+          resourceType={ResourceType.Scrapers}
+          sortKey={sortKey}
+          sortDirection={sortDirection}
+          sortType={sortType}
+          onSelect={this.handleSort}
+        />
+      </>
+    )
+
     return (
       <>
         <TabbedPageHeader
-          childrenLeft={
-            <SearchWidget
-              placeholderText="Filter scrapers..."
-              searchTerm={searchTerm}
-              onSearch={this.handleFilterChange}
-            />
-          }
+          childrenLeft={leftHeaderItems}
           childrenRight={this.createScraperButton(
             'create-scraper-button-header'
           )}
@@ -102,7 +113,6 @@ class Scrapers extends PureComponent<Props, State> {
               sortKey={sortKey}
               sortDirection={sortDirection}
               sortType={sortType}
-              onClickColumn={this.handleClickColumn}
             />
           )}
         </FilterScrapers>
@@ -110,9 +120,12 @@ class Scrapers extends PureComponent<Props, State> {
     )
   }
 
-  private handleClickColumn = (nextSort: Sort, sortKey: SortKey) => {
-    const sortType = SortTypes.String
-    this.setState({sortKey, sortDirection: nextSort, sortType})
+  private handleSort = (
+    sortKey: SortKey,
+    sortDirection: Sort,
+    sortType: SortTypes
+  ): void => {
+    this.setState({sortKey, sortDirection, sortType})
   }
 
   private get hasNoBuckets(): boolean {

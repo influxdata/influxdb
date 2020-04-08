@@ -9,6 +9,7 @@ import {
   Template,
   Bucket,
   Telegraf,
+  Scraper,
 } from 'src/types'
 
 export type DashboardSortKey = keyof Dashboard | 'meta.updatedAt'
@@ -18,6 +19,7 @@ export type LabelSortKey = keyof Label | 'properties.description'
 export type TemplateSortKey = keyof Template | 'meta.name' | 'meta.description'
 export type BucketSortKey = keyof Bucket | 'retentionRules[0].everySeconds'
 export type TelegrafSortKey = keyof Telegraf
+export type ScraperSortKey = keyof Scraper
 
 export type SortKey =
   | DashboardSortKey
@@ -27,6 +29,7 @@ export type SortKey =
   | TemplateSortKey
   | BucketSortKey
   | TelegrafSortKey
+  | ScraperSortKey
 
 export interface SortDropdownItem {
   label: string
@@ -248,6 +251,45 @@ export const generateSortItems = (
         {
           label: 'Description (Descending)',
           sortKey: 'description',
+          sortType: SortTypes.String,
+          sortDirection: Sort.Descending,
+        },
+      ]
+    case ResourceType.Scrapers:
+      return [
+        {
+          label: 'Name (A → Z)',
+          sortKey: 'name',
+          sortType: SortTypes.String,
+          sortDirection: Sort.Ascending,
+        },
+        {
+          label: 'Name (Z → A)',
+          sortKey: 'name',
+          sortType: SortTypes.String,
+          sortDirection: Sort.Descending,
+        },
+        {
+          label: 'URL (Ascending)',
+          sortKey: 'url',
+          sortType: SortTypes.String,
+          sortDirection: Sort.Ascending,
+        },
+        {
+          label: 'URL (Descending)',
+          sortKey: 'url',
+          sortType: SortTypes.String,
+          sortDirection: Sort.Descending,
+        },
+        {
+          label: 'Bucket (Ascending)',
+          sortKey: 'bucket',
+          sortType: SortTypes.String,
+          sortDirection: Sort.Ascending,
+        },
+        {
+          label: 'Bucket (Descending)',
+          sortKey: 'bucket',
           sortType: SortTypes.String,
           sortDirection: Sort.Descending,
         },
