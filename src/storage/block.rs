@@ -649,7 +649,7 @@ impl BlockSummary<f64> for FloatBlockSummary {
         W: Write,
         H: Hasher,
     {
-        let mut total: usize = 0;
+        let mut total = 0;
         let mut buf = [0; 10]; // Maximum varint size for 64-bit number.
         let n = self.count.encode_var(&mut buf);
         w.write(&buf[..n])?;
@@ -741,7 +741,7 @@ impl BlockSummary<i64> for IntegerBlockSummary {
         W: Write,
         H: Hasher,
     {
-        let mut total: usize = 0;
+        let mut total = 0;
 
         let mut buf = [0; 10]; // Maximum varint size for 64-bit number.
         let n = self.count.encode_var(&mut buf);
@@ -982,7 +982,7 @@ impl BlockSummary<u64> for UnsignedBlockSummary {
         W: Write,
         H: Hasher,
     {
-        let mut total: usize = 0;
+        let mut total = 0;
 
         let mut buf = [0; 10]; // Maximum varint size for 64-bit number.
         let n = self.count.encode_var(&mut buf);
