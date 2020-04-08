@@ -1,5 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
+import classnames from 'classnames'
 
 // Components
 import {
@@ -26,9 +27,20 @@ export default class LabelCard extends PureComponent<Props> {
   public render() {
     const {label, onDelete} = this.props
 
+    const labelHasDescription = !!label.properties.description
+
+    const descriptionClassName = classnames('label-card--description', {
+      'label-card--description__untitled': !labelHasDescription,
+    })
+
+    const description = labelHasDescription
+      ? label.properties.description
+      : 'No description'
+
     return (
       <>
         <ResourceCard
+          className="label-card"
           testID="label-card"
           contextMenu={<LabelContextMenu label={label} onDelete={onDelete} />}
           name={
@@ -41,8 +53,9 @@ export default class LabelCard extends PureComponent<Props> {
               onClick={this.handleClick}
             />
           }
-          metaData={[<>Description: {label.properties.description}</>]}
-        />
+        >
+          <p className={descriptionClassName}>{description}</p>
+        </ResourceCard>
       </>
     )
   }

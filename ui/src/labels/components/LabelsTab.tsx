@@ -9,6 +9,7 @@ import CreateLabelOverlay from 'src/labels/components/CreateLabelOverlay'
 import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'
 import LabelList from 'src/labels/components/LabelList'
 import FilterList from 'src/shared/components/FilterList'
+import ResourceSortDropdown from 'src/shared/components/resource_sort_dropdown/ResourceSortDropdown'
 
 // Actions
 import {createLabel, updateLabel, deleteLabel} from 'src/labels/actions/thunks'
@@ -28,6 +29,7 @@ import {
   Sort,
 } from '@influxdata/clockface'
 import {SortTypes} from 'src/shared/utils/sort'
+import {SortKey} from 'src/shared/components/resource_sort_dropdown/ResourceSortDropdown'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -51,8 +53,6 @@ interface DispatchProps {
 }
 
 type Props = DispatchProps & StateProps
-
-type SortKey = keyof Label
 
 const FilterLabels = FilterList<Label>()
 @ErrorHandling
@@ -80,11 +80,20 @@ class Labels extends PureComponent<Props, State> {
     } = this.state
 
     const leftHeaderItems = (
-      <SearchWidget
-        searchTerm={searchTerm}
-        onSearch={this.handleFilterChange}
-        placeholderText="Filter Labels..."
-      />
+      <>
+        <SearchWidget
+          searchTerm={searchTerm}
+          onSearch={this.handleFilterChange}
+          placeholderText="Filter Labels..."
+        />
+        <ResourceSortDropdown
+          resourceType={ResourceType.Labels}
+          sortKey={sortKey}
+          sortDirection={sortDirection}
+          sortType={sortType}
+          onSelect={this.handleSort}
+        />
+      </>
     )
 
     const rightHeaderItems = (
@@ -117,7 +126,6 @@ class Labels extends PureComponent<Props, State> {
               sortKey={sortKey}
               sortDirection={sortDirection}
               sortType={sortType}
-              onClickColumn={this.handleClickColumn}
             />
           )}
         </FilterLabels>
@@ -131,9 +139,12 @@ class Labels extends PureComponent<Props, State> {
     )
   }
 
-  private handleClickColumn = (nextSort: Sort, sortKey: SortKey) => {
-    const sortType = SortTypes.String
-    this.setState({sortKey, sortDirection: nextSort, sortType})
+  private handleSort = (
+    sortKey: SortKey,
+    sortDirection: Sort,
+    sortType: SortTypes
+  ): void => {
+    this.setState({sortKey, sortDirection, sortType})
   }
 
   private handleShowOverlay = (): void => {

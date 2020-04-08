@@ -1,0 +1,19 @@
+.label-card {
+  .cf-resource-card--contents {
+    flex-direction: row;
+    align-items: center;
+  }
+  .cf-resource-card--row {
+    margin-right: $cf-marg-c;
+    margin-bottom: 0;
+  }
+}
+
+.label-card--description {
+  font-weight: $cf-font-weight--medium;
+}
+
+.label-card--description__untitled {
+  color: $g8-storm;
+  font-style: italic;
+}
