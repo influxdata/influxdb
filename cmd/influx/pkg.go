@@ -693,16 +693,6 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
 		return b.writeJSON(diff)
 	}
 
-	green := color.New(color.FgHiGreen, color.Bold).SprintFunc()
-
-	boolDiff := func(b bool) string {
-		bb := strconv.FormatBool(b)
-		if b {
-			return green(bb)
-		}
-		return bb
-	}
-
 	diffPrinterGen := func(title string, headers []string) *diffPrinter {
 		commonHeaders := []string{"Package Name", "ID", "Resource Name"}
 
@@ -969,20 +959,29 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
 		printer.Render()
 	}
 
-	tablePrintFn := b.tablePrinterGen()
 	if len(diff.LabelMappings) > 0 {
-		headers := []string{"New", "Resource Type", "Resource Name", "Resource ID", "Label Name", "Label ID"}
-		tablePrintFn("LABEL MAPPINGS", headers, len(diff.LabelMappings), func(i int) []string {
-			m := diff.LabelMappings[i]
-			return []string{
-				boolDiff(m.IsNew),
+		printer := newDiffPrinter(b.w, !b.disableColor, !b.disableTableBorders)
+		printer.
+			Title("Label Associations").
+			SetHeaders(
+				"Resource Type",
+				"Resource Name", "Resource ID",
+				"Label Name", "Label ID",
+			)
+
+		for _, m := range diff.LabelMappings {
+			newRow := []string{
 				string(m.ResType),
-				m.ResName,
-				m.ResID.String(),
-				m.LabelName,
-				m.LabelID.String(),
+				m.ResName, m.ResID.String(),
+				m.LabelName, m.LabelID.String(),
 			}
-		})
+			oldRow := newRow
+			if m.IsNew {
+				oldRow = nil
+			}
+			printer.AppendDiff(oldRow, newRow)
+		}
+		printer.Render()
 	}
 
 	return nil
@@ -1127,7 +1126,7 @@ func (b *cmdPkgBuilder) printPkgSummary(sum pkger.Summary) error {
 
 	if mappings := sum.LabelMappings; len(mappings) > 0 {
 		headers := []string{"Resource Type", "Resource Name", "Resource ID", "Label Name", "Label ID"}
-		tablePrintFn("LABEL MAPPINGS", headers, len(mappings), func(i int) []string {
+		tablePrintFn("LABEL ASSOCIATIONS", headers, len(mappings), func(i int) []string {
 			m := mappings[i]
 			return []string{
 				string(m.ResourceType),
