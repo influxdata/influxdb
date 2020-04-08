@@ -791,18 +791,30 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
 		printer.Render()
 	}
 
-	tablePrintFn := b.tablePrinterGen()
 	if dashes := diff.Dashboards; len(dashes) > 0 {
-		headers := []string{"New", "Name", "Description", "Num Charts"}
-		tablePrintFn("DASHBOARDS", headers, len(dashes), func(i int) []string {
-			d := dashes[i]
-			return []string{
-				boolDiff(true),
-				d.Name,
-				green(d.Desc),
-				green(strconv.Itoa(len(d.Charts))),
+		printer := diffPrinterGen("Dashboards", []string{"Description", "Num Charts"})
+
+		appendValues := func(id pkger.SafeID, pkgName string, v pkger.DiffDashboardValues) []string {
+			return []string{pkgName, id.String(), v.Name, v.Desc, strconv.Itoa(len(v.Charts))}
+		}
+
+		for _, d := range dashes {
+			var oldRow []string
+			if d.Old != nil {
+				oldRow = appendValues(d.ID, d.PkgName, *d.Old)
 			}
-		})
+
+			newRow := appendValues(d.ID, d.PkgName, d.New)
+			switch {
+			case d.IsNew():
+				printer.AppendDiff(nil, newRow)
+			case d.Remove:
+				printer.AppendDiff(oldRow, nil)
+			default:
+				printer.AppendDiff(oldRow, newRow)
+			}
+		}
+		printer.Render()
 	}
 
 	if endpoints := diff.NotificationEndpoints; len(endpoints) > 0 {
@@ -873,6 +885,7 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
 		printer.Render()
 	}
 
+	tablePrintFn := b.tablePrinterGen()
 	if teles := diff.Telegrafs; len(teles) > 0 {
 		headers := []string{"New", "Name", "Description"}
 		tablePrintFn("TELEGRAF CONFIGS", headers, len(teles), func(i int) []string {
