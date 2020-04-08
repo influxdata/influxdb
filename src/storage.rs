@@ -4,7 +4,6 @@ use std::fmt;
 use std::io;
 
 pub mod block;
-pub mod config_store;
 pub mod database;
 pub mod memdb;
 pub mod partitioned_store;
