@@ -58,7 +58,7 @@ tmux new-session -t $sess -d
 tmux rename-window -t $sess 'bench'
 tmux send-keys "./target/release/delorean" 'C-m'
 tmux split-window -t $sess -v
-tmux send-keys "sleep 5; $tmp_dir/bin/inch -bucket $bucket_id -org $org_id -host http://localhost:8080" 'C-m'
+tmux send-keys "sleep 5; curl 'http://localhost:8080/api/v2/create_bucket' -d org=$org_id -d bucket=$bucket_id; $tmp_dir/bin/inch -bucket $bucket_id -org $org_id -host http://localhost:8080" 'C-m'
 tmux select-pane -t $sess -R
 tmux split-window -t $sess -v
 tmux send-keys "$tmp_dir/bin/storectl query -b $bucket_id -o $org_id --silent -c 1 --csv-out --expr \"tag0='value0'\""

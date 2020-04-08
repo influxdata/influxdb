@@ -4,7 +4,7 @@
 extern crate log;
 
 use delorean::delorean::{
-    delorean_server::DeloreanServer, storage_server::StorageServer, TimestampRange,
+    Bucket, delorean_server::DeloreanServer, storage_server::StorageServer, TimestampRange,
 };
 use delorean::id::Id;
 use delorean::line_parser;
@@ -227,10 +227,43 @@ async fn read(req: hyper::Request<Body>, app: Arc<App>) -> Result<Option<Body>, 
     Ok(Some(response_body.into()))
 }
 
+#[derive(Deserialize, Debug)]
+struct CreateBucketInfo {
+    org: Id,
+    bucket: Id,
+}
+
+async fn create_bucket(req: hyper::Request<Body>, app: Arc<App>) -> Result<Option<Body>, ApplicationError> {
+    let body = hyper::body::to_bytes(req).await.map_err(|_| StatusCode::BAD_REQUEST)?;
+    let body = str::from_utf8(&body).unwrap();
+
+    let create_bucket_info: CreateBucketInfo =
+        serde_urlencoded::from_str(body).map_err(|_| StatusCode::BAD_REQUEST)?;
+    let bucket_name = create_bucket_info.bucket.to_string();
+
+    let bucket = Bucket {
+            org_id: create_bucket_info.org.into(),
+            id: 0,
+            name: bucket_name,
+            retention: "0".to_string(),
+            posting_list_rollover: 10_000,
+            index_levels: vec![],
+        };
+
+    app
+        .db
+        .create_bucket_if_not_exists(create_bucket_info.org, bucket)
+        .await
+        .map_err(|err| ApplicationError::new(StatusCode::INTERNAL_SERVER_ERROR, format!("error creating bucket: {}", err)))?;
+
+    Ok(None)
+}
+
 async fn service(req: hyper::Request<Body>, app: Arc<App>) -> http::Result<hyper::Response<Body>> {
     let response = match (req.method(), req.uri().path()) {
         (&Method::POST, "/api/v2/write") => write(req, app).await,
         (&Method::GET, "/api/v2/read") => read(req, app).await,
+        (&Method::POST, "/api/v2/create_bucket") => create_bucket(req, app).await,
         _ => Err(ApplicationError::new(
             StatusCode::NOT_FOUND,
             "route not found",
