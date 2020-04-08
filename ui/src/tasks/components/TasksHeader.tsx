@@ -20,7 +20,7 @@ import CloudUpgradeButton from 'src/shared/components/CloudUpgradeButton'
 // Types
 import {LimitStatus} from 'src/cloud/actions/limits'
 import {setSearchTerm as setSearchTermAction} from 'src/tasks/actions/creators'
-import {SortKey} from 'src/shared/components/resource_sort_dropdown/ResourceSortDropdown'
+import {TaskSortKey} from 'src/shared/components/resource_sort_dropdown/generateSortItems'
 import {SortTypes} from 'src/shared/utils/sort'
 import {ResourceType} from 'src/types'
 
@@ -33,10 +33,14 @@ interface Props {
   onImportFromTemplate: () => void
   searchTerm: string
   setSearchTerm: typeof setSearchTermAction
-  sortKey: SortKey
+  sortKey: TaskSortKey
   sortDirection: Sort
   sortType: SortTypes
-  onSort: (sortKey: SortKey, sortDirection: Sort, sortType: SortTypes) => void
+  onSort: (
+    sortKey: TaskSortKey,
+    sortDirection: Sort,
+    sortType: SortTypes
+  ) => void
 }
 
 export default class TasksHeader extends PureComponent<Props> {

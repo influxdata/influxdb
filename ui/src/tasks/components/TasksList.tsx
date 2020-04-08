@@ -13,7 +13,7 @@ import {SortTypes} from 'src/shared/utils/sort'
 import {Sort} from '@influxdata/clockface'
 import {selectTask, addTaskLabel, runTask} from 'src/tasks/actions/thunks'
 import {checkTaskLimits as checkTaskLimitsAction} from 'src/cloud/actions/limits'
-import {SortKey} from 'src/shared/components/resource_sort_dropdown/ResourceSortDropdown'
+import {TaskSortKey} from 'src/shared/components/resource_sort_dropdown/generateSortItems'
 
 // Selectors
 import {getSortedResources} from 'src/shared/utils/sort'
@@ -33,7 +33,7 @@ interface Props {
   onUpdate: (name: string, taskID: string) => void
   filterComponent?: JSX.Element
   onImportTask: () => void
-  sortKey: SortKey
+  sortKey: TaskSortKey
   sortDirection: Sort
   sortType: SortTypes
   checkTaskLimits: typeof checkTaskLimitsAction

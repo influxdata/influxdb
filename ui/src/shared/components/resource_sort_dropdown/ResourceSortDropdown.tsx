@@ -87,7 +87,4 @@ function ResourceSortDropdown({
   )
 }
 
-export {
-  SortKey,
-} from 'src/shared/components/resource_sort_dropdown/generateSortItems'
 export default ResourceSortDropdown

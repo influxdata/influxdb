@@ -13,9 +13,7 @@ import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
 import GetAssetLimits from 'src/cloud/components/GetAssetLimits'
 import AssetLimitAlert from 'src/cloud/components/AssetLimitAlert'
-import ResourceSortDropdown, {
-  SortKey,
-} from 'src/shared/components/resource_sort_dropdown/ResourceSortDropdown'
+import ResourceSortDropdown from 'src/shared/components/resource_sort_dropdown/ResourceSortDropdown'
 import CloudUpgradeButton from 'src/shared/components/CloudUpgradeButton'
 
 // Utils
@@ -30,6 +28,7 @@ import {AppState, ResourceType} from 'src/types'
 import {LimitStatus} from 'src/cloud/actions/limits'
 import {ComponentStatus, Sort} from '@influxdata/clockface'
 import {SortTypes} from 'src/shared/utils/sort'
+import {DashboardSortKey} from 'src/shared/components/resource_sort_dropdown/generateSortItems'
 
 interface DispatchProps {
   createDashboard: typeof createDashboardAction
@@ -50,7 +49,7 @@ interface State {
   searchTerm: string
   sortDirection: Sort
   sortType: SortTypes
-  sortKey: SortKey
+  sortKey: DashboardSortKey
 }
 
 @ErrorHandling
@@ -131,7 +130,7 @@ class DashboardIndex extends PureComponent<Props, State> {
   }
 
   private handleSort = (
-    sortKey: SortKey,
+    sortKey: DashboardSortKey,
     sortDirection: Sort,
     sortType: SortTypes
   ): void => {

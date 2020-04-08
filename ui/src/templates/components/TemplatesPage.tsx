@@ -26,7 +26,7 @@ import {
   IconFont,
   SelectGroup,
 } from '@influxdata/clockface'
-import {SortKey} from 'src/shared/components/resource_sort_dropdown/ResourceSortDropdown'
+import {TemplateSortKey} from 'src/shared/components/resource_sort_dropdown/generateSortItems'
 import {staticTemplates as statics} from 'src/templates/constants/defaultTemplates'
 
 // Selectors
@@ -50,7 +50,7 @@ type Props = OwnProps & StateProps
 
 interface State {
   searchTerm: string
-  sortKey: SortKey
+  sortKey: TemplateSortKey
   sortDirection: Sort
   sortType: SortTypes
   activeTab: string
@@ -135,7 +135,7 @@ class TemplatesPage extends PureComponent<Props, State> {
   }
 
   private handleSort = (
-    sortKey: SortKey,
+    sortKey: TemplateSortKey,
     sortDirection: Sort,
     sortType: SortTypes
   ): void => {

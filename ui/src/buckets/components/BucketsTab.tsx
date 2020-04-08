@@ -59,7 +59,7 @@ import {
   ResourceType,
   OwnBucket,
 } from 'src/types'
-import {SortKey} from 'src/shared/components/resource_sort_dropdown/ResourceSortDropdown'
+import {BucketSortKey} from 'src/shared/components/resource_sort_dropdown/generateSortItems'
 
 interface StateProps {
   org: Organization
@@ -80,7 +80,7 @@ interface DispatchProps {
 interface State {
   searchTerm: string
   overlayState: OverlayState
-  sortKey: SortKey
+  sortKey: BucketSortKey
   sortDirection: Sort
   sortType: SortTypes
 }
@@ -224,7 +224,7 @@ class BucketsTab extends PureComponent<Props, State> {
   }
 
   private handleSort = (
-    sortKey: SortKey,
+    sortKey: BucketSortKey,
     sortDirection: Sort,
     sortType: SortTypes
   ): void => {

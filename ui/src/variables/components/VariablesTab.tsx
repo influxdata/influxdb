@@ -23,7 +23,7 @@ import {Sort} from '@influxdata/clockface'
 import {AppState, OverlayState, ResourceType, Variable} from 'src/types'
 import {ComponentSize} from '@influxdata/clockface'
 import {SortTypes} from 'src/shared/utils/sort'
-import {SortKey} from 'src/shared/components/resource_sort_dropdown/ResourceSortDropdown'
+import {VariableSortKey} from 'src/shared/components/resource_sort_dropdown/generateSortItems'
 
 interface StateProps {
   variables: Variable[]
@@ -38,7 +38,7 @@ type Props = StateProps & DispatchProps & WithRouterProps
 interface State {
   searchTerm: string
   importOverlayState: OverlayState
-  sortKey: SortKey
+  sortKey: VariableSortKey
   sortDirection: Sort
   sortType: SortTypes
 }
@@ -113,7 +113,7 @@ class VariablesTab extends PureComponent<Props, State> {
   }
 
   private handleSort = (
-    sortKey: SortKey,
+    sortKey: VariableSortKey,
     sortDirection: Sort,
     sortType: SortTypes
   ): void => {

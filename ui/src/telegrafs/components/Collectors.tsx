@@ -38,7 +38,7 @@ import {
   clearDataLoaders,
 } from 'src/dataLoaders/actions/dataLoaders'
 import {SortTypes} from 'src/shared/utils/sort'
-import {SortKey} from 'src/shared/components/resource_sort_dropdown/ResourceSortDropdown'
+import {TelegrafSortKey} from 'src/shared/components/resource_sort_dropdown/generateSortItems'
 
 // Selectors
 import {getOrg} from 'src/organizations/selectors'
@@ -65,7 +65,7 @@ interface State {
   searchTerm: string
   instructionsOverlay: OverlayState
   collectorID?: string
-  sortKey: SortKey
+  sortKey: TelegrafSortKey
   sortDirection: Sort
   sortType: SortTypes
 }
@@ -165,7 +165,7 @@ class Collectors extends PureComponent<Props, State> {
   }
 
   private handleSort = (
-    sortKey: SortKey,
+    sortKey: TelegrafSortKey,
     sortDirection: Sort,
     sortType: SortTypes
   ): void => {

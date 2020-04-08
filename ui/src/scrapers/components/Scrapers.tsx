@@ -28,7 +28,7 @@ import {
   ComponentStatus,
 } from '@influxdata/clockface'
 import {AppState, Bucket, Scraper, Organization, ResourceType} from 'src/types'
-import {SortKey} from 'src/shared/components/resource_sort_dropdown/ResourceSortDropdown'
+import {ScraperSortKey} from 'src/shared/components/resource_sort_dropdown/generateSortItems'
 
 // Selectors
 import {getOrg} from 'src/organizations/selectors'
@@ -49,7 +49,7 @@ type Props = StateProps & DispatchProps & WithRouterProps
 
 interface State {
   searchTerm: string
-  sortKey: SortKey
+  sortKey: ScraperSortKey
   sortDirection: Sort
   sortType: SortTypes
 }
@@ -121,7 +121,7 @@ class Scrapers extends PureComponent<Props, State> {
   }
 
   private handleSort = (
-    sortKey: SortKey,
+    sortKey: ScraperSortKey,
     sortDirection: Sort,
     sortType: SortTypes
   ): void => {

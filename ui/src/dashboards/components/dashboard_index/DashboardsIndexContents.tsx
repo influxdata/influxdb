@@ -18,7 +18,7 @@ import {Dashboard, AppState, RemoteDataState, ResourceType} from 'src/types'
 import {Sort} from '@influxdata/clockface'
 import {getAll} from 'src/resources/selectors'
 import {SortTypes} from 'src/shared/utils/sort'
-import {SortKey} from 'src/shared/components/resource_sort_dropdown/ResourceSortDropdown'
+import {DashboardSortKey} from 'src/shared/components/resource_sort_dropdown/generateSortItems'
 
 interface OwnProps {
   onFilterChange: (searchTerm: string) => void
@@ -26,7 +26,7 @@ interface OwnProps {
   filterComponent?: JSX.Element
   sortDirection: Sort
   sortType: SortTypes
-  sortKey: SortKey
+  sortKey: DashboardSortKey
 }
 
 interface DispatchProps {

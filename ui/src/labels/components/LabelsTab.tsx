@@ -29,7 +29,7 @@ import {
   Sort,
 } from '@influxdata/clockface'
 import {SortTypes} from 'src/shared/utils/sort'
-import {SortKey} from 'src/shared/components/resource_sort_dropdown/ResourceSortDropdown'
+import {LabelSortKey} from 'src/shared/components/resource_sort_dropdown/generateSortItems'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -41,7 +41,7 @@ interface StateProps {
 interface State {
   searchTerm: string
   isOverlayVisible: boolean
-  sortKey: SortKey
+  sortKey: LabelSortKey
   sortDirection: Sort
   sortType: SortTypes
 }
@@ -140,7 +140,7 @@ class Labels extends PureComponent<Props, State> {
   }
 
   private handleSort = (
-    sortKey: SortKey,
+    sortKey: LabelSortKey,
     sortDirection: Sort,
     sortType: SortTypes
   ): void => {

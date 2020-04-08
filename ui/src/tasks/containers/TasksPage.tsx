@@ -42,7 +42,7 @@ import {InjectedRouter, WithRouterProps} from 'react-router'
 import {Sort} from '@influxdata/clockface'
 import {SortTypes} from 'src/shared/utils/sort'
 import {extractTaskLimits} from 'src/cloud/utils/limits'
-import {SortKey} from 'src/shared/components/resource_sort_dropdown/ResourceSortDropdown'
+import {TaskSortKey} from 'src/shared/components/resource_sort_dropdown/generateSortItems'
 
 // Selectors
 import {getAll} from 'src/resources/selectors'
@@ -80,7 +80,7 @@ type Props = ConnectedDispatchProps &
 interface State {
   isImporting: boolean
   taskLabelsEdit: Task
-  sortKey: SortKey
+  sortKey: TaskSortKey
   sortDirection: Sort
   sortType: SortTypes
 }
@@ -187,7 +187,7 @@ class TasksPage extends PureComponent<Props, State> {
   }
 
   private handleSort = (
-    sortKey: SortKey,
+    sortKey: TaskSortKey,
     sortDirection: Sort,
     sortType: SortTypes
   ) => {

@@ -17,7 +17,7 @@ import {createDashboard, getDashboards} from 'src/dashboards/actions/thunks'
 // Types
 import {AppState, Dashboard, RemoteDataState} from 'src/types'
 import {Sort} from '@influxdata/clockface'
-import {SortKey} from 'src/shared/components/resource_sort_dropdown/ResourceSortDropdown'
+import {DashboardSortKey} from 'src/shared/components/resource_sort_dropdown/generateSortItems'
 import {SortTypes} from 'src/shared/utils/sort'
 
 interface OwnProps {
@@ -26,7 +26,7 @@ interface OwnProps {
   filterComponent?: JSX.Element
   dashboards: Dashboard[]
   sortDirection: Sort
-  sortKey: SortKey
+  sortKey: DashboardSortKey
   sortType: SortTypes
 }
 
