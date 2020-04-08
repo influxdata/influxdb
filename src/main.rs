@@ -4,7 +4,7 @@
 extern crate log;
 
 use delorean::delorean::{
-    Bucket, delorean_server::DeloreanServer, storage_server::StorageServer, TimestampRange,
+    delorean_server::DeloreanServer, storage_server::StorageServer, Bucket, TimestampRange,
 };
 use delorean::id::Id;
 use delorean::line_parser;
@@ -233,8 +233,13 @@ struct CreateBucketInfo {
     bucket: Id,
 }
 
-async fn create_bucket(req: hyper::Request<Body>, app: Arc<App>) -> Result<Option<Body>, ApplicationError> {
-    let body = hyper::body::to_bytes(req).await.map_err(|_| StatusCode::BAD_REQUEST)?;
+async fn create_bucket(
+    req: hyper::Request<Body>,
+    app: Arc<App>,
+) -> Result<Option<Body>, ApplicationError> {
+    let body = hyper::body::to_bytes(req)
+        .await
+        .map_err(|_| StatusCode::BAD_REQUEST)?;
     let body = str::from_utf8(&body).unwrap();
 
     let create_bucket_info: CreateBucketInfo =
@@ -242,19 +247,23 @@ async fn create_bucket(req: hyper::Request<Body>, app: Arc<App>) -> Result<Optio
     let bucket_name = create_bucket_info.bucket.to_string();
 
     let bucket = Bucket {
-            org_id: create_bucket_info.org.into(),
-            id: 0,
-            name: bucket_name,
-            retention: "0".to_string(),
-            posting_list_rollover: 10_000,
-            index_levels: vec![],
-        };
+        org_id: create_bucket_info.org.into(),
+        id: 0,
+        name: bucket_name,
+        retention: "0".to_string(),
+        posting_list_rollover: 10_000,
+        index_levels: vec![],
+    };
 
-    app
-        .db
+    app.db
         .create_bucket_if_not_exists(create_bucket_info.org, bucket)
         .await
-        .map_err(|err| ApplicationError::new(StatusCode::INTERNAL_SERVER_ERROR, format!("error creating bucket: {}", err)))?;
+        .map_err(|err| {
+            ApplicationError::new(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("error creating bucket: {}", err),
+            )
+        })?;
 
     Ok(None)
 }

@@ -114,6 +114,7 @@ async fn read_and_write_data() -> Result<()> {
     let org_id_str = "0000111100001111";
     let org_id = u64::from_str_radix(org_id_str, 16).unwrap();
     let bucket_id_str = "1111000011110000";
+    let bucket_id = u64::from_str_radix(bucket_id_str, 16).unwrap();
 
     let client = reqwest::Client::new();
     let mut grpc_client = DeloreanClient::connect(GRPC_URL_BASE).await?;
@@ -215,17 +216,6 @@ cpu_load_short,server01,us-east,value,{},1234567.891011
     );
 
     let mut storage_client = StorageClient::connect(GRPC_URL_BASE).await?;
-
-    // Get the ID of the bucket that was created with the auto-incrementing in MemDB
-    let get_buckets_request = tonic::Request::new(Organization {
-        id: org_id,
-        name: "test".into(),
-        buckets: vec![],
-    });
-    let get_buckets_response = grpc_client.get_buckets(get_buckets_request).await?;
-    let get_buckets_response = get_buckets_response.into_inner();
-    let org_buckets = get_buckets_response.buckets;
-    let bucket_id = org_buckets.first().unwrap().id;
 
     let partition_id = u64::from(u32::MAX);
     let read_source = ReadSource {
