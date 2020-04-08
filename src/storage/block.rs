@@ -249,7 +249,7 @@ impl Encoder for Vec<bool> {
     }
 }
 
-/// `Hasher` provides a sub-set of the `core::hash::Hasher` API.
+/// `Hasher` provides a sub-set of the `std::hash::Hasher` API.
 ///
 /// Specifically, only raw byte streams can be written, ensuring that the caller
 /// is responsible for specifying the endianness of any values.
@@ -259,7 +259,7 @@ pub trait Hasher {
 
 impl Hasher for crc32fast::Hasher {
     fn write(&mut self, bytes: &[u8]) {
-        core::hash::Hasher::write(self, bytes);
+        std::hash::Hasher::write(self, bytes);
     }
 }
 
