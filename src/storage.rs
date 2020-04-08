@@ -80,10 +80,8 @@ impl error::Error for StorageError {
 
 impl From<io::Error> for StorageError {
     fn from(e: io::Error) -> Self {
-        match e {
-            _ => StorageError {
-                description: String::from("TODO - io error"),
-            },
+        Self {
+            description: format!("TODO - io error: {} ({:?})", e, e),
         }
     }
 }
