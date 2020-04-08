@@ -535,7 +535,7 @@ func TestLauncher_Pkger(t *testing.T) {
 
 		require.Len(t, diff.NotificationRules, 1)
 		// the pkg being run here has a relationship with the rule and the endpoint within the pkg.
-		assert.Equal(t, "http", diff.NotificationRules[0].EndpointType)
+		assert.Equal(t, "http", diff.NotificationRules[0].New.EndpointType)
 
 		require.Len(t, diff.Dashboards, 1)
 		require.Len(t, diff.NotificationEndpoints, 1)
@@ -1089,6 +1089,7 @@ spec:
 				pkger.WithDashboardSVC(l.DashboardService(t)),
 				pkger.WithLabelSVC(l.LabelService(t)),
 				pkger.WithNotificationEndpointSVC(l.NotificationEndpointService(t)),
+				pkger.WithNotificationRuleSVC(l.NotificationRuleService()),
 				pkger.WithTaskSVC(l.TaskServiceKV()),
 				pkger.WithTelegrafSVC(l.TelegrafService(t)),
 				pkger.WithVariableSVC(l.VariableService(t)),
