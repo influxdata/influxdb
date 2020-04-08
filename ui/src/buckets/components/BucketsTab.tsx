@@ -26,6 +26,7 @@ import AssetLimitAlert from 'src/cloud/components/AssetLimitAlert'
 import BucketExplainer from 'src/buckets/components/BucketExplainer'
 import DemoDataDropdown from 'src/buckets/components/DemoDataDropdown'
 import {FeatureFlag} from 'src/shared/utils/featureFlag'
+import ResourceSortDropdown from 'src/shared/components/resource_sort_dropdown/ResourceSortDropdown'
 
 // Actions
 import {
@@ -58,6 +59,7 @@ import {
   ResourceType,
   OwnBucket,
 } from 'src/types'
+import {SortKey} from 'src/shared/components/resource_sort_dropdown/ResourceSortDropdown'
 
 interface StateProps {
   org: Organization
@@ -84,8 +86,6 @@ interface State {
 }
 
 type Props = DispatchProps & StateProps
-
-type SortKey = keyof Bucket
 
 const FilterBuckets = FilterList<Bucket>()
 
@@ -127,11 +127,21 @@ class BucketsTab extends PureComponent<Props, State> {
     } = this.state
 
     const leftHeaderItems = (
-      <SearchWidget
-        placeholderText="Filter buckets..."
-        searchTerm={searchTerm}
-        onSearch={this.handleFilterUpdate}
-      />
+      <>
+        <SearchWidget
+          placeholderText="Filter buckets..."
+          searchTerm={searchTerm}
+          onSearch={this.handleFilterUpdate}
+        />
+        <ResourceSortDropdown
+          resourceType={ResourceType.Buckets}
+          sortDirection={sortDirection}
+          sortKey={sortKey}
+          sortType={sortType}
+          onSelect={this.handleSort}
+          width={238}
+        />
+      </>
     )
 
     const rightHeaderItems = (
@@ -189,7 +199,6 @@ class BucketsTab extends PureComponent<Props, State> {
                     sortKey={sortKey}
                     sortDirection={sortDirection}
                     sortType={sortType}
-                    onClickColumn={this.handleClickColumn}
                   />
                 )}
               </FilterBuckets>
@@ -214,11 +223,12 @@ class BucketsTab extends PureComponent<Props, State> {
     )
   }
 
-  private handleClickColumn = (sortType: SortTypes) => (
-    nextSort: Sort,
-    sortKey: SortKey
-  ) => {
-    this.setState({sortKey, sortDirection: nextSort, sortType})
+  private handleSort = (
+    sortKey: SortKey,
+    sortDirection: Sort,
+    sortType: SortTypes
+  ): void => {
+    this.setState({sortKey, sortDirection, sortType})
   }
 
   private handleDeleteBucket = ({id, name}: OwnBucket) => {

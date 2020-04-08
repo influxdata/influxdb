@@ -22,6 +22,7 @@ interface ComponentProps {
   sortKey: SortKey
   sortType: SortTypes
   onSelect: (sortKey: SortKey, sortDirection: Sort, sortType: SortTypes) => void
+  width?: number
 }
 
 function ResourceSortDropdown({
@@ -30,6 +31,7 @@ function ResourceSortDropdown({
   sortType,
   onSelect,
   resourceType,
+  width = 210,
 }: ComponentProps) {
   const sortDropdownItems = generateSortItems(resourceType)
 
@@ -75,7 +77,7 @@ function ResourceSortDropdown({
     <Dropdown
       button={button}
       menu={menu}
-      style={{flexBasis: '210px', width: '210px'}}
+      style={{flexBasis: `${width}px`, width: `${width}px`}}
     />
   )
 }
