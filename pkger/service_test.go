@@ -337,13 +337,12 @@ func TestService(t *testing.T) {
 
 				require.Len(t, diff.NotificationRules, 1)
 
-				actual := diff.NotificationRules[0]
+				actual := diff.NotificationRules[0].New
 				assert.Equal(t, "rule_0", actual.Name)
 				assert.Equal(t, "desc_0", actual.Description)
 				assert.Equal(t, "http", actual.EndpointType)
 				assert.Equal(t, existing.Name, actual.EndpointName)
 				assert.Equal(t, SafeID(*existing.ID), actual.EndpointID)
-				assert.Equal(t, influxdb.Active, actual.Status)
 				assert.Equal(t, (10 * time.Minute).String(), actual.Every)
 				assert.Equal(t, (30 * time.Second).String(), actual.Offset)
 

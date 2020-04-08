@@ -247,7 +247,7 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 		}
 		endpointObjectName := object.Name()
 
-		mapResource(rule.GetOrgID(), rule.GetID(), KindNotificationRule, ruleToObject(rule, endpointObjectName, r.Name))
+		mapResource(rule.GetOrgID(), rule.GetID(), KindNotificationRule, NotificationRuleToObject(r.Name, endpointObjectName, rule))
 	case r.Kind.is(KindTask):
 		t, err := ex.taskSVC.FindTaskByID(ctx, r.ID)
 		if err != nil {
@@ -806,6 +806,7 @@ func LabelToObject(name string, l influxdb.Label) Object {
 	return o
 }
 
+// NotificationEndpointToObject converts an notification endpoint into a pkger Object.
 func NotificationEndpointToObject(name string, e influxdb.NotificationEndpoint) Object {
 	if name == "" {
 		name = e.GetName()
@@ -845,13 +846,14 @@ func NotificationEndpointToObject(name string, e influxdb.NotificationEndpoint) 
 	return o
 }
 
-func ruleToObject(iRule influxdb.NotificationRule, endpointName, name string) Object {
+// NotificationRuleToObject converts an notification rule into a pkger Object.
+func NotificationRuleToObject(name, endpointPkgName string, iRule influxdb.NotificationRule) Object {
 	if name == "" {
 		name = iRule.GetName()
 	}
 
 	o := newObject(KindNotificationRule, name)
-	o.Spec[fieldNotificationRuleEndpointName] = endpointName
+	o.Spec[fieldNotificationRuleEndpointName] = endpointPkgName
 	assignNonZeroStrings(o.Spec, map[string]string{
 		fieldDescription: iRule.GetDescription(),
 	})
