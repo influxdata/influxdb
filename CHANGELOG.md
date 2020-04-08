@@ -3,6 +3,7 @@
 ### Features
 
 1. [17490](https://github.com/influxdata/influxdb/pull/17490): `influx config -`, to switch back to previous activated configuration
+2. [17595](https://github.com/influxdata/influxdb/pull/17595): Add -f (--file) option to `influx query` and `influx task` commands
 
 ### UI Improvements
 
