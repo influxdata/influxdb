@@ -172,32 +172,32 @@ use std::io::{Seek, SeekFrom, Write};
 use std::{u16, u32};
 
 /// BlockType defines all the possible block types.
-pub trait BlockType<'a>: Sized + Default + Clone + Copy {
+pub trait BlockType: Sized + Default + Clone + Copy {
     const BYTE_MARKER: u8;
     type BlockSummary: BlockSummary<Self>;
 }
 
-impl<'a> BlockType<'a> for f64 {
+impl BlockType for f64 {
     const BYTE_MARKER: u8 = 0;
     type BlockSummary = FloatBlockSummary;
 }
 
-impl<'a> BlockType<'a> for i64 {
+impl BlockType for i64 {
     const BYTE_MARKER: u8 = 1;
     type BlockSummary = IntegerBlockSummary;
 }
 
-impl<'a> BlockType<'a> for bool {
+impl BlockType for bool {
     const BYTE_MARKER: u8 = 2;
     type BlockSummary = BoolBlockSummary;
 }
 
-impl<'a> BlockType<'a> for &'a str {
+impl<'a> BlockType for &'a str {
     const BYTE_MARKER: u8 = 3;
     type BlockSummary = StringBlockSummary<'a>;
 }
 
-impl<'a> BlockType<'a> for u64 {
+impl BlockType for u64 {
     const BYTE_MARKER: u8 = 4;
     type BlockSummary = UnsignedBlockSummary;
 }
@@ -295,9 +295,9 @@ where
 /// any values written in are ordered by time, though the `Block` implementation
 /// will ensure that values added in subsequent calls to `push` are sorted with
 /// respect to the contents of previous calls.
-pub struct Block<'a, T>
+pub struct Block<T>
 where
-    T: BlockType<'a>,
+    T: BlockType,
 {
     // checksum is only calculated when the block is serialised.
     checksum: Option<u32>,
@@ -306,12 +306,12 @@ where
     data: BlockData<T>,
 }
 
-impl<'a, T> Block<'a, T>
+impl<T> Block<T>
 where
-    T: BlockType<'a> + Clone,
+    T: BlockType + Clone,
     Vec<T>: Encoder,
 {
-    pub fn new(id: u32) -> Block<'a, T> {
+    pub fn new(id: u32) -> Block<T> {
         Block {
             checksum: None,
             id,
@@ -1239,7 +1239,7 @@ mod test {
 
     #[test]
     fn block_push_values() {
-        let mut block: Block<'_, f64> = Block::new(22);
+        let mut block: Block<f64> = Block::new(22);
         block.push(&[]); // Pushing nothing is okay.
         assert_eq!(block.values(), vec![]);
         assert!(block.summary().is_none());
