@@ -334,7 +334,7 @@ where
 
     /// `values` returns a sorted copy of values in the block, which are guaranteed
     /// to be sorted by timestamp.
-    pub fn values(&mut self) -> Vec<(i64, T)> {
+    pub fn values(&mut self) -> &[(i64, T)] {
         self.data.values()
     }
 
@@ -502,13 +502,13 @@ where
         self.sorted = true;
     }
 
-    /// `values` returns a sorted copy of values in the block.
-    /// values only sorts the block if necessary.
-    fn values(&mut self) -> Vec<(i64, T)> {
+    /// `values` sorts the values in the block if necessary and returns a slice of the timestamps
+    /// and values in the block.
+    fn values(&mut self) -> &[(i64, T)] {
         if !self.sorted {
             self.sort()
         }
-        self.values.clone()
+        &self.values
     }
 
     /// `write_to` serialises the block to the provided `Writer`, compressing the
@@ -1233,7 +1233,7 @@ mod test {
     fn block_push_values() {
         let mut block: Block<f64> = Block::new(22);
         block.push(&[]); // Pushing nothing is okay.
-        assert_eq!(block.values(), vec![]);
+        assert!(block.values().is_empty());
         assert!(block.summary().is_none());
 
         block.push(&[(100, 33.221)]);
@@ -1241,14 +1241,13 @@ mod test {
         block.push(&[(88, 1000.0)]);
 
         assert_eq!(
+            vec![(88, 1000.0), (100, 33.221), (101, 1.232)],
             block.values(),
-            vec![(88, 1000.0), (100, 33.221), (101, 1.232)]
         );
 
         block.push(&[(1, 22.22), (2, 19.23), (99, -1234.22)]);
 
         assert_eq!(
-            block.values(),
             vec![
                 (1, 22.22),
                 (2, 19.23),
@@ -1256,7 +1255,8 @@ mod test {
                 (99, -1234.22),
                 (100, 33.221),
                 (101, 1.232)
-            ]
+            ],
+            block.values(),
         );
 
         // Check header is updated.
