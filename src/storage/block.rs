@@ -354,12 +354,9 @@ where
         // There are some experimental APIs to do that here: https://doc.rust-lang.org/std/io/trait.Seek.html#method.stream_position
         // But I'm not sure how to proceed in the meantime...
 
-        if self.summary.is_none() {
-            return Err(StorageError {
-                description: "empty block".to_string(),
-            });
-        }
-        let summary = self.summary().as_ref().unwrap(); // unwrapping seems OK since it's not None?
+        let summary = self.summary().as_ref().ok_or_else(|| StorageError {
+            description: "empty block".to_string(),
+        })?;
 
         // hasher is used to compute a checksum, which will be written to the
         // front of the Block when it's serialised.
