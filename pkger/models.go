@@ -623,12 +623,21 @@ func newDiffTask(t *task) DiffTask {
 
 // DiffTelegraf is a diff of an individual telegraf. This resource is always new.
 type DiffTelegraf struct {
-	influxdb.TelegrafConfig
+	DiffIdentifier
+
+	New influxdb.TelegrafConfig
+	Old *influxdb.TelegrafConfig
 }
 
 func newDiffTelegraf(t *telegraf) DiffTelegraf {
 	return DiffTelegraf{
-		TelegrafConfig: t.config,
+		DiffIdentifier: DiffIdentifier{
+			ID:      SafeID(t.ID()),
+			Remove:  t.shouldRemove,
+			PkgName: t.PkgName(),
+		},
+		New: t.config,
+		Old: t.existing,
 	}
 }
 
@@ -2194,9 +2203,14 @@ type telegraf struct {
 	config influxdb.TelegrafConfig
 
 	labels sortedLabels
+
+	existing *influxdb.TelegrafConfig
 }
 
 func (t *telegraf) ID() influxdb.ID {
+	if t.existing != nil {
+		return t.existing.ID
+	}
 	return t.config.ID
 }
 
@@ -2209,7 +2223,7 @@ func (t *telegraf) ResourceType() influxdb.ResourceType {
 }
 
 func (t *telegraf) Exists() bool {
-	return false
+	return t.existing != nil
 }
 
 func (t *telegraf) summarize() SummaryTelegraf {
