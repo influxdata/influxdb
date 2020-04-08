@@ -165,6 +165,7 @@ func (writeFlags *writeFlagsType) createLineReader(args []string) (io.Reader, io
 			_, stringReader := readers[i].(*strings.Reader)
 			if !stringReader { // ignore headers and new lines
 				readers[i] = write.SkipHeaderLinesReader(writeFlags.SkipHeader, readers[i])
+				break
 			}
 		}
 	}
@@ -176,7 +177,8 @@ func (writeFlags *writeFlagsType) createLineReader(args []string) (io.Reader, io
 		csvReader.LogTableColumns(writeFlags.Debug)
 		csvReader.SkipRowOnError(writeFlags.SkipRowOnError)
 		csvReader.Table.IgnoreDataTypeInColumnName(writeFlags.IgnoreDataTypeInColumnName)
-		csvReader.LineNumber = -len(writeFlags.Headers)
+		// change LineNumber to report file/stdin line numbers properly
+		csvReader.LineNumber = writeFlags.SkipHeader - len(writeFlags.Headers)
 		r = csvReader
 	}
 	return r, write.MultiCloser(closers...), nil
