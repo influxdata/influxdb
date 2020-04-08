@@ -217,7 +217,7 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 		if err != nil {
 			return err
 		}
-		mapResource(dash.OrganizationID, dash.ID, KindDashboard, DashboardToObject(*dash, r.Name))
+		mapResource(dash.OrganizationID, dash.ID, KindDashboard, DashboardToObject(r.Name, *dash))
 	case r.Kind.is(KindLabel):
 		l, err := ex.labelSVC.FindLabelByID(ctx, r.ID)
 		if err != nil {
@@ -761,7 +761,7 @@ func convertQueries(iQueries []influxdb.DashboardQuery) queries {
 }
 
 // DashboardToObject converts an influxdb.Dashboard to an Object.
-func DashboardToObject(dash influxdb.Dashboard, name string) Object {
+func DashboardToObject(name string, dash influxdb.Dashboard) Object {
 	if name == "" {
 		name = dash.Name
 	}

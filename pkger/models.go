@@ -275,28 +275,74 @@ func (d DiffCheck) IsNew() bool {
 	return d.Old == nil
 }
 
-// DiffDashboard is a diff of an individual dashboard. This resource is always new.
-type DiffDashboard struct {
+// DiffDashboardValues are values for a dashboard.
+type DiffDashboardValues struct {
 	Name   string      `json:"name"`
 	Desc   string      `json:"description"`
 	Charts []DiffChart `json:"charts"`
 }
 
+// DiffDashboard is a diff of an individual dashboard.
+type DiffDashboard struct {
+	ID      SafeID               `json:"id"`
+	Remove  bool                 `json:"remove"`
+	PkgName string               `json:"pkgName"`
+	New     DiffDashboardValues  `json:"new"`
+	Old     *DiffDashboardValues `json:"old"`
+}
+
 func newDiffDashboard(d *dashboard) DiffDashboard {
 	diff := DiffDashboard{
-		Name: d.Name(),
-		Desc: d.Description,
+		ID:      SafeID(d.ID()),
+		PkgName: d.PkgName(),
+		New: DiffDashboardValues{
+			Name:   d.Name(),
+			Desc:   d.Description,
+			Charts: make([]DiffChart, 0, len(d.Charts)),
+		},
 	}
 
 	for _, c := range d.Charts {
-		diff.Charts = append(diff.Charts, DiffChart{
+		diff.New.Charts = append(diff.New.Charts, DiffChart{
 			Properties: c.properties(),
 			Height:     c.Height,
 			Width:      c.Width,
 		})
 	}
 
+	if !d.Exists() {
+		return diff
+	}
+
+	oldDiff := DiffDashboardValues{
+		Name:   d.existing.Name,
+		Desc:   d.existing.Description,
+		Charts: make([]DiffChart, 0, len(d.existing.Cells)),
+	}
+
+	for _, c := range d.existing.Cells {
+		var props influxdb.ViewProperties
+		if c.View != nil {
+			props = c.View.Properties
+		}
+
+		oldDiff.Charts = append(oldDiff.Charts, DiffChart{
+			Properties: props,
+			XPosition:  int(c.X),
+			YPosition:  int(c.Y),
+			Height:     int(c.H),
+			Width:      int(c.W),
+		})
+	}
+
+	diff.Old = &oldDiff
+
 	return diff
+}
+
+// IsNew indicates whether the pkg dashboard is new to the platform.
+func (d DiffDashboard) IsNew() bool {
+	return d.Old != nil
 }
 
 // DiffChart is a diff of oa chart. Since all charts are new right now.
@@ -2317,6 +2363,8 @@ type dashboard struct {
 	Charts      []chart
 
 	labels sortedLabels
+
+	existing *influxdb.Dashboard
 }
 
 func (d *dashboard) ID() influxdb.ID {
@@ -2332,7 +2380,7 @@ func (d *dashboard) ResourceType() influxdb.ResourceType {
 }
 
 func (d *dashboard) Exists() bool {
-	return false
+	return d.existing != nil
 }
 
 func (d *dashboard) summarize() SummaryDashboard {
