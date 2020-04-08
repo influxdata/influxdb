@@ -79,22 +79,30 @@ class Labels extends PureComponent<Props, State> {
       sortType,
     } = this.state
 
+    const leftHeaderItems = (
+      <SearchWidget
+        searchTerm={searchTerm}
+        onSearch={this.handleFilterChange}
+        placeholderText="Filter Labels..."
+      />
+    )
+
+    const rightHeaderItems = (
+      <Button
+        text="Create Label"
+        color={ComponentColor.Primary}
+        icon={IconFont.Plus}
+        onClick={this.handleShowOverlay}
+        testID="button-create"
+      />
+    )
+
     return (
       <>
-        <TabbedPageHeader>
-          <SearchWidget
-            searchTerm={searchTerm}
-            onSearch={this.handleFilterChange}
-            placeholderText="Filter Labels..."
-          />
-          <Button
-            text="Create Label"
-            color={ComponentColor.Primary}
-            icon={IconFont.Plus}
-            onClick={this.handleShowOverlay}
-            testID="button-create"
-          />
-        </TabbedPageHeader>
+        <TabbedPageHeader
+          childrenLeft={leftHeaderItems}
+          childrenRight={rightHeaderItems}
+        />
         <FilterLabels
           list={labels}
           searchKeys={['name', 'properties.description']}

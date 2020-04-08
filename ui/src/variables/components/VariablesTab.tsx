@@ -58,20 +58,28 @@ class VariablesTab extends PureComponent<Props, State> {
     const {variables} = this.props
     const {searchTerm, sortKey, sortDirection, sortType} = this.state
 
+    const leftHeaderItems = (
+      <SearchWidget
+        placeholderText="Filter variables..."
+        searchTerm={searchTerm}
+        onSearch={this.handleFilterChange}
+      />
+    )
+
+    const rightHeaderItems = (
+      <AddResourceDropdown
+        resourceName="Variable"
+        onSelectImport={this.handleOpenImportOverlay}
+        onSelectNew={this.handleOpenCreateOverlay}
+      />
+    )
+
     return (
       <>
-        <TabbedPageHeader>
-          <SearchWidget
-            placeholderText="Filter variables..."
-            searchTerm={searchTerm}
-            onSearch={this.handleFilterChange}
-          />
-          <AddResourceDropdown
-            resourceName="Variable"
-            onSelectImport={this.handleOpenImportOverlay}
-            onSelectNew={this.handleOpenCreateOverlay}
-          />
-        </TabbedPageHeader>
+        <TabbedPageHeader
+          childrenLeft={leftHeaderItems}
+          childrenRight={rightHeaderItems}
+        />
         <GetResources resources={[ResourceType.Labels]}>
           <FilterList
             searchTerm={searchTerm}

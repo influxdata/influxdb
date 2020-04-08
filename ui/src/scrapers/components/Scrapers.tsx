@@ -7,7 +7,7 @@ import {isEmpty} from 'lodash'
 // Components
 import {Button, EmptyState, Sort} from '@influxdata/clockface'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
-import SettingsTabbedPageHeader from 'src/settings/components/SettingsTabbedPageHeader'
+import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'
 import ScraperList from 'src/scrapers/components/ScraperList'
 import NoBucketsWarning from 'src/buckets/components/NoBucketsWarning'
 import FilterList from 'src/shared/components/FilterList'
@@ -75,14 +75,18 @@ class Scrapers extends PureComponent<Props, State> {
 
     return (
       <>
-        <SettingsTabbedPageHeader>
-          <SearchWidget
-            placeholderText="Filter scrapers..."
-            searchTerm={searchTerm}
-            onSearch={this.handleFilterChange}
-          />
-          {this.createScraperButton('create-scraper-button-header')}
-        </SettingsTabbedPageHeader>
+        <TabbedPageHeader
+          childrenLeft={
+            <SearchWidget
+              placeholderText="Filter scrapers..."
+              searchTerm={searchTerm}
+              onSearch={this.handleFilterChange}
+            />
+          }
+          childrenRight={this.createScraperButton(
+            'create-scraper-button-header'
+          )}
+        />
         <NoBucketsWarning visible={this.hasNoBuckets} resourceName="Scrapers" />
         <FilterScrapers
           searchTerm={searchTerm}

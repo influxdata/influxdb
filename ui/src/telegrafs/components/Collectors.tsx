@@ -17,7 +17,7 @@ import {
   ComponentStatus,
 } from '@influxdata/clockface'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
-import SettingsTabbedPageHeader from 'src/settings/components/SettingsTabbedPageHeader'
+import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'
 import {FilteredList} from 'src/telegrafs/components/CollectorList'
 import TelegrafExplainer from 'src/telegrafs/components/TelegrafExplainer'
 import NoBucketsWarning from 'src/buckets/components/NoBucketsWarning'
@@ -89,32 +89,39 @@ class Collectors extends PureComponent<Props, State> {
   public render() {
     const {hasTelegrafs} = this.props
     const {searchTerm, sortKey, sortDirection, sortType} = this.state
+
+    const collecorsLeftHeaderItems = (
+      <SearchWidget
+        placeholderText="Filter telegraf configurations..."
+        searchTerm={searchTerm}
+        onSearch={this.handleFilterChange}
+      />
+    )
+
+    const collecorsRightHeaderItems = (
+      <>
+        <Button
+          text="InfluxDB Output Plugin"
+          icon={IconFont.Eye}
+          color={ComponentColor.Secondary}
+          onClick={this.handleJustTheOutput}
+          titleText="Output section of telegraf.conf for V2"
+          testID="button--output-only"
+        />
+        {this.createButton}
+      </>
+    )
+
     return (
       <>
         <NoBucketsWarning
           visible={this.hasNoBuckets}
           resourceName="Telegraf Configurations"
         />
-
-        <SettingsTabbedPageHeader className="telegraf-collectors--header">
-          <SearchWidget
-            placeholderText="Filter telegraf configurations..."
-            searchTerm={searchTerm}
-            onSearch={this.handleFilterChange}
-          />
-          <div className="telegraf-collectors-button-wrap">
-            <Button
-              text="InfluxDB Output Plugin"
-              icon={IconFont.Eye}
-              color={ComponentColor.Secondary}
-              style={{marginRight: '8px'}}
-              onClick={this.handleJustTheOutput}
-              titleText="Output section of telegraf.conf for V2"
-              testID="button--output-only"
-            />
-            {this.createButton}
-          </div>
-        </SettingsTabbedPageHeader>
+        <TabbedPageHeader
+          childrenLeft={collecorsLeftHeaderItems}
+          childrenRight={collecorsRightHeaderItems}
+        />
         <Grid>
           <Grid.Row>
             <Grid.Column

@@ -13,7 +13,7 @@ import StaticTemplatesList, {
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import GetResources from 'src/resources/components/GetResources'
-import SettingsTabbedPageHeader from 'src/settings/components/SettingsTabbedPageHeader'
+import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'
 
 // Types
 import {AppState, ResourceType, TemplateSummary} from 'src/types'
@@ -24,9 +24,6 @@ import {
   ComponentColor,
   IconFont,
   SelectGroup,
-  FlexBox,
-  FlexDirection,
-  ComponentSize,
 } from '@influxdata/clockface'
 
 import {staticTemplates as statics} from 'src/templates/constants/defaultTemplates'
@@ -80,41 +77,47 @@ class TemplatesPage extends PureComponent<Props, State> {
     const {onImport} = this.props
     const {activeTab} = this.state
 
+    const leftHeaderItems = (
+      <>
+        {this.filterComponent}
+        <SelectGroup>
+          <SelectGroup.Option
+            name="template-type"
+            id="static-templates"
+            active={activeTab === 'static-templates'}
+            value="static-templates"
+            onClick={this.handleClickTab}
+            titleText="Static Templates"
+          >
+            Static Templates
+          </SelectGroup.Option>
+          <SelectGroup.Option
+            name="template-type"
+            id="user-templates"
+            active={activeTab === 'user-templates'}
+            value="user-templates"
+            onClick={this.handleClickTab}
+            titleText="User Templates"
+          >
+            User Templates
+          </SelectGroup.Option>
+        </SelectGroup>
+      </>
+    )
+
     return (
       <>
-        <SettingsTabbedPageHeader>
-          <FlexBox direction={FlexDirection.Row} margin={ComponentSize.Small}>
-            {this.filterComponent}
-            <SelectGroup>
-              <SelectGroup.Option
-                name="template-type"
-                id="static-templates"
-                active={activeTab === 'static-templates'}
-                value="static-templates"
-                onClick={this.handleClickTab}
-                titleText="Static Templates"
-              >
-                Static Templates
-              </SelectGroup.Option>
-              <SelectGroup.Option
-                name="template-type"
-                id="user-templates"
-                active={activeTab === 'user-templates'}
-                value="user-templates"
-                onClick={this.handleClickTab}
-                titleText="User Templates"
-              >
-                User Templates
-              </SelectGroup.Option>
-            </SelectGroup>
-          </FlexBox>
-          <Button
-            text="Import Template"
-            icon={IconFont.Plus}
-            color={ComponentColor.Primary}
-            onClick={onImport}
-          />
-        </SettingsTabbedPageHeader>
+        <TabbedPageHeader
+          childrenLeft={leftHeaderItems}
+          childrenRight={
+            <Button
+              text="Import Template"
+              icon={IconFont.Plus}
+              color={ComponentColor.Primary}
+              onClick={onImport}
+            />
+          }
+        />
         {this.templatesList}
       </>
     )

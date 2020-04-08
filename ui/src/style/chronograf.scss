@@ -51,7 +51,6 @@
 @import 'src/buckets/components/Retention.scss';
 @import 'src/buckets/components/BucketAddDataButton.scss';
 @import 'src/buckets/components/NoBucketsWarning.scss';
-@import 'src/telegrafs/components/Collectors.scss';
 @import 'src/telegrafs/components/TelegrafConfigOverlay.scss';
 @import 'src/variables/components/CreateVariableOverlay.scss';
 @import 'src/variables/components/VariableDropdown.scss';
@@ -76,6 +75,7 @@
 @import 'src/me/graphics/CollectorGraphic.scss';
 @import 'src/pageLayout/components/RenamablePageTitle.scss';
 @import 'src/pageLayout/components/OrgSwitcherOverlay.scss';
+@import 'src/pageLayout/components/TabbedPage.scss';
 @import 'src/timeMachine/components/SelectorList.scss';
 @import 'src/timeMachine/components/Queries.scss';
 @import 'src/timeMachine/components/EditorShortcutsTooltip.scss';

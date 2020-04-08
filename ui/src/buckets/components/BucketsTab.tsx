@@ -18,13 +18,14 @@ import {
   Overlay,
 } from '@influxdata/clockface'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
-import SettingsTabbedPageHeader from 'src/settings/components/SettingsTabbedPageHeader'
+import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'
 import FilterList from 'src/shared/components/FilterList'
 import BucketList from 'src/buckets/components/BucketList'
 import CreateBucketOverlay from 'src/buckets/components/CreateBucketOverlay'
 import AssetLimitAlert from 'src/cloud/components/AssetLimitAlert'
 import BucketExplainer from 'src/buckets/components/BucketExplainer'
 import DemoDataDropdown from 'src/buckets/components/DemoDataDropdown'
+import {FeatureFlag} from 'src/shared/utils/featureFlag'
 
 // Actions
 import {
@@ -125,6 +126,36 @@ class BucketsTab extends PureComponent<Props, State> {
       sortType,
     } = this.state
 
+    const leftHeaderItems = (
+      <SearchWidget
+        placeholderText="Filter buckets..."
+        searchTerm={searchTerm}
+        onSearch={this.handleFilterUpdate}
+      />
+    )
+
+    const rightHeaderItems = (
+      <>
+        <FeatureFlag name="demodata">
+          {demoDataBuckets.length > 0 && (
+            <DemoDataDropdown
+              buckets={demoDataBuckets}
+              getMembership={getDemoDataBucketMembership}
+            />
+          )}
+        </FeatureFlag>
+        <Button
+          text="Create Bucket"
+          icon={IconFont.Plus}
+          color={ComponentColor.Primary}
+          onClick={this.handleOpenModal}
+          testID="Create Bucket"
+          status={this.createButtonStatus}
+          titleText={this.createButtonTitleText}
+        />
+      </>
+    )
+
     return (
       <>
         <AssetLimitAlert
@@ -132,30 +163,10 @@ class BucketsTab extends PureComponent<Props, State> {
           limitStatus={limitStatus}
           className="load-data--asset-alert"
         />
-        <SettingsTabbedPageHeader>
-          <SearchWidget
-            placeholderText="Filter buckets..."
-            searchTerm={searchTerm}
-            onSearch={this.handleFilterUpdate}
-          />
-          <div className="buckets-buttons-wrap">
-            {isFlagEnabled('demodata') && demoDataBuckets.length > 0 && (
-              <DemoDataDropdown
-                buckets={demoDataBuckets}
-                getMembership={getDemoDataBucketMembership}
-              />
-            )}
-            <Button
-              text="Create Bucket"
-              icon={IconFont.Plus}
-              color={ComponentColor.Primary}
-              onClick={this.handleOpenModal}
-              testID="Create Bucket"
-              status={this.createButtonStatus}
-              titleText={this.createButtonTitleText}
-            />
-          </div>
-        </SettingsTabbedPageHeader>
+        <TabbedPageHeader
+          childrenLeft={leftHeaderItems}
+          childrenRight={rightHeaderItems}
+        />
         <Grid>
           <Grid.Row>
             <Grid.Column
