@@ -5,7 +5,7 @@ import (
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/metric"
-	"github.com/influxdata/influxdb/v2/kit/prom"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 type UrmMetrics struct {
@@ -18,7 +18,7 @@ type UrmMetrics struct {
 var _ influxdb.UserResourceMappingService = (*UrmMetrics)(nil)
 
 // NewUrmMetrics returns a metrics service middleware for the User Resource Mapping Service.
-func NewUrmMetrics(reg *prom.Registry, s influxdb.UserResourceMappingService, opts ...MetricsOption) *UrmMetrics {
+func NewUrmMetrics(reg prometheus.Registerer, s influxdb.UserResourceMappingService, opts ...MetricsOption) *UrmMetrics {
 	o := applyOpts(opts...)
 	return &UrmMetrics{
 		rec:        metric.New(reg, o.applySuffix("urm")),
