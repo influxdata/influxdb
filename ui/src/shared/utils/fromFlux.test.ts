@@ -199,6 +199,8 @@ there",5
 ,error,reference
 ,query terminated: reached maximum allowed memory limits,576`
 
-    expect(() => fromFlux(CSV)).toThrowError('[576] query terminated: reached maximum allowed memory limits')
+    expect(() => fromFlux(CSV)).toThrowError(
+      '[576] query terminated: reached maximum allowed memory limits'
+    )
   })
 })

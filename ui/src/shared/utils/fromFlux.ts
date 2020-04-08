@@ -108,8 +108,8 @@ export default function fromFlux(csv) {
          [0]: https://github.com/influxdata/influxdb/issues/15017
      */
   const output = {},
-    groupKey = {}
-  let startIdx = 0
+    groupKey = {},
+    names = {}
 
   const chunks = [],
     regerz = /\n\s*\n#/g
@@ -148,7 +148,10 @@ export default function fromFlux(csv) {
       headerLocation++
     }
 
-    if (parsed[headerLocation][1] === 'error' && parsed[headerLocation][2] === 'reference') {
+    if (
+      parsed[headerLocation][1] === 'error' &&
+      parsed[headerLocation][2] === 'reference'
+    ) {
       const ref = parsed[headerLocation + 1][2]
       const msg = parsed[headerLocation + 1][1]
 
@@ -167,6 +170,15 @@ export default function fromFlux(csv) {
 
       colType = annotations['#datatype'][colName]
       colKey = `${colName} (${TO_COLUMN_TYPE[colType]})`
+
+      if (!names.hasOwnProperty(colName)) {
+        names[colName] = {}
+      }
+
+      if (!names[colName].hasOwnProperty(colKey)) {
+        names[colName][colKey] = true
+      }
+
       if (
         annotations['#group'] &&
         annotations['#group'].hasOwnProperty(colName) &&
@@ -211,35 +223,32 @@ export default function fromFlux(csv) {
         stage of parsing is to rename all column keys from the `$NAME ($TYPE)` format
         to just `$NAME` if we can do so safely. That is what this function does.
     */
-  const colNameCounts = Object.values(output)
-    .map((c: any) => {
-      c.data.length = runningTotal
-      return c.name
+  Object.entries(names)
+    .map(([k, v]) => {
+      const colNames = Object.keys(v) as string[]
+
+      colNames.forEach(n => {
+        output[n].data.length = runningTotal
+      })
+
+      return [k as string, colNames]
     })
-    .reduce((prev, curr) => {
-      if (!prev.hasOwnProperty(curr)) {
-        prev[curr] = 0
+    .filter(([_, v]) => v.length === 1)
+    .map(([k, v]) => [k, v[0]])
+    .forEach(e => {
+      const k = e[0] as string
+      const v = e[1] as string
+
+      // TODO to reduce the cost of dumping this on the GC,
+      // we should keep parsed results as an array, with output
+      // keeping a pointer to it's index
+      output[k] = output[v]
+      delete output[v]
+
+      if (groupKey.hasOwnProperty(v)) {
+        groupKey[k] = true
+        delete groupKey[v]
       }
-
-      prev[curr]++
-
-      return prev
-    }, {})
-
-  Object.keys(colNameCounts)
-    .filter(name => colNameCounts[name] === 1)
-    .forEach(uniqueName => {
-      const [columnKey, column] = Object.entries(output).find(
-        ([_, col]) => (col as any).name === uniqueName
-      )
-
-      output[uniqueName] = column
-      if (groupKey.hasOwnProperty(columnKey)) {
-        groupKey[uniqueName] = true
-        delete groupKey[columnKey]
-      }
-
-      delete output[columnKey]
     })
 
   return {
