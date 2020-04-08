@@ -143,6 +143,17 @@ export const createDashboardWithView = (
       throw new Error(resp.data.message)
     }
 
+    const normDash = normalize<Dashboard, DashboardEntities, string>(
+      resp.data,
+      dashboardSchema
+    )
+
+    await dispatch(setDashboard(
+        resp.data.id,
+        RemoteDataState.Done,
+        normDash
+    ))
+
     await dispatch(createCellWithView(resp.data.id, view))
     dispatch(notify(copy.dashboardCreateSuccess()))
   } catch (error) {
