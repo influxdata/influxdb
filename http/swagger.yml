@@ -6351,6 +6351,10 @@ components:
             - flux
         dialect:
           $ref: "#/components/schemas/Dialect"
+        now:
+          description: Specifies the time that should be reported as "now" in the query. Default is the server's now time.
+          type: string
+          format: date-time
     InfluxQLQuery:
       description: Query influx using the InfluxQL language
       type: object
