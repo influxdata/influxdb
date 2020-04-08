@@ -7039,8 +7039,6 @@ components:
           readOnly: true
         retentionRules:
           $ref: "#/components/schemas/RetentionRules"
-        labels:
-          $ref: "#/components/schemas/Labels"
       required: [name, retentionRules]
     Buckets:
       type: object

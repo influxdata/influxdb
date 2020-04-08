@@ -125,16 +125,7 @@ func TestService_handleGetBuckets(t *testing.T) {
       "orgID": "50f7ba1150f7ba11",
 			"type": "user",
       "name": "hello",
-      "retentionRules": [{"type": "expire", "everySeconds": 2}],
-			"labels": [
-        {
-          "id": "fc3dc670a4be9b9a",
-          "name": "label",
-          "properties": {
-            "color": "fff000"
-          }
-        }
-      ]
+      "retentionRules": [{"type": "expire", "everySeconds": 2}]
     },
     {
       "links": {
@@ -152,16 +143,7 @@ func TestService_handleGetBuckets(t *testing.T) {
       "orgID": "7e55e118dbabb1ed",
 			"type": "user",
       "name": "example",
-      "retentionRules": [{"type": "expire", "everySeconds": 86400}],
-      "labels": [
-        {
-          "id": "fc3dc670a4be9b9a",
-          "name": "label",
-          "properties": {
-            "color": "fff000"
-          }
-        }
-      ]
+      "retentionRules": [{"type": "expire", "everySeconds": 86400}]
     }
   ]
 }
@@ -295,8 +277,7 @@ func TestService_handleGetBucket(t *testing.T) {
 		  "orgID": "020f755c3c082000",
 			"type": "user",
 		  "name": "hello",
-		  "retentionRules": [{"type": "expire", "everySeconds": 30}],
-      "labels": []
+		  "retentionRules": [{"type": "expire", "everySeconds": 30}]
 		}
 		`,
 			},
@@ -428,8 +409,7 @@ func TestService_handlePostBucket(t *testing.T) {
   "orgID": "6f626f7274697320",
 	"type": "user",
   "name": "hello",
-  "retentionRules": [],
-  "labels": []
+  "retentionRules": []
 }
 `,
 			},
@@ -684,8 +664,7 @@ func TestService_handlePatchBucket(t *testing.T) {
   "orgID": "020f755c3c082000",
 	"type": "user",
   "name": "example",
-  "retentionRules": [{"type": "expire", "everySeconds": 2}],
-  "labels": []
+  "retentionRules": [{"type": "expire", "everySeconds": 2}]
 }
 `,
 			},
@@ -813,8 +792,7 @@ func TestService_handlePatchBucket(t *testing.T) {
   "orgID": "020f755c3c082000",
 	"type": "user",
   "name": "bucket with no retention",
-  "retentionRules": [],
-  "labels": []
+  "retentionRules": []
 }
 `,
 			},
@@ -873,8 +851,7 @@ func TestService_handlePatchBucket(t *testing.T) {
   "orgID": "020f755c3c082000",
 	"type": "user",
   "name": "b1",
-  "retentionRules": [],
-  "labels": []
+  "retentionRules": []
 }
 `,
 			},

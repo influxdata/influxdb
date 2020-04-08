@@ -119,7 +119,7 @@ func newOnboardingResponse(results *platform.OnboardingResults) *onboardingRespo
 	}
 	return &onboardingResponse{
 		User:         newUserResponse(results.User),
-		Bucket:       NewBucketResponse(results.Bucket, []*platform.Label{}),
+		Bucket:       NewBucketResponse(results.Bucket),
 		Organization: newOrgResponse(*results.Org),
 		Auth:         newAuthResponse(results.Auth, results.Org, results.User, ps),
 	}

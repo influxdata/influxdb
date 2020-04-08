@@ -274,11 +274,10 @@ func newBucketUpdate(pb *influxdb.BucketUpdate) *bucketUpdate {
 
 type bucketResponse struct {
 	bucket
-	Links  map[string]string `json:"links"`
-	Labels []influxdb.Label  `json:"labels"`
+	Links map[string]string `json:"links"`
 }
 
-func NewBucketResponse(b *influxdb.Bucket, labels []*influxdb.Label) *bucketResponse {
+func NewBucketResponse(b *influxdb.Bucket) *bucketResponse {
 	res := &bucketResponse{
 		Links: map[string]string{
 			"labels":  fmt.Sprintf("/api/v2/buckets/%s/labels", b.ID),
@@ -290,11 +289,6 @@ func NewBucketResponse(b *influxdb.Bucket, labels []*influxdb.Label) *bucketResp
 			"write":   fmt.Sprintf("/api/v2/write?org=%s&bucket=%s", b.OrgID, b.ID),
 		},
 		bucket: *newBucket(b),
-		Labels: []influxdb.Label{},
-	}
-
-	for _, l := range labels {
-		res.Labels = append(res.Labels, *l)
 	}
 
 	return res
@@ -308,8 +302,7 @@ type bucketsResponse struct {
 func newBucketsResponse(ctx context.Context, opts influxdb.FindOptions, f influxdb.BucketFilter, bs []*influxdb.Bucket, labelService influxdb.LabelService) *bucketsResponse {
 	rs := make([]*bucketResponse, 0, len(bs))
 	for _, b := range bs {
-		labels, _ := labelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: b.ID, ResourceType: influxdb.BucketsResourceType})
-		rs = append(rs, NewBucketResponse(b, labels))
+		rs = append(rs, NewBucketResponse(b))
 	}
 	return &bucketsResponse{
 		Links:   newPagingLinks(prefixBuckets, opts, f, len(bs)),
@@ -332,7 +325,7 @@ func (h *BucketHandler) handlePostBucket(w http.ResponseWriter, r *http.Request)
 	}
 	h.log.Debug("Bucket created", zap.String("bucket", fmt.Sprint(bucket)))
 
-	h.api.Respond(w, http.StatusCreated, NewBucketResponse(bucket, []*influxdb.Label{}))
+	h.api.Respond(w, http.StatusCreated, NewBucketResponse(bucket))
 }
 
 type postBucketRequest struct {
@@ -405,15 +398,9 @@ func (h *BucketHandler) handleGetBucket(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: b.ID, ResourceType: influxdb.BucketsResourceType})
-	if err != nil {
-		h.api.Err(w, err)
-		return
-	}
-
 	h.log.Debug("Bucket retrieved", zap.String("bucket", fmt.Sprint(b)))
 
-	h.api.Respond(w, http.StatusOK, NewBucketResponse(b, labels))
+	h.api.Respond(w, http.StatusOK, NewBucketResponse(b))
 }
 
 func bucketIDPath(id influxdb.ID) string {
@@ -597,19 +584,9 @@ func (h *BucketHandler) handlePatchBucket(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// TODO: should move to service to encapsulate labels and what any other dependencies. Future
-	// 	work for service definition
-	labels, err := h.LabelService.FindResourceLabels(r.Context(), influxdb.LabelMappingFilter{
-		ResourceID:   b.ID,
-		ResourceType: influxdb.BucketsResourceType,
-	})
-	if err != nil {
-		h.api.Err(w, err)
-		return
-	}
 	h.log.Debug("Bucket updated", zap.String("bucket", fmt.Sprint(b)))
 
-	h.api.Respond(w, http.StatusOK, NewBucketResponse(b, labels))
+	h.api.Respond(w, http.StatusOK, NewBucketResponse(b))
 }
 
 // BucketService connects to Influx via HTTP using tokens to manage buckets
