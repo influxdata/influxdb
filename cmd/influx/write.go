@@ -98,7 +98,7 @@ func (writeFlags *writeFlagsType) dump(args []string) {
 }
 
 // createLineReader uses writeFlags and cli arguments to create a reader that produces line protocol
-func (writeFlags *writeFlagsType) createLineReader(args []string) (io.Reader, io.Closer, error) {
+func (writeFlags *writeFlagsType) createLineReader(cmd *cobra.Command, args []string) (io.Reader, io.Closer, error) {
 	readers := make([]io.Reader, 0, 2*len(writeFlags.Headers)+2*len(writeFlags.Files)+1)
 	closers := make([]io.Closer, 0, len(writeFlags.Files))
 
@@ -149,11 +149,11 @@ func (writeFlags *writeFlagsType) createLineReader(args []string) (io.Reader, io
 	case len(args) == 0:
 		// either --file or stdin when no arguments are supplied
 		if len(writeFlags.Files) == 0 {
-			readers = append(readers, decode(os.Stdin))
+			readers = append(readers, decode(cmd.InOrStdin()))
 		}
 	case args[0] == "-":
 		// "-" also means stdin
-		readers = append(readers, decode(os.Stdin))
+		readers = append(readers, decode(cmd.InOrStdin()))
 	default:
 		readers = append(readers, strings.NewReader(args[0]))
 	}
@@ -243,7 +243,7 @@ func fluxWriteF(cmd *cobra.Command, args []string) error {
 	bucketID, orgID := buckets[0].ID, buckets[0].OrgID
 
 	// create line reader
-	r, closer, err := writeFlags.createLineReader(args)
+	r, closer, err := writeFlags.createLineReader(cmd, args)
 	if closer != nil {
 		defer closer.Close()
 	}
@@ -271,7 +271,7 @@ func fluxWriteF(cmd *cobra.Command, args []string) error {
 func fluxWriteDryrunF(cmd *cobra.Command, args []string) error {
 	writeFlags.dump(args) // print flags when in Debug mode
 	// create line reader
-	r, closer, err := writeFlags.createLineReader(args)
+	r, closer, err := writeFlags.createLineReader(cmd, args)
 	if closer != nil {
 		defer closer.Close()
 	}
@@ -279,7 +279,7 @@ func fluxWriteDryrunF(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	// dry run
-	_, err = io.Copy(os.Stdout, r)
+	_, err = io.Copy(cmd.OutOrStdout(), r)
 	if err != nil {
 		return fmt.Errorf("failed: %v", err)
 	}
