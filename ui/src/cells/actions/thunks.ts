@@ -148,11 +148,7 @@ export const createDashboardWithView = (
       dashboardSchema
     )
 
-    await dispatch(setDashboard(
-        resp.data.id,
-        RemoteDataState.Done,
-        normDash
-    ))
+    await dispatch(setDashboard(resp.data.id, RemoteDataState.Done, normDash))
 
     await dispatch(createCellWithView(resp.data.id, view))
     dispatch(notify(copy.dashboardCreateSuccess()))

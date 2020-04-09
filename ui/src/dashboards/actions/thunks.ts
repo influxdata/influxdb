@@ -95,11 +95,9 @@ export const createDashboard = () => async (
       dashboardSchema
     )
 
-    await dispatch(setDashboard(
-        resp.data.id,
-        RemoteDataState.Done,
-        normDash
-    ))
+    await dispatch(
+      creators.setDashboard(resp.data.id, RemoteDataState.Done, normDash)
+    )
 
     dispatch(push(`/orgs/${org.id}/dashboards/${resp.data.id}`))
     dispatch(checkDashboardLimits())
@@ -160,11 +158,9 @@ export const cloneDashboard = (
       dashboardSchema
     )
 
-    await dispatch(setDashboard(
-        postResp.data.id,
-        RemoteDataState.Done,
-        normDash
-    ))
+    await dispatch(
+      creators.setDashboard(postResp.data.id, RemoteDataState.Done, normDash)
+    )
 
     const pendingLabels = getResp.data.labels.map(l =>
       api.postDashboardsLabel({

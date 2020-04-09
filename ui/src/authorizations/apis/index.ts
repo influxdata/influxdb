@@ -21,7 +21,9 @@ export const createAuthorization = async (
 
 export const getAuth0Config = async (): Promise<Auth0Config> => {
   try {
-    const response = await fetch(`${getAPIBasepath()}/api/v2private/oauth/clientConfig`)
+    const response = await fetch(
+      `${getAPIBasepath()}/api/v2private/oauth/clientConfig`
+    )
     const data = await response.json()
     return data
   } catch (error) {
