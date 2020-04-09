@@ -9,16 +9,24 @@ import * as api from 'src/client'
 
 // Actions
 import {getBuckets} from 'src/buckets/actions/thunks'
+import {getDashboards} from 'src/dashboards/actions/thunks'
 
 // Selectors
 import {getOrg} from 'src/organizations/selectors'
+import {getAll} from 'src/resources/selectors/getAll'
 
 // Constants
 import {DemoDataTemplates, DemoDataDashboards} from 'src/cloud/constants'
 
 // Types
-import {Bucket, RemoteDataState, GetState, DemoBucket} from 'src/types'
-import {getDashboards} from 'src/dashboards/actions/thunks'
+import {
+  Bucket,
+  RemoteDataState,
+  GetState,
+  DemoBucket,
+  Dashboard,
+  ResourceType,
+} from 'src/types'
 
 export type Actions =
   | ReturnType<typeof setDemoDataStatus>
@@ -85,37 +93,20 @@ export const getDemoDataBucketMembership = (bucket: DemoBucket) => async (
     console.error(error)
   }
 }
-
-export const deleteDemoDataBucketMembership = (bucket: DemoBucket) => async (
+export const deleteDemoDataDashboard = (dashboardName: string) => async (
   dispatch,
   getState: GetState
 ) => {
-  const state = getState()
-  const {
-    me: {id: userID},
-  } = state
-  const {id: orgID} = getOrg(state)
-
   try {
-    await deleteDemoDataBucketMembershipAJAX(bucket.id, userID)
-    dispatch(getBuckets())
+    await dispatch(getDashboards())
 
-    const dashboardsResp = await api.getDashboards({query: {orgID}})
+    const updatedState = getState()
 
-    if (dashboardsResp.status !== 200) {
-      throw new Error(dashboardsResp.data.message)
-    }
-
-    const demoDashboardName = DemoDataDashboards[bucket.name]
-    if (!demoDashboardName) {
-      throw new Error(
-        `Could not find dashboard name for demo data bucket ${bucket.name}`
-      )
-    }
-
-    const ddDashboard = dashboardsResp.data.dashboards.find(d => {
-      d.name === demoDashboardName
-    })
+    const ddDashboard = getAll(updatedState, ResourceType.Dashboards).find(
+      d => {
+        d.name === dashboardName
+      }
+    ) as Dashboard
 
     if (ddDashboard) {
       const deleteResp = await api.deleteDashboard({
@@ -124,9 +115,33 @@ export const deleteDemoDataBucketMembership = (bucket: DemoBucket) => async (
       if (deleteResp.status !== 204) {
         throw new Error(deleteResp.data.message)
       }
-      dispatch(getDashboards)
+    }
+  } catch (error) {
+    throw new Error(error)
+  }
+}
+
+export const deleteDemoDataBucketMembership = (bucket: DemoBucket) => async (
+  dispatch,
+  getState: GetState
+) => {
+  const {
+    me: {id: userID},
+  } = getState()
+
+  try {
+    await deleteDemoDataBucketMembershipAJAX(bucket.id, userID)
+    dispatch(getBuckets())
+
+    const demoDashboardName = DemoDataDashboards[bucket.name]
+
+    if (!demoDashboardName) {
+      throw new Error(
+        `Could not find dashboard name for demo data bucket ${bucket.name}`
+      )
     }
 
+    dispatch(deleteDemoDataDashboard(demoDashboardName))
     // TODO: notify for success and error appropriately
   } catch (error) {
     console.error(error)
