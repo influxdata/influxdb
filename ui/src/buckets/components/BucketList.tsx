@@ -11,9 +11,6 @@ import {ResourceList} from '@influxdata/clockface'
 // Selectors
 import {getSortedResources} from 'src/shared/utils/sort'
 
-// Actions
-import {deleteDemoDataBucketMembership} from 'src/cloud/actions/demodata'
-
 // Types
 import {Bucket, OwnBucket} from 'src/types'
 import {Sort} from '@influxdata/clockface'
@@ -32,7 +29,6 @@ interface Props {
   sortKey: string
   sortDirection: Sort
   sortType: SortTypes
-  deleteDemoDataMembership: typeof deleteDemoDataBucketMembership
   onClickColumn: (
     sortType: SortTypes
   ) => (nextSort: Sort, sortKey: SortKey) => void
@@ -95,13 +91,7 @@ class BucketList extends PureComponent<Props & WithRouterProps> {
 
     return sortedBuckets.map(bucket => {
       if (bucket.type === 'demodata') {
-        return (
-          <DemoDataBucketCard
-            key={bucket.id}
-            bucket={bucket}
-            onRemoveBucket={deleteDemoDataBucketMembership}
-          />
-        )
+        return <DemoDataBucketCard key={bucket.id} bucket={bucket} />
       }
       return (
         <BucketCard

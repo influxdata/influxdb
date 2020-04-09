@@ -1,6 +1,7 @@
 // Libraries
 import React, {FC} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
+import {connect} from 'react-redux'
 
 // Components
 import {
@@ -17,20 +18,25 @@ import {
 } from '@influxdata/clockface'
 import {Context} from 'src/clockface'
 
+// Actions
+import {deleteDemoDataBucketMembership} from 'src/cloud/actions/demodata'
+
 // Types
 import {DemoBucket} from 'src/types'
-import {deleteDemoDataBucketMembership} from 'src/cloud/actions/demodata'
+
+interface DispatchProps {
+  removeBucket: typeof deleteDemoDataBucketMembership
+}
 
 interface Props {
   bucket: DemoBucket
-  onRemoveBucket: typeof deleteDemoDataBucketMembership
 }
 
-const DemoDataBucketCard: FC<Props & WithRouterProps> = ({
+const DemoDataBucketCard: FC<Props & WithRouterProps & DispatchProps> = ({
   bucket,
   router,
   params: {orgID},
-  onRemoveBucket,
+  removeBucket,
 }) => {
   const handleNameClick = () => {
     router.push(`/orgs/${orgID}/data-explorer?bucket=${bucket.name}`)
@@ -55,7 +61,7 @@ const DemoDataBucketCard: FC<Props & WithRouterProps> = ({
             >
               <Context.Item
                 label="Confirm"
-                action={onRemoveBucket}
+                action={removeBucket}
                 value={bucket.id}
                 testID={`context-delete-bucket ${bucket.name}`}
               />
@@ -93,4 +99,11 @@ const DemoDataBucketCard: FC<Props & WithRouterProps> = ({
   )
 }
 
-export default withRouter<Props>(DemoDataBucketCard)
+const mdtp: DispatchProps = {
+  removeBucket: deleteDemoDataBucketMembership,
+}
+
+export default connect<{}, DispatchProps, {}>(
+  null,
+  mdtp
+)(withRouter<Props>(DemoDataBucketCard))
