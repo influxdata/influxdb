@@ -68,6 +68,7 @@ export const createCellWithView = (
   clonedCell?: Cell
 ) => async (dispatch, getState: GetState): Promise<void> => {
   const state = getState()
+  let workingView = view
 
   let dashboard = getByID<Dashboard>(
     state,
@@ -103,8 +104,12 @@ export const createCellWithView = (
 
     const cellID = cellResp.data.id
 
+    if (clonedCell) {
+      workingView = {...workingView, name: `${view.name} (Clone)`}
+    }
+
     // Create the view and associate it with the cell
-    const newView = await updateView(dashboardID, cellID, view)
+    const newView = await updateView(dashboardID, cellID, workingView)
 
     const normCell = normalize<Cell, CellEntities, string>(
       {...cellResp.data, dashboardID},
