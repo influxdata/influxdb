@@ -12,6 +12,7 @@
 1. [17651](https://github.com/influxdata/influxdb/pull/17651): Fix check graph font and lines defaulting to black causing graph to be unreadable
 1. [17660](https://github.com/influxdata/influxdb/pull/17660): Fix text wrapping display issue and popover sizing bug when adding labels to a resource
 1. [17670](https://github.com/influxdata/influxdb/pull/17670): Respect the now-time of the compiled query if it's provided
+1. [17692](https://github.com/influxdata/influxdb/pull/17692): Update giraffe to fix spacing between ticks
 
 ### UI Improvements
 
