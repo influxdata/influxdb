@@ -7,10 +7,10 @@ import (
 	"github.com/influxdata/flux/arrow"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/memory"
+	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/models"
 	storage "github.com/influxdata/influxdb/v2/storage/reads"
 	"github.com/influxdata/influxdb/v2/tsdb/cursors"
-	"github.com/pkg/errors"
 )
 {{range .}}
 //
@@ -176,7 +176,13 @@ func (t *{{.name}}GroupTable) advanceCursor() bool {
 		if typedCur, ok := cur.(cursors.{{.Name}}ArrayCursor); !ok {
 			// TODO(sgc): error or skip?
 			cur.Close()
-			t.err = errors.Errorf("expected {{.name}} cursor type, got %T", cur)
+			t.err = &influxdb.Error {
+				Code: influxdb.EInternal,
+				Err: &GroupCursorError {
+					typ: "{{.name}}",
+					cursor: cur,
+				},
+			}
 			return false
 		} else {
 			t.readTags(t.gc.Tags())
