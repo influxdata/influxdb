@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	platform "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/cmd/influx/internal"
 	"github.com/influxdata/influxdb/v2/http"
 	"github.com/influxdata/influxdb/v2/kit/signals"
 	"github.com/influxdata/influxdb/v2/models"
@@ -73,7 +74,7 @@ func cmdWrite(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	opts.mustRegister(cmd)
 	cmd.PersistentFlags().StringVar(&writeFlags.Format, "format", "", "Input format, either lp (Line Protocol) or csv (Comma Separated Values). Defaults to lp unless '.csv' extension")
 	cmd.PersistentFlags().StringArrayVarP(&writeFlags.Files, "file", "f", []string{}, "The path to the file to import")
-	cmd.PersistentFlags().StringArrayVar(&writeFlags.Headers, "header", []string{}, "One or more header lines to prepend to input data")
+	cmd.PersistentFlags().StringArrayVar(&writeFlags.Headers, "header", []string{}, "Header prepends lines to input data; Example --header HEADER1 --header HEADER2")
 	cmd.PersistentFlags().BoolVar(&writeFlags.Debug, "debug", false, "Log CSV columns to stderr before reading data rows")
 	cmd.PersistentFlags().BoolVar(&writeFlags.SkipRowOnError, "skipRowOnError", false, "Log CSV data errors to stderr and continue with CSV processing")
 	cmd.PersistentFlags().IntVar(&writeFlags.SkipHeader, "skipHeader", 0, "Skip the first <n> rows from input data")
@@ -147,8 +148,8 @@ func (writeFlags *writeFlagsType) createLineReader(cmd *cobra.Command, args []st
 	// add stdin or a single argument
 	switch {
 	case len(args) == 0:
-		// either --file or stdin when no arguments are supplied
-		if len(writeFlags.Files) == 0 {
+		// use also stdIn unless it is a terminal
+		if !internal.IsCharacterDevice(cmd.InOrStdin()) {
 			readers = append(readers, decode(cmd.InOrStdin()))
 		}
 	case args[0] == "-":
