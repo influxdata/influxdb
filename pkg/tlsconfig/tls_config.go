@@ -87,6 +87,13 @@ var ciphersMap = map[string]uint16{
 	"TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384": tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
 	"TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305":    tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,
 	"TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305":  tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,
+	// TLS 1.3 cipher suites.
+	"TLS_AES_128_GCM_SHA256":       tls.TLS_AES_128_GCM_SHA256,
+	"TLS_AES_256_GCM_SHA384":       tls.TLS_AES_256_GCM_SHA384,
+	"TLS_CHACHA20_POLY1305_SHA256": tls.TLS_CHACHA20_POLY1305_SHA256,
+	// TLS_FALLBACK_SCSV isn't a standard cipher suite but an indicator
+	// that the client is doing version fallback. See RFC 7507.
+	"TLS_FALLBACK_SCSV": tls.TLS_FALLBACK_SCSV,
 }
 
 func unknownCipher(name string) error {
@@ -108,6 +115,8 @@ var versionsMap = map[string]uint16{
 	"1.1":    tls.VersionTLS11,
 	"TLS1.2": tls.VersionTLS12,
 	"1.2":    tls.VersionTLS12,
+	"TLS1.3": tls.VersionTLS13,
+	"1.3":    tls.VersionTLS13,
 }
 
 func unknownVersion(name string) error {
