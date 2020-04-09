@@ -15,7 +15,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/influxdata/influxdb/write"
+	"github.com/influxdata/influxdb/v2/write"
 	"github.com/stretchr/testify/require"
 )
 
