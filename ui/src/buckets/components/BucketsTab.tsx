@@ -39,6 +39,7 @@ import {
 import {
   getDemoDataBuckets as getDemoDataBucketsAction,
   getDemoDataBucketMembership as getDemoDataBucketMembershipAction,
+  deleteDemoDataBucketMembership as deleteDemoDataBucketMembershipAction,
 } from 'src/cloud/actions/demodata'
 
 // Utils
@@ -73,6 +74,7 @@ interface DispatchProps {
   checkBucketLimits: typeof checkBucketLimitsAction
   getDemoDataBuckets: typeof getDemoDataBucketsAction
   getDemoDataBucketMembership: typeof getDemoDataBucketMembershipAction
+  deleteDemoDataBucketMembership: typeof deleteDemoDataBucketMembershipAction
 }
 
 interface State {
@@ -117,6 +119,7 @@ class BucketsTab extends PureComponent<Props, State> {
       limitStatus,
       demoDataBuckets,
       getDemoDataBucketMembership,
+      deleteDemoDataBucketMembership,
     } = this.props
     const {
       searchTerm,
@@ -180,6 +183,7 @@ class BucketsTab extends PureComponent<Props, State> {
                     sortDirection={sortDirection}
                     sortType={sortType}
                     onClickColumn={this.handleClickColumn}
+                    deleteDemoDataMembership={deleteDemoDataBucketMembership}
                   />
                 )}
               </FilterBuckets>
@@ -290,6 +294,7 @@ const mdtp: DispatchProps = {
   checkBucketLimits: checkBucketLimitsAction,
   getDemoDataBuckets: getDemoDataBucketsAction,
   getDemoDataBucketMembership: getDemoDataBucketMembershipAction,
+  deleteDemoDataBucketMembership: deleteDemoDataBucketMembershipAction,
 }
 
 export default connect<StateProps, DispatchProps, {}>(
