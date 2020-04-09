@@ -89,7 +89,7 @@ func escapeString(val string) string {
 // For example, to get a strconv-parseable float from a Spanish value '3.494.826.157,123', use format ",." .
 func normalizeNumberString(value string, format string, removeFraction bool) string {
 	if len(format) == 0 {
-		return value
+		format = ". \n\t\r_"
 	}
 	if strings.ContainsAny(value, format) {
 		formatRunes := []rune(format)

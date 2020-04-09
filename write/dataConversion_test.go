@@ -252,6 +252,7 @@ func Test_normalizeNumberString(t *testing.T) {
 		{"123.456", ".", true, "123"},
 		{"123.456", ".", false, "123.456"},
 		{"1 2.3,456", ",. ", false, "123.456"},
+		{" 1 2\t3.456 \r\n", "", false, "123.456"},
 	}
 
 	for i, test := range tests {
