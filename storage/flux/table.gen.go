@@ -183,7 +183,7 @@ func (t *floatGroupTable) advanceCursor() bool {
 			// TODO(sgc): error or skip?
 			cur.Close()
 			t.err = &influxdb.Error{
-				Code: influxdb.EInternal,
+				Code: influxdb.EInvalid,
 				Err: &GroupCursorError{
 					typ:    "float",
 					cursor: cur,
@@ -374,7 +374,7 @@ func (t *integerGroupTable) advanceCursor() bool {
 			// TODO(sgc): error or skip?
 			cur.Close()
 			t.err = &influxdb.Error{
-				Code: influxdb.EInternal,
+				Code: influxdb.EInvalid,
 				Err: &GroupCursorError{
 					typ:    "integer",
 					cursor: cur,
@@ -565,7 +565,7 @@ func (t *unsignedGroupTable) advanceCursor() bool {
 			// TODO(sgc): error or skip?
 			cur.Close()
 			t.err = &influxdb.Error{
-				Code: influxdb.EInternal,
+				Code: influxdb.EInvalid,
 				Err: &GroupCursorError{
 					typ:    "unsigned",
 					cursor: cur,
@@ -756,7 +756,7 @@ func (t *stringGroupTable) advanceCursor() bool {
 			// TODO(sgc): error or skip?
 			cur.Close()
 			t.err = &influxdb.Error{
-				Code: influxdb.EInternal,
+				Code: influxdb.EInvalid,
 				Err: &GroupCursorError{
 					typ:    "string",
 					cursor: cur,
@@ -947,7 +947,7 @@ func (t *booleanGroupTable) advanceCursor() bool {
 			// TODO(sgc): error or skip?
 			cur.Close()
 			t.err = &influxdb.Error{
-				Code: influxdb.EInternal,
+				Code: influxdb.EInvalid,
 				Err: &GroupCursorError{
 					typ:    "boolean",
 					cursor: cur,

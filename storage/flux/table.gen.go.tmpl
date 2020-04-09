@@ -177,7 +177,7 @@ func (t *{{.name}}GroupTable) advanceCursor() bool {
 			// TODO(sgc): error or skip?
 			cur.Close()
 			t.err = &influxdb.Error {
-				Code: influxdb.EInternal,
+				Code: influxdb.EInvalid,
 				Err: &GroupCursorError {
 					typ: "{{.name}}",
 					cursor: cur,
