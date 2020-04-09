@@ -30,7 +30,7 @@ const DemoDataDropdown: FC<Props> = ({buckets, getMembership}) => {
   return (
     <Dropdown
       testID="dropdown--demodata"
-      style={{width: '160px', marginRight: '8px'}}
+      style={{width: '200px', marginRight: '8px'}}
       button={(active, onClick) => (
         <Dropdown.Button
           active={active}
