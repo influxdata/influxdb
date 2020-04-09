@@ -5,6 +5,7 @@ import {
   deleteDemoDataBucketMembership as deleteDemoDataBucketMembershipAJAX,
 } from 'src/cloud/apis/demodata'
 import {createDashboardFromTemplate} from 'src/templates/api'
+import * as api from 'src/client'
 
 // Actions
 import {getBuckets} from 'src/buckets/actions/thunks'
@@ -13,10 +14,11 @@ import {getBuckets} from 'src/buckets/actions/thunks'
 import {getOrg} from 'src/organizations/selectors'
 
 // Constants
-import {DemoDataTemplates} from 'src/cloud/constants'
+import {DemoDataTemplates, DemoDataDashboards} from 'src/cloud/constants'
 
 // Types
 import {Bucket, RemoteDataState, GetState, DemoBucket} from 'src/types'
+import {getDashboards} from 'src/dashboards/actions/thunks'
 
 export type Actions =
   | ReturnType<typeof setDemoDataStatus>
@@ -84,20 +86,48 @@ export const getDemoDataBucketMembership = (bucket: DemoBucket) => async (
   }
 }
 
-export const deleteDemoDataBucketMembership = (bucketID: string) => async (
+export const deleteDemoDataBucketMembership = (bucket: DemoBucket) => async (
   dispatch,
   getState: GetState
 ) => {
+  const state = getState()
   const {
     me: {id: userID},
-  } = getState()
+  } = state
+  const {id: orgID} = getOrg(state)
 
   try {
-    await deleteDemoDataBucketMembershipAJAX(bucketID, userID)
+    await deleteDemoDataBucketMembershipAJAX(bucket.id, userID)
     dispatch(getBuckets())
 
-    // TODO: check for success and error appropriately
-    // TODO: delete associated dashboard
+    const dashboardsResp = await api.getDashboards({query: {orgID}})
+
+    if (dashboardsResp.status !== 200) {
+      throw new Error(dashboardsResp.data.message)
+    }
+
+    const demoDashboardName = DemoDataDashboards[bucket.name]
+    if (!demoDashboardName) {
+      throw new Error(
+        `Could not find dashboard name for demo data bucket ${bucket.name}`
+      )
+    }
+
+    const ddDashboard = dashboardsResp.data.dashboards.find(d => {
+      d.name === demoDashboardName
+    })
+
+    if (ddDashboard) {
+      const deleteResp = await api.deleteDashboard({
+        dashboardID: ddDashboard.id,
+      })
+      if (deleteResp.status !== 204) {
+        throw new Error(deleteResp.data.message)
+      }
+      dispatch(getDashboards)
+    }
+
+    // TODO: notify for success and error appropriately
   } catch (error) {
     console.error(error)
   }
