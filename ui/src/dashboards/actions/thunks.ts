@@ -90,6 +90,17 @@ export const createDashboard = () => async (
       throw new Error(resp.data.message)
     }
 
+    const normDash = normalize<Dashboard, DashboardEntities, string>(
+      resp.data,
+      dashboardSchema
+    )
+
+    await dispatch(setDashboard(
+        resp.data.id,
+        RemoteDataState.Done,
+        normDash
+    ))
+
     dispatch(push(`/orgs/${org.id}/dashboards/${resp.data.id}`))
     dispatch(checkDashboardLimits())
   } catch (error) {
@@ -143,6 +154,17 @@ export const cloneDashboard = (
     if (postResp.status !== 201) {
       throw new Error(postResp.data.message)
     }
+
+    const normDash = normalize<Dashboard, DashboardEntities, string>(
+      postResp.data,
+      dashboardSchema
+    )
+
+    await dispatch(setDashboard(
+        postResp.data.id,
+        RemoteDataState.Done,
+        normDash
+    ))
 
     const pendingLabels = getResp.data.labels.map(l =>
       api.postDashboardsLabel({
