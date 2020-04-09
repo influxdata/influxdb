@@ -759,7 +759,11 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
 		printer := diffPrinterGen("Checks", []string{"Description"})
 
 		appendValues := func(id pkger.SafeID, pkgName string, v pkger.DiffCheckValues) []string {
-			return []string{pkgName, id.String(), v.Check.GetName(), v.Check.GetDescription()}
+			out := []string{pkgName, id.String()}
+			if v.Check == nil {
+				return append(out, "", "")
+			}
+			return append(out, v.Check.GetName(), v.Check.GetDescription())
 		}
 
 		for _, c := range checks {
@@ -811,7 +815,11 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
 		printer := diffPrinterGen("Notification Endpoints", nil)
 
 		appendValues := func(id pkger.SafeID, pkgName string, v pkger.DiffNotificationEndpointValues) []string {
-			return []string{pkgName, id.String(), v.NotificationEndpoint.GetName()}
+			out := []string{pkgName, id.String()}
+			if v.NotificationEndpoint == nil {
+				return append(out, "")
+			}
+			return append(out, v.NotificationEndpoint.GetName())
 		}
 
 		for _, e := range endpoints {

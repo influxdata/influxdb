@@ -1671,12 +1671,24 @@ func (s *Service) applyNotificationEndpoints(ctx context.Context, userID influxd
 			for _, secret := range influxEndpoint.SecretFields() {
 				switch {
 				case strings.HasSuffix(secret.Key, "-routing-key"):
+					if endpoints[i].routingKey == nil {
+						endpoints[i].routingKey = new(references)
+					}
 					endpoints[i].routingKey.Secret = secret.Key
 				case strings.HasSuffix(secret.Key, "-token"):
+					if endpoints[i].token == nil {
+						endpoints[i].token = new(references)
+					}
 					endpoints[i].token.Secret = secret.Key
 				case strings.HasSuffix(secret.Key, "-username"):
+					if endpoints[i].username == nil {
+						endpoints[i].username = new(references)
+					}
 					endpoints[i].username.Secret = secret.Key
 				case strings.HasSuffix(secret.Key, "-password"):
+					if endpoints[i].password == nil {
+						endpoints[i].password = new(references)
+					}
 					endpoints[i].password.Secret = secret.Key
 				}
 			}
