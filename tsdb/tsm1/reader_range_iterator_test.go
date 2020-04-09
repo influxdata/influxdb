@@ -361,6 +361,14 @@ func TestExcludeEntries(t *testing.T) {
 		{
 			args: args{
 				e:   entries(0, 10, 12, 15, 19, 21),
+				min: 13,
+				max: 20,
+			},
+			exp: entries(12, 15, 19, 21),
+		},
+		{
+			args: args{
+				e:   entries(0, 10, 12, 15, 19, 21),
 				min: 0,
 				max: 100,
 			},
