@@ -1,4 +1,4 @@
-import {get, differenceBy} from 'lodash'
+import {get, differenceBy, sortBy} from 'lodash'
 import {AppState, Bucket, DemoBucket} from 'src/types'
 
 export const getNewDemoBuckets = (state: AppState, ownBuckets: Bucket[]) => {
@@ -7,5 +7,14 @@ export const getNewDemoBuckets = (state: AppState, ownBuckets: Bucket[]) => {
     'cloud.demoData.buckets',
     []
   ) as DemoBucket[]
-  return differenceBy(demoDataBuckets, ownBuckets, b => b.id)
+
+  const newDemoDataBuckets = differenceBy(
+    demoDataBuckets,
+    ownBuckets,
+    b => b.id
+  )
+
+  return sortBy(newDemoDataBuckets, d => {
+    return d.name.toLocaleLowerCase()
+  })
 }
