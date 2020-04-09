@@ -25,9 +25,6 @@ import {notify} from 'src/shared/actions/notifications'
 import {setDashboard} from 'src/dashboards/actions/creators'
 import {setCells, setCell, removeCell} from 'src/cells/actions/creators'
 
-// Utils
-import {getClonedDashboardCell} from 'src/dashboards/utils/cellGetters'
-
 // Constants
 import * as copy from 'src/shared/copy/notifications'
 
@@ -182,23 +179,6 @@ export const updateCells = (dashboardID: string, cells: Cell[]) => async (
     dispatch(setCells(dashboardID, RemoteDataState.Done, normCells))
   } catch (error) {
     dispatch(notify(copy.cellUpdateFailed()))
-    console.error(error)
-  }
-}
-
-export const copyCell = (dashboard: Dashboard, cell: Cell) => dispatch => {
-  try {
-    const clonedCell = getClonedDashboardCell(dashboard, cell)
-
-    const normCell = normalize<Dashboard, DashboardEntities, string>(
-      clonedCell,
-      cellSchema
-    )
-
-    dispatch(setCell(cell.id, RemoteDataState.Done, normCell))
-    dispatch(notify(copy.cellAdded()))
-  } catch (error) {
-    dispatch(notify(copy.cellCopyFailed()))
     console.error(error)
   }
 }
