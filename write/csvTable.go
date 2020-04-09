@@ -105,8 +105,10 @@ type CsvTable struct {
 	cachedTags        []CsvTableColumn
 }
 
-// IgnoreDataTypeInColumnName sets a flag that controls whether to ignore dataType in column name.
-// Column name can contain data type after ':'
+// IgnoreDataTypeInColumnName sets a flag that tests whether ignore dataType in column name.
+// When true, column names can then contain '|'. By default, colu name can also contain datatype
+// and default value when named `name|datatype` or `name|datatype|default`,
+// for example `ready|boolean|true`
 func (t *CsvTable) IgnoreDataTypeInColumnName(val bool) {
 	t.ignoreDataTypeInColumnName = val
 }
