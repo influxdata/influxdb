@@ -17,6 +17,32 @@ import (
 	"github.com/influxdata/influxdb/v2/tsdb/cursors"
 )
 
+// GroupCursorError is returned when two different cursor types
+// are read for the same table.
+type GroupCursorError struct {
+	typ    string
+	cursor cursors.Cursor
+}
+
+func (err *GroupCursorError) Error() string {
+	var got string
+	switch err.cursor.(type) {
+	case cursors.FloatArrayCursor:
+		got = "float"
+	case cursors.IntegerArrayCursor:
+		got = "integer"
+	case cursors.UnsignedArrayCursor:
+		got = "unsigned"
+	case cursors.StringArrayCursor:
+		got = "string"
+	case cursors.BooleanArrayCursor:
+		got = "boolean"
+	default:
+		got = "invalid"
+	}
+	return fmt.Sprintf("schema collision: cannot group %s and %s types together", err.typ, got)
+}
+
 type storageTable interface {
 	flux.Table
 	Close()
