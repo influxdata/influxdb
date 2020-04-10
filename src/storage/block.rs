@@ -566,12 +566,7 @@ where
             description: e.to_string(),
         })?;
 
-        // length 10 is max needed for encoding varint.
-        let mut size_buf = [0; 10];
-        let n = ts.len().encode_var(&mut size_buf);
-        total += n;
-        w.write_all(&size_buf[..n])?; // timestamp block size
-        h.write(&size_buf[..n]);
+        total += write_64_bit_varint(ts.len(), w, h)?;
 
         total += data_buf.len();
         w.write_all(&data_buf)?; // timestamp block
@@ -654,17 +649,11 @@ impl BlockSummary<f64> for FloatBlockSummary {
         H: Hasher,
     {
         let mut total = 0;
-        let mut buf = [0; 10]; // Maximum varint size for 64-bit number.
-        let n = self.count.encode_var(&mut buf);
-        total += n;
-        w.write_all(&buf[..n])?;
-        h.write(&buf[..n]);
+
+        total += write_64_bit_varint(self.count, w, h)?;
 
         for v in &[self.sum, self.first.1, self.last.1, self.min, self.max] {
-            let n = v.to_bits().encode_var(&mut buf);
-            total += n;
-            w.write_all(&buf[..n])?;
-            h.write(&buf[..n]);
+            total += write_64_bit_varint(v.to_bits(), w, h)?;
         }
 
         Ok(total)
@@ -741,11 +730,7 @@ impl BlockSummary<i64> for IntegerBlockSummary {
     {
         let mut total = 0;
 
-        let mut buf = [0; 10]; // Maximum varint size for 64-bit number.
-        let n = self.count.encode_var(&mut buf);
-        w.write_all(&buf[..n])?;
-        total += n;
-        h.write(&buf[..n]);
+        total += write_64_bit_varint(self.count, w, h)?;
 
         // the sum for an integer block is stored as a big int.
         // first write out the sign of the integer.
@@ -776,11 +761,8 @@ impl BlockSummary<i64> for IntegerBlockSummary {
         h.write(&sum_bytes);
 
         // The rest of the summary values are varint encoded i64s.
-        for v in &[self.first.1, self.last.1, self.min, self.max] {
-            let n = v.encode_var(&mut buf);
-            total += n;
-            w.write_all(&buf[..n])?;
-            h.write(&buf[..n]);
+        for &v in &[self.first.1, self.last.1, self.min, self.max] {
+            total += write_64_bit_varint(v, w, h)?;
         }
 
         Ok(total)
@@ -835,13 +817,7 @@ impl BlockSummary<bool> for BoolBlockSummary {
     /// `write_to` serialises the summary to the provided writer and calculates a
     /// checksum. The number of bytes written is returned.
     fn write_to<W: Write, H: Hasher>(&self, w: &mut W, h: &mut H) -> Result<usize, StorageError> {
-        let mut buf = [0; 10]; // Maximum varint size for 64-bit number.
-        let n = self.count.encode_var(&mut buf);
-        let total = n;
-        w.write_all(&buf[..n])?;
-        h.write(&buf[..n]);
-
-        Ok(total)
+        write_64_bit_varint(self.count, w, h)
     }
 }
 
@@ -893,13 +869,7 @@ impl<'a> BlockSummary<&'a str> for StringBlockSummary<'a> {
     /// `write_to` serialises the summary to the provided writer and calculates a
     /// checksum. The number of bytes written is returned.
     fn write_to<W: Write, H: Hasher>(&self, w: &mut W, h: &mut H) -> Result<usize, StorageError> {
-        let mut buf = [0; 10]; // Maximum varint size for 64-bit number.
-        let n = self.count.encode_var(&mut buf);
-        let total = n;
-        w.write_all(&buf[..n])?;
-        h.write(&buf[..n]);
-
-        Ok(total)
+        write_64_bit_varint(self.count, w, h)
     }
 }
 
@@ -973,11 +943,7 @@ impl BlockSummary<u64> for UnsignedBlockSummary {
     {
         let mut total = 0;
 
-        let mut buf = [0; 10]; // Maximum varint size for 64-bit number.
-        let n = self.count.encode_var(&mut buf);
-        w.write_all(&buf[..n])?;
-        total += n;
-        h.write(&buf[..n]);
+        total += write_64_bit_varint(self.count, w, h)?;
 
         // first, write the number of bytes needed to store the big uint data.
         //
@@ -1001,15 +967,26 @@ impl BlockSummary<u64> for UnsignedBlockSummary {
         h.write(&sum_bytes);
 
         // The rest of the summary values are varint encoded i64s.
-        for v in &[self.first.1, self.last.1, self.min, self.max] {
-            let n = v.encode_var(&mut buf);
-            total += n;
-            w.write_all(&buf[..n])?;
-            h.write(&buf[..n]);
+        for &v in &[self.first.1, self.last.1, self.min, self.max] {
+            total += write_64_bit_varint(v, w, h)?;
         }
 
         Ok(total)
     }
+}
+
+fn write_64_bit_varint<W, H>(val: impl VarInt, w: &mut W, h: &mut H) -> Result<usize, StorageError>
+where
+    W: Write,
+    H: Hasher,
+{
+    // 10 bytes is enough to hold the maximum varint for a 64-bit number.
+    let mut size_buf = [0; 10];
+    let n = val.encode_var(&mut size_buf);
+    w.write_all(&size_buf[..n])?;
+    h.write(&size_buf[..n]);
+
+    Ok(n)
 }
 
 #[cfg(test)]
