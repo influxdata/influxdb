@@ -1,5 +1,3 @@
-import {DashboardTemplate} from 'src/types'
-
 export const RATE_LIMIT_ERROR_STATUS = 429
 
 export const RATE_LIMIT_ERROR_TEXT =
@@ -11,9 +9,9 @@ export const ASSET_LIMIT_ERROR_TEXT =
   'Oops. It looks like you have exceeded the asset limits allowed as part of your plan. If you would like to increase your limits, reach out to support@influxdata.com.'
 
 const WebsiteMonitoringDashboardTemplate = async (name: string) => {
-  const websiteMonitoringTemplate = (await import('src/cloud/constants/websiteMonitoringTemplate')) as any
-  websiteMonitoringTemplate.content.data.attributes.name = name
-  return websiteMonitoringTemplate as DashboardTemplate
+  const websiteMonitoringTemplate = await import(/* webpackPrefetch: true */'src/cloud/constants/websiteMonitoringTemplate')
+  websiteMonitoringTemplate.default.content.data.attributes.name = name
+  return websiteMonitoringTemplate.default
 }
 
 export const WebsiteMonitoringBucket = 'Website Monitoring Bucket'
