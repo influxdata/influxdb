@@ -574,7 +574,7 @@
   # the default settings from Go's crypto/tls package.
   # ciphers = [
   #   "TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305",
-  #   "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+  #   "TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305",
   # ]
 
   # Minimum version of the tls protocol that will be negotiated. If not specified, uses the
@@ -583,4 +583,4 @@
 
   # Maximum version of the tls protocol that will be negotiated. If not specified, uses the
   # default settings from Go's crypto/tls package.
-  # max-version = "tls1.2"
+  # max-version = "tls1.3"
