@@ -595,7 +595,7 @@ where
 /// - smallest and largest values written to the block.
 
 // TODO(edd) need to support big float representation...
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct FloatBlockSummary {
     count: u32, // max number of values in block ~4.2 Billion
     sum: f64,
@@ -607,24 +607,20 @@ pub struct FloatBlockSummary {
 
 impl BlockSummary<f64> for FloatBlockSummary {
     fn new(values: &[(i64, f64)]) -> Option<FloatBlockSummary> {
-        if values.is_empty() {
-            return None;
-        }
+        values.split_first().map(|(&value, values)| {
+            let mut header = FloatBlockSummary {
+                count: 1,
+                sum: value.1,
+                first: value,
+                last: value,
+                min: value.1,
+                max: value.1,
+            };
 
-        let mut header = FloatBlockSummary::default();
-        let value = values[0];
-        header.count += 1;
-        header.sum += value.1;
-        header.first = value;
-        header.last = value;
-        header.min = value.1;
-        header.max = value.1;
+            header.add(values);
 
-        if values.len() > 1 {
-            header.add(&values[1..]);
-        }
-
-        Some(header)
+            header
+        })
     }
 
     fn add(&mut self, values: &[(i64, f64)]) {
@@ -688,7 +684,7 @@ impl BlockSummary<f64> for FloatBlockSummary {
 ///
 /// `IntegerBlockSummary` maintains the sum using a big int to ensure multiple large
 /// values can be summarised in the block.
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct IntegerBlockSummary {
     count: u32, // max number of values in block ~4.2 Billion
     sum: BigInt,
@@ -700,24 +696,20 @@ pub struct IntegerBlockSummary {
 
 impl BlockSummary<i64> for IntegerBlockSummary {
     fn new(values: &[(i64, i64)]) -> Option<IntegerBlockSummary> {
-        if values.is_empty() {
-            return None;
-        }
+        values.split_first().map(|(&value, values)| {
+            let mut header = IntegerBlockSummary {
+                count: 1,
+                sum: value.1.into(),
+                first: value,
+                last: value,
+                min: value.1,
+                max: value.1,
+            };
 
-        let mut header = IntegerBlockSummary::default();
-        let value = values[0];
-        header.count += 1;
-        header.sum += value.1;
-        header.first = value;
-        header.last = value;
-        header.min = value.1;
-        header.max = value.1;
+            header.add(values);
 
-        if values.len() > 1 {
-            header.add(&values[1..]);
-        }
-
-        Some(header)
+            header
+        })
     }
 
     fn add(&mut self, values: &[(i64, i64)]) {
@@ -804,7 +796,7 @@ impl BlockSummary<i64> for IntegerBlockSummary {
 
 /// `BoolBlockSummary` provides a summary of a bool block, tracking the count of
 /// values in the block.
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct BoolBlockSummary {
     count: u32, // max number of values in block ~4.2 Billion
 
@@ -816,20 +808,17 @@ pub struct BoolBlockSummary {
 
 impl BlockSummary<bool> for BoolBlockSummary {
     fn new(values: &[(i64, bool)]) -> Option<BoolBlockSummary> {
-        if values.is_empty() {
-            return None;
-        }
+        values.split_first().map(|(&value, values)| {
+            let mut header = BoolBlockSummary {
+                count: 1,
+                first: value,
+                last: value,
+            };
 
-        let mut header = BoolBlockSummary::default();
-        header.count += 1;
-        header.first = values[0];
-        header.last = values[0];
+            header.add(values);
 
-        if values.len() > 1 {
-            header.add(&values[1..]);
-        }
-
-        Some(header)
+            header
+        })
     }
 
     fn add(&mut self, values: &[(i64, bool)]) {
@@ -878,20 +867,17 @@ pub struct StringBlockSummary<'a> {
 
 impl<'a> BlockSummary<&'a str> for StringBlockSummary<'a> {
     fn new(values: &[(i64, &'a str)]) -> Option<StringBlockSummary<'a>> {
-        if values.is_empty() {
-            return None;
-        }
+        values.split_first().map(|(&value, values)| {
+            let mut header = StringBlockSummary {
+                count: 1,
+                first: value,
+                last: value,
+            };
 
-        let mut header = StringBlockSummary::default();
-        header.count += 1;
-        header.first = values[0];
-        header.last = values[0];
+            header.add(values);
 
-        if values.len() > 1 {
-            header.add(&values[1..]);
-        }
-
-        Some(header)
+            header
+        })
     }
 
     fn add(&mut self, values: &[(i64, &'a str)]) {
@@ -935,7 +921,7 @@ impl<'a> BlockSummary<&'a str> for StringBlockSummary<'a> {
 ///
 /// `UnsignedBlockSummary` maintains the sum using a big uint to ensure multiple large
 /// values can be summarised in the block.
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct UnsignedBlockSummary {
     count: u32, // max number of values in block ~4.2 Billion
     sum: BigUint,
@@ -947,24 +933,20 @@ pub struct UnsignedBlockSummary {
 
 impl BlockSummary<u64> for UnsignedBlockSummary {
     fn new(values: &[(i64, u64)]) -> Option<UnsignedBlockSummary> {
-        if values.is_empty() {
-            return None;
-        }
+        values.split_first().map(|(&value, values)| {
+            let mut header = UnsignedBlockSummary {
+                count: 1,
+                sum: value.1.into(),
+                first: value,
+                last: value,
+                min: value.1,
+                max: value.1,
+            };
 
-        let mut header = UnsignedBlockSummary::default();
-        let value = values[0];
-        header.count += 1;
-        header.sum += value.1;
-        header.first = value;
-        header.last = value;
-        header.min = value.1;
-        header.max = value.1;
+            header.add(values);
 
-        if values.len() > 1 {
-            header.add(&values[1..]);
-        }
-
-        Some(header)
+            header
+        })
     }
 
     fn add(&mut self, values: &[(i64, u64)]) {
