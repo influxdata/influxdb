@@ -567,7 +567,7 @@ where
         })?;
 
         // length 10 is max needed for encoding varint.
-        let mut size_buf = vec![0; 10];
+        let mut size_buf = [0; 10];
         let n = ts.len().encode_var(&mut size_buf);
         total += n;
         w.write_all(&size_buf[..n])?; // timestamp block size
