@@ -624,25 +624,21 @@ impl BlockSummary<f64> for FloatBlockSummary {
     }
 
     fn add(&mut self, values: &[(i64, f64)]) {
-        for value in values {
-            let ts = value.0;
-            let v = value.1;
+        use std::f64;;
+
+        for &value in values {
+            let (ts, v) = value;
 
             self.count += 1;
             self.sum += v;
             if self.first.0 > ts {
-                self.first = (ts, v);
+                self.first = value;
             }
             if self.last.0 < ts {
-                self.last = (ts, v);
+                self.last = value;
             }
-
-            if self.min > v {
-                self.min = v;
-            }
-            if self.max < v {
-                self.max = v;
-            }
+            self.min = f64::min(self.min, v);
+            self.max = f64::max(self.max, v);
         }
     }
 
@@ -713,25 +709,22 @@ impl BlockSummary<i64> for IntegerBlockSummary {
     }
 
     fn add(&mut self, values: &[(i64, i64)]) {
-        for value in values {
-            let ts = value.0;
-            let v = value.1;
+        use std::cmp;
+
+        for &value in values {
+            let (ts, v) = value;
 
             self.count += 1;
             self.sum += v;
             if self.first.0 > ts {
-                self.first = (ts, v);
+                self.first = value;
             }
             if self.last.0 < ts {
-                self.last = (ts, v);
+                self.last = value;
             }
 
-            if self.min > v {
-                self.min = v;
-            }
-            if self.max < v {
-                self.max = v;
-            }
+            self.min = cmp::min(self.min, v);
+            self.max = cmp::max(self.max, v);
         }
     }
 
@@ -822,16 +815,15 @@ impl BlockSummary<bool> for BoolBlockSummary {
     }
 
     fn add(&mut self, values: &[(i64, bool)]) {
-        for value in values {
-            let ts = value.0;
-            let v = value.1;
+        for &value in values {
+            let (ts, _) = value;
 
             self.count += 1;
             if self.first.0 > ts {
-                self.first = (ts, v);
+                self.first = value;
             }
             if self.last.0 < ts {
-                self.last = (ts, v);
+                self.last = value;
             }
         }
     }
@@ -881,16 +873,15 @@ impl<'a> BlockSummary<&'a str> for StringBlockSummary<'a> {
     }
 
     fn add(&mut self, values: &[(i64, &'a str)]) {
-        for value in values {
-            let ts = value.0;
-            let v = value.1;
+        for &value in values {
+            let (ts, _) = value;
 
             self.count += 1;
             if self.first.0 > ts {
-                self.first = (ts, v);
+                self.first = value;
             }
             if self.last.0 < ts {
-                self.last = (ts, v);
+                self.last = value;
             }
         }
     }
@@ -950,25 +941,22 @@ impl BlockSummary<u64> for UnsignedBlockSummary {
     }
 
     fn add(&mut self, values: &[(i64, u64)]) {
-        for value in values {
-            let ts = value.0;
-            let v = value.1;
+        use std::cmp;
+
+        for &value in values {
+            let (ts, v) = value;
 
             self.count += 1;
             self.sum += v;
             if self.first.0 > ts {
-                self.first = (ts, v);
+                self.first = value;
             }
             if self.last.0 < ts {
-                self.last = (ts, v);
+                self.last = value;
             }
 
-            if self.min > v {
-                self.min = v;
-            }
-            if self.max < v {
-                self.max = v;
-            }
+            self.min = cmp::min(self.min, v);
+            self.max = cmp::max(self.max, v);
         }
     }
 
