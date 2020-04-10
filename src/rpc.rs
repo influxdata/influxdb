@@ -396,7 +396,7 @@ async fn send_groups(
 
         let entry = batches_by_group
             .entry(partition_key_values)
-            .or_insert_with(|| vec![]);
+            .or_insert_with(Vec::new);
         entry.push(batch);
     }
 
@@ -421,7 +421,7 @@ async fn send_groups(
                         .map(|tv| {
                             tv.as_ref()
                                 .map(|opt| opt.as_bytes().to_vec())
-                                .unwrap_or_else(|| vec![])
+                                .unwrap_or_else(Vec::new)
                         })
                         .collect(),
                 })),
