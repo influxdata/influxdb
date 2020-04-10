@@ -97,7 +97,6 @@ class BucketList extends PureComponent<Props & WithRouterProps> {
         <BucketCard
           key={bucket.id}
           bucket={bucket}
-          onEditBucket={this.handleStartEdit}
           onDeleteBucket={onDeleteBucket}
           onDeleteData={this.handleStartDeleteData}
           onUpdateBucket={onUpdateBucket}
@@ -105,12 +104,6 @@ class BucketList extends PureComponent<Props & WithRouterProps> {
         />
       )
     })
-  }
-
-  private handleStartEdit = (bucket: OwnBucket) => {
-    const {orgID} = this.props.params
-
-    this.props.router.push(`/orgs/${orgID}/load-data/buckets/${bucket.id}/edit`)
   }
 
   private handleStartDeleteData = (bucket: OwnBucket) => {

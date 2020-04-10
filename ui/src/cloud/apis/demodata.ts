@@ -1,6 +1,6 @@
 // Libraries
 import {get} from 'lodash'
-import * as api from 'src/client'
+import {getBuckets} from 'src/client'
 import AJAX from 'src/utils/ajax'
 
 //Utils
@@ -76,16 +76,19 @@ export const deleteDemoDataBucketMembership = async (
 
 export const fetchDemoDataBuckets = async (): Promise<Bucket[]> => {
   if (!isFlagEnabled('demodata')) return []
+
   try {
     // FindBuckets paginates before filtering for authed buckets until #6591 is resolved,
     // so UI needs to make getBuckets request with demodata orgID parameter
     const demoBuckets = await getDemoDataBuckets()
+
     const demodataOrgID = get(demoBuckets, '[0].orgID') as string
+
     if (!demodataOrgID) {
       throw new Error('Could not get demodata orgID')
     }
 
-    const resp = await api.getBuckets({
+    const resp = await getBuckets({
       query: {orgID: demodataOrgID, limit: LIMIT},
     })
 
