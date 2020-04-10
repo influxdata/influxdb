@@ -4361,7 +4361,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   /packages/stacks:
     post:
-      operationId: CreatePkg
+      operationId: CreateStack
       tags:
         - InfluxPackages
       summary: Create a new Influx package
@@ -7656,54 +7656,13 @@ components:
                 properties:
                   remove:
                     type: boolean
-                    id:
-                      type: string
-                    pkgName:
-                      type: string
-                    new:
-                      type: object
-                      properties:
-                          name:
-                            type: string
-                          description:
-                            type: string
-                          endpointName:
-                            type: string
-                          endpointID:
-                            type: string
-                          endpointType:
-                            type: string
-                          every:
-                            type: string
-                          offset:
-                            type: string
-                          messageTemplate:
-                            type: string
-                          status:
-                            type: string
-                          statusRules:
-                            type: array
-                            items:
-                              type: object
-                              properties:
-                                currentLevel:
-                                  type: string
-                                previousLevel:
-                                  type: string
-                          tagRules:
-                            type: array
-                            items:
-                              type: object
-                              properties:
-                                key:
-                                  type: string
-                                value:
-                                  type: string
-                                operator:
-                                  type: string
-                    old:
-                      type: object
-                      properties:
+                  id:
+                    type: string
+                  pkgName:
+                    type: string
+                  new:
+                    type: object
+                    properties:
                         name:
                           type: string
                         description:
@@ -7742,6 +7701,47 @@ components:
                                 type: string
                               operator:
                                 type: string
+                  old:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                      description:
+                        type: string
+                      endpointName:
+                        type: string
+                      endpointID:
+                        type: string
+                      endpointType:
+                        type: string
+                      every:
+                        type: string
+                      offset:
+                        type: string
+                      messageTemplate:
+                        type: string
+                      status:
+                        type: string
+                      statusRules:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            currentLevel:
+                              type: string
+                            previousLevel:
+                              type: string
+                      tagRules:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            key:
+                              type: string
+                            value:
+                              type: string
+                            operator:
+                              type: string
             tasks:
               type: array
               items:
