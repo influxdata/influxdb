@@ -5,7 +5,7 @@ import {
   deleteDemoDataBucketMembership as deleteDemoDataBucketMembershipAJAX,
 } from 'src/cloud/apis/demodata'
 import {createDashboardFromTemplate} from 'src/templates/api'
-import * as api from 'src/client'
+import {deleteDashboard} from 'src/client'
 
 // Actions
 import {getBuckets} from 'src/buckets/actions/thunks'
@@ -109,7 +109,7 @@ export const deleteDemoDataDashboard = (dashboardName: string) => async (
     ) as Dashboard
 
     if (ddDashboard) {
-      const deleteResp = await api.deleteDashboard({
+      const deleteResp = await deleteDashboard({
         dashboardID: ddDashboard.id,
       })
       if (deleteResp.status !== 204) {
