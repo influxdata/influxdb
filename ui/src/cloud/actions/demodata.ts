@@ -81,7 +81,7 @@ export const getDemoDataBucketMembership = (bucket: DemoBucket) => async (
   try {
     await getDemoDataBucketMembershipAJAX(bucket.id, userID)
 
-    const template = DemoDataTemplates[bucket.name]
+    const template = await DemoDataTemplates[bucket.name]
     if (template) {
       await createDashboardFromTemplate(template, orgID)
     } else {
