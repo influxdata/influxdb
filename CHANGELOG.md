@@ -16,7 +16,7 @@ v1.8.0 [unreleased]
 -	[#16542](https://github.com/influxdata/influxdb/pull/16542): Add offline series compaction to influx_inspect buildtsi.
 -	[#16599](https://github.com/influxdata/influxdb/pull/16599): Make influx CLI support custom HTTP endpoint.
 -	[#16908](https://github.com/influxdata/influxdb/pull/16908): Add support for InfluxDB 2.0 write API.
--	[#17187](https://github.com/influxdata/influxdb/pull/17187): Update Flux to v0.64.0.
+-	[#17621](https://github.com/influxdata/influxdb/pull/17621): Update Flux to v0.65.0.
 -	[#17188](https://github.com/influxdata/influxdb/pull/17188): Enhance support for bound parameters.
 
 ### Bugfixes
