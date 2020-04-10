@@ -6,7 +6,7 @@ import {get} from 'lodash'
 // Components
 import CellHeader from 'src/shared/components/cells/CellHeader'
 import CellContext from 'src/shared/components/cells/CellContext'
-import Markdown from 'src/shared/components/views/Markdown'
+import ScrollableMarkdown from 'src/shared/components/views/ScrollableMarkdown'
 import RefreshingView from 'src/shared/components/RefreshingView'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import EmptyGraphMessage from 'src/shared/components/EmptyGraphMessage'
@@ -92,7 +92,7 @@ class CellComponent extends Component<Props, State> {
     }
 
     if (view.properties.type === 'markdown') {
-      return <Markdown text={view.properties.note} />
+      return <ScrollableMarkdown text={view.properties.note} />
     }
 
     return (
