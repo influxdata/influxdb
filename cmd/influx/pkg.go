@@ -187,7 +187,7 @@ func (b *cmdPkgBuilder) pkgApplyRunEFn(cmd *cobra.Command, args []string) error 
 
 	opts = append(opts, pkger.ApplyWithSecrets(providedSecrets))
 
-	summary, err := svc.Apply(context.Background(), influxOrgID, 0, pkg, opts...)
+	summary, _, err := svc.Apply(context.Background(), influxOrgID, 0, pkg, opts...)
 	if err != nil {
 		return err
 	}
@@ -973,18 +973,18 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
 			Title("Label Associations").
 			SetHeaders(
 				"Resource Type",
-				"Resource Name", "Resource ID",
-				"Label Name", "Label ID",
+				"Resource Package Name", "Resource Name", "Resource ID",
+				"Label Package Name", "Label Name", "Label ID",
 			)
 
 		for _, m := range diff.LabelMappings {
 			newRow := []string{
 				string(m.ResType),
-				m.ResName, m.ResID.String(),
-				m.LabelName, m.LabelID.String(),
+				m.ResPkgName, m.ResName, m.ResID.String(),
+				m.LabelPkgName, m.LabelName, m.LabelID.String(),
 			}
 			oldRow := newRow
-			if m.IsNew {
+			if pkger.IsNew(m.StateStatus) {
 				oldRow = nil
 			}
 			printer.AppendDiff(oldRow, newRow)

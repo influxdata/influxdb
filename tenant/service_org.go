@@ -153,7 +153,7 @@ func (s *Service) UpdateOrganization(ctx context.Context, id influxdb.ID, upd in
 	return org, nil
 }
 
-// Removes a organization by ID.
+// DeleteOrganization removes a organization by ID and its dependent resources.
 func (s *Service) DeleteOrganization(ctx context.Context, id influxdb.ID) error {
 	err := s.store.Update(ctx, func(tx kv.Tx) error {
 		// clean up the buckets for this organization

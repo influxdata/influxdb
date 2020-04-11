@@ -355,22 +355,21 @@ func (s *HTTPServer) applyPkg(w http.ResponseWriter, r *http.Request) {
 		ApplyWithStackID(stackID),
 	}
 
-	sum, diff, err := s.svc.DryRun(r.Context(), *orgID, userID, parsedPkg, applyOpts...)
-	if IsParseErr(err) {
-		s.api.Respond(w, http.StatusUnprocessableEntity, RespApplyPkg{
-			Diff:    diff,
-			Summary: sum,
-			Errors:  convertParseErr(err),
-		})
-		return
-	}
-	if err != nil {
-		s.api.Err(w, err)
-		return
-	}
-
-	// if only a dry run, then we exit before anything destructive
 	if reqBody.DryRun {
+		sum, diff, err := s.svc.DryRun(r.Context(), *orgID, userID, parsedPkg, applyOpts...)
+		if IsParseErr(err) {
+			s.api.Respond(w, http.StatusUnprocessableEntity, RespApplyPkg{
+				Diff:    diff,
+				Summary: sum,
+				Errors:  convertParseErr(err),
+			})
+			return
+		}
+		if err != nil {
+			s.api.Err(w, err)
+			return
+		}
+
 		s.api.Respond(w, http.StatusOK, RespApplyPkg{
 			Diff:    diff,
 			Summary: sum,
@@ -380,7 +379,7 @@ func (s *HTTPServer) applyPkg(w http.ResponseWriter, r *http.Request) {
 
 	applyOpts = append(applyOpts, ApplyWithSecrets(reqBody.Secrets))
 
-	sum, err = s.svc.Apply(r.Context(), *orgID, userID, parsedPkg, applyOpts...)
+	sum, diff, err := s.svc.Apply(r.Context(), *orgID, userID, parsedPkg, applyOpts...)
 	if err != nil && !IsParseErr(err) {
 		s.api.Err(w, err)
 		return

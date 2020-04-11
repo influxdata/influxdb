@@ -407,11 +407,13 @@ func TestPkgerHTTPServer(t *testing.T) {
 
 	t.Run("apply a pkg", func(t *testing.T) {
 		svc := &fakeSVC{
-			dryRunFn: func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.Summary, pkger.Diff, error) {
-				if err := pkg.Validate(); err != nil {
-					return pkger.Summary{}, pkger.Diff{}, err
+			applyFn: func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.Summary, pkger.Diff, error) {
+				var opt pkger.ApplyOpt
+				for _, o := range opts {
+					o(&opt)
 				}
 				sum := pkg.Summary()
+
 				var diff pkger.Diff
 				for _, b := range sum.Buckets {
 					diff.Buckets = append(diff.Buckets, pkger.DiffBucket{
@@ -420,18 +422,10 @@ func TestPkgerHTTPServer(t *testing.T) {
 						},
 					})
 				}
-				return sum, diff, nil
-			},
-			applyFn: func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.Summary, error) {
-				var opt pkger.ApplyOpt
-				for _, o := range opts {
-					o(&opt)
-				}
-				sum := pkg.Summary()
 				for key := range opt.MissingSecrets {
 					sum.MissingSecrets = append(sum.MissingSecrets, key)
 				}
-				return sum, nil
+				return sum, diff, nil
 			},
 		}
 
@@ -647,7 +641,7 @@ func decodeBody(t *testing.T, r io.Reader, v interface{}) {
 type fakeSVC struct {
 	initStack func(ctx context.Context, userID influxdb.ID, stack pkger.Stack) (pkger.Stack, error)
 	dryRunFn  func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.Summary, pkger.Diff, error)
-	applyFn   func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.Summary, error)
+	applyFn   func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.Summary, pkger.Diff, error)
 }
 
 var _ pkger.SVC = (*fakeSVC)(nil)
@@ -671,7 +665,7 @@ func (f *fakeSVC) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *pk
 	return f.dryRunFn(ctx, orgID, userID, pkg, opts...)
 }
 
-func (f *fakeSVC) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.Summary, error) {
+func (f *fakeSVC) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.Summary, pkger.Diff, error) {
 	if f.applyFn == nil {
 		panic("not implemented")
 	}

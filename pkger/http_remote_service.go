@@ -112,9 +112,8 @@ func (s *HTTPRemoteService) DryRun(ctx context.Context, orgID, userID influxdb.I
 // Apply will apply all the resources identified in the provided pkg. The entire pkg will be applied
 // in its entirety. If a failure happens midway then the entire pkg will be rolled back to the state
 // from before the pkg was applied.
-func (s *HTTPRemoteService) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (Summary, error) {
-	sum, _, err := s.apply(ctx, orgID, pkg, false, opts...)
-	return sum, err
+func (s *HTTPRemoteService) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (Summary, Diff, error) {
+	return s.apply(ctx, orgID, pkg, false, opts...)
 }
 
 func (s *HTTPRemoteService) apply(ctx context.Context, orgID influxdb.ID, pkg *Pkg, dryRun bool, opts ...ApplyOptFn) (Summary, Diff, error) {

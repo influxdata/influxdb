@@ -474,7 +474,7 @@ func TestService(t *testing.T) {
 
 					orgID := influxdb.ID(9000)
 
-					sum, err := svc.Apply(context.TODO(), orgID, 0, pkg)
+					sum, _, err := svc.Apply(context.TODO(), orgID, 0, pkg)
 					require.NoError(t, err)
 
 					require.Len(t, sum.Buckets, 2)
@@ -496,29 +496,35 @@ func TestService(t *testing.T) {
 				testfileRunner(t, "testdata/bucket.yml", func(t *testing.T, pkg *Pkg) {
 					orgID := influxdb.ID(9000)
 
-					pkg.isVerified = true
-					stubExisting := func(name string, id influxdb.ID) {
-						pkgBkt := pkg.mBuckets[name]
-						pkgBkt.existing = &influxdb.Bucket{
-							// makes all pkg changes same as they are on thes existing bucket
-							ID:              id,
-							OrgID:           orgID,
-							Name:            pkgBkt.Name(),
-							Description:     pkgBkt.Description,
-							RetentionPeriod: pkgBkt.RetentionRules.RP(),
-						}
-					}
-					stubExisting("rucket_11", 3)
-					stubExisting("rucket_22", 4)
-
 					fakeBktSVC := mock.NewBucketService()
+					fakeBktSVC.FindBucketByNameFn = func(ctx context.Context, oid influxdb.ID, name string) (*influxdb.Bucket, error) {
+						if orgID != oid {
+							return nil, errors.New("invalid org id")
+						}
+
+						id := influxdb.ID(3)
+						if name == "display name" {
+							id = 4
+							name = "rucket_22"
+						}
+						if bkt, ok := pkg.mBuckets[name]; ok {
+							return &influxdb.Bucket{
+								ID:              id,
+								OrgID:           oid,
+								Name:            bkt.Name(),
+								Description:     bkt.Description,
+								RetentionPeriod: bkt.RetentionRules.RP(),
+							}, nil
+						}
+						return nil, errors.New("not found")
+					}
 					fakeBktSVC.UpdateBucketFn = func(_ context.Context, id influxdb.ID, upd influxdb.BucketUpdate) (*influxdb.Bucket, error) {
 						return &influxdb.Bucket{ID: id}, nil
 					}
 
 					svc := newTestService(WithBucketSVC(fakeBktSVC))
 
-					sum, err := svc.Apply(context.TODO(), orgID, 0, pkg)
+					sum, _, err := svc.Apply(context.TODO(), orgID, 0, pkg)
 					require.NoError(t, err)
 
 					require.Len(t, sum.Buckets, 2)
@@ -559,7 +565,7 @@ func TestService(t *testing.T) {
 
 					orgID := influxdb.ID(9000)
 
-					_, err := svc.Apply(context.TODO(), orgID, 0, pkg)
+					_, _, err := svc.Apply(context.TODO(), orgID, 0, pkg)
 					require.Error(t, err)
 
 					assert.GreaterOrEqual(t, fakeBktSVC.DeleteBucketCalls.Count(), 1)
@@ -580,7 +586,7 @@ func TestService(t *testing.T) {
 
 					orgID := influxdb.ID(9000)
 
-					sum, err := svc.Apply(context.TODO(), orgID, 0, pkg)
+					sum, _, err := svc.Apply(context.TODO(), orgID, 0, pkg)
 					require.NoError(t, err)
 
 					require.Len(t, sum.Checks, 2)
@@ -626,7 +632,7 @@ func TestService(t *testing.T) {
 
 					orgID := influxdb.ID(9000)
 
-					_, err := svc.Apply(context.TODO(), orgID, 0, pkg)
+					_, _, err := svc.Apply(context.TODO(), orgID, 0, pkg)
 					require.Error(t, err)
 
 					assert.GreaterOrEqual(t, fakeCheckSVC.DeleteCheckCalls.Count(), 1)
@@ -651,7 +657,7 @@ func TestService(t *testing.T) {
 
 					orgID := influxdb.ID(9000)
 
-					sum, err := svc.Apply(context.TODO(), orgID, 0, pkg)
+					sum, _, err := svc.Apply(context.TODO(), orgID, 0, pkg)
 					require.NoError(t, err)
 
 					require.Len(t, sum.Labels, 3)
@@ -704,7 +710,7 @@ func TestService(t *testing.T) {
 
 					orgID := influxdb.ID(9000)
 
-					_, err := svc.Apply(context.TODO(), orgID, 0, pkg)
+					_, _, err := svc.Apply(context.TODO(), orgID, 0, pkg)
 					require.Error(t, err)
 
 					assert.GreaterOrEqual(t, fakeLabelSVC.DeleteLabelCalls.Count(), 1)
@@ -712,13 +718,12 @@ func TestService(t *testing.T) {
 			})
 
 			t.Run("will not apply label if no changes to be applied", func(t *testing.T) {
-				testfileRunner(t, "testdata/label", func(t *testing.T, pkg *Pkg) {
+				testfileRunner(t, "testdata/label.yml", func(t *testing.T, pkg *Pkg) {
 					orgID := influxdb.ID(9000)
 
-					pkg.isVerified = true
-					stubExisting := func(name string, id influxdb.ID) {
+					stubExisting := func(name string, id influxdb.ID) *influxdb.Label {
 						pkgLabel := pkg.mLabels[name]
-						pkgLabel.existing = &influxdb.Label{
+						return &influxdb.Label{
 							// makes all pkg changes same as they are on the existing
 							ID:    id,
 							OrgID: orgID,
@@ -733,6 +738,18 @@ func TestService(t *testing.T) {
 					stubExisting("label_3", 3)
 
 					fakeLabelSVC := mock.NewLabelService()
+					fakeLabelSVC.FindLabelsFn = func(ctx context.Context, f influxdb.LabelFilter) ([]*influxdb.Label, error) {
+						if f.Name != "label_1" && f.Name != "display name" {
+							return nil, nil
+						}
+						id := influxdb.ID(1)
+						name := f.Name
+						if f.Name == "display name" {
+							id = 3
+							name = "label_3"
+						}
+						return []*influxdb.Label{stubExisting(name, id)}, nil
+					}
 					fakeLabelSVC.CreateLabelFn = func(_ context.Context, l *influxdb.Label) error {
 						if l.Name == "label_2" {
 							l.ID = 2
@@ -748,7 +765,7 @@ func TestService(t *testing.T) {
 
 					svc := newTestService(WithLabelSVC(fakeLabelSVC))
 
-					sum, err := svc.Apply(context.TODO(), orgID, 0, pkg)
+					sum, _, err := svc.Apply(context.TODO(), orgID, 0, pkg)
 					require.NoError(t, err)
 
 					require.Len(t, sum.Labels, 3)
@@ -802,7 +819,7 @@ func TestService(t *testing.T) {
 
 					orgID := influxdb.ID(9000)
 
-					sum, err := svc.Apply(context.TODO(), orgID, 0, pkg)
+					sum, _, err := svc.Apply(context.TODO(), orgID, 0, pkg)
 					require.NoError(t, err)
 
 					require.Len(t, sum.Dashboards, 1)
@@ -837,7 +854,7 @@ func TestService(t *testing.T) {
 
 					orgID := influxdb.ID(9000)
 
-					_, err := svc.Apply(context.TODO(), orgID, 0, pkg)
+					_, _, err := svc.Apply(context.TODO(), orgID, 0, pkg)
 					require.Error(t, err)
 
 					assert.True(t, deletedDashs[1])
@@ -846,9 +863,83 @@ func TestService(t *testing.T) {
 		})
 
 		t.Run("label mapping", func(t *testing.T) {
+			testLabelMappingV2ApplyFn := func(t *testing.T, filename string, numExpected int, settersFn func() []ServiceSetterFn) {
+				testfileRunner(t, filename, func(t *testing.T, pkg *Pkg) {
+					t.Helper()
+
+					fakeLabelSVC := mock.NewLabelService()
+					fakeLabelSVC.CreateLabelFn = func(_ context.Context, l *influxdb.Label) error {
+						l.ID = influxdb.ID(rand.Int())
+						return nil
+					}
+					fakeLabelSVC.CreateLabelMappingFn = func(_ context.Context, mapping *influxdb.LabelMapping) error {
+						if mapping.ResourceID == 0 {
+							return errors.New("did not get a resource ID")
+						}
+						if mapping.ResourceType == "" {
+							return errors.New("did not get a resource type")
+						}
+						return nil
+					}
+					svc := newTestService(append(settersFn(),
+						WithLabelSVC(fakeLabelSVC),
+						WithLogger(zaptest.NewLogger(t)),
+					)...)
+
+					orgID := influxdb.ID(9000)
+
+					_, _, err := svc.Apply(context.TODO(), orgID, 0, pkg)
+					require.NoError(t, err)
+
+					assert.Equal(t, numExpected, fakeLabelSVC.CreateLabelMappingCalls.Count())
+				})
+			}
+
+			testLabelMappingV2RollbackFn := func(t *testing.T, filename string, killCount int, settersFn func() []ServiceSetterFn) {
+				testfileRunner(t, filename, func(t *testing.T, pkg *Pkg) {
+					t.Helper()
+
+					fakeLabelSVC := mock.NewLabelService()
+					fakeLabelSVC.CreateLabelFn = func(_ context.Context, l *influxdb.Label) error {
+						l.ID = influxdb.ID(fakeLabelSVC.CreateLabelCalls.Count() + 1)
+						return nil
+					}
+					fakeLabelSVC.DeleteLabelMappingFn = func(_ context.Context, m *influxdb.LabelMapping) error {
+						t.Logf("delete: %+v", m)
+						return nil
+					}
+					fakeLabelSVC.CreateLabelMappingFn = func(_ context.Context, mapping *influxdb.LabelMapping) error {
+						t.Logf("create: %+v", mapping)
+						if mapping.ResourceID == 0 {
+							return errors.New("did not get a resource ID")
+						}
+						if mapping.ResourceType == "" {
+							return errors.New("did not get a resource type")
+						}
+						if fakeLabelSVC.CreateLabelMappingCalls.Count() == killCount {
+							return errors.New("hit last label")
+						}
+						return nil
+					}
+					svc := newTestService(append(settersFn(),
+						WithLabelSVC(fakeLabelSVC),
+						WithLogger(zaptest.NewLogger(t)),
+					)...)
+
+					orgID := influxdb.ID(9000)
+
+					_, _, err := svc.Apply(context.TODO(), orgID, 0, pkg)
+					require.Error(t, err)
+
+					assert.GreaterOrEqual(t, fakeLabelSVC.DeleteLabelMappingCalls.Count(), killCount)
+				})
+			}
+
 			testLabelMappingFn := func(t *testing.T, filename string, numExpected int, settersFn func() []ServiceSetterFn) {
 				t.Run("applies successfully", func(t *testing.T) {
 					testfileRunner(t, filename, func(t *testing.T, pkg *Pkg) {
+						t.Helper()
+
 						fakeLabelSVC := mock.NewLabelService()
 						fakeLabelSVC.CreateLabelFn = func(_ context.Context, l *influxdb.Label) error {
 							l.ID = influxdb.ID(rand.Int())
@@ -870,7 +961,7 @@ func TestService(t *testing.T) {
 
 						orgID := influxdb.ID(9000)
 
-						_, err := svc.Apply(context.TODO(), orgID, 0, pkg)
+						_, _, err := svc.Apply(context.TODO(), orgID, 0, pkg)
 						require.NoError(t, err)
 
 						assert.Equal(t, numExpected, fakeLabelSVC.CreateLabelMappingCalls.Count())
@@ -879,6 +970,8 @@ func TestService(t *testing.T) {
 
 				t.Run("deletes new label mappings on error", func(t *testing.T) {
 					testfileRunner(t, filename, func(t *testing.T, pkg *Pkg) {
+						t.Helper()
+
 						for _, l := range pkg.mLabels {
 							for resource, vals := range l.mappings {
 								// create extra label mappings, enough for delete to ahve head room
@@ -893,7 +986,12 @@ func TestService(t *testing.T) {
 							l.ID = influxdb.ID(fakeLabelSVC.CreateLabelCalls.Count() + 1)
 							return nil
 						}
+						fakeLabelSVC.DeleteLabelMappingFn = func(_ context.Context, m *influxdb.LabelMapping) error {
+							t.Logf("delete: %+v", m)
+							return nil
+						}
 						fakeLabelSVC.CreateLabelMappingFn = func(_ context.Context, mapping *influxdb.LabelMapping) error {
+							t.Logf("create: %+v", mapping)
 							if mapping.ResourceID == 0 {
 								return errors.New("did not get a resource ID")
 							}
@@ -912,7 +1010,7 @@ func TestService(t *testing.T) {
 
 						orgID := influxdb.ID(9000)
 
-						_, err := svc.Apply(context.TODO(), orgID, 0, pkg)
+						_, _, err := svc.Apply(context.TODO(), orgID, 0, pkg)
 						require.Error(t, err)
 
 						assert.GreaterOrEqual(t, fakeLabelSVC.DeleteLabelMappingCalls.Count(), numExpected)
@@ -921,23 +1019,26 @@ func TestService(t *testing.T) {
 			}
 
 			t.Run("maps buckets with labels", func(t *testing.T) {
-				testLabelMappingFn(
-					t,
-					"testdata/bucket_associates_label.yml",
-					4,
-					func() []ServiceSetterFn {
-						fakeBktSVC := mock.NewBucketService()
-						fakeBktSVC.CreateBucketFn = func(_ context.Context, b *influxdb.Bucket) error {
-							b.ID = influxdb.ID(rand.Int())
-							return nil
-						}
-						fakeBktSVC.FindBucketByNameFn = func(_ context.Context, id influxdb.ID, s string) (*influxdb.Bucket, error) {
-							// forces the bucket to be created a new
-							return nil, errors.New("an error")
-						}
-						return []ServiceSetterFn{WithBucketSVC(fakeBktSVC)}
-					},
-				)
+				bktOpt := func() []ServiceSetterFn {
+					fakeBktSVC := mock.NewBucketService()
+					fakeBktSVC.CreateBucketFn = func(_ context.Context, b *influxdb.Bucket) error {
+						b.ID = influxdb.ID(rand.Int())
+						return nil
+					}
+					fakeBktSVC.FindBucketByNameFn = func(_ context.Context, id influxdb.ID, s string) (*influxdb.Bucket, error) {
+						// forces the bucket to be created a new
+						return nil, errors.New("an error")
+					}
+					return []ServiceSetterFn{WithBucketSVC(fakeBktSVC)}
+				}
+
+				t.Run("applies successfully", func(t *testing.T) {
+					testLabelMappingV2ApplyFn(t, "testdata/bucket_associates_label.yml", 4, bktOpt)
+				})
+
+				t.Run("deletes new label mappings on error", func(t *testing.T) {
+					testLabelMappingV2RollbackFn(t, "testdata/bucket_associates_label.yml", 2, bktOpt)
+				})
 			})
 
 			t.Run("maps checks with labels", func(t *testing.T) {
@@ -1100,7 +1201,7 @@ func TestService(t *testing.T) {
 
 					orgID := influxdb.ID(9000)
 
-					sum, err := svc.Apply(context.TODO(), orgID, 0, pkg)
+					sum, _, err := svc.Apply(context.TODO(), orgID, 0, pkg)
 					require.NoError(t, err)
 
 					require.Len(t, sum.NotificationEndpoints, 5)
@@ -1153,7 +1254,7 @@ func TestService(t *testing.T) {
 
 					orgID := influxdb.ID(9000)
 
-					_, err := svc.Apply(context.TODO(), orgID, 0, pkg)
+					_, _, err := svc.Apply(context.TODO(), orgID, 0, pkg)
 					require.Error(t, err)
 
 					assert.GreaterOrEqual(t, fakeEndpointSVC.DeleteNotificationEndpointCalls.Count(), 5)
@@ -1189,7 +1290,7 @@ func TestService(t *testing.T) {
 
 					orgID := influxdb.ID(9000)
 
-					sum, err := svc.Apply(context.TODO(), orgID, 0, pkg)
+					sum, _, err := svc.Apply(context.TODO(), orgID, 0, pkg)
 					require.NoError(t, err)
 
 					require.Len(t, sum.NotificationRules, 1)
@@ -1240,7 +1341,7 @@ func TestService(t *testing.T) {
 
 					orgID := influxdb.ID(9000)
 
-					_, err := svc.Apply(context.TODO(), orgID, 0, pkg)
+					_, _, err := svc.Apply(context.TODO(), orgID, 0, pkg)
 					require.Error(t, err)
 
 					assert.Equal(t, 1, fakeRuleStore.DeleteNotificationRuleCalls.Count())
@@ -1274,7 +1375,7 @@ func TestService(t *testing.T) {
 
 					svc := newTestService(WithTaskSVC(fakeTaskSVC))
 
-					sum, err := svc.Apply(context.TODO(), orgID, 0, pkg)
+					sum, _, err := svc.Apply(context.TODO(), orgID, 0, pkg)
 					require.NoError(t, err)
 
 					require.Len(t, sum.Tasks, 2)
@@ -1302,7 +1403,7 @@ func TestService(t *testing.T) {
 
 					orgID := influxdb.ID(9000)
 
-					_, err := svc.Apply(context.TODO(), orgID, 0, pkg)
+					_, _, err := svc.Apply(context.TODO(), orgID, 0, pkg)
 					require.Error(t, err)
 
 					assert.Equal(t, 1, fakeTaskSVC.DeleteTaskCalls.Count())
@@ -1323,7 +1424,7 @@ func TestService(t *testing.T) {
 
 					svc := newTestService(WithTelegrafSVC(fakeTeleSVC))
 
-					sum, err := svc.Apply(context.TODO(), orgID, 0, pkg)
+					sum, _, err := svc.Apply(context.TODO(), orgID, 0, pkg)
 					require.NoError(t, err)
 
 					require.Len(t, sum.TelegrafConfigs, 1)
@@ -1355,7 +1456,7 @@ func TestService(t *testing.T) {
 
 					orgID := influxdb.ID(9000)
 
-					_, err := svc.Apply(context.TODO(), orgID, 0, pkg)
+					_, _, err := svc.Apply(context.TODO(), orgID, 0, pkg)
 					require.Error(t, err)
 
 					assert.Equal(t, 1, fakeTeleSVC.DeleteTelegrafConfigCalls.Count())
@@ -1376,7 +1477,7 @@ func TestService(t *testing.T) {
 
 					orgID := influxdb.ID(9000)
 
-					sum, err := svc.Apply(context.TODO(), orgID, 0, pkg)
+					sum, _, err := svc.Apply(context.TODO(), orgID, 0, pkg)
 					require.NoError(t, err)
 
 					require.Len(t, sum.Variables, 4)
@@ -1409,7 +1510,7 @@ func TestService(t *testing.T) {
 
 					orgID := influxdb.ID(9000)
 
-					_, err := svc.Apply(context.TODO(), orgID, 0, pkg)
+					_, _, err := svc.Apply(context.TODO(), orgID, 0, pkg)
 					require.Error(t, err)
 
 					assert.GreaterOrEqual(t, fakeVarSVC.DeleteVariableCalls.Count(), 1)
@@ -1420,20 +1521,21 @@ func TestService(t *testing.T) {
 				testfileRunner(t, "testdata/variables.yml", func(t *testing.T, pkg *Pkg) {
 					orgID := influxdb.ID(9000)
 
-					pkg.isVerified = true
-					pkgLabel := pkg.mVariables["var_const_3"]
-					pkgLabel.existing = &influxdb.Variable{
-						// makes all pkg changes same as they are on the existing
-						ID:             influxdb.ID(1),
-						OrganizationID: orgID,
-						Name:           pkgLabel.Name(),
-						Arguments: &influxdb.VariableArguments{
-							Type:   "constant",
-							Values: influxdb.VariableConstantValues{"first val"},
-						},
-					}
-
 					fakeVarSVC := mock.NewVariableService()
+					fakeVarSVC.FindVariablesF = func(ctx context.Context, f influxdb.VariableFilter, _ ...influxdb.FindOptions) ([]*influxdb.Variable, error) {
+						return []*influxdb.Variable{
+							{
+								// makes all pkg changes same as they are on the existing
+								ID:             influxdb.ID(1),
+								OrganizationID: orgID,
+								Name:           pkg.mVariables["var_const_3"].Name(),
+								Arguments: &influxdb.VariableArguments{
+									Type:   "constant",
+									Values: influxdb.VariableConstantValues{"first val"},
+								},
+							},
+						}, nil
+					}
 					fakeVarSVC.CreateVariableF = func(_ context.Context, l *influxdb.Variable) error {
 						if l.Name == "var_const" {
 							return errors.New("shouldn't get here")
@@ -1449,7 +1551,7 @@ func TestService(t *testing.T) {
 
 					svc := newTestService(WithVariableSVC(fakeVarSVC))
 
-					sum, err := svc.Apply(context.TODO(), orgID, 0, pkg)
+					sum, _, err := svc.Apply(context.TODO(), orgID, 0, pkg)
 					require.NoError(t, err)
 
 					require.Len(t, sum.Variables, 4)
