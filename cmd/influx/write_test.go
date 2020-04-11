@@ -86,7 +86,6 @@ func Test_writeFlags_dump(t *testing.T) {
 // Test_writeFlags_createLineReader validates the way of how headers, files, stdin and arguments
 // are combined and transformed to provide a reader of protocol lines
 func Test_writeFlags_createLineReader(t *testing.T) {
-	// create test input: svn file + some content on stdin
 	defer removeTempFiles()
 	csvFile1 := createTempFile("csv", []byte("_measurement,b,c,d\nf1,f2,f3,f4"))
 	stdInContents := "i,j,_measurement,k\nstdin1,stdin2,stdin3,stdin4"
@@ -245,31 +244,35 @@ func Test_writeFlags_createLineReader_errors(t *testing.T) {
 
 // Test_fluxWriteDryrunF tests dryrun functionality
 func Test_fluxWriteDryrunF(t *testing.T) {
-	// process and transform csv data without problems to stdout
-	stdInContents := "i,j,_measurement,k\nstdin1,stdin2,stdin3,stdin4"
-	out := bytes.Buffer{}
-	command := cmdWrite(&globalFlags{}, genericCLIOpts{in: strings.NewReader(stdInContents), w: bufio.NewWriter(&out)})
-	command.SetArgs([]string{"dryrun", "--format", "csv"})
-	err := command.Execute()
-	require.Nil(t, err)
-	require.Equal(t, "stdin3 i=stdin1,j=stdin2,k=stdin4", strings.Trim(out.String(), "\n"))
+	t.Run("process and transform csv data without problems to stdout", func(t *testing.T) {
+		stdInContents := "i,j,_measurement,k\nstdin1,stdin2,stdin3,stdin4"
+		out := bytes.Buffer{}
+		command := cmdWrite(&globalFlags{}, genericCLIOpts{in: strings.NewReader(stdInContents), w: bufio.NewWriter(&out)})
+		command.SetArgs([]string{"dryrun", "--format", "csv"})
+		err := command.Execute()
+		require.Nil(t, err)
+		require.Equal(t, "stdin3 i=stdin1,j=stdin2,k=stdin4", strings.Trim(out.String(), "\n"))
+	})
 
-	// dryrun fails on unsupported data format
-	out = bytes.Buffer{}
-	command = cmdWrite(&globalFlags{}, genericCLIOpts{in: strings.NewReader(stdInContents), w: bufio.NewWriter(&out)})
-	command.SetArgs([]string{"dryrun", "--format", "csvx"})
-	err = command.Execute()
-	require.NotNil(t, err)
-	require.Contains(t, fmt.Sprintf("%s", err), "unsupported") // unsupported format
+	t.Run("dryrun fails on unsupported data format", func(t *testing.T) {
+		stdInContents := "i,j,_measurement,k\nstdin1,stdin2,stdin3,stdin4"
+		out := bytes.Buffer{}
+		command := cmdWrite(&globalFlags{}, genericCLIOpts{in: strings.NewReader(stdInContents), w: bufio.NewWriter(&out)})
+		command.SetArgs([]string{"dryrun", "--format", "csvx"})
+		err := command.Execute()
+		require.NotNil(t, err)
+		require.Contains(t, fmt.Sprintf("%s", err), "unsupported") // unsupported format
+	})
 
-	// dryrun fails on malformed CSV data while reading them
-	stdInContents = "i,j,l,k\nstdin1,stdin2,stdin3,stdin4"
-	out = bytes.Buffer{}
-	command = cmdWrite(&globalFlags{}, genericCLIOpts{in: strings.NewReader(stdInContents), w: bufio.NewWriter(&out)})
-	command.SetArgs([]string{"dryrun", "--format", "csv"})
-	err = command.Execute()
-	require.NotNil(t, err)
-	require.Contains(t, fmt.Sprintf("%s", err), "measurement") // no measurement column
+	t.Run("dryrun fails on malformed CSV data while reading them", func(t *testing.T) {
+		stdInContents := "i,j,l,k\nstdin1,stdin2,stdin3,stdin4"
+		out := bytes.Buffer{}
+		command := cmdWrite(&globalFlags{}, genericCLIOpts{in: strings.NewReader(stdInContents), w: bufio.NewWriter(&out)})
+		command.SetArgs([]string{"dryrun", "--format", "csv"})
+		err := command.Execute()
+		require.NotNil(t, err)
+		require.Contains(t, fmt.Sprintf("%s", err), "measurement") // no measurement column
+	})
 }
 
 // Test_fluxWriteF tests validation and processing of input flags in fluxWriteF
@@ -330,107 +333,124 @@ func Test_fluxWriteF(t *testing.T) {
 		rw.Write([]byte(`OK`))
 	}))
 	defer server.Close()
-
-	// validation: --org or --org-id must be specified
-	lineData = lineData[:0]
-	command := cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard})
-	command.SetArgs([]string{"--format", "csv"})
-	err := command.Execute()
-	require.Contains(t, fmt.Sprintf("%s", err), "org")
-
-	// validation: either --bucket or --bucket-id must be specified
-	lineData = lineData[:0]
-	command = cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard})
-	command.SetArgs([]string{"--format", "csv", "--org", "my-org", "--bucket", "my-bucket", "--bucket-id", "my-bucket"})
-	err = command.Execute()
-	require.Contains(t, fmt.Sprintf("%s", err), "bucket") // bucket or bucket-id, but not both
-
-	// validation: unsupported --precision
-	lineData = lineData[:0]
-	command = cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard})
-	command.SetArgs([]string{"--format", "csv", "--org", "my-org", "--bucket", "my-bucket", "--precision", "pikosec"})
-	err = command.Execute()
-	require.Contains(t, fmt.Sprintf("%s", err), "precision") // invalid precision
-
-	// validation: --host must be supplied
+	// setup flags to point to test server
 	prevHost := flags.Host
 	prevToken := flags.Token
-	flags.Host = ""
-	flags.Token = "myToken"
 	defer func() {
 		flags.Host = prevHost
 		flags.Token = prevToken
 	}()
-	lineData = lineData[:0]
-	command = cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard})
-	command.SetArgs([]string{"--format", "csv", "--org", "my-org", "--bucket", "my-bucket"})
-	err = command.Execute()
-	require.Contains(t, fmt.Sprintf("%s", err), "host")
+	useTestServer := func() {
+		lineData = lineData[:0]
+		flags.Token = "myToken"
+		flags.Host = server.URL
+	}
 
-	// validation: failed to decode bucket-id
-	lineData = lineData[:0]
-	flags.Host = server.URL
-	command = cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard})
-	command.SetArgs([]string{"--format", "csv", "--org", "my-org", "--bucket-id", "my-bucket"})
-	err = command.Execute()
-	require.Contains(t, fmt.Sprintf("%s", err), "bucket-id")
+	t.Run("validates that --org or --org-id must be specified", func(t *testing.T) {
+		useTestServer()
+		command := cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard})
+		command.SetArgs([]string{"--format", "csv"})
+		err := command.Execute()
+		require.Contains(t, fmt.Sprintf("%s", err), "org")
+	})
 
-	// validation: failed to decode org-id
-	lineData = lineData[:0]
-	flags.Host = server.URL
-	command = cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard})
-	command.SetArgs([]string{"--format", "csv", "--org-id", "my-org", "--bucket", "my-bucket"})
-	err = command.Execute()
-	require.Contains(t, fmt.Sprintf("%s", err), "org-id")
+	t.Run("validates that either --bucket or --bucket-id must be specified", func(t *testing.T) {
+		useTestServer()
+		command := cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard})
+		command.SetArgs([]string{"--format", "csv", "--org", "my-org", "--bucket", "my-bucket", "--bucket-id", "my-bucket"})
+		err := command.Execute()
+		require.Contains(t, fmt.Sprintf("%s", err), "bucket") // bucket or bucket-id, but not both
+	})
 
-	// validation: failed to retrive buckets
-	lineData = lineData[:0]
-	flags.Host = server.URL
-	command = cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard})
-	// note: my-error-bucket parameter causes the test server to fail
-	command.SetArgs([]string{"--format", "csv", "--org", "my-org", "--bucket", "my-error-bucket"})
-	err = command.Execute()
-	require.Contains(t, fmt.Sprintf("%s", err), "bucket") // failed to retrieve buckets
+	t.Run("validates --precision", func(t *testing.T) {
+		useTestServer()
+		command := cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard})
+		command.SetArgs([]string{"--format", "csv", "--org", "my-org", "--bucket", "my-bucket", "--precision", "pikosec"})
+		err := command.Execute()
+		require.Contains(t, fmt.Sprintf("%s", err), "precision") // invalid precision
+	})
+
+	t.Run("validates --host must be supplied", func(t *testing.T) {
+		useTestServer()
+		flags.Host = ""
+		command := cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard})
+		command.SetArgs([]string{"--format", "csv", "--org", "my-org", "--bucket", "my-bucket"})
+		err := command.Execute()
+		require.Contains(t, fmt.Sprintf("%s", err), "host")
+	})
+
+	t.Run("validates decoding of bucket-id", func(t *testing.T) {
+		useTestServer()
+		command := cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard})
+		command.SetArgs([]string{"--format", "csv", "--org", "my-org", "--bucket-id", "my-bucket"})
+		err := command.Execute()
+		require.Contains(t, fmt.Sprintf("%s", err), "bucket-id")
+	})
+
+	t.Run("validates decoding of org-id", func(t *testing.T) {
+		useTestServer()
+		command := cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard})
+		command.SetArgs([]string{"--format", "csv", "--org-id", "my-org", "--bucket", "my-bucket"})
+		err := command.Execute()
+		require.Contains(t, fmt.Sprintf("%s", err), "org-id")
+	})
+
+	t.Run("validates error when failed to retrive buckets", func(t *testing.T) {
+		useTestServer()
+		command := cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard})
+		// note: my-error-bucket parameter causes the test server to fail
+		command.SetArgs([]string{"--format", "csv", "--org", "my-org", "--bucket", "my-error-bucket"})
+		err := command.Execute()
+		require.Contains(t, fmt.Sprintf("%s", err), "bucket")
+	})
 
 	// validation: no such bucket found
-	lineData = lineData[:0]
-	command = cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard})
-	// note: my-empty-org parameter causes the test server to return no buckets
-	command.SetArgs([]string{"--format", "csv", "--org", "my-empty-org", "--bucket", "my-bucket"})
-	err = command.Execute()
-	require.Contains(t, fmt.Sprintf("%s", err), "bucket") // no such bucket found
+	t.Run("validates no such bucket found", func(t *testing.T) {
+		useTestServer()
+		command := cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard})
+		// note: my-empty-org parameter causes the test server to return no buckets
+		command.SetArgs([]string{"--format", "csv", "--org", "my-empty-org", "--bucket", "my-bucket"})
+		err := command.Execute()
+		require.Contains(t, fmt.Sprintf("%s", err), "bucket")
+	})
 
 	// validation: no such bucket-id found
-	lineData = lineData[:0]
-	command = cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard})
-	// note: my-empty-org parameter causes the test server to return no buckets
-	command.SetArgs([]string{"--format", "csv", "--org", "my-empty-org", "--bucket-id", "4f14589c26df8286"})
-	err = command.Execute()
-	require.Contains(t, fmt.Sprintf("%s", err), "id")
+	t.Run("validates no such bucket-id found", func(t *testing.T) {
+		useTestServer()
+		command := cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard})
+		// note: my-empty-org parameter causes the test server to return no buckets
+		command.SetArgs([]string{"--format", "csv", "--org", "my-empty-org", "--bucket-id", "4f14589c26df8286"})
+		err := command.Execute()
+		require.Contains(t, fmt.Sprintf("%s", err), "id")
+	})
 
-	// validation: unable to create line reader because of unsupported format
-	lineData = lineData[:0]
-	command = cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard})
-	command.SetArgs([]string{"--format", "csvx", "--org", "my-org", "--bucket-id", "4f14589c26df8286"})
-	err = command.Execute()
-	require.Contains(t, fmt.Sprintf("%s", err), "format")
+	t.Run("validates unsupported line reader format", func(t *testing.T) {
+		useTestServer()
+		command := cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard})
+		command.SetArgs([]string{"--format", "csvx", "--org", "my-org", "--bucket-id", "4f14589c26df8286"})
+		err := command.Execute()
+		require.Contains(t, fmt.Sprintf("%s", err), "format")
+	})
 
-	// validation: malformed CSV data - no measurement found
-	lineData = lineData[:0]
-	command = cmdWrite(&globalFlags{}, genericCLIOpts{
-		in: strings.NewReader("a,b\nc,d"),
-		w:  ioutil.Discard})
-	command.SetArgs([]string{"--format", "csv", "--org", "my-org", "--bucket-id", "4f14589c26df8286"})
-	err = command.Execute()
-	require.Contains(t, fmt.Sprintf("%s", err), "measurement") // no measurement found in CSV data
+	t.Run("validates error during data read", func(t *testing.T) {
+		useTestServer()
+		command := cmdWrite(&globalFlags{}, genericCLIOpts{
+			in: strings.NewReader("a,b\nc,d"),
+			w:  ioutil.Discard})
+		command.SetArgs([]string{"--format", "csv", "--org", "my-org", "--bucket-id", "4f14589c26df8286"})
+		err := command.Execute()
+		require.Contains(t, fmt.Sprintf("%s", err), "measurement") // no measurement found in CSV data
+	})
 
-	// finally: read data from CSV transform them to lp, send to server and validate the created protocol line
-	lineData = lineData[:0]
-	command = cmdWrite(&globalFlags{}, genericCLIOpts{
-		in: strings.NewReader("i,j,_measurement,k\nstdin1,stdin2,stdin3,stdin4"),
-		w:  ioutil.Discard})
-	command.SetArgs([]string{"--format", "csv", "--org", "my-org", "--bucket-id", "4f14589c26df8286"})
-	err = command.Execute()
-	require.Nil(t, err)
-	require.Equal(t, "stdin3 i=stdin1,j=stdin2,k=stdin4", strings.Trim(string(lineData), "\n"))
+	t.Run("read data from CSV and send lp", func(t *testing.T) {
+		// read data from CSV transformation, send them to server and validate the created protocol line
+		useTestServer()
+		command := cmdWrite(&globalFlags{}, genericCLIOpts{
+			in: strings.NewReader("i,j,_measurement,k\nstdin1,stdin2,stdin3,stdin4"),
+			w:  ioutil.Discard})
+		command.SetArgs([]string{"--format", "csv", "--org", "my-org", "--bucket-id", "4f14589c26df8286"})
+		err := command.Execute()
+		require.Nil(t, err)
+		require.Equal(t, "stdin3 i=stdin1,j=stdin2,k=stdin4", strings.Trim(string(lineData), "\n"))
+	})
 }
