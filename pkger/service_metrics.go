@@ -45,8 +45,8 @@ func (s *mwMetrics) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *
 	return sum, diff, rec(err)
 }
 
-func (s *mwMetrics) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (Summary, error) {
+func (s *mwMetrics) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (Summary, Diff, error) {
 	rec := s.rec.Record("apply")
-	sum, err := s.next.Apply(ctx, orgID, userID, pkg, opts...)
-	return sum, rec(err)
+	sum, diff, err := s.next.Apply(ctx, orgID, userID, pkg, opts...)
+	return sum, diff, rec(err)
 }
