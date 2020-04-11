@@ -15,8 +15,5 @@ func IsCharacterDevice(reader io.Reader) bool {
 	if err != nil {
 		return false
 	}
-	if (info.Mode() & os.ModeCharDevice) == os.ModeCharDevice {
-		return true
-	}
-	return false
+	return (info.Mode() & os.ModeCharDevice) == os.ModeCharDevice
 }
