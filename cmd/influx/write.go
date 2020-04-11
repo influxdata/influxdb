@@ -35,7 +35,6 @@ type writeFlagsType struct {
 	SkipHeader                 int
 	IgnoreDataTypeInColumnName bool
 	Encoding                   string
-	args                       []string
 }
 
 var writeFlags writeFlagsType
@@ -93,8 +92,7 @@ func cmdWrite(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 
 func (writeFlags *writeFlagsType) dump(args []string) {
 	if writeFlags.Debug {
-		writeFlags.args = args
-		log.Printf("WriteFlags%+v", *writeFlags)
+		log.Printf("WriteFlags%+v args:%v", *writeFlags, args)
 	}
 }
 
@@ -103,9 +101,10 @@ func (writeFlags *writeFlagsType) createLineReader(cmd *cobra.Command, args []st
 	readers := make([]io.Reader, 0, 2*len(writeFlags.Headers)+2*len(writeFlags.Files)+1)
 	closers := make([]io.Closer, 0, len(writeFlags.Files))
 
+	files := writeFlags.Files
 	if len(args) > 0 && len(args[0]) > 1 && args[0][0] == '@' {
 		// backward compatibility: @ in arg denotes a file
-		writeFlags.Files = append(writeFlags.Files, args[0][1:])
+		files = append(files, args[0][1:])
 		args = args[:0]
 	}
 
@@ -131,8 +130,8 @@ func (writeFlags *writeFlagsType) createLineReader(cmd *cobra.Command, args []st
 	}
 
 	// add files
-	if len(writeFlags.Files) > 0 {
-		for _, file := range writeFlags.Files {
+	if len(files) > 0 {
+		for _, file := range files {
 			f, err := os.Open(file)
 			if err != nil {
 				return nil, write.MultiCloser(closers...), fmt.Errorf("failed to open %q: %v", file, err)
