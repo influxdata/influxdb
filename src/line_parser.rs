@@ -5,19 +5,59 @@ use nom::{
     character::complete::digit1,
     combinator::{map, opt, recognize},
     sequence::{preceded, separated_pair, terminated, tuple},
-    IResult,
 };
 use smallvec::SmallVec;
 use snafu::Snafu;
-use std::{borrow::Cow, collections::btree_map::Entry, collections::BTreeMap, fmt};
+use std::{
+    borrow::Cow,
+    collections::{btree_map::Entry, BTreeMap},
+    convert::TryFrom,
+    fmt,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display(r#"Must not contain duplicate tags, but "{}" was repeated"#, tag_key))]
     DuplicateTag { tag_key: String },
+
+    #[snafu(display(r#"No fields were provided"#))]
+    FieldSetMissing,
+
+    // This error is for compatibility with the Go parser
+    #[snafu(display(
+        r#"Measurements, tag keys and values, and field keys may not end with a backslash"#
+    ))]
+    EndsWithBackslash,
+
+    // TODO: Replace this with specific failures.
+    #[snafu(display(r#"A generic parsing error occurred: {:?}"#, kind))]
+    GenericParsingError {
+        kind: nom::error::ErrorKind,
+        trace: Vec<Error>,
+    },
+}
+
+impl nom::error::ParseError<&str> for Error {
+    fn from_error_kind(_input: &str, kind: nom::error::ErrorKind) -> Self {
+        GenericParsingError {
+            kind,
+            trace: vec![],
+        }
+        .build()
+    }
+
+    fn append(_input: &str, kind: nom::error::ErrorKind, other: Self) -> Self {
+        GenericParsingError {
+            kind,
+            trace: vec![other],
+        }
+        .build()
+    }
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
+type IResult<I, T, E = Error> = nom::IResult<I, T, E>;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Point<T> {
@@ -180,6 +220,10 @@ impl<'a> EscapedStr<'a> {
     fn is_escaped(&self) -> bool {
         self.0.len() > 1
     }
+
+    fn ends_with(&self, needle: &str) -> bool {
+        self.0.last().map_or(false, |s| s.ends_with(needle))
+    }
 }
 
 impl From<EscapedStr<'_>> for String {
@@ -294,19 +338,30 @@ enum FieldValue {
 
 // TODO: Return an error for invalid inputs
 pub fn parse(input: &str) -> Result<Vec<PointType>> {
-    input
-        .lines()
-        .flat_map(|line| match parse_line(line) {
-            Ok((_remaining, parsed_line)) => match line_to_points(parsed_line) {
+    let since_the_epoch = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("Time went backwards");
+    let now_ns = i64::try_from(since_the_epoch.as_nanos()).expect("Time does not fit");
+
+    parse_full(input, now_ns)
+}
+
+fn parse_full(input: &str, now_ns: i64) -> Result<Vec<PointType>> {
+    parse_lines(input)
+        .flat_map(|parsed_line| match parsed_line {
+            Ok(parsed_line) => match line_to_points(parsed_line, now_ns) {
                 Ok(i) => Either::Left(i.map(Ok)),
                 Err(e) => Either::Right(std::iter::once(Err(e))),
             },
-            Err(e) => panic!("TODO: Failed to parse: {}", e),
+            Err(e) => Either::Right(std::iter::once(Err(e))),
         })
         .collect()
 }
 
-fn line_to_points(parsed_line: ParsedLine<'_>) -> Result<impl Iterator<Item = PointType> + '_> {
+fn line_to_points(
+    parsed_line: ParsedLine<'_>,
+    now: i64,
+) -> Result<impl Iterator<Item = PointType> + '_> {
     let ParsedLine {
         series,
         field_set,
@@ -314,7 +369,7 @@ fn line_to_points(parsed_line: ParsedLine<'_>) -> Result<impl Iterator<Item = Po
     } = parsed_line;
 
     let series_base = series.generate_base()?;
-    let timestamp = timestamp.expect("TODO: default timestamp not supported");
+    let timestamp = timestamp.unwrap_or(now);
 
     Ok(field_set.into_iter().map(move |(field_key, field_value)| {
         let series = format!("{}\t{}", series_base, field_key);
@@ -326,9 +381,29 @@ fn line_to_points(parsed_line: ParsedLine<'_>) -> Result<impl Iterator<Item = Po
     }))
 }
 
+fn parse_lines(mut i: &str) -> impl Iterator<Item = Result<ParsedLine<'_>>> {
+    std::iter::from_fn(move || {
+        let (remaining, _) = line_whitespace(i).expect("Cannot fail to parse whitespace");
+        i = remaining;
+
+        if i.is_empty() {
+            return None;
+        }
+
+        match parse_line(i) {
+            Ok((remaining, line)) => {
+                i = remaining;
+                Some(Ok(line))
+            }
+            Err(nom::Err::Error(e)) | Err(nom::Err::Failure(e)) => Some(Err(e)),
+            Err(nom::Err::Incomplete(_)) => unreachable!("Cannot have incomplete data"), // Only streaming parsers have this
+        }
+    })
+}
+
 fn parse_line(i: &str) -> IResult<&str, ParsedLine<'_>> {
-    let field_set = preceded(tag(" "), field_set);
-    let timestamp = preceded(tag(" "), timestamp);
+    let field_set = preceded(whitespace, field_set);
+    let timestamp = preceded(whitespace, timestamp);
 
     let line = tuple((series, field_set, opt(timestamp)));
 
@@ -356,7 +431,7 @@ fn series(i: &str) -> IResult<&str, Series<'_>> {
 }
 
 fn measurement(i: &str) -> IResult<&str, EscapedStr<'_>> {
-    let normal_char = take_while1(|c| c != ' ' && c != ',' && c != '\\');
+    let normal_char = take_while1(|c| !is_whitespace_boundary_char(c) && c != ',' && c != '\\');
 
     let space = map(tag(" "), |_| " ");
     let comma = map(tag(","), |_| ",");
@@ -373,23 +448,28 @@ fn tag_set(i: &str) -> IResult<&str, TagSet<'_>> {
 }
 
 fn tag_key(i: &str) -> IResult<&str, EscapedStr<'_>> {
-    let normal_char = take_while1(|c| c != '=' && c != '\\');
+    let normal_char = take_while1(|c| !is_whitespace_boundary_char(c) && c != '=' && c != '\\');
 
     escaped_value(normal_char)(i)
 }
 
 fn tag_value(i: &str) -> IResult<&str, EscapedStr<'_>> {
-    let normal_char = take_while1(|c| c != ',' && c != ' ' && c != '\\');
+    let normal_char = take_while1(|c| !is_whitespace_boundary_char(c) && c != ',' && c != '\\');
     escaped_value(normal_char)(i)
 }
 
 fn field_set(i: &str) -> IResult<&str, FieldSet<'_>> {
     let one_field = separated_pair(field_key, tag("="), field_value);
-    parameterized_separated_list(tag(","), one_field, SmallVec::new, |v, i| v.push(i))(i)
+    let sep = tag(",");
+
+    match parameterized_separated_list1(sep, one_field, SmallVec::new, |v, i| v.push(i))(i) {
+        Err(nom::Err::Error(_)) => FieldSetMissing.fail().map_err(nom::Err::Error),
+        other => other,
+    }
 }
 
 fn field_key(i: &str) -> IResult<&str, EscapedStr<'_>> {
-    let normal_char = take_while1(|c| c != '=' && c != '\\');
+    let normal_char = take_while1(|c| !is_whitespace_boundary_char(c) && c != '=' && c != '\\');
     escaped_value(normal_char)(i)
 }
 
@@ -416,15 +496,38 @@ fn timestamp(i: &str) -> IResult<&str, i64> {
     })(i)
 }
 
+/// Consumes all whitespace at the beginning / end of lines, including
+/// completely commented-out lines
+fn line_whitespace(mut i: &str) -> IResult<&str, ()> {
+    loop {
+        let offset = i
+            .find(|c| !is_whitespace_boundary_char(c))
+            .unwrap_or_else(|| i.len());
+        i = &i[offset..];
+
+        if i.starts_with('#') {
+            let offset = i.find('\n').unwrap_or_else(|| i.len());
+            i = &i[offset..];
+        } else {
+            break Ok((i, ()));
+        }
+    }
+}
+
+fn whitespace(i: &str) -> IResult<&str, &str> {
+    take_while1(|c| c == ' ')(i)
+}
+
+fn is_whitespace_boundary_char(c: char) -> bool {
+    c == ' ' || c == '\t' || c == '\n'
+}
+
 /// While not all of these escape characters are required to be
 /// escaped, we support the client escaping them proactively to
 /// provide a common experience.
-fn escaped_value<'a, Error>(
-    normal: impl Fn(&'a str) -> IResult<&'a str, &'a str, Error>,
-) -> impl FnOnce(&'a str) -> IResult<&'a str, EscapedStr<'a>, Error>
-where
-    Error: nom::error::ParseError<&'a str>,
-{
+fn escaped_value<'a>(
+    normal: impl Fn(&'a str) -> IResult<&'a str, &'a str>,
+) -> impl FnOnce(&'a str) -> IResult<&'a str, EscapedStr<'a>> {
     move |i| {
         let backslash = map(tag("\\"), |_| "\\");
         let comma = map(tag(","), |_| ",");
@@ -440,7 +543,23 @@ where
 /// Parse an unescaped piece of text, interspersed with
 /// potentially-escaped characters. If the character *isn't* escaped,
 /// treat it as a literal character.
-fn escape_or_fallback<'a, Error>(
+fn escape_or_fallback<'a>(
+    normal: impl Fn(&'a str) -> IResult<&'a str, &'a str>,
+    escape_char: &'static str,
+    escaped: impl Fn(&'a str) -> IResult<&'a str, &'a str>,
+) -> impl FnOnce(&'a str) -> IResult<&'a str, EscapedStr<'a>> {
+    move |i| {
+        let (remaining, s) = escape_or_fallback_inner(normal, escape_char, escaped)(i)?;
+
+        if s.ends_with("\\") {
+            EndsWithBackslash.fail().map_err(nom::Err::Failure)
+        } else {
+            Ok((remaining, s))
+        }
+    }
+}
+
+fn escape_or_fallback_inner<'a, Error>(
     normal: impl Fn(&'a str) -> IResult<&'a str, &'a str, Error>,
     escape_char: &'static str,
     escaped: impl Fn(&'a str) -> IResult<&'a str, &'a str, Error>,
@@ -471,6 +590,16 @@ where
                             Err(nom::Err::Error(_)) => {
                                 result.push(escape_char);
                                 head = after;
+
+                                // The Go parser assumes that *any* unknown escaped character is valid.
+                                match head.chars().next() {
+                                    Some(c) => {
+                                        let (escaped, remaining) = head.split_at(c.len_utf8());
+                                        result.push(escaped);
+                                        head = remaining;
+                                    }
+                                    None => return Ok((head, EscapedStr(result))),
+                                }
                             }
                             Err(e) => return Err(e),
                         }
@@ -558,6 +687,32 @@ where
     }
 }
 
+pub fn parameterized_separated_list1<I, O, O2, E, F, G, Ret>(
+    sep: G,
+    f: F,
+    cre: impl FnOnce() -> Ret,
+    mut add: impl FnMut(&mut Ret, O),
+) -> impl FnOnce(I) -> IResult<I, Ret, E>
+where
+    I: Clone + PartialEq,
+    F: Fn(I) -> IResult<I, O, E>,
+    G: Fn(I) -> IResult<I, O2, E>,
+    E: nom::error::ParseError<I>,
+{
+    move |i| {
+        let (rem, first) = f(i)?;
+
+        let mut res = cre();
+        add(&mut res, first);
+
+        match sep(rem.clone()) {
+            Ok((rem, _)) => parameterized_separated_list(sep, f, move || res, add)(rem),
+            Err(nom::Err::Error(_)) => Ok((rem, res)),
+            Err(e) => Err(e),
+        }
+    }
+}
+
 /// This is a copied version of nom's `recognize` that runs the parser
 /// **and** returns the entire matched input.
 pub fn parse_and_recognize<
@@ -590,6 +745,16 @@ mod test {
 
     type Error = Box<dyn std::error::Error>;
     type Result<T = (), E = Error> = std::result::Result<T, E>;
+
+    #[test]
+    fn parse_no_fields() -> Result {
+        let input = "foo 1234";
+        let vals = parse(input);
+
+        assert!(matches!(vals, Err(super::Error::FieldSetMissing)));
+
+        Ok(())
+    }
 
     #[test]
     fn parse_single_field_integer() -> Result {
@@ -708,6 +873,67 @@ mod test {
         Ok(())
     }
 
+    #[test]
+    fn parse_multiple_lines_become_multiple_points() -> Result {
+        let input = r#"foo value1=1i 123
+foo value2=2i 123"#;
+        let vals = parse(input)?;
+
+        assert_eq!(vals[0].series(), "foo\tvalue1");
+        assert_eq!(vals[0].time(), 123);
+        assert_eq!(vals[0].i64_value().unwrap(), 1);
+
+        assert_eq!(vals[1].series(), "foo\tvalue2");
+        assert_eq!(vals[1].time(), 123);
+        assert_eq!(vals[1].i64_value().unwrap(), 2);
+
+        Ok(())
+    }
+
+    #[test]
+    fn parse_without_a_timestamp_uses_the_default() -> Result {
+        let input = r#"foo value1=1i"#;
+        let vals = parse_full(input, 555)?;
+
+        assert_eq!(vals[0].series(), "foo\tvalue1");
+        assert_eq!(vals[0].time(), 555);
+        assert_eq!(vals[0].i64_value().unwrap(), 1);
+
+        Ok(())
+    }
+
+    #[test]
+    fn parse_blank_lines_are_ignored() -> Result {
+        let input = "\n\n\n";
+        let vals = parse(input)?;
+
+        assert!(vals.is_empty());
+
+        Ok(())
+    }
+
+    #[test]
+    fn parse_commented_lines_are_ignored() -> Result {
+        let input = "# comment";
+        let vals = parse(input)?;
+
+        assert!(vals.is_empty());
+
+        Ok(())
+    }
+
+    #[test]
+    fn parse_multiple_whitespace_between_elements_is_allowed() -> Result {
+        let input = "  measurement  a=1i  123  ";
+        let vals = parse(input)?;
+
+        assert_eq!(vals[0].series(), "measurement\ta");
+        assert_eq!(vals[0].time(), 123);
+        assert_eq!(vals[0].i64_value().unwrap(), 1);
+
+        Ok(())
+    }
+
     macro_rules! assert_fully_parsed {
         ($parse_result:expr, $output:expr $(,)?) => {{
             let (remaining, parsed) = $parse_result?;
@@ -735,12 +961,46 @@ mod test {
 
     #[test]
     fn measurement_allows_escaping_backslash() -> Result {
-        assert_fully_parsed!(measurement(r#"\\wea\\ther\\"#), r#"\wea\ther\"#)
+        assert_fully_parsed!(measurement(r#"\\wea\\ther"#), r#"\wea\ther"#)
     }
 
     #[test]
     fn measurement_allows_backslash_with_unknown_escape() -> Result {
-        assert_fully_parsed!(measurement(r#"\wea\ther\"#), r#"\wea\ther\"#)
+        assert_fully_parsed!(measurement(r#"\wea\ther"#), r#"\wea\ther"#)
+    }
+
+    #[test]
+    fn measurement_allows_literal_newline_as_unknown_escape() -> Result {
+        assert_fully_parsed!(
+            measurement(
+                r#"weat\
+her"#
+            ),
+            "weat\\\nher",
+        )
+    }
+
+    #[test]
+    fn measurement_disallows_literal_newline() -> Result {
+        let (remaining, parsed) = measurement(
+            r#"weat
+her"#,
+        )?;
+        assert_eq!(parsed, "weat");
+        assert_eq!(remaining, "\nher");
+
+        Ok(())
+    }
+
+    #[test]
+    fn measurement_disallows_ending_in_backslash() -> Result {
+        let parsed = measurement(r#"weather\"#);
+        assert!(matches!(
+            parsed,
+            Err(nom::Err::Failure(super::Error::EndsWithBackslash))
+        ));
+
+        Ok(())
     }
 
     #[test]
@@ -760,12 +1020,46 @@ mod test {
 
     #[test]
     fn tag_key_allows_escaping_backslash() -> Result {
-        assert_fully_parsed!(tag_key(r#"\\wea\\ther\\"#), r#"\wea\ther\"#)
+        assert_fully_parsed!(tag_key(r#"\\wea\\ther"#), r#"\wea\ther"#)
     }
 
     #[test]
     fn tag_key_allows_backslash_with_unknown_escape() -> Result {
-        assert_fully_parsed!(tag_key(r#"\wea\ther\"#), r#"\wea\ther\"#)
+        assert_fully_parsed!(tag_key(r#"\wea\ther"#), r#"\wea\ther"#)
+    }
+
+    #[test]
+    fn tag_key_allows_literal_newline_as_unknown_escape() -> Result {
+        assert_fully_parsed!(
+            tag_key(
+                r#"weat\
+her"#
+            ),
+            "weat\\\nher",
+        )
+    }
+
+    #[test]
+    fn tag_key_disallows_literal_newline() -> Result {
+        let (remaining, parsed) = tag_key(
+            r#"weat
+her"#,
+        )?;
+        assert_eq!(parsed, "weat");
+        assert_eq!(remaining, "\nher");
+
+        Ok(())
+    }
+
+    #[test]
+    fn tag_key_disallows_ending_in_backslash() -> Result {
+        let parsed = tag_key(r#"weather\"#);
+        assert!(matches!(
+            parsed,
+            Err(nom::Err::Failure(super::Error::EndsWithBackslash))
+        ));
+
+        Ok(())
     }
 
     #[test]
@@ -785,12 +1079,46 @@ mod test {
 
     #[test]
     fn tag_value_allows_escaping_backslash() -> Result {
-        assert_fully_parsed!(tag_value(r#"\\wea\\ther\\"#), r#"\wea\ther\"#)
+        assert_fully_parsed!(tag_value(r#"\\wea\\ther"#), r#"\wea\ther"#)
     }
 
     #[test]
     fn tag_value_allows_backslash_with_unknown_escape() -> Result {
-        assert_fully_parsed!(tag_value(r#"\wea\ther\"#), r#"\wea\ther\"#)
+        assert_fully_parsed!(tag_value(r#"\wea\ther"#), r#"\wea\ther"#)
+    }
+
+    #[test]
+    fn tag_value_allows_literal_newline_as_unknown_escape() -> Result {
+        assert_fully_parsed!(
+            tag_value(
+                r#"weat\
+her"#
+            ),
+            "weat\\\nher",
+        )
+    }
+
+    #[test]
+    fn tag_value_disallows_literal_newline() -> Result {
+        let (remaining, parsed) = tag_value(
+            r#"weat
+her"#,
+        )?;
+        assert_eq!(parsed, "weat");
+        assert_eq!(remaining, "\nher");
+
+        Ok(())
+    }
+
+    #[test]
+    fn tag_value_disallows_ending_in_backslash() -> Result {
+        let parsed = tag_value(r#"weather\"#);
+        assert!(matches!(
+            parsed,
+            Err(nom::Err::Failure(super::Error::EndsWithBackslash))
+        ));
+
+        Ok(())
     }
 
     #[test]
@@ -810,12 +1138,46 @@ mod test {
 
     #[test]
     fn field_key_allows_escaping_backslash() -> Result {
-        assert_fully_parsed!(field_key(r#"\\wea\\ther\\"#), r#"\wea\ther\"#)
+        assert_fully_parsed!(field_key(r#"\\wea\\ther"#), r#"\wea\ther"#)
     }
 
     #[test]
     fn field_key_allows_backslash_with_unknown_escape() -> Result {
-        assert_fully_parsed!(field_key(r#"\wea\ther\"#), r#"\wea\ther\"#)
+        assert_fully_parsed!(field_key(r#"\wea\ther"#), r#"\wea\ther"#)
+    }
+
+    #[test]
+    fn field_key_allows_literal_newline_as_unknown_escape() -> Result {
+        assert_fully_parsed!(
+            field_key(
+                r#"weat\
+her"#
+            ),
+            "weat\\\nher",
+        )
+    }
+
+    #[test]
+    fn field_key_disallows_literal_newline() -> Result {
+        let (remaining, parsed) = field_key(
+            r#"weat
+her"#,
+        )?;
+        assert_eq!(parsed, "weat");
+        assert_eq!(remaining, "\nher");
+
+        Ok(())
+    }
+
+    #[test]
+    fn field_key_disallows_ending_in_backslash() -> Result {
+        let parsed = field_key(r#"weather\"#);
+        assert!(matches!(
+            parsed,
+            Err(nom::Err::Failure(super::Error::EndsWithBackslash))
+        ));
+
+        Ok(())
     }
 
     #[test]
