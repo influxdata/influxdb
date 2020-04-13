@@ -3,9 +3,12 @@
 
 use serde::{de::Error, Deserialize, Deserializer};
 
-use std::convert::{TryFrom, TryInto};
-use std::fmt;
-use std::str::FromStr;
+use std::{
+    convert::{TryFrom, TryInto},
+    fmt,
+    num::NonZeroU64,
+    str::FromStr,
+};
 
 /// ID_LENGTH is the exact length a string (or a byte slice representing it) must have in order to
 /// be decoded into a valid ID.
@@ -15,17 +18,19 @@ const ID_LENGTH: usize = 16;
 ///
 /// Its zero value is not a valid ID.
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
-pub struct Id(u64);
+pub struct Id(NonZeroU64);
 
-impl From<u64> for Id {
-    fn from(value: u64) -> Id {
-        Id(value)
+impl TryFrom<u64> for Id {
+    type Error = &'static str;
+
+    fn try_from(value: u64) -> Result<Self, Self::Error> {
+        Ok(Id(NonZeroU64::new(value).ok_or("ID cannot be zero")?))
     }
 }
 
 impl From<Id> for u64 {
     fn from(value: Id) -> u64 {
-        value.0
+        value.0.get()
     }
 }
 
@@ -44,18 +49,12 @@ impl TryFrom<&str> for Id {
 
     fn try_from(hex: &str) -> Result<Self, Self::Error> {
         if hex.len() != ID_LENGTH {
-            return Err("id must have a length of 16 bytes");
+            return Err("ID must have a length of 16 bytes");
         }
 
         u64::from_str_radix(hex, 16)
             .map_err(|_| "invalid ID")
-            .and_then(|value| {
-                if value == 0 {
-                    Err("invalid ID")
-                } else {
-                    Ok(Id(value))
-                }
-            })
+            .and_then(|value| value.try_into())
     }
 }
 
@@ -82,15 +81,24 @@ mod tests {
     #[test]
     fn test_id_from_string() {
         let cases = [
-            ("0000000000000000", Err("invalid ID")),
-            ("ffffffffffffffff", Ok(Id(18_446_744_073_709_551_615))),
-            ("020f755c3c082000", Ok(Id(148_466_351_731_122_176))),
+            ("0000000000000000", Err("ID cannot be zero")),
+            (
+                "ffffffffffffffff",
+                Ok(Id(NonZeroU64::new(18_446_744_073_709_551_615).unwrap())),
+            ),
+            (
+                "020f755c3c082000",
+                Ok(Id(NonZeroU64::new(148_466_351_731_122_176).unwrap())),
+            ),
             ("gggggggggggggggg", Err("invalid ID")),
-            ("0000111100001111", Ok(Id(18_764_712_120_593))),
-            ("abc", Err("id must have a length of 16 bytes")),
+            (
+                "0000111100001111",
+                Ok(Id(NonZeroU64::new(18_764_712_120_593).unwrap())),
+            ),
+            ("abc", Err("ID must have a length of 16 bytes")),
             (
                 "abcdabcdabcdabcd0",
-                Err("id must have a length of 16 bytes"),
+                Err("ID must have a length of 16 bytes"),
             ),
         ];
 
@@ -103,10 +111,19 @@ mod tests {
     #[test]
     fn test_id_to_string() {
         let cases = [
-            (Id(0x1234), "0000000000001234"),
-            (Id(18_446_744_073_709_551_615), "ffffffffffffffff"),
-            (Id(148_466_351_731_122_176), "020f755c3c082000"),
-            (Id(18_764_712_120_593), "0000111100001111"),
+            (Id(NonZeroU64::new(0x1234).unwrap()), "0000000000001234"),
+            (
+                Id(NonZeroU64::new(18_446_744_073_709_551_615).unwrap()),
+                "ffffffffffffffff",
+            ),
+            (
+                Id(NonZeroU64::new(148_466_351_731_122_176).unwrap()),
+                "020f755c3c082000",
+            ),
+            (
+                Id(NonZeroU64::new(18_764_712_120_593).unwrap()),
+                "0000111100001111",
+            ),
         ];
 
         for &(input, expected_output) in &cases {
@@ -118,7 +135,7 @@ mod tests {
     #[test]
     fn test_deserialize_then_to_string() {
         let i: Id = "0000111100001111".parse().unwrap();
-        assert_eq!(Id(18_764_712_120_593), i);
+        assert_eq!(Id(NonZeroU64::new(18_764_712_120_593).unwrap()), i);
 
         #[derive(Deserialize)]
         struct WriteInfo {
@@ -127,7 +144,10 @@ mod tests {
 
         let query = "org=0000111100001111";
         let write_info: WriteInfo = serde_urlencoded::from_str(query).unwrap();
-        assert_eq!(Id(18_764_712_120_593), write_info.org);
+        assert_eq!(
+            Id(NonZeroU64::new(18_764_712_120_593).unwrap()),
+            write_info.org
+        );
         assert_eq!("0000111100001111", write_info.org.to_string());
     }
 }

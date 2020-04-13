@@ -6,8 +6,7 @@ use crate::storage::partitioned_store::{Partition, ReadBatch};
 use crate::storage::StorageError;
 
 use futures::StreamExt;
-use std::collections::HashMap;
-use std::sync::Arc;
+use std::{collections::HashMap, convert::TryInto, sync::Arc};
 use tokio::sync::RwLock;
 
 pub struct Database {
@@ -28,11 +27,11 @@ impl Organization {
             None => {
                 let id = (self.bucket_data.len() + 1) as u64;
                 bucket.id = id;
-                self.bucket_name_to_id
-                    .insert(bucket.name.clone(), id.into());
+                let id: Id = id.try_into().expect("usize plus 1 can't be zero");
+                self.bucket_name_to_id.insert(bucket.name.clone(), id);
                 self.bucket_data
-                    .insert(id.into(), Arc::new(BucketData::new(bucket)));
-                id.into()
+                    .insert(id, Arc::new(BucketData::new(bucket)));
+                id
             }
         }
     }
@@ -226,11 +225,12 @@ mod tests {
     use crate::storage::partitioned_store::ReadValues;
     use crate::storage::predicate::parse_predicate;
     use crate::storage::ReadPoint;
+    use std::convert::TryInto;
 
     #[tokio::test]
     async fn create_bucket() {
         let database = Database::new("");
-        let org_id: Id = 2u64.into();
+        let org_id: Id = 2u64.try_into().unwrap();
         let bucket = Bucket {
             org_id: org_id.into(),
             id: 0,
@@ -243,7 +243,7 @@ mod tests {
             .create_bucket_if_not_exists(org_id, bucket.clone())
             .await
             .unwrap();
-        assert_eq!(bucket_id, 1u64.into());
+        assert_eq!(bucket_id, 1u64.try_into().unwrap());
 
         let bucket_two = Bucket {
             org_id: org_id.into(),
@@ -258,13 +258,13 @@ mod tests {
             .create_bucket_if_not_exists(org_id, bucket_two)
             .await
             .unwrap();
-        assert_eq!(bucket_id, 2u64.into());
+        assert_eq!(bucket_id, 2u64.try_into().unwrap());
 
         let bucket_id = database
             .create_bucket_if_not_exists(org_id, bucket)
             .await
             .unwrap();
-        assert_eq!(bucket_id, 1u64.into());
+        assert_eq!(bucket_id, 1u64.try_into().unwrap());
     }
 
     #[tokio::test]
@@ -357,7 +357,7 @@ mod tests {
 
     async fn setup_db_and_bucket() -> (Database, Id, Id) {
         let database = Database::new("");
-        let org_id: Id = 1u64.into();
+        let org_id: Id = 1u64.try_into().unwrap();
         let bucket = Bucket {
             org_id: org_id.into(),
             id: 0,
