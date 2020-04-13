@@ -166,6 +166,11 @@ export const dashboardCreateFailed = () => ({
   message: 'Failed to create dashboard.',
 })
 
+export const dashboardCreateSuccess = () => ({
+  ...defaultSuccessNotification,
+  message: 'Created dashboard successfully',
+})
+
 export const dashboardDeleteFailed = (
   name: string,
   errorMessage: string
@@ -194,11 +199,15 @@ export const cellAdded = (
 })
 
 export const cellAddFailed = (
-  cellName?: string,
-  dashboardName?: string
+  message: string = 'unknown error'
 ): Notification => ({
   ...defaultErrorNotification,
-  message: `Failed to add cell ${cellName + ' '}to dashboard ${dashboardName}`,
+  message: `Failed to add cell: ${message}`,
+})
+
+export const cellCopyFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: 'Cell copy failed',
 })
 
 export const cellUpdateFailed = (): Notification => ({

@@ -693,16 +693,6 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
 		return b.writeJSON(diff)
 	}
 
-	green := color.New(color.FgHiGreen, color.Bold).SprintFunc()
-
-	boolDiff := func(b bool) string {
-		bb := strconv.FormatBool(b)
-		if b {
-			return green(bb)
-		}
-		return bb
-	}
-
 	diffPrinterGen := func(title string, headers []string) *diffPrinter {
 		commonHeaders := []string{"Package Name", "ID", "Resource Name"}
 
@@ -769,7 +759,11 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
 		printer := diffPrinterGen("Checks", []string{"Description"})
 
 		appendValues := func(id pkger.SafeID, pkgName string, v pkger.DiffCheckValues) []string {
-			return []string{pkgName, id.String(), v.Check.GetName(), v.Check.GetDescription()}
+			out := []string{pkgName, id.String()}
+			if v.Check == nil {
+				return append(out, "", "")
+			}
+			return append(out, v.Check.GetName(), v.Check.GetDescription())
 		}
 
 		for _, c := range checks {
@@ -791,25 +785,41 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
 		printer.Render()
 	}
 
-	tablePrintFn := b.tablePrinterGen()
 	if dashes := diff.Dashboards; len(dashes) > 0 {
-		headers := []string{"New", "Name", "Description", "Num Charts"}
-		tablePrintFn("DASHBOARDS", headers, len(dashes), func(i int) []string {
-			d := dashes[i]
-			return []string{
-				boolDiff(true),
-				d.Name,
-				green(d.Desc),
-				green(strconv.Itoa(len(d.Charts))),
+		printer := diffPrinterGen("Dashboards", []string{"Description", "Num Charts"})
+
+		appendValues := func(id pkger.SafeID, pkgName string, v pkger.DiffDashboardValues) []string {
+			return []string{pkgName, id.String(), v.Name, v.Desc, strconv.Itoa(len(v.Charts))}
+		}
+
+		for _, d := range dashes {
+			var oldRow []string
+			if d.Old != nil {
+				oldRow = appendValues(d.ID, d.PkgName, *d.Old)
 			}
-		})
+
+			newRow := appendValues(d.ID, d.PkgName, d.New)
+			switch {
+			case d.IsNew():
+				printer.AppendDiff(nil, newRow)
+			case d.Remove:
+				printer.AppendDiff(oldRow, nil)
+			default:
+				printer.AppendDiff(oldRow, newRow)
+			}
+		}
+		printer.Render()
 	}
 
 	if endpoints := diff.NotificationEndpoints; len(endpoints) > 0 {
 		printer := diffPrinterGen("Notification Endpoints", nil)
 
 		appendValues := func(id pkger.SafeID, pkgName string, v pkger.DiffNotificationEndpointValues) []string {
-			return []string{pkgName, id.String(), v.NotificationEndpoint.GetName()}
+			out := []string{pkgName, id.String()}
+			if v.NotificationEndpoint == nil {
+				return append(out, "")
+			}
+			return append(out, v.NotificationEndpoint.GetName())
 		}
 
 		for _, e := range endpoints {
@@ -832,49 +842,99 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
 	}
 
 	if rules := diff.NotificationRules; len(rules) > 0 {
-		headers := []string{"New", "Name", "Description", "Every", "Offset", "Endpoint Name", "Endpoint ID", "Endpoint Type"}
-		tablePrintFn("NOTIFICATION RULES", headers, len(rules), func(i int) []string {
-			v := rules[i]
+		printer := diffPrinterGen("Notification Rules", []string{
+			"Description",
+			"Every",
+			"Offset",
+			"Endpoint Name",
+			"Endpoint ID",
+			"Endpoint Type",
+		})
+
+		appendValues := func(id pkger.SafeID, pkgName string, v pkger.DiffNotificationRuleValues) []string {
 			return []string{
-				green(true),
+				pkgName,
+				id.String(),
 				v.Name,
-				v.Description,
 				v.Every,
 				v.Offset,
 				v.EndpointName,
 				v.EndpointID.String(),
 				v.EndpointType,
 			}
-		})
+		}
+
+		for _, e := range rules {
+			var oldRow []string
+			if e.Old != nil {
+				oldRow = appendValues(e.ID, e.PkgName, *e.Old)
+			}
+
+			newRow := appendValues(e.ID, e.PkgName, e.New)
+			switch {
+			case e.IsNew():
+				printer.AppendDiff(nil, newRow)
+			case e.Remove:
+				printer.AppendDiff(oldRow, nil)
+			default:
+				printer.AppendDiff(oldRow, newRow)
+			}
+		}
+		printer.Render()
 	}
 
 	if teles := diff.Telegrafs; len(teles) > 0 {
-		headers := []string{"New", "Name", "Description"}
-		tablePrintFn("TELEGRAF CONFIGS", headers, len(teles), func(i int) []string {
-			t := teles[i]
-			return []string{
-				boolDiff(true),
-				t.Name,
-				green(t.Description),
+		printer := diffPrinterGen("Telegraf Configurations", []string{"Description"})
+		appendValues := func(id pkger.SafeID, pkgName string, v influxdb.TelegrafConfig) []string {
+			return []string{pkgName, id.String(), v.Name, v.Description}
+		}
+
+		for _, e := range teles {
+			var oldRow []string
+			if e.Old != nil {
+				oldRow = appendValues(e.ID, e.PkgName, *e.Old)
 			}
-		})
+
+			newRow := appendValues(e.ID, e.PkgName, e.New)
+			switch {
+			case e.IsNew():
+				printer.AppendDiff(nil, newRow)
+			case e.Remove:
+				printer.AppendDiff(oldRow, nil)
+			default:
+				printer.AppendDiff(oldRow, newRow)
+			}
+		}
+		printer.Render()
 	}
 
 	if tasks := diff.Tasks; len(tasks) > 0 {
-		headers := []string{"New", "Name", "Description", "Cycle"}
-		tablePrintFn("TASKS", headers, len(tasks), func(i int) []string {
-			t := tasks[i]
-			timing := fmt.Sprintf("every: %s offset: %s", t.Every, t.Offset)
-			if t.Cron != "" {
-				timing = t.Cron
+		printer := diffPrinterGen("Tasks", []string{"Description", "Cycle"})
+		appendValues := func(id pkger.SafeID, pkgName string, v pkger.DiffTaskValues) []string {
+			timing := v.Cron
+			if v.Cron == "" {
+				timing = fmt.Sprintf("every: %s offset: %s", v.Every, v.Offset)
 			}
-			return []string{
-				boolDiff(true),
-				t.Name,
-				green(t.Description),
-				green(timing),
+			return []string{pkgName, id.String(), v.Name, v.Description, timing}
+		}
+
+		for _, e := range tasks {
+			var oldRow []string
+			if e.Old != nil {
+				oldRow = appendValues(e.ID, e.PkgName, *e.Old)
 			}
-		})
+
+			newRow := appendValues(e.ID, e.PkgName, e.New)
+			switch {
+			case e.IsNew():
+				printer.AppendDiff(nil, newRow)
+			case e.Remove:
+				printer.AppendDiff(oldRow, nil)
+			default:
+				printer.AppendDiff(oldRow, newRow)
+			}
+		}
+		printer.Render()
 	}
 
 	if vars := diff.Variables; len(vars) > 0 {
@@ -908,18 +968,28 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
 	}
 
 	if len(diff.LabelMappings) > 0 {
-		headers := []string{"New", "Resource Type", "Resource Name", "Resource ID", "Label Name", "Label ID"}
-		tablePrintFn("LABEL MAPPINGS", headers, len(diff.LabelMappings), func(i int) []string {
-			m := diff.LabelMappings[i]
-			return []string{
-				boolDiff(m.IsNew),
+		printer := newDiffPrinter(b.w, !b.disableColor, !b.disableTableBorders)
+		printer.
+			Title("Label Associations").
+			SetHeaders(
+				"Resource Type",
+				"Resource Name", "Resource ID",
+				"Label Name", "Label ID",
+			)
+
+		for _, m := range diff.LabelMappings {
+			newRow := []string{
 				string(m.ResType),
-				m.ResName,
-				m.ResID.String(),
-				m.LabelName,
-				m.LabelID.String(),
+				m.ResName, m.ResID.String(),
+				m.LabelName, m.LabelID.String(),
 			}
-		})
+			oldRow := newRow
+			if m.IsNew {
+				oldRow = nil
+			}
+			printer.AppendDiff(oldRow, newRow)
+		}
+		printer.Render()
 	}
 
 	return nil
@@ -1064,7 +1134,7 @@ func (b *cmdPkgBuilder) printPkgSummary(sum pkger.Summary) error {
 
 	if mappings := sum.LabelMappings; len(mappings) > 0 {
 		headers := []string{"Resource Type", "Resource Name", "Resource ID", "Label Name", "Label ID"}
-		tablePrintFn("LABEL MAPPINGS", headers, len(mappings), func(i int) []string {
+		tablePrintFn("LABEL ASSOCIATIONS", headers, len(mappings), func(i int) []string {
 			m := mappings[i]
 			return []string{
 				string(m.ResourceType),

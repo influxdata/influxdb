@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {isEmpty, get} from 'lodash'
+import {isEmpty} from 'lodash'
 import {connect} from 'react-redux'
 
 // Components
@@ -44,6 +44,7 @@ import {
 } from 'src/cloud/actions/demodata'
 
 // Utils
+import {getNewDemoBuckets} from 'src/cloud/selectors/demodata'
 import {extractBucketLimits} from 'src/cloud/utils/limits'
 import {getOrg} from 'src/organizations/selectors'
 import {getAll} from 'src/resources/selectors'
@@ -293,12 +294,15 @@ class BucketsTab extends PureComponent<Props, State> {
   }
 }
 
-const mstp = (state: AppState): StateProps => ({
-  org: getOrg(state),
-  buckets: getAll<Bucket>(state, ResourceType.Buckets),
-  limitStatus: extractBucketLimits(state.cloud.limits),
-  demoDataBuckets: get(state, 'cloud.demoData.buckets', []),
-})
+const mstp = (state: AppState): StateProps => {
+  const buckets = getAll<Bucket>(state, ResourceType.Buckets)
+  return {
+    org: getOrg(state),
+    buckets,
+    limitStatus: extractBucketLimits(state.cloud.limits),
+    demoDataBuckets: getNewDemoBuckets(state, buckets),
+  }
+}
 
 const mdtp: DispatchProps = {
   createBucket,

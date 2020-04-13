@@ -15,7 +15,7 @@ describe('buildQuery', () => {
 
     const expected = `from(bucket: "b0")
   |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
-  |> filter(fn: (r) => r._measurement == "m0")`
+  |> filter(fn: (r) => r["_measurement"] == "m0")`
 
     const actual = buildQuery(config)
     expect(actual).toEqual(expected)
@@ -38,8 +38,8 @@ describe('buildQuery', () => {
 
     const expected = `from(bucket: "b0")
   |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
-  |> filter(fn: (r) => r._measurement == "m0" or r._measurement == "m1")
-  |> filter(fn: (r) => r._field == "f0" or r._field == "f1")`
+  |> filter(fn: (r) => r["_measurement"] == "m0" or r["_measurement"] == "m1")
+  |> filter(fn: (r) => r["_field"] == "f0" or r["_field"] == "f1")`
 
     const actual = buildQuery(config)
 
@@ -58,13 +58,13 @@ describe('buildQuery', () => {
 
     const expected = `from(bucket: "b0")
   |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
-  |> filter(fn: (r) => r._measurement == "m0")
+  |> filter(fn: (r) => r["_measurement"] == "m0")
   |> aggregateWindow(every: v.windowPeriod, fn: mean)
   |> yield(name: "mean")
 
 from(bucket: "b0")
   |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
-  |> filter(fn: (r) => r._measurement == "m0")
+  |> filter(fn: (r) => r["_measurement"] == "m0")
   |> aggregateWindow(every: v.windowPeriod, fn: median)
   |> yield(name: "median")`
 

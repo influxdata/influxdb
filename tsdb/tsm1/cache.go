@@ -328,6 +328,47 @@ func (c *Cache) Type(key []byte) (models.FieldType, error) {
 	return models.Empty, errUnknownFieldType
 }
 
+// BlockType returns the TSM block type for the specified
+// key or BlockUndefined if the type cannot be determined
+// either because the key does not exist or there are no
+// values for the key.
+func (c *Cache) BlockType(key []byte) byte {
+	c.mu.RLock()
+	e := c.store.entry(key)
+	if e == nil && c.snapshot != nil {
+		e = c.snapshot.store.entry(key)
+	}
+	c.mu.RUnlock()
+
+	if e != nil {
+		return e.BlockType()
+	}
+
+	return BlockUndefined
+}
+
+// AppendTimestamps appends ts with the timestamps for the specified key.
+// It is the responsibility of the caller to sort and or deduplicate the slice.
+func (c *Cache) AppendTimestamps(key []byte, ts []int64) []int64 {
+	var snapshotEntries *entry
+
+	c.mu.RLock()
+	e := c.store.entry(key)
+	if c.snapshot != nil {
+		snapshotEntries = c.snapshot.store.entry(key)
+	}
+	c.mu.RUnlock()
+
+	if e != nil {
+		ts = e.AppendTimestamps(ts)
+	}
+	if snapshotEntries != nil {
+		ts = snapshotEntries.AppendTimestamps(ts)
+	}
+
+	return ts
+}
+
 // Values returns a copy of all values, deduped and sorted, for the given key.
 func (c *Cache) Values(key []byte) Values {
 	var snapshotEntries *entry
@@ -729,14 +770,14 @@ func valueType(v Value) byte {
 
 var (
 	valueTypeBlockType = [8]byte{
-		valueTypeUndefined: blockUndefined,
+		valueTypeUndefined: BlockUndefined,
 		valueTypeFloat64:   BlockFloat64,
 		valueTypeInteger:   BlockInteger,
 		valueTypeString:    BlockString,
 		valueTypeBoolean:   BlockBoolean,
 		valueTypeUnsigned:  BlockUnsigned,
-		6:                  blockUndefined,
-		7:                  blockUndefined,
+		6:                  BlockUndefined,
+		7:                  BlockUndefined,
 	}
 )
 

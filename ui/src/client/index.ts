@@ -14,7 +14,9 @@ setRequestHandler((url, query, init) => {
 })
 
 setResponseHandler((status, headers, data) => {
-  if (status === 403) {
+  // if the user is inactive log them out
+  // influxdb/http/authentication_middleware.go
+  if (status === 403 && data.message === 'User is inactive') {
     postSignout({})
     window.location.href = '/signin'
   }

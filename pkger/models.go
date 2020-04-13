@@ -135,6 +135,19 @@ func (s SafeID) String() string {
 	return influxdb.ID(s).String()
 }
 
+// DiffIdentifier are the identifying fields for any given resource. Each resource
+// dictates if the resource is new, to be removed, or will remain.
+type DiffIdentifier struct {
+	ID      SafeID `json:"id"`
+	Remove  bool   `json:"bool"`
+	PkgName string `json:"pkgName"`
+}
+
+// IsNew indicates the resource is new to the platform.
+func (d DiffIdentifier) IsNew() bool {
+	return d.ID == 0
+}
+
 // Diff is the result of a service DryRun call. The diff outlines
 // what is new and or updated from the current state of the platform.
 type Diff struct {
@@ -174,26 +187,30 @@ func (d Diff) HasConflicts() bool {
 	return false
 }
 
-// DiffBucketValues are the varying values for a bucket.
-type DiffBucketValues struct {
-	Name           string         `json:"name"`
-	Description    string         `json:"description"`
-	RetentionRules retentionRules `json:"retentionRules"`
-}
+type (
+	// DiffBucket is a diff of an individual bucket.
+	DiffBucket struct {
+		DiffIdentifier
 
-// DiffBucket is a diff of an individual bucket.
-type DiffBucket struct {
-	Remove  bool              `json:"remove"`
-	ID      SafeID            `json:"id"`
-	PkgName string            `json:"pkgName"`
-	New     DiffBucketValues  `json:"new"`
-	Old     *DiffBucketValues `json:"old,omitempty"` // using omitempty here to signal there was no prev state with a nil
-}
+		New DiffBucketValues  `json:"new"`
+		Old *DiffBucketValues `json:"old,omitempty"` // using omitempty here to signal there was no prev state with a nil
+	}
+
+	// DiffBucketValues are the varying values for a bucket.
+	DiffBucketValues struct {
+		Name           string         `json:"name"`
+		Description    string         `json:"description"`
+		RetentionRules retentionRules `json:"retentionRules"`
+	}
+)
 
 func newDiffBucket(b *bucket, i *influxdb.Bucket) DiffBucket {
 	diff := DiffBucket{
-		Remove:  b.shouldRemove,
-		PkgName: b.PkgName(),
+		DiffIdentifier: DiffIdentifier{
+			ID:      SafeID(b.ID()),
+			Remove:  b.shouldRemove,
+			PkgName: b.PkgName(),
+		},
 		New: DiffBucketValues{
 			Name:           b.Name(),
 			Description:    b.Description,
@@ -211,11 +228,6 @@ func newDiffBucket(b *bucket, i *influxdb.Bucket) DiffBucket {
 		}
 	}
 	return diff
-}
-
-// IsNew indicates whether a pkg bucket is going to be new to the platform.
-func (d DiffBucket) IsNew() bool {
-	return d.ID == SafeID(0)
 }
 
 func (d DiffBucket) hasConflict() bool {
@@ -246,17 +258,19 @@ func (d *DiffCheckValues) UnmarshalJSON(b []byte) (err error) {
 
 // DiffCheck is a diff of an individual check.
 type DiffCheck struct {
-	Remove  bool             `json:"remove"`
-	ID      SafeID           `json:"id"`
-	PkgName string           `json:"pkgName"`
-	New     DiffCheckValues  `json:"new"`
-	Old     *DiffCheckValues `json:"old"`
+	DiffIdentifier
+
+	New DiffCheckValues  `json:"new"`
+	Old *DiffCheckValues `json:"old"`
 }
 
 func newDiffCheck(c *check, iCheck influxdb.Check) DiffCheck {
 	diff := DiffCheck{
-		Remove:  c.shouldRemove,
-		PkgName: c.PkgName(),
+		DiffIdentifier: DiffIdentifier{
+			ID:      SafeID(c.ID()),
+			Remove:  c.shouldRemove,
+			PkgName: c.PkgName(),
+		},
 		New: DiffCheckValues{
 			Check: c.summarize().Check,
 		},
@@ -270,31 +284,71 @@ func newDiffCheck(c *check, iCheck influxdb.Check) DiffCheck {
 	return diff
 }
 
-// IsNew determines if the check in the pkg is new to the platform.
-func (d DiffCheck) IsNew() bool {
-	return d.Old == nil
-}
+type (
+	// DiffDashboard is a diff of an individual dashboard.
+	DiffDashboard struct {
+		DiffIdentifier
 
-// DiffDashboard is a diff of an individual dashboard. This resource is always new.
-type DiffDashboard struct {
-	Name   string      `json:"name"`
-	Desc   string      `json:"description"`
-	Charts []DiffChart `json:"charts"`
-}
+		New DiffDashboardValues  `json:"new"`
+		Old *DiffDashboardValues `json:"old"`
+	}
+
+	// DiffDashboardValues are values for a dashboard.
+	DiffDashboardValues struct {
+		Name   string      `json:"name"`
+		Desc   string      `json:"description"`
+		Charts []DiffChart `json:"charts"`
+	}
+)
 
 func newDiffDashboard(d *dashboard) DiffDashboard {
 	diff := DiffDashboard{
-		Name: d.Name(),
-		Desc: d.Description,
+		DiffIdentifier: DiffIdentifier{
+			ID:      SafeID(d.ID()),
+			Remove:  d.shouldRemove,
+			PkgName: d.PkgName(),
+		},
+		New: DiffDashboardValues{
+			Name:   d.Name(),
+			Desc:   d.Description,
+			Charts: make([]DiffChart, 0, len(d.Charts)),
+		},
 	}
 
 	for _, c := range d.Charts {
-		diff.Charts = append(diff.Charts, DiffChart{
+		diff.New.Charts = append(diff.New.Charts, DiffChart{
 			Properties: c.properties(),
 			Height:     c.Height,
 			Width:      c.Width,
 		})
 	}
+
+	if !d.Exists() {
+		return diff
+	}
+
+	oldDiff := DiffDashboardValues{
+		Name:   d.existing.Name,
+		Desc:   d.existing.Description,
+		Charts: make([]DiffChart, 0, len(d.existing.Cells)),
+	}
+
+	for _, c := range d.existing.Cells {
+		var props influxdb.ViewProperties
+		if c.View != nil {
+			props = c.View.Properties
+		}
+
+		oldDiff.Charts = append(oldDiff.Charts, DiffChart{
+			Properties: props,
+			XPosition:  int(c.X),
+			YPosition:  int(c.Y),
+			Height:     int(c.H),
+			Width:      int(c.W),
+		})
+	}
+
+	diff.Old = &oldDiff
 
 	return diff
 }
@@ -303,35 +357,30 @@ func newDiffDashboard(d *dashboard) DiffDashboard {
 // the SummaryChart is reused here.
 type DiffChart SummaryChart
 
-// DiffLabelValues are the varying values for a label.
-type DiffLabelValues struct {
-	Name        string `json:"name"`
-	Color       string `json:"color"`
-	Description string `json:"description"`
-}
+type (
+	// DiffLabel is a diff of an individual label.
+	DiffLabel struct {
+		DiffIdentifier
 
-// DiffLabel is a diff of an individual label.
-type DiffLabel struct {
-	Remove  bool             `json:"remove"`
-	ID      SafeID           `json:"id"`
-	PkgName string           `json:"pkgName"`
-	New     DiffLabelValues  `json:"new"`
-	Old     *DiffLabelValues `json:"old,omitempty"` // using omitempty here to signal there was no prev state with a nil
-}
+		New DiffLabelValues  `json:"new"`
+		Old *DiffLabelValues `json:"old,omitempty"` // using omitempty here to signal there was no prev state with a nil
+	}
 
-// IsNew indicates whether a pkg label is going to be new to the platform.
-func (d DiffLabel) IsNew() bool {
-	return d.ID == SafeID(0)
-}
-
-func (d DiffLabel) hasConflict() bool {
-	return !d.IsNew() && d.Old != nil && *d.Old != d.New
-}
+	// DiffLabelValues are the varying values for a label.
+	DiffLabelValues struct {
+		Name        string `json:"name"`
+		Color       string `json:"color"`
+		Description string `json:"description"`
+	}
+)
 
 func newDiffLabel(l *label, i *influxdb.Label) DiffLabel {
 	diff := DiffLabel{
-		Remove:  l.shouldRemove,
-		PkgName: l.PkgName(),
+		DiffIdentifier: DiffIdentifier{
+			ID:      SafeID(l.ID()),
+			Remove:  l.shouldRemove,
+			PkgName: l.PkgName(),
+		},
 		New: DiffLabelValues{
 			Name:        l.Name(),
 			Color:       l.Color,
@@ -347,6 +396,10 @@ func newDiffLabel(l *label, i *influxdb.Label) DiffLabel {
 		}
 	}
 	return diff
+}
+
+func (d DiffLabel) hasConflict() bool {
+	return !d.IsNew() && d.Old != nil && *d.Old != d.New
 }
 
 // DiffLabelMapping is a diff of an individual label mapping. A
@@ -387,17 +440,19 @@ func (d *DiffNotificationEndpointValues) UnmarshalJSON(b []byte) (err error) {
 
 // DiffNotificationEndpoint is a diff of an individual notification endpoint.
 type DiffNotificationEndpoint struct {
-	ID      SafeID                          `json:"id"`
-	Remove  bool                            `json:"remove"`
-	PkgName string                          `json:"pkgName"`
-	New     DiffNotificationEndpointValues  `json:"new"`
-	Old     *DiffNotificationEndpointValues `json:"old"`
+	DiffIdentifier
+
+	New DiffNotificationEndpointValues  `json:"new"`
+	Old *DiffNotificationEndpointValues `json:"old"`
 }
 
 func newDiffNotificationEndpoint(ne *notificationEndpoint, i influxdb.NotificationEndpoint) DiffNotificationEndpoint {
 	diff := DiffNotificationEndpoint{
-		Remove:  ne.shouldRemove,
-		PkgName: ne.PkgName(),
+		DiffIdentifier: DiffIdentifier{
+			ID:      SafeID(ne.ID()),
+			Remove:  ne.shouldRemove,
+			PkgName: ne.PkgName(),
+		},
 		New: DiffNotificationEndpointValues{
 			NotificationEndpoint: ne.summarize().NotificationEndpoint,
 		},
@@ -411,104 +466,205 @@ func newDiffNotificationEndpoint(ne *notificationEndpoint, i influxdb.Notificati
 	return diff
 }
 
-// IsNew indicates if the resource will be new to the platform or if it edits
-// an existing resource.
-func (d DiffNotificationEndpoint) IsNew() bool {
-	return d.Old == nil
-}
+type (
+	// DiffNotificationRule is a diff of an individual notification rule.
+	DiffNotificationRule struct {
+		DiffIdentifier
 
-// DiffNotificationRule is a diff of an individual notification rule. This resource is always new.
-type DiffNotificationRule struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
+		New DiffNotificationRuleValues  `json:"new"`
+		Old *DiffNotificationRuleValues `json:"old"`
+	}
 
-	// These 3 fields represent the relationship of the rule to the endpoint.
-	EndpointID   SafeID `json:"endpointID"`
-	EndpointName string `json:"endpointName"`
-	EndpointType string `json:"endpointType"`
+	// DiffNotificationRuleValues are the values for an individual rule.
+	DiffNotificationRuleValues struct {
+		Name        string `json:"name"`
+		Description string `json:"description"`
 
-	Every           string              `json:"every"`
-	Offset          string              `json:"offset"`
-	MessageTemplate string              `json:"messageTemplate"`
-	Status          influxdb.Status     `json:"status"`
-	StatusRules     []SummaryStatusRule `json:"statusRules"`
-	TagRules        []SummaryTagRule    `json:"tagRules"`
-}
+		// These 3 fields represent the relationship of the rule to the endpoint.
+		EndpointID   SafeID `json:"endpointID"`
+		EndpointName string `json:"endpointName"`
+		EndpointType string `json:"endpointType"`
+
+		Every           string              `json:"every"`
+		Offset          string              `json:"offset"`
+		MessageTemplate string              `json:"messageTemplate"`
+		StatusRules     []SummaryStatusRule `json:"statusRules"`
+		TagRules        []SummaryTagRule    `json:"tagRules"`
+	}
+)
 
 func newDiffNotificationRule(r *notificationRule, iEndpoint influxdb.NotificationEndpoint) DiffNotificationRule {
 	sum := DiffNotificationRule{
-		Name:            r.Name(),
-		Description:     r.description,
-		EndpointName:    r.endpointName.String(),
-		Every:           r.every.String(),
-		Offset:          r.offset.String(),
-		MessageTemplate: r.msgTemplate,
-		Status:          r.Status(),
-		StatusRules:     toSummaryStatusRules(r.statusRules),
-		TagRules:        toSummaryTagRules(r.tagRules),
+		DiffIdentifier: DiffIdentifier{
+			ID:      SafeID(r.ID()),
+			Remove:  r.shouldRemove,
+			PkgName: r.PkgName(),
+		},
+		New: DiffNotificationRuleValues{
+			Name:            r.Name(),
+			Description:     r.description,
+			EndpointName:    r.endpointName.String(),
+			Every:           r.every.String(),
+			Offset:          r.offset.String(),
+			MessageTemplate: r.msgTemplate,
+			StatusRules:     toSummaryStatusRules(r.statusRules),
+			TagRules:        toSummaryTagRules(r.tagRules),
+		},
 	}
 	if iEndpoint != nil {
-		sum.EndpointID = SafeID(iEndpoint.GetID())
-		sum.EndpointType = iEndpoint.Type()
+		sum.New.EndpointID = SafeID(iEndpoint.GetID())
+		sum.New.EndpointType = iEndpoint.Type()
+	}
+
+	if r.existing == nil {
+		return sum
+	}
+
+	sum.Old = &DiffNotificationRuleValues{
+		Name:         r.existing.rule.GetName(),
+		Description:  r.existing.rule.GetDescription(),
+		EndpointName: r.existing.endpointName,
+		EndpointID:   SafeID(r.existing.rule.GetEndpointID()),
+		EndpointType: r.existing.endpointType,
+	}
+
+	assignBase := func(b rule.Base) {
+		if b.Every != nil {
+			sum.Old.Every = b.Every.TimeDuration().String()
+		}
+		if b.Offset != nil {
+			sum.Old.Offset = b.Offset.TimeDuration().String()
+		}
+		for _, tr := range b.TagRules {
+			sum.Old.TagRules = append(sum.Old.TagRules, SummaryTagRule{
+				Key:      tr.Key,
+				Value:    tr.Value,
+				Operator: tr.Operator.String(),
+			})
+		}
+		for _, sr := range b.StatusRules {
+			sRule := SummaryStatusRule{CurrentLevel: sr.CurrentLevel.String()}
+			if sr.PreviousLevel != nil {
+				sRule.PreviousLevel = sr.PreviousLevel.String()
+			}
+			sum.Old.StatusRules = append(sum.Old.StatusRules, sRule)
+		}
+	}
+
+	switch p := r.existing.rule.(type) {
+	case *rule.HTTP:
+		assignBase(p.Base)
+	case *rule.Slack:
+		assignBase(p.Base)
+		sum.Old.MessageTemplate = p.MessageTemplate
+	case *rule.PagerDuty:
+		assignBase(p.Base)
+		sum.Old.MessageTemplate = p.MessageTemplate
 	}
 
 	return sum
 }
 
-// DiffTask is a diff of an individual task. This resource is always new.
-type DiffTask struct {
-	Name        string          `json:"name"`
-	Cron        string          `json:"cron"`
-	Description string          `json:"description"`
-	Every       string          `json:"every"`
-	Offset      string          `json:"offset"`
-	Query       string          `json:"query"`
-	Status      influxdb.Status `json:"status"`
-}
+type (
+	// DiffTask is a diff of an individual task.
+	DiffTask struct {
+		DiffIdentifier
+
+		New DiffTaskValues  `json:"new"`
+		Old *DiffTaskValues `json:"old"`
+	}
+
+	// DiffTaskValues are the values for an individual task.
+	DiffTaskValues struct {
+		Name        string          `json:"name"`
+		Cron        string          `json:"cron"`
+		Description string          `json:"description"`
+		Every       string          `json:"every"`
+		Offset      string          `json:"offset"`
+		Query       string          `json:"query"`
+		Status      influxdb.Status `json:"status"`
+	}
+)
 
 func newDiffTask(t *task) DiffTask {
-	return DiffTask{
-		Name:        t.Name(),
-		Cron:        t.cron,
-		Description: t.description,
-		Every:       durToStr(t.every),
-		Offset:      durToStr(t.offset),
-		Query:       t.query,
-		Status:      t.Status(),
+	diff := DiffTask{
+		DiffIdentifier: DiffIdentifier{
+			ID:      SafeID(t.ID()),
+			Remove:  t.shouldRemove,
+			PkgName: t.PkgName(),
+		},
+		New: DiffTaskValues{
+			Name:        t.Name(),
+			Cron:        t.cron,
+			Description: t.description,
+			Every:       durToStr(t.every),
+			Offset:      durToStr(t.offset),
+			Query:       t.query,
+			Status:      t.Status(),
+		},
 	}
+
+	if !t.Exists() {
+		return diff
+	}
+
+	diff.Old = &DiffTaskValues{
+		Name:        t.existing.Name,
+		Cron:        t.existing.Cron,
+		Description: t.existing.Description,
+		Every:       t.existing.Every,
+		Offset:      t.existing.Offset.String(),
+		Query:       t.existing.Flux,
+		Status:      influxdb.Status(t.existing.Status),
+	}
+
+	return diff
 }
 
 // DiffTelegraf is a diff of an individual telegraf. This resource is always new.
 type DiffTelegraf struct {
-	influxdb.TelegrafConfig
+	DiffIdentifier
+
+	New influxdb.TelegrafConfig
+	Old *influxdb.TelegrafConfig
 }
 
 func newDiffTelegraf(t *telegraf) DiffTelegraf {
 	return DiffTelegraf{
-		TelegrafConfig: t.config,
+		DiffIdentifier: DiffIdentifier{
+			ID:      SafeID(t.ID()),
+			Remove:  t.shouldRemove,
+			PkgName: t.PkgName(),
+		},
+		New: t.config,
+		Old: t.existing,
 	}
 }
 
-// DiffVariableValues are the varying values for a variable.
-type DiffVariableValues struct {
-	Name        string                      `json:"name"`
-	Description string                      `json:"description"`
-	Args        *influxdb.VariableArguments `json:"args"`
-}
+type (
+	// DiffVariable is a diff of an individual variable.
+	DiffVariable struct {
+		DiffIdentifier
 
-// DiffVariable is a diff of an individual variable.
-type DiffVariable struct {
-	ID      SafeID              `json:"id"`
-	Remove  bool                `json:"remove"`
-	PkgName string              `json:"pkgName"`
-	New     DiffVariableValues  `json:"new"`
-	Old     *DiffVariableValues `json:"old,omitempty"` // using omitempty here to signal there was no prev state with a nil
-}
+		New DiffVariableValues  `json:"new"`
+		Old *DiffVariableValues `json:"old,omitempty"` // using omitempty here to signal there was no prev state with a nil
+	}
+
+	// DiffVariableValues are the varying values for a variable.
+	DiffVariableValues struct {
+		Name        string                      `json:"name"`
+		Description string                      `json:"description"`
+		Args        *influxdb.VariableArguments `json:"args"`
+	}
+)
 
 func newDiffVariable(v *variable, iv *influxdb.Variable) DiffVariable {
 	diff := DiffVariable{
-		Remove:  v.shouldRemove,
-		PkgName: v.PkgName(),
+		DiffIdentifier: DiffIdentifier{
+			ID:      SafeID(v.ID()),
+			Remove:  v.shouldRemove,
+			PkgName: v.PkgName(),
+		},
 		New: DiffVariableValues{
 			Name:        v.Name(),
 			Description: v.Description,
@@ -525,11 +681,6 @@ func newDiffVariable(v *variable, iv *influxdb.Variable) DiffVariable {
 	}
 
 	return diff
-}
-
-// IsNew indicates whether a pkg variable is going to be new to the platform.
-func (d DiffVariable) IsNew() bool {
-	return d.ID == SafeID(0)
 }
 
 func (d DiffVariable) hasConflict() bool {
@@ -1667,14 +1818,25 @@ type notificationRule struct {
 	endpointName *references
 	endpointType string
 
+	existing *existingRule
+
 	labels sortedLabels
 }
 
+type existingRule struct {
+	rule         influxdb.NotificationRule
+	endpointName string
+	endpointType string
+}
+
 func (r *notificationRule) Exists() bool {
-	return false
+	return r.existing != nil
 }
 
 func (r *notificationRule) ID() influxdb.ID {
+	if r.existing != nil {
+		return r.existing.rule.GetID()
+	}
 	return r.id
 }
 
@@ -1905,13 +2067,18 @@ type task struct {
 	status      string
 
 	labels sortedLabels
+
+	existing *influxdb.Task
 }
 
 func (t *task) Exists() bool {
-	return false
+	return t.existing != nil
 }
 
 func (t *task) ID() influxdb.ID {
+	if t.existing != nil {
+		return t.existing.ID
+	}
 	return t.id
 }
 
@@ -2036,9 +2203,14 @@ type telegraf struct {
 	config influxdb.TelegrafConfig
 
 	labels sortedLabels
+
+	existing *influxdb.TelegrafConfig
 }
 
 func (t *telegraf) ID() influxdb.ID {
+	if t.existing != nil {
+		return t.existing.ID
+	}
 	return t.config.ID
 }
 
@@ -2051,7 +2223,7 @@ func (t *telegraf) ResourceType() influxdb.ResourceType {
 }
 
 func (t *telegraf) Exists() bool {
-	return false
+	return t.existing != nil
 }
 
 func (t *telegraf) summarize() SummaryTelegraf {
@@ -2242,9 +2414,14 @@ type dashboard struct {
 	Charts      []chart
 
 	labels sortedLabels
+
+	existing *influxdb.Dashboard
 }
 
 func (d *dashboard) ID() influxdb.ID {
+	if d.existing != nil {
+		return d.existing.ID
+	}
 	return d.id
 }
 
@@ -2257,7 +2434,7 @@ func (d *dashboard) ResourceType() influxdb.ResourceType {
 }
 
 func (d *dashboard) Exists() bool {
-	return false
+	return d.existing != nil
 }
 
 func (d *dashboard) summarize() SummaryDashboard {

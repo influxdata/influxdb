@@ -83,8 +83,11 @@ func TestService(t *testing.T) {
 					require.Len(t, diff.Buckets, 2)
 
 					expected := DiffBucket{
-						ID:      SafeID(1),
-						PkgName: "rucket_11",
+						DiffIdentifier: DiffIdentifier{
+							ID:      SafeID(1),
+							PkgName: "rucket_11",
+						},
+
 						Old: &DiffBucketValues{
 							Name:           "rucket_11",
 							Description:    "old desc",
@@ -114,7 +117,9 @@ func TestService(t *testing.T) {
 					require.Len(t, diff.Buckets, 2)
 
 					expected := DiffBucket{
-						PkgName: "rucket_11",
+						DiffIdentifier: DiffIdentifier{
+							PkgName: "rucket_11",
+						},
 						New: DiffBucketValues{
 							Name:           "rucket_11",
 							Description:    "bucket 1 description",
@@ -190,8 +195,10 @@ func TestService(t *testing.T) {
 					require.Len(t, diff.Labels, 3)
 
 					expected := DiffLabel{
-						ID:      SafeID(1),
-						PkgName: "label_1",
+						DiffIdentifier: DiffIdentifier{
+							ID:      SafeID(1),
+							PkgName: "label_1",
+						},
 						Old: &DiffLabelValues{
 							Name:        "label_1",
 							Color:       "old color",
@@ -228,7 +235,9 @@ func TestService(t *testing.T) {
 					require.Len(t, diff.Labels, 3)
 
 					expected := DiffLabel{
-						PkgName: "label_1",
+						DiffIdentifier: DiffIdentifier{
+							PkgName: "label_1",
+						},
 						New: DiffLabelValues{
 							Name:        "label_1",
 							Color:       "#FFFFFF",
@@ -287,8 +296,10 @@ func TestService(t *testing.T) {
 				require.Len(t, existingEndpoints, 1)
 
 				expected := DiffNotificationEndpoint{
-					ID:      SafeID(1),
-					PkgName: "http_none_auth_notification_endpoint",
+					DiffIdentifier: DiffIdentifier{
+						ID:      1,
+						PkgName: "http_none_auth_notification_endpoint",
+					},
 					Old: &DiffNotificationEndpointValues{
 						NotificationEndpoint: existing,
 					},
@@ -337,13 +348,12 @@ func TestService(t *testing.T) {
 
 				require.Len(t, diff.NotificationRules, 1)
 
-				actual := diff.NotificationRules[0]
+				actual := diff.NotificationRules[0].New
 				assert.Equal(t, "rule_0", actual.Name)
 				assert.Equal(t, "desc_0", actual.Description)
 				assert.Equal(t, "http", actual.EndpointType)
 				assert.Equal(t, existing.Name, actual.EndpointName)
 				assert.Equal(t, SafeID(*existing.ID), actual.EndpointID)
-				assert.Equal(t, influxdb.Active, actual.Status)
 				assert.Equal(t, (10 * time.Minute).String(), actual.Every)
 				assert.Equal(t, (30 * time.Second).String(), actual.Offset)
 
@@ -405,8 +415,10 @@ func TestService(t *testing.T) {
 				require.Len(t, diff.Variables, 4)
 
 				expected := DiffVariable{
-					ID:      SafeID(1),
-					PkgName: "var_const_3",
+					DiffIdentifier: DiffIdentifier{
+						ID:      1,
+						PkgName: "var_const_3",
+					},
 					Old: &DiffVariableValues{
 						Name:        "var_const_3",
 						Description: "old desc",
@@ -423,8 +435,10 @@ func TestService(t *testing.T) {
 				assert.Equal(t, expected, diff.Variables[0])
 
 				expected = DiffVariable{
-					// no ID here since this one would be new
-					PkgName: "var_map_4",
+					DiffIdentifier: DiffIdentifier{
+						// no ID here since this one would be new
+						PkgName: "var_map_4",
+					},
 					New: DiffVariableValues{
 						Name:        "var_map_4",
 						Description: "var_map_4 desc",

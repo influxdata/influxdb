@@ -52,7 +52,7 @@ describe('the Time Machine reducer', () => {
 
     it('builds the query if the query builder config is valid', () => {
       const expectedText =
-        'from(bucket: "metrics")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == "mem")\n  |> filter(fn: (r) => r._field == "active")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean)\n  |> yield(name: "mean")'
+        'from(bucket: "metrics")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r["_measurement"] == "mem")\n  |> filter(fn: (r) => r["_field"] == "active")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean)\n  |> yield(name: "mean")'
       const validDraftQuery = {
         text: '',
         editMode: 'advanced',
@@ -127,7 +127,7 @@ describe('the Time Machine reducer', () => {
     it("retains text of valid queries that weren't built with the query builder", () => {
       const invalidDraftQueryWithText = {
         text:
-          'from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart)\n  |> filter(fn: (r) => r._measurement == "system")\n  |> filter(fn: (r) => r._field == "load1" or r._field == "load5" or r._field == "load15")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> yield(name: "mean")',
+          'from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart)\n  |> filter(fn: (r) => r["_measurement"] == "system")\n  |> filter(fn: (r) => r["_field"] == "load1" or r["_field"] == "load5" or r["_field"] == "load15")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> yield(name: "mean")',
         editMode: 'advanced',
         name: '',
         builderConfig: {

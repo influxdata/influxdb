@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/v2"
-	"github.com/influxdata/influxdb/v2/kit/prom"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -18,7 +17,7 @@ type REDClient struct {
 }
 
 // New creates a new REDClient.
-func New(reg *prom.Registry, service string) *REDClient {
+func New(reg prometheus.Registerer, service string) *REDClient {
 	// MiddlewareMetrics is a metrics service middleware for the notification endpoint service.
 	const namespace = "service"
 

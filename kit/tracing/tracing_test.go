@@ -56,11 +56,13 @@ func TestExtractHTTPRequest(t *testing.T) {
 		path        string
 		ctx         context.Context
 		tags        map[string]interface{}
+		method      string
 	}{
 		{
 			name:        "happy path",
 			handlerName: "WriteHandler",
 			ctx:         context.WithValue(ctx, httprouter.MatchedRouteKey, "/api/v2/write"),
+			method:      http.MethodGet,
 			path:        "/api/v2/write",
 			tags: map[string]interface{}{
 				"route":   "/api/v2/write",
@@ -72,6 +74,7 @@ func TestExtractHTTPRequest(t *testing.T) {
 			handlerName: "BucketHandler",
 			ctx:         context.WithValue(ctx, httprouter.MatchedRouteKey, "/api/v2/buckets/:bucket_id"),
 			path:        "/api/v2/buckets/12345",
+			method:      http.MethodGet,
 			tags: map[string]interface{}{
 				"route":   "/api/v2/buckets/:bucket_id",
 				"handler": "BucketHandler",
@@ -85,7 +88,8 @@ func TestExtractHTTPRequest(t *testing.T) {
 				chi.RouteCtxKey,
 				&chi.Context{RoutePath: "/api/v2/buckets/:bucket_id", RouteMethod: "GET"},
 			),
-			path: "/api/v2/buckets/12345",
+			path:   "/api/v2/buckets/12345",
+			method: http.MethodGet,
 			tags: map[string]interface{}{
 				"route":   "/api/v2/buckets/:bucket_id",
 				"method":  "GET",
@@ -96,13 +100,14 @@ func TestExtractHTTPRequest(t *testing.T) {
 			name:        "empty path",
 			handlerName: "Home",
 			ctx:         ctx,
+			method:      http.MethodGet,
 			tags: map[string]interface{}{
 				"handler": "Home",
 			},
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			request, err := http.NewRequest(http.MethodPost, "http://localhost"+test.path, nil)
+			request, err := http.NewRequest(test.method, "http://localhost"+test.path, nil)
 			if err != nil {
 				t.Fatal(err)
 			}

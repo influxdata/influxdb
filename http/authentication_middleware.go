@@ -11,6 +11,7 @@ import (
 	platform "github.com/influxdata/influxdb/v2"
 	platcontext "github.com/influxdata/influxdb/v2/context"
 	"github.com/influxdata/influxdb/v2/jsonweb"
+	"github.com/opentracing/opentracing-go"
 	"go.uber.org/zap"
 )
 
@@ -116,6 +117,10 @@ func (h *AuthenticationHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 	}
 
 	ctx = platcontext.SetAuthorizer(ctx, auth)
+
+	if span := opentracing.SpanFromContext(ctx); span != nil {
+		span.SetTag("user_id", auth.GetUserID().String())
+	}
 
 	h.Handler.ServeHTTP(w, r.WithContext(ctx))
 }

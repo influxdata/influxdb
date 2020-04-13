@@ -381,7 +381,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     package: '',
     desc: 'Tests whether a value is a member of a set.',
     example: 'contains(value: 1, set: [1,2,3])',
-    category: 'Test',
+    category: 'Tests',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/built-in/tests/contains/',
   },
@@ -4911,7 +4911,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     package: 'testing',
     desc: 'Tests if an input stream is empty.',
     example: 'testing.assertEmpty()',
-    category: 'Test',
+    category: 'Tests',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/testing/assertempty/',
   },
@@ -4926,18 +4926,18 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       {
         name: 'got',
         desc: 'The stream containing data to test.',
-        type: 'Obscflect',
+        type: 'Stream of tables',
       },
       {
         name: 'want',
         desc: 'The stream that contains the expected data to test against.',
-        type: 'Object',
+        type: 'Stream of tables',
       },
     ],
     package: 'testing',
     desc: 'Tests whether two streams have identical data.',
     example: 'testing.assertEquals(got: got, want: want)',
-    category: 'Test',
+    category: 'Tests',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/testing/assertequals/',
   },
@@ -4947,18 +4947,18 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       {
         name: 'got',
         desc: 'The stream containing data to test.',
-        type: 'Obscflect',
+        type: 'Stream of tables',
       },
       {
         name: 'want',
         desc: 'The stream that contains the expected data to test against.',
-        type: 'Object',
+        type: 'Stream of tables',
       },
     ],
     package: 'testing',
     desc: 'Produces a diff between two streams.',
     example: 'testing.assertEquals(got: got, want: want)',
-    category: 'Test',
+    category: 'Tests',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/testing/diff/',
   },

@@ -136,7 +136,9 @@ func TestPkg(t *testing.T) {
 				{
 					name: "new bucket",
 					resource: DiffBucket{
-						PkgName: "new bucket",
+						DiffIdentifier: DiffIdentifier{
+							PkgName: "new bucket",
+						},
 						New: DiffBucketValues{
 							Description: "new desc",
 						},
@@ -146,8 +148,10 @@ func TestPkg(t *testing.T) {
 				{
 					name: "existing bucket with no changes",
 					resource: DiffBucket{
-						ID:      3,
-						PkgName: "new bucket",
+						DiffIdentifier: DiffIdentifier{
+							ID:      3,
+							PkgName: "new bucket",
+						},
 						New: DiffBucketValues{
 							Description: "new desc",
 							RetentionRules: retentionRules{{
@@ -168,8 +172,10 @@ func TestPkg(t *testing.T) {
 				{
 					name: "existing bucket with desc changes",
 					resource: DiffBucket{
-						ID:      3,
-						PkgName: "existing bucket",
+						DiffIdentifier: DiffIdentifier{
+							ID:      3,
+							PkgName: "existing bucket",
+						},
 						New: DiffBucketValues{
 							Description: "new desc",
 							RetentionRules: retentionRules{{
@@ -190,8 +196,10 @@ func TestPkg(t *testing.T) {
 				{
 					name: "existing bucket with retention changes",
 					resource: DiffBucket{
-						ID:      3,
-						PkgName: "existing bucket",
+						DiffIdentifier: DiffIdentifier{
+							ID:      3,
+							PkgName: "existing bucket",
+						},
 						New: DiffBucketValues{
 							Description: "new desc",
 							RetentionRules: retentionRules{{
@@ -208,8 +216,10 @@ func TestPkg(t *testing.T) {
 				{
 					name: "existing bucket with retention changes",
 					resource: DiffBucket{
-						ID:      3,
-						PkgName: "existing bucket",
+						DiffIdentifier: DiffIdentifier{
+							ID:      3,
+							PkgName: "existing bucket",
+						},
 						New: DiffBucketValues{
 							Description: "new desc",
 							RetentionRules: retentionRules{{
@@ -230,8 +240,10 @@ func TestPkg(t *testing.T) {
 				{
 					name: "existing bucket with retention changes",
 					resource: DiffBucket{
-						ID:      3,
-						PkgName: "existing bucket",
+						DiffIdentifier: DiffIdentifier{
+							ID:      3,
+							PkgName: "existing bucket",
+						},
 						New: DiffBucketValues{
 							Description: "new desc",
 							RetentionRules: retentionRules{{
@@ -258,7 +270,9 @@ func TestPkg(t *testing.T) {
 				{
 					name: "new label",
 					resource: DiffLabel{
-						PkgName: "new label",
+						DiffIdentifier: DiffIdentifier{
+							PkgName: "new label",
+						},
 						New: DiffLabelValues{
 							Name:        "new label",
 							Color:       "new color",
@@ -270,8 +284,10 @@ func TestPkg(t *testing.T) {
 				{
 					name: "existing label with no changes",
 					resource: DiffLabel{
-						ID:      1,
-						PkgName: "existing label",
+						DiffIdentifier: DiffIdentifier{
+							ID:      1,
+							PkgName: "existing label",
+						},
 						New: DiffLabelValues{
 							Name:        "existing label",
 							Color:       "color",
@@ -288,8 +304,10 @@ func TestPkg(t *testing.T) {
 				{
 					name: "existing label with changes",
 					resource: DiffLabel{
-						ID:      1,
-						PkgName: "existing label",
+						DiffIdentifier: DiffIdentifier{
+							ID:      1,
+							PkgName: "existing label",
+						},
 						New: DiffLabelValues{
 							Name:        "existing label",
 							Color:       "color",
@@ -306,7 +324,9 @@ func TestPkg(t *testing.T) {
 				{
 					name: "new variable",
 					resource: DiffVariable{
-						PkgName: "new var",
+						DiffIdentifier: DiffIdentifier{
+							PkgName: "new var",
+						},
 						New: DiffVariableValues{
 							Name:        "new var",
 							Description: "new desc",
@@ -321,8 +341,10 @@ func TestPkg(t *testing.T) {
 				{
 					name: "existing variable no changes",
 					resource: DiffVariable{
-						ID:      2,
-						PkgName: "new var",
+						DiffIdentifier: DiffIdentifier{
+							ID:      2,
+							PkgName: "new var",
+						},
 						New: DiffVariableValues{
 							Name:        "new var",
 							Description: "new desc",
@@ -345,8 +367,10 @@ func TestPkg(t *testing.T) {
 				{
 					name: "existing variable with desc changes",
 					resource: DiffVariable{
-						ID:      3,
-						PkgName: "new var",
+						DiffIdentifier: DiffIdentifier{
+							ID:      3,
+							PkgName: "new var",
+						},
 						New: DiffVariableValues{
 							Name:        "new var",
 							Description: "new desc",
@@ -368,8 +392,10 @@ func TestPkg(t *testing.T) {
 				{
 					name: "existing variable with constant arg changes",
 					resource: DiffVariable{
-						ID:      3,
-						PkgName: "new var",
+						DiffIdentifier: DiffIdentifier{
+							ID:      3,
+							PkgName: "new var",
+						},
 						New: DiffVariableValues{
 							Name:        "new var",
 							Description: "new desc",
@@ -391,8 +417,10 @@ func TestPkg(t *testing.T) {
 				{
 					name: "existing variable with map arg changes",
 					resource: DiffVariable{
-						ID:      3,
-						PkgName: "new var",
+						DiffIdentifier: DiffIdentifier{
+							ID:      3,
+							PkgName: "new var",
+						},
 						New: DiffVariableValues{
 							Name:        "new var",
 							Description: "new desc",
@@ -414,8 +442,10 @@ func TestPkg(t *testing.T) {
 				{
 					name: "existing variable with query arg changes",
 					resource: DiffVariable{
-						ID:      3,
-						PkgName: "new var",
+						DiffIdentifier: DiffIdentifier{
+							ID:      3,
+							PkgName: "new var",
+						},
 						New: DiffVariableValues{
 							Name:        "new var",
 							Description: "new desc",

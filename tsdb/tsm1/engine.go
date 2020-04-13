@@ -24,6 +24,7 @@ import (
 	"github.com/influxdata/influxdb/v2/pkg/metrics"
 	"github.com/influxdata/influxdb/v2/query"
 	"github.com/influxdata/influxdb/v2/tsdb"
+	"github.com/influxdata/influxdb/v2/tsdb/cursors"
 	"github.com/influxdata/influxdb/v2/tsdb/seriesfile"
 	"github.com/influxdata/influxdb/v2/tsdb/tsi1"
 	"github.com/influxdata/influxql"
@@ -1464,13 +1465,28 @@ var (
 		BlockBoolean:   influxql.Boolean,
 		BlockString:    influxql.String,
 		BlockUnsigned:  influxql.Unsigned,
-		blockUndefined: influxql.Unknown,
+		BlockUndefined: influxql.Unknown,
 		6:              influxql.Unknown,
 		7:              influxql.Unknown,
 	}
 )
 
 func BlockTypeToInfluxQLDataType(typ byte) influxql.DataType { return blockToFieldType[typ&7] }
+
+var (
+	blockTypeFieldType = [8]cursors.FieldType{
+		BlockFloat64:   cursors.Float,
+		BlockInteger:   cursors.Integer,
+		BlockBoolean:   cursors.Boolean,
+		BlockString:    cursors.String,
+		BlockUnsigned:  cursors.Unsigned,
+		BlockUndefined: cursors.Undefined,
+		6:              cursors.Undefined,
+		7:              cursors.Undefined,
+	}
+)
+
+func BlockTypeToFieldType(typ byte) cursors.FieldType { return blockTypeFieldType[typ&7] }
 
 // SeriesAndFieldFromCompositeKey returns the series key and the field key extracted from the composite key.
 func SeriesAndFieldFromCompositeKey(key []byte) ([]byte, []byte) {

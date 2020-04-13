@@ -831,9 +831,24 @@ func (s *Service) dryRunNotificationRules(ctx context.Context, orgID influxdb.ID
 	if err != nil {
 		return nil, internalErr(err)
 	}
-	mExisting := make(map[string]influxdb.NotificationEndpoint)
+
+	mExistingEndpointsByName := make(map[string]influxdb.NotificationEndpoint)
+	mExistingEndpointsByID := make(map[influxdb.ID]influxdb.NotificationEndpoint)
 	for _, e := range iEndpoints {
-		mExisting[e.GetName()] = e
+		mExistingEndpointsByName[e.GetName()] = e
+		mExistingEndpointsByID[e.GetID()] = e
+	}
+
+	iRules, _, err := s.ruleSVC.FindNotificationRules(ctx, influxdb.NotificationRuleFilter{
+		OrgID: &orgID,
+	}, influxdb.FindOptions{Limit: 100})
+	if err != nil {
+		return nil, internalErr(err)
+	}
+
+	mExistingRulesByID := make(map[influxdb.ID]influxdb.NotificationRule)
+	for _, r := range iRules {
+		mExistingRulesByID[r.GetID()] = r
 	}
 
 	mPkgEndpoints := make(map[string]influxdb.NotificationEndpoint)
@@ -842,9 +857,9 @@ func (s *Service) dryRunNotificationRules(ctx context.Context, orgID influxdb.ID
 		mPkgEndpoints[e.PkgName()] = influxEndpoint
 	}
 
-	diffs := make([]DiffNotificationRule, 0, len(mExisting))
+	diffs := make([]DiffNotificationRule, 0)
 	for _, r := range pkg.notificationRules() {
-		e, ok := mExisting[r.endpointName.String()]
+		e, ok := mExistingEndpointsByName[r.endpointName.String()]
 		if !ok {
 			influxEndpoint, ok := mPkgEndpoints[r.endpointName.String()]
 			if !ok {
@@ -853,6 +868,20 @@ func (s *Service) dryRunNotificationRules(ctx context.Context, orgID influxdb.ID
 			}
 			e = influxEndpoint
 		}
+
+		if iRule, ok := mExistingRulesByID[r.ID()]; ok {
+			var endpointName, endpointType string
+			if e, ok := mExistingRulesByID[iRule.GetEndpointID()]; ok {
+				endpointName = e.GetName()
+				endpointType = e.Type()
+			}
+			r.existing = &existingRule{
+				rule:         iRule,
+				endpointName: endpointName,
+				endpointType: endpointType,
+			}
+		}
+
 		diffs = append(diffs, newDiffNotificationRule(r, e))
 
 	}
@@ -1642,12 +1671,24 @@ func (s *Service) applyNotificationEndpoints(ctx context.Context, userID influxd
 			for _, secret := range influxEndpoint.SecretFields() {
 				switch {
 				case strings.HasSuffix(secret.Key, "-routing-key"):
+					if endpoints[i].routingKey == nil {
+						endpoints[i].routingKey = new(references)
+					}
 					endpoints[i].routingKey.Secret = secret.Key
 				case strings.HasSuffix(secret.Key, "-token"):
+					if endpoints[i].token == nil {
+						endpoints[i].token = new(references)
+					}
 					endpoints[i].token.Secret = secret.Key
 				case strings.HasSuffix(secret.Key, "-username"):
+					if endpoints[i].username == nil {
+						endpoints[i].username = new(references)
+					}
 					endpoints[i].username.Secret = secret.Key
 				case strings.HasSuffix(secret.Key, "-password"):
+					if endpoints[i].password == nil {
+						endpoints[i].password = new(references)
+					}
 					endpoints[i].password.Secret = secret.Key
 				}
 			}
@@ -1680,20 +1721,16 @@ func (s *Service) applyNotificationEndpoint(ctx context.Context, e notificationE
 		return e.existing, nil
 	}
 
-	if e.existing != nil {
+	if e.Exists() {
 		// stub out userID since we're always using hte http client which will fill it in for us with the token
 		// feels a bit broken that is required.
 		// TODO: look into this userID requirement
-		updatedEndpoint, err := s.endpointSVC.UpdateNotificationEndpoint(
+		return s.endpointSVC.UpdateNotificationEndpoint(
 			ctx,
 			e.ID(),
 			e.summarize().NotificationEndpoint,
 			userID,
 		)
-		if err != nil {
-			return nil, err
-		}
-		return updatedEndpoint, nil
 	}
 
 	actual := e.summarize().NotificationEndpoint
@@ -1745,9 +1782,9 @@ func (s *Service) applyNotificationRulesGenerator(ctx context.Context, orgID inf
 		id    influxdb.ID
 		eType string
 	}
-	mEndpoints := make(map[string]mVal)
+	mEndpointsByPkgName := make(map[string]mVal)
 	for _, e := range endpoints {
-		mEndpoints[e.GetName()] = mVal{
+		mEndpointsByPkgName[e.GetName()] = mVal{
 			id:    e.GetID(),
 			eType: e.Type(),
 		}
@@ -1757,10 +1794,10 @@ func (s *Service) applyNotificationRulesGenerator(ctx context.Context, orgID inf
 			continue
 		}
 
-		if _, ok := mEndpoints[e.PkgName()]; ok {
+		if _, ok := mEndpointsByPkgName[e.PkgName()]; ok {
 			continue
 		}
-		mEndpoints[e.PkgName()] = mVal{
+		mEndpointsByPkgName[e.PkgName()] = mVal{
 			id:    e.ID(),
 			eType: e.summarize().NotificationEndpoint.Type(),
 		}
@@ -1770,11 +1807,11 @@ func (s *Service) applyNotificationRulesGenerator(ctx context.Context, orgID inf
 
 	var errs applyErrs
 	for _, r := range rules {
-		v, ok := mEndpoints[r.endpointName.String()]
+		v, ok := mEndpointsByPkgName[r.endpointName.String()]
 		if !ok {
 			errs = append(errs, &applyErrBody{
 				name: r.Name(),
-				msg:  fmt.Sprintf("endpoint dependency does not exist; endpointName=%q", r.endpointName),
+				msg:  fmt.Sprintf("notification rule endpoint dependency does not exist; endpointName=%q", r.endpointName),
 			})
 			continue
 		}

@@ -31,33 +31,6 @@ export const isCellUntitled = (cellName: string): boolean => {
   return cellName === UNTITLED_GRAPH
 }
 
-const numColumns = 12
-
-const getNextAvailablePosition = (dashboard, newCell) => {
-  const farthestY = dashboard.cells
-    .map(cell => cell.y)
-    .reduce((a, b) => (a > b ? a : b))
-
-  const bottomCells = dashboard.cells.filter(cell => cell.y === farthestY)
-  const farthestX = bottomCells
-    .map(cell => cell.x)
-    .reduce((a, b) => (a > b ? a : b))
-  const lastCell = bottomCells.find(cell => cell.x === farthestX)
-
-  const availableSpace = numColumns - (lastCell.x + lastCell.w)
-  const newCellFits = availableSpace >= newCell.w
-
-  return newCellFits
-    ? {
-        x: lastCell.x + lastCell.w,
-        y: farthestY,
-      }
-    : {
-        x: 0,
-        y: lastCell.y + lastCell.h,
-      }
-}
-
 export const getNewDashboardCell = (
   state: AppState,
   dashboard: Dashboard,
@@ -102,23 +75,10 @@ export const getNewDashboardCell = (
       ...defaultCell,
       w: clonedCell.w,
       h: clonedCell.h,
+      x: clonedCell.x,
+      y: clonedCell.y,
     }
   }
 
-  const {x, y} = getNextAvailablePosition(dashboard, newCell)
-
-  return {
-    ...newCell,
-    x,
-    y,
-  }
-}
-
-export const getClonedDashboardCell = (
-  dashboard: Dashboard,
-  cloneCell: Cell
-): Cell => {
-  const {x, y} = getNextAvailablePosition(dashboard, cloneCell)
-
-  return {...cloneCell, x, y}
+  return newCell
 }
