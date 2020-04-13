@@ -3,7 +3,10 @@ import React, {Component, RefObject, CSSProperties} from 'react'
 import {isEqual} from 'lodash'
 import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
-import {fromFlux, FromFluxResult} from '@influxdata/giraffe'
+import {
+  default as fromFlux,
+  FromFluxResult,
+} from 'src/shared/utils/fromFlux.legacy'
 
 // API
 import {
@@ -224,8 +227,6 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
         if (result.didTruncate) {
           notify(resultTooLarge(result.bytesRead))
         }
-
-        checkQueryResult(result.csv)
       }
 
       const files = (results as RunQuerySuccessResult[]).map(r => r.csv)
