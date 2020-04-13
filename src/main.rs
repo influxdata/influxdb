@@ -4,8 +4,9 @@
 extern crate log;
 
 use delorean::delorean::{
-    delorean_server::DeloreanServer, storage_server::StorageServer, TimestampRange,
+    delorean_server::DeloreanServer, storage_server::StorageServer, Bucket, TimestampRange,
 };
+use delorean::id::Id;
 use delorean::line_parser;
 use delorean::line_parser::index_pairs;
 use delorean::storage::database::Database;
@@ -38,18 +39,22 @@ const MAX_SIZE: usize = 1_048_576; // max write request size of 1MB
 
 #[derive(Deserialize)]
 struct WriteInfo {
-    org_id: u32,
-    bucket_name: String,
+    org: Id,
+    bucket: Id,
 }
 
-async fn write(req: hyper::Request<Body>, app: Arc<App>) -> Result<Body, ApplicationError> {
+async fn write(req: hyper::Request<Body>, app: Arc<App>) -> Result<Option<Body>, ApplicationError> {
     let query = req.uri().query().ok_or(StatusCode::BAD_REQUEST)?;
     let write_info: WriteInfo =
         serde_urlencoded::from_str(query).map_err(|_| StatusCode::BAD_REQUEST)?;
 
+    // Even though tools like `inch` and `storectl query` pass bucket IDs, treat them as
+    // `bucket_name` in delorean because MemDB sets auto-incrementing IDs for buckets.
+    let bucket_name = write_info.bucket.to_string();
+
     let bucket_id = app
         .db
-        .get_bucket_id_by_name(write_info.org_id, &write_info.bucket_name)
+        .get_bucket_id_by_name(write_info.org, &bucket_name)
         .await
         .map_err(|e| {
             debug!("Error getting bucket id: {}", e);
@@ -58,7 +63,7 @@ async fn write(req: hyper::Request<Body>, app: Arc<App>) -> Result<Body, Applica
         .ok_or_else(|| {
             ApplicationError::new(
                 StatusCode::NOT_FOUND,
-                &format!("bucket {} not found", write_info.bucket_name),
+                &format!("bucket {} not found", bucket_name),
             )
         })?;
 
@@ -82,20 +87,20 @@ async fn write(req: hyper::Request<Body>, app: Arc<App>) -> Result<Body, Applica
     let mut points = line_parser::parse(body).expect("TODO: Unable to parse lines");
 
     app.db
-        .write_points(write_info.org_id, bucket_id, &mut points)
+        .write_points(write_info.org, bucket_id, &mut points)
         .await
         .map_err(|e| {
             debug!("Error writing points: {}", e);
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
 
-    Ok(serde_json::json!(()).to_string().into())
+    Ok(None)
 }
 
 #[derive(Deserialize, Debug)]
 struct ReadInfo {
-    org_id: u32,
-    bucket_name: String,
+    org: Id,
+    bucket: Id,
     predicate: String,
     start: Option<String>,
     stop: Option<String>,
@@ -118,13 +123,17 @@ fn duration_to_nanos_or_default(
 }
 
 // TODO: figure out how to stream read results out rather than rendering the whole thing in mem
-async fn read(req: hyper::Request<Body>, app: Arc<App>) -> Result<Body, ApplicationError> {
+async fn read(req: hyper::Request<Body>, app: Arc<App>) -> Result<Option<Body>, ApplicationError> {
     let query = req
         .uri()
         .query()
         .expect("Should have been query parameters");
     let read_info: ReadInfo =
         serde_urlencoded::from_str(query).map_err(|_| StatusCode::BAD_REQUEST)?;
+
+    // Even though tools like `inch` and `storectl query` pass bucket IDs, treat them as
+    // `bucket_name` in delorean because MemDB sets auto-incrementing IDs for buckets.
+    let bucket_name = read_info.bucket.to_string();
 
     let predicate = parse_predicate(&read_info.predicate).map_err(|_| StatusCode::BAD_REQUEST)?;
 
@@ -144,19 +153,19 @@ async fn read(req: hyper::Request<Body>, app: Arc<App>) -> Result<Body, Applicat
 
     let bucket_id = app
         .db
-        .get_bucket_id_by_name(read_info.org_id, &read_info.bucket_name)
+        .get_bucket_id_by_name(read_info.org, &bucket_name)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .ok_or_else(|| {
             ApplicationError::new(
                 StatusCode::NOT_FOUND,
-                &format!("bucket {} not found", read_info.bucket_name),
+                &format!("bucket {} not found", bucket_name),
             )
         })?;
 
     let batches = app
         .db
-        .read_points(read_info.org_id, bucket_id, &predicate, &range)
+        .read_points(read_info.org, bucket_id, &predicate, &range)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -215,13 +224,55 @@ async fn read(req: hyper::Request<Body>, app: Arc<App>) -> Result<Body, Applicat
         response_body.append(&mut b"\n".to_vec());
     }
 
-    Ok(response_body.into())
+    Ok(Some(response_body.into()))
+}
+
+#[derive(Deserialize, Debug)]
+struct CreateBucketInfo {
+    org: Id,
+    bucket: Id,
+}
+
+async fn create_bucket(
+    req: hyper::Request<Body>,
+    app: Arc<App>,
+) -> Result<Option<Body>, ApplicationError> {
+    let body = hyper::body::to_bytes(req)
+        .await
+        .map_err(|_| StatusCode::BAD_REQUEST)?;
+    let body = str::from_utf8(&body).unwrap();
+
+    let create_bucket_info: CreateBucketInfo =
+        serde_urlencoded::from_str(body).map_err(|_| StatusCode::BAD_REQUEST)?;
+    let bucket_name = create_bucket_info.bucket.to_string();
+
+    let bucket = Bucket {
+        org_id: create_bucket_info.org.into(),
+        id: 0,
+        name: bucket_name,
+        retention: "0".to_string(),
+        posting_list_rollover: 10_000,
+        index_levels: vec![],
+    };
+
+    app.db
+        .create_bucket_if_not_exists(create_bucket_info.org, bucket)
+        .await
+        .map_err(|err| {
+            ApplicationError::new(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("error creating bucket: {}", err),
+            )
+        })?;
+
+    Ok(None)
 }
 
 async fn service(req: hyper::Request<Body>, app: Arc<App>) -> http::Result<hyper::Response<Body>> {
     let response = match (req.method(), req.uri().path()) {
         (&Method::POST, "/api/v2/write") => write(req, app).await,
         (&Method::GET, "/api/v2/read") => read(req, app).await,
+        (&Method::POST, "/api/v2/create_bucket") => create_bucket(req, app).await,
         _ => Err(ApplicationError::new(
             StatusCode::NOT_FOUND,
             "route not found",
@@ -229,8 +280,12 @@ async fn service(req: hyper::Request<Body>, app: Arc<App>) -> http::Result<hyper
     };
 
     match response {
-        Ok(body) => Ok(hyper::Response::builder()
+        Ok(Some(body)) => Ok(hyper::Response::builder()
             .body(body)
+            .expect("Should have been able to construct a response")),
+        Ok(None) => Ok(hyper::Response::builder()
+            .status(StatusCode::NO_CONTENT)
+            .body(Body::empty())
             .expect("Should have been able to construct a response")),
         Err(e) => {
             let json = serde_json::json!({"error": e.to_string()}).to_string();
@@ -315,7 +370,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         Ok(addr) => addr
             .parse()
             .expect("DELOREAN_GRPC_BIND_ADDR environment variable not a valid SocketAddr"),
-        Err(VarError::NotPresent) => "127.0.0.1:8081".parse().unwrap(),
+        Err(VarError::NotPresent) => "127.0.0.1:8082".parse().unwrap(),
         Err(VarError::NotUnicode(_)) => {
             panic!("DELOREAN_GRPC_BIND_ADDR environment variable not a valid unicode string")
         }

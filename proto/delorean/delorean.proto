@@ -1,5 +1,5 @@
 syntax = "proto3";
-package delorean;
+package influxdata.platform.storage;
 
 import "google/protobuf/empty.proto";
 import "google/protobuf/any.proto";
@@ -7,7 +7,7 @@ import "google/protobuf/any.proto";
 // TODO: how should requests handle authentication & authorization?
 
 message CreateBucketRequest {
-    uint32 org_id = 1;
+    uint64 org_id = 1;
     Bucket bucket = 2;
 }
 
@@ -26,14 +26,14 @@ message GetBucketsResponse {
 }
 
 message Organization {
-    uint32 id = 1;
+    uint64 id = 1;
     string name = 2;
     repeated Bucket buckets = 3;
 }
 
 message Bucket {
-    uint32 org_id = 1;
-    uint32 id = 2;
+    uint64 org_id = 1;
+    uint64 id = 2;
     string name = 3;
     string retention = 4;
     // posting_list_rollover specifies how many series can be in a single posting list entry

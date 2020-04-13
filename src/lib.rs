@@ -4,12 +4,13 @@
 use std::{error, fmt};
 
 pub mod encoders;
+pub mod id;
 pub mod line_parser;
 pub mod storage;
 pub mod time;
 
 pub mod delorean {
-    include!(concat!(env!("OUT_DIR"), "/delorean.rs"));
+    include!(concat!(env!("OUT_DIR"), "/influxdata.platform.storage.rs"));
 }
 
 // TODO: audit all errors and their handling in main

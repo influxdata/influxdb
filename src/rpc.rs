@@ -9,6 +9,7 @@ use delorean::delorean::{
     ReadGroupRequest, ReadResponse, ReadSource, StringValuesResponse, Tag, TagKeysRequest,
     TagValuesRequest, TimestampRange,
 };
+use delorean::id::Id;
 use delorean::storage::partitioned_store::{PartitionKeyValues, ReadValues};
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -32,7 +33,10 @@ impl Delorean for GrpcServer {
     ) -> Result<tonic::Response<CreateBucketResponse>, Status> {
         let create_bucket_request = req.into_inner();
 
-        let org_id = create_bucket_request.org_id;
+        let org_id = create_bucket_request
+            .org_id
+            .try_into()
+            .map_err(|_| Status::invalid_argument("org_id did not fit in a u64"))?;
         let bucket = create_bucket_request
             .bucket
             .ok_or_else(|| Status::invalid_argument("missing bucket argument"))?;
@@ -59,7 +63,10 @@ impl Delorean for GrpcServer {
     ) -> Result<tonic::Response<GetBucketsResponse>, Status> {
         let org = req.into_inner();
 
-        let org_id = org.id;
+        let org_id = org
+            .id
+            .try_into()
+            .map_err(|_| Status::invalid_argument("org_id did not fit in a u64"))?;
 
         let buckets = self
             .app
@@ -92,20 +99,21 @@ trait GrpcInputs {
         })?)
     }
 
-    fn org_id(&self) -> Result<u32, Status> {
+    fn org_id(&self) -> Result<Id, Status> {
         Ok(self
             .read_source()?
             .org_id
             .try_into()
-            .map_err(|_| Status::invalid_argument("org_id did not fit in a u32"))?)
+            .map_err(|_| Status::invalid_argument("org_id did not fit in a u64"))?)
     }
 
-    fn bucket_id(&self) -> Result<u32, Status> {
-        Ok(self
+    fn bucket_name(&self) -> Result<String, Status> {
+        let bucket: Id = self
             .read_source()?
             .bucket_id
             .try_into()
-            .map_err(|_| Status::invalid_argument("bucket_id did not fit in a u32"))?)
+            .map_err(|_| Status::invalid_argument("bucket_id did not fit in a u64"))?;
+        Ok(bucket.to_string())
     }
 }
 
@@ -146,7 +154,8 @@ impl Storage for GrpcServer {
         let read_filter_request = req.into_inner();
 
         let org_id = read_filter_request.org_id()?;
-        let bucket_id = read_filter_request.bucket_id()?;
+        let bucket_name = read_filter_request.bucket_name()?;
+
         let predicate = read_filter_request.predicate;
         let range = read_filter_request.range;
 
@@ -161,7 +170,7 @@ impl Storage for GrpcServer {
             let range = range.as_ref().expect("TODO: Must have a range?");
 
             if let Err(e) =
-                send_series_filters(tx.clone(), app, org_id, bucket_id, predicate, &range).await
+                send_series_filters(tx.clone(), app, org_id, &bucket_name, predicate, &range).await
             {
                 tx.send(Err(e)).await.unwrap();
             }
@@ -181,7 +190,7 @@ impl Storage for GrpcServer {
         let read_group_request = req.into_inner();
 
         let org_id = read_group_request.org_id()?;
-        let bucket_id = read_group_request.bucket_id()?;
+        let bucket_name = read_group_request.bucket_name()?;
         let predicate = read_group_request.predicate;
         let range = read_group_request.range;
         let group_keys = read_group_request.group_keys;
@@ -202,7 +211,7 @@ impl Storage for GrpcServer {
                 tx.clone(),
                 app,
                 org_id,
-                bucket_id,
+                &bucket_name,
                 predicate,
                 range,
                 group_keys,
@@ -227,11 +236,18 @@ impl Storage for GrpcServer {
         let tag_keys_request = req.into_inner();
 
         let org_id = tag_keys_request.org_id()?;
-        let bucket_id = tag_keys_request.bucket_id()?;
+        let bucket_name = tag_keys_request.bucket_name()?;
         let predicate = tag_keys_request.predicate;
         let range = tag_keys_request.range;
 
         let app = self.app.clone();
+
+        let bucket_id = app
+            .db
+            .get_bucket_id_by_name(org_id, &bucket_name)
+            .await
+            .map_err(|err| Status::internal(format!("error reading db: {}", err)))?
+            .ok_or_else(|| Status::internal("bucket not found"))?;
 
         tokio::spawn(async move {
             match app
@@ -270,13 +286,20 @@ impl Storage for GrpcServer {
         let tag_values_request = req.into_inner();
 
         let org_id = tag_values_request.org_id()?;
-        let bucket_id = tag_values_request.bucket_id()?;
+        let bucket_name = tag_values_request.bucket_name()?;
         let predicate = tag_values_request.predicate;
         let range = tag_values_request.range;
 
         let tag_key = tag_values_request.tag_key;
 
         let app = self.app.clone();
+
+        let bucket_id = app
+            .db
+            .get_bucket_id_by_name(org_id, &bucket_name)
+            .await
+            .map_err(|err| Status::internal(format!("error reading db: {}", err)))?
+            .ok_or_else(|| Status::internal("bucket not found"))?;
 
         tokio::spawn(async move {
             match app
@@ -319,11 +342,18 @@ impl Storage for GrpcServer {
 async fn send_series_filters(
     mut tx: mpsc::Sender<Result<ReadResponse, Status>>,
     app: Arc<App>,
-    org_id: u32,
-    bucket_id: u32,
+    org_id: Id,
+    bucket_name: &str,
     predicate: &Predicate,
     range: &TimestampRange,
 ) -> Result<(), Status> {
+    let bucket_id = app
+        .db
+        .get_bucket_id_by_name(org_id, bucket_name)
+        .await
+        .map_err(|err| Status::internal(format!("error reading db: {}", err)))?
+        .ok_or_else(|| Status::internal("bucket not found"))?;
+
     let batches = app
         .db
         .read_points(org_id, bucket_id, predicate, range)
@@ -376,12 +406,19 @@ async fn send_series_filters(
 async fn send_groups(
     mut tx: mpsc::Sender<Result<ReadResponse, Status>>,
     app: Arc<App>,
-    org_id: u32,
-    bucket_id: u32,
+    org_id: Id,
+    bucket_name: &str,
     predicate: &Predicate,
     range: &TimestampRange,
     group_keys: Vec<String>,
 ) -> Result<(), Status> {
+    let bucket_id = app
+        .db
+        .get_bucket_id_by_name(org_id, bucket_name)
+        .await
+        .map_err(|err| Status::internal(format!("error reading db: {}", err)))?
+        .ok_or_else(|| Status::internal("bucket not found"))?;
+
     // Query for all the batches that should be returned.
     let batches = app
         .db

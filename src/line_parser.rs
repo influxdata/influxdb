@@ -1181,6 +1181,36 @@ her"#,
     }
 
     #[test]
+    fn parse_no_time() -> Result {
+        let input = "foo asdf=23.1,bar=5i";
+        let vals = parse(input)?;
+
+        assert_eq!(vals[0].series(), "foo\tasdf");
+        // Just test that we haven't traveled back in time
+        assert!(vals[0].time() > 1_583_443_428_970_606_000);
+        assert!(approximately_equal(vals[0].f64_value().unwrap(), 23.1));
+
+        assert_eq!(vals[1].series(), "foo\tbar");
+        assert!(vals[1].time() > 1_583_443_428_970_606_000);
+        assert_eq!(vals[1].i64_value().unwrap(), 5);
+
+        Ok(())
+    }
+
+    #[test]
+    fn parse_measurement_but_no_time() -> Result {
+        let input = "m0,tag0=value1 v0=1";
+        let vals = parse(input)?;
+
+        assert_eq!(vals[0].series(), "m0,tag0=value1\tv0");
+        // Just test that we haven't traveled back in time
+        assert!(vals[0].time() > 1_583_443_428_970_606_000);
+        assert!(approximately_equal(vals[0].f64_value().unwrap(), 1.0));
+
+        Ok(())
+    }
+
+    #[test]
     fn index_pairs() {
         let p = Point {
             series: "cpu,host=A,region=west\tusage_system".to_string(),
