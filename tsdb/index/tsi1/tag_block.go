@@ -377,7 +377,7 @@ func (e *TagBlockValueElem) SeriesIDSet() (*tsdb.SeriesIDSet, error) {
 
 	// Read bitmap data directly from mmap, if available.
 	if e.seriesIDSetData != nil {
-		if err := ss.UnmarshalBinary(e.seriesIDSetData); err != nil {
+		if err := ss.UnmarshalBinaryUnsafe(e.seriesIDSetData); err != nil {
 			return nil, err
 		}
 		return ss, nil
