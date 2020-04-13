@@ -1,6 +1,5 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import ReactMarkdown from 'react-markdown'
 
 // Components
 import {DapperScrollbars} from '@influxdata/clockface'
@@ -11,20 +10,22 @@ import {humanizeNote} from 'src/dashboards/utils/notes'
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
+import {MarkdownRenderer} from 'src/shared/components/views/MarkdownRenderer'
+
 interface Props {
   text: string
 }
 
 @ErrorHandling
-class Markdown extends PureComponent<Props> {
+class ScrollableMarkdown extends PureComponent<Props> {
   public render() {
     const {text} = this.props
 
     return (
       <DapperScrollbars className="markdown-cell" autoHide={true}>
         <div className="markdown-cell--contents">
-          <ReactMarkdown
-            source={humanizeNote(text)}
+          <MarkdownRenderer
+            text={humanizeNote(text)}
             className="markdown-format"
           />
         </div>
@@ -33,4 +34,4 @@ class Markdown extends PureComponent<Props> {
   }
 }
 
-export default Markdown
+export default ScrollableMarkdown

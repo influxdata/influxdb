@@ -1941,6 +1941,47 @@ func TestService(t *testing.T) {
 								},
 							},
 						},
+						{
+							// validate implementation resolves: https://github.com/influxdata/influxdb/issues/17708
+							name:    "table converts table options correctly",
+							newName: "new name",
+							expectedView: influxdb.View{
+								ViewContents: influxdb.ViewContents{
+									Name: "view name",
+								},
+								Properties: influxdb.TableViewProperties{
+									Type:              influxdb.ViewPropertyTypeTable,
+									Note:              "a note",
+									ShowNoteWhenEmpty: true,
+									Queries:           []influxdb.DashboardQuery{newQuery()},
+									ViewColors:        []influxdb.ViewColor{{Type: "scale", Hex: "#8F8AF4", Value: 0}, {Type: "scale", Hex: "#8F8AF4", Value: 0}, {Type: "scale", Hex: "#8F8AF4", Value: 0}},
+									TableOptions: influxdb.TableOptions{
+										VerticalTimeAxis: true,
+										SortBy: influxdb.RenamableField{
+											InternalName: "_time",
+										},
+										Wrapping: "truncate",
+									},
+									FieldOptions: []influxdb.RenamableField{
+										{
+											InternalName: "_time",
+											DisplayName:  "time (ms)",
+											Visible:      true,
+										},
+										{
+											InternalName: "_value",
+											DisplayName:  "bytes",
+											Visible:      true,
+										},
+									},
+									TimeFormat: "YYYY:MM:DD",
+									DecimalPlaces: influxdb.DecimalPlaces{
+										IsEnforced: true,
+										Digits:     1,
+									},
+								},
+							},
+						},
 					}
 
 					for _, tt := range tests {
