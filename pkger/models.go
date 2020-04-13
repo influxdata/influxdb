@@ -2753,10 +2753,11 @@ func validPosition(pos string) []validationErr {
 }
 
 var geometryTypes = map[string]bool{
-	"line":    true,
-	"step":    true,
-	"stacked": true,
-	"bar":     true,
+	"line":      true,
+	"step":      true,
+	"stacked":   true,
+	"monotoneX": true,
+	"bar":       true,
 }
 
 func validGeometry(geom string) []validationErr {
