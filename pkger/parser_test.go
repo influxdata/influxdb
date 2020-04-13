@@ -2259,19 +2259,16 @@ spec:
 					assert.Equal(t, "truncate", tableOpts.Wrapping)
 					assert.True(t, tableOpts.FixFirstColumn)
 
-					require.Len(t, props.FieldOptions, 2)
-					expectedField := influxdb.RenamableField{
-						InternalName: "_time",
-						DisplayName:  "time (ms)",
-						Visible:      true,
-					}
-					assert.Equal(t, expectedField, props.FieldOptions[0])
-					expectedField = influxdb.RenamableField{
+					assert.Contains(t, props.FieldOptions, influxdb.RenamableField{
 						InternalName: "_value",
 						DisplayName:  "MB",
 						Visible:      true,
-					}
-					assert.Equal(t, expectedField, props.FieldOptions[1])
+					})
+					assert.Contains(t, props.FieldOptions, influxdb.RenamableField{
+						InternalName: "_time",
+						DisplayName:  "time (ms)",
+						Visible:      true,
+					})
 				})
 			})
 
