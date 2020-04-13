@@ -18,8 +18,6 @@ import {Sort} from '@influxdata/clockface'
 // Utils
 import {SortTypes} from 'src/shared/utils/sort'
 
-type SortKey = keyof Bucket | 'retentionRules[0].everySeconds'
-
 interface Props {
   buckets: Bucket[]
   emptyState: JSX.Element
@@ -29,9 +27,6 @@ interface Props {
   sortKey: string
   sortDirection: Sort
   sortType: SortTypes
-  onClickColumn: (
-    sortType: SortTypes
-  ) => (nextSort: Sort, sortKey: SortKey) => void
 }
 
 class BucketList extends PureComponent<Props & WithRouterProps> {
@@ -40,36 +35,13 @@ class BucketList extends PureComponent<Props & WithRouterProps> {
   )
 
   public render() {
-    const {sortKey, sortDirection, onClickColumn} = this.props
     return (
-      <>
-        <ResourceList>
-          <ResourceList.Header>
-            <ResourceList.Sorter
-              name="Name"
-              sortKey={this.headerKeys[0]}
-              sort={sortKey === this.headerKeys[0] ? sortDirection : Sort.None}
-              onClick={onClickColumn(SortTypes.String)}
-              testID="name-sorter"
-            />
-            <ResourceList.Sorter
-              name="Retention"
-              sortKey={this.headerKeys[1]}
-              sort={sortKey === this.headerKeys[1] ? sortDirection : Sort.None}
-              onClick={onClickColumn(SortTypes.Float)}
-              testID="retention-sorter"
-            />
-          </ResourceList.Header>
-          <ResourceList.Body emptyState={this.props.emptyState}>
-            {this.listBuckets}
-          </ResourceList.Body>
-        </ResourceList>
-      </>
+      <ResourceList>
+        <ResourceList.Body emptyState={this.props.emptyState}>
+          {this.listBuckets}
+        </ResourceList.Body>
+      </ResourceList>
     )
-  }
-
-  private get headerKeys(): SortKey[] {
-    return ['name', 'retentionRules[0].everySeconds']
   }
 
   private get listBuckets(): JSX.Element[] {

@@ -2,10 +2,10 @@
 import React, {FunctionComponent} from 'react'
 
 // Components
-import {Panel, InfluxColors} from '@influxdata/clockface'
+import {Panel, Gradients} from '@influxdata/clockface'
 
 const BucketExplainer: FunctionComponent = () => (
-  <Panel backgroundColor={InfluxColors.Smoke} style={{marginTop: '32px'}}>
+  <Panel gradient={Gradients.PolarExpress} border={true}>
     <Panel.Header>
       <h5>What is a Bucket?</h5>
     </Panel.Header>

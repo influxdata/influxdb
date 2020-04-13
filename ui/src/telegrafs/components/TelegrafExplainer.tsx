@@ -6,6 +6,7 @@ import {
   Panel,
   EmptyState,
   InfluxColors,
+  Gradients,
   ComponentSize,
 } from '@influxdata/clockface'
 import {TextAlignProperty} from 'csstype'
@@ -21,10 +22,7 @@ const TelegrafExplainer: FunctionComponent<Props> = ({
   textAlign = 'inherit',
   bodySize,
 }) => (
-  <Panel
-    backgroundColor={InfluxColors.Smoke}
-    style={{textAlign, marginTop: 32}}
-  >
+  <Panel gradient={Gradients.PolarExpress} border={true} style={{textAlign}}>
     {hasNoTelegrafs && (
       <EmptyState.Text style={{color: InfluxColors.Platinum, marginTop: 16}}>
         What is Telegraf?

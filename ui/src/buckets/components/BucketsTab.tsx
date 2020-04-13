@@ -18,13 +18,15 @@ import {
   Overlay,
 } from '@influxdata/clockface'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
-import SettingsTabbedPageHeader from 'src/settings/components/SettingsTabbedPageHeader'
+import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'
 import FilterList from 'src/shared/components/FilterList'
 import BucketList from 'src/buckets/components/BucketList'
 import CreateBucketOverlay from 'src/buckets/components/CreateBucketOverlay'
 import AssetLimitAlert from 'src/cloud/components/AssetLimitAlert'
 import BucketExplainer from 'src/buckets/components/BucketExplainer'
 import DemoDataDropdown from 'src/buckets/components/DemoDataDropdown'
+import {FeatureFlag} from 'src/shared/utils/featureFlag'
+import ResourceSortDropdown from 'src/shared/components/resource_sort_dropdown/ResourceSortDropdown'
 
 // Actions
 import {
@@ -58,6 +60,7 @@ import {
   ResourceType,
   OwnBucket,
 } from 'src/types'
+import {BucketSortKey} from 'src/shared/components/resource_sort_dropdown/generateSortItems'
 
 interface StateProps {
   org: Organization
@@ -78,14 +81,12 @@ interface DispatchProps {
 interface State {
   searchTerm: string
   overlayState: OverlayState
-  sortKey: SortKey
+  sortKey: BucketSortKey
   sortDirection: Sort
   sortType: SortTypes
 }
 
 type Props = DispatchProps & StateProps
-
-type SortKey = keyof Bucket
 
 const FilterBuckets = FilterList<Bucket>()
 
@@ -126,6 +127,46 @@ class BucketsTab extends PureComponent<Props, State> {
       sortType,
     } = this.state
 
+    const leftHeaderItems = (
+      <>
+        <SearchWidget
+          placeholderText="Filter buckets..."
+          searchTerm={searchTerm}
+          onSearch={this.handleFilterUpdate}
+        />
+        <ResourceSortDropdown
+          resourceType={ResourceType.Buckets}
+          sortDirection={sortDirection}
+          sortKey={sortKey}
+          sortType={sortType}
+          onSelect={this.handleSort}
+          width={238}
+        />
+      </>
+    )
+
+    const rightHeaderItems = (
+      <>
+        <FeatureFlag name="demodata">
+          {demoDataBuckets.length > 0 && (
+            <DemoDataDropdown
+              buckets={demoDataBuckets}
+              getMembership={getDemoDataBucketMembership}
+            />
+          )}
+        </FeatureFlag>
+        <Button
+          text="Create Bucket"
+          icon={IconFont.Plus}
+          color={ComponentColor.Primary}
+          onClick={this.handleOpenModal}
+          testID="Create Bucket"
+          status={this.createButtonStatus}
+          titleText={this.createButtonTitleText}
+        />
+      </>
+    )
+
     return (
       <>
         <AssetLimitAlert
@@ -133,30 +174,10 @@ class BucketsTab extends PureComponent<Props, State> {
           limitStatus={limitStatus}
           className="load-data--asset-alert"
         />
-        <SettingsTabbedPageHeader>
-          <SearchWidget
-            placeholderText="Filter buckets..."
-            searchTerm={searchTerm}
-            onSearch={this.handleFilterUpdate}
-          />
-          <div className="buckets-buttons-wrap">
-            {isFlagEnabled('demodata') && demoDataBuckets.length > 0 && (
-              <DemoDataDropdown
-                buckets={demoDataBuckets}
-                getMembership={getDemoDataBucketMembership}
-              />
-            )}
-            <Button
-              text="Create Bucket"
-              icon={IconFont.Plus}
-              color={ComponentColor.Primary}
-              onClick={this.handleOpenModal}
-              testID="Create Bucket"
-              status={this.createButtonStatus}
-              titleText={this.createButtonTitleText}
-            />
-          </div>
-        </SettingsTabbedPageHeader>
+        <TabbedPageHeader
+          childrenLeft={leftHeaderItems}
+          childrenRight={rightHeaderItems}
+        />
         <Grid>
           <Grid.Row>
             <Grid.Column
@@ -179,7 +200,6 @@ class BucketsTab extends PureComponent<Props, State> {
                     sortKey={sortKey}
                     sortDirection={sortDirection}
                     sortType={sortType}
-                    onClickColumn={this.handleClickColumn}
                   />
                 )}
               </FilterBuckets>
@@ -204,11 +224,12 @@ class BucketsTab extends PureComponent<Props, State> {
     )
   }
 
-  private handleClickColumn = (sortType: SortTypes) => (
-    nextSort: Sort,
-    sortKey: SortKey
-  ) => {
-    this.setState({sortKey, sortDirection: nextSort, sortType})
+  private handleSort = (
+    sortKey: BucketSortKey,
+    sortDirection: Sort,
+    sortType: SortTypes
+  ): void => {
+    this.setState({sortKey, sortDirection, sortType})
   }
 
   private handleDeleteBucket = ({id, name}: OwnBucket) => {

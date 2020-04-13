@@ -51,7 +51,6 @@
 @import 'src/buckets/components/Retention.scss';
 @import 'src/buckets/components/BucketAddDataButton.scss';
 @import 'src/buckets/components/NoBucketsWarning.scss';
-@import 'src/telegrafs/components/Collectors.scss';
 @import 'src/telegrafs/components/TelegrafConfigOverlay.scss';
 @import 'src/variables/components/CreateVariableOverlay.scss';
 @import 'src/variables/components/VariableDropdown.scss';
@@ -62,7 +61,6 @@
 @import 'src/tasks/components/TaskForm.scss';
 @import 'src/tasks/components/TasksPage.scss';
 @import 'src/labels/components/LabelOverlayForm.scss';
-@import 'src/labels/components/RandomLabelColor.scss';
 @import 'src/dataExplorer/components/SaveAsButton.scss';
 @import 'src/dataExplorer/components/DataExplorer.scss';
 @import 'src/dataExplorer/components/SaveAsButton.scss';
@@ -76,6 +74,7 @@
 @import 'src/me/graphics/CollectorGraphic.scss';
 @import 'src/pageLayout/components/RenamablePageTitle.scss';
 @import 'src/pageLayout/components/OrgSwitcherOverlay.scss';
+@import 'src/pageLayout/components/TabbedPage.scss';
 @import 'src/timeMachine/components/SelectorList.scss';
 @import 'src/timeMachine/components/Queries.scss';
 @import 'src/timeMachine/components/EditorShortcutsTooltip.scss';
@@ -98,6 +97,7 @@
 @import 'src/shared/components/AutoDomainInput.scss';
 @import 'src/shared/components/Checkbox.scss';
 @import 'src/shared/components/dapperScrollbars/DapperScrollbars.scss';
+@import 'src/shared/components/search_widget/SearchWidget.scss';
 @import 'src/templates/components/createFromTemplateOverlay/CreateFromTemplateOverlay.scss';
 @import 'src/onboarding/components/SigninForm.scss';
 @import 'src/onboarding/containers/LoginPage.scss';
@@ -118,6 +118,7 @@
 @import 'src/alerting/components/LevelTableField.scss';
 @import 'src/alerting/components/SentTableField.scss';
 @import 'src/notifications/rules/components/RuleOverlayFooter.scss';
+@import 'src/labels/components/LabelCard.scss';
 @import 'src/alerting/components/SearchBar.scss';
 @import 'src/clientLibraries/components/ClientLibraryOverlay.scss';
 @import 'src/dashboards/components/DashboardsCardGrid.scss';

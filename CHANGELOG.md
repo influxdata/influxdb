@@ -1,4 +1,4 @@
-## v2.0.0-beta.9
+## v2.0.0-beta.9 [unreleased]
 
 ### Features
 
@@ -7,6 +7,7 @@
 ### UI Improvements
 
 1. [17714](https://github.com/influxdata/influxdb/pull/17714): Cloud environments no longer render markdown images, for security reasons.
+1. [17321](https://github.com/influxdata/influxdb/pull/17321): Improve UI for sorting resources
 
 ## v2.0.0-beta.8 [2020-04-10]
 
