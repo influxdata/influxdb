@@ -2656,9 +2656,6 @@ func (c chart) properties() influxdb.ViewProperties {
 				Visible:      fieldOpt.Visible,
 			})
 		}
-		sort.Slice(fieldOptions, func(i, j int) bool {
-			return fieldOptions[i].InternalName < fieldOptions[j].InternalName
-		})
 
 		return influxdb.TableViewProperties{
 			Type:              influxdb.ViewPropertyTypeTable,

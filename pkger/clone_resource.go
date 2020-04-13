@@ -647,11 +647,13 @@ func convertCellView(cell influxdb.Cell) chart {
 
 func convertChartToResource(ch chart) Resource {
 	r := Resource{
-		fieldKind:         ch.Kind.title(),
-		fieldName:         ch.Name,
-		fieldChartQueries: ch.Queries,
-		fieldChartHeight:  ch.Height,
-		fieldChartWidth:   ch.Width,
+		fieldKind:        ch.Kind.title(),
+		fieldName:        ch.Name,
+		fieldChartHeight: ch.Height,
+		fieldChartWidth:  ch.Width,
+	}
+	if len(ch.Queries) > 0 {
+		r[fieldChartQueries] = ch.Queries
 	}
 	if len(ch.Colors) > 0 {
 		r[fieldChartColors] = ch.Colors
@@ -671,7 +673,7 @@ func convertChartToResource(ch chart) Resource {
 		tRes := make(Resource)
 		assignNonZeroBools(tRes, map[string]bool{
 			fieldChartTableOptionVerticalTimeAxis: ch.TableOptions.VerticalTimeAxis,
-			fieldChartTableOptionFixFirstColumn:   ch.TableOptions.VerticalTimeAxis,
+			fieldChartTableOptionFixFirstColumn:   ch.TableOptions.FixFirstColumn,
 		})
 		assignNonZeroStrings(tRes, map[string]string{
 			fieldChartTableOptionSortBy:   ch.TableOptions.SortByField,
@@ -787,7 +789,9 @@ func DashboardToObject(name string, dash influxdb.Dashboard) Object {
 	}
 
 	o := newObject(KindDashboard, name)
-	o.Spec[fieldDescription] = dash.Description
+	assignNonZeroStrings(o.Spec, map[string]string{
+		fieldDescription: dash.Description,
+	})
 	o.Spec[fieldDashCharts] = charts
 	return o
 }
