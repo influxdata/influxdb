@@ -209,6 +209,12 @@ class LoginPageContents extends PureComponent<DispatchProps> {
               native
               reset
               unique
+              config={{
+                mass: 0.25,
+                precision: 1,
+                friction: 1,
+                clamp: true,
+              }}
               items={loginTabActive}
               from={{height: 0}}
               enter={[
@@ -243,6 +249,12 @@ class LoginPageContents extends PureComponent<DispatchProps> {
               native
               reset
               unique
+              config={{
+                mass: 0.25,
+                precision: 1,
+                friction: 1,
+                clamp: true,
+              }}
               items={loginTabActive === false}
               from={{height: 0}}
               enter={[
