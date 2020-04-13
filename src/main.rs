@@ -132,7 +132,7 @@ async fn read(req: hyper::Request<Body>, app: Arc<App>) -> Result<Option<Body>, 
         serde_urlencoded::from_str(query).map_err(|_| StatusCode::BAD_REQUEST)?;
 
     // Even though tools like `inch` and `storectl query` pass bucket IDs, treat them as
-    // `bucket_name` in delorean because RocksDB sets auto-incrementing IDs for buckets.
+    // `bucket_name` in delorean because MemDB sets auto-incrementing IDs for buckets.
     let bucket_name = read_info.bucket.to_string();
 
     let predicate = parse_predicate(&read_info.predicate).map_err(|_| StatusCode::BAD_REQUEST)?;
