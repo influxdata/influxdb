@@ -21,14 +21,12 @@ describe('Orgs', () => {
 
   describe('when user wants to rename an org', () => {
     beforeEach(() => {
-      cy.signin().then(({body}) => {
-        console.log('signed in, body is', body)
+      cy.signin().then(() => {
+        cy.visit('/')
       })
-
-      cy.visit('/')
     })
     it('should be able to rename the org', () => {
-      const extraText = '_renamed'
+      const extraText = '_my_renamed_org_in_e2e'
       cy.getByTestID('nav-item-org').click()
       cy.get('span:contains("About")').click()
       cy.get('span:contains("Rename")').click()
