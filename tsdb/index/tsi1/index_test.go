@@ -591,14 +591,13 @@ var tsiditr tsdb.SeriesIDIterator
 // BenchmarkIndex_IndexFile_TagValueSeriesIDIterator/78888_series_TagValueSeriesIDIterator/cache-8   	 2000000	       643 ns/op	     744 B/op	      13 allocs/op
 // BenchmarkIndex_IndexFile_TagValueSeriesIDIterator/78888_series_TagValueSeriesIDIterator/no_cache-8      10000	    130749 ns/op	  124952 B/op	     350 allocs/op
 func BenchmarkIndex_IndexFile_TagValueSeriesIDIterator(b *testing.B) {
-	runBenchMark := func(b *testing.B, cacheSize int) {
+	runBenchMark := func(b *testing.B) {
 		var err error
 		sfile := NewSeriesFile()
 		// Load index
 		idx := tsi1.NewIndex(sfile.SeriesFile, "foo",
 			tsi1.WithPath("testdata/index-file-index"),
 			tsi1.DisableCompactions(),
-			tsi1.WithSeriesIDCacheSize(cacheSize),
 		)
 		defer sfile.Close()
 
@@ -620,13 +619,7 @@ func BenchmarkIndex_IndexFile_TagValueSeriesIDIterator(b *testing.B) {
 	// This benchmark will merge eight bitsets each containing ~10,000 series IDs.
 	b.Run("78888 series TagValueSeriesIDIterator", func(b *testing.B) {
 		b.ReportAllocs()
-		b.Run("cache", func(b *testing.B) {
-			runBenchMark(b, tsdb.DefaultSeriesIDSetCacheSize)
-		})
-
-		b.Run("no cache", func(b *testing.B) {
-			runBenchMark(b, 0)
-		})
+		runBenchMark(b)
 	})
 }
 
@@ -768,9 +761,9 @@ func BenchmarkIndex_ConcurrentWriteQuery(b *testing.B) {
 		tags = append(tags, pt.Tags())
 	}
 
-	runBenchmark := func(b *testing.B, queryN int, partitions uint64, cacheSize int) {
+	runBenchmark := func(b *testing.B, queryN int, partitions uint64) {
 		idx := &Index{SeriesFile: NewSeriesFile()}
-		idx.Index = tsi1.NewIndex(idx.SeriesFile.SeriesFile, "db0", tsi1.WithPath(MustTempDir()), tsi1.WithSeriesIDCacheSize(cacheSize))
+		idx.Index = tsi1.NewIndex(idx.SeriesFile.SeriesFile, "db0", tsi1.WithPath(MustTempDir()))
 		idx.Index.PartitionN = partitions
 
 		if err := idx.Open(); err != nil {
@@ -829,7 +822,7 @@ func BenchmarkIndex_ConcurrentWriteQuery(b *testing.B) {
 
 			// Re-open everything
 			idx := &Index{SeriesFile: NewSeriesFile()}
-			idx.Index = tsi1.NewIndex(idx.SeriesFile.SeriesFile, "db0", tsi1.WithPath(MustTempDir()), tsi1.WithSeriesIDCacheSize(cacheSize))
+			idx.Index = tsi1.NewIndex(idx.SeriesFile.SeriesFile, "db0", tsi1.WithPath(MustTempDir()))
 			idx.Index.PartitionN = partitions
 
 			if err := idx.Open(); err != nil {
@@ -848,13 +841,7 @@ func BenchmarkIndex_ConcurrentWriteQuery(b *testing.B) {
 		b.Run(fmt.Sprintf("partition %d", partition), func(b *testing.B) {
 			for _, queryN := range queries {
 				b.Run(fmt.Sprintf("queries %d", queryN), func(b *testing.B) {
-					b.Run("cache", func(b *testing.B) {
-						runBenchmark(b, queryN, partition, tsdb.DefaultSeriesIDSetCacheSize)
-					})
-
-					b.Run("no cache", func(b *testing.B) {
-						runBenchmark(b, queryN, partition, 0)
-					})
+					runBenchmark(b, queryN, partition)
 				})
 			}
 		})

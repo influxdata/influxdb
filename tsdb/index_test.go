@@ -312,13 +312,6 @@ type Index struct {
 
 type EngineOption func(opts *tsdb.EngineOptions)
 
-// DisableTSICache allows the caller to disable the TSI bitset cache during a test.
-var DisableTSICache = func() EngineOption {
-	return func(opts *tsdb.EngineOptions) {
-		opts.Config.SeriesIDSetCacheSize = 0
-	}
-}
-
 // MustNewIndex will initialize a new index using the provide type. It creates
 // everything under the same root directory so it can be cleanly removed on Close.
 //
@@ -598,13 +591,8 @@ func BenchmarkIndex_ConcurrentWriteQuery(b *testing.B) {
 		tags = append(tags, pt.Tags())
 	}
 
-	runBenchmark := func(b *testing.B, index string, queryN int, useTSICache bool) {
-		var idx *Index
-		if !useTSICache {
-			idx = MustOpenNewIndex(index, DisableTSICache())
-		} else {
-			idx = MustOpenNewIndex(index)
-		}
+	runBenchmark := func(b *testing.B, index string, queryN int) {
+		idx := MustOpenNewIndex(index)
 
 		var wg sync.WaitGroup
 		begin := make(chan struct{})
@@ -677,13 +665,7 @@ func BenchmarkIndex_ConcurrentWriteQuery(b *testing.B) {
 		b.Run(indexType, func(b *testing.B) {
 			for _, queryN := range queries {
 				b.Run(fmt.Sprintf("queries %d", queryN), func(b *testing.B) {
-					b.Run("cache", func(b *testing.B) {
-						runBenchmark(b, indexType, queryN, true)
-					})
-
-					b.Run("no cache", func(b *testing.B) {
-						runBenchmark(b, indexType, queryN, false)
-					})
+					runBenchmark(b, indexType, queryN)
 				})
 			}
 		})

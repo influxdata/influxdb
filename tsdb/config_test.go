@@ -70,11 +70,6 @@ func TestConfig_Validate_Error(t *testing.T) {
 	if err := c.Validate(); err != nil {
 		t.Error(err)
 	}
-
-	c.SeriesIDSetCacheSize = -1
-	if err := c.Validate(); err == nil || err.Error() != "series-id-set-cache-size must be non-negative" {
-		t.Errorf("unexpected error: %s", err)
-	}
 }
 
 func TestConfig_ByteSizes(t *testing.T) {

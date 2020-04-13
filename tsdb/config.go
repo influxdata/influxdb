@@ -67,9 +67,6 @@ const (
 	// write-ahead log file will compact into an index file.
 	DefaultMaxIndexLogFileSize = 1 * 1024 * 1024 // 1MB
 
-	// DefaultSeriesIDSetCacheSize is the default number of series ID sets to cache in the TSI index.
-	DefaultSeriesIDSetCacheSize = 100
-
 	// DefaultSeriesFileMaxConcurrentSnapshotCompactions is the maximum number of concurrent series
 	// partition snapshot compactions that can run at one time.
 	// A value of 0 results in runtime.GOMAXPROCS(0).
@@ -128,11 +125,6 @@ type Config struct {
 	// be compacted less frequently, store more series in-memory, and provide higher write throughput.
 	MaxIndexLogFileSize toml.Size `toml:"max-index-log-file-size"`
 
-	// SeriesIDSetCacheSize is the number items that can be cached within the TSI index. TSI caching can help
-	// with query performance when the same tag key/value predicates are commonly used on queries.
-	// Setting series-id-set-cache-size to 0 disables the cache.
-	SeriesIDSetCacheSize int `toml:"series-id-set-cache-size"`
-
 	// SeriesFileMaxConcurrentSnapshotCompactions is the maximum number of concurrent snapshot compactions
 	// that can be running at one time across all series partitions in a database. Snapshots scheduled
 	// to run when the limit is reached are blocked until a running snaphsot completes.  Only snapshot
@@ -168,8 +160,7 @@ func NewConfig() Config {
 		MaxValuesPerTag:          DefaultMaxValuesPerTag,
 		MaxConcurrentCompactions: DefaultMaxConcurrentCompactions,
 
-		MaxIndexLogFileSize:  toml.Size(DefaultMaxIndexLogFileSize),
-		SeriesIDSetCacheSize: DefaultSeriesIDSetCacheSize,
+		MaxIndexLogFileSize: toml.Size(DefaultMaxIndexLogFileSize),
 
 		SeriesFileMaxConcurrentSnapshotCompactions: DefaultSeriesFileMaxConcurrentSnapshotCompactions,
 
@@ -188,10 +179,6 @@ func (c *Config) Validate() error {
 
 	if c.MaxConcurrentCompactions < 0 {
 		return errors.New("max-concurrent-compactions must be non-negative")
-	}
-
-	if c.SeriesIDSetCacheSize < 0 {
-		return errors.New("series-id-set-cache-size must be non-negative")
 	}
 
 	if c.SeriesFileMaxConcurrentSnapshotCompactions < 0 {
@@ -237,7 +224,6 @@ func (c Config) Diagnostics() (*diagnostics.Diagnostics, error) {
 		"max-values-per-tag":                     c.MaxValuesPerTag,
 		"max-concurrent-compactions":             c.MaxConcurrentCompactions,
 		"max-index-log-file-size":                c.MaxIndexLogFileSize,
-		"series-id-set-cache-size":               c.SeriesIDSetCacheSize,
 		"series-file-max-concurrent-compactions": c.SeriesFileMaxConcurrentSnapshotCompactions,
 	}), nil
 }
