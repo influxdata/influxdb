@@ -404,6 +404,12 @@ class Root extends PureComponent {
                               />
                             </Route>
                             <Route path="labels" component={LabelsIndex} />
+                            <Route path="about" component={OrgProfilePage}>
+                              <Route
+                                path="rename"
+                                component={RenameOrgOverlay}
+                              />
+                            </Route>
                           </Route>
                           <Route path="alerting" component={AlertingIndex}>
                             <Route
@@ -443,9 +449,7 @@ class Root extends PureComponent {
                             path="checks/:checkID"
                             component={CheckHistory}
                           />
-                          <Route path="about" component={OrgProfilePage}>
-                            <Route path="rename" component={RenameOrgOverlay} />
-                          </Route>
+                          <Route path="about" component={OrgProfilePage} />
                           {!CLOUD && (
                             <Route path="members" component={MembersIndex} />
                           )}
