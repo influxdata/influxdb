@@ -203,4 +203,10 @@ there",5
       '[576] query terminated: reached maximum allowed memory limits'
     )
   })
+
+  test('does nothing with nothing', () => {
+    expect(() => fromFlux('')).not.toThrow()
+    expect(() => fromFlux('\n\n\n\nyolo\ntrash\n\n\n\n')).not.toThrow()
+    expect(fromFlux('\n\n\n\nyolo\ntrash\n\n\n\n').table.length).toEqual(0)
+  })
 })

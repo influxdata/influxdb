@@ -1,15 +1,37 @@
 import Papa from 'papaparse'
 
-const TO_COLUMN_TYPE = {
-  boolean: 'boolean',
-  unsignedLong: 'number',
-  long: 'number',
-  double: 'number',
-  string: 'string',
-  'dateTime:RFC3339': 'time',
+const enum InternalTypes {
+  boolean = 'boolean',
+  number = 'number',
+  string = 'string',
+  time = 'time',
+}
+const enum ExternalTypes {
+  boolean = 'boolean',
+  unsignedLong = 'unsignedLong',
+  long = 'long',
+  double = 'double',
+  string = 'string',
+  time = 'dateTime:RFC3339',
 }
 
-function parseValue(value, columnType) {
+type TypeTranslationMap = {[key in ExternalTypes]: InternalTypes}
+
+const TO_COLUMN_TYPE: TypeTranslationMap = {
+  [ExternalTypes.boolean]: InternalTypes.boolean,
+  [ExternalTypes.unsignedLong]: InternalTypes.number,
+  [ExternalTypes.long]: InternalTypes.number,
+  [ExternalTypes.double]: InternalTypes.number,
+  [ExternalTypes.string]: InternalTypes.string,
+  [ExternalTypes.time]: InternalTypes.time,
+}
+
+type ParsedReturnTypes = string | undefined | null | number | boolean
+
+function parseValue(
+  value: string | undefined,
+  columnType: InternalTypes
+): ParsedReturnTypes {
   if (value === undefined) {
     return undefined
   }
@@ -22,27 +44,27 @@ function parseValue(value, columnType) {
     return NaN
   }
 
-  if (columnType === 'boolean' && value === 'true') {
+  if (columnType === InternalTypes.boolean && value === 'true') {
     return true
   }
 
-  if (columnType === 'boolean' && value === 'false') {
+  if (columnType === InternalTypes.boolean && value === 'false') {
     return false
   }
 
-  if (columnType === 'string') {
+  if (columnType === InternalTypes.string) {
     return value
   }
 
-  if (columnType === 'time') {
+  if (columnType === InternalTypes.time) {
     return Date.parse(value)
   }
 
-  if (columnType === 'number' && value === '') {
+  if (columnType === InternalTypes.number && value === '') {
     return null
   }
 
-  if (columnType === 'number') {
+  if (columnType === InternalTypes.number) {
     return Number(value)
   }
 
@@ -92,7 +114,31 @@ function parseValue(value, columnType) {
     [1]: https://github.com/influxdata/flux/blob/master/docs/SPEC.md#annotations
     */
 
-export default function fromFlux(csv) {
+interface ChunkBoundary {
+  start: number
+  stop: number
+}
+
+type ParsedFluxColumnLookup = {[key: string]: ParsedFluxColumn}
+
+export interface ParsedFluxColumn {
+  name: string
+  group: string
+  type: InternalTypes
+  default: string
+  data: ParsedReturnTypes[]
+}
+
+export interface ParsedFlux {
+  table: {
+    columnKeys: string[]
+    columns: ParsedFluxColumnLookup
+    length: number
+  }
+  fluxGroupKeyUnion: string[]
+}
+
+export default function fromFlux(csv: string): ParsedFlux {
   /*
          A Flux CSV response can contain multiple CSV files each joined by a newline.
          See https://github.com/influxdata/flux/blob/master/docs/SPEC.md#multiple-tables.
@@ -107,11 +153,11 @@ export default function fromFlux(csv) {
 
          [0]: https://github.com/influxdata/influxdb/issues/15017
      */
-  const output = {},
-    groupKey = {},
-    names = {}
+  const output: ParsedFluxColumnLookup = {},
+    groupKey: {[key: string]: boolean} = {},
+    names: {[key: string]: {[key: string]: boolean}} = {}
 
-  const chunks = [],
+  const chunks: ChunkBoundary[] = [],
     regerz = /\n\s*\n#/g
   let match,
     lastRange = 0
@@ -129,80 +175,117 @@ export default function fromFlux(csv) {
   })
 
   let runningTotal = 0,
-    ni,
+    currentChunkIndex,
     headerLocation,
-    no,
-    na,
-    colName,
-    colType,
-    colKey,
+    currentLineInHeader,
+    currentColumnIndex,
+    currentLineIndex,
+    columnName,
+    columnType,
+    columnKey,
     annotations,
     parsed
 
-  for (ni = 0; ni < chunks.length; ni++) {
+  for (
+    currentChunkIndex = 0;
+    currentChunkIndex < chunks.length;
+    currentChunkIndex++
+  ) {
     annotations = {}
-    parsed = Papa.parse(csv.substring(chunks[ni].start, chunks[ni].stop)).data
+    parsed = Papa.parse(
+      csv.substring(
+        chunks[currentChunkIndex].start,
+        chunks[currentChunkIndex].stop
+      )
+    ).data
+
+    // only happens on malformed input
+    if (!parsed.length) {
+      continue
+    }
 
     headerLocation = 0
     while (/^\s*#/.test(parsed[headerLocation][0])) {
       headerLocation++
     }
 
+    // only happens on malformed input
+    if (parsed[headerLocation].length === 1) {
+      continue
+    }
+
     if (
       parsed[headerLocation][1] === 'error' &&
       parsed[headerLocation][2] === 'reference'
     ) {
-      const ref = parsed[headerLocation + 1][2]
-      const msg = parsed[headerLocation + 1][1]
+      const errorReferenceCode = parsed[headerLocation + 1][2]
+      const errorMessage = parsed[headerLocation + 1][1]
 
-      throw new Error(`[${ref}] ${msg}`)
+      throw new Error(`[${errorReferenceCode}] ${errorMessage}`)
     }
 
-    for (no = 0; no < headerLocation; no++) {
-      annotations[parsed[no][0]] = parsed[no].reduce((p, c, i) => {
-        p[parsed[headerLocation][i]] = c
-        return p
+    for (
+      currentLineInHeader = 0;
+      currentLineInHeader < headerLocation;
+      currentLineInHeader++
+    ) {
+      annotations[parsed[currentLineInHeader][0]] = parsed[
+        currentLineInHeader
+      ].reduce((annotationObject, currentColumn, currentColumnIndex) => {
+        annotationObject[
+          parsed[headerLocation][currentColumnIndex]
+        ] = currentColumn
+        return annotationObject
       }, {})
     }
 
-    for (no = 1; no < parsed[headerLocation].length; no++) {
-      colName = parsed[headerLocation][no]
+    for (
+      currentColumnIndex = 1;
+      currentColumnIndex < parsed[headerLocation].length;
+      currentColumnIndex++
+    ) {
+      columnName = parsed[headerLocation][currentColumnIndex]
 
-      colType = annotations['#datatype'][colName]
-      colKey = `${colName} (${TO_COLUMN_TYPE[colType]})`
+      columnType = annotations['#datatype'][columnName]
+      columnKey = `${columnName} (${TO_COLUMN_TYPE[columnType]})`
 
-      if (!names.hasOwnProperty(colName)) {
-        names[colName] = {}
+      if (!names.hasOwnProperty(columnName)) {
+        names[columnName] = {}
       }
 
-      if (!names[colName].hasOwnProperty(colKey)) {
-        names[colName][colKey] = true
+      if (!names[columnName].hasOwnProperty(columnKey)) {
+        names[columnName][columnKey] = true
       }
 
       if (
         annotations['#group'] &&
-        annotations['#group'].hasOwnProperty(colName) &&
-        annotations['#group'][colName] === 'true'
+        annotations['#group'].hasOwnProperty(columnName) &&
+        annotations['#group'][columnName] === 'true'
       ) {
-        groupKey[colKey] = true
+        groupKey[columnKey] = true
       }
 
-      if (!output.hasOwnProperty(colKey)) {
-        output[colKey] = {
-          name: colName,
-          group: annotations['#group'][colName],
-          type: TO_COLUMN_TYPE[colType],
-          default: annotations['#default'][colName],
+      if (!output.hasOwnProperty(columnKey)) {
+        output[columnKey] = {
+          name: columnName,
+          group: annotations['#group'][columnName],
+          type: TO_COLUMN_TYPE[columnType],
+          default: annotations['#default'][columnName],
           data: [],
         }
       }
 
-      for (na = headerLocation + 1; na < parsed.length; na++) {
-        output[colKey].data[
-          runningTotal + na - headerLocation - 1
+      for (
+        currentLineIndex = headerLocation + 1;
+        currentLineIndex < parsed.length;
+        currentLineIndex++
+      ) {
+        output[columnKey].data[
+          runningTotal + currentLineIndex - headerLocation - 1
         ] = parseValue(
-          parsed[na][no] || output[colKey].default,
-          output[colKey].type
+          parsed[currentLineIndex][currentColumnIndex] ||
+            output[columnKey].default,
+          output[columnKey].type
         )
       }
     }
@@ -214,7 +297,7 @@ export default function fromFlux(csv) {
         Each column in a parsed `Table` can only have a single type, but because we
         combine columns from multiple Flux tables into a single table, we may
         encounter conflicting types for a given column during parsing.
-        To avoid this issue, we seperate the concept of the column _key_ and column
+        To avoid this issue, we separate the concept of the column _key_ and column
         _name_ in the `Table` object, where each key is unique but each name is not
         necessarily unique. We name the keys something like "foo (int)", where "foo"
         is the name and "int" is the type.
@@ -225,13 +308,13 @@ export default function fromFlux(csv) {
     */
   Object.entries(names)
     .map(([k, v]) => {
-      const colNames = Object.keys(v)
+      const columnNames = Object.keys(v)
 
-      colNames.forEach(n => {
+      columnNames.forEach(n => {
         output[n].data.length = runningTotal
       })
 
-      return [k, colNames]
+      return [k, columnNames]
     })
     .filter(([_, v]) => v.length === 1)
     .map(([k, v]) => [k, v[0]])
