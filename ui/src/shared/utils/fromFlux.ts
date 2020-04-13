@@ -104,7 +104,7 @@ function parseValue(
     in the input Flux CSV.
     Values are coerced into appropriate JavaScript types based on the Flux
     `#datatype` annotation for the table
-    The `Table` stores a `key` for each column which is seperate from the column
+    The `Table` stores a `key` for each column which is separate from the column
     `name`. If multiple Flux tables have the same column but with different
     types, they will be distinguished by different keys in the resulting `Table`;
     otherwise the `key` and `name` for each column in the result table will be
