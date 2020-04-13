@@ -65,7 +65,7 @@ func (s *OrgClientService) FindOrganizations(ctx context.Context, filter influxd
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	params := findOptionParams(opt...)
+	params := influxdb.FindOptionParams(opt...)
 	if filter.Name != nil {
 		span.LogKV("org", *filter.Name)
 		params = append(params, [2]string{"org", *filter.Name})
