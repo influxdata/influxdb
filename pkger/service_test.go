@@ -420,8 +420,9 @@ func TestService(t *testing.T) {
 
 				expected := DiffVariable{
 					DiffIdentifier: DiffIdentifier{
-						ID:      1,
-						PkgName: "var_const_3",
+						ID:          1,
+						PkgName:     "var_const_3",
+						StateStatus: StateStatusExists,
 					},
 					Old: &DiffVariableValues{
 						Name:        "var_const_3",
@@ -441,7 +442,8 @@ func TestService(t *testing.T) {
 				expected = DiffVariable{
 					DiffIdentifier: DiffIdentifier{
 						// no ID here since this one would be new
-						PkgName: "var_map_4",
+						PkgName:     "var_map_4",
+						StateStatus: StateStatusNew,
 					},
 					New: DiffVariableValues{
 						Name:        "var_map_4",
@@ -1178,21 +1180,23 @@ func TestService(t *testing.T) {
 			})
 
 			t.Run("maps variables with labels", func(t *testing.T) {
-				testLabelMappingFn(
-					t,
-					"testdata/variable_associates_label.yml",
-					1,
-					func() []ServiceSetterFn {
-						fakeVarSVC := mock.NewVariableService()
-						fakeVarSVC.CreateVariableF = func(_ context.Context, v *influxdb.Variable) error {
-							v.ID = influxdb.ID(rand.Int())
-							return nil
-						}
-						return []ServiceSetterFn{WithVariableSVC(fakeVarSVC)}
-					},
-				)
-			})
+				opt := func() []ServiceSetterFn {
+					fakeVarSVC := mock.NewVariableService()
+					fakeVarSVC.CreateVariableF = func(_ context.Context, v *influxdb.Variable) error {
+						v.ID = influxdb.ID(rand.Int())
+						return nil
+					}
+					return []ServiceSetterFn{WithVariableSVC(fakeVarSVC)}
+				}
 
+				t.Run("applies successfully", func(t *testing.T) {
+					testLabelMappingV2ApplyFn(t, "testdata/variable_associates_label.yml", 1, opt)
+				})
+
+				t.Run("deletes new label mappings on error", func(t *testing.T) {
+					testLabelMappingV2RollbackFn(t, "testdata/variable_associates_label.yml", 0, opt)
+				})
+			})
 		})
 
 		t.Run("notification endpoints", func(t *testing.T) {
@@ -1488,7 +1492,8 @@ func TestService(t *testing.T) {
 					require.NoError(t, err)
 
 					require.Len(t, sum.Variables, 4)
-					expected := sum.Variables[1]
+
+					expected := sum.Variables[0]
 					assert.True(t, expected.ID > 0 && expected.ID < 5)
 					assert.Equal(t, SafeID(orgID), expected.OrgID)
 					assert.Equal(t, "var_const_3", expected.Name)
@@ -1562,7 +1567,7 @@ func TestService(t *testing.T) {
 					require.NoError(t, err)
 
 					require.Len(t, sum.Variables, 4)
-					expected := sum.Variables[1]
+					expected := sum.Variables[0]
 					assert.Equal(t, SafeID(1), expected.ID)
 					assert.Equal(t, "var_const_3", expected.Name)
 

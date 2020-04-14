@@ -837,14 +837,21 @@ spec:
 				mappings := sum.LabelMappings
 				require.Len(t, mappings, 11)
 				assert.Contains(t, mappings, newSumMapping(bkts[0].ID, bkts[0].PkgName, bkts[0].Name, influxdb.BucketsResourceType))
-				//hasMapping(t, mappings, newSumMapping(pkger.SafeID(checks[0].Check.GetID()), checks[0].Check.GetName(), influxdb.ChecksResourceType))
-				//hasMapping(t, mappings, newSumMapping(pkger.SafeID(checks[1].Check.GetID()), checks[1].Check.GetName(), influxdb.ChecksResourceType))
-				//hasMapping(t, mappings, newSumMapping(dashs[0].ID, dashs[0].Name, influxdb.DashboardsResourceType))
-				//hasMapping(t, mappings, newSumMapping(pkger.SafeID(endpoints[0].NotificationEndpoint.GetID()), endpoints[0].NotificationEndpoint.GetName(), influxdb.NotificationEndpointResourceType))
-				//hasMapping(t, mappings, newSumMapping(rule.ID, rule.Name, influxdb.NotificationRuleResourceType))
-				//hasMapping(t, mappings, newSumMapping(task.ID, task.Name, influxdb.TasksResourceType))
-				//hasMapping(t, mappings, newSumMapping(pkger.SafeID(teles[0].TelegrafConfig.ID), teles[0].TelegrafConfig.Name, influxdb.TelegrafsResourceType))
-				//hasMapping(t, mappings, newSumMapping(vars[0].ID, vars[0].Name, influxdb.VariablesResourceType))
+
+				ch0 := checks[0]
+				assert.Contains(t, mappings, newSumMapping(pkger.SafeID(ch0.Check.GetID()), ch0.PkgName, ch0.Check.GetName(), influxdb.ChecksResourceType))
+
+				ch1 := checks[0]
+				assert.Contains(t, mappings, newSumMapping(pkger.SafeID(ch1.Check.GetID()), ch1.PkgName, ch1.Check.GetName(), influxdb.ChecksResourceType))
+
+				ne := endpoints[0]
+				assert.Contains(t, mappings, newSumMapping(pkger.SafeID(ne.NotificationEndpoint.GetID()), ne.PkgName, ne.NotificationEndpoint.GetName(), influxdb.NotificationEndpointResourceType))
+
+				assert.Contains(t, mappings, newSumMapping(dashs[0].ID, dashs[0].PkgName, dashs[0].Name, influxdb.DashboardsResourceType))
+				assert.Contains(t, mappings, newSumMapping(rule.ID, rule.PkgName, rule.Name, influxdb.NotificationRuleResourceType))
+				assert.Contains(t, mappings, newSumMapping(task.ID, task.PkgName, task.Name, influxdb.TasksResourceType))
+				assert.Contains(t, mappings, newSumMapping(pkger.SafeID(teles[0].TelegrafConfig.ID), teles[0].PkgName, teles[0].TelegrafConfig.Name, influxdb.TelegrafsResourceType))
+				assert.Contains(t, mappings, newSumMapping(vars[0].ID, vars[0].PkgName, vars[0].Name, influxdb.VariablesResourceType))
 			})
 
 			t.Run("filtered by resource types", func(t *testing.T) {

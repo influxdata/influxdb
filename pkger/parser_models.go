@@ -1,6 +1,7 @@
 package pkger
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -467,4 +468,106 @@ func (s sortedLabels) Less(i, j int) bool {
 
 func (s sortedLabels) Swap(i, j int) {
 	s[i], s[j] = s[j], s[i]
+}
+
+const (
+	fieldArgTypeConstant = "constant"
+	fieldArgTypeMap      = "map"
+	fieldArgTypeQuery    = "query"
+)
+
+type variable struct {
+	identity
+
+	Description string
+	Type        string
+	Query       string
+	Language    string
+	ConstValues []string
+	MapValues   map[string]string
+
+	labels sortedLabels
+}
+
+func (v *variable) Labels() []*label {
+	return v.labels
+}
+
+func (v *variable) ResourceType() influxdb.ResourceType {
+	return KindVariable.ResourceType()
+}
+
+func (v *variable) summarize() SummaryVariable {
+	return SummaryVariable{
+		PkgName:           v.PkgName(),
+		Name:              v.Name(),
+		Description:       v.Description,
+		Arguments:         v.influxVarArgs(),
+		LabelAssociations: toSummaryLabels(v.labels...),
+	}
+}
+
+func (v *variable) influxVarArgs() *influxdb.VariableArguments {
+	// this zero value check is for situations where we want to marshal/unmarshal
+	// a variable and not have the invalid args blow up during unmarshaling. When
+	// that validation is decoupled from the unmarshaling, we can clean this up.
+	if v.Type == "" {
+		return nil
+	}
+
+	args := &influxdb.VariableArguments{
+		Type: v.Type,
+	}
+	switch args.Type {
+	case "query":
+		args.Values = influxdb.VariableQueryValues{
+			Query:    v.Query,
+			Language: v.Language,
+		}
+	case "constant":
+		args.Values = influxdb.VariableConstantValues(v.ConstValues)
+	case "map":
+		args.Values = influxdb.VariableMapValues(v.MapValues)
+	}
+	return args
+}
+
+func (v *variable) valid() []validationErr {
+	var failures []validationErr
+	switch v.Type {
+	case "map":
+		if len(v.MapValues) == 0 {
+			failures = append(failures, validationErr{
+				Field: fieldValues,
+				Msg:   "map variable must have at least 1 key/val pair",
+			})
+		}
+	case "constant":
+		if len(v.ConstValues) == 0 {
+			failures = append(failures, validationErr{
+				Field: fieldValues,
+				Msg:   "constant variable must have a least 1 value provided",
+			})
+		}
+	case "query":
+		if v.Query == "" {
+			failures = append(failures, validationErr{
+				Field: fieldQuery,
+				Msg:   "query variable must provide a query string",
+			})
+		}
+		if v.Language != "influxql" && v.Language != "flux" {
+			failures = append(failures, validationErr{
+				Field: fieldLanguage,
+				Msg:   fmt.Sprintf(`query variable language must be either "influxql" or "flux"; got %q`, v.Language),
+			})
+		}
+	}
+	if len(failures) > 0 {
+		return []validationErr{
+			objectValidationErr(fieldSpec, failures...),
+		}
+	}
+
+	return nil
 }
