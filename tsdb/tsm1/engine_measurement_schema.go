@@ -159,6 +159,14 @@ func (e *Engine) MeasurementTagKeys(ctx context.Context, orgID, bucketID influxd
 	return e.tagKeysPredicate(ctx, orgID, bucketID, []byte(measurement), start, end, predicate)
 }
 
+// MeasurementFields returns an iterator which enumerates the field schema for the given
+// bucket and measurement, filtered using the optional the predicate and limited to the
+//// time range (start, end].
+//
+// MeasurementFields will always return a MeasurementFieldsIterator if there is no error.
+//
+// If the context is canceled before MeasurementFields has finished processing, a non-nil
+// error will be returned along with statistics for the already scanned data.
 func (e *Engine) MeasurementFields(ctx context.Context, orgID, bucketID influxdb.ID, measurement string, start, end int64, predicate influxql.Expr) (cursors.MeasurementFieldsIterator, error) {
 	if predicate == nil {
 		return e.fieldsNoPredicate(ctx, orgID, bucketID, []byte(measurement), start, end)
