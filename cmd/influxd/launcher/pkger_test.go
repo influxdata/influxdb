@@ -289,7 +289,7 @@ func TestLauncher_Pkger(t *testing.T) {
 				_, _, err := svc.Apply(timedCtx(5*time.Second), l.Org.ID, l.User.ID, pkgWithDelete, applyOpt)
 				require.Error(t, err)
 
-				t.Log("\tvalidate all resources are rolled back")
+				t.Log("validate all resources are rolled back")
 				{
 					actualBkt := resourceCheck.mustGetBucket(t, byName(updateBucketName))
 					assert.NotEqual(t, initialSum.Buckets[0].ID, pkger.SafeID(actualBkt.ID))
@@ -307,24 +307,24 @@ func TestLauncher_Pkger(t *testing.T) {
 					assert.NotEqual(t, initialSum.Variables[0].ID, pkger.SafeID(actualVariable.ID))
 				}
 
-				t.Log("\tvalidate all changes do not persist")
+				t.Log("validate all changes do not persist")
 				{
 					for _, name := range []string{"z_roll_me_back", "z_rolls_back_too"} {
 						_, err := resourceCheck.getBucket(t, byName(name))
-						require.Error(t, err)
+						assert.Error(t, err)
 					}
 
 					_, err := resourceCheck.getCheck(t, byName("z_check"))
-					require.Error(t, err)
+					assert.Error(t, err)
 
 					_, err = resourceCheck.getEndpoint(t, byName("z_endpoint_rolls_back"))
-					require.Error(t, err)
+					assert.Error(t, err)
 
 					_, err = resourceCheck.getLabel(t, byName("z_label_roller"))
-					require.Error(t, err)
+					assert.Error(t, err)
 
 					_, err = resourceCheck.getVariable(t, byName("z_var_rolls_back"))
-					require.Error(t, err)
+					assert.Error(t, err)
 				}
 			})
 

@@ -84,8 +84,9 @@ func TestService(t *testing.T) {
 
 					expected := DiffBucket{
 						DiffIdentifier: DiffIdentifier{
-							ID:      SafeID(1),
-							PkgName: "rucket_11",
+							ID:          SafeID(1),
+							StateStatus: StateStatusExists,
+							PkgName:     "rucket_11",
 						},
 
 						Old: &DiffBucketValues{
@@ -118,7 +119,8 @@ func TestService(t *testing.T) {
 
 					expected := DiffBucket{
 						DiffIdentifier: DiffIdentifier{
-							PkgName: "rucket_11",
+							PkgName:     "rucket_11",
+							StateStatus: StateStatusNew,
 						},
 						New: DiffBucketValues{
 							Name:           "rucket_11",
@@ -196,8 +198,9 @@ func TestService(t *testing.T) {
 
 					expected := DiffLabel{
 						DiffIdentifier: DiffIdentifier{
-							ID:      SafeID(1),
-							PkgName: "label_1",
+							ID:          SafeID(1),
+							StateStatus: StateStatusExists,
+							PkgName:     "label_1",
 						},
 						Old: &DiffLabelValues{
 							Name:        "label_1",
@@ -236,7 +239,8 @@ func TestService(t *testing.T) {
 
 					expected := DiffLabel{
 						DiffIdentifier: DiffIdentifier{
-							PkgName: "label_1",
+							PkgName:     "label_1",
+							StateStatus: StateStatusNew,
 						},
 						New: DiffLabelValues{
 							Name:        "label_1",

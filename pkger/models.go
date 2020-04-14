@@ -137,9 +137,10 @@ func (s SafeID) String() string {
 // DiffIdentifier are the identifying fields for any given resource. Each resource
 // dictates if the resource is new, to be removed, or will remain.
 type DiffIdentifier struct {
-	ID      SafeID `json:"id"`
-	Remove  bool   `json:"bool"`
-	PkgName string `json:"pkgName"`
+	ID          SafeID      `json:"id"`
+	Remove      bool        `json:"bool"`
+	StateStatus StateStatus `json:"stateStatus"`
+	PkgName     string      `json:"pkgName"`
 }
 
 // IsNew indicates the resource is new to the platform.
