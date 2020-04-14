@@ -8,6 +8,7 @@
 
 1. [17714](https://github.com/influxdata/influxdb/pull/17714): Cloud environments no longer render markdown images, for security reasons.
 1. [17321](https://github.com/influxdata/influxdb/pull/17321): Improve UI for sorting resources
+1. [17740](https://github.com/influxdata/influxdb/pull/17740): Add single-color color schemes for visualizations
 
 ## v2.0.0-beta.8 [2020-04-10]
 
