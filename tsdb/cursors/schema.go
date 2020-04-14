@@ -13,8 +13,9 @@ const (
 )
 
 type MeasurementField struct {
-	Key  string
-	Type FieldType
+	Key       string
+	Type      FieldType
+	Timestamp int64
 }
 
 type MeasurementFields struct {

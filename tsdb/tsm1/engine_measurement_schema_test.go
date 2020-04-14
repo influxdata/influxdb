@@ -877,7 +877,7 @@ m10,foo=v barS="60" 501
 				min: 0,
 				max: 300,
 			},
-			exp:      []cursors.MeasurementField{{Key: "i", Type: cursors.String}, {Key: "f", Type: cursors.Float}},
+			exp:      []cursors.MeasurementField{{Key: "i", Type: cursors.String, Timestamp: 209}, {Key: "f", Type: cursors.Float, Timestamp: 201}},
 			expStats: makeStats(12),
 		},
 		{
@@ -888,7 +888,7 @@ m10,foo=v barS="60" 501
 				min: 0,
 				max: 199,
 			},
-			exp:      []cursors.MeasurementField{{Key: "i", Type: cursors.Integer}, {Key: "f", Type: cursors.Float}},
+			exp:      []cursors.MeasurementField{{Key: "i", Type: cursors.Integer, Timestamp: 109}, {Key: "f", Type: cursors.Float, Timestamp: 109}},
 			expStats: makeStats(12),
 		},
 		{
@@ -899,7 +899,7 @@ m10,foo=v barS="60" 501
 				min: 0,
 				max: 1000,
 			},
-			exp:      []cursors.MeasurementField{{Key: "b", Type: cursors.Boolean}},
+			exp:      []cursors.MeasurementField{{Key: "b", Type: cursors.Boolean, Timestamp: 201}},
 			expStats: makeStats(1),
 		},
 		{
@@ -910,7 +910,7 @@ m10,foo=v barS="60" 501
 				min: 0,
 				max: 199,
 			},
-			exp:      []cursors.MeasurementField{{Key: "barF", Type: cursors.Float}},
+			exp:      []cursors.MeasurementField{{Key: "barF", Type: cursors.Float, Timestamp: 101}},
 			expStats: makeStats(1),
 		},
 		{
@@ -921,7 +921,7 @@ m10,foo=v barS="60" 501
 				min: 200,
 				max: 299,
 			},
-			exp:      []cursors.MeasurementField{{Key: "i", Type: cursors.String}, {Key: "f", Type: cursors.Float}},
+			exp:      []cursors.MeasurementField{{Key: "i", Type: cursors.String, Timestamp: 209}, {Key: "f", Type: cursors.Float, Timestamp: 201}},
 			expStats: makeStats(6),
 		},
 		{
@@ -932,7 +932,7 @@ m10,foo=v barS="60" 501
 				min: 109,
 				max: 109,
 			},
-			exp:      []cursors.MeasurementField{{Key: "i", Type: cursors.Integer}, {Key: "f", Type: cursors.Float}},
+			exp:      []cursors.MeasurementField{{Key: "i", Type: cursors.Integer, Timestamp: 109}, {Key: "f", Type: cursors.Float, Timestamp: 109}},
 			expStats: makeStats(6),
 		},
 		{
@@ -943,7 +943,7 @@ m10,foo=v barS="60" 501
 				min: 201,
 				max: 201,
 			},
-			exp:      []cursors.MeasurementField{{Key: "i", Type: cursors.Integer}, {Key: "f", Type: cursors.Float}},
+			exp:      []cursors.MeasurementField{{Key: "i", Type: cursors.Integer, Timestamp: 202}, {Key: "f", Type: cursors.Float, Timestamp: 201}},
 			expStats: makeStats(6),
 		},
 		{
@@ -954,7 +954,7 @@ m10,foo=v barS="60" 501
 				min: 202,
 				max: 202,
 			},
-			exp:      []cursors.MeasurementField{{Key: "i", Type: cursors.String}},
+			exp:      []cursors.MeasurementField{{Key: "i", Type: cursors.String, Timestamp: 209}},
 			expStats: makeStats(6),
 		},
 		{
@@ -990,7 +990,7 @@ m10,foo=v barS="60" 501
 				max:  300,
 				expr: `tag10 = 'v10'`,
 			},
-			exp:      []cursors.MeasurementField{{Key: "i", Type: cursors.Integer}, {Key: "f", Type: cursors.Float}},
+			exp:      []cursors.MeasurementField{{Key: "i", Type: cursors.Integer, Timestamp: 202}, {Key: "f", Type: cursors.Float, Timestamp: 201}},
 			expStats: makeStats(3),
 		},
 		{
@@ -1002,7 +1002,7 @@ m10,foo=v barS="60" 501
 				max:  300,
 				expr: `tag10 = 'v11'`,
 			},
-			exp:      []cursors.MeasurementField{{Key: "i", Type: cursors.String}},
+			exp:      []cursors.MeasurementField{{Key: "i", Type: cursors.String, Timestamp: 209}},
 			expStats: makeStats(3),
 		},
 
@@ -1017,7 +1017,7 @@ m10,foo=v barS="60" 501
 				min: 0,
 				max: 1000,
 			},
-			exp:      []cursors.MeasurementField{{Key: "barF", Type: cursors.Float}, {Key: "barS", Type: cursors.String}},
+			exp:      []cursors.MeasurementField{{Key: "barF", Type: cursors.Float, Timestamp: 101}, {Key: "barS", Type: cursors.String, Timestamp: 501}},
 			expStats: makeStats(1),
 		},
 

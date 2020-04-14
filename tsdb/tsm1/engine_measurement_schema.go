@@ -301,7 +301,7 @@ func (e *Engine) fieldsPredicate(ctx context.Context, orgID influxdb.ID, bucketI
 
 	vals := make([]cursors.MeasurementField, 0, len(tsmValues))
 	for key, val := range tsmValues {
-		vals = append(vals, cursors.MeasurementField{Key: key, Type: val.typ})
+		vals = append(vals, cursors.MeasurementField{Key: key, Type: val.typ, Timestamp: val.max})
 	}
 
 	return cursors.NewMeasurementFieldsSliceIteratorWithStats([]cursors.MeasurementFields{{Fields: vals}}, stats), nil
@@ -403,7 +403,7 @@ func (e *Engine) fieldsNoPredicate(ctx context.Context, orgID influxdb.ID, bucke
 
 	vals := make([]cursors.MeasurementField, 0, len(tsmValues))
 	for key, val := range tsmValues {
-		vals = append(vals, cursors.MeasurementField{Key: key, Type: val.typ})
+		vals = append(vals, cursors.MeasurementField{Key: key, Type: val.typ, Timestamp: val.max})
 	}
 
 	return cursors.NewMeasurementFieldsSliceIteratorWithStats([]cursors.MeasurementFields{{Fields: vals}}, stats), nil
