@@ -8,8 +8,8 @@ import (
 
 type stateCoordinator struct {
 	mBuckets map[string]*stateBucket
-
-	mLabels map[string]*stateLabel
+	mChecks  map[string]*stateCheck
+	mLabels  map[string]*stateLabel
 
 	labelMappings []stateLabelMapping
 }
@@ -17,6 +17,7 @@ type stateCoordinator struct {
 func newStateCoordinator(pkg *Pkg) *stateCoordinator {
 	state := stateCoordinator{
 		mBuckets: make(map[string]*stateBucket),
+		mChecks:  make(map[string]*stateCheck),
 		mLabels:  make(map[string]*stateLabel),
 	}
 
@@ -26,7 +27,12 @@ func newStateCoordinator(pkg *Pkg) *stateCoordinator {
 			stateStatus: StateStatusNew,
 		}
 	}
-
+	for _, pkgCheck := range pkg.checks() {
+		state.mChecks[pkgCheck.PkgName()] = &stateCheck{
+			parserCheck: pkgCheck,
+			stateStatus: StateStatusNew,
+		}
+	}
 	for _, pkgLabel := range pkg.labels() {
 		state.mLabels[pkgLabel.PkgName()] = &stateLabel{
 			parserLabel: pkgLabel,
@@ -40,6 +46,14 @@ func newStateCoordinator(pkg *Pkg) *stateCoordinator {
 func (s *stateCoordinator) buckets() []*stateBucket {
 	out := make([]*stateBucket, 0, len(s.mBuckets))
 	for _, v := range s.mBuckets {
+		out = append(out, v)
+	}
+	return out
+}
+
+func (s *stateCoordinator) checks() []*stateCheck {
+	out := make([]*stateCheck, 0, len(s.mChecks))
+	for _, v := range s.mChecks {
 		out = append(out, v)
 	}
 	return out
@@ -60,6 +74,13 @@ func (s *stateCoordinator) diff() Diff {
 	}
 	sort.Slice(diff.Buckets, func(i, j int) bool {
 		return diff.Buckets[i].PkgName < diff.Buckets[j].PkgName
+	})
+
+	for _, c := range s.mChecks {
+		diff.Checks = append(diff.Checks, c.diffCheck())
+	}
+	sort.Slice(diff.Checks, func(i, j int) bool {
+		return diff.Checks[i].PkgName < diff.Checks[j].PkgName
 	})
 
 	for _, l := range s.mLabels {
@@ -94,8 +115,8 @@ func (s *stateCoordinator) diff() Diff {
 
 func (s *stateCoordinator) summary() Summary {
 	var sum Summary
-	for _, v := range s.buckets() {
-		if isRemoval(v.stateStatus) {
+	for _, v := range s.mBuckets {
+		if IsRemoval(v.stateStatus) {
 			continue
 		}
 		sum.Buckets = append(sum.Buckets, v.summarize())
@@ -104,8 +125,18 @@ func (s *stateCoordinator) summary() Summary {
 		return sum.Buckets[i].PkgName < sum.Buckets[j].PkgName
 	})
 
-	for _, v := range s.labels() {
-		if isRemoval(v.stateStatus) {
+	for _, c := range s.mChecks {
+		if IsRemoval(c.stateStatus) {
+			continue
+		}
+		sum.Checks = append(sum.Checks, c.summarize())
+	}
+	sort.Slice(sum.Checks, func(i, j int) bool {
+		return sum.Checks[i].PkgName < sum.Checks[j].PkgName
+	})
+
+	for _, v := range s.mLabels {
+		if IsRemoval(v.stateStatus) {
 			continue
 		}
 		sum.Labels = append(sum.Labels, v.summarize())
@@ -165,6 +196,12 @@ func (s *stateCoordinator) addObjectForRemoval(k Kind, pkgName string, id influx
 			parserBkt:   &bucket{identity: newIdentity},
 			stateStatus: StateStatusRemove,
 		}
+	case KindCheck, KindCheckDeadman, KindCheckThreshold:
+		s.mChecks[pkgName] = &stateCheck{
+			id:          id,
+			parserCheck: &check{identity: newIdentity},
+			stateStatus: StateStatusRemove,
+		}
 	case KindLabel:
 		s.mLabels[pkgName] = &stateLabel{
 			id:          id,
@@ -178,6 +215,12 @@ func (s *stateCoordinator) getObjectIDSetter(k Kind, pkgName string) (func(influ
 	switch k {
 	case KindBucket:
 		r, ok := s.mBuckets[pkgName]
+		return func(id influxdb.ID) {
+			r.id = id
+			r.stateStatus = StateStatusExists
+		}, ok
+	case KindCheck, KindCheckDeadman, KindCheckThreshold:
+		r, ok := s.mChecks[pkgName]
 		return func(id influxdb.ID) {
 			r.id = id
 			r.stateStatus = StateStatusExists
@@ -217,7 +260,7 @@ func (b *stateBucket) diffBucket() DiffBucket {
 	diff := DiffBucket{
 		DiffIdentifier: DiffIdentifier{
 			ID:          SafeID(b.ID()),
-			Remove:      isRemoval(b.stateStatus),
+			Remove:      IsRemoval(b.stateStatus),
 			StateStatus: b.stateStatus,
 			PkgName:     b.parserBkt.PkgName(),
 		},
@@ -272,11 +315,74 @@ func (b *stateBucket) stateIdentity() stateIdentity {
 }
 
 func (b *stateBucket) shouldApply() bool {
-	return isRemoval(b.stateStatus) ||
+	return IsRemoval(b.stateStatus) ||
 		b.existing == nil ||
 		b.parserBkt.Description != b.existing.Description ||
 		b.parserBkt.Name() != b.existing.Name ||
 		b.parserBkt.RetentionRules.RP() != b.existing.RetentionPeriod
+}
+
+type stateCheck struct {
+	id, orgID   influxdb.ID
+	stateStatus StateStatus
+
+	parserCheck *check
+	existing    influxdb.Check
+}
+
+func (c *stateCheck) ID() influxdb.ID {
+	if IsExisting(c.stateStatus) && c.existing != nil {
+		return c.existing.GetID()
+	}
+	return c.id
+}
+
+func (c *stateCheck) labels() []*label {
+	return c.parserCheck.labels
+}
+
+func (c *stateCheck) resourceType() influxdb.ResourceType {
+	return KindCheck.ResourceType()
+}
+
+func (c *stateCheck) stateIdentity() stateIdentity {
+	return stateIdentity{
+		id:           c.ID(),
+		name:         c.parserCheck.Name(),
+		pkgName:      c.parserCheck.PkgName(),
+		resourceType: c.resourceType(),
+		stateStatus:  c.stateStatus,
+	}
+}
+
+func (c *stateCheck) diffCheck() DiffCheck {
+	diff := DiffCheck{
+		DiffIdentifier: DiffIdentifier{
+			ID:          SafeID(c.ID()),
+			Remove:      IsRemoval(c.stateStatus),
+			StateStatus: c.stateStatus,
+			PkgName:     c.parserCheck.PkgName(),
+		},
+	}
+	if newCheck := c.summarize(); newCheck.Check != nil {
+		diff.New.Check = newCheck.Check
+	}
+	if c.existing != nil {
+		diff.Old = &DiffCheckValues{
+			Check: c.existing,
+		}
+	}
+	return diff
+}
+
+func (c *stateCheck) summarize() SummaryCheck {
+	sum := c.parserCheck.summarize()
+	if sum.Check == nil {
+		return sum
+	}
+	sum.Check.SetID(c.id)
+	sum.Check.SetOrgID(c.orgID)
+	return sum
 }
 
 type stateLabel struct {
@@ -292,7 +398,7 @@ func (l *stateLabel) diffLabel() DiffLabel {
 		DiffIdentifier: DiffIdentifier{
 			ID: SafeID(l.ID()),
 			// TODO: axe Remove field when StateStatus is adopted
-			Remove:      isRemoval(l.stateStatus),
+			Remove:      IsRemoval(l.stateStatus),
 			StateStatus: l.stateStatus,
 			PkgName:     l.parserLabel.PkgName(),
 		},
@@ -327,7 +433,7 @@ func (l *stateLabel) ID() influxdb.ID {
 }
 
 func (l *stateLabel) shouldApply() bool {
-	return isRemoval(l.stateStatus) ||
+	return IsRemoval(l.stateStatus) ||
 		l.existing == nil ||
 		l.parserLabel.Description != l.existing.Properties["description"] ||
 		l.parserLabel.Name() != l.existing.Name ||
@@ -399,13 +505,14 @@ func stateLabelMappingToInfluxLabelMapping(mapping stateLabelMapping) influxdb.L
 
 // IsNew identifies state status as new to the platform.
 func IsNew(status StateStatus) bool {
-	return status == StateStatusNew
+	// defaulting zero value to identify as new
+	return status == StateStatusNew || status == ""
 }
 
-func exists(status StateStatus) bool {
+func IsExisting(status StateStatus) bool {
 	return status == StateStatusExists
 }
 
-func isRemoval(status StateStatus) bool {
+func IsRemoval(status StateStatus) bool {
 	return status == StateStatusRemove
 }

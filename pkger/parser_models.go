@@ -2,9 +2,12 @@ package pkger
 
 import (
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/notification"
+	icheck "github.com/influxdata/influxdb/v2/notification/check"
 )
 
 type identity struct {
@@ -152,6 +155,152 @@ func (r retentionRules) valid() []validationErr {
 		}
 	}
 	return failures
+}
+
+type checkKind int
+
+const (
+	checkKindDeadman checkKind = iota + 1
+	checkKindThreshold
+)
+
+const (
+	fieldCheckAllValues             = "allValues"
+	fieldCheckReportZero            = "reportZero"
+	fieldCheckStaleTime             = "staleTime"
+	fieldCheckStatusMessageTemplate = "statusMessageTemplate"
+	fieldCheckTags                  = "tags"
+	fieldCheckThresholds            = "thresholds"
+	fieldCheckTimeSince             = "timeSince"
+)
+
+const checkNameMinLength = 1
+
+type check struct {
+	identity
+
+	kind          checkKind
+	description   string
+	every         time.Duration
+	level         string
+	offset        time.Duration
+	query         string
+	reportZero    bool
+	staleTime     time.Duration
+	status        string
+	statusMessage string
+	tags          []struct{ k, v string }
+	timeSince     time.Duration
+	thresholds    []threshold
+
+	labels sortedLabels
+}
+
+func (c *check) Labels() []*label {
+	return c.labels
+}
+
+func (c *check) ResourceType() influxdb.ResourceType {
+	return KindCheck.ResourceType()
+}
+
+func (c *check) Status() influxdb.Status {
+	status := influxdb.Status(c.status)
+	if status == "" {
+		status = influxdb.Active
+	}
+	return status
+}
+
+func (c *check) summarize() SummaryCheck {
+	base := icheck.Base{
+		Name:                  c.Name(),
+		Description:           c.description,
+		Every:                 toNotificationDuration(c.every),
+		Offset:                toNotificationDuration(c.offset),
+		StatusMessageTemplate: c.statusMessage,
+	}
+	base.Query.Text = c.query
+	for _, tag := range c.tags {
+		base.Tags = append(base.Tags, influxdb.Tag{Key: tag.k, Value: tag.v})
+	}
+
+	sum := SummaryCheck{
+		PkgName:           c.PkgName(),
+		Status:            c.Status(),
+		LabelAssociations: toSummaryLabels(c.labels...),
+	}
+	switch c.kind {
+	case checkKindThreshold:
+		sum.Check = &icheck.Threshold{
+			Base:       base,
+			Thresholds: toInfluxThresholds(c.thresholds...),
+		}
+	case checkKindDeadman:
+		sum.Check = &icheck.Deadman{
+			Base:       base,
+			Level:      notification.ParseCheckLevel(strings.ToUpper(c.level)),
+			ReportZero: c.reportZero,
+			StaleTime:  toNotificationDuration(c.staleTime),
+			TimeSince:  toNotificationDuration(c.timeSince),
+		}
+	}
+	return sum
+}
+
+func (c *check) valid() []validationErr {
+	var vErrs []validationErr
+	if err, ok := isValidName(c.Name(), checkNameMinLength); !ok {
+		vErrs = append(vErrs, err)
+	}
+	if c.every == 0 {
+		vErrs = append(vErrs, validationErr{
+			Field: fieldEvery,
+			Msg:   "duration value must be provided that is >= 5s (seconds)",
+		})
+	}
+	if c.query == "" {
+		vErrs = append(vErrs, validationErr{
+			Field: fieldQuery,
+			Msg:   "must provide a non zero value",
+		})
+	}
+	if c.statusMessage == "" {
+		vErrs = append(vErrs, validationErr{
+			Field: fieldCheckStatusMessageTemplate,
+			Msg:   `must provide a template; ex. "Check: ${ r._check_name } is: ${ r._level }"`,
+		})
+	}
+	if status := c.Status(); status != influxdb.Active && status != influxdb.Inactive {
+		vErrs = append(vErrs, validationErr{
+			Field: fieldStatus,
+			Msg:   "must be 1 of [active, inactive]",
+		})
+	}
+
+	switch c.kind {
+	case checkKindThreshold:
+		if len(c.thresholds) == 0 {
+			vErrs = append(vErrs, validationErr{
+				Field: fieldCheckThresholds,
+				Msg:   "must provide at least 1 threshold entry",
+			})
+		}
+		for i, th := range c.thresholds {
+			for _, fail := range th.valid() {
+				fail.Index = intPtr(i)
+				vErrs = append(vErrs, fail)
+			}
+		}
+	}
+
+	if len(vErrs) > 0 {
+		return []validationErr{
+			objectValidationErr(fieldSpec, vErrs...),
+		}
+	}
+
+	return nil
 }
 
 type assocMapKey struct {
