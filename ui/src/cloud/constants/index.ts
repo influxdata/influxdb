@@ -14,7 +14,7 @@ const WebsiteMonitoringDashboardTemplate = async (name: string) => {
   return websiteMonitoringTemplate.default
 }
 
-export const WebsiteMonitoringBucket = 'Website Monitoring Bucket'
+export const WebsiteMonitoringBucket = 'Website Monitoring Demo Data Bucket'
 
 export const DemoDataDashboards = {
   [WebsiteMonitoringBucket]: 'Website Monitoring Demo Data Dashboard',
