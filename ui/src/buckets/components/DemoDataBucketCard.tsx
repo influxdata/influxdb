@@ -62,7 +62,7 @@ const DemoDataBucketCard: FC<Props & WithRouterProps & DispatchProps> = ({
               <Context.Item
                 label="Confirm"
                 action={removeBucket}
-                value={bucket.id}
+                value={bucket}
                 testID={`context-delete-bucket ${bucket.name}`}
               />
             </Context.Menu>
