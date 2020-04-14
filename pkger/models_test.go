@@ -477,11 +477,6 @@ func TestPkg(t *testing.T) {
 			validName string
 		}{
 			{
-				pkgFile:   "testdata/checks.yml",
-				kind:      KindCheck,
-				validName: "check_0",
-			},
-			{
 				pkgFile:   "testdata/dashboard.yml",
 				kind:      KindDashboard,
 				validName: "dash_1",

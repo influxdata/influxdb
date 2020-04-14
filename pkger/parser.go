@@ -409,11 +409,6 @@ func (p *Pkg) addObjectForRemoval(k Kind, pkgName string, id influxdb.ID) {
 	}
 
 	switch k {
-	case KindCheck, KindCheckDeadman, KindCheckThreshold:
-		p.mChecks[pkgName] = &check{
-			identity: newIdentity,
-			id:       id,
-		}
 	case KindDashboard:
 		p.mDashboards[pkgName] = &dashboard{
 			identity: newIdentity,
@@ -457,11 +452,6 @@ func (p *Pkg) addObjectForRemoval(k Kind, pkgName string, id influxdb.ID) {
 
 func (p *Pkg) getObjectIDSetter(k Kind, pkgName string) (func(influxdb.ID), bool) {
 	switch k {
-	case KindCheck, KindCheckDeadman, KindCheckThreshold:
-		ch, ok := p.mChecks[pkgName]
-		return func(id influxdb.ID) {
-			ch.id = id
-		}, ok
 	case KindDashboard:
 		d, ok := p.mDashboards[pkgName]
 		return func(id influxdb.ID) {
