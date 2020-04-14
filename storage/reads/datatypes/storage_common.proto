@@ -3,7 +3,6 @@ package influxdata.platform.storage;
 option go_package = "datatypes";
 
 import "gogoproto/gogo.proto";
-import "google/protobuf/empty.proto";
 import "google/protobuf/any.proto";
 import "predicate.proto";
 
@@ -178,4 +177,56 @@ message TagValuesRequest {
 // Response message for Storage.TagKeys and Storage.TagValues.
 message StringValuesResponse {
   repeated bytes values = 1;
+}
+
+// MeasurementNamesRequest is the request message for Storage.MeasurementNames.
+message MeasurementNamesRequest {
+  google.protobuf.Any source = 1;
+  TimestampRange range = 2 [(gogoproto.nullable) = false];
+}
+
+// MeasurementTagKeysRequest is the request message for Storage.MeasurementTagKeys.
+message MeasurementTagKeysRequest {
+  google.protobuf.Any source = 1;
+  string measurement = 2;
+  TimestampRange range = 3 [(gogoproto.nullable) = false];
+  Predicate predicate = 4;
+}
+
+// MeasurementTagValuesRequest is the request message for Storage.MeasurementTagValues.
+message MeasurementTagValuesRequest {
+  google.protobuf.Any source = 1;
+  string measurement = 2;
+  string tag_key = 3;
+  TimestampRange range = 4 [(gogoproto.nullable) = false];
+  Predicate predicate = 5;
+}
+
+// MeasurementFieldsRequest is the request message for Storage.MeasurementFields.
+message MeasurementFieldsRequest {
+  google.protobuf.Any source = 1;
+  string measurement = 2;
+  TimestampRange range = 3 [(gogoproto.nullable) = false];
+  Predicate predicate = 4;
+}
+
+message MeasurementFieldsResponse {
+  enum FieldType {
+    option (gogoproto.goproto_enum_prefix) = false;
+
+    FLOAT = 0 [(gogoproto.enumvalue_customname) = "FieldTypeFloat"];
+    INTEGER = 1 [(gogoproto.enumvalue_customname) = "FieldTypeInteger"];
+    UNSIGNED = 2 [(gogoproto.enumvalue_customname) = "FieldTypeUnsigned"];
+    STRING = 3 [(gogoproto.enumvalue_customname) = "FieldTypeString"];
+    BOOLEAN = 4 [(gogoproto.enumvalue_customname) = "FieldTypeBoolean"];
+    UNDEFINED = 5 [(gogoproto.enumvalue_customname) = "FieldTypeUndefined"];
+  }
+
+  message MessageField {
+    string key = 1;
+    FieldType type = 2;
+    sfixed64 timestamp = 3;
+  }
+
+  repeated MessageField fields = 1 [(gogoproto.nullable) = false];
 }
