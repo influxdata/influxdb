@@ -1,24 +1,27 @@
 package pkger
 
 import (
+	"reflect"
 	"sort"
 
 	"github.com/influxdata/influxdb/v2"
 )
 
 type stateCoordinator struct {
-	mBuckets map[string]*stateBucket
-	mChecks  map[string]*stateCheck
-	mLabels  map[string]*stateLabel
+	mBuckets   map[string]*stateBucket
+	mChecks    map[string]*stateCheck
+	mLabels    map[string]*stateLabel
+	mVariables map[string]*stateVariable
 
 	labelMappings []stateLabelMapping
 }
 
 func newStateCoordinator(pkg *Pkg) *stateCoordinator {
 	state := stateCoordinator{
-		mBuckets: make(map[string]*stateBucket),
-		mChecks:  make(map[string]*stateCheck),
-		mLabels:  make(map[string]*stateLabel),
+		mBuckets:   make(map[string]*stateBucket),
+		mChecks:    make(map[string]*stateCheck),
+		mLabels:    make(map[string]*stateLabel),
+		mVariables: make(map[string]*stateVariable),
 	}
 
 	for _, pkgBkt := range pkg.buckets() {
@@ -36,6 +39,12 @@ func newStateCoordinator(pkg *Pkg) *stateCoordinator {
 	for _, pkgLabel := range pkg.labels() {
 		state.mLabels[pkgLabel.PkgName()] = &stateLabel{
 			parserLabel: pkgLabel,
+			stateStatus: StateStatusNew,
+		}
+	}
+	for _, pkgVar := range pkg.variables() {
+		state.mVariables[pkgVar.PkgName()] = &stateVariable{
+			parserVar:   pkgVar,
 			stateStatus: StateStatusNew,
 		}
 	}
@@ -67,6 +76,14 @@ func (s *stateCoordinator) labels() []*stateLabel {
 	return out
 }
 
+func (s *stateCoordinator) variables() []*stateVariable {
+	out := make([]*stateVariable, 0, len(s.mVariables))
+	for _, v := range s.mVariables {
+		out = append(out, v)
+	}
+	return out
+}
+
 func (s *stateCoordinator) diff() Diff {
 	var diff Diff
 	for _, b := range s.mBuckets {
@@ -88,6 +105,13 @@ func (s *stateCoordinator) diff() Diff {
 	}
 	sort.Slice(diff.Labels, func(i, j int) bool {
 		return diff.Labels[i].PkgName < diff.Labels[j].PkgName
+	})
+
+	for _, v := range s.mVariables {
+		diff.Variables = append(diff.Variables, v.diffVariable())
+	}
+	sort.Slice(diff.Variables, func(i, j int) bool {
+		return diff.Variables[i].PkgName < diff.Variables[j].PkgName
 	})
 
 	for _, m := range s.labelMappings {
@@ -143,6 +167,16 @@ func (s *stateCoordinator) summary() Summary {
 	}
 	sort.Slice(sum.Labels, func(i, j int) bool {
 		return sum.Labels[i].PkgName < sum.Labels[j].PkgName
+	})
+
+	for _, v := range s.mVariables {
+		if IsRemoval(v.stateStatus) {
+			continue
+		}
+		sum.Variables = append(sum.Variables, v.summarize())
+	}
+	sort.Slice(sum.Variables, func(i, j int) bool {
+		return sum.Variables[i].PkgName < sum.Variables[j].PkgName
 	})
 
 	for _, v := range s.labelMappings {
@@ -208,6 +242,12 @@ func (s *stateCoordinator) addObjectForRemoval(k Kind, pkgName string, id influx
 			parserLabel: &label{identity: newIdentity},
 			stateStatus: StateStatusRemove,
 		}
+	case KindVariable:
+		s.mVariables[pkgName] = &stateVariable{
+			id:          id,
+			parserVar:   &variable{identity: newIdentity},
+			stateStatus: StateStatusRemove,
+		}
 	}
 }
 
@@ -231,6 +271,12 @@ func (s *stateCoordinator) getObjectIDSetter(k Kind, pkgName string) (func(influ
 			r.id = id
 			r.stateStatus = StateStatusExists
 		}, ok
+	case KindVariable:
+		r, ok := s.mVariables[pkgName]
+		return func(id influxdb.ID) {
+			r.id = id
+			r.stateStatus = StateStatusExists
+		}, ok
 	default:
 		return nil, false
 	}
@@ -245,7 +291,7 @@ type stateIdentity struct {
 }
 
 func (s stateIdentity) exists() bool {
-	return s.id != 0
+	return IsExisting(s.stateStatus)
 }
 
 type stateBucket struct {
@@ -503,16 +549,92 @@ func stateLabelMappingToInfluxLabelMapping(mapping stateLabelMapping) influxdb.L
 	}
 }
 
+type stateVariable struct {
+	id, orgID   influxdb.ID
+	stateStatus StateStatus
+
+	parserVar *variable
+	existing  *influxdb.Variable
+}
+
+func (v *stateVariable) ID() influxdb.ID {
+	if !IsNew(v.stateStatus) && v.existing != nil {
+		return v.existing.ID
+	}
+	return v.id
+}
+
+func (v *stateVariable) diffVariable() DiffVariable {
+	diff := DiffVariable{
+		DiffIdentifier: DiffIdentifier{
+			ID:          SafeID(v.ID()),
+			Remove:      IsRemoval(v.stateStatus),
+			StateStatus: v.stateStatus,
+			PkgName:     v.parserVar.PkgName(),
+		},
+		New: DiffVariableValues{
+			Name:        v.parserVar.Name(),
+			Description: v.parserVar.Description,
+			Args:        v.parserVar.influxVarArgs(),
+		},
+	}
+	if iv := v.existing; iv != nil {
+		diff.Old = &DiffVariableValues{
+			Name:        iv.Name,
+			Description: iv.Description,
+			Args:        iv.Arguments,
+		}
+	}
+
+	return diff
+}
+
+func (v *stateVariable) labels() []*label {
+	return v.parserVar.labels
+}
+
+func (v *stateVariable) resourceType() influxdb.ResourceType {
+	return KindVariable.ResourceType()
+}
+
+func (v *stateVariable) shouldApply() bool {
+	return IsRemoval(v.stateStatus) ||
+		v.existing == nil ||
+		v.existing.Description != v.parserVar.Description ||
+		v.existing.Arguments == nil ||
+		!reflect.DeepEqual(v.existing.Arguments, v.parserVar.influxVarArgs())
+}
+
+func (v *stateVariable) stateIdentity() stateIdentity {
+	return stateIdentity{
+		id:           v.ID(),
+		name:         v.parserVar.Name(),
+		pkgName:      v.parserVar.PkgName(),
+		resourceType: v.resourceType(),
+		stateStatus:  v.stateStatus,
+	}
+}
+
+func (v *stateVariable) summarize() SummaryVariable {
+	sum := v.parserVar.summarize()
+	sum.ID = SafeID(v.ID())
+	sum.OrgID = SafeID(v.orgID)
+	return sum
+}
+
 // IsNew identifies state status as new to the platform.
 func IsNew(status StateStatus) bool {
 	// defaulting zero value to identify as new
 	return status == StateStatusNew || status == ""
 }
 
+// IsExisting identifies state status as existing in the platform.
 func IsExisting(status StateStatus) bool {
 	return status == StateStatusExists
 }
 
+// IsRemoval identifies state status as existing resource that will be removed
+// from the platform.
 func IsRemoval(status StateStatus) bool {
 	return status == StateStatusRemove
 }

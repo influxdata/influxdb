@@ -679,12 +679,12 @@ func (s *Service) dryRun(ctx context.Context, orgID influxdb.ID, pkg *Pkg, opts 
 	s.dryRunBuckets(ctx, orgID, state.mBuckets)
 	s.dryRunChecks(ctx, orgID, state.mChecks)
 	s.dryRunLabels(ctx, orgID, state.mLabels)
+	s.dryRunVariables(ctx, orgID, state.mVariables)
 
 	var diff Diff
 	diff.Dashboards = s.dryRunDashboards(pkg)
 	diff.Tasks = s.dryRunTasks(pkg)
 	diff.Telegrafs = s.dryRunTelegraf(pkg)
-	diff.Variables = s.dryRunVariables(ctx, orgID, pkg)
 
 	diffEndpoints, err := s.dryRunNotificationEndpoints(ctx, orgID, pkg)
 	if err != nil {
@@ -715,6 +715,7 @@ func (s *Service) dryRun(ctx context.Context, orgID influxdb.ID, pkg *Pkg, opts 
 	diff.Buckets = stateDiff.Buckets
 	diff.Checks = stateDiff.Checks
 	diff.Labels = stateDiff.Labels
+	diff.Variables = stateDiff.Variables
 	diff.LabelMappings = append(stateDiff.LabelMappings, diff.LabelMappings...)
 
 	return pkg.Summary(), diff, state, parseErr
@@ -924,10 +925,7 @@ func (s *Service) dryRunTelegraf(pkg *Pkg) []DiffTelegraf {
 	return diffs
 }
 
-func (s *Service) dryRunVariables(ctx context.Context, orgID influxdb.ID, pkg *Pkg) []DiffVariable {
-	mExistingLabels := make(map[string]DiffVariable)
-	variables := pkg.variables()
-
+func (s *Service) dryRunVariables(ctx context.Context, orgID influxdb.ID, vars map[string]*stateVariable) {
 	existingVars, _ := s.getAllPlatformVariables(ctx, orgID)
 
 	mIDs := make(map[influxdb.ID]*influxdb.Variable)
@@ -937,29 +935,18 @@ func (s *Service) dryRunVariables(ctx context.Context, orgID influxdb.ID, pkg *P
 		mNames[v.Name] = v
 	}
 
-	for i := range variables {
-		pkgVar := variables[i]
-
+	for _, v := range vars {
 		var existing *influxdb.Variable
-		if pkgVar.ID() != 0 {
-			existing = mIDs[pkgVar.ID()]
+		if v.ID() != 0 {
+			existing = mIDs[v.ID()]
 		} else {
-			existing = mNames[pkgVar.Name()]
+			existing = mNames[v.parserVar.Name()]
 		}
-		pkgVar.existing = existing
-
-		mExistingLabels[pkgVar.Name()] = newDiffVariable(pkgVar, existing)
+		if IsNew(v.stateStatus) && existing != nil {
+			v.stateStatus = StateStatusExists
+		}
+		v.existing = existing
 	}
-
-	diffs := make([]DiffVariable, 0, len(mExistingLabels))
-	for _, diff := range mExistingLabels {
-		diffs = append(diffs, diff)
-	}
-	sort.Slice(diffs, func(i, j int) bool {
-		return diffs[i].PkgName < diffs[j].PkgName
-	})
-
-	return diffs
 }
 
 type (
@@ -987,7 +974,6 @@ func (s *Service) dryRunLabelMappings(ctx context.Context, pkg *Pkg, state *stat
 		mapperNotificationRules(pkg.notificationRules()),
 		mapperTasks(pkg.tasks()),
 		mapperTelegrafs(pkg.telegrafs()),
-		mapperVariables(pkg.variables()),
 	}
 
 	diffs := make([]DiffLabelMapping, 0)
@@ -1113,6 +1099,17 @@ func (s *Service) dryRunLabelMappingsV2(ctx context.Context, state *stateCoordin
 		mappings = append(mappings, mm...)
 	}
 
+	for _, v := range state.mVariables {
+		if IsRemoval(v.stateStatus) {
+			continue
+		}
+		mm, err := s.dryRunResourceLabelMappingV2(ctx, state, stateLabelsByResName, v)
+		if err != nil {
+			return nil, err
+		}
+		mappings = append(mappings, mm...)
+	}
+
 	return mappings, nil
 }
 
@@ -1182,6 +1179,13 @@ func (s *Service) addStackState(ctx context.Context, stackID influxdb.ID, pkg *P
 		addObjectForRemoval(kind Kind, pkgName string, id influxdb.ID)
 	}
 
+	stateKinds := []Kind{
+		KindBucket,
+		KindCheck,
+		KindLabel,
+		KindVariable,
+	}
+
 	// check resource exists in pkg
 	// if exists
 	//	  set id on existing pkg resource
@@ -1189,7 +1193,7 @@ func (s *Service) addStackState(ctx context.Context, stackID influxdb.ID, pkg *P
 	//	  add stub pkg resource that indicates it should be deleted
 	for _, r := range stack.Resources {
 		var mapper stateMapper = pkg
-		if r.Kind.is(KindBucket, KindLabel, KindCheck) {
+		if r.Kind.is(stateKinds...) {
 			// hack for time being while we transition state out of pkg.
 			// this will take several passes to finish up.
 			mapper = state
@@ -1312,7 +1316,7 @@ func (s *Service) apply(ctx context.Context, coordinator *rollbackCoordinator, o
 		},
 		{
 			// primary resources, can have relationships to labels
-			s.applyVariables(ctx, pkg.variables()),
+			s.applyVariables(ctx, state.variables()),
 			s.applyBuckets(ctx, state.buckets()),
 			s.applyChecks(ctx, state.checks()),
 			s.applyDashboards(pkg.dashboards()),
@@ -1356,12 +1360,14 @@ func (s *Service) apply(ctx context.Context, coordinator *rollbackCoordinator, o
 	pkgSum.Buckets = stateSum.Buckets
 	pkgSum.Checks = stateSum.Checks
 	pkgSum.Labels = stateSum.Labels
+	pkgSum.Variables = stateSum.Variables
 
 	// filter out label mappings that are from pgk and replace with those
 	// in state. This is temporary hack to provide a bridge to the promise land...
 	resourcesToSkip := map[influxdb.ResourceType]bool{
-		influxdb.BucketsResourceType: true,
-		influxdb.ChecksResourceType:  true,
+		influxdb.BucketsResourceType:   true,
+		influxdb.ChecksResourceType:    true,
+		influxdb.VariablesResourceType: true,
 	}
 	for _, lm := range pkgSum.LabelMappings {
 		if resourcesToSkip[lm.ResourceType] {
@@ -2166,17 +2172,17 @@ func (s *Service) applyTelegrafs(teles []*telegraf) applier {
 	}
 }
 
-func (s *Service) applyVariables(ctx context.Context, vars []*variable) applier {
+func (s *Service) applyVariables(ctx context.Context, vars []*stateVariable) applier {
 	const resource = "variable"
 
 	mutex := new(doMutex)
-	rollBackVars := make([]*variable, 0, len(vars))
+	rollBackVars := make([]*stateVariable, 0, len(vars))
 
 	createFn := func(ctx context.Context, i int, orgID, userID influxdb.ID) *applyErrBody {
-		var v variable
+		var v *stateVariable
 		mutex.Do(func() {
-			vars[i].OrgID = orgID
-			v = *vars[i]
+			vars[i].orgID = orgID
+			v = vars[i]
 		})
 		if !v.shouldApply() {
 			return nil
@@ -2184,7 +2190,7 @@ func (s *Service) applyVariables(ctx context.Context, vars []*variable) applier 
 		influxVar, err := s.applyVariable(ctx, v)
 		if err != nil {
 			return &applyErrBody{
-				name: v.Name(),
+				name: v.parserVar.Name(),
 				msg:  err.Error(),
 			}
 		}
@@ -2208,20 +2214,21 @@ func (s *Service) applyVariables(ctx context.Context, vars []*variable) applier 
 	}
 }
 
-func (s *Service) rollbackVariables(ctx context.Context, variables []*variable) error {
-	rollbackFn := func(v *variable) error {
+func (s *Service) rollbackVariables(ctx context.Context, variables []*stateVariable) error {
+	rollbackFn := func(v *stateVariable) error {
 		var err error
-		switch {
-		case v.shouldRemove:
-			err = s.varSVC.CreateVariable(ctx, v.existing)
-		case v.existing == nil:
-			err = s.varSVC.DeleteVariable(ctx, v.ID())
-		default:
+		switch v.stateStatus {
+		case StateStatusRemove:
+			err = ierrors.Wrap(s.varSVC.CreateVariable(ctx, v.existing), "rolling back removed variable")
+		case StateStatusExists:
 			_, err = s.varSVC.UpdateVariable(ctx, v.ID(), &influxdb.VariableUpdate{
-				Name:        v.Name(),
-				Description: v.Description,
-				Arguments:   v.influxVarArgs(),
+				Name:        v.parserVar.Name(),
+				Description: v.parserVar.Description,
+				Arguments:   v.parserVar.influxVarArgs(),
 			})
+			err = ierrors.Wrap(err, "rolling back updated variable")
+		default:
+			err = ierrors.Wrap(s.varSVC.DeleteVariable(ctx, v.ID()), "rolling back created variable")
 		}
 		return err
 	}
@@ -2240,38 +2247,37 @@ func (s *Service) rollbackVariables(ctx context.Context, variables []*variable) 
 	return nil
 }
 
-func (s *Service) applyVariable(ctx context.Context, v variable) (influxdb.Variable, error) {
-	if v.shouldRemove {
+func (s *Service) applyVariable(ctx context.Context, v *stateVariable) (influxdb.Variable, error) {
+	switch v.stateStatus {
+	case StateStatusRemove:
 		if err := s.varSVC.DeleteVariable(ctx, v.id); err != nil {
 			return influxdb.Variable{}, err
 		}
 		return *v.existing, nil
-	}
-
-	if v.existing != nil {
+	case StateStatusExists:
 		updatedVar, err := s.varSVC.UpdateVariable(ctx, v.ID(), &influxdb.VariableUpdate{
-			Name:        v.Name(),
-			Description: v.Description,
-			Arguments:   v.influxVarArgs(),
+			Name:        v.parserVar.Name(),
+			Description: v.parserVar.Description,
+			Arguments:   v.parserVar.influxVarArgs(),
 		})
 		if err != nil {
 			return influxdb.Variable{}, err
 		}
 		return *updatedVar, nil
-	}
+	default:
+		influxVar := influxdb.Variable{
+			OrganizationID: v.orgID,
+			Name:           v.parserVar.Name(),
+			Description:    v.parserVar.Description,
+			Arguments:      v.parserVar.influxVarArgs(),
+		}
+		err := s.varSVC.CreateVariable(ctx, &influxVar)
+		if err != nil {
+			return influxdb.Variable{}, err
+		}
 
-	influxVar := influxdb.Variable{
-		OrganizationID: v.OrgID,
-		Name:           v.Name(),
-		Description:    v.Description,
-		Arguments:      v.influxVarArgs(),
+		return influxVar, nil
 	}
-	err := s.varSVC.CreateVariable(ctx, &influxVar)
-	if err != nil {
-		return influxdb.Variable{}, err
-	}
-
-	return influxVar, nil
 }
 
 func (s *Service) applyLabelMappingsV2(labelMappings []stateLabelMapping) applier {
@@ -2485,15 +2491,15 @@ func (s *Service) updateStackAfterSuccess(ctx context.Context, stackID influxdb.
 			Name:       l.parserLabel.PkgName(),
 		})
 	}
-	for _, v := range pkg.variables() {
-		if v.shouldRemove {
+	for _, v := range state.mVariables {
+		if IsRemoval(v.stateStatus) {
 			continue
 		}
 		stackResources = append(stackResources, StackResource{
 			APIVersion: APIVersion,
 			ID:         v.ID(),
 			Kind:       KindVariable,
-			Name:       v.PkgName(),
+			Name:       v.parserVar.PkgName(),
 		})
 	}
 	stack.Resources = stackResources
@@ -2557,13 +2563,11 @@ func (s *Service) updateStackAfterRollback(ctx context.Context, stackID influxdb
 				res.ID = l.existing.ID
 			}
 		}
-		for _, v := range pkg.variables() {
-			if v.shouldRemove {
-				res := existingResources[newKey(KindVariable, v.PkgName())]
-				if res.ID != v.ID() {
-					hasChanges = true
-					res.ID = v.existing.ID
-				}
+		for _, v := range state.mVariables {
+			res, ok := existingResources[newKey(KindVariable, v.parserVar.PkgName())]
+			if ok && res.ID != v.ID() {
+				hasChanges = true
+				res.ID = v.existing.ID
 			}
 		}
 	}

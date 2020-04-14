@@ -506,11 +506,6 @@ func TestPkg(t *testing.T) {
 				kind:      KindTelegraf,
 				validName: "first_tele_config",
 			},
-			{
-				pkgFile:   "testdata/variables.yml",
-				kind:      KindVariable,
-				validName: "var_query_1",
-			},
 		}
 
 		for _, tt := range tests {
