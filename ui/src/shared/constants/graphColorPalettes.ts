@@ -171,6 +171,126 @@ export const LINE_COLORS_G = [
   },
 ]
 
+export const LINE_COLORS_SOLID_RED = [
+  {
+    type: COLOR_TYPE_SCALE,
+    hex: '#DC4E58',
+    id: uuid.v4(),
+    name: 'Solid Red',
+    value: 0,
+  },
+  {
+    type: COLOR_TYPE_SCALE,
+    hex: '#DC4E58',
+    id: uuid.v4(),
+    name: 'Solid Red',
+    value: 0,
+  },
+  {
+    type: COLOR_TYPE_SCALE,
+    hex: '#DC4E58',
+    id: uuid.v4(),
+    name: 'Solid Red',
+    value: 0,
+  },
+]
+
+export const LINE_COLORS_SOLID_BLUE = [
+  {
+    type: COLOR_TYPE_SCALE,
+    hex: '#00A3FF',
+    id: uuid.v4(),
+    name: 'Solid Blue',
+    value: 0,
+  },
+  {
+    type: COLOR_TYPE_SCALE,
+    hex: '#00A3FF',
+    id: uuid.v4(),
+    name: 'Solid Blue',
+    value: 0,
+  },
+  {
+    type: COLOR_TYPE_SCALE,
+    hex: '#00A3FF',
+    id: uuid.v4(),
+    name: 'Solid Blue',
+    value: 0,
+  },
+]
+
+export const LINE_COLORS_SOLID_GREEN = [
+  {
+    type: COLOR_TYPE_SCALE,
+    hex: '#34BB55',
+    id: uuid.v4(),
+    name: 'Solid Green',
+    value: 0,
+  },
+  {
+    type: COLOR_TYPE_SCALE,
+    hex: '#34BB55',
+    id: uuid.v4(),
+    name: 'Solid Green',
+    value: 0,
+  },
+  {
+    type: COLOR_TYPE_SCALE,
+    hex: '#34BB55',
+    id: uuid.v4(),
+    name: 'Solid Green',
+    value: 0,
+  },
+]
+
+export const LINE_COLORS_SOLID_YELLOW = [
+  {
+    type: COLOR_TYPE_SCALE,
+    hex: '#FFD255',
+    id: uuid.v4(),
+    name: 'Solid Yellow',
+    value: 0,
+  },
+  {
+    type: COLOR_TYPE_SCALE,
+    hex: '#FFD255',
+    id: uuid.v4(),
+    name: 'Solid Yellow',
+    value: 0,
+  },
+  {
+    type: COLOR_TYPE_SCALE,
+    hex: '#FFD255',
+    id: uuid.v4(),
+    name: 'Solid Yellow',
+    value: 0,
+  },
+]
+
+export const LINE_COLORS_SOLID_PURPLE = [
+  {
+    type: COLOR_TYPE_SCALE,
+    hex: '#BE2EE4',
+    id: uuid.v4(),
+    name: 'Solid Purple',
+    value: 0,
+  },
+  {
+    type: COLOR_TYPE_SCALE,
+    hex: '#BE2EE4',
+    id: uuid.v4(),
+    name: 'Solid Purple',
+    value: 0,
+  },
+  {
+    type: COLOR_TYPE_SCALE,
+    hex: '#BE2EE4',
+    id: uuid.v4(),
+    name: 'Solid Purple',
+    value: 0,
+  },
+]
+
 export const DEFAULT_LINE_COLORS = LINE_COLORS_A
 
 export const LINE_COLOR_SCALES = [
@@ -181,6 +301,11 @@ export const LINE_COLOR_SCALES = [
   LINE_COLORS_E,
   LINE_COLORS_F,
   LINE_COLORS_G,
+  LINE_COLORS_SOLID_RED,
+  LINE_COLORS_SOLID_BLUE,
+  LINE_COLORS_SOLID_YELLOW,
+  LINE_COLORS_SOLID_GREEN,
+  LINE_COLORS_SOLID_PURPLE,
 ].map(colorScale => {
   const name = colorScale[0].name
   const colors = colorScale
