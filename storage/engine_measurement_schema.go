@@ -9,7 +9,7 @@ import (
 )
 
 // MeasurementNames returns an iterator which enumerates the measurements for the given
-// bucket and limited to the time range (start, end].
+// bucket and limited to the time range [start, end].
 //
 // MeasurementNames will always return a StringIterator if there is no error.
 //
@@ -27,7 +27,7 @@ func (e *Engine) MeasurementNames(ctx context.Context, orgID, bucketID influxdb.
 
 // MeasurementTagValues returns an iterator which enumerates the tag values for the given
 // bucket, measurement and tag key, filtered using the optional the predicate and limited to the
-// time range (start, end].
+// time range [start, end].
 //
 // MeasurementTagValues will always return a StringIterator if there is no error.
 //
@@ -45,7 +45,7 @@ func (e *Engine) MeasurementTagValues(ctx context.Context, orgID, bucketID influ
 
 // MeasurementTagKeys returns an iterator which enumerates the tag keys for the given
 // bucket and measurement, filtered using the optional the predicate and limited to the
-//// time range (start, end].
+//// time range [start, end].
 //
 // MeasurementTagKeys will always return a StringIterator if there is no error.
 //
@@ -63,7 +63,7 @@ func (e *Engine) MeasurementTagKeys(ctx context.Context, orgID, bucketID influxd
 
 // MeasurementFields returns an iterator which enumerates the field schema for the given
 // bucket and measurement, filtered using the optional the predicate and limited to the
-//// time range (start, end].
+//// time range [start, end].
 //
 // MeasurementFields will always return a MeasurementFieldsIterator if there is no error.
 //

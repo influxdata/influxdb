@@ -24,7 +24,7 @@ const cancelCheckInterval = 64
 
 // TagValues returns an iterator which enumerates the values for the specific
 // tagKey in the given bucket matching the predicate within the
-// time range (start, end].
+// time range [start, end].
 //
 // TagValues will always return a StringIterator if there is no error.
 //
@@ -321,7 +321,7 @@ func (e *Engine) findCandidateKeys(ctx context.Context, orgBucket []byte, predic
 }
 
 // TagKeys returns an iterator which enumerates the tag keys for the given
-// bucket matching the predicate within the time range (start, end].
+// bucket matching the predicate within the time range [start, end].
 //
 // TagKeys will always return a StringIterator if there is no error.
 //
