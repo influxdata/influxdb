@@ -22,13 +22,15 @@ func newStateCoordinator(pkg *Pkg) *stateCoordinator {
 
 	for _, pkgBkt := range pkg.buckets() {
 		state.mBuckets[pkgBkt.PkgName()] = &stateBucket{
-			bucket: pkgBkt,
+			parserBkt:   pkgBkt,
+			stateStatus: StateStatusNew,
 		}
 	}
 
 	for _, pkgLabel := range pkg.labels() {
 		state.mLabels[pkgLabel.PkgName()] = &stateLabel{
-			label: pkgLabel,
+			parserLabel: pkgLabel,
+			stateStatus: StateStatusNew,
 		}
 	}
 
@@ -92,28 +94,28 @@ func (s *stateCoordinator) diff() Diff {
 
 func (s *stateCoordinator) summary() Summary {
 	var sum Summary
-	for _, b := range s.buckets() {
-		if b.shouldRemove {
+	for _, v := range s.buckets() {
+		if isRemoval(v.stateStatus) {
 			continue
 		}
-		sum.Buckets = append(sum.Buckets, b.summarize())
+		sum.Buckets = append(sum.Buckets, v.summarize())
 	}
 	sort.Slice(sum.Buckets, func(i, j int) bool {
 		return sum.Buckets[i].PkgName < sum.Buckets[j].PkgName
 	})
 
-	for _, l := range s.labels() {
-		if l.shouldRemove {
+	for _, v := range s.labels() {
+		if isRemoval(v.stateStatus) {
 			continue
 		}
-		sum.Labels = append(sum.Labels, l.summarize())
+		sum.Labels = append(sum.Labels, v.summarize())
 	}
 	sort.Slice(sum.Labels, func(i, j int) bool {
 		return sum.Labels[i].PkgName < sum.Labels[j].PkgName
 	})
 
-	for _, m := range s.labelMappings {
-		sum.LabelMappings = append(sum.LabelMappings, m.summarize())
+	for _, v := range s.labelMappings {
+		sum.LabelMappings = append(sum.LabelMappings, v.summarize())
 	}
 	sort.Slice(sum.LabelMappings, func(i, j int) bool {
 		n, m := sum.LabelMappings[i], sum.LabelMappings[j]
@@ -159,15 +161,15 @@ func (s *stateCoordinator) addObjectForRemoval(k Kind, pkgName string, id influx
 	switch k {
 	case KindBucket:
 		s.mBuckets[pkgName] = &stateBucket{
-			id:           id,
-			bucket:       &bucket{identity: newIdentity},
-			shouldRemove: true,
+			id:          id,
+			parserBkt:   &bucket{identity: newIdentity},
+			stateStatus: StateStatusRemove,
 		}
 	case KindLabel:
 		s.mLabels[pkgName] = &stateLabel{
-			id:           id,
-			label:        &label{identity: newIdentity},
-			shouldRemove: true,
+			id:          id,
+			parserLabel: &label{identity: newIdentity},
+			stateStatus: StateStatusRemove,
 		}
 	}
 }
@@ -178,11 +180,13 @@ func (s *stateCoordinator) getObjectIDSetter(k Kind, pkgName string) (func(influ
 		r, ok := s.mBuckets[pkgName]
 		return func(id influxdb.ID) {
 			r.id = id
+			r.stateStatus = StateStatusExists
 		}, ok
 	case KindLabel:
 		r, ok := s.mLabels[pkgName]
 		return func(id influxdb.ID) {
 			r.id = id
+			r.stateStatus = StateStatusExists
 		}, ok
 	default:
 		return nil, false
@@ -194,7 +198,7 @@ type stateIdentity struct {
 	name         string
 	pkgName      string
 	resourceType influxdb.ResourceType
-	shouldRemove bool
+	stateStatus  StateStatus
 }
 
 func (s stateIdentity) exists() bool {
@@ -202,25 +206,25 @@ func (s stateIdentity) exists() bool {
 }
 
 type stateBucket struct {
-	id, orgID    influxdb.ID
-	shouldRemove bool
+	id, orgID   influxdb.ID
+	stateStatus StateStatus
 
-	existing *influxdb.Bucket
-
-	*bucket
+	parserBkt *bucket
+	existing  *influxdb.Bucket
 }
 
 func (b *stateBucket) diffBucket() DiffBucket {
 	diff := DiffBucket{
 		DiffIdentifier: DiffIdentifier{
-			ID:      SafeID(b.ID()),
-			Remove:  b.shouldRemove,
-			PkgName: b.PkgName(),
+			ID:          SafeID(b.ID()),
+			Remove:      isRemoval(b.stateStatus),
+			StateStatus: b.stateStatus,
+			PkgName:     b.parserBkt.PkgName(),
 		},
 		New: DiffBucketValues{
-			Name:           b.Name(),
-			Description:    b.Description,
-			RetentionRules: b.RetentionRules,
+			Name:           b.parserBkt.Name(),
+			Description:    b.parserBkt.Description,
+			RetentionRules: b.parserBkt.RetentionRules,
 		},
 	}
 	if e := b.existing; e != nil {
@@ -236,18 +240,14 @@ func (b *stateBucket) diffBucket() DiffBucket {
 }
 
 func (b *stateBucket) summarize() SummaryBucket {
-	sum := b.bucket.summarize()
+	sum := b.parserBkt.summarize()
 	sum.ID = SafeID(b.ID())
 	sum.OrgID = SafeID(b.orgID)
 	return sum
 }
 
-func (b *stateBucket) Exists() bool {
-	return b.existing != nil
-}
-
 func (b *stateBucket) ID() influxdb.ID {
-	if b.Exists() {
+	if !IsNew(b.stateStatus) && b.existing != nil {
 		return b.existing.ID
 	}
 	return b.id
@@ -258,47 +258,48 @@ func (b *stateBucket) resourceType() influxdb.ResourceType {
 }
 
 func (b *stateBucket) labels() []*label {
-	return b.bucket.labels
+	return b.parserBkt.labels
 }
 
 func (b *stateBucket) stateIdentity() stateIdentity {
 	return stateIdentity{
 		id:           b.ID(),
-		name:         b.Name(),
-		pkgName:      b.PkgName(),
+		name:         b.parserBkt.Name(),
+		pkgName:      b.parserBkt.PkgName(),
 		resourceType: b.resourceType(),
-		shouldRemove: b.shouldRemove,
+		stateStatus:  b.stateStatus,
 	}
 }
 
 func (b *stateBucket) shouldApply() bool {
-	return b.shouldRemove ||
+	return isRemoval(b.stateStatus) ||
 		b.existing == nil ||
-		b.Description != b.existing.Description ||
-		b.Name() != b.existing.Name ||
-		b.RetentionRules.RP() != b.existing.RetentionPeriod
+		b.parserBkt.Description != b.existing.Description ||
+		b.parserBkt.Name() != b.existing.Name ||
+		b.parserBkt.RetentionRules.RP() != b.existing.RetentionPeriod
 }
 
 type stateLabel struct {
-	id, orgID    influxdb.ID
-	shouldRemove bool
+	id, orgID   influxdb.ID
+	stateStatus StateStatus
 
-	existing *influxdb.Label
-
-	*label
+	parserLabel *label
+	existing    *influxdb.Label
 }
 
 func (l *stateLabel) diffLabel() DiffLabel {
 	diff := DiffLabel{
 		DiffIdentifier: DiffIdentifier{
-			ID:      SafeID(l.ID()),
-			Remove:  l.shouldRemove,
-			PkgName: l.PkgName(),
+			ID: SafeID(l.ID()),
+			// TODO: axe Remove field when StateStatus is adopted
+			Remove:      isRemoval(l.stateStatus),
+			StateStatus: l.stateStatus,
+			PkgName:     l.parserLabel.PkgName(),
 		},
 		New: DiffLabelValues{
-			Name:        l.Name(),
-			Description: l.Description,
-			Color:       l.Color,
+			Name:        l.parserLabel.Name(),
+			Description: l.parserLabel.Description,
+			Color:       l.parserLabel.Color,
 		},
 	}
 	if e := l.existing; e != nil {
@@ -312,43 +313,40 @@ func (l *stateLabel) diffLabel() DiffLabel {
 }
 
 func (l *stateLabel) summarize() SummaryLabel {
-	sum := l.label.summarize()
+	sum := l.parserLabel.summarize()
 	sum.ID = SafeID(l.ID())
 	sum.OrgID = SafeID(l.orgID)
 	return sum
 }
 
-func (l *stateLabel) Exists() bool {
-	return l.existing != nil
-}
-
 func (l *stateLabel) ID() influxdb.ID {
-	if l.Exists() {
+	if !IsNew(l.stateStatus) && l.existing != nil {
 		return l.existing.ID
 	}
 	return l.id
 }
 
 func (l *stateLabel) shouldApply() bool {
-	return l.existing == nil ||
-		l.Description != l.existing.Properties["description"] ||
-		l.Name() != l.existing.Name ||
-		l.Color != l.existing.Properties["color"]
+	return isRemoval(l.stateStatus) ||
+		l.existing == nil ||
+		l.parserLabel.Description != l.existing.Properties["description"] ||
+		l.parserLabel.Name() != l.existing.Name ||
+		l.parserLabel.Color != l.existing.Properties["color"]
 }
 
 func (l *stateLabel) toInfluxLabel() influxdb.Label {
 	return influxdb.Label{
 		ID:         l.ID(),
 		OrgID:      l.orgID,
-		Name:       l.Name(),
+		Name:       l.parserLabel.Name(),
 		Properties: l.properties(),
 	}
 }
 
 func (l *stateLabel) properties() map[string]string {
 	return map[string]string{
-		"color":       l.Color,
-		"description": l.Description,
+		"color":       l.parserLabel.Color,
+		"description": l.parserLabel.Description,
 	}
 }
 
@@ -371,8 +369,8 @@ func (lm stateLabelMapping) diffLabelMapping() DiffLabelMapping {
 		ResPkgName:   ident.pkgName,
 		ResName:      ident.name,
 		LabelID:      SafeID(lm.label.ID()),
-		LabelPkgName: lm.label.PkgName(),
-		LabelName:    lm.label.Name(),
+		LabelPkgName: lm.label.parserLabel.PkgName(),
+		LabelName:    lm.label.parserLabel.Name(),
 	}
 }
 
@@ -384,8 +382,8 @@ func (lm stateLabelMapping) summarize() SummaryLabelMapping {
 		ResourcePkgName: ident.pkgName,
 		ResourceName:    ident.name,
 		ResourceType:    ident.resourceType,
-		LabelPkgName:    lm.label.PkgName(),
-		LabelName:       lm.label.Name(),
+		LabelPkgName:    lm.label.parserLabel.PkgName(),
+		LabelName:       lm.label.parserLabel.Name(),
 		LabelID:         SafeID(lm.label.ID()),
 	}
 }
@@ -406,4 +404,8 @@ func IsNew(status StateStatus) bool {
 
 func exists(status StateStatus) bool {
 	return status == StateStatusExists
+}
+
+func isRemoval(status StateStatus) bool {
+	return status == StateStatusRemove
 }
