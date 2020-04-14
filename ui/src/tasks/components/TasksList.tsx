@@ -11,9 +11,9 @@ import EmptyTasksList from 'src/tasks/components/EmptyTasksList'
 import {Task} from 'src/types'
 import {SortTypes} from 'src/shared/utils/sort'
 import {Sort} from '@influxdata/clockface'
-
 import {selectTask, addTaskLabel, runTask} from 'src/tasks/actions/thunks'
 import {checkTaskLimits as checkTaskLimitsAction} from 'src/cloud/actions/limits'
+import {TaskSortKey} from 'src/shared/components/resource_sort_dropdown/generateSortItems'
 
 // Selectors
 import {getSortedResources} from 'src/shared/utils/sort'
@@ -33,15 +33,12 @@ interface Props {
   onUpdate: (name: string, taskID: string) => void
   filterComponent?: JSX.Element
   onImportTask: () => void
-  sortKey: string
+  sortKey: TaskSortKey
   sortDirection: Sort
   sortType: SortTypes
-  onClickColumn: (nextSort: Sort, sortKey: SortKey) => void
   checkTaskLimits: typeof checkTaskLimitsAction
   onImportFromTemplate: () => void
 }
-
-type SortKey = keyof Task
 
 interface State {
   taskLabelsEdit: Task
@@ -70,45 +67,13 @@ export default class TasksList extends PureComponent<Props, State> {
       searchTerm,
       onCreate,
       totalCount,
-      filterComponent,
       onImportTask,
-      sortKey,
-      sortDirection,
-      onClickColumn,
       onImportFromTemplate,
     } = this.props
-
-    const headerKeys: SortKey[] = ['name', 'status', 'every', 'latestCompleted']
 
     return (
       <>
         <ResourceList>
-          <ResourceList.Header filterComponent={filterComponent}>
-            <ResourceList.Sorter
-              name="Name"
-              sortKey={headerKeys[0]}
-              sort={sortKey === headerKeys[0] ? sortDirection : Sort.None}
-              onClick={onClickColumn}
-            />
-            <ResourceList.Sorter
-              name="Active"
-              sortKey={headerKeys[1]}
-              sort={sortKey === headerKeys[1] ? sortDirection : Sort.None}
-              onClick={onClickColumn}
-            />
-            <ResourceList.Sorter
-              name="Schedule"
-              sortKey={headerKeys[2]}
-              sort={sortKey === headerKeys[2] ? sortDirection : Sort.None}
-              onClick={onClickColumn}
-            />
-            <ResourceList.Sorter
-              name="Last Completed"
-              sortKey={headerKeys[3]}
-              sort={sortKey === headerKeys[3] ? sortDirection : Sort.None}
-              onClick={onClickColumn}
-            />
-          </ResourceList.Header>
           <ResourceList.Body
             emptyState={
               <EmptyTasksList

@@ -1,11 +1,24 @@
-## unreleased
+## v2.0.0-beta.9 [unreleased]
+
+### Features
+
+### Bug Fixes
+
+1. [17618](https://github.com/influxdata/influxdb/pull/17618): Add index for URM by user ID to improve lookup performance
+
+### UI Improvements
+
+1. [17714](https://github.com/influxdata/influxdb/pull/17714): Cloud environments no longer render markdown images, for security reasons.
+1. [17321](https://github.com/influxdata/influxdb/pull/17321): Improve UI for sorting resources
+
+## v2.0.0-beta.8 [2020-04-10]
 
 ### Features
 
 1. [17490](https://github.com/influxdata/influxdb/pull/17490): `influx config -`, to switch back to previous activated configuration
 1. [17581](https://github.com/influxdata/influxdb/pull/17581): Introduce new navigation menu
 1. [17595](https://github.com/influxdata/influxdb/pull/17595): Add -f (--file) option to `influx query` and `influx task` commands
-1. [17618](https://github.com/influxdata/influxdb/pull/17618): Add index for URM by user ID to improve lookup performance
+1. [17498](https://github.com/influxdata/influxdb/pull/17498): Added support for command line options to limit memory for queries
 
 ### Bug Fixes
 
@@ -14,6 +27,9 @@
 1. [17660](https://github.com/influxdata/influxdb/pull/17660): Fix text wrapping display issue and popover sizing bug when adding labels to a resource
 1. [17670](https://github.com/influxdata/influxdb/pull/17670): Respect the now-time of the compiled query if it's provided
 1. [17692](https://github.com/influxdata/influxdb/pull/17692): Update giraffe to fix spacing between ticks
+1. [17694](https://github.com/influxdata/influxdb/pull/17694): Fixed typos in the Flux functions list
+1. [17701](https://github.com/influxdata/influxdb/pull/17701): Allow mouse cursor inside Script Editor for Safari
+1. [17609](https://github.com/influxdata/influxdb/pull/17609): Fixed an issue where Variables could not use other Variables
 
 ### UI Improvements
 

@@ -15,12 +15,18 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
 import {Dashboard, AppState, RemoteDataState, ResourceType} from 'src/types'
+import {Sort} from '@influxdata/clockface'
 import {getAll} from 'src/resources/selectors'
+import {SortTypes} from 'src/shared/utils/sort'
+import {DashboardSortKey} from 'src/shared/components/resource_sort_dropdown/generateSortItems'
 
 interface OwnProps {
   onFilterChange: (searchTerm: string) => void
   searchTerm: string
   filterComponent?: JSX.Element
+  sortDirection: Sort
+  sortType: SortTypes
+  sortKey: DashboardSortKey
 }
 
 interface DispatchProps {
@@ -48,7 +54,15 @@ class DashboardsIndexContents extends Component<Props> {
   }
 
   public render() {
-    const {searchTerm, dashboards, filterComponent, onFilterChange} = this.props
+    const {
+      searchTerm,
+      dashboards,
+      filterComponent,
+      onFilterChange,
+      sortDirection,
+      sortType,
+      sortKey,
+    } = this.props
 
     return (
       <FilterDashboards
@@ -63,6 +77,9 @@ class DashboardsIndexContents extends Component<Props> {
             filterComponent={filterComponent}
             dashboards={filteredDashboards}
             onFilterChange={onFilterChange}
+            sortDirection={sortDirection}
+            sortType={sortType}
+            sortKey={sortKey}
           />
         )}
       </FilterDashboards>

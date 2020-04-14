@@ -8,12 +8,21 @@ import {
   ComponentSize,
   ComponentStatus,
   Page,
+  Sort,
+  FlexBox,
+  FlexDirection,
 } from '@influxdata/clockface'
 import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
+import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
+import ResourceSortDropdown from 'src/shared/components/resource_sort_dropdown/ResourceSortDropdown'
 import CloudUpgradeButton from 'src/shared/components/CloudUpgradeButton'
 
 // Types
 import {LimitStatus} from 'src/cloud/actions/limits'
+import {setSearchTerm as setSearchTermAction} from 'src/tasks/actions/creators'
+import {TaskSortKey} from 'src/shared/components/resource_sort_dropdown/generateSortItems'
+import {SortTypes} from 'src/shared/utils/sort'
+import {ResourceType} from 'src/types'
 
 interface Props {
   onCreateTask: () => void
@@ -22,6 +31,16 @@ interface Props {
   onImportTask: () => void
   limitStatus: LimitStatus
   onImportFromTemplate: () => void
+  searchTerm: string
+  setSearchTerm: typeof setSearchTermAction
+  sortKey: TaskSortKey
+  sortDirection: Sort
+  sortType: SortTypes
+  onSort: (
+    sortKey: TaskSortKey,
+    sortDirection: Sort,
+    sortType: SortTypes
+  ) => void
 }
 
 export default class TasksHeader extends PureComponent<Props> {
@@ -32,6 +51,12 @@ export default class TasksHeader extends PureComponent<Props> {
       showInactive,
       onImportTask,
       onImportFromTemplate,
+      setSearchTerm,
+      searchTerm,
+      sortKey,
+      sortType,
+      sortDirection,
+      onSort,
     } = this.props
 
     return (
@@ -42,14 +67,31 @@ export default class TasksHeader extends PureComponent<Props> {
         </Page.Header>
         <Page.ControlBar fullWidth={false}>
           <Page.ControlBarLeft>
-            <InputLabel>Show Inactive</InputLabel>
-            <SlideToggle
-              active={showInactive}
-              size={ComponentSize.ExtraSmall}
-              onChange={setShowInactive}
+            <SearchWidget
+              placeholderText="Filter tasks..."
+              onSearch={setSearchTerm}
+              searchTerm={searchTerm}
+            />
+            <ResourceSortDropdown
+              resourceType={ResourceType.Tasks}
+              sortKey={sortKey}
+              sortType={sortType}
+              sortDirection={sortDirection}
+              onSelect={onSort}
             />
           </Page.ControlBarLeft>
           <Page.ControlBarRight>
+            <FlexBox
+              direction={FlexDirection.Row}
+              margin={ComponentSize.Medium}
+            >
+              <InputLabel>Show Inactive</InputLabel>
+              <SlideToggle
+                active={showInactive}
+                size={ComponentSize.ExtraSmall}
+                onChange={setShowInactive}
+              />
+            </FlexBox>
             <AddResourceDropdown
               canImportFromTemplate
               onSelectNew={onCreateTask}

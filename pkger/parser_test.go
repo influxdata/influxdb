@@ -2259,19 +2259,16 @@ spec:
 					assert.Equal(t, "truncate", tableOpts.Wrapping)
 					assert.True(t, tableOpts.FixFirstColumn)
 
-					require.Len(t, props.FieldOptions, 2)
-					expectedField := influxdb.RenamableField{
-						InternalName: "_time",
-						DisplayName:  "time (ms)",
-						Visible:      true,
-					}
-					assert.Equal(t, expectedField, props.FieldOptions[0])
-					expectedField = influxdb.RenamableField{
+					assert.Contains(t, props.FieldOptions, influxdb.RenamableField{
 						InternalName: "_value",
 						DisplayName:  "MB",
 						Visible:      true,
-					}
-					assert.Equal(t, expectedField, props.FieldOptions[1])
+					})
+					assert.Contains(t, props.FieldOptions, influxdb.RenamableField{
+						InternalName: "_time",
+						DisplayName:  "time (ms)",
+						Visible:      true,
+					})
 				})
 			})
 
@@ -2531,7 +2528,7 @@ spec:
 					{
 						name:           "invalid geom flag",
 						validationErrs: 1,
-						valFields:      []string{fieldSpec, "charts[0].geom"},
+						valFields:      []string{fieldSpec, fieldDashCharts, fieldChartGeom},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
@@ -4189,6 +4186,44 @@ func Test_PkgValidationErr(t *testing.T) {
 	assert.Equal(t, []string{"root", "charts", "kind"}, errs[1].Fields)
 	compIntSlcs(t, []int{0, 1}, errs[1].Indexes)
 	assert.Equal(t, "chart kind must be provided", errs[1].Reason)
+}
+
+func Test_validGeometry(t *testing.T) {
+	tests := []struct {
+		geom     string
+		expected bool
+	}{
+		{
+			geom: "line", expected: true,
+		},
+		{
+			geom: "step", expected: true,
+		},
+		{
+			geom: "stacked", expected: true,
+		},
+		{
+			geom: "monotoneX", expected: true,
+		},
+		{
+			geom: "bar", expected: true,
+		},
+		{
+			geom: "rando", expected: false,
+		},
+		{
+			geom: "not a valid geom", expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		fn := func(t *testing.T) {
+			isValid := len(validGeometry(tt.geom)) == 0
+			assert.Equal(t, tt.expected, isValid)
+		}
+
+		t.Run(tt.geom, fn)
+	}
 }
 
 type testPkgResourceError struct {

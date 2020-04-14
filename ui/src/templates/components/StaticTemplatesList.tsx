@@ -15,8 +15,6 @@ import {Sort} from 'src/clockface'
 // Selectors
 import {getSortedResources} from 'src/shared/utils/sort'
 
-type SortKey = 'meta.name'
-
 export type TemplateOrSummary = Template | TemplateSummary
 
 export interface StaticTemplate {
@@ -32,7 +30,6 @@ interface Props {
   sortKey: string
   sortDirection: Sort
   sortType: SortTypes
-  onClickColumn: (nextSort: Sort, sortKey: SortKey) => void
 }
 
 export default class StaticTemplatesList extends PureComponent<Props> {
@@ -41,26 +38,10 @@ export default class StaticTemplatesList extends PureComponent<Props> {
   )
 
   public render() {
-    const {
-      searchTerm,
-      onImport,
-      sortKey,
-      sortDirection,
-      onClickColumn,
-    } = this.props
-
-    const headerKeys: SortKey[] = ['meta.name']
+    const {searchTerm, onImport} = this.props
 
     return (
       <ResourceList>
-        <ResourceList.Header>
-          <ResourceList.Sorter
-            name="Name"
-            sortKey={headerKeys[0]}
-            sort={sortKey === headerKeys[0] ? sortDirection : Sort.None}
-            onClick={onClickColumn}
-          />
-        </ResourceList.Header>
         <ResourceList.Body
           emptyState={
             <EmptyTemplatesList searchTerm={searchTerm} onImport={onImport} />

@@ -2656,9 +2656,6 @@ func (c chart) properties() influxdb.ViewProperties {
 				Visible:      fieldOpt.Visible,
 			})
 		}
-		sort.Slice(fieldOptions, func(i, j int) bool {
-			return fieldOptions[i].InternalName < fieldOptions[j].InternalName
-		})
 
 		return influxdb.TableViewProperties{
 			Type:              influxdb.ViewPropertyTypeTable,
@@ -2756,10 +2753,11 @@ func validPosition(pos string) []validationErr {
 }
 
 var geometryTypes = map[string]bool{
-	"line":    true,
-	"step":    true,
-	"stacked": true,
-	"bar":     true,
+	"line":      true,
+	"step":      true,
+	"stacked":   true,
+	"monotoneX": true,
+	"bar":       true,
 }
 
 func validGeometry(geom string) []validationErr {
