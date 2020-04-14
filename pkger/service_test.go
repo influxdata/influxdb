@@ -868,6 +868,7 @@ func TestService(t *testing.T) {
 
 		t.Run("label mapping", func(t *testing.T) {
 			testLabelMappingV2ApplyFn := func(t *testing.T, filename string, numExpected int, settersFn func() []ServiceSetterFn) {
+				t.Helper()
 				testfileRunner(t, filename, func(t *testing.T, pkg *Pkg) {
 					t.Helper()
 
@@ -900,6 +901,7 @@ func TestService(t *testing.T) {
 			}
 
 			testLabelMappingV2RollbackFn := func(t *testing.T, filename string, killCount int, settersFn func() []ServiceSetterFn) {
+				t.Helper()
 				testfileRunner(t, filename, func(t *testing.T, pkg *Pkg) {
 					t.Helper()
 
@@ -909,11 +911,9 @@ func TestService(t *testing.T) {
 						return nil
 					}
 					fakeLabelSVC.DeleteLabelMappingFn = func(_ context.Context, m *influxdb.LabelMapping) error {
-						t.Logf("delete: %+v", m)
 						return nil
 					}
 					fakeLabelSVC.CreateLabelMappingFn = func(_ context.Context, mapping *influxdb.LabelMapping) error {
-						t.Logf("create: %+v", mapping)
 						if mapping.ResourceID == 0 {
 							return errors.New("did not get a resource ID")
 						}
@@ -941,6 +941,7 @@ func TestService(t *testing.T) {
 
 			testLabelMappingFn := func(t *testing.T, filename string, numExpected int, settersFn func() []ServiceSetterFn) {
 				t.Run("applies successfully", func(t *testing.T) {
+					t.Helper()
 					testfileRunner(t, filename, func(t *testing.T, pkg *Pkg) {
 						t.Helper()
 
@@ -973,6 +974,7 @@ func TestService(t *testing.T) {
 				})
 
 				t.Run("deletes new label mappings on error", func(t *testing.T) {
+					t.Helper()
 					testfileRunner(t, filename, func(t *testing.T, pkg *Pkg) {
 						t.Helper()
 
@@ -991,11 +993,9 @@ func TestService(t *testing.T) {
 							return nil
 						}
 						fakeLabelSVC.DeleteLabelMappingFn = func(_ context.Context, m *influxdb.LabelMapping) error {
-							t.Logf("delete: %+v", m)
 							return nil
 						}
 						fakeLabelSVC.CreateLabelMappingFn = func(_ context.Context, mapping *influxdb.LabelMapping) error {
-							t.Logf("create: %+v", mapping)
 							if mapping.ResourceID == 0 {
 								return errors.New("did not get a resource ID")
 							}
@@ -1046,23 +1046,26 @@ func TestService(t *testing.T) {
 			})
 
 			t.Run("maps checks with labels", func(t *testing.T) {
-				testLabelMappingFn(
-					t,
-					"testdata/checks.yml",
-					2, // 1 for each check
-					func() []ServiceSetterFn {
-						fakeCheckSVC := mock.NewCheckService()
-						fakeCheckSVC.CreateCheckFn = func(ctx context.Context, c influxdb.CheckCreate, id influxdb.ID) error {
-							c.Check.SetID(influxdb.ID(rand.Int()))
-							return nil
-						}
-						fakeCheckSVC.FindCheckFn = func(ctx context.Context, f influxdb.CheckFilter) (influxdb.Check, error) {
-							return nil, errors.New("check not found")
-						}
+				opts := func() []ServiceSetterFn {
+					fakeCheckSVC := mock.NewCheckService()
+					fakeCheckSVC.CreateCheckFn = func(ctx context.Context, c influxdb.CheckCreate, id influxdb.ID) error {
+						c.Check.SetID(influxdb.ID(rand.Int()))
+						return nil
+					}
+					fakeCheckSVC.FindCheckFn = func(ctx context.Context, f influxdb.CheckFilter) (influxdb.Check, error) {
+						return nil, errors.New("check not found")
+					}
 
-						return []ServiceSetterFn{WithCheckSVC(fakeCheckSVC)}
-					},
-				)
+					return []ServiceSetterFn{WithCheckSVC(fakeCheckSVC)}
+				}
+
+				t.Run("applies successfully", func(t *testing.T) {
+					testLabelMappingV2ApplyFn(t, "testdata/checks.yml", 2, opts)
+				})
+
+				t.Run("deletes new label mappings on error", func(t *testing.T) {
+					testLabelMappingV2RollbackFn(t, "testdata/checks.yml", 1, opts)
+				})
 			})
 
 			t.Run("maps dashboards with labels", func(t *testing.T) {
