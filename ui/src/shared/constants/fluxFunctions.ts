@@ -947,8 +947,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     args: [
       {
         name: 'alignTo',
-        desc:
-          'UTC time to align tables to. Default is 1970-01-01T00:00:00Z.',
+        desc: 'UTC time to align tables to. Default is 1970-01-01T00:00:00Z.',
         type: 'Time',
       },
     ],
@@ -4974,7 +4973,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       {
         name: 'epsilon',
         desc:
-          'How far apart two float values can be, but still considered equal. Defaults to 0.000000001.',
+          'How far apart two float values can be, but still considered equal. Defaults to `0.000000001`.',
         type: 'Float',
       },
     ],
