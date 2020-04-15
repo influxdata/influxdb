@@ -95,7 +95,7 @@ class RefreshingView extends PureComponent<Props, State> {
         }) => {
           return (
             <EmptyQueryView
-              errorFormat={ErrorFormat.Tooltip}
+              errorFormat={ErrorFormat.Scroll}
               errorMessage={errorMessage}
               hasResults={checkResultsLength(giraffeResult)}
               loading={loading}

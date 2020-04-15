@@ -7,7 +7,7 @@
   color: $c-dreamsicle;
   border: $cf-border solid $g2-kevlar;
 
-   pre {
+  pre {
     font-size: 14px;
     padding: $cf-marg-b;
     user-select: text !important;
@@ -15,7 +15,7 @@
   }
 }
 
- .empty-graph-error--icon {
+.empty-graph-error--icon {
   display: inline-block;
   margin-right: $cf-marg-b;
 }
@@ -23,4 +23,8 @@
 .empty-graph-error--copy {
   margin-top: $cf-marg-a;
   margin-right: $cf-marg-a;
+}
+
+.empty-graph-error--scroll {
+  margin-top: $cf-marg-c;
 }
