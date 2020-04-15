@@ -165,20 +165,35 @@ func (a *API) Respond(w http.ResponseWriter, status int, v interface{}) {
 	}
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	enc := json.NewEncoder(writer)
+
+	// this marshal block is to catch failures before they hit the http writer.
+	// default behavior for http.ResponseWriter is when body is written and no
+	// status is set, it writes a 200. Or if a status is set before encoding
+	// and an error occurs, there is no means to write a proper status code
+	// (i.e. 500) when that is to occur. This brings that step out before
+	// and then writes the data and sets the status code after marshaling
+	// succeeds.
+	var (
+		b   []byte
+		err error
+	)
 	if a == nil || a.prettyJSON {
-		enc.SetIndent("", "\t")
+		b, err = json.MarshalIndent(v, "", "\t")
+	} else {
+		b, err = json.Marshal(v)
+	}
+	if err != nil {
+		a.Err(w, err)
+		return
 	}
 
 	w.WriteHeader(status)
-	if err := enc.Encode(v); err != nil {
-		a.Err(w, err)
-		return
+	if _, err := writer.Write(b); err != nil {
+		a.logErr("failed to write to response writer", zap.Error(err))
 	}
 
 	if err := writer.Close(); err != nil {
-		a.Err(w, err)
-		return
+		a.logErr("failed to close response writer", zap.Error(err))
 	}
 }
 
