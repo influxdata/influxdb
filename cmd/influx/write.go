@@ -13,6 +13,7 @@ import (
 	"github.com/influxdata/influxdb/v2/http"
 	"github.com/influxdata/influxdb/v2/kit/signals"
 	"github.com/influxdata/influxdb/v2/models"
+	"github.com/influxdata/influxdb/v2/pkg/csv2lp"
 	"github.com/influxdata/influxdb/v2/write"
 	"github.com/spf13/cobra"
 )
@@ -114,7 +115,7 @@ func (writeFlags *writeFlagsType) createLineReader(cmd *cobra.Command, args []st
 	}
 
 	// validate and setup decoding of files/stdin if encoding is supplied
-	decode, err := write.CreateDecoder(writeFlags.Encoding)
+	decode, err := csv2lp.CreateDecoder(writeFlags.Encoding)
 	if err != nil {
 		return nil, write.MultiCloser(closers...), err
 	}
@@ -173,7 +174,7 @@ func (writeFlags *writeFlagsType) createLineReader(cmd *cobra.Command, args []st
 	// concatenate readers
 	r := io.MultiReader(readers...)
 	if writeFlags.Format == inputFormatCsv {
-		csvReader := write.CsvToProtocolLines(r)
+		csvReader := csv2lp.CsvToProtocolLines(r)
 		csvReader.LogTableColumns(writeFlags.Debug)
 		csvReader.SkipRowOnError(writeFlags.SkipRowOnError)
 		csvReader.Table.IgnoreDataTypeInColumnName(writeFlags.IgnoreDataTypeInColumnName)

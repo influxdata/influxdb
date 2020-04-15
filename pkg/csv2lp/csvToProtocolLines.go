@@ -1,4 +1,5 @@
-package write
+// Package csv2lp transforms csv files to influxDB line protocol
+package csv2lp
 
 import (
 	"encoding/csv"

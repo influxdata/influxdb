@@ -1,4 +1,4 @@
-package write
+package csv2lp
 
 import (
 	"bytes"

@@ -1,4 +1,4 @@
-package write
+package csv2lp
 
 import (
 	"fmt"
@@ -174,7 +174,7 @@ func (example *csvExample) normalize() {
 	}
 }
 
-// TestCsvData checks data that are writen in an annotated CSV file
+// TestExamples validates documentation examples
 func TestExamples(t *testing.T) {
 	for _, example := range examples {
 		example.normalize()

@@ -1,4 +1,4 @@
-package write
+package csv2lp
 
 import (
 	"bytes"
@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestCsvData checks data that are writen in an annotated CSV file
+// TestCsvData tests conversion annotated CSV file to line protocol
 func Test_CsvToProtocolLines(t *testing.T) {
 	var tests = []struct {
 		name  string

@@ -14,7 +14,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/influxdata/influxdb/v2/write"
+	"github.com/influxdata/influxdb/v2/pkg/csv2lp"
 	"github.com/stretchr/testify/require"
 )
 
@@ -187,7 +187,7 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 			defer closer.Close()
 			require.Nil(t, err)
 			require.NotNil(t, reader)
-			csvToLineReader, ok := reader.(*write.CsvToLineReader)
+			csvToLineReader, ok := reader.(*csv2lp.CsvToLineReader)
 			require.True(t, ok)
 			require.Equal(t, csvToLineReader.LineNumber, test.firstLineCorrection)
 			lines := readLines(reader)
