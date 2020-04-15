@@ -419,14 +419,6 @@ func (p *Pkg) addObjectForRemoval(k Kind, pkgName string, id influxdb.ID) {
 			identity: newIdentity,
 			id:       id,
 		}
-	case KindNotificationEndpoint,
-		KindNotificationEndpointHTTP,
-		KindNotificationEndpointPagerDuty,
-		KindNotificationEndpointSlack:
-		p.mNotificationEndpoints[pkgName] = &notificationEndpoint{
-			identity: newIdentity,
-			id:       id,
-		}
 	case KindNotificationRule:
 		p.mNotificationRules[pkgName] = &notificationRule{
 			identity: newIdentity,
@@ -456,14 +448,6 @@ func (p *Pkg) getObjectIDSetter(k Kind, pkgName string) (func(influxdb.ID), bool
 		l, ok := p.mLabels[pkgName]
 		return func(id influxdb.ID) {
 			l.id = id
-		}, ok
-	case KindNotificationEndpoint,
-		KindNotificationEndpointHTTP,
-		KindNotificationEndpointPagerDuty,
-		KindNotificationEndpointSlack:
-		e, ok := p.mNotificationEndpoints[pkgName]
-		return func(id influxdb.ID) {
-			e.id = id
 		}, ok
 	case KindNotificationRule:
 		r, ok := p.mNotificationRules[pkgName]
@@ -941,7 +925,7 @@ func (p *Pkg) graphNotificationEndpoints() *parseErr {
 
 	notificationKinds := []struct {
 		kind             Kind
-		notificationKind notificationKind
+		notificationKind notificationEndpointKind
 	}{
 		{
 			kind:             KindNotificationEndpointHTTP,

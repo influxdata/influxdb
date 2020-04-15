@@ -10,6 +10,7 @@ import (
 type stateCoordinator struct {
 	mBuckets   map[string]*stateBucket
 	mChecks    map[string]*stateCheck
+	mEndpoints map[string]*stateEndpoint
 	mLabels    map[string]*stateLabel
 	mVariables map[string]*stateVariable
 
@@ -20,6 +21,7 @@ func newStateCoordinator(pkg *Pkg) *stateCoordinator {
 	state := stateCoordinator{
 		mBuckets:   make(map[string]*stateBucket),
 		mChecks:    make(map[string]*stateCheck),
+		mEndpoints: make(map[string]*stateEndpoint),
 		mLabels:    make(map[string]*stateLabel),
 		mVariables: make(map[string]*stateVariable),
 	}
@@ -34,6 +36,12 @@ func newStateCoordinator(pkg *Pkg) *stateCoordinator {
 		state.mChecks[pkgCheck.PkgName()] = &stateCheck{
 			parserCheck: pkgCheck,
 			stateStatus: StateStatusNew,
+		}
+	}
+	for _, pkgEndpoint := range pkg.notificationEndpoints() {
+		state.mEndpoints[pkgEndpoint.PkgName()] = &stateEndpoint{
+			parserEndpoint: pkgEndpoint,
+			stateStatus:    StateStatusNew,
 		}
 	}
 	for _, pkgLabel := range pkg.labels() {
@@ -68,6 +76,14 @@ func (s *stateCoordinator) checks() []*stateCheck {
 	return out
 }
 
+func (s *stateCoordinator) endpoints() []*stateEndpoint {
+	out := make([]*stateEndpoint, 0, len(s.mEndpoints))
+	for _, e := range s.mEndpoints {
+		out = append(out, e)
+	}
+	return out
+}
+
 func (s *stateCoordinator) labels() []*stateLabel {
 	out := make([]*stateLabel, 0, len(s.mLabels))
 	for _, v := range s.mLabels {
@@ -98,6 +114,13 @@ func (s *stateCoordinator) diff() Diff {
 	}
 	sort.Slice(diff.Checks, func(i, j int) bool {
 		return diff.Checks[i].PkgName < diff.Checks[j].PkgName
+	})
+
+	for _, e := range s.mEndpoints {
+		diff.NotificationEndpoints = append(diff.NotificationEndpoints, e.diffEndpoint())
+	}
+	sort.Slice(diff.NotificationEndpoints, func(i, j int) bool {
+		return diff.NotificationEndpoints[i].PkgName < diff.NotificationEndpoints[j].PkgName
 	})
 
 	for _, l := range s.mLabels {
@@ -158,6 +181,13 @@ func (s *stateCoordinator) summary() Summary {
 	sort.Slice(sum.Checks, func(i, j int) bool {
 		return sum.Checks[i].PkgName < sum.Checks[j].PkgName
 	})
+
+	for _, e := range s.mEndpoints {
+		if IsRemoval(e.stateStatus) {
+			continue
+		}
+		sum.NotificationEndpoints = append(sum.NotificationEndpoints, e.summarize())
+	}
 
 	for _, v := range s.mLabels {
 		if IsRemoval(v.stateStatus) {
@@ -242,6 +272,15 @@ func (s *stateCoordinator) addObjectForRemoval(k Kind, pkgName string, id influx
 			parserLabel: &label{identity: newIdentity},
 			stateStatus: StateStatusRemove,
 		}
+	case KindNotificationEndpoint,
+		KindNotificationEndpointHTTP,
+		KindNotificationEndpointPagerDuty,
+		KindNotificationEndpointSlack:
+		s.mEndpoints[pkgName] = &stateEndpoint{
+			id:             id,
+			parserEndpoint: &notificationEndpoint{identity: newIdentity},
+			stateStatus:    StateStatusRemove,
+		}
 	case KindVariable:
 		s.mVariables[pkgName] = &stateVariable{
 			id:          id,
@@ -267,6 +306,15 @@ func (s *stateCoordinator) getObjectIDSetter(k Kind, pkgName string) (func(influ
 		}, ok
 	case KindLabel:
 		r, ok := s.mLabels[pkgName]
+		return func(id influxdb.ID) {
+			r.id = id
+			r.stateStatus = StateStatusExists
+		}, ok
+	case KindNotificationEndpoint,
+		KindNotificationEndpointHTTP,
+		KindNotificationEndpointPagerDuty,
+		KindNotificationEndpointSlack:
+		r, ok := s.mEndpoints[pkgName]
 		return func(id influxdb.ID) {
 			r.id = id
 			r.stateStatus = StateStatusExists
@@ -547,6 +595,73 @@ func stateLabelMappingToInfluxLabelMapping(mapping stateLabelMapping) influxdb.L
 		ResourceID:   ident.id,
 		ResourceType: ident.resourceType,
 	}
+}
+
+type stateEndpoint struct {
+	id, orgID   influxdb.ID
+	stateStatus StateStatus
+
+	parserEndpoint *notificationEndpoint
+	existing       influxdb.NotificationEndpoint
+}
+
+func (e *stateEndpoint) ID() influxdb.ID {
+	if !IsNew(e.stateStatus) && e.existing != nil {
+		return e.existing.GetID()
+	}
+	return e.id
+}
+
+func (e *stateEndpoint) diffEndpoint() DiffNotificationEndpoint {
+	diff := DiffNotificationEndpoint{
+		DiffIdentifier: DiffIdentifier{
+			ID:          SafeID(e.ID()),
+			Remove:      IsRemoval(e.stateStatus),
+			StateStatus: e.stateStatus,
+			PkgName:     e.parserEndpoint.PkgName(),
+		},
+	}
+	if sum := e.summarize(); sum.NotificationEndpoint != nil {
+		diff.New.NotificationEndpoint = sum.NotificationEndpoint
+	}
+	if e.existing != nil {
+		diff.Old = &DiffNotificationEndpointValues{
+			NotificationEndpoint: e.existing,
+		}
+	}
+	return diff
+}
+
+func (e *stateEndpoint) labels() []*label {
+	return e.parserEndpoint.labels
+}
+
+func (e *stateEndpoint) resourceType() influxdb.ResourceType {
+	return KindNotificationEndpoint.ResourceType()
+}
+
+func (e *stateEndpoint) stateIdentity() stateIdentity {
+	return stateIdentity{
+		id:           e.ID(),
+		name:         e.parserEndpoint.Name(),
+		pkgName:      e.parserEndpoint.PkgName(),
+		resourceType: e.resourceType(),
+		stateStatus:  e.stateStatus,
+	}
+}
+
+func (e *stateEndpoint) summarize() SummaryNotificationEndpoint {
+	sum := e.parserEndpoint.summarize()
+	if sum.NotificationEndpoint == nil {
+		return sum
+	}
+	if e.ID() != 0 {
+		sum.NotificationEndpoint.SetID(e.ID())
+	}
+	if e.orgID != 0 {
+		sum.NotificationEndpoint.SetOrgID(e.orgID)
+	}
+	return sum
 }
 
 type stateVariable struct {
