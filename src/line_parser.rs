@@ -7,7 +7,7 @@ use nom::{
     sequence::{preceded, separated_pair, terminated, tuple},
 };
 use smallvec::SmallVec;
-use snafu::Snafu;
+use snafu::{ResultExt, Snafu};
 use std::{
     borrow::Cow,
     collections::{btree_map::Entry, BTreeMap},
@@ -23,6 +23,18 @@ pub enum Error {
 
     #[snafu(display(r#"No fields were provided"#))]
     FieldSetMissing,
+
+    #[snafu(display(r#"Unable to parse integer value '{}'"#, value))]
+    IntegerValueInvalid {
+        source: std::num::ParseIntError,
+        value: String,
+    },
+
+    #[snafu(display(r#"Unable to parse floating-point value '{}'"#, value))]
+    FloatValueInvalid {
+        source: std::num::ParseFloatError,
+        value: String,
+    },
 
     // This error is for compatibility with the Go parser
     #[snafu(display(
@@ -474,20 +486,36 @@ fn field_key(i: &str) -> IResult<&str, EscapedStr<'_>> {
 }
 
 fn field_value(i: &str) -> IResult<&str, FieldValue> {
-    let int = map(terminated(digit1, tag("i")), |v: &str| {
-        FieldValue::I64(v.parse().expect("TODO: Unsupported"))
-    });
+    let int = map(integer_value, FieldValue::I64);
+    let float = map(float_value, FieldValue::F64);
 
-    let float_no_decimal = map(digit1, |v: &str| {
-        FieldValue::F64(v.parse().expect("TODO: Unsupported"))
-    });
+    alt((int, float))(i)
+}
 
-    let float_with_decimal = map(
-        recognize(separated_pair(digit1, tag("."), digit1)),
-        |v: &str| FieldValue::F64(v.parse().expect("TODO: Unsupported")),
-    );
+fn integer_value(i: &str) -> IResult<&str, i64> {
+    let tagged_value = terminated(integral_value_common, tag("i"));
+    map_fail(tagged_value, |value| {
+        value.parse().context(IntegerValueInvalid { value })
+    })(i)
+}
 
-    alt((float_with_decimal, int, float_no_decimal))(i)
+fn float_value(i: &str) -> IResult<&str, f64> {
+    let value = alt((float_value_with_decimal, float_value_no_decimal));
+    map_fail(value, |value| {
+        value.parse().context(FloatValueInvalid { value })
+    })(i)
+}
+
+fn float_value_with_decimal(i: &str) -> IResult<&str, &str> {
+    recognize(separated_pair(integral_value_common, tag("."), digit1))(i)
+}
+
+fn float_value_no_decimal(i: &str) -> IResult<&str, &str> {
+    integral_value_common(i)
+}
+
+fn integral_value_common(i: &str) -> IResult<&str, &str> {
+    recognize(preceded(opt(tag("-")), digit1))(i)
 }
 
 fn timestamp(i: &str) -> IResult<&str, i64> {
@@ -738,6 +766,22 @@ where
     }
 }
 
+/// This is very similar to nom's `map_res`, but creates a
+/// `nom::Err::Failure` instead.
+fn map_fail<'a, R1, R2>(
+    first: impl Fn(&'a str) -> IResult<&'a str, R1>,
+    second: impl FnOnce(R1) -> Result<R2, Error>,
+) -> impl FnOnce(&'a str) -> IResult<&'a str, R2> {
+    move |i| {
+        let (remaining, value) = first(i)?;
+
+        match second(value) {
+            Ok(v) => Ok((remaining, v)),
+            Err(e) => Err(nom::Err::Failure(e)),
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -836,6 +880,56 @@ mod test {
         assert_eq!(vals[1].series(), "foo\tbar");
         assert_eq!(vals[1].time(), 1234);
         assert_eq!(vals[1].i64_value().unwrap(), 5);
+
+        Ok(())
+    }
+
+    #[test]
+    fn parse_negative_integer() -> Result {
+        let input = "m0 field=-1i 99";
+        let vals = parse(input)?;
+
+        assert_eq!(vals.len(), 1);
+        assert_eq!(vals[0].i64_value().unwrap(), -1);
+
+        Ok(())
+    }
+
+    #[test]
+    fn parse_negative_float() -> Result {
+        let input = "m0 field2=-1 99";
+        let vals = parse(input)?;
+
+        assert_eq!(vals.len(), 1);
+        assert!(approximately_equal(vals[0].f64_value().unwrap(), -1.0));
+
+        Ok(())
+    }
+
+    #[test]
+    fn parse_out_of_range_integer() -> Result {
+        let input = "m0 field=99999999999999999999999999999999i 99";
+        let parsed = parse(input);
+
+        assert!(
+            matches!(parsed, Err(super::Error::IntegerValueInvalid { .. })),
+            "Wrong error: {:?}",
+            parsed,
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn parse_out_of_range_float() -> Result {
+        let input = format!("m0 field={val}.{val} 99", val = "9".repeat(200));
+        let parsed = parse(&input);
+
+        assert!(
+            matches!(parsed, Err(super::Error::FloatValueInvalid { .. })),
+            "Wrong error: {:?}",
+            parsed,
+        );
 
         Ok(())
     }
