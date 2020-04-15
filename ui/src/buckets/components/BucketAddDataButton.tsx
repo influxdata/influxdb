@@ -17,6 +17,7 @@ import {
 interface Props {
   onAddCollector: () => void
   onAddLineProtocol: () => void
+  onAddClientLibrary: () => void
   onAddScraper: () => void
 }
 
@@ -24,7 +25,12 @@ export default class BucketAddDataButton extends PureComponent<Props> {
   private triggerRef: RefObject<ButtonRef> = createRef()
 
   public render() {
-    const {onAddCollector, onAddLineProtocol, onAddScraper} = this.props
+    const {
+      onAddCollector,
+      onAddLineProtocol,
+      onAddClientLibrary,
+      onAddScraper,
+    } = this.props
 
     return (
       <>
@@ -56,6 +62,20 @@ export default class BucketAddDataButton extends PureComponent<Props> {
                 </div>
                 <div className="bucket-add-data--option-desc">
                   Quickly load an existing line protocol file.
+                </div>
+              </div>
+              <div
+                className="bucket-add-data--option"
+                onClick={onAddClientLibrary}
+              >
+                <div
+                  className="bucket-add-data--option-header"
+                  data-testid="bucket-add-client-library"
+                >
+                  Client Library
+                </div>
+                <div className="bucket-add-data--option-desc">
+                  Write data easily from your own application.
                 </div>
               </div>
               <CloudExclude>
