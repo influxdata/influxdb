@@ -2,6 +2,7 @@ package pkger
 
 import (
 	"fmt"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -9,6 +10,7 @@ import (
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/notification"
 	icheck "github.com/influxdata/influxdb/v2/notification/check"
+	"github.com/influxdata/influxdb/v2/notification/endpoint"
 )
 
 type identity struct {
@@ -563,6 +565,277 @@ func (v *variable) valid() []validationErr {
 			})
 		}
 	}
+	if len(failures) > 0 {
+		return []validationErr{
+			objectValidationErr(fieldSpec, failures...),
+		}
+	}
+
+	return nil
+}
+
+type thresholdType string
+
+const (
+	thresholdTypeGreater      thresholdType = "greater"
+	thresholdTypeLesser       thresholdType = "lesser"
+	thresholdTypeInsideRange  thresholdType = "inside_range"
+	thresholdTypeOutsideRange thresholdType = "outside_range"
+)
+
+var thresholdTypes = map[thresholdType]bool{
+	thresholdTypeGreater:      true,
+	thresholdTypeLesser:       true,
+	thresholdTypeInsideRange:  true,
+	thresholdTypeOutsideRange: true,
+}
+
+type threshold struct {
+	threshType thresholdType
+	allVals    bool
+	level      string
+	val        float64
+	min, max   float64
+}
+
+func (t threshold) valid() []validationErr {
+	var vErrs []validationErr
+	if notification.ParseCheckLevel(t.level) == notification.Unknown {
+		vErrs = append(vErrs, validationErr{
+			Field: fieldLevel,
+			Msg:   fmt.Sprintf("must be 1 in [CRIT, WARN, INFO, OK]; got=%q", t.level),
+		})
+	}
+	if !thresholdTypes[t.threshType] {
+		vErrs = append(vErrs, validationErr{
+			Field: fieldType,
+			Msg:   fmt.Sprintf("must be 1 in [Lesser, Greater, Inside_Range, Outside_Range]; got=%q", t.threshType),
+		})
+	}
+	if t.min > t.max {
+		vErrs = append(vErrs, validationErr{
+			Field: fieldMin,
+			Msg:   "min must be < max",
+		})
+	}
+	return vErrs
+}
+
+func toInfluxThresholds(thresholds ...threshold) []icheck.ThresholdConfig {
+	var iThresh []icheck.ThresholdConfig
+	for _, th := range thresholds {
+		base := icheck.ThresholdConfigBase{
+			AllValues: th.allVals,
+			Level:     notification.ParseCheckLevel(th.level),
+		}
+		switch th.threshType {
+		case thresholdTypeGreater:
+			iThresh = append(iThresh, icheck.Greater{
+				ThresholdConfigBase: base,
+				Value:               th.val,
+			})
+		case thresholdTypeLesser:
+			iThresh = append(iThresh, icheck.Lesser{
+				ThresholdConfigBase: base,
+				Value:               th.val,
+			})
+		case thresholdTypeInsideRange, thresholdTypeOutsideRange:
+			iThresh = append(iThresh, icheck.Range{
+				ThresholdConfigBase: base,
+				Max:                 th.max,
+				Min:                 th.min,
+				Within:              th.threshType == thresholdTypeInsideRange,
+			})
+		}
+	}
+	return iThresh
+}
+
+type notificationEndpointKind int
+
+const (
+	notificationKindHTTP notificationEndpointKind = iota + 1
+	notificationKindPagerDuty
+	notificationKindSlack
+)
+
+const (
+	notificationHTTPAuthTypeBasic  = "basic"
+	notificationHTTPAuthTypeBearer = "bearer"
+	notificationHTTPAuthTypeNone   = "none"
+)
+
+const (
+	fieldNotificationEndpointHTTPMethod = "method"
+	fieldNotificationEndpointPassword   = "password"
+	fieldNotificationEndpointRoutingKey = "routingKey"
+	fieldNotificationEndpointToken      = "token"
+	fieldNotificationEndpointURL        = "url"
+	fieldNotificationEndpointUsername   = "username"
+)
+
+type notificationEndpoint struct {
+	identity
+
+	kind        notificationEndpointKind
+	description string
+	method      string
+	password    *references
+	routingKey  *references
+	status      string
+	token       *references
+	httpType    string
+	url         string
+	username    *references
+
+	labels sortedLabels
+}
+
+func (n *notificationEndpoint) Labels() []*label {
+	return n.labels
+}
+
+func (n *notificationEndpoint) ResourceType() influxdb.ResourceType {
+	return KindNotificationEndpointSlack.ResourceType()
+}
+
+func (n *notificationEndpoint) base() endpoint.Base {
+	return endpoint.Base{
+		Name:        n.Name(),
+		Description: n.description,
+		Status:      n.influxStatus(),
+	}
+}
+
+func (n *notificationEndpoint) summarize() SummaryNotificationEndpoint {
+	base := n.base()
+	sum := SummaryNotificationEndpoint{
+		PkgName:           n.PkgName(),
+		LabelAssociations: toSummaryLabels(n.labels...),
+	}
+
+	switch n.kind {
+	case notificationKindHTTP:
+		e := &endpoint.HTTP{
+			Base:   base,
+			URL:    n.url,
+			Method: n.method,
+		}
+		switch n.httpType {
+		case notificationHTTPAuthTypeBasic:
+			e.AuthMethod = notificationHTTPAuthTypeBasic
+			e.Password = n.password.SecretField()
+			e.Username = n.username.SecretField()
+		case notificationHTTPAuthTypeBearer:
+			e.AuthMethod = notificationHTTPAuthTypeBearer
+			e.Token = n.token.SecretField()
+		case notificationHTTPAuthTypeNone:
+			e.AuthMethod = notificationHTTPAuthTypeNone
+		}
+		sum.NotificationEndpoint = e
+	case notificationKindPagerDuty:
+		sum.NotificationEndpoint = &endpoint.PagerDuty{
+			Base:       base,
+			ClientURL:  n.url,
+			RoutingKey: n.routingKey.SecretField(),
+		}
+	case notificationKindSlack:
+		sum.NotificationEndpoint = &endpoint.Slack{
+			Base:  base,
+			URL:   n.url,
+			Token: n.token.SecretField(),
+		}
+	}
+	return sum
+}
+
+func (n *notificationEndpoint) influxStatus() influxdb.Status {
+	status := influxdb.Active
+	if n.status != "" {
+		status = influxdb.Status(n.status)
+	}
+	return status
+}
+
+var validEndpointHTTPMethods = map[string]bool{
+	"DELETE":  true,
+	"GET":     true,
+	"HEAD":    true,
+	"OPTIONS": true,
+	"PATCH":   true,
+	"POST":    true,
+	"PUT":     true,
+}
+
+func (n *notificationEndpoint) valid() []validationErr {
+	var failures []validationErr
+	if _, err := url.Parse(n.url); err != nil || n.url == "" {
+		failures = append(failures, validationErr{
+			Field: fieldNotificationEndpointURL,
+			Msg:   "must be valid url",
+		})
+	}
+
+	status := influxdb.Status(n.status)
+	if status != "" && influxdb.Inactive != status && influxdb.Active != status {
+		failures = append(failures, validationErr{
+			Field: fieldStatus,
+			Msg:   "not a valid status; valid statues are one of [active, inactive]",
+		})
+	}
+
+	switch n.kind {
+	case notificationKindPagerDuty:
+		if !n.routingKey.hasValue() {
+			failures = append(failures, validationErr{
+				Field: fieldNotificationEndpointRoutingKey,
+				Msg:   "must be provide",
+			})
+		}
+	case notificationKindHTTP:
+		if !validEndpointHTTPMethods[n.method] {
+			failures = append(failures, validationErr{
+				Field: fieldNotificationEndpointHTTPMethod,
+				Msg:   "http method must be a valid HTTP verb",
+			})
+		}
+
+		switch n.httpType {
+		case notificationHTTPAuthTypeBasic:
+			if !n.password.hasValue() {
+				failures = append(failures, validationErr{
+					Field: fieldNotificationEndpointPassword,
+					Msg:   "must provide non empty string",
+				})
+			}
+			if !n.username.hasValue() {
+				failures = append(failures, validationErr{
+					Field: fieldNotificationEndpointUsername,
+					Msg:   "must provide non empty string",
+				})
+			}
+		case notificationHTTPAuthTypeBearer:
+			if !n.token.hasValue() {
+				failures = append(failures, validationErr{
+					Field: fieldNotificationEndpointToken,
+					Msg:   "must provide non empty string",
+				})
+			}
+		case notificationHTTPAuthTypeNone:
+		default:
+			failures = append(failures, validationErr{
+				Field: fieldType,
+				Msg: fmt.Sprintf(
+					"invalid type provided %q; valid type is 1 in [%s, %s, %s]",
+					n.httpType,
+					notificationHTTPAuthTypeBasic,
+					notificationHTTPAuthTypeBearer,
+					notificationHTTPAuthTypeNone,
+				),
+			})
+		}
+	}
+
 	if len(failures) > 0 {
 		return []validationErr{
 			objectValidationErr(fieldSpec, failures...),

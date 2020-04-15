@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"testing"
 	"time"
 
@@ -259,6 +260,10 @@ func TestLauncher_Pkger(t *testing.T) {
 			})
 
 			t.Run("an error during application roles back resources to previous state", func(t *testing.T) {
+				if reflect.DeepEqual(initialSum, pkger.Summary{}) {
+					t.Skip("test setup not complete")
+				}
+
 				logger := l.log.With(zap.String("service", "pkger"))
 				var svc pkger.SVC = pkger.NewService(
 					pkger.WithLogger(logger),

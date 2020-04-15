@@ -301,8 +301,9 @@ func TestService(t *testing.T) {
 
 				expected := DiffNotificationEndpoint{
 					DiffIdentifier: DiffIdentifier{
-						ID:      1,
-						PkgName: "http_none_auth_notification_endpoint",
+						ID:          1,
+						PkgName:     "http_none_auth_notification_endpoint",
+						StateStatus: StateStatusExists,
 					},
 					Old: &DiffNotificationEndpointValues{
 						NotificationEndpoint: existing,
@@ -942,6 +943,8 @@ func TestService(t *testing.T) {
 			}
 
 			testLabelMappingFn := func(t *testing.T, filename string, numExpected int, settersFn func() []ServiceSetterFn) {
+				t.Helper()
+
 				t.Run("applies successfully", func(t *testing.T) {
 					t.Helper()
 					testfileRunner(t, filename, func(t *testing.T, pkg *Pkg) {
@@ -1087,19 +1090,22 @@ func TestService(t *testing.T) {
 			})
 
 			t.Run("maps notification endpoints with labels", func(t *testing.T) {
-				testLabelMappingFn(
-					t,
-					"testdata/notification_endpoint.yml",
-					5,
-					func() []ServiceSetterFn {
-						fakeEndpointSVC := mock.NewNotificationEndpointService()
-						fakeEndpointSVC.CreateNotificationEndpointF = func(ctx context.Context, nr influxdb.NotificationEndpoint, userID influxdb.ID) error {
-							nr.SetID(influxdb.ID(rand.Int()))
-							return nil
-						}
-						return []ServiceSetterFn{WithNotificationEndpointSVC(fakeEndpointSVC)}
-					},
-				)
+				opts := func() []ServiceSetterFn {
+					fakeEndpointSVC := mock.NewNotificationEndpointService()
+					fakeEndpointSVC.CreateNotificationEndpointF = func(ctx context.Context, nr influxdb.NotificationEndpoint, userID influxdb.ID) error {
+						nr.SetID(influxdb.ID(rand.Int()))
+						return nil
+					}
+					return []ServiceSetterFn{WithNotificationEndpointSVC(fakeEndpointSVC)}
+				}
+
+				t.Run("applies successfully", func(t *testing.T) {
+					testLabelMappingV2ApplyFn(t, "testdata/notification_endpoint.yml", 5, opts)
+				})
+
+				t.Run("deletes new label mappings on error", func(t *testing.T) {
+					testLabelMappingV2RollbackFn(t, "testdata/notification_endpoint.yml", 3, opts)
+				})
 			})
 
 			t.Run("maps notification rules with labels", func(t *testing.T) {
@@ -1250,15 +1256,10 @@ func TestService(t *testing.T) {
 					fakeEndpointSVC := mock.NewNotificationEndpointService()
 					fakeEndpointSVC.CreateNotificationEndpointF = func(ctx context.Context, nr influxdb.NotificationEndpoint, userID influxdb.ID) error {
 						nr.SetID(influxdb.ID(fakeEndpointSVC.CreateNotificationEndpointCalls.Count() + 1))
-						if fakeEndpointSVC.CreateNotificationEndpointCalls.Count() == 5 {
+						if fakeEndpointSVC.CreateNotificationEndpointCalls.Count() == 3 {
 							return errors.New("hit that kill count")
 						}
 						return nil
-					}
-
-					// create some dupes
-					for name, endpoint := range pkg.mNotificationEndpoints {
-						pkg.mNotificationEndpoints["copy"+name] = endpoint
 					}
 
 					svc := newTestService(WithNotificationEndpointSVC(fakeEndpointSVC))
@@ -1268,7 +1269,7 @@ func TestService(t *testing.T) {
 					_, _, err := svc.Apply(context.TODO(), orgID, 0, pkg)
 					require.Error(t, err)
 
-					assert.GreaterOrEqual(t, fakeEndpointSVC.DeleteNotificationEndpointCalls.Count(), 5)
+					assert.GreaterOrEqual(t, fakeEndpointSVC.DeleteNotificationEndpointCalls.Count(), 3)
 				})
 			})
 		})

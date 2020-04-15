@@ -487,11 +487,6 @@ func TestPkg(t *testing.T) {
 				validName: "label_1",
 			},
 			{
-				pkgFile:   "testdata/notification_endpoint.yml",
-				kind:      KindNotificationEndpoint,
-				validName: "slack_notification_endpoint",
-			},
-			{
 				pkgFile:   "testdata/notification_rule.yml",
 				kind:      KindNotificationRule,
 				validName: "rule_UUID",

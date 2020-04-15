@@ -7657,8 +7657,8 @@ components:
               items:
                 type: object
                 properties:
-                  remove:
-                    type: boolean
+                  stateStatus:
+                    type: string
                   id:
                     type: string
                   pkgName:
