@@ -8,7 +8,6 @@ export const OSS_FLAGS = {
   customCheckQuery: false,
   matchingNotificationRules: false,
   regionBasedLoginPage: false,
-  treeNav: false,
   demodata: false,
 }
 
@@ -21,7 +20,6 @@ export const CLOUD_FLAGS = {
   customCheckQuery: false,
   matchingNotificationRules: false,
   regionBasedLoginPage: false,
-  treeNav: false,
   demodata: false,
 }
 

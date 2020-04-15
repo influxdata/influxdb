@@ -217,7 +217,7 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 		if err != nil {
 			return err
 		}
-		mapResource(dash.OrganizationID, dash.ID, KindDashboard, DashboardToObject(*dash, r.Name))
+		mapResource(dash.OrganizationID, dash.ID, KindDashboard, DashboardToObject(r.Name, *dash))
 	case r.Kind.is(KindLabel):
 		l, err := ex.labelSVC.FindLabelByID(ctx, r.ID)
 		if err != nil {
@@ -232,7 +232,7 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 		if err != nil {
 			return err
 		}
-		mapResource(e.GetOrgID(), uniqByNameResID, KindNotificationEndpoint, endpointKind(e, r.Name))
+		mapResource(e.GetOrgID(), uniqByNameResID, KindNotificationEndpoint, NotificationEndpointToObject(r.Name, e))
 	case r.Kind.is(KindNotificationRule):
 		rule, ruleEndpoint, err := ex.getEndpointRule(ctx, r.ID)
 		if err != nil {
@@ -242,12 +242,12 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 		endpointKey := newExportKey(ruleEndpoint.GetOrgID(), uniqByNameResID, KindNotificationEndpoint, ruleEndpoint.GetName())
 		object, ok := ex.mObjects[endpointKey]
 		if !ok {
-			mapResource(ruleEndpoint.GetOrgID(), uniqByNameResID, KindNotificationEndpoint, endpointKind(ruleEndpoint, ""))
+			mapResource(ruleEndpoint.GetOrgID(), uniqByNameResID, KindNotificationEndpoint, NotificationEndpointToObject("", ruleEndpoint))
 			object = ex.mObjects[endpointKey]
 		}
 		endpointObjectName := object.Name()
 
-		mapResource(rule.GetOrgID(), rule.GetID(), KindNotificationRule, ruleToObject(rule, endpointObjectName, r.Name))
+		mapResource(rule.GetOrgID(), rule.GetID(), KindNotificationRule, NotificationRuleToObject(r.Name, endpointObjectName, rule))
 	case r.Kind.is(KindTask):
 		t, err := ex.taskSVC.FindTaskByID(ctx, r.ID)
 		if err != nil {
@@ -265,7 +265,7 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 		if err != nil {
 			return err
 		}
-		mapResource(v.OrganizationID, uniqByNameResID, KindVariable, VariableToObject(*v, r.Name))
+		mapResource(v.OrganizationID, uniqByNameResID, KindVariable, VariableToObject(r.Name, *v))
 	default:
 		return errors.New("unsupported kind provided: " + string(r.Kind))
 	}
@@ -647,11 +647,13 @@ func convertCellView(cell influxdb.Cell) chart {
 
 func convertChartToResource(ch chart) Resource {
 	r := Resource{
-		fieldKind:         ch.Kind.title(),
-		fieldName:         ch.Name,
-		fieldChartQueries: ch.Queries,
-		fieldChartHeight:  ch.Height,
-		fieldChartWidth:   ch.Width,
+		fieldKind:        ch.Kind.title(),
+		fieldName:        ch.Name,
+		fieldChartHeight: ch.Height,
+		fieldChartWidth:  ch.Width,
+	}
+	if len(ch.Queries) > 0 {
+		r[fieldChartQueries] = ch.Queries
 	}
 	if len(ch.Colors) > 0 {
 		r[fieldChartColors] = ch.Colors
@@ -671,7 +673,7 @@ func convertChartToResource(ch chart) Resource {
 		tRes := make(Resource)
 		assignNonZeroBools(tRes, map[string]bool{
 			fieldChartTableOptionVerticalTimeAxis: ch.TableOptions.VerticalTimeAxis,
-			fieldChartTableOptionFixFirstColumn:   ch.TableOptions.VerticalTimeAxis,
+			fieldChartTableOptionFixFirstColumn:   ch.TableOptions.FixFirstColumn,
 		})
 		assignNonZeroStrings(tRes, map[string]string{
 			fieldChartTableOptionSortBy:   ch.TableOptions.SortByField,
@@ -761,7 +763,7 @@ func convertQueries(iQueries []influxdb.DashboardQuery) queries {
 }
 
 // DashboardToObject converts an influxdb.Dashboard to an Object.
-func DashboardToObject(dash influxdb.Dashboard, name string) Object {
+func DashboardToObject(name string, dash influxdb.Dashboard) Object {
 	if name == "" {
 		name = dash.Name
 	}
@@ -787,7 +789,9 @@ func DashboardToObject(dash influxdb.Dashboard, name string) Object {
 	}
 
 	o := newObject(KindDashboard, name)
-	o.Spec[fieldDescription] = dash.Description
+	assignNonZeroStrings(o.Spec, map[string]string{
+		fieldDescription: dash.Description,
+	})
 	o.Spec[fieldDashCharts] = charts
 	return o
 }
@@ -806,7 +810,8 @@ func LabelToObject(name string, l influxdb.Label) Object {
 	return o
 }
 
-func endpointKind(e influxdb.NotificationEndpoint, name string) Object {
+// NotificationEndpointToObject converts an notification endpoint into a pkger Object.
+func NotificationEndpointToObject(name string, e influxdb.NotificationEndpoint) Object {
 	if name == "" {
 		name = e.GetName()
 	}
@@ -845,13 +850,14 @@ func endpointKind(e influxdb.NotificationEndpoint, name string) Object {
 	return o
 }
 
-func ruleToObject(iRule influxdb.NotificationRule, endpointName, name string) Object {
+// NotificationRuleToObject converts an notification rule into a pkger Object.
+func NotificationRuleToObject(name, endpointPkgName string, iRule influxdb.NotificationRule) Object {
 	if name == "" {
 		name = iRule.GetName()
 	}
 
 	o := newObject(KindNotificationRule, name)
-	o.Spec[fieldNotificationRuleEndpointName] = endpointName
+	o.Spec[fieldNotificationRuleEndpointName] = endpointPkgName
 	assignNonZeroStrings(o.Spec, map[string]string{
 		fieldDescription: iRule.GetDescription(),
 	})
@@ -939,7 +945,7 @@ func telegrafToObject(t influxdb.TelegrafConfig, name string) Object {
 }
 
 // VariableToObject converts an influxdb.Variable to a pkger.Object.
-func VariableToObject(v influxdb.Variable, name string) Object {
+func VariableToObject(name string, v influxdb.Variable) Object {
 	if name == "" {
 		name = v.Name
 	}

@@ -7,14 +7,10 @@ import classnames from 'classnames'
 // Components
 import {AppWrapper} from '@influxdata/clockface'
 import TreeNav from 'src/pageLayout/containers/TreeNav'
-import Nav from 'src/pageLayout/containers/Nav'
 import TooltipPortal from 'src/portals/TooltipPortal'
 import NotesPortal from 'src/portals/NotesPortal'
 import Notifications from 'src/shared/components/notifications/Notifications'
 import OverlayController from 'src/overlays/components/OverlayController'
-import {FeatureFlag} from 'src/shared/utils/featureFlag'
-import CloudNav from 'src/pageLayout/components/CloudNav'
-import CloudOnly from 'src/shared/components/cloud/CloudOnly'
 
 // Types
 import {AppState, CurrentPage, Theme} from 'src/types'
@@ -41,29 +37,17 @@ const App: SFC<Props> = ({
   })
 
   return (
-    <>
-      <FeatureFlag name="treeNav" equals={false}>
-        <CloudOnly>
-          <CloudNav />
-        </CloudOnly>
-      </FeatureFlag>
-      <AppWrapper
-        presentationMode={inPresentationMode}
-        className={appWrapperClass}
-      >
-        <Notifications />
-        <TooltipPortal />
-        <NotesPortal />
-        <OverlayController />
-        <FeatureFlag name="treeNav">
-          <TreeNav />
-        </FeatureFlag>
-        <FeatureFlag name="treeNav" equals={false}>
-          <Nav />
-        </FeatureFlag>
-        {children}
-      </AppWrapper>
-    </>
+    <AppWrapper
+      presentationMode={inPresentationMode}
+      className={appWrapperClass}
+    >
+      <Notifications />
+      <TooltipPortal />
+      <NotesPortal />
+      <OverlayController />
+      <TreeNav />
+      {children}
+    </AppWrapper>
   )
 }
 

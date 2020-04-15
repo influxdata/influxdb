@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	nethttp "net/http"
 	_ "net/http/pprof" // needed to add pprof to our binary.
@@ -294,7 +295,7 @@ func buildLauncherCommand(l *Launcher, cmd *cobra.Command) {
 		{
 			DestP:   &l.memoryBytesQuotaPerQuery,
 			Flag:    "query-memory-bytes",
-			Default: 10 * 1024 * 1024, // 10MB
+			Default: math.MaxInt64,
 			Desc:    "maximum number of bytes a query is allowed to use at any given time. This must be greater or equal to query-initial-memory-bytes",
 		},
 		{
@@ -597,7 +598,6 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		userLogSvc                platform.UserOperationLogService         = m.kvService
 		bucketLogSvc              platform.BucketOperationLogService       = m.kvService
 		orgLogSvc                 platform.OrganizationOperationLogService = m.kvService
-		onboardingSvc             platform.OnboardingService               = m.kvService
 		scraperTargetSvc          platform.ScraperTargetStoreService       = m.kvService
 		telegrafSvc               platform.TelegrafConfigStore             = m.kvService
 		userResourceSvc           platform.UserResourceMappingService      = m.kvService
@@ -607,6 +607,13 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		notificationEndpointStore platform.NotificationEndpointService     = m.kvService
 	)
 
+	store, err := tenant.NewStore(m.kvStore)
+	if err != nil {
+		m.log.Error("Failed creating new meta store", zap.Error(err))
+		return err
+	}
+
+	userSvcForAuth := userSvc
 	if m.enableNewMetaStore {
 		var ts platform.TenantService
 		if m.newMetaStoreReadOnly {
@@ -619,19 +626,15 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 			newSvc := tenant.NewService(store)
 			ts = tenant.NewDuplicateReadTenantService(m.log, oldSvc, newSvc)
 		} else {
-			store, err := tenant.NewStore(m.kvStore)
-			if err != nil {
-				m.log.Error("Failed creating new meta store", zap.Error(err))
-				return err
-			}
 			ts = tenant.NewService(store)
 		}
+		userSvcForAuth = ts
 
-		bucketSvc = tenant.NewBucketLogger(m.log.With(zap.String("store", "new")), tenant.NewBucketMetrics(m.reg, ts, tenant.WithSuffix("new")))
-		orgSvc = tenant.NewOrgLogger(m.log.With(zap.String("store", "new")), tenant.NewOrgMetrics(m.reg, ts, tenant.WithSuffix("new")))
-		userResourceSvc = tenant.NewURMLogger(m.log.With(zap.String("store", "new")), tenant.NewUrmMetrics(m.reg, ts, tenant.WithSuffix("new")))
-		userSvc = tenant.NewUserLogger(m.log.With(zap.String("store", "new")), tenant.NewUserMetrics(m.reg, ts, tenant.WithSuffix("new")))
-		passwdsSvc = tenant.NewPasswordLogger(m.log.With(zap.String("store", "new")), tenant.NewPasswordMetrics(m.reg, ts, tenant.WithSuffix("new")))
+		userSvc = tenant.NewAuthedUserService(tenant.NewUserLogger(m.log.With(zap.String("store", "new")), tenant.NewUserMetrics(m.reg, ts, tenant.WithSuffix("new"))))
+		orgSvc = tenant.NewAuthedOrgService(tenant.NewOrgLogger(m.log.With(zap.String("store", "new")), tenant.NewOrgMetrics(m.reg, ts, tenant.WithSuffix("new"))))
+		userResourceSvc = tenant.NewAuthedURMService(ts, tenant.NewURMLogger(m.log.With(zap.String("store", "new")), tenant.NewUrmMetrics(m.reg, ts, tenant.WithSuffix("new"))))
+		bucketSvc = tenant.NewAuthedBucketService(tenant.NewBucketLogger(m.log.With(zap.String("store", "new")), tenant.NewBucketMetrics(m.reg, ts, tenant.WithSuffix("new"))), userResourceSvc)
+		passwdsSvc = tenant.NewAuthedPasswordService(tenant.NewPasswordLogger(m.log.With(zap.String("store", "new")), tenant.NewPasswordMetrics(m.reg, ts, tenant.WithSuffix("new"))))
 	}
 
 	switch m.secretStore {
@@ -890,7 +893,6 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		SourceService:                   sourceSvc,
 		VariableService:                 variableSvc,
 		PasswordsService:                passwdsSvc,
-		OnboardingService:               onboardingSvc,
 		InfluxQLService:                 storageQueryService,
 		FluxService:                     storageQueryService,
 		FluxLanguageService:             fluxlang.DefaultService,
@@ -946,8 +948,18 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		pkgHTTPServer = pkger.NewHTTPServer(pkgServerLogger, pkgSVC)
 	}
 
+	var onboardHTTPServer *tenant.OnboardHandler
 	{
-		platformHandler := http.NewPlatformHandler(m.apibackend, http.WithResourceHandler(pkgHTTPServer))
+		onboardSvc := tenant.NewOnboardService(store, authSvc)                                            // basic service
+		onboardSvc = tenant.NewAuthedOnboardSvc(onboardSvc)                                               // with auth
+		onboardSvc = tenant.NewOnboardingMetrics(m.reg, onboardSvc, tenant.WithSuffix("new"))             // with metrics
+		onboardSvc = tenant.NewOnboardingLogger(m.log.With(zap.String("handler", "onboard")), onboardSvc) // with logging
+
+		onboardHTTPServer = tenant.NewHTTPOnboardHandler(m.log, onboardSvc)
+	}
+
+	{
+		platformHandler := http.NewPlatformHandler(m.apibackend, userSvcForAuth, http.WithResourceHandler(pkgHTTPServer), http.WithResourceHandler(onboardHTTPServer))
 
 		httpLogger := m.log.With(zap.String("service", "http"))
 		m.httpServer.Handler = http.NewHandlerFromRegistry(

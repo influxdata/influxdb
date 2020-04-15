@@ -22,7 +22,7 @@ const (
 
 // VariableService describes a service for managing Variables
 type VariableService interface {
-	// FindVariable finds a single variable from the store by its ID
+	// FindVariableByID finds a single variable from the store by its ID
 	FindVariableByID(ctx context.Context, id ID) (*Variable, error)
 
 	// FindVariables returns all variables in the store

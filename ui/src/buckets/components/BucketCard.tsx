@@ -38,7 +38,6 @@ interface DispatchProps {
 
 interface Props {
   bucket: OwnBucket
-  onEditBucket: (b: OwnBucket) => void
   onDeleteData: (b: OwnBucket) => void
   onDeleteBucket: (b: OwnBucket) => void
   onUpdateBucket: (b: OwnBucket) => void

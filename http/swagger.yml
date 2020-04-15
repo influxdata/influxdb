@@ -4361,7 +4361,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   /packages/stacks:
     post:
-      operationId: CreatePkg
+      operationId: CreateStack
       tags:
         - InfluxPackages
       summary: Create a new Influx package
@@ -6351,6 +6351,10 @@ components:
             - flux
         dialect:
           $ref: "#/components/schemas/Dialect"
+        now:
+          description: Specifies the time that should be reported as "now" in the query. Default is the server's now time.
+          type: string
+          format: date-time
     InfluxQLQuery:
       description: Query influx using the InfluxQL language
       type: object
@@ -7356,6 +7360,8 @@ components:
                     type: "string"
                   orgID:
                     type: "string"
+                  pkgName:
+                    type: string
                   name:
                     type: "string"
                   description:
@@ -7373,11 +7379,17 @@ components:
               items:
                 type: object
                 properties:
+                  status:
+                    type: string
+                  resourcePkgName:
+                    type: string
                   resourceName:
                     type: string
                   resourceID:
                     type: string
                   resourceType:
+                    type: string
+                  labelPkgName:
                     type: string
                   labelName:
                     type: string
@@ -7409,6 +7421,8 @@ components:
               items:
                 type: object
                 properties:
+                  pkgName:
+                    type: string
                   name:
                     type: string
                   description:
@@ -7456,6 +7470,8 @@ components:
               items:
                 type: object
                 properties:
+                  pkgName:
+                    type: string
                   id:
                     type: string
                   name:
@@ -7479,6 +7495,8 @@ components:
                   - $ref: "#/components/schemas/TelegrafRequest"
                   - type: object
                     properties:
+                      pkgName:
+                        type: string
                       labelAssociations:
                         type: array
                         items:
@@ -7512,8 +7530,8 @@ components:
               items:
                 type: object
                 properties:
-                  remove:
-                    type: boolean
+                  stateStatus:
+                    type: string
                   id:
                     type: string
                   pkgName:
@@ -7541,8 +7559,8 @@ components:
               items:
                 type: object
                 properties:
-                  remove:
-                    type: boolean
+                  stateStatus:
+                    type: string
                   id:
                     type: string
                   pkgName:
@@ -7556,21 +7574,41 @@ components:
               items:
                 type: object
                 properties:
-                  name:
+                  remove:
+                    type: boolean
+                  id:
                     type: string
-                  description:
+                  pkgName:
                     type: string
-                  charts:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/PkgChart"
+                  new:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                      description:
+                        type: string
+                      charts:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/PkgChart"
+                  old:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                      description:
+                        type: string
+                      charts:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/PkgChart"
             labels:
               type: array
               items:
                 type: object
                 properties:
-                  remove:
-                    type: boolean
+                  stateStatus:
+                    type: string
                   id:
                     type: string
                   pkgName:
@@ -7598,15 +7636,19 @@ components:
               items:
                 type: object
                 properties:
-                  isNew:
-                    type: boolean
+                  status:
+                    type: string
                   resourceType:
                     type: string
                   resourceID:
                     type: string
+                  resourcePkgName:
+                    type: string
                   resourceName:
                     type: string
                   labelID:
+                    type: string
+                  labelPkgName:
                     type: string
                   labelName:
                     type: string
@@ -7615,8 +7657,8 @@ components:
               items:
                 type: object
                 properties:
-                  remove:
-                    type: boolean
+                  stateStatus:
+                    type: string
                   id:
                     type: string
                   pkgName:
@@ -7630,74 +7672,161 @@ components:
               items:
                 type: object
                 properties:
-                  name:
+                  remove:
+                    type: boolean
+                  id:
                     type: string
-                  description:
+                  pkgName:
                     type: string
-                  endpointName:
-                    type: string
-                  endpointID:
-                    type: string
-                  endpointType:
-                    type: string
-                  every:
-                    type: string
-                  offset:
-                    type: string
-                  messageTemplate:
-                    type: string
-                  status:
-                    type: string
-                  statusRules:
-                    type: array
-                    items:
-                      type: object
-                      properties:
-                        currentLevel:
+                  new:
+                    type: object
+                    properties:
+                        name:
                           type: string
-                        previousLevel:
+                        description:
                           type: string
-                  tagRules:
-                    type: array
-                    items:
-                      type: object
-                      properties:
-                        key:
+                        endpointName:
                           type: string
-                        value:
+                        endpointID:
                           type: string
-                        operator:
+                        endpointType:
                           type: string
+                        every:
+                          type: string
+                        offset:
+                          type: string
+                        messageTemplate:
+                          type: string
+                        status:
+                          type: string
+                        statusRules:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              currentLevel:
+                                type: string
+                              previousLevel:
+                                type: string
+                        tagRules:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              key:
+                                type: string
+                              value:
+                                type: string
+                              operator:
+                                type: string
+                  old:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                      description:
+                        type: string
+                      endpointName:
+                        type: string
+                      endpointID:
+                        type: string
+                      endpointType:
+                        type: string
+                      every:
+                        type: string
+                      offset:
+                        type: string
+                      messageTemplate:
+                        type: string
+                      status:
+                        type: string
+                      statusRules:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            currentLevel:
+                              type: string
+                            previousLevel:
+                              type: string
+                      tagRules:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            key:
+                              type: string
+                            value:
+                              type: string
+                            operator:
+                              type: string
             tasks:
-              type: array
-              items:
-                type: object
-                properties:
-                  name:
-                    type: string
-                  cron:
-                    type: string
-                  description:
-                    type: string
-                  every:
-                    type: string
-                  offset:
-                    type: string
-                  query:
-                    type: string
-                  status:
-                    type: string
-            telegrafConfigs:
-              type: array
-              items:
-                $ref: "#/components/schemas/TelegrafRequest"
-            variables:
               type: array
               items:
                 type: object
                 properties:
                   remove:
                     type: boolean
+                  id:
+                    type: string
+                  pkgName:
+                    type: string
+                  new:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                      cron:
+                        type: string
+                      description:
+                        type: string
+                      every:
+                        type: string
+                      offset:
+                        type: string
+                      query:
+                        type: string
+                      status:
+                        type: string
+                  old:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                      cron:
+                        type: string
+                      description:
+                        type: string
+                      every:
+                        type: string
+                      offset:
+                        type: string
+                      query:
+                        type: string
+                      status:
+                        type: string
+            telegrafConfigs:
+              type: array
+              items:
+                type: object
+                properties:
+                  remove:
+                    type: boolean
+                  id:
+                    type: string
+                  pkgName:
+                    type: string
+                  new:
+                    $ref: "#/components/schemas/TelegrafRequest"
+                  old:
+                    $ref: "#/components/schemas/TelegrafRequest"
+            variables:
+              type: array
+              items:
+                type: object
+                properties:
+                  stateStatus:
+                    type: string
                   id:
                     type: string
                   pkgName:
@@ -8872,7 +9001,7 @@ components:
           description: Colors define color encoding of data into a visualization
           type: array
           items:
-            type: string
+            $ref: "#/components/schemas/DashboardColor"
     Axes:
       description: The viewport for a View's visualizations
       type: object

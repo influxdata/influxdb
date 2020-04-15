@@ -129,28 +129,6 @@ func (s *Service) CreateOrganization(ctx context.Context, o *influxdb.Organizati
 			if err != nil {
 				return err
 			}
-			err = s.store.CreateURM(ctx, tx, &influxdb.UserResourceMapping{
-				UserID:       userID,
-				UserType:     influxdb.Owner,
-				MappingType:  influxdb.UserMappingType,
-				ResourceType: influxdb.BucketsResourceType,
-				ResourceID:   tb.ID,
-			})
-			if err != nil {
-				return err
-			}
-			err = s.store.CreateURM(ctx, tx, &influxdb.UserResourceMapping{
-				UserID:       userID,
-				UserType:     influxdb.Owner,
-				MappingType:  influxdb.UserMappingType,
-				ResourceType: influxdb.BucketsResourceType,
-				ResourceID:   mb.ID,
-			})
-
-			if err != nil {
-				return err
-			}
-
 		}
 		return nil
 	})
@@ -175,7 +153,7 @@ func (s *Service) UpdateOrganization(ctx context.Context, id influxdb.ID, upd in
 	return org, nil
 }
 
-// Removes a organization by ID.
+// DeleteOrganization removes a organization by ID and its dependent resources.
 func (s *Service) DeleteOrganization(ctx context.Context, id influxdb.ID) error {
 	err := s.store.Update(ctx, func(tx kv.Tx) error {
 		// clean up the buckets for this organization

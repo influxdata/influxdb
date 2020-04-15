@@ -26,13 +26,18 @@ export interface QueryVariableProperties
   values?: {
     query?: string
     language?: string
-    results?: string[] | VariableMapObject
+    results?: string[]
   }
 }
+export interface ConstantVariableProperties
+  extends Omit<GenConstantVariableProperties, 'values'> {
+  values?: string[]
+}
+
 export type VariableProperties =
   | SystemVariableProperties
   | QueryVariableProperties
-  | GenConstantVariableProperties
+  | ConstantVariableProperties
   | GenMapVariableProperties
 
 export interface Variable

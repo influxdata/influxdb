@@ -13,7 +13,7 @@ import {
 import {selectValue} from 'src/variables/actions/thunks'
 
 // Utils
-import {getVariable} from 'src/variables/selectors'
+import {getVariable, normalizeValues} from 'src/variables/selectors'
 
 // Types
 import {AppState} from 'src/types'
@@ -29,7 +29,6 @@ interface DispatchProps {
 
 interface OwnProps {
   variableID: string
-  contextID: string
   testID?: string
   onSelect?: () => void
 }
@@ -87,9 +86,9 @@ class VariableDropdown extends PureComponent<Props> {
   }
 
   private handleSelect = (selectedValue: string) => {
-    const {contextID, variableID, onSelectValue, onSelect} = this.props
+    const {variableID, onSelectValue, onSelect} = this.props
 
-    onSelectValue(contextID, variableID, selectedValue)
+    onSelectValue(variableID, selectedValue)
 
     if (onSelect) {
       onSelect()
@@ -98,35 +97,12 @@ class VariableDropdown extends PureComponent<Props> {
 }
 
 const mstp = (state: AppState, props: OwnProps): StateProps => {
-  const {contextID, variableID} = props
+  const {variableID} = props
 
-  const variable = getVariable(state, contextID, variableID)
-  const type = variable.arguments.type
-
-  if (type === 'constant') {
-    return {
-      values: variable.arguments.values,
-      selectedValue: variable.selected[0],
-    }
-  }
-
-  if (type === 'map') {
-    return {
-      values: Object.keys(variable.arguments.values),
-      selectedValue: variable.selected[0],
-    }
-  }
-
-  if (type === 'query') {
-    return {
-      values: variable.arguments.values.results || [],
-      selectedValue: variable.selected[0],
-    }
-  }
-
+  const variable = getVariable(state, variableID)
   return {
-    values: [],
-    selectedValue: '',
+    values: normalizeValues(variable),
+    selectedValue: variable.selected[0],
   }
 }
 

@@ -12,7 +12,7 @@ import (
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/influx/config"
 	"github.com/influxdata/influxdb/v2/cmd/influx/internal"
-	"github.com/influxdata/influxdb/v2/http"
+	"github.com/influxdata/influxdb/v2/tenant"
 	"github.com/spf13/cobra"
 	input "github.com/tcnksm/go-input"
 )
@@ -45,7 +45,78 @@ func cmdSetup(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd.Flags().BoolVarP(&setupFlags.force, "force", "f", false, "skip confirmation prompt")
 	registerPrintOptions(cmd, &setupFlags.hideHeaders, &setupFlags.json)
 
+	cmd.AddCommand(
+		cmdSetupUser(opt),
+	)
 	return cmd
+}
+
+func cmdSetupUser(opt genericCLIOpts) *cobra.Command {
+	cmd := opt.newCmd("user", nil, true)
+	cmd.RunE = setupUserF
+	cmd.Short = "Setup instance with user, org, bucket"
+
+	cmd.Flags().StringVarP(&setupFlags.username, "username", "u", "", "primary username")
+	cmd.Flags().StringVarP(&setupFlags.password, "password", "p", "", "password for username")
+	cmd.Flags().StringVarP(&setupFlags.token, "token", "t", "", "token for username, else auto-generated")
+	cmd.Flags().StringVarP(&setupFlags.org, "org", "o", "", "primary organization name")
+	cmd.Flags().StringVarP(&setupFlags.bucket, "bucket", "b", "", "primary bucket name")
+	cmd.Flags().StringVarP(&setupFlags.name, "name", "n", "", "config name, only required if you already have existing configs")
+	cmd.Flags().DurationVarP(&setupFlags.retention, "retention", "r", -1, "Duration bucket will retain data. 0 is infinite. Default is 0.")
+	cmd.Flags().BoolVarP(&setupFlags.force, "force", "f", false, "skip confirmation prompt")
+	registerPrintOptions(cmd, &setupFlags.hideHeaders, &setupFlags.json)
+
+	return cmd
+}
+
+func setupUserF(cmd *cobra.Command, args []string) error {
+	if flags.local {
+		return fmt.Errorf("local flag not supported for setup command")
+	}
+
+	// check if setup is allowed
+	client, err := newHTTPClient()
+	if err != nil {
+		return err
+	}
+	s := tenant.OnboardClientService{
+		Client: client,
+	}
+
+	req, err := onboardingRequest()
+	if err != nil {
+		return fmt.Errorf("failed to retrieve data to setup instance: %v", err)
+	}
+
+	fmt.Printf("req: %+v\n", req)
+	result, err := s.OnboardUser(context.Background(), req)
+	if err != nil {
+		return fmt.Errorf("failed to setup instance: %v", err)
+	}
+	fmt.Printf("result: %+v\n", result)
+
+	w := cmd.OutOrStdout()
+	if setupFlags.json {
+		return writeJSON(w, map[string]interface{}{
+			"user":         result.User.Name,
+			"organization": result.Org.Name,
+			"bucket":       result.Bucket.Name,
+		})
+	}
+
+	tabW := internal.NewTabWriter(w)
+	defer tabW.Flush()
+
+	tabW.HideHeaders(setupFlags.hideHeaders)
+
+	tabW.WriteHeaders("User", "Organization", "Bucket")
+	tabW.Write(map[string]interface{}{
+		"User":         result.User.Name,
+		"Organization": result.Org.Name,
+		"Bucket":       result.Bucket.Name,
+	})
+
+	return nil
 }
 
 func setupF(cmd *cobra.Command, args []string) error {
@@ -54,9 +125,12 @@ func setupF(cmd *cobra.Command, args []string) error {
 	}
 
 	// check if setup is allowed
-	s := &http.SetupService{
-		Addr:               flags.Host,
-		InsecureSkipVerify: flags.skipVerify,
+	client, err := newHTTPClient()
+	if err != nil {
+		return err
+	}
+	s := tenant.OnboardClientService{
+		Client: client,
 	}
 	allowed, err := s.IsOnboarding(context.Background())
 	if err != nil {

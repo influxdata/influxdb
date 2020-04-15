@@ -789,6 +789,277 @@ mem,mem1=v,mem2=v        f=1 201`)
 	}
 }
 
+func TestEngine_MeasurementFields(t *testing.T) {
+	e, err := NewEngine(tsm1.NewConfig(), t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := e.Open(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	defer e.Close()
+
+	orgs := []struct {
+		org, bucket influxdb.ID
+	}{
+		{
+			org:    0x5020,
+			bucket: 0x5100,
+		},
+		{
+			org:    0x6000,
+			bucket: 0x6100,
+		},
+	}
+
+	// this org will require escaping the 0x20 byte
+	e.MustWritePointsString(orgs[0].org, orgs[0].bucket, `
+m00,tag00=v00,tag10=v10 i=1i 101
+m00,tag00=v00,tag10=v10 i=1i 102
+m00,tag00=v00,tag10=v10 f=1  101
+m00,tag00=v00,tag10=v10 i=1i 108
+m00,tag00=v00,tag10=v10 f=1  109
+m00,tag00=v00,tag10=v10 i=1i 109
+m01,tag00=v00,tag10=v10 b=true 101
+`)
+	e.MustWritePointsString(orgs[1].org, orgs[1].bucket, `
+m10,foo=v barF=50 101
+`)
+
+	// send some points to TSM data
+	e.MustWriteSnapshot()
+
+	// delete some data from the first bucket
+	e.MustDeleteBucketRange(orgs[0].org, orgs[0].bucket, 0, 105)
+
+	// leave some points in the cache
+	e.MustWritePointsString(orgs[0].org, orgs[0].bucket, `
+m00,tag00=v00,tag10=v10 i=2i 201
+m00,tag00=v00,tag10=v10 i=2i 202
+m00,tag00=v00,tag10=v10 f=2  201
+m00,tag00=v00,tag10=v11 i="s" 202
+m00,tag00=v00,tag10=v11 i="s" 208
+m00,tag00=v00,tag10=v11 i="s" 209
+m01,tag00=v00,tag10=v10 b=true 201
+`)
+	e.MustWritePointsString(orgs[1].org, orgs[1].bucket, `
+m10,foo=v barS="60" 501
+`)
+
+	type args struct {
+		org      int
+		m        string
+		min, max int64
+		expr     string
+	}
+
+	makeStats := func(v int) cursors.CursorStats {
+		return cursors.CursorStats{
+			ScannedValues: v,
+			ScannedBytes:  v * 8,
+		}
+	}
+
+	var tests = []struct {
+		name     string
+		args     args
+		exp      []cursors.MeasurementField
+		expStats cursors.CursorStats
+	}{
+		// ***********************
+		// * queries for the first org, which has some deleted data
+		// ***********************
+		{
+			name: "TSM and cache",
+			args: args{
+				org: 0,
+				m:   "m00",
+				min: 0,
+				max: 300,
+			},
+			exp:      []cursors.MeasurementField{{Key: "i", Type: cursors.String}, {Key: "f", Type: cursors.Float}},
+			expStats: makeStats(12),
+		},
+		{
+			name: "m00 only TSM",
+			args: args{
+				org: 0,
+				m:   "m00",
+				min: 0,
+				max: 199,
+			},
+			exp:      []cursors.MeasurementField{{Key: "i", Type: cursors.Integer}, {Key: "f", Type: cursors.Float}},
+			expStats: makeStats(12),
+		},
+		{
+			name: "m01 all time",
+			args: args{
+				org: 0,
+				m:   "m01",
+				min: 0,
+				max: 1000,
+			},
+			exp:      []cursors.MeasurementField{{Key: "b", Type: cursors.Boolean}},
+			expStats: makeStats(1),
+		},
+		{
+			name: "m10 only TSM",
+			args: args{
+				org: 1,
+				m:   "m10",
+				min: 0,
+				max: 199,
+			},
+			exp:      []cursors.MeasurementField{{Key: "barF", Type: cursors.Float}},
+			expStats: makeStats(1),
+		},
+		{
+			name: "only cache",
+			args: args{
+				org: 0,
+				m:   "m00",
+				min: 200,
+				max: 299,
+			},
+			exp:      []cursors.MeasurementField{{Key: "i", Type: cursors.String}, {Key: "f", Type: cursors.Float}},
+			expStats: makeStats(6),
+		},
+		{
+			name: "one timestamp TSM/data",
+			args: args{
+				org: 0,
+				m:   "m00",
+				min: 109,
+				max: 109,
+			},
+			exp:      []cursors.MeasurementField{{Key: "i", Type: cursors.Integer}, {Key: "f", Type: cursors.Float}},
+			expStats: makeStats(6),
+		},
+		{
+			name: "one timestamp cache/data",
+			args: args{
+				org: 0,
+				m:   "m00",
+				min: 201,
+				max: 201,
+			},
+			exp:      []cursors.MeasurementField{{Key: "i", Type: cursors.Integer}, {Key: "f", Type: cursors.Float}},
+			expStats: makeStats(6),
+		},
+		{
+			name: "one timestamp change type cache/data",
+			args: args{
+				org: 0,
+				m:   "m00",
+				min: 202,
+				max: 202,
+			},
+			exp:      []cursors.MeasurementField{{Key: "i", Type: cursors.String}},
+			expStats: makeStats(6),
+		},
+		{
+			name: "one timestamp TSM/nodata",
+			args: args{
+				org: 0,
+				m:   "m00",
+				min: 103,
+				max: 103,
+			},
+			exp:      nil,
+			expStats: makeStats(12),
+		},
+		{
+			name: "one timestamp cache/nodata",
+			args: args{
+				org: 0,
+				m:   "m00",
+				min: 203,
+				max: 203,
+			},
+			exp:      nil,
+			expStats: makeStats(6),
+		},
+
+		// queries with predicates
+		{
+			name: "predicate/v10",
+			args: args{
+				org:  0,
+				m:    "m00",
+				min:  0,
+				max:  300,
+				expr: `tag10 = 'v10'`,
+			},
+			exp:      []cursors.MeasurementField{{Key: "i", Type: cursors.Integer}, {Key: "f", Type: cursors.Float}},
+			expStats: makeStats(3),
+		},
+		{
+			name: "predicate/v11",
+			args: args{
+				org:  0,
+				m:    "m00",
+				min:  0,
+				max:  300,
+				expr: `tag10 = 'v11'`,
+			},
+			exp:      []cursors.MeasurementField{{Key: "i", Type: cursors.String}},
+			expStats: makeStats(3),
+		},
+
+		// ***********************
+		// * queries for the second org, which has no deleted data
+		// ***********************
+		{
+			name: "all data",
+			args: args{
+				org: 1,
+				m:   "m10",
+				min: 0,
+				max: 1000,
+			},
+			exp:      []cursors.MeasurementField{{Key: "barF", Type: cursors.Float}, {Key: "barS", Type: cursors.String}},
+			expStats: makeStats(1),
+		},
+
+		// ***********************
+		// * other scenarios
+		// ***********************
+		{
+			// ensure StringIterator is never nil
+			name: "predicate/no candidate series",
+			args: args{
+				org:  1,
+				m:    "m10",
+				min:  0,
+				max:  1000,
+				expr: `foo = 'nonexistent'`,
+			},
+			exp:      nil,
+			expStats: makeStats(0),
+		},
+	}
+	for _, tc := range tests {
+		t.Run(fmt.Sprintf("org%d/%s", tc.args.org, tc.name), func(t *testing.T) {
+			a := tc.args
+			var expr influxql.Expr
+			if len(a.expr) > 0 {
+				expr = influxql.MustParseExpr(a.expr)
+			}
+
+			iter, err := e.MeasurementFields(context.Background(), orgs[a.org].org, orgs[a.org].bucket, a.m, a.min, a.max, expr)
+			assert.NoError(t, err)
+
+			if got := cursors.MeasurementFieldsIteratorFlatMap(iter); !assert.ElementsMatch(t, tc.exp, got) {
+				return
+			}
+
+			if got := iter.Stats(); !assert.Equal(t, tc.expStats, got) {
+				return
+			}
+		})
+	}
+}
+
 // Verifies AddMeasurementToExpr amends the given influxql.Expr
 // with a predicate to restrict results to a single measurement
 func TestAddMeasurementToExpr(t *testing.T) {

@@ -108,6 +108,8 @@ func (s *Service) FindBuckets(ctx context.Context, filter influxdb.BucketFilter,
 		return nil, 0, err
 	}
 
+	// NOTE: this is a remnant of the old system.
+	// There are org that do not have system buckets stored, but still need to be displayed.
 	needsSystemBuckets := true
 	for _, b := range buckets {
 		if b.Type == influxdb.BucketTypeSystem {
@@ -154,12 +156,7 @@ func (s *Service) CreateBucket(ctx context.Context, b *influxdb.Bucket) error {
 			return err
 		}
 
-		err := s.store.CreateBucket(ctx, tx, b)
-		if err != nil {
-			return err
-		}
-
-		return s.addOrgRelationToResource(ctx, tx, b.OrgID, b.ID, influxdb.BucketsResourceType)
+		return s.store.CreateBucket(ctx, tx, b)
 	})
 }
 

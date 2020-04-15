@@ -2,9 +2,10 @@ package tenant
 
 import (
 	"context"
+
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/metric"
-	"github.com/influxdata/influxdb/v2/kit/prom"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 type BucketMetrics struct {
@@ -17,7 +18,7 @@ type BucketMetrics struct {
 var _ influxdb.BucketService = (*BucketMetrics)(nil)
 
 // NewBucketMetrics returns a metrics service middleware for the Bucket Service.
-func NewBucketMetrics(reg *prom.Registry, s influxdb.BucketService, opts ...MetricsOption) *BucketMetrics {
+func NewBucketMetrics(reg prometheus.Registerer, s influxdb.BucketService, opts ...MetricsOption) *BucketMetrics {
 	o := applyOpts(opts...)
 	return &BucketMetrics{
 		rec:           metric.New(reg, o.applySuffix("bucket")),

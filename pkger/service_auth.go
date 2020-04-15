@@ -44,6 +44,6 @@ func (s *authMW) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg
 	return s.next.DryRun(ctx, orgID, userID, pkg, opts...)
 }
 
-func (s *authMW) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (Summary, error) {
+func (s *authMW) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (Summary, Diff, error) {
 	return s.next.Apply(ctx, orgID, userID, pkg, opts...)
 }

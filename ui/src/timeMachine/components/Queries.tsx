@@ -124,18 +124,15 @@ class TimeMachineQueries extends PureComponent<Props> {
 }
 
 const mstp = (state: AppState) => {
-  //TODO: replace with activeContext selector
-  const activeTimeMachine = getActiveTimeMachine(state)
-  const contextID =
-    activeTimeMachine.contextID || state.timeMachines.activeTimeMachineID
-  const timeRange = getTimeRange(state, contextID)
+  const timeRange = getTimeRange(state)
+  const {autoRefresh} = getActiveTimeMachine(state)
 
   const activeQuery = getActiveQuery(state)
 
   return {
     timeRange,
     activeQuery,
-    autoRefresh: activeTimeMachine.autoRefresh,
+    autoRefresh,
     isInCheckOverlay: getIsInCheckOverlay(state),
   }
 }

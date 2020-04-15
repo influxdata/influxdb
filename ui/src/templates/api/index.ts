@@ -105,6 +105,7 @@ export const createDashboardFromTemplate = async (
     }
   } catch (error) {
     console.error(error)
+    throw new Error(error.message)
   }
 }
 

@@ -25,8 +25,8 @@ const (
 	// BlockUnsigned designates a block encodes uint64 values.
 	BlockUnsigned = byte(4)
 
-	// blockUndefined represents an undefined block type value.
-	blockUndefined = BlockUnsigned + 1
+	// BlockUndefined represents an undefined block type value.
+	BlockUndefined = BlockUnsigned + 1
 
 	// encodedBlockHeaderSize is the size of the header for an encoded block.  There is one
 	// byte encoding the type of the block.
@@ -160,6 +160,28 @@ func (a Values) InfluxQLType() (influxql.DataType, error) {
 	}
 
 	return influxql.Unknown, fmt.Errorf("unsupported value type %T", a[0])
+}
+
+// BlockType returns the TSM block type the values map to.
+func (a Values) BlockType() byte {
+	if len(a) == 0 {
+		return BlockUndefined
+	}
+
+	switch a[0].(type) {
+	case FloatValue:
+		return BlockFloat64
+	case IntegerValue:
+		return BlockInteger
+	case UnsignedValue:
+		return BlockUnsigned
+	case BooleanValue:
+		return BlockBoolean
+	case StringValue:
+		return BlockString
+	}
+
+	return BlockUndefined
 }
 
 // BlockType returns the type of value encoded in a block or an error

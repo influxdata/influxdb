@@ -112,7 +112,7 @@ func TestNotificationRuleStore_FindNotificationRuleByID(t *testing.T) {
 			s := authorizer.NewNotificationRuleStore(tt.fields.NotificationRuleStore, mock.NewUserResourceMappingService(), mock.NewOrganizationService())
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			_, err := s.FindNotificationRuleByID(ctx, tt.args.id)
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
@@ -258,7 +258,7 @@ func TestNotificationRuleStore_FindNotificationRules(t *testing.T) {
 			s := authorizer.NewNotificationRuleStore(tt.fields.NotificationRuleStore, mock.NewUserResourceMappingService(), mock.NewOrganizationService())
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			ts, _, err := s.FindNotificationRules(ctx, influxdb.NotificationRuleFilter{})
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
@@ -381,7 +381,7 @@ func TestNotificationRuleStore_UpdateNotificationRule(t *testing.T) {
 			s := authorizer.NewNotificationRuleStore(tt.fields.NotificationRuleStore, mock.NewUserResourceMappingService(), mock.NewOrganizationService())
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{tt.args.permissions})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			nrc := influxdb.NotificationRuleCreate{
 				NotificationRule: &rule.Slack{},
@@ -505,7 +505,7 @@ func TestNotificationRuleStore_PatchNotificationRule(t *testing.T) {
 			s := authorizer.NewNotificationRuleStore(tt.fields.NotificationRuleStore, mock.NewUserResourceMappingService(), mock.NewOrganizationService())
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{tt.args.permissions})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			_, err := s.PatchNotificationRule(ctx, tt.args.id, influxdb.NotificationRuleUpdate{})
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
@@ -614,7 +614,7 @@ func TestNotificationRuleStore_DeleteNotificationRule(t *testing.T) {
 			s := authorizer.NewNotificationRuleStore(tt.fields.NotificationRuleStore, mock.NewUserResourceMappingService(), mock.NewOrganizationService())
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{tt.args.permissions})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			err := s.DeleteNotificationRule(ctx, tt.args.id)
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
@@ -696,7 +696,7 @@ func TestNotificationRuleStore_CreateNotificationRule(t *testing.T) {
 			s := authorizer.NewNotificationRuleStore(tt.fields.NotificationRuleStore, mock.NewUserResourceMappingService(), mock.NewOrganizationService())
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			nr := &rule.Slack{
 				Base: rule.Base{

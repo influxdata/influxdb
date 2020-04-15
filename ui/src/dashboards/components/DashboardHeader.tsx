@@ -207,7 +207,7 @@ const mstp = (state: AppState): StateProps => {
     state.currentDashboard.id
   )
 
-  const timeRange = getTimeRange(state, state.currentDashboard.id)
+  const timeRange = getTimeRange(state)
   const org = getOrg(state)
 
   return {
