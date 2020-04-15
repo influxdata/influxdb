@@ -5,6 +5,7 @@
 ### Bug Fixes
 
 1. [17618](https://github.com/influxdata/influxdb/pull/17618): Add index for URM by user ID to improve lookup performance
+1. [17751](https://github.com/influxdata/influxdb/pull/17751): Existing session expiration time is respected on session renewal
 
 ### UI Improvements
 
