@@ -44,11 +44,12 @@ snafu = "0.6.2"
 either = "1.5.3"
 smallvec = "1.2.0"
 
+rand = "0.7.2"
+
 [dev-dependencies]
 criterion = "0.3"
 reqwest = { version = "0.10.1", features = ["blocking"] }
 assert_cmd = "1.0.0"
-rand = "0.7.2"
 tempfile = "3.1.0"
 
 [[bench]]
