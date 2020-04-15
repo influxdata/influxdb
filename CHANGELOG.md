@@ -32,6 +32,7 @@
 1. [17694](https://github.com/influxdata/influxdb/pull/17694): Fixed typos in the Flux functions list
 1. [17701](https://github.com/influxdata/influxdb/pull/17701): Allow mouse cursor inside Script Editor for Safari
 1. [17609](https://github.com/influxdata/influxdb/pull/17609): Fixed an issue where Variables could not use other Variables
+1. [17754](https://github.com/influxdata/influxdb/pull/17754): Adds error messaging for Cells in Dashboard View
 
 ### UI Improvements
 
