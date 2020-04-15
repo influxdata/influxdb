@@ -585,12 +585,8 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user meta.U
 	}
 
 	if h.Config.AuthEnabled {
-		if user != nil && user.AuthorizeUnrestricted() {
-			opts.Authorizer = query.OpenAuthorizer
-		} else {
-			// The current user determines the authorized actions.
-			opts.Authorizer = user
-		}
+		// The current user determines the authorized actions.
+		opts.Authorizer = user
 	} else {
 		// Auth is disabled, so allow everything.
 		opts.Authorizer = query.OpenAuthorizer
