@@ -362,14 +362,14 @@ func RenewSession(
 					ExpiresAt: time.Date(2031, 9, 26, 0, 0, 0, 0, time.UTC),
 				},
 				key:      "abc123xyz",
-				expireAt: time.Date(2030, 9, 26, 0, 0, 10, 0, time.UTC),
+				expireAt: time.Date(2030, 9, 26, 0, 0, 0, 0, time.UTC),
 			},
 			wants: wants{
 				session: &platform.Session{
 					ID:        MustIDBase16(sessionOneID),
 					UserID:    MustIDBase16(sessionTwoID),
 					Key:       "abc123xyz",
-					ExpiresAt: time.Date(2031, 9, 26, 0, 0, 10, 0, time.UTC),
+					ExpiresAt: time.Date(2031, 9, 26, 0, 0, 0, 0, time.UTC),
 				},
 			},
 		},
