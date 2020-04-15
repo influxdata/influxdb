@@ -7360,6 +7360,8 @@ components:
                     type: "string"
                   orgID:
                     type: "string"
+                  pkgName:
+                    type: string
                   name:
                     type: "string"
                   description:
@@ -7377,11 +7379,17 @@ components:
               items:
                 type: object
                 properties:
+                  status:
+                    type: string
+                  resourcePkgName:
+                    type: string
                   resourceName:
                     type: string
                   resourceID:
                     type: string
                   resourceType:
+                    type: string
+                  labelPkgName:
                     type: string
                   labelName:
                     type: string
@@ -7413,6 +7421,8 @@ components:
               items:
                 type: object
                 properties:
+                  pkgName:
+                    type: string
                   name:
                     type: string
                   description:
@@ -7460,6 +7470,8 @@ components:
               items:
                 type: object
                 properties:
+                  pkgName:
+                    type: string
                   id:
                     type: string
                   name:
@@ -7483,6 +7495,8 @@ components:
                   - $ref: "#/components/schemas/TelegrafRequest"
                   - type: object
                     properties:
+                      pkgName:
+                        type: string
                       labelAssociations:
                         type: array
                         items:
@@ -7516,8 +7530,8 @@ components:
               items:
                 type: object
                 properties:
-                  remove:
-                    type: boolean
+                  stateStatus:
+                    type: string
                   id:
                     type: string
                   pkgName:
@@ -7545,8 +7559,8 @@ components:
               items:
                 type: object
                 properties:
-                  remove:
-                    type: boolean
+                  stateStatus:
+                    type: string
                   id:
                     type: string
                   pkgName:
@@ -7593,8 +7607,8 @@ components:
               items:
                 type: object
                 properties:
-                  remove:
-                    type: boolean
+                  stateStatus:
+                    type: string
                   id:
                     type: string
                   pkgName:
@@ -7622,15 +7636,19 @@ components:
               items:
                 type: object
                 properties:
-                  isNew:
-                    type: boolean
+                  status:
+                    type: string
                   resourceType:
                     type: string
                   resourceID:
                     type: string
+                  resourcePkgName:
+                    type: string
                   resourceName:
                     type: string
                   labelID:
+                    type: string
+                  labelPkgName:
                     type: string
                   labelName:
                     type: string
@@ -7807,8 +7825,8 @@ components:
               items:
                 type: object
                 properties:
-                  remove:
-                    type: boolean
+                  stateStatus:
+                    type: string
                   id:
                     type: string
                   pkgName:

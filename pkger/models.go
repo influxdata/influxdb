@@ -8,7 +8,6 @@ import (
 	"reflect"
 	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -138,9 +137,10 @@ func (s SafeID) String() string {
 // DiffIdentifier are the identifying fields for any given resource. Each resource
 // dictates if the resource is new, to be removed, or will remain.
 type DiffIdentifier struct {
-	ID      SafeID `json:"id"`
-	Remove  bool   `json:"bool"`
-	PkgName string `json:"pkgName"`
+	ID          SafeID      `json:"id"`
+	Remove      bool        `json:"bool"`
+	StateStatus StateStatus `json:"stateStatus"`
+	PkgName     string      `json:"pkgName"`
 }
 
 // IsNew indicates the resource is new to the platform.
@@ -193,7 +193,7 @@ type (
 		DiffIdentifier
 
 		New DiffBucketValues  `json:"new"`
-		Old *DiffBucketValues `json:"old,omitempty"` // using omitempty here to signal there was no prev state with a nil
+		Old *DiffBucketValues `json:"old"`
 	}
 
 	// DiffBucketValues are the varying values for a bucket.
@@ -203,32 +203,6 @@ type (
 		RetentionRules retentionRules `json:"retentionRules"`
 	}
 )
-
-func newDiffBucket(b *bucket, i *influxdb.Bucket) DiffBucket {
-	diff := DiffBucket{
-		DiffIdentifier: DiffIdentifier{
-			ID:      SafeID(b.ID()),
-			Remove:  b.shouldRemove,
-			PkgName: b.PkgName(),
-		},
-		New: DiffBucketValues{
-			Name:           b.Name(),
-			Description:    b.Description,
-			RetentionRules: b.RetentionRules,
-		},
-	}
-	if i != nil {
-		diff.ID = SafeID(i.ID)
-		diff.Old = &DiffBucketValues{
-			Name:        i.Name,
-			Description: i.Description,
-		}
-		if i.RetentionPeriod > 0 {
-			diff.Old.RetentionRules = retentionRules{newRetentionRule(i.RetentionPeriod)}
-		}
-	}
-	return diff
-}
 
 func (d DiffBucket) hasConflict() bool {
 	return !d.IsNew() && d.Old != nil && !reflect.DeepEqual(*d.Old, d.New)
@@ -262,26 +236,6 @@ type DiffCheck struct {
 
 	New DiffCheckValues  `json:"new"`
 	Old *DiffCheckValues `json:"old"`
-}
-
-func newDiffCheck(c *check, iCheck influxdb.Check) DiffCheck {
-	diff := DiffCheck{
-		DiffIdentifier: DiffIdentifier{
-			ID:      SafeID(c.ID()),
-			Remove:  c.shouldRemove,
-			PkgName: c.PkgName(),
-		},
-		New: DiffCheckValues{
-			Check: c.summarize().Check,
-		},
-	}
-	if iCheck != nil {
-		diff.ID = SafeID(iCheck.GetID())
-		diff.Old = &DiffCheckValues{
-			Check: iCheck,
-		}
-	}
-	return diff
 }
 
 type (
@@ -363,7 +317,7 @@ type (
 		DiffIdentifier
 
 		New DiffLabelValues  `json:"new"`
-		Old *DiffLabelValues `json:"old,omitempty"` // using omitempty here to signal there was no prev state with a nil
+		Old *DiffLabelValues `json:"old"`
 	}
 
 	// DiffLabelValues are the varying values for a label.
@@ -374,47 +328,38 @@ type (
 	}
 )
 
-func newDiffLabel(l *label, i *influxdb.Label) DiffLabel {
-	diff := DiffLabel{
-		DiffIdentifier: DiffIdentifier{
-			ID:      SafeID(l.ID()),
-			Remove:  l.shouldRemove,
-			PkgName: l.PkgName(),
-		},
-		New: DiffLabelValues{
-			Name:        l.Name(),
-			Color:       l.Color,
-			Description: l.Description,
-		},
-	}
-	if i != nil {
-		diff.ID = SafeID(i.ID)
-		diff.Old = &DiffLabelValues{
-			Name:        i.Name,
-			Color:       i.Properties["color"],
-			Description: i.Properties["description"],
-		}
-	}
-	return diff
-}
-
 func (d DiffLabel) hasConflict() bool {
 	return !d.IsNew() && d.Old != nil && *d.Old != d.New
 }
+
+// StateStatus indicates the status of a diff or summary resource
+type StateStatus string
+
+const (
+	StateStatusExists StateStatus = "exists"
+	StateStatusNew    StateStatus = "new"
+	StateStatusRemove StateStatus = "remove"
+)
 
 // DiffLabelMapping is a diff of an individual label mapping. A
 // single resource may have multiple mappings to multiple labels.
 // A label can have many mappings to other resources.
 type DiffLabelMapping struct {
-	IsNew bool `json:"isNew"`
+	StateStatus StateStatus `json:"stateStatus"`
 
-	ResType influxdb.ResourceType `json:"resourceType"`
-	ResID   SafeID                `json:"resourceID"`
-	ResName string                `json:"resourceName"`
+	ResType    influxdb.ResourceType `json:"resourceType"`
+	ResID      SafeID                `json:"resourceID"`
+	ResName    string                `json:"resourceName"`
+	ResPkgName string                `json:"resourcePkgName"`
 
-	LabelID   SafeID `json:"labelID"`
-	LabelName string `json:"labelName"`
+	LabelID      SafeID `json:"labelID"`
+	LabelName    string `json:"labelName"`
+	LabelPkgName string `json:"labelPkgName"`
 }
+
+//func (d DiffLabelMapping) IsNew() bool {
+//	return d.StateStatus == StateStatusNew
+//}
 
 // DiffNotificationEndpointValues are the varying values for a notification endpoint.
 type DiffNotificationEndpointValues struct {
@@ -658,31 +603,6 @@ type (
 	}
 )
 
-func newDiffVariable(v *variable, iv *influxdb.Variable) DiffVariable {
-	diff := DiffVariable{
-		DiffIdentifier: DiffIdentifier{
-			ID:      SafeID(v.ID()),
-			Remove:  v.shouldRemove,
-			PkgName: v.PkgName(),
-		},
-		New: DiffVariableValues{
-			Name:        v.Name(),
-			Description: v.Description,
-			Args:        v.influxVarArgs(),
-		},
-	}
-	if iv != nil {
-		diff.ID = SafeID(iv.ID)
-		diff.Old = &DiffVariableValues{
-			Name:        iv.Name,
-			Description: iv.Description,
-			Args:        iv.Arguments,
-		}
-	}
-
-	return diff
-}
-
 func (d DiffVariable) hasConflict() bool {
 	return !d.IsNew() && d.Old != nil && !reflect.DeepEqual(*d.Old, d.New)
 }
@@ -747,6 +667,7 @@ func (s *SummaryCheck) UnmarshalJSON(b []byte) error {
 type SummaryDashboard struct {
 	ID          SafeID         `json:"id"`
 	OrgID       SafeID         `json:"orgID"`
+	PkgName     string         `json:"pkgName"`
 	Name        string         `json:"name"`
 	Description string         `json:"description"`
 	Charts      []SummaryChart `json:"charts"`
@@ -868,6 +789,7 @@ func (s *SummaryNotificationEndpoint) UnmarshalJSON(b []byte) error {
 type (
 	SummaryNotificationRule struct {
 		ID          SafeID `json:"id"`
+		PkgName     string `json:"pkgName"`
 		Name        string `json:"name"`
 		Description string `json:"description"`
 
@@ -911,17 +833,21 @@ type SummaryLabel struct {
 
 // SummaryLabelMapping provides a summary of a label mapped with a single resource.
 type SummaryLabelMapping struct {
-	exists       bool
-	ResourceID   SafeID                `json:"resourceID"`
-	ResourceName string                `json:"resourceName"`
-	ResourceType influxdb.ResourceType `json:"resourceType"`
-	LabelName    string                `json:"labelName"`
-	LabelID      SafeID                `json:"labelID"`
+	exists          bool
+	Status          StateStatus           `json:"status,omitempty"`
+	ResourceID      SafeID                `json:"resourceID"`
+	ResourcePkgName string                `json:"resourcePkgName"`
+	ResourceName    string                `json:"resourceName"`
+	ResourceType    influxdb.ResourceType `json:"resourceType"`
+	LabelPkgName    string                `json:"labelPkgName"`
+	LabelName       string                `json:"labelName"`
+	LabelID         SafeID                `json:"labelID"`
 }
 
 // SummaryTask provides a summary of a task.
 type SummaryTask struct {
 	ID          SafeID          `json:"id"`
+	PkgName     string          `json:"pkgName"`
 	Name        string          `json:"name"`
 	Cron        string          `json:"cron"`
 	Description string          `json:"description"`
@@ -935,6 +861,7 @@ type SummaryTask struct {
 
 // SummaryTelegraf provides a summary of a pkg telegraf config.
 type SummaryTelegraf struct {
+	PkgName           string                  `json:"pkgName"`
 	TelegrafConfig    influxdb.TelegrafConfig `json:"telegrafConfig"`
 	LabelAssociations []SummaryLabel          `json:"labelAssociations"`
 }
@@ -948,368 +875,6 @@ type SummaryVariable struct {
 	Description       string                      `json:"description"`
 	Arguments         *influxdb.VariableArguments `json:"arguments"`
 	LabelAssociations []SummaryLabel              `json:"labelAssociations"`
-}
-
-type identity struct {
-	name         *references
-	displayName  *references
-	shouldRemove bool
-}
-
-func (i *identity) Name() string {
-	if displayName := i.displayName.String(); displayName != "" {
-		return displayName
-	}
-	return i.name.String()
-}
-
-func (i *identity) PkgName() string {
-	return i.name.String()
-}
-
-const (
-	fieldAPIVersion   = "apiVersion"
-	fieldAssociations = "associations"
-	fieldDescription  = "description"
-	fieldEvery        = "every"
-	fieldKey          = "key"
-	fieldKind         = "kind"
-	fieldLanguage     = "language"
-	fieldLevel        = "level"
-	fieldMin          = "min"
-	fieldMax          = "max"
-	fieldMetadata     = "metadata"
-	fieldName         = "name"
-	fieldOffset       = "offset"
-	fieldOperator     = "operator"
-	fieldPrefix       = "prefix"
-	fieldQuery        = "query"
-	fieldSuffix       = "suffix"
-	fieldSpec         = "spec"
-	fieldStatus       = "status"
-	fieldType         = "type"
-	fieldValue        = "value"
-	fieldValues       = "values"
-)
-
-const (
-	fieldBucketRetentionRules = "retentionRules"
-)
-
-const bucketNameMinLength = 2
-
-type bucket struct {
-	identity
-
-	id             influxdb.ID
-	OrgID          influxdb.ID
-	Description    string
-	RetentionRules retentionRules
-	labels         sortedLabels
-
-	// existing provides context for a resource that already
-	// exists in the platform. If a resource already exists
-	// then it will be referenced here.
-	existing *influxdb.Bucket
-}
-
-func (b *bucket) ID() influxdb.ID {
-	if b.existing != nil {
-		return b.existing.ID
-	}
-	return b.id
-}
-
-func (b *bucket) Labels() []*label {
-	return b.labels
-}
-
-func (b *bucket) ResourceType() influxdb.ResourceType {
-	return KindBucket.ResourceType()
-}
-
-func (b *bucket) Exists() bool {
-	return b.existing != nil
-}
-
-func (b *bucket) summarize() SummaryBucket {
-	return SummaryBucket{
-		ID:                SafeID(b.ID()),
-		OrgID:             SafeID(b.OrgID),
-		Name:              b.Name(),
-		PkgName:           b.PkgName(),
-		Description:       b.Description,
-		RetentionPeriod:   b.RetentionRules.RP(),
-		LabelAssociations: toSummaryLabels(b.labels...),
-	}
-}
-
-func (b *bucket) valid() []validationErr {
-	var vErrs []validationErr
-	if err, ok := isValidName(b.Name(), bucketNameMinLength); !ok {
-		vErrs = append(vErrs, err)
-	}
-	vErrs = append(vErrs, b.RetentionRules.valid()...)
-	if len(vErrs) == 0 {
-		return nil
-	}
-	return []validationErr{
-		objectValidationErr(fieldSpec, vErrs...),
-	}
-}
-
-func (b *bucket) shouldApply() bool {
-	return b.shouldRemove ||
-		b.existing == nil ||
-		b.Description != b.existing.Description ||
-		b.Name() != b.existing.Name ||
-		b.RetentionRules.RP() != b.existing.RetentionPeriod
-}
-
-type mapperBuckets []*bucket
-
-func (b mapperBuckets) Association(i int) labelAssociater {
-	return b[i]
-}
-
-func (b mapperBuckets) Len() int {
-	return len(b)
-}
-
-const (
-	retentionRuleTypeExpire = "expire"
-)
-
-type retentionRule struct {
-	Type    string `json:"type" yaml:"type"`
-	Seconds int    `json:"everySeconds" yaml:"everySeconds"`
-}
-
-func newRetentionRule(d time.Duration) retentionRule {
-	return retentionRule{
-		Type:    retentionRuleTypeExpire,
-		Seconds: int(d.Round(time.Second) / time.Second),
-	}
-}
-
-func (r retentionRule) valid() []validationErr {
-	const hour = 3600
-	var ff []validationErr
-	if r.Seconds < hour {
-		ff = append(ff, validationErr{
-			Field: fieldRetentionRulesEverySeconds,
-			Msg:   "seconds must be a minimum of " + strconv.Itoa(hour),
-		})
-	}
-	if r.Type != retentionRuleTypeExpire {
-		ff = append(ff, validationErr{
-			Field: fieldType,
-			Msg:   `type must be "expire"`,
-		})
-	}
-	return ff
-}
-
-const (
-	fieldRetentionRulesEverySeconds = "everySeconds"
-)
-
-type retentionRules []retentionRule
-
-func (r retentionRules) RP() time.Duration {
-	// TODO: this feels very odd to me, will need to follow up with
-	//  team to better understand this
-	for _, rule := range r {
-		return time.Duration(rule.Seconds) * time.Second
-	}
-	return 0
-}
-
-func (r retentionRules) valid() []validationErr {
-	var failures []validationErr
-	for i, rule := range r {
-		if ff := rule.valid(); len(ff) > 0 {
-			failures = append(failures, validationErr{
-				Field:  fieldBucketRetentionRules,
-				Index:  intPtr(i),
-				Nested: ff,
-			})
-		}
-	}
-	return failures
-}
-
-type checkKind int
-
-const (
-	checkKindDeadman checkKind = iota + 1
-	checkKindThreshold
-)
-
-const (
-	fieldCheckAllValues             = "allValues"
-	fieldCheckReportZero            = "reportZero"
-	fieldCheckStaleTime             = "staleTime"
-	fieldCheckStatusMessageTemplate = "statusMessageTemplate"
-	fieldCheckTags                  = "tags"
-	fieldCheckThresholds            = "thresholds"
-	fieldCheckTimeSince             = "timeSince"
-)
-
-const checkNameMinLength = 1
-
-type check struct {
-	identity
-
-	id            influxdb.ID
-	orgID         influxdb.ID
-	kind          checkKind
-	description   string
-	every         time.Duration
-	level         string
-	offset        time.Duration
-	query         string
-	reportZero    bool
-	staleTime     time.Duration
-	status        string
-	statusMessage string
-	tags          []struct{ k, v string }
-	timeSince     time.Duration
-	thresholds    []threshold
-
-	labels sortedLabels
-
-	existing influxdb.Check
-}
-
-func (c *check) Exists() bool {
-	return c.existing != nil
-}
-
-func (c *check) ID() influxdb.ID {
-	if c.existing != nil {
-		return c.existing.GetID()
-	}
-	return c.id
-}
-
-func (c *check) Labels() []*label {
-	return c.labels
-}
-
-func (c *check) ResourceType() influxdb.ResourceType {
-	return KindCheck.ResourceType()
-}
-
-func (c *check) Status() influxdb.Status {
-	status := influxdb.Status(c.status)
-	if status == "" {
-		status = influxdb.Active
-	}
-	return status
-}
-
-func (c *check) summarize() SummaryCheck {
-	base := icheck.Base{
-		ID:                    c.ID(),
-		OrgID:                 c.orgID,
-		Name:                  c.Name(),
-		Description:           c.description,
-		Every:                 toNotificationDuration(c.every),
-		Offset:                toNotificationDuration(c.offset),
-		StatusMessageTemplate: c.statusMessage,
-	}
-	base.Query.Text = c.query
-	for _, tag := range c.tags {
-		base.Tags = append(base.Tags, influxdb.Tag{Key: tag.k, Value: tag.v})
-	}
-
-	sum := SummaryCheck{
-		PkgName:           c.PkgName(),
-		Status:            c.Status(),
-		LabelAssociations: toSummaryLabels(c.labels...),
-	}
-	switch c.kind {
-	case checkKindThreshold:
-		sum.Check = &icheck.Threshold{
-			Base:       base,
-			Thresholds: toInfluxThresholds(c.thresholds...),
-		}
-	case checkKindDeadman:
-		sum.Check = &icheck.Deadman{
-			Base:       base,
-			Level:      notification.ParseCheckLevel(strings.ToUpper(c.level)),
-			ReportZero: c.reportZero,
-			StaleTime:  toNotificationDuration(c.staleTime),
-			TimeSince:  toNotificationDuration(c.timeSince),
-		}
-	}
-	return sum
-}
-
-func (c *check) valid() []validationErr {
-	var vErrs []validationErr
-	if err, ok := isValidName(c.Name(), checkNameMinLength); !ok {
-		vErrs = append(vErrs, err)
-	}
-	if c.every == 0 {
-		vErrs = append(vErrs, validationErr{
-			Field: fieldEvery,
-			Msg:   "duration value must be provided that is >= 5s (seconds)",
-		})
-	}
-	if c.query == "" {
-		vErrs = append(vErrs, validationErr{
-			Field: fieldQuery,
-			Msg:   "must provide a non zero value",
-		})
-	}
-	if c.statusMessage == "" {
-		vErrs = append(vErrs, validationErr{
-			Field: fieldCheckStatusMessageTemplate,
-			Msg:   `must provide a template; ex. "Check: ${ r._check_name } is: ${ r._level }"`,
-		})
-	}
-	if status := c.Status(); status != influxdb.Active && status != influxdb.Inactive {
-		vErrs = append(vErrs, validationErr{
-			Field: fieldStatus,
-			Msg:   "must be 1 of [active, inactive]",
-		})
-	}
-
-	switch c.kind {
-	case checkKindThreshold:
-		if len(c.thresholds) == 0 {
-			vErrs = append(vErrs, validationErr{
-				Field: fieldCheckThresholds,
-				Msg:   "must provide at least 1 threshold entry",
-			})
-		}
-		for i, th := range c.thresholds {
-			for _, fail := range th.valid() {
-				fail.Index = intPtr(i)
-				vErrs = append(vErrs, fail)
-			}
-		}
-	}
-
-	if len(vErrs) > 0 {
-		return []validationErr{
-			objectValidationErr(fieldSpec, vErrs...),
-		}
-	}
-
-	return nil
-}
-
-type mapperChecks []*check
-
-func (c mapperChecks) Association(i int) labelAssociater {
-	return c[i]
-}
-
-func (c mapperChecks) Len() int {
-	return len(c)
 }
 
 type thresholdType string
@@ -1387,180 +952,6 @@ func toInfluxThresholds(thresholds ...threshold) []icheck.ThresholdConfig {
 		}
 	}
 	return iThresh
-}
-
-type assocMapKey struct {
-	resType influxdb.ResourceType
-	name    string
-}
-
-type assocMapVal struct {
-	exists bool
-	v      interface{}
-}
-
-func (l assocMapVal) ID() influxdb.ID {
-	if t, ok := l.v.(labelAssociater); ok {
-		return t.ID()
-	}
-	return 0
-}
-
-type associationMapping struct {
-	mappings map[assocMapKey][]assocMapVal
-}
-
-func (l *associationMapping) setMapping(v interface {
-	ResourceType() influxdb.ResourceType
-	Name() string
-}, exists bool) {
-	if l == nil {
-		return
-	}
-	if l.mappings == nil {
-		l.mappings = make(map[assocMapKey][]assocMapVal)
-	}
-
-	k := assocMapKey{
-		resType: v.ResourceType(),
-		name:    v.Name(),
-	}
-	val := assocMapVal{
-		exists: exists,
-		v:      v,
-	}
-	existing, ok := l.mappings[k]
-	if !ok {
-		l.mappings[k] = []assocMapVal{val}
-		return
-	}
-	for i, ex := range existing {
-		if ex.v == v {
-			existing[i].exists = exists
-			return
-		}
-	}
-	l.mappings[k] = append(l.mappings[k], val)
-}
-
-const (
-	fieldLabelColor = "color"
-)
-
-const labelNameMinLength = 2
-
-type label struct {
-	identity
-
-	id          influxdb.ID
-	OrgID       influxdb.ID
-	Color       string
-	Description string
-	associationMapping
-
-	// exists provides context for a resource that already
-	// exists in the platform. If a resource already exists(exists=true)
-	// then the ID should be populated.
-	existing *influxdb.Label
-}
-
-func (l *label) ID() influxdb.ID {
-	if l.existing != nil {
-		return l.existing.ID
-	}
-	return l.id
-}
-
-func (l *label) shouldApply() bool {
-	return l.existing == nil ||
-		l.Description != l.existing.Properties["description"] ||
-		l.Name() != l.existing.Name ||
-		l.Color != l.existing.Properties["color"]
-}
-
-func (l *label) summarize() SummaryLabel {
-	return SummaryLabel{
-		ID:      SafeID(l.ID()),
-		OrgID:   SafeID(l.OrgID),
-		PkgName: l.PkgName(),
-		Name:    l.Name(),
-		Properties: struct {
-			Color       string `json:"color"`
-			Description string `json:"description"`
-		}{
-			Color:       l.Color,
-			Description: l.Description,
-		},
-	}
-}
-
-func (l *label) mappingSummary() []SummaryLabelMapping {
-	var mappings []SummaryLabelMapping
-	for resource, vals := range l.mappings {
-		for _, v := range vals {
-			mappings = append(mappings, SummaryLabelMapping{
-				exists:       v.exists,
-				ResourceID:   SafeID(v.ID()),
-				ResourceName: resource.name,
-				ResourceType: resource.resType,
-				LabelID:      SafeID(l.ID()),
-				LabelName:    l.Name(),
-			})
-		}
-	}
-
-	return mappings
-}
-
-func (l *label) properties() map[string]string {
-	return map[string]string{
-		"color":       l.Color,
-		"description": l.Description,
-	}
-}
-
-func (l *label) toInfluxLabel() influxdb.Label {
-	return influxdb.Label{
-		ID:         l.ID(),
-		OrgID:      l.OrgID,
-		Name:       l.Name(),
-		Properties: l.properties(),
-	}
-}
-
-func (l *label) valid() []validationErr {
-	var vErrs []validationErr
-	if err, ok := isValidName(l.Name(), labelNameMinLength); !ok {
-		vErrs = append(vErrs, err)
-	}
-	if len(vErrs) == 0 {
-		return nil
-	}
-	return []validationErr{
-		objectValidationErr(fieldSpec, vErrs...),
-	}
-}
-
-func toSummaryLabels(labels ...*label) []SummaryLabel {
-	iLabels := make([]SummaryLabel, 0, len(labels))
-	for _, l := range labels {
-		iLabels = append(iLabels, l.summarize())
-	}
-	return iLabels
-}
-
-type sortedLabels []*label
-
-func (s sortedLabels) Len() int {
-	return len(s)
-}
-
-func (s sortedLabels) Less(i, j int) bool {
-	return s[i].Name() < s[j].Name()
-}
-
-func (s sortedLabels) Swap(i, j int) {
-	s[i], s[j] = s[j], s[i]
 }
 
 type notificationKind int
@@ -1858,6 +1249,7 @@ func (r *notificationRule) Status() influxdb.Status {
 func (r *notificationRule) summarize() SummaryNotificationRule {
 	return SummaryNotificationRule{
 		ID:                SafeID(r.ID()),
+		PkgName:           r.PkgName(),
 		Name:              r.Name(),
 		EndpointID:        SafeID(r.endpointID),
 		EndpointName:      r.endpointName.String(),
@@ -2133,6 +1525,7 @@ func (t *task) flux() string {
 func (t *task) summarize() SummaryTask {
 	return SummaryTask{
 		ID:          SafeID(t.ID()),
+		PkgName:     t.PkgName(),
 		Name:        t.Name(),
 		Cron:        t.cron,
 		Description: t.description,
@@ -2230,6 +1623,7 @@ func (t *telegraf) summarize() SummaryTelegraf {
 	cfg := t.config
 	cfg.Name = t.Name()
 	return SummaryTelegraf{
+		PkgName:           t.PkgName(),
 		TelegrafConfig:    cfg,
 		LabelAssociations: toSummaryLabels(t.labels...),
 	}
@@ -2260,142 +1654,6 @@ func (m mapperTelegrafs) Association(i int) labelAssociater {
 }
 
 func (m mapperTelegrafs) Len() int {
-	return len(m)
-}
-
-const (
-	fieldArgTypeConstant = "constant"
-	fieldArgTypeMap      = "map"
-	fieldArgTypeQuery    = "query"
-)
-
-type variable struct {
-	identity
-
-	id          influxdb.ID
-	OrgID       influxdb.ID
-	Description string
-	Type        string
-	Query       string
-	Language    string
-	ConstValues []string
-	MapValues   map[string]string
-
-	labels sortedLabels
-
-	existing *influxdb.Variable
-}
-
-func (v *variable) ID() influxdb.ID {
-	if v.existing != nil {
-		return v.existing.ID
-	}
-	return v.id
-}
-
-func (v *variable) Exists() bool {
-	return v.existing != nil
-}
-
-func (v *variable) Labels() []*label {
-	return v.labels
-}
-
-func (v *variable) ResourceType() influxdb.ResourceType {
-	return KindVariable.ResourceType()
-}
-
-func (v *variable) shouldApply() bool {
-	return v.existing == nil ||
-		v.existing.Description != v.Description ||
-		v.existing.Arguments == nil ||
-		!reflect.DeepEqual(v.existing.Arguments, v.influxVarArgs())
-}
-
-func (v *variable) summarize() SummaryVariable {
-	return SummaryVariable{
-		PkgName:           v.PkgName(),
-		ID:                SafeID(v.ID()),
-		OrgID:             SafeID(v.OrgID),
-		Name:              v.Name(),
-		Description:       v.Description,
-		Arguments:         v.influxVarArgs(),
-		LabelAssociations: toSummaryLabels(v.labels...),
-	}
-}
-
-func (v *variable) influxVarArgs() *influxdb.VariableArguments {
-	// this zero value check is for situations where we want to marshal/unmarshal
-	// a variable and not have the invalid args blow up during unmarshaling. When
-	// that validation is decoupled from the unmarshaling, we can clean this up.
-	if v.Type == "" {
-		return nil
-	}
-
-	args := &influxdb.VariableArguments{
-		Type: v.Type,
-	}
-	switch args.Type {
-	case "query":
-		args.Values = influxdb.VariableQueryValues{
-			Query:    v.Query,
-			Language: v.Language,
-		}
-	case "constant":
-		args.Values = influxdb.VariableConstantValues(v.ConstValues)
-	case "map":
-		args.Values = influxdb.VariableMapValues(v.MapValues)
-	}
-	return args
-}
-
-func (v *variable) valid() []validationErr {
-	var failures []validationErr
-	switch v.Type {
-	case "map":
-		if len(v.MapValues) == 0 {
-			failures = append(failures, validationErr{
-				Field: fieldValues,
-				Msg:   "map variable must have at least 1 key/val pair",
-			})
-		}
-	case "constant":
-		if len(v.ConstValues) == 0 {
-			failures = append(failures, validationErr{
-				Field: fieldValues,
-				Msg:   "constant variable must have a least 1 value provided",
-			})
-		}
-	case "query":
-		if v.Query == "" {
-			failures = append(failures, validationErr{
-				Field: fieldQuery,
-				Msg:   "query variable must provide a query string",
-			})
-		}
-		if v.Language != "influxql" && v.Language != "flux" {
-			failures = append(failures, validationErr{
-				Field: fieldLanguage,
-				Msg:   fmt.Sprintf(`query variable language must be either "influxql" or "flux"; got %q`, v.Language),
-			})
-		}
-	}
-	if len(failures) > 0 {
-		return []validationErr{
-			objectValidationErr(fieldSpec, failures...),
-		}
-	}
-
-	return nil
-}
-
-type mapperVariables []*variable
-
-func (m mapperVariables) Association(i int) labelAssociater {
-	return m[i]
-}
-
-func (m mapperVariables) Len() int {
 	return len(m)
 }
 
@@ -2441,6 +1699,7 @@ func (d *dashboard) summarize() SummaryDashboard {
 	iDash := SummaryDashboard{
 		ID:                SafeID(d.ID()),
 		OrgID:             SafeID(d.OrgID),
+		PkgName:           d.PkgName(),
 		Name:              d.Name(),
 		Description:       d.Description,
 		LabelAssociations: toSummaryLabels(d.labels...),

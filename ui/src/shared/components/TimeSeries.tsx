@@ -181,6 +181,7 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
 
     try {
       const startTime = Date.now()
+      let errorMessage: string = ''
 
       // Cancel any existing queries
       this.pendingResults.forEach(({cancel}) => cancel())
@@ -214,10 +215,12 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
 
       for (const result of results) {
         if (result.type === 'UNKNOWN_ERROR') {
+          errorMessage = result.message
           throw new Error(result.message)
         }
 
         if (result.type === 'RATE_LIMIT_ERROR') {
+          errorMessage = result.message
           notify(rateLimitReached(result.retryAfter))
 
           throw new Error(result.message)
@@ -234,6 +237,7 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
 
       this.setState({
         giraffeResult,
+        errorMessage,
         files,
         duration,
         loading: RemoteDataState.Done,

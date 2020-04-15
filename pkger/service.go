@@ -52,7 +52,7 @@ type SVC interface {
 	InitStack(ctx context.Context, userID influxdb.ID, stack Stack) (Stack, error)
 	CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*Pkg, error)
 	DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (Summary, Diff, error)
-	Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (Summary, error)
+	Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (Summary, Diff, error)
 }
 
 // SVCMiddleware is a service middleware func.
@@ -636,6 +636,11 @@ func (s *Service) filterOrgResourceKinds(resourceKindFilters []Kind) []struct {
 // for later calls to Apply. This func will be run on an Apply if it has not been run
 // already.
 func (s *Service) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (Summary, Diff, error) {
+	sum, diff, _, err := s.dryRun(ctx, orgID, pkg, opts...)
+	return sum, diff, err
+}
+
+func (s *Service) dryRun(ctx context.Context, orgID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (Summary, Diff, *stateCoordinator, error) {
 	// so here's the deal, when we have issues with the parsing validation, we
 	// continue to do the diff anyhow. any resource that does not have a name
 	// will be skipped, and won't bleed into the dry run here. We can now return
@@ -644,7 +649,7 @@ func (s *Service) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *Pk
 	if !pkg.isParsed {
 		err := pkg.Validate()
 		if err != nil && !IsParseErr(err) {
-			return Summary{}, Diff{}, internalErr(err)
+			return Summary{}, Diff{}, nil, internalErr(err)
 		}
 		parseErr = err
 	}
@@ -654,96 +659,103 @@ func (s *Service) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *Pk
 	if len(opt.EnvRefs) > 0 {
 		err := pkg.applyEnvRefs(opt.EnvRefs)
 		if err != nil && !IsParseErr(err) {
-			return Summary{}, Diff{}, internalErr(err)
+			return Summary{}, Diff{}, nil, internalErr(err)
 		}
 		parseErr = err
 	}
 
+	state := newStateCoordinator(pkg)
+
 	if opt.StackID > 0 {
-		if err := s.addStackPkgState(ctx, opt.StackID, pkg); err != nil {
-			return Summary{}, Diff{}, internalErr(err)
+		if err := s.addStackState(ctx, opt.StackID, pkg, state); err != nil {
+			return Summary{}, Diff{}, nil, internalErr(err)
 		}
 	}
 
 	if err := s.dryRunSecrets(ctx, orgID, pkg); err != nil {
-		return Summary{}, Diff{}, err
+		return Summary{}, Diff{}, nil, err
 	}
 
-	diff := Diff{
-		Buckets:    s.dryRunBuckets(ctx, orgID, pkg),
-		Checks:     s.dryRunChecks(ctx, orgID, pkg),
-		Dashboards: s.dryRunDashboards(pkg),
-		Labels:     s.dryRunLabels(ctx, orgID, pkg),
-		Tasks:      s.dryRunTasks(pkg),
-		Telegrafs:  s.dryRunTelegraf(pkg),
-		Variables:  s.dryRunVariables(ctx, orgID, pkg),
-	}
+	s.dryRunBuckets(ctx, orgID, state.mBuckets)
+	s.dryRunChecks(ctx, orgID, state.mChecks)
+	s.dryRunLabels(ctx, orgID, state.mLabels)
+	s.dryRunVariables(ctx, orgID, state.mVariables)
+
+	var diff Diff
+	diff.Dashboards = s.dryRunDashboards(pkg)
+	diff.Tasks = s.dryRunTasks(pkg)
+	diff.Telegrafs = s.dryRunTelegraf(pkg)
 
 	diffEndpoints, err := s.dryRunNotificationEndpoints(ctx, orgID, pkg)
 	if err != nil {
-		return Summary{}, Diff{}, err
+		return Summary{}, Diff{}, nil, err
 	}
 	diff.NotificationEndpoints = diffEndpoints
 
 	diffRules, err := s.dryRunNotificationRules(ctx, orgID, pkg)
 	if err != nil {
-		return Summary{}, Diff{}, err
+		return Summary{}, Diff{}, nil, err
 	}
 	diff.NotificationRules = diffRules
 
-	diffLabelMappings, err := s.dryRunLabelMappings(ctx, pkg)
+	stateLabelMappings, err := s.dryRunLabelMappingsV2(ctx, state)
 	if err != nil {
-		return Summary{}, Diff{}, err
+		return Summary{}, Diff{}, nil, err
 	}
-	diff.LabelMappings = diffLabelMappings
+	state.labelMappings = stateLabelMappings
 
-	// verify the pkg is verified by a dry run. when calling Service.Apply this
-	// is required to have been run. if it is not true, then apply runs
-	// the Dry run.
-	pkg.isVerified = true
-	return pkg.Summary(), diff, parseErr
+	stateDiff := state.diff()
+
+	diffLabelMappings, err := s.dryRunLabelMappings(ctx, pkg, state)
+	if err != nil {
+		return Summary{}, Diff{}, nil, err
+	}
+	diff.LabelMappings = append(diffLabelMappings, diffLabelMappings...)
+
+	diff.Buckets = stateDiff.Buckets
+	diff.Checks = stateDiff.Checks
+	diff.Labels = stateDiff.Labels
+	diff.Variables = stateDiff.Variables
+	diff.LabelMappings = append(stateDiff.LabelMappings, diff.LabelMappings...)
+
+	return pkg.Summary(), diff, state, parseErr
 }
 
-func (s *Service) dryRunBuckets(ctx context.Context, orgID influxdb.ID, pkg *Pkg) []DiffBucket {
-	mExistingBkts := make(map[string]DiffBucket)
-	bkts := pkg.buckets()
-	for i := range bkts {
-		b := bkts[i]
-		existingBkt, _ := s.findBucket(ctx, orgID, b) // ignoring error here
-		b.existing = existingBkt
-		mExistingBkts[b.Name()] = newDiffBucket(b, existingBkt)
+func (s *Service) dryRunBuckets(ctx context.Context, orgID influxdb.ID, bkts map[string]*stateBucket) {
+	for _, stateBkt := range bkts {
+		stateBkt.orgID = orgID
+		var existing *influxdb.Bucket
+		if stateBkt.ID() != 0 {
+			existing, _ = s.bucketSVC.FindBucketByID(ctx, stateBkt.ID())
+		} else {
+			existing, _ = s.bucketSVC.FindBucketByName(ctx, orgID, stateBkt.parserBkt.Name())
+		}
+		if IsNew(stateBkt.stateStatus) && existing != nil {
+			stateBkt.stateStatus = StateStatusExists
+		}
+		stateBkt.existing = existing
 	}
-
-	diffs := make([]DiffBucket, 0, len(mExistingBkts))
-	for _, diff := range mExistingBkts {
-		diffs = append(diffs, diff)
-	}
-	sort.Slice(diffs, func(i, j int) bool {
-		return diffs[i].PkgName < diffs[j].PkgName
-	})
-
-	return diffs
 }
 
-func (s *Service) dryRunChecks(ctx context.Context, orgID influxdb.ID, pkg *Pkg) []DiffCheck {
-	mExistingChecks := make(map[string]DiffCheck)
-	checks := pkg.checks()
-	for i := range checks {
-		c := checks[i]
-		existingCheck, _ := s.findCheck(ctx, orgID, c)
-		c.existing = existingCheck
-		mExistingChecks[c.Name()] = newDiffCheck(c, existingCheck)
-	}
+func (s *Service) dryRunChecks(ctx context.Context, orgID influxdb.ID, checks map[string]*stateCheck) {
+	for _, c := range checks {
+		c.orgID = orgID
 
-	diffs := make([]DiffCheck, 0, len(mExistingChecks))
-	for _, diff := range mExistingChecks {
-		diffs = append(diffs, diff)
+		var existing influxdb.Check
+		if c.ID() != 0 {
+			existing, _ = s.checkSVC.FindCheckByID(ctx, c.ID())
+		} else {
+			name := c.parserCheck.Name()
+			existing, _ = s.checkSVC.FindCheck(ctx, influxdb.CheckFilter{
+				Name:  &name,
+				OrgID: &orgID,
+			})
+		}
+		if IsNew(c.stateStatus) && existing != nil {
+			c.stateStatus = StateStatusExists
+		}
+		c.existing = existing
 	}
-	sort.Slice(diffs, func(i, j int) bool {
-		return diffs[i].PkgName < diffs[j].PkgName
-	})
-
-	return diffs
 }
 
 func (s *Service) dryRunDashboards(pkg *Pkg) []DiffDashboard {
@@ -756,25 +768,15 @@ func (s *Service) dryRunDashboards(pkg *Pkg) []DiffDashboard {
 	return diffs
 }
 
-func (s *Service) dryRunLabels(ctx context.Context, orgID influxdb.ID, pkg *Pkg) []DiffLabel {
-	mExistingLabels := make(map[string]DiffLabel)
-	labels := pkg.labels()
-	for i := range labels {
-		pkgLabel := labels[i]
+func (s *Service) dryRunLabels(ctx context.Context, orgID influxdb.ID, labels map[string]*stateLabel) {
+	for _, pkgLabel := range labels {
+		pkgLabel.orgID = orgID
 		existingLabel, _ := s.findLabel(ctx, orgID, pkgLabel)
+		if IsNew(pkgLabel.stateStatus) && existingLabel != nil {
+			pkgLabel.stateStatus = StateStatusExists
+		}
 		pkgLabel.existing = existingLabel
-		mExistingLabels[pkgLabel.Name()] = newDiffLabel(pkgLabel, existingLabel)
 	}
-
-	diffs := make([]DiffLabel, 0, len(mExistingLabels))
-	for _, diff := range mExistingLabels {
-		diffs = append(diffs, diff)
-	}
-	sort.Slice(diffs, func(i, j int) bool {
-		return diffs[i].PkgName < diffs[j].PkgName
-	})
-
-	return diffs
 }
 
 func (s *Service) dryRunNotificationEndpoints(ctx context.Context, orgID influxdb.ID, pkg *Pkg) ([]DiffNotificationEndpoint, error) {
@@ -923,10 +925,7 @@ func (s *Service) dryRunTelegraf(pkg *Pkg) []DiffTelegraf {
 	return diffs
 }
 
-func (s *Service) dryRunVariables(ctx context.Context, orgID influxdb.ID, pkg *Pkg) []DiffVariable {
-	mExistingLabels := make(map[string]DiffVariable)
-	variables := pkg.variables()
-
+func (s *Service) dryRunVariables(ctx context.Context, orgID influxdb.ID, vars map[string]*stateVariable) {
 	existingVars, _ := s.getAllPlatformVariables(ctx, orgID)
 
 	mIDs := make(map[influxdb.ID]*influxdb.Variable)
@@ -936,33 +935,22 @@ func (s *Service) dryRunVariables(ctx context.Context, orgID influxdb.ID, pkg *P
 		mNames[v.Name] = v
 	}
 
-	for i := range variables {
-		pkgVar := variables[i]
-
+	for _, v := range vars {
 		var existing *influxdb.Variable
-		if pkgVar.ID() != 0 {
-			existing = mIDs[pkgVar.ID()]
+		if v.ID() != 0 {
+			existing = mIDs[v.ID()]
 		} else {
-			existing = mNames[pkgVar.Name()]
+			existing = mNames[v.parserVar.Name()]
 		}
-		pkgVar.existing = existing
-
-		mExistingLabels[pkgVar.Name()] = newDiffVariable(pkgVar, existing)
+		if IsNew(v.stateStatus) && existing != nil {
+			v.stateStatus = StateStatusExists
+		}
+		v.existing = existing
 	}
-
-	diffs := make([]DiffVariable, 0, len(mExistingLabels))
-	for _, diff := range mExistingLabels {
-		diffs = append(diffs, diff)
-	}
-	sort.Slice(diffs, func(i, j int) bool {
-		return diffs[i].PkgName < diffs[j].PkgName
-	})
-
-	return diffs
 }
 
 type (
-	labelMappingDiffFn func(labelID influxdb.ID, labelName string, isNew bool)
+	labelMappingDiffFn func(labelID influxdb.ID, labelPkgName, labelName string, isNew bool)
 
 	labelMappers interface {
 		Association(i int) labelAssociater
@@ -972,41 +960,46 @@ type (
 	labelAssociater interface {
 		ID() influxdb.ID
 		Name() string
+		PkgName() string
 		Labels() []*label
 		ResourceType() influxdb.ResourceType
 		Exists() bool
 	}
 )
 
-func (s *Service) dryRunLabelMappings(ctx context.Context, pkg *Pkg) ([]DiffLabelMapping, error) {
+func (s *Service) dryRunLabelMappings(ctx context.Context, pkg *Pkg, state *stateCoordinator) ([]DiffLabelMapping, error) {
 	mappers := []labelMappers{
-		mapperBuckets(pkg.buckets()),
-		mapperChecks(pkg.checks()),
 		mapperDashboards(pkg.dashboards()),
 		mapperNotificationEndpoints(pkg.notificationEndpoints()),
 		mapperNotificationRules(pkg.notificationRules()),
 		mapperTasks(pkg.tasks()),
 		mapperTelegrafs(pkg.telegrafs()),
-		mapperVariables(pkg.variables()),
 	}
 
 	diffs := make([]DiffLabelMapping, 0)
 	for _, mapper := range mappers {
 		for i := 0; i < mapper.Len(); i++ {
 			la := mapper.Association(i)
-			err := s.dryRunResourceLabelMapping(ctx, la, func(labelID influxdb.ID, labelName string, isNew bool) {
-				existingLabel, ok := pkg.mLabels[labelName]
+			err := s.dryRunResourceLabelMapping(ctx, la, func(labelID influxdb.ID, labelPkgName, labelName string, isNew bool) {
+				existingLabel, ok := state.mLabels[labelName]
 				if !ok {
 					return
 				}
-				existingLabel.setMapping(la, !isNew)
+				existingLabel.parserLabel.setMapping(la, !isNew)
+
+				status := StateStatusExists
+				if isNew {
+					status = StateStatusNew
+				}
 				diffs = append(diffs, DiffLabelMapping{
-					IsNew:     isNew,
-					ResType:   la.ResourceType(),
-					ResID:     SafeID(la.ID()),
-					ResName:   la.Name(),
-					LabelID:   SafeID(labelID),
-					LabelName: labelName,
+					StateStatus:  status,
+					ResType:      la.ResourceType(),
+					ResID:        SafeID(la.ID()),
+					ResPkgName:   la.PkgName(),
+					ResName:      la.Name(),
+					LabelID:      SafeID(labelID),
+					LabelPkgName: labelPkgName,
+					LabelName:    labelName,
 				})
 			})
 			if err != nil {
@@ -1039,7 +1032,7 @@ func (s *Service) dryRunLabelMappings(ctx context.Context, pkg *Pkg) ([]DiffLabe
 func (s *Service) dryRunResourceLabelMapping(ctx context.Context, la labelAssociater, mappingFn labelMappingDiffFn) error {
 	if !la.Exists() {
 		for _, l := range la.Labels() {
-			mappingFn(l.ID(), l.Name(), true)
+			mappingFn(l.ID(), l.PkgName(), l.Name(), true)
 		}
 		return nil
 	}
@@ -1059,22 +1052,138 @@ func (s *Service) dryRunResourceLabelMapping(ctx context.Context, la labelAssoci
 
 	pkgLabels := labelSlcToMap(la.Labels())
 	for _, l := range existingLabels {
-		// should ignore any labels that are not specified in pkg
-		mappingFn(l.ID, l.Name, false)
+		// if label is found in state then we track the mapping and mark it existing
+		// otherwise we continue on
 		delete(pkgLabels, l.Name)
+		if pkgLabel, ok := pkgLabels[l.Name]; ok {
+			mappingFn(l.ID, pkgLabel.PkgName(), l.Name, false)
+		}
 	}
 
 	// now we add labels that were not apart of the existing labels
 	for _, l := range pkgLabels {
-		mappingFn(l.ID(), l.Name(), true)
+		mappingFn(l.ID(), l.PkgName(), l.Name(), true)
 	}
 	return nil
 }
 
-func (s *Service) addStackPkgState(ctx context.Context, stackID influxdb.ID, pkg *Pkg) error {
+func (s *Service) dryRunLabelMappingsV2(ctx context.Context, state *stateCoordinator) ([]stateLabelMapping, error) {
+	stateLabelsByResName := make(map[string]*stateLabel)
+	for _, l := range state.mLabels {
+		if IsRemoval(l.stateStatus) {
+			continue
+		}
+		stateLabelsByResName[l.parserLabel.Name()] = l
+	}
+
+	var mappings []stateLabelMapping
+	for _, b := range state.mBuckets {
+		if IsRemoval(b.stateStatus) {
+			continue
+		}
+		mm, err := s.dryRunResourceLabelMappingV2(ctx, state, stateLabelsByResName, b)
+		if err != nil {
+			return nil, err
+		}
+		mappings = append(mappings, mm...)
+	}
+
+	for _, c := range state.mChecks {
+		if IsRemoval(c.stateStatus) {
+			continue
+		}
+		mm, err := s.dryRunResourceLabelMappingV2(ctx, state, stateLabelsByResName, c)
+		if err != nil {
+			return nil, err
+		}
+		mappings = append(mappings, mm...)
+	}
+
+	for _, v := range state.mVariables {
+		if IsRemoval(v.stateStatus) {
+			continue
+		}
+		mm, err := s.dryRunResourceLabelMappingV2(ctx, state, stateLabelsByResName, v)
+		if err != nil {
+			return nil, err
+		}
+		mappings = append(mappings, mm...)
+	}
+
+	return mappings, nil
+}
+
+func (s *Service) dryRunResourceLabelMappingV2(ctx context.Context, state *stateCoordinator, stateLabelsByResName map[string]*stateLabel, associatedResource interface {
+	labels() []*label
+	stateIdentity() stateIdentity
+}) ([]stateLabelMapping, error) {
+
+	ident := associatedResource.stateIdentity()
+	pkgResourceLabels := associatedResource.labels()
+
+	var mappings []stateLabelMapping
+	if !ident.exists() {
+		for _, l := range pkgResourceLabels {
+			mappings = append(mappings, stateLabelMapping{
+				status:   StateStatusNew,
+				resource: associatedResource,
+				label:    state.getLabelByPkgName(l.PkgName()),
+			})
+		}
+		return mappings, nil
+	}
+
+	existingLabels, err := s.labelSVC.FindResourceLabels(ctx, influxdb.LabelMappingFilter{
+		ResourceID:   ident.id,
+		ResourceType: ident.resourceType,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	pkgLabels := labelSlcToMap(pkgResourceLabels)
+	for _, l := range existingLabels {
+		// if label is found in state then we track the mapping and mark it existing
+		// otherwise we continue on
+		delete(pkgLabels, l.Name)
+		if sLabel, ok := stateLabelsByResName[l.Name]; ok {
+			mappings = append(mappings, stateLabelMapping{
+				status:   StateStatusExists,
+				resource: associatedResource,
+				label:    sLabel,
+			})
+		}
+	}
+
+	// now we add labels that do not exist
+	for _, l := range pkgLabels {
+		mappings = append(mappings, stateLabelMapping{
+			status:   StateStatusNew,
+			resource: associatedResource,
+			label:    state.getLabelByPkgName(l.PkgName()),
+		})
+	}
+
+	return mappings, nil
+}
+
+func (s *Service) addStackState(ctx context.Context, stackID influxdb.ID, pkg *Pkg, state *stateCoordinator) error {
 	stack, err := s.store.ReadStackByID(ctx, stackID)
 	if err != nil {
-		return internalErr(err)
+		return ierrors.Wrap(internalErr(err), "reading stack")
+	}
+
+	type stateMapper interface {
+		Contains(kind Kind, pkgName string) bool
+		setObjectID(kind Kind, pkgName string, id influxdb.ID)
+		addObjectForRemoval(kind Kind, pkgName string, id influxdb.ID)
+	}
+
+	stateKinds := []Kind{
+		KindBucket,
+		KindCheck,
+		KindLabel,
+		KindVariable,
 	}
 
 	// check resource exists in pkg
@@ -1083,9 +1192,16 @@ func (s *Service) addStackPkgState(ctx context.Context, stackID influxdb.ID, pkg
 	// else
 	//	  add stub pkg resource that indicates it should be deleted
 	for _, r := range stack.Resources {
-		updateFn := pkg.setObjectID
-		if !pkg.Contains(r.Kind, r.Name) {
-			updateFn = pkg.addObjectForRemoval
+		var mapper stateMapper = pkg
+		if r.Kind.is(stateKinds...) {
+			// hack for time being while we transition state out of pkg.
+			// this will take several passes to finish up.
+			mapper = state
+		}
+
+		updateFn := mapper.setObjectID
+		if !mapper.Contains(r.Kind, r.Name) {
+			updateFn = mapper.addObjectForRemoval
 		}
 		updateFn(r.Kind, r.Name, r.ID)
 	}
@@ -1135,27 +1251,25 @@ func applyOptFromOptFns(opts ...ApplyOptFn) ApplyOpt {
 // Apply will apply all the resources identified in the provided pkg. The entire pkg will be applied
 // in its entirety. If a failure happens midway then the entire pkg will be rolled back to the state
 // from before the pkg were applied.
-func (s *Service) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (sum Summary, e error) {
+func (s *Service) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (sum Summary, diff Diff, e error) {
 	if !pkg.isParsed {
 		if err := pkg.Validate(); err != nil {
-			return Summary{}, failedValidationErr(err)
+			return Summary{}, Diff{}, failedValidationErr(err)
 		}
 	}
 
 	opt := applyOptFromOptFns(opts...)
 
 	if err := pkg.applyEnvRefs(opt.EnvRefs); err != nil {
-		return Summary{}, failedValidationErr(err)
+		return Summary{}, Diff{}, failedValidationErr(err)
 	}
 
-	if !pkg.isVerified {
-		if _, _, err := s.DryRun(ctx, orgID, userID, pkg, opts...); err != nil {
-			return Summary{}, err
-		}
+	_, diff, state, err := s.dryRun(ctx, orgID, pkg, opts...)
+	if err != nil {
+		return Summary{}, Diff{}, err
 	}
 
-	defer func() {
-		stackID := opt.StackID
+	defer func(stackID influxdb.ID) {
 		if stackID == 0 {
 			return
 		}
@@ -1164,23 +1278,23 @@ func (s *Service) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg
 		if e != nil {
 			updateStackFn = s.updateStackAfterRollback
 		}
-		if err := updateStackFn(ctx, stackID, pkg); err != nil {
+		if err := updateStackFn(ctx, stackID, pkg, state); err != nil {
 			s.log.Error("failed to update stack", zap.Error(err))
 		}
-	}()
+	}(opt.StackID)
 
 	coordinator := &rollbackCoordinator{sem: make(chan struct{}, s.applyReqLimit)}
 	defer coordinator.rollback(s.log, &e, orgID)
 
-	sum, err := s.apply(ctx, coordinator, orgID, userID, pkg, opt.MissingSecrets)
+	sum, err = s.apply(ctx, coordinator, orgID, userID, pkg, state, opt.MissingSecrets)
 	if err != nil {
-		return Summary{}, err
+		return Summary{}, Diff{}, err
 	}
 
-	return sum, nil
+	return sum, diff, err
 }
 
-func (s *Service) apply(ctx context.Context, coordinator *rollbackCoordinator, orgID, userID influxdb.ID, pkg *Pkg, missingSecrets map[string]string) (sum Summary, e error) {
+func (s *Service) apply(ctx context.Context, coordinator *rollbackCoordinator, orgID, userID influxdb.ID, pkg *Pkg, state *stateCoordinator, missingSecrets map[string]string) (sum Summary, e error) {
 	// each grouping here runs for its entirety, then returns an error that
 	// is indicative of running all appliers provided. For instance, the labels
 	// may have 1 variable fail and one of the buckets fails. The errors aggregate so
@@ -1198,13 +1312,13 @@ func (s *Service) apply(ctx context.Context, coordinator *rollbackCoordinator, o
 		},
 		{
 			// deps for primary resources
-			s.applyLabels(ctx, pkg.labels()),
+			s.applyLabels(ctx, state.labels()),
 		},
 		{
 			// primary resources, can have relationships to labels
-			s.applyVariables(ctx, pkg.variables()),
-			s.applyBuckets(ctx, pkg.buckets()),
-			s.applyChecks(ctx, pkg.checks()),
+			s.applyVariables(ctx, state.variables()),
+			s.applyBuckets(ctx, state.buckets()),
+			s.applyChecks(ctx, state.checks()),
 			s.applyDashboards(pkg.dashboards()),
 			s.applyNotificationEndpoints(ctx, userID, pkg.notificationEndpoints()),
 			s.applyTasks(pkg.tasks()),
@@ -1230,27 +1344,53 @@ func (s *Service) apply(ctx context.Context, coordinator *rollbackCoordinator, o
 
 	// secondary resources
 	// this last grouping relies on the above 2 steps having completely successfully
-	secondary := []applier{s.applyLabelMappings(pkg.labelMappings())}
+	secondary := []applier{
+		s.applyLabelMappings(pkg.labelMappings()),
+		s.applyLabelMappingsV2(state.labelMappings),
+	}
 	if err := coordinator.runTilEnd(ctx, orgID, userID, secondary...); err != nil {
 		return Summary{}, internalErr(err)
 	}
 
 	pkg.applySecrets(missingSecrets)
 
-	return pkg.Summary(), nil
+	stateSum := state.summary()
+
+	pkgSum := pkg.Summary()
+	pkgSum.Buckets = stateSum.Buckets
+	pkgSum.Checks = stateSum.Checks
+	pkgSum.Labels = stateSum.Labels
+	pkgSum.Variables = stateSum.Variables
+
+	// filter out label mappings that are from pgk and replace with those
+	// in state. This is temporary hack to provide a bridge to the promise land...
+	resourcesToSkip := map[influxdb.ResourceType]bool{
+		influxdb.BucketsResourceType:   true,
+		influxdb.ChecksResourceType:    true,
+		influxdb.VariablesResourceType: true,
+	}
+	for _, lm := range pkgSum.LabelMappings {
+		if resourcesToSkip[lm.ResourceType] {
+			continue
+		}
+		stateSum.LabelMappings = append(stateSum.LabelMappings, lm)
+	}
+	pkgSum.LabelMappings = stateSum.LabelMappings
+
+	return pkgSum, nil
 }
 
-func (s *Service) applyBuckets(ctx context.Context, buckets []*bucket) applier {
+func (s *Service) applyBuckets(ctx context.Context, buckets []*stateBucket) applier {
 	const resource = "bucket"
 
 	mutex := new(doMutex)
-	rollbackBuckets := make([]*bucket, 0, len(buckets))
+	rollbackBuckets := make([]*stateBucket, 0, len(buckets))
 
 	createFn := func(ctx context.Context, i int, orgID, userID influxdb.ID) *applyErrBody {
-		var b bucket
+		var b *stateBucket
 		mutex.Do(func() {
-			buckets[i].OrgID = orgID
-			b = *buckets[i]
+			buckets[i].orgID = orgID
+			b = buckets[i]
 		})
 		if !b.shouldApply() {
 			return nil
@@ -1259,7 +1399,7 @@ func (s *Service) applyBuckets(ctx context.Context, buckets []*bucket) applier {
 		influxBucket, err := s.applyBucket(ctx, b)
 		if err != nil {
 			return &applyErrBody{
-				name: b.PkgName(),
+				name: b.parserBkt.PkgName(),
 				msg:  err.Error(),
 			}
 		}
@@ -1284,20 +1424,21 @@ func (s *Service) applyBuckets(ctx context.Context, buckets []*bucket) applier {
 	}
 }
 
-func (s *Service) rollbackBuckets(ctx context.Context, buckets []*bucket) error {
-	rollbackFn := func(b *bucket) error {
+func (s *Service) rollbackBuckets(ctx context.Context, buckets []*stateBucket) error {
+	rollbackFn := func(b *stateBucket) error {
 		var err error
-		switch {
-		case b.shouldRemove:
-			err = s.bucketSVC.CreateBucket(ctx, b.existing)
-		case b.existing == nil:
-			err = s.bucketSVC.DeleteBucket(ctx, b.ID())
-		default:
-			rp := b.RetentionRules.RP()
+		switch b.stateStatus {
+		case StateStatusRemove:
+			err = ierrors.Wrap(s.bucketSVC.CreateBucket(ctx, b.existing), "rolling back removed bucket")
+		case StateStatusExists:
+			rp := b.parserBkt.RetentionRules.RP()
 			_, err = s.bucketSVC.UpdateBucket(ctx, b.ID(), influxdb.BucketUpdate{
-				Description:     &b.Description,
+				Description:     &b.parserBkt.Description,
 				RetentionPeriod: &rp,
 			})
+			err = ierrors.Wrap(err, "rolling back existing bucket to previous state")
+		default:
+			err = ierrors.Wrap(s.bucketSVC.DeleteBucket(ctx, b.ID()), "rolling back new bucket")
 		}
 		return err
 	}
@@ -1317,19 +1458,18 @@ func (s *Service) rollbackBuckets(ctx context.Context, buckets []*bucket) error 
 	return nil
 }
 
-func (s *Service) applyBucket(ctx context.Context, b bucket) (influxdb.Bucket, error) {
-	if b.shouldRemove {
+func (s *Service) applyBucket(ctx context.Context, b *stateBucket) (influxdb.Bucket, error) {
+	switch b.stateStatus {
+	case StateStatusRemove:
 		if err := s.bucketSVC.DeleteBucket(ctx, b.ID()); err != nil {
 			return influxdb.Bucket{}, fmt.Errorf("failed to delete bucket[%q]: %w", b.ID(), err)
 		}
 		return *b.existing, nil
-	}
-
-	rp := b.RetentionRules.RP()
-	if b.existing != nil {
-		newName := b.Name()
+	case StateStatusExists:
+		rp := b.parserBkt.RetentionRules.RP()
+		newName := b.parserBkt.Name()
 		influxBucket, err := s.bucketSVC.UpdateBucket(ctx, b.ID(), influxdb.BucketUpdate{
-			Description:     &b.Description,
+			Description:     &b.parserBkt.Description,
 			Name:            &newName,
 			RetentionPeriod: &rp,
 		})
@@ -1337,45 +1477,45 @@ func (s *Service) applyBucket(ctx context.Context, b bucket) (influxdb.Bucket, e
 			return influxdb.Bucket{}, fmt.Errorf("failed to updated bucket[%q]: %w", b.ID(), err)
 		}
 		return *influxBucket, nil
+	default:
+		rp := b.parserBkt.RetentionRules.RP()
+		influxBucket := influxdb.Bucket{
+			OrgID:           b.orgID,
+			Description:     b.parserBkt.Description,
+			Name:            b.parserBkt.Name(),
+			RetentionPeriod: rp,
+		}
+		err := s.bucketSVC.CreateBucket(ctx, &influxBucket)
+		if err != nil {
+			return influxdb.Bucket{}, fmt.Errorf("failed to create bucket[%q]: %w", b.ID(), err)
+		}
+		return influxBucket, nil
 	}
-
-	influxBucket := influxdb.Bucket{
-		OrgID:           b.OrgID,
-		Description:     b.Description,
-		Name:            b.Name(),
-		RetentionPeriod: rp,
-	}
-	err := s.bucketSVC.CreateBucket(ctx, &influxBucket)
-	if err != nil {
-		return influxdb.Bucket{}, fmt.Errorf("failed to create bucket[%q]: %w", b.ID(), err)
-	}
-
-	return influxBucket, nil
 }
 
-func (s *Service) applyChecks(ctx context.Context, checks []*check) applier {
+func (s *Service) applyChecks(ctx context.Context, checks []*stateCheck) applier {
 	const resource = "check"
 
 	mutex := new(doMutex)
-	rollbackChecks := make([]*check, 0, len(checks))
+	rollbackChecks := make([]*stateCheck, 0, len(checks))
 
 	createFn := func(ctx context.Context, i int, orgID, userID influxdb.ID) *applyErrBody {
-		var c check
+		var c *stateCheck
 		mutex.Do(func() {
 			checks[i].orgID = orgID
-			c = *checks[i]
+			c = checks[i]
 		})
 
-		influxBucket, err := s.applyCheck(ctx, c, userID)
+		influxCheck, err := s.applyCheck(ctx, c, userID)
 		if err != nil {
 			return &applyErrBody{
-				name: c.Name(),
+				name: c.parserCheck.Name(),
 				msg:  err.Error(),
 			}
 		}
 
 		mutex.Do(func() {
-			checks[i].id = influxBucket.GetID()
+			checks[i].id = influxCheck.GetID()
 			rollbackChecks = append(rollbackChecks, checks[i])
 		})
 
@@ -1394,25 +1534,26 @@ func (s *Service) applyChecks(ctx context.Context, checks []*check) applier {
 	}
 }
 
-func (s *Service) rollbackChecks(ctx context.Context, checks []*check) error {
-	rollbackFn := func(c *check) error {
+func (s *Service) rollbackChecks(ctx context.Context, checks []*stateCheck) error {
+	rollbackFn := func(c *stateCheck) error {
 		var err error
-		switch {
-		case c.shouldRemove:
+		switch c.stateStatus {
+		case StateStatusRemove:
 			err = s.checkSVC.CreateCheck(
 				ctx,
 				influxdb.CheckCreate{
 					Check:  c.existing,
-					Status: c.Status(),
+					Status: c.parserCheck.Status(),
 				},
 				c.existing.GetOwnerID(),
 			)
-		case c.existing == nil:
+			c.id = c.existing.GetID()
+		case StateStatusNew:
 			err = s.checkSVC.DeleteCheck(ctx, c.ID())
 		default:
 			_, err = s.checkSVC.UpdateCheck(ctx, c.ID(), influxdb.CheckCreate{
 				Check:  c.summarize().Check,
-				Status: influxdb.Status(c.status),
+				Status: influxdb.Status(c.parserCheck.status),
 			})
 		}
 		return err
@@ -1432,34 +1573,33 @@ func (s *Service) rollbackChecks(ctx context.Context, checks []*check) error {
 	return nil
 }
 
-func (s *Service) applyCheck(ctx context.Context, c check, userID influxdb.ID) (influxdb.Check, error) {
-	if c.shouldRemove {
+func (s *Service) applyCheck(ctx context.Context, c *stateCheck, userID influxdb.ID) (influxdb.Check, error) {
+	switch c.stateStatus {
+	case StateStatusRemove:
 		if err := s.checkSVC.DeleteCheck(ctx, c.ID()); err != nil {
 			return nil, fmt.Errorf("failed to delete check[%q]: %w", c.ID(), err)
 		}
 		return c.existing, nil
-	}
-
-	if c.existing != nil {
+	case StateStatusExists:
 		influxCheck, err := s.checkSVC.UpdateCheck(ctx, c.ID(), influxdb.CheckCreate{
 			Check:  c.summarize().Check,
-			Status: c.Status(),
+			Status: c.parserCheck.Status(),
 		})
 		if err != nil {
 			return nil, err
 		}
 		return influxCheck, nil
+	default:
+		checkStub := influxdb.CheckCreate{
+			Check:  c.summarize().Check,
+			Status: c.parserCheck.Status(),
+		}
+		err := s.checkSVC.CreateCheck(ctx, checkStub, userID)
+		if err != nil {
+			return nil, err
+		}
+		return checkStub.Check, nil
 	}
-
-	checkStub := influxdb.CheckCreate{
-		Check:  c.summarize().Check,
-		Status: c.Status(),
-	}
-	err := s.checkSVC.CreateCheck(ctx, checkStub, userID)
-	if err != nil {
-		return nil, err
-	}
-	return checkStub.Check, nil
 }
 
 func (s *Service) applyDashboards(dashboards []*dashboard) applier {
@@ -1542,17 +1682,17 @@ func convertChartsToCells(ch []chart) []*influxdb.Cell {
 	return icells
 }
 
-func (s *Service) applyLabels(ctx context.Context, labels []*label) applier {
+func (s *Service) applyLabels(ctx context.Context, labels []*stateLabel) applier {
 	const resource = "label"
 
 	mutex := new(doMutex)
-	rollBackLabels := make([]*label, 0, len(labels))
+	rollBackLabels := make([]*stateLabel, 0, len(labels))
 
 	createFn := func(ctx context.Context, i int, orgID, userID influxdb.ID) *applyErrBody {
-		var l label
+		var l *stateLabel
 		mutex.Do(func() {
-			labels[i].OrgID = orgID
-			l = *labels[i]
+			labels[i].orgID = orgID
+			l = labels[i]
 		})
 		if !l.shouldApply() {
 			return nil
@@ -1561,13 +1701,14 @@ func (s *Service) applyLabels(ctx context.Context, labels []*label) applier {
 		influxLabel, err := s.applyLabel(ctx, l)
 		if err != nil {
 			return &applyErrBody{
-				name: l.PkgName(),
+				name: l.parserLabel.PkgName(),
 				msg:  err.Error(),
 			}
 		}
 
 		mutex.Do(func() {
 			labels[i].id = influxLabel.ID
+			labels[i].parserLabel.id = influxLabel.ID
 			rollBackLabels = append(rollBackLabels, labels[i])
 		})
 
@@ -1586,19 +1727,19 @@ func (s *Service) applyLabels(ctx context.Context, labels []*label) applier {
 	}
 }
 
-func (s *Service) rollbackLabels(ctx context.Context, labels []*label) error {
-	rollbackFn := func(l *label) error {
+func (s *Service) rollbackLabels(ctx context.Context, labels []*stateLabel) error {
+	rollbackFn := func(l *stateLabel) error {
 		var err error
-		switch {
-		case l.shouldRemove:
+		switch l.stateStatus {
+		case StateStatusRemove:
 			err = s.labelSVC.CreateLabel(ctx, l.existing)
-		case l.existing == nil:
-			err = s.labelSVC.DeleteLabel(ctx, l.ID())
-		default:
+		case StateStatusExists:
 			_, err = s.labelSVC.UpdateLabel(ctx, l.ID(), influxdb.LabelUpdate{
-				Name:       l.Name(),
+				Name:       l.parserLabel.Name(),
 				Properties: l.existing.Properties,
 			})
+		default:
+			err = s.labelSVC.DeleteLabel(ctx, l.ID())
 		}
 		return err
 	}
@@ -1617,32 +1758,30 @@ func (s *Service) rollbackLabels(ctx context.Context, labels []*label) error {
 	return nil
 }
 
-func (s *Service) applyLabel(ctx context.Context, l label) (influxdb.Label, error) {
-	if l.shouldRemove {
-		if err := s.labelSVC.DeleteLabel(ctx, l.ID()); err != nil {
-			return influxdb.Label{}, fmt.Errorf("failed to delete label[%q]: %w", l.ID(), err)
-		}
-		return *l.existing, nil
-	}
-
-	if l.existing != nil {
-		updatedlabel, err := s.labelSVC.UpdateLabel(ctx, l.ID(), influxdb.LabelUpdate{
-			Name:       l.Name(),
+func (s *Service) applyLabel(ctx context.Context, l *stateLabel) (influxdb.Label, error) {
+	var (
+		influxLabel *influxdb.Label
+		err         error
+	)
+	switch l.stateStatus {
+	case StateStatusRemove:
+		influxLabel, err = l.existing, s.labelSVC.DeleteLabel(ctx, l.ID())
+	case StateStatusExists:
+		influxLabel, err = s.labelSVC.UpdateLabel(ctx, l.ID(), influxdb.LabelUpdate{
+			Name:       l.parserLabel.Name(),
 			Properties: l.properties(),
 		})
-		if err != nil {
-			return influxdb.Label{}, err
-		}
-		return *updatedlabel, nil
+		err = ierrors.Wrap(err, "updating")
+	default:
+		creatLabel := l.toInfluxLabel()
+		influxLabel = &creatLabel
+		err = ierrors.Wrap(s.labelSVC.CreateLabel(ctx, &creatLabel), "creating")
 	}
-
-	influxLabel := l.toInfluxLabel()
-	err := s.labelSVC.CreateLabel(ctx, &influxLabel)
-	if err != nil {
+	if err != nil || influxLabel == nil {
 		return influxdb.Label{}, err
 	}
 
-	return influxLabel, nil
+	return *influxLabel, nil
 }
 
 func (s *Service) applyNotificationEndpoints(ctx context.Context, userID influxdb.ID, endpoints []*notificationEndpoint) applier {
@@ -2033,17 +2172,17 @@ func (s *Service) applyTelegrafs(teles []*telegraf) applier {
 	}
 }
 
-func (s *Service) applyVariables(ctx context.Context, vars []*variable) applier {
+func (s *Service) applyVariables(ctx context.Context, vars []*stateVariable) applier {
 	const resource = "variable"
 
 	mutex := new(doMutex)
-	rollBackVars := make([]*variable, 0, len(vars))
+	rollBackVars := make([]*stateVariable, 0, len(vars))
 
 	createFn := func(ctx context.Context, i int, orgID, userID influxdb.ID) *applyErrBody {
-		var v variable
+		var v *stateVariable
 		mutex.Do(func() {
-			vars[i].OrgID = orgID
-			v = *vars[i]
+			vars[i].orgID = orgID
+			v = vars[i]
 		})
 		if !v.shouldApply() {
 			return nil
@@ -2051,7 +2190,7 @@ func (s *Service) applyVariables(ctx context.Context, vars []*variable) applier 
 		influxVar, err := s.applyVariable(ctx, v)
 		if err != nil {
 			return &applyErrBody{
-				name: v.Name(),
+				name: v.parserVar.Name(),
 				msg:  err.Error(),
 			}
 		}
@@ -2075,20 +2214,21 @@ func (s *Service) applyVariables(ctx context.Context, vars []*variable) applier 
 	}
 }
 
-func (s *Service) rollbackVariables(ctx context.Context, variables []*variable) error {
-	rollbackFn := func(v *variable) error {
+func (s *Service) rollbackVariables(ctx context.Context, variables []*stateVariable) error {
+	rollbackFn := func(v *stateVariable) error {
 		var err error
-		switch {
-		case v.shouldRemove:
-			err = s.varSVC.CreateVariable(ctx, v.existing)
-		case v.existing == nil:
-			err = s.varSVC.DeleteVariable(ctx, v.ID())
-		default:
+		switch v.stateStatus {
+		case StateStatusRemove:
+			err = ierrors.Wrap(s.varSVC.CreateVariable(ctx, v.existing), "rolling back removed variable")
+		case StateStatusExists:
 			_, err = s.varSVC.UpdateVariable(ctx, v.ID(), &influxdb.VariableUpdate{
-				Name:        v.Name(),
-				Description: v.Description,
-				Arguments:   v.influxVarArgs(),
+				Name:        v.parserVar.Name(),
+				Description: v.parserVar.Description,
+				Arguments:   v.parserVar.influxVarArgs(),
 			})
+			err = ierrors.Wrap(err, "rolling back updated variable")
+		default:
+			err = ierrors.Wrap(s.varSVC.DeleteVariable(ctx, v.ID()), "rolling back created variable")
 		}
 		return err
 	}
@@ -2107,38 +2247,109 @@ func (s *Service) rollbackVariables(ctx context.Context, variables []*variable) 
 	return nil
 }
 
-func (s *Service) applyVariable(ctx context.Context, v variable) (influxdb.Variable, error) {
-	if v.shouldRemove {
+func (s *Service) applyVariable(ctx context.Context, v *stateVariable) (influxdb.Variable, error) {
+	switch v.stateStatus {
+	case StateStatusRemove:
 		if err := s.varSVC.DeleteVariable(ctx, v.id); err != nil {
 			return influxdb.Variable{}, err
 		}
 		return *v.existing, nil
-	}
-
-	if v.existing != nil {
+	case StateStatusExists:
 		updatedVar, err := s.varSVC.UpdateVariable(ctx, v.ID(), &influxdb.VariableUpdate{
-			Name:        v.Name(),
-			Description: v.Description,
-			Arguments:   v.influxVarArgs(),
+			Name:        v.parserVar.Name(),
+			Description: v.parserVar.Description,
+			Arguments:   v.parserVar.influxVarArgs(),
 		})
 		if err != nil {
 			return influxdb.Variable{}, err
 		}
 		return *updatedVar, nil
+	default:
+		influxVar := influxdb.Variable{
+			OrganizationID: v.orgID,
+			Name:           v.parserVar.Name(),
+			Description:    v.parserVar.Description,
+			Arguments:      v.parserVar.influxVarArgs(),
+		}
+		err := s.varSVC.CreateVariable(ctx, &influxVar)
+		if err != nil {
+			return influxdb.Variable{}, err
+		}
+
+		return influxVar, nil
+	}
+}
+
+func (s *Service) applyLabelMappingsV2(labelMappings []stateLabelMapping) applier {
+	const resource = "label_mapping"
+
+	mutex := new(doMutex)
+	rollbackMappings := make([]stateLabelMapping, 0, len(labelMappings))
+
+	createFn := func(ctx context.Context, i int, orgID, userID influxdb.ID) *applyErrBody {
+		var mapping stateLabelMapping
+		mutex.Do(func() {
+			mapping = labelMappings[i]
+		})
+
+		ident := mapping.resource.stateIdentity()
+		if IsExisting(mapping.status) || mapping.label.ID() == 0 || ident.id == 0 {
+			// this block here does 2 things, it does not write a
+			// mapping when one exists. it also avoids having to worry
+			// about deleting an existing mapping since it will not be
+			// passed to the delete function below b/c it is never added
+			// to the list of mappings that is referenced in the delete
+			// call.
+			return nil
+		}
+
+		m := influxdb.LabelMapping{
+			LabelID:      mapping.label.ID(),
+			ResourceID:   ident.id,
+			ResourceType: ident.resourceType,
+		}
+		err := s.labelSVC.CreateLabelMapping(ctx, &m)
+		if err != nil {
+			return &applyErrBody{
+				name: fmt.Sprintf("%s:%s:%s", ident.resourceType, ident.id, mapping.label.ID()),
+				msg:  err.Error(),
+			}
+		}
+
+		mutex.Do(func() {
+			rollbackMappings = append(rollbackMappings, mapping)
+		})
+
+		return nil
 	}
 
-	influxVar := influxdb.Variable{
-		OrganizationID: v.OrgID,
-		Name:           v.Name(),
-		Description:    v.Description,
-		Arguments:      v.influxVarArgs(),
+	return applier{
+		creater: creater{
+			entries: len(labelMappings),
+			fn:      createFn,
+		},
+		rollbacker: rollbacker{
+			resource: resource,
+			fn:       func(_ influxdb.ID) error { return s.rollbackLabelMappingsV2(rollbackMappings) },
+		},
 	}
-	err := s.varSVC.CreateVariable(ctx, &influxVar)
-	if err != nil {
-		return influxdb.Variable{}, err
+}
+
+func (s *Service) rollbackLabelMappingsV2(mappings []stateLabelMapping) error {
+	var errs []string
+	for _, stateMapping := range mappings {
+		influxMapping := stateLabelMappingToInfluxLabelMapping(stateMapping)
+		err := s.labelSVC.DeleteLabelMapping(context.Background(), &influxMapping)
+		if err != nil {
+			errs = append(errs, fmt.Sprintf("%s:%s", stateMapping.label.ID(), stateMapping.resource.stateIdentity().id))
+		}
 	}
 
-	return influxVar, nil
+	if len(errs) > 0 {
+		return fmt.Errorf(`label_resource_id_pairs=[%s] err="unable to delete label"`, strings.Join(errs, ", "))
+	}
+
+	return nil
 }
 
 func (s *Service) applyLabelMappings(labelMappings []SummaryLabelMapping) applier {
@@ -2152,7 +2363,8 @@ func (s *Service) applyLabelMappings(labelMappings []SummaryLabelMapping) applie
 		mutex.Do(func() {
 			mapping = labelMappings[i]
 		})
-		if mapping.exists || mapping.LabelID == 0 || mapping.ResourceID == 0 {
+
+		if IsExisting(mapping.Status) || mapping.LabelID == 0 || mapping.ResourceID == 0 {
 			// this block here does 2 things, it does not write a
 			// mapping when one exists. it also avoids having to worry
 			// about deleting an existing mapping since it will not be
@@ -2228,33 +2440,33 @@ func (s *Service) deleteByIDs(resource string, numIDs int, deleteFn func(context
 	return nil
 }
 
-func (s *Service) updateStackAfterSuccess(ctx context.Context, stackID influxdb.ID, pkg *Pkg) error {
+func (s *Service) updateStackAfterSuccess(ctx context.Context, stackID influxdb.ID, pkg *Pkg, state *stateCoordinator) error {
 	stack, err := s.store.ReadStackByID(ctx, stackID)
 	if err != nil {
 		return err
 	}
 
 	var stackResources []StackResource
-	for _, b := range pkg.buckets() {
-		if b.shouldRemove {
+	for _, b := range state.mBuckets {
+		if IsRemoval(b.stateStatus) {
 			continue
 		}
 		stackResources = append(stackResources, StackResource{
 			APIVersion: APIVersion,
 			ID:         b.ID(),
 			Kind:       KindBucket,
-			Name:       b.PkgName(),
+			Name:       b.parserBkt.PkgName(),
 		})
 	}
-	for _, c := range pkg.checks() {
-		if c.shouldRemove {
+	for _, c := range state.mChecks {
+		if IsRemoval(c.stateStatus) {
 			continue
 		}
 		stackResources = append(stackResources, StackResource{
 			APIVersion: APIVersion,
 			ID:         c.ID(),
 			Kind:       KindCheck,
-			Name:       c.PkgName(),
+			Name:       c.parserCheck.PkgName(),
 		})
 	}
 	for _, n := range pkg.notificationEndpoints() {
@@ -2268,26 +2480,26 @@ func (s *Service) updateStackAfterSuccess(ctx context.Context, stackID influxdb.
 			Name:       n.PkgName(),
 		})
 	}
-	for _, l := range pkg.labels() {
-		if l.shouldRemove {
+	for _, l := range state.mLabels {
+		if IsRemoval(l.stateStatus) {
 			continue
 		}
 		stackResources = append(stackResources, StackResource{
 			APIVersion: APIVersion,
 			ID:         l.ID(),
 			Kind:       KindLabel,
-			Name:       l.PkgName(),
+			Name:       l.parserLabel.PkgName(),
 		})
 	}
-	for _, v := range pkg.variables() {
-		if v.shouldRemove {
+	for _, v := range state.mVariables {
+		if IsRemoval(v.stateStatus) {
 			continue
 		}
 		stackResources = append(stackResources, StackResource{
 			APIVersion: APIVersion,
 			ID:         v.ID(),
 			Kind:       KindVariable,
-			Name:       v.PkgName(),
+			Name:       v.parserVar.PkgName(),
 		})
 	}
 	stack.Resources = stackResources
@@ -2296,7 +2508,7 @@ func (s *Service) updateStackAfterSuccess(ctx context.Context, stackID influxdb.
 	return s.store.UpdateStack(ctx, stack)
 }
 
-func (s *Service) updateStackAfterRollback(ctx context.Context, stackID influxdb.ID, pkg *Pkg) error {
+func (s *Service) updateStackAfterRollback(ctx context.Context, stackID influxdb.ID, pkg *Pkg, state *stateCoordinator) error {
 	stack, err := s.store.ReadStackByID(ctx, stackID)
 	if err != nil {
 		return err
@@ -2321,22 +2533,18 @@ func (s *Service) updateStackAfterRollback(ctx context.Context, stackID influxdb
 		// these are the case where a deletion happens and is rolled back creating a new resource.
 		// when resource is not to be removed this is a nothing burger, as it should be
 		// rolled back to previous state.
-		for _, b := range pkg.buckets() {
-			if b.shouldRemove {
-				res := existingResources[newKey(KindBucket, b.PkgName())]
-				if res.ID != b.ID() {
-					hasChanges = true
-					res.ID = b.existing.ID
-				}
+		for _, b := range state.mBuckets {
+			res, ok := existingResources[newKey(KindBucket, b.parserBkt.PkgName())]
+			if ok && res.ID != b.ID() {
+				hasChanges = true
+				res.ID = b.existing.ID
 			}
 		}
-		for _, c := range pkg.checks() {
-			if c.shouldRemove {
-				res := existingResources[newKey(KindCheck, c.PkgName())]
-				if res.ID != c.ID() {
-					hasChanges = true
-					res.ID = c.existing.GetID()
-				}
+		for _, c := range state.mChecks {
+			res, ok := existingResources[newKey(KindCheck, c.parserCheck.PkgName())]
+			if ok && res.ID != c.ID() {
+				hasChanges = true
+				res.ID = c.existing.GetID()
 			}
 		}
 		for _, e := range pkg.notificationEndpoints() {
@@ -2348,22 +2556,18 @@ func (s *Service) updateStackAfterRollback(ctx context.Context, stackID influxdb
 				}
 			}
 		}
-		for _, l := range pkg.labels() {
-			if l.shouldRemove {
-				res := existingResources[newKey(KindLabel, l.PkgName())]
-				if res.ID != l.ID() {
-					hasChanges = true
-					res.ID = l.existing.ID
-				}
+		for _, l := range state.mLabels {
+			res, ok := existingResources[newKey(KindLabel, l.parserLabel.PkgName())]
+			if ok && res.ID != l.ID() {
+				hasChanges = true
+				res.ID = l.existing.ID
 			}
 		}
-		for _, v := range pkg.variables() {
-			if v.shouldRemove {
-				res := existingResources[newKey(KindVariable, v.PkgName())]
-				if res.ID != v.ID() {
-					hasChanges = true
-					res.ID = v.existing.ID
-				}
+		for _, v := range state.mVariables {
+			res, ok := existingResources[newKey(KindVariable, v.parserVar.PkgName())]
+			if ok && res.ID != v.ID() {
+				hasChanges = true
+				res.ID = v.existing.ID
 			}
 		}
 	}
@@ -2375,40 +2579,20 @@ func (s *Service) updateStackAfterRollback(ctx context.Context, stackID influxdb
 	return s.store.UpdateStack(ctx, stack)
 }
 
-func (s *Service) findBucket(ctx context.Context, orgID influxdb.ID, b *bucket) (*influxdb.Bucket, error) {
-	if b.ID() != 0 {
-		return s.bucketSVC.FindBucketByID(ctx, b.ID())
-	}
-
-	return s.bucketSVC.FindBucketByName(ctx, orgID, b.Name())
-}
-
-func (s *Service) findCheck(ctx context.Context, orgID influxdb.ID, c *check) (influxdb.Check, error) {
-	if c.ID() != 0 {
-		return s.checkSVC.FindCheckByID(ctx, c.ID())
-	}
-
-	name := c.Name()
-	return s.checkSVC.FindCheck(ctx, influxdb.CheckFilter{
-		Name:  &name,
-		OrgID: &orgID,
-	})
-}
-
-func (s *Service) findLabel(ctx context.Context, orgID influxdb.ID, l *label) (*influxdb.Label, error) {
+func (s *Service) findLabel(ctx context.Context, orgID influxdb.ID, l *stateLabel) (*influxdb.Label, error) {
 	if l.ID() != 0 {
 		return s.labelSVC.FindLabelByID(ctx, l.ID())
 	}
 
 	existingLabels, err := s.labelSVC.FindLabels(ctx, influxdb.LabelFilter{
-		Name:  l.Name(),
+		Name:  l.parserLabel.Name(),
 		OrgID: &orgID,
 	}, influxdb.FindOptions{Limit: 1})
 	if err != nil {
 		return nil, err
 	}
 	if len(existingLabels) == 0 {
-		return nil, errors.New("no labels found for name: " + l.Name())
+		return nil, errors.New("no labels found for name: " + l.parserLabel.Name())
 	}
 	return existingLabels[0], nil
 }

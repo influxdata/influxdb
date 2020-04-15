@@ -257,8 +257,7 @@ type Pkg struct {
 	mEnvVals map[string]string
 	mSecrets map[string]bool
 
-	isVerified bool // dry run has verified pkg resources with existing resources
-	isParsed   bool // indicates the pkg has been parsed and all resources graphed accordingly
+	isParsed bool // indicates the pkg has been parsed and all resources graphed accordingly
 }
 
 // Encode is a helper for encoding the pkg correctly.
@@ -302,21 +301,13 @@ func (p *Pkg) Summary() Summary {
 		NotificationRules:     []SummaryNotificationRule{},
 		Labels:                []SummaryLabel{},
 		MissingEnvs:           p.missingEnvRefs(),
-		MissingSecrets:        []string{},
+		MissingSecrets:        p.missingSecrets(),
 		Tasks:                 []SummaryTask{},
 		TelegrafConfigs:       []SummaryTelegraf{},
 		Variables:             []SummaryVariable{},
 	}
 
-	// only add this after dry run has been completed
-	if p.isVerified {
-		sum.MissingSecrets = p.missingSecrets()
-	}
-
 	for _, b := range p.buckets() {
-		if b.shouldRemove {
-			continue
-		}
 		sum.Buckets = append(sum.Buckets, b.summarize())
 	}
 
@@ -418,16 +409,6 @@ func (p *Pkg) addObjectForRemoval(k Kind, pkgName string, id influxdb.ID) {
 	}
 
 	switch k {
-	case KindBucket:
-		p.mBuckets[pkgName] = &bucket{
-			identity: newIdentity,
-			id:       id,
-		}
-	case KindCheck, KindCheckDeadman, KindCheckThreshold:
-		p.mChecks[pkgName] = &check{
-			identity: newIdentity,
-			id:       id,
-		}
 	case KindDashboard:
 		p.mDashboards[pkgName] = &dashboard{
 			identity: newIdentity,
@@ -461,26 +442,11 @@ func (p *Pkg) addObjectForRemoval(k Kind, pkgName string, id influxdb.ID) {
 			identity: newIdentity,
 			config:   influxdb.TelegrafConfig{ID: id},
 		}
-	case KindVariable:
-		p.mVariables[pkgName] = &variable{
-			identity: newIdentity,
-			id:       id,
-		}
 	}
 }
 
 func (p *Pkg) getObjectIDSetter(k Kind, pkgName string) (func(influxdb.ID), bool) {
 	switch k {
-	case KindBucket:
-		b, ok := p.mBuckets[pkgName]
-		return func(id influxdb.ID) {
-			b.id = id
-		}, ok
-	case KindCheck, KindCheckDeadman, KindCheckThreshold:
-		ch, ok := p.mChecks[pkgName]
-		return func(id influxdb.ID) {
-			ch.id = id
-		}, ok
 	case KindDashboard:
 		d, ok := p.mDashboards[pkgName]
 		return func(id influxdb.ID) {
@@ -513,11 +479,6 @@ func (p *Pkg) getObjectIDSetter(k Kind, pkgName string) (func(influxdb.ID), bool
 		t, ok := p.mTelegrafs[pkgName]
 		return func(id influxdb.ID) {
 			t.config.ID = id
-		}, ok
-	case KindVariable:
-		v, ok := p.mVariables[pkgName]
-		return func(id influxdb.ID) {
-			v.id = id
 		}, ok
 	default:
 		return nil, false

@@ -39,7 +39,7 @@ func (s *traceMW) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *Pk
 	return s.next.DryRun(ctx, orgID, userID, pkg, opts...)
 }
 
-func (s *traceMW) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (sum Summary, err error) {
+func (s *traceMW) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (sum Summary, diff Diff, err error) {
 	span, ctx := tracing.StartSpanFromContextWithOperationName(ctx, "Apply")
 	span.LogKV("orgID", orgID.String(), "userID", userID.String())
 	defer span.Finish()
