@@ -1,7 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import memoizeOne from 'memoize-one'
-// import _ from 'lodash'
 
 // Components
 import {ResourceList} from '@influxdata/clockface'
@@ -9,24 +8,28 @@ import EmptyTemplatesList from 'src/templates/components/EmptyTemplatesList'
 import StaticTemplateCard from 'src/templates/components/StaticTemplateCard'
 
 // Types
-import {TemplateSummary} from '@influxdata/influx'
+import {Template, TemplateSummary, RemoteDataState} from 'src/types'
 import {SortTypes} from 'src/shared/utils/sort'
 import {Sort} from 'src/clockface'
 
 // Selectors
 import {getSortedResources} from 'src/shared/utils/sort'
 
-type SortKey = 'meta.name'
+export type TemplateOrSummary = Template | TemplateSummary
+
+export interface StaticTemplate {
+  name: string
+  template: TemplateOrSummary
+}
 
 interface Props {
-  templates: {name: string; template: TemplateSummary}[]
+  templates: StaticTemplate[]
   searchTerm: string
   onFilterChange: (searchTerm: string) => void
   onImport: () => void
   sortKey: string
   sortDirection: Sort
   sortType: SortTypes
-  onClickColumn: (nextSort: Sort, sortKey: SortKey) => void
 }
 
 export default class StaticTemplatesList extends PureComponent<Props> {
@@ -35,26 +38,10 @@ export default class StaticTemplatesList extends PureComponent<Props> {
   )
 
   public render() {
-    const {
-      searchTerm,
-      onImport,
-      sortKey,
-      sortDirection,
-      onClickColumn,
-    } = this.props
-
-    const headerKeys: SortKey[] = ['meta.name']
+    const {searchTerm, onImport} = this.props
 
     return (
       <ResourceList>
-        <ResourceList.Header>
-          <ResourceList.Sorter
-            name="Name"
-            sortKey={headerKeys[0]}
-            sort={sortKey === headerKeys[0] ? sortDirection : Sort.None}
-            onClick={onClickColumn}
-          />
-        </ResourceList.Header>
         <ResourceList.Body
           emptyState={
             <EmptyTemplatesList searchTerm={searchTerm} onImport={onImport} />
@@ -86,7 +73,7 @@ export default class StaticTemplatesList extends PureComponent<Props> {
       <StaticTemplateCard
         key={`template-id--static-${t.name}`}
         name={t.name}
-        template={t.template}
+        template={{...t.template, status: RemoteDataState.Done}}
         onFilterChange={onFilterChange}
       />
     ))

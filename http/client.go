@@ -7,20 +7,21 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/influxdata/influxdb/kit/tracing"
-	"github.com/influxdata/influxdb/pkg/httpc"
+	"github.com/influxdata/influxdb/v2/kit/tracing"
+	"github.com/influxdata/influxdb/v2/pkg/httpc"
 )
 
 // NewHTTPClient creates a new httpc.Client type. This call sets all
 // the options that are important to the http pkg on the httpc client.
 // The default status fn and so forth will all be set for the caller.
-func NewHTTPClient(addr, token string, insecureSkipVerify bool) (*httpc.Client, error) {
+// In addition, some options can be specified. Those will be added to the defaults.
+func NewHTTPClient(addr, token string, insecureSkipVerify bool, opts ...httpc.ClientOptFn) (*httpc.Client, error) {
 	u, err := url.Parse(addr)
 	if err != nil {
 		return nil, err
 	}
 
-	opts := []httpc.ClientOptFn{
+	defaultOpts := []httpc.ClientOptFn{
 		httpc.WithAddr(addr),
 		httpc.WithContentType("application/json"),
 		httpc.WithHTTPClient(NewClient(u.Scheme, insecureSkipVerify)),
@@ -28,8 +29,9 @@ func NewHTTPClient(addr, token string, insecureSkipVerify bool) (*httpc.Client, 
 		httpc.WithStatusFn(CheckError),
 	}
 	if token != "" {
-		opts = append(opts, httpc.WithAuthToken(token))
+		defaultOpts = append(defaultOpts, httpc.WithAuthToken(token))
 	}
+	opts = append(defaultOpts, opts...)
 	return httpc.New(opts...)
 }
 
@@ -42,21 +44,35 @@ type Service struct {
 	*AuthorizationService
 	*BackupService
 	*BucketService
+	*TaskService
 	*DashboardService
 	*OrganizationService
+	*NotificationRuleService
 	*UserService
 	*VariableService
 	*WriteService
+	DocumentService
+	*CheckService
+	*NotificationEndpointService
+	*UserResourceMappingService
+	*TelegrafService
+	*LabelService
+	*SecretService
 }
 
-// NewService returns a service that is an HTTP
-// client to a remote
-func NewService(addr, token string) (*Service, error) {
-	httpClient, err := NewHTTPClient(addr, token, false)
-	if err != nil {
-		return nil, err
-	}
-
+// NewService returns a service that is an HTTP client to a remote.
+// Address and token are needed for those services that do not use httpc.Client,
+// but use those for configuring.
+// Usually one would do:
+//
+// ```
+// c := NewHTTPClient(addr, token, insecureSkipVerify)
+// s := NewService(c, addr token)
+// ```
+//
+// So one should provide the same `addr` and `token` to both calls to ensure consistency
+// in the behavior of the returned service.
+func NewService(httpClient *httpc.Client, addr, token string) (*Service, error) {
 	return &Service{
 		Addr:                 addr,
 		Token:                token,
@@ -65,15 +81,24 @@ func NewService(addr, token string) (*Service, error) {
 			Addr:  addr,
 			Token: token,
 		},
-		BucketService:       &BucketService{Client: httpClient},
-		DashboardService:    &DashboardService{Client: httpClient},
-		OrganizationService: &OrganizationService{Client: httpClient},
-		UserService:         &UserService{Client: httpClient},
-		VariableService:     &VariableService{Client: httpClient},
+		BucketService:           &BucketService{Client: httpClient},
+		TaskService:             &TaskService{Client: httpClient},
+		DashboardService:        &DashboardService{Client: httpClient},
+		OrganizationService:     &OrganizationService{Client: httpClient},
+		NotificationRuleService: &NotificationRuleService{Client: httpClient},
+		UserService:             &UserService{Client: httpClient},
+		VariableService:         &VariableService{Client: httpClient},
 		WriteService: &WriteService{
 			Addr:  addr,
 			Token: token,
 		},
+		DocumentService:             NewDocumentService(httpClient),
+		CheckService:                &CheckService{Client: httpClient},
+		NotificationEndpointService: &NotificationEndpointService{Client: httpClient},
+		UserResourceMappingService:  &UserResourceMappingService{Client: httpClient},
+		TelegrafService:             NewTelegrafService(httpClient),
+		LabelService:                &LabelService{Client: httpClient},
+		SecretService:               &SecretService{Client: httpClient},
 	}, nil
 }
 

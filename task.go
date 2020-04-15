@@ -11,7 +11,7 @@ import (
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/ast/edit"
 	"github.com/influxdata/flux/parser"
-	"github.com/influxdata/influxdb/task/options"
+	"github.com/influxdata/influxdb/v2/task/options"
 )
 
 const (
@@ -227,7 +227,7 @@ func (t *TaskUpdate) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (t TaskUpdate) MarshalJSON() ([]byte, error) {
+func (t *TaskUpdate) MarshalJSON() ([]byte, error) {
 	jo := struct {
 		Flux        *string `json:"flux,omitempty"`
 		Status      *string `json:"status,omitempty"`
@@ -262,17 +262,17 @@ func (t TaskUpdate) MarshalJSON() ([]byte, error) {
 	return json.Marshal(jo)
 }
 
-func (t TaskUpdate) Validate() error {
+func (t *TaskUpdate) Validate() error {
 	switch {
 	case !t.Options.Every.IsZero() && t.Options.Cron != "":
 		return errors.New("cannot specify both every and cron")
 	case !t.Options.Every.IsZero():
-		if _, err := time.ParseDuration(t.Options.Every.String()); err != nil {
+		if _, err := parser.ParseSignedDuration(t.Options.Every.String()); err != nil {
 			return fmt.Errorf("every: %s is invalid", err)
 		}
 	case t.Options.Offset != nil && !t.Options.Offset.IsZero():
 		if _, err := time.ParseDuration(t.Options.Offset.String()); err != nil {
-			return fmt.Errorf("offset: %s, %s is invalid", t.Options.Offset.String(), err)
+			return fmt.Errorf("offset: %s, %s is invalid, the largest unit supported is h", t.Options.Offset.String(), err)
 		}
 	case t.Flux == nil && t.Status == nil && t.Options.IsZero():
 		return errors.New("cannot update task without content")
@@ -464,4 +464,76 @@ type LogFilter struct {
 
 	// The optional Run ID limits logs to a single run.
 	Run *ID
+}
+
+type TaskStatus string
+
+const (
+	TaskActive   TaskStatus = "active"
+	TaskInactive TaskStatus = "inactive"
+
+	DefaultTaskStatus TaskStatus = TaskActive
+)
+
+type RunStatus int
+
+const (
+	RunStarted RunStatus = iota
+	RunSuccess
+	RunFail
+	RunCanceled
+	RunScheduled
+)
+
+func (r RunStatus) String() string {
+	switch r {
+	case RunStarted:
+		return "started"
+	case RunSuccess:
+		return "success"
+	case RunFail:
+		return "failed"
+	case RunCanceled:
+		return "canceled"
+	case RunScheduled:
+		return "scheduled"
+	}
+	panic(fmt.Sprintf("unknown RunStatus: %d", r))
+}
+
+// RequestStillQueuedError is returned when attempting to retry a run which has not yet completed.
+type RequestStillQueuedError struct {
+	// Unix timestamps matching existing request's start and end.
+	Start, End int64
+}
+
+const fmtRequestStillQueued = "previous retry for start=%s end=%s has not yet finished"
+
+func (e RequestStillQueuedError) Error() string {
+	return fmt.Sprintf(fmtRequestStillQueued,
+		time.Unix(e.Start, 0).UTC().Format(time.RFC3339),
+		time.Unix(e.End, 0).UTC().Format(time.RFC3339),
+	)
+}
+
+// ParseRequestStillQueuedError attempts to parse a RequestStillQueuedError from msg.
+// If msg is formatted correctly, the resultant error is returned; otherwise it returns nil.
+func ParseRequestStillQueuedError(msg string) *RequestStillQueuedError {
+	var s, e string
+	n, err := fmt.Sscanf(msg, fmtRequestStillQueued, &s, &e)
+	if err != nil || n != 2 {
+		return nil
+	}
+
+	start, err := time.Parse(time.RFC3339, s)
+	if err != nil {
+		return nil
+	}
+
+	end, err := time.Parse(time.RFC3339, e)
+	if err != nil {
+		return nil
+	}
+
+	return &RequestStillQueuedError{Start: start.Unix(), End: end.Unix()}
 }

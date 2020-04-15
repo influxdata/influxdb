@@ -7,8 +7,9 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	platform "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/mock"
+	"github.com/influxdata/influxdb/v2"
+	platform "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/mock"
 )
 
 const (
@@ -20,6 +21,15 @@ const (
 var userCmpOptions = cmp.Options{
 	cmp.Comparer(func(x, y []byte) bool {
 		return bytes.Equal(x, y)
+	}),
+	cmp.Comparer(func(x, y *influxdb.User) bool {
+		if x == nil && y == nil {
+			return true
+		}
+		if x != nil && y == nil || y != nil && x == nil {
+			return false
+		}
+		return x.Name == y.Name && x.OAuthID == y.OAuthID && x.Status == y.Status
 	}),
 	cmp.Transformer("Sort", func(in []*platform.User) []*platform.User {
 		out := append([]*platform.User(nil), in...) // Copy input to avoid mutating it

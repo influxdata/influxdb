@@ -150,6 +150,17 @@ func BindOptions(cmd *cobra.Command, opts []Opt) {
 			}
 			mustBindPFlag(o.Flag, flagset)
 			*destP = viper.GetStringSlice(envVar)
+		case pflag.Value:
+			if hasShort {
+				flagset.VarP(destP, o.Flag, string(o.Short), o.Desc)
+			} else {
+				flagset.Var(destP, o.Flag, o.Desc)
+			}
+			if o.Default != nil {
+				destP.Set(o.Default.(string))
+			}
+			mustBindPFlag(o.Flag, flagset)
+			destP.Set(viper.GetString(envVar))
 		default:
 			// if you get a panic here, sorry about that!
 			// anyway, go ahead and make a PR and add another type.

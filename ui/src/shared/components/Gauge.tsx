@@ -9,7 +9,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import {formatStatValue} from 'src/shared/utils/formatStatValue'
 
 // Constants
-import {GAUGE_SPECS} from 'src/shared/constants/gaugeSpecs'
+import {GAUGE_THEME_DARK, GaugeTheme} from 'src/shared/constants/gaugeSpecs'
 import {
   COLOR_TYPE_MIN,
   COLOR_TYPE_MAX,
@@ -32,11 +32,16 @@ interface Props {
   suffix: string
   tickSuffix: string
   decimalPlaces: DecimalPlaces
+  theme?: GaugeTheme
 }
 
 @ErrorHandling
 class Gauge extends Component<Props> {
   private canvasRef: React.RefObject<HTMLCanvasElement>
+
+  public static defaultProps = {
+    theme: GAUGE_THEME_DARK,
+  }
 
   constructor(props: Props) {
     super(props)
@@ -75,7 +80,7 @@ class Gauge extends Component<Props> {
     const centerY = (height / 2) * 1.13
     const radius = (Math.min(width, height) / 2) * 0.5
 
-    const {minLineWidth, minFontSize} = GAUGE_SPECS
+    const {minLineWidth, minFontSize} = this.props.theme
     const gradientThickness = Math.max(minLineWidth, radius / 4)
     const labelValueFontSize = Math.max(minFontSize, radius / 4)
 
@@ -211,7 +216,7 @@ class Gauge extends Component<Props> {
       tickSizeSmall,
       tickSizeLarge,
       smallLineCount,
-    } = GAUGE_SPECS
+    } = this.props.theme
 
     const arcStart = Math.PI * 0.75
     const arcLength = Math.PI * 1.5
@@ -283,7 +288,7 @@ class Gauge extends Component<Props> {
   ) => {
     const {tickPrefix, tickSuffix, decimalPlaces} = this.props
     let {prefix, suffix} = this.props
-    const {degree, lineCount, labelColor, labelFontSize} = GAUGE_SPECS
+    const {degree, lineCount, labelColor, labelFontSize} = this.props.theme
 
     const tickValues = [
       ..._.range(minValue, maxValue, Math.abs(maxValue - minValue) / lineCount),
@@ -307,7 +312,7 @@ class Gauge extends Component<Props> {
     const arcIncrement = arcLength / lineCount
 
     // Format labels text
-    ctx.font = `bold ${labelFontSize}px Helvetica`
+    ctx.font = `bold ${labelFontSize}px Rubik`
     ctx.fillStyle = labelColor
     ctx.textBaseline = 'middle'
     ctx.textAlign = 'right'
@@ -340,9 +345,9 @@ class Gauge extends Component<Props> {
 
   private drawGaugeValue = (ctx, radius, labelValueFontSize) => {
     const {gaugePosition, prefix, suffix, decimalPlaces} = this.props
-    const {valueColor} = GAUGE_SPECS
+    const {valueColor} = this.props.theme
 
-    ctx.font = `${labelValueFontSize}px Roboto`
+    ctx.font = `${labelValueFontSize}px Rubik`
     ctx.fillStyle = valueColor
     ctx.textBaseline = 'middle'
     ctx.textAlign = 'center'
@@ -359,7 +364,7 @@ class Gauge extends Component<Props> {
 
   private drawNeedle = (ctx, radius, minValue, maxValue) => {
     const {gaugePosition} = this.props
-    const {degree, needleColor0, needleColor1, overflowDelta} = GAUGE_SPECS
+    const {degree, needleColor0, needleColor1, overflowDelta} = this.props.theme
     const arcDistance = Math.PI * 1.5
 
     let needleRotation: number

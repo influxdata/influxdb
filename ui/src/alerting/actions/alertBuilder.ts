@@ -49,9 +49,9 @@ export const setAlertBuilderCheck = (check: Check) => ({
   payload: {check},
 })
 
-export const setAlertBuilderCheckStatus = (checkStatus: RemoteDataState) => ({
-  type: 'SET_ALERT_BUILER_CHECK_STATUS' as 'SET_ALERT_BUILER_CHECK_STATUS',
-  payload: {checkStatus},
+export const setAlertBuilderCheckStatus = (status: RemoteDataState) => ({
+  type: 'SET_ALERT_BUILDER_STATUS' as 'SET_ALERT_BUILDER_STATUS',
+  payload: {status},
 })
 
 export const changeCheckType = (toType: CheckType) => ({

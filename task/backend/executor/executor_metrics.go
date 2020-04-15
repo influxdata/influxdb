@@ -3,8 +3,7 @@ package executor
 import (
 	"time"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/task/backend"
+	"github.com/influxdata/influxdb/v2"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -144,7 +143,7 @@ func (em *ExecutorMetrics) StartRun(task *influxdb.Task, queueDelta time.Duratio
 }
 
 // FinishRun adjusts the metrics to indicate a run is no longer in progress for the given task ID.
-func (em *ExecutorMetrics) FinishRun(task *influxdb.Task, status backend.RunStatus, runDuration time.Duration) {
+func (em *ExecutorMetrics) FinishRun(task *influxdb.Task, status influxdb.RunStatus, runDuration time.Duration) {
 	em.totalRunsComplete.WithLabelValues(task.Type, status.String()).Inc()
 
 	em.runDuration.WithLabelValues(task.Type, "all").Observe(runDuration.Seconds())

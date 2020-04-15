@@ -82,7 +82,7 @@ class TaskOptionsBucketDropdown extends PureComponent<Props> {
           key={bucket.name}
           value={bucket.name}
           onClick={this.props.onChangeBucketName}
-          selected={bucket.id === this.selectedName}
+          selected={bucket.name === this.selectedName}
         >
           {bucket.name}
         </Dropdown.Item>
@@ -103,6 +103,7 @@ class TaskOptionsBucketDropdown extends PureComponent<Props> {
 
   private get selectedName(): string {
     const {selectedBucketName, buckets} = this.props
+
     if (buckets && buckets.length) {
       if (selectedBucketName) {
         return selectedBucketName
@@ -116,7 +117,7 @@ class TaskOptionsBucketDropdown extends PureComponent<Props> {
     const {buckets, selectedBucketName, onChangeBucketName} = this.props
     const firstBucketNameInList = get(buckets, '0.name', '')
 
-    if (firstBucketNameInList === selectedBucketName) {
+    if (selectedBucketName) {
       return
     }
 

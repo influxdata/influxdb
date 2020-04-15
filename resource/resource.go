@@ -7,7 +7,7 @@ package resource
 import (
 	"time"
 
-	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2"
 )
 
 // Logger records changes to resources.

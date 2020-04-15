@@ -3,95 +3,129 @@
   ------------------------------------------------------------------------------
 */
 
-$rename-dash-title-padding: 4px;
+$renamable-page-title--height: $cf-marg-d + $cf-marg-c;
+$renamable-page-title--padding: 0;
 
 .renamable-page-title {
   width: 100%;
-  min-width: 29vw;
-  max-width: 42vw;
-  display: flex;
-  margin-bottom: 4px !important;
-}
-
-.renamable-page-title--title,
-.cf-input.renamable-page-title--input > input {
-  font-size: $page-title-size;
-  font-weight: $page-title-weight;
-  font-family: $ix-text-font;
-  padding: 0 $rename-dash-title-padding;
-}
-
-.renamable-page-title--title,
-.renamable-page-title--input {
   position: relative;
-  width: calc(100% + #{$rename-dash-title-padding}) !important;
-  left: -($rename-dash-title-padding + $ix-border);
+  height: $renamable-page-title--height;
+  font-size: $cf-body-text;
+
+  &:hover,
+  &:hover * {
+    cursor: text;
+  }
 }
 
-.renamable-page-title--title {
+.renamable-page-title > .cf-heading.cf-page--title,
+.cf-input.renamable-page-title--input > input {
+  font-size: $cf-page--title-size;
+  font-weight: $cf-page--title-weight;
+  font-family: $cf-header-font;
+  padding: 0 $renamable-page-title--padding;
+  height: $renamable-page-title--height;
+  letter-spacing: 0;
+}
+
+.renamable-page-title > .cf-heading.cf-page--title,
+.renamable-page-title--input {
+  position: absolute;
+  top: 0;
+  width: calc(100% + #{($renamable-page-title--padding + $ix-border) * 2}) !important;
+  left: -($renamable-page-title--padding + $ix-border);
+}
+
+.cf-input-sm.renamable-page-title--input {
+  height: $renamable-page-title--height;
+  font-size: $cf-body-text;
+}
+
+.renamable-page-title > .cf-heading.cf-page--title {
   border-radius: $radius;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  @include no-user-select();
-  color: $g17-whisper;
+  user-select: none;
   transition: color 0.25s ease, background-color 0.25s ease, border-color 0.25s ease;
-  border: $ix-border solid transparent;
-  height: $form-sm-height;
-  line-height: $form-sm-height - ($ix-border * 2);
-  
-  .cf-icon {
-    position: absolute;
-    font-size: 15px;
-    top: 50%;
-    right: $rename-dash-title-padding;
-    transform: translateY(-50%);
-    opacity: 0;
-    transition: opacity 0.25s ease;
-    color: $g11-sidewalk;
-  }
-
-  &:hover {
-    cursor: text;
-    color: $g20-white;
-    background-color: $g3-castle;
-    border-color: $g3-castle;
-  }
-
-  &:hover .cf-icon {
-    opacity: 1;
-  }
-
-  &.untitled {
-    color: $g9-mountain;
-    font-style: italic;
-  }
+  line-height: $renamable-page-title--height - ($ix-border * 2);
+  border: $cf-border solid transparent;
 }
 
-.renamable-page-title--input-prefix {
-  border-radius: $radius;
-  position: relative;
-  white-space: nowrap;
-  @include no-user-select();
-  color: $g17-whisper;
-  transition: color 0.25s ease, background-color 0.25s ease, border-color 0.25s ease;
-  border: $ix-border solid transparent;
-  height: $form-sm-height;
-  line-height: $form-sm-height - ($ix-border * 2);
+.renamable-page-title.untitled > .cf-heading.cf-page--title {
+  color: $g9-mountain;
+  font-style: italic;
+}
+
+.renamable-page-title:hover > .cf-heading.cf-page--title {
+  color: $g20-white;
+  border-color: $g3-castle;
+}
+
+.renamable-page-title--icon {
+  position: absolute;
+  font-size: 1.5em;
+  top: 50%;
+  right: $renamable-page-title--height / 2;
+  transform: translate(50%, -50%);
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  color: $g11-sidewalk;
+
+  .renamable-page-title:hover & {
+    opacity: 1;
+  }
 }
 
 /* Ensure placeholder text matches font weight of title */
 .cf-input.renamable-page-title--input > input {
   &::-webkit-input-placeholder {
-      font-weight: $page-title-weight !important;
+    font-weight: $cf-page--title-weight !important;
+  }
+  &::-moz-placeholder {
+    font-weight: $cf-page--title-weight !important;
+  }
+  &:-ms-input-placeholder {
+    font-weight: $cf-page--title-weight !important;
+  }
+  &:-moz-placeholder {
+    font-weight: $cf-page--title-weight !important;
+  }
+}
+
+/*
+  Light Mode
+  ------------------------------------------------------------------------------
+*/
+
+.clockface--app-wrapper.dashboard-light-mode {
+  .renamable-page-title > .cf-heading.cf-page--title,
+  .cf-input.renamable-page-title--input > input {
+    color: $g8-storm;
+  }
+  .renamable-page-title.untitled > .cf-heading.cf-page--title {
+    color: $g15-platinum;
+  }
+
+  .renamable-page-title:hover > .cf-heading.cf-page--title {
+    color: $g10-wolf;
+    border-color: $g16-pearl;
+  }
+
+  .cf-input.renamable-page-title--input > input {
+    background-color: $g20-white;
+
+    &::-webkit-input-placeholder {
+      color: $g15-platinum;
     }
     &::-moz-placeholder {
-      font-weight: $page-title-weight !important;
+      color: $g15-platinum;
     }
     &:-ms-input-placeholder {
-      font-weight: $page-title-weight !important;
+      color: $g15-platinum;
     }
     &:-moz-placeholder {
-      font-weight: $page-title-weight !important;
+      color: $g15-platinum;
     }
+  }
 }

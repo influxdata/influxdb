@@ -2,15 +2,25 @@ import {
   StatusRule,
   NotificationRuleBase,
   TagRule,
+  SlackNotificationEndpoint,
+  PagerDutyNotificationEndpoint,
+  HTTPNotificationEndpoint,
   SlackNotificationRuleBase,
   SMTPNotificationRuleBase,
   PagerDutyNotificationRuleBase,
   HTTPNotificationRuleBase,
-  Label,
-  ThresholdCheck,
-  DeadmanCheck,
-  CustomCheck,
+  Check as GenCheck,
+  ThresholdCheck as GenThresholdCheck,
+  DeadmanCheck as GenDeadmanCheck,
+  CustomCheck as GenCustomCheck,
+  NotificationRule as GenRule,
+  NotificationEndpoint as GenEndpoint,
+  TaskStatusType,
+  Threshold,
+  CheckBase as GenCheckBase,
+  NotificationEndpointBase as GenEndpointBase,
 } from 'src/client'
+import {RemoteDataState} from 'src/types'
 
 type Omit<T, U> = Pick<T, Exclude<keyof T, U>>
 type Overwrite<T, U> = Omit<T, keyof U> & U
@@ -20,6 +30,29 @@ interface WithClientID<T> {
   value: T
 }
 
+/* Endpoints */
+type EndpointOverrides = {
+  status: RemoteDataState
+  activeStatus: TaskStatusType
+  labels: string[]
+}
+// GenEndpoint is the shape of a NotificationEndpoint from the server -- before any UI specific fields are or modified
+export type GenEndpoint = GenEndpoint
+export type NotificationEndpoint =
+  | (Omit<SlackNotificationEndpoint, 'status' | 'labels'> & EndpointOverrides)
+  | (Omit<PagerDutyNotificationEndpoint, 'status' | 'labels'> &
+      EndpointOverrides)
+  | (Omit<HTTPNotificationEndpoint, 'status' | 'labels'> & EndpointOverrides)
+export type NotificationEndpointBase = Omit<GenEndpointBase, 'labels'> &
+  EndpointOverrides
+
+/* Rule */
+type RuleOverrides = {status: RemoteDataState; activeStatus: TaskStatusType}
+
+// GenRule is the shape of a NotificationRule from the server -- before any UI specific fields are added or modified
+export type GenRule = GenRule
+export type NotificationRule = GenRule & RuleOverrides
+
 export type StatusRuleDraft = WithClientID<StatusRule>
 
 export type TagRuleDraft = WithClientID<TagRule>
@@ -28,22 +61,33 @@ export type NotificationRuleBaseDraft = Overwrite<
   NotificationRuleBase,
   {
     id?: string
+    status: RemoteDataState
+    activeStatus: TaskStatusType
     statusRules: StatusRuleDraft[]
     tagRules: TagRuleDraft[]
-    labels?: Label[]
+    labels?: string[]
   }
 >
 
-export type NotificationRuleDraft =
-  | SlackRule
-  | SMTPRule
-  | PagerDutyRule
-  | HTTPRule
+type RuleDraft = SlackRule | SMTPRule | PagerDutyRule | HTTPRule
 
-type SlackRule = NotificationRuleBaseDraft & SlackNotificationRuleBase
-type SMTPRule = NotificationRuleBaseDraft & SMTPNotificationRuleBase
-type PagerDutyRule = NotificationRuleBaseDraft & PagerDutyNotificationRuleBase
-type HTTPRule = NotificationRuleBaseDraft & HTTPNotificationRuleBase
+export type NotificationRuleDraft = RuleDraft
+
+type SlackRule = NotificationRuleBaseDraft &
+  SlackNotificationRuleBase &
+  RuleOverrides
+
+type SMTPRule = NotificationRuleBaseDraft &
+  SMTPNotificationRuleBase &
+  RuleOverrides
+
+type PagerDutyRule = NotificationRuleBaseDraft &
+  PagerDutyNotificationRuleBase &
+  RuleOverrides
+
+type HTTPRule = NotificationRuleBaseDraft &
+  HTTPNotificationRuleBase &
+  RuleOverrides
 
 export type LowercaseCheckStatusLevel =
   | 'crit'
@@ -74,9 +118,43 @@ export interface NotificationRow {
   sent: 'true' | 'false' // See https://github.com/influxdata/idpe/issues/4645
 }
 
+/* Checks */
+type CheckOverrides = {
+  status: RemoteDataState
+  activeStatus: TaskStatusType
+  labels: string[]
+}
+export type CheckBase = Omit<GenCheckBase, 'status'> & CheckOverrides
+
+// GenCheck is the shape of a Check from the server -- before UI specific properties are added
+export type GenCheck = GenCheck
+export type GenThresholdCheck = GenThresholdCheck
+export type GenDeadmanCheck = GenDeadmanCheck
+
+export type ThresholdCheck = Omit<GenThresholdCheck, 'status' | 'labels'> &
+  CheckOverrides
+
+export type DeadmanCheck = Omit<GenDeadmanCheck, 'status' | 'labels'> &
+  CheckOverrides
+
+export type CustomCheck = Omit<GenCustomCheck, 'status' | 'labels'> &
+  CheckOverrides
+
+export type Check = ThresholdCheck | DeadmanCheck | CustomCheck
+
+export type CheckType = Check['type']
+
+export type ThresholdType = Threshold['type']
+
+export type CheckTagSet = ThresholdCheck['tags'][0]
+
+export type AlertHistoryType = 'statuses' | 'notifications'
+
+export type HTTPMethodType = HTTPNotificationEndpoint['method']
+export type HTTPAuthMethodType = HTTPNotificationEndpoint['authMethod']
+
 export {
   Threshold,
-  CheckBase,
   StatusRule,
   TagRule,
   PostCheck,
@@ -85,13 +163,8 @@ export {
   GreaterThreshold,
   LesserThreshold,
   RangeThreshold,
-  ThresholdCheck,
-  DeadmanCheck,
-  CustomCheck,
-  NotificationEndpoint,
   PostNotificationEndpoint,
   NotificationRuleBase,
-  NotificationRule,
   NotificationRuleUpdate,
   NotificationEndpointType,
   SMTPNotificationRuleBase,
@@ -106,22 +179,7 @@ export {
   SlackNotificationEndpoint,
   HTTPNotificationEndpoint,
   NotificationEndpointUpdate,
-  NotificationEndpointBase,
   PostNotificationRule,
   CheckPatch,
+  TaskStatusType,
 } from '../client'
-
-import {Threshold, HTTPNotificationEndpoint} from '../client'
-
-export type Check = ThresholdCheck | DeadmanCheck | CustomCheck
-
-export type CheckType = Check['type']
-
-export type ThresholdType = Threshold['type']
-
-export type CheckTagSet = ThresholdCheck['tags'][0]
-
-export type AlertHistoryType = 'statuses' | 'notifications'
-
-export type HTTPMethodType = HTTPNotificationEndpoint['method']
-export type HTTPAuthMethodType = HTTPNotificationEndpoint['authMethod']

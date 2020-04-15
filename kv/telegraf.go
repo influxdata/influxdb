@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2"
 )
 
 var (
@@ -68,7 +68,8 @@ func ErrUnprocessableTelegraf(err error) *influxdb.Error {
 }
 
 var (
-	telegrafBucket = []byte("telegrafv1")
+	telegrafBucket        = []byte("telegrafv1")
+	telegrafPluginsBucket = []byte("telegrafPluginsv1")
 )
 
 var _ influxdb.TelegrafConfigStore = (*Service)(nil)
@@ -77,11 +78,22 @@ func (s *Service) initializeTelegraf(ctx context.Context, tx Tx) error {
 	if _, err := s.telegrafBucket(tx); err != nil {
 		return err
 	}
+	if _, err := s.telegrafPluginsBucket(tx); err != nil {
+		return err
+	}
 	return nil
 }
 
 func (s *Service) telegrafBucket(tx Tx) (Bucket, error) {
 	b, err := tx.Bucket(telegrafBucket)
+	if err != nil {
+		return nil, UnavailableTelegrafServiceError(err)
+	}
+	return b, nil
+}
+
+func (s *Service) telegrafPluginsBucket(tx Tx) (Bucket, error) {
+	b, err := tx.Bucket(telegrafPluginsBucket)
 	if err != nil {
 		return nil, UnavailableTelegrafServiceError(err)
 	}
@@ -195,6 +207,25 @@ func (s *Service) putTelegrafConfig(ctx context.Context, tx Tx, tc *influxdb.Tel
 	if err := bucket.Put(encodedID, v); err != nil {
 		return UnavailableTelegrafServiceError(err)
 	}
+
+	return s.putTelegrafConfigStats(encodedID, tx, tc)
+}
+
+func (s *Service) putTelegrafConfigStats(encodedID []byte, tx Tx, tc *influxdb.TelegrafConfig) error {
+	bucket, err := s.telegrafPluginsBucket(tx)
+	if err != nil {
+		return err
+	}
+
+	v, err := marshalTelegrafPlugins(tc.CountPlugins())
+	if err != nil {
+		return err
+	}
+
+	if err := bucket.Put(encodedID, v); err != nil {
+		return UnavailableTelegrafServiceError(err)
+	}
+
 	return nil
 }
 
@@ -274,10 +305,31 @@ func (s *Service) deleteTelegrafConfig(ctx context.Context, tx Tx, id influxdb.I
 		return UnavailableTelegrafServiceError(err)
 	}
 
-	return s.deleteUserResourceMappings(ctx, tx, influxdb.UserResourceMappingFilter{
+	if err := s.deleteUserResourceMappings(ctx, tx, influxdb.UserResourceMappingFilter{
 		ResourceID:   id,
 		ResourceType: influxdb.TelegrafsResourceType,
-	})
+	}); err != nil {
+		return err
+	}
+
+	return s.deleteTelegrafConfigStats(encodedID, tx)
+}
+
+func (s *Service) deleteTelegrafConfigStats(encodedID []byte, tx Tx) error {
+	bucket, err := s.telegrafPluginsBucket(tx)
+	if err != nil {
+		return err
+	}
+
+	if err := bucket.Delete(encodedID); err != nil {
+		return &influxdb.Error{
+			Code: influxdb.EInternal,
+			Msg:  fmt.Sprintf("Unable to connect to telegraf config stats service. Please try again; Err: %v", err),
+			Op:   "kv/telegraf",
+		}
+	}
+
+	return nil
 }
 
 // unmarshalTelegraf turns the stored byte slice in the kv into a *influxdb.TelegrafConfig.
@@ -291,6 +343,14 @@ func unmarshalTelegraf(v []byte) (*influxdb.TelegrafConfig, error) {
 
 func marshalTelegraf(tc *influxdb.TelegrafConfig) ([]byte, error) {
 	v, err := json.Marshal(tc)
+	if err != nil {
+		return nil, ErrUnprocessableTelegraf(err)
+	}
+	return v, nil
+}
+
+func marshalTelegrafPlugins(plugins map[string]float64) ([]byte, error) {
+	v, err := json.Marshal(plugins)
 	if err != nil {
 		return nil, ErrUnprocessableTelegraf(err)
 	}

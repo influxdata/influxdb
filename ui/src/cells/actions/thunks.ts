@@ -2,20 +2,28 @@
 import {normalize} from 'normalizr'
 
 // APIs
-import * as api from 'src/client'
-import * as dashAPI from 'src/dashboards/apis'
+import {
+  getDashboard,
+  deleteDashboardsCell,
+  postDashboard,
+  postDashboardsCell,
+  putDashboardsCells,
+} from 'src/client'
+import {updateView} from 'src/dashboards/apis'
 
 // Schemas
-import * as schemas from 'src/schemas'
+import {
+  dashboardSchema,
+  cellSchema,
+  arrayOfCells,
+  viewSchema,
+} from 'src/schemas'
 
 // Actions
-import {refreshDashboardVariableValues} from 'src/dashboards/actions/thunks'
 import {setView} from 'src/views/actions/creators'
 import {notify} from 'src/shared/actions/notifications'
+import {setDashboard} from 'src/dashboards/actions/creators'
 import {setCells, setCell, removeCell} from 'src/cells/actions/creators'
-
-// Utils
-import {getClonedDashboardCell} from 'src/dashboards/utils/cellGetters'
 
 // Constants
 import * as copy from 'src/shared/copy/notifications'
@@ -36,22 +44,15 @@ import {
 } from 'src/types'
 
 // Utils
-import {getViewsForDashboard} from 'src/views/selectors'
 import {getNewDashboardCell} from 'src/dashboards/utils/cellGetters'
 import {getByID} from 'src/resources/selectors'
 
 export const deleteCell = (dashboardID: string, cellID: string) => async (
-  dispatch,
-  getState: GetState
+  dispatch
 ): Promise<void> => {
   try {
-    const views = getViewsForDashboard(getState(), dashboardID).filter(
-      view => view.cellID !== cellID
-    )
-
     await Promise.all([
-      api.deleteDashboardsCell({dashboardID: dashboardID, cellID: cellID}),
-      dispatch(refreshDashboardVariableValues(dashboardID, views)),
+      deleteDashboardsCell({dashboardID: dashboardID, cellID: cellID}),
     ])
 
     dispatch(removeCell({dashboardID, id: cellID}))
@@ -67,6 +68,7 @@ export const createCellWithView = (
   clonedCell?: Cell
 ) => async (dispatch, getState: GetState): Promise<void> => {
   const state = getState()
+  let workingView = view
 
   let dashboard = getByID<Dashboard>(
     state,
@@ -76,24 +78,25 @@ export const createCellWithView = (
 
   try {
     if (!dashboard) {
-      const resp = await api.getDashboard({dashboardID})
+      const resp = await getDashboard({dashboardID})
       if (resp.status !== 200) {
         throw new Error(resp.data.message)
       }
 
-      const {entities, result} = normalize<
-        Dashboard,
-        DashboardEntities,
-        string
-      >(resp.data, schemas.dashboard)
+      const normDash = normalize<Dashboard, DashboardEntities, string>(
+        resp.data,
+        dashboardSchema
+      )
+      const {entities, result} = normDash
 
       dashboard = entities.dashboards[result]
+      dispatch(setDashboard(resp.data.id, RemoteDataState.Done, normDash))
     }
 
     const cell: NewCell = getNewDashboardCell(state, dashboard, clonedCell)
 
     // Create the cell
-    const cellResp = await api.postDashboardsCell({dashboardID, data: cell})
+    const cellResp = await postDashboardsCell({dashboardID, data: cell})
 
     if (cellResp.status !== 201) {
       throw new Error(cellResp.data.message)
@@ -101,28 +104,60 @@ export const createCellWithView = (
 
     const cellID = cellResp.data.id
 
+    if (clonedCell) {
+      workingView = {...workingView, name: `${view.name} (Clone)`}
+    }
+
     // Create the view and associate it with the cell
-    const newView = await dashAPI.updateView(dashboardID, cellID, view)
+    const newView = await updateView(dashboardID, cellID, workingView)
 
     const normCell = normalize<Cell, CellEntities, string>(
       {...cellResp.data, dashboardID},
-      schemas.cell
+      cellSchema
     )
 
     // Refresh variables in use on dashboard
-    const views = [...getViewsForDashboard(state, dashboardID), newView]
+    const normView = normalize<View, ViewEntities, string>(newView, viewSchema)
 
-    await dispatch(refreshDashboardVariableValues(dashboardID, views))
+    dispatch(setCell(cellID, RemoteDataState.Done, normCell))
+    dispatch(setView(cellID, RemoteDataState.Done, normView))
+  } catch (error) {
+    dispatch(notify(copy.cellAddFailed(error.message)))
+    throw error
+  }
+}
 
-    const normView = normalize<View, ViewEntities, string>(
-      newView,
-      schemas.view
+export const createDashboardWithView = (
+  orgID: string,
+  dashboardName: string,
+  view: View
+) => async (dispatch): Promise<void> => {
+  try {
+    const newDashboard = {
+      orgID,
+      name: dashboardName,
+      cells: [],
+    }
+
+    const resp = await postDashboard({data: newDashboard})
+
+    if (resp.status !== 201) {
+      throw new Error(resp.data.message)
+    }
+
+    const normDash = normalize<Dashboard, DashboardEntities, string>(
+      resp.data,
+      dashboardSchema
     )
 
-    dispatch(setView(cellID, RemoteDataState.Done, normView))
-    dispatch(setCell(cellID, RemoteDataState.Done, normCell))
-  } catch {
-    notify(copy.cellAddFailed())
+    await dispatch(setDashboard(resp.data.id, RemoteDataState.Done, normDash))
+
+    await dispatch(createCellWithView(resp.data.id, view))
+    dispatch(notify(copy.dashboardCreateSuccess()))
+  } catch (error) {
+    console.error(error)
+    dispatch(notify(copy.cellAddFailed(error.message)))
+    throw error
   }
 }
 
@@ -130,7 +165,7 @@ export const updateCells = (dashboardID: string, cells: Cell[]) => async (
   dispatch
 ): Promise<void> => {
   try {
-    const resp = await api.putDashboardsCells({
+    const resp = await putDashboardsCells({
       dashboardID,
       data: cells,
     })
@@ -143,27 +178,12 @@ export const updateCells = (dashboardID: string, cells: Cell[]) => async (
 
     const normCells = normalize<Dashboard, DashboardEntities, string[]>(
       updatedCells,
-      schemas.arrayOfCells
+      arrayOfCells
     )
 
     dispatch(setCells(dashboardID, RemoteDataState.Done, normCells))
   } catch (error) {
-    console.error(error)
-  }
-}
-
-export const copyCell = (dashboard: Dashboard, cell: Cell) => dispatch => {
-  try {
-    const clonedCell = getClonedDashboardCell(dashboard, cell)
-
-    const normCell = normalize<Dashboard, DashboardEntities, string>(
-      clonedCell,
-      schemas.cell
-    )
-
-    dispatch(setCell(cell.id, RemoteDataState.Done, normCell))
-    dispatch(notify(copy.cellAdded()))
-  } catch (error) {
+    dispatch(notify(copy.cellUpdateFailed()))
     console.error(error)
   }
 }

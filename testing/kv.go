@@ -5,11 +5,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/influxdb/kv"
+	"github.com/influxdata/influxdb/v2/kv"
 )
 
 // KVStoreFields are background data that has to be set before
@@ -34,6 +35,10 @@ func KVStore(
 		{
 			name: "Get",
 			fn:   KVGet,
+		},
+		{
+			name: "GetBatch",
+			fn:   KVGetBatch,
 		},
 		{
 			name: "Put",
@@ -158,6 +163,118 @@ func KVGet(
 
 				if want, got := tt.wants.val, val; !bytes.Equal(want, got) {
 					t.Errorf("exptected to get value %s got %s", string(want), string(got))
+					return err
+				}
+
+				return nil
+			})
+
+			if err != nil {
+				t.Fatalf("error during view transaction: %v", err)
+			}
+		})
+	}
+}
+
+// KVGetBatch tests the get batch method contract for the key value store.
+func KVGetBatch(
+	init func(KVStoreFields, *testing.T) (kv.Store, func()),
+	t *testing.T,
+) {
+	type args struct {
+		bucket []byte
+		keys   [][]byte
+	}
+	type wants struct {
+		err  error
+		vals [][]byte
+	}
+
+	tests := []struct {
+		name   string
+		fields KVStoreFields
+		args   args
+		wants  wants
+	}{
+		{
+			name: "get keys",
+			fields: KVStoreFields{
+				Bucket: []byte("bucket"),
+				Pairs: []kv.Pair{
+					{
+						Key:   []byte("hello"),
+						Value: []byte("world"),
+					},
+					{
+						Key:   []byte("color"),
+						Value: []byte("orange"),
+					},
+					{
+						Key:   []byte("organization"),
+						Value: []byte("influx"),
+					},
+				},
+			},
+			args: args{
+				bucket: []byte("bucket"),
+				keys:   [][]byte{[]byte("hello"), []byte("organization")},
+			},
+			wants: wants{
+				vals: [][]byte{[]byte("world"), []byte("influx")},
+			},
+		},
+		{
+			name: "get keys with missing",
+			fields: KVStoreFields{
+				Bucket: []byte("bucket"),
+				Pairs: []kv.Pair{
+					{
+						Key:   []byte("hello"),
+						Value: []byte("world"),
+					},
+					{
+						Key:   []byte("organization"),
+						Value: []byte("influx"),
+					},
+				},
+			},
+			args: args{
+				bucket: []byte("bucket"),
+				keys:   [][]byte{[]byte("hello"), []byte("color")},
+			},
+			wants: wants{
+				vals: [][]byte{[]byte("world"), nil},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s, close := init(tt.fields, t)
+			defer close()
+
+			err := s.View(context.Background(), func(tx kv.Tx) error {
+				b, err := tx.Bucket(tt.args.bucket)
+				if err != nil {
+					t.Errorf("unexpected error retrieving bucket: %v", err)
+					return err
+				}
+
+				vals, err := b.GetBatch(tt.args.keys...)
+				if (err != nil) != (tt.wants.err != nil) {
+					t.Errorf("expected error '%v' got '%v'", tt.wants.err, err)
+					return err
+				}
+
+				if err != nil && tt.wants.err != nil {
+					if err.Error() != tt.wants.err.Error() {
+						t.Errorf("expected error messages to match '%v' got '%v'", tt.wants.err, err.Error())
+						return err
+					}
+				}
+
+				if want, got := tt.wants.vals, vals; !reflect.DeepEqual(want, got) {
+					t.Errorf("exptected to get value %q got %q", want, got)
 					return err
 				}
 
@@ -736,6 +853,42 @@ func KVForwardCursor(
 				},
 			},
 			exp: []string{"aaa/00", "aaa/01", "aaa/02", "aaa/03"},
+		},
+		{
+			name: "prefix - skip first",
+			fields: KVStoreFields{
+				Bucket: []byte("bucket"),
+				Pairs: pairs(
+					"aa/00", "aa/01",
+					"aaa/00", "aaa/01", "aaa/02", "aaa/03",
+					"bbb/00", "bbb/01", "bbb/02"),
+			},
+			args: args{
+				seek:  "aaa/00",
+				until: "bbb/02",
+				opts: []kv.CursorOption{
+					kv.WithCursorPrefix([]byte("aaa")),
+					kv.WithCursorSkipFirstItem(),
+				},
+			},
+			exp: []string{"aaa/01", "aaa/02", "aaa/03"},
+		},
+		{
+			name: "prefix - skip first (one item)",
+			fields: KVStoreFields{
+				Bucket: []byte("bucket"),
+				Pairs: pairs(
+					"aa/00", "aa/01",
+					"aaa/00", "aaa/01", "aaa/02", "aaa/03",
+					"bbb/00", "bbb/01", "bbb/02"),
+			},
+			args: args{
+				seek: "bbb/02",
+				opts: []kv.CursorOption{
+					kv.WithCursorSkipFirstItem(),
+				},
+			},
+			exp: nil,
 		},
 		{
 			name: "prefix - does not prefix seek",

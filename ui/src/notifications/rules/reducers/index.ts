@@ -2,76 +2,104 @@
 import {produce} from 'immer'
 
 // Types
-import {RemoteDataState, NotificationRuleDraft} from 'src/types'
-import {Action} from 'src/notifications/rules/actions'
+import {
+  RemoteDataState,
+  RulesState,
+  NotificationRule,
+  ResourceType,
+} from 'src/types'
+import {
+  Action,
+  SET_RULES,
+  SET_RULE,
+  REMOVE_RULE,
+  SET_CURRENT_RULE,
+  REMOVE_LABEL_FROM_RULE,
+} from 'src/notifications/rules/actions/creators'
+import {
+  setResource,
+  removeResource,
+  setResourceAtID,
+  setRelation,
+} from 'src/resources/reducers/helpers'
+import {SET_LABEL_ON_RESOURCE} from 'src/labels/actions/creators'
 
-export interface NotificationRulesState {
-  status: RemoteDataState
-  list: NotificationRuleDraft[]
-  current: {status: RemoteDataState; rule: NotificationRuleDraft}
-}
-
-export const defaultNotificationRulesState: NotificationRulesState = {
+export const defaultNotificationRulesState: RulesState = {
   status: RemoteDataState.NotStarted,
-  list: [],
+  byID: {},
+  allIDs: [],
   current: {status: RemoteDataState.NotStarted, rule: null},
 }
 
 export default (
-  state: NotificationRulesState = defaultNotificationRulesState,
+  state: RulesState = defaultNotificationRulesState,
   action: Action
-): NotificationRulesState =>
+): RulesState =>
   produce(state, draftState => {
     switch (action.type) {
-      case 'SET_ALL_NOTIFICATION_RULES':
-        const {status, rules} = action.payload
-        draftState.status = status
-        if (rules) {
-          draftState.list = rules
-        }
-        return
-
-      case 'SET_NOTIFICATION_RULE':
-        const newNotificationRule = action.payload.rule
-        const ruleIndex = state.list.findIndex(
-          nr => nr.id == newNotificationRule.id
+      case SET_RULES: {
+        setResource<NotificationRule>(
+          draftState,
+          action,
+          ResourceType.NotificationRules
         )
 
-        if (ruleIndex == -1) {
-          draftState.list.push(newNotificationRule)
-        } else {
-          draftState.list[ruleIndex] = newNotificationRule
+        return
+      }
+
+      case SET_RULE: {
+        setResourceAtID<NotificationRule>(
+          draftState,
+          action,
+          ResourceType.NotificationRules
+        )
+
+        return
+      }
+
+      case REMOVE_RULE: {
+        removeResource<NotificationRule>(draftState, action)
+
+        return
+      }
+
+      case SET_CURRENT_RULE: {
+        const {schema, status} = action
+        const ruleID = schema.result
+
+        draftState.current.status = status
+        const rule = schema.entities.rules[ruleID]
+
+        if (rule) {
+          draftState.current.rule = rule
         }
-        return
 
-      case 'REMOVE_NOTIFICATION_RULE':
-        const {ruleID} = action.payload
-        draftState.list = draftState.list.filter(nr => nr.id !== ruleID)
         return
+      }
 
-      case 'SET_CURRENT_NOTIFICATION_RULE':
-        draftState.current.status = action.payload.status
-        if (action.payload.rule) {
-          draftState.current.rule = action.payload.rule
-        }
-        return
+      case SET_LABEL_ON_RESOURCE: {
+        const {resourceID, schema} = action
+        const labelID = schema.result
 
-      case 'ADD_LABEL_TO_RULE':
-        draftState.list = draftState.list.map(r => {
-          if (r.id === action.ruleID) {
-            r.labels = [...r.labels, action.label]
-          }
-          return r
-        })
-        return
+        setRelation<NotificationRule>(
+          draftState,
+          ResourceType.Labels,
+          labelID,
+          resourceID
+        )
 
-      case 'REMOVE_LABEL_FROM_RULE':
-        draftState.list = draftState.list.map(r => {
-          if (r.id === action.ruleID) {
-            r.labels = r.labels.filter(label => label.id !== action.label.id)
-          }
-          return r
-        })
         return
+      }
+
+      case REMOVE_LABEL_FROM_RULE: {
+        const {ruleID, labelID} = action
+        const labels = draftState.byID[ruleID].labels
+
+        draftState.byID[ruleID].labels = labels.filter(
+          label => label.id !== labelID
+        )
+
+        return
+      }
     }
   })

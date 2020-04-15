@@ -5,11 +5,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	platform "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/inmem"
-	"github.com/influxdata/influxdb/kv"
-	"github.com/influxdata/influxdb/mock"
-	platformtesting "github.com/influxdata/influxdb/testing"
+	platform "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/inmem"
+	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
+	"github.com/influxdata/influxdb/v2/kv"
+	"github.com/influxdata/influxdb/v2/mock"
+	platformtesting "github.com/influxdata/influxdb/v2/testing"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -38,7 +39,7 @@ func initOnboardingService(f platformtesting.OnboardingFields, t *testing.T) (pl
 	}
 
 	setupBackend := NewMockSetupBackend(t)
-	setupBackend.HTTPErrorHandler = ErrorHandler(0)
+	setupBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
 	setupBackend.OnboardingService = svc
 	handler := NewSetupHandler(zaptest.NewLogger(t), setupBackend)
 	server := httptest.NewServer(handler)
@@ -61,5 +62,5 @@ func initOnboardingService(f platformtesting.OnboardingFields, t *testing.T) (pl
 	return client, done
 }
 func TestOnboardingService(t *testing.T) {
-	platformtesting.Generate(initOnboardingService, t)
+	platformtesting.OnboardInitialUser(initOnboardingService, t)
 }

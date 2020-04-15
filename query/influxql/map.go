@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/influxdata/flux/ast"
-	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/influxql"
 )
 
@@ -41,32 +40,19 @@ func (t *transpilerState) mapFields(in cursor) (cursor, error) {
 		panic("number of columns does not match the number of fields")
 	}
 
-	properties := make([]*ast.Property, 0, len(t.stmt.Fields)+1)
-	properties = append(properties, &ast.Property{
-		Key: &ast.Identifier{
-			Name: execute.DefaultTimeColLabel,
-		},
-		Value: &ast.MemberExpression{
-			Object: &ast.Identifier{
-				Name: "r",
-			},
-			Property: &ast.Identifier{
-				Name: execute.DefaultTimeColLabel,
-			},
-		},
-	})
+	properties := make([]*ast.Property, 0, len(t.stmt.Fields))
 	for i, f := range t.stmt.Fields {
 		if ref, ok := f.Expr.(*influxql.VarRef); ok && ref.Val == "time" {
 			// Skip past any time columns.
 			continue
 		}
-		value, err := t.mapField(f.Expr, in)
+		fieldName, err := t.mapField(f.Expr, in, false)
 		if err != nil {
 			return nil, err
 		}
 		properties = append(properties, &ast.Property{
-			Key:   &ast.Identifier{Name: columns[i]},
-			Value: value,
+			Key:   fieldName.(ast.PropertyKey),
+			Value: &ast.StringLiteral{Value: columns[i]},
 		})
 	}
 	return &mapCursor{
@@ -74,31 +60,18 @@ func (t *transpilerState) mapFields(in cursor) (cursor, error) {
 			Argument: in.Expr(),
 			Call: &ast.CallExpression{
 				Callee: &ast.Identifier{
-					Name: "map",
+					Name: "rename",
 				},
 				Arguments: []ast.Expression{
 					&ast.ObjectExpression{
-						Properties: []*ast.Property{
-							{
-								Key: &ast.Identifier{
-									Name: "fn",
-								},
-								Value: &ast.FunctionExpression{
-									Params: []*ast.Property{{
-										Key: &ast.Identifier{Name: "r"},
-									}},
-									Body: &ast.ObjectExpression{
-										Properties: properties,
-									},
-								},
+						Properties: []*ast.Property{{
+							Key: &ast.Identifier{
+								Name: "columns",
 							},
-							{
-								Key: &ast.Identifier{
-									Name: "mergeKey",
-								},
-								Value: &ast.BooleanLiteral{Value: true},
+							Value: &ast.ObjectExpression{
+								Properties: properties,
 							},
-						},
+						}},
 					},
 				},
 			},
@@ -106,18 +79,21 @@ func (t *transpilerState) mapFields(in cursor) (cursor, error) {
 	}, nil
 }
 
-func (t *transpilerState) mapField(expr influxql.Expr, in cursor) (ast.Expression, error) {
+func (t *transpilerState) mapField(expr influxql.Expr, in cursor, returnMemberExpr bool) (ast.Expression, error) {
 	if sym, ok := in.Value(expr); ok {
-		var property ast.PropertyKey
+		var mappedName ast.Expression
 		if strings.HasPrefix(sym, "_") {
-			property = &ast.Identifier{Name: sym}
+			mappedName = &ast.Identifier{Name: sym}
 		} else {
-			property = &ast.StringLiteral{Value: sym}
+			mappedName = &ast.StringLiteral{Value: sym}
 		}
-		return &ast.MemberExpression{
-			Object:   &ast.Identifier{Name: "r"},
-			Property: property,
-		}, nil
+		if returnMemberExpr {
+			return &ast.MemberExpression{
+				Object:   &ast.Identifier{Name: "r"},
+				Property: mappedName.(ast.PropertyKey),
+			}, nil
+		}
+		return mappedName, nil
 	}
 
 	switch expr := expr.(type) {
@@ -131,7 +107,7 @@ func (t *transpilerState) mapField(expr influxql.Expr, in cursor) (ast.Expressio
 	case *influxql.BinaryExpr:
 		return t.evalBinaryExpr(expr, in)
 	case *influxql.ParenExpr:
-		return t.mapField(expr.Expr, in)
+		return t.mapField(expr.Expr, in, returnMemberExpr)
 	case *influxql.StringLiteral:
 		if ts, err := expr.ToTimeLiteral(time.UTC); err == nil {
 			return &ast.DateTimeLiteral{Value: ts.Val}, nil
@@ -194,11 +170,11 @@ func (t *transpilerState) evalBinaryExpr(expr *influxql.BinaryExpr, in cursor) (
 		return nil, fmt.Errorf("unimplemented binary expression: %s", expr.Op)
 	}
 
-	lhs, err := t.mapField(expr.LHS, in)
+	lhs, err := t.mapField(expr.LHS, in, true)
 	if err != nil {
 		return nil, err
 	}
-	rhs, err := t.mapField(expr.RHS, in)
+	rhs, err := t.mapField(expr.RHS, in, true)
 	if err != nil {
 		return nil, err
 	}

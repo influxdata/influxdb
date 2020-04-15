@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/influxdata/influxdb/pkg/testttp"
+	"github.com/influxdata/influxdb/v2/pkg/testttp"
 )
 
 func TestHTTP(t *testing.T) {

@@ -57,6 +57,25 @@ func TestClient(t *testing.T) {
 		return client, fakeDoer
 	}
 
+	cookieAuthClient := func(status int, respFn respFn, opts ...ClientOptFn) (*Client, *fakeDoer) {
+		const session = "secret"
+		fakeDoer := &fakeDoer{
+			doFn: func(r *http.Request) (*http.Response, error) {
+				cookie, err := r.Cookie("session")
+				if err != nil {
+					return nil, errors.New("session cookie not found")
+				}
+				if cookie.Value != session {
+					return nil, errors.New("unauthed cookie")
+				}
+				return respFn(status, r)
+			},
+		}
+		client := newClient(t, "http://example.com", append(opts, WithSessionCookie(session))...)
+		client.doer = fakeDoer
+		return client, fakeDoer
+	}
+
 	noAuthClient := func(status int, respFn respFn, opts ...ClientOptFn) (*Client, *fakeDoer) {
 		fakeDoer := &fakeDoer{
 			doFn: func(r *http.Request) (*http.Response, error) {
@@ -79,6 +98,10 @@ func TestClient(t *testing.T) {
 		{
 			name:     "token auth",
 			clientFn: tokenAuthClient,
+		},
+		{
+			name:     "cookie auth",
+			clientFn: cookieAuthClient,
 		},
 	}
 

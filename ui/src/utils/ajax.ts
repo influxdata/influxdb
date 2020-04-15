@@ -17,6 +17,12 @@ interface RequestParams {
   auth?: {username: string; password: string}
 }
 
+/*
+ * @deprecated
+ *
+ * Use fetch instead
+ * @ see `runQuery` in src/shared/apis/query.ts for an example
+ */
 async function AJAX<T = any>(
   {
     url,
@@ -27,7 +33,7 @@ async function AJAX<T = any>(
     auth = null,
   }: RequestParams,
   excludeBasepath = false
-): Promise<(T) | AxiosResponse<T>> {
+): Promise<T | AxiosResponse<T>> {
   try {
     url = addBasepath(url, excludeBasepath)
 

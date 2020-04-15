@@ -5,19 +5,22 @@ export const OSS_FLAGS = {
   deleteWithPredicate: false,
   downloadCellCSV: false,
   telegrafEditor: false,
-  queryBuilderGrouping: false,
   customCheckQuery: false,
   matchingNotificationRules: false,
+  regionBasedLoginPage: false,
+  demodata: false,
 }
 
 export const CLOUD_FLAGS = {
   deleteWithPredicate: false,
+  multiUser: false,
   cloudBilling: CLOUD_BILLING_VISIBLE, // should be visible in dev and acceptance, but not in cloud
   downloadCellCSV: false,
   telegrafEditor: false,
-  queryBuilderGrouping: false,
   customCheckQuery: false,
   matchingNotificationRules: false,
+  regionBasedLoginPage: false,
+  demodata: false,
 }
 
 export const isFlagEnabled = (flagName: string, equals?: string | boolean) => {

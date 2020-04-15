@@ -10,15 +10,13 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/mock"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
 )
 
 func TestCmdOrg(t *testing.T) {
-	setViperOptions()
-
 	fakeOrgSVCFn := func(svc influxdb.OrganizationService) orgSVCFn {
 		return func() (influxdb.OrganizationService, influxdb.UserResourceMappingService, influxdb.UserService, error) {
 			return svc, mock.NewUserResourceMappingService(), mock.NewUserService(), nil
@@ -55,7 +53,7 @@ func TestCmdOrg(t *testing.T) {
 			},
 		}
 
-		cmdFn := func(expectedOrg influxdb.Organization) *cobra.Command {
+		cmdFn := func(expectedOrg influxdb.Organization) func(*globalFlags, genericCLIOpts) *cobra.Command {
 			svc := mock.NewOrganizationService()
 			svc.CreateOrganizationF = func(ctx context.Context, org *influxdb.Organization) error {
 				if expectedOrg != *org {
@@ -64,15 +62,21 @@ func TestCmdOrg(t *testing.T) {
 				return nil
 			}
 
-			builder := newCmdOrgBuilder(fakeOrgSVCFn(svc), out(ioutil.Discard))
-			cmd := builder.cmdCreate()
-			return cmd
+			return func(_ *globalFlags, opt genericCLIOpts) *cobra.Command {
+				builder := newCmdOrgBuilder(fakeOrgSVCFn(svc), opt)
+				return builder.cmd()
+			}
 		}
 
 		for _, tt := range tests {
 			fn := func(t *testing.T) {
-				cmd := cmdFn(tt.expected)
-				cmd.Flags().Parse(tt.flags)
+				builder := newInfluxCmdBuilder(
+					in(new(bytes.Buffer)),
+					out(ioutil.Discard),
+				)
+				cmd := builder.cmd(cmdFn(tt.expected))
+				cmd.SetArgs(append([]string{"org", "create"}, tt.flags...))
+
 				require.NoError(t, cmd.Execute())
 			}
 
@@ -98,7 +102,7 @@ func TestCmdOrg(t *testing.T) {
 			},
 		}
 
-		cmdFn := func(expectedID influxdb.ID) *cobra.Command {
+		cmdFn := func(expectedID influxdb.ID) func(*globalFlags, genericCLIOpts) *cobra.Command {
 			svc := mock.NewOrganizationService()
 			svc.FindOrganizationByIDF = func(ctx context.Context, id influxdb.ID) (*influxdb.Organization, error) {
 				return &influxdb.Organization{ID: id}, nil
@@ -110,16 +114,22 @@ func TestCmdOrg(t *testing.T) {
 				return nil
 			}
 
-			builder := newCmdOrgBuilder(fakeOrgSVCFn(svc), out(ioutil.Discard))
-			cmd := builder.cmdDelete()
-			return cmd
+			return func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
+				builder := newCmdOrgBuilder(fakeOrgSVCFn(svc), opt)
+				return builder.cmd()
+			}
 		}
 
 		for _, tt := range tests {
 			fn := func(t *testing.T) {
-				cmd := cmdFn(tt.expectedID)
+				builder := newInfluxCmdBuilder(
+					in(new(bytes.Buffer)),
+					out(ioutil.Discard),
+				)
+				cmd := builder.cmd(cmdFn(tt.expectedID))
 				idFlag := tt.flag + tt.expectedID.String()
-				cmd.Flags().Parse([]string{idFlag})
+				cmd.SetArgs([]string{"org", "find", idFlag})
+
 				require.NoError(t, cmd.Execute())
 			}
 
@@ -127,7 +137,7 @@ func TestCmdOrg(t *testing.T) {
 		}
 	})
 
-	t.Run("find", func(t *testing.T) {
+	t.Run("list", func(t *testing.T) {
 		type called struct {
 			name string
 			id   influxdb.ID
@@ -137,16 +147,19 @@ func TestCmdOrg(t *testing.T) {
 			name     string
 			expected called
 			flags    []string
+			command  string
 			envVars  map[string]string
 		}{
 			{
 				name:     "org id",
 				flags:    []string{"--id=" + influxdb.ID(3).String()},
+				envVars:  envVarsZeroMap,
 				expected: called{id: 3},
 			},
 			{
 				name:     "name",
 				flags:    []string{"--name=name1"},
+				envVars:  envVarsZeroMap,
 				expected: called{name: "name1"},
 			},
 			{
@@ -155,6 +168,7 @@ func TestCmdOrg(t *testing.T) {
 					"-n=name1",
 					"-i=" + influxdb.ID(1).String(),
 				},
+				envVars:  envVarsZeroMap,
 				expected: called{name: "name1", id: 1},
 			},
 			{
@@ -166,9 +180,23 @@ func TestCmdOrg(t *testing.T) {
 				flags:    []string{"-i=" + influxdb.ID(1).String()},
 				expected: called{name: "name1", id: 1},
 			},
+			{
+				name:     "ls alias",
+				command:  "ls",
+				flags:    []string{"--name=name1"},
+				envVars:  envVarsZeroMap,
+				expected: called{name: "name1"},
+			},
+			{
+				name:     "find alias",
+				command:  "find",
+				flags:    []string{"--name=name1"},
+				envVars:  envVarsZeroMap,
+				expected: called{name: "name1"},
+			},
 		}
 
-		cmdFn := func() (*cobra.Command, *called) {
+		cmdFn := func() (func(*globalFlags, genericCLIOpts) *cobra.Command, *called) {
 			calls := new(called)
 
 			svc := mock.NewOrganizationService()
@@ -182,17 +210,28 @@ func TestCmdOrg(t *testing.T) {
 				return nil, 0, nil
 			}
 
-			builder := newCmdOrgBuilder(fakeOrgSVCFn(svc), in(new(bytes.Buffer)), out(ioutil.Discard))
-			cmd := builder.cmdFind()
-			return cmd, calls
+			return func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
+				builder := newCmdOrgBuilder(fakeOrgSVCFn(svc), opt)
+				return builder.cmd()
+			}, calls
 		}
 
 		for _, tt := range tests {
 			fn := func(t *testing.T) {
 				defer addEnvVars(t, tt.envVars)()
 
-				cmd, calls := cmdFn()
-				cmd.Flags().Parse(tt.flags)
+				builder := newInfluxCmdBuilder(
+					in(new(bytes.Buffer)),
+					out(ioutil.Discard),
+				)
+				cmdFn, calls := cmdFn()
+				cmd := builder.cmd(cmdFn)
+
+				if tt.command == "" {
+					tt.command = "list"
+				}
+
+				cmd.SetArgs(append([]string{"org", tt.command}, tt.flags...))
 
 				require.NoError(t, cmd.Execute())
 				assert.Equal(t, tt.expected, *calls)
@@ -257,7 +296,7 @@ func TestCmdOrg(t *testing.T) {
 			},
 		}
 
-		cmdFn := func(expectedUpdate influxdb.OrganizationUpdate) *cobra.Command {
+		cmdFn := func(expectedUpdate influxdb.OrganizationUpdate) func(*globalFlags, genericCLIOpts) *cobra.Command {
 			svc := mock.NewOrganizationService()
 			svc.UpdateOrganizationF = func(ctx context.Context, id influxdb.ID, upd influxdb.OrganizationUpdate) (*influxdb.Organization, error) {
 				if id != 3 {
@@ -269,17 +308,23 @@ func TestCmdOrg(t *testing.T) {
 				return &influxdb.Organization{}, nil
 			}
 
-			builder := newCmdOrgBuilder(fakeOrgSVCFn(svc), out(ioutil.Discard))
-			cmd := builder.cmdUpdate()
-			return cmd
+			return func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
+				builder := newCmdOrgBuilder(fakeOrgSVCFn(svc), opt)
+				return builder.cmd()
+			}
 		}
 
 		for _, tt := range tests {
 			fn := func(t *testing.T) {
 				defer addEnvVars(t, tt.envVars)()
 
-				cmd := cmdFn(tt.expected)
-				cmd.Flags().Parse(tt.flags)
+				builder := newInfluxCmdBuilder(
+					in(new(bytes.Buffer)),
+					out(ioutil.Discard),
+				)
+				cmd := builder.cmd(cmdFn(tt.expected))
+				cmd.SetArgs(append([]string{"org", "update"}, tt.flags...))
+
 				require.NoError(t, cmd.Execute())
 			}
 
@@ -303,13 +348,29 @@ func TestCmdOrg(t *testing.T) {
 			}
 		)
 
-		testMemberFn := func(t *testing.T, cmdFn func() (*cobra.Command, *called), testCases ...testCase) {
+		testMemberFn := func(t *testing.T, cmdName string, cmdFn func() (func(*globalFlags, genericCLIOpts) *cobra.Command, *called), testCases ...testCase) {
 			for _, tt := range testCases {
 				fn := func(t *testing.T) {
-					defer addEnvVars(t, tt.envVars)()
+					envVars := tt.envVars
+					if len(envVars) == 0 {
+						envVars = envVarsZeroMap
+					}
+					defer addEnvVars(t, envVars)()
 
-					cmd, calls := cmdFn()
-					cmd.Flags().Parse(tt.memberFlags)
+					outBuf := new(bytes.Buffer)
+					defer func() {
+						if t.Failed() && outBuf.Len() > 0 {
+							t.Log(outBuf.String())
+						}
+					}()
+
+					builder := newInfluxCmdBuilder(
+						in(new(bytes.Buffer)),
+						out(outBuf),
+					)
+					nestedCmd, calls := cmdFn()
+					cmd := builder.cmd(nestedCmd)
+					cmd.SetArgs(append([]string{"org", "members", cmdName}, tt.memberFlags...))
 
 					require.NoError(t, cmd.Execute())
 					assert.Equal(t, tt.expected, *calls)
@@ -324,26 +385,33 @@ func TestCmdOrg(t *testing.T) {
 				{
 					name:        "org id",
 					memberFlags: []string{"--id=" + influxdb.ID(3).String()},
+					envVars:     envVarsZeroMap,
 					expected:    called{id: 3},
 				},
 				{
 					name:        "org id short",
 					memberFlags: []string{"-i=" + influxdb.ID(3).String()},
+					envVars:     envVarsZeroMap,
 					expected:    called{id: 3},
 				},
 				{
-					name:     "org id env var",
-					envVars:  map[string]string{"INFLUX_ORG_ID": influxdb.ID(3).String()},
+					name: "org id env var",
+					envVars: map[string]string{
+						"INFLUX_ORG":    "",
+						"INFLUX_ORG_ID": influxdb.ID(3).String(),
+					},
 					expected: called{id: 3},
 				},
 				{
 					name:        "name",
 					memberFlags: []string{"--name=name1"},
+					envVars:     envVarsZeroMap,
 					expected:    called{name: "name1"},
 				},
 				{
 					name:        "name short",
 					memberFlags: []string{"-n=name1"},
+					envVars:     envVarsZeroMap,
 					expected:    called{name: "name1"},
 				},
 				{
@@ -353,7 +421,7 @@ func TestCmdOrg(t *testing.T) {
 				},
 			}
 
-			cmdFn := func() (*cobra.Command, *called) {
+			cmdFn := func() (func(*globalFlags, genericCLIOpts) *cobra.Command, *called) {
 				calls := new(called)
 
 				svc := mock.NewOrganizationService()
@@ -367,16 +435,19 @@ func TestCmdOrg(t *testing.T) {
 					return &influxdb.Organization{ID: 1}, nil
 				}
 
-				builder := newCmdOrgBuilder(fakeOrgSVCFn(svc), in(new(bytes.Buffer)), out(ioutil.Discard))
-				cmd := builder.cmdMemberList()
-				return cmd, calls
+				return func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
+					builder := newCmdOrgBuilder(fakeOrgSVCFn(svc), opt)
+					return builder.cmd()
+				}, calls
 			}
 
-			testMemberFn(t, cmdFn, tests...)
+			testMemberFn(t, "list", cmdFn, tests...)
+			testMemberFn(t, "ls", cmdFn, tests[0:1]...)
+			testMemberFn(t, "find", cmdFn, tests[0:1]...)
 		})
 
 		t.Run("add", func(t *testing.T) {
-			cmdFn := func() (*cobra.Command, *called) {
+			cmdFn := func() (func(*globalFlags, genericCLIOpts) *cobra.Command, *called) {
 				calls := new(called)
 
 				svc := mock.NewOrganizationService()
@@ -395,9 +466,10 @@ func TestCmdOrg(t *testing.T) {
 					return nil
 				}
 
-				builder := newCmdOrgBuilder(fakeOrgUrmSVCsFn(svc, urmSVC), in(new(bytes.Buffer)), out(ioutil.Discard))
-				cmd := builder.cmdMemberAdd()
-				return cmd, calls
+				return func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
+					builder := newCmdOrgBuilder(fakeOrgUrmSVCsFn(svc, urmSVC), opt)
+					return builder.cmd()
+				}, calls
 			}
 
 			addTests := []testCase{
@@ -407,6 +479,7 @@ func TestCmdOrg(t *testing.T) {
 						"--id=" + influxdb.ID(3).String(),
 						"--member=" + influxdb.ID(4).String(),
 					},
+					envVars:  envVarsZeroMap,
 					expected: called{id: 3, memberID: 4},
 				},
 				{
@@ -415,6 +488,7 @@ func TestCmdOrg(t *testing.T) {
 						"-i=" + influxdb.ID(3).String(),
 						"-m=" + influxdb.ID(4).String(),
 					},
+					envVars:  envVarsZeroMap,
 					expected: called{id: 3, memberID: 4},
 				},
 				{
@@ -423,6 +497,7 @@ func TestCmdOrg(t *testing.T) {
 						"--name=name1",
 						"--member=" + influxdb.ID(4).String(),
 					},
+					envVars:  envVarsZeroMap,
 					expected: called{name: "name1", memberID: 4},
 				},
 				{
@@ -431,15 +506,16 @@ func TestCmdOrg(t *testing.T) {
 						"-n=name1",
 						"-m=" + influxdb.ID(4).String(),
 					},
+					envVars:  envVarsZeroMap,
 					expected: called{name: "name1", memberID: 4},
 				},
 			}
 
-			testMemberFn(t, cmdFn, addTests...)
+			testMemberFn(t, "add", cmdFn, addTests...)
 		})
 
 		t.Run("remove", func(t *testing.T) {
-			cmdFn := func() (*cobra.Command, *called) {
+			cmdFn := func() (func(*globalFlags, genericCLIOpts) *cobra.Command, *called) {
 				calls := new(called)
 
 				svc := mock.NewOrganizationService()
@@ -458,9 +534,10 @@ func TestCmdOrg(t *testing.T) {
 					return nil
 				}
 
-				builder := newCmdOrgBuilder(fakeOrgUrmSVCsFn(svc, urmSVC), in(new(bytes.Buffer)), out(ioutil.Discard))
-				cmd := builder.cmdMemberRemove()
-				return cmd, calls
+				return func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
+					builder := newCmdOrgBuilder(fakeOrgUrmSVCsFn(svc, urmSVC), opt)
+					return builder.cmd()
+				}, calls
 			}
 
 			addTests := []testCase{
@@ -470,6 +547,7 @@ func TestCmdOrg(t *testing.T) {
 						"--id=" + influxdb.ID(3).String(),
 						"--member=" + influxdb.ID(4).String(),
 					},
+					envVars:  envVarsZeroMap,
 					expected: called{id: 3, memberID: 4},
 				},
 				{
@@ -478,6 +556,7 @@ func TestCmdOrg(t *testing.T) {
 						"-i=" + influxdb.ID(3).String(),
 						"-m=" + influxdb.ID(4).String(),
 					},
+					envVars:  envVarsZeroMap,
 					expected: called{id: 3, memberID: 4},
 				},
 				{
@@ -486,6 +565,7 @@ func TestCmdOrg(t *testing.T) {
 						"--name=name1",
 						"--member=" + influxdb.ID(4).String(),
 					},
+					envVars:  envVarsZeroMap,
 					expected: called{name: "name1", memberID: 4},
 				},
 				{
@@ -494,11 +574,17 @@ func TestCmdOrg(t *testing.T) {
 						"-n=name1",
 						"-m=" + influxdb.ID(4).String(),
 					},
+					envVars:  envVarsZeroMap,
 					expected: called{name: "name1", memberID: 4},
 				},
 			}
 
-			testMemberFn(t, cmdFn, addTests...)
+			testMemberFn(t, "remove", cmdFn, addTests...)
 		})
 	})
+}
+
+var envVarsZeroMap = map[string]string{
+	"INFLUX_ORG_ID": "",
+	"INFLUX_ORG":    "",
 }

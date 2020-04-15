@@ -6,11 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/influxdb/task/backend"
-
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/notification/rule"
-	"github.com/influxdata/influxdb/task/backend/middleware"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/notification/rule"
+	"github.com/influxdata/influxdb/v2/task/backend/middleware"
 )
 
 func newNotificationRuleSvcStack() (mockedSvc, *middleware.CoordinatingNotificationRuleStore) {
@@ -83,9 +81,9 @@ func TestNotificationRuleUpdateFromInactive(t *testing.T) {
 
 	mocks.taskSvc.FindTaskByIDFn = func(_ context.Context, id influxdb.ID) (*influxdb.Task, error) {
 		if id == 1 {
-			return &influxdb.Task{ID: id, Status: string(backend.TaskInactive)}, nil
+			return &influxdb.Task{ID: id, Status: string(influxdb.TaskInactive)}, nil
 		} else if id == 10 {
-			return &influxdb.Task{ID: id, Status: string(backend.TaskActive)}, nil
+			return &influxdb.Task{ID: id, Status: string(influxdb.TaskActive)}, nil
 		}
 		return &influxdb.Task{ID: id}, nil
 	}

@@ -6,9 +6,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/influxdata/influxdb/internal/fs"
-	"github.com/influxdata/influxdb/tsdb"
-	"github.com/influxdata/influxdb/tsdb/tsi1"
+	"github.com/influxdata/influxdb/v2/internal/fs"
+	"github.com/influxdata/influxdb/v2/tsdb/seriesfile"
+	"github.com/influxdata/influxdb/v2/tsdb/tsi1"
 	"github.com/spf13/cobra"
 )
 
@@ -32,7 +32,7 @@ SQL format for easier inspection and debugging.`,
 
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		// Initialize series file.
-		sfile := tsdb.NewSeriesFile(seriesFilePath)
+		sfile := seriesfile.NewSeriesFile(seriesFilePath)
 		if err := sfile.Open(context.Background()); err != nil {
 			return err
 		}

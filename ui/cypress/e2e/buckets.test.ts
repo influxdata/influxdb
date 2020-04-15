@@ -31,11 +31,25 @@ describe('Buckets', () => {
       })
 
       cy.getByTestID(`bucket--card--name ${newBucket}`).should('exist')
+
+      // Add a label
+      cy.getByTestID('inline-labels--add')
+        .first()
+        .click()
+
+      const labelName = 'l1'
+      cy.getByTestID('inline-labels--popover--contents').type(labelName)
+      cy.getByTestID('inline-labels--create-new').click()
+      cy.getByTestID('create-label-form--submit').click()
+
+      // Delete the label
+      cy.getByTestID(`label--pill--delete ${labelName}`).click({force: true})
+      cy.getByTestID('inline-labels--empty').should('exist')
     })
 
     it("can update a bucket's retention rules", () => {
       cy.get<Bucket>('@bucket').then(({name}: Bucket) => {
-        cy.getByTestID(`bucket--card--name ${name}`).click()
+        cy.getByTestID(`bucket-settings`).click()
         cy.getByTestID(`bucket--card--name ${name}`).should(
           'not.contain',
           '7 days'
@@ -60,28 +74,36 @@ describe('Buckets', () => {
 
     describe('Searching and Sorting', () => {
       it('can sort by name and retention', () => {
-        cy.getByTestID('name-sorter').click()
-        cy.getByTestID('bucket-card')
-          .first()
-          .contains('defbuck')
+        const buckets = ['defbuck', '_tasks', '_monitoring']
+        cy.getByTestID('resource-sorter--button')
+          .click()
+          .then(() => {
+            cy.getByTestID('resource-sorter--name-desc').click()
+          })
+          .then(() => {
+            cy.get('[data-testid*="bucket-card"]').each((val, index) => {
+              const testID = val.attr('data-testid')
+              expect(testID).to.include(buckets[index])
+            })
+          })
 
-        cy.getByTestID('name-sorter').click()
-        cy.getByTestID('bucket-card')
-          .first()
-          .contains('_monitoring')
-
-        cy.getByTestID('retention-sorter').click()
-        cy.getByTestID('bucket-card')
-          .first()
-          .contains('_tasks')
-
-        cy.getByTestID('retention-sorter').click()
-        cy.getByTestID('bucket-card')
-          .first()
-          .contains('defbuck')
+        cy.getByTestID('resource-sorter--button')
+          .click()
+          .then(() => {
+            cy.getByTestID(
+              'resource-sorter--retentionRules[0].everySeconds-desc'
+            ).click()
+          })
+          .then(() => {
+            const asc_buckets = buckets.slice().sort()
+            cy.get('[data-testid*="bucket-card"]').each((val, index) => {
+              const testID = val.attr('data-testid')
+              expect(testID).to.include(asc_buckets[index])
+            })
+          })
 
         cy.getByTestID('search-widget').type('tasks')
-        cy.getByTestID('bucket-card').should('have.length', 1)
+        cy.get('.cf-resource-card').should('have.length', 1)
       })
     })
 

@@ -1,9 +1,25 @@
-$table-graph-cell: $g0-obsidian;
-$table-graph-cell--highlight: $g2-kevlar;
-$table-graph-heading-bg: $g1-raven;
-$table-graph-heading-bg--active: $g3-castle;
-$table-graph-border: $g3-castle;
-$table-graph-font: 12px;
+$table-graph--font: 12px;
+$table-graph--text-color: $g11-sidewalk;
+$table-graph--text-highlight: $g20-white;
+$table-graph--cell: $g0-obsidian;
+$table-graph--cell-highlight: $g2-kevlar;
+$table-graph--heading-text: $g14-chromium;
+$table-graph--heading-text-corner: $g18-cloud;
+$table-graph--heading-sort: $c-pool;
+$table-graph--heading-bg: $g1-raven;
+$table-graph--heading-bg--active: $g3-castle;
+$table-graph--border: $g3-castle;
+
+$table-light-graph--text-color: $g8-storm;
+$table-light-graph--text-highlight: $g5-pepper;
+$table-light-graph--cell: $g20-white;
+$table-light-graph--cell-highlight: $g18-cloud;
+$table-light-graph--heading-text: $g9-mountain;
+$table-light-graph--heading-text-corner: $g6-smoke;
+$table-light-graph--heading-sort: $c-pool;
+$table-light-graph--heading-bg: $g17-whisper;
+$table-light-graph--heading-bg--active: $g16-pearl;
+$table-light-graph--border: $g16-pearl;
 
 .time-machine-tables {
   display: flex;
@@ -15,16 +31,16 @@ $table-graph-font: 12px;
 
 .time-machine-sidebar {
   flex: 1 0 180px;
-  background-color: $g0-obsidian;
-  margin-right: $ix-marg-a;
+  background-color: $table-graph--cell;
+  margin-right: $cf-marg-a;
   overflow: hidden;
-  border-radius: $ix-radius;
-  border: $ix-border solid $g3-castle;
+  border-radius: $cf-radius;
+  border: $cf-border solid $table-graph--border;
 }
 
 .time-machine-sidebar--heading {
   padding: 10px;
-  background: $g3-castle;
+  background: $table-graph--heading-bg--active;
   height: 50px;
 }
 
@@ -37,65 +53,69 @@ $table-graph-font: 12px;
 }
 
 .time-machine-sidebar--items {
+  width: 100%;
   display: inline-flex;
   flex-direction: column;
 }
 
 .time-machine-sidebar-item {
   @include no-user-select();
-  color: $g11-sidewalk;
-  font-size: $table-graph-font;
-  font-weight: 600;
-  padding: 6px 12px;
+  color: $table-graph--text-color;
+  font-size: $table-graph--font;
+  font-weight: $cf-font-weight--regular;
+  padding: $cf-marg-b $cf-marg-b;
   transition: color 0.25s ease, background-color 0.25s ease;
   white-space: nowrap;
 
   > span {
-    padding-right: 1px;
-    padding-left: 1px;
+    padding-right: $cf-border;
   }
 
-  > span.key {
-    color: $g9-mountain;
+  > span.key,
+  > span.equals {
+    color: rgba($table-graph--text-color, 70%);
   }
 
   > span.value {
-    padding-right: 5px;
-    color: $g11-sidewalk;
+    font-weight: $cf-font-weight--medium;
+    padding-right: $cf-marg-b;
+    color: $table-graph--text-color;
   }
 
   &:hover {
-    background-color: $g2-kevlar;
-    color: $g13-mist;
+    background-color: $table-graph--cell-highlight;
+    color: $table-graph--text-color;
     cursor: pointer;
 
-    > span.key {
-      color: $g13-mist;
+    > span.key,
+    > span.equals {
+      color: $table-graph--text-color;
     }
 
     > span.value {
-      color: $g20-white;
+      color: $table-graph--text-highlight;
     }
   }
   
   &.active {
-    background-color: $g3-castle;
-    color: $g18-cloud;
+    background-color: $table-graph--heading-bg--active;
+    color: $table-graph--text-highlight;
 
-    > span.key {
-      color: $g18-cloud;
+    > span.key,
+    > span.equals {
+      color: $table-graph--text-highlight;
     }
 
     > span.value {
-      color: $c-pool;
+      color: $table-graph--heading-sort;
     }
   }
 }
 
 .time-machine-table {
   flex: 4 0 100px;
-  border: $ix-border solid $table-graph-border;
-  border-radius: $ix-radius-sm;
+  border: $cf-border solid $table-graph--border;
+  border-radius: $cf-radius-sm;
   overflow: hidden;
 
   &:only-child {
@@ -115,28 +135,28 @@ $table-graph-font: 12px;
   -webkit-user-select: text !important;
   line-height: 28px; // Cell height - 2x border width
   padding: 0 6px;
-  font-size: $table-graph-font;
-  background-color: $table-graph-cell;
+  font-size: $table-graph--font;
+  background-color: $table-graph--cell;
   font-weight: 500;
-  color: $g11-sidewalk;
-  border: ($ix-border / 2) solid $table-graph-border;
+  color: $table-graph--text-color;
+  border: ($cf-border / 2) solid $table-graph--border;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
 
   &__highlight-row {
-    color: $g20-white;
-    background-color: $table-graph-cell--highlight;
+    color: $table-graph--text-highlight;
+    background-color: $table-graph--cell-highlight;
   }
   &__numerical {
-    font-family: $code-font;
+    font-family: $cf-code-font;
     text-align: right;
   }
   &__fixed-row,
   &__fixed-column {
     font-weight: 700;
-    color: $g14-chromium;
-    background-color: $table-graph-heading-bg;
+    color: $table-graph--heading-text;
+    background-color: $table-graph--heading-bg;
   }
   &__fixed-row {
     border-top: 0;
@@ -148,8 +168,8 @@ $table-graph-font: 12px;
     font-weight: 700;
     border-top: 0;
     border-left: 0;
-    color: $g18-cloud;
-    background-color: $table-graph-heading-bg--active;
+    color: $table-graph--heading-text-corner;
+    background-color: $table-graph--heading-bg--active;
   }
   &__field-name {
     padding-right: 17px;
@@ -175,7 +195,7 @@ $table-graph-font: 12px;
   }
   &__sort-asc,
   &__sort-desc {
-    color: $c-pool;
+    color: $table-graph--heading-sort;
 
     &:before {
       opacity: 1;
@@ -189,41 +209,121 @@ $table-graph-font: 12px;
   }
 }
 
-.ReactVirtualized__Grid {
-  &:focus {
-    outline: none;
-  }
-  &::-webkit-scrollbar {
-    width: 0px;
-    height: 0px;
-  }
-  &.table-graph--scroll-window {
-    &::-webkit-scrollbar {
-      width: 10px;
-      height: 10px;
+/*
+    Light Mode
+    ----------------------------------------------------------------------------
+*/
 
-      &-button {
-        background-color: $g5-pepper;
+.time-machine-table.time-machine-table__light-mode {
+  border-color: $table-light-graph--border;
+
+  .table-graph-cell {
+    background-color: $table-light-graph--cell;
+    color: $table-light-graph--text-color;
+    border-color: $table-light-graph--border;
+
+    &__highlight-row {
+      color: $table-light-graph--text-highlight;
+      background-color: $table-light-graph--cell-highlight;
+    }
+    &__fixed-row,
+    &__fixed-column {
+      color: $table-light-graph--heading-text;
+      background-color: $table-light-graph--heading-bg;
+    }
+    &__fixed-corner {
+      color: $table-light-graph--heading-text-corner;
+      background-color: $table-light-graph--heading-bg--active;
+    }
+    &__sort-asc,
+    &__sort-desc {
+      color: $table-light-graph--heading-sort;
+    }
+  }
+}
+
+.time-machine-sidebar.time-machine-sidebar__light {
+  background-color: $table-light-graph--cell;
+  border-color: $table-light-graph--border;
+
+  .time-machine-sidebar--heading {
+    background: $table-light-graph--heading-bg--active;
+  }
+
+  .time-machine-sidebar-item {
+    color: $table-light-graph--text-color;
+
+    > span.key,
+    > span.equals {
+      color: rgba($table-light-graph--text-color, 70%);
+    }
+
+    > span.value {
+      color: $table-light-graph--text-color;
+    }
+
+    &:hover {
+      background-color: $table-light-graph--cell-highlight;
+      color: $table-light-graph--text-color;
+
+      > span.key,
+      > span.equals {
+        color: $table-light-graph--text-color;
       }
-      &-track {
-        background-color: $g5-pepper;
-      }
-      &-track-piece {
-        background-color: $g5-pepper;
-        border: 2px solid $g5-pepper;
-        border-radius: 5px;
-      }
-      &-thumb {
-        background-color: $g11-sidewalk;
-        border: 2px solid $g5-pepper;
-        border-radius: 5px;
-      }
-      &-corner {
-        background-color: $g5-pepper;
+
+      > span.value {
+        color: $table-light-graph--text-highlight;
       }
     }
-    &::-webkit-resizer {
-      background-color: $g5-pepper;
+    
+    &.active {
+      background-color: $table-light-graph--heading-bg--active;
+      color: $table-light-graph--text-highlight;
+
+      > span.key,
+      > span.equals {
+        color: $table-light-graph--text-highlight;
+      }
+
+      > span.value {
+        color: $table-light-graph--heading-sort;
+      }
     }
+  }
+
+  .cf-input.time-machine-sidebar--filter > input {
+    background-color: $g18-cloud;
+    color: $g7-graphite;
+    border-color: $g15-platinum;
+
+    &::-webkit-input-placeholder {
+      color: $g15-platinum;
+    }
+    &::-moz-placeholder {
+      color: $g15-platinum;
+    }
+    &:-ms-input-placeholder {
+      color: $g15-platinum;
+    }
+    &:-moz-placeholder {
+      color: $g15-platinum;
+    }
+
+    &:focus {
+      border-color: $c-pool;
+      background-color: $g20-white;
+    }
+  }
+  .cf-input.time-machine-sidebar--filter:hover > input {
+    background-color: $g20-white;
+    border-color: mix($g15-platinum, $c-pool, 50%);
+  }
+
+  .cf-input.cf-input__focused.time-machine-sidebar--filter > .cf-input-icon {
+    color: $c-pool;
+  }
+
+  .time-machine-sidebar--scroll .cf-dapper-scrollbars--track-y {
+    background-color: $g15-platinum !important;
   }
 }

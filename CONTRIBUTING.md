@@ -148,6 +148,7 @@ To run tests for just the Javascript component use:
 
 ```bash
 $ make test-js
+```
 
 To run tests for just the Go/Rust components use:
 

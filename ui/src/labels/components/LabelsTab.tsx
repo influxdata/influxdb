@@ -8,19 +8,20 @@ import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import CreateLabelOverlay from 'src/labels/components/CreateLabelOverlay'
 import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'
 import LabelList from 'src/labels/components/LabelList'
-import FilterList from 'src/shared/components/Filter'
+import FilterList from 'src/shared/components/FilterList'
+import ResourceSortDropdown from 'src/shared/components/resource_sort_dropdown/ResourceSortDropdown'
 
 // Actions
-import {createLabel, updateLabel, deleteLabel} from 'src/labels/actions'
+import {createLabel, updateLabel, deleteLabel} from 'src/labels/actions/thunks'
 
 // Selectors
-import {viewableLabels} from 'src/labels/selectors'
+import {getAll} from 'src/resources/selectors'
 
 // Utils
 import {validateLabelUniqueness} from 'src/labels/utils/'
 
 // Types
-import {AppState, Label} from 'src/types'
+import {AppState, Label, ResourceType} from 'src/types'
 import {
   IconFont,
   ComponentSize,
@@ -28,18 +29,19 @@ import {
   Sort,
 } from '@influxdata/clockface'
 import {SortTypes} from 'src/shared/utils/sort'
+import {LabelSortKey} from 'src/shared/components/resource_sort_dropdown/generateSortItems'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface StateProps {
-  labels: AppState['labels']['list']
+  labels: Label[]
 }
 
 interface State {
   searchTerm: string
   isOverlayVisible: boolean
-  sortKey: SortKey
+  sortKey: LabelSortKey
   sortDirection: Sort
   sortType: SortTypes
 }
@@ -52,8 +54,7 @@ interface DispatchProps {
 
 type Props = DispatchProps & StateProps
 
-type SortKey = keyof Label
-
+const FilterLabels = FilterList<Label>()
 @ErrorHandling
 class Labels extends PureComponent<Props, State> {
   constructor(props) {
@@ -78,23 +79,40 @@ class Labels extends PureComponent<Props, State> {
       sortType,
     } = this.state
 
+    const leftHeaderItems = (
+      <>
+        <SearchWidget
+          searchTerm={searchTerm}
+          onSearch={this.handleFilterChange}
+          placeholderText="Filter Labels..."
+        />
+        <ResourceSortDropdown
+          resourceType={ResourceType.Labels}
+          sortKey={sortKey}
+          sortDirection={sortDirection}
+          sortType={sortType}
+          onSelect={this.handleSort}
+        />
+      </>
+    )
+
+    const rightHeaderItems = (
+      <Button
+        text="Create Label"
+        color={ComponentColor.Primary}
+        icon={IconFont.Plus}
+        onClick={this.handleShowOverlay}
+        testID="button-create"
+      />
+    )
+
     return (
       <>
-        <TabbedPageHeader>
-          <SearchWidget
-            searchTerm={searchTerm}
-            onSearch={this.handleFilterChange}
-            placeholderText="Filter Labels..."
-          />
-          <Button
-            text="Create Label"
-            color={ComponentColor.Primary}
-            icon={IconFont.Plus}
-            onClick={this.handleShowOverlay}
-            testID="button-create"
-          />
-        </TabbedPageHeader>
-        <FilterList<Label>
+        <TabbedPageHeader
+          childrenLeft={leftHeaderItems}
+          childrenRight={rightHeaderItems}
+        />
+        <FilterLabels
           list={labels}
           searchKeys={['name', 'properties.description']}
           searchTerm={searchTerm}
@@ -108,10 +126,9 @@ class Labels extends PureComponent<Props, State> {
               sortKey={sortKey}
               sortDirection={sortDirection}
               sortType={sortType}
-              onClickColumn={this.handleClickColumn}
             />
           )}
-        </FilterList>
+        </FilterLabels>
         <CreateLabelOverlay
           isVisible={isOverlayVisible}
           onDismiss={this.handleDismissOverlay}
@@ -122,9 +139,12 @@ class Labels extends PureComponent<Props, State> {
     )
   }
 
-  private handleClickColumn = (nextSort: Sort, sortKey: SortKey) => {
-    const sortType = SortTypes.String
-    this.setState({sortKey, sortDirection: nextSort, sortType})
+  private handleSort = (
+    sortKey: LabelSortKey,
+    sortDirection: Sort,
+    sortType: SortTypes
+  ): void => {
+    this.setState({sortKey, sortDirection, sortType})
   }
 
   private handleShowOverlay = (): void => {
@@ -186,12 +206,8 @@ class Labels extends PureComponent<Props, State> {
 }
 
 const mstp = (state: AppState): StateProps => {
-  const {
-    labels: {list},
-  } = state
-  return {
-    labels: viewableLabels(list),
-  }
+  const labels = getAll<Label>(state, ResourceType.Labels)
+  return {labels}
 }
 
 const mdtp: DispatchProps = {

@@ -5,14 +5,29 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"path"
 
 	"github.com/influxdata/httprouter"
-	"github.com/influxdata/influxdb"
-	pcontext "github.com/influxdata/influxdb/context"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/tracing"
+	"github.com/influxdata/influxdb/v2/pkg/httpc"
 	"go.uber.org/zap"
 )
 
 const prefixDocuments = "/api/v2/documents"
+
+// DocumentService is an interface HTTP-exposed portion of the document service.
+type DocumentService interface {
+	CreateDocument(ctx context.Context, namespace string, orgID influxdb.ID, d *influxdb.Document) error
+	GetDocuments(ctx context.Context, namespace string, orgID influxdb.ID) ([]*influxdb.Document, error)
+	GetDocument(ctx context.Context, namespace string, id influxdb.ID) (*influxdb.Document, error)
+	UpdateDocument(ctx context.Context, namespace string, d *influxdb.Document) error
+	DeleteDocument(ctx context.Context, namespace string, id influxdb.ID) error
+
+	GetDocumentLabels(ctx context.Context, namespace string, id influxdb.ID) ([]*influxdb.Label, error)
+	AddDocumentLabel(ctx context.Context, namespace string, did influxdb.ID, lid influxdb.ID) (*influxdb.Label, error)
+	DeleteDocumentLabel(ctx context.Context, namespace string, did influxdb.ID, lid influxdb.ID) error
+}
 
 // DocumentBackend is all services and associated parameters required to construct
 // the DocumentHandler.
@@ -20,17 +35,19 @@ type DocumentBackend struct {
 	log *zap.Logger
 	influxdb.HTTPErrorHandler
 
-	DocumentService influxdb.DocumentService
-	LabelService    influxdb.LabelService
+	DocumentService     influxdb.DocumentService
+	LabelService        influxdb.LabelService
+	OrganizationService influxdb.OrganizationService
 }
 
 // NewDocumentBackend returns a new instance of DocumentBackend.
 func NewDocumentBackend(log *zap.Logger, b *APIBackend) *DocumentBackend {
 	return &DocumentBackend{
-		HTTPErrorHandler: b.HTTPErrorHandler,
-		log:              log,
-		DocumentService:  b.DocumentService,
-		LabelService:     b.LabelService,
+		HTTPErrorHandler:    b.HTTPErrorHandler,
+		log:                 log,
+		DocumentService:     b.DocumentService,
+		LabelService:        b.LabelService,
+		OrganizationService: b.OrganizationService,
 	}
 }
 
@@ -41,8 +58,9 @@ type DocumentHandler struct {
 	log *zap.Logger
 	influxdb.HTTPErrorHandler
 
-	DocumentService influxdb.DocumentService
-	LabelService    influxdb.LabelService
+	DocumentService     influxdb.DocumentService
+	LabelService        influxdb.LabelService
+	OrganizationService influxdb.OrganizationService
 }
 
 const (
@@ -60,8 +78,9 @@ func NewDocumentHandler(b *DocumentBackend) *DocumentHandler {
 		HTTPErrorHandler: b.HTTPErrorHandler,
 		log:              b.log,
 
-		DocumentService: b.DocumentService,
-		LabelService:    b.LabelService,
+		DocumentService:     b.DocumentService,
+		LabelService:        b.LabelService,
+		OrganizationService: b.OrganizationService,
 	}
 
 	h.HandlerFunc("POST", documentsPath, h.handlePostDocument)
@@ -75,6 +94,29 @@ func NewDocumentHandler(b *DocumentBackend) *DocumentHandler {
 	h.HandlerFunc("DELETE", documentLabelsIDPath, h.handleDeleteDocumentLabel)
 
 	return h
+}
+
+func (h *DocumentHandler) getOrgID(ctx context.Context, org string, orgID influxdb.ID) (influxdb.ID, error) {
+	if org != "" && orgID.Valid() {
+		return 0, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  "Please provide either org or orgID, not both",
+		}
+	}
+	if orgID.Valid() {
+		return orgID, nil
+	}
+	if org != "" {
+		o, err := h.OrganizationService.FindOrganization(ctx, influxdb.OrganizationFilter{Name: &org})
+		if err != nil {
+			return 0, err
+		}
+		return o.ID, nil
+	}
+	return 0, &influxdb.Error{
+		Code: influxdb.EInvalid,
+		Msg:  "Please provide either org or orgID",
+	}
 }
 
 type documentResponse struct {
@@ -123,24 +165,19 @@ func (h *DocumentHandler) handlePostDocument(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	a, err := pcontext.GetAuthorizer(ctx)
+	orgID, err := h.getOrgID(ctx, req.Org, req.OrgID)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
+	req.Document.Organizations = make(map[influxdb.ID]influxdb.UserType)
+	req.Document.Organizations[orgID] = influxdb.Owner
 
-	opts := []influxdb.DocumentOptions{}
-	if req.OrgID.Valid() {
-		opts = append(opts, influxdb.AuthorizedWithOrgID(a, req.OrgID))
-	} else {
-		opts = append(opts, influxdb.AuthorizedWithOrg(a, req.Org))
+	d := req.Document
+	for _, lid := range req.Labels {
+		d.Labels = append(d.Labels, &influxdb.Label{ID: lid})
 	}
-	for _, label := range req.Labels {
-		// TODO(desa): make these AuthorizedWithLabel eventually
-		opts = append(opts, influxdb.WithLabel(label))
-	}
-
-	if err := s.CreateDocument(ctx, req.Document, opts...); err != nil {
+	if err := s.CreateDocument(ctx, d); err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
@@ -155,10 +192,12 @@ func (h *DocumentHandler) handlePostDocument(w http.ResponseWriter, r *http.Requ
 
 type postDocumentRequest struct {
 	*influxdb.Document
-	Namespace string        `json:"-"`
-	Org       string        `json:"org"`
-	OrgID     influxdb.ID   `json:"orgID,omitempty"`
-	Labels    []influxdb.ID `json:"labels"`
+	Namespace string      `json:"-"`
+	Org       string      `json:"org"`
+	OrgID     influxdb.ID `json:"orgID,omitempty"`
+	// TODO(affo): Why not accepting fully qualified labels?
+	//  this forces us to convert them back and forth.
+	Labels []influxdb.ID `json:"labels"`
 }
 
 func decodePostDocumentRequest(ctx context.Context, r *http.Request) (*postDocumentRequest, error) {
@@ -205,27 +244,12 @@ func (h *DocumentHandler) handleGetDocuments(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	a, err := pcontext.GetAuthorizer(ctx)
+	orgID, err := h.getOrgID(ctx, req.Org, req.OrgID)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-
-	opts := []influxdb.DocumentFindOptions{influxdb.IncludeLabels}
-	if req.Org != "" && req.OrgID != nil {
-		h.HandleHTTPError(ctx, &influxdb.Error{
-			Code: influxdb.EInvalid,
-			Msg:  "Please provide either org or orgID, not both",
-		}, w)
-		return
-	} else if req.OrgID != nil && req.OrgID.Valid() {
-		opt := influxdb.AuthorizedWhereOrgID(a, *req.OrgID)
-		opts = append(opts, opt)
-	} else if req.Org != "" {
-		opt := influxdb.AuthorizedWhereOrg(a, req.Org)
-		opts = append(opts, opt)
-	}
-
+	opts := []influxdb.DocumentFindOptions{influxdb.IncludeLabels, influxdb.WhereOrgID(orgID)}
 	ds, err := s.FindDocuments(ctx, opts...)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -242,7 +266,7 @@ func (h *DocumentHandler) handleGetDocuments(w http.ResponseWriter, r *http.Requ
 type getDocumentsRequest struct {
 	Namespace string
 	Org       string
-	OrgID     *influxdb.ID
+	OrgID     influxdb.ID
 }
 
 func decodeGetDocumentsRequest(ctx context.Context, r *http.Request) (*getDocumentsRequest, error) {
@@ -256,23 +280,22 @@ func decodeGetDocumentsRequest(ctx context.Context, r *http.Request) (*getDocume
 	}
 
 	qp := r.URL.Query()
-	var oid *influxdb.ID
-	var err error
+	req := &getDocumentsRequest{
+		Namespace: ns,
+		Org:       qp.Get("org"),
+	}
 
 	if oidStr := qp.Get("orgID"); oidStr != "" {
-		oid, err = influxdb.IDFromString(oidStr)
+		oid, err := influxdb.IDFromString(oidStr)
 		if err != nil {
 			return nil, &influxdb.Error{
 				Code: influxdb.EInvalid,
 				Msg:  "Invalid orgID",
 			}
 		}
+		req.OrgID = *oid
 	}
-	return &getDocumentsRequest{
-		Namespace: ns,
-		Org:       qp.Get("org"),
-		OrgID:     oid,
-	}, nil
+	return req, nil
 }
 
 func (h *DocumentHandler) handlePostDocumentLabel(w http.ResponseWriter, r *http.Request) {
@@ -374,36 +397,25 @@ func (h *DocumentHandler) getDocument(w http.ResponseWriter, r *http.Request) (*
 	if err != nil {
 		return nil, "", err
 	}
-	a, err := pcontext.GetAuthorizer(ctx)
+	ds, err := s.FindDocument(ctx, req.ID)
 	if err != nil {
 		return nil, "", err
 	}
-	ds, err := s.FindDocuments(ctx, influxdb.AuthorizedWhereID(a, req.ID), influxdb.IncludeContent, influxdb.IncludeLabels)
-	if err != nil {
-		return nil, "", err
-	}
-
-	if len(ds) != 1 {
-		return nil, "", &influxdb.Error{
-			Code: influxdb.EInternal,
-			Msg:  fmt.Sprintf("found more than one document with id %s; please report this error", req.ID),
-		}
-	}
-	return ds[0], req.Namespace, nil
+	return ds, req.Namespace, nil
 }
 
 // handleGetDocument is the HTTP handler for the GET /api/v2/documents/:ns/:id route.
 func (h *DocumentHandler) handleGetDocument(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	d, namspace, err := h.getDocument(w, r)
+	d, namespace, err := h.getDocument(w, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 	h.log.Debug("Document retrieved", zap.String("document", fmt.Sprint(d)))
 
-	if err := encodeResponse(ctx, w, http.StatusOK, newDocumentResponse(namspace, d)); err != nil {
+	if err := encodeResponse(ctx, w, http.StatusOK, newDocumentResponse(namespace, d)); err != nil {
 		logEncodingError(h.log, r, err)
 		return
 	}
@@ -461,13 +473,7 @@ func (h *DocumentHandler) handleDeleteDocument(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	a, err := pcontext.GetAuthorizer(ctx)
-	if err != nil {
-		h.HandleHTTPError(ctx, err, w)
-		return
-	}
-
-	if err := s.DeleteDocuments(ctx, influxdb.AuthorizedWhereID(a, req.ID)); err != nil {
+	if err := s.DeleteDocument(ctx, req.ID); err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
@@ -529,33 +535,16 @@ func (h *DocumentHandler) handlePutDocument(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	a, err := pcontext.GetAuthorizer(ctx)
+	if err := s.UpdateDocument(ctx, req.Document); err != nil {
+		h.HandleHTTPError(ctx, err, w)
+		return
+	}
+
+	d, err := s.FindDocument(ctx, req.Document.ID)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-
-	if err := s.UpdateDocument(ctx, req.Document, influxdb.Authorized(a)); err != nil {
-		h.HandleHTTPError(ctx, err, w)
-		return
-	}
-
-	ds, err := s.FindDocuments(ctx, influxdb.WhereID(req.Document.ID), influxdb.IncludeContent)
-	if err != nil {
-		h.HandleHTTPError(ctx, err, w)
-		return
-	}
-
-	if len(ds) != 1 {
-		err := &influxdb.Error{
-			Code: influxdb.EInternal,
-			Msg:  fmt.Sprintf("found more than one document with id %s; please report this error", req.ID),
-		}
-		h.HandleHTTPError(ctx, err, w)
-		return
-	}
-
-	d := ds[0]
 
 	h.log.Debug("Document updated", zap.String("document", fmt.Sprint(d)))
 
@@ -601,4 +590,169 @@ func decodePutDocumentRequest(ctx context.Context, r *http.Request) (*putDocumen
 	}
 
 	return req, nil
+}
+
+type documentService struct {
+	Client *httpc.Client
+}
+
+// NewDocumentService creates a client to connect to Influx via HTTP to manage documents.
+func NewDocumentService(client *httpc.Client) DocumentService {
+	return &documentService{
+		Client: client,
+	}
+}
+
+func buildDocumentsPath(namespace string) string {
+	return path.Join(prefixDocuments, namespace)
+}
+func buildDocumentPath(namespace string, id influxdb.ID) string {
+	return path.Join(prefixDocuments, namespace, id.String())
+}
+func buildDocumentLabelsPath(namespace string, id influxdb.ID) string {
+	return path.Join(prefixDocuments, namespace, id.String(), "labels")
+}
+func buildDocumentLabelPath(namespace string, did influxdb.ID, lid influxdb.ID) string {
+	return path.Join(prefixDocuments, namespace, did.String(), "labels", lid.String())
+}
+
+// CreateDocument creates a document in the specified namespace.
+// Only the ids of the given labels will be used.
+// After the call, if successful, the input document will contain the newly assigned ID.
+func (s *documentService) CreateDocument(ctx context.Context, namespace string, orgID influxdb.ID, d *influxdb.Document) error {
+	span, _ := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
+	lids := make([]influxdb.ID, len(d.Labels))
+	for i := 0; i < len(lids); i++ {
+		lids[i] = d.Labels[i].ID
+	}
+	// Set a valid ID for proper marshaling.
+	// It will be assigned by the backend in any case.
+	d.ID = influxdb.ID(1)
+	req := &postDocumentRequest{
+		Document: d,
+		OrgID:    orgID,
+		Labels:   lids,
+	}
+	var resp documentResponse
+	if err := s.Client.
+		PostJSON(req, buildDocumentsPath(namespace)).
+		DecodeJSON(&resp).
+		Do(ctx); err != nil {
+		return err
+	}
+	d.ID = resp.ID
+	return nil
+}
+
+// GetDocuments returns the documents for a `namespace` and an `orgID`.
+// Returned documents do not  contain their content.
+func (s *documentService) GetDocuments(ctx context.Context, namespace string, orgID influxdb.ID) ([]*influxdb.Document, error) {
+	span, _ := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
+	var resp documentsResponse
+	r := s.Client.
+		Get(buildDocumentsPath(namespace)).
+		DecodeJSON(&resp)
+	r = r.QueryParams([2]string{"orgID", orgID.String()})
+	if err := r.Do(ctx); err != nil {
+		return nil, err
+	}
+	docs := make([]*influxdb.Document, len(resp.Documents))
+	for i := 0; i < len(docs); i++ {
+		docs[i] = resp.Documents[i].Document
+	}
+	return docs, nil
+}
+
+// GetDocument returns the document with the specified id.
+func (s *documentService) GetDocument(ctx context.Context, namespace string, id influxdb.ID) (*influxdb.Document, error) {
+	span, _ := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
+	var resp documentResponse
+	if err := s.Client.
+		Get(buildDocumentPath(namespace, id)).
+		DecodeJSON(&resp).
+		Do(ctx); err != nil {
+		return nil, err
+	}
+	return resp.Document, nil
+}
+
+// UpdateDocument updates the document with id `d.ID` and replaces the content of `d` with the patched value.
+func (s *documentService) UpdateDocument(ctx context.Context, namespace string, d *influxdb.Document) error {
+	span, _ := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
+	var resp documentResponse
+	if err := s.Client.
+		PutJSON(d, buildDocumentPath(namespace, d.ID)).
+		DecodeJSON(&resp).
+		Do(ctx); err != nil {
+		return err
+	}
+	*d = *resp.Document
+	return nil
+}
+
+// DeleteDocument deletes the document with the given id.
+func (s *documentService) DeleteDocument(ctx context.Context, namespace string, id influxdb.ID) error {
+	span, _ := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
+	if err := s.Client.
+		Delete(buildDocumentPath(namespace, id)).
+		Do(ctx); err != nil {
+		return err
+	}
+	return nil
+}
+
+// GetDocumentLabels returns the labels associated to the document with the given id.
+func (s *documentService) GetDocumentLabels(ctx context.Context, namespace string, id influxdb.ID) ([]*influxdb.Label, error) {
+	span, _ := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
+	var resp labelsResponse
+	if err := s.Client.
+		Get(buildDocumentLabelsPath(namespace, id)).
+		DecodeJSON(&resp).
+		Do(ctx); err != nil {
+		return nil, err
+	}
+	return resp.Labels, nil
+}
+
+// AddDocumentLabel adds the label with id `lid` to the document with id `did`.
+func (s *documentService) AddDocumentLabel(ctx context.Context, namespace string, did influxdb.ID, lid influxdb.ID) (*influxdb.Label, error) {
+	span, _ := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
+	mapping := &influxdb.LabelMapping{
+		LabelID: lid,
+	}
+	var resp labelResponse
+	if err := s.Client.
+		PostJSON(mapping, buildDocumentLabelsPath(namespace, did)).
+		DecodeJSON(&resp).
+		Do(ctx); err != nil {
+		return nil, err
+	}
+	return &resp.Label, nil
+}
+
+// DeleteDocumentLabel deletes the label with id `lid` from the document with id `did`.
+func (s *documentService) DeleteDocumentLabel(ctx context.Context, namespace string, did influxdb.ID, lid influxdb.ID) error {
+	span, _ := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
+	if err := s.Client.
+		Delete(buildDocumentLabelPath(namespace, did, lid)).
+		Do(ctx); err != nil {
+		return err
+	}
+	return nil
 }

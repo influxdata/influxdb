@@ -54,14 +54,15 @@ export const GIT_SHA = process.env.GIT_SHA
 export const BASE_PATH = process.env.STATIC_PREFIX
 export const API_BASE_PATH = process.env.API_PREFIX
 
-export const CLOUD = !!(process.env.CLOUD_URL && process.env.CLOUD_LOGOUT_URL)
+export const CLOUD = !!process.env.CLOUD_URL
 export const CLOUD_SIGNIN_PATHNAME = '/api/v2/signin'
-export const CLOUD_SIGNOUT_URL = process.env.CLOUD_LOGOUT_URL
 export const CLOUD_BILLING_VISIBLE = CLOUD
 export const CLOUD_URL = process.env.CLOUD_URL
 export const CLOUD_CHECKOUT_PATH = '/checkout'
 export const CLOUD_BILLING_PATH = '/billing'
 export const CLOUD_USAGE_PATH = '/usage'
+export const CLOUD_LOGOUT_PATH = '/logout'
+export const CLOUD_USERS_PATH = '/users'
 
 export const FLUX_RESPONSE_BYTES_LIMIT = CLOUD
   ? 10 * 1024 * 1024 // 10 MiB
@@ -70,16 +71,30 @@ export const FLUX_RESPONSE_BYTES_LIMIT = CLOUD
 export const VIS_SIG_DIGITS = 4
 
 export const VIS_THEME: Partial<Config> = {
-  axisColor: InfluxColors.Onyx,
-  gridColor: InfluxColors.Onyx,
+  axisColor: InfluxColors.Kevlar,
+  gridColor: InfluxColors.Kevlar,
   gridOpacity: 1,
-  tickFont: 'bold 10px Roboto',
-  tickFontColor: InfluxColors.Chromium,
-  legendFont: '12px Roboto',
+  tickFont: '500 11px Rubik',
+  tickFontColor: InfluxColors.Mist,
+  legendFont: '12px Rubik',
   legendFontColor: InfluxColors.Wolf,
   legendFontBrightColor: InfluxColors.Chromium,
   legendBackgroundColor: InfluxColors.Raven,
   legendBorder: `1px solid ${InfluxColors.Kevlar}`,
+  legendCrosshairColor: InfluxColors.Smoke,
+}
+
+export const VIS_THEME_LIGHT: Partial<Config> = {
+  axisColor: InfluxColors.Whisper,
+  gridColor: InfluxColors.Whisper,
+  gridOpacity: 1,
+  tickFont: '500 11px Rubik',
+  tickFontColor: InfluxColors.Mountain,
+  legendFont: '12px Rubik',
+  legendFontColor: InfluxColors.Graphite,
+  legendFontBrightColor: InfluxColors.Forge,
+  legendBackgroundColor: InfluxColors.Ghost,
+  legendBorder: `1px solid ${InfluxColors.Whisper}`,
   legendCrosshairColor: InfluxColors.Smoke,
 }
 

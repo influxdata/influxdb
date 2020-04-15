@@ -4,24 +4,28 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/tsdb"
+	"github.com/influxdata/influxdb/v2/tsdb/seriesfile"
 )
 
 func Test_NewSeriesCursor_UnexpectedOrg(t *testing.T) {
-	makeKey := func(org, bucket uint64) []byte {
-		name := tsdb.EncodeName(influxdb.ID(org), influxdb.ID(bucket))
-		return tsdb.AppendSeriesKey(nil, name[:], nil)
+	makeKey := func(orgID, bucketID influxdb.ID) []byte {
+		name := tsdb.EncodeName(orgID, bucketID)
+		return seriesfile.AppendSeriesKey(nil, name[:], nil)
 	}
 
-	nm := tsdb.EncodeName(0x0f0f, 0xb0b0)
+	orgID := influxdb.ID(0x0f0f)
+	encodedOrgID := tsdb.EncodeOrgName(orgID)
+	bucketID := influxdb.ID(0xb0b0)
 	cur := &seriesCursor{
 		keys: [][]byte{
-			makeKey(0x0f0f, 0xb0b0),
-			makeKey(0xffff, 0xb0b0),
+			makeKey(orgID, bucketID),
+			makeKey(influxdb.ID(0xffff), bucketID),
 		},
-		name: nm,
-		init: true,
+		orgID:        orgID,
+		encodedOrgID: encodedOrgID[:],
+		init:         true,
 	}
 	_, err := cur.Next()
 	if err != nil {

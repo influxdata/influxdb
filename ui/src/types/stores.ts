@@ -5,11 +5,11 @@ import {TimeMachinesState} from 'src/timeMachine/reducers'
 import {AppState as AppPresentationState} from 'src/shared/reducers/app'
 import {RouterState} from 'react-router-redux'
 import {MeState} from 'src/shared/reducers/me'
+import {CurrentDashboardState} from 'src/shared/reducers/currentDashboard'
 import {NoteEditorState} from 'src/dashboards/reducers/notes'
 import {DataLoadingState} from 'src/dataLoaders/reducers'
 import {OnboardingState} from 'src/onboarding/reducers'
 import {PredicatesState, VariableEditorState} from 'src/types'
-import {LabelsState} from 'src/labels/reducers'
 import {
   TelegrafEditorPluginState,
   PluginResourceState,
@@ -21,10 +21,9 @@ import {UserSettingsState} from 'src/userSettings/reducers'
 import {OverlayState} from 'src/overlays/reducers/overlays'
 import {AutoRefreshState} from 'src/shared/reducers/autoRefresh'
 import {LimitsState} from 'src/cloud/reducers/limits'
-import {ChecksState} from 'src/checks/reducers'
-import {NotificationRulesState} from 'src/notifications/rules/reducers'
-import {NotificationEndpointsState} from 'src/notifications/endpoints/reducers'
 import {AlertBuilderState} from 'src/alerting/reducers/alertBuilder'
+import {CurrentPage} from 'src/shared/reducers/currentPage'
+import {DemoDataState} from 'src/cloud/reducers/demodata'
 
 import {ResourceState} from 'src/types'
 
@@ -32,11 +31,10 @@ export interface AppState {
   alertBuilder: AlertBuilderState
   app: AppPresentationState
   autoRefresh: AutoRefreshState
-  checks: ChecksState
-  cloud: {limits: LimitsState}
+  cloud: {limits: LimitsState; demoData: DemoDataState}
+  currentPage: CurrentPage
+  currentDashboard: CurrentDashboardState
   dataLoading: DataLoadingState
-  endpoints: NotificationEndpointsState
-  labels: LabelsState
   links: Links
   me: MeState
   noteEditor: NoteEditorState
@@ -47,7 +45,6 @@ export interface AppState {
   ranges: RangeState
   resources: ResourceState
   routing: RouterState
-  rules: NotificationRulesState
   telegrafEditorPlugins: TelegrafEditorPluginState
   telegrafEditorActivePlugins: TelegrafEditorActivePluginState
   plugins: PluginResourceState

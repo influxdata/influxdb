@@ -9,10 +9,11 @@ import (
 
 	"github.com/golang/gddo/httputil"
 	"github.com/influxdata/httprouter"
-	platform "github.com/influxdata/influxdb"
-	pctx "github.com/influxdata/influxdb/context"
-	"github.com/influxdata/influxdb/pkg/httpc"
-	"github.com/influxdata/influxdb/telegraf/plugins"
+	"github.com/influxdata/influxdb/v2"
+	platform "github.com/influxdata/influxdb/v2"
+	pctx "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/pkg/httpc"
+	"github.com/influxdata/influxdb/v2/telegraf/plugins"
 	"go.uber.org/zap"
 )
 
@@ -192,7 +193,7 @@ func newTelegrafResponses(ctx context.Context, tcs []*platform.TelegrafConfig, l
 		TelegrafConfigs: make([]*telegrafResponse, len(tcs)),
 	}
 	for i, c := range tcs {
-		labels, _ := labelService.FindResourceLabels(ctx, platform.LabelMappingFilter{ResourceID: c.ID})
+		labels, _ := labelService.FindResourceLabels(ctx, platform.LabelMappingFilter{ResourceID: c.ID, ResourceType: influxdb.TelegrafsResourceType})
 		resp.TelegrafConfigs[i] = newTelegrafResponse(c, labels)
 	}
 	return resp
@@ -259,7 +260,7 @@ func (h *TelegrafHandler) handleGetTelegraf(w http.ResponseWriter, r *http.Reque
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(tc.Config))
 	case "application/json":
-		labels, err := h.LabelService.FindResourceLabels(ctx, platform.LabelMappingFilter{ResourceID: tc.ID})
+		labels, err := h.LabelService.FindResourceLabels(ctx, platform.LabelMappingFilter{ResourceID: tc.ID, ResourceType: influxdb.TelegrafsResourceType})
 		if err != nil {
 			h.HandleHTTPError(ctx, err, w)
 			return
@@ -373,7 +374,7 @@ func (h *TelegrafHandler) handlePutTelegraf(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	labels, err := h.LabelService.FindResourceLabels(ctx, platform.LabelMappingFilter{ResourceID: tc.ID})
+	labels, err := h.LabelService.FindResourceLabels(ctx, platform.LabelMappingFilter{ResourceID: tc.ID, ResourceType: influxdb.TelegrafsResourceType})
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return

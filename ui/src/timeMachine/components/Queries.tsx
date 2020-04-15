@@ -30,6 +30,7 @@ import {
   getIsInCheckOverlay,
   getActiveQuery,
 } from 'src/timeMachine/selectors'
+import {getTimeRange} from 'src/dashboards/selectors'
 
 // Types
 import {
@@ -62,30 +63,27 @@ class TimeMachineQueries extends PureComponent<Props> {
       <div className="time-machine-queries">
         <div className="time-machine-queries--controls">
           <QueryTabs />
-          <div className="time-machine-queries--buttons">
-            <FlexBox
-              direction={FlexDirection.Row}
-              justifyContent={JustifyContent.FlexEnd}
-              margin={ComponentSize.Small}
-            >
-              {activeQuery.editMode === 'advanced' && (
-                <EditorShortcutsToolTip />
-              )}
-              <RawDataToggle />
-              {!isInCheckOverlay && (
-                <>
-                  <CSVExportButton />
-                  <TimeMachineRefreshDropdown />
-                  <TimeRangeDropdown
-                    timeRange={timeRange}
-                    onSetTimeRange={this.handleSetTimeRange}
-                  />
-                  <TimeMachineQueriesSwitcher />
-                </>
-              )}
-              <SubmitQueryButton />
-            </FlexBox>
-          </div>
+          <FlexBox
+            direction={FlexDirection.Row}
+            justifyContent={JustifyContent.FlexEnd}
+            margin={ComponentSize.Small}
+            className="time-machine-queries--buttons"
+          >
+            {activeQuery.editMode === 'advanced' && <EditorShortcutsToolTip />}
+            <RawDataToggle />
+            {!isInCheckOverlay && (
+              <>
+                <CSVExportButton />
+                <TimeMachineRefreshDropdown />
+                <TimeRangeDropdown
+                  timeRange={timeRange}
+                  onSetTimeRange={this.handleSetTimeRange}
+                />
+                <TimeMachineQueriesSwitcher />
+              </>
+            )}
+            <SubmitQueryButton />
+          </FlexBox>
         </div>
         <div className="time-machine-queries--body">{this.queryEditor}</div>
       </div>
@@ -126,7 +124,8 @@ class TimeMachineQueries extends PureComponent<Props> {
 }
 
 const mstp = (state: AppState) => {
-  const {timeRange, autoRefresh} = getActiveTimeMachine(state)
+  const timeRange = getTimeRange(state)
+  const {autoRefresh} = getActiveTimeMachine(state)
 
   const activeQuery = getActiveQuery(state)
 

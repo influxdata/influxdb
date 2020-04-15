@@ -13,11 +13,12 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/httprouter"
-	platform "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/inmem"
-	"github.com/influxdata/influxdb/kv"
-	"github.com/influxdata/influxdb/mock"
-	platformtesting "github.com/influxdata/influxdb/testing"
+	platform "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/inmem"
+	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
+	"github.com/influxdata/influxdb/v2/kv"
+	"github.com/influxdata/influxdb/v2/mock"
+	platformtesting "github.com/influxdata/influxdb/v2/testing"
 	"github.com/yudai/gojsondiff"
 	"github.com/yudai/gojsondiff/formatter"
 	"go.uber.org/zap/zaptest"
@@ -332,7 +333,7 @@ func TestService_handleGetDashboards(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dashboardBackend := NewMockDashboardBackend(t)
-			dashboardBackend.HTTPErrorHandler = ErrorHandler(0)
+			dashboardBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
 			dashboardBackend.LabelService = tt.fields.LabelService
 			dashboardBackend.DashboardService = tt.fields.DashboardService
 			h := NewDashboardHandler(zaptest.NewLogger(t), dashboardBackend)
@@ -747,7 +748,7 @@ func TestService_handleGetDashboard(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dashboardBackend := NewMockDashboardBackend(t)
-			dashboardBackend.HTTPErrorHandler = ErrorHandler(0)
+			dashboardBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
 			dashboardBackend.DashboardService = tt.fields.DashboardService
 			h := NewDashboardHandler(zaptest.NewLogger(t), dashboardBackend)
 
@@ -1014,7 +1015,7 @@ func TestService_handlePostDashboard(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dashboardBackend := NewMockDashboardBackend(t)
-			dashboardBackend.HTTPErrorHandler = ErrorHandler(0)
+			dashboardBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
 			dashboardBackend.DashboardService = tt.fields.DashboardService
 			h := NewDashboardHandler(zaptest.NewLogger(t), dashboardBackend)
 
@@ -1110,7 +1111,7 @@ func TestService_handleDeleteDashboard(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dashboardBackend := NewMockDashboardBackend(t)
-			dashboardBackend.HTTPErrorHandler = ErrorHandler(0)
+			dashboardBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
 			dashboardBackend.DashboardService = tt.fields.DashboardService
 			h := NewDashboardHandler(zaptest.NewLogger(t), dashboardBackend)
 
@@ -1294,7 +1295,7 @@ func TestService_handlePatchDashboard(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dashboardBackend := NewMockDashboardBackend(t)
-			dashboardBackend.HTTPErrorHandler = ErrorHandler(0)
+			dashboardBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
 			dashboardBackend.DashboardService = tt.fields.DashboardService
 			h := NewDashboardHandler(zaptest.NewLogger(t), dashboardBackend)
 
@@ -1475,7 +1476,7 @@ func TestService_handlePostDashboardCell(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dashboardBackend := NewMockDashboardBackend(t)
-			dashboardBackend.HTTPErrorHandler = ErrorHandler(0)
+			dashboardBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
 			dashboardBackend.DashboardService = tt.fields.DashboardService
 			h := NewDashboardHandler(zaptest.NewLogger(t), dashboardBackend)
 			buf := new(bytes.Buffer)
@@ -1559,7 +1560,7 @@ func TestService_handleDeleteDashboardCell(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dashboardBackend := NewMockDashboardBackend(t)
-			dashboardBackend.HTTPErrorHandler = ErrorHandler(0)
+			dashboardBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
 			dashboardBackend.DashboardService = tt.fields.DashboardService
 			h := NewDashboardHandler(zaptest.NewLogger(t), dashboardBackend)
 
@@ -1674,7 +1675,7 @@ func TestService_handlePatchDashboardCell(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dashboardBackend := NewMockDashboardBackend(t)
-			dashboardBackend.HTTPErrorHandler = ErrorHandler(0)
+			dashboardBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
 			dashboardBackend.DashboardService = tt.fields.DashboardService
 			h := NewDashboardHandler(zaptest.NewLogger(t), dashboardBackend)
 
@@ -1768,7 +1769,7 @@ func initDashboardService(f platformtesting.DashboardFields, t *testing.T) (plat
 	}
 
 	dashboardBackend := NewMockDashboardBackend(t)
-	dashboardBackend.HTTPErrorHandler = ErrorHandler(0)
+	dashboardBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
 	dashboardBackend.DashboardService = svc
 	h := NewDashboardHandler(zaptest.NewLogger(t), dashboardBackend)
 	server := httptest.NewServer(h)
@@ -1850,7 +1851,7 @@ func TestService_handlePostDashboardLabel(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dashboardBackend := NewMockDashboardBackend(t)
-			dashboardBackend.HTTPErrorHandler = ErrorHandler(0)
+			dashboardBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
 			dashboardBackend.LabelService = tt.fields.LabelService
 			h := NewDashboardHandler(zaptest.NewLogger(t), dashboardBackend)
 

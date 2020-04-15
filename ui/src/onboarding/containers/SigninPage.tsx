@@ -12,13 +12,14 @@ import {dismissAllNotifications} from 'src/shared/actions/notifications'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import SplashPage from 'src/shared/components/splash_page/SplashPage'
 import SigninForm from 'src/onboarding/components/SigninForm'
 import {
   SpinnerContainer,
   TechnoSpinner,
   Panel,
   AlignItems,
+  FunnelPage,
+  InfluxDBCloudLogo,
 } from '@influxdata/clockface'
 import {RemoteDataState} from 'src/types'
 import VersionInfo from 'src/shared/components/VersionInfo'
@@ -67,18 +68,18 @@ class SigninPage extends PureComponent<Props, State> {
         loading={this.state.status}
         spinnerComponent={<TechnoSpinner />}
       >
-        <SplashPage>
-          <Panel className="signin-panel">
+        <FunnelPage className="signin-page" enableGraphic={true}>
+          <Panel className="signin-page--panel">
             <Panel.Body alignItems={AlignItems.Center}>
-              <SplashPage.Logo />
-              <SplashPage.Header title="InfluxData" />
+              <div className="signin-page--cubo" />
+              <InfluxDBCloudLogo cloud={false} className="signin-page--logo" />
               <SigninForm />
             </Panel.Body>
             <Panel.Footer>
               <VersionInfo />
             </Panel.Footer>
           </Panel>
-        </SplashPage>
+        </FunnelPage>
       </SpinnerContainer>
     )
   }

@@ -8,7 +8,7 @@ import * as api from 'src/client'
 import {createTaskFromTemplate as createTaskFromTemplateAJAX} from 'src/templates/api'
 
 // Schemas
-import * as schemas from 'src/schemas'
+import {taskSchema, arrayOfTasks} from 'src/schemas/tasks'
 
 // Actions
 import {setExportTemplate} from 'src/templates/actions/creators'
@@ -40,6 +40,7 @@ import {
   TaskSchedule,
   RemoteDataState,
   TaskEntities,
+  ResourceType,
 } from 'src/types'
 
 // Utils
@@ -49,6 +50,7 @@ import {taskToTemplate} from 'src/shared/utils/resourceToTemplate'
 import {isLimitError} from 'src/cloud/utils/limits'
 import {checkTaskLimits} from 'src/cloud/actions/limits'
 import {getOrg} from 'src/organizations/selectors'
+import {getStatus} from 'src/resources/selectors'
 
 type Action = TaskAction | ExternalActions | ReturnType<typeof getTasks>
 type ExternalActions = NotifyAction | ReturnType<typeof checkTaskLimits>
@@ -59,9 +61,13 @@ export const getTasks = () => async (
   getState: GetState
 ): Promise<void> => {
   try {
-    dispatch(setTasks(RemoteDataState.Loading))
+    const state = getState()
+    if (getStatus(state, ResourceType.Tasks) === RemoteDataState.NotStarted) {
+      dispatch(setTasks(RemoteDataState.Loading))
+    }
 
-    const org = getOrg(getState())
+    const org = getOrg(state)
+
     const resp = await api.getTasks({query: {orgID: org.id}})
 
     if (resp.status !== 200) {
@@ -70,7 +76,7 @@ export const getTasks = () => async (
 
     const tasks = normalize<Task, TaskEntities, string[]>(
       resp.data.tasks,
-      schemas.arrayOfTasks
+      arrayOfTasks
     )
 
     dispatch(setTasks(RemoteDataState.Done, tasks))
@@ -101,7 +107,7 @@ export const addTaskLabel = (taskID: string, label: Label) => async (
       throw new Error(resp.data.message)
     }
 
-    const task = normalize<Task, TaskEntities, string>(resp.data, schemas.task)
+    const task = normalize<Task, TaskEntities, string>(resp.data, taskSchema)
 
     dispatch(editTask(task))
   } catch (error) {
@@ -124,7 +130,7 @@ export const deleteTaskLabel = (taskID: string, label: Label) => async (
       throw new Error(resp.data.message)
     }
 
-    const task = normalize<Task, TaskEntities, string>(resp.data, schemas.task)
+    const task = normalize<Task, TaskEntities, string>(resp.data, taskSchema)
 
     dispatch(editTask(task))
   } catch (error) {
@@ -148,7 +154,7 @@ export const updateTaskStatus = (task: Task) => async (
 
     const normTask = normalize<Task, TaskEntities, string>(
       resp.data,
-      schemas.task
+      taskSchema
     )
 
     dispatch(editTask(normTask))
@@ -172,7 +178,7 @@ export const updateTaskName = (name: string, taskID: string) => async (
 
     const normTask = normalize<Task, TaskEntities, string>(
       resp.data,
-      schemas.task
+      taskSchema
     )
 
     dispatch(editTask(normTask))
@@ -219,7 +225,7 @@ export const cloneTask = (task: Task) => async (dispatch: Dispatch<Action>) => {
 
     const normTask = normalize<Task, TaskEntities, string>(
       resp.data,
-      schemas.task
+      taskSchema
     )
 
     dispatch(notify(copy.taskCloneSuccess(task.name)))
@@ -245,7 +251,7 @@ export const selectTaskByID = (id: string) => async (
       throw new Error(resp.data.message)
     }
 
-    const task = normalize<Task, TaskEntities, string>(resp.data, schemas.task)
+    const task = normalize<Task, TaskEntities, string>(resp.data, taskSchema)
 
     dispatch(setCurrentTask(task))
   } catch (error) {
@@ -265,7 +271,7 @@ export const setAllTaskOptionsByID = (taskID: string) => async (
       throw new Error(resp.data.message)
     }
 
-    const task = normalize<Task, TaskEntities, string>(resp.data, schemas.task)
+    const task = normalize<Task, TaskEntities, string>(resp.data, taskSchema)
 
     dispatch(setAllTaskOptions(task))
   } catch (error) {
@@ -436,7 +442,8 @@ export const getLogs = (taskID: string, runID: string) => async (
 }
 
 export const convertToTemplate = (taskID: string) => async (
-  dispatch
+  dispatch,
+  getState: GetState
 ): Promise<void> => {
   try {
     dispatch(setExportTemplate(RemoteDataState.Loading))
@@ -447,10 +454,10 @@ export const convertToTemplate = (taskID: string) => async (
 
     const {entities, result} = normalize<Task, TaskEntities, string>(
       resp.data,
-      schemas.task
+      taskSchema
     )
 
-    const taskTemplate = taskToTemplate(entities.tasks[result])
+    const taskTemplate = taskToTemplate(getState(), entities.tasks[result])
 
     dispatch(setExportTemplate(RemoteDataState.Done, taskTemplate))
   } catch (error) {

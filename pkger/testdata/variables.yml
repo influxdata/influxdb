@@ -3,7 +3,8 @@ kind: Variable
 metadata:
   name:  var_query_1
 spec:
-  description: var_query_1 desc
+  name: query var
+  description: query var desc
   type: query
   language: flux
   query: |

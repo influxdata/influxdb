@@ -18,13 +18,15 @@ import {
   Overlay,
 } from '@influxdata/clockface'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
-import SettingsTabbedPageHeader from 'src/settings/components/SettingsTabbedPageHeader'
-import FilterList from 'src/shared/components/Filter'
+import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'
+import FilterList from 'src/shared/components/FilterList'
 import BucketList from 'src/buckets/components/BucketList'
-import {PrettyBucket} from 'src/buckets/components/BucketCard'
 import CreateBucketOverlay from 'src/buckets/components/CreateBucketOverlay'
 import AssetLimitAlert from 'src/cloud/components/AssetLimitAlert'
 import BucketExplainer from 'src/buckets/components/BucketExplainer'
+import DemoDataDropdown from 'src/buckets/components/DemoDataDropdown'
+import {FeatureFlag} from 'src/shared/utils/featureFlag'
+import ResourceSortDropdown from 'src/shared/components/resource_sort_dropdown/ResourceSortDropdown'
 
 // Actions
 import {
@@ -36,11 +38,18 @@ import {
   checkBucketLimits as checkBucketLimitsAction,
   LimitStatus,
 } from 'src/cloud/actions/limits'
+import {
+  getDemoDataBuckets as getDemoDataBucketsAction,
+  getDemoDataBucketMembership as getDemoDataBucketMembershipAction,
+} from 'src/cloud/actions/demodata'
 
 // Utils
-import {prettyBuckets} from 'src/shared/utils/prettyBucket'
+import {getNewDemoBuckets} from 'src/cloud/selectors/demodata'
 import {extractBucketLimits} from 'src/cloud/utils/limits'
 import {getOrg} from 'src/organizations/selectors'
+import {getAll} from 'src/resources/selectors'
+import {isFlagEnabled} from 'src/shared/utils/featureFlag'
+import {SortTypes} from 'src/shared/utils/sort'
 
 // Types
 import {
@@ -49,14 +58,15 @@ import {
   Bucket,
   Organization,
   ResourceType,
+  OwnBucket,
 } from 'src/types'
-import {SortTypes} from 'src/shared/utils/sort'
-import {getAll} from 'src/resources/selectors'
+import {BucketSortKey} from 'src/shared/components/resource_sort_dropdown/generateSortItems'
 
 interface StateProps {
   org: Organization
   buckets: Bucket[]
   limitStatus: LimitStatus
+  demoDataBuckets: Bucket[]
 }
 
 interface DispatchProps {
@@ -64,19 +74,21 @@ interface DispatchProps {
   updateBucket: typeof updateBucket
   deleteBucket: typeof deleteBucket
   checkBucketLimits: typeof checkBucketLimitsAction
+  getDemoDataBuckets: typeof getDemoDataBucketsAction
+  getDemoDataBucketMembership: typeof getDemoDataBucketMembershipAction
 }
 
 interface State {
   searchTerm: string
   overlayState: OverlayState
-  sortKey: SortKey
+  sortKey: BucketSortKey
   sortDirection: Sort
   sortType: SortTypes
 }
 
 type Props = DispatchProps & StateProps
 
-type SortKey = keyof PrettyBucket
+const FilterBuckets = FilterList<Bucket>()
 
 @ErrorHandling
 class BucketsTab extends PureComponent<Props, State> {
@@ -94,10 +106,19 @@ class BucketsTab extends PureComponent<Props, State> {
 
   public componentDidMount() {
     this.props.checkBucketLimits()
+    if (isFlagEnabled('demodata')) {
+      this.props.getDemoDataBuckets()
+    }
   }
 
   public render() {
-    const {org, buckets, limitStatus} = this.props
+    const {
+      org,
+      buckets,
+      limitStatus,
+      demoDataBuckets,
+      getDemoDataBucketMembership,
+    } = this.props
     const {
       searchTerm,
       overlayState,
@@ -106,6 +127,46 @@ class BucketsTab extends PureComponent<Props, State> {
       sortType,
     } = this.state
 
+    const leftHeaderItems = (
+      <>
+        <SearchWidget
+          placeholderText="Filter buckets..."
+          searchTerm={searchTerm}
+          onSearch={this.handleFilterUpdate}
+        />
+        <ResourceSortDropdown
+          resourceType={ResourceType.Buckets}
+          sortDirection={sortDirection}
+          sortKey={sortKey}
+          sortType={sortType}
+          onSelect={this.handleSort}
+          width={238}
+        />
+      </>
+    )
+
+    const rightHeaderItems = (
+      <>
+        <FeatureFlag name="demodata">
+          {demoDataBuckets.length > 0 && (
+            <DemoDataDropdown
+              buckets={demoDataBuckets}
+              getMembership={getDemoDataBucketMembership}
+            />
+          )}
+        </FeatureFlag>
+        <Button
+          text="Create Bucket"
+          icon={IconFont.Plus}
+          color={ComponentColor.Primary}
+          onClick={this.handleOpenModal}
+          testID="Create Bucket"
+          status={this.createButtonStatus}
+          titleText={this.createButtonTitleText}
+        />
+      </>
+    )
+
     return (
       <>
         <AssetLimitAlert
@@ -113,22 +174,10 @@ class BucketsTab extends PureComponent<Props, State> {
           limitStatus={limitStatus}
           className="load-data--asset-alert"
         />
-        <SettingsTabbedPageHeader>
-          <SearchWidget
-            placeholderText="Filter buckets..."
-            searchTerm={searchTerm}
-            onSearch={this.handleFilterChange}
-          />
-          <Button
-            text="Create Bucket"
-            icon={IconFont.Plus}
-            color={ComponentColor.Primary}
-            onClick={this.handleOpenModal}
-            testID="Create Bucket"
-            status={this.createButtonStatus}
-            titleText={this.createButtonTitleText}
-          />
-        </SettingsTabbedPageHeader>
+        <TabbedPageHeader
+          childrenLeft={leftHeaderItems}
+          childrenRight={rightHeaderItems}
+        />
         <Grid>
           <Grid.Row>
             <Grid.Column
@@ -136,25 +185,24 @@ class BucketsTab extends PureComponent<Props, State> {
               widthSM={Columns.Eight}
               widthMD={Columns.Ten}
             >
-              <FilterList<PrettyBucket>
+              <FilterBuckets
                 searchTerm={searchTerm}
-                searchKeys={['name', 'ruleString', 'labels[].name']}
-                list={prettyBuckets(buckets)}
+                searchKeys={['name', 'readableRetention', 'labels[].name']}
+                list={buckets}
               >
                 {bs => (
                   <BucketList
                     buckets={bs}
                     emptyState={this.emptyState}
-                    onUpdateBucket={this.handleUpdateBucket}
+                    onUpdateBucket={this.props.updateBucket}
                     onDeleteBucket={this.handleDeleteBucket}
                     onFilterChange={this.handleFilterUpdate}
                     sortKey={sortKey}
                     sortDirection={sortDirection}
                     sortType={sortType}
-                    onClickColumn={this.handleClickColumn}
                   />
                 )}
-              </FilterList>
+              </FilterBuckets>
             </Grid.Column>
             <Grid.Column
               widthXS={Columns.Twelve}
@@ -176,22 +224,19 @@ class BucketsTab extends PureComponent<Props, State> {
     )
   }
 
-  private handleClickColumn = (sortType: SortTypes) => (
-    nextSort: Sort,
-    sortKey: SortKey
-  ) => {
-    this.setState({sortKey, sortDirection: nextSort, sortType})
+  private handleSort = (
+    sortKey: BucketSortKey,
+    sortDirection: Sort,
+    sortType: SortTypes
+  ): void => {
+    this.setState({sortKey, sortDirection, sortType})
   }
 
-  private handleUpdateBucket = (updatedBucket: PrettyBucket) => {
-    this.props.updateBucket(updatedBucket as Bucket)
-  }
-
-  private handleDeleteBucket = ({id, name}: PrettyBucket) => {
+  private handleDeleteBucket = ({id, name}: OwnBucket) => {
     this.props.deleteBucket(id, name)
   }
 
-  private handleCreateBucket = (bucket: Bucket) => {
+  private handleCreateBucket = (bucket: OwnBucket) => {
     this.props.createBucket(bucket)
     this.handleCloseModal()
   }
@@ -202,10 +247,6 @@ class BucketsTab extends PureComponent<Props, State> {
 
   private handleCloseModal = (): void => {
     this.setState({overlayState: OverlayState.Closed})
-  }
-
-  private handleFilterChange = (searchTerm: string): void => {
-    this.handleFilterUpdate(searchTerm)
   }
 
   private handleFilterUpdate = (searchTerm: string): void => {
@@ -253,17 +294,23 @@ class BucketsTab extends PureComponent<Props, State> {
   }
 }
 
-const mstp = (state: AppState): StateProps => ({
-  org: getOrg(state),
-  buckets: getAll<Bucket>(state, ResourceType.Buckets),
-  limitStatus: extractBucketLimits(state.cloud.limits),
-})
+const mstp = (state: AppState): StateProps => {
+  const buckets = getAll<Bucket>(state, ResourceType.Buckets)
+  return {
+    org: getOrg(state),
+    buckets,
+    limitStatus: extractBucketLimits(state.cloud.limits),
+    demoDataBuckets: getNewDemoBuckets(state, buckets),
+  }
+}
 
-const mdtp = {
+const mdtp: DispatchProps = {
   createBucket,
   updateBucket,
   deleteBucket,
   checkBucketLimits: checkBucketLimitsAction,
+  getDemoDataBuckets: getDemoDataBucketsAction,
+  getDemoDataBucketMembership: getDemoDataBucketMembershipAction,
 }
 
 export default connect<StateProps, DispatchProps, {}>(

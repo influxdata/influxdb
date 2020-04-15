@@ -3,8 +3,8 @@ package influxdb_test
 import (
 	"testing"
 
-	"github.com/influxdata/influxdb"
-	influxTesting "github.com/influxdata/influxdb/testing"
+	"github.com/influxdata/influxdb/v2"
+	influxTesting "github.com/influxdata/influxdb/v2/testing"
 )
 
 func TestTagValid(t *testing.T) {

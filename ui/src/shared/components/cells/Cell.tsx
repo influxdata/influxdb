@@ -6,7 +6,8 @@ import {get} from 'lodash'
 // Components
 import CellHeader from 'src/shared/components/cells/CellHeader'
 import CellContext from 'src/shared/components/cells/CellContext'
-import ViewComponent from 'src/shared/components/cells/View'
+import ScrollableMarkdown from 'src/shared/components/views/ScrollableMarkdown'
+import RefreshingView from 'src/shared/components/RefreshingView'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import EmptyGraphMessage from 'src/shared/components/EmptyGraphMessage'
 
@@ -14,14 +15,7 @@ import EmptyGraphMessage from 'src/shared/components/EmptyGraphMessage'
 import {getByID} from 'src/resources/selectors'
 
 // Types
-import {
-  RemoteDataState,
-  AppState,
-  View,
-  Cell,
-  TimeRange,
-  ResourceType,
-} from 'src/types'
+import {RemoteDataState, AppState, View, Cell, ResourceType} from 'src/types'
 
 interface StateProps {
   view: View
@@ -29,7 +23,6 @@ interface StateProps {
 
 interface OwnProps {
   cell: Cell
-  timeRange: TimeRange
   manualRefresh: number
 }
 
@@ -88,16 +81,23 @@ class CellComponent extends Component<Props, State> {
   }
 
   private get view(): JSX.Element {
-    const {timeRange, manualRefresh, view} = this.props
+    const {manualRefresh, view} = this.props
 
     if (!view || view.status !== RemoteDataState.Done) {
       return <EmptyGraphMessage message="Loading..." />
     }
 
+    if (!view.properties) {
+      return null
+    }
+
+    if (view.properties.type === 'markdown') {
+      return <ScrollableMarkdown text={view.properties.note} />
+    }
+
     return (
-      <ViewComponent
-        view={view}
-        timeRange={timeRange}
+      <RefreshingView
+        properties={view.properties}
         manualRefresh={manualRefresh}
       />
     )

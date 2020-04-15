@@ -13,8 +13,6 @@ import {Form, Input, Button, Grid} from '@influxdata/clockface'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import DashboardsDropdown from 'src/dataExplorer/components/DashboardsDropdown'
 
-// Constants
-import {cellAddFailed, cellAdded} from 'src/shared/copy/notifications'
 import {
   DashboardTemplate,
   DEFAULT_DASHBOARD_NAME,
@@ -23,8 +21,10 @@ import {
 
 // Actions
 import {getDashboards} from 'src/dashboards/actions/thunks'
-import {createCellWithView} from 'src/cells/actions/thunks'
-import {postDashboard} from 'src/client'
+import {
+  createCellWithView,
+  createDashboardWithView,
+} from 'src/cells/actions/thunks'
 import {notify} from 'src/shared/actions/notifications'
 
 // Types
@@ -53,6 +53,7 @@ interface StateProps {
 interface DispatchProps {
   onGetDashboards: typeof getDashboards
   onCreateCellWithView: typeof createCellWithView
+  onCreateDashboardWithView: typeof createDashboardWithView
   notify: typeof notify
 }
 
@@ -164,7 +165,14 @@ class SaveAsCellForm extends PureComponent<Props, State> {
   }
 
   private handleSubmit = () => {
-    const {onCreateCellWithView, dashboards, view, dismiss, notify} = this.props
+    const {
+      onCreateCellWithView,
+      onCreateDashboardWithView,
+      dashboards,
+      view,
+      dismiss,
+      orgID,
+    } = this.props
     const {targetDashboardIDs} = this.state
 
     const cellName = this.state.cellName || DEFAULT_CELL_NAME
@@ -175,48 +183,19 @@ class SaveAsCellForm extends PureComponent<Props, State> {
 
     try {
       targetDashboardIDs.forEach(dashID => {
-        let targetDashboardName = ''
-        try {
-          if (dashID === DashboardTemplate.id) {
-            targetDashboardName = newDashboardName
-            this.handleCreateDashboardWithView(newDashboardName, viewWithProps)
-          } else {
-            const selectedDashboard = dashboards.find(d => d.id === dashID)
-            targetDashboardName = selectedDashboard.name
-            onCreateCellWithView(selectedDashboard.id, viewWithProps)
-          }
-          notify(cellAdded(cellName, targetDashboardName))
-        } catch {
-          notify(cellAddFailed(cellName, targetDashboardName))
+        if (dashID === DashboardTemplate.id) {
+          onCreateDashboardWithView(orgID, newDashboardName, viewWithProps)
+          return
         }
+
+        const selectedDashboard = dashboards.find(d => d.id === dashID)
+        onCreateCellWithView(selectedDashboard.id, viewWithProps)
       })
+    } catch (error) {
+      console.error(error)
     } finally {
       this.resetForm()
       dismiss()
-    }
-  }
-
-  private handleCreateDashboardWithView = async (
-    dashboardName: string,
-    view: View
-  ): Promise<void> => {
-    const {onCreateCellWithView, orgID} = this.props
-    try {
-      const newDashboard = {
-        orgID,
-        name: dashboardName || DEFAULT_DASHBOARD_NAME,
-        cells: [],
-      }
-
-      const resp = await postDashboard({data: newDashboard})
-
-      if (resp.status !== 201) {
-        throw new Error(resp.data.message)
-      }
-
-      onCreateCellWithView(resp.data.id, view)
-    } catch (error) {
-      console.error(error)
     }
   }
 
@@ -261,6 +240,7 @@ const mstp = (state: AppState): StateProps => {
 const mdtp: DispatchProps = {
   onGetDashboards: getDashboards,
   onCreateCellWithView: createCellWithView,
+  onCreateDashboardWithView: createDashboardWithView,
   notify,
 }
 

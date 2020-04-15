@@ -5,7 +5,7 @@ import {getDashboards as apiGetDashboards} from 'src/client'
 import {Dashboard, Organization} from 'src/types'
 
 // Utils
-import {addDashboardDefaults} from 'src/schemas'
+import {addDashboardDefaults} from 'src/schemas/dashboards'
 
 // CRUD APIs for Organizations and Organization resources
 // i.e. Organization Members, Buckets, Dashboards etc
@@ -25,7 +25,7 @@ export const getDashboards = async (
       throw new Error(result.data.message)
     }
 
-    const dashboards = result.data.map(d => addDashboardDefaults(d))
+    const dashboards = result.data.dashboards.map(d => addDashboardDefaults(d))
 
     return dashboards
   } catch (error) {

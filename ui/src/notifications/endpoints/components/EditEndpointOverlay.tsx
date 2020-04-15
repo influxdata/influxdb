@@ -7,7 +7,7 @@ import {withRouter, WithRouterProps} from 'react-router'
 import {getEndpointFailed} from 'src/shared/copy/notifications'
 
 // Actions
-import {updateEndpoint} from 'src/notifications/endpoints/actions'
+import {updateEndpoint} from 'src/notifications/endpoints/actions/thunks'
 import {notify} from 'src/shared/actions/notifications'
 
 // Components
@@ -16,7 +16,10 @@ import {EndpointOverlayProvider} from 'src/notifications/endpoints/components/En
 import EndpointOverlayContents from 'src/notifications/endpoints/components/EndpointOverlayContents'
 
 // Types
-import {NotificationEndpoint, AppState} from 'src/types'
+import {NotificationEndpoint, AppState, ResourceType} from 'src/types'
+
+// Utils
+import {getByID} from 'src/resources/selectors'
 
 interface DispatchProps {
   onUpdateEndpoint: typeof updateEndpoint
@@ -77,13 +80,19 @@ const mdtp = {
   onNotify: notify,
 }
 
-const mstp = ({endpoints}: AppState, {params}: Props): StateProps => {
-  const endpoint = endpoints.list.find(ep => ep.id === params.endpointID)
+const mstp = (state: AppState, {params}: Props): StateProps => {
+  const endpoint = getByID<NotificationEndpoint>(
+    state,
+    ResourceType.NotificationEndpoints,
+    params.endpointID
+  )
 
   return {endpoint}
 }
 
-export default connect<StateProps, DispatchProps>(
-  mstp,
-  mdtp
-)(withRouter<Props>(EditEndpointOverlay))
+export default withRouter<Props>(
+  connect<StateProps, DispatchProps, Props>(
+    mstp,
+    mdtp
+  )(EditEndpointOverlay)
+)

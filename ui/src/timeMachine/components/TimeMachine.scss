@@ -27,15 +27,14 @@
 }
 
 .time-machine--bottom {
-  background-color: $g3-castle;
   display: flex;
   flex-direction: column;
   align-items: center;
-  overflow: hidden;
+  /* overflow: hidden; */
 }
 
 .time-machine--bottom-contents {
-  overflow: hidden;
+  /* overflow: hidden; */
   width: 100%;
   flex: 0 0 100%;
 }
@@ -53,8 +52,15 @@
     bottom: 0;
     left: 0;
   }
+}
+
+.time-machine--view__empty {
+  background-position: center center;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-image: url('../../assets/images/radial-power-level.svg');
 
   > .cell--view-empty {
-    padding-top: 32px;
+    justify-content: flex-end;
   }
 }

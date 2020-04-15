@@ -298,6 +298,19 @@ func NewPermission(a Action, rt ResourceType, orgID ID) (*Permission, error) {
 	return p, p.Valid()
 }
 
+// NewResourcePermission returns a permission with provided arguments.
+func NewResourcePermission(a Action, rt ResourceType, rid ID) (*Permission, error) {
+	p := &Permission{
+		Action: a,
+		Resource: Resource{
+			Type: rt,
+			ID:   &rid,
+		},
+	}
+
+	return p, p.Valid()
+}
+
 // NewGlobalPermission constructs a global permission capable of accessing any resource of type rt.
 func NewGlobalPermission(a Action, rt ResourceType) (*Permission, error) {
 	p := &Permission{
@@ -382,4 +395,9 @@ func MemberPermissions(orgID ID) []Permission {
 	}
 
 	return ps
+}
+
+// MemberPermissions are the default permissions for those who can see a resource.
+func MemberBucketPermission(bucketID ID) Permission {
+	return Permission{Action: ReadAction, Resource: Resource{Type: BucketsResourceType, ID: &bucketID}}
 }

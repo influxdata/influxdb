@@ -9,14 +9,16 @@ const {Labels, Buckets} = ResourceType
 type StatusTuple = [RemoteDataState, RemoteDataState]
 
 const genState = (statuses: StatusTuple = [NotStarted, NotStarted]) => ({
-  labels: {
-    status: statuses[0],
-  },
   resources: {
     buckets: {
       byID: {},
       allIDs: [],
       status: statuses[1],
+    },
+    labels: {
+      byID: {},
+      allIDs: [],
+      status: statuses[0],
     },
   },
 })

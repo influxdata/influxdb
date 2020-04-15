@@ -22,12 +22,13 @@ import {downloadTextFile} from 'src/shared/utils/download'
 // Types
 import {DocumentCreate} from '@influxdata/influx'
 import {ComponentColor, ComponentSize} from '@influxdata/clockface'
-import {RemoteDataState} from 'src/types'
+import {RemoteDataState, Notification} from 'src/types'
 
 interface OwnProps {
   onDismissOverlay: () => void
   resource: DocumentCreate
   resourceName: string
+  onCopyText?: (text: string, status: boolean) => Notification
   status: RemoteDataState
   isVisible: boolean
 }
@@ -108,6 +109,7 @@ class ExportOverlay extends PureComponent<Props> {
       <CopyButton
         textToCopy={this.resourceText}
         contentName={this.props.resourceName}
+        onCopyText={this.props.onCopyText}
         size={ComponentSize.Small}
         color={ComponentColor.Secondary}
       />

@@ -1,11 +1,10 @@
 // Libraries
 import React, {Component} from 'react'
 import {connect} from 'react-redux'
-import _ from 'lodash'
 
 // Components
 import Table from 'src/dashboards/components/dashboard_index/Table'
-import FilterList from 'src/shared/components/Filter'
+import FilterList from 'src/shared/components/FilterList'
 
 // Actions
 import {retainRangesDashTimeV1 as retainRangesDashTimeV1Action} from 'src/dashboards/actions/ranges'
@@ -16,12 +15,18 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
 import {Dashboard, AppState, RemoteDataState, ResourceType} from 'src/types'
+import {Sort} from '@influxdata/clockface'
 import {getAll} from 'src/resources/selectors'
+import {SortTypes} from 'src/shared/utils/sort'
+import {DashboardSortKey} from 'src/shared/components/resource_sort_dropdown/generateSortItems'
 
 interface OwnProps {
   onFilterChange: (searchTerm: string) => void
   searchTerm: string
   filterComponent?: JSX.Element
+  sortDirection: Sort
+  sortType: SortTypes
+  sortKey: DashboardSortKey
 }
 
 interface DispatchProps {
@@ -36,6 +41,8 @@ interface StateProps {
 
 type Props = DispatchProps & StateProps & OwnProps
 
+const FilterDashboards = FilterList<Dashboard>()
+
 @ErrorHandling
 class DashboardsIndexContents extends Component<Props> {
   public componentDidMount() {
@@ -47,10 +54,18 @@ class DashboardsIndexContents extends Component<Props> {
   }
 
   public render() {
-    const {searchTerm, dashboards, filterComponent, onFilterChange} = this.props
+    const {
+      searchTerm,
+      dashboards,
+      filterComponent,
+      onFilterChange,
+      sortDirection,
+      sortType,
+      sortKey,
+    } = this.props
 
     return (
-      <FilterList<Dashboard>
+      <FilterDashboards
         list={dashboards}
         searchTerm={searchTerm}
         searchKeys={['name', 'labels[].name']}
@@ -62,9 +77,12 @@ class DashboardsIndexContents extends Component<Props> {
             filterComponent={filterComponent}
             dashboards={filteredDashboards}
             onFilterChange={onFilterChange}
+            sortDirection={sortDirection}
+            sortType={sortType}
+            sortKey={sortKey}
           />
         )}
-      </FilterList>
+      </FilterDashboards>
     )
   }
 }

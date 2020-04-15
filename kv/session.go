@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2"
 )
 
 var (
@@ -28,13 +28,33 @@ func (s *Service) RenewSession(ctx context.Context, session *influxdb.Session, n
 			Msg: "session is nil",
 		}
 	}
+
+	// session already has longer expiration
+	if newExpiration.Before(session.ExpiresAt) {
+		return nil
+	}
+
 	return s.kv.Update(ctx, func(tx Tx) error {
-		session.ExpiresAt = newExpiration
-		if err := s.putSession(ctx, tx, session); err != nil {
+		sess, err := s.findSession(ctx, tx, session.Key)
+		if err != nil {
+			return err
+		}
+
+		// session already has longer expiration
+		if newExpiration.Before(session.ExpiresAt) {
+			return nil
+		}
+
+		sess.ExpiresAt = newExpiration
+
+		if err := s.putSession(ctx, tx, sess); err != nil {
 			return &influxdb.Error{
 				Err: err,
 			}
 		}
+
+		*session = *sess
+
 		return nil
 	})
 }
@@ -124,15 +144,17 @@ func (s *Service) maxPermissions(ctx context.Context, tx Tx, userID influxdb.ID)
 	}
 	ps = append(ps, influxdb.MePermissions(userID)...)
 
-	// TODO(desa): this is super expensive, we should keep a list of a users maximal privileges somewhere
-	// we did this so that the oper token would be used in a users permissions.
-	af := influxdb.AuthorizationFilter{UserID: &userID}
-	as, err := s.findAuthorizations(ctx, tx, af)
-	if err != nil {
-		return nil, err
-	}
-	for _, a := range as {
-		ps = append(ps, a.Permissions...)
+	if !s.disableAuthorizationsForMaxPermissions(ctx) {
+		// TODO(desa): this is super expensive, we should keep a list of a users maximal privileges somewhere
+		// we did this so that the oper token would be used in a users permissions.
+		af := influxdb.AuthorizationFilter{UserID: &userID}
+		as, err := s.findAuthorizations(ctx, tx, af)
+		if err != nil {
+			return nil, err
+		}
+		for _, a := range as {
+			ps = append(ps, a.Permissions...)
+		}
 	}
 
 	return ps, nil

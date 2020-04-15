@@ -11,11 +11,13 @@ import DurationSelector, {
 // Utils
 import {parseDuration, durationToMilliseconds} from 'src/shared/utils/duration'
 import {extractBucketMaxRetentionSeconds} from 'src/cloud/utils/limits'
+import {ruleToString} from 'src/utils/formatting'
 
 // Types
 import {AppState} from 'src/types'
 
 export const DEFAULT_SECONDS = 30 * 24 * 60 * 60 // 30 days
+export const READABLE_DEFAULT_SECONDS = ruleToString(DEFAULT_SECONDS)
 
 export const DURATION_OPTIONS: DurationOption[] = [
   {duration: '1h', displayText: '1 hour'},

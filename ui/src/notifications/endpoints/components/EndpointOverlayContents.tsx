@@ -57,7 +57,7 @@ const EndpointOverlayContents: FC<Props> = ({
   const handleSelectType = (type: NotificationEndpointType) => {
     dispatch({
       type: 'UPDATE_ENDPOINT_TYPE',
-      endpoint: {...endpoint, type},
+      endpoint: {...endpoint, type} as NotificationEndpoint,
     })
   }
 

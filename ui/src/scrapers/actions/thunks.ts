@@ -5,10 +5,16 @@ import {normalize} from 'normalizr'
 import {client} from 'src/utils/api'
 
 // Schemas
-import * as schemas from 'src/schemas'
+import {arrayOfScrapers, scraperSchema} from 'src/schemas'
 
 // Types
-import {RemoteDataState, GetState, Scraper, ScraperEntities} from 'src/types'
+import {
+  RemoteDataState,
+  GetState,
+  Scraper,
+  ScraperEntities,
+  ResourceType,
+} from 'src/types'
 import {Dispatch} from 'react'
 
 // Actions
@@ -32,6 +38,7 @@ import {
 
 // Selectors
 import {getOrg} from 'src/organizations/selectors'
+import {getStatus} from 'src/resources/selectors'
 
 type Action = ScraperAction | NotifyAction
 
@@ -40,7 +47,13 @@ export const getScrapers = () => async (
   getState: GetState
 ) => {
   try {
-    const org = getOrg(getState())
+    const state = getState()
+    if (
+      getStatus(state, ResourceType.Scrapers) === RemoteDataState.NotStarted
+    ) {
+      dispatch(setScrapers(RemoteDataState.Loading))
+    }
+    const org = getOrg(state)
 
     dispatch(setScrapers(RemoteDataState.Loading))
 
@@ -48,7 +61,7 @@ export const getScrapers = () => async (
 
     const normalized = normalize<Scraper, ScraperEntities, string[]>(
       resp,
-      schemas.arrayOfScrapers
+      arrayOfScrapers
     )
 
     dispatch(setScrapers(RemoteDataState.Done, normalized))
@@ -66,7 +79,7 @@ export const createScraper = (scraper: Scraper) => async (
 
     const normalized = normalize<Scraper, ScraperEntities, string>(
       resp,
-      schemas.scraper
+      scraperSchema
     )
 
     dispatch(addScraper(normalized))
@@ -84,7 +97,7 @@ export const updateScraper = (scraper: Scraper) => async (
     const resp = await client.scrapers.update(scraper.id, scraper)
     const normalized = normalize<Scraper, ScraperEntities, string>(
       resp,
-      schemas.scraper
+      scraperSchema
     )
 
     dispatch(editScraper(normalized))

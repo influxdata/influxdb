@@ -4,13 +4,16 @@ import {AlertBuilderState} from '../reducers/alertBuilder'
 
 const bc1: BuilderConfig = {
   buckets: ['bestBuck'],
-  tags: [{key: 'k1', values: ['v1']}, {key: '_field', values: ['v2']}],
+  tags: [
+    {key: 'k1', values: ['v1'], aggregateFunctionType: 'filter'},
+    {key: '_field', values: ['v2'], aggregateFunctionType: 'filter'},
+  ],
   functions: [{name: 'mean'}],
 }
 
 const ab1: AlertBuilderState = {
-  status: 'active',
-  checkStatus: RemoteDataState.Done,
+  activeStatus: 'active',
+  status: RemoteDataState.Done,
   statusMessageTemplate: 'this is staus message',
   tags: [{key: 'k1', value: 'v1'}],
   id: '2',
@@ -30,8 +33,8 @@ const ab1: AlertBuilderState = {
 }
 
 const ab2: AlertBuilderState = {
-  status: 'active',
-  checkStatus: RemoteDataState.Done,
+  activeStatus: 'active',
+  status: RemoteDataState.Done,
   statusMessageTemplate: 'this is staus message',
   tags: [{key: 'k1', value: 'v1'}],
   id: '2',

@@ -104,7 +104,11 @@ const CheckMetaCard: FC<Props> = ({
 }
 
 const mstp = ({alertBuilder: {tags, offset, every}}: AppState): StateProps => {
-  return {tags, offset, every}
+  return {
+    tags: tags || [],
+    offset,
+    every,
+  }
 }
 
 const mdtp: DispatchProps = {

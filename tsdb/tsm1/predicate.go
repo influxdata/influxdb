@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"regexp"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/storage/reads/datatypes"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/storage/reads/datatypes"
 )
 
 // Predicate is something that can match on a series key.
@@ -115,10 +115,11 @@ type predicateMatcher struct {
 //
 // It is not safe to modify p.pred on the returned clone.
 func (p *predicateMatcher) Clone() influxdb.Predicate {
+	state := p.state.Clone()
 	return &predicateMatcher{
 		pred:  p.pred,
-		state: p.state.Clone(),
-		root:  p.root.Clone(),
+		state: state,
+		root:  p.root.Clone(state),
 	}
 }
 
@@ -386,9 +387,12 @@ func newPredicateCache(state *predicateState) predicateCache {
 }
 
 // Clone returns a deep copy of p.
-func (p *predicateCache) Clone() *predicateCache {
+func (p *predicateCache) Clone(state *predicateState) *predicateCache {
+	if state == nil {
+		state = p.state.Clone()
+	}
 	return &predicateCache{
-		state: p.state.Clone(),
+		state: state,
 		gen:   p.gen,
 		resp:  p.resp,
 	}
@@ -416,7 +420,7 @@ type predicateNode interface {
 	Update() predicateResponse
 
 	// Clone returns a deep copy of the node.
-	Clone() predicateNode
+	Clone(state *predicateState) predicateNode
 }
 
 // predicateNodeAnd combines two predicate nodes with an And.
@@ -426,11 +430,11 @@ type predicateNodeAnd struct {
 }
 
 // Clone returns a deep copy of p.
-func (p *predicateNodeAnd) Clone() predicateNode {
+func (p *predicateNodeAnd) Clone(state *predicateState) predicateNode {
 	return &predicateNodeAnd{
-		predicateCache: *p.predicateCache.Clone(),
-		left:           p.left.Clone(),
-		right:          p.right.Clone(),
+		predicateCache: *p.predicateCache.Clone(state),
+		left:           p.left.Clone(state),
+		right:          p.right.Clone(state),
 	}
 }
 
@@ -467,11 +471,11 @@ type predicateNodeOr struct {
 }
 
 // Clone returns a deep copy of p.
-func (p *predicateNodeOr) Clone() predicateNode {
-	return &predicateNodeAnd{
-		predicateCache: *p.predicateCache.Clone(),
-		left:           p.left.Clone(),
-		right:          p.right.Clone(),
+func (p *predicateNodeOr) Clone(state *predicateState) predicateNode {
+	return &predicateNodeOr{
+		predicateCache: *p.predicateCache.Clone(state),
+		left:           p.left.Clone(state),
+		right:          p.right.Clone(state),
 	}
 }
 
@@ -514,19 +518,23 @@ type predicateNodeComparison struct {
 }
 
 // Clone returns a deep copy of p.
-func (p *predicateNodeComparison) Clone() predicateNode {
+func (p *predicateNodeComparison) Clone(state *predicateState) predicateNode {
 	q := &predicateNodeComparison{
-		predicateCache: *p.predicateCache.Clone(),
+		predicateCache: *p.predicateCache.Clone(state),
 		comp:           p.comp,
-		// skip rightReg as it shouldn't be mutated
-		leftLiteral:  make([]byte, len(p.leftLiteral)),
-		rightLiteral: make([]byte, len(p.rightLiteral)),
-		leftIndex:    p.leftIndex,
-		rightIndex:   p.rightIndex,
+		rightReg:       p.rightReg,
+		leftIndex:      p.leftIndex,
+		rightIndex:     p.rightIndex,
 	}
 
-	copy(q.leftLiteral, p.leftLiteral)
-	copy(q.rightLiteral, p.rightLiteral)
+	if p.leftLiteral != nil {
+		q.leftLiteral = make([]byte, len(p.leftLiteral))
+		copy(q.leftLiteral, p.leftLiteral)
+	}
+	if p.rightLiteral != nil {
+		q.rightLiteral = make([]byte, len(p.rightLiteral))
+		copy(q.rightLiteral, p.rightLiteral)
+	}
 	return q
 }
 

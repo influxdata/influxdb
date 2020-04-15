@@ -23,16 +23,10 @@ import {
   addRuleLabel,
   deleteRuleLabel,
   cloneRule,
-} from 'src/notifications/rules/actions'
-import {viewableLabels} from 'src/labels/selectors'
+} from 'src/notifications/rules/actions/thunks'
 
 // Types
-import {
-  NotificationRuleDraft,
-  AppState,
-  Label,
-  AlertHistoryType,
-} from 'src/types'
+import {NotificationRuleDraft, Label, AlertHistoryType} from 'src/types'
 
 // Utilities
 import {relativeTimestampFormatter} from 'src/shared/utils/relativeTimestampFormatter'
@@ -49,16 +43,11 @@ interface OwnProps {
   rule: NotificationRuleDraft
 }
 
-interface StateProps {
-  labels: Label[]
-}
-
-type Props = OwnProps & WithRouterProps & StateProps & DispatchProps
+type Props = OwnProps & WithRouterProps & DispatchProps
 
 const RuleCard: FC<Props> = ({
   rule,
   onUpdateRuleProperties,
-  labels,
   deleteNotificationRule,
   onCloneRule,
   onAddRuleLabel,
@@ -66,16 +55,26 @@ const RuleCard: FC<Props> = ({
   params: {orgID},
   router,
 }) => {
+  const {
+    id,
+    activeStatus,
+    name,
+    lastRunError,
+    lastRunStatus,
+    description,
+    latestCompleted,
+  } = rule
+
   const onUpdateName = (name: string) => {
-    onUpdateRuleProperties(rule.id, {name})
+    onUpdateRuleProperties(id, {name})
   }
 
   const onUpdateDescription = (description: string) => {
-    onUpdateRuleProperties(rule.id, {description})
+    onUpdateRuleProperties(id, {description})
   }
 
   const onDelete = () => {
-    deleteNotificationRule(rule.id)
+    deleteNotificationRule(id)
   }
 
   const onClone = () => {
@@ -83,13 +82,13 @@ const RuleCard: FC<Props> = ({
   }
 
   const onToggle = () => {
-    const status = rule.status === 'active' ? 'inactive' : 'active'
+    const status = activeStatus === 'active' ? 'inactive' : 'active'
 
-    onUpdateRuleProperties(rule.id, {status})
+    onUpdateRuleProperties(id, {status})
   }
 
   const onRuleClick = () => {
-    router.push(`/orgs/${orgID}/alerting/rules/${rule.id}/edit`)
+    router.push(`/orgs/${orgID}/alerting/rules/${id}/edit`)
   }
 
   const onView = () => {
@@ -97,29 +96,29 @@ const RuleCard: FC<Props> = ({
 
     const queryParams = new URLSearchParams({
       [HISTORY_TYPE_QUERY_PARAM]: historyType,
-      [SEARCH_QUERY_PARAM]: `"notificationRuleID" == "${rule.id}"`,
+      [SEARCH_QUERY_PARAM]: `"notificationRuleID" == "${id}"`,
     })
 
     router.push(`/orgs/${orgID}/alert-history?${queryParams}`)
   }
 
   const handleAddRuleLabel = (label: Label) => {
-    onAddRuleLabel(rule.id, label)
+    onAddRuleLabel(id, label)
   }
 
   const handleRemoveRuleLabel = (label: Label) => {
-    onRemoveRuleLabel(rule.id, label)
+    onRemoveRuleLabel(id, label.id)
   }
 
   return (
     <ResourceCard
-      key={`rule-id--${rule.id}`}
-      testID="rule-card"
+      key={`rule-id--${id}`}
+      testID={`rule-card ${name}`}
       name={
         <ResourceCard.EditableName
           onUpdate={onUpdateName}
           onClick={onRuleClick}
-          name={rule.name}
+          name={name}
           noNameString={DEFAULT_NOTIFICATION_RULE_NAME}
           testID="rule-card--name"
           buttonTestID="rule-card--name-button"
@@ -128,7 +127,7 @@ const RuleCard: FC<Props> = ({
       }
       toggle={
         <SlideToggle
-          active={rule.status === 'active'}
+          active={activeStatus === 'active'}
           size={ComponentSize.ExtraSmall}
           onChange={onToggle}
           testID="rule-card--slide-toggle"
@@ -137,19 +136,18 @@ const RuleCard: FC<Props> = ({
       description={
         <ResourceCard.EditableDescription
           onUpdate={onUpdateDescription}
-          description={rule.description}
-          placeholder={`Describe ${rule.name}`}
+          description={description}
+          placeholder={`Describe ${name}`}
         />
       }
       labels={
         <InlineLabels
-          selectedLabels={rule.labels as Label[]}
-          labels={labels}
+          selectedLabelIDs={rule.labels}
           onAddLabel={handleAddRuleLabel}
           onRemoveLabel={handleRemoveRuleLabel}
         />
       }
-      disabled={rule.status === 'inactive'}
+      disabled={activeStatus === 'inactive'}
       contextMenu={
         <NotificationRuleCardContext
           onView={onView}
@@ -158,12 +156,12 @@ const RuleCard: FC<Props> = ({
         />
       }
       metaData={[
-        <>Last completed at {rule.latestCompleted}</>,
+        <>Last completed at {latestCompleted}</>,
         <>{relativeTimestampFormatter(rule.updatedAt, 'Last updated ')}</>,
         <LastRunTaskStatus
           key={2}
-          lastRunError={rule.lastRunError}
-          lastRunStatus={rule.lastRunStatus}
+          lastRunError={lastRunError}
+          lastRunStatus={lastRunStatus}
         />,
       ]}
     />
@@ -178,13 +176,7 @@ const mdtp: DispatchProps = {
   onCloneRule: cloneRule,
 }
 
-const mstp = ({labels}: AppState): StateProps => {
-  return {
-    labels: viewableLabels(labels.list),
-  }
-}
-
-export default connect<StateProps, DispatchProps, {}>(
-  mstp,
+export default connect<{}, DispatchProps>(
+  null,
   mdtp
 )(withRouter(RuleCard))

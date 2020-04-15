@@ -13,7 +13,6 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
   onSearch: (searchTerm: string) => void
-  widthPixels: number
   placeholderText: string
   searchTerm: string
   testID: string
@@ -50,18 +49,18 @@ class SearchWidget extends Component<Props, State> {
   }
 
   public render() {
-    const {placeholderText, widthPixels, testID} = this.props
+    const {placeholderText, testID} = this.props
     const {searchTerm} = this.state
 
     return (
       <Input
         icon={IconFont.Search}
         placeholder={placeholderText}
-        style={{width: `${widthPixels}px`}}
         value={searchTerm}
         onChange={this.handleChange}
         onBlur={this.handleBlur}
         testID={testID}
+        className="search-widget-input"
       />
     )
   }

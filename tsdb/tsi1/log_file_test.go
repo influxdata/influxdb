@@ -13,12 +13,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/pkg/bloom"
-	"github.com/influxdata/influxdb/pkg/fs"
-	"github.com/influxdata/influxdb/pkg/slices"
-	"github.com/influxdata/influxdb/tsdb"
-	"github.com/influxdata/influxdb/tsdb/tsi1"
+	"github.com/influxdata/influxdb/v2/models"
+	"github.com/influxdata/influxdb/v2/pkg/bloom"
+	"github.com/influxdata/influxdb/v2/pkg/fs"
+	"github.com/influxdata/influxdb/v2/pkg/slices"
+	"github.com/influxdata/influxdb/v2/tsdb"
+	"github.com/influxdata/influxdb/v2/tsdb/seriesfile"
+	"github.com/influxdata/influxdb/v2/tsdb/tsi1"
 )
 
 // Ensure log file can append series.
@@ -376,7 +377,7 @@ type LogFile struct {
 }
 
 // NewLogFile returns a new instance of LogFile with a temporary file path.
-func NewLogFile(sfile *tsdb.SeriesFile) *LogFile {
+func NewLogFile(sfile *seriesfile.SeriesFile) *LogFile {
 	file, err := ioutil.TempFile("", "tsi1-log-file-")
 	if err != nil {
 		panic(err)
@@ -387,7 +388,7 @@ func NewLogFile(sfile *tsdb.SeriesFile) *LogFile {
 }
 
 // MustOpenLogFile returns a new, open instance of LogFile. Panic on error.
-func MustOpenLogFile(sfile *tsdb.SeriesFile) *LogFile {
+func MustOpenLogFile(sfile *seriesfile.SeriesFile) *LogFile {
 	f := NewLogFile(sfile)
 	if err := f.Open(); err != nil {
 		panic(err)
@@ -413,7 +414,7 @@ func (f *LogFile) Reopen() error {
 }
 
 // CreateLogFile creates a new temporary log file and adds a list of series.
-func CreateLogFile(sfile *tsdb.SeriesFile, series []Series) (*LogFile, error) {
+func CreateLogFile(sfile *seriesfile.SeriesFile, series []Series) (*LogFile, error) {
 	f := MustOpenLogFile(sfile)
 	seriesSet := tsdb.NewSeriesIDSet()
 	for _, serie := range series {
@@ -434,7 +435,7 @@ func CreateLogFile(sfile *tsdb.SeriesFile, series []Series) (*LogFile, error) {
 
 // GenerateLogFile generates a log file from a set of series based on the count arguments.
 // Total series returned will equal measurementN * tagN * valueN.
-func GenerateLogFile(sfile *tsdb.SeriesFile, measurementN, tagN, valueN int) (*LogFile, error) {
+func GenerateLogFile(sfile *seriesfile.SeriesFile, measurementN, tagN, valueN int) (*LogFile, error) {
 	tagValueN := pow(valueN, tagN)
 
 	f := MustOpenLogFile(sfile)

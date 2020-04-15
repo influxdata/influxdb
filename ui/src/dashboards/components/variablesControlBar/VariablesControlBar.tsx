@@ -14,13 +14,13 @@ import ErrorBoundary from 'src/shared/components/ErrorBoundary'
 
 // Utils
 import {
-  getVariablesForDashboard,
-  getDashboardValuesStatus,
+  getVariables,
   getDashboardVariablesStatus,
 } from 'src/variables/selectors'
+import {filterUnusedVars} from 'src/shared/utils/filterUnusedVars'
 
 // Actions
-import {moveVariable} from 'src/variables/actions/creators'
+import {moveVariable} from 'src/variables/actions/thunks'
 
 // Types
 import {AppState, Variable} from 'src/types'
@@ -32,15 +32,11 @@ import {RemoteDataState} from 'src/types'
 import DraggableDropdown from 'src/dashboards/components/variablesControlBar/DraggableDropdown'
 import withDragDropContext from 'src/shared/decorators/withDragDropContext'
 
-interface OwnProps {
-  dashboardID: string
-}
-
 interface StateProps {
   variables: Variable[]
-  valuesStatus: RemoteDataState
   variablesStatus: RemoteDataState
   inPresentationMode: boolean
+  show: boolean
 }
 
 interface DispatchProps {
@@ -51,7 +47,7 @@ interface State {
   initialLoading: RemoteDataState
 }
 
-type Props = StateProps & DispatchProps & OwnProps
+type Props = StateProps & DispatchProps
 
 @ErrorHandling
 class VariablesControlBar extends PureComponent<Props, State> {
@@ -59,7 +55,6 @@ class VariablesControlBar extends PureComponent<Props, State> {
 
   static getDerivedStateFromProps(props, state) {
     if (
-      props.valuesStatus === RemoteDataState.Done &&
       props.variablesStatus === RemoteDataState.Done &&
       state.initialLoading !== RemoteDataState.Done
     ) {
@@ -70,10 +65,14 @@ class VariablesControlBar extends PureComponent<Props, State> {
   }
 
   render() {
+    const {show, inPresentationMode} = this.props
+    if (!show) {
+      return false
+    }
     return (
       <div
         className={classnames('variables-control-bar', {
-          'presentation-mode': this.props.inPresentationMode,
+          'presentation-mode': inPresentationMode,
         })}
       >
         <SpinnerContainer
@@ -107,7 +106,7 @@ class VariablesControlBar extends PureComponent<Props, State> {
   }
 
   private get barContents(): JSX.Element {
-    const {dashboardID, variables, valuesStatus} = this.props
+    const {variables, variablesStatus} = this.props
     return (
       <div className="variables-control-bar--full">
         {variables.map((v, i) => (
@@ -116,12 +115,11 @@ class VariablesControlBar extends PureComponent<Props, State> {
               name={v.name}
               id={v.id}
               index={i}
-              dashboardID={dashboardID}
               moveDropdown={this.handleMoveDropdown}
             />
           </ErrorBoundary>
         ))}
-        {valuesStatus === RemoteDataState.Loading && (
+        {variablesStatus === RemoteDataState.Loading && (
           <TechnoSpinner diameterPixels={18} />
         )}
       </div>
@@ -142,8 +140,8 @@ class VariablesControlBar extends PureComponent<Props, State> {
     originalIndex: number,
     newIndex: number
   ): void => {
-    const {dashboardID, moveVariable} = this.props
-    moveVariable(originalIndex, newIndex, dashboardID)
+    const {moveVariable} = this.props
+    moveVariable(originalIndex, newIndex)
   }
 }
 
@@ -151,10 +149,11 @@ const mdtp = {
   moveVariable,
 }
 
-const mstp = (state: AppState, props: OwnProps): StateProps => {
-  const variables = getVariablesForDashboard(state, props.dashboardID)
-  const valuesStatus = getDashboardValuesStatus(state, props.dashboardID)
+const mstp = (state: AppState): StateProps => {
+  const dashboardID = state.currentDashboard.id
+  const variables = getVariables(state)
   const variablesStatus = getDashboardVariablesStatus(state)
+  const show = state.userSettings.showVariablesControls
 
   const {
     app: {
@@ -162,11 +161,21 @@ const mstp = (state: AppState, props: OwnProps): StateProps => {
     },
   } = state
 
-  return {variables, valuesStatus, variablesStatus, inPresentationMode}
+  return {
+    variables: filterUnusedVars(
+      variables,
+      Object.values(state.resources.views.byID).filter(
+        variable => variable.dashboardID === dashboardID
+      )
+    ),
+    variablesStatus,
+    inPresentationMode,
+    show,
+  }
 }
 
 export default withDragDropContext(
-  connect<StateProps, DispatchProps, OwnProps>(
+  connect<StateProps, DispatchProps>(
     mstp,
     mdtp
   )(VariablesControlBar)

@@ -1,5 +1,4 @@
-@import '~src/style/_influx-colors.scss';
-@import '~src/style/_variables.scss';
+@import '~src/style/modules.scss';
 
 .last-run-task-status {
   width: 30px;
@@ -58,7 +57,7 @@
   max-width: 300px;
   padding: $ix-marg-b $ix-marg-b + $ix-marg-a;
   font-size: 13px;
-  font-family: $code-font;
+  font-family: $cf-code-font;
 
   > h6 {
     margin-top: 0;

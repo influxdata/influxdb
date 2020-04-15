@@ -1,11 +1,10 @@
-import _ from 'lodash'
-import {Label as GenLabel} from 'src/client'
-import {Label} from 'src/types'
+import {sample} from 'lodash'
+import {Label, RemoteDataState, GenLabel} from 'src/types'
 
 import {HEX_CODE_CHAR_LENGTH, PRESET_LABEL_COLORS} from 'src/labels/constants/'
 
 export const randomPresetColor = () =>
-  _.sample(PRESET_LABEL_COLORS.slice(1)).colorHex
+  sample(PRESET_LABEL_COLORS.slice(1)).colorHex
 
 // TODO: Accept a list of label objects instead of strings
 // Will have to wait until label types are standardized in the UI
@@ -59,12 +58,17 @@ export const validateHexCode = (colorHex: string): string | null => {
 
 const DEFAULT_LABEL_COLOR = '#326BBA'
 
-export const addLabelDefaults = (l: GenLabel): Label => ({
-  ...l,
-  properties: {
-    ...l.properties,
-    // add default color hex if missing
-    color: (l.properties || {}).color || DEFAULT_LABEL_COLOR,
-    description: (l.properties || {}).description || '',
-  },
-})
+export const addLabelDefaults = (l: GenLabel): Label => {
+  const out = {
+    ...l,
+    status: RemoteDataState.Done,
+    properties: {
+      ...l.properties,
+      // add default color hex if missing
+      color: (l.properties || {}).color || DEFAULT_LABEL_COLOR,
+      description: (l.properties || {}).description || '',
+    },
+  }
+
+  return out
+}

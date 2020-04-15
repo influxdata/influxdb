@@ -4,12 +4,12 @@ import {parse} from '@influxdata/flux-parser'
 // Utils
 import {getMinDurationFromAST} from 'src/shared/utils/getMinDurationFromAST'
 import {buildVarsOption} from 'src/variables/utils/buildVarsOption'
-import {reportError} from 'src/shared/utils/errors'
 // Constants
 import {WINDOW_PERIOD} from 'src/variables/constants'
 
 // Types
 import {VariableAssignment, Package} from 'src/types/ast'
+import {RemoteDataState, Variable} from 'src/types'
 import {SELECTABLE_TIME_RANGES} from 'src/shared/constants/timeRanges'
 
 const DESIRED_POINTS_PER_GRAPH = 360
@@ -76,11 +76,31 @@ export const getWindowPeriod = (
 
     return Math.round(queryDuration / DESIRED_POINTS_PER_GRAPH)
   } catch (error) {
-    console.error(error)
-    reportError(error, {
-      context: {query},
-      name: 'getWindowPeriod function',
-    })
     return null
   }
+}
+
+export const getWindowPeriodVariable = (
+  query: string,
+  variables: VariableAssignment[]
+): Variable[] | null => {
+  const total = getWindowPeriod(query, variables)
+
+  if (total === null) {
+    return null
+  }
+
+  const windowPeriodVariable: Variable = {
+    orgID: '',
+    id: WINDOW_PERIOD,
+    name: WINDOW_PERIOD,
+    arguments: {
+      type: 'system',
+      values: [total],
+    },
+    status: RemoteDataState.Done,
+    labels: [],
+  }
+
+  return [windowPeriodVariable]
 }

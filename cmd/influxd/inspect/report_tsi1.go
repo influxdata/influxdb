@@ -5,8 +5,8 @@ import (
 	"io"
 	"os"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/tsdb/tsi1"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/tsdb/tsi1"
 	"github.com/spf13/cobra"
 )
 

@@ -1,14 +1,21 @@
 // Libraries
-import React, {useState, FunctionComponent} from 'react'
+import React, {useState, useEffect, FunctionComponent} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import SearchBar from 'src/timeMachine/components/SearchBar'
-import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
+import FluxToolbarSearch from 'src/timeMachine/components/FluxToolbarSearch'
+import {
+  DapperScrollbars,
+  EmptyState,
+  ComponentSize,
+} from '@influxdata/clockface'
 import VariableItem from 'src/timeMachine/components/variableToolbar/VariableItem'
 
+// Actions
+import {hydrateVariables} from 'src/variables/actions/thunks'
+
 // Utils
-import {extractVariablesList} from 'src/variables/selectors'
+import {getAllVariables} from 'src/variables/selectors'
 
 // Types
 import {AppState, Variable} from 'src/types'
@@ -21,36 +28,62 @@ interface StateProps {
   variables: Variable[]
 }
 
-const VariableToolbar: FunctionComponent<OwnProps & StateProps> = ({
+interface DispatchProps {
+  hydrateVariables: typeof hydrateVariables
+}
+
+type Props = OwnProps & StateProps & DispatchProps
+
+const VariableToolbar: FunctionComponent<Props> = ({
   variables,
   onClickVariable,
+  hydrateVariables,
 }) => {
   const [searchTerm, setSearchTerm] = useState('')
+  const filteredVariables = variables.filter(v => v.name.includes(searchTerm))
+
+  useEffect(() => {
+    hydrateVariables()
+  }, [])
+
+  let content: JSX.Element | JSX.Element[] = (
+    <EmptyState size={ComponentSize.ExtraSmall}>
+      <EmptyState.Text>No variables match your search</EmptyState.Text>
+    </EmptyState>
+  )
+
+  if (Boolean(filteredVariables.length)) {
+    content = filteredVariables.map(v => (
+      <VariableItem
+        variable={v}
+        key={v.id}
+        onClickVariable={onClickVariable}
+        testID={v.name}
+      />
+    ))
+  }
 
   return (
-    <div className="variable-toolbar">
-      <SearchBar onSearch={setSearchTerm} resourceName="Variables" />
-      <FancyScrollbar style={{marginBottom: '40px'}}>
-        <div className="variables-toolbar--list">
-          {variables
-            .filter(v => v.name.includes(searchTerm))
-            .map(v => (
-              <VariableItem
-                variable={v}
-                key={v.id}
-                onClickVariable={onClickVariable}
-              />
-            ))}
-        </div>
-      </FancyScrollbar>
-    </div>
+    <>
+      <FluxToolbarSearch onSearch={setSearchTerm} resourceName="Variables" />
+      <DapperScrollbars className="flux-toolbar--scroll-area">
+        <div className="flux-toolbar--list">{content}</div>
+      </DapperScrollbars>
+    </>
   )
 }
 
 const mstp = (state: AppState): StateProps => {
-  const variables = extractVariablesList(state)
+  const variables = getAllVariables(state)
 
   return {variables}
 }
 
-export default connect<StateProps>(mstp)(VariableToolbar)
+const mdtp = {
+  hydrateVariables: hydrateVariables,
+}
+
+export default connect<StateProps, DispatchProps>(
+  mstp,
+  mdtp
+)(VariableToolbar)

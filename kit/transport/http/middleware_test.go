@@ -1,10 +1,12 @@
 package http
 
 import (
+	"net/http"
 	"path"
 	"testing"
 
-	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/pkg/testttp"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -40,6 +42,53 @@ func Test_normalizePath(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			actual := normalizePath(tt.path)
 			assert.Equal(t, tt.expected, actual)
+		})
+	}
+}
+
+func TestCors(t *testing.T) {
+	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("nextHandler"))
+	})
+
+	tests := []struct {
+		name            string
+		method          string
+		headers         []string
+		expectedStatus  int
+		expectedHeaders map[string]string
+	}{
+		{
+			name:           "OPTIONS without Origin",
+			method:         "OPTIONS",
+			expectedStatus: http.StatusMethodNotAllowed,
+		},
+		{
+			name:           "OPTIONS with Origin",
+			method:         "OPTIONS",
+			headers:        []string{"Origin", "http://myapp.com"},
+			expectedStatus: http.StatusNoContent,
+		},
+		{
+			name:           "GET with Origin",
+			method:         "GET",
+			headers:        []string{"Origin", "http://anotherapp.com"},
+			expectedStatus: http.StatusOK,
+			expectedHeaders: map[string]string{
+				"Access-Control-Allow-Origin": "http://anotherapp.com",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svr := SkipOptions(SetCORS(nextHandler))
+
+			testttp.
+				HTTP(t, tt.method, "/", nil).
+				Headers("", "", tt.headers...).
+				Do(svr).
+				ExpectStatus(tt.expectedStatus).
+				ExpectHeaders(tt.expectedHeaders)
 		})
 	}
 }

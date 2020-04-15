@@ -2,7 +2,7 @@
 import {runQuery} from 'src/shared/apis/query'
 
 // Utils
-import {resolveSelectedValue} from 'src/variables/utils/resolveSelectedValue'
+import {resolveSelectedKey} from 'src/variables/utils/resolveSelectedValue'
 import {formatVarsOption} from 'src/variables/utils/formatVarsOption'
 import {parseResponse} from 'src/shared/parsing/flux/response'
 import {buildVarsOption} from 'src/variables/utils/buildVarsOption'
@@ -37,7 +37,11 @@ export const extractValues = (
   const [table] = parseResponse(csv)
 
   if (!table || !table.data.length) {
-    throw new Error('empty variable response')
+    return {
+      values: [],
+      valueType: 'string',
+      selected: [],
+    }
   }
 
   const [headerRow] = table.data
@@ -55,11 +59,7 @@ export const extractValues = (
   return {
     values,
     valueType: table.dataTypes._value as FluxColumnType,
-    selectedValue: resolveSelectedValue(
-      values,
-      prevSelection,
-      defaultSelection
-    ),
+    selected: [resolveSelectedKey(values, prevSelection, defaultSelection)],
   }
 }
 
@@ -70,25 +70,40 @@ export interface ValueFetcher {
     query: string,
     variables: VariableAssignment[],
     prevSelection: string,
-    defaultSelection: string
+    defaultSelection: string,
+    skipCache: boolean
   ) => CancelBox<VariableValues>
 }
 
 export class DefaultValueFetcher implements ValueFetcher {
   private cache: {[cacheKey: string]: VariableValues} = {}
 
-  public fetch(url, orgID, query, variables, prevSelection, defaultSelection) {
+  public fetch(
+    url,
+    orgID,
+    query,
+    variables,
+    prevSelection,
+    defaultSelection,
+    skipCache
+  ) {
     const key = cacheKey(url, orgID, query, variables)
-    const cachedValues = this.cachedValues(key, prevSelection, defaultSelection)
+    if (!skipCache) {
+      const cachedValues = this.cachedValues(
+        key,
+        prevSelection,
+        defaultSelection
+      )
 
-    if (cachedValues) {
-      return {promise: Promise.resolve(cachedValues), cancel: () => {}}
+      if (cachedValues) {
+        return {promise: Promise.resolve(cachedValues), cancel: () => {}}
+      }
     }
 
     const extern = buildVarsOption(variables)
     const request = runQuery(orgID, query, extern)
 
-    const promise = request.promise.then<VariableValues>(result => {
+    const promise = request.promise.then(result => {
       if (result.type !== 'SUCCESS') {
         return Promise.reject(result.message)
       }
@@ -119,11 +134,13 @@ export class DefaultValueFetcher implements ValueFetcher {
 
     return {
       ...cachedValues,
-      selectedValue: resolveSelectedValue(
-        cachedValues.values,
-        prevSelection,
-        defaultSelection
-      ),
+      selected: [
+        resolveSelectedKey(
+          cachedValues.values as string[],
+          prevSelection,
+          defaultSelection
+        ),
+      ],
     }
   }
 }

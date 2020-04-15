@@ -1,9 +1,17 @@
 // Libraries
-import memoizeOne from 'memoize-one'
 import {get} from 'lodash'
 
 // Utils
-import {getVarAssignment} from 'src/variables/utils/getVarAssignment'
+import {getActiveQuery} from 'src/timeMachine/selectors'
+import {getRangeVariable} from 'src/variables/utils/getTimeRangeVars'
+import {getTimeRange} from 'src/dashboards/selectors'
+import {getWindowPeriodVariable} from 'src/variables/utils/getWindowVars'
+import {
+  TIME_RANGE_START,
+  TIME_RANGE_STOP,
+  WINDOW_PERIOD,
+} from 'src/variables/constants'
+import {currentContext} from 'src/shared/selectors/currentContext'
 
 // Types
 import {
@@ -13,31 +21,7 @@ import {
   CSVArguments,
 } from 'src/types'
 import {VariableAssignment} from 'src/types/ast'
-import {
-  AppState,
-  ResourceState,
-  VariableArguments,
-  VariableArgumentType,
-  Variable,
-  VariableValues,
-  VariableValuesByID,
-  ValueSelections,
-} from 'src/types'
-
-type VariablesState = ResourceState['variables']['byID']
-type ValuesState = ResourceState['variables']['values']['contextID']
-
-const extractVariablesListMemoized = memoizeOne(
-  (variablesState: VariablesState): Variable[] => {
-    return Object.values(variablesState).filter(
-      v => v.status === RemoteDataState.Done
-    )
-  }
-)
-
-export const extractVariablesList = (state: AppState): Variable[] => {
-  return extractVariablesListMemoized(state.resources.variables.byID)
-}
+import {AppState, VariableArgumentType, Variable} from 'src/types'
 
 export const extractVariableEditorName = (state: AppState): string => {
   return state.variableEditor.name
@@ -81,139 +65,216 @@ export const extractVariableEditorConstant = (
   )
 }
 
-const getVariablesForDashboardMemoized = memoizeOne(
-  (variables: VariablesState, variableIDs: string[]): Variable[] => {
-    const variablesForDash = []
-
-    variableIDs.forEach(variableID => {
-      const variable = get(variables, `${variableID}`)
-
-      if (variable) {
-        variablesForDash.push(variable)
-      }
-    })
-
-    return variablesForDash
-  }
-)
-
-export const getVariablesForDashboard = (
+export const getUserVariableNames = (
   state: AppState,
-  dashboardID: string
-): Variable[] => {
-  const variableIDs = get(
+  contextID: string
+): string[] => {
+  const allIDs = get(state, ['resources', 'variables', 'allIDs'], [])
+  const contextIDs = get(
     state,
-    `resources.variables.values.${dashboardID}.order`,
+    ['resources', 'variables', 'values', contextID, 'order'],
     []
   )
 
-  return getVariablesForDashboardMemoized(
-    state.resources.variables.byID,
-    variableIDs
-  )
+  return contextIDs
+    .filter(v => allIDs.includes(v))
+    .concat(allIDs.filter(v => !contextIDs.includes(v)))
 }
 
-export const getValuesForVariable = (
+// this function grabs all user defined variables
+// and hydrates them based on their context
+export const getVariables = (
   state: AppState,
-  variableID: string,
-  contextID: string
-): VariableValues => {
-  return get(
-    state,
-    `resources.variables.values.${contextID}.values.${variableID}`
-  )
+  contextID?: string
+): Variable[] => {
+  const vars = getUserVariableNames(state, contextID || currentContext(state))
+    .reduce((prev, curr) => {
+      prev.push(getVariable(state, curr))
+
+      return prev
+    }, [])
+    .filter(v => !!v)
+
+  return vars
 }
 
-export const getTypeForVariable = (
+// the same as the above method, but includes system
+// variables
+export const getAllVariables = (
   state: AppState,
-  variableID: string
-): VariableArguments['type'] => {
-  return get(state, `resources.variables.byID.${variableID}.arguments.type`, '')
+  contextID?: string
+): Variable[] => {
+  const vars = getUserVariableNames(state, contextID || currentContext(state))
+    .concat([TIME_RANGE_START, TIME_RANGE_STOP, WINDOW_PERIOD])
+    .reduce((prev, curr) => {
+      prev.push(getVariable(state, curr))
+
+      return prev
+    }, [])
+    .filter(v => !!v)
+
+  return vars
 }
 
-type ArgumentValues = {[key: string]: string} | string[]
+export const getVariable = (state: AppState, variableID: string): Variable => {
+  const contextID = currentContext(state)
+  const ctx = get(state, ['resources', 'variables', 'values', contextID])
+  let vari = get(state, ['resources', 'variables', 'byID', variableID])
 
-export const getArgumentValuesForVariable = (
-  state: AppState,
-  variableID: string
-): ArgumentValues => {
-  return get(
-    state,
-    `resources.variables.byID.${variableID}.arguments.values`,
-    {}
-  )
-}
+  if (ctx && ctx.values && ctx.values.hasOwnProperty(variableID)) {
+    vari = {...vari, ...ctx.values[variableID]}
+  }
 
-export const getValueSelections = (
-  state: AppState,
-  contextID: string
-): ValueSelections => {
-  const contextValues: VariableValuesByID =
-    get(state, `resources.variables.values.${contextID}.values`) || {}
+  if (variableID === TIME_RANGE_START || variableID === TIME_RANGE_STOP) {
+    const timeRange = getTimeRange(state)
 
-  const selections: ValueSelections = Object.keys(contextValues).reduce(
-    (acc, k) => {
-      const selectedValue = get(contextValues, `${k}.selectedValue`)
+    vari = getRangeVariable(variableID, timeRange)
+  }
 
-      if (!selectedValue) {
+  if (variableID === WINDOW_PERIOD) {
+    const {text} = getActiveQuery(state)
+    const variables = getVariables(state)
+    const range = getTimeRange(state)
+    const timeVars = [
+      getRangeVariable(TIME_RANGE_START, range),
+      getRangeVariable(TIME_RANGE_STOP, range),
+    ].map(v => asAssignment(v))
+
+    const assignments = variables.reduce((acc, curr) => {
+      if (!curr.name || !curr.selected) {
         return acc
       }
 
-      return {...acc, [k]: selectedValue}
-    },
-    {}
-  )
+      return [...acc, asAssignment(curr)]
+    }, timeVars)
 
-  return selections
+    vari = (getWindowPeriodVariable(text, assignments) || [])[0]
+  }
+
+  if (!vari) {
+    return vari
+  }
+
+  if (vari.arguments.type === 'query') {
+    if (!ctx || !ctx.values || !ctx.values.hasOwnProperty(variableID)) {
+      // TODO load that ish for the context
+      // hydrateQueries(state, contextID, variableID)
+    }
+  }
+
+  // Now validate that the selected value makes sense for
+  // the current situation
+  const vals = normalizeValues(vari)
+  if (vari.selected && !vals.includes(vari.selected[0])) {
+    vari.selected = []
+  }
+
+  if ((!vari.selected || !vari.selected.length) && vals.length) {
+    vari.selected = [vals[0]]
+  }
+
+  return vari
 }
 
-const getVariableAssignmentsMemoized = memoizeOne(
-  (
-    valuesState: ValuesState,
-    variablesState: VariablesState
-  ): VariableAssignment[] => {
-    if (!valuesState || !valuesState.values) {
+export const normalizeValues = (variable: Variable): string[] => {
+  switch (variable.arguments.type) {
+    case 'query':
+      return variable.arguments.values.results || []
+    case 'map':
+      return Object.keys(variable.arguments.values) || []
+    case 'constant':
+      return variable.arguments.values || []
+    default:
       return []
+  }
+}
+
+export const asAssignment = (variable: Variable): VariableAssignment => {
+  const out = {
+    type: 'VariableAssignment' as const,
+    id: {
+      type: 'Identifier' as const,
+      name: variable.name,
+    },
+  } as VariableAssignment
+
+  if (variable.id === WINDOW_PERIOD) {
+    out.init = {
+      type: 'DurationLiteral',
+      values: [{magnitude: variable.arguments.values[0] || 10000, unit: 'ms'}],
     }
 
-    const result: VariableAssignment[] = Object.entries(
-      valuesState.values
-    ).reduce((acc, [variableID, values]) => {
-      const variableName = get(variablesState, [variableID, 'name'])
-
-      if (!variableName || !values || !values.selectedValue) {
-        return acc
-      }
-
-      return [...acc, getVarAssignment(variableName, values)]
-    }, [])
-
-    return result
+    return out
   }
-)
 
-export const getVariableAssignments = (
-  state: AppState,
-  contextID: string
-): VariableAssignment[] =>
-  getVariableAssignmentsMemoized(
-    state.resources.variables.values[contextID],
-    state.resources.variables.byID
-  )
+  if (variable.id === TIME_RANGE_START || variable.id === TIME_RANGE_STOP) {
+    const val = variable.arguments.values[0]
 
-export const getTimeMachineValues = (
-  state: AppState,
-  variableID: string
-): VariableValues => {
-  const activeTimeMachineID = state.timeMachines.activeTimeMachineID
-  const values = get(
-    state,
-    `resources.variables.values.${activeTimeMachineID}.values.${variableID}`
-  )
+    if (!isNaN(Date.parse(val))) {
+      out.init = {
+        type: 'DateTimeLiteral',
+        value: new Date(val).toISOString(),
+      }
+    } else if (val === 'now()') {
+      out.init = {
+        type: 'CallExpression',
+        callee: {
+          type: 'Identifier',
+          name: 'now',
+        },
+      }
+    } else if (val) {
+      out.init = {
+        type: 'UnaryExpression',
+        operator: '-',
+        argument: {
+          type: 'DurationLiteral',
+          values: val,
+        },
+      }
+    }
 
-  return values
+    return out
+  }
+
+  if (variable.arguments.type === 'map') {
+    if (!variable.selected) {
+      variable.selected = [Object.keys(variable.arguments.values)[0]]
+    }
+    out.init = {
+      type: 'StringLiteral',
+      value: variable.arguments.values[variable.selected[0]],
+    }
+  }
+
+  if (variable.arguments.type === 'constant') {
+    if (!variable.selected) {
+      variable.selected = [variable.arguments.values[0]]
+    }
+    out.init = {
+      type: 'StringLiteral',
+      value: variable.selected[0],
+    }
+  }
+
+  if (variable.arguments.type === 'query') {
+    if (!variable.selected || !variable.selected[0]) {
+      out.init = {
+        type: 'StringLiteral',
+        value: '',
+      }
+    } else {
+      out.init = {
+        type: 'StringLiteral',
+        value: variable.selected[0],
+      }
+    }
+  }
+
+  return out
 }
 
+// TODO kill this function
 export const getTimeMachineValuesStatus = (
   state: AppState
 ): RemoteDataState => {
@@ -226,34 +287,9 @@ export const getTimeMachineValuesStatus = (
   return valuesStatus
 }
 
+// TODO kill this function
 export const getDashboardVariablesStatus = (
   state: AppState
 ): RemoteDataState => {
   return get(state, 'resources.variables.status')
-}
-
-export const getDashboardValuesStatus = (
-  state: AppState,
-  dashboardID: string
-): RemoteDataState => {
-  return get(state, `resources.variables.values.${dashboardID}.status`)
-}
-
-export const getVariable = (state: AppState, variableID: string): Variable => {
-  return get(state, `resources.variables.byID.${variableID}`)
-}
-
-export const getHydratedVariables = (
-  state: AppState,
-  contextID: string
-): Variable[] => {
-  const hydratedVariableIDs: string[] = Object.keys(
-    get(state, `resources.variables.values.${contextID}.values`, {})
-  )
-
-  const hydratedVariables = Object.values(
-    state.resources.variables.byID
-  ).filter(v => hydratedVariableIDs.includes(v.id))
-
-  return hydratedVariables
 }

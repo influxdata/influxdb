@@ -1,20 +1,16 @@
-import {Bucket} from 'src/client'
+export {Bucket as GenBucket} from 'src/client'
 
-export type BucketRetentionRules = Bucket['retentionRules']
+import {Bucket as GenBucket} from 'src/client'
 
-export enum RetentionRuleTypes {
-  Expire = 'expire',
-  Forever = 'forever',
+export interface OwnBucket extends Omit<GenBucket, 'labels'> {
+  labels?: string[]
+  readableRetention: string
 }
 
-export interface RetentionRule {
-  type: RetentionRuleTypes
-  everySeconds: number
+export interface DemoBucket extends Omit<OwnBucket, 'type'> {
+  type: 'demodata'
 }
 
-export interface BucketLinks {
-  org: string
-  self: string
-}
+export type Bucket = DemoBucket | OwnBucket
 
-export {Bucket} from 'src/client'
+export type RetentionRule = GenBucket['retentionRules'][0]

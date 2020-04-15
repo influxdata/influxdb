@@ -12,15 +12,16 @@ import (
 	"testing"
 
 	"github.com/influxdata/httprouter"
-	"github.com/influxdata/influxdb"
-	pcontext "github.com/influxdata/influxdb/context"
-	"github.com/influxdata/influxdb/inmem"
-	"github.com/influxdata/influxdb/kv"
-	"github.com/influxdata/influxdb/mock"
-	"github.com/influxdata/influxdb/notification/endpoint"
-	"github.com/influxdata/influxdb/pkg/testttp"
-	influxTesting "github.com/influxdata/influxdb/testing"
-	platformtesting "github.com/influxdata/influxdb/testing"
+	"github.com/influxdata/influxdb/v2"
+	pcontext "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/inmem"
+	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
+	"github.com/influxdata/influxdb/v2/kv"
+	"github.com/influxdata/influxdb/v2/mock"
+	"github.com/influxdata/influxdb/v2/notification/endpoint"
+	"github.com/influxdata/influxdb/v2/pkg/testttp"
+	influxTesting "github.com/influxdata/influxdb/v2/testing"
+	platformtesting "github.com/influxdata/influxdb/v2/testing"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -28,7 +29,7 @@ import (
 func NewMockNotificationEndpointBackend(t *testing.T) *NotificationEndpointBackend {
 	return &NotificationEndpointBackend{
 		log:                         zaptest.NewLogger(t),
-		HTTPErrorHandler:            ErrorHandler(0),
+		HTTPErrorHandler:            kithttp.ErrorHandler(0),
 		NotificationEndpointService: &mock.NotificationEndpointService{},
 		UserResourceMappingService:  mock.NewUserResourceMappingService(),
 		LabelService:                mock.NewLabelService(),
@@ -357,7 +358,7 @@ func TestService_handleGetNotificationEndpoint(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			notificationEndpointBackend := NewMockNotificationEndpointBackend(t)
-			notificationEndpointBackend.HTTPErrorHandler = ErrorHandler(0)
+			notificationEndpointBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
 			notificationEndpointBackend.NotificationEndpointService = tt.fields.NotificationEndpointService
 			h := NewNotificationEndpointHandler(zaptest.NewLogger(t), notificationEndpointBackend)
 
@@ -576,7 +577,7 @@ func TestService_handleDeleteNotificationEndpoint(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			notificationEndpointBackend := NewMockNotificationEndpointBackend(t)
-			notificationEndpointBackend.HTTPErrorHandler = ErrorHandler(0)
+			notificationEndpointBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
 			notificationEndpointBackend.NotificationEndpointService = tt.fields.NotificationEndpointService
 
 			testttp.
@@ -697,7 +698,7 @@ func TestService_handlePatchNotificationEndpoint(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			notificationEndpointBackend := NewMockNotificationEndpointBackend(t)
-			notificationEndpointBackend.HTTPErrorHandler = ErrorHandler(0)
+			notificationEndpointBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
 			notificationEndpointBackend.NotificationEndpointService = tt.fields.NotificationEndpointService
 			h := NewNotificationEndpointHandler(zaptest.NewLogger(t), notificationEndpointBackend)
 
@@ -848,7 +849,7 @@ func TestService_handleUpdateNotificationEndpoint(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			notificationEndpointBackend := NewMockNotificationEndpointBackend(t)
-			notificationEndpointBackend.HTTPErrorHandler = ErrorHandler(0)
+			notificationEndpointBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
 			notificationEndpointBackend.NotificationEndpointService = tt.fields.NotificationEndpointService
 
 			resp := testttp.

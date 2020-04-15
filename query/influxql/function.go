@@ -3,11 +3,23 @@ package influxql
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/influxql"
 )
+
+func isTransformation(expr influxql.Expr) bool {
+	if call, ok := expr.(*influxql.Call); ok {
+		switch call.Name {
+		// TODO(ethan): more to be added here.
+		case "difference", "derivative", "cumulative_sum", "elapsed":
+			return true
+		}
+	}
+	return false
+}
 
 // function contains the prototype for invoking a function.
 // TODO(jsternberg): This should do a lot more heavy lifting, but it mostly just
@@ -46,7 +58,7 @@ func parseFunction(expr *influxql.Call) (*function, error) {
 		default:
 			return nil, fmt.Errorf("expected field argument in %s()", expr.Name)
 		}
-	case "min", "max", "sum", "first", "last", "mean", "median":
+	case "min", "max", "sum", "first", "last", "mean", "median", "difference", "stddev", "spread":
 		if exp, got := 1, len(expr.Args); exp != got {
 			return nil, fmt.Errorf("invalid number of arguments for %s, expected %d, got %d", expr.Name, exp, got)
 		}
@@ -107,7 +119,7 @@ func createFunctionCursor(t *transpilerState, call *influxql.Call, in cursor, no
 		parent: in,
 	}
 	switch call.Name {
-	case "count", "min", "max", "sum", "first", "last", "mean":
+	case "count", "min", "max", "sum", "first", "last", "mean", "difference", "stddev", "spread":
 		value, ok := in.Value(call.Args[0])
 		if !ok {
 			return nil, fmt.Errorf("undefined variable: %s", call.Args[0])
@@ -122,6 +134,49 @@ func createFunctionCursor(t *transpilerState, call *influxql.Call, in cursor, no
 		}
 		cur.value = value
 		cur.exclude = map[influxql.Expr]struct{}{call.Args[0]: {}}
+	case "elapsed":
+		// TODO(ethan): https://github.com/influxdata/influxdb/issues/10733 to enable this.
+		value, ok := in.Value(call.Args[0])
+		if !ok {
+			return nil, fmt.Errorf("undefined variable: %s", call.Args[0])
+		}
+		unit := []ast.Duration{{
+			Magnitude: 1,
+			Unit:      "ns",
+		}}
+		// elapsed has an optional unit parameter, default to 1ns
+		// https://docs.influxdata.com/influxdb/v1.7/query_language/functions/#elapsed
+		if len(call.Args) == 2 {
+			switch arg := call.Args[1].(type) {
+			case *influxql.DurationLiteral:
+				unit = durationLiteral(arg.Val)
+			default:
+				return nil, errors.New("argument unit must be a duration type")
+			}
+		}
+		cur.expr = &ast.PipeExpression{
+			Argument: in.Expr(),
+			Call: &ast.CallExpression{
+				Callee: &ast.Identifier{
+					Name: call.Name,
+				},
+				Arguments: []ast.Expression{
+					&ast.ObjectExpression{
+						Properties: []*ast.Property{
+							{
+								Key: &ast.Identifier{
+									Name: "unit",
+								},
+								Value: &ast.DurationLiteral{
+									Values: unit,
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+		cur.value = value
 	case "median":
 		value, ok := in.Value(call.Args[0])
 		if !ok {
@@ -250,29 +305,70 @@ func createFunctionCursor(t *transpilerState, call *influxql.Call, in cursor, no
 				},
 			}
 		}
+		// err checked in caller
+		interval, _ := t.stmt.GroupByInterval()
+		var timeValue ast.Expression
+		if interval > 0 {
+			timeValue = &ast.MemberExpression{
+				Object: &ast.Identifier{
+					Name: "r",
+				},
+				Property: &ast.Identifier{
+					Name: execute.DefaultStartColLabel,
+				},
+			}
+		} else if isTransformation(call) || influxql.IsSelector(call) {
+			timeValue = &ast.MemberExpression{
+				Object: &ast.Identifier{
+					Name: "r",
+				},
+				Property: &ast.Identifier{
+					Name: execute.DefaultTimeColLabel,
+				},
+			}
+		} else {
+			valuer := influxql.NowValuer{Now: t.config.Now}
+			_, tr, err := influxql.ConditionExpr(t.stmt.Condition, &valuer)
+			if err != nil {
+				return nil, err
+			}
+			if tr.MinTime().UnixNano() == influxql.MinTime {
+				timeValue = &ast.DateTimeLiteral{Value: time.Unix(0, 0).UTC()}
+			} else {
+				timeValue = &ast.MemberExpression{
+					Object: &ast.Identifier{
+						Name: "r",
+					},
+					Property: &ast.Identifier{
+						Name: execute.DefaultStartColLabel,
+					},
+				}
+			}
+		}
 		cur.expr = &ast.PipeExpression{
 			Argument: cur.expr,
 			Call: &ast.CallExpression{
 				Callee: &ast.Identifier{
-					Name: "duplicate",
+					Name: "map",
 				},
 				Arguments: []ast.Expression{
 					&ast.ObjectExpression{
 						Properties: []*ast.Property{
 							{
 								Key: &ast.Identifier{
-									Name: "column",
+									Name: "fn",
 								},
-								Value: &ast.StringLiteral{
-									Value: execute.DefaultStartColLabel,
-								},
-							},
-							{
-								Key: &ast.Identifier{
-									Name: "as",
-								},
-								Value: &ast.StringLiteral{
-									Value: execute.DefaultTimeColLabel,
+								Value: &ast.FunctionExpression{
+									Params: []*ast.Property{{
+										Key: &ast.Identifier{Name: "r"},
+									}},
+									Body: &ast.ObjectExpression{
+										With: &ast.Identifier{Name: "r"},
+										Properties: []*ast.Property{{
+											Key:   &ast.Identifier{Name: execute.DefaultTimeColLabel},
+											Value: timeValue,
+										}},
+									},
 								},
 							},
 						},

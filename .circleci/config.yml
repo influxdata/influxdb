@@ -38,6 +38,27 @@ jobs:
       - store_test_results:
           path: ~/project
           destination: daily-junit
+  litmus_integration:
+    machine: true
+    steps:
+      - attach_workspace:
+          at: ~/project
+      - run: docker login -u=$QUAY_USER -p=$QUAY_PASS quay.io
+      - run: docker run --entrypoint "./run_litmus_tests_oss.sh" -e TEST_LIST=tests_lists/gateway_api_tests.list -e INFLUXPATH=/Litmus/result/bin/linux/influx -e BINARYPATH=/Litmus/result/bin/linux/influxd -e BOLTPATH=/tmp/influxd_test/influxd.bolt -e ENGINEPATH=/tmp/influxd_test --net host -v /var/run/docker.sock:/var/run/docker.sock -v ~/project:/Litmus/result quay.io/influxdb/litmus:latest
+      - run:
+          name: Litmus Integration Tests Success
+          when: on_success
+          command: bash ~/project/etc/litmus_success_notify.sh Integration
+      - run:
+          name: Litmus Integration Tests Failure
+          when: on_fail
+          command: bash ~/project/etc/litmus_fail_notify.sh Integration
+      - store_artifacts:
+          path: ~/project
+          destination: raw-daily-output
+      - store_test_results:
+          path: ~/project
+          destination: daily-junit
   litmus_nightly:
     machine: true
     steps:
@@ -98,7 +119,7 @@ jobs:
           destination: screenshots
   selenium_accept:
     docker:
-      - image: circleci/node:13.0.1-stretch-browsers
+      - image: circleci/node:lts-stretch-browsers
       - image: quay.io/influxdb/influx:nightly
         command: [--e2e-testing=true]
     steps:
@@ -150,7 +171,7 @@ jobs:
           command: |
             set +e
             cd ui
-            yarn install --frozen-lockfile
+            yarn install
             yarn prettier
           name: "Install Dependencies"
       - run: make ui_client
@@ -186,7 +207,7 @@ jobs:
           command: |
             set +e
             cd ui
-            yarn install --frozen-lockfile
+            yarn install
           name: "Install Dependencies"
       - run: make ui_client
       - run:
@@ -424,7 +445,24 @@ workflows:
           filters:
             branches:
               only: /^(?!pull\/).*$/
+      - litmus_integration:
+          requires:
+            - litmus_daily
+          filters:
+            branches:
+              only:
+                - master
   e2e:
+    jobs:
+      - e2e
+  hourly-e2e:
+    triggers:
+      - schedule:
+          cron: '0 * * * *'
+          filters:
+            branches:
+              only:
+                - master
     jobs:
       - e2e
   nightly:

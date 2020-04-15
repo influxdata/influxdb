@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/influxdb/pkg/limiter"
+	"github.com/influxdata/influxdb/v2/pkg/limiter"
 )
 
 func TestWriter_Limited(t *testing.T) {

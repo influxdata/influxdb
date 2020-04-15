@@ -2,6 +2,7 @@ const path = require('path')
 const HtmlWebpackPlugin = require('html-webpack-plugin')
 const ForkTsCheckerWebpackPlugin = require('fork-ts-checker-webpack-plugin')
 const MiniCssExtractPlugin = require('mini-css-extract-plugin')
+const MonacoWebpackPlugin = require('monaco-editor-webpack-plugin')
 const {CleanWebpackPlugin} = require('clean-webpack-plugin')
 const webpack = require('webpack')
 const {
@@ -17,7 +18,7 @@ module.exports = {
     path: path.resolve(__dirname, 'build'),
     publicPath: BASE_PATH,
     webassemblyModuleFilename: `${STATIC_DIRECTORY}[modulehash:10].wasm`,
-    sourceMapFilename: `${STATIC_DIRECTORY}[name].js.map`,
+    sourceMapFilename: `${STATIC_DIRECTORY}[file].map[query]`,
   },
   entry: {
     app: './src/bootstrap.ts',
@@ -29,14 +30,29 @@ module.exports = {
     },
     extensions: ['.tsx', '.ts', '.js', '.wasm'],
   },
+  node: {
+    fs: 'empty',
+    global: true,
+    crypto: 'empty',
+    tls: 'empty',
+    net: 'empty',
+    process: true,
+    module: false,
+    clearImmediate: false,
+    setImmediate: true,
+  },
   module: {
     rules: [
       {
-        test: /\flux_parser_bg.wasm$/,
+        test: /flux_parser_bg.wasm$/,
         type: 'webassembly/experimental',
       },
       {
-        test: /^((?!flux_parser_bg).)*.wasm$/,
+        test: /flux_bg.wasm$/,
+        type: 'webassembly/experimental',
+      },
+      {
+        test: /^((?!flux_parser_bg|flux-lsp-browser_bg|flux_bg).)*.wasm$/,
         loader: 'file-loader',
         type: 'javascript/auto',
       },
@@ -112,10 +128,6 @@ module.exports = {
       filename: `${STATIC_DIRECTORY}[contenthash:10].css`,
       chunkFilename: `${STATIC_DIRECTORY}[id].[contenthash:10].css`,
     }),
-    new webpack.DllReferencePlugin({
-      context: path.join(__dirname, 'build'),
-      manifest: require('./build/vendor-manifest.json'),
-    }),
     new ForkTsCheckerWebpackPlugin(),
     new webpack.ProgressPlugin(),
     new webpack.EnvironmentPlugin({
@@ -123,6 +135,10 @@ module.exports = {
       GIT_SHA,
       API_PREFIX: API_BASE_PATH,
       STATIC_PREFIX: BASE_PATH,
+    }),
+    new MonacoWebpackPlugin({
+      languages: [],
+      features: ['!gotoSymbol'],
     }),
   ],
   stats: {

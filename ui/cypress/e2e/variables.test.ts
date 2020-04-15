@@ -6,13 +6,17 @@ describe('Variables', () => {
 
     cy.signin().then(({body}) => {
       cy.wrap(body.org).as('org')
-      cy.createVariable(body.org.id)
+      cy.createQueryVariable(body.org.id)
       cy.visit(`orgs/${body.org.id}/settings/variables`)
     })
   })
 
   it('can create a variable', () => {
     cy.getByTestID('resource-card').should('have.length', 1)
+    // ensure that the default variables are not accessible on the Variables Tab
+    cy.getByTestID('resource-card').should('not.contain', 'timeRangeStart')
+    cy.getByTestID('resource-card').should('not.contain', 'timeRangeStop')
+    cy.getByTestID('resource-card').should('not.contain', 'windowPeriod')
 
     cy.getByTestID('add-resource-dropdown--button').click()
 
@@ -38,7 +42,7 @@ describe('Variables', () => {
   })
 
   it('keeps user input in text area when attempting to import invalid JSON', () => {
-    cy.get('.tabbed-page-section--header').within(() => {
+    cy.getByTestID('tabbed-page--header').within(() => {
       cy.contains('Create').click()
     })
 
@@ -64,7 +68,7 @@ describe('Variables', () => {
 
   it('can delete a variable', () => {
     cy.get<Organization>('@org').then(({id}) => {
-      cy.createVariable(id, 'anotherVariable')
+      cy.createQueryVariable(id, 'anotherVariable')
     })
 
     cy.getByTestID('resource-card').should('have.length', 2)
@@ -79,7 +83,7 @@ describe('Variables', () => {
     cy.getByTestID('resource-card').should('have.length', 1)
   })
 
-  it('can rename a variable', () => {
+  it('can edit a variable', () => {
     cy.getByTestID('resource-card').should('have.length', 1)
 
     cy.getByTestID('context-menu')
@@ -97,5 +101,19 @@ describe('Variables', () => {
     cy.get('.cf-resource-name--text').should($s =>
       expect($s).to.contain('-renamed')
     )
+
+    // Create a label
+    cy.getByTestID('resource-card').within(() => {
+      cy.getByTestID('inline-labels--add').click()
+    })
+
+    const labelName = 'l1'
+    cy.getByTestID('inline-labels--popover--contents').type(labelName)
+    cy.getByTestID('inline-labels--create-new').click()
+    cy.getByTestID('create-label-form--submit').click()
+
+    // Delete the label
+    cy.getByTestID(`label--pill--delete ${labelName}`).click({force: true})
+    cy.getByTestID('inline-labels--empty').should('exist')
   })
 })

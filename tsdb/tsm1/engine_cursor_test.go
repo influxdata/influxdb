@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/tsdb"
-	"github.com/influxdata/influxdb/tsdb/cursors"
+	"github.com/influxdata/influxdb/v2/models"
+	"github.com/influxdata/influxdb/v2/tsdb"
+	"github.com/influxdata/influxdb/v2/tsdb/cursors"
 )
 
 func TestEngine_CursorIterator_Stats(t *testing.T) {
@@ -56,7 +56,7 @@ func TestEngine_CursorIterator_Stats(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cur, err := cursorIterator.Next(ctx, &tsdb.CursorRequest{
+	cur, err := cursorIterator.Next(ctx, &cursors.CursorRequest{
 		Name:      []byte("cpu"),
 		Tags:      []models.Tag{{Key: []byte("a"), Value: []byte("b")}},
 		Field:     "value",
@@ -83,7 +83,7 @@ func TestEngine_CursorIterator_Stats(t *testing.T) {
 
 	cur.Close()
 
-	cur, err = cursorIterator.Next(ctx, &tsdb.CursorRequest{
+	cur, err = cursorIterator.Next(ctx, &cursors.CursorRequest{
 		Name:      []byte("mem"),
 		Tags:      []models.Tag{{Key: []byte("b"), Value: []byte("c")}},
 		Field:     "value",

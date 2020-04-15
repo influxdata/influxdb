@@ -25,6 +25,7 @@ function getTimeMachineText() {
     })
     .invoke('text')
 }
+
 describe('DataExplorer', () => {
   beforeEach(() => {
     cy.flush()
@@ -48,6 +49,7 @@ describe('DataExplorer', () => {
       cy.getByTestID(`view-type--histogram`).click()
       cy.getByTestID('cog-cell--button').click()
     })
+
     it('should put input field in error status and stay in error status when input is invalid or empty', () => {
       cy.get('.view-options').within(() => {
         cy.getByTestID('auto-input').within(() => {
@@ -64,6 +66,7 @@ describe('DataExplorer', () => {
         })
       })
     })
+
     it('should not have the input field in error status when input becomes valid', () => {
       cy.get('.view-options').within(() => {
         cy.getByTestID('auto-input').within(() => {
@@ -82,6 +85,7 @@ describe('DataExplorer', () => {
       cy.getByTestID(`view-type--heatmap`).click()
       cy.getByTestID('cog-cell--button').click()
     })
+
     it('should put input field in error status and stay in error status when input is invalid or empty', () => {
       cy.get('.view-options').within(() => {
         cy.getByTestID('grid--column').within(() => {
@@ -112,6 +116,7 @@ describe('DataExplorer', () => {
         })
       })
     })
+
     it('should not have input field in error status when "10" becomes valid input such as "5"', () => {
       cy.get('.view-options').within(() => {
         cy.getByTestID('grid--column').within(() => {
@@ -132,6 +137,7 @@ describe('DataExplorer', () => {
       cy.getByTestID(`view-type--single-stat`).click()
       cy.getByTestID('cog-cell--button').click()
     })
+
     it('should put input field in error status and stay in error status when input is invalid or empty', () => {
       cy.get('.view-options').within(() => {
         cy.getByTestID('auto-input--input').within(() => {
@@ -159,6 +165,7 @@ describe('DataExplorer', () => {
         })
       })
     })
+
     it('should not have input field in error status when "2" becomes valid input such as "11"', () => {
       cy.get('.view-options').within(() => {
         cy.getByTestID('auto-input--input').within(() => {
@@ -170,6 +177,48 @@ describe('DataExplorer', () => {
             .getByTestID('input-field--error')
             .should('have.length', 0)
         })
+      })
+    })
+  })
+
+  describe('Optional suffix and prefix in gauge', () => {
+    beforeEach(() => {
+      cy.getByTestID('view-type--dropdown').click()
+      cy.getByTestID(`view-type--gauge`).click()
+      cy.getByTestID('cog-cell--button').click()
+    })
+    it('can add prefix and suffix values', () => {
+      cy.get('.view-options').within(() => {
+        cy.getByTestID('prefix-input')
+          .click()
+          .type('mph')
+          .invoke('val')
+          .should('equal', 'mph')
+          .getByTestID('input-field--error')
+          .should('have.length', 0)
+        cy.getByTestID('suffix-input')
+          .click()
+          .type('mph')
+          .invoke('val')
+          .should('equal', 'mph')
+          .getByTestID('input-field--error')
+          .should('have.length', 0)
+      })
+    })
+    it('can add and remove tick values', () => {
+      cy.get('.view-options').within(() => {
+        cy.getByTestID('tickprefix-input')
+          .click()
+          .invoke('val')
+          .should('equal', '')
+          .getByTestID('input-field--error')
+          .should('have.length', 0)
+        cy.getByTestID('ticksuffix-input')
+          .click()
+          .invoke('val')
+          .should('equal', '')
+          .getByTestID('input-field--error')
+          .should('have.length', 0)
       })
     })
   })
@@ -202,6 +251,7 @@ describe('DataExplorer', () => {
         cy.getByTestID('dropdown-item-customtimerange').click()
         cy.getByTestID('timerange-popover--dialog').should('have.length', 1)
       })
+
       it.skip('should error when submitting stop dates that are before start dates', () => {
         // TODO: complete with issue #15632
         // https://github.com/influxdata/influxdb/issues/15632
@@ -316,56 +366,73 @@ describe('DataExplorer', () => {
       cy.getByTestID('query-builder').should('exist')
 
       // can revert back to query builder mode (with confirmation)
-      cy.getByTestID('switch-to-script-editor').click()
+      cy.getByTestID('switch-to-script-editor')
+        .should('be.visible')
+        .click()
+      cy.getByTestID('flux--aggregate.rate--inject').click()
+      // check to see if import is defaulted to the top
+      cy.get('.view-line')
+        .first()
+        .contains('import')
+      // check to see if new aggregate rate is at the bottom
+      cy.get('.view-line')
+        .last()
+        .contains('aggregate.')
       cy.getByTestID('flux-editor').should('exist')
       cy.getByTestID('flux-editor').within(() => {
         cy.get('textarea').type('yoyoyoyoyo', {force: true})
       })
 
+      // can hover over flux functions
+      cy.getByTestID('flux-docs--aggregateWindow').should('not.exist')
+      cy.getByTestID('flux--aggregateWindow').trigger('mouseover')
+      cy.getByTestID('flux-docs--aggregateWindow').should('exist')
+
       cy.getByTestID('switch-query-builder-confirm--button').click()
 
       cy.getByTestID('switch-query-builder-confirm--popover--contents').within(
         () => {
-          cy.getByTestID('button').click()
+          cy.getByTestID('switch-query-builder-confirm--confirm-button').click()
         }
       )
 
       cy.getByTestID('query-builder').should('exist')
     })
-
-    it('should display the popover when hovering', () => {
-      cy.getByTestID('selector-list my_meas')
-        .click()
-        .then(() => {
-          cy.getByTestID('selector-list my_field')
-            .click()
-            .then(() => {
-              cy.getByTestID('switch-to-script-editor').click()
-              cy.getByTestID('flux-editor').should('exist')
-
-              cy.getByTestID('toolbar-popover--contents').should('not.exist')
-
-              cy.getByTestID('flux-function aggregateWindow').trigger(
-                'mouseover'
-              )
-
-              cy.getByTestID('toolbar-popover--contents').should('exist')
-            })
-        })
-    })
   })
 
   describe('raw script editing', () => {
     beforeEach(() => {
-      cy.getByTestID('switch-to-script-editor').click()
+      cy.getByTestID('switch-to-script-editor')
+        .should('be.visible')
+        .click()
     })
 
-    // TODO: fix flakeyness of this test
-    it.skip('enables the submit button when a query is typed', () => {
+    it('shows flux errors', () => {
+      cy.getByTestID('time-machine--bottom').then(() => {
+        cy.getByTestID('flux-editor').within(() => {
+          cy.get('textarea').type('foo |> bar', {force: true})
+
+          cy.get('.squiggly-error').should('be.visible')
+        })
+      })
+    })
+
+    it('shows flux signatures', () => {
+      cy.getByTestID('time-machine--bottom').then(() => {
+        cy.getByTestID('flux-editor').within(() => {
+          cy.get('textarea').type('from(', {force: true})
+
+          cy.get('.signature').should('be.visible')
+        })
+      })
+    })
+
+    it('enables the submit button when a query is typed', () => {
       cy.getByTestID('time-machine-submit-button').should('be.disabled')
 
       cy.getByTestID('flux-editor').within(() => {
         cy.get('.react-monaco-editor-container')
+          .should('be.visible')
           .click()
           .focused()
           .type('yo', {force: true, delay: TYPE_DELAY})
@@ -376,6 +443,7 @@ describe('DataExplorer', () => {
     it('disables submit when a query is deleted', () => {
       cy.getByTestID('time-machine--bottom').then(() => {
         cy.get('.react-monaco-editor-container')
+          .should('be.visible')
           .click()
           .focused()
           .type('from(bucket: "foo")', {force: true, delay: TYPE_DELAY})
@@ -383,6 +451,7 @@ describe('DataExplorer', () => {
         cy.getByTestID('time-machine-submit-button').should('not.be.disabled')
 
         cy.get('.react-monaco-editor-container')
+          .should('be.visible')
           .click()
           .focused()
           .type('{selectall} {backspace}', {force: true, delay: TYPE_DELAY})
@@ -394,12 +463,12 @@ describe('DataExplorer', () => {
     it('imports the appropriate packages to build a query', () => {
       cy.getByTestID('functions-toolbar-tab').click()
 
-      cy.getByTestID('flux-function from').click()
-      cy.getByTestID('flux-function range').click()
-      cy.getByTestID('flux-function math.abs').click()
-      cy.getByTestID('flux-function math.floor').click()
-      cy.getByTestID('flux-function strings.title').click()
-      cy.getByTestID('flux-function strings.trim').click()
+      cy.getByTestID('flux--from--inject').click()
+      cy.getByTestID('flux--range--inject').click()
+      cy.getByTestID('flux--math.abs--inject').click()
+      cy.getByTestID('flux--math.floor--inject').click()
+      cy.getByTestID('flux--strings.title--inject').click()
+      cy.getByTestID('flux--strings.trim--inject').click()
 
       cy.wait(100)
 
@@ -421,7 +490,7 @@ describe('DataExplorer', () => {
     it('can use the function selector to build a query', () => {
       cy.getByTestID('functions-toolbar-tab').click()
 
-      cy.getByTestID('flux-function from').click()
+      cy.getByTestID('flux--from--inject').click()
 
       getTimeMachineText().then(text => {
         const expected = FROM.example
@@ -429,7 +498,7 @@ describe('DataExplorer', () => {
         cy.fluxEqual(text, expected).should('be.true')
       })
 
-      cy.getByTestID('flux-function range').click()
+      cy.getByTestID('flux--range--inject').click()
 
       getTimeMachineText().then(text => {
         const expected = `${FROM.example}|>${RANGE.example}`
@@ -437,7 +506,7 @@ describe('DataExplorer', () => {
         cy.fluxEqual(text, expected).should('be.true')
       })
 
-      cy.getByTestID('flux-function mean').click()
+      cy.getByTestID('flux--mean--inject').click()
 
       getTimeMachineText().then(text => {
         const expected = `${FROM.example}|>${RANGE.example}|>${MEAN.example}`
@@ -448,19 +517,19 @@ describe('DataExplorer', () => {
 
     it('can filter aggregation functions by name from script editor mode', () => {
       cy.get('.cf-input-field').type('covariance')
-      cy.getByTestID('toolbar-function').should('have.length', 1)
+      cy.get('.flux-toolbar--list-item').should('have.length', 1)
     })
 
-    // TODO: fix flakeyness of focused() command
-    it.skip('shows the empty state when the query returns no results', () => {
+    it('shows the empty state when the query returns no results', () => {
       cy.getByTestID('time-machine--bottom').within(() => {
         cy.get('.react-monaco-editor-container')
+          .should('be.visible')
           .click()
           .focused()
           .type(
-            `from(bucket: "defbuck")
-  |> range(start: -10s)
-  |> filter(fn: (r) => r._measurement == "no exist")`,
+            `from(bucket: "defbuck"{rightarrow}
+  |> range(start: -10s{rightarrow}
+  |> filter(fn: (r{rightarrow} => r._measurement == "no exist"{rightarrow}`,
             {force: true, delay: TYPE_DELAY}
           )
         cy.getByTestID('time-machine-submit-button').click()
@@ -474,26 +543,28 @@ describe('DataExplorer', () => {
       // begin flux
       cy.getByTestID('flux-editor').within(() => {
         cy.get('.react-monaco-editor-container')
+          .should('be.visible')
           .click()
           .focused()
           .type(
-            `from(bucket: "defbuck")
-  |> range(start: -15m, stop: now())
-  |> filter(fn: (r) => r._measurement == `,
+            `from(bucket: "defbuck"{rightarrow}
+  |> range(start: -15m, stop: now({rightarrow}{rightarrow}
+  |> filter(fn: (r{rightarrow} => r._measurement ==`,
             {force: true, delay: TYPE_DELAY}
           )
       })
 
       cy.getByTestID('toolbar-tab').click()
+      // checks to see if the default variables exist
+      cy.getByTestID('variable--timeRangeStart')
+      cy.getByTestID('variable--timeRangeStop')
+      cy.getByTestID('variable--windowPeriod')
       //insert variable name by clicking on variable
-      cy.get('.variables-toolbar--label').click()
-      // finish flux
-      cy.getByTestID('flux-editor').within(() => {
-        cy.get('.react-monaco-editor-container')
-          .click()
-          .focused()
-          .type(`)`, {force: true, delay: TYPE_DELAY})
-      })
+      cy.get('.flux-toolbar--variable')
+        .first()
+        .within(() => {
+          cy.contains('Inject').click()
+        })
 
       cy.getByTestID('save-query-as').click()
       cy.getByTestID('task--radio-button').click()
@@ -526,7 +597,8 @@ describe('DataExplorer', () => {
       cy.get('.query-tab').should('have.length', 2)
       cy.get('.query-tab--close')
         .first()
-        .click()
+        // Element is only visible on hover, using force to make this test pass
+        .click({force: true})
       cy.get('.query-tab').should('have.length', 1)
     })
 
@@ -536,6 +608,10 @@ describe('DataExplorer', () => {
         'have.class',
         'cf-right-click--menu-item__disabled'
       )
+
+      // Fire a click outside of the right click menu to dismiss it because
+      // it is obscuring the + button
+      cy.getByTestID('page-header').click()
 
       cy.get('.time-machine-queries--new').click()
       cy.get('.query-tab').should('have.length', 2)

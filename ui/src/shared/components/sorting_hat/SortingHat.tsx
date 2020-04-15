@@ -3,7 +3,7 @@ import {PureComponent} from 'react'
 import {orderBy} from 'lodash'
 
 // Types
-import {Sort} from 'src/clockface/types'
+import {Sort} from '@influxdata/clockface'
 
 interface Props<T> {
   list: T[]

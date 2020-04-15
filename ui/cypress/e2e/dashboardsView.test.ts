@@ -1,11 +1,5 @@
 import {Organization, AppState} from '../../src/types'
 
-const dispatch = action =>
-  cy
-    .window()
-    .its('store')
-    .invoke('dispatch', action)
-
 describe('Dashboard', () => {
   beforeEach(() => {
     cy.flush()
@@ -32,7 +26,7 @@ describe('Dashboard', () => {
 
     const newName = 'new 🅱️ashboard'
 
-    cy.get('.renamable-page-title--title').click()
+    cy.get('.renamable-page-title').click()
     cy.get('.cf-input-field')
       .type(newName)
       .type('{enter}')
@@ -92,46 +86,117 @@ describe('Dashboard', () => {
       })
   })
 
-  const getSelectedVariable = (
-    contextID: string,
-    variableID: string
-  ) => win => {
-    const {resources} = win.store.getState() as AppState
-    return resources.variables.values[contextID].values[variableID]
-      .selectedValue
+  const getSelectedVariable = (contextID: string, index?: number) => win => {
+    const state = win.store.getState() as AppState
+    const defaultVarOrder = state.resources.variables.allIDs
+    const defaultVarDawg =
+      state.resources.variables.byID[defaultVarOrder[index]] || {}
+    const filledVarDawg =
+      (state.resources.variables.values[contextID] || {values: {}}).values[
+        defaultVarOrder[index]
+      ] || {}
+
+    const hydratedVarDawg = {
+      ...defaultVarDawg,
+      ...filledVarDawg,
+    }
+
+    if (hydratedVarDawg.arguments.type === 'map') {
+      if (!hydratedVarDawg.selected) {
+        hydratedVarDawg.selected = [
+          Object.keys(hydratedVarDawg.arguments.values)[0],
+        ]
+      }
+
+      return hydratedVarDawg.arguments.values[hydratedVarDawg.selected[0]]
+    }
+
+    if (!hydratedVarDawg.selected) {
+      hydratedVarDawg.selected = [hydratedVarDawg.arguments.values[0]]
+    }
+
+    return hydratedVarDawg.selected[0]
   }
 
   it('can manage variable state with a lot of pointing and clicking', () => {
     cy.get('@org').then(({id: orgID}: Organization) => {
       cy.createDashboard(orgID).then(({body: dashboard}) => {
-        cy.createMapVariable(orgID).then(({body: variable}) => {
+        cy.createCSVVariable(orgID)
+        cy.createQueryVariable(orgID)
+        cy.createMapVariable(orgID).then(() => {
           cy.fixture('routes').then(({orgs}) => {
             cy.visit(`${orgs}/${orgID}/dashboards/${dashboard.id}`)
           })
-          const [firstKey, secondKey] = Object.keys(variable.arguments.values)
-
           // add cell with variable in its query
           cy.getByTestID('add-cell--button').click()
+          cy.getByTestID('switch-to-script-editor').should('be.visible')
           cy.getByTestID('switch-to-script-editor').click()
           cy.getByTestID('toolbar-tab').click()
-          cy.get('.variables-toolbar--label').click()
+
+          // check to see if the default timeRange variables are available
+          cy.get('.flux-toolbar--list-item').contains('timeRangeStart')
+          cy.get('.flux-toolbar--list-item').contains('timeRangeStop')
+          cy.get('.flux-toolbar--list-item')
+            .first()
+            .within(() => {
+              cy.get('.cf-button').click()
+            })
+
+          cy.getByTestID('flux-editor')
+            .should('be.visible')
+            .click()
+            .focused()
+            .type(' ')
+          cy.get('.flux-toolbar--list-item')
+            .eq(2)
+            .within(() => {
+              cy.get('.cf-button').click()
+            })
           cy.getByTestID('save-cell--button').click()
 
+          // TESTING CSV VARIABLE
           // selected value in dashboard is 1st value
-          cy.getByTestID('variable-dropdown').should('contain', firstKey)
+          cy.getByTestID('variable-dropdown')
+            .eq(0)
+            .should('contain', 'c1')
           cy.window()
-            .pipe(getSelectedVariable(dashboard.id, variable.id))
-            .should('equal', firstKey)
+            .pipe(getSelectedVariable(dashboard.id, 0))
+            .should('equal', 'c1')
+
+          // sanity check on the url before beginning
+          cy.location('search').should('eq', '?lower=now%28%29%20-%201h')
+
+          // select 3rd value in dashboard
+          cy.getByTestID('variable-dropdown--button')
+            .eq(0)
+            .click()
+          cy.get(`#c3`).click()
+
+          // selected value in dashboard is 3rd value
+          cy.getByTestID('variable-dropdown')
+            .eq(0)
+            .should('contain', 'c3')
+          cy.window()
+            .pipe(getSelectedVariable(dashboard.id, 0))
+            .should('equal', 'c3')
+
+          // and that it updates the variable in the URL
+          cy.location('search').should(
+            'eq',
+            '?lower=now%28%29%20-%201h&vars%5BCSVVariable%5D=c3'
+          )
 
           // select 2nd value in dashboard
-          cy.getByTestID('variable-dropdown--button').click()
-          cy.get(`#${secondKey}`).click()
+          cy.getByTestID('variable-dropdown--button')
+            .eq(0)
+            .click()
+          cy.get(`#c2`).click()
 
-          // selected value in dashboard is 2nd value
-          cy.getByTestID('variable-dropdown').should('contain', secondKey)
-          cy.window()
-            .pipe(getSelectedVariable(dashboard.id, variable.id))
-            .should('equal', secondKey)
+          // and that it updates the variable in the URL without breaking stuff
+          cy.location('search').should(
+            'eq',
+            '?lower=now%28%29%20-%201h&vars%5BCSVVariable%5D=c2'
+          )
 
           // open CEO
           cy.getByTestID('cell-context--toggle').click()
@@ -139,33 +204,93 @@ describe('Dashboard', () => {
 
           // selected value in cell context is 2nd value
           cy.window()
-            .pipe(getSelectedVariable('veo', variable.id))
-            .should('equal', secondKey)
+            .pipe(getSelectedVariable(dashboard.id, 0))
+            .should('equal', 'c2')
 
-          // select 1st value in cell
-          dispatch({
-            type: 'SELECT_VARIABLE_VALUE',
-            contextID: 'veo',
-            variableID: variable.id,
-            selectedValue: firstKey,
+          cy.getByTestID('toolbar-tab').click()
+          cy.get('.flux-toolbar--list-item')
+            .first()
+            .trigger('mouseover')
+          // toggle the variable dropdown in the VEO cell dashboard
+          cy.getByTestID('toolbar-popover--contents').within(() => {
+            cy.getByTestID('variable-dropdown--button').click()
+            // select 1st value in cell
+            cy.getByTestID('variable-dropdown--item')
+              .first()
+              .click()
           })
-
-          // selected value in cell context is 1st value
-          cy.window()
-            .pipe(getSelectedVariable('veo', variable.id))
-            .should('equal', firstKey)
-
           // save cell
           cy.getByTestID('save-cell--button').click()
 
-          // selected value in dashboard is 1st value
-          cy.getByTestID('variable-dropdown').should('contain', secondKey)
+          // selected value in cell context is 1st value
           cy.window()
-            .pipe(getSelectedVariable(dashboard.id, variable.id))
-            .should('equal', secondKey)
+            .pipe(getSelectedVariable(dashboard.id, 0))
+            .should('equal', 'c1')
 
-          // graph tips responds to mouse over
-          cy.getByTestID('graphtips-question-mark').click()
+          // selected value in dashboard is 1st value
+          cy.getByTestID('variable-dropdown').should('contain', 'c1')
+          cy.window()
+            .pipe(getSelectedVariable(dashboard.id, 0))
+            .should('equal', 'c1')
+
+          // TESTING MAP VARIABLE
+          // selected value in dashboard is 1st value
+          cy.getByTestID('variable-dropdown')
+            .eq(1)
+            .should('contain', 'k1')
+          cy.window()
+            .pipe(getSelectedVariable(dashboard.id, 2))
+            .should('equal', 'v1')
+
+          // select 2nd value in dashboard
+          cy.getByTestID('variable-dropdown--button')
+            .eq(1)
+            .click()
+          cy.get(`#k2`).click()
+
+          // selected value in dashboard is 2nd value
+          cy.getByTestID('variable-dropdown')
+            .eq(1)
+            .should('contain', 'k2')
+          cy.window()
+            .pipe(getSelectedVariable(dashboard.id, 2))
+            .should('equal', 'v2')
+
+          // open CEO
+          cy.getByTestID('cell-context--toggle').click()
+          cy.getByTestID('cell-context--configure').click()
+          cy.getByTestID('toolbar-tab').should('be.visible')
+
+          // selected value in cell context is 2nd value
+          cy.window()
+            .pipe(getSelectedVariable(dashboard.id, 2))
+            .should('equal', 'v2')
+
+          cy.getByTestID('toolbar-tab').click()
+          cy.get('.flux-toolbar--list-item')
+            .eq(2)
+            .trigger('mouseover')
+          // toggle the variable dropdown in the VEO cell dashboard
+          cy.getByTestID('toolbar-popover--contents').within(() => {
+            cy.getByTestID('variable-dropdown--button').click()
+            // select 1st value in cell
+            cy.getByTestID('variable-dropdown--item')
+              .first()
+              .click()
+          })
+          // save cell
+          cy.getByTestID('save-cell--button').click()
+
+          // selected value in cell context is 1st value
+          cy.window()
+            .pipe(getSelectedVariable(dashboard.id, 2))
+            .should('equal', 'v1')
+
+          // selected value in dashboard is 1st value
+          cy.getByTestID('variable-dropdown').should('contain', 'k1')
+          cy.window()
+            .pipe(getSelectedVariable(dashboard.id, 2))
+            .should('equal', 'v1')
         })
       })
     })
@@ -176,7 +301,13 @@ describe('Dashboard', () => {
       cy.createDashWithViewAndVar(orgID).then(() => {
         cy.fixture('routes').then(({orgs}) => {
           cy.visit(`${orgs}/${orgID}/dashboards`)
-          cy.getByTestID('dashboard-card--name').click()
+          cy.getByTestID('dashboard-card--name').within(() => {
+            // Ideally we don't need to select the clickable element within the card name.
+            // The testID here should be on the clickable element
+            // Issue created in Clockface: https://github.com/influxdata/clockface/issues/478
+            cy.get('.cf-resource-name--text').click()
+          })
+
           cy.get('.cell--view').should('have.length', 1)
         })
       })

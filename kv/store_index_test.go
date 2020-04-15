@@ -4,9 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/influxdata/influxdb"
-
-	"github.com/influxdata/influxdb/kv"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -66,6 +65,20 @@ func TestIndexStore(t *testing.T) {
 
 			rawIndex := getEntRaw(t, kvStore, indexStore.IndexStore.BktName, key)
 			assert.Equal(t, encodeID(t, expected.ID), rawIndex)
+		})
+
+		t.Run("updating entity that doesn't exist returns not found error", func(t *testing.T) {
+			indexStore, done, kvStore := newFooIndexStore(t, "put")
+			defer done()
+
+			expected := testPutBase(t, kvStore, indexStore, indexStore.EntStore.BktName)
+
+			err := kvStore.Update(context.Background(), func(tx kv.Tx) error {
+				ent := newFooEnt(33333, expected.OrgID, "safe name")
+				return indexStore.Put(context.TODO(), tx, ent, kv.PutUpdate())
+			})
+			require.Error(t, err)
+			assert.Equal(t, influxdb.ENotFound, influxdb.ErrorCode(err))
 		})
 
 		t.Run("updating entity with no naming collision succeeds", func(t *testing.T) {

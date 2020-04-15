@@ -1,6 +1,7 @@
 // Libraries
-import React, {PureComponent} from 'react'
+import React, {FC} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
+import {connect} from 'react-redux'
 import _ from 'lodash'
 
 // Components
@@ -13,186 +14,173 @@ import {
 } from '@influxdata/clockface'
 import BucketContextMenu from 'src/buckets/components/BucketContextMenu'
 import BucketAddDataButton from 'src/buckets/components/BucketAddDataButton'
+import InlineLabels from 'src/shared/components/inlineLabels/InlineLabels'
 import {FeatureFlag} from 'src/shared/utils/featureFlag'
 
 // Constants
 import {isSystemBucket} from 'src/buckets/constants/index'
 
+// Actions
+import {addBucketLabel, deleteBucketLabel} from 'src/buckets/actions/thunks'
+import {setBucketInfo} from 'src/dataLoaders/actions/steps'
+import {setDataLoadersType} from 'src/dataLoaders/actions/dataLoaders'
+
 // Types
-import {Bucket} from 'src/types'
+import {Label, OwnBucket} from 'src/types'
 import {DataLoaderType} from 'src/types/dataLoaders'
 
-export interface PrettyBucket extends Bucket {
-  ruleString: string
+interface DispatchProps {
+  onAddBucketLabel: typeof addBucketLabel
+  onDeleteBucketLabel: typeof deleteBucketLabel
+  onSetDataLoadersBucket: typeof setBucketInfo
+  onSetDataLoadersType: typeof setDataLoadersType
 }
 
 interface Props {
-  bucket: PrettyBucket
-  onEditBucket: (b: PrettyBucket) => void
-  onDeleteData: (b: PrettyBucket) => void
-  onDeleteBucket: (b: PrettyBucket) => void
-  onAddData: (b: PrettyBucket, d: DataLoaderType, l: string) => void
-  onUpdateBucket: (b: PrettyBucket) => void
+  bucket: OwnBucket
+  onDeleteData: (b: OwnBucket) => void
+  onDeleteBucket: (b: OwnBucket) => void
+  onUpdateBucket: (b: OwnBucket) => void
   onFilterChange: (searchTerm: string) => void
 }
 
-class BucketRow extends PureComponent<Props & WithRouterProps> {
-  public render() {
-    const {bucket, onDeleteBucket} = this.props
-    return (
-      <ResourceCard
-        testID="bucket-card"
-        contextMenu={
-          !isSystemBucket(bucket.name) && (
-            <BucketContextMenu
-              bucket={bucket}
-              onDeleteBucket={onDeleteBucket}
-            />
-          )
-        }
-        name={this.cardName}
-        metaData={this.cardMetaItems}
-      >
-        {this.actionButtons}
-      </ResourceCard>
+const BucketCard: FC<Props & WithRouterProps & DispatchProps> = ({
+  bucket,
+  onDeleteBucket,
+  onFilterChange,
+  onAddBucketLabel,
+  onDeleteBucketLabel,
+  onDeleteData,
+  router,
+  params: {orgID},
+  onSetDataLoadersBucket,
+  onSetDataLoadersType,
+}) => {
+  const handleAddLabel = (label: Label) => {
+    onAddBucketLabel(bucket.id, label)
+  }
+
+  const handleRemoveLabel = (label: Label) => {
+    onDeleteBucketLabel(bucket.id, label)
+  }
+
+  const handleClickSettings = () => {
+    router.push(`/orgs/${orgID}/load-data/buckets/${bucket.id}/edit`)
+  }
+
+  const handleNameClick = () => {
+    router.push(`/orgs/${orgID}/data-explorer?bucket=${bucket.name}`)
+  }
+
+  const handleAddCollector = () => {
+    onSetDataLoadersBucket(orgID, bucket.name, bucket.id)
+
+    onSetDataLoadersType(DataLoaderType.Streaming)
+    router.push(`/orgs/${orgID}/load-data/buckets/${bucket.id}/telegrafs/new`)
+  }
+
+  const handleAddLineProtocol = () => {
+    onSetDataLoadersBucket(orgID, bucket.name, bucket.id)
+
+    onSetDataLoadersType(DataLoaderType.LineProtocol)
+    router.push(
+      `/orgs/${orgID}/load-data/buckets/${bucket.id}/line-protocols/new`
     )
   }
 
-  private get cardName(): JSX.Element {
-    const {bucket} = this.props
-    if (bucket.type === 'user') {
-      return (
+  const handleAddClientLibrary = (): void => {
+    onSetDataLoadersBucket(orgID, bucket.name, bucket.id)
+    onSetDataLoadersType(DataLoaderType.ClientLibrary)
+
+    router.push(`/orgs/${orgID}/load-data/client-libraries`)
+  }
+
+  const handleAddScraper = () => {
+    onSetDataLoadersBucket(orgID, bucket.name, bucket.id)
+
+    onSetDataLoadersType(DataLoaderType.Scraping)
+    router.push(`/orgs/${orgID}/load-data/buckets/${bucket.id}/scrapers/new`)
+  }
+
+  const actionButtons = (
+    <FlexBox
+      direction={FlexDirection.Row}
+      margin={ComponentSize.Small}
+      style={{marginTop: '4px'}}
+    >
+      <InlineLabels
+        selectedLabelIDs={bucket.labels}
+        onFilterChange={onFilterChange}
+        onAddLabel={handleAddLabel}
+        onRemoveLabel={handleRemoveLabel}
+      />
+      <BucketAddDataButton
+        onAddCollector={handleAddCollector}
+        onAddLineProtocol={handleAddLineProtocol}
+        onAddClientLibrary={handleAddClientLibrary}
+        onAddScraper={handleAddScraper}
+      />
+      <Button
+        text="Settings"
+        testID="bucket-settings"
+        size={ComponentSize.ExtraSmall}
+        onClick={handleClickSettings}
+      />
+      <FeatureFlag name="deleteWithPredicate">
+        <Button
+          text="Delete Data By Filter"
+          testID="bucket-delete-bucket"
+          size={ComponentSize.ExtraSmall}
+          onClick={() => onDeleteData(bucket)}
+        />
+      </FeatureFlag>
+    </FlexBox>
+  )
+  const retention = <>Retention: {bucket.readableRetention}</>
+
+  const cardMetaItems =
+    bucket.type === 'user'
+      ? [retention]
+      : [
+          <span
+            className="system-bucket"
+            key={`system-bucket-indicator-${bucket.id}`}
+          >
+            System Bucket
+          </span>,
+          retention,
+        ]
+
+  return (
+    <ResourceCard
+      testID={`bucket-card ${bucket.name}`}
+      contextMenu={
+        !isSystemBucket(bucket.name) && (
+          <BucketContextMenu bucket={bucket} onDeleteBucket={onDeleteBucket} />
+        )
+      }
+      name={
         <ResourceCard.Name
           testID={`bucket--card--name ${bucket.name}`}
-          onClick={this.handleNameClick}
+          onClick={handleNameClick}
           name={bucket.name}
         />
-      )
-    }
-
-    return (
-      <ResourceCard.Name
-        testID={`bucket--card--name ${bucket.name}`}
-        name={bucket.name}
-      />
-    )
-  }
-
-  private get cardMetaItems(): JSX.Element[] {
-    const {bucket} = this.props
-    if (bucket.type === 'system') {
-      return [
-        <span
-          className="system-bucket"
-          key={`system-bucket-indicator-${bucket.id}`}
-        >
-          System Bucket
-        </span>,
-        <>Retention: {bucket.ruleString}</>,
-      ]
-    }
-
-    return [<>Retention: {bucket.ruleString}</>]
-  }
-
-  private get actionButtons(): JSX.Element {
-    const {bucket} = this.props
-    if (bucket.type === 'user') {
-      return (
-        <FlexBox
-          direction={FlexDirection.Row}
-          margin={ComponentSize.Small}
-          style={{marginTop: '4px'}}
-        >
-          <BucketAddDataButton
-            onAddCollector={this.handleAddCollector}
-            onAddLineProtocol={this.handleAddLineProtocol}
-            onAddClientLibrary={this.handleAddClientLibrary}
-            onAddScraper={this.handleAddScraper}
-          />
-          <Button
-            text="Rename"
-            testID="bucket-rename"
-            size={ComponentSize.ExtraSmall}
-            onClick={this.handleRenameBucket}
-          />
-          <FeatureFlag name="deleteWithPredicate">
-            <Button
-              text="Delete Data By Filter"
-              testID="bucket-delete-task"
-              size={ComponentSize.ExtraSmall}
-              onClick={this.handleDeleteData}
-            />
-          </FeatureFlag>
-        </FlexBox>
-      )
-    }
-  }
-
-  private handleDeleteData = () => {
-    const {onDeleteData, bucket} = this.props
-
-    onDeleteData(bucket)
-  }
-
-  private handleRenameBucket = () => {
-    const {
-      params: {orgID},
-      bucket: {id},
-      router,
-    } = this.props
-
-    router.push(`/orgs/${orgID}/load-data/buckets/${id}/rename`)
-  }
-
-  private handleNameClick = (): void => {
-    const {
-      params: {orgID},
-      bucket: {id},
-      router,
-    } = this.props
-
-    router.push(`/orgs/${orgID}/load-data/buckets/${id}/edit`)
-  }
-
-  private handleAddCollector = (): void => {
-    const {
-      params: {orgID},
-      bucket: {id},
-    } = this.props
-
-    const link = `/orgs/${orgID}/load-data/buckets/${id}/telegrafs/new`
-    this.props.onAddData(this.props.bucket, DataLoaderType.Streaming, link)
-  }
-
-  private handleAddLineProtocol = (): void => {
-    const {
-      params: {orgID},
-      bucket: {id},
-    } = this.props
-
-    const link = `/orgs/${orgID}/load-data/buckets/${id}/line-protocols/new`
-    this.props.onAddData(this.props.bucket, DataLoaderType.LineProtocol, link)
-  }
-
-  private handleAddClientLibrary = (): void => {
-    const {
-      params: {orgID},
-    } = this.props
-
-    const link = `/orgs/${orgID}/load-data/client-libraries`
-    this.props.onAddData(this.props.bucket, DataLoaderType.ClientLibrary, link)
-  }
-
-  private handleAddScraper = (): void => {
-    const {
-      params: {orgID},
-      bucket: {id},
-    } = this.props
-
-    const link = `/orgs/${orgID}/load-data/buckets/${id}/scrapers/new`
-    this.props.onAddData(this.props.bucket, DataLoaderType.Scraping, link)
-  }
+      }
+      metaData={cardMetaItems}
+    >
+      {bucket.type === 'user' && actionButtons}
+    </ResourceCard>
+  )
 }
 
-export default withRouter<Props>(BucketRow)
+const mdtp: DispatchProps = {
+  onAddBucketLabel: addBucketLabel,
+  onDeleteBucketLabel: deleteBucketLabel,
+  onSetDataLoadersBucket: setBucketInfo,
+  onSetDataLoadersType: setDataLoadersType,
+}
+
+export default connect<{}, DispatchProps>(
+  null,
+  mdtp
+)(withRouter<Props>(BucketCard))

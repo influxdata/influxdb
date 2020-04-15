@@ -7,14 +7,15 @@ import (
 	"regexp"
 	"unsafe"
 
-	"github.com/influxdata/influxdb/pkg/lifecycle"
-	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/v2/pkg/lifecycle"
+	"github.com/influxdata/influxdb/v2/tsdb"
+	"github.com/influxdata/influxdb/v2/tsdb/seriesfile"
 	"github.com/influxdata/influxql"
 )
 
 // FileSet represents a collection of files.
 type FileSet struct {
-	sfile        *tsdb.SeriesFile
+	sfile        *seriesfile.SeriesFile
 	sfileref     *lifecycle.Reference
 	files        []File
 	filesref     lifecycle.References
@@ -22,7 +23,7 @@ type FileSet struct {
 }
 
 // NewFileSet returns a new instance of FileSet.
-func NewFileSet(sfile *tsdb.SeriesFile, files []File) (*FileSet, error) {
+func NewFileSet(sfile *seriesfile.SeriesFile, files []File) (*FileSet, error) {
 	// First try to acquire a reference to the series file.
 	sfileref, err := sfile.Acquire()
 	if err != nil {
@@ -60,7 +61,7 @@ func (fs *FileSet) bytes() int {
 	return b
 }
 
-func (fs *FileSet) SeriesFile() *tsdb.SeriesFile { return fs.sfile }
+func (fs *FileSet) SeriesFile() *seriesfile.SeriesFile { return fs.sfile }
 
 // Release releases all resources on the file set.
 func (fs *FileSet) Release() {

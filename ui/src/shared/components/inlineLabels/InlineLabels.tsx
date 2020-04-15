@@ -1,12 +1,16 @@
 // Libraries
 import React, {Component} from 'react'
+import {connect} from 'react-redux'
 
 // Components
 import {Label as LabelComponent} from '@influxdata/clockface'
 import InlineLabelsEditor from 'src/shared/components/inlineLabels/InlineLabelsEditor'
 
 // Types
-import {Label} from 'src/types'
+import {Label, ResourceType, AppState} from 'src/types'
+
+// Selectors
+import {getAll, getLabels} from 'src/resources/selectors'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -16,17 +20,23 @@ export enum LabelsEditMode {
   Readonly = 'readonly',
 }
 
-interface Props {
+interface OwnProps {
   editMode?: LabelsEditMode // temporary for displaying labels
-  selectedLabels: Label[]
-  labels: Label[]
+  selectedLabelIDs: string[]
   onRemoveLabel?: (label: Label) => void
   onAddLabel?: (label: Label) => void
   onFilterChange?: (searchTerm: string) => void
 }
 
+interface StateProps {
+  labels: Label[]
+  selectedLabels: Label[]
+}
+
+type Props = StateProps & OwnProps
+
 @ErrorHandling
-export default class InlineLabels extends Component<Props> {
+class InlineLabels extends Component<Props> {
   public static defaultProps = {
     editMode: LabelsEditMode.Editable,
   }
@@ -101,3 +111,12 @@ export default class InlineLabels extends Component<Props> {
     onRemoveLabel(label)
   }
 }
+
+const mstp = (state: AppState, props: OwnProps) => {
+  const labels = getAll<Label>(state, ResourceType.Labels)
+  const selectedLabels = getLabels(state, props.selectedLabelIDs)
+
+  return {labels, selectedLabels}
+}
+
+export default connect<StateProps>(mstp)(InlineLabels)

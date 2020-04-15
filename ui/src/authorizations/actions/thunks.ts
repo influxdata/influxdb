@@ -7,7 +7,7 @@ import * as authAPI from 'src/authorizations/apis'
 import * as api from 'src/client'
 
 // Schemas
-import * as schemas from 'src/schemas'
+import {authSchema, arrayOfAuths} from 'src/schemas/authorizations'
 
 // Actions
 import {
@@ -36,10 +36,12 @@ import {
   NotificationAction,
   Authorization,
   AuthEntities,
+  ResourceType,
 } from 'src/types'
 
 // Selectors
 import {getOrg} from 'src/organizations/selectors'
+import {getStatus} from 'src/resources/selectors'
 
 type GetAuthorizations = (
   dispatch: Dispatch<Action | NotificationAction>,
@@ -50,8 +52,15 @@ export const getAuthorizations = () => async (
   getState: GetState
 ) => {
   try {
-    dispatch(setAuthorizations(RemoteDataState.Loading))
-    const org = getOrg(getState())
+    const state = getState()
+    if (
+      getStatus(state, ResourceType.Authorizations) ===
+      RemoteDataState.NotStarted
+    ) {
+      dispatch(setAuthorizations(RemoteDataState.Loading))
+    }
+
+    const org = getOrg(state)
     const resp = await api.getAuthorizations({query: {orgID: org.id}})
 
     if (resp.status !== 200) {
@@ -60,7 +69,7 @@ export const getAuthorizations = () => async (
 
     const auths = normalize<Authorization, AuthEntities, string[]>(
       resp.data.authorizations,
-      schemas.arrayOfAuths
+      arrayOfAuths
     )
 
     dispatch(setAuthorizations(RemoteDataState.Done, auths))
@@ -93,7 +102,7 @@ export const createAuthorization = (auth: Authorization) => async (
 
     const newAuth = normalize<Authorization, AuthEntities, string>(
       resp,
-      schemas.auth
+      authSchema
     )
 
     dispatch(addAuthorization(newAuth))

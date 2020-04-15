@@ -27,7 +27,6 @@ import {
 } from 'src/templates/actions/thunks'
 
 // Selectors
-import {viewableLabels} from 'src/labels/selectors'
 import {getOrg} from 'src/organizations/selectors'
 
 // Types
@@ -52,7 +51,6 @@ interface DispatchProps {
 }
 
 interface StateProps {
-  labels: Label[]
   org: Organization
 }
 
@@ -60,7 +58,7 @@ type Props = DispatchProps & OwnProps & StateProps
 
 class TemplateCard extends PureComponent<Props & WithRouterProps> {
   public render() {
-    const {template, labels, onFilterChange} = this.props
+    const {template, onFilterChange} = this.props
 
     return (
       <ResourceCard
@@ -80,8 +78,7 @@ class TemplateCard extends PureComponent<Props & WithRouterProps> {
         description={this.description}
         labels={
           <InlineLabels
-            selectedLabels={template.labels}
-            labels={labels}
+            selectedLabelIDs={template.labels}
             onFilterChange={onFilterChange}
             onAddLabel={this.handleAddLabel}
             onRemoveLabel={this.handleRemoveLabel}
@@ -214,10 +211,8 @@ class TemplateCard extends PureComponent<Props & WithRouterProps> {
 }
 
 const mstp = (state: AppState): StateProps => {
-  const {labels} = state
   return {
     org: getOrg(state),
-    labels: viewableLabels(labels.list),
   }
 }
 

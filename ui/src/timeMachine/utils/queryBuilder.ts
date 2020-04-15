@@ -14,7 +14,6 @@ import {
   WINDOW_PERIOD,
 } from 'src/variables/constants'
 import {AGG_WINDOW_AUTO} from 'src/timeMachine/constants/queryBuilder'
-import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 
 export function isConfigValid(builderConfig: BuilderConfig): boolean {
   const {buckets, tags} = builderConfig
@@ -95,35 +94,18 @@ export function buildQuery(builderConfig: BuilderConfig): string {
   const {functions} = builderConfig
 
   let query: string
-  const helper = isFlagEnabled('queryBuilderGrouping')
-    ? buildQueryHelperButWithGrouping
-    : buildQueryHelper
-
   if (functions.length) {
-    query = functions.map(f => helper(builderConfig, f)).join('\n\n')
+    query = functions
+      .map(f => buildQueryFromConfig(builderConfig, f))
+      .join('\n\n')
   } else {
-    query = helper(builderConfig, null)
+    query = buildQueryFromConfig(builderConfig, null)
   }
 
   return query
 }
 
-function buildQueryHelper(
-  builderConfig: BuilderConfig,
-  fn?: BuilderConfig['functions'][0]
-): string {
-  const [bucket] = builderConfig.buckets
-  const tagFilterCall = formatTagFilterCall(builderConfig.tags)
-  const {aggregateWindow} = builderConfig
-  const fnCall = fn ? formatFunctionCall(fn, aggregateWindow.period) : ''
-
-  const query = `from(bucket: "${bucket}")
-  |> range(start: ${OPTION_NAME}.${TIME_RANGE_START}, stop: ${OPTION_NAME}.${TIME_RANGE_STOP})${tagFilterCall}${fnCall}`
-
-  return query
-}
-
-function buildQueryHelperButWithGrouping(
+function buildQueryFromConfig(
   builderConfig: BuilderConfig,
   fn?: BuilderConfig['functions'][0]
 ): string {
@@ -174,10 +156,7 @@ const convertTagsToFluxFunctionString = function convertTagsToFluxFunctionString
       return ''
     }
 
-    const fnBody = tag.values
-      .map(value => `r.${tag.key} == "${value}"`)
-      .join(' or ')
-    return `\n  |> filter(fn: (r) => ${fnBody})`
+    return `\n  |> filter(fn: (r) => ${tagToFlux(tag)})`
   }
 
   if (tag.aggregateFunctionType === 'group') {
@@ -193,29 +172,18 @@ const convertTagsToFluxFunctionString = function convertTagsToFluxFunctionString
   return ''
 }
 
+export const tagToFlux = function tagToFlux(tag: BuilderTagsType) {
+  return tag.values
+    .map(value => `r["${tag.key}"] == "${value.replace(/\\/g, '\\\\')}"`)
+    .join(' or ')
+}
+
 const formatPeriod = (period: string): string => {
   if (period === AGG_WINDOW_AUTO || !period) {
     return `${OPTION_NAME}.${WINDOW_PERIOD}`
   }
 
   return period
-}
-
-function formatTagFilterCall(tagsSelections: BuilderConfig['tags']) {
-  if (!tagsSelections.length) {
-    return ''
-  }
-
-  const calls = tagsSelections
-    .filter(({key, values}) => key && values.length)
-    .map(({key, values}) => {
-      const fnBody = values.map(value => `r.${key} == "${value}"`).join(' or ')
-
-      return `|> filter(fn: (r) => ${fnBody})`
-    })
-    .join('\n  ')
-
-  return `\n  ${calls}`
 }
 
 export enum ConfirmationState {

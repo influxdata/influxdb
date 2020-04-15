@@ -1,7 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import classnames from 'classnames'
-import {TemplateSummary} from '@influxdata/influx'
+import {TemplateSummary} from 'src/types'
 
 // Components
 import {Icon, IconFont} from '@influxdata/clockface'

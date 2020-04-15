@@ -8,13 +8,18 @@ import (
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/lang"
-	"github.com/influxdata/influxdb"
-	icontext "github.com/influxdata/influxdb/context"
-	"github.com/influxdata/influxdb/kit/tracing"
-	"github.com/influxdata/influxdb/query"
-	"github.com/influxdata/influxdb/task/backend"
-	"github.com/influxdata/influxdb/task/backend/scheduler"
+	"github.com/influxdata/influxdb/v2"
+	icontext "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/kit/tracing"
+	"github.com/influxdata/influxdb/v2/query"
+	"github.com/influxdata/influxdb/v2/task/backend"
+	"github.com/influxdata/influxdb/v2/task/backend/scheduler"
 	"go.uber.org/zap"
+)
+
+const (
+	maxPromises       = 1000
+	defaultMaxWorkers = 100
 )
 
 var _ scheduler.Executor = (*Executor)(nil)
@@ -41,8 +46,28 @@ func MultiLimit(limits ...LimitFunc) LimitFunc {
 // LimitFunc is a function the executor will use to
 type LimitFunc func(*influxdb.Task, *influxdb.Run) error
 
+type executorConfig struct {
+	maxWorkers int
+}
+
+type executorOption func(*executorConfig)
+
+// WithMaxWorkers specifies the number of workers used by the Executor.
+func WithMaxWorkers(n int) executorOption {
+	return func(o *executorConfig) {
+		o.maxWorkers = n
+	}
+}
+
 // NewExecutor creates a new task executor
-func NewExecutor(log *zap.Logger, qs query.QueryService, as influxdb.AuthorizationService, ts influxdb.TaskService, tcs backend.TaskControlService) (*Executor, *ExecutorMetrics) {
+func NewExecutor(log *zap.Logger, qs query.QueryService, as influxdb.AuthorizationService, ts influxdb.TaskService, tcs backend.TaskControlService, opts ...executorOption) (*Executor, *ExecutorMetrics) {
+	cfg := &executorConfig{
+		maxWorkers: defaultMaxWorkers,
+	}
+	for _, opt := range opts {
+		opt(cfg)
+	}
+
 	e := &Executor{
 		log: log,
 		ts:  ts,
@@ -51,8 +76,8 @@ func NewExecutor(log *zap.Logger, qs query.QueryService, as influxdb.Authorizati
 		as:  as,
 
 		currentPromises: sync.Map{},
-		promiseQueue:    make(chan *promise, 1000),                                //TODO(lh): make this configurable
-		workerLimit:     make(chan struct{}, 100),                                 //TODO(lh): make this configurable
+		promiseQueue:    make(chan *promise, maxPromises),
+		workerLimit:     make(chan struct{}, cfg.maxWorkers),
 		limitFunc:       func(*influxdb.Task, *influxdb.Run) error { return nil }, // noop
 	}
 
@@ -208,6 +233,9 @@ func (e *Executor) createPromise(ctx context.Context, run *influxdb.Run) (*promi
 	if err != nil {
 		return nil, err
 	}
+	if !t.Authorization.GetUserID().Valid() {
+		t.Authorization.UserID = t.OwnerID
+	}
 
 	ctx, cancel := context.WithCancel(ctx)
 	// create promise
@@ -279,7 +307,7 @@ func (w *worker) work() {
 			// If done the promise was canceled
 			case <-prom.ctx.Done():
 				w.e.tcs.AddRunLog(prom.ctx, prom.task.ID, prom.run.ID, time.Now().UTC(), "Run canceled")
-				w.e.tcs.UpdateRunState(prom.ctx, prom.task.ID, prom.run.ID, time.Now().UTC(), backend.RunCanceled)
+				w.e.tcs.UpdateRunState(prom.ctx, prom.task.ID, prom.run.ID, time.Now().UTC(), influxdb.RunCanceled)
 				prom.err = influxdb.ErrRunCanceled
 				close(prom.done)
 				return
@@ -306,14 +334,14 @@ func (w *worker) start(p *promise) {
 	// add to run log
 	w.e.tcs.AddRunLog(p.ctx, p.task.ID, p.run.ID, time.Now().UTC(), fmt.Sprintf("Started task from script: %q", p.task.Flux))
 	// update run status
-	w.e.tcs.UpdateRunState(ctx, p.task.ID, p.run.ID, time.Now().UTC(), backend.RunStarted)
+	w.e.tcs.UpdateRunState(ctx, p.task.ID, p.run.ID, time.Now().UTC(), influxdb.RunStarted)
 
 	// add to metrics
 	w.e.metrics.StartRun(p.task, time.Since(p.createdAt), time.Since(p.run.RunAt))
 	p.startedAt = time.Now()
 }
 
-func (w *worker) finish(p *promise, rs backend.RunStatus, err error) {
+func (w *worker) finish(p *promise, rs influxdb.RunStatus, err error) {
 
 	// trace
 	span, ctx := tracing.StartSpanFromContext(p.ctx)
@@ -365,7 +393,7 @@ func (w *worker) executeQuery(p *promise) {
 
 	pkg, err := flux.Parse(p.task.Flux)
 	if err != nil {
-		w.finish(p, backend.RunFail, influxdb.ErrFluxParseError(err))
+		w.finish(p, influxdb.RunFail, influxdb.ErrFluxParseError(err))
 		return
 	}
 
@@ -384,7 +412,7 @@ func (w *worker) executeQuery(p *promise) {
 	it, err := w.e.qs.Query(ctx, req)
 	if err != nil {
 		// Assume the error should not be part of the runResult.
-		w.finish(p, backend.RunFail, influxdb.ErrQueryError(err))
+		w.finish(p, influxdb.RunFail, influxdb.ErrQueryError(err))
 		return
 	}
 
@@ -407,16 +435,16 @@ func (w *worker) executeQuery(p *promise) {
 	}
 
 	if runErr != nil {
-		w.finish(p, backend.RunFail, influxdb.ErrRunExecutionError(runErr))
+		w.finish(p, influxdb.RunFail, influxdb.ErrRunExecutionError(runErr))
 		return
 	}
 
 	if it.Err() != nil {
-		w.finish(p, backend.RunFail, influxdb.ErrResultIteratorError(it.Err()))
+		w.finish(p, influxdb.RunFail, influxdb.ErrResultIteratorError(it.Err()))
 		return
 	}
 
-	w.finish(p, backend.RunSuccess, nil)
+	w.finish(p, influxdb.RunSuccess, nil)
 }
 
 // RunsActive returns the current number of workers, which is equivalent to

@@ -5,9 +5,9 @@ import (
 	"fmt"
 
 	"github.com/influxdata/flux/ast"
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/notification/endpoint"
-	"github.com/influxdata/influxdb/notification/flux"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/notification/endpoint"
+	"github.com/influxdata/influxdb/v2/notification/flux"
 )
 
 // Slack is the notification rule config of slack.
@@ -49,7 +49,7 @@ func (s *Slack) generateFluxASTBody(e *endpoint.Slack) []ast.Statement {
 	statements = append(statements, s.generateFluxASTEndpoint(e))
 	statements = append(statements, s.generateFluxASTNotificationDefinition(e))
 	statements = append(statements, s.generateFluxASTStatuses())
-	statements = append(statements, s.generateAllStateChanges()...)
+	statements = append(statements, s.generateLevelChecks()...)
 	statements = append(statements, s.generateFluxASTNotifyPipe())
 
 	return statements

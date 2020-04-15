@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"github.com/influxdata/flux/ast"
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/kit/errors"
-	"github.com/influxdata/influxdb/query/influxql"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/errors"
+	"github.com/influxdata/influxdb/v2/query/influxql"
 	"github.com/spf13/cobra"
 )
 
@@ -16,18 +16,17 @@ var transpileFlags struct {
 	Now string
 }
 
-func cmdTranspile() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "transpile [InfluxQL query]",
-		Short: "Transpile an InfluxQL query to Flux source code",
-		Long: `Transpile an InfluxQL query to Flux source code.
+func cmdTranspile(f *globalFlags, opt genericCLIOpts) *cobra.Command {
+	cmd := opt.newCmd("transpile [InfluxQL query]", transpileF, false)
+	cmd.Args = cobra.ExactArgs(1)
+	cmd.Short = "Transpile an InfluxQL query to Flux source code"
+	cmd.Long = `Transpile an InfluxQL query to Flux source code.
+
 
 The transpiled query assumes that the bucket name is the of the form '<database>/<retention policy>'.
 
-The transpiled query will be written for absolute time ranges using the provided now() time.`,
-		Args: cobra.ExactArgs(1),
-		RunE: transpileF,
-	}
+The transpiled query will be written for absolute time ranges using the provided now() time.`
+
 	opts := flagOpts{
 		{
 			DestP: &transpileFlags.Now,

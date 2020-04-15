@@ -9,7 +9,7 @@ import {
 
 // Constants
 import * as copy from 'src/shared/copy/notifications'
-import * as schemas from 'src/schemas'
+import {viewSchema} from 'src/schemas'
 
 // Actions
 import {notify} from 'src/shared/actions/notifications'
@@ -19,10 +19,7 @@ import {setView, Action} from 'src/views/actions/creators'
 
 // Selectors
 import {getViewsForDashboard} from 'src/views/selectors'
-import {getTimeRangeByDashboardID} from 'src/dashboards/selectors/index'
 import {getByID} from 'src/resources/selectors'
-
-import {refreshDashboardVariableValues} from 'src/dashboards/actions/thunks'
 
 // Types
 import {
@@ -43,7 +40,7 @@ export const getView = (dashboardID: string, cellID: string) => async (
   try {
     const view = await getViewAJAX(dashboardID, cellID)
 
-    const normView = normalize<View, ViewEntities, string>(view, schemas.view)
+    const normView = normalize<View, ViewEntities, string>(view, viewSchema)
 
     dispatch(setView(cellID, RemoteDataState.Done, normView))
   } catch {
@@ -61,10 +58,7 @@ export const updateView = (dashboardID: string, view: View) => async (
   try {
     const newView = await updateViewAJAX(dashboardID, viewID, view)
 
-    const normView = normalize<View, ViewEntities, string>(
-      newView,
-      schemas.view
-    )
+    const normView = normalize<View, ViewEntities, string>(newView, viewSchema)
 
     dispatch(setView(viewID, RemoteDataState.Done, normView))
 
@@ -88,12 +82,7 @@ export const updateViewAndVariables = (
 
     views.splice(views.findIndex(v => v.id === newView.id), 1, newView)
 
-    await dispatch(refreshDashboardVariableValues(dashboardID, views))
-
-    const normView = normalize<View, ViewEntities, string>(
-      newView,
-      schemas.view
-    )
+    const normView = normalize<View, ViewEntities, string>(newView, viewSchema)
 
     dispatch(setView(cellID, RemoteDataState.Done, normView))
   } catch (error) {
@@ -112,15 +101,18 @@ export const getViewForTimeMachine = (
     const state = getState()
     let view = getByID<View>(state, ResourceType.Views, cellID) as QueryView
 
-    const timeRange = getTimeRangeByDashboardID(state, dashboardID)
-
     if (!view) {
       dispatch(setView(cellID, RemoteDataState.Loading))
       view = (await getViewAJAX(dashboardID, cellID)) as QueryView
     }
 
-    dispatch(setActiveTimeMachine(timeMachineID, {view, timeRange}))
-    dispatch(executeQueries(dashboardID))
+    dispatch(
+      setActiveTimeMachine(timeMachineID, {
+        contextID: dashboardID,
+        view,
+      })
+    )
+    dispatch(executeQueries())
   } catch (error) {
     dispatch(notify(copy.getViewFailed(error.message)))
     dispatch(setView(cellID, RemoteDataState.Error))

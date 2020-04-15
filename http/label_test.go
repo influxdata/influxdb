@@ -11,11 +11,12 @@ import (
 	"testing"
 
 	"github.com/influxdata/httprouter"
-	platform "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/inmem"
-	"github.com/influxdata/influxdb/kv"
-	"github.com/influxdata/influxdb/mock"
-	platformtesting "github.com/influxdata/influxdb/testing"
+	platform "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/inmem"
+	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
+	"github.com/influxdata/influxdb/v2/kv"
+	"github.com/influxdata/influxdb/v2/mock"
+	platformtesting "github.com/influxdata/influxdb/v2/testing"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -111,7 +112,7 @@ func TestService_handleGetLabels(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewLabelHandler(zaptest.NewLogger(t), tt.fields.LabelService, ErrorHandler(0))
+			h := NewLabelHandler(zaptest.NewLogger(t), tt.fields.LabelService, kithttp.ErrorHandler(0))
 
 			r := httptest.NewRequest("GET", "http://any.url", nil)
 
@@ -219,7 +220,7 @@ func TestService_handleGetLabel(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewLabelHandler(zaptest.NewLogger(t), tt.fields.LabelService, ErrorHandler(0))
+			h := NewLabelHandler(zaptest.NewLogger(t), tt.fields.LabelService, kithttp.ErrorHandler(0))
 
 			r := httptest.NewRequest("GET", "http://any.url", nil)
 
@@ -314,7 +315,7 @@ func TestService_handlePostLabel(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewLabelHandler(zaptest.NewLogger(t), tt.fields.LabelService, ErrorHandler(0))
+			h := NewLabelHandler(zaptest.NewLogger(t), tt.fields.LabelService, kithttp.ErrorHandler(0))
 
 			l, err := json.Marshal(tt.args.label)
 			if err != nil {
@@ -405,7 +406,7 @@ func TestService_handleDeleteLabel(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewLabelHandler(zaptest.NewLogger(t), tt.fields.LabelService, ErrorHandler(0))
+			h := NewLabelHandler(zaptest.NewLogger(t), tt.fields.LabelService, kithttp.ErrorHandler(0))
 
 			r := httptest.NewRequest("GET", "http://any.url", nil)
 
@@ -544,7 +545,7 @@ func TestService_handlePatchLabel(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewLabelHandler(zaptest.NewLogger(t), tt.fields.LabelService, ErrorHandler(0))
+			h := NewLabelHandler(zaptest.NewLogger(t), tt.fields.LabelService, kithttp.ErrorHandler(0))
 
 			upd := platform.LabelUpdate{}
 			if len(tt.args.properties) > 0 {
@@ -614,7 +615,7 @@ func initLabelService(f platformtesting.LabelFields, t *testing.T) (platform.Lab
 		}
 	}
 
-	handler := NewLabelHandler(zaptest.NewLogger(t), svc, ErrorHandler(0))
+	handler := NewLabelHandler(zaptest.NewLogger(t), svc, kithttp.ErrorHandler(0))
 	server := httptest.NewServer(handler)
 	client := LabelService{
 		Client: mustNewHTTPClient(t, server.URL, ""),

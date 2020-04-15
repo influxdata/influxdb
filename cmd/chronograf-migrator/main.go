@@ -10,9 +10,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/influxdata/influxdb/chronograf"
-	"github.com/influxdata/influxdb/chronograf/bolt"
-	"github.com/influxdata/influxdb/pkger"
+	"github.com/influxdata/influxdb/v2/chronograf"
+	"github.com/influxdata/influxdb/v2/chronograf/bolt"
+	"github.com/influxdata/influxdb/v2/pkger"
 )
 
 var chronografDBPath string
@@ -48,7 +48,7 @@ func exec(dbPath, out string) error {
 			return err
 		}
 
-		pkg.Objects = append(pkg.Objects, pkger.DashboardToObject(d2, d2.Name))
+		pkg.Objects = append(pkg.Objects, pkger.DashboardToObject(d2.Name, d2))
 
 		for _, v := range vs {
 			name := strings.ToLower(v.Name)
@@ -59,7 +59,7 @@ func exec(dbPath, out string) error {
 			}
 			hasVar[name] = true
 
-			pkg.Objects = append(pkg.Objects, pkger.VariableToObject(v, name))
+			pkg.Objects = append(pkg.Objects, pkger.VariableToObject(name, v))
 		}
 	}
 

@@ -7,11 +7,11 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/authorizer"
-	influxdbcontext "github.com/influxdata/influxdb/context"
-	"github.com/influxdata/influxdb/mock"
-	influxdbtesting "github.com/influxdata/influxdb/testing"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/authorizer"
+	influxdbcontext "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/mock"
+	influxdbtesting "github.com/influxdata/influxdb/v2/testing"
 )
 
 var authorizationCmpOptions = cmp.Options{
@@ -28,12 +28,8 @@ var authorizationCmpOptions = cmp.Options{
 }
 
 func TestAuthorizationService_ReadAuthorization(t *testing.T) {
-	type fields struct {
-		AuthorizationService influxdb.AuthorizationService
-	}
 	type args struct {
-		permission influxdb.Permission
-		id         influxdb.ID
+		permissions []influxdb.Permission
 	}
 	type wants struct {
 		err            error
@@ -41,32 +37,29 @@ func TestAuthorizationService_ReadAuthorization(t *testing.T) {
 	}
 
 	tests := []struct {
-		name   string
-		fields fields
-		args   args
-		wants  wants
+		name  string
+		args  args
+		wants wants
 	}{
 		{
 			name: "authorized to access id",
-			fields: fields{
-				AuthorizationService: &mock.AuthorizationService{
-					FindAuthorizationByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Authorization, error) {
-						return &influxdb.Authorization{
-							ID:     id,
-							UserID: 1,
-						}, nil
-					},
-				},
-			},
 			args: args{
-				permission: influxdb.Permission{
-					Action: "read",
-					Resource: influxdb.Resource{
-						Type: influxdb.UsersResourceType,
-						ID:   influxdbtesting.IDPtr(1),
+				permissions: []influxdb.Permission{
+					{
+						Action: influxdb.ReadAction,
+						Resource: influxdb.Resource{
+							Type:  influxdb.AuthorizationsResourceType,
+							OrgID: influxdbtesting.IDPtr(1),
+						},
+					},
+					{
+						Action: influxdb.ReadAction,
+						Resource: influxdb.Resource{
+							Type: influxdb.UsersResourceType,
+							ID:   influxdbtesting.IDPtr(1),
+						},
 					},
 				},
-				id: 1,
 			},
 			wants: wants{
 				err: nil,
@@ -74,31 +67,58 @@ func TestAuthorizationService_ReadAuthorization(t *testing.T) {
 					{
 						ID:     10,
 						UserID: 1,
+						OrgID:  1,
 					},
 				},
 			},
 		},
 		{
-			name: "unauthorized to access id",
-			fields: fields{
-				AuthorizationService: &mock.AuthorizationService{
-					FindAuthorizationByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Authorization, error) {
-						return &influxdb.Authorization{
-							ID:     id,
-							UserID: 1,
-						}, nil
+			name: "unauthorized to access id - wrong org",
+			args: args{
+				permissions: []influxdb.Permission{
+					{
+						Action: influxdb.ReadAction,
+						Resource: influxdb.Resource{
+							Type:  influxdb.AuthorizationsResourceType,
+							OrgID: influxdbtesting.IDPtr(2),
+						},
+					},
+					{
+						Action: influxdb.ReadAction,
+						Resource: influxdb.Resource{
+							Type: influxdb.UsersResourceType,
+							ID:   influxdbtesting.IDPtr(1),
+						},
 					},
 				},
 			},
+			wants: wants{
+				err: &influxdb.Error{
+					Msg:  "read:orgs/0000000000000001/authorizations/000000000000000a is unauthorized",
+					Code: influxdb.EUnauthorized,
+				},
+				authorizations: []*influxdb.Authorization{},
+			},
+		},
+		{
+			name: "unauthorized to access id - wrong user",
 			args: args{
-				permission: influxdb.Permission{
-					Action: "read",
-					Resource: influxdb.Resource{
-						Type: influxdb.BucketsResourceType,
-						ID:   influxdbtesting.IDPtr(20),
+				permissions: []influxdb.Permission{
+					{
+						Action: influxdb.ReadAction,
+						Resource: influxdb.Resource{
+							Type:  influxdb.AuthorizationsResourceType,
+							OrgID: influxdbtesting.IDPtr(1),
+						},
+					},
+					{
+						Action: influxdb.ReadAction,
+						Resource: influxdb.Resource{
+							Type: influxdb.UsersResourceType,
+							ID:   influxdbtesting.IDPtr(2),
+						},
 					},
 				},
-				id: 1,
 			},
 			wants: wants{
 				err: &influxdb.Error{
@@ -117,12 +137,14 @@ func TestAuthorizationService_ReadAuthorization(t *testing.T) {
 				return &influxdb.Authorization{
 					ID:     id,
 					UserID: 1,
+					OrgID:  1,
 				}, nil
 			}
 			m.FindAuthorizationByTokenFn = func(ctx context.Context, t string) (*influxdb.Authorization, error) {
 				return &influxdb.Authorization{
 					ID:     10,
 					UserID: 1,
+					OrgID:  1,
 				}, nil
 			}
 			m.FindAuthorizationsFn = func(ctx context.Context, filter influxdb.AuthorizationFilter, opt ...influxdb.FindOptions) ([]*influxdb.Authorization, int, error) {
@@ -130,13 +152,14 @@ func TestAuthorizationService_ReadAuthorization(t *testing.T) {
 					{
 						ID:     10,
 						UserID: 1,
+						OrgID:  1,
 					},
 				}, 1, nil
 			}
 			s := authorizer.NewAuthorizationService(m)
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			t.Run("find authorization by id", func(t *testing.T) {
 				_, err := s.FindAuthorizationByID(ctx, 10)
@@ -161,39 +184,35 @@ func TestAuthorizationService_ReadAuthorization(t *testing.T) {
 }
 
 func TestAuthorizationService_WriteAuthorization(t *testing.T) {
-	type fields struct {
-		AuthorizationService influxdb.AuthorizationService
-	}
 	type args struct {
-		permission influxdb.Permission
-		userID     influxdb.ID
+		permissions []influxdb.Permission
 	}
 	type wants struct {
 		err error
 	}
 
 	tests := []struct {
-		name   string
-		fields fields
-		args   args
-		wants  wants
+		name  string
+		args  args
+		wants wants
 	}{
 		{
-			name: "authorized to create authorization",
-			fields: fields{
-				AuthorizationService: &mock.AuthorizationService{
-					CreateAuthorizationFn: func(ctx context.Context, b *influxdb.Authorization) error {
-						return nil
-					},
-				},
-			},
+			name: "authorized to write authorization",
 			args: args{
-				userID: 1,
-				permission: influxdb.Permission{
-					Action: "write",
-					Resource: influxdb.Resource{
-						Type: influxdb.UsersResourceType,
-						ID:   influxdbtesting.IDPtr(1),
+				permissions: []influxdb.Permission{
+					{
+						Action: influxdb.WriteAction,
+						Resource: influxdb.Resource{
+							Type:  influxdb.AuthorizationsResourceType,
+							OrgID: influxdbtesting.IDPtr(1),
+						},
+					},
+					{
+						Action: influxdb.WriteAction,
+						Resource: influxdb.Resource{
+							Type: influxdb.UsersResourceType,
+							ID:   influxdbtesting.IDPtr(1),
+						},
 					},
 				},
 			},
@@ -202,21 +221,49 @@ func TestAuthorizationService_WriteAuthorization(t *testing.T) {
 			},
 		},
 		{
-			name: "unauthorized to create authorization",
-			fields: fields{
-				AuthorizationService: &mock.AuthorizationService{
-					CreateAuthorizationFn: func(ctx context.Context, b *influxdb.Authorization) error {
-						return nil
+			name: "unauthorized to write authorization - wrong org",
+			args: args{
+				permissions: []influxdb.Permission{
+					{
+						Action: influxdb.WriteAction,
+						Resource: influxdb.Resource{
+							Type:  influxdb.AuthorizationsResourceType,
+							OrgID: influxdbtesting.IDPtr(2),
+						},
+					},
+					{
+						Action: influxdb.WriteAction,
+						Resource: influxdb.Resource{
+							Type: influxdb.UsersResourceType,
+							ID:   influxdbtesting.IDPtr(1),
+						},
 					},
 				},
 			},
+			wants: wants{
+				err: &influxdb.Error{
+					Msg:  "write:orgs/0000000000000001/authorizations/000000000000000a is unauthorized",
+					Code: influxdb.EUnauthorized,
+				},
+			},
+		},
+		{
+			name: "unauthorized to write authorization - wrong user",
 			args: args{
-				userID: 1,
-				permission: influxdb.Permission{
-					Action: "write",
-					Resource: influxdb.Resource{
-						Type: influxdb.UsersResourceType,
-						ID:   influxdbtesting.IDPtr(10),
+				permissions: []influxdb.Permission{
+					{
+						Action: influxdb.WriteAction,
+						Resource: influxdb.Resource{
+							Type:  influxdb.AuthorizationsResourceType,
+							OrgID: influxdbtesting.IDPtr(1),
+						},
+					},
+					{
+						Action: influxdb.WriteAction,
+						Resource: influxdb.Resource{
+							Type: influxdb.UsersResourceType,
+							ID:   influxdbtesting.IDPtr(2),
+						},
 					},
 				},
 			},
@@ -236,6 +283,7 @@ func TestAuthorizationService_WriteAuthorization(t *testing.T) {
 				return &influxdb.Authorization{
 					ID:     id,
 					UserID: 1,
+					OrgID:  1,
 				}, nil
 			}
 			m.CreateAuthorizationFn = func(ctx context.Context, a *influxdb.Authorization) error {
@@ -250,12 +298,7 @@ func TestAuthorizationService_WriteAuthorization(t *testing.T) {
 			s := authorizer.NewAuthorizationService(m)
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
-
-			t.Run("create authorization", func(t *testing.T) {
-				err := s.CreateAuthorization(ctx, &influxdb.Authorization{UserID: tt.args.userID})
-				influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
-			})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			t.Run("update authorization", func(t *testing.T) {
 				_, err := s.UpdateAuthorization(ctx, 10, &influxdb.AuthorizationUpdate{Status: influxdb.Active.Ptr()})
@@ -267,6 +310,129 @@ func TestAuthorizationService_WriteAuthorization(t *testing.T) {
 				influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 			})
 
+		})
+	}
+}
+
+func TestAuthorizationService_CreateAuthorization(t *testing.T) {
+	type args struct {
+		permissions []influxdb.Permission
+	}
+	type wants struct {
+		err error
+	}
+
+	tests := []struct {
+		name  string
+		args  args
+		wants wants
+	}{
+		{
+			name: "authorized to write authorization",
+			args: args{
+				permissions: []influxdb.Permission{
+					{
+						Action: influxdb.WriteAction,
+						Resource: influxdb.Resource{
+							Type:  influxdb.AuthorizationsResourceType,
+							OrgID: influxdbtesting.IDPtr(1),
+						},
+					},
+					{
+						Action: influxdb.WriteAction,
+						Resource: influxdb.Resource{
+							Type: influxdb.UsersResourceType,
+							ID:   influxdbtesting.IDPtr(1),
+						},
+					},
+				},
+			},
+			wants: wants{
+				err: nil,
+			},
+		},
+		{
+			name: "unauthorized to write authorization - wrong org",
+			args: args{
+				permissions: []influxdb.Permission{
+					{
+						Action: influxdb.WriteAction,
+						Resource: influxdb.Resource{
+							Type:  influxdb.AuthorizationsResourceType,
+							OrgID: influxdbtesting.IDPtr(2),
+						},
+					},
+					{
+						Action: influxdb.WriteAction,
+						Resource: influxdb.Resource{
+							Type: influxdb.UsersResourceType,
+							ID:   influxdbtesting.IDPtr(1),
+						},
+					},
+				},
+			},
+			wants: wants{
+				err: &influxdb.Error{
+					Msg:  "write:orgs/0000000000000001/authorizations is unauthorized",
+					Code: influxdb.EUnauthorized,
+				},
+			},
+		},
+		{
+			name: "unauthorized to write authorization - wrong user",
+			args: args{
+				permissions: []influxdb.Permission{
+					{
+						Action: influxdb.WriteAction,
+						Resource: influxdb.Resource{
+							Type:  influxdb.AuthorizationsResourceType,
+							OrgID: influxdbtesting.IDPtr(1),
+						},
+					},
+					{
+						Action: influxdb.WriteAction,
+						Resource: influxdb.Resource{
+							Type: influxdb.UsersResourceType,
+							ID:   influxdbtesting.IDPtr(2),
+						},
+					},
+				},
+			},
+			wants: wants{
+				err: &influxdb.Error{
+					Msg:  "write:users/0000000000000001 is unauthorized",
+					Code: influxdb.EUnauthorized,
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := &mock.AuthorizationService{}
+			m.FindAuthorizationByIDFn = func(ctx context.Context, id influxdb.ID) (*influxdb.Authorization, error) {
+				return &influxdb.Authorization{
+					ID:     id,
+					UserID: 1,
+					OrgID:  1,
+				}, nil
+			}
+			m.CreateAuthorizationFn = func(ctx context.Context, a *influxdb.Authorization) error {
+				return nil
+			}
+			m.DeleteAuthorizationFn = func(ctx context.Context, id influxdb.ID) error {
+				return nil
+			}
+			m.UpdateAuthorizationFn = func(ctx context.Context, id influxdb.ID, upd *influxdb.AuthorizationUpdate) (*influxdb.Authorization, error) {
+				return nil, nil
+			}
+			s := authorizer.NewAuthorizationService(m)
+
+			ctx := context.Background()
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
+
+			err := s.CreateAuthorization(ctx, &influxdb.Authorization{OrgID: 1, UserID: 1})
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}
 }

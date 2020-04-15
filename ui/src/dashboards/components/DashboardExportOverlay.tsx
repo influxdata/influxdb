@@ -14,6 +14,11 @@ import {DocumentCreate} from '@influxdata/influx'
 import {AppState} from 'src/types'
 import {RemoteDataState} from 'src/types'
 
+import {
+  dashboardCopySuccess,
+  dashboardCopyFailed,
+} from 'src/shared/copy/notifications'
+
 interface OwnProps {
   params: {dashboardID: string}
 }
@@ -43,11 +48,20 @@ class DashboardExportOverlay extends PureComponent<Props> {
   public render() {
     const {status, dashboardTemplate} = this.props
 
+    const notes = (_text, success) => {
+      if (success) {
+        return dashboardCopySuccess()
+      }
+
+      return dashboardCopyFailed()
+    }
+
     return (
       <ExportOverlay
         resourceName="Dashboard"
         resource={dashboardTemplate}
         onDismissOverlay={this.onDismiss}
+        onCopyText={notes}
         status={status}
       />
     )

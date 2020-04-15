@@ -1,77 +1,83 @@
 // Utils
 import {parseDuration, timeRangeToDuration} from 'src/shared/utils/duration'
+import {asAssignment} from 'src/variables/selectors'
 
 // Constants
 import {TIME_RANGE_START, TIME_RANGE_STOP} from 'src/variables/constants'
 
 // Types
-import {TimeRange} from 'src/types'
+import {RemoteDataState, TimeRange, Variable} from 'src/types'
 import {VariableAssignment} from 'src/types/ast'
 
+// TODO kill this function
 export const getTimeRangeVars = (
   timeRange: TimeRange
 ): VariableAssignment[] => {
-  let startValue: VariableAssignment
-
-  if (isDateParseable(timeRange.lower)) {
-    startValue = generateDateTimeLiteral(TIME_RANGE_START, timeRange.lower)
-  } else {
-    startValue = {
-      type: 'VariableAssignment',
-      id: {
-        type: 'Identifier',
-        name: TIME_RANGE_START,
-      },
-      init: {
-        type: 'UnaryExpression',
-        operator: '-',
-        argument: {
-          type: 'DurationLiteral',
-          values: parseDuration(timeRangeToDuration(timeRange)),
-        },
-      },
-    }
-  }
-
-  let stopValue: VariableAssignment
-
-  if (timeRange.upper && isDateParseable(timeRange.upper)) {
-    stopValue = generateDateTimeLiteral(TIME_RANGE_STOP, timeRange.upper)
-  } else {
-    stopValue = {
-      type: 'VariableAssignment',
-      id: {
-        type: 'Identifier',
-        name: TIME_RANGE_STOP,
-      },
-      init: {
-        type: 'CallExpression',
-        callee: {
-          type: 'Identifier',
-          name: 'now',
-        },
-      },
-    }
-  }
-  return [startValue, stopValue]
+  return [
+    getRangeVariable(TIME_RANGE_START, timeRange),
+    getRangeVariable(TIME_RANGE_STOP, timeRange),
+  ].map(v => asAssignment(v))
 }
 
-const generateDateTimeLiteral = (
-  name: string,
-  value: string
-): VariableAssignment => {
+export const getRangeVariable = (
+  which: string,
+  timeRange: TimeRange
+): Variable => {
+  const range = which === TIME_RANGE_START ? timeRange.lower : timeRange.upper
+
+  if (which === TIME_RANGE_STOP && !timeRange.upper) {
+    return {
+      orgID: '',
+      id: TIME_RANGE_STOP,
+      name: TIME_RANGE_STOP,
+      arguments: {
+        type: 'system',
+        values: ['now()'],
+      },
+      status: RemoteDataState.Done,
+      labels: [],
+    }
+  }
+
+  if (which === TIME_RANGE_START && timeRange.type !== 'custom') {
+    const duration = parseDuration(timeRangeToDuration(timeRange))
+
+    return {
+      orgID: '',
+      id: which,
+      name: which,
+      arguments: {
+        type: 'system',
+        values: [duration],
+      },
+      status: RemoteDataState.Done,
+      labels: [],
+    }
+  }
+
+  if (isNaN(Date.parse(range))) {
+    return {
+      orgID: '',
+      id: which,
+      name: which,
+      arguments: {
+        type: 'system',
+        values: [null],
+      },
+      status: RemoteDataState.Done,
+      labels: [],
+    }
+  }
+
   return {
-    type: 'VariableAssignment',
-    id: {
-      type: 'Identifier',
-      name,
+    orgID: '',
+    id: which,
+    name: which,
+    arguments: {
+      type: 'system',
+      values: [range],
     },
-    init: {
-      type: 'DateTimeLiteral',
-      value: new Date(value).toISOString(),
-    },
+    status: RemoteDataState.Done,
+    labels: [],
   }
 }
-
-export const isDateParseable = (ambiguousString: string): boolean =>
-  !isNaN(Date.parse(ambiguousString))

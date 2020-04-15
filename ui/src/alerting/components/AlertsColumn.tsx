@@ -1,6 +1,9 @@
 // Libraries
 import React, {FC, ReactChild, useState} from 'react'
 
+// Types
+import {ResourceType} from 'src/types'
+
 // Components
 import {
   Panel,
@@ -15,7 +18,13 @@ import {
   ComponentColor,
 } from '@influxdata/clockface'
 
+type ColumnTypes =
+  | ResourceType.NotificationRules
+  | ResourceType.NotificationEndpoints
+  | ResourceType.Checks
+
 interface Props {
+  type: ColumnTypes
   title: string
   createButton: JSX.Element
   questionMarkTooltipContents: JSX.Element | string
@@ -23,16 +32,22 @@ interface Props {
 }
 
 const AlertsColumnHeader: FC<Props> = ({
+  type,
   children,
   title,
   createButton,
   questionMarkTooltipContents,
 }) => {
   const [searchTerm, onChangeSearchTerm] = useState('')
+
+  const formattedTitle = title.toLowerCase().replace(' ', '-')
+  const panelClassName = `alerting-index--column alerting-index--${formattedTitle}`
+
   return (
     <Panel
       backgroundColor={InfluxColors.Kevlar}
-      className="alerting-index--column"
+      className={panelClassName}
+      testID={`${type}--column`}
     >
       <Panel.Header>
         <FlexBox direction={FlexDirection.Row} margin={ComponentSize.Small}>
@@ -52,11 +67,11 @@ const AlertsColumnHeader: FC<Props> = ({
           placeholder={`Filter ${title}...`}
           value={searchTerm}
           onChange={e => onChangeSearchTerm(e.target.value)}
+          testID={`filter--input ${type}`}
         />
       </div>
       <div className="alerting-index--column-body">
         <DapperScrollbars
-          autoSize={true}
           autoHide={true}
           style={{width: '100%', height: '100%'}}
         >

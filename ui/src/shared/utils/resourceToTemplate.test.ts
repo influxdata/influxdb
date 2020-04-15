@@ -16,7 +16,22 @@ import {
   myCell,
 } from 'src/shared/utils/mocks/resourceToTemplate'
 
+// Libraries
+import {RemoteDataState, AppState} from 'src/types'
+
 describe('resourceToTemplate', () => {
+  const appState = {
+    resources: {
+      labels: {
+        byID: {
+          [myfavelabel.id]: myfavelabel,
+          allIDs: [myfavelabel.id],
+          status: RemoteDataState.Done,
+        },
+      },
+    },
+  }
+
   describe('labelToRelationship', () => {
     it('converts a label to a relationship struct', () => {
       const actual = labelToRelationship(myfavelabel)
@@ -49,12 +64,18 @@ describe('resourceToTemplate', () => {
     it('converts a variable with dependencies to a template', () => {
       const a = {
         ...createVariable('a', 'x.b + 1'),
-        labels: [myfavelabel],
+        labels: [myfavelabel.id],
       }
+
       const b = createVariable('b', '9000')
+
       const dependencies: any = [a, b]
 
-      const actual = variableToTemplate(myVariable, dependencies)
+      const actual = variableToTemplate(
+        (appState as unknown) as AppState,
+        myVariable,
+        dependencies
+      )
 
       const expected = {
         meta: {
@@ -116,7 +137,7 @@ describe('resourceToTemplate', () => {
                   data: [
                     {
                       type: 'label',
-                      id: '1',
+                      id: 'myfavelabel1',
                     },
                   ],
                 },
@@ -143,7 +164,7 @@ describe('resourceToTemplate', () => {
               },
             },
             {
-              id: '1',
+              id: 'myfavelabel1',
               type: 'label',
               attributes: {
                 name: '1label',
@@ -161,7 +182,32 @@ describe('resourceToTemplate', () => {
 
   describe('taskToTemplate', () => {
     it('converts a task to a template', () => {
-      const actual = taskToTemplate(myfavetask)
+      const label = {
+        id: '037b0c86a92a2000',
+        name: 'yum',
+        properties: {
+          color: '#FF8564',
+          description: '',
+        },
+      }
+
+      const state = {
+        resources: {
+          labels: {
+            byID: {
+              [label.id]: label,
+              allIDs: [label.id],
+              status: RemoteDataState.Done,
+            },
+          },
+        },
+      }
+
+      const actual = taskToTemplate((state as unknown) as AppState, {
+        ...myfavetask,
+        labels: [label.id],
+      })
+
       const expected = {
         content: {
           data: {
@@ -216,15 +262,16 @@ describe('resourceToTemplate', () => {
     it('can convert a dashboard to template', () => {
       const myLabeledVar = {
         ...createVariable('var_1', 'labeled var!'),
-        labels: [myfavelabel as any],
+        labels: [myfavelabel.id],
       }
 
       const dashboardWithDupeLabel = {
         ...myDashboard,
-        labels: [myfavelabel],
+        labels: [myfavelabel.id],
       }
 
       const actual = dashboardToTemplate(
+        (appState as unknown) as AppState,
         dashboardWithDupeLabel,
         [myCell],
         [myView],
@@ -249,7 +296,7 @@ describe('resourceToTemplate', () => {
               label: {
                 data: [
                   {
-                    id: '1',
+                    id: 'myfavelabel1',
                     type: 'label',
                   },
                 ],
@@ -274,7 +321,7 @@ describe('resourceToTemplate', () => {
           },
           included: [
             {
-              id: '1',
+              id: 'myfavelabel1',
               type: 'label',
               attributes: {
                 name: '1label',
@@ -317,6 +364,7 @@ describe('resourceToTemplate', () => {
                           {
                             key: '_measurement',
                             values: [],
+                            aggregateFunctionType: 'filter',
                           },
                         ],
                         functions: [],
@@ -373,7 +421,7 @@ describe('resourceToTemplate', () => {
                   data: [
                     {
                       type: 'label',
-                      id: '1',
+                      id: 'myfavelabel1',
                     },
                   ],
                 },

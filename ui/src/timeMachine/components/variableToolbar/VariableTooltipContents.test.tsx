@@ -48,8 +48,9 @@ const setInitialState = (state: AppState) => {
             values: {
               '04960e76e5afe000': {
                 valueType: 'string',
-                values: Object.keys(variableValues),
-                selectedValue: 'key1',
+                values: variableValues,
+                selectedKey: 'key1',
+                selectedValue: 'value1',
               },
             },
             order: ['04960e76e5afe000'],
@@ -69,7 +70,7 @@ describe("Time Machine's variable dropdown", () => {
       )
 
       fireEvent.click(getByLabelText('Value'))
-      fireEvent.click(getByTestId('dropdown--button'))
+      fireEvent.click(getByTestId('variable-dropdown--button'))
       Object.keys(variableValues).forEach(variableKey => {
         expect(getByText(variableKey)).toBeTruthy()
       })

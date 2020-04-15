@@ -5,10 +5,28 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	platform "github.com/influxdata/influxdb"
-	_ "github.com/influxdata/influxdb/query/builtin"
-	"github.com/influxdata/influxdb/task/options"
+	platform "github.com/influxdata/influxdb/v2"
+	_ "github.com/influxdata/influxdb/v2/query/builtin"
+	"github.com/influxdata/influxdb/v2/task/options"
 )
+
+func TestUpdateValidate(t *testing.T) {
+	tu := &platform.TaskUpdate{}
+	// this is to make sure that string durations are properly marshaled into durations
+	if err := json.Unmarshal([]byte(`{"every":"3d2h", "offset":"1h"}`), tu); err != nil {
+		t.Fatal(err)
+	}
+	if tu.Options.Every.String() != "3d2h" {
+		t.Fatalf("option.every not properly unmarshaled, expected 10s got %s", tu.Options.Every)
+	}
+	if tu.Options.Offset.String() != "1h" {
+		t.Fatalf("option.every not properly unmarshaled, expected 1h got %s", tu.Options.Offset)
+	}
+	if err := tu.Validate(); err != nil {
+		t.Fatalf("expected task update to be valid but it was not: %s", err)
+	}
+
+}
 
 func TestOptionsMarshal(t *testing.T) {
 	tu := &platform.TaskUpdate{}
@@ -137,4 +155,13 @@ from(bucket: "x")
 		}
 	})
 
+}
+
+func TestParseRequestStillQueuedError(t *testing.T) {
+	e := platform.RequestStillQueuedError{Start: 1000, End: 2000}
+	validMsg := e.Error()
+
+	if err := platform.ParseRequestStillQueuedError(validMsg); err == nil || *err != e {
+		t.Fatalf("%q should have parsed to %v, but got %v", validMsg, e, err)
+	}
 }

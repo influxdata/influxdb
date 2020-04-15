@@ -13,9 +13,9 @@ import (
 	"github.com/NYTimes/gziphandler"
 	"github.com/bouk/httprouter"
 	jhttprouter "github.com/influxdata/httprouter"
-	"github.com/influxdata/influxdb/chronograf"
-	"github.com/influxdata/influxdb/chronograf/oauth2"
-	"github.com/influxdata/influxdb/chronograf/roles"
+	"github.com/influxdata/influxdb/v2/chronograf"
+	"github.com/influxdata/influxdb/v2/chronograf/oauth2"
+	"github.com/influxdata/influxdb/v2/chronograf/roles"
 )
 
 const (

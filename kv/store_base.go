@@ -6,8 +6,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/kit/tracing"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/tracing"
 )
 
 type Entity struct {
@@ -76,7 +76,7 @@ func NewOrgNameKeyStore(resource string, bktName []byte, caseSensitive bool) *St
 			return Entity{}, err
 		}
 
-		ent := Entity{PK: Encode(EncID(id))}
+		ent := Entity{PK: EncID(id)}
 		if len(k) == 0 {
 			return ent, nil
 		}

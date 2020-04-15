@@ -85,8 +85,8 @@ describe('Dashboards', () => {
   })
 
   it('keeps user input in text area when attempting to import invalid JSON', () => {
-    cy.getByTestID('page-header').within(() => {
-      cy.contains('Create').click()
+    cy.getByTestID('page-control-bar').within(() => {
+      cy.getByTestID('add-resource-dropdown--button').click()
     })
 
     cy.getByTestID('add-resource-dropdown--import').click()

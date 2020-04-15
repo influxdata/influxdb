@@ -43,10 +43,12 @@ export const myView: View = {
             {
               key: '_measurement',
               values: ['cpu'],
+              aggregateFunctionType: 'filter',
             },
             {
               key: '_field',
               values: [],
+              aggregateFunctionType: 'filter',
             },
           ],
           functions: [],
@@ -86,9 +88,10 @@ export const myView: View = {
 }
 
 export const myfavelabel: Label = {
-  id: '1',
+  id: 'myfavelabel1',
   name: '1label',
   properties: {color: 'fffff', description: 'omg'},
+  status: RemoteDataState.Done,
 }
 
 export const myfavetask: Task = {
@@ -97,13 +100,7 @@ export const myfavetask: Task = {
   flux:
     'option task = {name: "lala", every: 24h0m0s, offset: 1m0s}\n\nfrom(bucket: "defnuck")\n\t|> range(start: -task.every)',
   id: '037b0877b359a000',
-  labels: [
-    {
-      id: '037b0c86a92a2000',
-      name: 'yum',
-      properties: {color: '#FF8564', description: ''},
-    },
-  ],
+  labels: [myfavelabel.id],
   name: 'lala',
   offset: '1m0s',
   org: 'org',

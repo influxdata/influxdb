@@ -3,14 +3,13 @@ package tsm1
 import (
 	"sort"
 
-	"github.com/influxdata/influxdb/tsdb"
-	"github.com/influxdata/influxdb/tsdb/cursors"
+	"github.com/influxdata/influxdb/v2/tsdb/cursors"
 )
 
 // Array Cursors
 
 {{range .}}
-{{$arrayType := print "*tsdb." .Name "Array"}}
+{{$arrayType := print "*cursors." .Name "Array"}}
 {{$type := print .name "ArrayAscendingCursor"}}
 {{$Type := print .Name "ArrayAscendingCursor"}}
 
@@ -34,9 +33,9 @@ type {{$type}} struct {
 
 func new{{$Type}}() *{{$type}} {
 	c := &{{$type}}{
-		res: tsdb.New{{.Name}}ArrayLen(MaxPointsPerBlock),
+		res: cursors.New{{.Name}}ArrayLen(MaxPointsPerBlock),
 	}
-	c.tsm.buf = tsdb.New{{.Name}}ArrayLen(MaxPointsPerBlock)
+	c.tsm.buf = cursors.New{{.Name}}ArrayLen(MaxPointsPerBlock)
 	return c
 }
 
@@ -192,9 +191,9 @@ type {{$type}} struct {
 
 func new{{$Type}}() *{{$type}} {
 	c := &{{$type}}{
-		res: tsdb.New{{.Name}}ArrayLen(MaxPointsPerBlock),
+		res: cursors.New{{.Name}}ArrayLen(MaxPointsPerBlock),
 	}
-	c.tsm.buf = tsdb.New{{.Name}}ArrayLen(MaxPointsPerBlock)
+	c.tsm.buf = cursors.New{{.Name}}ArrayLen(MaxPointsPerBlock)
 	return c
 }
 

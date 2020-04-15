@@ -3,7 +3,7 @@ package tsm1
 import (
 	"sort"
 
-	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/v2/tsdb/cursors"
 )
 
 {{range .}}
@@ -272,7 +272,7 @@ func (k *tsmBatchKeyIterator) combine{{.Name}}(dedup bool) blocks {
 					continue
 				}
 
-				var v tsdb.{{.Name}}Array
+				var v cursors.{{.Name}}Array
 				var err error
 				if err = Decode{{.Name}}ArrayBlock(k.blocks[i].b, &v); err != nil {
 					k.err = err
@@ -357,7 +357,7 @@ func (k *tsmBatchKeyIterator) combine{{.Name}}(dedup bool) blocks {
 			continue
 		}
 
-		var v tsdb.{{.Name}}Array
+		var v cursors.{{.Name}}Array
 		if err := Decode{{.Name}}ArrayBlock(k.blocks[i].b, &v); err != nil {
 			k.err = err
 			return nil
@@ -386,7 +386,7 @@ func (k *tsmBatchKeyIterator) combine{{.Name}}(dedup bool) blocks {
 
 func (k *tsmBatchKeyIterator) chunk{{.Name}}(dst blocks) blocks {
 	if k.merged{{.Name}}Values.Len() > k.size {
-		var values tsdb.{{.Name}}Array
+		var values cursors.{{.Name}}Array
 		values.Timestamps = k.merged{{.Name}}Values.Timestamps[:k.size]
 		minTime, maxTime := values.Timestamps[0], values.Timestamps[len(values.Timestamps)-1]
 		values.Values = k.merged{{.Name}}Values.Values[:k.size]

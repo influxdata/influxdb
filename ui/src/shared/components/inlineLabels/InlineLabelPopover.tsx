@@ -8,7 +8,7 @@ import React, {
 import _ from 'lodash'
 
 // Components
-import {Input} from '@influxdata/clockface'
+import {Input, ButtonBaseRef} from '@influxdata/clockface'
 import InlineLabelsList from 'src/shared/components/inlineLabels/InlineLabelsList'
 
 // Constants
@@ -34,7 +34,7 @@ enum ArrowDirection {
 
 interface Props {
   searchTerm: string
-  triggerRef: RefObject<HTMLDivElement>
+  triggerRef: RefObject<ButtonBaseRef>
   selectedItemID: string
   onUpdateSelectedItemID: (highlightedID: string) => void
   allLabelsUsed: boolean
@@ -68,8 +68,9 @@ export default class InlineLabelPopover extends PureComponent<Props> {
         showEvent={PopoverInteraction.Click}
         hideEvent={PopoverInteraction.Click}
         testID="inline-labels--popover"
+        className="inline-labels--popover"
         contents={() => (
-          <span>
+          <>
             <h5 className="inline-labels--popover-heading">Add Labels</h5>
             <Input
               icon={IconFont.Search}
@@ -80,6 +81,7 @@ export default class InlineLabelPopover extends PureComponent<Props> {
               autoFocus={true}
               onBlur={this.handleRefocusInput}
               testID="inline-labels--popover-field"
+              maxLength={30}
             />
             <InlineLabelsList
               searchTerm={searchTerm}
@@ -90,7 +92,7 @@ export default class InlineLabelPopover extends PureComponent<Props> {
               onUpdateSelectedItemID={onUpdateSelectedItemID}
               onStartCreatingLabel={onStartCreatingLabel}
             />
-          </span>
+          </>
         )}
       />
     )

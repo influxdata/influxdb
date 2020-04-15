@@ -15,10 +15,11 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/influxdb/logger"
-	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/tsdb"
-	"github.com/influxdata/influxdb/tsdb/tsi1"
+	"github.com/influxdata/influxdb/v2/logger"
+	"github.com/influxdata/influxdb/v2/models"
+	"github.com/influxdata/influxdb/v2/tsdb"
+	"github.com/influxdata/influxdb/v2/tsdb/seriesfile"
+	"github.com/influxdata/influxdb/v2/tsdb/tsi1"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 )
@@ -108,7 +109,7 @@ func TestIndex_MeasurementExists(t *testing.T) {
 	}
 
 	// Delete one series.
-	if err := idx.DropSeries(sid, models.MakeKey(name, tags), true); err != nil {
+	if err := idx.DropSeries([]tsi1.DropSeriesItem{{SeriesID: sid, Key: models.MakeKey(name, tags)}}, true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -127,7 +128,7 @@ func TestIndex_MeasurementExists(t *testing.T) {
 	if sid.IsZero() {
 		t.Fatalf("got 0 series id for %s/%v", name, tags)
 	}
-	if err := idx.DropSeries(sid, models.MakeKey(name, tags), true); err != nil {
+	if err := idx.DropSeries([]tsi1.DropSeriesItem{{SeriesID: sid, Key: models.MakeKey(name, tags)}}, true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -377,7 +378,7 @@ func TestIndex_MeasurementCardinalityStats(t *testing.T) {
 		}
 
 		seriesID := idx.SeriesFile.SeriesID([]byte("cpu"), models.NewTags(map[string]string{"region": "west"}), nil)
-		if err := idx.DropSeries(seriesID, idx.SeriesFile.SeriesKey(seriesID), true); err != nil {
+		if err := idx.DropSeries([]tsi1.DropSeriesItem{{SeriesID: seriesID, Key: idx.SeriesFile.SeriesKey(seriesID)}}, true); err != nil {
 			t.Fatal(err)
 		} else if stats, err := idx.MeasurementCardinalityStats(); err != nil {
 			t.Fatal(err)
@@ -386,7 +387,7 @@ func TestIndex_MeasurementCardinalityStats(t *testing.T) {
 		}
 
 		seriesID = idx.SeriesFile.SeriesID([]byte("mem"), models.NewTags(map[string]string{"region": "east"}), nil)
-		if err := idx.DropSeries(seriesID, idx.SeriesFile.SeriesKey(seriesID), true); err != nil {
+		if err := idx.DropSeries([]tsi1.DropSeriesItem{{SeriesID: seriesID, Key: idx.SeriesFile.SeriesKey(seriesID)}}, true); err != nil {
 			t.Fatal(err)
 		} else if stats, err := idx.MeasurementCardinalityStats(); err != nil {
 			t.Fatal(err)
@@ -637,7 +638,7 @@ func BenchmarkIndex_CreateSeriesListIfNotExist(b *testing.B) {
 			return nil, nil, rmdir, err
 		}
 
-		sfile := tsdb.NewSeriesFile(seriesPath)
+		sfile := seriesfile.NewSeriesFile(seriesPath)
 		if err := sfile.Open(context.Background()); err != nil {
 			return nil, nil, rmdir, err
 		}

@@ -2,17 +2,30 @@
 import {produce} from 'immer'
 
 // Types
-import {RemoteDataState, Check} from 'src/types'
-import {Action} from 'src/checks/actions'
+import {Check, RemoteDataState, ResourceState, ResourceType} from 'src/types'
+import {
+  Action,
+  SET_CHECKS,
+  SET_CHECK,
+  REMOVE_CHECK,
+  REMOVE_LABEL_FROM_CHECK,
+} from 'src/checks/actions/creators'
 
-export interface ChecksState {
-  status: RemoteDataState
-  list: Check[]
-}
+import {SET_LABEL_ON_RESOURCE} from 'src/labels/actions/creators'
+
+import {
+  setResource,
+  setResourceAtID,
+  removeResource,
+  setRelation,
+} from 'src/resources/reducers/helpers'
+
+export type ChecksState = ResourceState['checks']
 
 export const defaultChecksState: ChecksState = {
   status: RemoteDataState.NotStarted,
-  list: [],
+  byID: {},
+  allIDs: [],
 }
 
 export interface ResourceIDs {
@@ -27,48 +40,39 @@ export default (
 ): ChecksState =>
   produce(state, draftState => {
     switch (action.type) {
-      case 'SET_ALL_CHECKS':
-        const {status, checks} = action.payload
-        draftState.status = status
-        if (checks) {
-          draftState.list = checks
-        }
-        return
+      case SET_CHECKS: {
+        setResource<Check>(draftState, action, ResourceType.Checks)
 
-      case 'SET_CHECK':
-        const newCheck = action.payload.check
-        const checkIndex = state.list.findIndex(c => c.id == newCheck.id)
-
-        if (checkIndex == -1) {
-          draftState.list.push(newCheck)
-        } else {
-          draftState.list[checkIndex] = newCheck
-        }
         return
+      }
 
-      case 'REMOVE_CHECK':
-        const {checkID} = action.payload
-        draftState.list = draftState.list.filter(c => c.id != checkID)
-        return
+      case SET_CHECK: {
+        setResourceAtID<Check>(draftState, action, ResourceType.Checks)
 
-      case 'ADD_LABEL_TO_CHECK':
-        draftState.list = draftState.list.map(c => {
-          if (c.id === action.payload.checkID) {
-            c.labels = [...c.labels, action.payload.label]
-          }
-          return c
-        })
         return
+      }
 
-      case 'REMOVE_LABEL_FROM_CHECK':
-        draftState.list = draftState.list.map(c => {
-          if (c.id === action.payload.checkID) {
-            c.labels = c.labels.filter(
-              label => label.id !== action.payload.label.id
-            )
-          }
-          return c
-        })
+      case REMOVE_CHECK: {
+        removeResource<Check>(draftState, action)
+
         return
+      }
+
+      case SET_LABEL_ON_RESOURCE: {
+        const {resourceID, schema} = action
+        const labelID = schema.result
+
+        setRelation<Check>(draftState, ResourceType.Labels, labelID, resourceID)
+
+        return
+      }
+
+      case REMOVE_LABEL_FROM_CHECK: {
+        const {checkID, labelID} = action
+        const labels = draftState.byID[checkID].labels
+        draftState.byID[checkID].labels = labels.filter(id => id !== labelID)
+
+        return
+      }
     }
   })

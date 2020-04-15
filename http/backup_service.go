@@ -14,15 +14,19 @@ import (
 	"time"
 
 	"github.com/influxdata/httprouter"
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/bolt"
-	"github.com/influxdata/influxdb/internal/fs"
-	"github.com/influxdata/influxdb/kit/tracing"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/bolt"
+	"github.com/influxdata/influxdb/v2/internal/fs"
+	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
 )
 
+// DefaultTokenFile is deprecated, and will be only used for migration.
 const DefaultTokenFile = "credentials"
+
+// DefaultConfigsFile stores cli credentials and hosts.
+const DefaultConfigsFile = "configs"
 
 // BackupBackend is all services and associated parameters required to construct the BackupHandler.
 type BackupBackend struct {
@@ -44,6 +48,7 @@ func NewBackupBackend(b *APIBackend) *BackupBackend {
 	}
 }
 
+// BackupHandler is http handler for backup service.
 type BackupHandler struct {
 	*httprouter.Router
 	influxdb.HTTPErrorHandler
@@ -117,25 +122,16 @@ func (h *BackupHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 
 	files = append(files, bolt.DefaultFilename)
 
-	credBackupPath := filepath.Join(internalBackupPath, DefaultTokenFile)
+	credsExist, err := h.backupCredentials(internalBackupPath)
 
-	credPath, err := defaultTokenPath()
-	if err != nil {
-		h.HandleHTTPError(ctx, err, w)
-		return
-	}
-	token, err := ioutil.ReadFile(credPath)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
-	if err := ioutil.WriteFile(credBackupPath, []byte(token), 0600); err != nil {
-		h.HandleHTTPError(ctx, err, w)
-		return
+	if credsExist {
+		files = append(files, DefaultConfigsFile)
 	}
-
-	files = append(files, DefaultTokenFile)
 
 	b := backup{
 		ID:    id,
@@ -146,6 +142,26 @@ func (h *BackupHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
+}
+
+func (h *BackupHandler) backupCredentials(internalBackupPath string) (bool, error) {
+	credBackupPath := filepath.Join(internalBackupPath, DefaultConfigsFile)
+
+	credPath, err := defaultConfigsPath()
+	if err != nil {
+		return false, err
+	}
+	token, err := ioutil.ReadFile(credPath)
+	if err != nil && !os.IsNotExist(err) {
+		return false, err
+	} else if os.IsNotExist(err) {
+		return false, nil
+	}
+
+	if err := ioutil.WriteFile(credBackupPath, []byte(token), 0600); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func (h *BackupHandler) handleFetchFile(w http.ResponseWriter, r *http.Request) {
@@ -247,12 +263,12 @@ func (s *BackupService) FetchBackupFile(ctx context.Context, backupID int, backu
 	return nil
 }
 
-func defaultTokenPath() (string, error) {
+func defaultConfigsPath() (string, error) {
 	dir, err := fs.InfluxDir()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(dir, DefaultTokenFile), nil
+	return filepath.Join(dir, DefaultConfigsFile), nil
 }
 
 func (s *BackupService) InternalBackupPath(backupID int) string {

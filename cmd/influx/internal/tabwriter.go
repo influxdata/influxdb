@@ -6,33 +6,38 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	platform "github.com/influxdata/influxdb"
+	platform "github.com/influxdata/influxdb/v2"
 )
 
-type tabWriter struct {
+// TabWriter wraps tab writer headers logic.
+type TabWriter struct {
 	writer      *tabwriter.Writer
 	headers     []string
 	hideHeaders bool
 }
 
-func NewTabWriter(w io.Writer) *tabWriter {
-	return &tabWriter{
+// NewTabWriter creates a new tab writer.
+func NewTabWriter(w io.Writer) *TabWriter {
+	return &TabWriter{
 		writer: tabwriter.NewWriter(w, 0, 8, 1, '\t', 0),
 	}
 }
 
-func (w *tabWriter) HideHeaders(b bool) {
+// HideHeaders will set the hideHeaders flag.
+func (w *TabWriter) HideHeaders(b bool) {
 	w.hideHeaders = b
 }
 
-func (w *tabWriter) WriteHeaders(h ...string) {
+// WriteHeaders will write headers.
+func (w *TabWriter) WriteHeaders(h ...string) {
 	w.headers = h
 	if !w.hideHeaders {
 		fmt.Fprintln(w.writer, strings.Join(h, "\t"))
 	}
 }
 
-func (w *tabWriter) Write(m map[string]interface{}) {
+// Write will write the map into embed tab writer.
+func (w *TabWriter) Write(m map[string]interface{}) {
 	body := make([]interface{}, len(w.headers))
 	types := make([]string, len(w.headers))
 	for i, h := range w.headers {
@@ -45,7 +50,11 @@ func (w *tabWriter) Write(m map[string]interface{}) {
 	fmt.Fprintf(w.writer, formatString+"\n", body...)
 }
 
-func (w *tabWriter) Flush() {
+// Flush should be called after the last call to Write to ensure
+// that any data buffered in the Writer is written to output. Any
+// incomplete escape sequence at the end is considered
+// complete for formatting purposes.
+func (w *TabWriter) Flush() {
 	w.writer.Flush()
 }
 

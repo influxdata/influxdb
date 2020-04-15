@@ -1,6 +1,6 @@
-class Deferred {
-  public promise: Promise<any>
-  public resolve: (...rest: any[]) => void
+class Deferred<T = any> {
+  public promise: Promise<T>
+  public resolve: (...rest: T[]) => void
   public reject: (error: Error) => void
 
   constructor() {

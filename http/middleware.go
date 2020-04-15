@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	kithttp "github.com/influxdata/influxdb/kit/transport/http"
+	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"go.uber.org/zap"
 )
 
@@ -27,13 +27,13 @@ func LoggingMW(log *zap.Logger) kithttp.Middleware {
 
 			defer func(start time.Time) {
 				errField := zap.Skip()
-				if errStr := w.Header().Get(PlatformErrorCodeHeader); errStr != "" {
+				if errStr := w.Header().Get(kithttp.PlatformErrorCodeHeader); errStr != "" {
 					errField = zap.Error(errors.New(errStr))
 				}
 
 				errReferenceField := zap.Skip()
-				if errReference := w.Header().Get(PlatformErrorCodeHeader); errReference != "" {
-					errReferenceField = zap.String("error_code", PlatformErrorCodeHeader)
+				if errReference := w.Header().Get(kithttp.PlatformErrorCodeHeader); errReference != "" {
+					errReferenceField = zap.String("error_code", errReference)
 				}
 
 				fields := []zap.Field{
@@ -125,13 +125,14 @@ func ignoreMethod(ignoredMethods ...string) isValidMethodFn {
 	}
 }
 
+// TODO(@jsteenb2): make this a stronger type that handlers can register routes that should not be logged.
 var blacklistEndpoints = map[string]isValidMethodFn{
 	prefixSignIn:                     ignoreMethod(),
 	prefixSignOut:                    ignoreMethod(),
 	prefixMe:                         ignoreMethod(),
 	mePasswordPath:                   ignoreMethod(),
 	usersPasswordPath:                ignoreMethod(),
-	prefixPackages + "/apply":        ignoreMethod(),
+	"/api/v2/packages/apply":         ignoreMethod(),
 	prefixWrite:                      ignoreMethod("POST"),
 	organizationsIDSecretsPath:       ignoreMethod("PATCH"),
 	organizationsIDSecretsDeletePath: ignoreMethod("POST"),

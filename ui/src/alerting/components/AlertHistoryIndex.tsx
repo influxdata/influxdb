@@ -9,6 +9,7 @@ import EventTable from 'src/eventViewer/components/EventTable'
 import AlertHistoryControls from 'src/alerting/components/AlertHistoryControls'
 import AlertHistoryQueryParams from 'src/alerting/components/AlertHistoryQueryParams'
 import GetResources from 'src/resources/components/GetResources'
+import CloudUpgradeButton from 'src/shared/components/CloudUpgradeButton'
 
 // Constants
 import {
@@ -73,22 +74,23 @@ const AlertHistoryIndex: FC<Props> = ({params: {orgID}, resourceIDs}) => {
               className="alert-history-page"
             >
               <Page.Header fullWidth={true}>
-                <div className="alert-history-page--header">
-                  <Page.Title
-                    title="Check Statuses"
-                    testID="alert-history-title"
-                  />
-                  <AlertHistoryQueryParams
-                    searchInput={props.state.searchInput}
-                    historyType={historyType}
-                  />
-                  <AlertHistoryControls
-                    historyType={historyType}
-                    onSetHistoryType={setHistoryType}
-                    eventViewerProps={props}
-                  />
-                </div>
+                <Page.Title
+                  title="Check Statuses"
+                  testID="alert-history-title"
+                />
+                <CloudUpgradeButton />
               </Page.Header>
+              <Page.ControlBar fullWidth={true}>
+                <AlertHistoryQueryParams
+                  searchInput={props.state.searchInput}
+                  historyType={historyType}
+                />
+                <AlertHistoryControls
+                  historyType={historyType}
+                  onSetHistoryType={setHistoryType}
+                  eventViewerProps={props}
+                />
+              </Page.ControlBar>
               <Page.Contents
                 fullWidth={true}
                 scrollable={false}

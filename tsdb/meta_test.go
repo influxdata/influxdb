@@ -5,60 +5,9 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/v2/models"
+	"github.com/influxdata/influxdb/v2/tsdb"
 )
-
-// Ensure tags can be marshaled into a byte slice.
-func TestMarshalTags(t *testing.T) {
-	for i, tt := range []struct {
-		tags   map[string]string
-		result []byte
-	}{
-		{
-			tags:   nil,
-			result: nil,
-		},
-		{
-			tags:   map[string]string{"foo": "bar"},
-			result: []byte(`foo|bar`),
-		},
-		{
-			tags:   map[string]string{"foo": "bar", "baz": "battttt"},
-			result: []byte(`baz|foo|battttt|bar`),
-		},
-		{
-			tags:   map[string]string{"baz": "battttt", "foo": "bar"},
-			result: []byte(`baz|foo|battttt|bar`),
-		},
-	} {
-		result := tsdb.MarshalTags(tt.tags)
-		if !bytes.Equal(result, tt.result) {
-			t.Fatalf("%d. unexpected result: exp=%s, got=%s", i, tt.result, result)
-		}
-	}
-}
-
-func BenchmarkMarshalTags_KeyN1(b *testing.B)  { benchmarkMarshalTags(b, 1) }
-func BenchmarkMarshalTags_KeyN3(b *testing.B)  { benchmarkMarshalTags(b, 3) }
-func BenchmarkMarshalTags_KeyN5(b *testing.B)  { benchmarkMarshalTags(b, 5) }
-func BenchmarkMarshalTags_KeyN10(b *testing.B) { benchmarkMarshalTags(b, 10) }
-
-func benchmarkMarshalTags(b *testing.B, keyN int) {
-	const keySize, valueSize = 8, 15
-
-	// Generate tag map.
-	tags := make(map[string]string)
-	for i := 0; i < keyN; i++ {
-		tags[fmt.Sprintf("%0*d", keySize, i)] = fmt.Sprintf("%0*d", valueSize, i)
-	}
-
-	// Unmarshal map into byte slice.
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		tsdb.MarshalTags(tags)
-	}
-}
 
 // Ensure tags can be marshaled into a byte slice.
 func TestMakeTagsKey(t *testing.T) {
@@ -137,11 +86,4 @@ func benchmarkMakeTagsKey(b *testing.B, keyN int) {
 	for i := 0; i < b.N; i++ {
 		tsdb.MakeTagsKey(keys, tags)
 	}
-}
-
-type TestSeries struct {
-	Measurement string
-	Key         string
-	Tags        models.Tags
-	Type        models.FieldType
 }

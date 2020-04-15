@@ -9,7 +9,7 @@ import (
 	"unsafe"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/influxdb/pkg/bytesutil"
+	"github.com/influxdata/influxdb/v2/pkg/bytesutil"
 )
 
 func TestCopyChunkedByteSlices_oneChunk(t *testing.T) {

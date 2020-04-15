@@ -13,24 +13,12 @@ const PythonLogo: SFC = () => {
       <style>
         {`
           .python0{fill:none;}
-          .python1{fill:url(#path1948_1_);}
-          .python2{fill:url(#path1950_1_);}
+          .python1{fill:#5A9FD4;}
+          .python2{fill:#FFD43B;}
         `}
       </style>
       <rect className="python0" width={300} height={300} />
       <g>
-        <linearGradient
-          id="path1948_1_"
-          gradientUnits="userSpaceOnUse"
-          x1="125.7967"
-          y1="170.4548"
-          x2="290.6952"
-          y2="28.5818"
-          gradientTransform="matrix(0.5625 0 0 -0.568 -8.9623 166.6543)"
-        >
-          <stop offset={0} style={{stopColor: '#5A9FD4'}} />
-          <stop offset={1} style={{stopColor: '#306998'}} />
-        </linearGradient>
         <path
           id="path1948"
           className="python1"
@@ -39,18 +27,6 @@ const PythonLogo: SFC = () => {
         		c11.3,0,20.3-9.3,20.3-20.6V87.7c0-11-9.3-19.2-20.3-21.1C163.2,65.5,155.9,65,149,65z M127.1,77.4c4.2,0,7.6,3.5,7.6,7.8
         		c0,4.3-3.4,7.7-7.6,7.7c-4.2,0-7.6-3.4-7.6-7.7C119.5,80.9,122.9,77.4,127.1,77.4z"
         />
-        <linearGradient
-          id="path1950_1_"
-          gradientUnits="userSpaceOnUse"
-          x1="354.446"
-          y1="-57.2856"
-          x2="295.5609"
-          y2="26.0267"
-          gradientTransform="matrix(0.5625 0 0 -0.568 -8.9623 166.6543)"
-        >
-          <stop offset={0} style={{stopColor: '#FFD43B'}} />
-          <stop offset={1} style={{stopColor: '#FFE873'}} />
-        </linearGradient>
         <path
           id="path1950"
           className="python2"

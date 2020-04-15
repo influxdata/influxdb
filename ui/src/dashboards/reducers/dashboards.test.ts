@@ -2,7 +2,7 @@
 import {normalize} from 'normalizr'
 
 // Schema
-import * as schemas from 'src/schemas'
+import {dashboardSchema, arrayOfDashboards} from 'src/schemas'
 
 // Reducer
 import {dashboardsReducer as reducer} from 'src/dashboards/reducers/dashboards'
@@ -13,14 +13,11 @@ import {
   setDashboards,
   removeDashboard,
   editDashboard,
-  addDashboardLabel,
-  removeDashboardLabel,
 } from 'src/dashboards/actions/creators'
 import {removeCell} from 'src/cells/actions/creators'
 
 // Resources
 import {dashboard} from 'src/dashboards/resources'
-import {labels} from 'mocks/dummyData'
 
 // Types
 import {RemoteDataState, DashboardEntities, Dashboard} from 'src/types'
@@ -40,7 +37,7 @@ describe('dashboards reducer', () => {
   it('can set the dashboards', () => {
     const schema = normalize<Dashboard, DashboardEntities, string[]>(
       [dashboard],
-      schemas.arrayOfDashboards
+      arrayOfDashboards
     )
 
     const byID = schema.entities.dashboards
@@ -68,7 +65,7 @@ describe('dashboards reducer', () => {
     const loadedDashboard = {...dashboard, name: 'updated name'}
     const schema = normalize<Dashboard, DashboardEntities, string>(
       loadedDashboard,
-      schemas.dashboard
+      dashboardSchema
     )
 
     const state = initialState()
@@ -87,7 +84,7 @@ describe('dashboards reducer', () => {
 
     const schema = normalize<Dashboard, DashboardEntities, string>(
       updates,
-      schemas.dashboard
+      dashboardSchema
     )
 
     const state = initialState()
@@ -103,26 +100,5 @@ describe('dashboards reducer', () => {
     const actual = reducer(state, removeCell({dashboardID: id, id: cellID}))
 
     expect(actual.byID[id].cells).toEqual([])
-  })
-
-  it('can add labels to a dashboard', () => {
-    const {id} = dashboard
-    const state = initialState()
-    const label = labels[0]
-
-    const actual = reducer(state, addDashboardLabel(id, label))
-
-    expect(actual.byID[id].labels).toEqual([label])
-  })
-
-  it('can remove labels from a dashboard', () => {
-    const {id} = dashboard
-    const label = labels[0]
-
-    const state = initialState()
-    const withLabel = reducer(state, addDashboardLabel(id, label))
-    const actual = reducer(withLabel, removeDashboardLabel(id, labels[0].id))
-
-    expect(actual.byID[id].labels).toEqual([])
   })
 })

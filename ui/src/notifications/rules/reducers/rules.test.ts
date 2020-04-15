@@ -1,37 +1,62 @@
+// Libraries
+import {normalize} from 'normalizr'
+
+// Schemas
+import {arrayOfRules, ruleSchema} from 'src/schemas/rules'
+
+// Reducers
 import rulesReducer, {
   defaultNotificationRulesState,
 } from 'src/notifications/rules/reducers'
 
 import {
-  setAllNotificationRules,
+  setRules,
   setRule,
   setCurrentRule,
   removeRule,
-} from 'src/notifications/rules/actions'
+} from 'src/notifications/rules/actions/creators'
 
 import {initRuleDraft} from 'src/notifications/rules/utils'
 
-import {RemoteDataState} from 'src/types'
+import {
+  GenRule,
+  RemoteDataState,
+  RuleEntities,
+  NotificationRule,
+} from 'src/types'
 
-const NEW_RULE_DRAFT = initRuleDraft('')
+const ruleID = '1'
+const NEW_RULE_DRAFT: GenRule = {
+  ...initRuleDraft(''),
+  id: ruleID,
+  status: 'active',
+  statusRules: [],
+  tagRules: [],
+}
 
 describe('rulesReducer', () => {
-  describe('setAllNotificationRules', () => {
+  describe('setRules', () => {
     it('sets list and status properties of state.', () => {
       const initialState = defaultNotificationRulesState
 
+      const rules = normalize<NotificationRule, RuleEntities, string[]>(
+        [NEW_RULE_DRAFT],
+        arrayOfRules
+      )
+
       const actual = rulesReducer(
         initialState,
-        setAllNotificationRules(RemoteDataState.Done, [NEW_RULE_DRAFT])
+        setRules(RemoteDataState.Done, rules)
       )
 
       const expected = {
-        ...defaultNotificationRulesState,
-        list: [NEW_RULE_DRAFT],
+        ...NEW_RULE_DRAFT,
         status: RemoteDataState.Done,
       }
 
-      expect(actual).toEqual(expected)
+      expect(actual.status).toEqual(RemoteDataState.Done)
+      expect(actual.byID[ruleID]).toEqual(expected)
+      expect(actual.allIDs).toEqual([ruleID])
     })
   })
 
@@ -39,49 +64,55 @@ describe('rulesReducer', () => {
     it('adds rule to list if it is new', () => {
       const initialState = defaultNotificationRulesState
 
-      const actual = rulesReducer(initialState, setRule(NEW_RULE_DRAFT))
+      const rule = normalize<NotificationRule, RuleEntities, string>(
+        NEW_RULE_DRAFT,
+        ruleSchema
+      )
+
+      const actual = rulesReducer(
+        initialState,
+        setRule(ruleID, RemoteDataState.Done, rule)
+      )
 
       const expected = {
-        ...defaultNotificationRulesState,
-        list: [NEW_RULE_DRAFT],
+        ...NEW_RULE_DRAFT,
+        status: RemoteDataState.Done,
       }
 
-      expect(actual).toEqual(expected)
+      expect(actual.byID[ruleID]).toEqual(expected)
+      expect(actual.allIDs).toEqual([ruleID])
     })
 
     it('updates rule in list if it exists', () => {
       const initialState = defaultNotificationRulesState
-      initialState.list = [NEW_RULE_DRAFT]
+      const rule = {...NEW_RULE_DRAFT, name: 'moo'}
+
+      const normRule = normalize<NotificationRule, RuleEntities, string>(
+        rule,
+        ruleSchema
+      )
 
       const actual = rulesReducer(
         initialState,
-        setRule({
-          ...NEW_RULE_DRAFT,
-          name: 'moo',
-        })
+        setRule(ruleID, RemoteDataState.Done, normRule)
       )
 
       const expected = {
-        ...defaultNotificationRulesState,
-        list: [{...NEW_RULE_DRAFT, name: 'moo'}],
+        ...rule,
+        status: RemoteDataState.Done,
       }
 
-      expect(actual).toEqual(expected)
+      expect(actual.byID[ruleID]).toEqual(expected)
     })
   })
 
   describe('removeRule', () => {
     it('removes rule from list', () => {
       const initialState = defaultNotificationRulesState
-      initialState.list = [NEW_RULE_DRAFT]
       const actual = rulesReducer(initialState, removeRule(NEW_RULE_DRAFT.id))
 
-      const expected = {
-        ...defaultNotificationRulesState,
-        list: [],
-      }
-
-      expect(actual).toEqual(expected)
+      expect(actual.allIDs).toEqual([])
+      expect(actual.byID).toEqual({})
     })
   })
 
@@ -89,20 +120,21 @@ describe('rulesReducer', () => {
     it('sets current rule and status.', () => {
       const initialState = defaultNotificationRulesState
 
-      const actual = rulesReducer(
-        initialState,
-        setCurrentRule(RemoteDataState.Done, NEW_RULE_DRAFT)
+      const rule = normalize<NotificationRule, RuleEntities, string>(
+        NEW_RULE_DRAFT,
+        ruleSchema
       )
 
-      const expected = {
-        ...defaultNotificationRulesState,
-        current: {
-          status: RemoteDataState.Done,
-          rule: NEW_RULE_DRAFT,
-        },
-      }
+      const actual = rulesReducer(
+        initialState,
+        setCurrentRule(RemoteDataState.Done, rule)
+      )
 
-      expect(actual).toEqual(expected)
+      expect(actual.current.status).toEqual(RemoteDataState.Done)
+      expect(actual.current.rule).toEqual({
+        ...NEW_RULE_DRAFT,
+        status: RemoteDataState.Done,
+      })
     })
   })
 })

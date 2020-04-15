@@ -2,6 +2,7 @@ package models_test
 
 import (
 	"bytes"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -16,9 +17,10 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/models"
+	"github.com/influxdata/influxdb/v2/tsdb"
+	"github.com/stretchr/testify/assert"
 )
 
 var (
@@ -36,6 +38,16 @@ var (
 
 	sink interface{}
 )
+
+type ID uint64
+
+// EncodeName converts org/bucket pairs to the tsdb internal serialization
+func EncodeName(org, bucket ID) [16]byte {
+	var nameBytes [16]byte
+	binary.BigEndian.PutUint64(nameBytes[0:8], uint64(org))
+	binary.BigEndian.PutUint64(nameBytes[8:16], uint64(bucket))
+	return nameBytes
+}
 
 func TestMarshal(t *testing.T) {
 	got := tags.HashKey()
@@ -151,7 +163,7 @@ func TestPoint_Tags(t *testing.T) {
 }
 
 func TestPoint_StringSize(t *testing.T) {
-	testPoint_cube(t, func(p models.Point) {
+	testPointCube(t, func(p models.Point) {
 		l := p.StringSize()
 		s := p.String()
 
@@ -162,7 +174,7 @@ func TestPoint_StringSize(t *testing.T) {
 }
 
 func TestPoint_AppendString(t *testing.T) {
-	testPoint_cube(t, func(p models.Point) {
+	testPointCube(t, func(p models.Point) {
 		got := p.AppendString(nil)
 		exp := []byte(p.String())
 
@@ -172,7 +184,7 @@ func TestPoint_AppendString(t *testing.T) {
 	})
 }
 
-func testPoint_cube(t *testing.T, f func(p models.Point)) {
+func testPointCube(t *testing.T, f func(p models.Point)) {
 	// heard of a table-driven test? let's make a cube-driven test...
 	tagList := []models.Tags{nil, {models.NewTag([]byte("foo"), []byte("bar"))}, tags}
 	fieldList := []models.Fields{{"a": 42.0}, {"a": 42, "b": "things"}, fields}
@@ -348,6 +360,32 @@ func BenchmarkParseKey(b *testing.B) {
 	line := `cpu,region=us-west,host=serverA,env=prod,target=servers,zone=1c,tag1=value1,tag2=value2,tag3=value3,tag4=value4,tag5=value5`
 	for i := 0; i < b.N; i++ {
 		models.ParseKey([]byte(line))
+	}
+}
+
+var (
+	dummyName []byte
+)
+
+func BenchmarkParseMeasurement(b *testing.B) {
+	benchmarks := []struct {
+		input string
+	}{
+		{input: "m,\x00=value"},
+		{input: "m\\ q,\x00=value"},
+		{input: "m,\x00=v\\ alue"},
+		{input: "m,\x00=value,tag0=val0"},
+		{input: "m,\x00=v\\ alue,tag0=val0"},
+	}
+
+	for _, bm := range benchmarks {
+		b.Run(bm.input, func(b *testing.B) {
+			var name []byte
+			for i := 0; i < b.N; i++ {
+				name, _ = models.ParseMeasurement([]byte(bm.input))
+			}
+			dummyName = name
+		})
 	}
 }
 
@@ -823,6 +861,23 @@ func TestParsePointFloatMultipleDecimals(t *testing.T) {
 	}
 }
 
+func TestParseWithLineBreaks(t *testing.T) {
+	ss := []string{
+		"cpu,host=serverA,region=us-west value=1i\ncpu,host=serverA,region=us-west value=2i",
+		"cpu,host=serverA,region=us-west value=1i\n\ncpu,host=serverA,region=us-west value=2i",
+		"cpu,host=serverA,region=us-west value=1i\r\ncpu,host=serverA,region=us-west value=2i",
+	}
+	for _, s := range ss {
+		pp, err := models.ParsePointsString(s, "mm")
+		if err != nil {
+			t.Errorf(`ParsePoints("%s") mismatch. got %v, exp nil`, s, err)
+		}
+		if l := len(pp); l != 2 {
+			t.Errorf(`ParsePoints("%s") mismatch. got %v, exp 2`, s, l)
+		}
+	}
+}
+
 func TestParsePointInteger(t *testing.T) {
 	_, err := models.ParsePointsString(`cpu,host=serverA,region=us-west value=1i`, "mm")
 	if err != nil {
@@ -1267,6 +1322,37 @@ func TestParsePointUnescape(t *testing.T) {
 				"value": int64(1),
 			},
 			time.Unix(0, 0)))
+}
+
+func TestPoints_String(t *testing.T) {
+	tags := models.NewTags(map[string]string{
+		"t1": "v1",
+		"t2": "v2",
+	})
+	pts := make(models.Points, 5)
+	for i := 0; i < len(pts); i++ {
+		point, err := models.NewPoint(
+			"m1",
+			tags,
+			models.Fields{
+				"f1": i,
+			},
+			time.Unix(0, int64(i)),
+		)
+		if err != nil {
+			t.Fatalf("unable to create point %v", err)
+		}
+		pts[i] = point
+	}
+	got := pts.String()
+	want := `m1,t1=v1,t2=v2 f1=0i 0
+m1,t1=v1,t2=v2 f1=1i 1
+m1,t1=v1,t2=v2 f1=2i 2
+m1,t1=v1,t2=v2 f1=3i 3
+m1,t1=v1,t2=v2 f1=4i 4`
+	if got != want {
+		t.Errorf("Points.String() %v| \n want \n%v", got, want)
+	}
 }
 
 func TestParsePointWithTags(t *testing.T) {
@@ -2493,7 +2579,7 @@ func TestParsePointsWithOptions(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			buf := test.read(t)
-			encoded := tsdb.EncodeName(influxdb.ID(1000), influxdb.ID(2000))
+			encoded := EncodeName(ID(1000), ID(2000))
 			mm := models.EscapeMeasurement(encoded[:])
 
 			var stats models.ParserStats
@@ -2715,6 +2801,71 @@ func TestParseName(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestParseMeasurement(t *testing.T) {
+	testCases := []struct {
+		input  string
+		exp    string
+		expErr error
+	}{
+		{input: "%s,\x00=value", exp: "value"},
+		{input: "%s\\ q,\x00=value", exp: "value"},
+		{input: "%s,\x00=v\\ alue", exp: "v alue"},
+		{input: "%s,\x00=value,tag0=val0", exp: "value"},
+		{input: "%s,\x00=v\\ alue,tag0=val0", exp: "v alue"},
+		{input: "%s,tag0=val0", exp: "", expErr: models.ErrMeasurementTagExpected}, // missing \x00
+		{input: "%s", exp: "", expErr: models.ErrMeasurementTagExpected},           // missing tags
+		{input: "", exp: "", expErr: models.ErrInvalidKey},                         // invalid key
+	}
+
+	makeName := func(s string) string {
+		if len(s) < 2 {
+			return "<empty>"
+		}
+		return s[2:]
+	}
+
+	t.Run("measurement did not require escaping", func(t *testing.T) {
+		orgBucketEnc := tsdb.EncodeName(influxdb.ID(0xff00ff), influxdb.ID(0xff11ff))
+		orgBucket := string(models.EscapeMeasurement(orgBucketEnc[:]))
+		for _, tc := range testCases {
+			t.Run(makeName(tc.input), func(t *testing.T) {
+				var key string
+				if len(tc.input) > 0 {
+					key = fmt.Sprintf(tc.input, orgBucket)
+				}
+
+				name, err := models.ParseMeasurement([]byte(key))
+				if !bytes.Equal([]byte(tc.exp), name) {
+					t.Errorf("%s produced measurement %s but expected %s", tc.input, string(name), tc.exp)
+				}
+
+				assert.Equal(t, tc.expErr, err)
+			})
+		}
+	})
+
+	t.Run("measurement required escaping", func(t *testing.T) {
+		orgBucketEnc := tsdb.EncodeName(influxdb.ID(0xff2cff), influxdb.ID(0xff20ff))
+		orgBucket := string(models.EscapeMeasurement(orgBucketEnc[:]))
+		for _, tc := range testCases {
+			t.Run(makeName(tc.input), func(t *testing.T) {
+				var key string
+				if len(tc.input) > 0 {
+					key = fmt.Sprintf(tc.input, orgBucket)
+				}
+
+				name, err := models.ParseMeasurement([]byte(key))
+				if !bytes.Equal([]byte(tc.exp), name) {
+					t.Errorf("%s produced measurement %s but expected %s", tc.input, string(name), tc.exp)
+				}
+
+				assert.Equal(t, tc.expErr, err)
+			})
+		}
+	})
+
 }
 
 func TestValidTagTokens(t *testing.T) {
@@ -3021,7 +3172,7 @@ func BenchmarkNewTagsKeyValues(b *testing.B) {
 func benchParseFile(b *testing.B, name string, repeat int, fn func(b *testing.B, buf []byte, mm []byte, now time.Time)) {
 	b.Helper()
 	buf := mustReadTestData(b, name, repeat)
-	encoded := tsdb.EncodeName(influxdb.ID(1000), influxdb.ID(2000))
+	encoded := EncodeName(ID(1000), ID(2000))
 	mm := models.EscapeMeasurement(encoded[:])
 	now := time.Now()
 

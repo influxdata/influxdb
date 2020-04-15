@@ -64,7 +64,7 @@ const CreateCheckDropdown: FunctionComponent<Props> = ({
     <Dropdown
       button={DropdownButton}
       menu={DropdownMenu}
-      style={{width: '124px'}}
+      style={{width: '164px'}}
     />
   )
 }

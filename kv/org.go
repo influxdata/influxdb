@@ -7,13 +7,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/influxdata/influxdb/resource"
-
+	"github.com/influxdata/influxdb/v2/resource"
 	"go.uber.org/zap"
 
-	"github.com/influxdata/influxdb"
-	icontext "github.com/influxdata/influxdb/context"
-	"github.com/influxdata/influxdb/kit/tracing"
+	"github.com/influxdata/influxdb/v2"
+	icontext "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/kit/tracing"
 )
 
 const (
@@ -277,6 +276,11 @@ func (s *Service) CreateOrganization(ctx context.Context, o *influxdb.Organizati
 // authorizer found on context. If no authorizer is found on context if returns an error.
 func (s *Service) addOrgOwner(ctx context.Context, tx Tx, orgID influxdb.ID) error {
 	return s.addResourceOwner(ctx, tx, influxdb.OrgsResourceType, orgID)
+}
+
+// CreateOrganizationTx is used when importing kv as a library
+func (s *Service) CreateOrganizationTx(ctx context.Context, tx Tx, o *influxdb.Organization) (err error) {
+	return s.createOrganization(ctx, tx, o)
 }
 
 func (s *Service) createOrganization(ctx context.Context, tx Tx, o *influxdb.Organization) (err error) {
@@ -730,6 +734,24 @@ func (s *Service) FindResourceOrganizationID(ctx context.Context, rt influxdb.Re
 			return influxdb.InvalidID(), err
 		}
 		return r.OrgID, nil
+	case influxdb.ChecksResourceType:
+		r, err := s.FindCheckByID(ctx, id)
+		if err != nil {
+			return influxdb.InvalidID(), err
+		}
+		return r.GetOrgID(), nil
+	case influxdb.NotificationEndpointResourceType:
+		r, err := s.FindNotificationEndpointByID(ctx, id)
+		if err != nil {
+			return influxdb.InvalidID(), err
+		}
+		return r.GetOrgID(), nil
+	case influxdb.NotificationRuleResourceType:
+		r, err := s.FindNotificationRuleByID(ctx, id)
+		if err != nil {
+			return influxdb.InvalidID(), err
+		}
+		return r.GetOrgID(), nil
 	}
 
 	return influxdb.InvalidID(), &influxdb.Error{

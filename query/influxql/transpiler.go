@@ -3,28 +3,27 @@ package influxql
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"path/filepath"
 	"strconv"
 	"time"
 
 	"github.com/influxdata/flux/ast"
-	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxql"
 )
 
 // Transpiler converts InfluxQL queries into a query spec.
 type Transpiler struct {
 	Config         *Config
-	dbrpMappingSvc platform.DBRPMappingService
+	dbrpMappingSvc influxdb.DBRPMappingService
 }
 
-func NewTranspiler(dbrpMappingSvc platform.DBRPMappingService) *Transpiler {
+func NewTranspiler(dbrpMappingSvc influxdb.DBRPMappingService) *Transpiler {
 	return NewTranspilerWithConfig(dbrpMappingSvc, Config{})
 }
 
-func NewTranspilerWithConfig(dbrpMappingSvc platform.DBRPMappingService, cfg Config) *Transpiler {
+func NewTranspilerWithConfig(dbrpMappingSvc influxdb.DBRPMappingService, cfg Config) *Transpiler {
 	return &Transpiler{
 		Config:         &cfg,
 		dbrpMappingSvc: dbrpMappingSvc,
@@ -57,10 +56,10 @@ type transpilerState struct {
 	config         Config
 	file           *ast.File
 	assignments    map[string]ast.Expression
-	dbrpMappingSvc platform.DBRPMappingService
+	dbrpMappingSvc influxdb.DBRPMappingService
 }
 
-func newTranspilerState(dbrpMappingSvc platform.DBRPMappingService, config *Config) *transpilerState {
+func newTranspilerState(dbrpMappingSvc influxdb.DBRPMappingService, config *Config) *transpilerState {
 	state := &transpilerState{
 		file: &ast.File{
 			Package: &ast.PackageClause{
@@ -623,7 +622,10 @@ func (t *transpilerState) transpileSelect(ctx context.Context, stmt *influxql.Se
 	if err != nil {
 		return nil, err
 	} else if len(groups) == 0 {
-		return nil, errors.New("at least 1 non-time field must be queried")
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  "unable to transpile: at least one non-time field must be queried",
+		}
 	}
 
 	cursors := make([]cursor, 0, len(groups))
@@ -653,36 +655,9 @@ func (t *transpilerState) mapType(ref *influxql.VarRef) influxql.DataType {
 }
 
 func (t *transpilerState) from(m *influxql.Measurement) (ast.Expression, error) {
-	db, rp := m.Database, m.RetentionPolicy
-	if db == "" {
-		if t.config.DefaultDatabase == "" {
-			return nil, errors.New("database is required")
-		}
-		db = t.config.DefaultDatabase
-	}
-	if rp == "" {
-		if t.config.DefaultRetentionPolicy != "" {
-			rp = t.config.DefaultRetentionPolicy
-		}
-	}
-
-	var filter platform.DBRPMappingFilter
-	filter.Cluster = &t.config.Cluster
-	if db != "" {
-		filter.Database = &db
-	}
-	if rp != "" {
-		filter.RetentionPolicy = &rp
-	}
-	defaultRP := rp == ""
-	filter.Default = &defaultRP
-	mapping, err := t.dbrpMappingSvc.Find(context.TODO(), filter)
 	var args []ast.Expression
-	if err != nil {
-		if !t.config.FallbackToDBRP {
-			return nil, err
-		}
-		// use `db/rp` naming convention
+	// Use the bucket inteasd of dbrp mapping if it exists.
+	if t.config.Bucket != "" {
 		args = []ast.Expression{
 			&ast.ObjectExpression{
 				Properties: []*ast.Property{
@@ -691,27 +666,81 @@ func (t *transpilerState) from(m *influxql.Measurement) (ast.Expression, error) 
 							Name: "bucket",
 						},
 						Value: &ast.StringLiteral{
-							Value: fmt.Sprintf("%s/%s", db, rp),
+							Value: t.config.Bucket,
 						},
 					},
 				},
 			},
 		}
 	} else {
-		// use mapping bucket id
-		args = []ast.Expression{
-			&ast.ObjectExpression{
-				Properties: []*ast.Property{
-					{
-						Key: &ast.Identifier{
-							Name: "bucketID",
-						},
-						Value: &ast.StringLiteral{
-							Value: mapping.BucketID.String(),
+		if t.dbrpMappingSvc == nil {
+			return nil, &influxdb.Error{
+				Code: influxdb.EInternal,
+				Msg:  "unable to transpile: db and rp mappings need to be created by some way",
+			}
+		}
+		db, rp := m.Database, m.RetentionPolicy
+		if db == "" {
+			if t.config.DefaultDatabase == "" {
+				return nil, &influxdb.Error{
+					Code: influxdb.EInvalid,
+					Msg:  "unable to transpile: database is required",
+				}
+			}
+			db = t.config.DefaultDatabase
+		}
+		if rp == "" {
+			if t.config.DefaultRetentionPolicy != "" {
+				rp = t.config.DefaultRetentionPolicy
+			}
+		}
+
+		var filter influxdb.DBRPMappingFilter
+		filter.Cluster = &t.config.Cluster
+		if db != "" {
+			filter.Database = &db
+		}
+		if rp != "" {
+			filter.RetentionPolicy = &rp
+		}
+		defaultRP := rp == ""
+		filter.Default = &defaultRP
+		mapping, err := t.dbrpMappingSvc.Find(context.TODO(), filter)
+		if err != nil {
+			if !t.config.FallbackToDBRP {
+				return nil, err
+			}
+			// use `db/rp` naming convention
+			args = []ast.Expression{
+				&ast.ObjectExpression{
+					Properties: []*ast.Property{
+						{
+							Key: &ast.Identifier{
+								Name: "bucket",
+							},
+							Value: &ast.StringLiteral{
+								Value: fmt.Sprintf("%s/%s", db, rp),
+							},
 						},
 					},
 				},
-			},
+			}
+		} else {
+			// use mapping bucket id
+			args = []ast.Expression{
+				&ast.ObjectExpression{
+					Properties: []*ast.Property{
+						{
+							Key: &ast.Identifier{
+								Name: "bucketID",
+							},
+							Value: &ast.StringLiteral{
+								Value: mapping.BucketID.String(),
+							},
+						},
+					},
+				},
+			}
 		}
 	}
 

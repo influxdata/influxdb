@@ -5,9 +5,9 @@ import (
 	"fmt"
 
 	"github.com/influxdata/flux/ast"
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/notification/endpoint"
-	"github.com/influxdata/influxdb/notification/flux"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/notification/endpoint"
+	"github.com/influxdata/influxdb/v2/notification/flux"
 )
 
 // PagerDuty is the rule config of pagerduty notification.
@@ -66,7 +66,7 @@ func (s *PagerDuty) GenerateFlux(e influxdb.NotificationEndpoint) (string, error
 func (s *PagerDuty) GenerateFluxAST(e *endpoint.PagerDuty) (*ast.Package, error) {
 	f := flux.File(
 		s.Name,
-		flux.Imports("influxdata/influxdb/monitor", "pagerduty", "influxdata/influxdb/secrets"),
+		flux.Imports("influxdata/influxdb/monitor", "pagerduty", "influxdata/influxdb/secrets", "experimental"),
 		s.generateFluxASTBody(e),
 	)
 	return &ast.Package{Package: "main", Files: []*ast.File{f}}, nil
@@ -79,6 +79,7 @@ func (s *PagerDuty) generateFluxASTBody(e *endpoint.PagerDuty) []ast.Statement {
 	statements = append(statements, s.generateFluxASTEndpoint(e))
 	statements = append(statements, s.generateFluxASTNotificationDefinition(e))
 	statements = append(statements, s.generateFluxASTStatuses())
+	statements = append(statements, s.generateLevelChecks()...)
 	statements = append(statements, s.generateFluxASTNotifyPipe(e.ClientURL))
 
 	return statements
@@ -170,7 +171,7 @@ func (s *PagerDuty) generateFluxASTNotifyPipe(url string) ast.Statement {
 
 	call := flux.Call(flux.Member("monitor", "notify"), flux.Object(props...))
 
-	return flux.ExpressionStatement(flux.Pipe(flux.Identifier("statuses"), call))
+	return flux.ExpressionStatement(flux.Pipe(flux.Identifier("all_statuses"), call))
 }
 
 func severityFromLevel() *ast.CallExpression {

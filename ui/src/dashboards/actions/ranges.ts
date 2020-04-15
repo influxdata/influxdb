@@ -91,6 +91,18 @@ export const updateQueryParams = (updatedQueryParams: object): RouterAction => {
   return replace(newLocation)
 }
 
+export const updateQueryVars = varsObj => {
+  const urlVars = qs.parse(window.location.search, {ignoreQueryPrefix: true})
+  const vars = {
+    ...(urlVars.vars || {}),
+    ...varsObj,
+  }
+
+  return updateQueryParams({
+    vars,
+  })
+}
+
 export const updateTimeRangeFromQueryParams = (dashboardID: string) => (
   dispatch: Dispatch<Action>,
   getState

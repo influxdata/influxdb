@@ -7,14 +7,13 @@ import (
 	"os"
 	"sync"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/http"
-	"github.com/influxdata/influxdb/kit/prom"
-	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/storage"
-	"github.com/influxdata/influxdb/storage/readservice"
-	"github.com/influxdata/influxdb/tsdb"
-	"github.com/influxdata/influxdb/tsdb/cursors"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/http"
+	"github.com/influxdata/influxdb/v2/kit/prom"
+	"github.com/influxdata/influxdb/v2/models"
+	"github.com/influxdata/influxdb/v2/storage"
+	"github.com/influxdata/influxdb/v2/storage/reads"
+	"github.com/influxdata/influxdb/v2/tsdb/cursors"
 	"github.com/influxdata/influxql"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
@@ -26,7 +25,7 @@ var _ Engine = (*storage.Engine)(nil)
 // to facilitate testing.
 type Engine interface {
 	influxdb.DeleteService
-	readservice.Viewer
+	reads.Viewer
 	storage.PointsWriter
 	storage.BucketDeleter
 	prom.PrometheusCollector
@@ -138,13 +137,13 @@ func (t *TemporaryEngine) PrometheusCollectors() []prometheus.Collector {
 }
 
 // CreateCursorIterator calls into the underlying engines CreateCurorIterator.
-func (t *TemporaryEngine) CreateCursorIterator(ctx context.Context) (tsdb.CursorIterator, error) {
+func (t *TemporaryEngine) CreateCursorIterator(ctx context.Context) (cursors.CursorIterator, error) {
 	return t.engine.CreateCursorIterator(ctx)
 }
 
 // CreateSeriesCursor calls into the underlying engines CreateSeriesCursor.
-func (t *TemporaryEngine) CreateSeriesCursor(ctx context.Context, req storage.SeriesCursorRequest, cond influxql.Expr) (storage.SeriesCursor, error) {
-	return t.engine.CreateSeriesCursor(ctx, req, cond)
+func (t *TemporaryEngine) CreateSeriesCursor(ctx context.Context, orgID, bucketID influxdb.ID, cond influxql.Expr) (storage.SeriesCursor, error) {
+	return t.engine.CreateSeriesCursor(ctx, orgID, bucketID, cond)
 }
 
 // TagKeys calls into the underlying engines TagKeys.

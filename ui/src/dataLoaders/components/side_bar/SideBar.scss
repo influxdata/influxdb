@@ -124,7 +124,7 @@ $sidebar-width-md: 240px;
   width: 100%;
 }
 
-@media screen and (min-width: $grid--breakpoint-md) {
+@media screen and (min-width: $cf-grid--breakpoint-md) {
   .side-bar--tab {
     margin-left: $ix-marg-d;
   }

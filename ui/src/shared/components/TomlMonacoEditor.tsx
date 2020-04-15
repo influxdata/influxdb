@@ -3,8 +3,8 @@ import React, {FC} from 'react'
 
 // Components
 import MonacoEditor from 'react-monaco-editor'
-import addTomlTheme, {THEME_NAME} from 'src/external/monaco.tomlTheme'
-import {addSyntax} from 'src/external/monaco.tomlSyntax'
+import THEME_NAME from 'src/external/monaco.toml.theme'
+import TOMLLANGID from 'src/external/monaco.toml.syntax'
 import {OnChangeScript} from 'src/types/flux'
 import * as monacoEditor from 'monaco-editor/esm/vs/editor/editor.api'
 
@@ -27,10 +27,6 @@ interface Props {
 }
 
 const TomlEditorMonaco: FC<Props> = props => {
-  const editorWillMount = (monaco: typeof monacoEditor) => {
-    addTomlTheme(monaco)
-    addSyntax(monaco)
-  }
   const editorDidMount = (
     editor: monacoEditor.editor.IStandaloneCodeEditor
   ) => {
@@ -70,13 +66,13 @@ const TomlEditorMonaco: FC<Props> = props => {
   return (
     <div className={className} data-testid={testID}>
       <MonacoEditor
-        language="toml"
+        language={TOMLLANGID}
         theme={THEME_NAME}
         value={script}
         onChange={onChangeScript}
         options={{
           fontSize: 13,
-          fontFamily: '"RobotoMono", monospace',
+          fontFamily: '"IBMPlexMono", monospace',
           cursorWidth: 2,
           lineNumbersMinChars: 4,
           lineDecorationsWidth: 0,
@@ -87,7 +83,6 @@ const TomlEditorMonaco: FC<Props> = props => {
           automaticLayout: true,
           readOnly: readOnly || false,
         }}
-        editorWillMount={editorWillMount}
         editorDidMount={editorDidMount}
       />
     </div>

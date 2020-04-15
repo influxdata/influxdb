@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/influxdata/influxdb"
-	influxdbtesting "github.com/influxdata/influxdb/testing"
-	"github.com/influxdata/influxdb/vault"
+	"github.com/influxdata/influxdb/v2"
+	influxdbtesting "github.com/influxdata/influxdb/v2/testing"
+	"github.com/influxdata/influxdb/v2/vault"
 	testcontainer "github.com/testcontainers/testcontainers-go"
 )
 

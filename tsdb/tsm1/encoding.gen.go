@@ -9,7 +9,7 @@ package tsm1
 import (
 	"sort"
 
-	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/v2/tsdb/cursors"
 )
 
 // Values represents a slice of  values.
@@ -209,8 +209,8 @@ func (a Values) Less(i, j int) bool { return a[i].UnixNano() < a[j].UnixNano() }
 // FloatValues represents a slice of Float values.
 type FloatValues []FloatValue
 
-func NewFloatArrayFromValues(v FloatValues) *tsdb.FloatArray {
-	a := tsdb.NewFloatArrayLen(len(v))
+func NewFloatArrayFromValues(v FloatValues) *cursors.FloatArray {
+	a := cursors.NewFloatArrayLen(len(v))
 	for i, val := range v {
 		a.Timestamps[i] = val.UnixNano()
 		a.Values[i] = val.RawValue()
@@ -408,7 +408,7 @@ func (a FloatValues) Encode(buf []byte) ([]byte, error) {
 	return encodeFloatValuesBlock(buf, a)
 }
 
-func EncodeFloatArrayBlock(a *tsdb.FloatArray, b []byte) ([]byte, error) {
+func EncodeFloatArrayBlock(a *cursors.FloatArray, b []byte) ([]byte, error) {
 	if a.Len() == 0 {
 		return nil, nil
 	}
@@ -479,8 +479,8 @@ func (a FloatValues) Less(i, j int) bool { return a[i].UnixNano() < a[j].UnixNan
 // IntegerValues represents a slice of Integer values.
 type IntegerValues []IntegerValue
 
-func NewIntegerArrayFromValues(v IntegerValues) *tsdb.IntegerArray {
-	a := tsdb.NewIntegerArrayLen(len(v))
+func NewIntegerArrayFromValues(v IntegerValues) *cursors.IntegerArray {
+	a := cursors.NewIntegerArrayLen(len(v))
 	for i, val := range v {
 		a.Timestamps[i] = val.UnixNano()
 		a.Values[i] = val.RawValue()
@@ -678,7 +678,7 @@ func (a IntegerValues) Encode(buf []byte) ([]byte, error) {
 	return encodeIntegerValuesBlock(buf, a)
 }
 
-func EncodeIntegerArrayBlock(a *tsdb.IntegerArray, b []byte) ([]byte, error) {
+func EncodeIntegerArrayBlock(a *cursors.IntegerArray, b []byte) ([]byte, error) {
 	if a.Len() == 0 {
 		return nil, nil
 	}
@@ -749,8 +749,8 @@ func (a IntegerValues) Less(i, j int) bool { return a[i].UnixNano() < a[j].UnixN
 // UnsignedValues represents a slice of Unsigned values.
 type UnsignedValues []UnsignedValue
 
-func NewUnsignedArrayFromValues(v UnsignedValues) *tsdb.UnsignedArray {
-	a := tsdb.NewUnsignedArrayLen(len(v))
+func NewUnsignedArrayFromValues(v UnsignedValues) *cursors.UnsignedArray {
+	a := cursors.NewUnsignedArrayLen(len(v))
 	for i, val := range v {
 		a.Timestamps[i] = val.UnixNano()
 		a.Values[i] = val.RawValue()
@@ -948,7 +948,7 @@ func (a UnsignedValues) Encode(buf []byte) ([]byte, error) {
 	return encodeUnsignedValuesBlock(buf, a)
 }
 
-func EncodeUnsignedArrayBlock(a *tsdb.UnsignedArray, b []byte) ([]byte, error) {
+func EncodeUnsignedArrayBlock(a *cursors.UnsignedArray, b []byte) ([]byte, error) {
 	if a.Len() == 0 {
 		return nil, nil
 	}
@@ -1019,8 +1019,8 @@ func (a UnsignedValues) Less(i, j int) bool { return a[i].UnixNano() < a[j].Unix
 // StringValues represents a slice of String values.
 type StringValues []StringValue
 
-func NewStringArrayFromValues(v StringValues) *tsdb.StringArray {
-	a := tsdb.NewStringArrayLen(len(v))
+func NewStringArrayFromValues(v StringValues) *cursors.StringArray {
+	a := cursors.NewStringArrayLen(len(v))
 	for i, val := range v {
 		a.Timestamps[i] = val.UnixNano()
 		a.Values[i] = val.RawValue()
@@ -1218,7 +1218,7 @@ func (a StringValues) Encode(buf []byte) ([]byte, error) {
 	return encodeStringValuesBlock(buf, a)
 }
 
-func EncodeStringArrayBlock(a *tsdb.StringArray, b []byte) ([]byte, error) {
+func EncodeStringArrayBlock(a *cursors.StringArray, b []byte) ([]byte, error) {
 	if a.Len() == 0 {
 		return nil, nil
 	}
@@ -1289,8 +1289,8 @@ func (a StringValues) Less(i, j int) bool { return a[i].UnixNano() < a[j].UnixNa
 // BooleanValues represents a slice of Boolean values.
 type BooleanValues []BooleanValue
 
-func NewBooleanArrayFromValues(v BooleanValues) *tsdb.BooleanArray {
-	a := tsdb.NewBooleanArrayLen(len(v))
+func NewBooleanArrayFromValues(v BooleanValues) *cursors.BooleanArray {
+	a := cursors.NewBooleanArrayLen(len(v))
 	for i, val := range v {
 		a.Timestamps[i] = val.UnixNano()
 		a.Values[i] = val.RawValue()
@@ -1488,7 +1488,7 @@ func (a BooleanValues) Encode(buf []byte) ([]byte, error) {
 	return encodeBooleanValuesBlock(buf, a)
 }
 
-func EncodeBooleanArrayBlock(a *tsdb.BooleanArray, b []byte) ([]byte, error) {
+func EncodeBooleanArrayBlock(a *cursors.BooleanArray, b []byte) ([]byte, error) {
 	if a.Len() == 0 {
 		return nil, nil
 	}

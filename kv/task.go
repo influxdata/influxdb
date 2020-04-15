@@ -6,12 +6,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/influxdata/influxdb/resource"
-
-	"github.com/influxdata/influxdb"
-	icontext "github.com/influxdata/influxdb/context"
-	"github.com/influxdata/influxdb/task/backend"
-	"github.com/influxdata/influxdb/task/options"
+	"github.com/influxdata/influxdb/v2"
+	icontext "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/resource"
+	"github.com/influxdata/influxdb/v2/task/options"
 	"go.uber.org/zap"
 )
 
@@ -34,7 +32,6 @@ var (
 )
 
 var _ influxdb.TaskService = (*Service)(nil)
-var _ backend.TaskControlService = (*Service)(nil)
 
 type kvTask struct {
 	ID              influxdb.ID            `json:"id"`
@@ -134,9 +131,11 @@ func (s *Service) findTaskByIDWithAuth(ctx context.Context, tx Tx, id influxdb.I
 		Status: influxdb.Active,
 		ID:     influxdb.ID(1),
 		OrgID:  t.OrganizationID,
+		UserID: t.OwnerID,
 	}
 
 	if t.OwnerID.Valid() {
+		ctx = icontext.SetAuthorizer(ctx, t.Authorization)
 		// populate task Auth
 		ps, err := s.maxPermissions(ctx, tx, t.OwnerID)
 		if err != nil {
@@ -311,7 +310,21 @@ func (s *Service) findTasksByUser(ctx context.Context, tx Tx, filter influxdb.Ta
 		return nil, 0, err
 	}
 
-	matchFn := newTaskMatchFn(filter, org)
+	var (
+		afterSeen bool
+		after     = func(task *influxdb.Task) bool {
+			if filter.After == nil || afterSeen {
+				return true
+			}
+
+			if task.ID == *filter.After {
+				afterSeen = true
+			}
+
+			return false
+		}
+		matchFn = newTaskMatchFn(filter, org)
+	)
 
 	for _, m := range maps {
 		task, err := s.findTaskByIDWithAuth(ctx, tx, m.ResourceID)
@@ -323,6 +336,10 @@ func (s *Service) findTasksByUser(ctx context.Context, tx Tx, filter influxdb.Ta
 		}
 
 		if matchFn == nil || matchFn(task) {
+			if !after(task) {
+				continue
+			}
+
 			ts = append(ts, task)
 
 			if len(ts) >= filter.Limit {
@@ -362,35 +379,39 @@ func (s *Service) findTasksByOrg(ctx context.Context, tx Tx, filter influxdb.Tas
 		return nil, 0, influxdb.ErrUnexpectedTaskBucketErr(err)
 	}
 
-	c, err := indexBucket.Cursor()
+	prefix, err := org.ID.Encode()
+	if err != nil {
+		return nil, 0, influxdb.ErrInvalidTaskID
+	}
+
+	var (
+		key  = prefix
+		opts []CursorOption
+	)
+	// we can filter by orgID
+	if filter.After != nil {
+		key, err = taskOrgKey(org.ID, *filter.After)
+		if err != nil {
+			return nil, 0, err
+		}
+
+		opts = append(opts, WithCursorSkipFirstItem())
+	}
+
+	c, err := indexBucket.ForwardCursor(
+		key,
+		append(opts, WithCursorPrefix(prefix))...,
+	)
 	if err != nil {
 		return nil, 0, influxdb.ErrUnexpectedTaskBucketErr(err)
 	}
 
-	var k, v []byte
-	// we can filter by orgID
-	if filter.After != nil {
-		key, err := taskOrgKey(org.ID, *filter.After)
-		if err != nil {
-			return nil, 0, err
-		}
-		// ignore the key:val returned in this seek because we are starting "after"
-		// this key
-		c.Seek(key)
-		k, v = c.Next()
-	} else {
-		// if we dont have an after we just move the cursor to the first instance of the orgID
-		key, err := org.ID.Encode()
-		if err != nil {
-			return nil, 0, influxdb.ErrInvalidTaskID
-		}
-
-		k, v = c.Seek(key)
-	}
+	// free cursor resources
+	defer c.Close()
 
 	matchFn := newTaskMatchFn(filter, nil)
 
-	for k != nil {
+	for k, v := c.Next(); k != nil; k, v = c.Next() {
 		id, err := influxdb.IDFromString(string(v))
 		if err != nil {
 			return nil, 0, influxdb.ErrInvalidTaskID
@@ -400,7 +421,7 @@ func (s *Service) findTasksByOrg(ctx context.Context, tx Tx, filter influxdb.Tas
 		if err != nil {
 			if err == influxdb.ErrTaskNotFound {
 				// we might have some crufty index's
-				k, v = c.Next()
+				err = nil
 				continue
 			}
 			return nil, 0, err
@@ -418,11 +439,9 @@ func (s *Service) findTasksByOrg(ctx context.Context, tx Tx, filter influxdb.Tas
 				break
 			}
 		}
-
-		k, v = c.Next()
 	}
 
-	return ts, len(ts), err
+	return ts, len(ts), c.Err()
 }
 
 type taskMatchFn func(*influxdb.Task) bool
@@ -483,29 +502,31 @@ func (s *Service) findAllTasks(ctx context.Context, tx Tx, filter influxdb.TaskF
 		return nil, 0, influxdb.ErrUnexpectedTaskBucketErr(err)
 	}
 
-	c, err := taskBucket.Cursor()
+	var (
+		seek []byte
+		opts []CursorOption
+	)
+
+	if filter.After != nil {
+		seek, err = taskKey(*filter.After)
+		if err != nil {
+			return nil, 0, err
+		}
+
+		opts = append(opts, WithCursorSkipFirstItem())
+	}
+
+	c, err := taskBucket.ForwardCursor(seek, opts...)
 	if err != nil {
 		return nil, 0, influxdb.ErrUnexpectedTaskBucketErr(err)
 	}
 
-	var k, v []byte
-	// we can filter by orgID
-	if filter.After != nil {
-		key, err := taskKey(*filter.After)
-		if err != nil {
-			return nil, 0, err
-		}
-		// ignore the key:val returned in this seek because we are starting "after"
-		// this key
-		c.Seek(key)
-		k, v = c.Next()
-	} else {
-		k, v = c.First()
-	}
+	// free cursor resources
+	defer c.Close()
 
 	matchFn := newTaskMatchFn(filter, nil)
 
-	for k != nil {
+	for k, v := c.Next(); k != nil; k, v = c.Next() {
 		kvTask := &kvTask{}
 		if err := json.Unmarshal(v, kvTask); err != nil {
 			return nil, 0, influxdb.ErrInternalTaskServiceError(err)
@@ -520,8 +541,10 @@ func (s *Service) findAllTasks(ctx context.Context, tx Tx, filter influxdb.TaskF
 				break
 			}
 		}
+	}
 
-		k, v = c.Next()
+	if err := c.Err(); err != nil {
+		return nil, 0, err
 	}
 
 	return ts, len(ts), err
@@ -576,7 +599,7 @@ func (s *Service) createTask(ctx context.Context, tx Tx, tc influxdb.TaskCreate)
 	}
 
 	if tc.Status == "" {
-		tc.Status = string(backend.TaskActive)
+		tc.Status = string(influxdb.TaskActive)
 	}
 
 	createdAt := s.clock.Now().Truncate(time.Second).UTC()
@@ -1139,7 +1162,7 @@ func (s *Service) retryRun(ctx context.Context, tx Tx, taskID, runID influxdb.ID
 	}
 
 	r.ID = s.IDGenerator.ID()
-	r.Status = backend.RunScheduled.String()
+	r.Status = influxdb.RunScheduled.String()
 	r.StartedAt = time.Time{}
 	r.FinishedAt = time.Time{}
 	r.RequestedAt = time.Time{}
@@ -1207,7 +1230,7 @@ func (s *Service) forceRun(ctx context.Context, tx Tx, taskID influxdb.ID, sched
 	r := &influxdb.Run{
 		ID:           s.IDGenerator.ID(),
 		TaskID:       taskID,
-		Status:       backend.RunScheduled.String(),
+		Status:       influxdb.RunScheduled.String(),
 		RequestedAt:  time.Now().UTC(),
 		ScheduledFor: t,
 		Log:          []influxdb.Log{},
@@ -1272,7 +1295,7 @@ func (s *Service) createRun(ctx context.Context, tx Tx, taskID influxdb.ID, sche
 		TaskID:       taskID,
 		ScheduledFor: t,
 		RunAt:        runAt,
-		Status:       backend.RunScheduled.String(),
+		Status:       influxdb.RunScheduled.String(),
 		Log:          []influxdb.Log{},
 	}
 
@@ -1529,7 +1552,7 @@ func (s *Service) finishRun(ctx context.Context, tx Tx, taskID, runID influxdb.I
 }
 
 // UpdateRunState sets the run state at the respective time.
-func (s *Service) UpdateRunState(ctx context.Context, taskID, runID influxdb.ID, when time.Time, state backend.RunStatus) error {
+func (s *Service) UpdateRunState(ctx context.Context, taskID, runID influxdb.ID, when time.Time, state influxdb.RunStatus) error {
 	err := s.kv.Update(ctx, func(tx Tx) error {
 		err := s.updateRunState(ctx, tx, taskID, runID, when, state)
 		if err != nil {
@@ -1540,7 +1563,7 @@ func (s *Service) UpdateRunState(ctx context.Context, taskID, runID influxdb.ID,
 	return err
 }
 
-func (s *Service) updateRunState(ctx context.Context, tx Tx, taskID, runID influxdb.ID, when time.Time, state backend.RunStatus) error {
+func (s *Service) updateRunState(ctx context.Context, tx Tx, taskID, runID influxdb.ID, when time.Time, state influxdb.RunStatus) error {
 	// find run
 	run, err := s.findRunByID(ctx, tx, taskID, runID)
 	if err != nil {
@@ -1550,9 +1573,9 @@ func (s *Service) updateRunState(ctx context.Context, tx Tx, taskID, runID influ
 	// update state
 	run.Status = state.String()
 	switch state {
-	case backend.RunStarted:
+	case influxdb.RunStarted:
 		run.StartedAt = when
-	case backend.RunSuccess, backend.RunFail, backend.RunCanceled:
+	case influxdb.RunSuccess, influxdb.RunFail, influxdb.RunCanceled:
 		run.FinishedAt = when
 	}
 

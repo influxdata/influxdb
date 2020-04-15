@@ -3,7 +3,7 @@ package authorizer
 import (
 	"context"
 
-	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2"
 )
 
 // PasswordService is a new authorization middleware for a password service.
@@ -18,10 +18,9 @@ func NewPasswordService(svc influxdb.PasswordsService) *PasswordService {
 
 // SetPassword overrides the password of a known user.
 func (s *PasswordService) SetPassword(ctx context.Context, userID influxdb.ID, password string) error {
-	if err := authorizeWriteUser(ctx, userID); err != nil {
+	if _, _, err := AuthorizeWriteResource(ctx, influxdb.UsersResourceType, userID); err != nil {
 		return err
 	}
-
 	return s.next.SetPassword(ctx, userID, password)
 }
 

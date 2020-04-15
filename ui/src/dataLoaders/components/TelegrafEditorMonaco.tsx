@@ -155,5 +155,7 @@ export default connect<StateProps, DispatchProps>(
   mstp,
   mdtp,
   null,
-  {withRef: true}
+  {
+    withRef: true,
+  }
 )(TelegrafEditorMonaco)

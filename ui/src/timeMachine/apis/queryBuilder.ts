@@ -8,6 +8,7 @@ import {parseResponse} from 'src/shared/parsing/flux/response'
 // Utils
 import {getTimeRangeVars} from 'src/variables/utils/getTimeRangeVars'
 import {formatExpression} from 'src/variables/utils/formatExpression'
+import {tagToFlux} from 'src/timeMachine/utils/queryBuilder'
 
 // Types
 import {TimeRange, BuilderConfig} from 'src/types'
@@ -155,13 +156,7 @@ export function formatTagFilterPredicate(
     return '(r) => true'
   }
 
-  const calls = validSelections
-    .map(({key, values}) => {
-      const body = values.map(value => `r.${key} == "${value}"`).join(' or ')
-
-      return `(${body})`
-    })
-    .join(' and ')
+  const calls = validSelections.map(tag => `(${tagToFlux(tag)})`).join(' and ')
 
   return `(r) => ${calls}`
 }

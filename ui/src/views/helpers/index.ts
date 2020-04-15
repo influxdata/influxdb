@@ -52,7 +52,7 @@ export function defaultViewQuery(): DashboardQuery {
 export function defaultBuilderConfig(): BuilderConfig {
   return {
     buckets: [],
-    tags: [{key: '_measurement', values: []}],
+    tags: [{key: '_measurement', values: [], aggregateFunctionType: 'filter'}],
     functions: [],
     aggregateWindow: {period: 'auto'},
   }
@@ -269,13 +269,19 @@ const NEW_VIEW_CREATORS = {
           editMode: 'builder',
           builderConfig: {
             buckets: [],
-            tags: [{key: '_measurement', values: []}],
+            tags: [
+              {
+                key: '_measurement',
+                values: [],
+                aggregateFunctionType: 'filter',
+              },
+            ],
             functions: [{name: 'mean'}],
             aggregateWindow: {period: DEFAULT_CHECK_EVERY},
           },
         },
       ],
-      colors: NINETEEN_EIGHTY_FOUR,
+      colors: DEFAULT_LINE_COLORS as Color[],
     },
   }),
   deadman: (): NewView<CheckViewProperties> => ({
@@ -291,12 +297,18 @@ const NEW_VIEW_CREATORS = {
           editMode: 'builder',
           builderConfig: {
             buckets: [],
-            tags: [{key: '_measurement', values: []}],
+            tags: [
+              {
+                key: '_measurement',
+                values: [],
+                aggregateFunctionType: 'filter',
+              },
+            ],
             functions: [],
           },
         },
       ],
-      colors: NINETEEN_EIGHTY_FOUR,
+      colors: DEFAULT_LINE_COLORS as Color[],
     },
   }),
   custom: (): NewView<TableViewProperties> => ({

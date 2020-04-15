@@ -11,7 +11,6 @@ import {
   Alignment,
   ComponentSize,
   Orientation,
-  InfluxColors,
 } from '@influxdata/clockface'
 
 enum SaveAsOption {
@@ -42,14 +41,13 @@ class SaveAsOverlay extends PureComponent<WithRouterProps, State> {
           />
           <Overlay.Body>
             <Tabs.Container orientation={Orientation.Horizontal}>
-              <Tabs alignment={Alignment.Center}>
+              <Tabs alignment={Alignment.Center} size={ComponentSize.Medium}>
                 <Tabs.Tab
                   id={SaveAsOption.Dashboard}
                   text="Dashboard Cell"
                   testID="cell-radio-button"
                   onClick={this.handleSetSaveAsOption}
                   active={saveAsOption === SaveAsOption.Dashboard}
-                  backgroundColor={InfluxColors.Castle}
                 />
                 <Tabs.Tab
                   id={SaveAsOption.Task}
@@ -57,7 +55,6 @@ class SaveAsOverlay extends PureComponent<WithRouterProps, State> {
                   testID="task--radio-button"
                   onClick={this.handleSetSaveAsOption}
                   active={saveAsOption === SaveAsOption.Task}
-                  backgroundColor={InfluxColors.Castle}
                 />
                 <Tabs.Tab
                   id={SaveAsOption.Variable}
@@ -65,15 +62,9 @@ class SaveAsOverlay extends PureComponent<WithRouterProps, State> {
                   testID="variable-radio-button"
                   onClick={this.handleSetSaveAsOption}
                   active={saveAsOption === SaveAsOption.Variable}
-                  backgroundColor={InfluxColors.Castle}
                 />
               </Tabs>
-              <Tabs.TabContents
-                padding={ComponentSize.Medium}
-                backgroundColor={InfluxColors.Castle}
-              >
-                {this.saveAsForm}
-              </Tabs.TabContents>
+              <Tabs.TabContents>{this.saveAsForm}</Tabs.TabContents>
             </Tabs.Container>
           </Overlay.Body>
         </Overlay.Container>

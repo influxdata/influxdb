@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	influxlogger "github.com/influxdata/influxdb/logger"
+	influxlogger "github.com/influxdata/influxdb/v2/logger"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )

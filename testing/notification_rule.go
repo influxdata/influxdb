@@ -7,11 +7,11 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/mock"
-	"github.com/influxdata/influxdb/notification"
-	"github.com/influxdata/influxdb/notification/endpoint"
-	"github.com/influxdata/influxdb/notification/rule"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/mock"
+	"github.com/influxdata/influxdb/v2/notification"
+	"github.com/influxdata/influxdb/v2/notification/endpoint"
+	"github.com/influxdata/influxdb/v2/notification/rule"
 )
 
 // NotificationRuleFields includes prepopulated data for mapping tests.
@@ -1999,6 +1999,145 @@ func PatchNotificationRule(
 				err: &influxdb.Error{
 					Code: influxdb.ENotFound,
 					Msg:  "notification rule not found",
+				},
+			},
+		},
+		{
+			name: "patch without status",
+			fields: NotificationRuleFields{
+				TimeGenerator: fakeGenerator,
+				IDGenerator:   mock.NewIDGenerator(twoID, t),
+				Tasks: []influxdb.TaskCreate{
+					{
+						OwnerID:        MustIDBase16(sixID),
+						OrganizationID: MustIDBase16(fourID),
+						Flux: `from(bucket: "foo") |> range(start: -1m)
+						option task = {name: "bar", every: 1m}
+						`,
+					},
+				},
+				UserResourceMappings: []*influxdb.UserResourceMapping{
+					{
+						ResourceID:   MustIDBase16(oneID),
+						UserID:       MustIDBase16(sixID),
+						UserType:     influxdb.Owner,
+						ResourceType: influxdb.NotificationRuleResourceType,
+					},
+					{
+						ResourceID:   MustIDBase16(twoID),
+						UserID:       MustIDBase16(sixID),
+						UserType:     influxdb.Member,
+						ResourceType: influxdb.NotificationRuleResourceType,
+					},
+				},
+				Endpoints: []influxdb.NotificationEndpoint{
+					&endpoint.Slack{
+						URL: "http://localhost:7777",
+						Token: influxdb.SecretField{
+							// TODO(desa): not sure why this has to end in token, but it does
+							Key:   "020f755c3c082001-token",
+							Value: strPtr("abc123"),
+						},
+						Base: endpoint.Base{
+							OrgID:  MustIDBase16Ptr(fourID),
+							Name:   "foo",
+							Status: influxdb.Active,
+						},
+					},
+				},
+				NotificationRules: []influxdb.NotificationRule{
+					&rule.Slack{
+						Base: rule.Base{
+							ID:          MustIDBase16(oneID),
+							Name:        "name1",
+							OwnerID:     MustIDBase16(sixID),
+							OrgID:       MustIDBase16(fourID),
+							EndpointID:  MustIDBase16(twoID),
+							RunbookLink: "runbooklink1",
+							SleepUntil:  &time3,
+							Every:       mustDuration("1h"),
+							StatusRules: []notification.StatusRule{
+								{
+									CurrentLevel: notification.Critical,
+								},
+								{
+									CurrentLevel: notification.Info,
+								},
+							},
+							CRUDLog: influxdb.CRUDLog{
+								CreatedAt: timeGen1.Now(),
+								UpdatedAt: timeGen2.Now(),
+							},
+						},
+						Channel:         "channel1",
+						MessageTemplate: "msg1",
+					},
+					&rule.Slack{
+						Base: rule.Base{
+							ID:         MustIDBase16(twoID),
+							Name:       "name2",
+							OwnerID:    MustIDBase16(sixID),
+							EndpointID: MustIDBase16(twoID),
+							TaskID:     MustIDBase16(twoID),
+							StatusRules: []notification.StatusRule{
+								{
+									CurrentLevel: notification.Critical,
+								},
+								{
+									CurrentLevel: notification.Info,
+								},
+							},
+							OrgID:       MustIDBase16(fourID),
+							RunbookLink: "runbooklink2",
+							SleepUntil:  &time3,
+							Every:       mustDuration("1h"),
+							CRUDLog: influxdb.CRUDLog{
+								CreatedAt: timeGen1.Now(),
+								UpdatedAt: timeGen2.Now(),
+							},
+						},
+						MessageTemplate: "msg",
+					},
+				},
+				Orgs: []*influxdb.Organization{
+					{
+						ID:   MustIDBase16(fourID),
+						Name: "foo",
+					},
+				},
+			},
+			args: args{
+				id: MustIDBase16(twoID),
+				upd: influxdb.NotificationRuleUpdate{
+					Name: &name3,
+				},
+			},
+			wants: wants{
+				notificationRule: &rule.Slack{
+					Base: rule.Base{
+						ID:         MustIDBase16(twoID),
+						Name:       name3,
+						OwnerID:    MustIDBase16(sixID),
+						OrgID:      MustIDBase16(fourID),
+						EndpointID: MustIDBase16(twoID),
+						TaskID:     MustIDBase16(twoID),
+						StatusRules: []notification.StatusRule{
+							{
+								CurrentLevel: notification.Critical,
+							},
+							{
+								CurrentLevel: notification.Info,
+							},
+						},
+						RunbookLink: "runbooklink2",
+						SleepUntil:  &time3,
+						Every:       mustDuration("1h"),
+						CRUDLog: influxdb.CRUDLog{
+							CreatedAt: timeGen1.Now(),
+							UpdatedAt: fakeDate,
+						},
+					},
+					MessageTemplate: "msg",
 				},
 			},
 		},

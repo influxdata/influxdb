@@ -7,10 +7,10 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/pkg/data/gen"
-	"github.com/influxdata/influxdb/storage/reads"
-	"github.com/influxdata/influxdb/storage/reads/datatypes"
+	"github.com/influxdata/influxdb/v2/models"
+	"github.com/influxdata/influxdb/v2/pkg/data/gen"
+	"github.com/influxdata/influxdb/v2/storage/reads"
+	"github.com/influxdata/influxdb/v2/storage/reads/datatypes"
 )
 
 func TestNewGroupResultSet_Sorting(t *testing.T) {
@@ -83,6 +83,49 @@ group:
   tag key      : _m,tag0,tag1
   partition key: 00011,1
     series: _m=cpu,tag0=00011,tag1=1
+`,
+		},
+		{
+			name: "group by tags key sort collision",
+			cur: &sliceSeriesCursor{
+				rows: newSeriesRows(
+					"cpu,tag0=a,tag1=b",
+					"cpu,tag0=a*,tag1=b",
+					"cpu,tag0=a*",
+				)},
+			group: datatypes.GroupBy,
+			keys:  []string{"tag0", "tag1"},
+			exp: `group:
+  tag key      : _m,tag0,tag1
+  partition key: a,b
+    series: _m=cpu,tag0=a,tag1=b
+group:
+  tag key      : _m,tag0,tag1
+  partition key: a*,b
+    series: _m=cpu,tag0=a*,tag1=b
+group:
+  tag key      : _m,tag0
+  partition key: a*,<nil>
+    series: _m=cpu,tag0=a*
+`,
+		},
+		{
+			name: "group by tags missing tag",
+			cur: &sliceSeriesCursor{
+				rows: newSeriesRows(
+					"cpu,tag0=a,tag1=b",
+					"cpu,tag1=b",
+				)},
+			group: datatypes.GroupBy,
+			keys:  []string{"tag0", "tag1"},
+			exp: `group:
+  tag key      : _m,tag0,tag1
+  partition key: a,b
+    series: _m=cpu,tag0=a,tag1=b
+group:
+  tag key      : _m,tag1
+  partition key: <nil>,b
+    series: _m=cpu,tag1=b
 `,
 		},
 		{

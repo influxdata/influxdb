@@ -6,15 +6,13 @@ import {fromFlux, Table} from '@influxdata/giraffe'
 
 // Utils
 import {parseResponse} from 'src/shared/parsing/flux/response'
-import {getCheckVisTimeRange} from 'src/alerting/utils/vis'
 import {
   defaultXColumn,
   defaultYColumn,
   getNumericColumns as getNumericColumnsUtil,
   getGroupableColumns as getGroupableColumnsUtil,
 } from 'src/shared/utils/vis'
-import {getVariableAssignments as getVariableAssignmentsForContext} from 'src/variables/selectors'
-import {getTimeRangeVars} from 'src/variables/utils/getTimeRangeVars'
+import {getAllVariables, asAssignment} from 'src/variables/selectors'
 import {getWindowPeriod} from 'src/variables/utils/getWindowVars'
 import {
   timeRangeToDuration,
@@ -22,22 +20,21 @@ import {
   durationToMilliseconds,
 } from 'src/shared/utils/duration'
 
-import {isFlagEnabled} from 'src/shared/utils/featureFlag'
-
 // Types
 import {
   QueryView,
-  BuilderAggregateFunctionType,
-  BuilderTagsType,
   DashboardQuery,
   FluxTable,
   AppState,
   DashboardDraftQuery,
   TimeRange,
-  VariableAssignment,
 } from 'src/types'
 
 export const getActiveTimeMachine = (state: AppState) => {
+  if (!state.timeMachines) {
+    return null
+  }
+
   const {activeTimeMachineID, timeMachines} = state.timeMachines
   const timeMachine = timeMachines[activeTimeMachineID]
 
@@ -48,43 +45,27 @@ export const getIsInCheckOverlay = (state: AppState): boolean => {
   return state.timeMachines.activeTimeMachineID === 'alerting'
 }
 
-export const getTimeRange = (state: AppState): TimeRange => {
-  const {timeRange} = getActiveTimeMachine(state)
-  const {
-    alertBuilder: {every},
-  } = state
-
-  if (!getIsInCheckOverlay(state)) {
-    return timeRange
+export const getActiveQuery = (state: AppState): DashboardDraftQuery => {
+  const tm = getActiveTimeMachine(state)
+  if (!tm) {
+    return {
+      text: '',
+      hidden: true,
+    }
   }
 
-  return getCheckVisTimeRange(every)
-}
-
-export const getActiveQuery = (state: AppState): DashboardDraftQuery => {
-  const {draftQueries, activeQueryIndex} = getActiveTimeMachine(state)
+  const {draftQueries, activeQueryIndex} = tm
 
   return draftQueries[activeQueryIndex]
-}
-
-export const getVariableAssignments = (
-  state: AppState
-): VariableAssignment[] => {
-  return [
-    ...getTimeRangeVars(getTimeRange(state)),
-    ...getVariableAssignmentsForContext(
-      state,
-      state.timeMachines.activeTimeMachineID
-    ),
-  ]
 }
 
 /*
   Get the value of the `v.windowPeriod` variable for the currently active query, in milliseconds.
 */
+// TODO kill this function
 export const getActiveWindowPeriod = (state: AppState) => {
   const {text} = getActiveQuery(state)
-  const variables = getVariableAssignments(state)
+  const variables = getAllVariables(state).map(v => asAssignment(v))
 
   return getWindowPeriod(text, variables)
 }
@@ -244,28 +225,6 @@ export const getActiveTimeRange = (
     return timeRange
   }
   return null
-}
-
-export const getActiveTagValues = (
-  activeQueryBuilderTags: BuilderTagsType[],
-  aggregateFunctionType: BuilderAggregateFunctionType,
-  index: number
-): string[] => {
-  // if we're grouping, we want to be able to group on all previous tags
-  if (
-    isFlagEnabled('queryBuilderGrouping') &&
-    aggregateFunctionType === 'group'
-  ) {
-    const values = []
-    activeQueryBuilderTags.forEach(tag => {
-      tag.values.forEach(value => {
-        values.push(value)
-      })
-    })
-    return values
-  }
-
-  return activeQueryBuilderTags[index].values
 }
 
 export const getSaveableView = (state: AppState): QueryView & {id?: string} => {

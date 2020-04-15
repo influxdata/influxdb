@@ -6,10 +6,18 @@ import {connect} from 'react-redux'
 import {ResourceCard} from '@influxdata/clockface'
 
 // Types
-import {NotificationRule, AppState, NotificationEndpoint} from 'src/types'
+import {
+  NotificationRuleDraft,
+  AppState,
+  NotificationEndpoint,
+  ResourceType,
+} from 'src/types'
+
+// Selectors
+import {getAll} from 'src/resources/selectors'
 
 interface OwnProps {
-  rule: NotificationRule
+  rule: NotificationRuleDraft
 }
 
 interface StateProps {
@@ -36,15 +44,14 @@ const MatchingRuleCard: FC<Props> = ({rule, endpoints}) => {
 }
 
 const mstp = (state: AppState): StateProps => {
-  const {
-    endpoints: {list: endpoints},
-  } = state
+  const endpoints = getAll<NotificationEndpoint>(
+    state,
+    ResourceType.NotificationEndpoints
+  )
+
   return {
     endpoints,
   }
 }
 
-export default connect<StateProps, {}, {}>(
-  mstp,
-  null
-)(MatchingRuleCard)
+export default connect<StateProps>(mstp)(MatchingRuleCard)

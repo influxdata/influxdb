@@ -18,11 +18,8 @@ import {
 } from 'src/dashboards/actions/thunks'
 import {resetViews} from 'src/views/actions/creators'
 
-// Selectors
-import {viewableLabels} from 'src/labels/selectors'
-
 // Types
-import {AppState, Label} from 'src/types'
+import {Label} from 'src/types'
 
 // Constants
 import {DEFAULT_DASHBOARD_NAME} from 'src/dashboards/constants'
@@ -35,12 +32,8 @@ interface OwnProps {
   name: string
   description: string
   updatedAt: string
-  labels: Label[]
+  labels: string[]
   onFilterChange: (searchTerm: string) => void
-}
-
-interface StateProps {
-  allLabels: Label[]
 }
 
 interface DispatchProps {
@@ -52,7 +45,7 @@ interface DispatchProps {
   onResetViews: typeof resetViews
 }
 
-type Props = OwnProps & DispatchProps & StateProps & WithRouterProps
+type Props = OwnProps & DispatchProps & WithRouterProps
 
 class DashboardCard extends PureComponent<Props> {
   public render() {
@@ -62,11 +55,8 @@ class DashboardCard extends PureComponent<Props> {
       description,
       onFilterChange,
       labels,
-      allLabels,
       updatedAt,
     } = this.props
-
-    const dashboardLabels = labels
 
     return (
       <ResourceCard
@@ -92,8 +82,7 @@ class DashboardCard extends PureComponent<Props> {
         }
         labels={
           <InlineLabels
-            labels={allLabels}
-            selectedLabels={dashboardLabels}
+            selectedLabelIDs={labels}
             onFilterChange={onFilterChange}
             onAddLabel={this.handleAddLabel}
             onRemoveLabel={this.handleRemoveLabel}
@@ -155,7 +144,7 @@ class DashboardCard extends PureComponent<Props> {
     onDeleteDashboard(id, name)
   }
 
-  private handleClickDashboard = () => {
+  private handleClickDashboard = e => {
     const {
       onResetViews,
       router,
@@ -163,7 +152,11 @@ class DashboardCard extends PureComponent<Props> {
       params: {orgID},
     } = this.props
 
-    router.push(`/orgs/${orgID}/dashboards/${id}`)
+    if (e.metaKey) {
+      window.open(`/orgs/${orgID}/dashboards/${id}`, '_blank')
+    } else {
+      router.push(`/orgs/${orgID}/dashboards/${id}`)
+    }
 
     onResetViews()
   }
@@ -197,12 +190,6 @@ class DashboardCard extends PureComponent<Props> {
   }
 }
 
-const mstp = ({labels}: AppState): StateProps => {
-  return {
-    allLabels: viewableLabels(labels.list),
-  }
-}
-
 const mdtp: DispatchProps = {
   onAddDashboardLabel: addDashboardLabel,
   onRemoveDashboardLabel: removeDashboardLabel,
@@ -212,7 +199,7 @@ const mdtp: DispatchProps = {
   onUpdateDashboard: updateDashboard,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
-  mstp,
+export default connect<{}, DispatchProps, OwnProps>(
+  null,
   mdtp
 )(withRouter(DashboardCard))

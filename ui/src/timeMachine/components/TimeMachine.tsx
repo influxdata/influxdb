@@ -46,6 +46,7 @@ const TimeMachine: FunctionComponent<StateProps> = ({
 
   return (
     <>
+      {isViewingVisOptions && <ViewOptions />}
       <div className={containerClassName}>
         <DraggableResizer
           handleOrientation={Orientation.Horizontal}
@@ -69,7 +70,6 @@ const TimeMachine: FunctionComponent<StateProps> = ({
           </DraggableResizer.Panel>
         </DraggableResizer>
       </div>
-      {isViewingVisOptions && <ViewOptions />}
     </>
   )
 }

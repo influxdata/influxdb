@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/influxdb"
-	platform "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/mock"
+	"github.com/influxdata/influxdb/v2"
+	platform "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/mock"
 )
 
 const (
@@ -24,10 +24,19 @@ var organizationCmpOptions = cmp.Options{
 	cmp.Comparer(func(x, y []byte) bool {
 		return bytes.Equal(x, y)
 	}),
+	cmp.Comparer(func(x, y *influxdb.Organization) bool {
+		if x == nil && y == nil {
+			return true
+		}
+		if x != nil && y == nil || y != nil && x == nil {
+			return false
+		}
+		return x.Name == y.Name && x.Description == y.Description
+	}),
 	cmp.Transformer("Sort", func(in []*influxdb.Organization) []*influxdb.Organization {
 		out := append([]*influxdb.Organization(nil), in...) // Copy input to avoid mutating it
 		sort.Slice(out, func(i, j int) bool {
-			return out[i].ID.String() > out[j].ID.String()
+			return out[i].Name > out[j].Name
 		})
 		return out
 	}),
@@ -291,39 +300,6 @@ func CreateOrganization(
 				},
 			},
 		},
-		{
-			name: "names should be unique",
-			fields: OrganizationFields{
-				IDGenerator:   mock.NewMockIDGenerator(),
-				OrgBucketIDs:  orgBucketsIDGenerator,
-				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
-				Organizations: []*influxdb.Organization{
-					{
-						ID:   MustIDBase16(orgOneID),
-						Name: "organization1",
-					},
-				},
-			},
-			args: args{
-				organization: &influxdb.Organization{
-					ID:   MustIDBase16(orgOneID),
-					Name: "organization1",
-				},
-			},
-			wants: wants{
-				organizations: []*influxdb.Organization{
-					{
-						ID:   MustIDBase16(orgOneID),
-						Name: "organization1",
-					},
-				},
-				err: &influxdb.Error{
-					Code: influxdb.EConflict,
-					Op:   influxdb.OpCreateOrganization,
-					Msg:  "organization with name organization1 already exists",
-				},
-			},
-		},
 	}
 
 	for _, tt := range tests {
@@ -337,7 +313,6 @@ func CreateOrganization(
 			// Delete only newly created organizations
 			// if tt.args.organization.ID != nil {
 			defer s.DeleteOrganization(ctx, tt.args.organization.ID)
-			// }
 
 			organizations, _, err := s.FindOrganizations(ctx, influxdb.OrganizationFilter{})
 			diffPlatformErrors(tt.name, err, nil, opPrefix, t)
@@ -663,6 +638,7 @@ func DeleteOrganization(
 		{
 			name: "delete organizations using id that does not exist",
 			fields: OrganizationFields{
+				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(1, 1, 1, 0, 0, 0, 0, time.UTC)},
 				Organizations: []*influxdb.Organization{
 					{
 						Name: "orgA",

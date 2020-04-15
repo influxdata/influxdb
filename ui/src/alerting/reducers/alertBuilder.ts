@@ -16,7 +16,9 @@ import {
   DEFAULT_CHECK_TAGS,
 } from 'src/alerting/constants'
 
-type FromBase = Required<Pick<CheckBase, 'name' | 'id' | 'status'>>
+type FromBase = Required<
+  Pick<CheckBase, 'name' | 'id' | 'activeStatus' | 'status'>
+>
 
 type FromThreshold = Required<
   Pick<
@@ -34,12 +36,12 @@ export interface AlertBuilderState
     FromThreshold,
     FromDeadman {
   type: CheckType
-  checkStatus: RemoteDataState
 }
 
 export const initialState = (): AlertBuilderState => ({
   id: null,
-  status: 'active',
+  activeStatus: 'active',
+  status: RemoteDataState.NotStarted,
   type: 'threshold',
   name: DEFAULT_CHECK_NAME,
   every: DEFAULT_CHECK_EVERY,
@@ -51,7 +53,6 @@ export const initialState = (): AlertBuilderState => ({
   staleTime: '10m',
   level: DEFAULT_DEADMAN_LEVEL,
   thresholds: [],
-  checkStatus: RemoteDataState.NotStarted,
 })
 
 export default (
@@ -67,7 +68,7 @@ export default (
       return {
         ...initialState(),
         type: action.payload.type,
-        checkStatus: RemoteDataState.Done,
+        status: RemoteDataState.Done,
       }
     }
 
@@ -80,7 +81,7 @@ export default (
 
       const newState = {
         ...initialState(),
-        checkStatus: RemoteDataState.Done,
+        status: RemoteDataState.Done,
         id,
         name,
         query,
@@ -90,6 +91,7 @@ export default (
       if (action.payload.check.type === 'custom') {
         return newState
       }
+
       if (action.payload.check.type === 'threshold') {
         const {
           every,
@@ -137,8 +139,8 @@ export default (
       )
     }
 
-    case 'SET_ALERT_BUILER_CHECK_STATUS': {
-      return {...state, checkStatus: action.payload.checkStatus}
+    case 'SET_ALERT_BUILDER_STATUS': {
+      return {...state, status: action.payload.status}
     }
 
     case 'SET_ALERT_BUILDER_EVERY': {

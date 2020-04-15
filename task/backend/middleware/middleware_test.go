@@ -7,15 +7,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/influxdb"
-	pmock "github.com/influxdata/influxdb/mock"
-	_ "github.com/influxdata/influxdb/query/builtin"
-	"github.com/influxdata/influxdb/snowflake"
-	"github.com/influxdata/influxdb/task/backend"
-	"github.com/influxdata/influxdb/task/backend/coordinator"
-	"github.com/influxdata/influxdb/task/backend/middleware"
-	"github.com/influxdata/influxdb/task/backend/scheduler"
-	"github.com/influxdata/influxdb/task/mock"
+	"github.com/influxdata/influxdb/v2"
+	pmock "github.com/influxdata/influxdb/v2/mock"
+	_ "github.com/influxdata/influxdb/v2/query/builtin"
+	"github.com/influxdata/influxdb/v2/snowflake"
+	"github.com/influxdata/influxdb/v2/task/backend"
+	"github.com/influxdata/influxdb/v2/task/backend/coordinator"
+	"github.com/influxdata/influxdb/v2/task/backend/middleware"
+	"github.com/influxdata/influxdb/v2/task/backend/scheduler"
+	"github.com/influxdata/influxdb/v2/task/mock"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -43,7 +43,7 @@ func inmemTaskService() influxdb.TaskService {
 			id := gen.ID()
 			task := &influxdb.Task{ID: id, Flux: tc.Flux, Cron: "* * * * *", Status: tc.Status, OrganizationID: tc.OrganizationID, Organization: tc.Organization}
 			if task.Status == "" {
-				task.Status = string(backend.TaskActive)
+				task.Status = string(influxdb.TaskActive)
 			}
 			tasks[id] = task
 
@@ -152,7 +152,7 @@ func TestCoordinatingTaskService(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	inactive := string(backend.TaskInactive)
+	inactive := string(influxdb.TaskInactive)
 	res, err := middleware.UpdateTask(context.Background(), task.ID, influxdb.TaskUpdate{Status: &inactive})
 	if err != nil {
 		t.Fatal(err)
@@ -172,7 +172,7 @@ func TestCoordinatingTaskService(t *testing.T) {
 		t.Fatal("task sent to scheduler doesnt match task created")
 	}
 
-	active := string(backend.TaskActive)
+	active := string(influxdb.TaskActive)
 	if _, err := middleware.UpdateTask(context.Background(), task.ID, influxdb.TaskUpdate{Status: &active}); err != nil {
 		t.Fatal(err)
 	}

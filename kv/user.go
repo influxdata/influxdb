@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/influxdata/influxdb"
-	icontext "github.com/influxdata/influxdb/context"
+	"github.com/influxdata/influxdb/v2"
+	icontext "github.com/influxdata/influxdb/v2/context"
 )
 
 var (
@@ -230,6 +230,11 @@ func (s *Service) CreateUser(ctx context.Context, u *influxdb.User) error {
 	})
 }
 
+// CreateUserTx is used when importing kv as a library
+func (s *Service) CreateUserTx(ctx context.Context, tx Tx, u *influxdb.User) error {
+	return s.createUser(ctx, tx, u)
+}
+
 func (s *Service) createUser(ctx context.Context, tx Tx, u *influxdb.User) error {
 	if err := s.uniqueUserName(ctx, tx, u); err != nil {
 		return err
@@ -293,12 +298,12 @@ func (s *Service) forEachUser(ctx context.Context, tx Tx, fn func(*influxdb.User
 		return err
 	}
 
-	cur, err := b.Cursor()
+	cur, err := b.ForwardCursor(nil)
 	if err != nil {
 		return ErrInternalUserServiceError(err)
 	}
 
-	for k, v := cur.First(); k != nil; k, v = cur.Next() {
+	for k, v := cur.Next(); k != nil; k, v = cur.Next() {
 		u, err := UnmarshalUser(v)
 		if err != nil {
 			return err

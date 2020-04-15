@@ -10,13 +10,16 @@ import (
 	"time"
 
 	bolt "github.com/coreos/bbolt"
-	"github.com/influxdata/influxdb/kit/tracing"
-	"github.com/influxdata/influxdb/kv"
+	"github.com/influxdata/influxdb/v2/kit/tracing"
+	"github.com/influxdata/influxdb/v2/kv"
 	"go.uber.org/zap"
 )
 
 // check that *KVStore implement kv.Store interface.
 var _ kv.Store = (*KVStore)(nil)
+
+// ensure *KVStore implements kv.AutoMigrationStore.
+var _ kv.AutoMigrationStore = (*KVStore)(nil)
 
 // KVStore is a kv.Store backed by boltdb.
 type KVStore struct {
@@ -32,6 +35,11 @@ func NewKVStore(log *zap.Logger, path string) *KVStore {
 		path: path,
 		log:  log,
 	}
+}
+
+// AutoMigrate returns itself as it is safe to automatically apply migrations on initialization.
+func (s *KVStore) AutoMigrate() kv.Store {
+	return s
 }
 
 // Open creates boltDB file it doesn't exists and opens it otherwise.
@@ -189,6 +197,21 @@ func (b *Bucket) Get(key []byte) ([]byte, error) {
 	return val, nil
 }
 
+// GetBatch retrieves the values for the provided keys.
+func (b *Bucket) GetBatch(keys ...[]byte) ([][]byte, error) {
+	values := make([][]byte, len(keys))
+	for idx, key := range keys {
+		val := b.bucket.Get(key)
+		if len(val) == 0 {
+			continue
+		}
+
+		values[idx] = val
+	}
+
+	return values, nil
+}
+
 // Put sets the value at the provided key.
 func (b *Bucket) Put(key []byte, value []byte) error {
 	err := b.bucket.Put(key, value)
@@ -226,12 +249,18 @@ func (b *Bucket) ForwardCursor(seek []byte, opts ...kv.CursorOption) (kv.Forward
 		return nil, fmt.Errorf("seek bytes %q not prefixed with %q: %w", string(seek), string(config.Prefix), kv.ErrSeekMissingPrefix)
 	}
 
-	return &Cursor{
+	c := &Cursor{
 		cursor: cursor,
-		key:    key,
-		value:  value,
 		config: config,
-	}, nil
+	}
+
+	// only remember first seeked item if not skipped
+	if !config.SkipFirst {
+		c.key = key
+		c.value = value
+	}
+
+	return c, nil
 }
 
 // Cursor retrieves a cursor for iterating through the entries

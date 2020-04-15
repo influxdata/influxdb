@@ -146,6 +146,15 @@ func (r *Resp) ExpectBody(fn func(body *bytes.Buffer)) *Resp {
 	return r
 }
 
+// ExpectHeaders asserts that multiple headers with values exist in the recorder.
+func (r *Resp) ExpectHeaders(h map[string]string) *Resp {
+	for k, v := range h {
+		r.ExpectHeader(k, v)
+	}
+
+	return r
+}
+
 // ExpectHeader asserts that the header is in the recorder.
 func (r *Resp) ExpectHeader(k, v string) *Resp {
 	r.t.Helper()

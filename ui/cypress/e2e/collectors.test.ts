@@ -225,8 +225,11 @@ describe('Collectors', () => {
           })
         })
 
-        cy.getByTestID('name-sorter')
+        cy.getByTestID('resource-sorter--button')
           .click()
+          .then(() => {
+            cy.getByTestID('resource-sorter--name-desc').click()
+          })
           .then(() => {
             // NOTE: this then is just here to let me scope this variable (alex)
             const teletubbies = telegrafs
@@ -393,6 +396,7 @@ describe('Collectors', () => {
         })
         cy.reload()
       })
+
       it('Can add label', () => {
         cy.getByTestID('inline-labels--add').click()
         cy.getByTestID('inline-labels--popover-field').type('zoe')
@@ -402,6 +406,7 @@ describe('Collectors', () => {
         cy.getByTestID('label--pill zoe').should('exist')
         //can search by label
         cy.getByTestID('search-widget')
+          .should('be.visible')
           .clear()
           .type('zoe')
 

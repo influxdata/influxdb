@@ -29,6 +29,9 @@ describe('Notification Endpoints', () => {
           cy.wrap(body).as('endpoint')
         })
         cy.visit(`${orgs}/${id}${alerting}`)
+
+        // User can only see all panels at once on large screens
+        cy.getByTestID('alerting-tab--endpoints').click({force: true})
       })
     })
   })
@@ -219,8 +222,21 @@ describe('Notification Endpoints', () => {
 
       cy.getByTestID('endpoint-save--button').click()
 
-      cy.getByTestID(`endpoint-card ${newName}`).should('exist')
       cy.getByTestID('endpoint--overlay').should('not.be.visible')
+
+      // Create a label
+      cy.getByTestID(`endpoint-card ${newName}`).within(() => {
+        cy.getByTestID('inline-labels--add').click()
+      })
+
+      const labelName = 'l1'
+      cy.getByTestID('inline-labels--popover--contents').type(labelName)
+      cy.getByTestID('inline-labels--create-new').click()
+      cy.getByTestID('create-label-form--submit').click()
+
+      // Delete the label
+      cy.getByTestID(`label--pill--delete ${labelName}`).click({force: true})
+      cy.getByTestID('inline-labels--empty').should('exist')
     })
   })
 

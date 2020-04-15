@@ -16,15 +16,11 @@ interface Props {
 
 const CheckHistoryControls: FC<Props> = ({eventViewerProps}) => {
   return (
-    <div className="alert-history-controls">
-      <div className="alert-history-controls--right">
-        <SearchBar
-          {...eventViewerProps}
-          placeholder="Search statuses..."
-          exampleSearches={EXAMPLE_STATUS_SEARCHES}
-        />
-      </div>
-    </div>
+    <SearchBar
+      {...eventViewerProps}
+      placeholder="Search statuses..."
+      exampleSearches={EXAMPLE_STATUS_SEARCHES}
+    />
   )
 }
 

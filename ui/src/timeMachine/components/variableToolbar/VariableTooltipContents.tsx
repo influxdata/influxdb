@@ -1,113 +1,52 @@
 // Libraries
 import React, {FunctionComponent} from 'react'
 import {connect} from 'react-redux'
-import {get} from 'lodash'
-
-// Components
-import {
-  Form,
-  SelectDropdown,
-  IconFont,
-  ComponentStatus,
-} from '@influxdata/clockface'
 
 // Actions
-import {
-  addVariableToTimeMachine,
-  selectVariableValue,
-} from 'src/timeMachine/actions/queries'
+import {executeQueries} from 'src/timeMachine/actions/queries'
 
-// Utils
-import {
-  getTimeMachineValues,
-  getTimeMachineValuesStatus,
-} from 'src/variables/selectors'
-import {toComponentStatus} from 'src/shared/utils/toComponentStatus'
-
-// Types
-import {RemoteDataState, VariableValues} from 'src/types'
-import {AppState} from 'src/types'
-
-interface StateProps {
-  values?: VariableValues
-  valuesStatus: RemoteDataState
-}
+// Components
+import {Form} from '@influxdata/clockface'
+import VariableDropdown from 'src/variables/components/VariableDropdown'
 
 interface DispatchProps {
-  onAddVariableToTimeMachine: typeof addVariableToTimeMachine
-  onSelectVariableValue: typeof selectVariableValue
+  execute: typeof executeQueries
 }
 
 interface OwnProps {
   variableID: string
 }
 
-type Props = StateProps & DispatchProps & OwnProps
+type Props = DispatchProps & OwnProps
 
 const VariableTooltipContents: FunctionComponent<Props> = ({
   variableID,
-  values,
-  valuesStatus,
-  onAddVariableToTimeMachine,
-  onSelectVariableValue,
+  execute,
 }) => {
-  const dropdownItems: string[] = get(values, 'values') || []
-
-  const handleMouseEnter = () => {
-    if (values || valuesStatus === RemoteDataState.Loading) {
-      return
-    }
-
-    onAddVariableToTimeMachine(variableID)
+  const refresh = () => {
+    execute()
   }
-
-  let selectedOption = 'None Selected'
-  let icon
-  let status = toComponentStatus(valuesStatus)
-
-  if (!values) {
-    selectedOption = 'Failed to Load'
-    icon = IconFont.AlertTriangle
-    status = ComponentStatus.Disabled
-  } else if (values.error) {
-    selectedOption = 'Failed to Load'
-    icon = IconFont.AlertTriangle
-    status = ComponentStatus.Disabled
-  } else if (!values.values.length) {
-    selectedOption = 'No Results'
-  } else {
-    selectedOption = get(values, 'selectedValue', 'None Selected')
-  }
-
   return (
-    <div onMouseEnter={handleMouseEnter}>
+    <div
+      className="flux-toolbar--popover"
+      data-testid="flux-toolbar--variable-popover"
+    >
       <Form.Element label="Value">
-        <SelectDropdown
-          buttonIcon={icon}
-          options={dropdownItems}
-          selectedOption={selectedOption}
-          buttonStatus={status}
-          style={{width: '200px'}}
-          onSelect={value => onSelectVariableValue(variableID, value)}
+        <VariableDropdown
+          variableID={variableID}
+          onSelect={refresh}
+          testID="variable--tooltip-dropdown"
         />
       </Form.Element>
     </div>
   )
 }
 
-const mstp = (state: AppState, ownProps: OwnProps) => {
-  const valuesStatus = getTimeMachineValuesStatus(state)
-  const values = getTimeMachineValues(state, ownProps.variableID)
-
-  return {values, valuesStatus}
-}
-
 const mdtp = {
-  onAddVariableToTimeMachine: addVariableToTimeMachine,
-  onSelectVariableValue: selectVariableValue,
+  execute: executeQueries,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
-  mstp,
+export default connect<{}, DispatchProps, OwnProps>(
+  null,
   mdtp
 )(VariableTooltipContents)

@@ -1,9 +1,17 @@
+// Libraries
+import {normalize} from 'normalizr'
+
+// Schemas
+import {labelSchema, arrayOfLabels} from 'src/schemas/labels'
+
 // Reducer
-import {labelsReducer} from 'src/labels/reducers'
+import {labelsReducer, initialState} from 'src/labels/reducers'
 
 // Actions
-import {setLabels, addLabel, editLabel, removeLabel} from 'src/labels/actions'
-import {RemoteDataState} from 'src/types'
+import {setLabels, setLabel, removeLabel} from 'src/labels/actions/creators'
+
+// Types
+import {RemoteDataState, Label, LabelEntities} from 'src/types'
 
 // Mock Label
 const status = RemoteDataState.Done
@@ -12,42 +20,43 @@ const dummyLabel = {id: '1', properties}
 
 describe('labels reducer', () => {
   it('can set the labels', () => {
-    const list = [dummyLabel]
+    const labels = normalize<Label, LabelEntities, string[]>(
+      [dummyLabel],
+      arrayOfLabels
+    )
 
-    const expected = {status, list}
-    const actual = labelsReducer(undefined, setLabels(status, list))
+    const actual = labelsReducer(initialState(), setLabels(status, labels))
 
-    expect(actual).toEqual(expected)
+    expect(actual.allIDs).toEqual([dummyLabel.id])
+    expect(actual.byID[dummyLabel.id]).toEqual({...dummyLabel, status})
   })
 
-  it('can add a label', () => {
-    const list = [dummyLabel]
-    const state = {status, list}
+  it('can set a label', () => {
+    const state = initialState()
     const newLabel = {id: '2', properties}
 
-    const expected = {status, list: [...list, newLabel]}
-    const actual = labelsReducer(state, addLabel(newLabel))
+    const label = normalize<Label, LabelEntities, string>(newLabel, labelSchema)
 
-    expect(actual).toEqual(expected)
-  })
+    const actual = labelsReducer(state, setLabel(newLabel.id, status, label))
 
-  it('can edit a label', () => {
-    const list = [dummyLabel]
-    const state = {status, list}
-    const newProps = {...properties, description: 'new desc'}
-    const updatedLabel = {...dummyLabel, properties: newProps}
-
-    const expected = {status, list: [updatedLabel]}
-    const actual = labelsReducer(state, editLabel(updatedLabel))
-
-    expect(actual).toEqual(expected)
+    expect(actual.byID[newLabel.id]).toEqual({
+      ...newLabel,
+      status,
+    })
+    expect(actual.allIDs).toEqual([newLabel.id])
   })
 
   it('can remove a label', () => {
-    const list = [dummyLabel]
-    const state = {status, list}
+    const {id} = dummyLabel
+    const state = {
+      byID: {
+        [id]: {...dummyLabel, status},
+      },
+      allIDs: [id],
+      status: RemoteDataState.Done,
+    }
 
-    const expected = {status, list: []}
+    const expected = {status, byID: {}, allIDs: []}
     const actual = labelsReducer(state, removeLabel(dummyLabel.id))
 
     expect(actual).toEqual(expected)

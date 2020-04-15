@@ -3,7 +3,9 @@ import {
   Authorization,
   Bucket,
   Cell,
+  Check,
   Dashboard,
+  Label,
   Member,
   Organization,
   Scraper,
@@ -12,6 +14,8 @@ import {
   TemplateSummary,
   Variable,
   View,
+  NotificationRule,
+  NotificationEndpoint,
 } from 'src/types'
 
 // AuthEntities defines the result of normalizr's normalization
@@ -38,6 +42,14 @@ export interface CellEntities {
   }
 }
 
+// CheckEntities defines the result of normalizr's normalization of
+// the "checks" resource
+export interface CheckEntities {
+  checks: {
+    [uuid: string]: Check
+  }
+}
+
 // DashboardEntities defines the result of normalizr's normalization
 // of the "dashboards" resource
 export interface DashboardEntities {
@@ -46,6 +58,22 @@ export interface DashboardEntities {
   }
   cells: {
     [uuid: string]: Cell
+  }
+}
+
+// EndpointEntities defines the result of normalizr's normalization of
+// the "notification_endpoint" resource
+export interface EndpointEntities {
+  endpoints: {
+    [uuid: string]: NotificationEndpoint
+  }
+}
+
+// LabelEntities defines the result of normalizr's normalization of
+// the "labels" resource
+export interface LabelEntities {
+  labels: {
+    [uuid: string]: Label
   }
 }
 
@@ -65,11 +93,11 @@ export interface OrgEntities {
   }
 }
 
-// TelegrafEntities defines the result of normalizr's normalization
-// of the "telegrafs" resource
-export interface TelegrafEntities {
-  telegrafs: {
-    [uuid: string]: Telegraf
+// RuleEntities defines the result of normalizr's normalization
+// of the "notification rules" resource
+export interface RuleEntities {
+  rules: {
+    [uuid: string]: NotificationRule
   }
 }
 
@@ -86,6 +114,14 @@ export interface ScraperEntities {
 export interface TaskEntities {
   tasks: {
     [uuid: string]: Task
+  }
+}
+
+// TelegrafEntities defines the result of normalizr's normalization
+// of the "telegrafs" resource
+export interface TelegrafEntities {
+  telegrafs: {
+    [uuid: string]: Telegraf
   }
 }
 

@@ -20,7 +20,9 @@ export const localState: LocalStorage = {
     persisted: {
       autoRefresh: 0,
       showTemplateControlBar: false,
+      navBarState: 'expanded',
       timeZone: 'Local' as TimeZone,
+      theme: 'dark',
     },
   },
   VERSION: '2.0.0',

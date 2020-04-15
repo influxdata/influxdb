@@ -61,6 +61,7 @@ const SearchBar: FC<Props> = ({
         <Input
           icon={IconFont.Search}
           placeholder={placeholder}
+          style={{width: '100%'}}
           value={state.searchInput}
           status={inputStatus}
           onChange={e => search(state, dispatch, loadRows, e.target.value)}

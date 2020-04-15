@@ -84,7 +84,7 @@ var FluxEndToEndSkipList = map[string]map[string]string{
 		"window_group_mean_ungroup": "window trigger optimization modifies sort order of its output tables (https://github.com/influxdata/flux/issues/1067)",
 
 		"median_column": "failing in different ways (https://github.com/influxdata/influxdb/issues/13909)",
-		"dynamic_query": "panic when executing",
+		"dynamic_query": "tableFind does not work in e2e tests: https://github.com/influxdata/influxdb/issues/13975",
 
 		"to_int":  "dateTime conversion issue: https://github.com/influxdata/influxdb/issues/14575",
 		"to_uint": "dateTime conversion issue: https://github.com/influxdata/influxdb/issues/14575",
@@ -92,7 +92,18 @@ var FluxEndToEndSkipList = map[string]map[string]string{
 		"holt_winters_panic": "Expected output is an empty table which breaks the testing framework (https://github.com/influxdata/influxdb/issues/14749)",
 	},
 	"experimental": {
-		"set": "Reason TBD",
+		"set":  "Reason TBD",
+		"join": "unbounded test",
+	},
+	"experimental/geo": {
+		"filterRowsNotStrict": "tableFind does not work in e2e tests: https://github.com/influxdata/influxdb/issues/13975",
+		"filterRowsStrict":    "tableFind does not work in e2e tests: https://github.com/influxdata/influxdb/issues/13975",
+		"gridFilterLevel":     "tableFind does not work in e2e tests: https://github.com/influxdata/influxdb/issues/13975",
+		"gridFilter":          "tableFind does not work in e2e tests: https://github.com/influxdata/influxdb/issues/13975",
+		"groupByArea":         "tableFind does not work in e2e tests: https://github.com/influxdata/influxdb/issues/13975",
+		"filterRowsPivoted":   "tableFind does not work in e2e tests: https://github.com/influxdata/influxdb/issues/13975",
+		"shapeDataWithFilter": "tableFind does not work in e2e tests: https://github.com/influxdata/influxdb/issues/13975",
+		"shapeData":           "test run before to() is finished: https://github.com/influxdata/influxdb/issues/13975",
 	},
 	"regexp": {
 		"replaceAllString": "Reason TBD",
@@ -106,7 +117,13 @@ var FluxEndToEndSkipList = map[string]map[string]string{
 		"show_tag_keys":     "flaky test (https://github.com/influxdata/influxdb/issues/15450)",
 	},
 	"influxdata/influxdb/monitor": {
-		"check": "Cannot see overridden options from inside stdlib functions (https://github.com/influxdata/flux/issues/1720)",
+		"state_changes_big_any_to_any":     "unbounded test",
+		"state_changes_big_info_to_ok":     "unbounded test",
+		"state_changes_big_ok_to_info":     "unbounded test",
+		"state_changes_any_to_any":         "test run before to() is finished: https://github.com/influxdata/influxdb/issues/13975",
+		"state_changes_info_to_any":        "test run before to() is finished: https://github.com/influxdata/influxdb/issues/13975",
+		"state_changes_invalid_any_to_any": "test run before to() is finished: https://github.com/influxdata/influxdb/issues/13975",
+		"state_changes":                    "test run before to() is finished: https://github.com/influxdata/influxdb/issues/13975",
 	},
 	"influxdata/influxdb/secrets": {
 		"secrets": "Cannot inject custom deps into the test framework so the secrets don't lookup correctly",
@@ -116,6 +133,9 @@ var FluxEndToEndSkipList = map[string]map[string]string{
 	},
 	"testing/chronograf": {
 		"buckets": "unbounded test",
+	},
+	"testing/influxql": {
+		"aggregate_group_by_time": "https://github.com/influxdata/influxdb/issues/16940",
 	},
 	"testing/kapacitor": {
 		"fill_default": "unknown field type for f1",

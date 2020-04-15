@@ -3,12 +3,12 @@ package tsm1
 import (
 	"fmt"
 
-	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/v2/tsdb/cursors"
 )
 
 // DecodeBooleanArrayBlock decodes the boolean block from the byte slice
 // and writes the values to a.
-func DecodeBooleanArrayBlock(block []byte, a *tsdb.BooleanArray) error {
+func DecodeBooleanArrayBlock(block []byte, a *cursors.BooleanArray) error {
 	blockType := block[0]
 	if blockType != BlockBoolean {
 		return fmt.Errorf("invalid block type: exp %d, got %d", BlockBoolean, blockType)
@@ -29,7 +29,7 @@ func DecodeBooleanArrayBlock(block []byte, a *tsdb.BooleanArray) error {
 
 // DecodeFloatArrayBlock decodes the float block from the byte slice
 // and writes the values to a.
-func DecodeFloatArrayBlock(block []byte, a *tsdb.FloatArray) error {
+func DecodeFloatArrayBlock(block []byte, a *cursors.FloatArray) error {
 	blockType := block[0]
 	if blockType != BlockFloat64 {
 		return fmt.Errorf("invalid block type: exp %d, got %d", BlockFloat64, blockType)
@@ -50,7 +50,7 @@ func DecodeFloatArrayBlock(block []byte, a *tsdb.FloatArray) error {
 
 // DecodeIntegerArrayBlock decodes the integer block from the byte slice
 // and writes the values to a.
-func DecodeIntegerArrayBlock(block []byte, a *tsdb.IntegerArray) error {
+func DecodeIntegerArrayBlock(block []byte, a *cursors.IntegerArray) error {
 	blockType := block[0]
 	if blockType != BlockInteger {
 		return fmt.Errorf("invalid block type: exp %d, got %d", BlockInteger, blockType)
@@ -71,7 +71,7 @@ func DecodeIntegerArrayBlock(block []byte, a *tsdb.IntegerArray) error {
 
 // DecodeUnsignedArrayBlock decodes the unsigned integer block from the byte slice
 // and writes the values to a.
-func DecodeUnsignedArrayBlock(block []byte, a *tsdb.UnsignedArray) error {
+func DecodeUnsignedArrayBlock(block []byte, a *cursors.UnsignedArray) error {
 	blockType := block[0]
 	if blockType != BlockUnsigned {
 		return fmt.Errorf("invalid block type: exp %d, got %d", BlockUnsigned, blockType)
@@ -92,7 +92,7 @@ func DecodeUnsignedArrayBlock(block []byte, a *tsdb.UnsignedArray) error {
 
 // DecodeStringArrayBlock decodes the string block from the byte slice
 // and writes the values to a.
-func DecodeStringArrayBlock(block []byte, a *tsdb.StringArray) error {
+func DecodeStringArrayBlock(block []byte, a *cursors.StringArray) error {
 	blockType := block[0]
 	if blockType != BlockString {
 		return fmt.Errorf("invalid block type: exp %d, got %d", BlockString, blockType)
@@ -113,7 +113,7 @@ func DecodeStringArrayBlock(block []byte, a *tsdb.StringArray) error {
 
 // DecodeTimestampArrayBlock decodes the timestamps from the specified
 // block, ignoring the block type and the values.
-func DecodeTimestampArrayBlock(block []byte, a *tsdb.TimestampArray) error {
+func DecodeTimestampArrayBlock(block []byte, a *cursors.TimestampArray) error {
 	tb, _, err := unpackBlock(block[1:])
 	if err != nil {
 		return err

@@ -60,14 +60,14 @@ $ix-link-warning-hover: $c-thunder;
 $ix-link-info: $c-star;
 $ix-link-info-hover: $c-comet;
 $ix-link-danger: $c-curacao;
-$ix-link-danger-hover:  $c-dreamsicle;
+$ix-link-danger-hover: $c-dreamsicle;
 
 $ix-text-default: $g13-mist;
 $ix-text-light: $g13-mist;
 $ix-text-lighter: $g13-mist;
 $ix-text-lightest: $g15-platinum;
 
-$ix-text-font: 'Roboto', Helvetica, Arial, Tahoma, Verdana, sans-serif;
+$ix-text-font: 'Rubik', Helvetica, Arial, Tahoma, Verdana, sans-serif;
 $ix-text-selection-bg: $c-pool;
 $ix-text-selection-color: $g20-white;
 $ix-text-scale: 1.19;
@@ -77,9 +77,21 @@ $ix-text-tiny: 11px;
 $ix-text-base: 12px;
 $ix-text-base-1: (ceil($ix-text-base * $ix-text-scale));
 $ix-text-base-2: (ceil($ix-text-base * $ix-text-scale * $ix-text-scale));
-$ix-text-base-3: (ceil($ix-text-base * $ix-text-scale * $ix-text-scale * $ix-text-scale));
-$ix-text-base-4: (ceil($ix-text-base * $ix-text-scale * $ix-text-scale * $ix-text-scale * $ix-text-scale));
-$ix-text-base-5: (ceil($ix-text-base * $ix-text-scale * $ix-text-scale * $ix-text-scale * $ix-text-scale * $ix-text-scale));
+$ix-text-base-3: (
+  ceil($ix-text-base * $ix-text-scale * $ix-text-scale * $ix-text-scale)
+);
+$ix-text-base-4: (
+  ceil(
+    $ix-text-base * $ix-text-scale * $ix-text-scale * $ix-text-scale *
+      $ix-text-scale
+  )
+);
+$ix-text-base-5: (
+  ceil(
+    $ix-text-base * $ix-text-scale * $ix-text-scale * $ix-text-scale *
+      $ix-text-scale * $ix-text-scale
+  )
+);
 
 /* Form Element Sizing */
 
@@ -103,8 +115,9 @@ $form-lg-font: 17px;
 $empty-state-text: $g9-mountain;
 $empty-state-highlight: $g13-mist;
 
-$default-font: 'Roboto', Helvetica, sans-serif;
-$code-font: 'RobotoMono', monospace;
-
 /* Event Markers */
 $event-marker-height: 20px;
+
+/* Icon Formatting */
+$icon-margin: 6px;
+$icon-size-md: 70px;

@@ -1,6 +1,7 @@
 // Libraries
 import React, {SFC} from 'react'
 import {connect} from 'react-redux'
+import classnames from 'classnames'
 
 // Utils
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
@@ -15,10 +16,12 @@ interface StateProps {
 }
 
 const TimeMachineQueriesTimer: SFC<StateProps> = ({duration, status}) => {
-  const visibleClass = status === RemoteDataState.Done ? 'visible' : ''
+  const queriesTimerClass = classnames('query-tab--timer', {
+    'query-tab--timer__visible': status === RemoteDataState.Done,
+  })
 
   return (
-    <div className={`queries-timer ${visibleClass}`}>
+    <div className={queriesTimerClass}>
       {`(${(duration / 1000).toFixed(2)}s)`}
     </div>
   )

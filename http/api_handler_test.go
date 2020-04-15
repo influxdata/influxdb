@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -50,7 +51,7 @@ func TestAPIHandler_NotFound(t *testing.T) {
 			w := httptest.NewRecorder()
 
 			b := &APIBackend{
-				HTTPErrorHandler: ErrorHandler(0),
+				HTTPErrorHandler: kithttp.ErrorHandler(0),
 				Logger:           zaptest.NewLogger(t),
 			}
 

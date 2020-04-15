@@ -284,7 +284,11 @@ describe('labels', () => {
       }
     })
 
-    cy.getByTestID('sorter--name').click()
+    cy.getByTestID('resource-sorter--button')
+      .click()
+      .then(() => {
+        cy.getByTestID('resource-sorter--name-desc').click()
+      })
 
     // check sort desc
     cy.getByTestIDSubStr('label--pill').then(labels => {
@@ -296,7 +300,11 @@ describe('labels', () => {
     })
 
     // reset to asc
-    cy.getByTestID('sorter--name').click()
+    cy.getByTestID('resource-sorter--button')
+      .click()
+      .then(() => {
+        cy.getByTestID('resource-sorter--name-asc').click()
+      })
 
     cy.getByTestIDSubStr('label--pill').then(labels => {
       for (let i = 0; i < labels.length; i++) {
@@ -332,27 +340,32 @@ describe('labels', () => {
       a.description < b.description ? -1 : a.description > b.description ? 1 : 0
     )
     // check sort asc
-    cy.getByTestID('sorter--desc').click()
+    cy.getByTestID('resource-sorter--button')
+      .click()
+      .then(() => {
+        cy.getByTestID('resource-sorter--properties.description-asc').click()
+      })
 
-    cy.getByTestIDSubStr('resource-card').then(labels => {
+    cy.getByTestID('label-card').then(labels => {
       for (let i = 0; i < labels.length; i++) {
-        cy.getByTestIDSubStr('resource-card')
+        cy.getByTestID('label-card--description')
           .eq(i)
-          .should('have.text', 'Description: ' + names[i].description)
+          .should('have.text', names[i].description)
       }
     })
 
     // check sort desc
-    cy.getByTestID('sorter--desc').click()
+    cy.getByTestID('resource-sorter--button')
+      .click()
+      .then(() => {
+        cy.getByTestID('resource-sorter--properties.description-desc').click()
+      })
 
-    cy.getByTestIDSubStr('resource-card').then(labels => {
+    cy.getByTestID('label-card').then(labels => {
       for (let i = 0; i < labels.length; i++) {
-        cy.getByTestIDSubStr('resource-card')
+        cy.getByTestID('label-card--description')
           .eq(i)
-          .should(
-            'have.text',
-            'Description: ' + names[labels.length - (i + 1)].description
-          )
+          .should('have.text', names[labels.length - (i + 1)].description)
       }
     })
   })
@@ -410,7 +423,7 @@ describe('labels', () => {
     cy.getByTestID('label-card').should('have.length', 2)
   })
 
-  describe.skip('label destruction', () => {
+  describe('label destruction', () => {
     const labelName = 'Modus (目录)'
     const labelDescription =
       '(\u03945) Per modum intelligo substantiae affectiones sive id quod in alio est, per quod etiam concipitur.'
@@ -423,30 +436,17 @@ describe('labels', () => {
           description: labelDescription,
           color: labelColor,
         })
-        cy.createLabel(labelName, id, {
-          description: labelDescription,
-          color: '#CCAA88',
-        })
       })
     })
 
-    // Currently producing a false negative
-    it.skip('can delete a label', () => {
-      cy.server()
-      cy.route('DELETE', 'api/v2/labels/*').as('deleteLabels')
-
-      cy.getByTestID('label-card').should('have.length', 2)
-
-      cy.getByTestID('context-delete-menu')
-        .eq(0)
-        .click({force: true})
-      cy.getByTestID('context-delete-label')
-        .eq(0)
-        .click({force: true})
-
-      cy.wait('@deleteLabels')
-
+    it('can delete a label', () => {
       cy.getByTestID('label-card').should('have.length', 1)
+      cy.getByTestID('empty-state').should('not.exist')
+
+      cy.getByTestID('context-delete-menu').click({force: true})
+      cy.getByTestID('context-delete-label').click({force: true})
+
+      cy.getByTestID('empty-state').should('exist')
     })
   })
 })

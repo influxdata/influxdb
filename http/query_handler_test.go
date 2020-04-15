@@ -19,15 +19,16 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/flux/lang"
-	"github.com/influxdata/influxdb"
-	platform "github.com/influxdata/influxdb"
-	icontext "github.com/influxdata/influxdb/context"
-	"github.com/influxdata/influxdb/http/metric"
-	"github.com/influxdata/influxdb/kit/check"
-	tracetesting "github.com/influxdata/influxdb/kit/tracing/testing"
-	influxmock "github.com/influxdata/influxdb/mock"
-	"github.com/influxdata/influxdb/query"
-	"github.com/influxdata/influxdb/query/mock"
+	"github.com/influxdata/influxdb/v2"
+	platform "github.com/influxdata/influxdb/v2"
+	icontext "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/http/metric"
+	"github.com/influxdata/influxdb/v2/kit/check"
+	tracetesting "github.com/influxdata/influxdb/v2/kit/tracing/testing"
+	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
+	influxmock "github.com/influxdata/influxdb/v2/mock"
+	"github.com/influxdata/influxdb/v2/query"
+	"github.com/influxdata/influxdb/v2/query/mock"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -100,7 +101,7 @@ func TestFluxService_Query(t *testing.T) {
 				if reqID := r.URL.Query().Get(OrgID); reqID == "" {
 					if name := r.URL.Query().Get(Org); name == "" {
 						// Request must have org or orgID.
-						ErrorHandler(0).HandleHTTPError(context.TODO(), influxdb.ErrInvalidOrgFilter, w)
+						kithttp.ErrorHandler(0).HandleHTTPError(context.TODO(), influxdb.ErrInvalidOrgFilter, w)
 						return
 					}
 				}
@@ -258,7 +259,7 @@ func TestFluxHandler_postFluxAST(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h := &FluxHandler{
-				HTTPErrorHandler: ErrorHandler(0),
+				HTTPErrorHandler: kithttp.ErrorHandler(0),
 			}
 			h.postFluxAST(tt.w, tt.r)
 			if got := tt.w.Body.String(); got != tt.want {
@@ -325,7 +326,7 @@ func TestFluxHandler_PostQuery_Errors(t *testing.T) {
 
 	orgSVC := newInMemKVSVC(t)
 	b := &FluxBackend{
-		HTTPErrorHandler:    ErrorHandler(0),
+		HTTPErrorHandler:    kithttp.ErrorHandler(0),
 		log:                 zaptest.NewLogger(t),
 		QueryEventRecorder:  noopEventRecorder{},
 		OrganizationService: orgSVC,
@@ -491,7 +492,7 @@ func TestFluxService_Query_gzip(t *testing.T) {
 	}
 
 	fluxBackend := &FluxBackend{
-		HTTPErrorHandler:    ErrorHandler(0),
+		HTTPErrorHandler:    kithttp.ErrorHandler(0),
 		log:                 zaptest.NewLogger(t),
 		QueryEventRecorder:  noopEventRecorder{},
 		OrganizationService: orgService,
@@ -503,7 +504,7 @@ func TestFluxService_Query_gzip(t *testing.T) {
 	// fluxHandling expects authorization to be on the request context.
 	// AuthenticationHandler extracts the token from headers and places
 	// the auth on context.
-	auth := NewAuthenticationHandler(zaptest.NewLogger(t), ErrorHandler(0))
+	auth := NewAuthenticationHandler(zaptest.NewLogger(t), kithttp.ErrorHandler(0))
 	auth.AuthorizationService = authService
 	auth.Handler = fluxHandler
 	auth.UserService = &influxmock.UserService{
@@ -627,7 +628,7 @@ func benchmarkQuery(b *testing.B, disableCompression bool) {
 	}
 
 	fluxBackend := &FluxBackend{
-		HTTPErrorHandler:    ErrorHandler(0),
+		HTTPErrorHandler:    kithttp.ErrorHandler(0),
 		log:                 zaptest.NewLogger(b),
 		QueryEventRecorder:  noopEventRecorder{},
 		OrganizationService: orgService,
@@ -639,7 +640,7 @@ func benchmarkQuery(b *testing.B, disableCompression bool) {
 	// fluxHandling expects authorization to be on the request context.
 	// AuthenticationHandler extracts the token from headers and places
 	// the auth on context.
-	auth := NewAuthenticationHandler(zaptest.NewLogger(b), ErrorHandler(0))
+	auth := NewAuthenticationHandler(zaptest.NewLogger(b), kithttp.ErrorHandler(0))
 	auth.AuthorizationService = authService
 	auth.Handler = fluxHandler
 

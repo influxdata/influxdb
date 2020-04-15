@@ -4,7 +4,7 @@ import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
 
 // Actions
-import {createEndpoint} from 'src/notifications/endpoints/actions'
+import {createEndpoint} from 'src/notifications/endpoints/actions/thunks'
 
 // Components
 import {Overlay} from '@influxdata/clockface'

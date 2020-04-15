@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	"github.com/influxdata/httprouter"
-	platform "github.com/influxdata/influxdb"
+	platform "github.com/influxdata/influxdb/v2"
 	"go.uber.org/zap"
 )
 
@@ -176,8 +176,9 @@ func decodeCookieSession(ctx context.Context, r *http.Request) (string, error) {
 // SetCookieSession adds a cookie for the session to an http request
 func SetCookieSession(key string, r *http.Request) {
 	c := &http.Cookie{
-		Name:  cookieSessionName,
-		Value: key,
+		Name:   cookieSessionName,
+		Value:  key,
+		Secure: true,
 	}
 
 	r.AddCookie(c)

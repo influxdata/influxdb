@@ -7,7 +7,7 @@ import {withRouter, WithRouterProps} from 'react-router'
 import {Sort} from '@influxdata/clockface'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import TokenList from 'src/authorizations/components/TokenList'
-import FilterList from 'src/shared/components/Filter'
+import FilterList from 'src/shared/components/FilterList'
 import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'
 import GenerateTokenDropdown from 'src/authorizations/components/GenerateTokenDropdown'
 
@@ -38,6 +38,8 @@ type SortKey = keyof Authorization
 
 type Props = StateProps & WithRouterProps
 
+const FilterAuthorizations = FilterList<Authorization>()
+
 class TokensTab extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
@@ -53,21 +55,29 @@ class TokensTab extends PureComponent<Props, State> {
     const {searchTerm, sortKey, sortDirection, sortType} = this.state
     const {tokens} = this.props
 
+    const leftHeaderItems = (
+      <SearchWidget
+        searchTerm={searchTerm}
+        placeholderText="Filter Tokens..."
+        onSearch={this.handleChangeSearchTerm}
+        testID="input-field--filter"
+      />
+    )
+
+    const rightHeaderItems = (
+      <GenerateTokenDropdown
+        onSelectAllAccess={this.handleGenerateAllAccess}
+        onSelectReadWrite={this.handleGenerateReadWrite}
+      />
+    )
+
     return (
       <>
-        <TabbedPageHeader>
-          <SearchWidget
-            searchTerm={searchTerm}
-            placeholderText="Filter Tokens..."
-            onSearch={this.handleChangeSearchTerm}
-            testID="input-field--filter"
-          />
-          <GenerateTokenDropdown
-            onSelectAllAccess={this.handleGenerateAllAccess}
-            onSelectReadWrite={this.handleGenerateReadWrite}
-          />
-        </TabbedPageHeader>
-        <FilterList<Authorization>
+        <TabbedPageHeader
+          childrenLeft={leftHeaderItems}
+          childrenRight={rightHeaderItems}
+        />
+        <FilterAuthorizations
           list={tokens}
           searchTerm={searchTerm}
           searchKeys={this.searchKeys}
@@ -82,7 +92,7 @@ class TokensTab extends PureComponent<Props, State> {
               onClickColumn={this.handleClickColumn}
             />
           )}
-        </FilterList>
+        </FilterAuthorizations>
       </>
     )
   }

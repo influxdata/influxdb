@@ -4,24 +4,55 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"sort"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/influxdata/influxdb"
-	ierrors "github.com/influxdata/influxdb/kit/errors"
+	"github.com/influxdata/influxdb/v2"
+	ierrors "github.com/influxdata/influxdb/v2/kit/errors"
+	"github.com/influxdata/influxdb/v2/snowflake"
 	"go.uber.org/zap"
 )
 
 // APIVersion marks the current APIVersion for influx packages.
 const APIVersion = "influxdata.com/v2alpha1"
 
+type (
+	// Stack is an identifier for stateful application of a package(s). This stack
+	// will map created resources from the pkg(s) to existing resources on the
+	// platform. This stack is updated only after side effects of applying a pkg.
+	// If the pkg is applied, and no changes are had, then the stack is not updated.
+	Stack struct {
+		ID          influxdb.ID     `json:"id"`
+		OrgID       influxdb.ID     `json:"orgID"`
+		Name        string          `json:"name"`
+		Description string          `json:"description"`
+		URLs        []string        `json:"urls"`
+		Resources   []StackResource `json:"resources"`
+
+		influxdb.CRUDLog
+	}
+
+	// StackResource is a record for an individual resource side effect genereated from
+	// applying a pkg.
+	StackResource struct {
+		APIVersion string      `json:"apiVersion"`
+		ID         influxdb.ID `json:"resourceID"`
+		Kind       Kind        `json:"kind"`
+		Name       string      `json:"pkgName"`
+	}
+)
+
+const ResourceTypeStack influxdb.ResourceType = "stack"
+
 // SVC is the packages service interface.
 type SVC interface {
+	InitStack(ctx context.Context, userID influxdb.ID, stack Stack) (Stack, error)
 	CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*Pkg, error)
-	DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg) (Summary, Diff, error)
-	Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (Summary, error)
+	DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (Summary, Diff, error)
+	Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (Summary, Diff, error)
 }
 
 // SVCMiddleware is a service middleware func.
@@ -31,12 +62,16 @@ type serviceOpt struct {
 	logger *zap.Logger
 
 	applyReqLimit int
+	idGen         influxdb.IDGenerator
+	timeGen       influxdb.TimeGenerator
+	store         Store
 
 	bucketSVC   influxdb.BucketService
 	checkSVC    influxdb.CheckService
 	dashSVC     influxdb.DashboardService
 	labelSVC    influxdb.LabelService
 	endpointSVC influxdb.NotificationEndpointService
+	orgSVC      influxdb.OrganizationService
 	ruleSVC     influxdb.NotificationRuleStore
 	secretSVC   influxdb.SecretService
 	taskSVC     influxdb.TaskService
@@ -51,6 +86,27 @@ type ServiceSetterFn func(opt *serviceOpt)
 func WithLogger(log *zap.Logger) ServiceSetterFn {
 	return func(o *serviceOpt) {
 		o.logger = log
+	}
+}
+
+// WithIDGenerator sets the id generator for the service.
+func WithIDGenerator(idGen influxdb.IDGenerator) ServiceSetterFn {
+	return func(opt *serviceOpt) {
+		opt.idGen = idGen
+	}
+}
+
+// WithTimeGenerator sets the time generator for the service.
+func WithTimeGenerator(timeGen influxdb.TimeGenerator) ServiceSetterFn {
+	return func(opt *serviceOpt) {
+		opt.timeGen = timeGen
+	}
+}
+
+// WithStore sets the store for the service.
+func WithStore(store Store) ServiceSetterFn {
+	return func(opt *serviceOpt) {
+		opt.store = store
 	}
 }
 
@@ -89,6 +145,13 @@ func WithNotificationRuleSVC(ruleSVC influxdb.NotificationRuleStore) ServiceSett
 	}
 }
 
+// WithOrganizationService sets the organization service for the service.
+func WithOrganizationService(orgSVC influxdb.OrganizationService) ServiceSetterFn {
+	return func(opt *serviceOpt) {
+		opt.orgSVC = orgSVC
+	}
+}
+
 // WithLabelSVC sets the label service.
 func WithLabelSVC(labelSVC influxdb.LabelService) ServiceSetterFn {
 	return func(opt *serviceOpt) {
@@ -124,23 +187,37 @@ func WithVariableSVC(varSVC influxdb.VariableService) ServiceSetterFn {
 	}
 }
 
+// Store is the storage behavior the Service depends on.
+type Store interface {
+	CreateStack(ctx context.Context, stack Stack) error
+	ReadStackByID(ctx context.Context, id influxdb.ID) (Stack, error)
+	UpdateStack(ctx context.Context, stack Stack) error
+	DeleteStack(ctx context.Context, id influxdb.ID) error
+}
+
 // Service provides the pkger business logic including all the dependencies to make
 // this resource sausage.
 type Service struct {
 	log *zap.Logger
 
+	// internal dependencies
+	applyReqLimit int
+	idGen         influxdb.IDGenerator
+	store         Store
+	timeGen       influxdb.TimeGenerator
+
+	// external service dependencies
 	bucketSVC   influxdb.BucketService
 	checkSVC    influxdb.CheckService
 	dashSVC     influxdb.DashboardService
 	labelSVC    influxdb.LabelService
 	endpointSVC influxdb.NotificationEndpointService
+	orgSVC      influxdb.OrganizationService
 	ruleSVC     influxdb.NotificationRuleStore
 	secretSVC   influxdb.SecretService
 	taskSVC     influxdb.TaskService
 	teleSVC     influxdb.TelegrafConfigStore
 	varSVC      influxdb.VariableService
-
-	applyReqLimit int
 }
 
 var _ SVC = (*Service)(nil)
@@ -150,35 +227,83 @@ func NewService(opts ...ServiceSetterFn) *Service {
 	opt := &serviceOpt{
 		logger:        zap.NewNop(),
 		applyReqLimit: 5,
+		idGen:         snowflake.NewDefaultIDGenerator(),
+		timeGen:       influxdb.RealTimeGenerator{},
 	}
 	for _, o := range opts {
 		o(opt)
 	}
 
 	return &Service{
-		log:           opt.logger,
-		bucketSVC:     opt.bucketSVC,
-		checkSVC:      opt.checkSVC,
-		labelSVC:      opt.labelSVC,
-		dashSVC:       opt.dashSVC,
-		endpointSVC:   opt.endpointSVC,
-		ruleSVC:       opt.ruleSVC,
-		secretSVC:     opt.secretSVC,
-		taskSVC:       opt.taskSVC,
-		teleSVC:       opt.teleSVC,
-		varSVC:        opt.varSVC,
+		log: opt.logger,
+
 		applyReqLimit: opt.applyReqLimit,
+		idGen:         opt.idGen,
+		store:         opt.store,
+		timeGen:       opt.timeGen,
+
+		bucketSVC:   opt.bucketSVC,
+		checkSVC:    opt.checkSVC,
+		labelSVC:    opt.labelSVC,
+		dashSVC:     opt.dashSVC,
+		endpointSVC: opt.endpointSVC,
+		orgSVC:      opt.orgSVC,
+		ruleSVC:     opt.ruleSVC,
+		secretSVC:   opt.secretSVC,
+		taskSVC:     opt.taskSVC,
+		teleSVC:     opt.teleSVC,
+		varSVC:      opt.varSVC,
 	}
 }
 
-// CreatePkgSetFn is a functional input for setting the pkg fields.
-type CreatePkgSetFn func(opt *CreateOpt) error
+// InitStack will create a new stack for the given user and its given org. The stack can be created
+// with urls that point to the location of packages that are included as part of the stack when
+// it is applied.
+func (s *Service) InitStack(ctx context.Context, userID influxdb.ID, stack Stack) (Stack, error) {
+	if err := validURLs(stack.URLs); err != nil {
+		return Stack{}, err
+	}
 
-// CreateOpt are the options for creating a new package.
-type CreateOpt struct {
-	OrgIDs    map[influxdb.ID]bool
-	Resources []ResourceToClone
+	if _, err := s.orgSVC.FindOrganizationByID(ctx, stack.OrgID); err != nil {
+		if influxdb.ErrorCode(err) == influxdb.ENotFound {
+			msg := fmt.Sprintf("organization dependency does not exist for id[%q]", stack.OrgID.String())
+			return Stack{}, toInfluxError(influxdb.EConflict, msg)
+		}
+		return Stack{}, internalErr(err)
+	}
+
+	stack.ID = s.idGen.ID()
+	now := s.timeGen.Now()
+	stack.CRUDLog = influxdb.CRUDLog{
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+
+	if err := s.store.CreateStack(ctx, stack); err != nil {
+		return Stack{}, internalErr(err)
+	}
+
+	return stack, nil
 }
+
+type (
+	// CreatePkgSetFn is a functional input for setting the pkg fields.
+	CreatePkgSetFn func(opt *CreateOpt) error
+
+	// CreateOpt are the options for creating a new package.
+	CreateOpt struct {
+		OrgIDs    []CreateByOrgIDOpt
+		Resources []ResourceToClone
+	}
+
+	// CreateByOrgIDOpt identifies an org to export resources for and provides
+	// multiple filtering options.
+	CreateByOrgIDOpt struct {
+		OrgID         influxdb.ID
+		LabelNames    []string
+		ResourceKinds []Kind
+	}
+)
 
 // CreateWithExistingResources allows the create method to clone existing resources.
 func CreateWithExistingResources(resources ...ResourceToClone) CreatePkgSetFn {
@@ -195,15 +320,17 @@ func CreateWithExistingResources(resources ...ResourceToClone) CreatePkgSetFn {
 
 // CreateWithAllOrgResources allows the create method to clone all existing resources
 // for the given organization.
-func CreateWithAllOrgResources(orgID influxdb.ID) CreatePkgSetFn {
+func CreateWithAllOrgResources(orgIDOpt CreateByOrgIDOpt) CreatePkgSetFn {
 	return func(opt *CreateOpt) error {
-		if orgID == 0 {
+		if orgIDOpt.OrgID == 0 {
 			return errors.New("orgID provided must not be zero")
 		}
-		if opt.OrgIDs == nil {
-			opt.OrgIDs = make(map[influxdb.ID]bool)
+		for _, k := range orgIDOpt.ResourceKinds {
+			if err := k.OK(); err != nil {
+				return err
+			}
 		}
-		opt.OrgIDs[orgID] = true
+		opt.OrgIDs = append(opt.OrgIDs, orgIDOpt)
 		return nil
 	}
 }
@@ -217,105 +344,34 @@ func (s *Service) CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*Pk
 		}
 	}
 
-	pkg := &Pkg{
-		Objects: make([]Object, 0, len(opt.Resources)),
-	}
+	exporter := newResourceExporter(s)
 
-	cloneAssFn := s.resourceCloneAssociationsGen()
-	for orgID := range opt.OrgIDs {
-		resourcesToClone, err := s.cloneOrgResources(ctx, orgID)
+	for _, orgIDOpt := range opt.OrgIDs {
+		resourcesToClone, err := s.cloneOrgResources(ctx, orgIDOpt.OrgID, orgIDOpt.ResourceKinds)
 		if err != nil {
 			return nil, internalErr(err)
 		}
-		opt.Resources = append(opt.Resources, resourcesToClone...)
-	}
 
-	for _, r := range uniqResourcesToClone(opt.Resources) {
-		newKinds, err := s.resourceCloneToKind(ctx, r, cloneAssFn)
-		if err != nil {
+		if err := exporter.Export(ctx, resourcesToClone, orgIDOpt.LabelNames...); err != nil {
 			return nil, internalErr(err)
 		}
-		pkg.Objects = append(pkg.Objects, newKinds...)
 	}
 
-	pkg.Objects = uniqResources(pkg.Objects)
+	if err := exporter.Export(ctx, opt.Resources); err != nil {
+		return nil, internalErr(err)
+	}
 
+	pkg := &Pkg{Objects: exporter.Objects()}
 	if err := pkg.Validate(ValidWithoutResources()); err != nil {
 		return nil, failedValidationErr(err)
 	}
 
-	var kindPriorities = map[Kind]int{
-		KindLabel:                         1,
-		KindBucket:                        2,
-		KindCheckDeadman:                  3,
-		KindCheckThreshold:                4,
-		KindNotificationEndpointHTTP:      5,
-		KindNotificationEndpointPagerDuty: 6,
-		KindNotificationEndpointSlack:     7,
-		KindNotificationRule:              8,
-		KindVariable:                      9,
-		KindTelegraf:                      10,
-		KindDashboard:                     11,
-	}
-
-	sort.Slice(pkg.Objects, func(i, j int) bool {
-		iName, jName := pkg.Objects[i].Name(), pkg.Objects[j].Name()
-		iKind, jKind := pkg.Objects[i].Type, pkg.Objects[j].Type
-
-		if iKind.is(jKind) {
-			return iName < jName
-		}
-		return kindPriorities[iKind] < kindPriorities[jKind]
-	})
-
 	return pkg, nil
 }
 
-func (s *Service) cloneOrgResources(ctx context.Context, orgID influxdb.ID) ([]ResourceToClone, error) {
-	resourceTypeGens := []struct {
-		resType influxdb.ResourceType
-		cloneFn func(context.Context, influxdb.ID) ([]ResourceToClone, error)
-	}{
-		{
-			resType: KindBucket.ResourceType(),
-			cloneFn: s.cloneOrgBuckets,
-		},
-		{
-			resType: KindCheck.ResourceType(),
-			cloneFn: s.cloneOrgChecks,
-		},
-		{
-			resType: KindDashboard.ResourceType(),
-			cloneFn: s.cloneOrgDashboards,
-		},
-		{
-			resType: KindLabel.ResourceType(),
-			cloneFn: s.cloneOrgLabels,
-		},
-		{
-			resType: KindNotificationEndpoint.ResourceType(),
-			cloneFn: s.cloneOrgNotificationEndpoints,
-		},
-		{
-			resType: KindNotificationRule.ResourceType(),
-			cloneFn: s.cloneOrgNotificationRules,
-		},
-		{
-			resType: KindTask.ResourceType(),
-			cloneFn: s.cloneOrgTasks,
-		},
-		{
-			resType: KindTelegraf.ResourceType(),
-			cloneFn: s.cloneOrgTelegrafs,
-		},
-		{
-			resType: KindVariable.ResourceType(),
-			cloneFn: s.cloneOrgVariables,
-		},
-	}
-
+func (s *Service) cloneOrgResources(ctx context.Context, orgID influxdb.ID, resourceKinds []Kind) ([]ResourceToClone, error) {
 	var resources []ResourceToClone
-	for _, resGen := range resourceTypeGens {
+	for _, resGen := range s.filterOrgResourceKinds(resourceKinds) {
 		existingResources, err := resGen.cloneFn(ctx, orgID)
 		if err != nil {
 			return nil, ierrors.Wrap(err, "finding "+string(resGen.resType))
@@ -438,12 +494,12 @@ func (s *Service) cloneOrgNotificationRules(ctx context.Context, orgID influxdb.
 }
 
 func (s *Service) cloneOrgTasks(ctx context.Context, orgID influxdb.ID) ([]ResourceToClone, error) {
-	teles, _, err := s.taskSVC.FindTasks(ctx, influxdb.TaskFilter{OrganizationID: &orgID})
+	tasks, _, err := s.taskSVC.FindTasks(ctx, influxdb.TaskFilter{OrganizationID: &orgID})
 	if err != nil {
 		return nil, err
 	}
 
-	if len(teles) == 0 {
+	if len(tasks) == 0 {
 		return nil, nil
 	}
 
@@ -454,20 +510,30 @@ func (s *Service) cloneOrgTasks(ctx context.Context, orgID influxdb.ID) ([]Resou
 		return nil, err
 	}
 
-	mTeles := make(map[influxdb.ID]*influxdb.Task)
-	for i := range teles {
-		t := teles[i]
-		if t.Type == influxdb.TaskSystemType {
-			continue
-		}
-		mTeles[t.ID] = t
-	}
-	for _, c := range checks {
-		delete(mTeles, c.GetTaskID())
+	rules, _, err := s.ruleSVC.FindNotificationRules(ctx, influxdb.NotificationRuleFilter{
+		OrgID: &orgID,
+	})
+	if err != nil {
+		return nil, err
 	}
 
-	resources := make([]ResourceToClone, 0, len(mTeles))
-	for _, t := range mTeles {
+	mTasks := make(map[influxdb.ID]*influxdb.Task)
+	for i := range tasks {
+		t := tasks[i]
+		if t.Type != influxdb.TaskSystemType {
+			continue
+		}
+		mTasks[t.ID] = t
+	}
+	for _, c := range checks {
+		delete(mTasks, c.GetTaskID())
+	}
+	for _, r := range rules {
+		delete(mTasks, r.GetTaskID())
+	}
+
+	resources := make([]ResourceToClone, 0, len(mTasks))
+	for _, t := range mTasks {
 		resources = append(resources, ResourceToClone{
 			Kind: KindTask,
 			ID:   t.ID,
@@ -511,156 +577,70 @@ func (s *Service) cloneOrgVariables(ctx context.Context, orgID influxdb.ID) ([]R
 	return resources, nil
 }
 
-func (s *Service) resourceCloneToKind(ctx context.Context, r ResourceToClone, cFn cloneAssociationsFn) (newKinds []Object, e error) {
-	defer func() {
-		if e != nil {
-			e = ierrors.Wrap(e, "cloning resource")
-		}
-	}()
+type cloneResFn func(context.Context, influxdb.ID) ([]ResourceToClone, error)
 
-	var (
-		newKind      Object
-		sidecarKinds []Object
-	)
-	switch {
-	case r.Kind.is(KindBucket):
-		bkt, err := s.bucketSVC.FindBucketByID(ctx, r.ID)
-		if err != nil {
-			return nil, err
-		}
-		newKind = bucketToObject(*bkt, r.Name)
-	case r.Kind.is(KindCheck),
-		r.Kind.is(KindCheckDeadman),
-		r.Kind.is(KindCheckThreshold):
-		ch, err := s.checkSVC.FindCheckByID(ctx, r.ID)
-		if err != nil {
-			return nil, err
-		}
-		newKind = checkToObject(ch, r.Name)
-	case r.Kind.is(KindDashboard):
-		dash, err := s.findDashboardByIDFull(ctx, r.ID)
-		if err != nil {
-			return nil, err
-		}
-		newKind = DashboardToObject(*dash, r.Name)
-	case r.Kind.is(KindLabel):
-		l, err := s.labelSVC.FindLabelByID(ctx, r.ID)
-		if err != nil {
-			return nil, err
-		}
-		newKind = labelToObject(*l, r.Name)
-	case r.Kind.is(KindNotificationEndpoint),
-		r.Kind.is(KindNotificationEndpointHTTP),
-		r.Kind.is(KindNotificationEndpointPagerDuty),
-		r.Kind.is(KindNotificationEndpointSlack):
-		e, err := s.endpointSVC.FindNotificationEndpointByID(ctx, r.ID)
-		if err != nil {
-			return nil, err
-		}
-		newKind = endpointKind(e, r.Name)
-	case r.Kind.is(KindNotificationRule):
-		ruleRes, endpointRes, err := s.exportNotificationRule(ctx, r)
-		if err != nil {
-			return nil, err
-		}
-		newKind, sidecarKinds = ruleRes, append(sidecarKinds, endpointRes)
-	case r.Kind.is(KindTask):
-		t, err := s.taskSVC.FindTaskByID(ctx, r.ID)
-		if err != nil {
-			return nil, err
-		}
-		newKind = taskToObject(*t, r.Name)
-	case r.Kind.is(KindTelegraf):
-		t, err := s.teleSVC.FindTelegrafConfigByID(ctx, r.ID)
-		if err != nil {
-			return nil, err
-		}
-		newKind = telegrafToObject(*t, r.Name)
-	case r.Kind.is(KindVariable):
-		v, err := s.varSVC.FindVariableByID(ctx, r.ID)
-		if err != nil {
-			return nil, err
-		}
-		newKind = VariableToObject(*v, r.Name)
-	default:
-		return nil, errors.New("unsupported kind provided: " + string(r.Kind))
+func (s *Service) filterOrgResourceKinds(resourceKindFilters []Kind) []struct {
+	resType influxdb.ResourceType
+	cloneFn cloneResFn
+} {
+	mKinds := map[Kind]cloneResFn{
+		KindBucket:               s.cloneOrgBuckets,
+		KindCheck:                s.cloneOrgChecks,
+		KindDashboard:            s.cloneOrgDashboards,
+		KindLabel:                s.cloneOrgLabels,
+		KindNotificationEndpoint: s.cloneOrgNotificationEndpoints,
+		KindNotificationRule:     s.cloneOrgNotificationRules,
+		KindTask:                 s.cloneOrgTasks,
+		KindTelegraf:             s.cloneOrgTelegrafs,
+		KindVariable:             s.cloneOrgVariables,
 	}
 
-	ass, err := cFn(ctx, r)
-	if err != nil {
-		return nil, err
-	}
-	if len(ass.associations) > 0 {
-		newKind.Spec[fieldAssociations] = ass.associations
-	}
-
-	return append(ass.newLableResources, append(sidecarKinds, newKind)...), nil
-}
-
-func (s *Service) exportNotificationRule(ctx context.Context, r ResourceToClone) (Object, Object, error) {
-	rule, err := s.ruleSVC.FindNotificationRuleByID(ctx, r.ID)
-	if err != nil {
-		return Object{}, Object{}, err
-	}
-
-	ruleEndpoint, err := s.endpointSVC.FindNotificationEndpointByID(ctx, rule.GetEndpointID())
-	if err != nil {
-		return Object{}, Object{}, err
-	}
-
-	return ruleToObject(rule, ruleEndpoint.GetName(), r.Name), endpointKind(ruleEndpoint, ""), nil
-}
-
-type (
-	associations struct {
-		associations      []Resource
-		newLableResources []Object
-	}
-
-	cloneAssociationsFn func(context.Context, ResourceToClone) (associations, error)
-)
-
-func (s *Service) resourceCloneAssociationsGen() cloneAssociationsFn {
-	type key struct {
-		id   influxdb.ID
-		name string
-	}
-	// memoize the labels so we dont' create duplicates
-	m := make(map[key]bool)
-	return func(ctx context.Context, r ResourceToClone) (associations, error) {
-		if r.Kind.is(KindUnknown, KindLabel) {
-			return associations{}, nil
+	newResGen := func(resType influxdb.ResourceType, cloneFn cloneResFn) struct {
+		resType influxdb.ResourceType
+		cloneFn cloneResFn
+	} {
+		return struct {
+			resType influxdb.ResourceType
+			cloneFn cloneResFn
+		}{
+			resType: resType,
+			cloneFn: cloneFn,
 		}
-
-		labels, err := s.labelSVC.FindResourceLabels(ctx, influxdb.LabelMappingFilter{
-			ResourceID:   r.ID,
-			ResourceType: r.Kind.ResourceType(),
-		})
-		if err != nil {
-			return associations{}, ierrors.Wrap(err, "finding resource labels")
-		}
-
-		var ass associations
-		for _, l := range labels {
-			ass.associations = append(ass.associations, Resource{
-				fieldKind: KindLabel.String(),
-				fieldName: l.Name,
-			})
-			k := key{id: l.ID, name: l.Name}
-			if m[k] {
-				continue
-			}
-			m[k] = true
-			ass.newLableResources = append(ass.newLableResources, labelToObject(*l, ""))
-		}
-		return ass, nil
 	}
+
+	var resourceTypeGens []struct {
+		resType influxdb.ResourceType
+		cloneFn cloneResFn
+	}
+	if len(resourceKindFilters) == 0 {
+		for k, cloneFn := range mKinds {
+			resourceTypeGens = append(resourceTypeGens, newResGen(k.ResourceType(), cloneFn))
+		}
+		return resourceTypeGens
+	}
+
+	seenKinds := make(map[Kind]bool)
+	for _, k := range resourceKindFilters {
+		cloneFn, ok := mKinds[k]
+		if !ok || seenKinds[k] {
+			continue
+		}
+		seenKinds[k] = true
+		resourceTypeGens = append(resourceTypeGens, newResGen(k.ResourceType(), cloneFn))
+	}
+
+	return resourceTypeGens
 }
 
 // DryRun provides a dry run of the pkg application. The pkg will be marked verified
 // for later calls to Apply. This func will be run on an Apply if it has not been run
 // already.
-func (s *Service) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg) (Summary, Diff, error) {
+func (s *Service) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (Summary, Diff, error) {
+	sum, diff, _, err := s.dryRun(ctx, orgID, pkg, opts...)
+	return sum, diff, err
+}
+
+func (s *Service) dryRun(ctx context.Context, orgID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (Summary, Diff, *stateCoordinator, error) {
 	// so here's the deal, when we have issues with the parsing validation, we
 	// continue to do the diff anyhow. any resource that does not have a name
 	// will be skipped, and won't bleed into the dry run here. We can now return
@@ -669,106 +649,113 @@ func (s *Service) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *Pk
 	if !pkg.isParsed {
 		err := pkg.Validate()
 		if err != nil && !IsParseErr(err) {
-			return Summary{}, Diff{}, internalErr(err)
+			return Summary{}, Diff{}, nil, internalErr(err)
 		}
 		parseErr = err
 	}
 
-	if err := s.dryRunSecrets(ctx, orgID, pkg); err != nil {
-		return Summary{}, Diff{}, err
+	opt := applyOptFromOptFns(opts...)
+
+	if len(opt.EnvRefs) > 0 {
+		err := pkg.applyEnvRefs(opt.EnvRefs)
+		if err != nil && !IsParseErr(err) {
+			return Summary{}, Diff{}, nil, internalErr(err)
+		}
+		parseErr = err
 	}
 
-	diff := Diff{
-		Buckets:    s.dryRunBuckets(ctx, orgID, pkg),
-		Checks:     s.dryRunChecks(ctx, orgID, pkg),
-		Dashboards: s.dryRunDashboards(pkg),
-		Labels:     s.dryRunLabels(ctx, orgID, pkg),
-		Tasks:      s.dryRunTasks(pkg),
-		Telegrafs:  s.dryRunTelegraf(pkg),
-		Variables:  s.dryRunVariables(ctx, orgID, pkg),
+	state := newStateCoordinator(pkg)
+
+	if opt.StackID > 0 {
+		if err := s.addStackState(ctx, opt.StackID, pkg, state); err != nil {
+			return Summary{}, Diff{}, nil, internalErr(err)
+		}
 	}
+
+	if err := s.dryRunSecrets(ctx, orgID, pkg); err != nil {
+		return Summary{}, Diff{}, nil, err
+	}
+
+	s.dryRunBuckets(ctx, orgID, state.mBuckets)
+	s.dryRunChecks(ctx, orgID, state.mChecks)
+	s.dryRunLabels(ctx, orgID, state.mLabels)
+	s.dryRunVariables(ctx, orgID, state.mVariables)
+
+	var diff Diff
+	diff.Dashboards = s.dryRunDashboards(pkg)
+	diff.Tasks = s.dryRunTasks(pkg)
+	diff.Telegrafs = s.dryRunTelegraf(pkg)
 
 	diffEndpoints, err := s.dryRunNotificationEndpoints(ctx, orgID, pkg)
 	if err != nil {
-		return Summary{}, Diff{}, err
+		return Summary{}, Diff{}, nil, err
 	}
 	diff.NotificationEndpoints = diffEndpoints
 
 	diffRules, err := s.dryRunNotificationRules(ctx, orgID, pkg)
 	if err != nil {
-		return Summary{}, Diff{}, err
+		return Summary{}, Diff{}, nil, err
 	}
 	diff.NotificationRules = diffRules
 
-	diffLabelMappings, err := s.dryRunLabelMappings(ctx, pkg)
+	stateLabelMappings, err := s.dryRunLabelMappingsV2(ctx, state)
 	if err != nil {
-		return Summary{}, Diff{}, err
+		return Summary{}, Diff{}, nil, err
 	}
-	diff.LabelMappings = diffLabelMappings
+	state.labelMappings = stateLabelMappings
 
-	// verify the pkg is verified by a dry run. when calling Service.Apply this
-	// is required to have been run. if it is not true, then apply runs
-	// the Dry run.
-	pkg.isVerified = true
-	return pkg.Summary(), diff, parseErr
+	stateDiff := state.diff()
+
+	diffLabelMappings, err := s.dryRunLabelMappings(ctx, pkg, state)
+	if err != nil {
+		return Summary{}, Diff{}, nil, err
+	}
+	diff.LabelMappings = append(diffLabelMappings, diffLabelMappings...)
+
+	diff.Buckets = stateDiff.Buckets
+	diff.Checks = stateDiff.Checks
+	diff.Labels = stateDiff.Labels
+	diff.Variables = stateDiff.Variables
+	diff.LabelMappings = append(stateDiff.LabelMappings, diff.LabelMappings...)
+
+	return pkg.Summary(), diff, state, parseErr
 }
 
-func (s *Service) dryRunBuckets(ctx context.Context, orgID influxdb.ID, pkg *Pkg) []DiffBucket {
-	mExistingBkts := make(map[string]DiffBucket)
-	bkts := pkg.buckets()
-	for i := range bkts {
-		b := bkts[i]
-		existingBkt, err := s.bucketSVC.FindBucketByName(ctx, orgID, b.Name())
-		switch err {
-		// TODO: case for err not found here and another case handle where
-		//  err isn't a not found (some other error)
-		case nil:
-			b.existing = existingBkt
-			mExistingBkts[b.Name()] = newDiffBucket(b, existingBkt)
-		default:
-			mExistingBkts[b.Name()] = newDiffBucket(b, nil)
+func (s *Service) dryRunBuckets(ctx context.Context, orgID influxdb.ID, bkts map[string]*stateBucket) {
+	for _, stateBkt := range bkts {
+		stateBkt.orgID = orgID
+		var existing *influxdb.Bucket
+		if stateBkt.ID() != 0 {
+			existing, _ = s.bucketSVC.FindBucketByID(ctx, stateBkt.ID())
+		} else {
+			existing, _ = s.bucketSVC.FindBucketByName(ctx, orgID, stateBkt.parserBkt.Name())
 		}
+		if IsNew(stateBkt.stateStatus) && existing != nil {
+			stateBkt.stateStatus = StateStatusExists
+		}
+		stateBkt.existing = existing
 	}
-
-	diffs := make([]DiffBucket, 0, len(mExistingBkts))
-	for _, diff := range mExistingBkts {
-		diffs = append(diffs, diff)
-	}
-	sort.Slice(diffs, func(i, j int) bool {
-		return diffs[i].Name < diffs[j].Name
-	})
-
-	return diffs
 }
 
-func (s *Service) dryRunChecks(ctx context.Context, orgID influxdb.ID, pkg *Pkg) []DiffCheck {
-	mExistingChecks := make(map[string]DiffCheck)
-	checks := pkg.checks()
-	for i := range checks {
-		c := checks[i]
-		name := c.Name()
-		existingCheck, err := s.checkSVC.FindCheck(ctx, influxdb.CheckFilter{
-			Name:  &name,
-			OrgID: &orgID,
-		})
-		switch err {
-		case nil:
-			c.existing = existingCheck
-			mExistingChecks[c.Name()] = newDiffCheck(c, existingCheck)
-		default:
-			mExistingChecks[c.Name()] = newDiffCheck(c, nil)
+func (s *Service) dryRunChecks(ctx context.Context, orgID influxdb.ID, checks map[string]*stateCheck) {
+	for _, c := range checks {
+		c.orgID = orgID
+
+		var existing influxdb.Check
+		if c.ID() != 0 {
+			existing, _ = s.checkSVC.FindCheckByID(ctx, c.ID())
+		} else {
+			name := c.parserCheck.Name()
+			existing, _ = s.checkSVC.FindCheck(ctx, influxdb.CheckFilter{
+				Name:  &name,
+				OrgID: &orgID,
+			})
 		}
+		if IsNew(c.stateStatus) && existing != nil {
+			c.stateStatus = StateStatusExists
+		}
+		c.existing = existing
 	}
-
-	diffs := make([]DiffCheck, 0, len(mExistingChecks))
-	for _, diff := range mExistingChecks {
-		diffs = append(diffs, diff)
-	}
-	sort.Slice(diffs, func(i, j int) bool {
-		return diffs[i].Name < diffs[j].Name
-	})
-
-	return diffs
 }
 
 func (s *Service) dryRunDashboards(pkg *Pkg) []DiffDashboard {
@@ -781,36 +768,15 @@ func (s *Service) dryRunDashboards(pkg *Pkg) []DiffDashboard {
 	return diffs
 }
 
-func (s *Service) dryRunLabels(ctx context.Context, orgID influxdb.ID, pkg *Pkg) []DiffLabel {
-	mExistingLabels := make(map[string]DiffLabel)
-	labels := pkg.labels()
-	for i := range labels {
-		pkgLabel := labels[i]
-		existingLabels, err := s.labelSVC.FindLabels(ctx, influxdb.LabelFilter{
-			Name:  pkgLabel.Name(),
-			OrgID: &orgID,
-		}, influxdb.FindOptions{Limit: 1})
-		switch {
-		// TODO: case for err not found here and another case handle where
-		//  err isn't a not found (some other error)
-		case err == nil && len(existingLabels) > 0:
-			existingLabel := existingLabels[0]
-			pkgLabel.existing = existingLabel
-			mExistingLabels[pkgLabel.Name()] = newDiffLabel(pkgLabel, existingLabel)
-		default:
-			mExistingLabels[pkgLabel.Name()] = newDiffLabel(pkgLabel, nil)
+func (s *Service) dryRunLabels(ctx context.Context, orgID influxdb.ID, labels map[string]*stateLabel) {
+	for _, pkgLabel := range labels {
+		pkgLabel.orgID = orgID
+		existingLabel, _ := s.findLabel(ctx, orgID, pkgLabel)
+		if IsNew(pkgLabel.stateStatus) && existingLabel != nil {
+			pkgLabel.stateStatus = StateStatusExists
 		}
+		pkgLabel.existing = existingLabel
 	}
-
-	diffs := make([]DiffLabel, 0, len(mExistingLabels))
-	for _, diff := range mExistingLabels {
-		diffs = append(diffs, diff)
-	}
-	sort.Slice(diffs, func(i, j int) bool {
-		return diffs[i].Name < diffs[j].Name
-	})
-
-	return diffs
 }
 
 func (s *Service) dryRunNotificationEndpoints(ctx context.Context, orgID influxdb.ID, pkg *Pkg) ([]DiffNotificationEndpoint, error) {
@@ -821,10 +787,22 @@ func (s *Service) dryRunNotificationEndpoints(ctx context.Context, orgID influxd
 		return nil, internalErr(err)
 	}
 
-	mExisting := make(map[string]influxdb.NotificationEndpoint)
+	mExistingByName := make(map[string]influxdb.NotificationEndpoint)
+	mExistingByID := make(map[influxdb.ID]influxdb.NotificationEndpoint)
 	for i := range existingEndpoints {
 		e := existingEndpoints[i]
-		mExisting[e.GetName()] = e
+		mExistingByName[e.GetName()] = e
+		mExistingByID[e.GetID()] = e
+	}
+
+	findEndpoint := func(e *notificationEndpoint) influxdb.NotificationEndpoint {
+		if iExisting, ok := mExistingByID[e.ID()]; ok {
+			return iExisting
+		}
+		if iExisting, ok := mExistingByName[e.Name()]; ok {
+			return iExisting
+		}
+		return nil
 	}
 
 	mExistingToNew := make(map[string]DiffNotificationEndpoint)
@@ -832,11 +810,8 @@ func (s *Service) dryRunNotificationEndpoints(ctx context.Context, orgID influxd
 	for i := range endpoints {
 		newEndpoint := endpoints[i]
 
-		var existing influxdb.NotificationEndpoint
-		if iExisting, ok := mExisting[newEndpoint.Name()]; ok {
-			newEndpoint.existing = iExisting
-			existing = iExisting
-		}
+		existing := findEndpoint(newEndpoint)
+		newEndpoint.existing = existing
 		mExistingToNew[newEndpoint.Name()] = newDiffNotificationEndpoint(newEndpoint, existing)
 	}
 
@@ -845,7 +820,7 @@ func (s *Service) dryRunNotificationEndpoints(ctx context.Context, orgID influxd
 		diffs = append(diffs, diff)
 	}
 	sort.Slice(diffs, func(i, j int) bool {
-		return diffs[i].Name < diffs[j].Name
+		return diffs[i].PkgName < diffs[j].PkgName
 	})
 
 	return diffs, nil
@@ -858,22 +833,57 @@ func (s *Service) dryRunNotificationRules(ctx context.Context, orgID influxdb.ID
 	if err != nil {
 		return nil, internalErr(err)
 	}
-	mExisting := make(map[string]influxdb.NotificationEndpoint)
+
+	mExistingEndpointsByName := make(map[string]influxdb.NotificationEndpoint)
+	mExistingEndpointsByID := make(map[influxdb.ID]influxdb.NotificationEndpoint)
 	for _, e := range iEndpoints {
-		mExisting[e.GetName()] = e
+		mExistingEndpointsByName[e.GetName()] = e
+		mExistingEndpointsByID[e.GetID()] = e
 	}
 
-	diffs := make([]DiffNotificationRule, 0, len(mExisting))
+	iRules, _, err := s.ruleSVC.FindNotificationRules(ctx, influxdb.NotificationRuleFilter{
+		OrgID: &orgID,
+	}, influxdb.FindOptions{Limit: 100})
+	if err != nil {
+		return nil, internalErr(err)
+	}
+
+	mExistingRulesByID := make(map[influxdb.ID]influxdb.NotificationRule)
+	for _, r := range iRules {
+		mExistingRulesByID[r.GetID()] = r
+	}
+
+	mPkgEndpoints := make(map[string]influxdb.NotificationEndpoint)
+	for _, e := range pkg.mNotificationEndpoints {
+		influxEndpoint := e.summarize().NotificationEndpoint
+		mPkgEndpoints[e.PkgName()] = influxEndpoint
+	}
+
+	diffs := make([]DiffNotificationRule, 0)
 	for _, r := range pkg.notificationRules() {
-		e, ok := mExisting[r.endpointName]
+		e, ok := mExistingEndpointsByName[r.endpointName.String()]
 		if !ok {
-			pkgerEndpoint, ok := pkg.mNotificationEndpoints[r.endpointName]
+			influxEndpoint, ok := mPkgEndpoints[r.endpointName.String()]
 			if !ok {
-				err := fmt.Errorf("failed to find endpoint by name: %q", r.endpointName)
+				err := fmt.Errorf("failed to find notification endpoint %q dependency for notification rule %q", r.endpointName, r.Name())
 				return nil, &influxdb.Error{Code: influxdb.EUnprocessableEntity, Err: err}
 			}
-			e = pkgerEndpoint.summarize().NotificationEndpoint
+			e = influxEndpoint
 		}
+
+		if iRule, ok := mExistingRulesByID[r.ID()]; ok {
+			var endpointName, endpointType string
+			if e, ok := mExistingRulesByID[iRule.GetEndpointID()]; ok {
+				endpointName = e.GetName()
+				endpointType = e.Type()
+			}
+			r.existing = &existingRule{
+				rule:         iRule,
+				endpointName: endpointName,
+				endpointType: endpointType,
+			}
+		}
+
 		diffs = append(diffs, newDiffNotificationRule(r, e))
 
 	}
@@ -915,51 +925,32 @@ func (s *Service) dryRunTelegraf(pkg *Pkg) []DiffTelegraf {
 	return diffs
 }
 
-func (s *Service) dryRunVariables(ctx context.Context, orgID influxdb.ID, pkg *Pkg) []DiffVariable {
-	mExistingLabels := make(map[string]DiffVariable)
-	variables := pkg.variables()
+func (s *Service) dryRunVariables(ctx context.Context, orgID influxdb.ID, vars map[string]*stateVariable) {
+	existingVars, _ := s.getAllPlatformVariables(ctx, orgID)
 
-VarLoop:
-	for i := range variables {
-		pkgVar := variables[i]
-		existingLabels, err := s.varSVC.FindVariables(ctx, influxdb.VariableFilter{
-			OrganizationID: &orgID,
-			// TODO: would be ideal to extend find variables to allow for a name matcher
-			//  since names are unique for vars within an org, meanwhile, make large limit
-			// 	returned vars, should be more than enough for the time being.
-		}, influxdb.FindOptions{Limit: 100})
-		switch {
-		case err == nil && len(existingLabels) > 0:
-			for i := range existingLabels {
-				existingVar := existingLabels[i]
-				if existingVar.Name != pkgVar.Name() {
-					continue
-				}
-				pkgVar.existing = existingVar
-				mExistingLabels[pkgVar.Name()] = newDiffVariable(pkgVar, existingVar)
-				continue VarLoop
-			}
-			// fallthrough here for when the variable is not found, it'll fall to the
-			// default case and add it as new.
-			fallthrough
-		default:
-			mExistingLabels[pkgVar.Name()] = newDiffVariable(pkgVar, nil)
+	mIDs := make(map[influxdb.ID]*influxdb.Variable)
+	mNames := make(map[string]*influxdb.Variable)
+	for _, v := range existingVars {
+		mIDs[v.ID] = v
+		mNames[v.Name] = v
+	}
+
+	for _, v := range vars {
+		var existing *influxdb.Variable
+		if v.ID() != 0 {
+			existing = mIDs[v.ID()]
+		} else {
+			existing = mNames[v.parserVar.Name()]
 		}
+		if IsNew(v.stateStatus) && existing != nil {
+			v.stateStatus = StateStatusExists
+		}
+		v.existing = existing
 	}
-
-	diffs := make([]DiffVariable, 0, len(mExistingLabels))
-	for _, diff := range mExistingLabels {
-		diffs = append(diffs, diff)
-	}
-	sort.Slice(diffs, func(i, j int) bool {
-		return diffs[i].Name < diffs[j].Name
-	})
-
-	return diffs
 }
 
 type (
-	labelMappingDiffFn func(labelID influxdb.ID, labelName string, isNew bool)
+	labelMappingDiffFn func(labelID influxdb.ID, labelPkgName, labelName string, isNew bool)
 
 	labelMappers interface {
 		Association(i int) labelAssociater
@@ -969,37 +960,46 @@ type (
 	labelAssociater interface {
 		ID() influxdb.ID
 		Name() string
+		PkgName() string
 		Labels() []*label
 		ResourceType() influxdb.ResourceType
 		Exists() bool
 	}
 )
 
-func (s *Service) dryRunLabelMappings(ctx context.Context, pkg *Pkg) ([]DiffLabelMapping, error) {
+func (s *Service) dryRunLabelMappings(ctx context.Context, pkg *Pkg, state *stateCoordinator) ([]DiffLabelMapping, error) {
 	mappers := []labelMappers{
-		mapperBuckets(pkg.buckets()),
-		mapperChecks(pkg.checks()),
-		mapperDashboards(pkg.mDashboards),
+		mapperDashboards(pkg.dashboards()),
 		mapperNotificationEndpoints(pkg.notificationEndpoints()),
-		mapperNotificationRules(pkg.mNotificationRules),
-		mapperTasks(pkg.mTasks),
-		mapperTelegrafs(pkg.mTelegrafs),
-		mapperVariables(pkg.variables()),
+		mapperNotificationRules(pkg.notificationRules()),
+		mapperTasks(pkg.tasks()),
+		mapperTelegrafs(pkg.telegrafs()),
 	}
 
 	diffs := make([]DiffLabelMapping, 0)
 	for _, mapper := range mappers {
 		for i := 0; i < mapper.Len(); i++ {
 			la := mapper.Association(i)
-			err := s.dryRunResourceLabelMapping(ctx, la, func(labelID influxdb.ID, labelName string, isNew bool) {
-				pkg.mLabels[labelName].setMapping(la, !isNew)
+			err := s.dryRunResourceLabelMapping(ctx, la, func(labelID influxdb.ID, labelPkgName, labelName string, isNew bool) {
+				existingLabel, ok := state.mLabels[labelName]
+				if !ok {
+					return
+				}
+				existingLabel.parserLabel.setMapping(la, !isNew)
+
+				status := StateStatusExists
+				if isNew {
+					status = StateStatusNew
+				}
 				diffs = append(diffs, DiffLabelMapping{
-					IsNew:     isNew,
-					ResType:   la.ResourceType(),
-					ResID:     SafeID(la.ID()),
-					ResName:   la.Name(),
-					LabelID:   SafeID(labelID),
-					LabelName: labelName,
+					StateStatus:  status,
+					ResType:      la.ResourceType(),
+					ResID:        SafeID(la.ID()),
+					ResPkgName:   la.PkgName(),
+					ResName:      la.Name(),
+					LabelID:      SafeID(labelID),
+					LabelPkgName: labelPkgName,
+					LabelName:    labelName,
 				})
 			})
 			if err != nil {
@@ -1032,7 +1032,7 @@ func (s *Service) dryRunLabelMappings(ctx context.Context, pkg *Pkg) ([]DiffLabe
 func (s *Service) dryRunResourceLabelMapping(ctx context.Context, la labelAssociater, mappingFn labelMappingDiffFn) error {
 	if !la.Exists() {
 		for _, l := range la.Labels() {
-			mappingFn(l.ID(), l.Name(), true)
+			mappingFn(l.ID(), l.PkgName(), l.Name(), true)
 		}
 		return nil
 	}
@@ -1052,60 +1052,249 @@ func (s *Service) dryRunResourceLabelMapping(ctx context.Context, la labelAssoci
 
 	pkgLabels := labelSlcToMap(la.Labels())
 	for _, l := range existingLabels {
-		// should ignore any labels that are not specified in pkg
-		mappingFn(l.ID, l.Name, false)
+		// if label is found in state then we track the mapping and mark it existing
+		// otherwise we continue on
 		delete(pkgLabels, l.Name)
+		if pkgLabel, ok := pkgLabels[l.Name]; ok {
+			mappingFn(l.ID, pkgLabel.PkgName(), l.Name, false)
+		}
 	}
 
 	// now we add labels that were not apart of the existing labels
 	for _, l := range pkgLabels {
-		mappingFn(l.ID(), l.Name(), true)
+		mappingFn(l.ID(), l.PkgName(), l.Name(), true)
 	}
+	return nil
+}
+
+func (s *Service) dryRunLabelMappingsV2(ctx context.Context, state *stateCoordinator) ([]stateLabelMapping, error) {
+	stateLabelsByResName := make(map[string]*stateLabel)
+	for _, l := range state.mLabels {
+		if IsRemoval(l.stateStatus) {
+			continue
+		}
+		stateLabelsByResName[l.parserLabel.Name()] = l
+	}
+
+	var mappings []stateLabelMapping
+	for _, b := range state.mBuckets {
+		if IsRemoval(b.stateStatus) {
+			continue
+		}
+		mm, err := s.dryRunResourceLabelMappingV2(ctx, state, stateLabelsByResName, b)
+		if err != nil {
+			return nil, err
+		}
+		mappings = append(mappings, mm...)
+	}
+
+	for _, c := range state.mChecks {
+		if IsRemoval(c.stateStatus) {
+			continue
+		}
+		mm, err := s.dryRunResourceLabelMappingV2(ctx, state, stateLabelsByResName, c)
+		if err != nil {
+			return nil, err
+		}
+		mappings = append(mappings, mm...)
+	}
+
+	for _, v := range state.mVariables {
+		if IsRemoval(v.stateStatus) {
+			continue
+		}
+		mm, err := s.dryRunResourceLabelMappingV2(ctx, state, stateLabelsByResName, v)
+		if err != nil {
+			return nil, err
+		}
+		mappings = append(mappings, mm...)
+	}
+
+	return mappings, nil
+}
+
+func (s *Service) dryRunResourceLabelMappingV2(ctx context.Context, state *stateCoordinator, stateLabelsByResName map[string]*stateLabel, associatedResource interface {
+	labels() []*label
+	stateIdentity() stateIdentity
+}) ([]stateLabelMapping, error) {
+
+	ident := associatedResource.stateIdentity()
+	pkgResourceLabels := associatedResource.labels()
+
+	var mappings []stateLabelMapping
+	if !ident.exists() {
+		for _, l := range pkgResourceLabels {
+			mappings = append(mappings, stateLabelMapping{
+				status:   StateStatusNew,
+				resource: associatedResource,
+				label:    state.getLabelByPkgName(l.PkgName()),
+			})
+		}
+		return mappings, nil
+	}
+
+	existingLabels, err := s.labelSVC.FindResourceLabels(ctx, influxdb.LabelMappingFilter{
+		ResourceID:   ident.id,
+		ResourceType: ident.resourceType,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	pkgLabels := labelSlcToMap(pkgResourceLabels)
+	for _, l := range existingLabels {
+		// if label is found in state then we track the mapping and mark it existing
+		// otherwise we continue on
+		delete(pkgLabels, l.Name)
+		if sLabel, ok := stateLabelsByResName[l.Name]; ok {
+			mappings = append(mappings, stateLabelMapping{
+				status:   StateStatusExists,
+				resource: associatedResource,
+				label:    sLabel,
+			})
+		}
+	}
+
+	// now we add labels that do not exist
+	for _, l := range pkgLabels {
+		mappings = append(mappings, stateLabelMapping{
+			status:   StateStatusNew,
+			resource: associatedResource,
+			label:    state.getLabelByPkgName(l.PkgName()),
+		})
+	}
+
+	return mappings, nil
+}
+
+func (s *Service) addStackState(ctx context.Context, stackID influxdb.ID, pkg *Pkg, state *stateCoordinator) error {
+	stack, err := s.store.ReadStackByID(ctx, stackID)
+	if err != nil {
+		return ierrors.Wrap(internalErr(err), "reading stack")
+	}
+
+	type stateMapper interface {
+		Contains(kind Kind, pkgName string) bool
+		setObjectID(kind Kind, pkgName string, id influxdb.ID)
+		addObjectForRemoval(kind Kind, pkgName string, id influxdb.ID)
+	}
+
+	stateKinds := []Kind{
+		KindBucket,
+		KindCheck,
+		KindLabel,
+		KindVariable,
+	}
+
+	// check resource exists in pkg
+	// if exists
+	//	  set id on existing pkg resource
+	// else
+	//	  add stub pkg resource that indicates it should be deleted
+	for _, r := range stack.Resources {
+		var mapper stateMapper = pkg
+		if r.Kind.is(stateKinds...) {
+			// hack for time being while we transition state out of pkg.
+			// this will take several passes to finish up.
+			mapper = state
+		}
+
+		updateFn := mapper.setObjectID
+		if !mapper.Contains(r.Kind, r.Name) {
+			updateFn = mapper.addObjectForRemoval
+		}
+		updateFn(r.Kind, r.Name, r.ID)
+	}
+
 	return nil
 }
 
 // ApplyOpt is an option for applying a package.
 type ApplyOpt struct {
+	EnvRefs        map[string]string
 	MissingSecrets map[string]string
+	StackID        influxdb.ID
 }
 
 // ApplyOptFn updates the ApplyOpt per the functional option.
-type ApplyOptFn func(opt *ApplyOpt) error
+type ApplyOptFn func(opt *ApplyOpt)
+
+// ApplyWithEnvRefs provides env refs to saturate the missing reference fields in the pkg.
+func ApplyWithEnvRefs(envRefs map[string]string) ApplyOptFn {
+	return func(o *ApplyOpt) {
+		o.EnvRefs = envRefs
+	}
+}
 
 // ApplyWithSecrets provides secrets to the platform that the pkg will need.
 func ApplyWithSecrets(secrets map[string]string) ApplyOptFn {
-	return func(o *ApplyOpt) error {
+	return func(o *ApplyOpt) {
 		o.MissingSecrets = secrets
-		return nil
 	}
+}
+
+// ApplyWithStackID associates the application of a pkg with a stack.
+func ApplyWithStackID(stackID influxdb.ID) ApplyOptFn {
+	return func(o *ApplyOpt) {
+		o.StackID = stackID
+	}
+}
+
+func applyOptFromOptFns(opts ...ApplyOptFn) ApplyOpt {
+	var opt ApplyOpt
+	for _, o := range opts {
+		o(&opt)
+	}
+	return opt
 }
 
 // Apply will apply all the resources identified in the provided pkg. The entire pkg will be applied
 // in its entirety. If a failure happens midway then the entire pkg will be rolled back to the state
 // from before the pkg were applied.
-func (s *Service) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (sum Summary, e error) {
+func (s *Service) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (sum Summary, diff Diff, e error) {
 	if !pkg.isParsed {
 		if err := pkg.Validate(); err != nil {
-			return Summary{}, failedValidationErr(err)
+			return Summary{}, Diff{}, failedValidationErr(err)
 		}
 	}
 
-	var opt ApplyOpt
-	for _, o := range opts {
-		if err := o(&opt); err != nil {
-			return Summary{}, internalErr(err)
-		}
+	opt := applyOptFromOptFns(opts...)
+
+	if err := pkg.applyEnvRefs(opt.EnvRefs); err != nil {
+		return Summary{}, Diff{}, failedValidationErr(err)
 	}
 
-	if !pkg.isVerified {
-		if _, _, err := s.DryRun(ctx, orgID, userID, pkg); err != nil {
-			return Summary{}, err
-		}
+	_, diff, state, err := s.dryRun(ctx, orgID, pkg, opts...)
+	if err != nil {
+		return Summary{}, Diff{}, err
 	}
+
+	defer func(stackID influxdb.ID) {
+		if stackID == 0 {
+			return
+		}
+
+		updateStackFn := s.updateStackAfterSuccess
+		if e != nil {
+			updateStackFn = s.updateStackAfterRollback
+		}
+		if err := updateStackFn(ctx, stackID, pkg, state); err != nil {
+			s.log.Error("failed to update stack", zap.Error(err))
+		}
+	}(opt.StackID)
 
 	coordinator := &rollbackCoordinator{sem: make(chan struct{}, s.applyReqLimit)}
 	defer coordinator.rollback(s.log, &e, orgID)
 
+	sum, err = s.apply(ctx, coordinator, orgID, userID, pkg, state, opt.MissingSecrets)
+	if err != nil {
+		return Summary{}, Diff{}, err
+	}
+
+	return sum, diff, err
+}
+
+func (s *Service) apply(ctx context.Context, coordinator *rollbackCoordinator, orgID, userID influxdb.ID, pkg *Pkg, state *stateCoordinator, missingSecrets map[string]string) (sum Summary, e error) {
 	// each grouping here runs for its entirety, then returns an error that
 	// is indicative of running all appliers provided. For instance, the labels
 	// may have 1 variable fail and one of the buckets fails. The errors aggregate so
@@ -1119,19 +1308,19 @@ func (s *Service) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg
 		{
 			// adds secrets that are referenced it the pkg, this allows user to
 			// provide data that does not rest in the pkg.
-			s.applySecrets(opt.MissingSecrets),
+			s.applySecrets(missingSecrets),
 		},
 		{
 			// deps for primary resources
-			s.applyLabels(pkg.labels()),
+			s.applyLabels(ctx, state.labels()),
 		},
 		{
 			// primary resources, can have relationships to labels
-			s.applyVariables(pkg.variables()),
-			s.applyBuckets(pkg.buckets()),
-			s.applyChecks(pkg.checks()),
+			s.applyVariables(ctx, state.variables()),
+			s.applyBuckets(ctx, state.buckets()),
+			s.applyChecks(ctx, state.checks()),
 			s.applyDashboards(pkg.dashboards()),
-			s.applyNotificationEndpoints(pkg.notificationEndpoints()),
+			s.applyNotificationEndpoints(ctx, userID, pkg.notificationEndpoints()),
 			s.applyTasks(pkg.tasks()),
 			s.applyTelegrafs(pkg.telegrafs()),
 		},
@@ -1145,7 +1334,7 @@ func (s *Service) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg
 
 	// this has to be run after the above primary resources, because it relies on
 	// notification endpoints already being applied.
-	app, err := s.applyNotificationRulesGenerator(ctx, orgID, pkg.notificationRules())
+	app, err := s.applyNotificationRulesGenerator(ctx, orgID, pkg)
 	if err != nil {
 		return Summary{}, err
 	}
@@ -1155,27 +1344,53 @@ func (s *Service) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg
 
 	// secondary resources
 	// this last grouping relies on the above 2 steps having completely successfully
-	secondary := []applier{s.applyLabelMappings(pkg.labelMappings())}
+	secondary := []applier{
+		s.applyLabelMappings(pkg.labelMappings()),
+		s.applyLabelMappingsV2(state.labelMappings),
+	}
 	if err := coordinator.runTilEnd(ctx, orgID, userID, secondary...); err != nil {
 		return Summary{}, internalErr(err)
 	}
 
-	pkg.applySecrets(opt.MissingSecrets)
+	pkg.applySecrets(missingSecrets)
 
-	return pkg.Summary(), nil
+	stateSum := state.summary()
+
+	pkgSum := pkg.Summary()
+	pkgSum.Buckets = stateSum.Buckets
+	pkgSum.Checks = stateSum.Checks
+	pkgSum.Labels = stateSum.Labels
+	pkgSum.Variables = stateSum.Variables
+
+	// filter out label mappings that are from pgk and replace with those
+	// in state. This is temporary hack to provide a bridge to the promise land...
+	resourcesToSkip := map[influxdb.ResourceType]bool{
+		influxdb.BucketsResourceType:   true,
+		influxdb.ChecksResourceType:    true,
+		influxdb.VariablesResourceType: true,
+	}
+	for _, lm := range pkgSum.LabelMappings {
+		if resourcesToSkip[lm.ResourceType] {
+			continue
+		}
+		stateSum.LabelMappings = append(stateSum.LabelMappings, lm)
+	}
+	pkgSum.LabelMappings = stateSum.LabelMappings
+
+	return pkgSum, nil
 }
 
-func (s *Service) applyBuckets(buckets []*bucket) applier {
+func (s *Service) applyBuckets(ctx context.Context, buckets []*stateBucket) applier {
 	const resource = "bucket"
 
 	mutex := new(doMutex)
-	rollbackBuckets := make([]*bucket, 0, len(buckets))
+	rollbackBuckets := make([]*stateBucket, 0, len(buckets))
 
 	createFn := func(ctx context.Context, i int, orgID, userID influxdb.ID) *applyErrBody {
-		var b bucket
+		var b *stateBucket
 		mutex.Do(func() {
-			buckets[i].OrgID = orgID
-			b = *buckets[i]
+			buckets[i].orgID = orgID
+			b = buckets[i]
 		})
 		if !b.shouldApply() {
 			return nil
@@ -1184,7 +1399,7 @@ func (s *Service) applyBuckets(buckets []*bucket) applier {
 		influxBucket, err := s.applyBucket(ctx, b)
 		if err != nil {
 			return &applyErrBody{
-				name: b.Name(),
+				name: b.parserBkt.PkgName(),
 				msg:  err.Error(),
 			}
 		}
@@ -1204,90 +1419,103 @@ func (s *Service) applyBuckets(buckets []*bucket) applier {
 		},
 		rollbacker: rollbacker{
 			resource: resource,
-			fn:       func(_ influxdb.ID) error { return s.rollbackBuckets(rollbackBuckets) },
+			fn:       func(_ influxdb.ID) error { return s.rollbackBuckets(ctx, rollbackBuckets) },
 		},
 	}
 }
 
-func (s *Service) rollbackBuckets(buckets []*bucket) error {
+func (s *Service) rollbackBuckets(ctx context.Context, buckets []*stateBucket) error {
+	rollbackFn := func(b *stateBucket) error {
+		var err error
+		switch b.stateStatus {
+		case StateStatusRemove:
+			err = ierrors.Wrap(s.bucketSVC.CreateBucket(ctx, b.existing), "rolling back removed bucket")
+		case StateStatusExists:
+			rp := b.parserBkt.RetentionRules.RP()
+			_, err = s.bucketSVC.UpdateBucket(ctx, b.ID(), influxdb.BucketUpdate{
+				Description:     &b.parserBkt.Description,
+				RetentionPeriod: &rp,
+			})
+			err = ierrors.Wrap(err, "rolling back existing bucket to previous state")
+		default:
+			err = ierrors.Wrap(s.bucketSVC.DeleteBucket(ctx, b.ID()), "rolling back new bucket")
+		}
+		return err
+	}
+
 	var errs []string
 	for _, b := range buckets {
-		if b.existing == nil {
-			err := s.bucketSVC.DeleteBucket(context.Background(), b.ID())
-			if err != nil {
-				errs = append(errs, b.ID().String())
-			}
-			continue
-		}
-
-		rp := b.RetentionRules.RP()
-		_, err := s.bucketSVC.UpdateBucket(context.Background(), b.ID(), influxdb.BucketUpdate{
-			Description:     &b.Description,
-			RetentionPeriod: &rp,
-		})
-		if err != nil {
-			errs = append(errs, b.ID().String())
+		if err := rollbackFn(b); err != nil {
+			errs = append(errs, fmt.Sprintf("error for bucket[%q]: %s", b.ID(), err))
 		}
 	}
 
 	if len(errs) > 0 {
 		// TODO: fixup error
-		return fmt.Errorf(`bucket_ids=[%s] err="unable to delete bucket"`, strings.Join(errs, ", "))
+		return errors.New(strings.Join(errs, ", "))
 	}
 
 	return nil
 }
 
-func (s *Service) applyBucket(ctx context.Context, b bucket) (influxdb.Bucket, error) {
-	rp := b.RetentionRules.RP()
-	if b.existing != nil {
+func (s *Service) applyBucket(ctx context.Context, b *stateBucket) (influxdb.Bucket, error) {
+	switch b.stateStatus {
+	case StateStatusRemove:
+		if err := s.bucketSVC.DeleteBucket(ctx, b.ID()); err != nil {
+			return influxdb.Bucket{}, fmt.Errorf("failed to delete bucket[%q]: %w", b.ID(), err)
+		}
+		return *b.existing, nil
+	case StateStatusExists:
+		rp := b.parserBkt.RetentionRules.RP()
+		newName := b.parserBkt.Name()
 		influxBucket, err := s.bucketSVC.UpdateBucket(ctx, b.ID(), influxdb.BucketUpdate{
-			Description:     &b.Description,
+			Description:     &b.parserBkt.Description,
+			Name:            &newName,
 			RetentionPeriod: &rp,
 		})
 		if err != nil {
-			return influxdb.Bucket{}, err
+			return influxdb.Bucket{}, fmt.Errorf("failed to updated bucket[%q]: %w", b.ID(), err)
 		}
 		return *influxBucket, nil
+	default:
+		rp := b.parserBkt.RetentionRules.RP()
+		influxBucket := influxdb.Bucket{
+			OrgID:           b.orgID,
+			Description:     b.parserBkt.Description,
+			Name:            b.parserBkt.Name(),
+			RetentionPeriod: rp,
+		}
+		err := s.bucketSVC.CreateBucket(ctx, &influxBucket)
+		if err != nil {
+			return influxdb.Bucket{}, fmt.Errorf("failed to create bucket[%q]: %w", b.ID(), err)
+		}
+		return influxBucket, nil
 	}
-
-	influxBucket := influxdb.Bucket{
-		OrgID:           b.OrgID,
-		Description:     b.Description,
-		Name:            b.Name(),
-		RetentionPeriod: rp,
-	}
-	err := s.bucketSVC.CreateBucket(ctx, &influxBucket)
-	if err != nil {
-		return influxdb.Bucket{}, err
-	}
-
-	return influxBucket, nil
 }
 
-func (s *Service) applyChecks(checks []*check) applier {
+func (s *Service) applyChecks(ctx context.Context, checks []*stateCheck) applier {
 	const resource = "check"
 
 	mutex := new(doMutex)
-	rollbackChecks := make([]*check, 0, len(checks))
+	rollbackChecks := make([]*stateCheck, 0, len(checks))
 
 	createFn := func(ctx context.Context, i int, orgID, userID influxdb.ID) *applyErrBody {
-		var c check
+		var c *stateCheck
 		mutex.Do(func() {
 			checks[i].orgID = orgID
-			c = *checks[i]
+			c = checks[i]
 		})
 
-		influxBucket, err := s.applyCheck(ctx, c, userID)
+		influxCheck, err := s.applyCheck(ctx, c, userID)
 		if err != nil {
 			return &applyErrBody{
-				name: c.Name(),
+				name: c.parserCheck.Name(),
 				msg:  err.Error(),
 			}
 		}
 
 		mutex.Do(func() {
-			checks[i].id = influxBucket.GetID()
+			checks[i].id = influxCheck.GetID()
 			rollbackChecks = append(rollbackChecks, checks[i])
 		})
 
@@ -1301,60 +1529,77 @@ func (s *Service) applyChecks(checks []*check) applier {
 		},
 		rollbacker: rollbacker{
 			resource: resource,
-			fn:       func(_ influxdb.ID) error { return s.rollbackChecks(rollbackChecks) },
+			fn:       func(_ influxdb.ID) error { return s.rollbackChecks(ctx, rollbackChecks) },
 		},
 	}
 }
 
-func (s *Service) rollbackChecks(checks []*check) error {
+func (s *Service) rollbackChecks(ctx context.Context, checks []*stateCheck) error {
+	rollbackFn := func(c *stateCheck) error {
+		var err error
+		switch c.stateStatus {
+		case StateStatusRemove:
+			err = s.checkSVC.CreateCheck(
+				ctx,
+				influxdb.CheckCreate{
+					Check:  c.existing,
+					Status: c.parserCheck.Status(),
+				},
+				c.existing.GetOwnerID(),
+			)
+			c.id = c.existing.GetID()
+		case StateStatusNew:
+			err = s.checkSVC.DeleteCheck(ctx, c.ID())
+		default:
+			_, err = s.checkSVC.UpdateCheck(ctx, c.ID(), influxdb.CheckCreate{
+				Check:  c.summarize().Check,
+				Status: influxdb.Status(c.parserCheck.status),
+			})
+		}
+		return err
+	}
+
 	var errs []string
 	for _, c := range checks {
-		if c.existing == nil {
-			err := s.checkSVC.DeleteCheck(context.Background(), c.ID())
-			if err != nil {
-				errs = append(errs, c.ID().String())
-			}
-			continue
-		}
-
-		_, err := s.checkSVC.UpdateCheck(context.Background(), c.ID(), influxdb.CheckCreate{
-			Check:  c.summarize().Check,
-			Status: influxdb.Status(c.status),
-		})
-		if err != nil {
-			errs = append(errs, c.ID().String())
+		if err := rollbackFn(c); err != nil {
+			errs = append(errs, fmt.Sprintf("error for check[%q]: %s", c.ID(), err))
 		}
 	}
 
 	if len(errs) > 0 {
-		// TODO: fixup error
-		return fmt.Errorf(`check_ids=[%s] err="unable to delete"`, strings.Join(errs, ", "))
+		return errors.New(strings.Join(errs, "; "))
 	}
 
 	return nil
 }
 
-func (s *Service) applyCheck(ctx context.Context, c check, userID influxdb.ID) (influxdb.Check, error) {
-	if c.existing != nil {
+func (s *Service) applyCheck(ctx context.Context, c *stateCheck, userID influxdb.ID) (influxdb.Check, error) {
+	switch c.stateStatus {
+	case StateStatusRemove:
+		if err := s.checkSVC.DeleteCheck(ctx, c.ID()); err != nil {
+			return nil, fmt.Errorf("failed to delete check[%q]: %w", c.ID(), err)
+		}
+		return c.existing, nil
+	case StateStatusExists:
 		influxCheck, err := s.checkSVC.UpdateCheck(ctx, c.ID(), influxdb.CheckCreate{
 			Check:  c.summarize().Check,
-			Status: c.Status(),
+			Status: c.parserCheck.Status(),
 		})
 		if err != nil {
 			return nil, err
 		}
 		return influxCheck, nil
+	default:
+		checkStub := influxdb.CheckCreate{
+			Check:  c.summarize().Check,
+			Status: c.parserCheck.Status(),
+		}
+		err := s.checkSVC.CreateCheck(ctx, checkStub, userID)
+		if err != nil {
+			return nil, err
+		}
+		return checkStub.Check, nil
 	}
-
-	checkStub := influxdb.CheckCreate{
-		Check:  c.summarize().Check,
-		Status: c.Status(),
-	}
-	err := s.checkSVC.CreateCheck(ctx, checkStub, userID)
-	if err != nil {
-		return nil, err
-	}
-	return checkStub.Check, nil
 }
 
 func (s *Service) applyDashboards(dashboards []*dashboard) applier {
@@ -1437,17 +1682,17 @@ func convertChartsToCells(ch []chart) []*influxdb.Cell {
 	return icells
 }
 
-func (s *Service) applyLabels(labels []*label) applier {
+func (s *Service) applyLabels(ctx context.Context, labels []*stateLabel) applier {
 	const resource = "label"
 
 	mutex := new(doMutex)
-	rollBackLabels := make([]*label, 0, len(labels))
+	rollBackLabels := make([]*stateLabel, 0, len(labels))
 
 	createFn := func(ctx context.Context, i int, orgID, userID influxdb.ID) *applyErrBody {
-		var l label
+		var l *stateLabel
 		mutex.Do(func() {
-			labels[i].OrgID = orgID
-			l = *labels[i]
+			labels[i].orgID = orgID
+			l = labels[i]
 		})
 		if !l.shouldApply() {
 			return nil
@@ -1456,13 +1701,14 @@ func (s *Service) applyLabels(labels []*label) applier {
 		influxLabel, err := s.applyLabel(ctx, l)
 		if err != nil {
 			return &applyErrBody{
-				name: l.Name(),
+				name: l.parserLabel.PkgName(),
 				msg:  err.Error(),
 			}
 		}
 
 		mutex.Do(func() {
 			labels[i].id = influxLabel.ID
+			labels[i].parserLabel.id = influxLabel.ID
 			rollBackLabels = append(rollBackLabels, labels[i])
 		})
 
@@ -1476,58 +1722,69 @@ func (s *Service) applyLabels(labels []*label) applier {
 		},
 		rollbacker: rollbacker{
 			resource: resource,
-			fn:       func(_ influxdb.ID) error { return s.rollbackLabels(rollBackLabels) },
+			fn:       func(_ influxdb.ID) error { return s.rollbackLabels(ctx, rollBackLabels) },
 		},
 	}
 }
 
-func (s *Service) rollbackLabels(labels []*label) error {
+func (s *Service) rollbackLabels(ctx context.Context, labels []*stateLabel) error {
+	rollbackFn := func(l *stateLabel) error {
+		var err error
+		switch l.stateStatus {
+		case StateStatusRemove:
+			err = s.labelSVC.CreateLabel(ctx, l.existing)
+		case StateStatusExists:
+			_, err = s.labelSVC.UpdateLabel(ctx, l.ID(), influxdb.LabelUpdate{
+				Name:       l.parserLabel.Name(),
+				Properties: l.existing.Properties,
+			})
+		default:
+			err = s.labelSVC.DeleteLabel(ctx, l.ID())
+		}
+		return err
+	}
+
 	var errs []string
 	for _, l := range labels {
-		if l.existing == nil {
-			err := s.labelSVC.DeleteLabel(context.Background(), l.ID())
-			if err != nil {
-				errs = append(errs, l.ID().String())
-			}
-			continue
-		}
-
-		_, err := s.labelSVC.UpdateLabel(context.Background(), l.ID(), influxdb.LabelUpdate{
-			Properties: l.existing.Properties,
-		})
-		if err != nil {
-			errs = append(errs, l.ID().String())
+		if err := rollbackFn(l); err != nil {
+			errs = append(errs, fmt.Sprintf("error for label[%q]: %s", l.ID(), err))
 		}
 	}
 
 	if len(errs) > 0 {
-		return fmt.Errorf(`label_ids=[%s] err="unable to delete label"`, strings.Join(errs, ", "))
+		return errors.New(strings.Join(errs, ", "))
 	}
 
 	return nil
 }
 
-func (s *Service) applyLabel(ctx context.Context, l label) (influxdb.Label, error) {
-	if l.existing != nil {
-		updatedlabel, err := s.labelSVC.UpdateLabel(ctx, l.ID(), influxdb.LabelUpdate{
+func (s *Service) applyLabel(ctx context.Context, l *stateLabel) (influxdb.Label, error) {
+	var (
+		influxLabel *influxdb.Label
+		err         error
+	)
+	switch l.stateStatus {
+	case StateStatusRemove:
+		influxLabel, err = l.existing, s.labelSVC.DeleteLabel(ctx, l.ID())
+	case StateStatusExists:
+		influxLabel, err = s.labelSVC.UpdateLabel(ctx, l.ID(), influxdb.LabelUpdate{
+			Name:       l.parserLabel.Name(),
 			Properties: l.properties(),
 		})
-		if err != nil {
-			return influxdb.Label{}, err
-		}
-		return *updatedlabel, nil
+		err = ierrors.Wrap(err, "updating")
+	default:
+		creatLabel := l.toInfluxLabel()
+		influxLabel = &creatLabel
+		err = ierrors.Wrap(s.labelSVC.CreateLabel(ctx, &creatLabel), "creating")
 	}
-
-	influxLabel := l.toInfluxLabel()
-	err := s.labelSVC.CreateLabel(ctx, &influxLabel)
-	if err != nil {
+	if err != nil || influxLabel == nil {
 		return influxdb.Label{}, err
 	}
 
-	return influxLabel, nil
+	return *influxLabel, nil
 }
 
-func (s *Service) applyNotificationEndpoints(endpoints []*notificationEndpoint) applier {
+func (s *Service) applyNotificationEndpoints(ctx context.Context, userID influxdb.ID, endpoints []*notificationEndpoint) applier {
 	const resource = "notification_endpoints"
 
 	mutex := new(doMutex)
@@ -1553,12 +1810,24 @@ func (s *Service) applyNotificationEndpoints(endpoints []*notificationEndpoint) 
 			for _, secret := range influxEndpoint.SecretFields() {
 				switch {
 				case strings.HasSuffix(secret.Key, "-routing-key"):
+					if endpoints[i].routingKey == nil {
+						endpoints[i].routingKey = new(references)
+					}
 					endpoints[i].routingKey.Secret = secret.Key
 				case strings.HasSuffix(secret.Key, "-token"):
+					if endpoints[i].token == nil {
+						endpoints[i].token = new(references)
+					}
 					endpoints[i].token.Secret = secret.Key
 				case strings.HasSuffix(secret.Key, "-username"):
+					if endpoints[i].username == nil {
+						endpoints[i].username = new(references)
+					}
 					endpoints[i].username.Secret = secret.Key
 				case strings.HasSuffix(secret.Key, "-password"):
+					if endpoints[i].password == nil {
+						endpoints[i].password = new(references)
+					}
 					endpoints[i].password.Secret = secret.Key
 				}
 			}
@@ -1576,22 +1845,31 @@ func (s *Service) applyNotificationEndpoints(endpoints []*notificationEndpoint) 
 		rollbacker: rollbacker{
 			resource: resource,
 			fn: func(_ influxdb.ID) error {
-				return s.rollbackNotificationEndpoints(rollbackEndpoints)
+				return s.rollbackNotificationEndpoints(ctx, userID, rollbackEndpoints)
 			},
 		},
 	}
 }
 
 func (s *Service) applyNotificationEndpoint(ctx context.Context, e notificationEndpoint, userID influxdb.ID) (influxdb.NotificationEndpoint, error) {
-	if e.existing != nil {
-		// stub out userID since we're always using hte http client which will fill it in for us with the token
-		// feels a bit broken that is required.
-		// TODO: look into this userID requirement
-		updatedEndpoint, err := s.endpointSVC.UpdateNotificationEndpoint(ctx, e.ID(), e.existing, userID)
+	if e.shouldRemove {
+		_, _, err := s.endpointSVC.DeleteNotificationEndpoint(ctx, e.ID())
 		if err != nil {
 			return nil, err
 		}
-		return updatedEndpoint, nil
+		return e.existing, nil
+	}
+
+	if e.Exists() {
+		// stub out userID since we're always using hte http client which will fill it in for us with the token
+		// feels a bit broken that is required.
+		// TODO: look into this userID requirement
+		return s.endpointSVC.UpdateNotificationEndpoint(
+			ctx,
+			e.ID(),
+			e.summarize().NotificationEndpoint,
+			userID,
+		)
 	}
 
 	actual := e.summarize().NotificationEndpoint
@@ -1603,31 +1881,35 @@ func (s *Service) applyNotificationEndpoint(ctx context.Context, e notificationE
 	return actual, nil
 }
 
-func (s *Service) rollbackNotificationEndpoints(endpoints []*notificationEndpoint) error {
+func (s *Service) rollbackNotificationEndpoints(ctx context.Context, userID influxdb.ID, endpoints []*notificationEndpoint) error {
+	rollbackFn := func(e *notificationEndpoint) error {
+		var err error
+		switch {
+		case e.shouldRemove:
+			err = s.endpointSVC.CreateNotificationEndpoint(ctx, e.existing, userID)
+		case e.existing == nil:
+			_, _, err = s.endpointSVC.DeleteNotificationEndpoint(ctx, e.ID())
+		default:
+			_, err = s.endpointSVC.UpdateNotificationEndpoint(ctx, e.ID(), e.existing, userID)
+		}
+		return err
+	}
+
 	var errs []string
 	for _, e := range endpoints {
-		if e.existing == nil {
-			_, _, err := s.endpointSVC.DeleteNotificationEndpoint(context.Background(), e.ID())
-			if err != nil {
-				errs = append(errs, e.ID().String())
-			}
-			continue
-		}
-
-		_, err := s.endpointSVC.UpdateNotificationEndpoint(context.Background(), e.ID(), e.existing, 0)
-		if err != nil {
-			errs = append(errs, e.ID().String())
+		if err := rollbackFn(e); err != nil {
+			errs = append(errs, fmt.Sprintf("error for notification endpoint[%q]: %s", e.ID(), err))
 		}
 	}
 
 	if len(errs) > 0 {
-		return fmt.Errorf(`notication_endpoint_ids=[%s] err="unable to delete"`, strings.Join(errs, ", "))
+		return errors.New(strings.Join(errs, "; "))
 	}
 
 	return nil
 }
 
-func (s *Service) applyNotificationRulesGenerator(ctx context.Context, orgID influxdb.ID, rules []*notificationRule) (applier, error) {
+func (s *Service) applyNotificationRulesGenerator(ctx context.Context, orgID influxdb.ID, pkg *Pkg) (applier, error) {
 	endpoints, _, err := s.endpointSVC.FindNotificationEndpoints(ctx, influxdb.NotificationEndpointFilter{
 		OrgID: &orgID,
 	})
@@ -1639,21 +1921,36 @@ func (s *Service) applyNotificationRulesGenerator(ctx context.Context, orgID inf
 		id    influxdb.ID
 		eType string
 	}
-	mEndpoints := make(map[string]mVal)
+	mEndpointsByPkgName := make(map[string]mVal)
 	for _, e := range endpoints {
-		mEndpoints[e.GetName()] = mVal{
+		mEndpointsByPkgName[e.GetName()] = mVal{
 			id:    e.GetID(),
 			eType: e.Type(),
 		}
 	}
+	for _, e := range pkg.notificationEndpoints() {
+		if e.shouldRemove {
+			continue
+		}
+
+		if _, ok := mEndpointsByPkgName[e.PkgName()]; ok {
+			continue
+		}
+		mEndpointsByPkgName[e.PkgName()] = mVal{
+			id:    e.ID(),
+			eType: e.summarize().NotificationEndpoint.Type(),
+		}
+	}
+
+	rules := pkg.notificationRules()
 
 	var errs applyErrs
 	for _, r := range rules {
-		v, ok := mEndpoints[r.endpointName]
+		v, ok := mEndpointsByPkgName[r.endpointName.String()]
 		if !ok {
 			errs = append(errs, &applyErrBody{
 				name: r.Name(),
-				msg:  fmt.Sprintf("endpoint dependency does not exist; endpointName=%q", r.endpointName),
+				msg:  fmt.Sprintf("notification rule endpoint dependency does not exist; endpointName=%q", r.endpointName),
 			})
 			continue
 		}
@@ -1840,7 +2137,7 @@ func (s *Service) applyTelegrafs(teles []*telegraf) applier {
 		var cfg influxdb.TelegrafConfig
 		mutex.Do(func() {
 			teles[i].config.OrgID = orgID
-			cfg = teles[i].config
+			cfg = teles[i].summarize().TelegrafConfig
 		})
 
 		err := s.teleSVC.CreateTelegrafConfig(ctx, &cfg, userID)
@@ -1875,17 +2172,17 @@ func (s *Service) applyTelegrafs(teles []*telegraf) applier {
 	}
 }
 
-func (s *Service) applyVariables(vars []*variable) applier {
+func (s *Service) applyVariables(ctx context.Context, vars []*stateVariable) applier {
 	const resource = "variable"
 
 	mutex := new(doMutex)
-	rollBackVars := make([]*variable, 0, len(vars))
+	rollBackVars := make([]*stateVariable, 0, len(vars))
 
 	createFn := func(ctx context.Context, i int, orgID, userID influxdb.ID) *applyErrBody {
-		var v variable
+		var v *stateVariable
 		mutex.Do(func() {
-			vars[i].OrgID = orgID
-			v = *vars[i]
+			vars[i].orgID = orgID
+			v = vars[i]
 		})
 		if !v.shouldApply() {
 			return nil
@@ -1893,7 +2190,7 @@ func (s *Service) applyVariables(vars []*variable) applier {
 		influxVar, err := s.applyVariable(ctx, v)
 		if err != nil {
 			return &applyErrBody{
-				name: v.Name(),
+				name: v.parserVar.Name(),
 				msg:  err.Error(),
 			}
 		}
@@ -1912,62 +2209,147 @@ func (s *Service) applyVariables(vars []*variable) applier {
 		},
 		rollbacker: rollbacker{
 			resource: resource,
-			fn:       func(_ influxdb.ID) error { return s.rollbackVariables(rollBackVars) },
+			fn:       func(_ influxdb.ID) error { return s.rollbackVariables(ctx, rollBackVars) },
 		},
 	}
 }
 
-func (s *Service) rollbackVariables(variables []*variable) error {
+func (s *Service) rollbackVariables(ctx context.Context, variables []*stateVariable) error {
+	rollbackFn := func(v *stateVariable) error {
+		var err error
+		switch v.stateStatus {
+		case StateStatusRemove:
+			err = ierrors.Wrap(s.varSVC.CreateVariable(ctx, v.existing), "rolling back removed variable")
+		case StateStatusExists:
+			_, err = s.varSVC.UpdateVariable(ctx, v.ID(), &influxdb.VariableUpdate{
+				Name:        v.parserVar.Name(),
+				Description: v.parserVar.Description,
+				Arguments:   v.parserVar.influxVarArgs(),
+			})
+			err = ierrors.Wrap(err, "rolling back updated variable")
+		default:
+			err = ierrors.Wrap(s.varSVC.DeleteVariable(ctx, v.ID()), "rolling back created variable")
+		}
+		return err
+	}
+
 	var errs []string
 	for _, v := range variables {
-		if v.existing == nil {
-			err := s.varSVC.DeleteVariable(context.Background(), v.ID())
-			if err != nil {
-				errs = append(errs, v.ID().String())
-			}
-			continue
-		}
-
-		_, err := s.varSVC.UpdateVariable(context.Background(), v.ID(), &influxdb.VariableUpdate{
-			Description: v.existing.Description,
-			Arguments:   v.existing.Arguments,
-		})
-		if err != nil {
-			errs = append(errs, v.ID().String())
+		if err := rollbackFn(v); err != nil {
+			errs = append(errs, fmt.Sprintf("error for variable[%q]: %s", v.ID(), err))
 		}
 	}
 
 	if len(errs) > 0 {
-		return fmt.Errorf(`variable_ids=[%s] err="unable to delete variable"`, strings.Join(errs, ", "))
+		return errors.New(strings.Join(errs, "; "))
 	}
 
 	return nil
 }
 
-func (s *Service) applyVariable(ctx context.Context, v variable) (influxdb.Variable, error) {
-	if v.existing != nil {
+func (s *Service) applyVariable(ctx context.Context, v *stateVariable) (influxdb.Variable, error) {
+	switch v.stateStatus {
+	case StateStatusRemove:
+		if err := s.varSVC.DeleteVariable(ctx, v.id); err != nil {
+			return influxdb.Variable{}, err
+		}
+		return *v.existing, nil
+	case StateStatusExists:
 		updatedVar, err := s.varSVC.UpdateVariable(ctx, v.ID(), &influxdb.VariableUpdate{
-			Description: v.Description,
-			Arguments:   v.influxVarArgs(),
+			Name:        v.parserVar.Name(),
+			Description: v.parserVar.Description,
+			Arguments:   v.parserVar.influxVarArgs(),
 		})
 		if err != nil {
 			return influxdb.Variable{}, err
 		}
 		return *updatedVar, nil
+	default:
+		influxVar := influxdb.Variable{
+			OrganizationID: v.orgID,
+			Name:           v.parserVar.Name(),
+			Description:    v.parserVar.Description,
+			Arguments:      v.parserVar.influxVarArgs(),
+		}
+		err := s.varSVC.CreateVariable(ctx, &influxVar)
+		if err != nil {
+			return influxdb.Variable{}, err
+		}
+
+		return influxVar, nil
+	}
+}
+
+func (s *Service) applyLabelMappingsV2(labelMappings []stateLabelMapping) applier {
+	const resource = "label_mapping"
+
+	mutex := new(doMutex)
+	rollbackMappings := make([]stateLabelMapping, 0, len(labelMappings))
+
+	createFn := func(ctx context.Context, i int, orgID, userID influxdb.ID) *applyErrBody {
+		var mapping stateLabelMapping
+		mutex.Do(func() {
+			mapping = labelMappings[i]
+		})
+
+		ident := mapping.resource.stateIdentity()
+		if IsExisting(mapping.status) || mapping.label.ID() == 0 || ident.id == 0 {
+			// this block here does 2 things, it does not write a
+			// mapping when one exists. it also avoids having to worry
+			// about deleting an existing mapping since it will not be
+			// passed to the delete function below b/c it is never added
+			// to the list of mappings that is referenced in the delete
+			// call.
+			return nil
+		}
+
+		m := influxdb.LabelMapping{
+			LabelID:      mapping.label.ID(),
+			ResourceID:   ident.id,
+			ResourceType: ident.resourceType,
+		}
+		err := s.labelSVC.CreateLabelMapping(ctx, &m)
+		if err != nil {
+			return &applyErrBody{
+				name: fmt.Sprintf("%s:%s:%s", ident.resourceType, ident.id, mapping.label.ID()),
+				msg:  err.Error(),
+			}
+		}
+
+		mutex.Do(func() {
+			rollbackMappings = append(rollbackMappings, mapping)
+		})
+
+		return nil
 	}
 
-	influxVar := influxdb.Variable{
-		OrganizationID: v.OrgID,
-		Name:           v.Name(),
-		Description:    v.Description,
-		Arguments:      v.influxVarArgs(),
+	return applier{
+		creater: creater{
+			entries: len(labelMappings),
+			fn:      createFn,
+		},
+		rollbacker: rollbacker{
+			resource: resource,
+			fn:       func(_ influxdb.ID) error { return s.rollbackLabelMappingsV2(rollbackMappings) },
+		},
 	}
-	err := s.varSVC.CreateVariable(ctx, &influxVar)
-	if err != nil {
-		return influxdb.Variable{}, err
+}
+
+func (s *Service) rollbackLabelMappingsV2(mappings []stateLabelMapping) error {
+	var errs []string
+	for _, stateMapping := range mappings {
+		influxMapping := stateLabelMappingToInfluxLabelMapping(stateMapping)
+		err := s.labelSVC.DeleteLabelMapping(context.Background(), &influxMapping)
+		if err != nil {
+			errs = append(errs, fmt.Sprintf("%s:%s", stateMapping.label.ID(), stateMapping.resource.stateIdentity().id))
+		}
 	}
 
-	return influxVar, nil
+	if len(errs) > 0 {
+		return fmt.Errorf(`label_resource_id_pairs=[%s] err="unable to delete label"`, strings.Join(errs, ", "))
+	}
+
+	return nil
 }
 
 func (s *Service) applyLabelMappings(labelMappings []SummaryLabelMapping) applier {
@@ -1981,7 +2363,8 @@ func (s *Service) applyLabelMappings(labelMappings []SummaryLabelMapping) applie
 		mutex.Do(func() {
 			mapping = labelMappings[i]
 		})
-		if mapping.exists || mapping.LabelID == 0 || mapping.ResourceID == 0 {
+
+		if IsExisting(mapping.Status) || mapping.LabelID == 0 || mapping.ResourceID == 0 {
 			// this block here does 2 things, it does not write a
 			// mapping when one exists. it also avoids having to worry
 			// about deleting an existing mapping since it will not be
@@ -2057,19 +2440,204 @@ func (s *Service) deleteByIDs(resource string, numIDs int, deleteFn func(context
 	return nil
 }
 
-func (s *Service) findDashboardByIDFull(ctx context.Context, id influxdb.ID) (*influxdb.Dashboard, error) {
-	dash, err := s.dashSVC.FindDashboardByID(ctx, id)
+func (s *Service) updateStackAfterSuccess(ctx context.Context, stackID influxdb.ID, pkg *Pkg, state *stateCoordinator) error {
+	stack, err := s.store.ReadStackByID(ctx, stackID)
+	if err != nil {
+		return err
+	}
+
+	var stackResources []StackResource
+	for _, b := range state.mBuckets {
+		if IsRemoval(b.stateStatus) {
+			continue
+		}
+		stackResources = append(stackResources, StackResource{
+			APIVersion: APIVersion,
+			ID:         b.ID(),
+			Kind:       KindBucket,
+			Name:       b.parserBkt.PkgName(),
+		})
+	}
+	for _, c := range state.mChecks {
+		if IsRemoval(c.stateStatus) {
+			continue
+		}
+		stackResources = append(stackResources, StackResource{
+			APIVersion: APIVersion,
+			ID:         c.ID(),
+			Kind:       KindCheck,
+			Name:       c.parserCheck.PkgName(),
+		})
+	}
+	for _, n := range pkg.notificationEndpoints() {
+		if n.shouldRemove {
+			continue
+		}
+		stackResources = append(stackResources, StackResource{
+			APIVersion: APIVersion,
+			ID:         n.ID(),
+			Kind:       KindNotificationEndpoint,
+			Name:       n.PkgName(),
+		})
+	}
+	for _, l := range state.mLabels {
+		if IsRemoval(l.stateStatus) {
+			continue
+		}
+		stackResources = append(stackResources, StackResource{
+			APIVersion: APIVersion,
+			ID:         l.ID(),
+			Kind:       KindLabel,
+			Name:       l.parserLabel.PkgName(),
+		})
+	}
+	for _, v := range state.mVariables {
+		if IsRemoval(v.stateStatus) {
+			continue
+		}
+		stackResources = append(stackResources, StackResource{
+			APIVersion: APIVersion,
+			ID:         v.ID(),
+			Kind:       KindVariable,
+			Name:       v.parserVar.PkgName(),
+		})
+	}
+	stack.Resources = stackResources
+
+	stack.UpdatedAt = time.Now()
+	return s.store.UpdateStack(ctx, stack)
+}
+
+func (s *Service) updateStackAfterRollback(ctx context.Context, stackID influxdb.ID, pkg *Pkg, state *stateCoordinator) error {
+	stack, err := s.store.ReadStackByID(ctx, stackID)
+	if err != nil {
+		return err
+	}
+
+	type key struct {
+		k       Kind
+		pkgName string
+	}
+	newKey := func(k Kind, pkgName string) key {
+		return key{k: k, pkgName: pkgName}
+	}
+
+	existingResources := make(map[key]*StackResource)
+	for i := range stack.Resources {
+		res := stack.Resources[i]
+		existingResources[newKey(res.Kind, res.Name)] = &stack.Resources[i]
+	}
+
+	hasChanges := false
+	{
+		// these are the case where a deletion happens and is rolled back creating a new resource.
+		// when resource is not to be removed this is a nothing burger, as it should be
+		// rolled back to previous state.
+		for _, b := range state.mBuckets {
+			res, ok := existingResources[newKey(KindBucket, b.parserBkt.PkgName())]
+			if ok && res.ID != b.ID() {
+				hasChanges = true
+				res.ID = b.existing.ID
+			}
+		}
+		for _, c := range state.mChecks {
+			res, ok := existingResources[newKey(KindCheck, c.parserCheck.PkgName())]
+			if ok && res.ID != c.ID() {
+				hasChanges = true
+				res.ID = c.existing.GetID()
+			}
+		}
+		for _, e := range pkg.notificationEndpoints() {
+			if e.shouldRemove {
+				res := existingResources[newKey(KindNotificationEndpoint, e.PkgName())]
+				if res.ID != e.ID() {
+					hasChanges = true
+					res.ID = e.existing.GetID()
+				}
+			}
+		}
+		for _, l := range state.mLabels {
+			res, ok := existingResources[newKey(KindLabel, l.parserLabel.PkgName())]
+			if ok && res.ID != l.ID() {
+				hasChanges = true
+				res.ID = l.existing.ID
+			}
+		}
+		for _, v := range state.mVariables {
+			res, ok := existingResources[newKey(KindVariable, v.parserVar.PkgName())]
+			if ok && res.ID != v.ID() {
+				hasChanges = true
+				res.ID = v.existing.ID
+			}
+		}
+	}
+	if !hasChanges {
+		return nil
+	}
+
+	stack.UpdatedAt = time.Now()
+	return s.store.UpdateStack(ctx, stack)
+}
+
+func (s *Service) findLabel(ctx context.Context, orgID influxdb.ID, l *stateLabel) (*influxdb.Label, error) {
+	if l.ID() != 0 {
+		return s.labelSVC.FindLabelByID(ctx, l.ID())
+	}
+
+	existingLabels, err := s.labelSVC.FindLabels(ctx, influxdb.LabelFilter{
+		Name:  l.parserLabel.Name(),
+		OrgID: &orgID,
+	}, influxdb.FindOptions{Limit: 1})
 	if err != nil {
 		return nil, err
 	}
-	for _, cell := range dash.Cells {
-		v, err := s.dashSVC.GetDashboardCellView(ctx, id, cell.ID)
+	if len(existingLabels) == 0 {
+		return nil, errors.New("no labels found for name: " + l.parserLabel.Name())
+	}
+	return existingLabels[0], nil
+}
+
+func (s *Service) getAllPlatformVariables(ctx context.Context, orgID influxdb.ID) ([]*influxdb.Variable, error) {
+	const limit = 100
+
+	var (
+		existingVars []*influxdb.Variable
+		offset       int
+	)
+	for {
+		vars, err := s.varSVC.FindVariables(ctx, influxdb.VariableFilter{
+			OrganizationID: &orgID,
+			// TODO: would be ideal to extend find variables to allow for a name matcher
+			//  since names are unique for vars within an org. In the meanwhile, make large
+			//  limit returned vars, should be more than enough for the time being.
+		}, influxdb.FindOptions{Limit: limit, Offset: offset})
 		if err != nil {
 			return nil, err
 		}
-		cell.View = v
+		existingVars = append(existingVars, vars...)
+
+		if len(vars) < limit {
+			break
+		}
+		offset += len(vars)
 	}
-	return dash, nil
+	return existingVars, nil
+}
+
+func getLabelIDMap(ctx context.Context, labelSVC influxdb.LabelService, labelNames []string) (map[influxdb.ID]bool, error) {
+	mLabelIDs := make(map[influxdb.ID]bool)
+	for _, labelName := range labelNames {
+		iLabels, err := labelSVC.FindLabels(ctx, influxdb.LabelFilter{
+			Name: labelName,
+		})
+		if err != nil {
+			return nil, err
+		}
+		if len(iLabels) == 1 {
+			mLabelIDs[iLabels[0].ID] = true
+		}
+	}
+	return mLabelIDs, nil
 }
 
 type doMutex struct {
@@ -2195,7 +2763,7 @@ func (e *errStream) do() {
 
 		var errs []string
 		for resource, err := range mErrs {
-			errs = append(errs, err.toError(resource, "failed to create").Error())
+			errs = append(errs, err.toError(resource, "failed to apply resource").Error())
 		}
 		e.err <- errors.New(strings.Join(errs, "\n"))
 	}()
@@ -2227,9 +2795,19 @@ func (a applyErrs) toError(resType, msg string) error {
 	}
 	errMsg := fmt.Sprintf(`resource_type=%q err=%q`, resType, msg)
 	for _, e := range a {
-		errMsg += fmt.Sprintf("\n\tname=%q err_msg=%q", e.name, e.msg)
+		errMsg += fmt.Sprintf("\n\tpkg_name=%q err_msg=%q", e.name, e.msg)
 	}
 	return errors.New(errMsg)
+}
+
+func validURLs(urls []string) error {
+	for _, u := range urls {
+		if _, err := url.Parse(u); err != nil {
+			msg := fmt.Sprintf("url invalid for entry %q", u)
+			return toInfluxError(influxdb.EInvalid, msg)
+		}
+	}
+	return nil
 }
 
 func labelSlcToMap(labels []*label) map[string]*label {
@@ -2251,5 +2829,12 @@ func internalErr(err error) error {
 	if err == nil {
 		return nil
 	}
-	return &influxdb.Error{Code: influxdb.EInternal, Err: err}
+	return toInfluxError(influxdb.EInternal, err.Error())
+}
+
+func toInfluxError(code string, msg string) *influxdb.Error {
+	return &influxdb.Error{
+		Code: code,
+		Msg:  msg,
+	}
 }

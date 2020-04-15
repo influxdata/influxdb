@@ -17,12 +17,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/influxdata/influxdb/kit/tracing"
-	"github.com/influxdata/influxdb/pkg/fs"
-	"github.com/influxdata/influxdb/pkg/limiter"
-	"github.com/influxdata/influxdb/pkg/metrics"
-	"github.com/influxdata/influxdb/query"
-	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/v2/kit/tracing"
+	"github.com/influxdata/influxdb/v2/pkg/fs"
+	"github.com/influxdata/influxdb/v2/pkg/limiter"
+	"github.com/influxdata/influxdb/v2/pkg/metrics"
+	"github.com/influxdata/influxdb/v2/query"
+	"github.com/influxdata/influxdb/v2/tsdb/cursors"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
@@ -56,15 +56,15 @@ type TSMFile interface {
 	// ReadAt returns all the values in the block identified by entry.
 	ReadAt(entry *IndexEntry, values []Value) ([]Value, error)
 	ReadFloatBlockAt(entry *IndexEntry, values *[]FloatValue) ([]FloatValue, error)
-	ReadFloatArrayBlockAt(entry *IndexEntry, values *tsdb.FloatArray) error
+	ReadFloatArrayBlockAt(entry *IndexEntry, values *cursors.FloatArray) error
 	ReadIntegerBlockAt(entry *IndexEntry, values *[]IntegerValue) ([]IntegerValue, error)
-	ReadIntegerArrayBlockAt(entry *IndexEntry, values *tsdb.IntegerArray) error
+	ReadIntegerArrayBlockAt(entry *IndexEntry, values *cursors.IntegerArray) error
 	ReadUnsignedBlockAt(entry *IndexEntry, values *[]UnsignedValue) ([]UnsignedValue, error)
-	ReadUnsignedArrayBlockAt(entry *IndexEntry, values *tsdb.UnsignedArray) error
+	ReadUnsignedArrayBlockAt(entry *IndexEntry, values *cursors.UnsignedArray) error
 	ReadStringBlockAt(entry *IndexEntry, values *[]StringValue) ([]StringValue, error)
-	ReadStringArrayBlockAt(entry *IndexEntry, values *tsdb.StringArray) error
+	ReadStringArrayBlockAt(entry *IndexEntry, values *cursors.StringArray) error
 	ReadBooleanBlockAt(entry *IndexEntry, values *[]BooleanValue) ([]BooleanValue, error)
-	ReadBooleanArrayBlockAt(entry *IndexEntry, values *tsdb.BooleanArray) error
+	ReadBooleanArrayBlockAt(entry *IndexEntry, values *cursors.BooleanArray) error
 
 	// Entries returns the index entries for all blocks for the given key.
 	ReadEntries(key []byte, entries []IndexEntry) ([]IndexEntry, error)
@@ -160,6 +160,12 @@ type TSMFile interface {
 	// interval [min, max] for the current key.
 	// Next must be called before calling any of the accessors.
 	TimeRangeIterator(key []byte, min, max int64) *TimeRangeIterator
+
+	// TimeRangeMaxTimeIterator returns an iterator over the keys, starting at the provided
+	// key. Calling the HasData and MaxTime accessors will be restricted to the
+	// interval [min, max] for the current key.
+	// Next must be called before calling any of the accessors.
+	TimeRangeMaxTimeIterator(key []byte, min, max int64) *TimeRangeMaxTimeIterator
 
 	// Free releases any resources held by the FileStore to free up system resources.
 	Free() error

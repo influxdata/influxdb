@@ -9,9 +9,10 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/tsdb"
-	"github.com/influxdata/influxdb/tsdb/tsi1"
+	"github.com/influxdata/influxdb/v2/models"
+	"github.com/influxdata/influxdb/v2/tsdb"
+	"github.com/influxdata/influxdb/v2/tsdb/seriesfile"
+	"github.com/influxdata/influxdb/v2/tsdb/tsi1"
 )
 
 // Ensure iterator can operate over an in-memory list of elements.
@@ -286,7 +287,7 @@ type Series struct {
 
 // SeriesFile is a test wrapper for tsdb.SeriesFile.
 type SeriesFile struct {
-	*tsdb.SeriesFile
+	*seriesfile.SeriesFile
 }
 
 // NewSeriesFile returns a new instance of SeriesFile with a temporary file path.
@@ -295,7 +296,7 @@ func NewSeriesFile() *SeriesFile {
 	if err != nil {
 		panic(err)
 	}
-	return &SeriesFile{SeriesFile: tsdb.NewSeriesFile(dir)}
+	return &SeriesFile{SeriesFile: seriesfile.NewSeriesFile(dir)}
 }
 
 // MustOpenSeriesFile returns a new, open instance of SeriesFile. Panic on error.
@@ -318,6 +319,6 @@ func (f *SeriesFile) Reopen() error {
 	if err := f.SeriesFile.Close(); err != nil {
 		return err
 	}
-	f.SeriesFile = tsdb.NewSeriesFile(f.SeriesFile.Path())
+	f.SeriesFile = seriesfile.NewSeriesFile(f.SeriesFile.Path())
 	return nil
 }

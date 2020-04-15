@@ -2,10 +2,11 @@ package kv
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
-	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2"
 )
 
 var (
@@ -94,9 +95,9 @@ func (s *Service) setOnboarded(ctx context.Context, tx Tx) error {
 	return nil
 }
 
-// Generate OnboardingResults from onboarding request,
+// OnboardInitialUser OnboardingResults from onboarding request,
 // update db so this request will be disabled for the second run.
-func (s *Service) Generate(ctx context.Context, req *influxdb.OnboardingRequest) (*influxdb.OnboardingResults, error) {
+func (s *Service) OnboardInitialUser(ctx context.Context, req *influxdb.OnboardingRequest) (*influxdb.OnboardingResults, error) {
 	isOnboarding, err := s.IsOnboarding(ctx)
 	if err != nil {
 		return nil, err
@@ -170,4 +171,8 @@ func (s *Service) Generate(ctx context.Context, req *influxdb.OnboardingRequest)
 		Bucket: bucket,
 		Auth:   auth,
 	}, nil
+}
+
+func (s *Service) OnboardUser(ctx context.Context, req *influxdb.OnboardingRequest) (*influxdb.OnboardingResults, error) {
+	return nil, errors.New("not yet implemented")
 }

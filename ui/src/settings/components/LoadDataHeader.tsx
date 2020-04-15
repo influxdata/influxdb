@@ -2,16 +2,14 @@ import React, {Component} from 'react'
 
 // Components
 import {Page} from '@influxdata/clockface'
-import PageTitleWithOrg from 'src/shared/components/PageTitleWithOrg'
+import CloudUpgradeButton from 'src/shared/components/CloudUpgradeButton'
 
 class LoadDataHeader extends Component {
   public render() {
     return (
       <Page.Header fullWidth={false}>
-        <Page.HeaderLeft>
-          <PageTitleWithOrg title="Load Data" />
-        </Page.HeaderLeft>
-        <Page.HeaderRight />
+        <Page.Title title="Load Data" />
+        <CloudUpgradeButton />
       </Page.Header>
     )
   }

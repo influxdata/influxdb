@@ -2,13 +2,13 @@ import {getCheckVisTimeRange} from 'src/alerting/utils/vis'
 
 const duration = 'duration' as 'duration'
 const TESTS = [
-  ['5s', {type: duration, lower: 'now() - 1500s', upper: null}],
-  ['1m', {type: duration, lower: 'now() - 300m', upper: null}],
+  ['5s', {type: duration, lower: 'now() - 500s', upper: null}],
+  ['1m', {type: duration, lower: 'now() - 100m', upper: null}],
   [
     '1m5s',
     {
       type: duration,
-      lower: 'now() - 300m1500s',
+      lower: 'now() - 100m500s',
       upper: null,
     },
   ],

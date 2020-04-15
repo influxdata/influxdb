@@ -6,14 +6,25 @@ import {Dispatch} from 'react'
 import * as api from 'src/client'
 
 // Schemas
-import * as schemas from 'src/schemas'
+import {bucketSchema, arrayOfBuckets} from 'src/schemas'
 
 // Types
-import {RemoteDataState, GetState, Bucket, BucketEntities} from 'src/types'
+import {
+  AppState,
+  RemoteDataState,
+  GetState,
+  GenBucket,
+  Bucket,
+  BucketEntities,
+  Label,
+  ResourceType,
+  OwnBucket,
+} from 'src/types'
 
 // Utils
 import {getErrorMessage} from 'src/utils/api'
 import {getOrg} from 'src/organizations/selectors'
+import {getLabels, getStatus} from 'src/resources/selectors'
 
 // Actions
 import {
@@ -25,6 +36,7 @@ import {
 } from 'src/buckets/actions/creators'
 import {notify, Action as NotifyAction} from 'src/shared/actions/notifications'
 import {checkBucketLimits} from 'src/cloud/actions/limits'
+import {fetchDemoDataBuckets} from 'src/cloud/apis/demodata'
 
 // Constants
 import {
@@ -35,7 +47,10 @@ import {
   bucketUpdateSuccess,
   bucketRenameSuccess,
   bucketRenameFailed,
+  addBucketLabelFailed,
+  removeBucketLabelFailed,
 } from 'src/shared/copy/notifications'
+import {LIMIT} from 'src/resources/constants'
 
 type Action = BucketAction | NotifyAction
 
@@ -44,29 +59,36 @@ export const getBuckets = () => async (
   getState: GetState
 ) => {
   try {
-    dispatch(setBuckets(RemoteDataState.Loading))
-    const org = getOrg(getState())
+    const state = getState()
+    if (getStatus(state, ResourceType.Buckets) === RemoteDataState.NotStarted) {
+      dispatch(setBuckets(RemoteDataState.Loading))
+    }
+    const org = getOrg(state)
 
-    const resp = await api.getBuckets({query: {orgID: org.id}})
+    const resp = await api.getBuckets({
+      query: {orgID: org.id, limit: LIMIT},
+    })
 
     if (resp.status !== 200) {
       throw new Error(resp.data.message)
     }
 
+    const demoDataBuckets = await fetchDemoDataBuckets()
+
     const buckets = normalize<Bucket, BucketEntities, string[]>(
-      resp.data.buckets,
-      schemas.arrayOfBuckets
+      [...resp.data.buckets, ...demoDataBuckets],
+      arrayOfBuckets
     )
 
     dispatch(setBuckets(RemoteDataState.Done, buckets))
-  } catch (e) {
-    console.error(e)
+  } catch (error) {
+    console.error(error)
     dispatch(setBuckets(RemoteDataState.Error))
     dispatch(notify(getBucketsFailed()))
   }
 }
 
-export const createBucket = (bucket: Bucket) => async (
+export const createBucket = (bucket: OwnBucket) => async (
   dispatch: Dispatch<Action | ReturnType<typeof checkBucketLimits>>,
   getState: GetState
 ) => {
@@ -81,7 +103,7 @@ export const createBucket = (bucket: Bucket) => async (
 
     const newBucket = normalize<Bucket, BucketEntities, string>(
       resp.data,
-      schemas.bucket
+      bucketSchema
     )
 
     dispatch(addBucket(newBucket))
@@ -93,13 +115,17 @@ export const createBucket = (bucket: Bucket) => async (
   }
 }
 
-export const updateBucket = (updatedBucket: Bucket) => async (
-  dispatch: Dispatch<Action>
+export const updateBucket = (bucket: OwnBucket) => async (
+  dispatch: Dispatch<Action>,
+  getState: GetState
 ) => {
   try {
+    const state = getState()
+    const data = denormalizeBucket(state, bucket)
+
     const resp = await api.patchBucket({
-      bucketID: updatedBucket.id,
-      data: updatedBucket,
+      bucketID: bucket.id,
+      data,
     })
 
     if (resp.status !== 200) {
@@ -108,26 +134,29 @@ export const updateBucket = (updatedBucket: Bucket) => async (
 
     const newBucket = normalize<Bucket, BucketEntities, string>(
       resp.data,
-      schemas.bucket
+      bucketSchema
     )
 
     dispatch(editBucket(newBucket))
-    dispatch(notify(bucketUpdateSuccess(updatedBucket.name)))
-  } catch (e) {
-    console.error(e)
-    const message = getErrorMessage(e)
+    dispatch(notify(bucketUpdateSuccess(bucket.name)))
+  } catch (error) {
+    console.error(error)
+    const message = getErrorMessage(error)
     dispatch(notify(bucketUpdateFailed(message)))
   }
 }
 
-export const renameBucket = (
-  originalName: string,
-  updatedBucket: Bucket
-) => async (dispatch: Dispatch<Action>) => {
+export const renameBucket = (originalName: string, bucket: OwnBucket) => async (
+  dispatch: Dispatch<Action>,
+  getState: GetState
+) => {
   try {
+    const state = getState()
+    const data = denormalizeBucket(state, bucket)
+
     const resp = await api.patchBucket({
-      bucketID: updatedBucket.id,
-      data: updatedBucket,
+      bucketID: bucket.id,
+      data,
     })
 
     if (resp.status !== 200) {
@@ -136,13 +165,13 @@ export const renameBucket = (
 
     const newBucket = normalize<Bucket, BucketEntities, string>(
       resp.data,
-      schemas.bucket
+      bucketSchema
     )
 
     dispatch(editBucket(newBucket))
-    dispatch(notify(bucketRenameSuccess(updatedBucket.name)))
-  } catch (e) {
-    console.error(e)
+    dispatch(notify(bucketRenameSuccess(bucket.name)))
+  } catch (error) {
+    console.error(error)
     dispatch(notify(bucketRenameFailed(originalName)))
   }
 }
@@ -159,8 +188,76 @@ export const deleteBucket = (id: string, name: string) => async (
 
     dispatch(removeBucket(id))
     dispatch(checkBucketLimits())
-  } catch (e) {
-    console.error(e)
+  } catch (error) {
+    console.error(error)
     dispatch(notify(bucketDeleteFailed(name)))
+  }
+}
+
+export const addBucketLabel = (bucketID: string, label: Label) => async (
+  dispatch: Dispatch<Action>
+): Promise<void> => {
+  try {
+    const postResp = await api.postBucketsLabel({
+      bucketID,
+      data: {labelID: label.id},
+    })
+
+    if (postResp.status !== 201) {
+      throw new Error(postResp.data.message)
+    }
+
+    const resp = await api.getBucket({bucketID})
+
+    if (resp.status !== 200) {
+      throw new Error(resp.data.message)
+    }
+
+    const newBucket = normalize<Bucket, BucketEntities, string>(
+      resp.data,
+      bucketSchema
+    )
+
+    dispatch(editBucket(newBucket))
+  } catch (error) {
+    console.error(error)
+    dispatch(notify(addBucketLabelFailed()))
+  }
+}
+
+export const deleteBucketLabel = (bucketID: string, label: Label) => async (
+  dispatch: Dispatch<Action>
+): Promise<void> => {
+  try {
+    const deleteResp = await api.deleteBucketsLabel({
+      bucketID,
+      labelID: label.id,
+    })
+    if (deleteResp.status !== 204) {
+      throw new Error(deleteResp.data.message)
+    }
+
+    const resp = await api.getBucket({bucketID})
+    if (resp.status !== 200) {
+      throw new Error(resp.data.message)
+    }
+
+    const newBucket = normalize<Bucket, BucketEntities, string>(
+      resp.data,
+      bucketSchema
+    )
+
+    dispatch(editBucket(newBucket))
+  } catch (error) {
+    console.error(error)
+    dispatch(notify(removeBucketLabelFailed()))
+  }
+}
+
+const denormalizeBucket = (state: AppState, bucket: OwnBucket): GenBucket => {
+  const labels = getLabels(state, bucket.labels)
+  return {
+    ...bucket,
+    labels,
   }
 }

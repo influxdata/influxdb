@@ -1,26 +1,16 @@
 // Libraries
 import React, {
-  PureComponent,
+  FC,
   KeyboardEvent,
   ChangeEvent,
   MouseEvent,
+  useState,
 } from 'react'
 import classnames from 'classnames'
 
 // Components
-import {
-  Input,
-  Icon,
-  IconFont,
-  Page,
-  FlexBox,
-  FlexDirection,
-  AlignItems,
-} from '@influxdata/clockface'
+import {Input, InputRef, Icon, IconFont, Page} from '@influxdata/clockface'
 import {ClickOutside} from 'src/shared/components/ClickOutside'
-
-// Decorators
-import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
   onRename: (name: string) => void
@@ -28,134 +18,84 @@ interface Props {
   name: string
   placeholder: string
   maxLength: number
-  prefix: string
 }
 
-interface State {
-  isEditing: boolean
-  workingName: string
-}
+const RenamablePageTitle: FC<Props> = ({
+  onRename,
+  onClickOutside,
+  name,
+  placeholder,
+  maxLength,
+}) => {
+  const [isEditing, setEditingState] = useState<boolean>(false)
+  const [workingName, setWorkingName] = useState<string>(name)
 
-@ErrorHandling
-class RenamablePageTitle extends PureComponent<Props, State> {
-  public static defaultProps = {
-    prefix: '',
+  const handleStartEditing = (): void => {
+    setEditingState(true)
   }
 
-  constructor(props: Props) {
-    super(props)
-
-    this.state = {
-      isEditing: false,
-      workingName: props.name,
-    }
-  }
-
-  public render() {
-    const {placeholder} = this.props
-    const {isEditing, workingName} = this.state
-
-    let title = (
-      <div className={this.titleClassName} onClick={this.handleStartEditing}>
-        <Page.Title title={workingName || placeholder} />
-        <Icon glyph={IconFont.Pencil} />
-      </div>
-    )
-
-    if (isEditing) {
-      title = (
-        <ClickOutside onClickOutside={this.handleStopEditing}>
-          {this.input}
-        </ClickOutside>
-      )
-    }
-
-    return (
-      <FlexBox
-        direction={FlexDirection.Column}
-        alignItems={AlignItems.FlexStart}
-        className="renamable-page-title"
-      >
-        {title}
-        {this.prefix}
-      </FlexBox>
-    )
-  }
-
-  private get prefix(): JSX.Element {
-    const {prefix} = this.props
-    if (prefix) {
-      return <Page.SubTitle title={prefix} />
-    }
-  }
-
-  private get input(): JSX.Element {
-    const {placeholder, maxLength} = this.props
-    const {workingName} = this.state
-
-    return (
-      <Input
-        maxLength={maxLength}
-        autoFocus={true}
-        spellCheck={false}
-        placeholder={placeholder}
-        onFocus={this.handleInputFocus}
-        onChange={this.handleInputChange}
-        onKeyDown={this.handleKeyDown}
-        className="renamable-page-title--input"
-        value={workingName}
-      />
-    )
-  }
-
-  private handleStartEditing = (): void => {
-    this.setState({isEditing: true})
-  }
-
-  private handleStopEditing = e => {
-    const {workingName} = this.state
-    const {onRename, onClickOutside} = this.props
-
+  const handleStopEditing = (e: MouseEvent<any>): void => {
     onRename(workingName)
 
     if (onClickOutside) {
       onClickOutside(e)
     }
 
-    this.setState({isEditing: false})
+    setEditingState(false)
   }
 
-  private handleInputChange = (e: ChangeEvent<HTMLInputElement>): void => {
-    this.setState({workingName: e.target.value})
+  const handleInputChange = (e: ChangeEvent<InputRef>): void => {
+    setWorkingName(e.target.value)
   }
 
-  private handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    const {onRename, name} = this.props
-    const {workingName} = this.state
-
+  const handleKeyDown = (e: KeyboardEvent<InputRef>): void => {
     if (e.key === 'Enter') {
       onRename(workingName)
-      this.setState({isEditing: false})
+      setEditingState(false)
     }
 
     if (e.key === 'Escape') {
-      this.setState({isEditing: false, workingName: name})
+      setEditingState(false)
+      setWorkingName(name)
     }
   }
 
-  private handleInputFocus = (e: ChangeEvent<HTMLInputElement>): void => {
+  const handleInputFocus = (e: ChangeEvent<InputRef>): void => {
     e.currentTarget.select()
   }
 
-  private get titleClassName(): string {
-    const {name, placeholder} = this.props
+  const nameIsUntitled = name === placeholder || name === ''
 
-    const nameIsUntitled = name === placeholder || name === ''
+  const renamablePageTitleClass = classnames('renamable-page-title', {
+    untitled: nameIsUntitled,
+  })
 
-    return classnames('renamable-page-title--title', {
-      untitled: nameIsUntitled,
-    })
+  if (isEditing) {
+    return (
+      <ClickOutside onClickOutside={handleStopEditing}>
+        <div className={renamablePageTitleClass}>
+          <Input
+            maxLength={maxLength}
+            autoFocus={true}
+            spellCheck={false}
+            placeholder={placeholder}
+            onFocus={handleInputFocus}
+            onChange={handleInputChange}
+            onKeyDown={handleKeyDown}
+            className="renamable-page-title--input"
+            value={workingName}
+          />
+        </div>
+      </ClickOutside>
+    )
   }
+
+  return (
+    <div className={renamablePageTitleClass} onClick={handleStartEditing}>
+      <Page.Title title={workingName || placeholder} />
+      <Icon glyph={IconFont.Pencil} className="renamable-page-title--icon" />
+    </div>
+  )
 }
 
 export default RenamablePageTitle

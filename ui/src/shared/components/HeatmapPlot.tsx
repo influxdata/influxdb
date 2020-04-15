@@ -11,7 +11,7 @@ import {useVisDomainSettings} from 'src/shared/utils/useVisDomainSettings'
 import {getFormatter} from 'src/shared/utils/vis'
 
 // Constants
-import {VIS_THEME} from 'src/shared/constants'
+import {VIS_THEME, VIS_THEME_LIGHT} from 'src/shared/constants'
 import {DEFAULT_LINE_COLORS} from 'src/shared/constants/graphColorPalettes'
 import {INVALID_DATA_COPY} from 'src/shared/copy/cell'
 
@@ -21,6 +21,7 @@ import {
   HeatmapViewProperties,
   TimeZone,
   TimeRange,
+  Theme,
 } from 'src/types'
 
 interface Props {
@@ -30,6 +31,7 @@ interface Props {
   timeZone: TimeZone
   viewProperties: HeatmapViewProperties
   children: (config: Config) => JSX.Element
+  theme?: Theme
 }
 
 const HeatmapPlot: FunctionComponent<Props> = ({
@@ -53,6 +55,7 @@ const HeatmapPlot: FunctionComponent<Props> = ({
     timeFormat,
   },
   children,
+  theme,
 }) => {
   const columnKeys = table.columnKeys
 
@@ -96,8 +99,10 @@ const HeatmapPlot: FunctionComponent<Props> = ({
     timeFormat,
   })
 
+  const currentTheme = theme === 'light' ? VIS_THEME_LIGHT : VIS_THEME
+
   const config: Config = {
-    ...VIS_THEME,
+    ...currentTheme,
     table,
     xAxisLabel,
     yAxisLabel,

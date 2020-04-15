@@ -1,31 +1,14 @@
 package tsm1
 
 import (
-	"github.com/influxdata/influxdb/tsdb"
-	"github.com/influxdata/influxdb/tsdb/cursors"
+	"github.com/influxdata/influxdb/v2/tsdb/cursors"
 )
 
 // TimeRangeIterator will iterate over the keys of a TSM file, starting at
 // the provided key. It is used to determine if each key has data which exists
 // within a specified time interval.
 type TimeRangeIterator struct {
-	r     *TSMReader
-	iter  *TSMIndexIterator
-	tr    TimeRange
-	err   error
-	stats cursors.CursorStats
-
-	// temporary storage
-	trbuf []TimeRange
-	buf   []byte
-	a     tsdb.TimestampArray
-}
-
-func (b *TimeRangeIterator) Err() error {
-	if b.err != nil {
-		return b.err
-	}
-	return b.iter.Err()
+	timeRangeBlockReader
 }
 
 // Next advances the iterator and reports if it is still valid.
@@ -48,26 +31,15 @@ func (b *TimeRangeIterator) Seek(key []byte) (exact, ok bool) {
 	return b.iter.Seek(key)
 }
 
-// Key reports the current key.
-func (b *TimeRangeIterator) Key() []byte {
-	return b.iter.Key()
-}
-
 // HasData reports true if the current key has data for the time range.
 func (b *TimeRangeIterator) HasData() bool {
 	if b.Err() != nil {
 		return false
 	}
 
-	e := excludeEntries(b.iter.Entries(), b.tr)
+	e, ts := b.getEntriesAndTombstones()
 	if len(e) == 0 {
 		return false
-	}
-
-	b.trbuf = b.r.TombstoneRange(b.iter.Key(), b.trbuf[:0])
-	var ts []TimeRange
-	if len(b.trbuf) > 0 {
-		ts = excludeTimeRanges(b.trbuf, b.tr)
 	}
 
 	if len(ts) == 0 {
@@ -76,39 +48,81 @@ func (b *TimeRangeIterator) HasData() bool {
 		if intersectsEntry(e, b.tr) {
 			return true
 		}
+	}
 
-		for i := range e {
-			if !b.readBlock(&e[i]) {
-				return false
-			}
-
-			if b.a.Contains(b.tr.Min, b.tr.Max) {
-				return true
-			}
+	for i := range e {
+		if !b.readBlock(&e[i]) {
+			return false
 		}
-	} else {
-		for i := range e {
-			if !b.readBlock(&e[i]) {
-				return false
-			}
 
-			// remove tombstoned timestamps
-			for i := range ts {
-				b.a.Exclude(ts[i].Min, ts[i].Max)
-			}
+		// remove tombstoned timestamps
+		for i := range ts {
+			b.a.Exclude(ts[i].Min, ts[i].Max)
+		}
 
-			if b.a.Contains(b.tr.Min, b.tr.Max) {
-				return true
-			}
+		if b.a.Contains(b.tr.Min, b.tr.Max) {
+			return true
 		}
 	}
 
 	return false
 }
 
+// The timeRangeBlockReader provides common behavior
+// for enumerating keys over a given time range and
+// accumulating statistics.
+type timeRangeBlockReader struct {
+	r     *TSMReader
+	iter  *TSMIndexIterator
+	tr    TimeRange
+	err   error
+	stats cursors.CursorStats
+
+	// temporary storage
+	trbuf []TimeRange
+	buf   []byte
+	a     cursors.TimestampArray
+}
+
+func (b *timeRangeBlockReader) Err() error {
+	if b.err != nil {
+		return b.err
+	}
+	return b.iter.Err()
+}
+
+// Key reports the current key.
+func (b *timeRangeBlockReader) Key() []byte {
+	return b.iter.Key()
+}
+
+// Type reports the current block type.
+func (b *timeRangeBlockReader) Type() byte {
+	return b.iter.Type()
+}
+
+func (b *timeRangeBlockReader) getEntriesAndTombstones() ([]IndexEntry, []TimeRange) {
+	if b.err != nil {
+		return nil, nil
+	}
+
+	e := excludeEntries(b.iter.Entries(), b.tr)
+	if len(e) == 0 {
+		return nil, nil
+	}
+
+	b.trbuf = b.r.TombstoneRange(b.iter.Key(), b.trbuf[:0])
+	var ts []TimeRange
+	if len(b.trbuf) > 0 {
+		ts = excludeTimeRanges(b.trbuf, b.tr)
+	}
+
+	return e, ts
+}
+
 // readBlock reads the block identified by IndexEntry e and accumulates
 // statistics. readBlock returns true on success.
-func (b *TimeRangeIterator) readBlock(e *IndexEntry) bool {
+func (b *timeRangeBlockReader) readBlock(e *IndexEntry) bool {
 	_, b.buf, b.err = b.r.ReadBytes(e, b.buf)
 	if b.err != nil {
 		return false
@@ -125,7 +139,7 @@ func (b *TimeRangeIterator) readBlock(e *IndexEntry) bool {
 }
 
 // Stats returns statistics accumulated by the iterator for any block reads.
-func (b *TimeRangeIterator) Stats() cursors.CursorStats {
+func (b *timeRangeBlockReader) Stats() cursors.CursorStats {
 	return b.stats
 }
 

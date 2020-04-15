@@ -8,7 +8,7 @@ import (
 	"io"
 	"time"
 
-	platform "github.com/influxdata/influxdb"
+	platform "github.com/influxdata/influxdb/v2"
 )
 
 const (
@@ -69,7 +69,7 @@ func (b *Batcher) read(ctx context.Context, r io.Reader, lines chan<- []byte, er
 	for scanner.Scan() {
 		// exit early if the context is done
 		select {
-		case lines <- scanner.Bytes():
+		case lines <- []byte(scanner.Text()):
 		case <-ctx.Done():
 			errC <- ctx.Err()
 			return

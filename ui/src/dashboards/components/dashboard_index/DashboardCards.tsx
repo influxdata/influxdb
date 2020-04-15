@@ -10,7 +10,7 @@ import {TechnoSpinner} from '@influxdata/clockface'
 import {getSortedResources, SortTypes} from 'src/shared/utils/sort'
 
 // Types
-import {Dashboard} from 'src/types'
+import {Dashboard, RemoteDataState} from 'src/types'
 import {Sort} from 'src/clockface'
 
 interface Props {
@@ -111,7 +111,7 @@ export default class DashboardCards extends PureComponent<Props> {
     const frame = this._frame.getBoundingClientRect()
     const win = this._window.getBoundingClientRect()
 
-    if (frame.height == win.height) {
+    if (frame.height <= win.height) {
       this.setState(
         {
           windowSize: this.state.windowSize + 1,
@@ -150,6 +150,7 @@ export default class DashboardCards extends PureComponent<Props> {
       <div style={{height: '100%', display: 'grid'}} ref={this.registerFrame}>
         <div className="dashboards-card-grid" ref={this.registerWindow}>
           {sortedDashboards
+            .filter(d => d.status === RemoteDataState.Done)
             .slice(0, pages * windowSize)
             .map(({id, name, description, labels, meta}) => (
               <DashboardCard

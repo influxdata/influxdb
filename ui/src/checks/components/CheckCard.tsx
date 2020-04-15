@@ -1,5 +1,5 @@
 // Libraries
-import React, {FunctionComponent} from 'react'
+import React, {FC} from 'react'
 import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
 
@@ -20,13 +20,12 @@ import {
   addCheckLabel,
   deleteCheckLabel,
   cloneCheck,
-} from 'src/checks/actions'
-import {viewableLabels} from 'src/labels/selectors'
+} from 'src/checks/actions/thunks'
 import {notify} from 'src/shared/actions/notifications'
 import {updateCheckFailed} from 'src/shared/copy/notifications'
 
 // Types
-import {Check, Label, AppState} from 'src/types'
+import {Check, Label} from 'src/types'
 
 // Utilities
 import {relativeTimestampFormatter} from 'src/shared/utils/relativeTimestampFormatter'
@@ -40,17 +39,13 @@ interface DispatchProps {
   onNotify: typeof notify
 }
 
-interface StateProps {
-  labels: Label[]
-}
-
 interface OwnProps {
   check: Check
 }
 
-type Props = OwnProps & DispatchProps & WithRouterProps & StateProps
+type Props = OwnProps & DispatchProps & WithRouterProps
 
-const CheckCard: FunctionComponent<Props> = ({
+const CheckCard: FC<Props> = ({
   onRemoveCheckLabel,
   onAddCheckLabel,
   onCloneCheck,
@@ -59,14 +54,15 @@ const CheckCard: FunctionComponent<Props> = ({
   onUpdateCheckDisplayProperties,
   deleteCheck,
   params: {orgID},
-  labels,
   router,
 }) => {
+  const {id, activeStatus, name, description} = check
+
   const onUpdateName = (name: string) => {
     try {
       onUpdateCheckDisplayProperties(check.id, {name})
-    } catch (e) {
-      onNotify(updateCheckFailed(e.message))
+    } catch (error) {
+      onNotify(updateCheckFailed(error.message))
     }
   }
 
@@ -87,38 +83,38 @@ const CheckCard: FunctionComponent<Props> = ({
   }
 
   const onToggle = () => {
-    const status = check.status === 'active' ? 'inactive' : 'active'
+    const status = activeStatus === 'active' ? 'inactive' : 'active'
 
     try {
-      onUpdateCheckDisplayProperties(check.id, {status})
-    } catch (e) {
-      onNotify(updateCheckFailed(e.message))
+      onUpdateCheckDisplayProperties(id, {status})
+    } catch (error) {
+      onNotify(updateCheckFailed(error.message))
     }
   }
 
   const onCheckClick = () => {
-    router.push(`/orgs/${orgID}/alerting/checks/${check.id}/edit`)
+    router.push(`/orgs/${orgID}/alerting/checks/${id}/edit`)
   }
 
   const onView = () => {
     const queryParams = new URLSearchParams({
-      [SEARCH_QUERY_PARAM]: `"checkID" == "${check.id}"`,
+      [SEARCH_QUERY_PARAM]: `"checkID" == "${id}"`,
     })
 
-    router.push(`/orgs/${orgID}/checks/${check.id}/?${queryParams}`)
+    router.push(`/orgs/${orgID}/checks/${id}/?${queryParams}`)
   }
 
   const handleAddCheckLabel = (label: Label) => {
-    onAddCheckLabel(check.id, label)
+    onAddCheckLabel(id, label)
   }
 
   const handleRemoveCheckLabel = (label: Label) => {
-    onRemoveCheckLabel(check.id, label)
+    onRemoveCheckLabel(id, label.id)
   }
 
   return (
     <ResourceCard
-      key={`check-id--${check.id}`}
+      key={`check-id--${id}`}
       testID="check-card"
       name={
         <ResourceCard.EditableName
@@ -133,7 +129,7 @@ const CheckCard: FunctionComponent<Props> = ({
       }
       toggle={
         <SlideToggle
-          active={check.status === 'active'}
+          active={activeStatus === 'active'}
           size={ComponentSize.ExtraSmall}
           onChange={onToggle}
           testID="check-card--slide-toggle"
@@ -142,19 +138,18 @@ const CheckCard: FunctionComponent<Props> = ({
       description={
         <ResourceCard.EditableDescription
           onUpdate={onUpdateDescription}
-          description={check.description}
-          placeholder={`Describe ${check.name}`}
+          description={description}
+          placeholder={`Describe ${name}`}
         />
       }
       labels={
         <InlineLabels
-          selectedLabels={check.labels as Label[]}
-          labels={labels}
+          selectedLabelIDs={check.labels}
           onAddLabel={handleAddCheckLabel}
           onRemoveLabel={handleRemoveCheckLabel}
         />
       }
-      disabled={check.status === 'inactive'}
+      disabled={activeStatus === 'inactive'}
       contextMenu={
         <CheckCardContext
           onView={onView}
@@ -184,13 +179,7 @@ const mdtp: DispatchProps = {
   onNotify: notify,
 }
 
-const mstp = ({labels}: AppState): StateProps => {
-  return {
-    labels: viewableLabels(labels.list),
-  }
-}
-
-export default connect<StateProps, DispatchProps, {}>(
-  mstp,
+export default connect<{}, DispatchProps>(
+  null,
   mdtp
 )(withRouter(CheckCard))

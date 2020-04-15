@@ -1,10 +1,19 @@
+// Libraries
+import {normalize} from 'normalizr'
+
+// Schemas
+import {arrayOfChecks, checkSchema} from 'src/schemas/checks'
+
 import checksReducer, {defaultChecksState} from 'src/checks/reducers'
-import {setAllChecks, setCheck, removeCheck} from 'src/checks/actions'
+
+import {setChecks, setCheck, removeCheck} from 'src/checks/actions/creators'
 import {
   RemoteDataState,
   DashboardQuery,
-  ThresholdCheck,
-  DeadmanCheck,
+  CheckEntities,
+  Check,
+  GenThresholdCheck,
+  GenDeadmanCheck,
 } from 'src/types'
 
 const CHECK_QUERY_FIXTURE: DashboardQuery = {
@@ -14,7 +23,7 @@ const CHECK_QUERY_FIXTURE: DashboardQuery = {
   name: 'great q',
 }
 
-export const CHECK_FIXTURE_1: ThresholdCheck = {
+export const CHECK_FIXTURE_1: GenThresholdCheck = {
   id: '1',
   type: 'threshold',
   name: 'Amoozing check',
@@ -34,9 +43,10 @@ export const CHECK_FIXTURE_1: ThresholdCheck = {
       value: 10,
     },
   ],
+  labels: [],
 }
 
-export const CHECK_FIXTURE_2: ThresholdCheck = {
+export const CHECK_FIXTURE_2: GenThresholdCheck = {
   id: '2',
   type: 'threshold',
   name: 'Another check',
@@ -56,9 +66,10 @@ export const CHECK_FIXTURE_2: ThresholdCheck = {
       value: 10,
     },
   ],
+  labels: [],
 }
 
-export const CHECK_FIXTURE_3: DeadmanCheck = {
+export const CHECK_FIXTURE_3: GenDeadmanCheck = {
   id: '2',
   type: 'deadman',
   name: 'Another check',
@@ -66,7 +77,6 @@ export const CHECK_FIXTURE_3: DeadmanCheck = {
   createdAt: '2019-12-17T00:00',
   updatedAt: '2019-05-17T00:00',
   query: CHECK_QUERY_FIXTURE,
-  status: 'active',
   every: '2d',
   offset: '1m',
   tags: [{key: 'a', value: 'b'}],
@@ -75,71 +85,89 @@ export const CHECK_FIXTURE_3: DeadmanCheck = {
   staleTime: '10m',
   reportZero: false,
   level: 'INFO',
+  labels: [],
+  status: 'active',
 }
 
 describe('checksReducer', () => {
-  describe('setAllChecks', () => {
+  describe('setChecks', () => {
     it('sets list and status properties of state.', () => {
       const initialState = defaultChecksState
+      const cid_1 = CHECK_FIXTURE_1.id
+      const cid_2 = CHECK_FIXTURE_2.id
+
+      const checks = [CHECK_FIXTURE_1, CHECK_FIXTURE_2]
+
+      const normChecks = normalize<Check, CheckEntities, string[]>(
+        checks,
+        arrayOfChecks
+      )
 
       const actual = checksReducer(
         initialState,
-        setAllChecks(RemoteDataState.Done, [CHECK_FIXTURE_1, CHECK_FIXTURE_2])
+        setChecks(RemoteDataState.Done, normChecks)
       )
 
-      const expected = {
-        ...defaultChecksState,
-        list: [CHECK_FIXTURE_1, CHECK_FIXTURE_2],
+      expect(actual.byID[cid_1]).toEqual({
+        ...CHECK_FIXTURE_1,
+        activeStatus: 'active',
         status: RemoteDataState.Done,
-      }
-
-      expect(actual).toEqual(expected)
+      })
+      expect(actual.byID[cid_2]).toEqual({
+        ...CHECK_FIXTURE_2,
+        activeStatus: 'active',
+        status: RemoteDataState.Done,
+      })
+      expect(actual.allIDs).toEqual([cid_1, cid_2])
+      expect(actual.status).toBe(RemoteDataState.Done)
     })
   })
+
   describe('setCheck', () => {
     it('adds check to list if it is new', () => {
       const initialState = defaultChecksState
+      const id = CHECK_FIXTURE_2.id
 
-      const actual = checksReducer(initialState, setCheck(CHECK_FIXTURE_2))
-
-      const expected = {
-        ...defaultChecksState,
-        list: [CHECK_FIXTURE_2],
-      }
-
-      expect(actual).toEqual(expected)
-    })
-    it('updates check in list if it exists', () => {
-      const initialState = defaultChecksState
-      initialState.list = [CHECK_FIXTURE_1]
-      const actual = checksReducer(
-        initialState,
-        setCheck({...CHECK_FIXTURE_1, name: CHECK_FIXTURE_2.name})
+      const check = normalize<Check, CheckEntities, string>(
+        CHECK_FIXTURE_2,
+        checkSchema
       )
 
-      const expected = {
-        ...defaultChecksState,
-        list: [{...CHECK_FIXTURE_1, name: CHECK_FIXTURE_2.name}],
-      }
+      const actual = checksReducer(
+        initialState,
+        setCheck(id, RemoteDataState.Done, check)
+      )
 
-      expect(actual).toEqual(expected)
+      expect(actual.byID[id]).toEqual({
+        ...CHECK_FIXTURE_2,
+        status: RemoteDataState.Done,
+        activeStatus: 'active',
+      })
+
+      expect(actual.allIDs).toEqual([id])
     })
   })
+
   describe('removeCheck', () => {
-    it('removes check from list', () => {
+    it('removes check from state', () => {
       const initialState = defaultChecksState
-      initialState.list = [CHECK_FIXTURE_1]
+      const id = CHECK_FIXTURE_1.id
+
+      initialState.byID[id] = {
+        ...(CHECK_FIXTURE_1 as Check),
+        status: RemoteDataState.Done,
+        activeStatus: 'active',
+      }
+
+      initialState.allIDs = [id]
+
       const actual = checksReducer(
         initialState,
         removeCheck(CHECK_FIXTURE_1.id)
       )
 
-      const expected = {
-        ...defaultChecksState,
-        list: [],
-      }
-
-      expect(actual).toEqual(expected)
+      expect(actual.byID).toEqual({})
+      expect(actual.allIDs).toEqual([])
     })
   })
 })

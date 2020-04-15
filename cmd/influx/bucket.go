@@ -3,58 +3,52 @@ package main
 import (
 	"context"
 	"fmt"
-	"os"
 	"time"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/cmd/influx/internal"
-	"github.com/influxdata/influxdb/http"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/http"
 	"github.com/spf13/cobra"
 )
 
 type bucketSVCsFn func() (influxdb.BucketService, influxdb.OrganizationService, error)
 
-func cmdBucket(opts ...genericCLIOptFn) *cobra.Command {
-	return newCmdBucketBuilder(newBucketSVCs, opts...).cmd()
+func cmdBucket(f *globalFlags, opt genericCLIOpts) *cobra.Command {
+	builder := newCmdBucketBuilder(newBucketSVCs, opt)
+	builder.globalFlags = f
+	return builder.cmd()
 }
 
 type cmdBucketBuilder struct {
 	genericCLIOpts
+	*globalFlags
 
 	svcFn bucketSVCsFn
 
 	id          string
-	headers     bool
+	hideHeaders bool
+	json        bool
 	name        string
 	description string
 	org         organization
 	retention   time.Duration
 }
 
-func newCmdBucketBuilder(svcsFn bucketSVCsFn, opts ...genericCLIOptFn) *cmdBucketBuilder {
-	opt := genericCLIOpts{
-		in: os.Stdin,
-		w:  os.Stdout,
-	}
-	for _, o := range opts {
-		o(&opt)
-	}
-
+func newCmdBucketBuilder(svcsFn bucketSVCsFn, opts genericCLIOpts) *cmdBucketBuilder {
 	return &cmdBucketBuilder{
-		genericCLIOpts: opt,
+		genericCLIOpts: opts,
 		svcFn:          svcsFn,
 	}
 }
 
 func (b *cmdBucketBuilder) cmd() *cobra.Command {
-	cmd := b.newCmd("bucket", nil)
+	cmd := b.newCmd("bucket", nil, false)
 	cmd.Short = "Bucket management commands"
 	cmd.TraverseChildren = true
 	cmd.Run = seeHelp
 	cmd.AddCommand(
 		b.cmdCreate(),
 		b.cmdDelete(),
-		b.cmdFind(),
+		b.cmdList(),
 		b.cmdUpdate(),
 	)
 
@@ -62,7 +56,7 @@ func (b *cmdBucketBuilder) cmd() *cobra.Command {
 }
 
 func (b *cmdBucketBuilder) cmdCreate() *cobra.Command {
-	cmd := b.newCmd("create", b.cmdCreateRunEFn)
+	cmd := b.newCmd("create", b.cmdCreateRunEFn, true)
 	cmd.Short = "Create bucket"
 
 	opts := flagOpts{
@@ -78,14 +72,15 @@ func (b *cmdBucketBuilder) cmdCreate() *cobra.Command {
 	opts.mustRegister(cmd)
 
 	cmd.Flags().StringVarP(&b.description, "description", "d", "", "Description of bucket that will be created")
-	cmd.Flags().DurationVarP(&b.retention, "retention", "r", 0, "Duration in nanoseconds data will live in bucket")
+	cmd.Flags().DurationVarP(&b.retention, "retention", "r", 0, "Duration bucket will retain data. 0 is infinite. Default is 0.")
 	b.org.register(cmd, false)
+	b.registerPrintFlags(cmd)
 
 	return cmd
 }
 
 func (b *cmdBucketBuilder) cmdCreateRunEFn(*cobra.Command, []string) error {
-	if err := b.org.validOrgFlags(); err != nil {
+	if err := b.org.validOrgFlags(b.globalFlags); err != nil {
 		return err
 	}
 
@@ -108,25 +103,17 @@ func (b *cmdBucketBuilder) cmdCreateRunEFn(*cobra.Command, []string) error {
 		return fmt.Errorf("failed to create bucket: %v", err)
 	}
 
-	w := internal.NewTabWriter(b.w)
-	w.WriteHeaders("ID", "Name", "Retention", "OrganizationID")
-	w.Write(map[string]interface{}{
-		"ID":             bkt.ID.String(),
-		"Name":           bkt.Name,
-		"Retention":      bkt.RetentionPeriod,
-		"OrganizationID": bkt.OrgID.String(),
-	})
-	w.Flush()
-
-	return nil
+	return b.printBuckets(bucketPrintOpt{bucket: bkt})
 }
 
 func (b *cmdBucketBuilder) cmdDelete() *cobra.Command {
-	cmd := b.newCmd("delete", b.cmdDeleteRunEFn)
+	cmd := b.newCmd("delete", b.cmdDeleteRunEFn, true)
 	cmd.Short = "Delete bucket"
 
-	cmd.Flags().StringVarP(&b.id, "id", "i", "", "The bucket ID (required)")
-	cmd.MarkFlagRequired("id")
+	cmd.Flags().StringVarP(&b.id, "id", "i", "", "The bucket ID, required if name isn't provided")
+	cmd.Flags().StringVarP(&b.name, "name", "n", "", "The bucket name, org or org-id will be required by choosing this")
+	b.org.register(cmd, false)
+	b.registerPrintFlags(cmd)
 
 	return cmd
 }
@@ -138,37 +125,46 @@ func (b *cmdBucketBuilder) cmdDeleteRunEFn(cmd *cobra.Command, args []string) er
 	}
 
 	var id influxdb.ID
-	if err := id.DecodeFromString(b.id); err != nil {
+	var filter influxdb.BucketFilter
+	if b.id == "" && b.name != "" {
+		if err = b.org.validOrgFlags(&flags); err != nil {
+			return err
+		}
+		filter.Name = &b.name
+		if b.org.id != "" {
+			if filter.OrganizationID, err = influxdb.IDFromString(b.org.id); err != nil {
+				return err
+			}
+		} else if b.org.name != "" {
+			filter.Org = &b.org.name
+		}
+
+	} else if err := id.DecodeFromString(b.id); err != nil {
 		return fmt.Errorf("failed to decode bucket id %q: %v", b.id, err)
 	}
 
+	if id.Valid() {
+		filter.ID = &id
+	}
+
 	ctx := context.Background()
-	bkt, err := bktSVC.FindBucketByID(ctx, id)
+	bkt, err := bktSVC.FindBucket(ctx, filter)
 	if err != nil {
 		return fmt.Errorf("failed to find bucket with id %q: %v", id, err)
 	}
-
-	if err := bktSVC.DeleteBucket(ctx, id); err != nil {
+	if err := bktSVC.DeleteBucket(ctx, bkt.ID); err != nil {
 		return fmt.Errorf("failed to delete bucket with id %q: %v", id, err)
 	}
-
-	w := internal.NewTabWriter(b.w)
-	w.WriteHeaders("ID", "Name", "Retention", "OrganizationID", "Deleted")
-	w.Write(map[string]interface{}{
-		"ID":             bkt.ID.String(),
-		"Name":           bkt.Name,
-		"Retention":      bkt.RetentionPeriod,
-		"OrganizationID": bkt.OrgID.String(),
-		"Deleted":        true,
+	return b.printBuckets(bucketPrintOpt{
+		deleted: true,
+		bucket:  bkt,
 	})
-	w.Flush()
-
-	return nil
 }
 
-func (b *cmdBucketBuilder) cmdFind() *cobra.Command {
-	cmd := b.newCmd("find", b.cmdFindRunEFn)
-	cmd.Short = "Find buckets"
+func (b *cmdBucketBuilder) cmdList() *cobra.Command {
+	cmd := b.newCmd("list", b.cmdListRunEFn, true)
+	cmd.Short = "List buckets"
+	cmd.Aliases = []string{"find", "ls"}
 
 	opts := flagOpts{
 		{
@@ -182,14 +178,14 @@ func (b *cmdBucketBuilder) cmdFind() *cobra.Command {
 	opts.mustRegister(cmd)
 
 	b.org.register(cmd, false)
+	b.registerPrintFlags(cmd)
 	cmd.Flags().StringVarP(&b.id, "id", "i", "", "The bucket ID")
-	cmd.Flags().BoolVar(&b.headers, "headers", true, "To print the table headers; defaults true")
 
 	return cmd
 }
 
-func (b *cmdBucketBuilder) cmdFindRunEFn(cmd *cobra.Command, args []string) error {
-	if err := b.org.validOrgFlags(); err != nil {
+func (b *cmdBucketBuilder) cmdListRunEFn(cmd *cobra.Command, args []string) error {
+	if err := b.org.validOrgFlags(b.globalFlags); err != nil {
 		return err
 	}
 
@@ -225,24 +221,13 @@ func (b *cmdBucketBuilder) cmdFindRunEFn(cmd *cobra.Command, args []string) erro
 		return fmt.Errorf("failed to retrieve buckets: %s", err)
 	}
 
-	w := internal.NewTabWriter(b.w)
-	w.HideHeaders(!b.headers)
-	w.WriteHeaders("ID", "Name", "Retention", "OrganizationID")
-	for _, b := range buckets {
-		w.Write(map[string]interface{}{
-			"ID":             b.ID.String(),
-			"Name":           b.Name,
-			"Retention":      b.RetentionPeriod,
-			"OrganizationID": b.OrgID.String(),
-		})
-	}
-	w.Flush()
-
-	return nil
+	return b.printBuckets(bucketPrintOpt{
+		buckets: buckets,
+	})
 }
 
 func (b *cmdBucketBuilder) cmdUpdate() *cobra.Command {
-	cmd := b.newCmd("update", b.cmdUpdateRunEFn)
+	cmd := b.newCmd("update", b.cmdUpdateRunEFn, true)
 	cmd.Short = "Update bucket"
 
 	opts := flagOpts{
@@ -256,10 +241,11 @@ func (b *cmdBucketBuilder) cmdUpdate() *cobra.Command {
 	}
 	opts.mustRegister(cmd)
 
+	b.registerPrintFlags(cmd)
 	cmd.Flags().StringVarP(&b.id, "id", "i", "", "The bucket ID (required)")
 	cmd.Flags().StringVarP(&b.description, "description", "d", "", "Description of bucket that will be created")
 	cmd.MarkFlagRequired("id")
-	cmd.Flags().DurationVarP(&b.retention, "retention", "r", 0, "New duration data will live in bucket")
+	cmd.Flags().DurationVarP(&b.retention, "retention", "r", 0, "Duration bucket will retain data. 0 is infinite. Default is 0.")
 
 	return cmd
 }
@@ -291,15 +277,55 @@ func (b *cmdBucketBuilder) cmdUpdateRunEFn(cmd *cobra.Command, args []string) er
 		return fmt.Errorf("failed to update bucket: %v", err)
 	}
 
-	w := internal.NewTabWriter(b.w)
-	w.WriteHeaders("ID", "Name", "Retention", "OrganizationID")
-	w.Write(map[string]interface{}{
-		"ID":             bkt.ID.String(),
-		"Name":           bkt.Name,
-		"Retention":      bkt.RetentionPeriod,
-		"OrganizationID": bkt.OrgID.String(),
-	})
-	w.Flush()
+	return b.printBuckets(bucketPrintOpt{bucket: bkt})
+}
+
+func (b *cmdBucketBuilder) registerPrintFlags(cmd *cobra.Command) {
+	registerPrintOptions(cmd, &b.hideHeaders, &b.json)
+}
+
+type bucketPrintOpt struct {
+	deleted bool
+	bucket  *influxdb.Bucket
+	buckets []*influxdb.Bucket
+}
+
+func (b *cmdBucketBuilder) printBuckets(printOpt bucketPrintOpt) error {
+	if b.json {
+		var v interface{} = printOpt.buckets
+		if printOpt.buckets == nil {
+			v = printOpt.bucket
+		}
+		return b.writeJSON(v)
+	}
+
+	w := b.newTabWriter()
+	defer w.Flush()
+
+	w.HideHeaders(b.hideHeaders)
+
+	headers := []string{"ID", "Name", "Retention", "Organization ID"}
+	if printOpt.deleted {
+		headers = append(headers, "Deleted")
+	}
+	w.WriteHeaders(headers...)
+
+	if printOpt.bucket != nil {
+		printOpt.buckets = append(printOpt.buckets, printOpt.bucket)
+	}
+
+	for _, bkt := range printOpt.buckets {
+		m := map[string]interface{}{
+			"ID":              bkt.ID.String(),
+			"Name":            bkt.Name,
+			"Retention":       bkt.RetentionPeriod,
+			"Organization ID": bkt.OrgID.String(),
+		}
+		if printOpt.deleted {
+			m["Deleted"] = true
+		}
+		w.Write(m)
+	}
 
 	return nil
 }

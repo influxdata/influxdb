@@ -16,7 +16,6 @@ import {
   REMOVE_DASHBOARD,
   SET_DASHBOARDS,
   REMOVE_DASHBOARD_LABEL,
-  ADD_DASHBOARD_LABEL,
   EDIT_DASHBOARD,
 } from 'src/dashboards/actions/creators'
 import {
@@ -25,6 +24,7 @@ import {
   SET_CELL,
   Action as CellAction,
 } from 'src/cells/actions/creators'
+import {SET_LABEL_ON_RESOURCE} from 'src/labels/actions/creators'
 
 // Utils
 import {
@@ -32,6 +32,7 @@ import {
   setResourceAtID,
   removeResource,
   editResource,
+  setRelation,
 } from 'src/resources/reducers/helpers'
 
 type DashboardsState = ResourceState['dashboards']
@@ -112,10 +113,16 @@ export const dashboardsReducer = (
         return
       }
 
-      case ADD_DASHBOARD_LABEL: {
-        const {dashboardID, label} = action
+      case SET_LABEL_ON_RESOURCE: {
+        const {resourceID, schema} = action
+        const labelID = schema.result
 
-        draftState.byID[dashboardID].labels.push(label)
+        setRelation<Dashboard>(
+          draftState,
+          ResourceType.Labels,
+          labelID,
+          resourceID
+        )
 
         return
       }
@@ -126,7 +133,7 @@ export const dashboardsReducer = (
         const {labels} = draftState.byID[dashboardID]
 
         draftState.byID[dashboardID].labels = labels.filter(
-          label => label.id !== labelID
+          label => label !== labelID
         )
 
         return

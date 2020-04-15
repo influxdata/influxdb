@@ -1,12 +1,11 @@
 package http
 
 import (
-	"context"
 	"net/http/httptest"
 	"testing"
 
-	platform "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/mock"
+	platform "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/mock"
 )
 
 func TestPaging_decodeFindOptions(t *testing.T) {
@@ -68,7 +67,7 @@ func TestPaging_decodeFindOptions(t *testing.T) {
 			}
 			r.URL.RawQuery = qp.Encode()
 
-			opts, err := decodeFindOptions(context.Background(), r)
+			opts, err := decodeFindOptions(r)
 			if err != nil {
 				t.Errorf("%q failed, err: %s", tt.name, err.Error())
 			}

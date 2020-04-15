@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/influxdata/influxdb/storage/reads/datatypes"
+	"github.com/influxdata/influxdb/v2/storage/reads/datatypes"
 )
 
 func TestPredicatePopTagEscape(t *testing.T) {
@@ -246,6 +246,12 @@ func TestPredicate_Matches(t *testing.T) {
 
 			if got, exp := pred.Matches([]byte(test.Key)), test.Matches; got != exp {
 				t.Fatal("match failure:", "got", got, "!=", "exp", exp)
+			}
+
+			// Clone and try again.
+			pred = pred.Clone()
+			if got, exp := pred.Matches([]byte(test.Key)), test.Matches; got != exp {
+				t.Fatal("cloned match failure:", "got", got, "!=", "exp", exp)
 			}
 		})
 	}

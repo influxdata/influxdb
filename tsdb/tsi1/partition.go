@@ -15,12 +15,13 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/influxdata/influxdb/kit/tracing"
-	"github.com/influxdata/influxdb/logger"
-	"github.com/influxdata/influxdb/pkg/bytesutil"
-	"github.com/influxdata/influxdb/pkg/fs"
-	"github.com/influxdata/influxdb/pkg/lifecycle"
-	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/v2/kit/tracing"
+	"github.com/influxdata/influxdb/v2/logger"
+	"github.com/influxdata/influxdb/v2/pkg/bytesutil"
+	"github.com/influxdata/influxdb/v2/pkg/fs"
+	"github.com/influxdata/influxdb/v2/pkg/lifecycle"
+	"github.com/influxdata/influxdb/v2/tsdb"
+	"github.com/influxdata/influxdb/v2/tsdb/seriesfile"
 	"github.com/influxdata/influxql"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
@@ -51,8 +52,8 @@ type Partition struct {
 	resmu sync.Mutex // protects res Open and Close
 	res   lifecycle.Resource
 
-	sfile    *tsdb.SeriesFile     // series lookup file
-	sfileref *lifecycle.Reference // reference to series lookup file
+	sfile    *seriesfile.SeriesFile // series lookup file
+	sfileref *lifecycle.Reference   // reference to series lookup file
 
 	activeLogFile *LogFile // current log file
 	fileSet       *FileSet // current file set
@@ -95,7 +96,7 @@ type Partition struct {
 }
 
 // NewPartition returns a new instance of Partition.
-func NewPartition(sfile *tsdb.SeriesFile, path string) *Partition {
+func NewPartition(sfile *seriesfile.SeriesFile, path string) *Partition {
 	partition := &Partition{
 		path:        path,
 		sfile:       sfile,
@@ -408,7 +409,7 @@ func (p *Partition) close() error {
 func (p *Partition) Path() string { return p.path }
 
 // SeriesFile returns the attached series file.
-func (p *Partition) SeriesFile() *tsdb.SeriesFile { return p.sfile }
+func (p *Partition) SeriesFile() *seriesfile.SeriesFile { return p.sfile }
 
 // NextSequence returns the next file identifier.
 func (p *Partition) NextSequence() int {
@@ -620,7 +621,7 @@ func (p *Partition) DropMeasurement(name []byte) error {
 				if err := func() error {
 					p.mu.RLock()
 					defer p.mu.RUnlock()
-					return p.activeLogFile.DeleteTagKey(name, k.Key())
+					return p.activeLogFile.DeleteTagKeyNoSync(name, k.Key())
 				}(); err != nil {
 					return err
 				}
@@ -633,7 +634,7 @@ func (p *Partition) DropMeasurement(name []byte) error {
 						if err := func() error {
 							p.mu.RLock()
 							defer p.mu.RUnlock()
-							return p.activeLogFile.DeleteTagValue(name, k.Key(), v.Value())
+							return p.activeLogFile.DeleteTagValueNoSync(name, k.Key(), v.Value())
 						}(); err != nil {
 							return err
 						}
@@ -682,6 +683,15 @@ func (p *Partition) DropMeasurement(name []byte) error {
 		p.mu.RLock()
 		defer p.mu.RUnlock()
 		return p.activeLogFile.DeleteMeasurement(name)
+	}(); err != nil {
+		return err
+	}
+
+	// Ensure log is flushed & synced.
+	if err := func() error {
+		p.mu.RLock()
+		defer p.mu.RUnlock()
+		return p.activeLogFile.FlushAndSync()
 	}(); err != nil {
 		return err
 	}
@@ -749,24 +759,27 @@ func (p *Partition) createSeriesListIfNotExists(collection *tsdb.SeriesCollectio
 	return ids, nil
 }
 
-// DropSeries removes the provided series id from the index.
-//
-// TODO(edd): We should support a bulk drop here.
-func (p *Partition) DropSeries(seriesID tsdb.SeriesID) error {
-	// Ignore if the series is already deleted.
-	if !p.seriesIDSet.Contains(seriesID) {
-		return nil
+// DropSeries removes the provided set of series id from the index.
+func (p *Partition) DropSeries(ids []tsdb.SeriesID) error {
+	// Count total affected series.
+	var n uint64
+	for _, id := range ids {
+		if p.seriesIDSet.Contains(id) {
+			n++
+		}
 	}
 
 	// Delete series from index.
-	if err := p.activeLogFile.DeleteSeriesID(seriesID); err != nil {
+	if err := p.activeLogFile.DeleteSeriesIDs(ids); err != nil {
 		return err
 	}
 
 	// Update series set.
-	p.seriesIDSet.Remove(seriesID)
-	p.tracker.AddSeriesDropped(1)
-	p.tracker.SubSeries(1)
+	for _, id := range ids {
+		p.seriesIDSet.Remove(id)
+	}
+	p.tracker.AddSeriesDropped(n)
+	p.tracker.SubSeries(n)
 
 	// Swap log file, if necessary.
 	return p.CheckLogFile()

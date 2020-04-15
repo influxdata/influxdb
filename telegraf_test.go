@@ -8,9 +8,9 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/influxdata/influxdb/telegraf/plugins"
-	"github.com/influxdata/influxdb/telegraf/plugins/inputs"
-	"github.com/influxdata/influxdb/telegraf/plugins/outputs"
+	"github.com/influxdata/influxdb/v2/telegraf/plugins"
+	"github.com/influxdata/influxdb/v2/telegraf/plugins/inputs"
+	"github.com/influxdata/influxdb/v2/telegraf/plugins/outputs"
 	"github.com/stretchr/testify/require"
 )
 
@@ -609,4 +609,36 @@ func TestLegacyStruct(t *testing.T) {
 	if tc.Config != want {
 		t.Fatalf("telegraf config's toml is incorrect, got %+v", tc.Config)
 	}
+}
+
+func TestCountPlugins(t *testing.T) {
+	tc := TelegrafConfig{
+		Name: "test",
+		Config: `
+[[inputs.file]]
+  some = "config"
+[[inputs.file]]
+  some = "config"
+[[outputs.influxdb_v2]]
+  some = "config"
+[[inputs.cpu]]
+  some = "config"
+[[outputs.stuff]]
+  some = "config"
+[[aggregators.thing]]
+  some = "config"
+[[processors.thing]]
+  some = "config"
+[[serializers.thing]]
+  some = "config"
+[[inputs.file]]
+  some = "config"
+`,
+	}
+
+	pCount := tc.CountPlugins()
+
+	require.Equal(t, 6, len(pCount))
+
+	require.Equal(t, float64(3), pCount["inputs.file"])
 }

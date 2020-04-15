@@ -6,11 +6,11 @@ import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
-import SettingsTabbedPageHeader from 'src/settings/components/SettingsTabbedPageHeader'
+import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'
 import {EmptyState, Sort} from '@influxdata/clockface'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import MemberList from 'src/members/components/MemberList'
-import FilterList from 'src/shared/components/Filter'
+import FilterList from 'src/shared/components/FilterList'
 
 // Actions
 import {deleteMember} from 'src/members/actions/thunks'
@@ -42,6 +42,8 @@ interface State {
 
 type SortKey = keyof Member
 
+const FilterMembers = FilterList<Member>()
+
 class Members extends PureComponent<Props & WithRouterProps, State> {
   constructor(props) {
     super(props)
@@ -57,14 +59,16 @@ class Members extends PureComponent<Props & WithRouterProps, State> {
 
     return (
       <>
-        <SettingsTabbedPageHeader>
-          <SearchWidget
-            placeholderText="Filter members..."
-            searchTerm={searchTerm}
-            onSearch={this.handleFilterChange}
-          />
-        </SettingsTabbedPageHeader>
-        <FilterList<Member>
+        <TabbedPageHeader
+          childrenLeft={
+            <SearchWidget
+              placeholderText="Filter members..."
+              searchTerm={searchTerm}
+              onSearch={this.handleFilterChange}
+            />
+          }
+        />
+        <FilterMembers
           list={this.props.members}
           searchKeys={['name']}
           searchTerm={searchTerm}
@@ -80,7 +84,7 @@ class Members extends PureComponent<Props & WithRouterProps, State> {
               onClickColumn={this.handleClickColumn}
             />
           )}
-        </FilterList>
+        </FilterMembers>
       </>
     )
   }

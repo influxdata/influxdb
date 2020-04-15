@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/task/backend/scheduler"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/task/backend/scheduler"
 )
 
 var _ scheduler.SchedulableService = (*SchedulableTaskService)(nil)

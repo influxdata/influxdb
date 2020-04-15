@@ -4,11 +4,12 @@ import (
 	"bytes"
 	"errors"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/pkg/lifecycle"
-	"github.com/influxdata/influxdb/tsdb"
-	"github.com/influxdata/influxdb/tsdb/tsi1"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/models"
+	"github.com/influxdata/influxdb/v2/pkg/lifecycle"
+	"github.com/influxdata/influxdb/v2/tsdb"
+	"github.com/influxdata/influxdb/v2/tsdb/seriesfile"
+	"github.com/influxdata/influxdb/v2/tsdb/tsi1"
 	"github.com/influxdata/influxql"
 )
 
@@ -18,27 +19,24 @@ var (
 )
 
 type SeriesCursor interface {
-	Close() error
+	Close()
 	Next() (*SeriesCursorRow, error)
-}
-
-type SeriesCursorRequest struct {
-	// Name contains the tsdb encoded org and bucket ID
-	Name [influxdb.IDLength]byte
 }
 
 // seriesCursor is an implementation of SeriesCursor over an tsi1.Index.
 type seriesCursor struct {
-	index    *tsi1.Index
-	indexref *lifecycle.Reference
-	sfile    *tsdb.SeriesFile
-	sfileref *lifecycle.Reference
-	name     [influxdb.IDLength]byte
-	keys     [][]byte
-	ofs      int
-	row      SeriesCursorRow
-	cond     influxql.Expr
-	init     bool
+	index        *tsi1.Index
+	indexref     *lifecycle.Reference
+	sfile        *seriesfile.SeriesFile
+	sfileref     *lifecycle.Reference
+	orgID        influxdb.ID
+	encodedOrgID []byte
+	bucketID     influxdb.ID
+	keys         [][]byte
+	ofs          int
+	row          SeriesCursorRow
+	cond         influxql.Expr
+	init         bool
 }
 
 type SeriesCursorRow struct {
@@ -47,7 +45,7 @@ type SeriesCursorRow struct {
 }
 
 // newSeriesCursor returns a new instance of SeriesCursor.
-func newSeriesCursor(req SeriesCursorRequest, index *tsi1.Index, sfile *tsdb.SeriesFile, cond influxql.Expr) (SeriesCursor, error) {
+func newSeriesCursor(orgID, bucketID influxdb.ID, index *tsi1.Index, sfile *seriesfile.SeriesFile, cond influxql.Expr) (SeriesCursor, error) {
 	if cond != nil {
 		var err error
 		influxql.WalkFunc(cond, func(node influxql.Node) {
@@ -75,21 +73,23 @@ func newSeriesCursor(req SeriesCursorRequest, index *tsi1.Index, sfile *tsdb.Ser
 		return nil, err
 	}
 
+	encodedOrgID := tsdb.EncodeOrgName(orgID)
 	return &seriesCursor{
-		index:    index,
-		indexref: indexref,
-		sfile:    sfile,
-		sfileref: sfileref,
-		name:     req.Name,
-		cond:     cond,
+		index:        index,
+		indexref:     indexref,
+		sfile:        sfile,
+		sfileref:     sfileref,
+		orgID:        orgID,
+		encodedOrgID: encodedOrgID[:],
+		bucketID:     bucketID,
+		cond:         cond,
 	}, nil
 }
 
 // Close closes the iterator. Safe to call multiple times.
-func (cur *seriesCursor) Close() error {
+func (cur *seriesCursor) Close() {
 	cur.sfileref.Release()
 	cur.indexref.Release()
-	return nil
 }
 
 // Next emits the next point in the iterator.
@@ -98,12 +98,17 @@ func (cur *seriesCursor) Next() (*SeriesCursorRow, error) {
 		if err := cur.readSeriesKeys(); err != nil {
 			return nil, err
 		}
+
+		// Release before Close(), to hold the resources for as little time as possible.
+		cur.sfileref.Release()
+		cur.indexref.Release()
+
 		cur.init = true
 	}
 
 	if cur.ofs < len(cur.keys) {
-		cur.row.Name, cur.row.Tags = tsdb.ParseSeriesKeyInto(cur.keys[cur.ofs], cur.row.Tags)
-		if !bytes.HasPrefix(cur.row.Name, cur.name[:influxdb.OrgIDLength]) {
+		cur.row.Name, cur.row.Tags = seriesfile.ParseSeriesKeyInto(cur.keys[cur.ofs], cur.row.Tags)
+		if !bytes.HasPrefix(cur.row.Name, cur.encodedOrgID) {
 			return nil, errUnexpectedOrg
 		}
 		cur.ofs++
@@ -114,7 +119,8 @@ func (cur *seriesCursor) Next() (*SeriesCursorRow, error) {
 }
 
 func (cur *seriesCursor) readSeriesKeys() error {
-	sitr, err := cur.index.MeasurementSeriesByExprIterator(cur.name[:], cur.cond)
+	name := tsdb.EncodeName(cur.orgID, cur.bucketID)
+	sitr, err := cur.index.MeasurementSeriesByExprIterator(name[:], cur.cond)
 	if err != nil {
 		return err
 	} else if sitr == nil {

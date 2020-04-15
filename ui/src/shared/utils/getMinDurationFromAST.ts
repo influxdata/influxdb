@@ -77,7 +77,6 @@ function rangeTimes(ast: any, rangeNode: CallExpression): [number, number] {
   )
 
   const end = endProperty ? propertyTime(ast, endProperty.value, now) : now
-
   if (isNaN(start) || isNaN(end)) {
     throw new Error('failed to analyze query')
   }
@@ -95,6 +94,7 @@ function propertyTime(ast: any, value: Expression, now: number): number {
     case 'DurationLiteral':
       return now + durationToMilliseconds(value.values)
 
+    case 'StringLiteral':
     case 'DateTimeLiteral':
       return Date.parse(value.value)
 
@@ -129,6 +129,10 @@ function propertyTime(ast: any, value: Expression, now: number): number {
     case 'CallExpression':
       if (isNowCall(value)) {
         return now
+      }
+      if (isTimeCall(value)) {
+        const property = get(value, 'arguments[0].properties[0]value', {})
+        return propertyTime(ast, property, now)
       }
 
       throw new Error('unexpected CallExpression')
@@ -167,6 +171,10 @@ function lookupVariable(ast: any, name: string): Expression {
 
 function isNowCall(node: CallExpression): boolean {
   return get(node, 'callee.name') === 'now'
+}
+
+function isTimeCall(node: CallExpression): boolean {
+  return get(node, 'callee.name') === 'time'
 }
 
 function isRangeNode(node: Node) {

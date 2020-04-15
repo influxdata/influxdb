@@ -7,7 +7,7 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/flux/plan"
-	platform "github.com/influxdata/influxdb"
+	platform "github.com/influxdata/influxdb/v2"
 )
 
 const CompilerType = "influxql"
@@ -24,6 +24,7 @@ type Compiler struct {
 	Cluster string     `json:"cluster,omitempty"`
 	DB      string     `json:"db,omitempty"`
 	RP      string     `json:"rp,omitempty"`
+	Bucket  string     `json:"bucket,omitempty"`
 	Query   string     `json:"query"`
 	Now     *time.Time `json:"now,omitempty"`
 
@@ -51,6 +52,7 @@ func (c *Compiler) Compile(ctx context.Context) (flux.Program, error) {
 	transpiler := NewTranspilerWithConfig(
 		c.dbrpMappingSvc,
 		Config{
+			Bucket:                 c.Bucket,
 			Cluster:                c.Cluster,
 			DefaultDatabase:        c.DB,
 			DefaultRetentionPolicy: c.RP,

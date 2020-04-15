@@ -1,7 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
-import {get} from 'lodash'
 
 // Components
 import {
@@ -15,9 +14,9 @@ import {
   Page,
 } from '@influxdata/clockface'
 import Resources from 'src/me/components/Resources'
-import Header from 'src/me/components/UserPageHeader'
 import Docs from 'src/me/components/Docs'
 import GettingStarted from 'src/me/components/GettingStarted'
+import CloudUpgradeButton from 'src/shared/components/CloudUpgradeButton'
 
 // Utils
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
@@ -28,22 +27,21 @@ import {AppState} from 'src/types'
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-// Selectors
-import {getOrg} from 'src/organizations/selectors'
-
 interface StateProps {
   me: AppState['me']
-  orgName: string
 }
 
 @ErrorHandling
 export class MePage extends PureComponent<StateProps> {
   public render() {
-    const {me, orgName} = this.props
+    const {me} = this.props
 
     return (
       <Page titleTag={pageTitleSuffixer(['Home'])}>
-        <Header userName={me.name} orgName={orgName} />
+        <Page.Header fullWidth={false}>
+          <Page.Title title="Getting Started" />
+          <CloudUpgradeButton />
+        </Page.Header>
         <Page.Contents fullWidth={false} scrollable={true}>
           <Grid>
             <Grid.Row>
@@ -56,9 +54,6 @@ export class MePage extends PureComponent<StateProps> {
                   testID="getting-started"
                 >
                   <Panel>
-                    <Panel.Header>
-                      <h4>Getting started with InfluxDB 2.0</h4>
-                    </Panel.Header>
                     <Panel.Body>
                       <GettingStarted />
                     </Panel.Body>
@@ -78,10 +73,9 @@ export class MePage extends PureComponent<StateProps> {
 }
 
 const mstp = (state: AppState): StateProps => {
-  const org = getOrg(state)
   const {me} = state
 
-  return {me, orgName: get(org, 'name', '')}
+  return {me}
 }
 
 export default connect<StateProps>(

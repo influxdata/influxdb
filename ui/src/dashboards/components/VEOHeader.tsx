@@ -32,8 +32,8 @@ class VEOHeader extends PureComponent<Props> {
   public render() {
     const {name, onSetName, onCancel, onSave} = this.props
     return (
-      <Page.Header fullWidth={true}>
-        <Page.HeaderLeft>
+      <>
+        <Page.Header fullWidth={true}>
           <RenamablePageTitle
             name={name}
             onRename={onSetName}
@@ -41,26 +41,30 @@ class VEOHeader extends PureComponent<Props> {
             maxLength={CELL_NAME_MAX_LENGTH}
             onClickOutside={this.handleClickOutsideTitle}
           />
-        </Page.HeaderLeft>
-        <Page.HeaderRight>
-          <ViewTypeDropdown />
-          <VisOptionsButton />
-          <SquareButton
-            icon={IconFont.Remove}
-            onClick={onCancel}
-            size={ComponentSize.Small}
-            testID="cancel-cell-edit--button"
-          />
-          <SquareButton
-            className={saveButtonClass}
-            icon={IconFont.Checkmark}
-            color={ComponentColor.Success}
-            size={ComponentSize.Small}
-            onClick={onSave}
-            testID="save-cell--button"
-          />
-        </Page.HeaderRight>
-      </Page.Header>
+        </Page.Header>
+        <Page.ControlBar fullWidth={true}>
+          <Page.ControlBarLeft>
+            <ViewTypeDropdown />
+            <VisOptionsButton />
+          </Page.ControlBarLeft>
+          <Page.ControlBarRight>
+            <SquareButton
+              icon={IconFont.Remove}
+              onClick={onCancel}
+              size={ComponentSize.Small}
+              testID="cancel-cell-edit--button"
+            />
+            <SquareButton
+              className={saveButtonClass}
+              icon={IconFont.Checkmark}
+              color={ComponentColor.Success}
+              size={ComponentSize.Small}
+              onClick={onSave}
+              testID="save-cell--button"
+            />
+          </Page.ControlBarRight>
+        </Page.ControlBar>
+      </>
     )
   }
 

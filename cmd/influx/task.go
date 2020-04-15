@@ -3,76 +3,85 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"time"
 
-	"github.com/influxdata/flux/repl"
-	platform "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/cmd/influx/internal"
-	"github.com/influxdata/influxdb/http"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/cmd/influx/internal"
+	"github.com/influxdata/influxdb/v2/http"
 	"github.com/spf13/cobra"
 )
 
-func cmdTask() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "task",
-		Short: "Task management commands",
-		RunE: wrapCheckSetup(func(cmd *cobra.Command, args []string) error {
-			if flags.local {
-				return fmt.Errorf("local flag not supported for task command")
-			}
+func cmdTask(f *globalFlags, opt genericCLIOpts) *cobra.Command {
+	runE := func(cmd *cobra.Command, args []string) error {
+		if flags.local {
+			return fmt.Errorf("local flag not supported for task command")
+		}
 
-			seeHelp(cmd, args)
-			return nil
-		}),
+		seeHelp(cmd, args)
+		return nil
 	}
 
+	cmd := opt.newCmd("task", runE, false)
+	cmd.Short = "Task management commands"
+
 	cmd.AddCommand(
-		taskLogCmd(),
-		taskRunCmd(),
-		taskCreateCmd(),
-		taskDeleteCmd(),
-		taskFindCmd(),
-		taskUpdateCmd(),
+		taskLogCmd(opt),
+		taskRunCmd(opt),
+		taskCreateCmd(opt),
+		taskDeleteCmd(opt),
+		taskFindCmd(opt),
+		taskUpdateCmd(opt),
 	)
 
 	return cmd
 }
 
-var taskCreateFlags struct {
-	org organization
+var taskPrintFlags struct {
+	json        bool
+	hideHeaders bool
 }
 
-func taskCreateCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "create [query literal or @/path/to/query.flux]",
-		Short: "Create task",
-		Args:  cobra.ExactArgs(1),
-		RunE:  wrapCheckSetup(taskCreateF),
-	}
+var taskCreateFlags struct {
+	org  organization
+	file string
+}
 
+func taskCreateCmd(opt genericCLIOpts) *cobra.Command {
+	cmd := opt.newCmd("create [script literal or -f /path/to/script.flux]", taskCreateF, true)
+	cmd.Args = cobra.MaximumNArgs(1)
+	cmd.Short = "Create task"
+	cmd.Long = `Create a task with a Flux script provided via the first argument or a file or stdin`
+
+	cmd.Flags().StringVarP(&taskCreateFlags.file, "file", "f", "", "Path to Flux script file")
 	taskCreateFlags.org.register(cmd, false)
+	registerPrintOptions(cmd, &taskPrintFlags.hideHeaders, &taskPrintFlags.json)
 
 	return cmd
 }
 
 func taskCreateF(cmd *cobra.Command, args []string) error {
-	if err := taskCreateFlags.org.validOrgFlags(); err != nil {
+	if err := taskCreateFlags.org.validOrgFlags(&flags); err != nil {
+		return err
+	}
+
+	client, err := newHTTPClient()
+	if err != nil {
 		return err
 	}
 
 	s := &http.TaskService{
-		Addr:               flags.host,
-		Token:              flags.token,
+		Client:             client,
 		InsecureSkipVerify: flags.skipVerify,
 	}
 
-	flux, err := repl.LoadQuery(args[0])
+	flux, err := readFluxQuery(args, taskCreateFlags.file)
 	if err != nil {
 		return fmt.Errorf("error parsing flux script: %s", err)
 	}
 
-	tc := platform.TaskCreate{
+	tc := influxdb.TaskCreate{
 		Flux:         flux,
 		Organization: taskCreateFlags.org.name,
 	}
@@ -93,29 +102,14 @@ func taskCreateF(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	w := internal.NewTabWriter(os.Stdout)
-	w.WriteHeaders(
-		"ID",
-		"Name",
-		"OrganizationID",
-		"Organization",
-		"AuthorizationID",
-		"Status",
-		"Every",
-		"Cron",
+	return printTasks(
+		cmd.OutOrStdout(),
+		taskPrintOpts{
+			hideHeaders: taskPrintFlags.hideHeaders,
+			json:        taskPrintFlags.json,
+			task:        t,
+		},
 	)
-	w.Write(map[string]interface{}{
-		"ID":             t.ID.String(),
-		"Name":           t.Name,
-		"OrganizationID": t.OrganizationID.String(),
-		"Organization":   t.Organization,
-		"Status":         t.Status,
-		"Every":          t.Every,
-		"Cron":           t.Cron,
-	})
-	w.Flush()
-
-	return nil
 }
 
 var taskFindFlags struct {
@@ -126,35 +120,39 @@ var taskFindFlags struct {
 	org     organization
 }
 
-func taskFindCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "find",
-		Short: "Find tasks",
-		RunE:  wrapCheckSetup(taskFindF),
-	}
+func taskFindCmd(opt genericCLIOpts) *cobra.Command {
+	cmd := opt.newCmd("list", taskFindF, true)
+	cmd.Short = "List tasks"
+	cmd.Aliases = []string{"find", "ls"}
 
 	taskFindFlags.org.register(cmd, false)
+	registerPrintOptions(cmd, &taskPrintFlags.hideHeaders, &taskPrintFlags.json)
 	cmd.Flags().StringVarP(&taskFindFlags.id, "id", "i", "", "task ID")
 	cmd.Flags().StringVarP(&taskFindFlags.user, "user-id", "n", "", "task owner ID")
-	cmd.Flags().IntVarP(&taskFindFlags.limit, "limit", "", platform.TaskDefaultPageSize, "the number of tasks to find")
+	cmd.Flags().IntVarP(&taskFindFlags.limit, "limit", "", influxdb.TaskDefaultPageSize, "the number of tasks to find")
 	cmd.Flags().BoolVar(&taskFindFlags.headers, "headers", true, "To print the table headers; defaults true")
 
 	return cmd
 }
 
 func taskFindF(cmd *cobra.Command, args []string) error {
-	if err := taskFindFlags.org.validOrgFlags(); err != nil {
+	if err := taskFindFlags.org.validOrgFlags(&flags); err != nil {
 		return err
 	}
+
+	client, err := newHTTPClient()
+	if err != nil {
+		return err
+	}
+
 	s := &http.TaskService{
-		Addr:               flags.host,
-		Token:              flags.token,
+		Client:             client,
 		InsecureSkipVerify: flags.skipVerify,
 	}
 
-	filter := platform.TaskFilter{}
+	filter := influxdb.TaskFilter{}
 	if taskFindFlags.user != "" {
-		id, err := platform.IDFromString(taskFindFlags.user)
+		id, err := influxdb.IDFromString(taskFindFlags.user)
 		if err != nil {
 			return err
 		}
@@ -165,23 +163,22 @@ func taskFindF(cmd *cobra.Command, args []string) error {
 		filter.Organization = taskFindFlags.org.name
 	}
 	if taskFindFlags.org.id != "" {
-		id, err := platform.IDFromString(taskFindFlags.org.id)
+		id, err := influxdb.IDFromString(taskFindFlags.org.id)
 		if err != nil {
 			return err
 		}
 		filter.OrganizationID = id
 	}
 
-	if taskFindFlags.limit < 1 || taskFindFlags.limit > platform.TaskMaxPageSize {
-		return fmt.Errorf("limit must be between 1 and %d", platform.TaskMaxPageSize)
+	if taskFindFlags.limit < 1 || taskFindFlags.limit > influxdb.TaskMaxPageSize {
+		return fmt.Errorf("limit must be between 1 and %d", influxdb.TaskMaxPageSize)
 	}
 	filter.Limit = taskFindFlags.limit
 
 	var tasks []http.Task
-	var err error
 
 	if taskFindFlags.id != "" {
-		id, err := platform.IDFromString(taskFindFlags.id)
+		id, err := influxdb.IDFromString(taskFindFlags.id)
 		if err != nil {
 			return err
 		}
@@ -199,72 +196,60 @@ func taskFindF(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	w := internal.NewTabWriter(os.Stdout)
-	w.HideHeaders(!taskFindFlags.headers)
-	w.WriteHeaders(
-		"ID",
-		"Name",
-		"OrganizationID",
-		"Organization",
-		"AuthorizationID",
-		"Status",
-		"Every",
-		"Cron",
+	return printTasks(
+		cmd.OutOrStdout(),
+		taskPrintOpts{
+			hideHeaders: taskPrintFlags.hideHeaders,
+			json:        taskPrintFlags.json,
+			tasks:       tasks,
+		},
 	)
-	for _, t := range tasks {
-		w.Write(map[string]interface{}{
-			"ID":             t.ID.String(),
-			"Name":           t.Name,
-			"OrganizationID": t.OrganizationID.String(),
-			"Organization":   t.Organization,
-			"Status":         t.Status,
-			"Every":          t.Every,
-			"Cron":           t.Cron,
-		})
-	}
-	w.Flush()
-
-	return nil
 }
 
 var taskUpdateFlags struct {
 	id     string
 	status string
+	file   string
 }
 
-func taskUpdateCmd() *cobra.Command {
-	taskUpdateCmd := &cobra.Command{
-		Use:   "update",
-		Short: "Update task",
-		RunE:  wrapCheckSetup(taskUpdateF),
-	}
+func taskUpdateCmd(opt genericCLIOpts) *cobra.Command {
+	cmd := opt.newCmd("update", taskUpdateF, true)
+	cmd.Short = "Update task"
+	cmd.Long = `Update task status or script. Provide a Flux script via the first argument or a file. Use '-' argument to read from stdin.`
 
-	taskUpdateCmd.Flags().StringVarP(&taskUpdateFlags.id, "id", "i", "", "task ID (required)")
-	taskUpdateCmd.Flags().StringVarP(&taskUpdateFlags.status, "status", "", "", "update task status")
-	taskUpdateCmd.MarkFlagRequired("id")
+	registerPrintOptions(cmd, &taskPrintFlags.hideHeaders, &taskPrintFlags.json)
+	cmd.Flags().StringVarP(&taskUpdateFlags.id, "id", "i", "", "task ID (required)")
+	cmd.Flags().StringVarP(&taskUpdateFlags.status, "status", "", "", "update task status")
+	cmd.Flags().StringVarP(&taskUpdateFlags.file, "file", "f", "", "Path to Flux script file")
+	cmd.MarkFlagRequired("id")
 
-	return taskUpdateCmd
+	return cmd
 }
 
 func taskUpdateF(cmd *cobra.Command, args []string) error {
+	client, err := newHTTPClient()
+	if err != nil {
+		return err
+	}
+
 	s := &http.TaskService{
-		Addr:               flags.host,
-		Token:              flags.token,
+		Client:             client,
 		InsecureSkipVerify: flags.skipVerify,
 	}
 
-	var id platform.ID
+	var id influxdb.ID
 	if err := id.DecodeFromString(taskUpdateFlags.id); err != nil {
 		return err
 	}
 
-	update := platform.TaskUpdate{}
+	var update influxdb.TaskUpdate
 	if taskUpdateFlags.status != "" {
 		update.Status = &taskUpdateFlags.status
 	}
 
-	if len(args) > 0 {
-		flux, err := repl.LoadQuery(args[0])
+	// update flux script only if first arg or file is supplied
+	if (len(args) > 0 && len(args[0]) > 0) || len(taskUpdateFlags.file) > 0 {
+		flux, err := readFluxQuery(args, taskUpdateFlags.file)
 		if err != nil {
 			return fmt.Errorf("error parsing flux script: %s", err)
 		}
@@ -276,42 +261,25 @@ func taskUpdateF(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	w := internal.NewTabWriter(os.Stdout)
-	w.WriteHeaders(
-		"ID",
-		"Name",
-		"OrganizationID",
-		"Organization",
-		"AuthorizationID",
-		"Status",
-		"Every",
-		"Cron",
+	return printTasks(
+		cmd.OutOrStdout(),
+		taskPrintOpts{
+			hideHeaders: taskPrintFlags.hideHeaders,
+			json:        taskPrintFlags.json,
+			task:        t,
+		},
 	)
-	w.Write(map[string]interface{}{
-		"ID":             t.ID.String(),
-		"Name":           t.Name,
-		"OrganizationID": t.OrganizationID.String(),
-		"Organization":   t.Organization,
-		"Status":         t.Status,
-		"Every":          t.Every,
-		"Cron":           t.Cron,
-	})
-	w.Flush()
-
-	return nil
 }
 
 var taskDeleteFlags struct {
 	id string
 }
 
-func taskDeleteCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "delete",
-		Short: "Delete task",
-		RunE:  wrapCheckSetup(taskDeleteF),
-	}
+func taskDeleteCmd(opt genericCLIOpts) *cobra.Command {
+	cmd := opt.newCmd("delete", taskDeleteF, true)
+	cmd.Short = "Delete task"
 
+	registerPrintOptions(cmd, &taskPrintFlags.hideHeaders, &taskPrintFlags.json)
 	cmd.Flags().StringVarP(&taskDeleteFlags.id, "id", "i", "", "task id (required)")
 	cmd.MarkFlagRequired("id")
 
@@ -319,14 +287,18 @@ func taskDeleteCmd() *cobra.Command {
 }
 
 func taskDeleteF(cmd *cobra.Command, args []string) error {
+	client, err := newHTTPClient()
+	if err != nil {
+		return err
+	}
+
 	s := &http.TaskService{
-		Addr:               flags.host,
-		Token:              flags.token,
+		Client:             client,
 		InsecureSkipVerify: flags.skipVerify,
 	}
 
-	var id platform.ID
-	err := id.DecodeFromString(taskDeleteFlags.id)
+	var id influxdb.ID
+	err = id.DecodeFromString(taskDeleteFlags.id)
 	if err != nil {
 		return err
 	}
@@ -341,40 +313,73 @@ func taskDeleteF(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	w := internal.NewTabWriter(os.Stdout)
-	w.WriteHeaders(
+	return printTasks(
+		cmd.OutOrStdout(),
+		taskPrintOpts{
+			hideHeaders: taskPrintFlags.hideHeaders,
+			json:        taskPrintFlags.json,
+			task:        t,
+		},
+	)
+}
+
+type taskPrintOpts struct {
+	hideHeaders bool
+	json        bool
+	task        *http.Task
+	tasks       []http.Task
+}
+
+func printTasks(w io.Writer, opts taskPrintOpts) error {
+	if opts.json {
+		var v interface{} = opts.tasks
+		if opts.task != nil {
+			v = opts.task
+		}
+		return writeJSON(w, v)
+	}
+
+	tabW := internal.NewTabWriter(os.Stdout)
+	defer tabW.Flush()
+
+	tabW.HideHeaders(opts.hideHeaders)
+
+	tabW.WriteHeaders(
 		"ID",
 		"Name",
-		"OrganizationID",
+		"Organization ID",
 		"Organization",
-		"AuthorizationID",
 		"Status",
 		"Every",
 		"Cron",
 	)
-	w.Write(map[string]interface{}{
-		"ID":             t.ID.String(),
-		"Name":           t.Name,
-		"OrganizationID": t.OrganizationID.String(),
-		"Organization":   t.Organization,
-		"Status":         t.Status,
-		"Every":          t.Every,
-		"Cron":           t.Cron,
-	})
-	w.Flush()
+
+	if opts.task != nil {
+		opts.tasks = append(opts.tasks, *opts.task)
+	}
+
+	for _, t := range opts.tasks {
+		tabW.Write(map[string]interface{}{
+			"ID":              t.ID.String(),
+			"Name":            t.Name,
+			"Organization ID": t.OrganizationID.String(),
+			"Organization":    t.Organization,
+			"Status":          t.Status,
+			"Every":           t.Every,
+			"Cron":            t.Cron,
+		})
+	}
 
 	return nil
 }
 
-func taskLogCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "log",
-		Short: "Log related commands",
-		Run:   seeHelp,
-	}
+func taskLogCmd(opt genericCLIOpts) *cobra.Command {
+	cmd := opt.newCmd("log", nil, false)
+	cmd.Run = seeHelp
+	cmd.Short = "Log related commands"
 
 	cmd.AddCommand(
-		taskLogFindCmd(),
+		taskLogFindCmd(opt),
 	)
 
 	return cmd
@@ -385,13 +390,12 @@ var taskLogFindFlags struct {
 	runID  string
 }
 
-func taskLogFindCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "find",
-		Short: "find logs for task",
-		RunE:  wrapCheckSetup(taskLogFindF),
-	}
+func taskLogFindCmd(opt genericCLIOpts) *cobra.Command {
+	cmd := opt.newCmd("list", taskLogFindF, true)
+	cmd.Short = "List logs for task"
+	cmd.Aliases = []string{"find", "ls"}
 
+	registerPrintOptions(cmd, &taskPrintFlags.hideHeaders, &taskPrintFlags.json)
 	cmd.Flags().StringVarP(&taskLogFindFlags.taskID, "task-id", "", "", "task id (required)")
 	cmd.Flags().StringVarP(&taskLogFindFlags.runID, "run-id", "", "", "run id")
 	cmd.MarkFlagRequired("task-id")
@@ -400,21 +404,25 @@ func taskLogFindCmd() *cobra.Command {
 }
 
 func taskLogFindF(cmd *cobra.Command, args []string) error {
+	client, err := newHTTPClient()
+	if err != nil {
+		return err
+	}
+
 	s := &http.TaskService{
-		Addr:               flags.host,
-		Token:              flags.token,
+		Client:             client,
 		InsecureSkipVerify: flags.skipVerify,
 	}
 
-	var filter platform.LogFilter
-	id, err := platform.IDFromString(taskLogFindFlags.taskID)
+	var filter influxdb.LogFilter
+	id, err := influxdb.IDFromString(taskLogFindFlags.taskID)
 	if err != nil {
 		return err
 	}
 	filter.Task = *id
 
 	if taskLogFindFlags.runID != "" {
-		id, err := platform.IDFromString(taskLogFindFlags.runID)
+		id, err := influxdb.IDFromString(taskLogFindFlags.runID)
 		if err != nil {
 			return err
 		}
@@ -427,33 +435,35 @@ func taskLogFindF(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	w := internal.NewTabWriter(os.Stdout)
-	w.WriteHeaders(
-		"RunID",
-		"Time",
-		"Message",
-	)
+	w := cmd.OutOrStdout()
+	if taskPrintFlags.json {
+		return writeJSON(w, logs)
+	}
+
+	tabW := internal.NewTabWriter(w)
+	defer tabW.Flush()
+
+	tabW.HideHeaders(taskPrintFlags.hideHeaders)
+
+	tabW.WriteHeaders("RunID", "Time", "Message")
 	for _, log := range logs {
-		w.Write(map[string]interface{}{
+		tabW.Write(map[string]interface{}{
 			"RunID":   log.RunID,
 			"Time":    log.Time,
 			"Message": log.Message,
 		})
 	}
-	w.Flush()
 
 	return nil
 }
 
-func taskRunCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "run",
-		Short: "Run related commands",
-		Run:   seeHelp,
-	}
+func taskRunCmd(opt genericCLIOpts) *cobra.Command {
+	cmd := opt.newCmd("run", nil, false)
+	cmd.Run = seeHelp
+	cmd.Short = "List runs for a task"
 	cmd.AddCommand(
-		taskRunFindCmd(),
-		taskRunRetryCmd(),
+		taskRunFindCmd(opt),
+		taskRunRetryCmd(opt),
 	)
 
 	return cmd
@@ -467,13 +477,12 @@ var taskRunFindFlags struct {
 	limit      int
 }
 
-func taskRunFindCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "find",
-		Short: "find runs for a task",
-		RunE:  wrapCheckSetup(taskRunFindF),
-	}
+func taskRunFindCmd(opt genericCLIOpts) *cobra.Command {
+	cmd := opt.newCmd("list", taskRunFindF, true)
+	cmd.Short = "List runs for a task"
+	cmd.Aliases = []string{"find", "ls"}
 
+	registerPrintOptions(cmd, &taskPrintFlags.hideHeaders, &taskPrintFlags.json)
 	cmd.Flags().StringVarP(&taskRunFindFlags.taskID, "task-id", "", "", "task id (required)")
 	cmd.Flags().StringVarP(&taskRunFindFlags.runID, "run-id", "", "", "run id")
 	cmd.Flags().StringVarP(&taskRunFindFlags.afterTime, "after", "", "", "after time for filtering")
@@ -486,26 +495,30 @@ func taskRunFindCmd() *cobra.Command {
 }
 
 func taskRunFindF(cmd *cobra.Command, args []string) error {
+	client, err := newHTTPClient()
+	if err != nil {
+		return err
+	}
+
 	s := &http.TaskService{
-		Addr:               flags.host,
-		Token:              flags.token,
+		Client:             client,
 		InsecureSkipVerify: flags.skipVerify,
 	}
 
-	filter := platform.RunFilter{
+	filter := influxdb.RunFilter{
 		Limit:      taskRunFindFlags.limit,
 		AfterTime:  taskRunFindFlags.afterTime,
 		BeforeTime: taskRunFindFlags.beforeTime,
 	}
-	taskID, err := platform.IDFromString(taskRunFindFlags.taskID)
+	taskID, err := influxdb.IDFromString(taskRunFindFlags.taskID)
 	if err != nil {
 		return err
 	}
 	filter.Task = *taskID
 
-	var runs []*platform.Run
+	var runs []*influxdb.Run
 	if taskRunFindFlags.runID != "" {
-		id, err := platform.IDFromString(taskRunFindFlags.runID)
+		id, err := influxdb.IDFromString(taskRunFindFlags.runID)
 		if err != nil {
 			return err
 		}
@@ -521,8 +534,21 @@ func taskRunFindF(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	w := internal.NewTabWriter(os.Stdout)
-	w.WriteHeaders(
+	w := cmd.OutOrStdout()
+	if taskPrintFlags.json {
+		if runs == nil {
+			// guarantee we never return a null value from CLI
+			runs = make([]*influxdb.Run, 0)
+		}
+		return writeJSON(w, runs)
+	}
+
+	tabW := internal.NewTabWriter(w)
+	defer tabW.Flush()
+
+	tabW.HideHeaders(taskPrintFlags.hideHeaders)
+
+	tabW.WriteHeaders(
 		"ID",
 		"TaskID",
 		"Status",
@@ -538,7 +564,7 @@ func taskRunFindF(cmd *cobra.Command, args []string) error {
 		finishedAt := r.FinishedAt.Format(time.RFC3339Nano)
 		requestedAt := r.RequestedAt.Format(time.RFC3339Nano)
 
-		w.Write(map[string]interface{}{
+		tabW.Write(map[string]interface{}{
 			"ID":           r.ID,
 			"TaskID":       r.TaskID,
 			"Status":       r.Status,
@@ -548,7 +574,6 @@ func taskRunFindF(cmd *cobra.Command, args []string) error {
 			"RequestedAt":  requestedAt,
 		})
 	}
-	w.Flush()
 
 	return nil
 }
@@ -557,12 +582,9 @@ var runRetryFlags struct {
 	taskID, runID string
 }
 
-func taskRunRetryCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "retry",
-		Short: "retry a run",
-		RunE:  wrapCheckSetup(runRetryF),
-	}
+func taskRunRetryCmd(opt genericCLIOpts) *cobra.Command {
+	cmd := opt.newCmd("retry", runRetryF, true)
+	cmd.Short = "retry a run"
 
 	cmd.Flags().StringVarP(&runRetryFlags.taskID, "task-id", "i", "", "task id (required)")
 	cmd.Flags().StringVarP(&runRetryFlags.runID, "run-id", "r", "", "run id (required)")
@@ -573,13 +595,17 @@ func taskRunRetryCmd() *cobra.Command {
 }
 
 func runRetryF(cmd *cobra.Command, args []string) error {
+	client, err := newHTTPClient()
+	if err != nil {
+		return err
+	}
+
 	s := &http.TaskService{
-		Addr:               flags.host,
-		Token:              flags.token,
+		Client:             client,
 		InsecureSkipVerify: flags.skipVerify,
 	}
 
-	var taskID, runID platform.ID
+	var taskID, runID influxdb.ID
 	if err := taskID.DecodeFromString(runRetryFlags.taskID); err != nil {
 		return err
 	}

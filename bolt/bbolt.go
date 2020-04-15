@@ -8,9 +8,9 @@ import (
 	"time"
 
 	bolt "github.com/coreos/bbolt"
-	platform "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/rand"
-	"github.com/influxdata/influxdb/snowflake"
+	platform "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/rand"
+	"github.com/influxdata/influxdb/v2/snowflake"
 	"go.uber.org/zap"
 )
 
@@ -85,6 +85,7 @@ func (c *Client) initialize(ctx context.Context) error {
 			organizationBucket,
 			scraperBucket,
 			telegrafBucket,
+			telegrafPluginsBucket,
 			userBucket,
 		}
 		for _, bktName := range bkts {

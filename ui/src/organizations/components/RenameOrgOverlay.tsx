@@ -47,7 +47,7 @@ class RenameOrgOverlay extends PureComponent<WithRouterProps> {
       params: {orgID},
     } = this.props
 
-    router.push(`/orgs/${orgID}/settings/profile`)
+    router.push(`/orgs/${orgID}/settings/about`)
   }
 }
 

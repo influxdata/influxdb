@@ -45,7 +45,7 @@ describe('The Query Builder', () => {
 
       cy.get('.giraffe-plot').should('exist')
 
-      cy.contains('Save As').click()
+      cy.getByTestID('save-query-as').click()
 
       // open the dashboard selector dropdown
       cy.getByTestID('save-as-dashboard-cell--dropdown').click()
@@ -66,7 +66,7 @@ describe('The Query Builder', () => {
 
       // force a click on the hidden dashboard nav item (cypress can't do the hover)
       // i assure you i spent a nonzero amount of time trying to do this the way a user would
-      cy.getByTestID('nav-menu_dashboard').click({force: true})
+      cy.getByTestID('nav-item-dashboards').click()
 
       cy.contains('Basic Ole Dashboard').click()
       cy.getByTestID('cell-context--toggle').click()
@@ -78,7 +78,7 @@ describe('The Query Builder', () => {
       cy.contains('Submit').click()
       cy.getByTestID('save-cell--button').click()
 
-      cy.getByTestID('nav-menu_dashboard').click({force: true})
+      cy.getByTestID('nav-item-dashboards').click()
 
       cy.contains('Basic Ole Dashboard').click()
       cy.getByTestID('cell-context--toggle').click()
@@ -87,6 +87,41 @@ describe('The Query Builder', () => {
       cy.get('.giraffe-plot').should('exist')
       cy.getByTestID('cancel-cell-edit--button').click()
       cy.contains('Basic Ole Dashboard').should('exist')
+    })
+  })
+
+  describe('the group() function', () => {
+    it('creates a query that has a group() function in it', () => {
+      cy.get('@org').then((org: Organization) => {
+        cy.visit(`orgs/${org.id}/data-explorer`)
+      })
+
+      cy.contains('mem').click('left')
+      cy.getByTestID('builder-card')
+        .last()
+        .contains('Filter')
+        .click()
+        .get('.cf-dropdown--menu-container')
+        .contains('group')
+        .click()
+
+      const groupableColums = []
+
+      cy.getByTestID('builder-card')
+        .last()
+        .then($lastBuilderCard => {
+          $lastBuilderCard.find('.selector-list--item').each((index, $item) => {
+            groupableColums.push($item.innerHTML)
+          })
+
+          expect(groupableColums).to.eql([
+            '_start',
+            '_stop',
+            '_time',
+            '_measurement',
+            '_field',
+          ])
+        })
     })
   })
 

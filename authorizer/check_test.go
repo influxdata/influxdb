@@ -6,14 +6,13 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/influxdata/influxdb/notification/check"
-
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/authorizer"
-	influxdbcontext "github.com/influxdata/influxdb/context"
-	"github.com/influxdata/influxdb/mock"
-	influxdbtesting "github.com/influxdata/influxdb/testing"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/authorizer"
+	influxdbcontext "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/mock"
+	"github.com/influxdata/influxdb/v2/notification/check"
+	influxdbtesting "github.com/influxdata/influxdb/v2/testing"
 )
 
 var checkCmpOptions = cmp.Options{
@@ -63,10 +62,10 @@ func TestCheckService_FindCheckByID(t *testing.T) {
 			},
 			args: args{
 				permission: influxdb.Permission{
-					Action: "read",
+					Action: influxdb.ReadAction,
 					Resource: influxdb.Resource{
-						Type: influxdb.OrgsResourceType,
-						ID:   influxdbtesting.IDPtr(10),
+						Type:  influxdb.ChecksResourceType,
+						OrgID: influxdbtesting.IDPtr(10),
 					},
 				},
 				id: 1,
@@ -91,17 +90,17 @@ func TestCheckService_FindCheckByID(t *testing.T) {
 			},
 			args: args{
 				permission: influxdb.Permission{
-					Action: "read",
+					Action: influxdb.ReadAction,
 					Resource: influxdb.Resource{
-						Type: influxdb.OrgsResourceType,
-						ID:   influxdbtesting.IDPtr(2),
+						Type:  influxdb.ChecksResourceType,
+						OrgID: influxdbtesting.IDPtr(2),
 					},
 				},
 				id: 1,
 			},
 			wants: wants{
 				err: &influxdb.Error{
-					Msg:  "read:orgs/000000000000000a is unauthorized",
+					Msg:  "read:orgs/000000000000000a/checks/0000000000000001 is unauthorized",
 					Code: influxdb.EUnauthorized,
 				},
 			},
@@ -113,7 +112,7 @@ func TestCheckService_FindCheckByID(t *testing.T) {
 			s := authorizer.NewCheckService(tt.fields.CheckService, mock.NewUserResourceMappingService(), mock.NewOrganizationService())
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			_, err := s.FindCheckByID(ctx, tt.args.id)
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
@@ -169,9 +168,9 @@ func TestCheckService_FindChecks(t *testing.T) {
 			},
 			args: args{
 				permission: influxdb.Permission{
-					Action: "read",
+					Action: influxdb.ReadAction,
 					Resource: influxdb.Resource{
-						Type: influxdb.OrgsResourceType,
+						Type: influxdb.ChecksResourceType,
 					},
 				},
 			},
@@ -228,10 +227,10 @@ func TestCheckService_FindChecks(t *testing.T) {
 			},
 			args: args{
 				permission: influxdb.Permission{
-					Action: "read",
+					Action: influxdb.ReadAction,
 					Resource: influxdb.Resource{
-						Type: influxdb.OrgsResourceType,
-						ID:   influxdbtesting.IDPtr(10),
+						Type:  influxdb.ChecksResourceType,
+						OrgID: influxdbtesting.IDPtr(10),
 					},
 				},
 			},
@@ -259,7 +258,7 @@ func TestCheckService_FindChecks(t *testing.T) {
 			s := authorizer.NewCheckService(tt.fields.CheckService, mock.NewUserResourceMappingService(), mock.NewOrganizationService())
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			ts, _, err := s.FindChecks(ctx, influxdb.CheckFilter{})
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
@@ -315,17 +314,17 @@ func TestCheckService_UpdateCheck(t *testing.T) {
 				id: 1,
 				permissions: []influxdb.Permission{
 					{
-						Action: "write",
+						Action: influxdb.WriteAction,
 						Resource: influxdb.Resource{
-							Type: influxdb.OrgsResourceType,
-							ID:   influxdbtesting.IDPtr(10),
+							Type:  influxdb.ChecksResourceType,
+							OrgID: influxdbtesting.IDPtr(10),
 						},
 					},
 					{
-						Action: "read",
+						Action: influxdb.ReadAction,
 						Resource: influxdb.Resource{
-							Type: influxdb.OrgsResourceType,
-							ID:   influxdbtesting.IDPtr(10),
+							Type:  influxdb.ChecksResourceType,
+							OrgID: influxdbtesting.IDPtr(10),
 						},
 					},
 				},
@@ -360,17 +359,17 @@ func TestCheckService_UpdateCheck(t *testing.T) {
 				id: 1,
 				permissions: []influxdb.Permission{
 					{
-						Action: "read",
+						Action: influxdb.ReadAction,
 						Resource: influxdb.Resource{
-							Type: influxdb.OrgsResourceType,
-							ID:   influxdbtesting.IDPtr(10),
+							Type:  influxdb.ChecksResourceType,
+							OrgID: influxdbtesting.IDPtr(10),
 						},
 					},
 				},
 			},
 			wants: wants{
 				err: &influxdb.Error{
-					Msg:  "write:orgs/000000000000000a is unauthorized",
+					Msg:  "write:orgs/000000000000000a/checks/0000000000000001 is unauthorized",
 					Code: influxdb.EUnauthorized,
 				},
 			},
@@ -382,7 +381,7 @@ func TestCheckService_UpdateCheck(t *testing.T) {
 			s := authorizer.NewCheckService(tt.fields.CheckService, mock.NewUserResourceMappingService(), mock.NewOrganizationService())
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{tt.args.permissions})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			cc := influxdb.CheckCreate{
 				Check:  &check.Deadman{},
@@ -439,17 +438,17 @@ func TestCheckService_PatchCheck(t *testing.T) {
 				id: 1,
 				permissions: []influxdb.Permission{
 					{
-						Action: "write",
+						Action: influxdb.WriteAction,
 						Resource: influxdb.Resource{
-							Type: influxdb.OrgsResourceType,
-							ID:   influxdbtesting.IDPtr(10),
+							Type:  influxdb.ChecksResourceType,
+							OrgID: influxdbtesting.IDPtr(10),
 						},
 					},
 					{
-						Action: "read",
+						Action: influxdb.ReadAction,
 						Resource: influxdb.Resource{
-							Type: influxdb.OrgsResourceType,
-							ID:   influxdbtesting.IDPtr(10),
+							Type:  influxdb.ChecksResourceType,
+							OrgID: influxdbtesting.IDPtr(10),
 						},
 					},
 				},
@@ -484,17 +483,17 @@ func TestCheckService_PatchCheck(t *testing.T) {
 				id: 1,
 				permissions: []influxdb.Permission{
 					{
-						Action: "read",
+						Action: influxdb.ReadAction,
 						Resource: influxdb.Resource{
-							Type: influxdb.OrgsResourceType,
-							ID:   influxdbtesting.IDPtr(10),
+							Type:  influxdb.ChecksResourceType,
+							OrgID: influxdbtesting.IDPtr(10),
 						},
 					},
 				},
 			},
 			wants: wants{
 				err: &influxdb.Error{
-					Msg:  "write:orgs/000000000000000a is unauthorized",
+					Msg:  "write:orgs/000000000000000a/checks/0000000000000001 is unauthorized",
 					Code: influxdb.EUnauthorized,
 				},
 			},
@@ -506,7 +505,7 @@ func TestCheckService_PatchCheck(t *testing.T) {
 			s := authorizer.NewCheckService(tt.fields.CheckService, mock.NewUserResourceMappingService(), mock.NewOrganizationService())
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{tt.args.permissions})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			_, err := s.PatchCheck(ctx, tt.args.id, influxdb.CheckUpdate{})
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
@@ -553,17 +552,17 @@ func TestCheckService_DeleteCheck(t *testing.T) {
 				id: 1,
 				permissions: []influxdb.Permission{
 					{
-						Action: "write",
+						Action: influxdb.WriteAction,
 						Resource: influxdb.Resource{
-							Type: influxdb.OrgsResourceType,
-							ID:   influxdbtesting.IDPtr(10),
+							Type:  influxdb.ChecksResourceType,
+							OrgID: influxdbtesting.IDPtr(10),
 						},
 					},
 					{
-						Action: "read",
+						Action: influxdb.ReadAction,
 						Resource: influxdb.Resource{
-							Type: influxdb.OrgsResourceType,
-							ID:   influxdbtesting.IDPtr(10),
+							Type:  influxdb.ChecksResourceType,
+							OrgID: influxdbtesting.IDPtr(10),
 						},
 					},
 				},
@@ -593,17 +592,17 @@ func TestCheckService_DeleteCheck(t *testing.T) {
 				id: 1,
 				permissions: []influxdb.Permission{
 					{
-						Action: "read",
+						Action: influxdb.ReadAction,
 						Resource: influxdb.Resource{
-							Type: influxdb.OrgsResourceType,
-							ID:   influxdbtesting.IDPtr(10),
+							Type:  influxdb.ChecksResourceType,
+							OrgID: influxdbtesting.IDPtr(10),
 						},
 					},
 				},
 			},
 			wants: wants{
 				err: &influxdb.Error{
-					Msg:  "write:orgs/000000000000000a is unauthorized",
+					Msg:  "write:orgs/000000000000000a/checks/0000000000000001 is unauthorized",
 					Code: influxdb.EUnauthorized,
 				},
 			},
@@ -615,7 +614,7 @@ func TestCheckService_DeleteCheck(t *testing.T) {
 			s := authorizer.NewCheckService(tt.fields.CheckService, mock.NewUserResourceMappingService(), mock.NewOrganizationService())
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{tt.args.permissions})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			err := s.DeleteCheck(ctx, tt.args.id)
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
@@ -653,10 +652,10 @@ func TestCheckService_CreateCheck(t *testing.T) {
 			args: args{
 				orgID: 10,
 				permission: influxdb.Permission{
-					Action: "write",
+					Action: influxdb.WriteAction,
 					Resource: influxdb.Resource{
-						Type: influxdb.OrgsResourceType,
-						ID:   influxdbtesting.IDPtr(10),
+						Type:  influxdb.ChecksResourceType,
+						OrgID: influxdbtesting.IDPtr(10),
 					},
 				},
 			},
@@ -676,16 +675,16 @@ func TestCheckService_CreateCheck(t *testing.T) {
 			args: args{
 				orgID: 10,
 				permission: influxdb.Permission{
-					Action: "write",
+					Action: influxdb.WriteAction,
 					Resource: influxdb.Resource{
-						Type: influxdb.OrgsResourceType,
-						ID:   influxdbtesting.IDPtr(1),
+						Type:  influxdb.ChecksResourceType,
+						OrgID: influxdbtesting.IDPtr(1),
 					},
 				},
 			},
 			wants: wants{
 				err: &influxdb.Error{
-					Msg:  "write:orgs/000000000000000a is unauthorized",
+					Msg:  "write:orgs/000000000000000a/checks is unauthorized",
 					Code: influxdb.EUnauthorized,
 				},
 			},
@@ -697,7 +696,7 @@ func TestCheckService_CreateCheck(t *testing.T) {
 			s := authorizer.NewCheckService(tt.fields.CheckService, mock.NewUserResourceMappingService(), mock.NewOrganizationService())
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			c := &check.Deadman{
 				Base: check.Base{

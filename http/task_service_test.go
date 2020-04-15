@@ -14,12 +14,12 @@ import (
 	"time"
 
 	"github.com/influxdata/httprouter"
-	platform "github.com/influxdata/influxdb"
-	pcontext "github.com/influxdata/influxdb/context"
-	"github.com/influxdata/influxdb/mock"
-	_ "github.com/influxdata/influxdb/query/builtin"
-	"github.com/influxdata/influxdb/task/backend"
-	platformtesting "github.com/influxdata/influxdb/testing"
+	"github.com/influxdata/influxdb/v2"
+	pcontext "github.com/influxdata/influxdb/v2/context"
+	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
+	"github.com/influxdata/influxdb/v2/mock"
+	_ "github.com/influxdata/influxdb/v2/query/builtin"
+	influxdbtesting "github.com/influxdata/influxdb/v2/testing"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 )
@@ -33,17 +33,17 @@ func NewMockTaskBackend(t *testing.T) *TaskBackend {
 		AuthorizationService: mock.NewAuthorizationService(),
 		TaskService:          &mock.TaskService{},
 		OrganizationService: &mock.OrganizationService{
-			FindOrganizationByIDF: func(ctx context.Context, id platform.ID) (*platform.Organization, error) {
-				return &platform.Organization{ID: id, Name: "test"}, nil
+			FindOrganizationByIDF: func(ctx context.Context, id influxdb.ID) (*influxdb.Organization, error) {
+				return &influxdb.Organization{ID: id, Name: "test"}, nil
 			},
-			FindOrganizationF: func(ctx context.Context, filter platform.OrganizationFilter) (*platform.Organization, error) {
-				org := &platform.Organization{}
+			FindOrganizationF: func(ctx context.Context, filter influxdb.OrganizationFilter) (*influxdb.Organization, error) {
+				org := &influxdb.Organization{}
 				if filter.Name != nil {
 					if *filter.Name == "non-existent-org" {
-						return nil, &platform.Error{
+						return nil, &influxdb.Error{
 							Err:  errors.New("org not found or unauthorized"),
 							Msg:  "org " + *filter.Name + " not found or unauthorized",
-							Code: platform.ENotFound,
+							Code: influxdb.ENotFound,
 						}
 					}
 					org.Name = *filter.Name
@@ -63,8 +63,8 @@ func NewMockTaskBackend(t *testing.T) *TaskBackend {
 
 func TestTaskHandler_handleGetTasks(t *testing.T) {
 	type fields struct {
-		taskService  platform.TaskService
-		labelService platform.LabelService
+		taskService  influxdb.TaskService
+		labelService influxdb.LabelService
 	}
 	type wants struct {
 		statusCode  int
@@ -82,8 +82,8 @@ func TestTaskHandler_handleGetTasks(t *testing.T) {
 			name: "get tasks",
 			fields: fields{
 				taskService: &mock.TaskService{
-					FindTasksFn: func(ctx context.Context, f platform.TaskFilter) ([]*platform.Task, int, error) {
-						tasks := []*platform.Task{
+					FindTasksFn: func(ctx context.Context, f influxdb.TaskFilter) ([]*influxdb.Task, int, error) {
+						tasks := []*influxdb.Task{
 							{
 								ID:              1,
 								Name:            "task1",
@@ -106,10 +106,10 @@ func TestTaskHandler_handleGetTasks(t *testing.T) {
 					},
 				},
 				labelService: &mock.LabelService{
-					FindResourceLabelsFn: func(ctx context.Context, f platform.LabelMappingFilter) ([]*platform.Label, error) {
-						labels := []*platform.Label{
+					FindResourceLabelsFn: func(ctx context.Context, f influxdb.LabelMappingFilter) ([]*influxdb.Label, error) {
+						labels := []*influxdb.Label{
 							{
-								ID:   platformtesting.MustIDBase16("fc3dc670a4be9b9a"),
+								ID:   influxdbtesting.MustIDBase16("fc3dc670a4be9b9a"),
 								Name: "label",
 								Properties: map[string]string{
 									"color": "fff000",
@@ -191,8 +191,8 @@ func TestTaskHandler_handleGetTasks(t *testing.T) {
 			getParams: "after=0000000000000001&limit=1",
 			fields: fields{
 				taskService: &mock.TaskService{
-					FindTasksFn: func(ctx context.Context, f platform.TaskFilter) ([]*platform.Task, int, error) {
-						tasks := []*platform.Task{
+					FindTasksFn: func(ctx context.Context, f influxdb.TaskFilter) ([]*influxdb.Task, int, error) {
+						tasks := []*influxdb.Task{
 							{
 								ID:              2,
 								Name:            "task2",
@@ -206,10 +206,10 @@ func TestTaskHandler_handleGetTasks(t *testing.T) {
 					},
 				},
 				labelService: &mock.LabelService{
-					FindResourceLabelsFn: func(ctx context.Context, f platform.LabelMappingFilter) ([]*platform.Label, error) {
-						labels := []*platform.Label{
+					FindResourceLabelsFn: func(ctx context.Context, f influxdb.LabelMappingFilter) ([]*influxdb.Label, error) {
+						labels := []*influxdb.Label{
 							{
-								ID:   platformtesting.MustIDBase16("fc3dc670a4be9b9a"),
+								ID:   influxdbtesting.MustIDBase16("fc3dc670a4be9b9a"),
 								Name: "label",
 								Properties: map[string]string{
 									"color": "fff000",
@@ -265,8 +265,8 @@ func TestTaskHandler_handleGetTasks(t *testing.T) {
 			getParams: "org=test2",
 			fields: fields{
 				taskService: &mock.TaskService{
-					FindTasksFn: func(ctx context.Context, f platform.TaskFilter) ([]*platform.Task, int, error) {
-						tasks := []*platform.Task{
+					FindTasksFn: func(ctx context.Context, f influxdb.TaskFilter) ([]*influxdb.Task, int, error) {
+						tasks := []*influxdb.Task{
 							{
 								ID:              2,
 								Name:            "task2",
@@ -280,10 +280,10 @@ func TestTaskHandler_handleGetTasks(t *testing.T) {
 					},
 				},
 				labelService: &mock.LabelService{
-					FindResourceLabelsFn: func(ctx context.Context, f platform.LabelMappingFilter) ([]*platform.Label, error) {
-						labels := []*platform.Label{
+					FindResourceLabelsFn: func(ctx context.Context, f influxdb.LabelMappingFilter) ([]*influxdb.Label, error) {
+						labels := []*influxdb.Label{
 							{
-								ID:   platformtesting.MustIDBase16("fc3dc670a4be9b9a"),
+								ID:   influxdbtesting.MustIDBase16("fc3dc670a4be9b9a"),
 								Name: "label",
 								Properties: map[string]string{
 									"color": "fff000",
@@ -338,8 +338,8 @@ func TestTaskHandler_handleGetTasks(t *testing.T) {
 			getParams: "org=non-existent-org",
 			fields: fields{
 				taskService: &mock.TaskService{
-					FindTasksFn: func(ctx context.Context, f platform.TaskFilter) ([]*platform.Task, int, error) {
-						tasks := []*platform.Task{
+					FindTasksFn: func(ctx context.Context, f influxdb.TaskFilter) ([]*influxdb.Task, int, error) {
+						tasks := []*influxdb.Task{
 							{
 								ID:              1,
 								Name:            "task1",
@@ -361,10 +361,10 @@ func TestTaskHandler_handleGetTasks(t *testing.T) {
 					},
 				},
 				labelService: &mock.LabelService{
-					FindResourceLabelsFn: func(ctx context.Context, f platform.LabelMappingFilter) ([]*platform.Label, error) {
-						labels := []*platform.Label{
+					FindResourceLabelsFn: func(ctx context.Context, f influxdb.LabelMappingFilter) ([]*influxdb.Label, error) {
+						labels := []*influxdb.Label{
 							{
-								ID:   platformtesting.MustIDBase16("fc3dc670a4be9b9a"),
+								ID:   influxdbtesting.MustIDBase16("fc3dc670a4be9b9a"),
 								Name: "label",
 								Properties: map[string]string{
 									"color": "fff000",
@@ -392,7 +392,7 @@ func TestTaskHandler_handleGetTasks(t *testing.T) {
 			w := httptest.NewRecorder()
 
 			taskBackend := NewMockTaskBackend(t)
-			taskBackend.HTTPErrorHandler = ErrorHandler(0)
+			taskBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
 			taskBackend.TaskService = tt.fields.taskService
 			taskBackend.LabelService = tt.fields.labelService
 			h := NewTaskHandler(zaptest.NewLogger(t), taskBackend)
@@ -421,10 +421,10 @@ func TestTaskHandler_handleGetTasks(t *testing.T) {
 
 func TestTaskHandler_handlePostTasks(t *testing.T) {
 	type args struct {
-		taskCreate platform.TaskCreate
+		taskCreate influxdb.TaskCreate
 	}
 	type fields struct {
-		taskService platform.TaskService
+		taskService influxdb.TaskService
 	}
 	type wants struct {
 		statusCode  int
@@ -441,15 +441,15 @@ func TestTaskHandler_handlePostTasks(t *testing.T) {
 		{
 			name: "create task",
 			args: args{
-				taskCreate: platform.TaskCreate{
+				taskCreate: influxdb.TaskCreate{
 					OrganizationID: 1,
 					Flux:           "abc",
 				},
 			},
 			fields: fields{
 				taskService: &mock.TaskService{
-					CreateTaskFn: func(ctx context.Context, tc platform.TaskCreate) (*platform.Task, error) {
-						return &platform.Task{
+					CreateTaskFn: func(ctx context.Context, tc influxdb.TaskCreate) (*influxdb.Task, error) {
+						return &influxdb.Task{
 							ID:             1,
 							Name:           "task1",
 							Description:    "Brand New Task",
@@ -488,20 +488,20 @@ func TestTaskHandler_handlePostTasks(t *testing.T) {
 			},
 		},
 		{
-			name: "create task - platform error creating task",
+			name: "create task - influxdb error creating task",
 			args: args{
-				taskCreate: platform.TaskCreate{
+				taskCreate: influxdb.TaskCreate{
 					OrganizationID: 1,
 					Flux:           "abc",
 				},
 			},
 			fields: fields{
 				taskService: &mock.TaskService{
-					CreateTaskFn: func(ctx context.Context, tc platform.TaskCreate) (*platform.Task, error) {
-						return nil, platform.NewError(
-							platform.WithErrorErr(errors.New("something went wrong")),
-							platform.WithErrorMsg("something really went wrong"),
-							platform.WithErrorCode(platform.EInvalid),
+					CreateTaskFn: func(ctx context.Context, tc influxdb.TaskCreate) (*influxdb.Task, error) {
+						return nil, influxdb.NewError(
+							influxdb.WithErrorErr(errors.New("something went wrong")),
+							influxdb.WithErrorMsg("something really went wrong"),
+							influxdb.WithErrorCode(influxdb.EInvalid),
 						)
 					},
 				},
@@ -520,14 +520,14 @@ func TestTaskHandler_handlePostTasks(t *testing.T) {
 		{
 			name: "create task - error creating task",
 			args: args{
-				taskCreate: platform.TaskCreate{
+				taskCreate: influxdb.TaskCreate{
 					OrganizationID: 1,
 					Flux:           "abc",
 				},
 			},
 			fields: fields{
 				taskService: &mock.TaskService{
-					CreateTaskFn: func(ctx context.Context, tc platform.TaskCreate) (*platform.Task, error) {
+					CreateTaskFn: func(ctx context.Context, tc influxdb.TaskCreate) (*influxdb.Task, error) {
 						return nil, errors.New("something bad happened")
 					},
 				},
@@ -553,13 +553,13 @@ func TestTaskHandler_handlePostTasks(t *testing.T) {
 			}
 
 			r := httptest.NewRequest("POST", "http://any.url", bytes.NewReader(b))
-			ctx := pcontext.SetAuthorizer(context.TODO(), new(platform.Authorization))
+			ctx := pcontext.SetAuthorizer(context.TODO(), new(influxdb.Authorization))
 			r = r.WithContext(ctx)
 
 			w := httptest.NewRecorder()
 
 			taskBackend := NewMockTaskBackend(t)
-			taskBackend.HTTPErrorHandler = ErrorHandler(0)
+			taskBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
 			taskBackend.TaskService = tt.fields.taskService
 			h := NewTaskHandler(zaptest.NewLogger(t), taskBackend)
 			h.handlePostTask(w, r)
@@ -587,11 +587,11 @@ func TestTaskHandler_handlePostTasks(t *testing.T) {
 
 func TestTaskHandler_handleGetRun(t *testing.T) {
 	type fields struct {
-		taskService platform.TaskService
+		taskService influxdb.TaskService
 	}
 	type args struct {
-		taskID platform.ID
-		runID  platform.ID
+		taskID influxdb.ID
+		runID  influxdb.ID
 	}
 	type wants struct {
 		statusCode  int
@@ -609,12 +609,12 @@ func TestTaskHandler_handleGetRun(t *testing.T) {
 			name: "get a run by id",
 			fields: fields{
 				taskService: &mock.TaskService{
-					FindRunByIDFn: func(ctx context.Context, taskID platform.ID, runID platform.ID) (*platform.Run, error) {
+					FindRunByIDFn: func(ctx context.Context, taskID influxdb.ID, runID influxdb.ID) (*influxdb.Run, error) {
 						scheduledFor, _ := time.Parse(time.RFC3339, "2018-12-01T17:00:13Z")
 						startedAt, _ := time.Parse(time.RFC3339Nano, "2018-12-01T17:00:03.155645Z")
 						finishedAt, _ := time.Parse(time.RFC3339Nano, "2018-12-01T17:00:13.155645Z")
 						requestedAt, _ := time.Parse(time.RFC3339, "2018-12-01T17:00:13Z")
-						run := platform.Run{
+						run := influxdb.Run{
 							ID:           runID,
 							TaskID:       taskID,
 							Status:       "success",
@@ -670,10 +670,10 @@ func TestTaskHandler_handleGetRun(t *testing.T) {
 						Value: tt.args.runID.String(),
 					},
 				}))
-			r = r.WithContext(pcontext.SetAuthorizer(r.Context(), &platform.Authorization{Permissions: platform.OperPermissions()}))
+			r = r.WithContext(pcontext.SetAuthorizer(r.Context(), &influxdb.Authorization{Permissions: influxdb.OperPermissions()}))
 			w := httptest.NewRecorder()
 			taskBackend := NewMockTaskBackend(t)
-			taskBackend.HTTPErrorHandler = ErrorHandler(0)
+			taskBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
 			taskBackend.TaskService = tt.fields.taskService
 			h := NewTaskHandler(zaptest.NewLogger(t), taskBackend)
 			h.handleGetRun(w, r)
@@ -701,10 +701,10 @@ func TestTaskHandler_handleGetRun(t *testing.T) {
 
 func TestTaskHandler_handleGetRuns(t *testing.T) {
 	type fields struct {
-		taskService platform.TaskService
+		taskService influxdb.TaskService
 	}
 	type args struct {
-		taskID platform.ID
+		taskID influxdb.ID
 	}
 	type wants struct {
 		statusCode  int
@@ -722,14 +722,14 @@ func TestTaskHandler_handleGetRuns(t *testing.T) {
 			name: "get runs by task id",
 			fields: fields{
 				taskService: &mock.TaskService{
-					FindRunsFn: func(ctx context.Context, f platform.RunFilter) ([]*platform.Run, int, error) {
+					FindRunsFn: func(ctx context.Context, f influxdb.RunFilter) ([]*influxdb.Run, int, error) {
 						scheduledFor, _ := time.Parse(time.RFC3339, "2018-12-01T17:00:13Z")
 						startedAt, _ := time.Parse(time.RFC3339Nano, "2018-12-01T17:00:03.155645Z")
 						finishedAt, _ := time.Parse(time.RFC3339Nano, "2018-12-01T17:00:13.155645Z")
 						requestedAt, _ := time.Parse(time.RFC3339, "2018-12-01T17:00:13Z")
-						runs := []*platform.Run{
+						runs := []*influxdb.Run{
 							{
-								ID:           platform.ID(2),
+								ID:           influxdb.ID(2),
 								TaskID:       f.Task,
 								Status:       "success",
 								ScheduledFor: scheduledFor,
@@ -788,10 +788,10 @@ func TestTaskHandler_handleGetRuns(t *testing.T) {
 						Value: tt.args.taskID.String(),
 					},
 				}))
-			r = r.WithContext(pcontext.SetAuthorizer(r.Context(), &platform.Authorization{Permissions: platform.OperPermissions()}))
+			r = r.WithContext(pcontext.SetAuthorizer(r.Context(), &influxdb.Authorization{Permissions: influxdb.OperPermissions()}))
 			w := httptest.NewRecorder()
 			taskBackend := NewMockTaskBackend(t)
-			taskBackend.HTTPErrorHandler = ErrorHandler(0)
+			taskBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
 			taskBackend.TaskService = tt.fields.taskService
 			h := NewTaskHandler(zaptest.NewLogger(t), taskBackend)
 			h.handleGetRuns(w, r)
@@ -822,23 +822,23 @@ func TestTaskHandler_NotFoundStatus(t *testing.T) {
 
 	im := newInMemKVSVC(t)
 	taskBackend := NewMockTaskBackend(t)
-	taskBackend.HTTPErrorHandler = ErrorHandler(0)
+	taskBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
 	h := NewTaskHandler(zaptest.NewLogger(t), taskBackend)
 	h.UserResourceMappingService = im
 	h.LabelService = im
 	h.UserService = im
 	h.OrganizationService = im
 
-	o := platform.Organization{Name: "o"}
+	o := influxdb.Organization{Name: "o"}
 	ctx := context.Background()
 	if err := h.OrganizationService.CreateOrganization(ctx, &o); err != nil {
 		t.Fatal(err)
 	}
 
 	// Create a session to associate with the contexts, so authorization checks pass.
-	authz := &platform.Authorization{Permissions: platform.OperPermissions()}
+	authz := &influxdb.Authorization{Permissions: influxdb.OperPermissions()}
 
-	const taskID, runID = platform.ID(0xCCCCCC), platform.ID(0xAAAAAA)
+	const taskID, runID = influxdb.ID(0xCCCCCC), influxdb.ID(0xAAAAAA)
 
 	var (
 		okTask    = []interface{}{taskID}
@@ -866,12 +866,12 @@ func TestTaskHandler_NotFoundStatus(t *testing.T) {
 		{
 			name: "get task",
 			svc: &mock.TaskService{
-				FindTaskByIDFn: func(_ context.Context, id platform.ID) (*platform.Task, error) {
+				FindTaskByIDFn: func(_ context.Context, id influxdb.ID) (*influxdb.Task, error) {
 					if id == taskID {
-						return &platform.Task{ID: taskID, Organization: "o"}, nil
+						return &influxdb.Task{ID: taskID, Organization: "o"}, nil
 					}
 
-					return nil, platform.ErrTaskNotFound
+					return nil, influxdb.ErrTaskNotFound
 				},
 			},
 			method:           http.MethodGet,
@@ -882,12 +882,12 @@ func TestTaskHandler_NotFoundStatus(t *testing.T) {
 		{
 			name: "update task",
 			svc: &mock.TaskService{
-				UpdateTaskFn: func(_ context.Context, id platform.ID, _ platform.TaskUpdate) (*platform.Task, error) {
+				UpdateTaskFn: func(_ context.Context, id influxdb.ID, _ influxdb.TaskUpdate) (*influxdb.Task, error) {
 					if id == taskID {
-						return &platform.Task{ID: taskID, Organization: "o"}, nil
+						return &influxdb.Task{ID: taskID, Organization: "o"}, nil
 					}
 
-					return nil, platform.ErrTaskNotFound
+					return nil, influxdb.ErrTaskNotFound
 				},
 			},
 			method:           http.MethodPatch,
@@ -899,12 +899,12 @@ func TestTaskHandler_NotFoundStatus(t *testing.T) {
 		{
 			name: "delete task",
 			svc: &mock.TaskService{
-				DeleteTaskFn: func(_ context.Context, id platform.ID) error {
+				DeleteTaskFn: func(_ context.Context, id influxdb.ID) error {
 					if id == taskID {
 						return nil
 					}
 
-					return platform.ErrTaskNotFound
+					return influxdb.ErrTaskNotFound
 				},
 			},
 			method:           http.MethodDelete,
@@ -915,12 +915,12 @@ func TestTaskHandler_NotFoundStatus(t *testing.T) {
 		{
 			name: "get task logs",
 			svc: &mock.TaskService{
-				FindLogsFn: func(_ context.Context, f platform.LogFilter) ([]*platform.Log, int, error) {
+				FindLogsFn: func(_ context.Context, f influxdb.LogFilter) ([]*influxdb.Log, int, error) {
 					if f.Task == taskID {
 						return nil, 0, nil
 					}
 
-					return nil, 0, platform.ErrTaskNotFound
+					return nil, 0, influxdb.ErrTaskNotFound
 				},
 			},
 			method:           http.MethodGet,
@@ -931,12 +931,12 @@ func TestTaskHandler_NotFoundStatus(t *testing.T) {
 		{
 			name: "get run logs",
 			svc: &mock.TaskService{
-				FindLogsFn: func(_ context.Context, f platform.LogFilter) ([]*platform.Log, int, error) {
+				FindLogsFn: func(_ context.Context, f influxdb.LogFilter) ([]*influxdb.Log, int, error) {
 					if f.Task != taskID {
-						return nil, 0, platform.ErrTaskNotFound
+						return nil, 0, influxdb.ErrTaskNotFound
 					}
 					if *f.Run != runID {
-						return nil, 0, platform.ErrNoRunsFound
+						return nil, 0, influxdb.ErrNoRunsFound
 					}
 
 					return nil, 0, nil
@@ -950,9 +950,9 @@ func TestTaskHandler_NotFoundStatus(t *testing.T) {
 		{
 			name: "get runs: task not found",
 			svc: &mock.TaskService{
-				FindRunsFn: func(_ context.Context, f platform.RunFilter) ([]*platform.Run, int, error) {
+				FindRunsFn: func(_ context.Context, f influxdb.RunFilter) ([]*influxdb.Run, int, error) {
 					if f.Task != taskID {
-						return nil, 0, platform.ErrTaskNotFound
+						return nil, 0, influxdb.ErrTaskNotFound
 					}
 
 					return nil, 0, nil
@@ -966,9 +966,9 @@ func TestTaskHandler_NotFoundStatus(t *testing.T) {
 		{
 			name: "get runs: task found but no runs found",
 			svc: &mock.TaskService{
-				FindRunsFn: func(_ context.Context, f platform.RunFilter) ([]*platform.Run, int, error) {
+				FindRunsFn: func(_ context.Context, f influxdb.RunFilter) ([]*influxdb.Run, int, error) {
 					if f.Task != taskID {
-						return nil, 0, platform.ErrNoRunsFound
+						return nil, 0, influxdb.ErrNoRunsFound
 					}
 
 					return nil, 0, nil
@@ -982,12 +982,12 @@ func TestTaskHandler_NotFoundStatus(t *testing.T) {
 		{
 			name: "force run",
 			svc: &mock.TaskService{
-				ForceRunFn: func(_ context.Context, tid platform.ID, _ int64) (*platform.Run, error) {
+				ForceRunFn: func(_ context.Context, tid influxdb.ID, _ int64) (*influxdb.Run, error) {
 					if tid != taskID {
-						return nil, platform.ErrTaskNotFound
+						return nil, influxdb.ErrTaskNotFound
 					}
 
-					return &platform.Run{ID: runID, TaskID: taskID, Status: backend.RunScheduled.String()}, nil
+					return &influxdb.Run{ID: runID, TaskID: taskID, Status: influxdb.RunScheduled.String()}, nil
 				},
 			},
 			method:           http.MethodPost,
@@ -999,15 +999,15 @@ func TestTaskHandler_NotFoundStatus(t *testing.T) {
 		{
 			name: "get run",
 			svc: &mock.TaskService{
-				FindRunByIDFn: func(_ context.Context, tid, rid platform.ID) (*platform.Run, error) {
+				FindRunByIDFn: func(_ context.Context, tid, rid influxdb.ID) (*influxdb.Run, error) {
 					if tid != taskID {
-						return nil, platform.ErrTaskNotFound
+						return nil, influxdb.ErrTaskNotFound
 					}
 					if rid != runID {
-						return nil, platform.ErrRunNotFound
+						return nil, influxdb.ErrRunNotFound
 					}
 
-					return &platform.Run{ID: runID, TaskID: taskID, Status: backend.RunScheduled.String()}, nil
+					return &influxdb.Run{ID: runID, TaskID: taskID, Status: influxdb.RunScheduled.String()}, nil
 				},
 			},
 			method:           http.MethodGet,
@@ -1018,15 +1018,15 @@ func TestTaskHandler_NotFoundStatus(t *testing.T) {
 		{
 			name: "retry run",
 			svc: &mock.TaskService{
-				RetryRunFn: func(_ context.Context, tid, rid platform.ID) (*platform.Run, error) {
+				RetryRunFn: func(_ context.Context, tid, rid influxdb.ID) (*influxdb.Run, error) {
 					if tid != taskID {
-						return nil, platform.ErrTaskNotFound
+						return nil, influxdb.ErrTaskNotFound
 					}
 					if rid != runID {
-						return nil, platform.ErrRunNotFound
+						return nil, influxdb.ErrRunNotFound
 					}
 
-					return &platform.Run{ID: runID, TaskID: taskID, Status: backend.RunScheduled.String()}, nil
+					return &influxdb.Run{ID: runID, TaskID: taskID, Status: influxdb.RunScheduled.String()}, nil
 				},
 			},
 			method:           http.MethodPost,
@@ -1037,12 +1037,12 @@ func TestTaskHandler_NotFoundStatus(t *testing.T) {
 		{
 			name: "cancel run",
 			svc: &mock.TaskService{
-				CancelRunFn: func(_ context.Context, tid, rid platform.ID) error {
+				CancelRunFn: func(_ context.Context, tid, rid influxdb.ID) error {
 					if tid != taskID {
-						return platform.ErrTaskNotFound
+						return influxdb.ErrTaskNotFound
 					}
 					if rid != runID {
-						return platform.ErrRunNotFound
+						return influxdb.ErrRunNotFound
 					}
 
 					return nil
@@ -1107,11 +1107,11 @@ func TestTaskHandler_NotFoundStatus(t *testing.T) {
 
 func TestService_handlePostTaskLabel(t *testing.T) {
 	type fields struct {
-		LabelService platform.LabelService
+		LabelService influxdb.LabelService
 	}
 	type args struct {
-		labelMapping *platform.LabelMapping
-		taskID       platform.ID
+		labelMapping *influxdb.LabelMapping
+		taskID       influxdb.ID
 	}
 	type wants struct {
 		statusCode  int
@@ -1129,8 +1129,8 @@ func TestService_handlePostTaskLabel(t *testing.T) {
 			name: "add label to task",
 			fields: fields{
 				LabelService: &mock.LabelService{
-					FindLabelByIDFn: func(ctx context.Context, id platform.ID) (*platform.Label, error) {
-						return &platform.Label{
+					FindLabelByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Label, error) {
+						return &influxdb.Label{
 							ID:   1,
 							Name: "label",
 							Properties: map[string]string{
@@ -1138,11 +1138,11 @@ func TestService_handlePostTaskLabel(t *testing.T) {
 							},
 						}, nil
 					},
-					CreateLabelMappingFn: func(ctx context.Context, m *platform.LabelMapping) error { return nil },
+					CreateLabelMappingFn: func(ctx context.Context, m *influxdb.LabelMapping) error { return nil },
 				},
 			},
 			args: args{
-				labelMapping: &platform.LabelMapping{
+				labelMapping: &influxdb.LabelMapping{
 					ResourceID: 100,
 					LabelID:    1,
 				},
@@ -1214,37 +1214,37 @@ func TestTaskHandler_CreateTaskWithOrgName(t *testing.T) {
 	ctx := context.Background()
 
 	// Set up user and org.
-	u := &platform.User{Name: "u"}
+	u := &influxdb.User{Name: "u"}
 	if err := i.CreateUser(ctx, u); err != nil {
 		t.Fatal(err)
 	}
-	o := &platform.Organization{Name: "o"}
+	o := &influxdb.Organization{Name: "o"}
 	if err := i.CreateOrganization(ctx, o); err != nil {
 		t.Fatal(err)
 	}
 
 	// Source and destination buckets for use in task.
-	bSrc := platform.Bucket{OrgID: o.ID, Name: "b-src"}
+	bSrc := influxdb.Bucket{OrgID: o.ID, Name: "b-src"}
 	if err := i.CreateBucket(ctx, &bSrc); err != nil {
 		t.Fatal(err)
 	}
-	bDst := platform.Bucket{OrgID: o.ID, Name: "b-dst"}
+	bDst := influxdb.Bucket{OrgID: o.ID, Name: "b-dst"}
 	if err := i.CreateBucket(ctx, &bDst); err != nil {
 		t.Fatal(err)
 	}
 
-	authz := platform.Authorization{OrgID: o.ID, UserID: u.ID, Permissions: platform.OperPermissions()}
+	authz := influxdb.Authorization{OrgID: o.ID, UserID: u.ID, Permissions: influxdb.OperPermissions()}
 	if err := i.CreateAuthorization(ctx, &authz); err != nil {
 		t.Fatal(err)
 	}
 
 	ts := &mock.TaskService{
-		CreateTaskFn: func(_ context.Context, tc platform.TaskCreate) (*platform.Task, error) {
+		CreateTaskFn: func(_ context.Context, tc influxdb.TaskCreate) (*influxdb.Task, error) {
 			if tc.OrganizationID != o.ID {
 				t.Fatalf("expected task to be created with org ID %s, got %s", o.ID, tc.OrganizationID)
 			}
 
-			return &platform.Task{ID: 9, OrganizationID: o.ID, OwnerID: o.ID, AuthorizationID: authz.ID, Name: "x", Flux: tc.Flux}, nil
+			return &influxdb.Task{ID: 9, OrganizationID: o.ID, OwnerID: o.ID, AuthorizationID: authz.ID, Name: "x", Flux: tc.Flux}, nil
 		},
 	}
 
@@ -1264,7 +1264,7 @@ func TestTaskHandler_CreateTaskWithOrgName(t *testing.T) {
 
 	url := "http://localhost:9999/api/v2/tasks"
 
-	b, err := json.Marshal(platform.TaskCreate{
+	b, err := json.Marshal(influxdb.TaskCreate{
 		Flux:         script,
 		Organization: o.Name,
 	})
@@ -1291,7 +1291,7 @@ func TestTaskHandler_CreateTaskWithOrgName(t *testing.T) {
 	}
 
 	// The task should have been created with a valid token.
-	var createdTask platform.Task
+	var createdTask influxdb.Task
 	if err := json.Unmarshal([]byte(body), &createdTask); err != nil {
 		t.Fatal(err)
 	}
@@ -1308,44 +1308,44 @@ func TestTaskHandler_Sessions(t *testing.T) {
 	ctx := context.Background()
 
 	// Set up user and org.
-	u := &platform.User{Name: "u"}
+	u := &influxdb.User{Name: "u"}
 	if err := i.CreateUser(ctx, u); err != nil {
 		t.Fatal(err)
 	}
-	o := &platform.Organization{Name: "o"}
+	o := &influxdb.Organization{Name: "o"}
 	if err := i.CreateOrganization(ctx, o); err != nil {
 		t.Fatal(err)
 	}
 
 	// Map user to org.
-	if err := i.CreateUserResourceMapping(ctx, &platform.UserResourceMapping{
-		ResourceType: platform.OrgsResourceType,
+	if err := i.CreateUserResourceMapping(ctx, &influxdb.UserResourceMapping{
+		ResourceType: influxdb.OrgsResourceType,
 		ResourceID:   o.ID,
 		UserID:       u.ID,
-		UserType:     platform.Owner,
+		UserType:     influxdb.Owner,
 	}); err != nil {
 		t.Fatal(err)
 	}
 
 	// Source and destination buckets for use in task.
-	bSrc := platform.Bucket{OrgID: o.ID, Name: "b-src"}
+	bSrc := influxdb.Bucket{OrgID: o.ID, Name: "b-src"}
 	if err := i.CreateBucket(ctx, &bSrc); err != nil {
 		t.Fatal(err)
 	}
-	bDst := platform.Bucket{OrgID: o.ID, Name: "b-dst"}
+	bDst := influxdb.Bucket{OrgID: o.ID, Name: "b-dst"}
 	if err := i.CreateBucket(ctx, &bDst); err != nil {
 		t.Fatal(err)
 	}
 
-	sessionAllPermsCtx := pcontext.SetAuthorizer(context.Background(), &platform.Session{
+	sessionAllPermsCtx := pcontext.SetAuthorizer(context.Background(), &influxdb.Session{
 		UserID:      u.ID,
-		Permissions: platform.OperPermissions(),
+		Permissions: influxdb.OperPermissions(),
 		ExpiresAt:   time.Now().Add(24 * time.Hour),
 	})
 
 	newHandler := func(t *testing.T, ts *mock.TaskService) *TaskHandler {
 		return NewTaskHandler(zaptest.NewLogger(t), &TaskBackend{
-			HTTPErrorHandler: ErrorHandler(0),
+			HTTPErrorHandler: kithttp.ErrorHandler(0),
 			log:              zaptest.NewLogger(t),
 
 			TaskService:                ts,
@@ -1360,33 +1360,33 @@ func TestTaskHandler_Sessions(t *testing.T) {
 
 	t.Run("get runs for a task", func(t *testing.T) {
 		// Unique authorization to associate with our fake task.
-		taskAuth := &platform.Authorization{OrgID: o.ID, UserID: u.ID}
+		taskAuth := &influxdb.Authorization{OrgID: o.ID, UserID: u.ID}
 		if err := i.CreateAuthorization(ctx, taskAuth); err != nil {
 			t.Fatal(err)
 		}
 
-		const taskID = platform.ID(12345)
-		const runID = platform.ID(9876)
+		const taskID = influxdb.ID(12345)
+		const runID = influxdb.ID(9876)
 
 		var findRunsCtx context.Context
 		ts := &mock.TaskService{
-			FindRunsFn: func(ctx context.Context, f platform.RunFilter) ([]*platform.Run, int, error) {
+			FindRunsFn: func(ctx context.Context, f influxdb.RunFilter) ([]*influxdb.Run, int, error) {
 				findRunsCtx = ctx
 				if f.Task != taskID {
 					t.Fatalf("expected task ID %v, got %v", taskID, f.Task)
 				}
 
-				return []*platform.Run{
+				return []*influxdb.Run{
 					{ID: runID, TaskID: taskID},
 				}, 1, nil
 			},
 
-			FindTaskByIDFn: func(ctx context.Context, id platform.ID) (*platform.Task, error) {
+			FindTaskByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Task, error) {
 				if id != taskID {
-					return nil, platform.ErrTaskNotFound
+					return nil, influxdb.ErrTaskNotFound
 				}
 
-				return &platform.Task{
+				return &influxdb.Task{
 					ID:              taskID,
 					OrganizationID:  o.ID,
 					AuthorizationID: taskAuth.ID,
@@ -1415,23 +1415,23 @@ func TestTaskHandler_Sessions(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if authr.Kind() != platform.AuthorizationKind {
-			t.Fatalf("expected context's authorizer to be of kind %q, got %q", platform.AuthorizationKind, authr.Kind())
+		if authr.Kind() != influxdb.AuthorizationKind {
+			t.Fatalf("expected context's authorizer to be of kind %q, got %q", influxdb.AuthorizationKind, authr.Kind())
 		}
 
-		orgID := authr.(*platform.Authorization).OrgID
+		orgID := authr.(*influxdb.Authorization).OrgID
 
 		if orgID != o.ID {
 			t.Fatalf("expected context's authorizer org ID to be %v, got %v", o.ID, orgID)
 		}
 
 		// Other user without permissions on the task or authorization should be disallowed.
-		otherUser := &platform.User{Name: "other-" + t.Name()}
+		otherUser := &influxdb.User{Name: "other-" + t.Name()}
 		if err := i.CreateUser(ctx, otherUser); err != nil {
 			t.Fatal(err)
 		}
 
-		valCtx = pcontext.SetAuthorizer(valCtx, &platform.Session{
+		valCtx = pcontext.SetAuthorizer(valCtx, &influxdb.Session{
 			UserID:    otherUser.ID,
 			ExpiresAt: time.Now().Add(24 * time.Hour),
 		})
@@ -1453,17 +1453,17 @@ func TestTaskHandler_Sessions(t *testing.T) {
 
 	t.Run("get single run for a task", func(t *testing.T) {
 		// Unique authorization to associate with our fake task.
-		taskAuth := &platform.Authorization{OrgID: o.ID, UserID: u.ID}
+		taskAuth := &influxdb.Authorization{OrgID: o.ID, UserID: u.ID}
 		if err := i.CreateAuthorization(ctx, taskAuth); err != nil {
 			t.Fatal(err)
 		}
 
-		const taskID = platform.ID(12345)
-		const runID = platform.ID(9876)
+		const taskID = influxdb.ID(12345)
+		const runID = influxdb.ID(9876)
 
 		var findRunByIDCtx context.Context
 		ts := &mock.TaskService{
-			FindRunByIDFn: func(ctx context.Context, tid, rid platform.ID) (*platform.Run, error) {
+			FindRunByIDFn: func(ctx context.Context, tid, rid influxdb.ID) (*influxdb.Run, error) {
 				findRunByIDCtx = ctx
 				if tid != taskID {
 					t.Fatalf("expected task ID %v, got %v", taskID, tid)
@@ -1472,15 +1472,15 @@ func TestTaskHandler_Sessions(t *testing.T) {
 					t.Fatalf("expected run ID %v, got %v", runID, rid)
 				}
 
-				return &platform.Run{ID: runID, TaskID: taskID}, nil
+				return &influxdb.Run{ID: runID, TaskID: taskID}, nil
 			},
 
-			FindTaskByIDFn: func(ctx context.Context, id platform.ID) (*platform.Task, error) {
+			FindTaskByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Task, error) {
 				if id != taskID {
-					return nil, platform.ErrTaskNotFound
+					return nil, influxdb.ErrTaskNotFound
 				}
 
-				return &platform.Task{
+				return &influxdb.Task{
 					ID:              taskID,
 					OrganizationID:  o.ID,
 					AuthorizationID: taskAuth.ID,
@@ -1513,20 +1513,20 @@ func TestTaskHandler_Sessions(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if authr.Kind() != platform.AuthorizationKind {
-			t.Fatalf("expected context's authorizer to be of kind %q, got %q", platform.AuthorizationKind, authr.Kind())
+		if authr.Kind() != influxdb.AuthorizationKind {
+			t.Fatalf("expected context's authorizer to be of kind %q, got %q", influxdb.AuthorizationKind, authr.Kind())
 		}
 		if authr.Identifier() != taskAuth.ID {
 			t.Fatalf("expected context's authorizer ID to be %v, got %v", taskAuth.ID, authr.Identifier())
 		}
 
 		// Other user without permissions on the task or authorization should be disallowed.
-		otherUser := &platform.User{Name: "other-" + t.Name()}
+		otherUser := &influxdb.User{Name: "other-" + t.Name()}
 		if err := i.CreateUser(ctx, otherUser); err != nil {
 			t.Fatal(err)
 		}
 
-		valCtx = pcontext.SetAuthorizer(valCtx, &platform.Session{
+		valCtx = pcontext.SetAuthorizer(valCtx, &influxdb.Session{
 			UserID:    otherUser.ID,
 			ExpiresAt: time.Now().Add(24 * time.Hour),
 		})
@@ -1548,17 +1548,17 @@ func TestTaskHandler_Sessions(t *testing.T) {
 
 	t.Run("get logs for a run", func(t *testing.T) {
 		// Unique authorization to associate with our fake task.
-		taskAuth := &platform.Authorization{OrgID: o.ID, UserID: u.ID}
+		taskAuth := &influxdb.Authorization{OrgID: o.ID, UserID: u.ID}
 		if err := i.CreateAuthorization(ctx, taskAuth); err != nil {
 			t.Fatal(err)
 		}
 
-		const taskID = platform.ID(12345)
-		const runID = platform.ID(9876)
+		const taskID = influxdb.ID(12345)
+		const runID = influxdb.ID(9876)
 
 		var findLogsCtx context.Context
 		ts := &mock.TaskService{
-			FindLogsFn: func(ctx context.Context, f platform.LogFilter) ([]*platform.Log, int, error) {
+			FindLogsFn: func(ctx context.Context, f influxdb.LogFilter) ([]*influxdb.Log, int, error) {
 				findLogsCtx = ctx
 				if f.Task != taskID {
 					t.Fatalf("expected task ID %v, got %v", taskID, f.Task)
@@ -1567,16 +1567,16 @@ func TestTaskHandler_Sessions(t *testing.T) {
 					t.Fatalf("expected run ID %v, got %v", runID, *f.Run)
 				}
 
-				line := platform.Log{Time: "time", Message: "a log line"}
-				return []*platform.Log{&line}, 1, nil
+				line := influxdb.Log{Time: "time", Message: "a log line"}
+				return []*influxdb.Log{&line}, 1, nil
 			},
 
-			FindTaskByIDFn: func(ctx context.Context, id platform.ID) (*platform.Task, error) {
+			FindTaskByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Task, error) {
 				if id != taskID {
-					return nil, platform.ErrTaskNotFound
+					return nil, influxdb.ErrTaskNotFound
 				}
 
-				return &platform.Task{
+				return &influxdb.Task{
 					ID:              taskID,
 					OrganizationID:  o.ID,
 					AuthorizationID: taskAuth.ID,
@@ -1609,20 +1609,20 @@ func TestTaskHandler_Sessions(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if authr.Kind() != platform.AuthorizationKind {
-			t.Fatalf("expected context's authorizer to be of kind %q, got %q", platform.AuthorizationKind, authr.Kind())
+		if authr.Kind() != influxdb.AuthorizationKind {
+			t.Fatalf("expected context's authorizer to be of kind %q, got %q", influxdb.AuthorizationKind, authr.Kind())
 		}
 		if authr.Identifier() != taskAuth.ID {
 			t.Fatalf("expected context's authorizer ID to be %v, got %v", taskAuth.ID, authr.Identifier())
 		}
 
 		// Other user without permissions on the task or authorization should be disallowed.
-		otherUser := &platform.User{Name: "other-" + t.Name()}
+		otherUser := &influxdb.User{Name: "other-" + t.Name()}
 		if err := i.CreateUser(ctx, otherUser); err != nil {
 			t.Fatal(err)
 		}
 
-		valCtx = pcontext.SetAuthorizer(valCtx, &platform.Session{
+		valCtx = pcontext.SetAuthorizer(valCtx, &influxdb.Session{
 			UserID:    otherUser.ID,
 			ExpiresAt: time.Now().Add(24 * time.Hour),
 		})
@@ -1644,17 +1644,17 @@ func TestTaskHandler_Sessions(t *testing.T) {
 
 	t.Run("retry a run", func(t *testing.T) {
 		// Unique authorization to associate with our fake task.
-		taskAuth := &platform.Authorization{OrgID: o.ID, UserID: u.ID}
+		taskAuth := &influxdb.Authorization{OrgID: o.ID, UserID: u.ID}
 		if err := i.CreateAuthorization(ctx, taskAuth); err != nil {
 			t.Fatal(err)
 		}
 
-		const taskID = platform.ID(12345)
-		const runID = platform.ID(9876)
+		const taskID = influxdb.ID(12345)
+		const runID = influxdb.ID(9876)
 
 		var retryRunCtx context.Context
 		ts := &mock.TaskService{
-			RetryRunFn: func(ctx context.Context, tid, rid platform.ID) (*platform.Run, error) {
+			RetryRunFn: func(ctx context.Context, tid, rid influxdb.ID) (*influxdb.Run, error) {
 				retryRunCtx = ctx
 				if tid != taskID {
 					t.Fatalf("expected task ID %v, got %v", taskID, tid)
@@ -1663,15 +1663,15 @@ func TestTaskHandler_Sessions(t *testing.T) {
 					t.Fatalf("expected run ID %v, got %v", runID, rid)
 				}
 
-				return &platform.Run{ID: 10 * runID, TaskID: taskID}, nil
+				return &influxdb.Run{ID: 10 * runID, TaskID: taskID}, nil
 			},
 
-			FindTaskByIDFn: func(ctx context.Context, id platform.ID) (*platform.Task, error) {
+			FindTaskByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Task, error) {
 				if id != taskID {
-					return nil, platform.ErrTaskNotFound
+					return nil, influxdb.ErrTaskNotFound
 				}
 
-				return &platform.Task{
+				return &influxdb.Task{
 					ID:              taskID,
 					OrganizationID:  o.ID,
 					AuthorizationID: taskAuth.ID,
@@ -1704,20 +1704,20 @@ func TestTaskHandler_Sessions(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if authr.Kind() != platform.AuthorizationKind {
-			t.Fatalf("expected context's authorizer to be of kind %q, got %q", platform.AuthorizationKind, authr.Kind())
+		if authr.Kind() != influxdb.AuthorizationKind {
+			t.Fatalf("expected context's authorizer to be of kind %q, got %q", influxdb.AuthorizationKind, authr.Kind())
 		}
 		if authr.Identifier() != taskAuth.ID {
 			t.Fatalf("expected context's authorizer ID to be %v, got %v", taskAuth.ID, authr.Identifier())
 		}
 
 		// Other user without permissions on the task or authorization should be disallowed.
-		otherUser := &platform.User{Name: "other-" + t.Name()}
+		otherUser := &influxdb.User{Name: "other-" + t.Name()}
 		if err := i.CreateUser(ctx, otherUser); err != nil {
 			t.Fatal(err)
 		}
 
-		valCtx = pcontext.SetAuthorizer(valCtx, &platform.Session{
+		valCtx = pcontext.SetAuthorizer(valCtx, &influxdb.Session{
 			UserID:    otherUser.ID,
 			ExpiresAt: time.Now().Add(24 * time.Hour),
 		})

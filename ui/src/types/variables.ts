@@ -1,18 +1,53 @@
-import {Variable as GenVariable} from 'src/client'
-export {VariableProperties} from 'src/client'
+import {Variable as GenVariable, Label} from 'src/client'
+import {
+  QueryVariableProperties as GenQueryVariableProperties,
+  ConstantVariableProperties as GenConstantVariableProperties,
+  MapVariableProperties as GenMapVariableProperties,
+} from 'src/client'
 
 import {
   VariableArgumentType,
+  VariableMapObject,
   QueryArguments,
   MapArguments,
   CSVArguments,
-  Label,
   RemoteDataState,
   NormalizedState,
 } from 'src/types'
 
-export interface Variable extends GenVariable {
+// GenVariable is the shape of a variable from the server
+export type GenVariable = GenVariable
+export interface SystemVariableProperties {
+  type?: 'system'
+  values?: any
+}
+export interface QueryVariableProperties
+  extends Omit<GenQueryVariableProperties, 'values'> {
+  values?: {
+    query?: string
+    language?: string
+    results?: string[]
+  }
+}
+export interface ConstantVariableProperties
+  extends Omit<GenConstantVariableProperties, 'values'> {
+  values?: string[]
+}
+
+export type VariableProperties =
+  | SystemVariableProperties
+  | QueryVariableProperties
+  | ConstantVariableProperties
+  | GenMapVariableProperties
+
+export interface Variable
+  extends Omit<Omit<GenVariable, 'labels'>, 'arguments'> {
   status: RemoteDataState // Loading status of an individual variable
+  labels: string[]
+  arguments: VariableProperties
+}
+
+export interface PostVariable extends GenVariable {
   labels: Label[]
 }
 
@@ -26,10 +61,14 @@ export type FluxColumnType =
   | 'dateTime'
   | 'duration'
 
+export type mapValue = string
+export interface VariableMapObject {
+  [mapKey: string]: mapValue
+}
 export interface VariableValues {
-  values: string[]
-  valueType: FluxColumnType
-  selectedValue: string
+  values?: VariableMapObject | string[]
+  valueType?: FluxColumnType
+  selected?: string[]
   error?: string
 }
 

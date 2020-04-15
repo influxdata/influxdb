@@ -8,19 +8,20 @@ import (
 	"runtime"
 	"sync"
 
-	"github.com/influxdata/influxdb/cmd/influxd/generate/internal/shard"
-	"github.com/influxdata/influxdb/kit/errors"
-	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/pkg/data/gen"
-	"github.com/influxdata/influxdb/pkg/limiter"
-	"github.com/influxdata/influxdb/storage"
-	"github.com/influxdata/influxdb/tsdb"
-	"github.com/influxdata/influxdb/tsdb/tsi1"
-	"github.com/influxdata/influxdb/tsdb/tsm1"
+	"github.com/influxdata/influxdb/v2/cmd/influxd/generate/internal/shard"
+	"github.com/influxdata/influxdb/v2/kit/errors"
+	"github.com/influxdata/influxdb/v2/models"
+	"github.com/influxdata/influxdb/v2/pkg/data/gen"
+	"github.com/influxdata/influxdb/v2/pkg/limiter"
+	"github.com/influxdata/influxdb/v2/storage"
+	"github.com/influxdata/influxdb/v2/tsdb"
+	"github.com/influxdata/influxdb/v2/tsdb/seriesfile"
+	"github.com/influxdata/influxdb/v2/tsdb/tsi1"
+	"github.com/influxdata/influxdb/v2/tsdb/tsm1"
 )
 
 type Generator struct {
-	sfile *tsdb.SeriesFile
+	sfile *seriesfile.SeriesFile
 
 	// Clean specifies whether to clean any of the data related files
 	Clean CleanLevel
@@ -42,7 +43,7 @@ func (g *Generator) Run(ctx context.Context, path string, gen gen.SeriesGenerato
 		}
 	}
 
-	g.sfile = tsdb.NewSeriesFile(config.GetSeriesFilePath(path))
+	g.sfile = seriesfile.NewSeriesFile(config.GetSeriesFilePath(path))
 	if err := g.sfile.Open(ctx); err != nil {
 		return nil, err
 	}
@@ -84,7 +85,7 @@ func (g *Generator) Run(ctx context.Context, path string, gen gen.SeriesGenerato
 			}()
 
 			p := parts[n]
-			c := tsdb.NewSeriesPartitionCompactor()
+			c := seriesfile.NewSeriesPartitionCompactor()
 			if _, err := c.Compact(p); err != nil {
 				ch <- fmt.Errorf("error compacting series partition %d: %s", n, err.Error())
 			}

@@ -6,8 +6,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/kit/tracing"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/tracing"
 )
 
 // IndexStore provides a entity store that uses an index lookup.
@@ -185,6 +185,12 @@ func (s *IndexStore) validNew(ctx context.Context, tx Tx, ent Entity) error {
 }
 
 func (s *IndexStore) validUpdate(ctx context.Context, tx Tx, ent Entity) error {
+	// first check to make sure the existing entity exists in the ent store
+	_, err := s.EntStore.FindEnt(ctx, tx, Entity{PK: ent.PK})
+	if err != nil {
+		return err
+	}
+
 	idxVal, err := s.IndexStore.FindEnt(ctx, tx, ent)
 	if err != nil {
 		if influxdb.ErrorCode(err) == influxdb.ENotFound {

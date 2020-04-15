@@ -9,12 +9,13 @@ import {
   SMTPNotificationRuleBase,
   PagerDutyNotificationRuleBase,
   NotificationEndpoint,
-  NotificationRule,
   NotificationRuleDraft,
   HTTPNotificationRuleBase,
   RuleStatusLevel,
   PostNotificationRule,
+  GenRule,
 } from 'src/types'
+import {RemoteDataState} from '@influxdata/clockface'
 
 type RuleVariantFields =
   | SlackNotificationRuleBase
@@ -85,9 +86,11 @@ export const initRuleDraft = (orgID: string): NotificationRuleDraft => ({
   url: '',
   orgID,
   name: '',
-  status: 'active',
+  activeStatus: 'active',
+  status: RemoteDataState.NotStarted,
   endpointID: '',
   tagRules: [],
+  labels: [],
   statusRules: [
     {
       cid: uuid.v4(),
@@ -107,6 +110,7 @@ export const draftRuleToPostRule = (
 ): PostNotificationRule => {
   return {
     ...draftRule,
+    status: draftRule.activeStatus,
     statusRules: draftRule.statusRules.map(r => r.value),
     tagRules: draftRule.tagRules
       .map(r => r.value)
@@ -124,13 +128,14 @@ export const newTagRuleDraft = () => ({
 })
 
 // Prepare a persisted rule for editing
-export const ruleToDraftRule = (
-  rule: NotificationRule
-): NotificationRuleDraft => {
+export const ruleToDraftRule = (rule: GenRule): NotificationRuleDraft => {
   const statusRules = rule.statusRules || []
   const tagRules = rule.tagRules || []
   return {
     ...rule,
+    labels: rule.labels.map(l => l.id),
+    status: RemoteDataState.Done,
+    activeStatus: rule.status,
     offset: rule.offset || '',
     statusRules: statusRules.map(value => ({cid: uuid.v4(), value})),
     tagRules: tagRules.map(value => ({cid: uuid.v4(), value})),

@@ -3,4 +3,9 @@
   flex-direction: column;
   height: 100%;
   width: 100%;
+
+  .time-series-container {
+    background-color: $g3-castle;
+    border-radius: $cf-radius;
+  }
 }

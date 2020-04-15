@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/influxdata/flux/ast"
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/notification"
-	"github.com/influxdata/influxdb/notification/flux"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/notification"
+	"github.com/influxdata/influxdb/v2/notification/flux"
 )
 
 var typeToRule = map[string](func() influxdb.NotificationRule){
@@ -123,11 +123,11 @@ func (b *Base) generateFluxASTNotificationDefinition(e influxdb.NotificationEndp
 	return flux.DefineVariable("notification", flux.Object(ruleID, ruleName, endpointID, endpointName))
 }
 
-func (b *Base) generateAllStateChanges() []ast.Statement {
+func (b *Base) generateLevelChecks() []ast.Statement {
 	stmts := []ast.Statement{}
 	tables := []ast.Expression{}
 	for _, r := range b.StatusRules {
-		stmt, table := b.generateStateChanges(r)
+		stmt, table := b.generateLevelCheck(r)
 		tables = append(tables, table)
 		stmts = append(stmts, stmt)
 	}
@@ -186,7 +186,7 @@ func (b *Base) generateAllStateChanges() []ast.Statement {
 	return stmts
 }
 
-func (b *Base) generateStateChanges(r notification.StatusRule) (ast.Statement, *ast.Identifier) {
+func (b *Base) generateLevelCheck(r notification.StatusRule) (ast.Statement, *ast.Identifier) {
 	var name string
 	var pipe *ast.PipeExpression
 	if r.PreviousLevel == nil && r.CurrentLevel == notification.Any {

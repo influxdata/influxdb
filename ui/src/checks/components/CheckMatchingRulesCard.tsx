@@ -1,5 +1,5 @@
 // Libraries
-import React, {FunctionComponent, useState, useEffect} from 'react'
+import React, {FC, useState, useEffect} from 'react'
 import {connect} from 'react-redux'
 import {uniq} from 'lodash'
 import {fromFlux} from '@influxdata/giraffe'
@@ -14,19 +14,24 @@ import {
   AlignItems,
 } from '@influxdata/clockface'
 
-// Selectors
+// Selectors & Utils
 import {getOrg} from 'src/organizations/selectors'
+import {ruleToDraftRule} from 'src/notifications/rules/utils'
 
 // API
 import {getNotificationRules as apiGetNotificationRules} from 'src/client'
 
 //Types
-import {NotificationRule, AppState, CheckTagSet} from 'src/types'
+import {
+  NotificationRule,
+  AppState,
+  CheckTagSet,
+  GenRule,
+  NotificationRuleDraft,
+} from 'src/types'
 import {EmptyState, ComponentSize, RemoteDataState} from '@influxdata/clockface'
 import BuilderCard from 'src/timeMachine/components/builderCard/BuilderCard'
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
-
-// Selectors
 
 interface StateProps {
   tags: CheckTagSet[]
@@ -34,7 +39,7 @@ interface StateProps {
   queryResults: string[] | null
 }
 
-const CheckMatchingRulesCard: FunctionComponent<StateProps> = ({
+const CheckMatchingRulesCard: FC<StateProps> = ({
   orgID,
   tags,
   queryResults,
@@ -75,14 +80,18 @@ const CheckMatchingRulesCard: FunctionComponent<StateProps> = ({
       return
     }
 
+    const matchingRules: NotificationRuleDraft[] = resp.data.notificationRules.map(
+      (r: GenRule) => ruleToDraftRule(r)
+    )
+
     setMatchingRules({
-      matchingRules: resp.data.notificationRules,
+      matchingRules,
       status: RemoteDataState.Done,
     })
   }
 
   const [{matchingRules, status}, setMatchingRules] = useState<{
-    matchingRules: NotificationRule[]
+    matchingRules: NotificationRuleDraft[]
     status: RemoteDataState
   }>({matchingRules: [], status: RemoteDataState.NotStarted})
 
@@ -104,7 +113,7 @@ const CheckMatchingRulesCard: FunctionComponent<StateProps> = ({
     contents = (
       <SpinnerContainer spinnerComponent={<TechnoSpinner />} loading={status} />
     )
-  } else if (matchingRules.length === 0) {
+  } else if (!matchingRules.length) {
     contents = (
       <EmptyState
         size={ComponentSize.Small}
@@ -162,7 +171,7 @@ const mstp = (state: AppState): StateProps => {
   return {tags, orgID, queryResults: files}
 }
 
-export default connect<StateProps, {}, {}>(
+export default connect<StateProps>(
   mstp,
   null
 )(CheckMatchingRulesCard)

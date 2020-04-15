@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -82,7 +83,7 @@ func TestRouter_NotFound(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			router := NewRouter(ErrorHandler(0))
+			router := NewRouter(kithttp.ErrorHandler(0))
 			router.HandlerFunc(tt.fields.method, tt.fields.path, tt.fields.handlerFn)
 
 			r := httptest.NewRequest(tt.args.method, tt.args.path, nil)
@@ -189,7 +190,7 @@ func TestRouter_Panic(t *testing.T) {
 			tw := newTestLogWriter(t)
 			panicLogger = zaptest.NewLogger(tw)
 
-			router := NewRouter(ErrorHandler(0))
+			router := NewRouter(kithttp.ErrorHandler(0))
 			router.HandlerFunc(tt.fields.method, tt.fields.path, tt.fields.handlerFn)
 
 			r := httptest.NewRequest(tt.args.method, tt.args.path, nil)
@@ -288,7 +289,7 @@ func TestRouter_MethodNotAllowed(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			router := NewRouter(ErrorHandler(0))
+			router := NewRouter(kithttp.ErrorHandler(0))
 			router.HandlerFunc(tt.fields.method, tt.fields.path, tt.fields.handlerFn)
 
 			r := httptest.NewRequest(tt.args.method, tt.args.path, nil)

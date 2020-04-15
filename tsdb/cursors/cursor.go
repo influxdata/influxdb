@@ -3,7 +3,7 @@ package cursors
 import (
 	"context"
 
-	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/v2/models"
 )
 
 const DefaultMaxPointsPerBlock = 1000
@@ -51,17 +51,6 @@ type CursorRequest struct {
 type CursorIterator interface {
 	Next(ctx context.Context, r *CursorRequest) (Cursor, error)
 	Stats() CursorStats
-}
-
-type CursorIterators []CursorIterator
-
-// Stats returns the aggregate stats of all cursor iterators.
-func (a CursorIterators) Stats() CursorStats {
-	var stats CursorStats
-	for _, itr := range a {
-		stats.Add(itr.Stats())
-	}
-	return stats
 }
 
 // CursorStats represents stats collected by a cursor.

@@ -6,12 +6,36 @@ import (
 	"time"
 )
 
+type customFlag bool
+
+func (c customFlag) String() string {
+	if c == true {
+		return "on"
+	}
+	return "off"
+}
+
+func (c *customFlag) Set(s string) error {
+	if s == "on" {
+		*c = true
+	} else {
+		*c = false
+	}
+
+	return nil
+}
+
+func (c *customFlag) Type() string {
+	return "fancy-bool"
+}
+
 func ExampleNewCommand() {
 	var monitorHost string
 	var number int
 	var sleep bool
 	var duration time.Duration
 	var stringSlice []string
+	var fancyBool customFlag
 	cmd := NewCommand(&Program{
 		Run: func() error {
 			fmt.Println(monitorHost)
@@ -21,6 +45,7 @@ func ExampleNewCommand() {
 			fmt.Println(sleep)
 			fmt.Println(duration)
 			fmt.Println(stringSlice)
+			fmt.Println(fancyBool)
 			return nil
 		},
 		Name: "myprogram",
@@ -55,6 +80,12 @@ func ExampleNewCommand() {
 				Default: []string{"foo", "bar"},
 				Desc:    "things come in lists",
 			},
+			{
+				DestP:   &fancyBool,
+				Flag:    "fancy-bool",
+				Default: "on",
+				Desc:    "things that implement pflag.Value",
+			},
 		},
 	})
 
@@ -68,4 +99,5 @@ func ExampleNewCommand() {
 	// true
 	// 1m0s
 	// [foo bar]
+	// on
 }

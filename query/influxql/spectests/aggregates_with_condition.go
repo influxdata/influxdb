@@ -12,10 +12,11 @@ func init() {
 	|> range(start: 1677-09-21T00:12:43.145224194Z, stop: 2262-04-11T23:47:16.854775806Z)
 	|> filter(fn: (r) => r._measurement == "cpu" and r._field == "value")
 	|> filter(fn: (r) => r["host"] == "server01")
-	|> group(columns: ["_measurement", "_start"], mode: "by")
+	|> group(columns: ["_measurement", "_start", "_stop", "_field"], mode: "by")
+	|> keep(columns: ["_measurement", "_start", "_stop", "_field", "_time", "_value"])
 	|> ` + name + `()
-	|> duplicate(column: "_start", as: "_time")
-	|> map(fn: (r) => ({_time: r._time, ` + name + `: r._value}), mergeKey: true)
+	|> map(fn: (r) => ({r with _time: 1970-01-01T00:00:00Z}))
+	|> rename(columns: {_value: "` + name + `"})
 	|> yield(name: "0")
 `
 		}),

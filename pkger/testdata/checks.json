@@ -69,6 +69,7 @@
       "name": "check_1"
     },
     "spec": {
+      "name": "display name",
       "description": "desc_1",
       "every": "5m",
       "offset": "10s",

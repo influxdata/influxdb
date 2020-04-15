@@ -1,6 +1,10 @@
-import {ThresholdCheck, TagRuleDraft} from 'src/types'
-import {NotificationEndpoint, CheckStatusLevel} from 'src/client'
-import {ComponentColor, InfluxColors} from '@influxdata/clockface'
+import {ThresholdCheck, TagRuleDraft, NotificationEndpoint} from 'src/types'
+import {CheckStatusLevel} from 'src/client'
+import {
+  ComponentColor,
+  InfluxColors,
+  RemoteDataState,
+} from '@influxdata/clockface'
 
 export const DEFAULT_CHECK_NAME = 'Name this Check'
 export const DEFAULT_NOTIFICATION_RULE_NAME = 'Name this Notification Rule'
@@ -50,7 +54,7 @@ export const LEVEL_COMPONENT_COLORS = {
 export const DEFAULT_THRESHOLD_CHECK: Partial<ThresholdCheck> = {
   name: DEFAULT_CHECK_NAME,
   type: 'threshold',
-  status: 'active',
+  activeStatus: 'active',
   thresholds: [],
   every: DEFAULT_CHECK_EVERY,
   offset: DEFAULT_CHECK_OFFSET,
@@ -75,10 +79,12 @@ export const DEFAULT_ENDPOINT_URLS = {
 export const NEW_ENDPOINT_DRAFT: NotificationEndpoint = {
   name: 'Name this Endpoint',
   description: '',
-  status: 'active',
+  activeStatus: 'active',
   type: 'slack',
   token: '',
   url: DEFAULT_ENDPOINT_URLS['slack'],
+  status: RemoteDataState.Done,
+  labels: [],
 }
 
 export const NEW_ENDPOINT_FIXTURES: NotificationEndpoint[] = [
@@ -88,10 +94,12 @@ export const NEW_ENDPOINT_FIXTURES: NotificationEndpoint[] = [
     userID: '1',
     description: 'interrupt everyone at work',
     name: 'Slack',
-    status: 'active',
+    activeStatus: 'active',
     type: 'slack',
     url: 'insert.slack.url.here',
     token: 'plerps',
+    status: RemoteDataState.Done,
+    labels: [],
   },
   {
     id: '3',
@@ -99,9 +107,11 @@ export const NEW_ENDPOINT_FIXTURES: NotificationEndpoint[] = [
     userID: '1',
     description: 'interrupt someone by all means known to man',
     name: 'PagerDuty',
-    status: 'active',
+    activeStatus: 'active',
     type: 'pagerduty',
     clientURL: 'insert.pagerduty.client.url.here',
     routingKey: 'plerps',
+    status: RemoteDataState.Done,
+    labels: [],
   },
 ]

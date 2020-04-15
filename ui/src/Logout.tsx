@@ -1,31 +1,32 @@
 // Libraries
-import {PureComponent} from 'react'
+import {FC, useEffect} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
+import auth0js from 'auth0-js'
 
 // APIs
 import {postSignout} from 'src/client'
+import {getAuth0Config} from 'src/authorizations/apis'
 
 // Constants
-import {CLOUD, CLOUD_SIGNOUT_URL} from 'src/shared/constants'
+import {CLOUD, CLOUD_URL, CLOUD_LOGOUT_PATH} from 'src/shared/constants'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-type Props = WithRouterProps
-
-@ErrorHandling
-export class Logout extends PureComponent<Props> {
-  public componentDidMount() {
-    this.handleSignOut()
-  }
-
-  public render() {
-    return null
-  }
-
-  private handleSignOut = async () => {
+const Logout: FC<WithRouterProps> = ({router}) => {
+  const handleSignOut = async () => {
+    const config = await getAuth0Config()
+    if (CLOUD && config.socialSignUpOn) {
+      const auth0 = new auth0js.WebAuth({
+        domain: config.domain,
+        clientID: config.clientID,
+      })
+      auth0.logout({})
+      window.location.href = `${CLOUD_URL}${CLOUD_LOGOUT_PATH}`
+      return
+    }
     if (CLOUD) {
-      window.location.href = CLOUD_SIGNOUT_URL
+      window.location.href = `${CLOUD_URL}${CLOUD_LOGOUT_PATH}`
       return
     } else {
       const resp = await postSignout({})
@@ -34,9 +35,14 @@ export class Logout extends PureComponent<Props> {
         throw new Error(resp.data.message)
       }
 
-      this.props.router.push(`/signin`)
+      router.push(`/signin`)
     }
   }
+
+  useEffect(() => {
+    handleSignOut()
+  }, [])
+  return null
 }
 
-export default withRouter<Props>(Logout)
+export default ErrorHandling(withRouter<WithRouterProps>(Logout))

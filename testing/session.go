@@ -9,8 +9,8 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	platform "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/mock"
+	platform "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/mock"
 )
 
 const (
@@ -18,19 +18,23 @@ const (
 	sessionTwoID = "020f755c3c082001"
 )
 
-var sessionCmpOptions = cmp.Options{
-	cmp.Comparer(func(x, y []byte) bool {
-		return bytes.Equal(x, y)
-	}),
-	cmp.Transformer("Sort", func(in []*platform.Session) []*platform.Session {
-		out := append([]*platform.Session(nil), in...) // Copy input to avoid mutating it
-		sort.Slice(out, func(i, j int) bool {
-			return out[i].ID.String() > out[j].ID.String()
-		})
-		return out
-	}),
-	cmpopts.IgnoreFields(platform.Session{}, "CreatedAt", "ExpiresAt", "Permissions"),
-	cmpopts.EquateEmpty(),
+var sessionCmpOptions = sessionCompareOptions("CreatedAt", "ExpiresAt", "Permissions")
+
+func sessionCompareOptions(ignore ...string) cmp.Options {
+	return cmp.Options{
+		cmp.Comparer(func(x, y []byte) bool {
+			return bytes.Equal(x, y)
+		}),
+		cmp.Transformer("Sort", func(in []*platform.Session) []*platform.Session {
+			out := append([]*platform.Session(nil), in...) // Copy input to avoid mutating it
+			sort.Slice(out, func(i, j int) bool {
+				return out[i].ID.String() > out[j].ID.String()
+			})
+			return out
+		}),
+		cmpopts.IgnoreFields(platform.Session{}, ignore...),
+		cmpopts.EquateEmpty(),
+	}
 }
 
 // SessionFields will include the IDGenerator, TokenGenerator, Sessions, and Users
@@ -337,6 +341,39 @@ func RenewSession(
 			},
 		},
 		{
+			name: "renew session with an earlier time than existing expiration",
+			fields: SessionFields{
+				IDGenerator:    mock.NewIDGenerator(sessionTwoID, t),
+				TokenGenerator: mock.NewTokenGenerator("abc123xyz", nil),
+				Sessions: []*platform.Session{
+					{
+						ID:        MustIDBase16(sessionOneID),
+						UserID:    MustIDBase16(sessionTwoID),
+						Key:       "abc123xyz",
+						ExpiresAt: time.Date(2031, 9, 26, 0, 0, 0, 0, time.UTC),
+					},
+				},
+			},
+			args: args{
+				session: &platform.Session{
+					ID:        MustIDBase16(sessionOneID),
+					UserID:    MustIDBase16(sessionTwoID),
+					Key:       "abc123xyz",
+					ExpiresAt: time.Date(2031, 9, 26, 0, 0, 0, 0, time.UTC),
+				},
+				key:      "abc123xyz",
+				expireAt: time.Date(2030, 9, 26, 0, 0, 0, 0, time.UTC),
+			},
+			wants: wants{
+				session: &platform.Session{
+					ID:        MustIDBase16(sessionOneID),
+					UserID:    MustIDBase16(sessionTwoID),
+					Key:       "abc123xyz",
+					ExpiresAt: time.Date(2031, 9, 26, 0, 0, 0, 0, time.UTC),
+				},
+			},
+		},
+		{
 			name: "renew nil session",
 			fields: SessionFields{
 				IDGenerator:    mock.NewIDGenerator(sessionTwoID, t),
@@ -364,7 +401,7 @@ func RenewSession(
 					ID:        MustIDBase16(sessionOneID),
 					UserID:    MustIDBase16(sessionTwoID),
 					Key:       "abc123xyz",
-					ExpiresAt: time.Date(2031, 9, 26, 0, 0, 10, 0, time.UTC),
+					ExpiresAt: time.Date(2030, 9, 26, 0, 0, 0, 0, time.UTC),
 				},
 			},
 		},
@@ -384,7 +421,8 @@ func RenewSession(
 				t.Errorf("err in find session %v", err)
 			}
 
-			if diff := cmp.Diff(session, tt.wants.session, sessionCmpOptions...); diff != "" {
+			cmpOptions := sessionCompareOptions("CreatedAt", "Permissions")
+			if diff := cmp.Diff(session, tt.wants.session, cmpOptions...); diff != "" {
 				t.Errorf("session is different -got/+want\ndiff %s", diff)
 			}
 		})

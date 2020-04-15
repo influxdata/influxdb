@@ -1,7 +1,6 @@
 package http
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -10,15 +9,14 @@ import (
 	"net/url"
 	"path"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/influxdata/httprouter"
-	"github.com/influxdata/influxdb"
-	pcontext "github.com/influxdata/influxdb/context"
-	"github.com/influxdata/influxdb/kit/tracing"
-	"github.com/influxdata/influxdb/kv"
-	"github.com/influxdata/influxdb/task/backend"
+	"github.com/influxdata/influxdb/v2"
+	pcontext "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/kit/tracing"
+	"github.com/influxdata/influxdb/v2/kv"
+	"github.com/influxdata/influxdb/v2/pkg/httpc"
 	"go.uber.org/zap"
 )
 
@@ -152,6 +150,8 @@ func NewTaskHandler(log *zap.Logger, b *TaskBackend) *TaskHandler {
 	return h
 }
 
+// Task is a package-specific Task format that preserves the expected format for the API,
+// where time values are represented as strings
 type Task struct {
 	ID              influxdb.ID            `json:"id"`
 	OrganizationID  influxdb.ID            `json:"orgID"`
@@ -319,7 +319,7 @@ func newTasksResponse(ctx context.Context, ts []*influxdb.Task, f influxdb.TaskF
 	}
 
 	for i := range ts {
-		labels, _ := labelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: ts[i].ID})
+		labels, _ := labelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: ts[i].ID, ResourceType: influxdb.TasksResourceType})
 		rs.Tasks[i] = newTaskResponse(*ts[i], labels)
 	}
 	return rs
@@ -604,7 +604,6 @@ func decodePostTaskRequest(ctx context.Context, r *http.Request) (*postTaskReque
 		return nil, err
 	}
 	tc.OwnerID = auth.GetUserID()
-
 	// when creating a task we set the type so we can filter later.
 	tc.Type = influxdb.TaskSystemType
 
@@ -641,7 +640,7 @@ func (h *TaskHandler) handleGetTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: task.ID})
+	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: task.ID, ResourceType: influxdb.TasksResourceType})
 	if err != nil {
 		err = &influxdb.Error{
 			Err: err,
@@ -708,7 +707,7 @@ func (h *TaskHandler) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: task.ID})
+	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: task.ID, ResourceType: influxdb.TasksResourceType})
 	if err != nil {
 		err = &influxdb.Error{
 			Err: err,
@@ -1411,6 +1410,7 @@ func (h *TaskHandler) getAuthorizationForTask(ctx context.Context, auth influxdb
 type TaskService struct {
 	Addr               string
 	Token              string
+	Client             *httpc.Client
 	InsecureSkipVerify bool
 }
 
@@ -1419,36 +1419,9 @@ func (t TaskService) FindTaskByID(ctx context.Context, id influxdb.ID) (*Task, e
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	u, err := NewURL(t.Addr, taskIDPath(id))
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("GET", u.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-	SetToken(t.Token, req)
-
-	hc := NewClient(u.Scheme, t.InsecureSkipVerify)
-	resp, err := hc.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if err := CheckError(resp); err != nil {
-		if influxdb.ErrorCode(err) == influxdb.ENotFound {
-			// ErrTaskNotFound is expected as part of the FindTaskByID contract,
-			// so return that actual error instead of a different error that looks like it.
-			// TODO cleanup backend task service error implementation
-			return nil, influxdb.ErrTaskNotFound
-		}
-		return nil, err
-	}
-
 	var tr taskResponse
-	if err := json.NewDecoder(resp.Body).Decode(&tr); err != nil {
+	err := t.Client.Get(taskIDPath(id)).DecodeJSON(&tr).Do(ctx)
+	if err != nil {
 		return nil, err
 	}
 
@@ -1461,57 +1434,40 @@ func (t TaskService) FindTasks(ctx context.Context, filter influxdb.TaskFilter) 
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	u, err := NewURL(t.Addr, prefixTasks)
-	if err != nil {
-		return nil, 0, err
-	}
+	// slice of 2-capacity string slices for storing parameter key-value pairs
+	var params [][2]string
 
-	val := url.Values{}
 	if filter.After != nil {
-		val.Add("after", filter.After.String())
+		params = append(params, [2]string{"after", filter.After.String()})
 	}
 	if filter.OrganizationID != nil {
-		val.Add("orgID", filter.OrganizationID.String())
+		params = append(params, [2]string{"orgID", filter.OrganizationID.String()})
 	}
 	if filter.Organization != "" {
-		val.Add("org", filter.Organization)
+		params = append(params, [2]string{"org", filter.Organization})
 	}
 	if filter.User != nil {
-		val.Add("user", filter.User.String())
+		params = append(params, [2]string{"user", filter.User.String()})
 	}
 	if filter.Limit != 0 {
-		val.Add("limit", strconv.Itoa(filter.Limit))
+		params = append(params, [2]string{"limit", strconv.Itoa(filter.Limit)})
 	}
 
 	if filter.Status != nil {
-		val.Add("status", *filter.Status)
+		params = append(params, [2]string{"status", *filter.Status})
 	}
 
 	if filter.Type != nil {
-		val.Add("type", *filter.Type)
-	}
-
-	u.RawQuery = val.Encode()
-
-	req, err := http.NewRequest("GET", u.String(), nil)
-	if err != nil {
-		return nil, 0, err
-	}
-	SetToken(t.Token, req)
-
-	hc := NewClient(u.Scheme, t.InsecureSkipVerify)
-	resp, err := hc.Do(req)
-	if err != nil {
-		return nil, 0, err
-	}
-	defer resp.Body.Close()
-
-	if err := CheckError(resp); err != nil {
-		return nil, 0, err
+		params = append(params, [2]string{"type", *filter.Type})
 	}
 
 	var tr tasksResponse
-	if err := json.NewDecoder(resp.Body).Decode(&tr); err != nil {
+	err := t.Client.
+		Get(prefixTasks).
+		QueryParams(params...).
+		DecodeJSON(&tr).
+		Do(ctx)
+	if err != nil {
 		return nil, 0, err
 	}
 
@@ -1526,41 +1482,16 @@ func (t TaskService) FindTasks(ctx context.Context, filter influxdb.TaskFilter) 
 func (t TaskService) CreateTask(ctx context.Context, tc influxdb.TaskCreate) (*Task, error) {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
-
-	u, err := NewURL(t.Addr, prefixTasks)
-	if err != nil {
-		return nil, err
-	}
-
-	taskBytes, err := json.Marshal(tc)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", u.String(), bytes.NewReader(taskBytes))
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	SetToken(t.Token, req)
-
-	hc := NewClient(u.Scheme, t.InsecureSkipVerify)
-
-	resp, err := hc.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if err := CheckError(resp); err != nil {
-		return nil, err
-	}
-
 	var tr taskResponse
-	if err := json.NewDecoder(resp.Body).Decode(&tr); err != nil {
+
+	err := t.Client.
+		PostJSON(tc, prefixTasks).
+		DecodeJSON(&tr).
+		Do(ctx)
+	if err != nil {
 		return nil, err
 	}
+
 	return &tr.Task, nil
 }
 
@@ -1569,38 +1500,11 @@ func (t TaskService) UpdateTask(ctx context.Context, id influxdb.ID, upd influxd
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	u, err := NewURL(t.Addr, taskIDPath(id))
-	if err != nil {
-		return nil, err
-	}
-
-	taskBytes, err := json.Marshal(upd)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("PATCH", u.String(), bytes.NewReader(taskBytes))
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	SetToken(t.Token, req)
-
-	hc := NewClient(u.Scheme, t.InsecureSkipVerify)
-
-	resp, err := hc.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if err := CheckError(resp); err != nil {
-		return nil, err
-	}
-
 	var tr taskResponse
-	if err := json.NewDecoder(resp.Body).Decode(&tr); err != nil {
+	err := t.Client.
+		PatchJSON(&upd, taskIDPath(id)).
+		Do(ctx)
+	if err != nil {
 		return nil, err
 	}
 
@@ -1612,28 +1516,9 @@ func (t TaskService) DeleteTask(ctx context.Context, id influxdb.ID) error {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	u, err := NewURL(t.Addr, taskIDPath(id))
-	if err != nil {
-		return err
-	}
-
-	req, err := http.NewRequest("DELETE", u.String(), nil)
-	if err != nil {
-		return err
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	SetToken(t.Token, req)
-
-	hc := NewClient(u.Scheme, t.InsecureSkipVerify)
-
-	resp, err := hc.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	return CheckErrorStatus(http.StatusNoContent, resp)
+	return t.Client.
+		Delete(taskIDPath(id)).
+		Do(ctx)
 }
 
 // FindLogs returns logs for a run.
@@ -1652,31 +1537,13 @@ func (t TaskService) FindLogs(ctx context.Context, filter influxdb.LogFilter) ([
 		urlPath = path.Join(taskIDRunIDPath(filter.Task, *filter.Run), "logs")
 	}
 
-	u, err := NewURL(t.Addr, urlPath)
-	if err != nil {
-		return nil, 0, err
-	}
-
-	req, err := http.NewRequest("GET", u.String(), nil)
-	if err != nil {
-		return nil, 0, err
-	}
-	SetToken(t.Token, req)
-
-	hc := NewClient(u.Scheme, t.InsecureSkipVerify)
-
-	resp, err := hc.Do(req)
-	if err != nil {
-		return nil, 0, err
-	}
-	defer resp.Body.Close()
-
-	if err := CheckError(resp); err != nil {
-		return nil, 0, err
-	}
-
 	var logs getLogsResponse
-	if err := json.NewDecoder(resp.Body).Decode(&logs); err != nil {
+	err := t.Client.
+		Get(urlPath).
+		DecodeJSON(&logs).
+		Do(ctx)
+
+	if err != nil {
 		return nil, 0, err
 	}
 
@@ -1688,48 +1555,29 @@ func (t TaskService) FindRuns(ctx context.Context, filter influxdb.RunFilter) ([
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
+	var params [][2]string
+
 	if !filter.Task.Valid() {
 		return nil, 0, errors.New("task ID required")
 	}
 
-	u, err := NewURL(t.Addr, taskIDRunsPath(filter.Task))
-	if err != nil {
-		return nil, 0, err
-	}
-
-	val := url.Values{}
 	if filter.After != nil {
-		val.Set("after", filter.After.String())
+		params = append(params, [2]string{"after", filter.After.String()})
 	}
 
 	if filter.Limit < 0 || filter.Limit > influxdb.TaskMaxPageSize {
 		return nil, 0, influxdb.ErrOutOfBoundsLimit
 	}
-	val.Set("limit", strconv.Itoa(filter.Limit))
 
-	u.RawQuery = val.Encode()
-	req, err := http.NewRequest("GET", u.String(), nil)
-	if err != nil {
-		return nil, 0, err
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	SetToken(t.Token, req)
-
-	hc := NewClient(u.Scheme, t.InsecureSkipVerify)
-
-	resp, err := hc.Do(req)
-	if err != nil {
-		return nil, 0, err
-	}
-	defer resp.Body.Close()
-
-	if err := CheckError(resp); err != nil {
-		return nil, 0, err
-	}
+	params = append(params, [2]string{"limit", strconv.Itoa(filter.Limit)})
 
 	var rs runsResponse
-	if err := json.NewDecoder(resp.Body).Decode(&rs); err != nil {
+	err := t.Client.
+		Get(taskIDRunsPath(filter.Task)).
+		QueryParams(params...).
+		DecodeJSON(&rs).
+		Do(ctx)
+	if err != nil {
 		return nil, 0, err
 	}
 
@@ -1746,27 +1594,13 @@ func (t TaskService) FindRunByID(ctx context.Context, taskID, runID influxdb.ID)
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	u, err := NewURL(t.Addr, taskIDRunIDPath(taskID, runID))
+	var rs = &runResponse{}
+	err := t.Client.
+		Get(taskIDRunIDPath(taskID, runID)).
+		DecodeJSON(rs).
+		Do(ctx)
+
 	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("GET", u.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	SetToken(t.Token, req)
-
-	hc := NewClient(u.Scheme, t.InsecureSkipVerify)
-
-	resp, err := hc.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if err := CheckError(resp); err != nil {
 		if influxdb.ErrorCode(err) == influxdb.ENotFound {
 			// ErrRunNotFound is expected as part of the FindRunByID contract,
 			// so return that actual error instead of a different error that looks like it.
@@ -1776,10 +1610,7 @@ func (t TaskService) FindRunByID(ctx context.Context, taskID, runID influxdb.ID)
 
 		return nil, err
 	}
-	var rs = &runResponse{}
-	if err := json.NewDecoder(resp.Body).Decode(rs); err != nil {
-		return nil, err
-	}
+
 	return convertRun(rs.httpRun), nil
 }
 
@@ -1788,28 +1619,13 @@ func (t TaskService) RetryRun(ctx context.Context, taskID, runID influxdb.ID) (*
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	p := path.Join(taskIDRunIDPath(taskID, runID), "retry")
-	u, err := NewURL(t.Addr, p)
+	var rs runResponse
+	err := t.Client.
+		Post(nil, path.Join(taskIDRunIDPath(taskID, runID), "retry")).
+		DecodeJSON(&rs).
+		Do(ctx)
+
 	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", u.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	SetToken(t.Token, req)
-
-	hc := NewClient(u.Scheme, t.InsecureSkipVerify)
-
-	resp, err := hc.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if err := CheckError(resp); err != nil {
 		if influxdb.ErrorCode(err) == influxdb.ENotFound {
 			// ErrRunNotFound is expected as part of the RetryRun contract,
 			// so return that actual error instead of a different error that looks like it.
@@ -1817,17 +1633,13 @@ func (t TaskService) RetryRun(ctx context.Context, taskID, runID influxdb.ID) (*
 			return nil, influxdb.ErrRunNotFound
 		}
 		// RequestStillQueuedError is also part of the contract.
-		if e := backend.ParseRequestStillQueuedError(err.Error()); e != nil {
+		if e := influxdb.ParseRequestStillQueuedError(err.Error()); e != nil {
 			return nil, *e
 		}
 
 		return nil, err
 	}
 
-	rs := &runResponse{}
-	if err := json.NewDecoder(resp.Body).Decode(rs); err != nil {
-		return nil, err
-	}
 	return convertRun(rs.httpRun), nil
 }
 
@@ -1836,28 +1648,18 @@ func (t TaskService) ForceRun(ctx context.Context, taskID influxdb.ID, scheduled
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	u, err := NewURL(t.Addr, taskIDRunsPath(taskID))
-	if err != nil {
-		return nil, err
+	type body struct {
+		scheduledFor string
 	}
+	b := body{scheduledFor: time.Unix(scheduledFor, 0).UTC().Format(time.RFC3339)}
 
-	body := fmt.Sprintf(`{"scheduledFor": %q}`, time.Unix(scheduledFor, 0).UTC().Format(time.RFC3339))
-	req, err := http.NewRequest("POST", u.String(), strings.NewReader(body))
+	rs := &runResponse{}
+	err := t.Client.
+		PostJSON(b, taskIDRunsPath(taskID)).
+		DecodeJSON(&rs).
+		Do(ctx)
+
 	if err != nil {
-		return nil, err
-	}
-
-	SetToken(t.Token, req)
-
-	hc := NewClient(u.Scheme, t.InsecureSkipVerify)
-
-	resp, err := hc.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if err := CheckError(resp); err != nil {
 		if influxdb.ErrorCode(err) == influxdb.ENotFound {
 			// ErrRunNotFound is expected as part of the RetryRun contract,
 			// so return that actual error instead of a different error that looks like it.
@@ -1865,17 +1667,13 @@ func (t TaskService) ForceRun(ctx context.Context, taskID influxdb.ID, scheduled
 		}
 
 		// RequestStillQueuedError is also part of the contract.
-		if e := backend.ParseRequestStillQueuedError(err.Error()); e != nil {
+		if e := influxdb.ParseRequestStillQueuedError(err.Error()); e != nil {
 			return nil, *e
 		}
 
 		return nil, err
 	}
 
-	rs := &runResponse{}
-	if err := json.NewDecoder(resp.Body).Decode(rs); err != nil {
-		return nil, err
-	}
 	return convertRun(rs.httpRun), nil
 }
 
@@ -1888,27 +1686,11 @@ func (t TaskService) CancelRun(ctx context.Context, taskID, runID influxdb.ID) e
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	u, err := NewURL(t.Addr, cancelPath(taskID, runID))
+	err := t.Client.
+		Delete(cancelPath(taskID, runID)).
+		Do(ctx)
+
 	if err != nil {
-		return err
-	}
-
-	req, err := http.NewRequest("DELETE", u.String(), nil)
-	if err != nil {
-		return err
-	}
-
-	SetToken(t.Token, req)
-
-	hc := NewClient(u.Scheme, t.InsecureSkipVerify)
-
-	resp, err := hc.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if err := CheckError(resp); err != nil {
 		return err
 	}
 

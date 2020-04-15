@@ -4,15 +4,15 @@
 */
 
 .view-options {
-  flex: 0 0 (420px - $ix-marg-b);
+  flex: 0 0 (420px - $cf-marg-b);
   height: 100%;
   background-color: $g3-castle;
-  margin-left: $ix-marg-b;
+  margin-right: $cf-marg-b;
   border-radius: $radius;
 }
 
 .view-options--container {
-  padding: $ix-marg-d;
+  padding: $cf-marg-d;
 }
 
 .view-options--header {
@@ -23,10 +23,10 @@
 
 h4.view-options--header {
   font-size: 16px;
-  padding-top: $ix-marg-c;
-  border-top: $ix-border solid $g5-pepper;
-  margin-top: $ix-marg-b;
-  margin-bottom: $ix-marg-c;
+  padding-top: $cf-marg-c;
+  border-top: $cf-border solid $g5-pepper;
+  margin-top: $cf-marg-b;
+  margin-bottom: $cf-marg-c;
 
   *:first-child > & {
     margin-top: 0;
@@ -37,8 +37,12 @@ h4.view-options--header {
 
 h5.view-options--header {
   font-size: 14px;
-  border-bottom: $ix-border solid $g5-pepper;
-  margin-top: $ix-marg-d;
-  margin-bottom: $ix-marg-c;
-  padding-bottom: $ix-marg-a;
+  border-bottom: $cf-border solid $g5-pepper;
+  margin-top: $cf-marg-d;
+  margin-bottom: $cf-marg-c;
+  padding-bottom: $cf-marg-a;
+}
+
+.view-options--checkbox {
+  margin-bottom: $cf-marg-c;
 }

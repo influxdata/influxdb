@@ -4,17 +4,17 @@ import (
 	"bytes"
 	"strings"
 
-	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/v2/models"
 )
 
 // tagsKeyMerger is responsible for determining a merged set of tag keys
-type keyMerger struct {
+type KeyMerger struct {
 	i    int
 	tmp  [][]byte
 	keys [2][][]byte
 }
 
-func (km *keyMerger) clear() {
+func (km *KeyMerger) Clear() {
 	km.i = 0
 	km.keys[0] = km.keys[0][:0]
 	if km.tmp != nil {
@@ -25,17 +25,17 @@ func (km *keyMerger) clear() {
 	}
 }
 
-func (km *keyMerger) get() [][]byte { return km.keys[km.i&1] }
+func (km *KeyMerger) Get() [][]byte { return km.keys[km.i&1] }
 
-func (km *keyMerger) String() string {
+func (km *KeyMerger) String() string {
 	var s []string
-	for _, k := range km.get() {
+	for _, k := range km.Get() {
 		s = append(s, string(k))
 	}
 	return strings.Join(s, ",")
 }
 
-func (km *keyMerger) mergeTagKeys(tags models.Tags) {
+func (km *KeyMerger) MergeTagKeys(tags models.Tags) {
 	if cap(km.tmp) < len(tags) {
 		km.tmp = make([][]byte, len(tags))
 	} else {
@@ -46,10 +46,10 @@ func (km *keyMerger) mergeTagKeys(tags models.Tags) {
 		km.tmp[i] = tags[i].Key
 	}
 
-	km.mergeKeys(km.tmp)
+	km.MergeKeys(km.tmp)
 }
 
-func (km *keyMerger) mergeKeys(in [][]byte) {
+func (km *KeyMerger) MergeKeys(in [][]byte) {
 	keys := km.keys[km.i&1]
 	i, j := 0, 0
 	for i < len(keys) && j < len(in) && bytes.Equal(keys[i], in[j]) {

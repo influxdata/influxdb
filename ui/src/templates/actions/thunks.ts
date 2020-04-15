@@ -8,7 +8,7 @@ import {createVariableFromTemplate} from 'src/variables/actions/thunks'
 import {createTaskFromTemplate} from 'src/tasks/actions/thunks'
 
 // Schemas
-import * as schemas from 'src/schemas'
+import {templateSchema, arrayOfTemplates} from 'src/schemas/templates'
 
 // Actions
 import {notify, Action as NotifyAction} from 'src/shared/actions/notifications'
@@ -28,26 +28,29 @@ import {staticTemplates} from 'src/templates/constants/defaultTemplates'
 
 // Types
 import {Dispatch} from 'react'
-import {DocumentCreate, ITaskTemplate, TemplateType} from '@influxdata/influx'
+import {DocumentCreate, TemplateType} from '@influxdata/influx'
 import {
   RemoteDataState,
   GetState,
   DashboardTemplate,
   VariableTemplate,
-  Template,
   TemplateSummary,
   TemplateSummaryEntities,
   Label,
+  Template,
+  TaskTemplate,
+  ResourceType,
 } from 'src/types'
 
 // Utils
 import {templateToExport} from 'src/shared/utils/resourceToTemplate'
 import {getOrg} from 'src/organizations/selectors'
+import {getLabels, getStatus} from 'src/resources/selectors'
 
 type Action = TemplateAction | NotifyAction
 
 export const getTemplateByID = async (id: string): Promise<Template> => {
-  const template = (await client.templates.get(id)) as Template
+  const template: Template = (await client.templates.get(id)) as any
   return template
 }
 
@@ -55,14 +58,19 @@ export const getTemplates = () => async (
   dispatch: Dispatch<Action>,
   getState: GetState
 ): Promise<void> => {
-  const org = getOrg(getState())
-  dispatch(setTemplatesStatus(RemoteDataState.Loading))
+  const state = getState()
+  if (getStatus(state, ResourceType.Templates) === RemoteDataState.NotStarted) {
+    dispatch(setTemplatesStatus(RemoteDataState.Loading))
+  }
+
+  const org = getOrg(state)
+
   const items = await client.templates.getAll(org.id)
   const templateSummaries = normalize<
     TemplateSummary,
     TemplateSummaryEntities,
     string[]
-  >(items, schemas.arrayOfTemplates)
+  >(items, arrayOfTemplates)
   dispatch(populateTemplateSummaries(templateSummaries))
 }
 
@@ -77,12 +85,12 @@ export const createTemplate = (template: DocumentCreate) => async (
       TemplateSummary,
       TemplateSummaryEntities,
       string
-    >(item, schemas.template)
+    >(item, templateSchema)
     dispatch(addTemplateSummary(templateSummary))
     dispatch(notify(copy.importTemplateSucceeded()))
-  } catch (e) {
-    console.error(e)
-    dispatch(notify(copy.importTemplateFailed(e)))
+  } catch (error) {
+    console.error(error)
+    dispatch(notify(copy.importTemplateFailed(error)))
   }
 }
 
@@ -94,29 +102,33 @@ export const createTemplateFromResource = (
     const org = getOrg(getState())
     await client.templates.create({...resource, orgID: org.id})
     dispatch(notify(copy.resourceSavedAsTemplate(resourceName)))
-  } catch (e) {
-    console.error(e)
-    dispatch(notify(copy.saveResourceAsTemplateFailed(resourceName, e)))
+  } catch (error) {
+    console.error(error)
+    dispatch(notify(copy.saveResourceAsTemplateFailed(resourceName, error)))
   }
 }
 
 export const updateTemplate = (id: string, props: TemplateSummary) => async (
-  dispatch: Dispatch<Action>
+  dispatch: Dispatch<Action>,
+  getState: GetState
 ): Promise<void> => {
   setTemplateSummary(id, RemoteDataState.Loading)
+  const state = getState()
+  const labels = getLabels(state, props.labels)
+
   try {
-    const item = await client.templates.update(id, props)
+    const item = await client.templates.update(id, {...props, labels})
     const templateSummary = normalize<
       TemplateSummary,
       TemplateSummaryEntities,
       string
-    >(item, schemas.template)
+    >(item, templateSchema)
 
     dispatch(setTemplateSummary(id, RemoteDataState.Done, templateSummary))
     dispatch(notify(copy.updateTemplateSucceeded()))
-  } catch (e) {
-    console.error(e)
-    dispatch(notify(copy.updateTemplateFailed(e)))
+  } catch (error) {
+    console.error(error)
+    dispatch(notify(copy.updateTemplateFailed(error)))
   }
 }
 
@@ -164,17 +176,17 @@ export const cloneTemplate = (templateID: string) => async (
       TemplateSummary,
       TemplateSummaryEntities,
       string
-    >(createdTemplate, schemas.template)
+    >(createdTemplate, templateSchema)
 
     dispatch(addTemplateSummary(templateSummary))
     dispatch(notify(copy.cloneTemplateSuccess()))
-  } catch (e) {
-    console.error(e)
-    dispatch(notify(copy.cloneTemplateFailed(e)))
+  } catch (error) {
+    console.error(error)
+    dispatch(notify(copy.cloneTemplateFailed(error)))
   }
 }
 
-const createFromTemplate = template => dispatch => {
+const createFromTemplate = (template: Template) => dispatch => {
   const {
     content: {
       data: {type},
@@ -188,7 +200,7 @@ const createFromTemplate = template => dispatch => {
           createDashboardFromTemplate(template as DashboardTemplate)
         )
       case TemplateType.Task:
-        return dispatch(createTaskFromTemplate(template as ITaskTemplate))
+        return dispatch(createTaskFromTemplate(template as TaskTemplate))
       case TemplateType.Variable:
         return dispatch(
           createVariableFromTemplate(template as VariableTemplate)
@@ -210,7 +222,8 @@ export const createResourceFromStaticTemplate = (name: string) => dispatch => {
 export const createResourceFromTemplate = (templateID: string) => async (
   dispatch
 ): Promise<void> => {
-  const template = await client.templates.get(templateID)
+  const template: Template = (await client.templates.get(templateID)) as any
+
   dispatch(createFromTemplate(template))
 }
 
@@ -225,7 +238,7 @@ export const addTemplateLabelsAsync = (
       TemplateSummary,
       TemplateSummaryEntities,
       string
-    >(item, schemas.template)
+    >(item, templateSchema)
 
     dispatch(
       setTemplateSummary(templateID, RemoteDataState.Done, templateSummary)
@@ -247,7 +260,7 @@ export const removeTemplateLabelsAsync = (
       TemplateSummary,
       TemplateSummaryEntities,
       string
-    >(item, schemas.template)
+    >(item, templateSchema)
 
     dispatch(
       setTemplateSummary(templateID, RemoteDataState.Done, templateSummary)

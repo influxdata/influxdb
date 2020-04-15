@@ -1,12 +1,11 @@
 package kv
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"strings"
 
-	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2"
 )
 
 // TODO: eradicate this with migration strategy
@@ -52,19 +51,18 @@ func (s *Service) findOrganizationVariables(ctx context.Context, tx Tx, orgID in
 		return nil, err
 	}
 
-	// TODO(leodido): support find options
-	cur, err := idx.Cursor()
-	if err != nil {
-		return nil, err
-	}
-
 	prefix, err := orgID.Encode()
 	if err != nil {
 		return nil, err
 	}
 
+	cur, err := idx.ForwardCursor(prefix, WithCursorPrefix(prefix))
+	if err != nil {
+		return nil, err
+	}
+
 	variables := []*influxdb.Variable{}
-	for k, _ := cur.Seek(prefix); bytes.HasPrefix(k, prefix); k, _ = cur.Next() {
+	for k, _ := cur.Next(); k != nil; k, _ = cur.Next() {
 		_, id, err := decodeVariableOrgsIndexKey(k)
 		if err != nil {
 			return nil, err

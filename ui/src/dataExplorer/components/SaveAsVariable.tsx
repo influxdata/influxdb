@@ -28,6 +28,7 @@ class SaveAsVariable extends PureComponent<Props & WithRouterProps> {
       <VariableFormContext
         initialScript={initialScript}
         onHideOverlay={onHideOverlay}
+        submitButtonText="Save as Variable"
       />
     )
   }

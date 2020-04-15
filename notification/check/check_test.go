@@ -8,13 +8,11 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/influxdata/flux/parser"
-	"github.com/influxdata/influxdb/notification"
-
-	"github.com/influxdata/influxdb/mock"
-
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/notification/check"
-	influxTesting "github.com/influxdata/influxdb/testing"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/mock"
+	"github.com/influxdata/influxdb/v2/notification"
+	"github.com/influxdata/influxdb/v2/notification/check"
+	influxTesting "github.com/influxdata/influxdb/v2/testing"
 )
 
 const (
@@ -191,8 +189,9 @@ func TestJSON(t *testing.T) {
 						BuilderConfig: influxdb.BuilderConfig{
 							Buckets: []string{},
 							Tags: []struct {
-								Key    string   `json:"key"`
-								Values []string `json:"values"`
+								Key                   string   `json:"key"`
+								Values                []string `json:"values"`
+								AggregateFunctionType string   `json:"aggregateFunctionType"`
 							}{},
 							Functions: []struct {
 								Name string `json:"name"`
@@ -232,8 +231,9 @@ func TestJSON(t *testing.T) {
 						BuilderConfig: influxdb.BuilderConfig{
 							Buckets: []string{},
 							Tags: []struct {
-								Key    string   `json:"key"`
-								Values []string `json:"values"`
+								Key                   string   `json:"key"`
+								Values                []string `json:"values"`
+								AggregateFunctionType string   `json:"aggregateFunctionType"`
 							}{},
 							Functions: []struct {
 								Name string `json:"name"`

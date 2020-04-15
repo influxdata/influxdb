@@ -6,7 +6,7 @@ import memoizeOne from 'memoize-one'
 // Components
 import {ResourceList} from '@influxdata/clockface'
 import CollectorRow from 'src/telegrafs/components/CollectorCard'
-import FilterList from 'src/shared/components/Filter'
+import FilterList from 'src/shared/components/FilterList'
 
 // Types
 import {Sort} from '@influxdata/clockface'
@@ -17,14 +17,11 @@ import {updateTelegraf, deleteTelegraf} from 'src/telegrafs/actions/thunks'
 // Selectors
 import {getAll} from 'src/resources/selectors'
 
-type SortKey = keyof Telegraf
-
 interface OwnProps {
   emptyState: JSX.Element
   sortKey: string
   sortDirection: Sort
   sortType: SortTypes
-  onClickColumn: (nextSort: Sort, sortKey: SortKey) => void
   onFilterChange: (searchTerm: string) => void
 }
 
@@ -45,19 +42,10 @@ class CollectorList extends PureComponent<Props> {
   )
 
   public render() {
-    const {emptyState, sortKey, sortDirection, onClickColumn} = this.props
+    const {emptyState} = this.props
 
     return (
       <ResourceList>
-        <ResourceList.Header>
-          <ResourceList.Sorter
-            sortKey="name"
-            sort={sortKey === 'name' ? sortDirection : Sort.None}
-            name="Name"
-            onClick={onClickColumn}
-            testID="name-sorter"
-          />
-        </ResourceList.Header>
         <ResourceList.Body emptyState={emptyState}>
           {this.collectorsList}
         </ResourceList.Body>
@@ -119,6 +107,7 @@ type FilteredOwnProps = OwnProps & {
 
 type FilteredProps = Props & FilteredOwnProps
 
+const FilterTelegrafs = FilterList<Telegraf>()
 class FilteredCollectorList extends PureComponent<FilteredProps> {
   render() {
     const {
@@ -129,12 +118,11 @@ class FilteredCollectorList extends PureComponent<FilteredProps> {
       sortKey,
       sortDirection,
       sortType,
-      onClickColumn,
       onUpdateTelegraf,
       onDeleteTelegraf,
     } = this.props
     return (
-      <FilterList<Telegraf>
+      <FilterTelegrafs
         searchTerm={searchTerm}
         searchKeys={['metadata.buckets[]', 'name', 'labels[].name']}
         list={collectors}
@@ -147,12 +135,11 @@ class FilteredCollectorList extends PureComponent<FilteredProps> {
             sortKey={sortKey}
             sortDirection={sortDirection}
             sortType={sortType}
-            onClickColumn={onClickColumn}
             onUpdateTelegraf={onUpdateTelegraf}
             onDeleteTelegraf={onDeleteTelegraf}
           />
         )}
-      </FilterList>
+      </FilterTelegrafs>
     )
   }
 }

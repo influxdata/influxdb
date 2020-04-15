@@ -11,16 +11,16 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"reflect"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/fatih/color"
-	"github.com/influxdata/influxdb"
-	ihttp "github.com/influxdata/influxdb/http"
-	ierror "github.com/influxdata/influxdb/kit/errors"
-	"github.com/influxdata/influxdb/pkger"
+	"github.com/influxdata/influxdb/v2"
+	ihttp "github.com/influxdata/influxdb/v2/http"
+	ierror "github.com/influxdata/influxdb/v2/kit/errors"
+	"github.com/influxdata/influxdb/v2/pkger"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 	input "github.com/tcnksm/go-input"
@@ -28,8 +28,8 @@ import (
 
 type pkgSVCsFn func() (pkger.SVC, influxdb.OrganizationService, error)
 
-func cmdPkg(opts ...genericCLIOptFn) *cobra.Command {
-	return newCmdPkgBuilder(newPkgerSVC, opts...).cmd()
+func cmdPkg(f *globalFlags, opts genericCLIOpts) *cobra.Command {
+	return newCmdPkgBuilder(newPkgerSVC, opts).cmd()
 }
 
 type cmdPkgBuilder struct {
@@ -39,16 +39,26 @@ type cmdPkgBuilder struct {
 
 	encoding            string
 	file                string
+	files               []string
+	filters             []string
+	description         string
 	disableColor        bool
 	disableTableBorders bool
+	hideHeaders         bool
+	json                bool
+	name                string
 	org                 organization
 	quiet               bool
+	recurse             bool
+	stackID             string
+	urls                []string
 
 	applyOpts struct {
+		envRefs []string
 		force   string
 		secrets []string
-		url     string
 	}
+
 	exportOpts struct {
 		resourceType string
 		buckets      string
@@ -63,17 +73,9 @@ type cmdPkgBuilder struct {
 	}
 }
 
-func newCmdPkgBuilder(svcFn pkgSVCsFn, opts ...genericCLIOptFn) *cmdPkgBuilder {
-	opt := genericCLIOpts{
-		in: os.Stdin,
-		w:  os.Stdout,
-	}
-	for _, o := range opts {
-		o(&opt)
-	}
-
+func newCmdPkgBuilder(svcFn pkgSVCsFn, opts genericCLIOpts) *cmdPkgBuilder {
 	return &cmdPkgBuilder{
-		genericCLIOpts: opt,
+		genericCLIOpts: opts,
 		svcFn:          svcFn,
 	}
 }
@@ -84,32 +86,32 @@ func (b *cmdPkgBuilder) cmd() *cobra.Command {
 		b.cmdPkgExport(),
 		b.cmdPkgSummary(),
 		b.cmdPkgValidate(),
+		b.cmdStack(),
 	)
+
 	return cmd
 }
 
 func (b *cmdPkgBuilder) cmdPkgApply() *cobra.Command {
-	cmd := b.newCmd("pkg", b.pkgApplyRunEFn)
+	cmd := b.newCmd("pkg", b.pkgApplyRunEFn, true)
 	cmd.Short = "Apply a pkg to create resources"
 
 	b.org.register(cmd, false)
-	cmd.Flags().StringVarP(&b.file, "file", "f", "", "Path to package file")
-	cmd.MarkFlagFilename("file", "yaml", "yml", "json", "jsonnet")
-	cmd.Flags().StringVarP(&b.encoding, "encoding", "e", "", "Encoding for the input stream. If a file is provided will gather encoding type from file extension. If extension provided will override.")
+	b.registerPkgFileFlags(cmd)
+	b.registerPkgPrintOpts(cmd)
 	cmd.Flags().BoolVarP(&b.quiet, "quiet", "q", false, "Disable output printing")
 	cmd.Flags().StringVar(&b.applyOpts.force, "force", "", `TTY input, if package will have destructive changes, proceed if set "true"`)
-	cmd.Flags().StringVarP(&b.applyOpts.url, "url", "u", "", "URL to retrieve a package.")
-	cmd.Flags().BoolVarP(&b.disableColor, "disable-color", "c", false, "Disable color in output")
-	cmd.Flags().BoolVar(&b.disableTableBorders, "disable-table-borders", false, "Disable table borders")
+	cmd.Flags().StringVar(&b.stackID, "stack-id", "", "Stack ID to associate pkg application")
 
 	b.applyOpts.secrets = []string{}
 	cmd.Flags().StringSliceVar(&b.applyOpts.secrets, "secret", nil, "Secrets to provide alongside the package; format should --secret=SECRET_KEY=SECRET_VALUE --secret=SECRET_KEY_2=SECRET_VALUE_2")
+	cmd.Flags().StringSliceVar(&b.applyOpts.envRefs, "env-ref", nil, "Environment references to provide alongside the package; format should --env-ref=REF_KEY=REF_VALUE --env-ref=REF_KEY_2=REF_VALUE_2")
 
 	return cmd
 }
 
-func (b *cmdPkgBuilder) pkgApplyRunEFn(*cobra.Command, []string) error {
-	if err := b.org.validOrgFlags(); err != nil {
+func (b *cmdPkgBuilder) pkgApplyRunEFn(cmd *cobra.Command, args []string) error {
+	if err := b.org.validOrgFlags(&flags); err != nil {
 		return err
 	}
 	color.NoColor = b.disableColor
@@ -119,78 +121,62 @@ func (b *cmdPkgBuilder) pkgApplyRunEFn(*cobra.Command, []string) error {
 		return err
 	}
 
-	if err := b.org.validOrgFlags(); err != nil {
-		return err
-	}
-
 	influxOrgID, err := b.org.getID(orgSVC)
 	if err != nil {
 		return err
 	}
 
-	var (
-		pkg   *pkger.Pkg
-		isTTY bool
-	)
-	if b.applyOpts.url != "" {
-		pkg, err = pkger.Parse(b.applyEncoding(), pkger.FromHTTPRequest(b.applyOpts.url))
-	} else {
-		pkg, isTTY, err = b.readPkgStdInOrFile(b.file)
-	}
+	pkg, isTTY, err := b.readPkg()
 	if err != nil {
 		return err
 	}
 
-	drySum, diff, err := svc.DryRun(context.Background(), influxOrgID, 0, pkg)
-	if err != nil {
-		return err
-	}
-
-	providedSecrets := make(map[string]string)
-	for _, secretKey := range drySum.MissingSecrets {
-		providedSecrets[secretKey] = ""
-	}
-	for _, secretPair := range b.applyOpts.secrets {
-		pieces := strings.SplitN(secretPair, "=", 2)
-		if len(pieces) < 2 {
-			continue
-		}
-		providedSecrets[pieces[0]] = pieces[1]
-	}
-
+	providedEnvRefs := mapKeys(pkg.Summary().MissingEnvs, b.applyOpts.envRefs)
 	if !isTTY {
-		for secretKey, existinVal := range providedSecrets {
-			if existinVal != "" {
-				continue
-			}
-			ui := &input.UI{
-				Writer: os.Stdout,
-				Reader: os.Stdin,
-			}
+		for _, envRef := range missingValKeys(providedEnvRefs) {
+			prompt := "Please provide environment reference value for key " + envRef
+			providedEnvRefs[envRef] = b.getInput(prompt, "")
+		}
+	}
 
-			const skipDefault = "skip-this-key"
+	var stackID influxdb.ID
+	if b.stackID != "" {
+		if err := stackID.DecodeFromString(b.stackID); err != nil {
+			return err
+		}
+	}
+
+	opts := []pkger.ApplyOptFn{
+		pkger.ApplyWithEnvRefs(providedEnvRefs),
+		pkger.ApplyWithStackID(stackID),
+	}
+
+	drySum, diff, err := svc.DryRun(context.Background(), influxOrgID, 0, pkg, opts...)
+	if err != nil {
+		return err
+	}
+
+	providedSecrets := mapKeys(drySum.MissingSecrets, b.applyOpts.secrets)
+	if !isTTY {
+		const skipDefault = "$$skip-this-key$$"
+		for _, secretKey := range missingValKeys(providedSecrets) {
 			prompt := "Please provide secret value for key " + secretKey + " (optional, press enter to skip)"
-			secretVal := getInput(ui, prompt, skipDefault)
+			secretVal := b.getInput(prompt, skipDefault)
 			if secretVal != "" && secretVal != skipDefault {
 				providedSecrets[secretKey] = secretVal
 			}
 		}
 	}
 
-	if !b.quiet {
-		b.printPkgDiff(diff)
+	if err := b.printPkgDiff(diff); err != nil {
+		return err
 	}
 
 	isForced, _ := strconv.ParseBool(b.applyOpts.force)
 	if !isTTY && !isForced && b.applyOpts.force != "conflict" {
-		ui := &input.UI{
-			Writer: os.Stdout,
-			Reader: os.Stdin,
-		}
-
-		confirm := getInput(ui, "Confirm application of the above resources (y/n)", "n")
+		confirm := b.getInput("Confirm application of the above resources (y/n)", "n")
 		if strings.ToLower(confirm) != "y" {
-			fmt.Fprintln(os.Stdout, "aborted application of package")
+			fmt.Fprintln(b.w, "aborted application of package")
 			return nil
 		}
 	}
@@ -199,20 +185,20 @@ func (b *cmdPkgBuilder) pkgApplyRunEFn(*cobra.Command, []string) error {
 		return errors.New("package has conflicts with existing resources and cannot safely apply")
 	}
 
-	summary, err := svc.Apply(context.Background(), influxOrgID, 0, pkg, pkger.ApplyWithSecrets(providedSecrets))
+	opts = append(opts, pkger.ApplyWithSecrets(providedSecrets))
+
+	summary, _, err := svc.Apply(context.Background(), influxOrgID, 0, pkg, opts...)
 	if err != nil {
 		return err
 	}
 
-	if !b.quiet {
-		b.printPkgSummary(summary)
-	}
+	b.printPkgSummary(summary)
 
 	return nil
 }
 
 func (b *cmdPkgBuilder) cmdPkgExport() *cobra.Command {
-	cmd := b.newCmd("export", b.pkgExportRunEFn)
+	cmd := b.newCmd("export", b.pkgExportRunEFn, true)
 	cmd.Short = "Export existing resources as a package"
 	cmd.AddCommand(b.cmdPkgExportAll())
 
@@ -286,10 +272,11 @@ func (b *cmdPkgBuilder) pkgExportRunEFn(cmd *cobra.Command, args []string) error
 }
 
 func (b *cmdPkgBuilder) cmdPkgExportAll() *cobra.Command {
-	cmd := b.newCmd("all", b.pkgExportAllRunEFn)
+	cmd := b.newCmd("all", b.pkgExportAllRunEFn, true)
 	cmd.Short = "Export all existing resources for an organization as a package"
 
 	cmd.Flags().StringVarP(&b.file, "file", "f", "", "output file for created pkg; defaults to std out if no file provided; the extension of provided file (.yml/.json) will dictate encoding")
+	cmd.Flags().StringArrayVar(&b.filters, "filter", nil, "Filter exported resources by labelName or resourceKind (format: --filter=labelName=example)")
 
 	b.org.register(cmd, false)
 
@@ -307,46 +294,153 @@ func (b *cmdPkgBuilder) pkgExportAllRunEFn(cmd *cobra.Command, args []string) er
 		return err
 	}
 
-	return b.writePkg(cmd.OutOrStdout(), pkgSVC, b.file, pkger.CreateWithAllOrgResources(orgID))
+	var (
+		labelNames    []string
+		resourceKinds []pkger.Kind
+	)
+	for _, filter := range b.filters {
+		pair := strings.SplitN(filter, "=", 2)
+		if len(pair) < 2 {
+			continue
+		}
+		switch key, val := pair[0], pair[1]; key {
+		case "labelName":
+			labelNames = append(labelNames, val)
+		case "resourceKind":
+			k := pkger.Kind(val)
+			if err := k.OK(); err != nil {
+				return err
+			}
+			resourceKinds = append(resourceKinds, k)
+		default:
+			return fmt.Errorf("invalid filter provided %q; filter must be 1 in [labelName, resourceKind]", filter)
+		}
+	}
+
+	orgOpt := pkger.CreateWithAllOrgResources(pkger.CreateByOrgIDOpt{
+		OrgID:         orgID,
+		LabelNames:    labelNames,
+		ResourceKinds: resourceKinds,
+	})
+	return b.writePkg(cmd.OutOrStdout(), pkgSVC, b.file, orgOpt)
 }
 
 func (b *cmdPkgBuilder) cmdPkgSummary() *cobra.Command {
 	runE := func(cmd *cobra.Command, args []string) error {
-		pkg, _, err := b.readPkgStdInOrFile(b.file)
+		pkg, _, err := b.readPkg()
 		if err != nil {
 			return err
 		}
 
-		b.printPkgSummary(pkg.Summary())
-		return nil
+		return b.printPkgSummary(pkg.Summary())
 	}
 
-	cmd := b.newCmd("summary", runE)
+	cmd := b.newCmd("summary", runE, false)
 	cmd.Short = "Summarize the provided package"
 
-	cmd.Flags().StringVarP(&b.file, "file", "f", "", "input file for pkg; if none provided will use TTY input")
-	cmd.Flags().BoolVarP(&b.disableColor, "disable-color", "c", false, "Disable color in output")
-	cmd.Flags().BoolVar(&b.disableTableBorders, "disable-table-borders", false, "Disable table borders")
+	b.registerPkgFileFlags(cmd)
+	b.registerPkgPrintOpts(cmd)
 
 	return cmd
 }
 
 func (b *cmdPkgBuilder) cmdPkgValidate() *cobra.Command {
 	runE := func(cmd *cobra.Command, args []string) error {
-		pkg, _, err := b.readPkgStdInOrFile(b.file)
+		pkg, _, err := b.readPkg()
 		if err != nil {
 			return err
 		}
 		return pkg.Validate()
 	}
 
-	cmd := b.newCmd("validate", runE)
+	cmd := b.newCmd("validate", runE, false)
 	cmd.Short = "Validate the provided package"
 
-	cmd.Flags().StringVarP(&b.encoding, "encoding", "e", "", "Encoding for the input stream. If a file is provided will gather encoding type from file extension. If extension provided will override.")
-	cmd.Flags().StringVarP(&b.file, "file", "f", "", "input file for pkg; if none provided will use TTY input")
+	b.registerPkgFileFlags(cmd)
 
 	return cmd
+}
+
+func (b *cmdPkgBuilder) cmdStack() *cobra.Command {
+	cmd := b.newCmd("stack", nil, false)
+	cmd.Short = "Stack management commands"
+	cmd.AddCommand(b.cmdStackInit())
+	return cmd
+}
+
+func (b *cmdPkgBuilder) cmdStackInit() *cobra.Command {
+	cmd := b.newCmd("init", b.stackInitRunEFn, true)
+	cmd.Short = "Initialize a stack"
+
+	cmd.Flags().StringVarP(&b.name, "stack-name", "n", "", "Name given to created stack")
+	cmd.Flags().StringVarP(&b.description, "stack-description", "d", "", "Description given to created stack")
+	cmd.Flags().StringArrayVarP(&b.urls, "package-url", "u", nil, "Package urls to associate with new stack")
+	registerPrintOptions(cmd, &b.hideHeaders, &b.json)
+
+	b.org.register(cmd, false)
+
+	return cmd
+}
+
+func (b *cmdPkgBuilder) stackInitRunEFn(cmd *cobra.Command, args []string) error {
+	pkgSVC, orgSVC, err := b.svcFn()
+	if err != nil {
+		return err
+	}
+
+	orgID, err := b.org.getID(orgSVC)
+	if err != nil {
+		return err
+	}
+
+	const fakeUserID = 0 // is 0 because user is pulled from token...
+	stack, err := pkgSVC.InitStack(context.Background(), fakeUserID, pkger.Stack{
+		OrgID:       orgID,
+		Name:        b.name,
+		Description: b.description,
+		URLs:        b.urls,
+	})
+	if err != nil {
+		return err
+	}
+
+	if b.json {
+		return b.writeJSON(stack)
+	}
+
+	tabW := b.newTabWriter()
+	defer tabW.Flush()
+
+	tabW.HideHeaders(b.hideHeaders)
+
+	tabW.WriteHeaders("ID", "OrgID", "Name", "Description", "URLs", "Created At")
+	tabW.Write(map[string]interface{}{
+		"ID":          stack.ID,
+		"OrgID":       stack.OrgID,
+		"Name":        stack.Name,
+		"Description": stack.Description,
+		"URLs":        stack.URLs,
+		"Created At":  stack.CreatedAt,
+	})
+
+	return nil
+}
+
+func (b *cmdPkgBuilder) registerPkgPrintOpts(cmd *cobra.Command) {
+	cmd.Flags().BoolVarP(&b.disableColor, "disable-color", "c", false, "Disable color in output")
+	cmd.Flags().BoolVar(&b.disableTableBorders, "disable-table-borders", false, "Disable table borders")
+	registerPrintOptions(cmd, nil, &b.json)
+}
+
+func (b *cmdPkgBuilder) registerPkgFileFlags(cmd *cobra.Command) {
+	cmd.Flags().StringSliceVarP(&b.files, "file", "f", nil, "Path to package file")
+	cmd.MarkFlagFilename("file", "yaml", "yml", "json", "jsonnet")
+	cmd.Flags().BoolVarP(&b.recurse, "recurse", "R", false, "Process the directory used in -f, --file recursively. Useful when you want to manage related manifests organized within the same directory.")
+
+	cmd.Flags().StringSliceVarP(&b.urls, "url", "u", nil, "URL to a package file")
+
+	cmd.Flags().StringVarP(&b.encoding, "encoding", "e", "", "Encoding for the input stream. If a file is provided will gather encoding type from file extension. If extension provided will override.")
+	cmd.MarkFlagFilename("encoding", "yaml", "yml", "json", "jsonnet")
 }
 
 func (b *cmdPkgBuilder) writePkg(w io.Writer, pkgSVC pkger.SVC, outPath string, opts ...pkger.CreatePkgSetFn) error {
@@ -368,20 +462,75 @@ func (b *cmdPkgBuilder) writePkg(w io.Writer, pkgSVC pkger.SVC, outPath string, 
 	return ioutil.WriteFile(outPath, buf.Bytes(), os.ModePerm)
 }
 
-func (b *cmdPkgBuilder) readPkgStdInOrFile(file string) (*pkger.Pkg, bool, error) {
-	if file != "" {
-		pkg, err := pkger.Parse(b.applyEncoding(), pkger.FromFile(file))
+func (b *cmdPkgBuilder) readRawPkgsFromFiles(filePaths []string, recurse bool) ([]*pkger.Pkg, error) {
+	mFiles := make(map[string]struct{})
+	for _, f := range filePaths {
+		files, err := readFilesFromPath(f, recurse)
+		if err != nil {
+			return nil, err
+		}
+		for _, ff := range files {
+			mFiles[ff] = struct{}{}
+		}
+	}
+
+	var rawPkgs []*pkger.Pkg
+	for f := range mFiles {
+		pkg, err := pkger.Parse(b.convertFileEncoding(f), pkger.FromFile(f), pkger.ValidSkipParseError())
+		if err != nil {
+			return nil, err
+		}
+		rawPkgs = append(rawPkgs, pkg)
+	}
+
+	return rawPkgs, nil
+}
+
+func (b *cmdPkgBuilder) readRawPkgsFromURLs(urls []string) ([]*pkger.Pkg, error) {
+	mURLs := make(map[string]struct{})
+	for _, f := range urls {
+		mURLs[f] = struct{}{}
+	}
+
+	var rawPkgs []*pkger.Pkg
+	for u := range mURLs {
+		pkg, err := pkger.Parse(b.convertURLEncoding(u), pkger.FromHTTPRequest(u), pkger.ValidSkipParseError())
+		if err != nil {
+			return nil, err
+		}
+		rawPkgs = append(rawPkgs, pkg)
+	}
+	return rawPkgs, nil
+}
+
+func (b *cmdPkgBuilder) readPkg() (*pkger.Pkg, bool, error) {
+	pkgs, err := b.readRawPkgsFromFiles(b.files, b.recurse)
+	if err != nil {
+		return nil, false, err
+	}
+
+	urlPkgs, err := b.readRawPkgsFromURLs(b.urls)
+	if err != nil {
+		return nil, false, err
+	}
+	pkgs = append(pkgs, urlPkgs...)
+
+	// the pkger.ValidSkipParseError option allows our server to be the one to validate the
+	// the pkg is accurate. If a user has an older version of the CLI and cloud gets updated
+	// with new validation rules,they'll get immediate access to that change without having to
+	// rol their CLI build.
+
+	if _, err := b.inStdIn(); err != nil {
+		pkg, err := pkger.Combine(pkgs, pkger.ValidSkipParseError())
 		return pkg, false, err
 	}
 
-	var isTTY bool
-
-	if _, err := b.inStdIn(); err == nil {
-		isTTY = true
+	stdinPkg, err := pkger.Parse(b.convertEncoding(), pkger.FromReader(b.in), pkger.ValidSkipParseError())
+	if err != nil {
+		return nil, true, err
 	}
-
-	pkg, err := pkger.Parse(b.applyEncoding(), pkger.FromReader(b.in))
-	return pkg, isTTY, err
+	pkg, err := pkger.Combine(append(pkgs, stdinPkg), pkger.ValidSkipParseError())
+	return pkg, true, err
 }
 
 func (b *cmdPkgBuilder) inStdIn() (*os.File, error) {
@@ -417,17 +566,48 @@ func (b *cmdPkgBuilder) readLines(r io.Reader) ([]string, error) {
 	return stdinInput, nil
 }
 
-func (b *cmdPkgBuilder) applyEncoding() pkger.Encoding {
-	urlBase := path.Ext(b.applyOpts.url)
-	ext := filepath.Ext(b.file)
+func (b *cmdPkgBuilder) getInput(msg, defaultVal string) string {
+	ui := &input.UI{
+		Writer: b.w,
+		Reader: b.in,
+	}
+	return getInput(ui, msg, defaultVal)
+}
+
+func (b *cmdPkgBuilder) convertURLEncoding(url string) pkger.Encoding {
+	urlBase := path.Ext(url)
 	switch {
-	case ext == ".json" || b.encoding == "json" || urlBase == ".json":
+	case strings.HasPrefix(urlBase, ".jsonnet"):
+		return pkger.EncodingJsonnet
+	case strings.HasPrefix(urlBase, ".json"):
 		return pkger.EncodingJSON
-	case ext == ".yml" || ext == ".yaml" ||
-		b.encoding == "yml" || b.encoding == "yaml" ||
-		urlBase == ".yml" || urlBase == ".yaml":
+	case strings.HasPrefix(urlBase, ".yml") || strings.HasPrefix(urlBase, ".yaml"):
 		return pkger.EncodingYAML
-	case ext == ".jsonnet" || b.encoding == "jsonnet" || urlBase == ".jsonnet":
+	}
+	return b.convertEncoding()
+}
+
+func (b *cmdPkgBuilder) convertFileEncoding(file string) pkger.Encoding {
+	ext := filepath.Ext(file)
+	switch {
+	case strings.HasPrefix(ext, ".jsonnet"):
+		return pkger.EncodingJsonnet
+	case strings.HasPrefix(ext, ".json"):
+		return pkger.EncodingJSON
+	case strings.HasPrefix(ext, ".yml") || strings.HasPrefix(ext, ".yaml"):
+		return pkger.EncodingYAML
+	}
+
+	return b.convertEncoding()
+}
+
+func (b *cmdPkgBuilder) convertEncoding() pkger.Encoding {
+	switch {
+	case b.encoding == "json":
+		return pkger.EncodingJSON
+	case b.encoding == "yml" || b.encoding == "yaml":
+		return pkger.EncodingYAML
+	case b.encoding == "jsonnet":
 		return pkger.EncodingJsonnet
 	default:
 		return pkger.EncodingSource
@@ -501,207 +681,338 @@ func newPkgerSVC() (pkger.SVC, influxdb.OrganizationService, error) {
 		Client: httpClient,
 	}
 
-	return &ihttp.PkgerService{Client: httpClient}, orgSvc, nil
+	return &pkger.HTTPRemoteService{Client: httpClient}, orgSvc, nil
 }
 
-func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) {
-	red := color.New(color.FgRed).SprintFunc()
-	green := color.New(color.FgHiGreen, color.Bold).SprintFunc()
-
-	diffLn := func(isNew bool, old, new interface{}) string {
-		if isNew {
-			return green(new)
-		}
-		if reflect.DeepEqual(old, new) {
-			return fmt.Sprint(new)
-		}
-		return fmt.Sprintf("%s\n%s", red(old), green(new))
+func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
+	if b.quiet {
+		return nil
 	}
 
-	boolDiff := func(b bool) string {
-		bb := strconv.FormatBool(b)
-		if b {
-			return green(bb)
-		}
-		return bb
+	if b.json {
+		return b.writeJSON(diff)
 	}
 
-	tablePrintFn := b.tablePrinterGen()
+	diffPrinterGen := func(title string, headers []string) *diffPrinter {
+		commonHeaders := []string{"Package Name", "ID", "Resource Name"}
+
+		printer := newDiffPrinter(b.w, !b.disableColor, !b.disableTableBorders)
+		printer.
+			Title(title).
+			SetHeaders(append(commonHeaders, headers...)...)
+		return printer
+	}
+
 	if labels := diff.Labels; len(labels) > 0 {
-		headers := []string{"New", "ID", "Name", "Color", "Description"}
-		tablePrintFn("LABELS", headers, len(labels), func(i int) []string {
-			l := labels[i]
-			var old pkger.DiffLabelValues
+		printer := diffPrinterGen("Labels", []string{"Color", "Description"})
+
+		appendValues := func(id pkger.SafeID, pkgName string, v pkger.DiffLabelValues) []string {
+			return []string{pkgName, id.String(), v.Name, v.Color, v.Description}
+		}
+
+		for _, l := range labels {
+			var oldRow []string
 			if l.Old != nil {
-				old = *l.Old
+				oldRow = appendValues(l.ID, l.PkgName, *l.Old)
 			}
 
-			return []string{
-				boolDiff(l.IsNew()),
-				l.ID.String(),
-				l.Name,
-				diffLn(l.IsNew(), old.Color, l.New.Color),
-				diffLn(l.IsNew(), old.Description, l.New.Description),
+			newRow := appendValues(l.ID, l.PkgName, l.New)
+			switch {
+			case l.IsNew():
+				printer.AppendDiff(nil, newRow)
+			case l.Remove:
+				printer.AppendDiff(oldRow, nil)
+			default:
+				printer.AppendDiff(oldRow, newRow)
 			}
-		})
+		}
+		printer.Render()
 	}
 
 	if bkts := diff.Buckets; len(bkts) > 0 {
-		headers := []string{"New", "ID", "Name", "Retention Period", "Description"}
-		tablePrintFn("BUCKETS", headers, len(bkts), func(i int) []string {
-			b := bkts[i]
-			var old pkger.DiffBucketValues
+		printer := diffPrinterGen("Buckets", []string{"Retention Period", "Description"})
+
+		appendValues := func(id pkger.SafeID, pkgName string, v pkger.DiffBucketValues) []string {
+			return []string{pkgName, id.String(), v.Name, v.RetentionRules.RP().String(), v.Description}
+		}
+
+		for _, b := range bkts {
+			var oldRow []string
 			if b.Old != nil {
-				old = *b.Old
+				oldRow = appendValues(b.ID, b.PkgName, *b.Old)
 			}
-			return []string{
-				boolDiff(b.IsNew()),
-				b.ID.String(),
-				b.Name,
-				diffLn(b.IsNew(), old.RetentionRules.RP().String(), b.New.RetentionRules.RP().String()),
-				diffLn(b.IsNew(), old.Description, b.New.Description),
+
+			newRow := appendValues(b.ID, b.PkgName, b.New)
+			switch {
+			case b.IsNew():
+				printer.AppendDiff(nil, newRow)
+			case b.Remove:
+				printer.AppendDiff(oldRow, nil)
+			default:
+				printer.AppendDiff(oldRow, newRow)
 			}
-		})
+		}
+		printer.Render()
 	}
 
 	if checks := diff.Checks; len(checks) > 0 {
-		headers := []string{"New", "ID", "Name", "Description"}
-		tablePrintFn("CHECKS", headers, len(checks), func(i int) []string {
-			c := checks[i]
-			var oldDesc string
+		printer := diffPrinterGen("Checks", []string{"Description"})
+
+		appendValues := func(id pkger.SafeID, pkgName string, v pkger.DiffCheckValues) []string {
+			out := []string{pkgName, id.String()}
+			if v.Check == nil {
+				return append(out, "", "")
+			}
+			return append(out, v.Check.GetName(), v.Check.GetDescription())
+		}
+
+		for _, c := range checks {
+			var oldRow []string
 			if c.Old != nil {
-				oldDesc = c.Old.GetDescription()
+				oldRow = appendValues(c.ID, c.PkgName, *c.Old)
 			}
-			return []string{
-				boolDiff(c.IsNew()),
-				c.ID.String(),
-				c.Name,
-				diffLn(c.IsNew(), oldDesc, c.New.GetDescription()),
+
+			newRow := appendValues(c.ID, c.PkgName, c.New)
+			switch {
+			case c.IsNew():
+				printer.AppendDiff(nil, newRow)
+			case c.Remove:
+				printer.AppendDiff(oldRow, nil)
+			default:
+				printer.AppendDiff(oldRow, newRow)
 			}
-		})
+		}
+		printer.Render()
 	}
 
 	if dashes := diff.Dashboards; len(dashes) > 0 {
-		headers := []string{"New", "Name", "Description", "Num Charts"}
-		tablePrintFn("DASHBOARDS", headers, len(dashes), func(i int) []string {
-			d := dashes[i]
-			return []string{
-				boolDiff(true),
-				d.Name,
-				green(d.Desc),
-				green(strconv.Itoa(len(d.Charts))),
+		printer := diffPrinterGen("Dashboards", []string{"Description", "Num Charts"})
+
+		appendValues := func(id pkger.SafeID, pkgName string, v pkger.DiffDashboardValues) []string {
+			return []string{pkgName, id.String(), v.Name, v.Desc, strconv.Itoa(len(v.Charts))}
+		}
+
+		for _, d := range dashes {
+			var oldRow []string
+			if d.Old != nil {
+				oldRow = appendValues(d.ID, d.PkgName, *d.Old)
 			}
-		})
+
+			newRow := appendValues(d.ID, d.PkgName, d.New)
+			switch {
+			case d.IsNew():
+				printer.AppendDiff(nil, newRow)
+			case d.Remove:
+				printer.AppendDiff(oldRow, nil)
+			default:
+				printer.AppendDiff(oldRow, newRow)
+			}
+		}
+		printer.Render()
 	}
 
 	if endpoints := diff.NotificationEndpoints; len(endpoints) > 0 {
-		headers := []string{"New", "ID", "Name"}
-		tablePrintFn("NOTIFICATION ENDPOINTS", headers, len(endpoints), func(i int) []string {
-			v := endpoints[i]
-			return []string{
-				boolDiff(v.IsNew()),
-				v.ID.String(),
-				v.Name,
+		printer := diffPrinterGen("Notification Endpoints", nil)
+
+		appendValues := func(id pkger.SafeID, pkgName string, v pkger.DiffNotificationEndpointValues) []string {
+			out := []string{pkgName, id.String()}
+			if v.NotificationEndpoint == nil {
+				return append(out, "")
 			}
-		})
+			return append(out, v.NotificationEndpoint.GetName())
+		}
+
+		for _, e := range endpoints {
+			var oldRow []string
+			if e.Old != nil {
+				oldRow = appendValues(e.ID, e.PkgName, *e.Old)
+			}
+
+			newRow := appendValues(e.ID, e.PkgName, e.New)
+			switch {
+			case e.IsNew():
+				printer.AppendDiff(nil, newRow)
+			case e.Remove:
+				printer.AppendDiff(oldRow, nil)
+			default:
+				printer.AppendDiff(oldRow, newRow)
+			}
+		}
+		printer.Render()
 	}
 
 	if rules := diff.NotificationRules; len(rules) > 0 {
-		headers := []string{"New", "Name", "Description", "Every", "Offset", "Endpoint Name", "Endpoint ID", "Endpoint Type"}
-		tablePrintFn("NOTIFICATION RULES", headers, len(rules), func(i int) []string {
-			v := rules[i]
+		printer := diffPrinterGen("Notification Rules", []string{
+			"Description",
+			"Every",
+			"Offset",
+			"Endpoint Name",
+			"Endpoint ID",
+			"Endpoint Type",
+		})
+
+		appendValues := func(id pkger.SafeID, pkgName string, v pkger.DiffNotificationRuleValues) []string {
 			return []string{
-				green(true),
+				pkgName,
+				id.String(),
 				v.Name,
-				v.Description,
 				v.Every,
 				v.Offset,
 				v.EndpointName,
 				v.EndpointID.String(),
 				v.EndpointType,
 			}
-		})
+		}
+
+		for _, e := range rules {
+			var oldRow []string
+			if e.Old != nil {
+				oldRow = appendValues(e.ID, e.PkgName, *e.Old)
+			}
+
+			newRow := appendValues(e.ID, e.PkgName, e.New)
+			switch {
+			case e.IsNew():
+				printer.AppendDiff(nil, newRow)
+			case e.Remove:
+				printer.AppendDiff(oldRow, nil)
+			default:
+				printer.AppendDiff(oldRow, newRow)
+			}
+		}
+		printer.Render()
 	}
 
 	if teles := diff.Telegrafs; len(teles) > 0 {
-		headers := []string{"New", "Name", "Description"}
-		tablePrintFn("TELEGRAF CONFIGS", headers, len(teles), func(i int) []string {
-			t := teles[i]
-			return []string{
-				boolDiff(true),
-				t.Name,
-				green(t.Description),
+		printer := diffPrinterGen("Telegraf Configurations", []string{"Description"})
+		appendValues := func(id pkger.SafeID, pkgName string, v influxdb.TelegrafConfig) []string {
+			return []string{pkgName, id.String(), v.Name, v.Description}
+		}
+
+		for _, e := range teles {
+			var oldRow []string
+			if e.Old != nil {
+				oldRow = appendValues(e.ID, e.PkgName, *e.Old)
 			}
-		})
+
+			newRow := appendValues(e.ID, e.PkgName, e.New)
+			switch {
+			case e.IsNew():
+				printer.AppendDiff(nil, newRow)
+			case e.Remove:
+				printer.AppendDiff(oldRow, nil)
+			default:
+				printer.AppendDiff(oldRow, newRow)
+			}
+		}
+		printer.Render()
 	}
 
 	if tasks := diff.Tasks; len(tasks) > 0 {
-		headers := []string{"New", "Name", "Description", "Cycle"}
-		tablePrintFn("TASKS", headers, len(tasks), func(i int) []string {
-			t := tasks[i]
-			timing := fmt.Sprintf("every: %s offset: %s", t.Every, t.Offset)
-			if t.Cron != "" {
-				timing = t.Cron
+		printer := diffPrinterGen("Tasks", []string{"Description", "Cycle"})
+		appendValues := func(id pkger.SafeID, pkgName string, v pkger.DiffTaskValues) []string {
+			timing := v.Cron
+			if v.Cron == "" {
+				timing = fmt.Sprintf("every: %s offset: %s", v.Every, v.Offset)
 			}
-			return []string{
-				boolDiff(true),
-				t.Name,
-				green(t.Description),
-				green(timing),
+			return []string{pkgName, id.String(), v.Name, v.Description, timing}
+		}
+
+		for _, e := range tasks {
+			var oldRow []string
+			if e.Old != nil {
+				oldRow = appendValues(e.ID, e.PkgName, *e.Old)
 			}
-		})
+
+			newRow := appendValues(e.ID, e.PkgName, e.New)
+			switch {
+			case e.IsNew():
+				printer.AppendDiff(nil, newRow)
+			case e.Remove:
+				printer.AppendDiff(oldRow, nil)
+			default:
+				printer.AppendDiff(oldRow, newRow)
+			}
+		}
+		printer.Render()
 	}
 
 	if vars := diff.Variables; len(vars) > 0 {
-		headers := []string{"New", "ID", "Name", "Description", "Arg Type", "Arg Values"}
-		tablePrintFn("VARIABLES", headers, len(vars), func(i int) []string {
-			v := vars[i]
-			var old pkger.DiffVariableValues
+		printer := diffPrinterGen("Variables", []string{"Description", "Arg Type", "Arg Values"})
+
+		appendValues := func(id pkger.SafeID, pkgName string, v pkger.DiffVariableValues) []string {
+			var argType string
+			if v.Args != nil {
+				argType = v.Args.Type
+			}
+			return []string{pkgName, id.String(), v.Name, v.Description, argType, printVarArgs(v.Args)}
+		}
+
+		for _, v := range vars {
+			var oldRow []string
 			if v.Old != nil {
-				old = *v.Old
+				oldRow = appendValues(v.ID, v.PkgName, *v.Old)
 			}
-			var oldArgType string
-			if old.Args != nil {
-				oldArgType = old.Args.Type
+
+			newRow := appendValues(v.ID, v.PkgName, v.New)
+			switch {
+			case v.IsNew():
+				printer.AppendDiff(nil, newRow)
+			case v.Remove:
+				printer.AppendDiff(oldRow, nil)
+			default:
+				printer.AppendDiff(oldRow, newRow)
 			}
-			var newArgType string
-			if v.New.Args != nil {
-				newArgType = v.New.Args.Type
-			}
-			return []string{
-				boolDiff(v.IsNew()),
-				v.ID.String(),
-				v.Name,
-				diffLn(v.IsNew(), old.Description, v.New.Description),
-				diffLn(v.IsNew(), oldArgType, newArgType),
-				diffLn(v.IsNew(), printVarArgs(old.Args), printVarArgs(v.New.Args)),
-			}
-		})
+		}
+		printer.Render()
 	}
 
 	if len(diff.LabelMappings) > 0 {
-		headers := []string{"New", "Resource Type", "Resource Name", "Resource ID", "Label Name", "Label ID"}
-		tablePrintFn("LABEL MAPPINGS", headers, len(diff.LabelMappings), func(i int) []string {
-			m := diff.LabelMappings[i]
-			return []string{
-				boolDiff(m.IsNew),
+		printer := newDiffPrinter(b.w, !b.disableColor, !b.disableTableBorders)
+		printer.
+			Title("Label Associations").
+			SetHeaders(
+				"Resource Type",
+				"Resource Package Name", "Resource Name", "Resource ID",
+				"Label Package Name", "Label Name", "Label ID",
+			)
+
+		for _, m := range diff.LabelMappings {
+			newRow := []string{
 				string(m.ResType),
-				m.ResName,
-				m.ResID.String(),
-				m.LabelName,
-				m.LabelID.String(),
+				m.ResPkgName, m.ResName, m.ResID.String(),
+				m.LabelPkgName, m.LabelName, m.LabelID.String(),
 			}
-		})
+			oldRow := newRow
+			if pkger.IsNew(m.StateStatus) {
+				oldRow = nil
+			}
+			printer.AppendDiff(oldRow, newRow)
+		}
+		printer.Render()
 	}
+
+	return nil
 }
 
-func (b *cmdPkgBuilder) printPkgSummary(sum pkger.Summary) {
+func (b *cmdPkgBuilder) printPkgSummary(sum pkger.Summary) error {
+	if b.quiet {
+		return nil
+	}
+
+	if b.json {
+		return b.writeJSON(sum)
+	}
+
+	commonHeaders := []string{"Package Name", "ID", "Resource Name"}
+
 	tablePrintFn := b.tablePrinterGen()
 	if labels := sum.Labels; len(labels) > 0 {
-		headers := []string{"ID", "Name", "Description", "Color"}
+		headers := append(commonHeaders, "Description", "Color")
 		tablePrintFn("LABELS", headers, len(labels), func(i int) []string {
 			l := labels[i]
 			return []string{
+				l.PkgName,
 				l.ID.String(),
 				l.Name,
 				l.Properties.Description,
@@ -711,10 +1022,11 @@ func (b *cmdPkgBuilder) printPkgSummary(sum pkger.Summary) {
 	}
 
 	if buckets := sum.Buckets; len(buckets) > 0 {
-		headers := []string{"ID", "Name", "Retention", "Description"}
+		headers := append(commonHeaders, "Retention", "Description")
 		tablePrintFn("BUCKETS", headers, len(buckets), func(i int) []string {
 			bucket := buckets[i]
 			return []string{
+				bucket.PkgName,
 				bucket.ID.String(),
 				bucket.Name,
 				formatDuration(bucket.RetentionPeriod),
@@ -724,10 +1036,11 @@ func (b *cmdPkgBuilder) printPkgSummary(sum pkger.Summary) {
 	}
 
 	if checks := sum.Checks; len(checks) > 0 {
-		headers := []string{"ID", "Name", "Description"}
+		headers := append(commonHeaders, "Description")
 		tablePrintFn("CHECKS", headers, len(checks), func(i int) []string {
 			c := checks[i].Check
 			return []string{
+				checks[i].PkgName,
 				c.GetID().String(),
 				c.GetName(),
 				c.GetDescription(),
@@ -744,10 +1057,11 @@ func (b *cmdPkgBuilder) printPkgSummary(sum pkger.Summary) {
 	}
 
 	if endpoints := sum.NotificationEndpoints; len(endpoints) > 0 {
-		headers := []string{"ID", "Name", "Description", "Status"}
+		headers := append(commonHeaders, "Description", "Status")
 		tablePrintFn("NOTIFICATION ENDPOINTS", headers, len(endpoints), func(i int) []string {
 			v := endpoints[i]
 			return []string{
+				v.PkgName,
 				v.NotificationEndpoint.GetID().String(),
 				v.NotificationEndpoint.GetName(),
 				v.NotificationEndpoint.GetDescription(),
@@ -803,11 +1117,12 @@ func (b *cmdPkgBuilder) printPkgSummary(sum pkger.Summary) {
 	}
 
 	if vars := sum.Variables; len(vars) > 0 {
-		headers := []string{"ID", "Name", "Description", "Arg Type", "Arg Values"}
+		headers := append(commonHeaders, "Description", "Arg Type", "Arg Values")
 		tablePrintFn("VARIABLES", headers, len(vars), func(i int) []string {
 			v := vars[i]
 			args := v.Arguments
 			return []string{
+				v.PkgName,
 				v.ID.String(),
 				v.Name,
 				v.Description,
@@ -819,7 +1134,7 @@ func (b *cmdPkgBuilder) printPkgSummary(sum pkger.Summary) {
 
 	if mappings := sum.LabelMappings; len(mappings) > 0 {
 		headers := []string{"Resource Type", "Resource Name", "Resource ID", "Label Name", "Label ID"}
-		tablePrintFn("LABEL MAPPINGS", headers, len(mappings), func(i int) []string {
+		tablePrintFn("LABEL ASSOCIATIONS", headers, len(mappings), func(i int) []string {
 			m := mappings[i]
 			return []string{
 				string(m.ResourceType),
@@ -837,6 +1152,8 @@ func (b *cmdPkgBuilder) printPkgSummary(sum pkger.Summary) {
 			return []string{secrets[i]}
 		})
 	}
+
+	return nil
 }
 
 func (b *cmdPkgBuilder) tablePrinterGen() func(table string, headers []string, count int, rowFn func(i int) []string) {
@@ -845,8 +1162,176 @@ func (b *cmdPkgBuilder) tablePrinterGen() func(table string, headers []string, c
 	}
 }
 
+type diffPrinter struct {
+	w      io.Writer
+	writer *tablewriter.Table
+
+	colorAdd     tablewriter.Colors
+	colorFooter  tablewriter.Colors
+	colorHeaders tablewriter.Colors
+	colorRemove  tablewriter.Colors
+	title        string
+
+	appendCalls int
+	headerLen   int
+}
+
+func newDiffPrinter(w io.Writer, hasColor, hasBorder bool) *diffPrinter {
+	wr := tablewriter.NewWriter(w)
+	wr.SetBorder(hasBorder)
+	wr.SetRowLine(hasBorder)
+
+	var (
+		colorAdd    = tablewriter.Colors{}
+		colorFooter = tablewriter.Colors{}
+		colorHeader = tablewriter.Colors{}
+		colorRemove = tablewriter.Colors{}
+	)
+	if hasColor {
+		colorAdd = tablewriter.Colors{tablewriter.FgHiGreenColor, tablewriter.Bold}
+		colorFooter = tablewriter.Color(tablewriter.FgHiBlueColor, tablewriter.Bold)
+		colorHeader = tablewriter.Colors{tablewriter.FgCyanColor, tablewriter.Bold}
+		colorRemove = tablewriter.Colors{tablewriter.FgRedColor, tablewriter.Bold}
+	}
+	return &diffPrinter{
+		w:            w,
+		writer:       wr,
+		colorAdd:     colorAdd,
+		colorFooter:  colorFooter,
+		colorHeaders: colorHeader,
+		colorRemove:  colorRemove,
+	}
+}
+
+func (d *diffPrinter) Render() {
+	if d.appendCalls == 0 {
+		return
+	}
+
+	// set the title and the add/remove legend
+	title := color.New(color.FgYellow, color.Bold).Sprint(strings.ToUpper(d.title))
+	add := color.New(color.FgHiGreen, color.Bold).Sprint("+add")
+	remove := color.New(color.FgRed, color.Bold).Sprint("-remove")
+	fmt.Fprintf(d.w, "%s    %s | %s | unchanged\n", title, add, remove)
+
+	d.setFooter()
+	d.writer.Render()
+	fmt.Fprintln(d.w)
+}
+
+func (d *diffPrinter) Title(title string) *diffPrinter {
+	d.title = title
+	return d
+}
+
+func (d *diffPrinter) SetHeaders(headers ...string) *diffPrinter {
+	headers = d.prepend(headers, "+/-")
+	d.headerLen = len(headers)
+
+	d.writer.SetHeader(headers)
+
+	headerColors := make([]tablewriter.Colors, d.headerLen)
+	for i := range headerColors {
+		headerColors[i] = d.colorHeaders
+	}
+	d.writer.SetHeaderColor(headerColors...)
+
+	return d
+}
+
+func (d *diffPrinter) setFooter() *diffPrinter {
+	footers := make([]string, d.headerLen)
+	if d.headerLen > 1 {
+		footers[len(footers)-2] = "TOTAL"
+		footers[len(footers)-1] = strconv.Itoa(d.appendCalls)
+	} else {
+		footers[0] = "TOTAL: " + strconv.Itoa(d.appendCalls)
+	}
+
+	d.writer.SetFooter(footers)
+	colors := make([]tablewriter.Colors, d.headerLen)
+	if d.headerLen > 1 {
+		colors[len(colors)-2] = d.colorFooter
+		colors[len(colors)-1] = d.colorFooter
+	} else {
+		colors[0] = d.colorFooter
+	}
+	d.writer.SetFooterColor(colors...)
+
+	return d
+}
+
+func (d *diffPrinter) Append(slc []string) {
+	d.writer.Append(d.prepend(slc, ""))
+}
+
+func (d *diffPrinter) AppendDiff(remove, add []string) {
+	defer func() { d.appendCalls++ }()
+
+	if d.appendCalls > 0 {
+		d.appendBufferLine()
+	}
+
+	lenAdd, lenRemove := len(add), len(remove)
+	preppedAdd, preppedRemove := d.prepend(add, "+"), d.prepend(remove, "-")
+	if lenRemove > 0 && lenAdd == 0 {
+		d.writer.Rich(preppedRemove, d.redRow(len(preppedRemove)))
+		return
+	}
+	if lenAdd > 0 && lenRemove == 0 {
+		d.writer.Rich(preppedAdd, d.greenRow(len(preppedAdd)))
+		return
+	}
+
+	var (
+		addColors    = make([]tablewriter.Colors, len(preppedAdd))
+		removeColors = make([]tablewriter.Colors, len(preppedRemove))
+		hasDiff      bool
+	)
+	for i := 0; i < lenRemove; i++ {
+		if add[i] != remove[i] {
+			hasDiff = true
+			// offset to skip prepended +/- column
+			addColors[i+1], removeColors[i+1] = d.colorAdd, d.colorRemove
+		}
+	}
+
+	if !hasDiff {
+		d.writer.Append(d.prepend(add, ""))
+		return
+	}
+
+	addColors[0], removeColors[0] = d.colorAdd, d.colorRemove
+	d.writer.Rich(d.prepend(remove, "-"), removeColors)
+	d.writer.Rich(d.prepend(add, "+"), addColors)
+}
+
+func (d *diffPrinter) appendBufferLine() {
+	d.writer.Append([]string{})
+}
+
+func (d *diffPrinter) redRow(i int) []tablewriter.Colors {
+	return colorRow(d.colorRemove, i)
+}
+
+func (d *diffPrinter) greenRow(i int) []tablewriter.Colors {
+	return colorRow(d.colorAdd, i)
+}
+
+func (d *diffPrinter) prepend(slc []string, val string) []string {
+	return append([]string{val}, slc...)
+}
+
+func colorRow(color tablewriter.Colors, i int) []tablewriter.Colors {
+	colors := make([]tablewriter.Colors, i)
+	for i := range colors {
+		colors[i] = color
+	}
+	return colors
+}
+
 func tablePrinter(wr io.Writer, table string, headers []string, count int, hasColor, hasTableBorders bool, rowFn func(i int) []string) {
-	color.New(color.FgYellow, color.Bold).Fprintln(os.Stdout, strings.ToUpper(table))
+	color.New(color.FgYellow, color.Bold).Fprintln(wr, strings.ToUpper(table))
 
 	w := tablewriter.NewWriter(wr)
 	w.SetBorder(hasTableBorders)
@@ -879,22 +1364,25 @@ func tablePrinter(wr io.Writer, table string, headers []string, count int, hasCo
 	}
 	w.SetFooter(footers)
 	if hasColor {
+		headerColor := tablewriter.Color(tablewriter.FgHiCyanColor, tablewriter.Bold)
+		footerColor := tablewriter.Color(tablewriter.FgHiBlueColor, tablewriter.Bold)
+
 		var colors []tablewriter.Colors
 		for i := 0; i < len(headers); i++ {
-			colors = append(colors, tablewriter.Color(tablewriter.FgHiCyanColor))
+			colors = append(colors, headerColor)
 		}
 		w.SetHeaderColor(colors...)
 		if len(headers) > 1 {
-			colors[len(colors)-2] = tablewriter.Color(tablewriter.FgHiBlueColor)
-			colors[len(colors)-1] = tablewriter.Color(tablewriter.FgHiBlueColor)
+			colors[len(colors)-2] = footerColor
+			colors[len(colors)-1] = footerColor
 		} else {
-			colors[0] = tablewriter.Color(tablewriter.FgHiBlueColor)
+			colors[0] = footerColor
 		}
 		w.SetFooterColor(colors...)
 	}
 
 	w.Render()
-	fmt.Fprintln(os.Stdout)
+	fmt.Fprintln(wr)
 }
 
 func printVarArgs(a *influxdb.VariableArguments) string {
@@ -934,6 +1422,84 @@ func formatDuration(d time.Duration) string {
 		return "inf"
 	}
 	return d.String()
+}
+
+func readFilesFromPath(filePath string, recurse bool) ([]string, error) {
+	info, err := os.Stat(filePath)
+	if err != nil {
+		return nil, err
+	}
+	if !info.IsDir() {
+		return []string{filePath}, nil
+	}
+
+	dirFiles, err := ioutil.ReadDir(filePath)
+	if err != nil {
+		return nil, err
+	}
+
+	mFiles := make(map[string]struct{})
+	assign := func(ss ...string) {
+		for _, s := range ss {
+			mFiles[s] = struct{}{}
+		}
+	}
+	for _, f := range dirFiles {
+		fileP := filepath.Join(filePath, f.Name())
+		if f.IsDir() {
+			if recurse {
+				rFiles, err := readFilesFromPath(fileP, recurse)
+				if err != nil {
+					return nil, err
+				}
+				assign(rFiles...)
+			}
+			continue
+		}
+		assign(fileP)
+	}
+
+	var files []string
+	for f := range mFiles {
+		files = append(files, f)
+	}
+	return files, nil
+}
+
+func mapKeys(provided, kvPairs []string) map[string]string {
+	out := make(map[string]string)
+	for _, k := range provided {
+		out[k] = ""
+	}
+
+	for _, pair := range kvPairs {
+		pieces := strings.SplitN(pair, "=", 2)
+		if len(pieces) < 2 {
+			continue
+		}
+
+		k, v := pieces[0], pieces[1]
+		if _, ok := out[k]; !ok {
+			continue
+		}
+		out[k] = v
+	}
+
+	return out
+}
+
+func missingValKeys(m map[string]string) []string {
+	out := make([]string, 0, len(m))
+	for k, v := range m {
+		if v != "" {
+			continue
+		}
+		out = append(out, k)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		return out[i] < out[j]
+	})
+	return out
 }
 
 func find(needle string, haystack []string) int {

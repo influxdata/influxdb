@@ -10,10 +10,10 @@ import (
 	"github.com/andreyvit/diff"
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/parser"
-	platform "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/mock"
-	"github.com/influxdata/influxdb/query/influxql"
-	platformtesting "github.com/influxdata/influxdb/testing"
+	platform "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/mock"
+	"github.com/influxdata/influxdb/v2/query/influxql"
+	platformtesting "github.com/influxdata/influxdb/v2/testing"
 )
 
 var dbrpMappingSvc = mock.NewDBRPMappingService()
@@ -90,7 +90,8 @@ func (f *fixture) Run(t *testing.T) {
 	t.Run(f.stmt, func(t *testing.T) {
 		wantAST := parser.ParseSource(f.want)
 		if ast.Check(wantAST) > 0 {
-			t.Fatal("found parser errors in the want text")
+			err := ast.GetError(wantAST)
+			t.Fatalf("found parser errors in the want text: %s", err.Error())
 		}
 		want := ast.Format(wantAST)
 

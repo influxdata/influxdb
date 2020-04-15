@@ -11,12 +11,13 @@ import (
 	"testing"
 
 	"github.com/influxdata/httprouter"
-	platform "github.com/influxdata/influxdb"
-	pcontext "github.com/influxdata/influxdb/context"
-	"github.com/influxdata/influxdb/inmem"
-	"github.com/influxdata/influxdb/kv"
-	"github.com/influxdata/influxdb/mock"
-	platformtesting "github.com/influxdata/influxdb/testing"
+	platform "github.com/influxdata/influxdb/v2"
+	pcontext "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/inmem"
+	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
+	"github.com/influxdata/influxdb/v2/kv"
+	"github.com/influxdata/influxdb/v2/mock"
+	platformtesting "github.com/influxdata/influxdb/v2/testing"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -331,7 +332,7 @@ func TestService_handleGetAuthorizations(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			authorizationBackend := NewMockAuthorizationBackend(t)
-			authorizationBackend.HTTPErrorHandler = ErrorHandler(0)
+			authorizationBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
 			authorizationBackend.AuthorizationService = tt.fields.AuthorizationService
 			authorizationBackend.UserService = tt.fields.UserService
 			authorizationBackend.OrganizationService = tt.fields.OrganizationService
@@ -516,7 +517,7 @@ func TestService_handleGetAuthorization(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			authorizationBackend := NewMockAuthorizationBackend(t)
-			authorizationBackend.HTTPErrorHandler = ErrorHandler(0)
+			authorizationBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
 			authorizationBackend.AuthorizationService = tt.fields.AuthorizationService
 			authorizationBackend.UserService = tt.fields.UserService
 			authorizationBackend.OrganizationService = tt.fields.OrganizationService
@@ -696,7 +697,7 @@ func TestService_handlePostAuthorization(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			authorizationBackend := NewMockAuthorizationBackend(t)
-			authorizationBackend.HTTPErrorHandler = ErrorHandler(0)
+			authorizationBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
 			authorizationBackend.AuthorizationService = tt.fields.AuthorizationService
 			authorizationBackend.UserService = tt.fields.UserService
 			authorizationBackend.OrganizationService = tt.fields.OrganizationService
@@ -810,7 +811,7 @@ func TestService_handleDeleteAuthorization(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			authorizationBackend := NewMockAuthorizationBackend(t)
-			authorizationBackend.HTTPErrorHandler = ErrorHandler(0)
+			authorizationBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
 			authorizationBackend.AuthorizationService = tt.fields.AuthorizationService
 			authorizationBackend.UserService = tt.fields.UserService
 			authorizationBackend.OrganizationService = tt.fields.OrganizationService
@@ -904,7 +905,7 @@ func initAuthorizationService(f platformtesting.AuthorizationFields, t *testing.
 	}
 
 	authorizationBackend := NewMockAuthorizationBackend(t)
-	authorizationBackend.HTTPErrorHandler = ErrorHandler(0)
+	authorizationBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
 	authorizationBackend.AuthorizationService = svc
 	authorizationBackend.UserService = mus
 	authorizationBackend.OrganizationService = svc
@@ -921,7 +922,7 @@ func initAuthorizationService(f platformtesting.AuthorizationFields, t *testing.
 	}
 
 	authZ := NewAuthorizationHandler(zaptest.NewLogger(t), authorizationBackend)
-	authN := NewAuthenticationHandler(zaptest.NewLogger(t), ErrorHandler(0))
+	authN := NewAuthenticationHandler(zaptest.NewLogger(t), kithttp.ErrorHandler(0))
 	authN.AuthorizationService = svc
 	authN.Handler = authZ
 	authN.UserService = mus

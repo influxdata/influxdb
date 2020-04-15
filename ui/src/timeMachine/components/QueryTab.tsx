@@ -1,11 +1,12 @@
 // Libraries
 import React, {PureComponent, MouseEvent, RefObject, createRef} from 'react'
 import {connect} from 'react-redux'
+import classnames from 'classnames'
 
 // Components
 import TimeMachineQueryTabName from 'src/timeMachine/components/QueryTabName'
 import TimeMachineQueriesTimer from 'src/timeMachine/components/QueriesTimer'
-import {RightClick, ComponentColor} from '@influxdata/clockface'
+import {RightClick, ComponentColor, Icon, IconFont} from '@influxdata/clockface'
 
 // Actions
 import {
@@ -61,12 +62,15 @@ class TimeMachineQueryTab extends PureComponent<Props, State> {
   public render() {
     const {queryIndex, activeQueryIndex, query} = this.props
     const isActive = queryIndex === activeQueryIndex
-    const activeClass = queryIndex === activeQueryIndex ? 'active' : ''
+    const queryTabClass = classnames('query-tab', {
+      'query-tab__active': queryIndex === activeQueryIndex,
+      'query-tab__hidden': query.hidden,
+    })
 
     return (
       <>
         <div
-          className={`query-tab ${activeClass}`}
+          className={queryTabClass}
           onClick={this.handleSetActive}
           ref={this.triggerRef}
         >
@@ -144,7 +148,7 @@ class TimeMachineQueryTab extends PureComponent<Props, State> {
 
     return (
       <div className="query-tab--close" onClick={this.handleRemove}>
-        <span className="icon remove" />
+        <Icon glyph={IconFont.Remove} />
       </div>
     )
   }
@@ -155,11 +159,11 @@ class TimeMachineQueryTab extends PureComponent<Props, State> {
       return null
     }
 
-    const icon = query.hidden ? 'eye-open' : 'eye-closed'
+    const icon = query.hidden ? IconFont.EyeClosed : IconFont.EyeOpen
 
     return (
       <div className="query-tab--hide" onClick={this.handleToggleView}>
-        <span className={`icon ${icon}`} />
+        <Icon glyph={icon} />
       </div>
     )
   }

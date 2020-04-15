@@ -11,12 +11,13 @@ func init() {
 ` + fmt.Sprintf(`from(bucketID: "%s"`, bucketID.String()) + `)
 	|> range(start: 2010-09-15T08:50:00Z, stop: 2010-09-15T09:00:00Z)
 	|> filter(fn: (r) => r._measurement == "cpu" and r._field == "value")
-	|> group(columns: ["_measurement", "_start"], mode: "by")
+	|> group(columns: ["_measurement", "_start", "_stop", "_field"], mode: "by")
+	|> keep(columns: ["_measurement", "_start", "_stop", "_field", "_time", "_value"])
 	|> window(every: 1m)
 	|> ` + name + `()
-	|> duplicate(column: "_start", as: "_time")
+	|> map(fn: (r) => ({r with _time: r._start}))
 	|> window(every: inf)
-	|> map(fn: (r) => ({_time: r._time, ` + name + `: r._value}), mergeKey: true)
+	|> rename(columns: {_value: "` + name + `"})
 	|> yield(name: "0")
 `
 		}),

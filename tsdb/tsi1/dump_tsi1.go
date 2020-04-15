@@ -9,8 +9,8 @@ import (
 	"regexp"
 	"text/tabwriter"
 
-	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/v2/models"
+	"github.com/influxdata/influxdb/v2/tsdb/seriesfile"
 	"go.uber.org/zap"
 )
 
@@ -51,7 +51,7 @@ func NewDumpTSI(logger *zap.Logger) DumpTSI {
 
 // Run executes the command.
 func (cmd *DumpTSI) Run() error {
-	sfile := tsdb.NewSeriesFile(cmd.SeriesFilePath)
+	sfile := seriesfile.NewSeriesFile(cmd.SeriesFilePath)
 	sfile.Logger = cmd.Logger
 	if err := sfile.Open(context.Background()); err != nil {
 		return err
@@ -100,7 +100,7 @@ func (cmd *DumpTSI) Run() error {
 	return nil
 }
 
-func (cmd *DumpTSI) readFileSet(sfile *tsdb.SeriesFile) (*Index, *FileSet, error) {
+func (cmd *DumpTSI) readFileSet(sfile *seriesfile.SeriesFile) (*Index, *FileSet, error) {
 	index := NewIndex(sfile, NewConfig(), WithPath(cmd.DataPath), DisableCompactions())
 
 	if err := index.Open(context.Background()); err != nil {
@@ -109,7 +109,7 @@ func (cmd *DumpTSI) readFileSet(sfile *tsdb.SeriesFile) (*Index, *FileSet, error
 	return index, nil, nil
 }
 
-func (cmd *DumpTSI) printSeries(sfile *tsdb.SeriesFile) error {
+func (cmd *DumpTSI) printSeries(sfile *seriesfile.SeriesFile) error {
 	if !cmd.ShowSeries {
 		return nil
 	}
@@ -119,21 +119,18 @@ func (cmd *DumpTSI) printSeries(sfile *tsdb.SeriesFile) error {
 	fmt.Fprintln(tw, "Series\t")
 
 	// Iterate over each series.
-	itr := sfile.SeriesIDIterator()
-	for {
-		e, err := itr.Next()
-		if err != nil {
-			return err
-		} else if e.SeriesID.ID == 0 {
+	seriesIDs := sfile.SeriesIDs()
+	for _, seriesID := range seriesIDs {
+		if seriesID.ID == 0 {
 			break
 		}
-		name, tags := tsdb.ParseSeriesKey(sfile.SeriesKey(e.SeriesID))
+		name, tags := seriesfile.ParseSeriesKey(sfile.SeriesKey(seriesID))
 
 		if !cmd.matchSeries(name, tags) {
 			continue
 		}
 
-		deleted := sfile.IsDeleted(e.SeriesID)
+		deleted := sfile.IsDeleted(seriesID)
 
 		fmt.Fprintf(tw, "%s%s\t%v\n", name, tags.HashKey(), deletedString(deleted))
 	}
@@ -147,7 +144,7 @@ func (cmd *DumpTSI) printSeries(sfile *tsdb.SeriesFile) error {
 	return nil
 }
 
-func (cmd *DumpTSI) printMeasurements(sfile *tsdb.SeriesFile, fs *FileSet) error {
+func (cmd *DumpTSI) printMeasurements(sfile *seriesfile.SeriesFile, fs *FileSet) error {
 	if !cmd.ShowMeasurements {
 		return nil
 	}
@@ -178,7 +175,7 @@ func (cmd *DumpTSI) printMeasurements(sfile *tsdb.SeriesFile, fs *FileSet) error
 	return nil
 }
 
-func (cmd *DumpTSI) printTagKeys(sfile *tsdb.SeriesFile, fs *FileSet, name []byte) error {
+func (cmd *DumpTSI) printTagKeys(sfile *seriesfile.SeriesFile, fs *FileSet, name []byte) error {
 	if !cmd.ShowTagKeys {
 		return nil
 	}
@@ -205,7 +202,7 @@ func (cmd *DumpTSI) printTagKeys(sfile *tsdb.SeriesFile, fs *FileSet, name []byt
 	return nil
 }
 
-func (cmd *DumpTSI) printTagValues(sfile *tsdb.SeriesFile, fs *FileSet, name, key []byte) error {
+func (cmd *DumpTSI) printTagValues(sfile *seriesfile.SeriesFile, fs *FileSet, name, key []byte) error {
 	if !cmd.ShowTagValues {
 		return nil
 	}
@@ -232,7 +229,7 @@ func (cmd *DumpTSI) printTagValues(sfile *tsdb.SeriesFile, fs *FileSet, name, ke
 	return nil
 }
 
-func (cmd *DumpTSI) printTagValueSeries(sfile *tsdb.SeriesFile, fs *FileSet, name, key, value []byte) error {
+func (cmd *DumpTSI) printTagValueSeries(sfile *seriesfile.SeriesFile, fs *FileSet, name, key, value []byte) error {
 	if !cmd.ShowTagValueSeries {
 		return nil
 	}
@@ -251,7 +248,7 @@ func (cmd *DumpTSI) printTagValueSeries(sfile *tsdb.SeriesFile, fs *FileSet, nam
 			break
 		}
 
-		name, tags := tsdb.ParseSeriesKey(sfile.SeriesKey(e.SeriesID))
+		name, tags := seriesfile.ParseSeriesKey(sfile.SeriesKey(e.SeriesID))
 
 		if !cmd.matchSeries(name, tags) {
 			continue

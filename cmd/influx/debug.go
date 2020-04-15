@@ -6,9 +6,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/internal/fs"
-	"github.com/influxdata/influxdb/tsdb/tsm1"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/internal/fs"
+	"github.com/influxdata/influxdb/v2/tsdb/tsm1"
 	"github.com/spf13/cobra"
 )
 
@@ -84,7 +84,7 @@ in the following ways:
 
 // inspectReportTSMF runs the report-tsm tool.
 func inspectReportTSMF(cmd *cobra.Command, args []string) error {
-	if err := inspectReportTSMFlags.organization.validOrgFlags(); err != nil {
+	if err := inspectReportTSMFlags.organization.validOrgFlags(&flags); err != nil {
 		return err
 	}
 	report := &tsm1.Report{

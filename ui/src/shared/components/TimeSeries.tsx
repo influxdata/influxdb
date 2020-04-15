@@ -18,6 +18,8 @@ import {checkQueryResult} from 'src/shared/utils/checkQueryResult'
 import {getWindowVars} from 'src/variables/utils/getWindowVars'
 import {buildVarsOption} from 'src/variables/utils/buildVarsOption'
 import 'intersection-observer'
+import {getAll} from 'src/resources/selectors'
+import {getOrgIDFromBuckets} from 'src/timeMachine/actions/queries'
 
 // Constants
 import {rateLimitReached, resultTooLarge} from 'src/shared/copy/notifications'
@@ -26,11 +28,17 @@ import {rateLimitReached, resultTooLarge} from 'src/shared/copy/notifications'
 import {notify as notifyAction} from 'src/shared/actions/notifications'
 
 // Types
-import {RemoteDataState, Check, StatusRow} from 'src/types'
-import {DashboardQuery} from 'src/types/dashboards'
-import {AppState} from 'src/types'
-import {CancelBox} from 'src/types/promises'
-import {VariableAssignment} from 'src/types/ast'
+import {
+  RemoteDataState,
+  Check,
+  StatusRow,
+  Bucket,
+  ResourceType,
+  DashboardQuery,
+  VariableAssignment,
+  AppState,
+  CancelBox,
+} from 'src/types'
 
 interface QueriesState {
   files: string[] | null
@@ -44,6 +52,7 @@ interface QueriesState {
 
 interface StateProps {
   queryLink: string
+  buckets: Bucket[]
 }
 
 interface OwnProps {
@@ -153,9 +162,8 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
   }
 
   private reload = async () => {
-    const {variables, notify, check} = this.props
+    const {variables, notify, check, buckets} = this.props
     const queries = this.props.queries.filter(({text}) => !!text.trim())
-    const orgID = this.props.params.orgID
 
     if (!queries.length) {
       this.setState(defaultState())
@@ -171,12 +179,16 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
 
     try {
       const startTime = Date.now()
+      let errorMessage: string = ''
 
       // Cancel any existing queries
       this.pendingResults.forEach(({cancel}) => cancel())
 
       // Issue new queries
       this.pendingResults = queries.map(({text}) => {
+        const orgID =
+          getOrgIDFromBuckets(text, buckets) || this.props.params.orgID
+
         const windowVars = getWindowVars(text, variables)
         const extern = buildVarsOption([...variables, ...windowVars])
 
@@ -189,7 +201,11 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
       let statuses = [] as StatusRow[][]
       if (check) {
         const extern = buildVarsOption(variables)
-        this.pendingCheckStatuses = runStatusesQuery(orgID, check.id, extern)
+        this.pendingCheckStatuses = runStatusesQuery(
+          this.props.params.orgID,
+          check.id,
+          extern
+        )
         statuses = await this.pendingCheckStatuses.promise // TODO handle errors
       }
 
@@ -197,10 +213,12 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
 
       for (const result of results) {
         if (result.type === 'UNKNOWN_ERROR') {
+          errorMessage = result.message
           throw new Error(result.message)
         }
 
         if (result.type === 'RATE_LIMIT_ERROR') {
+          errorMessage = result.message
           notify(rateLimitReached(result.retryAfter))
 
           throw new Error(result.message)
@@ -219,6 +237,7 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
 
       this.setState({
         giraffeResult,
+        errorMessage,
         files,
         duration,
         loading: RemoteDataState.Done,
@@ -263,10 +282,13 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
   }
 }
 
-const mstp = (state: AppState) => {
+const mstp = (state: AppState): StateProps => {
   const {links} = state
 
-  return {queryLink: links.query.self}
+  return {
+    queryLink: links.query.self,
+    buckets: getAll<Bucket>(state, ResourceType.Buckets),
+  }
 }
 
 const mdtp: DispatchProps = {

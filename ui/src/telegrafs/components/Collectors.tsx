@@ -17,11 +17,12 @@ import {
   ComponentStatus,
 } from '@influxdata/clockface'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
-import SettingsTabbedPageHeader from 'src/settings/components/SettingsTabbedPageHeader'
+import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'
 import {FilteredList} from 'src/telegrafs/components/CollectorList'
 import TelegrafExplainer from 'src/telegrafs/components/TelegrafExplainer'
 import NoBucketsWarning from 'src/buckets/components/NoBucketsWarning'
 import GetResources from 'src/resources/components/GetResources'
+import ResourceSortDropdown from 'src/shared/components/resource_sort_dropdown/ResourceSortDropdown'
 
 // Actions
 import {updateTelegraf, deleteTelegraf} from 'src/telegrafs/actions/thunks'
@@ -30,13 +31,14 @@ import {updateTelegraf, deleteTelegraf} from 'src/telegrafs/actions/thunks'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
-import {Telegraf, OverlayState, AppState, Bucket, ResourceType} from 'src/types'
+import {OverlayState, AppState, Bucket, ResourceType} from 'src/types'
 import {
   setTelegrafConfigID,
   setTelegrafConfigName,
   clearDataLoaders,
 } from 'src/dataLoaders/actions/dataLoaders'
 import {SortTypes} from 'src/shared/utils/sort'
+import {TelegrafSortKey} from 'src/shared/components/resource_sort_dropdown/generateSortItems'
 
 // Selectors
 import {getOrg} from 'src/organizations/selectors'
@@ -63,12 +65,10 @@ interface State {
   searchTerm: string
   instructionsOverlay: OverlayState
   collectorID?: string
-  sortKey: SortKey
+  sortKey: TelegrafSortKey
   sortDirection: Sort
   sortType: SortTypes
 }
-
-type SortKey = keyof Telegraf
 
 @ErrorHandling
 class Collectors extends PureComponent<Props, State> {
@@ -89,32 +89,48 @@ class Collectors extends PureComponent<Props, State> {
   public render() {
     const {hasTelegrafs} = this.props
     const {searchTerm, sortKey, sortDirection, sortType} = this.state
+
+    const collecorsLeftHeaderItems = (
+      <>
+        <SearchWidget
+          placeholderText="Filter telegraf configurations..."
+          searchTerm={searchTerm}
+          onSearch={this.handleFilterChange}
+        />
+        <ResourceSortDropdown
+          resourceType={ResourceType.Telegrafs}
+          sortDirection={sortDirection}
+          sortKey={sortKey}
+          sortType={sortType}
+          onSelect={this.handleSort}
+        />
+      </>
+    )
+
+    const collecorsRightHeaderItems = (
+      <>
+        <Button
+          text="InfluxDB Output Plugin"
+          icon={IconFont.Eye}
+          color={ComponentColor.Secondary}
+          onClick={this.handleJustTheOutput}
+          titleText="Output section of telegraf.conf for V2"
+          testID="button--output-only"
+        />
+        {this.createButton}
+      </>
+    )
+
     return (
       <>
         <NoBucketsWarning
           visible={this.hasNoBuckets}
           resourceName="Telegraf Configurations"
         />
-
-        <SettingsTabbedPageHeader className="telegraf-collectors--header">
-          <SearchWidget
-            placeholderText="Filter telegraf configurations..."
-            searchTerm={searchTerm}
-            onSearch={this.handleFilterChange}
-          />
-          <div className="telegraf-collectors-button-wrap">
-            <Button
-              text="InfluxDB Output Plugin"
-              icon={IconFont.Eye}
-              color={ComponentColor.Secondary}
-              style={{marginRight: '8px'}}
-              onClick={this.handleJustTheOutput}
-              titleText="Output section of telegraf.conf for V2"
-              testID="button--output-only"
-            />
-            {this.createButton}
-          </div>
-        </SettingsTabbedPageHeader>
+        <TabbedPageHeader
+          childrenLeft={collecorsLeftHeaderItems}
+          childrenRight={collecorsRightHeaderItems}
+        />
         <Grid>
           <Grid.Row>
             <Grid.Column
@@ -130,7 +146,6 @@ class Collectors extends PureComponent<Props, State> {
                   sortKey={sortKey}
                   sortDirection={sortDirection}
                   sortType={sortType}
-                  onClickColumn={this.handleClickColumn}
                 />
               </GetResources>
             </Grid.Column>
@@ -149,9 +164,12 @@ class Collectors extends PureComponent<Props, State> {
     )
   }
 
-  private handleClickColumn = (nextSort: Sort, sortKey: SortKey) => {
-    const sortType = SortTypes.String
-    this.setState({sortKey, sortDirection: nextSort, sortType})
+  private handleSort = (
+    sortKey: TelegrafSortKey,
+    sortDirection: Sort,
+    sortType: SortTypes
+  ): void => {
+    this.setState({sortKey, sortDirection, sortType})
   }
 
   private get hasNoBuckets(): boolean {

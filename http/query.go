@@ -20,20 +20,27 @@ import (
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/flux/parser"
 	"github.com/influxdata/flux/repl"
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/jsonweb"
-	"github.com/influxdata/influxdb/query"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/jsonweb"
+	"github.com/influxdata/influxdb/v2/query"
+	transpiler "github.com/influxdata/influxdb/v2/query/influxql"
 	"github.com/influxdata/influxql"
 )
 
 // QueryRequest is a flux query request.
 type QueryRequest struct {
+	Type  string `json:"type"`
+	Query string `json:"query"`
+
+	// Flux fields
 	Extern  *ast.File    `json:"extern,omitempty"`
 	Spec    *flux.Spec   `json:"spec,omitempty"`
 	AST     *ast.Package `json:"ast,omitempty"`
-	Query   string       `json:"query"`
-	Type    string       `json:"type"`
 	Dialect QueryDialect `json:"dialect"`
+	Now     time.Time    `json:"now"`
+
+	// InfluxQL fields
+	Bucket string `json:"bucket,omitempty"`
 
 	Org *influxdb.Organization `json:"-"`
 
@@ -97,8 +104,12 @@ func (r QueryRequest) Validate() error {
 		}
 	}
 
-	if r.Type != "flux" {
+	if r.Type != "flux" && r.Type != "influxql" {
 		return fmt.Errorf(`unknown query type: %s`, r.Type)
+	}
+
+	if r.Type == "influxql" && r.Bucket == "" {
+		return fmt.Errorf("bucket parameter is required for influxql queries")
 	}
 
 	if len(r.Dialect.CommentPrefix) > 1 {
@@ -242,18 +253,35 @@ func (r QueryRequest) proxyRequest(now func() time.Time) (*query.ProxyRequest, e
 	if err := r.Validate(); err != nil {
 		return nil, err
 	}
+
+	n := r.Now
+	if n.IsZero() {
+		n = now()
+	}
+
 	// Query is preferred over AST
 	var compiler flux.Compiler
 	if r.Query != "" {
-		compiler = lang.FluxCompiler{
-			Now:    now(),
-			Extern: r.Extern,
-			Query:  r.Query,
+		switch r.Type {
+		case "influxql":
+			compiler = &transpiler.Compiler{
+				Now:    &n,
+				Query:  r.Query,
+				Bucket: r.Bucket,
+			}
+		case "flux":
+			fallthrough
+		default:
+			compiler = lang.FluxCompiler{
+				Now:    n,
+				Extern: r.Extern,
+				Query:  r.Query,
+			}
 		}
 	} else if r.AST != nil {
 		c := lang.ASTCompiler{
 			AST: r.AST,
-			Now: now(),
+			Now: n,
 		}
 		if r.Extern != nil {
 			c.PrependFile(r.Extern)
@@ -276,20 +304,25 @@ func (r QueryRequest) proxyRequest(now func() time.Time) (*query.ProxyRequest, e
 	if r.PreferNoContent {
 		dialect = &query.NoContentDialect{}
 	} else {
-		// TODO(nathanielc): Use commentPrefix and dateTimeFormat
-		// once they are supported.
-		encConfig := csv.ResultEncoderConfig{
-			NoHeader:    noHeader,
-			Delimiter:   delimiter,
-			Annotations: r.Dialect.Annotations,
-		}
-		if r.PreferNoContentWithError {
-			dialect = &query.NoContentWithErrorDialect{
-				ResultEncoderConfig: encConfig,
-			}
+		if r.Type == "influxql" {
+			// Use default transpiler dialect
+			dialect = &transpiler.Dialect{}
 		} else {
-			dialect = &csv.Dialect{
-				ResultEncoderConfig: encConfig,
+			// TODO(nathanielc): Use commentPrefix and dateTimeFormat
+			// once they are supported.
+			encConfig := csv.ResultEncoderConfig{
+				NoHeader:    noHeader,
+				Delimiter:   delimiter,
+				Annotations: r.Dialect.Annotations,
+			}
+			if r.PreferNoContentWithError {
+				dialect = &query.NoContentWithErrorDialect{
+					ResultEncoderConfig: encConfig,
+				}
+			} else {
+				dialect = &csv.Dialect{
+					ResultEncoderConfig: encConfig,
+				}
 			}
 		}
 	}
@@ -318,6 +351,7 @@ func QueryRequestFromProxyRequest(req *query.ProxyRequest) (*QueryRequest, error
 	case lang.ASTCompiler:
 		qr.Type = "flux"
 		qr.AST = c.AST
+		qr.Now = c.Now
 	default:
 		return nil, fmt.Errorf("unsupported compiler %T", c)
 	}

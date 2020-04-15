@@ -6,13 +6,13 @@ import {
   Links,
   ConfigurationState,
   RemoteDataState,
+  Label,
 } from 'src/types'
 import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
 import {WithRouterProps} from 'react-router'
 import {NumericColumnData} from '@influxdata/giraffe'
 import {
   Source,
-  ILabel,
   TelegrafPluginInputCpu,
   TelegrafPluginInputRedis,
   TelegrafPluginInputDisk,
@@ -165,7 +165,7 @@ export const dashboard: Dashboard = {
   status: RemoteDataState.Done,
 }
 
-export const labels: ILabel[] = [
+export const labels: Label[] = [
   {
     id: '0001',
     name: 'Trogdor',
@@ -173,6 +173,7 @@ export const labels: ILabel[] = [
       color: '#44ffcc',
       description: 'Burninating the countryside',
     },
+    status: RemoteDataState.Done,
   },
   {
     id: '0002',
@@ -181,8 +182,11 @@ export const labels: ILabel[] = [
       color: '#ff0054',
       description: 'It is a great fruit',
     },
+    status: RemoteDataState.Done,
   },
 ]
+
+const labelIDs = labels.map(l => l.id)
 
 export const dashboardWithLabels: Dashboard = {
   id: '1',
@@ -198,7 +202,7 @@ export const dashboardWithLabels: Dashboard = {
     updatedAt: '2019-01-08T12:57:31.562048-08:00',
   },
   status: RemoteDataState.Done,
-  labels,
+  labels: labelIDs,
 }
 
 export const cell: Cell = {
@@ -249,7 +253,7 @@ export const tasks: Task[] = [
       'option task = {\n  name: "somename",\n  every: 1m,\n}\nfrom(bucket: "inbucket") \n|> range(start: -task.every)',
     every: '1m0s',
     org: 'default',
-    labels,
+    labels: labelIDs,
   },
 ]
 
@@ -512,6 +516,7 @@ export const buckets = [
     orgID: '034a0adc49a6b000',
     name: 'newbuck',
     retentionRules: [],
+    readableRetention: 'forever',
     labels: [],
   },
   {
@@ -525,6 +530,7 @@ export const buckets = [
     orgID: '034a0adc49a6b000',
     name: 'newbuck1',
     retentionRules: [],
+    readableRetention: 'forever',
     labels: [],
   },
 ]
@@ -922,6 +928,7 @@ export const viewProperties: ViewProperties = {
           {
             key: '_measurement',
             values: [],
+            aggregateFunctionType: 'filter',
           },
         ],
         functions: [],

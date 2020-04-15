@@ -1,19 +1,16 @@
-/* eslint no-console: 0 */
-
 // Libraries
 import React, {FC, Dispatch} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
 
-// Actions and Selectors
-import {viewableLabels} from 'src/labels/selectors'
+// Actions
 import {
   addEndpointLabel,
   deleteEndpointLabel,
   deleteEndpoint,
   updateEndpointProperties,
   cloneEndpoint,
-} from 'src/notifications/endpoints/actions'
+} from 'src/notifications/endpoints/actions/thunks'
 
 // Components
 import {SlideToggle, ComponentSize, ResourceCard} from '@influxdata/clockface'
@@ -27,13 +24,8 @@ import {
 } from 'src/alerting/constants/history'
 
 // Types
-import {
-  NotificationEndpoint,
-  Label,
-  AppState,
-  AlertHistoryType,
-} from 'src/types'
-import {Action} from 'src/notifications/endpoints/actions'
+import {NotificationEndpoint, Label, AlertHistoryType} from 'src/types'
+import {Action} from 'src/notifications/endpoints/actions/creators'
 
 // Utilities
 import {relativeTimestampFormatter} from 'src/shared/utils/relativeTimestampFormatter'
@@ -46,10 +38,6 @@ interface DispatchProps {
   onCloneEndpoint: typeof cloneEndpoint
 }
 
-interface StateProps {
-  labels: Label[]
-}
-
 interface OwnProps {
   endpoint: NotificationEndpoint
 }
@@ -58,14 +46,9 @@ interface DispatchProp {
   dispatch: Dispatch<Action>
 }
 
-type Props = OwnProps &
-  WithRouterProps &
-  DispatchProps &
-  StateProps &
-  DispatchProp
+type Props = OwnProps & WithRouterProps & DispatchProps & DispatchProp
 
 const EndpointCard: FC<Props> = ({
-  labels,
   router,
   params: {orgID},
   endpoint,
@@ -75,13 +58,14 @@ const EndpointCard: FC<Props> = ({
   onAddEndpointLabel,
   onRemoveEndpointLabel,
 }) => {
-  const {id, name, status, description} = endpoint
+  const {id, name, description, activeStatus} = endpoint
 
   const handleUpdateName = (name: string) => {
     onUpdateEndpointProperties(id, {name})
   }
+
   const handleClick = () => {
-    router.push(`orgs/${orgID}/alerting/endpoints/${endpoint.id}/edit`)
+    router.push(`orgs/${orgID}/alerting/endpoints/${id}/edit`)
   }
 
   const nameComponent = (
@@ -98,12 +82,13 @@ const EndpointCard: FC<Props> = ({
   )
 
   const handleToggle = () => {
-    const toStatus = status === 'active' ? 'inactive' : 'active'
+    const toStatus = activeStatus === 'active' ? 'inactive' : 'active'
     onUpdateEndpointProperties(id, {status: toStatus})
   }
+
   const toggle = (
     <SlideToggle
-      active={status === 'active'}
+      active={activeStatus === 'active'}
       size={ComponentSize.ExtraSmall}
       onChange={handleToggle}
       testID="endpoint-card--slide-toggle"
@@ -115,7 +100,7 @@ const EndpointCard: FC<Props> = ({
 
     const queryParams = new URLSearchParams({
       [HISTORY_TYPE_QUERY_PARAM]: historyType,
-      [SEARCH_QUERY_PARAM]: `"notificationEndpointID" == "${endpoint.id}"`,
+      [SEARCH_QUERY_PARAM]: `"notificationEndpointID" == "${id}"`,
     })
 
     router.push(`/orgs/${orgID}/alert-history?${queryParams}`)
@@ -138,12 +123,12 @@ const EndpointCard: FC<Props> = ({
     onAddEndpointLabel(id, label)
   }
   const handleRemoveEndpointLabel = (label: Label) => {
-    onRemoveEndpointLabel(id, label)
+    onRemoveEndpointLabel(id, label.id)
   }
+
   const labelsComponent = (
     <InlineLabels
-      selectedLabels={endpoint.labels as Label[]}
-      labels={labels}
+      selectedLabelIDs={endpoint.labels}
       onAddLabel={handleAddEndpointLabel}
       onRemoveLabel={handleRemoveEndpointLabel}
     />
@@ -168,7 +153,7 @@ const EndpointCard: FC<Props> = ({
       contextMenu={contextMenu}
       description={descriptionComponent}
       labels={labelsComponent}
-      disabled={status === 'inactive'}
+      disabled={activeStatus === 'inactive'}
       metaData={[
         <>{relativeTimestampFormatter(endpoint.updatedAt, 'Last updated ')}</>,
       ]}
@@ -185,11 +170,7 @@ const mdtp: DispatchProps = {
   onCloneEndpoint: cloneEndpoint,
 }
 
-const mstp = ({labels}: AppState): StateProps => ({
-  labels: viewableLabels(labels.list),
-})
-
-export default connect<StateProps, DispatchProps, {}>(
-  mstp,
+export default connect<{}, DispatchProps, {}>(
+  null,
   mdtp
 )(withRouter<OwnProps>(EndpointCard))

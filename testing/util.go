@@ -1,9 +1,11 @@
 package testing
 
 import (
+	"context"
 	"testing"
 
-	platform "github.com/influxdata/influxdb"
+	platform "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kv"
 )
 
 // TODO(goller): remove opPrefix argument
@@ -62,4 +64,62 @@ func MustIDBase16(s string) platform.ID {
 func MustIDBase16Ptr(s string) *platform.ID {
 	id := MustIDBase16(s)
 	return &id
+}
+
+func MustCreateOrgs(ctx context.Context, svc *kv.Service, os ...*platform.Organization) {
+	for _, o := range os {
+		if err := svc.CreateOrganization(ctx, o); err != nil {
+			panic(err)
+		}
+	}
+}
+
+func MustCreateLabels(ctx context.Context, svc *kv.Service, labels ...*platform.Label) {
+	for _, l := range labels {
+		if err := svc.CreateLabel(ctx, l); err != nil {
+			panic(err)
+		}
+	}
+}
+
+func MustCreateUsers(ctx context.Context, svc *kv.Service, us ...*platform.User) {
+	for _, u := range us {
+		if err := svc.CreateUser(ctx, u); err != nil {
+			panic(err)
+		}
+	}
+}
+
+func MustCreateMappings(ctx context.Context, svc *kv.Service, ms ...*platform.UserResourceMapping) {
+	for _, m := range ms {
+		if err := svc.CreateUserResourceMapping(ctx, m); err != nil {
+			panic(err)
+		}
+	}
+}
+
+func MustMakeUsersOrgOwner(ctx context.Context, svc *kv.Service, oid platform.ID, uids ...platform.ID) {
+	ms := make([]*platform.UserResourceMapping, len(uids))
+	for i, uid := range uids {
+		ms[i] = &platform.UserResourceMapping{
+			UserID:       uid,
+			UserType:     platform.Owner,
+			ResourceType: platform.OrgsResourceType,
+			ResourceID:   oid,
+		}
+	}
+	MustCreateMappings(ctx, svc, ms...)
+}
+
+func MustMakeUsersOrgMember(ctx context.Context, svc *kv.Service, oid platform.ID, uids ...platform.ID) {
+	ms := make([]*platform.UserResourceMapping, len(uids))
+	for i, uid := range uids {
+		ms[i] = &platform.UserResourceMapping{
+			UserID:       uid,
+			UserType:     platform.Member,
+			ResourceType: platform.OrgsResourceType,
+			ResourceID:   oid,
+		}
+	}
+	MustCreateMappings(ctx, svc, ms...)
 }

@@ -7,10 +7,13 @@ import {withRouter, WithRouterProps} from 'react-router'
 import {Button, IconFont, ComponentColor} from '@influxdata/clockface'
 import EndpointCards from 'src/notifications/endpoints/components/EndpointCards'
 import AlertsColumn from 'src/alerting/components/AlertsColumn'
-import {AppState} from 'src/types'
+import {AppState, NotificationEndpoint, ResourceType} from 'src/types'
+
+// Utils
+import {getAll} from 'src/resources/selectors'
 
 interface StateProps {
-  endpoints: AppState['endpoints']['list']
+  endpoints: NotificationEndpoint[]
 }
 type OwnProps = {}
 type Props = OwnProps & WithRouterProps & StateProps
@@ -51,6 +54,7 @@ const EndpointsColumn: FC<Props> = ({router, params, endpoints}) => {
 
   return (
     <AlertsColumn
+      type={ResourceType.NotificationEndpoints}
       title="Notification Endpoints"
       createButton={createButton}
       questionMarkTooltipContents={tooltipContents}
@@ -62,8 +66,13 @@ const EndpointsColumn: FC<Props> = ({router, params, endpoints}) => {
   )
 }
 
-const mstp = ({endpoints}: AppState) => {
-  return {endpoints: endpoints.list}
+const mstp = (state: AppState) => {
+  const endpoints = getAll<NotificationEndpoint>(
+    state,
+    ResourceType.NotificationEndpoints
+  )
+
+  return {endpoints}
 }
 
 export default connect<StateProps>(mstp)(withRouter<OwnProps>(EndpointsColumn))

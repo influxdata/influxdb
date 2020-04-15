@@ -4,49 +4,43 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
 
-	"github.com/influxdata/influxdb/http"
-
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/cmd/influx/internal"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/http"
 	"github.com/spf13/cobra"
 )
 
 type orgSVCFn func() (influxdb.OrganizationService, influxdb.UserResourceMappingService, influxdb.UserService, error)
 
-func cmdOrganization(opts ...genericCLIOptFn) *cobra.Command {
-	return newCmdOrgBuilder(newOrgServices, opts...).cmd()
+func cmdOrganization(f *globalFlags, opts genericCLIOpts) *cobra.Command {
+	builder := newCmdOrgBuilder(newOrgServices, opts)
+	builder.globalFlags = f
+	return builder.cmd()
 }
 
 type cmdOrgBuilder struct {
 	genericCLIOpts
+	*globalFlags
 
 	svcFn orgSVCFn
 
+	json        bool
+	hideHeaders bool
 	description string
 	id          string
 	memberID    string
 	name        string
 }
 
-func newCmdOrgBuilder(svcFn orgSVCFn, opts ...genericCLIOptFn) *cmdOrgBuilder {
-	opt := genericCLIOpts{
-		in: os.Stdin,
-		w:  os.Stdout,
-	}
-	for _, o := range opts {
-		o(&opt)
-	}
-
+func newCmdOrgBuilder(svcFn orgSVCFn, opts genericCLIOpts) *cmdOrgBuilder {
 	return &cmdOrgBuilder{
-		genericCLIOpts: opt,
+		genericCLIOpts: opts,
 		svcFn:          svcFn,
 	}
 }
 
 func (b *cmdOrgBuilder) cmd() *cobra.Command {
-	cmd := b.newCmd("org", nil)
+	cmd := b.newCmd("org", nil, false)
 	cmd.Aliases = []string{"organization"}
 	cmd.Short = "Organization management commands"
 	cmd.Run = seeHelp
@@ -63,9 +57,10 @@ func (b *cmdOrgBuilder) cmd() *cobra.Command {
 }
 
 func (b *cmdOrgBuilder) cmdCreate() *cobra.Command {
-	cmd := b.newCmd("create", b.createRunEFn)
+	cmd := b.newCmd("create", b.createRunEFn, true)
 	cmd.Short = "Create organization"
 
+	b.registerPrintFlags(cmd)
 	cmd.Flags().StringVarP(&b.name, "name", "n", "", "The name of organization that will be created")
 	cmd.MarkFlagRequired("name")
 	cmd.Flags().StringVarP(&b.description, "description", "d", "", "The description of the organization that will be created")
@@ -88,19 +83,11 @@ func (b *cmdOrgBuilder) createRunEFn(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to create organization: %v", err)
 	}
 
-	w := internal.NewTabWriter(b.w)
-	w.WriteHeaders("ID", "Name")
-	w.Write(map[string]interface{}{
-		"ID":   org.ID.String(),
-		"Name": org.Name,
-	})
-	w.Flush()
-
-	return nil
+	return b.printOrg(orgPrintOpt{org: org})
 }
 
 func (b *cmdOrgBuilder) cmdDelete() *cobra.Command {
-	cmd := b.newCmd("delete", b.deleteRunEFn)
+	cmd := b.newCmd("delete", b.deleteRunEFn, true)
 	cmd.Short = "Delete organization"
 
 	opts := flagOpts{
@@ -113,6 +100,7 @@ func (b *cmdOrgBuilder) cmdDelete() *cobra.Command {
 		},
 	}
 	opts.mustRegister(cmd)
+	b.registerPrintFlags(cmd)
 
 	return cmd
 }
@@ -138,21 +126,16 @@ func (b *cmdOrgBuilder) deleteRunEFn(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to delete org with id %q: %v", id, err)
 	}
 
-	w := internal.NewTabWriter(b.w)
-	w.WriteHeaders("ID", "Name", "Deleted")
-	w.Write(map[string]interface{}{
-		"ID":      o.ID.String(),
-		"Name":    o.Name,
-		"Deleted": true,
+	return b.printOrg(orgPrintOpt{
+		deleted: true,
+		org:     o,
 	})
-	w.Flush()
-
-	return nil
 }
 
 func (b *cmdOrgBuilder) cmdFind() *cobra.Command {
-	cmd := b.newCmd("find", b.findRunEFn)
-	cmd.Short = "Find organizations"
+	cmd := b.newCmd("list", b.findRunEFn, true)
+	cmd.Short = "List organizations"
+	cmd.Aliases = []string{"find", "ls"}
 
 	opts := flagOpts{
 		{
@@ -171,6 +154,7 @@ func (b *cmdOrgBuilder) cmdFind() *cobra.Command {
 		},
 	}
 	opts.mustRegister(cmd)
+	b.registerPrintFlags(cmd)
 
 	return cmd
 }
@@ -199,21 +183,11 @@ func (b *cmdOrgBuilder) findRunEFn(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed find orgs: %v", err)
 	}
 
-	w := internal.NewTabWriter(b.w)
-	w.WriteHeaders("ID", "Name")
-	for _, o := range orgs {
-		w.Write(map[string]interface{}{
-			"ID":   o.ID.String(),
-			"Name": o.Name,
-		})
-	}
-	w.Flush()
-
-	return nil
+	return b.printOrg(orgPrintOpt{orgs: orgs})
 }
 
 func (b *cmdOrgBuilder) cmdUpdate() *cobra.Command {
-	cmd := b.newCmd("update", b.updateRunEFn)
+	cmd := b.newCmd("update", b.updateRunEFn, true)
 	cmd.Short = "Update organization"
 
 	opts := flagOpts{
@@ -241,6 +215,7 @@ func (b *cmdOrgBuilder) cmdUpdate() *cobra.Command {
 		},
 	}
 	opts.mustRegister(cmd)
+	b.registerPrintFlags(cmd)
 
 	return cmd
 }
@@ -269,19 +244,49 @@ func (b *cmdOrgBuilder) updateRunEFn(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to update org: %v", err)
 	}
 
-	w := internal.NewTabWriter(b.w)
-	w.WriteHeaders("ID", "Name")
-	w.Write(map[string]interface{}{
-		"ID":   o.ID.String(),
-		"Name": o.Name,
-	})
-	w.Flush()
+	return b.printOrg(orgPrintOpt{org: o})
+}
+
+func (b *cmdOrgBuilder) printOrg(opts orgPrintOpt) error {
+	if b.json {
+		var v interface{} = opts.orgs
+		if opts.org != nil {
+			v = opts.org
+		}
+		return b.writeJSON(v)
+	}
+
+	w := b.newTabWriter()
+	defer w.Flush()
+
+	w.HideHeaders(b.hideHeaders)
+
+	headers := []string{"ID", "Name"}
+	if opts.deleted {
+		headers = append(headers, "Deleted")
+	}
+	w.WriteHeaders(headers...)
+
+	if opts.org != nil {
+		opts.orgs = append(opts.orgs, opts.org)
+	}
+
+	for _, o := range opts.orgs {
+		m := map[string]interface{}{
+			"ID":   o.ID.String(),
+			"Name": o.Name,
+		}
+		if opts.deleted {
+			m["Deleted"] = true
+		}
+		w.Write(m)
+	}
 
 	return nil
 }
 
 func (b *cmdOrgBuilder) cmdMember() *cobra.Command {
-	cmd := b.newCmd("members", nil)
+	cmd := b.newCmd("members", nil, false)
 	cmd.Short = "Organization membership commands"
 	cmd.Run = seeHelp
 
@@ -295,8 +300,9 @@ func (b *cmdOrgBuilder) cmdMember() *cobra.Command {
 }
 
 func (b *cmdOrgBuilder) cmdMemberList() *cobra.Command {
-	cmd := b.newCmd("list", b.memberListRunEFn)
+	cmd := b.newCmd("list", b.memberListRunEFn, true)
 	cmd.Short = "List organization members"
+	cmd.Aliases = []string{"find", "ls"}
 
 	opts := flagOpts{
 		{
@@ -315,6 +321,7 @@ func (b *cmdOrgBuilder) cmdMemberList() *cobra.Command {
 		},
 	}
 	opts.mustRegister(cmd)
+	b.registerPrintFlags(cmd)
 	return cmd
 }
 
@@ -348,7 +355,7 @@ func (b *cmdOrgBuilder) memberListRunEFn(cmd *cobra.Command, args []string) erro
 	}
 
 	ctx := context.Background()
-	return memberList(ctx, b.w, urmSVC, userSVC, influxdb.UserResourceMappingFilter{
+	return b.memberList(ctx, urmSVC, userSVC, influxdb.UserResourceMappingFilter{
 		ResourceType: influxdb.OrgsResourceType,
 		ResourceID:   organization.ID,
 		UserType:     influxdb.Member,
@@ -356,7 +363,7 @@ func (b *cmdOrgBuilder) memberListRunEFn(cmd *cobra.Command, args []string) erro
 }
 
 func (b *cmdOrgBuilder) cmdMemberAdd() *cobra.Command {
-	cmd := b.newCmd("add", b.memberAddRunEFn)
+	cmd := b.newCmd("add", b.memberAddRunEFn, true)
 	cmd.Short = "Add organization member"
 
 	cmd.Flags().StringVarP(&b.memberID, "member", "m", "", "The member ID")
@@ -432,7 +439,7 @@ func (b *cmdOrgBuilder) memberAddRunEFn(cmd *cobra.Command, args []string) error
 }
 
 func (b *cmdOrgBuilder) cmdMemberRemove() *cobra.Command {
-	cmd := b.newCmd("remove", b.membersRemoveRunEFn)
+	cmd := b.newCmd("remove", b.membersRemoveRunEFn, true)
 	cmd.Short = "Remove organization member"
 
 	opts := flagOpts{
@@ -502,6 +509,10 @@ func (b *cmdOrgBuilder) membersRemoveRunEFn(cmd *cobra.Command, args []string) e
 	return removeMember(ctx, b.w, urmSVC, organization.ID, memberID)
 }
 
+func (b *cmdOrgBuilder) registerPrintFlags(cmd *cobra.Command) {
+	registerPrintOptions(cmd, &b.hideHeaders, &b.json)
+}
+
 func newOrgServices() (influxdb.OrganizationService, influxdb.UserResourceMappingService, influxdb.UserService, error) {
 	if flags.local {
 		svc, err := newLocalKVService()
@@ -538,20 +549,21 @@ func newOrganizationService() (influxdb.OrganizationService, error) {
 	}, nil
 }
 
-func memberList(ctx context.Context, w io.Writer, urmSVC influxdb.UserResourceMappingService, userSVC influxdb.UserService, f influxdb.UserResourceMappingFilter) error {
-	mps, _, err := urmSVC.FindUserResourceMappings(ctx, f)
+func (b *cmdOrgBuilder) memberList(ctx context.Context, urmSVC influxdb.UserResourceMappingService, userSVC influxdb.UserService, f influxdb.UserResourceMappingFilter) error {
+	mappings, _, err := urmSVC.FindUserResourceMappings(ctx, f)
 	if err != nil {
 		return fmt.Errorf("failed to find members: %v", err)
 	}
 
-	urs := make([]*influxdb.User, len(mps))
-	ursC := make(chan struct {
-		User  *influxdb.User
-		Index int
-	})
-	errC := make(chan error)
-	sem := make(chan struct{}, maxTCPConnections)
-	for k, v := range mps {
+	var (
+		ursC = make(chan struct {
+			User  *influxdb.User
+			Index int
+		})
+		errC = make(chan error)
+		sem  = make(chan struct{}, maxTCPConnections)
+	)
+	for k, v := range mappings {
 		sem <- struct{}{}
 		go func(k int, v *influxdb.UserResourceMapping) {
 			defer func() { <-sem }()
@@ -569,7 +581,9 @@ func memberList(ctx context.Context, w io.Writer, urmSVC influxdb.UserResourceMa
 			}
 		}(k, v)
 	}
-	for i := 0; i < len(mps); i++ {
+
+	users := make([]*influxdb.User, len(mappings))
+	for i := 0; i < len(mappings); i++ {
 		select {
 		case <-ctx.Done():
 			return &influxdb.Error{
@@ -578,20 +592,29 @@ func memberList(ctx context.Context, w io.Writer, urmSVC influxdb.UserResourceMa
 		case err := <-errC:
 			return err
 		case item := <-ursC:
-			urs[item.Index] = item.User
+			users[item.Index] = item.User
 		}
 	}
 
-	tw := internal.NewTabWriter(w)
-	tw.WriteHeaders("ID", "Name", "Status")
-	for _, m := range urs {
+	if b.json {
+		return b.writeJSON(users)
+	}
+
+	tw := b.newTabWriter()
+	defer tw.Flush()
+
+	tw.HideHeaders(b.hideHeaders)
+
+	tw.WriteHeaders("ID", "Name", "User Type", "Status")
+	for idx, m := range users {
 		tw.Write(map[string]interface{}{
-			"ID":     m.ID.String(),
-			"Name":   m.Name,
-			"Status": string(m.Status),
+			"ID":        m.ID.String(),
+			"User Name": m.Name,
+			"User Type": string(mappings[idx].UserType),
+			"Status":    string(m.Status),
 		})
 	}
-	tw.Flush()
+
 	return nil
 }
 
@@ -609,4 +632,10 @@ func removeMember(ctx context.Context, w io.Writer, urmSVC influxdb.UserResource
 	}
 	_, err := fmt.Fprintf(w, "userID %s has been removed from ResourceID %s\n", userID, resourceID)
 	return err
+}
+
+type orgPrintOpt struct {
+	deleted bool
+	org     *influxdb.Organization
+	orgs    []*influxdb.Organization
 }

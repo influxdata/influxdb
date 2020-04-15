@@ -21,7 +21,7 @@
   visibility: hidden;
 }
 
-@media screen and (min-width: $grid--breakpoint-sm) {
+@media screen and (min-width: $cf-grid--breakpoint-sm) {
   .wizard--progress-header {
     height: 50px;
   }

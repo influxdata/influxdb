@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/influxdb/tsdb"
-	"github.com/influxdata/influxdb/tsdb/tsm1"
+	"github.com/influxdata/influxdb/v2/tsdb/cursors"
+	"github.com/influxdata/influxdb/v2/tsdb/tsm1"
 )
 
 func TestFileStore_Array(t *testing.T) {
@@ -337,7 +337,7 @@ func TestFileStore_Array(t *testing.T) {
 				}
 			}
 
-			buf := tsdb.NewFloatArrayLen(1000)
+			buf := cursors.NewFloatArrayLen(1000)
 			c := fs.KeyCursor(context.Background(), []byte("cpu"), tc.time, tc.asc)
 
 			for i, read := range tc.reads {
@@ -347,7 +347,7 @@ func TestFileStore_Array(t *testing.T) {
 					t.Fatalf("read %d failed: unexpected error reading values: %v", i, err)
 				}
 
-				exp := &tsdb.FloatArray{}
+				exp := &cursors.FloatArray{}
 				for _, s := range read {
 					vals := tc.data[s.f].values
 					exp.Timestamps = append(exp.Timestamps, vals[s.i].UnixNano())
@@ -355,7 +355,7 @@ func TestFileStore_Array(t *testing.T) {
 				}
 
 				if len(read) == 0 {
-					exp = tsdb.NewFloatArrayLen(0)
+					exp = cursors.NewFloatArrayLen(0)
 				}
 
 				if !cmp.Equal(values, exp) {

@@ -5,7 +5,7 @@ import (
 	"io"
 
 	"github.com/influxdata/flux"
-	"github.com/influxdata/influxdb/kit/check"
+	"github.com/influxdata/influxdb/v2/kit/check"
 )
 
 // QueryService represents a type capable of performing queries.

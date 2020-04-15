@@ -6,12 +6,15 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"path"
 	"time"
 
 	"github.com/influxdata/httprouter"
-	"github.com/influxdata/influxdb"
-	pctx "github.com/influxdata/influxdb/context"
-	"github.com/influxdata/influxdb/notification/check"
+	"github.com/influxdata/influxdb/v2"
+	pctx "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/kit/tracing"
+	"github.com/influxdata/influxdb/v2/notification/check"
+	"github.com/influxdata/influxdb/v2/pkg/httpc"
 	"go.uber.org/zap"
 )
 
@@ -120,7 +123,7 @@ func NewCheckHandler(log *zap.Logger, b *CheckBackend) *CheckHandler {
 		HTTPErrorHandler: b.HTTPErrorHandler,
 		log:              b.log.With(zap.String("handler", "label")),
 		LabelService:     b.LabelService,
-		ResourceType:     influxdb.TelegrafsResourceType,
+		ResourceType:     influxdb.ChecksResourceType,
 	}
 	h.HandlerFunc("GET", checksIDLabelsPath, newGetLabelsHandler(labelBackend))
 	h.HandlerFunc("POST", checksIDLabelsPath, newPostLabelHandler(labelBackend))
@@ -233,7 +236,7 @@ func (h *CheckHandler) newChecksResponse(ctx context.Context, chks []influxdb.Ch
 		Links:  newPagingLinks(prefixChecks, opts, f, len(chks)),
 	}
 	for _, chk := range chks {
-		labels, _ := labelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: chk.GetID()})
+		labels, _ := labelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: chk.GetID(), ResourceType: influxdb.ChecksResourceType})
 		cr, err := h.newCheckResponse(ctx, chk, labels)
 		if err != nil {
 			h.log.Info("Failed to retrieve task associated with check", zap.String("checkID", chk.GetID().String()))
@@ -330,7 +333,7 @@ func (h *CheckHandler) handleGetCheck(w http.ResponseWriter, r *http.Request) {
 	}
 	h.log.Debug("Check retrieved", zap.String("check", fmt.Sprint(chk)))
 
-	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: chk.GetID()})
+	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: chk.GetID(), ResourceType: influxdb.ChecksResourceType})
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
@@ -360,7 +363,7 @@ func decodeCheckFilter(ctx context.Context, r *http.Request) (*influxdb.CheckFil
 		},
 	}
 
-	opts, err := decodeFindOptions(ctx, r)
+	opts, err := decodeFindOptions(r)
 	if err != nil {
 		return f, nil, err
 	}
@@ -377,7 +380,7 @@ func decodeCheckFilter(ctx context.Context, r *http.Request) (*influxdb.CheckFil
 		}
 		f.OrgID = orgID
 	} else if orgNameStr := q.Get("org"); orgNameStr != "" {
-		*f.Org = orgNameStr
+		f.Org = &orgNameStr
 	}
 	return f, opts, err
 }
@@ -609,7 +612,7 @@ func (h *CheckHandler) handlePutCheck(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: c.GetID()})
+	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: c.GetID(), ResourceType: influxdb.ChecksResourceType})
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
@@ -644,7 +647,7 @@ func (h *CheckHandler) handlePatchCheck(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: chk.GetID()})
+	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: chk.GetID(), ResourceType: influxdb.ChecksResourceType})
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
@@ -678,4 +681,223 @@ func (h *CheckHandler) handleDeleteCheck(w http.ResponseWriter, r *http.Request)
 	h.log.Debug("Check deleted", zap.String("checkID", fmt.Sprint(i)))
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func checkIDPath(id influxdb.ID) string {
+	return path.Join(prefixChecks, id.String())
+}
+
+// CheckService is a client to interact with the handlers in this package over HTTP.
+// It does not implement influxdb.CheckService because it returns a concrete representation of the API response
+// and influxdb.Check as returned by that interface is not appropriate for this use case.
+type CheckService struct {
+	Client *httpc.Client
+}
+
+// FindCheckByID returns the Check matching the ID.
+func (s *CheckService) FindCheckByID(ctx context.Context, id influxdb.ID) (*Check, error) {
+	span, _ := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
+	var cr Check
+	err := s.Client.
+		Get(checkIDPath(id)).
+		DecodeJSON(&cr).
+		Do(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return &cr, nil
+}
+
+// FindCheck returns the first check matching the filter.
+func (s *CheckService) FindCheck(ctx context.Context, filter influxdb.CheckFilter) (*Check, error) {
+	span, _ := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
+	cs, n, err := s.FindChecks(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+
+	if n == 0 && filter.Name != nil {
+		return nil, &influxdb.Error{
+			Code: influxdb.ENotFound,
+			Op:   influxdb.OpFindBucket,
+			Msg:  fmt.Sprintf("check %q not found", *filter.Name),
+		}
+	} else if n == 0 {
+		return nil, &influxdb.Error{
+			Code: influxdb.ENotFound,
+			Op:   influxdb.OpFindBucket,
+			Msg:  "check not found",
+		}
+	}
+
+	return cs[0], nil
+}
+
+// FindChecks returns a list of checks that match filter and the total count of matching checks.
+// Additional options provide pagination & sorting.
+func (s *CheckService) FindChecks(ctx context.Context, filter influxdb.CheckFilter, opt ...influxdb.FindOptions) ([]*Check, int, error) {
+	span, _ := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
+	params := findOptionParams(opt...)
+	if filter.OrgID != nil {
+		params = append(params, [2]string{"orgID", filter.OrgID.String()})
+	}
+	if filter.Org != nil {
+		params = append(params, [2]string{"org", *filter.Org})
+	}
+	if filter.ID != nil {
+		params = append(params, [2]string{"id", filter.ID.String()})
+	}
+	if filter.Name != nil {
+		params = append(params, [2]string{"name", *filter.Name})
+	}
+
+	var cr Checks
+	err := s.Client.
+		Get(prefixChecks).
+		QueryParams(params...).
+		DecodeJSON(&cr).
+		Do(ctx)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return cr.Checks, len(cr.Checks), nil
+}
+
+// CreateCheck creates a new check.
+func (s *CheckService) CreateCheck(ctx context.Context, c *Check) (*Check, error) {
+	span, _ := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
+	var r Check
+	err := s.Client.
+		PostJSON(c, prefixChecks).
+		DecodeJSON(&r).
+		Do(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return &r, nil
+}
+
+// UpdateCheck updates a check.
+func (s *CheckService) UpdateCheck(ctx context.Context, id influxdb.ID, u *Check) (*Check, error) {
+	span, _ := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
+	var r Check
+	err := s.Client.
+		PutJSON(u, checkIDPath(id)).
+		DecodeJSON(&r).
+		Do(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return &r, nil
+}
+
+// PatchCheck changes the status, description or name of a check.
+func (s *CheckService) PatchCheck(ctx context.Context, id influxdb.ID, u influxdb.CheckUpdate) (*Check, error) {
+	span, _ := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
+	var r Check
+	err := s.Client.
+		PutJSON(u, checkIDPath(id)).
+		DecodeJSON(&r).
+		Do(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return &r, nil
+}
+
+// DeleteCheck removes a check.
+func (s *CheckService) DeleteCheck(ctx context.Context, id influxdb.ID) error {
+	return s.Client.
+		Delete(checkIDPath(id)).
+		Do(ctx)
+}
+
+// TODO(gavincabbage): These structures should be in a common place, like other models,
+// 		but the common influxdb.Check is an interface that is not appropriate for an API client.
+type Checks struct {
+	Checks []*Check              `json:"checks"`
+	Links  *influxdb.PagingLinks `json:"links"`
+}
+
+type Check struct {
+	ID                    influxdb.ID       `json:"id,omitempty"`
+	Name                  string            `json:"name"`
+	OrgID                 influxdb.ID       `json:"orgID,omitempty"`
+	OwnerID               influxdb.ID       `json:"ownerID,omitempty"`
+	CreatedAt             time.Time         `json:"createdAt,omitempty"`
+	UpdatedAt             time.Time         `json:"updatedAt,omitempty"`
+	Query                 *CheckQuery       `json:"query"`
+	Status                influxdb.Status   `json:"status"`
+	Description           string            `json:"description"`
+	LatestCompleted       time.Time         `json:"latestCompleted"`
+	LastRunStatus         string            `json:"lastRunStatus"`
+	LastRunError          string            `json:"lastRunError"`
+	Labels                []*influxdb.Label `json:"labels"`
+	Links                 *CheckLinks       `json:"links"`
+	Type                  string            `json:"type"`
+	TimeSince             string            `json:"timeSince"`
+	StaleTime             string            `json:"staleTime"`
+	ReportZero            bool              `json:"reportZero"`
+	Level                 string            `json:"level"`
+	Every                 string            `json:"every"`
+	Offset                string            `json:"offset"`
+	Tags                  []*influxdb.Tag   `json:"tags"`
+	StatusMessageTemplate string            `json:"statusMessageTemplate"`
+	Thresholds            []*CheckThreshold `json:"thresholds"`
+}
+
+type CheckQuery struct {
+	Text          string              `json:"text"`
+	EditMode      string              `json:"editMode"`
+	Name          string              `json:"name"`
+	BuilderConfig *CheckBuilderConfig `json:"builderConfig"`
+}
+
+type CheckBuilderConfig struct {
+	Buckets []string `json:"buckets"`
+	Tags    []struct {
+		Key                   string   `json:"key"`
+		Values                []string `json:"values"`
+		AggregateFunctionType string   `json:"aggregateFunctionType"`
+	} `json:"tags"`
+	Functions []struct {
+		Name string `json:"name"`
+	} `json:"functions"`
+	AggregateWindow struct {
+		Period string `json:"period"`
+	} `json:"aggregateWindow"`
+}
+
+type CheckLinks struct {
+	Self    string `json:"self"`
+	Labels  string `json:"labels"`
+	Members string `json:"members"`
+	Owners  string `json:"owners"`
+	Query   string `json:"query"`
+}
+
+type CheckThreshold struct {
+	check.ThresholdConfigBase
+	Type   string  `json:"type"`
+	Value  float64 `json:"value,omitempty"`
+	Min    float64 `json:"min,omitempty"`
+	Max    float64 `json:"max,omitempty"`
+	Within bool    `json:"within"`
 }

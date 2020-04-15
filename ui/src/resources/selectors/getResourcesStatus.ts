@@ -6,24 +6,13 @@ export const getResourcesStatus = (
   resources: Array<ResourceType>
 ): RemoteDataState => {
   const statuses = resources.map(resource => {
-    switch (resource) {
-      // Normalized resource statuses
-      case ResourceType.Authorizations:
-      case ResourceType.Buckets:
-      case ResourceType.Dashboards:
-      case ResourceType.Members:
-      case ResourceType.Scrapers:
-      case ResourceType.Tasks:
-      case ResourceType.Telegrafs:
-      case ResourceType.Templates:
-      case ResourceType.Variables: {
-        return state.resources[resource].status
-      }
-
-      default:
-        // Get status for resources that have not yet been normalized
-        return getStatus(state, resource)
+    if (!state.resources || !state.resources[resource].status) {
+      throw new Error(
+        `RemoteDataState status for resource "${resource}" is undefined in getResourcesStatus`
+      )
     }
+
+    return state.resources[resource].status
   })
 
   let status = RemoteDataState.NotStarted
@@ -37,14 +26,4 @@ export const getResourcesStatus = (
   }
 
   return status
-}
-
-const getStatus = (state: AppState, resource: ResourceType) => {
-  if (!state[resource] || !state[resource].status) {
-    throw new Error(
-      `Loading status for resource "${resource}" is undefined in getResourcesStatus`
-    )
-  }
-
-  return state[resource].status
 }

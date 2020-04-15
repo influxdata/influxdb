@@ -10,6 +10,7 @@ import CheckHistoryVisualization from 'src/checks/components/CheckHistoryVisuali
 import AlertHistoryQueryParams from 'src/alerting/components/AlertHistoryQueryParams'
 import EventTable from 'src/eventViewer/components/EventTable'
 import GetResources from 'src/resources/components/GetResources'
+import CloudUpgradeButton from 'src/shared/components/CloudUpgradeButton'
 
 //Context
 import {ResourceIDsContext} from 'src/alerting/components/AlertHistoryIndex'
@@ -24,6 +25,7 @@ import {getCheckIDs} from 'src/checks/selectors'
 // Types
 import {ResourceIDs} from 'src/checks/reducers'
 import {AppState, Check, TimeZone, ResourceType} from 'src/types'
+import {getByID} from 'src/resources/selectors'
 
 interface OwnProps {
   params: {orgID: string; checkID: string}
@@ -58,18 +60,21 @@ const CheckHistory: FC<Props> = ({
               className="alert-history-page"
             >
               <Page.Header fullWidth={true}>
-                <div className="alert-history-page--header">
-                  <Page.Title
-                    title="Check Statuses"
-                    testID="alert-history-title"
-                  />
+                <Page.Title
+                  title="Check Statuses"
+                  testID="alert-history-title"
+                />
+                <CloudUpgradeButton />
+              </Page.Header>
+              <Page.ControlBar fullWidth={true}>
+                <Page.ControlBarLeft>
+                  <CheckHistoryControls eventViewerProps={props} />
                   <AlertHistoryQueryParams
                     searchInput={props.state.searchInput}
                     historyType={historyType}
                   />
-                  <CheckHistoryControls eventViewerProps={props} />
-                </div>
-              </Page.Header>
+                </Page.ControlBarLeft>
+              </Page.ControlBar>
               <Page.Contents
                 fullWidth={true}
                 scrollable={false}
@@ -96,9 +101,9 @@ const CheckHistory: FC<Props> = ({
 }
 
 const mstp = (state: AppState, props: OwnProps) => {
-  const check = state.checks.list.find(({id}) => id === props.params.checkID)
   const timeZone = state.app.persisted.timeZone
   const checkIDs = getCheckIDs(state)
+  const check = getByID<Check>(state, ResourceType.Checks, props.params.checkID)
 
   const resourceIDs = {
     checkIDs,

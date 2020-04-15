@@ -8,7 +8,7 @@ import {postDelete} from 'src/client'
 import {runQuery} from 'src/shared/apis/query'
 import {getWindowVars} from 'src/variables/utils/getWindowVars'
 import {buildVarsOption} from 'src/variables/utils/buildVarsOption'
-import {getVariableAssignments} from 'src/timeMachine/selectors'
+import {getVariables, asAssignment} from 'src/variables/selectors'
 import {checkQueryResult} from 'src/shared/utils/checkQueryResult'
 import {getOrg} from 'src/organizations/selectors'
 
@@ -218,9 +218,18 @@ export const executePreviewQuery = (query: string) => async (
 ) => {
   dispatch(setPreviewStatus(RemoteDataState.Loading))
   try {
-    const orgID = getOrg(getState()).id
+    const state = getState()
+    const orgID = getOrg(state).id
 
-    const variableAssignments = getVariableAssignments(getState())
+    // TODO figure out how to do this better
+    // for some reason we can't use the time range variables
+    // for preview query, which means we can't use getAllVariables
+    // which means we have to drag around all this asAssignment
+    // garbage to be able to run a query instead of just being able
+    // to executeQuery as normal
+    const variableAssignments = getVariables(state)
+      .map(v => asAssignment(v))
+      .filter(v => !!v)
     const windowVars = getWindowVars(query, variableAssignments)
     const extern = buildVarsOption([...variableAssignments, ...windowVars])
     const result = await runQuery(orgID, query, extern).promise

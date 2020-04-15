@@ -5,15 +5,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/authorizer"
-	pctx "github.com/influxdata/influxdb/context"
-	"github.com/influxdata/influxdb/http"
-	"github.com/influxdata/influxdb/inmem"
-	"github.com/influxdata/influxdb/kv"
-	"github.com/influxdata/influxdb/mock"
-	_ "github.com/influxdata/influxdb/query/builtin"
-	"github.com/influxdata/influxdb/task/backend"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/authorizer"
+	pctx "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/http"
+	"github.com/influxdata/influxdb/v2/inmem"
+	"github.com/influxdata/influxdb/v2/kv"
+	"github.com/influxdata/influxdb/v2/mock"
+	_ "github.com/influxdata/influxdb/v2/query/builtin"
 	"github.com/pkg/errors"
 	"go.uber.org/zap/zaptest"
 )
@@ -22,7 +21,7 @@ func TestOnboardingValidation(t *testing.T) {
 	svc := newKVSVC(t)
 	ts := authorizer.NewTaskService(zaptest.NewLogger(t), mockTaskService(3, 2, 1))
 
-	r, err := svc.Generate(context.Background(), &influxdb.OnboardingRequest{
+	r, err := svc.OnboardInitialUser(context.Background(), &influxdb.OnboardingRequest{
 		User:            "Setec Astronomy",
 		Password:        "too many secrets",
 		Org:             "thing",
@@ -54,7 +53,7 @@ func mockTaskService(orgID, taskID, runID influxdb.ID) influxdb.TaskService {
 		ID:             taskID,
 		OrganizationID: orgID,
 		Name:           "cows",
-		Status:         string(backend.TaskActive),
+		Status:         string(influxdb.TaskActive),
 		Flux: `option task = {
  name: "my_task",
  every: 1s,
@@ -122,7 +121,7 @@ func TestValidations(t *testing.T) {
 
 	svc := newKVSVC(t)
 
-	r, err := svc.Generate(context.Background(), &influxdb.OnboardingRequest{
+	r, err := svc.OnboardInitialUser(context.Background(), &influxdb.OnboardingRequest{
 		User:            "Setec Astronomy",
 		Password:        "too many secrets",
 		Org:             "thing",

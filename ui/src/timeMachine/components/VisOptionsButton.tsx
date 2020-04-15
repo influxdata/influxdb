@@ -3,7 +3,7 @@ import React, {FC} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import {SquareButton, IconFont, ComponentColor} from '@influxdata/clockface'
+import {Button, IconFont, ComponentColor} from '@influxdata/clockface'
 
 // Actions
 import {toggleVisOptions} from 'src/timeMachine/actions'
@@ -33,11 +33,12 @@ export const VisOptionsButton: FC<Props> = ({
     : ComponentColor.Default
 
   return (
-    <SquareButton
+    <Button
       color={color}
       icon={IconFont.CogThick}
       onClick={onToggleVisOptions}
       testID="cog-cell--button"
+      text="Customize"
     />
   )
 }

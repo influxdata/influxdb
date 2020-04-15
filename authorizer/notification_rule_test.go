@@ -6,14 +6,13 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/influxdata/influxdb/notification/rule"
-
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/authorizer"
-	influxdbcontext "github.com/influxdata/influxdb/context"
-	"github.com/influxdata/influxdb/mock"
-	influxdbtesting "github.com/influxdata/influxdb/testing"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/authorizer"
+	influxdbcontext "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/mock"
+	"github.com/influxdata/influxdb/v2/notification/rule"
+	influxdbtesting "github.com/influxdata/influxdb/v2/testing"
 )
 
 var notificationRuleCmpOptions = cmp.Options{
@@ -63,10 +62,10 @@ func TestNotificationRuleStore_FindNotificationRuleByID(t *testing.T) {
 			},
 			args: args{
 				permission: influxdb.Permission{
-					Action: "read",
+					Action: influxdb.ReadAction,
 					Resource: influxdb.Resource{
-						Type: influxdb.OrgsResourceType,
-						ID:   influxdbtesting.IDPtr(10),
+						Type:  influxdb.NotificationRuleResourceType,
+						OrgID: influxdbtesting.IDPtr(10),
 					},
 				},
 				id: 1,
@@ -91,17 +90,17 @@ func TestNotificationRuleStore_FindNotificationRuleByID(t *testing.T) {
 			},
 			args: args{
 				permission: influxdb.Permission{
-					Action: "read",
+					Action: influxdb.ReadAction,
 					Resource: influxdb.Resource{
-						Type: influxdb.OrgsResourceType,
-						ID:   influxdbtesting.IDPtr(2),
+						Type:  influxdb.NotificationRuleResourceType,
+						OrgID: influxdbtesting.IDPtr(2),
 					},
 				},
 				id: 1,
 			},
 			wants: wants{
 				err: &influxdb.Error{
-					Msg:  "read:orgs/000000000000000a is unauthorized",
+					Msg:  "read:orgs/000000000000000a/notificationRules/0000000000000001 is unauthorized",
 					Code: influxdb.EUnauthorized,
 				},
 			},
@@ -113,7 +112,7 @@ func TestNotificationRuleStore_FindNotificationRuleByID(t *testing.T) {
 			s := authorizer.NewNotificationRuleStore(tt.fields.NotificationRuleStore, mock.NewUserResourceMappingService(), mock.NewOrganizationService())
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			_, err := s.FindNotificationRuleByID(ctx, tt.args.id)
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
@@ -169,9 +168,9 @@ func TestNotificationRuleStore_FindNotificationRules(t *testing.T) {
 			},
 			args: args{
 				permission: influxdb.Permission{
-					Action: "read",
+					Action: influxdb.ReadAction,
 					Resource: influxdb.Resource{
-						Type: influxdb.OrgsResourceType,
+						Type: influxdb.NotificationRuleResourceType,
 					},
 				},
 			},
@@ -228,10 +227,10 @@ func TestNotificationRuleStore_FindNotificationRules(t *testing.T) {
 			},
 			args: args{
 				permission: influxdb.Permission{
-					Action: "read",
+					Action: influxdb.ReadAction,
 					Resource: influxdb.Resource{
-						Type: influxdb.OrgsResourceType,
-						ID:   influxdbtesting.IDPtr(10),
+						Type:  influxdb.NotificationRuleResourceType,
+						OrgID: influxdbtesting.IDPtr(10),
 					},
 				},
 			},
@@ -259,7 +258,7 @@ func TestNotificationRuleStore_FindNotificationRules(t *testing.T) {
 			s := authorizer.NewNotificationRuleStore(tt.fields.NotificationRuleStore, mock.NewUserResourceMappingService(), mock.NewOrganizationService())
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			ts, _, err := s.FindNotificationRules(ctx, influxdb.NotificationRuleFilter{})
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
@@ -315,17 +314,17 @@ func TestNotificationRuleStore_UpdateNotificationRule(t *testing.T) {
 				id: 1,
 				permissions: []influxdb.Permission{
 					{
-						Action: "write",
+						Action: influxdb.WriteAction,
 						Resource: influxdb.Resource{
-							Type: influxdb.OrgsResourceType,
-							ID:   influxdbtesting.IDPtr(10),
+							Type:  influxdb.NotificationRuleResourceType,
+							OrgID: influxdbtesting.IDPtr(10),
 						},
 					},
 					{
-						Action: "read",
+						Action: influxdb.ReadAction,
 						Resource: influxdb.Resource{
-							Type: influxdb.OrgsResourceType,
-							ID:   influxdbtesting.IDPtr(10),
+							Type:  influxdb.NotificationRuleResourceType,
+							OrgID: influxdbtesting.IDPtr(10),
 						},
 					},
 				},
@@ -360,17 +359,17 @@ func TestNotificationRuleStore_UpdateNotificationRule(t *testing.T) {
 				id: 1,
 				permissions: []influxdb.Permission{
 					{
-						Action: "read",
+						Action: influxdb.ReadAction,
 						Resource: influxdb.Resource{
-							Type: influxdb.OrgsResourceType,
-							ID:   influxdbtesting.IDPtr(10),
+							Type:  influxdb.NotificationRuleResourceType,
+							OrgID: influxdbtesting.IDPtr(10),
 						},
 					},
 				},
 			},
 			wants: wants{
 				err: &influxdb.Error{
-					Msg:  "write:orgs/000000000000000a is unauthorized",
+					Msg:  "write:orgs/000000000000000a/notificationRules/0000000000000001 is unauthorized",
 					Code: influxdb.EUnauthorized,
 				},
 			},
@@ -382,7 +381,7 @@ func TestNotificationRuleStore_UpdateNotificationRule(t *testing.T) {
 			s := authorizer.NewNotificationRuleStore(tt.fields.NotificationRuleStore, mock.NewUserResourceMappingService(), mock.NewOrganizationService())
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{tt.args.permissions})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			nrc := influxdb.NotificationRuleCreate{
 				NotificationRule: &rule.Slack{},
@@ -439,17 +438,17 @@ func TestNotificationRuleStore_PatchNotificationRule(t *testing.T) {
 				id: 1,
 				permissions: []influxdb.Permission{
 					{
-						Action: "write",
+						Action: influxdb.WriteAction,
 						Resource: influxdb.Resource{
-							Type: influxdb.OrgsResourceType,
-							ID:   influxdbtesting.IDPtr(10),
+							Type:  influxdb.NotificationRuleResourceType,
+							OrgID: influxdbtesting.IDPtr(10),
 						},
 					},
 					{
-						Action: "read",
+						Action: influxdb.ReadAction,
 						Resource: influxdb.Resource{
-							Type: influxdb.OrgsResourceType,
-							ID:   influxdbtesting.IDPtr(10),
+							Type:  influxdb.NotificationRuleResourceType,
+							OrgID: influxdbtesting.IDPtr(10),
 						},
 					},
 				},
@@ -484,17 +483,17 @@ func TestNotificationRuleStore_PatchNotificationRule(t *testing.T) {
 				id: 1,
 				permissions: []influxdb.Permission{
 					{
-						Action: "read",
+						Action: influxdb.ReadAction,
 						Resource: influxdb.Resource{
-							Type: influxdb.OrgsResourceType,
-							ID:   influxdbtesting.IDPtr(1),
+							Type:  influxdb.NotificationRuleResourceType,
+							OrgID: influxdbtesting.IDPtr(1),
 						},
 					},
 				},
 			},
 			wants: wants{
 				err: &influxdb.Error{
-					Msg:  "write:orgs/000000000000000a is unauthorized",
+					Msg:  "write:orgs/000000000000000a/notificationRules/0000000000000001 is unauthorized",
 					Code: influxdb.EUnauthorized,
 				},
 			},
@@ -506,7 +505,7 @@ func TestNotificationRuleStore_PatchNotificationRule(t *testing.T) {
 			s := authorizer.NewNotificationRuleStore(tt.fields.NotificationRuleStore, mock.NewUserResourceMappingService(), mock.NewOrganizationService())
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{tt.args.permissions})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			_, err := s.PatchNotificationRule(ctx, tt.args.id, influxdb.NotificationRuleUpdate{})
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
@@ -553,17 +552,17 @@ func TestNotificationRuleStore_DeleteNotificationRule(t *testing.T) {
 				id: 1,
 				permissions: []influxdb.Permission{
 					{
-						Action: "write",
+						Action: influxdb.WriteAction,
 						Resource: influxdb.Resource{
-							Type: influxdb.OrgsResourceType,
-							ID:   influxdbtesting.IDPtr(10),
+							Type:  influxdb.NotificationRuleResourceType,
+							OrgID: influxdbtesting.IDPtr(10),
 						},
 					},
 					{
-						Action: "read",
+						Action: influxdb.ReadAction,
 						Resource: influxdb.Resource{
-							Type: influxdb.OrgsResourceType,
-							ID:   influxdbtesting.IDPtr(1),
+							Type:  influxdb.NotificationRuleResourceType,
+							OrgID: influxdbtesting.IDPtr(1),
 						},
 					},
 				},
@@ -593,17 +592,17 @@ func TestNotificationRuleStore_DeleteNotificationRule(t *testing.T) {
 				id: 1,
 				permissions: []influxdb.Permission{
 					{
-						Action: "read",
+						Action: influxdb.ReadAction,
 						Resource: influxdb.Resource{
-							Type: influxdb.OrgsResourceType,
-							ID:   influxdbtesting.IDPtr(1),
+							Type:  influxdb.NotificationRuleResourceType,
+							OrgID: influxdbtesting.IDPtr(1),
 						},
 					},
 				},
 			},
 			wants: wants{
 				err: &influxdb.Error{
-					Msg:  "write:orgs/000000000000000a is unauthorized",
+					Msg:  "write:orgs/000000000000000a/notificationRules/0000000000000001 is unauthorized",
 					Code: influxdb.EUnauthorized,
 				},
 			},
@@ -615,7 +614,7 @@ func TestNotificationRuleStore_DeleteNotificationRule(t *testing.T) {
 			s := authorizer.NewNotificationRuleStore(tt.fields.NotificationRuleStore, mock.NewUserResourceMappingService(), mock.NewOrganizationService())
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{tt.args.permissions})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			err := s.DeleteNotificationRule(ctx, tt.args.id)
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
@@ -653,10 +652,10 @@ func TestNotificationRuleStore_CreateNotificationRule(t *testing.T) {
 			args: args{
 				orgID: 10,
 				permission: influxdb.Permission{
-					Action: "write",
+					Action: influxdb.WriteAction,
 					Resource: influxdb.Resource{
-						Type: influxdb.OrgsResourceType,
-						ID:   influxdbtesting.IDPtr(10),
+						Type:  influxdb.NotificationRuleResourceType,
+						OrgID: influxdbtesting.IDPtr(10),
 					},
 				},
 			},
@@ -676,16 +675,16 @@ func TestNotificationRuleStore_CreateNotificationRule(t *testing.T) {
 			args: args{
 				orgID: 10,
 				permission: influxdb.Permission{
-					Action: "write",
+					Action: influxdb.WriteAction,
 					Resource: influxdb.Resource{
-						Type: influxdb.OrgsResourceType,
-						ID:   influxdbtesting.IDPtr(1),
+						Type:  influxdb.NotificationRuleResourceType,
+						OrgID: influxdbtesting.IDPtr(1),
 					},
 				},
 			},
 			wants: wants{
 				err: &influxdb.Error{
-					Msg:  "write:orgs/000000000000000a is unauthorized",
+					Msg:  "write:orgs/000000000000000a/notificationRules is unauthorized",
 					Code: influxdb.EUnauthorized,
 				},
 			},
@@ -697,7 +696,7 @@ func TestNotificationRuleStore_CreateNotificationRule(t *testing.T) {
 			s := authorizer.NewNotificationRuleStore(tt.fields.NotificationRuleStore, mock.NewUserResourceMappingService(), mock.NewOrganizationService())
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			nr := &rule.Slack{
 				Base: rule.Base{

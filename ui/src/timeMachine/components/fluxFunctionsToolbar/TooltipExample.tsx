@@ -6,8 +6,8 @@ interface Props {
 
 const TooltipExample: SFC<Props> = ({example}) => (
   <article>
-    <div className="flux-functions-toolbar--heading">Example</div>
-    <div className="flux-functions-toolbar--snippet">{example}</div>
+    <div className="flux-function-docs--heading">Example</div>
+    <div className="flux-function-docs--snippet">{example}</div>
   </article>
 )
 

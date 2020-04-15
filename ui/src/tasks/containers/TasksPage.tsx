@@ -7,8 +7,7 @@ import TasksHeader from 'src/tasks/components/TasksHeader'
 import TasksList from 'src/tasks/components/TasksList'
 import {Page} from '@influxdata/clockface'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import FilterList from 'src/shared/components/Filter'
-import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
+import FilterList from 'src/shared/components/FilterList'
 import GetResources from 'src/resources/components/GetResources'
 import GetAssetLimits from 'src/cloud/components/GetAssetLimits'
 import AssetLimitAlert from 'src/cloud/components/AssetLimitAlert'
@@ -43,6 +42,7 @@ import {InjectedRouter, WithRouterProps} from 'react-router'
 import {Sort} from '@influxdata/clockface'
 import {SortTypes} from 'src/shared/utils/sort'
 import {extractTaskLimits} from 'src/cloud/utils/limits'
+import {TaskSortKey} from 'src/shared/components/resource_sort_dropdown/generateSortItems'
 
 // Selectors
 import {getAll} from 'src/resources/selectors'
@@ -80,12 +80,12 @@ type Props = ConnectedDispatchProps &
 interface State {
   isImporting: boolean
   taskLabelsEdit: Task
-  sortKey: SortKey
+  sortKey: TaskSortKey
   sortDirection: Sort
   sortType: SortTypes
 }
 
-type SortKey = keyof Task
+const Filter = FilterList<Task>()
 
 @ErrorHandling
 class TasksPage extends PureComponent<Props, State> {
@@ -132,6 +132,12 @@ class TasksPage extends PureComponent<Props, State> {
             onImportTask={this.summonImportOverlay}
             onImportFromTemplate={this.summonImportFromTemplateOverlay}
             limitStatus={limitStatus}
+            searchTerm={searchTerm}
+            setSearchTerm={setSearchTerm}
+            sortKey={sortKey}
+            sortDirection={sortDirection}
+            sortType={sortType}
+            onSort={this.handleSort}
           />
           <Page.Contents fullWidth={false} scrollable={true}>
             <GetResources resources={[ResourceType.Tasks, ResourceType.Labels]}>
@@ -140,7 +146,7 @@ class TasksPage extends PureComponent<Props, State> {
                   resourceName="tasks"
                   limitStatus={limitStatus}
                 />
-                <FilterList<Task>
+                <Filter
                   list={this.filteredTasks}
                   searchTerm={searchTerm}
                   searchKeys={['name', 'labels[].name']}
@@ -158,7 +164,6 @@ class TasksPage extends PureComponent<Props, State> {
                       onAddTaskLabel={onAddTaskLabel}
                       onRunTask={onRunTask}
                       onFilterChange={setSearchTerm}
-                      filterComponent={this.search}
                       onUpdate={updateTaskName}
                       onImportTask={this.summonImportOverlay}
                       onImportFromTemplate={
@@ -167,11 +172,10 @@ class TasksPage extends PureComponent<Props, State> {
                       sortKey={sortKey}
                       sortDirection={sortDirection}
                       sortType={sortType}
-                      onClickColumn={this.handleClickColumn}
                       checkTaskLimits={checkTaskLimits}
                     />
                   )}
-                </FilterList>
+                </Filter>
                 {this.hiddenTaskAlert}
               </GetAssetLimits>
             </GetResources>
@@ -182,14 +186,12 @@ class TasksPage extends PureComponent<Props, State> {
     )
   }
 
-  private handleClickColumn = (nextSort: Sort, sortKey: SortKey) => {
-    let sortType = SortTypes.String
-
-    if (sortKey === 'latestCompleted') {
-      sortType = SortTypes.Date
-    }
-
-    this.setState({sortKey, sortDirection: nextSort, sortType})
+  private handleSort = (
+    sortKey: TaskSortKey,
+    sortDirection: Sort,
+    sortType: SortTypes
+  ) => {
+    this.setState({sortKey, sortDirection, sortType})
   }
 
   private handleActivate = (task: Task) => {
@@ -229,18 +231,6 @@ class TasksPage extends PureComponent<Props, State> {
     } = this.props
 
     router.push(`/orgs/${orgID}/tasks/import`)
-  }
-
-  private get search(): JSX.Element {
-    const {setSearchTerm, searchTerm} = this.props
-
-    return (
-      <SearchWidget
-        placeholderText="Filter tasks..."
-        onSearch={setSearchTerm}
-        searchTerm={searchTerm}
-      />
-    )
   }
 
   private get filteredTasks(): Task[] {

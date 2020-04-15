@@ -4,17 +4,22 @@ import {connect} from 'react-redux'
 import _ from 'lodash'
 
 // Components
-import {SquareButton, IconFont, ComponentColor} from '@influxdata/clockface'
+import {
+  ButtonBase,
+  ButtonShape,
+  ButtonBaseRef,
+  ComponentColor,
+} from '@influxdata/clockface'
 import InlineLabelPopover from 'src/shared/components/inlineLabels/InlineLabelPopover'
 import CreateLabelOverlay from 'src/labels/components/CreateLabelOverlay'
 
 // Utils
-import {validateLabelUniqueness} from 'src/labels/utils/'
+import {validateLabelUniqueness} from 'src/labels/utils'
 
 // Types
-import {Label} from 'src/types'
+import {Label, RemoteDataState} from 'src/types'
 import {OverlayState} from 'src/types/overlay'
-import {createLabel} from 'src/labels/actions'
+import {createLabel} from 'src/labels/actions/thunks'
 
 // Constants
 export const ADD_NEW_LABEL_ITEM_ID = 'add-new-label'
@@ -25,6 +30,7 @@ export const ADD_NEW_LABEL_LABEL: Label = {
     color: '#000000',
     description: '',
   },
+  status: RemoteDataState.NotStarted,
 }
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -45,14 +51,13 @@ type Props = DispatchProps & StateProps & OwnProps
 
 interface State {
   searchTerm: string
-  isPopoverVisible: boolean
   selectedItemID: string
   isCreatingLabel: OverlayState
 }
 
 @ErrorHandling
 class InlineLabelsEditor extends Component<Props, State> {
-  private popoverTrigger = createRef<HTMLDivElement>()
+  private popoverTrigger = createRef<ButtonBaseRef>()
 
   constructor(props: Props) {
     super(props)
@@ -60,7 +65,6 @@ class InlineLabelsEditor extends Component<Props, State> {
     this.state = {
       selectedItemID: null,
       searchTerm: '',
-      isPopoverVisible: false,
       isCreatingLabel: OverlayState.Closed,
     }
   }
@@ -70,19 +74,19 @@ class InlineLabelsEditor extends Component<Props, State> {
 
     return (
       <>
+        {this.popover}
         <div className="inline-labels--editor">
-          <div className="inline-labels--add-wrapper" ref={this.popoverTrigger}>
-            <div className="inline-labels--add">
-              <SquareButton
-                color={ComponentColor.Secondary}
-                titleText="Add labels"
-                icon={IconFont.Plus}
-                testID="inline-labels--add"
-              />
-            </div>
-            {this.noLabelsIndicator}
-          </div>
-          {this.popover}
+          <ButtonBase
+            color={ComponentColor.Secondary}
+            titleText="Add labels"
+            shape={ButtonShape.Square}
+            className="inline-labels--add"
+            testID="inline-labels--add"
+            ref={this.popoverTrigger}
+          >
+            <div className="inline-labels--add-icon" />
+          </ButtonBase>
+          {this.noLabelsIndicator}
         </div>
         <CreateLabelOverlay
           isVisible={isCreatingLabel === OverlayState.Open}
@@ -124,10 +128,16 @@ class InlineLabelsEditor extends Component<Props, State> {
       return
     }
 
+    const handleClick = (): void => {
+      if (this.popoverTrigger.current) {
+        this.popoverTrigger.current.click()
+      }
+    }
+
     return (
       <div
         className="cf-label cf-label--xs cf-label--colorless"
-        onClick={this.handleShowPopover}
+        onClick={handleClick}
         data-testid="inline-labels--empty"
       >
         <span className="cf-label--name">Add a label</span>
@@ -158,26 +168,6 @@ class InlineLabelsEditor extends Component<Props, State> {
 
   private handleUpdateSelectedItemID = (selectedItemID: string): void => {
     this.setState({selectedItemID})
-  }
-
-  private handleShowPopover = () => {
-    const {availableLabels} = this
-    const {isPopoverVisible} = this.state
-
-    if (_.isEmpty(availableLabels)) {
-      if (isPopoverVisible) {
-        return
-      }
-
-      return this.setState({
-        isPopoverVisible: true,
-        selectedItemID: null,
-        searchTerm: '',
-      })
-    }
-
-    const selectedItemID = this.availableLabels[0].id
-    this.setState({isPopoverVisible: true, selectedItemID, searchTerm: ''})
   }
 
   private handleInputChange = (e: ChangeEvent<HTMLInputElement>): void => {

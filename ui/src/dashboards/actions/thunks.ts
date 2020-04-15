@@ -10,7 +10,13 @@ import * as tempAPI from 'src/templates/api'
 import {createCellWithView} from 'src/cells/actions/thunks'
 
 // Schemas
-import * as schemas from 'src/schemas'
+import {
+  dashboardSchema,
+  arrayOfDashboards,
+  labelSchema,
+  arrayOfViews,
+} from 'src/schemas'
+import {viewsFromCells} from 'src/schemas/dashboards'
 
 // Actions
 import {
@@ -22,28 +28,22 @@ import {
   updateTimeRangeFromQueryParams,
 } from 'src/dashboards/actions/ranges'
 import {setViews} from 'src/views/actions/creators'
-import {selectValue} from 'src/variables/actions/creators'
-import {getVariables, refreshVariableValues} from 'src/variables/actions/thunks'
+import {getVariables, hydrateVariables} from 'src/variables/actions/thunks'
 import {setExportTemplate} from 'src/templates/actions/creators'
 import {checkDashboardLimits} from 'src/cloud/actions/limits'
 import {updateViewAndVariables} from 'src/views/actions/thunks'
+import {setLabelOnResource} from 'src/labels/actions/creators'
 import * as creators from 'src/dashboards/actions/creators'
 
 // Utils
-import {addVariableDefaults} from 'src/variables/actions/thunks'
 import {filterUnusedVars} from 'src/shared/utils/filterUnusedVars'
-import {
-  extractVariablesList,
-  getHydratedVariables,
-} from 'src/variables/selectors'
 import {dashboardToTemplate} from 'src/shared/utils/resourceToTemplate'
 import {exportVariables} from 'src/variables/utils/exportVariables'
 import {getSaveableView} from 'src/timeMachine/selectors'
 import {incrementCloneName} from 'src/utils/naming'
 import {isLimitError} from 'src/cloud/utils/limits'
 import {getOrg} from 'src/organizations/selectors'
-import {addLabelDefaults} from 'src/labels/utils'
-import {getAll, getByID} from 'src/resources/selectors'
+import {getAll, getByID, getStatus} from 'src/resources/selectors'
 
 // Constants
 import * as copy from 'src/shared/copy/notifications'
@@ -61,8 +61,12 @@ import {
   DashboardEntities,
   ViewEntities,
   ResourceType,
+  VariableEntities,
+  Variable,
+  LabelEntities,
 } from 'src/types'
 import {CellsWithViewProperties} from 'src/client'
+import {arrayOfVariables} from 'src/schemas/variables'
 
 type Action = creators.Action
 
@@ -85,6 +89,15 @@ export const createDashboard = () => async (
     if (resp.status !== 201) {
       throw new Error(resp.data.message)
     }
+
+    const normDash = normalize<Dashboard, DashboardEntities, string>(
+      resp.data,
+      dashboardSchema
+    )
+
+    await dispatch(
+      creators.setDashboard(resp.data.id, RemoteDataState.Done, normDash)
+    )
 
     dispatch(push(`/orgs/${org.id}/dashboards/${resp.data.id}`))
     dispatch(checkDashboardLimits())
@@ -122,7 +135,7 @@ export const cloneDashboard = (
 
     const {entities, result} = normalize<Dashboard, DashboardEntities, string>(
       getResp.data,
-      schemas.dashboard
+      dashboardSchema
     )
 
     const dash: Dashboard = entities.dashboards[result]
@@ -139,6 +152,15 @@ export const cloneDashboard = (
     if (postResp.status !== 201) {
       throw new Error(postResp.data.message)
     }
+
+    const normDash = normalize<Dashboard, DashboardEntities, string>(
+      postResp.data,
+      dashboardSchema
+    )
+
+    await dispatch(
+      creators.setDashboard(postResp.data.id, RemoteDataState.Done, normDash)
+    )
 
     const pendingLabels = getResp.data.labels.map(l =>
       api.postDashboardsLabel({
@@ -184,10 +206,17 @@ export const getDashboards = () => async (
   getState: GetState
 ): Promise<void> => {
   try {
-    const org = getOrg(getState())
     const {setDashboards} = creators
 
-    dispatch(setDashboards(RemoteDataState.Loading))
+    const state = getState()
+    if (
+      getStatus(state, ResourceType.Dashboards) === RemoteDataState.NotStarted
+    ) {
+      dispatch(setDashboards(RemoteDataState.Loading))
+    }
+
+    const org = getOrg(state)
+
     const resp = await api.getDashboards({query: {orgID: org.id}})
 
     if (resp.status !== 200) {
@@ -196,7 +225,7 @@ export const getDashboards = () => async (
 
     const dashboards = normalize<Dashboard, DashboardEntities, string[]>(
       resp.data.dashboards,
-      schemas.arrayOfDashboards
+      arrayOfDashboards
     )
 
     dispatch(setDashboards(RemoteDataState.Done, dashboards))
@@ -223,7 +252,7 @@ export const createDashboardFromTemplate = (
 
     const dashboards = normalize<Dashboard, DashboardEntities, string[]>(
       resp.data.dashboards,
-      schemas.arrayOfDashboards
+      arrayOfDashboards
     )
 
     dispatch(creators.setDashboards(RemoteDataState.Done, dashboards))
@@ -254,18 +283,8 @@ export const deleteDashboard = (dashboardID: string, name: string) => async (
     dispatch(notify(copy.dashboardDeleted(name)))
     dispatch(checkDashboardLimits())
   } catch (error) {
-    dispatch(notify(copy.dashboardDeleteFailed(name, error.data.message)))
+    dispatch(notify(copy.dashboardDeleteFailed(name, error.message)))
   }
-}
-
-export const refreshDashboardVariableValues = (
-  dashboardID: string,
-  nextViews: View[]
-) => (dispatch, getState: GetState) => {
-  const variables = extractVariablesList(getState())
-  const variablesInUse = filterUnusedVars(variables, nextViews)
-
-  return dispatch(refreshVariableValues(dashboardID, variablesInUse))
 }
 
 export const getDashboard = (dashboardID: string) => async (
@@ -285,23 +304,23 @@ export const getDashboard = (dashboardID: string) => async (
       throw new Error(resp.data.message)
     }
 
+    const skipCache = true
+    dispatch(hydrateVariables(skipCache))
+
     const normDash = normalize<Dashboard, DashboardEntities, string>(
       resp.data,
-      schemas.dashboard
+      dashboardSchema
     )
 
     const cellViews: CellsWithViewProperties = resp.data.cells || []
-    const viewsData = schemas.viewsFromCells(cellViews, dashboardID)
+    const viewsData = viewsFromCells(cellViews, dashboardID)
 
     const normViews = normalize<View, ViewEntities, string[]>(
       viewsData,
-      schemas.arrayOfViews
+      arrayOfViews
     )
 
     dispatch(setViews(RemoteDataState.Done, normViews))
-
-    // Ensure the values for the variables in use on the dashboard are populated
-    await dispatch(refreshDashboardVariableValues(dashboardID, viewsData))
 
     // Now that all the necessary state has been loaded, set the dashboard
     dispatch(creators.setDashboard(dashboardID, RemoteDataState.Done, normDash))
@@ -343,7 +362,7 @@ export const updateDashboard = (
 
     const updatedDashboard = normalize<Dashboard, DashboardEntities, string>(
       resp.data,
-      schemas.dashboard
+      dashboardSchema
     )
 
     dispatch(creators.editDashboard(updatedDashboard))
@@ -366,9 +385,12 @@ export const addDashboardLabel = (dashboardID: string, label: Label) => async (
       throw new Error(resp.data.message)
     }
 
-    const lab = addLabelDefaults(resp.data.label)
+    const normLabel = normalize<Label, LabelEntities, string>(
+      resp.data.label,
+      labelSchema
+    )
 
-    dispatch(creators.addDashboardLabel(dashboardID, lab))
+    dispatch(setLabelOnResource(dashboardID, normLabel))
   } catch (error) {
     console.error(error)
     dispatch(notify(copy.addDashboardLabelFailed()))
@@ -396,24 +418,6 @@ export const removeDashboardLabel = (
   }
 }
 
-export const selectVariableValue = (
-  dashboardID: string,
-  variableID: string,
-  value: string
-) => async (dispatch, getState: GetState): Promise<void> => {
-  const state = getState()
-  const variables = getHydratedVariables(state, dashboardID)
-  const dashboard = getByID<Dashboard>(
-    state,
-    ResourceType.Dashboards,
-    dashboardID
-  )
-
-  dispatch(selectValue(dashboardID, variableID, value))
-
-  await dispatch(refreshVariableValues(dashboard.id, variables))
-}
-
 export const convertToTemplate = (dashboardID: string) => async (
   dispatch,
   getState: GetState
@@ -431,7 +435,7 @@ export const convertToTemplate = (dashboardID: string) => async (
 
     const {entities, result} = normalize<Dashboard, DashboardEntities, string>(
       dashResp.data,
-      schemas.dashboard
+      dashboardSchema
     )
 
     const dashboard = entities.dashboards[result]
@@ -446,10 +450,24 @@ export const convertToTemplate = (dashboardID: string) => async (
     if (resp.status !== 200) {
       throw new Error(resp.data.message)
     }
-    const vars = resp.data.variables.map(v => addVariableDefaults(v))
+
+    let vars = []
+
+    // dumb bug
+    // https://github.com/paularmstrong/normalizr/issues/290
+    if (resp.data.variables.length) {
+      const normVars = normalize<Variable, VariableEntities, string>(
+        resp.data.variables,
+        arrayOfVariables
+      )
+
+      vars = Object.values(normVars.entities.variables)
+    }
+
     const variables = filterUnusedVars(vars, views)
     const exportedVariables = exportVariables(variables, vars)
     const dashboardTemplate = dashboardToTemplate(
+      state,
       dashboard,
       cells,
       views,
@@ -458,6 +476,7 @@ export const convertToTemplate = (dashboardID: string) => async (
 
     dispatch(setExportTemplate(RemoteDataState.Done, dashboardTemplate))
   } catch (error) {
+    console.error(error)
     dispatch(setExportTemplate(RemoteDataState.Error))
     dispatch(notify(copy.createTemplateFailed(error)))
   }
@@ -477,7 +496,7 @@ export const saveVEOView = (dashboardID: string) => async (
     }
   } catch (error) {
     console.error(error)
-    dispatch(notify(copy.cellAddFailed()))
+    dispatch(notify(copy.cellAddFailed(error.message)))
     throw error
   }
 }

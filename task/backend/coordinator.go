@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2"
 	"go.uber.org/zap"
 )
 
@@ -36,7 +36,7 @@ func NotifyCoordinatorOfExisting(ctx context.Context, log *zap.Logger, ts TaskSe
 	latestCompleted := now()
 	for len(tasks) > 0 {
 		for _, task := range tasks {
-			if task.Status != string(TaskActive) {
+			if task.Status != string(influxdb.TaskActive) {
 				continue
 			}
 
@@ -78,7 +78,7 @@ func TaskNotifyCoordinatorOfExisting(ctx context.Context, ts TaskService, tcs Ta
 	latestCompleted := now()
 	for len(tasks) > 0 {
 		for _, task := range tasks {
-			if task.Status != string(TaskActive) {
+			if task.Status != string(influxdb.TaskActive) {
 				continue
 			}
 
