@@ -19,7 +19,7 @@ const supportLinks = [
 export default class SupportLinks extends PureComponent {
   public render() {
     return (
-      <ul className="link-list">
+      <ul className="useful-links">
         {supportLinks.map(({link, title}) => (
           <li key={title}>
             <a href={link} target="_blank">

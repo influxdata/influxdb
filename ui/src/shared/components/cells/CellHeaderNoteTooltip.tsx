@@ -1,10 +1,11 @@
 // Libraries
 import React, {SFC, CSSProperties} from 'react'
 import {createPortal} from 'react-dom'
-import ReactMarkdown from 'react-markdown'
 
 // Constants
 import {NOTES_PORTAL_ID} from 'src/portals/NotesPortal'
+
+import {MarkdownRenderer} from 'src/shared/components/views/MarkdownRenderer'
 
 interface Props {
   note: string
@@ -27,7 +28,7 @@ const CellHeaderNoteTooltip: SFC<Props> = props => {
         className="cell-header-note-tooltip--content markdown-format"
         style={style}
       >
-        <ReactMarkdown source={note} />
+        <MarkdownRenderer text={note} />
       </div>
     </div>
   )

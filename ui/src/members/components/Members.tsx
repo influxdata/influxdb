@@ -6,7 +6,7 @@ import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
-import SettingsTabbedPageHeader from 'src/settings/components/SettingsTabbedPageHeader'
+import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'
 import {EmptyState, Sort} from '@influxdata/clockface'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import MemberList from 'src/members/components/MemberList'
@@ -59,13 +59,15 @@ class Members extends PureComponent<Props & WithRouterProps, State> {
 
     return (
       <>
-        <SettingsTabbedPageHeader>
-          <SearchWidget
-            placeholderText="Filter members..."
-            searchTerm={searchTerm}
-            onSearch={this.handleFilterChange}
-          />
-        </SettingsTabbedPageHeader>
+        <TabbedPageHeader
+          childrenLeft={
+            <SearchWidget
+              placeholderText="Filter members..."
+              searchTerm={searchTerm}
+              onSearch={this.handleFilterChange}
+            />
+          }
+        />
         <FilterMembers
           list={this.props.members}
           searchKeys={['name']}

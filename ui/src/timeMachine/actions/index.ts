@@ -12,12 +12,12 @@ import {convertCheckToCustom} from 'src/alerting/actions/alertBuilder'
 import {setDashboardTimeRange} from 'src/dashboards/actions/ranges'
 
 // Selectors
-import {getTimeRange} from 'src/dashboards/selectors'
-import {getActiveQuery, getActiveTimeMachine} from 'src/timeMachine/selectors'
+import {getActiveQuery} from 'src/timeMachine/selectors'
 
 // Utils
 import {createView} from 'src/views/helpers'
 import {createCheckQueryFromAlertBuilder} from 'src/alerting/utils/customCheck'
+import {currentContext} from 'src/shared/selectors/currentContext'
 
 // Types
 import {TimeMachineState} from 'src/timeMachine/reducers'
@@ -140,11 +140,7 @@ export const setName = (name: string): SetNameAction => ({
 })
 
 export const setTimeRange = (timeRange: TimeRange) => (dispatch, getState) => {
-  //TODO: replace with activeContext selector
-  const state = getState()
-  const activeTimeMachine = getActiveTimeMachine(state)
-  const contextID =
-    activeTimeMachine.contextID || state.timeMachines.activeTimeMachineID
+  const contextID = currentContext(getState())
 
   dispatch(setDashboardTimeRange(contextID, timeRange))
   dispatch(saveAndExecuteQueries())
@@ -658,17 +654,12 @@ export const setXAxisLabel = (xAxisLabel: string): SetXAxisLabelAction => ({
   payload: {xAxisLabel},
 })
 
-export const loadNewVEO = (dashboardID: string) => (
-  dispatch: Dispatch<Action | ExternalActions>,
-  getState: GetState
+export const loadNewVEO = () => (
+  dispatch: Dispatch<Action | ExternalActions>
 ): void => {
-  const state = getState()
-  const timeRange = getTimeRange(state, dashboardID)
-
   dispatch(
     setActiveTimeMachine('veo', {
       view: createView<XYViewProperties>('xy'),
-      timeRange,
     })
   )
 }

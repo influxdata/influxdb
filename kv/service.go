@@ -84,7 +84,7 @@ func NewService(log *zap.Logger, kv Store, configs ...ServiceConfig) *Service {
 				id, _ := urm.UserID.Encode()
 				return id, nil
 			},
-		)),
+		), WithIndexReadPathEnabled),
 		disableAuthorizationsForMaxPermissions: func(context.Context) bool {
 			return false
 		},
@@ -120,10 +120,6 @@ func NewService(log *zap.Logger, kv Store, configs ...ServiceConfig) *Service {
 		s.clock = clock.New()
 	}
 	s.FluxLanguageService = s.Config.FluxLanguageService
-
-	if s.Config.URMByUserIndexReadPathEnabled {
-		WithIndexReadPathEnabled(s.urmByUserIndex)
-	}
 
 	return s
 }

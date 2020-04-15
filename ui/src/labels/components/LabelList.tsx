@@ -29,7 +29,6 @@ interface Props {
   sortKey: string
   sortDirection: Sort
   sortType: SortTypes
-  onClickColumn: (mextSort: Sort, sortKey: string) => void
 }
 
 interface State {
@@ -49,27 +48,9 @@ export default class LabelList extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {sortKey, sortDirection, onClickColumn} = this.props
-    const headerKeys = ['name', 'properties.description']
     return (
       <>
         <ResourceList>
-          <ResourceList.Header>
-            <ResourceList.Sorter
-              name={headerKeys[0]}
-              sortKey={headerKeys[0]}
-              sort={sortKey === headerKeys[0] ? sortDirection : Sort.None}
-              onClick={onClickColumn}
-              testID="sorter--name"
-            />
-            <ResourceList.Sorter
-              name="Description"
-              sortKey={headerKeys[1]}
-              sort={sortKey === headerKeys[1] ? sortDirection : Sort.None}
-              onClick={onClickColumn}
-              testID="sorter--desc"
-            />
-          </ResourceList.Header>
           <ResourceList.Body emptyState={this.props.emptyState}>
             {this.rows}
           </ResourceList.Body>

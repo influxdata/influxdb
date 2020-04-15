@@ -196,6 +196,7 @@ func TestQueryRequest_proxyRequest(t *testing.T) {
 		Query   string
 		Type    string
 		Dialect QueryDialect
+		Now     time.Time
 		org     *platform.Organization
 	}
 	tests := []struct {
@@ -248,14 +249,42 @@ func TestQueryRequest_proxyRequest(t *testing.T) {
 					Delimiter:      ",",
 					DateTimeFormat: "RFC3339",
 				},
+				Now: time.Unix(1, 1),
 				org: &platform.Organization{},
 			},
-			now: func() time.Time { return time.Unix(1, 1) },
+			now: func() time.Time { return time.Unix(2, 2) },
 			want: &query.ProxyRequest{
 				Request: query.Request{
 					Compiler: lang.ASTCompiler{
 						AST: mustMarshal(&ast.Package{}),
 						Now: time.Unix(1, 1),
+					},
+				},
+				Dialect: &csv.Dialect{
+					ResultEncoderConfig: csv.ResultEncoderConfig{
+						NoHeader:  false,
+						Delimiter: ',',
+					},
+				},
+			},
+		},
+		{
+			name: "valid AST with calculated now",
+			fields: fields{
+				AST:  mustMarshal(&ast.Package{}),
+				Type: "flux",
+				Dialect: QueryDialect{
+					Delimiter:      ",",
+					DateTimeFormat: "RFC3339",
+				},
+				org: &platform.Organization{},
+			},
+			now: func() time.Time { return time.Unix(2, 2) },
+			want: &query.ProxyRequest{
+				Request: query.Request{
+					Compiler: lang.ASTCompiler{
+						AST: mustMarshal(&ast.Package{}),
+						Now: time.Unix(2, 2),
 					},
 				},
 				Dialect: &csv.Dialect{
@@ -322,6 +351,7 @@ func TestQueryRequest_proxyRequest(t *testing.T) {
 				Query:   tt.fields.Query,
 				Type:    tt.fields.Type,
 				Dialect: tt.fields.Dialect,
+				Now:     tt.fields.Now,
 				Org:     tt.fields.org,
 			}
 			got, err := r.proxyRequest(tt.now)

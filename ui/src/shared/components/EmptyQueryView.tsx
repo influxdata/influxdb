@@ -5,7 +5,7 @@ import React, {PureComponent} from 'react'
 import EmptyGraphMessage from 'src/shared/components/EmptyGraphMessage'
 import EmptyGraphErrorTooltip from 'src/shared/components/EmptyGraphErrorTooltip'
 import EmptyGraphError from 'src/shared/components/EmptyGraphError'
-import Markdown from 'src/shared/components/views/Markdown'
+import ScrollableMarkdown from 'src/shared/components/views/ScrollableMarkdown'
 
 // Constants
 import {emptyGraphCopy} from 'src/shared/copy/cell'
@@ -73,7 +73,7 @@ export default class EmptyQueryView extends PureComponent<Props> {
     }
 
     if (!hasResults && fallbackNote) {
-      return <Markdown text={fallbackNote} />
+      return <ScrollableMarkdown text={fallbackNote} />
     }
 
     if (!hasResults) {

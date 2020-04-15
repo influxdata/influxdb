@@ -1,7 +1,5 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {Alert, ComponentColor, IconFont} from '@influxdata/clockface'
-import _ from 'lodash'
 
 // Decorator
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -44,12 +42,6 @@ class TelegrafInstructions extends PureComponent<Props> {
           copy the following command to your terminal window to set an
           environment variable with your token.
         </p>
-        {token && (
-          <Alert icon={IconFont.AlertTriangle} color={ComponentColor.Primary}>
-            Make sure to copy your new personal access token now. You won’t be
-            able to see it again!
-          </Alert>
-        )}
         <TokenCodeSnippet token={exportToken} configID={configID} label="CLI" />
         <h6>3. Start Telegraf</h6>
         <p>

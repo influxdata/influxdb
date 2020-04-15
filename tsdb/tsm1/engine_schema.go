@@ -24,7 +24,7 @@ const cancelCheckInterval = 64
 
 // TagValues returns an iterator which enumerates the values for the specific
 // tagKey in the given bucket matching the predicate within the
-// time range (start, end].
+// time range [start, end].
 //
 // TagValues will always return a StringIterator if there is no error.
 //
@@ -102,6 +102,8 @@ func (e *Engine) tagValuesNoPredicate(ctx context.Context, orgID, bucketID influ
 		return cursors.NewStringSliceIteratorWithStats(nil, stats), ctx.Err()
 	}
 
+	var ts cursors.TimestampArray
+
 	// With performance in mind, we explicitly do not check the context
 	// while scanning the entries in the cache.
 	tsmKeyprefixStr := string(tsmKeyPrefix)
@@ -122,12 +124,18 @@ func (e *Engine) tagValuesNoPredicate(ctx context.Context, orgID, bucketID influ
 			return nil
 		}
 
-		stats.ScannedValues += entry.values.Len()
-		stats.ScannedBytes += entry.values.Len() * 8 // sizeof timestamp
+		ts.Timestamps = entry.AppendTimestamps(ts.Timestamps[:0])
+		if ts.Len() > 0 {
+			sort.Sort(&ts)
 
-		if entry.values.Contains(start, end) {
-			tsmValues[string(curVal)] = struct{}{}
+			stats.ScannedValues += ts.Len()
+			stats.ScannedBytes += ts.Len() * 8 // sizeof timestamp
+
+			if ts.Contains(start, end) {
+				tsmValues[string(curVal)] = struct{}{}
+			}
 		}
+
 		return nil
 	})
 
@@ -207,6 +215,7 @@ func (e *Engine) tagValuesPredicate(ctx context.Context, orgID, bucketID influxd
 		tags   models.Tags
 		keybuf []byte
 		sfkey  []byte
+		ts     cursors.TimestampArray
 	)
 
 	for i := range keys {
@@ -230,15 +239,23 @@ func (e *Engine) tagValuesPredicate(ctx context.Context, orgID, bucketID influxd
 			continue
 		}
 
-		keybuf = models.AppendMakeKey(keybuf[:0], orgBucketEsc, tags)
+		// orgBucketEsc is already escaped, so no need to use models.AppendMakeKey, which
+		// unescapes and escapes the value again. The degenerate case is if the orgBucketEsc
+		// has escaped values, causing two allocations per key
+		keybuf = append(keybuf[:0], orgBucketEsc...)
+		keybuf = tags.AppendHashKey(keybuf)
 		sfkey = AppendSeriesFieldKeyBytes(sfkey[:0], keybuf, tags.Get(models.FieldKeyTagKeyBytes))
 
-		values := e.Cache.Values(sfkey)
-		stats.ScannedValues += values.Len()
-		stats.ScannedBytes += values.Len() * 8 // sizeof timestamp
+		ts.Timestamps = e.Cache.AppendTimestamps(sfkey, ts.Timestamps[:0])
+		if ts.Len() > 0 {
+			sort.Sort(&ts)
 
-		if values.Contains(start, end) {
-			tsmValues[string(curVal)] = struct{}{}
+			stats.ScannedValues += ts.Len()
+			stats.ScannedBytes += ts.Len() * 8 // sizeof timestamp
+
+			if ts.Contains(start, end) {
+				tsmValues[string(curVal)] = struct{}{}
+			}
 			continue
 		}
 
@@ -304,7 +321,7 @@ func (e *Engine) findCandidateKeys(ctx context.Context, orgBucket []byte, predic
 }
 
 // TagKeys returns an iterator which enumerates the tag keys for the given
-// bucket matching the predicate within the time range (start, end].
+// bucket matching the predicate within the time range [start, end].
 //
 // TagKeys will always return a StringIterator if there is no error.
 //
@@ -378,6 +395,8 @@ func (e *Engine) tagKeysNoPredicate(ctx context.Context, orgID, bucketID influxd
 		return cursors.NewStringSliceIteratorWithStats(nil, stats), ctx.Err()
 	}
 
+	var ts cursors.TimestampArray
+
 	// With performance in mind, we explicitly do not check the context
 	// while scanning the entries in the cache.
 	tsmKeyprefixStr := string(tsmKeyPrefix)
@@ -393,12 +412,18 @@ func (e *Engine) tagKeysNoPredicate(ctx context.Context, orgID, bucketID influxd
 			return nil
 		}
 
-		stats.ScannedValues += entry.values.Len()
-		stats.ScannedBytes += entry.values.Len() * 8 // sizeof timestamp
+		ts.Timestamps = entry.AppendTimestamps(ts.Timestamps[:0])
+		if ts.Len() > 0 {
+			sort.Sort(&ts)
 
-		if entry.values.Contains(start, end) {
-			keyset.UnionKeys(tags)
+			stats.ScannedValues += ts.Len()
+			stats.ScannedBytes += ts.Len() * 8 // sizeof timestamp
+
+			if ts.Contains(start, end) {
+				keyset.UnionKeys(tags)
+			}
 		}
+
 		return nil
 	})
 
@@ -472,6 +497,7 @@ func (e *Engine) tagKeysPredicate(ctx context.Context, orgID, bucketID influxdb.
 		tags   models.Tags
 		keybuf []byte
 		sfkey  []byte
+		ts     cursors.TimestampArray
 	)
 
 	for i := range keys {
@@ -490,16 +516,24 @@ func (e *Engine) tagKeysPredicate(ctx context.Context, orgID, bucketID influxdb.
 			continue
 		}
 
-		keybuf = models.AppendMakeKey(keybuf[:0], orgBucketEsc, tags)
+		// orgBucketEsc is already escaped, so no need to use models.AppendMakeKey, which
+		// unescapes and escapes the value again. The degenerate case is if the orgBucketEsc
+		// has escaped values, causing two allocations per key
+		keybuf = append(keybuf[:0], orgBucketEsc...)
+		keybuf = tags.AppendHashKey(keybuf)
 		sfkey = AppendSeriesFieldKeyBytes(sfkey[:0], keybuf, tags.Get(models.FieldKeyTagKeyBytes))
 
-		values := e.Cache.Values(sfkey)
-		stats.ScannedValues += values.Len()
-		stats.ScannedBytes += values.Len() * 8 // sizeof timestamp
+		ts.Timestamps = e.Cache.AppendTimestamps(sfkey, ts.Timestamps[:0])
+		if ts.Len() > 0 {
+			sort.Sort(&ts)
 
-		if values.Contains(start, end) {
-			keyset.UnionKeys(tags)
-			continue
+			stats.ScannedValues += ts.Len()
+			stats.ScannedBytes += ts.Len() * 8 // sizeof timestamp
+
+			if ts.Contains(start, end) {
+				keyset.UnionKeys(tags)
+				continue
+			}
 		}
 
 		for _, iter := range iters {

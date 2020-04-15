@@ -174,7 +174,7 @@ const convertTagsToFluxFunctionString = function convertTagsToFluxFunctionString
 
 export const tagToFlux = function tagToFlux(tag: BuilderTagsType) {
   return tag.values
-    .map(value => `r.${tag.key} == "${value.replace(/\\/g, '\\\\')}"`)
+    .map(value => `r["${tag.key}"] == "${value.replace(/\\/g, '\\\\')}"`)
     .join(' or ')
 }
 

@@ -141,7 +141,7 @@ func TestSecretService_LoadSecret(t *testing.T) {
 			s := authorizer.NewSecretService(tt.fields.SecretService)
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			_, err := s.LoadSecret(ctx, tt.args.org, tt.args.key)
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
@@ -267,7 +267,7 @@ func TestSecretService_GetSecretKeys(t *testing.T) {
 			s := authorizer.NewSecretService(tt.fields.SecretService)
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			secrets, err := s.GetSecretKeys(ctx, tt.args.org)
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
@@ -357,7 +357,7 @@ func TestSecretService_PatchSecrets(t *testing.T) {
 			s := authorizer.NewSecretService(tt.fields.SecretService)
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{tt.args.permissions})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			patches := make(map[string]string)
 			err := s.PatchSecrets(ctx, tt.args.org, patches)
@@ -444,7 +444,7 @@ func TestSecretService_DeleteSecret(t *testing.T) {
 			s := authorizer.NewSecretService(tt.fields.SecretService)
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{tt.args.permissions})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			err := s.DeleteSecret(ctx, tt.args.org)
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
@@ -526,7 +526,7 @@ func TestSecretService_PutSecret(t *testing.T) {
 			s := authorizer.NewSecretService(tt.fields.SecretService)
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			err := s.PutSecret(ctx, tt.args.orgID, "", "")
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
@@ -688,7 +688,7 @@ func TestSecretService_PutSecrets(t *testing.T) {
 			s := authorizer.NewSecretService(tt.fields.SecretService)
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{tt.args.permissions})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			secrets := make(map[string]string)
 			err := s.PutSecrets(ctx, tt.args.orgID, secrets)

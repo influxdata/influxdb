@@ -44,30 +44,6 @@ func (s *Service) DeleteUserResourceMapping(ctx context.Context, resourceID, use
 	return err
 }
 
-// addOrgRelationToResource duplicates the organizations user resource mappings for this new resource
-func (s *Service) addOrgRelationToResource(ctx context.Context, tx kv.Tx, orgID, resourceID influxdb.ID, resourceType influxdb.ResourceType) error {
-	urms, err := s.store.ListURMs(ctx, tx, influxdb.UserResourceMappingFilter{
-		ResourceID: orgID,
-	})
-	if err != nil {
-		return err
-	}
-	for _, urm := range urms {
-		err := s.store.CreateURM(ctx, tx, &influxdb.UserResourceMapping{
-			UserID:       urm.UserID,
-			UserType:     urm.UserType,
-			MappingType:  urm.MappingType,
-			ResourceType: resourceType,
-			ResourceID:   resourceID,
-		})
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-
-}
-
 // removeResourceRelations allows us to clean up any resource relationship that would have normally been left over after a delete action of a resource.
 func (s *Service) removeResourceRelations(ctx context.Context, tx kv.Tx, resourceID influxdb.ID) error {
 	urms, err := s.store.ListURMs(ctx, tx, influxdb.UserResourceMappingFilter{

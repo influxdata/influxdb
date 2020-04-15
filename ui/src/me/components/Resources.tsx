@@ -39,7 +39,7 @@ class ResourceLists extends PureComponent<Props> {
         </Panel>
         <Panel>
           <Panel.Header>
-            <h4>Dashboards</h4>
+            <h4>Recent Dashboards</h4>
           </Panel.Header>
           <Panel.Body>
             <GetResources resources={[ResourceType.Dashboards]}>

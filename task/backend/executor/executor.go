@@ -18,6 +18,11 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	maxPromises       = 1000
+	defaultMaxWorkers = 100
+)
+
 var _ scheduler.Executor = (*Executor)(nil)
 
 type Promise interface {
@@ -42,8 +47,28 @@ func MultiLimit(limits ...LimitFunc) LimitFunc {
 // LimitFunc is a function the executor will use to
 type LimitFunc func(*influxdb.Task, *influxdb.Run) error
 
+type executorConfig struct {
+	maxWorkers int
+}
+
+type executorOption func(*executorConfig)
+
+// WithMaxWorkers specifies the number of workers used by the Executor.
+func WithMaxWorkers(n int) executorOption {
+	return func(o *executorConfig) {
+		o.maxWorkers = n
+	}
+}
+
 // NewExecutor creates a new task executor
-func NewExecutor(log *zap.Logger, qs query.QueryService, as influxdb.AuthorizationService, ts influxdb.TaskService, tcs backend.TaskControlService) (*Executor, *ExecutorMetrics) {
+func NewExecutor(log *zap.Logger, qs query.QueryService, as influxdb.AuthorizationService, ts influxdb.TaskService, tcs backend.TaskControlService, opts ...executorOption) (*Executor, *ExecutorMetrics) {
+	cfg := &executorConfig{
+		maxWorkers: defaultMaxWorkers,
+	}
+	for _, opt := range opts {
+		opt(cfg)
+	}
+
 	e := &Executor{
 		log: log,
 		ts:  ts,
@@ -52,8 +77,8 @@ func NewExecutor(log *zap.Logger, qs query.QueryService, as influxdb.Authorizati
 		as:  as,
 
 		currentPromises: sync.Map{},
-		promiseQueue:    make(chan *promise, 1000),                                //TODO(lh): make this configurable
-		workerLimit:     make(chan struct{}, 100),                                 //TODO(lh): make this configurable
+		promiseQueue:    make(chan *promise, maxPromises),
+		workerLimit:     make(chan struct{}, cfg.maxWorkers),
 		limitFunc:       func(*influxdb.Task, *influxdb.Run) error { return nil }, // noop
 	}
 

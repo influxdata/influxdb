@@ -13,7 +13,7 @@
 
   See https://github.com/influxdata/flux/blob/master/docs/SPEC.md#errors.
 */
-export const checkQueryResult = (file: string): void => {
+export const checkQueryResult = (file: string = ''): void => {
   // Don't check the whole file, since it could be huge and the error table
   // will be within the first few lines (if it exists)
   const fileHead = file.slice(0, findNthIndex(file, '\n', 6))

@@ -118,12 +118,9 @@ export const executeQueries = () => async (dispatch, getState: GetState) => {
 
     await dispatch(hydrateVariables())
 
-    //TODO: replace with activeContext selector
-    const contextID =
-      activeTimeMachine.contextID || state.timeMachines.activeTimeMachineID
-    const variableAssignments = getAllVariables(state, contextID).map(v =>
-      asAssignment(v)
-    )
+    const variableAssignments = getAllVariables(state)
+      .map(v => asAssignment(v))
+      .filter(v => !!v)
 
     // keeping getState() here ensures that the state we are working with
     // is the most current one. By having this set to state, we were creating a race

@@ -26,7 +26,7 @@ import (
 )
 
 // Default context.
-var ctx = influxdbcontext.SetAuthorizer(context.Background(), &mock.Authorization{})
+var ctx = influxdbcontext.SetAuthorizer(context.Background(), mock.NewMockAuthorizer(true, nil))
 
 func init() {
 	runtime.FinalizeBuiltIns()

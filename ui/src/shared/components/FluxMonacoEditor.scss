@@ -3,6 +3,7 @@
 // the specificity here is important to override the dynamic
 // base theme that monaco loads in at runtime
 .react-monaco-editor-container > .monaco-editor {
+  -webkit-user-select: text;
   font-family: $cf-code-font;
   font-weight: 500;
   font-size: 13px;

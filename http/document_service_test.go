@@ -33,7 +33,7 @@ func setup(t *testing.T) (func(auth influxdb.Authorizer) *httptest.Server, func(
 	ctx := context.Background()
 	// Need this to make resource creation work.
 	// We are not testing authorization in the setup.
-	ctx = icontext.SetAuthorizer(ctx, mock.Authorization{})
+	ctx = icontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(true, nil))
 	if err := svc.Initialize(ctx); err != nil {
 		t.Fatal(err)
 	}

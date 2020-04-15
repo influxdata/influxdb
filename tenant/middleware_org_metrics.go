@@ -5,7 +5,7 @@ import (
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/metric"
-	"github.com/influxdata/influxdb/v2/kit/prom"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 type OrgMetrics struct {
@@ -18,7 +18,7 @@ type OrgMetrics struct {
 var _ influxdb.OrganizationService = (*OrgMetrics)(nil)
 
 // NewOrgMetrics returns a metrics service middleware for the Organization Service.
-func NewOrgMetrics(reg *prom.Registry, s influxdb.OrganizationService, opts ...MetricsOption) *OrgMetrics {
+func NewOrgMetrics(reg prometheus.Registerer, s influxdb.OrganizationService, opts ...MetricsOption) *OrgMetrics {
 	o := applyOpts(opts...)
 	return &OrgMetrics{
 		rec:        metric.New(reg, o.applySuffix("org")),

@@ -30,13 +30,6 @@ class SettingsNavigation extends PureComponent<Props> {
 
     const tabs: TabbedPageTab[] = [
       {
-        text: 'Members',
-        id: 'members',
-        featureFlagName: 'treeNav',
-        featureFlagValue: false,
-        cloudExclude: true,
-      },
-      {
         text: 'Variables',
         id: 'variables',
       },
@@ -47,12 +40,6 @@ class SettingsNavigation extends PureComponent<Props> {
       {
         text: 'Labels',
         id: 'labels',
-      },
-      {
-        text: 'Profile',
-        id: 'about',
-        featureFlagName: 'treeNav',
-        featureFlagValue: false,
       },
     ]
 

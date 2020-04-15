@@ -339,27 +339,35 @@ spec:
 
 				expectedMappings := []SummaryLabelMapping{
 					{
-						ResourceName: "rucket_1",
-						LabelName:    "label_1",
+						ResourcePkgName: "rucket_1",
+						ResourceName:    "rucket_1",
+						LabelPkgName:    "label_1",
+						LabelName:       "label_1",
 					},
 					{
-						ResourceName: "rucket_2",
-						LabelName:    "label_2",
+						ResourcePkgName: "rucket_2",
+						ResourceName:    "rucket_2",
+						LabelPkgName:    "label_2",
+						LabelName:       "label_2",
 					},
 					{
-						ResourceName: "rucket_3",
-						LabelName:    "label_1",
+						ResourcePkgName: "rucket_3",
+						ResourceName:    "rucket_3",
+						LabelPkgName:    "label_1",
+						LabelName:       "label_1",
 					},
 					{
-						ResourceName: "rucket_3",
-						LabelName:    "label_2",
+						ResourcePkgName: "rucket_3",
+						ResourceName:    "rucket_3",
+						LabelPkgName:    "label_2",
+						LabelName:       "label_2",
 					},
 				}
 
-				require.Len(t, sum.LabelMappings, len(expectedMappings))
-				for i, expected := range expectedMappings {
-					expected.ResourceType = influxdb.BucketsResourceType
-					assert.Equal(t, expected, sum.LabelMappings[i])
+				for _, expectedMapping := range expectedMappings {
+					expectedMapping.Status = StateStatusNew
+					expectedMapping.ResourceType = influxdb.BucketsResourceType
+					assert.Contains(t, sum.LabelMappings, expectedMapping)
 				}
 			})
 		})
@@ -521,18 +529,25 @@ spec:
 				assert.True(t, deadmanCheck.ReportZero)
 				assert.Len(t, check2.LabelAssociations, 1)
 
-				containsLabelMappings(t, sum.LabelMappings,
-					labelMapping{
-						labelName: "label_1",
-						resName:   "check_0",
-						resType:   influxdb.ChecksResourceType,
+				expectedMappings := []SummaryLabelMapping{
+					{
+						LabelPkgName:    "label_1",
+						LabelName:       "label_1",
+						ResourcePkgName: "check_0",
+						ResourceName:    "check_0",
 					},
-					labelMapping{
-						labelName: "label_1",
-						resName:   "display name",
-						resType:   influxdb.ChecksResourceType,
+					{
+						LabelPkgName:    "label_1",
+						LabelName:       "label_1",
+						ResourcePkgName: "check_1",
+						ResourceName:    "display name",
 					},
-				)
+				}
+				for _, expected := range expectedMappings {
+					expected.Status = StateStatusNew
+					expected.ResourceType = influxdb.ChecksResourceType
+					assert.Contains(t, sum.LabelMappings, expected)
+				}
 			})
 		})
 
@@ -2259,19 +2274,16 @@ spec:
 					assert.Equal(t, "truncate", tableOpts.Wrapping)
 					assert.True(t, tableOpts.FixFirstColumn)
 
-					require.Len(t, props.FieldOptions, 2)
-					expectedField := influxdb.RenamableField{
-						InternalName: "_time",
-						DisplayName:  "time (ms)",
-						Visible:      true,
-					}
-					assert.Equal(t, expectedField, props.FieldOptions[0])
-					expectedField = influxdb.RenamableField{
+					assert.Contains(t, props.FieldOptions, influxdb.RenamableField{
 						InternalName: "_value",
 						DisplayName:  "MB",
 						Visible:      true,
-					}
-					assert.Equal(t, expectedField, props.FieldOptions[1])
+					})
+					assert.Contains(t, props.FieldOptions, influxdb.RenamableField{
+						InternalName: "_time",
+						DisplayName:  "time (ms)",
+						Visible:      true,
+					})
 				})
 			})
 
@@ -2531,7 +2543,7 @@ spec:
 					{
 						name:           "invalid geom flag",
 						validationErrs: 1,
-						valFields:      []string{fieldSpec, "charts[0].geom"},
+						valFields:      []string{fieldSpec, fieldDashCharts, fieldChartGeom},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
@@ -2592,18 +2604,14 @@ spec:
 				actualLabel := actual.LabelAssociations[0]
 				assert.Equal(t, "label_1", actualLabel.Name)
 
-				expectedMappings := []SummaryLabelMapping{
-					{
-						ResourceName: "dash_1",
-						LabelName:    "label_1",
-					},
-				}
-				require.Len(t, sum.LabelMappings, len(expectedMappings))
-
-				for i, expected := range expectedMappings {
-					expected.ResourceType = influxdb.DashboardsResourceType
-					assert.Equal(t, expected, sum.LabelMappings[i])
-				}
+				assert.Contains(t, sum.LabelMappings, SummaryLabelMapping{
+					Status:          StateStatusNew,
+					ResourceType:    influxdb.DashboardsResourceType,
+					ResourcePkgName: "dash_1",
+					ResourceName:    "dash_1",
+					LabelPkgName:    "label_1",
+					LabelName:       "label_1",
+				})
 			})
 		})
 
@@ -2699,6 +2707,7 @@ spec:
 			testfileRunner(t, "testdata/notification_endpoint", func(t *testing.T, pkg *Pkg) {
 				expectedEndpoints := []SummaryNotificationEndpoint{
 					{
+						PkgName: "http_basic_auth_notification_endpoint",
 						NotificationEndpoint: &endpoint.HTTP{
 							Base: endpoint.Base{
 								Name:        "basic endpoint name",
@@ -2713,6 +2722,7 @@ spec:
 						},
 					},
 					{
+						PkgName: "http_bearer_auth_notification_endpoint",
 						NotificationEndpoint: &endpoint.HTTP{
 							Base: endpoint.Base{
 								Name:        "http_bearer_auth_notification_endpoint",
@@ -2726,6 +2736,7 @@ spec:
 						},
 					},
 					{
+						PkgName: "http_none_auth_notification_endpoint",
 						NotificationEndpoint: &endpoint.HTTP{
 							Base: endpoint.Base{
 								Name:        "http_none_auth_notification_endpoint",
@@ -2738,6 +2749,7 @@ spec:
 						},
 					},
 					{
+						PkgName: "pager_duty_notification_endpoint",
 						NotificationEndpoint: &endpoint.PagerDuty{
 							Base: endpoint.Base{
 								Name:        "pager duty name",
@@ -2749,6 +2761,7 @@ spec:
 						},
 					},
 					{
+						PkgName: "slack_notification_endpoint",
 						NotificationEndpoint: &endpoint.Slack{
 							Base: endpoint.Base{
 								Name:        "slack name",
@@ -2772,10 +2785,13 @@ spec:
 					require.Len(t, actual.LabelAssociations, 1)
 					assert.Equal(t, "label_1", actual.LabelAssociations[0].Name)
 
-					containsLabelMappings(t, sum.LabelMappings, labelMapping{
-						labelName: "label_1",
-						resName:   expected.NotificationEndpoint.GetName(),
-						resType:   influxdb.NotificationEndpointResourceType,
+					assert.Contains(t, sum.LabelMappings, SummaryLabelMapping{
+						Status:          StateStatusNew,
+						ResourceType:    influxdb.NotificationEndpointResourceType,
+						ResourcePkgName: expected.PkgName,
+						ResourceName:    expected.NotificationEndpoint.GetName(),
+						LabelPkgName:    "label_1",
+						LabelName:       "label_1",
 					})
 				}
 			})
@@ -3532,9 +3548,12 @@ spec:
 
 				require.Len(t, sum.LabelMappings, 1)
 				expectedMapping := SummaryLabelMapping{
-					ResourceName: "display name",
-					LabelName:    "label_1",
-					ResourceType: influxdb.TelegrafsResourceType,
+					Status:          StateStatusNew,
+					ResourcePkgName: "first_tele_config",
+					ResourceName:    "display name",
+					LabelPkgName:    "label_1",
+					LabelName:       "label_1",
+					ResourceType:    influxdb.TelegrafsResourceType,
 				}
 				assert.Equal(t, expectedMapping, sum.LabelMappings[0])
 			})
@@ -3806,8 +3825,11 @@ spec:
 
 			expectedMappings := []SummaryLabelMapping{
 				{
-					ResourceName: "var_1",
-					LabelName:    "label_1",
+					Status:          StateStatusNew,
+					ResourcePkgName: "var_1",
+					ResourceName:    "var_1",
+					LabelPkgName:    "label_1",
+					LabelName:       "label_1",
 				},
 			}
 
@@ -4191,6 +4213,44 @@ func Test_PkgValidationErr(t *testing.T) {
 	assert.Equal(t, "chart kind must be provided", errs[1].Reason)
 }
 
+func Test_validGeometry(t *testing.T) {
+	tests := []struct {
+		geom     string
+		expected bool
+	}{
+		{
+			geom: "line", expected: true,
+		},
+		{
+			geom: "step", expected: true,
+		},
+		{
+			geom: "stacked", expected: true,
+		},
+		{
+			geom: "monotoneX", expected: true,
+		},
+		{
+			geom: "bar", expected: true,
+		},
+		{
+			geom: "rando", expected: false,
+		},
+		{
+			geom: "not a valid geom", expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		fn := func(t *testing.T) {
+			isValid := len(validGeometry(tt.geom)) == 0
+			assert.Equal(t, tt.expected, isValid)
+		}
+
+		t.Run(tt.geom, fn)
+	}
+}
+
 type testPkgResourceError struct {
 	name           string
 	encoding       Encoding
@@ -4368,25 +4428,6 @@ func testfileRunner(t *testing.T, path string, testFn func(t *testing.T, pkg *Pk
 			}
 		}
 		t.Run(tt.name, fn)
-	}
-}
-
-type labelMapping struct {
-	labelName string
-	resName   string
-	resType   influxdb.ResourceType
-}
-
-func containsLabelMappings(t *testing.T, labelMappings []SummaryLabelMapping, matches ...labelMapping) {
-	t.Helper()
-
-	for _, expected := range matches {
-		expectedMapping := SummaryLabelMapping{
-			ResourceName: expected.resName,
-			LabelName:    expected.labelName,
-			ResourceType: expected.resType,
-		}
-		assert.Contains(t, labelMappings, expectedMapping)
 	}
 }
 

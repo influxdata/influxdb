@@ -1,5 +1,6 @@
 import AJAX from 'src/utils/ajax'
 import {Authorization, Auth0Config} from 'src/types'
+import {getAPIBasepath} from 'src/utils/basepath'
 
 export const createAuthorization = async (
   authorization
@@ -20,7 +21,9 @@ export const createAuthorization = async (
 
 export const getAuth0Config = async (): Promise<Auth0Config> => {
   try {
-    const response = await fetch('/api/v2private/oauth/clientConfig')
+    const response = await fetch(
+      `${getAPIBasepath()}/api/v2private/oauth/clientConfig`
+    )
     const data = await response.json()
     return data
   } catch (error) {

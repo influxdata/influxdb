@@ -281,7 +281,7 @@ const NEW_VIEW_CREATORS = {
           },
         },
       ],
-      colors: NINETEEN_EIGHTY_FOUR,
+      colors: DEFAULT_LINE_COLORS as Color[],
     },
   }),
   deadman: (): NewView<CheckViewProperties> => ({
@@ -308,7 +308,7 @@ const NEW_VIEW_CREATORS = {
           },
         },
       ],
-      colors: NINETEEN_EIGHTY_FOUR,
+      colors: DEFAULT_LINE_COLORS as Color[],
     },
   }),
   custom: (): NewView<TableViewProperties> => ({

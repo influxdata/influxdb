@@ -410,7 +410,7 @@ func (s *WriteService) Write(ctx context.Context, orgID, bucketID influxdb.ID, r
 		return err
 	}
 
-	req, err := http.NewRequest("POST", u.String(), r)
+	req, err := http.NewRequestWithContext(ctx, "POST", u.String(), r)
 	if err != nil {
 		return err
 	}

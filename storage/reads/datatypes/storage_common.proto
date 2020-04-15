@@ -12,23 +12,6 @@ option (gogoproto.sizer_all) = true;
 option (gogoproto.unmarshaler_all) = true;
 option (gogoproto.goproto_getters_all) = false;
 
-service Storage {
-  // ReadFilter performs a filter operation at storage
-  rpc ReadFilter (ReadFilterRequest) returns (stream ReadResponse);
-
-  // ReadGroup performs a group operation at storage
-  rpc ReadGroup (ReadGroupRequest) returns (stream ReadResponse);
-
-  // TagKeys performs a read operation for tag keys
-  rpc TagKeys (TagKeysRequest) returns (stream StringValuesResponse);
-
-  // TagValues performs a read operation for tag values
-  rpc TagValues (TagValuesRequest) returns (stream StringValuesResponse);
-
-  // Capabilities returns a map of keys and values identifying the capabilities supported by the storage engine
-  rpc Capabilities (google.protobuf.Empty) returns (CapabilitiesResponse);
-}
-
 message ReadFilterRequest {
   google.protobuf.Any read_source = 1 [(gogoproto.customname) = "ReadSource"];
   TimestampRange range = 2 [(gogoproto.nullable) = false];

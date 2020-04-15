@@ -107,7 +107,7 @@ func TestBucketService_FindBucketByID(t *testing.T) {
 			s := authorizer.NewBucketService(tt.fields.BucketService, nil)
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			_, err := s.FindBucketByID(ctx, tt.args.id)
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
@@ -192,7 +192,7 @@ func TestBucketService_FindBucket(t *testing.T) {
 			s := authorizer.NewBucketService(tt.fields.BucketService, nil)
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			_, err := s.FindBucket(ctx, influxdb.BucketFilter{})
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
@@ -317,7 +317,7 @@ func TestBucketService_FindBuckets(t *testing.T) {
 			s := authorizer.NewBucketService(tt.fields.BucketService, nil)
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			buckets, _, err := s.FindBuckets(ctx, influxdb.BucketFilter{})
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
@@ -432,7 +432,7 @@ func TestBucketService_UpdateBucket(t *testing.T) {
 			s := authorizer.NewBucketService(tt.fields.BucketService, nil)
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{tt.args.permissions})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			_, err := s.UpdateBucket(ctx, tt.args.id, influxdb.BucketUpdate{})
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
@@ -537,7 +537,7 @@ func TestBucketService_DeleteBucket(t *testing.T) {
 			s := authorizer.NewBucketService(tt.fields.BucketService, nil)
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{tt.args.permissions})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			err := s.DeleteBucket(ctx, tt.args.id)
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
@@ -619,7 +619,7 @@ func TestBucketService_CreateBucket(t *testing.T) {
 			s := authorizer.NewBucketService(tt.fields.BucketService, nil)
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			err := s.CreateBucket(ctx, &influxdb.Bucket{OrgID: tt.args.orgID})
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)

@@ -25,7 +25,7 @@ func bucketIndexKey(o influxdb.ID, name string) ([]byte, error) {
 	}
 	k := make([]byte, influxdb.IDLength+len(name))
 	copy(k, orgID)
-	copy(k[influxdb.IDLength:], []byte(name))
+	copy(k[influxdb.IDLength:], name)
 	return k, nil
 }
 

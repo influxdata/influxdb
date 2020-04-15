@@ -34,6 +34,7 @@ type QueryRequest struct {
 	Extern  json.RawMessage `json:"extern,omitempty"`
 	AST     json.RawMessage `json:"ast,omitempty"`
 	Dialect QueryDialect    `json:"dialect"`
+	Now     time.Time       `json:"now"`
 
 	// InfluxQL fields
 	Bucket string `json:"bucket,omitempty"`
@@ -243,12 +244,17 @@ func (r QueryRequest) proxyRequest(now func() time.Time) (*query.ProxyRequest, e
 	if err := r.Validate(); err != nil {
 		return nil, err
 	}
+
+	n := r.Now
+	if n.IsZero() {
+		n = now()
+	}
+
 	// Query is preferred over AST
 	var compiler flux.Compiler
 	if r.Query != "" {
 		switch r.Type {
 		case "influxql":
-			n := now()
 			compiler = &transpiler.Compiler{
 				Now:    &n,
 				Query:  r.Query,
@@ -258,7 +264,7 @@ func (r QueryRequest) proxyRequest(now func() time.Time) (*query.ProxyRequest, e
 			fallthrough
 		default:
 			compiler = lang.FluxCompiler{
-				Now:    now(),
+				Now:    n,
 				Extern: r.Extern,
 				Query:  r.Query,
 			}
@@ -267,7 +273,7 @@ func (r QueryRequest) proxyRequest(now func() time.Time) (*query.ProxyRequest, e
 		c := lang.ASTCompiler{
 			Extern: r.Extern,
 			AST:    r.AST,
-			Now:    now(),
+			Now:    n,
 		}
 		compiler = c
 	}
@@ -327,6 +333,7 @@ func QueryRequestFromProxyRequest(req *query.ProxyRequest) (*QueryRequest, error
 	case lang.ASTCompiler:
 		qr.Type = "flux"
 		qr.AST = c.AST
+		qr.Now = c.Now
 	default:
 		return nil, fmt.Errorf("unsupported compiler %T", c)
 	}
