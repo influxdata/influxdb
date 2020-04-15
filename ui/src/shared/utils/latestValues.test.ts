@@ -1,4 +1,4 @@
-import {fromFlux} from '@influxdata/giraffe'
+import fromFlux from 'src/shared/utils/fromFlux.legacy'
 
 import {latestValues} from 'src/shared/utils/latestValues'
 
@@ -118,7 +118,7 @@ describe('latestValues', () => {
 ,,0,2018-12-10T18:29:48Z,3,5.0
 ,,0,2018-12-10T18:40:18Z,4,6.0
 
-#group,false,false,false,false
+#group,false,false,false,false,false
 #datatype,string,long,dateTime:RFC3339,long,double
 #default,1,,,,
 ,result,table,_time,_value,foo
