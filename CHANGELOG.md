@@ -4,6 +4,8 @@
 
 ### Bug Fixes
 
+1. [17618](https://github.com/influxdata/influxdb/pull/17618): Add index for URM by user ID to improve lookup performance
+
 ### UI Improvements
 
 1. [17714](https://github.com/influxdata/influxdb/pull/17714): Cloud environments no longer render markdown images, for security reasons.
