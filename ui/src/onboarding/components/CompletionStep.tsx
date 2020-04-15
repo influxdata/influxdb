@@ -20,6 +20,7 @@ import {ossMetricsTemplate} from 'src/templates/constants/defaultTemplates'
 import {getDashboards} from 'src/organizations/apis'
 import {client} from 'src/utils/api'
 import {createDashboardFromTemplate as createDashboardFromTemplateAJAX} from 'src/templates/api'
+import * as api from 'src/client'
 
 // Types
 import {
@@ -30,7 +31,7 @@ import {
   Grid,
   DapperScrollbars,
 } from '@influxdata/clockface'
-import {Dashboard} from 'src/types'
+import {Dashboard, Organization} from 'src/types'
 import {ScraperTargetRequest} from '@influxdata/influx'
 import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
 import {QUICKSTART_SCRAPER_TARGET_URL} from 'src/dataLoaders/constants/pluginConfigs'
@@ -38,6 +39,15 @@ import {QUICKSTART_SCRAPER_TARGET_URL} from 'src/dataLoaders/constants/pluginCon
 interface Props extends OnboardingStepProps {
   orgID: string
   bucketID: string
+}
+
+const getOrganizations = async () => {
+  const resp = await api.getOrgs({})
+  if (resp.status !== 200) {
+    throw new Error(resp.data.message)
+  }
+
+  return resp.data.orgs
 }
 
 @ErrorHandling
@@ -94,7 +104,16 @@ class CompletionStep extends PureComponent<Props> {
                       widthSM={Columns.Four}
                     >
                       <div className="wizard-completion--option">
-                        <CompletionAdvancedButton onExit={onExit} />
+                        <ResourceFetcher<Organization[]>
+                          fetcher={getOrganizations}
+                        >
+                          {orgs => (
+                            <CompletionAdvancedButton
+                              onExit={onExit}
+                              orgs={orgs}
+                            />
+                          )}
+                        </ResourceFetcher>
                         <dt>Whoa looks like you’re an expert!</dt>
                         <dd>
                           This allows you to set up Telegraf, scrapers, and much

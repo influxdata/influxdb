@@ -3,10 +3,7 @@ import React, {Component, RefObject, CSSProperties} from 'react'
 import {isEqual} from 'lodash'
 import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
-import {
-  default as fromFlux,
-  FromFluxResult,
-} from 'src/shared/utils/fromFlux.legacy'
+import {fromFlux, FromFluxResult} from '@influxdata/giraffe'
 
 // API
 import {
@@ -17,6 +14,7 @@ import {
 import {runStatusesQuery} from 'src/alerting/utils/statusEvents'
 
 // Utils
+import {checkQueryResult} from 'src/shared/utils/checkQueryResult'
 import {getWindowVars} from 'src/variables/utils/getWindowVars'
 import {buildVarsOption} from 'src/variables/utils/buildVarsOption'
 import 'intersection-observer'
@@ -226,6 +224,8 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
         if (result.didTruncate) {
           notify(resultTooLarge(result.bytesRead))
         }
+
+        checkQueryResult(result.csv)
       }
 
       const files = (results as RunQuerySuccessResult[]).map(r => r.csv)
