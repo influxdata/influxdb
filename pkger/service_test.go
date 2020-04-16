@@ -829,12 +829,19 @@ func TestService(t *testing.T) {
 					sum, _, err := svc.Apply(context.TODO(), orgID, 0, pkg)
 					require.NoError(t, err)
 
-					require.Len(t, sum.Dashboards, 1)
+					require.Len(t, sum.Dashboards, 2)
 					dash1 := sum.Dashboards[0]
-					assert.Equal(t, SafeID(1), dash1.ID)
-					assert.Equal(t, SafeID(orgID), dash1.OrgID)
+					assert.NotZero(t, dash1.ID)
+					assert.NotZero(t, dash1.OrgID)
+					assert.Equal(t, "dash_1", dash1.PkgName)
 					assert.Equal(t, "display name", dash1.Name)
 					require.Len(t, dash1.Charts, 1)
+
+					dash2 := sum.Dashboards[1]
+					assert.NotZero(t, dash2.ID)
+					assert.Equal(t, "dash_2", dash2.PkgName)
+					assert.Equal(t, "dash_2", dash2.Name)
+					require.Empty(t, dash2.Charts)
 				})
 			})
 
@@ -854,8 +861,6 @@ func TestService(t *testing.T) {
 						deletedDashs[id] = true
 						return nil
 					}
-
-					pkg.mDashboards["dash_1_copy"] = pkg.mDashboards["dash_1"]
 
 					svc := newTestService(WithDashboardSVC(fakeDashSVC))
 
@@ -1071,19 +1076,22 @@ func TestService(t *testing.T) {
 			})
 
 			t.Run("maps dashboards with labels", func(t *testing.T) {
-				testLabelMappingFn(
-					t,
-					"testdata/dashboard_associates_label.yml",
-					1,
-					func() []ServiceSetterFn {
-						fakeDashSVC := mock.NewDashboardService()
-						fakeDashSVC.CreateDashboardF = func(_ context.Context, d *influxdb.Dashboard) error {
-							d.ID = influxdb.ID(rand.Int())
-							return nil
-						}
-						return []ServiceSetterFn{WithDashboardSVC(fakeDashSVC)}
-					},
-				)
+				opts := func() []ServiceSetterFn {
+					fakeDashSVC := mock.NewDashboardService()
+					fakeDashSVC.CreateDashboardF = func(_ context.Context, d *influxdb.Dashboard) error {
+						d.ID = influxdb.ID(rand.Int())
+						return nil
+					}
+					return []ServiceSetterFn{WithDashboardSVC(fakeDashSVC)}
+				}
+
+				t.Run("applies successfully", func(t *testing.T) {
+					testLabelMappingV2ApplyFn(t, "testdata/dashboard_associates_label.yml", 2, opts)
+				})
+
+				t.Run("deletes new label mappings on error", func(t *testing.T) {
+					testLabelMappingV2RollbackFn(t, "testdata/dashboard_associates_label.yml", 1, opts)
+				})
 			})
 
 			t.Run("maps notification endpoints with labels", func(t *testing.T) {

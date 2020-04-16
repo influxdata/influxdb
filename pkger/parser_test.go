@@ -1662,9 +1662,10 @@ spec:
 			t.Run("happy path", func(t *testing.T) {
 				testfileRunner(t, "testdata/dashboard", func(t *testing.T, pkg *Pkg) {
 					sum := pkg.Summary()
-					require.Len(t, sum.Dashboards, 1)
+					require.Len(t, sum.Dashboards, 2)
 
 					actual := sum.Dashboards[0]
+					assert.Equal(t, "dash_1", actual.PkgName)
 					assert.Equal(t, "display name", actual.Name)
 					assert.Equal(t, "desc1", actual.Description)
 
@@ -1699,6 +1700,11 @@ spec:
 					assert.Equal(t, "text", c.Type)
 					assert.Equal(t, "#8F8AF4", c.Hex)
 					assert.Equal(t, 3.0, c.Value)
+
+					actual2 := sum.Dashboards[1]
+					assert.Equal(t, "dash_2", actual2.PkgName)
+					assert.Equal(t, "dash_2", actual2.Name)
+					assert.Equal(t, "desc", actual2.Description)
 				})
 			})
 
@@ -2600,18 +2606,32 @@ spec:
 				actual := sum.Dashboards[0]
 				assert.Equal(t, "dash_1", actual.Name)
 
-				require.Len(t, actual.LabelAssociations, 1)
-				actualLabel := actual.LabelAssociations[0]
-				assert.Equal(t, "label_1", actualLabel.Name)
+				require.Len(t, actual.LabelAssociations, 2)
+				assert.Equal(t, "label_1", actual.LabelAssociations[0].Name)
+				assert.Equal(t, "label_2", actual.LabelAssociations[1].Name)
 
-				assert.Contains(t, sum.LabelMappings, SummaryLabelMapping{
-					Status:          StateStatusNew,
-					ResourceType:    influxdb.DashboardsResourceType,
-					ResourcePkgName: "dash_1",
-					ResourceName:    "dash_1",
-					LabelPkgName:    "label_1",
-					LabelName:       "label_1",
-				})
+				expectedMappings := []SummaryLabelMapping{
+					{
+						Status:          StateStatusNew,
+						ResourceType:    influxdb.DashboardsResourceType,
+						ResourcePkgName: "dash_1",
+						ResourceName:    "dash_1",
+						LabelPkgName:    "label_1",
+						LabelName:       "label_1",
+					},
+					{
+						Status:          StateStatusNew,
+						ResourceType:    influxdb.DashboardsResourceType,
+						ResourcePkgName: "dash_1",
+						ResourceName:    "dash_1",
+						LabelPkgName:    "label_2",
+						LabelName:       "label_2",
+					},
+				}
+
+				for _, expectedMapping := range expectedMappings {
+					assert.Contains(t, sum.LabelMappings, expectedMapping)
+				}
 			})
 		})
 

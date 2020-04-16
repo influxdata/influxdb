@@ -8,26 +8,28 @@ import (
 )
 
 type stateCoordinator struct {
-	mBuckets   map[string]*stateBucket
-	mChecks    map[string]*stateCheck
-	mEndpoints map[string]*stateEndpoint
-	mLabels    map[string]*stateLabel
-	mTasks     map[string]*stateTask
-	mTelegrafs map[string]*stateTelegraf
-	mVariables map[string]*stateVariable
+	mBuckets    map[string]*stateBucket
+	mChecks     map[string]*stateCheck
+	mDashboards map[string]*stateDashboard
+	mEndpoints  map[string]*stateEndpoint
+	mLabels     map[string]*stateLabel
+	mTasks      map[string]*stateTask
+	mTelegrafs  map[string]*stateTelegraf
+	mVariables  map[string]*stateVariable
 
 	labelMappings []stateLabelMapping
 }
 
 func newStateCoordinator(pkg *Pkg) *stateCoordinator {
 	state := stateCoordinator{
-		mBuckets:   make(map[string]*stateBucket),
-		mChecks:    make(map[string]*stateCheck),
-		mEndpoints: make(map[string]*stateEndpoint),
-		mLabels:    make(map[string]*stateLabel),
-		mTasks:     make(map[string]*stateTask),
-		mTelegrafs: make(map[string]*stateTelegraf),
-		mVariables: make(map[string]*stateVariable),
+		mBuckets:    make(map[string]*stateBucket),
+		mChecks:     make(map[string]*stateCheck),
+		mDashboards: make(map[string]*stateDashboard),
+		mEndpoints:  make(map[string]*stateEndpoint),
+		mLabels:     make(map[string]*stateLabel),
+		mTasks:      make(map[string]*stateTask),
+		mTelegrafs:  make(map[string]*stateTelegraf),
+		mVariables:  make(map[string]*stateVariable),
 	}
 
 	for _, pkgBkt := range pkg.buckets() {
@@ -39,6 +41,12 @@ func newStateCoordinator(pkg *Pkg) *stateCoordinator {
 	for _, pkgCheck := range pkg.checks() {
 		state.mChecks[pkgCheck.PkgName()] = &stateCheck{
 			parserCheck: pkgCheck,
+			stateStatus: StateStatusNew,
+		}
+	}
+	for _, pkgDash := range pkg.dashboards() {
+		state.mDashboards[pkgDash.PkgName()] = &stateDashboard{
+			parserDash:  pkgDash,
 			stateStatus: StateStatusNew,
 		}
 	}
@@ -88,6 +96,14 @@ func (s *stateCoordinator) checks() []*stateCheck {
 	out := make([]*stateCheck, 0, len(s.mChecks))
 	for _, v := range s.mChecks {
 		out = append(out, v)
+	}
+	return out
+}
+
+func (s *stateCoordinator) dashboards() []*stateDashboard {
+	out := make([]*stateDashboard, 0, len(s.mDashboards))
+	for _, d := range s.mDashboards {
+		out = append(out, d)
 	}
 	return out
 }
@@ -146,6 +162,13 @@ func (s *stateCoordinator) diff() Diff {
 	}
 	sort.Slice(diff.Checks, func(i, j int) bool {
 		return diff.Checks[i].PkgName < diff.Checks[j].PkgName
+	})
+
+	for _, d := range s.mDashboards {
+		diff.Dashboards = append(diff.Dashboards, d.diffDashboard())
+	}
+	sort.Slice(diff.Dashboards, func(i, j int) bool {
+		return diff.Dashboards[i].PkgName < diff.Dashboards[j].PkgName
 	})
 
 	for _, e := range s.mEndpoints {
@@ -228,12 +251,25 @@ func (s *stateCoordinator) summary() Summary {
 		return sum.Checks[i].PkgName < sum.Checks[j].PkgName
 	})
 
+	for _, d := range s.mDashboards {
+		if IsRemoval(d.stateStatus) {
+			continue
+		}
+		sum.Dashboards = append(sum.Dashboards, d.summarize())
+	}
+	sort.Slice(sum.Dashboards, func(i, j int) bool {
+		return sum.Dashboards[i].PkgName < sum.Dashboards[j].PkgName
+	})
+
 	for _, e := range s.mEndpoints {
 		if IsRemoval(e.stateStatus) {
 			continue
 		}
 		sum.NotificationEndpoints = append(sum.NotificationEndpoints, e.summarize())
 	}
+	sort.Slice(sum.NotificationEndpoints, func(i, j int) bool {
+		return sum.NotificationEndpoints[i].PkgName < sum.NotificationEndpoints[j].PkgName
+	})
 
 	for _, v := range s.mLabels {
 		if IsRemoval(v.stateStatus) {
@@ -566,6 +602,99 @@ func (c *stateCheck) summarize() SummaryCheck {
 	}
 	sum.Check.SetID(c.id)
 	sum.Check.SetOrgID(c.orgID)
+	return sum
+}
+
+type stateDashboard struct {
+	id, orgID   influxdb.ID
+	stateStatus StateStatus
+
+	parserDash *dashboard
+	existing   *influxdb.Dashboard
+}
+
+func (d *stateDashboard) ID() influxdb.ID {
+	if IsExisting(d.stateStatus) && d.existing != nil {
+		return d.existing.ID
+	}
+	return d.id
+}
+
+func (d *stateDashboard) labels() []*label {
+	return d.parserDash.labels
+}
+
+func (d *stateDashboard) resourceType() influxdb.ResourceType {
+	return KindDashboard.ResourceType()
+}
+
+func (d *stateDashboard) stateIdentity() stateIdentity {
+	return stateIdentity{
+		id:           d.ID(),
+		name:         d.parserDash.Name(),
+		pkgName:      d.parserDash.PkgName(),
+		resourceType: d.resourceType(),
+		stateStatus:  d.stateStatus,
+	}
+}
+
+func (d *stateDashboard) diffDashboard() DiffDashboard {
+	diff := DiffDashboard{
+		DiffIdentifier: DiffIdentifier{
+			ID:          SafeID(d.ID()),
+			Remove:      IsRemoval(d.stateStatus),
+			StateStatus: d.stateStatus,
+			PkgName:     d.parserDash.PkgName(),
+		},
+		New: DiffDashboardValues{
+			Name:   d.parserDash.Name(),
+			Desc:   d.parserDash.Description,
+			Charts: make([]DiffChart, 0, len(d.parserDash.Charts)),
+		},
+	}
+
+	for _, c := range d.parserDash.Charts {
+		diff.New.Charts = append(diff.New.Charts, DiffChart{
+			Properties: c.properties(),
+			Height:     c.Height,
+			Width:      c.Width,
+		})
+	}
+
+	if d.existing == nil {
+		return diff
+	}
+
+	oldDiff := DiffDashboardValues{
+		Name:   d.existing.Name,
+		Desc:   d.existing.Description,
+		Charts: make([]DiffChart, 0, len(d.existing.Cells)),
+	}
+
+	for _, c := range d.existing.Cells {
+		var props influxdb.ViewProperties
+		if c.View != nil {
+			props = c.View.Properties
+		}
+
+		oldDiff.Charts = append(oldDiff.Charts, DiffChart{
+			Properties: props,
+			XPosition:  int(c.X),
+			YPosition:  int(c.Y),
+			Height:     int(c.H),
+			Width:      int(c.W),
+		})
+	}
+
+	diff.Old = &oldDiff
+
+	return diff
+}
+
+func (d *stateDashboard) summarize() SummaryDashboard {
+	sum := d.parserDash.summarize()
+	sum.ID = SafeID(d.ID())
+	sum.OrgID = SafeID(d.orgID)
 	return sum
 }
 
