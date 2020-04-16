@@ -97,6 +97,7 @@ export class Signin extends PureComponent<Props, State> {
         const auth0 = new auth0js.WebAuth({
           domain: config.domain,
           clientID: config.clientID,
+          state: config.state,
           redirectUri,
           responseType,
         })
