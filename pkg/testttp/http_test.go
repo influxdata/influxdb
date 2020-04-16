@@ -45,11 +45,33 @@ func TestHTTP(t *testing.T) {
 	})
 
 	t.Run("Post", func(t *testing.T) {
-		testttp.
-			Post(t, "/", nil).
-			Do(svr).
-			ExpectStatus(http.StatusCreated).
-			ExpectBody(assertBody(t, http.MethodPost))
+		t.Run("basic", func(t *testing.T) {
+			testttp.
+				Post(t, "/", nil).
+				Do(svr).
+				ExpectStatus(http.StatusCreated).
+				ExpectBody(assertBody(t, http.MethodPost))
+		})
+
+		t.Run("with form values", func(t *testing.T) {
+			svr := http.NewServeMux()
+			svr.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				r.ParseForm()
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte(r.FormValue("key")))
+			}))
+
+			testttp.
+				Post(t, "/", nil).
+				SetFormValue("key", "val").
+				Do(svr).
+				ExpectStatus(http.StatusOK).
+				ExpectBody(func(body *bytes.Buffer) {
+					if expected, got := "val", body.String(); expected != got {
+						t.Fatalf("did not get form value; expected=%q got=%q", expected, got)
+					}
+				})
+		})
 	})
 
 	t.Run("PostJSON", func(t *testing.T) {
