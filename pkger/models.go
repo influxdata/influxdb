@@ -513,20 +513,8 @@ type (
 type DiffTelegraf struct {
 	DiffIdentifier
 
-	New influxdb.TelegrafConfig
-	Old *influxdb.TelegrafConfig
-}
-
-func newDiffTelegraf(t *telegraf) DiffTelegraf {
-	return DiffTelegraf{
-		DiffIdentifier: DiffIdentifier{
-			ID:      SafeID(t.ID()),
-			Remove:  t.shouldRemove,
-			PkgName: t.PkgName(),
-		},
-		New: t.config,
-		Old: t.existing,
-	}
+	New influxdb.TelegrafConfig  `json:"new"`
+	Old *influxdb.TelegrafConfig `json:"old"`
 }
 
 type (
@@ -1080,77 +1068,6 @@ func (r mapperNotificationRules) Association(i int) labelAssociater {
 
 func (r mapperNotificationRules) Len() int {
 	return len(r)
-}
-
-const (
-	fieldTelegrafConfig = "config"
-)
-
-type telegraf struct {
-	identity
-
-	config influxdb.TelegrafConfig
-
-	labels sortedLabels
-
-	existing *influxdb.TelegrafConfig
-}
-
-func (t *telegraf) ID() influxdb.ID {
-	if t.existing != nil {
-		return t.existing.ID
-	}
-	return t.config.ID
-}
-
-func (t *telegraf) Labels() []*label {
-	return t.labels
-}
-
-func (t *telegraf) ResourceType() influxdb.ResourceType {
-	return KindTelegraf.ResourceType()
-}
-
-func (t *telegraf) Exists() bool {
-	return t.existing != nil
-}
-
-func (t *telegraf) summarize() SummaryTelegraf {
-	cfg := t.config
-	cfg.Name = t.Name()
-	return SummaryTelegraf{
-		PkgName:           t.PkgName(),
-		TelegrafConfig:    cfg,
-		LabelAssociations: toSummaryLabels(t.labels...),
-	}
-}
-
-func (t *telegraf) valid() []validationErr {
-	var vErrs []validationErr
-	if t.config.Config == "" {
-		vErrs = append(vErrs, validationErr{
-			Field: fieldTelegrafConfig,
-			Msg:   "no config provided",
-		})
-	}
-
-	if len(vErrs) > 0 {
-		return []validationErr{
-			objectValidationErr(fieldSpec, vErrs...),
-		}
-	}
-
-	return nil
-}
-
-type mapperTelegrafs []*telegraf
-
-func (m mapperTelegrafs) Association(i int) labelAssociater {
-	return m[i]
-}
-
-func (m mapperTelegrafs) Len() int {
-	return len(m)
 }
 
 const (

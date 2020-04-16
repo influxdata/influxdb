@@ -13,6 +13,7 @@ type stateCoordinator struct {
 	mEndpoints map[string]*stateEndpoint
 	mLabels    map[string]*stateLabel
 	mTasks     map[string]*stateTask
+	mTelegrafs map[string]*stateTelegraf
 	mVariables map[string]*stateVariable
 
 	labelMappings []stateLabelMapping
@@ -25,6 +26,7 @@ func newStateCoordinator(pkg *Pkg) *stateCoordinator {
 		mEndpoints: make(map[string]*stateEndpoint),
 		mLabels:    make(map[string]*stateLabel),
 		mTasks:     make(map[string]*stateTask),
+		mTelegrafs: make(map[string]*stateTelegraf),
 		mVariables: make(map[string]*stateVariable),
 	}
 
@@ -56,6 +58,12 @@ func newStateCoordinator(pkg *Pkg) *stateCoordinator {
 		state.mTasks[pkgTask.PkgName()] = &stateTask{
 			parserTask:  pkgTask,
 			stateStatus: StateStatusNew,
+		}
+	}
+	for _, pkgTele := range pkg.telegrafs() {
+		state.mTelegrafs[pkgTele.PkgName()] = &stateTelegraf{
+			parserTelegraf: pkgTele,
+			stateStatus:    StateStatusNew,
 		}
 	}
 	for _, pkgVar := range pkg.variables() {
@@ -108,6 +116,14 @@ func (s *stateCoordinator) tasks() []*stateTask {
 	return out
 }
 
+func (s *stateCoordinator) telegrafConfigs() []*stateTelegraf {
+	out := make([]*stateTelegraf, 0, len(s.mTelegrafs))
+	for _, t := range s.mTelegrafs {
+		out = append(out, t)
+	}
+	return out
+}
+
 func (s *stateCoordinator) variables() []*stateVariable {
 	out := make([]*stateVariable, 0, len(s.mVariables))
 	for _, v := range s.mVariables {
@@ -151,6 +167,13 @@ func (s *stateCoordinator) diff() Diff {
 	}
 	sort.Slice(diff.Tasks, func(i, j int) bool {
 		return diff.Tasks[i].PkgName < diff.Tasks[j].PkgName
+	})
+
+	for _, t := range s.mTelegrafs {
+		diff.Telegrafs = append(diff.Telegrafs, t.diffTelegraf())
+	}
+	sort.Slice(diff.Telegrafs, func(i, j int) bool {
+		return diff.Telegrafs[i].PkgName < diff.Telegrafs[j].PkgName
 	})
 
 	for _, v := range s.mVariables {
@@ -230,6 +253,16 @@ func (s *stateCoordinator) summary() Summary {
 	}
 	sort.Slice(sum.Tasks, func(i, j int) bool {
 		return sum.Tasks[i].PkgName < sum.Tasks[j].PkgName
+	})
+
+	for _, t := range s.mTelegrafs {
+		if IsRemoval(t.stateStatus) {
+			continue
+		}
+		sum.TelegrafConfigs = append(sum.TelegrafConfigs, t.summarize())
+	}
+	sort.Slice(sum.TelegrafConfigs, func(i, j int) bool {
+		return sum.TelegrafConfigs[i].PkgName < sum.TelegrafConfigs[j].PkgName
 	})
 
 	for _, v := range s.mVariables {
@@ -320,6 +353,12 @@ func (s *stateCoordinator) addObjectForRemoval(k Kind, pkgName string, id influx
 			parserTask:  &task{identity: newIdentity},
 			stateStatus: StateStatusRemove,
 		}
+	case KindTelegraf:
+		s.mTelegrafs[pkgName] = &stateTelegraf{
+			id:             id,
+			parserTelegraf: &telegraf{identity: newIdentity},
+			stateStatus:    StateStatusRemove,
+		}
 	case KindVariable:
 		s.mVariables[pkgName] = &stateVariable{
 			id:          id,
@@ -360,6 +399,12 @@ func (s *stateCoordinator) getObjectIDSetter(k Kind, pkgName string) (func(influ
 		}, ok
 	case KindTask:
 		r, ok := s.mTasks[pkgName]
+		return func(id influxdb.ID) {
+			r.id = id
+			r.stateStatus = StateStatusExists
+		}, ok
+	case KindTelegraf:
+		r, ok := s.mTelegrafs[pkgName]
 		return func(id influxdb.ID) {
 			r.id = id
 			r.stateStatus = StateStatusExists
@@ -780,6 +825,58 @@ func (t *stateTask) stateIdentity() stateIdentity {
 func (t *stateTask) summarize() SummaryTask {
 	sum := t.parserTask.summarize()
 	sum.ID = SafeID(t.id)
+	return sum
+}
+
+type stateTelegraf struct {
+	id, orgID   influxdb.ID
+	stateStatus StateStatus
+
+	parserTelegraf *telegraf
+	existing       *influxdb.TelegrafConfig
+}
+
+func (t *stateTelegraf) ID() influxdb.ID {
+	if !IsNew(t.stateStatus) && t.existing != nil {
+		return t.existing.ID
+	}
+	return t.id
+}
+
+func (t *stateTelegraf) diffTelegraf() DiffTelegraf {
+	return DiffTelegraf{
+		DiffIdentifier: DiffIdentifier{
+			ID:      SafeID(t.ID()),
+			Remove:  IsRemoval(t.stateStatus),
+			PkgName: t.parserTelegraf.PkgName(),
+		},
+		New: t.parserTelegraf.config,
+		Old: t.existing,
+	}
+}
+
+func (t *stateTelegraf) labels() []*label {
+	return t.parserTelegraf.labels
+}
+
+func (t *stateTelegraf) resourceType() influxdb.ResourceType {
+	return influxdb.TelegrafsResourceType
+}
+
+func (t *stateTelegraf) stateIdentity() stateIdentity {
+	return stateIdentity{
+		id:           t.ID(),
+		name:         t.parserTelegraf.Name(),
+		pkgName:      t.parserTelegraf.PkgName(),
+		resourceType: t.resourceType(),
+		stateStatus:  t.stateStatus,
+	}
+}
+
+func (t *stateTelegraf) summarize() SummaryTelegraf {
+	sum := t.parserTelegraf.summarize()
+	sum.TelegrafConfig.ID = t.id
+	sum.TelegrafConfig.OrgID = t.orgID
 	return sum
 }
 
