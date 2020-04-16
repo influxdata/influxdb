@@ -434,7 +434,7 @@ class LoginPageContents extends PureComponent<DispatchProps> {
       auth0Err.code === 'user_exists'
     ) {
       if (activeTab === ActiveTab.Login) {
-        const emailError = `The email and password combination you submitted are don't match. Please try again`
+        const emailError = `The email and password combination you submitted don't match. Please try again`
         this.setState({...errors, emailError})
       } else {
         const emailError = `An account with that email address already exists.  Try logging in instead.`
