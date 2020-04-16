@@ -897,6 +897,54 @@ func (tft taskFluxTranslation) generateTaskOption() string {
 }
 
 const (
+	fieldTelegrafConfig = "config"
+)
+
+type telegraf struct {
+	identity
+
+	config influxdb.TelegrafConfig
+
+	labels sortedLabels
+}
+
+func (t *telegraf) Labels() []*label {
+	return t.labels
+}
+
+func (t *telegraf) ResourceType() influxdb.ResourceType {
+	return KindTelegraf.ResourceType()
+}
+
+func (t *telegraf) summarize() SummaryTelegraf {
+	cfg := t.config
+	cfg.Name = t.Name()
+	return SummaryTelegraf{
+		PkgName:           t.PkgName(),
+		TelegrafConfig:    cfg,
+		LabelAssociations: toSummaryLabels(t.labels...),
+	}
+}
+
+func (t *telegraf) valid() []validationErr {
+	var vErrs []validationErr
+	if t.config.Config == "" {
+		vErrs = append(vErrs, validationErr{
+			Field: fieldTelegrafConfig,
+			Msg:   "no config provided",
+		})
+	}
+
+	if len(vErrs) > 0 {
+		return []validationErr{
+			objectValidationErr(fieldSpec, vErrs...),
+		}
+	}
+
+	return nil
+}
+
+const (
 	fieldArgTypeConstant = "constant"
 	fieldArgTypeMap      = "map"
 	fieldArgTypeQuery    = "query"

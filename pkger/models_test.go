@@ -491,11 +491,6 @@ func TestPkg(t *testing.T) {
 				kind:      KindNotificationRule,
 				validName: "rule_UUID",
 			},
-			{
-				pkgFile:   "testdata/telegraf.yml",
-				kind:      KindTelegraf,
-				validName: "first_tele_config",
-			},
 		}
 
 		for _, tt := range tests {

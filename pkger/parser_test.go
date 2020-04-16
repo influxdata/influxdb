@@ -3543,10 +3543,11 @@ spec:
 				assert.Equal(t, "display name", actual.TelegrafConfig.Name)
 				assert.Equal(t, "desc", actual.TelegrafConfig.Description)
 
-				require.Len(t, actual.LabelAssociations, 1)
+				require.Len(t, actual.LabelAssociations, 2)
 				assert.Equal(t, "label_1", actual.LabelAssociations[0].Name)
+				assert.Equal(t, "label_2", actual.LabelAssociations[1].Name)
 
-				require.Len(t, sum.LabelMappings, 1)
+				require.Len(t, sum.LabelMappings, 2)
 				expectedMapping := SummaryLabelMapping{
 					Status:          StateStatusNew,
 					ResourcePkgName: "first_tele_config",
@@ -3556,6 +3557,9 @@ spec:
 					ResourceType:    influxdb.TelegrafsResourceType,
 				}
 				assert.Equal(t, expectedMapping, sum.LabelMappings[0])
+				expectedMapping.LabelPkgName = "label_2"
+				expectedMapping.LabelName = "label_2"
+				assert.Equal(t, expectedMapping, sum.LabelMappings[1])
 			})
 		})
 

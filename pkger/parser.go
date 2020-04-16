@@ -424,11 +424,6 @@ func (p *Pkg) addObjectForRemoval(k Kind, pkgName string, id influxdb.ID) {
 			identity: newIdentity,
 			id:       id,
 		}
-	case KindTelegraf:
-		p.mTelegrafs[pkgName] = &telegraf{
-			identity: newIdentity,
-			config:   influxdb.TelegrafConfig{ID: id},
-		}
 	}
 }
 
@@ -448,11 +443,6 @@ func (p *Pkg) getObjectIDSetter(k Kind, pkgName string) (func(influxdb.ID), bool
 		r, ok := p.mNotificationRules[pkgName]
 		return func(id influxdb.ID) {
 			r.id = id
-		}, ok
-	case KindTelegraf:
-		t, ok := p.mTelegrafs[pkgName]
-		return func(id influxdb.ID) {
-			t.config.ID = id
 		}, ok
 	default:
 		return nil, false

@@ -687,7 +687,6 @@ func (s *Service) dryRun(ctx context.Context, orgID influxdb.ID, pkg *Pkg, opts 
 
 	var diff Diff
 	diff.Dashboards = s.dryRunDashboards(pkg)
-	diff.Telegrafs = s.dryRunTelegraf(pkg)
 
 	diffRules, err := s.dryRunNotificationRules(ctx, orgID, pkg)
 	if err != nil {
@@ -714,6 +713,7 @@ func (s *Service) dryRun(ctx context.Context, orgID influxdb.ID, pkg *Pkg, opts 
 	diff.NotificationEndpoints = stateDiff.NotificationEndpoints
 	diff.Labels = stateDiff.Labels
 	diff.Tasks = stateDiff.Tasks
+	diff.Telegrafs = stateDiff.Telegrafs
 	diff.Variables = stateDiff.Variables
 	diff.LabelMappings = append(stateDiff.LabelMappings, diff.LabelMappings...)
 
@@ -897,15 +897,6 @@ func (s *Service) dryRunSecrets(ctx context.Context, orgID influxdb.ID, pkg *Pkg
 	return nil
 }
 
-func (s *Service) dryRunTelegraf(pkg *Pkg) []DiffTelegraf {
-	telegrafs := pkg.telegrafs()
-	diffs := make([]DiffTelegraf, 0, len(telegrafs))
-	for _, t := range telegrafs {
-		diffs = append(diffs, newDiffTelegraf(t))
-	}
-	return diffs
-}
-
 func (s *Service) dryRunVariables(ctx context.Context, orgID influxdb.ID, vars map[string]*stateVariable) {
 	existingVars, _ := s.getAllPlatformVariables(ctx, orgID)
 
@@ -952,7 +943,6 @@ func (s *Service) dryRunLabelMappings(ctx context.Context, pkg *Pkg, state *stat
 	mappers := []labelMappers{
 		mapperDashboards(pkg.dashboards()),
 		mapperNotificationRules(pkg.notificationRules()),
-		mapperTelegrafs(pkg.telegrafs()),
 	}
 
 	diffs := make([]DiffLabelMapping, 0)
@@ -1090,6 +1080,17 @@ func (s *Service) dryRunLabelMappingsV2(ctx context.Context, state *stateCoordin
 	}
 
 	for _, t := range state.mTasks {
+		if IsRemoval(t.stateStatus) {
+			continue
+		}
+		mm, err := s.dryRunResourceLabelMappingV2(ctx, state, stateLabelsByResName, t)
+		if err != nil {
+			return nil, err
+		}
+		mappings = append(mappings, mm...)
+	}
+
+	for _, t := range state.mTelegrafs {
 		if IsRemoval(t.stateStatus) {
 			continue
 		}
@@ -1325,7 +1326,7 @@ func (s *Service) apply(ctx context.Context, coordinator *rollbackCoordinator, o
 			s.applyDashboards(pkg.dashboards()),
 			s.applyNotificationEndpoints(ctx, userID, state.endpoints()),
 			s.applyTasks(state.tasks()),
-			s.applyTelegrafs(pkg.telegrafs()),
+			s.applyTelegrafs(state.telegrafConfigs()),
 		},
 	}
 
@@ -2112,16 +2113,16 @@ func (s *Service) applyTasks(tasks []*stateTask) applier {
 	}
 }
 
-func (s *Service) applyTelegrafs(teles []*telegraf) applier {
+func (s *Service) applyTelegrafs(teles []*stateTelegraf) applier {
 	const resource = "telegrafs"
 
 	mutex := new(doMutex)
-	rollbackTelegrafs := make([]*telegraf, 0, len(teles))
+	rollbackTelegrafs := make([]*stateTelegraf, 0, len(teles))
 
 	createFn := func(ctx context.Context, i int, orgID, userID influxdb.ID) *applyErrBody {
 		var cfg influxdb.TelegrafConfig
 		mutex.Do(func() {
-			teles[i].config.OrgID = orgID
+			teles[i].orgID = orgID
 			cfg = teles[i].summarize().TelegrafConfig
 		})
 
@@ -2134,7 +2135,7 @@ func (s *Service) applyTelegrafs(teles []*telegraf) applier {
 		}
 
 		mutex.Do(func() {
-			teles[i].config = cfg
+			teles[i].id = cfg.ID
 			rollbackTelegrafs = append(rollbackTelegrafs, teles[i])
 		})
 
@@ -2617,6 +2618,7 @@ func newSummaryFromStatePkg(pkg *Pkg, state *stateCoordinator) Summary {
 	pkgSum.NotificationEndpoints = stateSum.NotificationEndpoints
 	pkgSum.Labels = stateSum.Labels
 	pkgSum.Tasks = stateSum.Tasks
+	pkgSum.TelegrafConfigs = stateSum.TelegrafConfigs
 	pkgSum.Variables = stateSum.Variables
 
 	// filter out label mappings that are from pgk and replace with those
@@ -2626,6 +2628,7 @@ func newSummaryFromStatePkg(pkg *Pkg, state *stateCoordinator) Summary {
 		influxdb.ChecksResourceType:               true,
 		influxdb.NotificationEndpointResourceType: true,
 		influxdb.TasksResourceType:                true,
+		influxdb.TelegrafsResourceType:            true,
 		influxdb.VariablesResourceType:            true,
 	}
 	for _, lm := range pkgSum.LabelMappings {

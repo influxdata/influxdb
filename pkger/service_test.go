@@ -913,9 +913,6 @@ func TestService(t *testing.T) {
 						l.ID = influxdb.ID(fakeLabelSVC.CreateLabelCalls.Count() + 1)
 						return nil
 					}
-					fakeLabelSVC.DeleteLabelMappingFn = func(_ context.Context, m *influxdb.LabelMapping) error {
-						return nil
-					}
 					fakeLabelSVC.CreateLabelMappingFn = func(_ context.Context, mapping *influxdb.LabelMapping) error {
 						if mapping.ResourceID == 0 {
 							return errors.New("did not get a resource ID")
@@ -1173,19 +1170,22 @@ func TestService(t *testing.T) {
 			})
 
 			t.Run("maps telegrafs with labels", func(t *testing.T) {
-				testLabelMappingFn(
-					t,
-					"testdata/telegraf.yml",
-					1,
-					func() []ServiceSetterFn {
-						fakeTeleSVC := mock.NewTelegrafConfigStore()
-						fakeTeleSVC.CreateTelegrafConfigF = func(_ context.Context, cfg *influxdb.TelegrafConfig, _ influxdb.ID) error {
-							cfg.ID = influxdb.ID(rand.Int())
-							return nil
-						}
-						return []ServiceSetterFn{WithTelegrafSVC(fakeTeleSVC)}
-					},
-				)
+				opts := func() []ServiceSetterFn {
+					fakeTeleSVC := mock.NewTelegrafConfigStore()
+					fakeTeleSVC.CreateTelegrafConfigF = func(_ context.Context, cfg *influxdb.TelegrafConfig, _ influxdb.ID) error {
+						cfg.ID = influxdb.ID(rand.Int())
+						return nil
+					}
+					return []ServiceSetterFn{WithTelegrafSVC(fakeTeleSVC)}
+				}
+
+				t.Run("applies successfully", func(t *testing.T) {
+					testLabelMappingV2ApplyFn(t, "testdata/telegraf.yml", 2, opts)
+				})
+
+				t.Run("deletes new label mappings on error", func(t *testing.T) {
+					testLabelMappingV2RollbackFn(t, "testdata/telegraf.yml", 1, opts)
+				})
 			})
 
 			t.Run("maps variables with labels", func(t *testing.T) {
@@ -1456,6 +1456,7 @@ func TestService(t *testing.T) {
 				testfileRunner(t, "testdata/telegraf.yml", func(t *testing.T, pkg *Pkg) {
 					fakeTeleSVC := mock.NewTelegrafConfigStore()
 					fakeTeleSVC.CreateTelegrafConfigF = func(_ context.Context, tc *influxdb.TelegrafConfig, userID influxdb.ID) error {
+						t.Log("called")
 						if fakeTeleSVC.CreateTelegrafConfigCalls.Count() == 1 {
 							return errors.New("limit hit")
 						}
@@ -1469,7 +1470,12 @@ func TestService(t *testing.T) {
 						return nil
 					}
 
-					pkg.mTelegrafs["first_tele_config_copy"] = pkg.mTelegrafs["first_tele_config"]
+					stubTele := &telegraf{
+						identity: identity{
+							name: &references{val: "stub"},
+						},
+					}
+					pkg.mTelegrafs[stubTele.PkgName()] = stubTele
 
 					svc := newTestService(WithTelegrafSVC(fakeTeleSVC))
 
