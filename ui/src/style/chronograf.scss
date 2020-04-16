@@ -126,3 +126,9 @@
 
 // External
 @import '../../node_modules/@influxdata/react-custom-scrollbars/dist/styles.css';
+
+
+// TODO: delete this later when it's addressed in Clockface
+.cf-resource-card {
+   margin-bottom: $cf-border;
+}
