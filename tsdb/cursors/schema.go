@@ -27,19 +27,20 @@ var (
 	}
 )
 
-// IsLower returns true if the other FieldType has greater precedence than the
-// current value. Undefined has the lowest precedence.
-func (ft FieldType) IsLower(other FieldType) bool { return other < ft }
-
-// FieldTypeToDataType returns the equivalent influxql DataType for the field type ft
+// FieldTypeToDataType returns the equivalent influxql DataType for the field type ft.
+// If ft is an invalid FieldType, the results are undefined.
 func FieldTypeToDataType(ft FieldType) influxql.DataType {
 	return fieldTypeToDataTypeMapping[ft&7]
 }
 
+// IsLower returns true if the other FieldType has greater precedence than the
+// current value. Undefined has the lowest precedence.
+func (ft FieldType) IsLower(other FieldType) bool { return other < ft }
+
 type MeasurementField struct {
-	Key       string
-	Type      FieldType
-	Timestamp int64
+	Key       string    // Key is the name of the field
+	Type      FieldType // Type is field type
+	Timestamp int64     // Timestamp refers to the maximum timestamp observed for the given field
 }
 
 // MeasurementFieldSlice implements sort.Interface and sorts

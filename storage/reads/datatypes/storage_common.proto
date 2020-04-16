@@ -174,7 +174,8 @@ message TagValuesRequest {
   string tag_key = 4;
 }
 
-// Response message for Storage.TagKeys and Storage.TagValues.
+// Response message for Storage.TagKeys, Storage.TagValues Storage.MeasurementNames,
+// Storage.MeasurementTagKeys and Storage.MeasurementTagValues.
 message StringValuesResponse {
   repeated bytes values = 1;
 }
@@ -210,6 +211,7 @@ message MeasurementFieldsRequest {
   Predicate predicate = 4;
 }
 
+// MeasurementFieldsResponse is the response message for Storage.MeasurementFields.
 message MeasurementFieldsResponse {
   enum FieldType {
     option (gogoproto.goproto_enum_prefix) = false;

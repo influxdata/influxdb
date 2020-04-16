@@ -987,7 +987,8 @@ func (m *TagValuesRequest) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_TagValuesRequest proto.InternalMessageInfo
 
-// Response message for Storage.TagKeys and Storage.TagValues.
+// Response message for Storage.TagKeys, Storage.TagValues Storage.MeasurementNames,
+// Storage.MeasurementTagKeys and Storage.MeasurementTagValues.
 type StringValuesResponse struct {
 	Values [][]byte `protobuf:"bytes,1,rep,name=values,proto3" json:"values,omitempty"`
 }
@@ -1188,6 +1189,7 @@ func (m *MeasurementFieldsRequest) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_MeasurementFieldsRequest proto.InternalMessageInfo
 
+// MeasurementFieldsResponse is the response message for Storage.MeasurementFields.
 type MeasurementFieldsResponse struct {
 	Fields []MeasurementFieldsResponse_MessageField `protobuf:"bytes,1,rep,name=fields,proto3" json:"fields"`
 }
