@@ -473,6 +473,7 @@ workflows:
             branches:
               only:
                 - master
+                - feat/use-algo-w
     jobs:
       - gotest
       - golint
@@ -486,7 +487,9 @@ workflows:
             - jslint
           filters:
             branches:
-              only: master
+              only:
+                - master
+                - feat/use-algo-w
       - litmus_nightly:
           requires:
             - deploy-nightly
