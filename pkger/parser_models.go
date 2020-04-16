@@ -3,6 +3,7 @@ package pkger
 import (
 	"fmt"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -472,108 +473,6 @@ func (s sortedLabels) Swap(i, j int) {
 	s[i], s[j] = s[j], s[i]
 }
 
-const (
-	fieldArgTypeConstant = "constant"
-	fieldArgTypeMap      = "map"
-	fieldArgTypeQuery    = "query"
-)
-
-type variable struct {
-	identity
-
-	Description string
-	Type        string
-	Query       string
-	Language    string
-	ConstValues []string
-	MapValues   map[string]string
-
-	labels sortedLabels
-}
-
-func (v *variable) Labels() []*label {
-	return v.labels
-}
-
-func (v *variable) ResourceType() influxdb.ResourceType {
-	return KindVariable.ResourceType()
-}
-
-func (v *variable) summarize() SummaryVariable {
-	return SummaryVariable{
-		PkgName:           v.PkgName(),
-		Name:              v.Name(),
-		Description:       v.Description,
-		Arguments:         v.influxVarArgs(),
-		LabelAssociations: toSummaryLabels(v.labels...),
-	}
-}
-
-func (v *variable) influxVarArgs() *influxdb.VariableArguments {
-	// this zero value check is for situations where we want to marshal/unmarshal
-	// a variable and not have the invalid args blow up during unmarshaling. When
-	// that validation is decoupled from the unmarshaling, we can clean this up.
-	if v.Type == "" {
-		return nil
-	}
-
-	args := &influxdb.VariableArguments{
-		Type: v.Type,
-	}
-	switch args.Type {
-	case "query":
-		args.Values = influxdb.VariableQueryValues{
-			Query:    v.Query,
-			Language: v.Language,
-		}
-	case "constant":
-		args.Values = influxdb.VariableConstantValues(v.ConstValues)
-	case "map":
-		args.Values = influxdb.VariableMapValues(v.MapValues)
-	}
-	return args
-}
-
-func (v *variable) valid() []validationErr {
-	var failures []validationErr
-	switch v.Type {
-	case "map":
-		if len(v.MapValues) == 0 {
-			failures = append(failures, validationErr{
-				Field: fieldValues,
-				Msg:   "map variable must have at least 1 key/val pair",
-			})
-		}
-	case "constant":
-		if len(v.ConstValues) == 0 {
-			failures = append(failures, validationErr{
-				Field: fieldValues,
-				Msg:   "constant variable must have a least 1 value provided",
-			})
-		}
-	case "query":
-		if v.Query == "" {
-			failures = append(failures, validationErr{
-				Field: fieldQuery,
-				Msg:   "query variable must provide a query string",
-			})
-		}
-		if v.Language != "influxql" && v.Language != "flux" {
-			failures = append(failures, validationErr{
-				Field: fieldLanguage,
-				Msg:   fmt.Sprintf(`query variable language must be either "influxql" or "flux"; got %q`, v.Language),
-			})
-		}
-	}
-	if len(failures) > 0 {
-		return []validationErr{
-			objectValidationErr(fieldSpec, failures...),
-		}
-	}
-
-	return nil
-}
-
 type thresholdType string
 
 const (
@@ -836,6 +735,260 @@ func (n *notificationEndpoint) valid() []validationErr {
 		}
 	}
 
+	if len(failures) > 0 {
+		return []validationErr{
+			objectValidationErr(fieldSpec, failures...),
+		}
+	}
+
+	return nil
+}
+
+const (
+	fieldTaskCron = "cron"
+)
+
+type task struct {
+	identity
+
+	cron        string
+	description string
+	every       time.Duration
+	offset      time.Duration
+	query       string
+	status      string
+
+	labels sortedLabels
+}
+
+func (t *task) Labels() []*label {
+	return t.labels
+}
+
+func (t *task) ResourceType() influxdb.ResourceType {
+	return KindTask.ResourceType()
+}
+
+func (t *task) Status() influxdb.Status {
+	if t.status == "" {
+		return influxdb.Active
+	}
+	return influxdb.Status(t.status)
+}
+
+func (t *task) flux() string {
+	translator := taskFluxTranslation{
+		name:     t.Name(),
+		cron:     t.cron,
+		every:    t.every,
+		offset:   t.offset,
+		rawQuery: t.query,
+	}
+	return translator.flux()
+}
+
+func (t *task) summarize() SummaryTask {
+	return SummaryTask{
+		PkgName:     t.PkgName(),
+		Name:        t.Name(),
+		Cron:        t.cron,
+		Description: t.description,
+		Every:       durToStr(t.every),
+		Offset:      durToStr(t.offset),
+		Query:       t.query,
+		Status:      t.Status(),
+
+		LabelAssociations: toSummaryLabels(t.labels...),
+	}
+}
+
+func (t *task) valid() []validationErr {
+	var vErrs []validationErr
+	if t.cron == "" && t.every == 0 {
+		vErrs = append(vErrs,
+			validationErr{
+				Field: fieldEvery,
+				Msg:   "must provide if cron field is not provided",
+			},
+			validationErr{
+				Field: fieldTaskCron,
+				Msg:   "must provide if every field is not provided",
+			},
+		)
+	}
+
+	if t.query == "" {
+		vErrs = append(vErrs, validationErr{
+			Field: fieldQuery,
+			Msg:   "must provide a non zero value",
+		})
+	}
+
+	if status := t.Status(); status != influxdb.Active && status != influxdb.Inactive {
+		vErrs = append(vErrs, validationErr{
+			Field: fieldStatus,
+			Msg:   "must be 1 of [active, inactive]",
+		})
+	}
+
+	if len(vErrs) > 0 {
+		return []validationErr{
+			objectValidationErr(fieldSpec, vErrs...),
+		}
+	}
+
+	return nil
+}
+
+var fluxRegex = regexp.MustCompile(`import\s+\".*\"`)
+
+type taskFluxTranslation struct {
+	name   string
+	cron   string
+	every  time.Duration
+	offset time.Duration
+
+	rawQuery string
+}
+
+func (tft taskFluxTranslation) flux() string {
+	var sb strings.Builder
+	writeLine := func(s string) {
+		sb.WriteString(s + "\n")
+	}
+
+	imports, queryBody := tft.separateQueryImports()
+	if imports != "" {
+		writeLine(imports + "\n")
+	}
+
+	writeLine(tft.generateTaskOption())
+	sb.WriteString(queryBody)
+
+	return sb.String()
+}
+
+func (tft taskFluxTranslation) separateQueryImports() (imports string, querySansImports string) {
+	if indices := fluxRegex.FindAllIndex([]byte(tft.rawQuery), -1); len(indices) > 0 {
+		lastImportIdx := indices[len(indices)-1][1]
+		return tft.rawQuery[:lastImportIdx], tft.rawQuery[lastImportIdx:]
+	}
+
+	return "", tft.rawQuery
+}
+
+func (tft taskFluxTranslation) generateTaskOption() string {
+	taskOpts := []string{fmt.Sprintf("name: %q", tft.name)}
+	if tft.cron != "" {
+		taskOpts = append(taskOpts, fmt.Sprintf("cron: %q", tft.cron))
+	}
+	if tft.every > 0 {
+		taskOpts = append(taskOpts, fmt.Sprintf("every: %s", tft.every))
+	}
+	if tft.offset > 0 {
+		taskOpts = append(taskOpts, fmt.Sprintf("offset: %s", tft.offset))
+	}
+
+	// this is required by the API, super nasty. Will be super challenging for
+	// anyone outside org to figure out how to do this within an hour of looking
+	// at the API :sadpanda:. Would be ideal to let the API translate the arguments
+	// into this required form instead of forcing that complexity on the caller.
+	return fmt.Sprintf("option task = { %s }", strings.Join(taskOpts, ", "))
+}
+
+const (
+	fieldArgTypeConstant = "constant"
+	fieldArgTypeMap      = "map"
+	fieldArgTypeQuery    = "query"
+)
+
+type variable struct {
+	identity
+
+	Description string
+	Type        string
+	Query       string
+	Language    string
+	ConstValues []string
+	MapValues   map[string]string
+
+	labels sortedLabels
+}
+
+func (v *variable) Labels() []*label {
+	return v.labels
+}
+
+func (v *variable) ResourceType() influxdb.ResourceType {
+	return KindVariable.ResourceType()
+}
+
+func (v *variable) summarize() SummaryVariable {
+	return SummaryVariable{
+		PkgName:           v.PkgName(),
+		Name:              v.Name(),
+		Description:       v.Description,
+		Arguments:         v.influxVarArgs(),
+		LabelAssociations: toSummaryLabels(v.labels...),
+	}
+}
+
+func (v *variable) influxVarArgs() *influxdb.VariableArguments {
+	// this zero value check is for situations where we want to marshal/unmarshal
+	// a variable and not have the invalid args blow up during unmarshaling. When
+	// that validation is decoupled from the unmarshaling, we can clean this up.
+	if v.Type == "" {
+		return nil
+	}
+
+	args := &influxdb.VariableArguments{
+		Type: v.Type,
+	}
+	switch args.Type {
+	case "query":
+		args.Values = influxdb.VariableQueryValues{
+			Query:    v.Query,
+			Language: v.Language,
+		}
+	case "constant":
+		args.Values = influxdb.VariableConstantValues(v.ConstValues)
+	case "map":
+		args.Values = influxdb.VariableMapValues(v.MapValues)
+	}
+	return args
+}
+
+func (v *variable) valid() []validationErr {
+	var failures []validationErr
+	switch v.Type {
+	case "map":
+		if len(v.MapValues) == 0 {
+			failures = append(failures, validationErr{
+				Field: fieldValues,
+				Msg:   "map variable must have at least 1 key/val pair",
+			})
+		}
+	case "constant":
+		if len(v.ConstValues) == 0 {
+			failures = append(failures, validationErr{
+				Field: fieldValues,
+				Msg:   "constant variable must have a least 1 value provided",
+			})
+		}
+	case "query":
+		if v.Query == "" {
+			failures = append(failures, validationErr{
+				Field: fieldQuery,
+				Msg:   "query variable must provide a query string",
+			})
+		}
+		if v.Language != "influxql" && v.Language != "flux" {
+			failures = append(failures, validationErr{
+				Field: fieldLanguage,
+				Msg:   fmt.Sprintf(`query variable language must be either "influxql" or "flux"; got %q`, v.Language),
+			})
+		}
+	}
 	if len(failures) > 0 {
 		return []validationErr{
 			objectValidationErr(fieldSpec, failures...),

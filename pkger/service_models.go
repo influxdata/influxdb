@@ -12,6 +12,7 @@ type stateCoordinator struct {
 	mChecks    map[string]*stateCheck
 	mEndpoints map[string]*stateEndpoint
 	mLabels    map[string]*stateLabel
+	mTasks     map[string]*stateTask
 	mVariables map[string]*stateVariable
 
 	labelMappings []stateLabelMapping
@@ -23,6 +24,7 @@ func newStateCoordinator(pkg *Pkg) *stateCoordinator {
 		mChecks:    make(map[string]*stateCheck),
 		mEndpoints: make(map[string]*stateEndpoint),
 		mLabels:    make(map[string]*stateLabel),
+		mTasks:     make(map[string]*stateTask),
 		mVariables: make(map[string]*stateVariable),
 	}
 
@@ -47,6 +49,12 @@ func newStateCoordinator(pkg *Pkg) *stateCoordinator {
 	for _, pkgLabel := range pkg.labels() {
 		state.mLabels[pkgLabel.PkgName()] = &stateLabel{
 			parserLabel: pkgLabel,
+			stateStatus: StateStatusNew,
+		}
+	}
+	for _, pkgTask := range pkg.tasks() {
+		state.mTasks[pkgTask.PkgName()] = &stateTask{
+			parserTask:  pkgTask,
 			stateStatus: StateStatusNew,
 		}
 	}
@@ -92,6 +100,14 @@ func (s *stateCoordinator) labels() []*stateLabel {
 	return out
 }
 
+func (s *stateCoordinator) tasks() []*stateTask {
+	out := make([]*stateTask, 0, len(s.mTasks))
+	for _, t := range s.mTasks {
+		out = append(out, t)
+	}
+	return out
+}
+
 func (s *stateCoordinator) variables() []*stateVariable {
 	out := make([]*stateVariable, 0, len(s.mVariables))
 	for _, v := range s.mVariables {
@@ -128,6 +144,13 @@ func (s *stateCoordinator) diff() Diff {
 	}
 	sort.Slice(diff.Labels, func(i, j int) bool {
 		return diff.Labels[i].PkgName < diff.Labels[j].PkgName
+	})
+
+	for _, t := range s.mTasks {
+		diff.Tasks = append(diff.Tasks, t.diffTask())
+	}
+	sort.Slice(diff.Tasks, func(i, j int) bool {
+		return diff.Tasks[i].PkgName < diff.Tasks[j].PkgName
 	})
 
 	for _, v := range s.mVariables {
@@ -197,6 +220,16 @@ func (s *stateCoordinator) summary() Summary {
 	}
 	sort.Slice(sum.Labels, func(i, j int) bool {
 		return sum.Labels[i].PkgName < sum.Labels[j].PkgName
+	})
+
+	for _, t := range s.mTasks {
+		if IsRemoval(t.stateStatus) {
+			continue
+		}
+		sum.Tasks = append(sum.Tasks, t.summarize())
+	}
+	sort.Slice(sum.Tasks, func(i, j int) bool {
+		return sum.Tasks[i].PkgName < sum.Tasks[j].PkgName
 	})
 
 	for _, v := range s.mVariables {
@@ -281,6 +314,12 @@ func (s *stateCoordinator) addObjectForRemoval(k Kind, pkgName string, id influx
 			parserEndpoint: &notificationEndpoint{identity: newIdentity},
 			stateStatus:    StateStatusRemove,
 		}
+	case KindTask:
+		s.mTasks[pkgName] = &stateTask{
+			id:          id,
+			parserTask:  &task{identity: newIdentity},
+			stateStatus: StateStatusRemove,
+		}
 	case KindVariable:
 		s.mVariables[pkgName] = &stateVariable{
 			id:          id,
@@ -315,6 +354,12 @@ func (s *stateCoordinator) getObjectIDSetter(k Kind, pkgName string) (func(influ
 		KindNotificationEndpointPagerDuty,
 		KindNotificationEndpointSlack:
 		r, ok := s.mEndpoints[pkgName]
+		return func(id influxdb.ID) {
+			r.id = id
+			r.stateStatus = StateStatusExists
+		}, ok
+	case KindTask:
+		r, ok := s.mTasks[pkgName]
 		return func(id influxdb.ID) {
 			r.id = id
 			r.stateStatus = StateStatusExists
@@ -661,6 +706,80 @@ func (e *stateEndpoint) summarize() SummaryNotificationEndpoint {
 	if e.orgID != 0 {
 		sum.NotificationEndpoint.SetOrgID(e.orgID)
 	}
+	return sum
+}
+
+type stateTask struct {
+	id, orgID   influxdb.ID
+	stateStatus StateStatus
+
+	parserTask *task
+	existing   *influxdb.Task
+}
+
+func (t *stateTask) ID() influxdb.ID {
+	if !IsNew(t.stateStatus) && t.existing != nil {
+		return t.existing.ID
+	}
+	return t.id
+}
+
+func (t *stateTask) diffTask() DiffTask {
+	diff := DiffTask{
+		DiffIdentifier: DiffIdentifier{
+			ID:      SafeID(t.ID()),
+			Remove:  IsRemoval(t.stateStatus),
+			PkgName: t.parserTask.PkgName(),
+		},
+		New: DiffTaskValues{
+			Name:        t.parserTask.Name(),
+			Cron:        t.parserTask.cron,
+			Description: t.parserTask.description,
+			Every:       durToStr(t.parserTask.every),
+			Offset:      durToStr(t.parserTask.offset),
+			Query:       t.parserTask.query,
+			Status:      t.parserTask.Status(),
+		},
+	}
+
+	if t.existing == nil {
+		return diff
+	}
+
+	diff.Old = &DiffTaskValues{
+		Name:        t.existing.Name,
+		Cron:        t.existing.Cron,
+		Description: t.existing.Description,
+		Every:       t.existing.Every,
+		Offset:      t.existing.Offset.String(),
+		Query:       t.existing.Flux,
+		Status:      influxdb.Status(t.existing.Status),
+	}
+
+	return diff
+}
+
+func (t *stateTask) labels() []*label {
+	return t.parserTask.labels
+}
+
+func (t *stateTask) resourceType() influxdb.ResourceType {
+	return influxdb.TasksResourceType
+}
+
+func (t *stateTask) stateIdentity() stateIdentity {
+	return stateIdentity{
+		id:           t.ID(),
+		name:         t.parserTask.Name(),
+		pkgName:      t.parserTask.PkgName(),
+		resourceType: t.resourceType(),
+		stateStatus:  t.stateStatus,
+	}
+}
+
+func (t *stateTask) summarize() SummaryTask {
+	sum := t.parserTask.summarize()
+	sum.ID = SafeID(t.id)
 	return sum
 }
 

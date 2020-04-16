@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -509,41 +508,6 @@ type (
 		Status      influxdb.Status `json:"status"`
 	}
 )
-
-func newDiffTask(t *task) DiffTask {
-	diff := DiffTask{
-		DiffIdentifier: DiffIdentifier{
-			ID:      SafeID(t.ID()),
-			Remove:  t.shouldRemove,
-			PkgName: t.PkgName(),
-		},
-		New: DiffTaskValues{
-			Name:        t.Name(),
-			Cron:        t.cron,
-			Description: t.description,
-			Every:       durToStr(t.every),
-			Offset:      durToStr(t.offset),
-			Query:       t.query,
-			Status:      t.Status(),
-		},
-	}
-
-	if !t.Exists() {
-		return diff
-	}
-
-	diff.Old = &DiffTaskValues{
-		Name:        t.existing.Name,
-		Cron:        t.existing.Cron,
-		Description: t.existing.Description,
-		Every:       t.existing.Every,
-		Offset:      t.existing.Offset.String(),
-		Query:       t.existing.Flux,
-		Status:      influxdb.Status(t.existing.Status),
-	}
-
-	return diff
-}
 
 // DiffTelegraf is a diff of an individual telegraf. This resource is always new.
 type DiffTelegraf struct {
@@ -1116,150 +1080,6 @@ func (r mapperNotificationRules) Association(i int) labelAssociater {
 
 func (r mapperNotificationRules) Len() int {
 	return len(r)
-}
-
-const (
-	fieldTaskCron = "cron"
-)
-
-type task struct {
-	identity
-
-	id          influxdb.ID
-	orgID       influxdb.ID
-	cron        string
-	description string
-	every       time.Duration
-	offset      time.Duration
-	query       string
-	status      string
-
-	labels sortedLabels
-
-	existing *influxdb.Task
-}
-
-func (t *task) Exists() bool {
-	return t.existing != nil
-}
-
-func (t *task) ID() influxdb.ID {
-	if t.existing != nil {
-		return t.existing.ID
-	}
-	return t.id
-}
-
-func (t *task) Labels() []*label {
-	return t.labels
-}
-
-func (t *task) ResourceType() influxdb.ResourceType {
-	return KindTask.ResourceType()
-}
-
-func (t *task) Status() influxdb.Status {
-	if t.status == "" {
-		return influxdb.Active
-	}
-	return influxdb.Status(t.status)
-}
-
-var fluxRegex = regexp.MustCompile(`import\s+\".*\"`)
-
-func (t *task) flux() string {
-	taskOpts := []string{fmt.Sprintf("name: %q", t.Name())}
-	if t.cron != "" {
-		taskOpts = append(taskOpts, fmt.Sprintf("cron: %q", t.cron))
-	}
-	if t.every > 0 {
-		taskOpts = append(taskOpts, fmt.Sprintf("every: %s", t.every))
-	}
-	if t.offset > 0 {
-		taskOpts = append(taskOpts, fmt.Sprintf("offset: %s", t.offset))
-	}
-
-	// this is required by the API, super nasty. Will be super challenging for
-	// anyone outside org to figure out how to do this within an hour of looking
-	// at the API :sadpanda:. Would be ideal to let the API translate the arguments
-	// into this required form instead of forcing that complexity on the caller.
-	taskOptStr := fmt.Sprintf("\noption task = { %s }", strings.Join(taskOpts, ", "))
-
-	if indices := fluxRegex.FindAllIndex([]byte(t.query), -1); len(indices) > 0 {
-		lastImportIdx := indices[len(indices)-1][1]
-		pieces := append([]string{},
-			t.query[:lastImportIdx],
-			taskOptStr,
-			t.query[lastImportIdx:],
-		)
-		return fmt.Sprint(strings.Join(pieces, "\n"))
-	}
-
-	return fmt.Sprintf("%s\n%s", taskOptStr, t.query)
-}
-
-func (t *task) summarize() SummaryTask {
-	return SummaryTask{
-		ID:          SafeID(t.ID()),
-		PkgName:     t.PkgName(),
-		Name:        t.Name(),
-		Cron:        t.cron,
-		Description: t.description,
-		Every:       durToStr(t.every),
-		Offset:      durToStr(t.offset),
-		Query:       t.query,
-		Status:      t.Status(),
-
-		LabelAssociations: toSummaryLabels(t.labels...),
-	}
-}
-
-func (t *task) valid() []validationErr {
-	var vErrs []validationErr
-	if t.cron == "" && t.every == 0 {
-		vErrs = append(vErrs,
-			validationErr{
-				Field: fieldEvery,
-				Msg:   "must provide if cron field is not provided",
-			},
-			validationErr{
-				Field: fieldTaskCron,
-				Msg:   "must provide if every field is not provided",
-			},
-		)
-	}
-
-	if t.query == "" {
-		vErrs = append(vErrs, validationErr{
-			Field: fieldQuery,
-			Msg:   "must provide a non zero value",
-		})
-	}
-
-	if status := t.Status(); status != influxdb.Active && status != influxdb.Inactive {
-		vErrs = append(vErrs, validationErr{
-			Field: fieldStatus,
-			Msg:   "must be 1 of [active, inactive]",
-		})
-	}
-
-	if len(vErrs) > 0 {
-		return []validationErr{
-			objectValidationErr(fieldSpec, vErrs...),
-		}
-	}
-
-	return nil
-}
-
-type mapperTasks []*task
-
-func (m mapperTasks) Association(i int) labelAssociater {
-	return m[i]
-}
-
-func (m mapperTasks) Len() int {
-	return len(m)
 }
 
 const (
