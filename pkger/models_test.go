@@ -492,11 +492,6 @@ func TestPkg(t *testing.T) {
 				validName: "rule_UUID",
 			},
 			{
-				pkgFile:   "testdata/tasks.yml",
-				kind:      KindTask,
-				validName: "task_UUID",
-			},
-			{
 				pkgFile:   "testdata/telegraf.yml",
 				kind:      KindTelegraf,
 				validName: "first_tele_config",

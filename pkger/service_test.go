@@ -1141,32 +1141,35 @@ func TestService(t *testing.T) {
 			})
 
 			t.Run("maps tasks with labels", func(t *testing.T) {
-				testLabelMappingFn(
-					t,
-					"testdata/tasks.yml",
-					2,
-					func() []ServiceSetterFn {
-						fakeTaskSVC := mock.NewTaskService()
-						fakeTaskSVC.CreateTaskFn = func(ctx context.Context, tc influxdb.TaskCreate) (*influxdb.Task, error) {
-							reg := regexp.MustCompile(`name: "(.+)",`)
-							names := reg.FindStringSubmatch(tc.Flux)
-							if len(names) < 2 {
-								return nil, errors.New("bad flux query provided: " + tc.Flux)
-							}
-							return &influxdb.Task{
-								ID:             influxdb.ID(rand.Int()),
-								Type:           tc.Type,
-								OrganizationID: tc.OrganizationID,
-								OwnerID:        tc.OwnerID,
-								Name:           names[1],
-								Description:    tc.Description,
-								Status:         tc.Status,
-								Flux:           tc.Flux,
-							}, nil
+				opts := func() []ServiceSetterFn {
+					fakeTaskSVC := mock.NewTaskService()
+					fakeTaskSVC.CreateTaskFn = func(ctx context.Context, tc influxdb.TaskCreate) (*influxdb.Task, error) {
+						reg := regexp.MustCompile(`name: "(.+)",`)
+						names := reg.FindStringSubmatch(tc.Flux)
+						if len(names) < 2 {
+							return nil, errors.New("bad flux query provided: " + tc.Flux)
 						}
-						return []ServiceSetterFn{WithTaskSVC(fakeTaskSVC)}
-					},
-				)
+						return &influxdb.Task{
+							ID:             influxdb.ID(rand.Int()),
+							Type:           tc.Type,
+							OrganizationID: tc.OrganizationID,
+							OwnerID:        tc.OwnerID,
+							Name:           names[1],
+							Description:    tc.Description,
+							Status:         tc.Status,
+							Flux:           tc.Flux,
+						}, nil
+					}
+					return []ServiceSetterFn{WithTaskSVC(fakeTaskSVC)}
+				}
+
+				t.Run("applies successfully", func(t *testing.T) {
+					testLabelMappingV2ApplyFn(t, "testdata/tasks.yml", 2, opts)
+				})
+
+				t.Run("deletes new label mappings on error", func(t *testing.T) {
+					testLabelMappingV2RollbackFn(t, "testdata/tasks.yml", 1, opts)
+				})
 			})
 
 			t.Run("maps telegrafs with labels", func(t *testing.T) {
@@ -1391,11 +1394,15 @@ func TestService(t *testing.T) {
 					require.NoError(t, err)
 
 					require.Len(t, sum.Tasks, 2)
-					for i, actual := range sum.Tasks {
-						assert.NotZero(t, actual.ID)
-						assert.Equal(t, "task_"+strconv.Itoa(i), actual.Name)
-						assert.Equal(t, "desc_"+strconv.Itoa(i), actual.Description)
-					}
+					assert.NotZero(t, sum.Tasks[0].ID)
+					assert.Equal(t, "task_1", sum.Tasks[0].PkgName)
+					assert.Equal(t, "task_1", sum.Tasks[0].Name)
+					assert.Equal(t, "desc_1", sum.Tasks[0].Description)
+
+					assert.NotZero(t, sum.Tasks[1].ID)
+					assert.Equal(t, "task_UUID", sum.Tasks[1].PkgName)
+					assert.Equal(t, "task_0", sum.Tasks[1].Name)
+					assert.Equal(t, "desc_0", sum.Tasks[1].Description)
 				})
 			})
 

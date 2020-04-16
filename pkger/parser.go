@@ -424,11 +424,6 @@ func (p *Pkg) addObjectForRemoval(k Kind, pkgName string, id influxdb.ID) {
 			identity: newIdentity,
 			id:       id,
 		}
-	case KindTask:
-		p.mTasks[pkgName] = &task{
-			identity: newIdentity,
-			id:       id,
-		}
 	case KindTelegraf:
 		p.mTelegrafs[pkgName] = &telegraf{
 			identity: newIdentity,
@@ -453,11 +448,6 @@ func (p *Pkg) getObjectIDSetter(k Kind, pkgName string) (func(influxdb.ID), bool
 		r, ok := p.mNotificationRules[pkgName]
 		return func(id influxdb.ID) {
 			r.id = id
-		}, ok
-	case KindTask:
-		t, ok := p.mTasks[pkgName]
-		return func(id influxdb.ID) {
-			t.id = id
 		}, ok
 	case KindTelegraf:
 		t, ok := p.mTelegrafs[pkgName]
