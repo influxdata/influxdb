@@ -89,6 +89,7 @@ export class PluginConfigForm extends PureComponent<Props> {
     const activeTelegrafPlugin = telegrafPlugins.find(tp => tp.active)
     if (!!activeTelegrafPlugin) {
       if (!activeTelegrafPlugin.hasOwnProperty('plugin')) {
+        onSetActiveTelegrafPlugin('')
         return
       }
       onSetPluginConfiguration(activeTelegrafPlugin.name)

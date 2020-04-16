@@ -142,6 +142,13 @@ func (h *OrgHandler) handleGetOrgs(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if id := qp.Get("userID"); id != "" {
+		i, err := influxdb.IDFromString(id)
+		if err == nil {
+			filter.UserID = i
+		}
+	}
+
 	orgs, _, err := h.orgSvc.FindOrganizations(r.Context(), filter)
 	if err != nil {
 		h.api.Err(w, err)

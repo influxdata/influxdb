@@ -84,6 +84,7 @@ export enum DataLoaderType {
   CSV = 'CSV',
   Streaming = 'Streaming',
   LineProtocol = 'Line Protocol',
+  ClientLibrary = 'Client Library',
   Scraping = 'Scraping',
   Empty = '',
 }

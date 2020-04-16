@@ -409,11 +409,6 @@ func (p *Pkg) addObjectForRemoval(k Kind, pkgName string, id influxdb.ID) {
 	}
 
 	switch k {
-	case KindDashboard:
-		p.mDashboards[pkgName] = &dashboard{
-			identity: newIdentity,
-			id:       id,
-		}
 	case KindLabel:
 		p.mLabels[pkgName] = &label{
 			identity: newIdentity,
@@ -424,26 +419,11 @@ func (p *Pkg) addObjectForRemoval(k Kind, pkgName string, id influxdb.ID) {
 			identity: newIdentity,
 			id:       id,
 		}
-	case KindTask:
-		p.mTasks[pkgName] = &task{
-			identity: newIdentity,
-			id:       id,
-		}
-	case KindTelegraf:
-		p.mTelegrafs[pkgName] = &telegraf{
-			identity: newIdentity,
-			config:   influxdb.TelegrafConfig{ID: id},
-		}
 	}
 }
 
 func (p *Pkg) getObjectIDSetter(k Kind, pkgName string) (func(influxdb.ID), bool) {
 	switch k {
-	case KindDashboard:
-		d, ok := p.mDashboards[pkgName]
-		return func(id influxdb.ID) {
-			d.id = id
-		}, ok
 	case KindLabel:
 		l, ok := p.mLabels[pkgName]
 		return func(id influxdb.ID) {
@@ -453,16 +433,6 @@ func (p *Pkg) getObjectIDSetter(k Kind, pkgName string) (func(influxdb.ID), bool
 		r, ok := p.mNotificationRules[pkgName]
 		return func(id influxdb.ID) {
 			r.id = id
-		}, ok
-	case KindTask:
-		t, ok := p.mTasks[pkgName]
-		return func(id influxdb.ID) {
-			t.id = id
-		}, ok
-	case KindTelegraf:
-		t, ok := p.mTelegrafs[pkgName]
-		return func(id influxdb.ID) {
-			t.config.ID = id
 		}, ok
 	default:
 		return nil, false
@@ -578,7 +548,7 @@ func (p *Pkg) dashboards() []*dashboard {
 	for _, d := range p.mDashboards {
 		dashes = append(dashes, d)
 	}
-	sort.Slice(dashes, func(i, j int) bool { return dashes[i].Name() < dashes[j].Name() })
+	sort.Slice(dashes, func(i, j int) bool { return dashes[i].PkgName() < dashes[j].PkgName() })
 	return dashes
 }
 

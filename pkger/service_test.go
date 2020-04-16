@@ -829,12 +829,19 @@ func TestService(t *testing.T) {
 					sum, _, err := svc.Apply(context.TODO(), orgID, 0, pkg)
 					require.NoError(t, err)
 
-					require.Len(t, sum.Dashboards, 1)
+					require.Len(t, sum.Dashboards, 2)
 					dash1 := sum.Dashboards[0]
-					assert.Equal(t, SafeID(1), dash1.ID)
-					assert.Equal(t, SafeID(orgID), dash1.OrgID)
+					assert.NotZero(t, dash1.ID)
+					assert.NotZero(t, dash1.OrgID)
+					assert.Equal(t, "dash_1", dash1.PkgName)
 					assert.Equal(t, "display name", dash1.Name)
 					require.Len(t, dash1.Charts, 1)
+
+					dash2 := sum.Dashboards[1]
+					assert.NotZero(t, dash2.ID)
+					assert.Equal(t, "dash_2", dash2.PkgName)
+					assert.Equal(t, "dash_2", dash2.Name)
+					require.Empty(t, dash2.Charts)
 				})
 			})
 
@@ -854,8 +861,6 @@ func TestService(t *testing.T) {
 						deletedDashs[id] = true
 						return nil
 					}
-
-					pkg.mDashboards["dash_1_copy"] = pkg.mDashboards["dash_1"]
 
 					svc := newTestService(WithDashboardSVC(fakeDashSVC))
 
@@ -911,9 +916,6 @@ func TestService(t *testing.T) {
 					fakeLabelSVC := mock.NewLabelService()
 					fakeLabelSVC.CreateLabelFn = func(_ context.Context, l *influxdb.Label) error {
 						l.ID = influxdb.ID(fakeLabelSVC.CreateLabelCalls.Count() + 1)
-						return nil
-					}
-					fakeLabelSVC.DeleteLabelMappingFn = func(_ context.Context, m *influxdb.LabelMapping) error {
 						return nil
 					}
 					fakeLabelSVC.CreateLabelMappingFn = func(_ context.Context, mapping *influxdb.LabelMapping) error {
@@ -1074,19 +1076,22 @@ func TestService(t *testing.T) {
 			})
 
 			t.Run("maps dashboards with labels", func(t *testing.T) {
-				testLabelMappingFn(
-					t,
-					"testdata/dashboard_associates_label.yml",
-					1,
-					func() []ServiceSetterFn {
-						fakeDashSVC := mock.NewDashboardService()
-						fakeDashSVC.CreateDashboardF = func(_ context.Context, d *influxdb.Dashboard) error {
-							d.ID = influxdb.ID(rand.Int())
-							return nil
-						}
-						return []ServiceSetterFn{WithDashboardSVC(fakeDashSVC)}
-					},
-				)
+				opts := func() []ServiceSetterFn {
+					fakeDashSVC := mock.NewDashboardService()
+					fakeDashSVC.CreateDashboardF = func(_ context.Context, d *influxdb.Dashboard) error {
+						d.ID = influxdb.ID(rand.Int())
+						return nil
+					}
+					return []ServiceSetterFn{WithDashboardSVC(fakeDashSVC)}
+				}
+
+				t.Run("applies successfully", func(t *testing.T) {
+					testLabelMappingV2ApplyFn(t, "testdata/dashboard_associates_label.yml", 2, opts)
+				})
+
+				t.Run("deletes new label mappings on error", func(t *testing.T) {
+					testLabelMappingV2RollbackFn(t, "testdata/dashboard_associates_label.yml", 1, opts)
+				})
 			})
 
 			t.Run("maps notification endpoints with labels", func(t *testing.T) {
@@ -1141,48 +1146,54 @@ func TestService(t *testing.T) {
 			})
 
 			t.Run("maps tasks with labels", func(t *testing.T) {
-				testLabelMappingFn(
-					t,
-					"testdata/tasks.yml",
-					2,
-					func() []ServiceSetterFn {
-						fakeTaskSVC := mock.NewTaskService()
-						fakeTaskSVC.CreateTaskFn = func(ctx context.Context, tc influxdb.TaskCreate) (*influxdb.Task, error) {
-							reg := regexp.MustCompile(`name: "(.+)",`)
-							names := reg.FindStringSubmatch(tc.Flux)
-							if len(names) < 2 {
-								return nil, errors.New("bad flux query provided: " + tc.Flux)
-							}
-							return &influxdb.Task{
-								ID:             influxdb.ID(rand.Int()),
-								Type:           tc.Type,
-								OrganizationID: tc.OrganizationID,
-								OwnerID:        tc.OwnerID,
-								Name:           names[1],
-								Description:    tc.Description,
-								Status:         tc.Status,
-								Flux:           tc.Flux,
-							}, nil
+				opts := func() []ServiceSetterFn {
+					fakeTaskSVC := mock.NewTaskService()
+					fakeTaskSVC.CreateTaskFn = func(ctx context.Context, tc influxdb.TaskCreate) (*influxdb.Task, error) {
+						reg := regexp.MustCompile(`name: "(.+)",`)
+						names := reg.FindStringSubmatch(tc.Flux)
+						if len(names) < 2 {
+							return nil, errors.New("bad flux query provided: " + tc.Flux)
 						}
-						return []ServiceSetterFn{WithTaskSVC(fakeTaskSVC)}
-					},
-				)
+						return &influxdb.Task{
+							ID:             influxdb.ID(rand.Int()),
+							Type:           tc.Type,
+							OrganizationID: tc.OrganizationID,
+							OwnerID:        tc.OwnerID,
+							Name:           names[1],
+							Description:    tc.Description,
+							Status:         tc.Status,
+							Flux:           tc.Flux,
+						}, nil
+					}
+					return []ServiceSetterFn{WithTaskSVC(fakeTaskSVC)}
+				}
+
+				t.Run("applies successfully", func(t *testing.T) {
+					testLabelMappingV2ApplyFn(t, "testdata/tasks.yml", 2, opts)
+				})
+
+				t.Run("deletes new label mappings on error", func(t *testing.T) {
+					testLabelMappingV2RollbackFn(t, "testdata/tasks.yml", 1, opts)
+				})
 			})
 
 			t.Run("maps telegrafs with labels", func(t *testing.T) {
-				testLabelMappingFn(
-					t,
-					"testdata/telegraf.yml",
-					1,
-					func() []ServiceSetterFn {
-						fakeTeleSVC := mock.NewTelegrafConfigStore()
-						fakeTeleSVC.CreateTelegrafConfigF = func(_ context.Context, cfg *influxdb.TelegrafConfig, _ influxdb.ID) error {
-							cfg.ID = influxdb.ID(rand.Int())
-							return nil
-						}
-						return []ServiceSetterFn{WithTelegrafSVC(fakeTeleSVC)}
-					},
-				)
+				opts := func() []ServiceSetterFn {
+					fakeTeleSVC := mock.NewTelegrafConfigStore()
+					fakeTeleSVC.CreateTelegrafConfigF = func(_ context.Context, cfg *influxdb.TelegrafConfig, _ influxdb.ID) error {
+						cfg.ID = influxdb.ID(rand.Int())
+						return nil
+					}
+					return []ServiceSetterFn{WithTelegrafSVC(fakeTeleSVC)}
+				}
+
+				t.Run("applies successfully", func(t *testing.T) {
+					testLabelMappingV2ApplyFn(t, "testdata/telegraf.yml", 2, opts)
+				})
+
+				t.Run("deletes new label mappings on error", func(t *testing.T) {
+					testLabelMappingV2RollbackFn(t, "testdata/telegraf.yml", 1, opts)
+				})
 			})
 
 			t.Run("maps variables with labels", func(t *testing.T) {
@@ -1391,11 +1402,15 @@ func TestService(t *testing.T) {
 					require.NoError(t, err)
 
 					require.Len(t, sum.Tasks, 2)
-					for i, actual := range sum.Tasks {
-						assert.NotZero(t, actual.ID)
-						assert.Equal(t, "task_"+strconv.Itoa(i), actual.Name)
-						assert.Equal(t, "desc_"+strconv.Itoa(i), actual.Description)
-					}
+					assert.NotZero(t, sum.Tasks[0].ID)
+					assert.Equal(t, "task_1", sum.Tasks[0].PkgName)
+					assert.Equal(t, "task_1", sum.Tasks[0].Name)
+					assert.Equal(t, "desc_1", sum.Tasks[0].Description)
+
+					assert.NotZero(t, sum.Tasks[1].ID)
+					assert.Equal(t, "task_UUID", sum.Tasks[1].PkgName)
+					assert.Equal(t, "task_0", sum.Tasks[1].Name)
+					assert.Equal(t, "desc_0", sum.Tasks[1].Description)
 				})
 			})
 
@@ -1449,6 +1464,7 @@ func TestService(t *testing.T) {
 				testfileRunner(t, "testdata/telegraf.yml", func(t *testing.T, pkg *Pkg) {
 					fakeTeleSVC := mock.NewTelegrafConfigStore()
 					fakeTeleSVC.CreateTelegrafConfigF = func(_ context.Context, tc *influxdb.TelegrafConfig, userID influxdb.ID) error {
+						t.Log("called")
 						if fakeTeleSVC.CreateTelegrafConfigCalls.Count() == 1 {
 							return errors.New("limit hit")
 						}
@@ -1462,7 +1478,12 @@ func TestService(t *testing.T) {
 						return nil
 					}
 
-					pkg.mTelegrafs["first_tele_config_copy"] = pkg.mTelegrafs["first_tele_config"]
+					stubTele := &telegraf{
+						identity: identity{
+							name: &references{val: "stub"},
+						},
+					}
+					pkg.mTelegrafs[stubTele.PkgName()] = stubTele
 
 					svc := newTestService(WithTelegrafSVC(fakeTeleSVC))
 

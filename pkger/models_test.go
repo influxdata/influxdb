@@ -477,11 +477,6 @@ func TestPkg(t *testing.T) {
 			validName string
 		}{
 			{
-				pkgFile:   "testdata/dashboard.yml",
-				kind:      KindDashboard,
-				validName: "dash_1",
-			},
-			{
 				pkgFile:   "testdata/label.yml",
 				kind:      KindLabel,
 				validName: "label_1",
@@ -490,16 +485,6 @@ func TestPkg(t *testing.T) {
 				pkgFile:   "testdata/notification_rule.yml",
 				kind:      KindNotificationRule,
 				validName: "rule_UUID",
-			},
-			{
-				pkgFile:   "testdata/tasks.yml",
-				kind:      KindTask,
-				validName: "task_UUID",
-			},
-			{
-				pkgFile:   "testdata/telegraf.yml",
-				kind:      KindTelegraf,
-				validName: "first_tele_config",
 			},
 		}
 
