@@ -67,6 +67,28 @@ func (s *Service) FindOrganizations(ctx context.Context, filter influxdb.Organiz
 	}
 
 	var orgs []*influxdb.Organization
+
+	if filter.UserID != nil {
+		// find urms for orgs with this user
+		urms, _, err := s.FindUserResourceMappings(ctx, influxdb.UserResourceMappingFilter{
+			UserID:       *filter.UserID,
+			ResourceType: influxdb.OrgsResourceType,
+		}, opt...)
+		if err != nil {
+			return nil, 0, err
+		}
+		// find orgs by the urm's resource ids.
+		for _, urm := range urms {
+			o, err := s.FindOrganizationByID(ctx, urm.ResourceID)
+			if err == nil {
+				// if there is an error then this is a crufty urm and we should just move on
+				orgs = append(orgs, o)
+			}
+		}
+
+		return orgs, len(orgs), nil
+	}
+
 	err := s.store.View(ctx, func(tx kv.Tx) error {
 		os, err := s.store.ListOrgs(ctx, tx, opt...)
 		if err != nil {
