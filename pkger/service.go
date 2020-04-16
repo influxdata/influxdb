@@ -686,8 +686,6 @@ func (s *Service) dryRun(ctx context.Context, orgID influxdb.ID, pkg *Pkg, opts 
 	}
 
 	var diff Diff
-	diff.Dashboards = s.dryRunDashboards(pkg)
-
 	diffRules, err := s.dryRunNotificationRules(ctx, orgID, pkg)
 	if err != nil {
 		return Summary{}, Diff{}, nil, err
@@ -710,6 +708,7 @@ func (s *Service) dryRun(ctx context.Context, orgID influxdb.ID, pkg *Pkg, opts 
 
 	diff.Buckets = stateDiff.Buckets
 	diff.Checks = stateDiff.Checks
+	diff.Dashboards = stateDiff.Dashboards
 	diff.NotificationEndpoints = stateDiff.NotificationEndpoints
 	diff.Labels = stateDiff.Labels
 	diff.Tasks = stateDiff.Tasks
@@ -755,16 +754,6 @@ func (s *Service) dryRunChecks(ctx context.Context, orgID influxdb.ID, checks ma
 		}
 		c.existing = existing
 	}
-}
-
-func (s *Service) dryRunDashboards(pkg *Pkg) []DiffDashboard {
-	dashs := pkg.dashboards()
-
-	diffs := make([]DiffDashboard, 0, len(dashs))
-	for _, d := range dashs {
-		diffs = append(diffs, newDiffDashboard(d))
-	}
-	return diffs
 }
 
 func (s *Service) dryRunLabels(ctx context.Context, orgID influxdb.ID, labels map[string]*stateLabel) {
@@ -941,7 +930,6 @@ type (
 
 func (s *Service) dryRunLabelMappings(ctx context.Context, pkg *Pkg, state *stateCoordinator) ([]DiffLabelMapping, error) {
 	mappers := []labelMappers{
-		mapperDashboards(pkg.dashboards()),
 		mapperNotificationRules(pkg.notificationRules()),
 	}
 
@@ -1062,6 +1050,17 @@ func (s *Service) dryRunLabelMappingsV2(ctx context.Context, state *stateCoordin
 			continue
 		}
 		mm, err := s.dryRunResourceLabelMappingV2(ctx, state, stateLabelsByResName, c)
+		if err != nil {
+			return nil, err
+		}
+		mappings = append(mappings, mm...)
+	}
+
+	for _, d := range state.mDashboards {
+		if IsRemoval(d.stateStatus) {
+			continue
+		}
+		mm, err := s.dryRunResourceLabelMappingV2(ctx, state, stateLabelsByResName, d)
 		if err != nil {
 			return nil, err
 		}
@@ -1323,7 +1322,7 @@ func (s *Service) apply(ctx context.Context, coordinator *rollbackCoordinator, o
 			s.applyVariables(ctx, state.variables()),
 			s.applyBuckets(ctx, state.buckets()),
 			s.applyChecks(ctx, state.checks()),
-			s.applyDashboards(pkg.dashboards()),
+			s.applyDashboards(state.dashboards()),
 			s.applyNotificationEndpoints(ctx, userID, state.endpoints()),
 			s.applyTasks(state.tasks()),
 			s.applyTelegrafs(state.telegrafConfigs()),
@@ -1583,23 +1582,23 @@ func (s *Service) applyCheck(ctx context.Context, c *stateCheck, userID influxdb
 	}
 }
 
-func (s *Service) applyDashboards(dashboards []*dashboard) applier {
+func (s *Service) applyDashboards(dashboards []*stateDashboard) applier {
 	const resource = "dashboard"
 
 	mutex := new(doMutex)
-	rollbackDashboards := make([]*dashboard, 0, len(dashboards))
+	rollbackDashboards := make([]*stateDashboard, 0, len(dashboards))
 
 	createFn := func(ctx context.Context, i int, orgID, userID influxdb.ID) *applyErrBody {
-		var d dashboard
+		var d *stateDashboard
 		mutex.Do(func() {
-			dashboards[i].OrgID = orgID
-			d = *dashboards[i]
+			dashboards[i].orgID = orgID
+			d = dashboards[i]
 		})
 
 		influxBucket, err := s.applyDashboard(ctx, d)
 		if err != nil {
 			return &applyErrBody{
-				name: d.Name(),
+				name: d.parserDash.Name(),
 				msg:  err.Error(),
 			}
 		}
@@ -1627,12 +1626,12 @@ func (s *Service) applyDashboards(dashboards []*dashboard) applier {
 	}
 }
 
-func (s *Service) applyDashboard(ctx context.Context, d dashboard) (influxdb.Dashboard, error) {
-	cells := convertChartsToCells(d.Charts)
+func (s *Service) applyDashboard(ctx context.Context, d *stateDashboard) (influxdb.Dashboard, error) {
+	cells := convertChartsToCells(d.parserDash.Charts)
 	influxDashboard := influxdb.Dashboard{
-		OrganizationID: d.OrgID,
-		Description:    d.Description,
-		Name:           d.Name(),
+		OrganizationID: d.orgID,
+		Description:    d.parserDash.Description,
+		Name:           d.parserDash.Name(),
 		Cells:          cells,
 	}
 	err := s.dashSVC.CreateDashboard(ctx, &influxDashboard)
@@ -2615,6 +2614,7 @@ func newSummaryFromStatePkg(pkg *Pkg, state *stateCoordinator) Summary {
 	pkgSum := pkg.Summary()
 	pkgSum.Buckets = stateSum.Buckets
 	pkgSum.Checks = stateSum.Checks
+	pkgSum.Dashboards = stateSum.Dashboards
 	pkgSum.NotificationEndpoints = stateSum.NotificationEndpoints
 	pkgSum.Labels = stateSum.Labels
 	pkgSum.Tasks = stateSum.Tasks
@@ -2626,6 +2626,7 @@ func newSummaryFromStatePkg(pkg *Pkg, state *stateCoordinator) Summary {
 	resourcesToSkip := map[influxdb.ResourceType]bool{
 		influxdb.BucketsResourceType:              true,
 		influxdb.ChecksResourceType:               true,
+		influxdb.DashboardsResourceType:           true,
 		influxdb.NotificationEndpointResourceType: true,
 		influxdb.TasksResourceType:                true,
 		influxdb.TelegrafsResourceType:            true,

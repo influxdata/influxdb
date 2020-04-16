@@ -307,6 +307,685 @@ func (c *check) valid() []validationErr {
 	return nil
 }
 
+// chartKind identifies what kind of chart is eluded too. Each
+// chart kind has their own requirements for what constitutes
+// a chart.
+type chartKind string
+
+// available chart kinds
+const (
+	chartKindUnknown            chartKind = ""
+	chartKindGauge              chartKind = "gauge"
+	chartKindHeatMap            chartKind = "heatmap"
+	chartKindHistogram          chartKind = "histogram"
+	chartKindMarkdown           chartKind = "markdown"
+	chartKindScatter            chartKind = "scatter"
+	chartKindSingleStat         chartKind = "single_stat"
+	chartKindSingleStatPlusLine chartKind = "single_stat_plus_line"
+	chartKindTable              chartKind = "table"
+	chartKindXY                 chartKind = "xy"
+)
+
+func (c chartKind) ok() bool {
+	switch c {
+	case chartKindGauge, chartKindHeatMap, chartKindHistogram,
+		chartKindMarkdown, chartKindScatter, chartKindSingleStat,
+		chartKindSingleStatPlusLine, chartKindTable, chartKindXY:
+		return true
+	default:
+		return false
+	}
+}
+
+func (c chartKind) title() string {
+	spacedKind := strings.ReplaceAll(string(c), "_", " ")
+	return strings.ReplaceAll(strings.Title(spacedKind), " ", "_")
+}
+
+const (
+	fieldDashCharts = "charts"
+)
+
+const dashboardNameMinLength = 2
+
+type dashboard struct {
+	identity
+
+	Description string
+	Charts      []chart
+
+	labels sortedLabels
+}
+
+func (d *dashboard) Labels() []*label {
+	return d.labels
+}
+
+func (d *dashboard) ResourceType() influxdb.ResourceType {
+	return KindDashboard.ResourceType()
+}
+
+func (d *dashboard) summarize() SummaryDashboard {
+	iDash := SummaryDashboard{
+		PkgName:           d.PkgName(),
+		Name:              d.Name(),
+		Description:       d.Description,
+		LabelAssociations: toSummaryLabels(d.labels...),
+	}
+	for _, c := range d.Charts {
+		iDash.Charts = append(iDash.Charts, SummaryChart{
+			Properties: c.properties(),
+			Height:     c.Height,
+			Width:      c.Width,
+			XPosition:  c.XPos,
+			YPosition:  c.YPos,
+		})
+	}
+	return iDash
+}
+
+func (d *dashboard) valid() []validationErr {
+	var vErrs []validationErr
+	if err, ok := isValidName(d.Name(), dashboardNameMinLength); !ok {
+		vErrs = append(vErrs, err)
+	}
+	if len(vErrs) == 0 {
+		return nil
+	}
+	return []validationErr{
+		objectValidationErr(fieldSpec, vErrs...),
+	}
+}
+
+const (
+	fieldChartAxes          = "axes"
+	fieldChartBinCount      = "binCount"
+	fieldChartBinSize       = "binSize"
+	fieldChartColors        = "colors"
+	fieldChartDecimalPlaces = "decimalPlaces"
+	fieldChartDomain        = "domain"
+	fieldChartGeom          = "geom"
+	fieldChartHeight        = "height"
+	fieldChartLegend        = "legend"
+	fieldChartNote          = "note"
+	fieldChartNoteOnEmpty   = "noteOnEmpty"
+	fieldChartPosition      = "position"
+	fieldChartQueries       = "queries"
+	fieldChartShade         = "shade"
+	fieldChartFieldOptions  = "fieldOptions"
+	fieldChartTableOptions  = "tableOptions"
+	fieldChartTickPrefix    = "tickPrefix"
+	fieldChartTickSuffix    = "tickSuffix"
+	fieldChartTimeFormat    = "timeFormat"
+	fieldChartWidth         = "width"
+	fieldChartXCol          = "xCol"
+	fieldChartXPos          = "xPos"
+	fieldChartYCol          = "yCol"
+	fieldChartYPos          = "yPos"
+)
+
+type chart struct {
+	Kind            chartKind
+	Name            string
+	Prefix          string
+	TickPrefix      string
+	Suffix          string
+	TickSuffix      string
+	Note            string
+	NoteOnEmpty     bool
+	DecimalPlaces   int
+	EnforceDecimals bool
+	Shade           bool
+	Legend          legend
+	Colors          colors
+	Queries         queries
+	Axes            axes
+	Geom            string
+	XCol, YCol      string
+	XPos, YPos      int
+	Height, Width   int
+	BinSize         int
+	BinCount        int
+	Position        string
+	FieldOptions    []fieldOption
+	TableOptions    tableOptions
+	TimeFormat      string
+}
+
+func (c chart) properties() influxdb.ViewProperties {
+	switch c.Kind {
+	case chartKindGauge:
+		return influxdb.GaugeViewProperties{
+			Type:       influxdb.ViewPropertyTypeGauge,
+			Queries:    c.Queries.influxDashQueries(),
+			Prefix:     c.Prefix,
+			TickPrefix: c.TickPrefix,
+			Suffix:     c.Suffix,
+			TickSuffix: c.TickSuffix,
+			ViewColors: c.Colors.influxViewColors(),
+			DecimalPlaces: influxdb.DecimalPlaces{
+				IsEnforced: c.EnforceDecimals,
+				Digits:     int32(c.DecimalPlaces),
+			},
+			Note:              c.Note,
+			ShowNoteWhenEmpty: c.NoteOnEmpty,
+		}
+	case chartKindHeatMap:
+		return influxdb.HeatmapViewProperties{
+			Type:              influxdb.ViewPropertyTypeHeatMap,
+			Queries:           c.Queries.influxDashQueries(),
+			ViewColors:        c.Colors.strings(),
+			BinSize:           int32(c.BinSize),
+			XColumn:           c.XCol,
+			YColumn:           c.YCol,
+			XDomain:           c.Axes.get("x").Domain,
+			YDomain:           c.Axes.get("y").Domain,
+			XPrefix:           c.Axes.get("x").Prefix,
+			YPrefix:           c.Axes.get("y").Prefix,
+			XSuffix:           c.Axes.get("x").Suffix,
+			YSuffix:           c.Axes.get("y").Suffix,
+			XAxisLabel:        c.Axes.get("x").Label,
+			YAxisLabel:        c.Axes.get("y").Label,
+			Note:              c.Note,
+			ShowNoteWhenEmpty: c.NoteOnEmpty,
+			TimeFormat:        c.TimeFormat,
+		}
+	case chartKindHistogram:
+		return influxdb.HistogramViewProperties{
+			Type:              influxdb.ViewPropertyTypeHistogram,
+			Queries:           c.Queries.influxDashQueries(),
+			ViewColors:        c.Colors.influxViewColors(),
+			FillColumns:       []string{},
+			XColumn:           c.XCol,
+			XDomain:           c.Axes.get("x").Domain,
+			XAxisLabel:        c.Axes.get("x").Label,
+			Position:          c.Position,
+			BinCount:          c.BinCount,
+			Note:              c.Note,
+			ShowNoteWhenEmpty: c.NoteOnEmpty,
+		}
+	case chartKindMarkdown:
+		return influxdb.MarkdownViewProperties{
+			Type: influxdb.ViewPropertyTypeMarkdown,
+			Note: c.Note,
+		}
+	case chartKindScatter:
+		return influxdb.ScatterViewProperties{
+			Type:              influxdb.ViewPropertyTypeScatter,
+			Queries:           c.Queries.influxDashQueries(),
+			ViewColors:        c.Colors.strings(),
+			XColumn:           c.XCol,
+			YColumn:           c.YCol,
+			XDomain:           c.Axes.get("x").Domain,
+			YDomain:           c.Axes.get("y").Domain,
+			XPrefix:           c.Axes.get("x").Prefix,
+			YPrefix:           c.Axes.get("y").Prefix,
+			XSuffix:           c.Axes.get("x").Suffix,
+			YSuffix:           c.Axes.get("y").Suffix,
+			XAxisLabel:        c.Axes.get("x").Label,
+			YAxisLabel:        c.Axes.get("y").Label,
+			Note:              c.Note,
+			ShowNoteWhenEmpty: c.NoteOnEmpty,
+			TimeFormat:        c.TimeFormat,
+		}
+	case chartKindSingleStat:
+		return influxdb.SingleStatViewProperties{
+			Type:       influxdb.ViewPropertyTypeSingleStat,
+			Prefix:     c.Prefix,
+			TickPrefix: c.TickPrefix,
+			Suffix:     c.Suffix,
+			TickSuffix: c.TickSuffix,
+			DecimalPlaces: influxdb.DecimalPlaces{
+				IsEnforced: c.EnforceDecimals,
+				Digits:     int32(c.DecimalPlaces),
+			},
+			Note:              c.Note,
+			ShowNoteWhenEmpty: c.NoteOnEmpty,
+			Queries:           c.Queries.influxDashQueries(),
+			ViewColors:        c.Colors.influxViewColors(),
+		}
+	case chartKindSingleStatPlusLine:
+		return influxdb.LinePlusSingleStatProperties{
+			Type:   influxdb.ViewPropertyTypeSingleStatPlusLine,
+			Prefix: c.Prefix,
+			Suffix: c.Suffix,
+			DecimalPlaces: influxdb.DecimalPlaces{
+				IsEnforced: c.EnforceDecimals,
+				Digits:     int32(c.DecimalPlaces),
+			},
+			Note:              c.Note,
+			ShowNoteWhenEmpty: c.NoteOnEmpty,
+			XColumn:           c.XCol,
+			YColumn:           c.YCol,
+			ShadeBelow:        c.Shade,
+			Legend:            c.Legend.influxLegend(),
+			Queries:           c.Queries.influxDashQueries(),
+			ViewColors:        c.Colors.influxViewColors(),
+			Axes:              c.Axes.influxAxes(),
+			Position:          c.Position,
+		}
+	case chartKindTable:
+		fieldOptions := make([]influxdb.RenamableField, 0, len(c.FieldOptions))
+		for _, fieldOpt := range c.FieldOptions {
+			fieldOptions = append(fieldOptions, influxdb.RenamableField{
+				InternalName: fieldOpt.FieldName,
+				DisplayName:  fieldOpt.DisplayName,
+				Visible:      fieldOpt.Visible,
+			})
+		}
+
+		return influxdb.TableViewProperties{
+			Type:              influxdb.ViewPropertyTypeTable,
+			Note:              c.Note,
+			ShowNoteWhenEmpty: c.NoteOnEmpty,
+			DecimalPlaces: influxdb.DecimalPlaces{
+				IsEnforced: c.EnforceDecimals,
+				Digits:     int32(c.DecimalPlaces),
+			},
+			Queries:    c.Queries.influxDashQueries(),
+			ViewColors: c.Colors.influxViewColors(),
+			TableOptions: influxdb.TableOptions{
+				VerticalTimeAxis: c.TableOptions.VerticalTimeAxis,
+				SortBy: influxdb.RenamableField{
+					InternalName: c.TableOptions.SortByField,
+				},
+				Wrapping:       c.TableOptions.Wrapping,
+				FixFirstColumn: c.TableOptions.FixFirstColumn,
+			},
+			FieldOptions: fieldOptions,
+			TimeFormat:   c.TimeFormat,
+		}
+	case chartKindXY:
+		return influxdb.XYViewProperties{
+			Type:              influxdb.ViewPropertyTypeXY,
+			Note:              c.Note,
+			ShowNoteWhenEmpty: c.NoteOnEmpty,
+			XColumn:           c.XCol,
+			YColumn:           c.YCol,
+			ShadeBelow:        c.Shade,
+			Legend:            c.Legend.influxLegend(),
+			Queries:           c.Queries.influxDashQueries(),
+			ViewColors:        c.Colors.influxViewColors(),
+			Axes:              c.Axes.influxAxes(),
+			Geom:              c.Geom,
+			Position:          c.Position,
+			TimeFormat:        c.TimeFormat,
+		}
+	default:
+		return nil
+	}
+}
+
+func (c chart) validProperties() []validationErr {
+	if c.Kind == chartKindMarkdown {
+		// at the time of writing, there's nothing to validate for markdown types
+		return nil
+	}
+
+	var fails []validationErr
+
+	validatorFns := []func() []validationErr{
+		c.validBaseProps,
+		c.Queries.valid,
+		c.Colors.valid,
+	}
+	for _, validatorFn := range validatorFns {
+		fails = append(fails, validatorFn()...)
+	}
+
+	// chart kind specific validations
+	switch c.Kind {
+	case chartKindGauge:
+		fails = append(fails, c.Colors.hasTypes(colorTypeMin, colorTypeMax)...)
+	case chartKindHeatMap:
+		fails = append(fails, c.Axes.hasAxes("x", "y")...)
+	case chartKindHistogram:
+		fails = append(fails, c.Axes.hasAxes("x")...)
+	case chartKindScatter:
+		fails = append(fails, c.Axes.hasAxes("x", "y")...)
+	case chartKindSingleStat:
+	case chartKindSingleStatPlusLine:
+		fails = append(fails, c.Axes.hasAxes("x", "y")...)
+		fails = append(fails, validPosition(c.Position)...)
+	case chartKindTable:
+		fails = append(fails, validTableOptions(c.TableOptions)...)
+	case chartKindXY:
+		fails = append(fails, validGeometry(c.Geom)...)
+		fails = append(fails, c.Axes.hasAxes("x", "y")...)
+		fails = append(fails, validPosition(c.Position)...)
+	}
+
+	return fails
+}
+
+func validPosition(pos string) []validationErr {
+	pos = strings.ToLower(pos)
+	if pos != "" && pos != "overlaid" && pos != "stacked" {
+		return []validationErr{{
+			Field: fieldChartPosition,
+			Msg:   fmt.Sprintf("invalid position supplied %q; valid positions is one of [overlaid, stacked]", pos),
+		}}
+	}
+	return nil
+}
+
+var geometryTypes = map[string]bool{
+	"line":      true,
+	"step":      true,
+	"stacked":   true,
+	"monotoneX": true,
+	"bar":       true,
+}
+
+func validGeometry(geom string) []validationErr {
+	if !geometryTypes[geom] {
+		msg := "type not found"
+		if geom != "" {
+			msg = "type provided is not supported"
+		}
+		return []validationErr{{
+			Field: fieldChartGeom,
+			Msg:   fmt.Sprintf("%s: %q", msg, geom),
+		}}
+	}
+
+	return nil
+}
+
+func (c chart) validBaseProps() []validationErr {
+	var fails []validationErr
+	if c.Width <= 0 {
+		fails = append(fails, validationErr{
+			Field: fieldChartWidth,
+			Msg:   "must be greater than 0",
+		})
+	}
+
+	if c.Height <= 0 {
+		fails = append(fails, validationErr{
+			Field: fieldChartHeight,
+			Msg:   "must be greater than 0",
+		})
+	}
+	return fails
+}
+
+const (
+	fieldChartFieldOptionDisplayName = "displayName"
+	fieldChartFieldOptionFieldName   = "fieldName"
+	fieldChartFieldOptionVisible     = "visible"
+)
+
+type fieldOption struct {
+	FieldName   string
+	DisplayName string
+	Visible     bool
+}
+
+const (
+	fieldChartTableOptionVerticalTimeAxis = "verticalTimeAxis"
+	fieldChartTableOptionSortBy           = "sortBy"
+	fieldChartTableOptionWrapping         = "wrapping"
+	fieldChartTableOptionFixFirstColumn   = "fixFirstColumn"
+)
+
+type tableOptions struct {
+	VerticalTimeAxis bool
+	SortByField      string
+	Wrapping         string
+	FixFirstColumn   bool
+}
+
+func validTableOptions(opts tableOptions) []validationErr {
+	var fails []validationErr
+
+	switch opts.Wrapping {
+	case "", "single-line", "truncate", "wrap":
+	default:
+		fails = append(fails, validationErr{
+			Field: fieldChartTableOptionWrapping,
+			Msg:   `chart table option should 1 in ["single-line", "truncate", "wrap"]`,
+		})
+	}
+
+	if len(fails) == 0 {
+		return nil
+	}
+
+	return []validationErr{
+		{
+			Field:  fieldChartTableOptions,
+			Nested: fails,
+		},
+	}
+}
+
+const (
+	colorTypeBackground = "background"
+	colorTypeMin        = "min"
+	colorTypeMax        = "max"
+	colorTypeScale      = "scale"
+	colorTypeText       = "text"
+	colorTypeThreshold  = "threshold"
+)
+
+const (
+	fieldColorHex = "hex"
+)
+
+type color struct {
+	Name string `json:"name,omitempty" yaml:"name,omitempty"`
+	Type string `json:"type,omitempty" yaml:"type,omitempty"`
+	Hex  string `json:"hex,omitempty" yaml:"hex,omitempty"`
+	// using reference for Value here so we can set to nil and
+	// it will be ignored during encoding, keeps our exported pkgs
+	// clear of unneeded entries.
+	Value *float64 `json:"value,omitempty" yaml:"value,omitempty"`
+}
+
+// TODO:
+//  - verify templates are desired
+//  - template colors so references can be shared
+type colors []*color
+
+func (c colors) influxViewColors() []influxdb.ViewColor {
+	ptrToFloat64 := func(f *float64) float64 {
+		if f == nil {
+			return 0
+		}
+		return *f
+	}
+
+	var iColors []influxdb.ViewColor
+	for _, cc := range c {
+		iColors = append(iColors, influxdb.ViewColor{
+			Type:  cc.Type,
+			Hex:   cc.Hex,
+			Name:  cc.Name,
+			Value: ptrToFloat64(cc.Value),
+		})
+	}
+	return iColors
+}
+
+func (c colors) strings() []string {
+	clrs := []string{}
+
+	for _, clr := range c {
+		clrs = append(clrs, clr.Hex)
+	}
+
+	return clrs
+}
+
+// TODO: looks like much of these are actually getting defaults in
+//  the UI. looking at sytem charts, seeign lots of failures for missing
+//  color types or no colors at all.
+func (c colors) hasTypes(types ...string) []validationErr {
+	tMap := make(map[string]bool)
+	for _, cc := range c {
+		tMap[cc.Type] = true
+	}
+
+	var failures []validationErr
+	for _, t := range types {
+		if !tMap[t] {
+			failures = append(failures, validationErr{
+				Field: "colors",
+				Msg:   fmt.Sprintf("type not found: %q", t),
+			})
+		}
+	}
+
+	return failures
+}
+
+func (c colors) valid() []validationErr {
+	var fails []validationErr
+	for i, cc := range c {
+		cErr := validationErr{
+			Field: fieldChartColors,
+			Index: intPtr(i),
+		}
+		if cc.Hex == "" {
+			cErr.Nested = append(cErr.Nested, validationErr{
+				Field: fieldColorHex,
+				Msg:   "a color must have a hex value provided",
+			})
+		}
+		if len(cErr.Nested) > 0 {
+			fails = append(fails, cErr)
+		}
+	}
+
+	return fails
+}
+
+type query struct {
+	Query string `json:"query" yaml:"query"`
+}
+
+type queries []query
+
+func (q queries) influxDashQueries() []influxdb.DashboardQuery {
+	var iQueries []influxdb.DashboardQuery
+	for _, qq := range q {
+		newQuery := influxdb.DashboardQuery{
+			Text:     qq.Query,
+			EditMode: "advanced",
+		}
+		// TODO: axe this builder configs when issue https://github.com/influxdata/influxdb/issues/15708 is fixed up
+		newQuery.BuilderConfig.Tags = append(newQuery.BuilderConfig.Tags, influxdb.NewBuilderTag("_measurement", "filter", ""))
+		iQueries = append(iQueries, newQuery)
+	}
+	return iQueries
+}
+
+func (q queries) valid() []validationErr {
+	var fails []validationErr
+	if len(q) == 0 {
+		fails = append(fails, validationErr{
+			Field: fieldChartQueries,
+			Msg:   "at least 1 query must be provided",
+		})
+	}
+
+	for i, qq := range q {
+		qErr := validationErr{
+			Field: fieldChartQueries,
+			Index: intPtr(i),
+		}
+		if qq.Query == "" {
+			qErr.Nested = append(fails, validationErr{
+				Field: fieldQuery,
+				Msg:   "a query must be provided",
+			})
+		}
+		if len(qErr.Nested) > 0 {
+			fails = append(fails, qErr)
+		}
+	}
+
+	return fails
+}
+
+const (
+	fieldAxisBase  = "base"
+	fieldAxisLabel = "label"
+	fieldAxisScale = "scale"
+)
+
+type axis struct {
+	Base   string    `json:"base,omitempty" yaml:"base,omitempty"`
+	Label  string    `json:"label,omitempty" yaml:"label,omitempty"`
+	Name   string    `json:"name,omitempty" yaml:"name,omitempty"`
+	Prefix string    `json:"prefix,omitempty" yaml:"prefix,omitempty"`
+	Scale  string    `json:"scale,omitempty" yaml:"scale,omitempty"`
+	Suffix string    `json:"suffix,omitempty" yaml:"suffix,omitempty"`
+	Domain []float64 `json:"domain,omitempty" yaml:"domain,omitempty"`
+}
+
+type axes []axis
+
+func (a axes) get(name string) axis {
+	for _, ax := range a {
+		if name == ax.Name {
+			return ax
+		}
+	}
+	return axis{}
+}
+
+func (a axes) influxAxes() map[string]influxdb.Axis {
+	m := make(map[string]influxdb.Axis)
+	for _, ax := range a {
+		m[ax.Name] = influxdb.Axis{
+			Bounds: []string{},
+			Label:  ax.Label,
+			Prefix: ax.Prefix,
+			Suffix: ax.Suffix,
+			Base:   ax.Base,
+			Scale:  ax.Scale,
+		}
+	}
+	return m
+}
+
+func (a axes) hasAxes(expectedAxes ...string) []validationErr {
+	mAxes := make(map[string]bool)
+	for _, ax := range a {
+		mAxes[ax.Name] = true
+	}
+
+	var failures []validationErr
+	for _, expected := range expectedAxes {
+		if !mAxes[expected] {
+			failures = append(failures, validationErr{
+				Field: fieldChartAxes,
+				Msg:   fmt.Sprintf("axis not found: %q", expected),
+			})
+		}
+	}
+
+	return failures
+}
+
+const (
+	fieldLegendOrientation = "orientation"
+)
+
+type legend struct {
+	Orientation string `json:"orientation,omitempty" yaml:"orientation,omitempty"`
+	Type        string `json:"type" yaml:"type"`
+}
+
+func (l legend) influxLegend() influxdb.Legend {
+	return influxdb.Legend{
+		Type:        l.Type,
+		Orientation: l.Orientation,
+	}
+}
+
 type assocMapKey struct {
 	resType influxdb.ResourceType
 	name    string

@@ -409,11 +409,6 @@ func (p *Pkg) addObjectForRemoval(k Kind, pkgName string, id influxdb.ID) {
 	}
 
 	switch k {
-	case KindDashboard:
-		p.mDashboards[pkgName] = &dashboard{
-			identity: newIdentity,
-			id:       id,
-		}
 	case KindLabel:
 		p.mLabels[pkgName] = &label{
 			identity: newIdentity,
@@ -429,11 +424,6 @@ func (p *Pkg) addObjectForRemoval(k Kind, pkgName string, id influxdb.ID) {
 
 func (p *Pkg) getObjectIDSetter(k Kind, pkgName string) (func(influxdb.ID), bool) {
 	switch k {
-	case KindDashboard:
-		d, ok := p.mDashboards[pkgName]
-		return func(id influxdb.ID) {
-			d.id = id
-		}, ok
 	case KindLabel:
 		l, ok := p.mLabels[pkgName]
 		return func(id influxdb.ID) {
@@ -558,7 +548,7 @@ func (p *Pkg) dashboards() []*dashboard {
 	for _, d := range p.mDashboards {
 		dashes = append(dashes, d)
 	}
-	sort.Slice(dashes, func(i, j int) bool { return dashes[i].Name() < dashes[j].Name() })
+	sort.Slice(dashes, func(i, j int) bool { return dashes[i].PkgName() < dashes[j].PkgName() })
 	return dashes
 }
 
