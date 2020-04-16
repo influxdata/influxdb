@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 )
 
@@ -77,6 +78,14 @@ func (r *Req) Do(handler http.Handler) *Resp {
 		Req:   r.req,
 		Rec:   rec,
 	}
+}
+
+func (r *Req) SetFormValue(k, v string) *Req {
+	if r.req.Form == nil {
+		r.req.Form = make(url.Values)
+	}
+	r.req.Form.Set(k, v)
+	return r
 }
 
 // Headers allows the user to set headers on the http request.
