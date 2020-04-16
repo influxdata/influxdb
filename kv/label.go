@@ -209,6 +209,17 @@ func (s *Service) createLabelMapping(ctx context.Context, tx Tx, m *influxdb.Lab
 		return err
 	}
 
+	ls := []*influxdb.Label{}
+	err := s.findResourceLabels(ctx, tx, influxdb.LabelMappingFilter{ResourceID: m.ResourceID, ResourceType: m.ResourceType}, &ls)
+	if err != nil {
+		return err
+	}
+	for i := 0; i < len(ls); i++ {
+		if ls[i].ID == m.LabelID {
+			return influxdb.ErrLabelExistsOnResource
+		}
+	}
+
 	if err := s.putLabelMapping(ctx, tx, m); err != nil {
 		return err
 	}
