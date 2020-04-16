@@ -45,6 +45,8 @@ const (
 		4 // Size in bytes of block
 
 	tsmKeyFieldSeparator1x = "#!~#" // 		tsm1 key field separator.
+
+	metaFile = "meta.db" // Default name of meta database
 )
 
 type Config struct {
@@ -267,10 +269,24 @@ func (m *Migrator) createBucket(db, rp string) (influxdb.ID, error) {
 		return bucket.ID, nil
 	}
 
+	retName := ""
+	retDuration := time.Duration(0)
+
+	if rp != "" {
+		retentionPolicyInfo, err := m.getRetentionPolicy(db, rp)
+		if err != nil {
+			return 0, err
+		}
+		retName = retentionPolicyInfo.Name
+		retDuration = retentionPolicyInfo.Duration
+	}
+
 	if !m.DryRun {
 		bucket = &influxdb.Bucket{
-			Name:  name,
-			OrgID: m.DestOrg,
+			OrgID:               m.DestOrg,
+			Name:                name,
+			RetentionPolicyName: retName,
+			RetentionPeriod:     retDuration,
 		}
 		if err := m.metaSvc.CreateBucket(context.Background(), bucket); err != nil {
 			return 0, err
@@ -281,6 +297,40 @@ func (m *Migrator) createBucket(db, rp string) (influxdb.ID, error) {
 	}
 
 	return bucket.ID, nil
+}
+
+// Load and extract retention policy from meta.db
+func (m *Migrator) getRetentionPolicy(dbFilter, rpFilter string) (*RetentionPolicyInfo, error) {
+	file := filepath.Join(m.SourcePath, "meta/"+metaFile)
+
+	f, err := os.Open(file)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, err
+		}
+		return nil, err
+	}
+	defer f.Close()
+
+	data, err := ioutil.ReadAll(f)
+	if err != nil {
+		return nil, err
+	}
+
+	var cacheData = new(Data)
+	cacheData.UnmarshalBinary(data)
+
+	for _, database := range cacheData.Databases {
+		if database.Name == dbFilter {
+			for _, retPolicy := range database.RetentionPolicies {
+				if retPolicy.Name == rpFilter {
+					return &retPolicy, nil
+				}
+			}
+		}
+	}
+
+	return nil, errors.New("Unable to find retention policy")
 }
 
 // Process1xShard migrates the TSM data in a single 1.x shard to the 2.x data directory.
