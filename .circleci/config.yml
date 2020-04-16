@@ -527,6 +527,8 @@ workflows:
             - jslint
           filters:
             branches:
+              only:
+                - feat/use-algo-w
               ignore: /.*/
             tags:
               only: /^v[0-9]+\.[0-9]+\.[0-9]+-(alpha|beta)\.[0-9]+$/
