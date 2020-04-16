@@ -87,38 +87,23 @@ export class Signin extends PureComponent<Props, State> {
 
       const config = await getAuth0Config()
       if (CLOUD && config.socialSignUpOn) {
-        // The redirectUri must be the same as the url for the origin of the request
-        // otherwise there's a mismatch and Auth0 cannot validate the response
-        const redirectUri = window.location.href
         // The responseType is arbitrary as it needs to be a non-empty, non "code" value:
         // https://auth0.github.io/auth0.js/web-auth_index.js.html#line564
-        const responseType = 'token'
-
         const auth0 = new auth0js.WebAuth({
           domain: config.domain,
           clientID: config.clientID,
           state: config.state,
-          redirectUri,
-          responseType,
+          redirectUri: config.redirectURL,
+          responseType: 'token',
         })
-        // This is the result of JS & Auth0 weirdness
-        return new Promise((resolve, reject) => {
-          // The TLDR is that checkSession is not awaiting the callback to complete
-          // So checkSession can return a successful response and continue with the operation
-          // without the callback being completely finished
-          return auth0.checkSession({}, (error, webResponse) => {
+
+        auth0.checkSession({}, (error) => {
             if (error) {
-              reject(error)
+              this.setState({loading: RemoteDataState.Error})
+              console.error(error)
+              return
             }
-            resolve(webResponse)
-          })
         })
-          .then(() => {
-            window.location.pathname = CLOUD_SIGNIN_PATHNAME
-          })
-          .catch(() => {
-            this.props.router.replace('/login')
-          })
       }
 
       // TODO: add returnTo to CLOUD signin
