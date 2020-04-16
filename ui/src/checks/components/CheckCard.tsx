@@ -4,7 +4,15 @@ import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
-import {SlideToggle, ComponentSize, ResourceCard} from '@influxdata/clockface'
+import {
+  SlideToggle,
+  ComponentSize,
+  ResourceCard,
+  FlexBox,
+  FlexDirection,
+  AlignItems,
+  JustifyContent,
+} from '@influxdata/clockface'
 import CheckCardContext from 'src/checks/components/CheckCardContext'
 import InlineLabels from 'src/shared/components/inlineLabels/InlineLabels'
 import LastRunTaskStatus from 'src/shared/components/lastRunTaskStatus/LastRunTaskStatus'
@@ -116,7 +124,42 @@ const CheckCard: FC<Props> = ({
     <ResourceCard
       key={`check-id--${id}`}
       testID="check-card"
-      name={
+      disabled={activeStatus === 'inactive'}
+      direction={FlexDirection.Row}
+      alignItems={AlignItems.Center}
+      margin={ComponentSize.Large}
+      contextMenu={
+        <CheckCardContext
+          onView={onView}
+          onDelete={onDelete}
+          onClone={onClone}
+        />
+      }
+    >
+      <FlexBox
+        direction={FlexDirection.Column}
+        justifyContent={JustifyContent.Center}
+        margin={ComponentSize.Medium}
+        alignItems={AlignItems.FlexStart}
+      >
+        <SlideToggle
+          active={activeStatus === 'active'}
+          size={ComponentSize.ExtraSmall}
+          onChange={onToggle}
+          testID="check-card--slide-toggle"
+          style={{flexBasis: '16px'}}
+        />
+        <LastRunTaskStatus
+          key={2}
+          lastRunError={check.lastRunError}
+          lastRunStatus={check.lastRunStatus}
+        />
+      </FlexBox>
+      <FlexBox
+        direction={FlexDirection.Column}
+        margin={ComponentSize.Small}
+        alignItems={AlignItems.FlexStart}
+      >
         <ResourceCard.EditableName
           onUpdate={onUpdateName}
           onClick={onCheckClick}
@@ -126,47 +169,22 @@ const CheckCard: FC<Props> = ({
           buttonTestID="check-card--name-button"
           inputTestID="check-card--input"
         />
-      }
-      toggle={
-        <SlideToggle
-          active={activeStatus === 'active'}
-          size={ComponentSize.ExtraSmall}
-          onChange={onToggle}
-          testID="check-card--slide-toggle"
-        />
-      }
-      description={
         <ResourceCard.EditableDescription
           onUpdate={onUpdateDescription}
           description={description}
           placeholder={`Describe ${name}`}
         />
-      }
-      labels={
+        <ResourceCard.Meta>
+          <>Last completed at {check.latestCompleted}</>
+          <>{relativeTimestampFormatter(check.updatedAt, 'Last updated ')}</>
+        </ResourceCard.Meta>
         <InlineLabels
           selectedLabelIDs={check.labels}
           onAddLabel={handleAddCheckLabel}
           onRemoveLabel={handleRemoveCheckLabel}
         />
-      }
-      disabled={activeStatus === 'inactive'}
-      contextMenu={
-        <CheckCardContext
-          onView={onView}
-          onDelete={onDelete}
-          onClone={onClone}
-        />
-      }
-      metaData={[
-        <>Last completed at {check.latestCompleted}</>,
-        <>{relativeTimestampFormatter(check.updatedAt, 'Last updated ')}</>,
-        <LastRunTaskStatus
-          key={2}
-          lastRunError={check.lastRunError}
-          lastRunStatus={check.lastRunStatus}
-        />,
-      ]}
-    />
+      </FlexBox>
+    </ResourceCard>
   )
 }
 

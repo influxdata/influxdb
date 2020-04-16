@@ -11,6 +11,8 @@ import {
   IconFont,
   InputLabel,
   FlexBox,
+  AlignItems,
+  FlexDirection,
 } from '@influxdata/clockface'
 import {Context} from 'src/clockface'
 import InlineLabels from 'src/shared/components/inlineLabels/InlineLabels'
@@ -56,9 +58,20 @@ export class TaskCard extends PureComponent<Props & WithRouterProps> {
       <ResourceCard
         testID="task-card"
         disabled={!this.isTaskActive}
-        labels={this.labels}
         contextMenu={this.contextMenu}
-        name={
+        alignItems={AlignItems.Center}
+        margin={ComponentSize.Large}
+        direction={FlexDirection.Row}
+      >
+        <LastRunTaskStatus
+          lastRunError={task.lastRunError}
+          lastRunStatus={task.lastRunStatus}
+        />
+        <FlexBox
+          alignItems={AlignItems.FlexStart}
+          direction={FlexDirection.Column}
+          margin={ComponentSize.Medium}
+        >
           <ResourceCard.EditableName
             onClick={this.handleNameClick}
             onUpdate={this.handleRenameTask}
@@ -68,19 +81,14 @@ export class TaskCard extends PureComponent<Props & WithRouterProps> {
             buttonTestID="task-card--name-button"
             inputTestID="task-card--input"
           />
-        }
-        metaData={[
-          this.activeToggle,
-          <>Last completed at {task.latestCompleted}</>,
-          <>{`Scheduled to run ${this.schedule}`}</>,
-        ]}
-        toggle={
-          <LastRunTaskStatus
-            lastRunError={task.lastRunError}
-            lastRunStatus={task.lastRunStatus}
-          />
-        }
-      />
+          <ResourceCard.Meta>
+            {this.activeToggle}
+            <>Last completed at {task.latestCompleted}</>
+            <>{`Scheduled to run ${this.schedule}`}</>
+          </ResourceCard.Meta>
+          {this.labels}
+        </FlexBox>
+      </ResourceCard>
     )
   }
 

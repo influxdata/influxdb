@@ -46,19 +46,15 @@ class StaticTemplateCard extends PureComponent<Props & WithRouterProps> {
     const {template} = this.props
 
     return (
-      <ResourceCard
-        testID="template-card"
-        contextMenu={this.contextMenu}
-        description={this.description}
-        name={
-          <ResourceCard.Name
-            onClick={this.handleNameClick}
-            name={template.meta.name}
-            testID="template-card--name"
-          />
-        }
-        metaData={[this.templateType]}
-      />
+      <ResourceCard testID="template-card" contextMenu={this.contextMenu}>
+        <ResourceCard.Name
+          onClick={this.handleNameClick}
+          name={template.meta.name}
+          testID="template-card--name"
+        />
+        {this.description}
+        <ResourceCard.Meta>{[this.templateType]}</ResourceCard.Meta>
+      </ResourceCard>
     )
   }
 

@@ -60,8 +60,15 @@ class LoadDataNavigation extends PureComponent<Props> {
       },
     ]
 
+    const activeTabName = tabs.find(t => t.id === activeTab).text
+
     return (
-      <Tabs orientation={Orientation.Horizontal} size={ComponentSize.Large}>
+      <Tabs
+        orientation={Orientation.Horizontal}
+        size={ComponentSize.Large}
+        dropdownBreakpoint={872}
+        dropdownLabel={activeTabName}
+      >
         {tabs.map(t => {
           let tabElement = (
             <Tabs.Tab

@@ -159,15 +159,13 @@ const BucketCard: FC<Props & WithRouterProps & DispatchProps> = ({
           <BucketContextMenu bucket={bucket} onDeleteBucket={onDeleteBucket} />
         )
       }
-      name={
-        <ResourceCard.Name
-          testID={`bucket--card--name ${bucket.name}`}
-          onClick={handleNameClick}
-          name={bucket.name}
-        />
-      }
-      metaData={cardMetaItems}
     >
+      <ResourceCard.Name
+        testID={`bucket--card--name ${bucket.name}`}
+        onClick={handleNameClick}
+        name={bucket.name}
+      />
+      <ResourceCard.Meta>{cardMetaItems}</ResourceCard.Meta>
       {bucket.type === 'user' && actionButtons}
     </ResourceCard>
   )
