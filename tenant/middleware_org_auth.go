@@ -5,6 +5,7 @@ import (
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/authorizer"
+	icontext "github.com/influxdata/influxdb/v2/context"
 )
 
 var _ influxdb.OrganizationService = (*AuthedOrgService)(nil)
@@ -46,8 +47,18 @@ func (s *AuthedOrgService) FindOrganization(ctx context.Context, filter influxdb
 
 // FindOrganizations retrieves all organizations that match the provided filter and then filters the list down to only the resources that are authorized.
 func (s *AuthedOrgService) FindOrganizations(ctx context.Context, filter influxdb.OrganizationFilter, opt ...influxdb.FindOptions) ([]*influxdb.Organization, int, error) {
-	// TODO: we'll likely want to push this operation into the database eventually since fetching the whole list of data
-	// will likely be expensive.
+	if filter.Name == nil && filter.ID == nil && filter.UserID == nil {
+		// if the user doesnt have permission to look up all orgs we need to add this users id to the filter to save lookup time
+		auth, err := icontext.GetAuthorizer(ctx)
+		if err != nil {
+			return nil, 0, err
+		}
+		if _, _, err := authorizer.AuthorizeReadGlobal(ctx, influxdb.OrgsResourceType); err != nil {
+			userid := auth.GetUserID()
+			filter.UserID = &userid
+		}
+	}
+
 	os, _, err := s.s.FindOrganizations(ctx, filter, opt...)
 	if err != nil {
 		return nil, 0, err

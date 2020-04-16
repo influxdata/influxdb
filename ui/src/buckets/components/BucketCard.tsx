@@ -88,6 +88,13 @@ const BucketCard: FC<Props & WithRouterProps & DispatchProps> = ({
     )
   }
 
+  const handleAddClientLibrary = (): void => {
+    onSetDataLoadersBucket(orgID, bucket.name, bucket.id)
+    onSetDataLoadersType(DataLoaderType.ClientLibrary)
+
+    router.push(`/orgs/${orgID}/load-data/client-libraries`)
+  }
+
   const handleAddScraper = () => {
     onSetDataLoadersBucket(orgID, bucket.name, bucket.id)
 
@@ -110,6 +117,7 @@ const BucketCard: FC<Props & WithRouterProps & DispatchProps> = ({
       <BucketAddDataButton
         onAddCollector={handleAddCollector}
         onAddLineProtocol={handleAddLineProtocol}
+        onAddClientLibrary={handleAddClientLibrary}
         onAddScraper={handleAddScraper}
       />
       <Button

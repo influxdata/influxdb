@@ -236,6 +236,29 @@ func (s *Service) FindOrganizations(ctx context.Context, filter influxdb.Organiz
 	}
 
 	os := []*influxdb.Organization{}
+
+	if filter.UserID != nil {
+		// find urms for orgs with this user
+		urms, _, err := s.FindUserResourceMappings(ctx, influxdb.UserResourceMappingFilter{
+			UserID:       *filter.UserID,
+			ResourceType: influxdb.OrgsResourceType,
+		}, opt...)
+
+		if err != nil {
+			return nil, 0, err
+		}
+		// find orgs by the urm's resource ids.
+		for _, urm := range urms {
+			o, err := s.FindOrganizationByID(ctx, urm.ResourceID)
+			if err == nil {
+				// if there is an error then this is a crufty urm and we should just move on
+				os = append(os, o)
+			}
+		}
+
+		return os, len(os), nil
+	}
+
 	filterFn := filterOrganizationsFn(filter)
 	err := s.kv.View(ctx, func(tx Tx) error {
 		return forEachOrganization(ctx, tx, func(o *influxdb.Organization) bool {

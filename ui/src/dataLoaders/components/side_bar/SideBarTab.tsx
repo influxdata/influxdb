@@ -3,7 +3,7 @@ import React, {Component} from 'react'
 import classnames from 'classnames'
 
 // Types
-import {IconFont} from 'src/clockface'
+import {Icon, IconFont} from '@influxdata/clockface'
 import {SideBarTabStatus as TabStatus} from 'src/dataLoaders/components/side_bar/SideBar'
 
 interface Props {
@@ -20,8 +20,9 @@ class SideBarTab extends Component<Props> {
 
     return (
       <div className={this.className} onClick={this.handleClick}>
-        {this.icon}
-        {label}
+        <pre>
+          {this.icon} {label}
+        </pre>
       </div>
     )
   }
@@ -45,24 +46,16 @@ class SideBarTab extends Component<Props> {
 
   private get icon(): JSX.Element {
     const {status} = this.props
-    let icon
 
     switch (status) {
       case TabStatus.Pending:
       case TabStatus.Success:
-        icon = `side-bar--icon icon ${IconFont.Checkmark}`
-        break
+        return <Icon glyph={IconFont.Checkmark} />
       case TabStatus.Error:
-        icon = `side-bar--icon icon ${IconFont.Remove}`
-        break
-      case TabStatus.Default:
-        icon = `side-bar--icon icon ${IconFont.CircleThick}`
-        break
+        return <Icon glyph={IconFont.Remove} />
       default:
-        icon = `side-bar--icon`
+        return <Icon glyph={IconFont.CircleThick} />
     }
-
-    return <span className={icon} />
   }
 }
 

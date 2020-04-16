@@ -8,22 +8,28 @@ import (
 )
 
 type stateCoordinator struct {
-	mBuckets   map[string]*stateBucket
-	mChecks    map[string]*stateCheck
-	mEndpoints map[string]*stateEndpoint
-	mLabels    map[string]*stateLabel
-	mVariables map[string]*stateVariable
+	mBuckets    map[string]*stateBucket
+	mChecks     map[string]*stateCheck
+	mDashboards map[string]*stateDashboard
+	mEndpoints  map[string]*stateEndpoint
+	mLabels     map[string]*stateLabel
+	mTasks      map[string]*stateTask
+	mTelegrafs  map[string]*stateTelegraf
+	mVariables  map[string]*stateVariable
 
 	labelMappings []stateLabelMapping
 }
 
 func newStateCoordinator(pkg *Pkg) *stateCoordinator {
 	state := stateCoordinator{
-		mBuckets:   make(map[string]*stateBucket),
-		mChecks:    make(map[string]*stateCheck),
-		mEndpoints: make(map[string]*stateEndpoint),
-		mLabels:    make(map[string]*stateLabel),
-		mVariables: make(map[string]*stateVariable),
+		mBuckets:    make(map[string]*stateBucket),
+		mChecks:     make(map[string]*stateCheck),
+		mDashboards: make(map[string]*stateDashboard),
+		mEndpoints:  make(map[string]*stateEndpoint),
+		mLabels:     make(map[string]*stateLabel),
+		mTasks:      make(map[string]*stateTask),
+		mTelegrafs:  make(map[string]*stateTelegraf),
+		mVariables:  make(map[string]*stateVariable),
 	}
 
 	for _, pkgBkt := range pkg.buckets() {
@@ -38,6 +44,12 @@ func newStateCoordinator(pkg *Pkg) *stateCoordinator {
 			stateStatus: StateStatusNew,
 		}
 	}
+	for _, pkgDash := range pkg.dashboards() {
+		state.mDashboards[pkgDash.PkgName()] = &stateDashboard{
+			parserDash:  pkgDash,
+			stateStatus: StateStatusNew,
+		}
+	}
 	for _, pkgEndpoint := range pkg.notificationEndpoints() {
 		state.mEndpoints[pkgEndpoint.PkgName()] = &stateEndpoint{
 			parserEndpoint: pkgEndpoint,
@@ -48,6 +60,18 @@ func newStateCoordinator(pkg *Pkg) *stateCoordinator {
 		state.mLabels[pkgLabel.PkgName()] = &stateLabel{
 			parserLabel: pkgLabel,
 			stateStatus: StateStatusNew,
+		}
+	}
+	for _, pkgTask := range pkg.tasks() {
+		state.mTasks[pkgTask.PkgName()] = &stateTask{
+			parserTask:  pkgTask,
+			stateStatus: StateStatusNew,
+		}
+	}
+	for _, pkgTele := range pkg.telegrafs() {
+		state.mTelegrafs[pkgTele.PkgName()] = &stateTelegraf{
+			parserTelegraf: pkgTele,
+			stateStatus:    StateStatusNew,
 		}
 	}
 	for _, pkgVar := range pkg.variables() {
@@ -76,6 +100,14 @@ func (s *stateCoordinator) checks() []*stateCheck {
 	return out
 }
 
+func (s *stateCoordinator) dashboards() []*stateDashboard {
+	out := make([]*stateDashboard, 0, len(s.mDashboards))
+	for _, d := range s.mDashboards {
+		out = append(out, d)
+	}
+	return out
+}
+
 func (s *stateCoordinator) endpoints() []*stateEndpoint {
 	out := make([]*stateEndpoint, 0, len(s.mEndpoints))
 	for _, e := range s.mEndpoints {
@@ -88,6 +120,22 @@ func (s *stateCoordinator) labels() []*stateLabel {
 	out := make([]*stateLabel, 0, len(s.mLabels))
 	for _, v := range s.mLabels {
 		out = append(out, v)
+	}
+	return out
+}
+
+func (s *stateCoordinator) tasks() []*stateTask {
+	out := make([]*stateTask, 0, len(s.mTasks))
+	for _, t := range s.mTasks {
+		out = append(out, t)
+	}
+	return out
+}
+
+func (s *stateCoordinator) telegrafConfigs() []*stateTelegraf {
+	out := make([]*stateTelegraf, 0, len(s.mTelegrafs))
+	for _, t := range s.mTelegrafs {
+		out = append(out, t)
 	}
 	return out
 }
@@ -116,6 +164,13 @@ func (s *stateCoordinator) diff() Diff {
 		return diff.Checks[i].PkgName < diff.Checks[j].PkgName
 	})
 
+	for _, d := range s.mDashboards {
+		diff.Dashboards = append(diff.Dashboards, d.diffDashboard())
+	}
+	sort.Slice(diff.Dashboards, func(i, j int) bool {
+		return diff.Dashboards[i].PkgName < diff.Dashboards[j].PkgName
+	})
+
 	for _, e := range s.mEndpoints {
 		diff.NotificationEndpoints = append(diff.NotificationEndpoints, e.diffEndpoint())
 	}
@@ -128,6 +183,20 @@ func (s *stateCoordinator) diff() Diff {
 	}
 	sort.Slice(diff.Labels, func(i, j int) bool {
 		return diff.Labels[i].PkgName < diff.Labels[j].PkgName
+	})
+
+	for _, t := range s.mTasks {
+		diff.Tasks = append(diff.Tasks, t.diffTask())
+	}
+	sort.Slice(diff.Tasks, func(i, j int) bool {
+		return diff.Tasks[i].PkgName < diff.Tasks[j].PkgName
+	})
+
+	for _, t := range s.mTelegrafs {
+		diff.Telegrafs = append(diff.Telegrafs, t.diffTelegraf())
+	}
+	sort.Slice(diff.Telegrafs, func(i, j int) bool {
+		return diff.Telegrafs[i].PkgName < diff.Telegrafs[j].PkgName
 	})
 
 	for _, v := range s.mVariables {
@@ -182,12 +251,25 @@ func (s *stateCoordinator) summary() Summary {
 		return sum.Checks[i].PkgName < sum.Checks[j].PkgName
 	})
 
+	for _, d := range s.mDashboards {
+		if IsRemoval(d.stateStatus) {
+			continue
+		}
+		sum.Dashboards = append(sum.Dashboards, d.summarize())
+	}
+	sort.Slice(sum.Dashboards, func(i, j int) bool {
+		return sum.Dashboards[i].PkgName < sum.Dashboards[j].PkgName
+	})
+
 	for _, e := range s.mEndpoints {
 		if IsRemoval(e.stateStatus) {
 			continue
 		}
 		sum.NotificationEndpoints = append(sum.NotificationEndpoints, e.summarize())
 	}
+	sort.Slice(sum.NotificationEndpoints, func(i, j int) bool {
+		return sum.NotificationEndpoints[i].PkgName < sum.NotificationEndpoints[j].PkgName
+	})
 
 	for _, v := range s.mLabels {
 		if IsRemoval(v.stateStatus) {
@@ -197,6 +279,26 @@ func (s *stateCoordinator) summary() Summary {
 	}
 	sort.Slice(sum.Labels, func(i, j int) bool {
 		return sum.Labels[i].PkgName < sum.Labels[j].PkgName
+	})
+
+	for _, t := range s.mTasks {
+		if IsRemoval(t.stateStatus) {
+			continue
+		}
+		sum.Tasks = append(sum.Tasks, t.summarize())
+	}
+	sort.Slice(sum.Tasks, func(i, j int) bool {
+		return sum.Tasks[i].PkgName < sum.Tasks[j].PkgName
+	})
+
+	for _, t := range s.mTelegrafs {
+		if IsRemoval(t.stateStatus) {
+			continue
+		}
+		sum.TelegrafConfigs = append(sum.TelegrafConfigs, t.summarize())
+	}
+	sort.Slice(sum.TelegrafConfigs, func(i, j int) bool {
+		return sum.TelegrafConfigs[i].PkgName < sum.TelegrafConfigs[j].PkgName
 	})
 
 	for _, v := range s.mVariables {
@@ -281,6 +383,18 @@ func (s *stateCoordinator) addObjectForRemoval(k Kind, pkgName string, id influx
 			parserEndpoint: &notificationEndpoint{identity: newIdentity},
 			stateStatus:    StateStatusRemove,
 		}
+	case KindTask:
+		s.mTasks[pkgName] = &stateTask{
+			id:          id,
+			parserTask:  &task{identity: newIdentity},
+			stateStatus: StateStatusRemove,
+		}
+	case KindTelegraf:
+		s.mTelegrafs[pkgName] = &stateTelegraf{
+			id:             id,
+			parserTelegraf: &telegraf{identity: newIdentity},
+			stateStatus:    StateStatusRemove,
+		}
 	case KindVariable:
 		s.mVariables[pkgName] = &stateVariable{
 			id:          id,
@@ -315,6 +429,18 @@ func (s *stateCoordinator) getObjectIDSetter(k Kind, pkgName string) (func(influ
 		KindNotificationEndpointPagerDuty,
 		KindNotificationEndpointSlack:
 		r, ok := s.mEndpoints[pkgName]
+		return func(id influxdb.ID) {
+			r.id = id
+			r.stateStatus = StateStatusExists
+		}, ok
+	case KindTask:
+		r, ok := s.mTasks[pkgName]
+		return func(id influxdb.ID) {
+			r.id = id
+			r.stateStatus = StateStatusExists
+		}, ok
+	case KindTelegraf:
+		r, ok := s.mTelegrafs[pkgName]
 		return func(id influxdb.ID) {
 			r.id = id
 			r.stateStatus = StateStatusExists
@@ -476,6 +602,99 @@ func (c *stateCheck) summarize() SummaryCheck {
 	}
 	sum.Check.SetID(c.id)
 	sum.Check.SetOrgID(c.orgID)
+	return sum
+}
+
+type stateDashboard struct {
+	id, orgID   influxdb.ID
+	stateStatus StateStatus
+
+	parserDash *dashboard
+	existing   *influxdb.Dashboard
+}
+
+func (d *stateDashboard) ID() influxdb.ID {
+	if IsExisting(d.stateStatus) && d.existing != nil {
+		return d.existing.ID
+	}
+	return d.id
+}
+
+func (d *stateDashboard) labels() []*label {
+	return d.parserDash.labels
+}
+
+func (d *stateDashboard) resourceType() influxdb.ResourceType {
+	return KindDashboard.ResourceType()
+}
+
+func (d *stateDashboard) stateIdentity() stateIdentity {
+	return stateIdentity{
+		id:           d.ID(),
+		name:         d.parserDash.Name(),
+		pkgName:      d.parserDash.PkgName(),
+		resourceType: d.resourceType(),
+		stateStatus:  d.stateStatus,
+	}
+}
+
+func (d *stateDashboard) diffDashboard() DiffDashboard {
+	diff := DiffDashboard{
+		DiffIdentifier: DiffIdentifier{
+			ID:          SafeID(d.ID()),
+			Remove:      IsRemoval(d.stateStatus),
+			StateStatus: d.stateStatus,
+			PkgName:     d.parserDash.PkgName(),
+		},
+		New: DiffDashboardValues{
+			Name:   d.parserDash.Name(),
+			Desc:   d.parserDash.Description,
+			Charts: make([]DiffChart, 0, len(d.parserDash.Charts)),
+		},
+	}
+
+	for _, c := range d.parserDash.Charts {
+		diff.New.Charts = append(diff.New.Charts, DiffChart{
+			Properties: c.properties(),
+			Height:     c.Height,
+			Width:      c.Width,
+		})
+	}
+
+	if d.existing == nil {
+		return diff
+	}
+
+	oldDiff := DiffDashboardValues{
+		Name:   d.existing.Name,
+		Desc:   d.existing.Description,
+		Charts: make([]DiffChart, 0, len(d.existing.Cells)),
+	}
+
+	for _, c := range d.existing.Cells {
+		var props influxdb.ViewProperties
+		if c.View != nil {
+			props = c.View.Properties
+		}
+
+		oldDiff.Charts = append(oldDiff.Charts, DiffChart{
+			Properties: props,
+			XPosition:  int(c.X),
+			YPosition:  int(c.Y),
+			Height:     int(c.H),
+			Width:      int(c.W),
+		})
+	}
+
+	diff.Old = &oldDiff
+
+	return diff
+}
+
+func (d *stateDashboard) summarize() SummaryDashboard {
+	sum := d.parserDash.summarize()
+	sum.ID = SafeID(d.ID())
+	sum.OrgID = SafeID(d.orgID)
 	return sum
 }
 
@@ -661,6 +880,132 @@ func (e *stateEndpoint) summarize() SummaryNotificationEndpoint {
 	if e.orgID != 0 {
 		sum.NotificationEndpoint.SetOrgID(e.orgID)
 	}
+	return sum
+}
+
+type stateTask struct {
+	id, orgID   influxdb.ID
+	stateStatus StateStatus
+
+	parserTask *task
+	existing   *influxdb.Task
+}
+
+func (t *stateTask) ID() influxdb.ID {
+	if !IsNew(t.stateStatus) && t.existing != nil {
+		return t.existing.ID
+	}
+	return t.id
+}
+
+func (t *stateTask) diffTask() DiffTask {
+	diff := DiffTask{
+		DiffIdentifier: DiffIdentifier{
+			ID:      SafeID(t.ID()),
+			Remove:  IsRemoval(t.stateStatus),
+			PkgName: t.parserTask.PkgName(),
+		},
+		New: DiffTaskValues{
+			Name:        t.parserTask.Name(),
+			Cron:        t.parserTask.cron,
+			Description: t.parserTask.description,
+			Every:       durToStr(t.parserTask.every),
+			Offset:      durToStr(t.parserTask.offset),
+			Query:       t.parserTask.query,
+			Status:      t.parserTask.Status(),
+		},
+	}
+
+	if t.existing == nil {
+		return diff
+	}
+
+	diff.Old = &DiffTaskValues{
+		Name:        t.existing.Name,
+		Cron:        t.existing.Cron,
+		Description: t.existing.Description,
+		Every:       t.existing.Every,
+		Offset:      t.existing.Offset.String(),
+		Query:       t.existing.Flux,
+		Status:      influxdb.Status(t.existing.Status),
+	}
+
+	return diff
+}
+
+func (t *stateTask) labels() []*label {
+	return t.parserTask.labels
+}
+
+func (t *stateTask) resourceType() influxdb.ResourceType {
+	return influxdb.TasksResourceType
+}
+
+func (t *stateTask) stateIdentity() stateIdentity {
+	return stateIdentity{
+		id:           t.ID(),
+		name:         t.parserTask.Name(),
+		pkgName:      t.parserTask.PkgName(),
+		resourceType: t.resourceType(),
+		stateStatus:  t.stateStatus,
+	}
+}
+
+func (t *stateTask) summarize() SummaryTask {
+	sum := t.parserTask.summarize()
+	sum.ID = SafeID(t.id)
+	return sum
+}
+
+type stateTelegraf struct {
+	id, orgID   influxdb.ID
+	stateStatus StateStatus
+
+	parserTelegraf *telegraf
+	existing       *influxdb.TelegrafConfig
+}
+
+func (t *stateTelegraf) ID() influxdb.ID {
+	if !IsNew(t.stateStatus) && t.existing != nil {
+		return t.existing.ID
+	}
+	return t.id
+}
+
+func (t *stateTelegraf) diffTelegraf() DiffTelegraf {
+	return DiffTelegraf{
+		DiffIdentifier: DiffIdentifier{
+			ID:      SafeID(t.ID()),
+			Remove:  IsRemoval(t.stateStatus),
+			PkgName: t.parserTelegraf.PkgName(),
+		},
+		New: t.parserTelegraf.config,
+		Old: t.existing,
+	}
+}
+
+func (t *stateTelegraf) labels() []*label {
+	return t.parserTelegraf.labels
+}
+
+func (t *stateTelegraf) resourceType() influxdb.ResourceType {
+	return influxdb.TelegrafsResourceType
+}
+
+func (t *stateTelegraf) stateIdentity() stateIdentity {
+	return stateIdentity{
+		id:           t.ID(),
+		name:         t.parserTelegraf.Name(),
+		pkgName:      t.parserTelegraf.PkgName(),
+		resourceType: t.resourceType(),
+		stateStatus:  t.stateStatus,
+	}
+}
+
+func (t *stateTelegraf) summarize() SummaryTelegraf {
+	sum := t.parserTelegraf.summarize()
+	sum.TelegrafConfig.ID = t.id
+	sum.TelegrafConfig.OrgID = t.orgID
 	return sum
 }
 
