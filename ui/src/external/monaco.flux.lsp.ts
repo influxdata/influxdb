@@ -26,6 +26,19 @@ export function registerCompletion(monaco: MonacoType, server: LSPServer) {
     },
   })
 
+  monaco.languages.registerDocumentFormattingEditProvider(FLUXLANGID, {
+    provideDocumentFormattingEdits: async (model, _context, _token) => {
+      try {
+        const uri = model.uri.toString()
+        const edits = await server.formatting(uri)
+
+        return p2m.asTextEdits(edits)
+      } catch (e) {
+        return []
+      }
+    },
+  })
+
   monaco.languages.registerFoldingRangeProvider(FLUXLANGID, {
     provideFoldingRanges: async (model, _context, _token) => {
       try {
@@ -116,6 +129,6 @@ export function registerCompletion(monaco: MonacoType, server: LSPServer) {
       })
       return p2m.asCompletionResult(items, defaultRange)
     },
-    triggerCharacters: ['.', ':', '(', ','],
+    triggerCharacters: ['.', ':', '(', ',', '"'],
   })
 }
