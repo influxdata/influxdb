@@ -1,7 +1,7 @@
 // Libraries
 import React, {PureComponent, MouseEvent} from 'react'
 import {connect} from 'react-redux'
-import {get} from 'lodash'
+import {get, capitalize} from 'lodash'
 import {withRouter, WithRouterProps} from 'react-router'
 import {
   Button,
@@ -72,7 +72,9 @@ class TemplateCard extends PureComponent<Props & WithRouterProps> {
           inputTestID="template-card--input"
         />
         {this.description}
-        <ResourceCard.Meta>{[this.templateType]}</ResourceCard.Meta>
+        <ResourceCard.Meta>
+          {capitalize(get(template, 'content.data.type', ''))}
+        </ResourceCard.Meta>
         <InlineLabels
           selectedLabelIDs={template.labels}
           onFilterChange={onFilterChange}

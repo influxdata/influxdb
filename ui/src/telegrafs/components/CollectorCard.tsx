@@ -67,22 +67,18 @@ class CollectorRow extends PureComponent<Props & WithRouterProps> {
           placeholder={`Describe ${collector.name}`}
         />
         <ResourceCard.Meta>
-          {[
-            <span key={`bucket-key--${collector.id}`} data-testid="bucket-name">
-              {/* todo(glinton): verify what sets this. It seems like it is using the 'config' section of 'influxdb_v2' output?? */}
-              Bucket: {collector.metadata.buckets.join(', ')}
-            </span>,
-            <>
-              <Link
-                to={`/orgs/${org.id}/load-data/telegrafs/${
-                  collector.id
-                }/instructions`}
-                data-testid="setup-instructions-link"
-              >
-                Setup Instructions
-              </Link>
-            </>,
-          ]}
+          <span key={`bucket-key--${collector.id}`} data-testid="bucket-name">
+            {/* todo(glinton): verify what sets this. It seems like it is using the 'config' section of 'influxdb_v2' output?? */}
+            Bucket: {collector.metadata.buckets.join(', ')}
+          </span>
+          <Link
+            to={`/orgs/${org.id}/load-data/telegrafs/${
+              collector.id
+            }/instructions`}
+            data-testid="setup-instructions-link"
+          >
+            Setup Instructions
+          </Link>
         </ResourceCard.Meta>
         {this.labels}
       </ResourceCard>

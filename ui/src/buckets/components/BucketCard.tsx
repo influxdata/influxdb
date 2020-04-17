@@ -137,6 +137,30 @@ const BucketCard: FC<Props & WithRouterProps & DispatchProps> = ({
     </FlexBox>
   )
 
+  let cardMeta = (
+    <ResourceCard.Meta>
+      <span data-testid="bucket-retention">
+        Retention: {_.capitalize(bucket.readableRetention)}
+      </span>
+    </ResourceCard.Meta>
+  )
+
+  if (bucket.type !== 'user') {
+    cardMeta = (
+      <ResourceCard.Meta>
+        <span
+          className="system-bucket"
+          key={`system-bucket-indicator-${bucket.id}`}
+        >
+          System Bucket
+        </span>
+        <span data-testid="bucket-retention">
+          Retention: {_.capitalize(bucket.readableRetention)}
+        </span>
+      </ResourceCard.Meta>
+    )
+  }
+
   return (
     <ResourceCard
       testID={`bucket-card ${bucket.name}`}
@@ -151,19 +175,7 @@ const BucketCard: FC<Props & WithRouterProps & DispatchProps> = ({
         onClick={handleNameClick}
         name={bucket.name}
       />
-      <ResourceCard.Meta>
-        {bucket.type !== 'user' && (
-          <span
-            className="system-bucket"
-            key={`system-bucket-indicator-${bucket.id}`}
-          >
-            System Bucket
-          </span>
-        )}
-        <span data-testid="bucket-retention">
-          Retention: {bucket.readableRetention}
-        </span>
-      </ResourceCard.Meta>
+      {cardMeta}
       {bucket.type === 'user' && actionButtons}
     </ResourceCard>
   )
