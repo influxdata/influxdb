@@ -86,27 +86,6 @@ export class Signin extends PureComponent<Props, State> {
       clearInterval(this.intervalID)
 
       if (CLOUD) {
-        const config = await getAuth0Config()
-        if (config.socialSignUpOn) {
-          // The responseType is arbitrary as it needs to be a non-empty, non "code" value:
-          // https://auth0.github.io/auth0.js/web-auth_index.js.html#line564
-          const auth0 = new auth0js.WebAuth({
-            domain: config.domain,
-            clientID: config.clientID,
-            state: config.state,
-            redirectUri: config.redirectURL,
-            responseType: 'token',
-          })
-
-          auth0.checkSession({}, error => {
-            if (error) {
-              this.setState({loading: RemoteDataState.Error})
-              console.error(error)
-              return
-            }
-          })
-        }
-
         // TODO: add returnTo to CLOUD signin
         window.location.pathname = CLOUD_SIGNIN_PATHNAME
         throw error
