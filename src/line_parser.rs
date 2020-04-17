@@ -36,6 +36,12 @@ pub enum Error {
         value: String,
     },
 
+    #[snafu(display(r#"Unable to parse timestamp value '{}'"#, value))]
+    TimestampValueInvalid {
+        source: std::num::ParseIntError,
+        value: String,
+    },
+
     // This error is for compatibility with the Go parser
     #[snafu(display(
         r#"Measurements, tag keys and values, and field keys may not end with a backslash"#
@@ -519,8 +525,8 @@ fn integral_value_common(i: &str) -> IResult<&str, &str> {
 }
 
 fn timestamp(i: &str) -> IResult<&str, i64> {
-    map(digit1, |f: &str| {
-        f.parse().expect("TODO: parsing timestamp failed")
+    map_fail(integral_value_common, |value| {
+        value.parse().context(TimestampValueInvalid { value })
     })(i)
 }
 
@@ -992,6 +998,32 @@ foo value2=2i 123"#;
         assert_eq!(vals[0].series(), "foo\tvalue1");
         assert_eq!(vals[0].time(), 555);
         assert_eq!(vals[0].i64_value().unwrap(), 1);
+
+        Ok(())
+    }
+
+    #[test]
+    fn parse_negative_timestamp() -> Result {
+        let input = r#"foo value1=1i -123"#;
+        let vals = parse(input)?;
+
+        assert_eq!(vals[0].series(), "foo\tvalue1");
+        assert_eq!(vals[0].time(), -123);
+        assert_eq!(vals[0].i64_value().unwrap(), 1);
+
+        Ok(())
+    }
+
+    #[test]
+    fn parse_out_of_range_timestamp() -> Result {
+        let input = "m0 field=1i 99999999999999999999999999999999";
+        let parsed = parse(input);
+
+        assert!(
+            matches!(parsed, Err(super::Error::TimestampValueInvalid { .. })),
+            "Wrong error: {:?}",
+            parsed,
+        );
 
         Ok(())
     }
