@@ -136,7 +136,11 @@ const BucketCard: FC<Props & WithRouterProps & DispatchProps> = ({
       </FeatureFlag>
     </FlexBox>
   )
-  const retention = <>Retention: {bucket.readableRetention}</>
+  const retention = (
+    <span data-testid="bucket-retention">
+      Retention: {bucket.readableRetention}
+    </span>
+  )
 
   const cardMetaItems =
     bucket.type === 'user'
