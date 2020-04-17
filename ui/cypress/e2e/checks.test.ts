@@ -120,6 +120,8 @@ describe('Checks', () => {
       cy.getByTestID('popover--dialog')
         .should('exist')
         .contains('Last Run Status:')
+        // Need to trigger mouseout else the popover obscures the other buttons
+        .trigger('mouseout')
 
       // create a label
       cy.getByTestID('check-card').within(() => {

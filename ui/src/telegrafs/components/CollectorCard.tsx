@@ -50,43 +50,38 @@ class CollectorRow extends PureComponent<Props & WithRouterProps> {
       <ResourceCard
         key={`telegraf-id--${collector.id}`}
         testID="resource-card"
-        name={
-          <ResourceCard.EditableName
-            onUpdate={this.handleUpdateName}
-            onClick={this.handleNameClick}
-            name={collector.name}
-            noNameString={DEFAULT_COLLECTOR_NAME}
-            testID="collector-card--name"
-            buttonTestID="collector-card--name-button"
-            inputTestID="collector-card--input"
-          />
-        }
-        description={
-          <ResourceCard.EditableDescription
-            onUpdate={this.handleUpdateDescription}
-            description={collector.description}
-            placeholder={`Describe ${collector.name}`}
-          />
-        }
-        labels={this.labels}
-        metaData={[
+        contextMenu={this.contextMenu}
+      >
+        <ResourceCard.EditableName
+          onUpdate={this.handleUpdateName}
+          onClick={this.handleNameClick}
+          name={collector.name}
+          noNameString={DEFAULT_COLLECTOR_NAME}
+          testID="collector-card--name"
+          buttonTestID="collector-card--name-button"
+          inputTestID="collector-card--input"
+        />
+        <ResourceCard.EditableDescription
+          onUpdate={this.handleUpdateDescription}
+          description={collector.description}
+          placeholder={`Describe ${collector.name}`}
+        />
+        <ResourceCard.Meta>
           <span key={`bucket-key--${collector.id}`} data-testid="bucket-name">
             {/* todo(glinton): verify what sets this. It seems like it is using the 'config' section of 'influxdb_v2' output?? */}
             Bucket: {collector.metadata.buckets.join(', ')}
-          </span>,
-          <>
-            <Link
-              to={`/orgs/${org.id}/load-data/telegrafs/${
-                collector.id
-              }/instructions`}
-              data-testid="setup-instructions-link"
-            >
-              Setup Instructions
-            </Link>
-          </>,
-        ]}
-        contextMenu={this.contextMenu}
-      />
+          </span>
+          <Link
+            to={`/orgs/${org.id}/load-data/telegrafs/${
+              collector.id
+            }/instructions`}
+            data-testid="setup-instructions-link"
+          >
+            Setup Instructions
+          </Link>
+        </ResourceCard.Meta>
+        {this.labels}
+      </ResourceCard>
     )
   }
 

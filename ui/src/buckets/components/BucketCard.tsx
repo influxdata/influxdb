@@ -136,20 +136,30 @@ const BucketCard: FC<Props & WithRouterProps & DispatchProps> = ({
       </FeatureFlag>
     </FlexBox>
   )
-  const retention = <>Retention: {bucket.readableRetention}</>
 
-  const cardMetaItems =
-    bucket.type === 'user'
-      ? [retention]
-      : [
-          <span
-            className="system-bucket"
-            key={`system-bucket-indicator-${bucket.id}`}
-          >
-            System Bucket
-          </span>,
-          retention,
-        ]
+  let cardMeta = (
+    <ResourceCard.Meta>
+      <span data-testid="bucket-retention">
+        Retention: {_.capitalize(bucket.readableRetention)}
+      </span>
+    </ResourceCard.Meta>
+  )
+
+  if (bucket.type !== 'user') {
+    cardMeta = (
+      <ResourceCard.Meta>
+        <span
+          className="system-bucket"
+          key={`system-bucket-indicator-${bucket.id}`}
+        >
+          System Bucket
+        </span>
+        <span data-testid="bucket-retention">
+          Retention: {_.capitalize(bucket.readableRetention)}
+        </span>
+      </ResourceCard.Meta>
+    )
+  }
 
   return (
     <ResourceCard
@@ -159,15 +169,13 @@ const BucketCard: FC<Props & WithRouterProps & DispatchProps> = ({
           <BucketContextMenu bucket={bucket} onDeleteBucket={onDeleteBucket} />
         )
       }
-      name={
-        <ResourceCard.Name
-          testID={`bucket--card--name ${bucket.name}`}
-          onClick={handleNameClick}
-          name={bucket.name}
-        />
-      }
-      metaData={cardMetaItems}
     >
+      <ResourceCard.Name
+        testID={`bucket--card--name ${bucket.name}`}
+        onClick={handleNameClick}
+        name={bucket.name}
+      />
+      {cardMeta}
       {bucket.type === 'user' && actionButtons}
     </ResourceCard>
   )
