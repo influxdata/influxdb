@@ -2,7 +2,6 @@
 import React, {ReactElement, PureComponent} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
-import auth0js from 'auth0-js'
 
 import {client} from 'src/utils/api'
 
@@ -19,9 +18,6 @@ import {CLOUD, CLOUD_SIGNIN_PATHNAME} from 'src/shared/constants'
 
 // Types
 import {RemoteDataState} from 'src/types'
-
-// Utils
-import {getAuth0Config} from 'src/authorizations/apis'
 
 interface State {
   loading: RemoteDataState
