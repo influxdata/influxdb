@@ -117,16 +117,6 @@ class TemplateCard extends PureComponent<Props & WithRouterProps> {
     )
   }
 
-  private get templateType(): JSX.Element {
-    const {template} = this.props
-
-    return (
-      <div className="resource-list--meta-item">
-        {get(template, 'meta.type', '')}
-      </div>
-    )
-  }
-
   private get contextMenu(): JSX.Element {
     const {
       template: {id},
