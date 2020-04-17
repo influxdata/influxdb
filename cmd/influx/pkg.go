@@ -1080,7 +1080,7 @@ func (b *cmdPkgBuilder) printPkgSummary(sum pkger.Summary) error {
 				v.Description,
 				v.Every,
 				v.Offset,
-				v.EndpointName,
+				v.EndpointPkgName,
 				v.EndpointID.String(),
 				v.EndpointType,
 			}
