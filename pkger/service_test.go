@@ -356,7 +356,7 @@ func TestService(t *testing.T) {
 				actual := diff.NotificationRules[0].New
 				assert.Equal(t, "rule_0", actual.Name)
 				assert.Equal(t, "desc_0", actual.Description)
-				assert.Equal(t, "http", actual.EndpointType)
+				assert.Equal(t, "slack", actual.EndpointType)
 				assert.Equal(t, existing.Name, actual.EndpointName)
 				assert.Equal(t, SafeID(*existing.ID), actual.EndpointID)
 				assert.Equal(t, (10 * time.Minute).String(), actual.Every)
@@ -373,15 +373,6 @@ func TestService(t *testing.T) {
 					{Key: "k1", Value: "v2", Operator: "equal"},
 				}
 				assert.Equal(t, expectedTagRules, actual.TagRules)
-			})
-
-			t.Run("should error if endpoint name is not in pkg or in platform", func(t *testing.T) {
-				testfileRunner(t, "testdata/notification_rule.yml", func(t *testing.T, pkg *Pkg) {
-					svc := newTestService()
-
-					_, _, err := svc.DryRun(context.TODO(), influxdb.ID(100), 0, pkg)
-					require.Error(t, err)
-				})
 			})
 		})
 
@@ -944,91 +935,6 @@ func TestService(t *testing.T) {
 				})
 			}
 
-			testLabelMappingFn := func(t *testing.T, filename string, numExpected int, settersFn func() []ServiceSetterFn) {
-				t.Helper()
-
-				t.Run("applies successfully", func(t *testing.T) {
-					t.Helper()
-					testfileRunner(t, filename, func(t *testing.T, pkg *Pkg) {
-						t.Helper()
-
-						fakeLabelSVC := mock.NewLabelService()
-						fakeLabelSVC.CreateLabelFn = func(_ context.Context, l *influxdb.Label) error {
-							l.ID = influxdb.ID(rand.Int())
-							return nil
-						}
-						fakeLabelSVC.CreateLabelMappingFn = func(_ context.Context, mapping *influxdb.LabelMapping) error {
-							if mapping.ResourceID == 0 {
-								return errors.New("did not get a resource ID")
-							}
-							if mapping.ResourceType == "" {
-								return errors.New("did not get a resource type")
-							}
-							return nil
-						}
-						svc := newTestService(append(settersFn(),
-							WithLabelSVC(fakeLabelSVC),
-							WithLogger(zaptest.NewLogger(t)),
-						)...)
-
-						orgID := influxdb.ID(9000)
-
-						_, _, err := svc.Apply(context.TODO(), orgID, 0, pkg)
-						require.NoError(t, err)
-
-						assert.Equal(t, numExpected, fakeLabelSVC.CreateLabelMappingCalls.Count())
-					})
-				})
-
-				t.Run("deletes new label mappings on error", func(t *testing.T) {
-					t.Helper()
-					testfileRunner(t, filename, func(t *testing.T, pkg *Pkg) {
-						t.Helper()
-
-						for _, l := range pkg.mLabels {
-							for resource, vals := range l.mappings {
-								// create extra label mappings, enough for delete to ahve head room
-								l.mappings[resource] = append(l.mappings[resource], vals...)
-								l.mappings[resource] = append(l.mappings[resource], vals...)
-								l.mappings[resource] = append(l.mappings[resource], vals...)
-							}
-						}
-
-						fakeLabelSVC := mock.NewLabelService()
-						fakeLabelSVC.CreateLabelFn = func(_ context.Context, l *influxdb.Label) error {
-							l.ID = influxdb.ID(fakeLabelSVC.CreateLabelCalls.Count() + 1)
-							return nil
-						}
-						fakeLabelSVC.DeleteLabelMappingFn = func(_ context.Context, m *influxdb.LabelMapping) error {
-							return nil
-						}
-						fakeLabelSVC.CreateLabelMappingFn = func(_ context.Context, mapping *influxdb.LabelMapping) error {
-							if mapping.ResourceID == 0 {
-								return errors.New("did not get a resource ID")
-							}
-							if mapping.ResourceType == "" {
-								return errors.New("did not get a resource type")
-							}
-							if fakeLabelSVC.CreateLabelMappingCalls.Count() > numExpected {
-								return errors.New("hit last label")
-							}
-							return nil
-						}
-						svc := newTestService(append(settersFn(),
-							WithLabelSVC(fakeLabelSVC),
-							WithLogger(zaptest.NewLogger(t)),
-						)...)
-
-						orgID := influxdb.ID(9000)
-
-						_, _, err := svc.Apply(context.TODO(), orgID, 0, pkg)
-						require.Error(t, err)
-
-						assert.GreaterOrEqual(t, fakeLabelSVC.DeleteLabelMappingCalls.Count(), numExpected)
-					})
-				})
-			}
-
 			t.Run("maps buckets with labels", func(t *testing.T) {
 				bktOpt := func() []ServiceSetterFn {
 					fakeBktSVC := mock.NewBucketService()
@@ -1114,35 +1020,24 @@ func TestService(t *testing.T) {
 			})
 
 			t.Run("maps notification rules with labels", func(t *testing.T) {
-				testLabelMappingFn(
-					t,
-					"testdata/notification_rule.yml",
-					1,
-					func() []ServiceSetterFn {
-						fakeEndpointSVC := mock.NewNotificationEndpointService()
-						fakeEndpointSVC.FindNotificationEndpointsF = func(ctx context.Context, f influxdb.NotificationEndpointFilter, _ ...influxdb.FindOptions) ([]influxdb.NotificationEndpoint, int, error) {
-							id := influxdb.ID(9)
-							return []influxdb.NotificationEndpoint{
-								&endpoint.HTTP{
-									Base: endpoint.Base{
-										ID:   &id,
-										Name: "endpoint_0",
-									},
-									AuthMethod: "none",
-								},
-							}, 1, nil
-						}
-						fakeRuleStore := mock.NewNotificationRuleStore()
-						fakeRuleStore.CreateNotificationRuleF = func(ctx context.Context, nr influxdb.NotificationRuleCreate, userID influxdb.ID) error {
-							nr.SetID(influxdb.ID(fakeRuleStore.CreateNotificationRuleCalls.Count() + 1))
-							return nil
-						}
-						return []ServiceSetterFn{
-							WithNotificationEndpointSVC(fakeEndpointSVC),
-							WithNotificationRuleSVC(fakeRuleStore),
-						}
-					},
-				)
+				opts := func() []ServiceSetterFn {
+					fakeRuleStore := mock.NewNotificationRuleStore()
+					fakeRuleStore.CreateNotificationRuleF = func(ctx context.Context, nr influxdb.NotificationRuleCreate, userID influxdb.ID) error {
+						nr.SetID(influxdb.ID(fakeRuleStore.CreateNotificationRuleCalls.Count() + 1))
+						return nil
+					}
+					return []ServiceSetterFn{
+						WithNotificationRuleSVC(fakeRuleStore),
+					}
+				}
+
+				t.Run("applies successfully", func(t *testing.T) {
+					testLabelMappingV2ApplyFn(t, "testdata/notification_rule.yml", 2, opts)
+				})
+
+				t.Run("deletes new label mappings on error", func(t *testing.T) {
+					testLabelMappingV2RollbackFn(t, "testdata/notification_rule.yml", 1, opts)
+				})
 			})
 
 			t.Run("maps tasks with labels", func(t *testing.T) {
@@ -1289,16 +1184,9 @@ func TestService(t *testing.T) {
 			t.Run("successfuly creates", func(t *testing.T) {
 				testfileRunner(t, "testdata/notification_rule.yml", func(t *testing.T, pkg *Pkg) {
 					fakeEndpointSVC := mock.NewNotificationEndpointService()
-					fakeEndpointSVC.FindNotificationEndpointsF = func(ctx context.Context, f influxdb.NotificationEndpointFilter, _ ...influxdb.FindOptions) ([]influxdb.NotificationEndpoint, int, error) {
-						id := influxdb.ID(9)
-						return []influxdb.NotificationEndpoint{
-							&endpoint.HTTP{
-								Base: endpoint.Base{
-									ID:   &id,
-									Name: "endpoint_0",
-								},
-							},
-						}, 1, nil
+					fakeEndpointSVC.CreateNotificationEndpointF = func(ctx context.Context, nr influxdb.NotificationEndpoint, userID influxdb.ID) error {
+						nr.SetID(influxdb.ID(fakeEndpointSVC.CreateNotificationEndpointCalls.Count() + 1))
+						return nil
 					}
 					fakeRuleStore := mock.NewNotificationRuleStore()
 					fakeRuleStore.CreateNotificationRuleF = func(ctx context.Context, nr influxdb.NotificationRuleCreate, userID influxdb.ID) error {
@@ -1319,33 +1207,17 @@ func TestService(t *testing.T) {
 					require.Len(t, sum.NotificationRules, 1)
 					assert.Equal(t, "rule_0", sum.NotificationRules[0].Name)
 					assert.Equal(t, "desc_0", sum.NotificationRules[0].Description)
-					assert.Equal(t, SafeID(9), sum.NotificationRules[0].EndpointID)
-					assert.Equal(t, "endpoint_0", sum.NotificationRules[0].EndpointName)
-					assert.Equal(t, "http", sum.NotificationRules[0].EndpointType)
+					assert.Equal(t, SafeID(1), sum.NotificationRules[0].EndpointID)
+					assert.Equal(t, "endpoint_0", sum.NotificationRules[0].EndpointPkgName)
+					assert.Equal(t, "slack", sum.NotificationRules[0].EndpointType)
 				})
 			})
 
 			t.Run("rolls back all created notification rules on an error", func(t *testing.T) {
 				testfileRunner(t, "testdata/notification_rule.yml", func(t *testing.T, pkg *Pkg) {
-					fakeEndpointSVC := mock.NewNotificationEndpointService()
-					fakeEndpointSVC.FindNotificationEndpointsF = func(ctx context.Context, f influxdb.NotificationEndpointFilter, _ ...influxdb.FindOptions) ([]influxdb.NotificationEndpoint, int, error) {
-						id := influxdb.ID(9)
-						return []influxdb.NotificationEndpoint{
-							&endpoint.HTTP{
-								Base: endpoint.Base{
-									ID:   &id,
-									Name: "endpoint_0",
-								},
-								AuthMethod: "none",
-							},
-						}, 1, nil
-					}
 					fakeRuleStore := mock.NewNotificationRuleStore()
 					fakeRuleStore.CreateNotificationRuleF = func(ctx context.Context, nr influxdb.NotificationRuleCreate, userID influxdb.ID) error {
-						if fakeRuleStore.CreateNotificationRuleCalls.Count() == 1 {
-							return errors.New("limit hit")
-						}
-						nr.SetID(1)
+						nr.SetID(influxdb.ID(fakeRuleStore.CreateNotificationRuleCalls.Count() + 1))
 						return nil
 					}
 					fakeRuleStore.DeleteNotificationRuleF = func(ctx context.Context, id influxdb.ID) error {
@@ -1354,11 +1226,17 @@ func TestService(t *testing.T) {
 						}
 						return nil
 					}
-
-					pkg.mNotificationRules["rule_UUID_copy"] = pkg.mNotificationRules["rule_UUID"]
+					fakeLabelSVC := mock.NewLabelService()
+					fakeLabelSVC.CreateLabelFn = func(ctx context.Context, l *influxdb.Label) error {
+						l.ID = influxdb.ID(fakeLabelSVC.CreateLabelCalls.Count() + 1)
+						return nil
+					}
+					fakeLabelSVC.CreateLabelMappingFn = func(ctx context.Context, m *influxdb.LabelMapping) error {
+						return errors.New("start the rollack")
+					}
 
 					svc := newTestService(
-						WithNotificationEndpointSVC(fakeEndpointSVC),
+						WithLabelSVC(fakeLabelSVC),
 						WithNotificationRuleSVC(fakeRuleStore),
 					)
 
@@ -2527,8 +2405,8 @@ func TestService(t *testing.T) {
 							actualRule := sum.NotificationRules[0]
 							assert.Zero(t, actualRule.ID)
 							assert.Zero(t, actualRule.EndpointID)
-							assert.Zero(t, actualRule.EndpointType)
-							assert.NotEmpty(t, actualRule.EndpointName)
+							assert.NotEmpty(t, actualRule.EndpointType)
+							assert.NotEmpty(t, actualRule.EndpointPkgName)
 
 							baseEqual := func(t *testing.T, base rule.Base) {
 								t.Helper()
@@ -2625,7 +2503,7 @@ func TestService(t *testing.T) {
 					sum := newPkg.Summary()
 					require.Len(t, sum.NotificationRules, len(resourcesToClone))
 
-					expectedSameEndpointName := sum.NotificationRules[0].EndpointName
+					expectedSameEndpointName := sum.NotificationRules[0].EndpointPkgName
 					assert.NotZero(t, expectedSameEndpointName)
 					assert.NotEqual(t, "endpoint_0", expectedSameEndpointName)
 
@@ -2633,7 +2511,7 @@ func TestService(t *testing.T) {
 						actual := sum.NotificationRules[i]
 						assert.Equal(t, "old_name", actual.Name)
 						assert.Equal(t, "desc", actual.Description)
-						assert.Equal(t, expectedSameEndpointName, actual.EndpointName)
+						assert.Equal(t, expectedSameEndpointName, actual.EndpointPkgName)
 					}
 
 					require.Len(t, sum.NotificationEndpoints, 1)
@@ -3233,7 +3111,7 @@ func TestService(t *testing.T) {
 			rules := summary.NotificationRules
 			require.Len(t, rules, 1)
 			assert.Equal(t, expectedRule.Name, rules[0].Name)
-			assert.NotEmpty(t, rules[0].EndpointName)
+			assert.NotEmpty(t, rules[0].EndpointPkgName)
 
 			require.Len(t, summary.Tasks, 1)
 			task1 := summary.Tasks[0]

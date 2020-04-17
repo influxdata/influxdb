@@ -5,6 +5,7 @@ import (
 	"sort"
 
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/notification/rule"
 )
 
 type stateCoordinator struct {
@@ -13,6 +14,7 @@ type stateCoordinator struct {
 	mDashboards map[string]*stateDashboard
 	mEndpoints  map[string]*stateEndpoint
 	mLabels     map[string]*stateLabel
+	mRules      map[string]*stateRule
 	mTasks      map[string]*stateTask
 	mTelegrafs  map[string]*stateTelegraf
 	mVariables  map[string]*stateVariable
@@ -27,6 +29,7 @@ func newStateCoordinator(pkg *Pkg) *stateCoordinator {
 		mDashboards: make(map[string]*stateDashboard),
 		mEndpoints:  make(map[string]*stateEndpoint),
 		mLabels:     make(map[string]*stateLabel),
+		mRules:      make(map[string]*stateRule),
 		mTasks:      make(map[string]*stateTask),
 		mTelegrafs:  make(map[string]*stateTelegraf),
 		mVariables:  make(map[string]*stateVariable),
@@ -59,6 +62,12 @@ func newStateCoordinator(pkg *Pkg) *stateCoordinator {
 	for _, pkgLabel := range pkg.labels() {
 		state.mLabels[pkgLabel.PkgName()] = &stateLabel{
 			parserLabel: pkgLabel,
+			stateStatus: StateStatusNew,
+		}
+	}
+	for _, pkgRule := range pkg.notificationRules() {
+		state.mRules[pkgRule.PkgName()] = &stateRule{
+			parserRule:  pkgRule,
 			stateStatus: StateStatusNew,
 		}
 	}
@@ -124,6 +133,14 @@ func (s *stateCoordinator) labels() []*stateLabel {
 	return out
 }
 
+func (s *stateCoordinator) rules() []*stateRule {
+	out := make([]*stateRule, 0, len(s.mRules))
+	for _, r := range s.mRules {
+		out = append(out, r)
+	}
+	return out
+}
+
 func (s *stateCoordinator) tasks() []*stateTask {
 	out := make([]*stateTask, 0, len(s.mTasks))
 	for _, t := range s.mTasks {
@@ -183,6 +200,13 @@ func (s *stateCoordinator) diff() Diff {
 	}
 	sort.Slice(diff.Labels, func(i, j int) bool {
 		return diff.Labels[i].PkgName < diff.Labels[j].PkgName
+	})
+
+	for _, r := range s.mRules {
+		diff.NotificationRules = append(diff.NotificationRules, r.diffRule())
+	}
+	sort.Slice(diff.NotificationRules, func(i, j int) bool {
+		return diff.NotificationRules[i].PkgName < diff.NotificationRules[j].PkgName
 	})
 
 	for _, t := range s.mTasks {
@@ -279,6 +303,16 @@ func (s *stateCoordinator) summary() Summary {
 	}
 	sort.Slice(sum.Labels, func(i, j int) bool {
 		return sum.Labels[i].PkgName < sum.Labels[j].PkgName
+	})
+
+	for _, v := range s.mRules {
+		if IsRemoval(v.stateStatus) {
+			continue
+		}
+		sum.NotificationRules = append(sum.NotificationRules, v.summarize())
+	}
+	sort.Slice(sum.NotificationRules, func(i, j int) bool {
+		return sum.NotificationRules[i].PkgName < sum.NotificationRules[j].PkgName
 	})
 
 	for _, t := range s.mTasks {
@@ -383,6 +417,12 @@ func (s *stateCoordinator) addObjectForRemoval(k Kind, pkgName string, id influx
 			parserEndpoint: &notificationEndpoint{identity: newIdentity},
 			stateStatus:    StateStatusRemove,
 		}
+	case KindNotificationRule:
+		s.mRules[pkgName] = &stateRule{
+			id:          id,
+			parserRule:  &notificationRule{identity: newIdentity},
+			stateStatus: StateStatusRemove,
+		}
 	case KindTask:
 		s.mTasks[pkgName] = &stateTask{
 			id:          id,
@@ -429,6 +469,12 @@ func (s *stateCoordinator) getObjectIDSetter(k Kind, pkgName string) (func(influ
 		KindNotificationEndpointPagerDuty,
 		KindNotificationEndpointSlack:
 		r, ok := s.mEndpoints[pkgName]
+		return func(id influxdb.ID) {
+			r.id = id
+			r.stateStatus = StateStatusExists
+		}, ok
+	case KindNotificationRule:
+		r, ok := s.mRules[pkgName]
 		return func(id influxdb.ID) {
 			r.id = id
 			r.stateStatus = StateStatusExists
@@ -881,6 +927,140 @@ func (e *stateEndpoint) summarize() SummaryNotificationEndpoint {
 		sum.NotificationEndpoint.SetOrgID(e.orgID)
 	}
 	return sum
+}
+
+type stateRule struct {
+	id, orgID   influxdb.ID
+	stateStatus StateStatus
+
+	associatedEndpoint *stateEndpoint
+
+	parserRule *notificationRule
+	existing   influxdb.NotificationRule
+}
+
+func (r *stateRule) ID() influxdb.ID {
+	if !IsNew(r.stateStatus) && r.existing != nil {
+		return r.existing.GetID()
+	}
+	return r.id
+}
+
+func (r *stateRule) diffRule() DiffNotificationRule {
+	sum := DiffNotificationRule{
+		DiffIdentifier: DiffIdentifier{
+			ID:      SafeID(r.ID()),
+			Remove:  r.parserRule.shouldRemove,
+			PkgName: r.parserRule.PkgName(),
+		},
+		New: DiffNotificationRuleValues{
+			Name:            r.parserRule.Name(),
+			Description:     r.parserRule.description,
+			EndpointName:    r.associatedEndpoint.parserEndpoint.Name(),
+			EndpointID:      SafeID(r.associatedEndpoint.ID()),
+			EndpointType:    r.associatedEndpoint.parserEndpoint.kind.String(),
+			Every:           r.parserRule.every.String(),
+			Offset:          r.parserRule.offset.String(),
+			MessageTemplate: r.parserRule.msgTemplate,
+			StatusRules:     toSummaryStatusRules(r.parserRule.statusRules),
+			TagRules:        toSummaryTagRules(r.parserRule.tagRules),
+		},
+	}
+
+	if r.existing == nil {
+		return sum
+	}
+
+	sum.Old = &DiffNotificationRuleValues{
+		Name:         r.existing.GetName(),
+		Description:  r.existing.GetDescription(),
+		EndpointName: r.existing.GetName(),
+		EndpointID:   SafeID(r.existing.GetEndpointID()),
+		EndpointType: r.existing.Type(),
+	}
+
+	assignBase := func(b rule.Base) {
+		if b.Every != nil {
+			sum.Old.Every = b.Every.TimeDuration().String()
+		}
+		if b.Offset != nil {
+			sum.Old.Offset = b.Offset.TimeDuration().String()
+		}
+		for _, tr := range b.TagRules {
+			sum.Old.TagRules = append(sum.Old.TagRules, SummaryTagRule{
+				Key:      tr.Key,
+				Value:    tr.Value,
+				Operator: tr.Operator.String(),
+			})
+		}
+		for _, sr := range b.StatusRules {
+			sRule := SummaryStatusRule{CurrentLevel: sr.CurrentLevel.String()}
+			if sr.PreviousLevel != nil {
+				sRule.PreviousLevel = sr.PreviousLevel.String()
+			}
+			sum.Old.StatusRules = append(sum.Old.StatusRules, sRule)
+		}
+	}
+
+	switch p := r.existing.(type) {
+	case *rule.HTTP:
+		assignBase(p.Base)
+	case *rule.Slack:
+		assignBase(p.Base)
+		sum.Old.MessageTemplate = p.MessageTemplate
+	case *rule.PagerDuty:
+		assignBase(p.Base)
+		sum.Old.MessageTemplate = p.MessageTemplate
+	}
+
+	return sum
+}
+
+func (r *stateRule) labels() []*label {
+	return r.parserRule.labels
+}
+
+func (r *stateRule) resourceType() influxdb.ResourceType {
+	return KindNotificationRule.ResourceType()
+}
+
+func (r *stateRule) stateIdentity() stateIdentity {
+	return stateIdentity{
+		id:           r.ID(),
+		name:         r.parserRule.Name(),
+		pkgName:      r.parserRule.PkgName(),
+		resourceType: r.resourceType(),
+		stateStatus:  r.stateStatus,
+	}
+}
+
+func (r *stateRule) summarize() SummaryNotificationRule {
+	sum := r.parserRule.summarize()
+	sum.ID = SafeID(r.id)
+	sum.EndpointID = SafeID(r.associatedEndpoint.ID())
+	sum.EndpointPkgName = r.associatedEndpoint.parserEndpoint.PkgName()
+	sum.EndpointType = r.associatedEndpoint.parserEndpoint.kind.String()
+	return sum
+}
+
+func (r *stateRule) toInfluxRule() influxdb.NotificationRule {
+	influxRule := r.parserRule.toInfluxRule()
+	if r.ID() > 0 {
+		influxRule.SetID(r.ID())
+	}
+	if r.orgID > 0 {
+		influxRule.SetOrgID(r.orgID)
+	}
+	switch e := influxRule.(type) {
+	case *rule.HTTP:
+		e.EndpointID = r.associatedEndpoint.ID()
+	case *rule.PagerDuty:
+		e.EndpointID = r.associatedEndpoint.ID()
+	case *rule.Slack:
+		e.EndpointID = r.associatedEndpoint.ID()
+	}
+
+	return influxRule
 }
 
 type stateTask struct {
