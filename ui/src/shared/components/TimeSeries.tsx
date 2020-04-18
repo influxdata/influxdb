@@ -185,6 +185,7 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
       this.pendingResults.forEach(({cancel}) => cancel())
 
       // Issue new queries
+      window.performance.mark('query_start')
       this.pendingResults = queries.map(({text}) => {
         const orgID =
           getOrgIDFromBuckets(text, buckets) || this.props.params.orgID
@@ -197,6 +198,10 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
 
       // Wait for new queries to complete
       const results = await Promise.all(this.pendingResults.map(r => r.promise))
+      window.performance.measure(
+        'timeseries_query_execution_time',
+        'query_start'
+      )
 
       let statuses = [] as StatusRow[][]
       if (check) {
