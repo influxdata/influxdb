@@ -1,10 +1,13 @@
 import {FunctionComponent} from 'react'
-import {store} from 'src'
 import {activeFlags} from 'src/shared/selectors/flags'
 import {clearOverrides, setOverride} from 'src/shared/actions/me'
 
+import configureStore from 'src/store/configureStore'
+import {loadLocalStorage} from 'src/localStorage'
+
 export const isFlagEnabled = (flagName: string, equals?: string | boolean) => {
   let _equals = equals
+  const store = configureStore(loadLocalStorage())
   const flags = activeFlags(store.getState())
 
   if (_equals === undefined) {
@@ -30,7 +33,8 @@ export const FeatureFlag: FunctionComponent<{
   return children as any
 }
 
-export const getUserFlags = () => activeFlags(store.getState())
+export const getUserFlags = () =>
+  activeFlags(configureStore(loadLocalStorage()).getState())
 
 /* eslint-disable no-console */
 const list = () => {
@@ -40,17 +44,19 @@ const list = () => {
 /* eslint-enable no-console */
 
 const reset = () => {
+  const store = configureStore(loadLocalStorage())
   store.dispatch(clearOverrides())
 }
 
 export const set = (flagName: string, value: string | boolean) => {
+  const store = configureStore(loadLocalStorage())
   store.dispatch(setOverride(flagName, value))
 }
 
 export const toggle = (flagName: string) => {
-  const flags = activeFlags(store.getState())
+  const flags = getUserFlags()
 
-  store.dispatch(setOverride(flagName, !flags[flagName]))
+  set(flagName, !flags[flagName])
 }
 
 // Expose utility in dev tools console for convenience

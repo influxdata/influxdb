@@ -104,7 +104,7 @@ const composeEnhancers =
 
 export default function configureStore(
   initialState: LocalStorage,
-  history: History
+  history?: History
 ): Store<AppState & LocalStorage> {
   const routingMiddleware = routerMiddleware(history)
   const createPersistentStore = composeEnhancers(
