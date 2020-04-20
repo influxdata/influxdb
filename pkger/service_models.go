@@ -402,6 +402,12 @@ func (s *stateCoordinator) addObjectForRemoval(k Kind, pkgName string, id influx
 			parserCheck: &check{identity: newIdentity},
 			stateStatus: StateStatusRemove,
 		}
+	case KindDashboard:
+		s.mDashboards[pkgName] = &stateDashboard{
+			id:          id,
+			parserDash:  &dashboard{identity: newIdentity},
+			stateStatus: StateStatusRemove,
+		}
 	case KindLabel:
 		s.mLabels[pkgName] = &stateLabel{
 			id:          id,
@@ -454,6 +460,12 @@ func (s *stateCoordinator) getObjectIDSetter(k Kind, pkgName string) (func(influ
 		}, ok
 	case KindCheck, KindCheckDeadman, KindCheckThreshold:
 		r, ok := s.mChecks[pkgName]
+		return func(id influxdb.ID) {
+			r.id = id
+			r.stateStatus = StateStatusExists
+		}, ok
+	case KindDashboard:
+		r, ok := s.mDashboards[pkgName]
 		return func(id influxdb.ID) {
 			r.id = id
 			r.stateStatus = StateStatusExists
@@ -597,7 +609,7 @@ type stateCheck struct {
 }
 
 func (c *stateCheck) ID() influxdb.ID {
-	if IsExisting(c.stateStatus) && c.existing != nil {
+	if !IsNew(c.stateStatus) && c.existing != nil {
 		return c.existing.GetID()
 	}
 	return c.id
@@ -660,7 +672,7 @@ type stateDashboard struct {
 }
 
 func (d *stateDashboard) ID() influxdb.ID {
-	if IsExisting(d.stateStatus) && d.existing != nil {
+	if !IsNew(d.stateStatus) && d.existing != nil {
 		return d.existing.ID
 	}
 	return d.id

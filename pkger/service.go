@@ -680,6 +680,7 @@ func (s *Service) dryRun(ctx context.Context, orgID influxdb.ID, pkg *Pkg, opts 
 
 	s.dryRunBuckets(ctx, orgID, state.mBuckets)
 	s.dryRunChecks(ctx, orgID, state.mChecks)
+	s.dryRunDashboards(ctx, orgID, state.mDashboards)
 	s.dryRunLabels(ctx, orgID, state.mLabels)
 	s.dryRunVariables(ctx, orgID, state.mVariables)
 	err := s.dryRunNotificationEndpoints(ctx, orgID, state.mEndpoints)
@@ -735,6 +736,20 @@ func (s *Service) dryRunChecks(ctx context.Context, orgID influxdb.ID, checks ma
 			c.stateStatus = StateStatusExists
 		}
 		c.existing = existing
+	}
+}
+
+func (s *Service) dryRunDashboards(ctx context.Context, orgID influxdb.ID, dashs map[string]*stateDashboard) {
+	for _, stateDash := range dashs {
+		stateDash.orgID = orgID
+		var existing *influxdb.Dashboard
+		if stateDash.ID() != 0 {
+			existing, _ = s.dashSVC.FindDashboardByID(ctx, stateDash.ID())
+		}
+		if IsNew(stateDash.stateStatus) && existing != nil {
+			stateDash.stateStatus = StateStatusExists
+		}
+		stateDash.existing = existing
 	}
 }
 
@@ -1141,7 +1156,7 @@ func (s *Service) applyState(ctx context.Context, coordinator *rollbackCoordinat
 			s.applyVariables(ctx, state.variables()),
 			s.applyBuckets(ctx, state.buckets()),
 			s.applyChecks(ctx, state.checks()),
-			s.applyDashboards(state.dashboards()),
+			s.applyDashboards(ctx, state.dashboards()),
 			s.applyNotificationEndpoints(ctx, userID, state.endpoints()),
 			s.applyTasks(state.tasks()),
 			s.applyTelegrafs(state.telegrafConfigs()),
@@ -1396,7 +1411,7 @@ func (s *Service) applyCheck(ctx context.Context, c *stateCheck, userID influxdb
 	}
 }
 
-func (s *Service) applyDashboards(dashboards []*stateDashboard) applier {
+func (s *Service) applyDashboards(ctx context.Context, dashboards []*stateDashboard) applier {
 	const resource = "dashboard"
 
 	mutex := new(doMutex)
@@ -1432,28 +1447,79 @@ func (s *Service) applyDashboards(dashboards []*stateDashboard) applier {
 		rollbacker: rollbacker{
 			resource: resource,
 			fn: func(_ influxdb.ID) error {
-				return s.deleteByIDs("dashboard", len(rollbackDashboards), s.dashSVC.DeleteDashboard, func(i int) influxdb.ID {
-					return rollbackDashboards[i].ID()
-				})
+				return s.rollbackDashboards(ctx, rollbackDashboards)
 			},
 		},
 	}
 }
 
 func (s *Service) applyDashboard(ctx context.Context, d *stateDashboard) (influxdb.Dashboard, error) {
-	cells := convertChartsToCells(d.parserDash.Charts)
-	influxDashboard := influxdb.Dashboard{
-		OrganizationID: d.orgID,
-		Description:    d.parserDash.Description,
-		Name:           d.parserDash.Name(),
-		Cells:          cells,
+	switch d.stateStatus {
+	case StateStatusRemove:
+		if err := s.dashSVC.DeleteDashboard(ctx, d.ID()); err != nil {
+			return influxdb.Dashboard{}, fmt.Errorf("failed to delete dashboard[%q]: %w", d.ID(), err)
+		}
+		return *d.existing, nil
+	case StateStatusExists:
+		name := d.parserDash.Name()
+		cells := convertChartsToCells(d.parserDash.Charts)
+		dash, err := s.dashSVC.UpdateDashboard(ctx, d.ID(), influxdb.DashboardUpdate{
+			Name:        &name,
+			Description: &d.parserDash.Description,
+			Cells:       &cells,
+		})
+		if err != nil {
+			return influxdb.Dashboard{}, ierrors.Wrap(err, "failed to update dashboard")
+		}
+		return *dash, nil
+	default:
+		cells := convertChartsToCells(d.parserDash.Charts)
+		influxDashboard := influxdb.Dashboard{
+			OrganizationID: d.orgID,
+			Description:    d.parserDash.Description,
+			Name:           d.parserDash.Name(),
+			Cells:          cells,
+		}
+		err := s.dashSVC.CreateDashboard(ctx, &influxDashboard)
+		if err != nil {
+			return influxdb.Dashboard{}, ierrors.Wrap(err, "failed to create dashboard")
+		}
+		return influxDashboard, nil
 	}
-	err := s.dashSVC.CreateDashboard(ctx, &influxDashboard)
-	if err != nil {
-		return influxdb.Dashboard{}, err
+}
+
+func (s *Service) rollbackDashboards(ctx context.Context, dashs []*stateDashboard) error {
+	rollbackFn := func(d *stateDashboard) error {
+		var err error
+		switch d.stateStatus {
+		case StateStatusRemove:
+			err = ierrors.Wrap(s.dashSVC.CreateDashboard(ctx, d.existing), "rolling back removed dashboard")
+		case StateStatusExists:
+			_, err := s.dashSVC.UpdateDashboard(ctx, d.ID(), influxdb.DashboardUpdate{
+				Name:        &d.existing.Name,
+				Description: &d.existing.Description,
+				Cells:       &d.existing.Cells,
+			})
+			return ierrors.Wrap(err, "failed to update dashboard")
+		default:
+			err = ierrors.Wrap(s.dashSVC.DeleteDashboard(ctx, d.ID()), "rolling back new dashboard")
+		}
+		return err
 	}
 
-	return influxDashboard, nil
+	var errs []string
+	for _, d := range dashs {
+		if err := rollbackFn(d); err != nil {
+			errs = append(errs, fmt.Sprintf("error for bucket[%q]: %s", d.ID(), err))
+		}
+	}
+
+	if len(errs) > 0 {
+		// TODO: fixup error
+		return errors.New(strings.Join(errs, ", "))
+	}
+
+	return nil
 }
 
 func convertChartsToCells(ch []chart) []*influxdb.Cell {
@@ -2161,6 +2227,17 @@ func (s *Service) updateStackAfterSuccess(ctx context.Context, stackID influxdb.
 			Name:       c.parserCheck.PkgName(),
 		})
 	}
+	for _, d := range state.mDashboards {
+		if IsRemoval(d.stateStatus) {
+			continue
+		}
+		stackResources = append(stackResources, StackResource{
+			APIVersion: APIVersion,
+			ID:         d.ID(),
+			Kind:       KindDashboard,
+			Name:       d.parserDash.PkgName(),
+		})
+	}
 	for _, n := range state.mEndpoints {
 		if IsRemoval(n.stateStatus) {
 			continue
@@ -2237,6 +2314,13 @@ func (s *Service) updateStackAfterRollback(ctx context.Context, stackID influxdb
 			if ok && res.ID != c.ID() {
 				hasChanges = true
 				res.ID = c.existing.GetID()
+			}
+		}
+		for _, d := range state.mDashboards {
+			res, ok := existingResources[newKey(KindDashboard, d.parserDash.PkgName())]
+			if ok && res.ID != d.ID() {
+				hasChanges = true
+				res.ID = d.existing.ID
 			}
 		}
 		for _, e := range state.mEndpoints {

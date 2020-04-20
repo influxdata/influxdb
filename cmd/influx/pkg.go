@@ -1049,10 +1049,10 @@ func (b *cmdPkgBuilder) printPkgSummary(sum pkger.Summary) error {
 	}
 
 	if dashes := sum.Dashboards; len(dashes) > 0 {
-		headers := []string{"ID", "Name", "Description"}
+		headers := []string{"Package Name", "ID", "Resource Name", "Description"}
 		tablePrintFn("DASHBOARDS", headers, len(dashes), func(i int) []string {
 			d := dashes[i]
-			return []string{d.ID.String(), d.Name, d.Description}
+			return []string{d.PkgName, d.ID.String(), d.Name, d.Description}
 		})
 	}
 
