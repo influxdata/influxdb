@@ -66,6 +66,15 @@ func TestLauncher_Pkger(t *testing.T) {
 			return obj
 		}
 
+		newDashObject := func(pkgName, name, desc string) pkger.Object {
+			obj := pkger.DashboardToObject("", influxdb.Dashboard{
+				Name:        name,
+				Description: desc,
+			})
+			obj.SetMetadataName(pkgName)
+			return obj
+		}
+
 		newEndpointHTTP := func(pkgName, name, description string) pkger.Object {
 			obj := pkger.NotificationEndpointToObject("", &endpoint.HTTP{
 				Base: endpoint.Base{
@@ -140,6 +149,7 @@ func TestLauncher_Pkger(t *testing.T) {
 			var (
 				initialBucketPkgName   = "rucketeer_1"
 				initialCheckPkgName    = "checkers"
+				initialDashPkgName     = "dash_of_salt"
 				initialEndpointPkgName = "endzo"
 				initialLabelPkgName    = "labelino"
 				initialVariablePkgName = "laces out dan"
@@ -147,6 +157,7 @@ func TestLauncher_Pkger(t *testing.T) {
 			initialPkg := newPkg(
 				newBucketObject(initialBucketPkgName, "display name", "init desc"),
 				newCheckDeadmanObject(t, initialCheckPkgName, "check_0", time.Minute),
+				newDashObject(initialDashPkgName, "dash_0", "init desc"),
 				newEndpointHTTP(initialEndpointPkgName, "endpoint_0", "init desc"),
 				newLabelObject(initialLabelPkgName, "label 1", "init desc", "#222eee"),
 				newVariableObject(initialVariablePkgName, "var char", "init desc"),
@@ -166,6 +177,10 @@ func TestLauncher_Pkger(t *testing.T) {
 				require.Len(t, sum.Checks, 1)
 				assert.NotZero(t, sum.Checks[0].Check.GetID())
 				assert.Equal(t, "check_0", sum.Checks[0].Check.GetName())
+
+				require.Len(t, sum.Dashboards, 1)
+				assert.NotZero(t, sum.Dashboards[0].ID)
+				assert.Equal(t, "dash_0", sum.Dashboards[0].Name)
 
 				require.Len(t, sum.NotificationEndpoints, 1)
 				assert.NotZero(t, sum.NotificationEndpoints[0].NotificationEndpoint.GetID())
@@ -190,6 +205,9 @@ func TestLauncher_Pkger(t *testing.T) {
 					actualCheck := resourceCheck.mustGetCheck(t, byName("check_0"))
 					assert.Equal(t, sum.Checks[0].Check.GetID(), actualCheck.GetID())
 
+					actualDash := resourceCheck.mustGetDashboard(t, byName("dash_0"))
+					assert.Equal(t, sum.Dashboards[0].ID, pkger.SafeID(actualDash.ID))
+
 					actualEndpint := resourceCheck.mustGetEndpoint(t, byName("endpoint_0"))
 					assert.Equal(t, sum.NotificationEndpoints[0].NotificationEndpoint.GetID(), actualEndpint.GetID())
 
@@ -204,6 +222,7 @@ func TestLauncher_Pkger(t *testing.T) {
 			var (
 				updateBucketName   = "new bucket"
 				updateCheckName    = "new check"
+				updateDashName     = "new dash"
 				updateEndpointName = "new endpoint"
 				updateLabelName    = "new label"
 				updateVariableName = "new variable"
@@ -212,6 +231,7 @@ func TestLauncher_Pkger(t *testing.T) {
 				updatedPkg := newPkg(
 					newBucketObject(initialBucketPkgName, updateBucketName, ""),
 					newCheckDeadmanObject(t, initialCheckPkgName, updateCheckName, time.Hour),
+					newDashObject(initialDashPkgName, updateDashName, ""),
 					newEndpointHTTP(initialEndpointPkgName, updateEndpointName, ""),
 					newLabelObject(initialLabelPkgName, updateLabelName, "", ""),
 					newVariableObject(initialVariablePkgName, updateVariableName, ""),
@@ -226,6 +246,10 @@ func TestLauncher_Pkger(t *testing.T) {
 				require.Len(t, sum.Checks, 1)
 				assert.Equal(t, initialSum.Checks[0].Check.GetID(), sum.Checks[0].Check.GetID())
 				assert.Equal(t, updateCheckName, sum.Checks[0].Check.GetName())
+
+				require.Len(t, sum.Dashboards, 1)
+				assert.Equal(t, initialSum.Dashboards[0].ID, sum.Dashboards[0].ID)
+				assert.Equal(t, updateDashName, sum.Dashboards[0].Name)
 
 				require.Len(t, sum.NotificationEndpoints, 1)
 				endpoint := sum.NotificationEndpoints[0].NotificationEndpoint
@@ -247,6 +271,9 @@ func TestLauncher_Pkger(t *testing.T) {
 
 					actualCheck := resourceCheck.mustGetCheck(t, byName(updateCheckName))
 					require.Equal(t, initialSum.Checks[0].Check.GetID(), actualCheck.GetID())
+
+					actualDash := resourceCheck.mustGetDashboard(t, byName(updateDashName))
+					require.Equal(t, initialSum.Dashboards[0].ID, pkger.SafeID(actualDash.ID))
 
 					actualEndpoint := resourceCheck.mustGetEndpoint(t, byName(updateEndpointName))
 					assert.Equal(t, endpoint.GetID(), actualEndpoint.GetID())
@@ -286,6 +313,7 @@ func TestLauncher_Pkger(t *testing.T) {
 				pkgWithDelete := newPkg(
 					newBucketObject("z_roll_me_back", "", ""),
 					newBucketObject("z_rolls_back_too", "", ""),
+					newDashObject("z_rolls_dash", "", ""),
 					newLabelObject("z_label_roller", "", "", ""),
 					newCheckDeadmanObject(t, "z_check", "", time.Hour),
 					newEndpointHTTP("z_endpoint_rolls_back", "", ""),
@@ -301,6 +329,9 @@ func TestLauncher_Pkger(t *testing.T) {
 
 					actualCheck := resourceCheck.mustGetCheck(t, byName(updateCheckName))
 					assert.NotEqual(t, initialSum.Checks[0].Check.GetID(), actualCheck.GetID())
+
+					actualDash := resourceCheck.mustGetDashboard(t, byName(updateDashName))
+					assert.NotEqual(t, initialSum.Dashboards[0].ID, pkger.SafeID(actualDash.ID))
 
 					actualEndpoint := resourceCheck.mustGetEndpoint(t, byName(updateEndpointName))
 					assert.NotEqual(t, initialSum.NotificationEndpoints[0].NotificationEndpoint.GetID(), actualEndpoint.GetID())
@@ -322,6 +353,9 @@ func TestLauncher_Pkger(t *testing.T) {
 					_, err := resourceCheck.getCheck(t, byName("z_check"))
 					assert.Error(t, err)
 
+					_, err = resourceCheck.getDashboard(t, byName("z_rolls_dash"))
+					assert.Error(t, err)
+
 					_, err = resourceCheck.getEndpoint(t, byName("z_endpoint_rolls_back"))
 					assert.Error(t, err)
 
@@ -337,6 +371,7 @@ func TestLauncher_Pkger(t *testing.T) {
 				allNewResourcesPkg := newPkg(
 					newBucketObject("non_existent_bucket", "", ""),
 					newCheckDeadmanObject(t, "non_existent_check", "", time.Minute),
+					newDashObject("non_existent_dash", "", ""),
 					newEndpointHTTP("non_existent_endpoint", "", ""),
 					newLabelObject("non_existent_label", "", "", ""),
 					newVariableObject("non_existent_var", "", ""),
@@ -355,6 +390,12 @@ func TestLauncher_Pkger(t *testing.T) {
 				assert.NotZero(t, sum.Checks[0].Check.GetID())
 				defer resourceCheck.mustDeleteCheck(t, sum.Checks[0].Check.GetID())
 				assert.Equal(t, "non_existent_check", sum.Checks[0].Check.GetName())
+
+				require.Len(t, sum.Dashboards, 1)
+				assert.NotEqual(t, initialSum.Dashboards[0].ID, sum.Dashboards[0].ID)
+				assert.NotZero(t, sum.Dashboards[0].ID)
+				defer resourceCheck.mustDeleteDashboard(t, influxdb.ID(sum.Dashboards[0].ID))
+				assert.Equal(t, "non_existent_dash", sum.Dashboards[0].Name)
 
 				require.Len(t, sum.NotificationEndpoints, 1)
 				endpoint := sum.NotificationEndpoints[0].NotificationEndpoint
@@ -1709,6 +1750,7 @@ type fakeBucketSVC struct {
 func (f *fakeBucketSVC) CreateBucket(ctx context.Context, b *influxdb.Bucket) error {
 	defer f.createCallCount.IncrFn()()
 	if f.createCallCount.Count() == f.createKillCount {
+		time.Sleep(50 * time.Millisecond)
 		return errors.New("reached kill count")
 	}
 	return f.BucketService.CreateBucket(ctx, b)
@@ -1831,6 +1873,56 @@ func (r resourceChecker) mustGetCheck(t *testing.T, getOpt getResourceOptFn) inf
 func (r resourceChecker) mustDeleteCheck(t *testing.T, id influxdb.ID) {
 	t.Helper()
 	require.NoError(t, r.tl.CheckService().DeleteCheck(ctx, id))
+}
+
+func (r resourceChecker) getDashboard(t *testing.T, getOpt getResourceOptFn) (influxdb.Dashboard, error) {
+	t.Helper()
+
+	dashSVC := r.tl.DashboardService(t)
+
+	var (
+		dashboard *influxdb.Dashboard
+		err       error
+	)
+	opt := getOpt()
+	switch {
+	case opt.name != "":
+		dashs, _, err := dashSVC.FindDashboards(timedCtx(time.Second), influxdb.DashboardFilter{}, influxdb.DefaultDashboardFindOptions)
+		if err != nil {
+			return influxdb.Dashboard{}, err
+		}
+		for _, d := range dashs {
+			if d.Name == opt.name {
+				dashboard = d
+				break
+			}
+		}
+	case opt.id != 0:
+		dashboard, err = dashSVC.FindDashboardByID(timedCtx(time.Second), opt.id)
+	default:
+		require.Fail(t, "did not provide any get option")
+	}
+	if err != nil {
+		return influxdb.Dashboard{}, err
+	}
+	if dashboard == nil {
+		return influxdb.Dashboard{}, fmt.Errorf("failed to find desired dashboard with opts: %+v", opt)
+	}
+
+	return *dashboard, nil
+}
+
+func (r resourceChecker) mustGetDashboard(t *testing.T, getOpt getResourceOptFn) influxdb.Dashboard {
+	t.Helper()
+
+	dash, err := r.getDashboard(t, getOpt)
+	require.NoError(t, err)
+	return dash
+}
+
+func (r resourceChecker) mustDeleteDashboard(t *testing.T, id influxdb.ID) {
+	t.Helper()
+	require.NoError(t, r.tl.DashboardService(t).DeleteDashboard(ctx, id))
 }
 
 func (r resourceChecker) getEndpoint(t *testing.T, getOpt getResourceOptFn) (influxdb.NotificationEndpoint, error) {
