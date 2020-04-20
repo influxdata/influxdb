@@ -1,6 +1,8 @@
 package influxdb
 
 import (
+	"context"
+
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/execute"
@@ -31,7 +33,7 @@ func (rule PushDownGroupRule) Pattern() plan.Pattern {
 	return plan.Pat(universe.GroupKind, plan.Pat(ReadRangePhysKind))
 }
 
-func (rule PushDownGroupRule) Rewrite(node plan.Node) (plan.Node, bool, error) {
+func (rule PushDownGroupRule) Rewrite(ctx context.Context, node plan.Node) (plan.Node, bool, error) {
 	src := node.Predecessors()[0].ProcedureSpec().(*ReadRangePhysSpec)
 	grp := node.ProcedureSpec().(*universe.GroupProcedureSpec)
 
@@ -71,7 +73,7 @@ func (rule PushDownRangeRule) Pattern() plan.Pattern {
 }
 
 // Rewrite converts 'from |> range' into 'ReadRange'
-func (rule PushDownRangeRule) Rewrite(node plan.Node) (plan.Node, bool, error) {
+func (rule PushDownRangeRule) Rewrite(ctx context.Context, node plan.Node) (plan.Node, bool, error) {
 	fromNode := node.Predecessors()[0]
 	fromSpec := fromNode.ProcedureSpec().(*FromProcedureSpec)
 
@@ -96,7 +98,7 @@ func (PushDownFilterRule) Pattern() plan.Pattern {
 	return plan.Pat(universe.FilterKind, plan.Pat(ReadRangePhysKind))
 }
 
-func (PushDownFilterRule) Rewrite(pn plan.Node) (plan.Node, bool, error) {
+func (PushDownFilterRule) Rewrite(ctx context.Context, pn plan.Node) (plan.Node, bool, error) {
 	filterSpec := pn.ProcedureSpec().(*universe.FilterProcedureSpec)
 	fromNode := pn.Predecessors()[0]
 	fromSpec := fromNode.ProcedureSpec().(*ReadRangePhysSpec)
@@ -183,7 +185,7 @@ func (rule PushDownReadTagKeysRule) Pattern() plan.Pattern {
 				plan.Pat(ReadRangePhysKind))))
 }
 
-func (rule PushDownReadTagKeysRule) Rewrite(pn plan.Node) (plan.Node, bool, error) {
+func (rule PushDownReadTagKeysRule) Rewrite(ctx context.Context, pn plan.Node) (plan.Node, bool, error) {
 	// Retrieve the nodes and specs for all of the predecessors.
 	distinctSpec := pn.ProcedureSpec().(*universe.DistinctProcedureSpec)
 	keepNode := pn.Predecessors()[0]
@@ -245,7 +247,7 @@ func (rule PushDownReadTagValuesRule) Pattern() plan.Pattern {
 				plan.Pat(ReadRangePhysKind))))
 }
 
-func (rule PushDownReadTagValuesRule) Rewrite(pn plan.Node) (plan.Node, bool, error) {
+func (rule PushDownReadTagValuesRule) Rewrite(ctx context.Context, pn plan.Node) (plan.Node, bool, error) {
 	// Retrieve the nodes and specs for all of the predecessors.
 	distinctNode := pn
 	distinctSpec := distinctNode.ProcedureSpec().(*universe.DistinctProcedureSpec)
@@ -556,7 +558,7 @@ func (SortedPivotRule) Pattern() plan.Pattern {
 	return plan.Pat(universe.PivotKind, plan.Pat(ReadRangePhysKind))
 }
 
-func (SortedPivotRule) Rewrite(pn plan.Node) (plan.Node, bool, error) {
+func (SortedPivotRule) Rewrite(ctx context.Context, pn plan.Node) (plan.Node, bool, error) {
 	pivotSpec := pn.ProcedureSpec().Copy().(*universe.PivotProcedureSpec)
 	pivotSpec.IsSortedByFunc = func(cols []string, desc bool) bool {
 		if desc {

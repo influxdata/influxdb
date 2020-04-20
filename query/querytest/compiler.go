@@ -1,6 +1,8 @@
 package querytest
 
 import (
+	"context"
+
 	"github.com/influxdata/flux/plan"
 	"github.com/influxdata/flux/stdlib/influxdata/influxdb/v1"
 	"github.com/influxdata/influxdb/v2/query/influxql"
@@ -24,7 +26,7 @@ func (ReplaceFromRule) Pattern() plan.Pattern {
 	return plan.Pat(influxdb.FromKind)
 }
 
-func (r ReplaceFromRule) Rewrite(n plan.Node) (plan.Node, bool, error) {
+func (r ReplaceFromRule) Rewrite(ctx context.Context, n plan.Node) (plan.Node, bool, error) {
 	if err := n.ReplaceSpec(&v1.FromInfluxJSONProcedureSpec{
 		File: r.Filename,
 	}); err != nil {
