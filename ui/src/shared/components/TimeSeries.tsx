@@ -7,6 +7,8 @@ import {
   default as fromFlux,
   FromFluxResult,
 } from 'src/shared/utils/fromFlux.legacy'
+import {fromFlux as fromFluxGiraffe} from '@influxdata/giraffe'
+import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 
 // API
 import {
@@ -232,7 +234,14 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
       }
 
       const files = (results as RunQuerySuccessResult[]).map(r => r.csv)
-      const giraffeResult = fromFlux(files.join('\n\n'))
+      let giraffeResult = fromFlux(files.join('\n\n'))
+
+      if (isFlagEnabled('fluxParser')) {
+        giraffeResult = fromFlux(files.join('\n\n'))
+      } else {
+        giraffeResult = fromFluxGiraffe(files.join('\n\n'))
+      }
+
       this.pendingReload = false
 
       this.setState({
