@@ -1,6 +1,7 @@
 package influxdb_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/influxdata/flux"
@@ -35,7 +36,7 @@ func TestFromValidation(t *testing.T) {
 		qinfluxdb.PushDownFilterRule{},
 		qinfluxdb.PushDownGroupRule{},
 	))
-	_, err := pp.Plan(ps)
+	_, err := pp.Plan(context.Background(), ps)
 	if err == nil {
 		t.Error("Expected query with no call to range to fail physical planning")
 	}

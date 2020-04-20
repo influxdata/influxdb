@@ -679,7 +679,7 @@ spec:
 		assert.NotZero(t, rule.ID)
 		assert.Equal(t, "rule_0", rule.Name)
 		assert.Equal(t, pkger.SafeID(endpoints[0].NotificationEndpoint.GetID()), rule.EndpointID)
-		assert.Equal(t, "http_none_auth_notification_endpoint", rule.EndpointName)
+		assert.Equal(t, "http_none_auth_notification_endpoint", rule.EndpointPkgName)
 		assert.Equalf(t, "http", rule.EndpointType, "rule: %+v", rule)
 
 		require.Len(t, sum1.Tasks, 1)
@@ -801,7 +801,7 @@ spec:
 				rule := sum.NotificationRules[0]
 				assert.Equal(t, "rule_0", rule.Name)
 				assert.Equal(t, pkger.SafeID(endpoints[0].NotificationEndpoint.GetID()), rule.EndpointID)
-				assert.NotEmpty(t, rule.EndpointName)
+				assert.NotEmpty(t, rule.EndpointPkgName)
 
 				require.Len(t, sum.Tasks, 1)
 				task := sum.Tasks[0]
@@ -1107,7 +1107,7 @@ spec:
 			newRule := newSum.NotificationRules[0]
 			assert.Equal(t, "new rule name", newRule.Name)
 			assert.Zero(t, newRule.EndpointID)
-			assert.NotEmpty(t, newRule.EndpointName)
+			assert.NotEmpty(t, newRule.EndpointPkgName)
 			hasLabelAssociations(t, newRule.LabelAssociations, 1, "label_1")
 
 			require.Len(t, newSum.Tasks, 1)
@@ -1403,7 +1403,7 @@ spec:
 		assert.Equal(t, "endpoint_threeve", sum.NotificationEndpoints[0].NotificationEndpoint.GetName())
 		assert.Equal(t, "label_threeve", sum.Labels[0].Name)
 		assert.Equal(t, "rule_threeve", sum.NotificationRules[0].Name)
-		assert.Equal(t, "endpoint_threeve", sum.NotificationRules[0].EndpointName)
+		assert.Equal(t, "endpoint_threeve", sum.NotificationRules[0].EndpointPkgName)
 		assert.Equal(t, "telegraf_threeve", sum.TelegrafConfigs[0].TelegrafConfig.Name)
 		assert.Equal(t, "task_threeve", sum.Tasks[0].Name)
 		assert.Equal(t, "var_threeve", sum.Variables[0].Name)

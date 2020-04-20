@@ -1,16 +1,7 @@
-.label-card {
-  .cf-resource-card--contents {
-    flex-direction: row;
-    align-items: center;
-  }
-  .cf-resource-card--row {
-    margin-right: $cf-marg-c;
-    margin-bottom: 0;
-  }
-}
-
 .label-card--description {
   font-weight: $cf-font-weight--medium;
+  margin: 0;
+  margin-left: $cf-marg-c;
 }
 
 .label-card--description__untitled {

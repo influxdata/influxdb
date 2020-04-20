@@ -62,37 +62,32 @@ class DashboardCard extends PureComponent<Props> {
       <ResourceCard
         key={`dashboard-id--${id}`}
         testID="dashboard-card"
-        name={
-          <ResourceCard.EditableName
-            onUpdate={this.handleUpdateDashboard}
-            onClick={this.handleClickDashboard}
-            name={name}
-            noNameString={DEFAULT_DASHBOARD_NAME}
-            testID="dashboard-card--name"
-            buttonTestID="dashboard-card--name-button"
-            inputTestID="dashboard-card--input"
-          />
-        }
-        description={
-          <ResourceCard.EditableDescription
-            onUpdate={this.handleUpdateDescription}
-            description={description}
-            placeholder={`Describe ${name}`}
-          />
-        }
-        labels={
-          <InlineLabels
-            selectedLabelIDs={labels}
-            onFilterChange={onFilterChange}
-            onAddLabel={this.handleAddLabel}
-            onRemoveLabel={this.handleRemoveLabel}
-          />
-        }
-        metaData={[
-          <>{relativeTimestampFormatter(updatedAt, 'Last modified ')}</>,
-        ]}
         contextMenu={this.contextMenu}
-      />
+      >
+        <ResourceCard.EditableName
+          onUpdate={this.handleUpdateDashboard}
+          onClick={this.handleClickDashboard}
+          name={name}
+          noNameString={DEFAULT_DASHBOARD_NAME}
+          testID="dashboard-card--name"
+          buttonTestID="dashboard-card--name-button"
+          inputTestID="dashboard-card--input"
+        />
+        <ResourceCard.EditableDescription
+          onUpdate={this.handleUpdateDescription}
+          description={description}
+          placeholder={`Describe ${name}`}
+        />
+        <ResourceCard.Meta>
+          {relativeTimestampFormatter(updatedAt, 'Last modified ')}
+        </ResourceCard.Meta>
+        <InlineLabels
+          selectedLabelIDs={labels}
+          onFilterChange={onFilterChange}
+          onAddLabel={this.handleAddLabel}
+          onRemoveLabel={this.handleRemoveLabel}
+        />
+      </ResourceCard>
     )
   }
 

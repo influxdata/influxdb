@@ -105,6 +105,12 @@ export const references = (
   })
 }
 
+export const formatting = (id: number, uri: string) => {
+  return createRequest(id, 'textDocument/formatting', {
+    textDocument: {uri},
+  })
+}
+
 export const definition = (id: number, uri: string, position: Position) => {
   return createRequest(id, 'textDocument/definition', {
     textDocument: {uri},

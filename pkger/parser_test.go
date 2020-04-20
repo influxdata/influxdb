@@ -3088,7 +3088,7 @@ spec:
 
 				rule := rules[0]
 				assert.Equal(t, "rule_0", rule.Name)
-				assert.Equal(t, "endpoint_0", rule.EndpointName)
+				assert.Equal(t, "endpoint_0", rule.EndpointPkgName)
 				assert.Equal(t, "desc_0", rule.Description)
 				assert.Equal(t, (10 * time.Minute).String(), rule.Every)
 				assert.Equal(t, (30 * time.Second).String(), rule.Offset)
@@ -3108,12 +3108,27 @@ spec:
 				}
 				assert.Equal(t, expectedTagRules, rule.TagRules)
 
-				require.Len(t, sum.Labels, 1)
-				require.Len(t, rule.LabelAssociations, 1)
+				require.Len(t, sum.Labels, 2)
+				require.Len(t, rule.LabelAssociations, 2)
+				assert.Equal(t, "label_1", rule.LabelAssociations[0].PkgName)
+				assert.Equal(t, "label_2", rule.LabelAssociations[1].PkgName)
 			})
 		})
 
 		t.Run("handles bad config", func(t *testing.T) {
+			pkgWithValidEndpint := func(resource string) string {
+				return fmt.Sprintf(`
+apiVersion: influxdata.com/v2alpha1
+kind: NotificationEndpointSlack
+metadata:
+  name: endpoint_0
+spec:
+  url: https://hooks.slack.com/services/bip/piddy/boppidy
+---
+%s
+`, resource)
+			}
+
 			tests := []struct {
 				kind   Kind
 				resErr testPkgResourceError
@@ -3121,10 +3136,9 @@ spec:
 				{
 					kind: KindNotificationRule,
 					resErr: testPkgResourceError{
-						name:           "missing name",
-						validationErrs: 1,
-						valFields:      []string{fieldMetadata, fieldName},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
+						name:      "missing name",
+						valFields: []string{fieldMetadata, fieldName},
+						pkgStr: pkgWithValidEndpint(`apiVersion: influxdata.com/v2alpha1
 kind: NotificationRule
 metadata:
 spec:
@@ -3133,16 +3147,15 @@ spec:
   messageTemplate: "Notification Rule: ${ r._notification_rule_name } triggered by check: ${ r._check_name }: ${ r._message }"
   statusRules:
     - currentLevel: WARN
-`,
+`),
 					},
 				},
 				{
 					kind: KindNotificationRule,
 					resErr: testPkgResourceError{
-						name:           "missing endpoint name",
-						validationErrs: 1,
-						valFields:      []string{fieldSpec, fieldNotificationRuleEndpointName},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
+						name:      "missing endpoint name",
+						valFields: []string{fieldSpec, fieldNotificationRuleEndpointName},
+						pkgStr: pkgWithValidEndpint(`apiVersion: influxdata.com/v2alpha1
 kind: NotificationRule
 metadata:
   name: rule_0
@@ -3151,16 +3164,15 @@ spec:
   messageTemplate: "Notification Rule: ${ r._notification_rule_name } triggered by check: ${ r._check_name }: ${ r._message }"
   statusRules:
     - currentLevel: WARN
-`,
+`),
 					},
 				},
 				{
 					kind: KindNotificationRule,
 					resErr: testPkgResourceError{
-						name:           "missing every",
-						validationErrs: 1,
-						valFields:      []string{fieldSpec, fieldEvery},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
+						name:      "missing every",
+						valFields: []string{fieldSpec, fieldEvery},
+						pkgStr: pkgWithValidEndpint(`apiVersion: influxdata.com/v2alpha1
 kind: NotificationRule
 metadata:
   name: rule_0
@@ -3169,52 +3181,49 @@ spec:
   messageTemplate: "Notification Rule: ${ r._notification_rule_name } triggered by check: ${ r._check_name }: ${ r._message }"
   statusRules:
     - currentLevel: WARN
-`,
+`),
 					},
 				},
 				{
 					kind: KindNotificationRule,
 					resErr: testPkgResourceError{
-						name:           "missing status rules",
-						validationErrs: 1,
-						valFields:      []string{fieldSpec, fieldNotificationRuleStatusRules},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
+						name:      "missing status rules",
+						valFields: []string{fieldSpec, fieldNotificationRuleStatusRules},
+						pkgStr: pkgWithValidEndpint(`apiVersion: influxdata.com/v2alpha1
 kind: NotificationRule
 metadata:
   name: rule_0
 spec:
   every: 10m
-  endpointName: 10m
+  endpointName: endpoint_0
   messageTemplate: "Notification Rule: ${ r._notification_rule_name } triggered by check: ${ r._check_name }: ${ r._message }"
-`,
+`),
 					},
 				},
 				{
 					kind: KindNotificationRule,
 					resErr: testPkgResourceError{
-						name:           "bad current status rule level",
-						validationErrs: 1,
-						valFields:      []string{fieldSpec, fieldNotificationRuleStatusRules},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
+						name:      "bad current status rule level",
+						valFields: []string{fieldSpec, fieldNotificationRuleStatusRules},
+						pkgStr: pkgWithValidEndpint(`apiVersion: influxdata.com/v2alpha1
 kind: NotificationRule
 metadata:
   name: rule_0
 spec:
   every: 10m
-  endpointName: 10m
+  endpointName: endpoint_0
   messageTemplate: "Notification Rule: ${ r._notification_rule_name } triggered by check: ${ r._check_name }: ${ r._message }"
   statusRules:
     - currentLevel: WRONGO
-`,
+`),
 					},
 				},
 				{
 					kind: KindNotificationRule,
 					resErr: testPkgResourceError{
-						name:           "bad previous status rule level",
-						validationErrs: 1,
-						valFields:      []string{fieldSpec, fieldNotificationRuleStatusRules},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
+						name:      "bad previous status rule level",
+						valFields: []string{fieldSpec, fieldNotificationRuleStatusRules},
+						pkgStr: pkgWithValidEndpint(`apiVersion: influxdata.com/v2alpha1
 kind: NotificationRule
 metadata:
   name: rule_0
@@ -3225,16 +3234,15 @@ spec:
   statusRules:
     - currentLevel: CRIT
       previousLevel: WRONG
-`,
+`),
 					},
 				},
 				{
 					kind: KindNotificationRule,
 					resErr: testPkgResourceError{
-						name:           "bad tag rule operator",
-						validationErrs: 1,
-						valFields:      []string{fieldSpec, fieldNotificationRuleTagRules},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
+						name:      "bad tag rule operator",
+						valFields: []string{fieldSpec, fieldNotificationRuleTagRules},
+						pkgStr: pkgWithValidEndpint(`apiVersion: influxdata.com/v2alpha1
 kind: NotificationRule
 metadata:
   name: rule_0
@@ -3248,16 +3256,15 @@ spec:
     - key: k1
       value: v2
       operator: WRONG
-`,
+`),
 					},
 				},
 				{
 					kind: KindNotificationRule,
 					resErr: testPkgResourceError{
-						name:           "bad status provided",
-						validationErrs: 1,
-						valFields:      []string{fieldSpec, fieldStatus},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
+						name:      "bad status provided",
+						valFields: []string{fieldSpec, fieldStatus},
+						pkgStr: pkgWithValidEndpint(`apiVersion: influxdata.com/v2alpha1
 kind: NotificationRule
 metadata:
   name: rule_0
@@ -3268,16 +3275,15 @@ spec:
   status: RANDO STATUS
   statusRules:
     - currentLevel: WARN
-`,
+`),
 					},
 				},
 				{
 					kind: KindNotificationRule,
 					resErr: testPkgResourceError{
-						name:           "label association does not exist",
-						validationErrs: 1,
-						valFields:      []string{fieldSpec, fieldAssociations},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
+						name:      "label association does not exist",
+						valFields: []string{fieldSpec, fieldAssociations},
+						pkgStr: pkgWithValidEndpint(`apiVersion: influxdata.com/v2alpha1
 kind: NotificationRule
 metadata:
   name: rule_0
@@ -3290,16 +3296,15 @@ spec:
   associations:
     - kind: Label
       name: label_1
-`,
+`),
 					},
 				},
 				{
 					kind: KindNotificationRule,
 					resErr: testPkgResourceError{
-						name:           "label association dupe",
-						validationErrs: 1,
-						valFields:      []string{fieldSpec, fieldAssociations},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
+						name:      "label association dupe",
+						valFields: []string{fieldSpec, fieldAssociations},
+						pkgStr: pkgWithValidEndpint(`apiVersion: influxdata.com/v2alpha1
 kind: Label
 metadata:
   name: label_1
@@ -3319,16 +3324,15 @@ spec:
       name: label_1
     - kind: Label
       name: label_1
-`,
+`),
 					},
 				},
 				{
 					kind: KindNotificationRule,
 					resErr: testPkgResourceError{
-						name:           "duplicate meta names",
-						validationErrs: 1,
-						valFields:      []string{fieldMetadata, fieldName},
-						pkgStr: `
+						name:      "duplicate meta names",
+						valFields: []string{fieldMetadata, fieldName},
+						pkgStr: pkgWithValidEndpint(`
 apiVersion: influxdata.com/v2alpha1
 kind: NotificationRule
 metadata:
@@ -3346,6 +3350,25 @@ metadata:
   name: rule_0
 spec:
   endpointName: endpoint_0
+  every: 10m
+  messageTemplate: "Notification Rule: ${ r._notification_rule_name } triggered by check: ${ r._check_name }: ${ r._message }"
+  statusRules:
+    - currentLevel: WARN
+`),
+					},
+				},
+				{
+					kind: KindNotificationRule,
+					resErr: testPkgResourceError{
+						name:      "missing endpoint association in pkg",
+						valFields: []string{fieldSpec, fieldNotificationRuleEndpointName},
+						pkgStr: `
+apiVersion: influxdata.com/v2alpha1
+kind: NotificationRule
+metadata:
+  name: rule_0
+spec:
+  endpointName: RANDO_ENDPOINT_NAME
   every: 10m
   messageTemplate: "Notification Rule: ${ r._notification_rule_name } triggered by check: ${ r._check_name }: ${ r._message }"
   statusRules:
@@ -3932,7 +3955,7 @@ spec:
 
 			require.Len(t, sum.NotificationRules, 1)
 			assert.Equal(t, "$rule-1-name-ref", sum.NotificationRules[0].Name)
-			assert.Equal(t, "$endpoint-1-name-ref", sum.NotificationRules[0].EndpointName)
+			assert.Equal(t, "$endpoint-1-name-ref", sum.NotificationRules[0].EndpointPkgName)
 			hasEnv(t, pkg.mEnv, "rule-1-name-ref")
 
 			require.Len(t, sum.Tasks, 1)

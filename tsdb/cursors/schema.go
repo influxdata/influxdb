@@ -1,5 +1,7 @@
 package cursors
 
+import "github.com/influxdata/influxql"
+
 // FieldType represents the primitive field data types available in tsm.
 type FieldType int
 
@@ -7,14 +9,82 @@ const (
 	Float     FieldType = iota // means the data type is a float
 	Integer                    // means the data type is an integer
 	Unsigned                   // means the data type is an unsigned integer
-	Boolean                    // means the data type is a boolean
 	String                     // means the data type is a string of text
+	Boolean                    // means the data type is a boolean
 	Undefined                  // means the data type in unknown or undefined
 )
 
+var (
+	fieldTypeToDataTypeMapping = [8]influxql.DataType{
+		Float:     influxql.Float,
+		Integer:   influxql.Integer,
+		Unsigned:  influxql.Unsigned,
+		String:    influxql.String,
+		Boolean:   influxql.Boolean,
+		Undefined: influxql.Unknown,
+		6:         influxql.Unknown,
+		7:         influxql.Unknown,
+	}
+)
+
+// FieldTypeToDataType returns the equivalent influxql DataType for the field type ft.
+// If ft is an invalid FieldType, the results are undefined.
+func FieldTypeToDataType(ft FieldType) influxql.DataType {
+	return fieldTypeToDataTypeMapping[ft&7]
+}
+
+// IsLower returns true if the other FieldType has greater precedence than the
+// current value. Undefined has the lowest precedence.
+func (ft FieldType) IsLower(other FieldType) bool { return other < ft }
+
 type MeasurementField struct {
-	Key  string
-	Type FieldType
+	Key       string    // Key is the name of the field
+	Type      FieldType // Type is field type
+	Timestamp int64     // Timestamp refers to the maximum timestamp observed for the given field
+}
+
+// MeasurementFieldSlice implements sort.Interface and sorts
+// the slice from lowest to highest precedence. Use sort.Reverse
+// to sort from highest to lowest.
+type MeasurementFieldSlice []MeasurementField
+
+func (m MeasurementFieldSlice) Len() int {
+	return len(m)
+}
+
+func (m MeasurementFieldSlice) Less(i, j int) bool {
+	ii, jj := &m[i], &m[j]
+	return ii.Key < jj.Key ||
+		(ii.Key == jj.Key &&
+			(ii.Timestamp < jj.Timestamp ||
+				(ii.Timestamp == jj.Timestamp && ii.Type.IsLower(jj.Type))))
+}
+
+func (m MeasurementFieldSlice) Swap(i, j int) {
+	m[i], m[j] = m[j], m[i]
+}
+
+// UniqueByKey performs an in-place update of m, removing duplicate elements
+// by Key, keeping the first occurrence of each. If the slice is not sorted,
+// the behavior of UniqueByKey is undefined.
+func (m *MeasurementFieldSlice) UniqueByKey() {
+	mm := *m
+	if len(mm) < 2 {
+		return
+	}
+
+	j := 0
+	for i := 1; i < len(mm); i++ {
+		if mm[j].Key != mm[i].Key {
+			j++
+			if j != i {
+				// optimization: skip copy if j == i
+				mm[j] = mm[i]
+			}
+		}
+	}
+
+	*m = mm[:j+1]
 }
 
 type MeasurementFields struct {

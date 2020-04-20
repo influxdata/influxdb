@@ -20,21 +20,18 @@ export default class ScraperRow extends PureComponent<Props> {
   public render() {
     const {scraper} = this.props
     return (
-      <>
-        <ResourceCard
-          name={
-            <ResourceCard.EditableName
-              onUpdate={this.handleUpdateScraperName}
-              name={scraper.name}
-              noNameString={DEFAULT_SCRAPER_NAME}
-              buttonTestID="editable-name"
-              inputTestID="input-field"
-            />
-          }
-          metaData={[<>Bucket: {scraper.bucket}</>, <>URL: {scraper.url}</>]}
-          contextMenu={this.contextMenu}
+      <ResourceCard contextMenu={this.contextMenu}>
+        <ResourceCard.EditableName
+          onUpdate={this.handleUpdateScraperName}
+          name={scraper.name}
+          noNameString={DEFAULT_SCRAPER_NAME}
+          buttonTestID="editable-name"
+          inputTestID="input-field"
         />
-      </>
+        <ResourceCard.Meta>
+          {[<>Bucket: {scraper.bucket}</>, <>URL: {scraper.url}</>]}
+        </ResourceCard.Meta>
+      </ResourceCard>
     )
   }
 

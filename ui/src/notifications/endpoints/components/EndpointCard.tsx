@@ -13,7 +13,14 @@ import {
 } from 'src/notifications/endpoints/actions/thunks'
 
 // Components
-import {SlideToggle, ComponentSize, ResourceCard} from '@influxdata/clockface'
+import {
+  SlideToggle,
+  ComponentSize,
+  ResourceCard,
+  FlexDirection,
+  AlignItems,
+  FlexBox,
+} from '@influxdata/clockface'
 import EndpointCardMenu from 'src/notifications/endpoints/components/EndpointCardMenu'
 import InlineLabels from 'src/shared/components/inlineLabels/InlineLabels'
 
@@ -68,32 +75,10 @@ const EndpointCard: FC<Props> = ({
     router.push(`orgs/${orgID}/alerting/endpoints/${id}/edit`)
   }
 
-  const nameComponent = (
-    <ResourceCard.EditableName
-      key={id}
-      name={name}
-      onClick={handleClick}
-      onUpdate={handleUpdateName}
-      testID={`endpoint-card--name ${name}`}
-      inputTestID="endpoint-card--input"
-      buttonTestID="endpoint-card--name-button"
-      noNameString="Name this notification endpoint"
-    />
-  )
-
   const handleToggle = () => {
     const toStatus = activeStatus === 'active' ? 'inactive' : 'active'
     onUpdateEndpointProperties(id, {status: toStatus})
   }
-
-  const toggle = (
-    <SlideToggle
-      active={activeStatus === 'active'}
-      size={ComponentSize.ExtraSmall}
-      onChange={handleToggle}
-      testID="endpoint-card--slide-toggle"
-    />
-  )
 
   const handleView = () => {
     const historyType: AlertHistoryType = 'notifications'
@@ -126,39 +111,56 @@ const EndpointCard: FC<Props> = ({
     onRemoveEndpointLabel(id, label.id)
   }
 
-  const labelsComponent = (
-    <InlineLabels
-      selectedLabelIDs={endpoint.labels}
-      onAddLabel={handleAddEndpointLabel}
-      onRemoveLabel={handleRemoveEndpointLabel}
-    />
-  )
-
   const handleUpdateDescription = (description: string) => {
     onUpdateEndpointProperties(id, {description})
   }
-  const descriptionComponent = (
-    <ResourceCard.EditableDescription
-      onUpdate={handleUpdateDescription}
-      description={description}
-      placeholder={`Describe ${name}`}
-    />
-  )
 
   return (
     <ResourceCard
       key={id}
-      toggle={toggle}
-      name={nameComponent}
       contextMenu={contextMenu}
-      description={descriptionComponent}
-      labels={labelsComponent}
       disabled={activeStatus === 'inactive'}
-      metaData={[
-        <>{relativeTimestampFormatter(endpoint.updatedAt, 'Last updated ')}</>,
-      ]}
+      direction={FlexDirection.Row}
+      alignItems={AlignItems.Center}
+      margin={ComponentSize.Large}
       testID={`endpoint-card ${name}`}
-    />
+    >
+      <SlideToggle
+        active={activeStatus === 'active'}
+        size={ComponentSize.ExtraSmall}
+        onChange={handleToggle}
+        testID="endpoint-card--slide-toggle"
+      />
+      <FlexBox
+        direction={FlexDirection.Column}
+        alignItems={AlignItems.FlexStart}
+        margin={ComponentSize.Small}
+      >
+        <ResourceCard.EditableName
+          key={id}
+          name={name}
+          onClick={handleClick}
+          onUpdate={handleUpdateName}
+          testID={`endpoint-card--name ${name}`}
+          inputTestID="endpoint-card--input"
+          buttonTestID="endpoint-card--name-button"
+          noNameString="Name this notification endpoint"
+        />
+        <ResourceCard.EditableDescription
+          onUpdate={handleUpdateDescription}
+          description={description}
+          placeholder={`Describe ${name}`}
+        />
+        <ResourceCard.Meta>
+          <>{relativeTimestampFormatter(endpoint.updatedAt, 'Last updated ')}</>
+        </ResourceCard.Meta>
+        <InlineLabels
+          selectedLabelIDs={endpoint.labels}
+          onAddLabel={handleAddEndpointLabel}
+          onRemoveLabel={handleRemoveEndpointLabel}
+        />
+      </FlexBox>
+    </ResourceCard>
   )
 }
 
