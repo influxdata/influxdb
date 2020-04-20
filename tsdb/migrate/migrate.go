@@ -303,16 +303,7 @@ func (m *Migrator) createBucket(db, rp string) (influxdb.ID, error) {
 func (m *Migrator) getRetentionPolicy(dbFilter, rpFilter string) (*RetentionPolicyInfo, error) {
 	file := filepath.Join(m.SourcePath, "meta/"+metaFile)
 
-	f, err := os.Open(file)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, err
-		}
-		return nil, err
-	}
-	defer f.Close()
-
-	data, err := ioutil.ReadAll(f)
+	data, err := ioutil.ReadFile(file)
 	if err != nil {
 		return nil, err
 	}
@@ -330,7 +321,7 @@ func (m *Migrator) getRetentionPolicy(dbFilter, rpFilter string) (*RetentionPoli
 		}
 	}
 
-	return nil, errors.New("Unable to find retention policy")
+	return nil, errors.New("unable to find retention policy")
 }
 
 // Process1xShard migrates the TSM data in a single 1.x shard to the 2.x data directory.

@@ -1,11 +1,11 @@
 package migrate
 
 import (
+	"time"
+
 	"github.com/gogo/protobuf/proto"
 	"github.com/influxdata/influxdb/v2/tsdb/migrate/internal"
-	"time"
 )
-
 
 //go:generate protoc --gogo_out=. internal/meta.proto
 
@@ -15,10 +15,6 @@ type Data struct {
 	Index     uint64 // associated raft index
 	ClusterID uint64
 	Databases []DatabaseInfo
-
-	// adminUserExists provides a constant time mechanism for determining
-	// if there is at least one admin user.
-	adminUserExists bool
 
 	MaxShardGroupID uint64
 	MaxShardID      uint64
