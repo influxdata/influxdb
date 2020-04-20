@@ -197,13 +197,6 @@ func NewAPIHandler(b *APIBackend, opts ...APIHandlerOptFn) *APIHandler {
 	h.Mount(prefixTelegrafPlugins, NewTelegrafHandler(b.Logger, telegrafBackend))
 	h.Mount(prefixTelegraf, NewTelegrafHandler(b.Logger, telegrafBackend))
 
-	userBackend := NewUserBackend(b.Logger.With(zap.String("handler", "user")), b)
-	userBackend.UserService = authorizer.NewUserService(b.UserService)
-	userBackend.PasswordsService = authorizer.NewPasswordService(b.PasswordsService)
-	userHandler := NewUserHandler(b.Logger, userBackend)
-	h.Mount(prefixMe, userHandler)
-	h.Mount(prefixUsers, userHandler)
-
 	variableBackend := NewVariableBackend(b.Logger.With(zap.String("handler", "variable")), b)
 	variableBackend.VariableService = authorizer.NewVariableService(b.VariableService)
 	h.Mount(prefixVariables, NewVariableHandler(b.Logger, variableBackend))
