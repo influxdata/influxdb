@@ -65,10 +65,7 @@ describe('Buckets', () => {
       })
 
       cy.get<Bucket>('@bucket').then(() => {
-        cy.getByTestID(`cf-resource-card--meta-item`).should(
-          'contain',
-          '7 days'
-        )
+        cy.getByTestID(`bucket-retention`).should('contain', '7 days')
       })
     })
 

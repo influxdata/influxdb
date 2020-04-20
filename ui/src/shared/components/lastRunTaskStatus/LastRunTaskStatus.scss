@@ -10,7 +10,6 @@
   align-content: center;
   background-color: rgba($g5-pepper, 0.5);
   border-radius: 50%;
-  margin-top: $ix-marg-a;
   transition: color 0.25s ease, text-shadow 0.25s ease;
 
   &.last-run-task-status__danger {

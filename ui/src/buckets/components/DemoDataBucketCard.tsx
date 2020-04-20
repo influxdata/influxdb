@@ -69,23 +69,21 @@ const DemoDataBucketCard: FC<Props & WithRouterProps & DispatchProps> = ({
           </FlexBox>
         </Context>
       }
-      name={
-        <ResourceCard.Name
-          testID={`bucket--card--name ${bucket.name}`}
-          onClick={handleNameClick}
-          name={bucket.name}
-        />
-      }
-      metaData={[
+    >
+      <ResourceCard.Name
+        testID={`bucket--card--name ${bucket.name}`}
+        onClick={handleNameClick}
+        name={bucket.name}
+      />
+      <ResourceCard.Meta>
         <span
           className="system-bucket"
           key={`system-bucket-indicator-${bucket.name}`}
         >
           Demo Data Bucket
-        </span>,
-        <>Retention: {bucket.readableRetention}</>,
-      ]}
-    >
+        </span>
+        <>Retention: {bucket.readableRetention}</>
+      </ResourceCard.Meta>
       <Label
         id="1"
         key="1"

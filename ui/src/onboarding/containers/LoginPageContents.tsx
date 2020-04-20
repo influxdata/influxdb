@@ -89,6 +89,7 @@ class LoginPageContents extends PureComponent<DispatchProps> {
         clientID: config.clientID,
         redirectUri: config.redirectURL,
         responseType: 'code',
+        state: config.state,
       })
     } catch (error) {
       console.error(error)
@@ -421,6 +422,7 @@ class LoginPageContents extends PureComponent<DispatchProps> {
   }
 
   private displayErrorMessage = (errors, auth0Err) => {
+    const {activeTab} = this.state
     // eslint-disable-next-line
     if (/error in email/.test(auth0Err.code)) {
       this.setState({
@@ -431,8 +433,13 @@ class LoginPageContents extends PureComponent<DispatchProps> {
       auth0Err.code === 'access_denied' ||
       auth0Err.code === 'user_exists'
     ) {
-      const emailError = `An account with that email address already exists. Try logging in instead.`
-      this.setState({...errors, emailError})
+      if (activeTab === ActiveTab.Login) {
+        const emailError = `The email and password combination you submitted don't match. Please try again`
+        this.setState({...errors, emailError})
+      } else {
+        const emailError = `An account with that email address already exists.  Try logging in instead.`
+        this.setState({...errors, emailError})
+      }
     } else {
       const emailError = `We have been notified of an issue while accessing your account. If this issue persists, please contact support@influxdata.com`
       this.setState({...errors, emailError})

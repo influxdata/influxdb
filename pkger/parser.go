@@ -385,58 +385,36 @@ func (p *Pkg) applySecrets(secrets map[string]string) {
 // Contains identifies if a pkg contains a given object identified
 // by its kind and metadata.Name (PkgName) field.
 func (p *Pkg) Contains(k Kind, pkgName string) bool {
-	_, ok := p.getObjectIDSetter(k, pkgName)
-	return ok
-}
-
-// setObjectID sets the id for the resource graphed from the object the key identifies.
-func (p *Pkg) setObjectID(k Kind, pkgName string, id influxdb.ID) {
-	idSetFn, ok := p.getObjectIDSetter(k, pkgName)
-	if !ok {
-		return
-	}
-	idSetFn(id)
-}
-
-// setObjectID sets the id for the resource graphed from the object the key identifies.
-// The pkgName and kind are used as the unique identifier, when calling this it will
-// overwrite any existing value if one exists. If desired, check for the value by using
-// the Contains method.
-func (p *Pkg) addObjectForRemoval(k Kind, pkgName string, id influxdb.ID) {
-	newIdentity := identity{
-		name:         &references{val: pkgName},
-		shouldRemove: true,
-	}
-
 	switch k {
+	case KindBucket:
+		_, ok := p.mBuckets[pkgName]
+		return ok
+	case KindCheck, KindCheckDeadman, KindCheckThreshold:
+		_, ok := p.mChecks[pkgName]
+		return ok
 	case KindLabel:
-		p.mLabels[pkgName] = &label{
-			identity: newIdentity,
-			id:       id,
-		}
+		_, ok := p.mLabels[pkgName]
+		return ok
+	case KindNotificationEndpoint,
+		KindNotificationEndpointHTTP,
+		KindNotificationEndpointPagerDuty,
+		KindNotificationEndpointSlack:
+		_, ok := p.mNotificationEndpoints[pkgName]
+		return ok
 	case KindNotificationRule:
-		p.mNotificationRules[pkgName] = &notificationRule{
-			identity: newIdentity,
-			id:       id,
-		}
+		_, ok := p.mNotificationRules[pkgName]
+		return ok
+	case KindTask:
+		_, ok := p.mTasks[pkgName]
+		return ok
+	case KindTelegraf:
+		_, ok := p.mTelegrafs[pkgName]
+		return ok
+	case KindVariable:
+		_, ok := p.mVariables[pkgName]
+		return ok
 	}
-}
-
-func (p *Pkg) getObjectIDSetter(k Kind, pkgName string) (func(influxdb.ID), bool) {
-	switch k {
-	case KindLabel:
-		l, ok := p.mLabels[pkgName]
-		return func(id influxdb.ID) {
-			l.id = id
-		}, ok
-	case KindNotificationRule:
-		r, ok := p.mNotificationRules[pkgName]
-		return func(id influxdb.ID) {
-			r.id = id
-		}, ok
-	default:
-		return nil, false
-	}
+	return false
 }
 
 // Combine combines pkgs together. Is useful when you want to take multiple disparate pkgs
@@ -995,6 +973,8 @@ func (p *Pkg) graphNotificationRules() *parseErr {
 				op: normStr(tRule.stringShort(fieldOperator)),
 			})
 		}
+
+		rule.associatedEndpoint = p.mNotificationEndpoints[rule.endpointName.String()]
 
 		failures := p.parseNestedLabels(o.Spec, func(l *label) error {
 			rule.labels = append(rule.labels, l)

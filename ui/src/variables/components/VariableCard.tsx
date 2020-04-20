@@ -38,7 +38,6 @@ class VariableCard extends PureComponent<Props & WithRouterProps> {
     return (
       <ResourceCard
         testID="resource-card"
-        labels={this.labels}
         contextMenu={
           <VariableContextMenu
             variable={variable}
@@ -47,14 +46,16 @@ class VariableCard extends PureComponent<Props & WithRouterProps> {
             onDelete={onDeleteVariable}
           />
         }
-        name={
-          <ResourceCard.Name
-            onClick={this.handleNameClick}
-            name={variable.name}
-          />
-        }
-        metaData={[<>Type: {variable.arguments.type}</>]}
-      />
+      >
+        <ResourceCard.Name
+          onClick={this.handleNameClick}
+          name={variable.name}
+        />
+        <ResourceCard.Meta>
+          <>Type: {variable.arguments.type}</>
+        </ResourceCard.Meta>
+        {this.labels}
+      </ResourceCard>
     )
   }
 

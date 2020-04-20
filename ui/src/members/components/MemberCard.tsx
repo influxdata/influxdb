@@ -16,16 +16,15 @@ export default class MemberCard extends PureComponent<Props> {
     const {member, onDelete} = this.props
 
     return (
-      <>
-        <ResourceCard
-          testID="task-card"
-          contextMenu={
-            <MemberContextMenu member={member} onDelete={onDelete} />
-          }
-          name={<ResourceCard.Name name={member.name} />}
-          metaData={[<>Role: {member.role}</>]}
-        />
-      </>
+      <ResourceCard
+        testID="task-card"
+        contextMenu={<MemberContextMenu member={member} onDelete={onDelete} />}
+      >
+        <ResourceCard.Name name={member.name} />
+        <ResourceCard.Meta>
+          <>Role: {member.role}</>
+        </ResourceCard.Meta>
+      </ResourceCard>
     )
   }
 }

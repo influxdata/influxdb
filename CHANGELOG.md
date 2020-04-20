@@ -24,6 +24,7 @@
 
 ### Bug Fixes
 
+1. [17257](https://github.com/influxdata/influxdb/pull/17769): Fix retention policy after bucket is migrated
 1. [17612](https://github.com/influxdata/influxdb/pull/17612): Fix card size and layout jank in dashboards index view
 1. [17651](https://github.com/influxdata/influxdb/pull/17651): Fix check graph font and lines defaulting to black causing graph to be unreadable
 1. [17660](https://github.com/influxdata/influxdb/pull/17660): Fix text wrapping display issue and popover sizing bug when adding labels to a resource

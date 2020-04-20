@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"github.com/influxdata/influxdb/v2/notification"
 	icheck "github.com/influxdata/influxdb/v2/notification/check"
 	"github.com/influxdata/influxdb/v2/notification/endpoint"
+	"github.com/influxdata/influxdb/v2/notification/rule"
 )
 
 type identity struct {
@@ -305,6 +307,83 @@ func (c *check) valid() []validationErr {
 	}
 
 	return nil
+}
+
+type thresholdType string
+
+const (
+	thresholdTypeGreater      thresholdType = "greater"
+	thresholdTypeLesser       thresholdType = "lesser"
+	thresholdTypeInsideRange  thresholdType = "inside_range"
+	thresholdTypeOutsideRange thresholdType = "outside_range"
+)
+
+var thresholdTypes = map[thresholdType]bool{
+	thresholdTypeGreater:      true,
+	thresholdTypeLesser:       true,
+	thresholdTypeInsideRange:  true,
+	thresholdTypeOutsideRange: true,
+}
+
+type threshold struct {
+	threshType thresholdType
+	allVals    bool
+	level      string
+	val        float64
+	min, max   float64
+}
+
+func (t threshold) valid() []validationErr {
+	var vErrs []validationErr
+	if notification.ParseCheckLevel(t.level) == notification.Unknown {
+		vErrs = append(vErrs, validationErr{
+			Field: fieldLevel,
+			Msg:   fmt.Sprintf("must be 1 in [CRIT, WARN, INFO, OK]; got=%q", t.level),
+		})
+	}
+	if !thresholdTypes[t.threshType] {
+		vErrs = append(vErrs, validationErr{
+			Field: fieldType,
+			Msg:   fmt.Sprintf("must be 1 in [Lesser, Greater, Inside_Range, Outside_Range]; got=%q", t.threshType),
+		})
+	}
+	if t.min > t.max {
+		vErrs = append(vErrs, validationErr{
+			Field: fieldMin,
+			Msg:   "min must be < max",
+		})
+	}
+	return vErrs
+}
+
+func toInfluxThresholds(thresholds ...threshold) []icheck.ThresholdConfig {
+	var iThresh []icheck.ThresholdConfig
+	for _, th := range thresholds {
+		base := icheck.ThresholdConfigBase{
+			AllValues: th.allVals,
+			Level:     notification.ParseCheckLevel(th.level),
+		}
+		switch th.threshType {
+		case thresholdTypeGreater:
+			iThresh = append(iThresh, icheck.Greater{
+				ThresholdConfigBase: base,
+				Value:               th.val,
+			})
+		case thresholdTypeLesser:
+			iThresh = append(iThresh, icheck.Lesser{
+				ThresholdConfigBase: base,
+				Value:               th.val,
+			})
+		case thresholdTypeInsideRange, thresholdTypeOutsideRange:
+			iThresh = append(iThresh, icheck.Range{
+				ThresholdConfigBase: base,
+				Max:                 th.max,
+				Min:                 th.min,
+				Within:              th.threshType == thresholdTypeInsideRange,
+			})
+		}
+	}
+	return iThresh
 }
 
 // chartKind identifies what kind of chart is eluded too. Each
@@ -996,13 +1075,6 @@ type assocMapVal struct {
 	v      interface{}
 }
 
-func (l assocMapVal) ID() influxdb.ID {
-	if t, ok := l.v.(labelAssociater); ok {
-		return t.ID()
-	}
-	return 0
-}
-
 func (l assocMapVal) PkgName() string {
 	t, ok := l.v.(interface{ PkgName() string })
 	if ok {
@@ -1055,17 +1127,11 @@ const (
 const labelNameMinLength = 2
 
 type label struct {
-	id influxdb.ID
 	identity
 
 	Color       string
 	Description string
 	associationMapping
-
-	// exists provides context for a resource that already
-	// exists in the platform. If a resource already exists(exists=true)
-	// then the ID should be populated.
-	existing *influxdb.Label
 }
 
 func (l *label) summarize() SummaryLabel {
@@ -1093,11 +1159,9 @@ func (l *label) mappingSummary() []SummaryLabelMapping {
 			mappings = append(mappings, SummaryLabelMapping{
 				exists:          v.exists,
 				Status:          status,
-				ResourceID:      SafeID(v.ID()),
 				ResourcePkgName: v.PkgName(),
 				ResourceName:    resource.name,
 				ResourceType:    resource.resType,
-				LabelID:         SafeID(l.ID()),
 				LabelPkgName:    l.PkgName(),
 				LabelName:       l.Name(),
 			})
@@ -1105,16 +1169,6 @@ func (l *label) mappingSummary() []SummaryLabelMapping {
 	}
 
 	return mappings
-}
-
-func (l *label) ID() influxdb.ID {
-	if l.id != 0 {
-		return l.id
-	}
-	if l.existing != nil {
-		return l.existing.ID
-	}
-	return 0
 }
 
 func (l *label) valid() []validationErr {
@@ -1152,83 +1206,6 @@ func (s sortedLabels) Swap(i, j int) {
 	s[i], s[j] = s[j], s[i]
 }
 
-type thresholdType string
-
-const (
-	thresholdTypeGreater      thresholdType = "greater"
-	thresholdTypeLesser       thresholdType = "lesser"
-	thresholdTypeInsideRange  thresholdType = "inside_range"
-	thresholdTypeOutsideRange thresholdType = "outside_range"
-)
-
-var thresholdTypes = map[thresholdType]bool{
-	thresholdTypeGreater:      true,
-	thresholdTypeLesser:       true,
-	thresholdTypeInsideRange:  true,
-	thresholdTypeOutsideRange: true,
-}
-
-type threshold struct {
-	threshType thresholdType
-	allVals    bool
-	level      string
-	val        float64
-	min, max   float64
-}
-
-func (t threshold) valid() []validationErr {
-	var vErrs []validationErr
-	if notification.ParseCheckLevel(t.level) == notification.Unknown {
-		vErrs = append(vErrs, validationErr{
-			Field: fieldLevel,
-			Msg:   fmt.Sprintf("must be 1 in [CRIT, WARN, INFO, OK]; got=%q", t.level),
-		})
-	}
-	if !thresholdTypes[t.threshType] {
-		vErrs = append(vErrs, validationErr{
-			Field: fieldType,
-			Msg:   fmt.Sprintf("must be 1 in [Lesser, Greater, Inside_Range, Outside_Range]; got=%q", t.threshType),
-		})
-	}
-	if t.min > t.max {
-		vErrs = append(vErrs, validationErr{
-			Field: fieldMin,
-			Msg:   "min must be < max",
-		})
-	}
-	return vErrs
-}
-
-func toInfluxThresholds(thresholds ...threshold) []icheck.ThresholdConfig {
-	var iThresh []icheck.ThresholdConfig
-	for _, th := range thresholds {
-		base := icheck.ThresholdConfigBase{
-			AllValues: th.allVals,
-			Level:     notification.ParseCheckLevel(th.level),
-		}
-		switch th.threshType {
-		case thresholdTypeGreater:
-			iThresh = append(iThresh, icheck.Greater{
-				ThresholdConfigBase: base,
-				Value:               th.val,
-			})
-		case thresholdTypeLesser:
-			iThresh = append(iThresh, icheck.Lesser{
-				ThresholdConfigBase: base,
-				Value:               th.val,
-			})
-		case thresholdTypeInsideRange, thresholdTypeOutsideRange:
-			iThresh = append(iThresh, icheck.Range{
-				ThresholdConfigBase: base,
-				Max:                 th.max,
-				Min:                 th.min,
-				Within:              th.threshType == thresholdTypeInsideRange,
-			})
-		}
-	}
-	return iThresh
-}
-
 type notificationEndpointKind int
 
 const (
@@ -1236,6 +1213,17 @@ const (
 	notificationKindPagerDuty
 	notificationKindSlack
 )
+
+func (n notificationEndpointKind) String() string {
+	if n > 0 && n < 4 {
+		return [...]string{
+			endpoint.HTTPType,
+			endpoint.PagerDutyType,
+			endpoint.SlackType,
+		}[n-1]
+	}
+	return ""
+}
 
 const (
 	notificationHTTPAuthTypeBasic  = "basic"
@@ -1421,6 +1409,242 @@ func (n *notificationEndpoint) valid() []validationErr {
 	}
 
 	return nil
+}
+
+const (
+	fieldNotificationRuleChannel         = "channel"
+	fieldNotificationRuleCurrentLevel    = "currentLevel"
+	fieldNotificationRuleEndpointName    = "endpointName"
+	fieldNotificationRuleMessageTemplate = "messageTemplate"
+	fieldNotificationRulePreviousLevel   = "previousLevel"
+	fieldNotificationRuleStatusRules     = "statusRules"
+	fieldNotificationRuleTagRules        = "tagRules"
+)
+
+type notificationRule struct {
+	identity
+
+	channel     string
+	description string
+	every       time.Duration
+	msgTemplate string
+	offset      time.Duration
+	status      string
+	statusRules []struct{ curLvl, prevLvl string }
+	tagRules    []struct{ k, v, op string }
+
+	associatedEndpoint *notificationEndpoint
+	endpointName       *references
+
+	labels sortedLabels
+}
+
+func (r *notificationRule) Labels() []*label {
+	return r.labels
+}
+
+func (r *notificationRule) ResourceType() influxdb.ResourceType {
+	return KindNotificationRule.ResourceType()
+}
+
+func (r *notificationRule) Status() influxdb.Status {
+	if r.status == "" {
+		return influxdb.Active
+	}
+	return influxdb.Status(r.status)
+}
+
+func (r *notificationRule) summarize() SummaryNotificationRule {
+	var endpointPkgName, endpointType string
+	if r.associatedEndpoint != nil {
+		endpointPkgName = r.associatedEndpoint.PkgName()
+		endpointType = r.associatedEndpoint.kind.String()
+	}
+
+	return SummaryNotificationRule{
+		PkgName:           r.PkgName(),
+		Name:              r.Name(),
+		EndpointPkgName:   endpointPkgName,
+		EndpointType:      endpointType,
+		Description:       r.description,
+		Every:             r.every.String(),
+		LabelAssociations: toSummaryLabels(r.labels...),
+		Offset:            r.offset.String(),
+		MessageTemplate:   r.msgTemplate,
+		Status:            r.Status(),
+		StatusRules:       toSummaryStatusRules(r.statusRules),
+		TagRules:          toSummaryTagRules(r.tagRules),
+	}
+}
+
+func (r *notificationRule) toInfluxRule() influxdb.NotificationRule {
+	base := rule.Base{
+		Name:        r.Name(),
+		Description: r.description,
+		Every:       toNotificationDuration(r.every),
+		Offset:      toNotificationDuration(r.offset),
+	}
+	for _, sr := range r.statusRules {
+		var prevLvl *notification.CheckLevel
+		if lvl := notification.ParseCheckLevel(sr.prevLvl); lvl != notification.Unknown {
+			prevLvl = &lvl
+		}
+		base.StatusRules = append(base.StatusRules, notification.StatusRule{
+			CurrentLevel:  notification.ParseCheckLevel(sr.curLvl),
+			PreviousLevel: prevLvl,
+		})
+	}
+	for _, tr := range r.tagRules {
+		op, _ := influxdb.ToOperator(tr.op)
+		base.TagRules = append(base.TagRules, notification.TagRule{
+			Tag: influxdb.Tag{
+				Key:   tr.k,
+				Value: tr.v,
+			},
+			Operator: op,
+		})
+	}
+
+	switch r.associatedEndpoint.kind {
+	case notificationKindHTTP:
+		return &rule.HTTP{Base: base}
+	case notificationKindPagerDuty:
+		return &rule.PagerDuty{
+			Base:            base,
+			MessageTemplate: r.msgTemplate,
+		}
+	case notificationKindSlack:
+		return &rule.Slack{
+			Base:            base,
+			Channel:         r.channel,
+			MessageTemplate: r.msgTemplate,
+		}
+	}
+	return nil
+}
+
+func (r *notificationRule) valid() []validationErr {
+	var vErrs []validationErr
+	if !r.endpointName.hasValue() {
+		vErrs = append(vErrs, validationErr{
+			Field: fieldNotificationRuleEndpointName,
+			Msg:   "must be provided",
+		})
+	} else if r.associatedEndpoint == nil {
+		vErrs = append(vErrs, validationErr{
+			Field: fieldNotificationRuleEndpointName,
+			Msg:   fmt.Sprintf("notification endpoint %q does not exist in pkg", r.endpointName.String()),
+		})
+	}
+
+	if r.every == 0 {
+		vErrs = append(vErrs, validationErr{
+			Field: fieldEvery,
+			Msg:   "must be provided",
+		})
+	}
+	if status := r.Status(); status != influxdb.Active && status != influxdb.Inactive {
+		vErrs = append(vErrs, validationErr{
+			Field: fieldStatus,
+			Msg:   fmt.Sprintf("must be 1 in [active, inactive]; got=%q", r.status),
+		})
+	}
+
+	if len(r.statusRules) == 0 {
+		vErrs = append(vErrs, validationErr{
+			Field: fieldNotificationRuleStatusRules,
+			Msg:   "must provide at least 1",
+		})
+	}
+
+	var sRuleErrs []validationErr
+	for i, sRule := range r.statusRules {
+		if notification.ParseCheckLevel(sRule.curLvl) == notification.Unknown {
+			sRuleErrs = append(sRuleErrs, validationErr{
+				Field: fieldNotificationRuleCurrentLevel,
+				Msg:   fmt.Sprintf("must be 1 in [CRIT, WARN, INFO, OK]; got=%q", sRule.curLvl),
+				Index: intPtr(i),
+			})
+		}
+		if sRule.prevLvl != "" && notification.ParseCheckLevel(sRule.prevLvl) == notification.Unknown {
+			sRuleErrs = append(sRuleErrs, validationErr{
+				Field: fieldNotificationRulePreviousLevel,
+				Msg:   fmt.Sprintf("must be 1 in [CRIT, WARN, INFO, OK]; got=%q", sRule.prevLvl),
+				Index: intPtr(i),
+			})
+		}
+	}
+	if len(sRuleErrs) > 0 {
+		vErrs = append(vErrs, validationErr{
+			Field:  fieldNotificationRuleStatusRules,
+			Nested: sRuleErrs,
+		})
+	}
+
+	var tagErrs []validationErr
+	for i, tRule := range r.tagRules {
+		if _, ok := influxdb.ToOperator(tRule.op); !ok {
+			tagErrs = append(tagErrs, validationErr{
+				Field: fieldOperator,
+				Msg:   fmt.Sprintf("must be 1 in [equal]; got=%q", tRule.op),
+				Index: intPtr(i),
+			})
+		}
+	}
+	if len(tagErrs) > 0 {
+		vErrs = append(vErrs, validationErr{
+			Field:  fieldNotificationRuleTagRules,
+			Nested: tagErrs,
+		})
+	}
+
+	if len(vErrs) > 0 {
+		return []validationErr{
+			objectValidationErr(fieldSpec, vErrs...),
+		}
+	}
+
+	return nil
+}
+
+func toSummaryStatusRules(statusRules []struct{ curLvl, prevLvl string }) []SummaryStatusRule {
+	out := make([]SummaryStatusRule, 0, len(statusRules))
+	for _, sRule := range statusRules {
+		out = append(out, SummaryStatusRule{
+			CurrentLevel:  sRule.curLvl,
+			PreviousLevel: sRule.prevLvl,
+		})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		si, sj := out[i], out[j]
+		if si.CurrentLevel == sj.CurrentLevel {
+			return si.PreviousLevel < sj.PreviousLevel
+		}
+		return si.CurrentLevel < sj.CurrentLevel
+	})
+	return out
+}
+
+func toSummaryTagRules(tagRules []struct{ k, v, op string }) []SummaryTagRule {
+	out := make([]SummaryTagRule, 0, len(tagRules))
+	for _, tRule := range tagRules {
+		out = append(out, SummaryTagRule{
+			Key:      tRule.k,
+			Value:    tRule.v,
+			Operator: tRule.op,
+		})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		ti, tj := out[i], out[j]
+		if ti.Key == tj.Key && ti.Value == tj.Value {
+			return ti.Operator < tj.Operator
+		}
+		if ti.Key == tj.Key {
+			return ti.Value < tj.Value
+		}
+		return ti.Key < tj.Key
+	})
+	return out
 }
 
 const (
@@ -1723,4 +1947,83 @@ func (v *variable) valid() []validationErr {
 	}
 
 	return nil
+}
+
+const (
+	fieldReferencesEnv    = "envRef"
+	fieldReferencesSecret = "secretRef"
+)
+
+type references struct {
+	val    interface{}
+	EnvRef string
+	Secret string
+}
+
+func (r *references) hasValue() bool {
+	return r.EnvRef != "" || r.Secret != "" || r.val != nil
+}
+
+func (r *references) String() string {
+	if r == nil {
+		return ""
+	}
+	if v := r.StringVal(); v != "" {
+		return v
+	}
+	if r.EnvRef != "" {
+		return "$" + r.EnvRef
+	}
+	return ""
+}
+
+func (r *references) StringVal() string {
+	if r.val != nil {
+		s, _ := r.val.(string)
+		return s
+	}
+	return ""
+}
+
+func (r *references) SecretField() influxdb.SecretField {
+	if secret := r.Secret; secret != "" {
+		return influxdb.SecretField{Key: secret}
+	}
+	if str := r.StringVal(); str != "" {
+		return influxdb.SecretField{Value: &str}
+	}
+	return influxdb.SecretField{}
+}
+
+func isValidName(name string, minLength int) (validationErr, bool) {
+	if len(name) >= minLength {
+		return validationErr{}, true
+	}
+	return validationErr{
+		Field: fieldName,
+		Msg:   fmt.Sprintf("must be a string of at least %d chars in length", minLength),
+	}, false
+}
+
+func toNotificationDuration(dur time.Duration) *notification.Duration {
+	d, _ := notification.FromTimeDuration(dur)
+	return &d
+}
+
+func durToStr(dur time.Duration) string {
+	if dur == 0 {
+		return ""
+	}
+	return dur.String()
+}
+
+func flt64Ptr(f float64) *float64 {
+	if f != 0 {
+		return &f
+	}
+	return nil
+}
+
+func intPtr(i int) *int {
+	return &i
 }
