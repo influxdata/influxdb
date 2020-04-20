@@ -353,7 +353,10 @@ export const updateDashboard = (
   try {
     const resp = await api.patchDashboard({
       dashboardID: dashboard.id,
-      data: dashboard,
+      data: {
+        name: dashboard.name,
+        description: dashboard.description,
+      },
     })
 
     if (resp.status !== 200) {

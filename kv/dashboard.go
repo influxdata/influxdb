@@ -660,7 +660,7 @@ func (s *Service) UpdateDashboardCell(ctx context.Context, dashboardID, cellID i
 func (s *Service) PutDashboard(ctx context.Context, d *influxdb.Dashboard) error {
 	return s.kv.Update(ctx, func(tx Tx) error {
 		for _, cell := range d.Cells {
-			if err := s.createCellView(ctx, tx, d.ID, cell.ID, nil); err != nil {
+			if err := s.createCellView(ctx, tx, d.ID, cell.ID, cell.View); err != nil {
 				return err
 			}
 		}
@@ -818,6 +818,22 @@ func (s *Service) updateDashboard(ctx context.Context, tx Tx, id influxdb.ID, up
 		return nil, err
 	}
 
+	if upd.Cells != nil {
+		for _, c := range *upd.Cells {
+			if !c.ID.Valid() {
+				c.ID = s.IDGenerator.ID()
+				if c.View != nil {
+					c.View.ViewContents.ID = c.ID
+				}
+			}
+		}
+		for _, c := range d.Cells {
+			if err := s.deleteDashboardCellView(ctx, tx, d.ID, c.ID); err != nil {
+				return nil, err
+			}
+		}
+	}
+
 	if err := upd.Apply(d); err != nil {
 		return nil, err
 	}
@@ -828,6 +844,14 @@ func (s *Service) updateDashboard(ctx context.Context, tx Tx, id influxdb.ID, up
 
 	if err := s.putDashboardWithMeta(ctx, tx, d); err != nil {
 		return nil, err
+	}
+
+	if upd.Cells != nil {
+		for _, c := range d.Cells {
+			if err := s.putDashboardCellView(ctx, tx, d.ID, c.ID, c.View); err != nil {
+				return nil, err
+			}
+		}
 	}
 
 	return d, nil
