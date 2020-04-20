@@ -82,3 +82,12 @@ type Store interface {
 
 	GetSource(orgID, bucketID uint64) proto.Message
 }
+
+// WindowAggregateReader implements the WindowAggregate capability.
+type WindowAggregateReader interface {
+	// HasWindowAggregateCapability checks if this Store supports the capability.
+	HasWindowAggregateCapability(ctx context.Context) bool
+
+	// WindowAggregate will invoke a ReadWindowAggregateRequest against the Store.
+	WindowAggregate(ctx context.Context, req *datatypes.ReadWindowAggregateRequest) (ResultSet, error)
+}

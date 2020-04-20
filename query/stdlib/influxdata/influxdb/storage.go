@@ -143,3 +143,17 @@ type TableIterator interface {
 	flux.TableIterator
 	Statistics() cursors.CursorStats
 }
+
+type ReadWindowAggregateSpec struct {
+	ReadFilterSpec
+	// TODO(issue #17784): add attributes for the window aggregate spec.
+}
+
+// WindowAggregateReader implements the WindowAggregate capability.
+type WindowAggregateReader interface {
+	// HasWindowAggregateCapability will test if this Reader source supports the ReadWindowAggregate capability.
+	HasWindowAggregateCapability(ctx context.Context) bool
+
+	// ReadWindowAggregate will read a table using the WindowAggregate method.
+	ReadWindowAggregate(ctx context.Context, spec ReadWindowAggregateSpec, alloc *memory.Allocator) (TableIterator, error)
+}
