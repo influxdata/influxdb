@@ -345,6 +345,221 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  /dbrps:
+    get:
+      operationId: GetDPRPs
+      tags:
+        - DBRPs
+      summary: List all database retention policy mappings
+      parameters:
+        - $ref: "#/components/parameters/TraceSpan"
+        - in: query
+          name: orgID
+          required: true
+          description: Specifies the organization ID to filter on
+          schema:
+            type: string
+        - in: query
+          name: id
+          description: Specifies the mapping ID to filter on
+          schema:
+            type: string
+        - in: query
+          name: bucketID
+          description: Specifies the bucket ID to filter on
+          schema:
+            type: string
+        - in: query
+          name: default
+          description: Specifies filtering on default
+          schema:
+            type: boolean
+        - in: query
+          name: db
+          description: Specifies the database to filter on
+          schema:
+            type: string
+        - in: query
+          name: rp
+          description: Specifies the retention policy to filter on
+          schema:
+            type: string
+      responses:
+        "200":
+          description: A list of all database retention policy mappings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DBRPs"
+        "400":
+          description: if any of the parameter passed is invalid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      operationId: PostDBRP
+      tags:
+        - DBRPs
+      summary: Add a database retention policy mapping
+      parameters:
+        - $ref: "#/components/parameters/TraceSpan"
+      requestBody:
+        description: The database retention policy mapping to add
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DBRP"
+      responses:
+        "201":
+          description: Database retention policy mapping created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DBRP"
+        "400":
+          description: if any of the IDs in the mapping is invalid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/dprps/{dbrpID}':
+    get:
+      operationId: GetDBRPsID
+      tags:
+        - DBRPs
+      summary: Retrieve a database retention policy mapping
+      parameters:
+        - $ref: "#/components/parameters/TraceSpan"
+        - in: query
+          name: orgID
+          required: true
+          description: Specifies the organization ID of the mapping
+          schema:
+            type: string
+        - in: path
+          name: dbrpID
+          schema:
+            type: string
+          required: true
+          description: The database retention policy mapping ID
+      responses:
+        "200":
+          description: The database retention policy requested
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DBRP"
+        "400":
+          description: if any of the IDs passed is invalid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    patch:
+      operationId: PatchDBRPID
+      tags:
+        - DBRPs
+      summary: Update a database retention policy mapping
+      requestBody:
+        description: Database retention policy update to apply
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DBRPUpdate"
+      parameters:
+        - $ref: "#/components/parameters/TraceSpan"
+        - in: query
+          name: orgID
+          required: true
+          description: Specifies the organization ID of the mapping
+          schema:
+            type: string
+        - in: path
+          name: dbrpID
+          schema:
+            type: string
+          required: true
+          description: The database retention policy mapping.
+      responses:
+        "200":
+          description: An updated mapping
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DBRP"
+        "404":
+          description: The mapping was not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "400":
+          description: if any of the IDs passed is invalid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    delete:
+      operationId: DeleteDBRPID
+      tags:
+        - DBRPs
+      summary: Delete a database retention policy
+      parameters:
+        - $ref: "#/components/parameters/TraceSpan"
+        - in: query
+          name: orgID
+          required: true
+          description: Specifies the organization ID of the mapping
+          schema:
+            type: string
+        - in: path
+          name: dbrpID
+          schema:
+            type: string
+          required: true
+          description: The database retention policy mapping
+      responses:
+        "204":
+          description: Delete has been accepted
+        "400":
+          description: if any of the IDs passed is invalid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   /telegraf/plugins:
     get:
       operationId: GetTelegrafPlugins
@@ -11200,6 +11415,54 @@ components:
     NotificationEndpointType:
       type: string
       enum: ['slack', 'pagerduty', 'http']
+    DBRP:
+      required:
+        - orgID
+        - bucketID
+        - database
+        - retention_policy
+      properties:
+        id:
+          type: string
+          description: the mapping identifier
+          readOnly: true
+        orgID:
+          type: string
+          description: the organization ID that owns this mapping.
+        bucketID:
+          type: string
+          description: the bucket ID used as target for the translation.
+        database:
+          type: string
+          description: InfluxDB v1 database
+        retention_policy:
+          type: string
+          description: InfluxDB v1 retention policy
+        default:
+          type: boolean
+          description: Specify if this mapping represents the default retention policy for the database specificed.
+        links:
+          $ref: "#/components/schemas/Links"
+    DBRPs:
+      properties:
+        notificationEndpoints:
+          type: array
+          items:
+            $ref: "#/components/schemas/DBRP"
+        links:
+          $ref: "#/components/schemas/Links"
+    DBRPUpdate:
+      properties:
+        database:
+          type: string
+          description: InfluxDB v1 database
+        retention_policy:
+          type: string
+          description: InfluxDB v1 retention policy
+        default:
+          type: boolean
+        links:
+          $ref: "#/components/schemas/Links"
   securitySchemes:
     BasicAuth:
       type: http
