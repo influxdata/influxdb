@@ -34,11 +34,12 @@ export const normalizeGetLocalStorage = (state: LocalStorage): LocalStorage => {
 }
 
 export const normalizeSetLocalStorage = (state: LocalStorage): LocalStorage => {
-  const {app, ranges, autoRefresh, userSettings} = state
+  const {app, me, ranges, autoRefresh, userSettings} = state
   return {
     VERSION,
     autoRefresh,
     userSettings,
+    me,
     app: normalizeApp(app),
     ranges: setLocalStateRanges(ranges),
     resources: normalizeResources(state),
