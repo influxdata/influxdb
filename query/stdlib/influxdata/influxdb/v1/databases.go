@@ -201,7 +201,7 @@ func (rule LocalDatabasesRule) Pattern() plan.Pattern {
 	return plan.Pat(v1.DatabasesKind)
 }
 
-func (rule LocalDatabasesRule) Rewrite(node plan.Node) (plan.Node, bool, error) {
+func (rule LocalDatabasesRule) Rewrite(ctx context.Context, node plan.Node) (plan.Node, bool, error) {
 	fromSpec := node.ProcedureSpec().(*v1.DatabasesProcedureSpec)
 	if fromSpec.Host != nil {
 		return node, false, nil
