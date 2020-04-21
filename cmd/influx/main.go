@@ -408,16 +408,25 @@ func (o *organization) getID(orgSVC influxdb.OrganizationService) (influxdb.ID, 
 			return 0, fmt.Errorf("invalid org ID provided: %s", err.Error())
 		}
 		return *influxOrgID, nil
-	} else if o.name != "" {
+	}
+
+	getOrgByName := func(name string) (influxdb.ID, error) {
 		org, err := orgSVC.FindOrganization(context.Background(), influxdb.OrganizationFilter{
-			Name: &o.name,
+			Name: &name,
 		})
 		if err != nil {
-			return 0, fmt.Errorf("%v", err)
+			return 0, err
 		}
 		return org.ID, nil
 	}
-	return 0, fmt.Errorf("failed to locate an organization id")
+	if o.name != "" {
+		return getOrgByName(o.name)
+	}
+	// last check is for the org set in the CLI config. This will be last in priority.
+	if flags.Org != "" {
+		return getOrgByName(flags.Org)
+	}
+	return 0, fmt.Errorf("failed to locate organization criteria")
 }
 
 func (o *organization) validOrgFlags(f *globalFlags) error {
