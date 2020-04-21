@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/http"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/notification"
 	"github.com/influxdata/influxdb/v2/notification/check"
@@ -102,6 +103,17 @@ func TestLauncher_Pkger(t *testing.T) {
 			return obj
 		}
 
+		newTaskObject := func(pkgName, name, description string) pkger.Object {
+			obj := pkger.TaskToObject("", influxdb.Task{
+				Name:        name,
+				Description: description,
+				Flux:        "buckets()",
+				Every:       "1h",
+			})
+			obj.SetMetadataName(pkgName)
+			return obj
+		}
+
 		newVariableObject := func(pkgName, name, description string) pkger.Object {
 			obj := pkger.VariableToObject("", influxdb.Variable{
 				Name:        name,
@@ -152,6 +164,7 @@ func TestLauncher_Pkger(t *testing.T) {
 				initialDashPkgName     = "dash_of_salt"
 				initialEndpointPkgName = "endzo"
 				initialLabelPkgName    = "labelino"
+				initialTaskPkgName     = "tap"
 				initialVariablePkgName = "laces out dan"
 			)
 			initialPkg := newPkg(
@@ -160,6 +173,7 @@ func TestLauncher_Pkger(t *testing.T) {
 				newDashObject(initialDashPkgName, "dash_0", "init desc"),
 				newEndpointHTTP(initialEndpointPkgName, "endpoint_0", "init desc"),
 				newLabelObject(initialLabelPkgName, "label 1", "init desc", "#222eee"),
+				newTaskObject(initialTaskPkgName, "task_0", "init desc"),
 				newVariableObject(initialVariablePkgName, "var char", "init desc"),
 			)
 
@@ -192,6 +206,11 @@ func TestLauncher_Pkger(t *testing.T) {
 				assert.Equal(t, "init desc", sum.Labels[0].Properties.Description)
 				assert.Equal(t, "#222eee", sum.Labels[0].Properties.Color)
 
+				require.Len(t, sum.Tasks, 1)
+				assert.NotZero(t, sum.Tasks[0].ID)
+				assert.Equal(t, "task_0", sum.Tasks[0].Name)
+				assert.Equal(t, "init desc", sum.Tasks[0].Description)
+
 				require.Len(t, sum.Variables, 1)
 				assert.NotZero(t, sum.Variables[0].ID)
 				assert.Equal(t, "var char", sum.Variables[0].Name)
@@ -214,6 +233,9 @@ func TestLauncher_Pkger(t *testing.T) {
 					actualLabel := resourceCheck.mustGetLabel(t, byName("label 1"))
 					assert.Equal(t, sum.Labels[0].ID, pkger.SafeID(actualLabel.ID))
 
+					actualTask := resourceCheck.mustGetTask(t, byName("task_0"))
+					assert.Equal(t, sum.Tasks[0].ID, pkger.SafeID(actualTask.ID))
+
 					actualVar := resourceCheck.mustGetVariable(t, byName("var char"))
 					assert.Equal(t, sum.Variables[0].ID, pkger.SafeID(actualVar.ID))
 				}
@@ -225,6 +247,7 @@ func TestLauncher_Pkger(t *testing.T) {
 				updateDashName     = "new dash"
 				updateEndpointName = "new endpoint"
 				updateLabelName    = "new label"
+				updateTaskName     = "new task"
 				updateVariableName = "new variable"
 			)
 			t.Run("apply pkg with stack id where resources change", func(t *testing.T) {
@@ -234,6 +257,7 @@ func TestLauncher_Pkger(t *testing.T) {
 					newDashObject(initialDashPkgName, updateDashName, ""),
 					newEndpointHTTP(initialEndpointPkgName, updateEndpointName, ""),
 					newLabelObject(initialLabelPkgName, updateLabelName, "", ""),
+					newTaskObject(initialTaskPkgName, updateTaskName, ""),
 					newVariableObject(initialVariablePkgName, updateVariableName, ""),
 				)
 				sum, _, err := svc.Apply(timedCtx(5*time.Second), l.Org.ID, l.User.ID, updatedPkg, applyOpt)
@@ -260,6 +284,10 @@ func TestLauncher_Pkger(t *testing.T) {
 				assert.Equal(t, initialSum.Labels[0].ID, sum.Labels[0].ID)
 				assert.Equal(t, updateLabelName, sum.Labels[0].Name)
 
+				require.Len(t, sum.Tasks, 1)
+				assert.Equal(t, initialSum.Tasks[0].ID, sum.Tasks[0].ID)
+				assert.Equal(t, updateTaskName, sum.Tasks[0].Name)
+
 				require.Len(t, sum.Variables, 1)
 				assert.Equal(t, initialSum.Variables[0].ID, sum.Variables[0].ID)
 				assert.Equal(t, updateVariableName, sum.Variables[0].Name)
@@ -280,6 +308,9 @@ func TestLauncher_Pkger(t *testing.T) {
 
 					actualLabel := resourceCheck.mustGetLabel(t, byName(updateLabelName))
 					require.Equal(t, initialSum.Labels[0].ID, pkger.SafeID(actualLabel.ID))
+
+					actualTask := resourceCheck.mustGetTask(t, byName(updateTaskName))
+					require.Equal(t, initialSum.Tasks[0].ID, pkger.SafeID(actualTask.ID))
 
 					actualVar := resourceCheck.mustGetVariable(t, byName(updateVariableName))
 					assert.Equal(t, sum.Variables[0].ID, pkger.SafeID(actualVar.ID))
@@ -317,6 +348,7 @@ func TestLauncher_Pkger(t *testing.T) {
 					newLabelObject("z_label_roller", "", "", ""),
 					newCheckDeadmanObject(t, "z_check", "", time.Hour),
 					newEndpointHTTP("z_endpoint_rolls_back", "", ""),
+					newTaskObject("z_task_rolls_back", "", ""),
 					newVariableObject("z_var_rolls_back", "", ""),
 				)
 				_, _, err := svc.Apply(timedCtx(5*time.Second), l.Org.ID, l.User.ID, pkgWithDelete, applyOpt)
@@ -338,6 +370,9 @@ func TestLauncher_Pkger(t *testing.T) {
 
 					actualLabel := resourceCheck.mustGetLabel(t, byName(updateLabelName))
 					assert.NotEqual(t, initialSum.Labels[0].ID, pkger.SafeID(actualLabel.ID))
+
+					actualTask := resourceCheck.mustGetTask(t, byNameAndOrg(l.Org.ID, updateTaskName))
+					assert.NotEqual(t, initialSum.Tasks[0].ID, pkger.SafeID(actualTask.ID))
 
 					actualVariable := resourceCheck.mustGetVariable(t, byName(updateVariableName))
 					assert.NotEqual(t, initialSum.Variables[0].ID, pkger.SafeID(actualVariable.ID))
@@ -374,6 +409,7 @@ func TestLauncher_Pkger(t *testing.T) {
 					newDashObject("non_existent_dash", "", ""),
 					newEndpointHTTP("non_existent_endpoint", "", ""),
 					newLabelObject("non_existent_label", "", "", ""),
+					newTaskObject("non_existent_task", "", ""),
 					newVariableObject("non_existent_var", "", ""),
 				)
 				sum, _, err := svc.Apply(timedCtx(5*time.Second), l.Org.ID, l.User.ID, allNewResourcesPkg, applyOpt)
@@ -409,6 +445,12 @@ func TestLauncher_Pkger(t *testing.T) {
 				assert.NotZero(t, sum.Labels[0].ID)
 				defer resourceCheck.mustDeleteLabel(t, influxdb.ID(sum.Labels[0].ID))
 				assert.Equal(t, "non_existent_label", sum.Labels[0].Name)
+
+				require.Len(t, sum.Tasks, 1)
+				assert.NotEqual(t, initialSum.Tasks[0].ID, sum.Tasks[0].ID)
+				assert.NotZero(t, sum.Tasks[0].ID)
+				defer resourceCheck.mustDeleteTask(t, influxdb.ID(sum.Tasks[0].ID))
+				assert.Equal(t, "non_existent_task", sum.Tasks[0].Name)
 
 				require.Len(t, sum.Variables, 1)
 				assert.NotEqual(t, initialSum.Variables[0].ID, sum.Variables[0].ID)
@@ -1750,7 +1792,6 @@ type fakeBucketSVC struct {
 func (f *fakeBucketSVC) CreateBucket(ctx context.Context, b *influxdb.Bucket) error {
 	defer f.createCallCount.IncrFn()()
 	if f.createCallCount.Count() == f.createKillCount {
-		time.Sleep(50 * time.Millisecond)
 		return errors.New("reached kill count")
 	}
 	return f.BucketService.CreateBucket(ctx, b)
@@ -1788,8 +1829,9 @@ func newResourceChecker(tl *TestLauncher) resourceChecker {
 
 type (
 	getResourceOpt struct {
-		id   influxdb.ID
-		name string
+		id    influxdb.ID
+		orgID influxdb.ID
+		name  string
 	}
 
 	getResourceOptFn func() getResourceOpt
@@ -1798,6 +1840,15 @@ type (
 func byName(name string) getResourceOptFn {
 	return func() getResourceOpt {
 		return getResourceOpt{name: name}
+	}
+}
+
+func byNameAndOrg(orgID influxdb.ID, name string) getResourceOptFn {
+	return func() getResourceOpt {
+		return getResourceOpt{
+			orgID: orgID,
+			name:  name,
+		}
 	}
 }
 
@@ -2021,6 +2072,59 @@ func (r resourceChecker) mustGetLabel(t *testing.T, getOpt getResourceOptFn) inf
 func (r resourceChecker) mustDeleteLabel(t *testing.T, id influxdb.ID) {
 	t.Helper()
 	require.NoError(t, r.tl.LabelService(t).DeleteLabel(ctx, id))
+}
+
+func (r resourceChecker) getTask(t *testing.T, getOpt getResourceOptFn) (http.Task, error) {
+	t.Helper()
+
+	taskSVC := r.tl.TaskService(t)
+
+	var (
+		task *http.Task
+		err  error
+	)
+	switch opt := getOpt(); {
+	case opt.name != "" || opt.orgID != 0:
+		var filter influxdb.TaskFilter
+		if opt.name != "" {
+			filter.Name = &opt.name
+		}
+		if opt.orgID != 0 {
+			filter.OrganizationID = &opt.orgID
+		}
+		tasks, _, err := taskSVC.FindTasks(timedCtx(time.Second), filter)
+		if err != nil {
+			return http.Task{}, err
+		}
+		for _, tt := range tasks {
+			if opt.name != "" && tt.Name == opt.name {
+				task = &tasks[0]
+				break
+			}
+		}
+	case opt.id != 0:
+		task, err = taskSVC.FindTaskByID(timedCtx(time.Second), opt.id)
+	default:
+		require.Fail(t, "did not provide any get option")
+	}
+	if task == nil {
+		return http.Task{}, errors.New("did not find expected task by name")
+	}
+
+	return *task, err
+}
+
+func (r resourceChecker) mustGetTask(t *testing.T, getOpt getResourceOptFn) http.Task {
+	t.Helper()
+
+	task, err := r.getTask(t, getOpt)
+	require.NoError(t, err)
+	return task
+}
+
+func (r resourceChecker) mustDeleteTask(t *testing.T, id influxdb.ID) {
+	t.Helper()
+	require.NoError(t, r.tl.TaskService(t).DeleteTask(ctx, id))
 }
 
 func (r resourceChecker) getVariable(t *testing.T, getOpt getResourceOptFn) (influxdb.Variable, error) {
