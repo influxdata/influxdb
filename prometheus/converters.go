@@ -8,9 +8,9 @@ import (
 
 	"github.com/gogo/protobuf/types"
 	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/prometheus/remote"
 	"github.com/influxdata/influxdb/services/storage"
 	"github.com/influxdata/influxdb/storage/reads/datatypes"
+	"github.com/prometheus/prometheus/prompb"
 )
 
 const (
@@ -45,7 +45,7 @@ func (e DroppedValuesError) Error() string {
 
 // WriteRequestToPoints converts a Prometheus remote write request of time series and their
 // samples into Points that can be written into Influx
-func WriteRequestToPoints(req *remote.WriteRequest) ([]models.Point, error) {
+func WriteRequestToPoints(req *prompb.WriteRequest) ([]models.Point, error) {
 	var maxPoints int
 	for _, ts := range req.Timeseries {
 		maxPoints += len(ts.Samples)
@@ -79,7 +79,7 @@ func WriteRequestToPoints(req *remote.WriteRequest) ([]models.Point, error) {
 			}
 
 			// convert and append
-			t := time.Unix(0, s.TimestampMs*int64(time.Millisecond))
+			t := time.Unix(0, s.Timestamp*int64(time.Millisecond))
 			fields := map[string]interface{}{fieldName: s.Value}
 			p, err := models.NewPoint(measurement, models.NewTags(tags), fields, t)
 			if err != nil {
@@ -97,7 +97,7 @@ func WriteRequestToPoints(req *remote.WriteRequest) ([]models.Point, error) {
 
 // ReadRequestToInfluxStorageRequest converts a Prometheus remote read request into one using the
 // new storage API that IFQL uses.
-func ReadRequestToInfluxStorageRequest(req *remote.ReadRequest, db, rp string) (*datatypes.ReadFilterRequest, error) {
+func ReadRequestToInfluxStorageRequest(req *prompb.ReadRequest, db, rp string) (*datatypes.ReadFilterRequest, error) {
 	if len(req.Queries) != 1 {
 		return nil, errors.New("Prometheus read endpoint currently only supports one query at a time")
 	}
@@ -141,7 +141,7 @@ func RemoveInfluxSystemTags(tags models.Tags) models.Tags {
 // predicateFromMatchers takes Prometheus label matchers and converts them to a storage
 // predicate that works with the schema that is written in, which assumes a single field
 // named value
-func predicateFromMatchers(matchers []*remote.LabelMatcher) (*datatypes.Predicate, error) {
+func predicateFromMatchers(matchers []*prompb.LabelMatcher) (*datatypes.Predicate, error) {
 	left, err := nodeFromMatchers(matchers)
 	if err != nil {
 		return nil, err
@@ -182,7 +182,7 @@ func fieldNode() *datatypes.Node {
 	}
 }
 
-func nodeFromMatchers(matchers []*remote.LabelMatcher) (*datatypes.Node, error) {
+func nodeFromMatchers(matchers []*prompb.LabelMatcher) (*datatypes.Node, error) {
 	if len(matchers) == 0 {
 		return nil, errors.New("expected matcher")
 	} else if len(matchers) == 1 {
@@ -207,16 +207,16 @@ func nodeFromMatchers(matchers []*remote.LabelMatcher) (*datatypes.Node, error) 
 	}, nil
 }
 
-func nodeFromMatcher(m *remote.LabelMatcher) (*datatypes.Node, error) {
+func nodeFromMatcher(m *prompb.LabelMatcher) (*datatypes.Node, error) {
 	var op datatypes.Node_Comparison
 	switch m.Type {
-	case remote.MatchType_EQUAL:
+	case prompb.LabelMatcher_EQ:
 		op = datatypes.ComparisonEqual
-	case remote.MatchType_NOT_EQUAL:
+	case prompb.LabelMatcher_NEQ:
 		op = datatypes.ComparisonNotEqual
-	case remote.MatchType_REGEX_MATCH:
+	case prompb.LabelMatcher_RE:
 		op = datatypes.ComparisonRegex
-	case remote.MatchType_REGEX_NO_MATCH:
+	case prompb.LabelMatcher_NRE:
 		op = datatypes.ComparisonNotRegex
 	default:
 		return nil, fmt.Errorf("unknown match type %v", m.Type)
@@ -261,13 +261,13 @@ func nodeFromMatcher(m *remote.LabelMatcher) (*datatypes.Node, error) {
 }
 
 // ModelTagsToLabelPairs converts models.Tags to a slice of Prometheus label pairs
-func ModelTagsToLabelPairs(tags models.Tags) []*remote.LabelPair {
-	pairs := make([]*remote.LabelPair, 0, len(tags))
+func ModelTagsToLabelPairs(tags models.Tags) []prompb.Label {
+	pairs := make([]prompb.Label, 0, len(tags))
 	for _, t := range tags {
 		if string(t.Value) == "" {
 			continue
 		}
-		pairs = append(pairs, &remote.LabelPair{
+		pairs = append(pairs, prompb.Label{
 			Name:  string(t.Key),
 			Value: string(t.Value),
 		})
@@ -276,8 +276,8 @@ func ModelTagsToLabelPairs(tags models.Tags) []*remote.LabelPair {
 }
 
 // TagsToLabelPairs converts a map of Influx tags into a slice of Prometheus label pairs
-func TagsToLabelPairs(tags map[string]string) []*remote.LabelPair {
-	pairs := make([]*remote.LabelPair, 0, len(tags))
+func TagsToLabelPairs(tags map[string]string) []*prompb.Label {
+	pairs := make([]*prompb.Label, 0, len(tags))
 	for k, v := range tags {
 		if v == "" {
 			// If we select metrics with different sets of labels names,
@@ -288,7 +288,7 @@ func TagsToLabelPairs(tags map[string]string) []*remote.LabelPair {
 			// to make the result correct.
 			continue
 		}
-		pairs = append(pairs, &remote.LabelPair{
+		pairs = append(pairs, &prompb.Label{
 			Name:  k,
 			Value: v,
 		})
