@@ -1049,7 +1049,7 @@ func (b *cmdPkgBuilder) printPkgSummary(sum pkger.Summary) error {
 	}
 
 	if dashes := sum.Dashboards; len(dashes) > 0 {
-		headers := []string{"Package Name", "ID", "Resource Name", "Description"}
+		headers := append(commonHeaders, "Description")
 		tablePrintFn("DASHBOARDS", headers, len(dashes), func(i int) []string {
 			d := dashes[i]
 			return []string{d.PkgName, d.ID.String(), d.Name, d.Description}
@@ -1071,10 +1071,11 @@ func (b *cmdPkgBuilder) printPkgSummary(sum pkger.Summary) error {
 	}
 
 	if rules := sum.NotificationRules; len(rules) > 0 {
-		headers := []string{"ID", "Name", "Description", "Every", "Offset", "Endpoint Name", "Endpoint ID", "Endpoint Type"}
+		headers := append(commonHeaders, "Description", "Every", "Offset", "Endpoint Name", "Endpoint ID", "Endpoint Type")
 		tablePrintFn("NOTIFICATION RULES", headers, len(rules), func(i int) []string {
 			v := rules[i]
 			return []string{
+				v.PkgName,
 				v.ID.String(),
 				v.Name,
 				v.Description,
@@ -1088,7 +1089,7 @@ func (b *cmdPkgBuilder) printPkgSummary(sum pkger.Summary) error {
 	}
 
 	if tasks := sum.Tasks; len(tasks) > 0 {
-		headers := []string{"Package Name", "ID", "Resource Name", "Description", "Cycle"}
+		headers := append(commonHeaders, "Description", "Cycle")
 		tablePrintFn("TASKS", headers, len(tasks), func(i int) []string {
 			t := tasks[i]
 			timing := fmt.Sprintf("every: %s offset: %s", t.Every, t.Offset)
@@ -1106,7 +1107,7 @@ func (b *cmdPkgBuilder) printPkgSummary(sum pkger.Summary) error {
 	}
 
 	if teles := sum.TelegrafConfigs; len(teles) > 0 {
-		headers := []string{"Package Name", "ID", "Resource Name", "Description"}
+		headers := append(commonHeaders, "Description")
 		tablePrintFn("TELEGRAF CONFIGS", headers, len(teles), func(i int) []string {
 			t := teles[i]
 			return []string{
