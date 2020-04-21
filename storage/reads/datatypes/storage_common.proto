@@ -232,3 +232,10 @@ message MeasurementFieldsResponse {
 
   repeated MessageField fields = 1 [(gogoproto.nullable) = false];
 }
+
+message ReadWindowAggregateRequest {
+  google.protobuf.Any read_source = 1 [(gogoproto.customname) = "ReadSource"];
+  TimestampRange range = 2 [(gogoproto.nullable) = false];
+  Predicate predicate = 3;
+  // TODO(issue #17784): add attributes for the window aggregate request.
+}
