@@ -592,7 +592,7 @@ where
 // TODO(edd) need to support big float representation...
 #[derive(Clone)]
 pub struct FloatBlockSummary {
-    count: u32, // max number of values in block ~4.2 Billion
+    count: u16, // max number of values in block 65,535
     sum: f64,
     first: (i64, f64),
     last: (i64, f64),
@@ -671,7 +671,7 @@ impl BlockSummary<f64> for FloatBlockSummary {
 /// values can be summarised in the block.
 #[derive(Clone)]
 pub struct IntegerBlockSummary {
-    count: u32, // max number of values in block ~4.2 Billion
+    count: u16, // max number of values in block 65,535
     sum: BigInt,
     first: (i64, i64),
     last: (i64, i64),
@@ -773,7 +773,7 @@ impl BlockSummary<i64> for IntegerBlockSummary {
 /// values in the block.
 #[derive(Clone)]
 pub struct BoolBlockSummary {
-    count: u32, // max number of values in block ~4.2 Billion
+    count: u16, // max number of values in block 65,535
 
     // N.B, the first and last values are used to track timestamps to calculate
     // the time range of the block, they are not serialised to the block summary.
@@ -825,7 +825,7 @@ impl BlockSummary<bool> for BoolBlockSummary {
 /// values in the block.
 #[derive(Clone, Default)]
 pub struct StringBlockSummary<'a> {
-    count: u32, // max number of values in block ~4.2 Billion
+    count: u16, // max number of values in block 65,535
 
     // N.B, the first and last values are used to track timestamps to calculate
     // the time range of the block, they are not serialised to the block summary.
@@ -884,7 +884,7 @@ impl<'a> BlockSummary<&'a str> for StringBlockSummary<'a> {
 /// values can be summarised in the block.
 #[derive(Clone)]
 pub struct UnsignedBlockSummary {
-    count: u32, // max number of values in block ~4.2 Billion
+    count: u16, // max number of values in block 65,535
     sum: BigUint,
     first: (i64, u64),
     last: (i64, u64),
