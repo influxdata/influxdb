@@ -126,7 +126,7 @@ type ReadWindowAggregatePhysSpec struct {
 	plan.DefaultCost
 	ReadRangePhysSpec
 
-	Window Window
+	Window     Window
 	Aggregates []string
 }
 
