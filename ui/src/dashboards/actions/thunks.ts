@@ -15,6 +15,7 @@ import {
   arrayOfDashboards,
   labelSchema,
   arrayOfViews,
+  arrayOfCells,
 } from 'src/schemas'
 import {viewsFromCells} from 'src/schemas/dashboards'
 
@@ -27,10 +28,11 @@ import {
   deleteTimeRange,
   updateTimeRangeFromQueryParams,
 } from 'src/dashboards/actions/ranges'
-import {setViews} from 'src/views/actions/creators'
 import {getVariables, hydrateVariables} from 'src/variables/actions/thunks'
 import {setExportTemplate} from 'src/templates/actions/creators'
 import {checkDashboardLimits} from 'src/cloud/actions/limits'
+import {setCells, Action as CellAction} from 'src/cells/actions/creators'
+import {setViews, Action as ViewAction} from 'src/views/actions/creators'
 import {updateViewAndVariables} from 'src/views/actions/thunks'
 import {setLabelOnResource} from 'src/labels/actions/creators'
 import * as creators from 'src/dashboards/actions/creators'
@@ -201,8 +203,10 @@ export const cloneDashboard = (
   }
 }
 
+type FullAction = Action | CellAction | ViewAction
+
 export const getDashboards = () => async (
-  dispatch: Dispatch<Action>,
+  dispatch: Dispatch<FullAction>,
   getState: GetState
 ): Promise<void> => {
   try {
@@ -229,6 +233,30 @@ export const getDashboards = () => async (
     )
 
     dispatch(setDashboards(RemoteDataState.Done, dashboards))
+
+    Object.values(dashboards.entities.dashboards)
+      .map(d => {
+        return {
+          id: d.id,
+          cells: d.cells.map(c => dashboards.entities.cells[c]),
+        }
+      })
+      .forEach(e => {
+        const viewsData = viewsFromCells(e.cells, e.id)
+
+        const normViews = normalize<View, ViewEntities, string[]>(
+          viewsData,
+          arrayOfViews
+        )
+
+        const normCells = normalize<Dashboard, DashboardEntities, string[]>(
+          e.cells,
+          arrayOfCells
+        )
+
+        dispatch(setViews(RemoteDataState.Done, normViews))
+        dispatch(setCells(e.id, RemoteDataState.Done, normCells))
+      })
   } catch (error) {
     dispatch(creators.setDashboards(RemoteDataState.Error))
     console.error(error)

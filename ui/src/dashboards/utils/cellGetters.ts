@@ -50,9 +50,9 @@ export const getNewDashboardCell = (
     status: RemoteDataState.Done,
   }
 
-  const cells = dashboard.cells.map(
-    cellID => state.resources.cells.byID[cellID]
-  )
+  const cells = dashboard.cells
+    .map(cellID => state.resources.cells.byID[cellID])
+    .filter(c => !!c)
 
   if (!cells.length) {
     return defaultCell
