@@ -234,7 +234,7 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
       }
 
       const files = (results as RunQuerySuccessResult[]).map(r => r.csv)
-      let giraffeResult = fromFlux(files.join('\n\n'))
+      let giraffeResult
 
       if (isFlagEnabled('fluxParser')) {
         giraffeResult = fromFlux(files.join('\n\n'))
