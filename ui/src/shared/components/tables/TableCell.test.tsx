@@ -22,7 +22,7 @@ describe('Table Cell', () => {
       onClickFieldName: () => {},
       onHover: () => {},
       resolvedFieldOptions: [],
-      timeFormatter: (time: string) => {
+      timeFormatter: (_time: string) => {
         throw new Error('GOTEM')
       },
       columnIndex: 0,
