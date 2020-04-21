@@ -684,6 +684,7 @@ func (s *Service) dryRun(ctx context.Context, orgID influxdb.ID, pkg *Pkg, opts 
 	s.dryRunDashboards(ctx, orgID, state.mDashboards)
 	s.dryRunLabels(ctx, orgID, state.mLabels)
 	s.dryRunTasks(ctx, orgID, state.mTasks)
+	s.dryRunTelegrafConfigs(ctx, orgID, state.mTelegrafs)
 	s.dryRunVariables(ctx, orgID, state.mVariables)
 	err := s.dryRunNotificationEndpoints(ctx, orgID, state.mEndpoints)
 	if err != nil {
@@ -861,6 +862,20 @@ func (s *Service) dryRunTasks(ctx context.Context, orgID influxdb.ID, tasks map[
 			stateTask.stateStatus = StateStatusExists
 		}
 		stateTask.existing = existing
+	}
+}
+
+func (s *Service) dryRunTelegrafConfigs(ctx context.Context, orgID influxdb.ID, teleConfigs map[string]*stateTelegraf) {
+	for _, stateTele := range teleConfigs {
+		stateTele.orgID = orgID
+		var existing *influxdb.TelegrafConfig
+		if stateTele.ID() != 0 {
+			existing, _ = s.teleSVC.FindTelegrafConfigByID(ctx, stateTele.ID())
+		}
+		if IsNew(stateTele.stateStatus) && existing != nil {
+			stateTele.stateStatus = StateStatusExists
+		}
+		stateTele.existing = existing
 	}
 }
 
@@ -1175,7 +1190,7 @@ func (s *Service) applyState(ctx context.Context, coordinator *rollbackCoordinat
 			s.applyDashboards(ctx, state.dashboards()),
 			s.applyNotificationEndpoints(ctx, userID, state.endpoints()),
 			s.applyTasks(ctx, state.tasks()),
-			s.applyTelegrafs(state.telegrafConfigs()),
+			s.applyTelegrafs(ctx, userID, state.telegrafConfigs()),
 		},
 	}
 
@@ -2070,29 +2085,29 @@ func (s *Service) rollbackTasks(ctx context.Context, tasks []*stateTask) error {
 	return nil
 }
 
-func (s *Service) applyTelegrafs(teles []*stateTelegraf) applier {
+func (s *Service) applyTelegrafs(ctx context.Context, userID influxdb.ID, teles []*stateTelegraf) applier {
 	const resource = "telegrafs"
 
 	mutex := new(doMutex)
 	rollbackTelegrafs := make([]*stateTelegraf, 0, len(teles))
 
 	createFn := func(ctx context.Context, i int, orgID, userID influxdb.ID) *applyErrBody {
-		var cfg influxdb.TelegrafConfig
+		var t *stateTelegraf
 		mutex.Do(func() {
 			teles[i].orgID = orgID
-			cfg = teles[i].summarize().TelegrafConfig
+			t = teles[i]
 		})
 
-		err := s.teleSVC.CreateTelegrafConfig(ctx, &cfg, userID)
+		existing, err := s.applyTelegrafConfig(ctx, userID, t)
 		if err != nil {
 			return &applyErrBody{
-				name: cfg.Name,
+				name: t.parserTelegraf.Name(),
 				msg:  err.Error(),
 			}
 		}
 
 		mutex.Do(func() {
-			teles[i].id = cfg.ID
+			teles[i].id = existing.ID
 			rollbackTelegrafs = append(rollbackTelegrafs, teles[i])
 		})
 
@@ -2107,12 +2122,63 @@ func (s *Service) applyTelegrafs(teles []*stateTelegraf) applier {
 		rollbacker: rollbacker{
 			resource: resource,
 			fn: func(_ influxdb.ID) error {
-				return s.deleteByIDs("telegraf", len(rollbackTelegrafs), s.teleSVC.DeleteTelegrafConfig, func(i int) influxdb.ID {
-					return rollbackTelegrafs[i].ID()
-				})
+				return s.rollbackTelegrafConfigs(ctx, userID, rollbackTelegrafs)
 			},
 		},
 	}
+}
+
+func (s *Service) applyTelegrafConfig(ctx context.Context, userID influxdb.ID, t *stateTelegraf) (influxdb.TelegrafConfig, error) {
+	switch t.stateStatus {
+	case StateStatusRemove:
+		if err := s.teleSVC.DeleteTelegrafConfig(ctx, t.ID()); err != nil {
+			return influxdb.TelegrafConfig{}, ierrors.Wrap(err, "failed to delete config")
+		}
+		return *t.existing, nil
+	case StateStatusExists:
+		cfg := t.summarize().TelegrafConfig
+		updatedConfig, err := s.teleSVC.UpdateTelegrafConfig(ctx, t.ID(), &cfg, userID)
+		if err != nil {
+			return influxdb.TelegrafConfig{}, ierrors.Wrap(err, "failed to update config")
+		}
+		return *updatedConfig, nil
+	default:
+		cfg := t.summarize().TelegrafConfig
+		err := s.teleSVC.CreateTelegrafConfig(ctx, &cfg, userID)
+		if err != nil {
+			return influxdb.TelegrafConfig{}, ierrors.Wrap(err, "failed to create telegraf config")
+		}
+		return cfg, nil
+	}
+}
+
+func (s *Service) rollbackTelegrafConfigs(ctx context.Context, userID influxdb.ID, cfgs []*stateTelegraf) error {
+	rollbackFn := func(t *stateTelegraf) error {
+		var err error
+		switch t.stateStatus {
+		case StateStatusRemove:
+			err = ierrors.Wrap(s.teleSVC.CreateTelegrafConfig(ctx, t.existing, userID), "rolling back removed telegraf config")
+		case StateStatusExists:
+			_, err = s.teleSVC.UpdateTelegrafConfig(ctx, t.ID(), t.existing, userID)
+			err = ierrors.Wrap(err, "rolling back updated telegraf config")
+		default:
+			err = ierrors.Wrap(s.teleSVC.DeleteTelegrafConfig(ctx, t.ID()), "rolling back created telegraf config")
+		}
+		return err
+	}
+
+	var errs []string
+	for _, v := range cfgs {
+		if err := rollbackFn(v); err != nil {
+			errs = append(errs, fmt.Sprintf("error for variable[%q]: %s", v.ID(), err))
+		}
+	}
+
+	if len(errs) > 0 {
+		return errors.New(strings.Join(errs, "; "))
+	}
+
+	return nil
 }
 
 func (s *Service) applyVariables(ctx context.Context, vars []*stateVariable) applier {
@@ -2295,23 +2361,6 @@ func (s *Service) rollbackLabelMappings(mappings []stateLabelMapping) error {
 	return nil
 }
 
-func (s *Service) deleteByIDs(resource string, numIDs int, deleteFn func(context.Context, influxdb.ID) error, iterFn func(int) influxdb.ID) error {
-	var errs []string
-	for i := range make([]struct{}, numIDs) {
-		id := iterFn(i)
-		err := deleteFn(context.Background(), id)
-		if err != nil {
-			errs = append(errs, id.String())
-		}
-	}
-
-	if len(errs) > 0 {
-		return fmt.Errorf(`%s_ids=[%s] err="unable to delete"`, resource, strings.Join(errs, ", "))
-	}
-
-	return nil
-}
-
 func (s *Service) updateStackAfterSuccess(ctx context.Context, stackID influxdb.ID, state *stateCoordinator) error {
 	stack, err := s.store.ReadStackByID(ctx, stackID)
 	if err != nil {
@@ -2383,6 +2432,17 @@ func (s *Service) updateStackAfterSuccess(ctx context.Context, stackID influxdb.
 			ID:         t.ID(),
 			Kind:       KindTask,
 			Name:       t.parserTask.PkgName(),
+		})
+	}
+	for _, t := range state.mTelegrafs {
+		if IsRemoval(t.stateStatus) {
+			continue
+		}
+		stackResources = append(stackResources, StackResource{
+			APIVersion: APIVersion,
+			ID:         t.ID(),
+			Kind:       KindTelegraf,
+			Name:       t.parserTelegraf.PkgName(),
 		})
 	}
 	for _, v := range state.mVariables {
@@ -2464,6 +2524,13 @@ func (s *Service) updateStackAfterRollback(ctx context.Context, stackID influxdb
 		}
 		for _, t := range state.mTasks {
 			res, ok := existingResources[newKey(KindTask, t.parserTask.PkgName())]
+			if ok && res.ID != t.ID() {
+				hasChanges = true
+				res.ID = t.existing.ID
+			}
+		}
+		for _, t := range state.mTelegrafs {
+			res, ok := existingResources[newKey(KindTelegraf, t.parserTelegraf.PkgName())]
 			if ok && res.ID != t.ID() {
 				hasChanges = true
 				res.ID = t.existing.ID

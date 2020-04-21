@@ -1106,10 +1106,11 @@ func (b *cmdPkgBuilder) printPkgSummary(sum pkger.Summary) error {
 	}
 
 	if teles := sum.TelegrafConfigs; len(teles) > 0 {
-		headers := []string{"ID", "Name", "Description"}
+		headers := []string{"Package Name", "ID", "Resource Name", "Description"}
 		tablePrintFn("TELEGRAF CONFIGS", headers, len(teles), func(i int) []string {
 			t := teles[i]
 			return []string{
+				t.PkgName,
 				t.TelegrafConfig.ID.String(),
 				t.TelegrafConfig.Name,
 				t.TelegrafConfig.Description,
