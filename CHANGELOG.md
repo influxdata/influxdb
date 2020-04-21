@@ -6,6 +6,7 @@
 
 1. [17618](https://github.com/influxdata/influxdb/pull/17618): Add index for URM by user ID to improve lookup performance
 1. [17751](https://github.com/influxdata/influxdb/pull/17751): Existing session expiration time is respected on session renewal
+1. [17817](https://github.com/influxdata/influxdb/pull/17817): Make CLI respect env vars and flags in addition to the configs and extend support for config orgs to all commands
 
 ### UI Improvements
 
