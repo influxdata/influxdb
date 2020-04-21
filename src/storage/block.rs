@@ -21,19 +21,19 @@
 //!
 //! The contents of a single Block are as follows:
 //!
-//! - Checksum (4 bytes): can be used to verify integrity of the rest of the block.
-//! - Block ID (4 bytes): the ID of the series associated with the block.
-//! - Min timestamp (8 bytes): timestamp of the earliest value in the block.
-//! - Max timestamp (8 bytes): timestamp of the latest value in the block.
-//! - Remaining Size (4 bytes): indicates how many bytes follow in the rest of the block.
+//! - Checksum (4 bytes BE): can be used to verify integrity of the rest of the block.
+//! - Block ID (4 bytes BE): the ID of the series associated with the block.
+//! - Min timestamp (8 bytes BE): timestamp of the earliest value in the block.
+//! - Max timestamp (8 bytes BE): timestamp of the latest value in the block.
+//! - Remaining Size (4 bytes BE): indicates how many bytes follow in the rest of the block.
 //! - Block Type (1 byte): indicates the type of block data to follow (e.g., for an f64, i64, u64,
 //!   string or bool).
 //! - Block Summary Size (1 byte): the size in bytes of the block's summary.
-//! - Block Data Offset (2 bytes): the offset in the block of the beginning of the block data
+//! - Block Data Offset (2 bytes BE): the offset in the block of the beginning of the block data
 //!   section.
-//! - Block Data Size (4 bytes): the size in bytes of the block data section.
-//! - Block Summary Data (N bytes): the block summary section data.
-//! - Block Data (N bytes): the block data section.
+//! - Block Data Size (4 bytes BE): the size in bytes of the block data section.
+//! - Block Summary Data (N bytes BE): the block summary section data.
+//! - Block Data (N bytes BE): the block data section.
 //!
 //! A Block is serialised as follows:
 //!
@@ -116,7 +116,7 @@
 //! ║┌──────┐┌────────┐┌────────┐┌────────┐┌──────┐┌──────┐┌──────┐┌──────┐ ║
 //! ║│      ││        ││        ││        ││      ││      ││      ││      │ ║
 //! ║│COUNT ││SUM SIGN││ SUM N  ││  SUM   ││FIRST ││ LAST ││ MIN  ││ MAX  │ ║
-//! ║│<vint>││   1B   ││   2B   ││  <N>   ││<vint>││<vint>││<vint>││<vint>│ ║
+//! ║│<vint>││   1B   ││ 2B (BE)││  <N>   ││<vint>││<vint>││<vint>││<vint>│ ║
 //! ║│      ││        ││        ││        ││      ││      ││      ││      │ ║
 //! ║│      ││        ││        ││        ││      ││      ││      ││      │ ║
 //! ║└──────┘└────────┘└────────┘└────────┘└──────┘└──────┘└──────┘└──────┘ ║
@@ -133,7 +133,7 @@
 //! ║┌──────┐┌────────┐┌────────┐┌──────┐┌──────┐┌──────┐┌──────┐ ║
 //! ║│      ││        ││        ││      ││      ││      ││      │ ║
 //! ║│COUNT ││ SUM N  ││  SUM   ││FIRST ││ LAST ││ MIN  ││ MAX  │ ║
-//! ║│<vint>││   2B   ││  <N>   ││<vint>││<vint>││<vint>││<vint>│ ║
+//! ║│<vint>││ 2B (BE)││  <N>   ││<vint>││<vint>││<vint>││<vint>│ ║
 //! ║│      ││        ││        ││      ││      ││      ││      │ ║
 //! ║│      ││        ││        ││      ││      ││      ││      │ ║
 //! ║└──────┘└────────┘└────────┘└──────┘└──────┘└──────┘└──────┘ ║
