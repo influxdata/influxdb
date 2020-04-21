@@ -234,6 +234,10 @@ export const getDashboards = () => async (
 
     dispatch(setDashboards(RemoteDataState.Done, dashboards))
 
+    if (!dashboards.result.length) {
+      return
+    }
+
     Object.values(dashboards.entities.dashboards)
       .map(d => {
         return {
