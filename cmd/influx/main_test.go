@@ -60,6 +60,22 @@ func Test_influx_cmd(t *testing.T) {
 				local:      true,
 			},
 		},
+		{
+			name: "env vars and flags set",
+			args: []string{"--local=true", "--token=flag-token", "--host=flag-host"},
+			envVars: map[string]string{
+				"INFLUX_TOKEN": "TOKEN",
+				"INFLUX_HOST":  "HOST",
+			},
+			expected: globalFlags{
+				Config: config.Config{
+					Token: "flag-token",
+					Host:  "flag-host",
+				},
+				skipVerify: false,
+				local:      true,
+			},
+		},
 	}
 
 	for _, tt := range tests {
