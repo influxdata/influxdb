@@ -12,6 +12,7 @@ import (
 	"github.com/influxdata/influxdb/v2"
 	ierrors "github.com/influxdata/influxdb/v2/kit/errors"
 	"github.com/influxdata/influxdb/v2/snowflake"
+	"github.com/influxdata/influxdb/v2/task/options"
 	"go.uber.org/zap"
 )
 
@@ -682,6 +683,7 @@ func (s *Service) dryRun(ctx context.Context, orgID influxdb.ID, pkg *Pkg, opts 
 	s.dryRunChecks(ctx, orgID, state.mChecks)
 	s.dryRunDashboards(ctx, orgID, state.mDashboards)
 	s.dryRunLabels(ctx, orgID, state.mLabels)
+	s.dryRunTasks(ctx, orgID, state.mTasks)
 	s.dryRunVariables(ctx, orgID, state.mVariables)
 	err := s.dryRunNotificationEndpoints(ctx, orgID, state.mEndpoints)
 	if err != nil {
@@ -846,6 +848,20 @@ func (s *Service) dryRunSecrets(ctx context.Context, orgID influxdb.ID, pkg *Pkg
 	}
 
 	return nil
+}
+
+func (s *Service) dryRunTasks(ctx context.Context, orgID influxdb.ID, tasks map[string]*stateTask) {
+	for _, stateTask := range tasks {
+		stateTask.orgID = orgID
+		var existing *influxdb.Task
+		if stateTask.ID() != 0 {
+			existing, _ = s.taskSVC.FindTaskByID(ctx, stateTask.ID())
+		}
+		if IsNew(stateTask.stateStatus) && existing != nil {
+			stateTask.stateStatus = StateStatusExists
+		}
+		stateTask.existing = existing
+	}
 }
 
 func (s *Service) dryRunVariables(ctx context.Context, orgID influxdb.ID, vars map[string]*stateVariable) {
@@ -1158,7 +1174,7 @@ func (s *Service) applyState(ctx context.Context, coordinator *rollbackCoordinat
 			s.applyChecks(ctx, state.checks()),
 			s.applyDashboards(ctx, state.dashboards()),
 			s.applyNotificationEndpoints(ctx, userID, state.endpoints()),
-			s.applyTasks(state.tasks()),
+			s.applyTasks(ctx, state.tasks()),
 			s.applyTelegrafs(state.telegrafConfigs()),
 		},
 	}
@@ -1510,7 +1526,7 @@ func (s *Service) rollbackDashboards(ctx context.Context, dashs []*stateDashboar
 	var errs []string
 	for _, d := range dashs {
 		if err := rollbackFn(d); err != nil {
-			errs = append(errs, fmt.Sprintf("error for bucket[%q]: %s", d.ID(), err))
+			errs = append(errs, fmt.Sprintf("error for dashboard[%q]: %s", d.ID(), err))
 		}
 	}
 
@@ -1904,7 +1920,7 @@ func (s *Service) applySecrets(secrets map[string]string) applier {
 	}
 }
 
-func (s *Service) applyTasks(tasks []*stateTask) applier {
+func (s *Service) applyTasks(ctx context.Context, tasks []*stateTask) applier {
 	const resource = "tasks"
 
 	mutex := new(doMutex)
@@ -1917,14 +1933,7 @@ func (s *Service) applyTasks(tasks []*stateTask) applier {
 			t = tasks[i]
 		})
 
-		newTask, err := s.taskSVC.CreateTask(ctx, influxdb.TaskCreate{
-			Type:           influxdb.TaskSystemType,
-			Flux:           t.parserTask.flux(),
-			OwnerID:        userID,
-			Description:    t.parserTask.description,
-			Status:         string(t.parserTask.Status()),
-			OrganizationID: t.orgID,
-		})
+		newTask, err := s.applyTask(ctx, userID, t)
 		if err != nil {
 			return &applyErrBody{
 				name: t.parserTask.Name(),
@@ -1948,12 +1957,117 @@ func (s *Service) applyTasks(tasks []*stateTask) applier {
 		rollbacker: rollbacker{
 			resource: resource,
 			fn: func(_ influxdb.ID) error {
-				return s.deleteByIDs("task", len(rollbackTasks), s.taskSVC.DeleteTask, func(i int) influxdb.ID {
-					return rollbackTasks[i].ID()
-				})
+				return s.rollbackTasks(ctx, rollbackTasks)
 			},
 		},
 	}
+}
+
+func (s *Service) applyTask(ctx context.Context, userID influxdb.ID, t *stateTask) (influxdb.Task, error) {
+	switch t.stateStatus {
+	case StateStatusRemove:
+		if err := s.taskSVC.DeleteTask(ctx, t.ID()); err != nil {
+			return influxdb.Task{}, ierrors.Wrap(err, "failed to delete task")
+		}
+		return *t.existing, nil
+	case StateStatusExists:
+		newFlux := t.parserTask.flux()
+		newStatus := string(t.parserTask.Status())
+		opt := options.Options{
+			Name: t.parserTask.Name(),
+			Cron: t.parserTask.cron,
+		}
+		if every := t.parserTask.every; every > 0 {
+			opt.Every.Parse(every.String())
+		}
+		if offset := t.parserTask.offset; offset > 0 {
+			opt.Offset.Parse(offset.String())
+		}
+
+		updatedTask, err := s.taskSVC.UpdateTask(ctx, t.ID(), influxdb.TaskUpdate{
+			Flux:        &newFlux,
+			Status:      &newStatus,
+			Description: &t.parserTask.description,
+			Options:     opt,
+		})
+		if err != nil {
+			return influxdb.Task{}, ierrors.Wrap(err, "failed to update task")
+		}
+		return *updatedTask, nil
+	default:
+		newTask, err := s.taskSVC.CreateTask(ctx, influxdb.TaskCreate{
+			Type:           influxdb.TaskSystemType,
+			Flux:           t.parserTask.flux(),
+			OwnerID:        userID,
+			Description:    t.parserTask.description,
+			Status:         string(t.parserTask.Status()),
+			OrganizationID: t.orgID,
+		})
+		if err != nil {
+			return influxdb.Task{}, ierrors.Wrap(err, "failed to create task")
+		}
+		return *newTask, nil
+	}
+}
+
+func (s *Service) rollbackTasks(ctx context.Context, tasks []*stateTask) error {
+	rollbackFn := func(t *stateTask) error {
+		var err error
+		switch t.stateStatus {
+		case StateStatusRemove:
+			newTask, err := s.taskSVC.CreateTask(ctx, influxdb.TaskCreate{
+				Type:           t.existing.Type,
+				Flux:           t.existing.Flux,
+				OwnerID:        t.existing.OwnerID,
+				Description:    t.existing.Description,
+				Status:         t.existing.Status,
+				OrganizationID: t.orgID,
+				Metadata:       t.existing.Metadata,
+			})
+			if err != nil {
+				return ierrors.Wrap(err, "failed to rollback removed task")
+			}
+			t.existing = newTask
+		case StateStatusExists:
+			opt := options.Options{
+				Name: t.existing.Name,
+				Cron: t.existing.Cron,
+			}
+			if every := t.existing.Every; every != "" {
+				opt.Every.Parse(every)
+			}
+			if offset := t.existing.Offset; offset > 0 {
+				opt.Offset.Parse(offset.String())
+			}
+
+			_, err = s.taskSVC.UpdateTask(ctx, t.ID(), influxdb.TaskUpdate{
+				Flux:        &t.existing.Flux,
+				Status:      &t.existing.Status,
+				Description: &t.existing.Description,
+				Metadata:    t.existing.Metadata,
+				Options:     opt,
+			})
+			err = ierrors.Wrap(err, "failed to rollback updated task")
+		default:
+			err = s.taskSVC.DeleteTask(ctx, t.ID())
+			err = ierrors.Wrap(err, "failed to rollback created task")
+		}
+		return err
+	}
+
+	var errs []string
+	for _, d := range tasks {
+		if err := rollbackFn(d); err != nil {
+			errs = append(errs, fmt.Sprintf("error for task[%q]: %s", d.ID(), err))
+		}
+	}
+
+	if len(errs) > 0 {
+		// TODO: fixup error
+		return errors.New(strings.Join(errs, ", "))
+	}
+
+	return nil
 }
 
 func (s *Service) applyTelegrafs(teles []*stateTelegraf) applier {
@@ -2260,6 +2374,17 @@ func (s *Service) updateStackAfterSuccess(ctx context.Context, stackID influxdb.
 			Name:       l.parserLabel.PkgName(),
 		})
 	}
+	for _, t := range state.mTasks {
+		if IsRemoval(t.stateStatus) {
+			continue
+		}
+		stackResources = append(stackResources, StackResource{
+			APIVersion: APIVersion,
+			ID:         t.ID(),
+			Kind:       KindTask,
+			Name:       t.parserTask.PkgName(),
+		})
+	}
 	for _, v := range state.mVariables {
 		if IsRemoval(v.stateStatus) {
 			continue
@@ -2335,6 +2460,13 @@ func (s *Service) updateStackAfterRollback(ctx context.Context, stackID influxdb
 			if ok && res.ID != l.ID() {
 				hasChanges = true
 				res.ID = l.existing.ID
+			}
+		}
+		for _, t := range state.mTasks {
+			res, ok := existingResources[newKey(KindTask, t.parserTask.PkgName())]
+			if ok && res.ID != t.ID() {
+				hasChanges = true
+				res.ID = t.existing.ID
 			}
 		}
 		for _, v := range state.mVariables {

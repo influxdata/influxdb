@@ -1088,7 +1088,7 @@ func (b *cmdPkgBuilder) printPkgSummary(sum pkger.Summary) error {
 	}
 
 	if tasks := sum.Tasks; len(tasks) > 0 {
-		headers := []string{"ID", "Name", "Description", "Cycle"}
+		headers := []string{"Package Name", "ID", "Resource Name", "Description", "Cycle"}
 		tablePrintFn("TASKS", headers, len(tasks), func(i int) []string {
 			t := tasks[i]
 			timing := fmt.Sprintf("every: %s offset: %s", t.Every, t.Offset)
@@ -1096,6 +1096,7 @@ func (b *cmdPkgBuilder) printPkgSummary(sum pkger.Summary) error {
 				timing = t.Cron
 			}
 			return []string{
+				t.PkgName,
 				t.ID.String(),
 				t.Name,
 				t.Description,
