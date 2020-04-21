@@ -8,6 +8,7 @@ import (
 	"github.com/go-chi/chi"
 	"github.com/influxdata/influxdb/v2"
 	ihttp "github.com/influxdata/influxdb/v2/http"
+	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/tenant"
 	itesting "github.com/influxdata/influxdb/v2/testing"
 	"go.uber.org/zap/zaptest"
@@ -39,7 +40,7 @@ func initBucketHttpService(f itesting.BucketFields, t *testing.T) (influxdb.Buck
 		}
 	}
 
-	handler := tenant.NewHTTPBucketHandler(zaptest.NewLogger(t), svc, nil, nil)
+	handler := tenant.NewHTTPBucketHandler(zaptest.NewLogger(t), svc, mock.NewLabelService(), nil, nil)
 	r := chi.NewRouter()
 	r.Mount(handler.Prefix(), handler)
 	server := httptest.NewServer(r)
