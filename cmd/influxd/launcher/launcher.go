@@ -262,6 +262,18 @@ func buildLauncherCommand(l *Launcher, cmd *cobra.Command) {
 			Desc:    "TLS key for HTTPs",
 		},
 		{
+			DestP:   &l.enableNewMetaStore,
+			Flag:    "new-meta-store",
+			Default: false,
+			Desc:    "enables the new meta store",
+		},
+		{
+			DestP:   &l.newMetaStoreReadOnly,
+			Flag:    "new-meta-store-read-only",
+			Default: true,
+			Desc:    "toggles read-only mode for the new meta store, if so, the reads are duplicated between the old and new store (has meaning only if the new meta store is enabled)",
+		},
+		{
 			DestP:   &l.noTasks,
 			Flag:    "no-tasks",
 			Default: false,
@@ -323,6 +335,9 @@ type Launcher struct {
 	boltPath        string
 	enginePath      string
 	secretStore     string
+
+	enableNewMetaStore   bool
+	newMetaStoreReadOnly bool
 
 	// Query options.
 	concurrencyQuota                int
@@ -567,24 +582,15 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	)
 	m.reg.MustRegister(m.boltClient)
 
-	store, err := tenant.NewStore(m.kvStore)
-	if err != nil {
-		m.log.Error("Failed creating new meta store", zap.Error(err))
-		return err
-	}
-
-	ts := tenant.NewService(store)
-
 	var (
-		userSvc                   platform.UserService                     = tenant.NewUserLogger(m.log.With(zap.String("store", "new")), tenant.NewUserMetrics(m.reg, ts, tenant.WithSuffix("new")))
-		userResourceSvc           platform.UserResourceMappingService      = tenant.NewURMLogger(m.log.With(zap.String("store", "new")), tenant.NewUrmMetrics(m.reg, ts, tenant.WithSuffix("new")))
-		orgSvc                    platform.OrganizationService             = tenant.NewOrgLogger(m.log.With(zap.String("store", "new")), tenant.NewOrgMetrics(m.reg, ts, tenant.WithSuffix("new")))
-		bucketSvc                 platform.BucketService                   = tenant.NewBucketLogger(m.log.With(zap.String("store", "new")), tenant.NewBucketMetrics(m.reg, ts, tenant.WithSuffix("new")))
-		passwdsSvc                platform.PasswordsService                = tenant.NewPasswordLogger(m.log.With(zap.String("store", "new")), tenant.NewPasswordMetrics(m.reg, ts, tenant.WithSuffix("new")))
+		orgSvc                    platform.OrganizationService             = m.kvService
 		authSvc                   platform.AuthorizationService            = m.kvService
+		userSvc                   platform.UserService                     = m.kvService
 		variableSvc               platform.VariableService                 = m.kvService
+		bucketSvc                 platform.BucketService                   = m.kvService
 		sourceSvc                 platform.SourceService                   = m.kvService
 		sessionSvc                platform.SessionService                  = m.kvService
+		passwdsSvc                platform.PasswordsService                = m.kvService
 		dashboardSvc              platform.DashboardService                = m.kvService
 		dashboardLogSvc           platform.DashboardOperationLogService    = m.kvService
 		userLogSvc                platform.UserOperationLogService         = m.kvService
@@ -592,11 +598,42 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		orgLogSvc                 platform.OrganizationOperationLogService = m.kvService
 		scraperTargetSvc          platform.ScraperTargetStoreService       = m.kvService
 		telegrafSvc               platform.TelegrafConfigStore             = m.kvService
+		userResourceSvc           platform.UserResourceMappingService      = m.kvService
 		labelSvc                  platform.LabelService                    = m.kvService
 		secretSvc                 platform.SecretService                   = m.kvService
 		lookupSvc                 platform.LookupService                   = m.kvService
 		notificationEndpointStore platform.NotificationEndpointService     = m.kvService
 	)
+
+	store, err := tenant.NewStore(m.kvStore)
+	if err != nil {
+		m.log.Error("Failed creating new meta store", zap.Error(err))
+		return err
+	}
+
+	userSvcForAuth := userSvc
+	if m.enableNewMetaStore {
+		var ts platform.TenantService
+		if m.newMetaStoreReadOnly {
+			store, err := tenant.NewReadOnlyStore(m.kvStore)
+			if err != nil {
+				m.log.Error("Failed creating new meta store", zap.Error(err))
+				return err
+			}
+			oldSvc := m.kvService
+			newSvc := tenant.NewService(store)
+			ts = tenant.NewDuplicateReadTenantService(m.log, oldSvc, newSvc)
+		} else {
+			ts = tenant.NewService(store)
+		}
+		userSvcForAuth = ts
+
+		userSvc = tenant.NewAuthedUserService(tenant.NewUserLogger(m.log.With(zap.String("store", "new")), tenant.NewUserMetrics(m.reg, ts, tenant.WithSuffix("new"))))
+		orgSvc = tenant.NewAuthedOrgService(tenant.NewOrgLogger(m.log.With(zap.String("store", "new")), tenant.NewOrgMetrics(m.reg, ts, tenant.WithSuffix("new"))))
+		userResourceSvc = tenant.NewAuthedURMService(ts, tenant.NewURMLogger(m.log.With(zap.String("store", "new")), tenant.NewUrmMetrics(m.reg, ts, tenant.WithSuffix("new"))))
+		bucketSvc = tenant.NewAuthedBucketService(tenant.NewBucketLogger(m.log.With(zap.String("store", "new")), tenant.NewBucketMetrics(m.reg, ts, tenant.WithSuffix("new"))), userResourceSvc)
+		passwdsSvc = tenant.NewAuthedPasswordService(tenant.NewPasswordLogger(m.log.With(zap.String("store", "new")), tenant.NewPasswordMetrics(m.reg, ts, tenant.WithSuffix("new"))))
+	}
 
 	switch m.secretStore {
 	case "bolt":
@@ -918,20 +955,8 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		onboardHTTPServer = tenant.NewHTTPOnboardHandler(m.log, onboardSvc)
 	}
 
-	var userHTTPServer *tenant.UserHandler
 	{
-		userSvc := tenant.NewAuthedUserService(userSvc)
-		passwdsSvc := tenant.NewAuthedPasswordService(passwdsSvc)
-		userHTTPServer = tenant.NewHTTPUserHandler(m.log.With(zap.String("handler", "user")), userSvc, passwdsSvc)
-	}
-
-	{
-		platformHandler := http.NewPlatformHandler(m.apibackend,
-			http.WithResourceHandler(pkgHTTPServer),
-			http.WithResourceHandler(onboardHTTPServer),
-			http.WithResourceHandler(userHTTPServer.MeResourceHandler()),
-			http.WithResourceHandler(userHTTPServer.UserResourceHandler()),
-		)
+		platformHandler := http.NewPlatformHandler(m.apibackend, userSvcForAuth, http.WithResourceHandler(pkgHTTPServer), http.WithResourceHandler(onboardHTTPServer))
 
 		httpLogger := m.log.With(zap.String("service", "http"))
 		m.httpServer.Handler = http.NewHandlerFromRegistry(

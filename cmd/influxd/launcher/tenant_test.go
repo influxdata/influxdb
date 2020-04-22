@@ -55,4 +55,8 @@ func Test_Tenant(t *testing.T) {
 	t.Run("tenant service", func(t *testing.T) {
 		testTenant(t)
 	})
+
+	t.Run("duplicate read tenant service", func(t *testing.T) {
+		testTenant(t, "--new-meta-store")
+	})
 }

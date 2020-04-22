@@ -20,7 +20,6 @@ type BucketHandler struct {
 	api       *kithttp.API
 	log       *zap.Logger
 	bucketSvc influxdb.BucketService
-	labelSvc  influxdb.LabelService
 }
 
 const (
@@ -28,12 +27,11 @@ const (
 )
 
 // NewHTTPBucketHandler constructs a new http server.
-func NewHTTPBucketHandler(log *zap.Logger, bucketSvc influxdb.BucketService, labelSvc influxdb.LabelService, urmHandler, labelHandler http.Handler) *BucketHandler {
+func NewHTTPBucketHandler(log *zap.Logger, bucketSvc influxdb.BucketService, urmHandler, labelHandler http.Handler) *BucketHandler {
 	svr := &BucketHandler{
 		api:       kithttp.NewAPI(kithttp.WithLog(log)),
 		log:       log,
 		bucketSvc: bucketSvc,
-		labelSvc:  labelSvc,
 	}
 
 	r := chi.NewRouter()
@@ -213,27 +211,20 @@ func newBucketUpdate(pb *influxdb.BucketUpdate) *bucketUpdate {
 
 type bucketResponse struct {
 	bucket
-	Links  map[string]string `json:"links"`
-	Labels []influxdb.Label  `json:"labels"`
+	Links map[string]string `json:"links"`
 }
 
-func NewBucketResponse(b *influxdb.Bucket, labels []*influxdb.Label) *bucketResponse {
+func NewBucketResponse(b *influxdb.Bucket) *bucketResponse {
 	res := &bucketResponse{
 		Links: map[string]string{
-			"labels":  fmt.Sprintf("/api/v2/buckets/%s/labels", b.ID),
-			"logs":    fmt.Sprintf("/api/v2/buckets/%s/logs", b.ID),
-			"members": fmt.Sprintf("/api/v2/buckets/%s/members", b.ID),
-			"org":     fmt.Sprintf("/api/v2/orgs/%s", b.OrgID),
-			"owners":  fmt.Sprintf("/api/v2/buckets/%s/owners", b.ID),
 			"self":    fmt.Sprintf("/api/v2/buckets/%s", b.ID),
+			"org":     fmt.Sprintf("/api/v2/orgs/%s", b.OrgID),
+			"members": fmt.Sprintf("/api/v2/buckets/%s/members", b.ID),
+			"owners":  fmt.Sprintf("/api/v2/buckets/%s/owners", b.ID),
+			"labels":  fmt.Sprintf("/api/v2/buckets/%s/labels", b.ID),
 			"write":   fmt.Sprintf("/api/v2/write?org=%s&bucket=%s", b.OrgID, b.ID),
 		},
 		bucket: *newBucket(b),
-		Labels: []influxdb.Label{},
-	}
-
-	for _, l := range labels {
-		res.Labels = append(res.Labels, *l)
 	}
 
 	return res
@@ -244,11 +235,10 @@ type bucketsResponse struct {
 	Buckets []*bucketResponse     `json:"buckets"`
 }
 
-func newBucketsResponse(ctx context.Context, opts influxdb.FindOptions, f influxdb.BucketFilter, bs []*influxdb.Bucket, labelSvc influxdb.LabelService) *bucketsResponse {
+func newBucketsResponse(ctx context.Context, opts influxdb.FindOptions, f influxdb.BucketFilter, bs []*influxdb.Bucket) *bucketsResponse {
 	rs := make([]*bucketResponse, 0, len(bs))
 	for _, b := range bs {
-		labels, _ := labelSvc.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: b.ID, ResourceType: influxdb.BucketsResourceType})
-		rs = append(rs, NewBucketResponse(b, labels))
+		rs = append(rs, NewBucketResponse(b))
 	}
 	return &bucketsResponse{
 		Links:   influxdb.NewPagingLinks(prefixBuckets, opts, f, len(bs)),
@@ -281,7 +271,7 @@ func (h *BucketHandler) handlePostBucket(w http.ResponseWriter, r *http.Request)
 	}
 	h.log.Debug("Bucket created", zap.String("bucket", fmt.Sprint(bucket)))
 
-	h.api.Respond(w, http.StatusCreated, NewBucketResponse(bucket, nil))
+	h.api.Respond(w, http.StatusCreated, NewBucketResponse(bucket))
 }
 
 type postBucketRequest struct {
@@ -355,13 +345,8 @@ func (h *BucketHandler) handleGetBucket(w http.ResponseWriter, r *http.Request) 
 	}
 
 	h.log.Debug("Bucket retrieved", zap.String("bucket", fmt.Sprint(b)))
-	labels, err := h.labelSvc.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: b.ID, ResourceType: influxdb.BucketsResourceType})
-	if err != nil {
-		h.log.Error("failed to retrieve lables for bucket", zap.Error(err))
-		// we will continue to return the bucket even if the label services isn't working
-	}
 
-	h.api.Respond(w, http.StatusOK, NewBucketResponse(b, labels))
+	h.api.Respond(w, http.StatusOK, NewBucketResponse(b))
 }
 
 // handleDeleteBucket is the HTTP handler for the DELETE /api/v2/buckets/:id route.
@@ -397,7 +382,7 @@ func (h *BucketHandler) handleGetBuckets(w http.ResponseWriter, r *http.Request)
 	}
 	h.log.Debug("Buckets retrieved", zap.String("buckets", fmt.Sprint(bs)))
 
-	h.api.Respond(w, http.StatusOK, newBucketsResponse(r.Context(), bucketsRequest.opts, bucketsRequest.filter, bs, h.labelSvc))
+	h.api.Respond(w, http.StatusOK, newBucketsResponse(r.Context(), bucketsRequest.opts, bucketsRequest.filter, bs))
 }
 
 type getBucketsRequest struct {
@@ -445,7 +430,6 @@ func decodeGetBucketsRequest(r *http.Request) (*getBucketsRequest, error) {
 
 // handlePatchBucket is the HTTP handler for the PATCH /api/v2/buckets route.
 func (h *BucketHandler) handlePatchBucket(w http.ResponseWriter, r *http.Request) {
-
 	id, err := influxdb.IDFromString(chi.URLParam(r, "id"))
 	if err != nil {
 		h.api.Err(w, err)
@@ -478,13 +462,8 @@ func (h *BucketHandler) handlePatchBucket(w http.ResponseWriter, r *http.Request
 	}
 
 	h.log.Debug("Bucket updated", zap.String("bucket", fmt.Sprint(b)))
-	labels, err := h.labelSvc.FindResourceLabels(r.Context(), influxdb.LabelMappingFilter{ResourceID: b.ID, ResourceType: influxdb.BucketsResourceType})
-	if err != nil {
-		h.log.Error("failed to retrieve lables for bucket", zap.Error(err))
-		// we will continue to return the bucket even if the label services isn't working
-	}
 
-	h.api.Respond(w, http.StatusOK, NewBucketResponse(b, labels))
+	h.api.Respond(w, http.StatusOK, NewBucketResponse(b))
 }
 
 func (h *BucketHandler) lookupOrgByBucketID(ctx context.Context, id influxdb.ID) (influxdb.ID, error) {
