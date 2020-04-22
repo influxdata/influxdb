@@ -45,7 +45,7 @@ func (l *URMLogger) FindUserResourceMappings(ctx context.Context, filter influxd
 		}
 		l.logger.Debug("urm find", dur)
 	}(time.Now())
-	return l.urmService.FindUserResourceMappings(ctx, filter)
+	return l.urmService.FindUserResourceMappings(ctx, filter, opt...)
 }
 
 func (l *URMLogger) DeleteUserResourceMapping(ctx context.Context, resourceID, userID influxdb.ID) (err error) {

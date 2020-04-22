@@ -71,7 +71,7 @@ func (l *UserLogger) FindUsers(ctx context.Context, filter influxdb.UserFilter, 
 		}
 		l.logger.Debug("users find", dur)
 	}(time.Now())
-	return l.userService.FindUsers(ctx, filter)
+	return l.userService.FindUsers(ctx, filter, opt...)
 }
 
 func (l *UserLogger) UpdateUser(ctx context.Context, id influxdb.ID, upd influxdb.UserUpdate) (u *influxdb.User, err error) {
