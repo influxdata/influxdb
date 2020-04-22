@@ -19,7 +19,7 @@
     "start": "yarn install && yarn generate && cross-env TS_NODE_PROJECT=\"webpack.tsconfig.json\" && yarn run build:vendor && yarn run start:dev",
     "start:cloud": "yarn install && yarn generate && cross-env TS_NODE_PROJECT=\"webpack.tsconfig.json\" && yarn run build:vendor && yarn run start:dev-cloud",
     "start:dev": "webpack-dev-server --config ./webpack.dev.ts --progress false",
-    "start:dev-cloud": "cross-env CLOUD_LOGOUT_URL=http://localhost:8080/api/v2/signout CLOUD_URL=http://localhost:9999 webpack-dev-server --config ./webpack.dev.ts",
+    "start:dev-cloud": "cross-env CLOUD_LOGOUT_URL=http://localhost:8080/api/v2/signout CLOUD_URL=http://localhost:4000 webpack-dev-server --config ./webpack.dev.ts",
     "start:docker": "yarn generate && yarn build:vendor && yarn run start:dev",
     "build": "yarn install --silent && yarn build:ci",
     "build:ci": "yarn generate && yarn build:vendor && webpack --config webpack.prod.ts --bail",
