@@ -341,8 +341,8 @@ where
 
     /// `summary` returns the current summary for this block. The summary is updated
     /// whenever new values are pushed into the block.
-    pub fn summary(&self) -> &Option<T::BlockSummary> {
-        &self.summary
+    pub fn summary(&self) -> Option<&T::BlockSummary> {
+        self.summary.as_ref()
     }
 
     /// `write_to` serialises the block into the provided writer `w`.
@@ -355,7 +355,7 @@ where
         // There are some experimental APIs to do that here: https://doc.rust-lang.org/std/io/trait.Seek.html#method.stream_position
         // But I'm not sure how to proceed in the meantime...
 
-        let summary = self.summary().as_ref().ok_or_else(|| StorageError {
+        let summary = self.summary().ok_or_else(|| StorageError {
             description: "empty block".to_string(),
         })?;
 
@@ -1255,7 +1255,7 @@ mod test {
         );
 
         // Check header is updated.
-        let header = block.summary().as_ref().unwrap();
+        let header = block.summary().unwrap();
         assert_eq!(header.count, 6);
     }
 
