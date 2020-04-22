@@ -127,11 +127,23 @@ type floatMergeIterator struct {
 
 // newFloatMergeIterator returns a new instance of floatMergeIterator.
 func newFloatMergeIterator(inputs []FloatIterator, opt IteratorOptions) *floatMergeIterator {
+	var sorted []string
+	if len(opt.Dimensions) > 0 {
+		if sort.StringsAreSorted(opt.Dimensions) {
+			sorted = opt.Dimensions
+		} else {
+			sorted = make([]string, len(opt.Dimensions))
+			copy(sorted, opt.Dimensions)
+			sort.Strings(sorted)
+		}
+	}
+
 	itr := &floatMergeIterator{
 		inputs: inputs,
 		heap: &floatMergeHeap{
-			items: make([]*floatMergeHeapItem, 0, len(inputs)),
-			opt:   opt,
+			items:            make([]*floatMergeHeapItem, 0, len(inputs)),
+			opt:              opt,
+			sortedDimensions: sorted,
 		},
 	}
 
@@ -257,8 +269,9 @@ func (itr *floatMergeIterator) Next() (*FloatPoint, error) {
 // floatMergeHeap represents a heap of floatMergeHeapItems.
 // Items are sorted by their next window and then by name/tags.
 type floatMergeHeap struct {
-	opt   IteratorOptions
-	items []*floatMergeHeapItem
+	opt              IteratorOptions
+	sortedDimensions []string
+	items            []*floatMergeHeapItem
 }
 
 func (h *floatMergeHeap) Len() int      { return len(h.items) }
@@ -276,14 +289,14 @@ func (h *floatMergeHeap) Less(i, j int) bool {
 	if h.opt.Ascending {
 		if x.Name != y.Name {
 			return x.Name < y.Name
-		} else if xTags, yTags := x.Tags.Subset(h.opt.Dimensions), y.Tags.Subset(h.opt.Dimensions); xTags.ID() != yTags.ID() {
-			return xTags.ID() < yTags.ID()
+		} else if cmp := x.Tags.CompareKeys(h.sortedDimensions, &y.Tags); cmp != 0 {
+			return cmp == -1
 		}
 	} else {
 		if x.Name != y.Name {
 			return x.Name > y.Name
-		} else if xTags, yTags := x.Tags.Subset(h.opt.Dimensions), y.Tags.Subset(h.opt.Dimensions); xTags.ID() != yTags.ID() {
-			return xTags.ID() > yTags.ID()
+		} else if cmp := x.Tags.CompareKeys(h.sortedDimensions, &y.Tags); cmp != 0 {
+			return cmp == 1
 		}
 	}
 
@@ -321,11 +334,23 @@ type floatSortedMergeIterator struct {
 
 // newFloatSortedMergeIterator returns an instance of floatSortedMergeIterator.
 func newFloatSortedMergeIterator(inputs []FloatIterator, opt IteratorOptions) Iterator {
+	var sorted []string
+	if len(opt.Dimensions) > 0 {
+		if sort.StringsAreSorted(opt.Dimensions) {
+			sorted = opt.Dimensions
+		} else {
+			sorted = make([]string, len(opt.Dimensions))
+			copy(sorted, opt.Dimensions)
+			sort.Strings(sorted)
+		}
+	}
+
 	itr := &floatSortedMergeIterator{
 		inputs: inputs,
 		heap: &floatSortedMergeHeap{
-			items: make([]*floatSortedMergeHeapItem, 0, len(inputs)),
-			opt:   opt,
+			items:            make([]*floatSortedMergeHeapItem, 0, len(inputs)),
+			opt:              opt,
+			sortedDimensions: sorted,
 		},
 	}
 
@@ -409,8 +434,9 @@ func (itr *floatSortedMergeIterator) pop() (*FloatPoint, error) {
 //     - By their Aux field values.
 //
 type floatSortedMergeHeap struct {
-	opt   IteratorOptions
-	items []*floatSortedMergeHeapItem
+	opt              IteratorOptions
+	sortedDimensions []string
+	items            []*floatSortedMergeHeapItem
 }
 
 func (h *floatSortedMergeHeap) Len() int      { return len(h.items) }
@@ -421,8 +447,8 @@ func (h *floatSortedMergeHeap) Less(i, j int) bool {
 	if h.opt.Ascending {
 		if x.Name != y.Name {
 			return x.Name < y.Name
-		} else if xTags, yTags := x.Tags.Subset(h.opt.Dimensions), y.Tags.Subset(h.opt.Dimensions); !xTags.Equals(&yTags) {
-			return xTags.ID() < yTags.ID()
+		} else if cmp := x.Tags.CompareKeys(h.sortedDimensions, &y.Tags); cmp != 0 {
+			return cmp == -1
 		}
 
 		if x.Time != y.Time {
@@ -448,8 +474,8 @@ func (h *floatSortedMergeHeap) Less(i, j int) bool {
 
 	if x.Name != y.Name {
 		return x.Name > y.Name
-	} else if xTags, yTags := x.Tags.Subset(h.opt.Dimensions), y.Tags.Subset(h.opt.Dimensions); !xTags.Equals(&yTags) {
-		return xTags.ID() > yTags.ID()
+	} else if cmp := x.Tags.CompareKeys(h.sortedDimensions, &y.Tags); cmp != 0 {
+		return cmp == 1
 	}
 
 	if x.Time != y.Time {
@@ -2791,11 +2817,23 @@ type integerMergeIterator struct {
 
 // newIntegerMergeIterator returns a new instance of integerMergeIterator.
 func newIntegerMergeIterator(inputs []IntegerIterator, opt IteratorOptions) *integerMergeIterator {
+	var sorted []string
+	if len(opt.Dimensions) > 0 {
+		if sort.StringsAreSorted(opt.Dimensions) {
+			sorted = opt.Dimensions
+		} else {
+			sorted = make([]string, len(opt.Dimensions))
+			copy(sorted, opt.Dimensions)
+			sort.Strings(sorted)
+		}
+	}
+
 	itr := &integerMergeIterator{
 		inputs: inputs,
 		heap: &integerMergeHeap{
-			items: make([]*integerMergeHeapItem, 0, len(inputs)),
-			opt:   opt,
+			items:            make([]*integerMergeHeapItem, 0, len(inputs)),
+			opt:              opt,
+			sortedDimensions: sorted,
 		},
 	}
 
@@ -2921,8 +2959,9 @@ func (itr *integerMergeIterator) Next() (*IntegerPoint, error) {
 // integerMergeHeap represents a heap of integerMergeHeapItems.
 // Items are sorted by their next window and then by name/tags.
 type integerMergeHeap struct {
-	opt   IteratorOptions
-	items []*integerMergeHeapItem
+	opt              IteratorOptions
+	sortedDimensions []string
+	items            []*integerMergeHeapItem
 }
 
 func (h *integerMergeHeap) Len() int      { return len(h.items) }
@@ -2940,14 +2979,14 @@ func (h *integerMergeHeap) Less(i, j int) bool {
 	if h.opt.Ascending {
 		if x.Name != y.Name {
 			return x.Name < y.Name
-		} else if xTags, yTags := x.Tags.Subset(h.opt.Dimensions), y.Tags.Subset(h.opt.Dimensions); xTags.ID() != yTags.ID() {
-			return xTags.ID() < yTags.ID()
+		} else if cmp := x.Tags.CompareKeys(h.sortedDimensions, &y.Tags); cmp != 0 {
+			return cmp == -1
 		}
 	} else {
 		if x.Name != y.Name {
 			return x.Name > y.Name
-		} else if xTags, yTags := x.Tags.Subset(h.opt.Dimensions), y.Tags.Subset(h.opt.Dimensions); xTags.ID() != yTags.ID() {
-			return xTags.ID() > yTags.ID()
+		} else if cmp := x.Tags.CompareKeys(h.sortedDimensions, &y.Tags); cmp != 0 {
+			return cmp == 1
 		}
 	}
 
@@ -2985,11 +3024,23 @@ type integerSortedMergeIterator struct {
 
 // newIntegerSortedMergeIterator returns an instance of integerSortedMergeIterator.
 func newIntegerSortedMergeIterator(inputs []IntegerIterator, opt IteratorOptions) Iterator {
+	var sorted []string
+	if len(opt.Dimensions) > 0 {
+		if sort.StringsAreSorted(opt.Dimensions) {
+			sorted = opt.Dimensions
+		} else {
+			sorted = make([]string, len(opt.Dimensions))
+			copy(sorted, opt.Dimensions)
+			sort.Strings(sorted)
+		}
+	}
+
 	itr := &integerSortedMergeIterator{
 		inputs: inputs,
 		heap: &integerSortedMergeHeap{
-			items: make([]*integerSortedMergeHeapItem, 0, len(inputs)),
-			opt:   opt,
+			items:            make([]*integerSortedMergeHeapItem, 0, len(inputs)),
+			opt:              opt,
+			sortedDimensions: sorted,
 		},
 	}
 
@@ -3073,8 +3124,9 @@ func (itr *integerSortedMergeIterator) pop() (*IntegerPoint, error) {
 //     - By their Aux field values.
 //
 type integerSortedMergeHeap struct {
-	opt   IteratorOptions
-	items []*integerSortedMergeHeapItem
+	opt              IteratorOptions
+	sortedDimensions []string
+	items            []*integerSortedMergeHeapItem
 }
 
 func (h *integerSortedMergeHeap) Len() int      { return len(h.items) }
@@ -3085,8 +3137,8 @@ func (h *integerSortedMergeHeap) Less(i, j int) bool {
 	if h.opt.Ascending {
 		if x.Name != y.Name {
 			return x.Name < y.Name
-		} else if xTags, yTags := x.Tags.Subset(h.opt.Dimensions), y.Tags.Subset(h.opt.Dimensions); !xTags.Equals(&yTags) {
-			return xTags.ID() < yTags.ID()
+		} else if cmp := x.Tags.CompareKeys(h.sortedDimensions, &y.Tags); cmp != 0 {
+			return cmp == -1
 		}
 
 		if x.Time != y.Time {
@@ -3112,8 +3164,8 @@ func (h *integerSortedMergeHeap) Less(i, j int) bool {
 
 	if x.Name != y.Name {
 		return x.Name > y.Name
-	} else if xTags, yTags := x.Tags.Subset(h.opt.Dimensions), y.Tags.Subset(h.opt.Dimensions); !xTags.Equals(&yTags) {
-		return xTags.ID() > yTags.ID()
+	} else if cmp := x.Tags.CompareKeys(h.sortedDimensions, &y.Tags); cmp != 0 {
+		return cmp == 1
 	}
 
 	if x.Time != y.Time {
@@ -5455,11 +5507,23 @@ type unsignedMergeIterator struct {
 
 // newUnsignedMergeIterator returns a new instance of unsignedMergeIterator.
 func newUnsignedMergeIterator(inputs []UnsignedIterator, opt IteratorOptions) *unsignedMergeIterator {
+	var sorted []string
+	if len(opt.Dimensions) > 0 {
+		if sort.StringsAreSorted(opt.Dimensions) {
+			sorted = opt.Dimensions
+		} else {
+			sorted = make([]string, len(opt.Dimensions))
+			copy(sorted, opt.Dimensions)
+			sort.Strings(sorted)
+		}
+	}
+
 	itr := &unsignedMergeIterator{
 		inputs: inputs,
 		heap: &unsignedMergeHeap{
-			items: make([]*unsignedMergeHeapItem, 0, len(inputs)),
-			opt:   opt,
+			items:            make([]*unsignedMergeHeapItem, 0, len(inputs)),
+			opt:              opt,
+			sortedDimensions: sorted,
 		},
 	}
 
@@ -5585,8 +5649,9 @@ func (itr *unsignedMergeIterator) Next() (*UnsignedPoint, error) {
 // unsignedMergeHeap represents a heap of unsignedMergeHeapItems.
 // Items are sorted by their next window and then by name/tags.
 type unsignedMergeHeap struct {
-	opt   IteratorOptions
-	items []*unsignedMergeHeapItem
+	opt              IteratorOptions
+	sortedDimensions []string
+	items            []*unsignedMergeHeapItem
 }
 
 func (h *unsignedMergeHeap) Len() int      { return len(h.items) }
@@ -5604,14 +5669,14 @@ func (h *unsignedMergeHeap) Less(i, j int) bool {
 	if h.opt.Ascending {
 		if x.Name != y.Name {
 			return x.Name < y.Name
-		} else if xTags, yTags := x.Tags.Subset(h.opt.Dimensions), y.Tags.Subset(h.opt.Dimensions); xTags.ID() != yTags.ID() {
-			return xTags.ID() < yTags.ID()
+		} else if cmp := x.Tags.CompareKeys(h.sortedDimensions, &y.Tags); cmp != 0 {
+			return cmp == -1
 		}
 	} else {
 		if x.Name != y.Name {
 			return x.Name > y.Name
-		} else if xTags, yTags := x.Tags.Subset(h.opt.Dimensions), y.Tags.Subset(h.opt.Dimensions); xTags.ID() != yTags.ID() {
-			return xTags.ID() > yTags.ID()
+		} else if cmp := x.Tags.CompareKeys(h.sortedDimensions, &y.Tags); cmp != 0 {
+			return cmp == 1
 		}
 	}
 
@@ -5649,11 +5714,23 @@ type unsignedSortedMergeIterator struct {
 
 // newUnsignedSortedMergeIterator returns an instance of unsignedSortedMergeIterator.
 func newUnsignedSortedMergeIterator(inputs []UnsignedIterator, opt IteratorOptions) Iterator {
+	var sorted []string
+	if len(opt.Dimensions) > 0 {
+		if sort.StringsAreSorted(opt.Dimensions) {
+			sorted = opt.Dimensions
+		} else {
+			sorted = make([]string, len(opt.Dimensions))
+			copy(sorted, opt.Dimensions)
+			sort.Strings(sorted)
+		}
+	}
+
 	itr := &unsignedSortedMergeIterator{
 		inputs: inputs,
 		heap: &unsignedSortedMergeHeap{
-			items: make([]*unsignedSortedMergeHeapItem, 0, len(inputs)),
-			opt:   opt,
+			items:            make([]*unsignedSortedMergeHeapItem, 0, len(inputs)),
+			opt:              opt,
+			sortedDimensions: sorted,
 		},
 	}
 
@@ -5737,8 +5814,9 @@ func (itr *unsignedSortedMergeIterator) pop() (*UnsignedPoint, error) {
 //     - By their Aux field values.
 //
 type unsignedSortedMergeHeap struct {
-	opt   IteratorOptions
-	items []*unsignedSortedMergeHeapItem
+	opt              IteratorOptions
+	sortedDimensions []string
+	items            []*unsignedSortedMergeHeapItem
 }
 
 func (h *unsignedSortedMergeHeap) Len() int      { return len(h.items) }
@@ -5749,8 +5827,8 @@ func (h *unsignedSortedMergeHeap) Less(i, j int) bool {
 	if h.opt.Ascending {
 		if x.Name != y.Name {
 			return x.Name < y.Name
-		} else if xTags, yTags := x.Tags.Subset(h.opt.Dimensions), y.Tags.Subset(h.opt.Dimensions); !xTags.Equals(&yTags) {
-			return xTags.ID() < yTags.ID()
+		} else if cmp := x.Tags.CompareKeys(h.sortedDimensions, &y.Tags); cmp != 0 {
+			return cmp == -1
 		}
 
 		if x.Time != y.Time {
@@ -5776,8 +5854,8 @@ func (h *unsignedSortedMergeHeap) Less(i, j int) bool {
 
 	if x.Name != y.Name {
 		return x.Name > y.Name
-	} else if xTags, yTags := x.Tags.Subset(h.opt.Dimensions), y.Tags.Subset(h.opt.Dimensions); !xTags.Equals(&yTags) {
-		return xTags.ID() > yTags.ID()
+	} else if cmp := x.Tags.CompareKeys(h.sortedDimensions, &y.Tags); cmp != 0 {
+		return cmp == 1
 	}
 
 	if x.Time != y.Time {
@@ -8119,11 +8197,23 @@ type stringMergeIterator struct {
 
 // newStringMergeIterator returns a new instance of stringMergeIterator.
 func newStringMergeIterator(inputs []StringIterator, opt IteratorOptions) *stringMergeIterator {
+	var sorted []string
+	if len(opt.Dimensions) > 0 {
+		if sort.StringsAreSorted(opt.Dimensions) {
+			sorted = opt.Dimensions
+		} else {
+			sorted = make([]string, len(opt.Dimensions))
+			copy(sorted, opt.Dimensions)
+			sort.Strings(sorted)
+		}
+	}
+
 	itr := &stringMergeIterator{
 		inputs: inputs,
 		heap: &stringMergeHeap{
-			items: make([]*stringMergeHeapItem, 0, len(inputs)),
-			opt:   opt,
+			items:            make([]*stringMergeHeapItem, 0, len(inputs)),
+			opt:              opt,
+			sortedDimensions: sorted,
 		},
 	}
 
@@ -8249,8 +8339,9 @@ func (itr *stringMergeIterator) Next() (*StringPoint, error) {
 // stringMergeHeap represents a heap of stringMergeHeapItems.
 // Items are sorted by their next window and then by name/tags.
 type stringMergeHeap struct {
-	opt   IteratorOptions
-	items []*stringMergeHeapItem
+	opt              IteratorOptions
+	sortedDimensions []string
+	items            []*stringMergeHeapItem
 }
 
 func (h *stringMergeHeap) Len() int      { return len(h.items) }
@@ -8268,14 +8359,14 @@ func (h *stringMergeHeap) Less(i, j int) bool {
 	if h.opt.Ascending {
 		if x.Name != y.Name {
 			return x.Name < y.Name
-		} else if xTags, yTags := x.Tags.Subset(h.opt.Dimensions), y.Tags.Subset(h.opt.Dimensions); xTags.ID() != yTags.ID() {
-			return xTags.ID() < yTags.ID()
+		} else if cmp := x.Tags.CompareKeys(h.sortedDimensions, &y.Tags); cmp != 0 {
+			return cmp == -1
 		}
 	} else {
 		if x.Name != y.Name {
 			return x.Name > y.Name
-		} else if xTags, yTags := x.Tags.Subset(h.opt.Dimensions), y.Tags.Subset(h.opt.Dimensions); xTags.ID() != yTags.ID() {
-			return xTags.ID() > yTags.ID()
+		} else if cmp := x.Tags.CompareKeys(h.sortedDimensions, &y.Tags); cmp != 0 {
+			return cmp == 1
 		}
 	}
 
@@ -8313,11 +8404,23 @@ type stringSortedMergeIterator struct {
 
 // newStringSortedMergeIterator returns an instance of stringSortedMergeIterator.
 func newStringSortedMergeIterator(inputs []StringIterator, opt IteratorOptions) Iterator {
+	var sorted []string
+	if len(opt.Dimensions) > 0 {
+		if sort.StringsAreSorted(opt.Dimensions) {
+			sorted = opt.Dimensions
+		} else {
+			sorted = make([]string, len(opt.Dimensions))
+			copy(sorted, opt.Dimensions)
+			sort.Strings(sorted)
+		}
+	}
+
 	itr := &stringSortedMergeIterator{
 		inputs: inputs,
 		heap: &stringSortedMergeHeap{
-			items: make([]*stringSortedMergeHeapItem, 0, len(inputs)),
-			opt:   opt,
+			items:            make([]*stringSortedMergeHeapItem, 0, len(inputs)),
+			opt:              opt,
+			sortedDimensions: sorted,
 		},
 	}
 
@@ -8401,8 +8504,9 @@ func (itr *stringSortedMergeIterator) pop() (*StringPoint, error) {
 //     - By their Aux field values.
 //
 type stringSortedMergeHeap struct {
-	opt   IteratorOptions
-	items []*stringSortedMergeHeapItem
+	opt              IteratorOptions
+	sortedDimensions []string
+	items            []*stringSortedMergeHeapItem
 }
 
 func (h *stringSortedMergeHeap) Len() int      { return len(h.items) }
@@ -8413,8 +8517,8 @@ func (h *stringSortedMergeHeap) Less(i, j int) bool {
 	if h.opt.Ascending {
 		if x.Name != y.Name {
 			return x.Name < y.Name
-		} else if xTags, yTags := x.Tags.Subset(h.opt.Dimensions), y.Tags.Subset(h.opt.Dimensions); !xTags.Equals(&yTags) {
-			return xTags.ID() < yTags.ID()
+		} else if cmp := x.Tags.CompareKeys(h.sortedDimensions, &y.Tags); cmp != 0 {
+			return cmp == -1
 		}
 
 		if x.Time != y.Time {
@@ -8440,8 +8544,8 @@ func (h *stringSortedMergeHeap) Less(i, j int) bool {
 
 	if x.Name != y.Name {
 		return x.Name > y.Name
-	} else if xTags, yTags := x.Tags.Subset(h.opt.Dimensions), y.Tags.Subset(h.opt.Dimensions); !xTags.Equals(&yTags) {
-		return xTags.ID() > yTags.ID()
+	} else if cmp := x.Tags.CompareKeys(h.sortedDimensions, &y.Tags); cmp != 0 {
+		return cmp == 1
 	}
 
 	if x.Time != y.Time {
@@ -10769,11 +10873,23 @@ type booleanMergeIterator struct {
 
 // newBooleanMergeIterator returns a new instance of booleanMergeIterator.
 func newBooleanMergeIterator(inputs []BooleanIterator, opt IteratorOptions) *booleanMergeIterator {
+	var sorted []string
+	if len(opt.Dimensions) > 0 {
+		if sort.StringsAreSorted(opt.Dimensions) {
+			sorted = opt.Dimensions
+		} else {
+			sorted = make([]string, len(opt.Dimensions))
+			copy(sorted, opt.Dimensions)
+			sort.Strings(sorted)
+		}
+	}
+
 	itr := &booleanMergeIterator{
 		inputs: inputs,
 		heap: &booleanMergeHeap{
-			items: make([]*booleanMergeHeapItem, 0, len(inputs)),
-			opt:   opt,
+			items:            make([]*booleanMergeHeapItem, 0, len(inputs)),
+			opt:              opt,
+			sortedDimensions: sorted,
 		},
 	}
 
@@ -10899,8 +11015,9 @@ func (itr *booleanMergeIterator) Next() (*BooleanPoint, error) {
 // booleanMergeHeap represents a heap of booleanMergeHeapItems.
 // Items are sorted by their next window and then by name/tags.
 type booleanMergeHeap struct {
-	opt   IteratorOptions
-	items []*booleanMergeHeapItem
+	opt              IteratorOptions
+	sortedDimensions []string
+	items            []*booleanMergeHeapItem
 }
 
 func (h *booleanMergeHeap) Len() int      { return len(h.items) }
@@ -10918,14 +11035,14 @@ func (h *booleanMergeHeap) Less(i, j int) bool {
 	if h.opt.Ascending {
 		if x.Name != y.Name {
 			return x.Name < y.Name
-		} else if xTags, yTags := x.Tags.Subset(h.opt.Dimensions), y.Tags.Subset(h.opt.Dimensions); xTags.ID() != yTags.ID() {
-			return xTags.ID() < yTags.ID()
+		} else if cmp := x.Tags.CompareKeys(h.sortedDimensions, &y.Tags); cmp != 0 {
+			return cmp == -1
 		}
 	} else {
 		if x.Name != y.Name {
 			return x.Name > y.Name
-		} else if xTags, yTags := x.Tags.Subset(h.opt.Dimensions), y.Tags.Subset(h.opt.Dimensions); xTags.ID() != yTags.ID() {
-			return xTags.ID() > yTags.ID()
+		} else if cmp := x.Tags.CompareKeys(h.sortedDimensions, &y.Tags); cmp != 0 {
+			return cmp == 1
 		}
 	}
 
@@ -10963,11 +11080,23 @@ type booleanSortedMergeIterator struct {
 
 // newBooleanSortedMergeIterator returns an instance of booleanSortedMergeIterator.
 func newBooleanSortedMergeIterator(inputs []BooleanIterator, opt IteratorOptions) Iterator {
+	var sorted []string
+	if len(opt.Dimensions) > 0 {
+		if sort.StringsAreSorted(opt.Dimensions) {
+			sorted = opt.Dimensions
+		} else {
+			sorted = make([]string, len(opt.Dimensions))
+			copy(sorted, opt.Dimensions)
+			sort.Strings(sorted)
+		}
+	}
+
 	itr := &booleanSortedMergeIterator{
 		inputs: inputs,
 		heap: &booleanSortedMergeHeap{
-			items: make([]*booleanSortedMergeHeapItem, 0, len(inputs)),
-			opt:   opt,
+			items:            make([]*booleanSortedMergeHeapItem, 0, len(inputs)),
+			opt:              opt,
+			sortedDimensions: sorted,
 		},
 	}
 
@@ -11051,8 +11180,9 @@ func (itr *booleanSortedMergeIterator) pop() (*BooleanPoint, error) {
 //     - By their Aux field values.
 //
 type booleanSortedMergeHeap struct {
-	opt   IteratorOptions
-	items []*booleanSortedMergeHeapItem
+	opt              IteratorOptions
+	sortedDimensions []string
+	items            []*booleanSortedMergeHeapItem
 }
 
 func (h *booleanSortedMergeHeap) Len() int      { return len(h.items) }
@@ -11063,8 +11193,8 @@ func (h *booleanSortedMergeHeap) Less(i, j int) bool {
 	if h.opt.Ascending {
 		if x.Name != y.Name {
 			return x.Name < y.Name
-		} else if xTags, yTags := x.Tags.Subset(h.opt.Dimensions), y.Tags.Subset(h.opt.Dimensions); !xTags.Equals(&yTags) {
-			return xTags.ID() < yTags.ID()
+		} else if cmp := x.Tags.CompareKeys(h.sortedDimensions, &y.Tags); cmp != 0 {
+			return cmp == -1
 		}
 
 		if x.Time != y.Time {
@@ -11090,8 +11220,8 @@ func (h *booleanSortedMergeHeap) Less(i, j int) bool {
 
 	if x.Name != y.Name {
 		return x.Name > y.Name
-	} else if xTags, yTags := x.Tags.Subset(h.opt.Dimensions), y.Tags.Subset(h.opt.Dimensions); !xTags.Equals(&yTags) {
-		return xTags.ID() > yTags.ID()
+	} else if cmp := x.Tags.CompareKeys(h.sortedDimensions, &y.Tags); cmp != 0 {
+		return cmp == 1
 	}
 
 	if x.Time != y.Time {

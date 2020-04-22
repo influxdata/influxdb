@@ -7,7 +7,6 @@ import (
 	"sort"
 	"sync"
 	"time"
-	"sync"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/influxdata/influxql"
@@ -125,11 +124,23 @@ type {{$k.name}}MergeIterator struct {
 
 // new{{$k.Name}}MergeIterator returns a new instance of {{$k.name}}MergeIterator.
 func new{{$k.Name}}MergeIterator(inputs []{{$k.Name}}Iterator, opt IteratorOptions) *{{$k.name}}MergeIterator {
+	var sorted []string
+	if len(opt.Dimensions) > 0 {
+		if sort.StringsAreSorted(opt.Dimensions) {
+			sorted = opt.Dimensions
+		} else {
+			sorted = make([]string, len(opt.Dimensions))
+			copy(sorted, opt.Dimensions)
+			sort.Strings(sorted)
+		}
+	}
+
 	itr := &{{$k.name}}MergeIterator{
 		inputs: inputs,
 		heap: &{{$k.name}}MergeHeap{
-			items: make([]*{{$k.name}}MergeHeapItem, 0, len(inputs)),
-			opt:   opt,
+			items:            make([]*{{$k.name}}MergeHeapItem, 0, len(inputs)),
+			opt:              opt,
+			sortedDimensions: sorted,
 		},
 	}
 
@@ -255,8 +266,9 @@ func (itr *{{$k.name}}MergeIterator) Next() (*{{$k.Name}}Point, error) {
 // {{$k.name}}MergeHeap represents a heap of {{$k.name}}MergeHeapItems.
 // Items are sorted by their next window and then by name/tags.
 type {{$k.name}}MergeHeap struct {
-	opt   IteratorOptions
-	items []*{{$k.name}}MergeHeapItem
+	opt              IteratorOptions
+	sortedDimensions []string
+	items            []*{{$k.name}}MergeHeapItem
 }
 
 func (h *{{$k.name}}MergeHeap) Len() int      { return len(h.items) }
@@ -274,14 +286,14 @@ func (h *{{$k.name}}MergeHeap) Less(i, j int) bool {
 	if h.opt.Ascending {
 		if x.Name != y.Name {
 			return x.Name < y.Name
-		} else if xTags, yTags := x.Tags.Subset(h.opt.Dimensions), y.Tags.Subset(h.opt.Dimensions); xTags.ID() != yTags.ID() {
-			return xTags.ID() < yTags.ID()
+		} else if cmp := x.Tags.CompareKeys(h.sortedDimensions, &y.Tags); cmp != 0 {
+			return cmp == -1
 		}
 	} else {
 		if x.Name != y.Name {
 			return x.Name > y.Name
-		} else if xTags, yTags := x.Tags.Subset(h.opt.Dimensions), y.Tags.Subset(h.opt.Dimensions); xTags.ID() != yTags.ID() {
-			return xTags.ID() > yTags.ID()
+		} else if cmp := x.Tags.CompareKeys(h.sortedDimensions, &y.Tags); cmp != 0 {
+			return cmp == 1
 		}
 	}
 
@@ -320,11 +332,23 @@ type {{$k.name}}SortedMergeIterator struct {
 
 // new{{$k.Name}}SortedMergeIterator returns an instance of {{$k.name}}SortedMergeIterator.
 func new{{$k.Name}}SortedMergeIterator(inputs []{{$k.Name}}Iterator, opt IteratorOptions) Iterator {
+	var sorted []string
+	if len(opt.Dimensions) > 0 {
+		if sort.StringsAreSorted(opt.Dimensions) {
+			sorted = opt.Dimensions
+		} else {
+			sorted = make([]string, len(opt.Dimensions))
+			copy(sorted, opt.Dimensions)
+			sort.Strings(sorted)
+		}
+	}
+
 	itr := &{{$k.name}}SortedMergeIterator{
 		inputs: inputs,
 		heap:   &{{$k.name}}SortedMergeHeap{
-			items: make([]*{{$k.name}}SortedMergeHeapItem, 0, len(inputs)),
-			opt:   opt,
+			items:            make([]*{{$k.name}}SortedMergeHeapItem, 0, len(inputs)),
+			opt:              opt,
+			sortedDimensions: sorted,
 		},
 	}
 
@@ -408,8 +432,9 @@ func (itr *{{$k.name}}SortedMergeIterator) pop() (*{{$k.Name}}Point, error) {
 //     - By their Aux field values.
 //
 type {{$k.name}}SortedMergeHeap struct {
-	opt   IteratorOptions
-	items []*{{$k.name}}SortedMergeHeapItem
+	opt              IteratorOptions
+	sortedDimensions []string
+	items            []*{{$k.name}}SortedMergeHeapItem
 }
 
 func (h *{{$k.name}}SortedMergeHeap) Len() int      { return len(h.items) }
@@ -420,8 +445,8 @@ func (h *{{$k.name}}SortedMergeHeap) Less(i, j int) bool {
 	if h.opt.Ascending {
 		if x.Name != y.Name {
 			return x.Name < y.Name
-		} else if xTags, yTags := x.Tags.Subset(h.opt.Dimensions), y.Tags.Subset(h.opt.Dimensions); !xTags.Equals(&yTags) {
-			return xTags.ID() < yTags.ID()
+		} else if cmp := x.Tags.CompareKeys(h.sortedDimensions, &y.Tags); cmp != 0 {
+			return cmp == -1
 		}
 
 		if x.Time != y.Time{
@@ -447,8 +472,8 @@ func (h *{{$k.name}}SortedMergeHeap) Less(i, j int) bool {
 
 	if x.Name != y.Name {
 		return x.Name > y.Name
-	} else if xTags, yTags := x.Tags.Subset(h.opt.Dimensions), y.Tags.Subset(h.opt.Dimensions); !xTags.Equals(&yTags) {
-		return xTags.ID() > yTags.ID()
+	} else if cmp := x.Tags.CompareKeys(h.sortedDimensions, &y.Tags); cmp != 0 {
+		return cmp == 1
 	}
 
 	if x.Time != y.Time{

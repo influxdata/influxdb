@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/pkg/deep"
 	"github.com/influxdata/influxdb/query"
 )
@@ -174,6 +175,190 @@ func TestTags_Subset(t *testing.T) {
 	} else if v := subset.Value("d"); v != "" {
 		t.Fatalf("unexpected 'd' value: %s", v)
 	}
+}
+
+// enumerates all combinations of the set, where
+// len(set) ≤ #bits of current architecture.
+func combinations(set []string) [][]string {
+	length := uint(len(set))
+	subsets := make([][]string, 0, (1<<length)-1)
+
+	// Go through all possible combinations of objects
+	// from 1 (only first object in subset) to 2^length (all objects in subset)
+	for subsetBits := 1; subsetBits < (1 << length); subsetBits++ {
+		var subset []string
+		for object := uint(0); object < length; object++ {
+			// checks if object is contained in subset
+			// by checking if bit 'object' is set in subsetBits
+			if (subsetBits>>object)&1 == 1 {
+				// add object to subset
+				subset = append(subset, set[object])
+			}
+		}
+		// add subset to subsets
+		subsets = append(subsets, subset)
+	}
+	return subsets
+}
+
+// Compares Subset and CompareKeys produce the same behavior
+// under specific preconditions.
+// This is important for use in iterators.
+func TestTags_SubsetEqualsCompareKeys(t *testing.T) {
+	nt := func(kv ...string) *query.Tags {
+		if len(kv)%2 != 0 {
+			panic("expect even number of kv")
+		}
+
+		m := make(map[string]string, len(kv)/2)
+		for i := 0; i < len(kv); i += 2 {
+			m[kv[i]] = kv[i+1]
+		}
+		r := query.NewTags(m)
+		return &r
+	}
+
+	// allKeys contains all combinations of the ordered set
+	allKeys := combinations([]string{"a", "b", "c", "d", "e"})
+
+	t.Run("when tag keys and values are equal", func(t *testing.T) {
+		a, b := nt("a", "0", "b", "1", "c", "2"), nt("a", "0", "b", "1", "c", "2")
+
+		t.Run("compare a with b", func(t *testing.T) {
+			for _, keys := range allKeys {
+				got := a.CompareKeys(keys, b)
+				l := a.Subset(keys)
+				r := b.Subset(keys)
+
+				var exp int
+				if l.ID() == r.ID() {
+					exp = 0
+				} else if l.ID() < r.ID() {
+					exp = -1
+				} else {
+					exp = 1
+				}
+
+				if !cmp.Equal(got, exp) {
+					t.Errorf("CompareKeys: -got/+exp\n%s", cmp.Diff(got, exp))
+				}
+			}
+		})
+
+		t.Run("compare b with a", func(t *testing.T) {
+			for _, keys := range allKeys {
+				got := b.CompareKeys(keys, a)
+				l := b.Subset(keys)
+				r := a.Subset(keys)
+
+				var exp int
+				if l.ID() == r.ID() {
+					exp = 0
+				} else if l.ID() < r.ID() {
+					exp = -1
+				} else {
+					exp = 1
+				}
+
+				if !cmp.Equal(got, exp) {
+					t.Errorf("CompareKeys: -got/+exp\n%s", cmp.Diff(got, exp))
+				}
+			}
+		})
+
+	})
+
+	t.Run("when tag keys are equal and values are different", func(t *testing.T) {
+		a, b := nt("a", "0", "b", "0", "c", "1"), nt("a", "0", "b", "1", "c", "2")
+
+		t.Run("compare a with b", func(t *testing.T) {
+			for _, keys := range allKeys {
+				got := a.CompareKeys(keys, b)
+				l := a.Subset(keys)
+				r := b.Subset(keys)
+
+				var exp int
+				if l.ID() == r.ID() {
+					exp = 0
+				} else if l.ID() < r.ID() {
+					exp = -1
+				} else {
+					exp = 1
+				}
+
+				if !cmp.Equal(got, exp) {
+					t.Errorf("CompareKeys: -got/+exp\n%s", cmp.Diff(got, exp))
+				}
+			}
+		})
+
+		t.Run("compare b with a", func(t *testing.T) {
+			for _, keys := range allKeys {
+				got := b.CompareKeys(keys, a)
+				l := b.Subset(keys)
+				r := a.Subset(keys)
+
+				var exp int
+				if l.ID() == r.ID() {
+					exp = 0
+				} else if l.ID() < r.ID() {
+					exp = -1
+				} else {
+					exp = 1
+				}
+
+				if !cmp.Equal(got, exp) {
+					t.Errorf("CompareKeys: -got/+exp\n%s", cmp.Diff(got, exp))
+				}
+			}
+		})
+	})
+
+	t.Run("when tag keys are partially equal and values are equal", func(t *testing.T) {
+		a, b := nt("a", "0", "b", "1", "d", "2"), nt("a", "0", "b", "1", "c", "2", "e", "3")
+
+		t.Run("compare a with b", func(t *testing.T) {
+			for _, keys := range allKeys {
+				got := a.CompareKeys(keys, b)
+				l := a.Subset(keys)
+				r := b.Subset(keys)
+
+				var exp int
+				if l.ID() == r.ID() {
+					exp = 0
+				} else if l.ID() < r.ID() {
+					exp = -1
+				} else {
+					exp = 1
+				}
+
+				if !cmp.Equal(got, exp) {
+					t.Errorf("CompareKeys: -got/+exp\n%s", cmp.Diff(got, exp))
+				}
+			}
+		})
+
+		t.Run("compare b with a", func(t *testing.T) {
+			for _, keys := range allKeys {
+				got := b.CompareKeys(keys, a)
+				l := b.Subset(keys)
+				r := a.Subset(keys)
+
+				var exp int
+				if l.ID() == r.ID() {
+					exp = 0
+				} else if l.ID() < r.ID() {
+					exp = -1
+				} else {
+					exp = 1
+				}
+
+				if !cmp.Equal(got, exp) {
+					t.Errorf("CompareKeys: -got/+exp\n%s", cmp.Diff(got, exp))
+				}
+			}
+		})
+	})
 }
 
 // ParseTags returns an instance of Tags for a comma-delimited list of key/values.

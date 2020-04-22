@@ -1513,6 +1513,63 @@ func TestIterator_EncodeDecode(t *testing.T) {
 	}
 }
 
+// a simple iterator that has only a single series
+type simpleFloatIterator struct {
+	point     query.FloatPoint
+	size      int
+	populated int
+	stats     query.IteratorStats
+}
+
+func (itr *simpleFloatIterator) Stats() query.IteratorStats {
+	return itr.stats
+}
+
+func (itr *simpleFloatIterator) Close() error { itr.populated = itr.size; return nil }
+func (itr *simpleFloatIterator) Next() (*query.FloatPoint, error) {
+	if itr.populated >= itr.size {
+		return nil, nil
+	}
+	p := itr.point.Clone()
+	p.Time += int64(itr.populated * 1000)
+	itr.populated++
+	return p, nil
+}
+
+func BenchmarkSortedMergeIterator(b *testing.B) {
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		var inputs []query.Iterator
+		inputs = append(inputs,
+			&simpleFloatIterator{
+				point: query.FloatPoint{Name: "cpu", Tags: query.NewTags(map[string]string{"taga": "aaaaaaaaaa", "tagb": "bbbbbbbbbb", "tagc": "cccccccccc", "tagd": "dddddddddd", "tage": "eeeeeeeeee", "tagf": "four"}), Time: 10, Value: 2},
+				size:  10000,
+				stats: query.IteratorStats{SeriesN: 2},
+			})
+		inputs = append(inputs,
+			&simpleFloatIterator{
+				point: query.FloatPoint{Name: "cpu", Tags: query.NewTags(map[string]string{"taga": "aaaaaaaaaa", "tagb": "bbbbbbbbbb", "tagc": "cccccccccc", "tagd": "dddddddddd", "tage": "eeeeeeeeee", "tagf": "five"}), Time: 10, Value: 2},
+				size:  10000,
+				stats: query.IteratorStats{SeriesN: 2},
+			})
+		inputs = append(inputs,
+			&simpleFloatIterator{
+				point: query.FloatPoint{Name: "cpu", Tags: query.NewTags(map[string]string{"taga": "aaaaaaaaaa", "tagb": "bbbbbbbbbb", "tagc": "cccccccccc", "tagd": "dddddddddd", "tage": "eeeeeeeeee", "tagf": "fix"}), Time: 10, Value: 2},
+				size:  10000,
+				stats: query.IteratorStats{SeriesN: 2},
+			})
+
+		opt := query.IteratorOptions{
+			Dimensions: []string{"taga", "tagb", "tagc"},
+		}
+		itr := query.NewSortedMergeIterator(inputs, opt).(query.FloatIterator)
+		p, _ := itr.Next()
+		for p != nil {
+			p, _ = itr.Next()
+		}
+	}
+}
+
 // Test implementation of influxql.FloatIterator
 type FloatIterator struct {
 	Context context.Context
