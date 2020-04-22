@@ -53,6 +53,8 @@ type CursorIterator interface {
 	Stats() CursorStats
 }
 
+type CursorIterators []CursorIterator
+
 // CursorStats represents stats collected by a cursor.
 type CursorStats struct {
 	ScannedValues int // number of values scanned

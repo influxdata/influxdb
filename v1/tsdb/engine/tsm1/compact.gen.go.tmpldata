@@ -1,0 +1,22 @@
+[
+	{
+		"Name":"Float",
+		"name":"float"
+	},
+	{
+		"Name":"Integer",
+		"name":"integer"
+	},
+	{
+		"Name":"Unsigned",
+		"name":"unsigned"
+	},
+	{
+		"Name":"String",
+		"name":"string"
+	},
+	{
+		"Name":"Boolean",
+		"name":"boolean"
+	}
+]
