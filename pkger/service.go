@@ -38,10 +38,17 @@ type (
 	// StackResource is a record for an individual resource side effect genereated from
 	// applying a pkg.
 	StackResource struct {
-		APIVersion string      `json:"apiVersion"`
-		ID         influxdb.ID `json:"resourceID"`
-		Kind       Kind        `json:"kind"`
-		Name       string      `json:"pkgName"`
+		APIVersion   string                     `json:"apiVersion"`
+		ID           influxdb.ID                `json:"resourceID"`
+		Kind         Kind                       `json:"kind"`
+		PkgName      string                     `json:"pkgName"`
+		Associations []StackResourceAssociation `json:"associations"`
+	}
+
+	// StackResourceAssociation associates a stack resource with another stack resource.
+	StackResourceAssociation struct {
+		Kind    Kind   `json:"kind"`
+		PkgName string `json:"pkgName"`
 	}
 )
 
@@ -1066,10 +1073,10 @@ func (s *Service) addStackState(ctx context.Context, stackID influxdb.ID, state 
 
 	for _, r := range stack.Resources {
 		updateFn := state.setObjectID
-		if !state.Contains(r.Kind, r.Name) {
+		if !state.Contains(r.Kind, r.PkgName) {
 			updateFn = state.addObjectForRemoval
 		}
-		updateFn(r.Kind, r.Name, r.ID)
+		updateFn(r.Kind, r.PkgName, r.ID)
 	}
 
 	return nil
@@ -2376,7 +2383,7 @@ func (s *Service) updateStackAfterSuccess(ctx context.Context, stackID influxdb.
 			APIVersion: APIVersion,
 			ID:         b.ID(),
 			Kind:       KindBucket,
-			Name:       b.parserBkt.PkgName(),
+			PkgName:    b.parserBkt.PkgName(),
 		})
 	}
 	for _, c := range state.mChecks {
@@ -2387,7 +2394,7 @@ func (s *Service) updateStackAfterSuccess(ctx context.Context, stackID influxdb.
 			APIVersion: APIVersion,
 			ID:         c.ID(),
 			Kind:       KindCheck,
-			Name:       c.parserCheck.PkgName(),
+			PkgName:    c.parserCheck.PkgName(),
 		})
 	}
 	for _, d := range state.mDashboards {
@@ -2398,7 +2405,7 @@ func (s *Service) updateStackAfterSuccess(ctx context.Context, stackID influxdb.
 			APIVersion: APIVersion,
 			ID:         d.ID(),
 			Kind:       KindDashboard,
-			Name:       d.parserDash.PkgName(),
+			PkgName:    d.parserDash.PkgName(),
 		})
 	}
 	for _, n := range state.mEndpoints {
@@ -2409,7 +2416,7 @@ func (s *Service) updateStackAfterSuccess(ctx context.Context, stackID influxdb.
 			APIVersion: APIVersion,
 			ID:         n.ID(),
 			Kind:       KindNotificationEndpoint,
-			Name:       n.parserEndpoint.PkgName(),
+			PkgName:    n.parserEndpoint.PkgName(),
 		})
 	}
 	for _, l := range state.mLabels {
@@ -2420,7 +2427,7 @@ func (s *Service) updateStackAfterSuccess(ctx context.Context, stackID influxdb.
 			APIVersion: APIVersion,
 			ID:         l.ID(),
 			Kind:       KindLabel,
-			Name:       l.parserLabel.PkgName(),
+			PkgName:    l.parserLabel.PkgName(),
 		})
 	}
 	for _, t := range state.mTasks {
@@ -2431,7 +2438,7 @@ func (s *Service) updateStackAfterSuccess(ctx context.Context, stackID influxdb.
 			APIVersion: APIVersion,
 			ID:         t.ID(),
 			Kind:       KindTask,
-			Name:       t.parserTask.PkgName(),
+			PkgName:    t.parserTask.PkgName(),
 		})
 	}
 	for _, t := range state.mTelegrafs {
@@ -2442,7 +2449,7 @@ func (s *Service) updateStackAfterSuccess(ctx context.Context, stackID influxdb.
 			APIVersion: APIVersion,
 			ID:         t.ID(),
 			Kind:       KindTelegraf,
-			Name:       t.parserTelegraf.PkgName(),
+			PkgName:    t.parserTelegraf.PkgName(),
 		})
 	}
 	for _, v := range state.mVariables {
@@ -2453,7 +2460,7 @@ func (s *Service) updateStackAfterSuccess(ctx context.Context, stackID influxdb.
 			APIVersion: APIVersion,
 			ID:         v.ID(),
 			Kind:       KindVariable,
-			Name:       v.parserVar.PkgName(),
+			PkgName:    v.parserVar.PkgName(),
 		})
 	}
 	stack.Resources = stackResources
@@ -2479,7 +2486,7 @@ func (s *Service) updateStackAfterRollback(ctx context.Context, stackID influxdb
 	existingResources := make(map[key]*StackResource)
 	for i := range stack.Resources {
 		res := stack.Resources[i]
-		existingResources[newKey(res.Kind, res.Name)] = &stack.Resources[i]
+		existingResources[newKey(res.Kind, res.PkgName)] = &stack.Resources[i]
 	}
 
 	hasChanges := false
