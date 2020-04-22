@@ -239,14 +239,14 @@ export const getDashboards = () => async (
     }
 
     Object.values(dashboards.entities.dashboards)
-      .map(d => {
+      .map(dashboard => {
         return {
-          id: d.id,
-          cells: d.cells.map(c => dashboards.entities.cells[c]),
+          id: dashboard.id,
+          cells: dashboard.cells.map(cell => dashboards.entities.cells[cell]),
         }
       })
-      .forEach(e => {
-        const viewsData = viewsFromCells(e.cells, e.id)
+      .forEach(entity => {
+        const viewsData = viewsFromCells(entity.cells, entity.id)
 
         const normViews = normalize<View, ViewEntities, string[]>(
           viewsData,
@@ -254,12 +254,12 @@ export const getDashboards = () => async (
         )
 
         const normCells = normalize<Dashboard, DashboardEntities, string[]>(
-          e.cells,
+          entity.cells,
           arrayOfCells
         )
 
         dispatch(setViews(RemoteDataState.Done, normViews))
-        dispatch(setCells(e.id, RemoteDataState.Done, normCells))
+        dispatch(setCells(entity.id, RemoteDataState.Done, normCells))
       })
   } catch (error) {
     dispatch(creators.setDashboards(RemoteDataState.Error))
