@@ -1,0 +1,19 @@
+name: PR and Issue Body Validation
+on: [issues, pull_request]
+jobs:
+  example:
+    name: PR and Issues have non-empty body
+    runs-on: ubuntu-latest
+    steps:
+    - name: Run actions/checkout
+      uses: actions/checkout@v1
+      with:
+        fetch-depth: 1
+    - name: Run fabiankoestring/body-regex-validator-action
+      uses: fabiankoestring/body-regex-validator-action@master
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        PULL_REQUEST_PATTERN: '^(.+)$'
+        PULL_REQUEST_COMMENT: 'Your PR or Issue description body cannot be empty.'
+        ISSUE_PATTERN: '^(.+)$'
+        ISSUE_COMMENT: 'Your PR or Issue description body cannot be empty.'
