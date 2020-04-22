@@ -45,7 +45,7 @@ export const LoginForm: FC<Props> = ({
   return (
     <>
       <Grid>
-        <Grid.Row className="sign-up--form-padded-row">
+        <Grid.Row>
           <Grid.Column widthXS={Columns.Twelve}>
             <Form.Element
               label="Work Email Address"
