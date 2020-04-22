@@ -52,7 +52,7 @@ export const getNewDashboardCell = (
 
   const cells = dashboard.cells
     .map(cellID => state.resources.cells.byID[cellID])
-    .filter(c => !!c)
+    .filter(cell => !!cell)
 
   if (!cells.length) {
     return defaultCell
