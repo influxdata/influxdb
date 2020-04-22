@@ -42,22 +42,24 @@ import {Server} from '@influxdata/flux-lsp-browser'
 
 type BucketCallback = () => Promise<string[]>
 type MeasurementsCallback = (bucket: string) => Promise<string[]>
+type TagKeysCallback = (bucket: string) => Promise<string[]>
 
 export interface WASMServer extends Server {
   register_buckets_callback: (BucketCallback) => void
   register_measurements_callback: (MeasurementsCallback) => void
+  register_tag_keys_callback: (TagKeysCallback) => void
 }
 
 import {format_from_js_file} from '@influxdata/flux'
 
 // NOTE: parses table then select measurements from the _value column
-const parseMeasurementsResponse = response => {
-  const data = parse(response.csv) || [{data: [{}]}]
+const parseQueryResponse = response => {
+  const data = (parse(response.csv) || [{data: [{}]}])[0].data
   return data.slice(1).map(r => r[3])
 }
 
 const queryMeasurements = async (orgID, bucket) => {
-  if (!this.orgID || this.orgID === '') {
+  if (!orgID || orgID === '') {
     throw new Error('no org is provided')
   }
 
@@ -68,6 +70,24 @@ const queryMeasurements = async (orgID, bucket) => {
   if (raw.type !== 'SUCCESS') {
     throw new Error('failed to get measurements')
   }
+
+  return raw
+}
+
+const queryTagKeys = async (orgID, bucket) => {
+  if (!orgID || orgID === '') {
+    throw new Error('no org is provided')
+  }
+
+  const query = `import "influxdata/influxdb/v1"
+      v1.tagKeys(bucket:"${bucket}")`
+
+  const raw = await runQuery(orgID, query).promise
+  if (raw.type !== 'SUCCESS') {
+    throw new Error('failed to get tagKeys')
+  }
+
+  return raw
 }
 
 export class LSPServer {
@@ -82,7 +102,18 @@ export class LSPServer {
     this.server = server
     this.server.register_buckets_callback(this.getBuckets)
     this.server.register_measurements_callback(this.getMeasurements)
+    this.server.register_tag_keys_callback(this.getTagKeys)
     this.store = reduxStore
+  }
+
+  getTagKeys = async bucket => {
+    try {
+      const response = await queryTagKeys(this.orgID, bucket)
+      return parseQueryResponse(response)
+    } catch (e) {
+      console.error(e)
+      return []
+    }
   }
 
   getBuckets = () => {
@@ -92,8 +123,9 @@ export class LSPServer {
   getMeasurements = async (bucket: string) => {
     try {
       const response = await queryMeasurements(this.orgID, bucket)
-      return parseMeasurementsResponse(response)
+      return parseQueryResponse(response)
     } catch (e) {
+      console.error(e)
       return []
     }
   }
