@@ -25,28 +25,25 @@
 //! - Block ID (4 bytes BE): the ID of the series associated with the block.
 //! - Min timestamp (8 bytes BE): timestamp of the earliest value in the block.
 //! - Max timestamp (8 bytes BE): timestamp of the latest value in the block.
-//! - Remaining Size (4 bytes BE): indicates how many bytes follow in the rest of the block.
 //! - Block Type (1 byte): indicates the type of block data to follow (e.g., for an f64, i64, u64,
 //!   string or bool).
 //! - Block Summary Size (1 byte): the size in bytes of the block's summary.
-//! - Block Data Offset (2 bytes BE): the offset in the block of the beginning of the block data
-//!   section.
-//! - Block Data Size (4 bytes BE): the size in bytes of the block data section.
+//! - Block Data Size (4 bytes BE): the size in bytes of the block's data.
 //! - Block Summary Data (N bytes BE): the block summary section data.
 //! - Block Data (N bytes BE): the block data section.
 //!
 //! A Block is serialised as follows:
 //!
 //! ```text
-//! ╔═════════════════════════════════════════════════════════════════BLOCK═════════════════════════════════════════════════════════════════╗
-//! ║┌────────┐┌──────┐┌────────┐┌────────┐┌──────┐┌───────┐┌────────────┐┌──────────┐┌─────────┐╔═════════════╗╔══════════════════════════╗║
-//! ║│        ││      ││        ││        ││      ││       ││            ││          ││         │║             ║║                          ║║
-//! ║│Checksum││  ID  ││Min Time││Max Time││ Rem  ││ Block ││Summary Size││   Data   ││  Data   │║   SUMMARY   ║║           DATA           ║║
-//! ║│   4B   ││  4B  ││   8B   ││   8B   ││  4B  ││ Type  ││     1B     ││  Offset  ││  Size   │║     <N>     ║║           <N>            ║║
-//! ║│        ││      ││        ││        ││      ││  1B   ││            ││    2B    ││   4B    │║             ║║                          ║║
-//! ║│        ││      ││        ││        ││      ││       ││            ││          ││         │║             ║║                          ║║
-//! ║└────────┘└──────┘└────────┘└────────┘└──────┘└───────┘└────────────┘└──────────┘└─────────┘╚═════════════╝╚══════════════════════════╝║
-//! ╚═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
+//! ╔═══════════════════════════════════════════════════════BLOCK═══════════════════════════════════════════════════════╗
+//! ║┌────────┐┌──────┐┌────────┐┌────────┐┌───────┐┌────────────┐┌─────────┐╔═════════════╗╔══════════════════════════╗║
+//! ║│        ││      ││        ││        ││       ││            ││         │║             ║║                          ║║
+//! ║│Checksum││  ID  ││Min Time││Max Time││ Block ││Summary Size││  Data   │║   SUMMARY   ║║           DATA           ║║
+//! ║│   4B   ││  4B  ││   8B   ││   8B   ││ Type  ││     1B     ││  Size   │║     <N>     ║║           <N>            ║║
+//! ║│        ││      ││        ││        ││  1B   ││            ││   4B    │║             ║║                          ║║
+//! ║│        ││      ││        ││        ││       ││            ││         │║             ║║                          ║║
+//! ║└────────┘└──────┘└────────┘└────────┘└───────┘└────────────┘└─────────┘╚═════════════╝╚══════════════════════════╝║
+//! ╚═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
 //! ```
 //!
 //! Notice that the first part of the block is all a fixed size: this means that
@@ -388,27 +385,18 @@ where
         w.write_all(&max_time_bytes)?;
         hasher.update(&max_time_bytes);
 
-        // 4 byte remaining block size place-holder
-        let remaining_size_offset = offset;
-        offset += 4;
-        w.write_all(&[0; 4])?;
-
-        // write the block type - do not hash for checksum until later.
+        // write the block type
         let marker_bytes = [T::BYTE_MARKER];
         offset += marker_bytes.len();
         w.write_all(&marker_bytes)?;
+        hasher.update(&marker_bytes);
 
         // 1 byte place-holder for summary size
         let summary_size_offset = offset;
         offset += 1;
         w.write_all(&[0; 1])?;
 
-        // 2 byte place-holder for block data offset
-        let data_offset_offset = offset;
-        offset += 2;
-        w.write_all(&[0; 2])?;
-
-        // 4 byte place-holder for block data size
+        // 4 byte place-holder for summary size
         let data_size_offset = offset;
         offset += 4;
         w.write_all(&[0; 4])?;
@@ -420,26 +408,8 @@ where
 
         // write the data block - n bytes
         let mut data_block_hasher = crc32fast::Hasher::new(); // combined later
-        let data_offset = offset;
         let data_size = self.data.write_to(w, &mut data_block_hasher)?;
         offset += data_size;
-
-        // 1 byte for block type + remainder of bytes written into block.
-        let remaining_size: u32 = (1 + offset - summary_size_offset)
-            .try_into()
-            .expect("remaining_size did not fit in u32");
-
-        // seek back and write in the remaining block size.
-        w.seek(SeekFrom::Start(
-            remaining_size_offset
-                .try_into()
-                .expect("remaining_size_offset did not fit in u64"),
-        ))?;
-        w.write_all(&remaining_size.to_be_bytes())?;
-        hasher.update(&remaining_size.to_be_bytes());
-
-        // hash block type for checksum
-        hasher.update(&marker_bytes);
 
         // seek and write in the summary size.
         w.seek(SeekFrom::Start(
@@ -452,19 +422,6 @@ where
             .expect("summary_size did not fit in u8");
         w.write_all(&[summary_size])?;
         hasher.update(&[summary_size]);
-
-        // seek and write the data block offset in the reserved offset
-        w.seek(SeekFrom::Start(
-            data_offset_offset
-                .try_into()
-                .expect("data_offset_offset did not fit in u64"),
-        ))?;
-        // ensure we write size in 2 bytes
-        let data_offset: u16 = data_offset
-            .try_into()
-            .expect("data_offset did not fit in u16");
-        w.write_all(&(data_offset).to_be_bytes())?;
-        hasher.update(&(data_offset).to_be_bytes());
 
         // seek and write the data block size in the reserved offset
         w.seek(SeekFrom::Start(
@@ -1264,14 +1221,12 @@ mod test {
         let n = block.write_to(&mut buf).unwrap();
 
         let mut exp = vec![
-            130, 140, 69, 138, // checksum
+            180, 169, 22, 56, // checksum
             0, 0, 0, 22, // id
             0, 0, 0, 0, 0, 0, 0, 1, // min timestamp
             0, 0, 0, 0, 0, 0, 0, 99, // max timestamp
-            0, 0, 0, 103, // remaining size in block
-            0,   // block type
-            46,  // summary size
-            0, 82, // data offset
+            0,  // block type
+            46, // summary size
             0, 0, 0, 49, // data size
         ];
 
