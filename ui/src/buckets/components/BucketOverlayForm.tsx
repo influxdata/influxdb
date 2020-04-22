@@ -22,7 +22,7 @@ interface Props {
   retentionSeconds: number
   ruleType: 'expire'
   onSubmit: (e: FormEvent<HTMLFormElement>) => void
-  onCloseModal: () => void
+  onClose: () => void
   onChangeRetentionRule: (seconds: number) => void
   onChangeRuleType: (t: 'expire' | null) => void
   onChangeInput: (e: ChangeEvent<HTMLInputElement>) => void
@@ -40,7 +40,7 @@ export default class BucketOverlayForm extends PureComponent<Props> {
       buttonText,
       retentionSeconds,
       disableRenaming,
-      onCloseModal,
+      onClose,
       onChangeInput,
       onChangeRuleType,
       onChangeRetentionRule,
@@ -90,7 +90,7 @@ export default class BucketOverlayForm extends PureComponent<Props> {
               <Form.Footer>
                 <Button
                   text="Cancel"
-                  onClick={onCloseModal}
+                  onClick={onClose}
                   type={ButtonType.Button}
                 />
                 {buttonText === 'Save Changes' && (

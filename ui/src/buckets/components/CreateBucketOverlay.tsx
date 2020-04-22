@@ -15,24 +15,36 @@ import {
   READABLE_DEFAULT_SECONDS,
 } from 'src/buckets/components/Retention'
 
+// Actions
+import {
+  createBucket,
+} from 'src/buckets/actions/thunks'
+
 // Types
 import {Organization, Bucket, AppState} from 'src/types'
+
+// Selectors
+import {getOrg} from 'src/organizations/selectors'
 
 const DEFAULT_RULES = [
   {type: 'expire' as 'expire', everySeconds: DEFAULT_SECONDS},
 ]
 
 interface StateProps {
+  org: Organization
   isRetentionLimitEnforced: boolean
 }
 
-interface OwnProps {
-  org: Organization
-  onCloseModal: () => void
-  onCreateBucket: (bucket: Partial<Bucket>) => void
+interface DispatchProps {
+  createBucket: typeof createBucket
 }
 
-type Props = StateProps & OwnProps
+interface OwnProps {
+  onClose: () => void
+  createBucket: (bucket: Partial<Bucket>) => void
+}
+
+type Props = StateProps & OwnProps & DispatchProps
 
 interface State {
   bucket: Bucket
@@ -56,14 +68,14 @@ class CreateBucketOverlay extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {onCloseModal} = this.props
+    const {onClose} = this.props
     const {bucket, ruleType} = this.state
 
     return (
       <Overlay.Container maxWidth={400}>
         <Overlay.Header
           title="Create Bucket"
-          onDismiss={this.props.onCloseModal}
+          onDismiss={onClose}
         />
         <Overlay.Body>
           <BucketOverlayForm
@@ -71,7 +83,7 @@ class CreateBucketOverlay extends PureComponent<Props, State> {
             buttonText="Create"
             disableRenaming={false}
             ruleType={ruleType}
-            onCloseModal={onCloseModal}
+            onClose={onClose}
             onSubmit={this.handleSubmit}
             onChangeInput={this.handleChangeInput}
             retentionSeconds={this.retentionSeconds}
@@ -122,17 +134,18 @@ class CreateBucketOverlay extends PureComponent<Props, State> {
   }
 
   private handleCreateBucket = (): void => {
-    const {onCreateBucket, org} = this.props
+    const {createBucket, org, onClose} = this.props
     const orgID = org.id
     const organization = org.name
 
-    const bucket = {
+    const bucket: Partial<Bucket> = {
       ...this.state.bucket,
       orgID,
       organization,
     }
 
-    onCreateBucket(bucket)
+    createBucket(bucket)
+    onClose()
   }
 
   private handleChangeInput = (e: ChangeEvent<HTMLInputElement>) => {
@@ -144,10 +157,20 @@ class CreateBucketOverlay extends PureComponent<Props, State> {
   }
 }
 
-const mstp = (state: AppState): StateProps => ({
-  isRetentionLimitEnforced: !!extractBucketMaxRetentionSeconds(
+const mstp = (state: AppState): StateProps => {
+  const org = getOrg(state)
+  const isRetentionLimitEnforced = !!extractBucketMaxRetentionSeconds(
     state.cloud.limits
-  ),
-})
+  )
 
-export default connect<StateProps, {}, OwnProps>(mstp)(CreateBucketOverlay)
+    return {
+    org,
+    isRetentionLimitEnforced,
+  }
+}
+
+const mdtp: DispatchProps = {
+  createBucket,
+}
+
+export default connect<StateProps, DispatchProps, OwnProps>(mstp, mdtp)(CreateBucketOverlay)

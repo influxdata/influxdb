@@ -7,13 +7,9 @@ import {connect} from 'react-redux'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {
   Grid,
-  IconFont,
   ComponentSize,
-  ComponentColor,
   Sort,
-  Button,
   EmptyState,
-  ComponentStatus,
   Columns,
   Overlay,
 } from '@influxdata/clockface'
@@ -27,6 +23,7 @@ import BucketExplainer from 'src/buckets/components/BucketExplainer'
 import DemoDataDropdown from 'src/buckets/components/DemoDataDropdown'
 import {FeatureFlag} from 'src/shared/utils/featureFlag'
 import ResourceSortDropdown from 'src/shared/components/resource_sort_dropdown/ResourceSortDropdown'
+import CreateBucketButton from 'src/buckets/components/CreateBucketButton'
 
 // Actions
 import {
@@ -155,15 +152,7 @@ class BucketsTab extends PureComponent<Props, State> {
             />
           )}
         </FeatureFlag>
-        <Button
-          text="Create Bucket"
-          icon={IconFont.Plus}
-          color={ComponentColor.Primary}
-          onClick={this.handleOpenModal}
-          testID="Create Bucket"
-          status={this.createButtonStatus}
-          titleText={this.createButtonTitleText}
-        />
+        <CreateBucketButton />
       </>
     )
 
@@ -241,30 +230,12 @@ class BucketsTab extends PureComponent<Props, State> {
     this.handleCloseModal()
   }
 
-  private handleOpenModal = (): void => {
-    this.setState({overlayState: OverlayState.Open})
-  }
-
   private handleCloseModal = (): void => {
     this.setState({overlayState: OverlayState.Closed})
   }
 
   private handleFilterUpdate = (searchTerm: string): void => {
     this.setState({searchTerm})
-  }
-
-  private get createButtonStatus(): ComponentStatus {
-    if (this.props.limitStatus === LimitStatus.EXCEEDED) {
-      return ComponentStatus.Disabled
-    }
-    return ComponentStatus.Default
-  }
-
-  private get createButtonTitleText(): string {
-    if (this.props.limitStatus === LimitStatus.EXCEEDED) {
-      return 'This account has the maximum number of buckets allowed'
-    }
-    return 'Create a bucket'
   }
 
   private get emptyState(): JSX.Element {
@@ -276,12 +247,7 @@ class BucketsTab extends PureComponent<Props, State> {
           <EmptyState.Text>
             Looks like there aren't any <b>Buckets</b>, why not create one?
           </EmptyState.Text>
-          <Button
-            text="Create Bucket"
-            icon={IconFont.Plus}
-            color={ComponentColor.Primary}
-            onClick={this.handleOpenModal}
-          />
+          <CreateBucketButton />
         </EmptyState>
       )
     }
