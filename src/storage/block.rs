@@ -515,12 +515,8 @@ where
     Vec<T>: Encoder,
 {
     fn push(&mut self, values: &[(i64, T)]) {
-        if values.is_empty() {
-            return;
-        }
-
-        if let Some(last) = self.values.last() {
-            if last.0 > values.first().unwrap().0 {
+        if let (Some((new_first, _)), Some((old_last, _))) = (values.first(), self.values.last()) {
+            if old_last > new_first {
                 self.sorted = false;
             }
         }
