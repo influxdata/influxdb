@@ -206,5 +206,9 @@ protoc:
 	unzip -o -d /go /tmp/protoc.zip
 	chmod +x /go/bin/protoc
 
+# generate feature flags
+flags:
+	$(GO_GENERATE) ./kit/feature
+
 # .PHONY targets represent actions that do not create an actual file.
-.PHONY: all $(SUBDIRS) run fmt checkfmt tidy checktidy checkgenerate test test-go test-js test-go-race bench clean node_modules vet nightly chronogiraffe dist ping protoc e2e run-e2e influxd libflux
+.PHONY: all $(SUBDIRS) run fmt checkfmt tidy checktidy checkgenerate test test-go test-js test-go-race bench clean node_modules vet nightly chronogiraffe dist ping protoc e2e run-e2e influxd libflux flags
