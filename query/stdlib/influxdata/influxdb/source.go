@@ -274,11 +274,11 @@ func createReadGroupSource(s plan.ProcedureSpec, id execute.DatasetID, a execute
 
 type readWindowAggregateSource struct {
 	Source
-	reader   WindowAggregateReader
-	readSpec ReadWindowAggregateSpec
+	reader   query.WindowAggregateReader
+	readSpec query.ReadWindowAggregateSpec
 }
 
-func ReadWindowAggregateSource(id execute.DatasetID, r WindowAggregateReader, readSpec ReadWindowAggregateSpec, a execute.Administration) execute.Source {
+func ReadWindowAggregateSource(id execute.DatasetID, r query.WindowAggregateReader, readSpec query.ReadWindowAggregateSpec, a execute.Administration) execute.Source {
 	src := new(readWindowAggregateSource)
 
 	src.id = id
@@ -323,7 +323,7 @@ func createReadWindowAggregateSource(s plan.ProcedureSpec, id execute.DatasetID,
 	}
 
 	deps := GetStorageDependencies(a.Context()).FromDeps
-	reader := deps.Reader.(WindowAggregateReader)
+	reader := deps.Reader.(query.WindowAggregateReader)
 
 	req := query.RequestFromContext(a.Context())
 	if req == nil {
@@ -339,19 +339,15 @@ func createReadWindowAggregateSource(s plan.ProcedureSpec, id execute.DatasetID,
 		return nil, err
 	}
 
-	var filter *semantic.FunctionExpression
-	if spec.FilterSet {
-		filter = spec.Filter
-	}
 	return ReadWindowAggregateSource(
 		id,
 		reader,
-		ReadWindowAggregateSpec{
-			ReadFilterSpec: ReadFilterSpec{
+		query.ReadWindowAggregateSpec{
+			ReadFilterSpec: query.ReadFilterSpec{
 				OrganizationID: orgID,
 				BucketID:       bucketID,
 				Bounds:         *bounds,
-				Predicate:      filter,
+				Predicate:      spec.Filter,
 			},
 			WindowEvery: spec.WindowEvery,
 			Aggregates:  spec.Aggregates,

@@ -204,7 +204,7 @@ func TestReadWindowAggregateSource(t *testing.T) {
 				},
 			}
 			reader := &mock.WindowAggregateStoreReader{
-				ReadWindowAggregateFn: func(ctx context.Context, spec influxdb.ReadWindowAggregateSpec, alloc *memory.Allocator) (influxdb.TableIterator, error) {
+				ReadWindowAggregateFn: func(ctx context.Context, spec query.ReadWindowAggregateSpec, alloc *memory.Allocator) (query.TableIterator, error) {
 					if want, got := orgID, spec.OrganizationID; want != got {
 						t.Errorf("unexpected organization id -want/+got:\n\t- %s\n\t+ %s", want, got)
 					}

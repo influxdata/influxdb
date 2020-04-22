@@ -4,30 +4,30 @@ import (
 	"context"
 
 	"github.com/influxdata/flux/memory"
-	"github.com/influxdata/influxdb/v2/query/stdlib/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2/query"
 )
 
 type StoreReader struct {
-	ReadFilterFn    func(ctx context.Context, spec influxdb.ReadFilterSpec, alloc *memory.Allocator) (influxdb.TableIterator, error)
-	ReadGroupFn     func(ctx context.Context, spec influxdb.ReadGroupSpec, alloc *memory.Allocator) (influxdb.TableIterator, error)
-	ReadTagKeysFn   func(ctx context.Context, spec influxdb.ReadTagKeysSpec, alloc *memory.Allocator) (influxdb.TableIterator, error)
-	ReadTagValuesFn func(ctx context.Context, spec influxdb.ReadTagValuesSpec, alloc *memory.Allocator) (influxdb.TableIterator, error)
+	ReadFilterFn    func(ctx context.Context, spec query.ReadFilterSpec, alloc *memory.Allocator) (query.TableIterator, error)
+	ReadGroupFn     func(ctx context.Context, spec query.ReadGroupSpec, alloc *memory.Allocator) (query.TableIterator, error)
+	ReadTagKeysFn   func(ctx context.Context, spec query.ReadTagKeysSpec, alloc *memory.Allocator) (query.TableIterator, error)
+	ReadTagValuesFn func(ctx context.Context, spec query.ReadTagValuesSpec, alloc *memory.Allocator) (query.TableIterator, error)
 	CloseFn         func()
 }
 
-func (s *StoreReader) ReadFilter(ctx context.Context, spec influxdb.ReadFilterSpec, alloc *memory.Allocator) (influxdb.TableIterator, error) {
+func (s *StoreReader) ReadFilter(ctx context.Context, spec query.ReadFilterSpec, alloc *memory.Allocator) (query.TableIterator, error) {
 	return s.ReadFilterFn(ctx, spec, alloc)
 }
 
-func (s *StoreReader) ReadGroup(ctx context.Context, spec influxdb.ReadGroupSpec, alloc *memory.Allocator) (influxdb.TableIterator, error) {
+func (s *StoreReader) ReadGroup(ctx context.Context, spec query.ReadGroupSpec, alloc *memory.Allocator) (query.TableIterator, error) {
 	return s.ReadGroupFn(ctx, spec, alloc)
 }
 
-func (s *StoreReader) ReadTagKeys(ctx context.Context, spec influxdb.ReadTagKeysSpec, alloc *memory.Allocator) (influxdb.TableIterator, error) {
+func (s *StoreReader) ReadTagKeys(ctx context.Context, spec query.ReadTagKeysSpec, alloc *memory.Allocator) (query.TableIterator, error) {
 	return s.ReadTagKeysFn(ctx, spec, alloc)
 }
 
-func (s *StoreReader) ReadTagValues(ctx context.Context, spec influxdb.ReadTagValuesSpec, alloc *memory.Allocator) (influxdb.TableIterator, error) {
+func (s *StoreReader) ReadTagValues(ctx context.Context, spec query.ReadTagValuesSpec, alloc *memory.Allocator) (query.TableIterator, error) {
 	return s.ReadTagValuesFn(ctx, spec, alloc)
 }
 
@@ -43,7 +43,7 @@ func (s *StoreReader) Close() {
 type WindowAggregateStoreReader struct {
 	*StoreReader
 	HasWindowAggregateCapabilityFn func(ctx context.Context) bool
-	ReadWindowAggregateFn          func(ctx context.Context, spec influxdb.ReadWindowAggregateSpec, alloc *memory.Allocator) (influxdb.TableIterator, error)
+	ReadWindowAggregateFn          func(ctx context.Context, spec query.ReadWindowAggregateSpec, alloc *memory.Allocator) (query.TableIterator, error)
 }
 
 func (s *WindowAggregateStoreReader) HasWindowAggregateCapability(ctx context.Context) bool {
@@ -57,6 +57,6 @@ func (s *WindowAggregateStoreReader) HasWindowAggregateCapability(ctx context.Co
 	return s.ReadWindowAggregateFn != nil
 }
 
-func (s *WindowAggregateStoreReader) ReadWindowAggregate(ctx context.Context, spec influxdb.ReadWindowAggregateSpec, alloc *memory.Allocator) (influxdb.TableIterator, error) {
+func (s *WindowAggregateStoreReader) ReadWindowAggregate(ctx context.Context, spec query.ReadWindowAggregateSpec, alloc *memory.Allocator) (query.TableIterator, error) {
 	return s.ReadWindowAggregateFn(ctx, spec, alloc)
 }

@@ -7,6 +7,7 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/memory"
+	"github.com/influxdata/flux/plan"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/storage/reads/datatypes"
 	"github.com/influxdata/influxdb/v2/tsdb/cursors"
@@ -21,6 +22,15 @@ type StorageReader interface {
 	ReadTagValues(ctx context.Context, spec ReadTagValuesSpec, alloc *memory.Allocator) (TableIterator, error)
 
 	Close()
+}
+
+// WindowAggregateReader implements the WindowAggregate capability.
+type WindowAggregateReader interface {
+	// HasWindowAggregateCapability will test if this Reader source supports the ReadWindowAggregate capability.
+	HasWindowAggregateCapability(ctx context.Context) bool
+
+	// ReadWindowAggregate will read a table using the WindowAggregate method.
+	ReadWindowAggregate(ctx context.Context, spec ReadWindowAggregateSpec, alloc *memory.Allocator) (TableIterator, error)
 }
 
 type ReadFilterSpec struct {
@@ -47,6 +57,12 @@ type ReadTagKeysSpec struct {
 type ReadTagValuesSpec struct {
 	ReadFilterSpec
 	TagKey string
+}
+
+type ReadWindowAggregateSpec struct {
+	ReadFilterSpec
+	WindowEvery int64
+	Aggregates  []plan.ProcedureKind
 }
 
 // TableIterator is a table iterator that also keeps track of cursor statistics from the storage engine.
