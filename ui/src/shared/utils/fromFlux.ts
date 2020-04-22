@@ -199,6 +199,11 @@ export default function fromFlux(csv: string): ParsedFlux {
       )
     ).data
 
+    // trim whitespace from the beginning
+    while (parsed.length && parsed[0].length === 1) {
+      parsed.shift()
+    }
+
     // only happens on malformed input
     if (!parsed.length) {
       continue
@@ -224,17 +229,23 @@ export default function fromFlux(csv: string): ParsedFlux {
       throw new Error(`[${errorReferenceCode}] ${errorMessage}`)
     }
 
+    // trim whitespace from the end
+    while (parsed[parsed.length - 1].length < parsed[headerLocation].length) {
+      parsed.pop()
+    }
+
     for (
       currentLineInHeader = 0;
       currentLineInHeader < headerLocation;
       currentLineInHeader++
     ) {
-      annotations[parsed[currentLineInHeader][0]] = parsed[
+      annotations[parsed[currentLineInHeader][0].trim()] = parsed[
         currentLineInHeader
       ].reduce((annotationObject, currentColumn, currentColumnIndex) => {
-        annotationObject[
-          parsed[headerLocation][currentColumnIndex]
-        ] = currentColumn
+        const key = parsed[headerLocation][currentColumnIndex].trim()
+        if (key) {
+          annotationObject[key] = currentColumn.trim()
+        }
         return annotationObject
       }, {})
     }
@@ -244,7 +255,7 @@ export default function fromFlux(csv: string): ParsedFlux {
       currentColumnIndex < parsed[headerLocation].length;
       currentColumnIndex++
     ) {
-      columnName = parsed[headerLocation][currentColumnIndex]
+      columnName = parsed[headerLocation][currentColumnIndex].trim()
 
       columnType = annotations['#datatype'][columnName]
       columnKey = `${columnName} (${TO_COLUMN_TYPE[columnType]})`

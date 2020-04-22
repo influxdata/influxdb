@@ -72,8 +72,7 @@ func taskCreateF(cmd *cobra.Command, args []string) error {
 	}
 
 	s := &http.TaskService{
-		Client:             client,
-		InsecureSkipVerify: flags.skipVerify,
+		Client: client,
 	}
 
 	flux, err := readFluxQuery(args, taskCreateFlags.file)
@@ -146,8 +145,7 @@ func taskFindF(cmd *cobra.Command, args []string) error {
 	}
 
 	s := &http.TaskService{
-		Client:             client,
-		InsecureSkipVerify: flags.skipVerify,
+		Client: client,
 	}
 
 	filter := influxdb.TaskFilter{}
@@ -233,8 +231,7 @@ func taskUpdateF(cmd *cobra.Command, args []string) error {
 	}
 
 	s := &http.TaskService{
-		Client:             client,
-		InsecureSkipVerify: flags.skipVerify,
+		Client: client,
 	}
 
 	var id influxdb.ID
@@ -293,8 +290,7 @@ func taskDeleteF(cmd *cobra.Command, args []string) error {
 	}
 
 	s := &http.TaskService{
-		Client:             client,
-		InsecureSkipVerify: flags.skipVerify,
+		Client: client,
 	}
 
 	var id influxdb.ID
@@ -410,8 +406,7 @@ func taskLogFindF(cmd *cobra.Command, args []string) error {
 	}
 
 	s := &http.TaskService{
-		Client:             client,
-		InsecureSkipVerify: flags.skipVerify,
+		Client: client,
 	}
 
 	var filter influxdb.LogFilter
@@ -501,8 +496,7 @@ func taskRunFindF(cmd *cobra.Command, args []string) error {
 	}
 
 	s := &http.TaskService{
-		Client:             client,
-		InsecureSkipVerify: flags.skipVerify,
+		Client: client,
 	}
 
 	filter := influxdb.RunFilter{
@@ -601,8 +595,7 @@ func runRetryF(cmd *cobra.Command, args []string) error {
 	}
 
 	s := &http.TaskService{
-		Client:             client,
-		InsecureSkipVerify: flags.skipVerify,
+		Client: client,
 	}
 
 	var taskID, runID influxdb.ID

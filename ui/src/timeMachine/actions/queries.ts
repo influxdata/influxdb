@@ -19,7 +19,7 @@ import {rateLimitReached, resultTooLarge} from 'src/shared/copy/notifications'
 
 // Utils
 import {getActiveTimeMachine, getActiveQuery} from 'src/timeMachine/selectors'
-import {checkQueryResult} from 'src/shared/utils/checkQueryResult'
+import fromFlux from 'src/shared/utils/fromFlux'
 import {getAllVariables, asAssignment} from 'src/variables/selectors'
 import {buildVarsOption} from 'src/variables/utils/buildVarsOption'
 import {findNodes} from 'src/shared/utils/ast'
@@ -163,7 +163,10 @@ export const executeQueries = () => async (dispatch, getState: GetState) => {
         dispatch(notify(resultTooLarge(result.bytesRead)))
       }
 
-      checkQueryResult(result.csv)
+      // TODO: this is just here for validation. since we are already eating
+      // the cost of parsing the results, we should store the output instead
+      // of the raw input
+      fromFlux(result.csv)
     }
 
     const files = (results as RunQuerySuccessResult[]).map(r => r.csv)
@@ -228,7 +231,10 @@ export const executeCheckQuery = () => async (dispatch, getState: GetState) => {
       dispatch(notify(resultTooLarge(result.bytesRead)))
     }
 
-    checkQueryResult(result.csv)
+    // TODO: this is just here for validation. since we are already eating
+    // the cost of parsing the results, we should store the output instead
+    // of the raw input
+    fromFlux(result.csv)
 
     const file = result.csv
 

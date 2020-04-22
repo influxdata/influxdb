@@ -253,13 +253,13 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 		if err != nil {
 			return err
 		}
-		mapResource(t.OrganizationID, t.ID, KindTask, taskToObject(*t, r.Name))
+		mapResource(t.OrganizationID, t.ID, KindTask, TaskToObject(r.Name, *t))
 	case r.Kind.is(KindTelegraf):
 		t, err := ex.teleSVC.FindTelegrafConfigByID(ctx, r.ID)
 		if err != nil {
 			return err
 		}
-		mapResource(t.OrgID, t.ID, KindTelegraf, telegrafToObject(*t, r.Name))
+		mapResource(t.OrgID, t.ID, KindTelegraf, TelegrafToObject(r.Name, *t))
 	case r.Kind.is(KindVariable):
 		v, err := ex.varSVC.FindVariableByID(ctx, r.ID)
 		if err != nil {
@@ -913,7 +913,8 @@ func NotificationRuleToObject(name, endpointPkgName string, iRule influxdb.Notif
 // regex used to rip out the hard coded task option stuffs
 var taskFluxRegex = regexp.MustCompile(`option task = {(.|\n)*?}`)
 
-func taskToObject(t influxdb.Task, name string) Object {
+// TaskToObject converts an influxdb.Task into a pkger.Object.
+func TaskToObject(name string, t influxdb.Task) Object {
 	if name == "" {
 		name = t.Name
 	}
@@ -931,7 +932,8 @@ func taskToObject(t influxdb.Task, name string) Object {
 	return o
 }
 
-func telegrafToObject(t influxdb.TelegrafConfig, name string) Object {
+// TelegrafToObject converts an influxdb.TelegrafConfig into a pkger.Object.
+func TelegrafToObject(name string, t influxdb.TelegrafConfig) Object {
 	if name == "" {
 		name = t.Name
 	}

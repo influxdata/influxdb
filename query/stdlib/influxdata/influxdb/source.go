@@ -19,6 +19,7 @@ import (
 func init() {
 	execute.RegisterSource(ReadRangePhysKind, createReadFilterSource)
 	execute.RegisterSource(ReadGroupPhysKind, createReadGroupSource)
+	execute.RegisterSource(ReadWindowAggregatePhysKind, createReadWindowAggregateSource)
 	execute.RegisterSource(ReadTagKeysPhysKind, createReadTagKeysSource)
 	execute.RegisterSource(ReadTagValuesPhysKind, createReadTagValuesSource)
 }
@@ -266,6 +267,94 @@ func createReadGroupSource(s plan.ProcedureSpec, id execute.DatasetID, a execute
 			GroupMode:       query.ToGroupMode(spec.GroupMode),
 			GroupKeys:       spec.GroupKeys,
 			AggregateMethod: spec.AggregateMethod,
+		},
+		a,
+	), nil
+}
+
+type readWindowAggregateSource struct {
+	Source
+	reader   WindowAggregateReader
+	readSpec ReadWindowAggregateSpec
+}
+
+func ReadWindowAggregateSource(id execute.DatasetID, r WindowAggregateReader, readSpec ReadWindowAggregateSpec, a execute.Administration) execute.Source {
+	src := new(readWindowAggregateSource)
+
+	src.id = id
+	src.alloc = a.Allocator()
+
+	src.reader = r
+	src.readSpec = readSpec
+
+	src.m = GetStorageDependencies(a.Context()).FromDeps.Metrics
+	src.orgID = readSpec.OrganizationID
+	src.op = "readWindowAggregate"
+
+	src.runner = src
+	return src
+}
+
+func (s *readWindowAggregateSource) run(ctx context.Context) error {
+	stop := s.readSpec.Bounds.Stop
+	tables, err := s.reader.ReadWindowAggregate(
+		ctx,
+		s.readSpec,
+		s.alloc,
+	)
+	if err != nil {
+		return err
+	}
+	return s.processTables(ctx, tables, stop)
+}
+
+func createReadWindowAggregateSource(s plan.ProcedureSpec, id execute.DatasetID, a execute.Administration) (execute.Source, error) {
+	span, ctx := tracing.StartSpanFromContext(a.Context())
+	defer span.Finish()
+
+	spec := s.(*ReadWindowAggregatePhysSpec)
+
+	bounds := a.StreamContext().Bounds()
+	if bounds == nil {
+		return nil, &flux.Error{
+			Code: codes.Internal,
+			Msg:  "nil bounds passed to from",
+		}
+	}
+
+	deps := GetStorageDependencies(a.Context()).FromDeps
+	reader := deps.Reader.(WindowAggregateReader)
+
+	req := query.RequestFromContext(a.Context())
+	if req == nil {
+		return nil, &flux.Error{
+			Code: codes.Internal,
+			Msg:  "missing request on context",
+		}
+	}
+
+	orgID := req.OrganizationID
+	bucketID, err := spec.LookupBucketID(ctx, orgID, deps.BucketLookup)
+	if err != nil {
+		return nil, err
+	}
+
+	var filter *semantic.FunctionExpression
+	if spec.FilterSet {
+		filter = spec.Filter
+	}
+	return ReadWindowAggregateSource(
+		id,
+		reader,
+		ReadWindowAggregateSpec{
+			ReadFilterSpec: ReadFilterSpec{
+				OrganizationID: orgID,
+				BucketID:       bucketID,
+				Bounds:         *bounds,
+				Predicate:      filter,
+			},
+			WindowEvery: spec.WindowEvery,
+			Aggregates:  spec.Aggregates,
 		},
 		a,
 	), nil

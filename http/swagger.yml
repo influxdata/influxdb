@@ -2282,7 +2282,17 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Dashboard"
+                type: object
+                properties:
+                  name:
+                    description: optional, when provided will replace the name
+                    type: string
+                  description:
+                    description: optional, when provided will replace the description
+                    type: string
+                  cells:
+                    description: optional, when provided will replace all existing cells with the cells provided
+                    $ref: "#/components/schemas/CellWithViewProperties"
       parameters:
         - $ref: '#/components/parameters/TraceSpan'
         - in: path
