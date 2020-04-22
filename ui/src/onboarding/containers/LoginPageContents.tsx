@@ -242,7 +242,8 @@ class LoginPageContents extends PureComponent<DispatchProps> {
     })
   }
 
-  private handleForgotPasswordClick = () => {
+  private handleForgotPasswordClick = event => {
+    event.preventDefault()
     const {email} = this.state
     const {onNotify} = this.props
     if (!email) {

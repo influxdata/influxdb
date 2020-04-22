@@ -1,5 +1,5 @@
 // Libraries
-import React, {FC, useState, ChangeEvent} from 'react'
+import React, {FC, useState, ChangeEvent, MouseEvent} from 'react'
 import {
   Button,
   ButtonShape,
@@ -8,19 +8,22 @@ import {
   ComponentColor,
   ComponentSize,
   ComponentStatus,
-  FontWeight,
+  FlexBox,
   Form,
   Grid,
-  Heading,
-  HeadingElement,
   Input,
   InputType,
-  Typeface,
   VisibilityInput,
+  FlexDirection,
+  JustifyContent,
 } from '@influxdata/clockface'
+import HelperText from 'src/onboarding/components/HelperText'
 
 // Types
 import {FormFieldValidation} from 'src/types'
+
+// Constants
+import {CLOUD_URL} from 'src/shared/constants'
 
 interface Props {
   buttonStatus: ComponentStatus
@@ -29,7 +32,7 @@ interface Props {
   passwordValidation: FormFieldValidation
   password: string
   handleInputChange: (event: ChangeEvent<HTMLInputElement>) => void
-  handleForgotPasswordClick: () => void
+  handleForgotPasswordClick: (event: MouseEvent<HTMLAnchorElement>) => void
 }
 
 export const LoginForm: FC<Props> = ({
@@ -91,16 +94,19 @@ export const LoginForm: FC<Props> = ({
           </Grid.Column>
         </Grid.Row>
       </Grid>
-      <Heading
-        element={HeadingElement.H6}
-        type={Typeface.Rubik}
-        weight={FontWeight.Regular}
-        onClick={handleForgotPasswordClick}
-        className="login--forgot-password"
-        selectable={true}
+      <FlexBox
+        direction={FlexDirection.Row}
+        justifyContent={JustifyContent.SpaceBetween}
       >
-        Forgot Password?
-      </Heading>
+        <HelperText>
+          <a href="" onClick={handleForgotPasswordClick}>
+            Forgot Password
+          </a>
+        </HelperText>
+        <HelperText>
+          <a href={CLOUD_URL}>Sign Up</a>
+        </HelperText>
+      </FlexBox>
       <Button
         className="create-account--button"
         text="Log In"

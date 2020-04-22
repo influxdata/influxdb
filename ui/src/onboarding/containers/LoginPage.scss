@@ -33,13 +33,11 @@
   margin: $ix-marg-c 0;
 }
 
-.login--forgot-password {
-  color: $c-pool;
-  line-height: 15px;
-  text-align: left;
-  cursor: pointer;
-  margin-left: $ix-marg-b;
+.helper-link-text {
   font-size: 0.85em; // TODO(ariel): remove when clockface font resolves HeadingElement.H6 styling
+  a {
+    font-weight: 400;
+  }
 }
 
 .sign-up--form {
