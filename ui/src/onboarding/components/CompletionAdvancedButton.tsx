@@ -1,21 +1,24 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
-import _ from 'lodash'
+import {connect} from 'react-redux'
 
 // Components
 import {Button, ComponentColor, ComponentSize} from '@influxdata/clockface'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
-import {Organization} from 'src/types'
+import {AppState} from 'src/types'
 
 interface OwnProps {
-  orgs: Organization[]
   onExit: () => void
 }
 
-type Props = OwnProps & WithRouterProps
+interface StateProps {
+  orgID: string | null
+}
+
+type Props = OwnProps & StateProps & WithRouterProps
 
 @ErrorHandling
 class CompletionAdvancedButton extends PureComponent<Props> {
@@ -32,14 +35,21 @@ class CompletionAdvancedButton extends PureComponent<Props> {
   }
 
   private handleAdvanced = (): void => {
-    const {router, orgs, onExit} = this.props
-    const id = _.get(orgs, '0.id', null)
-    if (id) {
-      router.push(`/orgs/${id}/load-data/buckets`)
+    const {router, orgID, onExit} = this.props
+
+    if (orgID) {
+      router.push(`/orgs/${orgID}/load-data/buckets`)
     } else {
       onExit()
     }
   }
 }
 
-export default withRouter<OwnProps>(CompletionAdvancedButton)
+const mstp = (state: AppState): StateProps => {
+  return {
+    orgID: state.onboarding.orgID,
+  }
+}
+export default connect<StateProps, {}>(mstp)(
+  withRouter<OwnProps>(CompletionAdvancedButton)
+)
