@@ -118,16 +118,12 @@ func (s *ReadRangePhysSpec) TimeBounds(predecessorBounds *plan.Bounds) *plan.Bou
 	}
 }
 
-type Window struct {
-	every int64
-}
-
 type ReadWindowAggregatePhysSpec struct {
 	plan.DefaultCost
 	ReadRangePhysSpec
 
-	Window     Window
-	Aggregates []string
+	WindowEvery int64
+	Aggregates  []plan.ProcedureKind
 }
 
 func (s *ReadWindowAggregatePhysSpec) Kind() plan.ProcedureKind {
@@ -137,7 +133,7 @@ func (s *ReadWindowAggregatePhysSpec) Copy() plan.ProcedureSpec {
 	ns := new(ReadWindowAggregatePhysSpec)
 
 	ns.ReadRangePhysSpec = *s.ReadRangePhysSpec.Copy().(*ReadRangePhysSpec)
-	ns.Window = s.Window
+	ns.WindowEvery = s.WindowEvery
 	ns.Aggregates = s.Aggregates
 
 	return ns
