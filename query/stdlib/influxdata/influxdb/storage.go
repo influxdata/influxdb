@@ -7,6 +7,7 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/memory"
+	"github.com/influxdata/flux/plan"
 	"github.com/influxdata/flux/semantic"
 	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/prom"
@@ -146,7 +147,8 @@ type TableIterator interface {
 
 type ReadWindowAggregateSpec struct {
 	ReadFilterSpec
-	// TODO(issue #17784): add attributes for the window aggregate spec.
+	WindowEvery int64
+	Aggregates  []plan.ProcedureKind
 }
 
 // WindowAggregateReader implements the WindowAggregate capability.
