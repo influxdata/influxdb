@@ -83,7 +83,7 @@ func (l *BucketLogger) FindBuckets(ctx context.Context, filter influxdb.BucketFi
 		}
 		l.logger.Debug("buckets find", dur)
 	}(time.Now())
-	return l.bucketService.FindBuckets(ctx, filter)
+	return l.bucketService.FindBuckets(ctx, filter, opt...)
 }
 
 func (l *BucketLogger) UpdateBucket(ctx context.Context, id influxdb.ID, upd influxdb.BucketUpdate) (u *influxdb.Bucket, err error) {
