@@ -129,6 +129,7 @@ type ReadWindowAggregatePhysSpec struct {
 func (s *ReadWindowAggregatePhysSpec) Kind() plan.ProcedureKind {
 	return ReadWindowAggregatePhysKind
 }
+
 func (s *ReadWindowAggregatePhysSpec) Copy() plan.ProcedureSpec {
 	ns := new(ReadWindowAggregatePhysSpec)
 
