@@ -384,11 +384,20 @@ dependencies = [
  "serde_urlencoded 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "smallvec 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "snafu 0.6.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "structopt 0.3.13 (registry+https://github.com/rust-lang/crates.io-index)",
  "tempfile 3.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio 0.2.16 (registry+https://github.com/rust-lang/crates.io-index)",
  "tonic 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "tonic-build 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "delorean_utilities"
+version = "0.1.0"
+dependencies = [
+ "rand 0.7.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "reqwest 0.10.4 (registry+https://github.com/rust-lang/crates.io-index)",
+ "structopt 0.3.13 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tokio 0.2.16 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]

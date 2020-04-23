@@ -5,6 +5,9 @@ authors = ["Paul Dix <paul@pauldix.net>"]
 edition = "2018"
 default-run = "delorean"
 
+[workspace]
+members = ["delorean_utilities"]
+
 [profile.release]
 debug = true
 
@@ -45,15 +48,12 @@ snafu = "0.6.2"
 either = "1.5.3"
 smallvec = "1.2.0"
 
-# Used by the generate and seed utilities as well as tests
-rand = "0.7.2"
-structopt = "0.3.13"
-reqwest = { version = "0.10.1", features = ["blocking"] }
-
 [dev-dependencies]
 criterion = "0.3"
 assert_cmd = "1.0.0"
 tempfile = "3.1.0"
+rand = "0.7.2"
+reqwest = { version = "0.10.1", features = ["blocking"] }
 
 [[bench]]
 name = "encoders"
