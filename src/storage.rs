@@ -1,7 +1,9 @@
 use std::convert::TryFrom;
 use std::error;
 use std::fmt;
+use std::io;
 
+pub mod block;
 pub mod database;
 pub mod memdb;
 pub mod partitioned_store;
@@ -73,5 +75,13 @@ impl error::Error for StorageError {
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         // Generic error, underlying cause isn't tracked.
         None
+    }
+}
+
+impl From<io::Error> for StorageError {
+    fn from(e: io::Error) -> Self {
+        Self {
+            description: format!("TODO - io error: {} ({:?})", e, e),
+        }
     }
 }
