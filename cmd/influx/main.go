@@ -177,22 +177,31 @@ func (b *cmdInfluxBuilder) cmd(childCmdFns ...func(f *globalFlags, opt genericCL
 		{
 			DestP:      &flags.Host,
 			Flag:       "host",
-			Default:    "http://localhost:9999",
 			Desc:       "HTTP address of Influx",
 			Persistent: true,
 		},
 	}
 	fOpts.mustRegister(cmd)
 
-	if flags.Token == "" {
-		// migration credential token
-		migrateOldCredential()
+	// migration credential token
+	migrateOldCredential()
 
-		// this is after the flagOpts register b/c we don't want to show the default value
-		// in the usage display. This will add it as the config, then if a token flag
-		// is provided too, the flag will take precedence.
-		flags.Config = getConfigFromDefaultPath()
+	// this is after the flagOpts register b/c we don't want to show the default value
+	// in the usage display. This will add it as the config, then if a token flag
+	// is provided too, the flag will take precedence.
+	cfg := getConfigFromDefaultPath()
+
+	// we have some indirection here b/c of how the Config is embedded on the
+	// global flags type. For the time being, we check to see if there was a
+	// value set on flags registered (via env vars), and override the host/token
+	// values if they are.
+	if flags.Token != "" {
+		cfg.Token = flags.Token
 	}
+	if flags.Host != "" {
+		cfg.Host = flags.Host
+	}
+	flags.Config = cfg
 
 	cmd.PersistentFlags().BoolVar(&flags.local, "local", false, "Run commands locally against the filesystem")
 	cmd.PersistentFlags().BoolVar(&flags.skipVerify, "skip-verify", false, "SkipVerify controls whether a client verifies the server's certificate chain and host name.")
@@ -275,7 +284,10 @@ func getConfigFromDefaultPath() config.Config {
 	if err != nil {
 		return config.DefaultConfig
 	}
-	activated, _ := config.ParseActiveConfig(r)
+	activated, err := config.ParseActiveConfig(r)
+	if err != nil {
+		return config.DefaultConfig
+	}
 	return activated
 }
 
@@ -284,14 +296,17 @@ func migrateOldCredential() {
 	if err != nil {
 		return // no need for migration
 	}
+
 	tokB, err := ioutil.ReadFile(filepath.Join(dir, http.DefaultTokenFile))
 	if err != nil {
 		return // no need for migration
 	}
+
 	err = writeConfigToPath(strings.TrimSpace(string(tokB)), "", filepath.Join(dir, http.DefaultConfigsFile), dir)
 	if err != nil {
 		return
 	}
+
 	// ignore the remove err
 	_ = os.Remove(filepath.Join(dir, http.DefaultTokenFile))
 }
@@ -393,16 +408,25 @@ func (o *organization) getID(orgSVC influxdb.OrganizationService) (influxdb.ID, 
 			return 0, fmt.Errorf("invalid org ID provided: %s", err.Error())
 		}
 		return *influxOrgID, nil
-	} else if o.name != "" {
+	}
+
+	getOrgByName := func(name string) (influxdb.ID, error) {
 		org, err := orgSVC.FindOrganization(context.Background(), influxdb.OrganizationFilter{
-			Name: &o.name,
+			Name: &name,
 		})
 		if err != nil {
-			return 0, fmt.Errorf("%v", err)
+			return 0, err
 		}
 		return org.ID, nil
 	}
-	return 0, fmt.Errorf("failed to locate an organization id")
+	if o.name != "" {
+		return getOrgByName(o.name)
+	}
+	// last check is for the org set in the CLI config. This will be last in priority.
+	if flags.Org != "" {
+		return getOrgByName(flags.Org)
+	}
+	return 0, fmt.Errorf("failed to locate organization criteria")
 }
 
 func (o *organization) validOrgFlags(f *globalFlags) error {

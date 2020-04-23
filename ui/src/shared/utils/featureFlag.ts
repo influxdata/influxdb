@@ -9,6 +9,7 @@ export const OSS_FLAGS = {
   matchingNotificationRules: false,
   regionBasedLoginPage: false,
   demodata: false,
+  fluxParser: false,
 }
 
 export const CLOUD_FLAGS = {
@@ -21,6 +22,7 @@ export const CLOUD_FLAGS = {
   matchingNotificationRules: false,
   regionBasedLoginPage: false,
   demodata: false,
+  fluxParser: false,
 }
 
 export const isFlagEnabled = (flagName: string, equals?: string | boolean) => {

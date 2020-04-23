@@ -943,6 +943,22 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/experimental/addduration/',
   },
   {
+    name: 'experimental.alignTime',
+    args: [
+      {
+        name: 'alignTo',
+        desc: 'UTC time to align tables to. Default is 1970-01-01T00:00:00Z.',
+        type: 'Time',
+      },
+    ],
+    package: 'experimental',
+    desc: 'Aligns input tables to a common start time.',
+    example: 'experimental.alignTime(alignTo: v.timeRangeStart)',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/experimental/aligntime/',
+  },
+  {
     name: 'experimental.group',
     args: [
       {
@@ -4954,6 +4970,12 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         desc: 'The stream that contains the expected data to test against.',
         type: 'Stream of tables',
       },
+      {
+        name: 'epsilon',
+        desc:
+          'How far apart two float values can be, but still considered equal. Defaults to `0.000000001`.',
+        type: 'Float',
+      },
     ],
     package: 'testing',
     desc: 'Produces a diff between two streams.',
@@ -5439,6 +5461,12 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         desc:
           'The column containing the window stop time. Defaults to `"_stop"`.',
         type: 'String',
+      },
+      {
+        name: 'createEmpty',
+        desc:
+          'Specifies whether empty tables should be created. Defaults to `false`.',
+        type: 'Boolean',
       },
     ],
     package: '',

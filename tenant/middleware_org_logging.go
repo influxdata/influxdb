@@ -71,7 +71,7 @@ func (l *OrgLogger) FindOrganizations(ctx context.Context, filter influxdb.Organ
 		}
 		l.logger.Debug("orgs find", dur)
 	}(time.Now())
-	return l.orgService.FindOrganizations(ctx, filter)
+	return l.orgService.FindOrganizations(ctx, filter, opt...)
 }
 
 func (l *OrgLogger) UpdateOrganization(ctx context.Context, id influxdb.ID, upd influxdb.OrganizationUpdate) (u *influxdb.Organization, err error) {

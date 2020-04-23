@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/http"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/notification"
 	"github.com/influxdata/influxdb/v2/notification/check"
@@ -66,6 +67,15 @@ func TestLauncher_Pkger(t *testing.T) {
 			return obj
 		}
 
+		newDashObject := func(pkgName, name, desc string) pkger.Object {
+			obj := pkger.DashboardToObject("", influxdb.Dashboard{
+				Name:        name,
+				Description: desc,
+			})
+			obj.SetMetadataName(pkgName)
+			return obj
+		}
+
 		newEndpointHTTP := func(pkgName, name, description string) pkger.Object {
 			obj := pkger.NotificationEndpointToObject("", &endpoint.HTTP{
 				Base: endpoint.Base{
@@ -88,6 +98,27 @@ func TestLauncher_Pkger(t *testing.T) {
 					"color":       color,
 					"description": desc,
 				},
+			})
+			obj.SetMetadataName(pkgName)
+			return obj
+		}
+
+		newTaskObject := func(pkgName, name, description string) pkger.Object {
+			obj := pkger.TaskToObject("", influxdb.Task{
+				Name:        name,
+				Description: description,
+				Flux:        "buckets()",
+				Every:       "1h",
+			})
+			obj.SetMetadataName(pkgName)
+			return obj
+		}
+
+		newTelegrafObject := func(pkgName, name, description string) pkger.Object {
+			obj := pkger.TelegrafToObject("", influxdb.TelegrafConfig{
+				Name:        name,
+				Description: description,
+				Config:      telegrafCfg,
 			})
 			obj.SetMetadataName(pkgName)
 			return obj
@@ -140,15 +171,21 @@ func TestLauncher_Pkger(t *testing.T) {
 			var (
 				initialBucketPkgName   = "rucketeer_1"
 				initialCheckPkgName    = "checkers"
+				initialDashPkgName     = "dash_of_salt"
 				initialEndpointPkgName = "endzo"
 				initialLabelPkgName    = "labelino"
+				initialTaskPkgName     = "tap"
+				initialTelegrafPkgName = "teletype"
 				initialVariablePkgName = "laces out dan"
 			)
 			initialPkg := newPkg(
 				newBucketObject(initialBucketPkgName, "display name", "init desc"),
 				newCheckDeadmanObject(t, initialCheckPkgName, "check_0", time.Minute),
+				newDashObject(initialDashPkgName, "dash_0", "init desc"),
 				newEndpointHTTP(initialEndpointPkgName, "endpoint_0", "init desc"),
 				newLabelObject(initialLabelPkgName, "label 1", "init desc", "#222eee"),
+				newTaskObject(initialTaskPkgName, "task_0", "init desc"),
+				newTelegrafObject(initialTelegrafPkgName, "tele_0", "init desc"),
 				newVariableObject(initialVariablePkgName, "var char", "init desc"),
 			)
 
@@ -167,6 +204,10 @@ func TestLauncher_Pkger(t *testing.T) {
 				assert.NotZero(t, sum.Checks[0].Check.GetID())
 				assert.Equal(t, "check_0", sum.Checks[0].Check.GetName())
 
+				require.Len(t, sum.Dashboards, 1)
+				assert.NotZero(t, sum.Dashboards[0].ID)
+				assert.Equal(t, "dash_0", sum.Dashboards[0].Name)
+
 				require.Len(t, sum.NotificationEndpoints, 1)
 				assert.NotZero(t, sum.NotificationEndpoints[0].NotificationEndpoint.GetID())
 				assert.Equal(t, "endpoint_0", sum.NotificationEndpoints[0].NotificationEndpoint.GetName())
@@ -176,6 +217,16 @@ func TestLauncher_Pkger(t *testing.T) {
 				assert.Equal(t, "label 1", sum.Labels[0].Name)
 				assert.Equal(t, "init desc", sum.Labels[0].Properties.Description)
 				assert.Equal(t, "#222eee", sum.Labels[0].Properties.Color)
+
+				require.Len(t, sum.Tasks, 1)
+				assert.NotZero(t, sum.Tasks[0].ID)
+				assert.Equal(t, "task_0", sum.Tasks[0].Name)
+				assert.Equal(t, "init desc", sum.Tasks[0].Description)
+
+				require.Len(t, sum.TelegrafConfigs, 1)
+				assert.NotZero(t, sum.TelegrafConfigs[0].TelegrafConfig.ID)
+				assert.Equal(t, "tele_0", sum.TelegrafConfigs[0].TelegrafConfig.Name)
+				assert.Equal(t, "init desc", sum.TelegrafConfigs[0].TelegrafConfig.Description)
 
 				require.Len(t, sum.Variables, 1)
 				assert.NotZero(t, sum.Variables[0].ID)
@@ -190,11 +241,20 @@ func TestLauncher_Pkger(t *testing.T) {
 					actualCheck := resourceCheck.mustGetCheck(t, byName("check_0"))
 					assert.Equal(t, sum.Checks[0].Check.GetID(), actualCheck.GetID())
 
+					actualDash := resourceCheck.mustGetDashboard(t, byName("dash_0"))
+					assert.Equal(t, sum.Dashboards[0].ID, pkger.SafeID(actualDash.ID))
+
 					actualEndpint := resourceCheck.mustGetEndpoint(t, byName("endpoint_0"))
 					assert.Equal(t, sum.NotificationEndpoints[0].NotificationEndpoint.GetID(), actualEndpint.GetID())
 
 					actualLabel := resourceCheck.mustGetLabel(t, byName("label 1"))
 					assert.Equal(t, sum.Labels[0].ID, pkger.SafeID(actualLabel.ID))
+
+					actualTask := resourceCheck.mustGetTask(t, byNameAndOrg(l.Org.ID, "task_0"))
+					assert.Equal(t, sum.Tasks[0].ID, pkger.SafeID(actualTask.ID))
+
+					actualTele := resourceCheck.mustGetTelegrafConfig(t, byNameAndOrg(l.Org.ID, "tele_0"))
+					assert.Equal(t, sum.TelegrafConfigs[0].TelegrafConfig.ID, actualTele.ID)
 
 					actualVar := resourceCheck.mustGetVariable(t, byName("var char"))
 					assert.Equal(t, sum.Variables[0].ID, pkger.SafeID(actualVar.ID))
@@ -204,16 +264,22 @@ func TestLauncher_Pkger(t *testing.T) {
 			var (
 				updateBucketName   = "new bucket"
 				updateCheckName    = "new check"
+				updateDashName     = "new dash"
 				updateEndpointName = "new endpoint"
 				updateLabelName    = "new label"
+				updateTaskName     = "new task"
+				updateTelegrafName = "new telegraf"
 				updateVariableName = "new variable"
 			)
 			t.Run("apply pkg with stack id where resources change", func(t *testing.T) {
 				updatedPkg := newPkg(
 					newBucketObject(initialBucketPkgName, updateBucketName, ""),
 					newCheckDeadmanObject(t, initialCheckPkgName, updateCheckName, time.Hour),
+					newDashObject(initialDashPkgName, updateDashName, ""),
 					newEndpointHTTP(initialEndpointPkgName, updateEndpointName, ""),
 					newLabelObject(initialLabelPkgName, updateLabelName, "", ""),
+					newTaskObject(initialTaskPkgName, updateTaskName, ""),
+					newTelegrafObject(initialTelegrafPkgName, updateTelegrafName, ""),
 					newVariableObject(initialVariablePkgName, updateVariableName, ""),
 				)
 				sum, _, err := svc.Apply(timedCtx(5*time.Second), l.Org.ID, l.User.ID, updatedPkg, applyOpt)
@@ -227,6 +293,10 @@ func TestLauncher_Pkger(t *testing.T) {
 				assert.Equal(t, initialSum.Checks[0].Check.GetID(), sum.Checks[0].Check.GetID())
 				assert.Equal(t, updateCheckName, sum.Checks[0].Check.GetName())
 
+				require.Len(t, sum.Dashboards, 1)
+				assert.Equal(t, initialSum.Dashboards[0].ID, sum.Dashboards[0].ID)
+				assert.Equal(t, updateDashName, sum.Dashboards[0].Name)
+
 				require.Len(t, sum.NotificationEndpoints, 1)
 				endpoint := sum.NotificationEndpoints[0].NotificationEndpoint
 				assert.Equal(t, initialSum.NotificationEndpoints[0].NotificationEndpoint.GetID(), endpoint.GetID())
@@ -235,6 +305,15 @@ func TestLauncher_Pkger(t *testing.T) {
 				require.Len(t, sum.Labels, 1)
 				assert.Equal(t, initialSum.Labels[0].ID, sum.Labels[0].ID)
 				assert.Equal(t, updateLabelName, sum.Labels[0].Name)
+
+				require.Len(t, sum.Tasks, 1)
+				assert.Equal(t, initialSum.Tasks[0].ID, sum.Tasks[0].ID)
+				assert.Equal(t, updateTaskName, sum.Tasks[0].Name)
+
+				require.Len(t, sum.TelegrafConfigs, 1)
+				updatedTele := sum.TelegrafConfigs[0].TelegrafConfig
+				assert.Equal(t, initialSum.TelegrafConfigs[0].TelegrafConfig.ID, updatedTele.ID)
+				assert.Equal(t, updateTelegrafName, updatedTele.Name)
 
 				require.Len(t, sum.Variables, 1)
 				assert.Equal(t, initialSum.Variables[0].ID, sum.Variables[0].ID)
@@ -248,11 +327,20 @@ func TestLauncher_Pkger(t *testing.T) {
 					actualCheck := resourceCheck.mustGetCheck(t, byName(updateCheckName))
 					require.Equal(t, initialSum.Checks[0].Check.GetID(), actualCheck.GetID())
 
+					actualDash := resourceCheck.mustGetDashboard(t, byName(updateDashName))
+					require.Equal(t, initialSum.Dashboards[0].ID, pkger.SafeID(actualDash.ID))
+
 					actualEndpoint := resourceCheck.mustGetEndpoint(t, byName(updateEndpointName))
 					assert.Equal(t, endpoint.GetID(), actualEndpoint.GetID())
 
 					actualLabel := resourceCheck.mustGetLabel(t, byName(updateLabelName))
 					require.Equal(t, initialSum.Labels[0].ID, pkger.SafeID(actualLabel.ID))
+
+					actualTask := resourceCheck.mustGetTask(t, byNameAndOrg(l.Org.ID, updateTaskName))
+					require.Equal(t, initialSum.Tasks[0].ID, pkger.SafeID(actualTask.ID))
+
+					actualTelegraf := resourceCheck.mustGetTelegrafConfig(t, byNameAndOrg(l.Org.ID, updateTelegrafName))
+					require.Equal(t, initialSum.TelegrafConfigs[0].TelegrafConfig.ID, actualTelegraf.ID)
 
 					actualVar := resourceCheck.mustGetVariable(t, byName(updateVariableName))
 					assert.Equal(t, sum.Variables[0].ID, pkger.SafeID(actualVar.ID))
@@ -286,9 +374,12 @@ func TestLauncher_Pkger(t *testing.T) {
 				pkgWithDelete := newPkg(
 					newBucketObject("z_roll_me_back", "", ""),
 					newBucketObject("z_rolls_back_too", "", ""),
+					newDashObject("z_rolls_dash", "", ""),
 					newLabelObject("z_label_roller", "", "", ""),
 					newCheckDeadmanObject(t, "z_check", "", time.Hour),
 					newEndpointHTTP("z_endpoint_rolls_back", "", ""),
+					newTaskObject("z_task_rolls_back", "", ""),
+					newTelegrafObject("z_telegraf_rolls_back", "", ""),
 					newVariableObject("z_var_rolls_back", "", ""),
 				)
 				_, _, err := svc.Apply(timedCtx(5*time.Second), l.Org.ID, l.User.ID, pkgWithDelete, applyOpt)
@@ -302,11 +393,20 @@ func TestLauncher_Pkger(t *testing.T) {
 					actualCheck := resourceCheck.mustGetCheck(t, byName(updateCheckName))
 					assert.NotEqual(t, initialSum.Checks[0].Check.GetID(), actualCheck.GetID())
 
+					actualDash := resourceCheck.mustGetDashboard(t, byName(updateDashName))
+					assert.NotEqual(t, initialSum.Dashboards[0].ID, pkger.SafeID(actualDash.ID))
+
 					actualEndpoint := resourceCheck.mustGetEndpoint(t, byName(updateEndpointName))
 					assert.NotEqual(t, initialSum.NotificationEndpoints[0].NotificationEndpoint.GetID(), actualEndpoint.GetID())
 
 					actualLabel := resourceCheck.mustGetLabel(t, byName(updateLabelName))
 					assert.NotEqual(t, initialSum.Labels[0].ID, pkger.SafeID(actualLabel.ID))
+
+					actualTask := resourceCheck.mustGetTask(t, byNameAndOrg(l.Org.ID, updateTaskName))
+					assert.NotEqual(t, initialSum.Tasks[0].ID, pkger.SafeID(actualTask.ID))
+
+					actualTelegraf := resourceCheck.mustGetTelegrafConfig(t, byNameAndOrg(l.Org.ID, updateTelegrafName))
+					require.NotEqual(t, initialSum.TelegrafConfigs[0].TelegrafConfig.ID, actualTelegraf.ID)
 
 					actualVariable := resourceCheck.mustGetVariable(t, byName(updateVariableName))
 					assert.NotEqual(t, initialSum.Variables[0].ID, pkger.SafeID(actualVariable.ID))
@@ -322,10 +422,16 @@ func TestLauncher_Pkger(t *testing.T) {
 					_, err := resourceCheck.getCheck(t, byName("z_check"))
 					assert.Error(t, err)
 
+					_, err = resourceCheck.getDashboard(t, byName("z_rolls_dash"))
+					assert.Error(t, err)
+
 					_, err = resourceCheck.getEndpoint(t, byName("z_endpoint_rolls_back"))
 					assert.Error(t, err)
 
 					_, err = resourceCheck.getLabel(t, byName("z_label_roller"))
+					assert.Error(t, err)
+
+					_, err = resourceCheck.getTelegrafConfig(t, byNameAndOrg(l.Org.ID, "z_telegraf_rolls_back"))
 					assert.Error(t, err)
 
 					_, err = resourceCheck.getVariable(t, byName("z_var_rolls_back"))
@@ -337,8 +443,11 @@ func TestLauncher_Pkger(t *testing.T) {
 				allNewResourcesPkg := newPkg(
 					newBucketObject("non_existent_bucket", "", ""),
 					newCheckDeadmanObject(t, "non_existent_check", "", time.Minute),
+					newDashObject("non_existent_dash", "", ""),
 					newEndpointHTTP("non_existent_endpoint", "", ""),
 					newLabelObject("non_existent_label", "", "", ""),
+					newTaskObject("non_existent_task", "", ""),
+					newTelegrafObject("non_existent_tele", "", ""),
 					newVariableObject("non_existent_var", "", ""),
 				)
 				sum, _, err := svc.Apply(timedCtx(5*time.Second), l.Org.ID, l.User.ID, allNewResourcesPkg, applyOpt)
@@ -356,6 +465,12 @@ func TestLauncher_Pkger(t *testing.T) {
 				defer resourceCheck.mustDeleteCheck(t, sum.Checks[0].Check.GetID())
 				assert.Equal(t, "non_existent_check", sum.Checks[0].Check.GetName())
 
+				require.Len(t, sum.Dashboards, 1)
+				assert.NotEqual(t, initialSum.Dashboards[0].ID, sum.Dashboards[0].ID)
+				assert.NotZero(t, sum.Dashboards[0].ID)
+				defer resourceCheck.mustDeleteDashboard(t, influxdb.ID(sum.Dashboards[0].ID))
+				assert.Equal(t, "non_existent_dash", sum.Dashboards[0].Name)
+
 				require.Len(t, sum.NotificationEndpoints, 1)
 				endpoint := sum.NotificationEndpoints[0].NotificationEndpoint
 				assert.NotEqual(t, initialSum.NotificationEndpoints[0].NotificationEndpoint.GetID(), endpoint.GetID())
@@ -369,6 +484,19 @@ func TestLauncher_Pkger(t *testing.T) {
 				defer resourceCheck.mustDeleteLabel(t, influxdb.ID(sum.Labels[0].ID))
 				assert.Equal(t, "non_existent_label", sum.Labels[0].Name)
 
+				require.Len(t, sum.Tasks, 1)
+				assert.NotEqual(t, initialSum.Tasks[0].ID, sum.Tasks[0].ID)
+				assert.NotZero(t, sum.Tasks[0].ID)
+				defer resourceCheck.mustDeleteTask(t, influxdb.ID(sum.Tasks[0].ID))
+				assert.Equal(t, "non_existent_task", sum.Tasks[0].Name)
+
+				require.Len(t, sum.TelegrafConfigs, 1)
+				newTele := sum.TelegrafConfigs[0].TelegrafConfig
+				assert.NotEqual(t, initialSum.TelegrafConfigs[0].TelegrafConfig.ID, newTele.ID)
+				assert.NotZero(t, newTele.ID)
+				defer resourceCheck.mustDeleteTelegrafConfig(t, newTele.ID)
+				assert.Equal(t, "non_existent_tele", newTele.Name)
+
 				require.Len(t, sum.Variables, 1)
 				assert.NotEqual(t, initialSum.Variables[0].ID, sum.Variables[0].ID)
 				assert.NotZero(t, sum.Variables[0].ID)
@@ -378,23 +506,24 @@ func TestLauncher_Pkger(t *testing.T) {
 				t.Log("\tvalidate all resources are created")
 				{
 					bkt := resourceCheck.mustGetBucket(t, byName("non_existent_bucket"))
-					assert.NotEqual(t, initialSum.Buckets[0].ID, sum.Buckets[0].ID)
 					assert.Equal(t, pkger.SafeID(bkt.ID), sum.Buckets[0].ID)
 
 					chk := resourceCheck.mustGetCheck(t, byName("non_existent_check"))
-					assert.NotEqual(t, initialSum.Checks[0].Check.GetID(), sum.Checks[0].Check.GetID())
 					assert.Equal(t, chk.GetID(), sum.Checks[0].Check.GetID())
 
 					endpoint := resourceCheck.mustGetEndpoint(t, byName("non_existent_endpoint"))
-					assert.NotEqual(t, initialSum.NotificationEndpoints[0].NotificationEndpoint.GetID(), endpoint.GetID())
 					assert.Equal(t, endpoint.GetID(), sum.NotificationEndpoints[0].NotificationEndpoint.GetID())
 
 					label := resourceCheck.mustGetLabel(t, byName("non_existent_label"))
-					assert.NotEqual(t, initialSum.Labels[0].ID, sum.Labels[0].ID)
 					assert.Equal(t, pkger.SafeID(label.ID), sum.Labels[0].ID)
 
+					task := resourceCheck.mustGetTask(t, byNameAndOrg(l.Org.ID, "non_existent_task"))
+					assert.Equal(t, pkger.SafeID(task.ID), sum.Tasks[0].ID)
+
+					tele := resourceCheck.mustGetTelegrafConfig(t, byNameAndOrg(l.Org.ID, "non_existent_tele"))
+					assert.Equal(t, tele.ID, sum.TelegrafConfigs[0].TelegrafConfig.ID)
+
 					variable := resourceCheck.mustGetVariable(t, byName("non_existent_var"))
-					assert.NotEqual(t, initialSum.Variables[0].ID, sum.Variables[0].ID)
 					assert.Equal(t, pkger.SafeID(variable.ID), sum.Variables[0].ID)
 				}
 
@@ -410,6 +539,12 @@ func TestLauncher_Pkger(t *testing.T) {
 					require.Error(t, err)
 
 					_, err = resourceCheck.getLabel(t, byName(updateLabelName))
+					require.Error(t, err)
+
+					_, err = resourceCheck.getTask(t, byNameAndOrg(l.Org.ID, updateTaskName))
+					require.Error(t, err)
+
+					_, err = resourceCheck.getTelegrafConfig(t, byNameAndOrg(l.Org.ID, updateTelegrafName))
 					require.Error(t, err)
 
 					_, err = resourceCheck.getVariable(t, byName(updateVariableName))
@@ -694,7 +829,7 @@ spec:
 		assert.Equal(t, l.Org.ID, teles[0].TelegrafConfig.OrgID)
 		assert.Equal(t, "first tele config", teles[0].TelegrafConfig.Name)
 		assert.Equal(t, "desc", teles[0].TelegrafConfig.Description)
-		assert.Equal(t, telConf, teles[0].TelegrafConfig.Config)
+		assert.Equal(t, telegrafCfg, teles[0].TelegrafConfig.Config)
 
 		vars := sum1.Variables
 		require.Len(t, vars, 1)
@@ -812,7 +947,7 @@ spec:
 				require.Len(t, teles, 1)
 				assert.Equal(t, "first tele config", teles[0].TelegrafConfig.Name)
 				assert.Equal(t, "desc", teles[0].TelegrafConfig.Description)
-				assert.Equal(t, telConf, teles[0].TelegrafConfig.Config)
+				assert.Equal(t, telegrafCfg, teles[0].TelegrafConfig.Config)
 
 				vars := sum.Variables
 				require.Len(t, vars, 1)
@@ -1425,7 +1560,7 @@ func newPkg(t *testing.T) *pkger.Pkg {
 	return pkg
 }
 
-const telConf = `[agent]
+const telegrafCfg = `[agent]
   interval = "10s"
   metric_batch_size = 1000
   metric_buffer_limit = 10000
@@ -1636,7 +1771,7 @@ spec:
   associations:
     - kind: Label
       name: label_1
-`, pkger.APIVersion, telConf)
+`, pkger.APIVersion, telegrafCfg)
 
 var updatePkgYMLStr = fmt.Sprintf(`
 apiVersion: %[1]s
@@ -1746,8 +1881,9 @@ func newResourceChecker(tl *TestLauncher) resourceChecker {
 
 type (
 	getResourceOpt struct {
-		id   influxdb.ID
-		name string
+		id    influxdb.ID
+		orgID influxdb.ID
+		name  string
 	}
 
 	getResourceOptFn func() getResourceOpt
@@ -1756,6 +1892,15 @@ type (
 func byName(name string) getResourceOptFn {
 	return func() getResourceOpt {
 		return getResourceOpt{name: name}
+	}
+}
+
+func byNameAndOrg(orgID influxdb.ID, name string) getResourceOptFn {
+	return func() getResourceOpt {
+		return getResourceOpt{
+			orgID: orgID,
+			name:  name,
+		}
 	}
 }
 
@@ -1831,6 +1976,56 @@ func (r resourceChecker) mustGetCheck(t *testing.T, getOpt getResourceOptFn) inf
 func (r resourceChecker) mustDeleteCheck(t *testing.T, id influxdb.ID) {
 	t.Helper()
 	require.NoError(t, r.tl.CheckService().DeleteCheck(ctx, id))
+}
+
+func (r resourceChecker) getDashboard(t *testing.T, getOpt getResourceOptFn) (influxdb.Dashboard, error) {
+	t.Helper()
+
+	dashSVC := r.tl.DashboardService(t)
+
+	var (
+		dashboard *influxdb.Dashboard
+		err       error
+	)
+	opt := getOpt()
+	switch {
+	case opt.name != "":
+		dashs, _, err := dashSVC.FindDashboards(timedCtx(time.Second), influxdb.DashboardFilter{}, influxdb.DefaultDashboardFindOptions)
+		if err != nil {
+			return influxdb.Dashboard{}, err
+		}
+		for _, d := range dashs {
+			if d.Name == opt.name {
+				dashboard = d
+				break
+			}
+		}
+	case opt.id != 0:
+		dashboard, err = dashSVC.FindDashboardByID(timedCtx(time.Second), opt.id)
+	default:
+		require.Fail(t, "did not provide any get option")
+	}
+	if err != nil {
+		return influxdb.Dashboard{}, err
+	}
+	if dashboard == nil {
+		return influxdb.Dashboard{}, fmt.Errorf("failed to find desired dashboard with opts: %+v", opt)
+	}
+
+	return *dashboard, nil
+}
+
+func (r resourceChecker) mustGetDashboard(t *testing.T, getOpt getResourceOptFn) influxdb.Dashboard {
+	t.Helper()
+
+	dash, err := r.getDashboard(t, getOpt)
+	require.NoError(t, err)
+	return dash
+}
+
+func (r resourceChecker) mustDeleteDashboard(t *testing.T, id influxdb.ID) {
+	t.Helper()
+	require.NoError(t, r.tl.DashboardService(t).DeleteDashboard(ctx, id))
 }
 
 func (r resourceChecker) getEndpoint(t *testing.T, getOpt getResourceOptFn) (influxdb.NotificationEndpoint, error) {
@@ -1929,6 +2124,104 @@ func (r resourceChecker) mustGetLabel(t *testing.T, getOpt getResourceOptFn) inf
 func (r resourceChecker) mustDeleteLabel(t *testing.T, id influxdb.ID) {
 	t.Helper()
 	require.NoError(t, r.tl.LabelService(t).DeleteLabel(ctx, id))
+}
+
+func (r resourceChecker) getTask(t *testing.T, getOpt getResourceOptFn) (http.Task, error) {
+	t.Helper()
+
+	taskSVC := r.tl.TaskService(t)
+
+	var (
+		task *http.Task
+		err  error
+	)
+	switch opt := getOpt(); {
+	case opt.name != "" && opt.orgID != 0:
+		var filter influxdb.TaskFilter
+		if opt.name != "" {
+			filter.Name = &opt.name
+		}
+		if opt.orgID != 0 {
+			filter.OrganizationID = &opt.orgID
+		}
+		tasks, _, err := taskSVC.FindTasks(timedCtx(time.Second), filter)
+		if err != nil {
+			return http.Task{}, err
+		}
+		for _, tt := range tasks {
+			if tt.Name == opt.name {
+				task = &tasks[0]
+				break
+			}
+		}
+	case opt.id != 0:
+		task, err = taskSVC.FindTaskByID(timedCtx(time.Second), opt.id)
+	default:
+		require.Fail(t, "did not provide a valid get option")
+	}
+	if task == nil {
+		return http.Task{}, errors.New("did not find expected task by name")
+	}
+
+	return *task, err
+}
+
+func (r resourceChecker) mustGetTask(t *testing.T, getOpt getResourceOptFn) http.Task {
+	t.Helper()
+
+	task, err := r.getTask(t, getOpt)
+	require.NoError(t, err)
+	return task
+}
+
+func (r resourceChecker) mustDeleteTask(t *testing.T, id influxdb.ID) {
+	t.Helper()
+	require.NoError(t, r.tl.TaskService(t).DeleteTask(ctx, id))
+}
+
+func (r resourceChecker) getTelegrafConfig(t *testing.T, getOpt getResourceOptFn) (influxdb.TelegrafConfig, error) {
+	t.Helper()
+
+	teleSVC := r.tl.TelegrafService(t)
+
+	var (
+		config *influxdb.TelegrafConfig
+		err    error
+	)
+	switch opt := getOpt(); {
+	case opt.name != "" && opt.orgID != 0:
+		teles, _, _ := teleSVC.FindTelegrafConfigs(timedCtx(time.Second), influxdb.TelegrafConfigFilter{
+			OrgID: &opt.orgID,
+		})
+		for _, tt := range teles {
+			if opt.name != "" && tt.Name == opt.name {
+				config = teles[0]
+				break
+			}
+		}
+	case opt.id != 0:
+		config, err = teleSVC.FindTelegrafConfigByID(timedCtx(time.Second), opt.id)
+	default:
+		require.Fail(t, "did not provide a valid get option")
+	}
+	if config == nil {
+		return influxdb.TelegrafConfig{}, errors.New("did not find expected telegraf by name")
+	}
+
+	return *config, err
+}
+
+func (r resourceChecker) mustGetTelegrafConfig(t *testing.T, getOpt getResourceOptFn) influxdb.TelegrafConfig {
+	t.Helper()
+
+	tele, err := r.getTelegrafConfig(t, getOpt)
+	require.NoError(t, err)
+	return tele
+}
+
+func (r resourceChecker) mustDeleteTelegrafConfig(t *testing.T, id influxdb.ID) {
+	t.Helper()
+	require.NoError(t, r.tl.TelegrafService(t).DeleteTelegrafConfig(ctx, id))
 }
 
 func (r resourceChecker) getVariable(t *testing.T, getOpt getResourceOptFn) (influxdb.Variable, error) {

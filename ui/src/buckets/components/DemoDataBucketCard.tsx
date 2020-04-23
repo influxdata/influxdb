@@ -84,15 +84,21 @@ const DemoDataBucketCard: FC<Props & WithRouterProps & DispatchProps> = ({
         </span>
         <>Retention: {bucket.readableRetention}</>
       </ResourceCard.Meta>
-      <Label
-        id="1"
-        key="1"
-        name="No Cost"
-        color="#757888"
-        description=""
-        onDelete={null}
-        onClick={null}
-      />
+      <FlexBox
+        direction={FlexDirection.Row}
+        margin={ComponentSize.Small}
+        style={{marginTop: '4px'}}
+      >
+        <Label
+          id="1"
+          key="1"
+          name="No Cost"
+          color="#757888"
+          description=""
+          onDelete={null}
+          onClick={null}
+        />
+      </FlexBox>
     </ResourceCard>
   )
 }

@@ -148,13 +148,6 @@ func (tc *TelegrafConfig) UnmarshalJSON(b []byte) error {
 		tc.Metadata = m
 	}
 
-	if tc.Config == "" {
-		return &Error{
-			Code: EEmptyValue,
-			Msg:  "no config provided",
-		}
-	}
-
 	return nil
 }
 

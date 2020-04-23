@@ -2,7 +2,6 @@ package tenant
 
 import (
 	"context"
-	"errors"
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kv"
@@ -57,8 +56,8 @@ func (s *Service) FindBucket(ctx context.Context, filter influxdb.BucketFilter) 
 		return nil, err
 	}
 
-	if len(buckets) != 1 {
-		return nil, errors.New("unkown error")
+	if len(buckets) < 1 {
+		return nil, ErrBucketNotFound
 	}
 
 	return buckets[0], nil
@@ -106,6 +105,11 @@ func (s *Service) FindBuckets(ctx context.Context, filter influxdb.BucketFilter,
 
 	if err != nil {
 		return nil, 0, err
+	}
+
+	if len(opt) > 0 && len(buckets) >= opt[0].Limit {
+		// if we have reached the limit we will not add system buckets
+		return buckets, len(buckets), nil
 	}
 
 	// NOTE: this is a remnant of the old system.
