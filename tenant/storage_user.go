@@ -200,7 +200,7 @@ func (s *Store) UpdateUser(ctx context.Context, tx kv.Tx, id influxdb.ID, upd in
 		return nil, err
 	}
 
-	if upd.Name != nil {
+	if upd.Name != nil && *upd.Name != u.Name {
 		if err := s.uniqueUserName(ctx, tx, *upd.Name); err != nil {
 			return nil, err
 		}

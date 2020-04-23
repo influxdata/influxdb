@@ -895,6 +895,34 @@ func UpdateOrganization(
 			},
 		},
 		{
+			name: "update name to same name",
+			fields: OrganizationFields{
+				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
+				Organizations: []*influxdb.Organization{
+					{
+						ID:   MustIDBase16(orgOneID),
+						Name: "organization1",
+					},
+					{
+						ID:   MustIDBase16(orgTwoID),
+						Name: "organization2",
+					},
+				},
+			},
+			args: args{
+				id:   MustIDBase16(orgOneID),
+				name: strPtr("organization1"),
+			},
+			wants: wants{
+				organization: &influxdb.Organization{
+					ID:   MustIDBase16(orgOneID),
+					Name: "organization1",
+					CRUDLog: influxdb.CRUDLog{
+						UpdatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
+					},
+				},
+			},
+		}, {
 			name: "update name not unique",
 			fields: OrganizationFields{
 				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
