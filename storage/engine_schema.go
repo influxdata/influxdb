@@ -19,7 +19,8 @@ func (e *Engine) TagKeys(ctx context.Context, orgID, bucketID influxdb.ID, start
 		return cursors.EmptyStringIterator, nil
 	}
 
-	return e.engine.TagKeys(ctx, orgID, bucketID, start, end, predicate)
+	// TODO - hook up to store meta api
+	return nil, nil
 }
 
 // TagValues returns an iterator which enumerates the values for the specific
@@ -33,6 +34,6 @@ func (e *Engine) TagValues(ctx context.Context, orgID, bucketID influxdb.ID, tag
 	if e.closing == nil {
 		return cursors.EmptyStringIterator, nil
 	}
-
-	return e.engine.TagValues(ctx, orgID, bucketID, tagKey, start, end, predicate)
+	// TODO - hook up to store meta api
+	return nil, nil
 }

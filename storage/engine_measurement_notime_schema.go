@@ -22,7 +22,8 @@ func (e *Engine) MeasurementNamesNoTime(ctx context.Context, orgID, bucketID inf
 		return cursors.EmptyStringIterator, nil
 	}
 
-	return e.engine.MeasurementNamesNoTime(ctx, orgID, bucketID, predicate)
+	// TODO - hook up to store meta api
+	return nil, nil
 }
 
 // MeasurementTagKeysNoTime returns an iterator which enumerates the tag keys
@@ -40,7 +41,8 @@ func (e *Engine) MeasurementTagKeysNoTime(ctx context.Context, orgID, bucketID i
 		return cursors.EmptyStringIterator, nil
 	}
 
-	return e.engine.MeasurementTagKeysNoTime(ctx, orgID, bucketID, measurement, predicate)
+	// TODO - hook up to store meta api
+	return nil, nil
 }
 
 // MeasurementTagValuesNoTime returns an iterator which enumerates the tag values for the given
@@ -57,7 +59,8 @@ func (e *Engine) MeasurementTagValuesNoTime(ctx context.Context, orgID, bucketID
 		return cursors.EmptyStringIterator, nil
 	}
 
-	return e.engine.MeasurementTagValuesNoTime(ctx, orgID, bucketID, measurement, tagKey, predicate)
+	// TODO - hook up to store meta api
+	return nil, nil
 }
 
 // MeasurementFieldsNoTime returns an iterator which enumerates the field schema for the given
@@ -74,5 +77,6 @@ func (e *Engine) MeasurementFieldsNoTime(ctx context.Context, orgID, bucketID in
 		return cursors.EmptyMeasurementFieldsIterator, nil
 	}
 
-	return e.engine.MeasurementFieldsNoTime(ctx, orgID, bucketID, measurement, predicate)
+	// TODO - hook up to store meta api
+	return nil, nil
 }

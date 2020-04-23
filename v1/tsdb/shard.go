@@ -337,7 +337,7 @@ func (s *Shard) Open() error {
 		e.SetEnabled(false)
 
 		// Open engine.
-		if err := e.Open(); err != nil {
+		if err := e.Open(context.TODO()); err != nil {
 			return err
 		}
 
