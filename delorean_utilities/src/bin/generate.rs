@@ -21,6 +21,8 @@ fn main() {
     let max_tags_per_point = 5;
     let max_fields_per_point = 5;
 
+    // TODO: Optionally use a seed provided by a command line argument and output the seed used to enable
+    // reproducibility.
     let mut rng = rand::thread_rng();
 
     // Generate fields such that each field always has the same type throughout the batch
