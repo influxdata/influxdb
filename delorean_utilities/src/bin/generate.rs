@@ -48,7 +48,7 @@ struct Point {
 
 impl Point {
     fn generate(
-        rng: &mut ThreadRng,
+        rng: &mut impl Rng,
         max_tags_per_point: usize,
         field_definitions: &[Field],
     ) -> Point {
@@ -122,7 +122,7 @@ struct Tag {
 }
 
 impl Tag {
-    fn generate(rng: &mut ThreadRng, num: usize) -> Tag {
+    fn generate(rng: &mut impl Rng, num: usize) -> Tag {
         Tag {
             key: format!("tag{}", num),
             value: format!("value{}", rng.gen_range(0, 10)),
@@ -143,14 +143,14 @@ struct Field {
 }
 
 impl Field {
-    fn generate(rng: &mut ThreadRng, num: usize) -> Field {
+    fn generate(rng: &mut impl Rng, num: usize) -> Field {
         Field {
             key: format!("field{}", num),
             value: FieldValue::generate(rng),
         }
     }
 
-    fn generate_similar(&self, rng: &mut ThreadRng) -> Field {
+    fn generate_similar(&self, rng: &mut impl Rng) -> Field {
         Field {
             key: self.key.clone(),
             value: self.value.generate_similar(rng),
@@ -174,7 +174,7 @@ enum FieldValue {
 }
 
 impl FieldValue {
-    fn generate(rng: &mut ThreadRng) -> FieldValue {
+    fn generate(rng: &mut impl Rng) -> FieldValue {
         // Randomly select a variant
         let number_of_variants = 2;
         let which_variant = rng.gen_range(0, number_of_variants);
@@ -186,7 +186,7 @@ impl FieldValue {
         }
     }
 
-    fn generate_similar(&self, rng: &mut ThreadRng) -> FieldValue {
+    fn generate_similar(&self, rng: &mut impl Rng) -> FieldValue {
         match self {
             FieldValue::Float(_) => FieldValue::Float(rng.gen()),
             FieldValue::Integer(_) => FieldValue::Integer(rng.gen()),
