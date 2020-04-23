@@ -10,6 +10,5 @@ export type Auth0Config = {
   clientID: string
   domain: string
   redirectURL: string
-  socialSignUpOn: boolean
   state: string
 }
