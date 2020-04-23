@@ -89,7 +89,7 @@ const UserWidget: FC<Props> = ({
           id="about"
           label="About"
           linkElement={className => (
-            <Link className={className} to="/orgs/new" />
+            <Link className={className} to={`${orgPrefix}/about`} />
           )}
         />
       </CloudOnly>
