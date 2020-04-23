@@ -1,6 +1,4 @@
 import {IconFont} from '@influxdata/clockface'
-import {CLOUD_URL, CLOUD_USERS_PATH} from 'src/shared/constants'
-import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 
 export interface NavItemLink {
   type: 'link' | 'href'
