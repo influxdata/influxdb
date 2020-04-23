@@ -36,18 +36,6 @@ export interface NavItem {
 export const generateNavItems = (orgID: string): NavItem[] => {
   const orgPrefix = `/orgs/${orgID}`
 
-  const isMultiUserEnabled = isFlagEnabled('multiUser')
-
-  const quartzMembersHeaderLink: NavItemLink = isMultiUserEnabled
-    ? {
-        type: 'href',
-        location: `${CLOUD_URL}/organizations/${orgID}${CLOUD_USERS_PATH}`,
-      }
-    : {
-        type: 'link',
-        location: `${orgPrefix}/about`,
-      }
-
   return [
     {
       id: 'load-data',

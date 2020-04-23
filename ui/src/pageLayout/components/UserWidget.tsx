@@ -26,6 +26,7 @@ import {MeState} from 'src/shared/reducers/me'
 // Selectors
 import {getOrg} from 'src/organizations/selectors'
 import {getNavItemActivation} from '../utils'
+import {FeatureFlag} from 'src/shared/utils/featureFlag'
 
 interface StateProps {
   org: Organization
@@ -75,16 +76,18 @@ const UserWidget: FC<Props> = ({
             />
           )}
         />
-        <TreeNav.UserItem
-          id="users"
-          label="Users"
-          linkElement={className => (
-            <a
-              className={className}
-              href={`${CLOUD_URL}/organizations/${org.id}${CLOUD_USERS_PATH}`}
-            />
-          )}
-        />
+        <FeatureFlag name="multiUser" equals={true}>
+          <TreeNav.UserItem
+            id="users"
+            label="Users"
+            linkElement={className => (
+              <a
+                className={className}
+                href={`${CLOUD_URL}/organizations/${org.id}${CLOUD_USERS_PATH}`}
+              />
+            )}
+          />
+        </FeatureFlag>
         <TreeNav.UserItem
           id="about"
           label="About"
