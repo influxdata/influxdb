@@ -3,7 +3,6 @@ package storage
 import (
 	"context"
 	"io"
-	"math"
 	"sync"
 	"time"
 
@@ -21,7 +20,7 @@ import (
 )
 
 // Static objects to prevent small allocs.
-var timeBytes = []byte("time")
+// var timeBytes = []byte("time")
 
 // ErrEngineClosed is returned when a caller attempts to use the engine while
 // it's closed.
@@ -41,7 +40,7 @@ type Engine struct {
 
 	mu      sync.RWMutex
 	closing chan struct{} // closing returns the zero value when the engine is shutting down.
-	store   tsdb.Store
+	store   *tsdb.Store
 
 	retentionEnforcer        runner
 	retentionEnforcerLimiter runnable
@@ -97,12 +96,11 @@ func NewEngine(path string, c Config, options ...Option) *Engine {
 		config:              c,
 		path:                path,
 		defaultMetricLabels: prometheus.Labels{},
+		store:               tsdb.NewStore(path),
 		logger:              zap.NewNop(),
 
 		writePointsValidationEnabled: true,
 	}
-
-	// TODO create a new store
 
 	if r, ok := e.retentionEnforcer.(*retentionEnforcer); ok {
 		r.SetDefaultMetricLabels(e.defaultMetricLabels)
@@ -113,12 +111,11 @@ func NewEngine(path string, c Config, options ...Option) *Engine {
 
 // WithLogger sets the logger on the Store. It must be called before Open.
 func (e *Engine) WithLogger(log *zap.Logger) {
-	// TODO wire up logger
-
 	fields := []zap.Field{}
 	fields = append(fields, zap.String("service", "storage-engine"))
-
 	e.logger = log.With(fields...)
+
+	e.store.Logger = e.logger
 	if r, ok := e.retentionEnforcer.(*retentionEnforcer); ok {
 		r.WithLogger(e.logger)
 	}
@@ -142,11 +139,12 @@ func (e *Engine) Open(ctx context.Context) (err error) {
 		return nil // Already open
 	}
 
-	span, ctx := tracing.StartSpanFromContext(ctx)
+	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	// TODO(edd) - open tsdb store
-
+	if err := e.store.Open(); err != nil {
+		return err
+	}
 	e.closing = make(chan struct{})
 
 	// TODO(edd) background tasks will be run in priority order via a scheduler.
@@ -287,10 +285,11 @@ func (e *Engine) CreateCursorIterator(ctx context.Context) (cursors.CursorIterat
 // The Engine expects all points to have been correctly validated by the caller.
 // However, WritePoints will determine if any tag key-pairs are missing, or if
 // there are any field type conflicts.
+// Rosalie was here lockdown 2020
 //
 // Appropriate errors are returned in those cases.
 func (e *Engine) WritePoints(ctx context.Context, points []models.Point) error {
-	span, ctx := tracing.StartSpanFromContext(ctx)
+	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	//TODO - remember to add back unicode validation...
@@ -309,14 +308,14 @@ func (e *Engine) WritePoints(ctx context.Context, points []models.Point) error {
 
 // DeleteBucket deletes an entire bucket from the storage engine.
 func (e *Engine) DeleteBucket(ctx context.Context, orgID, bucketID influxdb.ID) error {
-	span, ctx := tracing.StartSpanFromContext(ctx)
+	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
-	return e.DeleteBucketRange(ctx, orgID, bucketID, math.MinInt64, math.MaxInt64)
+	return e.store.DeleteRetentionPolicy(orgID.String(), bucketID.String())
 }
 
-// DeleteBucketRange deletes an entire bucket from the storage engine.
+// DeleteBucketRange deletes an entire range of data from the storage engine.
 func (e *Engine) DeleteBucketRange(ctx context.Context, orgID, bucketID influxdb.ID, min, max int64) error {
-	span, ctx := tracing.StartSpanFromContext(ctx)
+	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	e.mu.RLock()
@@ -325,14 +324,14 @@ func (e *Engine) DeleteBucketRange(ctx context.Context, orgID, bucketID influxdb
 		return ErrEngineClosed
 	}
 
-	// TODO - Delete from the store.
-	return nil
+	// TODO(edd): create an influxql.Expr that represents the min and max time...
+	return e.store.DeleteSeries(orgID.String(), nil, nil)
 }
 
 // DeleteBucketRangePredicate deletes data within a bucket from the storage engine. Any data
 // deleted must be in [min, max], and the key must match the predicate if provided.
 func (e *Engine) DeleteBucketRangePredicate(ctx context.Context, orgID, bucketID influxdb.ID, min, max int64, pred influxdb.Predicate) error {
-	span, ctx := tracing.StartSpanFromContext(ctx)
+	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	e.mu.RLock()
@@ -352,9 +351,8 @@ func (e *Engine) DeleteBucketRangePredicate(ctx context.Context, orgID, bucketID
 	}
 	_ = predData
 
-	// TODO - show the delete to the store
-
-	return nil
+	// TODO - edd convert the predicate into an influxql.Expr
+	return e.store.DeleteSeries(orgID.String(), nil, nil)
 }
 
 // CreateBackup creates a "snapshot" of all TSM data in the Engine.
@@ -365,7 +363,7 @@ func (e *Engine) DeleteBucketRangePredicate(ctx context.Context, orgID, bucketID
 // TODO - do we need this?
 //
 func (e *Engine) CreateBackup(ctx context.Context) (int, []string, error) {
-	span, ctx := tracing.StartSpanFromContext(ctx)
+	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	if e.closing == nil {
