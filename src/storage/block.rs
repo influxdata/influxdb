@@ -443,6 +443,8 @@ where
         let checksum = hasher.finalize();
         w.write_all(&checksum.to_be_bytes())?;
 
+        // seek to last written offset for next caller.
+        w.seek(SeekFrom::Start(offset as u64))?;
         Ok(offset)
     }
 }
