@@ -92,8 +92,9 @@ var FluxEndToEndSkipList = map[string]map[string]string{
 		"holt_winters_panic": "Expected output is an empty table which breaks the testing framework (https://github.com/influxdata/influxdb/issues/14749)",
 	},
 	"experimental": {
-		"set":  "Reason TBD",
-		"join": "unbounded test",
+		"set":       "Reason TBD",
+		"join":      "unbounded test",
+		"alignTime": "unbounded test",
 	},
 	"experimental/geo": {
 		"filterRowsNotStrict": "tableFind does not work in e2e tests: https://github.com/influxdata/influxdb/issues/13975",

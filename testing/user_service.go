@@ -865,6 +865,34 @@ func UpdateUser(
 			},
 		},
 		{
+			name: "update name to same name",
+			fields: UserFields{
+				Users: []*platform.User{
+					{
+						ID:     MustIDBase16(userOneID),
+						Name:   "user1",
+						Status: platform.Active,
+					},
+					{
+						ID:     MustIDBase16(userTwoID),
+						Name:   "user2",
+						Status: platform.Active,
+					},
+				},
+			},
+			args: args{
+				id:   MustIDBase16(userOneID),
+				name: "user1",
+			},
+			wants: wants{
+				user: &platform.User{
+					ID:     MustIDBase16(userOneID),
+					Name:   "user1",
+					Status: platform.Active,
+				},
+			},
+		},
+		{
 			name: "update status",
 			fields: UserFields{
 				Users: []*platform.User{

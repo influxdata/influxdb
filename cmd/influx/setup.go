@@ -88,12 +88,10 @@ func setupUserF(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to retrieve data to setup instance: %v", err)
 	}
 
-	fmt.Printf("req: %+v\n", req)
 	result, err := s.OnboardUser(context.Background(), req)
 	if err != nil {
 		return fmt.Errorf("failed to setup instance: %v", err)
 	}
-	fmt.Printf("result: %+v\n", result)
 
 	w := cmd.OutOrStdout()
 	if setupFlags.json {
@@ -129,6 +127,7 @@ func setupF(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+
 	s := tenant.OnboardClientService{
 		Client: client,
 	}
@@ -144,10 +143,9 @@ func setupF(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	localSVC := config.NewLocalConfigSVC(
-		dPath,
-		dir,
-	)
+
+	localSVC := config.NewLocalConfigSVC(dPath, dir)
+
 	existingConfigs := make(config.Configs)
 	if _, err := os.Stat(dPath); err == nil {
 		existingConfigs, _ = localSVC.ListConfigs()

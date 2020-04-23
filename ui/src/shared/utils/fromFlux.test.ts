@@ -1,4 +1,5 @@
 import fromFlux from './fromFlux'
+import fromFluxLegacy from './fromFlux.legacy'
 
 describe('fromFlux', () => {
   test('can parse a Flux CSV with mismatched schemas', () => {
@@ -208,5 +209,25 @@ there",5
     expect(() => fromFlux('')).not.toThrow()
     expect(() => fromFlux('\n\n\n\nyolo\ntrash\n\n\n\n')).not.toThrow()
     expect(fromFlux('\n\n\n\nyolo\ntrash\n\n\n\n').table.length).toEqual(0)
+  })
+
+  test('ignores all the wrong whitespace', () => {
+    const CSV = `
+
+    #group,false,   false     ,   false
+#datatype,string,long,  long
+#default,  _result,,
+,result   ,table,   _value
+,,0,28
+
+`
+
+    const flux = fromFlux(CSV)
+    const fluxLegacy = fromFluxLegacy(CSV)
+
+    expect(flux.table.columns['_value'].data.length).toEqual(1)
+    expect(flux.table.columns['_value'].data).toEqual([28])
+    expect(flux.fluxGroupKeyUnion).toEqual([])
+    expect((fluxLegacy.table as any).columns['_value'].data).toEqual([28])
   })
 })

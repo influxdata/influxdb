@@ -250,7 +250,7 @@ class TableCell extends PureComponent<Props> {
     const {properties, data, dataType, timeFormatter} = this.props
     const {decimalPlaces} = properties
 
-    if (dataType.includes('dateTime')) {
+    if (data && dataType.includes('dateTime')) {
       return timeFormatter(data)
     }
 

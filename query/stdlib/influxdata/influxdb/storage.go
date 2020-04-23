@@ -7,6 +7,7 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/memory"
+	"github.com/influxdata/flux/plan"
 	"github.com/influxdata/flux/semantic"
 	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/prom"
@@ -142,4 +143,24 @@ type Reader interface {
 type TableIterator interface {
 	flux.TableIterator
 	Statistics() cursors.CursorStats
+}
+
+type ReadWindowAggregateSpec struct {
+	ReadFilterSpec
+	WindowEvery int64
+	Aggregates  []plan.ProcedureKind
+}
+
+// WindowAggregateCapability describes what is supported by WindowAggregateReader.
+type WindowAggregateCapability struct{}
+
+// WindowAggregateReader implements the WindowAggregate capability.
+type WindowAggregateReader interface {
+	// HasWindowAggregateCapability will test if this Reader source supports the ReadWindowAggregate capability.
+	// If WindowAggregateCapability is passed to the method, then the struct
+	// is filled with a detailed list of what the RPC call supports.
+	HasWindowAggregateCapability(ctx context.Context, capability ...*WindowAggregateCapability) bool
+
+	// ReadWindowAggregate will read a table using the WindowAggregate method.
+	ReadWindowAggregate(ctx context.Context, spec ReadWindowAggregateSpec, alloc *memory.Allocator) (TableIterator, error)
 }

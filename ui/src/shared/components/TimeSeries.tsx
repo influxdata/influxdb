@@ -3,7 +3,12 @@ import React, {Component, RefObject, CSSProperties} from 'react'
 import {isEqual} from 'lodash'
 import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
-import {fromFlux, FromFluxResult} from '@influxdata/giraffe'
+import {
+  default as fromFlux,
+  FromFluxResult,
+} from 'src/shared/utils/fromFlux.legacy'
+import {fromFlux as fromFluxGiraffe} from '@influxdata/giraffe'
+import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 
 // API
 import {
@@ -14,7 +19,6 @@ import {
 import {runStatusesQuery} from 'src/alerting/utils/statusEvents'
 
 // Utils
-import {checkQueryResult} from 'src/shared/utils/checkQueryResult'
 import {getWindowVars} from 'src/variables/utils/getWindowVars'
 import {buildVarsOption} from 'src/variables/utils/buildVarsOption'
 import 'intersection-observer'
@@ -227,12 +231,17 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
         if (result.didTruncate) {
           notify(resultTooLarge(result.bytesRead))
         }
-
-        checkQueryResult(result.csv)
       }
 
       const files = (results as RunQuerySuccessResult[]).map(r => r.csv)
-      const giraffeResult = fromFlux(files.join('\n\n'))
+      let giraffeResult
+
+      if (isFlagEnabled('fluxParser')) {
+        giraffeResult = fromFlux(files.join('\n\n'))
+      } else {
+        giraffeResult = fromFluxGiraffe(files.join('\n\n'))
+      }
+
       this.pendingReload = false
 
       this.setState({

@@ -387,8 +387,8 @@ func (tl *TestLauncher) AuthorizationService(tb testing.TB) *http.AuthorizationS
 	return &http.AuthorizationService{Client: tl.HTTPClient(tb)}
 }
 
-func (tl *TestLauncher) TaskService() *http.TaskService {
-	return &http.TaskService{Addr: tl.URL(), Token: tl.Auth.Token}
+func (tl *TestLauncher) TaskService(tb testing.TB) *http.TaskService {
+	return &http.TaskService{Client: tl.HTTPClient(tb)}
 }
 
 func (tl *TestLauncher) HTTPClient(tb testing.TB) *httpc.Client {

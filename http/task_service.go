@@ -1408,10 +1408,7 @@ func (h *TaskHandler) getAuthorizationForTask(ctx context.Context, auth influxdb
 
 // TaskService connects to Influx via HTTP using tokens to manage tasks.
 type TaskService struct {
-	Addr               string
-	Token              string
-	Client             *httpc.Client
-	InsecureSkipVerify bool
+	Client *httpc.Client
 }
 
 // FindTaskByID returns a single task
