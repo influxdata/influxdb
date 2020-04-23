@@ -22,6 +22,7 @@
 //! The contents of a single Block are as follows:
 //!
 //! - Checksum (4 bytes BE): can be used to verify integrity of the rest of the block.
+//!   Note: the checksum does not include itself in its calculation.
 //! - Block ID (4 bytes BE): the ID of the series associated with the block.
 //! - Min timestamp (8 bytes BE): timestamp of the earliest value in the block.
 //! - Max timestamp (8 bytes BE): timestamp of the latest value in the block.
