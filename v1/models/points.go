@@ -56,6 +56,10 @@ var (
 
 	// ErrInvalidPoint is returned when a point cannot be parsed correctly.
 	ErrInvalidPoint = errors.New("point is invalid")
+
+	// ErrInvalidKevValuePairs is returned when the number of key, value pairs
+	// is odd, indicating a missing value.
+	ErrInvalidKevValuePairs = errors.New("key/value pairs is an odd length")
 )
 
 const (
@@ -1953,6 +1957,63 @@ func NewTags(m map[string]string) Tags {
 	return a
 }
 
+// NewTagsKeyValues returns a new Tags from a list of key, value pairs,
+// ensuring the returned result is correctly sorted. Duplicate keys are removed,
+// however, it which duplicate that remains is undefined.
+// NewTagsKeyValues will return ErrInvalidKevValuePairs if len(kvs) is not even.
+// If the input is guaranteed to be even, the error can be safely ignored.
+// If a has enough capacity, it will be reused.
+func NewTagsKeyValues(a Tags, kv ...[]byte) (Tags, error) {
+	if len(kv)%2 == 1 {
+		return nil, ErrInvalidKevValuePairs
+	}
+	if len(kv) == 0 {
+		return nil, nil
+	}
+
+	l := len(kv) / 2
+	if cap(a) < l {
+		a = make(Tags, 0, l)
+	} else {
+		a = a[:0]
+	}
+
+	for i := 0; i < len(kv)-1; i += 2 {
+		a = append(a, NewTag(kv[i], kv[i+1]))
+	}
+
+	if !a.sorted() {
+		sort.Sort(a)
+	}
+
+	// remove duplicates
+	j := 0
+	for i := 0; i < len(a)-1; i++ {
+		if !bytes.Equal(a[i].Key, a[i+1].Key) {
+			if j != i {
+				// only copy if j has deviated from i, indicating duplicates
+				a[j] = a[i]
+			}
+			j++
+		}
+	}
+
+	a[j] = a[len(a)-1]
+	j++
+
+	return a[:j], nil
+}
+
+// NewTagsKeyValuesStrings is equivalent to NewTagsKeyValues, except that
+// it will allocate new byte slices for each key, value pair.
+func NewTagsKeyValuesStrings(a Tags, kvs ...string) (Tags, error) {
+	kv := make([][]byte, len(kvs))
+	for i := range kvs {
+		kv[i] = []byte(kvs[i])
+	}
+	return NewTagsKeyValues(a, kv...)
+}
+
 // Keys returns the list of keys for a tag set.
 func (a Tags) Keys() []string {
 	if len(a) == 0 {
@@ -2017,6 +2078,18 @@ func (a Tags) Clone() Tags {
 	}
 
 	return others
+}
+
+// sorted returns true if a is sorted and is an optimization
+// to avoid an allocation when calling sort.IsSorted, improving
+// performance as much as 50%.
+func (a Tags) sorted() bool {
+	for i := len(a) - 1; i > 0; i-- {
+		if bytes.Compare(a[i].Key, a[i-1].Key) == -1 {
+			return false
+		}
+	}
+	return true
 }
 
 func (a Tags) Len() int           { return len(a) }

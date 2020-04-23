@@ -88,12 +88,12 @@ func NewBufferedPointsWriter(size int, pointswriter PointsWriter) *BufferedPoint
 }
 
 // WritePoints writes the points to the underlying PointsWriter.
-func (b *BufferedPointsWriter) WritePoints(ctx context.Context, p []models.Point) error {
+func (b *BufferedPointsWriter) WritePoints(ctx context.Context, orgID influxdb.ID, bucketID influxdb.ID, p []models.Point) error {
 	for len(p) > b.Available() && b.err == nil {
 		if b.Buffered() == 0 {
 			// Large write, empty buffer.
 			// Write directly from p to avoid copy.
-			b.err = b.wr.WritePoints(ctx, 0, 0, p)
+			b.err = b.wr.WritePoints(ctx, orgID, bucketID, p)
 			return b.err
 		}
 		n := copy(b.buf[b.n:], p)

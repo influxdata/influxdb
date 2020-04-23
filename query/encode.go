@@ -55,6 +55,7 @@ func (e *NoContentEncoder) Encode(w io.Writer, results flux.ResultIterator) (int
 	for results.More() {
 		if err := results.Next().Tables().Do(func(tbl flux.Table) error {
 			return tbl.Do(func(cr flux.ColReader) error {
+				cr.Release()
 				return nil
 			})
 		}); err != nil {
@@ -113,6 +114,7 @@ func (e *NoContentWithErrorEncoder) Encode(w io.Writer, results flux.ResultItera
 	for results.More() {
 		if err := results.Next().Tables().Do(func(tbl flux.Table) error {
 			return tbl.Do(func(cr flux.ColReader) error {
+				cr.Release()
 				return nil
 			})
 		}); err != nil {

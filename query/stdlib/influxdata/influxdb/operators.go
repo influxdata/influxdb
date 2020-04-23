@@ -7,9 +7,9 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/codes"
 	"github.com/influxdata/flux/plan"
+	"github.com/influxdata/flux/semantic"
 	"github.com/influxdata/flux/values"
 	"github.com/influxdata/influxdb/v2"
-	"github.com/influxdata/influxdb/v2/storage/reads/datatypes"
 )
 
 const (
@@ -55,10 +55,12 @@ type ReadRangePhysSpec struct {
 	Bucket   string
 	BucketID string
 
+	// FilterSet is set to true if there is a filter.
+	FilterSet bool
 	// Filter is the filter to use when calling into
 	// storage. It must be possible to push down this
 	// filter.
-	Filter *datatypes.Predicate
+	Filter *semantic.FunctionExpression
 
 	Bounds flux.Bounds
 }
@@ -67,8 +69,19 @@ func (s *ReadRangePhysSpec) Kind() plan.ProcedureKind {
 	return ReadRangePhysKind
 }
 func (s *ReadRangePhysSpec) Copy() plan.ProcedureSpec {
-	ns := *s
-	return &ns
+	ns := new(ReadRangePhysSpec)
+
+	ns.Bucket = s.Bucket
+	ns.BucketID = s.BucketID
+
+	ns.FilterSet = s.FilterSet
+	if ns.FilterSet {
+		ns.Filter = s.Filter.Copy().(*semantic.FunctionExpression)
+	}
+
+	ns.Bounds = s.Bounds
+
+	return ns
 }
 
 func (s *ReadRangePhysSpec) LookupBucketID(ctx context.Context, orgID influxdb.ID, buckets BucketLookup) (influxdb.ID, error) {
@@ -114,10 +127,7 @@ type ReadWindowAggregatePhysSpec struct {
 	ReadRangePhysSpec
 
 	WindowEvery int64
-	Offset      int64
 	Aggregates  []plan.ProcedureKind
-	CreateEmpty bool
-	TimeColumn  string
 }
 
 func (s *ReadWindowAggregatePhysSpec) PlanDetails() string {
@@ -127,16 +137,12 @@ func (s *ReadWindowAggregatePhysSpec) PlanDetails() string {
 func (s *ReadWindowAggregatePhysSpec) Kind() plan.ProcedureKind {
 	return ReadWindowAggregatePhysKind
 }
-
 func (s *ReadWindowAggregatePhysSpec) Copy() plan.ProcedureSpec {
 	ns := new(ReadWindowAggregatePhysSpec)
 
 	ns.ReadRangePhysSpec = *s.ReadRangePhysSpec.Copy().(*ReadRangePhysSpec)
 	ns.WindowEvery = s.WindowEvery
-	ns.Offset = s.Offset
 	ns.Aggregates = s.Aggregates
-	ns.CreateEmpty = s.CreateEmpty
-	ns.TimeColumn = s.TimeColumn
 
 	return ns
 }

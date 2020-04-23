@@ -21,7 +21,6 @@ import (
 	"github.com/influxdata/flux/execute/executetest"
 	"github.com/influxdata/flux/execute/table"
 	"github.com/influxdata/flux/lang"
-	"github.com/influxdata/flux/runtime"
 	"github.com/influxdata/flux/values"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/launcher"
@@ -222,7 +221,7 @@ func queryPoints(ctx context.Context, t *testing.T, l *launcher.TestLauncher, op
 	if d.verbose {
 		t.Logf("query:\n%s", qs)
 	}
-	pkg, err := runtime.ParseToJSON(qs)
+	pkg, err := flux.Parse(qs)
 	if err != nil {
 		t.Fatal(err)
 	}

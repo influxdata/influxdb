@@ -10,9 +10,9 @@ import (
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/flux/values"
-	"github.com/influxdata/influxdb/v2/v1/flux/stdlib/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2/query/stdlib/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2/storage/reads/datatypes"
 	"github.com/influxdata/influxdb/v2/v1/models"
-	"github.com/influxdata/influxdb/v2/v1/storage/reads/datatypes"
 	"github.com/influxdata/influxdb/v2/v1/tsdb/cursors"
 )
 
@@ -106,8 +106,8 @@ func (fi *filterIterator) Statistics() cursors.CursorStats { return fi.stats }
 
 func (fi *filterIterator) Do(f func(flux.Table) error) error {
 	src := fi.s.GetSource(
-		fi.spec.Database,
-		fi.spec.RetentionPolicy,
+		fi.spec.OrganizationID.String(),
+		fi.spec.BucketID.String(),
 	)
 
 	// Setup read request
@@ -230,8 +230,8 @@ func (gi *groupIterator) Statistics() cursors.CursorStats { return gi.stats }
 
 func (gi *groupIterator) Do(f func(flux.Table) error) error {
 	src := gi.s.GetSource(
-		gi.spec.Database,
-		gi.spec.RetentionPolicy,
+		gi.spec.OrganizationID.String(),
+		gi.spec.BucketID.String(),
 	)
 
 	// Setup read request
@@ -510,8 +510,8 @@ type tagKeysIterator struct {
 
 func (ti *tagKeysIterator) Do(f func(flux.Table) error) error {
 	src := ti.s.GetSource(
-		ti.readSpec.Database,
-		ti.readSpec.RetentionPolicy,
+		ti.readSpec.OrganizationID.String(),
+		ti.readSpec.BucketID.String(),
 	)
 
 	var req datatypes.TagKeysRequest
@@ -592,8 +592,8 @@ type tagValuesIterator struct {
 
 func (ti *tagValuesIterator) Do(f func(flux.Table) error) error {
 	src := ti.s.GetSource(
-		ti.readSpec.Database,
-		ti.readSpec.RetentionPolicy,
+		ti.readSpec.OrganizationID.String(),
+		ti.readSpec.BucketID.String(),
 	)
 
 	var req datatypes.TagValuesRequest

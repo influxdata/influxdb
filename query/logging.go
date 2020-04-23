@@ -21,35 +21,15 @@ type LoggingProxyQueryService struct {
 	queryLogger       Logger
 	nowFunction       func() time.Time
 	log               *zap.Logger
-	cond              func(ctx context.Context) bool
 }
 
-// LoggingProxyQueryServiceOption provides a way to modify the
-// behavior of LoggingProxyQueryService.
-type LoggingProxyQueryServiceOption func(lpqs *LoggingProxyQueryService)
-
-// ConditionalLogging returns a LoggingProxyQueryServiceOption
-// that only logs if the passed in function returns true.
-// Thus logging can be controlled by a request-scoped attribute, e.g., a feature flag.
-func ConditionalLogging(cond func(context.Context) bool) LoggingProxyQueryServiceOption {
-	return func(lpqs *LoggingProxyQueryService) {
-		lpqs.cond = cond
-	}
-}
-
-func NewLoggingProxyQueryService(log *zap.Logger, queryLogger Logger, proxyQueryService ProxyQueryService, opts ...LoggingProxyQueryServiceOption) *LoggingProxyQueryService {
-	lpqs := &LoggingProxyQueryService{
+func NewLoggingProxyQueryService(log *zap.Logger, queryLogger Logger, proxyQueryService ProxyQueryService) *LoggingProxyQueryService {
+	return &LoggingProxyQueryService{
 		proxyQueryService: proxyQueryService,
 		queryLogger:       queryLogger,
 		nowFunction:       time.Now,
 		log:               log,
 	}
-
-	for _, o := range opts {
-		o(lpqs)
-	}
-
-	return lpqs
 }
 
 func (s *LoggingProxyQueryService) SetNowFunctionForTesting(nowFunction func() time.Time) {
@@ -58,12 +38,6 @@ func (s *LoggingProxyQueryService) SetNowFunctionForTesting(nowFunction func() t
 
 // Query executes and logs the query.
 func (s *LoggingProxyQueryService) Query(ctx context.Context, w io.Writer, req *ProxyRequest) (stats flux.Statistics, err error) {
-	if s.cond != nil && !s.cond(ctx) {
-		// Logging is conditional, and we are not logging this request.
-		// Just invoke the wrapped service directly.
-		return s.proxyQueryService.Query(ctx, w, req)
-	}
-
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 

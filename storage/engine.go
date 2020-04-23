@@ -47,7 +47,8 @@ type Engine struct {
 
 	mu           sync.RWMutex
 	closing      chan struct{} // closing returns the zero value when the engine is shutting down.
-	store        *tsdb.Store
+	TSDBStore    *tsdb.Store
+	MetaClient   MetaClient
 	pointsWriter interface {
 		WritePoints(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, user meta.User, points []models.Point) error
 	}
@@ -96,8 +97,8 @@ func WithPageFaultLimiter(limiter *rate.Limiter) Option {
 	return func(e *Engine) {
 		// TODO no longer needed
 		// e.engine.WithPageFaultLimiter(limiter)
-		e.index.WithPageFaultLimiter(limiter)
-		e.sfile.WithPageFaultLimiter(limiter)
+		// e.index.WithPageFaultLimiter(limiter)
+		// e.sfile.WithPageFaultLimiter(limiter)
 	}
 }
 
@@ -105,6 +106,7 @@ type MetaClient interface {
 	Database(name string) (di *meta.DatabaseInfo)
 	RetentionPolicy(database, policy string) (*meta.RetentionPolicyInfo, error)
 	CreateShardGroup(database, policy string, timestamp time.Time) (*meta.ShardGroupInfo, error)
+	ShardGroupsByTimeRange(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error)
 }
 
 type DummyMetaClient struct {
@@ -116,7 +118,7 @@ func (m *DummyMetaClient) Database(name string) (di *meta.DatabaseInfo) {
 		Name:                   name,
 		RetentionPolicies: []meta.RetentionPolicyInfo{
 			{
-				Name:               "1234",
+				Name:               "0440e2fda1957000",
 				Duration:           0,
 				ShardGroupDuration: time.Hour * 24,
 			},
@@ -142,6 +144,19 @@ func (m *DummyMetaClient) CreateShardGroup(database, policy string, timestamp ti
 	}, nil
 }
 
+func (m *DummyMetaClient) ShardGroupsByTimeRange(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error) {
+	return []meta.ShardGroupInfo{
+		{
+			ID:        1,
+			StartTime: time.Now().Add(-time.Hour * 24),
+			EndTime:   time.Now().Add(time.Hour * 24),
+			Shards: []meta.ShardInfo{
+				{ID: 1},
+			},
+		},
+	}, nil
+}
+
 // NewEngine initialises a new storage engine, including a series file, index and
 // TSM engine.
 func NewEngine(path string, c Config, options ...Option) *Engine {
@@ -149,21 +164,22 @@ func NewEngine(path string, c Config, options ...Option) *Engine {
 		config:              c,
 		path:                path,
 		defaultMetricLabels: prometheus.Labels{},
-		store:               tsdb.NewStore(path),
+		TSDBStore:           tsdb.NewStore(path),
+		MetaClient:          &DummyMetaClient{},
 		logger:              zap.NewNop(),
 
 		writePointsValidationEnabled: true,
 	}
 
 	pw := coordinator.NewPointsWriter()
-	pw.TSDBStore = e.store
-	pw.MetaClient = &DummyMetaClient{}
+	pw.TSDBStore = e.TSDBStore
+	pw.MetaClient = e.MetaClient
 	e.pointsWriter = pw
 
 	tsdbConfig := tsdb.NewConfig()
 	tsdbConfig.Dir = filepath.Join(path, "data")
 	tsdbConfig.WALDir = filepath.Join(path, "wal")
-	e.store.EngineOptions.Config = tsdbConfig
+	e.TSDBStore.EngineOptions.Config = tsdbConfig
 
 	if r, ok := e.retentionEnforcer.(*retentionEnforcer); ok {
 		r.SetDefaultMetricLabels(e.defaultMetricLabels)
@@ -178,7 +194,7 @@ func (e *Engine) WithLogger(log *zap.Logger) {
 	fields = append(fields, zap.String("service", "storage-engine"))
 	e.logger = log.With(fields...)
 
-	e.store.Logger = e.logger
+	e.TSDBStore.Logger = e.logger
 	if pw, ok := e.pointsWriter.(*coordinator.PointsWriter); ok {
 		pw.Logger = e.logger
 	}
@@ -209,7 +225,7 @@ func (e *Engine) Open(ctx context.Context) (err error) {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	if err := e.store.Open(); err != nil {
+	if err := e.TSDBStore.Open(); err != nil {
 		return err
 	}
 	e.closing = make(chan struct{})
@@ -375,7 +391,7 @@ func (e *Engine) WritePoints(ctx context.Context, orgID influxdb.ID, bucketID in
 func (e *Engine) DeleteBucket(ctx context.Context, orgID, bucketID influxdb.ID) error {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
-	return e.store.DeleteRetentionPolicy(orgID.String(), bucketID.String())
+	return e.TSDBStore.DeleteRetentionPolicy(orgID.String(), bucketID.String())
 }
 
 // DeleteBucketRange deletes an entire range of data from the storage engine.
@@ -390,7 +406,7 @@ func (e *Engine) DeleteBucketRange(ctx context.Context, orgID, bucketID influxdb
 	}
 
 	// TODO(edd): create an influxql.Expr that represents the min and max time...
-	return e.store.DeleteSeries(orgID.String(), nil, nil)
+	return e.TSDBStore.DeleteSeries(orgID.String(), nil, nil)
 }
 
 // DeleteBucketRangePredicate deletes data within a bucket from the storage engine. Any data
@@ -417,7 +433,7 @@ func (e *Engine) DeleteBucketRangePredicate(ctx context.Context, orgID, bucketID
 	_ = predData
 
 	// TODO - edd convert the predicate into an influxql.Expr
-	return e.store.DeleteSeries(orgID.String(), nil, nil)
+	return e.TSDBStore.DeleteSeries(orgID.String(), nil, nil)
 }
 
 // CreateBackup creates a "snapshot" of all TSM data in the Engine.

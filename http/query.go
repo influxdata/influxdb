@@ -18,6 +18,7 @@ import (
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/flux/lang"
+	"github.com/influxdata/flux/repl"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/jsonweb"
 	"github.com/influxdata/influxdb/v2/query"
@@ -31,8 +32,9 @@ type QueryRequest struct {
 	Query string `json:"query"`
 
 	// Flux fields
-	Extern  json.RawMessage `json:"extern,omitempty"`
-	AST     json.RawMessage `json:"ast,omitempty"`
+	Extern  *ast.File    `json:"extern,omitempty"`
+	Spec    *flux.Spec   `json:"spec,omitempty"`
+	AST     *ast.Package `json:"ast,omitempty"`
 	Dialect QueryDialect    `json:"dialect"`
 	Now     time.Time       `json:"now"`
 
@@ -269,13 +271,19 @@ func (r QueryRequest) proxyRequest(now func() time.Time) (*query.ProxyRequest, e
 				Query:  r.Query,
 			}
 		}
-	} else if len(r.AST) > 0 {
+	} else if r.AST != nil {
 		c := lang.ASTCompiler{
-			Extern: r.Extern,
-			AST:    r.AST,
-			Now:    n,
+			AST: r.AST,
+			Now: n,
+		}
+		if r.Extern != nil {
+			c.PrependFile(r.Extern)
 		}
 		compiler = c
+	} else if r.Spec != nil {
+		compiler = repl.Compiler{
+			Spec: r.Spec,
+		}
 	}
 
 	delimiter, _ := utf8.DecodeRuneInString(r.Dialect.Delimiter)

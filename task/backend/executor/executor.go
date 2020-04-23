@@ -8,7 +8,6 @@ import (
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/lang"
-	"github.com/influxdata/flux/runtime"
 	"github.com/influxdata/influxdb/v2"
 	icontext "github.com/influxdata/influxdb/v2/context"
 	"github.com/influxdata/influxdb/v2/kit/feature"
@@ -600,7 +599,7 @@ func exhaustResultIterators(res flux.Result) error {
 
 // NewASTCompiler parses a Flux query string into an AST representatation.
 func NewASTCompiler(_ context.Context, query string, now time.Time) (flux.Compiler, error) {
-	pkg, err := runtime.ParseToJSON(query)
+	pkg, err := flux.Parse(query)
 	if err != nil {
 		return nil, err
 	}

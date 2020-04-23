@@ -4,6 +4,9 @@ go 1.13
 
 require (
 	cloud.google.com/go/bigtable v1.3.0 // indirect
+	github.com/Azure/go-autorest/autorest v0.10.1 // indirect
+	github.com/Azure/go-autorest/autorest/adal v0.8.3 // indirect
+	github.com/Azure/go-autorest/autorest/azure/auth v0.4.2 // indirect
 	github.com/BurntSushi/toml v0.3.1
 	github.com/NYTimes/gziphandler v1.0.1
 	github.com/RoaringBitmap/roaring v0.4.16
@@ -18,6 +21,7 @@ require (
 	github.com/codahale/hdrhistogram v0.0.0-20161010025455-3a0bb77429bd // indirect
 	github.com/coreos/bbolt v1.3.3
 	github.com/davecgh/go-spew v1.1.1
+	github.com/denisenkom/go-mssqldb v0.0.0-20200428022330-06a60b6afbbc // indirect
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/dgryski/go-bitstream v0.0.0-20180413035011-3522498ce2c8
 	github.com/docker/docker v1.13.1 // indirect
@@ -47,7 +51,7 @@ require (
 	github.com/hashicorp/vault/api v1.0.2
 	github.com/imdario/mergo v0.3.9 // indirect
 	github.com/influxdata/cron v0.0.0-20191203200038-ded12750aac6
-	github.com/influxdata/flux v0.76.1
+	github.com/influxdata/flux v0.66.1
 	github.com/influxdata/httprouter v1.3.1-0.20191122104820-ee83e2772f69
 	github.com/influxdata/influxql v0.0.0-20180925231337-1cbfca8e56b6
 	github.com/influxdata/pkg-config v0.2.3
@@ -74,11 +78,13 @@ require (
 	github.com/onsi/gomega v1.8.1 // indirect
 	github.com/opentracing/opentracing-go v1.1.0
 	github.com/philhofer/fwd v1.0.0 // indirect
+	github.com/pkg/browser v0.0.0-20180916011732-0a3d74bf9ce4 // indirect
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.5.1
 	github.com/prometheus/client_model v0.2.0
 	github.com/prometheus/common v0.9.1
 	github.com/satori/go.uuid v1.2.1-0.20181028125025-b2ce2384e17b
+	github.com/snowflakedb/gosnowflake v1.3.4 // indirect
 	github.com/spf13/cast v1.3.0
 	github.com/spf13/cobra v1.0.0
 	github.com/spf13/pflag v1.0.5
@@ -89,6 +95,7 @@ require (
 	github.com/tinylib/msgp v1.1.0 // indirect
 	github.com/tylerb/graceful v1.2.15
 	github.com/uber-go/atomic v1.3.2 // indirect
+	github.com/uber/athenadriver v1.1.4 // indirect
 	github.com/uber/jaeger-client-go v2.16.0+incompatible
 	github.com/uber/jaeger-lib v2.2.0+incompatible // indirect
 	github.com/willf/bitset v1.1.9 // indirect
