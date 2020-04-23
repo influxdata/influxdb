@@ -3,8 +3,13 @@ package storage
 import (
 	"context"
 	"io"
+	"path/filepath"
 	"sync"
 	"time"
+
+	_ "github.com/influxdata/influxdb/v2/v1/tsdb/engine"
+	_ "github.com/influxdata/influxdb/v2/v1/tsdb/index/inmem"
+	_ "github.com/influxdata/influxdb/v2/v1/tsdb/index/tsi1"
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
@@ -46,6 +51,7 @@ type Engine struct {
 	pointsWriter interface {
 		WritePoints(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, user meta.User, points []models.Point) error
 	}
+	finder BucketFinder
 
 	retentionEnforcer        runner
 	retentionEnforcerLimiter runnable
@@ -68,6 +74,7 @@ type Option func(*Engine)
 // metrics are labelled correctly.
 func WithRetentionEnforcer(finder BucketFinder) Option {
 	return func(e *Engine) {
+		e.finder = finder
 		// TODO - change retention enforce to take store
 		// e.retentionEnforcer = newRetentionEnforcer(e, e.engine, finder)
 	}
@@ -94,6 +101,47 @@ func WithPageFaultLimiter(limiter *rate.Limiter) Option {
 	}
 }
 
+type MetaClient interface {
+	Database(name string) (di *meta.DatabaseInfo)
+	RetentionPolicy(database, policy string) (*meta.RetentionPolicyInfo, error)
+	CreateShardGroup(database, policy string, timestamp time.Time) (*meta.ShardGroupInfo, error)
+}
+
+type DummyMetaClient struct {
+}
+
+func (m *DummyMetaClient) Database(name string) (di *meta.DatabaseInfo) {
+	return &meta.DatabaseInfo{
+		DefaultRetentionPolicy: "1234",
+		Name:                   name,
+		RetentionPolicies: []meta.RetentionPolicyInfo{
+			{
+				Name:               "1234",
+				Duration:           0,
+				ShardGroupDuration: time.Hour * 24,
+			},
+		},
+	}
+}
+func (m *DummyMetaClient) RetentionPolicy(database, policy string) (*meta.RetentionPolicyInfo, error) {
+	return &meta.RetentionPolicyInfo{
+		Name:               "1234",
+		Duration:           0,
+		ShardGroupDuration: time.Hour * 24,
+	}, nil
+}
+
+func (m *DummyMetaClient) CreateShardGroup(database, policy string, timestamp time.Time) (*meta.ShardGroupInfo, error) {
+	return &meta.ShardGroupInfo{
+		ID:        1,
+		StartTime: time.Now().Add(-time.Hour * 24),
+		EndTime:   time.Now().Add(time.Hour * 24),
+		Shards: []meta.ShardInfo{
+			{ID: 1},
+		},
+	}, nil
+}
+
 // NewEngine initialises a new storage engine, including a series file, index and
 // TSM engine.
 func NewEngine(path string, c Config, options ...Option) *Engine {
@@ -109,7 +157,13 @@ func NewEngine(path string, c Config, options ...Option) *Engine {
 
 	pw := coordinator.NewPointsWriter()
 	pw.TSDBStore = e.store
-	pw.MetaClient = nil // TODO(edd): link this back to the bucket service backed by bolt?
+	pw.MetaClient = &DummyMetaClient{}
+	e.pointsWriter = pw
+
+	tsdbConfig := tsdb.NewConfig()
+	tsdbConfig.Dir = filepath.Join(path, "data")
+	tsdbConfig.WALDir = filepath.Join(path, "wal")
+	e.store.EngineOptions.Config = tsdbConfig
 
 	if r, ok := e.retentionEnforcer.(*retentionEnforcer); ok {
 		r.SetDefaultMetricLabels(e.defaultMetricLabels)
@@ -314,8 +368,7 @@ func (e *Engine) WritePoints(ctx context.Context, orgID influxdb.ID, bucketID in
 		return ErrEngineClosed
 	}
 
-	// TODO - write into store.
-	return nil
+	return e.pointsWriter.WritePoints(orgID.String(), bucketID.String(), models.ConsistencyLevelAll, &meta.UserInfo{}, points)
 }
 
 // DeleteBucket deletes an entire bucket from the storage engine.

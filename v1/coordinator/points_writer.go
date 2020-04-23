@@ -342,7 +342,6 @@ func (w *PointsWriter) WritePointsPrivileged(database, retentionPolicy string, c
 
 	if err == nil && len(shardMappings.Dropped) > 0 {
 		err = tsdb.PartialWriteError{Reason: "points beyond retention policy", Dropped: len(shardMappings.Dropped)}
-
 	}
 	timeout := time.NewTimer(w.WriteTimeout)
 	defer timeout.Stop()
