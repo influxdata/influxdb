@@ -1454,6 +1454,13 @@ func (r *notificationRule) Status() influxdb.Status {
 	return influxdb.Status(r.status)
 }
 
+func (r *notificationRule) endpointPkgName() string {
+	if r.associatedEndpoint != nil {
+		return r.associatedEndpoint.PkgName()
+	}
+	return ""
+}
+
 func (r *notificationRule) summarize() SummaryNotificationRule {
 	var endpointPkgName, endpointType string
 	if r.associatedEndpoint != nil {
