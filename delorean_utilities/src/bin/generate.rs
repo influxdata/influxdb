@@ -78,34 +78,30 @@ impl Point {
 
 impl fmt::Display for Point {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // TODO: Remove `collect` allocations
-
         write!(f, "{}", self.measurement_name)?;
 
-        if !self.tags.is_empty() {
-            write!(
-                f,
-                ",{}",
-                self.tags
-                    .iter()
-                    .map(ToString::to_string)
-                    .collect::<Vec<_>>()
-                    .join(",")
-            )?;
+        let mut tags = self.tags.iter();
+
+        if let Some(tag) = tags.next() {
+            write!(f, ",{}", tag)?;
+
+            for tag in tags {
+                write!(f, ",{}", tag)?;
+            }
         }
 
         write!(f, " ")?;
 
         // TODO: Error if there are no fields?
-        write!(
-            f,
-            "{}",
-            self.fields
-                .iter()
-                .map(ToString::to_string)
-                .collect::<Vec<_>>()
-                .join(",")
-        )?;
+        let mut fields = self.fields.iter();
+
+        if let Some(field) = fields.next() {
+            write!(f, "{}", field)?;
+
+            for field in fields {
+                write!(f, ",{}", field)?;
+            }
+        }
 
         if let Some(time) = self.timestamp {
             write!(f, " {}", time)?;
