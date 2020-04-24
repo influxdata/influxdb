@@ -868,6 +868,9 @@ func (m *Capability) XXX_DiscardUnknown() {
 var xxx_messageInfo_Capability proto.InternalMessageInfo
 
 type CapabilitiesResponse struct {
+	// Capabilities contains the set of capabilities supported
+	// by the storage engine. It is a map of method names to
+	// the detailed capability information for the method.
 	Caps map[string]*Capability `protobuf:"bytes,1,rep,name=caps,proto3" json:"caps,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 }
 
