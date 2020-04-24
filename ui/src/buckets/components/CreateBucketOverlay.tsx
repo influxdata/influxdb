@@ -1,5 +1,5 @@
 // Libraries
-import React, {PureComponent, ChangeEvent, FormEvent} from 'react'
+import React, {FC, ChangeEvent, FormEvent, useState} from 'react'
 import {connect} from 'react-redux'
 
 // Components
@@ -41,99 +41,50 @@ interface OwnProps {
   onClose: () => void
 }
 
-type Props = StateProps & OwnProps & DispatchProps
+type Props = OwnProps & StateProps & DispatchProps
 
-interface State {
-  bucket: Bucket
-  ruleType: 'expire'
-}
+const CreateBucketOverlay: FC<Props> = ({
+  org,
+  isRetentionLimitEnforced,
+  createBucket,
+  onClose,
+}) => {
+  const [bucketName, setBucketName] = useState<string>('')
+  const [bucketRetentionRules, setBucketRetentionRules] = useState<any>(
+    isRetentionLimitEnforced ? DEFAULT_RULES : []
+  )
+  const [bucketRuleType, setBucketRuleType] = useState<'expire' | null>(
+    'expire'
+  )
+  const bucketReadableRetention = isRetentionLimitEnforced
+    ? READABLE_DEFAULT_SECONDS
+    : 'forever'
 
-class CreateBucketOverlay extends PureComponent<Props, State> {
-  constructor(props: Props) {
-    super(props)
+  const retentionRule = bucketRetentionRules.find(r => r.type === 'expire')
+  const retentionSeconds = retentionRule ? retentionRule.everySeconds : 3600
 
-    this.state = {
-      bucket: {
-        name: '',
-        type: 'user',
-        retentionRules: props.isRetentionLimitEnforced ? DEFAULT_RULES : [],
-        readableRetention: props.isRetentionLimitEnforced
-          ? READABLE_DEFAULT_SECONDS
-          : 'forever',
-      },
-      ruleType: props.isRetentionLimitEnforced ? 'expire' : null,
-    }
-  }
-
-  public render() {
-    const {onClose} = this.props
-    const {bucket, ruleType} = this.state
-
-    return (
-      <Overlay.Container maxWidth={400}>
-        <Overlay.Header title="Create Bucket" onDismiss={onClose} />
-        <Overlay.Body>
-          <BucketOverlayForm
-            name={bucket.name}
-            buttonText="Create"
-            disableRenaming={false}
-            ruleType={ruleType}
-            onClose={onClose}
-            onSubmit={this.handleSubmit}
-            onChangeInput={this.handleChangeInput}
-            retentionSeconds={this.retentionSeconds}
-            onChangeRuleType={this.handleChangeRuleType}
-            onChangeRetentionRule={this.handleChangeRetentionRule}
-          />
-        </Overlay.Body>
-      </Overlay.Container>
-    )
-  }
-
-  private get retentionSeconds(): number {
-    const rule = this.state.bucket.retentionRules.find(r => r.type === 'expire')
-
-    if (!rule) {
-      return 3600
-    }
-
-    return rule.everySeconds
-  }
-
-  private handleChangeRetentionRule = (everySeconds: number): void => {
-    const bucket = {
-      ...this.state.bucket,
-      retentionRules: [{type: 'expire' as 'expire', everySeconds}],
-    }
-
-    this.setState({bucket})
-  }
-
-  private handleChangeRuleType = (ruleType: 'expire' | null) => {
+  const handleChangeRuleType = (ruleType: 'expire' | null): void => {
     if (ruleType === 'expire') {
-      this.setState({
-        ruleType,
-        bucket: {...this.state.bucket, retentionRules: DEFAULT_RULES},
-      })
+      setBucketRetentionRules(DEFAULT_RULES)
     } else {
-      this.setState({
-        ruleType,
-        bucket: {...this.state.bucket, retentionRules: []},
-      })
+      setBucketRetentionRules([])
     }
+    setBucketRuleType(ruleType)
   }
 
-  private handleSubmit = (e: FormEvent<HTMLFormElement>): void => {
+  const handleChangeRetentionRule = (everySeconds: number): void => {
+    setBucketRetentionRules([{type: 'expire' as 'expire', everySeconds}])
+  }
+
+  const handleSubmit = (e: FormEvent<HTMLFormElement>): void => {
     e.preventDefault()
-    this.handleCreateBucket()
-  }
 
-  private handleCreateBucket = (): void => {
-    const {createBucket, org, onClose} = this.props
     const orgID = org.id
-
-    const bucket = {
-      ...this.state.bucket,
+    const bucket: Bucket = {
+      name: bucketName,
+      type: 'user',
+      retentionRules: bucketRetentionRules,
+      readableRetention: bucketReadableRetention,
       orgID,
     }
 
@@ -141,13 +92,33 @@ class CreateBucketOverlay extends PureComponent<Props, State> {
     onClose()
   }
 
-  private handleChangeInput = (e: ChangeEvent<HTMLInputElement>) => {
+  const handleChangeInput = (e: ChangeEvent<HTMLInputElement>): void => {
     const value = e.target.value
-    const key = e.target.name
-    const bucket = {...this.state.bucket, [key]: value}
 
-    this.setState({bucket})
+    if (e.target.name === 'name') {
+      setBucketName(value)
+    }
   }
+
+  return (
+    <Overlay.Container maxWidth={400}>
+      <Overlay.Header title="Create Bucket" onDismiss={onClose} />
+      <Overlay.Body>
+        <BucketOverlayForm
+          name={bucketName}
+          buttonText="Create"
+          disableRenaming={false}
+          ruleType={bucketRuleType}
+          onClose={onClose}
+          onSubmit={handleSubmit}
+          onChangeInput={handleChangeInput}
+          retentionSeconds={retentionSeconds}
+          onChangeRuleType={handleChangeRuleType}
+          onChangeRetentionRule={handleChangeRetentionRule}
+        />
+      </Overlay.Body>
+    </Overlay.Container>
+  )
 }
 
 const mstp = (state: AppState): StateProps => {
