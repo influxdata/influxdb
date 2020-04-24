@@ -46,12 +46,7 @@ import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 import {SortTypes} from 'src/shared/utils/sort'
 
 // Types
-import {
-  AppState,
-  Bucket,
-  ResourceType,
-  OwnBucket,
-} from 'src/types'
+import {AppState, Bucket, ResourceType, OwnBucket} from 'src/types'
 import {BucketSortKey} from 'src/shared/components/resource_sort_dropdown/generateSortItems'
 
 interface StateProps {
@@ -107,12 +102,7 @@ class BucketsTab extends PureComponent<Props, State> {
       demoDataBuckets,
       getDemoDataBucketMembership,
     } = this.props
-    const {
-      searchTerm,
-      sortKey,
-      sortDirection,
-      sortType,
-    } = this.state
+    const {searchTerm, sortKey, sortDirection, sortType} = this.state
 
     const leftHeaderItems = (
       <>
