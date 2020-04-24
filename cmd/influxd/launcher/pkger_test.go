@@ -176,6 +176,217 @@ func TestLauncher_Pkger(t *testing.T) {
 			assert.NotZero(t, newStack.CRUDLog)
 		})
 
+		t.Run("apply a pkg with a stack and associations", func(t *testing.T) {
+			testLabelMappingFn := func(t *testing.T, stackID influxdb.ID, pkg *pkger.Pkg, assertAssociatedLabelsFn func(pkger.Summary, []*influxdb.Label, influxdb.ResourceType)) pkger.Summary {
+				t.Helper()
+
+				sum, _, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkg, pkger.ApplyWithStackID(stackID))
+				require.NoError(t, err)
+
+				require.Len(t, sum.Buckets, 1)
+				assert.NotZero(t, sum.Buckets[0].ID)
+				assert.Equal(t, "bucket_0", sum.Buckets[0].Name)
+
+				require.Len(t, sum.Checks, 1)
+				assert.NotZero(t, sum.Checks[0].Check.GetID())
+				assert.Equal(t, "check_0", sum.Checks[0].Check.GetName())
+
+				require.Len(t, sum.Dashboards, 1)
+				assert.NotZero(t, sum.Dashboards[0].ID)
+				assert.Equal(t, "dash_0", sum.Dashboards[0].Name)
+
+				require.Len(t, sum.NotificationEndpoints, 1)
+				assert.NotZero(t, sum.NotificationEndpoints[0].NotificationEndpoint.GetID())
+				assert.Equal(t, "endpoint_0", sum.NotificationEndpoints[0].NotificationEndpoint.GetName())
+
+				require.Len(t, sum.NotificationRules, 1)
+				assert.NotZero(t, sum.NotificationRules[0].ID)
+				assert.Equal(t, "rule_0", sum.NotificationRules[0].Name)
+
+				require.Len(t, sum.Labels, 1)
+				assert.NotZero(t, sum.Labels[0].ID)
+				assert.Equal(t, "label 1", sum.Labels[0].Name)
+
+				require.Len(t, sum.Tasks, 1)
+				assert.NotZero(t, sum.Tasks[0].ID)
+				assert.Equal(t, "task_0", sum.Tasks[0].Name)
+
+				require.Len(t, sum.TelegrafConfigs, 1)
+				assert.NotZero(t, sum.TelegrafConfigs[0].TelegrafConfig.ID)
+				assert.Equal(t, "tele_0", sum.TelegrafConfigs[0].TelegrafConfig.Name)
+
+				resources := []struct {
+					resID        influxdb.ID
+					resourceType influxdb.ResourceType
+				}{
+					{resID: influxdb.ID(sum.Buckets[0].ID), resourceType: influxdb.BucketsResourceType},
+					{resID: sum.Checks[0].Check.GetID(), resourceType: influxdb.ChecksResourceType},
+					{resID: influxdb.ID(sum.Dashboards[0].ID), resourceType: influxdb.DashboardsResourceType},
+					{resID: sum.NotificationEndpoints[0].NotificationEndpoint.GetID(), resourceType: influxdb.NotificationEndpointResourceType},
+					{resID: influxdb.ID(sum.NotificationRules[0].ID), resourceType: influxdb.NotificationRuleResourceType},
+					{resID: influxdb.ID(sum.Tasks[0].ID), resourceType: influxdb.TasksResourceType},
+					{resID: sum.TelegrafConfigs[0].TelegrafConfig.ID, resourceType: influxdb.TelegrafsResourceType},
+					{resID: influxdb.ID(sum.Variables[0].ID), resourceType: influxdb.VariablesResourceType},
+				}
+				for _, res := range resources {
+					mappedLabels, err := l.LabelService(t).FindResourceLabels(ctx, influxdb.LabelMappingFilter{
+						ResourceID:   res.resID,
+						ResourceType: res.resourceType,
+					})
+					require.NoError(t, err, "resource_type="+res.resourceType)
+					assertAssociatedLabelsFn(sum, mappedLabels, res.resourceType)
+				}
+
+				return sum
+			}
+
+			newObjectsFn := func() []pkger.Object {
+				return []pkger.Object{
+					newBucketObject("bucket", "bucket_0", ""),
+					newCheckDeadmanObject(t, "check_0", "", time.Hour),
+					newDashObject("dash_0", "", ""),
+					newEndpointHTTP("endpoint_0", "", ""),
+					newRuleObject(t, "rule_0", "", "endpoint_0", ""),
+					newTaskObject("task_0", "", ""),
+					newTelegrafObject("tele_0", "", ""),
+					newVariableObject("var_0", "", ""),
+				}
+			}
+			labelObj := newLabelObject("label_1", "label 1", "", "")
+
+			stack, err := svc.InitStack(ctx, l.User.ID, pkger.Stack{
+				OrgID: l.Org.ID,
+			})
+			require.NoError(t, err)
+
+			t.Log("should associate resources with labels")
+			{
+				pkgObjects := newObjectsFn()
+				for _, obj := range pkgObjects {
+					obj.AddAssociations(pkger.ObjectAssociation{
+						Kind:    pkger.KindLabel,
+						PkgName: labelObj.Name(),
+					})
+				}
+				pkgObjects = append(pkgObjects, labelObj)
+
+				pkg := newPkg(pkgObjects...)
+
+				sum := testLabelMappingFn(t, stack.ID, pkg, func(sum pkger.Summary, mappedLabels []*influxdb.Label, resType influxdb.ResourceType) {
+					require.Len(t, mappedLabels, 1, "resource_type="+resType)
+					assert.Equal(t, sum.Labels[0].ID, pkger.SafeID(mappedLabels[0].ID))
+				})
+
+				// TODO: nuke all this when ability to delete stack and all its resources lands
+				for _, b := range sum.Buckets {
+					defer resourceCheck.mustDeleteBucket(t, influxdb.ID(b.ID))
+				}
+				for _, c := range sum.Checks {
+					defer resourceCheck.mustDeleteCheck(t, c.Check.GetID())
+				}
+				for _, d := range sum.Dashboards {
+					defer resourceCheck.mustDeleteDashboard(t, influxdb.ID(d.ID))
+				}
+				for _, l := range sum.Labels {
+					defer resourceCheck.mustDeleteLabel(t, influxdb.ID(l.ID))
+				}
+				for _, e := range sum.NotificationEndpoints {
+					defer resourceCheck.mustDeleteEndpoint(t, e.NotificationEndpoint.GetID())
+				}
+				for _, r := range sum.NotificationRules {
+					defer resourceCheck.mustDeleteRule(t, influxdb.ID(r.ID))
+				}
+				for _, ta := range sum.Tasks {
+					defer resourceCheck.mustDeleteTask(t, influxdb.ID(ta.ID))
+				}
+				for _, te := range sum.TelegrafConfigs {
+					defer resourceCheck.mustDeleteTelegrafConfig(t, te.TelegrafConfig.ID)
+				}
+				for _, v := range sum.Variables {
+					defer resourceCheck.mustDeleteVariable(t, influxdb.ID(v.ID))
+				}
+			}
+
+			t.Log("should rollback to previous state when errors in creation")
+			{
+				pkgObjects := newObjectsFn()
+				for _, obj := range pkgObjects {
+					obj.AddAssociations(pkger.ObjectAssociation{
+						Kind:    pkger.KindLabel,
+						PkgName: labelObj.Name(),
+					})
+				}
+				pkgObjects = append(pkgObjects, labelObj)
+
+				pkg := newPkg(pkgObjects...)
+				sum := testLabelMappingFn(t, stack.ID, pkg, func(sum pkger.Summary, mappedLabels []*influxdb.Label, resType influxdb.ResourceType) {
+					require.Len(t, mappedLabels, 1, "res_type="+resType)
+					assert.Equal(t, sum.Labels[0].ID, pkger.SafeID(mappedLabels[0].ID))
+				})
+
+				logger := l.log.With(zap.String("service", "pkger"))
+				var svc pkger.SVC = pkger.NewService(
+					pkger.WithLogger(logger),
+					pkger.WithBucketSVC(l.BucketService(t)),
+					pkger.WithDashboardSVC(l.DashboardService(t)),
+					pkger.WithCheckSVC(l.CheckService()),
+					pkger.WithLabelSVC(&fakeLabelSVC{
+						// can't use the LabelService HTTP client b/c it doesn't cover the
+						// all the resources pkger supports... :sadpanda:
+						LabelService:    l.kvService,
+						createKillCount: -1,
+						deleteKillCount: 3,
+					}),
+					pkger.WithNotificationEndpointSVC(l.NotificationEndpointService(t)),
+					pkger.WithNotificationRuleSVC(l.NotificationRuleService()),
+					pkger.WithStore(pkger.NewStoreKV(l.Launcher.kvStore)),
+					pkger.WithTaskSVC(l.TaskServiceKV()),
+					pkger.WithTelegrafSVC(l.TelegrafService(t)),
+					pkger.WithVariableSVC(l.VariableService(t)),
+				)
+				svc = pkger.MWLogging(logger)(svc)
+
+				pkg = newPkg(append(newObjectsFn(), labelObj)...)
+				_, _, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkg, pkger.ApplyWithStackID(stack.ID))
+				require.Error(t, err)
+
+				resources := []struct {
+					resID        influxdb.ID
+					resourceType influxdb.ResourceType
+				}{
+					{resID: influxdb.ID(sum.Buckets[0].ID), resourceType: influxdb.BucketsResourceType},
+					{resID: sum.Checks[0].Check.GetID(), resourceType: influxdb.ChecksResourceType},
+					{resID: influxdb.ID(sum.Dashboards[0].ID), resourceType: influxdb.DashboardsResourceType},
+					{resID: sum.NotificationEndpoints[0].NotificationEndpoint.GetID(), resourceType: influxdb.NotificationEndpointResourceType},
+					{resID: influxdb.ID(sum.NotificationRules[0].ID), resourceType: influxdb.NotificationRuleResourceType},
+					{resID: influxdb.ID(sum.Tasks[0].ID), resourceType: influxdb.TasksResourceType},
+					{resID: sum.TelegrafConfigs[0].TelegrafConfig.ID, resourceType: influxdb.TelegrafsResourceType},
+					{resID: influxdb.ID(sum.Variables[0].ID), resourceType: influxdb.VariablesResourceType},
+				}
+				for _, res := range resources {
+					mappedLabels, err := l.LabelService(t).FindResourceLabels(ctx, influxdb.LabelMappingFilter{
+						ResourceID:   res.resID,
+						ResourceType: res.resourceType,
+					})
+					require.NoError(t, err)
+					assert.Len(t, mappedLabels, 1, res.resourceType)
+					if len(mappedLabels) == 1 {
+						assert.Equal(t, sum.Labels[0].ID, pkger.SafeID(mappedLabels[0].ID))
+					}
+				}
+			}
+
+			t.Log("should unassociate resources from label when removing association in pkg")
+			{
+				objects := newObjectsFn()
+				pkg := newPkg(append(objects, labelObj)...)
+
+				testLabelMappingFn(t, stack.ID, pkg, func(sum pkger.Summary, mappedLabels []*influxdb.Label, resType influxdb.ResourceType) {
+					assert.Empty(t, mappedLabels, "res_type="+resType)
+				})
+			}
+		})
+
 		t.Run("apply a pkg with a stack", func(t *testing.T) {
 			// each test t.Log() represents a test case, but b/c we are dependent
 			// on the test before it succeeding, we are using t.Log instead of t.Run
@@ -625,8 +836,8 @@ func TestLauncher_Pkger(t *testing.T) {
 			pkger.WithDashboardSVC(l.DashboardService(t)),
 			pkger.WithCheckSVC(l.CheckService()),
 			pkger.WithLabelSVC(&fakeLabelSVC{
-				LabelService: l.LabelService(t),
-				killCount:    2, // hits error on 3rd attempt at creating a mapping
+				LabelService:    l.LabelService(t),
+				createKillCount: 2, // hits error on 3rd attempt at creating a mapping
 			}),
 			pkger.WithNotificationEndpointSVC(l.NotificationEndpointService(t)),
 			pkger.WithNotificationRuleSVC(l.NotificationRuleService()),
@@ -1918,22 +2129,33 @@ func (f *fakeBucketSVC) UpdateBucket(ctx context.Context, id influxdb.ID, upd in
 
 type fakeLabelSVC struct {
 	influxdb.LabelService
-	callCount mock.SafeCount
-	killCount int
+	createCallCount mock.SafeCount
+	createKillCount int
+
+	deleteCallCount mock.SafeCount
+	deleteKillCount int
 }
 
 func (f *fakeLabelSVC) CreateLabelMapping(ctx context.Context, m *influxdb.LabelMapping) error {
-	defer f.callCount.IncrFn()()
-	if f.callCount.Count() == f.killCount {
+	defer f.createCallCount.IncrFn()()
+	if f.createCallCount.Count() == f.createKillCount {
 		return errors.New("reached kill count")
 	}
 	return f.LabelService.CreateLabelMapping(ctx, m)
 }
 
+func (f *fakeLabelSVC) DeleteLabelMapping(ctx context.Context, m *influxdb.LabelMapping) error {
+	defer f.deleteCallCount.IncrFn()()
+	if f.deleteCallCount.Count() == f.deleteKillCount {
+		return errors.New("reached kill count")
+	}
+	return f.LabelService.DeleteLabelMapping(ctx, m)
+}
+
 type fakeRuleStore struct {
-	influxdb.NotificationRuleStore ``
-	createCallCount                mock.SafeCount
-	createKillCount                int
+	influxdb.NotificationRuleStore
+	createCallCount mock.SafeCount
+	createKillCount int
 }
 
 func (f *fakeRuleStore) CreateNotificationRule(ctx context.Context, nr influxdb.NotificationRuleCreate, userID influxdb.ID) error {
