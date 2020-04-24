@@ -23,7 +23,7 @@ const cursorBatchSize = 1000
 
 // KVStore is an in memory btree backed kv.Store.
 type KVStore struct {
-	mu      sync.RWMutex
+	mu      RWMutex
 	buckets map[string]*Bucket
 	ro      map[string]*bucket
 }
@@ -31,6 +31,7 @@ type KVStore struct {
 // NewKVStore creates an instance of a KVStore.
 func NewKVStore() *KVStore {
 	return &KVStore{
+		mu:      NewLock(),
 		buckets: map[string]*Bucket{},
 		ro:      map[string]*bucket{},
 	}
@@ -38,7 +39,9 @@ func NewKVStore() *KVStore {
 
 // View opens up a transaction with a read lock.
 func (s *KVStore) View(ctx context.Context, fn func(kv.Tx) error) error {
-	s.mu.RLock()
+	if !s.mu.RTryLock(ctx) {
+		return ctx.Err()
+	}
 	defer s.mu.RUnlock()
 
 	return fn(&Tx{
@@ -50,7 +53,9 @@ func (s *KVStore) View(ctx context.Context, fn func(kv.Tx) error) error {
 
 // Update opens up a transaction with a write lock.
 func (s *KVStore) Update(ctx context.Context, fn func(kv.Tx) error) error {
-	s.mu.Lock()
+	if !s.mu.TryLock(ctx) {
+		return ctx.Err()
+	}
 	defer s.mu.Unlock()
 
 	return fn(&Tx{

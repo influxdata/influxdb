@@ -7,7 +7,9 @@ import (
 	"os"
 	"reflect"
 	"sort"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2/inmem"
@@ -137,6 +139,103 @@ func TestKVStore_Bucket_CursorHintPredicate(t *testing.T) {
 			return nil
 		})
 	})
+}
+
+func TestKVStoreTimeout(t *testing.T) {
+	blockTillDone := func(countStarted *int64) func(tx kv.Tx) error {
+		return func(tx kv.Tx) error {
+			atomic.AddInt64(countStarted, 1)
+			select {
+			case <-tx.Context().Done():
+			case <-time.After(30 * time.Second): // if this test takes longer than 30 seconds something is really wrong and it just needs to fail.
+				t.Fatalf("%s timed out (this is separate from the global test timeout)\n", t.Name())
+			}
+			return tx.Context().Err()
+		}
+	}
+
+	t.Run("context timeouts should block future update transactions on the same context", func(t *testing.T) {
+		var countStarted int64
+		kv := inmem.NewKVStore()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		for i := 0; i < 20; i++ {
+			go kv.Update(ctx, blockTillDone(&countStarted))
+		}
+		time.Sleep(time.Second / 2)
+		cancel()
+		time.Sleep(time.Second / 2)
+		if countStarted != 1 {
+			t.Fatalf("expected the number of started update transactions to be 1 but it was %d", atomic.LoadInt64(&countStarted))
+		}
+	})
+	t.Run("view transactions shouldn't block each other", func(t *testing.T) {
+		var countStarted int64
+		kv := inmem.NewKVStore()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		for i := 0; i < 20; i++ {
+			go kv.View(ctx, blockTillDone(&countStarted))
+		}
+		time.Sleep(time.Second / 2)
+		cancel()
+		time.Sleep(time.Second / 2)
+		if countStarted != 20 {
+			t.Fatalf("expected the number of started view transactions to be 20 but it was %d", atomic.LoadInt64(&countStarted))
+		}
+
+	})
+
+	t.Run("update transactions should block future view transactions", func(t *testing.T) {
+		var countViewStarted int64
+		var countUpdateStarted int64
+
+		kv := inmem.NewKVStore()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		go kv.Update(ctx, blockTillDone(&countUpdateStarted))
+		time.Sleep(time.Second / 2)
+		for i := 0; i < 20; i++ {
+			go kv.View(ctx, blockTillDone(&countViewStarted))
+		}
+		time.Sleep(time.Second / 2)
+		cancel()
+		time.Sleep(time.Second / 2)
+		if countUpdateStarted != 1 {
+			t.Fatalf("expected the number of started update transactions to be 1 but it was %d", atomic.LoadInt64(&countUpdateStarted))
+		}
+		if countViewStarted != 0 {
+			t.Fatalf("expected the number of started view transactions to be 0 but it was %d", atomic.LoadInt64(&countViewStarted))
+		}
+
+	})
+	t.Run("view transactions should block future update transactions", func(t *testing.T) {
+		var countViewStarted int64
+		var countUpdateStarted int64
+
+		kv := inmem.NewKVStore()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		go kv.View(ctx, blockTillDone(&countViewStarted))
+		time.Sleep(time.Second / 2)
+		go kv.Update(ctx, blockTillDone(&countUpdateStarted))
+		time.Sleep(time.Second / 2)
+
+		for i := 0; i < 20; i++ {
+			go kv.View(ctx, blockTillDone(&countViewStarted))
+		}
+		time.Sleep(time.Second / 2)
+		cancel()
+		time.Sleep(time.Second / 2)
+		if countUpdateStarted != 0 {
+			t.Fatalf("expected the number of started update transactions to be 0 but it was %d", atomic.LoadInt64(&countUpdateStarted))
+		}
+		if countViewStarted < 1 {
+			t.Fatalf("expected the number of started view transactions to >= 1 but it was %d", atomic.LoadInt64(&countViewStarted))
+		}
+
+	})
+
 }
 
 func openCursor(t testing.TB, s *inmem.KVStore, bucket string, fn func(cur kv.Cursor), hints ...kv.CursorHint) {
