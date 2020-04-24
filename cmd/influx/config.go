@@ -36,7 +36,7 @@ type cmdConfigBuilder struct {
 }
 
 func (b *cmdConfigBuilder) cmd() *cobra.Command {
-	cmd := b.newCmd("config", b.cmdSwitchActiveRunEFn, false)
+	cmd := b.newCmd("config [config name]", b.cmdSwitchActiveRunEFn, false)
 	cmd.Short = "Config management commands"
 	cmd.Args = cobra.ExactArgs(1)
 
@@ -217,10 +217,8 @@ func (b *cmdConfigBuilder) printConfigs(opts configPrintOpts) error {
 	return nil
 }
 
-type (
-	configPrintOpts struct {
-		delete  bool
-		config  config.Config
-		configs config.Configs
-	}
-)
+type configPrintOpts struct {
+	delete  bool
+	config  config.Config
+	configs config.Configs
+}
