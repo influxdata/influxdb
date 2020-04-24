@@ -161,7 +161,7 @@ func Test_queryBucket(t *testing.T) {
 			},
 		},
 		{
-			name: "org name finds organization",
+			name: "bucket name finds bucket",
 			want: &platform.Bucket{
 				ID:   platform.ID(1),
 				Name: "bucket1",
@@ -208,10 +208,32 @@ func Test_queryBucket(t *testing.T) {
 				},
 			},
 		},
-	}
+		{
+			name: "invalid orgID fails to return bucket",
+			want: &platform.Bucket{
+				ID: platform.ID(1),
+			},
+			args: args{
+				ctx: context.Background(),
+				r:   httptest.NewRequest(http.MethodPost, "/api/v2/query?bucket=0000000000000001", nil),
+				svc: &mock.BucketService{
+					FindBucketFn: func(ctx context.Context, filter platform.BucketFilter) (*platform.Bucket, error) {
+						if *filter.OrganizationID == platform.ID(1) {
+							return &platform.Bucket{
+								ID: platform.ID(1),
+							}, nil
+						}
+						return nil, &platform.Error{
+							Code: platform.EInvalid,
+							Msg:  "unknown bucket",
+						}
+					},
+				},
+			},
+		}}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := queryBucket(tt.args.ctx, tt.args.r, tt.args.svc)
+			got, err := queryBucket(tt.args.ctx, platform.ID(1), tt.args.r, tt.args.svc)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("queryBucket() error = %v, wantErr %v", err, tt.wantErr)
 				return

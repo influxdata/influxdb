@@ -11,6 +11,7 @@ import (
 
 	"github.com/influxdata/influxdb/v2"
 	ierrors "github.com/influxdata/influxdb/v2/kit/errors"
+	"github.com/influxdata/influxdb/v2/notification/rule"
 	"github.com/influxdata/influxdb/v2/snowflake"
 	"github.com/influxdata/influxdb/v2/task/options"
 	"go.uber.org/zap"
@@ -38,10 +39,17 @@ type (
 	// StackResource is a record for an individual resource side effect genereated from
 	// applying a pkg.
 	StackResource struct {
-		APIVersion string      `json:"apiVersion"`
-		ID         influxdb.ID `json:"resourceID"`
-		Kind       Kind        `json:"kind"`
-		Name       string      `json:"pkgName"`
+		APIVersion   string                     `json:"apiVersion"`
+		ID           influxdb.ID                `json:"resourceID"`
+		Kind         Kind                       `json:"kind"`
+		PkgName      string                     `json:"pkgName"`
+		Associations []StackResourceAssociation `json:"associations"`
+	}
+
+	// StackResourceAssociation associates a stack resource with another stack resource.
+	StackResourceAssociation struct {
+		Kind    Kind   `json:"kind"`
+		PkgName string `json:"pkgName"`
 	}
 )
 
@@ -684,6 +692,7 @@ func (s *Service) dryRun(ctx context.Context, orgID influxdb.ID, pkg *Pkg, opts 
 	s.dryRunDashboards(ctx, orgID, state.mDashboards)
 	s.dryRunLabels(ctx, orgID, state.mLabels)
 	s.dryRunTasks(ctx, orgID, state.mTasks)
+	s.dryRunTelegrafConfigs(ctx, orgID, state.mTelegrafs)
 	s.dryRunVariables(ctx, orgID, state.mVariables)
 	err := s.dryRunNotificationEndpoints(ctx, orgID, state.mEndpoints)
 	if err != nil {
@@ -804,29 +813,29 @@ func (s *Service) dryRunNotificationEndpoints(ctx context.Context, orgID influxd
 }
 
 func (s *Service) dryRunNotificationRules(ctx context.Context, orgID influxdb.ID, rules map[string]*stateRule, endpoints map[string]*stateEndpoint) error {
-	iRules, _, err := s.ruleSVC.FindNotificationRules(ctx, influxdb.NotificationRuleFilter{
-		OrgID: &orgID,
-	}, influxdb.FindOptions{Limit: 100})
-	if err != nil {
-		return internalErr(err)
-	}
-
-	mExistingRulesByID := make(map[influxdb.ID]influxdb.NotificationRule)
-	for _, r := range iRules {
-		mExistingRulesByID[r.GetID()] = r
+	for _, rule := range rules {
+		rule.orgID = orgID
+		var existing influxdb.NotificationRule
+		if rule.ID() != 0 {
+			existing, _ = s.ruleSVC.FindNotificationRuleByID(ctx, rule.ID())
+		}
+		rule.existing = existing
 	}
 
 	for _, r := range rules {
-		e, ok := endpoints[r.parserRule.associatedEndpoint.PkgName()]
-		if !ok {
-			err := fmt.Errorf("failed to find notification endpoint %q dependency for notification rule %q", r.parserRule.endpointName, r.parserRule.Name())
+		if r.associatedEndpoint != nil {
+			continue
+		}
+
+		e, ok := endpoints[r.parserRule.endpointPkgName()]
+		if !IsRemoval(r.stateStatus) && !ok {
+			err := fmt.Errorf("failed to find notification endpoint %q dependency for notification rule %q", r.parserRule.endpointName, r.parserRule.PkgName())
 			return &influxdb.Error{
 				Code: influxdb.EUnprocessableEntity,
 				Err:  err,
 			}
 		}
 		r.associatedEndpoint = e
-		r.existing = mExistingRulesByID[r.ID()]
 	}
 
 	return nil
@@ -861,6 +870,20 @@ func (s *Service) dryRunTasks(ctx context.Context, orgID influxdb.ID, tasks map[
 			stateTask.stateStatus = StateStatusExists
 		}
 		stateTask.existing = existing
+	}
+}
+
+func (s *Service) dryRunTelegrafConfigs(ctx context.Context, orgID influxdb.ID, teleConfigs map[string]*stateTelegraf) {
+	for _, stateTele := range teleConfigs {
+		stateTele.orgID = orgID
+		var existing *influxdb.TelegrafConfig
+		if stateTele.ID() != 0 {
+			existing, _ = s.teleSVC.FindTelegrafConfigByID(ctx, stateTele.ID())
+		}
+		if IsNew(stateTele.stateStatus) && existing != nil {
+			stateTele.stateStatus = StateStatusExists
+		}
+		stateTele.existing = existing
 	}
 }
 
@@ -1051,10 +1074,21 @@ func (s *Service) addStackState(ctx context.Context, stackID influxdb.ID, state 
 
 	for _, r := range stack.Resources {
 		updateFn := state.setObjectID
-		if !state.Contains(r.Kind, r.Name) {
+		if !state.Contains(r.Kind, r.PkgName) {
 			updateFn = state.addObjectForRemoval
 		}
-		updateFn(r.Kind, r.Name, r.ID)
+		updateFn(r.Kind, r.PkgName, r.ID)
+	}
+
+	for _, r := range stack.Resources {
+		if r.Kind.is(KindNotificationRule) {
+			for _, ass := range r.Associations {
+				if ass.Kind.is(KindNotificationEndpoint) {
+					state.mRules[r.PkgName].associatedEndpoint = state.mEndpoints[ass.PkgName]
+					break
+				}
+			}
+		}
 	}
 
 	return nil
@@ -1148,6 +1182,11 @@ func (s *Service) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg
 }
 
 func (s *Service) applyState(ctx context.Context, coordinator *rollbackCoordinator, orgID, userID influxdb.ID, state *stateCoordinator, missingSecrets map[string]string) (e error) {
+	endpointApp, ruleApp, err := s.applyNotificationGenerator(ctx, userID, state.rules(), state.endpoints())
+	if err != nil {
+		return err
+	}
+
 	// each grouping here runs for its entirety, then returns an error that
 	// is indicative of running all appliers provided. For instance, the labels
 	// may have 1 variable fail and one of the buckets fails. The errors aggregate so
@@ -1173,9 +1212,9 @@ func (s *Service) applyState(ctx context.Context, coordinator *rollbackCoordinat
 			s.applyBuckets(ctx, state.buckets()),
 			s.applyChecks(ctx, state.checks()),
 			s.applyDashboards(ctx, state.dashboards()),
-			s.applyNotificationEndpoints(ctx, userID, state.endpoints()),
+			endpointApp,
 			s.applyTasks(ctx, state.tasks()),
-			s.applyTelegrafs(state.telegrafConfigs()),
+			s.applyTelegrafs(ctx, userID, state.telegrafConfigs()),
 		},
 	}
 
@@ -1187,11 +1226,7 @@ func (s *Service) applyState(ctx context.Context, coordinator *rollbackCoordinat
 
 	// this has to be run after the above primary resources, because it relies on
 	// notification endpoints already being applied.
-	app, err := s.applyNotificationRulesGenerator(state.rules(), state.mEndpoints)
-	if err != nil {
-		return err
-	}
-	if err := coordinator.runTilEnd(ctx, orgID, userID, app); err != nil {
+	if err := coordinator.runTilEnd(ctx, orgID, userID, ruleApp); err != nil {
 		return err
 	}
 
@@ -1659,9 +1694,7 @@ func (s *Service) applyLabel(ctx context.Context, l *stateLabel) (influxdb.Label
 	return *influxLabel, nil
 }
 
-func (s *Service) applyNotificationEndpoints(ctx context.Context, userID influxdb.ID, endpoints []*stateEndpoint) applier {
-	const resource = "notification_endpoints"
-
+func (s *Service) applyNotificationEndpoints(ctx context.Context, userID influxdb.ID, endpoints []*stateEndpoint) (applier, func(influxdb.ID) error) {
 	mutex := new(doMutex)
 	rollbackEndpoints := make([]*stateEndpoint, 0, len(endpoints))
 
@@ -1712,18 +1745,21 @@ func (s *Service) applyNotificationEndpoints(ctx context.Context, userID influxd
 		return nil
 	}
 
+	rollbackFn := func(_ influxdb.ID) error {
+		return s.rollbackNotificationEndpoints(ctx, userID, rollbackEndpoints)
+	}
+
 	return applier{
 		creater: creater{
 			entries: len(endpoints),
 			fn:      createFn,
 		},
 		rollbacker: rollbacker{
-			resource: resource,
 			fn: func(_ influxdb.ID) error {
-				return s.rollbackNotificationEndpoints(ctx, userID, rollbackEndpoints)
+				return nil
 			},
 		},
-	}
+	}, rollbackFn
 }
 
 func (s *Service) applyNotificationEndpoint(ctx context.Context, e *stateEndpoint, userID influxdb.ID) (influxdb.NotificationEndpoint, error) {
@@ -1786,10 +1822,18 @@ func (s *Service) rollbackNotificationEndpoints(ctx context.Context, userID infl
 	return nil
 }
 
-func (s *Service) applyNotificationRulesGenerator(rules []*stateRule, stateEndpoints map[string]*stateEndpoint) (applier, error) {
+func (s *Service) applyNotificationGenerator(ctx context.Context, userID influxdb.ID, rules []*stateRule, stateEndpoints []*stateEndpoint) (endpointApplier applier, ruleApplier applier, err error) {
+	mEndpoints := make(map[string]*stateEndpoint)
+	for _, e := range stateEndpoints {
+		mEndpoints[e.parserEndpoint.PkgName()] = e
+	}
+
 	var errs applyErrs
 	for _, r := range rules {
-		v, ok := stateEndpoints[r.parserRule.associatedEndpoint.PkgName()]
+		if IsRemoval(r.stateStatus) {
+			continue
+		}
+		v, ok := mEndpoints[r.endpointPkgName()]
 		if !ok {
 			errs = append(errs, &applyErrBody{
 				name: r.parserRule.Name(),
@@ -1800,17 +1844,31 @@ func (s *Service) applyNotificationRulesGenerator(rules []*stateRule, stateEndpo
 		r.associatedEndpoint = v
 	}
 
-	err := errs.toError("notification_rules", "failed to find dependency")
+	err = errs.toError("notification_rules", "failed to find dependency")
 	if err != nil {
-		return applier{}, err
+		return applier{}, applier{}, err
 	}
 
-	return s.applyNotificationRules(rules), nil
+	endpointApp, endpointRollbackFn := s.applyNotificationEndpoints(ctx, userID, stateEndpoints)
+	ruleApp, ruleRollbackFn := s.applyNotificationRules(ctx, userID, rules)
+
+	// here we have to couple the endpoints to rules b/c of the dependency here when rolling back
+	// a deleted endpoint and rule. This forces the endpoints to be rolled back first so the
+	// reference for the rule has settled. The dependency has to be available before rolling back
+	// notification rules.
+	endpointApp.rollbacker = rollbacker{
+		fn: func(orgID influxdb.ID) error {
+			if err := endpointRollbackFn(orgID); err != nil {
+				s.log.Error("failed to roll back endpoints", zap.Error(err))
+			}
+			return ruleRollbackFn(orgID)
+		},
+	}
+
+	return endpointApp, ruleApp, nil
 }
 
-func (s *Service) applyNotificationRules(rules []*stateRule) applier {
-	const resource = "notification_rules"
-
+func (s *Service) applyNotificationRules(ctx context.Context, userID influxdb.ID, rules []*stateRule) (applier, func(influxdb.ID) error) {
 	mutex := new(doMutex)
 	rollbackEndpoints := make([]*stateRule, 0, len(rules))
 
@@ -1837,44 +1895,111 @@ func (s *Service) applyNotificationRules(rules []*stateRule) applier {
 		return nil
 	}
 
+	rollbackFn := func(_ influxdb.ID) error {
+		return s.rollbackNotificationRules(ctx, userID, rollbackEndpoints)
+	}
+
 	return applier{
 		creater: creater{
 			entries: len(rules),
 			fn:      createFn,
 		},
 		rollbacker: rollbacker{
-			resource: resource,
-			fn: func(_ influxdb.ID) error {
-				return s.rollbackNotificationRules(rollbackEndpoints)
-			},
+			fn: func(_ influxdb.ID) error { return nil },
 		},
-	}
+	}, rollbackFn
 }
 
 func (s *Service) applyNotificationRule(ctx context.Context, r *stateRule, userID influxdb.ID) (influxdb.NotificationRule, error) {
-	influxRule := influxdb.NotificationRuleCreate{
-		NotificationRule: r.toInfluxRule(),
-		Status:           r.parserRule.Status(),
+	switch r.stateStatus {
+	case StateStatusRemove:
+		if err := s.ruleSVC.DeleteNotificationRule(ctx, r.ID()); err != nil {
+			return nil, ierrors.Wrap(err, "failed to remove notification rule")
+		}
+		return r.existing, nil
+	case StateStatusExists:
+		ruleCreate := influxdb.NotificationRuleCreate{
+			NotificationRule: r.toInfluxRule(),
+			Status:           r.parserRule.Status(),
+		}
+		influxRule, err := s.ruleSVC.UpdateNotificationRule(ctx, r.ID(), ruleCreate, userID)
+		if err != nil {
+			return nil, ierrors.Wrap(err, "failed to update notification rule")
+		}
+		return influxRule, nil
+	default:
+		influxRule := influxdb.NotificationRuleCreate{
+			NotificationRule: r.toInfluxRule(),
+			Status:           r.parserRule.Status(),
+		}
+		err := s.ruleSVC.CreateNotificationRule(ctx, influxRule, userID)
+		if err != nil {
+			return nil, err
+		}
+		return influxRule.NotificationRule, nil
 	}
-	err := s.ruleSVC.CreateNotificationRule(ctx, influxRule, userID)
-	if err != nil {
-		return nil, err
-	}
-
-	return influxRule, nil
 }
 
-func (s *Service) rollbackNotificationRules(rules []*stateRule) error {
+func (s *Service) rollbackNotificationRules(ctx context.Context, userID influxdb.ID, rules []*stateRule) error {
+	rollbackFn := func(r *stateRule) error {
+		existingRuleFn := func(endpointID influxdb.ID) influxdb.NotificationRule {
+			switch rr := r.existing.(type) {
+			case *rule.HTTP:
+				rr.EndpointID = endpointID
+			case *rule.PagerDuty:
+				rr.EndpointID = endpointID
+			case *rule.Slack:
+				rr.EndpointID = endpointID
+			}
+			return r.existing
+		}
+
+		// setting status to unknown b/c these resources for two reasons:
+		//	1. we have no ability to find status via the Service, only to set it...
+		//	2. we have no way of inspecting an existing rule and pulling status from it
+		//	3. since this is a fallback condition, we set things to inactive as a user
+		//		is likely to follow up this failure by fixing their pkg up then reapplying
+		unknownStatus := influxdb.Inactive
+
+		var err error
+		switch r.stateStatus {
+		case StateStatusRemove:
+			if r.associatedEndpoint == nil {
+				return internalErr(errors.New("failed to find endpoint dependency to rollback existing notification rule"))
+			}
+			influxRule := influxdb.NotificationRuleCreate{
+				NotificationRule: existingRuleFn(r.endpointID()),
+				Status:           unknownStatus,
+			}
+			err = s.ruleSVC.CreateNotificationRule(ctx, influxRule, userID)
+			err = ierrors.Wrap(err, "failed to rollback created notification rule")
+		case StateStatusExists:
+			if r.associatedEndpoint == nil {
+				return internalErr(errors.New("failed to find endpoint dependency to rollback existing notification rule"))
+			}
+
+			influxRule := influxdb.NotificationRuleCreate{
+				NotificationRule: existingRuleFn(r.endpointID()),
+				Status:           unknownStatus,
+			}
+			_, err = s.ruleSVC.UpdateNotificationRule(ctx, r.ID(), influxRule, r.existing.GetOwnerID())
+			err = ierrors.Wrap(err, "failed to rollback updated notification rule")
+		default:
+			err = s.ruleSVC.DeleteNotificationRule(ctx, r.ID())
+			err = ierrors.Wrap(err, "failed to rollback created notification rule")
+		}
+		return err
+	}
+
 	var errs []string
-	for _, e := range rules {
-		err := s.ruleSVC.DeleteNotificationRule(context.Background(), e.ID())
-		if err != nil {
-			errs = append(errs, e.ID().String())
+	for _, r := range rules {
+		if err := rollbackFn(r); err != nil {
+			errs = append(errs, fmt.Sprintf("error for notification rule[%q]: %s", r.ID(), err))
 		}
 	}
 
 	if len(errs) > 0 {
-		return fmt.Errorf(`notication_rule_ids=[%s] err="unable to delete"`, strings.Join(errs, ", "))
+		return errors.New(strings.Join(errs, "; "))
 	}
 	return nil
 }
@@ -2070,29 +2195,29 @@ func (s *Service) rollbackTasks(ctx context.Context, tasks []*stateTask) error {
 	return nil
 }
 
-func (s *Service) applyTelegrafs(teles []*stateTelegraf) applier {
+func (s *Service) applyTelegrafs(ctx context.Context, userID influxdb.ID, teles []*stateTelegraf) applier {
 	const resource = "telegrafs"
 
 	mutex := new(doMutex)
 	rollbackTelegrafs := make([]*stateTelegraf, 0, len(teles))
 
 	createFn := func(ctx context.Context, i int, orgID, userID influxdb.ID) *applyErrBody {
-		var cfg influxdb.TelegrafConfig
+		var t *stateTelegraf
 		mutex.Do(func() {
 			teles[i].orgID = orgID
-			cfg = teles[i].summarize().TelegrafConfig
+			t = teles[i]
 		})
 
-		err := s.teleSVC.CreateTelegrafConfig(ctx, &cfg, userID)
+		existing, err := s.applyTelegrafConfig(ctx, userID, t)
 		if err != nil {
 			return &applyErrBody{
-				name: cfg.Name,
+				name: t.parserTelegraf.Name(),
 				msg:  err.Error(),
 			}
 		}
 
 		mutex.Do(func() {
-			teles[i].id = cfg.ID
+			teles[i].id = existing.ID
 			rollbackTelegrafs = append(rollbackTelegrafs, teles[i])
 		})
 
@@ -2107,12 +2232,63 @@ func (s *Service) applyTelegrafs(teles []*stateTelegraf) applier {
 		rollbacker: rollbacker{
 			resource: resource,
 			fn: func(_ influxdb.ID) error {
-				return s.deleteByIDs("telegraf", len(rollbackTelegrafs), s.teleSVC.DeleteTelegrafConfig, func(i int) influxdb.ID {
-					return rollbackTelegrafs[i].ID()
-				})
+				return s.rollbackTelegrafConfigs(ctx, userID, rollbackTelegrafs)
 			},
 		},
 	}
+}
+
+func (s *Service) applyTelegrafConfig(ctx context.Context, userID influxdb.ID, t *stateTelegraf) (influxdb.TelegrafConfig, error) {
+	switch t.stateStatus {
+	case StateStatusRemove:
+		if err := s.teleSVC.DeleteTelegrafConfig(ctx, t.ID()); err != nil {
+			return influxdb.TelegrafConfig{}, ierrors.Wrap(err, "failed to delete config")
+		}
+		return *t.existing, nil
+	case StateStatusExists:
+		cfg := t.summarize().TelegrafConfig
+		updatedConfig, err := s.teleSVC.UpdateTelegrafConfig(ctx, t.ID(), &cfg, userID)
+		if err != nil {
+			return influxdb.TelegrafConfig{}, ierrors.Wrap(err, "failed to update config")
+		}
+		return *updatedConfig, nil
+	default:
+		cfg := t.summarize().TelegrafConfig
+		err := s.teleSVC.CreateTelegrafConfig(ctx, &cfg, userID)
+		if err != nil {
+			return influxdb.TelegrafConfig{}, ierrors.Wrap(err, "failed to create telegraf config")
+		}
+		return cfg, nil
+	}
+}
+
+func (s *Service) rollbackTelegrafConfigs(ctx context.Context, userID influxdb.ID, cfgs []*stateTelegraf) error {
+	rollbackFn := func(t *stateTelegraf) error {
+		var err error
+		switch t.stateStatus {
+		case StateStatusRemove:
+			err = ierrors.Wrap(s.teleSVC.CreateTelegrafConfig(ctx, t.existing, userID), "rolling back removed telegraf config")
+		case StateStatusExists:
+			_, err = s.teleSVC.UpdateTelegrafConfig(ctx, t.ID(), t.existing, userID)
+			err = ierrors.Wrap(err, "rolling back updated telegraf config")
+		default:
+			err = ierrors.Wrap(s.teleSVC.DeleteTelegrafConfig(ctx, t.ID()), "rolling back created telegraf config")
+		}
+		return err
+	}
+
+	var errs []string
+	for _, v := range cfgs {
+		if err := rollbackFn(v); err != nil {
+			errs = append(errs, fmt.Sprintf("error for variable[%q]: %s", v.ID(), err))
+		}
+	}
+
+	if len(errs) > 0 {
+		return errors.New(strings.Join(errs, "; "))
+	}
+
+	return nil
 }
 
 func (s *Service) applyVariables(ctx context.Context, vars []*stateVariable) applier {
@@ -2295,23 +2471,6 @@ func (s *Service) rollbackLabelMappings(mappings []stateLabelMapping) error {
 	return nil
 }
 
-func (s *Service) deleteByIDs(resource string, numIDs int, deleteFn func(context.Context, influxdb.ID) error, iterFn func(int) influxdb.ID) error {
-	var errs []string
-	for i := range make([]struct{}, numIDs) {
-		id := iterFn(i)
-		err := deleteFn(context.Background(), id)
-		if err != nil {
-			errs = append(errs, id.String())
-		}
-	}
-
-	if len(errs) > 0 {
-		return fmt.Errorf(`%s_ids=[%s] err="unable to delete"`, resource, strings.Join(errs, ", "))
-	}
-
-	return nil
-}
-
 func (s *Service) updateStackAfterSuccess(ctx context.Context, stackID influxdb.ID, state *stateCoordinator) error {
 	stack, err := s.store.ReadStackByID(ctx, stackID)
 	if err != nil {
@@ -2327,7 +2486,7 @@ func (s *Service) updateStackAfterSuccess(ctx context.Context, stackID influxdb.
 			APIVersion: APIVersion,
 			ID:         b.ID(),
 			Kind:       KindBucket,
-			Name:       b.parserBkt.PkgName(),
+			PkgName:    b.parserBkt.PkgName(),
 		})
 	}
 	for _, c := range state.mChecks {
@@ -2338,7 +2497,7 @@ func (s *Service) updateStackAfterSuccess(ctx context.Context, stackID influxdb.
 			APIVersion: APIVersion,
 			ID:         c.ID(),
 			Kind:       KindCheck,
-			Name:       c.parserCheck.PkgName(),
+			PkgName:    c.parserCheck.PkgName(),
 		})
 	}
 	for _, d := range state.mDashboards {
@@ -2349,7 +2508,7 @@ func (s *Service) updateStackAfterSuccess(ctx context.Context, stackID influxdb.
 			APIVersion: APIVersion,
 			ID:         d.ID(),
 			Kind:       KindDashboard,
-			Name:       d.parserDash.PkgName(),
+			PkgName:    d.parserDash.PkgName(),
 		})
 	}
 	for _, n := range state.mEndpoints {
@@ -2360,7 +2519,7 @@ func (s *Service) updateStackAfterSuccess(ctx context.Context, stackID influxdb.
 			APIVersion: APIVersion,
 			ID:         n.ID(),
 			Kind:       KindNotificationEndpoint,
-			Name:       n.parserEndpoint.PkgName(),
+			PkgName:    n.parserEndpoint.PkgName(),
 		})
 	}
 	for _, l := range state.mLabels {
@@ -2371,7 +2530,19 @@ func (s *Service) updateStackAfterSuccess(ctx context.Context, stackID influxdb.
 			APIVersion: APIVersion,
 			ID:         l.ID(),
 			Kind:       KindLabel,
-			Name:       l.parserLabel.PkgName(),
+			PkgName:    l.parserLabel.PkgName(),
+		})
+	}
+	for _, r := range state.mRules {
+		if IsRemoval(r.stateStatus) {
+			continue
+		}
+		stackResources = append(stackResources, StackResource{
+			APIVersion:   APIVersion,
+			ID:           r.ID(),
+			Kind:         KindNotificationRule,
+			PkgName:      r.parserRule.PkgName(),
+			Associations: r.associations(),
 		})
 	}
 	for _, t := range state.mTasks {
@@ -2382,7 +2553,18 @@ func (s *Service) updateStackAfterSuccess(ctx context.Context, stackID influxdb.
 			APIVersion: APIVersion,
 			ID:         t.ID(),
 			Kind:       KindTask,
-			Name:       t.parserTask.PkgName(),
+			PkgName:    t.parserTask.PkgName(),
+		})
+	}
+	for _, t := range state.mTelegrafs {
+		if IsRemoval(t.stateStatus) {
+			continue
+		}
+		stackResources = append(stackResources, StackResource{
+			APIVersion: APIVersion,
+			ID:         t.ID(),
+			Kind:       KindTelegraf,
+			PkgName:    t.parserTelegraf.PkgName(),
 		})
 	}
 	for _, v := range state.mVariables {
@@ -2393,7 +2575,7 @@ func (s *Service) updateStackAfterSuccess(ctx context.Context, stackID influxdb.
 			APIVersion: APIVersion,
 			ID:         v.ID(),
 			Kind:       KindVariable,
-			Name:       v.parserVar.PkgName(),
+			PkgName:    v.parserVar.PkgName(),
 		})
 	}
 	stack.Resources = stackResources
@@ -2419,7 +2601,7 @@ func (s *Service) updateStackAfterRollback(ctx context.Context, stackID influxdb
 	existingResources := make(map[key]*StackResource)
 	for i := range stack.Resources {
 		res := stack.Resources[i]
-		existingResources[newKey(res.Kind, res.Name)] = &stack.Resources[i]
+		existingResources[newKey(res.Kind, res.PkgName)] = &stack.Resources[i]
 	}
 
 	hasChanges := false
@@ -2462,8 +2644,30 @@ func (s *Service) updateStackAfterRollback(ctx context.Context, stackID influxdb
 				res.ID = l.existing.ID
 			}
 		}
+		for _, r := range state.mRules {
+			res, ok := existingResources[newKey(KindNotificationRule, r.parserRule.PkgName())]
+			if !ok {
+				continue
+			}
+
+			if res.ID != r.ID() {
+				hasChanges = true
+				res.ID = r.existing.GetID()
+			}
+			if newAss := r.associations(); !associationsEqual(res.Associations, newAss) {
+				hasChanges = true
+				res.Associations = newAss
+			}
+		}
 		for _, t := range state.mTasks {
 			res, ok := existingResources[newKey(KindTask, t.parserTask.PkgName())]
+			if ok && res.ID != t.ID() {
+				hasChanges = true
+				res.ID = t.existing.ID
+			}
+		}
+		for _, t := range state.mTelegrafs {
+			res, ok := existingResources[newKey(KindTelegraf, t.parserTelegraf.PkgName())]
 			if ok && res.ID != t.ID() {
 				hasChanges = true
 				res.ID = t.existing.ID

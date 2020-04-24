@@ -69,10 +69,6 @@ type resourceHandler struct {
 	*UserHandler
 }
 
-func (h *resourceHandler) Prefix() string {
-	return h.prefix
-}
-
 func (h *UserHandler) MeResourceHandler() *resourceHandler {
 	return &resourceHandler{prefix: prefixMe, UserHandler: h}
 }

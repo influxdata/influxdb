@@ -212,7 +212,7 @@ func (s *Store) UpdateOrg(ctx context.Context, tx kv.Tx, id influxdb.ID, upd inf
 	}
 
 	u.SetUpdatedAt(time.Now())
-	if upd.Name != nil {
+	if upd.Name != nil && u.Name != *upd.Name {
 		if err := s.uniqueOrgName(ctx, tx, *upd.Name); err != nil {
 			return nil, err
 		}

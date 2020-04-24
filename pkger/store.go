@@ -24,10 +24,16 @@ type (
 	}
 
 	entStackResource struct {
-		APIVersion string `json:"apiVersion"`
-		ID         string `json:"id"`
-		Kind       string `json:"kind"`
-		Name       string `json:"name"`
+		APIVersion   string                `json:"apiVersion"`
+		ID           string                `json:"id"`
+		Kind         string                `json:"kind"`
+		Name         string                `json:"name"`
+		Associations []entStackAssociation `json:"associations,omitempty"`
+	}
+
+	entStackAssociation struct {
+		Kind string `json:"kind"`
+		Name string `json:"name"`
 	}
 )
 
@@ -185,11 +191,19 @@ func convertStackToEnt(stack Stack) (kv.Entity, error) {
 	}
 
 	for _, res := range stack.Resources {
+		var associations []entStackAssociation
+		for _, ass := range res.Associations {
+			associations = append(associations, entStackAssociation{
+				Kind: ass.Kind.String(),
+				Name: ass.PkgName,
+			})
+		}
 		stEnt.Resources = append(stEnt.Resources, entStackResource{
-			APIVersion: res.APIVersion,
-			ID:         res.ID.String(),
-			Kind:       res.Kind.String(),
-			Name:       res.Name,
+			APIVersion:   res.APIVersion,
+			ID:           res.ID.String(),
+			Kind:         res.Kind.String(),
+			Name:         res.PkgName,
+			Associations: associations,
 		})
 	}
 
@@ -222,10 +236,17 @@ func convertStackEntToStack(ent *entStack) (Stack, error) {
 		stackRes := StackResource{
 			APIVersion: res.APIVersion,
 			Kind:       Kind(res.Kind),
-			Name:       res.Name,
+			PkgName:    res.Name,
 		}
 		if err := stackRes.ID.DecodeFromString(res.ID); err != nil {
 			return Stack{}, nil
+		}
+
+		for _, ass := range res.Associations {
+			stackRes.Associations = append(stackRes.Associations, StackResourceAssociation{
+				Kind:    Kind(ass.Kind),
+				PkgName: ass.Name,
+			})
 		}
 
 		stack.Resources = append(stack.Resources, stackRes)

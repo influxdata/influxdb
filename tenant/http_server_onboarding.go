@@ -119,7 +119,7 @@ type onboardingResponse struct {
 func NewOnboardingResponse(results *influxdb.OnboardingResults) *onboardingResponse {
 	return &onboardingResponse{
 		User:         newUserResponse(results.User),
-		Bucket:       NewBucketResponse(results.Bucket, nil),
+		Bucket:       NewBucketResponse(results.Bucket),
 		Organization: newOrgResponse(*results.Org),
 		Auth:         newAuthResponse(results.Auth),
 	}

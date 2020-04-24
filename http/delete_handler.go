@@ -148,7 +148,7 @@ func decodeDeleteRequest(ctx context.Context, r *http.Request, orgSvc influxdb.O
 		return nil, err
 	}
 
-	if dr.Bucket, err = queryBucket(ctx, r, bucketSvc); err != nil {
+	if dr.Bucket, err = queryBucket(ctx, dr.Org.ID, r, bucketSvc); err != nil {
 		return nil, err
 	}
 	return dr, nil

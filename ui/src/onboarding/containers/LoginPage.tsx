@@ -6,6 +6,7 @@ import {
   FunnelPage,
   Heading,
   HeadingElement,
+  InfluxColors,
   InfluxDBCloudLogo,
   Typeface,
 } from '@influxdata/clockface'
@@ -18,24 +19,19 @@ export const LoginPage: FC = () => (
   <ErrorBoundary>
     <AppWrapper>
       <FunnelPage
+        accentColorA={InfluxColors.Magenta}
+        accentColorB={InfluxColors.Amethyst}
+        backgroundColor={InfluxColors.DeepPurple}
         enableGraphic={true}
         logo={<InfluxDBCloudLogo cloud={true} className="login-page--logo" />}
       >
         <Heading
           element={HeadingElement.H1}
           type={Typeface.Rubik}
-          weight={FontWeight.Light}
-          className="heading--margins"
-        >
-          Create your Free InfluxDB Cloud Account
-        </Heading>
-        <Heading
-          element={HeadingElement.H5}
-          type={Typeface.Rubik}
           weight={FontWeight.Regular}
-          className="heading--margins"
+          className="cf-funnel-page--title"
         >
-          No credit card required
+          Log in to your InfluxDB Cloud Account
         </Heading>
         <LoginPageContents />
       </FunnelPage>
