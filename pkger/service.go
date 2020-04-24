@@ -11,6 +11,7 @@ import (
 
 	"github.com/influxdata/influxdb/v2"
 	ierrors "github.com/influxdata/influxdb/v2/kit/errors"
+	"github.com/influxdata/influxdb/v2/notification/rule"
 	"github.com/influxdata/influxdb/v2/snowflake"
 	"github.com/influxdata/influxdb/v2/task/options"
 	"go.uber.org/zap"
@@ -812,29 +813,29 @@ func (s *Service) dryRunNotificationEndpoints(ctx context.Context, orgID influxd
 }
 
 func (s *Service) dryRunNotificationRules(ctx context.Context, orgID influxdb.ID, rules map[string]*stateRule, endpoints map[string]*stateEndpoint) error {
-	iRules, _, err := s.ruleSVC.FindNotificationRules(ctx, influxdb.NotificationRuleFilter{
-		OrgID: &orgID,
-	}, influxdb.FindOptions{Limit: 100})
-	if err != nil {
-		return internalErr(err)
-	}
-
-	mExistingRulesByID := make(map[influxdb.ID]influxdb.NotificationRule)
-	for _, r := range iRules {
-		mExistingRulesByID[r.GetID()] = r
+	for _, rule := range rules {
+		rule.orgID = orgID
+		var existing influxdb.NotificationRule
+		if rule.ID() != 0 {
+			existing, _ = s.ruleSVC.FindNotificationRuleByID(ctx, rule.ID())
+		}
+		rule.existing = existing
 	}
 
 	for _, r := range rules {
-		e, ok := endpoints[r.parserRule.associatedEndpoint.PkgName()]
-		if !ok {
-			err := fmt.Errorf("failed to find notification endpoint %q dependency for notification rule %q", r.parserRule.endpointName, r.parserRule.Name())
+		if r.associatedEndpoint != nil {
+			continue
+		}
+
+		e, ok := endpoints[r.parserRule.endpointPkgName()]
+		if !IsRemoval(r.stateStatus) && !ok {
+			err := fmt.Errorf("failed to find notification endpoint %q dependency for notification rule %q", r.parserRule.endpointName, r.parserRule.PkgName())
 			return &influxdb.Error{
 				Code: influxdb.EUnprocessableEntity,
 				Err:  err,
 			}
 		}
 		r.associatedEndpoint = e
-		r.existing = mExistingRulesByID[r.ID()]
 	}
 
 	return nil
@@ -1079,6 +1080,17 @@ func (s *Service) addStackState(ctx context.Context, stackID influxdb.ID, state 
 		updateFn(r.Kind, r.PkgName, r.ID)
 	}
 
+	for _, r := range stack.Resources {
+		if r.Kind.is(KindNotificationRule) {
+			for _, ass := range r.Associations {
+				if ass.Kind.is(KindNotificationEndpoint) {
+					state.mRules[r.PkgName].associatedEndpoint = state.mEndpoints[ass.PkgName]
+					break
+				}
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -1170,6 +1182,11 @@ func (s *Service) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg
 }
 
 func (s *Service) applyState(ctx context.Context, coordinator *rollbackCoordinator, orgID, userID influxdb.ID, state *stateCoordinator, missingSecrets map[string]string) (e error) {
+	endpointApp, ruleApp, err := s.applyNotificationGenerator(ctx, userID, state.rules(), state.endpoints())
+	if err != nil {
+		return err
+	}
+
 	// each grouping here runs for its entirety, then returns an error that
 	// is indicative of running all appliers provided. For instance, the labels
 	// may have 1 variable fail and one of the buckets fails. The errors aggregate so
@@ -1195,7 +1212,7 @@ func (s *Service) applyState(ctx context.Context, coordinator *rollbackCoordinat
 			s.applyBuckets(ctx, state.buckets()),
 			s.applyChecks(ctx, state.checks()),
 			s.applyDashboards(ctx, state.dashboards()),
-			s.applyNotificationEndpoints(ctx, userID, state.endpoints()),
+			endpointApp,
 			s.applyTasks(ctx, state.tasks()),
 			s.applyTelegrafs(ctx, userID, state.telegrafConfigs()),
 		},
@@ -1209,11 +1226,7 @@ func (s *Service) applyState(ctx context.Context, coordinator *rollbackCoordinat
 
 	// this has to be run after the above primary resources, because it relies on
 	// notification endpoints already being applied.
-	app, err := s.applyNotificationRulesGenerator(state.rules(), state.mEndpoints)
-	if err != nil {
-		return err
-	}
-	if err := coordinator.runTilEnd(ctx, orgID, userID, app); err != nil {
+	if err := coordinator.runTilEnd(ctx, orgID, userID, ruleApp); err != nil {
 		return err
 	}
 
@@ -1681,9 +1694,7 @@ func (s *Service) applyLabel(ctx context.Context, l *stateLabel) (influxdb.Label
 	return *influxLabel, nil
 }
 
-func (s *Service) applyNotificationEndpoints(ctx context.Context, userID influxdb.ID, endpoints []*stateEndpoint) applier {
-	const resource = "notification_endpoints"
-
+func (s *Service) applyNotificationEndpoints(ctx context.Context, userID influxdb.ID, endpoints []*stateEndpoint) (applier, func(influxdb.ID) error) {
 	mutex := new(doMutex)
 	rollbackEndpoints := make([]*stateEndpoint, 0, len(endpoints))
 
@@ -1734,18 +1745,21 @@ func (s *Service) applyNotificationEndpoints(ctx context.Context, userID influxd
 		return nil
 	}
 
+	rollbackFn := func(_ influxdb.ID) error {
+		return s.rollbackNotificationEndpoints(ctx, userID, rollbackEndpoints)
+	}
+
 	return applier{
 		creater: creater{
 			entries: len(endpoints),
 			fn:      createFn,
 		},
 		rollbacker: rollbacker{
-			resource: resource,
 			fn: func(_ influxdb.ID) error {
-				return s.rollbackNotificationEndpoints(ctx, userID, rollbackEndpoints)
+				return nil
 			},
 		},
-	}
+	}, rollbackFn
 }
 
 func (s *Service) applyNotificationEndpoint(ctx context.Context, e *stateEndpoint, userID influxdb.ID) (influxdb.NotificationEndpoint, error) {
@@ -1808,10 +1822,18 @@ func (s *Service) rollbackNotificationEndpoints(ctx context.Context, userID infl
 	return nil
 }
 
-func (s *Service) applyNotificationRulesGenerator(rules []*stateRule, stateEndpoints map[string]*stateEndpoint) (applier, error) {
+func (s *Service) applyNotificationGenerator(ctx context.Context, userID influxdb.ID, rules []*stateRule, stateEndpoints []*stateEndpoint) (endpointApplier applier, ruleApplier applier, err error) {
+	mEndpoints := make(map[string]*stateEndpoint)
+	for _, e := range stateEndpoints {
+		mEndpoints[e.parserEndpoint.PkgName()] = e
+	}
+
 	var errs applyErrs
 	for _, r := range rules {
-		v, ok := stateEndpoints[r.parserRule.associatedEndpoint.PkgName()]
+		if IsRemoval(r.stateStatus) {
+			continue
+		}
+		v, ok := mEndpoints[r.endpointPkgName()]
 		if !ok {
 			errs = append(errs, &applyErrBody{
 				name: r.parserRule.Name(),
@@ -1822,17 +1844,31 @@ func (s *Service) applyNotificationRulesGenerator(rules []*stateRule, stateEndpo
 		r.associatedEndpoint = v
 	}
 
-	err := errs.toError("notification_rules", "failed to find dependency")
+	err = errs.toError("notification_rules", "failed to find dependency")
 	if err != nil {
-		return applier{}, err
+		return applier{}, applier{}, err
 	}
 
-	return s.applyNotificationRules(rules), nil
+	endpointApp, endpointRollbackFn := s.applyNotificationEndpoints(ctx, userID, stateEndpoints)
+	ruleApp, ruleRollbackFn := s.applyNotificationRules(ctx, userID, rules)
+
+	// here we have to couple the endpoints to rules b/c of the dependency here when rolling back
+	// a deleted endpoint and rule. This forces the endpoints to be rolled back first so the
+	// reference for the rule has settled. The dependency has to be available before rolling back
+	// notification rules.
+	endpointApp.rollbacker = rollbacker{
+		fn: func(orgID influxdb.ID) error {
+			if err := endpointRollbackFn(orgID); err != nil {
+				s.log.Error("failed to roll back endpoints", zap.Error(err))
+			}
+			return ruleRollbackFn(orgID)
+		},
+	}
+
+	return endpointApp, ruleApp, nil
 }
 
-func (s *Service) applyNotificationRules(rules []*stateRule) applier {
-	const resource = "notification_rules"
-
+func (s *Service) applyNotificationRules(ctx context.Context, userID influxdb.ID, rules []*stateRule) (applier, func(influxdb.ID) error) {
 	mutex := new(doMutex)
 	rollbackEndpoints := make([]*stateRule, 0, len(rules))
 
@@ -1859,44 +1895,111 @@ func (s *Service) applyNotificationRules(rules []*stateRule) applier {
 		return nil
 	}
 
+	rollbackFn := func(_ influxdb.ID) error {
+		return s.rollbackNotificationRules(ctx, userID, rollbackEndpoints)
+	}
+
 	return applier{
 		creater: creater{
 			entries: len(rules),
 			fn:      createFn,
 		},
 		rollbacker: rollbacker{
-			resource: resource,
-			fn: func(_ influxdb.ID) error {
-				return s.rollbackNotificationRules(rollbackEndpoints)
-			},
+			fn: func(_ influxdb.ID) error { return nil },
 		},
-	}
+	}, rollbackFn
 }
 
 func (s *Service) applyNotificationRule(ctx context.Context, r *stateRule, userID influxdb.ID) (influxdb.NotificationRule, error) {
-	influxRule := influxdb.NotificationRuleCreate{
-		NotificationRule: r.toInfluxRule(),
-		Status:           r.parserRule.Status(),
+	switch r.stateStatus {
+	case StateStatusRemove:
+		if err := s.ruleSVC.DeleteNotificationRule(ctx, r.ID()); err != nil {
+			return nil, ierrors.Wrap(err, "failed to remove notification rule")
+		}
+		return r.existing, nil
+	case StateStatusExists:
+		ruleCreate := influxdb.NotificationRuleCreate{
+			NotificationRule: r.toInfluxRule(),
+			Status:           r.parserRule.Status(),
+		}
+		influxRule, err := s.ruleSVC.UpdateNotificationRule(ctx, r.ID(), ruleCreate, userID)
+		if err != nil {
+			return nil, ierrors.Wrap(err, "failed to update notification rule")
+		}
+		return influxRule, nil
+	default:
+		influxRule := influxdb.NotificationRuleCreate{
+			NotificationRule: r.toInfluxRule(),
+			Status:           r.parserRule.Status(),
+		}
+		err := s.ruleSVC.CreateNotificationRule(ctx, influxRule, userID)
+		if err != nil {
+			return nil, err
+		}
+		return influxRule.NotificationRule, nil
 	}
-	err := s.ruleSVC.CreateNotificationRule(ctx, influxRule, userID)
-	if err != nil {
-		return nil, err
-	}
-
-	return influxRule, nil
 }
 
-func (s *Service) rollbackNotificationRules(rules []*stateRule) error {
+func (s *Service) rollbackNotificationRules(ctx context.Context, userID influxdb.ID, rules []*stateRule) error {
+	rollbackFn := func(r *stateRule) error {
+		existingRuleFn := func(endpointID influxdb.ID) influxdb.NotificationRule {
+			switch rr := r.existing.(type) {
+			case *rule.HTTP:
+				rr.EndpointID = endpointID
+			case *rule.PagerDuty:
+				rr.EndpointID = endpointID
+			case *rule.Slack:
+				rr.EndpointID = endpointID
+			}
+			return r.existing
+		}
+
+		// setting status to unknown b/c these resources for two reasons:
+		//	1. we have no ability to find status via the Service, only to set it...
+		//	2. we have no way of inspecting an existing rule and pulling status from it
+		//	3. since this is a fallback condition, we set things to inactive as a user
+		//		is likely to follow up this failure by fixing their pkg up then reapplying
+		unknownStatus := influxdb.Inactive
+
+		var err error
+		switch r.stateStatus {
+		case StateStatusRemove:
+			if r.associatedEndpoint == nil {
+				return internalErr(errors.New("failed to find endpoint dependency to rollback existing notification rule"))
+			}
+			influxRule := influxdb.NotificationRuleCreate{
+				NotificationRule: existingRuleFn(r.endpointID()),
+				Status:           unknownStatus,
+			}
+			err = s.ruleSVC.CreateNotificationRule(ctx, influxRule, userID)
+			err = ierrors.Wrap(err, "failed to rollback created notification rule")
+		case StateStatusExists:
+			if r.associatedEndpoint == nil {
+				return internalErr(errors.New("failed to find endpoint dependency to rollback existing notification rule"))
+			}
+
+			influxRule := influxdb.NotificationRuleCreate{
+				NotificationRule: existingRuleFn(r.endpointID()),
+				Status:           unknownStatus,
+			}
+			_, err = s.ruleSVC.UpdateNotificationRule(ctx, r.ID(), influxRule, r.existing.GetOwnerID())
+			err = ierrors.Wrap(err, "failed to rollback updated notification rule")
+		default:
+			err = s.ruleSVC.DeleteNotificationRule(ctx, r.ID())
+			err = ierrors.Wrap(err, "failed to rollback created notification rule")
+		}
+		return err
+	}
+
 	var errs []string
-	for _, e := range rules {
-		err := s.ruleSVC.DeleteNotificationRule(context.Background(), e.ID())
-		if err != nil {
-			errs = append(errs, e.ID().String())
+	for _, r := range rules {
+		if err := rollbackFn(r); err != nil {
+			errs = append(errs, fmt.Sprintf("error for notification rule[%q]: %s", r.ID(), err))
 		}
 	}
 
 	if len(errs) > 0 {
-		return fmt.Errorf(`notication_rule_ids=[%s] err="unable to delete"`, strings.Join(errs, ", "))
+		return errors.New(strings.Join(errs, "; "))
 	}
 	return nil
 }
@@ -2430,6 +2533,18 @@ func (s *Service) updateStackAfterSuccess(ctx context.Context, stackID influxdb.
 			PkgName:    l.parserLabel.PkgName(),
 		})
 	}
+	for _, r := range state.mRules {
+		if IsRemoval(r.stateStatus) {
+			continue
+		}
+		stackResources = append(stackResources, StackResource{
+			APIVersion:   APIVersion,
+			ID:           r.ID(),
+			Kind:         KindNotificationRule,
+			PkgName:      r.parserRule.PkgName(),
+			Associations: r.associations(),
+		})
+	}
 	for _, t := range state.mTasks {
 		if IsRemoval(t.stateStatus) {
 			continue
@@ -2527,6 +2642,21 @@ func (s *Service) updateStackAfterRollback(ctx context.Context, stackID influxdb
 			if ok && res.ID != l.ID() {
 				hasChanges = true
 				res.ID = l.existing.ID
+			}
+		}
+		for _, r := range state.mRules {
+			res, ok := existingResources[newKey(KindNotificationRule, r.parserRule.PkgName())]
+			if !ok {
+				continue
+			}
+
+			if res.ID != r.ID() {
+				hasChanges = true
+				res.ID = r.existing.GetID()
+			}
+			if newAss := r.associations(); !associationsEqual(res.Associations, newAss) {
+				hasChanges = true
+				res.Associations = newAss
 			}
 		}
 		for _, t := range state.mTasks {
