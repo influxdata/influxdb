@@ -11,13 +11,11 @@ import {
   Sort,
   EmptyState,
   Columns,
-  Overlay,
 } from '@influxdata/clockface'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'
 import FilterList from 'src/shared/components/FilterList'
 import BucketList from 'src/buckets/components/BucketList'
-import CreateBucketOverlay from 'src/buckets/components/CreateBucketOverlay'
 import AssetLimitAlert from 'src/cloud/components/AssetLimitAlert'
 import BucketExplainer from 'src/buckets/components/BucketExplainer'
 import DemoDataDropdown from 'src/buckets/components/DemoDataDropdown'
@@ -43,24 +41,20 @@ import {
 // Utils
 import {getNewDemoBuckets} from 'src/cloud/selectors/demodata'
 import {extractBucketLimits} from 'src/cloud/utils/limits'
-import {getOrg} from 'src/organizations/selectors'
 import {getAll} from 'src/resources/selectors'
 import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 import {SortTypes} from 'src/shared/utils/sort'
 
 // Types
 import {
-  OverlayState,
   AppState,
   Bucket,
-  Organization,
   ResourceType,
   OwnBucket,
 } from 'src/types'
 import {BucketSortKey} from 'src/shared/components/resource_sort_dropdown/generateSortItems'
 
 interface StateProps {
-  org: Organization
   buckets: Bucket[]
   limitStatus: LimitStatus
   demoDataBuckets: Bucket[]
@@ -77,7 +71,6 @@ interface DispatchProps {
 
 interface State {
   searchTerm: string
-  overlayState: OverlayState
   sortKey: BucketSortKey
   sortDirection: Sort
   sortType: SortTypes
@@ -94,7 +87,6 @@ class BucketsTab extends PureComponent<Props, State> {
 
     this.state = {
       searchTerm: '',
-      overlayState: OverlayState.Closed,
       sortKey: 'name',
       sortDirection: Sort.Ascending,
       sortType: SortTypes.String,
@@ -110,7 +102,6 @@ class BucketsTab extends PureComponent<Props, State> {
 
   public render() {
     const {
-      org,
       buckets,
       limitStatus,
       demoDataBuckets,
@@ -118,7 +109,6 @@ class BucketsTab extends PureComponent<Props, State> {
     } = this.props
     const {
       searchTerm,
-      overlayState,
       sortKey,
       sortDirection,
       sortType,
@@ -202,13 +192,6 @@ class BucketsTab extends PureComponent<Props, State> {
             </Grid.Column>
           </Grid.Row>
         </Grid>
-        <Overlay visible={overlayState === OverlayState.Open}>
-          <CreateBucketOverlay
-            org={org}
-            onCloseModal={this.handleCloseModal}
-            onCreateBucket={this.handleCreateBucket}
-          />
-        </Overlay>
       </>
     )
   }
@@ -223,15 +206,6 @@ class BucketsTab extends PureComponent<Props, State> {
 
   private handleDeleteBucket = ({id, name}: OwnBucket) => {
     this.props.deleteBucket(id, name)
-  }
-
-  private handleCreateBucket = (bucket: OwnBucket) => {
-    this.props.createBucket(bucket)
-    this.handleCloseModal()
-  }
-
-  private handleCloseModal = (): void => {
-    this.setState({overlayState: OverlayState.Closed})
   }
 
   private handleFilterUpdate = (searchTerm: string): void => {
@@ -263,7 +237,6 @@ class BucketsTab extends PureComponent<Props, State> {
 const mstp = (state: AppState): StateProps => {
   const buckets = getAll<Bucket>(state, ResourceType.Buckets)
   return {
-    org: getOrg(state),
     buckets,
     limitStatus: extractBucketLimits(state.cloud.limits),
     demoDataBuckets: getNewDemoBuckets(state, buckets),
