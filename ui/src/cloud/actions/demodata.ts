@@ -5,19 +5,17 @@ import {
   deleteDemoDataBucketMembership as deleteDemoDataBucketMembershipAJAX,
 } from 'src/cloud/apis/demodata'
 import {createDashboardFromTemplate} from 'src/templates/api'
-import {deleteDashboard, getBucket} from 'src/client'
+import {getBucket} from 'src/client'
 
 // Actions
-import {getDashboards} from 'src/dashboards/actions/thunks'
 import {addBucket, removeBucket} from 'src/buckets/actions/creators'
 
 // Selectors
 import {getOrg} from 'src/organizations/selectors'
-import {getAll} from 'src/resources/selectors/getAll'
 import {normalize} from 'normalizr'
 
 // Constants
-import {DemoDataTemplates, DemoDataDashboards} from 'src/cloud/constants'
+import {DemoDataTemplates} from 'src/cloud/constants'
 
 // Types
 import {
@@ -25,8 +23,6 @@ import {
   RemoteDataState,
   GetState,
   DemoBucket,
-  Dashboard,
-  ResourceType,
   BucketEntities,
 } from 'src/types'
 import {bucketSchema} from 'src/schemas'
@@ -114,33 +110,6 @@ export const getDemoDataBucketMembership = (bucket: DemoBucket) => async (
     console.error(error)
   }
 }
-export const deleteDemoDataDashboard = (dashboardName: string) => async (
-  dispatch,
-  getState: GetState
-) => {
-  try {
-    await dispatch(getDashboards())
-
-    const updatedState = getState()
-
-    const ddDashboard = getAll(updatedState, ResourceType.Dashboards).find(
-      d => {
-        d.name === dashboardName
-      }
-    ) as Dashboard
-
-    if (ddDashboard) {
-      const deleteResp = await deleteDashboard({
-        dashboardID: ddDashboard.id,
-      })
-      if (deleteResp.status !== 204) {
-        throw new Error(deleteResp.data.message)
-      }
-    }
-  } catch (error) {
-    throw new Error(error)
-  }
-}
 
 export const deleteDemoDataBucketMembership = (bucket: DemoBucket) => async (
   dispatch,
@@ -161,15 +130,6 @@ export const deleteDemoDataBucketMembership = (bucket: DemoBucket) => async (
 
     dispatch(removeBucket(bucket.id))
 
-    const demoDashboardName = DemoDataDashboards[bucket.name]
-
-    if (!demoDashboardName) {
-      throw new Error(
-        `Could not find dashboard name for demo data bucket ${bucket.name}`
-      )
-    }
-
-    dispatch(deleteDemoDataDashboard(demoDashboardName))
     // TODO: notify for success and error appropriately
   } catch (error) {
     console.error(error)
