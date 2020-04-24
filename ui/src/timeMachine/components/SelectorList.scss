@@ -13,9 +13,8 @@ $selector-list--h-padding: $ix-marg-c;
   font-family: $cf-code-font;
   font-size: $form-sm-font;
   line-height: $form-sm-font;
-  // white-space: nowrap;
   transition: background-color 0.25s ease, color 0.25s ease;
-  
+
   &:hover {
     background: $g5-pepper;
   }

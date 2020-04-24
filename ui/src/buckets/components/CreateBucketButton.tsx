@@ -1,9 +1,14 @@
 // Libraries
-import React, {FC ,useEffect} from 'react'
+import React, {FC, useEffect} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import {Button, IconFont, ComponentColor, ComponentStatus} from '@influxdata/clockface'
+import {
+  Button,
+  IconFont,
+  ComponentColor,
+  ComponentStatus,
+} from '@influxdata/clockface'
 
 // Actions
 import {
@@ -34,21 +39,27 @@ interface OwnProps {
 
 type Props = OwnProps & StateProps & DispatchProps
 
-const CreateBucketButton: FC<Props> = ({appearance = 'button', limitStatus, checkBucketLimits, onShowOverlay, onDismissOverlay}) => {
+const CreateBucketButton: FC<Props> = ({
+  appearance = 'button',
+  limitStatus,
+  checkBucketLimits,
+  onShowOverlay,
+  onDismissOverlay,
+}) => {
   useEffect(() => {
     // Check bucket limits when component mounts
     checkBucketLimits()
   }, [])
-  
+
   const limitExceeded = limitStatus === LimitStatus.EXCEEDED
-  const text = "Create Bucket"
+  const text = 'Create Bucket'
   let selectorItemClassName = 'selector-list--item'
-  let titleText = "Click to create a bucket"
+  let titleText = 'Click to create a bucket'
   let buttonStatus = ComponentStatus.Default
-  
+
   if (limitExceeded) {
     selectorItemClassName = 'selector-list--item__disabled'
-    titleText = "This account has the maximum number of buckets allowed"
+    titleText = 'This account has the maximum number of buckets allowed'
     buttonStatus = ComponentStatus.Disabled
   }
 
@@ -59,12 +70,20 @@ const CreateBucketButton: FC<Props> = ({appearance = 'button', limitStatus, chec
 
     onShowOverlay('create-bucket', null, onDismissOverlay)
   }
-  
+
   if (appearance === 'button') {
     return (
-      <Button icon={IconFont.Plus} color={ComponentColor.Primary} text={text} titleText={titleText} onClick={handleItemClick} testID="Create Bucket" status={buttonStatus} />
-      )
-    }
+      <Button
+        icon={IconFont.Plus}
+        color={ComponentColor.Primary}
+        text={text}
+        titleText={titleText}
+        onClick={handleItemClick}
+        testID="Create Bucket"
+        status={buttonStatus}
+      />
+    )
+  }
 
   return (
     <div
@@ -73,7 +92,7 @@ const CreateBucketButton: FC<Props> = ({appearance = 'button', limitStatus, chec
       onClick={handleItemClick}
       title={titleText}
     >
-      {text}
+      {`+ ${text}`}
     </div>
   )
 }
@@ -90,4 +109,7 @@ const mdtp: DispatchProps = {
   checkBucketLimits: checkBucketLimitsAction,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(mstp, mdtp)(CreateBucketButton)
+export default connect<StateProps, DispatchProps, OwnProps>(
+  mstp,
+  mdtp
+)(CreateBucketButton)

@@ -65,6 +65,7 @@ const OverlayController: FunctionComponent<OverlayControllerProps> = props => {
       break
     case 'create-bucket':
       activeOverlay = <CreateBucketOverlay onClose={closer} />
+      break
     default:
       visibility = false
   }

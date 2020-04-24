@@ -16,9 +16,7 @@ import {
 } from 'src/buckets/components/Retention'
 
 // Actions
-import {
-  createBucket,
-} from 'src/buckets/actions/thunks'
+import {createBucket} from 'src/buckets/actions/thunks'
 
 // Types
 import {Organization, Bucket, AppState} from 'src/types'
@@ -41,7 +39,6 @@ interface DispatchProps {
 
 interface OwnProps {
   onClose: () => void
-  createBucket: (bucket: Partial<Bucket>) => void
 }
 
 type Props = StateProps & OwnProps & DispatchProps
@@ -58,6 +55,7 @@ class CreateBucketOverlay extends PureComponent<Props, State> {
     this.state = {
       bucket: {
         name: '',
+        type: 'user',
         retentionRules: props.isRetentionLimitEnforced ? DEFAULT_RULES : [],
         readableRetention: props.isRetentionLimitEnforced
           ? READABLE_DEFAULT_SECONDS
@@ -73,10 +71,7 @@ class CreateBucketOverlay extends PureComponent<Props, State> {
 
     return (
       <Overlay.Container maxWidth={400}>
-        <Overlay.Header
-          title="Create Bucket"
-          onDismiss={onClose}
-        />
+        <Overlay.Header title="Create Bucket" onDismiss={onClose} />
         <Overlay.Body>
           <BucketOverlayForm
             name={bucket.name}
@@ -136,12 +131,10 @@ class CreateBucketOverlay extends PureComponent<Props, State> {
   private handleCreateBucket = (): void => {
     const {createBucket, org, onClose} = this.props
     const orgID = org.id
-    const organization = org.name
 
-    const bucket: Partial<Bucket> = {
+    const bucket = {
       ...this.state.bucket,
       orgID,
-      organization,
     }
 
     createBucket(bucket)
@@ -163,7 +156,7 @@ const mstp = (state: AppState): StateProps => {
     state.cloud.limits
   )
 
-    return {
+  return {
     org,
     isRetentionLimitEnforced,
   }
@@ -173,4 +166,7 @@ const mdtp: DispatchProps = {
   createBucket,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(mstp, mdtp)(CreateBucketOverlay)
+export default connect<StateProps, DispatchProps, OwnProps>(
+  mstp,
+  mdtp
+)(CreateBucketOverlay)
