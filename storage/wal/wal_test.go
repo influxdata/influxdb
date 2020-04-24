@@ -12,7 +12,7 @@ import (
 	"github.com/golang/snappy"
 
 	"github.com/influxdata/influxdb/v2"
-	"github.com/influxdata/influxdb/v2/tsdb/value"
+	"github.com/influxdata/influxdb/v2/v1/tsdb/engine/tsm1/value"
 )
 
 func TestWALWriter_WriteMulti_Single(t *testing.T) {

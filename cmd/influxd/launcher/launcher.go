@@ -62,10 +62,10 @@ import (
 	"github.com/influxdata/influxdb/v2/task/backend/scheduler"
 	"github.com/influxdata/influxdb/v2/telemetry"
 	"github.com/influxdata/influxdb/v2/tenant"
-	_ "github.com/influxdata/influxdb/v2/tsdb/tsi1" // needed for tsi1
-	_ "github.com/influxdata/influxdb/v2/tsdb/tsm1" // needed for tsm1
 	storage2 "github.com/influxdata/influxdb/v2/v1/services/storage"
 	"github.com/influxdata/influxdb/v2/v1/storage/reads"
+	_ "github.com/influxdata/influxdb/v2/v1/tsdb/index/tsi1" // needed for tsi1
+	_ "github.com/influxdata/influxdb/v2/v1/tsdb/engine/tsm1" // needed for tsm1
 	"github.com/influxdata/influxdb/v2/vault"
 	pzap "github.com/influxdata/influxdb/v2/zap"
 	"github.com/opentracing/opentracing-go"

@@ -278,7 +278,7 @@ func (c *groupNoneCursor) Err() error                 { return nil }
 func (c *groupNoneCursor) Tags() models.Tags          { return c.row.Tags }
 func (c *groupNoneCursor) Keys() [][]byte             { return c.keys }
 func (c *groupNoneCursor) PartitionKeyVals() [][]byte { return nil }
-func (c *groupNoneCursor) Close()                      { c.cur.Close() }
+func (c *groupNoneCursor) Close()                     { c.cur.Close() }
 func (c *groupNoneCursor) Stats() cursors.CursorStats { return c.row.Query.Stats() }
 
 func (c *groupNoneCursor) Next() bool {

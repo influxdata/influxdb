@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/influxdata/influxdb/v2/kit/cli"
-	"github.com/influxdata/influxdb/v2/tsdb/tsm1"
+	"github.com/influxdata/influxdb/v2/v1/tsdb/engine/tsm1"
 	"github.com/spf13/cobra"
 )
 

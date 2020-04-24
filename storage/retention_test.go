@@ -18,8 +18,8 @@ import (
 	"github.com/influxdata/influxdb/v2/kit/prom/promtest"
 	"github.com/influxdata/influxdb/v2/logger"
 	"github.com/influxdata/influxdb/v2/toml"
-	"github.com/influxdata/influxdb/v2/tsdb"
-	"github.com/influxdata/influxdb/v2/tsdb/tsm1"
+	"github.com/influxdata/influxdb/v2/v1/tsdb"
+	"github.com/influxdata/influxdb/v2/v1/tsdb/engine/tsm1"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )

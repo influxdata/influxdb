@@ -13,8 +13,8 @@ import (
 	"github.com/influxdata/influxdb/v2/cmd/influxd/launcher"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/restore"
 	_ "github.com/influxdata/influxdb/v2/query/builtin"
-	_ "github.com/influxdata/influxdb/v2/tsdb/tsi1"
-	_ "github.com/influxdata/influxdb/v2/tsdb/tsm1"
+	_ "github.com/influxdata/influxdb/v2/v1/tsdb/index/tsi1"
+	_ "github.com/influxdata/influxdb/v2/v1/tsdb/engine/tsm1"
 	"github.com/spf13/cobra"
 )
 

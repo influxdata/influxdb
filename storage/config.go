@@ -5,9 +5,8 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/v2/toml"
-	"github.com/influxdata/influxdb/v2/tsdb/seriesfile"
-	"github.com/influxdata/influxdb/v2/tsdb/tsi1"
-	"github.com/influxdata/influxdb/v2/tsdb/tsm1"
+	"github.com/influxdata/influxdb/v2/v1/tsdb/index/tsi1"
+	"github.com/influxdata/influxdb/v2/v1/tsdb/engine/tsm1"
 )
 
 // Default configuration values.

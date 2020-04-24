@@ -13,7 +13,7 @@ import (
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/storage"
-	"github.com/influxdata/influxdb/v2/tsdb"
+	"github.com/influxdata/influxdb/v2/v1/tsdb"
 )
 
 func TestLoggingPointsWriter(t *testing.T) {

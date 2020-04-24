@@ -2,7 +2,7 @@ package cli
 
 import (
 	"github.com/influxdata/influxdb/v2"
-	"github.com/influxdata/influxdb/v2/tsdb"
+	"github.com/influxdata/influxdb/v2/v1/tsdb"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )

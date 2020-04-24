@@ -5,7 +5,7 @@ import (
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/internal/fs"
 	"github.com/influxdata/influxdb/v2/kit/errors"
-	"github.com/influxdata/influxdb/v2/tsdb/tsm1"
+	"github.com/influxdata/influxdb/v2/v1/tsdb/engine/tsm1"
 	"github.com/spf13/cobra"
 	"os"
 	"path/filepath"

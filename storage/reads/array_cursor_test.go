@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/influxdb/v2/tsdb/cursors"
+	"github.com/influxdata/influxdb/v2/v1/tsdb/cursors"
 )
 
 func TestIntegerFilterArrayCursor(t *testing.T) {

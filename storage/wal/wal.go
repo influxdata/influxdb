@@ -25,7 +25,7 @@ import (
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"github.com/influxdata/influxdb/v2/pkg/limiter"
 	"github.com/influxdata/influxdb/v2/pkg/pool"
-	"github.com/influxdata/influxdb/v2/tsdb/value"
+	"github.com/influxdata/influxdb/v2/v1/tsdb/engine/tsm1"
 )
 
 const (

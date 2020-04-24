@@ -9,7 +9,7 @@ import (
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/pkg/data/gen"
 	"github.com/influxdata/influxdb/v2/storage/reads"
-	"github.com/influxdata/influxdb/v2/tsdb/cursors"
+	"github.com/influxdata/influxdb/v2/v1/tsdb/cursors"
 )
 
 func mustNewSpecFromToml(tb testing.TB, toml string) *gen.Spec {

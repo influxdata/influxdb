@@ -6,7 +6,7 @@ import (
 
 	"github.com/influxdata/influxdb/v2/nats"
 	"github.com/influxdata/influxdb/v2/storage"
-	"github.com/influxdata/influxdb/v2/tsdb"
+	"github.com/influxdata/influxdb/v2/v1/tsdb"
 	"go.uber.org/zap"
 )
 

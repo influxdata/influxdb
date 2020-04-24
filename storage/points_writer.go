@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/v2"
-	"github.com/influxdata/influxdb/v2/tsdb"
 	"github.com/influxdata/influxdb/v2/v1/models"
 )
 
@@ -52,20 +51,16 @@ func (w *LoggingPointsWriter) WritePoints(ctx context.Context, orgID influxdb.ID
 	}
 
 	// Log error to bucket.
-	name := tsdb.EncodeName(orgID, bkts[0].ID)
 	pt, e := models.NewPoint(
-		string(name[:]),
-		models.NewTags(map[string]string{
-			models.MeasurementTagKey: "write_errors",
-			models.FieldKeyTagKey:    "error"},
-		),
+		"write_errors",
+		nil,
 		models.Fields{"error": err.Error()},
 		time.Now(),
 	)
 	if e != nil {
 		return e
 	}
-	if e := w.Underlying.WritePoints(ctx, orgID, bucketID, []models.Point{pt}); e != nil {
+	if e := w.Underlying.WritePoints(ctx, orgID, bkts[0].ID, []models.Point{pt}); e != nil {
 		return e
 	}
 

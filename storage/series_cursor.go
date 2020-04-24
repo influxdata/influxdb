@@ -7,9 +7,8 @@ import (
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/pkg/lifecycle"
-	"github.com/influxdata/influxdb/v2/tsdb"
-	"github.com/influxdata/influxdb/v2/tsdb/seriesfile"
-	"github.com/influxdata/influxdb/v2/tsdb/tsi1"
+	"github.com/influxdata/influxdb/v2/v1/tsdb"
+	"github.com/influxdata/influxdb/v2/v1/tsdb/index/tsi1"
 	"github.com/influxdata/influxql"
 )
 

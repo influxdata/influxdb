@@ -5,7 +5,7 @@ import (
 
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/storage/reads/datatypes"
-	"github.com/influxdata/influxdb/v2/tsdb/cursors"
+	"github.com/influxdata/influxdb/v2/v1/tsdb/cursors"
 )
 
 type resultSet struct {

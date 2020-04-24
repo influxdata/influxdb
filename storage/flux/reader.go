@@ -16,7 +16,7 @@ import (
 	"github.com/influxdata/influxdb/v2/query"
 	storage "github.com/influxdata/influxdb/v2/storage/reads"
 	"github.com/influxdata/influxdb/v2/storage/reads/datatypes"
-	"github.com/influxdata/influxdb/v2/tsdb/cursors"
+	"github.com/influxdata/influxdb/v2/v1/tsdb/cursors"
 )
 
 // GroupCursorError is returned when two different cursor types

@@ -10,8 +10,8 @@ import (
 	"text/tabwriter"
 
 	"github.com/influxdata/influxdb/v2/storage/reads/datatypes"
-	"github.com/influxdata/influxdb/v2/tsdb"
-	"github.com/influxdata/influxdb/v2/tsdb/value"
+	"github.com/influxdata/influxdb/v2/v1/tsdb"
+	"github.com/influxdata/influxdb/v2/v1/tsdb/engine/tsm1"
 )
 
 // Command represents the program execution for "influxd inspect dumpmwal

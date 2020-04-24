@@ -12,7 +12,6 @@ import (
 
 	"github.com/influxdata/influxdb/v2/internal/fs"
 	"github.com/influxdata/influxdb/v2/storage"
-	"github.com/influxdata/influxdb/v2/tsdb/seriesfile"
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
 )

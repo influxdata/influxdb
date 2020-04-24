@@ -14,10 +14,9 @@ import (
 	"github.com/influxdata/influxdb/v2/pkg/data/gen"
 	"github.com/influxdata/influxdb/v2/pkg/limiter"
 	"github.com/influxdata/influxdb/v2/storage"
-	"github.com/influxdata/influxdb/v2/tsdb"
-	"github.com/influxdata/influxdb/v2/tsdb/seriesfile"
-	"github.com/influxdata/influxdb/v2/tsdb/tsi1"
-	"github.com/influxdata/influxdb/v2/tsdb/tsm1"
+	"github.com/influxdata/influxdb/v2/v1/tsdb"
+	"github.com/influxdata/influxdb/v2/v1/tsdb/index/tsi1"
+	"github.com/influxdata/influxdb/v2/v1/tsdb/engine/tsm1"
 )
 
 type Generator struct {
