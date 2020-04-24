@@ -106,13 +106,21 @@ const composeEnhancers =
 
 let _store
 
+// NOTE: just used to reset between tests
+export function clearStore() {
+  _store = null
+}
+
 export default function configureStore(
   initialState?: LocalStorage,
   history?: History
 ): Store<AppState & LocalStorage> {
+  // NOTE: memoizing helps keep singular instances of the store
+  // after initializatrion, or else actions start failing for reasons
   if (_store) {
     return _store
   }
+
   const routingMiddleware = routerMiddleware(history)
   const createPersistentStore = composeEnhancers(
     persistStateEnhancer(),
