@@ -25,14 +25,6 @@ export const localState: LocalStorage = {
       theme: 'dark',
     },
   },
-  me: {
-    id: '1234',
-    name: 'test user',
-    links: {
-      self: '',
-      log: '',
-    },
-  },
   VERSION: '2.0.0',
   ranges: {
     '0349ecda531ea000': pastFifteenMinTimeRange,

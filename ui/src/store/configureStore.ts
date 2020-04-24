@@ -11,6 +11,7 @@ import persistStateEnhancer from './persistStateEnhancer'
 
 // v2 reducers
 import meReducer from 'src/shared/reducers/me'
+import flagReducer from 'src/shared/reducers/flags'
 import currentDashboardReducer from 'src/shared/reducers/currentDashboard'
 import currentPageReducer from 'src/shared/reducers/currentPage'
 import tasksReducer from 'src/tasks/reducers'
@@ -65,6 +66,7 @@ export const rootReducer = combineReducers<ReducerState>({
   currentDashboard: currentDashboardReducer,
   dataLoading: dataLoadingReducer,
   me: meReducer,
+  flags: flagReducer,
   noteEditor: noteEditorReducer,
   onboarding: onboardingReducer,
   overlays: overlaysReducer,
@@ -102,10 +104,15 @@ export const rootReducer = combineReducers<ReducerState>({
 const composeEnhancers =
   (window as any).__REDUX_DEVTOOLS_EXTENSION_COMPOSE__ || compose
 
+let _store
+
 export default function configureStore(
-  initialState: LocalStorage,
+  initialState?: LocalStorage,
   history?: History
 ): Store<AppState & LocalStorage> {
+  if (_store) {
+    return _store
+  }
   const routingMiddleware = routerMiddleware(history)
   const createPersistentStore = composeEnhancers(
     persistStateEnhancer(),
@@ -120,5 +127,6 @@ export default function configureStore(
   // https://github.com/elgerlambert/redux-localstorage/issues/42
   // createPersistentStore should ONLY take reducer and initialState
   // any store enhancers must be added to the compose() function.
-  return createPersistentStore(rootReducer, initialState)
+  _store = createPersistentStore(rootReducer, initialState)
+  return _store
 }

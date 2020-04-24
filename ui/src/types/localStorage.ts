@@ -6,7 +6,6 @@ import {AppState, ResourceState} from 'src/types'
 export interface LocalStorage {
   VERSION: string
   app: AppState['app']
-  me: AppState['me']
   ranges: RangeState
   autoRefresh: AutoRefreshState
   userSettings: UserSettingsState

@@ -1,5 +1,5 @@
 import {AppState} from 'src/types'
-import {MeFlags} from 'src/shared/reducers/me'
+import {FlagMap} from 'src/shared/reducers/flags'
 import {CLOUD, CLOUD_BILLING_VISIBLE} from 'src/shared/constants'
 
 export const OSS_FLAGS = {
@@ -10,6 +10,7 @@ export const OSS_FLAGS = {
   matchingNotificationRules: false,
   regionBasedLoginPage: false,
   demodata: false,
+  fluxParser: false,
 }
 
 export const CLOUD_FLAGS = {
@@ -22,16 +23,17 @@ export const CLOUD_FLAGS = {
   matchingNotificationRules: false,
   regionBasedLoginPage: false,
   demodata: false,
+  fluxParser: false,
 }
 
-export const activeFlags = (state: AppState): MeFlags => {
+export const activeFlags = (state: AppState): FlagMap => {
   const localState = CLOUD ? CLOUD_FLAGS : OSS_FLAGS
-  const networkState = state.me.flags || {}
-  const overrides = state.me.flagOverrides || {}
+  const networkState = state.flags.original || {}
+  const override = state.flags.override || {}
 
   return {
     ...localState,
     ...networkState,
-    ...overrides,
+    ...override,
   }
 }

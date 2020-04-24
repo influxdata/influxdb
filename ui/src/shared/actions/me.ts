@@ -5,13 +5,8 @@ import HoneyBadger from 'honeybadger-js'
 import {fireUserDataReady} from 'src/shared/utils/analytics'
 
 export const SET_ME = 'SET_ME'
-export const CLEAR_FEATURE_FLAG_OVERRIDES = 'CLEAR_FEATURE_FLAG_OVERRIDES'
-export const SET_FEATURE_FLAG_OVERRIDE = 'SET_FEATURE_FLAG_OVERRIDE'
 
-export type Actions =
-  | ReturnType<typeof setMe>
-  | ReturnType<typeof clearOverrides>
-  | ReturnType<typeof setOverride>
+export type Actions = ReturnType<typeof setMe>
 
 export const setMe = (me: MeState) =>
   ({
@@ -38,16 +33,3 @@ export const getMe = () => async dispatch => {
     console.error(error)
   }
 }
-
-export const clearOverrides = () =>
-  ({
-    type: CLEAR_FEATURE_FLAG_OVERRIDES,
-  } as const)
-
-export const setOverride = (flag: string, value: string | boolean) =>
-  ({
-    type: SET_FEATURE_FLAG_OVERRIDE,
-    payload: {
-      [flag]: value,
-    },
-  } as const)
