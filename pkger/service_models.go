@@ -958,6 +958,16 @@ func (r *stateRule) ID() influxdb.ID {
 	return r.id
 }
 
+func (r *stateRule) associations() []StackResourceAssociation {
+	if r.associatedEndpoint == nil {
+		return nil
+	}
+	return []StackResourceAssociation{{
+		Kind:    KindNotificationEndpoint,
+		PkgName: r.endpointPkgName(),
+	}}
+}
+
 func (r *stateRule) diffRule() DiffNotificationRule {
 	sum := DiffNotificationRule{
 		DiffIdentifier: DiffIdentifier{
@@ -968,9 +978,9 @@ func (r *stateRule) diffRule() DiffNotificationRule {
 		New: DiffNotificationRuleValues{
 			Name:            r.parserRule.Name(),
 			Description:     r.parserRule.description,
-			EndpointName:    r.associatedEndpoint.parserEndpoint.Name(),
-			EndpointID:      SafeID(r.associatedEndpoint.ID()),
-			EndpointType:    r.associatedEndpoint.parserEndpoint.kind.String(),
+			EndpointName:    r.endpointPkgName(),
+			EndpointID:      SafeID(r.endpointID()),
+			EndpointType:    r.endpointType(),
 			Every:           r.parserRule.every.String(),
 			Offset:          r.parserRule.offset.String(),
 			MessageTemplate: r.parserRule.msgTemplate,
@@ -1026,6 +1036,27 @@ func (r *stateRule) diffRule() DiffNotificationRule {
 	}
 
 	return sum
+}
+
+func (r *stateRule) endpointID() influxdb.ID {
+	if r.associatedEndpoint != nil {
+		return r.associatedEndpoint.ID()
+	}
+	return 0
+}
+
+func (r *stateRule) endpointPkgName() string {
+	if r.associatedEndpoint != nil && r.associatedEndpoint.parserEndpoint != nil {
+		return r.associatedEndpoint.parserEndpoint.PkgName()
+	}
+	return ""
+}
+
+func (r *stateRule) endpointType() string {
+	if r.associatedEndpoint != nil {
+		return r.associatedEndpoint.parserEndpoint.kind.String()
+	}
+	return ""
 }
 
 func (r *stateRule) labels() []*label {
@@ -1289,4 +1320,24 @@ func IsExisting(status StateStatus) bool {
 // from the platform.
 func IsRemoval(status StateStatus) bool {
 	return status == StateStatusRemove
+}
+
+func associationsEqual(ass1, ass2 []StackResourceAssociation) bool {
+	if len(ass1) != len(ass2) {
+		return false
+	}
+
+	mAss := make(map[StackResourceAssociation]bool)
+	for _, ass := range ass1 {
+		mAss[ass] = true
+	}
+
+	for _, ass := range ass2 {
+		if !mAss[ass] {
+			return false
+		}
+		delete(mAss, ass)
+	}
+
+	return len(mAss) == 0
 }

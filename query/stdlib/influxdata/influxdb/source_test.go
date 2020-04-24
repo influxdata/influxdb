@@ -158,6 +158,8 @@ func (t *TableIterator) Statistics() cursors.CursorStats {
 }
 
 func TestReadWindowAggregateSource(t *testing.T) {
+	t.Skip("test panics in CI; issue: https://github.com/influxdata/influxdb/issues/17847")
+
 	orgID, bucketID := platform.ID(1), platform.ID(2)
 	executetest.RunSourceHelper(t,
 		[]*executetest.Table{

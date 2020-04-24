@@ -146,8 +146,17 @@ message ReadResponse {
   repeated Frame frames = 1 [(gogoproto.nullable) = false];
 }
 
+message Capability {
+  // Features contains the specific features supported
+  // by this capability.
+  repeated string features = 1;
+}
+
 message CapabilitiesResponse {
-  map<string, string> caps = 1;
+  // Capabilities contains the set of capabilities supported
+  // by the storage engine. It is a map of method names to
+  // the detailed capability information for the method.
+  map<string, Capability> caps = 1;
 }
 
 // Specifies a continuous range of nanosecond timestamps.
