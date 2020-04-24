@@ -75,9 +75,12 @@ const SelectorListCreateBucket: FC<Props> = ({
   const [bucketRetentionRules, setBucketRetentionRules] = useState<any>(
     isRetentionLimitEnforced ? DEFAULT_RULES : []
   )
-  const [bucketRuleType, setBucketRuleType] = useState<'expire' | null>('expire')
-  const bucketReadableRetention =
-    isRetentionLimitEnforced ? READABLE_DEFAULT_SECONDS : 'forever'
+  const [bucketRuleType, setBucketRuleType] = useState<'expire' | null>(
+    'expire'
+  )
+  const bucketReadableRetention = isRetentionLimitEnforced
+    ? READABLE_DEFAULT_SECONDS
+    : 'forever'
 
   useEffect(() => {
     // Check bucket limits when component mounts
@@ -112,7 +115,9 @@ const SelectorListCreateBucket: FC<Props> = ({
     setBucketRetentionRules([{type: 'expire' as 'expire', everySeconds}])
   }
 
-  const handleSubmit = (onHide: () => void) => (e: FormEvent<HTMLFormElement>): void => {
+  const handleSubmit = (onHide: () => void) => (
+    e: FormEvent<HTMLFormElement>
+  ): void => {
     e.preventDefault()
 
     const orgID = org.id
