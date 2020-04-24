@@ -159,7 +159,7 @@ func TestLauncher_Pkger(t *testing.T) {
 		t.Run("creating a stack", func(t *testing.T) {
 			expectedURLs := []string{"http://example.com"}
 
-			newStack, err := svc.InitStack(timedCtx(5*time.Second), l.User.ID, pkger.Stack{
+			newStack, err := svc.InitStack(ctx, l.User.ID, pkger.Stack{
 				OrgID:       l.Org.ID,
 				Name:        "first stack",
 				Description: "desc",
@@ -181,7 +181,7 @@ func TestLauncher_Pkger(t *testing.T) {
 			// on the test before it succeeding, we are using t.Log instead of t.Run
 			// to run a sub test.
 
-			stack, err := svc.InitStack(timedCtx(5*time.Second), l.User.ID, pkger.Stack{
+			stack, err := svc.InitStack(ctx, l.User.ID, pkger.Stack{
 				OrgID: l.Org.ID,
 			})
 			require.NoError(t, err)
@@ -212,7 +212,7 @@ func TestLauncher_Pkger(t *testing.T) {
 
 			var initialSum pkger.Summary
 			t.Run("apply pkg with stack id", func(t *testing.T) {
-				sum, _, err := svc.Apply(timedCtx(5*time.Second), l.Org.ID, l.User.ID, initialPkg, applyOpt)
+				sum, _, err := svc.Apply(ctx, l.Org.ID, l.User.ID, initialPkg, applyOpt)
 				require.NoError(t, err)
 				initialSum = sum
 
@@ -314,7 +314,7 @@ func TestLauncher_Pkger(t *testing.T) {
 					newTelegrafObject(initialTelegrafPkgName, updateTelegrafName, ""),
 					newVariableObject(initialVariablePkgName, updateVariableName, ""),
 				)
-				sum, _, err := svc.Apply(timedCtx(5*time.Second), l.Org.ID, l.User.ID, updatedPkg, applyOpt)
+				sum, _, err := svc.Apply(ctx, l.Org.ID, l.User.ID, updatedPkg, applyOpt)
 				require.NoError(t, err)
 
 				require.Len(t, sum.Buckets, 1)
@@ -427,7 +427,7 @@ func TestLauncher_Pkger(t *testing.T) {
 					newTelegrafObject("z_telegraf_rolls_back", "", ""),
 					newVariableObject("z_var_rolls_back", "", ""),
 				)
-				_, _, err := svc.Apply(timedCtx(5*time.Second), l.Org.ID, l.User.ID, pkgWithDelete, applyOpt)
+				_, _, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkgWithDelete, applyOpt)
 				require.Error(t, err)
 
 				t.Log("validate all resources are rolled back")
@@ -505,7 +505,7 @@ func TestLauncher_Pkger(t *testing.T) {
 					newTelegrafObject("non_existent_tele", "", ""),
 					newVariableObject("non_existent_var", "", ""),
 				)
-				sum, _, err := svc.Apply(timedCtx(5*time.Second), l.Org.ID, l.User.ID, allNewResourcesPkg, applyOpt)
+				sum, _, err := svc.Apply(ctx, l.Org.ID, l.User.ID, allNewResourcesPkg, applyOpt)
 				require.NoError(t, err)
 
 				require.Len(t, sum.Buckets, 1)
@@ -815,7 +815,7 @@ spec:
 		pkg, err := pkger.Parse(pkger.EncodingYAML, pkger.FromString(pkgStr))
 		require.NoError(t, err)
 
-		sum, _, err := svc.DryRun(timedCtx(2*time.Second), l.Org.ID, l.User.ID, pkg, pkger.ApplyWithEnvRefs(map[string]string{
+		sum, _, err := svc.DryRun(ctx, l.Org.ID, l.User.ID, pkg, pkger.ApplyWithEnvRefs(map[string]string{
 			"bkt-1-name-ref":   "new-bkt-name",
 			"label-1-name-ref": "new-label-name",
 		}))
@@ -830,7 +830,7 @@ spec:
 
 	t.Run("apply a package of all new resources", func(t *testing.T) {
 		// this initial test is also setup for the sub tests
-		sum1, _, err := svc.Apply(timedCtx(5*time.Second), l.Org.ID, l.User.ID, newPkg(t))
+		sum1, _, err := svc.Apply(ctx, l.Org.ID, l.User.ID, newPkg(t))
 		require.NoError(t, err)
 
 		labels := sum1.Labels
@@ -954,7 +954,7 @@ spec:
 
 		t.Run("exporting all resources for an org", func(t *testing.T) {
 			t.Run("getting everything", func(t *testing.T) {
-				newPkg, err := svc.CreatePkg(timedCtx(2*time.Second), pkger.CreateWithAllOrgResources(
+				newPkg, err := svc.CreatePkg(ctx, pkger.CreateWithAllOrgResources(
 					pkger.CreateByOrgIDOpt{
 						OrgID: l.Org.ID,
 					},
@@ -1060,7 +1060,7 @@ spec:
 			})
 
 			t.Run("filtered by resource types", func(t *testing.T) {
-				newPkg, err := svc.CreatePkg(timedCtx(2*time.Second), pkger.CreateWithAllOrgResources(
+				newPkg, err := svc.CreatePkg(ctx, pkger.CreateWithAllOrgResources(
 					pkger.CreateByOrgIDOpt{
 						OrgID:         l.Org.ID,
 						ResourceKinds: []pkger.Kind{pkger.KindCheck, pkger.KindTask},
@@ -1081,7 +1081,7 @@ spec:
 			})
 
 			t.Run("filtered by label resource type", func(t *testing.T) {
-				newPkg, err := svc.CreatePkg(timedCtx(2*time.Second), pkger.CreateWithAllOrgResources(
+				newPkg, err := svc.CreatePkg(ctx, pkger.CreateWithAllOrgResources(
 					pkger.CreateByOrgIDOpt{
 						OrgID:         l.Org.ID,
 						ResourceKinds: []pkger.Kind{pkger.KindLabel},
@@ -1102,7 +1102,7 @@ spec:
 			})
 
 			t.Run("filtered by label name", func(t *testing.T) {
-				newPkg, err := svc.CreatePkg(timedCtx(2*time.Second), pkger.CreateWithAllOrgResources(
+				newPkg, err := svc.CreatePkg(ctx, pkger.CreateWithAllOrgResources(
 					pkger.CreateByOrgIDOpt{
 						OrgID:      l.Org.ID,
 						LabelNames: []string{"the 2nd label"},
@@ -1122,7 +1122,7 @@ spec:
 			})
 
 			t.Run("filtered by label name and resource type", func(t *testing.T) {
-				newPkg, err := svc.CreatePkg(timedCtx(2*time.Second), pkger.CreateWithAllOrgResources(
+				newPkg, err := svc.CreatePkg(ctx, pkger.CreateWithAllOrgResources(
 					pkger.CreateByOrgIDOpt{
 						OrgID:         l.Org.ID,
 						LabelNames:    []string{"the 2nd label"},
@@ -1146,7 +1146,7 @@ spec:
 		t.Run("pkg with same bkt-var-label does nto create new resources for them", func(t *testing.T) {
 			// validate the new package doesn't create new resources for bkts/labels/vars
 			// since names collide.
-			sum2, _, err := svc.Apply(timedCtx(5*time.Second), l.Org.ID, l.User.ID, newPkg(t))
+			sum2, _, err := svc.Apply(ctx, l.Org.ID, l.User.ID, newPkg(t))
 			require.NoError(t, err)
 
 			require.Equal(t, sum1.Buckets, sum2.Buckets)
@@ -1261,7 +1261,7 @@ spec:
 				},
 			}
 
-			newPkg, err := svc.CreatePkg(timedCtx(2*time.Second),
+			newPkg, err := svc.CreatePkg(ctx,
 				pkger.CreateWithExistingResources(append(resToClone, resWithNewName...)...),
 			)
 			require.NoError(t, err)
@@ -1438,7 +1438,7 @@ spec:
 		pkg, err := pkger.Parse(pkger.EncodingYAML, pkger.FromString(pkgStr))
 		require.NoError(t, err)
 
-		sum, _, err := svc.Apply(timedCtx(time.Second), l.Org.ID, l.User.ID, pkg)
+		sum, _, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkg)
 		require.NoError(t, err)
 
 		require.Len(t, sum.Tasks, 1)
@@ -1548,7 +1548,7 @@ spec:
 		pkg, err := pkger.Parse(pkger.EncodingYAML, pkger.FromString(pkgStr))
 		require.NoError(t, err)
 
-		sum, _, err := svc.DryRun(timedCtx(time.Second), l.Org.ID, l.User.ID, pkg)
+		sum, _, err := svc.DryRun(ctx, l.Org.ID, l.User.ID, pkg)
 		require.NoError(t, err)
 
 		require.Len(t, sum.Buckets, 1)
@@ -1584,7 +1584,7 @@ spec:
 		}
 		assert.Equal(t, expectedMissingEnvs, sum.MissingEnvs)
 
-		sum, _, err = svc.Apply(timedCtx(5*time.Second), l.Org.ID, l.User.ID, pkg, pkger.ApplyWithEnvRefs(map[string]string{
+		sum, _, err = svc.Apply(ctx, l.Org.ID, l.User.ID, pkg, pkger.ApplyWithEnvRefs(map[string]string{
 			"bkt-1-name-ref":      "rucket_threeve",
 			"check-1-name-ref":    "check_threeve",
 			"dash-1-name-ref":     "dash_threeve",
@@ -1609,12 +1609,6 @@ spec:
 		assert.Equal(t, "var_threeve", sum.Variables[0].Name)
 		assert.Empty(t, sum.MissingEnvs)
 	})
-}
-
-func timedCtx(d time.Duration) context.Context {
-	ctx, cancel := context.WithTimeout(ctx, d)
-	var _ = cancel
-	return ctx
 }
 
 func newPkg(t *testing.T) *pkger.Pkg {
@@ -1984,9 +1978,9 @@ func (r resourceChecker) getBucket(t *testing.T, getOpt getResourceOptFn) (influ
 	)
 	switch opt := getOpt(); {
 	case opt.name != "":
-		bkt, err = bktSVC.FindBucketByName(timedCtx(time.Second), r.tl.Org.ID, opt.name)
+		bkt, err = bktSVC.FindBucketByName(ctx, r.tl.Org.ID, opt.name)
 	case opt.id != 0:
-		bkt, err = bktSVC.FindBucketByID(timedCtx(time.Second), opt.id)
+		bkt, err = bktSVC.FindBucketByID(ctx, opt.id)
 	default:
 		require.Fail(t, "did not provide any get option")
 	}
@@ -2021,12 +2015,12 @@ func (r resourceChecker) getCheck(t *testing.T, getOpt getResourceOptFn) (influx
 	)
 	switch opt := getOpt(); {
 	case opt.name != "":
-		ch, err = checkSVC.FindCheck(timedCtx(time.Second), influxdb.CheckFilter{
+		ch, err = checkSVC.FindCheck(ctx, influxdb.CheckFilter{
 			Name:  &opt.name,
 			OrgID: &r.tl.Org.ID,
 		})
 	case opt.id != 0:
-		ch, err = checkSVC.FindCheckByID(timedCtx(time.Second), opt.id)
+		ch, err = checkSVC.FindCheckByID(ctx, opt.id)
 	default:
 		require.Fail(t, "did not provide any get option")
 	}
@@ -2059,7 +2053,7 @@ func (r resourceChecker) getDashboard(t *testing.T, getOpt getResourceOptFn) (in
 	opt := getOpt()
 	switch {
 	case opt.name != "":
-		dashs, _, err := dashSVC.FindDashboards(timedCtx(time.Second), influxdb.DashboardFilter{}, influxdb.DefaultDashboardFindOptions)
+		dashs, _, err := dashSVC.FindDashboards(ctx, influxdb.DashboardFilter{}, influxdb.DefaultDashboardFindOptions)
 		if err != nil {
 			return influxdb.Dashboard{}, err
 		}
@@ -2070,7 +2064,7 @@ func (r resourceChecker) getDashboard(t *testing.T, getOpt getResourceOptFn) (in
 			}
 		}
 	case opt.id != 0:
-		dashboard, err = dashSVC.FindDashboardByID(timedCtx(time.Second), opt.id)
+		dashboard, err = dashSVC.FindDashboardByID(ctx, opt.id)
 	default:
 		require.Fail(t, "did not provide any get option")
 	}
@@ -2109,7 +2103,7 @@ func (r resourceChecker) getEndpoint(t *testing.T, getOpt getResourceOptFn) (inf
 	switch opt := getOpt(); {
 	case opt.name != "":
 		var endpoints []influxdb.NotificationEndpoint
-		endpoints, _, err = endpointSVC.FindNotificationEndpoints(timedCtx(time.Second), influxdb.NotificationEndpointFilter{
+		endpoints, _, err = endpointSVC.FindNotificationEndpoints(ctx, influxdb.NotificationEndpointFilter{
 			OrgID: &r.tl.Org.ID,
 		})
 		for _, existing := range endpoints {
@@ -2119,7 +2113,7 @@ func (r resourceChecker) getEndpoint(t *testing.T, getOpt getResourceOptFn) (inf
 			}
 		}
 	case opt.id != 0:
-		e, err = endpointSVC.FindNotificationEndpointByID(timedCtx(time.Second), opt.id)
+		e, err = endpointSVC.FindNotificationEndpointByID(ctx, opt.id)
 	default:
 		require.Fail(t, "did not provide any get option")
 	}
@@ -2159,7 +2153,7 @@ func (r resourceChecker) getLabel(t *testing.T, getOpt getResourceOptFn) (influx
 	switch opt := getOpt(); {
 	case opt.name != "":
 		labels, err := labelSVC.FindLabels(
-			timedCtx(time.Second),
+			ctx,
 			influxdb.LabelFilter{
 				Name:  opt.name,
 				OrgID: &r.tl.Org.ID,
@@ -2174,7 +2168,7 @@ func (r resourceChecker) getLabel(t *testing.T, getOpt getResourceOptFn) (influx
 		}
 		label = labels[0]
 	case opt.id != 0:
-		label, err = labelSVC.FindLabelByID(timedCtx(time.Second), opt.id)
+		label, err = labelSVC.FindLabelByID(ctx, opt.id)
 	default:
 		require.Fail(t, "did not provide any get option")
 	}
@@ -2207,7 +2201,7 @@ func (r resourceChecker) getRule(t *testing.T, getOpt getResourceOptFn) (influxd
 	switch opt := getOpt(); {
 	case opt.name != "":
 		var rules []influxdb.NotificationRule
-		rules, _, err = ruleSVC.FindNotificationRules(timedCtx(time.Second), influxdb.NotificationRuleFilter{
+		rules, _, err = ruleSVC.FindNotificationRules(ctx, influxdb.NotificationRuleFilter{
 			OrgID: &r.tl.Org.ID,
 		})
 		for _, existing := range rules {
@@ -2217,7 +2211,7 @@ func (r resourceChecker) getRule(t *testing.T, getOpt getResourceOptFn) (influxd
 			}
 		}
 	case opt.id != 0:
-		rule, err = ruleSVC.FindNotificationRuleByID(timedCtx(time.Second), opt.id)
+		rule, err = ruleSVC.FindNotificationRuleByID(ctx, opt.id)
 	default:
 		require.Fail(t, "did not provide any get option")
 	}
@@ -2256,7 +2250,7 @@ func (r resourceChecker) getTask(t *testing.T, getOpt getResourceOptFn) (http.Ta
 	)
 	switch opt := getOpt(); {
 	case opt.name != "":
-		tasks, _, err := taskSVC.FindTasks(timedCtx(time.Second), influxdb.TaskFilter{
+		tasks, _, err := taskSVC.FindTasks(ctx, influxdb.TaskFilter{
 			Name:           &opt.name,
 			OrganizationID: &r.tl.Org.ID,
 		})
@@ -2270,7 +2264,7 @@ func (r resourceChecker) getTask(t *testing.T, getOpt getResourceOptFn) (http.Ta
 			}
 		}
 	case opt.id != 0:
-		task, err = taskSVC.FindTaskByID(timedCtx(time.Second), opt.id)
+		task, err = taskSVC.FindTaskByID(ctx, opt.id)
 	default:
 		require.Fail(t, "did not provide a valid get option")
 	}
@@ -2305,7 +2299,7 @@ func (r resourceChecker) getTelegrafConfig(t *testing.T, getOpt getResourceOptFn
 	)
 	switch opt := getOpt(); {
 	case opt.name != "":
-		teles, _, _ := teleSVC.FindTelegrafConfigs(timedCtx(time.Second), influxdb.TelegrafConfigFilter{
+		teles, _, _ := teleSVC.FindTelegrafConfigs(ctx, influxdb.TelegrafConfigFilter{
 			OrgID: &r.tl.Org.ID,
 		})
 		for _, tt := range teles {
@@ -2315,7 +2309,7 @@ func (r resourceChecker) getTelegrafConfig(t *testing.T, getOpt getResourceOptFn
 			}
 		}
 	case opt.id != 0:
-		config, err = teleSVC.FindTelegrafConfigByID(timedCtx(time.Second), opt.id)
+		config, err = teleSVC.FindTelegrafConfigByID(ctx, opt.id)
 	default:
 		require.Fail(t, "did not provide a valid get option")
 	}
@@ -2350,7 +2344,7 @@ func (r resourceChecker) getVariable(t *testing.T, getOpt getResourceOptFn) (inf
 	)
 	switch opt := getOpt(); {
 	case opt.name != "":
-		vars, err := varSVC.FindVariables(timedCtx(time.Second), influxdb.VariableFilter{
+		vars, err := varSVC.FindVariables(ctx, influxdb.VariableFilter{
 			OrganizationID: &r.tl.Org.ID,
 		})
 		if err != nil {
@@ -2367,7 +2361,7 @@ func (r resourceChecker) getVariable(t *testing.T, getOpt getResourceOptFn) (inf
 			return influxdb.Variable{}, errors.New("did not find variable: " + opt.name)
 		}
 	case opt.id != 0:
-		variable, err = varSVC.FindVariableByID(timedCtx(time.Second), opt.id)
+		variable, err = varSVC.FindVariableByID(ctx, opt.id)
 	default:
 		require.Fail(t, "did not provide any get option")
 	}
