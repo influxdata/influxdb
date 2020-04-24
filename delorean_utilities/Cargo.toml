@@ -1,0 +1,11 @@
+[package]
+name = "delorean_utilities"
+version = "0.1.0"
+authors = ["Paul Dix <paul@pauldix.net>"]
+edition = "2018"
+
+[dependencies]
+rand = "0.7.2"
+structopt = "0.3.13"
+reqwest = { version = "0.10.1", features = ["blocking"] }
+tokio = { version = "0.2", features = ["full"] }

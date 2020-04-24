@@ -85,6 +85,7 @@ async fn write(req: hyper::Request<Body>, app: Arc<App>) -> Result<Option<Body>,
     let body = str::from_utf8(&body).unwrap();
 
     let mut points = line_parser::parse(body).expect("TODO: Unable to parse lines");
+    debug!("Parsed {} points", points.len());
 
     app.db
         .write_points(write_info.org, bucket_id, &mut points)
