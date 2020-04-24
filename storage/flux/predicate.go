@@ -1,4 +1,4 @@
-package reads
+package storageflux
 
 import (
 	"fmt"
@@ -8,12 +8,6 @@ import (
 	"github.com/influxdata/influxdb/v2/storage/reads/datatypes"
 	"github.com/influxdata/influxdb/v2/v1/models"
 	"github.com/pkg/errors"
-)
-
-const (
-	fieldKey       = "_field"
-	measurementKey = "_measurement"
-	valueKey       = "_value"
 )
 
 func toStoragePredicate(f *semantic.FunctionExpression) (*datatypes.Predicate, error) {
@@ -119,25 +113,25 @@ func toStoragePredicateHelper(n semantic.Expression, objectName string) (*dataty
 			return nil, fmt.Errorf("unknown object %q", n.Object)
 		}
 		switch n.Property {
-		case fieldKey:
+		case datatypes.FieldKey:
 			return &datatypes.Node{
 				NodeType: datatypes.NodeTypeTagRef,
 				Value: &datatypes.Node_TagRefValue{
 					TagRefValue: models.FieldKeyTagKey,
 				},
 			}, nil
-		case measurementKey:
+		case datatypes.MeasurementKey:
 			return &datatypes.Node{
 				NodeType: datatypes.NodeTypeTagRef,
 				Value: &datatypes.Node_TagRefValue{
 					TagRefValue: models.MeasurementTagKey,
 				},
 			}, nil
-		case valueKey:
+		case datatypes.ValueKey:
 			return &datatypes.Node{
 				NodeType: datatypes.NodeTypeFieldRef,
 				Value: &datatypes.Node_FieldRefValue{
-					FieldRefValue: valueKey,
+					FieldRefValue: datatypes.ValueKey,
 				},
 			}, nil
 
