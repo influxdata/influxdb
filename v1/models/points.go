@@ -2438,23 +2438,26 @@ func (p *point) Reset() {
 // again later to an int64
 // NOTE2: uint is accepted, and may be 64 bits, and is for some reason accepted...
 func (p Fields) MarshalBinary() []byte {
-	var b []byte
+	sz := len(p) - 1 // separators
 	keys := make([]string, 0, len(p))
-
 	for k := range p {
 		keys = append(keys, k)
+		sz += len(k)
 	}
 
-	// Not really necessary, can probably be removed.
-	sort.Strings(keys)
+	// Only sort if we have multiple fields to sort.
+	// This length check removes an allocation incurred by the sort.
+	if len(keys) > 1 {
+		sort.Strings(keys)
+	}
 
+	b := make([]byte, 0, sz)
 	for i, k := range keys {
 		if i > 0 {
 			b = append(b, ',')
 		}
 		b = appendField(b, k, p[k])
 	}
-
 	return b
 }
 
