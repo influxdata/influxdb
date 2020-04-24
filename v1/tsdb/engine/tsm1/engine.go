@@ -718,7 +718,7 @@ func (e *Engine) DiskSize() int64 {
 
 // Open opens and initializes the engine.
 // TODO(edd): plumb context
-func (e *Engine) Open(context.Context) error {
+func (e *Engine) Open() error {
 	if err := os.MkdirAll(e.path, 0777); err != nil {
 		return err
 	}

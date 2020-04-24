@@ -1,7 +1,7 @@
 package gen
 
 import (
-	"github.com/influxdata/influxdb/v2/v1/tsdb/cursors"
+	"github.com/influxdata/influxdb/v2/v1/tsdb"
 	"github.com/influxdata/influxdb/v2/v1/tsdb/engine/tsm1"
 )
 
@@ -9,16 +9,16 @@ import (
 {{ $typename := print .name "Array" }}
 {{ $tsdbname := print .Name "Array" }}
 type {{.Name}}Values interface {
-	Copy(*cursors.{{$tsdbname}})
+	Copy(*tsdb.{{$tsdbname}})
 }
 
 type {{$typename}} struct {
-	cursors.{{$tsdbname}}
+	tsdb.{{$tsdbname}}
 }
 
 func new{{$tsdbname}}Len(sz int) *{{$typename}} {
 	return &{{$typename}}{
-		{{$tsdbname}}: cursors.{{$tsdbname}}{
+		{{$tsdbname}}: tsdb.{{$tsdbname}}{
 			Timestamps: make([]int64, sz),
 			Values: make([]{{.Type}}, sz),
 		},
@@ -29,7 +29,7 @@ func (a *{{$typename}}) Encode(b []byte) ([]byte, error) {
 	return tsm1.Encode{{$tsdbname}}Block(&a.{{$tsdbname}}, b)
 }
 
-func (a *{{$typename}}) Copy(dst *cursors.{{$tsdbname}}) {
+func (a *{{$typename}}) Copy(dst *tsdb.{{$tsdbname}}) {
 	dst.Timestamps = append(dst.Timestamps[:0], a.Timestamps...)
 	dst.Values = append(dst.Values[:0], a.Values...)
 }

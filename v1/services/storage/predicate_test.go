@@ -6,7 +6,7 @@ import (
 	"github.com/influxdata/influxdb/v2/pkg/testing/assert"
 	"github.com/influxdata/influxdb/v2/storage/reads/datatypes"
 	"github.com/influxdata/influxdb/v2/v1/services/storage"
-	"github.com/influxdata/influxdb/v2/v1/storage/reads"
+	"github.com/influxdata/influxdb/v2/storage/reads"
 	"github.com/influxdata/influxql"
 )
 

@@ -7,8 +7,8 @@
 package gen
 
 import (
-	"github.com/influxdata/influxdb/v2/models"
-	"github.com/influxdata/influxdb/v2/v1/tsdb/cursors"
+	"github.com/influxdata/influxdb/v2/v1/models"
+	"github.com/influxdata/influxdb/v2/v1/tsdb"
 )
 
 type FloatValuesSequence interface {
@@ -26,7 +26,7 @@ type timeFloatValuesSequence struct {
 
 func NewTimeFloatValuesSequence(count int, ts TimestampSequence, vs FloatValuesSequence) TimeValuesSequence {
 	return &timeFloatValuesSequence{
-		vals:  *newFloatArrayLen(cursors.DefaultMaxPointsPerBlock),
+		vals:  *newFloatArrayLen(tsdb.DefaultMaxPointsPerBlock),
 		ts:    ts,
 		vs:    vs,
 		count: count,
@@ -42,7 +42,7 @@ func (s *timeFloatValuesSequence) Reset() {
 
 func (s *timeFloatValuesSequence) Next() bool {
 	if s.n > 0 {
-		c := min(s.n, cursors.DefaultMaxPointsPerBlock)
+		c := min(s.n, tsdb.DefaultMaxPointsPerBlock)
 		s.n -= c
 		s.vals.Timestamps = s.vals.Timestamps[:c]
 		s.vals.Values = s.vals.Values[:c]
@@ -78,7 +78,7 @@ type timeIntegerValuesSequence struct {
 
 func NewTimeIntegerValuesSequence(count int, ts TimestampSequence, vs IntegerValuesSequence) TimeValuesSequence {
 	return &timeIntegerValuesSequence{
-		vals:  *newIntegerArrayLen(cursors.DefaultMaxPointsPerBlock),
+		vals:  *newIntegerArrayLen(tsdb.DefaultMaxPointsPerBlock),
 		ts:    ts,
 		vs:    vs,
 		count: count,
@@ -94,7 +94,7 @@ func (s *timeIntegerValuesSequence) Reset() {
 
 func (s *timeIntegerValuesSequence) Next() bool {
 	if s.n > 0 {
-		c := min(s.n, cursors.DefaultMaxPointsPerBlock)
+		c := min(s.n, tsdb.DefaultMaxPointsPerBlock)
 		s.n -= c
 		s.vals.Timestamps = s.vals.Timestamps[:c]
 		s.vals.Values = s.vals.Values[:c]
@@ -130,7 +130,7 @@ type timeUnsignedValuesSequence struct {
 
 func NewTimeUnsignedValuesSequence(count int, ts TimestampSequence, vs UnsignedValuesSequence) TimeValuesSequence {
 	return &timeUnsignedValuesSequence{
-		vals:  *newUnsignedArrayLen(cursors.DefaultMaxPointsPerBlock),
+		vals:  *newUnsignedArrayLen(tsdb.DefaultMaxPointsPerBlock),
 		ts:    ts,
 		vs:    vs,
 		count: count,
@@ -146,7 +146,7 @@ func (s *timeUnsignedValuesSequence) Reset() {
 
 func (s *timeUnsignedValuesSequence) Next() bool {
 	if s.n > 0 {
-		c := min(s.n, cursors.DefaultMaxPointsPerBlock)
+		c := min(s.n, tsdb.DefaultMaxPointsPerBlock)
 		s.n -= c
 		s.vals.Timestamps = s.vals.Timestamps[:c]
 		s.vals.Values = s.vals.Values[:c]
@@ -182,7 +182,7 @@ type timeStringValuesSequence struct {
 
 func NewTimeStringValuesSequence(count int, ts TimestampSequence, vs StringValuesSequence) TimeValuesSequence {
 	return &timeStringValuesSequence{
-		vals:  *newStringArrayLen(cursors.DefaultMaxPointsPerBlock),
+		vals:  *newStringArrayLen(tsdb.DefaultMaxPointsPerBlock),
 		ts:    ts,
 		vs:    vs,
 		count: count,
@@ -198,7 +198,7 @@ func (s *timeStringValuesSequence) Reset() {
 
 func (s *timeStringValuesSequence) Next() bool {
 	if s.n > 0 {
-		c := min(s.n, cursors.DefaultMaxPointsPerBlock)
+		c := min(s.n, tsdb.DefaultMaxPointsPerBlock)
 		s.n -= c
 		s.vals.Timestamps = s.vals.Timestamps[:c]
 		s.vals.Values = s.vals.Values[:c]
@@ -234,7 +234,7 @@ type timeBooleanValuesSequence struct {
 
 func NewTimeBooleanValuesSequence(count int, ts TimestampSequence, vs BooleanValuesSequence) TimeValuesSequence {
 	return &timeBooleanValuesSequence{
-		vals:  *newBooleanArrayLen(cursors.DefaultMaxPointsPerBlock),
+		vals:  *newBooleanArrayLen(tsdb.DefaultMaxPointsPerBlock),
 		ts:    ts,
 		vs:    vs,
 		count: count,
@@ -250,7 +250,7 @@ func (s *timeBooleanValuesSequence) Reset() {
 
 func (s *timeBooleanValuesSequence) Next() bool {
 	if s.n > 0 {
-		c := min(s.n, cursors.DefaultMaxPointsPerBlock)
+		c := min(s.n, tsdb.DefaultMaxPointsPerBlock)
 		s.n -= c
 		s.vals.Timestamps = s.vals.Timestamps[:c]
 		s.vals.Values = s.vals.Values[:c]

@@ -2545,6 +2545,56 @@ func BenchmarkMakeKey(b *testing.B) {
 	}
 }
 
+func BenchmarkNewTagsKeyValues(b *testing.B) {
+	b.Run("sorted", func(b *testing.B) {
+		b.Run("no dupes", func(b *testing.B) {
+			kv := [][]byte{[]byte("tag0"), []byte("v0"), []byte("tag1"), []byte("v1"), []byte("tag2"), []byte("v2")}
+
+			b.Run("preallocate", func(b *testing.B) {
+				t := make(models.Tags, 3)
+				b.ReportAllocs()
+				for i := 0; i < b.N; i++ {
+					_, _ = models.NewTagsKeyValues(t, kv...)
+				}
+			})
+
+			b.Run("allocate", func(b *testing.B) {
+				b.ReportAllocs()
+				for i := 0; i < b.N; i++ {
+					_, _ = models.NewTagsKeyValues(nil, kv...)
+				}
+			})
+		})
+
+		b.Run("dupes", func(b *testing.B) {
+			kv := [][]byte{[]byte("tag0"), []byte("v0"), []byte("tag1"), []byte("v1"), []byte("tag1"), []byte("v1"), []byte("tag2"), []byte("v2"), []byte("tag2"), []byte("v2")}
+			b.ReportAllocs()
+
+			for i := 0; i < b.N; i++ {
+				_, _ = models.NewTagsKeyValues(nil, kv...)
+			}
+		})
+	})
+	b.Run("unsorted", func(b *testing.B) {
+		b.Run("no dupes", func(b *testing.B) {
+			kv := [][]byte{[]byte("tag1"), []byte("v1"), []byte("tag0"), []byte("v0"), []byte("tag2"), []byte("v2")}
+			b.ReportAllocs()
+
+			for i := 0; i < b.N; i++ {
+				_, _ = models.NewTagsKeyValues(nil, kv...)
+			}
+		})
+		b.Run("dupes", func(b *testing.B) {
+			kv := [][]byte{[]byte("tag1"), []byte("v1"), []byte("tag2"), []byte("v2"), []byte("tag0"), []byte("v0"), []byte("tag1"), []byte("v1"), []byte("tag2"), []byte("v2")}
+			b.ReportAllocs()
+
+			for i := 0; i < b.N; i++ {
+				_, _ = models.NewTagsKeyValues(nil, kv...)
+			}
+		})
+	})
+}
+
 func init() {
 	// Force uint support to be enabled for testing.
 	models.EnableUintSupport()

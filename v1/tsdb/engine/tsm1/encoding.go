@@ -344,6 +344,8 @@ func (v FloatValue) String() string {
 	return fmt.Sprintf("%v %v", time.Unix(0, v.unixnano), v.value)
 }
 
+func (v FloatValue) RawValue() float64 { return v.value }
+
 func encodeFloatBlock(buf []byte, values []Value) ([]byte, error) {
 	if len(values) == 0 {
 		return nil, nil
@@ -479,6 +481,8 @@ func (v BooleanValue) String() string {
 	return fmt.Sprintf("%v %v", time.Unix(0, v.unixnano), v.Value())
 }
 
+func (v BooleanValue) RawValue() bool { return v.value }
+
 func encodeBooleanBlock(buf []byte, values []Value) ([]byte, error) {
 	if len(values) == 0 {
 		return nil, nil
@@ -606,6 +610,8 @@ func (v IntegerValue) String() string {
 	return fmt.Sprintf("%v %v", time.Unix(0, v.unixnano), v.Value())
 }
 
+func (v IntegerValue) RawValue() int64 { return v.value }
+
 func encodeIntegerBlock(buf []byte, values []Value) ([]byte, error) {
 	tenc := getTimeEncoder(len(values))
 	venc := getIntegerEncoder(len(values))
@@ -725,6 +731,8 @@ func (v UnsignedValue) String() string {
 	return fmt.Sprintf("%v %v", time.Unix(0, v.unixnano), v.Value())
 }
 
+func (v UnsignedValue) RawValue() uint64 { return v.value }
+
 func encodeUnsignedBlock(buf []byte, values []Value) ([]byte, error) {
 	tenc := getTimeEncoder(len(values))
 	venc := getUnsignedEncoder(len(values))
@@ -843,6 +851,8 @@ func (v StringValue) Size() int {
 func (v StringValue) String() string {
 	return fmt.Sprintf("%v %v", time.Unix(0, v.unixnano), v.Value())
 }
+
+func (v StringValue) RawValue() string { return v.value }
 
 func encodeStringBlock(buf []byte, values []Value) ([]byte, error) {
 	tenc := getTimeEncoder(len(values))

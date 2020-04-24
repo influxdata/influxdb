@@ -796,18 +796,29 @@ func (c *Cache) updateMemSize(b int64) {
 	atomic.AddInt64(&c.stats.MemSizeBytes, b)
 }
 
+const (
+	valueTypeUndefined = 0
+	valueTypeFloat64   = 1
+	valueTypeInteger   = 2
+	valueTypeString    = 3
+	valueTypeBoolean   = 4
+	valueTypeUnsigned  = 5
+)
+
 func valueType(v Value) byte {
 	switch v.(type) {
 	case FloatValue:
-		return 1
+		return valueTypeFloat64
 	case IntegerValue:
-		return 2
+		return valueTypeInteger
 	case StringValue:
-		return 3
+		return valueTypeString
 	case BooleanValue:
-		return 4
+		return valueTypeBoolean
+	case UnsignedValue:
+		return valueTypeUnsigned
 	default:
-		return 0
+		return valueTypeUndefined
 	}
 }
 

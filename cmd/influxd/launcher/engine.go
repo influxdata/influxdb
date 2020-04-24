@@ -12,7 +12,6 @@ import (
 	"github.com/influxdata/influxdb/v2/kit/prom"
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/storage"
-	"github.com/influxdata/influxdb/v2/storage/reads"
 	"github.com/influxdata/influxdb/v2/v1/tsdb/cursors"
 	"github.com/influxdata/influxql"
 	"github.com/prometheus/client_golang/prometheus"
@@ -25,7 +24,6 @@ import (
 // to facilitate testing.
 type Engine interface {
 	influxdb.DeleteService
-	reads.Viewer
 	storage.PointsWriter
 	storage.BucketDeleter
 	prom.PrometheusCollector
@@ -136,16 +134,6 @@ func (t *TemporaryEngine) WithLogger(log *zap.Logger) {
 // the engine and its components.
 func (t *TemporaryEngine) PrometheusCollectors() []prometheus.Collector {
 	return t.engine.PrometheusCollectors()
-}
-
-// CreateCursorIterator calls into the underlying engines CreateCurorIterator.
-func (t *TemporaryEngine) CreateCursorIterator(ctx context.Context) (cursors.CursorIterator, error) {
-	return t.engine.CreateCursorIterator(ctx)
-}
-
-// CreateSeriesCursor calls into the underlying engines CreateSeriesCursor.
-func (t *TemporaryEngine) CreateSeriesCursor(ctx context.Context, orgID, bucketID influxdb.ID, cond influxql.Expr) (storage.SeriesCursor, error) {
-	return t.engine.CreateSeriesCursor(ctx, orgID, bucketID, cond)
 }
 
 // TagKeys calls into the underlying engines TagKeys.

@@ -5,7 +5,7 @@ import (
 	"io"
 	"strconv"
 
-	"github.com/influxdata/influxdb/v2/models"
+	"github.com/influxdata/influxdb/v2/v1/models"
 	"github.com/influxdata/influxdb/v2/v1/tsdb/cursors"
 )
 

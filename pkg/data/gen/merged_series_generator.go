@@ -4,7 +4,7 @@ import (
 	"container/heap"
 	"math"
 
-	"github.com/influxdata/influxdb/v2/models"
+	"github.com/influxdata/influxdb/v2/v1/models"
 )
 
 type mergedSeriesGenerator struct {
@@ -79,8 +79,8 @@ func (s *mergedSeriesGenerator) Key() []byte {
 	return s.heap.items[0].Key()
 }
 
-func (s *mergedSeriesGenerator) ID() []byte {
-	return s.heap.items[0].ID()
+func (s *mergedSeriesGenerator) Name() []byte {
+	return s.heap.items[0].Name()
 }
 
 func (s *mergedSeriesGenerator) Tags() models.Tags {

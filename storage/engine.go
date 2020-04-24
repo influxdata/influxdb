@@ -18,8 +18,6 @@ import (
 	"github.com/influxdata/influxdb/v2/v1/models"
 	"github.com/influxdata/influxdb/v2/v1/services/meta"
 	"github.com/influxdata/influxdb/v2/v1/tsdb"
-	"github.com/influxdata/influxdb/v2/v1/tsdb/cursors"
-	"github.com/influxdata/influxql"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
@@ -336,30 +334,6 @@ func (e *Engine) Close() error {
 
 	// TODO - Close tsdb store
 	return nil
-}
-
-// CreateSeriesCursor creates a SeriesCursor for usage with the read service.
-func (e *Engine) CreateSeriesCursor(ctx context.Context, orgID, bucketID influxdb.ID, cond influxql.Expr) (SeriesCursor, error) {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-	if e.closing == nil {
-		return nil, ErrEngineClosed
-	}
-
-	// return newSeriesCursor(orgID, bucketID, e.index, e.sfile, cond)
-	return nil, nil
-}
-
-// CreateCursorIterator creates a CursorIterator for usage with the read service.
-func (e *Engine) CreateCursorIterator(ctx context.Context) (cursors.CursorIterator, error) {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-	if e.closing == nil {
-		return nil, ErrEngineClosed
-	}
-
-	// return e.engine.CreateCursorIterator(ctx)
-	return nil, nil
 }
 
 // WritePoints writes the provided points to the engine.

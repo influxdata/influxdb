@@ -2,7 +2,6 @@ package cli
 
 import (
 	"github.com/influxdata/influxdb/v2"
-	"github.com/influxdata/influxdb/v2/v1/tsdb"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -56,5 +55,6 @@ func (o *OrgBucket) OrgBucketID() (orgID, bucketID influxdb.ID) {
 }
 
 func (o *OrgBucket) Name() [influxdb.IDLength]byte {
-	return tsdb.EncodeName(o.OrgBucketID())
+	// TODO: FIX THIS
+	panic("TODO: Fix")
 }

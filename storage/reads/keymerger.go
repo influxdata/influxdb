@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"strings"
 
-	"github.com/influxdata/influxdb/v2/models"
+	"github.com/influxdata/influxdb/v2/v1/models"
 )
 
 // tagsKeyMerger is responsible for determining a merged set of tag keys

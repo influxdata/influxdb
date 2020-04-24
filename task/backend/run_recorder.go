@@ -7,9 +7,8 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/v2"
-	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/storage"
-	"github.com/influxdata/influxdb/v2/v1/tsdb"
+	"github.com/influxdata/influxdb/v2/v1/models"
 	"go.uber.org/zap"
 )
 
@@ -66,13 +65,6 @@ func (s *StoragePointsWriterRecorder) Record(ctx context.Context, orgID influxdb
 		return err
 	}
 
-	// use the tsdb explode points to convert to the new style.
-	// We could split this on our own but its quite possible this could change.
-	_, err = tsdb.ExplodePoints(orgID, bucketID, models.Points{point})
-	if err != nil {
-		return err
-	}
-
 	// TODO - fix
-	return s.pw.WritePoints(ctx, 0, 0, nil)
+	return s.pw.WritePoints(ctx, orgID, bucketID, models.Points{point})
 }

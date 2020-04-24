@@ -17,62 +17,83 @@ func (v *singleValue) Value(key string) (interface{}, bool) {
 }
 
 func newAggregateArrayCursor(ctx context.Context, agg *datatypes.Aggregate, cursor cursors.Cursor) cursors.Cursor {
-	switch agg.Type {
-	case datatypes.AggregateTypeFirst, datatypes.AggregateTypeLast:
-		return newLimitArrayCursor(cursor)
-	}
-	return newWindowAggregateArrayCursor(ctx, agg, 0, 0, cursor)
-}
-
-func newWindowAggregateArrayCursor(ctx context.Context, agg *datatypes.Aggregate, every, offset int64, cursor cursors.Cursor) cursors.Cursor {
 	if cursor == nil {
 		return nil
 	}
 
 	switch agg.Type {
-	case datatypes.AggregateTypeCount:
-		return newWindowCountArrayCursor(cursor, every, offset)
 	case datatypes.AggregateTypeSum:
-		return newWindowSumArrayCursor(cursor, every, offset)
-	case datatypes.AggregateTypeFirst:
-		return newWindowFirstArrayCursor(cursor, every, offset)
-	case datatypes.AggregateTypeLast:
-		return newWindowLastArrayCursor(cursor, every, offset)
-	case datatypes.AggregateTypeMin:
-		return newWindowMinArrayCursor(cursor, every, offset)
-	case datatypes.AggregateTypeMax:
-		return newWindowMaxArrayCursor(cursor, every, offset)
-	case datatypes.AggregateTypeMean:
-		return newWindowMeanArrayCursor(cursor, every, offset)
+		return newSumArrayCursor(cursor)
+	case datatypes.AggregateTypeCount:
+		return newCountArrayCursor(cursor)
 	default:
 		// TODO(sgc): should be validated higher up
 		panic("invalid aggregate")
 	}
 }
 
-type cursorContext struct {
-	ctx            context.Context
-	req            *cursors.CursorRequest
-	cursorIterator cursors.CursorIterator
-	err            error
-}
-
-type arrayCursors struct {
-	ctx context.Context
-	req cursors.CursorRequest
-
-	cursors struct {
-		i integerArrayCursor
-		f floatArrayCursor
-		u unsignedArrayCursor
-		b booleanArrayCursor
-		s stringArrayCursor
+func newSumArrayCursor(cur cursors.Cursor) cursors.Cursor {
+	switch cur := cur.(type) {
+	case cursors.FloatArrayCursor:
+		return newFloatArraySumCursor(cur)
+	case cursors.IntegerArrayCursor:
+		return newIntegerArraySumCursor(cur)
+	case cursors.UnsignedArrayCursor:
+		return newUnsignedArraySumCursor(cur)
+	default:
+		// TODO(sgc): propagate an error instead?
+		return nil
 	}
 }
 
-func newArrayCursors(ctx context.Context, start, end int64, asc bool) *arrayCursors {
-	m := &arrayCursors{
-		ctx: ctx,
+func newCountArrayCursor(cur cursors.Cursor) cursors.Cursor {
+	switch cur := cur.(type) {
+	case cursors.FloatArrayCursor:
+		return &integerFloatCountArrayCursor{FloatArrayCursor: cur}
+	case cursors.IntegerArrayCursor:
+		return &integerIntegerCountArrayCursor{IntegerArrayCursor: cur}
+	case cursors.UnsignedArrayCursor:
+		return &integerUnsignedCountArrayCursor{UnsignedArrayCursor: cur}
+	case cursors.StringArrayCursor:
+		return &integerStringCountArrayCursor{StringArrayCursor: cur}
+	case cursors.BooleanArrayCursor:
+		return &integerBooleanCountArrayCursor{BooleanArrayCursor: cur}
+	default:
+		panic(fmt.Sprintf("unreachable: %T", cur))
+	}
+}
+
+type cursorContext struct {
+	ctx   context.Context
+	req   *cursors.CursorRequest
+	itrs  cursors.CursorIterators
+	limit int64
+	count int64
+	err   error
+}
+
+type multiShardArrayCursors struct {
+	ctx   context.Context
+	limit int64
+	req   cursors.CursorRequest
+
+	cursors struct {
+		i integerMultiShardArrayCursor
+		f floatMultiShardArrayCursor
+		u unsignedMultiShardArrayCursor
+		b booleanMultiShardArrayCursor
+		s stringMultiShardArrayCursor
+	}
+}
+
+func newMultiShardArrayCursors(ctx context.Context, start, end int64, asc bool, limit int64) *multiShardArrayCursors {
+	if limit < 0 {
+		limit = 1
+	}
+
+	m := &multiShardArrayCursors{
+		ctx:   ctx,
+		limit: limit,
 		req: cursors.CursorRequest{
 			Ascending: asc,
 			StartTime: start,
@@ -81,8 +102,9 @@ func newArrayCursors(ctx context.Context, start, end int64, asc bool) *arrayCurs
 	}
 
 	cc := cursorContext{
-		ctx: ctx,
-		req: &m.req,
+		ctx:   ctx,
+		limit: limit,
+		req:   &m.req,
 	}
 
 	m.cursors.i.cursorContext = cc
@@ -94,42 +116,48 @@ func newArrayCursors(ctx context.Context, start, end int64, asc bool) *arrayCurs
 	return m
 }
 
-func (m *arrayCursors) createCursor(seriesRow SeriesRow) cursors.Cursor {
-	m.req.Name = seriesRow.Name
-	m.req.Tags = seriesRow.SeriesTags
-	m.req.Field = seriesRow.Field
+func (m *multiShardArrayCursors) createCursor(row SeriesRow) cursors.Cursor {
+	m.req.Name = row.Name
+	m.req.Tags = row.SeriesTags
+	m.req.Field = row.Field
 
 	var cond expression
-	if seriesRow.ValueCond != nil {
-		cond = &astExpr{seriesRow.ValueCond}
+	if row.ValueCond != nil {
+		cond = &astExpr{row.ValueCond}
 	}
 
-	if seriesRow.Query == nil {
-		return nil
+	var shard cursors.CursorIterator
+	var cur cursors.Cursor
+	for cur == nil && len(row.Query) > 0 {
+		shard, row.Query = row.Query[0], row.Query[1:]
+		cur, _ = shard.Next(m.ctx, &m.req)
 	}
-	cur, _ := seriesRow.Query.Next(m.ctx, &m.req)
-	seriesRow.Query = nil
+
 	if cur == nil {
 		return nil
 	}
 
 	switch c := cur.(type) {
 	case cursors.IntegerArrayCursor:
-		m.cursors.i.reset(c, seriesRow.Query, cond)
+		m.cursors.i.reset(c, row.Query, cond)
 		return &m.cursors.i
 	case cursors.FloatArrayCursor:
-		m.cursors.f.reset(c, seriesRow.Query, cond)
+		m.cursors.f.reset(c, row.Query, cond)
 		return &m.cursors.f
 	case cursors.UnsignedArrayCursor:
-		m.cursors.u.reset(c, seriesRow.Query, cond)
+		m.cursors.u.reset(c, row.Query, cond)
 		return &m.cursors.u
 	case cursors.StringArrayCursor:
-		m.cursors.s.reset(c, seriesRow.Query, cond)
+		m.cursors.s.reset(c, row.Query, cond)
 		return &m.cursors.s
 	case cursors.BooleanArrayCursor:
-		m.cursors.b.reset(c, seriesRow.Query, cond)
+		m.cursors.b.reset(c, row.Query, cond)
 		return &m.cursors.b
 	default:
 		panic(fmt.Sprintf("unreachable: %T", cur))
 	}
+}
+
+func (m *multiShardArrayCursors) newAggregateCursor(ctx context.Context, agg *datatypes.Aggregate, cursor cursors.Cursor) cursors.Cursor {
+	return newAggregateArrayCursor(ctx, agg, cursor)
 }
