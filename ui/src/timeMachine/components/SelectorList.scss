@@ -13,20 +13,33 @@ $selector-list--h-padding: $ix-marg-c;
   font-family: $cf-code-font;
   font-size: $form-sm-font;
   line-height: $form-sm-font;
+  background-color: transparent;
   transition: background-color 0.25s ease, color 0.25s ease;
+  border: 0;
+  outline: 0;
+  width: 100%;
+  text-align: left;
 
   &:hover {
-    background: $g5-pepper;
+    background-color: $g5-pepper;
   }
 
   &.selected {
-    background: $c-pool;
+    background-color: $c-pool;
     color: $g20-white;
   }
 
   &.selected:hover {
-    background: $c-pool;
+    background-color: $c-pool;
   }
+}
+
+.selector-list--item__disabled,
+.selector-list--item__disabled:hover {
+  cursor: default;
+  background-color: transparent;
+  font-style: italic;
+  color: $g9-mountain;
 }
 
 .selector-list--checkbox {

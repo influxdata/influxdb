@@ -6,7 +6,7 @@ import {connect} from 'react-redux'
 import BuilderCard from 'src/timeMachine/components/builderCard/BuilderCard'
 import WaitingText from 'src/shared/components/WaitingText'
 import SelectorList from 'src/timeMachine/components/SelectorList'
-import CreateBucketButton from 'src/buckets/components/CreateBucketButton'
+import SelectorListCreateBucket from 'src/timeMachine/components/SelectorListCreateBucket'
 import {Input} from '@influxdata/clockface'
 
 // Actions
@@ -101,7 +101,7 @@ const Selector: FunctionComponent<SelectorProps> = ({
       onSelectItem={onSelect}
       multiSelect={false}
     >
-      <CreateBucketButton appearance="selectorList" />
+      <SelectorListCreateBucket />
     </SelectorList>
   )
 }

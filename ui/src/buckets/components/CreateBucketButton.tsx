@@ -33,14 +33,11 @@ interface DispatchProps {
   checkBucketLimits: typeof checkBucketLimitsAction
 }
 
-interface OwnProps {
-  appearance?: 'button' | 'selectorList'
-}
+interface OwnProps {}
 
 type Props = OwnProps & StateProps & DispatchProps
 
 const CreateBucketButton: FC<Props> = ({
-  appearance = 'button',
   limitStatus,
   checkBucketLimits,
   onShowOverlay,
@@ -53,12 +50,10 @@ const CreateBucketButton: FC<Props> = ({
 
   const limitExceeded = limitStatus === LimitStatus.EXCEEDED
   const text = 'Create Bucket'
-  let selectorItemClassName = 'selector-list--item'
   let titleText = 'Click to create a bucket'
   let buttonStatus = ComponentStatus.Default
 
   if (limitExceeded) {
-    selectorItemClassName = 'selector-list--item__disabled'
     titleText = 'This account has the maximum number of buckets allowed'
     buttonStatus = ComponentStatus.Disabled
   }
@@ -71,29 +66,16 @@ const CreateBucketButton: FC<Props> = ({
     onShowOverlay('create-bucket', null, onDismissOverlay)
   }
 
-  if (appearance === 'button') {
-    return (
-      <Button
-        icon={IconFont.Plus}
-        color={ComponentColor.Primary}
-        text={text}
-        titleText={titleText}
-        onClick={handleItemClick}
-        testID="Create Bucket"
-        status={buttonStatus}
-      />
-    )
-  }
-
   return (
-    <div
-      className={selectorItemClassName}
-      data-testid="selector-list add-bucket"
+    <Button
+      icon={IconFont.Plus}
+      color={ComponentColor.Primary}
+      text={text}
+      titleText={titleText}
       onClick={handleItemClick}
-      title={titleText}
-    >
-      {`+ ${text}`}
-    </div>
+      testID="Create Bucket"
+      status={buttonStatus}
+    />
   )
 }
 
