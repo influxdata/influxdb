@@ -1,53 +1,138 @@
 //! partitioned_store is an enum and set of helper functions and structs to define Partitions
 //! that store data. The helper funcs and structs merge results from multiple partitions together.
-use crate::delorean::{Predicate, TimestampRange};
+use crate::delorean::{wal, Predicate, TimestampRange};
 use crate::line_parser::{self, PointType};
 use crate::storage::{
     memdb::MemDB, remote_partition::RemotePartition, s3_partition::S3Partition, ReadPoint,
     SeriesDataType, StorageError,
 };
 
-use futures::stream::{BoxStream, Stream};
-use std::cmp::Ordering;
-use std::collections::BTreeMap;
-use std::mem;
-use std::pin::Pin;
-use std::task::{Context, Poll};
+use delorean_wal::{Wal, WalBuilder};
+use futures::{
+    channel::mpsc,
+    stream::{BoxStream, Stream},
+    SinkExt, StreamExt,
+};
+use std::{
+    cmp::Ordering,
+    collections::BTreeMap,
+    io::Write,
+    mem,
+    path::PathBuf,
+    pin::Pin,
+    task::{Context, Poll},
+    time::Duration,
+};
+use tokio::task;
 
 /// A Partition is a block of data. It has methods for reading the metadata like which measurements,
-/// tags, tag values, and fields exist. Along with the raw time series data. It is designed to work
-/// as a stream so that it can be used in safely an asynchronous context. A partition is the
-/// lowest level organization scheme. Above it you will have a database which keeps track of
+/// tags, tag values, and fields exist, along with the raw time series data. It is designed to work
+/// as a stream so that it can be used safely in an asynchronous context. A partition is the
+/// lowest level organization scheme. Above it, you will have a database which keeps track of
 /// what organizations and buckets exist. A bucket will have 1 to many partitions and a partition
 /// will only ever contain data for a single bucket.
-pub enum Partition {
+///
+/// A Partition is backed by some Partition Store mechanism, such as in memory, on S3, or in a
+/// remote partition.
+///
+/// A Partition may optionally have a write-ahead log.
+pub struct Partition {
+    store: PartitionStore,
+    wal: Option<Wal<mpsc::Sender<delorean_wal::Result<()>>>>,
+}
+
+pub enum PartitionStore {
     MemDB(Box<MemDB>),
     S3(Box<S3Partition>),
     Remote(Box<RemotePartition>),
 }
 
 impl Partition {
+    pub fn new(store: PartitionStore, wal_dir: Option<PathBuf>) -> Partition {
+        let wal = wal_dir.map(|dir| {
+            let wal_builder = WalBuilder::new(dir);
+            start_wal_sync_task(wal_builder)
+        });
+
+        Partition { wal, store }
+    }
+
+    pub fn restore_memdb_from_wal(
+        bucket_name: &str,
+        bucket_dir: PathBuf,
+    ) -> Result<Partition, StorageError> {
+        let partition_id = bucket_name.to_string();
+        let mut db = MemDB::new(partition_id);
+        let wal_builder = WalBuilder::new(bucket_dir);
+
+        let mut points = Vec::new();
+
+        for entry in wal_builder.clone().entries()? {
+            let entry = entry?;
+            let bytes = entry.as_data();
+
+            let entry = flatbuffers::get_root::<wal::Entry>(&bytes);
+
+            if let Some(entry_type) = entry.entry_type() {
+                if let Some(write) = entry_type.write() {
+                    if let Some(wal_points) = write.points() {
+                        for wal_point in wal_points {
+                            points.push(wal_point.into());
+                        }
+                    }
+                }
+            }
+        }
+
+        db.write_points(&mut points)?;
+
+        let partition_store = PartitionStore::MemDB(Box::new(db));
+
+        Ok(Partition {
+            store: partition_store,
+            wal: Some(start_wal_sync_task(wal_builder)),
+        })
+    }
+
     pub fn id(&self) -> &str {
-        match self {
-            Partition::MemDB(db) => &db.id,
-            Partition::S3(_) => panic!("s3 partition not implemented!"),
-            Partition::Remote(_) => panic!("remote partition not implemented!"),
+        match &self.store {
+            PartitionStore::MemDB(db) => &db.id,
+            PartitionStore::S3(_) => panic!("s3 partition not implemented!"),
+            PartitionStore::Remote(_) => panic!("remote partition not implemented!"),
         }
     }
 
     pub fn size(&self) -> usize {
-        match self {
-            Partition::MemDB(db) => db.size(),
-            Partition::S3(_) => panic!("s3 partition not implemented!"),
-            Partition::Remote(_) => panic!("remote partition not implemented!"),
+        match &self.store {
+            PartitionStore::MemDB(db) => db.size(),
+            PartitionStore::S3(_) => panic!("s3 partition not implemented!"),
+            PartitionStore::Remote(_) => panic!("remote partition not implemented!"),
         }
     }
 
     pub async fn write_points(&mut self, points: &mut [PointType]) -> Result<(), StorageError> {
-        match self {
-            Partition::MemDB(db) => db.write_points(points),
-            Partition::S3(_) => panic!("s3 partition not implemented!"),
-            Partition::Remote(_) => panic!("remote partition not implemented!"),
+        // TODO: Allow each kind of Partition to configure the guarantees around when this
+        // function returns and the state of data in regards to the WAL
+
+        if let Some(wal) = &self.wal {
+            let (ingest_done_tx, mut ingest_done_rx) = mpsc::channel(1);
+
+            let mut w = wal.append();
+            let flatbuffer = points_to_flatbuffer(&points);
+            w.write_all(flatbuffer.finished_data())?;
+            w.finalize(ingest_done_tx).expect("TODO handle errors");
+
+            ingest_done_rx
+                .next()
+                .await
+                .expect("TODO handle errors")
+                .expect("TODO handle errors");
+        }
+
+        match &mut self.store {
+            PartitionStore::MemDB(db) => db.write_points(points),
+            PartitionStore::S3(_) => panic!("s3 partition not implemented!"),
+            PartitionStore::Remote(_) => panic!("remote partition not implemented!"),
         }
     }
 
@@ -56,10 +141,10 @@ impl Partition {
         predicate: Option<&Predicate>,
         range: Option<&TimestampRange>,
     ) -> Result<BoxStream<'_, String>, StorageError> {
-        match self {
-            Partition::MemDB(db) => db.get_tag_keys(predicate, range),
-            Partition::S3(_) => panic!("s3 partition not implemented!"),
-            Partition::Remote(_) => panic!("remote partition not implemented!"),
+        match &self.store {
+            PartitionStore::MemDB(db) => db.get_tag_keys(predicate, range),
+            PartitionStore::S3(_) => panic!("s3 partition not implemented!"),
+            PartitionStore::Remote(_) => panic!("remote partition not implemented!"),
         }
     }
 
@@ -69,10 +154,10 @@ impl Partition {
         predicate: Option<&Predicate>,
         range: Option<&TimestampRange>,
     ) -> Result<BoxStream<'_, String>, StorageError> {
-        match self {
-            Partition::MemDB(db) => db.get_tag_values(tag_key, predicate, range),
-            Partition::S3(_) => panic!("s3 partition not implemented!"),
-            Partition::Remote(_) => panic!("remote partition not implemented!"),
+        match &self.store {
+            PartitionStore::MemDB(db) => db.get_tag_values(tag_key, predicate, range),
+            PartitionStore::S3(_) => panic!("s3 partition not implemented!"),
+            PartitionStore::Remote(_) => panic!("remote partition not implemented!"),
         }
     }
 
@@ -82,10 +167,10 @@ impl Partition {
         predicate: &Predicate,
         range: &TimestampRange,
     ) -> Result<BoxStream<'_, ReadBatch>, StorageError> {
-        match self {
-            Partition::MemDB(db) => db.read_points(batch_size, predicate, range),
-            Partition::S3(_) => panic!("s3 partition not implemented!"),
-            Partition::Remote(_) => panic!("remote partition not implemented!"),
+        match &self.store {
+            PartitionStore::MemDB(db) => db.read_points(batch_size, predicate, range),
+            PartitionStore::S3(_) => panic!("s3 partition not implemented!"),
+            PartitionStore::Remote(_) => panic!("remote partition not implemented!"),
         }
     }
 
@@ -93,10 +178,10 @@ impl Partition {
         &self,
         range: Option<&TimestampRange>,
     ) -> Result<BoxStream<'_, String>, StorageError> {
-        match self {
-            Partition::MemDB(db) => db.get_measurement_names(range),
-            Partition::S3(_) => panic!("s3 partition not implemented!"),
-            Partition::Remote(_) => panic!("remote partition not implemented!"),
+        match &self.store {
+            PartitionStore::MemDB(db) => db.get_measurement_names(range),
+            PartitionStore::S3(_) => panic!("s3 partition not implemented!"),
+            PartitionStore::Remote(_) => panic!("remote partition not implemented!"),
         }
     }
 
@@ -106,10 +191,10 @@ impl Partition {
         predicate: Option<&Predicate>,
         range: Option<&TimestampRange>,
     ) -> Result<BoxStream<'_, String>, StorageError> {
-        match self {
-            Partition::MemDB(db) => db.get_measurement_tag_keys(measurement, predicate, range),
-            Partition::S3(_) => panic!("s3 partition not implemented!"),
-            Partition::Remote(_) => panic!("remote partition not implemented!"),
+        match &self.store {
+            PartitionStore::MemDB(db) => db.get_measurement_tag_keys(measurement, predicate, range),
+            PartitionStore::S3(_) => panic!("s3 partition not implemented!"),
+            PartitionStore::Remote(_) => panic!("remote partition not implemented!"),
         }
     }
 
@@ -120,12 +205,12 @@ impl Partition {
         predicate: Option<&Predicate>,
         range: Option<&TimestampRange>,
     ) -> Result<BoxStream<'_, String>, StorageError> {
-        match self {
-            Partition::MemDB(db) => {
+        match &self.store {
+            PartitionStore::MemDB(db) => {
                 db.get_measurement_tag_values(measurement, tag_key, predicate, range)
             }
-            Partition::S3(_) => panic!("s3 partition not implemented!"),
-            Partition::Remote(_) => panic!("remote partition not implemented!"),
+            PartitionStore::S3(_) => panic!("s3 partition not implemented!"),
+            PartitionStore::Remote(_) => panic!("remote partition not implemented!"),
         }
     }
 
@@ -135,10 +220,141 @@ impl Partition {
         predicate: Option<&Predicate>,
         range: Option<&TimestampRange>,
     ) -> Result<BoxStream<'_, (String, SeriesDataType, i64)>, StorageError> {
-        match self {
-            Partition::MemDB(db) => db.get_measurement_fields(measurement, predicate, range),
-            Partition::S3(_) => panic!("s3 partition not implemented!"),
-            Partition::Remote(_) => panic!("remote partition not implemented!"),
+        match &self.store {
+            PartitionStore::MemDB(db) => db.get_measurement_fields(measurement, predicate, range),
+            PartitionStore::S3(_) => panic!("s3 partition not implemented!"),
+            PartitionStore::Remote(_) => panic!("remote partition not implemented!"),
+        }
+    }
+}
+
+fn start_wal_sync_task(wal_builder: WalBuilder) -> Wal<mpsc::Sender<delorean_wal::Result<()>>> {
+    let wal = wal_builder.wal::<mpsc::Sender<_>>();
+
+    tokio::spawn({
+        let wal = wal.clone();
+        // TODO: Make delay configurable
+        let mut sync_frequency = tokio::time::interval(Duration::from_millis(50));
+
+        async move {
+            loop {
+                // TODO: What if syncing takes longer than the delay?
+                sync_frequency.tick().await;
+
+                let (to_notify, outcome) = task::block_in_place(|| wal.sync());
+
+                for mut notify in to_notify {
+                    notify
+                        .send(outcome.clone())
+                        .await
+                        .expect("TODO handle failures");
+                }
+            }
+        }
+    });
+
+    wal
+}
+
+fn points_to_flatbuffer(points: &[PointType]) -> flatbuffers::FlatBufferBuilder {
+    let mut builder = flatbuffers::FlatBufferBuilder::new_with_capacity(1024);
+
+    let point_offsets: Vec<_> = points
+        .iter()
+        .map(|p| {
+            let key = builder.create_string(p.series());
+
+            match p {
+                PointType::I64(inner_point) => {
+                    let value = wal::I64Value::create(
+                        &mut builder,
+                        &wal::I64ValueArgs {
+                            value: inner_point.value,
+                        },
+                    );
+                    wal::Point::create(
+                        &mut builder,
+                        &wal::PointArgs {
+                            key: Some(key),
+                            time: p.time(),
+                            value_type: wal::PointValue::I64Value,
+                            value: Some(value.as_union_value()),
+                        },
+                    )
+                }
+                PointType::F64(inner_point) => {
+                    let value = wal::F64Value::create(
+                        &mut builder,
+                        &wal::F64ValueArgs {
+                            value: inner_point.value,
+                        },
+                    );
+                    wal::Point::create(
+                        &mut builder,
+                        &wal::PointArgs {
+                            key: Some(key),
+                            time: p.time(),
+                            value_type: wal::PointValue::F64Value,
+                            value: Some(value.as_union_value()),
+                        },
+                    )
+                }
+            }
+        })
+        .collect();
+    let point_offsets = builder.create_vector(&point_offsets);
+
+    let write_offset = wal::Write::create(
+        &mut builder,
+        &wal::WriteArgs {
+            points: Some(point_offsets),
+        },
+    );
+
+    let entry_type = wal::EntryType::create(
+        &mut builder,
+        &wal::EntryTypeArgs {
+            write: Some(write_offset),
+            ..Default::default()
+        },
+    );
+
+    let entry_offset = wal::Entry::create(
+        &mut builder,
+        &wal::EntryArgs {
+            entry_type: Some(entry_type),
+        },
+    );
+
+    builder.finish(entry_offset, None);
+
+    builder
+}
+
+impl From<wal::Point<'_>> for PointType {
+    fn from(other: wal::Point) -> Self {
+        let key = other
+            .key()
+            .expect("Key should have been deserialized from flatbuffer")
+            .to_string();
+        let time = other.time();
+
+        match other.value_type() {
+            wal::PointValue::I64Value => {
+                let value = other
+                    .value_as_i64value()
+                    .expect("Value should match value type")
+                    .value();
+                PointType::new_i64(key, value, time)
+            }
+            wal::PointValue::F64Value => {
+                let value = other
+                    .value_as_f64value()
+                    .expect("Value should match value type")
+                    .value();
+                PointType::new_f64(key, value, time)
+            }
+            _ => unimplemented!(),
         }
     }
 }

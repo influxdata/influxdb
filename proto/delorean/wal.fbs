@@ -1,0 +1,54 @@
+namespace wal;
+
+table Entry {
+  entry_type: EntryType;
+}
+
+table EntryType {
+  write: Write;
+  delete: Delete;
+}
+
+table Write {
+  points: [Point];
+}
+
+table I64Value {
+  value: int64;
+}
+
+table U64Value {
+  value: uint64;
+}
+
+table F64Value {
+  value: float64;
+}
+
+table BoolValue {
+  value: bool;
+}
+
+table StringValue {
+  value: string;
+}
+
+union PointValue {
+  I64Value,
+  U64Value,
+  F64Value,
+  BoolValue,
+  StringValue
+}
+
+table Point {
+  key: string;
+  time: int64;
+  value: PointValue;
+}
+
+table Delete {
+  predicate: string;
+  start_time: int64;
+  stop_time: int64;
+}

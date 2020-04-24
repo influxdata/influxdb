@@ -357,6 +357,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     };
 
     let db = Database::new(&db_dir);
+    db.restore_from_wal().await?;
     let state = Arc::new(App { db });
     let bind_addr: SocketAddr = match std::env::var("DELOREAN_BIND_ADDR") {
         Ok(addr) => addr
