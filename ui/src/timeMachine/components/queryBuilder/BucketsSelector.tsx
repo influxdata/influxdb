@@ -100,6 +100,7 @@ const Selector: FunctionComponent<SelectorProps> = ({
       selectedItems={[selected]}
       onSelectItem={onSelect}
       multiSelect={false}
+      testID="buckets-list"
     >
       <SelectorListCreateBucket />
     </SelectorList>

@@ -50,7 +50,7 @@ export default class BucketOverlayForm extends PureComponent<Props> {
     const nameInputStatus = disableRenaming && ComponentStatus.Disabled
 
     return (
-      <Form onSubmit={onSubmit}>
+      <Form onSubmit={onSubmit} testID="bucket-form">
         <Grid>
           <Grid.Row>
             <Grid.Column>
@@ -69,6 +69,7 @@ export default class BucketOverlayForm extends PureComponent<Props> {
                     autoFocus={true}
                     value={name}
                     onChange={onChangeInput}
+                    testID="bucket-form-name"
                   />
                 )}
               </Form.ValidationElement>
@@ -102,6 +103,7 @@ export default class BucketOverlayForm extends PureComponent<Props> {
                 )}
                 <Button
                   text={buttonText}
+                  testID="bucket-form-submit"
                   color={this.submitButtonColor}
                   status={this.submitButtonStatus}
                   type={ButtonType.Submit}

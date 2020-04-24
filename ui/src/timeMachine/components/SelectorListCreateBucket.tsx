@@ -159,6 +159,7 @@ const SelectorListCreateBucket: FC<Props> = ({
         position={PopoverPosition.Above}
         showEvent={PopoverInteraction.Click}
         hideEvent={PopoverInteraction.Click}
+        testID="create-bucket-popover"
         contents={onHide => (
           <BucketOverlayForm
             name={bucketName}

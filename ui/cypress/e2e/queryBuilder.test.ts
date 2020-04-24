@@ -88,6 +88,26 @@ describe('The Query Builder', () => {
       cy.getByTestID('cancel-cell-edit--button').click()
       cy.contains('Basic Ole Dashboard').should('exist')
     })
+
+    it('can create a bucket from the buckets list', () => {
+      cy.get('@org').then((org: Organization) => {
+        cy.visit(`orgs/${org.id}/data-explorer`)
+      })
+
+      const newBucketName = '٩(｡•́‿•̀｡)۶'
+
+      cy.getByTestID('selector-list add-bucket').click()
+
+      cy.getByTestID('bucket-form').should('exist')
+
+      cy.getByTestID('bucket-form-name').type(newBucketName)
+
+      cy.getByTestID('bucket-form-submit').click()
+
+      cy.getByTestID('buckets-list').within(() => {
+        cy.contains(newBucketName).should('exist')
+      })
+    })
   })
 
   describe('the group() function', () => {
