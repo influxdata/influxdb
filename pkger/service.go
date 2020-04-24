@@ -1072,25 +1072,7 @@ func (s *Service) addStackState(ctx context.Context, stackID influxdb.ID, state 
 		return ierrors.Wrap(internalErr(err), "reading stack")
 	}
 
-	for _, r := range stack.Resources {
-		updateFn := state.setObjectID
-		if !state.Contains(r.Kind, r.PkgName) {
-			updateFn = state.addObjectForRemoval
-		}
-		updateFn(r.Kind, r.PkgName, r.ID)
-	}
-
-	for _, r := range stack.Resources {
-		if r.Kind.is(KindNotificationRule) {
-			for _, ass := range r.Associations {
-				if ass.Kind.is(KindNotificationEndpoint) {
-					state.mRules[r.PkgName].associatedEndpoint = state.mEndpoints[ass.PkgName]
-					break
-				}
-			}
-		}
-	}
-
+	state.addStackState(stack)
 	return nil
 }
 
@@ -1232,7 +1214,10 @@ func (s *Service) applyState(ctx context.Context, coordinator *rollbackCoordinat
 
 	// secondary resources
 	// this last grouping relies on the above 2 steps having completely successfully
-	secondary := []applier{s.applyLabelMappings(state.labelMappings)}
+	secondary := []applier{
+		s.applyLabelMappings(ctx, state.labelMappings),
+		s.removeLabelMappings(ctx, state.labelMappingsToRemove),
+	}
 	if err := coordinator.runTilEnd(ctx, orgID, userID, secondary...); err != nil {
 		return internalErr(err)
 	}
@@ -2399,7 +2384,76 @@ func (s *Service) applyVariable(ctx context.Context, v *stateVariable) (influxdb
 	}
 }
 
-func (s *Service) applyLabelMappings(labelMappings []stateLabelMapping) applier {
+func (s *Service) removeLabelMappings(ctx context.Context, labelMappings []stateLabelMappingForRemoval) applier {
+	const resource = "removed_label_mapping"
+
+	var rollbackMappings []stateLabelMappingForRemoval
+
+	mutex := new(doMutex)
+	createFn := func(ctx context.Context, i int, orgID, userID influxdb.ID) *applyErrBody {
+		var mapping stateLabelMappingForRemoval
+		mutex.Do(func() {
+			mapping = labelMappings[i]
+		})
+
+		err := s.labelSVC.DeleteLabelMapping(ctx, &influxdb.LabelMapping{
+			LabelID:      mapping.LabelID,
+			ResourceID:   mapping.ResourceID,
+			ResourceType: mapping.ResourceType,
+		})
+		if err != nil && influxdb.ErrorCode(err) != influxdb.ENotFound {
+			return &applyErrBody{
+				name: fmt.Sprintf("%s:%s:%s", mapping.ResourceType, mapping.ResourceID, mapping.LabelID),
+				msg:  err.Error(),
+			}
+		}
+
+		mutex.Do(func() {
+			rollbackMappings = append(rollbackMappings, mapping)
+		})
+		return nil
+	}
+
+	return applier{
+		creater: creater{
+			entries: len(labelMappings),
+			fn:      createFn,
+		},
+		rollbacker: rollbacker{
+			resource: resource,
+			fn:       func(_ influxdb.ID) error { return s.rollbackRemoveLabelMappings(ctx, rollbackMappings) },
+		},
+	}
+}
+
+func (s *Service) rollbackRemoveLabelMappings(ctx context.Context, mappings []stateLabelMappingForRemoval) error {
+	var errs []string
+	for _, m := range mappings {
+		err := s.labelSVC.CreateLabelMapping(ctx, &influxdb.LabelMapping{
+			LabelID:      m.LabelID,
+			ResourceID:   m.ResourceID,
+			ResourceType: m.ResourceType,
+		})
+		if err != nil {
+			errs = append(errs,
+				fmt.Sprintf(
+					"error for label mapping: resource_type=%s resource_id=%s label_id=%s err=%s",
+					m.ResourceType,
+					m.ResourceID,
+					m.LabelID,
+					err,
+				))
+		}
+	}
+
+	if len(errs) > 0 {
+		return errors.New(strings.Join(errs, "; "))
+	}
+
+	return nil
+}
+
+func (s *Service) applyLabelMappings(ctx context.Context, labelMappings []stateLabelMapping) applier {
 	const resource = "label_mapping"
 
 	mutex := new(doMutex)
@@ -2449,16 +2503,16 @@ func (s *Service) applyLabelMappings(labelMappings []stateLabelMapping) applier 
 		},
 		rollbacker: rollbacker{
 			resource: resource,
-			fn:       func(_ influxdb.ID) error { return s.rollbackLabelMappings(rollbackMappings) },
+			fn:       func(_ influxdb.ID) error { return s.rollbackLabelMappings(ctx, rollbackMappings) },
 		},
 	}
 }
 
-func (s *Service) rollbackLabelMappings(mappings []stateLabelMapping) error {
+func (s *Service) rollbackLabelMappings(ctx context.Context, mappings []stateLabelMapping) error {
 	var errs []string
 	for _, stateMapping := range mappings {
 		influxMapping := stateLabelMappingToInfluxLabelMapping(stateMapping)
-		err := s.labelSVC.DeleteLabelMapping(context.Background(), &influxMapping)
+		err := s.labelSVC.DeleteLabelMapping(ctx, &influxMapping)
 		if err != nil {
 			errs = append(errs, fmt.Sprintf("%s:%s", stateMapping.label.ID(), stateMapping.resource.stateIdentity().id))
 		}
@@ -2482,44 +2536,52 @@ func (s *Service) updateStackAfterSuccess(ctx context.Context, stackID influxdb.
 		if IsRemoval(b.stateStatus) {
 			continue
 		}
+		associatedLabels := state.labelAssociations(KindBucket, b.parserBkt.PkgName())
 		stackResources = append(stackResources, StackResource{
-			APIVersion: APIVersion,
-			ID:         b.ID(),
-			Kind:       KindBucket,
-			PkgName:    b.parserBkt.PkgName(),
+			APIVersion:   APIVersion,
+			ID:           b.ID(),
+			Kind:         KindBucket,
+			PkgName:      b.parserBkt.PkgName(),
+			Associations: stateLabelsToStackAssociations(associatedLabels),
 		})
 	}
 	for _, c := range state.mChecks {
 		if IsRemoval(c.stateStatus) {
 			continue
 		}
+		associatedLabels := state.labelAssociations(KindCheck, c.parserCheck.PkgName())
 		stackResources = append(stackResources, StackResource{
-			APIVersion: APIVersion,
-			ID:         c.ID(),
-			Kind:       KindCheck,
-			PkgName:    c.parserCheck.PkgName(),
+			APIVersion:   APIVersion,
+			ID:           c.ID(),
+			Kind:         KindCheck,
+			PkgName:      c.parserCheck.PkgName(),
+			Associations: stateLabelsToStackAssociations(associatedLabels),
 		})
 	}
 	for _, d := range state.mDashboards {
 		if IsRemoval(d.stateStatus) {
 			continue
 		}
+		associatedLabels := state.labelAssociations(KindDashboard, d.parserDash.PkgName())
 		stackResources = append(stackResources, StackResource{
-			APIVersion: APIVersion,
-			ID:         d.ID(),
-			Kind:       KindDashboard,
-			PkgName:    d.parserDash.PkgName(),
+			APIVersion:   APIVersion,
+			ID:           d.ID(),
+			Kind:         KindDashboard,
+			PkgName:      d.parserDash.PkgName(),
+			Associations: stateLabelsToStackAssociations(associatedLabels),
 		})
 	}
 	for _, n := range state.mEndpoints {
 		if IsRemoval(n.stateStatus) {
 			continue
 		}
+		associatedLabels := state.labelAssociations(KindNotificationEndpoint, n.parserEndpoint.PkgName())
 		stackResources = append(stackResources, StackResource{
-			APIVersion: APIVersion,
-			ID:         n.ID(),
-			Kind:       KindNotificationEndpoint,
-			PkgName:    n.parserEndpoint.PkgName(),
+			APIVersion:   APIVersion,
+			ID:           n.ID(),
+			Kind:         KindNotificationEndpoint,
+			PkgName:      n.parserEndpoint.PkgName(),
+			Associations: stateLabelsToStackAssociations(associatedLabels),
 		})
 	}
 	for _, l := range state.mLabels {
@@ -2537,45 +2599,55 @@ func (s *Service) updateStackAfterSuccess(ctx context.Context, stackID influxdb.
 		if IsRemoval(r.stateStatus) {
 			continue
 		}
+		associatedLabels := state.labelAssociations(KindNotificationRule, r.parserRule.PkgName())
 		stackResources = append(stackResources, StackResource{
-			APIVersion:   APIVersion,
-			ID:           r.ID(),
-			Kind:         KindNotificationRule,
-			PkgName:      r.parserRule.PkgName(),
-			Associations: r.associations(),
+			APIVersion: APIVersion,
+			ID:         r.ID(),
+			Kind:       KindNotificationRule,
+			PkgName:    r.parserRule.PkgName(),
+			Associations: append(
+				stateLabelsToStackAssociations(associatedLabels),
+				r.endpointAssociation(),
+			),
 		})
 	}
 	for _, t := range state.mTasks {
 		if IsRemoval(t.stateStatus) {
 			continue
 		}
+		associatedLabels := state.labelAssociations(KindTask, t.parserTask.PkgName())
 		stackResources = append(stackResources, StackResource{
-			APIVersion: APIVersion,
-			ID:         t.ID(),
-			Kind:       KindTask,
-			PkgName:    t.parserTask.PkgName(),
+			APIVersion:   APIVersion,
+			ID:           t.ID(),
+			Kind:         KindTask,
+			PkgName:      t.parserTask.PkgName(),
+			Associations: stateLabelsToStackAssociations(associatedLabels),
 		})
 	}
 	for _, t := range state.mTelegrafs {
 		if IsRemoval(t.stateStatus) {
 			continue
 		}
+		associatedLabels := state.labelAssociations(KindTelegraf, t.parserTelegraf.PkgName())
 		stackResources = append(stackResources, StackResource{
-			APIVersion: APIVersion,
-			ID:         t.ID(),
-			Kind:       KindTelegraf,
-			PkgName:    t.parserTelegraf.PkgName(),
+			APIVersion:   APIVersion,
+			ID:           t.ID(),
+			Kind:         KindTelegraf,
+			PkgName:      t.parserTelegraf.PkgName(),
+			Associations: stateLabelsToStackAssociations(associatedLabels),
 		})
 	}
 	for _, v := range state.mVariables {
 		if IsRemoval(v.stateStatus) {
 			continue
 		}
+		associatedLabels := state.labelAssociations(KindVariable, v.parserVar.PkgName())
 		stackResources = append(stackResources, StackResource{
-			APIVersion: APIVersion,
-			ID:         v.ID(),
-			Kind:       KindVariable,
-			PkgName:    v.parserVar.PkgName(),
+			APIVersion:   APIVersion,
+			ID:           v.ID(),
+			Kind:         KindVariable,
+			PkgName:      v.parserVar.PkgName(),
+			Associations: stateLabelsToStackAssociations(associatedLabels),
 		})
 	}
 	stack.Resources = stackResources
@@ -2654,7 +2726,19 @@ func (s *Service) updateStackAfterRollback(ctx context.Context, stackID influxdb
 				hasChanges = true
 				res.ID = r.existing.GetID()
 			}
-			if newAss := r.associations(); !associationsEqual(res.Associations, newAss) {
+
+			endpointAssociation := r.endpointAssociation()
+			newAss := make([]StackResourceAssociation, 0, len(res.Associations))
+
+			var endpointAssociationChanged bool
+			for _, ass := range res.Associations {
+				if ass.Kind.is(KindNotificationEndpoint) && ass != endpointAssociation {
+					endpointAssociationChanged = true
+					ass = endpointAssociation
+				}
+				newAss = append(newAss, ass)
+			}
+			if endpointAssociationChanged {
 				hasChanges = true
 				res.Associations = newAss
 			}
@@ -2739,6 +2823,17 @@ func newSummaryFromStatePkg(state *stateCoordinator, pkg *Pkg) Summary {
 	stateSum.MissingEnvs = pkg.missingEnvRefs()
 	stateSum.MissingSecrets = pkg.missingSecrets()
 	return stateSum
+}
+
+func stateLabelsToStackAssociations(stateLabels []*stateLabel) []StackResourceAssociation {
+	var out []StackResourceAssociation
+	for _, l := range stateLabels {
+		out = append(out, StackResourceAssociation{
+			Kind:    KindLabel,
+			PkgName: l.parserLabel.PkgName(),
+		})
+	}
+	return out
 }
 
 func getLabelIDMap(ctx context.Context, labelSVC influxdb.LabelService, labelNames []string) (map[influxdb.ID]bool, error) {
