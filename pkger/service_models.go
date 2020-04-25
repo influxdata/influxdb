@@ -1086,6 +1086,7 @@ func (r *stateRule) summarize() SummaryNotificationRule {
 	return sum
 }
 
+// foo
 func (r *stateRule) toInfluxRule() influxdb.NotificationRule {
 	influxRule := r.parserRule.toInfluxRule()
 	if r.ID() > 0 {
