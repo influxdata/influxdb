@@ -25,12 +25,6 @@ import {
   extractBucketLimits,
 } from 'src/cloud/utils/limits'
 
-// Constants
-import {
-  DEFAULT_SECONDS,
-  READABLE_DEFAULT_SECONDS,
-} from 'src/buckets/components/Retention'
-
 // Actions
 import {
   checkBucketLimits as checkBucketLimitsAction,
@@ -41,17 +35,14 @@ import {createBucket} from 'src/buckets/actions/thunks'
 // Types
 import {Organization, AppState} from 'src/types'
 import {
-  RetentionRule,
   createBucketReducer,
   RuleType,
-} from 'src/timeMachine/reducers/selectorListCreateBucket'
+  initialBucketState,
+  DEFAULT_RULES,
+} from 'src/buckets/reducers/createBucket'
 
 // Selectors
 import {getOrg} from 'src/organizations/selectors'
-
-const DEFAULT_RULES: RetentionRule[] = [
-  {type: 'expire' as 'expire', everySeconds: DEFAULT_SECONDS},
-]
 
 interface StateProps {
   org: Organization
@@ -76,17 +67,10 @@ const SelectorListCreateBucket: FC<Props> = ({
   checkBucketLimits,
 }) => {
   const triggerRef = useRef<HTMLButtonElement>(null)
-  const initialState = {
-    name: '',
-    retentionRules: isRetentionLimitEnforced ? DEFAULT_RULES : [],
-    ruleType: isRetentionLimitEnforced ? 'expire' as 'expire' : null,
-    readableRetention: isRetentionLimitEnforced
-      ? READABLE_DEFAULT_SECONDS
-      : 'forever',
-    orgID: org.id,
-    type: 'user' as 'user',
-  }
-  const [state, dispatch] = useReducer(createBucketReducer, initialState)
+  const [state, dispatch] = useReducer(
+    createBucketReducer,
+    initialBucketState(isRetentionLimitEnforced, org.id)
+  )
 
   useEffect(() => {
     // Check bucket limits when component mounts

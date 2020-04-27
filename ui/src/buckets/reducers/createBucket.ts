@@ -1,3 +1,8 @@
+import {
+  DEFAULT_SECONDS,
+  READABLE_DEFAULT_SECONDS,
+} from 'src/buckets/components/Retention'
+
 export type RuleType = 'expire' | null
 
 export interface RetentionRule {
@@ -24,6 +29,24 @@ export interface Action {
   type: ReducerActionType
   payload: any
 }
+
+export const DEFAULT_RULES: RetentionRule[] = [
+  {type: 'expire' as 'expire', everySeconds: DEFAULT_SECONDS},
+]
+
+export const initialBucketState = (
+  isRetentionLimitEnforced: boolean,
+  orgID: string
+) => ({
+  name: '',
+  retentionRules: isRetentionLimitEnforced ? DEFAULT_RULES : [],
+  ruleType: isRetentionLimitEnforced ? ('expire' as 'expire') : null,
+  readableRetention: isRetentionLimitEnforced
+    ? READABLE_DEFAULT_SECONDS
+    : 'forever',
+  orgID,
+  type: 'user' as 'user',
+})
 
 export const createBucketReducer = (state: ReducerState, action: Action) => {
   switch (action.type) {

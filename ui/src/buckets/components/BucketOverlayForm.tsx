@@ -16,6 +16,7 @@ import {
   ComponentColor,
   ComponentStatus,
 } from '@influxdata/clockface'
+import {RuleType} from 'src/buckets/reducers/createBucket'
 
 interface Props {
   name: string
@@ -24,7 +25,7 @@ interface Props {
   onSubmit: (e: FormEvent<HTMLFormElement>) => void
   onClose: () => void
   onChangeRetentionRule: (seconds: number) => void
-  onChangeRuleType: (t: 'expire' | null) => void
+  onChangeRuleType: (t: RuleType) => void
   onChangeInput: (e: ChangeEvent<HTMLInputElement>) => void
   disableRenaming: boolean
   buttonText: string
