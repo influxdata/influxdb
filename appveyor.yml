@@ -17,7 +17,6 @@ environment:
 
 # Scripts that run after cloning repository
 install:
-#  - choco install bzr # Needed to install go modules
  - set PATH=%GOROOT%\bin;%GOPATH%\bin;C:\Program Files (x86)\Bazaar\;%PATH%
  - echo %PATH%
  - echo %GOPATH%

@@ -83,6 +83,7 @@ $(CMDS): $(SOURCES) libflux
 
 # Ease of use build for just the go binary
 influxd: bin/$(GOOS)/influxd
+influx: bin/$(GOOS)/influx
 
 #
 # Define targets for the web ui
@@ -174,11 +175,18 @@ release:
 	git checkout -- go.sum # avoid dirty git repository caused by go install
 	goreleaser release --rm-dist
 
+# Clean only the build files.
 clean:
 	@for d in $(SUBDIRS); do $(MAKE) -C $$d clean; done
 	$(RM) -r bin
 	$(RM) -r dist
 	$(RM) .cgo_ldflags
+
+# Deep cleaning, including all the auto-generated files which are kept in the
+# repository.
+distclean: clean
+	@for d in $(SUBDIRS); do $(MAKE) -C $$d distclean; done
+
 
 define CHRONOGIRAFFE
              ._ o o
