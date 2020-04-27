@@ -64,29 +64,31 @@ export const getDemoDataBuckets = () => async (
   }
 }
 
-export const getDemoDataBucketMembership = (bucket: DemoBucket) => async (
-  dispatch,
-  getState: GetState
-) => {
+export const getDemoDataBucketMembership = ({
+  name: bucketName,
+  id: bucketID,
+}) => async (dispatch, getState: GetState) => {
   const state = getState()
+
   const {
     me: {id: userID},
   } = state
+
   const {id: orgID} = getOrg(state)
 
   try {
-    await getDemoDataBucketMembershipAJAX(bucket.id, userID)
+    await getDemoDataBucketMembershipAJAX(bucketID, userID)
 
-    const template = await DemoDataTemplates[bucket.name]
+    const template = await DemoDataTemplates[bucketName]
     if (template) {
       await createDashboardFromTemplate(template, orgID)
     } else {
       throw new Error(
-        `Could not find template for demodata bucket ${bucket.name}`
+        `Could not find template for demodata bucket ${bucketName}`
       )
     }
 
-    const resp = await getBucket({bucketID: bucket.id})
+    const resp = await getBucket({bucketID})
 
     if (resp.status !== 200) {
       throw new Error('Request for demo data bucket membership did not succeed')
