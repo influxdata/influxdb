@@ -10,7 +10,6 @@ require (
 	github.com/glycerine/go-unsnap-stream v0.0.0-20190901134440-81cf024a9e0a // indirect
 	github.com/glycerine/goconvey v0.0.0-20190410193231-58a59202ab31 // indirect
 	github.com/go-kit/kit v0.10.0 // indirect
-	github.com/gogo/protobuf v1.3.1 // indirect
 	github.com/google/go-cmp v0.4.0
 	github.com/google/uuid v1.1.1 // indirect
 	github.com/hashicorp/go-rootcerts v1.0.2 // indirect
