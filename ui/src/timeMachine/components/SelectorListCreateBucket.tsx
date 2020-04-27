@@ -3,9 +3,9 @@ import React, {
   FC,
   ChangeEvent,
   FormEvent,
-  useState,
   useEffect,
   useRef,
+  useReducer,
 } from 'react'
 import {connect} from 'react-redux'
 
@@ -39,12 +39,17 @@ import {
 import {createBucket} from 'src/buckets/actions/thunks'
 
 // Types
-import {Organization, Bucket, AppState} from 'src/types'
+import {Organization, AppState} from 'src/types'
+import {
+  RetentionRule,
+  createBucketReducer,
+  RuleType,
+} from 'src/timeMachine/reducers/selectorListCreateBucket'
 
 // Selectors
 import {getOrg} from 'src/organizations/selectors'
 
-const DEFAULT_RULES = [
+const DEFAULT_RULES: RetentionRule[] = [
   {type: 'expire' as 'expire', everySeconds: DEFAULT_SECONDS},
 ]
 
@@ -71,16 +76,17 @@ const SelectorListCreateBucket: FC<Props> = ({
   checkBucketLimits,
 }) => {
   const triggerRef = useRef<HTMLButtonElement>(null)
-  const [bucketName, setBucketName] = useState<string>('')
-  const [bucketRetentionRules, setBucketRetentionRules] = useState<any>(
-    isRetentionLimitEnforced ? DEFAULT_RULES : []
-  )
-  const [bucketRuleType, setBucketRuleType] = useState<'expire' | null>(
-    'expire'
-  )
-  const bucketReadableRetention = isRetentionLimitEnforced
-    ? READABLE_DEFAULT_SECONDS
-    : 'forever'
+  const initialState = {
+    name: '',
+    retentionRules: isRetentionLimitEnforced ? DEFAULT_RULES : [],
+    ruleType: isRetentionLimitEnforced ? 'expire' as 'expire' : null,
+    readableRetention: isRetentionLimitEnforced
+      ? READABLE_DEFAULT_SECONDS
+      : 'forever',
+    orgID: org.id,
+    type: 'user' as 'user',
+  }
+  const [state, dispatch] = useReducer(createBucketReducer, initialState)
 
   useEffect(() => {
     // Check bucket limits when component mounts
@@ -99,20 +105,27 @@ const SelectorListCreateBucket: FC<Props> = ({
     buttonDisabled = true
   }
 
-  const retentionRule = bucketRetentionRules.find(r => r.type === 'expire')
+  const retentionRule = state.retentionRules.find(r => r.type === 'expire')
   const retentionSeconds = retentionRule ? retentionRule.everySeconds : 3600
 
-  const handleChangeRuleType = (ruleType: 'expire' | null): void => {
+  const handleChangeRuleType = (ruleType: RuleType): void => {
     if (ruleType === 'expire') {
-      setBucketRetentionRules(DEFAULT_RULES)
+      dispatch({type: 'updateRetentionRules', payload: DEFAULT_RULES})
     } else {
-      setBucketRetentionRules([])
+      dispatch({type: 'updateRetentionRules', payload: []})
     }
-    setBucketRuleType(ruleType)
+    dispatch({type: 'updateRuleType', payload: ruleType})
   }
 
   const handleChangeRetentionRule = (everySeconds: number): void => {
-    setBucketRetentionRules([{type: 'expire' as 'expire', everySeconds}])
+    const retentionRules = [
+      {
+        type: 'expire',
+        everySeconds,
+      },
+    ]
+
+    dispatch({type: 'updateRetentionRules', payload: retentionRules})
   }
 
   const handleSubmit = (onHide: () => void) => (
@@ -120,16 +133,7 @@ const SelectorListCreateBucket: FC<Props> = ({
   ): void => {
     e.preventDefault()
 
-    const orgID = org.id
-    const bucket: Bucket = {
-      name: bucketName,
-      type: 'user',
-      retentionRules: bucketRetentionRules,
-      readableRetention: bucketReadableRetention,
-      orgID,
-    }
-
-    createBucket(bucket)
+    createBucket(state)
     onHide()
   }
 
@@ -137,7 +141,7 @@ const SelectorListCreateBucket: FC<Props> = ({
     const value = e.target.value
 
     if (e.target.name === 'name') {
-      setBucketName(value)
+      dispatch({type: 'updateName', payload: value})
     }
   }
 
@@ -162,10 +166,10 @@ const SelectorListCreateBucket: FC<Props> = ({
         testID="create-bucket-popover"
         contents={onHide => (
           <BucketOverlayForm
-            name={bucketName}
+            name={state.name}
             buttonText="Create"
             disableRenaming={false}
-            ruleType={bucketRuleType}
+            ruleType={state.ruleType}
             onClose={onHide}
             onSubmit={handleSubmit(onHide)}
             onChangeInput={handleChangeInput}
