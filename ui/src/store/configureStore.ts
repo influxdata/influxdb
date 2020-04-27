@@ -116,7 +116,7 @@ export default function configureStore(
   history?: History
 ): Store<AppState & LocalStorage> {
   // NOTE: memoizing helps keep singular instances of the store
-  // after initializatrion, or else actions start failing for reasons
+  // after initialization, or else actions start failing for reasons
   if (_store) {
     return _store
   }

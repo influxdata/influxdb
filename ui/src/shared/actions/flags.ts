@@ -10,12 +10,11 @@ export type Actions =
 // NOTE: this doesnt have a type as it will be determined
 // by the backend at a later time and keeping the format
 // open for transformations in a bit
-export const setFlags = flags => {
-  return {
+export const setFlags = flags =>
+  ({
     type: SET_FEATURE_FLAGS,
     payload: flags,
-  } as const
-}
+  } as const)
 
 export const clearOverrides = () =>
   ({

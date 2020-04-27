@@ -8,7 +8,6 @@ export const OSS_FLAGS = {
   telegrafEditor: false,
   customCheckQuery: false,
   matchingNotificationRules: false,
-  regionBasedLoginPage: false,
   demodata: false,
   fluxParser: false,
 }
@@ -21,7 +20,6 @@ export const CLOUD_FLAGS = {
   telegrafEditor: false,
   customCheckQuery: false,
   matchingNotificationRules: false,
-  regionBasedLoginPage: false,
   demodata: false,
   fluxParser: false,
 }
