@@ -33,12 +33,10 @@ import {
   checkBucketLimits as checkBucketLimitsAction,
   LimitStatus,
 } from 'src/cloud/actions/limits'
-import {getDemoDataBuckets as getDemoDataBucketsAction} from 'src/cloud/actions/demodata'
 
 // Utils
 import {extractBucketLimits} from 'src/cloud/utils/limits'
 import {getAll} from 'src/resources/selectors'
-import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 import {SortTypes} from 'src/shared/utils/sort'
 
 // Types
@@ -55,7 +53,6 @@ interface DispatchProps {
   updateBucket: typeof updateBucket
   deleteBucket: typeof deleteBucket
   checkBucketLimits: typeof checkBucketLimitsAction
-  getDemoDataBuckets: typeof getDemoDataBucketsAction
 }
 
 interface State {
@@ -84,9 +81,6 @@ class BucketsTab extends PureComponent<Props, State> {
 
   public componentDidMount() {
     this.props.checkBucketLimits()
-    if (isFlagEnabled('demodata')) {
-      this.props.getDemoDataBuckets()
-    }
   }
 
   public render() {
@@ -221,7 +215,6 @@ const mdtp: DispatchProps = {
   updateBucket,
   deleteBucket,
   checkBucketLimits: checkBucketLimitsAction,
-  getDemoDataBuckets: getDemoDataBucketsAction,
 }
 
 export default connect<StateProps, DispatchProps, {}>(
