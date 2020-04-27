@@ -14,6 +14,7 @@ import BucketsTokenOverlay from 'src/authorizations/components/BucketsTokenOverl
 import TelegrafConfigOverlay from 'src/telegrafs/components/TelegrafConfigOverlay'
 import TelegrafOutputOverlay from 'src/telegrafs/components/TelegrafOutputOverlay'
 import OrgSwitcherOverlay from 'src/pageLayout/components/OrgSwitcherOverlay'
+import CreateBucketOverlay from 'src/buckets/components/CreateBucketOverlay'
 
 // Actions
 import {dismissOverlay} from 'src/overlays/actions/overlays'
@@ -61,6 +62,9 @@ const OverlayController: FunctionComponent<OverlayControllerProps> = props => {
       break
     case 'switch-organizations':
       activeOverlay = <OrgSwitcherOverlay onClose={closer} />
+      break
+    case 'create-bucket':
+      activeOverlay = <CreateBucketOverlay onClose={closer} />
       break
     default:
       visibility = false
