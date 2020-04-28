@@ -13,12 +13,7 @@ import {
 } from 'src/cloud/actions/demodata'
 
 // Components
-import {
-  IconFont,
-  ComponentColor,
-  Dropdown,
-  DropdownItemType,
-} from '@influxdata/clockface'
+import {ComponentColor, Dropdown, Icon, IconFont} from '@influxdata/clockface'
 
 // Types
 import {AppState, Bucket, ResourceType} from 'src/types'
@@ -60,15 +55,19 @@ const DemoDataDropdown: FC<Props> = ({
       return (
         <Dropdown.Item
           testID={`dropdown-item--demodata-${b.name}`}
+          className="demodata-dropdown--item__added"
           id={b.id}
           key={b.id}
           value={b}
-          onClick={() => {}}
-          style={{fontStyle: 'italic'}}
           selected={true}
-          type={DropdownItemType.Dot}
         >
-          {b.name}
+          <div className="demodata-dropdown--item-contents">
+            <Icon
+              glyph={IconFont.Checkmark}
+              className="demodata-dropdown--item-icon"
+            />
+            {b.name}
+          </div>
         </Dropdown.Item>
       )
     }
@@ -76,14 +75,20 @@ const DemoDataDropdown: FC<Props> = ({
     return (
       <Dropdown.Item
         testID={`dropdown-item--demodata-${b.name}`}
+        className="demodata-dropdown--item"
         id={b.id}
         key={b.id}
         value={b}
         onClick={getDemoDataBucketMembership}
         selected={false}
-        type={DropdownItemType.Dot}
       >
-        {b.name}
+        <div className="demodata-dropdown--item-contents">
+          <Icon
+            glyph={IconFont.Checkmark}
+            className="demodata-dropdown--item-icon"
+          />
+          {b.name}
+        </div>
       </Dropdown.Item>
     )
   })
