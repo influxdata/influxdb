@@ -15,17 +15,21 @@ import (
 
 // see https://v2.docs.influxdata.com/v2.0/reference/syntax/annotated-csv/#valid-data-types
 const (
-	stringDatatype                = "string"
-	doubleDatatype                = "double"
-	boolDatatype                  = "boolean"
-	longDatatype                  = "long"
-	uLongDatatype                 = "unsignedLong"
-	durationDatatype              = "duration"
-	base64BinaryDataType          = "base64Binary"
-	dateTimeDatatype              = "dateTime"
-	dateTimeDataFormatRFC3339     = "RFC3339"
-	dateTimeDataFormatRFC3339Nano = "RFC3339Nano"
-	dateTimeDataFormatNumber      = "number" //the same as long, but serialized without i suffix, used for timestamps
+	stringDatatype       = "string"
+	doubleDatatype       = "double"
+	boolDatatype         = "boolean"
+	longDatatype         = "long"
+	uLongDatatype        = "unsignedLong"
+	durationDatatype     = "duration"
+	base64BinaryDataType = "base64Binary"
+	dateTimeDatatype     = "dateTime"
+)
+
+// predefined dateTime formats
+const (
+	RFC3339          = "RFC3339"
+	RFC3339Nano      = "RFC3339Nano"
+	dataFormatNumber = "number" //the same as long, but serialized without i suffix, used for timestamps
 )
 
 var supportedDataTypes map[string]struct{}
@@ -136,11 +140,11 @@ func toTypedValue(val string, column *CsvTableColumn) (interface{}, error) {
 				return time.Parse(time.RFC3339, val)
 			}
 			return time.Unix(0, t).UTC(), nil
-		case dateTimeDataFormatRFC3339:
+		case RFC3339:
 			return time.Parse(time.RFC3339, val)
-		case dateTimeDataFormatRFC3339Nano:
+		case RFC3339Nano:
 			return time.Parse(time.RFC3339Nano, val)
-		case dateTimeDataFormatNumber:
+		case dataFormatNumber:
 			t, err := strconv.ParseInt(val, 10, 64)
 			if err != nil {
 				return nil, err

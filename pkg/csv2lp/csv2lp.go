@@ -54,6 +54,7 @@ func (state *CsvToLineReader) SkipRowOnError(val bool) *CsvToLineReader {
 	return state
 }
 
+// Read implements io.Reader that returns protocol lines
 func (state *CsvToLineReader) Read(p []byte) (n int, err error) {
 	// state1: finished
 	if state.finished != nil {

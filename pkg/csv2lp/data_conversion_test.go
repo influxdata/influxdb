@@ -113,7 +113,7 @@ func Test_ToTypedValue(t *testing.T) {
 	for i, test := range tests {
 		t.Run(fmt.Sprint(i)+" "+test.value, func(t *testing.T) {
 			column := &CsvTableColumn{}
-			setupDataType(column, test.dataType)
+			column.setupDataType(test.dataType)
 			val, err := toTypedValue(test.value, column)
 			if err != nil && test.expect != nil {
 				require.Nil(t, err.Error())
@@ -142,7 +142,7 @@ func Test_ToTypedValue_dateTimeCustomTimeZone(t *testing.T) {
 		t.Run(fmt.Sprint(i)+" "+test.value, func(t *testing.T) {
 			column := &CsvTableColumn{}
 			column.TimeZone = tz
-			setupDataType(column, test.dataType)
+			column.setupDataType(test.dataType)
 			val, err := toTypedValue(test.value, column)
 			if err != nil && test.expect != nil {
 				require.Nil(t, err.Error())
@@ -158,7 +158,7 @@ func Test_ToTypedValue_dateTimeCustomTimeZone(t *testing.T) {
 	}
 }
 
-// Test_AppendProtocolValue tests appendProtocolValue function
+// Test_WriteProtocolValue tests writeProtocolValue function
 func Test_AppendProtocolValue(t *testing.T) {
 	epochTime, _ := time.Parse(time.RFC3339, "1970-01-01T00:00:00Z")
 	var tests = []struct {
@@ -211,7 +211,7 @@ func Test_AppendConverted(t *testing.T) {
 	for i, test := range tests {
 		t.Run(fmt.Sprint(i), func(t *testing.T) {
 			column := &CsvTableColumn{}
-			setupDataType(column, test.dataType)
+			column.setupDataType(test.dataType)
 			val, err := appendConverted(nil, test.value, column)
 			if err != nil && test.expect != "" {
 				require.Nil(t, err.Error())
@@ -234,9 +234,9 @@ func Test_IsTypeSupported(t *testing.T) {
 	require.True(t, IsTypeSupported(""), true)
 	require.False(t, IsTypeSupported(" "), false)
 	// time format is not part of data type
-	require.False(t, IsTypeSupported(dateTimeDatatype+":"+dateTimeDataFormatRFC3339))
-	require.False(t, IsTypeSupported(dateTimeDatatype+":"+dateTimeDataFormatRFC3339Nano))
-	require.False(t, IsTypeSupported(dateTimeDatatype+":"+dateTimeDataFormatNumber))
+	require.False(t, IsTypeSupported(dateTimeDatatype+":"+RFC3339))
+	require.False(t, IsTypeSupported(dateTimeDatatype+":"+RFC3339Nano))
+	require.False(t, IsTypeSupported(dateTimeDatatype+":"+dataFormatNumber))
 }
 
 // Test_NormalizeNumberString tests normalizeNumberString function

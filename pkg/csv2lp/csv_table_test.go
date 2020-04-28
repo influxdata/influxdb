@@ -465,16 +465,22 @@ func Test_CsvTable_DataColumnsInfo(t *testing.T) {
 		require.False(t, table.AddRow(row))
 	}
 	table.computeLineProtocolColumns()
-	columnInfo := "CsvTable{ dataColumns: 2 constantColumns: 5\n" +
-		" measurement: &{Label:#constant measurement DataType:measurement DataFormat: LinePart:2 DefaultValue:cpu Index:-1 TimeZone:UTC ParseF:<nil> escapedLabel:}\n" +
-		" tag:         {Label:cpu DataType:tag DataFormat: LinePart:3 DefaultValue:cpu1 Index:-1 TimeZone:UTC ParseF:<nil> escapedLabel:cpu}\n" +
-		" tag:         {Label:xpu DataType:tag DataFormat: LinePart:3 DefaultValue:xpu1 Index:-1 TimeZone:UTC ParseF:<nil> escapedLabel:xpu}\n" +
-		" field:       {Label:x DataType: DataFormat: LinePart:0 DefaultValue: Index:0 TimeZone:UTC ParseF:<nil> escapedLabel:x}\n" +
-		" field:       {Label:y DataType: DataFormat: LinePart:0 DefaultValue: Index:1 TimeZone:UTC ParseF:<nil> escapedLabel:y}\n" +
-		" field:       {Label:of DataType:long DataFormat: LinePart:0 DefaultValue:100 Index:-1 TimeZone:UTC ParseF:<nil> escapedLabel:of}\n" +
-		" time:        &{Label:#constant dateTime DataType:dateTime DataFormat: LinePart:5 DefaultValue:2 Index:-1 TimeZone:UTC ParseF:<nil> escapedLabel:}" +
-		"\n}"
-	require.Equal(t, columnInfo, table.DataColumnsInfo())
+	// expected result is something like this:
+	// "CsvTable{ dataColumns: 2 constantColumns: 5\n" +
+	// 	" measurement: &{Label:#constant measurement DataType:measurement DataFormat: LinePart:2 DefaultValue:cpu Index:-1 TimeZone:UTC ParseF:<nil> escapedLabel:}\n" +
+	// 	" tag:         {Label:cpu DataType:tag DataFormat: LinePart:3 DefaultValue:cpu1 Index:-1 TimeZone:UTC ParseF:<nil> escapedLabel:cpu}\n" +
+	// 	" tag:         {Label:xpu DataType:tag DataFormat: LinePart:3 DefaultValue:xpu1 Index:-1 TimeZone:UTC ParseF:<nil> escapedLabel:xpu}\n" +
+	// 	" field:       {Label:x DataType: DataFormat: LinePart:0 DefaultValue: Index:0 TimeZone:UTC ParseF:<nil> escapedLabel:x}\n" +
+	// 	" field:       {Label:y DataType: DataFormat: LinePart:0 DefaultValue: Index:1 TimeZone:UTC ParseF:<nil> escapedLabel:y}\n" +
+	// 	" field:       {Label:of DataType:long DataFormat: LinePart:0 DefaultValue:100 Index:-1 TimeZone:UTC ParseF:<nil> escapedLabel:of}\n" +
+	// 	" time:        &{Label:#constant dateTime DataType:dateTime DataFormat: LinePart:5 DefaultValue:2 Index:-1 TimeZone:UTC ParseF:<nil> escapedLabel:}" +
+	// 	"\n}"
+	result := table.DataColumnsInfo()
+	require.Equal(t, 1, strings.Count(result, "measurement:"))
+	require.Equal(t, 2, strings.Count(result, "tag:"))
+	require.Equal(t, 3, strings.Count(result, "field:"))
+	require.Equal(t, 1, strings.Count(result, "time:"))
+
 	var table2 *CsvTable
 	require.Equal(t, "<nil>", table2.DataColumnsInfo())
 }
