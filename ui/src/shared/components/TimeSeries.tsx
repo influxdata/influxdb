@@ -194,7 +194,7 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
 
       // Cancel any existing queries
       this.pendingResults.forEach(({cancel}) => cancel())
-      const usedVars = variables.filter(v => v.type !== 'system')
+      const usedVars = variables.filter(v => v.arguments.type !== 'system')
       const waitList = usedVars.filter(v => v.status !== RemoteDataState.Done)
 
       // If a variable is loading, and a cell requires it, leave the cell to never resolve,

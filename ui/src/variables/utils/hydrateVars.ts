@@ -32,6 +32,10 @@ interface HydrateVarsOptions {
   skipCache?: boolean
 }
 
+export interface EventedCancelBox<T> extends CancelBox<T> {
+  on?: any
+}
+
 export const createVariableGraph = (
   allVariables: Variable[]
 ): VariableNode[] => {
@@ -197,10 +201,11 @@ export const collectParents = (
 
   This assumes that every descendant of this node has already been hydrated.
 */
+// TODO: figure out how to type the `on` function
 const hydrateVarsHelper = async (
   node: VariableNode,
   options: HydrateVarsOptions,
-  on?: GenericObserver
+  on?: any
 ): Promise<VariableValues> => {
   const variableType = node.variable.arguments.type
 
@@ -400,7 +405,7 @@ export const hydrateVars = (
   variables: Variable[],
   allVariables: Variable[],
   options: HydrateVarsOptions
-): CancelBox<Variable[]> => {
+): EventedCancelBox<Variable[]> => {
   const graph = findSubgraph(createVariableGraph(allVariables), variables)
   invalidateCycles(graph)
 

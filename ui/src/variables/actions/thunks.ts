@@ -137,15 +137,11 @@ export const hydrateVariables = (skipCache?: boolean) => async (
       return
     }
     if (status === RemoteDataState.Done) {
-      dispatch(
-        setVariable(variable.id, RemoteDataState.Done, {
-          entities: {
-            variables: {
-              [variable.id]: variable,
-            },
-          },
-        })
+      const _variable = normalize<Variable, VariableEntities, string>(
+        variable,
+        variableSchema
       )
+      dispatch(setVariable(variable.id, RemoteDataState.Done, _variable))
     }
   })
   await hydration.promise
