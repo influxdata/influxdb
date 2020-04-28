@@ -118,6 +118,7 @@ export const getVariables = () => async (
   }
 }
 
+// TODO: make this context aware
 export const hydrateVariables = (skipCache?: boolean) => async (
   dispatch: Dispatch<Action>,
   getState: GetState
@@ -125,37 +126,29 @@ export const hydrateVariables = (skipCache?: boolean) => async (
   const state = getState()
   const org = getOrg(state)
   const vars = getVariablesFromState(state)
-  const vals = await hydrateVars(vars, getAllVariablesFromState(state), {
+  const hydration = hydrateVars(vars, getAllVariablesFromState(state), {
     orgID: org.id,
     url: state.links.query.self,
     skipCache,
-  }).promise
-
-  const lookup = vals.reduce((prev, curr) => {
-    prev[curr.id] = curr
-    return prev
-  }, {})
-
-  const updated = vars.map(vari => {
-    if (!lookup.hasOwnProperty(vari.id)) {
-      return vari
-    }
-
-    return lookup[vari.id]
   })
-
-  await dispatch(
-    setVariables(RemoteDataState.Done, {
-      result: updated.map(v => v.id),
-      entities: {
-        variables: updated.reduce((prev, curr) => {
-          prev[curr.id] = curr
-
-          return prev
-        }, {}),
-      },
-    })
-  )
+  hydration.on('status', (variable, status) => {
+    if (status === RemoteDataState.Loading) {
+      dispatch(setVariable(variable.id, status))
+      return
+    }
+    if (status === RemoteDataState.Done) {
+      dispatch(
+        setVariable(variable.id, RemoteDataState.Done, {
+          entities: {
+            variables: {
+              [variable.id]: variable,
+            },
+          },
+        })
+      )
+    }
+  })
+  await hydration.promise
 }
 
 export const getVariable = (id: string) => async (

@@ -37,12 +37,16 @@ export const createVariableGraph = (
 ): VariableNode[] => {
   const nodesByID: {[variableID: string]: VariableNode} = allVariables.reduce(
     (prev, curr) => {
+      let status = RemoteDataState.Done
+      if (curr.arguments.type === 'query') {
+        status = RemoteDataState.NotStarted
+      }
       prev[curr.id] = {
         variable: curr,
         values: null,
         parents: [],
         children: [],
-        status: RemoteDataState.NotStarted,
+        status,
         cancel: () => {},
       }
       return prev
@@ -174,6 +178,20 @@ export const collectDescendants = (
   return [...acc]
 }
 
+export const collectParents = (
+  node: VariableNode,
+  acc: Set<VariableNode> = new Set()
+): VariableNode[] => {
+  for (const parent of node.parents) {
+    if (!acc.has(parent)) {
+      acc.add(parent)
+      collectParents(parent, acc)
+    }
+  }
+
+  return [...acc]
+}
+
 /*
   Hydrate the values of a single node in the graph.
 
@@ -181,7 +199,8 @@ export const collectDescendants = (
 */
 const hydrateVarsHelper = async (
   node: VariableNode,
-  options: HydrateVarsOptions
+  options: HydrateVarsOptions,
+  on?: GenericObserver
 ): Promise<VariableValues> => {
   const variableType = node.variable.arguments.type
 
@@ -200,6 +219,26 @@ const hydrateVarsHelper = async (
       values: node.variable.arguments.values,
       selected: node.variable.selected,
     }
+  }
+
+  if (variableType === 'system') {
+    return {
+      valueType: 'string',
+      values: node.variable.arguments.values,
+      selected: node.variable.selected,
+    }
+  }
+
+  if (node.status !== RemoteDataState.Loading) {
+    node.status = RemoteDataState.Loading
+    on.fire('status', node.variable, node.status)
+
+    collectParents(node).forEach(parent => {
+      if (parent.status !== RemoteDataState.Loading) {
+        parent.status = RemoteDataState.Loading
+        on.fire('status', parent.variable, parent.status)
+      }
+    })
   }
 
   const descendants = collectDescendants(node)
@@ -224,7 +263,14 @@ const hydrateVarsHelper = async (
   node.cancel = request.cancel
 
   const values = await request.promise
+  function timeout(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms))
+  }
+  await timeout(2000)
 
+  // NOTE: do not fire `done` event here, as the value
+  // has not been properly hydrated yet
+  node.status = RemoteDataState.Done
   return values
 }
 
@@ -233,7 +279,6 @@ const hydrateVarsHelper = async (
   resolved (successfully or not).
 */
 const readyToResolve = (parent: VariableNode): boolean =>
-  parent.status === RemoteDataState.NotStarted &&
   parent.children.every(child => child.status === RemoteDataState.Done)
 
 /*
@@ -370,11 +415,9 @@ export const hydrateVars = (
       return
     }
 
-    node.status === RemoteDataState.Loading
-
     try {
       // TODO: terminate the concept of node.values at the fetcher and just use variables
-      node.values = await hydrateVarsHelper(node, options)
+      node.values = await hydrateVarsHelper(node, options, on)
 
       if (node.variable.arguments.type === 'query') {
         node.variable.arguments.values.results = node.values.values as string[]
@@ -407,7 +450,7 @@ export const hydrateVars = (
         node.variable.selected = node.values.selected
       }
 
-      node.status = RemoteDataState.Done
+      on.fire('status', node.variable, node.status)
 
       return Promise.all(node.parents.filter(readyToResolve).map(resolve))
     } catch (e) {
@@ -430,9 +473,37 @@ export const hydrateVars = (
     deferred.reject(new CancellationError())
   }
 
-  Promise.all(findLeaves(graph).map(resolve)).then(() => {
-    deferred.resolve(extractResult(graph))
-  })
+  const on = (function() {
+    const callbacks = {}
+    const ret = (evt, cb) => {
+      if (!callbacks.hasOwnProperty(evt)) {
+        callbacks[evt] = []
+      }
 
-  return {promise: deferred.promise, cancel}
+      callbacks[evt].push(cb)
+    }
+
+    ret.fire = (evt, ...args) => {
+      if (!callbacks.hasOwnProperty(evt)) {
+        return
+      }
+
+      callbacks[evt].forEach(cb => cb.apply(cb, args))
+    }
+
+    return ret
+  })()
+
+  // NOTE: wrapping in a resolve disconnects the following findLeaves
+  // from the main execution thread, allowing external services to
+  // register listeners for the loading state changes
+  Promise.resolve()
+    .then(() => {
+      return Promise.all(findLeaves(graph).map(resolve))
+    })
+    .then(() => {
+      deferred.resolve(extractResult(graph))
+    })
+
+  return {promise: deferred.promise, cancel, on}
 }
