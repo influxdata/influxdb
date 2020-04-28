@@ -166,14 +166,13 @@ export const getVariable = (state: AppState, variableID: string): Variable => {
   // the current situation
   const vals = normalizeValues(vari)
   if (
-    vari.selected &&
-    vari.selected.length &&
-    !vals.includes(vari.selected[0])
+    !vari.selected ||
+    (vari.selected && vari.selected.length && !vals.includes(vari.selected[0]))
   ) {
     vari.selected = []
   }
 
-  if ((!vari.selected || !vari.selected.length) && vals.length) {
+  if (!vari.selected.length && vals.length) {
     vari.selected.push(vals[0])
   }
 

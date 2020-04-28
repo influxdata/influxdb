@@ -182,20 +182,6 @@ export const collectDescendants = (
   return [...acc]
 }
 
-export const collectParents = (
-  node: VariableNode,
-  acc: Set<VariableNode> = new Set()
-): VariableNode[] => {
-  for (const parent of node.parents) {
-    if (!acc.has(parent)) {
-      acc.add(parent)
-      collectParents(parent, acc)
-    }
-  }
-
-  return [...acc]
-}
-
 /*
   Hydrate the values of a single node in the graph.
 
@@ -238,12 +224,14 @@ const hydrateVarsHelper = async (
     node.status = RemoteDataState.Loading
     on.fire('status', node.variable, node.status)
 
-    collectParents(node).forEach(parent => {
-      if (parent.status !== RemoteDataState.Loading) {
-        parent.status = RemoteDataState.Loading
-        on.fire('status', parent.variable, parent.status)
-      }
-    })
+    collectAncestors(node)
+      .filter(parent => parent.variable.arguments.type === 'query')
+      .forEach(parent => {
+        if (parent.status !== RemoteDataState.Loading) {
+          parent.status = RemoteDataState.Loading
+          on.fire('status', parent.variable, parent.status)
+        }
+      })
   }
 
   const descendants = collectDescendants(node)
@@ -286,10 +274,7 @@ const readyToResolve = (parent: VariableNode): boolean =>
   Find all `NotStarted` nodes in the graph that have no children.
 */
 const findLeaves = (graph: VariableNode[]): VariableNode[] =>
-  graph.filter(
-    node =>
-      node.children.length === 0 && node.status === RemoteDataState.NotStarted
-  )
+  graph.filter(node => node.children.length === 0)
 
 /*
   Given a node, attempt to find a cycle that the node is a part of. If no cycle
