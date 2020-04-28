@@ -391,7 +391,10 @@ export const hydrateVars = (
   allVariables: Variable[],
   options: HydrateVarsOptions
 ): EventedCancelBox<Variable[]> => {
-  const graph = findSubgraph(createVariableGraph(allVariables), variables)
+  const graph = findSubgraph(
+    createVariableGraph(allVariables),
+    variables
+  ).filter(n => n.variable.arguments.type !== 'system')
   invalidateCycles(graph)
 
   let isCancelled = false

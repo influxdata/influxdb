@@ -296,6 +296,69 @@ describe('Dashboard', () => {
     })
   })
 
+  /*\
+    built to approximate an instance with docker metrics,
+    operating with the variables:
+
+        depbuck:
+            from(bucket: v.buckets)
+                |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+                |> filter(fn: (r) => r["_measurement"] == "docker_container_cpu")
+                |> keep(columns: ["container_name"])
+                |> rename(columns: {"container_name": "_value"})
+                |> last()
+                |> group()
+
+        buckets:
+            buckets()
+                |> filter(fn: (r) => r.name !~ /^_/)
+                |> rename(columns: {name: "_value"})
+                |> keep(columns: ["_value"])
+
+    and a dashboard built of :
+        cell one:
+            from(bucket: v.buckets)
+                |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+                |> filter(fn: (r) => r["_measurement"] == "docker_container_cpu")
+                |> filter(fn: (r) => r["_field"] == "usage_percent")
+
+        cell two:
+            from(bucket: v.CSVBuckets)
+                |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+                |> filter(fn: (r) => r["_measurement"] == "docker_container_cpu")
+                |> filter(fn: (r) => r["_field"] == "usage_percent")
+                |> filter(fn: (r) => r["container_name"] == v.depbuck)
+
+    with only 4 api queries
+
+  \*/
+  it('can load dependent queries without much fuss', () => {
+    cy.get('@org').then(({id: orgID}: Organization) => {
+      cy.createDashboard(orgID).then(({body: dashboard}) => {
+          cy.writeData([
+              `test container_name="cool" _value=12`,
+              `test container_name="beans" _value=18`,
+              `test container_name="cool" _value=14`,
+              `test container_name="beans" _value=10`,
+          ])
+        cy.createCSVVariable(orgID, 'static', ['beans', 'defbuck'])
+        cy.createQueryVariable(orgID, 'dependent', `from(bucket: v.static)
+  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+  |> filter(fn: (r) => r["_measurement"] == "docker_container_cpu")
+  |> keep(columns: ["container_name"])
+  |> rename(columns: {"container_name": "_value"})
+  |> last()
+  |> group()`)
+
+        cy.fixture('routes').then(({orgs}) => {
+            cy.visit(`${orgs}/${orgID}/dashboards/${dashboard.id}`)
+        })
+      })
+    })
+
+    cy.wait(10000)
+  })
+
   it('can create a view through the API', () => {
     cy.get('@org').then(({id: orgID}: Organization) => {
       cy.createDashWithViewAndVar(orgID).then(() => {

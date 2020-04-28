@@ -173,13 +173,14 @@ export const createTask = (
 
 export const createQueryVariable = (
   orgID?: string,
-  name: string = 'Little Variable'
+  name: string = 'Little Variable',
+  query?: string
 ): Cypress.Chainable<Cypress.Response> => {
   const argumentsObj = {
     type: 'query',
     values: {
       language: 'flux',
-      query: `filter(fn: (r) => r._field == "cpu")`,
+      query: query || `filter(fn: (r) => r._field == "cpu")`,
     },
   }
 
@@ -196,11 +197,12 @@ export const createQueryVariable = (
 
 export const createCSVVariable = (
   orgID?: string,
-  name: string = 'CSVVariable'
+  name: string = 'CSVVariable',
+      csv?: string[]
 ): Cypress.Chainable<Cypress.Response> => {
   const argumentsObj = {
     type: 'constant',
-    values: ['c1', 'c2', 'c3', 'c4'],
+    values: csv || ['c1', 'c2', 'c3', 'c4'],
   }
 
   return cy.request({
