@@ -83,11 +83,11 @@ type Store interface {
 	GetSource(orgID, bucketID uint64) proto.Message
 }
 
-// WindowAggregateCapability describes what is supported by WindowAggregateReader.
+// WindowAggregateCapability describes what is supported by WindowAggregateStore.
 type WindowAggregateCapability struct{}
 
-// WindowAggregateReader implements the WindowAggregate capability.
-type WindowAggregateReader interface {
+// WindowAggregateStore implements the WindowAggregate capability.
+type WindowAggregateStore interface {
 	// HasWindowAggregateCapability checks if this Store supports the capability.
 	// If WindowAggregateCapability is passed to the method, then the struct
 	// is filled with a detailed list of what the RPC call supports.
