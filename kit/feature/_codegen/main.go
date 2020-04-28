@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"errors"
 	"flag"
 	"fmt"
 	"go/format"
@@ -82,7 +81,7 @@ func (f flagConfig) Valid() error {
 			}
 		}
 		// e.g. "my flag: missing key; missing default"
-		return errors.New(fmt.Sprintf("%s: %s\n", name, strings.Join(problems, "; ")))
+		return fmt.Errorf("%s: %s\n", name, strings.Join(problems, "; "))
 	}
 	return nil
 }
