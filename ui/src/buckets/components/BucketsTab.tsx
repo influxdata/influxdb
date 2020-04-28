@@ -7,26 +7,21 @@ import {connect} from 'react-redux'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {
   Grid,
-  IconFont,
   ComponentSize,
-  ComponentColor,
   Sort,
-  Button,
   EmptyState,
-  ComponentStatus,
   Columns,
-  Overlay,
 } from '@influxdata/clockface'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'
 import FilterList from 'src/shared/components/FilterList'
 import BucketList from 'src/buckets/components/BucketList'
-import CreateBucketOverlay from 'src/buckets/components/CreateBucketOverlay'
 import AssetLimitAlert from 'src/cloud/components/AssetLimitAlert'
 import BucketExplainer from 'src/buckets/components/BucketExplainer'
 import DemoDataDropdown from 'src/buckets/components/DemoDataDropdown'
 import {FeatureFlag} from 'src/shared/utils/featureFlag'
 import ResourceSortDropdown from 'src/shared/components/resource_sort_dropdown/ResourceSortDropdown'
+import CreateBucketButton from 'src/buckets/components/CreateBucketButton'
 
 // Actions
 import {
@@ -46,24 +41,15 @@ import {
 // Utils
 import {getNewDemoBuckets} from 'src/cloud/selectors/demodata'
 import {extractBucketLimits} from 'src/cloud/utils/limits'
-import {getOrg} from 'src/organizations/selectors'
 import {getAll} from 'src/resources/selectors'
 import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 import {SortTypes} from 'src/shared/utils/sort'
 
 // Types
-import {
-  OverlayState,
-  AppState,
-  Bucket,
-  Organization,
-  ResourceType,
-  OwnBucket,
-} from 'src/types'
+import {AppState, Bucket, ResourceType, OwnBucket} from 'src/types'
 import {BucketSortKey} from 'src/shared/components/resource_sort_dropdown/generateSortItems'
 
 interface StateProps {
-  org: Organization
   buckets: Bucket[]
   limitStatus: LimitStatus
   demoDataBuckets: Bucket[]
@@ -80,7 +66,6 @@ interface DispatchProps {
 
 interface State {
   searchTerm: string
-  overlayState: OverlayState
   sortKey: BucketSortKey
   sortDirection: Sort
   sortType: SortTypes
@@ -97,7 +82,6 @@ class BucketsTab extends PureComponent<Props, State> {
 
     this.state = {
       searchTerm: '',
-      overlayState: OverlayState.Closed,
       sortKey: 'name',
       sortDirection: Sort.Ascending,
       sortType: SortTypes.String,
@@ -113,19 +97,12 @@ class BucketsTab extends PureComponent<Props, State> {
 
   public render() {
     const {
-      org,
       buckets,
       limitStatus,
       demoDataBuckets,
       getDemoDataBucketMembership,
     } = this.props
-    const {
-      searchTerm,
-      overlayState,
-      sortKey,
-      sortDirection,
-      sortType,
-    } = this.state
+    const {searchTerm, sortKey, sortDirection, sortType} = this.state
 
     const leftHeaderItems = (
       <>
@@ -155,15 +132,7 @@ class BucketsTab extends PureComponent<Props, State> {
             />
           )}
         </FeatureFlag>
-        <Button
-          text="Create Bucket"
-          icon={IconFont.Plus}
-          color={ComponentColor.Primary}
-          onClick={this.handleOpenModal}
-          testID="Create Bucket"
-          status={this.createButtonStatus}
-          titleText={this.createButtonTitleText}
-        />
+        <CreateBucketButton />
       </>
     )
 
@@ -213,13 +182,6 @@ class BucketsTab extends PureComponent<Props, State> {
             </Grid.Column>
           </Grid.Row>
         </Grid>
-        <Overlay visible={overlayState === OverlayState.Open}>
-          <CreateBucketOverlay
-            org={org}
-            onCloseModal={this.handleCloseModal}
-            onCreateBucket={this.handleCreateBucket}
-          />
-        </Overlay>
       </>
     )
   }
@@ -236,35 +198,8 @@ class BucketsTab extends PureComponent<Props, State> {
     this.props.deleteBucket(id, name)
   }
 
-  private handleCreateBucket = (bucket: OwnBucket) => {
-    this.props.createBucket(bucket)
-    this.handleCloseModal()
-  }
-
-  private handleOpenModal = (): void => {
-    this.setState({overlayState: OverlayState.Open})
-  }
-
-  private handleCloseModal = (): void => {
-    this.setState({overlayState: OverlayState.Closed})
-  }
-
   private handleFilterUpdate = (searchTerm: string): void => {
     this.setState({searchTerm})
-  }
-
-  private get createButtonStatus(): ComponentStatus {
-    if (this.props.limitStatus === LimitStatus.EXCEEDED) {
-      return ComponentStatus.Disabled
-    }
-    return ComponentStatus.Default
-  }
-
-  private get createButtonTitleText(): string {
-    if (this.props.limitStatus === LimitStatus.EXCEEDED) {
-      return 'This account has the maximum number of buckets allowed'
-    }
-    return 'Create a bucket'
   }
 
   private get emptyState(): JSX.Element {
@@ -276,12 +211,7 @@ class BucketsTab extends PureComponent<Props, State> {
           <EmptyState.Text>
             Looks like there aren't any <b>Buckets</b>, why not create one?
           </EmptyState.Text>
-          <Button
-            text="Create Bucket"
-            icon={IconFont.Plus}
-            color={ComponentColor.Primary}
-            onClick={this.handleOpenModal}
-          />
+          <CreateBucketButton />
         </EmptyState>
       )
     }
@@ -297,7 +227,6 @@ class BucketsTab extends PureComponent<Props, State> {
 const mstp = (state: AppState): StateProps => {
   const buckets = getAll<Bucket>(state, ResourceType.Buckets)
   return {
-    org: getOrg(state),
     buckets,
     limitStatus: extractBucketLimits(state.cloud.limits),
     demoDataBuckets: getNewDemoBuckets(state, buckets),

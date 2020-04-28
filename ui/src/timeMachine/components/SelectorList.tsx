@@ -10,13 +10,26 @@ interface Props {
   selectedItems: string[]
   onSelectItem: (item: string) => void
   multiSelect: boolean
+  children?: JSX.Element | JSX.Element[]
+  testID?: string
 }
 
 const SelectorList: SFC<Props> = props => {
-  const {items, selectedItems, onSelectItem, multiSelect} = props
+  const {
+    items,
+    selectedItems,
+    onSelectItem,
+    multiSelect,
+    children,
+    testID,
+  } = props
 
   return (
-    <BuilderCard.Body addPadding={false} autoHideScrollbars={true}>
+    <BuilderCard.Body
+      addPadding={false}
+      autoHideScrollbars={true}
+      testID={testID}
+    >
       {items.map(item => {
         const className = classnames('selector-list--item', {
           selected: selectedItems.includes(item),
@@ -39,6 +52,7 @@ const SelectorList: SFC<Props> = props => {
           </div>
         )
       })}
+      {children}
     </BuilderCard.Body>
   )
 }

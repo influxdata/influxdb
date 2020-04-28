@@ -5,7 +5,7 @@ import {Router, createMemoryHistory} from 'react-router'
 import {render} from 'react-testing-library'
 import {initialState as initialVariablesState} from 'src/variables/reducers'
 import {initialState as initialUserSettingsState} from 'src/userSettings/reducers'
-import configureStore from 'src/store/configureStore'
+import {default as configureStore, clearStore} from 'src/store/configureStore'
 import {RemoteDataState, TimeZone, LocalStorage, ResourceType} from 'src/types'
 import {pastFifteenMinTimeRange} from './shared/constants/timeRanges'
 
@@ -24,6 +24,10 @@ export const localState: LocalStorage = {
       timeZone: 'Local' as TimeZone,
       theme: 'dark',
     },
+  },
+  flags: {
+    original: {},
+    override: {},
   },
   VERSION: '2.0.0',
   ranges: {
@@ -50,8 +54,10 @@ export const localState: LocalStorage = {
 const history = createMemoryHistory({entries: ['/']})
 
 export function renderWithRedux(ui, initialState = s => s) {
+  clearStore()
   const seedStore = configureStore(localState, history)
   const seedState = seedStore.getState()
+  clearStore()
   const store = configureStore(initialState(seedState), history)
 
   return {
@@ -65,8 +71,10 @@ export function renderWithReduxAndRouter(
   initialState = s => s,
   {route = '/', history = createMemoryHistory({entries: [route]})} = {}
 ) {
+  clearStore()
   const seedStore = configureStore(localState, history)
   const seedState = seedStore.getState()
+  clearStore()
   const store = configureStore(initialState(seedState), history)
 
   return {

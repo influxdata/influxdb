@@ -226,6 +226,37 @@ func (k Object) Name() string {
 	return k.Metadata.references(fieldName).String()
 }
 
+// ObjectAssociation is an association for an object. The supported types
+// at this time are KindLabel.
+type ObjectAssociation struct {
+	Kind    Kind
+	PkgName string
+}
+
+// AddAssociations adds an association to the object.
+func (k Object) AddAssociations(associations ...ObjectAssociation) {
+	if k.Spec == nil {
+		k.Spec = make(Resource)
+	}
+
+	existingAss := k.Spec.slcResource(fieldAssociations)
+	for _, ass := range associations {
+		existingAss = append(existingAss, Resource{
+			fieldKind: ass.Kind,
+			fieldName: ass.PkgName,
+		})
+	}
+	sort.Slice(existingAss, func(i, j int) bool {
+		iPkgName, jPkgName := existingAss[i].Name(), existingAss[j].Name()
+		return iPkgName < jPkgName
+	})
+	if existingAss == nil {
+		return
+	}
+
+	k.Spec[fieldAssociations] = existingAss
+}
+
 // SetMetadataName sets the metadata.name field.
 func (k Object) SetMetadataName(name string) {
 	if k.Metadata == nil {

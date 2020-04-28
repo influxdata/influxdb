@@ -16,15 +16,16 @@ import {
   ComponentColor,
   ComponentStatus,
 } from '@influxdata/clockface'
+import {RuleType} from 'src/buckets/reducers/createBucket'
 
 interface Props {
   name: string
   retentionSeconds: number
   ruleType: 'expire'
   onSubmit: (e: FormEvent<HTMLFormElement>) => void
-  onCloseModal: () => void
+  onClose: () => void
   onChangeRetentionRule: (seconds: number) => void
-  onChangeRuleType: (t: 'expire' | null) => void
+  onChangeRuleType: (t: RuleType) => void
   onChangeInput: (e: ChangeEvent<HTMLInputElement>) => void
   disableRenaming: boolean
   buttonText: string
@@ -40,7 +41,7 @@ export default class BucketOverlayForm extends PureComponent<Props> {
       buttonText,
       retentionSeconds,
       disableRenaming,
-      onCloseModal,
+      onClose,
       onChangeInput,
       onChangeRuleType,
       onChangeRetentionRule,
@@ -50,7 +51,7 @@ export default class BucketOverlayForm extends PureComponent<Props> {
     const nameInputStatus = disableRenaming && ComponentStatus.Disabled
 
     return (
-      <Form onSubmit={onSubmit}>
+      <Form onSubmit={onSubmit} testID="bucket-form">
         <Grid>
           <Grid.Row>
             <Grid.Column>
@@ -69,6 +70,7 @@ export default class BucketOverlayForm extends PureComponent<Props> {
                     autoFocus={true}
                     value={name}
                     onChange={onChangeInput}
+                    testID="bucket-form-name"
                   />
                 )}
               </Form.ValidationElement>
@@ -90,7 +92,7 @@ export default class BucketOverlayForm extends PureComponent<Props> {
               <Form.Footer>
                 <Button
                   text="Cancel"
-                  onClick={onCloseModal}
+                  onClick={onClose}
                   type={ButtonType.Button}
                 />
                 {buttonText === 'Save Changes' && (
@@ -102,6 +104,7 @@ export default class BucketOverlayForm extends PureComponent<Props> {
                 )}
                 <Button
                   text={buttonText}
+                  testID="bucket-form-submit"
                   color={this.submitButtonColor}
                   status={this.submitButtonStatus}
                   type={ButtonType.Submit}

@@ -5,6 +5,7 @@ import {TimeMachinesState} from 'src/timeMachine/reducers'
 import {AppState as AppPresentationState} from 'src/shared/reducers/app'
 import {RouterState} from 'react-router-redux'
 import {MeState} from 'src/shared/reducers/me'
+import {FlagState} from 'src/shared/reducers/flags'
 import {CurrentDashboardState} from 'src/shared/reducers/currentDashboard'
 import {NoteEditorState} from 'src/dashboards/reducers/notes'
 import {DataLoadingState} from 'src/dataLoaders/reducers'
@@ -37,6 +38,7 @@ export interface AppState {
   dataLoading: DataLoadingState
   links: Links
   me: MeState
+  flags: FlagState
   noteEditor: NoteEditorState
   notifications: Notification[]
   onboarding: OnboardingState

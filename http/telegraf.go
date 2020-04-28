@@ -485,7 +485,15 @@ func (s *TelegrafService) CreateTelegrafConfig(ctx context.Context, tc *platform
 // UpdateTelegrafConfig updates a single telegraf config.
 // Returns the new telegraf config after update.
 func (s *TelegrafService) UpdateTelegrafConfig(ctx context.Context, id platform.ID, tc *platform.TelegrafConfig, userID platform.ID) (*platform.TelegrafConfig, error) {
-	panic("not implemented")
+	var teleResp platform.TelegrafConfig
+	err := s.client.
+		PutJSON(tc, prefixTelegraf, id.String()).
+		DecodeJSON(&teleResp).
+		Do(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &teleResp, nil
 }
 
 // DeleteTelegrafConfig removes a telegraf config by ID.

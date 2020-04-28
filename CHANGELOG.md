@@ -1,3 +1,13 @@
+## v2.0.0-beta.10 [Unreleased]
+
+### Features
+
+### Bug Fixes
+
+### UI Improvements
+
+1. [17860](https://github.com/influxdata/influxdb/pull/17860): Allow bucket creation from the Data Explorer and Cell Editor
+
 ## v2.0.0-beta.9 [2020-04-23]
 
 ### Features

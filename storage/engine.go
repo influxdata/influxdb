@@ -328,6 +328,20 @@ func (e *Engine) replayWAL() error {
 	return err
 }
 
+// EnableCompactions allows the series file, index, & underlying engine to compact.
+func (e *Engine) EnableCompactions() {
+	e.sfile.EnableCompactions()
+	e.index.EnableCompactions()
+	e.engine.SetCompactionsEnabled(true)
+}
+
+// DisableCompactions disables compactions in the series file, index, & engine.
+func (e *Engine) DisableCompactions() {
+	e.sfile.DisableCompactions()
+	e.index.DisableCompactions()
+	e.engine.SetCompactionsEnabled(false)
+}
+
 // runRetentionEnforcer runs the retention enforcer in a separate goroutine.
 //
 // Currently this just runs on an interval, but in the future we will add the

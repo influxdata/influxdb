@@ -19,7 +19,8 @@ type stateCoordinator struct {
 	mTelegrafs  map[string]*stateTelegraf
 	mVariables  map[string]*stateVariable
 
-	labelMappings []stateLabelMapping
+	labelMappings         []stateLabelMapping
+	labelMappingsToRemove []stateLabelMappingForRemoval
 }
 
 func newStateCoordinator(pkg *Pkg) *stateCoordinator {
@@ -233,6 +234,10 @@ func (s *stateCoordinator) diff() Diff {
 	for _, m := range s.labelMappings {
 		diff.LabelMappings = append(diff.LabelMappings, m.diffLabelMapping())
 	}
+	for _, m := range s.labelMappingsToRemove {
+		diff.LabelMappings = append(diff.LabelMappings, m.diffLabelMapping())
+	}
+
 	sort.Slice(diff.LabelMappings, func(i, j int) bool {
 		n, m := diff.LabelMappings[i], diff.LabelMappings[j]
 		if n.ResType < m.ResType {
@@ -366,8 +371,143 @@ func (s *stateCoordinator) getLabelByPkgName(pkgName string) *stateLabel {
 	return s.mLabels[pkgName]
 }
 
+func (s *stateCoordinator) addStackState(stack Stack) {
+	reconcilers := []func([]StackResource){
+		s.reconcileStackResources,
+		s.reconcileLabelMappings,
+		s.reconcileNotificationDependencies,
+	}
+	for _, reconcileFn := range reconcilers {
+		reconcileFn(stack.Resources)
+	}
+}
+
+func (s *stateCoordinator) reconcileStackResources(stackResources []StackResource) {
+	for _, r := range stackResources {
+		if !s.Contains(r.Kind, r.PkgName) {
+			s.addObjectForRemoval(r.Kind, r.PkgName, r.ID)
+			continue
+		}
+		s.setObjectID(r.Kind, r.PkgName, r.ID)
+	}
+}
+
+func (s *stateCoordinator) reconcileLabelMappings(stackResources []StackResource) {
+	mLabelPkgNameToID := make(map[string]influxdb.ID)
+	for _, r := range stackResources {
+		if r.Kind.is(KindLabel) {
+			mLabelPkgNameToID[r.PkgName] = r.ID
+		}
+	}
+
+	for _, r := range stackResources {
+		labels := s.labelAssociations(r.Kind, r.PkgName)
+		if len(r.Associations) == 0 {
+			continue
+		}
+
+		// if associations agree => do nothing
+		// if associations are new (in state not in stack) => do nothing
+		// if associations are not in state and in stack => add them for removal
+		mStackAss := make(map[StackResourceAssociation]struct{})
+		for _, ass := range r.Associations {
+			if ass.Kind.is(KindLabel) {
+				mStackAss[ass] = struct{}{}
+			}
+		}
+
+		for _, l := range labels {
+			// we want to keep associations that are from previous application and are not changing
+			delete(mStackAss, StackResourceAssociation{
+				Kind:    KindLabel,
+				PkgName: l.parserLabel.PkgName(),
+			})
+		}
+
+		// all associations that are in the stack but not in the
+		// state fall into here and are marked for removal.
+		for assForRemoval := range mStackAss {
+			s.labelMappingsToRemove = append(s.labelMappingsToRemove, stateLabelMappingForRemoval{
+				LabelPkgName:    assForRemoval.PkgName,
+				LabelID:         mLabelPkgNameToID[assForRemoval.PkgName],
+				ResourceID:      r.ID,
+				ResourcePkgName: r.PkgName,
+				ResourceType:    r.Kind.ResourceType(),
+			})
+		}
+	}
+}
+
+func (s *stateCoordinator) reconcileNotificationDependencies(stackResources []StackResource) {
+	for _, r := range stackResources {
+		if r.Kind.is(KindNotificationRule) {
+			for _, ass := range r.Associations {
+				if ass.Kind.is(KindNotificationEndpoint) {
+					s.mRules[r.PkgName].associatedEndpoint = s.mEndpoints[ass.PkgName]
+					break
+				}
+			}
+		}
+	}
+}
+
+func (s *stateCoordinator) get(k Kind, pkgName string) (interface{}, bool) {
+	switch k {
+	case KindBucket:
+		v, ok := s.mBuckets[pkgName]
+		return v, ok
+	case KindCheck, KindCheckDeadman, KindCheckThreshold:
+		v, ok := s.mChecks[pkgName]
+		return v, ok
+	case KindDashboard:
+		v, ok := s.mDashboards[pkgName]
+		return v, ok
+	case KindLabel:
+		v, ok := s.mLabels[pkgName]
+		return v, ok
+	case KindNotificationEndpoint,
+		KindNotificationEndpointHTTP,
+		KindNotificationEndpointPagerDuty,
+		KindNotificationEndpointSlack:
+		v, ok := s.mEndpoints[pkgName]
+		return v, ok
+	case KindNotificationRule:
+		v, ok := s.mRules[pkgName]
+		return v, ok
+	case KindTask:
+		v, ok := s.mTasks[pkgName]
+		return v, ok
+	case KindTelegraf:
+		v, ok := s.mTelegrafs[pkgName]
+		return v, ok
+	case KindVariable:
+		v, ok := s.mVariables[pkgName]
+		return v, ok
+	default:
+		return nil, false
+	}
+}
+
+func (s *stateCoordinator) labelAssociations(k Kind, pkgName string) []*stateLabel {
+	type labelAssociater interface {
+		labels() []*label
+	}
+
+	v, _ := s.get(k, pkgName)
+	labeler, ok := v.(labelAssociater)
+	if !ok {
+		return nil
+	}
+
+	var out []*stateLabel
+	for _, l := range labeler.labels() {
+		out = append(out, s.mLabels[l.PkgName()])
+	}
+	return out
+}
+
 func (s *stateCoordinator) Contains(k Kind, pkgName string) bool {
-	_, ok := s.getObjectIDSetter(k, pkgName)
+	_, ok := s.get(k, pkgName)
 	return ok
 }
 
@@ -380,7 +520,7 @@ func (s *stateCoordinator) setObjectID(k Kind, pkgName string, id influxdb.ID) {
 	idSetFn(id)
 }
 
-// setObjectID sets the id for the resource graphed from the object the key identifies.
+// addObjectForRemoval sets the id for the resource graphed from the object the key identifies.
 // The pkgName and kind are used as the unique identifier, when calling this it will
 // overwrite any existing value if one exists. If desired, check for the value by using
 // the Contains method.
@@ -874,6 +1014,25 @@ func stateLabelMappingToInfluxLabelMapping(mapping stateLabelMapping) influxdb.L
 	}
 }
 
+type stateLabelMappingForRemoval struct {
+	LabelID         influxdb.ID
+	LabelPkgName    string
+	ResourceID      influxdb.ID
+	ResourcePkgName string
+	ResourceType    influxdb.ResourceType
+}
+
+func (m *stateLabelMappingForRemoval) diffLabelMapping() DiffLabelMapping {
+	return DiffLabelMapping{
+		StateStatus:  StateStatusRemove,
+		ResType:      m.ResourceType,
+		ResID:        SafeID(m.ResourceID),
+		ResPkgName:   m.ResourcePkgName,
+		LabelID:      SafeID(m.LabelID),
+		LabelPkgName: m.LabelPkgName,
+	}
+}
+
 type stateEndpoint struct {
 	id, orgID   influxdb.ID
 	stateStatus StateStatus
@@ -958,14 +1117,14 @@ func (r *stateRule) ID() influxdb.ID {
 	return r.id
 }
 
-func (r *stateRule) associations() []StackResourceAssociation {
+func (r *stateRule) endpointAssociation() StackResourceAssociation {
 	if r.associatedEndpoint == nil {
-		return nil
+		return StackResourceAssociation{}
 	}
-	return []StackResourceAssociation{{
+	return StackResourceAssociation{
 		Kind:    KindNotificationEndpoint,
 		PkgName: r.endpointPkgName(),
-	}}
+	}
 }
 
 func (r *stateRule) diffRule() DiffNotificationRule {
@@ -1320,24 +1479,4 @@ func IsExisting(status StateStatus) bool {
 // from the platform.
 func IsRemoval(status StateStatus) bool {
 	return status == StateStatusRemove
-}
-
-func associationsEqual(ass1, ass2 []StackResourceAssociation) bool {
-	if len(ass1) != len(ass2) {
-		return false
-	}
-
-	mAss := make(map[StackResourceAssociation]bool)
-	for _, ass := range ass1 {
-		mAss[ass] = true
-	}
-
-	for _, ass := range ass2 {
-		if !mAss[ass] {
-			return false
-		}
-		delete(mAss, ass)
-	}
-
-	return len(mAss) == 0
 }
