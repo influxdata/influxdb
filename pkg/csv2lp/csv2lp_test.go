@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestCsvData tests conversion annotated CSV file to line protocol
+// Test_CsvToProtocolLines tests conversion of annotated CSV data to line protocol data
 func Test_CsvToProtocolLines(t *testing.T) {
 	var tests = []struct {
 		name  string
@@ -117,8 +117,8 @@ func Test_CsvToProtocolLines(t *testing.T) {
 	}
 }
 
-// TestCsvData_LogTableColumns checks correct logging
-func TestCsvData_LogTableColumns(t *testing.T) {
+// Test_CsvToProtocolLines_LogTableColumns checks correct logging of table columns
+func Test_CsvToProtocolLines_LogTableColumns(t *testing.T) {
 	var buf bytes.Buffer
 	log.SetOutput(&buf)
 	oldFlags := log.Flags()
@@ -146,8 +146,8 @@ func TestCsvData_LogTableColumns(t *testing.T) {
 	require.Equal(t, messages, 1)
 }
 
-// TestCsvData_LogTableColumns checks correct logging
-func TestCsvData_LogTimeZoneWarning(t *testing.T) {
+// Test_CsvToProtocolLines_LogTimeZoneWarning checks correct logging of timezone warning
+func Test_CsvToProtocolLines_LogTimeZoneWarning(t *testing.T) {
 	var buf bytes.Buffer
 	log.SetOutput(&buf)
 	oldFlags := log.Flags()
@@ -169,14 +169,14 @@ func TestCsvData_LogTimeZoneWarning(t *testing.T) {
 	bytes, _ := ioutil.ReadAll(reader)
 
 	out := buf.String()
-	// fmt.Println(out)
+	// fmt.Println(out) // "::PREFIX::WARNING:  #timezone annotation: unknown time zone 1
 	messages := strings.Count(out, prefix)
 	require.Equal(t, messages, 1)
 	require.Equal(t, string(bytes), "cpu a=1,b=1 0\n")
 }
 
-// TestCsvData_LogCsvErrors checks correct logging
-func TestCsvData_SkipRowOnError(t *testing.T) {
+// Test_CsvToProtocolLines_SkipRowOnError tests that error rows are skipped
+func Test_CsvToProtocolLines_SkipRowOnError(t *testing.T) {
 	var buf bytes.Buffer
 	log.SetOutput(&buf)
 	oldFlags := log.Flags()
@@ -204,7 +204,7 @@ func TestCsvData_SkipRowOnError(t *testing.T) {
 	require.Equal(t, messages, 2)
 }
 
-// Test_CsvLineError checks formating of line errors
+// Test_CsvLineError tests CsvLineError error format
 func Test_CsvLineError(t *testing.T) {
 	var tests = []struct {
 		err   CsvLineError

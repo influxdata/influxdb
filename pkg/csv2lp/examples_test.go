@@ -174,8 +174,8 @@ func (example *csvExample) normalize() {
 	}
 }
 
-// TestExamples validates documentation examples
-func TestExamples(t *testing.T) {
+// Test_Examples tests examples of README.md file herein
+func Test_Examples(t *testing.T) {
 	for _, example := range examples {
 		example.normalize()
 		t.Run(example.name, func(t *testing.T) {

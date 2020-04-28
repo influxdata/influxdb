@@ -29,8 +29,8 @@ func readCsv(t *testing.T, data string) [][]string {
 	return rows
 }
 
-// TestQueryResult validates construction of table columns from Query CSV result
-func TestQueryResult(t *testing.T) {
+// Test_CsvTable_FluxQueryResult tests construction of table columns and data from a Flux Query CSV result
+func Test_CsvTable_FluxQueryResult(t *testing.T) {
 	const csvQueryResult = `
 #group,false,false,true,true,false,false,true,true,true,true
 #datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,double,string,string,string,string
@@ -109,8 +109,8 @@ func TestQueryResult(t *testing.T) {
 	}
 }
 
-//Test_ignoreLeadingComment
-func Test_ignoreLeadingComment(t *testing.T) {
+//Test_IgnoreLeadingComment tests ignoreLeadingComment fn
+func Test_IgnoreLeadingComment(t *testing.T) {
 	var tests = []struct {
 		value  string
 		expect string
@@ -131,8 +131,8 @@ func Test_ignoreLeadingComment(t *testing.T) {
 
 }
 
-// TestCsvData checks data that are writen in an annotated CSV file
-func TestCsvData(t *testing.T) {
+// Test_CsvTableProcessing tests data processing in CsvTable
+func Test_CsvTableProcessing(t *testing.T) {
 	var tests = []struct {
 		name string
 		csv  string
@@ -277,7 +277,8 @@ func TestCsvData(t *testing.T) {
 	}
 }
 
-func TestConstantAnnotations(t *testing.T) {
+// Test_ConstantAnnotations tests processing of constant annotations
+func Test_ConstantAnnotations(t *testing.T) {
 	var tests = []struct {
 		name string
 		csv  string
@@ -322,7 +323,8 @@ func TestConstantAnnotations(t *testing.T) {
 	}
 }
 
-func TestDataTypeInColumnName(t *testing.T) {
+// Test_DataTypeInColumnName tests specification of column data type in the header row
+func Test_DataTypeInColumnName(t *testing.T) {
 	var tests = []struct {
 		csv                        string
 		line                       string
@@ -385,8 +387,8 @@ func TestDataTypeInColumnName(t *testing.T) {
 	}
 }
 
-// TestCsvData_dataErrors validates table data errors
-func TestCsvData_dataErrors(t *testing.T) {
+// Test_CsvTable_dataErrors tests reporting of table data errors
+func Test_CsvTable_dataErrors(t *testing.T) {
 	var tests = []struct {
 		name string
 		csv  string
@@ -442,7 +444,7 @@ func TestCsvData_dataErrors(t *testing.T) {
 			require.Equal(t, 1, len(errors))
 			// fmt.Println(errors[0])
 			require.NotNil(t, errors[0].Error())
-			// LineLabel is the same as Label in all test columns
+			// LineLabel is the same as Label in all tested columns
 			for _, col := range table.Columns() {
 				require.Equal(t, col.Label, col.LineLabel())
 			}
@@ -450,7 +452,8 @@ func TestCsvData_dataErrors(t *testing.T) {
 	}
 }
 
-func TestCsvTable_ColumnInfo(t *testing.T) {
+// Test_CsvTable_DataColumnsInfo tests reporting of table columns
+func Test_CsvTable_DataColumnsInfo(t *testing.T) {
 	data := "#constant,measurement,cpu\n" +
 		"#constant,tag,xpu,xpu1\n" +
 		"#constant,tag,cpu,cpu1\n" +

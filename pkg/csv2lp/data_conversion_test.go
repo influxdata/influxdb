@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// Test_EscapeMeasurement tests escapeMeasurement function
 func Test_escapeMeasurement(t *testing.T) {
 	var tests = []struct {
 		value  string
@@ -31,7 +32,8 @@ func Test_escapeMeasurement(t *testing.T) {
 	}
 }
 
-func Test_escapeTag(t *testing.T) {
+// Test_EscapeTag tests escapeTag function
+func Test_EscapeTag(t *testing.T) {
 	var tests = []struct {
 		value  string
 		expect string
@@ -49,7 +51,8 @@ func Test_escapeTag(t *testing.T) {
 	}
 }
 
-func Test_escapeString(t *testing.T) {
+// Test_EscapeString tests escapeString function
+func Test_EscapeString(t *testing.T) {
 	var tests = []struct {
 		value  string
 		expect string
@@ -66,7 +69,8 @@ func Test_escapeString(t *testing.T) {
 	}
 }
 
-func Test_toTypedValue(t *testing.T) {
+// Test_ToTypedValue tests toTypedValue function
+func Test_ToTypedValue(t *testing.T) {
 	epochTime, _ := time.Parse(time.RFC3339, "1970-01-01T00:00:00Z")
 	var tests = []struct {
 		dataType string
@@ -119,7 +123,8 @@ func Test_toTypedValue(t *testing.T) {
 	}
 }
 
-func Test_toTypedValue_dateTimeCustomTimeZone(t *testing.T) {
+// Test_ToTypedValue_dateTimeCustomTimeZone tests custom timezone when calling toTypedValue function
+func Test_ToTypedValue_dateTimeCustomTimeZone(t *testing.T) {
 	epochTime, _ := time.Parse(time.RFC3339, "1970-01-01T00:00:00Z")
 	tz, _ := parseTimeZone("-0100")
 	var tests = []struct {
@@ -153,7 +158,8 @@ func Test_toTypedValue_dateTimeCustomTimeZone(t *testing.T) {
 	}
 }
 
-func Test_toLineProtocolValue(t *testing.T) {
+// Test_AppendProtocolValue tests appendProtocolValue function
+func Test_AppendProtocolValue(t *testing.T) {
 	epochTime, _ := time.Parse(time.RFC3339, "1970-01-01T00:00:00Z")
 	var tests = []struct {
 		value  interface{}
@@ -188,7 +194,8 @@ func Test_toLineProtocolValue(t *testing.T) {
 	}
 }
 
-func Test_appendConverted(t *testing.T) {
+// Test_AppendConverted tests appendConverted function
+func Test_AppendConverted(t *testing.T) {
 	var tests = []struct {
 		dataType string
 		value    string
@@ -214,7 +221,7 @@ func Test_appendConverted(t *testing.T) {
 	}
 }
 
-// Test_IsTypeSupported
+// Test_IsTypeSupported tests IsTypeSupported function
 func Test_IsTypeSupported(t *testing.T) {
 	require.True(t, IsTypeSupported(stringDatatype), true)
 	require.True(t, IsTypeSupported(doubleDatatype), true)
@@ -232,8 +239,8 @@ func Test_IsTypeSupported(t *testing.T) {
 	require.False(t, IsTypeSupported(dateTimeDatatype+":"+dateTimeDataFormatNumber))
 }
 
-// Test_normalizeNumberString
-func Test_normalizeNumberString(t *testing.T) {
+// Test_NormalizeNumberString tests normalizeNumberString function
+func Test_NormalizeNumberString(t *testing.T) {
 	var tests = []struct {
 		value          string
 		format         string
@@ -255,8 +262,8 @@ func Test_normalizeNumberString(t *testing.T) {
 	}
 }
 
-// TestCreateDecoder tests the decoding reader factory
-func TestCreateDecoder(t *testing.T) {
+// Test_CreateDecoder tests CreateDecoder function
+func Test_CreateDecoder(t *testing.T) {
 	decoder, err := CreateDecoder("UTF-8")
 	toUtf8 := func(in []byte) string {
 		s, _ := ioutil.ReadAll(decoder(bytes.NewReader(in)))
@@ -277,7 +284,8 @@ func TestCreateDecoder(t *testing.T) {
 	log.Printf("US-ASCII encoding support: %v,%v", decoder != nil, err)
 }
 
-func Test_createBoolParseFn(t *testing.T) {
+// Test_CreateBoolParseFn tests createBoolParseFn function
+func Test_CreateBoolParseFn(t *testing.T) {
 	type pairT struct {
 		value  string
 		expect string

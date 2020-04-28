@@ -19,8 +19,8 @@ func annotation(name string) annotationComment {
 	panic("no annotation named " + name + " found!")
 }
 
-// TestGroupAnnotation tests #group annotation
-func TestGroupAnnotation(t *testing.T) {
+// Test_GroupAnnotation tests #group annotation
+func Test_GroupAnnotation(t *testing.T) {
 	subject := annotation("#group")
 	require.True(t, subject.matches("#Group"))
 	require.False(t, subject.isTableAnnotation())
@@ -42,8 +42,8 @@ func TestGroupAnnotation(t *testing.T) {
 	}
 }
 
-// TestDefaultAnnotation tests #default annotation
-func TestDefaultAnnotation(t *testing.T) {
+// Test_DefaultAnnotation tests #default annotation
+func Test_DefaultAnnotation(t *testing.T) {
 	subject := annotation("#default")
 	require.True(t, subject.matches("#Default"))
 	require.False(t, subject.isTableAnnotation())
@@ -64,8 +64,8 @@ func TestDefaultAnnotation(t *testing.T) {
 	}
 }
 
-// TestDatatypeAnnotation tests #datatype annotation
-func TestDatatypeAnnotation(t *testing.T) {
+// Test_DatatypeAnnotation tests #datatype annotation
+func Test_DatatypeAnnotation(t *testing.T) {
 	subject := annotation("#datatype")
 	require.True(t, subject.matches("#dataType"))
 	require.False(t, subject.isTableAnnotation())
@@ -97,8 +97,8 @@ func TestDatatypeAnnotation(t *testing.T) {
 	}
 }
 
-// TestConstantAnnotation tests #constant annotation
-func TestConstantAnnotation(t *testing.T) {
+// Test_ConstantAnnotation tests #constant annotation
+func Test_ConstantAnnotation(t *testing.T) {
 	subject := annotation("#constant")
 	require.True(t, subject.matches("#Constant"))
 	require.True(t, subject.isTableAnnotation())
@@ -140,8 +140,8 @@ func TestConstantAnnotation(t *testing.T) {
 	}
 }
 
-// TestTimeZoneAnnotation tests #timezone annotation
-func TestTimeZoneAnnotation(t *testing.T) {
+// Test_TimeZoneAnnotation tests #timezone annotation
+func Test_TimeZoneAnnotation(t *testing.T) {
 	subject := annotation("#timezone")
 	require.True(t, subject.matches("#timeZone"))
 	require.True(t, subject.isTableAnnotation())
@@ -170,8 +170,8 @@ func TestTimeZoneAnnotation(t *testing.T) {
 	}
 }
 
-// TestTimeZoneAnnotation tests parseTimeZone fn
-func Test_parseTimeZone(t *testing.T) {
+// Test_ParseTimeZone tests parseTimeZone fn
+func Test_ParseTimeZone(t *testing.T) {
 	now := time.Now()
 	_, localOffset := now.Zone()
 	var tests = []struct {
