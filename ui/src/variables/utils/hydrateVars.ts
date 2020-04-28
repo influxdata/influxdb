@@ -263,10 +263,6 @@ const hydrateVarsHelper = async (
   node.cancel = request.cancel
 
   const values = await request.promise
-  function timeout(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms))
-  }
-  await timeout(2000)
 
   // NOTE: do not fire `done` event here, as the value
   // has not been properly hydrated yet
