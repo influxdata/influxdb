@@ -115,7 +115,7 @@ class NoteEditor extends PureComponent<Props, State> {
 
 const mstp = (state: AppState) => {
   const {note, mode, viewID, isPreviewing, showNoteWhenEmpty} = state.noteEditor
-  let hasQuery =
+  const hasQuery =
     mode === NoteEditorMode.Editing &&
     viewID &&
     state.resources.views.byID[viewID] &&
