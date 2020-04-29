@@ -10,7 +10,6 @@ import (
 	"github.com/influxdata/flux/semantic"
 	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/prom"
-	"github.com/influxdata/influxdb/v2/storage/reads"
 	"github.com/influxdata/influxdb/v2/tsdb/cursors"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
@@ -151,12 +150,15 @@ type ReadWindowAggregateSpec struct {
 	Aggregates  []string
 }
 
+// WindowAggregateCapability describes what is supported by WindowAggregateReader.
+type WindowAggregateCapability struct{}
+
 // WindowAggregateReader implements the WindowAggregate capability.
 type WindowAggregateReader interface {
 	// HasWindowAggregateCapability will test if this Reader source supports the ReadWindowAggregate capability.
 	// If WindowAggregateCapability is passed to the method, then the struct
 	// is filled with a detailed list of what the RPC call supports.
-	HasWindowAggregateCapability(ctx context.Context, capability ...*reads.WindowAggregateCapability) bool
+	HasWindowAggregateCapability(ctx context.Context, capability ...*WindowAggregateCapability) bool
 
 	// ReadWindowAggregate will read a table using the WindowAggregate method.
 	ReadWindowAggregate(ctx context.Context, spec ReadWindowAggregateSpec, alloc *memory.Allocator) (TableIterator, error)

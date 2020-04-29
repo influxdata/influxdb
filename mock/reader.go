@@ -47,10 +47,10 @@ type WindowAggregateReader struct {
 	ReadWindowAggregateFn          func(ctx context.Context, spec influxdb.ReadWindowAggregateSpec, alloc *memory.Allocator) (influxdb.TableIterator, error)
 }
 
-func (s *WindowAggregateReader) HasWindowAggregateCapability(ctx context.Context, capability ...*reads.WindowAggregateCapability) bool {
+func (s *WindowAggregateReader) HasWindowAggregateCapability(ctx context.Context, capability ...*influxdb.WindowAggregateCapability) bool {
 	// Use the function if it exists.
 	if s.HasWindowAggregateCapabilityFn != nil {
-		return s.HasWindowAggregateCapabilityFn(ctx, capability...)
+		return s.HasWindowAggregateCapabilityFn(ctx)
 	}
 
 	// Provide a default implementation if one wasn't set.
