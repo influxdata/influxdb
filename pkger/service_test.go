@@ -1332,9 +1332,10 @@ func TestService(t *testing.T) {
 					sum, _, err := svc.Apply(context.TODO(), orgID, 0, pkg)
 					require.NoError(t, err)
 
-					require.Len(t, sum.TelegrafConfigs, 1)
+					require.Len(t, sum.TelegrafConfigs, 2)
 					assert.Equal(t, "display name", sum.TelegrafConfigs[0].TelegrafConfig.Name)
 					assert.Equal(t, "desc", sum.TelegrafConfigs[0].TelegrafConfig.Description)
+					assert.Equal(t, "tele_2", sum.TelegrafConfigs[1].TelegrafConfig.Name)
 				})
 			})
 
@@ -1355,13 +1356,6 @@ func TestService(t *testing.T) {
 						}
 						return nil
 					}
-
-					stubTele := &telegraf{
-						identity: identity{
-							name: &references{val: "stub"},
-						},
-					}
-					pkg.mTelegrafs[stubTele.PkgName()] = stubTele
 
 					svc := newTestService(WithTelegrafSVC(fakeTeleSVC))
 
