@@ -1,6 +1,7 @@
 package influxdb_test
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -180,7 +181,7 @@ func TestFromValidation(t *testing.T) {
 		influxdb.PushDownFilterRule{},
 		influxdb.PushDownGroupRule{},
 	))
-	_, err := pp.Plan(ps)
+	_, err := pp.Plan(context.Background(), ps)
 	if err == nil {
 		t.Error("Expected query with no call to range to fail physical planning")
 	}
