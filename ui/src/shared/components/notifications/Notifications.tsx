@@ -1,18 +1,17 @@
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
-// import Notification from 'src/shared/components/notifications/Notification'
+import {get} from 'lodash'
+
 //Actions
 import {dismissNotification as dismissNotificationAction} from 'src/shared/actions/notifications'
 
-import {
-  Notification,
-  ComponentSize,
-  Gradients,
-  ComponentColor,
-} from '@influxdata/clockface'
+import {Notification, ComponentSize, Gradients} from '@influxdata/clockface'
 
 //Types
-import {Notification as NotificationType} from 'src/types/notifications'
+import {
+  Notification as NotificationType,
+  NotificationStyle,
+} from 'src/types/notifications'
 
 interface StateProps {
   notifications: NotificationType[]
@@ -24,21 +23,17 @@ interface DispatchProps {
 
 type Props = StateProps & DispatchProps
 
-const matchGradientToColor = (color: ComponentColor): Gradients => {
-  switch (color) {
-    case ComponentColor.Primary:
-      return Gradients.Primary
-    case ComponentColor.Warning:
-      return Gradients.WarningLight
-    case ComponentColor.Success:
-      return Gradients.HotelBreakfast
-    case ComponentColor.Danger:
-      return Gradients.DangerDark
-    case ComponentColor.Default:
-    default:
-      return Gradients.DefaultLight
+const matchGradientToColor = (style: NotificationStyle): Gradients => {
+  const converter = {
+    [NotificationStyle.Primary]: Gradients.Primary,
+    [NotificationStyle.Warning]: Gradients.WarningLight,
+    [NotificationStyle.Success]: Gradients.HotelBreakfast,
+    [NotificationStyle.Error]: Gradients.DangerDark,
+    [NotificationStyle.Info]: Gradients.DefaultLight,
   }
+  return get(converter, style, Gradients.DefaultLight)
 }
+
 class Notifications extends PureComponent<Props> {
   public static defaultProps = {
     notifications: [],
@@ -62,6 +57,7 @@ class Notifications extends PureComponent<Props> {
               gradient={gradient}
               onTimeout={this.props.dismissNotification}
               onDismiss={this.props.dismissNotification}
+              testID={`notification-${style}`}
             >
               {message}
             </Notification>

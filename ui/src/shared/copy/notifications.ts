@@ -2,8 +2,7 @@
 import {binaryPrefixFormatter} from '@influxdata/giraffe'
 
 // Types
-import {Notification} from 'src/types'
-import {ComponentColor} from '@influxdata/clockface'
+import {Notification, NotificationStyle} from 'src/types'
 
 // Constants
 import {FIVE_SECONDS, TEN_SECONDS} from 'src/shared/constants/index'
@@ -23,19 +22,19 @@ type NotificationExcludingMessage = Pick<
 >
 
 const defaultErrorNotification: NotificationExcludingMessage = {
-  style: ComponentColor.Danger,
+  style: NotificationStyle.Error,
   icon: IconFont.AlertTriangle,
   duration: TEN_SECONDS,
 }
 
 const defaultSuccessNotification: NotificationExcludingMessage = {
-  style: ComponentColor.Success,
+  style: NotificationStyle.Success,
   icon: IconFont.Checkmark,
   duration: FIVE_SECONDS,
 }
 
 const defaultDeletionNotification: NotificationExcludingMessage = {
-  style: ComponentColor.Primary,
+  style: NotificationStyle.Primary,
   icon: IconFont.Trash,
   duration: FIVE_SECONDS,
 }
@@ -44,7 +43,7 @@ const defaultDeletionNotification: NotificationExcludingMessage = {
 //  ----------------------------------------------------------------------------
 
 export const newVersion = (version: string): Notification => ({
-  style: ComponentColor.Default,
+  style: NotificationStyle.Info,
   icon: IconFont.Cubouniform,
   message: `Welcome to the latest Chronograf${version}. Local settings cleared.`,
 })
@@ -55,20 +54,20 @@ export const loadLocalSettingsFailed = (error: string): Notification => ({
 })
 
 export const presentationMode = (): Notification => ({
-  style: ComponentColor.Primary,
+  style: NotificationStyle.Primary,
   icon: IconFont.ExpandB,
   duration: 7500,
   message: 'Press ESC to exit Presentation Mode.',
 })
 
 export const sessionTimedOut = (): Notification => ({
-  style: ComponentColor.Primary,
+  style: NotificationStyle.Primary,
   icon: IconFont.Triangle,
   message: 'Your session has timed out. Log in again to continue.',
 })
 
 export const resultTooLarge = (bytesRead: number): Notification => ({
-  style: ComponentColor.Danger,
+  style: NotificationStyle.Error,
   icon: IconFont.Triangle,
   duration: FIVE_SECONDS,
   message: `Large response truncated to first ${bytesFormatter(bytesRead)}`,

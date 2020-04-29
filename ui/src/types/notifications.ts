@@ -1,13 +1,21 @@
 import {Action} from 'src/shared/actions/notifications'
-import {IconFont, ComponentColor} from '@influxdata/clockface'
+import {IconFont} from '@influxdata/clockface'
 
 export type NotificationAction = Action
 
 export interface Notification {
   id?: string
-  style: ComponentColor
+  style: NotificationStyle
   icon: IconFont
   duration?: number
   message: string
   type?: string
+}
+
+export enum NotificationStyle {
+  Error = 'error',
+  Success = 'success',
+  Info = 'info',
+  Primary = 'primary',
+  Warning = 'warning',
 }

@@ -7,13 +7,14 @@ import {notify, dismissNotification} from 'src/shared/actions/notifications'
 
 import {FIVE_SECONDS} from 'src/shared/constants/index'
 
-import {IconFont, ComponentColor} from '@influxdata/clockface'
+import {IconFont} from '@influxdata/clockface'
+import {NotificationStyle} from 'src/types/notifications'
 
 const notificationID = '000'
 
 const exampleNotification = {
   id: notificationID,
-  style: ComponentColor.Success,
+  style: NotificationStyle.Success,
   message: 'Hell yeah you are a real notification!',
   duration: FIVE_SECONDS,
   icon: IconFont.Zap,
@@ -39,7 +40,7 @@ describe('Shared.Reducers.notifications', () => {
   describe('adding more than one notification', () => {
     it('should put the new notification at the beggining of the list', () => {
       const newNotification = {
-        style: ComponentColor.Danger,
+        style: NotificationStyle.Error,
         message: 'new notification',
         duration: FIVE_SECONDS,
         icon: IconFont.Zap,
