@@ -161,5 +161,5 @@ func (s *store) HasWindowAggregateCapability(ctx context.Context, capability ...
 // WindowAggregate will invoke a ReadWindowAggregateRequest against the Store.
 func (s *store) WindowAggregate(ctx context.Context, req *datatypes.ReadWindowAggregateRequest) (reads.ResultSet, error) {
 	// TODO: https://github.com/influxdata/idpe/issues/6805
-	return nil, errors.New("WindowAggregate is not unimplemented")
+	return nil, errors.New("WindowAggregate is not implemented")
 }
