@@ -119,9 +119,13 @@ func (s *HTTPRemoteService) Apply(ctx context.Context, orgID, userID influxdb.ID
 func (s *HTTPRemoteService) apply(ctx context.Context, orgID influxdb.ID, pkg *Pkg, dryRun bool, opts ...ApplyOptFn) (Summary, Diff, error) {
 	opt := applyOptFromOptFns(opts...)
 
-	b, err := pkg.Encode(EncodingJSON)
-	if err != nil {
-		return Summary{}, Diff{}, err
+	var rawPkg []byte
+	if pkg != nil {
+		b, err := pkg.Encode(EncodingJSON)
+		if err != nil {
+			return Summary{}, Diff{}, err
+		}
+		rawPkg = b
 	}
 
 	reqBody := ReqApplyPkg{
@@ -129,7 +133,7 @@ func (s *HTTPRemoteService) apply(ctx context.Context, orgID influxdb.ID, pkg *P
 		DryRun:  dryRun,
 		EnvRefs: opt.EnvRefs,
 		Secrets: opt.MissingSecrets,
-		RawPkg:  b,
+		RawPkg:  rawPkg,
 	}
 	if opt.StackID != 0 {
 		stackID := opt.StackID.String()
@@ -137,7 +141,7 @@ func (s *HTTPRemoteService) apply(ctx context.Context, orgID influxdb.ID, pkg *P
 	}
 
 	var resp RespApplyPkg
-	err = s.Client.
+	err := s.Client.
 		PostJSON(reqBody, RoutePrefix, "/apply").
 		DecodeJSON(&resp).
 		Do(ctx)
