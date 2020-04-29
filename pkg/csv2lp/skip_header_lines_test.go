@@ -21,36 +21,47 @@ func (r *readOnceWithEOF) Read(p []byte) (n int, err error) {
 
 // Test_SkipHeaderLines checks that first lines are skipped
 func Test_SkipHeaderLines(t *testing.T) {
-	input := "1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n"
 
 	var tests = []struct {
 		skipCount int
+		input     string
 		result    string
 	}{
 		{
 			10,
+			"1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n",
 			"",
 		},
 		{
 			0,
 			"1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n",
+			"1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n",
 		},
 		{
 			1,
+			"1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n",
 			"2\n3\n4\n5\n6\n7\n8\n9\n0\n",
 		},
 		{
 			5,
+			"1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n",
 			"6\n7\n8\n9\n0\n",
 		},
 		{
 			20,
+			"1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n",
 			"",
 		},
+		{
+			1,
+			"\"\n\"\"\n\"\n2",
+			"2",
+		},
 	}
-	bufferSizes := []int{1, 2, 7, 0, len(input), len(input) + 1}
 
 	for i, test := range tests {
+		input := test.input
+		bufferSizes := []int{1, 2, 7, 0, len(input), len(input) + 1}
 		for _, bufferSize := range bufferSizes {
 			t.Run(strconv.Itoa(i)+"_"+strconv.Itoa(bufferSize), func(t *testing.T) {
 				var reader io.Reader
