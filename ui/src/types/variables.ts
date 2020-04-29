@@ -1,4 +1,4 @@
-import {Variable as GenVariable, Label} from 'src/client'
+import {Variable as GVariable, Label} from 'src/client'
 import {
   QueryVariableProperties as GenQueryVariableProperties,
   ConstantVariableProperties as GenConstantVariableProperties,
@@ -7,7 +7,7 @@ import {
 
 import {
   VariableArgumentType,
-  VariableMapObject,
+  VariableMapObject as GenVariableMapObject,
   QueryArguments,
   MapArguments,
   CSVArguments,
@@ -16,7 +16,7 @@ import {
 } from 'src/types'
 
 // GenVariable is the shape of a variable from the server
-export type GenVariable = GenVariable
+export type GenVariable = GVariable
 export interface SystemVariableProperties {
   type?: 'system'
   values?: any
@@ -66,7 +66,7 @@ export interface VariableMapObject {
   [mapKey: string]: mapValue
 }
 export interface VariableValues {
-  values?: VariableMapObject | string[]
+  values?: GenVariableMapObject | string[]
   valueType?: FluxColumnType
   selected?: string[]
   error?: string
