@@ -16,6 +16,7 @@ import {NormalizedSchema} from 'normalizr'
 const baseURL = '/api/v2/experimental/sampledata'
 
 export const getDemoDataBuckets = async (): Promise<Bucket[]> => {
+  //todo (deniz) convert to fetch
   const {data} = await AJAX({
     method: 'GET',
     url: `${baseURL}/buckets`,
