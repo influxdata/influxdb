@@ -62,7 +62,7 @@ export function comments(editor: EditorType) {
 
 export function submit(editor: EditorType, submitFn: () => any) {
   editor.addCommand(
-    [window.monaco.KeyMod.CtrlCmd | window.monaco.KeyCode.Enter],
+    window.monaco.KeyMod.CtrlCmd | window.monaco.KeyCode.Enter,
     () => {
       submitFn()
     }

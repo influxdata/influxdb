@@ -31,7 +31,7 @@ interface DispatchProps {
 
 type Props = StateProps & DispatchProps
 
-class SubmitQueryButton extends PureComponent<Props, State> {
+class SubmitQueryButton extends PureComponent<Props> {
   public render() {
     return (
       <Button
