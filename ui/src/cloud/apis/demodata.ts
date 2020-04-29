@@ -28,7 +28,6 @@ export const getDemoDataBuckets = async (): Promise<Bucket[]> => {
 
     return buckets.filter(b => b.type == 'user') as Bucket[] // remove returned _tasks and _monitoring buckets
   } catch (error) {
-    console.error(error)
     throw error
   }
 }
@@ -102,7 +101,6 @@ export const fetchDemoDataBuckets = async (): Promise<Bucket[]> => {
     })) as Array<DemoBucket>
   } catch (error) {
     console.error(error)
-    throw error //????
     return [] // demodata bucket fetching errors should not effect regular bucket fetching
   }
 }
