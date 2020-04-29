@@ -447,10 +447,6 @@ export const getBucketFailed = (
 })
 
 // Demodata buckets
-export const demoDataBucketsSucceeded = (bucketName: string): Notification => ({
-  ...defaultSuccessNotification,
-  message: `Added bucketName: ${bucketName}`,
-})
 
 export const demoDataAddBucketFailed = (error: string): Notification => ({
   ...defaultErrorNotification,
@@ -463,14 +459,6 @@ export const demoDataDeleteBucketFailed = (
 ): Notification => ({
   ...defaultErrorNotification,
   message: `Failed to delete demo data bucket: ${bucketName}: ${error}`,
-})
-
-export const demoDataDashboardFailed = (
-  bucketName: string,
-  error: string
-): Notification => ({
-  ...defaultErrorNotification,
-  message: `Failed to create dashboard for demo data bucket: ${bucketName}: ${error}`,
 })
 
 export const demoDataSucceeded = (
