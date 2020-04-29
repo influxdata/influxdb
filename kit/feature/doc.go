@@ -27,7 +27,7 @@
 // A concrete example to illustrate the above:
 //
 // I have a feature called "My Feature" that will involve turning on new code
-//// in both the UI and the server.
+// in both the UI and the server.
 //
 // First, I add an entry to `flags.yml`.
 //
@@ -51,6 +51,7 @@
 // } else {
 //   // new code...
 // }
+// ```
 //
 // and the `/api/v2/flags` response provides the same information to the frontend.
 //

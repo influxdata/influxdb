@@ -42,7 +42,7 @@ func Annotate(ctx context.Context, f Flagger, flags ...Flag) (context.Context, e
 }
 
 // FlagsFromContext returns the map of flags attached to the context
-//by Annotate, or nil if none is found.
+// by Annotate, or nil if none is found.
 func FlagsFromContext(ctx context.Context) map[string]interface{} {
 	v, ok := ctx.Value(featureContextKey).(map[string]interface{})
 	if !ok {
@@ -52,7 +52,7 @@ func FlagsFromContext(ctx context.Context) map[string]interface{} {
 }
 
 // ExposedFlagsFromContext returns the filtered map of exposed  flags attached
-//to the context by Annotate, or nil if none is found.
+// to the context by Annotate, or nil if none is found.
 func ExposedFlagsFromContext(ctx context.Context) map[string]interface{} {
 	m := FlagsFromContext(ctx)
 
