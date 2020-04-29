@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"path"
 	"strings"
 	"sync"
 	"time"
@@ -644,28 +645,37 @@ func (s *Service) filterOrgResourceKinds(resourceKindFilters []Kind) []struct {
 // for later calls to Apply. This func will be run on an Apply if it has not been run
 // already.
 func (s *Service) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (Summary, Diff, error) {
-	state, err := s.dryRun(ctx, orgID, pkg, opts...)
+	opt := applyOptFromOptFns(opts...)
+
+	if opt.StackID != 0 {
+		remotePkgs, err := s.getStackRemotePackages(ctx, opt.StackID)
+		if err != nil {
+			return Summary{}, Diff{}, err
+		}
+		pkg, err = Combine(append(remotePkgs, pkg), ValidWithoutResources())
+		if err != nil {
+			return Summary{}, Diff{}, err
+		}
+	}
+
+	state, err := s.dryRun(ctx, orgID, pkg, opt)
 	if err != nil {
 		return Summary{}, Diff{}, err
 	}
 	return newSummaryFromStatePkg(state, pkg), state.diff(), nil
 }
 
-func (s *Service) dryRun(ctx context.Context, orgID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (*stateCoordinator, error) {
+func (s *Service) dryRun(ctx context.Context, orgID influxdb.ID, pkg *Pkg, opt ApplyOpt) (*stateCoordinator, error) {
 	// so here's the deal, when we have issues with the parsing validation, we
 	// continue to do the diff anyhow. any resource that does not have a name
 	// will be skipped, and won't bleed into the dry run here. We can now return
 	// a error (parseErr) and valid diff/summary.
 	var parseErr error
-	if !pkg.isParsed {
-		err := pkg.Validate()
-		if err != nil && !IsParseErr(err) {
-			return nil, internalErr(err)
-		}
-		parseErr = err
+	err := pkg.Validate()
+	if err != nil && !IsParseErr(err) {
+		return nil, internalErr(err)
 	}
-
-	opt := applyOptFromOptFns(opts...)
+	parseErr = err
 
 	if len(opt.EnvRefs) > 0 {
 		err := pkg.applyEnvRefs(opt.EnvRefs)
@@ -694,7 +704,8 @@ func (s *Service) dryRun(ctx context.Context, orgID influxdb.ID, pkg *Pkg, opts 
 	s.dryRunTasks(ctx, orgID, state.mTasks)
 	s.dryRunTelegrafConfigs(ctx, orgID, state.mTelegrafs)
 	s.dryRunVariables(ctx, orgID, state.mVariables)
-	err := s.dryRunNotificationEndpoints(ctx, orgID, state.mEndpoints)
+
+	err = s.dryRunNotificationEndpoints(ctx, orgID, state.mEndpoints)
 	if err != nil {
 		return nil, ierrors.Wrap(err, "failed to dry run notification endpoints")
 	}
@@ -1119,19 +1130,29 @@ func applyOptFromOptFns(opts ...ApplyOptFn) ApplyOpt {
 // in its entirety. If a failure happens midway then the entire pkg will be rolled back to the state
 // from before the pkg were applied.
 func (s *Service) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (sum Summary, diff Diff, e error) {
-	if !pkg.isParsed {
-		if err := pkg.Validate(); err != nil {
-			return Summary{}, Diff{}, failedValidationErr(err)
+	opt := applyOptFromOptFns(opts...)
+
+	if opt.StackID != 0 {
+		remotePkgs, err := s.getStackRemotePackages(ctx, opt.StackID)
+		if err != nil {
+			return Summary{}, Diff{}, err
+		}
+
+		pkg, err = Combine(append(remotePkgs, pkg), ValidWithoutResources())
+		if err != nil {
+			return Summary{}, Diff{}, err
 		}
 	}
 
-	opt := applyOptFromOptFns(opts...)
+	if err := pkg.Validate(ValidWithoutResources()); err != nil {
+		return Summary{}, Diff{}, failedValidationErr(err)
+	}
 
 	if err := pkg.applyEnvRefs(opt.EnvRefs); err != nil {
 		return Summary{}, Diff{}, failedValidationErr(err)
 	}
 
-	state, err := s.dryRun(ctx, orgID, pkg, opts...)
+	state, err := s.dryRun(ctx, orgID, pkg, opt)
 	if err != nil {
 		return Summary{}, Diff{}, err
 	}
@@ -2523,6 +2544,47 @@ func (s *Service) rollbackLabelMappings(ctx context.Context, mappings []stateLab
 	}
 
 	return nil
+}
+
+func (s *Service) getStackRemotePackages(ctx context.Context, stackID influxdb.ID) ([]*Pkg, error) {
+	stack, err := s.store.ReadStackByID(ctx, stackID)
+	if err != nil {
+		return nil, err
+	}
+
+	var remotePkgs []*Pkg
+	for _, rawURL := range stack.URLs {
+		u, err := url.Parse(rawURL)
+		if err != nil {
+			return nil, &influxdb.Error{
+				Code: influxdb.EInternal,
+				Msg:  "failed to parse url",
+				Err:  err,
+			}
+		}
+
+		encoding := EncodingSource
+		switch path.Ext(u.String()) {
+		case ".jsonnet":
+			encoding = EncodingJsonnet
+		case ".json":
+			encoding = EncodingJSON
+		case ".yaml", ".yml":
+			encoding = EncodingYAML
+		}
+
+		readerFn := FromHTTPRequest(u.String())
+		if u.Scheme == "file" {
+			readerFn = FromFile(u.Path)
+		}
+
+		pkg, err := Parse(encoding, readerFn)
+		if err != nil {
+			return nil, err
+		}
+		remotePkgs = append(remotePkgs, pkg)
+	}
+	return remotePkgs, nil
 }
 
 func (s *Service) updateStackAfterSuccess(ctx context.Context, stackID influxdb.ID, state *stateCoordinator) error {
