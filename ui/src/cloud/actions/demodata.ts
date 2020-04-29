@@ -9,6 +9,7 @@ import {getBucket} from 'src/client'
 
 // Actions
 import {addBucket, removeBucket} from 'src/buckets/actions/creators'
+import {notify} from 'src/shared/actions/notifications'
 
 // Selectors
 import {getOrg} from 'src/organizations/selectors'
@@ -16,6 +17,10 @@ import {normalize} from 'normalizr'
 
 // Constants
 import {DemoDataTemplates} from 'src/cloud/constants'
+import {
+  demoDataAddBucketFailed,
+  demoDataDeleteBucketFailed,
+} from 'src/shared/copy/notifications'
 
 // Types
 import {
@@ -26,6 +31,7 @@ import {
   BucketEntities,
 } from 'src/types'
 import {bucketSchema} from 'src/schemas'
+import {reportError} from 'src/shared/utils/errors'
 
 export type Actions =
   | ReturnType<typeof setDemoDataStatus>
@@ -56,10 +62,14 @@ export const getDemoDataBuckets = () => async (
   try {
     const buckets = await getDemoDataBucketsAJAX()
 
-    dispatch(setDemoDataStatus(RemoteDataState.Done))
     dispatch(setDemoDataBuckets(buckets))
   } catch (error) {
     console.error(error)
+
+    reportError(error, {
+      name: 'getDemoDataBuckets function',
+    })
+
     dispatch(setDemoDataStatus(RemoteDataState.Error))
   }
 }
@@ -79,19 +89,14 @@ export const getDemoDataBucketMembership = ({
   try {
     await getDemoDataBucketMembershipAJAX(bucketID, userID)
 
-    const template = await DemoDataTemplates[bucketName]
-    if (template) {
-      await createDashboardFromTemplate(template, orgID)
-    } else {
-      throw new Error(
-        `Could not find template for demodata bucket ${bucketName}`
-      )
-    }
-
     const resp = await getBucket({bucketID})
 
     if (resp.status !== 200) {
-      throw new Error('Request for demo data bucket membership did not succeed')
+      throw new Error(
+        `Request for demo data bucket membership did not succeed: ${
+          resp.data.message
+        }`
+      )
     }
 
     const newBucket = {
@@ -107,8 +112,23 @@ export const getDemoDataBucketMembership = ({
 
     dispatch(addBucket(normalizedBucket))
 
-    // TODO: notify success and error appropriately
+    const template = await DemoDataTemplates[bucketName]
+    if (!template) {
+      throw new Error(
+        `Could not find dashboard template for demodata bucket ${bucketName}`
+      )
+    }
+
+    await createDashboardFromTemplate(template, orgID)
+
+    // TODO(deniz): Notify success with link
   } catch (error) {
+    dispatch(notify(demoDataAddBucketFailed(error)))
+
+    reportError(error, {
+      name: 'getDemoDataBucketMembership function',
+    })
+
     console.error(error)
   }
 }
@@ -131,9 +151,13 @@ export const deleteDemoDataBucketMembership = (bucket: DemoBucket) => async (
     }
 
     dispatch(removeBucket(bucket.id))
-
-    // TODO: notify for success and error appropriately
   } catch (error) {
+    dispatch(notify(demoDataDeleteBucketFailed(bucket.name, error)))
+
+    reportError(error, {
+      name: 'deleteDemoDataBucketMembership function',
+    })
+
     console.error(error)
   }
 }
