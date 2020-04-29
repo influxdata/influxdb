@@ -13,7 +13,7 @@ require (
 	github.com/google/go-cmp v0.4.0
 	github.com/google/uuid v1.1.1 // indirect
 	github.com/hashicorp/go-rootcerts v1.0.2 // indirect
-	github.com/influxdata/flux v0.66.1-0.20200427223108-a5fb7d7d7493
+	github.com/influxdata/flux v0.67.1-0.20200429154143-b42d4177e03e
 	github.com/influxdata/influxdb/v2 v2.0.0-00010101000000-000000000000
 	github.com/influxdata/influxql v1.0.1 // indirect
 	github.com/influxdata/promql/v2 v2.12.0

@@ -10,6 +10,7 @@ import (
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/flux/values"
+	"github.com/influxdata/influxdb/v2/kit/errors"
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/query"
 	storage "github.com/influxdata/influxdb/v2/storage/reads"
@@ -71,6 +72,23 @@ func (r *storeReader) ReadFilter(ctx context.Context, spec query.ReadFilterSpec,
 
 func (r *storeReader) ReadGroup(ctx context.Context, spec query.ReadGroupSpec, alloc *memory.Allocator) (query.TableIterator, error) {
 	return &groupIterator{
+		ctx:   ctx,
+		s:     r.s,
+		spec:  spec,
+		cache: newTagsCache(0),
+		alloc: alloc,
+	}, nil
+}
+
+func (r *storeReader) HasWindowAggregateCapability(ctx context.Context, capability ...*query.WindowAggregateCapability) bool {
+	if aggStore, ok := r.s.(storage.WindowAggregateStore); ok {
+		return aggStore.HasWindowAggregateCapability(ctx)
+	}
+	return false
+}
+
+func (r *storeReader) ReadWindowAggregate(ctx context.Context, spec query.ReadWindowAggregateSpec, alloc *memory.Allocator) (query.TableIterator, error) {
+	return &windowAggregateIterator{
 		ctx:   ctx,
 		s:     r.s,
 		spec:  spec,
@@ -489,6 +507,64 @@ func groupKeyForGroup(kv [][]byte, spec *query.ReadGroupSpec, bnds execute.Bound
 		vs = append(vs, values.NewString(string(kv[i])))
 	}
 	return execute.NewGroupKey(cols, vs)
+}
+
+type windowAggregateIterator struct {
+	ctx   context.Context
+	s     storage.Store
+	spec  query.ReadWindowAggregateSpec
+	stats cursors.CursorStats
+	cache *tagsCache
+	alloc *memory.Allocator
+}
+
+func (wai *windowAggregateIterator) Statistics() cursors.CursorStats { return wai.stats }
+
+func (wai *windowAggregateIterator) Do(f func(flux.Table) error) error {
+	src := wai.s.GetSource(
+		uint64(wai.spec.OrganizationID),
+		uint64(wai.spec.BucketID),
+	)
+
+	// Setup read request
+	any, err := types.MarshalAny(src)
+	if err != nil {
+		return err
+	}
+
+	var req datatypes.ReadWindowAggregateRequest
+	req.ReadSource = any
+	req.Predicate = wai.spec.Predicate
+	req.Range.Start = int64(wai.spec.Bounds.Start)
+	req.Range.End = int64(wai.spec.Bounds.Stop)
+
+	req.WindowEvery = wai.spec.WindowEvery
+	req.Aggregate = make([]*datatypes.Aggregate, len(wai.spec.Aggregates))
+	for i, aggKind := range wai.spec.Aggregates {
+		if agg, err := determineAggregateMethod(string(aggKind)); err != nil {
+			return err
+		} else if agg != datatypes.AggregateTypeNone {
+			req.Aggregate[i] = &datatypes.Aggregate{Type: agg}
+		}
+	}
+
+	aggStore, ok := wai.s.(storage.WindowAggregateStore)
+	if !ok {
+		return errors.New("storage does not support window aggregate")
+	}
+	rs, err := aggStore.WindowAggregate(wai.ctx, &req)
+	if err != nil {
+		return err
+	}
+
+	if rs == nil {
+		return nil
+	}
+	return wai.handleRead(f, rs)
+}
+
+func (wai *windowAggregateIterator) handleRead(f func(flux.Table) error, rs storage.ResultSet) error {
+	return nil
 }
 
 type tagKeysIterator struct {
