@@ -21,7 +21,7 @@ import auth0js, {WebAuth} from 'auth0-js'
 // Components
 import {LoginForm} from 'src/onboarding/components/LoginForm'
 import {SocialButton} from 'src/shared/components/SocialButton'
-import {/* Github, */ GoogleLogo} from 'src/clientLibraries/graphics'
+import {GoogleLogo} from 'src/clientLibraries/graphics'
 
 // Types
 import {Auth0Connection, FormFieldValidation} from 'src/types'
@@ -127,14 +127,6 @@ class LoginPageContents extends PureComponent<DispatchProps> {
                   >
                     <GoogleLogo className="signup-icon" />
                   </SocialButton>
-                  {/* <SocialButton
-                    buttonText="Github"
-                    handleClick={() => {
-                      this.handleSocialClick(Auth0Connection.Github)
-                    }}
-                  >
-                    <GithubLogo className="signup-icon" />
-                  </SocialButton> */}
                 </FlexBox>
               </Grid.Row>
             </Grid>
