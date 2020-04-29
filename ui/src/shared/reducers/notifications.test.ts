@@ -6,6 +6,8 @@ import {
 import {notify, dismissNotification} from 'src/shared/actions/notifications'
 
 import {FIVE_SECONDS} from 'src/shared/constants/index'
+
+import {IconFont} from '@influxdata/clockface'
 import {NotificationStyle} from 'src/types/notifications'
 
 const notificationID = '000'
@@ -15,7 +17,7 @@ const exampleNotification = {
   style: NotificationStyle.Success,
   message: 'Hell yeah you are a real notification!',
   duration: FIVE_SECONDS,
-  icon: 'zap',
+  icon: IconFont.Zap,
 }
 
 const exampleNotifications = [exampleNotification]
@@ -41,7 +43,7 @@ describe('Shared.Reducers.notifications', () => {
         style: NotificationStyle.Error,
         message: 'new notification',
         duration: FIVE_SECONDS,
-        icon: 'zap',
+        icon: IconFont.Zap,
       }
 
       const actual = notificationsReducer(
