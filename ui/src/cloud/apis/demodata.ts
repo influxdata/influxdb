@@ -1,14 +1,17 @@
 // Libraries
 import {get} from 'lodash'
-import {getBuckets} from 'src/client'
+import {getBuckets, getBucket} from 'src/client'
 import AJAX from 'src/utils/ajax'
 
 //Utils
 import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 
 //Types
-import {Bucket, DemoBucket} from 'src/types'
+import {Bucket, DemoBucket, BucketEntities} from 'src/types'
 import {LIMIT} from 'src/resources/constants'
+import {normalize} from 'normalizr'
+import {bucketSchema} from 'src/schemas'
+import {NormalizedSchema} from 'normalizr'
 
 const baseURL = '/api/v2/experimental/sampledata'
 
@@ -95,4 +98,31 @@ export const fetchDemoDataBuckets = async (): Promise<Bucket[]> => {
     console.error(error)
     return [] // demodata bucket fetching errors should not effect regular bucket fetching
   }
+}
+
+export const getNormalizedDemoDataBucket = async (
+  bucketID: string
+): Promise<NormalizedSchema<BucketEntities, string>> => {
+  const resp = await getBucket({bucketID})
+
+  if (resp.status !== 200) {
+    throw new Error(
+      `Request for demo data bucket membership did not succeed: ${
+        resp.data.message
+      }`
+    )
+  }
+
+  const newBucket = {
+    ...resp.data,
+    type: 'demodata' as 'demodata',
+    labels: [],
+  } as DemoBucket
+
+  const normalizedBucket = normalize<Bucket, BucketEntities, string>(
+    newBucket,
+    bucketSchema
+  )
+
+  return normalizedBucket
 }

@@ -3,6 +3,7 @@ import {
   getDemoDataBuckets as getDemoDataBucketsAJAX,
   getDemoDataBucketMembership as getDemoDataBucketMembershipAJAX,
   deleteDemoDataBucketMembership as deleteDemoDataBucketMembershipAJAX,
+  getNormalizedDemoDataBucket,
 } from 'src/cloud/apis/demodata'
 import {createDashboardFromTemplate} from 'src/templates/api'
 import {getBucket} from 'src/client'
@@ -13,7 +14,6 @@ import {notify} from 'src/shared/actions/notifications'
 
 // Selectors
 import {getOrg} from 'src/organizations/selectors'
-import {normalize} from 'normalizr'
 import {getAll} from 'src/resources/selectors'
 
 // Constants
@@ -30,11 +30,9 @@ import {
   RemoteDataState,
   GetState,
   DemoBucket,
-  BucketEntities,
   ResourceType,
   Dashboard,
 } from 'src/types'
-import {bucketSchema} from 'src/schemas'
 import {reportError} from 'src/shared/utils/errors'
 
 export type Actions =
@@ -93,27 +91,7 @@ export const getDemoDataBucketMembership = ({
   try {
     await getDemoDataBucketMembershipAJAX(bucketID, userID)
 
-    const resp = await getBucket({bucketID})
-
-    if (resp.status !== 200) {
-      throw new Error(
-        `Request for demo data bucket membership did not succeed: ${
-          resp.data.message
-        }`
-      )
-    }
-
-    const newBucket = {
-      ...resp.data,
-      type: 'demodata' as 'demodata',
-      labels: [],
-    } as DemoBucket
-
-    const normalizedBucket = normalize<Bucket, BucketEntities, string>(
-      newBucket,
-      bucketSchema
-    )
-
+    const normalizedBucket = await getNormalizedDemoDataBucket(bucketID)
     dispatch(addBucket(normalizedBucket))
 
     const template = await DemoDataTemplates[bucketName]
@@ -134,6 +112,12 @@ export const getDemoDataBucketMembership = ({
     const createdDashboard = allDashboards.find(
       d => d.name === DemoDataDashboards[bucketName]
     )
+
+    if (!createdDashboard) {
+      throw new Error(
+        `Could not create dashboard for demodata bucket ${bucketName}`
+      )
+    }
 
     const url = `/orgs/${orgID}/dashboards/${createdDashboard.id}`
 
