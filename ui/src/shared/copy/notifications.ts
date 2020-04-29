@@ -5,7 +5,11 @@ import {binaryPrefixFormatter} from '@influxdata/giraffe'
 import {Notification, NotificationStyle} from 'src/types'
 
 // Constants
-import {FIVE_SECONDS, TEN_SECONDS} from 'src/shared/constants/index'
+import {
+  FIVE_SECONDS,
+  TEN_SECONDS,
+  FIFTEEN_SECONDS,
+} from 'src/shared/constants/index'
 import {QUICKSTART_SCRAPER_TARGET_URL} from 'src/dataLoaders/constants/pluginConfigs'
 import {QUICKSTART_DASHBOARD_NAME} from 'src/onboarding/constants/index'
 import {IconFont} from '@influxdata/clockface'
@@ -467,6 +471,7 @@ export const demoDataSucceeded = (
 ): Notification => ({
   ...defaultSuccessNotification,
   message: `Successfully added demodata bucket ${bucketName}, and demodata dashboard.`,
+  duration: FIFTEEN_SECONDS,
   linkText: 'Go to dashboard',
   link,
 })

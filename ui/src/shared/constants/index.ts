@@ -36,6 +36,7 @@ export const DASHBOARD_LAYOUT_ROW_HEIGHT = 83.5
 export const NOTIFICATION_TRANSITION = 250
 export const FIVE_SECONDS = 5000
 export const TEN_SECONDS = 10000
+export const FIFTEEN_SECONDS = 15000
 
 export const HOMEPAGE_PATHNAME = 'me'
 
