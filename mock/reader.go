@@ -41,13 +41,13 @@ func (s *StorageReader) Close() {
 	}
 }
 
-type WindowAggregateReader struct {
+type WindowAggregateStoreReader struct {
 	*StorageReader
 	HasWindowAggregateCapabilityFn func(ctx context.Context, capability ...*reads.WindowAggregateCapability) bool
 	ReadWindowAggregateFn          func(ctx context.Context, spec influxdb.ReadWindowAggregateSpec, alloc *memory.Allocator) (influxdb.TableIterator, error)
 }
 
-func (s *WindowAggregateReader) HasWindowAggregateCapability(ctx context.Context, capability ...*influxdb.WindowAggregateCapability) bool {
+func (s *WindowAggregateStoreReader) HasWindowAggregateCapability(ctx context.Context, capability ...*influxdb.WindowAggregateCapability) bool {
 	// Use the function if it exists.
 	if s.HasWindowAggregateCapabilityFn != nil {
 		return s.HasWindowAggregateCapabilityFn(ctx)
@@ -58,6 +58,6 @@ func (s *WindowAggregateReader) HasWindowAggregateCapability(ctx context.Context
 	return s.ReadWindowAggregateFn != nil
 }
 
-func (s *WindowAggregateReader) ReadWindowAggregate(ctx context.Context, spec influxdb.ReadWindowAggregateSpec, alloc *memory.Allocator) (influxdb.TableIterator, error) {
+func (s *WindowAggregateStoreReader) ReadWindowAggregate(ctx context.Context, spec influxdb.ReadWindowAggregateSpec, alloc *memory.Allocator) (influxdb.TableIterator, error) {
 	return s.ReadWindowAggregateFn(ctx, spec, alloc)
 }
