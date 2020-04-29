@@ -1,12 +1,11 @@
 # CSV to Line Protocol
-This library converts CSV (comma separated values) to InfluxDB Line Protocol.
+csv2lp library converts CSV (comma separated values) to InfluxDB Line Protocol.
 
-The high-level requirements for this conversion library are:
   1. it can process CSV result of a (simple) flux query that exports data from a bucket
   2. it allows the processing of existing CSV files
 
 ## Usage
-The entry point in this library is the ``CsvToProtocolLines`` function that accepts a (utf8) reader with CSV data and returns a reader with line protocol data.
+The entry point is the ``CsvToProtocolLines`` function that accepts a (utf8) reader with CSV data and returns a reader with line protocol data.
 
 ## Examples
 #### Example 1 - Flux Query Result
@@ -138,40 +137,40 @@ Existing [data types](https://v2.docs.influxdata.com/v2.0/reference/syntax/annot
 
 #### New CSV annotations
 - `#constant` annotation adds a constant column to the data, so you can set measurement, time, field or tag of every row you import 
-   - the format of a constant annotation row is `#constant,datatype,name,value`, so you specify a supported datatype, a column name, and a constant value
+   - the format of a constant annotation row is `#constant,datatype,name,value`', it contains supported datatype, a column name, and a constant value
    - _column name_ can be omitted for _dateTime_ or _measurement_ columns, so the annotation can be simply `#constant,measurement,cpu`
 - `#timezone` annotation specifies the time zone of the data using an offset, which is either `+hhmm` or `-hhmm` or `Local` to use the local/computer time zone. Examples:  _#timezone,+0100_  _#timezone -0500_ _#timezone Local_
 
 #### Data type with data format
-All data types can include the format when specified as `datatype:format`. The following data types support format:
+All data types can include the format that is used to parse column data. It is then specified as `datatype:format`. The following data types support format:
 - `dateTime:format` 
    - the following formats are predefined:
       - `dateTime:RFC3339` format is 2006-01-02T15:04:05Z07:00
       - `dateTime:RFC3339Nano` format is 2006-01-02T15:04:05.999999999Z07:00
       - `dateTime:number` represent UTCs time since epoch in nanoseconds
-   - the format follows the layout described in https://golang.org/pkg/time layout, for example `dateTime:2006-01-02` parses 4-digit-year , '-' , 2-digit month ,'-' , 2 digit day of the month
+   - the can be a layout described in https://golang.org/pkg/time layout, for example `dateTime:2006-01-02` parses 4-digit-year , '-' , 2-digit month ,'-' , 2 digit day of the month
    - if the time format includes a time zone, the parsed date time respects the time zone; otherwise the timezone dependends on the presence of the new `#timezone` annotation; if there is no `#timezone` annotation, UTC is used
 - `double:format`
-   - the `format`'s first character is used to separate integer and fractional part (usually `.` or `,`), second and next format's characters (such as as `, _`) are removed  from the column value, these removed characters are usually used to visually separate large numbers into groups
+   - the `format`'s first character is used to separate integer and fractional part (usually `.` or `,`), second and next format's characters (such as as `, _`) are removed  from the column value, these removed characters are typically used to visually separate large numbers into groups
    - for example a Spanish locale value `3.494.826.157,123` is of `double:,.` type; the same `double` value is  _3494826157.123_
    - note that you have to quote column delimiters whenever they appear in a CSV column value, for example:
       - `#constant,"double:,.",myColumn,"1.234,011"`
 - `long:format` and `unsignedLong:format` support the same format as `double`, but everything after and including a fraction character is ignored
 - `boolean:truthy:falsy`
-   - `truthy` are `falsy` are comma-separated lists of values, they can be empty to assume all values as truthy/falsy; for example `boolean:sí,yes,ja,oui,ano,да:no,nein,non,ne,нет` 
-   - a  `boolean` without format parses column values that start with any of _tTyY1_ as `true` values, _fFnN0_ as `false` values and fails on other values
+   - `truthy` and `falsy` are comma-separated lists of values, they can be empty to assume all values as truthy/falsy; for example `boolean:sí,yes,ja,oui,ano,да:no,nein,non,ne,нет` 
+   - a  `boolean` data type (without the format) parses column values that start with any of _tTyY1_ as `true` values, _fFnN0_ as `false` values and fails on other values
    - a column with an empty value is OOTB excluded in the protocol line; a default value is required to interpret empty value either using `#default` annotation or in a header line (see below)
 
-#### Header row with data type and a default value
+#### Header row with data types and default values
 The header row (i.e. the row that define column names) can also define column data types when supplied as `name|datatype`; for example `cpu|tag` defines a tag column named _cpu_ . Moreover, it can also specify a default value when supplied as `name|datatype|default`; for example, `count|long|0` defines a field column named _count_ of _long_ data type that will not skip the field if a column value is empty, but uses '0' as the column value.
-  - this approach is intended for users that can then easily specify column names, types and defaults in a single row
+  - this approach helps to easily specify column names, types and defaults in a single row
   - this is an alternative to using 3 lines being `#datatype` and `#default` annotations and a simple header row
 
 #### Custom CSV column separator
-A CSV file can start with a line being `sep=;` to inform about a character that is used to separate columns, by default `,` is used as a column separator. This method is frequently used (Excel).
+A CSV file can start with a line `sep=;` to inform about a character that is used to separate columns, by default `,` is used as a column separator. This method is frequently used (Excel).
 
 #### Error handling
-The CSV conversion stops on the first error, line and column are reported together with the error. The CsvToLineReader's SkipRowOnError function can change it to skip error rows and log errors instead.
+The CSV conversion stops on the first error by default, line and column are reported together with the error. The CsvToLineReader's SkipRowOnError function can change it to skip error rows and log errors instead.
 
 #### Support Existing CSV files
 The majority of existing CSV files can be imported by skipping the first X lines of existing data (so that custom header line can be then provided) and prepending extra annotation/header lines to let this library know of how to convert the CSV to line protocol.

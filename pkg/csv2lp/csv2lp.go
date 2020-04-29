@@ -1,4 +1,4 @@
-// Package csv2lp transforms CSV data to influxDB line protocol
+// Package csv2lp transforms CSV data to InfluxDB line protocol
 package csv2lp
 
 import (
