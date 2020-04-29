@@ -61,6 +61,7 @@ export const getDemoDataBuckets = () => async (
   if (status === RemoteDataState.NotStarted) {
     dispatch(setDemoDataStatus(RemoteDataState.Loading))
   }
+
   try {
     const buckets = await getDemoDataBucketsAJAX()
 
@@ -128,8 +129,6 @@ export const getDemoDataBucketMembership = ({
     reportError(error, {
       name: 'getDemoDataBucketMembership function',
     })
-
-    console.error(error)
   }
 }
 
@@ -157,7 +156,5 @@ export const deleteDemoDataBucketMembership = (bucket: DemoBucket) => async (
     reportError(error, {
       name: 'deleteDemoDataBucketMembership function',
     })
-
-    console.error(error)
   }
 }
