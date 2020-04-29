@@ -4,6 +4,8 @@
 
 ### Bug Fixes
 
+1. [17906](https://github.com/influxdata/influxdb/pull/17906): Ensure UpdateUser cleans up the index when updating names
+
 ### UI Improvements
 
 1. [17860](https://github.com/influxdata/influxdb/pull/17860): Allow bucket creation from the Data Explorer and Cell Editor
