@@ -6,6 +6,7 @@ export interface NoteEditorState {
   note: string
   showNoteWhenEmpty: boolean
   isPreviewing: boolean
+  viewID?: string
 }
 
 const initialState = (): NoteEditorState => ({

@@ -83,7 +83,7 @@ class NoteEditor extends PureComponent<Props, State> {
     const {hasQuery, showNoteWhenEmpty, onToggleShowNoteWhenEmpty} = this.props
 
     if (!hasQuery) {
-      return false
+      return null
     }
 
     return (
