@@ -49,7 +49,6 @@ export const getDemoDataBucketMembership = async (
       throw new Error('Could not reach demodata endpoint')
     }
   } catch (error) {
-    console.error(error)
     throw error
   }
 }
@@ -103,6 +102,7 @@ export const fetchDemoDataBuckets = async (): Promise<Bucket[]> => {
     })) as Array<DemoBucket>
   } catch (error) {
     console.error(error)
+    throw error //????
     return [] // demodata bucket fetching errors should not effect regular bucket fetching
   }
 }
