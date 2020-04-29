@@ -474,6 +474,11 @@ export const demoDataDashboardFailed = (
   message: `Failed to create dashboard for demo data bucket: ${bucketName}: ${error}`,
 })
 
+export const demoDataSucceeded = (bucketName: string): Notification => ({
+  ...defaultSuccessNotification,
+  message: `Successfully added demodata bucket ${bucketName}. Click here to view the dashboard that was created for you.`,
+})
+
 // Limits
 export const readWriteCardinalityLimitReached = (
   message: string
