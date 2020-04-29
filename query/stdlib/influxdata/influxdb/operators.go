@@ -123,7 +123,7 @@ type ReadWindowAggregatePhysSpec struct {
 	ReadRangePhysSpec
 
 	WindowEvery int64
-	Aggregates  []plan.ProcedureKind
+	Aggregates  []string
 }
 
 func (s *ReadWindowAggregatePhysSpec) Kind() plan.ProcedureKind {

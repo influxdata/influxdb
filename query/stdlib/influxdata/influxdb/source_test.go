@@ -201,7 +201,7 @@ func TestReadWindowAggregateSource(t *testing.T) {
 					BucketID: bucketID.String(),
 				},
 				WindowEvery: 10,
-				Aggregates: []plan.ProcedureKind{
+				Aggregates: []string{
 					universe.SumKind,
 				},
 			}
