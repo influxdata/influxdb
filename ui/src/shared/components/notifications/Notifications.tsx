@@ -1,4 +1,5 @@
 import React, {PureComponent} from 'react'
+import {Link} from 'react-router'
 import {connect} from 'react-redux'
 import {get} from 'lodash'
 
@@ -44,25 +45,41 @@ class Notifications extends PureComponent<Props> {
 
     return (
       <>
-        {notifications.map(({id, style, icon, duration, message}) => {
-          const gradient = matchGradientToColor(style)
+        {notifications.map(
+          ({id, style, icon, duration, message, link, linkText}) => {
+            const gradient = matchGradientToColor(style)
 
-          return (
-            <Notification
-              key={id}
-              id={id}
-              icon={icon}
-              duration={duration}
-              size={ComponentSize.ExtraSmall}
-              gradient={gradient}
-              onTimeout={this.props.dismissNotification}
-              onDismiss={this.props.dismissNotification}
-              testID={`notification-${style}`}
-            >
-              {message}
-            </Notification>
-          )
-        })}
+            let button
+
+            if (link && linkText) {
+              button = (
+                <Link
+                  to={link}
+                  className="notification--button cf-button cf-button-xs cf-button-default"
+                >
+                  {linkText}
+                </Link>
+              )
+            }
+
+            return (
+              <Notification
+                key={id}
+                id={id}
+                icon={icon}
+                duration={duration}
+                size={ComponentSize.ExtraSmall}
+                gradient={gradient}
+                onTimeout={this.props.dismissNotification}
+                onDismiss={this.props.dismissNotification}
+                testID={`notification-${style}`}
+              >
+                <span className="notification--message">{message}</span>
+                {button}
+              </Notification>
+            )
+          }
+        )}
       </>
     )
   }

@@ -14,12 +14,14 @@ import {notify} from 'src/shared/actions/notifications'
 // Selectors
 import {getOrg} from 'src/organizations/selectors'
 import {normalize} from 'normalizr'
+import {getAll} from 'src/resources/selectors'
 
 // Constants
-import {DemoDataTemplates} from 'src/cloud/constants'
+import {DemoDataTemplates, DemoDataDashboards} from 'src/cloud/constants'
 import {
   demoDataAddBucketFailed,
   demoDataDeleteBucketFailed,
+  demoDataSucceeded,
 } from 'src/shared/copy/notifications'
 
 // Types
@@ -29,6 +31,8 @@ import {
   GetState,
   DemoBucket,
   BucketEntities,
+  ResourceType,
+  Dashboard,
 } from 'src/types'
 import {bucketSchema} from 'src/schemas'
 import {reportError} from 'src/shared/utils/errors'
@@ -120,8 +124,20 @@ export const getDemoDataBucketMembership = ({
     }
 
     await createDashboardFromTemplate(template, orgID)
+    const updatedState = getState()
 
-    // TODO(deniz): Notify success with link
+    const allDashboards = getAll<Dashboard>(
+      updatedState,
+      ResourceType.Dashboards
+    )
+
+    const createdDashboard = allDashboards.find(
+      d => d.name === DemoDataDashboards[bucketName]
+    )
+
+    const url = `/orgs/${orgID}/dashboards/${createdDashboard.id}`
+
+    dispatch(notify(demoDataSucceeded(bucketName, url)))
   } catch (error) {
     dispatch(notify(demoDataAddBucketFailed(error)))
 

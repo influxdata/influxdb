@@ -10,6 +10,8 @@ export interface Notification {
   duration?: number
   message: string
   type?: string
+  link?: string
+  linkText?: string
 }
 
 export enum NotificationStyle {
