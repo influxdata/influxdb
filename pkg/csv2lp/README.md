@@ -173,4 +173,7 @@ A CSV file can start with a line `sep=;` to inform about a character that is use
 The CSV conversion stops on the first error by default, line and column are reported together with the error. The CsvToLineReader's SkipRowOnError function can change it to skip error rows and log errors instead.
 
 #### Support Existing CSV files
-The majority of existing CSV files can be imported by skipping the first X lines of existing data (so that custom header line can be then provided) and prepending extra annotation/header lines to let this library know of how to convert the CSV to line protocol.
+The majority of existing CSV files can be imported by skipping the first X lines of existing data (so that custom header line can be then provided) and prepending extra annotation/header lines to let this library know of how to convert the CSV to line protocol. The following functions helps to change the data on input
+   - [csv2lp.SkipHeaderLinesReader](./skip_header_lines.go) returns a reader that skip the first x lines of the supplied reader
+   - [io.MultiReader](https://golang.org/pkg/io/#MultiReader) joins multiple readers, custom header line(s) and new lines can be prepended as [strings.NewReader](https://golang.org/pkg/strings/#NewReader)s
+   - [csv2lp.MultiCloser](./multi_closer.go) helps with closing multiple io.Closers (files) on input, [it is not available OOTB](https://github.com/golang/go/issues/20136)
