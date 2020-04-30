@@ -87,19 +87,15 @@ func NewAPI(opts ...APIOptFn) *API {
 			}
 		},
 		errFn: func(err error) (interface{}, int, error) {
-			code := influxdb.ErrorCode(err)
-			httpStatusCode, ok := statusCodePlatformError[code]
-			if !ok {
-				httpStatusCode = http.StatusBadRequest
-			}
 			msg := err.Error()
 			if msg == "" {
 				msg = "an internal error has occurred"
 			}
+			code := influxdb.ErrorCode(err)
 			return ErrBody{
 				Code: code,
 				Msg:  msg,
-			}, httpStatusCode, nil
+			}, ErrorCodeToStatusCode(code), nil
 		},
 	}
 	for _, o := range opts {
@@ -241,20 +237,4 @@ func (n noopCloser) Close() error {
 type ErrBody struct {
 	Code string `json:"code"`
 	Msg  string `json:"message"`
-}
-
-// statusCodePlatformError is the map convert platform.Error to error
-var statusCodePlatformError = map[string]int{
-	influxdb.EInternal:            http.StatusInternalServerError,
-	influxdb.EInvalid:             http.StatusBadRequest,
-	influxdb.EUnprocessableEntity: http.StatusUnprocessableEntity,
-	influxdb.EEmptyValue:          http.StatusBadRequest,
-	influxdb.EConflict:            http.StatusUnprocessableEntity,
-	influxdb.ENotFound:            http.StatusNotFound,
-	influxdb.EUnavailable:         http.StatusServiceUnavailable,
-	influxdb.EForbidden:           http.StatusForbidden,
-	influxdb.ETooManyRequests:     http.StatusTooManyRequests,
-	influxdb.EUnauthorized:        http.StatusUnauthorized,
-	influxdb.EMethodNotAllowed:    http.StatusMethodNotAllowed,
-	influxdb.ETooLarge:            http.StatusRequestEntityTooLarge,
 }

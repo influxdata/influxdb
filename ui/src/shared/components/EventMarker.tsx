@@ -43,7 +43,7 @@ const EventMarker: FC<Props> = ({xScale, xDomain, events, xFormatter}) => {
   let triggerRect: DOMRect = null
 
   if (trigger.current) {
-    triggerRect = trigger.current.getBoundingClientRect() as DOMRect
+    triggerRect = trigger.current.getBoundingClientRect()
   }
 
   const {time} = events[0]

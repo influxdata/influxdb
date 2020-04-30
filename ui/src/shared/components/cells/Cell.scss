@@ -20,6 +20,8 @@ $cell--header-button-active-color: $c-pool;
 .cell--view {
   flex: 1 0 0;
   position: relative;
+  overflow: hidden;
+  height: 100%;
 
   > .single-stat {
     border-radius: $radius;

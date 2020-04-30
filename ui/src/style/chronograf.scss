@@ -13,7 +13,6 @@
 @import 'src/shared/components/ColorDropdown.scss';
 @import 'src/shared/components/avatar/Avatar.scss';
 @import 'src/shared/components/tables/TableGraphs.scss';
-@import 'src/shared/components/notifications/Notifications.scss';
 @import 'src/shared/components/graph_tips/GraphTips.scss';
 @import 'src/shared/components/cells/Dashboards.scss';
 @import 'src/shared/components/code_mirror/CodeMirror.scss';
@@ -123,12 +122,13 @@
 @import 'src/clientLibraries/components/ClientLibraryOverlay.scss';
 @import 'src/dashboards/components/DashboardsCardGrid.scss';
 @import 'src/dashboards/components/DashboardLightMode.scss';
+@import 'src/buckets/components/DemoDataDropdown.scss';
+@import 'src/shared/components/notifications/Notification.scss';
 
 // External
 @import '../../node_modules/@influxdata/react-custom-scrollbars/dist/styles.css';
 
-
 // TODO: delete this later when it's addressed in Clockface
 .cf-resource-card {
-   margin-bottom: $cf-border;
+  margin-bottom: $cf-border;
 }

@@ -1,11 +1,11 @@
 // Libraries
 import qs from 'qs'
 import {replace, RouterAction} from 'react-router-redux'
-import {Dispatch, Action} from 'redux'
+import {Dispatch} from 'redux'
 import {get, pickBy} from 'lodash'
 
 // Actions
-import {notify} from 'src/shared/actions/notifications'
+import {notify, Action as NotifyAction} from 'src/shared/actions/notifications'
 
 // Utils
 import {stripPrefix} from 'src/utils/basepath'
@@ -104,7 +104,7 @@ export const updateQueryVars = varsObj => {
 }
 
 export const updateTimeRangeFromQueryParams = (dashboardID: string) => (
-  dispatch: Dispatch<Action>,
+  dispatch: Dispatch<Action | NotifyAction>,
   getState
 ): void => {
   const {ranges} = getState()

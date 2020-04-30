@@ -354,7 +354,7 @@ func (s *Service) updateUser(ctx context.Context, tx Tx, id influxdb.ID, upd inf
 	}
 
 	if upd.Name != nil {
-		if err := s.removeUserFromIndex(ctx, tx, id, *upd.Name); err != nil {
+		if err := s.removeUserFromIndex(ctx, tx, id, u.Name); err != nil {
 			return nil, err
 		}
 

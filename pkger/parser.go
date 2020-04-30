@@ -293,6 +293,10 @@ type Pkg struct {
 
 // Encode is a helper for encoding the pkg correctly.
 func (p *Pkg) Encode(encoding Encoding) ([]byte, error) {
+	if p == nil {
+		panic("attempted to encode a nil Pkg")
+	}
+
 	var (
 		buf bytes.Buffer
 		err error
