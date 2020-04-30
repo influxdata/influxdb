@@ -19,6 +19,10 @@ import {
 import {runStatusesQuery} from 'src/alerting/utils/statusEvents'
 
 // Utils
+import {getTimeRange} from 'src/dashboards/selectors'
+import {getVariables, asAssignment} from 'src/variables/selectors'
+import {getRangeVariable} from 'src/variables/utils/getTimeRangeVars'
+import {isInQuery} from 'src/variables/utils/hydrateVars'
 import {getWindowVars} from 'src/variables/utils/getWindowVars'
 import {buildVarsOption} from 'src/variables/utils/buildVarsOption'
 import 'intersection-observer'
@@ -27,6 +31,7 @@ import {getOrgIDFromBuckets} from 'src/timeMachine/actions/queries'
 
 // Constants
 import {rateLimitReached, resultTooLarge} from 'src/shared/copy/notifications'
+import {TIME_RANGE_START, TIME_RANGE_STOP} from 'src/variables/constants'
 
 // Actions
 import {notify as notifyAction} from 'src/shared/actions/notifications'
@@ -39,6 +44,7 @@ import {
   Bucket,
   ResourceType,
   DashboardQuery,
+  Variable,
   VariableAssignment,
   AppState,
   CancelBox,
@@ -57,6 +63,7 @@ interface QueriesState {
 interface StateProps {
   queryLink: string
   buckets: Bucket[]
+  variables: Variable[]
 }
 
 interface OwnProps {
@@ -187,14 +194,23 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
 
       // Cancel any existing queries
       this.pendingResults.forEach(({cancel}) => cancel())
+      const usedVars = variables.filter(v => v.arguments.type !== 'system')
+      const waitList = usedVars.filter(v => v.status !== RemoteDataState.Done)
 
+      // If a variable is loading, and a cell requires it, leave the cell to never resolve,
+      // keeping it in a loading state until the variable is resolved
+      if (usedVars.length && waitList.length) {
+        await new Promise(() => {})
+      }
+
+      const vars = variables.map(v => asAssignment(v))
       // Issue new queries
       this.pendingResults = queries.map(({text}) => {
         const orgID =
           getOrgIDFromBuckets(text, buckets) || this.props.params.orgID
 
-        const windowVars = getWindowVars(text, variables)
-        const extern = buildVarsOption([...variables, ...windowVars])
+        const windowVars = getWindowVars(text, vars)
+        const extern = buildVarsOption([...vars, ...windowVars])
 
         return runQuery(orgID, text, extern)
       })
@@ -204,7 +220,7 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
 
       let statuses = [] as StatusRow[][]
       if (check) {
-        const extern = buildVarsOption(variables)
+        const extern = buildVarsOption(vars)
         this.pendingCheckStatuses = runStatusesQuery(
           this.props.params.orgID,
           check.id,
@@ -291,12 +307,27 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
   }
 }
 
-const mstp = (state: AppState): StateProps => {
-  const {links} = state
+const mstp = (state: AppState, props: OwnProps): StateProps => {
+  const timeRange = getTimeRange(state)
+
+  // NOTE: cannot use getAllVariables here because the TimeSeries
+  // component appends it automatically. That should be fixed
+  // NOTE: limit the variables returned to those that are used,
+  // as this prevents resending when other queries get sent
+  const queries = props.queries.map(q => q.text).filter(t => !!t.trim())
+  const vars = getVariables(state).filter(v =>
+    queries.some(t => isInQuery(t, v))
+  )
+  const variables = [
+    ...vars,
+    getRangeVariable(TIME_RANGE_START, timeRange),
+    getRangeVariable(TIME_RANGE_STOP, timeRange),
+  ]
 
   return {
-    queryLink: links.query.self,
+    queryLink: state.links.query.self,
     buckets: getAll<Bucket>(state, ResourceType.Buckets),
+    variables,
   }
 }
 

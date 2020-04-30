@@ -32,17 +32,25 @@ interface HydrateVarsOptions {
   skipCache?: boolean
 }
 
+export interface EventedCancelBox<T> extends CancelBox<T> {
+  on?: any
+}
+
 export const createVariableGraph = (
   allVariables: Variable[]
 ): VariableNode[] => {
   const nodesByID: {[variableID: string]: VariableNode} = allVariables.reduce(
     (prev, curr) => {
+      let status = RemoteDataState.Done
+      if (curr.arguments.type === 'query') {
+        status = RemoteDataState.NotStarted
+      }
       prev[curr.id] = {
         variable: curr,
         values: null,
         parents: [],
         children: [],
-        status: RemoteDataState.NotStarted,
+        status,
         cancel: () => {},
       }
       return prev
@@ -179,9 +187,11 @@ export const collectDescendants = (
 
   This assumes that every descendant of this node has already been hydrated.
 */
+// TODO: figure out how to type the `on` function
 const hydrateVarsHelper = async (
   node: VariableNode,
-  options: HydrateVarsOptions
+  options: HydrateVarsOptions,
+  on?: any
 ): Promise<VariableValues> => {
   const variableType = node.variable.arguments.type
 
@@ -200,6 +210,28 @@ const hydrateVarsHelper = async (
       values: node.variable.arguments.values,
       selected: node.variable.selected,
     }
+  }
+
+  if (variableType === 'system') {
+    return {
+      valueType: 'string',
+      values: node.variable.arguments.values,
+      selected: node.variable.selected,
+    }
+  }
+
+  if (node.status !== RemoteDataState.Loading) {
+    node.status = RemoteDataState.Loading
+    on.fire('status', node.variable, node.status)
+
+    collectAncestors(node)
+      .filter(parent => parent.variable.arguments.type === 'query')
+      .forEach(parent => {
+        if (parent.status !== RemoteDataState.Loading) {
+          parent.status = RemoteDataState.Loading
+          on.fire('status', parent.variable, parent.status)
+        }
+      })
   }
 
   const descendants = collectDescendants(node)
@@ -225,6 +257,9 @@ const hydrateVarsHelper = async (
 
   const values = await request.promise
 
+  // NOTE: do not fire `done` event here, as the value
+  // has not been properly hydrated yet
+  node.status = RemoteDataState.Done
   return values
 }
 
@@ -233,17 +268,13 @@ const hydrateVarsHelper = async (
   resolved (successfully or not).
 */
 const readyToResolve = (parent: VariableNode): boolean =>
-  parent.status === RemoteDataState.NotStarted &&
   parent.children.every(child => child.status === RemoteDataState.Done)
 
 /*
   Find all `NotStarted` nodes in the graph that have no children.
 */
 const findLeaves = (graph: VariableNode[]): VariableNode[] =>
-  graph.filter(
-    node =>
-      node.children.length === 0 && node.status === RemoteDataState.NotStarted
-  )
+  graph.filter(node => node.children.length === 0)
 
 /*
   Given a node, attempt to find a cycle that the node is a part of. If no cycle
@@ -359,8 +390,11 @@ export const hydrateVars = (
   variables: Variable[],
   allVariables: Variable[],
   options: HydrateVarsOptions
-): CancelBox<Variable[]> => {
-  const graph = findSubgraph(createVariableGraph(allVariables), variables)
+): EventedCancelBox<Variable[]> => {
+  const graph = findSubgraph(
+    createVariableGraph(allVariables),
+    variables
+  ).filter(n => n.variable.arguments.type !== 'system')
   invalidateCycles(graph)
 
   let isCancelled = false
@@ -370,11 +404,9 @@ export const hydrateVars = (
       return
     }
 
-    node.status === RemoteDataState.Loading
-
     try {
       // TODO: terminate the concept of node.values at the fetcher and just use variables
-      node.values = await hydrateVarsHelper(node, options)
+      node.values = await hydrateVarsHelper(node, options, on)
 
       if (node.variable.arguments.type === 'query') {
         node.variable.arguments.values.results = node.values.values as string[]
@@ -407,7 +439,7 @@ export const hydrateVars = (
         node.variable.selected = node.values.selected
       }
 
-      node.status = RemoteDataState.Done
+      on.fire('status', node.variable, node.status)
 
       return Promise.all(node.parents.filter(readyToResolve).map(resolve))
     } catch (e) {
@@ -430,9 +462,37 @@ export const hydrateVars = (
     deferred.reject(new CancellationError())
   }
 
-  Promise.all(findLeaves(graph).map(resolve)).then(() => {
-    deferred.resolve(extractResult(graph))
-  })
+  const on = (function() {
+    const callbacks = {}
+    const ret = (evt, cb) => {
+      if (!callbacks.hasOwnProperty(evt)) {
+        callbacks[evt] = []
+      }
 
-  return {promise: deferred.promise, cancel}
+      callbacks[evt].push(cb)
+    }
+
+    ret.fire = (evt, ...args) => {
+      if (!callbacks.hasOwnProperty(evt)) {
+        return
+      }
+
+      callbacks[evt].forEach(cb => cb.apply(cb, args))
+    }
+
+    return ret
+  })()
+
+  // NOTE: wrapping in a resolve disconnects the following findLeaves
+  // from the main execution thread, allowing external services to
+  // register listeners for the loading state changes
+  Promise.resolve()
+    .then(() => {
+      return Promise.all(findLeaves(graph).map(resolve))
+    })
+    .then(() => {
+      deferred.resolve(extractResult(graph))
+    })
+
+  return {promise: deferred.promise, cancel, on}
 }

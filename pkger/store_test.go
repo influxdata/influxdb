@@ -83,6 +83,146 @@ func TestStoreKV(t *testing.T) {
 		})
 	})
 
+	t.Run("list stacks", func(t *testing.T) {
+		defer inMemStore.Flush(context.Background())
+
+		storeKV := pkger.NewStoreKV(inMemStore)
+
+		const orgID1 = 1
+		const orgID2 = 2
+		seedEntities(t, storeKV,
+			pkger.Stack{
+				ID:    1,
+				OrgID: orgID1,
+				Name:  "first_name",
+			},
+			pkger.Stack{
+				ID:    2,
+				OrgID: orgID2,
+				Name:  "first_name",
+			},
+			pkger.Stack{
+				ID:    3,
+				OrgID: orgID1,
+				Name:  "second_name",
+			},
+			pkger.Stack{
+				ID:    4,
+				OrgID: orgID2,
+				Name:  "second_name",
+			},
+		)
+
+		tests := []struct {
+			name     string
+			orgID    influxdb.ID
+			filter   pkger.ListFilter
+			expected []pkger.Stack
+		}{
+			{
+				name:  "by org id",
+				orgID: orgID1,
+				expected: []pkger.Stack{
+					{
+						ID:    1,
+						OrgID: orgID1,
+						Name:  "first_name",
+					},
+					{
+						ID:    3,
+						OrgID: orgID1,
+						Name:  "second_name",
+					},
+				},
+			},
+			{
+				name:  "by stack ids",
+				orgID: orgID1,
+				filter: pkger.ListFilter{
+					StackIDs: []influxdb.ID{1, 3},
+				},
+				expected: []pkger.Stack{
+					{
+						ID:    1,
+						OrgID: orgID1,
+						Name:  "first_name",
+					},
+					{
+						ID:    3,
+						OrgID: orgID1,
+						Name:  "second_name",
+					},
+				},
+			},
+			{
+				name:  "by stack ids skips ids that belong to different organization",
+				orgID: orgID1,
+				filter: pkger.ListFilter{
+					StackIDs: []influxdb.ID{1, 2, 4},
+				},
+				expected: []pkger.Stack{{
+					ID:    1,
+					OrgID: orgID1,
+					Name:  "first_name",
+				}},
+			},
+			{
+				name:  "stack ids that do not exist are skipped",
+				orgID: orgID1,
+				filter: pkger.ListFilter{
+					StackIDs: []influxdb.ID{1, 9000},
+				},
+				expected: []pkger.Stack{{
+					ID:    1,
+					OrgID: orgID1,
+					Name:  "first_name",
+				}},
+			},
+			{
+				name:  "by name",
+				orgID: orgID1,
+				filter: pkger.ListFilter{
+					Names: []string{"first_name"},
+				},
+				expected: []pkger.Stack{{
+					ID:    1,
+					OrgID: orgID1,
+					Name:  "first_name",
+				}},
+			},
+			{
+				name:  "by name and id",
+				orgID: orgID1,
+				filter: pkger.ListFilter{
+					StackIDs: []influxdb.ID{3},
+					Names:    []string{"first_name"},
+				},
+				expected: []pkger.Stack{
+					{
+						ID:    1,
+						OrgID: orgID1,
+						Name:  "first_name",
+					},
+					{
+						ID:    3,
+						OrgID: orgID1,
+						Name:  "second_name",
+					},
+				},
+			},
+		}
+
+		for _, tt := range tests {
+			fn := func(t *testing.T) {
+				stacks, err := storeKV.ListStacks(context.Background(), tt.orgID, tt.filter)
+				require.NoError(t, err)
+				assert.Equal(t, tt.expected, stacks)
+			}
+
+			t.Run(tt.name, fn)
+		}
+	})
+
 	t.Run("read a stack", func(t *testing.T) {
 		defer inMemStore.Flush(context.Background())
 

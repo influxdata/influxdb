@@ -50,7 +50,10 @@ func NewHTTPServer(log *zap.Logger, svc SVC) *HTTPServer {
 			Post("/", svr.createPkg)
 		r.With(middleware.SetHeader("Content-Type", "application/json; charset=utf-8")).
 			Post("/apply", svr.applyPkg)
-		r.Post("/stacks", svr.createStack)
+		r.Route("/stacks", func(r chi.Router) {
+			r.Post("/", svr.createStack)
+			r.Get("/", svr.listStacks)
+		})
 	}
 
 	svr.Router = r
@@ -60,6 +63,65 @@ func NewHTTPServer(log *zap.Logger, svc SVC) *HTTPServer {
 // Prefix provides the prefix to this route tree.
 func (s *HTTPServer) Prefix() string {
 	return RoutePrefix
+}
+
+// RespListStacks is the HTTP response for a stack list call.
+type RespListStacks struct {
+	Stacks []Stack `json:"stacks"`
+}
+
+func (s *HTTPServer) listStacks(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+
+	rawOrgID := q.Get("orgID")
+	orgID, err := influxdb.IDFromString(rawOrgID)
+	if err != nil {
+		s.api.Err(w, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  fmt.Sprintf("organization id[%q] is invalid", rawOrgID),
+			Err:  err,
+		})
+		return
+	}
+
+	if err := r.ParseForm(); err != nil {
+		s.api.Err(w, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  "failed to parse form from encoded url",
+			Err:  err,
+		})
+		return
+	}
+
+	filter := ListFilter{
+		Names: r.Form["name"],
+	}
+
+	for _, idRaw := range r.Form["stackID"] {
+		id, err := influxdb.IDFromString(idRaw)
+		if err != nil {
+			s.api.Err(w, &influxdb.Error{
+				Code: influxdb.EInvalid,
+				Msg:  fmt.Sprintf("stack ID[%q] provided is invalid", idRaw),
+				Err:  err,
+			})
+			return
+		}
+		filter.StackIDs = append(filter.StackIDs, *id)
+	}
+
+	stacks, err := s.svc.ListStacks(r.Context(), *orgID, filter)
+	if err != nil {
+		s.api.Err(w, err)
+		return
+	}
+	if stacks == nil {
+		stacks = []Stack{}
+	}
+
+	s.api.Respond(w, http.StatusOK, RespListStacks{
+		Stacks: stacks,
+	})
 }
 
 // ReqCreateStack is a request body for a create stack call.

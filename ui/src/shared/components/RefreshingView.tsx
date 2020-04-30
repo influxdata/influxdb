@@ -11,11 +11,8 @@ import ViewSwitcher from 'src/shared/components/ViewSwitcher'
 // Utils
 import {GlobalAutoRefresher} from 'src/utils/AutoRefresher'
 import {getTimeRange} from 'src/dashboards/selectors'
-import {getRangeVariable} from 'src/variables/utils/getTimeRangeVars'
-import {getVariables, asAssignment} from 'src/variables/selectors'
 import {checkResultsLength} from 'src/shared/utils/vis'
 import {getActiveTimeRange} from 'src/timeMachine/selectors/index'
-import {TIME_RANGE_START, TIME_RANGE_STOP} from 'src/variables/constants'
 
 // Types
 import {
@@ -23,7 +20,6 @@ import {
   TimeZone,
   AppState,
   DashboardQuery,
-  VariableAssignment,
   QueryViewProperties,
   Theme,
 } from 'src/types'
@@ -38,7 +34,6 @@ interface StateProps {
   timeRange: TimeRange
   ranges: TimeRange | null
   timeZone: TimeZone
-  variableAssignments: VariableAssignment[]
 }
 
 interface State {
@@ -68,14 +63,7 @@ class RefreshingView extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {
-      ranges,
-      properties,
-      manualRefresh,
-      timeZone,
-      variableAssignments,
-      theme,
-    } = this.props
+    const {ranges, properties, manualRefresh, timeZone, theme} = this.props
     const {submitToken} = this.state
 
     return (
@@ -83,7 +71,6 @@ class RefreshingView extends PureComponent<Props, State> {
         submitToken={submitToken}
         queries={this.queries}
         key={manualRefresh}
-        variables={variableAssignments}
       >
         {({
           giraffeResult,
@@ -152,18 +139,6 @@ class RefreshingView extends PureComponent<Props, State> {
 
 const mstp = (state: AppState, ownProps: OwnProps): StateProps => {
   const timeRange = getTimeRange(state)
-
-  // NOTE: cannot use getAllVariables here because the TimeSeries
-  // component appends it automatically. That should be fixed
-  const vars = getVariables(state)
-  const variableAssignments = [
-    ...vars,
-    getRangeVariable(TIME_RANGE_START, timeRange),
-    getRangeVariable(TIME_RANGE_STOP, timeRange),
-  ]
-    .map(v => asAssignment(v))
-    .filter(v => !!v)
-
   const ranges = getActiveTimeRange(timeRange, ownProps.properties.queries)
   const {timeZone, theme} = state.app.persisted
 
@@ -171,7 +146,6 @@ const mstp = (state: AppState, ownProps: OwnProps): StateProps => {
     timeRange,
     ranges,
     timeZone,
-    variableAssignments,
     theme,
   }
 }

@@ -715,6 +715,10 @@ func (f *fakePkgSVC) InitStack(ctx context.Context, userID influxdb.ID, stack pk
 	panic("not implemented")
 }
 
+func (f *fakePkgSVC) ListStacks(ctx context.Context, orgID influxdb.ID, filter pkger.ListFilter) ([]pkger.Stack, error) {
+	panic("not implemented")
+}
+
 func (f *fakePkgSVC) CreatePkg(ctx context.Context, setters ...pkger.CreatePkgSetFn) (*pkger.Pkg, error) {
 	if f.createFn != nil {
 		return f.createFn(ctx, setters...)
