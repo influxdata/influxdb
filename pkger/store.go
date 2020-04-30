@@ -131,9 +131,8 @@ func storeListFilterFn(orgID influxdb.ID, f ListFilter) (func(*entStack) bool, e
 	}
 
 	optionalFieldFilterFn := func(ent *entStack) bool {
-		id := string(ent.ID)
 		if len(mIDs) > 0 || len(mNames) > 0 {
-			return mIDs[id] || mNames[ent.Name]
+			return mIDs[string(ent.ID)] || mNames[ent.Name]
 		}
 		return true
 	}
