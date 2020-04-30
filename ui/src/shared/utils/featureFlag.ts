@@ -51,10 +51,12 @@ export const set = (flagName: string, value: string | boolean) => {
   store.dispatch(setOverride(flagName, value))
 }
 
-export const toggle = (flagName: string) => {
+export const toggle = (flagName: string): boolean => {
   const flags = getUserFlags()
 
   set(flagName, !flags[flagName])
+
+  return !flags[flagName]
 }
 
 // Expose utility in dev tools console for convenience

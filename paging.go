@@ -1,6 +1,8 @@
 package influxdb
 
 import (
+	"fmt"
+	"net/http"
 	"net/url"
 	"strconv"
 )
@@ -29,6 +31,75 @@ type FindOptions struct {
 	Offset     int
 	SortBy     string
 	Descending bool
+}
+
+// DecodeFindOptions returns a FindOptions decoded from http request.
+func DecodeFindOptions(r *http.Request) (*FindOptions, error) {
+	opts := &FindOptions{}
+	qp := r.URL.Query()
+
+	if offset := qp.Get("offset"); offset != "" {
+		o, err := strconv.Atoi(offset)
+		if err != nil {
+			return nil, &Error{
+				Code: EInvalid,
+				Msg:  "offset is invalid",
+			}
+		}
+
+		opts.Offset = o
+	}
+
+	if limit := qp.Get("limit"); limit != "" {
+		l, err := strconv.Atoi(limit)
+		if err != nil {
+			return nil, &Error{
+				Code: EInvalid,
+				Msg:  "limit is invalid",
+			}
+		}
+
+		if l < 1 || l > MaxPageSize {
+			return nil, &Error{
+				Code: EInvalid,
+				Msg:  fmt.Sprintf("limit must be between 1 and %d", MaxPageSize),
+			}
+		}
+
+		opts.Limit = l
+	} else {
+		opts.Limit = DefaultPageSize
+	}
+
+	if sortBy := qp.Get("sortBy"); sortBy != "" {
+		opts.SortBy = sortBy
+	}
+
+	if descending := qp.Get("descending"); descending != "" {
+		desc, err := strconv.ParseBool(descending)
+		if err != nil {
+			return nil, &Error{
+				Code: EInvalid,
+				Msg:  "descending is invalid",
+			}
+		}
+
+		opts.Descending = desc
+	}
+
+	return opts, nil
+}
+
+func FindOptionParams(opts ...FindOptions) [][2]string {
+	var out [][2]string
+	for _, o := range opts {
+		for k, vals := range o.QueryParams() {
+			for _, v := range vals {
+				out = append(out, [2]string{k, v})
+			}
+		}
+	}
+	return out
 }
 
 // QueryParams returns a map containing url query params.

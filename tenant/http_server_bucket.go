@@ -394,7 +394,7 @@ func decodeGetBucketsRequest(r *http.Request) (*getBucketsRequest, error) {
 	qp := r.URL.Query()
 	req := &getBucketsRequest{}
 
-	opts, err := decodeFindOptions(r)
+	opts, err := influxdb.DecodeFindOptions(r)
 	if err != nil {
 		return nil, err
 	}

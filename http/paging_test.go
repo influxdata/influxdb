@@ -4,11 +4,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/influxdata/influxdb/v2"
 	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/mock"
 )
 
-func TestPaging_decodeFindOptions(t *testing.T) {
+func TestPaging_DecodeFindOptions(t *testing.T) {
 	type args struct {
 		queryParams map[string]string
 	}
@@ -67,28 +68,28 @@ func TestPaging_decodeFindOptions(t *testing.T) {
 			}
 			r.URL.RawQuery = qp.Encode()
 
-			opts, err := decodeFindOptions(r)
+			opts, err := influxdb.DecodeFindOptions(r)
 			if err != nil {
 				t.Errorf("%q failed, err: %s", tt.name, err.Error())
 			}
 
 			if opts.Offset != tt.wants.opts.Offset {
-				t.Errorf("%q. decodeFindOptions() = %v, want %v", tt.name, opts.Offset, tt.wants.opts.Offset)
+				t.Errorf("%q. influxdb.DecodeFindOptions() = %v, want %v", tt.name, opts.Offset, tt.wants.opts.Offset)
 			}
 			if opts.Limit != tt.wants.opts.Limit {
-				t.Errorf("%q. decodeFindOptions() = %v, want %v", tt.name, opts.Limit, tt.wants.opts.Limit)
+				t.Errorf("%q. influxdb.DecodeFindOptions() = %v, want %v", tt.name, opts.Limit, tt.wants.opts.Limit)
 			}
 			if opts.SortBy != tt.wants.opts.SortBy {
-				t.Errorf("%q. decodeFindOptions() = %v, want %v", tt.name, opts.SortBy, tt.wants.opts.SortBy)
+				t.Errorf("%q. influxdb.DecodeFindOptions() = %v, want %v", tt.name, opts.SortBy, tt.wants.opts.SortBy)
 			}
 			if opts.Descending != tt.wants.opts.Descending {
-				t.Errorf("%q. decodeFindOptions() = %v, want %v", tt.name, opts.Descending, tt.wants.opts.Descending)
+				t.Errorf("%q. influxdb.DecodeFindOptions() = %v, want %v", tt.name, opts.Descending, tt.wants.opts.Descending)
 			}
 		})
 	}
 }
 
-func TestPaging_newPagingLinks(t *testing.T) {
+func TestPaging_NewPagingLinks(t *testing.T) {
 	type args struct {
 		basePath string
 		num      int
@@ -177,18 +178,18 @@ func TestPaging_newPagingLinks(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			links := newPagingLinks(tt.args.basePath, tt.args.opts, tt.args.filter, tt.args.num)
+			links := influxdb.NewPagingLinks(tt.args.basePath, tt.args.opts, tt.args.filter, tt.args.num)
 
 			if links.Prev != tt.wants.links.Prev {
-				t.Errorf("%q. newPagingLinks() = %v, want %v", tt.name, links.Prev, tt.wants.links.Prev)
+				t.Errorf("%q. influxdb.NewPagingLinks() = %v, want %v", tt.name, links.Prev, tt.wants.links.Prev)
 			}
 
 			if links.Self != tt.wants.links.Self {
-				t.Errorf("%q. newPagingLinks() = %v, want %v", tt.name, links.Self, tt.wants.links.Self)
+				t.Errorf("%q. influxdb.NewPagingLinks() = %v, want %v", tt.name, links.Self, tt.wants.links.Self)
 			}
 
 			if links.Next != tt.wants.links.Next {
-				t.Errorf("%q. newPagingLinks() = %v, want %v", tt.name, links.Next, tt.wants.links.Next)
+				t.Errorf("%q. influxdb.NewPagingLinks() = %v, want %v", tt.name, links.Next, tt.wants.links.Next)
 			}
 		})
 	}

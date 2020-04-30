@@ -6,11 +6,11 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi"
+	"github.com/influxdata/influxdb/v2"
 	ihttp "github.com/influxdata/influxdb/v2/http"
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/tenant"
 	itesting "github.com/influxdata/influxdb/v2/testing"
-	"github.com/influxdata/influxdb/v2"
 	"go.uber.org/zap/zaptest"
 )
 

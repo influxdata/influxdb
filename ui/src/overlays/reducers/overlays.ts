@@ -12,6 +12,7 @@ export type OverlayID =
   | 'telegraf-config'
   | 'telegraf-output'
   | 'switch-organizations'
+  | 'create-bucket'
 
 export interface OverlayParams {
   [key: string]: string
