@@ -25,7 +25,13 @@ type StorageReader interface {
 }
 
 // WindowAggregateCapability describes what is supported by WindowAggregateReader.
-type WindowAggregateCapability interface{}
+type WindowAggregateCapability interface {
+	HaveMin() bool
+	HaveMax() bool
+	HaveMean() bool
+	HaveCount() bool
+	HaveSum() bool
+}
 
 // WindowAggregateReader implements the WindowAggregate capability.
 type WindowAggregateReader interface {
