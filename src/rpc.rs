@@ -5,9 +5,10 @@ use delorean::delorean::{
     },
     storage_server::Storage,
     CapabilitiesResponse, CreateBucketRequest, CreateBucketResponse, DeleteBucketRequest,
-    DeleteBucketResponse, GetBucketsResponse, Organization, Predicate, ReadFilterRequest,
-    ReadGroupRequest, ReadResponse, ReadSource, StringValuesResponse, Tag, TagKeysRequest,
-    TagValuesRequest, TimestampRange,
+    DeleteBucketResponse, GetBucketsResponse, MeasurementFieldsRequest, MeasurementFieldsResponse,
+    MeasurementNamesRequest, MeasurementTagKeysRequest, MeasurementTagValuesRequest, Organization,
+    Predicate, ReadFilterRequest, ReadGroupRequest, ReadResponse, ReadSource, StringValuesResponse,
+    Tag, TagKeysRequest, TagValuesRequest, TimestampRange,
 };
 use delorean::id::Id;
 use delorean::storage::partitioned_store::{PartitionKeyValues, ReadValues};
@@ -335,6 +336,42 @@ impl Storage for GrpcServer {
         &self,
         _: tonic::Request<()>,
     ) -> Result<tonic::Response<CapabilitiesResponse>, Status> {
+        Err(Status::unimplemented("Not yet implemented"))
+    }
+
+    type MeasurementNamesStream = mpsc::Receiver<Result<StringValuesResponse, Status>>;
+
+    async fn measurement_names(
+        &self,
+        _: tonic::Request<MeasurementNamesRequest>,
+    ) -> Result<tonic::Response<Self::MeasurementNamesStream>, Status> {
+        Err(Status::unimplemented("Not yet implemented"))
+    }
+
+    type MeasurementTagKeysStream = mpsc::Receiver<Result<StringValuesResponse, Status>>;
+
+    async fn measurement_tag_keys(
+        &self,
+        _: tonic::Request<MeasurementTagKeysRequest>,
+    ) -> Result<tonic::Response<Self::MeasurementTagKeysStream>, Status> {
+        Err(Status::unimplemented("Not yet implemented"))
+    }
+
+    type MeasurementTagValuesStream = mpsc::Receiver<Result<StringValuesResponse, Status>>;
+
+    async fn measurement_tag_values(
+        &self,
+        _: tonic::Request<MeasurementTagValuesRequest>,
+    ) -> Result<tonic::Response<Self::MeasurementTagValuesStream>, Status> {
+        Err(Status::unimplemented("Not yet implemented"))
+    }
+
+    type MeasurementFieldsStream = mpsc::Receiver<Result<MeasurementFieldsResponse, Status>>;
+
+    async fn measurement_fields(
+        &self,
+        _: tonic::Request<MeasurementFieldsRequest>,
+    ) -> Result<tonic::Response<Self::MeasurementFieldsStream>, Status> {
         Err(Status::unimplemented("Not yet implemented"))
     }
 }
