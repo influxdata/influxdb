@@ -40,8 +40,9 @@ use grpc::{
     read_group_request::Group,
     read_response::{frame::Data, DataType},
     storage_client::StorageClient,
-    Bucket, CreateBucketRequest, Node, Organization, Predicate, ReadFilterRequest,
-    ReadGroupRequest, ReadSource, Tag, TagKeysRequest, TagValuesRequest, TimestampRange,
+    Bucket, CreateBucketRequest, MeasurementNamesRequest, Node, Organization, Predicate,
+    ReadFilterRequest, ReadGroupRequest, ReadSource, Tag, TagKeysRequest, TagValuesRequest,
+    TimestampRange,
 };
 
 type Error = Box<dyn std::error::Error>;
@@ -405,8 +406,8 @@ swap,server01,out,{},4
     assert_eq!(values, vec!["server01", "server02"]);
 
     let read_group_request = tonic::Request::new(ReadGroupRequest {
-        read_source,
-        range,
+        read_source: read_source.clone(),
+        range: range.clone(),
         predicate,
         group_keys: vec![String::from("region")],
         group: Group::By as _,
@@ -469,6 +470,24 @@ swap,server01,out,{},4
     let f = assert_unwrap!(&frames[5], Data::FloatPoints, "in frame 5");
     assert_eq!(f.timestamps, [ns_since_epoch + 1], "in frame 5");
     assert!(all_approximately_equal(&f.values, &[27.99]), "in frame 5");
+
+    let measurement_names_request = tonic::Request::new(MeasurementNamesRequest {
+        source: read_source.clone(),
+        range: range.clone(),
+    });
+
+    let measurement_names_response = storage_client
+        .measurement_names(measurement_names_request)
+        .await?;
+    let responses: Vec<_> = measurement_names_response
+        .into_inner()
+        .try_collect()
+        .await?;
+
+    let values = &responses[0].values;
+    let values: Vec<_> = values.iter().map(|s| str::from_utf8(s).unwrap()).collect();
+
+    assert_eq!(values, vec!["cpu_load_short", "swap", "system"]);
 
     Ok(())
 }

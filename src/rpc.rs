@@ -142,6 +142,12 @@ impl GrpcInputs for TagValuesRequest {
     }
 }
 
+impl GrpcInputs for MeasurementNamesRequest {
+    fn read_source_field(&self) -> Option<&prost_types::Any> {
+        self.source.as_ref()
+    }
+}
+
 #[tonic::async_trait]
 impl Storage for GrpcServer {
     type ReadFilterStream = mpsc::Receiver<Result<ReadResponse, Status>>;
@@ -343,9 +349,53 @@ impl Storage for GrpcServer {
 
     async fn measurement_names(
         &self,
-        _: tonic::Request<MeasurementNamesRequest>,
+        req: tonic::Request<MeasurementNamesRequest>,
     ) -> Result<tonic::Response<Self::MeasurementNamesStream>, Status> {
-        Err(Status::unimplemented("Not yet implemented"))
+        let (mut tx, rx) = mpsc::channel(4);
+
+        let measurement_names_request = req.into_inner();
+
+        let org_id = measurement_names_request.org_id()?;
+        let bucket_name = measurement_names_request.bucket_name()?;
+        let range = measurement_names_request.range;
+
+        let app = self.app.clone();
+
+        let bucket_id = app
+            .db
+            .get_bucket_id_by_name(org_id, &bucket_name)
+            .await
+            .map_err(|err| Status::internal(format!("error reading db: {}", err)))?
+            .ok_or_else(|| Status::internal("bucket not found"))?;
+
+        tokio::spawn(async move {
+            match app
+                .db
+                .get_measurement_names(org_id, bucket_id, range.as_ref())
+                .await
+            {
+                Err(_) => tx
+                    .send(Err(Status::internal(
+                        "could not query for measurement names",
+                    )))
+                    .await
+                    .unwrap(),
+                Ok(measurement_names) => {
+                    // TODO: Should these be batched? If so, how?
+                    let measurement_names: Vec<_> = measurement_names
+                        .into_iter()
+                        .map(|s| transform_key_to_long_form_bytes(&s))
+                        .collect();
+                    tx.send(Ok(StringValuesResponse {
+                        values: measurement_names,
+                    }))
+                    .await
+                    .unwrap();
+                }
+            }
+        });
+
+        Ok(tonic::Response::new(rx))
     }
 
     type MeasurementTagKeysStream = mpsc::Receiver<Result<StringValuesResponse, Status>>;

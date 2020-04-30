@@ -274,6 +274,19 @@ impl MemDB {
 
         Ok(stream::iter(read_batches.into_iter()).boxed())
     }
+
+    pub fn get_measurement_names(
+        &self,
+        _range: Option<&TimestampRange>,
+    ) -> Result<BoxStream<'_, String>, StorageError> {
+        match self.series_map.tag_keys.get("_m") {
+            Some(values) => {
+                let values = values.keys().cloned();
+                Ok(stream::iter(values).boxed())
+            }
+            None => Ok(stream::empty().boxed()),
+        }
+    }
 }
 
 fn evaluate_node(series_map: &SeriesMap, n: &Node) -> Result<Treemap, StorageError> {
