@@ -296,6 +296,117 @@ describe('Dashboard', () => {
     })
   })
 
+  /*\
+    built to approximate an instance with docker metrics,
+    operating with the variables:
+
+        depbuck:
+            from(bucket: v.buckets)
+                |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+                |> filter(fn: (r) => r["_measurement"] == "docker_container_cpu")
+                |> keep(columns: ["container_name"])
+                |> rename(columns: {"container_name": "_value"})
+                |> last()
+                |> group()
+
+        buckets:
+            buckets()
+                |> filter(fn: (r) => r.name !~ /^_/)
+                |> rename(columns: {name: "_value"})
+                |> keep(columns: ["_value"])
+
+    and a dashboard built of :
+        cell one:
+            from(bucket: v.buckets)
+                |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+                |> filter(fn: (r) => r["_measurement"] == "docker_container_cpu")
+                |> filter(fn: (r) => r["_field"] == "usage_percent")
+
+        cell two:
+            from(bucket: v.buckets)
+                |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+                |> filter(fn: (r) => r["_measurement"] == "docker_container_cpu")
+                |> filter(fn: (r) => r["_field"] == "usage_percent")
+                |> filter(fn: (r) => r["container_name"] == v.depbuck)
+
+    with only 4 api queries being sent to fulfill it all
+
+  \*/
+  it('can load dependent queries without much fuss', () => {
+    cy.get('@org').then(({id: orgID}: Organization) => {
+      cy.createDashboard(orgID).then(({body: dashboard}) => {
+        const now = Date.now()
+        cy.writeData([
+          `test,container_name=cool dopeness=12 ${now - 1000}000000`,
+          `test,container_name=beans dopeness=18 ${now - 1200}000000`,
+          `test,container_name=cool dopeness=14 ${now - 1400}000000`,
+          `test,container_name=beans dopeness=10 ${now - 1600}000000`,
+        ])
+        cy.createCSVVariable(orgID, 'static', ['beans', 'defbuck'])
+        cy.createQueryVariable(
+          orgID,
+          'dependent',
+          `from(bucket: v.static)
+  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+  |> filter(fn: (r) => r["_measurement"] == "test")
+  |> keep(columns: ["container_name"])
+  |> rename(columns: {"container_name": "_value"})
+  |> last()
+  |> group()`
+        )
+
+        cy.fixture('routes').then(({orgs}) => {
+          cy.visit(`${orgs}/${orgID}/dashboards/${dashboard.id}`)
+        })
+      })
+    })
+
+    cy.getByTestID('add-cell--button').click()
+    cy.getByTestID('switch-to-script-editor').should('be.visible')
+    cy.getByTestID('switch-to-script-editor').click()
+    cy.getByTestID('toolbar-tab').click()
+
+    cy
+      .getByTestID('flux-editor')
+      .should('be.visible')
+      .click()
+      .focused().type(`from(bucket: v.static)
+|> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+|> filter(fn: (r) => r["_measurement"] == "test")
+|> filter(fn: (r) => r["_field"] == "dopeness")
+|> filter(fn: (r) => r["container_name"] == v.dependent)`)
+    cy.getByTestID('save-cell--button').click()
+
+    // the default bucket selection should have no results
+    cy.getByTestID('variable-dropdown')
+      .eq(0)
+      .should('contain', 'beans')
+
+    // and cause the rest to exist in loading states
+    cy.getByTestID('variable-dropdown')
+      .eq(1)
+      .should('contain', 'Loading')
+
+    cy.getByTestID('cell--view-empty')
+
+    // But selecting a nonempty bucket should load some data
+    cy.getByTestID('variable-dropdown--button')
+      .eq(0)
+      .click()
+    cy.get(`#defbuck`).click()
+
+    // default select the first result
+    cy.getByTestID('variable-dropdown')
+      .eq(1)
+      .should('contain', 'beans')
+
+    // and also load the second result
+    cy.getByTestID('variable-dropdown--button')
+      .eq(1)
+      .click()
+    cy.get(`#cool`).click()
+  })
+
   it('can create a view through the API', () => {
     cy.get('@org').then(({id: orgID}: Organization) => {
       cy.createDashWithViewAndVar(orgID).then(() => {
