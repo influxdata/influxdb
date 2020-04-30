@@ -410,7 +410,7 @@ func (h *OrgHandler) handleGetOrgLog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	opts, err := decodeFindOptions(r)
+	opts, err := influxdb.DecodeFindOptions(r)
 	if err != nil {
 		h.API.Err(w, err)
 		return
@@ -567,7 +567,7 @@ func (s *OrganizationService) FindOrganizations(ctx context.Context, filter infl
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	params := findOptionParams(opt...)
+	params := influxdb.FindOptionParams(opt...)
 	if filter.Name != nil {
 		span.LogKV("org", *filter.Name)
 		params = append(params, [2]string{"org", *filter.Name})

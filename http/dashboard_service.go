@@ -399,7 +399,7 @@ func decodeGetDashboardsRequest(ctx context.Context, r *http.Request) (*getDashb
 	qp := r.URL.Query()
 	req := &getDashboardsRequest{}
 
-	opts, err := decodeFindOptions(r)
+	opts, err := influxdb.DecodeFindOptions(r)
 	if err != nil {
 		return nil, err
 	}
@@ -447,7 +447,7 @@ func (d getDashboardsResponse) toinfluxdb() []*influxdb.Dashboard {
 
 func newGetDashboardsResponse(ctx context.Context, dashboards []*influxdb.Dashboard, filter influxdb.DashboardFilter, opts influxdb.FindOptions, labelService influxdb.LabelService) getDashboardsResponse {
 	res := getDashboardsResponse{
-		Links:      newPagingLinks(prefixDashboards, opts, filter, len(dashboards)),
+		Links:      influxdb.NewPagingLinks(prefixDashboards, opts, filter, len(dashboards)),
 		Dashboards: make([]dashboardResponse, 0, len(dashboards)),
 	}
 
@@ -591,7 +591,7 @@ func decodeGetDashboardLogRequest(ctx context.Context, r *http.Request) (*getDas
 		return nil, err
 	}
 
-	opts, err := decodeFindOptions(r)
+	opts, err := influxdb.DecodeFindOptions(r)
 	if err != nil {
 		return nil, err
 	}
@@ -1106,7 +1106,7 @@ func (s *DashboardService) FindDashboardByID(ctx context.Context, id influxdb.ID
 // FindDashboards returns a list of dashboards that match filter and the total count of matching dashboards.
 // Additional options provide pagination & sorting.
 func (s *DashboardService) FindDashboards(ctx context.Context, filter influxdb.DashboardFilter, opts influxdb.FindOptions) ([]*influxdb.Dashboard, int, error) {
-	queryPairs := findOptionParams(opts)
+	queryPairs := influxdb.FindOptionParams(opts)
 	for _, id := range filter.IDs {
 		queryPairs = append(queryPairs, [2]string{"id", id.String()})
 	}

@@ -312,7 +312,7 @@ func newBucketsResponse(ctx context.Context, opts influxdb.FindOptions, f influx
 		rs = append(rs, NewBucketResponse(b, labels))
 	}
 	return &bucketsResponse{
-		Links:   newPagingLinks(prefixBuckets, opts, f, len(bs)),
+		Links:   influxdb.NewPagingLinks(prefixBuckets, opts, f, len(bs)),
 		Buckets: rs,
 	}
 }
@@ -428,7 +428,7 @@ func (h *BucketHandler) handleGetBucketLog(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	opts, err := decodeFindOptions(r)
+	opts, err := influxdb.DecodeFindOptions(r)
 	if err != nil {
 		h.api.Err(w, err)
 		return
@@ -505,7 +505,7 @@ func (h *BucketHandler) handleGetBuckets(w http.ResponseWriter, r *http.Request)
 		filter.OrganizationID = &orgID
 	}
 
-	opts, err := decodeFindOptions(r)
+	opts, err := influxdb.DecodeFindOptions(r)
 	if err != nil {
 		h.api.Err(w, err)
 		return
@@ -530,7 +530,7 @@ func decodeGetBucketsRequest(r *http.Request) (*getBucketsRequest, error) {
 	qp := r.URL.Query()
 	req := &getBucketsRequest{}
 
-	opts, err := decodeFindOptions(r)
+	opts, err := influxdb.DecodeFindOptions(r)
 	if err != nil {
 		return nil, err
 	}
@@ -701,7 +701,7 @@ func (s *BucketService) FindBuckets(ctx context.Context, filter influxdb.BucketF
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	params := findOptionParams(opt...)
+	params := influxdb.FindOptionParams(opt...)
 	if filter.OrganizationID != nil {
 		params = append(params, [2]string{"orgID", filter.OrganizationID.String()})
 	}

@@ -103,7 +103,7 @@ type AuthorizationService interface {
 	CreateAuthorization(ctx context.Context, a *Authorization) error
 
 	// UpdateAuthorization updates the status and description if available.
-	UpdateAuthorization(ctx context.Context, id ID, udp *AuthorizationUpdate) (*Authorization, error)
+	UpdateAuthorization(ctx context.Context, id ID, upd *AuthorizationUpdate) (*Authorization, error)
 
 	// Removes a authorization by token.
 	DeleteAuthorization(ctx context.Context, id ID) error
