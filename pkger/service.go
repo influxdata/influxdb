@@ -199,6 +199,7 @@ func WithVariableSVC(varSVC influxdb.VariableService) ServiceSetterFn {
 // Store is the storage behavior the Service depends on.
 type Store interface {
 	CreateStack(ctx context.Context, stack Stack) error
+	ListStacks(ctx context.Context, orgID influxdb.ID, filter ListFilter) ([]Stack, error)
 	ReadStackByID(ctx context.Context, id influxdb.ID) (Stack, error)
 	UpdateStack(ctx context.Context, stack Stack) error
 	DeleteStack(ctx context.Context, id influxdb.ID) error

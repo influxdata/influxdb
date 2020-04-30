@@ -34,13 +34,36 @@ func (s *loggingMW) InitStack(ctx context.Context, userID influxdb.ID, newStack 
 		s.logger.Error(
 			"failed to init stack",
 			zap.Error(err),
-			zap.Duration("took", time.Since(start)),
 			zap.Stringer("orgID", newStack.OrgID),
 			zap.Stringer("userID", userID),
 			zap.Strings("urls", newStack.URLs),
+			zap.Duration("took", time.Since(start)),
 		)
 	}(time.Now())
 	return s.next.InitStack(ctx, userID, newStack)
+}
+
+func (s *loggingMW) ListStacks(ctx context.Context, orgID influxdb.ID, f ListFilter) (stacks []Stack, err error) {
+	defer func(start time.Time) {
+		if err == nil {
+			return
+		}
+
+		var stackIDs []string
+		for _, id := range f.StackIDs {
+			stackIDs = append(stackIDs, id.String())
+		}
+
+		s.logger.Error(
+			"failed to list stacks",
+			zap.Error(err),
+			zap.Stringer("orgID", orgID),
+			zap.Strings("stackIDs", stackIDs),
+			zap.Strings("names", f.Names),
+			zap.Duration("took", time.Since(start)),
+		)
+	}(time.Now())
+	return s.next.ListStacks(ctx, orgID, f)
 }
 
 func (s *loggingMW) CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (pkg *Pkg, err error) {
