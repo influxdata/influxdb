@@ -3,10 +3,9 @@ package pkger
 import (
 	"context"
 
-	"github.com/opentracing/opentracing-go/log"
-
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
+	"github.com/opentracing/opentracing-go/log"
 )
 
 type traceMW struct {

@@ -559,6 +559,189 @@ func TestPkgerHTTPServer(t *testing.T) {
 			}
 		})
 	})
+
+	t.Run("list a stack", func(t *testing.T) {
+		t.Run("should successfully return with valid req body", func(t *testing.T) {
+			const expectedOrgID = 3
+
+			svc := &fakeSVC{
+				listStacksFn: func(ctx context.Context, orgID influxdb.ID, filter pkger.ListFilter) ([]pkger.Stack, error) {
+					if orgID != expectedOrgID {
+						return nil, nil
+					}
+
+					if len(filter.Names) > 0 && len(filter.StackIDs) == 0 {
+						var stacks []pkger.Stack
+						for i, name := range filter.Names {
+							stacks = append(stacks, pkger.Stack{
+								ID:    influxdb.ID(i + 1),
+								OrgID: expectedOrgID,
+								Name:  name,
+							})
+						}
+						return stacks, nil
+					}
+
+					if len(filter.StackIDs) > 0 && len(filter.Names) == 0 {
+						var stacks []pkger.Stack
+						for _, stackID := range filter.StackIDs {
+							stacks = append(stacks, pkger.Stack{
+								ID:    stackID,
+								OrgID: expectedOrgID,
+							})
+						}
+						return stacks, nil
+					}
+
+					return []pkger.Stack{{
+						ID:    1,
+						OrgID: expectedOrgID,
+						Name:  "stack_1",
+					}}, nil
+				},
+			}
+			pkgHandler := pkger.NewHTTPServer(zap.NewNop(), svc)
+			svr := newMountedHandler(pkgHandler, 1)
+
+			tests := []struct {
+				name           string
+				queryArgs      string
+				expectedStacks []pkger.Stack
+			}{
+				{
+					name:      "with org ID that has stacks",
+					queryArgs: "orgID=" + influxdb.ID(expectedOrgID).String(),
+					expectedStacks: []pkger.Stack{{
+						ID:    1,
+						OrgID: expectedOrgID,
+						Name:  "stack_1",
+					}},
+				},
+				{
+					name:           "with orgID with no stacks",
+					queryArgs:      "orgID=" + influxdb.ID(9000).String(),
+					expectedStacks: []pkger.Stack{},
+				},
+				{
+					name:      "with names",
+					queryArgs: "name=name_stack&name=threeve&orgID=" + influxdb.ID(expectedOrgID).String(),
+					expectedStacks: []pkger.Stack{
+						{
+							ID:    1,
+							OrgID: expectedOrgID,
+							Name:  "name_stack",
+						},
+						{
+							ID:    2,
+							OrgID: expectedOrgID,
+							Name:  "threeve",
+						},
+					},
+				},
+				{
+					name:      "with ids",
+					queryArgs: fmt.Sprintf("stackID=%s&stackID=%s&orgID=%s", influxdb.ID(1), influxdb.ID(2), influxdb.ID(expectedOrgID)),
+					expectedStacks: []pkger.Stack{
+						{
+							ID:    1,
+							OrgID: expectedOrgID,
+						},
+						{
+							ID:    2,
+							OrgID: expectedOrgID,
+						},
+					},
+				},
+			}
+
+			for _, tt := range tests {
+				fn := func(t *testing.T) {
+					testttp.
+						Get(t, "/api/v2/packages/stacks?"+tt.queryArgs).
+						Headers("Content-Type", "application/x-www-form-urlencoded").
+						Do(svr).
+						ExpectStatus(http.StatusOK).
+						ExpectBody(func(buf *bytes.Buffer) {
+							var resp pkger.RespListStacks
+							decodeBody(t, buf, &resp)
+
+							assert.Equal(t, tt.expectedStacks, resp.Stacks)
+						})
+				}
+
+				t.Run(tt.name, fn)
+			}
+		})
+
+		t.Run("error cases", func(t *testing.T) {
+			tests := []struct {
+				name           string
+				reqBody        pkger.ReqCreateStack
+				expectedStatus int
+				svc            pkger.SVC
+			}{
+				{
+					name: "bad org id",
+					reqBody: pkger.ReqCreateStack{
+						OrgID: "invalid id",
+					},
+					expectedStatus: http.StatusBadRequest,
+				},
+				{
+					name: "bad url",
+					reqBody: pkger.ReqCreateStack{
+						OrgID: influxdb.ID(3).String(),
+						URLs:  []string{"invalid @% url"},
+					},
+					expectedStatus: http.StatusBadRequest,
+				},
+				{
+					name:    "translates svc conflict error",
+					reqBody: pkger.ReqCreateStack{OrgID: influxdb.ID(3).String()},
+					svc: &fakeSVC{
+						initStack: func(ctx context.Context, userID influxdb.ID, stack pkger.Stack) (pkger.Stack, error) {
+							return pkger.Stack{}, &influxdb.Error{Code: influxdb.EConflict}
+						},
+					},
+					expectedStatus: http.StatusUnprocessableEntity,
+				},
+				{
+					name:    "translates svc internal error",
+					reqBody: pkger.ReqCreateStack{OrgID: influxdb.ID(3).String()},
+					svc: &fakeSVC{
+						initStack: func(ctx context.Context, userID influxdb.ID, stack pkger.Stack) (pkger.Stack, error) {
+							return pkger.Stack{}, &influxdb.Error{Code: influxdb.EInternal}
+						},
+					},
+					expectedStatus: http.StatusInternalServerError,
+				},
+			}
+
+			for _, tt := range tests {
+				fn := func(t *testing.T) {
+					svc := tt.svc
+					if svc == nil {
+						svc = &fakeSVC{
+							initStack: func(ctx context.Context, userID influxdb.ID, stack pkger.Stack) (pkger.Stack, error) {
+								return stack, nil
+							},
+						}
+					}
+
+					pkgHandler := pkger.NewHTTPServer(zap.NewNop(), svc)
+					svr := newMountedHandler(pkgHandler, 1)
+
+					testttp.
+						PostJSON(t, "/api/v2/packages/stacks", tt.reqBody).
+						Headers("Content-Type", "application/json").
+						Do(svr).
+						ExpectStatus(tt.expectedStatus)
+				}
+
+				t.Run(tt.name, fn)
+			}
+		})
+	})
 }
 
 func bucketPkgKinds(t *testing.T, encoding pkger.Encoding) []byte {
@@ -639,9 +822,10 @@ func decodeBody(t *testing.T, r io.Reader, v interface{}) {
 }
 
 type fakeSVC struct {
-	initStack func(ctx context.Context, userID influxdb.ID, stack pkger.Stack) (pkger.Stack, error)
-	dryRunFn  func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.Summary, pkger.Diff, error)
-	applyFn   func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.Summary, pkger.Diff, error)
+	initStack    func(ctx context.Context, userID influxdb.ID, stack pkger.Stack) (pkger.Stack, error)
+	listStacksFn func(ctx context.Context, orgID influxdb.ID, filter pkger.ListFilter) ([]pkger.Stack, error)
+	dryRunFn     func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.Summary, pkger.Diff, error)
+	applyFn      func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.Summary, pkger.Diff, error)
 }
 
 var _ pkger.SVC = (*fakeSVC)(nil)
@@ -651,6 +835,13 @@ func (f *fakeSVC) InitStack(ctx context.Context, userID influxdb.ID, stack pkger
 		panic("not implemented")
 	}
 	return f.initStack(ctx, userID, stack)
+}
+
+func (f *fakeSVC) ListStacks(ctx context.Context, orgID influxdb.ID, filter pkger.ListFilter) ([]pkger.Stack, error) {
+	if f.listStacksFn == nil {
+		panic("not implemented")
+	}
+	return f.listStacksFn(ctx, orgID, filter)
 }
 
 func (f *fakeSVC) CreatePkg(ctx context.Context, setters ...pkger.CreatePkgSetFn) (*pkger.Pkg, error) {

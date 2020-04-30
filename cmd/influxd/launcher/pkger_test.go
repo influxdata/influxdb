@@ -179,6 +179,56 @@ func TestLauncher_Pkger(t *testing.T) {
 			assert.NotZero(t, newStack.CRUDLog)
 		})
 
+		t.Run("list stacks", func(t *testing.T) {
+			// seed platform with stacks
+			newStack1, err := svc.InitStack(ctx, l.User.ID, pkger.Stack{
+				OrgID: l.Org.ID,
+				Name:  "first stack",
+			})
+			require.NoError(t, err)
+			newStack2, err := svc.InitStack(ctx, l.User.ID, pkger.Stack{
+				OrgID: l.Org.ID,
+				Name:  "second stack",
+			})
+			require.NoError(t, err)
+
+			containsStack := func(t *testing.T, haystack []pkger.Stack, needle pkger.Stack) {
+				t.Helper()
+				for _, hay := range haystack {
+					if hay.ID == needle.ID {
+						return
+					}
+				}
+				require.FailNowf(t, "did not find expected stack", "got: %+v", needle)
+			}
+
+			t.Run("returns all stacks when no filter args provided", func(t *testing.T) {
+				stacks, err := svc.ListStacks(ctx, l.Org.ID, pkger.ListFilter{})
+				require.NoError(t, err)
+
+				containsStack(t, stacks, newStack1)
+				containsStack(t, stacks, newStack2)
+			})
+
+			t.Run("filters stacks by ID filter", func(t *testing.T) {
+				stacks, err := svc.ListStacks(ctx, l.Org.ID, pkger.ListFilter{
+					StackIDs: []influxdb.ID{newStack1.ID},
+				})
+				require.NoError(t, err)
+				require.Len(t, stacks, 1)
+				containsStack(t, stacks, newStack1)
+			})
+
+			t.Run("filter stacks by names", func(t *testing.T) {
+				stacks, err := svc.ListStacks(ctx, l.Org.ID, pkger.ListFilter{
+					Names: []string{newStack2.Name},
+				})
+				require.NoError(t, err)
+				require.Len(t, stacks, 1)
+				containsStack(t, stacks, newStack2)
+			})
+		})
+
 		t.Run("apply with only a stackID succeeds when stack has URLs", func(t *testing.T) {
 			svr := httptest.NewServer(nethttp.HandlerFunc(func(w nethttp.ResponseWriter, r *nethttp.Request) {
 				pkg := newPkg(newBucketObject("bucket_0", "", ""))
