@@ -61,7 +61,7 @@ describe('The Query Builder', () => {
       // wait for the notification since it's highly animated
       // we close the notification since it contains the name of the dashboard and interfers with cy.contains
       cy.wait(250)
-      cy.get('.notification-close').click()
+      cy.get('.cf-notification--dismiss').click()
       cy.wait(250)
 
       // force a click on the hidden dashboard nav item (cypress can't do the hover)

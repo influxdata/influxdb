@@ -104,7 +104,7 @@ export class OnboardingWizardPage extends PureComponent<Props, State> {
           loading={this.state.loading}
           spinnerComponent={<TechnoSpinner />}
         >
-          <Notifications inPresentationMode={true} />
+          <Notifications />
           <OnboardingWizard
             onDecrementCurrentStepIndex={this.handleDecrementStepIndex}
             onIncrementCurrentStepIndex={this.handleIncrementStepIndex}

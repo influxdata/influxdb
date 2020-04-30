@@ -4,6 +4,8 @@
 
 ### Bug Fixes
 
+1. [17906](https://github.com/influxdata/influxdb/pull/17906): Ensure UpdateUser cleans up the index when updating names
+
 ### UI Improvements
 
 1. [17860](https://github.com/influxdata/influxdb/pull/17860): Allow bucket creation from the Data Explorer and Cell Editor
@@ -11,6 +13,8 @@
 ## v2.0.0-beta.9 [2020-04-23]
 
 ### Features
+
+1. [17851](https://github.com/influxdata/influxdb/pull/17851): Add feature flag package capability and flags endpoint
 
 ### Bug Fixes
 

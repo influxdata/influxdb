@@ -12,8 +12,10 @@ const EditorShortcutsTooltip: FC = () => {
         <div className="editor-shortcuts">
           <h5>Shortcuts</h5>
           <dl className="editor-shortcuts--body">
-            <dt>Ctl-/:</dt> <dd>Toggle comment for line or lines</dd>
-            <dt>Ctl-Enter:</dt> <dd>Submit Script</dd>
+            <dt>[Ctl or ⌘] + /:</dt>
+            <dd>Toggle comment for line or lines</dd>
+            <dt>[Ctl or ⌘] + [Enter]:</dt>
+            <dd>Submit Script</dd>
           </dl>
         </div>
       }

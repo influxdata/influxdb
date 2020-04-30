@@ -72,7 +72,7 @@ func (s *UserClientService) FindUser(ctx context.Context, filter influxdb.UserFi
 // FindUsers returns a list of users that match filter and the total count of matching users.
 // Additional options provide pagination & sorting.
 func (s *UserClientService) FindUsers(ctx context.Context, filter influxdb.UserFilter, opt ...influxdb.FindOptions) ([]*influxdb.User, int, error) {
-	params := findOptionParams(opt...)
+	params := influxdb.FindOptionParams(opt...)
 	if filter.ID != nil {
 		params = append(params, [2]string{"id", filter.ID.String()})
 	}

@@ -439,7 +439,7 @@ func (s *TelegrafService) FindTelegrafConfigByID(ctx context.Context, id platfor
 // FindTelegrafConfigs returns a list of telegraf configs that match filter and the total count of matching telegraf configs.
 // Additional options provide pagination & sorting.
 func (s *TelegrafService) FindTelegrafConfigs(ctx context.Context, f platform.TelegrafConfigFilter, opt ...platform.FindOptions) ([]*platform.TelegrafConfig, int, error) {
-	params := findOptionParams(opt...)
+	params := influxdb.FindOptionParams(opt...)
 	if f.OrgID != nil {
 		params = append(params, [2]string{"orgID", f.OrgID.String()})
 	}

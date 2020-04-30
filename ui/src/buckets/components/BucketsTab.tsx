@@ -33,16 +33,10 @@ import {
   checkBucketLimits as checkBucketLimitsAction,
   LimitStatus,
 } from 'src/cloud/actions/limits'
-import {
-  getDemoDataBuckets as getDemoDataBucketsAction,
-  getDemoDataBucketMembership as getDemoDataBucketMembershipAction,
-} from 'src/cloud/actions/demodata'
 
 // Utils
-import {getNewDemoBuckets} from 'src/cloud/selectors/demodata'
 import {extractBucketLimits} from 'src/cloud/utils/limits'
 import {getAll} from 'src/resources/selectors'
-import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 import {SortTypes} from 'src/shared/utils/sort'
 
 // Types
@@ -52,7 +46,6 @@ import {BucketSortKey} from 'src/shared/components/resource_sort_dropdown/genera
 interface StateProps {
   buckets: Bucket[]
   limitStatus: LimitStatus
-  demoDataBuckets: Bucket[]
 }
 
 interface DispatchProps {
@@ -60,8 +53,6 @@ interface DispatchProps {
   updateBucket: typeof updateBucket
   deleteBucket: typeof deleteBucket
   checkBucketLimits: typeof checkBucketLimitsAction
-  getDemoDataBuckets: typeof getDemoDataBucketsAction
-  getDemoDataBucketMembership: typeof getDemoDataBucketMembershipAction
 }
 
 interface State {
@@ -90,18 +81,10 @@ class BucketsTab extends PureComponent<Props, State> {
 
   public componentDidMount() {
     this.props.checkBucketLimits()
-    if (isFlagEnabled('demodata')) {
-      this.props.getDemoDataBuckets()
-    }
   }
 
   public render() {
-    const {
-      buckets,
-      limitStatus,
-      demoDataBuckets,
-      getDemoDataBucketMembership,
-    } = this.props
+    const {buckets, limitStatus} = this.props
     const {searchTerm, sortKey, sortDirection, sortType} = this.state
 
     const leftHeaderItems = (
@@ -125,12 +108,7 @@ class BucketsTab extends PureComponent<Props, State> {
     const rightHeaderItems = (
       <>
         <FeatureFlag name="demodata">
-          {demoDataBuckets.length > 0 && (
-            <DemoDataDropdown
-              buckets={demoDataBuckets}
-              getMembership={getDemoDataBucketMembership}
-            />
-          )}
+          <DemoDataDropdown />
         </FeatureFlag>
         <CreateBucketButton />
       </>
@@ -229,7 +207,6 @@ const mstp = (state: AppState): StateProps => {
   return {
     buckets,
     limitStatus: extractBucketLimits(state.cloud.limits),
-    demoDataBuckets: getNewDemoBuckets(state, buckets),
   }
 }
 
@@ -238,8 +215,6 @@ const mdtp: DispatchProps = {
   updateBucket,
   deleteBucket,
   checkBucketLimits: checkBucketLimitsAction,
-  getDemoDataBuckets: getDemoDataBucketsAction,
-  getDemoDataBucketMembership: getDemoDataBucketMembershipAction,
 }
 
 export default connect<StateProps, DispatchProps, {}>(

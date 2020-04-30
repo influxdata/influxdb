@@ -22,11 +22,12 @@ import {
 } from 'src/dashboards/actions/notes'
 
 // Types
-import {AppState} from 'src/types'
+import {AppState, NoteEditorMode} from 'src/types'
 
 interface StateProps {
   note: string
   showNoteWhenEmpty: boolean
+  hasQuery: boolean
 }
 
 interface DispatchProps {
@@ -79,7 +80,11 @@ class NoteEditor extends PureComponent<Props, State> {
   }
 
   private get visibilityToggle(): JSX.Element {
-    const {showNoteWhenEmpty, onToggleShowNoteWhenEmpty} = this.props
+    const {hasQuery, showNoteWhenEmpty, onToggleShowNoteWhenEmpty} = this.props
+
+    if (!hasQuery) {
+      return null
+    }
 
     return (
       <FlexBox
@@ -109,9 +114,14 @@ class NoteEditor extends PureComponent<Props, State> {
 }
 
 const mstp = (state: AppState) => {
-  const {note, isPreviewing, showNoteWhenEmpty} = state.noteEditor
+  const {note, mode, viewID, isPreviewing, showNoteWhenEmpty} = state.noteEditor
+  const hasQuery =
+    mode === NoteEditorMode.Editing &&
+    viewID &&
+    state.resources.views.byID[viewID] &&
+    state.resources.views.byID[viewID].properties.type !== 'markdown'
 
-  return {note, isPreviewing, showNoteWhenEmpty}
+  return {note, hasQuery, isPreviewing, showNoteWhenEmpty}
 }
 
 const mdtp = {

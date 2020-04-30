@@ -1,56 +1,50 @@
 // Libraries
 import {get} from 'lodash'
-import {getBuckets} from 'src/client'
+import {getBuckets, getBucket} from 'src/client'
 import AJAX from 'src/utils/ajax'
 
 //Utils
 import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 
 //Types
-import {Bucket, DemoBucket} from 'src/types'
+import {Bucket, DemoBucket, BucketEntities} from 'src/types'
 import {LIMIT} from 'src/resources/constants'
+import {normalize} from 'normalizr'
+import {bucketSchema} from 'src/schemas'
+import {NormalizedSchema} from 'normalizr'
 
 const baseURL = '/api/v2/experimental/sampledata'
 
 export const getDemoDataBuckets = async (): Promise<Bucket[]> => {
-  try {
-    const {data} = await AJAX({
-      method: 'GET',
-      url: `${baseURL}/buckets`,
-    })
+  //todo (deniz) convert to fetch
+  const {data} = await AJAX({
+    method: 'GET',
+    url: `${baseURL}/buckets`,
+  })
 
-    // if sampledata endpoints are not available in a cluster
-    // gateway responds with a list of links where 'buckets' field is a string
-    const buckets = get(data, 'buckets', false)
-    if (!Array.isArray(buckets)) {
-      throw new Error('Could not reach demodata endpoint')
-    }
-
-    return buckets.filter(b => b.type == 'user') as Bucket[] // remove returned _tasks and _monitoring buckets
-  } catch (error) {
-    console.error(error)
-    throw error
+  // if sampledata endpoints are not available in a cluster
+  // gateway responds with a list of links where 'buckets' field is a string
+  const buckets = get(data, 'buckets', null)
+  if (!Array.isArray(buckets)) {
+    throw new Error('Could not reach demodata endpoint')
   }
+
+  return buckets.filter(b => b.type == 'user') as Bucket[] // remove returned _tasks and _monitoring buckets
 }
 
 export const getDemoDataBucketMembership = async (
   bucketID: string,
   userID: string
 ) => {
-  try {
-    const response = await AJAX({
-      method: 'POST',
-      url: `${baseURL}/buckets/${bucketID}/members`,
-      data: {userID},
-    })
+  const response = await AJAX({
+    method: 'POST',
+    url: `${baseURL}/buckets/${bucketID}/members`,
+    data: {userID},
+  })
 
-    if (response.status === '200') {
-      // a failed or successful membership POST to sampledata should return 204
-      throw new Error('Could not reach demodata endpoint')
-    }
-  } catch (error) {
-    console.error(error)
-    throw error
+  if (response.status === '200') {
+    // a failed or successful membership POST to sampledata should return 204
+    throw new Error('Could not reach demodata endpoint')
   }
 }
 
@@ -105,4 +99,31 @@ export const fetchDemoDataBuckets = async (): Promise<Bucket[]> => {
     console.error(error)
     return [] // demodata bucket fetching errors should not effect regular bucket fetching
   }
+}
+
+export const getNormalizedDemoDataBucket = async (
+  bucketID: string
+): Promise<NormalizedSchema<BucketEntities, string>> => {
+  const resp = await getBucket({bucketID})
+
+  if (resp.status !== 200) {
+    throw new Error(
+      `Request for demo data bucket membership did not succeed: ${
+        resp.data.message
+      }`
+    )
+  }
+
+  const newBucket = {
+    ...resp.data,
+    type: 'demodata' as 'demodata',
+    labels: [],
+  } as DemoBucket
+
+  const normalizedBucket = normalize<Bucket, BucketEntities, string>(
+    newBucket,
+    bucketSchema
+  )
+
+  return normalizedBucket
 }

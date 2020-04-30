@@ -3580,7 +3580,7 @@ spec:
 		t.Run("with valid fields", func(t *testing.T) {
 			testfileRunner(t, "testdata/telegraf", func(t *testing.T, pkg *Pkg) {
 				sum := pkg.Summary()
-				require.Len(t, sum.TelegrafConfigs, 1)
+				require.Len(t, sum.TelegrafConfigs, 2)
 
 				actual := sum.TelegrafConfigs[0]
 				assert.Equal(t, "display name", actual.TelegrafConfig.Name)
@@ -3589,6 +3589,10 @@ spec:
 				require.Len(t, actual.LabelAssociations, 2)
 				assert.Equal(t, "label_1", actual.LabelAssociations[0].Name)
 				assert.Equal(t, "label_2", actual.LabelAssociations[1].Name)
+
+				actual = sum.TelegrafConfigs[1]
+				assert.Equal(t, "tele_2", actual.TelegrafConfig.Name)
+				assert.Empty(t, actual.LabelAssociations)
 
 				require.Len(t, sum.LabelMappings, 2)
 				expectedMapping := SummaryLabelMapping{
