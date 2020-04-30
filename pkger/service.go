@@ -59,6 +59,8 @@ const ResourceTypeStack influxdb.ResourceType = "stack"
 // SVC is the packages service interface.
 type SVC interface {
 	InitStack(ctx context.Context, userID influxdb.ID, stack Stack) (Stack, error)
+	ListStacks(ctx context.Context, orgID influxdb.ID, filter ListFilter) ([]Stack, error)
+
 	CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*Pkg, error)
 	DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (Summary, Diff, error)
 	Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (Summary, Diff, error)
@@ -199,6 +201,7 @@ func WithVariableSVC(varSVC influxdb.VariableService) ServiceSetterFn {
 // Store is the storage behavior the Service depends on.
 type Store interface {
 	CreateStack(ctx context.Context, stack Stack) error
+	ListStacks(ctx context.Context, orgID influxdb.ID, filter ListFilter) ([]Stack, error)
 	ReadStackByID(ctx context.Context, id influxdb.ID) (Stack, error)
 	UpdateStack(ctx context.Context, stack Stack) error
 	DeleteStack(ctx context.Context, id influxdb.ID) error
@@ -293,6 +296,17 @@ func (s *Service) InitStack(ctx context.Context, userID influxdb.ID, stack Stack
 	}
 
 	return stack, nil
+}
+
+// ListFilter are filter options for filtering stacks from being returned.
+type ListFilter struct {
+	StackIDs []influxdb.ID
+	Names    []string
+}
+
+// ListStacks returns a list of stacks.
+func (s *Service) ListStacks(ctx context.Context, orgID influxdb.ID, f ListFilter) ([]Stack, error) {
+	return s.store.ListStacks(ctx, orgID, f)
 }
 
 type (

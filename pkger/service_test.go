@@ -3234,6 +3234,10 @@ func (s *fakeStore) CreateStack(ctx context.Context, stack Stack) error {
 	panic("not implemented")
 }
 
+func (s *fakeStore) ListStacks(ctx context.Context, orgID influxdb.ID, f ListFilter) ([]Stack, error) {
+	panic("not implemented")
+}
+
 func (s *fakeStore) ReadStackByID(ctx context.Context, id influxdb.ID) (Stack, error) {
 	panic("not implemented")
 }

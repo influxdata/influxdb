@@ -55,6 +55,27 @@ func (s *HTTPRemoteService) InitStack(ctx context.Context, userID influxdb.ID, s
 	return newStack, nil
 }
 
+func (s *HTTPRemoteService) ListStacks(ctx context.Context, orgID influxdb.ID, f ListFilter) ([]Stack, error) {
+	queryParams := [][2]string{{"orgID", orgID.String()}}
+	for _, name := range f.Names {
+		queryParams = append(queryParams, [2]string{"name", name})
+	}
+	for _, stackID := range f.StackIDs {
+		queryParams = append(queryParams, [2]string{"stackID", stackID.String()})
+	}
+
+	var resp RespListStacks
+	err := s.Client.
+		Get(RoutePrefix, "/stacks").
+		QueryParams(queryParams...).
+		DecodeJSON(&resp).
+		Do(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return resp.Stacks, nil
+}
+
 // CreatePkg will produce a pkg from the parameters provided.
 func (s *HTTPRemoteService) CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*Pkg, error) {
 	var opt CreateOpt
