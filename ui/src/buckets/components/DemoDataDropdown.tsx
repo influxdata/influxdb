@@ -3,9 +3,6 @@ import React, {FC, useEffect} from 'react'
 import {connect} from 'react-redux'
 import {get, sortBy} from 'lodash'
 
-// Utils
-import {getAll} from 'src/resources/selectors'
-
 // Actions
 import {
   getDemoDataBucketMembership as getDemoDataBucketMembershipAction,
@@ -19,7 +16,7 @@ import {ComponentColor, Dropdown, Icon, IconFont} from '@influxdata/clockface'
 import {AppState, Bucket, ResourceType} from 'src/types'
 
 interface StateProps {
-  ownBuckets: Bucket[]
+  ownBucketsByID: {[id: string]: Bucket}
   demoDataBuckets: Bucket[]
 }
 
@@ -31,7 +28,7 @@ interface DispatchProps {
 type Props = DispatchProps & StateProps
 
 const DemoDataDropdown: FC<Props> = ({
-  ownBuckets,
+  ownBucketsByID,
   demoDataBuckets,
   getDemoDataBucketMembership,
   getDemoDataBuckets,
@@ -44,14 +41,12 @@ const DemoDataDropdown: FC<Props> = ({
     return null
   }
 
-  const ownBucketNames = ownBuckets.map(o => o.name.toLocaleLowerCase())
-
   const sortedBuckets = sortBy(demoDataBuckets, d => {
     return d.name.toLocaleLowerCase()
   })
 
   const dropdownItems = sortedBuckets.map(b => {
-    if (ownBucketNames.includes(b.name.toLocaleLowerCase())) {
+    if (ownBucketsByID[b.id]) {
       return (
         <Dropdown.Item
           testID={`dropdown-item--demodata-${b.name}`}
@@ -116,7 +111,7 @@ const DemoDataDropdown: FC<Props> = ({
 }
 
 const mstp = (state: AppState): StateProps => ({
-  ownBuckets: getAll<Bucket>(state, ResourceType.Buckets),
+  ownBucketsByID: state.resources[ResourceType.Buckets].byID,
   demoDataBuckets: get(state, 'cloud.demoData.buckets', []) as Bucket[],
 })
 
