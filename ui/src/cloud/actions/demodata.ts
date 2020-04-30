@@ -3,21 +3,26 @@ import {
   getDemoDataBuckets as getDemoDataBucketsAJAX,
   getDemoDataBucketMembership as getDemoDataBucketMembershipAJAX,
   deleteDemoDataBucketMembership as deleteDemoDataBucketMembershipAJAX,
+  getNormalizedDemoDataBucket,
 } from 'src/cloud/apis/demodata'
 import {createDashboardFromTemplate} from 'src/templates/api'
-import {deleteDashboard, getBucket} from 'src/client'
+import {getBucket} from 'src/client'
 
 // Actions
-import {getDashboards} from 'src/dashboards/actions/thunks'
 import {addBucket, removeBucket} from 'src/buckets/actions/creators'
+import {notify} from 'src/shared/actions/notifications'
 
 // Selectors
 import {getOrg} from 'src/organizations/selectors'
-import {getAll} from 'src/resources/selectors/getAll'
-import {normalize} from 'normalizr'
+import {getAll} from 'src/resources/selectors'
 
 // Constants
 import {DemoDataTemplates, DemoDataDashboards} from 'src/cloud/constants'
+import {
+  demoDataAddBucketFailed,
+  demoDataDeleteBucketFailed,
+  demoDataSucceeded,
+} from 'src/shared/copy/notifications'
 
 // Types
 import {
@@ -25,11 +30,10 @@ import {
   RemoteDataState,
   GetState,
   DemoBucket,
-  Dashboard,
   ResourceType,
-  BucketEntities,
+  Dashboard,
 } from 'src/types'
-import {bucketSchema} from 'src/schemas'
+import {reportError} from 'src/shared/utils/errors'
 
 export type Actions =
   | ReturnType<typeof setDemoDataStatus>
@@ -57,88 +61,74 @@ export const getDemoDataBuckets = () => async (
   if (status === RemoteDataState.NotStarted) {
     dispatch(setDemoDataStatus(RemoteDataState.Loading))
   }
+
   try {
     const buckets = await getDemoDataBucketsAJAX()
 
-    dispatch(setDemoDataStatus(RemoteDataState.Done))
     dispatch(setDemoDataBuckets(buckets))
   } catch (error) {
     console.error(error)
+
+    reportError(error, {
+      name: 'getDemoDataBuckets function',
+    })
+
     dispatch(setDemoDataStatus(RemoteDataState.Error))
   }
 }
 
-export const getDemoDataBucketMembership = (bucket: DemoBucket) => async (
-  dispatch,
-  getState: GetState
-) => {
+export const getDemoDataBucketMembership = ({
+  name: bucketName,
+  id: bucketID,
+}) => async (dispatch, getState: GetState) => {
   const state = getState()
+
   const {
     me: {id: userID},
   } = state
+
   const {id: orgID} = getOrg(state)
 
   try {
-    await getDemoDataBucketMembershipAJAX(bucket.id, userID)
+    await getDemoDataBucketMembershipAJAX(bucketID, userID)
 
-    const template = await DemoDataTemplates[bucket.name]
-    if (template) {
-      await createDashboardFromTemplate(template, orgID)
-    } else {
+    const normalizedBucket = await getNormalizedDemoDataBucket(bucketID)
+    dispatch(addBucket(normalizedBucket))
+
+    const template = await DemoDataTemplates[bucketName]
+    if (!template) {
       throw new Error(
-        `Could not find template for demodata bucket ${bucket.name}`
+        `Could not find dashboard template for demodata bucket ${bucketName}`
       )
     }
 
-    const resp = await getBucket({bucketID: bucket.id})
-
-    if (resp.status !== 200) {
-      throw new Error('Request for demo data bucket membership did not succeed')
-    }
-
-    const newBucket = {
-      ...resp.data,
-      type: 'demodata' as 'demodata',
-      labels: [],
-    } as DemoBucket
-
-    const normalizedBucket = normalize<Bucket, BucketEntities, string>(
-      newBucket,
-      bucketSchema
-    )
-
-    dispatch(addBucket(normalizedBucket))
-
-    // TODO: notify success and error appropriately
-  } catch (error) {
-    console.error(error)
-  }
-}
-export const deleteDemoDataDashboard = (dashboardName: string) => async (
-  dispatch,
-  getState: GetState
-) => {
-  try {
-    await dispatch(getDashboards())
-
+    await createDashboardFromTemplate(template, orgID)
     const updatedState = getState()
 
-    const ddDashboard = getAll(updatedState, ResourceType.Dashboards).find(
-      d => {
-        d.name === dashboardName
-      }
-    ) as Dashboard
+    const allDashboards = getAll<Dashboard>(
+      updatedState,
+      ResourceType.Dashboards
+    )
 
-    if (ddDashboard) {
-      const deleteResp = await deleteDashboard({
-        dashboardID: ddDashboard.id,
-      })
-      if (deleteResp.status !== 204) {
-        throw new Error(deleteResp.data.message)
-      }
+    const createdDashboard = allDashboards.find(
+      d => d.name === DemoDataDashboards[bucketName]
+    )
+
+    if (!createdDashboard) {
+      throw new Error(
+        `Could not create dashboard for demodata bucket ${bucketName}`
+      )
     }
+
+    const url = `/orgs/${orgID}/dashboards/${createdDashboard.id}`
+
+    dispatch(notify(demoDataSucceeded(bucketName, url)))
   } catch (error) {
-    throw new Error(error)
+    dispatch(notify(demoDataAddBucketFailed(error)))
+
+    reportError(error, {
+      name: 'getDemoDataBucketMembership function',
+    })
   }
 }
 
@@ -160,18 +150,11 @@ export const deleteDemoDataBucketMembership = (bucket: DemoBucket) => async (
     }
 
     dispatch(removeBucket(bucket.id))
-
-    const demoDashboardName = DemoDataDashboards[bucket.name]
-
-    if (!demoDashboardName) {
-      throw new Error(
-        `Could not find dashboard name for demo data bucket ${bucket.name}`
-      )
-    }
-
-    dispatch(deleteDemoDataDashboard(demoDashboardName))
-    // TODO: notify for success and error appropriately
   } catch (error) {
-    console.error(error)
+    dispatch(notify(demoDataDeleteBucketFailed(bucket.name, error)))
+
+    reportError(error, {
+      name: 'deleteDemoDataBucketMembership function',
+    })
   }
 }

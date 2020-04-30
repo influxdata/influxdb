@@ -51,7 +51,7 @@ type BucketSvcOpts struct {
 	NoHooks bool
 }
 
-// WithoutHooks allows the test suite to be run without being able to hook into the underlieing implementation of theservice
+// WithoutHooks allows the test suite to be run without being able to hook into the underlying implementation of theservice
 // in most cases that is to remove specific id generation controls.
 func WithoutHooks() BucketSvcOpts {
 	return BucketSvcOpts{

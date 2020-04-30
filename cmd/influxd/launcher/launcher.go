@@ -27,6 +27,8 @@ import (
 	"github.com/influxdata/influxdb/v2/inmem"
 	"github.com/influxdata/influxdb/v2/internal/fs"
 	"github.com/influxdata/influxdb/v2/kit/cli"
+	"github.com/influxdata/influxdb/v2/kit/feature"
+	overrideflagger "github.com/influxdata/influxdb/v2/kit/feature/override"
 	"github.com/influxdata/influxdb/v2/kit/prom"
 	"github.com/influxdata/influxdb/v2/kit/signals"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
@@ -265,14 +267,8 @@ func buildLauncherCommand(l *Launcher, cmd *cobra.Command) {
 		{
 			DestP:   &l.enableNewMetaStore,
 			Flag:    "new-meta-store",
-			Default: false,
-			Desc:    "enables the new meta store",
-		},
-		{
-			DestP:   &l.newMetaStoreReadOnly,
-			Flag:    "new-meta-store-read-only",
 			Default: true,
-			Desc:    "toggles read-only mode for the new meta store, if so, the reads are duplicated between the old and new store (has meaning only if the new meta store is enabled)",
+			Desc:    "enables the new meta store",
 		},
 		{
 			DestP:   &l.noTasks,
@@ -310,8 +306,12 @@ func buildLauncherCommand(l *Launcher, cmd *cobra.Command) {
 			Default: 10,
 			Desc:    "the number of queries that are allowed to be awaiting execution before new queries are rejected",
 		},
+		{
+			DestP: &l.featureFlags,
+			Flag:  "feature-flags",
+			Desc:  "feature flag overrides",
+		},
 	}
-
 	cli.BindOptions(cmd, opts)
 	cmd.AddCommand(inspect.NewCommand())
 }
@@ -337,8 +337,9 @@ type Launcher struct {
 	enginePath      string
 	secretStore     string
 
-	enableNewMetaStore   bool
-	newMetaStoreReadOnly bool
+	enableNewMetaStore bool
+
+	featureFlags map[string]string
 
 	// Query options.
 	concurrencyQuota                int
@@ -585,14 +586,16 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	m.reg.MustRegister(m.boltClient)
 
 	var (
-		orgSvc                    platform.OrganizationService             = m.kvService
+		userSvc         platform.UserService                = m.kvService
+		orgSvc          platform.OrganizationService        = m.kvService
+		userResourceSvc platform.UserResourceMappingService = m.kvService
+		bucketSvc       platform.BucketService              = m.kvService
+		passwdsSvc      platform.PasswordsService           = m.kvService
+
 		authSvc                   platform.AuthorizationService            = m.kvService
-		userSvc                   platform.UserService                     = m.kvService
 		variableSvc               platform.VariableService                 = m.kvService
-		bucketSvc                 platform.BucketService                   = m.kvService
 		sourceSvc                 platform.SourceService                   = m.kvService
 		sessionSvc                platform.SessionService                  = m.kvService
-		passwdsSvc                platform.PasswordsService                = m.kvService
 		dashboardSvc              platform.DashboardService                = m.kvService
 		dashboardLogSvc           platform.DashboardOperationLogService    = m.kvService
 		userLogSvc                platform.UserOperationLogService         = m.kvService
@@ -600,7 +603,6 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		orgLogSvc                 platform.OrganizationOperationLogService = m.kvService
 		scraperTargetSvc          platform.ScraperTargetStoreService       = m.kvService
 		telegrafSvc               platform.TelegrafConfigStore             = m.kvService
-		userResourceSvc           platform.UserResourceMappingService      = m.kvService
 		labelSvc                  platform.LabelService                    = m.kvService
 		secretSvc                 platform.SecretService                   = m.kvService
 		lookupSvc                 platform.LookupService                   = m.kvService
@@ -613,28 +615,13 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		return err
 	}
 
-	userSvcForAuth := userSvc
 	if m.enableNewMetaStore {
-		var ts platform.TenantService
-		if m.newMetaStoreReadOnly {
-			store, err := tenant.NewReadOnlyStore(m.kvStore)
-			if err != nil {
-				m.log.Error("Failed creating new meta store", zap.Error(err))
-				return err
-			}
-			oldSvc := m.kvService
-			newSvc := tenant.NewService(store)
-			ts = tenant.NewDuplicateReadTenantService(m.log, oldSvc, newSvc)
-		} else {
-			ts = tenant.NewService(store)
-		}
-		userSvcForAuth = ts
-
-		userSvc = tenant.NewAuthedUserService(tenant.NewUserLogger(m.log.With(zap.String("store", "new")), tenant.NewUserMetrics(m.reg, ts, tenant.WithSuffix("new"))))
-		orgSvc = tenant.NewAuthedOrgService(tenant.NewOrgLogger(m.log.With(zap.String("store", "new")), tenant.NewOrgMetrics(m.reg, ts, tenant.WithSuffix("new"))))
-		userResourceSvc = tenant.NewAuthedURMService(ts, tenant.NewURMLogger(m.log.With(zap.String("store", "new")), tenant.NewUrmMetrics(m.reg, ts, tenant.WithSuffix("new"))))
-		bucketSvc = tenant.NewAuthedBucketService(tenant.NewBucketLogger(m.log.With(zap.String("store", "new")), tenant.NewBucketMetrics(m.reg, ts, tenant.WithSuffix("new"))), userResourceSvc)
-		passwdsSvc = tenant.NewAuthedPasswordService(tenant.NewPasswordLogger(m.log.With(zap.String("store", "new")), tenant.NewPasswordMetrics(m.reg, ts, tenant.WithSuffix("new"))))
+		ts := tenant.NewService(store)
+		userSvc = tenant.NewUserLogger(m.log.With(zap.String("store", "new")), tenant.NewUserMetrics(m.reg, ts, tenant.WithSuffix("new")))
+		orgSvc = tenant.NewOrgLogger(m.log.With(zap.String("store", "new")), tenant.NewOrgMetrics(m.reg, ts, tenant.WithSuffix("new")))
+		userResourceSvc = tenant.NewURMLogger(m.log.With(zap.String("store", "new")), tenant.NewUrmMetrics(m.reg, ts, tenant.WithSuffix("new")))
+		bucketSvc = tenant.NewBucketLogger(m.log.With(zap.String("store", "new")), tenant.NewBucketMetrics(m.reg, ts, tenant.WithSuffix("new")))
+		passwdsSvc = tenant.NewPasswordLogger(m.log.With(zap.String("store", "new")), tenant.NewPasswordMetrics(m.reg, ts, tenant.WithSuffix("new")))
 	}
 
 	switch m.secretStore {
@@ -866,6 +853,18 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		Addr: m.httpBindAddress,
 	}
 
+	flagger := feature.DefaultFlagger()
+	if len(m.featureFlags) > 0 {
+		f, err := overrideflagger.Make(m.featureFlags)
+		if err != nil {
+			m.log.Error("Failed to configure feature flag overrides",
+				zap.Error(err), zap.Any("overrides", m.featureFlags))
+			return err
+		}
+		m.log.Info("Running with feature flag overrides", zap.Any("config", m.featureFlags))
+		flagger = f
+	}
+
 	m.apibackend = &http.APIBackend{
 		AssetsPath:           m.assetsPath,
 		HTTPErrorHandler:     kithttp.ErrorHandler(0),
@@ -909,6 +908,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		OrgLookupService:                m.kvService,
 		WriteEventRecorder:              infprom.NewEventRecorder("write"),
 		QueryEventRecorder:              infprom.NewEventRecorder("query"),
+		Flagger:                         flagger,
 	}
 
 	m.reg.MustRegister(m.apibackend.PrometheusCollectors()...)
@@ -959,7 +959,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	}
 
 	{
-		platformHandler := http.NewPlatformHandler(m.apibackend, userSvcForAuth, http.WithResourceHandler(pkgHTTPServer), http.WithResourceHandler(onboardHTTPServer))
+		platformHandler := http.NewPlatformHandler(m.apibackend, http.WithResourceHandler(pkgHTTPServer), http.WithResourceHandler(onboardHTTPServer))
 
 		httpLogger := m.log.With(zap.String("service", "http"))
 		m.httpServer.Handler = http.NewHandlerFromRegistry(

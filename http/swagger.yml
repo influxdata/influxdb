@@ -4936,6 +4936,27 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  /flags:
+    get:
+      operationId: GetFlags
+      tags:
+        - Users
+      summary: Return the feature flags for the currently authenticated user
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+      responses:
+        '200':
+          description: Feature flags for the currently authenticated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Flags"
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   /me:
     get:
       operationId: GetMe
@@ -8138,6 +8159,9 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/User"
+    Flags:
+      type: object
+      additionalProperties: true
     ResourceMember:
       allOf:
         - $ref: "#/components/schemas/User"
@@ -8221,6 +8245,9 @@ components:
           type: string
           format: uri
         me:
+          type: string
+          format: uri
+        flags:
           type: string
           format: uri
         orgs:

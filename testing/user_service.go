@@ -79,6 +79,10 @@ func UserService(
 			name: "UpdateUser",
 			fn:   UpdateUser,
 		},
+		{
+			name: "UpdateUser_IndexHygiene",
+			fn:   UpdateUser_IndexHygiene,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -976,4 +980,54 @@ func UpdateUser(
 			}
 		})
 	}
+}
+
+func UpdateUser_IndexHygiene(
+	init func(UserFields, *testing.T) (platform.UserService, string, func()),
+	t *testing.T,
+) {
+
+	oldUserName := "user1"
+	users := UserFields{
+		Users: []*platform.User{
+			{
+				ID:     MustIDBase16(userOneID),
+				Name:   oldUserName,
+				Status: "active",
+			},
+		},
+	}
+	s, _, done := init(users, t)
+	defer done()
+
+	newUserName := "user1Updated"
+	upd := platform.UserUpdate{
+		Name: &newUserName,
+	}
+
+	ctx := context.Background()
+	_, err := s.UpdateUser(ctx, MustIDBase16(userOneID), upd)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// Ensure we can find the user with the new name.
+	_, nerr := s.FindUser(ctx, platform.UserFilter{
+		Name: &newUserName,
+	})
+	if nerr != nil {
+		t.Error("unexpected error when finding user by name", nerr)
+	}
+
+	// Ensure we cannot find a user with the old name. The index used when
+	// searching by name should have been cleared out by the UpdateUser
+	// operation.
+	_, oerr := s.FindUser(ctx, platform.UserFilter{
+		Name: &oldUserName,
+	})
+	ErrorsEqual(t, oerr, &platform.Error{
+		Code: platform.ENotFound,
+		Op:   platform.OpFindUser,
+		Msg:  "user not found",
+	})
 }

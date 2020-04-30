@@ -193,7 +193,7 @@ func newNotificationEndpointResponse(edp influxdb.NotificationEndpoint, labels [
 func newNotificationEndpointsResponse(ctx context.Context, edps []influxdb.NotificationEndpoint, labelService influxdb.LabelService, f influxdb.PagingFilter, opts influxdb.FindOptions) *notificationEndpointsResponse {
 	resp := &notificationEndpointsResponse{
 		NotificationEndpoints: make([]notificationEndpointResponse, len(edps)),
-		Links:                 newPagingLinks(prefixNotificationEndpoints, opts, f, len(edps)),
+		Links:                 influxdb.NewPagingLinks(prefixNotificationEndpoints, opts, f, len(edps)),
 	}
 	for i, edp := range edps {
 		labels, _ := labelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: edp.GetID(), ResourceType: influxdb.NotificationEndpointResourceType})
@@ -272,7 +272,7 @@ func decodeNotificationEndpointFilter(ctx context.Context, r *http.Request) (inf
 		},
 	}
 
-	opts, err := decodeFindOptions(r)
+	opts, err := influxdb.DecodeFindOptions(r)
 	if err != nil {
 		return influxdb.NotificationEndpointFilter{}, influxdb.FindOptions{}, err
 	}
@@ -590,7 +590,7 @@ func (s *NotificationEndpointService) FindNotificationEndpointByID(ctx context.C
 // FindNotificationEndpoints returns a list of notification endpoints that match filter and the total count of matching notification endpoints.
 // Additional options provide pagination & sorting.
 func (s *NotificationEndpointService) FindNotificationEndpoints(ctx context.Context, filter influxdb.NotificationEndpointFilter, opt ...influxdb.FindOptions) ([]influxdb.NotificationEndpoint, int, error) {
-	params := findOptionParams(opt...)
+	params := influxdb.FindOptionParams(opt...)
 	if filter.ID != nil {
 		params = append(params, [2]string{"id", filter.ID.String()})
 	}

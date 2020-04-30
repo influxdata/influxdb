@@ -230,7 +230,7 @@ func (h *NotificationRuleHandler) newNotificationRuleResponse(ctx context.Contex
 func (h *NotificationRuleHandler) newNotificationRulesResponse(ctx context.Context, nrs []influxdb.NotificationRule, labelService influxdb.LabelService, f influxdb.PagingFilter, opts influxdb.FindOptions) (*notificationRulesResponse, error) {
 	resp := &notificationRulesResponse{
 		NotificationRules: []*notificationRuleResponse{},
-		Links:             newPagingLinks(prefixNotificationRules, opts, f, len(nrs)),
+		Links:             influxdb.NewPagingLinks(prefixNotificationRules, opts, f, len(nrs)),
 	}
 	for _, nr := range nrs {
 		labels, _ := labelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: nr.GetID(), ResourceType: influxdb.NotificationRuleResourceType})
@@ -358,7 +358,7 @@ func decodeNotificationRuleFilter(ctx context.Context, r *http.Request) (*influx
 		f.UserResourceMappingFilter = *urm
 	}
 
-	opts, err := decodeFindOptions(r)
+	opts, err := influxdb.DecodeFindOptions(r)
 	if err != nil {
 		return f, nil, err
 	}
@@ -789,7 +789,7 @@ func (s *NotificationRuleService) FindNotificationRuleByID(ctx context.Context, 
 // FindNotificationRules returns a list of notification rules that match filter and the total count of matching notification rules.
 // Additional options provide pagination & sorting.
 func (s *NotificationRuleService) FindNotificationRules(ctx context.Context, filter influxdb.NotificationRuleFilter, opt ...influxdb.FindOptions) ([]influxdb.NotificationRule, int, error) {
-	var params = findOptionParams(opt...)
+	var params = influxdb.FindOptionParams(opt...)
 	if filter.OrgID != nil {
 		params = append(params, [2]string{"orgID", filter.OrgID.String()})
 	}

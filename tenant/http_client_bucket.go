@@ -99,7 +99,7 @@ func (s *BucketClientService) FindBuckets(ctx context.Context, filter influxdb.B
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	params := findOptionParams(opt...)
+	params := influxdb.FindOptionParams(opt...)
 	if filter.OrganizationID != nil {
 		params = append(params, [2]string{"orgID", filter.OrganizationID.String()})
 	}

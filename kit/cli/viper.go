@@ -150,6 +150,18 @@ func BindOptions(cmd *cobra.Command, opts []Opt) {
 			}
 			mustBindPFlag(o.Flag, flagset)
 			*destP = viper.GetStringSlice(envVar)
+		case *map[string]string:
+			var d map[string]string
+			if o.Default != nil {
+				d = o.Default.(map[string]string)
+			}
+			if hasShort {
+				flagset.StringToStringVarP(destP, o.Flag, string(o.Short), d, o.Desc)
+			} else {
+				flagset.StringToStringVar(destP, o.Flag, d, o.Desc)
+			}
+			mustBindPFlag(o.Flag, flagset)
+			*destP = viper.GetStringMapString(envVar)
 		case pflag.Value:
 			if hasShort {
 				flagset.VarP(destP, o.Flag, string(o.Short), o.Desc)

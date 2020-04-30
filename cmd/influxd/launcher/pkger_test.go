@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/ioutil"
+	nethttp "net/http"
+	"net/http/httptest"
 	"reflect"
 	"testing"
 	"time"
@@ -174,6 +177,66 @@ func TestLauncher_Pkger(t *testing.T) {
 			assert.Equal(t, expectedURLs, newStack.URLs)
 			assert.NotNil(t, newStack.Resources)
 			assert.NotZero(t, newStack.CRUDLog)
+		})
+
+		t.Run("apply with only a stackID succeeds when stack has URLs", func(t *testing.T) {
+			svr := httptest.NewServer(nethttp.HandlerFunc(func(w nethttp.ResponseWriter, r *nethttp.Request) {
+				pkg := newPkg(newBucketObject("bucket_0", "", ""))
+				b, err := pkg.Encode(pkger.EncodingJSON)
+				if err != nil {
+					w.WriteHeader(nethttp.StatusInternalServerError)
+					return
+				}
+				w.Write(b)
+			}))
+			defer svr.Close()
+
+			f, err := ioutil.TempFile("", "pkg.yml")
+			require.NoError(t, err)
+			defer f.Close()
+
+			pkg := newPkg(newBucketObject("bucket_1", "", ""))
+			b, err := pkg.Encode(pkger.EncodingYAML)
+			require.NoError(t, err)
+			f.Write(b)
+			require.NoError(t, f.Close())
+
+			expectedURLs := []string{
+				// URL for http call
+				svr.URL + "/pkg.json",
+				// URL for file
+				"file://" + f.Name(),
+			}
+
+			newStack, err := svc.InitStack(ctx, l.User.ID, pkger.Stack{
+				OrgID: l.Org.ID,
+				URLs:  expectedURLs,
+			})
+			require.NoError(t, err)
+
+			assert.NotZero(t, newStack.ID)
+			assert.Equal(t, l.Org.ID, newStack.OrgID)
+			assert.Equal(t, expectedURLs, newStack.URLs)
+
+			sumEquals := func(t *testing.T, sum pkger.Summary) {
+				t.Helper()
+				require.Len(t, sum.Buckets, 2)
+				assert.Equal(t, "bucket_0", sum.Buckets[0].PkgName)
+				assert.Equal(t, "bucket_0", sum.Buckets[0].Name)
+				assert.Equal(t, "bucket_1", sum.Buckets[1].PkgName)
+				assert.Equal(t, "bucket_1", sum.Buckets[1].Name)
+			}
+
+			sum, _, err := svc.DryRun(ctx, l.Org.ID, l.User.ID, nil, pkger.ApplyWithStackID(newStack.ID))
+			require.NoError(t, err)
+			sumEquals(t, sum)
+
+			sum, _, err = svc.Apply(ctx, l.Org.ID, l.User.ID, nil, pkger.ApplyWithStackID(newStack.ID))
+			require.NoError(t, err)
+			sumEquals(t, sum)
+
+			defer resourceCheck.mustDeleteBucket(t, influxdb.ID(sum.Buckets[0].ID))
+			defer resourceCheck.mustDeleteBucket(t, influxdb.ID(sum.Buckets[1].ID))
 		})
 
 		t.Run("apply a pkg with a stack and associations", func(t *testing.T) {

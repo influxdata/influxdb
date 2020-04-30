@@ -1,16 +1,42 @@
 import React, {PureComponent} from 'react'
+import {Link} from 'react-router'
 import {connect} from 'react-redux'
-import {Notification as NotificationType} from 'src/types/notifications'
-import Notification from 'src/shared/components/notifications/Notification'
+import {get} from 'lodash'
 
-interface Props {
+//Actions
+import {dismissNotification as dismissNotificationAction} from 'src/shared/actions/notifications'
+
+import {Notification, ComponentSize, Gradients} from '@influxdata/clockface'
+
+//Types
+import {
+  Notification as NotificationType,
+  NotificationStyle,
+} from 'src/types/notifications'
+
+interface StateProps {
   notifications: NotificationType[]
-  inPresentationMode: boolean
+}
+
+interface DispatchProps {
+  dismissNotification: typeof dismissNotificationAction
+}
+
+type Props = StateProps & DispatchProps
+
+const matchGradientToColor = (style: NotificationStyle): Gradients => {
+  const converter = {
+    [NotificationStyle.Primary]: Gradients.Primary,
+    [NotificationStyle.Warning]: Gradients.WarningLight,
+    [NotificationStyle.Success]: Gradients.HotelBreakfast,
+    [NotificationStyle.Error]: Gradients.DangerDark,
+    [NotificationStyle.Info]: Gradients.DefaultLight,
+  }
+  return get(converter, style, Gradients.DefaultLight)
 }
 
 class Notifications extends PureComponent<Props> {
   public static defaultProps = {
-    inPresentationMode: false,
     notifications: [],
   }
 
@@ -18,36 +44,56 @@ class Notifications extends PureComponent<Props> {
     const {notifications} = this.props
 
     return (
-      <div className={this.className}>
-        {notifications.map(n => (
-          <Notification key={n.id} notification={n} />
-        ))}
-      </div>
+      <>
+        {notifications.map(
+          ({id, style, icon, duration, message, link, linkText}) => {
+            const gradient = matchGradientToColor(style)
+
+            let button
+
+            if (link && linkText) {
+              button = (
+                <Link
+                  to={link}
+                  className="notification--button cf-button cf-button-xs cf-button-default"
+                >
+                  {linkText}
+                </Link>
+              )
+            }
+
+            return (
+              <Notification
+                key={id}
+                id={id}
+                icon={icon}
+                duration={duration}
+                size={ComponentSize.ExtraSmall}
+                gradient={gradient}
+                onTimeout={this.props.dismissNotification}
+                onDismiss={this.props.dismissNotification}
+                testID={`notification-${style}`}
+              >
+                <span className="notification--message">{message}</span>
+                {button}
+              </Notification>
+            )
+          }
+        )}
+      </>
     )
-  }
-
-  private get className(): string {
-    const {inPresentationMode} = this.props
-
-    if (inPresentationMode) {
-      return 'notification-center__presentation-mode'
-    }
-
-    return 'notification-center'
   }
 }
 
-const mapStateToProps = ({
+const mapStateToProps = ({notifications}): StateProps => ({
   notifications,
-  app: {
-    ephemeral: {inPresentationMode},
-  },
-}): Props => ({
-  notifications,
-  inPresentationMode,
 })
+
+const mdtp: DispatchProps = {
+  dismissNotification: dismissNotificationAction,
+}
 
 export default connect(
   mapStateToProps,
-  null
+  mdtp
 )(Notifications)
