@@ -166,12 +166,16 @@ cpu_load_short,host=server01,region=us-west value=0.64 {}
 cpu_load_short,host=server01 value=27.99 {}
 cpu_load_short,host=server02,region=us-west value=3.89 {}
 cpu_load_short,host=server01,region=us-east value=1234567.891011 {}
-cpu_load_short,host=server01,region=us-west value=0.000003 {}",
+cpu_load_short,host=server01,region=us-west value=0.000003 {}
+system,host=server02 uptime=1303385i {}
+swap,host=server01 in=3i,out=4i {}",
             ns_since_epoch,
             ns_since_epoch + 1,
             ns_since_epoch + 2,
             ns_since_epoch + 3,
             ns_since_epoch + 4,
+            ns_since_epoch + 5,
+            ns_since_epoch + 6,
         ),
     )
     .await?;
@@ -208,11 +212,19 @@ cpu_load_short,server01,value,{},27.99
 _m,host,region,_f,_time,_value
 cpu_load_short,server01,us-east,value,{},1234567.891011
 
+_m,host,_f,_time,_value
+swap,server01,in,{},3
+
+_m,host,_f,_time,_value
+swap,server01,out,{},4
+
 ",
             ns_since_epoch,
             ns_since_epoch + 4,
             ns_since_epoch + 1,
             ns_since_epoch + 3,
+            ns_since_epoch + 6,
+            ns_since_epoch + 6,
         )
     );
 
@@ -269,7 +281,7 @@ cpu_load_short,server01,us-east,value,{},1234567.891011
         .flat_map(|f| f.data)
         .collect();
 
-    assert_eq!(frames.len(), 6);
+    assert_eq!(frames.len(), 10);
 
     let f = assert_unwrap!(&frames[0], Data::Series, "in frame 0");
     assert_eq!(f.data_type, DataType::Float as i32, "in frame 0");
@@ -331,6 +343,38 @@ cpu_load_short,server01,us-east,value,{},1234567.891011
         "in frame 5"
     );
 
+    let f = assert_unwrap!(&frames[6], Data::Series, "in frame 6");
+    assert_eq!(f.data_type, DataType::Integer as i32, "in frame 6");
+    assert_eq!(
+        tags_as_strings(&f.tags),
+        vec![
+            ("_field", "in"),
+            ("_measurement", "swap"),
+            ("host", "server01"),
+        ],
+        "in frame 6",
+    );
+
+    let f = assert_unwrap!(&frames[7], Data::IntegerPoints, "in frame 7");
+    assert_eq!(f.timestamps, [ns_since_epoch + 6], "in frame 7");
+    assert_eq!(f.values, [3], "in frame 7");
+
+    let f = assert_unwrap!(&frames[8], Data::Series, "in frame 8");
+    assert_eq!(f.data_type, DataType::Integer as i32, "in frame 8");
+    assert_eq!(
+        tags_as_strings(&f.tags),
+        vec![
+            ("_field", "out"),
+            ("_measurement", "swap"),
+            ("host", "server01"),
+        ],
+        "in frame 8",
+    );
+
+    let f = assert_unwrap!(&frames[9], Data::IntegerPoints, "in frame 9");
+    assert_eq!(f.timestamps, [ns_since_epoch + 6], "in frame 9");
+    assert_eq!(f.values, [4], "in frame 9");
+
     let tag_keys_request = tonic::Request::new(TagKeysRequest {
         tags_source: read_source.clone(),
         range: range.clone(),
@@ -378,7 +422,7 @@ cpu_load_short,server01,us-east,value,{},1234567.891011
         .flat_map(|f| f.data)
         .collect();
 
-    assert_eq!(frames.len(), 6);
+    assert_eq!(frames.len(), 8);
 
     let f = assert_unwrap!(&frames[0], Data::Group, "in frame 0");
     assert_eq!(
