@@ -19,7 +19,7 @@ var (
 		Msg:  "authorization not found",
 	}
 
-	// NotUniqueIDError is used when ...
+	// NotUniqueIDError occurs when attempting to create an Authorization with an ID that already belongs to another one
 	NotUniqueIDError = &influxdb.Error{
 		Code: influxdb.EConflict,
 		Msg:  "ID already exists",
