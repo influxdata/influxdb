@@ -198,7 +198,7 @@ export const createQueryVariable = (
 export const createCSVVariable = (
   orgID?: string,
   name: string = 'CSVVariable',
-      csv?: string[]
+  csv?: string[]
 ): Cypress.Chainable<Cypress.Response> => {
   const argumentsObj = {
     type: 'constant',

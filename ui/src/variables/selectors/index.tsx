@@ -165,6 +165,7 @@ export const getVariable = (state: AppState, variableID: string): Variable => {
   // Now validate that the selected value makes sense for
   // the current situation
   const vals = normalizeValues(vari)
+  vari = {...vari}
   if (
     !vari.selected ||
     (vari.selected && vari.selected.length && !vals.includes(vari.selected[0]))
