@@ -275,6 +275,42 @@ jobs:
           destination: raw-test-output
       - store_test_results: # Upload test results for display in Test Summary: https://circleci.com/docs/2.0/collect-test-data/
           path: /tmp/test-results
+
+  lint-feature-flags:
+    docker:
+      - image: circleci/golang:1.13
+    environment:
+      GOCACHE: /tmp/go-cache
+      GOFLAGS: "-mod=readonly -p=2" # Go on Circle thinks 32 CPUs are available, but there aren't.
+    working_directory: /go/src/github.com/influxdata/influxdb
+    steps:
+      - checkout
+      # Populate GOCACHE.
+      - restore_cache:
+          name: Restoring GOCACHE
+          keys:
+            - influxdb-gocache-{{ .Branch }}-{{ .Revision }} # Matches when retrying a single run.
+            - influxdb-gocache-{{ .Branch }}- # Matches a new commit on an existing branch.
+            - influxdb-gocache- # Matches a new branch.
+      # Populate GOPATH/pkg.
+      - restore_cache:
+          name: Restoring GOPATH/pkg/mod
+          keys:
+            - influxdb-gomod-{{ checksum "go.sum" }} # Matches based on go.sum checksum.
+      - run: ./scripts/ci/lint/flags.bash
+      - skip_if_not_master
+      - save_cache:
+          name: Saving GOCACHE
+          key: influxdb-gocache-{{ .Branch }}-{{ .Revision }}
+          paths:
+            - /tmp/go-cache
+          when: always
+      - save_cache:
+          name: Saving GOPATH/pkg/mod
+          key: influxdb-gomod-{{ checksum "go.sum" }}
+          paths:
+            - /go/pkg/mod
+          when: always
   golint:
     docker:
       - image: circleci/golang:1.13

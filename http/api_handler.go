@@ -8,6 +8,7 @@ import (
 	"github.com/influxdata/influxdb/v2/authorizer"
 	"github.com/influxdata/influxdb/v2/chronograf/server"
 	"github.com/influxdata/influxdb/v2/http/metric"
+	"github.com/influxdata/influxdb/v2/kit/feature"
 	"github.com/influxdata/influxdb/v2/kit/prom"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"github.com/influxdata/influxdb/v2/query"
@@ -82,6 +83,7 @@ type APIBackend struct {
 	DocumentService                 influxdb.DocumentService
 	NotificationRuleStore           influxdb.NotificationRuleStore
 	NotificationEndpointService     influxdb.NotificationEndpointService
+	Flagger                         feature.Flagger
 }
 
 // PrometheusCollectors exposes the prometheus collectors associated with an APIBackend.
@@ -203,6 +205,7 @@ func NewAPIHandler(b *APIBackend, opts ...APIHandlerOptFn) *APIHandler {
 	userHandler := NewUserHandler(b.Logger, userBackend)
 	h.Mount(prefixMe, userHandler)
 	h.Mount(prefixUsers, userHandler)
+	h.Mount("/api/v2/flags", serveFlagsHandler(b.HTTPErrorHandler))
 
 	variableBackend := NewVariableBackend(b.Logger.With(zap.String("handler", "variable")), b)
 	variableBackend.VariableService = authorizer.NewVariableService(b.VariableService)
@@ -236,6 +239,7 @@ var apiLinks = map[string]interface{}{
 	"external": map[string]string{
 		"statusFeed": "https://www.influxdata.com/feed/json",
 	},
+	"flags":                 "/api/v2/flags",
 	"labels":                "/api/v2/labels",
 	"variables":             "/api/v2/variables",
 	"me":                    "/api/v2/me",
@@ -272,6 +276,19 @@ func serveLinksHandler(errorHandler influxdb.HTTPErrorHandler) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		if err := encodeResponse(ctx, w, http.StatusOK, apiLinks); err != nil {
+			errorHandler.HandleHTTPError(ctx, err, w)
+		}
+	}
+	return http.HandlerFunc(fn)
+}
+
+func serveFlagsHandler(errorHandler influxdb.HTTPErrorHandler) http.Handler {
+	fn := func(w http.ResponseWriter, r *http.Request) {
+		var (
+			ctx   = r.Context()
+			flags = feature.ExposedFlagsFromContext(ctx)
+		)
+		if err := encodeResponse(ctx, w, http.StatusOK, flags); err != nil {
 			errorHandler.HandleHTTPError(ctx, err, w)
 		}
 	}

@@ -14,6 +14,8 @@
 
 ### Features
 
+1. [17851](https://github.com/influxdata/influxdb/pull/17851): Add feature flag package capability and flags endpoint
+
 ### Bug Fixes
 
 1. [17618](https://github.com/influxdata/influxdb/pull/17618): Add index for URM by user ID to improve lookup performance
