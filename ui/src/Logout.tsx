@@ -14,7 +14,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import {reset} from 'src/shared/actions/flags'
 
 interface DispatchProps {
-  reset: typeof reset
+  resetFeatureFlags: typeof reset
 }
 
 type Props = DispatchProps & WithRouterProps
@@ -35,14 +35,14 @@ const Logout: FC<Props> = ({router, reset}) => {
   }
 
   useEffect(() => {
-    reset()
+    resetFeatureFlags()
     handleSignOut()
   }, [])
   return null
 }
 
 const mdtp = {
-  reset: reset,
+  resetFeatureFlags: reset,
 }
 
 export default ErrorHandling(
