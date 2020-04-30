@@ -18,7 +18,7 @@ interface DispatchProps {
 }
 
 type Props = DispatchProps & WithRouterProps
-const Logout: FC<Props> = ({router, reset}) => {
+const Logout: FC<Props> = ({router, resetFeatureFlags}) => {
   const handleSignOut = async () => {
     if (CLOUD) {
       window.location.href = `${CLOUD_URL}${CLOUD_LOGOUT_PATH}`
