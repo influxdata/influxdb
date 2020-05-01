@@ -7,6 +7,7 @@
 ### Bug Fixes
 
 1. [17906](https://github.com/influxdata/influxdb/pull/17906): Ensure UpdateUser cleans up the index when updating names
+1. [17933](https://github.com/influxdata/influxdb/pull/17933): Ensure Checks can be set for zero values
 
 ### UI Improvements
 

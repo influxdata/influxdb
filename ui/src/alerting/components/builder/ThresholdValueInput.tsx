@@ -23,7 +23,7 @@ const ThresholdValueStatement: FC<Props> = ({threshold, changeValue}) => {
       <Input
         onChange={onChangeValue}
         name=""
-        testID="threshold--input-field"
+        testID="input-field"
         type={InputType.Number}
         value={threshold.value}
       />

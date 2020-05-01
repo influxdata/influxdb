@@ -80,7 +80,7 @@ describe('Checks', () => {
       cy.getByTestID('save-cell--button').should('be.disabled')
       cy.getByTestID('checkeo--header alerting-tab').click()
       cy.getByTestID('add-threshold-condition-WARN').click()
-      cy.getByTestID('threshold--input-field')
+      cy.getByTestID('input-field')
         .clear()
         .type('0')
       cy.getByTestID('save-cell--button').click()
@@ -113,7 +113,7 @@ describe('Checks', () => {
       cy.getByTestID('check-card--name').should('have.length', 1)
       cy.getByTestID('check-card--name').click()
       // ensures that the check WARN value is set to 0
-      cy.getByTestID('threshold--input-field').should('have.value', '0')
+      cy.getByTestID('input-field').should('have.value', '0')
       // renames the check
       cy.getByTestID('page-title')
         .contains('Name this Check')
@@ -123,7 +123,7 @@ describe('Checks', () => {
       cy.getByTestID('check-card--name')
         .contains(checkName)
         .click()
-      cy.getByTestID('threshold--input-field').should('have.value', '0')
+      cy.getByTestID('input-field').should('have.value', '0')
       cy.getByTestID('page-title').contains(checkName)
     })
 
