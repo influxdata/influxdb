@@ -99,6 +99,19 @@ impl Partition {
             Partition::Remote(_) => panic!("remote partition not implemented!"),
         }
     }
+
+    pub async fn get_measurement_tag_keys(
+        &self,
+        measurement: &str,
+        predicate: Option<&Predicate>,
+        range: Option<&TimestampRange>,
+    ) -> Result<BoxStream<'_, String>, StorageError> {
+        match self {
+            Partition::MemDB(db) => db.get_measurement_tag_keys(measurement, predicate, range),
+            Partition::S3(_) => panic!("s3 partition not implemented!"),
+            Partition::Remote(_) => panic!("remote partition not implemented!"),
+        }
+    }
 }
 
 /// StringMergeStream will do a merge sort with deduplication of multiple streams of Strings. This

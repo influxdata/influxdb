@@ -40,9 +40,9 @@ use grpc::{
     read_group_request::Group,
     read_response::{frame::Data, DataType},
     storage_client::StorageClient,
-    Bucket, CreateBucketRequest, MeasurementNamesRequest, Node, Organization, Predicate,
-    ReadFilterRequest, ReadGroupRequest, ReadSource, Tag, TagKeysRequest, TagValuesRequest,
-    TimestampRange,
+    Bucket, CreateBucketRequest, MeasurementNamesRequest, MeasurementTagKeysRequest, Node,
+    Organization, Predicate, ReadFilterRequest, ReadGroupRequest, ReadSource, Tag, TagKeysRequest,
+    TagValuesRequest, TimestampRange,
 };
 
 type Error = Box<dyn std::error::Error>;
@@ -169,7 +169,7 @@ cpu_load_short,host=server02,region=us-west value=3.89 {}
 cpu_load_short,host=server01,region=us-east value=1234567.891011 {}
 cpu_load_short,host=server01,region=us-west value=0.000003 {}
 system,host=server02 uptime=1303385i {}
-swap,host=server01 in=3i,out=4i {}",
+swap,host=server01,name=disk0 in=3i,out=4i {}",
             ns_since_epoch,
             ns_since_epoch + 1,
             ns_since_epoch + 2,
@@ -213,11 +213,11 @@ cpu_load_short,server01,value,{},27.99
 _m,host,region,_f,_time,_value
 cpu_load_short,server01,us-east,value,{},1234567.891011
 
-_m,host,_f,_time,_value
-swap,server01,in,{},3
+_m,host,name,_f,_time,_value
+swap,server01,disk0,in,{},3
 
-_m,host,_f,_time,_value
-swap,server01,out,{},4
+_m,host,name,_f,_time,_value
+swap,server01,disk0,out,{},4
 
 ",
             ns_since_epoch,
@@ -352,6 +352,7 @@ swap,server01,out,{},4
             ("_field", "in"),
             ("_measurement", "swap"),
             ("host", "server01"),
+            ("name", "disk0"),
         ],
         "in frame 6",
     );
@@ -368,6 +369,7 @@ swap,server01,out,{},4
             ("_field", "out"),
             ("_measurement", "swap"),
             ("host", "server01"),
+            ("name", "disk0"),
         ],
         "in frame 8",
     );
@@ -388,7 +390,10 @@ swap,server01,out,{},4
     let keys = &responses[0].values;
     let keys: Vec<_> = keys.iter().map(|s| str::from_utf8(s).unwrap()).collect();
 
-    assert_eq!(keys, vec!["_field", "_measurement", "host", "region"]);
+    assert_eq!(
+        keys,
+        vec!["_field", "_measurement", "host", "name", "region"]
+    );
 
     let tag_values_request = tonic::Request::new(TagValuesRequest {
         tags_source: read_source.clone(),
@@ -408,7 +413,7 @@ swap,server01,out,{},4
     let read_group_request = tonic::Request::new(ReadGroupRequest {
         read_source: read_source.clone(),
         range: range.clone(),
-        predicate,
+        predicate: predicate.clone(),
         group_keys: vec![String::from("region")],
         group: Group::By as _,
         aggregate: None,
@@ -462,7 +467,7 @@ swap,server01,out,{},4
     let f = assert_unwrap!(&frames[4], Data::Group, "in frame 4");
     assert_eq!(
         byte_vecs_to_strings(&f.tag_keys),
-        vec!["_field", "_measurement", "host"]
+        vec!["_field", "_measurement", "host", "name"]
     );
     assert_eq!(f.partition_key_vals.len(), 1, "in frame 4");
     assert!(f.partition_key_vals[0].is_empty(), "in frame 4");
@@ -488,6 +493,26 @@ swap,server01,out,{},4
     let values: Vec<_> = values.iter().map(|s| str::from_utf8(s).unwrap()).collect();
 
     assert_eq!(values, vec!["cpu_load_short", "swap", "system"]);
+
+    let measurement_tag_keys_request = tonic::Request::new(MeasurementTagKeysRequest {
+        source: read_source.clone(),
+        measurement: String::from("cpu_load_short"),
+        range: range.clone(),
+        predicate: predicate.clone(),
+    });
+
+    let measurement_tag_keys_response = storage_client
+        .measurement_tag_keys(measurement_tag_keys_request)
+        .await?;
+    let responses: Vec<_> = measurement_tag_keys_response
+        .into_inner()
+        .try_collect()
+        .await?;
+
+    let values = &responses[0].values;
+    let values: Vec<_> = values.iter().map(|s| str::from_utf8(s).unwrap()).collect();
+
+    assert_eq!(values, vec!["_field", "_measurement", "host", "region"]);
 
     Ok(())
 }

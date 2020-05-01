@@ -1,5 +1,5 @@
 use crate::delorean::{Node, Predicate, TimestampRange};
-use crate::line_parser::{self, Point, PointType};
+use crate::line_parser::{self, index_pairs, Point, PointType};
 use crate::storage::partitioned_store::{ReadBatch, ReadValues};
 use crate::storage::predicate::{Evaluate, EvaluateVisitor};
 use crate::storage::{ReadPoint, SeriesDataType, StorageError};
@@ -287,6 +287,30 @@ impl MemDB {
             None => Ok(stream::empty().boxed()),
         }
     }
+
+    pub fn get_measurement_tag_keys(
+        &self,
+        measurement: &str,
+        _predicate: Option<&Predicate>,
+        _range: Option<&TimestampRange>,
+    ) -> Result<BoxStream<'_, String>, StorageError> {
+        let prefix = format!("{},", measurement);
+        let mut tag_keys = BTreeSet::new();
+
+        let matching = self
+            .series_map
+            .series_key_to_id
+            .keys()
+            .filter(|series_key| series_key.starts_with(&prefix));
+
+        for series_key in matching {
+            for pair in index_pairs(series_key) {
+                tag_keys.insert(pair.key);
+            }
+        }
+
+        Ok(stream::iter(tag_keys).boxed())
+    }
 }
 
 fn evaluate_node(series_map: &SeriesMap, n: &Node) -> Result<Treemap, StorageError> {
@@ -428,6 +452,16 @@ mod tests {
                 },
             ]
         );
+    }
+
+    #[test]
+    fn tag_keys_for_measurement() {
+        let memdb = setup_db();
+
+        let tag_keys = memdb.get_measurement_tag_keys("cpu", None, None).unwrap();
+        let tag_keys: Vec<_> = futures::executor::block_on_stream(tag_keys).collect();
+
+        assert_eq!(tag_keys, vec!["_f", "_m", "host", "region"])
     }
 
     fn setup_db() -> MemDB {
