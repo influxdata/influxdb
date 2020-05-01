@@ -229,6 +229,122 @@ func TestLauncher_Pkger(t *testing.T) {
 			})
 		})
 
+		t.Run("delete a stack", func(t *testing.T) {
+			t.Run("should delete the stack and all resources associated with it", func(t *testing.T) {
+				newStack, err := svc.InitStack(ctx, l.User.ID, pkger.Stack{
+					OrgID: l.Org.ID,
+				})
+				require.NoError(t, err)
+
+				newEndpointPkgName := "non_existent_endpoint"
+				allResourcesPkg := newPkg(
+					newBucketObject("non_existent_bucket", "", ""),
+					newCheckDeadmanObject(t, "non_existent_check", "", time.Minute),
+					newDashObject("non_existent_dash", "", ""),
+					newEndpointHTTP(newEndpointPkgName, "", ""),
+					newLabelObject("non_existent_label", "", "", ""),
+					newRuleObject(t, "non_existent_rule", "", newEndpointPkgName, ""),
+					newTaskObject("non_existent_task", "", ""),
+					newTelegrafObject("non_existent_tele", "", ""),
+					newVariableObject("non_existent_var", "", ""),
+				)
+
+				sum, _, err := svc.Apply(ctx, l.Org.ID, l.User.ID, allResourcesPkg, pkger.ApplyWithStackID(newStack.ID))
+				require.NoError(t, err)
+
+				require.Len(t, sum.Buckets, 1)
+				assert.NotZero(t, sum.Buckets[0].ID)
+				require.Len(t, sum.Checks, 1)
+				assert.NotZero(t, sum.Checks[0].Check.GetID())
+				require.Len(t, sum.Dashboards, 1)
+				assert.NotZero(t, sum.Dashboards[0].ID)
+				require.Len(t, sum.Labels, 1)
+				assert.NotZero(t, sum.Labels[0].ID)
+				require.Len(t, sum.NotificationEndpoints, 1)
+				assert.NotZero(t, sum.NotificationEndpoints[0].NotificationEndpoint.GetID())
+				require.Len(t, sum.NotificationRules, 1)
+				assert.NotZero(t, sum.NotificationRules[0].ID)
+				require.Len(t, sum.Tasks, 1)
+				assert.NotZero(t, sum.Tasks[0].ID)
+				require.Len(t, sum.TelegrafConfigs, 1)
+				assert.NotZero(t, sum.TelegrafConfigs[0].TelegrafConfig.ID)
+				require.Len(t, sum.Variables, 1)
+				assert.NotZero(t, sum.Variables[0].ID)
+
+				err = svc.DeleteStack(ctx, struct{ OrgID, UserID, StackID influxdb.ID }{
+					OrgID:   l.Org.ID,
+					UserID:  l.User.ID,
+					StackID: newStack.ID,
+				})
+				require.NoError(t, err)
+
+				matchingStacks, err := svc.ListStacks(ctx, l.Org.ID, pkger.ListFilter{
+					StackIDs: []influxdb.ID{newStack.ID},
+				})
+				require.NoError(t, err)
+				require.Empty(t, matchingStacks)
+
+				_, err = resourceCheck.getBucket(t, byID(influxdb.ID(sum.Buckets[0].ID)))
+				assert.Error(t, err)
+
+				_, err = resourceCheck.getCheck(t, byID(sum.Checks[0].Check.GetID()))
+				assert.Error(t, err)
+
+				_, err = resourceCheck.getDashboard(t, byID(influxdb.ID(sum.Dashboards[0].ID)))
+				assert.Error(t, err)
+
+				_, err = resourceCheck.getLabel(t, byID(influxdb.ID(sum.Labels[0].ID)))
+				assert.Error(t, err)
+
+				_, err = resourceCheck.getEndpoint(t, byID(sum.NotificationEndpoints[0].NotificationEndpoint.GetID()))
+				assert.Error(t, err)
+
+				_, err = resourceCheck.getRule(t, byID(influxdb.ID(sum.NotificationRules[0].ID)))
+				assert.Error(t, err)
+
+				_, err = resourceCheck.getTask(t, byID(influxdb.ID(sum.Tasks[0].ID)))
+				assert.Error(t, err)
+
+				_, err = resourceCheck.getTelegrafConfig(t, byID(sum.TelegrafConfigs[0].TelegrafConfig.ID))
+				assert.Error(t, err)
+
+				_, err = resourceCheck.getVariable(t, byID(influxdb.ID(sum.Variables[0].ID)))
+				assert.Error(t, err)
+			})
+
+			t.Run("that has been deleted should be successful", func(t *testing.T) {
+				newStack, err := svc.InitStack(ctx, l.User.ID, pkger.Stack{
+					OrgID: l.Org.ID,
+				})
+				require.NoError(t, err)
+
+				err = svc.DeleteStack(ctx, struct{ OrgID, UserID, StackID influxdb.ID }{
+					OrgID:   l.Org.ID,
+					UserID:  l.User.ID,
+					StackID: newStack.ID,
+				})
+				require.NoError(t, err)
+
+				// delete same stack
+				err = svc.DeleteStack(ctx, struct{ OrgID, UserID, StackID influxdb.ID }{
+					OrgID:   l.Org.ID,
+					UserID:  l.User.ID,
+					StackID: newStack.ID,
+				})
+				require.NoError(t, err)
+			})
+
+			t.Run("that doesn't exist should be successful", func(t *testing.T) {
+				// delete stack that doesn't exist
+				err := svc.DeleteStack(ctx, struct{ OrgID, UserID, StackID influxdb.ID }{
+					OrgID:   l.Org.ID,
+					UserID:  l.User.ID,
+					StackID: 9000,
+				})
+				require.NoError(t, err)
+			})
+		})
+
 		t.Run("apply with only a stackID succeeds when stack has URLs", func(t *testing.T) {
 			svr := httptest.NewServer(nethttp.HandlerFunc(func(w nethttp.ResponseWriter, r *nethttp.Request) {
 				pkg := newPkg(newBucketObject("bucket_0", "", ""))
@@ -2296,6 +2412,12 @@ type (
 	getResourceOptFn func() getResourceOpt
 )
 
+func byID(id influxdb.ID) getResourceOptFn {
+	return func() getResourceOpt {
+		return getResourceOpt{id: id}
+	}
+}
+
 func byName(name string) getResourceOptFn {
 	return func() getResourceOpt {
 		return getResourceOpt{name: name}
@@ -2507,8 +2629,11 @@ func (r resourceChecker) getLabel(t *testing.T, getOpt getResourceOptFn) (influx
 	default:
 		require.Fail(t, "did not provide any get option")
 	}
+	if err != nil {
+		return influxdb.Label{}, err
+	}
 
-	return *label, err
+	return *label, nil
 }
 
 func (r resourceChecker) mustGetLabel(t *testing.T, getOpt getResourceOptFn) influxdb.Label {
@@ -2700,8 +2825,10 @@ func (r resourceChecker) getVariable(t *testing.T, getOpt getResourceOptFn) (inf
 	default:
 		require.Fail(t, "did not provide any get option")
 	}
-
-	return *variable, err
+	if err != nil {
+		return influxdb.Variable{}, err
+	}
+	return *variable, nil
 }
 
 func (r resourceChecker) mustGetVariable(t *testing.T, getOpt getResourceOptFn) influxdb.Variable {
