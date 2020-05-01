@@ -114,6 +114,20 @@ impl BucketData {
             .await?;
         Ok(stream.collect().await)
     }
+
+    async fn get_measurement_tag_values(
+        &self,
+        measurement: &str,
+        tag_key: &str,
+        predicate: Option<&Predicate>,
+        range: Option<&TimestampRange>,
+    ) -> Result<Vec<String>, StorageError> {
+        let p = self.partition.read().await;
+        let stream = p
+            .get_measurement_tag_values(measurement, tag_key, predicate, range)
+            .await?;
+        Ok(stream.collect().await)
+    }
 }
 
 impl Database {
@@ -228,6 +242,22 @@ impl Database {
 
         bucket_data
             .get_measurement_tag_keys(measurement, predicate, range)
+            .await
+    }
+
+    pub async fn get_measurement_tag_values(
+        &self,
+        org_id: Id,
+        bucket_id: Id,
+        measurement: &str,
+        tag_key: &str,
+        predicate: Option<&Predicate>,
+        range: Option<&TimestampRange>,
+    ) -> Result<Vec<String>, StorageError> {
+        let bucket_data = self.bucket_data(org_id, bucket_id).await?;
+
+        bucket_data
+            .get_measurement_tag_values(measurement, tag_key, predicate, range)
             .await
     }
 

@@ -40,9 +40,9 @@ use grpc::{
     read_group_request::Group,
     read_response::{frame::Data, DataType},
     storage_client::StorageClient,
-    Bucket, CreateBucketRequest, MeasurementNamesRequest, MeasurementTagKeysRequest, Node,
-    Organization, Predicate, ReadFilterRequest, ReadGroupRequest, ReadSource, Tag, TagKeysRequest,
-    TagValuesRequest, TimestampRange,
+    Bucket, CreateBucketRequest, MeasurementNamesRequest, MeasurementTagKeysRequest,
+    MeasurementTagValuesRequest, Node, Organization, Predicate, ReadFilterRequest,
+    ReadGroupRequest, ReadSource, Tag, TagKeysRequest, TagValuesRequest, TimestampRange,
 };
 
 type Error = Box<dyn std::error::Error>;
@@ -168,7 +168,7 @@ cpu_load_short,host=server01 value=27.99 {}
 cpu_load_short,host=server02,region=us-west value=3.89 {}
 cpu_load_short,host=server01,region=us-east value=1234567.891011 {}
 cpu_load_short,host=server01,region=us-west value=0.000003 {}
-system,host=server02 uptime=1303385i {}
+system,host=server03 uptime=1303385i {}
 swap,host=server01,name=disk0 in=3i,out=4i {}",
             ns_since_epoch,
             ns_since_epoch + 1,
@@ -408,7 +408,7 @@ swap,server01,disk0,out,{},4
     let values = &responses[0].values;
     let values: Vec<_> = values.iter().map(|s| str::from_utf8(s).unwrap()).collect();
 
-    assert_eq!(values, vec!["server01", "server02"]);
+    assert_eq!(values, vec!["server01", "server02", "server03"]);
 
     let read_group_request = tonic::Request::new(ReadGroupRequest {
         read_source: read_source.clone(),
@@ -513,6 +513,27 @@ swap,server01,disk0,out,{},4
     let values: Vec<_> = values.iter().map(|s| str::from_utf8(s).unwrap()).collect();
 
     assert_eq!(values, vec!["_field", "_measurement", "host", "region"]);
+
+    let measurement_tag_values_request = tonic::Request::new(MeasurementTagValuesRequest {
+        source: read_source.clone(),
+        measurement: String::from("cpu_load_short"),
+        tag_key: String::from("host"),
+        range: range.clone(),
+        predicate: predicate.clone(),
+    });
+
+    let measurement_tag_values_response = storage_client
+        .measurement_tag_values(measurement_tag_values_request)
+        .await?;
+    let responses: Vec<_> = measurement_tag_values_response
+        .into_inner()
+        .try_collect()
+        .await?;
+
+    let values = &responses[0].values;
+    let values: Vec<_> = values.iter().map(|s| str::from_utf8(s).unwrap()).collect();
+
+    assert_eq!(values, vec!["server01", "server02"]);
 
     Ok(())
 }

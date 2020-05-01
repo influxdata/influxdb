@@ -311,6 +311,34 @@ impl MemDB {
 
         Ok(stream::iter(tag_keys).boxed())
     }
+
+    pub fn get_measurement_tag_values(
+        &self,
+        measurement: &str,
+        tag_key: &str,
+        _predicate: Option<&Predicate>,
+        _range: Option<&TimestampRange>,
+    ) -> Result<BoxStream<'_, String>, StorageError> {
+        let prefix = format!("{},", measurement);
+        let mut tag_values = BTreeSet::new();
+
+        let matching = self
+            .series_map
+            .series_key_to_id
+            .keys()
+            .filter(|series_key| series_key.starts_with(&prefix));
+
+        for series_key in matching {
+            for pair in index_pairs(series_key)
+                .into_iter()
+                .filter(|pair| pair.key == tag_key)
+            {
+                tag_values.insert(pair.value);
+            }
+        }
+
+        Ok(stream::iter(tag_values).boxed())
+    }
 }
 
 fn evaluate_node(series_map: &SeriesMap, n: &Node) -> Result<Treemap, StorageError> {
