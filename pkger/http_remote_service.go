@@ -55,6 +55,13 @@ func (s *HTTPRemoteService) InitStack(ctx context.Context, userID influxdb.ID, s
 	return newStack, nil
 }
 
+func (s *HTTPRemoteService) DeleteStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) error {
+	return s.Client.
+		Delete(RoutePrefix, "stacks", identifiers.StackID.String()).
+		QueryParams([2]string{"orgID", identifiers.OrgID.String()}).
+		Do(ctx)
+}
+
 func (s *HTTPRemoteService) ListStacks(ctx context.Context, orgID influxdb.ID, f ListFilter) ([]Stack, error) {
 	queryParams := [][2]string{{"orgID", orgID.String()}}
 	for _, name := range f.Names {

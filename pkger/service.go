@@ -59,6 +59,7 @@ const ResourceTypeStack influxdb.ResourceType = "stack"
 // SVC is the packages service interface.
 type SVC interface {
 	InitStack(ctx context.Context, userID influxdb.ID, stack Stack) (Stack, error)
+	DeleteStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) error
 	ListStacks(ctx context.Context, orgID influxdb.ID, filter ListFilter) ([]Stack, error)
 
 	CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*Pkg, error)
@@ -296,6 +297,39 @@ func (s *Service) InitStack(ctx context.Context, userID influxdb.ID, stack Stack
 	}
 
 	return stack, nil
+}
+
+// DeleteStack removes a stack and all the resources that have are associated with the stack.
+func (s *Service) DeleteStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) (e error) {
+	stack, err := s.store.ReadStackByID(ctx, identifiers.StackID)
+	if influxdb.ErrorCode(err) == influxdb.ENotFound {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if stack.OrgID != identifiers.OrgID {
+		return &influxdb.Error{
+			Code: influxdb.EConflict,
+			Msg:  "you do not have access to given stack ID",
+		}
+	}
+
+	// providing empty Pkg will remove all applied resources
+	state, err := s.dryRun(ctx, identifiers.OrgID, new(Pkg), applyOptFromOptFns(ApplyWithStackID(identifiers.StackID)))
+	if err != nil {
+		return err
+	}
+
+	coordinator := &rollbackCoordinator{sem: make(chan struct{}, s.applyReqLimit)}
+	defer coordinator.rollback(s.log, &e, identifiers.OrgID)
+
+	err = s.applyState(ctx, coordinator, identifiers.OrgID, identifiers.UserID, state, nil)
+	if err != nil {
+		return err
+	}
+
+	return s.store.DeleteStack(ctx, identifiers.StackID)
 }
 
 // ListFilter are filter options for filtering stacks from being returned.
@@ -685,7 +719,7 @@ func (s *Service) dryRun(ctx context.Context, orgID influxdb.ID, pkg *Pkg, opt A
 	// will be skipped, and won't bleed into the dry run here. We can now return
 	// a error (parseErr) and valid diff/summary.
 	var parseErr error
-	err := pkg.Validate()
+	err := pkg.Validate(ValidWithoutResources())
 	if err != nil && !IsParseErr(err) {
 		return nil, internalErr(err)
 	}
