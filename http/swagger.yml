@@ -4510,6 +4510,34 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  /packages/stacks/{stack_id}:
+    delete:
+      operationId: DeleteStack
+      tags:
+        - InfluxPackages
+      summary: Delete a stack and remove all its associated resources
+      parameters:
+        - in: path
+          name: stack_id
+          required: true
+          schema:
+            type: string
+          description: The stack id to be removed
+        - in: query
+          name: orgID
+          required: true
+          schema:
+            type: string
+          description: The organization id of the user
+      responses:
+        '204':
+          description: Stack and all its associated resources are deleted
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   /tasks:
     get:
       operationId: GetTasks

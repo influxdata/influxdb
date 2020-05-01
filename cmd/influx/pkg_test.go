@@ -708,6 +708,8 @@ type fakePkgSVC struct {
 	applyFn     func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.Summary, pkger.Diff, error)
 }
 
+var _ pkger.SVC = (*fakePkgSVC)(nil)
+
 func (f *fakePkgSVC) InitStack(ctx context.Context, userID influxdb.ID, stack pkger.Stack) (pkger.Stack, error) {
 	if f.initStackFn != nil {
 		return f.initStackFn(ctx, userID, stack)
@@ -716,6 +718,10 @@ func (f *fakePkgSVC) InitStack(ctx context.Context, userID influxdb.ID, stack pk
 }
 
 func (f *fakePkgSVC) ListStacks(ctx context.Context, orgID influxdb.ID, filter pkger.ListFilter) ([]pkger.Stack, error) {
+	panic("not implemented")
+}
+
+func (f *fakePkgSVC) DeleteStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) error {
 	panic("not implemented")
 }
 

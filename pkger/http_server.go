@@ -48,11 +48,14 @@ func NewHTTPServer(log *zap.Logger, svc SVC) *HTTPServer {
 	{
 		r.With(middleware.AllowContentType("text/yml", "application/x-yaml", "application/json")).
 			Post("/", svr.createPkg)
+
 		r.With(middleware.SetHeader("Content-Type", "application/json; charset=utf-8")).
 			Post("/apply", svr.applyPkg)
+
 		r.Route("/stacks", func(r chi.Router) {
 			r.Post("/", svr.createStack)
 			r.Get("/", svr.listStacks)
+			r.Delete("/{stack_id}", svr.deleteStack)
 		})
 	}
 
@@ -201,6 +204,63 @@ func (s *HTTPServer) createStack(w http.ResponseWriter, r *http.Request) {
 		URLs:        stack.URLs,
 		CRUDLog:     stack.CRUDLog,
 	})
+}
+
+func (s *HTTPServer) deleteStack(w http.ResponseWriter, r *http.Request) {
+	orgID, err := getRequiredOrgIDFromQuery(r.URL.Query())
+	if err != nil {
+		s.api.Err(w, err)
+		return
+	}
+
+	stackID, err := influxdb.IDFromString(chi.URLParam(r, "stack_id"))
+	if err != nil {
+		s.api.Err(w, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  "the stack id provided in the path was invalid",
+			Err:  err,
+		})
+		return
+	}
+
+	auth, err := pctx.GetAuthorizer(r.Context())
+	if err != nil {
+		s.api.Err(w, err)
+		return
+	}
+	userID := auth.GetUserID()
+
+	err = s.svc.DeleteStack(r.Context(), struct{ OrgID, UserID, StackID influxdb.ID }{
+		OrgID:   orgID,
+		UserID:  userID,
+		StackID: *stackID,
+	})
+	if err != nil {
+		s.api.Err(w, err)
+		return
+	}
+
+	s.api.Respond(w, http.StatusNoContent, nil)
+}
+
+func getRequiredOrgIDFromQuery(q url.Values) (influxdb.ID, error) {
+	orgIDRaw := q.Get("orgID")
+	if orgIDRaw == "" {
+		return 0, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  "the orgID query param is required",
+		}
+	}
+
+	orgID, err := influxdb.IDFromString(orgIDRaw)
+	if err != nil {
+		return 0, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  "the orgID query param was invalid",
+			Err:  err,
+		}
+	}
+	return *orgID, nil
 }
 
 // ReqCreateOrgIDOpt provides options to export resources by organization id.
