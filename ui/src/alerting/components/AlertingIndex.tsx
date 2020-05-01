@@ -55,7 +55,7 @@ const AlertingIndex: FunctionComponent<StateProps> = ({
           scrollable={false}
           className={pageContentsClassName}
         >
-          <GetResources resources={[ResourceType.Labels]}>
+          <GetResources resources={[ResourceType.Labels, ResourceType.Buckets]}>
             <GetAssetLimits>
               <AssetLimitAlert
                 resourceName={limitedResources}
