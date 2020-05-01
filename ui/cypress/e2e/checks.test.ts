@@ -113,17 +113,19 @@ describe('Checks', () => {
       cy.getByTestID('check-card--name').should('have.length', 1)
       cy.getByTestID('check-card--name').click()
       // ensures that the check WARN value is set to 0
-      cy.getByTestID('input-field').should('have.value', '0')
+      cy.getByTestID('input-field')
+        .should('have.value', '0')
+        .clear()
+        .type('10')
       // renames the check
       cy.getByTestID('page-title')
         .contains('Name this Check')
         .type(checkName)
       cy.getByTestID('save-cell--button').click()
       // checks that the values persisted
-      cy.getByTestID('check-card--name')
-        .contains(checkName)
-        .click()
-      cy.getByTestID('input-field').should('have.value', '0')
+      cy.getByTestID('check-card--name').should('have.length', 1)
+      cy.getByTestID('check-card--name').click()
+      cy.getByTestID('input-field').should('have.value', '10')
       cy.getByTestID('page-title').contains(checkName)
     })
 
