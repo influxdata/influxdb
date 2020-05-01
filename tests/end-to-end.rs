@@ -16,6 +16,7 @@
 // - Stopping the server after all relevant tests are run
 
 use assert_cmd::prelude::*;
+use delorean_test_helpers::*;
 use futures::prelude::*;
 use prost::Message;
 use std::convert::TryInto;
@@ -289,7 +290,10 @@ cpu_load_short,server01,us-east,value,{},1234567.891011
         [ns_since_epoch, ns_since_epoch + 4],
         "in frame 1"
     );
-    assert_eq!(f.values, [0.64, 0.000_003], "in frame 1");
+    assert!(
+        all_approximately_equal(&f.values, &[0.64, 0.000_003]),
+        "in frame 1"
+    );
 
     let f = assert_unwrap!(&frames[2], Data::Series, "in frame 2");
     assert_eq!(f.data_type, DataType::Float as i32, "in frame 2");
@@ -305,7 +309,7 @@ cpu_load_short,server01,us-east,value,{},1234567.891011
 
     let f = assert_unwrap!(&frames[3], Data::FloatPoints, "in frame 3");
     assert_eq!(f.timestamps, [ns_since_epoch + 1], "in frame 3");
-    assert_eq!(f.values, [27.99], "in frame 3");
+    assert!(all_approximately_equal(&f.values, &[27.99]), "in frame 3");
 
     let f = assert_unwrap!(&frames[4], Data::Series, "in frame 4");
     assert_eq!(f.data_type, DataType::Float as i32, "in frame 4");
@@ -322,7 +326,10 @@ cpu_load_short,server01,us-east,value,{},1234567.891011
 
     let f = assert_unwrap!(&frames[5], Data::FloatPoints, "in frame 5");
     assert_eq!(f.timestamps, [ns_since_epoch + 3], "in frame 5");
-    assert_eq!(f.values, [1_234_567.891_011], "in frame 5");
+    assert!(
+        all_approximately_equal(&f.values, &[1_234_567.891_011]),
+        "in frame 5"
+    );
 
     let tag_keys_request = tonic::Request::new(TagKeysRequest {
         tags_source: read_source.clone(),
@@ -383,7 +390,10 @@ cpu_load_short,server01,us-east,value,{},1234567.891011
 
     let f = assert_unwrap!(&frames[1], Data::FloatPoints, "in frame 1");
     assert_eq!(f.timestamps, [ns_since_epoch + 3], "in frame 1");
-    assert_eq!(f.values, [1_234_567.891_011], "in frame 1");
+    assert!(
+        all_approximately_equal(&f.values, &[1_234_567.891_011]),
+        "in frame 1"
+    );
 
     let f = assert_unwrap!(&frames[2], Data::Group, "in frame 2");
     assert_eq!(
@@ -399,7 +409,10 @@ cpu_load_short,server01,us-east,value,{},1234567.891011
         [ns_since_epoch, ns_since_epoch + 4],
         "in frame 3"
     );
-    assert_eq!(f.values, [0.64, 0.000_003], "in frame 3");
+    assert!(
+        all_approximately_equal(&f.values, &[0.64, 0.000_003]),
+        "in frame 3"
+    );
 
     let f = assert_unwrap!(&frames[4], Data::Group, "in frame 4");
     assert_eq!(
@@ -411,7 +424,7 @@ cpu_load_short,server01,us-east,value,{},1234567.891011
 
     let f = assert_unwrap!(&frames[5], Data::FloatPoints, "in frame 5");
     assert_eq!(f.timestamps, [ns_since_epoch + 1], "in frame 5");
-    assert_eq!(f.values, [27.99], "in frame 5");
+    assert!(all_approximately_equal(&f.values, &[27.99]), "in frame 5");
 
     Ok(())
 }
