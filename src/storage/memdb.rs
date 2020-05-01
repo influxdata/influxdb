@@ -7,7 +7,7 @@ use crate::storage::{ReadPoint, SeriesDataType, StorageError};
 use croaring::Treemap;
 use futures::stream::{self, BoxStream};
 use futures::StreamExt;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 /// memdb implements an in memory database for the Partition trait. It currently assumes that
 /// data arrives in time ascending order per series. It has no limits on the number of series
@@ -101,7 +101,7 @@ struct SeriesMap {
     last_id: u64,
     series_key_to_id: HashMap<String, u64>,
     series_id_to_key_and_type: HashMap<u64, (String, SeriesDataType)>,
-    tag_keys: BTreeMap<String, BTreeMap<String, bool>>,
+    tag_keys: BTreeMap<String, BTreeSet<String>>,
     posting_list: HashMap<Vec<u8>, Treemap>,
 }
 
@@ -156,8 +156,8 @@ impl SeriesMap {
             posting_list.add(self.last_id);
 
             // insert the tag key value mapping
-            let tag_values = self.tag_keys.entry(pair.key).or_insert_with(BTreeMap::new);
-            tag_values.insert(pair.value, true);
+            let tag_values = self.tag_keys.entry(pair.key).or_insert_with(BTreeSet::new);
+            tag_values.insert(pair.value);
         }
 
         Ok(())
@@ -219,7 +219,7 @@ impl MemDB {
     ) -> Result<BoxStream<'_, String>, StorageError> {
         match self.series_map.tag_keys.get(tag_key) {
             Some(values) => {
-                let values = values.keys().cloned();
+                let values = values.iter().cloned();
                 Ok(stream::iter(values).boxed())
             }
             None => Ok(stream::empty().boxed()),
