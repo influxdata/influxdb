@@ -1,6 +1,8 @@
 ---
 name: Bug report
 about: Create a report to help us improve
+labels: kind/bug, team/qa
+assignees: ''
 ---
 
 <!--
@@ -55,3 +57,22 @@ curl -o vars.txt "http://localhost:8086/debug/vars"
 iostat -xd 1 30 > iostat.txt
 # Attach the `profiles.tar.gz`, `vars.txt`, and `iostat.txt` output files.
 ```
+<!--  
+  The following sections should be filled out by the developer who fixed the
+  issue. 
+  -->
+__Root cause description:__
+* Describe the root cause of the bug. 
+* Did the fix introduce the change in behavior.
+* What was done to fix the problem.  
+
+__Tests:__
+- [ ] Unit Tests. 
+- [ ] Integration Tests. 
+  * The buf fix affects the interface between component A and B
+  * Provide info/link to an integration test 
+- [ ] System tests. 
+  * Does the change requires testing the entire system in an environment as close as possible to the real production.
+  * Provide info/link to a system test.
+
+
