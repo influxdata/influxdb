@@ -948,7 +948,7 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::tests::approximately_equal;
+    use delorean_test_helpers::approximately_equal;
     use std::io::Cursor;
 
     #[test]

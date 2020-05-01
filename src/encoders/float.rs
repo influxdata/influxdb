@@ -491,7 +491,7 @@ pub fn decode(src: &[u8], dst: &mut Vec<f64>) -> Result<(), Box<dyn Error>> {
 #[allow(clippy::unreadable_literal)]
 #[allow(clippy::excessive_precision)] // TODO: Audit test values for truncation
 mod tests {
-    use crate::tests::approximately_equal;
+    use delorean_test_helpers::approximately_equal;
 
     #[test]
     fn encode_no_values() {

@@ -791,7 +791,7 @@ fn map_fail<'a, R1, R2>(
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::tests::approximately_equal;
+    use delorean_test_helpers::approximately_equal;
 
     type Error = Box<dyn std::error::Error>;
     type Result<T = (), E = Error> = std::result::Result<T, E>;
