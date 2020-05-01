@@ -6,7 +6,10 @@ edition = "2018"
 default-run = "delorean"
 
 [workspace]
-members = ["delorean_utilities"]
+members = [
+    "delorean_test_helpers",
+    "delorean_utilities",
+]
 
 [profile.release]
 debug = true
@@ -52,6 +55,7 @@ either = "1.5.3"
 smallvec = "1.2.0"
 
 [dev-dependencies]
+delorean_test_helpers = { path = "delorean_test_helpers" }
 criterion = "0.3"
 assert_cmd = "1.0.0"
 tempfile = "3.1.0"
