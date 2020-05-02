@@ -107,7 +107,7 @@ describe('Checks', () => {
       })
     })
 
-    it('should allow created checks edited checks to persist changes (especially if the value is 0)', () => {
+    it.only('should allow created checks edited checks to persist changes (especially if the value is 0)', () => {
       const checkName = 'Check it out!'
       // Selects the check to edit
       cy.getByTestID('check-card--name').should('have.length', 1)
@@ -116,16 +116,18 @@ describe('Checks', () => {
       cy.getByTestID('input-field')
         .should('have.value', '0')
         .clear()
-        .type('10')
+        .type('7')
       // renames the check
       cy.getByTestID('page-title')
         .contains('Name this Check')
         .type(checkName)
       cy.getByTestID('save-cell--button').click()
       // checks that the values persisted
-      cy.getByTestID('check-card--name').should('have.length', 1)
+      cy.getByTestID('check-card--name')
+        .contains(checkName)
+        .should('have.length', 1)
       cy.getByTestID('check-card--name').click()
-      cy.getByTestID('input-field').should('have.value', '10')
+      cy.getByTestID('input-field').should('have.value', '7')
       cy.getByTestID('page-title').contains(checkName)
     })
 
