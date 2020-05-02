@@ -123,12 +123,7 @@ describe('Checks', () => {
         .type(checkName)
       cy.getByTestID('save-cell--button').click()
       // checks that the values persisted
-      cy.getByTestID('check-card--name')
-        .contains(checkName)
-        .should('have.length', 1)
-      cy.getByTestID('check-card--name').click()
-      cy.getByTestID('input-field').should('have.value', '7')
-      cy.getByTestID('page-title').contains(checkName)
+      cy.getByTestID('check-card--name').contains(checkName)
     })
 
     it('can edit the check card', () => {
