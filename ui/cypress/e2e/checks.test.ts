@@ -107,7 +107,7 @@ describe('Checks', () => {
       })
     })
 
-    it.only('should allow created checks edited checks to persist changes (especially if the value is 0)', () => {
+    it('should allow created checks edited checks to persist changes (especially if the value is 0)', () => {
       const checkName = 'Check it out!'
       // Selects the check to edit
       cy.getByTestID('check-card--name').should('have.length', 1)
