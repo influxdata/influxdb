@@ -64,7 +64,7 @@ func TestService(t *testing.T) {
 				testfileRunner(t, "testdata/bucket.yml", func(t *testing.T, pkg *Pkg) {
 					fakeBktSVC := mock.NewBucketService()
 					fakeBktSVC.FindBucketByNameFn = func(_ context.Context, orgID influxdb.ID, name string) (*influxdb.Bucket, error) {
-						if name != "rucket_11" {
+						if name != "rucket-11" {
 							return nil, errors.New("not found")
 						}
 						return &influxdb.Bucket{
@@ -86,16 +86,16 @@ func TestService(t *testing.T) {
 						DiffIdentifier: DiffIdentifier{
 							ID:          SafeID(1),
 							StateStatus: StateStatusExists,
-							PkgName:     "rucket_11",
+							PkgName:     "rucket-11",
 						},
 
 						Old: &DiffBucketValues{
-							Name:           "rucket_11",
+							Name:           "rucket-11",
 							Description:    "old desc",
 							RetentionRules: retentionRules{newRetentionRule(30 * time.Hour)},
 						},
 						New: DiffBucketValues{
-							Name:           "rucket_11",
+							Name:           "rucket-11",
 							Description:    "bucket 1 description",
 							RetentionRules: retentionRules{newRetentionRule(time.Hour)},
 						},
@@ -119,11 +119,11 @@ func TestService(t *testing.T) {
 
 					expected := DiffBucket{
 						DiffIdentifier: DiffIdentifier{
-							PkgName:     "rucket_11",
+							PkgName:     "rucket-11",
 							StateStatus: StateStatusNew,
 						},
 						New: DiffBucketValues{
-							Name:           "rucket_11",
+							Name:           "rucket-11",
 							Description:    "bucket 1 description",
 							RetentionRules: retentionRules{newRetentionRule(time.Hour)},
 						},
@@ -160,13 +160,13 @@ func TestService(t *testing.T) {
 				require.Len(t, checks, 2)
 				check0 := checks[0]
 				assert.True(t, check0.IsNew())
-				assert.Equal(t, "check_0", check0.PkgName)
+				assert.Equal(t, "check-0", check0.PkgName)
 				assert.Zero(t, check0.ID)
 				assert.Nil(t, check0.Old)
 
 				check1 := checks[1]
 				assert.False(t, check1.IsNew())
-				assert.Equal(t, "check_1", check1.PkgName)
+				assert.Equal(t, "check-1", check1.PkgName)
 				assert.Equal(t, "display name", check1.New.GetName())
 				assert.NotZero(t, check1.ID)
 				assert.Equal(t, existing, check1.Old.Check)
@@ -200,26 +200,26 @@ func TestService(t *testing.T) {
 						DiffIdentifier: DiffIdentifier{
 							ID:          SafeID(1),
 							StateStatus: StateStatusExists,
-							PkgName:     "label_1",
+							PkgName:     "label-1",
 						},
 						Old: &DiffLabelValues{
-							Name:        "label_1",
+							Name:        "label-1",
 							Color:       "old color",
 							Description: "old description",
 						},
 						New: DiffLabelValues{
-							Name:        "label_1",
+							Name:        "label-1",
 							Color:       "#FFFFFF",
 							Description: "label 1 description",
 						},
 					}
 					assert.Contains(t, diff.Labels, expected)
 
-					expected.PkgName = "label_2"
-					expected.New.Name = "label_2"
+					expected.PkgName = "label-2"
+					expected.New.Name = "label-2"
 					expected.New.Color = "#000000"
 					expected.New.Description = "label 2 description"
-					expected.Old.Name = "label_2"
+					expected.Old.Name = "label-2"
 					assert.Contains(t, diff.Labels, expected)
 				})
 			})
@@ -239,19 +239,19 @@ func TestService(t *testing.T) {
 
 					expected := DiffLabel{
 						DiffIdentifier: DiffIdentifier{
-							PkgName:     "label_1",
+							PkgName:     "label-1",
 							StateStatus: StateStatusNew,
 						},
 						New: DiffLabelValues{
-							Name:        "label_1",
+							Name:        "label-1",
 							Color:       "#FFFFFF",
 							Description: "label 1 description",
 						},
 					}
 					assert.Contains(t, diff.Labels, expected)
 
-					expected.PkgName = "label_2"
-					expected.New.Name = "label_2"
+					expected.PkgName = "label-2"
+					expected.New.Name = "label-2"
 					expected.New.Color = "#000000"
 					expected.New.Description = "label 2 description"
 					assert.Contains(t, diff.Labels, expected)
@@ -266,7 +266,7 @@ func TestService(t *testing.T) {
 				existing := &endpoint.HTTP{
 					Base: endpoint.Base{
 						ID:          &id,
-						Name:        "http_none_auth_notification_endpoint",
+						Name:        "http-none-auth-notification-endpoint",
 						Description: "old desc",
 						Status:      influxdb.TaskStatusInactive,
 					},
@@ -302,7 +302,7 @@ func TestService(t *testing.T) {
 				expected := DiffNotificationEndpoint{
 					DiffIdentifier: DiffIdentifier{
 						ID:          1,
-						PkgName:     "http_none_auth_notification_endpoint",
+						PkgName:     "http-none-auth-notification-endpoint",
 						StateStatus: StateStatusExists,
 					},
 					Old: &DiffNotificationEndpointValues{
@@ -312,7 +312,7 @@ func TestService(t *testing.T) {
 						NotificationEndpoint: &endpoint.HTTP{
 							Base: endpoint.Base{
 								ID:          &id,
-								Name:        "http_none_auth_notification_endpoint",
+								Name:        "http-none-auth-notification-endpoint",
 								Description: "http none auth desc",
 								Status:      influxdb.TaskStatusActive,
 							},
@@ -334,7 +334,7 @@ func TestService(t *testing.T) {
 					Base: endpoint.Base{
 						ID: &id,
 						// This name here matches the endpoint identified in the pkg notification rule
-						Name:        "endpoint_0",
+						Name:        "endpoint-0",
 						Description: "old desc",
 						Status:      influxdb.TaskStatusInactive,
 					},
@@ -392,13 +392,13 @@ func TestService(t *testing.T) {
 		})
 
 		t.Run("variables", func(t *testing.T) {
-			testfileRunner(t, "testdata/variables", func(t *testing.T, pkg *Pkg) {
+			testfileRunner(t, "testdata/variables.json", func(t *testing.T, pkg *Pkg) {
 				fakeVarSVC := mock.NewVariableService()
 				fakeVarSVC.FindVariablesF = func(_ context.Context, filter influxdb.VariableFilter, opts ...influxdb.FindOptions) ([]*influxdb.Variable, error) {
 					return []*influxdb.Variable{
 						{
 							ID:          influxdb.ID(1),
-							Name:        "var_const_3",
+							Name:        "var-const-3",
 							Description: "old desc",
 						},
 					}, nil
@@ -413,16 +413,16 @@ func TestService(t *testing.T) {
 				expected := DiffVariable{
 					DiffIdentifier: DiffIdentifier{
 						ID:          1,
-						PkgName:     "var_const_3",
+						PkgName:     "var-const-3",
 						StateStatus: StateStatusExists,
 					},
 					Old: &DiffVariableValues{
-						Name:        "var_const_3",
+						Name:        "var-const-3",
 						Description: "old desc",
 					},
 					New: DiffVariableValues{
-						Name:        "var_const_3",
-						Description: "var_const_3 desc",
+						Name:        "var-const-3",
+						Description: "var-const-3 desc",
 						Args: &influxdb.VariableArguments{
 							Type:   "constant",
 							Values: influxdb.VariableConstantValues{"first val"},
@@ -434,12 +434,12 @@ func TestService(t *testing.T) {
 				expected = DiffVariable{
 					DiffIdentifier: DiffIdentifier{
 						// no ID here since this one would be new
-						PkgName:     "var_map_4",
+						PkgName:     "var-map-4",
 						StateStatus: StateStatusNew,
 					},
 					New: DiffVariableValues{
-						Name:        "var_map_4",
-						Description: "var_map_4 desc",
+						Name:        "var-map-4",
+						Description: "var-map-4 desc",
 						Args: &influxdb.VariableArguments{
 							Type:   "map",
 							Values: influxdb.VariableMapValues{"k1": "v1"},
@@ -480,8 +480,8 @@ func TestService(t *testing.T) {
 					expected := SummaryBucket{
 						ID:                SafeID(time.Hour),
 						OrgID:             SafeID(orgID),
-						PkgName:           "rucket_11",
-						Name:              "rucket_11",
+						PkgName:           "rucket-11",
+						Name:              "rucket-11",
 						Description:       "bucket 1 description",
 						RetentionPeriod:   time.Hour,
 						LabelAssociations: []SummaryLabel{},
@@ -503,7 +503,7 @@ func TestService(t *testing.T) {
 						id := influxdb.ID(3)
 						if name == "display name" {
 							id = 4
-							name = "rucket_22"
+							name = "rucket-22"
 						}
 						if bkt, ok := pkg.mBuckets[name]; ok {
 							return &influxdb.Bucket{
@@ -530,8 +530,8 @@ func TestService(t *testing.T) {
 					expected := SummaryBucket{
 						ID:                SafeID(3),
 						OrgID:             SafeID(orgID),
-						PkgName:           "rucket_11",
-						Name:              "rucket_11",
+						PkgName:           "rucket-11",
+						Name:              "rucket-11",
 						Description:       "bucket 1 description",
 						RetentionPeriod:   time.Hour,
 						LabelAssociations: []SummaryLabel{},
@@ -543,7 +543,7 @@ func TestService(t *testing.T) {
 			})
 
 			t.Run("rolls back all created buckets on an error", func(t *testing.T) {
-				testfileRunner(t, "testdata/bucket", func(t *testing.T, pkg *Pkg) {
+				testfileRunner(t, "testdata/bucket.yml", func(t *testing.T, pkg *Pkg) {
 					fakeBktSVC := mock.NewBucketService()
 					fakeBktSVC.FindBucketByNameFn = func(_ context.Context, id influxdb.ID, s string) (*influxdb.Bucket, error) {
 						// forces the bucket to be created a new
@@ -555,9 +555,6 @@ func TestService(t *testing.T) {
 						}
 						return nil
 					}
-
-					pkg.mBuckets["copybuck1"] = pkg.mBuckets["rucket_11"]
-					pkg.mBuckets["copybuck2"] = pkg.mBuckets["rucket_11"]
 
 					svc := newTestService(WithBucketSVC(fakeBktSVC))
 
@@ -604,7 +601,7 @@ func TestService(t *testing.T) {
 						assert.Fail(t, "did not find notification by name: "+name)
 					}
 
-					for _, expectedName := range []string{"check_0", "display name"} {
+					for _, expectedName := range []string{"check-0", "display name"} {
 						containsWithID(t, expectedName)
 					}
 				})
@@ -619,11 +616,6 @@ func TestService(t *testing.T) {
 							return errors.New("hit that kill count")
 						}
 						return nil
-					}
-
-					// create some dupes
-					for name, c := range pkg.mChecks {
-						pkg.mChecks["copy"+name] = c
 					}
 
 					svc := newTestService(WithCheckSVC(fakeCheckSVC))
@@ -663,8 +655,8 @@ func TestService(t *testing.T) {
 					assert.Contains(t, sum.Labels, SummaryLabel{
 						ID:      1,
 						OrgID:   SafeID(orgID),
-						PkgName: "label_1",
-						Name:    "label_1",
+						PkgName: "label-1",
+						Name:    "label-1",
 						Properties: struct {
 							Color       string `json:"color"`
 							Description string `json:"description"`
@@ -677,8 +669,8 @@ func TestService(t *testing.T) {
 					assert.Contains(t, sum.Labels, SummaryLabel{
 						ID:      2,
 						OrgID:   SafeID(orgID),
-						PkgName: "label_2",
-						Name:    "label_2",
+						PkgName: "label-2",
+						Name:    "label-2",
 						Properties: struct {
 							Color       string `json:"color"`
 							Description string `json:"description"`
@@ -701,9 +693,6 @@ func TestService(t *testing.T) {
 						return nil
 					}
 
-					pkg.mLabels["copy1"] = pkg.mLabels["label_1"]
-					pkg.mLabels["copy2"] = pkg.mLabels["label_2"]
-
 					svc := newTestService(WithLabelSVC(fakeLabelSVC))
 
 					orgID := influxdb.ID(9000)
@@ -721,6 +710,7 @@ func TestService(t *testing.T) {
 
 					stubExisting := func(name string, id influxdb.ID) *influxdb.Label {
 						pkgLabel := pkg.mLabels[name]
+						fmt.Println(name, pkgLabel)
 						return &influxdb.Label{
 							// makes all pkg changes same as they are on the existing
 							ID:    id,
@@ -732,24 +722,24 @@ func TestService(t *testing.T) {
 							},
 						}
 					}
-					stubExisting("label_1", 1)
-					stubExisting("label_3", 3)
+					stubExisting("label-1", 1)
+					stubExisting("label-3", 3)
 
 					fakeLabelSVC := mock.NewLabelService()
 					fakeLabelSVC.FindLabelsFn = func(ctx context.Context, f influxdb.LabelFilter) ([]*influxdb.Label, error) {
-						if f.Name != "label_1" && f.Name != "display name" {
+						if f.Name != "label-1" && f.Name != "display name" {
 							return nil, nil
 						}
 						id := influxdb.ID(1)
 						name := f.Name
 						if f.Name == "display name" {
 							id = 3
-							name = "label_3"
+							name = "label-3"
 						}
 						return []*influxdb.Label{stubExisting(name, id)}, nil
 					}
 					fakeLabelSVC.CreateLabelFn = func(_ context.Context, l *influxdb.Label) error {
-						if l.Name == "label_2" {
+						if l.Name == "label-2" {
 							l.ID = 2
 						}
 						return nil
@@ -771,8 +761,8 @@ func TestService(t *testing.T) {
 					assert.Contains(t, sum.Labels, SummaryLabel{
 						ID:      1,
 						OrgID:   SafeID(orgID),
-						PkgName: "label_1",
-						Name:    "label_1",
+						PkgName: "label-1",
+						Name:    "label-1",
 						Properties: struct {
 							Color       string `json:"color"`
 							Description string `json:"description"`
@@ -785,8 +775,8 @@ func TestService(t *testing.T) {
 					assert.Contains(t, sum.Labels, SummaryLabel{
 						ID:      2,
 						OrgID:   SafeID(orgID),
-						PkgName: "label_2",
-						Name:    "label_2",
+						PkgName: "label-2",
+						Name:    "label-2",
 						Properties: struct {
 							Color       string `json:"color"`
 							Description string `json:"description"`
@@ -824,14 +814,14 @@ func TestService(t *testing.T) {
 					dash1 := sum.Dashboards[0]
 					assert.NotZero(t, dash1.ID)
 					assert.NotZero(t, dash1.OrgID)
-					assert.Equal(t, "dash_1", dash1.PkgName)
+					assert.Equal(t, "dash-1", dash1.PkgName)
 					assert.Equal(t, "display name", dash1.Name)
 					require.Len(t, dash1.Charts, 1)
 
 					dash2 := sum.Dashboards[1]
 					assert.NotZero(t, dash2.ID)
-					assert.Equal(t, "dash_2", dash2.PkgName)
-					assert.Equal(t, "dash_2", dash2.Name)
+					assert.Equal(t, "dash-2", dash2.PkgName)
+					assert.Equal(t, "dash-2", dash2.Name)
 					require.Empty(t, dash2.Charts)
 				})
 			})
@@ -1146,8 +1136,8 @@ func TestService(t *testing.T) {
 
 					expectedNames := []string{
 						"basic endpoint name",
-						"http_bearer_auth_notification_endpoint",
-						"http_none_auth_notification_endpoint",
+						"http-bearer-auth-notification-endpoint",
+						"http-none-auth-notification-endpoint",
 						"pager duty name",
 						"slack name",
 					}
@@ -1181,7 +1171,7 @@ func TestService(t *testing.T) {
 		})
 
 		t.Run("notification rules", func(t *testing.T) {
-			t.Run("successfuly creates", func(t *testing.T) {
+			t.Run("successfully creates", func(t *testing.T) {
 				testfileRunner(t, "testdata/notification_rule.yml", func(t *testing.T, pkg *Pkg) {
 					fakeEndpointSVC := mock.NewNotificationEndpointService()
 					fakeEndpointSVC.CreateNotificationEndpointF = func(ctx context.Context, nr influxdb.NotificationEndpoint, userID influxdb.ID) error {
@@ -1205,10 +1195,11 @@ func TestService(t *testing.T) {
 					require.NoError(t, err)
 
 					require.Len(t, sum.NotificationRules, 1)
+					assert.Equal(t, "rule-uuid", sum.NotificationRules[0].PkgName)
 					assert.Equal(t, "rule_0", sum.NotificationRules[0].Name)
 					assert.Equal(t, "desc_0", sum.NotificationRules[0].Description)
 					assert.Equal(t, SafeID(1), sum.NotificationRules[0].EndpointID)
-					assert.Equal(t, "endpoint_0", sum.NotificationRules[0].EndpointPkgName)
+					assert.Equal(t, "endpoint-0", sum.NotificationRules[0].EndpointPkgName)
 					assert.Equal(t, "slack", sum.NotificationRules[0].EndpointType)
 				})
 			})
@@ -1281,13 +1272,13 @@ func TestService(t *testing.T) {
 
 					require.Len(t, sum.Tasks, 2)
 					assert.NotZero(t, sum.Tasks[0].ID)
-					assert.Equal(t, "task_1", sum.Tasks[0].PkgName)
-					assert.Equal(t, "task_1", sum.Tasks[0].Name)
+					assert.Equal(t, "task-1", sum.Tasks[0].PkgName)
+					assert.Equal(t, "task-1", sum.Tasks[0].Name)
 					assert.Equal(t, "desc_1", sum.Tasks[0].Description)
 
 					assert.NotZero(t, sum.Tasks[1].ID)
-					assert.Equal(t, "task_UUID", sum.Tasks[1].PkgName)
-					assert.Equal(t, "task_0", sum.Tasks[1].Name)
+					assert.Equal(t, "task-uuid", sum.Tasks[1].PkgName)
+					assert.Equal(t, "task-0", sum.Tasks[1].Name)
 					assert.Equal(t, "desc_0", sum.Tasks[1].Description)
 				})
 			})
@@ -1335,7 +1326,7 @@ func TestService(t *testing.T) {
 					require.Len(t, sum.TelegrafConfigs, 2)
 					assert.Equal(t, "display name", sum.TelegrafConfigs[0].TelegrafConfig.Name)
 					assert.Equal(t, "desc", sum.TelegrafConfigs[0].TelegrafConfig.Description)
-					assert.Equal(t, "tele_2", sum.TelegrafConfigs[1].TelegrafConfig.Name)
+					assert.Equal(t, "tele-2", sum.TelegrafConfigs[1].TelegrafConfig.Name)
 				})
 			})
 
@@ -1390,8 +1381,8 @@ func TestService(t *testing.T) {
 					expected := sum.Variables[0]
 					assert.True(t, expected.ID > 0 && expected.ID < 5)
 					assert.Equal(t, SafeID(orgID), expected.OrgID)
-					assert.Equal(t, "var_const_3", expected.Name)
-					assert.Equal(t, "var_const_3 desc", expected.Description)
+					assert.Equal(t, "var-const-3", expected.Name)
+					assert.Equal(t, "var-const-3 desc", expected.Description)
 					require.NotNil(t, expected.Arguments)
 					assert.Equal(t, influxdb.VariableConstantValues{"first val"}, expected.Arguments.Values)
 
@@ -1434,7 +1425,7 @@ func TestService(t *testing.T) {
 								// makes all pkg changes same as they are on the existing
 								ID:             influxdb.ID(1),
 								OrganizationID: orgID,
-								Name:           pkg.mVariables["var_const_3"].Name(),
+								Name:           pkg.mVariables["var-const-3"].Name(),
 								Arguments: &influxdb.VariableArguments{
 									Type:   "constant",
 									Values: influxdb.VariableConstantValues{"first val"},
@@ -1463,7 +1454,7 @@ func TestService(t *testing.T) {
 					require.Len(t, sum.Variables, 4)
 					expected := sum.Variables[0]
 					assert.Equal(t, SafeID(1), expected.ID)
-					assert.Equal(t, "var_const_3", expected.Name)
+					assert.Equal(t, "var-const-3", expected.Name)
 
 					assert.Equal(t, 3, fakeVarSVC.CreateVariableCalls.Count()) // only called for last 3 labels
 				})
