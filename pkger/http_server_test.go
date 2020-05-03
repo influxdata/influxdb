@@ -292,7 +292,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 							newBktPkg(t, "bkt3"),
 						},
 					},
-					expectedBkts: []string{"bkt1", "bkt2", "bkt3", "rucket_11"},
+					expectedBkts: []string{"bkt1", "bkt2", "bkt3", "rucket-11"},
 				},
 				{
 					name: "retrieves packages from raw single and list",
@@ -763,7 +763,7 @@ local Bucket(name, desc) = {
 };
 
 [
-  Bucket(name="rucket_1", desc="bucket 1 description"),
+  Bucket(name="rucket-1", desc="bucket 1 description"),
 ]
 `
 	case pkger.EncodingJSON:
@@ -772,7 +772,7 @@ local Bucket(name, desc) = {
     "apiVersion": "%[1]s",
     "kind": "Bucket",
     "metadata": {
-      "name": "rucket_11"
+      "name": "rucket-11"
     },
     "spec": {
       "description": "bucket 1 description"
@@ -784,7 +784,7 @@ local Bucket(name, desc) = {
 		pkgStr = `apiVersion: %[1]s
 kind: Bucket
 metadata:
-  name:  rucket_11
+  name:  rucket-11
 spec:
   description: bucket 1 description
 `

@@ -1,7 +1,7 @@
 apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
-  name: dash_1
+  name: dash-1
 spec:
   name: display name
   description: desc1
@@ -31,6 +31,6 @@ spec:
 apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
-  name: dash_2
+  name: dash-2
 spec:
   description: desc

@@ -3,6 +3,7 @@
 ### Features
 
 1. [17934](https://github.com/influxdata/influxdb/pull/17934): Add ability to delete a stack and all the resources associated with it
+1. [17941](https://github.com/influxdata/influxdb/pull/17941): Encorce dns name compliance on all pkger resources' metadata.name field
 
 ### Bug Fixes
 
