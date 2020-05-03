@@ -135,7 +135,7 @@ func TestCmdPkg(t *testing.T) {
 					sum := pkg.Summary()
 
 					require.Len(t, sum.Dashboards, 1)
-					assert.Equal(t, "Dashboard", sum.Dashboards[0].Name)
+					assert.Equal(t, "dashboard", sum.Dashboards[0].Name)
 				},
 			},
 			{
@@ -153,9 +153,9 @@ func TestCmdPkg(t *testing.T) {
 					sum := pkg.Summary()
 
 					require.Len(t, sum.Buckets, 1)
-					assert.Equal(t, "Bucket", sum.Buckets[0].Name)
+					assert.Equal(t, "bucket", sum.Buckets[0].Name)
 					require.Len(t, sum.Dashboards, 1)
-					assert.Equal(t, "Dashboard", sum.Dashboards[0].Name)
+					assert.Equal(t, "dashboard", sum.Dashboards[0].Name)
 				},
 			},
 			{
@@ -176,9 +176,9 @@ func TestCmdPkg(t *testing.T) {
 					require.Len(t, sum.Labels, 1)
 					assert.Equal(t, "foo", sum.Labels[0].Name)
 					require.Len(t, sum.Buckets, 1)
-					assert.Equal(t, "Bucket", sum.Buckets[0].Name)
+					assert.Equal(t, "bucket", sum.Buckets[0].Name)
 					require.Len(t, sum.Dashboards, 1)
-					assert.Equal(t, "Dashboard", sum.Dashboards[0].Name)
+					assert.Equal(t, "dashboard", sum.Dashboards[0].Name)
 				},
 			},
 		}
@@ -212,7 +212,7 @@ func TestCmdPkg(t *testing.T) {
 								APIVersion: pkger.APIVersion,
 								Kind:       k,
 								Metadata: pkger.Resource{
-									"name": k.String(),
+									"name": strings.ToLower(k.String()),
 								},
 							})
 						}
@@ -335,7 +335,7 @@ func TestCmdPkg(t *testing.T) {
 						if rc.Kind == pkger.KindNotificationEndpoint {
 							rc.Kind = pkger.KindNotificationEndpointHTTP
 						}
-						name := rc.Kind.String() + strconv.Itoa(int(rc.ID))
+						name := strings.ToLower(rc.Kind.String()) + strconv.Itoa(int(rc.ID))
 						pkg.Objects = append(pkg.Objects, pkger.Object{
 							APIVersion: pkger.APIVersion,
 							Kind:       rc.Kind,
@@ -366,45 +366,49 @@ func TestCmdPkg(t *testing.T) {
 			testPkgWrites(t, cmdFn, tt.pkgFileArgs, func(t *testing.T, pkg *pkger.Pkg) {
 				sum := pkg.Summary()
 
+				kindToName := func(k pkger.Kind, id influxdb.ID) string {
+					return strings.ToLower(k.String()) + strconv.Itoa(int(id))
+				}
+
 				require.Len(t, sum.Buckets, len(tt.bucketIDs))
 				for i, id := range tt.bucketIDs {
 					actual := sum.Buckets[i]
-					assert.Equal(t, pkger.KindBucket.String()+strconv.Itoa(int(id)), actual.Name)
+					assert.Equal(t, kindToName(pkger.KindBucket, id), actual.Name)
 				}
 				require.Len(t, sum.Dashboards, len(tt.dashIDs))
 				for i, id := range tt.dashIDs {
 					actual := sum.Dashboards[i]
-					assert.Equal(t, pkger.KindDashboard.String()+strconv.Itoa(int(id)), actual.Name)
+					assert.Equal(t, kindToName(pkger.KindDashboard, id), actual.Name)
 				}
 				require.Len(t, sum.NotificationEndpoints, len(tt.endpointIDs))
 				for i, id := range tt.endpointIDs {
 					actual := sum.NotificationEndpoints[i]
-					assert.Equal(t, pkger.KindNotificationEndpointHTTP.String()+strconv.Itoa(int(id)), actual.NotificationEndpoint.GetName())
+					assert.Equal(t, kindToName(pkger.KindNotificationEndpointHTTP, id), actual.NotificationEndpoint.GetName())
 				}
 				require.Len(t, sum.Labels, len(tt.labelIDs))
 				for i, id := range tt.labelIDs {
 					actual := sum.Labels[i]
-					assert.Equal(t, pkger.KindLabel.String()+strconv.Itoa(int(id)), actual.Name)
+					assert.Equal(t, kindToName(pkger.KindLabel, id), actual.Name)
 				}
 				require.Len(t, sum.NotificationRules, len(tt.ruleIDs))
 				for i, id := range tt.ruleIDs {
 					actual := sum.NotificationRules[i]
-					assert.Equal(t, pkger.KindNotificationRule.String()+strconv.Itoa(int(id)), actual.Name)
+					assert.Equal(t, kindToName(pkger.KindNotificationRule, id), actual.Name)
 				}
 				require.Len(t, sum.Tasks, len(tt.taskIDs))
 				for i, id := range tt.taskIDs {
 					actual := sum.Tasks[i]
-					assert.Equal(t, pkger.KindTask.String()+strconv.Itoa(int(id)), actual.Name)
+					assert.Equal(t, kindToName(pkger.KindTask, id), actual.Name)
 				}
 				require.Len(t, sum.TelegrafConfigs, len(tt.telegrafIDs))
 				for i, id := range tt.telegrafIDs {
 					actual := sum.TelegrafConfigs[i]
-					assert.Equal(t, pkger.KindTelegraf.String()+strconv.Itoa(int(id)), actual.TelegrafConfig.Name)
+					assert.Equal(t, kindToName(pkger.KindTelegraf, id), actual.TelegrafConfig.Name)
 				}
 				require.Len(t, sum.Variables, len(tt.varIDs))
 				for i, id := range tt.varIDs {
 					actual := sum.Variables[i]
-					assert.Equal(t, pkger.KindVariable.String()+strconv.Itoa(int(id)), actual.Name)
+					assert.Equal(t, kindToName(pkger.KindVariable, id), actual.Name)
 				}
 			})
 		}

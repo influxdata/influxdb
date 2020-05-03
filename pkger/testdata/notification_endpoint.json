@@ -3,14 +3,14 @@
     "apiVersion": "influxdata.com/v2alpha1",
     "kind": "Label",
     "metadata": {
-      "name": "label_1"
+      "name": "label-1"
     }
   },
   {
     "apiVersion": "influxdata.com/v2alpha1",
     "kind": "NotificationEndpointSlack",
     "metadata": {
-      "name": "slack_notification_endpoint"
+      "name": "slack-notification-endpoint"
     },
     "spec":{
       "name": "slack name",
@@ -21,7 +21,7 @@
       "associations": [
         {
           "kind": "Label",
-          "name": "label_1"
+          "name": "label-1"
         }
       ]
     }
@@ -30,7 +30,7 @@
     "apiVersion": "influxdata.com/v2alpha1",
     "kind": "NotificationEndpointHTTP",
     "metadata": {
-      "name": "http_none_auth_notification_endpoint"
+      "name": "http-none-auth-notification-endpoint"
     },
     "spec":{
       "description": "http none auth desc",
@@ -41,7 +41,7 @@
       "associations": [
         {
           "kind": "Label",
-          "name": "label_1"
+          "name": "label-1"
         }
       ]
     }
@@ -50,7 +50,7 @@
     "apiVersion": "influxdata.com/v2alpha1",
     "kind": "NotificationEndpointHTTP",
     "metadata": {
-      "name": "http_basic_auth_notification_endpoint"
+      "name": "http-basic-auth-notification-endpoint"
     },
     "spec":{
       "name": "basic endpoint name",
@@ -64,7 +64,7 @@
       "associations": [
         {
           "kind": "Label",
-          "name": "label_1"
+          "name": "label-1"
         }
       ]
     }
@@ -73,7 +73,7 @@
     "apiVersion": "influxdata.com/v2alpha1",
     "kind": "NotificationEndpointHTTP",
     "metadata": {
-      "name": "http_bearer_auth_notification_endpoint"
+      "name": "http-bearer-auth-notification-endpoint"
     },
     "spec":{
       "description": "http bearer auth desc",
@@ -84,7 +84,7 @@
       "associations": [
         {
           "kind": "Label",
-          "name": "label_1"
+          "name": "label-1"
         }
       ]
     }
@@ -93,7 +93,7 @@
     "apiVersion": "influxdata.com/v2alpha1",
     "kind": "NotificationEndpointPagerDuty",
     "metadata": {
-      "name": "pager_duty_notification_endpoint"
+      "name": "pager-duty-notification-endpoint"
     },
     "spec":{
       "name": "pager duty name",
@@ -104,7 +104,7 @@
       "associations": [
         {
           "kind": "Label",
-          "name": "label_1"
+          "name": "label-1"
         }
       ]
     }
