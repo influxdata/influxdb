@@ -281,7 +281,7 @@ impl MemDB {
     ) -> Result<BoxStream<'_, String>, StorageError> {
         match self.series_map.tag_keys.get("_m") {
             Some(values) => {
-                let values = values.keys().cloned();
+                let values = values.iter().cloned();
                 Ok(stream::iter(values).boxed())
             }
             None => Ok(stream::empty().boxed()),
