@@ -2,10 +2,10 @@
 //! that store data. The helper funcs and structs merge results from multiple partitions together.
 use crate::delorean::{Predicate, TimestampRange};
 use crate::line_parser::{self, PointType};
-use crate::storage::memdb::MemDB;
-use crate::storage::remote_partition::RemotePartition;
-use crate::storage::s3_partition::S3Partition;
-use crate::storage::{ReadPoint, StorageError};
+use crate::storage::{
+    memdb::MemDB, remote_partition::RemotePartition, s3_partition::S3Partition, ReadPoint,
+    SeriesDataType, StorageError,
+};
 
 use futures::stream::{BoxStream, Stream};
 use std::cmp::Ordering;
@@ -124,6 +124,19 @@ impl Partition {
             Partition::MemDB(db) => {
                 db.get_measurement_tag_values(measurement, tag_key, predicate, range)
             }
+            Partition::S3(_) => panic!("s3 partition not implemented!"),
+            Partition::Remote(_) => panic!("remote partition not implemented!"),
+        }
+    }
+
+    pub async fn get_measurement_fields(
+        &self,
+        measurement: &str,
+        predicate: Option<&Predicate>,
+        range: Option<&TimestampRange>,
+    ) -> Result<BoxStream<'_, (String, SeriesDataType, i64)>, StorageError> {
+        match self {
+            Partition::MemDB(db) => db.get_measurement_fields(measurement, predicate, range),
             Partition::S3(_) => panic!("s3 partition not implemented!"),
             Partition::Remote(_) => panic!("remote partition not implemented!"),
         }

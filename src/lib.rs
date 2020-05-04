@@ -11,6 +11,16 @@ pub mod time;
 
 pub mod delorean {
     include!(concat!(env!("OUT_DIR"), "/influxdata.platform.storage.rs"));
+
+    // Can't implement `Default` because `prost::Message` implements `Default`
+    impl TimestampRange {
+        pub fn max() -> Self {
+            TimestampRange {
+                start: std::i64::MIN,
+                end: std::i64::MAX,
+            }
+        }
+    }
 }
 
 // TODO: audit all errors and their handling in main

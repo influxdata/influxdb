@@ -1,5 +1,6 @@
 use delorean::delorean::{
     delorean_server::Delorean,
+    measurement_fields_response::MessageField,
     read_response::{
         frame::Data, DataType, FloatPointsFrame, Frame, GroupFrame, IntegerPointsFrame, SeriesFrame,
     },
@@ -11,7 +12,10 @@ use delorean::delorean::{
     Tag, TagKeysRequest, TagValuesRequest, TimestampRange,
 };
 use delorean::id::Id;
-use delorean::storage::partitioned_store::{PartitionKeyValues, ReadValues};
+use delorean::storage::{
+    partitioned_store::{PartitionKeyValues, ReadValues},
+    SeriesDataType,
+};
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::convert::TryInto;
@@ -155,6 +159,12 @@ impl GrpcInputs for MeasurementTagKeysRequest {
 }
 
 impl GrpcInputs for MeasurementTagValuesRequest {
+    fn read_source_field(&self) -> Option<&prost_types::Any> {
+        self.source.as_ref()
+    }
+}
+
+impl GrpcInputs for MeasurementFieldsRequest {
     fn read_source_field(&self) -> Option<&prost_types::Any> {
         self.source.as_ref()
     }
@@ -538,9 +548,72 @@ impl Storage for GrpcServer {
 
     async fn measurement_fields(
         &self,
-        _: tonic::Request<MeasurementFieldsRequest>,
+        req: tonic::Request<MeasurementFieldsRequest>,
     ) -> Result<tonic::Response<Self::MeasurementFieldsStream>, Status> {
-        Err(Status::unimplemented("Not yet implemented"))
+        let (mut tx, rx) = mpsc::channel(4);
+
+        let measurement_fields_request = req.into_inner();
+
+        let org_id = measurement_fields_request.org_id()?;
+        let bucket_name = measurement_fields_request.bucket_name()?;
+        let measurement = measurement_fields_request.measurement;
+        let predicate = measurement_fields_request.predicate;
+        let range = measurement_fields_request.range;
+
+        let app = self.app.clone();
+
+        let bucket_id = app
+            .db
+            .get_bucket_id_by_name(org_id, &bucket_name)
+            .await
+            .map_err(|err| Status::internal(format!("error reading db: {}", err)))?
+            .ok_or_else(|| Status::internal("bucket not found"))?;
+
+        tokio::spawn(async move {
+            match app
+                .db
+                .get_measurement_fields(
+                    org_id,
+                    bucket_id,
+                    &measurement,
+                    predicate.as_ref(),
+                    range.as_ref(),
+                )
+                .await
+            {
+                Err(_) => tx
+                    .send(Err(Status::internal(
+                        "could not query for measurement fields",
+                    )))
+                    .await
+                    .unwrap(),
+                Ok(measurement_fields) => {
+                    // TODO: Should these be batched? If so, how?
+                    let measurement_fields: Vec<_> = measurement_fields
+                        .into_iter()
+                        .map(|(field_key, field_type, timestamp)| {
+                            let field_type = match field_type {
+                                SeriesDataType::F64 => DataType::Float,
+                                SeriesDataType::I64 => DataType::Integer,
+                            } as _;
+
+                            MessageField {
+                                key: field_key,
+                                r#type: field_type,
+                                timestamp,
+                            }
+                        })
+                        .collect();
+                    tx.send(Ok(MeasurementFieldsResponse {
+                        fields: measurement_fields,
+                    }))
+                    .await
+                    .unwrap();
+                }
+            }
+        });
+
+        Ok(tonic::Response::new(rx))
     }
 }
 

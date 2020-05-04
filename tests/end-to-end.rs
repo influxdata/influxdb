@@ -40,9 +40,10 @@ use grpc::{
     read_group_request::Group,
     read_response::{frame::Data, DataType},
     storage_client::StorageClient,
-    Bucket, CreateBucketRequest, MeasurementNamesRequest, MeasurementTagKeysRequest,
-    MeasurementTagValuesRequest, Node, Organization, Predicate, ReadFilterRequest,
-    ReadGroupRequest, ReadSource, Tag, TagKeysRequest, TagValuesRequest, TimestampRange,
+    Bucket, CreateBucketRequest, MeasurementFieldsRequest, MeasurementNamesRequest,
+    MeasurementTagKeysRequest, MeasurementTagValuesRequest, Node, Organization, Predicate,
+    ReadFilterRequest, ReadGroupRequest, ReadSource, Tag, TagKeysRequest, TagValuesRequest,
+    TimestampRange,
 };
 
 type Error = Box<dyn std::error::Error>;
@@ -534,6 +535,29 @@ swap,server01,disk0,out,{},4
     let values: Vec<_> = values.iter().map(|s| str::from_utf8(s).unwrap()).collect();
 
     assert_eq!(values, vec!["server01", "server02"]);
+
+    let measurement_fields_request = tonic::Request::new(MeasurementFieldsRequest {
+        source: read_source.clone(),
+        measurement: String::from("cpu_load_short"),
+        range: range.clone(),
+        predicate: predicate.clone(),
+    });
+
+    let measurement_fields_response = storage_client
+        .measurement_fields(measurement_fields_request)
+        .await?;
+    let responses: Vec<_> = measurement_fields_response
+        .into_inner()
+        .try_collect()
+        .await?;
+
+    let fields = &responses[0].fields;
+    assert_eq!(fields.len(), 1);
+
+    let field = &fields[0];
+    assert_eq!(field.key, "value");
+    assert_eq!(field.r#type, DataType::Float as i32);
+    assert_eq!(field.timestamp, ns_since_epoch + 4);
 
     Ok(())
 }
