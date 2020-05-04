@@ -1,0 +1,27 @@
+# helper docker-compose file for testing
+
+version: '2.1'
+services:
+  # InfluxDB 2.0 that the initialization is run against
+  influxdb:
+    image: quay.io/influxdb/influxdb:2.0.0-beta
+    ports:
+      - 9999:9999
+    volumes:
+      - influx-cli-configs:/root/.influxdbv2/
+  influx_setup:
+    image: quay.io/influxdb/influxdb:2.0.0-beta
+    volumes:
+      - influx-cli-configs:/root/.influxdbv2/
+      - ./influxdb-setup.bash:/influxdb-setup.bash
+    environment:
+      - INFLUXDB_USER="admin"
+      - INFLUXDB_PASSWORD=
+      - INFLUXDB_ORG="influxdata"
+      - INFLUXDB_BUCKET="telegraf"
+    command:
+      - /influxdb-setup.bash
+    depends_on:
+      - influxdb
+volumes:
+  influx-cli-configs:
