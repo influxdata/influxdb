@@ -1128,7 +1128,7 @@ func (s *Service) dryRunResourceLabelMapping(ctx context.Context, state *stateCo
 func (s *Service) addStackState(ctx context.Context, stackID influxdb.ID, state *stateCoordinator) error {
 	stack, err := s.store.ReadStackByID(ctx, stackID)
 	if err != nil {
-		return ierrors.Wrap(internalErr(err), "reading stack")
+		return ierrors.Wrap(err, "reading stack")
 	}
 
 	state.addStackState(stack)
@@ -1423,7 +1423,7 @@ func (s *Service) applyChecks(ctx context.Context, checks []*stateCheck) applier
 		influxCheck, err := s.applyCheck(ctx, c, userID)
 		if err != nil {
 			return &applyErrBody{
-				name: c.parserCheck.Name(),
+				name: c.parserCheck.PkgName(),
 				msg:  err.Error(),
 			}
 		}
@@ -1532,7 +1532,7 @@ func (s *Service) applyDashboards(ctx context.Context, dashboards []*stateDashbo
 		influxBucket, err := s.applyDashboard(ctx, d)
 		if err != nil {
 			return &applyErrBody{
-				name: d.parserDash.Name(),
+				name: d.parserDash.PkgName(),
 				msg:  err.Error(),
 			}
 		}
@@ -1762,7 +1762,7 @@ func (s *Service) applyNotificationEndpoints(ctx context.Context, userID influxd
 		influxEndpoint, err := s.applyNotificationEndpoint(ctx, endpoint, userID)
 		if err != nil {
 			return &applyErrBody{
-				name: endpoint.parserEndpoint.Name(),
+				name: endpoint.parserEndpoint.PkgName(),
 				msg:  err.Error(),
 			}
 		}
@@ -1890,7 +1890,7 @@ func (s *Service) applyNotificationGenerator(ctx context.Context, userID influxd
 		v, ok := mEndpoints[r.endpointPkgName()]
 		if !ok {
 			errs = append(errs, &applyErrBody{
-				name: r.parserRule.Name(),
+				name: r.parserRule.PkgName(),
 				msg:  fmt.Sprintf("notification rule endpoint dependency does not exist; endpointName=%q", r.parserRule.associatedEndpoint.PkgName()),
 			})
 			continue
@@ -2115,7 +2115,7 @@ func (s *Service) applyTasks(ctx context.Context, tasks []*stateTask) applier {
 		newTask, err := s.applyTask(ctx, userID, t)
 		if err != nil {
 			return &applyErrBody{
-				name: t.parserTask.Name(),
+				name: t.parserTask.PkgName(),
 				msg:  err.Error(),
 			}
 		}
@@ -2265,7 +2265,7 @@ func (s *Service) applyTelegrafs(ctx context.Context, userID influxdb.ID, teles 
 		existing, err := s.applyTelegrafConfig(ctx, userID, t)
 		if err != nil {
 			return &applyErrBody{
-				name: t.parserTelegraf.Name(),
+				name: t.parserTelegraf.PkgName(),
 				msg:  err.Error(),
 			}
 		}
@@ -2363,7 +2363,7 @@ func (s *Service) applyVariables(ctx context.Context, vars []*stateVariable) app
 		influxVar, err := s.applyVariable(ctx, v)
 		if err != nil {
 			return &applyErrBody{
-				name: v.parserVar.Name(),
+				name: v.parserVar.PkgName(),
 				msg:  err.Error(),
 			}
 		}
