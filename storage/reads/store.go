@@ -84,7 +84,9 @@ type Store interface {
 }
 
 // WindowAggregateCapability describes what is supported by WindowAggregateStore.
-type WindowAggregateCapability struct{}
+type WindowAggregateCapability interface{}
+
+type windowAggregateCapability struct{}
 
 // WindowAggregateStore implements the WindowAggregate capability.
 type WindowAggregateStore interface {

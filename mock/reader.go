@@ -5,7 +5,6 @@ import (
 
 	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/influxdb/v2/query/stdlib/influxdata/influxdb"
-	"github.com/influxdata/influxdb/v2/storage/reads"
 )
 
 type StorageReader struct {
@@ -43,11 +42,11 @@ func (s *StorageReader) Close() {
 
 type WindowAggregateStoreReader struct {
 	*StorageReader
-	HasWindowAggregateCapabilityFn func(ctx context.Context, capability ...*reads.WindowAggregateCapability) bool
+	HasWindowAggregateCapabilityFn func(ctx context.Context, capability ...*influxdb.WindowAggregateCapability) bool
 	ReadWindowAggregateFn          func(ctx context.Context, spec influxdb.ReadWindowAggregateSpec, alloc *memory.Allocator) (influxdb.TableIterator, error)
 }
 
-func (s *WindowAggregateStoreReader) HasWindowAggregateCapability(ctx context.Context, capability ...*reads.WindowAggregateCapability) bool {
+func (s *WindowAggregateStoreReader) HasWindowAggregateCapability(ctx context.Context, capability ...*influxdb.WindowAggregateCapability) bool {
 	// Use the function if it exists.
 	if s.HasWindowAggregateCapabilityFn != nil {
 		return s.HasWindowAggregateCapabilityFn(ctx, capability...)
