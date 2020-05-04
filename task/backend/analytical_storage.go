@@ -326,7 +326,7 @@ func (as *AnalyticalStorage) RetryRun(ctx context.Context, taskID, runID influxd
 		return run, err
 	}
 
-	// try finding the run (in our system or underlieing)
+	// try finding the run (in our system or underlying)
 	run, err = as.FindRunByID(ctx, taskID, runID)
 	if err != nil {
 		return run, err
