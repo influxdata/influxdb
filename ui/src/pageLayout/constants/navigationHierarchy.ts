@@ -126,6 +126,7 @@ export const generateNavItems = (orgID: string): NavItem[] => {
       testID: 'nav-item-notebooks',
       icon: IconFont.Erlenmeyer,
       label: 'Notebook',
+      featureFlag: 'notebooks',
       shortLabel: 'Book',
       link: {
         type: 'link',
