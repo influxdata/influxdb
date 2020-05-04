@@ -122,6 +122,18 @@ export const generateNavItems = (orgID: string): NavItem[] => {
       activeKeywords: ['data-explorer'],
     },
     {
+      id: 'notebooks',
+      testID: 'nav-item-notebooks',
+      icon: IconFont.Erlenmeyer,
+      label: 'Notebook',
+      shortLabel: 'Book',
+      link: {
+        type: 'link',
+        location: `${orgPrefix}/notebooks`,
+      },
+      activeKeywords: ['notebooks'],
+    },
+    {
       id: 'org',
       testID: 'nav-item-org',
       icon: IconFont.UsersTrio,

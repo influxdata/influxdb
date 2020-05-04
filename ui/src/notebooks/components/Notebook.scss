@@ -1,0 +1,59 @@
+$notebook-header-height: 46px;
+
+.notebook {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.notebook-panel {
+  background-color: $g2-kevlar;
+  border-radius: $cf-radius;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  margin-bottom: $cf-marg-b;
+}
+
+.notebook-panel__hidden {
+  height: $notebook-header-height;
+}
+
+.notebook-panel__small {
+  height: 280px;
+}
+
+.notebook-panel__large {
+  height: 520px;
+}
+
+.notebook-panel--header {
+  background-color: $g3-castle;
+  border-radius: $cf-radius;
+  padding: 0 $cf-marg-b;
+  height: $notebook-header-height;
+  flex: 0 0 $notebook-header-height;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.notebook-panel--header-left,
+.notebook-panel--header-right {
+  flex: 1 0 $notebook-header-height;
+}
+
+.notebook-panel--title {
+  user-select: none;
+  font-size: 14px;
+  font-weight: $cf-font-weight--medium;
+  margin-left: $cf-marg-b;
+  margin-right: $cf-marg-c !important;
+}
+
+.notebook-panel--body {
+  padding: $cf-marg-a;
+  flex: 1 0 0;
+  position: relative;
+}

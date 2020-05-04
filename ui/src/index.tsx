@@ -93,6 +93,10 @@ import EditRuleOverlay from 'src/notifications/rules/components/EditRuleOverlay'
 import NewEndpointOverlay from 'src/notifications/endpoints/components/NewEndpointOverlay'
 import EditEndpointOverlay from 'src/notifications/endpoints/components/EditEndpointOverlay'
 import NoOrgsPage from 'src/organizations/containers/NoOrgsPage'
+import NotebooksPage from 'src/notebooks/containers/NotebooksPage'
+
+// Utilities
+import {FeatureFlag} from 'src/shared/utils/featureFlag'
 
 // Overlays
 import OverlayHandler, {
@@ -239,6 +243,12 @@ class Root extends PureComponent {
                               component={DEDeleteDataOverlay}
                             />
                           </Route>
+                          <FeatureFlag name="notebooks">
+                            <Route
+                              path="notebooks"
+                              component={NotebooksPage}
+                            />
+                          </FeatureFlag>
                           <Route path="dashboards" component={DashboardsIndex}>
                             <Route
                               path="import"
