@@ -2,9 +2,13 @@
 
 ### Features
 
+1. [17934](https://github.com/influxdata/influxdb/pull/17934): Add ability to delete a stack and all the resources associated with it
+1. [17941](https://github.com/influxdata/influxdb/pull/17941): Encorce dns name compliance on all pkger resources' metadata.name field
+
 ### Bug Fixes
 
 1. [17906](https://github.com/influxdata/influxdb/pull/17906): Ensure UpdateUser cleans up the index when updating names
+1. [17933](https://github.com/influxdata/influxdb/pull/17933): Ensure Checks can be set for zero values
 
 ### UI Improvements
 

@@ -26,6 +26,7 @@ export const localState: LocalStorage = {
     },
   },
   flags: {
+    status: RemoteDataState.Done,
     original: {},
     override: {},
   },

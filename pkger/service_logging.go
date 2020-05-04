@@ -43,6 +43,24 @@ func (s *loggingMW) InitStack(ctx context.Context, userID influxdb.ID, newStack 
 	return s.next.InitStack(ctx, userID, newStack)
 }
 
+func (s *loggingMW) DeleteStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) (err error) {
+	defer func(start time.Time) {
+		if err == nil {
+			return
+		}
+
+		s.logger.Error(
+			"failed to delete stack",
+			zap.Error(err),
+			zap.Stringer("orgID", identifiers.OrgID),
+			zap.Stringer("userID", identifiers.OrgID),
+			zap.Stringer("stackID", identifiers.StackID),
+			zap.Duration("took", time.Since(start)),
+		)
+	}(time.Now())
+	return s.next.DeleteStack(ctx, identifiers)
+}
+
 func (s *loggingMW) ListStacks(ctx context.Context, orgID influxdb.ID, f ListFilter) (stacks []Stack, err error) {
 	defer func(start time.Time) {
 		if err == nil {

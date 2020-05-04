@@ -377,9 +377,9 @@ func (ex *resourceExporter) findDashboardByIDFull(ctx context.Context, id influx
 }
 
 func (ex *resourceExporter) uniqName() string {
-	uuid := idGenerator.ID().String()
+	uuid := strings.ToLower(idGenerator.ID().String())
 	for i := 1; i < 250; i++ {
-		name := fmt.Sprintf("%s_%s", ex.nameGen(), uuid[10:])
+		name := fmt.Sprintf("%s-%s", ex.nameGen(), uuid[10:])
 		if !ex.mPkgNames[name] {
 			return name
 		}
@@ -992,7 +992,7 @@ func newObject(kind Kind, name string) Object {
 			// this timestamp is added to make the resource unique. Should also indicate
 			// to the end user that this is machine readable and the spec.name field is
 			// the one they want to edit when a name change is desired.
-			fieldName: idGenerator.ID().String(),
+			fieldName: strings.ToLower(idGenerator.ID().String()),
 		},
 		Spec: Resource{
 			fieldName: name,

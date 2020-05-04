@@ -1335,6 +1335,10 @@ var validEndpointHTTPMethods = map[string]bool{
 
 func (n *notificationEndpoint) valid() []validationErr {
 	var failures []validationErr
+	if err, ok := isValidName(n.Name(), 1); !ok {
+		failures = append(failures, err)
+	}
+
 	if _, err := url.Parse(n.url); err != nil || n.url == "" {
 		failures = append(failures, validationErr{
 			Field: fieldNotificationEndpointURL,
@@ -1532,6 +1536,9 @@ func (r *notificationRule) toInfluxRule() influxdb.NotificationRule {
 
 func (r *notificationRule) valid() []validationErr {
 	var vErrs []validationErr
+	if err, ok := isValidName(r.Name(), 1); !ok {
+		vErrs = append(vErrs, err)
+	}
 	if !r.endpointName.hasValue() {
 		vErrs = append(vErrs, validationErr{
 			Field: fieldNotificationRuleEndpointName,
@@ -1714,6 +1721,9 @@ func (t *task) summarize() SummaryTask {
 
 func (t *task) valid() []validationErr {
 	var vErrs []validationErr
+	if err, ok := isValidName(t.Name(), 1); !ok {
+		vErrs = append(vErrs, err)
+	}
 	if t.cron == "" && t.every == 0 {
 		vErrs = append(vErrs,
 			validationErr{
@@ -1838,6 +1848,9 @@ func (t *telegraf) summarize() SummaryTelegraf {
 
 func (t *telegraf) valid() []validationErr {
 	var vErrs []validationErr
+	if err, ok := isValidName(t.Name(), 1); !ok {
+		vErrs = append(vErrs, err)
+	}
 	if t.config.Config == "" {
 		vErrs = append(vErrs, validationErr{
 			Field: fieldTelegrafConfig,
@@ -1918,6 +1931,10 @@ func (v *variable) influxVarArgs() *influxdb.VariableArguments {
 
 func (v *variable) valid() []validationErr {
 	var failures []validationErr
+	if err, ok := isValidName(v.Name(), 1); !ok {
+		failures = append(failures, err)
+	}
+
 	switch v.Type {
 	case "map":
 		if len(v.MapValues) == 0 {
@@ -1979,7 +1996,7 @@ func (r *references) String() string {
 		return v
 	}
 	if r.EnvRef != "" {
-		return "$" + r.EnvRef
+		return "env-" + r.EnvRef
 	}
 	return ""
 }

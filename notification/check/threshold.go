@@ -383,7 +383,7 @@ func (b ThresholdConfigBase) GetLevel() notification.CheckLevel {
 // Lesser threshold type.
 type Lesser struct {
 	ThresholdConfigBase
-	Value float64 `json:"value,omitempty"`
+	Value float64 `json:"value"`
 }
 
 // Type of the threshold config.
@@ -407,7 +407,7 @@ func (td Lesser) MarshalJSON() ([]byte, error) {
 // Greater threshold type.
 type Greater struct {
 	ThresholdConfigBase
-	Value float64 `json:"value,omitempty"`
+	Value float64 `json:"value"`
 }
 
 // Type of the threshold config.
