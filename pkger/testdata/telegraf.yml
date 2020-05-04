@@ -1,25 +1,25 @@
 apiVersion: influxdata.com/v2alpha1
 kind: Label
 metadata:
-  name: label_1
+  name: label-1
 ---
 apiVersion: influxdata.com/v2alpha1
 kind: Label
 metadata:
-  name: label_2
+  name: label-2
 ---
 apiVersion: influxdata.com/v2alpha1
 kind: Telegraf
 metadata:
-  name: first_tele_config
+  name: first-tele-config
 spec:
   name: display name
   description: desc
   associations:
     - kind: Label
-      name: label_1
+      name: label-1
     - kind: Label
-      name: label_2
+      name: label-2
   config: |
     # Configuration for telegraf agent
     [agent]
@@ -118,7 +118,7 @@ spec:
 apiVersion: influxdata.com/v2alpha1
 kind: Telegraf
 metadata:
-  name: tele_2
+  name: tele-2
 spec:
   config: |
     # Configuration for telegraf agent
