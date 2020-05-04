@@ -80,11 +80,11 @@ func (r *storeReader) ReadGroup(ctx context.Context, spec influxdb.ReadGroupSpec
 	}, nil
 }
 
-func (r *storeReader) HasWindowAggregateCapability(ctx context.Context, capability ...*influxdb.WindowAggregateCapability) bool {
+func (r *storeReader) GetWindowAggregateCapability(ctx context.Context) influxdb.WindowAggregateCapability {
 	if aggStore, ok := r.s.(storage.WindowAggregateStore); ok {
-		return aggStore.HasWindowAggregateCapability(ctx, capability...)
+		return aggStore.GetWindowAggregateCapability(ctx)
 	}
-	return false
+	return nil
 }
 
 func (r *storeReader) ReadWindowAggregate(ctx context.Context, spec influxdb.ReadWindowAggregateSpec, alloc *memory.Allocator) (influxdb.TableIterator, error) {

@@ -86,14 +86,11 @@ type Store interface {
 // WindowAggregateCapability describes what is supported by WindowAggregateStore.
 type WindowAggregateCapability interface{}
 
-type windowAggregateCapability struct{}
-
 // WindowAggregateStore implements the WindowAggregate capability.
 type WindowAggregateStore interface {
-	// HasWindowAggregateCapability checks if this Store supports the capability.
-	// If WindowAggregateCapability is passed to the method, then the struct
-	// is filled with a detailed list of what the RPC call supports.
-	HasWindowAggregateCapability(ctx context.Context, capability ...*WindowAggregateCapability) bool
+	// GetWindowAggregateCapability will get a detailed list of what the RPC call supports
+	// for window aggregate.
+	GetWindowAggregateCapability(ctx context.Context) WindowAggregateCapability
 
 	// WindowAggregate will invoke a ReadWindowAggregateRequest against the Store.
 	WindowAggregate(ctx context.Context, req *datatypes.ReadWindowAggregateRequest) (ResultSet, error)
