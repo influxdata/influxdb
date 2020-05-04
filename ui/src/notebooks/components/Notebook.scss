@@ -1,4 +1,5 @@
 $notebook-header-height: 46px;
+$notebook-size-toggle: 16px;
 
 .notebook {
   width: 100%;
@@ -14,18 +15,7 @@ $notebook-header-height: 46px;
   flex-direction: column;
   align-items: stretch;
   margin-bottom: $cf-marg-b;
-}
-
-.notebook-panel__hidden {
-  height: $notebook-header-height;
-}
-
-.notebook-panel__small {
-  height: 280px;
-}
-
-.notebook-panel__large {
-  height: 520px;
+  transition: height 0.25s ease;
 }
 
 .notebook-panel--header {
@@ -52,8 +42,75 @@ $notebook-header-height: 46px;
   margin-right: $cf-marg-c !important;
 }
 
+.notebook-panel--toggle {
+  width: $cf-form-sm-height;
+  height: $cf-form-sm-height;
+  position: relative;
+
+  &:after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: $notebook-size-toggle;
+    transition: height 0.25s cubic-bezier(0.25, 1, 0.5, 1), border-color 0.25s ease;
+    border: $cf-border solid $g8-storm;
+    border-radius: $cf-radius / 2;
+  }
+
+  &:hover {
+    cursor: pointer;
+    &:after {
+      border-color: $g13-mist;
+    }
+  }
+}
+
 .notebook-panel--body {
   padding: $cf-marg-a;
   flex: 1 0 0;
   position: relative;
+}
+
+// Special styling for query builder inside notebook panel
+.notebook-panel--body .query-builder {
+  top: $cf-marg-a;
+  right: $cf-marg-a;
+  bottom: $cf-marg-a;
+  left: $cf-marg-a;
+}
+
+/*
+  Notebook Panel Modes
+  ------------------------------------------------------------------------------
+*/
+
+.notebook-panel__hidden {
+  height: $notebook-header-height;
+
+  .notebook-panel--body {
+    display: none;
+  }
+
+  .notebook-panel--toggle:after {
+    height: $cf-border;
+  }
+}
+
+.notebook-panel__small {
+  height: 280px;
+
+  .notebook-panel--toggle:after {
+    height: $notebook-size-toggle / 2;
+  }
+}
+
+.notebook-panel__large {
+  height: 60vh;
+  min-height: 580px;
+
+  .notebook-panel--toggle:after {
+    height: $notebook-size-toggle;
+  }
 }
