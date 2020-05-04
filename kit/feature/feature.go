@@ -51,18 +51,24 @@ func FlagsFromContext(ctx context.Context) map[string]interface{} {
 	return v
 }
 
+type ByKeyFn func(string) (Flag, bool)
+
 // ExposedFlagsFromContext returns the filtered map of exposed  flags attached
 // to the context by Annotate, or nil if none is found.
-func ExposedFlagsFromContext(ctx context.Context) map[string]interface{} {
+func ExposedFlagsFromContext(ctx context.Context, byKey ...ByKeyFn) map[string]interface{} {
 	m := FlagsFromContext(ctx)
-
 	if m == nil {
 		return nil
 	}
 
+	get := ByKey
+	if len(byKey) > 0 {
+		get = byKey[0]
+	}
+
 	filtered := make(map[string]interface{})
 	for k, v := range m {
-		if flag := byKey[k]; flag != nil && flag.Expose() {
+		if flag, found := get(k); found && flag.Expose() {
 			filtered[k] = v
 		}
 	}
@@ -130,4 +136,10 @@ func (*defaultFlagger) Flags(_ context.Context, flags ...Flag) (map[string]inter
 // Flags returns all feature flags.
 func Flags() []Flag {
 	return all
+}
+
+// ByKey returns the Flag corresponding to the given key.
+func ByKey(k string) (Flag, bool) {
+	v, found := byKey[k]
+	return v, found
 }

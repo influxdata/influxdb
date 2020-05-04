@@ -1,8 +1,10 @@
 package feature
 
 import (
+	"encoding/json"
 	"net/http"
 
+	"github.com/influxdata/influxdb/v2"
 	"go.uber.org/zap"
 )
 
@@ -40,4 +42,21 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if h.next != nil {
 		h.next.ServeHTTP(w, r)
 	}
+}
+
+// NewFlagsHandler returns a handler that returns the map of computed feature flags on the request context.
+func NewFlagsHandler(errorHandler influxdb.HTTPErrorHandler, byKey ...ByKeyFn) http.Handler {
+	fn := func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+
+		var (
+			ctx   = r.Context()
+			flags = ExposedFlagsFromContext(ctx, byKey...)
+		)
+		if err := json.NewEncoder(w).Encode(flags); err != nil {
+			errorHandler.HandleHTTPError(ctx, err, w)
+		}
+	}
+	return http.HandlerFunc(fn)
 }
