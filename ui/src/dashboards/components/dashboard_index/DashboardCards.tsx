@@ -1,5 +1,5 @@
 // Libraries
-import React, {PureComponent} from 'react'
+import React, {Component} from 'react'
 import memoizeOne from 'memoize-one'
 
 // Components
@@ -21,7 +21,7 @@ interface Props {
   onFilterChange: (searchTerm: string) => void
 }
 
-export default class DashboardCards extends PureComponent<Props> {
+export default class DashboardCards extends Component<Props> {
   private _frame
   private _window
   private _observer
@@ -40,9 +40,53 @@ export default class DashboardCards extends PureComponent<Props> {
   public componentDidMount() {
     this.setState({
       hasMeasured: false,
-      page: 1,
+      pages: 1,
       windowSize: 0,
     })
+  }
+
+  public shouldComponentUpdate(nextProps, nextState) {
+    if (nextState.pages !== this.state.pages) {
+      return true
+    }
+
+    if (nextState.windowSize !== this.state.windowSize) {
+      return true
+    }
+
+    if (nextProps.sortKey !== this.props.sortKey) {
+      return true
+    }
+
+    if (nextProps.sortDirection !== this.props.sortDirection) {
+      return true
+    }
+
+    if (nextProps.sortType !== this.props.sortType) {
+      return true
+    }
+
+    // this almost always returns true for some reason
+    if (nextProps.dashboards !== this.props.dashboards) {
+      const nextDash = nextProps.dashboards.reduce((acc, dash) => {
+        acc[dash.id] = true
+        return acc
+      }, {})
+      const lastDash = this.props.dashboards.reduce((acc, dash) => {
+        acc[dash.id] = true
+        return acc
+      }, {})
+
+      if (
+        Object.keys(nextDash).filter(id => !lastDash.hasOwnProperty(id))
+          .length ||
+        Object.keys(lastDash).filter(id => !nextDash.hasOwnProperty(id)).length
+      ) {
+        return true
+      }
+    }
+
+    return false
   }
 
   public componentDidUpdate() {
@@ -111,15 +155,10 @@ export default class DashboardCards extends PureComponent<Props> {
     const frame = this._frame.getBoundingClientRect()
     const win = this._window.getBoundingClientRect()
 
-    if (frame.height <= win.height) {
-      this.setState(
-        {
-          windowSize: this.state.windowSize + 1,
-        },
-        () => {
-          this.addMore()
-        }
-      )
+    if (frame.height == win.height) {
+      this.setState({
+        windowSize: this.state.windowSize + 1,
+      })
     } else {
       this.setState({
         windowSize: this.state.windowSize,

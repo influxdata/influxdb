@@ -58,15 +58,10 @@ interface State {
 @ErrorHandling
 class InlineLabelsEditor extends Component<Props, State> {
   private popoverTrigger = createRef<ButtonBaseRef>()
-
-  constructor(props: Props) {
-    super(props)
-
-    this.state = {
-      selectedItemID: null,
-      searchTerm: '',
-      isCreatingLabel: OverlayState.Closed,
-    }
+  private state = {
+    selectedItemID: null,
+    searchTerm: '',
+    isCreatingLabel: OverlayState.Closed,
   }
 
   public render() {
