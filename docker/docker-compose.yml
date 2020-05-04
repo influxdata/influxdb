@@ -15,10 +15,10 @@ services:
       - influx-cli-configs:/root/.influxdbv2/
       - ./influxdb-setup.bash:/influxdb-setup.bash
     environment:
-      - INFLUXDB_USER="admin"
+      - INFLUXDB_USER=admin
       - INFLUXDB_PASSWORD=
-      - INFLUXDB_ORG="influxdata"
-      - INFLUXDB_BUCKET="telegraf"
+      - INFLUXDB_ORG=influxdata
+      - INFLUXDB_BUCKET=telegraf
     command:
       - /influxdb-setup.bash
     depends_on:

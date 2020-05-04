@@ -42,17 +42,9 @@ influx setup \
   --bucket "$INFLUXDB_BUCKET" \
   --retention 14400s
 
-if [ -f "$HOME/.influxdbv2/configs" ] ; then
-  # find the line with token value, which is specified in format of:
-  # token = "(token)"
-  # and remove the token = as well as any quotes and spaces from the result
-  INFLUXDB_TOKEN=$(
-    grep -E '^[[:space:]]*token[[:space:]]*=' "$HOME/.influxdbv2/configs" | \
-    sed -E 's,^[[:space:]]*token[[:space:]]*=[[:space:]],,;s,",,g;s,[[:space:]]+,,' \
-    )
-fi
-
 echo "Successfully initialized InfluxDB..."
 echo "Open your browser and log in at http://localhost:9999"
+
+# Do anything else you need to do to set up your instance here such as loading pre-configured assets with influx pkg
 
 exit 0
