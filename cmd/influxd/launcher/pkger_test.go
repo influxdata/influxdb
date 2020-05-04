@@ -7,7 +7,6 @@ import (
 	"io/ioutil"
 	nethttp "net/http"
 	"net/http/httptest"
-	"reflect"
 	"testing"
 	"time"
 
@@ -35,6 +34,35 @@ func TestLauncher_Pkger(t *testing.T) {
 	svc := l.PkgerService(t)
 
 	resourceCheck := newResourceChecker(l)
+
+	newStackFn := func(t *testing.T, stack pkger.Stack) (pkger.Stack, func()) {
+		t.Helper()
+
+		if stack.OrgID == 0 {
+			stack.OrgID = l.Org.ID
+		}
+
+		newStack, err := svc.InitStack(ctx, l.User.ID, stack)
+		require.NoError(t, err)
+
+		assert.NotZero(t, newStack.OrgID)
+		assert.Equal(t, stack.Name, newStack.Name)
+		assert.Equal(t, stack.Description, newStack.Description)
+		assert.Equal(t, stack.URLs, newStack.URLs)
+		assert.NotNil(t, newStack.Resources)
+		assert.NotZero(t, newStack.CRUDLog)
+
+		return newStack, func() {
+			// deletes are idempotent, so any error encountered here is not a not found error
+			// but rather an error to concern ourselves with.
+			err := svc.DeleteStack(ctx, struct{ OrgID, UserID, StackID influxdb.ID }{
+				OrgID:   l.Org.ID,
+				UserID:  l.User.ID,
+				StackID: newStack.ID,
+			})
+			require.NoError(t, err, "failed to delete stack and its associated resources")
+		}
+	}
 
 	t.Run("managing pkg state with stacks", func(t *testing.T) {
 		newPkg := func(objects ...pkger.Object) *pkger.Pkg {
@@ -160,37 +188,25 @@ func TestLauncher_Pkger(t *testing.T) {
 		}
 
 		t.Run("creating a stack", func(t *testing.T) {
-			expectedURLs := []string{"http://example.com"}
-
-			newStack, err := svc.InitStack(ctx, l.User.ID, pkger.Stack{
+			_, cleanup := newStackFn(t, pkger.Stack{
 				OrgID:       l.Org.ID,
 				Name:        "first stack",
 				Description: "desc",
-				URLs:        expectedURLs,
+				URLs:        []string{"http://example.com"},
 			})
-			require.NoError(t, err)
-
-			assert.NotZero(t, newStack.ID)
-			assert.Equal(t, l.Org.ID, newStack.OrgID)
-			assert.Equal(t, "first stack", newStack.Name)
-			assert.Equal(t, "desc", newStack.Description)
-			assert.Equal(t, expectedURLs, newStack.URLs)
-			assert.NotNil(t, newStack.Resources)
-			assert.NotZero(t, newStack.CRUDLog)
+			cleanup()
 		})
 
 		t.Run("list stacks", func(t *testing.T) {
-			// seed platform with stacks
-			newStack1, err := svc.InitStack(ctx, l.User.ID, pkger.Stack{
-				OrgID: l.Org.ID,
-				Name:  "first stack",
+			newStack1, cleanup1 := newStackFn(t, pkger.Stack{
+				Name: "first stack",
 			})
-			require.NoError(t, err)
-			newStack2, err := svc.InitStack(ctx, l.User.ID, pkger.Stack{
-				OrgID: l.Org.ID,
-				Name:  "second stack",
+			defer cleanup1()
+
+			newStack2, cleanup2 := newStackFn(t, pkger.Stack{
+				Name: "second stack",
 			})
-			require.NoError(t, err)
+			defer cleanup2()
 
 			containsStack := func(t *testing.T, haystack []pkger.Stack, needle pkger.Stack) {
 				t.Helper()
@@ -231,10 +247,8 @@ func TestLauncher_Pkger(t *testing.T) {
 
 		t.Run("delete a stack", func(t *testing.T) {
 			t.Run("should delete the stack and all resources associated with it", func(t *testing.T) {
-				newStack, err := svc.InitStack(ctx, l.User.ID, pkger.Stack{
-					OrgID: l.Org.ID,
-				})
-				require.NoError(t, err)
+				newStack, cleanup := newStackFn(t, pkger.Stack{})
+				defer cleanup()
 
 				newEndpointPkgName := "non-existent-endpoint"
 				allResourcesPkg := newPkg(
@@ -312,13 +326,10 @@ func TestLauncher_Pkger(t *testing.T) {
 				assert.Error(t, err)
 			})
 
-			t.Run("that has been deleted should be successful", func(t *testing.T) {
-				newStack, err := svc.InitStack(ctx, l.User.ID, pkger.Stack{
-					OrgID: l.Org.ID,
-				})
-				require.NoError(t, err)
+			t.Run("that has already been deleted should be successful", func(t *testing.T) {
+				newStack, _ := newStackFn(t, pkger.Stack{})
 
-				err = svc.DeleteStack(ctx, struct{ OrgID, UserID, StackID influxdb.ID }{
+				err := svc.DeleteStack(ctx, struct{ OrgID, UserID, StackID influxdb.ID }{
 					OrgID:   l.Org.ID,
 					UserID:  l.User.ID,
 					StackID: newStack.ID,
@@ -374,15 +385,10 @@ func TestLauncher_Pkger(t *testing.T) {
 				"file://" + f.Name(),
 			}
 
-			newStack, err := svc.InitStack(ctx, l.User.ID, pkger.Stack{
-				OrgID: l.Org.ID,
-				URLs:  expectedURLs,
+			newStack, cleanup := newStackFn(t, pkger.Stack{
+				URLs: expectedURLs,
 			})
-			require.NoError(t, err)
-
-			assert.NotZero(t, newStack.ID)
-			assert.Equal(t, l.Org.ID, newStack.OrgID)
-			assert.Equal(t, expectedURLs, newStack.URLs)
+			defer cleanup()
 
 			sumEquals := func(t *testing.T, sum pkger.Summary) {
 				t.Helper()
@@ -400,9 +406,6 @@ func TestLauncher_Pkger(t *testing.T) {
 			sum, _, err = svc.Apply(ctx, l.Org.ID, l.User.ID, nil, pkger.ApplyWithStackID(newStack.ID))
 			require.NoError(t, err)
 			sumEquals(t, sum)
-
-			defer resourceCheck.mustDeleteBucket(t, influxdb.ID(sum.Buckets[0].ID))
-			defer resourceCheck.mustDeleteBucket(t, influxdb.ID(sum.Buckets[1].ID))
 		})
 
 		t.Run("apply a pkg with a stack and associations", func(t *testing.T) {
@@ -483,13 +486,18 @@ func TestLauncher_Pkger(t *testing.T) {
 			}
 			labelObj := newLabelObject("label-1", "label 1", "", "")
 
-			stack, err := svc.InitStack(ctx, l.User.ID, pkger.Stack{
-				OrgID: l.Org.ID,
-			})
-			require.NoError(t, err)
+			testAssociationFn := func(t *testing.T) (pkger.Summary, pkger.Stack, func()) {
+				t.Helper()
 
-			t.Log("should associate resources with labels")
-			{
+				stack, cleanup := newStackFn(t, pkger.Stack{})
+				defer func() {
+					if t.Failed() {
+						// if test fails in setup, then we attempt to clean it up
+						// so it doesn't pollute other tests
+						cleanup()
+					}
+				}()
+
 				pkgObjects := newObjectsFn()
 				for _, obj := range pkgObjects {
 					obj.AddAssociations(pkger.ObjectAssociation{
@@ -506,52 +514,17 @@ func TestLauncher_Pkger(t *testing.T) {
 					assert.Equal(t, sum.Labels[0].ID, pkger.SafeID(mappedLabels[0].ID))
 				})
 
-				// TODO: nuke all this when ability to delete stack and all its resources lands
-				for _, b := range sum.Buckets {
-					defer resourceCheck.mustDeleteBucket(t, influxdb.ID(b.ID))
-				}
-				for _, c := range sum.Checks {
-					defer resourceCheck.mustDeleteCheck(t, c.Check.GetID())
-				}
-				for _, d := range sum.Dashboards {
-					defer resourceCheck.mustDeleteDashboard(t, influxdb.ID(d.ID))
-				}
-				for _, l := range sum.Labels {
-					defer resourceCheck.mustDeleteLabel(t, influxdb.ID(l.ID))
-				}
-				for _, e := range sum.NotificationEndpoints {
-					defer resourceCheck.mustDeleteEndpoint(t, e.NotificationEndpoint.GetID())
-				}
-				for _, r := range sum.NotificationRules {
-					defer resourceCheck.mustDeleteRule(t, influxdb.ID(r.ID))
-				}
-				for _, ta := range sum.Tasks {
-					defer resourceCheck.mustDeleteTask(t, influxdb.ID(ta.ID))
-				}
-				for _, te := range sum.TelegrafConfigs {
-					defer resourceCheck.mustDeleteTelegrafConfig(t, te.TelegrafConfig.ID)
-				}
-				for _, v := range sum.Variables {
-					defer resourceCheck.mustDeleteVariable(t, influxdb.ID(v.ID))
-				}
+				return sum, stack, cleanup
 			}
 
-			t.Log("should rollback to previous state when errors in creation")
-			{
-				pkgObjects := newObjectsFn()
-				for _, obj := range pkgObjects {
-					obj.AddAssociations(pkger.ObjectAssociation{
-						Kind:    pkger.KindLabel,
-						PkgName: labelObj.Name(),
-					})
-				}
-				pkgObjects = append(pkgObjects, labelObj)
+			t.Run("should associate resources with labels", func(t *testing.T) {
+				_, _, cleanup := testAssociationFn(t)
+				cleanup()
+			})
 
-				pkg := newPkg(pkgObjects...)
-				sum := testLabelMappingFn(t, stack.ID, pkg, func(sum pkger.Summary, mappedLabels []*influxdb.Label, resType influxdb.ResourceType) {
-					require.Len(t, mappedLabels, 1, "res_type="+resType)
-					assert.Equal(t, sum.Labels[0].ID, pkger.SafeID(mappedLabels[0].ID))
-				})
+			t.Run("should rollback to previous state when errors in creation", func(t *testing.T) {
+				sum, stack, cleanup := testAssociationFn(t)
+				defer cleanup()
 
 				logger := l.log.With(zap.String("service", "pkger"))
 				var svc pkger.SVC = pkger.NewService(
@@ -575,7 +548,7 @@ func TestLauncher_Pkger(t *testing.T) {
 				)
 				svc = pkger.MWLogging(logger)(svc)
 
-				pkg = newPkg(append(newObjectsFn(), labelObj)...)
+				pkg := newPkg(append(newObjectsFn(), labelObj)...)
 				_, _, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkg, pkger.ApplyWithStackID(stack.ID))
 				require.Error(t, err)
 
@@ -603,158 +576,173 @@ func TestLauncher_Pkger(t *testing.T) {
 						assert.Equal(t, sum.Labels[0].ID, pkger.SafeID(mappedLabels[0].ID))
 					}
 				}
-			}
+			})
 
-			t.Log("should unassociate resources from label when removing association in pkg")
-			{
+			t.Run("should unassociate resources from label when removing association in pkg", func(t *testing.T) {
+				_, stack, cleanup := testAssociationFn(t)
+				defer cleanup()
+
 				objects := newObjectsFn()
 				pkg := newPkg(append(objects, labelObj)...)
 
 				testLabelMappingFn(t, stack.ID, pkg, func(sum pkger.Summary, mappedLabels []*influxdb.Label, resType influxdb.ResourceType) {
 					assert.Empty(t, mappedLabels, "res_type="+resType)
 				})
-			}
+			})
 		})
 
 		t.Run("apply a pkg with a stack", func(t *testing.T) {
-			// each test t.Log() represents a test case, but b/c we are dependent
-			// on the test before it succeeding, we are using t.Log instead of t.Run
-			// to run a sub test.
+			testStackApplyFn := func(t *testing.T) (pkger.Summary, pkger.Stack, func()) {
+				t.Helper()
 
-			stack, err := svc.InitStack(ctx, l.User.ID, pkger.Stack{
-				OrgID: l.Org.ID,
-			})
-			require.NoError(t, err)
-			applyOpt := pkger.ApplyWithStackID(stack.ID)
+				stack, cleanup := newStackFn(t, pkger.Stack{})
+				defer func() {
+					if t.Failed() {
+						cleanup()
+					}
+				}()
 
-			var (
-				initialBucketPkgName   = "rucketeer-1"
-				initialCheckPkgName    = "checkers"
-				initialDashPkgName     = "dash-of-salt"
-				initialEndpointPkgName = "endzo"
-				initialLabelPkgName    = "labelino"
-				initialRulePkgName     = "oh-doyle-rules"
-				initialTaskPkgName     = "tap"
-				initialTelegrafPkgName = "teletype"
-				initialVariablePkgName = "laces-out-dan"
-			)
-			initialPkg := newPkg(
-				newBucketObject(initialBucketPkgName, "display name", "init desc"),
-				newCheckDeadmanObject(t, initialCheckPkgName, "check_0", time.Minute),
-				newDashObject(initialDashPkgName, "dash_0", "init desc"),
-				newEndpointHTTP(initialEndpointPkgName, "endpoint_0", "init desc"),
-				newLabelObject(initialLabelPkgName, "label 1", "init desc", "#222eee"),
-				newRuleObject(t, initialRulePkgName, "rule_0", initialEndpointPkgName, "init desc"),
-				newTaskObject(initialTaskPkgName, "task_0", "init desc"),
-				newTelegrafObject(initialTelegrafPkgName, "tele_0", "init desc"),
-				newVariableObject(initialVariablePkgName, "var char", "init desc"),
-			)
+				var (
+					initialBucketPkgName   = "rucketeer-1"
+					initialCheckPkgName    = "checkers"
+					initialDashPkgName     = "dash-of-salt"
+					initialEndpointPkgName = "endzo"
+					initialLabelPkgName    = "labelino"
+					initialRulePkgName     = "oh-doyle-rules"
+					initialTaskPkgName     = "tap"
+					initialTelegrafPkgName = "teletype"
+					initialVariablePkgName = "laces-out-dan"
+				)
+				initialPkg := newPkg(
+					newBucketObject(initialBucketPkgName, "display name", "init desc"),
+					newCheckDeadmanObject(t, initialCheckPkgName, "check_0", time.Minute),
+					newDashObject(initialDashPkgName, "dash_0", "init desc"),
+					newEndpointHTTP(initialEndpointPkgName, "endpoint_0", "init desc"),
+					newLabelObject(initialLabelPkgName, "label 1", "init desc", "#222eee"),
+					newRuleObject(t, initialRulePkgName, "rule_0", initialEndpointPkgName, "init desc"),
+					newTaskObject(initialTaskPkgName, "task_0", "init desc"),
+					newTelegrafObject(initialTelegrafPkgName, "tele_0", "init desc"),
+					newVariableObject(initialVariablePkgName, "var char", "init desc"),
+				)
 
-			var initialSum pkger.Summary
-			t.Run("apply pkg with stack id", func(t *testing.T) {
-				sum, _, err := svc.Apply(ctx, l.Org.ID, l.User.ID, initialPkg, applyOpt)
+				summary, _, err := svc.Apply(ctx, l.Org.ID, l.User.ID, initialPkg, pkger.ApplyWithStackID(stack.ID))
 				require.NoError(t, err)
-				initialSum = sum
 
-				require.Len(t, sum.Buckets, 1)
-				assert.NotZero(t, sum.Buckets[0].ID)
-				assert.Equal(t, "display name", sum.Buckets[0].Name)
-				assert.Equal(t, "init desc", sum.Buckets[0].Description)
+				require.Len(t, summary.Buckets, 1)
+				assert.NotZero(t, summary.Buckets[0].ID)
+				assert.Equal(t, "display name", summary.Buckets[0].Name)
+				assert.Equal(t, "init desc", summary.Buckets[0].Description)
 
-				require.Len(t, sum.Checks, 1)
-				assert.NotZero(t, sum.Checks[0].Check.GetID())
-				assert.Equal(t, "check_0", sum.Checks[0].Check.GetName())
+				require.Len(t, summary.Checks, 1)
+				assert.NotZero(t, summary.Checks[0].Check.GetID())
+				assert.Equal(t, "check_0", summary.Checks[0].Check.GetName())
 
-				require.Len(t, sum.Dashboards, 1)
-				assert.NotZero(t, sum.Dashboards[0].ID)
-				assert.Equal(t, "dash_0", sum.Dashboards[0].Name)
+				require.Len(t, summary.Dashboards, 1)
+				assert.NotZero(t, summary.Dashboards[0].ID)
+				assert.Equal(t, "dash_0", summary.Dashboards[0].Name)
 
-				require.Len(t, sum.NotificationEndpoints, 1)
-				assert.NotZero(t, sum.NotificationEndpoints[0].NotificationEndpoint.GetID())
-				assert.Equal(t, "endpoint_0", sum.NotificationEndpoints[0].NotificationEndpoint.GetName())
+				require.Len(t, summary.NotificationEndpoints, 1)
+				assert.NotZero(t, summary.NotificationEndpoints[0].NotificationEndpoint.GetID())
+				assert.Equal(t, "endpoint_0", summary.NotificationEndpoints[0].NotificationEndpoint.GetName())
 
-				require.Len(t, sum.Labels, 1)
-				assert.NotZero(t, sum.Labels[0].ID)
-				assert.Equal(t, "label 1", sum.Labels[0].Name)
-				assert.Equal(t, "init desc", sum.Labels[0].Properties.Description)
-				assert.Equal(t, "#222eee", sum.Labels[0].Properties.Color)
+				require.Len(t, summary.Labels, 1)
+				assert.NotZero(t, summary.Labels[0].ID)
+				assert.Equal(t, "label 1", summary.Labels[0].Name)
+				assert.Equal(t, "init desc", summary.Labels[0].Properties.Description)
+				assert.Equal(t, "#222eee", summary.Labels[0].Properties.Color)
 
-				require.Len(t, sum.NotificationRules, 1)
-				assert.NotZero(t, sum.NotificationRules[0].ID)
-				assert.Equal(t, "rule_0", sum.NotificationRules[0].Name)
-				assert.Equal(t, initialEndpointPkgName, sum.NotificationRules[0].EndpointPkgName)
-				assert.Equal(t, "init desc", sum.NotificationRules[0].Description)
+				require.Len(t, summary.NotificationRules, 1)
+				assert.NotZero(t, summary.NotificationRules[0].ID)
+				assert.Equal(t, "rule_0", summary.NotificationRules[0].Name)
+				assert.Equal(t, initialEndpointPkgName, summary.NotificationRules[0].EndpointPkgName)
+				assert.Equal(t, "init desc", summary.NotificationRules[0].Description)
 
-				require.Len(t, sum.Tasks, 1)
-				assert.NotZero(t, sum.Tasks[0].ID)
-				assert.Equal(t, "task_0", sum.Tasks[0].Name)
-				assert.Equal(t, "init desc", sum.Tasks[0].Description)
+				require.Len(t, summary.Tasks, 1)
+				assert.NotZero(t, summary.Tasks[0].ID)
+				assert.Equal(t, "task_0", summary.Tasks[0].Name)
+				assert.Equal(t, "init desc", summary.Tasks[0].Description)
 
-				require.Len(t, sum.TelegrafConfigs, 1)
-				assert.NotZero(t, sum.TelegrafConfigs[0].TelegrafConfig.ID)
-				assert.Equal(t, "tele_0", sum.TelegrafConfigs[0].TelegrafConfig.Name)
-				assert.Equal(t, "init desc", sum.TelegrafConfigs[0].TelegrafConfig.Description)
+				require.Len(t, summary.TelegrafConfigs, 1)
+				assert.NotZero(t, summary.TelegrafConfigs[0].TelegrafConfig.ID)
+				assert.Equal(t, "tele_0", summary.TelegrafConfigs[0].TelegrafConfig.Name)
+				assert.Equal(t, "init desc", summary.TelegrafConfigs[0].TelegrafConfig.Description)
 
-				require.Len(t, sum.Variables, 1)
-				assert.NotZero(t, sum.Variables[0].ID)
-				assert.Equal(t, "var char", sum.Variables[0].Name)
-				assert.Equal(t, "init desc", sum.Variables[0].Description)
+				require.Len(t, summary.Variables, 1)
+				assert.NotZero(t, summary.Variables[0].ID)
+				assert.Equal(t, "var char", summary.Variables[0].Name)
+				assert.Equal(t, "init desc", summary.Variables[0].Description)
 
 				t.Log("\tverify changes reflected in platform")
 				{
 					actualBkt := resourceCheck.mustGetBucket(t, byName("display name"))
-					assert.Equal(t, sum.Buckets[0].ID, pkger.SafeID(actualBkt.ID))
+					assert.Equal(t, summary.Buckets[0].ID, pkger.SafeID(actualBkt.ID))
 
 					actualCheck := resourceCheck.mustGetCheck(t, byName("check_0"))
-					assert.Equal(t, sum.Checks[0].Check.GetID(), actualCheck.GetID())
+					assert.Equal(t, summary.Checks[0].Check.GetID(), actualCheck.GetID())
 
 					actualDash := resourceCheck.mustGetDashboard(t, byName("dash_0"))
-					assert.Equal(t, sum.Dashboards[0].ID, pkger.SafeID(actualDash.ID))
+					assert.Equal(t, summary.Dashboards[0].ID, pkger.SafeID(actualDash.ID))
 
 					actualEndpint := resourceCheck.mustGetEndpoint(t, byName("endpoint_0"))
-					assert.Equal(t, sum.NotificationEndpoints[0].NotificationEndpoint.GetID(), actualEndpint.GetID())
+					assert.Equal(t, summary.NotificationEndpoints[0].NotificationEndpoint.GetID(), actualEndpint.GetID())
 
 					actualLabel := resourceCheck.mustGetLabel(t, byName("label 1"))
-					assert.Equal(t, sum.Labels[0].ID, pkger.SafeID(actualLabel.ID))
+					assert.Equal(t, summary.Labels[0].ID, pkger.SafeID(actualLabel.ID))
 
 					actualRule := resourceCheck.mustGetRule(t, byName("rule_0"))
-					assert.Equal(t, sum.NotificationRules[0].ID, pkger.SafeID(actualRule.GetID()))
+					assert.Equal(t, summary.NotificationRules[0].ID, pkger.SafeID(actualRule.GetID()))
 
 					actualTask := resourceCheck.mustGetTask(t, byName("task_0"))
-					assert.Equal(t, sum.Tasks[0].ID, pkger.SafeID(actualTask.ID))
+					assert.Equal(t, summary.Tasks[0].ID, pkger.SafeID(actualTask.ID))
 
 					actualTele := resourceCheck.mustGetTelegrafConfig(t, byName("tele_0"))
-					assert.Equal(t, sum.TelegrafConfigs[0].TelegrafConfig.ID, actualTele.ID)
+					assert.Equal(t, summary.TelegrafConfigs[0].TelegrafConfig.ID, actualTele.ID)
 
 					actualVar := resourceCheck.mustGetVariable(t, byName("var char"))
-					assert.Equal(t, sum.Variables[0].ID, pkger.SafeID(actualVar.ID))
+					assert.Equal(t, summary.Variables[0].ID, pkger.SafeID(actualVar.ID))
 				}
+
+				return summary, stack, cleanup
+			}
+
+			t.Run("apply pkg with stack id", func(t *testing.T) {
+				_, _, cleanup := testStackApplyFn(t)
+				cleanup()
 			})
 
-			var (
-				updateBucketName   = "new bucket"
-				updateCheckName    = "new check"
-				updateDashName     = "new dash"
-				updateEndpointName = "new endpoint"
-				updateLabelName    = "new label"
-				updateRuleName     = "new rule"
-				updateTaskName     = "new task"
-				updateTelegrafName = "new telegraf"
-				updateVariableName = "new variable"
-			)
 			t.Run("apply pkg with stack id where resources change", func(t *testing.T) {
-				updatedPkg := newPkg(
-					newBucketObject(initialBucketPkgName, updateBucketName, ""),
-					newCheckDeadmanObject(t, initialCheckPkgName, updateCheckName, time.Hour),
-					newDashObject(initialDashPkgName, updateDashName, ""),
-					newEndpointHTTP(initialEndpointPkgName, updateEndpointName, ""),
-					newLabelObject(initialLabelPkgName, updateLabelName, "", ""),
-					newRuleObject(t, initialRulePkgName, updateRuleName, initialEndpointPkgName, ""),
-					newTaskObject(initialTaskPkgName, updateTaskName, ""),
-					newTelegrafObject(initialTelegrafPkgName, updateTelegrafName, ""),
-					newVariableObject(initialVariablePkgName, updateVariableName, ""),
+				initialSum, stack, cleanup := testStackApplyFn(t)
+				defer cleanup()
+
+				var (
+					updateBucketName   = "new bucket"
+					updateCheckName    = "new check"
+					updateDashName     = "new dash"
+					updateEndpointName = "new endpoint"
+					updateLabelName    = "new label"
+					updateRuleName     = "new rule"
+					updateTaskName     = "new task"
+					updateTelegrafName = "new telegraf"
+					updateVariableName = "new variable"
 				)
-				sum, _, err := svc.Apply(ctx, l.Org.ID, l.User.ID, updatedPkg, applyOpt)
+				updatedPkg := newPkg(
+					newBucketObject(initialSum.Buckets[0].PkgName, updateBucketName, ""),
+					newCheckDeadmanObject(t, initialSum.Checks[0].PkgName, updateCheckName, time.Hour),
+					newDashObject(initialSum.Dashboards[0].PkgName, updateDashName, ""),
+					newEndpointHTTP(initialSum.NotificationEndpoints[0].PkgName, updateEndpointName, ""),
+					newLabelObject(initialSum.Labels[0].PkgName, updateLabelName, "", ""),
+					newRuleObject(
+						t,
+						initialSum.NotificationRules[0].PkgName,
+						updateRuleName,
+						initialSum.NotificationEndpoints[0].PkgName,
+						"",
+					),
+					newTaskObject(initialSum.Tasks[0].PkgName, updateTaskName, ""),
+					newTelegrafObject(initialSum.TelegrafConfigs[0].PkgName, updateTelegrafName, ""),
+					newVariableObject(initialSum.Variables[0].PkgName, updateVariableName, ""),
+				)
+				sum, _, err := svc.Apply(ctx, l.Org.ID, l.User.ID, updatedPkg, pkger.ApplyWithStackID(stack.ID))
 				require.NoError(t, err)
 
 				require.Len(t, sum.Buckets, 1)
@@ -828,9 +816,8 @@ func TestLauncher_Pkger(t *testing.T) {
 			})
 
 			t.Run("an error during application roles back resources to previous state", func(t *testing.T) {
-				if reflect.DeepEqual(initialSum, pkger.Summary{}) {
-					t.Skip("test setup not complete")
-				}
+				initialSum, stack, cleanup := testStackApplyFn(t)
+				defer cleanup()
 
 				logger := l.log.With(zap.String("service", "pkger"))
 				var svc pkger.SVC = pkger.NewService(
@@ -867,36 +854,36 @@ func TestLauncher_Pkger(t *testing.T) {
 					newTelegrafObject("z-telegraf-rolls-back", "", ""),
 					newVariableObject("z-var-rolls-back", "", ""),
 				)
-				_, _, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkgWithDelete, applyOpt)
+				_, _, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkgWithDelete, pkger.ApplyWithStackID(stack.ID))
 				require.Error(t, err)
 
 				t.Log("validate all resources are rolled back")
 				{
-					actualBkt := resourceCheck.mustGetBucket(t, byName(updateBucketName))
+					actualBkt := resourceCheck.mustGetBucket(t, byName(initialSum.Buckets[0].Name))
 					assert.NotEqual(t, initialSum.Buckets[0].ID, pkger.SafeID(actualBkt.ID))
 
-					actualCheck := resourceCheck.mustGetCheck(t, byName(updateCheckName))
+					actualCheck := resourceCheck.mustGetCheck(t, byName(initialSum.Checks[0].Check.GetName()))
 					assert.NotEqual(t, initialSum.Checks[0].Check.GetID(), actualCheck.GetID())
 
-					actualDash := resourceCheck.mustGetDashboard(t, byName(updateDashName))
+					actualDash := resourceCheck.mustGetDashboard(t, byName(initialSum.Dashboards[0].Name))
 					assert.NotEqual(t, initialSum.Dashboards[0].ID, pkger.SafeID(actualDash.ID))
 
-					actualEndpoint := resourceCheck.mustGetEndpoint(t, byName(updateEndpointName))
+					actualEndpoint := resourceCheck.mustGetEndpoint(t, byName(initialSum.NotificationEndpoints[0].NotificationEndpoint.GetName()))
 					assert.NotEqual(t, initialSum.NotificationEndpoints[0].NotificationEndpoint.GetID(), actualEndpoint.GetID())
 
-					actualRule := resourceCheck.mustGetRule(t, byName(updateRuleName))
+					actualRule := resourceCheck.mustGetRule(t, byName(initialSum.NotificationRules[0].Name))
 					assert.NotEqual(t, initialSum.NotificationRules[0].ID, pkger.SafeID(actualRule.GetID()))
 
-					actualLabel := resourceCheck.mustGetLabel(t, byName(updateLabelName))
+					actualLabel := resourceCheck.mustGetLabel(t, byName(initialSum.Labels[0].Name))
 					assert.NotEqual(t, initialSum.Labels[0].ID, pkger.SafeID(actualLabel.ID))
 
-					actualTask := resourceCheck.mustGetTask(t, byName(updateTaskName))
+					actualTask := resourceCheck.mustGetTask(t, byName(initialSum.Tasks[0].Name))
 					assert.NotEqual(t, initialSum.Tasks[0].ID, pkger.SafeID(actualTask.ID))
 
-					actualTelegraf := resourceCheck.mustGetTelegrafConfig(t, byName(updateTelegrafName))
+					actualTelegraf := resourceCheck.mustGetTelegrafConfig(t, byName(initialSum.TelegrafConfigs[0].TelegrafConfig.Name))
 					assert.NotEqual(t, initialSum.TelegrafConfigs[0].TelegrafConfig.ID, actualTelegraf.ID)
 
-					actualVariable := resourceCheck.mustGetVariable(t, byName(updateVariableName))
+					actualVariable := resourceCheck.mustGetVariable(t, byName(initialSum.Variables[0].Name))
 					assert.NotEqual(t, initialSum.Variables[0].ID, pkger.SafeID(actualVariable.ID))
 				}
 
@@ -933,6 +920,9 @@ func TestLauncher_Pkger(t *testing.T) {
 			})
 
 			t.Run("apply pkg with stack id where resources have been removed since last run", func(t *testing.T) {
+				initialSum, stack, cleanup := testStackApplyFn(t)
+				defer cleanup()
+
 				newEndpointPkgName := "non-existent-endpoint"
 				allNewResourcesPkg := newPkg(
 					newBucketObject("non-existent-bucket", "", ""),
@@ -945,64 +935,55 @@ func TestLauncher_Pkger(t *testing.T) {
 					newTelegrafObject("non-existent-tele", "", ""),
 					newVariableObject("non-existent-var", "", ""),
 				)
-				sum, _, err := svc.Apply(ctx, l.Org.ID, l.User.ID, allNewResourcesPkg, applyOpt)
+				sum, _, err := svc.Apply(ctx, l.Org.ID, l.User.ID, allNewResourcesPkg, pkger.ApplyWithStackID(stack.ID))
 				require.NoError(t, err)
 
 				require.Len(t, sum.Buckets, 1)
 				assert.NotEqual(t, initialSum.Buckets[0].ID, sum.Buckets[0].ID)
 				assert.NotZero(t, sum.Buckets[0].ID)
-				defer resourceCheck.mustDeleteBucket(t, influxdb.ID(sum.Buckets[0].ID))
 				assert.Equal(t, "non-existent-bucket", sum.Buckets[0].Name)
 
 				require.Len(t, sum.Checks, 1)
 				assert.NotEqual(t, initialSum.Checks[0].Check.GetID(), sum.Checks[0].Check.GetID())
 				assert.NotZero(t, sum.Checks[0].Check.GetID())
-				defer resourceCheck.mustDeleteCheck(t, sum.Checks[0].Check.GetID())
 				assert.Equal(t, "non-existent-check", sum.Checks[0].Check.GetName())
 
 				require.Len(t, sum.Dashboards, 1)
 				assert.NotEqual(t, initialSum.Dashboards[0].ID, sum.Dashboards[0].ID)
 				assert.NotZero(t, sum.Dashboards[0].ID)
-				defer resourceCheck.mustDeleteDashboard(t, influxdb.ID(sum.Dashboards[0].ID))
 				assert.Equal(t, "non-existent-dash", sum.Dashboards[0].Name)
 
 				require.Len(t, sum.NotificationEndpoints, 1)
 				sumEndpoint := sum.NotificationEndpoints[0].NotificationEndpoint
 				assert.NotEqual(t, initialSum.NotificationEndpoints[0].NotificationEndpoint.GetID(), sumEndpoint.GetID())
 				assert.NotZero(t, sumEndpoint.GetID())
-				defer resourceCheck.mustDeleteEndpoint(t, sumEndpoint.GetID())
 				assert.Equal(t, newEndpointPkgName, sumEndpoint.GetName())
 
 				require.Len(t, sum.NotificationRules, 1)
 				sumRule := sum.NotificationRules[0]
 				assert.NotEqual(t, initialSum.NotificationRules[0].ID, sumRule.ID)
 				assert.NotZero(t, sumRule.ID)
-				defer resourceCheck.mustDeleteRule(t, influxdb.ID(sumRule.ID))
 				assert.Equal(t, "non-existent-rule", sumRule.Name)
 
 				require.Len(t, sum.Labels, 1)
 				assert.NotEqual(t, initialSum.Labels[0].ID, sum.Labels[0].ID)
 				assert.NotZero(t, sum.Labels[0].ID)
-				defer resourceCheck.mustDeleteLabel(t, influxdb.ID(sum.Labels[0].ID))
 				assert.Equal(t, "non-existent-label", sum.Labels[0].Name)
 
 				require.Len(t, sum.Tasks, 1)
 				assert.NotEqual(t, initialSum.Tasks[0].ID, sum.Tasks[0].ID)
 				assert.NotZero(t, sum.Tasks[0].ID)
-				defer resourceCheck.mustDeleteTask(t, influxdb.ID(sum.Tasks[0].ID))
 				assert.Equal(t, "non-existent-task", sum.Tasks[0].Name)
 
 				require.Len(t, sum.TelegrafConfigs, 1)
 				newTele := sum.TelegrafConfigs[0].TelegrafConfig
 				assert.NotEqual(t, initialSum.TelegrafConfigs[0].TelegrafConfig.ID, newTele.ID)
 				assert.NotZero(t, newTele.ID)
-				defer resourceCheck.mustDeleteTelegrafConfig(t, newTele.ID)
 				assert.Equal(t, "non-existent-tele", newTele.Name)
 
 				require.Len(t, sum.Variables, 1)
 				assert.NotEqual(t, initialSum.Variables[0].ID, sum.Variables[0].ID)
 				assert.NotZero(t, sum.Variables[0].ID)
-				defer resourceCheck.mustDeleteVariable(t, influxdb.ID(sum.Variables[0].ID))
 				assert.Equal(t, "non-existent-var", sum.Variables[0].Name)
 
 				t.Log("\tvalidate all resources are created")
@@ -1034,25 +1015,25 @@ func TestLauncher_Pkger(t *testing.T) {
 
 				t.Log("\tvalidate all previous resources are removed")
 				{
-					_, err = resourceCheck.getBucket(t, byName(updateBucketName))
+					_, err = resourceCheck.getBucket(t, byName(initialSum.Buckets[0].Name))
 					require.Error(t, err)
 
-					_, err = resourceCheck.getCheck(t, byName(updateCheckName))
+					_, err = resourceCheck.getCheck(t, byName(initialSum.Checks[0].Check.GetName()))
 					require.Error(t, err)
 
-					_, err = resourceCheck.getEndpoint(t, byName(updateEndpointName))
+					_, err = resourceCheck.getEndpoint(t, byName(initialSum.NotificationEndpoints[0].NotificationEndpoint.GetName()))
 					require.Error(t, err)
 
-					_, err = resourceCheck.getLabel(t, byName(updateLabelName))
+					_, err = resourceCheck.getLabel(t, byName(initialSum.Labels[0].Name))
 					require.Error(t, err)
 
-					_, err = resourceCheck.getTask(t, byName(updateTaskName))
+					_, err = resourceCheck.getTask(t, byName(initialSum.Tasks[0].Name))
 					require.Error(t, err)
 
-					_, err = resourceCheck.getTelegrafConfig(t, byName(updateTelegrafName))
+					_, err = resourceCheck.getTelegrafConfig(t, byName(initialSum.TelegrafConfigs[0].TelegrafConfig.Name))
 					require.Error(t, err)
 
-					_, err = resourceCheck.getVariable(t, byName(updateVariableName))
+					_, err = resourceCheck.getVariable(t, byName(initialSum.Variables[0].Name))
 					require.Error(t, err)
 				}
 			})
@@ -2457,11 +2438,6 @@ func (r resourceChecker) mustGetBucket(t *testing.T, getOpt getResourceOptFn) in
 	return bkt
 }
 
-func (r resourceChecker) mustDeleteBucket(t *testing.T, id influxdb.ID) {
-	t.Helper()
-	require.NoError(t, r.tl.BucketService(t).DeleteBucket(ctx, id))
-}
-
 func (r resourceChecker) getCheck(t *testing.T, getOpt getResourceOptFn) (influxdb.Check, error) {
 	t.Helper()
 
@@ -2492,11 +2468,6 @@ func (r resourceChecker) mustGetCheck(t *testing.T, getOpt getResourceOptFn) inf
 	c, err := r.getCheck(t, getOpt)
 	require.NoError(t, err)
 	return c
-}
-
-func (r resourceChecker) mustDeleteCheck(t *testing.T, id influxdb.ID) {
-	t.Helper()
-	require.NoError(t, r.tl.CheckService().DeleteCheck(ctx, id))
 }
 
 func (r resourceChecker) getDashboard(t *testing.T, getOpt getResourceOptFn) (influxdb.Dashboard, error) {
@@ -2544,11 +2515,6 @@ func (r resourceChecker) mustGetDashboard(t *testing.T, getOpt getResourceOptFn)
 	return dash
 }
 
-func (r resourceChecker) mustDeleteDashboard(t *testing.T, id influxdb.ID) {
-	t.Helper()
-	require.NoError(t, r.tl.DashboardService(t).DeleteDashboard(ctx, id))
-}
-
 func (r resourceChecker) getEndpoint(t *testing.T, getOpt getResourceOptFn) (influxdb.NotificationEndpoint, error) {
 	t.Helper()
 
@@ -2589,14 +2555,6 @@ func (r resourceChecker) mustGetEndpoint(t *testing.T, getOpt getResourceOptFn) 
 	e, err := r.getEndpoint(t, getOpt)
 	require.NoError(t, err)
 	return e
-}
-
-func (r resourceChecker) mustDeleteEndpoint(t *testing.T, id influxdb.ID) {
-	t.Helper()
-	_, _, err := r.tl.
-		NotificationEndpointService(t).
-		DeleteNotificationEndpoint(ctx, id)
-	require.NoError(t, err)
 }
 
 func (r resourceChecker) getLabel(t *testing.T, getOpt getResourceOptFn) (influxdb.Label, error) {
@@ -2645,11 +2603,6 @@ func (r resourceChecker) mustGetLabel(t *testing.T, getOpt getResourceOptFn) inf
 	return l
 }
 
-func (r resourceChecker) mustDeleteLabel(t *testing.T, id influxdb.ID) {
-	t.Helper()
-	require.NoError(t, r.tl.LabelService(t).DeleteLabel(ctx, id))
-}
-
 func (r resourceChecker) getRule(t *testing.T, getOpt getResourceOptFn) (influxdb.NotificationRule, error) {
 	t.Helper()
 
@@ -2690,14 +2643,6 @@ func (r resourceChecker) mustGetRule(t *testing.T, getOpt getResourceOptFn) infl
 	rule, err := r.getRule(t, getOpt)
 	require.NoError(t, err)
 	return rule
-}
-
-func (r resourceChecker) mustDeleteRule(t *testing.T, id influxdb.ID) {
-	t.Helper()
-	err := r.tl.
-		NotificationRuleService().
-		DeleteNotificationRule(ctx, id)
-	require.NoError(t, err)
 }
 
 func (r resourceChecker) getTask(t *testing.T, getOpt getResourceOptFn) (http.Task, error) {
@@ -2744,11 +2689,6 @@ func (r resourceChecker) mustGetTask(t *testing.T, getOpt getResourceOptFn) http
 	return task
 }
 
-func (r resourceChecker) mustDeleteTask(t *testing.T, id influxdb.ID) {
-	t.Helper()
-	require.NoError(t, r.tl.TaskService(t).DeleteTask(ctx, id))
-}
-
 func (r resourceChecker) getTelegrafConfig(t *testing.T, getOpt getResourceOptFn) (influxdb.TelegrafConfig, error) {
 	t.Helper()
 
@@ -2787,11 +2727,6 @@ func (r resourceChecker) mustGetTelegrafConfig(t *testing.T, getOpt getResourceO
 	tele, err := r.getTelegrafConfig(t, getOpt)
 	require.NoError(t, err)
 	return tele
-}
-
-func (r resourceChecker) mustDeleteTelegrafConfig(t *testing.T, id influxdb.ID) {
-	t.Helper()
-	require.NoError(t, r.tl.TelegrafService(t).DeleteTelegrafConfig(ctx, id))
 }
 
 func (r resourceChecker) getVariable(t *testing.T, getOpt getResourceOptFn) (influxdb.Variable, error) {
@@ -2838,9 +2773,4 @@ func (r resourceChecker) mustGetVariable(t *testing.T, getOpt getResourceOptFn) 
 	l, err := r.getVariable(t, getOpt)
 	require.NoError(t, err)
 	return l
-}
-
-func (r resourceChecker) mustDeleteVariable(t *testing.T, id influxdb.ID) {
-	t.Helper()
-	require.NoError(t, r.tl.VariableService(t).DeleteVariable(ctx, id))
 }
