@@ -102,7 +102,7 @@ func newVariableStore() *IndexStore {
 	return &IndexStore{
 		Resource:   resource,
 		EntStore:   NewStoreBase(resource, []byte("variablesv1"), EncIDKey, EncBodyJSON, decodeVarEntFn, decValToEntFn),
-		IndexStore: NewOrgNameKeyStore(resource, []byte("variablesindexv1"), true),
+		IndexStore: NewOrgNameKeyStore(resource, []byte("variablesindexv1"), false),
 	}
 }
 
