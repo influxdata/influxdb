@@ -14,9 +14,7 @@ import CSVExportButton from 'src/shared/components/CSVExportButton'
 // Utils
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 import {checkResultsLength} from 'src/shared/utils/vis'
-import {
-  getVisTable,
-} from 'src/timeMachine/selectors'
+import {getVisTable} from 'src/timeMachine/selectors'
 import {getTimeRange} from 'src/dashboards/selectors'
 
 // Types
@@ -67,11 +65,7 @@ const TimeMachineVis: SFC<Props> = ({
             {({width, height}) =>
               width &&
               height && (
-                <RawFluxDataTable
-                  files={files}
-                  width={width}
-                  height={height}
-                />
+                <RawFluxDataTable files={files} width={width} height={height} />
               )
             }
           </AutoSizer>

@@ -36,8 +36,11 @@ interface OwnProps {
 
 type Props = OwnProps & DispatchProps
 
-const NotebooksPage: FC<Props> = ({children, onSetActiveTimeMachine,
-  onSetBuilderBucketIfExists,}) => {
+const NotebooksPage: FC<Props> = ({
+  children,
+  onSetActiveTimeMachine,
+  onSetBuilderBucketIfExists,
+}) => {
   useEffect(() => {
     const bucketQP = readQueryParams()['bucket']
     onSetActiveTimeMachine('de')

@@ -3,7 +3,14 @@ import React, {FC, ReactChildren, useState} from 'react'
 import classnames from 'classnames'
 
 // Components
-import {FlexBox, ComponentSize, AlignItems, JustifyContent, SquareButton, IconFont} from '@influxdata/clockface'
+import {
+  FlexBox,
+  ComponentSize,
+  AlignItems,
+  JustifyContent,
+  SquareButton,
+  IconFont,
+} from '@influxdata/clockface'
 
 interface Props {
   children: ReactChildren | JSX.Element | JSX.Element[]
@@ -13,11 +20,22 @@ interface Props {
   onRemove?: () => void
 }
 
-const NotebookPanel: FC<Props> = ({children, title, controlsLeft, controlsRight, onRemove}) => {
-  const [panelState, setPanelState] = useState<'hidden' | 'small' | 'large'>('small')
+const NotebookPanel: FC<Props> = ({
+  children,
+  title,
+  controlsLeft,
+  controlsRight,
+  onRemove,
+}) => {
+  const [panelState, setPanelState] = useState<'hidden' | 'small' | 'large'>(
+    'small'
+  )
 
-  const panelClassName = classnames('notebook-panel', {[`notebook-panel__${panelState}`]: panelState})
-  const childrenShouldBeVisible = panelState === 'small' || panelState === 'large' 
+  const panelClassName = classnames('notebook-panel', {
+    [`notebook-panel__${panelState}`]: panelState,
+  })
+  const childrenShouldBeVisible =
+    panelState === 'small' || panelState === 'large'
 
   const handleToggle = (): void => {
     if (panelState === 'hidden') {
@@ -40,12 +58,22 @@ const NotebookPanel: FC<Props> = ({children, title, controlsLeft, controlsRight,
   return (
     <div className={panelClassName}>
       <div className="notebook-panel--header">
-        <FlexBox className="notebook-panel--header-left" alignItems={AlignItems.Center} margin={ComponentSize.Small} justifyContent={JustifyContent.FlexStart}>
+        <FlexBox
+          className="notebook-panel--header-left"
+          alignItems={AlignItems.Center}
+          margin={ComponentSize.Small}
+          justifyContent={JustifyContent.FlexStart}
+        >
           <div className="notebook-panel--toggle" onClick={handleToggle} />
           <div className="notebook-panel--title">{title}</div>
           {controlsLeft}
         </FlexBox>
-        <FlexBox className="notebook-panel--header-right" alignItems={AlignItems.Center} margin={ComponentSize.Small} justifyContent={JustifyContent.FlexEnd}>
+        <FlexBox
+          className="notebook-panel--header-right"
+          alignItems={AlignItems.Center}
+          margin={ComponentSize.Small}
+          justifyContent={JustifyContent.FlexEnd}
+        >
           {controlsRight}
           {removePanelButton}
         </FlexBox>

@@ -73,7 +73,11 @@ class TimeMachineQueries extends PureComponent<Props> {
     }
 
     return (
-      <NotebookPanel title="Query Builder" controlsLeft={<TimeMachineQueriesSwitcher />} controlsRight={controlsRight}>
+      <NotebookPanel
+        title="Query Builder"
+        controlsLeft={<TimeMachineQueriesSwitcher />}
+        controlsRight={controlsRight}
+      >
         {this.queryEditor}
       </NotebookPanel>
     )

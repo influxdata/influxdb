@@ -19,15 +19,18 @@ interface StateProps {
   isViewingRawData: boolean
 }
 
-const Notebook: FunctionComponent<StateProps> = ({
-  isViewingRawData,
-}) => {
+const Notebook: FunctionComponent<StateProps> = ({isViewingRawData}) => {
   return (
     <div className="notebook">
       <QueryBuilderPanel />
       <RawDataPanel />
       {isViewingRawData && <VisualizationPanel />}
-      <FlexBox className="notebook--actions" justifyContent={JustifyContent.Center} stretchToFitWidth={true} margin={ComponentSize.Small}>
+      <FlexBox
+        className="notebook--actions"
+        justifyContent={JustifyContent.Center}
+        stretchToFitWidth={true}
+        margin={ComponentSize.Small}
+      >
         <AddVisualizationButton />
       </FlexBox>
     </div>

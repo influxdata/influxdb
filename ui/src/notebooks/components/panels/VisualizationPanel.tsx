@@ -104,7 +104,12 @@ const VisualizationPanel: SFC<Props> = ({
   }
 
   return (
-  <NotebookPanel title="Visualization" onRemove={handleRemovePanel} controlsLeft={<ViewTypeDropdown />} controlsRight={<VisOptionsButton />}>
+    <NotebookPanel
+      title="Visualization"
+      onRemove={handleRemovePanel}
+      controlsLeft={<ViewTypeDropdown />}
+      controlsRight={<VisOptionsButton />}
+    >
       <ErrorBoundary>
         <EmptyQueryView
           loading={loading}
@@ -127,7 +132,7 @@ const VisualizationPanel: SFC<Props> = ({
                 timeZone={timeZone}
                 statuses={statuses}
                 theme="dark"
-                />
+              />
             </div>
             {isViewingVisOptions && <ViewOptions />}
           </div>
@@ -187,4 +192,7 @@ const mdtp = {
   onSetIsViewingRawData: setIsViewingRawData,
 }
 
-export default connect<StateProps, DispatchProps>(mstp, mdtp)(VisualizationPanel)
+export default connect<StateProps, DispatchProps>(
+  mstp,
+  mdtp
+)(VisualizationPanel)
