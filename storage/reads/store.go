@@ -85,7 +85,7 @@ type Store interface {
 }
 
 // WindowAggregateCapability describes what is supported by WindowAggregateStore.
-type WindowAggregateCapability interface{
+type WindowAggregateCapability interface {
 	query.WindowAggregateCapability
 }
 

@@ -25,7 +25,7 @@ type StorageReader interface {
 }
 
 // WindowAggregateCapability describes what is supported by WindowAggregateReader.
-type WindowAggregateCapability interface {}
+type WindowAggregateCapability interface{}
 
 // WindowAggregateReader implements the WindowAggregate capability.
 type WindowAggregateReader interface {
