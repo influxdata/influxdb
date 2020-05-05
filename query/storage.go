@@ -25,14 +25,13 @@ type StorageReader interface {
 }
 
 // WindowAggregateCapability describes what is supported by WindowAggregateReader.
-type WindowAggregateCapability struct{}
+type WindowAggregateCapability interface {}
 
 // WindowAggregateReader implements the WindowAggregate capability.
 type WindowAggregateReader interface {
-	// HasWindowAggregateCapability will test if this Reader source supports the ReadWindowAggregate capability.
-	// If WindowAggregateCapability is passed to the method, then the struct
-	// is filled with a detailed list of what the RPC call supports.
-	HasWindowAggregateCapability(ctx context.Context, capability ...*WindowAggregateCapability) bool
+	// GetWindowAggregateCapability will get a detailed list of what the RPC call supports
+	// for window aggregate.
+	GetWindowAggregateCapability(ctx context.Context) WindowAggregateCapability
 
 	// ReadWindowAggregate will read a table using the WindowAggregate method.
 	ReadWindowAggregate(ctx context.Context, spec ReadWindowAggregateSpec, alloc *memory.Allocator) (TableIterator, error)
