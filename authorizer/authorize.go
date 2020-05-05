@@ -9,8 +9,13 @@ import (
 )
 
 func isAllowedAll(a influxdb.Authorizer, permissions []influxdb.Permission) error {
+	pset, err := a.PermissionSet()
+	if err != nil {
+		return err
+	}
+
 	for _, p := range permissions {
-		if !a.Allowed(p) {
+		if !pset.Allowed(p) {
 			return &influxdb.Error{
 				Code: influxdb.EUnauthorized,
 				Msg:  fmt.Sprintf("%s is unauthorized", p),
@@ -47,8 +52,12 @@ func IsAllowedAny(ctx context.Context, permissions []influxdb.Permission) error 
 	if err != nil {
 		return err
 	}
+	pset, err := a.PermissionSet()
+	if err != nil {
+		return err
+	}
 	for _, p := range permissions {
-		if a.Allowed(p) {
+		if pset.Allowed(p) {
 			return nil
 		}
 	}

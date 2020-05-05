@@ -93,20 +93,9 @@ type Token struct {
 	UserID string `json:"uid,omitempty"`
 }
 
-// Allowed returns whether or not a permission is allowed based
-// on the set of permissions within the Token
-func (t *Token) Allowed(p influxdb.Permission) bool {
-	if err := p.Valid(); err != nil {
-		return false
-	}
-
-	for _, perm := range t.Permissions {
-		if perm.Matches(p) {
-			return true
-		}
-	}
-
-	return false
+// PermissionSet returns the set of permissions associated with the token.
+func (t *Token) PermissionSet() (influxdb.PermissionSet, error) {
+	return t.Permissions, nil
 }
 
 // Identifier returns the identifier for this Token

@@ -244,8 +244,8 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !a.Allowed(*p) {
-		handleError(err, influxdb.EForbidden, "insufficient permissions for write")
+	if pset, err := a.PermissionSet(); err != nil || !pset.Allowed(*p) {
+		handleError(nil, influxdb.EForbidden, "insufficient permissions for write")
 		return
 	}
 
