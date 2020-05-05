@@ -68,7 +68,7 @@ $notebook-size-toggle: 16px;
 }
 
 .notebook-panel--body {
-  padding: $cf-marg-a;
+  padding: $cf-marg-b;
   flex: 1 0 0;
   position: relative;
 }
@@ -100,7 +100,7 @@ $notebook-size-toggle: 16px;
 }
 
 .notebook-panel__small {
-  height: 280px;
+  height: 320px;
 
   .notebook-panel--toggle:after {
     height: $notebook-size-toggle / 2;
@@ -109,9 +109,47 @@ $notebook-size-toggle: 16px;
 
 .notebook-panel__large {
   height: 60vh;
-  min-height: 580px;
+  min-height: 640px;
 
   .notebook-panel--toggle:after {
     height: $notebook-size-toggle;
   }
+}
+
+/*
+  Notebook Action Bar aka Footer
+  ------------------------------------------------------------------------------
+*/
+
+.notebook--actions {
+  margin-top: $cf-marg-c;
+}
+
+/*
+  Visualization Panel
+  ------------------------------------------------------------------------------
+*/
+
+.notebook-panel--visualization {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: stretch;
+  flex-direction: row;
+}
+
+.notebook-panel--view {
+  flex: 1 0 0;
+  position: relative;
+}
+
+// Special styling for view options inside notebook panel
+.notebook-panel--body .view-options {
+  flex: 0 0 340px;
+  border-radius: 0;
+  background-color: transparent;
+  margin-right: 0;
+}
+.notebook-panel--body .view-options--container {
+  padding: $cf-marg-c;
 }

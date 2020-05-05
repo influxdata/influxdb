@@ -53,7 +53,7 @@ const TimeMachineVis: SFC<Props> = ({
   giraffeResult,
 }) => {
   return (
-    <NotebookPanel title="Results" controlsRight={<CSVExportButton />} onRemove={() => {}}>
+    <NotebookPanel title="Results" controlsRight={<CSVExportButton />}>
       <ErrorBoundary>
         <EmptyQueryView
           loading={loading}

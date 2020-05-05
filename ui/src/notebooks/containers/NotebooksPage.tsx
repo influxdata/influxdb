@@ -5,11 +5,8 @@ import {connect} from 'react-redux'
 // Components
 import {Page} from '@influxdata/clockface'
 import SaveAsButton from 'src/dataExplorer/components/SaveAsButton'
-import VisOptionsButton from 'src/timeMachine/components/VisOptionsButton'
-import ViewTypeDropdown from 'src/timeMachine/components/view_options/ViewTypeDropdown'
 import GetResources from 'src/resources/components/GetResources'
 import TimeZoneDropdown from 'src/shared/components/TimeZoneDropdown'
-import DeleteDataButton from 'src/dataExplorer/components/DeleteDataButton'
 import CloudUpgradeButton from 'src/shared/components/CloudUpgradeButton'
 import Notebook from 'src/notebooks/components/Notebook'
 import LimitChecker from 'src/cloud/components/LimitChecker'
@@ -57,12 +54,8 @@ const NotebooksPage: FC<Props> = ({children, onSetActiveTimeMachine,
           <CloudUpgradeButton />
         </Page.Header>
         <Page.ControlBar fullWidth={true}>
-          <Page.ControlBarLeft>
-            <ViewTypeDropdown />
-            <VisOptionsButton />
-          </Page.ControlBarLeft>
+          <Page.ControlBarLeft />
           <Page.ControlBarRight>
-            <DeleteDataButton />
             <TimeZoneDropdown />
             <SaveAsButton />
           </Page.ControlBarRight>

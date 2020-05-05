@@ -4,51 +4,40 @@ import {connect} from 'react-redux'
 
 // Components
 import QueryBuilderPanel from 'src/notebooks/components/panels/QueryBuilderPanel'
-import TimeMachineAlerting from 'src/timeMachine/components/TimeMachineAlerting'
 import RawDataPanel from 'src/notebooks/components/panels/RawDataPanel'
-import ViewOptions from 'src/timeMachine/components/view_options/ViewOptions'
-import TimeMachineCheckQuery from 'src/timeMachine/components/TimeMachineCheckQuery'
+import VisualizationPanel from 'src/notebooks/components/panels/VisualizationPanel'
+import {FlexBox, JustifyContent, ComponentSize} from '@influxdata/clockface'
+import AddVisualizationButton from 'src/notebooks/components/AddVisualizationButton'
 
 // Utils
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 
 // Types
-import {AppState, TimeMachineTab} from 'src/types'
+import {AppState} from 'src/types'
 
 interface StateProps {
-  activeTab: TimeMachineTab
-  isViewingVisOptions: boolean
+  isViewingRawData: boolean
 }
 
 const Notebook: FunctionComponent<StateProps> = ({
-  activeTab,
-  isViewingVisOptions,
+  isViewingRawData,
 }) => {
-  let bottomContents: JSX.Element = null
-
-  if (activeTab === 'alerting') {
-    bottomContents = <TimeMachineAlerting />
-  } else if (activeTab === 'queries') {
-    bottomContents = <QueryBuilderPanel />
-  } else if (activeTab === 'customCheckQuery') {
-    bottomContents = <TimeMachineCheckQuery />
-  }
-
   return (
-    <>
-      {isViewingVisOptions && <ViewOptions />}
-      <div className="notebook">
-        {bottomContents}
-        <RawDataPanel />
-      </div>
-    </>
+    <div className="notebook">
+      <QueryBuilderPanel />
+      <RawDataPanel />
+      {isViewingRawData && <VisualizationPanel />}
+      <FlexBox className="notebook--actions" justifyContent={JustifyContent.Center} stretchToFitWidth={true} margin={ComponentSize.Small}>
+        <AddVisualizationButton />
+      </FlexBox>
+    </div>
   )
 }
 
 const mstp = (state: AppState) => {
-  const {activeTab, isViewingVisOptions} = getActiveTimeMachine(state)
+  const {isViewingRawData} = getActiveTimeMachine(state)
 
-  return {activeTab, isViewingVisOptions}
+  return {isViewingRawData}
 }
 
 export default connect<StateProps>(mstp)(Notebook)
