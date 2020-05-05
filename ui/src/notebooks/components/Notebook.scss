@@ -75,10 +75,11 @@ $notebook-size-toggle: 16px;
 
 // Special styling for query builder inside notebook panel
 .notebook-panel--body .query-builder {
-  top: $cf-marg-a;
-  right: $cf-marg-a;
-  bottom: $cf-marg-a;
-  left: $cf-marg-a;
+  top: $cf-marg-b;
+  right: $cf-marg-b;
+  bottom: $cf-marg-b;
+  left: $cf-marg-b;
+  padding-top: 0;
 }
 
 /*
