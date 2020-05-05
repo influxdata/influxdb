@@ -42,19 +42,16 @@ func (s *StorageReader) Close() {
 
 type WindowAggregateStoreReader struct {
 	*StorageReader
-	HasWindowAggregateCapabilityFn func(ctx context.Context) bool
+	GetWindowAggregateCapabilityFn func(ctx context.Context) query.WindowAggregateCapability
 	ReadWindowAggregateFn          func(ctx context.Context, spec query.ReadWindowAggregateSpec, alloc *memory.Allocator) (query.TableIterator, error)
 }
 
-func (s *WindowAggregateStoreReader) HasWindowAggregateCapability(ctx context.Context, capability ...*query.WindowAggregateCapability) bool {
+func (s *WindowAggregateStoreReader) GetWindowAggregateCapability(ctx context.Context) query.WindowAggregateCapability {
 	// Use the function if it exists.
-	if s.HasWindowAggregateCapabilityFn != nil {
-		return s.HasWindowAggregateCapabilityFn(ctx)
+	if s.GetWindowAggregateCapabilityFn != nil {
+		return s.GetWindowAggregateCapabilityFn(ctx)
 	}
-
-	// Provide a default implementation if one wasn't set.
-	// This will return true if the other function was set.
-	return s.ReadWindowAggregateFn != nil
+	return nil
 }
 
 func (s *WindowAggregateStoreReader) ReadWindowAggregate(ctx context.Context, spec query.ReadWindowAggregateSpec, alloc *memory.Allocator) (query.TableIterator, error) {
