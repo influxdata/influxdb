@@ -237,7 +237,6 @@ describe('hydrate vars', () => {
 
     // Basic test for now, we would need an icky mock to assert that the
     // appropriate substitution is actually taking place
-
     expect(
       actual.filter(v => v.id === 'a')[0].arguments.values.results
     ).toEqual(['aVal'])

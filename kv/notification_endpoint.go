@@ -41,7 +41,7 @@ func newEndpointStore() *IndexStore {
 	return &IndexStore{
 		Resource:   resource,
 		EntStore:   NewStoreBase(resource, []byte("notificationEndpointv1"), EncIDKey, EncBodyJSON, decEndpointEntFn, decValToEntFn),
-		IndexStore: NewOrgNameKeyStore(resource, []byte("notificationEndpointIndexv1"), false),
+		IndexStore: NewOrgNameKeyStore(resource, []byte("notificationEndpointIndexv1"), true),
 	}
 }
 

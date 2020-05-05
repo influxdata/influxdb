@@ -36,6 +36,22 @@ func (s *authMW) InitStack(ctx context.Context, userID influxdb.ID, newStack Sta
 	return s.next.InitStack(ctx, userID, newStack)
 }
 
+func (s *authMW) DeleteStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) error {
+	err := s.authAgent.IsWritable(ctx, identifiers.OrgID, ResourceTypeStack)
+	if err != nil {
+		return err
+	}
+	return s.next.DeleteStack(ctx, identifiers)
+}
+
+func (s *authMW) ListStacks(ctx context.Context, orgID influxdb.ID, f ListFilter) ([]Stack, error) {
+	err := s.authAgent.OrgPermissions(ctx, orgID, influxdb.ReadAction)
+	if err != nil {
+		return nil, err
+	}
+	return s.next.ListStacks(ctx, orgID, f)
+}
+
 func (s *authMW) CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*Pkg, error) {
 	return s.next.CreatePkg(ctx, setters...)
 }

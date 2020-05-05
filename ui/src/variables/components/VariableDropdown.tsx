@@ -16,11 +16,12 @@ import {selectValue} from 'src/variables/actions/thunks'
 import {getVariable, normalizeValues} from 'src/variables/selectors'
 
 // Types
-import {AppState} from 'src/types'
+import {AppState, RemoteDataState} from 'src/types'
 
 interface StateProps {
   values: string[]
   selectedValue: string
+  status: RemoteDataState
 }
 
 interface DispatchProps {
@@ -56,7 +57,7 @@ class VariableDropdown extends PureComponent<Props> {
               testID="variable-dropdown--button"
               status={dropdownStatus}
             >
-              {selectedValue || 'No Values'}
+              {this.selectedText}
             </Dropdown.Button>
           )}
           menu={onCollapse => (
@@ -94,15 +95,31 @@ class VariableDropdown extends PureComponent<Props> {
       onSelect()
     }
   }
+
+  private get selectedText() {
+    const {selectedValue, status} = this.props
+    if (status === RemoteDataState.Loading) {
+      return 'Loading'
+    }
+
+    if (selectedValue) {
+      return selectedValue
+    }
+
+    return 'No Values'
+  }
 }
 
 const mstp = (state: AppState, props: OwnProps): StateProps => {
   const {variableID} = props
-
   const variable = getVariable(state, variableID)
+  const selected =
+    variable.selected && variable.selected.length ? variable.selected[0] : null
+
   return {
+    status: variable.status,
     values: normalizeValues(variable),
-    selectedValue: variable.selected[0],
+    selectedValue: selected,
   }
 }
 

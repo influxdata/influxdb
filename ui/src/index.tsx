@@ -38,6 +38,7 @@ import {MePage} from 'src/me'
 import NotFound from 'src/shared/components/NotFound'
 import GetLinks from 'src/shared/containers/GetLinks'
 import GetMe from 'src/shared/containers/GetMe'
+import GetFlags from 'src/shared/containers/GetFlags'
 import UnauthenticatedApp from 'src/shared/containers/UnauthenticatedApp'
 import TaskExportOverlay from 'src/tasks/components/TaskExportOverlay'
 import TaskImportOverlay from 'src/tasks/components/TaskImportOverlay'
@@ -205,264 +206,284 @@ class Root extends PureComponent {
               </Route>
               <Route component={Signin}>
                 <Route component={GetMe}>
-                  <Route component={GetOrganizations}>
-                    <Route path="/">
-                      <Route path="no-orgs" component={NoOrgsPage} />
-                      <IndexRoute component={RouteToOrg} />
-                      <Route path="orgs" component={App}>
-                        <Route path="new" component={CreateOrgOverlay} />
-                        <Route path=":orgID" component={SetOrg}>
-                          <IndexRoute component={MePage} />
-                          <Route path="tasks" component={TasksPage}>
-                            <Route
-                              path=":id/export"
-                              component={TaskExportOverlay}
-                            />
-                            <Route
-                              path="import"
-                              component={TaskImportOverlay}
-                            />
-                            <Route
-                              path="import/template"
-                              component={TaskImportFromTemplateOverlay}
-                            />
-                          </Route>
-                          <Route
-                            path="tasks/:id/runs"
-                            component={TaskRunsPage}
-                          />
-                          <Route path="tasks/new" component={TaskPage} />
-                          <Route path="tasks/:id" component={TaskEditPage} />
-                          <Route
-                            path="data-explorer"
-                            component={DataExplorerPage}
-                          >
-                            <Route path="save" component={SaveAsOverlay} />
-                            <Route
-                              path="delete-data"
-                              component={DEDeleteDataOverlay}
-                            />
-                          </Route>
-                          <FeatureFlag name="notebooks">
-                            <Route
-                              path="notebooks"
-                              component={NotebooksPage}
-                            />
-                          </FeatureFlag>
-                          <Route path="dashboards" component={DashboardsIndex}>
-                            <Route
-                              path="import"
-                              component={DashboardImportOverlay}
-                            />
-                            <Route
-                              path="import/template"
-                              component={CreateFromTemplateOverlay}
-                            />
-                            <Route
-                              path=":dashboardID/export"
-                              component={DashboardExportOverlay}
-                            />
-                          </Route>
-                          <Route
-                            path="dashboards/:dashboardID"
-                            component={DashboardContainer}
-                          >
-                            <Route path="cells">
-                              <Route path="new" component={NewVEO} />
-                              <Route path=":cellID/edit" component={EditVEO} />
-                            </Route>
-                            <Route path="notes">
-                              <Route path="new" component={AddNoteOverlay} />
+                  <Route component={GetFlags}>
+                    <Route component={GetOrganizations}>
+                      <Route path="/">
+                        <Route path="no-orgs" component={NoOrgsPage} />
+                        <IndexRoute component={RouteToOrg} />
+                        <Route path="orgs" component={App}>
+                          <Route path="new" component={CreateOrgOverlay} />
+                          <Route path=":orgID" component={SetOrg}>
+                            <IndexRoute component={MePage} />
+                            <Route path="tasks" component={TasksPage}>
                               <Route
-                                path=":cellID/edit"
-                                component={EditNoteOverlay}
-                              />
-                            </Route>
-                          </Route>
-                          <Route path="me" component={MePage} />
-                          <Route path="load-data">
-                            <IndexRoute component={BucketsIndex} />
-                            <Route path="tokens" component={TokensIndex}>
-                              <Route path="generate">
-                                <Route
-                                  path="all-access"
-                                  component={AllAccessTokenOverlay}
-                                />
-                                <Route
-                                  path="buckets"
-                                  component={BucketsTokenOverlay}
-                                />
-                              </Route>
-                            </Route>
-                            <Route path="buckets" component={BucketsIndex}>
-                              <Route path=":bucketID">
-                                <Route
-                                  path="line-protocols/new"
-                                  component={LineProtocolWizard}
-                                />
-                                <Route
-                                  path="telegrafs/new"
-                                  component={CollectorsWizard}
-                                />
-                                <Route
-                                  path="scrapers/new"
-                                  component={CreateScraperOverlay}
-                                />
-                                <Route
-                                  path="edit"
-                                  component={UpdateBucketOverlay}
-                                />
-                                <Route
-                                  path="delete-data"
-                                  component={BucketsDeleteDataOverlay}
-                                />
-                                <Route
-                                  path="rename"
-                                  component={RenameBucketOverlay}
-                                />
-                              </Route>
-                            </Route>
-                            <Route path="telegrafs" component={TelegrafsPage}>
-                              <Route
-                                path=":id/view"
-                                component={TelegrafConfigOverlay}
+                                path=":id/export"
+                                component={TaskExportOverlay}
                               />
                               <Route
-                                path=":id/instructions"
-                                component={TelegrafInstructionsOverlay}
+                                path="import"
+                                component={TaskImportOverlay}
                               />
                               <Route
-                                path="output"
-                                component={TelegrafOutputOverlay}
-                              />
-                              <Route path="new" component={CollectorsWizard} />
-                            </Route>
-                            <Route path="scrapers" component={ScrapersIndex}>
-                              <Route
-                                path="new"
-                                component={CreateScraperOverlay}
+                                path="import/template"
+                                component={TaskImportFromTemplateOverlay}
                               />
                             </Route>
                             <Route
-                              path="client-libraries"
-                              component={ClientLibrariesPage}
+                              path="tasks/:id/runs"
+                              component={TaskRunsPage}
+                            />
+                            <Route path="tasks/new" component={TaskPage} />
+                            <Route path="tasks/:id" component={TaskEditPage} />
+                            <Route
+                              path="data-explorer"
+                              component={DataExplorerPage}
+                            >
+                              <Route path="save" component={SaveAsOverlay} />
+                              <Route
+                                path="delete-data"
+                                component={DEDeleteDataOverlay}
+                              />
+                            </Route>
+                            <FeatureFlag name="notebooks">
+                              <Route
+                                path="notebooks"
+                                component={NotebooksPage}
+                              />
+                            </FeatureFlag>
+                            <Route
+                              path="dashboards"
+                              component={DashboardsIndex}
                             >
                               <Route
-                                path="csharp"
-                                component={ClientCSharpOverlay}
-                              />
-                              <Route path="go" component={ClientGoOverlay} />
-                              <Route
-                                path="java"
-                                component={ClientJavaOverlay}
-                              />
-                              <Route
-                                path="javascript-node"
-                                component={ClientJSOverlay}
-                              />
-                              <Route path="php" component={ClientPHPOverlay} />
-                              <Route
-                                path="python"
-                                component={ClientPythonOverlay}
-                              />
-                              <Route
-                                path="ruby"
-                                component={ClientRubyOverlay}
-                              />
-                            </Route>
-                          </Route>
-                          <Route path="settings">
-                            <IndexRoute component={VariablesIndex} />
-                            <Route path="variables" component={VariablesIndex}>
-                              <Route
                                 path="import"
-                                component={VariableImportOverlay}
+                                component={DashboardImportOverlay}
                               />
                               <Route
-                                path=":id/export"
-                                component={VariableExportOverlay}
+                                path="import/template"
+                                component={CreateFromTemplateOverlay}
                               />
                               <Route
-                                path="new"
-                                component={CreateVariableOverlay}
-                              />
-                              <Route
-                                path=":id/rename"
-                                component={RenameVariableOverlay}
-                              />
-                              <Route
-                                path=":id/edit"
-                                component={UpdateVariableOverlay}
+                                path=":dashboardID/export"
+                                component={DashboardExportOverlay}
                               />
                             </Route>
-                            <Route path="templates" component={TemplatesIndex}>
+                            <Route
+                              path="dashboards/:dashboardID"
+                              component={DashboardContainer}
+                            >
+                              <Route path="cells">
+                                <Route path="new" component={NewVEO} />
+                                <Route
+                                  path=":cellID/edit"
+                                  component={EditVEO}
+                                />
+                              </Route>
+                              <Route path="notes">
+                                <Route path="new" component={AddNoteOverlay} />
+                                <Route
+                                  path=":cellID/edit"
+                                  component={EditNoteOverlay}
+                                />
+                              </Route>
+                            </Route>
+                            <Route path="me" component={MePage} />
+                            <Route path="load-data">
+                              <IndexRoute component={BucketsIndex} />
+                              <Route path="tokens" component={TokensIndex}>
+                                <Route path="generate">
+                                  <Route
+                                    path="all-access"
+                                    component={AllAccessTokenOverlay}
+                                  />
+                                  <Route
+                                    path="buckets"
+                                    component={BucketsTokenOverlay}
+                                  />
+                                </Route>
+                              </Route>
+                              <Route path="buckets" component={BucketsIndex}>
+                                <Route path=":bucketID">
+                                  <Route
+                                    path="line-protocols/new"
+                                    component={LineProtocolWizard}
+                                  />
+                                  <Route
+                                    path="telegrafs/new"
+                                    component={CollectorsWizard}
+                                  />
+                                  <Route
+                                    path="scrapers/new"
+                                    component={CreateScraperOverlay}
+                                  />
+                                  <Route
+                                    path="edit"
+                                    component={UpdateBucketOverlay}
+                                  />
+                                  <Route
+                                    path="delete-data"
+                                    component={BucketsDeleteDataOverlay}
+                                  />
+                                  <Route
+                                    path="rename"
+                                    component={RenameBucketOverlay}
+                                  />
+                                </Route>
+                              </Route>
+                              <Route path="telegrafs" component={TelegrafsPage}>
+                                <Route
+                                  path=":id/view"
+                                  component={TelegrafConfigOverlay}
+                                />
+                                <Route
+                                  path=":id/instructions"
+                                  component={TelegrafInstructionsOverlay}
+                                />
+                                <Route
+                                  path="output"
+                                  component={TelegrafOutputOverlay}
+                                />
+                                <Route
+                                  path="new"
+                                  component={CollectorsWizard}
+                                />
+                              </Route>
+                              <Route path="scrapers" component={ScrapersIndex}>
+                                <Route
+                                  path="new"
+                                  component={CreateScraperOverlay}
+                                />
+                              </Route>
                               <Route
-                                path="import"
-                                component={TemplateImportOverlay}
+                                path="client-libraries"
+                                component={ClientLibrariesPage}
+                              >
+                                <Route
+                                  path="csharp"
+                                  component={ClientCSharpOverlay}
+                                />
+                                <Route path="go" component={ClientGoOverlay} />
+                                <Route
+                                  path="java"
+                                  component={ClientJavaOverlay}
+                                />
+                                <Route
+                                  path="javascript-node"
+                                  component={ClientJSOverlay}
+                                />
+                                <Route
+                                  path="php"
+                                  component={ClientPHPOverlay}
+                                />
+                                <Route
+                                  path="python"
+                                  component={ClientPythonOverlay}
+                                />
+                                <Route
+                                  path="ruby"
+                                  component={ClientRubyOverlay}
+                                />
+                              </Route>
+                            </Route>
+                            <Route path="settings">
+                              <IndexRoute component={VariablesIndex} />
+                              <Route
+                                path="variables"
+                                component={VariablesIndex}
+                              >
+                                <Route
+                                  path="import"
+                                  component={VariableImportOverlay}
+                                />
+                                <Route
+                                  path=":id/export"
+                                  component={VariableExportOverlay}
+                                />
+                                <Route
+                                  path="new"
+                                  component={CreateVariableOverlay}
+                                />
+                                <Route
+                                  path=":id/rename"
+                                  component={RenameVariableOverlay}
+                                />
+                                <Route
+                                  path=":id/edit"
+                                  component={UpdateVariableOverlay}
+                                />
+                              </Route>
+                              <Route
+                                path="templates"
+                                component={TemplatesIndex}
+                              >
+                                <Route
+                                  path="import"
+                                  component={TemplateImportOverlay}
+                                />
+                                <Route
+                                  path=":id/export"
+                                  component={TemplateExportOverlay}
+                                />
+                                <Route
+                                  path=":id/view"
+                                  component={TemplateViewOverlay}
+                                />
+                                <Route
+                                  path=":id/static/view"
+                                  component={StaticTemplateViewOverlay}
+                                />
+                              </Route>
+                              <Route path="labels" component={LabelsIndex} />
+                              <Route path="about" component={OrgProfilePage}>
+                                <Route
+                                  path="rename"
+                                  component={RenameOrgOverlay}
+                                />
+                              </Route>
+                            </Route>
+                            <Route path="alerting" component={AlertingIndex}>
+                              <Route
+                                path="checks/new-threshold"
+                                component={NewThresholdCheckEO}
                               />
                               <Route
-                                path=":id/export"
-                                component={TemplateExportOverlay}
+                                path="checks/new-deadman"
+                                component={NewDeadmanCheckEO}
                               />
                               <Route
-                                path=":id/view"
-                                component={TemplateViewOverlay}
+                                path="checks/:checkID/edit"
+                                component={EditCheckEO}
                               />
                               <Route
-                                path=":id/static/view"
-                                component={StaticTemplateViewOverlay}
+                                path="rules/new"
+                                component={NewRuleOverlay}
+                              />
+                              <Route
+                                path="rules/:ruleID/edit"
+                                component={EditRuleOverlay}
+                              />
+                              <Route
+                                path="endpoints/new"
+                                component={NewEndpointOverlay}
+                              />
+                              <Route
+                                path="endpoints/:endpointID/edit"
+                                component={EditEndpointOverlay}
                               />
                             </Route>
-                            <Route path="labels" component={LabelsIndex} />
-                            <Route path="about" component={OrgProfilePage}>
-                              <Route
-                                path="rename"
-                                component={RenameOrgOverlay}
-                              />
-                            </Route>
+                            <Route
+                              path="alert-history"
+                              component={AlertHistoryIndex}
+                            />
+                            <Route
+                              path="checks/:checkID"
+                              component={CheckHistory}
+                            />
+                            <Route path="about" component={OrgProfilePage} />
+                            {!CLOUD && (
+                              <Route path="members" component={MembersIndex} />
+                            )}
                           </Route>
-                          <Route path="alerting" component={AlertingIndex}>
-                            <Route
-                              path="checks/new-threshold"
-                              component={NewThresholdCheckEO}
-                            />
-                            <Route
-                              path="checks/new-deadman"
-                              component={NewDeadmanCheckEO}
-                            />
-                            <Route
-                              path="checks/:checkID/edit"
-                              component={EditCheckEO}
-                            />
-                            <Route
-                              path="rules/new"
-                              component={NewRuleOverlay}
-                            />
-                            <Route
-                              path="rules/:ruleID/edit"
-                              component={EditRuleOverlay}
-                            />
-                            <Route
-                              path="endpoints/new"
-                              component={NewEndpointOverlay}
-                            />
-                            <Route
-                              path="endpoints/:endpointID/edit"
-                              component={EditEndpointOverlay}
-                            />
-                          </Route>
-                          <Route
-                            path="alert-history"
-                            component={AlertHistoryIndex}
-                          />
-                          <Route
-                            path="checks/:checkID"
-                            component={CheckHistory}
-                          />
-                          <Route path="about" component={OrgProfilePage} />
-                          {!CLOUD && (
-                            <Route path="members" component={MembersIndex} />
-                          )}
                         </Route>
                       </Route>
                     </Route>

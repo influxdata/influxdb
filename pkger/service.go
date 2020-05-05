@@ -59,6 +59,9 @@ const ResourceTypeStack influxdb.ResourceType = "stack"
 // SVC is the packages service interface.
 type SVC interface {
 	InitStack(ctx context.Context, userID influxdb.ID, stack Stack) (Stack, error)
+	DeleteStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) error
+	ListStacks(ctx context.Context, orgID influxdb.ID, filter ListFilter) ([]Stack, error)
+
 	CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*Pkg, error)
 	DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (Summary, Diff, error)
 	Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (Summary, Diff, error)
@@ -199,6 +202,7 @@ func WithVariableSVC(varSVC influxdb.VariableService) ServiceSetterFn {
 // Store is the storage behavior the Service depends on.
 type Store interface {
 	CreateStack(ctx context.Context, stack Stack) error
+	ListStacks(ctx context.Context, orgID influxdb.ID, filter ListFilter) ([]Stack, error)
 	ReadStackByID(ctx context.Context, id influxdb.ID) (Stack, error)
 	UpdateStack(ctx context.Context, stack Stack) error
 	DeleteStack(ctx context.Context, id influxdb.ID) error
@@ -293,6 +297,50 @@ func (s *Service) InitStack(ctx context.Context, userID influxdb.ID, stack Stack
 	}
 
 	return stack, nil
+}
+
+// DeleteStack removes a stack and all the resources that have are associated with the stack.
+func (s *Service) DeleteStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) (e error) {
+	stack, err := s.store.ReadStackByID(ctx, identifiers.StackID)
+	if influxdb.ErrorCode(err) == influxdb.ENotFound {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if stack.OrgID != identifiers.OrgID {
+		return &influxdb.Error{
+			Code: influxdb.EConflict,
+			Msg:  "you do not have access to given stack ID",
+		}
+	}
+
+	// providing empty Pkg will remove all applied resources
+	state, err := s.dryRun(ctx, identifiers.OrgID, new(Pkg), applyOptFromOptFns(ApplyWithStackID(identifiers.StackID)))
+	if err != nil {
+		return err
+	}
+
+	coordinator := &rollbackCoordinator{sem: make(chan struct{}, s.applyReqLimit)}
+	defer coordinator.rollback(s.log, &e, identifiers.OrgID)
+
+	err = s.applyState(ctx, coordinator, identifiers.OrgID, identifiers.UserID, state, nil)
+	if err != nil {
+		return err
+	}
+
+	return s.store.DeleteStack(ctx, identifiers.StackID)
+}
+
+// ListFilter are filter options for filtering stacks from being returned.
+type ListFilter struct {
+	StackIDs []influxdb.ID
+	Names    []string
+}
+
+// ListStacks returns a list of stacks.
+func (s *Service) ListStacks(ctx context.Context, orgID influxdb.ID, f ListFilter) ([]Stack, error) {
+	return s.store.ListStacks(ctx, orgID, f)
 }
 
 type (
@@ -671,7 +719,7 @@ func (s *Service) dryRun(ctx context.Context, orgID influxdb.ID, pkg *Pkg, opt A
 	// will be skipped, and won't bleed into the dry run here. We can now return
 	// a error (parseErr) and valid diff/summary.
 	var parseErr error
-	err := pkg.Validate()
+	err := pkg.Validate(ValidWithoutResources())
 	if err != nil && !IsParseErr(err) {
 		return nil, internalErr(err)
 	}
@@ -1080,7 +1128,7 @@ func (s *Service) dryRunResourceLabelMapping(ctx context.Context, state *stateCo
 func (s *Service) addStackState(ctx context.Context, stackID influxdb.ID, state *stateCoordinator) error {
 	stack, err := s.store.ReadStackByID(ctx, stackID)
 	if err != nil {
-		return ierrors.Wrap(internalErr(err), "reading stack")
+		return ierrors.Wrap(err, "reading stack")
 	}
 
 	state.addStackState(stack)
@@ -1375,7 +1423,7 @@ func (s *Service) applyChecks(ctx context.Context, checks []*stateCheck) applier
 		influxCheck, err := s.applyCheck(ctx, c, userID)
 		if err != nil {
 			return &applyErrBody{
-				name: c.parserCheck.Name(),
+				name: c.parserCheck.PkgName(),
 				msg:  err.Error(),
 			}
 		}
@@ -1484,7 +1532,7 @@ func (s *Service) applyDashboards(ctx context.Context, dashboards []*stateDashbo
 		influxBucket, err := s.applyDashboard(ctx, d)
 		if err != nil {
 			return &applyErrBody{
-				name: d.parserDash.Name(),
+				name: d.parserDash.PkgName(),
 				msg:  err.Error(),
 			}
 		}
@@ -1714,7 +1762,7 @@ func (s *Service) applyNotificationEndpoints(ctx context.Context, userID influxd
 		influxEndpoint, err := s.applyNotificationEndpoint(ctx, endpoint, userID)
 		if err != nil {
 			return &applyErrBody{
-				name: endpoint.parserEndpoint.Name(),
+				name: endpoint.parserEndpoint.PkgName(),
 				msg:  err.Error(),
 			}
 		}
@@ -1842,7 +1890,7 @@ func (s *Service) applyNotificationGenerator(ctx context.Context, userID influxd
 		v, ok := mEndpoints[r.endpointPkgName()]
 		if !ok {
 			errs = append(errs, &applyErrBody{
-				name: r.parserRule.Name(),
+				name: r.parserRule.PkgName(),
 				msg:  fmt.Sprintf("notification rule endpoint dependency does not exist; endpointName=%q", r.parserRule.associatedEndpoint.PkgName()),
 			})
 			continue
@@ -2067,7 +2115,7 @@ func (s *Service) applyTasks(ctx context.Context, tasks []*stateTask) applier {
 		newTask, err := s.applyTask(ctx, userID, t)
 		if err != nil {
 			return &applyErrBody{
-				name: t.parserTask.Name(),
+				name: t.parserTask.PkgName(),
 				msg:  err.Error(),
 			}
 		}
@@ -2217,7 +2265,7 @@ func (s *Service) applyTelegrafs(ctx context.Context, userID influxdb.ID, teles 
 		existing, err := s.applyTelegrafConfig(ctx, userID, t)
 		if err != nil {
 			return &applyErrBody{
-				name: t.parserTelegraf.Name(),
+				name: t.parserTelegraf.PkgName(),
 				msg:  err.Error(),
 			}
 		}
@@ -2315,7 +2363,7 @@ func (s *Service) applyVariables(ctx context.Context, vars []*stateVariable) app
 		influxVar, err := s.applyVariable(ctx, v)
 		if err != nil {
 			return &applyErrBody{
-				name: v.parserVar.Name(),
+				name: v.parserVar.PkgName(),
 				msg:  err.Error(),
 			}
 		}

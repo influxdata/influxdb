@@ -1,20 +1,24 @@
 import {
   Actions,
   SET_FEATURE_FLAGS,
+  RESET_FEATURE_FLAGS,
   CLEAR_FEATURE_FLAG_OVERRIDES,
   SET_FEATURE_FLAG_OVERRIDE,
 } from 'src/shared/actions/flags'
+import {RemoteDataState} from 'src/types'
 
 export interface FlagMap {
   [key: string]: string | boolean
 }
 
 export interface FlagState {
+  status: RemoteDataState
   original: FlagMap
   override: FlagMap
 }
 
 const defaultState: FlagState = {
+  status: RemoteDataState.NotStarted,
   original: {},
   override: {},
 }
@@ -22,9 +26,21 @@ const defaultState: FlagState = {
 export default (state = defaultState, action: Actions): FlagState => {
   switch (action.type) {
     case SET_FEATURE_FLAGS:
+      // just setting the loading state
+      if (!action.payload.flags) {
+        return {
+          ...state,
+          status: action.payload.status,
+        }
+      }
       return {
         ...state,
-        original: action.payload,
+        status: action.payload.status,
+        original: action.payload.flags,
+      }
+    case RESET_FEATURE_FLAGS:
+      return {
+        ...defaultState,
       }
     case CLEAR_FEATURE_FLAG_OVERRIDES:
       return {

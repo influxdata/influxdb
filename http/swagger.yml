@@ -4375,6 +4375,84 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
   /packages/stacks:
+    get:
+      operationId: ListStacks
+      tags:
+        - InfluxPackages
+      summary: Grab a list of installed Influx packages
+      parameters:
+        - in: query
+          name: orgID
+          required: true
+          schema:
+            type: string
+          description: The organization id of the stacks
+        - in: query
+          name: name
+          schema:
+            type: string
+          description: A collection of names to filter the list by.
+        - in: query
+          name: stackID
+          schema:
+            type: string
+          description: A collection of stackIDs to filter the list by.
+      responses:
+        '200':
+          description: Influx stacks found
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                    orgID:
+                      type: string
+                    name:
+                      type: string
+                    description:
+                      type: string
+                    urls:
+                      type: array
+                      items:
+                        type: string
+                    createdAt:
+                      type: string
+                      format: date-time
+                      readOnly: true
+                    updatedAt:
+                      type: string
+                      format: date-time
+                      readOnly: true
+                    resources:
+                      type: object
+                      properties:
+                        apiVersion:
+                          type: string
+                        resourceID:
+                          type: string
+                        kind:
+                          type: string
+                        pkgName:
+                          type: string
+                        associations:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              kind:
+                                type: string
+                              pkgName:
+                                type: string
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
     post:
       operationId: CreateStack
       tags:
@@ -4426,6 +4504,34 @@ paths:
                     type: string
                     format: date-time
                     readOnly: true
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /packages/stacks/{stack_id}:
+    delete:
+      operationId: DeleteStack
+      tags:
+        - InfluxPackages
+      summary: Delete a stack and remove all its associated resources
+      parameters:
+        - in: path
+          name: stack_id
+          required: true
+          schema:
+            type: string
+          description: The stack id to be removed
+        - in: query
+          name: orgID
+          required: true
+          schema:
+            type: string
+          description: The organization id of the user
+      responses:
+        '204':
+          description: Stack and all its associated resources are deleted
         default:
           description: Unexpected error
           content:

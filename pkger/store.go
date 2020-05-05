@@ -1,6 +1,7 @@
 package pkger
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"time"
@@ -73,6 +74,92 @@ func (s *StoreKV) Init(ctx context.Context) error {
 // CreateStack will create a new stack. If collisions are found will fail.
 func (s *StoreKV) CreateStack(ctx context.Context, stack Stack) error {
 	return s.put(ctx, stack, kv.PutNew())
+}
+
+// ListStacks returns a list of stacks.
+func (s *StoreKV) ListStacks(ctx context.Context, orgID influxdb.ID, f ListFilter) ([]Stack, error) {
+	if len(f.StackIDs) > 0 && len(f.Names) == 0 {
+		return s.listStacksByID(ctx, orgID, f.StackIDs)
+	}
+
+	filterFn, err := storeListFilterFn(orgID, f)
+	if err != nil {
+		return nil, err
+	}
+
+	var stacks []Stack
+	err = s.kvStore.View(ctx, func(tx kv.Tx) error {
+		return s.indexBase.Find(ctx, tx, kv.FindOpts{
+			CaptureFn: func(key []byte, decodedVal interface{}) error {
+				stack, err := convertStackEntToStack(decodedVal.(*entStack))
+				if err != nil {
+					return err
+				}
+				stacks = append(stacks, stack)
+				return nil
+			},
+			FilterEntFn: func(key []byte, decodedVal interface{}) bool {
+				st := decodedVal.(*entStack)
+				return filterFn(st)
+			},
+		})
+	})
+	if err != nil {
+		return nil, err
+	}
+	return stacks, nil
+}
+
+func storeListFilterFn(orgID influxdb.ID, f ListFilter) (func(*entStack) bool, error) {
+	orgIDEncoded, err := orgID.Encode()
+	if err != nil {
+		return nil, err
+	}
+
+	mIDs := make(map[string]bool)
+	for _, id := range f.StackIDs {
+		b, err := id.Encode()
+		if err != nil {
+			return nil, err
+		}
+		mIDs[string(b)] = true
+	}
+
+	mNames := make(map[string]bool)
+	for _, name := range f.Names {
+		mNames[name] = true
+	}
+
+	optionalFieldFilterFn := func(ent *entStack) bool {
+		if len(mIDs) > 0 || len(mNames) > 0 {
+			return mIDs[string(ent.ID)] || mNames[ent.Name]
+		}
+		return true
+	}
+	return func(st *entStack) bool {
+		return bytes.Equal(orgIDEncoded, st.OrgID) && optionalFieldFilterFn(st)
+	}, nil
+}
+
+func (s *StoreKV) listStacksByID(ctx context.Context, orgID influxdb.ID, stackIDs []influxdb.ID) ([]Stack, error) {
+	var stacks []Stack
+	for _, id := range stackIDs {
+		st, err := s.ReadStackByID(ctx, id)
+		if influxdb.ErrorCode(err) == influxdb.ENotFound {
+			// since the stackIDs are a filter, if it is not found, we just continue
+			// on. If the user wants to verify the existence of a particular stack
+			// then it would be upon them to use the ReadByID call.
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		if orgID != st.OrgID {
+			continue
+		}
+		stacks = append(stacks, st)
+	}
+	return stacks, nil
 }
 
 // ReadStackByID reads a stack by the provided ID.
