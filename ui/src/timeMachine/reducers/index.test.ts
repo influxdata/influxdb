@@ -5,14 +5,16 @@ import {
   initialState,
   initialStateHelper,
   timeMachinesReducer,
+  timeMachineReducer,
 } from 'src/timeMachine/reducers'
+import {setBuilderTagKeysStatus} from 'src/timeMachine/actions/queryBuilder'
 
 import {RemoteDataState, TableViewProperties} from 'src/types'
 
 describe('the Time Machine reducer', () => {
   describe('setting the default aggregateFunctionType', () => {
     const store = createStore(timeMachinesReducer, initialState())
-    const expectedAggregatefunctionType = initialStateHelper().queryBuilder
+    const expectedAggregateFunctionType = initialStateHelper().queryBuilder
       .tags[0].aggregateFunctionType
 
     it('is set when setting a builder bucket selection', () => {
@@ -26,7 +28,7 @@ describe('the Time Machine reducer', () => {
           .aggregateFunctionType
 
       expect(defaultAggregateFunctionType).toEqual(
-        expectedAggregatefunctionType
+        expectedAggregateFunctionType
       )
     })
 
@@ -38,8 +40,25 @@ describe('the Time Machine reducer', () => {
           .aggregateFunctionType
 
       expect(defaultAggregateFunctionType).toEqual(
-        expectedAggregatefunctionType
+        expectedAggregateFunctionType
       )
+    })
+  })
+
+  describe('setBuilderTagKeyStatus', () => {
+    it('sets tagValues "status" to "NotStarted" when tagKeys are "Loading"', () => {
+      const {Loading, NotStarted} = RemoteDataState
+      const dataExplorer = initialState().timeMachines.de
+      dataExplorer.queryBuilder.tags[0].keysStatus = RemoteDataState.Done
+      dataExplorer.queryBuilder.tags[0].valuesStatus = RemoteDataState.Done
+
+      const state = timeMachineReducer(
+        dataExplorer,
+        setBuilderTagKeysStatus(0, Loading)
+      )
+
+      expect(state.queryBuilder.tags[0].keysStatus).toBe(Loading)
+      expect(state.queryBuilder.tags[0].valuesStatus).toBe(NotStarted)
     })
   })
 
