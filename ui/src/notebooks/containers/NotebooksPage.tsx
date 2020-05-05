@@ -11,6 +11,8 @@ import CloudUpgradeButton from 'src/shared/components/CloudUpgradeButton'
 import Notebook from 'src/notebooks/components/Notebook'
 import LimitChecker from 'src/cloud/components/LimitChecker'
 import RateLimitAlert from 'src/cloud/components/RateLimitAlert'
+import TimeMachineRefreshDropdown from 'src/timeMachine/components/RefreshDropdown'
+import SubmitQueryButton from 'src/timeMachine/components/SubmitQueryButton'
 
 // Actions
 import {setActiveTimeMachine} from 'src/timeMachine/actions'
@@ -57,9 +59,12 @@ const NotebooksPage: FC<Props> = ({
           <CloudUpgradeButton />
         </Page.Header>
         <Page.ControlBar fullWidth={true}>
-          <Page.ControlBarLeft />
-          <Page.ControlBarRight>
+          <Page.ControlBarLeft>
+            <SubmitQueryButton />
+            <TimeMachineRefreshDropdown />
             <TimeZoneDropdown />
+          </Page.ControlBarLeft>
+          <Page.ControlBarRight>
             <SaveAsButton />
           </Page.ControlBarRight>
         </Page.ControlBar>

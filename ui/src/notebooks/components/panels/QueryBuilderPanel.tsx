@@ -5,10 +5,8 @@ import {connect} from 'react-redux'
 // Components
 import TimeMachineFluxEditor from 'src/timeMachine/components/TimeMachineFluxEditor'
 import TimeMachineQueriesSwitcher from 'src/timeMachine/components/QueriesSwitcher'
-import TimeMachineRefreshDropdown from 'src/timeMachine/components/RefreshDropdown'
 import TimeRangeDropdown from 'src/shared/components/TimeRangeDropdown'
 import TimeMachineQueryBuilder from 'src/timeMachine/components/QueryBuilder'
-import SubmitQueryButton from 'src/timeMachine/components/SubmitQueryButton'
 import EditorShortcutsToolTip from 'src/timeMachine/components/EditorShortcutsTooltip'
 import NotebookPanel from 'src/notebooks/components/NotebookPanel'
 
@@ -54,7 +52,6 @@ class TimeMachineQueries extends PureComponent<Props> {
     let controlsRight = (
       <>
         {activeQuery.editMode === 'advanced' && <EditorShortcutsToolTip />}
-        <SubmitQueryButton />
       </>
     )
 
@@ -62,12 +59,10 @@ class TimeMachineQueries extends PureComponent<Props> {
       controlsRight = (
         <>
           {activeQuery.editMode === 'advanced' && <EditorShortcutsToolTip />}
-          <TimeMachineRefreshDropdown />
           <TimeRangeDropdown
             timeRange={timeRange}
             onSetTimeRange={this.handleSetTimeRange}
           />
-          <SubmitQueryButton />
         </>
       )
     }
