@@ -53,11 +53,14 @@ const ClientPHPOverlay: FunctionComponent<Props> = props => {
         template={initializeClientCodeSnippet}
         label="PHP Code"
         defaults={{
-          server: 'serverUrl',
+          server: 'basepath',
           token: 'token',
+          org: 'orgID',
+          bucket: 'bucketID',
         }}
         values={{
           server,
+          org,
         }}
       />
       <h5>Write Data</h5>
@@ -65,49 +68,21 @@ const ClientPHPOverlay: FunctionComponent<Props> = props => {
       <TemplatedCodeSnippet
         template={writingDataLineProtocolCodeSnippet}
         label="PHP Code"
-        defaults={{
-          bucket: 'bucketID',
-          org: 'orgID',
-        }}
-        values={{
-          org,
-        }}
       />
       <p>Option 2: Use a Data Point to write data</p>
       <TemplatedCodeSnippet
         template={writingDataPointCodeSnippet}
         label="PHP Code"
-        defaults={{
-          bucket: 'bucketID',
-          org: 'orgID',
-        }}
-        values={{
-          org,
-        }}
       />
       <p>Option 3: Use an Array structure to write data</p>
       <TemplatedCodeSnippet
         template={writingDataArrayCodeSnippet}
         label="PHP Code"
-        defaults={{
-          bucket: 'bucketID',
-          org: 'orgID',
-        }}
-        values={{
-          org,
-        }}
       />
       <h5>Execute a Flux query</h5>
       <TemplatedCodeSnippet
         template={executeQueryCodeSnippet}
-        label="Ruby Code"
-        defaults={{
-          bucket: 'my_bucket',
-          org: 'orgID',
-        }}
-        values={{
-          org,
-        }}
+        label="PHP Code"
       />
     </ClientLibraryOverlay>
   )
