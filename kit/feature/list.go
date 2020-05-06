@@ -30,12 +30,44 @@ func FrontendExample() IntFlag {
 	return frontendExample
 }
 
+var pushDownWindowAggregateCount = MakeBoolFlag(
+	"Push Down Window Aggregate Count",
+	"pushDownWindowAggregateCount",
+	"Query Team",
+	false,
+	Temporary,
+	false,
+)
+
+// PushDownWindowAggregateCount - Enable Count variant of PushDownWindowAggregateRule
+func PushDownWindowAggregateCount() BoolFlag {
+	return pushDownWindowAggregateCount
+}
+
+var pushDownWindowAggregateRest = MakeBoolFlag(
+	"Push Down Window Aggregate Rest",
+	"pushDownWindowAggregateRest",
+	"Query Team",
+	false,
+	Temporary,
+	false,
+)
+
+// PushDownWindowAggregateRest - Enable non-Count variants of PushDownWindowAggregateRule (stage 2)
+func PushDownWindowAggregateRest() BoolFlag {
+	return pushDownWindowAggregateRest
+}
+
 var all = []Flag{
 	backendExample,
 	frontendExample,
+	pushDownWindowAggregateCount,
+	pushDownWindowAggregateRest,
 }
 
 var byKey = map[string]Flag{
-	"backendExample":  backendExample,
-	"frontendExample": frontendExample,
+	"backendExample":               backendExample,
+	"frontendExample":              frontendExample,
+	"pushDownWindowAggregateCount": pushDownWindowAggregateCount,
+	"pushDownWindowAggregateRest":  pushDownWindowAggregateRest,
 }

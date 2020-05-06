@@ -26,3 +26,15 @@
   default: 42
   contact: Gavin Cabbage
   expose: true
+
+- name: Push Down Window Aggregate Count
+  description: Enable Count variant of PushDownWindowAggregateRule
+  key: pushDownWindowAggregateCount
+  default: false
+  contact: Query Team
+
+- name: Push Down Window Aggregate Rest
+  description: Enable non-Count variants of PushDownWindowAggregateRule (stage 2)
+  key: pushDownWindowAggregateRest
+  default: false
+  contact: Query Team
