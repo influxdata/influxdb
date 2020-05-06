@@ -1361,6 +1361,42 @@ func TestLauncher_Pkger(t *testing.T) {
 					})
 				})
 			})
+
+			t.Run("when a user has deleted a telegraf config that was previously created by a stack", func(t *testing.T) {
+				testUserDeletedTelegraf := func(t *testing.T, actionFn func(t *testing.T, stackID influxdb.ID, initialObj pkger.Object, initialSum pkger.Summary)) {
+					t.Helper()
+
+					obj := newTelegrafObject("tele-1", "", "")
+					stackID, cleanup, initialSum := initializeStackPkg(t, newPkg(obj))
+					defer cleanup()
+
+					require.Len(t, initialSum.TelegrafConfigs, 1)
+					require.NotZero(t, initialSum.TelegrafConfigs[0].TelegrafConfig.ID)
+					resourceCheck.mustDeleteTelegrafConfig(t, initialSum.TelegrafConfigs[0].TelegrafConfig.ID)
+
+					actionFn(t, stackID, obj, initialSum)
+				}
+
+				t.Run("should create new resource when attempting to update", func(t *testing.T) {
+					testUserDeletedTelegraf(t, func(t *testing.T, stackID influxdb.ID, initialObj pkger.Object, initialSum pkger.Summary) {
+						pkg := newPkg(initialObj)
+						updateSum, _, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkg, pkger.ApplyWithStackID(stackID))
+						require.NoError(t, err)
+
+						require.Len(t, updateSum.TelegrafConfigs, 1)
+						initial, updated := initialSum.TelegrafConfigs[0].TelegrafConfig, updateSum.TelegrafConfigs[0].TelegrafConfig
+						assert.NotEqual(t, initial.ID, updated.ID)
+						initial.ID, updated.ID = 0, 0
+						assert.Equal(t, initial, updated)
+					})
+				})
+
+				t.Run("should not error when attempting to remove", func(t *testing.T) {
+					testUserDeletedTelegraf(t, func(t *testing.T, stackID influxdb.ID, _ pkger.Object, _ pkger.Summary) {
+						testValidRemoval(t, stackID)
+					})
+				})
+			})
 		})
 	})
 
@@ -3096,6 +3132,12 @@ func (r resourceChecker) mustGetTelegrafConfig(t *testing.T, getOpt getResourceO
 	tele, err := r.getTelegrafConfig(t, getOpt)
 	require.NoError(t, err)
 	return tele
+}
+
+func (r resourceChecker) mustDeleteTelegrafConfig(t *testing.T, id influxdb.ID) {
+	t.Helper()
+
+	require.NoError(t, r.tl.TelegrafService(t).DeleteTelegrafConfig(ctx, id))
 }
 
 func (r resourceChecker) getVariable(t *testing.T, getOpt getResourceOptFn) (influxdb.Variable, error) {
