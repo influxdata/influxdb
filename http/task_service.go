@@ -99,18 +99,11 @@ func NewTaskHandler(log *zap.Logger, b *TaskBackend) *TaskHandler {
 		BucketService:              b.BucketService,
 	}
 
-	wrapWithProxy := func(h http.HandlerFunc) http.Handler {
-		return &proxyHandler{
-			proxy:   b.AlgoWProxy,
-			handler: h,
-		}
-	}
-
 	h.HandlerFunc("GET", prefixTasks, h.handleGetTasks)
-	h.Handler("POST", prefixTasks, wrapWithProxy(h.handlePostTask))
+	h.Handler("POST", prefixTasks, withFeatureProxy(b.AlgoWProxy, h.handlePostTask))
 
 	h.HandlerFunc("GET", tasksIDPath, h.handleGetTask)
-	h.Handler("PATCH", tasksIDPath, wrapWithProxy(h.handleUpdateTask))
+	h.Handler("PATCH", tasksIDPath, withFeatureProxy(b.AlgoWProxy, h.handleUpdateTask))
 	h.HandlerFunc("DELETE", tasksIDPath, h.handleDeleteTask)
 
 	h.HandlerFunc("GET", tasksIDLogsPath, h.handleGetLogs)

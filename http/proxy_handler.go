@@ -4,6 +4,19 @@ import (
 	"net/http"
 )
 
+var _ http.Handler = &proxyHandler{}
+
+// withFeatureProxy wraps an HTTP handler in a proxyHandler
+func withFeatureProxy(proxy FeatureProxyHandler, h http.HandlerFunc) *proxyHandler {
+	if proxy == nil {
+		proxy = &NoopProxyHandler{}
+	}
+	return &proxyHandler{
+		proxy:   proxy,
+		handler: h,
+	}
+}
+
 // proxyHandler is a wrapper around an http.Handler that conditionally forwards
 // a request to another HTTP backend using a proxy. If the proxy doesn't decide
 // to forward the request, we fall-back to our normal http.Handler behavior.

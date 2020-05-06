@@ -89,19 +89,13 @@ func NewCheckHandler(log *zap.Logger, b *CheckBackend) *CheckHandler {
 		OrganizationService:        b.OrganizationService,
 	}
 
-	wrapWithProxy := func(h http.HandlerFunc) http.Handler {
-		return &proxyHandler{
-			proxy:   b.AlgoWProxy,
-			handler: h,
-		}
-	}
-	h.Handler("POST", prefixChecks, wrapWithProxy(h.handlePostCheck))
+	h.Handler("POST", prefixChecks, withFeatureProxy(b.AlgoWProxy, h.handlePostCheck))
 	h.HandlerFunc("GET", prefixChecks, h.handleGetChecks)
 	h.HandlerFunc("GET", checksIDPath, h.handleGetCheck)
 	h.HandlerFunc("GET", checksIDQueryPath, h.handleGetCheckQuery)
 	h.HandlerFunc("DELETE", checksIDPath, h.handleDeleteCheck)
-	h.Handler("PUT", checksIDPath, wrapWithProxy(h.handlePutCheck))
-	h.Handler("PATCH", checksIDPath, wrapWithProxy(h.handlePatchCheck))
+	h.Handler("PUT", checksIDPath, withFeatureProxy(b.AlgoWProxy, h.handlePutCheck))
+	h.Handler("PATCH", checksIDPath, withFeatureProxy(b.AlgoWProxy, h.handlePatchCheck))
 
 	memberBackend := MemberBackend{
 		HTTPErrorHandler:           b.HTTPErrorHandler,

@@ -99,19 +99,13 @@ func NewNotificationRuleHandler(log *zap.Logger, b *NotificationRuleBackend) *No
 		TaskService:                 b.TaskService,
 	}
 
-	wrapWithProxy := func(h http.HandlerFunc) http.Handler {
-		return &proxyHandler{
-			proxy:   b.AlgoWProxy,
-			handler: h,
-		}
-	}
-	h.Handler("POST", prefixNotificationRules, wrapWithProxy(h.handlePostNotificationRule))
+	h.Handler("POST", prefixNotificationRules, withFeatureProxy(b.AlgoWProxy, h.handlePostNotificationRule))
 	h.HandlerFunc("GET", prefixNotificationRules, h.handleGetNotificationRules)
 	h.HandlerFunc("GET", notificationRulesIDPath, h.handleGetNotificationRule)
 	h.HandlerFunc("GET", notificationRulesIDQueryPath, h.handleGetNotificationRuleQuery)
 	h.HandlerFunc("DELETE", notificationRulesIDPath, h.handleDeleteNotificationRule)
-	h.Handler("PUT", notificationRulesIDPath, wrapWithProxy(h.handlePutNotificationRule))
-	h.Handler("PATCH", notificationRulesIDPath, wrapWithProxy(h.handlePatchNotificationRule))
+	h.Handler("PUT", notificationRulesIDPath, withFeatureProxy(b.AlgoWProxy, h.handlePutNotificationRule))
+	h.Handler("PATCH", notificationRulesIDPath, withFeatureProxy(b.AlgoWProxy, h.handlePatchNotificationRule))
 
 	memberBackend := MemberBackend{
 		HTTPErrorHandler:           b.HTTPErrorHandler,
