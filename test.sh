@@ -31,7 +31,7 @@ TIMEOUT=${TIMEOUT-1500s}
 DOCKER_RM=${DOCKER_RM-true}
 
 # Update this value if you add a new test environment.
-ENV_COUNT=5
+ENV_COUNT=4
 
 # Default return code 0
 rc=0

@@ -49,6 +49,7 @@ pipeline {
       agent {
         docker {
           image 'golang:1.14.2'
+          args '-e "GOCACHE=/tmp"'
         }
       }
 
@@ -58,13 +59,13 @@ pipeline {
         cp -a $WORKSPACE /go/src/github.com/influxdata/influxdb
 
         cd /go/src/github.com/influxdata/influxdb
-        GO111MODULE=off go get github.com/golang/dep/cmd/dep
+        go get github.com/golang/dep/cmd/dep
         dep ensure -vendor-only
         """
 
         sh """
         cd /go/src/github.com/influxdata/influxdb
-        GO111MODULE=off go test -parallel=1 ./...
+        go test -parallel=1 ./...
         """
       }
     }
@@ -82,13 +83,13 @@ pipeline {
         cp -a $WORKSPACE /go/src/github.com/influxdata/influxdb
 
         cd /go/src/github.com/influxdata/influxdb
-        GO111MODULE=off go get github.com/golang/dep/cmd/dep
+        go get github.com/golang/dep/cmd/dep
         dep ensure -vendor-only
         """
 
         sh """
         cd /go/src/github.com/influxdata/influxdb
-        GO111MODULE=off go test -parallel=1 ./...
+        go test -parallel=1 ./...
         """
       }
     }

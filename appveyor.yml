@@ -14,7 +14,7 @@ clone_folder: c:\gopath\src\github.com\influxdata\influxdb
 environment:
   GOROOT: C:\go110
   GOPATH: C:\gopath
-  GO111MODULE: off
+  # GO111MODULE: off
 
 # Scripts that run after cloning repository
 install:
