@@ -2183,13 +2183,16 @@ func (s *Service) applyTasks(ctx context.Context, tasks []*stateTask) applier {
 }
 
 func (s *Service) applyTask(ctx context.Context, userID influxdb.ID, t *stateTask) (influxdb.Task, error) {
-	switch t.stateStatus {
-	case StateStatusRemove:
+	switch {
+	case IsRemoval(t.stateStatus):
 		if err := s.taskSVC.DeleteTask(ctx, t.ID()); err != nil {
+			if influxdb.ErrorCode(err) == influxdb.ENotFound {
+				return influxdb.Task{}, nil
+			}
 			return influxdb.Task{}, ierrors.Wrap(err, "failed to delete task")
 		}
 		return *t.existing, nil
-	case StateStatusExists:
+	case IsExisting(t.stateStatus) && t.existing != nil:
 		newFlux := t.parserTask.flux()
 		newStatus := string(t.parserTask.Status())
 		opt := options.Options{
@@ -2231,6 +2234,10 @@ func (s *Service) applyTask(ctx context.Context, userID influxdb.ID, t *stateTas
 
 func (s *Service) rollbackTasks(ctx context.Context, tasks []*stateTask) error {
 	rollbackFn := func(t *stateTask) error {
+		if !IsNew(t.stateStatus) && t.existing == nil {
+			return nil
+		}
+
 		var err error
 		switch t.stateStatus {
 		case StateStatusRemove:

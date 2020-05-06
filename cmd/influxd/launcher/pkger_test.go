@@ -1325,6 +1325,42 @@ func TestLauncher_Pkger(t *testing.T) {
 					})
 				})
 			})
+
+			t.Run("when a user has deleted a task that was previously created by a stack", func(t *testing.T) {
+				testUserDeletedTask := func(t *testing.T, actionFn func(t *testing.T, stackID influxdb.ID, initialObj pkger.Object, initialSum pkger.Summary)) {
+					t.Helper()
+
+					obj := newTaskObject("task-1", "", "")
+					stackID, cleanup, initialSum := initializeStackPkg(t, newPkg(obj))
+					defer cleanup()
+
+					require.Len(t, initialSum.Tasks, 1)
+					require.NotZero(t, initialSum.Tasks[0].ID)
+					resourceCheck.mustDeleteTask(t, influxdb.ID(initialSum.Tasks[0].ID))
+
+					actionFn(t, stackID, obj, initialSum)
+				}
+
+				t.Run("should create new resource when attempting to update", func(t *testing.T) {
+					testUserDeletedTask(t, func(t *testing.T, stackID influxdb.ID, initialObj pkger.Object, initialSum pkger.Summary) {
+						pkg := newPkg(initialObj)
+						updateSum, _, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkg, pkger.ApplyWithStackID(stackID))
+						require.NoError(t, err)
+
+						require.Len(t, updateSum.Tasks, 1)
+						initial, updated := initialSum.Tasks[0], updateSum.Tasks[0]
+						assert.NotEqual(t, initial.ID, updated.ID)
+						initial.ID, updated.ID = 0, 0
+						assert.Equal(t, initial, updated)
+					})
+				})
+
+				t.Run("should not error when attempting to remove", func(t *testing.T) {
+					testUserDeletedTask(t, func(t *testing.T, stackID influxdb.ID, _ pkger.Object, _ pkger.Summary) {
+						testValidRemoval(t, stackID)
+					})
+				})
+			})
 		})
 	})
 
@@ -3014,6 +3050,12 @@ func (r resourceChecker) mustGetTask(t *testing.T, getOpt getResourceOptFn) http
 	task, err := r.getTask(t, getOpt)
 	require.NoError(t, err)
 	return task
+}
+
+func (r resourceChecker) mustDeleteTask(t *testing.T, id influxdb.ID) {
+	t.Helper()
+
+	require.NoError(t, r.tl.TaskService(t).DeleteTask(ctx, id))
 }
 
 func (r resourceChecker) getTelegrafConfig(t *testing.T, getOpt getResourceOptFn) (influxdb.TelegrafConfig, error) {
