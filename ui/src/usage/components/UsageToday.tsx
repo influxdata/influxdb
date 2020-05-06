@@ -8,42 +8,31 @@ import {
 } from '@influxdata/clockface'
 import {fromFlux} from '@influxdata/vis'
 import PanelSection from 'src/usage/components/PanelSection'
-import {GRAPH_INFO} from 'src/usage/components/Constants'
 import AlertBanner from 'src/usage/components/AlertBanner'
 import UsageDropdown from 'src/usage/components/UsageDropdown'
-import {
-  QUERY_RESULTS_STATUS_EMPTY,
-  QUERY_RESULTS_STATUS_SUCCESS,
-  PANEL_CONTENTS_WIDTHS,
-} from 'src/usage/components/Constants'
 import PanelSectionBody from 'src/usage/components/PanelSectionBody'
 import BillingStatsPanel from 'src/usage/components/BillingStatsPanel'
 import TimeRangeDropdown from './TimeRangeDropdown'
 
-export interface Ranges {
-  h24: 'Past 24 Hours'
-  d7: 'Past 7 Days'
-  d30: 'Past 30 Days'
-}
+// Types
+import {
+  UsageQueryStatus,
+  UsageLimitStatus,
+  UsageHistory,
+  UsageBillingStart,
+  UsageTable,
+} from 'src/types'
 
-const ranges: Ranges = {
-  h24: 'Past 24 Hours',
-  d7: 'Past 7 Days',
-  d30: 'Past 30 Days',
-}
+// Constants
+import {PANEL_CONTENTS_WIDTHS, RANGES} from 'src/usage/components/constants'
+import {GRAPH_INFO} from 'src/usage/components/constants'
 
 interface Props {
-  history: {
-    billing_stats: string
-    rate_limits: string
-    write_mb: string
-    execution_sec: string
-    storage_gb: string
-  }
-  limitStatuses: string
+  history: UsageHistory
+  limitStatuses: UsageLimitStatus
+  billingStart: UsageBillingStart
   accountType: string
   selectedRange: string
-  billingStart: {date: string; time: string}
 }
 
 interface State {
@@ -72,11 +61,11 @@ class UsageToday extends Component<Props, State> {
     } = this.props
 
     const {table: billingTable, status: billingStatus} = this.csvToTable(
-      history.billing_stats
+      history.billingStats
     )
 
     const {table: limitsTable, status: limitsStatus} = this.csvToTable(
-      history.rate_limits
+      history.rateLimits
     )
 
     const {selectedUsageID} = this.state
@@ -96,16 +85,16 @@ class UsageToday extends Component<Props, State> {
           table={billingTable}
           status={billingStatus}
           billingStart={billingStart}
-          widths={PANEL_CONTENTS_WIDTHS.billing_stats}
+          widths={PANEL_CONTENTS_WIDTHS.billingStats}
         />
         <TimeRangeDropdown
-          selectedTimeRange={ranges[selectedRange]}
-          dropdownOptions={ranges}
+          selectedTimeRange={RANGES[selectedRange]}
+          dropdownOptions={RANGES}
           onSelect={this.handleTimeRangeChange}
         />
         <Panel className="usage--panel">
           <Panel.Header>
-            <h4>{`Usage ${ranges[selectedRange]}`}</h4>
+            <h4>{`Usage ${RANGES[selectedRange]}`}</h4>
             <UsageDropdown
               selectedUsage={selectedUsageID}
               onSelect={this.handleUsageChange}
@@ -115,16 +104,16 @@ class UsageToday extends Component<Props, State> {
         </Panel>
         <Panel className="usage--panel">
           <Panel.Header>
-            <h5>{`Rate Limits ${ranges[selectedRange]}`}</h5>
+            <h5>{`Rate Limits ${RANGES[selectedRange]}`}</h5>
           </Panel.Header>
           <PanelSection>
-            {GRAPH_INFO.rate_limits.map(graphInfo => {
+            {GRAPH_INFO.rateLimits.map(graphInfo => {
               return (
                 <PanelSectionBody
                   table={limitsTable}
                   status={limitsStatus}
                   graphInfo={graphInfo}
-                  widths={PANEL_CONTENTS_WIDTHS.rate_limits}
+                  widths={PANEL_CONTENTS_WIDTHS.rateLimits}
                   key={graphInfo.title}
                 />
               )
@@ -142,9 +131,9 @@ class UsageToday extends Component<Props, State> {
     switch (selectedUsageID) {
       case 'Writes (MB)':
         const {table: writeTable, status: writeStatus} = this.csvToTable(
-          history.write_mb
+          history.writeMB
         )
-        return GRAPH_INFO.write_mb.map(graphInfo => {
+        return GRAPH_INFO.writeMB.map(graphInfo => {
           return (
             <PanelSectionBody
               table={writeTable}
@@ -159,8 +148,8 @@ class UsageToday extends Component<Props, State> {
         const {
           table: executionTable,
           status: executionStatus,
-        } = this.csvToTable(history.execution_sec)
-        return GRAPH_INFO.execution_sec.map(graphInfo => {
+        } = this.csvToTable(history.executionSec)
+        return GRAPH_INFO.executionSec.map(graphInfo => {
           return (
             <PanelSectionBody
               table={executionTable}
@@ -173,9 +162,9 @@ class UsageToday extends Component<Props, State> {
         })
       case 'Storage (GB-hr)':
         const {table: storageTable, status: storageStatus} = this.csvToTable(
-          history.storage_gb
+          history.storageGB
         )
-        return GRAPH_INFO.storage_gb.map(graphInfo => {
+        return GRAPH_INFO.storageGB.map(graphInfo => {
           return (
             <PanelSectionBody
               table={storageTable}
@@ -199,17 +188,22 @@ class UsageToday extends Component<Props, State> {
     this.setState({selectedUsageID: v})
   }
 
-  csvToTable = csv => {
+  csvToTable = (
+    csv: string
+  ): {
+    table: UsageTable
+    status: UsageQueryStatus
+  } => {
     const {table} = fromFlux(csv)
 
     if (!table.length) {
       return {
-        status: QUERY_RESULTS_STATUS_EMPTY,
+        status: 'empty',
         table: {columns: {}, length: 0},
       }
     }
 
-    return {status: QUERY_RESULTS_STATUS_SUCCESS, table}
+    return {status: 'success', table}
   }
 }
 

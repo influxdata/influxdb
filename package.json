@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "@influxdata/vis": "^0.9.0"
+  }
+}

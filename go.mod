@@ -5,6 +5,7 @@ go 1.13
 require (
 	cloud.google.com/go/bigtable v1.3.0 // indirect
 	github.com/BurntSushi/toml v0.3.1
+	github.com/Masterminds/sprig v2.16.0+incompatible
 	github.com/NYTimes/gziphandler v1.0.1
 	github.com/RoaringBitmap/roaring v0.4.16
 	github.com/andreyvit/diff v0.0.0-20170406064948-c7f18ee00883
@@ -101,6 +102,7 @@ require (
 	google.golang.org/api v0.17.0
 	google.golang.org/grpc v1.27.1
 	gopkg.in/vmihailenco/msgpack.v2 v2.9.1 // indirect
+	gopkg.in/yaml.v2 v2.2.2
 	gopkg.in/yaml.v3 v3.0.0-20200121175148-a6ecf24a6d71
 	honnef.co/go/tools v0.0.1-2019.2.3.0.20190904154718-afd67930eec2
 	labix.org/v2/mgo v0.0.0-20140701140051-000000000287 // indirect
