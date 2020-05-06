@@ -9,7 +9,6 @@
 #      1: race enabled 64bit tests
 #      2: normal 32bit tests
 #      3: tsi build
-#      4: go 1.11
 #      count: print the number of test environments
 #      *: to run all tests in parallel containers
 #
@@ -121,11 +120,6 @@ case $ENVIRONMENT_INDEX in
         # tsi
         INFLUXDB_DATA_INDEX_VERSION="tsi1"
         run_test_docker Dockerfile_build_ubuntu64 test_64bit --test --junit-report
-        rc=$?
-        ;;
-    4)
-        # go1.11
-        run_test_docker Dockerfile_build_ubuntu64_go1.11 test_64bit --test --junit-report
         rc=$?
         ;;
     "count")
