@@ -1340,17 +1340,15 @@ func (s *Service) applyBuckets(ctx context.Context, buckets []*stateBucket) appl
 
 func (s *Service) rollbackBuckets(ctx context.Context, buckets []*stateBucket) error {
 	rollbackFn := func(b *stateBucket) error {
+		if !IsNew(b.stateStatus) && b.existing == nil {
+			return nil
+		}
+
 		var err error
 		switch {
 		case IsRemoval(b.stateStatus):
-			if b.existing == nil {
-				return nil
-			}
 			err = ierrors.Wrap(s.bucketSVC.CreateBucket(ctx, b.existing), "rolling back removed bucket")
 		case IsExisting(b.stateStatus):
-			if b.existing == nil {
-				return nil
-			}
 			_, err = s.bucketSVC.UpdateBucket(ctx, b.ID(), influxdb.BucketUpdate{
 				Description:     &b.existing.Description,
 				RetentionPeriod: &b.existing.RetentionPeriod,
@@ -1796,29 +1794,31 @@ func (s *Service) applyNotificationEndpoints(ctx context.Context, userID influxd
 		}
 
 		mutex.Do(func() {
-			endpoints[i].id = influxEndpoint.GetID()
-			for _, secret := range influxEndpoint.SecretFields() {
-				switch {
-				case strings.HasSuffix(secret.Key, "-routing-key"):
-					if endpoints[i].parserEndpoint.routingKey == nil {
-						endpoints[i].parserEndpoint.routingKey = new(references)
+			if influxEndpoint != nil {
+				endpoints[i].id = influxEndpoint.GetID()
+				for _, secret := range influxEndpoint.SecretFields() {
+					switch {
+					case strings.HasSuffix(secret.Key, "-routing-key"):
+						if endpoints[i].parserEndpoint.routingKey == nil {
+							endpoints[i].parserEndpoint.routingKey = new(references)
+						}
+						endpoints[i].parserEndpoint.routingKey.Secret = secret.Key
+					case strings.HasSuffix(secret.Key, "-token"):
+						if endpoints[i].parserEndpoint.token == nil {
+							endpoints[i].parserEndpoint.token = new(references)
+						}
+						endpoints[i].parserEndpoint.token.Secret = secret.Key
+					case strings.HasSuffix(secret.Key, "-username"):
+						if endpoints[i].parserEndpoint.username == nil {
+							endpoints[i].parserEndpoint.username = new(references)
+						}
+						endpoints[i].parserEndpoint.username.Secret = secret.Key
+					case strings.HasSuffix(secret.Key, "-password"):
+						if endpoints[i].parserEndpoint.password == nil {
+							endpoints[i].parserEndpoint.password = new(references)
+						}
+						endpoints[i].parserEndpoint.password.Secret = secret.Key
 					}
-					endpoints[i].parserEndpoint.routingKey.Secret = secret.Key
-				case strings.HasSuffix(secret.Key, "-token"):
-					if endpoints[i].parserEndpoint.token == nil {
-						endpoints[i].parserEndpoint.token = new(references)
-					}
-					endpoints[i].parserEndpoint.token.Secret = secret.Key
-				case strings.HasSuffix(secret.Key, "-username"):
-					if endpoints[i].parserEndpoint.username == nil {
-						endpoints[i].parserEndpoint.username = new(references)
-					}
-					endpoints[i].parserEndpoint.username.Secret = secret.Key
-				case strings.HasSuffix(secret.Key, "-password"):
-					if endpoints[i].parserEndpoint.password == nil {
-						endpoints[i].parserEndpoint.password = new(references)
-					}
-					endpoints[i].parserEndpoint.password.Secret = secret.Key
 				}
 			}
 			rollbackEndpoints = append(rollbackEndpoints, endpoints[i])
@@ -1845,14 +1845,14 @@ func (s *Service) applyNotificationEndpoints(ctx context.Context, userID influxd
 }
 
 func (s *Service) applyNotificationEndpoint(ctx context.Context, e *stateEndpoint, userID influxdb.ID) (influxdb.NotificationEndpoint, error) {
-	switch e.stateStatus {
-	case StateStatusRemove:
+	switch {
+	case IsRemoval(e.stateStatus):
 		_, _, err := s.endpointSVC.DeleteNotificationEndpoint(ctx, e.ID())
-		if err != nil {
+		if err != nil && influxdb.ErrorCode(err) != influxdb.ENotFound {
 			return nil, err
 		}
 		return e.existing, nil
-	case StateStatusExists:
+	case IsExisting(e.stateStatus) && e.existing != nil:
 		// stub out userID since we're always using hte http client which will fill it in for us with the token
 		// feels a bit broken that is required.
 		// TODO: look into this userID requirement
@@ -1875,6 +1875,9 @@ func (s *Service) applyNotificationEndpoint(ctx context.Context, e *stateEndpoin
 
 func (s *Service) rollbackNotificationEndpoints(ctx context.Context, userID influxdb.ID, endpoints []*stateEndpoint) error {
 	rollbackFn := func(e *stateEndpoint) error {
+		if !IsNew(e.stateStatus) && e.existing == nil {
+			return nil
+		}
 		var err error
 		switch e.stateStatus {
 		case StateStatusRemove:
