@@ -764,6 +764,7 @@ export const timeMachineReducer = (
         tags[index].keysStatus = status
 
         if (status === RemoteDataState.Loading) {
+          tags[index].valuesStatus = RemoteDataState.NotStarted
           for (let i = index + 1; i < tags.length; i++) {
             tags[i].keysStatus = RemoteDataState.NotStarted
           }

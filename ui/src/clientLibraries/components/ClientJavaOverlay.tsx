@@ -58,11 +58,14 @@ const ClientJavaOverlay: FunctionComponent<Props> = props => {
         template={initializeClientCodeSnippet}
         label="Java Code"
         defaults={{
-          server: 'serverUrl',
+          server: 'basepath',
           token: 'token',
+          org: 'orgID',
+          bucket: 'bucketID',
         }}
         values={{
           server,
+          org,
         }}
       />
       <h5>Write Data</h5>
@@ -70,50 +73,22 @@ const ClientJavaOverlay: FunctionComponent<Props> = props => {
       <TemplatedCodeSnippet
         template={writingDataLineProtocolCodeSnippet}
         label="Java Code"
-        defaults={{
-          bucket: 'bucketID',
-          org: 'orgID',
-        }}
-        values={{
-          org,
-        }}
       />
       <p>Option 2: Use a Data Point to write data</p>
       <TemplatedCodeSnippet
         template={writingDataPointCodeSnippet}
         label="Java Code"
-        defaults={{
-          bucket: 'bucketID',
-          org: 'orgID',
-        }}
-        values={{
-          org,
-        }}
       />
       <p>Option 3: Use POJO and corresponding class to write data</p>
       <TemplatedCodeSnippet
         template={writingDataPojoCodeSnippet}
         label="Java Code"
-        defaults={{
-          bucket: 'bucketID',
-          org: 'orgID',
-        }}
-        values={{
-          org,
-        }}
       />
       <TemplatedCodeSnippet template={pojoClassCodeSnippet} label="Java Code" />
       <h5>Execute a Flux query</h5>
       <TemplatedCodeSnippet
         template={executeQueryCodeSnippet}
         label="Java Code"
-        defaults={{
-          bucket: 'my_bucket',
-          org: 'myorgid',
-        }}
-        values={{
-          org,
-        }}
       />
     </ClientLibraryOverlay>
   )

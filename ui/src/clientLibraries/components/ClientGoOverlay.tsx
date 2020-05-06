@@ -46,11 +46,14 @@ const ClientGoOverlay: FunctionComponent<Props> = props => {
         template={initializeClientCodeSnippet}
         label="Go Code"
         defaults={{
+          server: 'basepath',
           token: 'token',
-          server: 'serverUrl',
+          org: 'orgID',
+          bucket: 'bucketID',
         }}
         values={{
           server,
+          org,
         }}
       />
       <h5>Write Data</h5>
@@ -58,37 +61,16 @@ const ClientGoOverlay: FunctionComponent<Props> = props => {
       <TemplatedCodeSnippet
         template={writingDataLineProtocolCodeSnippet}
         label="Go Code"
-        defaults={{
-          bucket: 'bucketID',
-          org: 'orgID',
-        }}
-        values={{
-          org,
-        }}
       />
       <p>Option 2: Use a Data Point to write data</p>
       <TemplatedCodeSnippet
         template={writingDataPointCodeSnippet}
         label="Go Code"
-        defaults={{
-          bucket: 'bucketID',
-          org: 'orgID',
-        }}
-        values={{
-          org,
-        }}
       />
       <h5>Execute a Flux query</h5>
       <TemplatedCodeSnippet
         template={executeQueryCodeSnippet}
-        label="Java Code"
-        defaults={{
-          bucket: 'bucketID',
-          org: 'orgID',
-        }}
-        values={{
-          org,
-        }}
+        label="Go Code"
       />
     </ClientLibraryOverlay>
   )
