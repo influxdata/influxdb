@@ -23,9 +23,6 @@ fi
 
 set -eu -o pipefail
 
-echo "Sleeping for 10 seconds to avoid connectivity issues..."
-sleep 10
-
 echo "Setting up InfluxDB with the following parameters:"
 echo "Username: $INFLUXDB_USER"
 echo "Password: <redacted>"
