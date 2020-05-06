@@ -1573,13 +1573,16 @@ func (s *Service) applyDashboards(ctx context.Context, dashboards []*stateDashbo
 }
 
 func (s *Service) applyDashboard(ctx context.Context, d *stateDashboard) (influxdb.Dashboard, error) {
-	switch d.stateStatus {
-	case StateStatusRemove:
+	switch {
+	case IsRemoval(d.stateStatus):
 		if err := s.dashSVC.DeleteDashboard(ctx, d.ID()); err != nil {
+			if influxdb.ErrorCode(err) == influxdb.ENotFound {
+				return influxdb.Dashboard{}, nil
+			}
 			return influxdb.Dashboard{}, fmt.Errorf("failed to delete dashboard[%q]: %w", d.ID(), err)
 		}
 		return *d.existing, nil
-	case StateStatusExists:
+	case IsExisting(d.stateStatus) && d.existing != nil:
 		name := d.parserDash.Name()
 		cells := convertChartsToCells(d.parserDash.Charts)
 		dash, err := s.dashSVC.UpdateDashboard(ctx, d.ID(), influxdb.DashboardUpdate{
@@ -1609,11 +1612,15 @@ func (s *Service) applyDashboard(ctx context.Context, d *stateDashboard) (influx
 
 func (s *Service) rollbackDashboards(ctx context.Context, dashs []*stateDashboard) error {
 	rollbackFn := func(d *stateDashboard) error {
+		if !IsNew(d.stateStatus) && d.existing == nil {
+			return nil
+		}
+
 		var err error
-		switch d.stateStatus {
-		case StateStatusRemove:
+		switch {
+		case IsRemoval(d.stateStatus):
 			err = ierrors.Wrap(s.dashSVC.CreateDashboard(ctx, d.existing), "rolling back removed dashboard")
-		case StateStatusExists:
+		case IsExisting(d.stateStatus):
 			_, err := s.dashSVC.UpdateDashboard(ctx, d.ID(), influxdb.DashboardUpdate{
 				Name:        &d.existing.Name,
 				Description: &d.existing.Description,
