@@ -1,15 +1,7 @@
-import {OrgSettings} from 'src/types'
 import {getAPIBasepath} from 'src/utils/basepath'
+import {OrgSettingsResponse} from 'src/types'
 
-export const getOrgSettings = async (orgID: string): Promise<OrgSettings> => {
-  try {
-    const response = await fetch(
-      `${getAPIBasepath()}/api/v2private/orgs/${orgID}/settings`
-    )
-    const data = await response.json()
-    return data
-  } catch (error) {
-    console.error(error)
-    throw error
-  }
-}
+export const fetchOrgSettings = async (
+  orgID: string
+): Promise<OrgSettingsResponse> =>
+  await fetch(`${getAPIBasepath()}/api/v2private/orgs/${orgID}/settings`)

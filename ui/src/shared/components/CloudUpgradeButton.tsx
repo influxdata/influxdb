@@ -17,13 +17,13 @@ import {
 import {AppState, OrgSetting} from 'src/types'
 
 interface StateProps {
-  show: boolean
+  inView: boolean
 }
 
-const CloudUpgradeButton: FC<StateProps> = ({show}) => {
+const CloudUpgradeButton: FC<StateProps> = ({inView}) => {
   return (
     <CloudOnly>
-      {show ? (
+      {inView ? (
         <Link
           className="cf-button cf-button-sm cf-button-success upgrade-payg--button"
           to={`${CLOUD_URL}${CLOUD_CHECKOUT_PATH}`}
@@ -41,16 +41,16 @@ const mstp = ({
     orgSettings: {settings},
   },
 }: AppState) => {
-  const hideUpgradeCTA = settings.find(
+  const hideUpgradeButtonSetting = settings.find(
     (setting: OrgSetting) => setting.key === HIDE_UPGRADE_CTA_KEY
   )
   if (
-    !hideUpgradeCTA ||
-    hideUpgradeCTA.value !== PAID_ORG_HIDE_UPGRADE_SETTING.value
+    !hideUpgradeButtonSetting ||
+    hideUpgradeButtonSetting.value !== PAID_ORG_HIDE_UPGRADE_SETTING.value
   ) {
-    return {show: true}
+    return {inView: true}
   }
-  return {show: false}
+  return {inView: false}
 }
 
 export default connect<StateProps>(mstp)(CloudUpgradeButton)

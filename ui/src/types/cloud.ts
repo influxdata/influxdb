@@ -48,3 +48,9 @@ export interface OrgSettings {
   orgID: string
   settings: OrgSetting[]
 }
+
+export interface OrgSettingsResponse {
+  status: number
+  statusText: string
+  json: () => Promise<OrgSettings>
+}

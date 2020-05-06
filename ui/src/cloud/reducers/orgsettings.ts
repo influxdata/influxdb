@@ -1,6 +1,6 @@
 import {produce} from 'immer'
 
-import {Actions, ActionTypes} from 'src/cloud/actions/orgsettings'
+import {Action, SET_ORG_SETTINGS} from 'src/cloud/actions/orgsettings'
 import {OrgSetting} from 'src/types'
 
 import {PAID_ORG_HIDE_UPGRADE_SETTING} from 'src/cloud/constants'
@@ -14,13 +14,12 @@ export const defaultState: OrgSettingsState = {
 }
 
 export const orgSettingsReducer = (
-  state = defaultState,
-  action: Actions
+  state: OrgSettingsState = defaultState,
+  action: Action
 ): OrgSettingsState =>
   produce(state, draftState => {
-    if (action.type === ActionTypes.SetOrgSettings) {
-      const {orgSettings} = action.payload
-      draftState.settings = orgSettings
+    if (action.type === SET_ORG_SETTINGS) {
+      draftState.settings = action.payload.orgSettings
     }
     return
   })

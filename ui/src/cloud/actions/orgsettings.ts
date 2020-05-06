@@ -1,5 +1,5 @@
 // API
-import {getOrgSettings as getOrgSettingsAJAX} from 'src/cloud/apis/orgsettings'
+import {fetchOrgSettings} from 'src/cloud/apis/orgsettings'
 
 // Constants
 import {FREE_ORG_HIDE_UPGRADE_SETTING} from 'src/cloud/constants'
@@ -10,36 +10,34 @@ import {GetState, OrgSetting} from 'src/types'
 // Selectors
 import {getOrg} from 'src/organizations/selectors'
 
-export enum ActionTypes {
-  SetOrgSettings = 'SET_ORG_SETTINGS',
-}
+export const SET_ORG_SETTINGS = 'SET_ORG_SETTINGS'
 
-export type Actions = SetOrgSettings
+export type Action = ReturnType<typeof setOrgSettings>
 
-export interface SetOrgSettings {
-  type: ActionTypes.SetOrgSettings
-  payload: {orgSettings: OrgSetting[]}
-}
-
-export const setOrgSettings = (settings: OrgSetting[] = []): SetOrgSettings => {
-  return {
-    type: ActionTypes.SetOrgSettings,
+export const setOrgSettings = (settings: OrgSetting[] = []) =>
+  ({
+    type: SET_ORG_SETTINGS,
     payload: {orgSettings: settings},
-  }
-}
+  } as const)
 
-export const setFreeOrgSettings = (): SetOrgSettings => {
-  return {
-    type: ActionTypes.SetOrgSettings,
+export const setFreeOrgSettings = () =>
+  ({
+    type: SET_ORG_SETTINGS,
     payload: {orgSettings: [FREE_ORG_HIDE_UPGRADE_SETTING]},
-  }
-}
+  } as const)
 
 export const getOrgSettings = () => async (dispatch, getState: GetState) => {
   try {
     const org = getOrg(getState())
 
-    const result = await getOrgSettingsAJAX(org.id)
+    const response = await fetchOrgSettings(org.id)
+
+    if (response.status !== 200) {
+      throw new Error(
+        `Unable to get organization settings: ${response.statusText}`
+      )
+    }
+    const result = await response.json()
     dispatch(setOrgSettings(result.settings))
   } catch (error) {
     dispatch(setFreeOrgSettings())
