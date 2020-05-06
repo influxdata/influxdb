@@ -34,6 +34,7 @@ import {
   Dashboard,
 } from 'src/types'
 import {reportError} from 'src/shared/utils/errors'
+import {getErrorMessage} from 'src/utils/api'
 
 export type Actions =
   | ReturnType<typeof setDemoDataStatus>
@@ -124,7 +125,7 @@ export const getDemoDataBucketMembership = ({
 
     dispatch(notify(demoDataSucceeded(bucketName, url)))
   } catch (error) {
-    dispatch(notify(demoDataAddBucketFailed(error)))
+    dispatch(notify(demoDataAddBucketFailed(getErrorMessage(error))))
 
     reportError(error, {
       name: 'getDemoDataBucketMembership function',
