@@ -21,7 +21,7 @@ export interface SetOrgSettings {
   payload: {orgSettings: OrgSetting[]}
 }
 
-export const setOrgSettings = (settings: OrgSetting[]): SetOrgSettings => {
+export const setOrgSettings = (settings: OrgSetting[] = []): SetOrgSettings => {
   return {
     type: ActionTypes.SetOrgSettings,
     payload: {orgSettings: settings},
