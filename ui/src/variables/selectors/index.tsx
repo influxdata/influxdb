@@ -115,7 +115,7 @@ export const getAllVariables = (
   return vars
 }
 
-const setTimeToUTC = (date: string): string => {
+export const setTimeToUTC = (date: string): string => {
   const offset = new Date(date).getTimezoneOffset()
   // check if date has offset
   if (offset === 0) {

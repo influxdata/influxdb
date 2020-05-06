@@ -6,7 +6,8 @@ import {fetchDemoDataBuckets} from 'src/cloud/apis/demodata'
 
 // Utils
 import {getActiveQuery, getActiveTimeMachine} from 'src/timeMachine/selectors'
-import {getTimeRange} from 'src/dashboards/selectors'
+import {getTimeRange, getTimeZone} from 'src/dashboards/selectors'
+import {setTimeToUTC} from 'src/variables/selectors'
 
 // Types
 import {
@@ -223,6 +224,13 @@ export const loadTagSelector = (index: number) => async (
 
   try {
     const timeRange = getTimeRange(state)
+    const timeZone = getTimeZone(state)
+    const newTimeRange = Object.assign({}, timeRange)
+    if (timeRange.type === 'custom' && timeZone === 'UTC') {
+      // check to see if the timeRange has an offset
+      newTimeRange.lower = setTimeToUTC(newTimeRange.lower)
+      newTimeRange.upper = setTimeToUTC(newTimeRange.upper)
+    }
     const searchTerm = getActiveTimeMachine(state).queryBuilder.tags[index]
       .keysSearchTerm
 
@@ -271,6 +279,8 @@ const loadTagSelectorValues = (index: number) => async (
 ) => {
   const state = getState()
   const {buckets, tags} = getActiveQuery(state).builderConfig
+  console.log('buckets: ', buckets)
+  console.log('tags: ', tags)
   const tagsSelections = tags.slice(0, index)
   const queryURL = state.links.query.self
 
@@ -288,9 +298,19 @@ const loadTagSelectorValues = (index: number) => async (
 
   try {
     const timeRange = getTimeRange(state)
+    const timeZone = getTimeZone(state)
+    const newTimeRange = Object.assign({}, timeRange)
+    if (timeRange.type === 'custom' && timeZone === 'UTC') {
+      // check to see if the timeRange has an offset
+      newTimeRange.lower = setTimeToUTC(newTimeRange.lower)
+      newTimeRange.upper = setTimeToUTC(newTimeRange.upper)
+    }
     const key = getActiveQuery(getState()).builderConfig.tags[index].key
     const searchTerm = getActiveTimeMachine(getState()).queryBuilder.tags[index]
       .valuesSearchTerm
+
+    console.log('key: ', key)
+    console.log('tagsSelections: ', tagsSelections)
 
     const values = await queryBuilderFetcher.findValues(index, {
       url: queryURL,
@@ -299,8 +319,10 @@ const loadTagSelectorValues = (index: number) => async (
       tagsSelections,
       key,
       searchTerm,
-      timeRange,
+      newTimeRange,
     })
+
+    console.log('values in the action: ', values)
 
     const {values: selectedValues} = tags[index]
 
@@ -367,6 +389,7 @@ export const selectBuilderFunction = (name: string) => (
   dispatch: Dispatch<Action>,
   getState: GetState
 ) => {
+  console.log('does this trigger?')
   const state = getState()
   const {
     timeMachines: {activeTimeMachineID},
