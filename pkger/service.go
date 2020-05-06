@@ -1340,14 +1340,19 @@ func (s *Service) applyBuckets(ctx context.Context, buckets []*stateBucket) appl
 func (s *Service) rollbackBuckets(ctx context.Context, buckets []*stateBucket) error {
 	rollbackFn := func(b *stateBucket) error {
 		var err error
-		switch b.stateStatus {
-		case StateStatusRemove:
+		switch {
+		case IsRemoval(b.stateStatus):
+			if b.existing == nil {
+				return nil
+			}
 			err = ierrors.Wrap(s.bucketSVC.CreateBucket(ctx, b.existing), "rolling back removed bucket")
-		case StateStatusExists:
-			rp := b.parserBkt.RetentionRules.RP()
+		case IsExisting(b.stateStatus):
+			if b.existing == nil {
+				return nil
+			}
 			_, err = s.bucketSVC.UpdateBucket(ctx, b.ID(), influxdb.BucketUpdate{
-				Description:     &b.parserBkt.Description,
-				RetentionPeriod: &rp,
+				Description:     &b.existing.Description,
+				RetentionPeriod: &b.existing.RetentionPeriod,
 			})
 			err = ierrors.Wrap(err, "rolling back existing bucket to previous state")
 		default:
@@ -1372,13 +1377,16 @@ func (s *Service) rollbackBuckets(ctx context.Context, buckets []*stateBucket) e
 }
 
 func (s *Service) applyBucket(ctx context.Context, b *stateBucket) (influxdb.Bucket, error) {
-	switch b.stateStatus {
-	case StateStatusRemove:
+	switch {
+	case IsRemoval(b.stateStatus):
 		if err := s.bucketSVC.DeleteBucket(ctx, b.ID()); err != nil {
+			if influxdb.ErrorCode(err) == influxdb.ENotFound {
+				return influxdb.Bucket{}, nil
+			}
 			return influxdb.Bucket{}, fmt.Errorf("failed to delete bucket[%q]: %w", b.ID(), err)
 		}
 		return *b.existing, nil
-	case StateStatusExists:
+	case IsExisting(b.stateStatus) && b.existing != nil:
 		rp := b.parserBkt.RetentionRules.RP()
 		newName := b.parserBkt.Name()
 		influxBucket, err := s.bucketSVC.UpdateBucket(ctx, b.ID(), influxdb.BucketUpdate{
@@ -2389,10 +2397,16 @@ func (s *Service) applyVariables(ctx context.Context, vars []*stateVariable) app
 func (s *Service) rollbackVariables(ctx context.Context, variables []*stateVariable) error {
 	rollbackFn := func(v *stateVariable) error {
 		var err error
-		switch v.stateStatus {
-		case StateStatusRemove:
+		switch {
+		case IsRemoval(v.stateStatus):
+			if v.existing == nil {
+				return nil
+			}
 			err = ierrors.Wrap(s.varSVC.CreateVariable(ctx, v.existing), "rolling back removed variable")
-		case StateStatusExists:
+		case IsExisting(v.stateStatus):
+			if v.existing == nil {
+				return nil
+			}
 			_, err = s.varSVC.UpdateVariable(ctx, v.ID(), &influxdb.VariableUpdate{
 				Name:        v.existing.Name,
 				Description: v.existing.Description,

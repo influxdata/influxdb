@@ -1041,23 +1041,47 @@ func TestLauncher_Pkger(t *testing.T) {
 		})
 
 		t.Run("apply should handle cases where users have changed platform data", func(t *testing.T) {
+			initializeStackPkg := func(t *testing.T, pkg *pkger.Pkg) (influxdb.ID, func(), pkger.Summary) {
+				t.Helper()
+
+				stack, cleanup := newStackFn(t, pkger.Stack{})
+				defer func() {
+					if t.Failed() {
+						cleanup()
+					}
+				}()
+
+				initialSum, _, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkg, pkger.ApplyWithStackID(stack.ID))
+				require.NoError(t, err)
+
+				return stack.ID, cleanup, initialSum
+			}
+
+			testValidRemoval := func(t *testing.T, stackID influxdb.ID) {
+				t.Helper()
+				_, _, err := svc.Apply(
+					ctx,
+					l.Org.ID,
+					l.User.ID,
+					newPkg( /* empty stack to remove prev resource */ ),
+					pkger.ApplyWithStackID(stackID),
+				)
+				require.NoError(t, err)
+			}
+
 			t.Run("when a user has deleted a variable that was previously created by a stack", func(t *testing.T) {
 				testUserDeletedVariable := func(t *testing.T, actionFn func(t *testing.T, stackID influxdb.ID, initialVarObj pkger.Object, initialSum pkger.Summary)) {
 					t.Helper()
 
-					stack, cleanup := newStackFn(t, pkger.Stack{})
+					obj := newVariableObject("var-1", "", "")
+					stackID, cleanup, initialSum := initializeStackPkg(t, newPkg(obj))
 					defer cleanup()
-
-					varObj := newVariableObject("var-1", "", "")
-					pkg := newPkg(varObj)
-					initialSum, _, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkg, pkger.ApplyWithStackID(stack.ID))
-					require.NoError(t, err)
 
 					require.Len(t, initialSum.Variables, 1)
 					require.NotZero(t, initialSum.Variables[0].ID)
 					resourceCheck.mustDeleteVariable(t, influxdb.ID(initialSum.Variables[0].ID))
 
-					actionFn(t, stack.ID, varObj, initialSum)
+					actionFn(t, stackID, obj, initialSum)
 				}
 
 				t.Run("should create new resource when attempting to update", func(t *testing.T) {
@@ -1076,14 +1100,43 @@ func TestLauncher_Pkger(t *testing.T) {
 
 				t.Run("should not error when attempting to remove", func(t *testing.T) {
 					testUserDeletedVariable(t, func(t *testing.T, stackID influxdb.ID, initialVarObj pkger.Object, initialSum pkger.Summary) {
-						_, _, err := svc.Apply(
-							ctx,
-							l.Org.ID,
-							l.User.ID,
-							newPkg( /* empty stack to remove prev variable */ ),
-							pkger.ApplyWithStackID(stackID),
-						)
+						testValidRemoval(t, stackID)
+					})
+				})
+			})
+
+			t.Run("when a user has deleted a bucket that was previously created by a stack", func(t *testing.T) {
+				testUserDeletedBucket := func(t *testing.T, actionFn func(t *testing.T, stackID influxdb.ID, initialObj pkger.Object, initialSum pkger.Summary)) {
+					t.Helper()
+
+					obj := newBucketObject("bucket-1", "", "")
+					stackID, cleanup, initialSum := initializeStackPkg(t, newPkg(obj))
+					defer cleanup()
+
+					require.Len(t, initialSum.Buckets, 1)
+					require.NotZero(t, initialSum.Buckets[0].ID)
+					resourceCheck.mustDeleteBucket(t, influxdb.ID(initialSum.Buckets[0].ID))
+
+					actionFn(t, stackID, obj, initialSum)
+				}
+
+				t.Run("should create new resource when attempting to update", func(t *testing.T) {
+					testUserDeletedBucket(t, func(t *testing.T, stackID influxdb.ID, initialObj pkger.Object, initialSum pkger.Summary) {
+						pkg := newPkg(initialObj)
+						updateSum, _, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkg, pkger.ApplyWithStackID(stackID))
 						require.NoError(t, err)
+
+						require.Len(t, updateSum.Buckets, 1)
+						intial, updated := initialSum.Buckets[0], updateSum.Buckets[0]
+						assert.NotEqual(t, intial.ID, updated.ID)
+						intial.ID, updated.ID = 0, 0
+						assert.Equal(t, intial, updated)
+					})
+				})
+
+				t.Run("should not error when attempting to remove", func(t *testing.T) {
+					testUserDeletedBucket(t, func(t *testing.T, stackID influxdb.ID, initialObj pkger.Object, initialSum pkger.Summary) {
+						testValidRemoval(t, stackID)
 					})
 				})
 			})
@@ -2490,6 +2543,11 @@ func (r resourceChecker) mustGetBucket(t *testing.T, getOpt getResourceOptFn) in
 	bkt, err := r.getBucket(t, getOpt)
 	require.NoError(t, err)
 	return bkt
+}
+
+func (r resourceChecker) mustDeleteBucket(t *testing.T, id influxdb.ID) {
+	t.Helper()
+	require.NoError(t, r.tl.BucketService(t).DeleteBucket(ctx, id))
 }
 
 func (r resourceChecker) getCheck(t *testing.T, getOpt getResourceOptFn) (influxdb.Check, error) {
