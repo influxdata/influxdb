@@ -1,6 +1,6 @@
 import {get} from 'lodash'
 
-import {AppState, View, Check, ViewType, TimeRange} from 'src/types'
+import {AppState, View, Check, ViewType, TimeRange, TimeZone} from 'src/types'
 import {currentContext} from 'src/shared/selectors/currentContext'
 
 // Constants
@@ -13,6 +13,10 @@ export const getTimeRange = (state: AppState): TimeRange => {
   }
 
   return state.ranges[contextID] || DEFAULT_TIME_RANGE
+}
+
+export const getTimeZone = (state: AppState): TimeZone => {
+  return state.app.persisted.timeZone || 'Local'
 }
 
 export const getCheckForView = (
