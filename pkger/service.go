@@ -1973,7 +1973,9 @@ func (s *Service) applyNotificationRules(ctx context.Context, userID influxdb.ID
 		}
 
 		mutex.Do(func() {
-			rules[i].id = influxRule.GetID()
+			if influxRule != nil {
+				rules[i].id = influxRule.GetID()
+			}
 			rollbackEndpoints = append(rollbackEndpoints, rules[i])
 		})
 
@@ -1996,13 +1998,16 @@ func (s *Service) applyNotificationRules(ctx context.Context, userID influxdb.ID
 }
 
 func (s *Service) applyNotificationRule(ctx context.Context, r *stateRule, userID influxdb.ID) (influxdb.NotificationRule, error) {
-	switch r.stateStatus {
-	case StateStatusRemove:
+	switch {
+	case IsRemoval(r.stateStatus):
 		if err := s.ruleSVC.DeleteNotificationRule(ctx, r.ID()); err != nil {
+			if influxdb.ErrorCode(err) == influxdb.ENotFound {
+				return nil, nil
+			}
 			return nil, ierrors.Wrap(err, "failed to remove notification rule")
 		}
 		return r.existing, nil
-	case StateStatusExists:
+	case IsExisting(r.stateStatus) && r.existing != nil:
 		ruleCreate := influxdb.NotificationRuleCreate{
 			NotificationRule: r.toInfluxRule(),
 			Status:           r.parserRule.Status(),
@@ -2027,6 +2032,10 @@ func (s *Service) applyNotificationRule(ctx context.Context, r *stateRule, userI
 
 func (s *Service) rollbackNotificationRules(ctx context.Context, userID influxdb.ID, rules []*stateRule) error {
 	rollbackFn := func(r *stateRule) error {
+		if !IsNew(r.stateStatus) && r.existing == nil {
+			return nil
+		}
+
 		existingRuleFn := func(endpointID influxdb.ID) influxdb.NotificationRule {
 			switch rr := r.existing.(type) {
 			case *rule.HTTP:

@@ -1286,6 +1286,45 @@ func TestLauncher_Pkger(t *testing.T) {
 					})
 				})
 			})
+
+			t.Run("when a user has deleted a notification rule that was previously created by a stack", func(t *testing.T) {
+				testUserDeletedRule := func(t *testing.T, actionFn func(t *testing.T, stackID influxdb.ID, initialObjects []pkger.Object, initialSum pkger.Summary)) {
+					t.Helper()
+
+					endpointObj := newEndpointHTTP("endpoint-1", "", "")
+					ruleObj := newRuleObject(t, "rule-0", "", endpointObj.Name(), "")
+					stackID, cleanup, initialSum := initializeStackPkg(t, newPkg(endpointObj, ruleObj))
+					defer cleanup()
+
+					require.Len(t, initialSum.NotificationEndpoints, 1)
+					require.NotZero(t, initialSum.NotificationEndpoints[0].NotificationEndpoint.GetID())
+					require.Len(t, initialSum.NotificationRules, 1)
+					require.NotZero(t, initialSum.NotificationRules[0].ID)
+					resourceCheck.mustDeleteRule(t, influxdb.ID(initialSum.NotificationRules[0].ID))
+
+					actionFn(t, stackID, []pkger.Object{ruleObj, endpointObj}, initialSum)
+				}
+
+				t.Run("should create new resource when attempting to update", func(t *testing.T) {
+					testUserDeletedRule(t, func(t *testing.T, stackID influxdb.ID, initialObjects []pkger.Object, initialSum pkger.Summary) {
+						pkg := newPkg(initialObjects...)
+						updateSum, _, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkg, pkger.ApplyWithStackID(stackID))
+						require.NoError(t, err)
+
+						require.Len(t, updateSum.NotificationRules, 1)
+						initial, updated := initialSum.NotificationRules[0], updateSum.NotificationRules[0]
+						assert.NotEqual(t, initial.ID, updated.ID)
+						initial.ID, updated.ID = 0, 0
+						assert.Equal(t, initial, updated)
+					})
+				})
+
+				t.Run("should not error when attempting to remove", func(t *testing.T) {
+					testUserDeletedRule(t, func(t *testing.T, stackID influxdb.ID, _ []pkger.Object, _ pkger.Summary) {
+						testValidRemoval(t, stackID)
+					})
+				})
+			})
 		})
 	})
 
@@ -2925,6 +2964,12 @@ func (r resourceChecker) mustGetRule(t *testing.T, getOpt getResourceOptFn) infl
 	rule, err := r.getRule(t, getOpt)
 	require.NoError(t, err)
 	return rule
+}
+
+func (r resourceChecker) mustDeleteRule(t *testing.T, id influxdb.ID) {
+	t.Helper()
+
+	require.NoError(t, r.tl.NotificationRuleService().DeleteNotificationRule(ctx, id))
 }
 
 func (r resourceChecker) getTask(t *testing.T, getOpt getResourceOptFn) (http.Task, error) {
