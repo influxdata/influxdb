@@ -3,7 +3,7 @@ import React, {useState, useEffect} from 'react'
 // Types
 import {RemoteDataState} from 'src/types'
 
-const url = '/api/experimental/quartz/ping'
+const url = '/api/experimental/quartz/usage'
 
 const UsagePage = () => {
   const [status, setStatus] = useState(RemoteDataState.NotStarted)
