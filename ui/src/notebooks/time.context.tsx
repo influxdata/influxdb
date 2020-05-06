@@ -22,10 +22,10 @@ export const DEFAULT_CONTEXT = {
 export const TimeContext = React.createContext<TimeContext>(DEFAULT_CONTEXT)
 
 export const TimeProvider: FC = ({children}) => {
-  const [context, setContext] = useState(DEFAULT_CONTEXT)
+  const [timeContext, setTimeContext] = useState(DEFAULT_CONTEXT)
 
-  function addContext(id: string, block?: TimeBlock) {
-    setContext(ranges => {
+  function addTimeContext(id: string, block?: TimeBlock) {
+    setTimeContext(ranges => {
       if (ranges.hasOwnProperty(id)) {
         throw new Error(
           `TimeContext[${id}] already exists: use updateContext instead`
@@ -39,8 +39,8 @@ export const TimeProvider: FC = ({children}) => {
     })
   }
 
-  function updateContext(id: string, block: TimeBlock) {
-    setContext(ranges => {
+  function updateTimeContext(id: string, block: TimeBlock) {
+    setTimeContext(ranges => {
       return {
         ...ranges,
         [id]: {...block},
@@ -48,8 +48,8 @@ export const TimeProvider: FC = ({children}) => {
     })
   }
 
-  function removeContext(id: string) {
-    setContext(ranges => {
+  function removeTimeContext(id: string) {
+    setTimeContext(ranges => {
       delete ranges[id]
       return {...ranges}
     })
@@ -58,10 +58,10 @@ export const TimeProvider: FC = ({children}) => {
   return (
     <TimeContext.Provider
       value={{
-        context,
-        addContext,
-        updateContext,
-        removeContext,
+        timeContext,
+        addTimeContext,
+        updateTimeContext,
+        removeTimeContext,
       }}
     >
       {children}

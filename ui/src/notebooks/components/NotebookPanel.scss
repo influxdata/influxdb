@@ -127,7 +127,6 @@ $notebook-size-toggle: 16px;
 
 /*
 .notebook--actions {
-  margin-top: $cf-marg-c;
 }
 */
 
@@ -147,6 +146,28 @@ $notebook-size-toggle: 16px;
 .notebook-panel--view {
   flex: 1 0 0;
   position: relative;
+}
+
+.notebook-header--buttons {
+    display: inline-flex;
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+
+    > * {
+        margin-left: 4px;
+    }
+}
+.notebook--actions {
+    margin-top: $cf-marg-c;
+    display: inline-flex;
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+    justify-content: center;
+    width: 100%;
+
+    > * {
+        margin-left: 4px;
+    }
 }
 
 // Special styling for view options inside notebook panel

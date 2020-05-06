@@ -64,6 +64,8 @@ class SubmitQueryButton extends PureComponent<Props> {
   }
 }
 
+export {SubmitQueryButton}
+
 const mstp = (state: AppState) => {
   const submitButtonDisabled = getActiveQuery(state).text === ''
   const queryStatus = getActiveTimeMachine(state).queryResults.status

@@ -92,6 +92,8 @@ class TimeMachineRefreshDropdown extends PureComponent<Props> {
   }
 }
 
+export {TimeMachineRefreshDropdown}
+
 const mstp = (state: AppState): StateProps => {
   const {autoRefresh} = getActiveTimeMachine(state)
 

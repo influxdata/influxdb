@@ -20,7 +20,9 @@ const NotebookButtons: FC = () => {
     )
   })
 
-  return <>{pipes}</>
+  return (
+    <div className="notebook--actions">{pipes}</div>
+  )
 }
 
 export default NotebookButtons

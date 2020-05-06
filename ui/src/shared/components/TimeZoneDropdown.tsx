@@ -37,6 +37,8 @@ const TimeZoneDropdown: FunctionComponent<Props> = ({
   )
 }
 
+export {TimeZoneDropdown}
+
 const mstp = (state: AppState): StateProps => {
   return {timeZone: state.app.persisted.timeZone || 'Local'}
 }
