@@ -25,6 +25,7 @@ import {LimitsState} from 'src/cloud/reducers/limits'
 import {AlertBuilderState} from 'src/alerting/reducers/alertBuilder'
 import {CurrentPage} from 'src/shared/reducers/currentPage'
 import {DemoDataState} from 'src/cloud/reducers/demodata'
+import {OrgSettingsState} from 'src/cloud/reducers/orgsettings'
 
 import {ResourceState} from 'src/types'
 
@@ -32,7 +33,11 @@ export interface AppState {
   alertBuilder: AlertBuilderState
   app: AppPresentationState
   autoRefresh: AutoRefreshState
-  cloud: {limits: LimitsState; demoData: DemoDataState}
+  cloud: {
+    limits: LimitsState
+    demoData: DemoDataState
+    orgSettings: OrgSettingsState
+  }
   currentPage: CurrentPage
   currentDashboard: CurrentDashboardState
   dataLoading: DataLoadingState
