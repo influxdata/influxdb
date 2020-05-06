@@ -6999,6 +6999,8 @@ components:
             - read
             - write
         resource:
+          $ref: "#/components/schemas/Resource"
+    Resource:
           type: object
           required: [type]
           properties:
