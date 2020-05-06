@@ -135,7 +135,7 @@ Your token has been stored in /Users/marty/.influxdbv2/credentials
 You may get into a development loop where `influx setup` becomes tedious.
 Some added flags can help:
 ```
-$ bin/$(uname -s | tr '[:upper:]' '[:lower:]')/influx setup --username marty --password F1uxKapacit0r85 --org InfluxData --bucket telegraf --retention 168 --token where-were-going-we-dont-need-roads --force
+$ bin/$(uname -s | tr '[:upper:]' '[:lower:]')/influx setup --username marty --password F1uxKapacit0r85 --org InfluxData --bucket telegraf --retention 168h --token where-were-going-we-dont-need-roads --force
 ```
 
 `~/.influxdbv2/credentials` contains your auth token.
