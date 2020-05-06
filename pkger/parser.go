@@ -530,7 +530,7 @@ func (p *Pkg) buckets() []*bucket {
 		buckets = append(buckets, b)
 	}
 
-	sort.Slice(buckets, func(i, j int) bool { return buckets[i].Name() < buckets[j].Name() })
+	sort.Slice(buckets, func(i, j int) bool { return buckets[i].PkgName() < buckets[j].PkgName() })
 
 	return buckets
 }
@@ -541,7 +541,7 @@ func (p *Pkg) checks() []*check {
 		checks = append(checks, c)
 	}
 
-	sort.Slice(checks, func(i, j int) bool { return checks[i].Name() < checks[j].Name() })
+	sort.Slice(checks, func(i, j int) bool { return checks[i].PkgName() < checks[j].PkgName() })
 
 	return checks
 }
@@ -574,7 +574,7 @@ func (p *Pkg) notificationEndpoints() []*notificationEndpoint {
 	sort.Slice(endpoints, func(i, j int) bool {
 		ei, ej := endpoints[i], endpoints[j]
 		if ei.kind == ej.kind {
-			return ei.Name() < ej.Name()
+			return ei.PkgName() < ej.PkgName()
 		}
 		return ei.kind < ej.kind
 	})
@@ -586,7 +586,7 @@ func (p *Pkg) notificationRules() []*notificationRule {
 	for _, r := range p.mNotificationRules {
 		rules = append(rules, r)
 	}
-	sort.Slice(rules, func(i, j int) bool { return rules[i].Name() < rules[j].Name() })
+	sort.Slice(rules, func(i, j int) bool { return rules[i].PkgName() < rules[j].PkgName() })
 	return rules
 }
 
@@ -618,7 +618,7 @@ func (p *Pkg) tasks() []*task {
 		tasks = append(tasks, t)
 	}
 
-	sort.Slice(tasks, func(i, j int) bool { return tasks[i].Name() < tasks[j].Name() })
+	sort.Slice(tasks, func(i, j int) bool { return tasks[i].PkgName() < tasks[j].PkgName() })
 
 	return tasks
 }
@@ -630,7 +630,7 @@ func (p *Pkg) telegrafs() []*telegraf {
 		teles = append(teles, t)
 	}
 
-	sort.Slice(teles, func(i, j int) bool { return teles[i].Name() < teles[j].Name() })
+	sort.Slice(teles, func(i, j int) bool { return teles[i].PkgName() < teles[j].PkgName() })
 
 	return teles
 }
@@ -641,7 +641,7 @@ func (p *Pkg) variables() []*variable {
 		vars = append(vars, v)
 	}
 
-	sort.Slice(vars, func(i, j int) bool { return vars[i].Name() < vars[j].Name() })
+	sort.Slice(vars, func(i, j int) bool { return vars[i].PkgName() < vars[j].PkgName() })
 
 	return vars
 }
