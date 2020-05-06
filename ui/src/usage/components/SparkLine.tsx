@@ -2,7 +2,7 @@ import React, {FC} from 'react'
 
 import {Panel, ComponentSize, InfluxColors} from '@influxdata/clockface'
 import SparkLineContents from './SparkLineContents'
-import {UsageTable, UsageQueryStatus} from 'src/types'
+import {UsageTable} from 'src/types'
 
 interface Props {
   table: UsageTable
@@ -11,7 +11,6 @@ interface Props {
   groupColumns: string[]
   isGrouped: boolean
   units: any
-  status: UsageQueryStatus
 }
 
 const formatYValue = (value, units) => {
@@ -21,7 +20,6 @@ const formatYValue = (value, units) => {
 const SparkLine: FC<Props> = ({
   table,
   title,
-  status,
   column,
   groupColumns,
   isGrouped,
@@ -37,8 +35,7 @@ const SparkLine: FC<Props> = ({
           table={table}
           column={column}
           groupColumns={groupColumns}
-          yFormatter={formatYValue(value, units)}
-          status={status}
+          yFormatter={value => formatYValue(value, units)}
           isGrouped={isGrouped}
         />
       </Panel.Body>

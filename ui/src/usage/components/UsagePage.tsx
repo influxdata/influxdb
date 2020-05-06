@@ -1,6 +1,6 @@
 // Libraries
 import React, {useState, useEffect} from 'react'
-import {Page, Grid, Columns} from '@influxdata/clockface'
+import {Page} from '@influxdata/clockface'
 
 // Components
 import UsageToday from 'src/usage/components/UsageToday'
@@ -40,13 +40,13 @@ const UsagePage = () => {
     fetchData()
   }, [])
 
-  let content = <div>You've got a problem</div>
+  // let content = <div>You've got a problem</div>
 
   if (
     status === RemoteDataState.Loading ||
     status === RemoteDataState.NotStarted
   ) {
-    content = <p>Loading...</p>
+    return <p>Loading...</p>
   }
 
   // if (status === RemoteDataState.Error) {
