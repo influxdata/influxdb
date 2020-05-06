@@ -11,16 +11,21 @@ import NavHeader from 'src/pageLayout/components/NavHeader'
 import CloudUpgradeNavBanner from 'src/shared/components/CloudUpgradeNavBanner'
 import CloudExclude from 'src/shared/components/cloud/CloudExclude'
 import CloudOnly from 'src/shared/components/cloud/CloudOnly'
+import OrgSettings from 'src/cloud/components/OrgSettings'
 import {FeatureFlag} from 'src/shared/utils/featureFlag'
 
 // Constants
 import {generateNavItems} from 'src/pageLayout/constants/navigationHierarchy'
+import {
+  HIDE_UPGRADE_CTA_KEY,
+  PAID_ORG_HIDE_UPGRADE_SETTING,
+} from 'src/cloud/constants'
 
 // Utils
 import {getNavItemActivation} from 'src/pageLayout/utils'
 
 // Types
-import {AppState, NavBarState} from 'src/types'
+import {AppState, NavBarState, OrgSetting} from 'src/types'
 
 // Actions
 import {setNavBarState} from 'src/shared/actions/app'
@@ -31,6 +36,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 interface StateProps {
   isHidden: boolean
   navBarState: NavBarState
+  showUpgradeButton: boolean
 }
 
 interface DispatchProps {
@@ -47,6 +53,7 @@ class TreeSidebar extends PureComponent<Props> {
       params: {orgID},
       navBarState,
       handleSetNavBarState,
+      showUpgradeButton,
     } = this.props
 
     if (isHidden) {
@@ -67,132 +74,134 @@ class TreeSidebar extends PureComponent<Props> {
     const navItems = generateNavItems(orgID)
 
     return (
-      <TreeNav
-        expanded={isExpanded}
-        headerElement={<NavHeader link={orgPrefix} />}
-        userElement={<UserWidget />}
-        onToggleClick={handleToggleNavExpansion}
-        bannerElement={<CloudUpgradeNavBanner />}
-      >
-        {navItems.map(item => {
-          const linkElement = (className: string): JSX.Element => {
-            if (item.link.type === 'href') {
-              return <a href={item.link.location} className={className} />
-            }
+      <OrgSettings>
+        <TreeNav
+          expanded={isExpanded}
+          headerElement={<NavHeader link={orgPrefix} />}
+          userElement={<UserWidget />}
+          onToggleClick={handleToggleNavExpansion}
+          bannerElement={showUpgradeButton ? <CloudUpgradeNavBanner /> : null}
+        >
+          {navItems.map(item => {
+            const linkElement = (className: string): JSX.Element => {
+              if (item.link.type === 'href') {
+                return <a href={item.link.location} className={className} />
+              }
 
-            return <Link to={item.link.location} className={className} />
-          }
-          let navItemElement = (
-            <TreeNav.Item
-              key={item.id}
-              id={item.id}
-              testID={item.testID}
-              icon={<Icon glyph={item.icon} />}
-              label={item.label}
-              shortLabel={item.shortLabel}
-              active={getNavItemActivation(
-                item.activeKeywords,
-                location.pathname
-              )}
-              linkElement={linkElement}
-            >
-              {Boolean(item.menu) && (
-                <TreeNav.SubMenu>
-                  {item.menu.map(menuItem => {
-                    const linkElement = (className: string): JSX.Element => {
-                      if (menuItem.link.type === 'href') {
+              return <Link to={item.link.location} className={className} />
+            }
+            let navItemElement = (
+              <TreeNav.Item
+                key={item.id}
+                id={item.id}
+                testID={item.testID}
+                icon={<Icon glyph={item.icon} />}
+                label={item.label}
+                shortLabel={item.shortLabel}
+                active={getNavItemActivation(
+                  item.activeKeywords,
+                  location.pathname
+                )}
+                linkElement={linkElement}
+              >
+                {Boolean(item.menu) && (
+                  <TreeNav.SubMenu>
+                    {item.menu.map(menuItem => {
+                      const linkElement = (className: string): JSX.Element => {
+                        if (menuItem.link.type === 'href') {
+                          return (
+                            <a
+                              href={menuItem.link.location}
+                              className={className}
+                            />
+                          )
+                        }
+
                         return (
-                          <a
-                            href={menuItem.link.location}
+                          <Link
+                            to={menuItem.link.location}
                             className={className}
                           />
                         )
                       }
 
-                      return (
-                        <Link
-                          to={menuItem.link.location}
-                          className={className}
+                      let navSubItemElement = (
+                        <TreeNav.SubItem
+                          key={menuItem.id}
+                          id={menuItem.id}
+                          testID={menuItem.testID}
+                          active={getNavItemActivation(
+                            [menuItem.id],
+                            location.pathname
+                          )}
+                          label={menuItem.label}
+                          linkElement={linkElement}
                         />
                       )
-                    }
 
-                    let navSubItemElement = (
-                      <TreeNav.SubItem
-                        key={menuItem.id}
-                        id={menuItem.id}
-                        testID={menuItem.testID}
-                        active={getNavItemActivation(
-                          [menuItem.id],
-                          location.pathname
-                        )}
-                        label={menuItem.label}
-                        linkElement={linkElement}
-                      />
-                    )
+                      if (menuItem.cloudExclude) {
+                        navSubItemElement = (
+                          <CloudExclude key={menuItem.id}>
+                            {navSubItemElement}
+                          </CloudExclude>
+                        )
+                      }
 
-                    if (menuItem.cloudExclude) {
-                      navSubItemElement = (
-                        <CloudExclude key={menuItem.id}>
-                          {navSubItemElement}
-                        </CloudExclude>
-                      )
-                    }
+                      if (menuItem.cloudOnly) {
+                        navSubItemElement = (
+                          <CloudOnly key={menuItem.id}>
+                            {navSubItemElement}
+                          </CloudOnly>
+                        )
+                      }
 
-                    if (menuItem.cloudOnly) {
-                      navSubItemElement = (
-                        <CloudOnly key={menuItem.id}>
-                          {navSubItemElement}
-                        </CloudOnly>
-                      )
-                    }
+                      if (menuItem.featureFlag) {
+                        navSubItemElement = (
+                          <FeatureFlag
+                            key={menuItem.id}
+                            name={menuItem.featureFlag}
+                            equals={menuItem.featureFlagValue}
+                          >
+                            {navSubItemElement}
+                          </FeatureFlag>
+                        )
+                      }
 
-                    if (menuItem.featureFlag) {
-                      navSubItemElement = (
-                        <FeatureFlag
-                          key={menuItem.id}
-                          name={menuItem.featureFlag}
-                          equals={menuItem.featureFlagValue}
-                        >
-                          {navSubItemElement}
-                        </FeatureFlag>
-                      )
-                    }
-
-                    return navSubItemElement
-                  })}
-                </TreeNav.SubMenu>
-              )}
-            </TreeNav.Item>
-          )
-
-          if (item.cloudExclude) {
-            navItemElement = (
-              <CloudExclude key={item.id}>{navItemElement}</CloudExclude>
+                      return navSubItemElement
+                    })}
+                  </TreeNav.SubMenu>
+                )}
+              </TreeNav.Item>
             )
-          }
 
-          if (item.cloudOnly) {
-            navItemElement = (
-              <CloudOnly key={item.id}>{navItemElement}</CloudOnly>
-            )
-          }
+            if (item.cloudExclude) {
+              navItemElement = (
+                <CloudExclude key={item.id}>{navItemElement}</CloudExclude>
+              )
+            }
 
-          if (item.featureFlag) {
-            navItemElement = (
-              <FeatureFlag
-                key={item.id}
-                name={item.featureFlag}
-                equals={item.featureFlagValue}
-              >
-                {navItemElement}
-              </FeatureFlag>
-            )
-          }
+            if (item.cloudOnly) {
+              navItemElement = (
+                <CloudOnly key={item.id}>{navItemElement}</CloudOnly>
+              )
+            }
 
-          return navItemElement
-        })}
-      </TreeNav>
+            if (item.featureFlag) {
+              navItemElement = (
+                <FeatureFlag
+                  key={item.id}
+                  name={item.featureFlag}
+                  equals={item.featureFlagValue}
+                >
+                  {navItemElement}
+                </FeatureFlag>
+              )
+            }
+
+            return navItemElement
+          })}
+        </TreeNav>
+      </OrgSettings>
     )
   }
 }
@@ -204,8 +213,18 @@ const mdtp: DispatchProps = {
 const mstp = (state: AppState): StateProps => {
   const isHidden = get(state, 'app.ephemeral.inPresentationMode', false)
   const navBarState = get(state, 'app.persisted.navBarState', 'collapsed')
-
-  return {isHidden, navBarState}
+  const {settings} = get(state, 'cloud.orgSettings')
+  let showUpgradeButton = false
+  const hideUpgradeCTA = settings.find(
+    (setting: OrgSetting) => setting.key === HIDE_UPGRADE_CTA_KEY
+  )
+  if (
+    !hideUpgradeCTA ||
+    hideUpgradeCTA.value !== PAID_ORG_HIDE_UPGRADE_SETTING.value
+  ) {
+    showUpgradeButton = true
+  }
+  return {isHidden, navBarState, showUpgradeButton}
 }
 
 export default connect<StateProps, DispatchProps>(

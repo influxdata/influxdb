@@ -39,3 +39,12 @@ export interface LimitsStatus {
     status: string
   }
 }
+export interface OrgSetting {
+  key: string
+  value: string
+}
+
+export interface OrgSettings {
+  orgID: string
+  settings: OrgSetting[]
+}
