@@ -6,7 +6,7 @@ import {connect} from 'react-redux'
 import QueryBuilderPanel from 'src/notebooks/components/panels/QueryBuilderPanel'
 import RawDataPanel from 'src/notebooks/components/panels/RawDataPanel'
 import VisualizationPanel from 'src/notebooks/components/panels/VisualizationPanel'
-import {FlexBox, JustifyContent, ComponentSize} from '@influxdata/clockface'
+import {FlexBox, JustifyContent, ComponentSize, Button, ComponentColor} from '@influxdata/clockface'
 import AddVisualizationButton from 'src/notebooks/components/AddVisualizationButton'
 
 // Utils
@@ -31,7 +31,10 @@ const Notebook: FunctionComponent<StateProps> = ({isViewingRawData}) => {
         stretchToFitWidth={true}
         margin={ComponentSize.Small}
       >
+        <Button text="Add Alert" color={ComponentColor.Secondary} />
         <AddVisualizationButton />
+        <Button text="Add Downsampler" color={ComponentColor.Success} />
+        <Button text="Add Custom Script" color={ComponentColor.Warning} />
       </FlexBox>
     </div>
   )

@@ -3,7 +3,7 @@ import React, {FC, useEffect, ReactChildren} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import {Page} from '@influxdata/clockface'
+import {Page, Button, ComponentColor} from '@influxdata/clockface'
 import SaveAsButton from 'src/dataExplorer/components/SaveAsButton'
 import GetResources from 'src/resources/components/GetResources'
 import TimeZoneDropdown from 'src/shared/components/TimeZoneDropdown'
@@ -13,6 +13,7 @@ import LimitChecker from 'src/cloud/components/LimitChecker'
 import RateLimitAlert from 'src/cloud/components/RateLimitAlert'
 import TimeMachineRefreshDropdown from 'src/timeMachine/components/RefreshDropdown'
 import SubmitQueryButton from 'src/timeMachine/components/SubmitQueryButton'
+import AddVisualizationButton from 'src/notebooks/components/AddVisualizationButton'
 
 // Actions
 import {setActiveTimeMachine} from 'src/timeMachine/actions'
@@ -60,11 +61,15 @@ const NotebooksPage: FC<Props> = ({
         </Page.Header>
         <Page.ControlBar fullWidth={true}>
           <Page.ControlBarLeft>
+            <Button text="Add Alert" color={ComponentColor.Secondary} />
+            <AddVisualizationButton />
+            <Button text="Add Downsampler" color={ComponentColor.Success} />
+            <Button text="Add Custom Script" color={ComponentColor.Warning} />
+          </Page.ControlBarLeft>
+          <Page.ControlBarRight>
             <SubmitQueryButton />
             <TimeMachineRefreshDropdown />
             <TimeZoneDropdown />
-          </Page.ControlBarLeft>
-          <Page.ControlBarRight>
             <SaveAsButton />
           </Page.ControlBarRight>
         </Page.ControlBar>

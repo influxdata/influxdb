@@ -50,9 +50,7 @@ class TimeMachineQueries extends PureComponent<Props> {
     const {timeRange, isInCheckOverlay, activeQuery} = this.props
 
     let controlsRight = (
-      <>
-        {activeQuery.editMode === 'advanced' && <EditorShortcutsToolTip />}
-      </>
+      <>{activeQuery.editMode === 'advanced' && <EditorShortcutsToolTip />}</>
     )
 
     if (!isInCheckOverlay) {
