@@ -1249,6 +1249,43 @@ func TestLauncher_Pkger(t *testing.T) {
 					})
 				})
 			})
+
+			t.Run("when a user has deleted a notification endpoint that was previously created by a stack", func(t *testing.T) {
+				testUserDeletedEndpoint := func(t *testing.T, actionFn func(t *testing.T, stackID influxdb.ID, initialObj pkger.Object, initialSum pkger.Summary)) {
+					t.Helper()
+
+					obj := newEndpointHTTP("endpoint-1", "", "")
+					stackID, cleanup, initialSum := initializeStackPkg(t, newPkg(obj))
+					defer cleanup()
+
+					require.Len(t, initialSum.NotificationEndpoints, 1)
+					require.NotZero(t, initialSum.NotificationEndpoints[0].NotificationEndpoint.GetID())
+					resourceCheck.mustDeleteEndpoint(t, initialSum.NotificationEndpoints[0].NotificationEndpoint.GetID())
+
+					actionFn(t, stackID, obj, initialSum)
+				}
+
+				t.Run("should create new resource when attempting to update", func(t *testing.T) {
+					testUserDeletedEndpoint(t, func(t *testing.T, stackID influxdb.ID, initialObj pkger.Object, initialSum pkger.Summary) {
+						pkg := newPkg(initialObj)
+						updateSum, _, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkg, pkger.ApplyWithStackID(stackID))
+						require.NoError(t, err)
+
+						require.Len(t, updateSum.NotificationEndpoints, 1)
+						initial, updated := initialSum.NotificationEndpoints[0].NotificationEndpoint, updateSum.NotificationEndpoints[0].NotificationEndpoint
+						assert.NotEqual(t, initial.GetID(), updated.GetID())
+						initial.SetID(0)
+						updated.SetID(0)
+						assert.Equal(t, initial, updated)
+					})
+				})
+
+				t.Run("should not error when attempting to remove", func(t *testing.T) {
+					testUserDeletedEndpoint(t, func(t *testing.T, stackID influxdb.ID, initialObj pkger.Object, initialSum pkger.Summary) {
+						testValidRemoval(t, stackID)
+					})
+				})
+			})
 		})
 	})
 
@@ -2788,6 +2825,13 @@ func (r resourceChecker) mustGetEndpoint(t *testing.T, getOpt getResourceOptFn) 
 	e, err := r.getEndpoint(t, getOpt)
 	require.NoError(t, err)
 	return e
+}
+
+func (r resourceChecker) mustDeleteEndpoint(t *testing.T, id influxdb.ID) {
+	t.Helper()
+
+	_, _, err := r.tl.NotificationEndpointService(t).DeleteNotificationEndpoint(ctx, id)
+	require.NoError(t, err)
 }
 
 func (r resourceChecker) getLabel(t *testing.T, getOpt getResourceOptFn) (influxdb.Label, error) {
