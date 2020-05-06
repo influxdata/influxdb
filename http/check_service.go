@@ -24,6 +24,7 @@ type CheckBackend struct {
 	influxdb.HTTPErrorHandler
 	log *zap.Logger
 
+	AlgoWProxy                 FeatureProxyHandler
 	TaskService                influxdb.TaskService
 	CheckService               influxdb.CheckService
 	UserResourceMappingService influxdb.UserResourceMappingService
@@ -35,9 +36,9 @@ type CheckBackend struct {
 // NewCheckBackend returns a new instance of CheckBackend.
 func NewCheckBackend(log *zap.Logger, b *APIBackend) *CheckBackend {
 	return &CheckBackend{
-		HTTPErrorHandler: b.HTTPErrorHandler,
-		log:              log,
-
+		HTTPErrorHandler:           b.HTTPErrorHandler,
+		log:                        log,
+		AlgoWProxy:                 b.AlgoWProxy,
 		TaskService:                b.TaskService,
 		CheckService:               b.CheckService,
 		UserResourceMappingService: b.UserResourceMappingService,
@@ -87,13 +88,20 @@ func NewCheckHandler(log *zap.Logger, b *CheckBackend) *CheckHandler {
 		TaskService:                b.TaskService,
 		OrganizationService:        b.OrganizationService,
 	}
-	h.HandlerFunc("POST", prefixChecks, h.handlePostCheck)
+
+	wrapWithProxy := func(h http.HandlerFunc) http.Handler {
+		return &proxyHandler{
+			proxy:   b.AlgoWProxy,
+			handler: h,
+		}
+	}
+	h.Handler("POST", prefixChecks, wrapWithProxy(h.handlePostCheck))
 	h.HandlerFunc("GET", prefixChecks, h.handleGetChecks)
 	h.HandlerFunc("GET", checksIDPath, h.handleGetCheck)
 	h.HandlerFunc("GET", checksIDQueryPath, h.handleGetCheckQuery)
 	h.HandlerFunc("DELETE", checksIDPath, h.handleDeleteCheck)
-	h.HandlerFunc("PUT", checksIDPath, h.handlePutCheck)
-	h.HandlerFunc("PATCH", checksIDPath, h.handlePatchCheck)
+	h.Handler("PUT", checksIDPath, wrapWithProxy(h.handlePutCheck))
+	h.Handler("PATCH", checksIDPath, wrapWithProxy(h.handlePatchCheck))
 
 	memberBackend := MemberBackend{
 		HTTPErrorHandler:           b.HTTPErrorHandler,
