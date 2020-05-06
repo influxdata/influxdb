@@ -12,7 +12,7 @@ require (
 	github.com/go-kit/kit v0.10.0 // indirect
 	github.com/google/go-cmp v0.4.0
 	github.com/hashicorp/go-rootcerts v1.0.2 // indirect
-	github.com/influxdata/flux v0.67.1-0.20200504203345-528f07c316a9
+	github.com/influxdata/flux v0.67.1-0.20200506164116-7432bbda91d7
 	github.com/influxdata/influxdb/v2 v2.0.0-00010101000000-000000000000
 	github.com/influxdata/influxql v1.0.1 // indirect
 	github.com/influxdata/promql/v2 v2.12.0
