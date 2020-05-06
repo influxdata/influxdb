@@ -55,20 +55,15 @@ type ByKeyFn func(string) (Flag, bool)
 
 // ExposedFlagsFromContext returns the filtered map of exposed  flags attached
 // to the context by Annotate, or nil if none is found.
-func ExposedFlagsFromContext(ctx context.Context, byKey ...ByKeyFn) map[string]interface{} {
+func ExposedFlagsFromContext(ctx context.Context, byKey ByKeyFn) map[string]interface{} {
 	m := FlagsFromContext(ctx)
 	if m == nil {
 		return nil
 	}
 
-	get := ByKey
-	if len(byKey) > 0 {
-		get = byKey[0]
-	}
-
 	filtered := make(map[string]interface{})
 	for k, v := range m {
-		if flag, found := get(k); found && flag.Expose() {
+		if flag, found := byKey(k); found && flag.Expose() {
 			filtered[k] = v
 		}
 	}
