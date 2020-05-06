@@ -12,6 +12,7 @@ import (
 
 	"github.com/influxdata/influxdb/v2"
 	ierrors "github.com/influxdata/influxdb/v2/kit/errors"
+	icheck "github.com/influxdata/influxdb/v2/notification/check"
 	"github.com/influxdata/influxdb/v2/notification/rule"
 	"github.com/influxdata/influxdb/v2/snowflake"
 	"github.com/influxdata/influxdb/v2/task/options"
@@ -1458,8 +1459,8 @@ func (s *Service) applyChecks(ctx context.Context, checks []*stateCheck) applier
 func (s *Service) rollbackChecks(ctx context.Context, checks []*stateCheck) error {
 	rollbackFn := func(c *stateCheck) error {
 		var err error
-		switch c.stateStatus {
-		case StateStatusRemove:
+		switch {
+		case IsRemoval(c.stateStatus):
 			err = s.checkSVC.CreateCheck(
 				ctx,
 				influxdb.CheckCreate{
@@ -1469,13 +1470,16 @@ func (s *Service) rollbackChecks(ctx context.Context, checks []*stateCheck) erro
 				c.existing.GetOwnerID(),
 			)
 			c.id = c.existing.GetID()
-		case StateStatusNew:
-			err = s.checkSVC.DeleteCheck(ctx, c.ID())
-		default:
+		case IsExisting(c.stateStatus):
+			if c.existing == nil {
+				return nil
+			}
 			_, err = s.checkSVC.UpdateCheck(ctx, c.ID(), influxdb.CheckCreate{
 				Check:  c.summarize().Check,
 				Status: influxdb.Status(c.parserCheck.status),
 			})
+		default:
+			err = s.checkSVC.DeleteCheck(ctx, c.ID())
 		}
 		return err
 	}
@@ -1495,13 +1499,16 @@ func (s *Service) rollbackChecks(ctx context.Context, checks []*stateCheck) erro
 }
 
 func (s *Service) applyCheck(ctx context.Context, c *stateCheck, userID influxdb.ID) (influxdb.Check, error) {
-	switch c.stateStatus {
-	case StateStatusRemove:
+	switch {
+	case IsRemoval(c.stateStatus):
 		if err := s.checkSVC.DeleteCheck(ctx, c.ID()); err != nil {
+			if influxdb.ErrorCode(err) == influxdb.ENotFound {
+				return &icheck.Threshold{Base: icheck.Base{ID: c.ID()}}, nil
+			}
 			return nil, fmt.Errorf("failed to delete check[%q]: %w", c.ID(), err)
 		}
 		return c.existing, nil
-	case StateStatusExists:
+	case IsExisting(c.stateStatus) && c.existing != nil:
 		influxCheck, err := s.checkSVC.UpdateCheck(ctx, c.ID(), influxdb.CheckCreate{
 			Check:  c.summarize().Check,
 			Status: c.parserCheck.Status(),

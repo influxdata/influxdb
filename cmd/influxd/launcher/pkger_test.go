@@ -1140,6 +1140,43 @@ func TestLauncher_Pkger(t *testing.T) {
 					})
 				})
 			})
+
+			t.Run("when a user has deleted a check that was previously created by a stack", func(t *testing.T) {
+				testUserDeletedCheck := func(t *testing.T, actionFn func(t *testing.T, stackID influxdb.ID, initialObj pkger.Object, initialSum pkger.Summary)) {
+					t.Helper()
+
+					obj := newCheckDeadmanObject(t, "check-1", "", time.Hour)
+					stackID, cleanup, initialSum := initializeStackPkg(t, newPkg(obj))
+					defer cleanup()
+
+					require.Len(t, initialSum.Checks, 1)
+					require.NotZero(t, initialSum.Checks[0].Check.GetID())
+					resourceCheck.mustDeleteCheck(t, initialSum.Checks[0].Check.GetID())
+
+					actionFn(t, stackID, obj, initialSum)
+				}
+
+				t.Run("should create new resource when attempting to update", func(t *testing.T) {
+					testUserDeletedCheck(t, func(t *testing.T, stackID influxdb.ID, initialObj pkger.Object, initialSum pkger.Summary) {
+						pkg := newPkg(initialObj)
+						updateSum, _, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkg, pkger.ApplyWithStackID(stackID))
+						require.NoError(t, err)
+
+						require.Len(t, updateSum.Checks, 1)
+						intial, updated := initialSum.Checks[0].Check, updateSum.Checks[0].Check
+						assert.NotEqual(t, intial.GetID(), updated.GetID())
+						intial.SetID(0)
+						updated.SetID(0)
+						assert.Equal(t, intial, updated)
+					})
+				})
+
+				t.Run("should not error when attempting to remove", func(t *testing.T) {
+					testUserDeletedCheck(t, func(t *testing.T, stackID influxdb.ID, initialObj pkger.Object, initialSum pkger.Summary) {
+						testValidRemoval(t, stackID)
+					})
+				})
+			})
 		})
 	})
 
@@ -2580,6 +2617,12 @@ func (r resourceChecker) mustGetCheck(t *testing.T, getOpt getResourceOptFn) inf
 	c, err := r.getCheck(t, getOpt)
 	require.NoError(t, err)
 	return c
+}
+
+func (r resourceChecker) mustDeleteCheck(t *testing.T, id influxdb.ID) {
+	t.Helper()
+
+	require.NoError(t, r.tl.CheckService().DeleteCheck(ctx, id))
 }
 
 func (r resourceChecker) getDashboard(t *testing.T, getOpt getResourceOptFn) (influxdb.Dashboard, error) {
