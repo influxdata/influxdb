@@ -2666,6 +2666,9 @@ func TestService(t *testing.T) {
 					sum := newPkg.Summary()
 
 					teles := sum.TelegrafConfigs
+					sort.Slice(teles, func(i, j int) bool {
+						return teles[i].TelegrafConfig.Name < teles[j].TelegrafConfig.Name
+					})
 					require.Len(t, teles, len(resourcesToClone))
 
 					for i := range resourcesToClone {
