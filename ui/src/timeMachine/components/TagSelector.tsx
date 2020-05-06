@@ -198,7 +198,10 @@ class TagSelector extends PureComponent<Props> {
       )
     }
 
-    if (valuesStatus === RemoteDataState.Loading) {
+    if (
+      valuesStatus === RemoteDataState.Loading ||
+      valuesStatus === RemoteDataState.NotStarted
+    ) {
       return (
         <BuilderCard.Empty>
           <WaitingText text="Loading tag values" />

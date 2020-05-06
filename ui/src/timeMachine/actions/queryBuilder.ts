@@ -82,7 +82,10 @@ const setBuilderTagKeys = (index: number, keys: string[]) => ({
   payload: {index, keys},
 })
 
-const setBuilderTagKeysStatus = (index: number, status: RemoteDataState) => ({
+export const setBuilderTagKeysStatus = (
+  index: number,
+  status: RemoteDataState
+) => ({
   type: 'SET_BUILDER_TAG_KEYS_STATUS' as 'SET_BUILDER_TAG_KEYS_STATUS',
   payload: {index, status},
 })
@@ -204,6 +207,7 @@ export const loadTagSelector = (index: number) => async (
   if (!tags[index] || !buckets[0]) {
     return
   }
+
   dispatch(setBuilderTagKeysStatus(index, RemoteDataState.Loading))
 
   const state = getState()

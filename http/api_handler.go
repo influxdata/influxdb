@@ -85,6 +85,7 @@ type APIBackend struct {
 	NotificationRuleStore           influxdb.NotificationRuleStore
 	NotificationEndpointService     influxdb.NotificationEndpointService
 	Flagger                         feature.Flagger
+	FlagsHandler                    http.Handler
 }
 
 // PrometheusCollectors exposes the prometheus collectors associated with an APIBackend.
@@ -206,7 +207,7 @@ func NewAPIHandler(b *APIBackend, opts ...APIHandlerOptFn) *APIHandler {
 	userHandler := NewUserHandler(b.Logger, userBackend)
 	h.Mount(prefixMe, userHandler)
 	h.Mount(prefixUsers, userHandler)
-	h.Mount("/api/v2/flags", serveFlagsHandler(b.HTTPErrorHandler))
+	h.Mount("/api/v2/flags", b.FlagsHandler)
 
 	variableBackend := NewVariableBackend(b.Logger.With(zap.String("handler", "variable")), b)
 	variableBackend.VariableService = authorizer.NewVariableService(b.VariableService)
@@ -277,19 +278,6 @@ func serveLinksHandler(errorHandler influxdb.HTTPErrorHandler) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		if err := encodeResponse(ctx, w, http.StatusOK, apiLinks); err != nil {
-			errorHandler.HandleHTTPError(ctx, err, w)
-		}
-	}
-	return http.HandlerFunc(fn)
-}
-
-func serveFlagsHandler(errorHandler influxdb.HTTPErrorHandler) http.Handler {
-	fn := func(w http.ResponseWriter, r *http.Request) {
-		var (
-			ctx   = r.Context()
-			flags = feature.ExposedFlagsFromContext(ctx)
-		)
-		if err := encodeResponse(ctx, w, http.StatusOK, flags); err != nil {
 			errorHandler.HandleHTTPError(ctx, err, w)
 		}
 	}

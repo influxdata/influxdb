@@ -909,6 +909,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		WriteEventRecorder:              infprom.NewEventRecorder("write"),
 		QueryEventRecorder:              infprom.NewEventRecorder("query"),
 		Flagger:                         flagger,
+		FlagsHandler:                    feature.NewFlagsHandler(kithttp.ErrorHandler(0), feature.ByKey),
 	}
 
 	m.reg.MustRegister(m.apibackend.PrometheusCollectors()...)
