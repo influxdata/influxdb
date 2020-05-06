@@ -1714,11 +1714,15 @@ func (s *Service) applyLabels(ctx context.Context, labels []*stateLabel) applier
 
 func (s *Service) rollbackLabels(ctx context.Context, labels []*stateLabel) error {
 	rollbackFn := func(l *stateLabel) error {
+		if !IsNew(l.stateStatus) && l.existing == nil {
+			return nil
+		}
+
 		var err error
-		switch l.stateStatus {
-		case StateStatusRemove:
+		switch {
+		case IsRemoval(l.stateStatus):
 			err = s.labelSVC.CreateLabel(ctx, l.existing)
-		case StateStatusExists:
+		case IsExisting(l.stateStatus):
 			_, err = s.labelSVC.UpdateLabel(ctx, l.ID(), influxdb.LabelUpdate{
 				Name:       l.parserLabel.Name(),
 				Properties: l.existing.Properties,
@@ -1748,10 +1752,10 @@ func (s *Service) applyLabel(ctx context.Context, l *stateLabel) (influxdb.Label
 		influxLabel *influxdb.Label
 		err         error
 	)
-	switch l.stateStatus {
-	case StateStatusRemove:
+	switch {
+	case IsRemoval(l.stateStatus):
 		influxLabel, err = l.existing, s.labelSVC.DeleteLabel(ctx, l.ID())
-	case StateStatusExists:
+	case IsExisting(l.stateStatus) && l.existing != nil:
 		influxLabel, err = s.labelSVC.UpdateLabel(ctx, l.ID(), influxdb.LabelUpdate{
 			Name:       l.parserLabel.Name(),
 			Properties: l.properties(),
@@ -1761,6 +1765,9 @@ func (s *Service) applyLabel(ctx context.Context, l *stateLabel) (influxdb.Label
 		creatLabel := l.toInfluxLabel()
 		influxLabel = &creatLabel
 		err = ierrors.Wrap(s.labelSVC.CreateLabel(ctx, &creatLabel), "creating")
+	}
+	if influxdb.ErrorCode(err) == influxdb.ENotFound {
+		return influxdb.Label{}, nil
 	}
 	if err != nil || influxLabel == nil {
 		return influxdb.Label{}, err

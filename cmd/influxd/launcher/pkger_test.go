@@ -1213,6 +1213,42 @@ func TestLauncher_Pkger(t *testing.T) {
 					})
 				})
 			})
+
+			t.Run("when a user has deleted a label that was previously created by a stack", func(t *testing.T) {
+				testUserDeletedLabel := func(t *testing.T, actionFn func(t *testing.T, stackID influxdb.ID, initialObj pkger.Object, initialSum pkger.Summary)) {
+					t.Helper()
+
+					obj := newLabelObject("label-1", "", "", "")
+					stackID, cleanup, initialSum := initializeStackPkg(t, newPkg(obj))
+					defer cleanup()
+
+					require.Len(t, initialSum.Labels, 1)
+					require.NotZero(t, initialSum.Labels[0].ID)
+					resourceCheck.mustDeleteLabel(t, influxdb.ID(initialSum.Labels[0].ID))
+
+					actionFn(t, stackID, obj, initialSum)
+				}
+
+				t.Run("should create new resource when attempting to update", func(t *testing.T) {
+					testUserDeletedLabel(t, func(t *testing.T, stackID influxdb.ID, initialObj pkger.Object, initialSum pkger.Summary) {
+						pkg := newPkg(initialObj)
+						updateSum, _, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkg, pkger.ApplyWithStackID(stackID))
+						require.NoError(t, err)
+
+						require.Len(t, updateSum.Labels, 1)
+						initial, updated := initialSum.Labels[0], updateSum.Labels[0]
+						assert.NotEqual(t, initial.ID, updated.ID)
+						initial.ID, updated.ID = 0, 0
+						assert.Equal(t, initial, updated)
+					})
+				})
+
+				t.Run("should not error when attempting to remove", func(t *testing.T) {
+					testUserDeletedLabel(t, func(t *testing.T, stackID influxdb.ID, initialObj pkger.Object, initialSum pkger.Summary) {
+						testValidRemoval(t, stackID)
+					})
+				})
+			})
 		})
 	})
 
@@ -2798,6 +2834,11 @@ func (r resourceChecker) mustGetLabel(t *testing.T, getOpt getResourceOptFn) inf
 	l, err := r.getLabel(t, getOpt)
 	require.NoError(t, err)
 	return l
+}
+
+func (r resourceChecker) mustDeleteLabel(t *testing.T, id influxdb.ID) {
+	t.Helper()
+	require.NoError(t, r.tl.LabelService(t).DeleteLabel(ctx, id))
 }
 
 func (r resourceChecker) getRule(t *testing.T, getOpt getResourceOptFn) (influxdb.NotificationRule, error) {
