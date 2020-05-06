@@ -86,6 +86,8 @@ class TimeMachineQueryBuilder extends PureComponent<Props, State> {
   }
 }
 
+export {TimeMachineQueryBuilder}
+
 const mstp = (state: AppState): StateProps => {
   const tagFiltersLength = getActiveQuery(state).builderConfig.tags.length
   const {

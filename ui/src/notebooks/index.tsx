@@ -1,7 +1,7 @@
 import React, {FC, createElement, useContext} from 'react'
 import {NotebookContext} from 'src/notebooks/notebook.context'
 
-const PIPES = {}
+export const PIPE_DEFINITIONS = {}
 
 export interface TypeRegistration {
   type: string // a unique string that identifies a pipe
@@ -12,56 +12,16 @@ export interface TypeRegistration {
 }
 
 export function register(definition: TypeRegistration) {
-  if (PIPES.hasOwnProperty(definition.type)) {
+  if (PIPE_DEFINITIONS.hasOwnProperty(definition.type)) {
     throw new Exception(
       `Pipe of type [${definition.type}] has already been registered`
     )
   }
 
-  PIPES[definition.type] = {
-    ...definition,
+  PIPE_DEFINITIONS[definition.type] = {
+    ...definition
   }
 }
-
-export const AddMorePipes: FC = () => {
-  const {addPipe} = useContext(NotebookContext)
-
-  const pipes = Object.entries(PIPES).map(([type, def]) => {
-    return (
-      <div
-        className="ugh-button"
-        key={def.type}
-        onClick={() => {
-          addPipe({
-            ...def.empty,
-            type,
-          })
-        }}
-      >
-        {def.button}
-      </div>
-    )
-  })
-
-  return <>{pipes}</>
-}
-
-interface PipeProps {
-  idx: number
-}
-
-const NotebookPipe: FC<PipeProps> = ({idx}) => {
-  const {pipes} = useContext(NotebookContext)
-
-  if (!PIPES.hasOwnProperty(pipes[idx].type)) {
-    throw new Error(`NotebookPipe type [${type}] not registered`)
-    return null
-  }
-
-  return createElement(PIPES[pipes[idx].type].component, {idx})
-}
-
-export default NotebookPipe
 
 // NOTE: this loads in all the modules under the current directory
 // to make it easier to add new types

@@ -1,11 +1,11 @@
 import {register} from 'src/notebooks'
-import View from './view'
+import View from './components'
 import './style.scss'
 
 register({
   type: 'query',
   component: View,
-  button: 'Insert Query',
+  button: 'Add Custom Script',
   empty: {
     activeQuery: 0,
     queries: [

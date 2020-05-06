@@ -1,7 +1,8 @@
 import React, {FC, useContext} from 'react'
 
 import {Page} from '@influxdata/clockface'
-import NotebookPipe, {AddMorePipes} from 'src/notebooks'
+import NotebookPipe from 'src/notebooks/components/NotebookPipe'
+import NotebookButtons from 'src/notebooks/components/NotebookButtons'
 import {NotebookProvider, NotebookContext} from 'src/notebooks/notebook.context'
 
 const NotebookHeader: FC = () => {
@@ -33,7 +34,7 @@ const NotebookPage: FC = () => {
       <Page.Contents fullWidth={false} scrollable={true}>
         <NotebookProvider>
           <NotebookList />
-          <AddMorePipes />
+          <NotebookButtons />
         </NotebookProvider>
       </Page.Contents>
     </Page>
