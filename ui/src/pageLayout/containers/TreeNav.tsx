@@ -16,16 +16,12 @@ import {FeatureFlag} from 'src/shared/utils/featureFlag'
 
 // Constants
 import {generateNavItems} from 'src/pageLayout/constants/navigationHierarchy'
-import {
-  HIDE_UPGRADE_CTA_KEY,
-  PAID_ORG_HIDE_UPGRADE_SETTING,
-} from 'src/cloud/constants'
 
 // Utils
 import {getNavItemActivation} from 'src/pageLayout/utils'
 
 // Types
-import {AppState, NavBarState, OrgSetting} from 'src/types'
+import {AppState, NavBarState} from 'src/types'
 
 // Actions
 import {setNavBarState} from 'src/shared/actions/app'
@@ -36,7 +32,6 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 interface StateProps {
   isHidden: boolean
   navBarState: NavBarState
-  showUpgradeButton: boolean
 }
 
 interface DispatchProps {
@@ -53,7 +48,6 @@ class TreeSidebar extends PureComponent<Props> {
       params: {orgID},
       navBarState,
       handleSetNavBarState,
-      showUpgradeButton,
     } = this.props
 
     if (isHidden) {
@@ -80,7 +74,7 @@ class TreeSidebar extends PureComponent<Props> {
           headerElement={<NavHeader link={orgPrefix} />}
           userElement={<UserWidget />}
           onToggleClick={handleToggleNavExpansion}
-          bannerElement={showUpgradeButton ? <CloudUpgradeNavBanner /> : null}
+          bannerElement={<CloudUpgradeNavBanner />}
         >
           {navItems.map(item => {
             const linkElement = (className: string): JSX.Element => {
@@ -213,18 +207,8 @@ const mdtp: DispatchProps = {
 const mstp = (state: AppState): StateProps => {
   const isHidden = get(state, 'app.ephemeral.inPresentationMode', false)
   const navBarState = get(state, 'app.persisted.navBarState', 'collapsed')
-  const {settings} = get(state, 'cloud.orgSettings')
-  let showUpgradeButton = false
-  const hideUpgradeCTA = settings.find(
-    (setting: OrgSetting) => setting.key === HIDE_UPGRADE_CTA_KEY
-  )
-  if (
-    !hideUpgradeCTA ||
-    hideUpgradeCTA.value !== PAID_ORG_HIDE_UPGRADE_SETTING.value
-  ) {
-    showUpgradeButton = true
-  }
-  return {isHidden, navBarState, showUpgradeButton}
+
+  return {isHidden, navBarState}
 }
 
 export default connect<StateProps, DispatchProps>(
