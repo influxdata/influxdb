@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math/rand"
 	"regexp"
+	"sort"
 	"strconv"
 	"testing"
 	"time"
@@ -1482,6 +1483,12 @@ func TestService(t *testing.T) {
 			}
 		}
 
+		sortLabelsByName := func(labels []SummaryLabel) {
+			sort.Slice(labels, func(i, j int) bool {
+				return labels[i].Name < labels[j].Name
+			})
+		}
+
 		t.Run("with existing resources", func(t *testing.T) {
 			encodeAndDecode := func(t *testing.T, pkg *Pkg) *Pkg {
 				t.Helper()
@@ -2853,9 +2860,13 @@ func TestService(t *testing.T) {
 					sum := newPkg.Summary()
 
 					bkts := sum.Buckets
+					sort.Slice(bkts, func(i, j int) bool {
+						return bkts[i].Name < bkts[j].Name
+					})
 					require.Len(t, bkts, 2)
 
 					for i, actual := range bkts {
+						sortLabelsByName(actual.LabelAssociations)
 						assert.Equal(t, strconv.Itoa((i+1)*10), actual.Name)
 						require.Len(t, actual.LabelAssociations, 2)
 						assert.Equal(t, "label_1", actual.LabelAssociations[0].Name)
@@ -2863,6 +2874,7 @@ func TestService(t *testing.T) {
 					}
 
 					labels := sum.Labels
+					sortLabelsByName(labels)
 					require.Len(t, labels, 2)
 					assert.Equal(t, "label_1", labels[0].Name)
 					assert.Equal(t, "label_2", labels[1].Name)
