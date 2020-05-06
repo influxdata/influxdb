@@ -236,7 +236,7 @@ export const loadTagSelector = (index: number) => async (
       bucket,
       tagsSelections,
       searchTerm,
-      timeRange,
+      timeRange: newTimeRange,
     })
 
     const {key} = tags[index]
@@ -275,8 +275,6 @@ const loadTagSelectorValues = (index: number) => async (
 ) => {
   const state = getState()
   const {buckets, tags} = getActiveQuery(state).builderConfig
-  console.log('buckets: ', buckets)
-  console.log('tags: ', tags)
   const tagsSelections = tags.slice(0, index)
   const queryURL = state.links.query.self
 
@@ -305,9 +303,6 @@ const loadTagSelectorValues = (index: number) => async (
     const searchTerm = getActiveTimeMachine(getState()).queryBuilder.tags[index]
       .valuesSearchTerm
 
-    console.log('key: ', key)
-    console.log('tagsSelections: ', tagsSelections)
-
     const values = await queryBuilderFetcher.findValues(index, {
       url: queryURL,
       orgID,
@@ -315,10 +310,8 @@ const loadTagSelectorValues = (index: number) => async (
       tagsSelections,
       key,
       searchTerm,
-      newTimeRange,
+      timeRange: newTimeRange,
     })
-
-    console.log('values in the action: ', values)
 
     const {values: selectedValues} = tags[index]
 
@@ -385,7 +378,6 @@ export const selectBuilderFunction = (name: string) => (
   dispatch: Dispatch<Action>,
   getState: GetState
 ) => {
-  console.log('does this trigger?')
   const state = getState()
   const {
     timeMachines: {activeTimeMachineID},
