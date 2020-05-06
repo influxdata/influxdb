@@ -1177,6 +1177,42 @@ func TestLauncher_Pkger(t *testing.T) {
 					})
 				})
 			})
+
+			t.Run("when a user has deleted a dashboard that was previously created by a stack", func(t *testing.T) {
+				testUserDeletedDashboard := func(t *testing.T, actionFn func(t *testing.T, stackID influxdb.ID, initialObj pkger.Object, initialSum pkger.Summary)) {
+					t.Helper()
+
+					obj := newDashObject("dash-1", "", "")
+					stackID, cleanup, initialSum := initializeStackPkg(t, newPkg(obj))
+					defer cleanup()
+
+					require.Len(t, initialSum.Dashboards, 1)
+					require.NotZero(t, initialSum.Dashboards[0].ID)
+					resourceCheck.mustDeleteDashboard(t, influxdb.ID(initialSum.Dashboards[0].ID))
+
+					actionFn(t, stackID, obj, initialSum)
+				}
+
+				t.Run("should create new resource when attempting to update", func(t *testing.T) {
+					testUserDeletedDashboard(t, func(t *testing.T, stackID influxdb.ID, initialObj pkger.Object, initialSum pkger.Summary) {
+						pkg := newPkg(initialObj)
+						updateSum, _, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkg, pkger.ApplyWithStackID(stackID))
+						require.NoError(t, err)
+
+						require.Len(t, updateSum.Dashboards, 1)
+						initial, updated := initialSum.Dashboards[0], updateSum.Dashboards[0]
+						assert.NotEqual(t, initial.ID, updated.ID)
+						initial.ID, updated.ID = 0, 0
+						assert.Equal(t, initial, updated)
+					})
+				})
+
+				t.Run("should not error when attempting to remove", func(t *testing.T) {
+					testUserDeletedDashboard(t, func(t *testing.T, stackID influxdb.ID, initialObj pkger.Object, initialSum pkger.Summary) {
+						testValidRemoval(t, stackID)
+					})
+				})
+			})
 		})
 	})
 
@@ -2668,6 +2704,12 @@ func (r resourceChecker) mustGetDashboard(t *testing.T, getOpt getResourceOptFn)
 	dash, err := r.getDashboard(t, getOpt)
 	require.NoError(t, err)
 	return dash
+}
+
+func (r resourceChecker) mustDeleteDashboard(t *testing.T, id influxdb.ID) {
+	t.Helper()
+
+	require.NoError(t, r.tl.DashboardService(t).DeleteDashboard(ctx, id))
 }
 
 func (r resourceChecker) getEndpoint(t *testing.T, getOpt getResourceOptFn) (influxdb.NotificationEndpoint, error) {
