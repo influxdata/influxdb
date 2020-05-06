@@ -95,7 +95,7 @@ func (s *Store) GetUserByName(ctx context.Context, tx kv.Tx, n string) (*influxd
 
 	var id influxdb.ID
 	if err := id.Decode(uid); err != nil {
-		return nil, ErrCorruptID(err)
+		return nil, influxdb.ErrCorruptID(err)
 	}
 	return s.GetUser(ctx, tx, id)
 }

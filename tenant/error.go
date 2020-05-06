@@ -45,15 +45,6 @@ var (
 	}
 )
 
-// ErrCorruptID the ID stored in the Store is corrupt.
-func ErrCorruptID(err error) *influxdb.Error {
-	return &influxdb.Error{
-		Code: influxdb.EInvalid,
-		Msg:  "corrupt ID provided",
-		Err:  err,
-	}
-}
-
 // ErrInternalServiceError is used when the error comes from an internal system.
 func ErrInternalServiceError(err error) *influxdb.Error {
 	return &influxdb.Error{
