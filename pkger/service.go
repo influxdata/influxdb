@@ -2340,13 +2340,16 @@ func (s *Service) applyTelegrafs(ctx context.Context, userID influxdb.ID, teles 
 }
 
 func (s *Service) applyTelegrafConfig(ctx context.Context, userID influxdb.ID, t *stateTelegraf) (influxdb.TelegrafConfig, error) {
-	switch t.stateStatus {
-	case StateStatusRemove:
+	switch {
+	case IsRemoval(t.stateStatus):
 		if err := s.teleSVC.DeleteTelegrafConfig(ctx, t.ID()); err != nil {
+			if influxdb.ErrorCode(err) == influxdb.ENotFound {
+				return influxdb.TelegrafConfig{}, nil
+			}
 			return influxdb.TelegrafConfig{}, ierrors.Wrap(err, "failed to delete config")
 		}
 		return *t.existing, nil
-	case StateStatusExists:
+	case IsExisting(t.stateStatus) && t.existing != nil:
 		cfg := t.summarize().TelegrafConfig
 		updatedConfig, err := s.teleSVC.UpdateTelegrafConfig(ctx, t.ID(), &cfg, userID)
 		if err != nil {
@@ -2365,6 +2368,10 @@ func (s *Service) applyTelegrafConfig(ctx context.Context, userID influxdb.ID, t
 
 func (s *Service) rollbackTelegrafConfigs(ctx context.Context, userID influxdb.ID, cfgs []*stateTelegraf) error {
 	rollbackFn := func(t *stateTelegraf) error {
+		if !IsNew(t.stateStatus) && t.existing == nil {
+			return nil
+		}
+
 		var err error
 		switch t.stateStatus {
 		case StateStatusRemove:
