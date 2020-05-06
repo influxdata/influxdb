@@ -957,11 +957,9 @@ func (s *Service) dryRunVariables(ctx context.Context, orgID influxdb.ID, vars m
 	}
 
 	for _, v := range vars {
-		var existing *influxdb.Variable
+		existing := mNames[v.parserVar.Name()]
 		if v.ID() != 0 {
 			existing = mIDs[v.ID()]
-		} else {
-			existing = mNames[v.parserVar.Name()]
 		}
 		if IsNew(v.stateStatus) && existing != nil {
 			v.stateStatus = StateStatusExists
@@ -1095,8 +1093,9 @@ func (s *Service) dryRunResourceLabelMapping(ctx context.Context, state *stateCo
 		ResourceID:   ident.id,
 		ResourceType: ident.resourceType,
 	})
-	if err != nil {
-		return nil, err
+	if err != nil && influxdb.ErrorCode(err) != influxdb.ENotFound {
+		msgFmt := fmt.Sprintf("failed to find labels mappings for %s resource[%q]", ident.resourceType, ident.id)
+		return nil, ierrors.Wrap(err, msgFmt)
 	}
 
 	pkgLabels := labelSlcToMap(pkgResourceLabels)
@@ -1235,7 +1234,7 @@ func (s *Service) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg
 func (s *Service) applyState(ctx context.Context, coordinator *rollbackCoordinator, orgID, userID influxdb.ID, state *stateCoordinator, missingSecrets map[string]string) (e error) {
 	endpointApp, ruleApp, err := s.applyNotificationGenerator(ctx, userID, state.rules(), state.endpoints())
 	if err != nil {
-		return err
+		return ierrors.Wrap(err, "failed to setup notification generator")
 	}
 
 	// each grouping here runs for its entirety, then returns an error that
@@ -2395,9 +2394,9 @@ func (s *Service) rollbackVariables(ctx context.Context, variables []*stateVaria
 			err = ierrors.Wrap(s.varSVC.CreateVariable(ctx, v.existing), "rolling back removed variable")
 		case StateStatusExists:
 			_, err = s.varSVC.UpdateVariable(ctx, v.ID(), &influxdb.VariableUpdate{
-				Name:        v.parserVar.Name(),
-				Description: v.parserVar.Description,
-				Arguments:   v.parserVar.influxVarArgs(),
+				Name:        v.existing.Name,
+				Description: v.existing.Description,
+				Arguments:   v.existing.Arguments,
 			})
 			err = ierrors.Wrap(err, "rolling back updated variable")
 		default:
@@ -2421,23 +2420,28 @@ func (s *Service) rollbackVariables(ctx context.Context, variables []*stateVaria
 }
 
 func (s *Service) applyVariable(ctx context.Context, v *stateVariable) (influxdb.Variable, error) {
-	switch v.stateStatus {
-	case StateStatusRemove:
-		if err := s.varSVC.DeleteVariable(ctx, v.id); err != nil {
-			return influxdb.Variable{}, err
+	switch {
+	case IsRemoval(v.stateStatus):
+		if err := s.varSVC.DeleteVariable(ctx, v.id); err != nil && influxdb.ErrorCode(err) != influxdb.ENotFound {
+			return influxdb.Variable{}, ierrors.Wrap(err, "removing existing variable")
+		}
+		if v.existing == nil {
+			return influxdb.Variable{}, nil
 		}
 		return *v.existing, nil
-	case StateStatusExists:
+	case IsExisting(v.stateStatus) && v.existing != nil:
 		updatedVar, err := s.varSVC.UpdateVariable(ctx, v.ID(), &influxdb.VariableUpdate{
 			Name:        v.parserVar.Name(),
 			Description: v.parserVar.Description,
 			Arguments:   v.parserVar.influxVarArgs(),
 		})
 		if err != nil {
-			return influxdb.Variable{}, err
+			return influxdb.Variable{}, ierrors.Wrap(err, "updating existing variable")
 		}
 		return *updatedVar, nil
 	default:
+		// when an existing variable (referenced in stack) has been deleted by a user
+		// then the resource is created anew to get it back to the expected state.
 		influxVar := influxdb.Variable{
 			OrganizationID: v.orgID,
 			Name:           v.parserVar.Name(),
@@ -2446,9 +2450,8 @@ func (s *Service) applyVariable(ctx context.Context, v *stateVariable) (influxdb
 		}
 		err := s.varSVC.CreateVariable(ctx, &influxVar)
 		if err != nil {
-			return influxdb.Variable{}, err
+			return influxdb.Variable{}, ierrors.Wrap(err, "creating new variable")
 		}
-
 		return influxVar, nil
 	}
 }

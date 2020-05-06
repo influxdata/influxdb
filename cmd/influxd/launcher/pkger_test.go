@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	nethttp "net/http"
 	"net/http/httptest"
+	"sort"
 	"testing"
 	"time"
 
@@ -591,7 +592,7 @@ func TestLauncher_Pkger(t *testing.T) {
 			})
 		})
 
-		t.Run("apply a pkg with a stack", func(t *testing.T) {
+		t.Run("apply a pkg with a stack and all resources", func(t *testing.T) {
 			testStackApplyFn := func(t *testing.T) (pkger.Summary, pkger.Stack, func()) {
 				t.Helper()
 
@@ -1038,6 +1039,55 @@ func TestLauncher_Pkger(t *testing.T) {
 				}
 			})
 		})
+
+		t.Run("apply should handle cases where users have changed platform data", func(t *testing.T) {
+			t.Run("when a user has deleted a variable that was previously created by a stack", func(t *testing.T) {
+				testUserDeletedVariable := func(t *testing.T, actionFn func(t *testing.T, stackID influxdb.ID, initialVarObj pkger.Object, initialSum pkger.Summary)) {
+					t.Helper()
+
+					stack, cleanup := newStackFn(t, pkger.Stack{})
+					defer cleanup()
+
+					varObj := newVariableObject("var-1", "", "")
+					pkg := newPkg(varObj)
+					initialSum, _, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkg, pkger.ApplyWithStackID(stack.ID))
+					require.NoError(t, err)
+
+					require.Len(t, initialSum.Variables, 1)
+					require.NotZero(t, initialSum.Variables[0].ID)
+					resourceCheck.mustDeleteVariable(t, influxdb.ID(initialSum.Variables[0].ID))
+
+					actionFn(t, stack.ID, varObj, initialSum)
+				}
+
+				t.Run("should create new resource when attempting to update", func(t *testing.T) {
+					testUserDeletedVariable(t, func(t *testing.T, stackID influxdb.ID, initialVarObj pkger.Object, initialSum pkger.Summary) {
+						pkg := newPkg(initialVarObj)
+						updateSum, _, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkg, pkger.ApplyWithStackID(stackID))
+						require.NoError(t, err)
+
+						require.Len(t, updateSum.Variables, 1)
+						initVar, updateVar := initialSum.Variables[0], updateSum.Variables[0]
+						assert.NotEqual(t, initVar.ID, updateVar.ID)
+						initVar.ID, updateVar.ID = 0, 0
+						assert.Equal(t, initVar, updateVar)
+					})
+				})
+
+				t.Run("should not error when attempting to remove", func(t *testing.T) {
+					testUserDeletedVariable(t, func(t *testing.T, stackID influxdb.ID, initialVarObj pkger.Object, initialSum pkger.Summary) {
+						_, _, err := svc.Apply(
+							ctx,
+							l.Org.ID,
+							l.User.ID,
+							newPkg( /* empty stack to remove prev variable */ ),
+							pkger.ApplyWithStackID(stackID),
+						)
+						require.NoError(t, err)
+					})
+				})
+			})
+		})
 	})
 
 	t.Run("errors incurred during application of package rolls back to state before package", func(t *testing.T) {
@@ -1386,6 +1436,7 @@ spec:
 
 				labels := sum.Labels
 				require.Len(t, labels, 2)
+				sortLabels(labels)
 				assert.Equal(t, "label-1", labels[0].Name)
 				assert.Equal(t, "the 2nd label", labels[1].Name)
 
@@ -1397,6 +1448,7 @@ spec:
 
 				checks := sum.Checks
 				require.Len(t, checks, 2)
+				sortChecks(checks)
 				assert.Equal(t, "check 0 name", checks[0].Check.GetName())
 				hasLabelAssociations(t, checks[0].LabelAssociations, 1, "label-1")
 				assert.Equal(t, "check-1", checks[1].Check.GetName())
@@ -1691,6 +1743,7 @@ spec:
 
 			labels := newSum.Labels
 			require.Len(t, labels, 2)
+			sortLabels(labels)
 			assert.Zero(t, labels[0].ID)
 			assert.Equal(t, "label-1", labels[0].Name)
 			assert.Zero(t, labels[1].ID)
@@ -1704,6 +1757,7 @@ spec:
 
 			checks := newSum.Checks
 			require.Len(t, checks, 2)
+			sortChecks(checks)
 			assert.Equal(t, "check 0 name", checks[0].Check.GetName())
 			hasLabelAssociations(t, checks[0].LabelAssociations, 1, "label-1")
 			assert.Equal(t, "check-1", checks[1].Check.GetName())
@@ -2773,4 +2827,23 @@ func (r resourceChecker) mustGetVariable(t *testing.T, getOpt getResourceOptFn) 
 	l, err := r.getVariable(t, getOpt)
 	require.NoError(t, err)
 	return l
+}
+
+func (r resourceChecker) mustDeleteVariable(t *testing.T, id influxdb.ID) {
+	t.Helper()
+
+	err := r.tl.VariableService(t).DeleteVariable(ctx, id)
+	require.NoError(t, err)
+}
+
+func sortChecks(checks []pkger.SummaryCheck) {
+	sort.Slice(checks, func(i, j int) bool {
+		return checks[i].Check.GetName() < checks[j].Check.GetName()
+	})
+}
+
+func sortLabels(labels []pkger.SummaryLabel) {
+	sort.Slice(labels, func(i, j int) bool {
+		return labels[i].Name < labels[j].Name
+	})
 }
