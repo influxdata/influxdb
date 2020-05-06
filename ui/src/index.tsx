@@ -35,6 +35,7 @@ import CreateVariableOverlay from 'src/variables/components/CreateVariableOverla
 import DataExplorerPage from 'src/dataExplorer/components/DataExplorerPage'
 import SaveAsOverlay from 'src/dataExplorer/components/SaveAsOverlay'
 import {MePage} from 'src/me'
+import NotebookPage from 'src/notebooks/components/Notebook'
 import NotFound from 'src/shared/components/NotFound'
 import GetLinks from 'src/shared/containers/GetLinks'
 import GetMe from 'src/shared/containers/GetMe'
@@ -278,6 +279,10 @@ class Root extends PureComponent {
                               </Route>
                             </Route>
                             <Route path="me" component={MePage} />
+                            <Route
+                              path="notebooks/new"
+                              component={NotebookPage}
+                            />
                             <Route path="load-data">
                               <IndexRoute component={BucketsIndex} />
                               <Route path="tokens" component={TokensIndex}>

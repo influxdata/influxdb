@@ -86,6 +86,8 @@ class TimeMachineQueriesSwitcher extends PureComponent<Props> {
   }
 }
 
+export {TimeMachineQueriesSwitcher}
+
 const mstp = (state: AppState) => {
   const activeQuery = getActiveQuery(state)
 

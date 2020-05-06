@@ -157,6 +157,8 @@ const TimeMachineFluxEditor: FC<Props> = ({
   )
 }
 
+export {TimeMachineFluxEditor}
+
 const mstp = (state: AppState) => {
   const activeQueryText = getActiveQuery(state).text
   const {activeTab} = getActiveTimeMachine(state)
