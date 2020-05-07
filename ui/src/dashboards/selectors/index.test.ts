@@ -7,8 +7,8 @@ import {
 // Types
 import {RangeState} from 'src/dashboards/reducers/ranges'
 import {CurrentDashboardState} from 'src/shared/reducers/currentDashboard'
-import {TimeRange, CustomTimeRange} from 'src/types'
-import {AppState} from 'src/shared/reducers/app'
+import {TimeRange, TimeZone, CustomTimeRange} from 'src/types'
+import {AppState as AppPresentationState} from 'src/shared/reducers/app'
 
 // Constants
 import {
@@ -16,6 +16,7 @@ import {
   pastFifteenMinTimeRange,
   pastHourTimeRange,
 } from 'src/shared/constants/timeRanges'
+import appReducer from 'src/shared/reducers/app'
 
 const untypedGetTimeRangeByDashboardID = getTimeRange as (a: {
   ranges: RangeState
@@ -25,7 +26,7 @@ const untypedGetTimeRangeByDashboardID = getTimeRange as (a: {
 const untypedGetTimeRangeWithTimeZone = getTimeRangeWithTimezone as (a: {
   ranges: RangeState
   currentDashboard: CurrentDashboardState
-  app: AppState
+  app: AppPresentationState
 }) => TimeRange
 
 describe('Dashboards.Selector', () => {
@@ -71,12 +72,18 @@ describe('Dashboards.Selector', () => {
 
   it('should return the an unmodified version of the timeRange when the timeZone is local', () => {
     const currentDashboard = {id: dashboardIDs[2]}
-
-    const app = {
-      persisted: {
-        timeZone: 'Local',
+    const app: AppPresentationState = {
+      ephemeral: {
+        inPresentationMode: false,
       },
-    } as AppState
+      persisted: {
+        autoRefresh: 0,
+        showTemplateControlBar: false,
+        navBarState: 'expanded',
+        timeZone: 'Local' as TimeZone,
+        theme: 'dark',
+      },
+    }
 
     expect(
       untypedGetTimeRangeWithTimeZone({ranges, currentDashboard, app})
@@ -86,11 +93,18 @@ describe('Dashboards.Selector', () => {
   it('should return the timeRange for the same hour with a UTC timezone when the timeZone is UTC', () => {
     const currentDashboard = {id: dashboardIDs[2]}
 
-    const app = {
-      persisted: {
-        timeZone: 'UTC',
+    const app: AppPresentationState = {
+      ephemeral: {
+        inPresentationMode: false,
       },
-    } as AppState
+      persisted: {
+        autoRefresh: 0,
+        showTemplateControlBar: false,
+        navBarState: 'expanded',
+        timeZone: 'UTC' as TimeZone,
+        theme: 'dark',
+      },
+    }
 
     const expected = {
       lower: '2020-05-05T10:00:00Z',

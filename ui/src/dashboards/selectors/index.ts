@@ -20,6 +20,8 @@ export const getTimeRangeWithTimezone = (state: AppState): TimeRange => {
   const timeZone = getTimeZone(state)
 
   const newTimeRange = {...timeRange}
+  console.log('timeZone: ', timeZone)
+  console.log('timeRange: ', timeRange)
   if (timeRange.type === 'custom' && timeZone === 'UTC') {
     // conforms dates to account to UTC with proper offset if needed
     newTimeRange.lower = setTimeToUTC(newTimeRange.lower)
