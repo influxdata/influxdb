@@ -3,7 +3,8 @@
 ### Features
 
 1. [17934](https://github.com/influxdata/influxdb/pull/17934): Add ability to delete a stack and all the resources associated with it
-1. [17941](https://github.com/influxdata/influxdb/pull/17941): Encorce dns name compliance on all pkger resources' metadata.name field
+1. [17941](https://github.com/influxdata/influxdb/pull/17941): Enforce DNS name compliance on all pkger resources' metadata.name field
+1. [17989](https://github.com/influxdata/influxdb/pull/17989): Add stateful pkg management with stacks
 
 ### Bug Fixes
 
@@ -31,6 +32,7 @@
 1. [17714](https://github.com/influxdata/influxdb/pull/17714): Cloud environments no longer render markdown images, for security reasons.
 1. [17321](https://github.com/influxdata/influxdb/pull/17321): Improve UI for sorting resources
 1. [17740](https://github.com/influxdata/influxdb/pull/17740): Add single-color color schemes for visualizations
+1. [17849](https://github.com/influxdata/influxdb/pull/17849): Move Organization navigation items to user menu.
 
 ## v2.0.0-beta.8 [2020-04-10]
 

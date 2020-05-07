@@ -27,19 +27,19 @@ func TestParse(t *testing.T) {
 
 				actual := buckets[0]
 				expectedBucket := SummaryBucket{
-					PkgName:           "rucket-22",
-					Name:              "display name",
-					Description:       "bucket 2 description",
+					PkgName:           "rucket-11",
+					Name:              "rucket-11",
+					Description:       "bucket 1 description",
+					RetentionPeriod:   time.Hour,
 					LabelAssociations: []SummaryLabel{},
 				}
 				assert.Equal(t, expectedBucket, actual)
 
 				actual = buckets[1]
 				expectedBucket = SummaryBucket{
-					PkgName:           "rucket-11",
-					Name:              "rucket-11",
-					Description:       "bucket 1 description",
-					RetentionPeriod:   time.Hour,
+					PkgName:           "rucket-22",
+					Name:              "display name",
+					Description:       "bucket 2 description",
 					LabelAssociations: []SummaryLabel{},
 				}
 				assert.Equal(t, expectedBucket, actual)
@@ -160,19 +160,7 @@ spec:
 				labels := pkg.Summary().Labels
 				require.Len(t, labels, 3)
 
-				expectedLabel0 := SummaryLabel{
-					PkgName: "label-3",
-					Name:    "display name",
-					Properties: struct {
-						Color       string `json:"color"`
-						Description string `json:"description"`
-					}{
-						Description: "label 3 description",
-					},
-				}
-				assert.Equal(t, expectedLabel0, labels[0])
-
-				expectedLabel1 := SummaryLabel{
+				expectedLabel := SummaryLabel{
 					PkgName: "label-1",
 					Name:    "label-1",
 					Properties: struct {
@@ -183,9 +171,9 @@ spec:
 						Description: "label 1 description",
 					},
 				}
-				assert.Equal(t, expectedLabel1, labels[1])
+				assert.Equal(t, expectedLabel, labels[0])
 
-				expectedLabel2 := SummaryLabel{
+				expectedLabel = SummaryLabel{
 					PkgName: "label-2",
 					Name:    "label-2",
 					Properties: struct {
@@ -196,7 +184,19 @@ spec:
 						Description: "label 2 description",
 					},
 				}
-				assert.Equal(t, expectedLabel2, labels[2])
+				assert.Equal(t, expectedLabel, labels[1])
+
+				expectedLabel = SummaryLabel{
+					PkgName: "label-3",
+					Name:    "display name",
+					Properties: struct {
+						Color       string `json:"color"`
+						Description string `json:"description"`
+					}{
+						Description: "label 3 description",
+					},
+				}
+				assert.Equal(t, expectedLabel, labels[2])
 			})
 		})
 
@@ -3669,6 +3669,21 @@ spec:
 					assert.Equal(t, vals, v.Arguments.Values)
 				}
 
+				// validates we support all known variable types
+				varEquals(t,
+					"var-const-3",
+					"constant",
+					influxdb.VariableConstantValues([]string{"first val"}),
+					sum.Variables[0],
+				)
+
+				varEquals(t,
+					"var-map-4",
+					"map",
+					influxdb.VariableMapValues{"k1": "v1"},
+					sum.Variables[1],
+				)
+
 				varEquals(t,
 					"query var",
 					"query",
@@ -3676,21 +3691,6 @@ spec:
 						Query:    `buckets()  |> filter(fn: (r) => r.name !~ /^_/)  |> rename(columns: {name: "_value"})  |> keep(columns: ["_value"])`,
 						Language: "flux",
 					},
-					sum.Variables[0],
-				)
-
-				// validates we support all known variable types
-				varEquals(t,
-					"var-const-3",
-					"constant",
-					influxdb.VariableConstantValues([]string{"first val"}),
-					sum.Variables[1],
-				)
-
-				varEquals(t,
-					"var-map-4",
-					"map",
-					influxdb.VariableMapValues{"k1": "v1"},
 					sum.Variables[2],
 				)
 

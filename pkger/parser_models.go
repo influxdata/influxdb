@@ -1199,7 +1199,7 @@ func (s sortedLabels) Len() int {
 }
 
 func (s sortedLabels) Less(i, j int) bool {
-	return s[i].Name() < s[j].Name()
+	return s[i].PkgName() < s[j].PkgName()
 }
 
 func (s sortedLabels) Swap(i, j int) {
