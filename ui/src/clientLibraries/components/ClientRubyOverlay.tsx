@@ -51,11 +51,14 @@ const ClientRubyOverlay: FunctionComponent<Props> = props => {
         template={initializeClientCodeSnippet}
         label="Ruby Code"
         defaults={{
-          server: 'serverUrl',
+          server: 'basepath',
           token: 'token',
+          org: 'orgID',
+          bucket: 'bucketID',
         }}
         values={{
           server,
+          org,
         }}
       />
       <h5>Write Data</h5>
@@ -63,61 +66,26 @@ const ClientRubyOverlay: FunctionComponent<Props> = props => {
       <TemplatedCodeSnippet
         template={writingDataLineProtocolCodeSnippet}
         label="Ruby Code"
-        defaults={{
-          bucket: 'bucketID',
-          org: 'orgID',
-        }}
-        values={{
-          org,
-        }}
       />
       <p>Option 2: Use a Data Point to write data</p>
       <TemplatedCodeSnippet
         template={writingDataPointCodeSnippet}
         label="Ruby Code"
-        defaults={{
-          bucket: 'bucketID',
-          org: 'orgID',
-        }}
-        values={{
-          org,
-        }}
       />
       <p>Option 3: Use a Hash to write data</p>
       <TemplatedCodeSnippet
         template={writingDataHashCodeSnippet}
         label="Ruby Code"
-        defaults={{
-          bucket: 'bucketID',
-          org: 'orgID',
-        }}
-        values={{
-          org,
-        }}
       />
       <p>Option 4: Use a Batch Sequence to write data</p>
       <TemplatedCodeSnippet
         template={writingDataBatchCodeSnippet}
         label="Ruby Code"
-        defaults={{
-          bucket: 'bucketID',
-          org: 'orgID',
-        }}
-        values={{
-          org,
-        }}
       />
       <h5>Execute a Flux query</h5>
       <TemplatedCodeSnippet
         template={executeQueryCodeSnippet}
         label="Ruby Code"
-        defaults={{
-          bucket: 'my_bucket',
-          org: 'orgID',
-        }}
-        values={{
-          org,
-        }}
       />
     </ClientLibraryOverlay>
   )

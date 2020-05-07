@@ -102,6 +102,23 @@ func TestIndexStore(t *testing.T) {
 			require.NoError(t, err)
 		})
 
+		t.Run("updating an existing entity to a new unique identifier should delete the existing unique key", func(t *testing.T) {
+			indexStore, done, kvStore := newFooIndexStore(t, "put")
+			defer done()
+
+			expected := testPutBase(t, kvStore, indexStore, indexStore.EntStore.BktName)
+
+			update(t, kvStore, func(tx kv.Tx) error {
+				entCopy := newFooEnt(expected.ID, expected.OrgID, "safe name")
+				return indexStore.Put(context.TODO(), tx, entCopy, kv.PutUpdate())
+			})
+
+			update(t, kvStore, func(tx kv.Tx) error {
+				ent := newFooEnt(33, expected.OrgID, expected.Name)
+				return indexStore.Put(context.TODO(), tx, ent, kv.PutNew())
+			})
+		})
+
 		t.Run("error cases", func(t *testing.T) {
 			t.Run("new entity conflicts with existing", func(t *testing.T) {
 				indexStore, done, kvStore := newFooIndexStore(t, "put")

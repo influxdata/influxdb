@@ -20,7 +20,7 @@ func Make(m map[string]string) (Flagger, error) {
 	}, nil
 }
 
-// Flags returns a map of default values. It never returns an error.
+// Flags returns a map of default values with overrides applied. It never returns an error.
 func (f Flagger) Flags(_ context.Context, flags ...feature.Flag) (map[string]interface{}, error) {
 	if len(flags) == 0 {
 		flags = feature.Flags()

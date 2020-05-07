@@ -53,11 +53,14 @@ const ClientPythonOverlay: FunctionComponent<Props> = props => {
         template={initializeClientCodeSnippet}
         label="Python Code"
         defaults={{
-          server: 'serverUrl',
+          server: 'basepath',
           token: 'token',
+          org: 'orgID',
+          bucket: 'bucketID',
         }}
         values={{
           server,
+          org,
         }}
       />
       <h5>Write Data</h5>
@@ -65,49 +68,21 @@ const ClientPythonOverlay: FunctionComponent<Props> = props => {
       <TemplatedCodeSnippet
         template={writingDataLineProtocolCodeSnippet}
         label="Python Code"
-        defaults={{
-          bucket: 'bucketID',
-          org: 'orgID',
-        }}
-        values={{
-          org,
-        }}
       />
       <p>Option 2: Use a Data Point to write data</p>
       <TemplatedCodeSnippet
         template={writingDataPointCodeSnippet}
         label="Python Code"
-        defaults={{
-          bucket: 'bucketID',
-          org: 'orgID',
-        }}
-        values={{
-          org,
-        }}
       />
       <p>Option 3: Use a Batch Sequence to write data</p>
       <TemplatedCodeSnippet
         template={writingDataBatchCodeSnippet}
         label="Python Code"
-        defaults={{
-          bucket: 'bucketID',
-          org: 'orgID',
-        }}
-        values={{
-          org,
-        }}
       />
       <h5>Execute a Flux query</h5>
       <TemplatedCodeSnippet
         template={executeQueryCodeSnippet}
         label="Python Code"
-        defaults={{
-          bucket: 'my_bucket',
-          org: 'orgID',
-        }}
-        values={{
-          org,
-        }}
       />
     </ClientLibraryOverlay>
   )

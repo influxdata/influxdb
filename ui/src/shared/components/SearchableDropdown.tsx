@@ -75,7 +75,9 @@ export default class SearchableDropdown extends Component<Props> {
             size={buttonSize}
             status={buttonStatus}
           >
-            {selectedOption}
+            {buttonStatus === ComponentStatus.Loading
+              ? 'Loading...'
+              : selectedOption}
           </Dropdown.Button>
         )}
         menu={onCollapse => (

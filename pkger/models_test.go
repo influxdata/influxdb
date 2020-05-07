@@ -479,12 +479,12 @@ func TestPkg(t *testing.T) {
 			{
 				pkgFile:   "testdata/label.yml",
 				kind:      KindLabel,
-				validName: "label_1",
+				validName: "label-1",
 			},
 			{
 				pkgFile:   "testdata/notification_rule.yml",
 				kind:      KindNotificationRule,
-				validName: "rule_UUID",
+				validName: "rule-uuid",
 			},
 		}
 
