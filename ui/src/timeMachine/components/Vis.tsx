@@ -21,7 +21,7 @@ import {
   getFillColumnsSelection,
   getSymbolColumnsSelection,
 } from 'src/timeMachine/selectors'
-import {getTimeRange, getTimeZone} from 'src/dashboards/selectors'
+import {getTimeRange} from 'src/dashboards/selectors'
 
 // Types
 import {
@@ -164,7 +164,7 @@ const mstp = (state: AppState): StateProps => {
   const fillColumns = getFillColumnsSelection(state)
   const symbolColumns = getSymbolColumnsSelection(state)
 
-  const timeZone = getTimeZone(state)
+  const timeZone = state.app.persisted.timeZone
 
   return {
     loading,

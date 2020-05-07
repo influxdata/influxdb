@@ -21,7 +21,6 @@ import {STATUS_FIELDS} from 'src/alerting/constants/history'
 // Utils
 import {loadStatuses, getInitialState} from 'src/alerting/utils/history'
 import {getCheckIDs} from 'src/checks/selectors'
-import {getTimeZone} from 'src/dashboards/selectors'
 
 // Types
 import {ResourceIDs} from 'src/checks/reducers'
@@ -102,7 +101,7 @@ const CheckHistory: FC<Props> = ({
 }
 
 const mstp = (state: AppState, props: OwnProps) => {
-  const timeZone = getTimeZone(state)
+  const timeZone = state.app.persisted.timeZone
   const checkIDs = getCheckIDs(state)
   const check = getByID<Check>(state, ResourceType.Checks, props.params.checkID)
 

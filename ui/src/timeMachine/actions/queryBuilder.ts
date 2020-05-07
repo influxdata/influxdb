@@ -6,7 +6,7 @@ import {fetchDemoDataBuckets} from 'src/cloud/apis/demodata'
 
 // Utils
 import {getActiveQuery, getActiveTimeMachine} from 'src/timeMachine/selectors'
-import {getTimeRangeWithTimezone} from 'src/dashboards/selectors'
+import {getTimeRange} from 'src/dashboards/selectors'
 
 // Types
 import {
@@ -222,8 +222,7 @@ export const loadTagSelector = (index: number) => async (
   const orgID = get(foundBucket, 'orgID', getOrg(getState()).id)
 
   try {
-    const timeRange = getTimeRangeWithTimezone(state)
-
+    const timeRange = getTimeRange(state)
     const searchTerm = getActiveTimeMachine(state).queryBuilder.tags[index]
       .keysSearchTerm
 
@@ -288,7 +287,7 @@ const loadTagSelectorValues = (index: number) => async (
   dispatch(setBuilderTagValuesStatus(index, RemoteDataState.Loading))
 
   try {
-    const timeRange = getTimeRangeWithTimezone(state)
+    const timeRange = getTimeRange(state)
     const key = getActiveQuery(getState()).builderConfig.tags[index].key
     const searchTerm = getActiveTimeMachine(getState()).queryBuilder.tags[index]
       .valuesSearchTerm
