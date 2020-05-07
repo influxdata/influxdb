@@ -98,7 +98,6 @@ describe('Dashboards.Selector', () => {
       type: 'custom',
     }
 
-    expect(app.persisted.timeZone).toEqual('UTC')
     expect(
       untypedGetTimeRangeWithTimeZone({ranges, currentDashboard, app})
     ).toEqual(expected)
