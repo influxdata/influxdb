@@ -1,5 +1,6 @@
 import {FromFluxResult as GFFR} from '@influxdata/vis/dist/utils/fromFlux'
 import {Columns} from '@influxdata/clockface'
+import {Table} from '@influxdata/vis'
 
 export type UsageQueryStatus = 'error' | 'success' | 'empty' | 'timeout'
 
@@ -13,10 +14,9 @@ export interface UsageGraphInfo {
   title: string
   groupColumns: string[]
   column: string
-  units: 'KB' | 'MB' | 'GB'
+  units: string
   type: 'sparkline' | 'stat'
   isGrouped: boolean
-  status: UsageQueryStatus
 }
 
 export interface UsageLimitStatus {
@@ -56,4 +56,4 @@ export interface UsageWidths {
   MD: Columns
 }
 
-export type UsageTable = FromFluxResult['table'] | EmptyFluxResult
+export type UsageTable = Table

@@ -1,5 +1,5 @@
 import {Columns} from '@influxdata/clockface'
-import {UsageRanges} from 'src/types'
+import {UsageRanges, UsageGraphInfo} from 'src/types'
 
 export const QUERY_RESULTS_STATUS_EMPTY = 'empty'
 export const QUERY_RESULTS_STATUS_ERROR = 'error'
@@ -23,7 +23,7 @@ export const GRAPH_INFO = {
       isGrouped: true,
       type: 'sparkline',
     },
-  ],
+  ] as UsageGraphInfo[],
   executionSec: [
     {
       title: 'Total Query Duration (s)',
@@ -33,7 +33,7 @@ export const GRAPH_INFO = {
       isGrouped: false,
       type: 'sparkline',
     },
-  ],
+  ] as UsageGraphInfo[],
   storageGB: [
     {
       title: 'Storage (GB-hr)',
@@ -43,7 +43,7 @@ export const GRAPH_INFO = {
       isGrouped: false,
       type: 'sparkline',
     },
-  ],
+  ] as UsageGraphInfo[],
   rateLimits: [
     {
       title: 'Limit Events',
@@ -53,7 +53,7 @@ export const GRAPH_INFO = {
       isGrouped: true,
       type: 'sparkline',
     },
-  ],
+  ] as UsageGraphInfo[],
   billingStats: [
     {
       title: 'Writes',
@@ -79,7 +79,7 @@ export const GRAPH_INFO = {
       isGrouped: false,
       type: 'stat',
     },
-  ],
+  ] as UsageGraphInfo[],
 }
 
 export const PANEL_CONTENTS_WIDTHS = {

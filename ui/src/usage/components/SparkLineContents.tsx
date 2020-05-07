@@ -1,6 +1,6 @@
 // Libraries
 import React, {Component} from 'react'
-import {Plot} from '@influxdata/vis'
+import {Plot, Config} from '@influxdata/vis'
 
 // Types
 import {UsageTable} from 'src/types'
@@ -44,8 +44,8 @@ class SparkLineContents extends Component<Props> {
     )
   }
 
-  getConfig() {
-    const {isGrouped, groupColumns, column, table, yFormatter} = this.props
+  getConfig(): Config {
+    const {isGrouped, groupColumns, column, table} = this.props
     if (isGrouped && groupColumns) {
       const legendColumns = ['_time', column, ...groupColumns]
 
@@ -59,7 +59,6 @@ class SparkLineContents extends Component<Props> {
             fill: groupColumns,
           },
         ],
-        yTickFormatter: yFormatter,
         table,
       }
     }
@@ -72,7 +71,6 @@ class SparkLineContents extends Component<Props> {
           y: column,
         },
       ],
-      yTickFormatter: yFormatter,
       table,
     }
   }

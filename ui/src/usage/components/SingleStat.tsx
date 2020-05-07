@@ -1,8 +1,18 @@
+// Libraries
 import React, {Component} from 'react'
-
 import {Panel, ComponentSize, InfluxColors} from '@influxdata/clockface'
 
-class SingleStat extends Component {
+// Types
+import {UsageTable} from 'src/types'
+
+interface Props {
+  title: string
+  units: string
+  table: UsageTable
+  column: string
+}
+
+class SingleStat extends Component<Props> {
   render() {
     const {title} = this.props
 
@@ -24,10 +34,10 @@ class SingleStat extends Component {
 
   getLastValue = () => {
     const {table, column} = this.props
-    const tCol = table.columns[column]
+    const tCol = table.getColumn(column) as number[]
 
-    if (tCol && tCol.data.length) {
-      const values = tCol.data.filter(v => !!v || v === 0) // remove empty values not 0
+    if (tCol && tCol.length) {
+      const values = tCol.filter(v => !!v || v === 0) // remove empty values not 0
       return this.numberWithCommas(values[values.length - 1]) || 0
     }
 

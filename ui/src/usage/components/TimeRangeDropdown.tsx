@@ -1,11 +1,12 @@
 import React, {Component} from 'react'
 
 import {Form, Dropdown, ComponentColor} from '@influxdata/clockface'
-import {Ranges} from 'src/usage/components/UsageToday'
+
+import {UsageRanges} from 'src/types'
 
 interface Props {
   selectedTimeRange: string
-  dropdownOptions: Ranges
+  dropdownOptions: UsageRanges
   onSelect: (range: string) => void
 }
 

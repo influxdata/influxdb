@@ -5,6 +5,7 @@ import {
   ReflessPopover,
   PopoverInteraction,
   PopoverPosition,
+  Appearance,
 } from '@influxdata/clockface'
 
 import PanelSection from './PanelSection'
@@ -19,7 +20,6 @@ const billingStats = () => {
 
 const BillingStatsPanel = ({
   table,
-  status,
   widths,
   billingStart: {date: billingStartDate, time: billingStartTime},
 }) => {
@@ -32,6 +32,7 @@ const BillingStatsPanel = ({
         <ReflessPopover
           distanceFromTrigger={16}
           contents={() => <>{dateRange}</>}
+          appearance={Appearance.Outline}
           position={PopoverPosition.ToTheRight}
           showEvent={PopoverInteraction.Hover}
           hideEvent={PopoverInteraction.Hover}
@@ -44,7 +45,6 @@ const BillingStatsPanel = ({
           return (
             <PanelSectionBody
               table={table}
-              status={status}
               graphInfo={graphInfo}
               widths={widths}
               key={graphInfo.title}

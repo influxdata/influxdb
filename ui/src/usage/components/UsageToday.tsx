@@ -60,13 +60,9 @@ class UsageToday extends Component<Props, State> {
       billingStart,
     } = this.props
 
-    const {table: billingTable, status: billingStatus} = this.csvToTable(
-      history.billingStats
-    )
+    const {table: billingTable} = this.csvToTable(history.billingStats)
 
-    const {table: limitsTable, status: limitsStatus} = this.csvToTable(
-      history.rateLimits
-    )
+    const {table: limitsTable} = this.csvToTable(history.rateLimits)
 
     const {selectedUsageID} = this.state
 
@@ -83,7 +79,6 @@ class UsageToday extends Component<Props, State> {
         />
         <BillingStatsPanel
           table={billingTable}
-          status={billingStatus}
           billingStart={billingStart}
           widths={PANEL_CONTENTS_WIDTHS.billingStats}
         />
@@ -111,7 +106,6 @@ class UsageToday extends Component<Props, State> {
               return (
                 <PanelSectionBody
                   table={limitsTable}
-                  status={limitsStatus}
                   graphInfo={graphInfo}
                   widths={PANEL_CONTENTS_WIDTHS.rateLimits}
                   key={graphInfo.title}
@@ -130,14 +124,11 @@ class UsageToday extends Component<Props, State> {
     const {selectedUsageID} = this.state
     switch (selectedUsageID) {
       case 'Writes (MB)':
-        const {table: writeTable, status: writeStatus} = this.csvToTable(
-          history.writeMB
-        )
+        const {table: writeTable} = this.csvToTable(history.writeMB)
         return GRAPH_INFO.writeMB.map(graphInfo => {
           return (
             <PanelSectionBody
               table={writeTable}
-              status={writeStatus}
               graphInfo={graphInfo}
               widths={PANEL_CONTENTS_WIDTHS.usage}
               key={graphInfo.title}
@@ -145,15 +136,11 @@ class UsageToday extends Component<Props, State> {
           )
         })
       case 'Total Query Duration (s)':
-        const {
-          table: executionTable,
-          status: executionStatus,
-        } = this.csvToTable(history.executionSec)
+        const {table: executionTable} = this.csvToTable(history.executionSec)
         return GRAPH_INFO.executionSec.map(graphInfo => {
           return (
             <PanelSectionBody
               table={executionTable}
-              status={executionStatus}
               graphInfo={graphInfo}
               widths={PANEL_CONTENTS_WIDTHS.usage}
               key={graphInfo.title}
@@ -161,14 +148,11 @@ class UsageToday extends Component<Props, State> {
           )
         })
       case 'Storage (GB-hr)':
-        const {table: storageTable, status: storageStatus} = this.csvToTable(
-          history.storageGB
-        )
+        const {table: storageTable} = this.csvToTable(history.storageGB)
         return GRAPH_INFO.storageGB.map(graphInfo => {
           return (
             <PanelSectionBody
               table={storageTable}
-              status={storageStatus}
               graphInfo={graphInfo}
               widths={PANEL_CONTENTS_WIDTHS.usage}
               key={graphInfo.title}
@@ -199,7 +183,7 @@ class UsageToday extends Component<Props, State> {
     if (!table.length) {
       return {
         status: 'empty',
-        table: {columns: {}, length: 0},
+        table: null,
       }
     }
 

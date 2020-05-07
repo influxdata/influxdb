@@ -11,7 +11,7 @@ interface Props {
   limitStatuses: UsageLimitStatus
   isOperator: boolean
   accountType: string
-  className: string
+  className?: string
 }
 
 const AlertBanner: FC<Props> = props => {

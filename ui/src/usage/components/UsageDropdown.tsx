@@ -19,7 +19,6 @@ class UsageDropdown extends Component<Props> {
 
     return (
       <SelectDropdown
-        titleText="Usage"
         selectedOption={selectedUsage}
         options={ranges}
         onSelect={this.handleSelect}
