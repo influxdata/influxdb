@@ -9,7 +9,7 @@ import {AppState} from 'src/types'
 const MOCKSTATE = ({
   app: {
     persisted: {
-      timeZone: 'Local',
+      timeZone: 'UTC',
     },
   },
   currentDashboard: {
