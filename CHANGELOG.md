@@ -1,4 +1,4 @@
-## v2.0.0-beta.10 [Unreleased]
+## v2.0.0-beta.10 [2020-05-07]
 
 ### Features
 
