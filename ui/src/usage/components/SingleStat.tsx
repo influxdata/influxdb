@@ -34,14 +34,15 @@ class SingleStat extends Component<Props> {
 
   getLastValue = () => {
     const {table, column} = this.props
-    const tCol = table.getColumn(column) as number[]
 
-    if (tCol && tCol.length) {
+    try {
+      const tCol = table.getColumn(column) as number[]
       const values = tCol.filter(v => !!v || v === 0) // remove empty values not 0
       return this.numberWithCommas(values[values.length - 1]) || 0
+    } catch (error) {
+      console.error(error, table, column)
+      return 0
     }
-
-    return 0
   }
   numberWithCommas(x) {
     return x.toLocaleString()

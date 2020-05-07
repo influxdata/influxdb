@@ -18,7 +18,7 @@ export const GRAPH_INFO = {
     {
       title: 'Writes (MB)',
       groupColumns: [],
-      column: 'writeMB',
+      column: 'write_mb',
       units: 'MB',
       isGrouped: true,
       type: 'sparkline',
@@ -28,7 +28,7 @@ export const GRAPH_INFO = {
     {
       title: 'Total Query Duration (s)',
       groupColumns: [],
-      column: 'executionSec',
+      column: 'execution_sec',
       units: 's',
       isGrouped: false,
       type: 'sparkline',
@@ -38,7 +38,7 @@ export const GRAPH_INFO = {
     {
       title: 'Storage (GB-hr)',
       groupColumns: [],
-      column: 'storageGB',
+      column: 'storage_gb',
       units: 'GB',
       isGrouped: false,
       type: 'sparkline',
@@ -66,7 +66,7 @@ export const GRAPH_INFO = {
     {
       title: 'Query Duration',
       groupColumns: [],
-      column: 'executionSec',
+      column: 'execution_sec',
       units: 's',
       isGrouped: false,
       type: 'stat',
@@ -74,7 +74,7 @@ export const GRAPH_INFO = {
     {
       title: 'Storage Usage',
       groupColumns: [],
-      column: 'storageGB',
+      column: 'storage_gb',
       units: 'GB-hr',
       isGrouped: false,
       type: 'stat',

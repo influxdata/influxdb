@@ -12,6 +12,10 @@ interface Props {
 }
 
 const GraphTypeSwitcher: FC<Props> = ({graphInfo, table}) => {
+  if (!table) {
+    return <EmptyGraph title={graphInfo.title} isError={false} />
+  }
+
   switch (status) {
     case 'error':
       return <EmptyGraph title={graphInfo.title} isError={true} />
