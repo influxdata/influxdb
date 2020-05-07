@@ -1455,6 +1455,8 @@ func (h *Handler) serveExpvar(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "\"memstats\": %s", val)
 	}
 
+	uniqueKeys := make(map[string]int)
+
 	for _, s := range stats {
 		val, err := json.Marshal(s)
 		if err != nil {
@@ -1486,6 +1488,12 @@ func (h *Handler) serveExpvar(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		key := buf.String()
+		v := uniqueKeys[key]
+		uniqueKeys[key] = v + 1
+		if v > 0 {
+			fmt.Fprintf(buf, ":%d", v)
+			key = buf.String()
+		}
 
 		if !first {
 			fmt.Fprintln(w, ",")
