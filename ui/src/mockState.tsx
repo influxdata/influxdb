@@ -21,7 +21,7 @@ export const localState: LocalStorage = {
       autoRefresh: 0,
       showTemplateControlBar: false,
       navBarState: 'expanded',
-      timeZone: 'Local' as TimeZone,
+      timeZone: 'UTC' as TimeZone,
       theme: 'dark',
     },
   },
