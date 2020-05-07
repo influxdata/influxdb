@@ -1,0 +1,269 @@
+/*
+  2.0 Usage Page Styles
+  ------------------------------------------------------------------------------
+*/
+
+.usage-snapshot {
+  padding: 30px;
+  border-radius: 4px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  margin-bottom: 18px;
+  box-shadow: 0 2px 5px 2px rgba(15, 14, 21, 0.034);
+  @include gradient-v($g20-white, $g19-ghost);
+}
+
+.usage-snapshot--heading {
+  text-align: center;
+  margin: 15px 0 30px 0;
+}
+
+.panel .usage-snapshot--stat {
+  background-color: $g4-onyx;
+}
+
+.radio--inline {
+  margin-top: $cf-marg-c;
+}
+
+.usage-snapshot--sparkline {
+  width: 100%;
+}
+
+.usage-snapshot--metric {
+  justify-content: space-between;
+  width: 100%;
+  display: flex;
+  align-items: center;
+}
+
+.usage-snapshot--label,
+.usage-snapshot--current {
+  width: auto;
+  font-size: 17px;
+  line-height: 17px;
+  margin: 0;
+  padding: 0;
+}
+
+.usage-snapshot--label {
+  font-weight: 400;
+}
+
+.usage-snapshot--current {
+  font-weight: 700;
+}
+
+/* Usage Capacity Alert */
+
+.capacity-alert {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  p {
+    font-size: 15px;
+    margin: 0;
+    width: auto;
+  }
+}
+
+.capacity-alert--button {
+  margin: 0 !important;
+  margin-left: 10px !important;
+}
+
+.usage-graph-container {
+  height: 500px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+}
+
+.usage-time-selector {
+  width: 150px;
+  margin-right: 12px;
+
+  &.form-control {
+    height: 41px;
+  }
+}
+
+/* Gauge Styles */
+.usage-gauge {
+  width: 100%;
+  padding-bottom: 100%;
+  position: relative;
+
+  > .usage-gauge--graphic {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+  }
+}
+
+.gauge-background {
+  opacity: 0.3;
+}
+.gauge-section-a {
+  fill: url(#gaugeA);
+}
+.gauge-section-b {
+  fill: url(#gaugeB);
+}
+.gauge-section-c {
+  fill: url(#gaugeC);
+}
+.gauge-mercury {
+  stroke-dasharray: 643;
+  stroke-width: 20;
+  stroke-linecap: round;
+  stroke-miterlimit: 10;
+  fill: none;
+}
+
+.usage-snapshot--consumption {
+  font-size: 50px;
+  line-height: 50px;
+  font-weight: 300;
+  letter-spacing: -0.05em;
+}
+
+.usage-snapshot--slash {
+  height: 34px;
+  width: 30px;
+  position: relative;
+
+  &:after {
+    content: '';
+    position: absolute;
+    top: 27%;
+    left: 50%;
+    height: 120%;
+    width: 2px;
+    border-radius: 1px;
+    background-color: $g15-platinum;
+    transform: translate(-50%, -50%) rotate(24deg);
+  }
+}
+
+.usage-snapshot--capacity {
+  color: $g13-mist;
+  font-size: 20px;
+  margin-left: -7px;
+}
+
+.usage-gauge--alert {
+  position: absolute;
+  top: 82%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  max-width: 50px;
+  width: 13%;
+  display: none;
+
+  &.show {
+    display: block;
+  }
+}
+
+.usage-gauge--alert-icon {
+  fill: $c-curacao;
+}
+
+.usage-exception-tooltip {
+  @include gradient-v($c-curacao, $c-fire);
+  position: absolute;
+  z-index: 100;
+  top: 100%;
+  left: 68%;
+  transform: translate(-50%, -15px);
+  border-radius: 4px;
+  padding: 13px;
+  box-shadow: 0 2px 5px 2px rgba(15, 14, 21, 0.034);
+
+  &:after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 50%;
+    border: 8px solid transparent;
+    border-bottom-color: $c-curacao;
+    transform: translate(-50%, -100%);
+  }
+
+  p {
+    font-weight: 500;
+    white-space: nowrap;
+    line-height: 19px;
+    margin: 0;
+    font-size: 14px;
+    color: $g20-white;
+  }
+
+  .btn {
+    margin: 0 !important;
+    margin-top: 6px !important;
+  }
+}
+
+.usage--billing-header.cf-panel--header {
+  justify-content: flex-start;
+}
+
+.usage--billing-date-range {
+  font-size: 16px;
+}
+
+.usage--billing-range-tooltip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: $cf-marg-c;
+  font-size: $cf-text-base-1;
+}
+
+.usage--single-stat {
+  text-align: right;
+  font-size: 2em;
+  font-weight: 500;
+  color: $g18-cloud;
+}
+
+.usage--panel {
+  .panel--body {
+    position: relative;
+  }
+}
+
+.billing-stats--panel {
+  margin-bottom: $cf-marg-c !important;
+
+  .cf-panel {
+    margin-bottom: $cf-marg-a;
+  }
+}
+
+// Aspect ratio of roughly 2/5
+.usage--plot {
+  max-height: 250px;
+}
+.usage--plot::after {
+  content: '';
+  display: block;
+  width: 100%;
+  padding-top: 38%;
+}
+
+@media screen and (min-width: $cf-grid--breakpoint-md) {
+  .billing-stats--panel {
+    .cf-panel {
+      margin-bottom: 0;
+    }
+  }
+}
