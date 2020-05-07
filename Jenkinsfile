@@ -76,6 +76,7 @@ pipeline {
       agent {
         dockerfile {
           filename 'Dockerfile_jenkins_ubuntu32'
+          args '-e "GOCACHE=/tmp"'
         }
       }
 
