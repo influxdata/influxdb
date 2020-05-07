@@ -3,6 +3,7 @@
 ### Features
 
 1. [17934](https://github.com/influxdata/influxdb/pull/17934): Add ability to delete a stack and all the resources associated with it
+1. [17992](https://github.com/influxdata/influxdb/pull/17992): Add ability to specify UTC when making custom time range queries
 
 ### Bug Fixes
 
