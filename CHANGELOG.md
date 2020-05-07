@@ -3,7 +3,6 @@
 ### Features
 
 1. [17934](https://github.com/influxdata/influxdb/pull/17934): Add ability to delete a stack and all the resources associated with it
-1. [17992](https://github.com/influxdata/influxdb/pull/17992): Add ability to specify UTC when making custom time range queries
 1. [17941](https://github.com/influxdata/influxdb/pull/17941): Enforce DNS name compliance on all pkger resources' metadata.name field
 1. [17989](https://github.com/influxdata/influxdb/pull/17989): Add stateful pkg management with stacks
 
