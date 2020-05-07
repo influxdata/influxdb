@@ -4,7 +4,7 @@ import {get} from 'lodash'
 // Utils
 import {getActiveQuery} from 'src/timeMachine/selectors'
 import {getRangeVariable} from 'src/variables/utils/getTimeRangeVars'
-import {getTimeRange, getTimeZone} from 'src/dashboards/selectors'
+import {getTimeRange, getTimeRangeWithTimezone} from 'src/dashboards/selectors'
 import {getWindowPeriodVariable} from 'src/variables/utils/getWindowVars'
 import {
   TIME_RANGE_START,
@@ -22,7 +22,6 @@ import {
 } from 'src/types'
 import {VariableAssignment} from 'src/types/ast'
 import {AppState, VariableArgumentType, Variable} from 'src/types'
-import moment from 'moment'
 
 export const extractVariableEditorName = (state: AppState): string => {
   return state.variableEditor.name
@@ -115,30 +114,6 @@ export const getAllVariables = (
   return vars
 }
 
-export const setTimeToUTC = (date: string): string => {
-  const offset = new Date(date).getTimezoneOffset()
-  // check if date has offset
-  if (offset === 0) {
-    return date
-  }
-  let offsetDate = date
-  if (offset > 0) {
-    // subtract tz minute difference
-    offsetDate = moment
-      .utc(date)
-      .subtract(offset, 'minutes')
-      .format()
-  }
-  if (offset < 0) {
-    // add tz minute difference
-    offsetDate = moment
-      .utc(date)
-      .add(offset, 'minutes')
-      .format()
-  }
-  return offsetDate
-}
-
 export const getVariable = (state: AppState, variableID: string): Variable => {
   const contextID = currentContext(state)
   const ctx = get(state, ['resources', 'variables', 'values', contextID])
@@ -149,17 +124,8 @@ export const getVariable = (state: AppState, variableID: string): Variable => {
   }
 
   if (variableID === TIME_RANGE_START || variableID === TIME_RANGE_STOP) {
-    const timeRange = getTimeRange(state)
-    const timeZone = getTimeZone(state)
-    // create a copy of the timeRange so as not to mutate the original timeRange
-    const newTimeRange = Object.assign({}, timeRange)
-    if (timeRange.type === 'custom' && timeZone === 'UTC') {
-      // check to see if the timeRange has an offset
-      newTimeRange.lower = setTimeToUTC(newTimeRange.lower)
-      newTimeRange.upper = setTimeToUTC(newTimeRange.upper)
-    }
-
-    vari = getRangeVariable(variableID, newTimeRange)
+    const timeRange = getTimeRangeWithTimezone(state)
+    vari = getRangeVariable(variableID, timeRange)
   }
 
   if (variableID === WINDOW_PERIOD) {

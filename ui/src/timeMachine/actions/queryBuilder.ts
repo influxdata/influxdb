@@ -6,8 +6,7 @@ import {fetchDemoDataBuckets} from 'src/cloud/apis/demodata'
 
 // Utils
 import {getActiveQuery, getActiveTimeMachine} from 'src/timeMachine/selectors'
-import {getTimeRange, getTimeZone} from 'src/dashboards/selectors'
-import {setTimeToUTC} from 'src/variables/selectors'
+import {getTimeRangeWithTimezone} from 'src/dashboards/selectors'
 
 // Types
 import {
@@ -223,14 +222,8 @@ export const loadTagSelector = (index: number) => async (
   const orgID = get(foundBucket, 'orgID', getOrg(getState()).id)
 
   try {
-    const timeRange = getTimeRange(state)
-    const timeZone = getTimeZone(state)
-    const newTimeRange = Object.assign({}, timeRange)
-    if (timeRange.type === 'custom' && timeZone === 'UTC') {
-      // check to see if the timeRange has an offset
-      newTimeRange.lower = setTimeToUTC(newTimeRange.lower)
-      newTimeRange.upper = setTimeToUTC(newTimeRange.upper)
-    }
+    const timeRange = getTimeRangeWithTimezone(state)
+
     const searchTerm = getActiveTimeMachine(state).queryBuilder.tags[index]
       .keysSearchTerm
 
@@ -240,7 +233,7 @@ export const loadTagSelector = (index: number) => async (
       bucket,
       tagsSelections,
       searchTerm,
-      timeRange: newTimeRange,
+      timeRange,
     })
 
     const {key} = tags[index]
@@ -295,14 +288,7 @@ const loadTagSelectorValues = (index: number) => async (
   dispatch(setBuilderTagValuesStatus(index, RemoteDataState.Loading))
 
   try {
-    const timeRange = getTimeRange(state)
-    const timeZone = getTimeZone(state)
-    const newTimeRange = Object.assign({}, timeRange)
-    if (timeRange.type === 'custom' && timeZone === 'UTC') {
-      // check to see if the timeRange has an offset
-      newTimeRange.lower = setTimeToUTC(newTimeRange.lower)
-      newTimeRange.upper = setTimeToUTC(newTimeRange.upper)
-    }
+    const timeRange = getTimeRangeWithTimezone(state)
     const key = getActiveQuery(getState()).builderConfig.tags[index].key
     const searchTerm = getActiveTimeMachine(getState()).queryBuilder.tags[index]
       .valuesSearchTerm
@@ -314,7 +300,7 @@ const loadTagSelectorValues = (index: number) => async (
       tagsSelections,
       key,
       searchTerm,
-      timeRange: newTimeRange,
+      timeRange,
     })
 
     const {values: selectedValues} = tags[index]
