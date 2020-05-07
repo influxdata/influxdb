@@ -7,6 +7,11 @@ import {
 import {AppState} from 'src/types'
 
 const MOCKSTATE = ({
+  app: {
+    persisted: {
+      timeZone: 'UTC',
+    },
+  },
   currentDashboard: {
     id: '',
   },
