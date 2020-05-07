@@ -17,17 +17,17 @@ const NotebookList: FC = () => {
 
 const NotebookPage: FC = () => {
   return (
+        <NotebookProvider>
     <Page titleTag={'Notebook'}>
       <Page.Header fullWidth={false}>
         <NotebookHeader />
       </Page.Header>
       <Page.Contents fullWidth={false} scrollable={true}>
-        <NotebookProvider>
           <NotebookList />
           <NotebookButtons />
-        </NotebookProvider>
       </Page.Contents>
     </Page>
+        </NotebookProvider>
   )
 }
 

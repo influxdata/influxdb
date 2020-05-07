@@ -1,5 +1,5 @@
 import React, {FC, useContext} from 'react'
-import {NotebookProvider, NotebookContext} from 'src/notebooks/notebook.context'
+import {NotebookContext} from 'src/notebooks/notebook.context'
 import {TimeProvider, TimeContext} from 'src/notebooks/time.context'
 import AppSettingProvider, {AppSettingContext} from 'src/notebooks/app.context'
 import TimeRangeDropdown from 'src/shared/components/TimeRangeDropdown'
@@ -9,7 +9,7 @@ import {TimeZoneDropdown} from 'src/shared/components/TimeZoneDropdown'
 import {SubmitQueryButton} from 'src/timeMachine/components/SubmitQueryButton'
 
 const NotebookHeader: FC = () => {
-  const { id } = useContext(NotebookContext)
+  const { id, pipes } = useContext(NotebookContext)
   const { timeContext, addTimeContext, updateTimeContext } = useContext(TimeContext)
   const { timeZone, onSetTimeZone } = useContext(AppSettingContext)
 
@@ -48,6 +48,19 @@ const NotebookHeader: FC = () => {
       })
   }
 
+  function submit() {
+      const queries = pipes.filter(p => p.type === 'query')
+      .map(p => {
+          const q = p.queries[p.activeQuery]
+
+          return q.text
+      })
+      .filter(t => t.length)
+      .map((t, idx) => `result_${idx} = (${t})`)
+
+      console.log(`${queries.join('\n\n')}\n\nresult_${queries.length-1}`)
+  }
+
   return (
     <>
       <h1>NOTEBOOKS</h1>
@@ -65,7 +78,7 @@ const NotebookHeader: FC = () => {
             <SubmitQueryButton
                 submitButtonDisabled={ false }
                 queryStatus={ "NotStarted" }
-                onSubmit={ ()=> {} } />
+                onSubmit={ submit } />
         </div>
     </>
   )
@@ -73,11 +86,9 @@ const NotebookHeader: FC = () => {
 
 
 export default () => (
-    <NotebookProvider>
-        <TimeProvider>
+    <TimeProvider>
         <AppSettingProvider>
             <NotebookHeader />
         </AppSettingProvider>
-        </TimeProvider>
-    </NotebookProvider>
+    </TimeProvider>
 )

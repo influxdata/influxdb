@@ -28,7 +28,22 @@ const TEST_NOTEBOOK = {
       activeQuery: 0,
       queries: [
         {
-          text: 'this is just a test',
+          text: 'from(bucket: "project")\n |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n |> filter(fn: (r) => r["_measurement"] == "docker_container_cpu")',
+          editMode: 'advanced',
+          builderConfig: {
+            buckets: [],
+            tags: [],
+            functions: [],
+          },
+        },
+      ],
+    },
+    {
+      type: 'query',
+      activeQuery: 0,
+      queries: [
+        {
+          text: 'result_0\n |> filter(fn: (r) => r["_field"] == "usage_percent")',
           editMode: 'advanced',
           builderConfig: {
             buckets: [],
