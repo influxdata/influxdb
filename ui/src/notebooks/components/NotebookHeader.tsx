@@ -1,6 +1,7 @@
 import React, {FC, useContext} from 'react'
 import {NotebookProvider, NotebookContext} from 'src/notebooks/notebook.context'
 import {TimeProvider, TimeContext} from 'src/notebooks/time.context'
+import AppSettingProvider, {AppSettingContext} from 'src/notebooks/app.context'
 import TimeRangeDropdown from 'src/shared/components/TimeRangeDropdown'
 import AutoRefreshDropdown from 'src/shared/components/dropdown_auto_refresh/AutoRefreshDropdown'
 import {AutoRefreshStatus} from 'src/types'
@@ -10,6 +11,7 @@ import {SubmitQueryButton} from 'src/timeMachine/components/SubmitQueryButton'
 const NotebookHeader: FC = () => {
   const { id } = useContext(NotebookContext)
   const { timeContext, addTimeContext, updateTimeContext } = useContext(TimeContext)
+  const { timeZone, onSetTimeZone } = useContext(AppSettingContext)
 
   if (!timeContext.hasOwnProperty(id)) {
       addTimeContext(id)
@@ -51,8 +53,8 @@ const NotebookHeader: FC = () => {
       <h1>NOTEBOOKS</h1>
         <div className="notebook-header--buttons">
             <TimeZoneDropdown
-                timeZone={ 'Local' }
-                onSetTimeZone={ ()=>{} } />
+                timeZone={ timeZone }
+                onSetTimeZone={ onSetTimeZone } />
             <TimeRangeDropdown
                 timeRange={range}
                 onSetTimeRange={ updateRange } />
@@ -73,7 +75,9 @@ const NotebookHeader: FC = () => {
 export default () => (
     <NotebookProvider>
         <TimeProvider>
+        <AppSettingProvider>
             <NotebookHeader />
+        </AppSettingProvider>
         </TimeProvider>
     </NotebookProvider>
 )

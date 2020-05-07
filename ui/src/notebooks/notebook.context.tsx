@@ -3,7 +3,7 @@ import React, {FC, useState} from 'react'
 // TODO make this polymorphic too
 export type Pipe = any
 
-export interface NotebookContext {
+export interface NotebookContextType {
   id: string
   pipes: Pipe[]
   addPipe: (pipe: Pipe) => void
@@ -41,7 +41,7 @@ const TEST_NOTEBOOK = {
   ],
 }
 
-export const NotebookContext = React.createContext<NotebookContext>(
+export const NotebookContext = React.createContext<NotebookContextType>(
   DEFAULT_CONTEXT
 )
 
