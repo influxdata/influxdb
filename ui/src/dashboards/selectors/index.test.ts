@@ -8,7 +8,7 @@ import {
 import {RangeState} from 'src/dashboards/reducers/ranges'
 import {CurrentDashboardState} from 'src/shared/reducers/currentDashboard'
 import {TimeRange, CustomTimeRange} from 'src/types'
-import {AppState as AppPresentationState} from 'src/shared/reducers/app'
+import {AppState} from 'src/shared/reducers/app'
 
 // Constants
 import {
@@ -25,7 +25,7 @@ const untypedGetTimeRangeByDashboardID = getTimeRange as (a: {
 const untypedGetTimeRangeWithTimeZone = getTimeRangeWithTimezone as (a: {
   ranges: RangeState
   currentDashboard: CurrentDashboardState
-  app: AppPresentationState
+  app: AppState
 }) => TimeRange
 
 describe('Dashboards.Selector', () => {
@@ -76,7 +76,7 @@ describe('Dashboards.Selector', () => {
       persisted: {
         timeZone: 'Local',
       },
-    } as AppPresentationState
+    } as AppState
 
     expect(
       untypedGetTimeRangeWithTimeZone({ranges, currentDashboard, app})
@@ -90,7 +90,7 @@ describe('Dashboards.Selector', () => {
       persisted: {
         timeZone: 'UTC',
       },
-    } as AppPresentationState
+    } as AppState
 
     const expected = {
       lower: '2020-05-05T10:00:00Z',
@@ -98,6 +98,7 @@ describe('Dashboards.Selector', () => {
       type: 'custom',
     }
 
+    expect(app.persisted.timeZone).toEqual('UTC')
     expect(
       untypedGetTimeRangeWithTimeZone({ranges, currentDashboard, app})
     ).toEqual(expected)
