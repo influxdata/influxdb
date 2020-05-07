@@ -16,7 +16,6 @@ import {
   pastFifteenMinTimeRange,
   pastHourTimeRange,
 } from 'src/shared/constants/timeRanges'
-import appReducer from 'src/shared/reducers/app'
 
 const untypedGetTimeRangeByDashboardID = getTimeRange as (a: {
   ranges: RangeState
