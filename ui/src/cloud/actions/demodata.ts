@@ -90,17 +90,29 @@ export const getDemoDataBucketMembership = ({
 
   const {id: orgID} = getOrg(state)
 
-  let addBucketSucceeded = false
-
   try {
     await getDemoDataBucketMembershipAJAX(bucketID, userID)
 
     const normalizedBucket = await getNormalizedDemoDataBucket(bucketID)
+
     dispatch(addBucket(normalizedBucket))
+  } catch (error) {
+    const message = `Failed to add demodata bucket ${bucketName}: ${getErrorMessage(
+      error
+    )}`
 
-    addBucketSucceeded = true
+    dispatch(notify(demoDataAddBucketFailed(message)))
 
+    reportError(error, {
+      name: 'getDemoDataBucketMembership function',
+    })
+
+    return
+  }
+
+  try {
     const template = await DemoDataTemplates[bucketName]
+
     if (!template) {
       throw new Error(`dashboard template was not found`)
     }
@@ -121,13 +133,9 @@ export const getDemoDataBucketMembership = ({
 
     dispatch(notify(demoDataSucceeded(bucketName, url)))
   } catch (error) {
-    let message = getErrorMessage(error)
-
-    if (addBucketSucceeded) {
-      message = `Could not create dashboard for demodata bucket ${bucketName}: ${message}`
-    } else {
-      message = `Failed to add demodata bucket ${bucketName}: ${message}`
-    }
+    const message = `Could not create dashboard for demodata bucket ${bucketName}: ${getErrorMessage(
+      error
+    )}`
 
     dispatch(notify(demoDataAddBucketFailed(message)))
 
