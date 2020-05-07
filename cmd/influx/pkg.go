@@ -1149,11 +1149,14 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
 				m.ResPkgName, m.ResName, m.ResID.String(),
 				m.LabelPkgName, m.LabelName, m.LabelID.String(),
 			}
-			oldRow := newRow
-			if pkger.IsNew(m.StateStatus) {
-				oldRow = nil
+			switch {
+			case pkger.IsNew(m.StateStatus):
+				printer.AppendDiff(nil, newRow)
+			case pkger.IsRemoval(m.StateStatus):
+				printer.AppendDiff(newRow, nil)
+			default:
+				printer.AppendDiff(newRow, newRow)
 			}
-			printer.AppendDiff(oldRow, newRow)
 		}
 		printer.Render()
 	}
