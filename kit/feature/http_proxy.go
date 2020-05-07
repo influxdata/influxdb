@@ -39,7 +39,7 @@ func (p *HTTPProxy) Do(w http.ResponseWriter, r *http.Request) bool {
 const (
 	// headerProxyFlag is the HTTP header for enriching the request and response
 	// with the feature flag key that precipitated the proxying behavior.
-	headerProxyFlag = "X-Proxy-Flag"
+	headerProxyFlag = "X-Platform-Proxy-Flag"
 )
 
 // newReverseProxy creates a new single-host reverse proxy.

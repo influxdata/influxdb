@@ -27,9 +27,9 @@ func TestHTTPProxy_Proxying(t *testing.T) {
 		t.Error(err)
 	}
 
-	proxyFlag := resp.Header.Get("X-Proxy-Flag")
+	proxyFlag := resp.Header.Get("X-Platform-Proxy-Flag")
 	if proxyFlag != flagKey {
-		t.Error("X-Proxy-Flag header not populated")
+		t.Error("X-Platform-Proxy-Flag header not populated")
 	}
 
 	body, err := ioutil.ReadAll(resp.Body)
@@ -51,9 +51,9 @@ func TestHTTPProxy_DefaultBehavior(t *testing.T) {
 		t.Error(err)
 	}
 
-	proxyFlag := resp.Header.Get("X-Proxy-Flag")
+	proxyFlag := resp.Header.Get("X-Platform-Proxy-Flag")
 	if proxyFlag != "" {
-		t.Error("X-Proxy-Flag header populated")
+		t.Error("X-Platform-Proxy-Flag header populated")
 	}
 
 	body, err := ioutil.ReadAll(resp.Body)
@@ -69,7 +69,7 @@ func TestHTTPProxy_DefaultBehavior(t *testing.T) {
 
 func TestHTTPProxy_RequestHeader(t *testing.T) {
 	h := func(w http.ResponseWriter, r *http.Request) {
-		proxyFlag := r.Header.Get("X-Proxy-Flag")
+		proxyFlag := r.Header.Get("X-Platform-Proxy-Flag")
 		if proxyFlag != flagKey {
 			t.Error("expected X-Proxy-Flag to contain feature flag key")
 		}
