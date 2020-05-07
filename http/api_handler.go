@@ -51,6 +51,8 @@ type APIBackend struct {
 	WriteEventRecorder metric.EventRecorder
 	QueryEventRecorder metric.EventRecorder
 
+	AlgoWProxy FeatureProxyHandler
+
 	PointsWriter                    storage.PointsWriter
 	DeleteService                   influxdb.DeleteService
 	BackupService                   influxdb.BackupService
