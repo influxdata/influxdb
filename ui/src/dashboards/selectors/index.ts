@@ -37,7 +37,6 @@ export const setTimeToUTC = (date: string): string => {
   // Query should run against 10-11:00am UTC rather than querying
   // 10-11:00am local time (offset depending on timezone)
   const offset = new Date(date).getTimezoneOffset()
-  console.log('offset: ', offset)
   if (offset > 0) {
     // subtract tz minute difference
     return moment
