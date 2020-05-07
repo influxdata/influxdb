@@ -70,7 +70,7 @@ func TestFlagger(t *testing.T) {
 
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
-			subject, err := Make(test.env)
+			subject, err := Make(test.env, feature.ByKey)
 			if err != nil {
 				if test.expectMakeErr {
 					return
