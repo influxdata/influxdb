@@ -220,18 +220,15 @@ func (t *TaskManager) AttachQuery(q *influxql.Query, opt ExecutionOptions, inter
 	return ctx, func() { t.DetachQuery(qid) }, nil
 }
 
-// KillQuery enters a query into the killed state and closes the channel
-// from the TaskManager. This method can be used to forcefully terminate a
-// running query.
+// KillQuery enters a query into the killed state and closes the channel from
+// the TaskManager. This method can be used to forcefully terminate a running
+// query.
+//
+// We also need KillQuery() to remove items from our task list.  DetachQuery()
+// does these things so at the moment, KillQuery() is just a wrapper for
+// DetachQuery()
 func (t *TaskManager) KillQuery(qid uint64) error {
-	t.mu.Lock()
-	query := t.queries[qid]
-	t.mu.Unlock()
-
-	if query == nil {
-		return fmt.Errorf("no such query id: %d", qid)
-	}
-	return query.kill()
+	t.DetachQuery(quid)
 }
 
 // DetachQuery removes a query from the query table. If the query is not in the
@@ -240,9 +237,13 @@ func (t *TaskManager) DetachQuery(qid uint64) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	query := t.queries[qid]
-	if query == nil {
+	query, exists := t.queries[qid]
+	if !exists {
 		return fmt.Errorf("no such query id: %d", qid)
+	}
+
+	if query != nil {
+		return fmt.Errorf("nil query: %d", qid)
 	}
 
 	query.close()
