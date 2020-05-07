@@ -5431,8 +5431,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
   '/users/{userID}/password':
-    put:
-      operationId: PutUsersIDPassword
+    post:
+      operationId: PostUsersIDPassword
       tags:
         - Users
       summary: Update a password
