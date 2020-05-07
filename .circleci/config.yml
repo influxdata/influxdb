@@ -159,10 +159,6 @@ jobs:
   jstest:
     docker:
       - image: circleci/golang:1.13-node-browsers
-        environment:
-          TZ: "America/Los_Angeles"
-    environment:
-      TZ: "America/Los_Angeles"
     working_directory: /go/src/github.com/influxdata/influxdb
     parallelism: 8
     steps:
