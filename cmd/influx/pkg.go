@@ -47,10 +47,12 @@ type cmdPkgBuilder struct {
 	hideHeaders         bool
 	json                bool
 	name                string
+	names               []string
 	org                 organization
 	quiet               bool
 	recurse             bool
 	stackID             string
+	stackIDs            []string
 	urls                []string
 
 	applyOpts struct {
@@ -364,7 +366,10 @@ func (b *cmdPkgBuilder) cmdPkgValidate() *cobra.Command {
 func (b *cmdPkgBuilder) cmdStack() *cobra.Command {
 	cmd := b.newCmd("stack", nil, false)
 	cmd.Short = "Stack management commands"
-	cmd.AddCommand(b.cmdStackInit())
+	cmd.AddCommand(
+		b.cmdStackInit(),
+		b.cmdStackList(),
+	)
 	return cmd
 }
 
@@ -422,6 +427,73 @@ func (b *cmdPkgBuilder) stackInitRunEFn(cmd *cobra.Command, args []string) error
 		"URLs":        stack.URLs,
 		"Created At":  stack.CreatedAt,
 	})
+
+	return nil
+}
+
+func (b *cmdPkgBuilder) cmdStackList() *cobra.Command {
+	cmd := b.newCmd("list [flags]", b.stackListRunEFn, true)
+	cmd.Short = "List stack(s) and associated resources"
+	cmd.Aliases = []string{"ls"}
+
+	cmd.Flags().StringArrayVar(&b.stackIDs, "stack-id", nil, "Stack IDs to filter by")
+	cmd.Flags().StringArrayVar(&b.names, "stack-name", nil, "Stack names to filter by")
+	registerPrintOptions(cmd, &b.hideHeaders, &b.json)
+
+	b.org.register(cmd, false)
+
+	return cmd
+}
+
+func (b *cmdPkgBuilder) stackListRunEFn(cmd *cobra.Command, args []string) error {
+	pkgSVC, orgSVC, err := b.svcFn()
+	if err != nil {
+		return err
+	}
+
+	orgID, err := b.org.getID(orgSVC)
+	if err != nil {
+		return err
+	}
+
+	var stackIDs []influxdb.ID
+	for _, rawID := range b.stackIDs {
+		id, err := influxdb.IDFromString(rawID)
+		if err != nil {
+			return err
+		}
+		stackIDs = append(stackIDs, *id)
+	}
+
+	stacks, err := pkgSVC.ListStacks(context.Background(), orgID, pkger.ListFilter{
+		StackIDs: stackIDs,
+		Names:    b.names,
+	})
+	if err != nil {
+		return err
+	}
+
+	if b.json {
+		return b.writeJSON(stacks)
+	}
+
+	tabW := b.newTabWriter()
+	defer tabW.Flush()
+
+	tabW.HideHeaders(b.hideHeaders)
+	tabW.WriteHeaders("ID", "OrgID", "Name", "Description", "Num Resources", "URLs", "Created At")
+
+	for _, stack := range stacks {
+		tabW.Write(map[string]interface{}{
+			"ID":            stack.ID,
+			"OrgID":         stack.OrgID,
+			"Name":          stack.Name,
+			"Description":   stack.Description,
+			"Num Resources": len(stack.Resources),
+			"URLs":          stack.URLs,
+			"Created At":    stack.CreatedAt,
+		})
+	}
 
 	return nil
 }
