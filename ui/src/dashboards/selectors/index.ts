@@ -20,8 +20,6 @@ export const getTimeRangeWithTimezone = (state: AppState): TimeRange => {
   const timeZone = getTimeZone(state)
 
   const newTimeRange = {...timeRange}
-  console.log('timeZone: ', timeZone)
-  console.log('timeRange: ', timeRange)
   if (timeRange.type === 'custom' && timeZone === 'UTC') {
     // conforms dates to account to UTC with proper offset if needed
     newTimeRange.lower = setTimeToUTC(newTimeRange.lower)
@@ -39,6 +37,7 @@ export const setTimeToUTC = (date: string): string => {
   // Query should run against 10-11:00am UTC rather than querying
   // 10-11:00am local time (offset depending on timezone)
   const offset = new Date(date).getTimezoneOffset()
+  console.log('offset: ', offset)
   if (offset > 0) {
     // subtract tz minute difference
     return moment
