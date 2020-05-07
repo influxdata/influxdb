@@ -3,6 +3,7 @@ import {
   getTimeRange,
   getTimeRangeWithTimezone,
 } from 'src/dashboards/selectors/index'
+import moment from 'moment'
 
 // Types
 import {RangeState} from 'src/dashboards/reducers/ranges'
@@ -34,9 +35,15 @@ describe('Dashboards.Selector', () => {
     '04c6f3976f4b8000',
     '04c6f3976f4b8002',
   ]
+  const lower = '2020-05-05T10:00:00-07:00'
+  const upper = '2020-05-05T11:00:00-07:00'
   const customTimeRange = {
-    lower: '2020-05-05T10:00:00-07:00',
-    upper: '2020-05-05T11:00:00-07:00',
+    lower: moment(lower)
+      .utcOffset(lower)
+      .format(),
+    upper: moment(upper)
+      .utcOffset(upper)
+      .format(),
     type: 'custom',
   } as CustomTimeRange
   const ranges: RangeState = {

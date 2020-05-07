@@ -28,24 +28,22 @@ export const getTimeRangeWithTimezone = (state: AppState): TimeRange => {
   return newTimeRange
 }
 
+// The purpose of this function is to set a user's custom time range selection
+// from the local time to the same time in UTC if UTC is selected from the
+// timezone dropdown. This is feature was original requested here:
+// https://github.com/influxdata/influxdb/issues/17877
+// Example: user selected 10-11:00am and sets the dropdown to UTC
+// Query should run against 10-11:00am UTC rather than querying
+// 10-11:00am local time (offset depending on timezone)
 export const setTimeToUTC = (date: string): string => {
-  // The purpose of this function is to set a user's custom time range selection
-  // from the local time to the same time in UTC if UTC is selected from the
-  // timezone dropdown. This is feature was original requested here:
-  // https://github.com/influxdata/influxdb/issues/17877
-  // Example: user selected 10-11:00am and sets the dropdown to UTC
-  // Query should run against 10-11:00am UTC rather than querying
-  // 10-11:00am local time (offset depending on timezone)
   const offset = new Date(date).getTimezoneOffset()
   if (offset > 0) {
-    // subtract tz minute difference
     return moment
       .utc(date)
       .subtract(offset, 'minutes')
       .format()
   }
   if (offset < 0) {
-    // add tz minute difference
     return moment
       .utc(date)
       .add(offset, 'minutes')
