@@ -11,6 +11,41 @@ commands:
       - run:
           name: Add llvm-config to the PATH
           command: sudo update-alternatives --install /usr/bin/llvm-config llvm-config /usr/lib/llvm-7/bin/llvm-config 1
+  install_flatc:
+    description: Install Flatbuffers compiler
+    steps:
+      - run:
+          name: Install CMake
+          command: sudo apt install -y cmake
+      - run:
+          name: Checkout Flatbuffers
+          command: >
+            git clone --
+            https://github.com/google/flatbuffers.git
+            /home/circleci/flatbuffers
+      - run:
+          name: Create Flatbuffers Makefiles
+          command: >
+            cmake
+            -S /home/circleci/flatbuffers
+            -B /home/circleci/flatbuffers
+            -G "Unix Makefiles"
+            -DCMAKE_BUILD_TYPE=Release
+      - run:
+          name: Build Flatbuffers
+          command: >
+            make
+            -C /home/circleci/flatbuffers
+            -j $(nproc)
+            flatc
+      - run:
+          name: Add flatc to the PATH
+          command: >
+            sudo update-alternatives --install
+            /usr/bin/flatc
+            flatc
+            /home/circleci/flatbuffers/flatc
+            1
 
   rust_nightly:
     description: Install nightly tools
@@ -56,6 +91,7 @@ jobs:
       - checkout
       - rust_nightly
       - install_clang
+      - install_flatc
       - run:
           name: Clippy
           command: cargo clippy --all-targets --workspace -- -D warnings
@@ -66,6 +102,7 @@ jobs:
       - checkout
       - cache_restore
       - install_clang
+      - install_flatc
       - run:
           name: Cargo test
           command: cargo test --workspace
@@ -77,6 +114,7 @@ jobs:
       - checkout
       - cache_restore
       - install_clang
+      - install_flatc
       - run:
           name: Cargo build
           command: cargo build --workspace
