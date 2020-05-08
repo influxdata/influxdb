@@ -16,6 +16,9 @@ type Flagger struct {
 
 // Make a Flagger that returns defaults with any overrides parsed from the string.
 func Make(m map[string]string, byKey feature.ByKeyFn) (Flagger, error) {
+	if byKey == nil {
+		byKey = feature.ByKey
+	}
 	return Flagger{
 		overrides: m,
 		byKey:     byKey,
