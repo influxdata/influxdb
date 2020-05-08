@@ -6,6 +6,7 @@
 1. [17941](https://github.com/influxdata/influxdb/pull/17941): Enforce DNS name compliance on all pkger resources' metadata.name field
 1. [17989](https://github.com/influxdata/influxdb/pull/17989): Add stateful pkg management with stacks
 1. [18007](https://github.com/influxdata/influxdb/pull/18007): Add remove and list pkger stack commands to influx CLI
+1. [18017](https://github.com/influxdata/influxdb/pull/18017): Fixup display message for interactive influx setup cmd
 
 ### Bug Fixes
 

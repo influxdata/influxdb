@@ -316,7 +316,7 @@ func getConfirm(ui *input.UI, or *influxdb.OnboardingRequest) bool {
 	for {
 		rp := "infinite"
 		if or.RetentionPeriod > 0 {
-			rp = fmt.Sprintf("%d hrs", or.RetentionPeriod)
+			rp = fmt.Sprintf("%d hrs", or.RetentionPeriod/uint(time.Hour))
 		}
 		ui.Writer.Write(promptWithColor(fmt.Sprintf(`
 You have entered:
