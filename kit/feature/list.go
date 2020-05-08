@@ -30,12 +30,28 @@ func FrontendExample() IntFlag {
 	return frontendExample
 }
 
+var newAuth = MakeBoolFlag(
+	"New Auth Package",
+	"newAuth",
+	"Alirie Gray",
+	false,
+	Temporary,
+	false,
+)
+
+// NewAuthPackage - Enables the refactored authorization api
+func NewAuthPackage() BoolFlag {
+	return newAuth
+}
+
 var all = []Flag{
 	backendExample,
 	frontendExample,
+	newAuth,
 }
 
 var byKey = map[string]Flag{
 	"backendExample":  backendExample,
 	"frontendExample": frontendExample,
+	"newAuth":         newAuth,
 }

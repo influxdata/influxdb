@@ -14,10 +14,10 @@ var _ influxdb.AuthorizationService = (*Service)(nil)
 type Service struct {
 	store          *Store
 	tokenGenerator influxdb.TokenGenerator
-	tenantService  influxdb.TenantService
+	tenantService  TenantService
 }
 
-func NewService(st *Store, ts influxdb.TenantService) influxdb.AuthorizationService {
+func NewService(st *Store, ts TenantService) influxdb.AuthorizationService {
 	return &Service{
 		store:          st,
 		tokenGenerator: rand.NewTokenGenerator(64),

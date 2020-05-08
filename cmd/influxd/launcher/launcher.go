@@ -17,6 +17,7 @@ import (
 
 	"github.com/influxdata/flux"
 	platform "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/authorization"
 	"github.com/influxdata/influxdb/v2/authorizer"
 	"github.com/influxdata/influxdb/v2/bolt"
 	"github.com/influxdata/influxdb/v2/chronograf/server"
@@ -957,8 +958,32 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		onboardHTTPServer = tenant.NewHTTPOnboardHandler(m.log, onboardSvc)
 	}
 
+	// feature flagging for new authorization service
+	var authHTTPServer *kithttp.FeatureHandler
 	{
-		platformHandler := http.NewPlatformHandler(m.apibackend, http.WithResourceHandler(pkgHTTPServer), http.WithResourceHandler(onboardHTTPServer))
+		ts := tenant.NewService(store) // todo (al): remove when tenant is un-flagged
+		authLogger := m.log.With(zap.String("handler", "authorization"))
+
+		oldBackend := http.NewAuthorizationBackend(authLogger, m.apibackend)
+		oldBackend.AuthorizationService = authorizer.NewAuthorizationService(authSvc)
+		oldHandler := http.NewAuthorizationHandler(authLogger, oldBackend)
+
+		authStore, err := authorization.NewStore(m.kvStore)
+		if err != nil {
+			m.log.Error("Failed creating new authorization store", zap.Error(err))
+			return err
+		}
+		authService := authorization.NewService(authStore, ts)
+		authService = authorization.NewAuthedAuthorizationService(authService, ts)
+		authService = authorization.NewAuthMetrics(m.reg, authService)
+		authService = authorization.NewAuthLogger(authLogger, authService)
+
+		newHandler := authorization.NewHTTPAuthHandler(m.log, authService, ts, lookupSvc)
+		authHTTPServer = kithttp.NewFeatureHandler(feature.NewAuthPackage(), flagger, oldHandler, newHandler, newHandler.Prefix())
+	}
+
+	{
+		platformHandler := http.NewPlatformHandler(m.apibackend, http.WithResourceHandler(pkgHTTPServer), http.WithResourceHandler(onboardHTTPServer), http.WithResourceHandler(authHTTPServer))
 
 		httpLogger := m.log.With(zap.String("service", "http"))
 		m.httpServer.Handler = http.NewHandlerFromRegistry(

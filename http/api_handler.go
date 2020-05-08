@@ -127,10 +127,6 @@ func NewAPIHandler(b *APIBackend, opts ...APIHandlerOptFn) *APIHandler {
 
 	h.Mount("/api/v2", serveLinksHandler(b.HTTPErrorHandler))
 
-	authorizationBackend := NewAuthorizationBackend(b.Logger.With(zap.String("handler", "authorization")), b)
-	authorizationBackend.AuthorizationService = authorizer.NewAuthorizationService(b.AuthorizationService)
-	h.Mount(prefixAuthorization, NewAuthorizationHandler(b.Logger, authorizationBackend))
-
 	bucketBackend := NewBucketBackend(b.Logger.With(zap.String("handler", "bucket")), b)
 	bucketBackend.BucketService = authorizer.NewBucketService(b.BucketService, noAuthUserResourceMappingService)
 	h.Mount(prefixBuckets, NewBucketHandler(b.Logger, bucketBackend))
