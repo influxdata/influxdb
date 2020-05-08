@@ -40,8 +40,10 @@ use grpc::{
     read_group_request::Group,
     read_response::{frame::Data, DataType},
     storage_client::StorageClient,
-    Bucket, CreateBucketRequest, Node, Organization, Predicate, ReadFilterRequest,
-    ReadGroupRequest, ReadSource, Tag, TagKeysRequest, TagValuesRequest, TimestampRange,
+    Bucket, CreateBucketRequest, MeasurementFieldsRequest, MeasurementNamesRequest,
+    MeasurementTagKeysRequest, MeasurementTagValuesRequest, Node, Organization, Predicate,
+    ReadFilterRequest, ReadGroupRequest, ReadSource, Tag, TagKeysRequest, TagValuesRequest,
+    TimestampRange,
 };
 
 type Error = Box<dyn std::error::Error>;
@@ -166,12 +168,16 @@ cpu_load_short,host=server01,region=us-west value=0.64 {}
 cpu_load_short,host=server01 value=27.99 {}
 cpu_load_short,host=server02,region=us-west value=3.89 {}
 cpu_load_short,host=server01,region=us-east value=1234567.891011 {}
-cpu_load_short,host=server01,region=us-west value=0.000003 {}",
+cpu_load_short,host=server01,region=us-west value=0.000003 {}
+system,host=server03 uptime=1303385i {}
+swap,host=server01,name=disk0 in=3i,out=4i {}",
             ns_since_epoch,
             ns_since_epoch + 1,
             ns_since_epoch + 2,
             ns_since_epoch + 3,
             ns_since_epoch + 4,
+            ns_since_epoch + 5,
+            ns_since_epoch + 6,
         ),
     )
     .await?;
@@ -208,11 +214,19 @@ cpu_load_short,server01,value,{},27.99
 _m,host,region,_f,_time,_value
 cpu_load_short,server01,us-east,value,{},1234567.891011
 
+_m,host,name,_f,_time,_value
+swap,server01,disk0,in,{},3
+
+_m,host,name,_f,_time,_value
+swap,server01,disk0,out,{},4
+
 ",
             ns_since_epoch,
             ns_since_epoch + 4,
             ns_since_epoch + 1,
             ns_since_epoch + 3,
+            ns_since_epoch + 6,
+            ns_since_epoch + 6,
         )
     );
 
@@ -269,7 +283,7 @@ cpu_load_short,server01,us-east,value,{},1234567.891011
         .flat_map(|f| f.data)
         .collect();
 
-    assert_eq!(frames.len(), 6);
+    assert_eq!(frames.len(), 10);
 
     let f = assert_unwrap!(&frames[0], Data::Series, "in frame 0");
     assert_eq!(f.data_type, DataType::Float as i32, "in frame 0");
@@ -331,6 +345,40 @@ cpu_load_short,server01,us-east,value,{},1234567.891011
         "in frame 5"
     );
 
+    let f = assert_unwrap!(&frames[6], Data::Series, "in frame 6");
+    assert_eq!(f.data_type, DataType::Integer as i32, "in frame 6");
+    assert_eq!(
+        tags_as_strings(&f.tags),
+        vec![
+            ("_field", "in"),
+            ("_measurement", "swap"),
+            ("host", "server01"),
+            ("name", "disk0"),
+        ],
+        "in frame 6",
+    );
+
+    let f = assert_unwrap!(&frames[7], Data::IntegerPoints, "in frame 7");
+    assert_eq!(f.timestamps, [ns_since_epoch + 6], "in frame 7");
+    assert_eq!(f.values, [3], "in frame 7");
+
+    let f = assert_unwrap!(&frames[8], Data::Series, "in frame 8");
+    assert_eq!(f.data_type, DataType::Integer as i32, "in frame 8");
+    assert_eq!(
+        tags_as_strings(&f.tags),
+        vec![
+            ("_field", "out"),
+            ("_measurement", "swap"),
+            ("host", "server01"),
+            ("name", "disk0"),
+        ],
+        "in frame 8",
+    );
+
+    let f = assert_unwrap!(&frames[9], Data::IntegerPoints, "in frame 9");
+    assert_eq!(f.timestamps, [ns_since_epoch + 6], "in frame 9");
+    assert_eq!(f.values, [4], "in frame 9");
+
     let tag_keys_request = tonic::Request::new(TagKeysRequest {
         tags_source: read_source.clone(),
         range: range.clone(),
@@ -343,7 +391,10 @@ cpu_load_short,server01,us-east,value,{},1234567.891011
     let keys = &responses[0].values;
     let keys: Vec<_> = keys.iter().map(|s| str::from_utf8(s).unwrap()).collect();
 
-    assert_eq!(keys, vec!["_field", "_measurement", "host", "region"]);
+    assert_eq!(
+        keys,
+        vec!["_field", "_measurement", "host", "name", "region"]
+    );
 
     let tag_values_request = tonic::Request::new(TagValuesRequest {
         tags_source: read_source.clone(),
@@ -358,12 +409,12 @@ cpu_load_short,server01,us-east,value,{},1234567.891011
     let values = &responses[0].values;
     let values: Vec<_> = values.iter().map(|s| str::from_utf8(s).unwrap()).collect();
 
-    assert_eq!(values, vec!["server01", "server02"]);
+    assert_eq!(values, vec!["server01", "server02", "server03"]);
 
     let read_group_request = tonic::Request::new(ReadGroupRequest {
-        read_source,
-        range,
-        predicate,
+        read_source: read_source.clone(),
+        range: range.clone(),
+        predicate: predicate.clone(),
         group_keys: vec![String::from("region")],
         group: Group::By as _,
         aggregate: None,
@@ -378,7 +429,7 @@ cpu_load_short,server01,us-east,value,{},1234567.891011
         .flat_map(|f| f.data)
         .collect();
 
-    assert_eq!(frames.len(), 6);
+    assert_eq!(frames.len(), 8);
 
     let f = assert_unwrap!(&frames[0], Data::Group, "in frame 0");
     assert_eq!(
@@ -417,7 +468,7 @@ cpu_load_short,server01,us-east,value,{},1234567.891011
     let f = assert_unwrap!(&frames[4], Data::Group, "in frame 4");
     assert_eq!(
         byte_vecs_to_strings(&f.tag_keys),
-        vec!["_field", "_measurement", "host"]
+        vec!["_field", "_measurement", "host", "name"]
     );
     assert_eq!(f.partition_key_vals.len(), 1, "in frame 4");
     assert!(f.partition_key_vals[0].is_empty(), "in frame 4");
@@ -425,6 +476,88 @@ cpu_load_short,server01,us-east,value,{},1234567.891011
     let f = assert_unwrap!(&frames[5], Data::FloatPoints, "in frame 5");
     assert_eq!(f.timestamps, [ns_since_epoch + 1], "in frame 5");
     assert!(all_approximately_equal(&f.values, &[27.99]), "in frame 5");
+
+    let measurement_names_request = tonic::Request::new(MeasurementNamesRequest {
+        source: read_source.clone(),
+        range: range.clone(),
+    });
+
+    let measurement_names_response = storage_client
+        .measurement_names(measurement_names_request)
+        .await?;
+    let responses: Vec<_> = measurement_names_response
+        .into_inner()
+        .try_collect()
+        .await?;
+
+    let values = &responses[0].values;
+    let values: Vec<_> = values.iter().map(|s| str::from_utf8(s).unwrap()).collect();
+
+    assert_eq!(values, vec!["cpu_load_short", "swap", "system"]);
+
+    let measurement_tag_keys_request = tonic::Request::new(MeasurementTagKeysRequest {
+        source: read_source.clone(),
+        measurement: String::from("cpu_load_short"),
+        range: range.clone(),
+        predicate: predicate.clone(),
+    });
+
+    let measurement_tag_keys_response = storage_client
+        .measurement_tag_keys(measurement_tag_keys_request)
+        .await?;
+    let responses: Vec<_> = measurement_tag_keys_response
+        .into_inner()
+        .try_collect()
+        .await?;
+
+    let values = &responses[0].values;
+    let values: Vec<_> = values.iter().map(|s| str::from_utf8(s).unwrap()).collect();
+
+    assert_eq!(values, vec!["_field", "_measurement", "host", "region"]);
+
+    let measurement_tag_values_request = tonic::Request::new(MeasurementTagValuesRequest {
+        source: read_source.clone(),
+        measurement: String::from("cpu_load_short"),
+        tag_key: String::from("host"),
+        range: range.clone(),
+        predicate: predicate.clone(),
+    });
+
+    let measurement_tag_values_response = storage_client
+        .measurement_tag_values(measurement_tag_values_request)
+        .await?;
+    let responses: Vec<_> = measurement_tag_values_response
+        .into_inner()
+        .try_collect()
+        .await?;
+
+    let values = &responses[0].values;
+    let values: Vec<_> = values.iter().map(|s| str::from_utf8(s).unwrap()).collect();
+
+    assert_eq!(values, vec!["server01", "server02"]);
+
+    let measurement_fields_request = tonic::Request::new(MeasurementFieldsRequest {
+        source: read_source.clone(),
+        measurement: String::from("cpu_load_short"),
+        range: range.clone(),
+        predicate: predicate.clone(),
+    });
+
+    let measurement_fields_response = storage_client
+        .measurement_fields(measurement_fields_request)
+        .await?;
+    let responses: Vec<_> = measurement_fields_response
+        .into_inner()
+        .try_collect()
+        .await?;
+
+    let fields = &responses[0].fields;
+    assert_eq!(fields.len(), 1);
+
+    let field = &fields[0];
+    assert_eq!(field.key, "value");
+    assert_eq!(field.r#type, DataType::Float as i32);
+    assert_eq!(field.timestamp, ns_since_epoch + 4);
 
     Ok(())
 }

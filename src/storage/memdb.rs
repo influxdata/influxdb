@@ -1,5 +1,5 @@
 use crate::delorean::{Node, Predicate, TimestampRange};
-use crate::line_parser::{self, Point, PointType};
+use crate::line_parser::{self, index_pairs, Point, PointType};
 use crate::storage::partitioned_store::{ReadBatch, ReadValues};
 use crate::storage::predicate::{Evaluate, EvaluateVisitor};
 use crate::storage::{ReadPoint, SeriesDataType, StorageError};
@@ -7,7 +7,7 @@ use crate::storage::{ReadPoint, SeriesDataType, StorageError};
 use croaring::Treemap;
 use futures::stream::{self, BoxStream};
 use futures::StreamExt;
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{btree_map::Entry, BTreeMap, BTreeSet, HashMap};
 
 /// memdb implements an in memory database for the Partition trait. It currently assumes that
 /// data arrives in time ascending order per series. It has no limits on the number of series
@@ -274,6 +274,135 @@ impl MemDB {
 
         Ok(stream::iter(read_batches.into_iter()).boxed())
     }
+
+    pub fn get_measurement_names(
+        &self,
+        _range: Option<&TimestampRange>,
+    ) -> Result<BoxStream<'_, String>, StorageError> {
+        match self.series_map.tag_keys.get("_m") {
+            Some(values) => {
+                let values = values.iter().cloned();
+                Ok(stream::iter(values).boxed())
+            }
+            None => Ok(stream::empty().boxed()),
+        }
+    }
+
+    pub fn get_measurement_tag_keys(
+        &self,
+        measurement: &str,
+        _predicate: Option<&Predicate>,
+        _range: Option<&TimestampRange>,
+    ) -> Result<BoxStream<'_, String>, StorageError> {
+        let prefix = format!("{},", measurement);
+        let mut tag_keys = BTreeSet::new();
+
+        let matching = self
+            .series_map
+            .series_key_to_id
+            .keys()
+            .filter(|series_key| series_key.starts_with(&prefix));
+
+        for series_key in matching {
+            for pair in index_pairs(series_key) {
+                tag_keys.insert(pair.key);
+            }
+        }
+
+        Ok(stream::iter(tag_keys).boxed())
+    }
+
+    pub fn get_measurement_tag_values(
+        &self,
+        measurement: &str,
+        tag_key: &str,
+        _predicate: Option<&Predicate>,
+        _range: Option<&TimestampRange>,
+    ) -> Result<BoxStream<'_, String>, StorageError> {
+        let prefix = format!("{},", measurement);
+        let mut tag_values = BTreeSet::new();
+
+        let matching = self
+            .series_map
+            .series_key_to_id
+            .keys()
+            .filter(|series_key| series_key.starts_with(&prefix));
+
+        for series_key in matching {
+            for pair in index_pairs(series_key)
+                .into_iter()
+                .filter(|pair| pair.key == tag_key)
+            {
+                tag_values.insert(pair.value);
+            }
+        }
+
+        Ok(stream::iter(tag_values).boxed())
+    }
+
+    pub fn get_measurement_fields(
+        &self,
+        measurement: &str,
+        _predicate: Option<&Predicate>,
+        range: Option<&TimestampRange>,
+    ) -> Result<BoxStream<'_, (String, SeriesDataType, i64)>, StorageError> {
+        let prefix = format!("{},", measurement);
+
+        let mut fields = BTreeMap::new();
+
+        let range = range.cloned().unwrap_or_else(TimestampRange::max);
+
+        // TODO: Also filter by predicate and range
+        let matching = self
+            .series_map
+            .series_id_to_key_and_type
+            .iter()
+            .filter(|(_, (series_key, _))| series_key.starts_with(&prefix));
+
+        for (series_id, (series_key, series_type)) in matching {
+            let series_type = *series_type;
+            let index_pairs = index_pairs(&series_key);
+            let field_pair = index_pairs
+                .into_iter()
+                .find(|pair| pair.key == "_f")
+                .expect("Series must have a field");
+
+            let last_time = match series_type {
+                SeriesDataType::I64 => {
+                    let buff = self.series_data.i64_series.get(&series_id).unwrap();
+                    buff.read(&range)
+                        .last()
+                        .map(|point| point.time)
+                        .unwrap_or(std::i64::MIN)
+                }
+                SeriesDataType::F64 => {
+                    let buff = self.series_data.f64_series.get(&series_id).unwrap();
+                    buff.read(&range)
+                        .last()
+                        .map(|point| point.time)
+                        .unwrap_or(std::i64::MIN)
+                }
+            };
+
+            match fields.entry(field_pair.value) {
+                Entry::Occupied(mut entry) => {
+                    let (_, current_time) = entry.get();
+                    if last_time > *current_time {
+                        entry.insert((series_type, last_time));
+                    }
+                }
+                Entry::Vacant(entry) => {
+                    entry.insert((series_type, last_time));
+                }
+            }
+        }
+
+        let measurement_fields = fields
+            .into_iter()
+            .map(|(field_name, (series_type, timestamp))| (field_name, series_type, timestamp));
+
+        Ok(stream::iter(measurement_fields).boxed())
+    }
 }
 
 fn evaluate_node(series_map: &SeriesMap, n: &Node) -> Result<Treemap, StorageError> {
@@ -332,16 +461,16 @@ mod tests {
                     key: "cpu,host=b,region=west\tusage_system".to_string(),
                     values: ReadValues::I64(vec![
                         ReadPoint { time: 0, value: 1 },
-                        ReadPoint { time: 1, value: 2 },
+                        ReadPoint { time: 4, value: 2 },
                     ]),
                 },
                 ReadBatch {
                     key: "cpu,host=a,region=west\tusage_system".to_string(),
-                    values: ReadValues::I64(vec![ReadPoint { time: 0, value: 1 }]),
+                    values: ReadValues::I64(vec![ReadPoint { time: 1, value: 1 }]),
                 },
                 ReadBatch {
                     key: "cpu,host=a,region=west\tusage_user".to_string(),
-                    values: ReadValues::I64(vec![ReadPoint { time: 0, value: 1 }]),
+                    values: ReadValues::I64(vec![ReadPoint { time: 2, value: 1 }]),
                 },
             ],
         );
@@ -360,11 +489,11 @@ mod tests {
             vec![
                 ReadBatch {
                     key: "cpu,host=a,region=west\tusage_system".to_string(),
-                    values: ReadValues::I64(vec![ReadPoint { time: 0, value: 1 }]),
+                    values: ReadValues::I64(vec![ReadPoint { time: 1, value: 1 }]),
                 },
                 ReadBatch {
                     key: "cpu,host=a,region=west\tusage_user".to_string(),
-                    values: ReadValues::I64(vec![ReadPoint { time: 0, value: 1 }]),
+                    values: ReadValues::I64(vec![ReadPoint { time: 2, value: 1 }]),
                 },
             ]
         );
@@ -384,7 +513,7 @@ mod tests {
                 key: "cpu,host=b,region=west\tusage_system".to_string(),
                 values: ReadValues::I64(vec![
                     ReadPoint { time: 0, value: 1 },
-                    ReadPoint { time: 1, value: 2 },
+                    ReadPoint { time: 4, value: 2 },
                 ]),
             },]
         );
@@ -403,26 +532,52 @@ mod tests {
             vec![
                 ReadBatch {
                     key: "cpu,host=a,region=west\tusage_system".to_string(),
-                    values: ReadValues::I64(vec![ReadPoint { time: 0, value: 1 },]),
+                    values: ReadValues::I64(vec![ReadPoint { time: 1, value: 1 },]),
                 },
                 ReadBatch {
                     key: "cpu,host=a,region=west\tusage_user".to_string(),
-                    values: ReadValues::I64(vec![ReadPoint { time: 0, value: 1 },]),
+                    values: ReadValues::I64(vec![ReadPoint { time: 2, value: 1 },]),
                 },
                 ReadBatch {
                     key: "mem,host=b,region=west\tfree".to_string(),
-                    values: ReadValues::I64(vec![ReadPoint { time: 0, value: 1 },]),
+                    values: ReadValues::I64(vec![ReadPoint { time: 3, value: 1 },]),
                 },
+            ]
+        );
+    }
+
+    #[test]
+    fn tag_keys_for_measurement() {
+        let memdb = setup_db();
+
+        let tag_keys = memdb.get_measurement_tag_keys("cpu", None, None).unwrap();
+        let tag_keys: Vec<_> = futures::executor::block_on_stream(tag_keys).collect();
+
+        assert_eq!(tag_keys, vec!["_f", "_m", "host", "region"])
+    }
+
+    #[test]
+    fn fields_for_measurement() {
+        let memdb = setup_db();
+
+        let fields = memdb.get_measurement_fields("cpu", None, None).unwrap();
+        let fields: Vec<_> = futures::executor::block_on_stream(fields).collect();
+
+        assert_eq!(
+            fields,
+            vec![
+                (String::from("usage_system"), SeriesDataType::I64, 4),
+                (String::from("usage_user"), SeriesDataType::I64, 2)
             ]
         );
     }
 
     fn setup_db() -> MemDB {
         let p1 = PointType::new_i64("cpu,host=b,region=west\tusage_system".to_string(), 1, 0);
-        let p2 = PointType::new_i64("cpu,host=a,region=west\tusage_system".to_string(), 1, 0);
-        let p3 = PointType::new_i64("cpu,host=a,region=west\tusage_user".to_string(), 1, 0);
-        let p4 = PointType::new_i64("mem,host=b,region=west\tfree".to_string(), 1, 0);
-        let p5 = PointType::new_i64("cpu,host=b,region=west\tusage_system".to_string(), 2, 1);
+        let p2 = PointType::new_i64("cpu,host=a,region=west\tusage_system".to_string(), 1, 1);
+        let p3 = PointType::new_i64("cpu,host=a,region=west\tusage_user".to_string(), 1, 2);
+        let p4 = PointType::new_i64("mem,host=b,region=west\tfree".to_string(), 1, 3);
+        let p5 = PointType::new_i64("cpu,host=b,region=west\tusage_system".to_string(), 2, 4);
 
         let mut points = vec![p1, p2, p3, p4, p5];
 

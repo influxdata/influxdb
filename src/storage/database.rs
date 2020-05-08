@@ -1,9 +1,11 @@
 use crate::delorean::{Bucket, Predicate, TimestampRange};
 use crate::id::Id;
 use crate::line_parser::PointType;
-use crate::storage::memdb::MemDB;
-use crate::storage::partitioned_store::{Partition, ReadBatch};
-use crate::storage::StorageError;
+use crate::storage::{
+    memdb::MemDB,
+    partitioned_store::{Partition, ReadBatch},
+    SeriesDataType, StorageError,
+};
 
 use futures::StreamExt;
 use std::{collections::HashMap, convert::TryInto, sync::Arc};
@@ -90,6 +92,55 @@ impl BucketData {
     ) -> Result<Vec<String>, StorageError> {
         let p = self.partition.read().await;
         let stream = p.get_tag_values(tag_key, predicate, range).await?;
+        Ok(stream.collect().await)
+    }
+
+    async fn get_measurement_names(
+        &self,
+        range: Option<&TimestampRange>,
+    ) -> Result<Vec<String>, StorageError> {
+        let p = self.partition.read().await;
+        let stream = p.get_measurement_names(range).await?;
+        Ok(stream.collect().await)
+    }
+
+    async fn get_measurement_tag_keys(
+        &self,
+        measurement: &str,
+        predicate: Option<&Predicate>,
+        range: Option<&TimestampRange>,
+    ) -> Result<Vec<String>, StorageError> {
+        let p = self.partition.read().await;
+        let stream = p
+            .get_measurement_tag_keys(measurement, predicate, range)
+            .await?;
+        Ok(stream.collect().await)
+    }
+
+    async fn get_measurement_tag_values(
+        &self,
+        measurement: &str,
+        tag_key: &str,
+        predicate: Option<&Predicate>,
+        range: Option<&TimestampRange>,
+    ) -> Result<Vec<String>, StorageError> {
+        let p = self.partition.read().await;
+        let stream = p
+            .get_measurement_tag_values(measurement, tag_key, predicate, range)
+            .await?;
+        Ok(stream.collect().await)
+    }
+
+    async fn get_measurement_fields(
+        &self,
+        measurement: &str,
+        predicate: Option<&Predicate>,
+        range: Option<&TimestampRange>,
+    ) -> Result<Vec<(String, SeriesDataType, i64)>, StorageError> {
+        let p = self.partition.read().await;
+        let stream = p
+            .get_measurement_fields(measurement, predicate, range)
+            .await?;
         Ok(stream.collect().await)
     }
 }
@@ -181,6 +232,63 @@ impl Database {
         let bucket_data = self.bucket_data(org_id, bucket_id).await?;
 
         bucket_data.get_tag_values(tag_key, predicate, range).await
+    }
+
+    pub async fn get_measurement_names(
+        &self,
+        org_id: Id,
+        bucket_id: Id,
+        range: Option<&TimestampRange>,
+    ) -> Result<Vec<String>, StorageError> {
+        let bucket_data = self.bucket_data(org_id, bucket_id).await?;
+
+        bucket_data.get_measurement_names(range).await
+    }
+
+    pub async fn get_measurement_tag_keys(
+        &self,
+        org_id: Id,
+        bucket_id: Id,
+        measurement: &str,
+        predicate: Option<&Predicate>,
+        range: Option<&TimestampRange>,
+    ) -> Result<Vec<String>, StorageError> {
+        let bucket_data = self.bucket_data(org_id, bucket_id).await?;
+
+        bucket_data
+            .get_measurement_tag_keys(measurement, predicate, range)
+            .await
+    }
+
+    pub async fn get_measurement_tag_values(
+        &self,
+        org_id: Id,
+        bucket_id: Id,
+        measurement: &str,
+        tag_key: &str,
+        predicate: Option<&Predicate>,
+        range: Option<&TimestampRange>,
+    ) -> Result<Vec<String>, StorageError> {
+        let bucket_data = self.bucket_data(org_id, bucket_id).await?;
+
+        bucket_data
+            .get_measurement_tag_values(measurement, tag_key, predicate, range)
+            .await
+    }
+
+    pub async fn get_measurement_fields(
+        &self,
+        org_id: Id,
+        bucket_id: Id,
+        measurement: &str,
+        predicate: Option<&Predicate>,
+        range: Option<&TimestampRange>,
+    ) -> Result<Vec<(String, SeriesDataType, i64)>, StorageError> {
+        let bucket_data = self.bucket_data(org_id, bucket_id).await?;
+
+        bucket_data
+            .get_measurement_fields(measurement, predicate, range)
+            .await
     }
 
     pub async fn buckets(&self, org_id: Id) -> Result<Vec<Bucket>, StorageError> {

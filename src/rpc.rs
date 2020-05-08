@@ -1,16 +1,21 @@
 use delorean::delorean::{
     delorean_server::Delorean,
+    measurement_fields_response::MessageField,
     read_response::{
         frame::Data, DataType, FloatPointsFrame, Frame, GroupFrame, IntegerPointsFrame, SeriesFrame,
     },
     storage_server::Storage,
     CapabilitiesResponse, CreateBucketRequest, CreateBucketResponse, DeleteBucketRequest,
-    DeleteBucketResponse, GetBucketsResponse, Organization, Predicate, ReadFilterRequest,
-    ReadGroupRequest, ReadResponse, ReadSource, StringValuesResponse, Tag, TagKeysRequest,
-    TagValuesRequest, TimestampRange,
+    DeleteBucketResponse, GetBucketsResponse, MeasurementFieldsRequest, MeasurementFieldsResponse,
+    MeasurementNamesRequest, MeasurementTagKeysRequest, MeasurementTagValuesRequest, Organization,
+    Predicate, ReadFilterRequest, ReadGroupRequest, ReadResponse, ReadSource, StringValuesResponse,
+    Tag, TagKeysRequest, TagValuesRequest, TimestampRange,
 };
 use delorean::id::Id;
-use delorean::storage::partitioned_store::{PartitionKeyValues, ReadValues};
+use delorean::storage::{
+    partitioned_store::{PartitionKeyValues, ReadValues},
+    SeriesDataType,
+};
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::convert::TryInto;
@@ -138,6 +143,30 @@ impl GrpcInputs for TagKeysRequest {
 impl GrpcInputs for TagValuesRequest {
     fn read_source_field(&self) -> Option<&prost_types::Any> {
         self.tags_source.as_ref()
+    }
+}
+
+impl GrpcInputs for MeasurementNamesRequest {
+    fn read_source_field(&self) -> Option<&prost_types::Any> {
+        self.source.as_ref()
+    }
+}
+
+impl GrpcInputs for MeasurementTagKeysRequest {
+    fn read_source_field(&self) -> Option<&prost_types::Any> {
+        self.source.as_ref()
+    }
+}
+
+impl GrpcInputs for MeasurementTagValuesRequest {
+    fn read_source_field(&self) -> Option<&prost_types::Any> {
+        self.source.as_ref()
+    }
+}
+
+impl GrpcInputs for MeasurementFieldsRequest {
+    fn read_source_field(&self) -> Option<&prost_types::Any> {
+        self.source.as_ref()
     }
 }
 
@@ -336,6 +365,255 @@ impl Storage for GrpcServer {
         _: tonic::Request<()>,
     ) -> Result<tonic::Response<CapabilitiesResponse>, Status> {
         Err(Status::unimplemented("Not yet implemented"))
+    }
+
+    type MeasurementNamesStream = mpsc::Receiver<Result<StringValuesResponse, Status>>;
+
+    async fn measurement_names(
+        &self,
+        req: tonic::Request<MeasurementNamesRequest>,
+    ) -> Result<tonic::Response<Self::MeasurementNamesStream>, Status> {
+        let (mut tx, rx) = mpsc::channel(4);
+
+        let measurement_names_request = req.into_inner();
+
+        let org_id = measurement_names_request.org_id()?;
+        let bucket_name = measurement_names_request.bucket_name()?;
+        let range = measurement_names_request.range;
+
+        let app = self.app.clone();
+
+        let bucket_id = app
+            .db
+            .get_bucket_id_by_name(org_id, &bucket_name)
+            .await
+            .map_err(|err| Status::internal(format!("error reading db: {}", err)))?
+            .ok_or_else(|| Status::internal("bucket not found"))?;
+
+        tokio::spawn(async move {
+            match app
+                .db
+                .get_measurement_names(org_id, bucket_id, range.as_ref())
+                .await
+            {
+                Err(_) => tx
+                    .send(Err(Status::internal(
+                        "could not query for measurement names",
+                    )))
+                    .await
+                    .unwrap(),
+                Ok(measurement_names) => {
+                    // TODO: Should these be batched? If so, how?
+                    let measurement_names: Vec<_> = measurement_names
+                        .into_iter()
+                        .map(|s| transform_key_to_long_form_bytes(&s))
+                        .collect();
+                    tx.send(Ok(StringValuesResponse {
+                        values: measurement_names,
+                    }))
+                    .await
+                    .unwrap();
+                }
+            }
+        });
+
+        Ok(tonic::Response::new(rx))
+    }
+
+    type MeasurementTagKeysStream = mpsc::Receiver<Result<StringValuesResponse, Status>>;
+
+    async fn measurement_tag_keys(
+        &self,
+        req: tonic::Request<MeasurementTagKeysRequest>,
+    ) -> Result<tonic::Response<Self::MeasurementTagKeysStream>, Status> {
+        let (mut tx, rx) = mpsc::channel(4);
+
+        let measurement_tag_keys_request = req.into_inner();
+
+        let org_id = measurement_tag_keys_request.org_id()?;
+        let bucket_name = measurement_tag_keys_request.bucket_name()?;
+        let measurement = measurement_tag_keys_request.measurement;
+        let predicate = measurement_tag_keys_request.predicate;
+        let range = measurement_tag_keys_request.range;
+
+        let app = self.app.clone();
+
+        let bucket_id = app
+            .db
+            .get_bucket_id_by_name(org_id, &bucket_name)
+            .await
+            .map_err(|err| Status::internal(format!("error reading db: {}", err)))?
+            .ok_or_else(|| Status::internal("bucket not found"))?;
+
+        tokio::spawn(async move {
+            match app
+                .db
+                .get_measurement_tag_keys(
+                    org_id,
+                    bucket_id,
+                    &measurement,
+                    predicate.as_ref(),
+                    range.as_ref(),
+                )
+                .await
+            {
+                Err(_) => tx
+                    .send(Err(Status::internal(
+                        "could not query for measurement tag keys",
+                    )))
+                    .await
+                    .unwrap(),
+                Ok(measurement_tag_keys) => {
+                    // TODO: Should these be batched? If so, how?
+                    let measurement_tag_keys: Vec<_> = measurement_tag_keys
+                        .into_iter()
+                        .map(|s| transform_key_to_long_form_bytes(&s))
+                        .collect();
+                    tx.send(Ok(StringValuesResponse {
+                        values: measurement_tag_keys,
+                    }))
+                    .await
+                    .unwrap();
+                }
+            }
+        });
+
+        Ok(tonic::Response::new(rx))
+    }
+
+    type MeasurementTagValuesStream = mpsc::Receiver<Result<StringValuesResponse, Status>>;
+
+    async fn measurement_tag_values(
+        &self,
+        req: tonic::Request<MeasurementTagValuesRequest>,
+    ) -> Result<tonic::Response<Self::MeasurementTagValuesStream>, Status> {
+        let (mut tx, rx) = mpsc::channel(4);
+
+        let measurement_tag_values_request = req.into_inner();
+
+        let org_id = measurement_tag_values_request.org_id()?;
+        let bucket_name = measurement_tag_values_request.bucket_name()?;
+        let measurement = measurement_tag_values_request.measurement;
+        let tag_key = measurement_tag_values_request.tag_key;
+        let predicate = measurement_tag_values_request.predicate;
+        let range = measurement_tag_values_request.range;
+
+        let app = self.app.clone();
+
+        let bucket_id = app
+            .db
+            .get_bucket_id_by_name(org_id, &bucket_name)
+            .await
+            .map_err(|err| Status::internal(format!("error reading db: {}", err)))?
+            .ok_or_else(|| Status::internal("bucket not found"))?;
+
+        tokio::spawn(async move {
+            match app
+                .db
+                .get_measurement_tag_values(
+                    org_id,
+                    bucket_id,
+                    &measurement,
+                    &tag_key,
+                    predicate.as_ref(),
+                    range.as_ref(),
+                )
+                .await
+            {
+                Err(_) => tx
+                    .send(Err(Status::internal(
+                        "could not query for measurement tag values",
+                    )))
+                    .await
+                    .unwrap(),
+                Ok(measurement_tag_values) => {
+                    // TODO: Should these be batched? If so, how?
+                    let measurement_tag_values: Vec<_> = measurement_tag_values
+                        .into_iter()
+                        .map(|s| transform_key_to_long_form_bytes(&s))
+                        .collect();
+                    tx.send(Ok(StringValuesResponse {
+                        values: measurement_tag_values,
+                    }))
+                    .await
+                    .unwrap();
+                }
+            }
+        });
+
+        Ok(tonic::Response::new(rx))
+    }
+
+    type MeasurementFieldsStream = mpsc::Receiver<Result<MeasurementFieldsResponse, Status>>;
+
+    async fn measurement_fields(
+        &self,
+        req: tonic::Request<MeasurementFieldsRequest>,
+    ) -> Result<tonic::Response<Self::MeasurementFieldsStream>, Status> {
+        let (mut tx, rx) = mpsc::channel(4);
+
+        let measurement_fields_request = req.into_inner();
+
+        let org_id = measurement_fields_request.org_id()?;
+        let bucket_name = measurement_fields_request.bucket_name()?;
+        let measurement = measurement_fields_request.measurement;
+        let predicate = measurement_fields_request.predicate;
+        let range = measurement_fields_request.range;
+
+        let app = self.app.clone();
+
+        let bucket_id = app
+            .db
+            .get_bucket_id_by_name(org_id, &bucket_name)
+            .await
+            .map_err(|err| Status::internal(format!("error reading db: {}", err)))?
+            .ok_or_else(|| Status::internal("bucket not found"))?;
+
+        tokio::spawn(async move {
+            match app
+                .db
+                .get_measurement_fields(
+                    org_id,
+                    bucket_id,
+                    &measurement,
+                    predicate.as_ref(),
+                    range.as_ref(),
+                )
+                .await
+            {
+                Err(_) => tx
+                    .send(Err(Status::internal(
+                        "could not query for measurement fields",
+                    )))
+                    .await
+                    .unwrap(),
+                Ok(measurement_fields) => {
+                    // TODO: Should these be batched? If so, how?
+                    let measurement_fields: Vec<_> = measurement_fields
+                        .into_iter()
+                        .map(|(field_key, field_type, timestamp)| {
+                            let field_type = match field_type {
+                                SeriesDataType::F64 => DataType::Float,
+                                SeriesDataType::I64 => DataType::Integer,
+                            } as _;
+
+                            MessageField {
+                                key: field_key,
+                                r#type: field_type,
+                                timestamp,
+                            }
+                        })
+                        .collect();
+                    tx.send(Ok(MeasurementFieldsResponse {
+                        fields: measurement_fields,
+                    }))
+                    .await
+                    .unwrap();
+                }
+            }
+        });
+
+        Ok(tonic::Response::new(rx))
     }
 }
 
