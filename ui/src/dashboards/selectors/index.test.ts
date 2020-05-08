@@ -2,6 +2,7 @@
 import {
   getTimeRange,
   getTimeRangeWithTimezone,
+  setTimeToUTC,
 } from 'src/dashboards/selectors/index'
 import moment from 'moment'
 
@@ -38,12 +39,8 @@ describe('Dashboards.Selector', () => {
   const lower = '2020-05-05T10:00:00-07:00'
   const upper = '2020-05-05T11:00:00-07:00'
   const customTimeRange = {
-    lower: moment(lower)
-      .utcOffset(lower)
-      .format(),
-    upper: moment(upper)
-      .utcOffset(upper)
-      .format(),
+    lower: moment(lower).toISOString(),
+    upper: moment(upper).toISOString(),
     type: 'custom',
   } as CustomTimeRange
   const ranges: RangeState = {
@@ -113,8 +110,8 @@ describe('Dashboards.Selector', () => {
     }
 
     const expected = {
-      lower: '2020-05-05T10:00:00Z',
-      upper: '2020-05-05T11:00:00Z',
+      lower: setTimeToUTC(lower),
+      upper: setTimeToUTC(upper),
       type: 'custom',
     }
 
