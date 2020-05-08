@@ -9,13 +9,14 @@ Describe your proposed changes here.
 - [ ] Rebased/mergeable
 - [ ] Root cause description
    * Describe the root cause of the bug. 
-   * Did the fix introduce the change in behavior.
-   * What was done to fix the problem. 
+   * Did the fix introduce the change in behavior?
+   * What was done to fix the problem?
 - [ ] Tests pass
    - [ ] Unit tests
-   - [ ] Integration tests. 
+   - [ ] Integration tests
       * The buf fix affects the interface between components
-   - [ ] System tests. (The bug fix requires testing of the entire system in an environment as close as possible to the real production.)
+   - [ ] System tests
+      * The bug fix requires testing of the entire system in an environment as close as possible to the real production.
 - [ ] http/swagger.yml updated (if modified Go structs or API)
 - [ ] Documentation updated or issue created (provide link to issue/pr)
 - [ ] Signed [CLA](https://influxdata.com/community/cla/) (if not already signed)
