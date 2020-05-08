@@ -58,7 +58,7 @@ jobs:
       - install_clang
       - run:
           name: Clippy
-          command: cargo clippy --all-targets -j9 --workspace -- -D warnings
+          command: cargo clippy --all-targets --workspace -- -D warnings
   test:
     docker:
       - image: circleci/rust:latest
@@ -68,7 +68,7 @@ jobs:
       - install_clang
       - run:
           name: Cargo test
-          command: cargo test -j9 --workspace
+          command: cargo test --workspace
       - cache_save
   build:
     docker:
@@ -79,7 +79,7 @@ jobs:
       - install_clang
       - run:
           name: Cargo build
-          command: cargo build -j9 --workspace
+          command: cargo build --workspace
       - cache_save
 
 workflows:
