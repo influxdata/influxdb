@@ -404,6 +404,10 @@ dependencies = [
 [[package]]
 name = "delorean_test_helpers"
 version = "0.1.0"
+dependencies = [
+ "dotenv 0.15.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tempfile 3.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
 
 [[package]]
 name = "delorean_utilities"

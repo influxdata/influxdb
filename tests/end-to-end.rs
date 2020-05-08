@@ -20,7 +20,6 @@ use delorean_test_helpers::*;
 use futures::prelude::*;
 use prost::Message;
 use std::convert::TryInto;
-use std::env;
 use std::process::{Child, Command, Stdio};
 use std::str;
 use std::time::{Duration, SystemTime};
@@ -46,7 +45,7 @@ use grpc::{
     TimestampRange,
 };
 
-type Error = Box<dyn std::error::Error>;
+type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
 type Result<T, E = Error> = std::result::Result<T, E>;
 
 macro_rules! assert_unwrap {
@@ -586,11 +585,7 @@ impl TestServer {
     fn new() -> Result<Self> {
         let _ = dotenv::dotenv(); // load .env file if present
 
-        let root = env::var_os("TEST_DELOREAN_DB_DIR").unwrap_or_else(|| env::temp_dir().into());
-
-        let dir = tempfile::Builder::new()
-            .prefix("delorean")
-            .tempdir_in(root)?;
+        let dir = delorean_test_helpers::tmp_dir()?;
 
         let server_process = Command::cargo_bin("delorean")?
             .stdout(Stdio::null())
