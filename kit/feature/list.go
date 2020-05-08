@@ -44,14 +44,30 @@ func NewAuthPackage() BoolFlag {
 	return newAuth
 }
 
+var sessionService = MakeBoolFlag(
+	"Session Service",
+	"sessionService",
+	"Lyon Hill",
+	false,
+	Temporary,
+	true,
+)
+
+// SessionService - A temporary switching system for the new session system
+func SessionService() BoolFlag {
+	return sessionService
+}
+
 var all = []Flag{
 	backendExample,
 	frontendExample,
 	newAuth,
+	sessionService,
 }
 
 var byKey = map[string]Flag{
 	"backendExample":  backendExample,
 	"frontendExample": frontendExample,
 	"newAuth":         newAuth,
+	"sessionService":  sessionService,
 }
