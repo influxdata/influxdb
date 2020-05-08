@@ -36,11 +36,11 @@ describe('Dashboards.Selector', () => {
     '04c6f3976f4b8000',
     '04c6f3976f4b8002',
   ]
-  const lower = '2020-05-05T10:00:00-07:00'
-  const upper = '2020-05-05T11:00:00-07:00'
+  const lower = moment('2020-05-05T10:00:00-07:00').toISOString()
+  const upper = moment('2020-05-05T11:00:00-07:00').toISOString()
   const customTimeRange = {
-    lower: moment(lower).toISOString(),
-    upper: moment(upper).toISOString(),
+    lower,
+    upper,
     type: 'custom',
   } as CustomTimeRange
   const ranges: RangeState = {
