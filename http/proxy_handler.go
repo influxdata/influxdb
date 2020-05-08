@@ -7,7 +7,7 @@ import (
 var _ http.Handler = &proxyHandler{}
 
 // withFeatureProxy wraps an HTTP handler in a proxyHandler
-func withFeatureProxy(proxy FeatureProxyHandler, h http.HandlerFunc) *proxyHandler {
+func withFeatureProxy(proxy FeatureProxyHandler, h http.Handler) *proxyHandler {
 	if proxy == nil {
 		proxy = &NoopProxyHandler{}
 	}
