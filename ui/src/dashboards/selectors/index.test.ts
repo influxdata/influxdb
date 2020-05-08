@@ -2,7 +2,6 @@
 import {
   getTimeRange,
   getTimeRangeWithTimezone,
-  setTimeToUTC,
 } from 'src/dashboards/selectors/index'
 import moment from 'moment'
 
