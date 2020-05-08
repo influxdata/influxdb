@@ -49,7 +49,7 @@ export const setTimeToUTC = (date: string): string => {
       .add(offset, 'minutes')
       .format()
   }
-  return new Date(date).toISOString()
+  return moment.utc(date).format()
 }
 
 export const getTimeZone = (state: AppState): TimeZone => {
