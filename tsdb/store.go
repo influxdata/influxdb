@@ -1231,24 +1231,6 @@ func (s *Store) RestoreShard(id uint64, r io.Reader) error {
 	return shard.Restore(r, path)
 }
 
-// ImportShard imports the contents of r to a given shard.
-// All files in the backup are added as new files which may
-// cause duplicated data to occur requiring more expensive
-// compactions.
-func (s *Store) ImportShard(id uint64, r io.Reader) error {
-	shard := s.Shard(id)
-	if shard == nil {
-		return fmt.Errorf("shard %d doesn't exist on this server", id)
-	}
-
-	path, err := relativePath(s.path, shard.path)
-	if err != nil {
-		return err
-	}
-
-	return shard.Import(r, path)
-}
-
 // ShardRelativePath will return the relative path to the shard, i.e.,
 // <database>/<retention>/<id>.
 func (s *Store) ShardRelativePath(id uint64) (string, error) {
