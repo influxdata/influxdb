@@ -48,7 +48,8 @@ pipeline {
     stage('64bit') {
       agent {
         docker {
-          image 'golang:1.11'
+          image 'golang:1.14.2'
+          args '-e "GOCACHE=/tmp"'
         }
       }
 
@@ -58,12 +59,14 @@ pipeline {
         cp -a $WORKSPACE /go/src/github.com/influxdata/influxdb
 
         cd /go/src/github.com/influxdata/influxdb
+        # GO111MODULE=off
         go get github.com/golang/dep/cmd/dep
         dep ensure -vendor-only
         """
 
         sh """
         cd /go/src/github.com/influxdata/influxdb
+        # GO111MODULE=off
         go test -parallel=1 ./...
         """
       }
@@ -73,6 +76,7 @@ pipeline {
       agent {
         dockerfile {
           filename 'Dockerfile_jenkins_ubuntu32'
+          args '-e "GOCACHE=/tmp"'
         }
       }
 
@@ -82,12 +86,14 @@ pipeline {
         cp -a $WORKSPACE /go/src/github.com/influxdata/influxdb
 
         cd /go/src/github.com/influxdata/influxdb
+        # GO111MODULE=off
         go get github.com/golang/dep/cmd/dep
         dep ensure -vendor-only
         """
 
         sh """
         cd /go/src/github.com/influxdata/influxdb
+        # GO111MODULE=off
         go test -parallel=1 ./...
         """
       }
