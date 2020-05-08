@@ -8,25 +8,55 @@ import (
 )
 
 type GeneratorResultSet struct {
-	sg  gen.SeriesGenerator
-	f   floatTimeValuesGeneratorCursor
-	i   integerTimeValuesGeneratorCursor
-	u   unsignedTimeValuesGeneratorCursor
-	s   stringTimeValuesGeneratorCursor
-	b   booleanTimeValuesGeneratorCursor
-	cur cursors.Cursor
+	sg    gen.SeriesGenerator
+	max   int
+	count int
+	f     floatTimeValuesGeneratorCursor
+	i     integerTimeValuesGeneratorCursor
+	u     unsignedTimeValuesGeneratorCursor
+	s     stringTimeValuesGeneratorCursor
+	b     booleanTimeValuesGeneratorCursor
+	cur   cursors.Cursor
 }
 
 var _ reads.ResultSet = (*GeneratorResultSet)(nil)
 
+type GeneratorOptionFn func(*GeneratorResultSet)
+
+// WithGeneratorMaxValues limits the number of values
+// produced by GeneratorResultSet to n.
+func WithGeneratorMaxValues(n int) GeneratorOptionFn {
+	return func(g *GeneratorResultSet) {
+		g.max = n
+	}
+}
+
 // NewResultSetFromSeriesGenerator transforms a SeriesGenerator into a ResultSet,
-// which is useful for mocking data when a client requires a ResultSet.
-func NewResultSetFromSeriesGenerator(sg gen.SeriesGenerator) *GeneratorResultSet {
-	return &GeneratorResultSet{sg: sg}
+// and therefore may be used anywhere a ResultSet is required.
+func NewResultSetFromSeriesGenerator(sg gen.SeriesGenerator, opts ...GeneratorOptionFn) *GeneratorResultSet {
+	s := &GeneratorResultSet{sg: sg}
+
+	for _, opt := range opts {
+		opt(s)
+	}
+
+	s.f.max = s.max
+	s.i.max = s.max
+	s.u.max = s.max
+	s.s.max = s.max
+	s.b.max = s.max
+	s.f.count = &s.count
+	s.i.count = &s.count
+	s.u.count = &s.count
+	s.s.count = &s.count
+	s.b.count = &s.count
+
+	return s
 }
 
 func (g *GeneratorResultSet) Next() bool {
-	return g.sg.Next()
+	remain := g.max - g.count
+	return g.sg.Next() && (g.max == 0 || remain > 0)
 }
 
 func (g *GeneratorResultSet) Cursor() cursors.Cursor {
@@ -71,12 +101,17 @@ func (g *GeneratorResultSet) Stats() cursors.CursorStats {
 
 type timeValuesGeneratorCursor struct {
 	tv    gen.TimeValuesSequence
+	max   int
+	count *int
 	stats cursors.CursorStats
 }
 
 func (t timeValuesGeneratorCursor) Close()                     {}
 func (t timeValuesGeneratorCursor) Err() error                 { return nil }
 func (t timeValuesGeneratorCursor) Stats() cursors.CursorStats { return t.stats }
+func (t *timeValuesGeneratorCursor) add(n int)                 { *t.count += n }
+func (t *timeValuesGeneratorCursor) checkCount() bool          { return t.max == 0 || *t.count < t.max }
+func (t *timeValuesGeneratorCursor) remain() int               { return t.max - *t.count }
 
 type floatTimeValuesGeneratorCursor struct {
 	timeValuesGeneratorCursor
@@ -84,10 +119,15 @@ type floatTimeValuesGeneratorCursor struct {
 }
 
 func (c *floatTimeValuesGeneratorCursor) Next() *cursors.FloatArray {
-	if c.tv.Next() {
+	if c.checkCount() && c.tv.Next() {
 		c.tv.Values().(gen.FloatValues).Copy(&c.a)
+		if remain := c.remain(); c.max > 0 && remain < c.a.Len() {
+			c.a.Timestamps = c.a.Timestamps[:remain]
+			c.a.Values = c.a.Values[:remain]
+		}
 		c.stats.ScannedBytes += len(c.a.Values) * 8
 		c.stats.ScannedValues += c.a.Len()
+		c.add(c.a.Len())
 	} else {
 		c.a.Timestamps = c.a.Timestamps[:0]
 		c.a.Values = c.a.Values[:0]
@@ -101,10 +141,15 @@ type integerTimeValuesGeneratorCursor struct {
 }
 
 func (c *integerTimeValuesGeneratorCursor) Next() *cursors.IntegerArray {
-	if c.tv.Next() {
+	if c.checkCount() && c.tv.Next() {
 		c.tv.Values().(gen.IntegerValues).Copy(&c.a)
+		if remain := c.remain(); c.max > 0 && remain < c.a.Len() {
+			c.a.Timestamps = c.a.Timestamps[:remain]
+			c.a.Values = c.a.Values[:remain]
+		}
 		c.stats.ScannedBytes += len(c.a.Values) * 8
 		c.stats.ScannedValues += c.a.Len()
+		c.add(c.a.Len())
 	} else {
 		c.a.Timestamps = c.a.Timestamps[:0]
 		c.a.Values = c.a.Values[:0]
@@ -118,10 +163,15 @@ type unsignedTimeValuesGeneratorCursor struct {
 }
 
 func (c *unsignedTimeValuesGeneratorCursor) Next() *cursors.UnsignedArray {
-	if c.tv.Next() {
+	if c.checkCount() && c.tv.Next() {
 		c.tv.Values().(gen.UnsignedValues).Copy(&c.a)
+		if remain := c.remain(); c.max > 0 && remain < c.a.Len() {
+			c.a.Timestamps = c.a.Timestamps[:remain]
+			c.a.Values = c.a.Values[:remain]
+		}
 		c.stats.ScannedBytes += len(c.a.Values) * 8
 		c.stats.ScannedValues += c.a.Len()
+		c.add(c.a.Len())
 	} else {
 		c.a.Timestamps = c.a.Timestamps[:0]
 		c.a.Values = c.a.Values[:0]
@@ -135,12 +185,17 @@ type stringTimeValuesGeneratorCursor struct {
 }
 
 func (c *stringTimeValuesGeneratorCursor) Next() *cursors.StringArray {
-	if c.tv.Next() {
+	if c.checkCount() && c.tv.Next() {
 		c.tv.Values().(gen.StringValues).Copy(&c.a)
+		if remain := c.remain(); c.max > 0 && remain < c.a.Len() {
+			c.a.Timestamps = c.a.Timestamps[:remain]
+			c.a.Values = c.a.Values[:remain]
+		}
 		for _, v := range c.a.Values {
 			c.stats.ScannedBytes += len(v)
 		}
 		c.stats.ScannedValues += c.a.Len()
+		c.add(c.a.Len())
 	} else {
 		c.a.Timestamps = c.a.Timestamps[:0]
 		c.a.Values = c.a.Values[:0]
@@ -154,10 +209,15 @@ type booleanTimeValuesGeneratorCursor struct {
 }
 
 func (c *booleanTimeValuesGeneratorCursor) Next() *cursors.BooleanArray {
-	if c.tv.Next() {
+	if c.checkCount() && c.tv.Next() {
 		c.tv.Values().(gen.BooleanValues).Copy(&c.a)
+		if remain := c.remain(); c.max > 0 && remain < c.a.Len() {
+			c.a.Timestamps = c.a.Timestamps[:remain]
+			c.a.Values = c.a.Values[:remain]
+		}
 		c.stats.ScannedBytes += len(c.a.Values)
 		c.stats.ScannedValues += c.a.Len()
+		c.add(c.a.Len())
 	} else {
 		c.a.Timestamps = c.a.Timestamps[:0]
 		c.a.Values = c.a.Values[:0]
