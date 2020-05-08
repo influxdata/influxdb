@@ -36,8 +36,8 @@ describe('Dashboards.Selector', () => {
     '04c6f3976f4b8000',
     '04c6f3976f4b8002',
   ]
-  const lower = moment('2020-05-05T10:00:00-07:00').toISOString()
-  const upper = moment('2020-05-05T11:00:00-07:00').toISOString()
+  const lower = `2020-05-05T10:00:00${moment().format('Z')}`
+  const upper = `2020-05-05T11:00:00${moment().format('Z')}`
   const customTimeRange = {
     lower,
     upper,
@@ -110,8 +110,8 @@ describe('Dashboards.Selector', () => {
     }
 
     const expected = {
-      lower: setTimeToUTC(lower),
-      upper: setTimeToUTC(upper),
+      lower: `2020-05-05T10:00:00Z`,
+      upper: `2020-05-05T11:00:00Z`,
       type: 'custom',
     }
 
