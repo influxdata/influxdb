@@ -853,13 +853,13 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 
 	flagger := feature.DefaultFlagger()
 	if len(m.featureFlags) > 0 {
-		f, err := overrideflagger.Make(m.featureFlags)
+		f, err := overrideflagger.Make(m.featureFlags, feature.ByKey)
 		if err != nil {
 			m.log.Error("Failed to configure feature flag overrides",
 				zap.Error(err), zap.Any("overrides", m.featureFlags))
 			return err
 		}
-		m.log.Info("Running with feature flag overrides", zap.Any("config", m.featureFlags))
+		m.log.Info("Running with feature flag overrides", zap.Any("overrides", m.featureFlags))
 		flagger = f
 	}
 
