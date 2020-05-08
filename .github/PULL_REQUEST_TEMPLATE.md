@@ -14,7 +14,7 @@ Describe your proposed changes here.
 - [ ] Tests pass
    - [ ] Unit tests
    - [ ] Integration tests
-      * The buf fix affects the interface between components
+      * The bug fix affects the interface between components
    - [ ] System tests
       * The bug fix requires testing of the entire system in an environment as close as possible to the real production.
 - [ ] http/swagger.yml updated (if modified Go structs or API)
