@@ -11,7 +11,7 @@ use delorean_wal::{Wal, WalBuilder};
 use futures::{
     channel::mpsc,
     stream::{BoxStream, Stream},
-    SinkExt, StreamExt,
+    FutureExt, SinkExt, StreamExt,
 };
 use std::{
     cmp::Ordering,
@@ -38,7 +38,14 @@ use tokio::task;
 /// A Partition may optionally have a write-ahead log.
 pub struct Partition {
     store: PartitionStore,
-    wal: Option<Wal<mpsc::Sender<delorean_wal::Result<()>>>>,
+    wal: Option<WalDetails>,
+}
+
+struct WalDetails {
+    wal: Wal<mpsc::Sender<delorean_wal::Result<()>>>,
+    // There is no mechanism available to the HTTP API to trigger an immediate sync yet
+    #[allow(dead_code)]
+    start_sync_tx: mpsc::Sender<()>,
 }
 
 pub enum PartitionStore {
@@ -114,7 +121,7 @@ impl Partition {
         // TODO: Allow each kind of Partition to configure the guarantees around when this
         // function returns and the state of data in regards to the WAL
 
-        if let Some(wal) = &self.wal {
+        if let Some(WalDetails { wal, .. }) = &self.wal {
             let (ingest_done_tx, mut ingest_done_rx) = mpsc::channel(1);
 
             let mut w = wal.append();
@@ -228,10 +235,12 @@ impl Partition {
     }
 }
 
-fn start_wal_sync_task(wal_builder: WalBuilder) -> Wal<mpsc::Sender<delorean_wal::Result<()>>> {
+fn start_wal_sync_task(wal_builder: WalBuilder) -> WalDetails {
     let wal = wal_builder
         .wal::<mpsc::Sender<_>>()
         .expect("TODO handle failures");
+
+    let (start_sync_tx, mut start_sync_rx) = mpsc::channel(1);
 
     tokio::spawn({
         let wal = wal.clone();
@@ -241,7 +250,10 @@ fn start_wal_sync_task(wal_builder: WalBuilder) -> Wal<mpsc::Sender<delorean_wal
         async move {
             loop {
                 // TODO: What if syncing takes longer than the delay?
-                sync_frequency.tick().await;
+                futures::select! {
+                    _ = start_sync_rx.next() => {},
+                    _ = sync_frequency.tick().fuse() => {},
+                };
 
                 let (to_notify, outcome) = task::block_in_place(|| wal.sync());
 
@@ -255,7 +267,7 @@ fn start_wal_sync_task(wal_builder: WalBuilder) -> Wal<mpsc::Sender<delorean_wal
         }
     });
 
-    wal
+    WalDetails { wal, start_sync_tx }
 }
 
 fn points_to_flatbuffer(points: &[PointType]) -> flatbuffers::FlatBufferBuilder {
