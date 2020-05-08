@@ -8,7 +8,6 @@
 //!
 //! Work remaining:
 //!
-//! - Entry sequence number
 //! - File rollover
 //! - Metadata file
 //! - Atomic remove of entries
@@ -24,11 +23,14 @@ use snafu::{ensure, ResultExt, Snafu};
 use std::{
     convert::TryFrom,
     fs::{self, File, OpenOptions},
-    io::{self, Read, Write},
-    iter, num,
+    io::{self, ErrorKind, Read, Seek, SeekFrom, Write},
+    iter, mem, num,
     ops::{Deref, DerefMut},
     path::PathBuf,
-    sync::Arc,
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc,
+    },
 };
 
 /// Opaque public `Error` type
@@ -37,6 +39,16 @@ pub struct Error(InternalError);
 
 #[derive(Debug, Snafu, Clone)]
 enum InternalError {
+    UnableToReadFileMetadata {
+        #[snafu(source(from(io::Error, Arc::new)))]
+        source: Arc<io::Error>,
+    },
+
+    UnableToReadSequenceNumber {
+        #[snafu(source(from(io::Error, Arc::new)))]
+        source: Arc<io::Error>,
+    },
+
     UnableToReadChecksum {
         #[snafu(source(from(io::Error, Arc::new)))]
         source: Arc<io::Error>,
@@ -65,6 +77,11 @@ enum InternalError {
     ChunkSizeTooLarge {
         source: num::TryFromIntError,
         actual: usize,
+    },
+
+    UnableToWriteSequenceNumber {
+        #[snafu(source(from(io::Error, Arc::new)))]
+        source: Arc<io::Error>,
     },
 
     UnableToWriteChecksum {
@@ -132,7 +149,12 @@ impl WalBuilder {
     ///
     /// - `N` is a type that will be returned when this batch is synchronized to
     ///   disk (or attempted to). It should be cheaply clonable.
-    pub fn wal<N: Clone>(self) -> Wal<N> {
+    ///
+    /// # Asynchronous considerations
+    ///
+    /// This method performs blocking IO and care should be taken when using
+    /// it in an asynchronous context.
+    pub fn wal<N: Clone>(self) -> Result<Wal<N>> {
         Wal::new(self.file_locator())
     }
 
@@ -169,7 +191,7 @@ impl WalBuilder {
 ///
 /// // This value should be cloned and used across multiple tasks, such as per
 /// // HTTP request.
-/// let wal = WalBuilder::new(root_path).wal::<mpsc::Sender<delorean_wal::Result<_>>>();
+/// let wal = WalBuilder::new(root_path).wal::<mpsc::Sender<delorean_wal::Result<_>>>()?;
 ///
 /// // We will mimic a HTTP request as a Tokio task.
 /// // There can be many of these.
@@ -210,6 +232,7 @@ where
     N: Clone,
 {
     files: FileLocator,
+    sequence_number: Arc<AtomicU64>,
     pending: Arc<ArcSwap<Vec<Pending<N>>>>,
 }
 
@@ -217,11 +240,16 @@ impl<N> Wal<N>
 where
     N: Clone,
 {
-    fn new(files: FileLocator) -> Self {
-        Self {
+    fn new(files: FileLocator) -> Result<Self> {
+        let last_sequence_number = Loader::last_sequence_number(files.clone())?;
+        let sequence_number = last_sequence_number.map_or(0, |last| last + 1);
+        let sequence_number = Arc::new(sequence_number.into());
+
+        Ok(Self {
             files,
+            sequence_number,
             pending: Default::default(),
-        }
+        })
     }
 
     /// Start appending data to this WAL.
@@ -248,10 +276,23 @@ where
     ///
     /// This method performs blocking IO and care should be taken when using
     /// it in an asynchronous context.
+    ///
+    /// # Multiprocessing considerations
+    ///
+    /// Data corruption should not occur if this method is called
+    /// multiple times concurrently, but an error might be returned or
+    /// the order that data is written to disk might not correspond to
+    /// your intuition.
     pub fn sync(&self) -> (Vec<N>, Result<()>) {
         // Atomically get all pending operations and start a new list.
         let pending = self.pending.swap(Default::default());
         let pending = &**pending;
+
+        let n_pending = pending.len();
+        let n_pending =
+            u64::try_from(n_pending).expect("Only designed to run on 64-bit systems or lower");
+
+        let sequence_number_base = self.sequence_number.fetch_add(n_pending, Ordering::SeqCst);
 
         let to_notify: Vec<_> = pending.iter().map(|p| N::clone(&p.notify)).collect();
 
@@ -260,20 +301,24 @@ where
             let mut file = self.files.open_file_for_append()?;
 
             // TODO: Would a user ever wish to resume or retry some failed IO?
-            for pending in pending {
+            for (i, pending) in pending.iter().enumerate() {
+                let i = u64::try_from(i).expect("Only designed to run on 64-bit systems or lower");
+                let sequence_number = sequence_number_base + i;
+
                 let Pending {
                     checksum,
-                    data,
+                    ref data,
                     len,
                     ..
-                } = pending;
+                } = *pending;
 
-                // TODO: also write a sequence number
-                file.write_u32::<LittleEndian>(*checksum)
-                    .context(UnableToWriteChecksum)?;
-                file.write_u32::<LittleEndian>(*len)
-                    .context(UnableToWriteLength)?;
+                let header = Header {
+                    sequence_number,
+                    checksum,
+                    len,
+                };
 
+                header.write(&mut *file)?;
                 file.write_all(&data).context(UnableToWriteData)?;
             }
 
@@ -308,18 +353,24 @@ impl FileLocator {
     const EXTENSION: &'static str = "db";
     const TEMP_EXTENSION: &'static str = "tmpdb";
 
-    fn open_file_for_read(&self) -> Result<File> {
+    fn open_file_for_read(&self) -> Result<Option<File>> {
         // Currently only uses one file named `wal.db`, TODO: file rollover
         let mut path = self.root.join("wal");
         path.set_extension(Self::EXTENSION);
 
-        OpenOptions::new()
+        let r = OpenOptions::new()
             .read(true)
             .write(false)
             .create(false)
-            .open(&path)
-            .context(UnableToOpenFile { path })
-            .map_err(Into::into)
+            .open(&path);
+
+        match r {
+            Err(e) if e.kind() == ErrorKind::NotFound => Ok(None),
+            r => r
+                .map(Some)
+                .context(UnableToOpenFile { path })
+                .map_err(Into::into),
+        }
     }
 
     fn open_file_for_append(&self) -> Result<SideFile> {
@@ -422,26 +473,71 @@ impl DerefMut for SideFile {
 struct Loader;
 
 impl Loader {
-    fn load(files: FileLocator) -> Result<impl Iterator<Item = Result<Entry>>> {
-        let mut file = files.open_file_for_read()?;
-        Ok(iter::from_fn(move || Self::load_one(&mut file).transpose()))
+    fn last_sequence_number(files: FileLocator) -> Result<Option<u64>> {
+        let last = Self::headers(files)?.last().transpose()?;
+        Ok(last.map(|h| h.sequence_number))
     }
 
-    fn load_one(file: &mut File) -> Result<Option<Entry>> {
-        let expected_checksum = match file.read_u32::<LittleEndian>() {
-            Err(e) if e.kind() == io::ErrorKind::UnexpectedEof => return Ok(None),
-            e => e.context(UnableToReadChecksum)?,
+    fn headers(files: FileLocator) -> Result<impl Iterator<Item = Result<Header>>> {
+        let mut file = match files.open_file_for_read()? {
+            Some(file) => file,
+            None => return Ok(Box::new(iter::empty()) as Box<dyn Iterator<Item = _>>),
         };
-        let expected_len = file
-            .read_u32::<LittleEndian>()
-            .context(UnableToReadLength)?;
+        let metadata = file.metadata().context(UnableToReadFileMetadata)?;
+        let mut length_remaining = metadata.len();
 
-        let expected_len_us = usize::try_from(expected_len)
-            .expect("Only designed to run on 32-bit systems or higher");
+        Ok(Box::new(iter::from_fn(move || {
+            if length_remaining == 0 {
+                return None;
+            }
+
+            match Header::read(&mut file) {
+                Ok(header) => {
+                    let data_len = i64::from(header.len);
+                    file.seek(SeekFrom::Current(data_len)).unwrap();
+
+                    length_remaining -= Header::LEN + u64::from(header.len);
+
+                    Some(Ok(header))
+                }
+                Err(e) => Some(Err(e)),
+            }
+        })))
+    }
+
+    fn load(files: FileLocator) -> Result<impl Iterator<Item = Result<Entry>>> {
+        let mut file = match files.open_file_for_read()? {
+            Some(file) => file,
+            None => return Ok(Box::new(iter::empty()) as Box<dyn Iterator<Item = _>>),
+        };
+        let metadata = file.metadata().context(UnableToReadFileMetadata)?;
+        let mut length_remaining = metadata.len();
+
+        Ok(Box::new(iter::from_fn(move || {
+            if length_remaining == 0 {
+                return None;
+            }
+
+            match Self::load_one(&mut file) {
+                Ok((entry, bytes_read)) => {
+                    length_remaining -= bytes_read;
+
+                    Some(Ok(entry))
+                }
+                Err(e) => Some(Err(e)),
+            }
+        })))
+    }
+
+    fn load_one(file: &mut File) -> Result<(Entry, u64)> {
+        let header = Header::read(&mut *file)?;
+
+        let expected_len_us =
+            usize::try_from(header.len).expect("Only designed to run on 32-bit systems or higher");
 
         let mut data = Vec::with_capacity(expected_len_us);
         let actual_len = file
-            .take(u64::from(expected_len))
+            .take(u64::from(header.len))
             .read_to_end(&mut data)
             .context(UnableToReadData)?;
 
@@ -458,14 +554,56 @@ impl Loader {
         let actual_checksum = hasher.finalize();
 
         ensure!(
-            expected_checksum == actual_checksum,
+            header.checksum == actual_checksum,
             ChecksumMismatch {
-                expected: expected_checksum,
+                expected: header.checksum,
                 actual: actual_checksum
             }
         );
 
-        Ok(Some(Entry { data }))
+        let entry = Entry {
+            sequence_number: header.sequence_number,
+            data,
+        };
+
+        let bytes_read = Header::LEN + u64::from(header.len);
+
+        Ok((entry, bytes_read))
+    }
+}
+
+#[derive(Debug)]
+struct Header {
+    sequence_number: u64,
+    checksum: u32,
+    len: u32,
+}
+
+impl Header {
+    const LEN: u64 = (mem::size_of::<u64>() + mem::size_of::<u32>() + mem::size_of::<u32>()) as u64;
+
+    fn read(mut r: impl Read) -> Result<Self> {
+        let sequence_number = r
+            .read_u64::<LittleEndian>()
+            .context(UnableToReadSequenceNumber)?;
+        let checksum = r.read_u32::<LittleEndian>().context(UnableToReadChecksum)?;
+        let len = r.read_u32::<LittleEndian>().context(UnableToReadLength)?;
+
+        Ok(Self {
+            sequence_number,
+            checksum,
+            len,
+        })
+    }
+
+    fn write(&self, mut w: impl Write) -> Result<()> {
+        w.write_u64::<LittleEndian>(self.sequence_number)
+            .context(UnableToWriteSequenceNumber)?;
+        w.write_u32::<LittleEndian>(self.checksum)
+            .context(UnableToWriteChecksum)?;
+        w.write_u32::<LittleEndian>(self.len)
+            .context(UnableToWriteLength)?;
+        Ok(())
     }
 }
 
@@ -474,10 +612,16 @@ impl Loader {
 /// This corresponds to one call to `Wal::append`.
 #[derive(Debug)]
 pub struct Entry {
+    sequence_number: u64,
     data: Vec<u8>,
 }
 
 impl Entry {
+    /// Gets the unique, increasing sequence number associated with this data
+    pub fn sequence_number(&self) -> u64 {
+        self.sequence_number
+    }
+
     /// Gets a reference to the entry's data
     pub fn as_data(&self) -> &[u8] {
         &self.data
@@ -602,6 +746,36 @@ mod tests {
         let s = fs::read_to_string(existing_path)?;
 
         assert_eq!("helloworld", s);
+
+        Ok(())
+    }
+
+    #[test]
+    fn sequence_numbers_are_persisted() -> Result {
+        let dir = delorean_test_helpers::tmp_dir()?;
+        let builder = WalBuilder::new(dir.as_ref());
+        let mut wal;
+
+        // Create one in-memory WAL and sync it
+        {
+            wal = builder.clone().wal()?;
+
+            let mut w = wal.append();
+            w.write_all(b"some")?;
+            w.write_all(b"data")?;
+            w.finalize(())?;
+
+            let (to_notify, outcome) = wal.sync();
+            assert!(matches!(outcome, Ok(())));
+            assert_eq!(1, to_notify.len());
+        }
+
+        // Pretend the process restarts
+        {
+            wal = builder.wal()?;
+
+            assert_eq!(1, wal.sequence_number.load(Ordering::SeqCst));
+        }
 
         Ok(())
     }
