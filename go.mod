@@ -45,7 +45,6 @@ require (
 	github.com/influxdata/flux v0.67.0
 	github.com/influxdata/httprouter v1.3.1-0.20191122104820-ee83e2772f69
 	github.com/influxdata/influxql v0.0.0-20180925231337-1cbfca8e56b6
-	github.com/influxdata/kapacitor v1.5.5
 	github.com/influxdata/usage-client v0.0.0-20160829180054-6d3895376368
 	github.com/jessevdk/go-flags v1.4.0
 	github.com/jsternberg/zap-logfmt v1.2.0
@@ -76,7 +75,6 @@ require (
 	github.com/prometheus/common v0.6.0
 	github.com/prometheus/procfs v0.0.3 // indirect
 	github.com/satori/go.uuid v1.2.1-0.20181028125025-b2ce2384e17b
-	github.com/sergi/go-diff v1.0.0
 	github.com/spf13/cast v1.3.0
 	github.com/spf13/cobra v0.0.5
 	github.com/spf13/pflag v1.0.3
