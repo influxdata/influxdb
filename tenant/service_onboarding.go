@@ -62,7 +62,7 @@ func (s *OnboardService) onboardUser(ctx context.Context, req *influxdb.Onboardi
 	}
 
 	if len(req.Password) < 8 {
-		return nil, ErrPasswordTooShort
+		return nil, EShortPassword
 	}
 
 	result := &influxdb.OnboardingResults{}

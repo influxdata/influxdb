@@ -92,6 +92,7 @@ func OnboardInitialUser(
 				IDGenerator: &loopIDGenerator{
 					s: []string{oneID, twoID, threeID, fourID},
 				},
+				TimeGenerator:  mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
 				TokenGenerator: mock.NewTokenGenerator(oneToken, nil),
 				IsOnboarding:   true,
 			},
