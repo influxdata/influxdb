@@ -117,17 +117,7 @@ export const getDemoDataBucketMembership = ({
       throw new Error(`dashboard template was not found`)
     }
 
-    await createDashboardFromTemplate(template, orgID)
-
-    const allDashboards = getAll<Dashboard>(getState(), ResourceType.Dashboards)
-
-    const createdDashboard = allDashboards.find(
-      d => d.name === DemoDataDashboards[bucketName]
-    )
-
-    if (!createdDashboard) {
-      throw new Error(`dashboard was not found`)
-    }
+    const createdDashboard = await createDashboardFromTemplate(template, orgID)
 
     const url = `/orgs/${orgID}/dashboards/${createdDashboard.id}`
 
