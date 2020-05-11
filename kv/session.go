@@ -79,8 +79,7 @@ func (s *Service) FindSession(ctx context.Context, key string) (*influxdb.Sessio
 	}
 
 	if err := sess.Expired(); err != nil {
-		// todo(leodido) > do we want to return session also if expired?
-		return sess, &influxdb.Error{
+		return nil, &influxdb.Error{
 			Err: err,
 		}
 	}
