@@ -1,0 +1,17 @@
+[package]
+name = "delorean_wal"
+version = "0.1.0"
+authors = ["Paul Dix <paul@pauldix.net>"]
+edition = "2018"
+
+[dependencies]
+arc-swap = "0.4.6"
+byteorder = "1.3.4"
+bytes = "0.5.4"
+crc32fast = "1.2.0"
+snafu = "0.6.6"
+
+[dev-dependencies]
+delorean_test_helpers = { path = "../delorean_test_helpers" }
+futures = "0.3.4"
+tokio = { version = "0.2", features = ["full"] }
