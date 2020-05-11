@@ -129,6 +129,18 @@ export const parseBounds = (
   return [+bounds[0], +bounds[1]]
 }
 
+export const parseYBounds = (
+  bounds: Axis['bounds']
+): [number | null, number | null] | null => {
+  if (!bounds || (!bounds[0] && !bounds[1])) {
+    return null
+  }
+
+  const min = isNaN(parseInt(bounds[0])) ? null : parseInt(bounds[0])
+  const max = isNaN(parseInt(bounds[1])) ? null : parseInt(bounds[1])
+  return [min, max]
+}
+
 export const extent = (xs: number[]): [number, number] | null => {
   if (!xs || !xs.length) {
     return null

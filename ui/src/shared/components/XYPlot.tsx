@@ -13,12 +13,16 @@ import EmptyGraphMessage from 'src/shared/components/EmptyGraphMessage'
 import GraphLoadingDots from 'src/shared/components/GraphLoadingDots'
 
 // Utils
-import {useVisDomainSettings} from 'src/shared/utils/useVisDomainSettings'
+import {
+  useVisDomainSettings,
+  useVisYDomainSettings,
+} from 'src/shared/utils/useVisDomainSettings'
 import {
   getFormatter,
   geomToInterpolation,
   filterNoisyColumns,
   parseBounds,
+  parseYBounds,
   defaultXColumn,
   defaultYColumn,
 } from 'src/shared/utils/vis'
@@ -83,8 +87,7 @@ const XYPlot: FunctionComponent<Props> = ({
   theme,
 }) => {
   const storedXDomain = useMemo(() => parseBounds(xBounds), [xBounds])
-  const storedYDomain = useMemo(() => parseBounds(yBounds), [yBounds])
-
+  const storedYDomain = useMemo(() => parseYBounds(yBounds), [yBounds])
   const xColumn = storedXColumn || defaultXColumn(table)
   const yColumn = storedYColumn || defaultYColumn(table)
 
@@ -130,7 +133,7 @@ const XYPlot: FunctionComponent<Props> = ({
     return table.getColumn(yColumn, 'number')
   }, [table, yColumn, position])
 
-  const [yDomain, onSetYDomain, onResetYDomain] = useVisDomainSettings(
+  const [yDomain, onSetYDomain, onResetYDomain] = useVisYDomainSettings(
     storedYDomain,
     memoizedYColumnData
   )

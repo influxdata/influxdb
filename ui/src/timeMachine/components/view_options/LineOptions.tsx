@@ -32,7 +32,7 @@ import {
 } from 'src/timeMachine/actions'
 
 // Utils
-import {parseBounds} from 'src/shared/utils/vis'
+import {parseYBounds} from 'src/shared/utils/vis'
 import {
   getXColumnSelection,
   getYColumnSelection,
@@ -202,14 +202,19 @@ class LineOptions extends PureComponent<Props> {
   }
 
   private get yDomain(): [number, number] {
-    return parseBounds(this.props.axes.y.bounds)
+    return parseYBounds(this.props.axes.y.bounds)
+  }
+
+  private setBoundValues = (value: number | null): string | null => {
+    return value === null ? null : String(value)
   }
 
   private handleSetYDomain = (yDomain: [number, number]): void => {
-    let bounds: [string, string] | [null, null]
+    let bounds: [string | null, string | null]
 
     if (yDomain) {
-      bounds = [String(yDomain[0]), String(yDomain[1])]
+      const [min, max] = yDomain
+      bounds = [this.setBoundValues(min), this.setBoundValues(max)]
     } else {
       bounds = [null, null]
     }

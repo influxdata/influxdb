@@ -7,7 +7,10 @@ import EmptyGraphMessage from 'src/shared/components/EmptyGraphMessage'
 import GraphLoadingDots from 'src/shared/components/GraphLoadingDots'
 
 // Utils
-import {useVisDomainSettings} from 'src/shared/utils/useVisDomainSettings'
+import {
+  useVisDomainSettings,
+  useVisYDomainSettings,
+} from 'src/shared/utils/useVisDomainSettings'
 import {getFormatter} from 'src/shared/utils/vis'
 
 // Constants
@@ -65,7 +68,7 @@ const HeatmapPlot: FunctionComponent<Props> = ({
     timeRange
   )
 
-  const [yDomain, onSetYDomain, onResetYDomain] = useVisDomainSettings(
+  const [yDomain, onSetYDomain, onResetYDomain] = useVisYDomainSettings(
     storedYDomain,
     table.getColumn(yColumn, 'number')
   )
