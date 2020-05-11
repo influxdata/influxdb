@@ -1,3 +1,13 @@
+## v2.0.0-beta.11 [unreleased]
+
+### Features
+
+1. [18011](https://github.com/influxdata/influxdb/pull/18011): Integrate UTC dropdown when making custom time range query
+
+### Bug Fixes
+
+### UI Improvements
+
 ## v2.0.0-beta.10 [2020-05-07]
 
 ### Features

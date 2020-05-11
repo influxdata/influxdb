@@ -4,7 +4,7 @@ import {get} from 'lodash'
 // Utils
 import {getActiveQuery} from 'src/timeMachine/selectors'
 import {getRangeVariable} from 'src/variables/utils/getTimeRangeVars'
-import {getTimeRange} from 'src/dashboards/selectors'
+import {getTimeRange, getTimeRangeWithTimezone} from 'src/dashboards/selectors'
 import {getWindowPeriodVariable} from 'src/variables/utils/getWindowVars'
 import {
   TIME_RANGE_START,
@@ -108,11 +108,9 @@ export const getAllVariables = (
     .concat([TIME_RANGE_START, TIME_RANGE_STOP, WINDOW_PERIOD])
     .reduce((prev, curr) => {
       prev.push(getVariable(state, curr))
-
       return prev
     }, [])
     .filter(v => !!v)
-
   return vars
 }
 
@@ -126,8 +124,7 @@ export const getVariable = (state: AppState, variableID: string): Variable => {
   }
 
   if (variableID === TIME_RANGE_START || variableID === TIME_RANGE_STOP) {
-    const timeRange = getTimeRange(state)
-
+    const timeRange = getTimeRangeWithTimezone(state)
     vari = getRangeVariable(variableID, timeRange)
   }
 
