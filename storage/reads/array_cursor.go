@@ -22,10 +22,23 @@ func newAggregateArrayCursor(ctx context.Context, agg *datatypes.Aggregate, curs
 	}
 
 	switch agg.Type {
+	case datatypes.AggregateTypeCount:
+		return newCountArrayCursor(cursor)
+	default:
+		panic("invalid aggregate")
+	}
+}
+
+func newWindowAggregateArrayCursor(ctx context.Context, req *datatypes.ReadWindowAggregateRequest, cursor cursors.Cursor) cursors.Cursor {
+	if cursor == nil {
+		return nil
+	}
+
+	switch req.Aggregate[0].Type {
 	case datatypes.AggregateTypeSum:
 		return newSumArrayCursor(cursor)
 	case datatypes.AggregateTypeCount:
-		return newCountArrayCursor(cursor)
+		return newWindowCountArrayCursor(cursor, req)
 	default:
 		// TODO(sgc): should be validated higher up
 		panic("invalid aggregate")
@@ -58,6 +71,43 @@ func newCountArrayCursor(cur cursors.Cursor) cursors.Cursor {
 		return &integerStringCountArrayCursor{StringArrayCursor: cur}
 	case cursors.BooleanArrayCursor:
 		return &integerBooleanCountArrayCursor{BooleanArrayCursor: cur}
+	default:
+		panic(fmt.Sprintf("unreachable: %T", cur))
+	}
+}
+
+func newWindowCountArrayCursor(cur cursors.Cursor, req *datatypes.ReadWindowAggregateRequest) cursors.Cursor {
+	switch cur := cur.(type) {
+	case cursors.FloatArrayCursor:
+		return &integerFloatWindowCountArrayCursor{
+			FloatArrayCursor: cur,
+			every:            req.WindowEvery,
+			tr:               req.Range,
+		}
+	case cursors.IntegerArrayCursor:
+		return &integerIntegerWindowCountArrayCursor{
+			IntegerArrayCursor: cur,
+			every:              req.WindowEvery,
+			tr:                 req.Range,
+		}
+	case cursors.UnsignedArrayCursor:
+		return &integerUnsignedWindowCountArrayCursor{
+			UnsignedArrayCursor: cur,
+			every:               req.WindowEvery,
+			tr:                  req.Range,
+		}
+	case cursors.StringArrayCursor:
+		return &integerStringWindowCountArrayCursor{
+			StringArrayCursor: cur,
+			every:             req.WindowEvery,
+			tr:                req.Range,
+		}
+	case cursors.BooleanArrayCursor:
+		return &integerBooleanWindowCountArrayCursor{
+			BooleanArrayCursor: cur,
+			every:              req.WindowEvery,
+			tr:                 req.Range,
+		}
 	default:
 		panic(fmt.Sprintf("unreachable: %T", cur))
 	}

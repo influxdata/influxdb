@@ -323,6 +323,7 @@ github.com/influxdata/cron v0.0.0-20191203200038-ded12750aac6 h1:OtjKkeWDjUbyMi8
 github.com/influxdata/cron v0.0.0-20191203200038-ded12750aac6/go.mod h1:XabtPPW2qsCg0tl+kjaPU+cFS+CjQXEXbT1VJvHT4og=
 github.com/influxdata/flux v0.67.1-0.20200512174851-f7d273712b6b h1:Rn5H97hXho1wk5gUZlKXpFi23gIpStdE9OXVj7OJQwE=
 github.com/influxdata/flux v0.67.1-0.20200512174851-f7d273712b6b/go.mod h1:AdzL5HnjdFlcBiNz0wE69rSTGRX9CQHqtJUF8ptiDeY=
+github.com/influxdata/flux v0.67.1-0.20200512221521-be8c67e907a2/go.mod h1:AdzL5HnjdFlcBiNz0wE69rSTGRX9CQHqtJUF8ptiDeY=
 github.com/influxdata/httprouter v1.3.1-0.20191122104820-ee83e2772f69 h1:WQsmW0fXO4ZE/lFGIE84G6rIV5SJN3P3sjIXAP1a8eU=
 github.com/influxdata/httprouter v1.3.1-0.20191122104820-ee83e2772f69/go.mod h1:pwymjR6SrP3gD3pRj9RJwdl1j5s3doEEV8gS4X9qSzA=
 github.com/influxdata/influxdb1-client v0.0.0-20191209144304-8bf82d3c094d/go.mod h1:qj24IKcXYK6Iy9ceXlo3Tc+vtHo9lIhSX5JddghvEPo=
