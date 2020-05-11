@@ -2,7 +2,6 @@
 import {
   getValidRange,
   getRemainingRange,
-  useVisYDomainSettings,
 } from 'src/shared/utils/useVisDomainSettings'
 
 // Types
@@ -63,7 +62,7 @@ describe('getRemainingRange', () => {
   const endTime: string = '2019-11-28T14:46:51Z'
   const unixEnd: number = 1574952411000
   it('should return null when no parameters are input', () => {
-    expect(useVisYDomainSettings(undefined, undefined, undefined)).toEqual(null)
+    expect(getRemainingRange(undefined, undefined, undefined)).toEqual(null)
   })
   it('should return null when no data is passed', () => {
     const timeRange: CustomTimeRange = {
