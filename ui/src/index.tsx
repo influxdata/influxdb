@@ -157,6 +157,7 @@ declare global {
 
 // Older method used for pre-IE 11 compatibility
 window.basepath = basepath
+window.dataLayer = window.dataLayer || []
 
 const history: History = useRouterHistory(createHistory)({
   basename: basepath, // this is written in when available by the URL prefixer middleware
