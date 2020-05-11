@@ -155,7 +155,7 @@ export const executeQueries = () => async (dispatch, getState: GetState) => {
 
     for (const result of results) {
       if (result.type === 'UNKNOWN_ERROR') {
-        if (isDemoDataAvailabilityError(result.message)) {
+        if (isDemoDataAvailabilityError(result.code, result.message)) {
           dispatch(notify(demoDataSwitchedOff()))
         }
 
