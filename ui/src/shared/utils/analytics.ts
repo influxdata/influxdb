@@ -30,3 +30,11 @@ export const fireGAEvent = (event: string, payload: object = {}) => {
     ...payload,
   })
 }
+
+export const fireQueryEvent = (ownOrg: string, queryOrg: string) => {
+  if (ownOrg === queryOrg) {
+    fireGAEvent('orgData_queried')
+  } else {
+    fireGAEvent('demoData_queried')
+  }
+}
