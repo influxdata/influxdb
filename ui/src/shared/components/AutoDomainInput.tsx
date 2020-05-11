@@ -58,6 +58,7 @@ const MinMaxInputs: SFC<MinMaxInputsProps> = ({
             onChange={e => setMinInput(e.target.value)}
             onBlur={emitIfValid}
             onKeyPress={handleKeyPress}
+            testID="min--auto-domain"
           />
         </Form.Element>
       </Grid.Column>
@@ -68,6 +69,7 @@ const MinMaxInputs: SFC<MinMaxInputsProps> = ({
             onChange={e => setMaxInput(e.target.value)}
             onBlur={emitIfValid}
             onKeyPress={handleKeyPress}
+            testID="max--auto-domain"
           />
         </Form.Element>
       </Grid.Column>

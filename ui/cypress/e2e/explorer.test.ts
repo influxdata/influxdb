@@ -681,6 +681,34 @@ describe('DataExplorer', () => {
         cy.getByTestID('raw-data--toggle').click()
       })
 
+      it('can set min or max y-axis values', () => {
+        // build the query to return data from beforeEach
+        cy.getByTestID(`selector-list m`).click()
+        cy.getByTestID('selector-list v').click()
+        cy.getByTestID(`selector-list tv1`).click()
+
+        cy.getByTestID('time-machine-submit-button').click()
+        cy.getByTestID('cog-cell--button').click()
+        cy.getByTestID('select-group--option')
+          .contains('Custom')
+          .click()
+        cy.getByTestID('min--auto-domain')
+          .type('-100')
+          .blur()
+
+        cy.getByTestID('form--element-error').should('not.exist')
+        // find no errors
+        cy.getByTestID('max--auto-domain')
+          .type('450')
+          .blur()
+        // find no errors
+        cy.getByTestID('form--element-error').should('not.exist')
+        cy.getByTestID('min--auto-domain')
+          .clear()
+          .blur()
+        cy.getByTestID('form--element-error').should('not.exist')
+      })
+
       it('can view table data & sort values numerically', () => {
         // build the query to return data from beforeEach
         cy.getByTestID(`selector-list m`).click()
