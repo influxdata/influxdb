@@ -23,3 +23,10 @@ export const fireUserDataReady = function fireUserDataReady(
     },
   })
 }
+
+export const fireGAEvent = (event: string, payload: object = {}) => {
+  window.dataLayer.push({
+    event,
+    ...payload,
+  })
+}
