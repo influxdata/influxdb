@@ -87,6 +87,27 @@ func OnboardInitialUser(
 			},
 		},
 		{
+			name: "password too short",
+			fields: OnboardingFields{
+				IDGenerator: &loopIDGenerator{
+					s: []string{oneID, twoID, threeID, fourID},
+				},
+				TokenGenerator: mock.NewTokenGenerator(oneToken, nil),
+				IsOnboarding:   true,
+			},
+			args: args{
+				request: &platform.OnboardingRequest{
+					User:     "admin",
+					Org:      "org1",
+					Bucket:   "bucket1",
+					Password: "p1",
+				},
+			},
+			wants: wants{
+				errCode: platform.EInvalid,
+			},
+		},
+		{
 			name: "missing username",
 			fields: OnboardingFields{
 				IDGenerator: &loopIDGenerator{

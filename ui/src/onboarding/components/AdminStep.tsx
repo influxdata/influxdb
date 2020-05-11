@@ -28,6 +28,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 interface State extends ISetupParams {
   confirmPassword: string
   isPassMismatched: boolean
+  isPassTooShort: boolean
 }
 
 interface Props extends OnboardingStepProps {
@@ -53,18 +54,12 @@ class AdminStep extends PureComponent<Props, State> {
       org,
       bucket,
       isPassMismatched: false,
+      isPassTooShort: false,
     }
   }
 
   public render() {
-    const {
-      username,
-      password,
-      confirmPassword,
-      org,
-      bucket,
-      isPassMismatched,
-    } = this.state
+    const {username, password, confirmPassword, org, bucket} = this.state
     const icon = this.InputIcon
     const status = this.InputStatus
     return (
@@ -111,7 +106,10 @@ class AdminStep extends PureComponent<Props, State> {
                     widthMD={Columns.Five}
                     offsetMD={Columns.One}
                   >
-                    <Form.Element label="Password">
+                    <Form.Element
+                      label="Password"
+                      errorMessage={this.passwordError}
+                    >
                       <Input
                         type={InputType.Password}
                         value={password}
@@ -128,9 +126,7 @@ class AdminStep extends PureComponent<Props, State> {
                   <Grid.Column widthXS={Columns.Six} widthMD={Columns.Five}>
                     <Form.Element
                       label="Confirm Password"
-                      errorMessage={
-                        isPassMismatched && 'Passwords do not match'
-                      }
+                      errorMessage={this.confirmError}
                     >
                       <Input
                         type={InputType.Password}
@@ -204,6 +200,14 @@ class AdminStep extends PureComponent<Props, State> {
     )
   }
 
+  private get passwordError(): string {
+    return this.state.isPassTooShort && 'Password must be at least 8 characters'
+  }
+
+  private get confirmError(): string {
+    return this.state.isPassMismatched && 'Passwords do not match'
+  }
+
   private get isAdminSet(): boolean {
     const {stepStatuses, currentStepIndex} = this.props
     if (stepStatuses[currentStepIndex] === StepStatus.Complete) {
@@ -221,7 +225,8 @@ class AdminStep extends PureComponent<Props, State> {
     const {confirmPassword} = this.state
     const password = e.target.value
     const isPassMismatched = confirmPassword && password !== confirmPassword
-    this.setState({password, isPassMismatched})
+    const isPassTooShort = password && password.length < 8
+    this.setState({password, isPassMismatched, isPassTooShort})
   }
 
   private handleConfirmPassword = (e: ChangeEvent<HTMLInputElement>): void => {
@@ -283,6 +288,7 @@ class AdminStep extends PureComponent<Props, State> {
       bucket,
       confirmPassword,
       isPassMismatched,
+      isPassTooShort,
     } = this.state
 
     return (
@@ -291,7 +297,8 @@ class AdminStep extends PureComponent<Props, State> {
       confirmPassword &&
       org &&
       bucket &&
-      !isPassMismatched
+      !isPassMismatched &&
+      !isPassTooShort
     )
   }
 

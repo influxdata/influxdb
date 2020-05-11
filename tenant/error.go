@@ -43,6 +43,11 @@ var (
 		Code: influxdb.ENotFound,
 		Msg:  "not found",
 	}
+
+	ErrPasswordTooShort = &influxdb.Error{
+		Code: influxdb.EInvalid,
+		Msg:  "password must be at least 8 characters",
+	}
 )
 
 // ErrCorruptID the ID stored in the Store is corrupt.
