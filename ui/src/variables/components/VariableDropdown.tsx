@@ -43,6 +43,13 @@ class VariableDropdown extends PureComponent<Props> {
     const dropdownStatus =
       values.length === 0 ? ComponentStatus.Disabled : ComponentStatus.Default
 
+    const widthLength = Math.max(
+      140,
+      values.reduce(function(a, b) {
+        return a.length > b.length ? a : b
+      }, '').length * 8
+    )
+
     return (
       <div className="variable-dropdown">
         {/* TODO: Add variable description to title attribute when it is ready */}
@@ -62,6 +69,7 @@ class VariableDropdown extends PureComponent<Props> {
           )}
           menu={onCollapse => (
             <Dropdown.Menu
+              style={{width: `${widthLength}px`}}
               onCollapse={onCollapse}
               theme={DropdownMenuTheme.Amethyst}
             >
@@ -74,6 +82,7 @@ class VariableDropdown extends PureComponent<Props> {
                     onClick={this.handleSelect}
                     selected={val === selectedValue}
                     testID="variable-dropdown--item"
+                    // wrapText={true}
                   >
                     {val}
                   </Dropdown.Item>
