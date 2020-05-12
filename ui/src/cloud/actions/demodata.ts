@@ -14,10 +14,9 @@ import {notify} from 'src/shared/actions/notifications'
 
 // Selectors
 import {getOrg} from 'src/organizations/selectors'
-import {getAll} from 'src/resources/selectors'
 
 // Constants
-import {DemoDataTemplates, DemoDataDashboards} from 'src/cloud/constants'
+import {DemoDataTemplates} from 'src/cloud/constants'
 import {
   demoDataAddBucketFailed,
   demoDataDeleteBucketFailed,
@@ -25,14 +24,7 @@ import {
 } from 'src/shared/copy/notifications'
 
 // Types
-import {
-  Bucket,
-  RemoteDataState,
-  GetState,
-  DemoBucket,
-  ResourceType,
-  Dashboard,
-} from 'src/types'
+import {Bucket, RemoteDataState, GetState, DemoBucket} from 'src/types'
 import {reportError} from 'src/shared/utils/errors'
 import {getErrorMessage} from 'src/utils/api'
 
@@ -117,17 +109,7 @@ export const getDemoDataBucketMembership = ({
       throw new Error(`dashboard template was not found`)
     }
 
-    await createDashboardFromTemplate(template, orgID)
-
-    const allDashboards = getAll<Dashboard>(getState(), ResourceType.Dashboards)
-
-    const createdDashboard = allDashboards.find(
-      d => d.name === DemoDataDashboards[bucketName]
-    )
-
-    if (!createdDashboard) {
-      throw new Error(`dashboard was not found`)
-    }
+    const createdDashboard = await createDashboardFromTemplate(template, orgID)
 
     const url = `/orgs/${orgID}/dashboards/${createdDashboard.id}`
 

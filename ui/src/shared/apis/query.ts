@@ -30,6 +30,7 @@ export interface RunQueryLimitResult {
 export interface RunQueryErrorResult {
   type: 'UNKNOWN_ERROR'
   message: string
+  code?: string
 }
 
 export const runQuery = (
@@ -138,8 +139,9 @@ const processErrorResponse = async (
     const body = await response.text()
     const json = JSON.parse(body)
     const message = json.message || json.error
+    const code = json.code
 
-    return {type: 'UNKNOWN_ERROR', message}
+    return {type: 'UNKNOWN_ERROR', message, code}
   } catch {
     return {type: 'UNKNOWN_ERROR', message: 'Failed to execute Flux query'}
   }
