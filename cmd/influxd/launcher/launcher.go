@@ -17,6 +17,7 @@ import (
 
 	"github.com/influxdata/flux"
 	platform "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/authorization"
 	"github.com/influxdata/influxdb/v2/authorizer"
 	"github.com/influxdata/influxdb/v2/bolt"
 	"github.com/influxdata/influxdb/v2/chronograf/server"
@@ -855,13 +856,13 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 
 	flagger := feature.DefaultFlagger()
 	if len(m.featureFlags) > 0 {
-		f, err := overrideflagger.Make(m.featureFlags)
+		f, err := overrideflagger.Make(m.featureFlags, feature.ByKey)
 		if err != nil {
 			m.log.Error("Failed to configure feature flag overrides",
 				zap.Error(err), zap.Any("overrides", m.featureFlags))
 			return err
 		}
-		m.log.Info("Running with feature flag overrides", zap.Any("config", m.featureFlags))
+		m.log.Info("Running with feature flag overrides", zap.Any("overrides", m.featureFlags))
 		flagger = f
 	}
 
@@ -877,6 +878,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		BackupService:        backupService,
 		KVBackupService:      m.kvService,
 		AuthorizationService: authSvc,
+		AlgoWProxy:           &http.NoopProxyHandler{},
 		// Wrap the BucketService in a storage backed one that will ensure deleted buckets are removed from the storage engine.
 		BucketService:                   storage.NewBucketService(bucketSvc, m.engine),
 		SessionService:                  sessionSvc,
@@ -959,8 +961,32 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		onboardHTTPServer = tenant.NewHTTPOnboardHandler(m.log, onboardSvc)
 	}
 
+	// feature flagging for new authorization service
+	var authHTTPServer *kithttp.FeatureHandler
 	{
-		platformHandler := http.NewPlatformHandler(m.apibackend, http.WithResourceHandler(pkgHTTPServer), http.WithResourceHandler(onboardHTTPServer))
+		ts := tenant.NewService(store) // todo (al): remove when tenant is un-flagged
+		authLogger := m.log.With(zap.String("handler", "authorization"))
+
+		oldBackend := http.NewAuthorizationBackend(authLogger, m.apibackend)
+		oldBackend.AuthorizationService = authorizer.NewAuthorizationService(authSvc)
+		oldHandler := http.NewAuthorizationHandler(authLogger, oldBackend)
+
+		authStore, err := authorization.NewStore(m.kvStore)
+		if err != nil {
+			m.log.Error("Failed creating new authorization store", zap.Error(err))
+			return err
+		}
+		authService := authorization.NewService(authStore, ts)
+		authService = authorization.NewAuthedAuthorizationService(authService, ts)
+		authService = authorization.NewAuthMetrics(m.reg, authService)
+		authService = authorization.NewAuthLogger(authLogger, authService)
+
+		newHandler := authorization.NewHTTPAuthHandler(m.log, authService, ts, lookupSvc)
+		authHTTPServer = kithttp.NewFeatureHandler(feature.NewAuthPackage(), flagger, oldHandler, newHandler, newHandler.Prefix())
+	}
+
+	{
+		platformHandler := http.NewPlatformHandler(m.apibackend, http.WithResourceHandler(pkgHTTPServer), http.WithResourceHandler(onboardHTTPServer), http.WithResourceHandler(authHTTPServer))
 
 		httpLogger := m.log.With(zap.String("service", "http"))
 		m.httpServer.Handler = http.NewHandlerFromRegistry(

@@ -47,10 +47,12 @@ type cmdPkgBuilder struct {
 	hideHeaders         bool
 	json                bool
 	name                string
+	names               []string
 	org                 organization
 	quiet               bool
 	recurse             bool
 	stackID             string
+	stackIDs            []string
 	urls                []string
 
 	applyOpts struct {
@@ -364,7 +366,11 @@ func (b *cmdPkgBuilder) cmdPkgValidate() *cobra.Command {
 func (b *cmdPkgBuilder) cmdStack() *cobra.Command {
 	cmd := b.newCmd("stack", nil, false)
 	cmd.Short = "Stack management commands"
-	cmd.AddCommand(b.cmdStackInit())
+	cmd.AddCommand(
+		b.cmdStackInit(),
+		b.cmdStackList(),
+		b.cmdStackRemove(),
+	)
 	return cmd
 }
 
@@ -422,6 +428,166 @@ func (b *cmdPkgBuilder) stackInitRunEFn(cmd *cobra.Command, args []string) error
 		"URLs":        stack.URLs,
 		"Created At":  stack.CreatedAt,
 	})
+
+	return nil
+}
+
+func (b *cmdPkgBuilder) cmdStackList() *cobra.Command {
+	cmd := b.newCmd("list [flags]", b.stackListRunEFn, true)
+	cmd.Short = "List stack(s) and associated resources"
+	cmd.Aliases = []string{"ls"}
+
+	cmd.Flags().StringArrayVar(&b.stackIDs, "stack-id", nil, "Stack IDs to filter by")
+	cmd.Flags().StringArrayVar(&b.names, "stack-name", nil, "Stack names to filter by")
+	registerPrintOptions(cmd, &b.hideHeaders, &b.json)
+
+	b.org.register(cmd, false)
+
+	return cmd
+}
+
+func (b *cmdPkgBuilder) stackListRunEFn(cmd *cobra.Command, args []string) error {
+	pkgSVC, orgSVC, err := b.svcFn()
+	if err != nil {
+		return err
+	}
+
+	orgID, err := b.org.getID(orgSVC)
+	if err != nil {
+		return err
+	}
+
+	var stackIDs []influxdb.ID
+	for _, rawID := range b.stackIDs {
+		id, err := influxdb.IDFromString(rawID)
+		if err != nil {
+			return err
+		}
+		stackIDs = append(stackIDs, *id)
+	}
+
+	stacks, err := pkgSVC.ListStacks(context.Background(), orgID, pkger.ListFilter{
+		StackIDs: stackIDs,
+		Names:    b.names,
+	})
+	if err != nil {
+		return err
+	}
+
+	if b.json {
+		return b.writeJSON(stacks)
+	}
+
+	tabW := b.newTabWriter()
+	defer tabW.Flush()
+
+	tabW.HideHeaders(b.hideHeaders)
+	tabW.WriteHeaders("ID", "OrgID", "Name", "Description", "Num Resources", "URLs", "Created At")
+
+	for _, stack := range stacks {
+		tabW.Write(map[string]interface{}{
+			"ID":            stack.ID,
+			"OrgID":         stack.OrgID,
+			"Name":          stack.Name,
+			"Description":   stack.Description,
+			"Num Resources": len(stack.Resources),
+			"URLs":          stack.URLs,
+			"Created At":    stack.CreatedAt,
+		})
+	}
+
+	return nil
+}
+
+func (b *cmdPkgBuilder) cmdStackRemove() *cobra.Command {
+	cmd := b.newCmd("remove [--stack-id=ID1 --stack-id=ID2]", b.stackRemoveRunEFn, true)
+	cmd.Short = "Remove a stack(s) and all associated resources"
+	cmd.Aliases = []string{"rm", "uninstall"}
+
+	cmd.Flags().StringArrayVar(&b.stackIDs, "stack-id", nil, "Stack IDs to be removed")
+	cmd.MarkFlagRequired("stack-id")
+	registerPrintOptions(cmd, &b.hideHeaders, &b.json)
+
+	b.org.register(cmd, false)
+
+	return cmd
+}
+
+func (b *cmdPkgBuilder) stackRemoveRunEFn(cmd *cobra.Command, args []string) error {
+	pkgSVC, orgSVC, err := b.svcFn()
+	if err != nil {
+		return err
+	}
+
+	orgID, err := b.org.getID(orgSVC)
+	if err != nil {
+		return err
+	}
+
+	var stackIDs []influxdb.ID
+	for _, rawID := range b.stackIDs {
+		id, err := influxdb.IDFromString(rawID)
+		if err != nil {
+			return err
+		}
+		stackIDs = append(stackIDs, *id)
+	}
+
+	stacks, err := pkgSVC.ListStacks(context.Background(), orgID, pkger.ListFilter{
+		StackIDs: stackIDs,
+	})
+	if err != nil {
+		return err
+	}
+
+	printStack := func(stack pkger.Stack) error {
+		if b.json {
+			return b.writeJSON(stack)
+		}
+
+		tabW := b.newTabWriter()
+		defer func() {
+			tabW.Flush()
+			// add a breather line between confirm and printout
+			fmt.Fprintln(b.w)
+		}()
+
+		tabW.HideHeaders(b.hideHeaders)
+
+		tabW.WriteHeaders("ID", "OrgID", "Name", "Description", "Num Resources", "URLs", "Created At")
+		tabW.Write(map[string]interface{}{
+			"ID":            stack.ID,
+			"OrgID":         stack.OrgID,
+			"Name":          stack.Name,
+			"Description":   stack.Description,
+			"Num Resources": len(stack.Resources),
+			"URLs":          stack.URLs,
+			"Created At":    stack.CreatedAt,
+		})
+
+		return nil
+	}
+
+	for _, stack := range stacks {
+		if err := printStack(stack); err != nil {
+			return err
+		}
+
+		msg := fmt.Sprintf("Confirm removal of the stack[%s] and all associated resources (y/n)", stack.ID)
+		confirm := b.getInput(msg, "n")
+		if confirm != "y" {
+			continue
+		}
+
+		err := pkgSVC.DeleteStack(context.Background(), struct{ OrgID, UserID, StackID influxdb.ID }{
+			OrgID:   orgID,
+			UserID:  0,
+			StackID: stack.ID,
+		})
+		if err != nil {
+			return err
+		}
+	}
 
 	return nil
 }
@@ -983,11 +1149,14 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
 				m.ResPkgName, m.ResName, m.ResID.String(),
 				m.LabelPkgName, m.LabelName, m.LabelID.String(),
 			}
-			oldRow := newRow
-			if pkger.IsNew(m.StateStatus) {
-				oldRow = nil
+			switch {
+			case pkger.IsNew(m.StateStatus):
+				printer.AppendDiff(nil, newRow)
+			case pkger.IsRemoval(m.StateStatus):
+				printer.AppendDiff(newRow, nil)
+			default:
+				printer.AppendDiff(newRow, newRow)
 			}
-			printer.AppendDiff(oldRow, newRow)
 		}
 		printer.Render()
 	}

@@ -17,6 +17,7 @@ func NewMockNotificationRuleBackend(t *testing.T) *NotificationRuleBackend {
 	return &NotificationRuleBackend{
 		log: zaptest.NewLogger(t),
 
+		AlgoWProxy:                      &NoopProxyHandler{},
 		UserResourceMappingService: mock.NewUserResourceMappingService(),
 		LabelService:               mock.NewLabelService(),
 		UserService:                mock.NewUserService(),

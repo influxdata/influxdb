@@ -68,6 +68,11 @@ func (s *Store) setup() error {
 		if _, err := tx.Bucket(urmBucket); err != nil {
 			return err
 		}
+
+		if _, err := tx.Bucket(urmByUserIndexBucket); err != nil {
+			return err
+		}
+
 		if _, err := tx.Bucket(organizationBucket); err != nil {
 			return err
 		}

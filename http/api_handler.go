@@ -51,6 +51,8 @@ type APIBackend struct {
 	WriteEventRecorder metric.EventRecorder
 	QueryEventRecorder metric.EventRecorder
 
+	AlgoWProxy FeatureProxyHandler
+
 	PointsWriter                    storage.PointsWriter
 	DeleteService                   influxdb.DeleteService
 	BackupService                   influxdb.BackupService
@@ -125,10 +127,6 @@ func NewAPIHandler(b *APIBackend, opts ...APIHandlerOptFn) *APIHandler {
 	b.LabelService = authorizer.NewLabelServiceWithOrg(b.LabelService, b.OrgLookupService)
 
 	h.Mount("/api/v2", serveLinksHandler(b.HTTPErrorHandler))
-
-	authorizationBackend := NewAuthorizationBackend(b.Logger.With(zap.String("handler", "authorization")), b)
-	authorizationBackend.AuthorizationService = authorizer.NewAuthorizationService(b.AuthorizationService)
-	h.Mount(prefixAuthorization, NewAuthorizationHandler(b.Logger, authorizationBackend))
 
 	bucketBackend := NewBucketBackend(b.Logger.With(zap.String("handler", "bucket")), b)
 	bucketBackend.BucketService = authorizer.NewBucketService(b.BucketService, noAuthUserResourceMappingService)

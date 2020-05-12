@@ -476,6 +476,12 @@ export const demoDataSucceeded = (
   link,
 })
 
+export const demoDataSwitchedOff = (): Notification => ({
+  ...defaultErrorNotification,
+  message: `Demo data buckets are temporarily unavailable. Please try again later.`,
+  duration: TEN_SECONDS,
+})
+
 // Limits
 export const readWriteCardinalityLimitReached = (
   message: string
