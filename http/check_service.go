@@ -814,7 +814,7 @@ func (s *CheckService) PatchCheck(ctx context.Context, id influxdb.ID, u influxd
 
 	var r Check
 	err := s.Client.
-		PutJSON(u, checkIDPath(id)).
+		PatchJSON(u, checkIDPath(id)).
 		DecodeJSON(&r).
 		Do(ctx)
 	if err != nil {

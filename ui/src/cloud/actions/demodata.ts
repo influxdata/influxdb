@@ -14,27 +14,22 @@ import {notify} from 'src/shared/actions/notifications'
 
 // Selectors
 import {getOrg} from 'src/organizations/selectors'
-import {getAll} from 'src/resources/selectors'
 
 // Constants
-import {DemoDataTemplates, DemoDataDashboards} from 'src/cloud/constants'
+import {DemoDataTemplates} from 'src/cloud/constants'
 import {
   demoDataAddBucketFailed,
   demoDataDeleteBucketFailed,
   demoDataSucceeded,
 } from 'src/shared/copy/notifications'
 
-// Types
-import {
-  Bucket,
-  RemoteDataState,
-  GetState,
-  DemoBucket,
-  ResourceType,
-  Dashboard,
-} from 'src/types'
+// Utils
 import {reportError} from 'src/shared/utils/errors'
 import {getErrorMessage} from 'src/utils/api'
+import {fireEvent} from 'src/shared/utils/analytics'
+
+// Types
+import {Bucket, RemoteDataState, GetState, DemoBucket} from 'src/types'
 
 export type Actions =
   | ReturnType<typeof setDemoDataStatus>
@@ -117,21 +112,13 @@ export const getDemoDataBucketMembership = ({
       throw new Error(`dashboard template was not found`)
     }
 
-    await createDashboardFromTemplate(template, orgID)
-
-    const allDashboards = getAll<Dashboard>(getState(), ResourceType.Dashboards)
-
-    const createdDashboard = allDashboards.find(
-      d => d.name === DemoDataDashboards[bucketName]
-    )
-
-    if (!createdDashboard) {
-      throw new Error(`dashboard was not found`)
-    }
+    const createdDashboard = await createDashboardFromTemplate(template, orgID)
 
     const url = `/orgs/${orgID}/dashboards/${createdDashboard.id}`
 
     dispatch(notify(demoDataSucceeded(bucketName, url)))
+
+    fireEvent('demoData_bucketAdded', {demo_dataset: bucketName})
   } catch (error) {
     const message = `Could not create dashboard for demodata bucket ${bucketName}: ${getErrorMessage(
       error
@@ -163,6 +150,7 @@ export const deleteDemoDataBucketMembership = (bucket: DemoBucket) => async (
     }
 
     dispatch(removeBucket(bucket.id))
+    fireEvent('demoData_bucketDeleted', {demo_dataset: bucket.name})
   } catch (error) {
     dispatch(notify(demoDataDeleteBucketFailed(bucket.name, error)))
 

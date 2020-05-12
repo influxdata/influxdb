@@ -15,7 +15,11 @@ import {notify} from 'src/shared/actions/notifications'
 import {hydrateVariables} from 'src/variables/actions/thunks'
 
 // Constants
-import {rateLimitReached, resultTooLarge} from 'src/shared/copy/notifications'
+import {
+  rateLimitReached,
+  resultTooLarge,
+  demoDataSwitchedOff,
+} from 'src/shared/copy/notifications'
 
 // Utils
 import {getActiveTimeMachine, getActiveQuery} from 'src/timeMachine/selectors'
@@ -23,6 +27,7 @@ import fromFlux from 'src/shared/utils/fromFlux'
 import {getAllVariables, asAssignment} from 'src/variables/selectors'
 import {buildVarsOption} from 'src/variables/utils/buildVarsOption'
 import {findNodes} from 'src/shared/utils/ast'
+import {isDemoDataAvailabilityError} from 'src/cloud/utils/demoDataErrors'
 
 // Types
 import {CancelBox} from 'src/types/promises'
@@ -38,6 +43,7 @@ import {
 // Selectors
 import {getOrg} from 'src/organizations/selectors'
 import {getAll} from 'src/resources/selectors/index'
+import {fireQueryEvent} from 'src/shared/utils/analytics'
 
 export type Action = SaveDraftQueriesAction | SetQueryResults
 
@@ -133,6 +139,9 @@ export const executeQueries = () => async (dispatch, getState: GetState) => {
 
     pendingResults = queries.map(({text}) => {
       const orgID = getOrgIDFromBuckets(text, allBuckets) || getOrg(state).id
+
+      fireQueryEvent(getOrg(state).id, orgID)
+
       const extern = buildVarsOption(variableAssignments)
 
       return runQuery(orgID, text, extern)
@@ -150,6 +159,10 @@ export const executeQueries = () => async (dispatch, getState: GetState) => {
 
     for (const result of results) {
       if (result.type === 'UNKNOWN_ERROR') {
+        if (isDemoDataAvailabilityError(result.code, result.message)) {
+          dispatch(notify(demoDataSwitchedOff()))
+        }
+
         throw new Error(result.message)
       }
 

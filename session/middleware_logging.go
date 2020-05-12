@@ -29,7 +29,7 @@ func (l *SessionLogger) FindSession(ctx context.Context, key string) (session *i
 	defer func(start time.Time) {
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {
-			l.logger.Error("failed to session find", zap.Error(err), dur)
+			l.logger.Debug("failed to session find", zap.Error(err), dur)
 			return
 		}
 		l.logger.Debug("session find", dur)
@@ -43,7 +43,7 @@ func (l *SessionLogger) ExpireSession(ctx context.Context, key string) (err erro
 	defer func(start time.Time) {
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {
-			l.logger.Error("failed to session expire", zap.Error(err), dur)
+			l.logger.Debug("failed to session expire", zap.Error(err), dur)
 			return
 		}
 		l.logger.Debug("session expire", dur)
@@ -57,7 +57,7 @@ func (l *SessionLogger) CreateSession(ctx context.Context, user string) (s *infl
 	defer func(start time.Time) {
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {
-			l.logger.Error("failed to session create", zap.Error(err), dur)
+			l.logger.Debug("failed to session create", zap.Error(err), dur)
 			return
 		}
 		l.logger.Debug("session create", dur)
@@ -71,7 +71,7 @@ func (l *SessionLogger) RenewSession(ctx context.Context, session *influxdb.Sess
 	defer func(start time.Time) {
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {
-			l.logger.Error("failed to session renew", zap.Error(err), dur)
+			l.logger.Debug("failed to session renew", zap.Error(err), dur)
 			return
 		}
 		l.logger.Debug("session renew", dur)
