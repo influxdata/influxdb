@@ -27,6 +27,7 @@ export const fireUserDataReady = function fireUserDataReady(
 }
 
 export const fireEvent = (event: string, payload: object = {}) => {
+  window.dataLayer = window.dataLayer || []
   window.dataLayer.push({
     event,
     ...payload,
