@@ -1,22 +1,27 @@
 // Libraries
 import React, {FC} from 'react'
 import {EmptyState, ComponentSize} from '@influxdata/clockface'
+import GenerateTokenDropdown from './GenerateTokenDropdown'
 
 interface Props {
   searchTerm: string
 }
 
 const TokensEmptyState: FC<Props> = ({searchTerm}) => {
-  let emptyStateText =
-    'There are not any Tokens associated with this account. Contact your administrator'
-
   if (searchTerm) {
-    emptyStateText = 'No Tokens match your search term'
+    return (
+      <EmptyState size={ComponentSize.Large}>
+        <EmptyState.Text>No Tokens match your search</EmptyState.Text>
+      </EmptyState>
+    )
   }
 
   return (
     <EmptyState size={ComponentSize.Large}>
-      <EmptyState.Text>{emptyStateText}</EmptyState.Text>
+      <EmptyState.Text>
+        Looks like you don't have any <b>Tokens</b>, why not add one?
+      </EmptyState.Text>
+      <GenerateTokenDropdown />
     </EmptyState>
   )
 }

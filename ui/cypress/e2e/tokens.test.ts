@@ -255,7 +255,9 @@ describe('tokens', () => {
       })
 
     // Assert empty state
-    cy.getByTestID('empty-state')
+    cy.getByTestID('empty-state').within(() => {
+      cy.getByTestID('dropdown--gen-token').should('exist')
+    })
   })
 
   it('can generate a read/write token', () => {

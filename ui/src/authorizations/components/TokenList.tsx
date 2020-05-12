@@ -4,14 +4,14 @@ import _ from 'lodash'
 import memoizeOne from 'memoize-one'
 
 // Components
-import {EmptyState, Overlay, IndexList} from '@influxdata/clockface'
+import {Overlay, IndexList} from '@influxdata/clockface'
 import TokenRow from 'src/authorizations/components/TokenRow'
 import ViewTokenOverlay from 'src/authorizations/components/ViewTokenOverlay'
 
 // Types
 import {Authorization} from 'src/types'
 import {SortTypes} from 'src/shared/utils/sort'
-import {ComponentSize, Sort} from '@influxdata/clockface'
+import {Sort} from '@influxdata/clockface'
 
 // Utils
 import {getSortedResources} from 'src/shared/utils/sort'
