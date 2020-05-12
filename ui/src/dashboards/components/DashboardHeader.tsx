@@ -1,5 +1,5 @@
 // Libraries
-import React, {FC} from 'react'
+import React, {FC, useEffect} from 'react'
 import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
 
@@ -24,6 +24,9 @@ import {
   setDashboardTimeRange as setDashboardTimeRangeAction,
   updateQueryParams as updateQueryParamsAction,
 } from 'src/dashboards/actions/ranges'
+
+// Utils
+import {fireDashboardViewedEvent} from 'src/shared/utils/analytics'
 
 // Selectors
 import {getTimeRange} from 'src/dashboards/selectors'
@@ -85,6 +88,10 @@ const DashboardHeader: FC<Props> = ({
   router,
   org,
 }) => {
+  useEffect(() => {
+    fireDashboardViewedEvent(dashboard.name)
+  }, [dashboard.id])
+
   const handleAddNote = () => {
     router.push(`/orgs/${org.id}/dashboards/${dashboard.id}/notes/new`)
   }

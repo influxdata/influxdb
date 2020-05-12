@@ -1,3 +1,5 @@
+import {DemoDataDashboardNames} from 'src/cloud/constants'
+
 export const fireOrgIdReady = function fireOrgIdReady(
   organizationIds: string[]
 ) {
@@ -36,5 +38,12 @@ export const fireQueryEvent = (ownOrg: string, queryOrg: string) => {
     fireGAEvent('orgData_queried')
   } else {
     fireGAEvent('demoData_queried')
+  }
+}
+
+export const fireDashboardViewedEvent = (dashboardName: string) => {
+  const demo_dataset = DemoDataDashboardNames[dashboardName]
+  if (demo_dataset) {
+    fireGAEvent('demoData_dashboardViewed', {demo_dataset})
   }
 }

@@ -15,9 +15,15 @@ const WebsiteMonitoringDashboardTemplate = async (name: string) => {
 }
 
 export const WebsiteMonitoringBucket = 'Website Monitoring Bucket'
+export const WebsiteMonitoringDemoDataDashboard =
+  'Website Monitoring Demo Data Dashboard'
 
 export const DemoDataDashboards = {
-  [WebsiteMonitoringBucket]: 'Website Monitoring Demo Data Dashboard',
+  [WebsiteMonitoringBucket]: WebsiteMonitoringDemoDataDashboard,
+}
+
+export const DemoDataDashboardNames = {
+  [WebsiteMonitoringDemoDataDashboard]: WebsiteMonitoringBucket,
 }
 
 export const DemoDataTemplates = {
