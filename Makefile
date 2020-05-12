@@ -210,5 +210,20 @@ protoc:
 flags:
 	$(GO_GENERATE) ./kit/feature
 
+docker-image-influx:
+	@cp .gitignore .dockerignore
+	@docker image build -t influxdb:dev --target influx .
+
+docker-image-ui:
+	@cp .gitignore .dockerignore
+	@docker image build -t influxui:dev --target ui .
+	
+dshell-image:
+	@cp .gitignore .dockerignore
+	@docker image build --build-arg "USERID=$(shell id -u)" -t influxdb:dshell --target dshell .
+
+dshell: dshell-image
+	@docker container run --rm -p 9999:9999 -p 8080:8080 -u $(shell id -u) -it -v $(shell pwd):/code -w /code influxdb:dshell 
+
 # .PHONY targets represent actions that do not create an actual file.
-.PHONY: all $(SUBDIRS) run fmt checkfmt tidy checktidy checkgenerate test test-go test-js test-go-race bench clean node_modules vet nightly chronogiraffe dist ping protoc e2e run-e2e influxd libflux flags
+.PHONY: all $(SUBDIRS) run fmt checkfmt tidy checktidy checkgenerate test test-go test-js test-go-race bench clean node_modules vet nightly chronogiraffe dist ping protoc e2e run-e2e influxd libflux flags dshell dclean docker-image-flux docker-image-influx
