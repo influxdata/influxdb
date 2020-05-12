@@ -179,7 +179,7 @@ func Test_Examples(t *testing.T) {
 	for _, example := range examples {
 		example.normalize()
 		t.Run(example.name, func(t *testing.T) {
-			transformer := CsvToProtocolLines(strings.NewReader(example.csv))
+			transformer := CsvToLineProtocol(strings.NewReader(example.csv))
 			transformer.SkipRowOnError(true)
 			result, err := ioutil.ReadAll(transformer)
 			if err != nil {

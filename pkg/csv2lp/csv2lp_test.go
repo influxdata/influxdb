@@ -14,8 +14,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Test_CsvToProtocolLines tests conversion of annotated CSV data to line protocol data
-func Test_CsvToProtocolLines(t *testing.T) {
+// Test_CsvToLineProtocol tests conversion of annotated CSV data to line protocol data
+func Test_CsvToLineProtocol(t *testing.T) {
 	var tests = []struct {
 		name  string
 		csv   string
@@ -86,7 +86,7 @@ func Test_CsvToProtocolLines(t *testing.T) {
 	for _, test := range tests {
 		for _, bufferSize := range bufferSizes {
 			t.Run(test.name+"_"+strconv.Itoa(bufferSize), func(t *testing.T) {
-				reader := CsvToProtocolLines(strings.NewReader(test.csv))
+				reader := CsvToLineProtocol(strings.NewReader(test.csv))
 				buffer := make([]byte, bufferSize)
 				lines := make([]byte, 0, 100)
 				for {
@@ -117,8 +117,8 @@ func Test_CsvToProtocolLines(t *testing.T) {
 	}
 }
 
-// Test_CsvToProtocolLines_LogTableColumns checks correct logging of table columns
-func Test_CsvToProtocolLines_LogTableColumns(t *testing.T) {
+// Test_CsvToLineProtocol_LogTableColumns checks correct logging of table columns
+func Test_CsvToLineProtocol_LogTableColumns(t *testing.T) {
 	var buf bytes.Buffer
 	log.SetOutput(&buf)
 	oldFlags := log.Flags()
@@ -134,7 +134,7 @@ func Test_CsvToProtocolLines_LogTableColumns(t *testing.T) {
 
 	csv := "_measurement,a,b\ncpu,1,1\ncpu,b2\n"
 
-	reader := CsvToProtocolLines(strings.NewReader(csv)).LogTableColumns(true)
+	reader := CsvToLineProtocol(strings.NewReader(csv)).LogTableColumns(true)
 	require.False(t, reader.skipRowOnError)
 	require.True(t, reader.logTableDataColumns)
 	// read all the data
@@ -146,8 +146,8 @@ func Test_CsvToProtocolLines_LogTableColumns(t *testing.T) {
 	require.Equal(t, messages, 1)
 }
 
-// Test_CsvToProtocolLines_LogTimeZoneWarning checks correct logging of timezone warning
-func Test_CsvToProtocolLines_LogTimeZoneWarning(t *testing.T) {
+// Test_CsvToLineProtocol_LogTimeZoneWarning checks correct logging of timezone warning
+func Test_CsvToLineProtocol_LogTimeZoneWarning(t *testing.T) {
 	var buf bytes.Buffer
 	log.SetOutput(&buf)
 	oldFlags := log.Flags()
@@ -165,7 +165,7 @@ func Test_CsvToProtocolLines_LogTimeZoneWarning(t *testing.T) {
 		"#constant,dateTime:2006-01-02,1970-01-01\n" +
 		"_measurement,a,b\ncpu,1,1"
 
-	reader := CsvToProtocolLines(strings.NewReader(csv))
+	reader := CsvToLineProtocol(strings.NewReader(csv))
 	bytes, _ := ioutil.ReadAll(reader)
 
 	out := buf.String()
@@ -175,8 +175,8 @@ func Test_CsvToProtocolLines_LogTimeZoneWarning(t *testing.T) {
 	require.Equal(t, string(bytes), "cpu a=1,b=1 0\n")
 }
 
-// Test_CsvToProtocolLines_SkipRowOnError tests that error rows are skipped
-func Test_CsvToProtocolLines_SkipRowOnError(t *testing.T) {
+// Test_CsvToLineProtocol_SkipRowOnError tests that error rows are skipped
+func Test_CsvToLineProtocol_SkipRowOnError(t *testing.T) {
 	var buf bytes.Buffer
 	log.SetOutput(&buf)
 	oldFlags := log.Flags()
@@ -192,7 +192,7 @@ func Test_CsvToProtocolLines_SkipRowOnError(t *testing.T) {
 
 	csv := "_measurement,a,_time\n,1,1\ncpu,2,2\ncpu,3,3a\n"
 
-	reader := CsvToProtocolLines(strings.NewReader(csv)).SkipRowOnError(true)
+	reader := CsvToLineProtocol(strings.NewReader(csv)).SkipRowOnError(true)
 	require.Equal(t, reader.skipRowOnError, true)
 	require.Equal(t, reader.logTableDataColumns, false)
 	// read all the data

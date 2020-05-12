@@ -123,8 +123,8 @@ func (state *CsvToLineReader) Read(p []byte) (n int, err error) {
 	return state.Read(p)
 }
 
-// CsvToProtocolLines transforms csv data into line protocol data
-func CsvToProtocolLines(reader io.Reader) *CsvToLineReader {
+// CsvToLineProtocol transforms csv data into line protocol data
+func CsvToLineProtocol(reader io.Reader) *CsvToLineReader {
 	csv := csv.NewReader(reader)
 	csv.ReuseRecord = true
 	return &CsvToLineReader{

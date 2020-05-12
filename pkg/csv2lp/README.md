@@ -5,7 +5,7 @@ csv2lp library converts CSV (comma separated values) to InfluxDB Line Protocol.
   2. it allows the processing of existing CSV files
 
 ## Usage
-The entry point is the ``CsvToProtocolLines`` function that accepts a (utf8) reader with CSV data and returns a reader with line protocol data.
+The entry point is the ``CsvToLineProtocol`` function that accepts a (utf8) reader with CSV data and returns a reader with line protocol data.
 
 ## Examples
 #### Example 1 - Flux Query Result
