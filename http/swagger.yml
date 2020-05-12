@@ -8720,6 +8720,8 @@ components:
         - decimalPlaces
         - position
       properties:
+        timeFormat:
+          type: string
         type:
           type: string
           enum: [line-plus-single-stat]
