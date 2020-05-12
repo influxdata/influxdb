@@ -24,6 +24,8 @@ import * as monacoEditor from 'monaco-editor/esm/vs/editor/editor.api'
 interface StateProps {
   activeQueryText: string
   activeTab: string
+  skipFoucs?: boolean
+  globals?: string[]
 }
 
 interface DispatchProps {
@@ -38,6 +40,8 @@ const TimeMachineFluxEditor: FC<Props> = ({
   onSubmitQueries,
   onSetActiveQueryText,
   activeTab,
+  skipFocus,
+  globals,
 }) => {
   const [editorInstance, setEditorInstance] = useState<EditorType>(null)
 
@@ -144,6 +148,8 @@ const TimeMachineFluxEditor: FC<Props> = ({
           onChangeScript={onSetActiveQueryText}
           onSubmitScript={onSubmitQueries}
           setEditorInstance={setEditorInstance}
+            skipFocus={skipFocus}
+            globals={globals}
         />
       </div>
       <div className="flux-editor--right-panel">

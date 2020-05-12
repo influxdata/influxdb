@@ -24,16 +24,20 @@ import {Diagnostic} from 'monaco-languageclient/lib/services'
 const p2m = new ProtocolToMonacoConverter()
 interface Props {
   script: string
+  globals?: string[]
   onChangeScript: OnChangeScript
   onSubmitScript?: () => void
   setEditorInstance?: (editor: EditorType) => void
+  skipFocus?: boolean
 }
 
 const FluxEditorMonaco: FC<Props> = ({
   script,
+  globals,
   onChangeScript,
   onSubmitScript,
   setEditorInstance,
+  skipFocus
 }) => {
   const lspServer = useRef<LSPServer>(null)
   const [editorInst, seteditorInst] = useState<EditorType | null>(null)
@@ -65,12 +69,19 @@ const FluxEditorMonaco: FC<Props> = ({
       }
     })
 
-    editor.focus()
-
     try {
       lspServer.current = await loadServer()
+      if (globals) {
+          lspServer.current.registerGlobals(globals)
+      }
       const diagnostics = await lspServer.current.didOpen(uri, script)
       updateDiagnostics(diagnostics)
+
+      if (!skipFocus) {
+          const lines = script.split('\n')
+          editor.setPosition({lineNumber:lines.length, column:lines[lines.length-1].length + 1});
+          editor.focus()
+      }
     } catch (e) {
       // TODO: notify user that lsp failed
     }

@@ -6,6 +6,10 @@ interface Props {
     idx: number
 }
 
+const GLOBALS = [
+    '__PREVIOUS_RESULT__'
+]
+
 const FluxEditor: FC<Props> = ({idx}) => {
   const {pipes, updatePipe} = useContext(NotebookContext)
   const {queries, activeQuery} = pipes[idx]
@@ -25,12 +29,19 @@ const FluxEditor: FC<Props> = ({idx}) => {
       return null
   }
 
+  const queryPipes = pipes.map(({type}, idx) => ({ type, idx}))
+    .filter(pipe => pipe.type === 'query')
+    const isLast = queryPipes[queryPipes.length - 1].idx === idx
+
+
   return (
     <TimeMachineFluxEditor
       activeQueryText={query.text}
       activeTab={activeQuery}
       onSetActiveQueryText={updateText}
       onSubmitQueries={() => {}}
+        skipFocus={ !isLast }
+        globals={ GLOBALS }
     />
   )
 }

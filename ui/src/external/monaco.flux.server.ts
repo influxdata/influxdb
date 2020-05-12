@@ -96,6 +96,7 @@ export class LSPServer {
   private buckets: string[] = []
   private orgID: string = ''
   private documentVersions: {[key: string]: number} = {}
+  private globals: {[key: string]: boolean} = {}
   public store: Store<AppState & LocalStorage>
 
   constructor(server: WASMServer, reduxStore = store) {
@@ -136,6 +137,12 @@ export class LSPServer {
 
   setOrg(orgID: string) {
     this.orgID = orgID
+  }
+
+  registerGlobals(variables: string[]) {
+      variables.forEach(variable => {
+          this.globals[variable] = true
+      })
   }
 
   initialize() {
@@ -228,7 +235,7 @@ export class LSPServer {
   async didOpen(uri: string, script: string) {
     await this.sendPrelude(uri)
     const response = await this.send(
-      didOpen(this.currentMessageID, uri, script, 1)
+      didOpen(this.currentMessageID, uri, this.prependGlobals(script), 1)
     )
     this.documentVersions[uri] = 1
 
@@ -239,7 +246,7 @@ export class LSPServer {
     await this.sendPrelude(uri)
     const version = this.documentVersions[uri] || 1
     const response = await this.send(
-      didChange(this.currentMessageID, uri, script, version + 1)
+      didChange(this.currentMessageID, uri, this.prependGlobals(script), version + 1)
     )
     this.documentVersions[uri] = version + 1
 
@@ -291,6 +298,14 @@ export class LSPServer {
 
     const prelude = format_from_js_file(file)
     await this.send(didOpen(this.currentMessageID, path, prelude, 0))
+  }
+
+  private prependGlobals(script: string): string {
+      const out = Object.keys(this.globals).map(variable => (
+          `${variable} = true`
+      )).join('\n') + script
+
+      return script
   }
 }
 

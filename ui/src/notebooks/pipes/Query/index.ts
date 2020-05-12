@@ -10,7 +10,7 @@ register({
     activeQuery: 0,
     queries: [
       {
-        text: '',
+        text: '// Tip: Use the __PREVIOUS_RESULT__ variable to link your queries\n\n',
         editMode: 'advanced',
         builderConfig: {
           buckets: [],

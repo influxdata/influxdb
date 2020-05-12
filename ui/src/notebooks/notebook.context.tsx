@@ -43,7 +43,7 @@ const TEST_NOTEBOOK = {
       activeQuery: 0,
       queries: [
         {
-          text: 'result_0\n |> filter(fn: (r) => r["_field"] == "usage_percent")',
+          text: '__PREVIOUS_RESULT__\n |> filter(fn: (r) => r["_field"] == "usage_percent")',
           editMode: 'advanced',
           builderConfig: {
             buckets: [],
