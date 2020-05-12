@@ -58,7 +58,7 @@ const MinMaxInputs: SFC<MinMaxInputsProps> = ({
             onChange={e => setMinInput(e.target.value)}
             onBlur={emitIfValid}
             onKeyPress={handleKeyPress}
-            testID="min--auto-domain"
+            testID="auto-domain--min"
           />
         </Form.Element>
       </Grid.Column>
@@ -69,12 +69,16 @@ const MinMaxInputs: SFC<MinMaxInputsProps> = ({
             onChange={e => setMaxInput(e.target.value)}
             onBlur={emitIfValid}
             onKeyPress={handleKeyPress}
-            testID="max--auto-domain"
+            testID="auto-domain--max"
           />
         </Form.Element>
       </Grid.Column>
     </>
   )
+}
+
+const formatDomainValue = (value: number | null): string => {
+  return value === null ? '' : String(value)
 }
 
 interface AutoDomainInputProps {
@@ -99,13 +103,8 @@ const AutoDomainInput: SFC<AutoDomainInputProps> = ({
     setShowInputs(true)
   }
 
-  const formatDomainValue = (value: null | number): string => {
-    return value === null ? '' : String(value)
-  }
-  const initialMin =
-    domain && Array.isArray(domain) ? formatDomainValue(domain[0]) : ''
-  const initialMax =
-    domain && Array.isArray(domain) ? formatDomainValue(domain[1]) : ''
+  const initialMin = Array.isArray(domain) ? formatDomainValue(domain[0]) : ''
+  const initialMax = Array.isArray(domain) ? formatDomainValue(domain[1]) : ''
 
   return (
     <Form.Element label={label} className="auto-domain-input">

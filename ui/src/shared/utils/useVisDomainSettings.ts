@@ -61,7 +61,7 @@ export const getRemainingRange = (
   storedDomain: number[]
 ) => {
   const range = extent((data as number[]) || [])
-  if (range && range.length >= 2) {
+  if (Array.isArray(range) && range.length >= 2) {
     const startTime = getStartTime(timeRange)
     const endTime = getEndTime(timeRange)
     const start = storedDomain[0]

@@ -692,18 +692,18 @@ describe('DataExplorer', () => {
         cy.getByTestID('select-group--option')
           .contains('Custom')
           .click()
-        cy.getByTestID('min--auto-domain')
+        cy.getByTestID('auto-domain--min')
           .type('-100')
           .blur()
 
         cy.getByTestID('form--element-error').should('not.exist')
         // find no errors
-        cy.getByTestID('max--auto-domain')
+        cy.getByTestID('auto-domain--max')
           .type('450')
           .blur()
         // find no errors
         cy.getByTestID('form--element-error').should('not.exist')
-        cy.getByTestID('min--auto-domain')
+        cy.getByTestID('auto-domain--min')
           .clear()
           .blur()
         cy.getByTestID('form--element-error').should('not.exist')
