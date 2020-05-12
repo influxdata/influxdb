@@ -6,6 +6,8 @@
 
 ### Bug Fixes
 
+1. [18066](https://github.com/influxdata/influxdb/pull/18066): Fixed bug that wasn't persisting timeFormat for Graph + Single Stat selections
+
 ### UI Improvements
 
 ## v2.0.0-beta.10 [2020-05-07]
