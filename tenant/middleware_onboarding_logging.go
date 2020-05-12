@@ -28,7 +28,7 @@ func (l *OnboardingLogger) IsOnboarding(ctx context.Context) (available bool, er
 	defer func(start time.Time) {
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {
-			l.logger.Error("failed to check onboarding", zap.Error(err), dur)
+			l.logger.Debug("failed to check onboarding", zap.Error(err), dur)
 			return
 		}
 		l.logger.Debug("is onboarding", dur)
@@ -41,7 +41,7 @@ func (l *OnboardingLogger) OnboardInitialUser(ctx context.Context, req *influxdb
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {
 			msg := fmt.Sprintf("failed to onboard user %s", req.User)
-			l.logger.Error(msg, zap.Error(err), dur)
+			l.logger.Debug(msg, zap.Error(err), dur)
 			return
 		}
 		l.logger.Debug("onboard initial user", dur)
@@ -54,7 +54,7 @@ func (l *OnboardingLogger) OnboardUser(ctx context.Context, req *influxdb.Onboar
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {
 			msg := fmt.Sprintf("failed to onboard user %s", req.User)
-			l.logger.Error(msg, zap.Error(err), dur)
+			l.logger.Debug(msg, zap.Error(err), dur)
 			return
 		}
 		l.logger.Debug("onboard user", dur)

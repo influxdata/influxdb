@@ -28,7 +28,7 @@ func (l *OrgLogger) CreateOrganization(ctx context.Context, u *influxdb.Organiza
 	defer func(start time.Time) {
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {
-			l.logger.Error("failed to create org", zap.Error(err), dur)
+			l.logger.Debug("failed to create org", zap.Error(err), dur)
 			return
 		}
 		l.logger.Debug("org create", dur)
@@ -41,7 +41,7 @@ func (l *OrgLogger) FindOrganizationByID(ctx context.Context, id influxdb.ID) (u
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {
 			msg := fmt.Sprintf("failed to find org with ID %v", id)
-			l.logger.Error(msg, zap.Error(err), dur)
+			l.logger.Debug(msg, zap.Error(err), dur)
 			return
 		}
 		l.logger.Debug("org find by ID", dur)
@@ -53,7 +53,7 @@ func (l *OrgLogger) FindOrganization(ctx context.Context, filter influxdb.Organi
 	defer func(start time.Time) {
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {
-			l.logger.Error("failed to find org matching the given filter", zap.Error(err), dur)
+			l.logger.Debug("failed to find org matching the given filter", zap.Error(err), dur)
 			return
 		}
 		l.logger.Debug("org find", dur)
@@ -66,7 +66,7 @@ func (l *OrgLogger) FindOrganizations(ctx context.Context, filter influxdb.Organ
 	defer func(start time.Time) {
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {
-			l.logger.Error("failed to find org matching the given filter", zap.Error(err), dur)
+			l.logger.Debug("failed to find org matching the given filter", zap.Error(err), dur)
 			return
 		}
 		l.logger.Debug("orgs find", dur)
@@ -78,7 +78,7 @@ func (l *OrgLogger) UpdateOrganization(ctx context.Context, id influxdb.ID, upd 
 	defer func(start time.Time) {
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {
-			l.logger.Error("failed to update org", zap.Error(err), dur)
+			l.logger.Debug("failed to update org", zap.Error(err), dur)
 			return
 		}
 		l.logger.Debug("org update", dur)
@@ -91,7 +91,7 @@ func (l *OrgLogger) DeleteOrganization(ctx context.Context, id influxdb.ID) (err
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {
 			msg := fmt.Sprintf("failed to delete org with ID %v", id)
-			l.logger.Error(msg, zap.Error(err), dur)
+			l.logger.Debug(msg, zap.Error(err), dur)
 			return
 		}
 		l.logger.Debug("org delete", dur)
