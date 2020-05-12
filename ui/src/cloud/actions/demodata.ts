@@ -14,10 +14,9 @@ import {notify} from 'src/shared/actions/notifications'
 
 // Selectors
 import {getOrg} from 'src/organizations/selectors'
-import {getAll} from 'src/resources/selectors'
 
 // Constants
-import {DemoDataTemplates, DemoDataDashboards} from 'src/cloud/constants'
+import {DemoDataTemplates} from 'src/cloud/constants'
 import {
   demoDataAddBucketFailed,
   demoDataDeleteBucketFailed,
@@ -25,14 +24,7 @@ import {
 } from 'src/shared/copy/notifications'
 
 // Types
-import {
-  Bucket,
-  RemoteDataState,
-  GetState,
-  DemoBucket,
-  ResourceType,
-  Dashboard,
-} from 'src/types'
+import {Bucket, RemoteDataState, GetState, DemoBucket} from 'src/types'
 import {reportError} from 'src/shared/utils/errors'
 import {getErrorMessage} from 'src/utils/api'
 
