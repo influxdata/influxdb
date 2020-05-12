@@ -61,10 +61,6 @@ func (s *OnboardService) onboardUser(ctx context.Context, req *influxdb.Onboardi
 		return nil, ErrOnboardInvalid
 	}
 
-	if len(req.Password) < 8 {
-		return nil, EShortPassword
-	}
-
 	result := &influxdb.OnboardingResults{}
 
 	err := s.store.Update(ctx, func(tx kv.Tx) error {
