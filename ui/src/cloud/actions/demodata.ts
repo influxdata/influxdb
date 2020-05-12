@@ -23,10 +23,13 @@ import {
   demoDataSucceeded,
 } from 'src/shared/copy/notifications'
 
-// Types
-import {Bucket, RemoteDataState, GetState, DemoBucket} from 'src/types'
+// Utils
 import {reportError} from 'src/shared/utils/errors'
 import {getErrorMessage} from 'src/utils/api'
+import {fireEvent} from 'src/shared/utils/analytics'
+
+// Types
+import {Bucket, RemoteDataState, GetState, DemoBucket} from 'src/types'
 
 export type Actions =
   | ReturnType<typeof setDemoDataStatus>
@@ -114,6 +117,8 @@ export const getDemoDataBucketMembership = ({
     const url = `/orgs/${orgID}/dashboards/${createdDashboard.id}`
 
     dispatch(notify(demoDataSucceeded(bucketName, url)))
+
+    fireEvent('demoData_bucketAdded', {demo_dataset: bucketName})
   } catch (error) {
     const message = `Could not create dashboard for demodata bucket ${bucketName}: ${getErrorMessage(
       error
@@ -145,6 +150,7 @@ export const deleteDemoDataBucketMembership = (bucket: DemoBucket) => async (
     }
 
     dispatch(removeBucket(bucket.id))
+    fireEvent('demoData_bucketDeleted', {demo_dataset: bucket.name})
   } catch (error) {
     dispatch(notify(demoDataDeleteBucketFailed(bucket.name, error)))
 

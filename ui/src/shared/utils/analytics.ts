@@ -1,3 +1,5 @@
+import {DemoDataDashboardNames} from 'src/cloud/constants'
+
 export const fireOrgIdReady = function fireOrgIdReady(
   organizationIds: string[]
 ) {
@@ -22,4 +24,27 @@ export const fireUserDataReady = function fireUserDataReady(
       id,
     },
   })
+}
+
+export const fireEvent = (event: string, payload: object = {}) => {
+  window.dataLayer = window.dataLayer || []
+  window.dataLayer.push({
+    event,
+    ...payload,
+  })
+}
+
+export const fireQueryEvent = (ownOrg: string, queryOrg: string) => {
+  if (ownOrg === queryOrg) {
+    fireEvent('orgData_queried')
+  } else {
+    fireEvent('demoData_queried')
+  }
+}
+
+export const fireDashboardViewedEvent = (dashboardName: string) => {
+  const demoDataset = DemoDataDashboardNames[dashboardName]
+  if (demoDataset) {
+    fireEvent('demoData_dashboardViewed', {demo_dataset: demoDataset})
+  }
 }
