@@ -3,6 +3,7 @@
 ### Features
 
 1. [18011](https://github.com/influxdata/influxdb/pull/18011): Integrate UTC dropdown when making custom time range query
+1. [17764](https://github.com/influxdata/influxdb/pull/17764): Add CSV to line protocol conversion library
 
 ### Bug Fixes
 
