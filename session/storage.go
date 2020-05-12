@@ -15,8 +15,8 @@ type Store interface {
 	ExpireAt(key string, expireAt time.Time) error
 }
 
-var storePrefix = "sessionsv1/"
-var storeIndex = "sessionsindexv1/"
+var storePrefix = "sessionsv2/"
+var storeIndex = "sessionsindexv2/"
 
 // Storage is a store translation layer between the data storage unit and the
 // service layer.
