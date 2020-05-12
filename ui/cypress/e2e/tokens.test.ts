@@ -219,13 +219,50 @@ describe('tokens', () => {
     cy.getByTestID('table-row')
       .contains('token test 03')
       .should('not.exist')
+
+    // Delete remaining tokens
+    cy.getByTestID('table-row')
+      .first()
+      .within(() => {
+        cy.getByTestID('delete-token--button').click()
+      })
+      .then(() => {
+        cy.getByTestID('delete-token--popover--contents').within(() => {
+          cy.getByTestID('delete-token--confirm-button').click()
+        })
+      })
+
+    cy.getByTestID('table-row')
+      .first()
+      .within(() => {
+        cy.getByTestID('delete-token--button').click()
+      })
+      .then(() => {
+        cy.getByTestID('delete-token--popover--contents').within(() => {
+          cy.getByTestID('delete-token--confirm-button').click()
+        })
+      })
+
+    cy.getByTestID('table-row')
+      .first()
+      .within(() => {
+        cy.getByTestID('delete-token--button').click()
+      })
+      .then(() => {
+        cy.getByTestID('delete-token--popover--contents').within(() => {
+          cy.getByTestID('delete-token--confirm-button').click()
+        })
+      })
+
+    // Assert empty state
+    cy.getByTestID('empty-state')
   })
 
   it('can generate a read/write token', () => {
     cy.getByTestID('table-row').should('have.length', 4)
 
     // create some extra buckets for filters
-    cy.get<Organization>('@org').then(({id, name}) => {
+    cy.get<Organization>('@org').then(({id, name}: Organization) => {
       cy.createBucket(id, name, 'Magna Carta').then(() => {
         cy.createBucket(id, name, 'Sicilsky Bull').then(() => {
           cy.createBucket(id, name, 'A la Carta')
