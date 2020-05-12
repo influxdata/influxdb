@@ -32,9 +32,8 @@ type NotificationEndpointBackend struct {
 // NewNotificationEndpointBackend returns a new instance of NotificationEndpointBackend.
 func NewNotificationEndpointBackend(log *zap.Logger, b *APIBackend) *NotificationEndpointBackend {
 	return &NotificationEndpointBackend{
-		HTTPErrorHandler: b.HTTPErrorHandler,
-		log:              log,
-
+		HTTPErrorHandler:            b.HTTPErrorHandler,
+		log:                         log,
 		NotificationEndpointService: b.NotificationEndpointService,
 		UserResourceMappingService:  b.UserResourceMappingService,
 		LabelService:                b.LabelService,

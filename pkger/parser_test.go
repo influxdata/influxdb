@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"testing"
@@ -26,19 +27,19 @@ func TestParse(t *testing.T) {
 
 				actual := buckets[0]
 				expectedBucket := SummaryBucket{
-					PkgName:           "rucket_22",
-					Name:              "display name",
-					Description:       "bucket 2 description",
+					PkgName:           "rucket-11",
+					Name:              "rucket-11",
+					Description:       "bucket 1 description",
+					RetentionPeriod:   time.Hour,
 					LabelAssociations: []SummaryLabel{},
 				}
 				assert.Equal(t, expectedBucket, actual)
 
 				actual = buckets[1]
 				expectedBucket = SummaryBucket{
-					PkgName:           "rucket_11",
-					Name:              "rucket_11",
-					Description:       "bucket 1 description",
-					RetentionPeriod:   time.Hour,
+					PkgName:           "rucket-22",
+					Name:              "display name",
+					Description:       "bucket 2 description",
 					LabelAssociations: []SummaryLabel{},
 				}
 				assert.Equal(t, expectedBucket, actual)
@@ -64,7 +65,7 @@ spec:
 					pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Bucket
 metadata:
-  name:  rucket_11
+  name:  rucket-11
 ---
 apiVersion: influxdata.com/v2alpha1
 kind: Bucket
@@ -80,7 +81,7 @@ spec:
 					pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Bucket
 metadata:
-  name:  rucket_11
+  name:  rucket-11
 ---
 apiVersion: influxdata.com/v2alpha1
 kind: Bucket
@@ -101,12 +102,12 @@ spec:
 					pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Bucket
 metadata:
-  name:  valid name
+  name:  valid-name
 ---
 apiVersion: influxdata.com/v2alpha1
 kind: Bucket
 metadata:
-  name:  valid name
+  name:  valid-name
 `,
 				},
 				{
@@ -117,14 +118,14 @@ metadata:
 					pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Bucket
 metadata:
-  name:  rucket_1
+  name:  rucket-1
 ---
 apiVersion: influxdata.com/v2alpha1
 kind: Bucket
 metadata:
-  name:  valid name
+  name:  valid-name
 spec:
-  name:  rucket_1
+  name:  rucket-1
 `,
 				},
 				{
@@ -135,12 +136,12 @@ spec:
 					pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Bucket
 metadata:
-  name:  rucket_1
+  name:  rucket-1
 ---
 apiVersion: influxdata.com/v2alpha1
 kind: Bucket
 metadata:
-  name:  invalid name
+  name:  invalid-name
 spec:
   name:  f
 `,
@@ -159,21 +160,9 @@ spec:
 				labels := pkg.Summary().Labels
 				require.Len(t, labels, 3)
 
-				expectedLabel0 := SummaryLabel{
-					PkgName: "label_3",
-					Name:    "display name",
-					Properties: struct {
-						Color       string `json:"color"`
-						Description string `json:"description"`
-					}{
-						Description: "label 3 description",
-					},
-				}
-				assert.Equal(t, expectedLabel0, labels[0])
-
-				expectedLabel1 := SummaryLabel{
-					PkgName: "label_1",
-					Name:    "label_1",
+				expectedLabel := SummaryLabel{
+					PkgName: "label-1",
+					Name:    "label-1",
 					Properties: struct {
 						Color       string `json:"color"`
 						Description string `json:"description"`
@@ -182,11 +171,11 @@ spec:
 						Description: "label 1 description",
 					},
 				}
-				assert.Equal(t, expectedLabel1, labels[1])
+				assert.Equal(t, expectedLabel, labels[0])
 
-				expectedLabel2 := SummaryLabel{
-					PkgName: "label_2",
-					Name:    "label_2",
+				expectedLabel = SummaryLabel{
+					PkgName: "label-2",
+					Name:    "label-2",
 					Properties: struct {
 						Color       string `json:"color"`
 						Description string `json:"description"`
@@ -195,7 +184,19 @@ spec:
 						Description: "label 2 description",
 					},
 				}
-				assert.Equal(t, expectedLabel2, labels[2])
+				assert.Equal(t, expectedLabel, labels[1])
+
+				expectedLabel = SummaryLabel{
+					PkgName: "label-3",
+					Name:    "display name",
+					Properties: struct {
+						Color       string `json:"color"`
+						Description string `json:"description"`
+					}{
+						Description: "label 3 description",
+					},
+				}
+				assert.Equal(t, expectedLabel, labels[2])
 			})
 		})
 
@@ -218,13 +219,12 @@ spec:
 					pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Label
 metadata:
-  name: valid name
+  name: valid-name
 spec:
 ---
 apiVersion: influxdata.com/v2alpha1
 kind: Label
 metadata:
-  name: a
 spec:
 `,
 				},
@@ -235,13 +235,13 @@ spec:
 					pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Label
 metadata:
-  name: valid name
+  name: valid-name
 spec:
 ---
 apiVersion: influxdata.com/v2alpha1
 kind: Label
 metadata:
-  name: valid name
+  name: valid-name
 spec:
 `,
 				},
@@ -255,7 +255,6 @@ kind: Label
 ---
 apiVersion: influxdata.com/v2alpha1
 kind: Label
-
 `,
 				},
 				{
@@ -265,15 +264,15 @@ kind: Label
 					pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Label
 metadata:
-  name: valid name
+  name: valid-name
 spec:
 ---
 apiVersion: influxdata.com/v2alpha1
 kind: Label
 metadata:
-  name: label_1
+  name: label-1
 spec:
-  name: valid name
+  name: valid-name
 `,
 				},
 				{
@@ -283,13 +282,13 @@ spec:
 					pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Label
 metadata:
-  name: valid name
+  name: valid-name
 spec:
 ---
 apiVersion: influxdata.com/v2alpha1
 kind: Label
 metadata:
-  name: label_1
+  name: label-1
 spec:
   name: a
 `,
@@ -316,16 +315,16 @@ spec:
 					labels  []string
 				}{
 					{
-						bktName: "rucket_1",
-						labels:  []string{"label_1"},
+						bktName: "rucket-1",
+						labels:  []string{"label-1"},
 					},
 					{
-						bktName: "rucket_2",
-						labels:  []string{"label_2"},
+						bktName: "rucket-2",
+						labels:  []string{"label-2"},
 					},
 					{
-						bktName: "rucket_3",
-						labels:  []string{"label_1", "label_2"},
+						bktName: "rucket-3",
+						labels:  []string{"label-1", "label-2"},
 					},
 				}
 				for i, expected := range expectedLabels {
@@ -339,28 +338,28 @@ spec:
 
 				expectedMappings := []SummaryLabelMapping{
 					{
-						ResourcePkgName: "rucket_1",
-						ResourceName:    "rucket_1",
-						LabelPkgName:    "label_1",
-						LabelName:       "label_1",
+						ResourcePkgName: "rucket-1",
+						ResourceName:    "rucket-1",
+						LabelPkgName:    "label-1",
+						LabelName:       "label-1",
 					},
 					{
-						ResourcePkgName: "rucket_2",
-						ResourceName:    "rucket_2",
-						LabelPkgName:    "label_2",
-						LabelName:       "label_2",
+						ResourcePkgName: "rucket-2",
+						ResourceName:    "rucket-2",
+						LabelPkgName:    "label-2",
+						LabelName:       "label-2",
 					},
 					{
-						ResourcePkgName: "rucket_3",
-						ResourceName:    "rucket_3",
-						LabelPkgName:    "label_1",
-						LabelName:       "label_1",
+						ResourcePkgName: "rucket-3",
+						ResourceName:    "rucket-3",
+						LabelPkgName:    "label-1",
+						LabelName:       "label-1",
 					},
 					{
-						ResourcePkgName: "rucket_3",
-						ResourceName:    "rucket_3",
-						LabelPkgName:    "label_2",
-						LabelName:       "label_2",
+						ResourcePkgName: "rucket-3",
+						ResourceName:    "rucket-3",
+						LabelPkgName:    "label-2",
+						LabelName:       "label-2",
 					},
 				}
 
@@ -381,11 +380,11 @@ spec:
 					pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Bucket
 metadata:
-  name: rucket_1
+  name: rucket-1
 spec:
   associations:
     - kind: Label
-      name: label_1
+      name: label-1
 `,
 				},
 				{
@@ -395,16 +394,16 @@ spec:
 					pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Label
 metadata:
-  name: label_1
+  name: label-1
 ---
 apiVersion: influxdata.com/v2alpha1
 kind: Bucket
 metadata:
-  name: rucket_3
+  name: rucket-3
 spec:
   associations:
     - kind: Label
-      name: label_1
+      name: label-1
     - kind: Label
       name: NOT TO BE FOUND
 `,
@@ -416,13 +415,13 @@ spec:
 					pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Bucket
 metadata:
-  name: rucket_3
+  name: rucket-3
 spec:
   associations:
     - kind: Label
-      name: label_1
+      name: label-1
     - kind: Label
-      name: label_2
+      name: label-2
 `,
 				},
 				{
@@ -432,18 +431,18 @@ spec:
 					pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Label
 metadata:
-  name: label_1
+  name: label-1
 ---
 apiVersion: influxdata.com/v2alpha1
 kind: Bucket
 metadata:
-  name: rucket_3
+  name: rucket-3
 spec:
   associations:
     - kind: Label
-      name: label_1
+      name: label-1
     - kind: Label
-      name: label_1
+      name: label-1
 `,
 				},
 			}
@@ -465,7 +464,7 @@ spec:
 				require.Truef(t, ok, "got: %#v", check1)
 
 				expectedBase := icheck.Base{
-					Name:                  "check_0",
+					Name:                  "check-0",
 					Description:           "desc_0",
 					Every:                 mustDuration(t, time.Minute),
 					Offset:                mustDuration(t, 15*time.Second),
@@ -531,15 +530,15 @@ spec:
 
 				expectedMappings := []SummaryLabelMapping{
 					{
-						LabelPkgName:    "label_1",
-						LabelName:       "label_1",
-						ResourcePkgName: "check_0",
-						ResourceName:    "check_0",
+						LabelPkgName:    "label-1",
+						LabelName:       "label-1",
+						ResourcePkgName: "check-0",
+						ResourceName:    "check-0",
 					},
 					{
-						LabelPkgName:    "label_1",
-						LabelName:       "label_1",
-						ResourcePkgName: "check_1",
+						LabelPkgName:    "label-1",
+						LabelName:       "label-1",
+						ResourcePkgName: "check-1",
 						ResourceName:    "display name",
 					},
 				}
@@ -565,7 +564,7 @@ spec:
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: CheckDeadman
 metadata:
-  name: check_1
+  name: check-1
 spec:
   every: 5m
   level: cRiT
@@ -576,7 +575,7 @@ spec:
 apiVersion: influxdata.com/v2alpha1
 kind: CheckDeadman
 metadata:
-  name: check_1
+  name: check-1
 spec:
   every: 5m
   level: cRiT
@@ -595,7 +594,7 @@ spec:
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: CheckThreshold
 metadata:
-  name: check_0
+  name: check-0
 spec:
   query:  >
     from(bucket: "rucket_1") |> yield(name: "mean")
@@ -618,7 +617,7 @@ spec:
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: CheckThreshold
 metadata:
-  name: check_0
+  name: check-0
 spec:
   every: 1m
   query:  >
@@ -640,7 +639,7 @@ spec:
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: CheckThreshold
 metadata:
-  name: check_0
+  name: check-0
 spec:
   every: 1m
   query:  >
@@ -662,7 +661,7 @@ spec:
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: CheckThreshold
 metadata:
-  name: check_0
+  name: check-0
 spec:
   every: 1m
   query:  >
@@ -686,7 +685,7 @@ spec:
 apiVersion: influxdata.com/v2alpha1
 kind: CheckThreshold
 metadata:
-  name: check_0
+  name: check-0
 spec:
   every: 1m
   query:  >
@@ -705,7 +704,7 @@ spec:
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: CheckThreshold
 metadata:
-  name: check_0
+  name: check-0
 spec:
   every: 1m
   statusMessageTemplate: "Check: ${ r._check_name } is: ${ r._level }"
@@ -726,7 +725,7 @@ spec:
 apiVersion: influxdata.com/v2alpha1
 kind: CheckThreshold
 metadata:
-  name: check_0
+  name: check-0
 spec:
   every: 1m
   query:  >
@@ -750,7 +749,7 @@ spec:
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: CheckThreshold
 metadata:
-  name: check_0
+  name: check-0
 spec:
   every: 1m
   query:  >
@@ -771,7 +770,7 @@ spec:
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: CheckDeadman
 metadata:
-  name: check_1
+  name: check-1
 spec:
   level: cRiT
   query:  >
@@ -790,7 +789,7 @@ spec:
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: CheckDeadman
 metadata:
-  name: check_1
+  name: check-1
 spec:
   every: 5m
   level: cRiT
@@ -808,7 +807,7 @@ spec:
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: CheckDeadman
 metadata:
-  name: check_1
+  name: check-1
 spec:
   every: 5m
   level: cRiT
@@ -818,7 +817,7 @@ spec:
   timeSince: 90s
   associations:
     - kind: Label
-      name: label_1
+      name: label-1
 `,
 					},
 				},
@@ -831,12 +830,12 @@ spec:
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Label
 metadata:
-  name: label_1
+  name: label-1
 ---
 apiVersion: influxdata.com/v2alpha1
 kind: CheckDeadman
 metadata:
-  name: check_1
+  name: check-1
 spec:
   every: 5m
   level: cRiT
@@ -846,9 +845,9 @@ spec:
   timeSince: 90s
   associations:
     - kind: Label
-      name: label_1
+      name: label-1
     - kind: Label
-      name: label_1
+      name: label-1
 `,
 					},
 				},
@@ -862,7 +861,7 @@ spec:
 apiVersion: influxdata.com/v2alpha1
 kind: CheckDeadman
 metadata:
-  name: check_1
+  name: check-1
 spec:
   every: 5m
   level: cRiT
@@ -874,9 +873,9 @@ spec:
 apiVersion: influxdata.com/v2alpha1
 kind: CheckDeadman
 metadata:
-  name: valid name
+  name: valid-name
 spec:
-  name: check_1
+  name: check-1
   every: 5m
   level: cRiT
   query:  >
@@ -902,7 +901,7 @@ spec:
 					require.Len(t, sum.Dashboards, 1)
 
 					actual := sum.Dashboards[0]
-					assert.Equal(t, "dash_1", actual.Name)
+					assert.Equal(t, "dash-1", actual.Name)
 					assert.Equal(t, "desc1", actual.Description)
 
 					require.Len(t, actual.Charts, 1)
@@ -942,7 +941,7 @@ spec:
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
-  name: dash_1
+  name: dash-1
 spec:
   description: desc1
   charts:
@@ -978,7 +977,7 @@ spec:
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
-  name: dash_1
+  name: dash-1
 spec:
   description: desc1
   charts:
@@ -1022,7 +1021,7 @@ spec:
 					require.Len(t, sum.Dashboards, 1)
 
 					actual := sum.Dashboards[0]
-					assert.Equal(t, "dashboard w/ single heatmap chart", actual.Name)
+					assert.Equal(t, "dash-0", actual.Name)
 					assert.Equal(t, "a dashboard w/ heatmap chart", actual.Description)
 
 					require.Len(t, actual.Charts, 1)
@@ -1063,7 +1062,7 @@ spec:
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
-  name: dashboard w/ single heatmap chart
+  name: dash-0
 spec:
   charts:
     - kind:   heatmap
@@ -1106,7 +1105,7 @@ spec:
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
-  name: dashboard w/ single heatmap chart
+  name: dash-0
 spec:
   charts:
     - kind:   heatmap
@@ -1132,7 +1131,7 @@ spec:
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
-  name: dashboard w/ single heatmap chart
+  name: dash-0
 spec:
   charts:
     - kind:   heatmap
@@ -1180,7 +1179,7 @@ spec:
 					require.Len(t, sum.Dashboards, 1)
 
 					actual := sum.Dashboards[0]
-					assert.Equal(t, "dashboard w/ single histogram chart", actual.Name)
+					assert.Equal(t, "dash-0", actual.Name)
 					assert.Equal(t, "a dashboard w/ single histogram chart", actual.Description)
 
 					require.Len(t, actual.Charts, 1)
@@ -1218,7 +1217,7 @@ spec:
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
-  name: dashboard w/ single histogram chart
+  name: dash-0
 spec:
   description: a dashboard w/ single histogram chart
   charts:
@@ -1246,7 +1245,7 @@ spec:
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
-  name: dashboard w/ single histogram chart
+  name: dash-0
 spec:
   description: a dashboard w/ single histogram chart
   charts:
@@ -1286,7 +1285,7 @@ spec:
 					require.Len(t, sum.Dashboards, 1)
 
 					actual := sum.Dashboards[0]
-					assert.Equal(t, "dashboard w/ single markdown chart", actual.Name)
+					assert.Equal(t, "dash-0", actual.Name)
 					assert.Equal(t, "a dashboard w/ single markdown chart", actual.Description)
 
 					require.Len(t, actual.Charts, 1)
@@ -1307,7 +1306,7 @@ spec:
 					require.Len(t, sum.Dashboards, 1)
 
 					actual := sum.Dashboards[0]
-					assert.Equal(t, "dashboard w/ single scatter chart", actual.Name)
+					assert.Equal(t, "dash-0", actual.Name)
 					assert.Equal(t, "a dashboard w/ single scatter chart", actual.Description)
 
 					require.Len(t, actual.Charts, 1)
@@ -1348,7 +1347,7 @@ spec:
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
-  name:  dashboard w/ single scatter chart
+  name:  dash-0
 spec:
   description: a dashboard w/ single scatter chart
   charts:
@@ -1375,7 +1374,7 @@ spec:
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
-  name:  dashboard w/ single scatter chart
+  name:  dash-0
 spec:
   description: a dashboard w/ single scatter chart
   charts:
@@ -1416,7 +1415,7 @@ spec:
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
-  name:  dashboard w/ single scatter chart
+  name:  dash-0
 spec:
   description: a dashboard w/ single scatter chart
   charts:
@@ -1456,7 +1455,7 @@ spec:
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
-  name:  dashboard w/ single scatter chart
+  name:  dash-0
 spec:
   description: a dashboard w/ single scatter chart
   charts:
@@ -1498,7 +1497,7 @@ spec:
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
-  name:  dashboard w/ single scatter chart
+  name:  dash-0
 spec:
   description: a dashboard w/ single scatter chart
   charts:
@@ -1540,7 +1539,7 @@ spec:
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
-  name:  dashboard w/ single scatter chart
+  name:  dash-0
 spec:
   description: a dashboard w/ single scatter chart
   charts:
@@ -1585,7 +1584,7 @@ spec:
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
-  name:  dashboard w/ single scatter chart
+  name:  dash-0
 spec:
   description: a dashboard w/ single scatter chart
   charts:
@@ -1621,7 +1620,7 @@ spec:
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
-  name:  dashboard w/ single scatter chart
+  name:  dash-0
 spec:
   description: a dashboard w/ single scatter chart
   charts:
@@ -1665,7 +1664,7 @@ spec:
 					require.Len(t, sum.Dashboards, 2)
 
 					actual := sum.Dashboards[0]
-					assert.Equal(t, "dash_1", actual.PkgName)
+					assert.Equal(t, "dash-1", actual.PkgName)
 					assert.Equal(t, "display name", actual.Name)
 					assert.Equal(t, "desc1", actual.Description)
 
@@ -1702,8 +1701,8 @@ spec:
 					assert.Equal(t, 3.0, c.Value)
 
 					actual2 := sum.Dashboards[1]
-					assert.Equal(t, "dash_2", actual2.PkgName)
-					assert.Equal(t, "dash_2", actual2.Name)
+					assert.Equal(t, "dash-2", actual2.PkgName)
+					assert.Equal(t, "dash-2", actual2.Name)
 					assert.Equal(t, "desc", actual2.Description)
 				})
 			})
@@ -1717,7 +1716,7 @@ spec:
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
-  name: dash_1
+  name: dash-1
 spec:
   description: desc1
   charts:
@@ -1744,7 +1743,7 @@ spec:
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
-  name: dash_1
+  name: dash-1
 spec:
   description: desc1
   charts:
@@ -1769,7 +1768,7 @@ spec:
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
-  name: dash_1
+  name: dash-1
 spec:
   description: desc1
   charts:
@@ -1792,7 +1791,7 @@ spec:
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
-  name: dash_1
+  name: dash-1
 spec:
   description: desc1
   charts:
@@ -1816,7 +1815,7 @@ spec:
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
-  name: dash_1
+  name: dash-1
 spec:
   description: desc1
   charts:
@@ -1841,13 +1840,13 @@ spec:
 apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
-  name: dash_1
+  name: dash-1
 spec:
 ---
 apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
-  name: dash_1
+  name: dash-1
 spec:
 `,
 					},
@@ -1860,7 +1859,7 @@ spec:
 apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
-  name: dash_1
+  name: dash-1
 spec:
   name: d
 `,
@@ -1880,7 +1879,7 @@ spec:
 					require.Len(t, sum.Dashboards, 1)
 
 					actual := sum.Dashboards[0]
-					assert.Equal(t, "dash_1", actual.Name)
+					assert.Equal(t, "dash-1", actual.Name)
 					assert.Equal(t, "desc1", actual.Description)
 
 					require.Len(t, actual.Charts, 1)
@@ -1942,7 +1941,7 @@ spec:
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
-  name: dash_1
+  name: dash-1
 spec:
   description: desc1
   charts:
@@ -1982,7 +1981,7 @@ spec:
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
-  name: dash_1
+  name: dash-1
 spec:
   description: desc1
   charts:
@@ -2026,7 +2025,7 @@ spec:
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
-  name: dash_1
+  name: dash-1
 spec:
   description: desc1
   charts:
@@ -2068,7 +2067,7 @@ spec:
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
-  name: dash_1
+  name: dash-1
 spec:
   description: desc1
   charts:
@@ -2113,7 +2112,7 @@ spec:
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
-  name: dash_1
+  name: dash-1
 spec:
   description: desc1
   charts:
@@ -2157,7 +2156,7 @@ spec:
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
-  name: dash_1
+  name: dash-1
 spec:
   description: desc1
   charts:
@@ -2196,7 +2195,7 @@ spec:
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
-  name: dash_1
+  name: dash-1
 spec:
   description: desc1
   charts:
@@ -2243,7 +2242,7 @@ spec:
 					require.Len(t, sum.Dashboards, 1)
 
 					actual := sum.Dashboards[0]
-					assert.Equal(t, "dash_1", actual.Name)
+					assert.Equal(t, "dash-1", actual.Name)
 					assert.Equal(t, "desc1", actual.Description)
 
 					require.Len(t, actual.Charts, 1)
@@ -2303,7 +2302,7 @@ spec:
 apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
-  name: dash_1
+  name: dash-1
 spec:
   description: desc1
   charts:
@@ -2330,7 +2329,7 @@ spec:
 apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
-  name: dash_1
+  name: dash-1
 spec:
   description: desc1
   charts:
@@ -2356,7 +2355,7 @@ spec:
 apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
-  name: dash_1
+  name: dash-1
 spec:
   description: desc1
   charts:
@@ -2380,7 +2379,7 @@ spec:
 apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
-  name: dash_1
+  name: dash-1
 spec:
   description: desc1
   charts:
@@ -2406,7 +2405,7 @@ spec:
 apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
-  name: dash_1
+  name: dash-1
 spec:
   description: desc1
   charts:
@@ -2432,7 +2431,7 @@ spec:
 apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
-  name: dash_1
+  name: dash-1
 spec:
   description: desc1
   charts:
@@ -2470,7 +2469,7 @@ spec:
 					require.Len(t, sum.Dashboards, 1)
 
 					actual := sum.Dashboards[0]
-					assert.Equal(t, "dash_1", actual.Name)
+					assert.Equal(t, "dash-1", actual.Name)
 					assert.Equal(t, "desc1", actual.Description)
 
 					require.Len(t, actual.Charts, 1)
@@ -2512,7 +2511,7 @@ spec:
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
-  name: dash_1
+  name: dash-1
 spec:
   description: desc1
   charts:
@@ -2553,7 +2552,7 @@ spec:
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
-  name: dash_1
+  name: dash-1
 spec:
   description: desc1
   charts:
@@ -2604,28 +2603,28 @@ spec:
 				require.Len(t, sum.Dashboards, 1)
 
 				actual := sum.Dashboards[0]
-				assert.Equal(t, "dash_1", actual.Name)
+				assert.Equal(t, "dash-1", actual.Name)
 
 				require.Len(t, actual.LabelAssociations, 2)
-				assert.Equal(t, "label_1", actual.LabelAssociations[0].Name)
-				assert.Equal(t, "label_2", actual.LabelAssociations[1].Name)
+				assert.Equal(t, "label-1", actual.LabelAssociations[0].Name)
+				assert.Equal(t, "label-2", actual.LabelAssociations[1].Name)
 
 				expectedMappings := []SummaryLabelMapping{
 					{
 						Status:          StateStatusNew,
 						ResourceType:    influxdb.DashboardsResourceType,
-						ResourcePkgName: "dash_1",
-						ResourceName:    "dash_1",
-						LabelPkgName:    "label_1",
-						LabelName:       "label_1",
+						ResourcePkgName: "dash-1",
+						ResourceName:    "dash-1",
+						LabelPkgName:    "label-1",
+						LabelName:       "label-1",
 					},
 					{
 						Status:          StateStatusNew,
 						ResourceType:    influxdb.DashboardsResourceType,
-						ResourcePkgName: "dash_1",
-						ResourceName:    "dash_1",
-						LabelPkgName:    "label_2",
-						LabelName:       "label_2",
+						ResourcePkgName: "dash-1",
+						ResourceName:    "dash-1",
+						LabelPkgName:    "label-2",
+						LabelName:       "label-2",
 					},
 				}
 
@@ -2644,11 +2643,11 @@ spec:
 					pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
-  name: dash_1
+  name: dash-1
 spec:
   associations:
     - kind: Label
-      name: label_1
+      name: label-1
 `,
 				},
 				{
@@ -2658,16 +2657,16 @@ spec:
 					pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Label
 metadata:
-  name: label_1
+  name: label-1
 ---
 apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
-  name: dash_1
+  name: dash-1
 spec:
   associations:
     - kind: Label
-      name: label_1
+      name: label-1
     - kind: Label
       name: unfound label
 `,
@@ -2679,12 +2678,12 @@ spec:
 					pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Label
 metadata:
-  name: label_1
+  name: label-1
 ---
 apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
-  name: dash_1
+  name: dash-1
 spec:
   associations:
     - kind: Label
@@ -2700,18 +2699,18 @@ spec:
 					pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Label
 metadata:
-  name: label_1
+  name: label-1
 ---
 apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
-  name: dash_1
+  name: dash-1
 spec:
   associations:
     - kind: Label
-      name: label_1
+      name: label-1
     - kind: Label
-      name: label_1
+      name: label-1
 `,
 				},
 			}
@@ -2727,7 +2726,7 @@ spec:
 			testfileRunner(t, "testdata/notification_endpoint", func(t *testing.T, pkg *Pkg) {
 				expectedEndpoints := []SummaryNotificationEndpoint{
 					{
-						PkgName: "http_basic_auth_notification_endpoint",
+						PkgName: "http-basic-auth-notification-endpoint",
 						NotificationEndpoint: &endpoint.HTTP{
 							Base: endpoint.Base{
 								Name:        "basic endpoint name",
@@ -2742,10 +2741,10 @@ spec:
 						},
 					},
 					{
-						PkgName: "http_bearer_auth_notification_endpoint",
+						PkgName: "http-bearer-auth-notification-endpoint",
 						NotificationEndpoint: &endpoint.HTTP{
 							Base: endpoint.Base{
-								Name:        "http_bearer_auth_notification_endpoint",
+								Name:        "http-bearer-auth-notification-endpoint",
 								Description: "http bearer auth desc",
 								Status:      influxdb.TaskStatusActive,
 							},
@@ -2756,10 +2755,10 @@ spec:
 						},
 					},
 					{
-						PkgName: "http_none_auth_notification_endpoint",
+						PkgName: "http-none-auth-notification-endpoint",
 						NotificationEndpoint: &endpoint.HTTP{
 							Base: endpoint.Base{
-								Name:        "http_none_auth_notification_endpoint",
+								Name:        "http-none-auth-notification-endpoint",
 								Description: "http none auth desc",
 								Status:      influxdb.TaskStatusActive,
 							},
@@ -2769,7 +2768,7 @@ spec:
 						},
 					},
 					{
-						PkgName: "pager_duty_notification_endpoint",
+						PkgName: "pager-duty-notification-endpoint",
 						NotificationEndpoint: &endpoint.PagerDuty{
 							Base: endpoint.Base{
 								Name:        "pager duty name",
@@ -2781,7 +2780,7 @@ spec:
 						},
 					},
 					{
-						PkgName: "slack_notification_endpoint",
+						PkgName: "slack-notification-endpoint",
 						NotificationEndpoint: &endpoint.Slack{
 							Base: endpoint.Base{
 								Name:        "slack name",
@@ -2803,15 +2802,15 @@ spec:
 					expected, actual := expectedEndpoints[i], endpoints[i]
 					assert.Equalf(t, expected.NotificationEndpoint, actual.NotificationEndpoint, "index=%d", i)
 					require.Len(t, actual.LabelAssociations, 1)
-					assert.Equal(t, "label_1", actual.LabelAssociations[0].Name)
+					assert.Equal(t, "label-1", actual.LabelAssociations[0].Name)
 
 					assert.Contains(t, sum.LabelMappings, SummaryLabelMapping{
 						Status:          StateStatusNew,
 						ResourceType:    influxdb.NotificationEndpointResourceType,
 						ResourcePkgName: expected.PkgName,
 						ResourceName:    expected.NotificationEndpoint.GetName(),
-						LabelPkgName:    "label_1",
-						LabelName:       "label_1",
+						LabelPkgName:    "label-1",
+						LabelName:       "label-1",
 					})
 				}
 			})
@@ -2831,7 +2830,7 @@ spec:
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: NotificationEndpointSlack
 metadata:
-  name: slack_notification_endpoint
+  name: slack-notification-endpoint
 spec:
 `,
 					},
@@ -2845,7 +2844,7 @@ spec:
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: NotificationEndpointPagerDuty
 metadata:
-  name: pager_duty_notification_endpoint
+  name: pager-duty-notification-endpoint
 spec:
 `,
 					},
@@ -2859,7 +2858,7 @@ spec:
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: NotificationEndpointHTTP
 metadata:
-  name: http_none_auth_notification_endpoint
+  name: http-none-auth-notification-endpoint
 spec:
   type: none
   method: get
@@ -2875,7 +2874,7 @@ spec:
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: NotificationEndpointHTTP
 metadata:
-  name: http_none_auth_notification_endpoint
+  name: http-none-auth-notification-endpoint
 spec:
   type: none
   method: get
@@ -2892,7 +2891,7 @@ spec:
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: NotificationEndpointHTTP
 metadata:
-  name: http_none_auth_notification_endpoint
+  name: http-none-auth-notification-endpoint
 spec:
   type: none
   url:  https://www.example.com/endpoint/noneauth
@@ -2908,7 +2907,7 @@ spec:
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: NotificationEndpointHTTP
 metadata:
-  name: http_none_auth_notification_endpoint
+  name: http-basic-auth-notification-endpoint
 spec:
   type: none
   description: http none auth desc
@@ -2926,7 +2925,7 @@ spec:
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: NotificationEndpointHTTP
 metadata:
-  name: http_basic_auth_notification_endpoint
+  name: http-basic-auth-notification-endpoint
 spec:
   type: basic
   method: POST
@@ -2944,7 +2943,7 @@ spec:
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: NotificationEndpointHTTP
 metadata:
-  name: http_basic_auth_notification_endpoint
+  name: http-basic-auth-notification-endpoint
 spec:
   type: basic
   method: POST
@@ -2962,7 +2961,7 @@ spec:
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: NotificationEndpointHTTP
 metadata:
-  name: http_basic_auth_notification_endpoint
+  name: http-basic-auth-notification-endpoint
 spec:
   description: http basic auth desc
   type: basic
@@ -2980,7 +2979,7 @@ spec:
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: NotificationEndpointHTTP
 metadata:
-  name: http_bearer_auth_notification_endpoint
+  name: http-bearer-auth-notification-endpoint
 spec:
   description: http bearer auth desc
   type: bearer
@@ -2998,7 +2997,7 @@ spec:
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: NotificationEndpointHTTP
 metadata:
-  name: http_none_auth_notification_endpoint
+  name: http-basic-auth-notification-endpoint
 spec:
   type: RANDOM WRONG TYPE
   description: http none auth desc
@@ -3016,7 +3015,7 @@ spec:
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: NotificationEndpointSlack
 metadata:
-  name: slack_notification_endpoint
+  name: slack-notification-endpoint
 spec:
   url: https://hooks.slack.com/services/bip/piddy/boppidy
 ---
@@ -3038,7 +3037,7 @@ spec:
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: NotificationEndpointSlack
 metadata:
-  name: slack_notification_endpoint
+  name: slack-notification-endpoint
 spec:
   description: slack desc
   url: https://hooks.slack.com/services/bip/piddy/boppidy
@@ -3063,7 +3062,7 @@ spec:
 apiVersion: influxdata.com/v2alpha1
 kind: NotificationEndpointSlack
 metadata:
-  name: slack_notification_endpoint
+  name: slack-notification-endpoint
 spec:
   name: slack
   description: slack desc
@@ -3088,7 +3087,7 @@ spec:
 
 				rule := rules[0]
 				assert.Equal(t, "rule_0", rule.Name)
-				assert.Equal(t, "endpoint_0", rule.EndpointPkgName)
+				assert.Equal(t, "endpoint-0", rule.EndpointPkgName)
 				assert.Equal(t, "desc_0", rule.Description)
 				assert.Equal(t, (10 * time.Minute).String(), rule.Every)
 				assert.Equal(t, (30 * time.Second).String(), rule.Offset)
@@ -3110,8 +3109,8 @@ spec:
 
 				require.Len(t, sum.Labels, 2)
 				require.Len(t, rule.LabelAssociations, 2)
-				assert.Equal(t, "label_1", rule.LabelAssociations[0].PkgName)
-				assert.Equal(t, "label_2", rule.LabelAssociations[1].PkgName)
+				assert.Equal(t, "label-1", rule.LabelAssociations[0].PkgName)
+				assert.Equal(t, "label-2", rule.LabelAssociations[1].PkgName)
 			})
 		})
 
@@ -3121,7 +3120,7 @@ spec:
 apiVersion: influxdata.com/v2alpha1
 kind: NotificationEndpointSlack
 metadata:
-  name: endpoint_0
+  name: endpoint-0
 spec:
   url: https://hooks.slack.com/services/bip/piddy/boppidy
 ---
@@ -3142,7 +3141,7 @@ spec:
 kind: NotificationRule
 metadata:
 spec:
-  endpointName: endpoint_0
+  endpointName: endpoint-0
   every: 10m
   messageTemplate: "Notification Rule: ${ r._notification_rule_name } triggered by check: ${ r._check_name }: ${ r._message }"
   statusRules:
@@ -3158,7 +3157,7 @@ spec:
 						pkgStr: pkgWithValidEndpint(`apiVersion: influxdata.com/v2alpha1
 kind: NotificationRule
 metadata:
-  name: rule_0
+  name: rule-0
 spec:
   every: 10m
   messageTemplate: "Notification Rule: ${ r._notification_rule_name } triggered by check: ${ r._check_name }: ${ r._message }"
@@ -3175,9 +3174,9 @@ spec:
 						pkgStr: pkgWithValidEndpint(`apiVersion: influxdata.com/v2alpha1
 kind: NotificationRule
 metadata:
-  name: rule_0
+  name: rule-0
 spec:
-  endpointName: endpoint_0
+  endpointName: endpoint-0
   messageTemplate: "Notification Rule: ${ r._notification_rule_name } triggered by check: ${ r._check_name }: ${ r._message }"
   statusRules:
     - currentLevel: WARN
@@ -3192,10 +3191,10 @@ spec:
 						pkgStr: pkgWithValidEndpint(`apiVersion: influxdata.com/v2alpha1
 kind: NotificationRule
 metadata:
-  name: rule_0
+  name: rule-0
 spec:
   every: 10m
-  endpointName: endpoint_0
+  endpointName: endpoint-0
   messageTemplate: "Notification Rule: ${ r._notification_rule_name } triggered by check: ${ r._check_name }: ${ r._message }"
 `),
 					},
@@ -3208,10 +3207,10 @@ spec:
 						pkgStr: pkgWithValidEndpint(`apiVersion: influxdata.com/v2alpha1
 kind: NotificationRule
 metadata:
-  name: rule_0
+  name: rule-0
 spec:
   every: 10m
-  endpointName: endpoint_0
+  endpointName: endpoint-0
   messageTemplate: "Notification Rule: ${ r._notification_rule_name } triggered by check: ${ r._check_name }: ${ r._message }"
   statusRules:
     - currentLevel: WRONGO
@@ -3226,9 +3225,9 @@ spec:
 						pkgStr: pkgWithValidEndpint(`apiVersion: influxdata.com/v2alpha1
 kind: NotificationRule
 metadata:
-  name: rule_0
+  name: rule-0
 spec:
-  endpointName: endpoint_0
+  endpointName: endpoint-0
   every: 10m
   messageTemplate: "Notification Rule: ${ r._notification_rule_name } triggered by check: ${ r._check_name }: ${ r._message }"
   statusRules:
@@ -3245,9 +3244,9 @@ spec:
 						pkgStr: pkgWithValidEndpint(`apiVersion: influxdata.com/v2alpha1
 kind: NotificationRule
 metadata:
-  name: rule_0
+  name: rule-0
 spec:
-  endpointName: endpoint_0
+  endpointName: endpoint-0
   every: 10m
   messageTemplate: "Notification Rule: ${ r._notification_rule_name } triggered by check: ${ r._check_name }: ${ r._message }"
   statusRules:
@@ -3267,9 +3266,9 @@ spec:
 						pkgStr: pkgWithValidEndpint(`apiVersion: influxdata.com/v2alpha1
 kind: NotificationRule
 metadata:
-  name: rule_0
+  name: rule-0
 spec:
-  endpointName: endpoint_0
+  endpointName: endpoint-0
   every: 10m
   messageTemplate: "Notification Rule: ${ r._notification_rule_name } triggered by check: ${ r._check_name }: ${ r._message }"
   status: RANDO STATUS
@@ -3286,16 +3285,16 @@ spec:
 						pkgStr: pkgWithValidEndpint(`apiVersion: influxdata.com/v2alpha1
 kind: NotificationRule
 metadata:
-  name: rule_0
+  name: rule-0
 spec:
-  endpointName: endpoint_0
+  endpointName: endpoint-0
   every: 10m
   messageTemplate: "Notification Rule: ${ r._notification_rule_name } triggered by check: ${ r._check_name }: ${ r._message }"
   statusRules:
     - currentLevel: WARN
   associations:
     - kind: Label
-      name: label_1
+      name: label-1
 `),
 					},
 				},
@@ -3307,23 +3306,23 @@ spec:
 						pkgStr: pkgWithValidEndpint(`apiVersion: influxdata.com/v2alpha1
 kind: Label
 metadata:
-  name: label_1
+  name: label-1
 ---
 apiVersion: influxdata.com/v2alpha1
 kind: NotificationRule
 metadata:
-  name: rule_0
+  name: rule-0
 spec:
-  endpointName: endpoint_0
+  endpointName: endpoint-0
   every: 10m
   messageTemplate: "Notification Rule: ${ r._notification_rule_name } triggered by check: ${ r._check_name }: ${ r._message }"
   statusRules:
     - currentLevel: WARN
   associations:
     - kind: Label
-      name: label_1
+      name: label-1
     - kind: Label
-      name: label_1
+      name: label-1
 `),
 					},
 				},
@@ -3336,9 +3335,9 @@ spec:
 apiVersion: influxdata.com/v2alpha1
 kind: NotificationRule
 metadata:
-  name: rule_0
+  name: rule-0
 spec:
-  endpointName: endpoint_0
+  endpointName: endpoint-0
   every: 10m
   messageTemplate: "Notification Rule: ${ r._notification_rule_name } triggered by check: ${ r._check_name }: ${ r._message }"
   statusRules:
@@ -3347,9 +3346,9 @@ spec:
 apiVersion: influxdata.com/v2alpha1
 kind: NotificationRule
 metadata:
-  name: rule_0
+  name: rule-0
 spec:
-  endpointName: endpoint_0
+  endpointName: endpoint-0
   every: 10m
   messageTemplate: "Notification Rule: ${ r._notification_rule_name } triggered by check: ${ r._check_name }: ${ r._message }"
   statusRules:
@@ -3366,7 +3365,7 @@ spec:
 apiVersion: influxdata.com/v2alpha1
 kind: NotificationRule
 metadata:
-  name: rule_0
+  name: rule-0
 spec:
   endpointName: RANDO_ENDPOINT_NAME
   every: 10m
@@ -3390,11 +3389,14 @@ spec:
 				sum := pkg.Summary()
 				tasks := sum.Tasks
 				require.Len(t, tasks, 2)
+				sort.Slice(tasks, func(i, j int) bool {
+					return tasks[i].PkgName < tasks[j].PkgName
+				})
 
 				baseEqual := func(t *testing.T, i int, status influxdb.Status, actual SummaryTask) {
 					t.Helper()
 
-					assert.Equal(t, "task_"+strconv.Itoa(i), actual.Name)
+					assert.Equal(t, "task-"+strconv.Itoa(i), actual.Name)
 					assert.Equal(t, "desc_"+strconv.Itoa(i), actual.Description)
 					assert.Equal(t, status, actual.Status)
 
@@ -3402,19 +3404,19 @@ spec:
 					assert.Equal(t, expectedQuery, actual.Query)
 
 					require.Len(t, actual.LabelAssociations, 1)
-					assert.Equal(t, "label_1", actual.LabelAssociations[0].Name)
+					assert.Equal(t, "label-1", actual.LabelAssociations[0].Name)
 				}
 
 				require.Len(t, sum.Labels, 1)
 
 				task0 := tasks[0]
-				baseEqual(t, 0, influxdb.Inactive, task0)
-				assert.Equal(t, (10 * time.Minute).String(), task0.Every)
-				assert.Equal(t, (15 * time.Second).String(), task0.Offset)
+				baseEqual(t, 1, influxdb.Active, task0)
+				assert.Equal(t, "15 * * * *", task0.Cron)
 
 				task1 := tasks[1]
-				baseEqual(t, 1, influxdb.Active, task1)
-				assert.Equal(t, "15 * * * *", task1.Cron)
+				baseEqual(t, 0, influxdb.Inactive, task1)
+				assert.Equal(t, (10 * time.Minute).String(), task1.Every)
+				assert.Equal(t, (15 * time.Second).String(), task1.Offset)
 			})
 		})
 
@@ -3449,7 +3451,7 @@ spec:
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Task
 metadata:
-  name: task_0
+  name: task-0
 spec:
   cron: 15 * * * *
   query:  >
@@ -3467,7 +3469,7 @@ spec:
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Task
 metadata:
-  name: task_0
+  name: task-0
 spec:
   description: desc_0
   every: 10m
@@ -3484,7 +3486,7 @@ spec:
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Task
 metadata:
-  name: task_0
+  name: task-0
 spec:
   description: desc_0
   offset: 15s
@@ -3500,14 +3502,14 @@ spec:
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Task
 metadata:
-  name: task_1
+  name: task-1
 spec:
   cron: 15 * * * *
   query:  >
     from(bucket: "rucket_1") |> yield(name: "mean")
   associations:
     - kind: Label
-      name: label_1
+      name: label-1
 `,
 					},
 				},
@@ -3521,12 +3523,12 @@ spec:
 apiVersion: influxdata.com/v2alpha1
 kind: Label
 metadata:
-  name: label_1
+  name: label-1
 ---
 apiVersion: influxdata.com/v2alpha1
 kind: Task
 metadata:
-  name: task_0
+  name: task-0
 spec:
   every: 10m
   offset: 15s
@@ -3535,9 +3537,9 @@ spec:
   status: inactive
   associations:
     - kind: Label
-      name: label_1
+      name: label-1
     - kind: Label
-      name: label_1
+      name: label-1
 `,
 					},
 				},
@@ -3551,7 +3553,7 @@ spec:
 apiVersion: influxdata.com/v2alpha1
 kind: Task
 metadata:
-  name: task_0
+  name: task-0
 spec:
   every: 10m
   query:  >
@@ -3560,7 +3562,7 @@ spec:
 apiVersion: influxdata.com/v2alpha1
 kind: Task
 metadata:
-  name: task_0
+  name: task-0
 spec:
   every: 10m
   query:  >
@@ -3587,25 +3589,25 @@ spec:
 				assert.Equal(t, "desc", actual.TelegrafConfig.Description)
 
 				require.Len(t, actual.LabelAssociations, 2)
-				assert.Equal(t, "label_1", actual.LabelAssociations[0].Name)
-				assert.Equal(t, "label_2", actual.LabelAssociations[1].Name)
+				assert.Equal(t, "label-1", actual.LabelAssociations[0].Name)
+				assert.Equal(t, "label-2", actual.LabelAssociations[1].Name)
 
 				actual = sum.TelegrafConfigs[1]
-				assert.Equal(t, "tele_2", actual.TelegrafConfig.Name)
+				assert.Equal(t, "tele-2", actual.TelegrafConfig.Name)
 				assert.Empty(t, actual.LabelAssociations)
 
 				require.Len(t, sum.LabelMappings, 2)
 				expectedMapping := SummaryLabelMapping{
 					Status:          StateStatusNew,
-					ResourcePkgName: "first_tele_config",
+					ResourcePkgName: "first-tele-config",
 					ResourceName:    "display name",
-					LabelPkgName:    "label_1",
-					LabelName:       "label_1",
+					LabelPkgName:    "label-1",
+					LabelName:       "label-1",
 					ResourceType:    influxdb.TelegrafsResourceType,
 				}
 				assert.Equal(t, expectedMapping, sum.LabelMappings[0])
-				expectedMapping.LabelPkgName = "label_2"
-				expectedMapping.LabelName = "label_2"
+				expectedMapping.LabelPkgName = "label-2"
+				expectedMapping.LabelName = "label-2"
 				assert.Equal(t, expectedMapping, sum.LabelMappings[1])
 			})
 		})
@@ -3619,7 +3621,7 @@ spec:
 					pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Telegraf
 metadata:
-  name: first_tele_config
+  name: first-tele-config
 spec:
 `,
 				},
@@ -3630,14 +3632,14 @@ spec:
 					pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Telegraf
 metadata:
-  name: tele_0
+  name: tele-0
 spec:
   config: fake tele config
 ---
 apiVersion: influxdata.com/v2alpha1
 kind: Telegraf
 metadata:
-  name: tele_0
+  name: tele-0
 spec:
   config: fake tele config
 `,
@@ -3667,6 +3669,21 @@ spec:
 					assert.Equal(t, vals, v.Arguments.Values)
 				}
 
+				// validates we support all known variable types
+				varEquals(t,
+					"var-const-3",
+					"constant",
+					influxdb.VariableConstantValues([]string{"first val"}),
+					sum.Variables[0],
+				)
+
+				varEquals(t,
+					"var-map-4",
+					"map",
+					influxdb.VariableMapValues{"k1": "v1"},
+					sum.Variables[1],
+				)
+
 				varEquals(t,
 					"query var",
 					"query",
@@ -3674,26 +3691,11 @@ spec:
 						Query:    `buckets()  |> filter(fn: (r) => r.name !~ /^_/)  |> rename(columns: {name: "_value"})  |> keep(columns: ["_value"])`,
 						Language: "flux",
 					},
-					sum.Variables[0],
-				)
-
-				// validates we support all known variable types
-				varEquals(t,
-					"var_const_3",
-					"constant",
-					influxdb.VariableConstantValues([]string{"first val"}),
-					sum.Variables[1],
-				)
-
-				varEquals(t,
-					"var_map_4",
-					"map",
-					influxdb.VariableMapValues{"k1": "v1"},
 					sum.Variables[2],
 				)
 
 				varEquals(t,
-					"var_query_2",
+					"var-query-2",
 					"query",
 					influxdb.VariableQueryValues{
 						Query:    "an influxql query of sorts",
@@ -3714,7 +3716,7 @@ spec:
 kind: Variable
 metadata:
 spec:
-  description: var_map_4 desc
+  description: var-map-4 desc
   type: map
   values:
     k1: v1
@@ -3727,9 +3729,9 @@ spec:
 					pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Variable
 metadata:
-  name:  var_map_4
+  name:  var-map-4
 spec:
-  description: var_map_4 desc
+  description: var-map-4 desc
   type: map
 `,
 				},
@@ -3740,9 +3742,9 @@ spec:
 					pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Variable
 metadata:
-  name:  var_const_3
+  name:  var-const-3
 spec:
-  description: var_const_3 desc
+  description: var-const-3 desc
   type: constant
 `,
 				},
@@ -3753,9 +3755,9 @@ spec:
 					pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Variable
 metadata:
-  name:  var_query_2
+  name:  var-query-2
 spec:
-  description: var_query_2 desc
+  description: var-query-2 desc
   type: query
   language: influxql
 `,
@@ -3767,9 +3769,9 @@ spec:
 					pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Variable
 metadata:
-  name:  var_query_2
+  name:  var-query-2
 spec:
-  description: var_query_2 desc
+  description: var-query-2 desc
   type: query
   query: an influxql query of sorts
 `,
@@ -3781,9 +3783,9 @@ spec:
 					pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Variable
 metadata:
-  name:  var_query_2
+  name:  var-query-2
 spec:
-  description: var_query_2 desc
+  description: var-query-2 desc
   type: query
   query: an influxql query of sorts
   language: wrong Language
@@ -3796,9 +3798,9 @@ spec:
 					pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Variable
 metadata:
-  name:  var_query_2
+  name:  var-query-2
 spec:
-  description: var_query_2 desc
+  description: var-query-2 desc
   type: query
   query: an influxql query of sorts
   language: influxql
@@ -3806,9 +3808,9 @@ spec:
 apiVersion: influxdata.com/v2alpha1
 kind: Variable
 metadata:
-  name:  var_query_2
+  name:  var-query-2
 spec:
-  description: var_query_2 desc
+  description: var-query-2 desc
   type: query
   query: an influxql query of sorts
   language: influxql
@@ -3821,9 +3823,9 @@ spec:
 					pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Variable
 metadata:
-  name:  var_query_2
+  name:  var-query-2
 spec:
-  description: var_query_2 desc
+  description: var-query-2 desc
   type: query
   query: an influxql query of sorts
   language: influxql
@@ -3831,10 +3833,10 @@ spec:
 apiVersion: influxdata.com/v2alpha1
 kind: Variable
 metadata:
-  name:  valid_query
+  name:  valid-query
 spec:
-  name: var_query_2
-  description: var_query_2 desc
+  name: var-query-2
+  description: var-query-2 desc
   type: query
   query: an influxql query of sorts
   language: influxql
@@ -3861,8 +3863,8 @@ spec:
 				labels  []string
 			}{
 				{
-					varName: "var_1",
-					labels:  []string{"label_1"},
+					varName: "var-1",
+					labels:  []string{"label-1"},
 				},
 			}
 			for i, expected := range expectedLabelMappings {
@@ -3877,10 +3879,10 @@ spec:
 			expectedMappings := []SummaryLabelMapping{
 				{
 					Status:          StateStatusNew,
-					ResourcePkgName: "var_1",
-					ResourceName:    "var_1",
-					LabelPkgName:    "label_1",
-					LabelName:       "label_1",
+					ResourcePkgName: "var-1",
+					ResourceName:    "var-1",
+					LabelPkgName:    "label-1",
+					LabelName:       "label-1",
 				},
 			}
 
@@ -3908,7 +3910,7 @@ spec:
 
 			expected := &endpoint.PagerDuty{
 				Base: endpoint.Base{
-					Name:   "pager_duty_notification_endpoint",
+					Name:   "pager-duty-notification-endpoint",
 					Status: influxdb.TaskStatusActive,
 				},
 				ClientURL:  "http://localhost:8080/orgs/7167eb6719fa34e5/alert-history",
@@ -3935,43 +3937,43 @@ spec:
 			sum := pkg.Summary()
 
 			require.Len(t, sum.Buckets, 1)
-			assert.Equal(t, "$bkt-1-name-ref", sum.Buckets[0].Name)
+			assert.Equal(t, "env-bkt-1-name-ref", sum.Buckets[0].Name)
 			assert.Len(t, sum.Buckets[0].LabelAssociations, 1)
 			hasEnv(t, pkg.mEnv, "bkt-1-name-ref")
 
 			require.Len(t, sum.Checks, 1)
-			assert.Equal(t, "$check-1-name-ref", sum.Checks[0].Check.GetName())
+			assert.Equal(t, "env-check-1-name-ref", sum.Checks[0].Check.GetName())
 			assert.Len(t, sum.Checks[0].LabelAssociations, 1)
 			hasEnv(t, pkg.mEnv, "check-1-name-ref")
 
 			require.Len(t, sum.Dashboards, 1)
-			assert.Equal(t, "$dash-1-name-ref", sum.Dashboards[0].Name)
+			assert.Equal(t, "env-dash-1-name-ref", sum.Dashboards[0].Name)
 			assert.Len(t, sum.Dashboards[0].LabelAssociations, 1)
 			hasEnv(t, pkg.mEnv, "dash-1-name-ref")
 
 			require.Len(t, sum.NotificationEndpoints, 1)
-			assert.Equal(t, "$endpoint-1-name-ref", sum.NotificationEndpoints[0].NotificationEndpoint.GetName())
+			assert.Equal(t, "env-endpoint-1-name-ref", sum.NotificationEndpoints[0].NotificationEndpoint.GetName())
 			hasEnv(t, pkg.mEnv, "endpoint-1-name-ref")
 
 			require.Len(t, sum.Labels, 1)
-			assert.Equal(t, "$label-1-name-ref", sum.Labels[0].Name)
+			assert.Equal(t, "env-label-1-name-ref", sum.Labels[0].Name)
 			hasEnv(t, pkg.mEnv, "label-1-name-ref")
 
 			require.Len(t, sum.NotificationRules, 1)
-			assert.Equal(t, "$rule-1-name-ref", sum.NotificationRules[0].Name)
-			assert.Equal(t, "$endpoint-1-name-ref", sum.NotificationRules[0].EndpointPkgName)
+			assert.Equal(t, "env-rule-1-name-ref", sum.NotificationRules[0].Name)
+			assert.Equal(t, "env-endpoint-1-name-ref", sum.NotificationRules[0].EndpointPkgName)
 			hasEnv(t, pkg.mEnv, "rule-1-name-ref")
 
 			require.Len(t, sum.Tasks, 1)
-			assert.Equal(t, "$task-1-name-ref", sum.Tasks[0].Name)
+			assert.Equal(t, "env-task-1-name-ref", sum.Tasks[0].Name)
 			hasEnv(t, pkg.mEnv, "task-1-name-ref")
 
 			require.Len(t, sum.TelegrafConfigs, 1)
-			assert.Equal(t, "$telegraf-1-name-ref", sum.TelegrafConfigs[0].TelegrafConfig.Name)
+			assert.Equal(t, "env-telegraf-1-name-ref", sum.TelegrafConfigs[0].TelegrafConfig.Name)
 			hasEnv(t, pkg.mEnv, "telegraf-1-name-ref")
 
 			require.Len(t, sum.Variables, 1)
-			assert.Equal(t, "$var-1-name-ref", sum.Variables[0].Name)
+			assert.Equal(t, "env-var-1-name-ref", sum.Variables[0].Name)
 			hasEnv(t, pkg.mEnv, "var-1-name-ref")
 
 			t.Log("applying env vars should populate env fields")
@@ -4003,8 +4005,8 @@ spec:
 
 		labels := []SummaryLabel{
 			{
-				PkgName: "label_1",
-				Name:    "label_1",
+				PkgName: "label-1",
+				Name:    "label-1",
 				Properties: struct {
 					Color       string `json:"color"`
 					Description string `json:"description"`
@@ -4015,22 +4017,22 @@ spec:
 
 		bkts := []SummaryBucket{
 			{
-				PkgName:           "rucket_1",
-				Name:              "rucket_1",
+				PkgName:           "rucket-1",
+				Name:              "rucket-1",
 				Description:       "desc_1",
 				RetentionPeriod:   10000 * time.Second,
 				LabelAssociations: labels,
 			},
 			{
-				PkgName:           "rucket_2",
-				Name:              "rucket_2",
-				Description:       "desc_2",
+				PkgName:           "rucket-2",
+				Name:              "rucket-2",
+				Description:       "desc-2",
 				RetentionPeriod:   20000 * time.Second,
 				LabelAssociations: labels,
 			},
 			{
-				PkgName:           "rucket_3",
-				Name:              "rucket_3",
+				PkgName:           "rucket-3",
+				Name:              "rucket-3",
 				Description:       "desc_3",
 				RetentionPeriod:   30000 * time.Second,
 				LabelAssociations: labels,
@@ -4080,7 +4082,7 @@ func TestCombine(t *testing.T) {
 apiVersion: %[1]s
 kind: Label
 metadata:
-  name: label_%d
+  name: label-%d
 `, APIVersion, i))
 			pkgs = append(pkgs, pkg)
 		}
@@ -4089,35 +4091,35 @@ metadata:
 apiVersion: %[1]s
 kind: Bucket
 metadata:
-  name: rucket_1
+  name: rucket-1
 spec:
   associations:
     - kind: Label
-      name: label_1
+      name: label-1
 `, APIVersion)))
 
 		pkgs = append(pkgs, newPkgFromYmlStr(t, fmt.Sprintf(`
 apiVersion: %[1]s
 kind: Bucket
 metadata:
-  name: rucket_2
+  name: rucket-2
 spec:
   associations:
     - kind: Label
-      name: label_2
+      name: label-2
 `, APIVersion)))
 
 		pkgs = append(pkgs, newPkgFromYmlStr(t, fmt.Sprintf(`
 apiVersion: %[1]s
 kind: Bucket
 metadata:
-  name: rucket_3
+  name: rucket-3
 spec:
   associations:
     - kind: Label
-      name: label_1
+      name: label-1
     - kind: Label
-      name: label_2
+      name: label-2
 `, APIVersion)))
 
 		combinedPkg, err := Combine(pkgs)
@@ -4127,21 +4129,21 @@ spec:
 
 		require.Len(t, sum.Labels, numLabels)
 		for i := 0; i < numLabels; i++ {
-			assert.Equal(t, fmt.Sprintf("label_%d", i), sum.Labels[i].Name)
+			assert.Equal(t, fmt.Sprintf("label-%d", i), sum.Labels[i].Name)
 		}
 
 		require.Len(t, sum.Labels, numLabels)
 		for i := 0; i < numLabels; i++ {
-			assert.Equal(t, fmt.Sprintf("label_%d", i), sum.Labels[i].Name)
+			assert.Equal(t, fmt.Sprintf("label-%d", i), sum.Labels[i].Name)
 		}
 
 		require.Len(t, sum.Buckets, 3)
-		assert.Equal(t, "rucket_1", sum.Buckets[0].Name)
-		associationsEqual(t, sum.Buckets[0].LabelAssociations, "label_1")
-		assert.Equal(t, "rucket_2", sum.Buckets[1].Name)
-		associationsEqual(t, sum.Buckets[1].LabelAssociations, "label_2")
-		assert.Equal(t, "rucket_3", sum.Buckets[2].Name)
-		associationsEqual(t, sum.Buckets[2].LabelAssociations, "label_1", "label_2")
+		assert.Equal(t, "rucket-1", sum.Buckets[0].Name)
+		associationsEqual(t, sum.Buckets[0].LabelAssociations, "label-1")
+		assert.Equal(t, "rucket-2", sum.Buckets[1].Name)
+		associationsEqual(t, sum.Buckets[1].LabelAssociations, "label-2")
+		assert.Equal(t, "rucket-3", sum.Buckets[2].Name)
+		associationsEqual(t, sum.Buckets[2].LabelAssociations, "label-1", "label-2")
 	})
 }
 

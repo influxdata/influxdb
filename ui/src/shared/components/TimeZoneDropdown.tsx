@@ -3,8 +3,9 @@ import React, {FunctionComponent} from 'react'
 import {connect} from 'react-redux'
 import {SelectDropdown, IconFont} from '@influxdata/clockface'
 
-// Actions
+// Actions & Selectors
 import {setTimeZone} from 'src/shared/actions/app'
+import {getTimeZone} from 'src/dashboards/selectors'
 
 // Constants
 import {TIME_ZONES} from 'src/shared/constants/timeZones'
@@ -40,7 +41,7 @@ const TimeZoneDropdown: FunctionComponent<Props> = ({
 export {TimeZoneDropdown}
 
 const mstp = (state: AppState): StateProps => {
-  return {timeZone: state.app.persisted.timeZone || 'Local'}
+  return {timeZone: getTimeZone(state)}
 }
 
 const mdtp = {onSetTimeZone: setTimeZone}

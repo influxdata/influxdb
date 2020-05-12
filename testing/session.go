@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/influxdata/influxdb/v2"
 	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/mock"
 )
@@ -274,12 +275,12 @@ func ExpireSession(
 			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
 			session, err := s.FindSession(ctx, tt.args.key)
-			if err == nil {
+			if err.Error() != influxdb.ErrSessionExpired && err.Error() != influxdb.ErrSessionNotFound {
 				t.Errorf("expected session to be expired got %v", err)
 			}
 
-			if diff := cmp.Diff(session, tt.wants.session, sessionCmpOptions...); diff != "" {
-				t.Errorf("session is different -got/+want\ndiff %s", diff)
+			if session != nil {
+				t.Errorf("expected a nil session but got: %v", session)
 			}
 		})
 	}

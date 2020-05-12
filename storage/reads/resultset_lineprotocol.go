@@ -111,7 +111,7 @@ func cursorToLineProtocol(wr io.Writer, line []byte, cur cursors.Cursor) error {
 			if a.Len() > 0 {
 				for i := range a.Timestamps {
 					buf := strconv.AppendQuote(line, a.Values[i])
-					buf = append(buf, 'i', ' ')
+					buf = append(buf, ' ')
 					buf = strconv.AppendInt(buf, a.Timestamps[i], 10)
 					wr.Write(buf)
 					wr.Write(newLine)

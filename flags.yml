@@ -26,3 +26,10 @@
   default: 42
   contact: Gavin Cabbage
   expose: true
+
+- name: New Auth Package
+  description: Enables the refactored authorization api
+  key: newAuth
+  default: false
+  contact: Alirie Gray
+  lifetime: temporary

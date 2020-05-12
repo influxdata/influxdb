@@ -16,6 +16,7 @@ import {
   CLOUD_URL,
   CLOUD_USAGE_PATH,
   CLOUD_BILLING_PATH,
+  CLOUD_USERS_PATH,
 } from 'src/shared/constants'
 
 // Types
@@ -24,6 +25,8 @@ import {MeState} from 'src/shared/reducers/me'
 
 // Selectors
 import {getOrg} from 'src/organizations/selectors'
+import {getNavItemActivation} from '../utils'
+import {FeatureFlag} from 'src/shared/utils/featureFlag'
 
 interface StateProps {
   org: Organization
@@ -51,12 +54,15 @@ const UserWidget: FC<Props> = ({
     handleShowOverlay('switch-organizations', {}, handleDismissOverlay)
   }
 
+  const orgPrefix = `/orgs/${org.id}`
+
   return (
-    <TreeNav.User username={me.name} team={org.name}>
+    <TreeNav.User username={me.name} team={org.name} testID="user-nav">
       <CloudOnly>
         <TreeNav.UserItem
           id="usage"
           label="Usage"
+          testID="user-nav-item-usage"
           linkElement={className => (
             <a className={className} href={`${CLOUD_URL}${CLOUD_USAGE_PATH}`} />
           )}
@@ -64,6 +70,7 @@ const UserWidget: FC<Props> = ({
         <TreeNav.UserItem
           id="billing"
           label="Billing"
+          testID="user-nav-item-billing"
           linkElement={className => (
             <a
               className={className}
@@ -71,16 +78,57 @@ const UserWidget: FC<Props> = ({
             />
           )}
         />
+        <FeatureFlag name="multiUser" equals={true}>
+          <TreeNav.UserItem
+            id="users"
+            label="Users"
+            testID="user-nav-item-users"
+            linkElement={className => (
+              <a
+                className={className}
+                href={`${CLOUD_URL}/organizations/${org.id}${CLOUD_USERS_PATH}`}
+              />
+            )}
+          />
+        </FeatureFlag>
+        <TreeNav.UserItem
+          id="about"
+          label="About"
+          testID="user-nav-item-about"
+          linkElement={className => (
+            <Link className={className} to={`${orgPrefix}/about`} />
+          )}
+        />
       </CloudOnly>
       <CloudExclude>
         <TreeNav.UserItem
+          id="members"
+          label="Members"
+          testID="user-nav-item-members"
+          active={getNavItemActivation(['members'], location.pathname)}
+          linkElement={className => (
+            <Link className={className} to={`${orgPrefix}/members`} />
+          )}
+        />
+        <TreeNav.UserItem
+          id="about"
+          label="About"
+          testID="user-nav-item-about"
+          active={getNavItemActivation(['about'], location.pathname)}
+          linkElement={className => (
+            <Link className={className} to={`${orgPrefix}/about`} />
+          )}
+        />
+        <TreeNav.UserItem
           id="switch-orgs"
           label="Switch Organizations"
+          testID="user-nav-item-switch-orgs"
           onClick={handleSwitchOrganizations}
         />
         <TreeNav.UserItem
           id="create-org"
           label="Create Organization"
+          testID="user-nav-item-create-orgs"
           linkElement={className => (
             <Link className={className} to="/orgs/new" />
           )}
@@ -89,6 +137,7 @@ const UserWidget: FC<Props> = ({
       <TreeNav.UserItem
         id="logout"
         label="Logout"
+        testID="user-nav-item-logout"
         linkElement={className => <Link className={className} to="/logout" />}
       />
     </TreeNav.User>

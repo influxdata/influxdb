@@ -29,7 +29,7 @@ func (l *UserLogger) CreateUser(ctx context.Context, u *influxdb.User) (err erro
 	defer func(start time.Time) {
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {
-			l.logger.Error("failed to create user", zap.Error(err), dur)
+			l.logger.Debug("failed to create user", zap.Error(err), dur)
 			return
 		}
 		l.logger.Debug("user create", dur)
@@ -42,7 +42,7 @@ func (l *UserLogger) FindUserByID(ctx context.Context, id influxdb.ID) (u *influ
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {
 			msg := fmt.Sprintf("failed to find user with ID %v", id)
-			l.logger.Error(msg, zap.Error(err), dur)
+			l.logger.Debug(msg, zap.Error(err), dur)
 			return
 		}
 		l.logger.Debug("user find by ID", dur)
@@ -54,7 +54,7 @@ func (l *UserLogger) FindUser(ctx context.Context, filter influxdb.UserFilter) (
 	defer func(start time.Time) {
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {
-			l.logger.Error("failed to find user matching the given filter", zap.Error(err), dur)
+			l.logger.Debug("failed to find user matching the given filter", zap.Error(err), dur)
 			return
 		}
 		l.logger.Debug("user find", dur)
@@ -66,7 +66,7 @@ func (l *UserLogger) FindUsers(ctx context.Context, filter influxdb.UserFilter, 
 	defer func(start time.Time) {
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {
-			l.logger.Error("failed to find users matching the given filter", zap.Error(err), dur)
+			l.logger.Debug("failed to find users matching the given filter", zap.Error(err), dur)
 			return
 		}
 		l.logger.Debug("users find", dur)
@@ -78,7 +78,7 @@ func (l *UserLogger) UpdateUser(ctx context.Context, id influxdb.ID, upd influxd
 	defer func(start time.Time) {
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {
-			l.logger.Error("failed to update user", zap.Error(err), dur)
+			l.logger.Debug("failed to update user", zap.Error(err), dur)
 			return
 		}
 		l.logger.Debug("user update", dur)
@@ -91,7 +91,7 @@ func (l *UserLogger) DeleteUser(ctx context.Context, id influxdb.ID) (err error)
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {
 			msg := fmt.Sprintf("failed to delete user with ID %v", id)
-			l.logger.Error(msg, zap.Error(err), dur)
+			l.logger.Debug(msg, zap.Error(err), dur)
 			return
 		}
 		l.logger.Debug("user create", dur)
@@ -117,7 +117,7 @@ func (l *PasswordLogger) SetPassword(ctx context.Context, userID influxdb.ID, pa
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {
 			msg := fmt.Sprintf("failed to set password for user with ID %v", userID)
-			l.logger.Error(msg, zap.Error(err), dur)
+			l.logger.Debug(msg, zap.Error(err), dur)
 			return
 		}
 		l.logger.Debug("set password", dur)
@@ -130,7 +130,7 @@ func (l *PasswordLogger) ComparePassword(ctx context.Context, userID influxdb.ID
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {
 			msg := fmt.Sprintf("failed to compare password for user with ID %v", userID)
-			l.logger.Error(msg, zap.Error(err), dur)
+			l.logger.Debug(msg, zap.Error(err), dur)
 			return
 		}
 		l.logger.Debug("compare password", dur)
@@ -143,7 +143,7 @@ func (l *PasswordLogger) CompareAndSetPassword(ctx context.Context, userID influ
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {
 			msg := fmt.Sprintf("failed to compare and set password for user with ID %v", userID)
-			l.logger.Error(msg, zap.Error(err), dur)
+			l.logger.Debug(msg, zap.Error(err), dur)
 			return
 		}
 		l.logger.Debug("compare and set password", dur)

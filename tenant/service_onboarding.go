@@ -50,7 +50,7 @@ func (s *OnboardService) OnboardInitialUser(ctx context.Context, req *influxdb.O
 	return s.onboardUser(ctx, req, func(influxdb.ID) []influxdb.Permission { return influxdb.OperPermissions() })
 }
 
-// OnboardUser allows us to onboard a new user if is onboarding is allowd
+// OnboardUser allows us to onboard a new user if is onboarding is allowed
 func (s *OnboardService) OnboardUser(ctx context.Context, req *influxdb.OnboardingRequest) (*influxdb.OnboardingResults, error) {
 	return s.onboardUser(ctx, req, influxdb.OwnerPermissions)
 }

@@ -28,7 +28,7 @@ func (l *BucketLogger) CreateBucket(ctx context.Context, u *influxdb.Bucket) (er
 	defer func(start time.Time) {
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {
-			l.logger.Error("failed to create bucket", zap.Error(err), dur)
+			l.logger.Debug("failed to create bucket", zap.Error(err), dur)
 			return
 		}
 		l.logger.Debug("bucket create", dur)
@@ -41,7 +41,7 @@ func (l *BucketLogger) FindBucketByID(ctx context.Context, id influxdb.ID) (u *i
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {
 			msg := fmt.Sprintf("failed to find bucket with ID %v", id)
-			l.logger.Error(msg, zap.Error(err), dur)
+			l.logger.Debug(msg, zap.Error(err), dur)
 			return
 		}
 		l.logger.Debug("bucket find by ID", dur)
@@ -54,7 +54,7 @@ func (l *BucketLogger) FindBucketByName(ctx context.Context, orgID influxdb.ID, 
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {
 			msg := fmt.Sprintf("failed to find bucket with name %v in org %v", name, orgID)
-			l.logger.Error(msg, zap.Error(err), dur)
+			l.logger.Debug(msg, zap.Error(err), dur)
 			return
 		}
 		l.logger.Debug("bucket find by name", dur)
@@ -66,7 +66,7 @@ func (l *BucketLogger) FindBucket(ctx context.Context, filter influxdb.BucketFil
 	defer func(start time.Time) {
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {
-			l.logger.Error("failed to find bucket matching the given filter", zap.Error(err), dur)
+			l.logger.Debug("failed to find bucket matching the given filter", zap.Error(err), dur)
 			return
 		}
 		l.logger.Debug("bucket find", dur)
@@ -78,7 +78,7 @@ func (l *BucketLogger) FindBuckets(ctx context.Context, filter influxdb.BucketFi
 	defer func(start time.Time) {
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {
-			l.logger.Error("failed to find bucket matching the given filter", zap.Error(err), dur)
+			l.logger.Debug("failed to find bucket matching the given filter", zap.Error(err), dur)
 			return
 		}
 		l.logger.Debug("buckets find", dur)
@@ -90,7 +90,7 @@ func (l *BucketLogger) UpdateBucket(ctx context.Context, id influxdb.ID, upd inf
 	defer func(start time.Time) {
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {
-			l.logger.Error("failed to update bucket", zap.Error(err), dur)
+			l.logger.Debug("failed to update bucket", zap.Error(err), dur)
 			return
 		}
 		l.logger.Debug("bucket update", dur)
@@ -103,7 +103,7 @@ func (l *BucketLogger) DeleteBucket(ctx context.Context, id influxdb.ID) (err er
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {
 			msg := fmt.Sprintf("failed to delete bucket with ID %v", id)
-			l.logger.Error(msg, zap.Error(err), dur)
+			l.logger.Debug(msg, zap.Error(err), dur)
 			return
 		}
 		l.logger.Debug("bucket delete", dur)

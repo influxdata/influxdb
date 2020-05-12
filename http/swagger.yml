@@ -107,6 +107,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/OnboardingResponse"
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   /documents/templates:
     get:
       operationId: GetDocumentsTemplates
@@ -5425,8 +5431,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
   '/users/{userID}/password':
-    put:
-      operationId: PutUsersIDPassword
+    post:
+      operationId: PostUsersIDPassword
       tags:
         - Users
       summary: Update a password
@@ -6993,6 +6999,8 @@ components:
             - read
             - write
         resource:
+          $ref: "#/components/schemas/Resource"
+    Resource:
           type: object
           required: [type]
           properties:

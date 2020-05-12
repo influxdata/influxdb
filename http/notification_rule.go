@@ -29,6 +29,7 @@ type NotificationRuleBackend struct {
 	influxdb.HTTPErrorHandler
 	log *zap.Logger
 
+	AlgoWProxy                  FeatureProxyHandler
 	NotificationRuleStore       influxdb.NotificationRuleStore
 	NotificationEndpointService influxdb.NotificationEndpointService
 	UserResourceMappingService  influxdb.UserResourceMappingService
@@ -43,6 +44,7 @@ func NewNotificationRuleBackend(log *zap.Logger, b *APIBackend) *NotificationRul
 	return &NotificationRuleBackend{
 		HTTPErrorHandler: b.HTTPErrorHandler,
 		log:              log,
+		AlgoWProxy:       b.AlgoWProxy,
 
 		NotificationRuleStore:       b.NotificationRuleStore,
 		NotificationEndpointService: b.NotificationEndpointService,
@@ -96,13 +98,14 @@ func NewNotificationRuleHandler(log *zap.Logger, b *NotificationRuleBackend) *No
 		OrganizationService:         b.OrganizationService,
 		TaskService:                 b.TaskService,
 	}
-	h.HandlerFunc("POST", prefixNotificationRules, h.handlePostNotificationRule)
+
+	h.Handler("POST", prefixNotificationRules, withFeatureProxy(b.AlgoWProxy, http.HandlerFunc(h.handlePostNotificationRule)))
 	h.HandlerFunc("GET", prefixNotificationRules, h.handleGetNotificationRules)
 	h.HandlerFunc("GET", notificationRulesIDPath, h.handleGetNotificationRule)
 	h.HandlerFunc("GET", notificationRulesIDQueryPath, h.handleGetNotificationRuleQuery)
 	h.HandlerFunc("DELETE", notificationRulesIDPath, h.handleDeleteNotificationRule)
-	h.HandlerFunc("PUT", notificationRulesIDPath, h.handlePutNotificationRule)
-	h.HandlerFunc("PATCH", notificationRulesIDPath, h.handlePatchNotificationRule)
+	h.Handler("PUT", notificationRulesIDPath, withFeatureProxy(b.AlgoWProxy, http.HandlerFunc(h.handlePutNotificationRule)))
+	h.Handler("PATCH", notificationRulesIDPath, withFeatureProxy(b.AlgoWProxy, http.HandlerFunc(h.handlePatchNotificationRule)))
 
 	memberBackend := MemberBackend{
 		HTTPErrorHandler:           b.HTTPErrorHandler,

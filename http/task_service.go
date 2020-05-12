@@ -26,6 +26,7 @@ type TaskBackend struct {
 	influxdb.HTTPErrorHandler
 	log *zap.Logger
 
+	AlgoWProxy                 FeatureProxyHandler
 	TaskService                influxdb.TaskService
 	AuthorizationService       influxdb.AuthorizationService
 	OrganizationService        influxdb.OrganizationService
@@ -40,6 +41,7 @@ func NewTaskBackend(log *zap.Logger, b *APIBackend) *TaskBackend {
 	return &TaskBackend{
 		HTTPErrorHandler:           b.HTTPErrorHandler,
 		log:                        log,
+		AlgoWProxy:                 b.AlgoWProxy,
 		TaskService:                b.TaskService,
 		AuthorizationService:       b.AuthorizationService,
 		OrganizationService:        b.OrganizationService,
@@ -98,10 +100,10 @@ func NewTaskHandler(log *zap.Logger, b *TaskBackend) *TaskHandler {
 	}
 
 	h.HandlerFunc("GET", prefixTasks, h.handleGetTasks)
-	h.HandlerFunc("POST", prefixTasks, h.handlePostTask)
+	h.Handler("POST", prefixTasks, withFeatureProxy(b.AlgoWProxy, http.HandlerFunc(h.handlePostTask)))
 
 	h.HandlerFunc("GET", tasksIDPath, h.handleGetTask)
-	h.HandlerFunc("PATCH", tasksIDPath, h.handleUpdateTask)
+	h.Handler("PATCH", tasksIDPath, withFeatureProxy(b.AlgoWProxy, http.HandlerFunc(h.handleUpdateTask)))
 	h.HandlerFunc("DELETE", tasksIDPath, h.handleDeleteTask)
 
 	h.HandlerFunc("GET", tasksIDLogsPath, h.handleGetLogs)

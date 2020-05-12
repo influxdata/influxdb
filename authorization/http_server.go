@@ -10,9 +10,18 @@ import (
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 	"github.com/influxdata/influxdb/v2"
+	icontext "github.com/influxdata/influxdb/v2/context"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"go.uber.org/zap"
 )
+
+// TenantService is used to look up the Organization and User for an Authorization
+type TenantService interface {
+	FindOrganizationByID(ctx context.Context, id influxdb.ID) (*influxdb.Organization, error)
+	FindOrganization(ctx context.Context, filter influxdb.OrganizationFilter) (*influxdb.Organization, error)
+	FindUserByID(ctx context.Context, id influxdb.ID) (*influxdb.User, error)
+	FindUser(ctx context.Context, filter influxdb.UserFilter) (*influxdb.User, error)
+}
 
 type AuthHandler struct {
 	chi.Router
@@ -20,11 +29,11 @@ type AuthHandler struct {
 	log           *zap.Logger
 	authSvc       influxdb.AuthorizationService
 	lookupService influxdb.LookupService
-	tenantService influxdb.TenantService
+	tenantService TenantService
 }
 
 // NewHTTPAuthHandler constructs a new http server.
-func NewHTTPAuthHandler(log *zap.Logger, authService influxdb.AuthorizationService, tenantService influxdb.TenantService, lookupService influxdb.LookupService) *AuthHandler {
+func NewHTTPAuthHandler(log *zap.Logger, authService influxdb.AuthorizationService, tenantService TenantService, lookupService influxdb.LookupService) *AuthHandler {
 	h := &AuthHandler{
 		api:           kithttp.NewAPI(kithttp.WithLog(log)),
 		log:           log,
@@ -69,9 +78,19 @@ func (h *AuthHandler) handlePostAuthorization(w http.ResponseWriter, r *http.Req
 		h.api.Err(w, err)
 		return
 	}
-	// We can assume we have a User ID because if the request does not provide one, then the authorizer
-	// middleware gets it from the context
-	auth := a.toInfluxdb(*a.UserID)
+
+	user, err := getAuthorizedUser(r, h.tenantService)
+	if err != nil {
+		h.api.Err(w, influxdb.ErrUnableToCreateToken)
+		return
+	}
+
+	userID := user.ID
+	if a.UserID != nil && a.UserID.Valid() {
+		userID = *a.UserID
+	}
+
+	auth := a.toInfluxdb(userID)
 
 	if err := h.authSvc.CreateAuthorization(ctx, auth); err != nil {
 		h.api.Err(w, err)
@@ -88,10 +107,22 @@ func (h *AuthHandler) handlePostAuthorization(w http.ResponseWriter, r *http.Req
 
 	resp, err := h.newAuthResponse(ctx, auth, perms)
 	if err != nil {
-		h.api.Err(w, influxdb.ErrUnableToCreateToken)
+		h.api.Err(w, err)
+		return
 	}
 
 	h.api.Respond(w, http.StatusCreated, resp)
+}
+
+func getAuthorizedUser(r *http.Request, ts TenantService) (*influxdb.User, error) {
+	ctx := r.Context()
+
+	a, err := icontext.GetAuthorizer(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return ts.FindUserByID(ctx, a.GetUserID())
 }
 
 type postAuthorizationRequest struct {
@@ -457,30 +488,6 @@ func (h *AuthHandler) handleGetAuthorization(w http.ResponseWriter, r *http.Requ
 	h.api.Respond(w, http.StatusOK, resp)
 }
 
-// type getAuthorizationRequest struct {
-// 	ID influxdb.ID
-// }
-
-// func decodeGetAuthorizationRequest(ctx context.Context, r *http.Request) (*getAuthorizationRequest, error) {
-// 	params := httprouter.ParamsFromContext(ctx)
-// 	id := params.ByName("id")
-// 	if id == "" {
-// 		return nil, &influxdb.Error{
-// 			Code: influxdb.EInvalid,
-// 			Msg:  "url missing id",
-// 		}
-// 	}
-
-// 	var i influxdb.ID
-// 	if err := i.DecodeFromString(id); err != nil {
-// 		return nil, err
-// 	}
-
-// 	return &getAuthorizationRequest{
-// 		ID: i,
-// 	}, nil
-// }
-
 // handleUpdateAuthorization is the HTTP handler for the PATCH /api/v2/authorizations/:id route that updates the authorization's status and desc.
 func (h *AuthHandler) handleUpdateAuthorization(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -543,37 +550,20 @@ func decodeUpdateAuthorizationRequest(ctx context.Context, r *http.Request) (*up
 
 // handleDeleteAuthorization is the HTTP handler for the DELETE /api/v2/authorizations/:id route.
 func (h *AuthHandler) handleDeleteAuthorization(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	req, err := decodeDeleteAuthorizationRequest(ctx, r)
+	id, err := influxdb.IDFromString(chi.URLParam(r, "id"))
 	if err != nil {
 		h.log.Info("Failed to decode request", zap.String("handler", "deleteAuthorization"), zap.Error(err))
 		h.api.Err(w, err)
 		return
 	}
 
-	if err := h.authSvc.DeleteAuthorization(ctx, req.ID); err != nil {
+	if err := h.authSvc.DeleteAuthorization(r.Context(), *id); err != nil {
 		// Don't log here, it should already be handled by the service
 		h.api.Err(w, err)
 		return
 	}
 
-	h.log.Debug("Auth deleted", zap.String("authID", fmt.Sprint(req.ID)))
+	h.log.Debug("Auth deleted", zap.String("authID", fmt.Sprint(id)))
 
 	w.WriteHeader(http.StatusNoContent)
-}
-
-type deleteAuthorizationRequest struct {
-	ID influxdb.ID
-}
-
-// we can clean up and remove these decode functions todo (al)
-func decodeDeleteAuthorizationRequest(ctx context.Context, r *http.Request) (*deleteAuthorizationRequest, error) {
-	id, err := influxdb.IDFromString(chi.URLParam(r, "id"))
-	if err != nil {
-		return nil, err
-	}
-
-	return &deleteAuthorizationRequest{
-		ID: *id,
-	}, nil
 }

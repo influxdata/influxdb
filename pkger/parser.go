@@ -8,6 +8,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -529,7 +530,7 @@ func (p *Pkg) buckets() []*bucket {
 		buckets = append(buckets, b)
 	}
 
-	sort.Slice(buckets, func(i, j int) bool { return buckets[i].Name() < buckets[j].Name() })
+	sort.Slice(buckets, func(i, j int) bool { return buckets[i].PkgName() < buckets[j].PkgName() })
 
 	return buckets
 }
@@ -540,7 +541,7 @@ func (p *Pkg) checks() []*check {
 		checks = append(checks, c)
 	}
 
-	sort.Slice(checks, func(i, j int) bool { return checks[i].Name() < checks[j].Name() })
+	sort.Slice(checks, func(i, j int) bool { return checks[i].PkgName() < checks[j].PkgName() })
 
 	return checks
 }
@@ -573,7 +574,7 @@ func (p *Pkg) notificationEndpoints() []*notificationEndpoint {
 	sort.Slice(endpoints, func(i, j int) bool {
 		ei, ej := endpoints[i], endpoints[j]
 		if ei.kind == ej.kind {
-			return ei.Name() < ej.Name()
+			return ei.PkgName() < ej.PkgName()
 		}
 		return ei.kind < ej.kind
 	})
@@ -585,7 +586,7 @@ func (p *Pkg) notificationRules() []*notificationRule {
 	for _, r := range p.mNotificationRules {
 		rules = append(rules, r)
 	}
-	sort.Slice(rules, func(i, j int) bool { return rules[i].Name() < rules[j].Name() })
+	sort.Slice(rules, func(i, j int) bool { return rules[i].PkgName() < rules[j].PkgName() })
 	return rules
 }
 
@@ -617,7 +618,7 @@ func (p *Pkg) tasks() []*task {
 		tasks = append(tasks, t)
 	}
 
-	sort.Slice(tasks, func(i, j int) bool { return tasks[i].Name() < tasks[j].Name() })
+	sort.Slice(tasks, func(i, j int) bool { return tasks[i].PkgName() < tasks[j].PkgName() })
 
 	return tasks
 }
@@ -629,7 +630,7 @@ func (p *Pkg) telegrafs() []*telegraf {
 		teles = append(teles, t)
 	}
 
-	sort.Slice(teles, func(i, j int) bool { return teles[i].Name() < teles[j].Name() })
+	sort.Slice(teles, func(i, j int) bool { return teles[i].PkgName() < teles[j].PkgName() })
 
 	return teles
 }
@@ -640,7 +641,7 @@ func (p *Pkg) variables() []*variable {
 		vars = append(vars, v)
 	}
 
-	sort.Slice(vars, func(i, j int) bool { return vars[i].Name() < vars[j].Name() })
+	sort.Slice(vars, func(i, j int) bool { return vars[i].PkgName() < vars[j].PkgName() })
 
 	return vars
 }
@@ -732,7 +733,7 @@ func (p *Pkg) graphResources() error {
 func (p *Pkg) graphBuckets() *parseErr {
 	p.mBuckets = make(map[string]*bucket)
 	tracker := p.trackNames(true)
-	return p.eachResource(KindBucket, bucketNameMinLength, func(o Object) []validationErr {
+	return p.eachResource(KindBucket, func(o Object) []validationErr {
 		ident, errs := tracker(o)
 		if len(errs) > 0 {
 			return errs
@@ -770,7 +771,7 @@ func (p *Pkg) graphBuckets() *parseErr {
 func (p *Pkg) graphLabels() *parseErr {
 	p.mLabels = make(map[string]*label)
 	tracker := p.trackNames(true)
-	return p.eachResource(KindLabel, labelNameMinLength, func(o Object) []validationErr {
+	return p.eachResource(KindLabel, func(o Object) []validationErr {
 		ident, errs := tracker(o)
 		if len(errs) > 0 {
 			return errs
@@ -801,7 +802,7 @@ func (p *Pkg) graphChecks() *parseErr {
 	}
 	var pErr parseErr
 	for _, checkKind := range checkKinds {
-		err := p.eachResource(checkKind.kind, checkNameMinLength, func(o Object) []validationErr {
+		err := p.eachResource(checkKind.kind, func(o Object) []validationErr {
 			ident, errs := tracker(o)
 			if len(errs) > 0 {
 				return errs
@@ -862,7 +863,7 @@ func (p *Pkg) graphChecks() *parseErr {
 func (p *Pkg) graphDashboards() *parseErr {
 	p.mDashboards = make(map[string]*dashboard)
 	tracker := p.trackNames(false)
-	return p.eachResource(KindDashboard, dashboardNameMinLength, func(o Object) []validationErr {
+	return p.eachResource(KindDashboard, func(o Object) []validationErr {
 		ident, errs := tracker(o)
 		if len(errs) > 0 {
 			return errs
@@ -926,7 +927,7 @@ func (p *Pkg) graphNotificationEndpoints() *parseErr {
 
 	var pErr parseErr
 	for _, nk := range notificationKinds {
-		err := p.eachResource(nk.kind, 1, func(o Object) []validationErr {
+		err := p.eachResource(nk.kind, func(o Object) []validationErr {
 			ident, errs := tracker(o)
 			if len(errs) > 0 {
 				return errs
@@ -977,7 +978,7 @@ func (p *Pkg) graphNotificationEndpoints() *parseErr {
 func (p *Pkg) graphNotificationRules() *parseErr {
 	p.mNotificationRules = make(map[string]*notificationRule)
 	tracker := p.trackNames(false)
-	return p.eachResource(KindNotificationRule, 1, func(o Object) []validationErr {
+	return p.eachResource(KindNotificationRule, func(o Object) []validationErr {
 		ident, errs := tracker(o)
 		if len(errs) > 0 {
 			return errs
@@ -1027,7 +1028,7 @@ func (p *Pkg) graphNotificationRules() *parseErr {
 func (p *Pkg) graphTasks() *parseErr {
 	p.mTasks = make(map[string]*task)
 	tracker := p.trackNames(false)
-	return p.eachResource(KindTask, 1, func(o Object) []validationErr {
+	return p.eachResource(KindTask, func(o Object) []validationErr {
 		ident, errs := tracker(o)
 		if len(errs) > 0 {
 			return errs
@@ -1059,7 +1060,7 @@ func (p *Pkg) graphTasks() *parseErr {
 func (p *Pkg) graphTelegrafs() *parseErr {
 	p.mTelegrafs = make(map[string]*telegraf)
 	tracker := p.trackNames(false)
-	return p.eachResource(KindTelegraf, 0, func(o Object) []validationErr {
+	return p.eachResource(KindTelegraf, func(o Object) []validationErr {
 		ident, errs := tracker(o)
 		if len(errs) > 0 {
 			return errs
@@ -1088,7 +1089,7 @@ func (p *Pkg) graphTelegrafs() *parseErr {
 func (p *Pkg) graphVariables() *parseErr {
 	p.mVariables = make(map[string]*variable)
 	tracker := p.trackNames(true)
-	return p.eachResource(KindVariable, 1, func(o Object) []validationErr {
+	return p.eachResource(KindVariable, func(o Object) []validationErr {
 		ident, errs := tracker(o)
 		if len(errs) > 0 {
 			return errs
@@ -1118,7 +1119,7 @@ func (p *Pkg) graphVariables() *parseErr {
 	})
 }
 
-func (p *Pkg) eachResource(resourceKind Kind, minNameLen int, fn func(o Object) []validationErr) *parseErr {
+func (p *Pkg) eachResource(resourceKind Kind, fn func(o Object) []validationErr) *parseErr {
 	var pErr parseErr
 	for i, k := range p.Objects {
 		if err := k.Kind.OK(); err != nil {
@@ -1152,14 +1153,14 @@ func (p *Pkg) eachResource(resourceKind Kind, minNameLen int, fn func(o Object) 
 			continue
 		}
 
-		if len(k.Name()) < minNameLen {
+		if errs := isDNS1123Label(k.Name()); len(errs) > 0 {
 			pErr.append(resourceErr{
 				Kind: k.Kind.String(),
 				Idx:  intPtr(i),
 				ValidationErrs: []validationErr{
 					objectValidationErr(fieldMetadata, validationErr{
 						Field: fieldName,
-						Msg:   fmt.Sprintf("must be a string of at least %d chars in length", minNameLen),
+						Msg:   fmt.Sprintf("name %q is invalid; %s", k.Name(), strings.Join(errs, "; ")),
 					}),
 				},
 			})
@@ -1432,6 +1433,43 @@ func parseChart(r Resource) (chart, []validationErr) {
 	}
 
 	return c, nil
+}
+
+// dns1123LabelMaxLength is a label's max length in DNS (RFC 1123)
+const dns1123LabelMaxLength int = 63
+
+const dns1123LabelFmt string = "[a-z0-9]([-a-z0-9]*[a-z0-9])?"
+const dns1123LabelErrMsg string = "a DNS-1123 label must consist of lower case alphanumeric characters or '-', and must start and end with an alphanumeric character"
+
+var dns1123LabelRegexp = regexp.MustCompile("^" + dns1123LabelFmt + "$")
+
+// isDNS1123Label tests for a string that conforms to the definition of a label in
+// DNS (RFC 1123).
+func isDNS1123Label(value string) []string {
+	var errs []string
+	if len(value) > dns1123LabelMaxLength {
+		errs = append(errs, fmt.Sprintf("must be no more than %d characters", dns1123LabelMaxLength))
+	}
+	if !dns1123LabelRegexp.MatchString(value) {
+		errs = append(errs, regexError(dns1123LabelErrMsg, dns1123LabelFmt, "my-name", "123-abc"))
+	}
+	return errs
+}
+
+// regexError returns a string explanation of a regex validation failure.
+func regexError(msg string, fmt string, examples ...string) string {
+	if len(examples) == 0 {
+		return msg + " (regex used for validation is '" + fmt + "')"
+	}
+	msg += " (e.g. "
+	for i := range examples {
+		if i > 0 {
+			msg += " or "
+		}
+		msg += "'" + examples[i] + "', "
+	}
+	msg += "regex used for validation is '" + fmt + "')"
+	return msg
 }
 
 // Resource is a pkger Resource kind. It can be one of any of

@@ -1,6 +1,4 @@
 import {IconFont} from '@influxdata/clockface'
-import {CLOUD_URL, CLOUD_USERS_PATH} from 'src/shared/constants'
-import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 
 export interface NavItemLink {
   type: 'link' | 'href'
@@ -35,18 +33,6 @@ export interface NavItem {
 
 export const generateNavItems = (orgID: string): NavItem[] => {
   const orgPrefix = `/orgs/${orgID}`
-
-  const isMultiUserEnabled = isFlagEnabled('multiUser')
-
-  const quartzMembersHeaderLink: NavItemLink = isMultiUserEnabled
-    ? {
-        type: 'href',
-        location: `${CLOUD_URL}/organizations/${orgID}${CLOUD_USERS_PATH}`,
-      }
-    : {
-        type: 'link',
-        location: `${orgPrefix}/about`,
-      }
 
   return [
     {

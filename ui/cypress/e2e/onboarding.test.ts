@@ -222,6 +222,22 @@ describe('Onboarding', () => {
       'Passwords do not match'
     )
 
+    cy.getByTestID('input-field--password')
+      .clear()
+      .type('p1')
+
+    cy.getByTestID('input-field--password-chk')
+      .clear()
+      .type('p1')
+
+    // check password too short
+    cy.getByTestID('form--element-error').should('contain.text', '8')
+
+    cy.getByTestID('next')
+      .should('be.disabled')
+      .children('.cf-button--label')
+      .contains('Continue')
+
     cy.getByTestID('input-field--orgname').type(user.org)
     cy.getByTestID('input-field--bucketname').type(user.bucket)
 
@@ -229,6 +245,10 @@ describe('Onboarding', () => {
       .should('be.disabled')
       .children('.cf-button--label')
       .contains('Continue')
+
+    cy.getByTestID('input-field--password')
+      .clear()
+      .type(user.password)
 
     cy.getByTestID('input-field--password-chk')
       .clear()
@@ -269,7 +289,13 @@ describe('Onboarding', () => {
       .children('.cf-button--label')
       .contains('Continue')
 
-    cy.getByTestID('input-field--password').type(user.password)
+    cy.getByTestID('input-field--password')
+      .clear()
+      .type(user.password)
+
+    cy.getByTestID('input-field--password-chk')
+      .clear()
+      .type(user.password)
 
     cy.getByTestID('next')
       .should('be.enabled')

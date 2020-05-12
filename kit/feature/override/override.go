@@ -11,16 +11,21 @@ import (
 // Flagger can override default flag values.
 type Flagger struct {
 	overrides map[string]string
+	byKey     feature.ByKeyFn
 }
 
 // Make a Flagger that returns defaults with any overrides parsed from the string.
-func Make(m map[string]string) (Flagger, error) {
+func Make(m map[string]string, byKey feature.ByKeyFn) (Flagger, error) {
+	if byKey == nil {
+		byKey = feature.ByKey
+	}
 	return Flagger{
 		overrides: m,
+		byKey:     byKey,
 	}, nil
 }
 
-// Flags returns a map of default values. It never returns an error.
+// Flags returns a map of default values with overrides applied. It never returns an error.
 func (f Flagger) Flags(_ context.Context, flags ...feature.Flag) (map[string]interface{}, error) {
 	if len(flags) == 0 {
 		flags = feature.Flags()
@@ -42,7 +47,11 @@ func (f Flagger) Flags(_ context.Context, flags ...feature.Flag) (map[string]int
 	return m, nil
 }
 
-func (Flagger) coerce(s string, flag feature.Flag) (iface interface{}, err error) {
+func (f Flagger) coerce(s string, flag feature.Flag) (iface interface{}, err error) {
+	if base, ok := flag.(feature.Base); ok {
+		flag, _ = f.byKey(base.Key())
+	}
+
 	switch flag.(type) {
 	case feature.BoolFlag:
 		iface, err = strconv.ParseBool(s)
