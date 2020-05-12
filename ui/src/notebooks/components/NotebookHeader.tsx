@@ -8,6 +8,7 @@ import {AutoRefreshStatus} from 'src/types'
 import {TimeZoneDropdown} from 'src/shared/components/TimeZoneDropdown'
 import {SubmitQueryButton} from 'src/timeMachine/components/SubmitQueryButton'
 
+const PREVIOUS_REGEXP = /__PREVIOUS_RESULT__/g
 const NotebookHeader: FC = () => {
   const { id, pipes } = useContext(NotebookContext)
   const { timeContext, addTimeContext, updateTimeContext } = useContext(TimeContext)
@@ -49,16 +50,36 @@ const NotebookHeader: FC = () => {
   }
 
   function submit() {
-      const queries = pipes.filter(p => p.type === 'query')
-      .map(p => {
-          const q = p.queries[p.activeQuery]
+      const queries = pipes.reduce((stages, pipe, idx) => {
+          if (pipe.type === 'query') {
+              let text = pipe.queries[pipe.activeQuery].text
+              let requirements = {}
 
-          return q.text
+              if (PREVIOUS_REGEXP.test(text)) {
+                  requirements = {
+                      ...(idx === 0 ? {} : stages[stages.length - 1].requirements),
+                      [`prev_${idx}`]: stages[stages.length - 1].text
+                  }
+                  text = text.replace(PREVIOUS_REGEXP, `prev_${idx}`)
+              }
+
+              stages.push({
+                  text,
+                  instances: [ idx ],
+                  requirements
+              })
+          } else {
+              stages[stages.length - 1].instances.push(idx);
+          }
+
+          return stages
+      }, [])
+
+      queries.forEach(q => {
+          console.log('FIRING')
+          console.log(Object.entries(q.requirements).map(([key, value]) => `${key} = (\n${value}\n)\n\n`).join('') + q.text)
+          console.log('for', q.instances)
       })
-      .filter(t => t.length)
-      .map((t, idx) => `result_${idx} = (${t})`)
-
-      console.log(`${queries.join('\n\n')}\n\nresult_${queries.length-1}`)
   }
 
   return (

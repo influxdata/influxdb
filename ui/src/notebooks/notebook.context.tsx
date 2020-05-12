@@ -43,7 +43,7 @@ const TEST_NOTEBOOK = {
       activeQuery: 0,
       queries: [
         {
-          text: '__PREVIOUS_RESULT__\n |> filter(fn: (r) => r["_field"] == "usage_percent")',
+            text: '// Tip: Use the __PREVIOUS_RESULT__ variable to link your queries\n\n__PREVIOUS_RESULT__\n |> filter(fn: (r) => r["_field"] == "usage_percent")',
           editMode: 'advanced',
           builderConfig: {
             buckets: [],
@@ -52,6 +52,48 @@ const TEST_NOTEBOOK = {
           },
         },
       ],
+    },
+    {
+        type: 'visualization'
+    },
+    {
+        type: 'visualization'
+    },
+    {
+      type: 'query',
+      activeQuery: 0,
+      queries: [
+        {
+            text: '// Tip: Use the __PREVIOUS_RESULT__ variable to link your queries\n\n__PREVIOUS_RESULT__\n |> sum()',
+          editMode: 'advanced',
+          builderConfig: {
+            buckets: [],
+            tags: [],
+            functions: [],
+          },
+        },
+      ],
+    },
+    {
+        type: 'visualization'
+    },
+    {
+      type: 'query',
+      activeQuery: 0,
+      queries: [
+        {
+          text: '// Tip: Use the __PREVIOUS_RESULT__ variable to link your queries\n\nfrom(bucket: "project")\n |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n |> filter(fn: (r) => r["_measurement"] == "docker_container_cpu")',
+          editMode: 'advanced',
+          builderConfig: {
+            buckets: [],
+            tags: [],
+            functions: [],
+          },
+        },
+      ],
+    },
+    {
+        type: 'visualization'
     },
   ],
 }
