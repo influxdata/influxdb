@@ -27,6 +27,7 @@ interface Props {
   onChangeScript: OnChangeScript
   onSubmitScript?: () => void
   setEditorInstance?: (editor: EditorType) => void
+  skipFocus?: boolean
 }
 
 const FluxEditorMonaco: FC<Props> = ({
@@ -34,6 +35,7 @@ const FluxEditorMonaco: FC<Props> = ({
   onChangeScript,
   onSubmitScript,
   setEditorInstance,
+  skipFocus,
 }) => {
   const lspServer = useRef<LSPServer>(null)
   const [editorInst, seteditorInst] = useState<EditorType | null>(null)
@@ -65,12 +67,19 @@ const FluxEditorMonaco: FC<Props> = ({
       }
     })
 
-    editor.focus()
-
     try {
       lspServer.current = await loadServer()
       const diagnostics = await lspServer.current.didOpen(uri, script)
       updateDiagnostics(diagnostics)
+
+      if (!skipFocus) {
+        const lines = (script || '').split('\n')
+        editor.setPosition({
+          lineNumber: lines.length,
+          column: lines[lines.length - 1].length + 1,
+        })
+        editor.focus()
+      }
     } catch (e) {
       // TODO: notify user that lsp failed
     }
