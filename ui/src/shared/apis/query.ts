@@ -139,7 +139,7 @@ const processErrorResponse = async (
     const body = await response.text()
     const json = JSON.parse(body)
     const message = json.message || json.error
-    const code = json.code || ''
+    const code = json.code
 
     return {type: 'UNKNOWN_ERROR', message, code}
   } catch {
