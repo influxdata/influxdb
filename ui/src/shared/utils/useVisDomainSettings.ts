@@ -36,7 +36,7 @@ export const getValidRange = (
   return range
 }
 
-export const useVisDomainSettings = (
+export const useVisXDomainSettings = (
   storedDomain: number[],
   data: NumericColumnData,
   timeRange: TimeRange | null = null

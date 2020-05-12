@@ -8,7 +8,7 @@ import GraphLoadingDots from 'src/shared/components/GraphLoadingDots'
 
 // Utils
 import {
-  useVisDomainSettings,
+  useVisXDomainSettings,
   useVisYDomainSettings,
 } from 'src/shared/utils/useVisDomainSettings'
 import {getFormatter} from 'src/shared/utils/vis'
@@ -62,7 +62,7 @@ const HeatmapPlot: FunctionComponent<Props> = ({
 }) => {
   const columnKeys = table.columnKeys
 
-  const [xDomain, onSetXDomain, onResetXDomain] = useVisDomainSettings(
+  const [xDomain, onSetXDomain, onResetXDomain] = useVisXDomainSettings(
     storedXDomain,
     table.getColumn(xColumn, 'number'),
     timeRange

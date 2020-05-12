@@ -14,14 +14,14 @@ import GraphLoadingDots from 'src/shared/components/GraphLoadingDots'
 
 // Utils
 import {
-  useVisDomainSettings,
+  useVisXDomainSettings,
   useVisYDomainSettings,
 } from 'src/shared/utils/useVisDomainSettings'
 import {
   getFormatter,
   geomToInterpolation,
   filterNoisyColumns,
-  parseBounds,
+  parseXBounds,
   parseYBounds,
   defaultXColumn,
   defaultYColumn,
@@ -86,7 +86,7 @@ const XYPlot: FunctionComponent<Props> = ({
   },
   theme,
 }) => {
-  const storedXDomain = useMemo(() => parseBounds(xBounds), [xBounds])
+  const storedXDomain = useMemo(() => parseXBounds(xBounds), [xBounds])
   const storedYDomain = useMemo(() => parseYBounds(yBounds), [yBounds])
   const xColumn = storedXColumn || defaultXColumn(table)
   const yColumn = storedYColumn || defaultYColumn(table)
@@ -112,7 +112,7 @@ const XYPlot: FunctionComponent<Props> = ({
 
   const groupKey = [...fluxGroupKeyUnion, 'result']
 
-  const [xDomain, onSetXDomain, onResetXDomain] = useVisDomainSettings(
+  const [xDomain, onSetXDomain, onResetXDomain] = useVisXDomainSettings(
     storedXDomain,
     table.getColumn(xColumn, 'number'),
     timeRange

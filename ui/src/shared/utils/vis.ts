@@ -113,7 +113,7 @@ export const filterNoisyColumns = (columns: string[], table: Table): string[] =>
     return false
   })
 
-export const parseBounds = (
+export const parseXBounds = (
   bounds: Axis['bounds']
 ): [number, number] | null => {
   if (
