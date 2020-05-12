@@ -33,9 +33,7 @@ export const getDemoDataBuckets = async (): Promise<Bucket[]> => {
 }
 
 // member's id is looked up from the session token passed with the request.
-export const getDemoDataBucketMembership = async (
-  bucketID: string,
-) => {
+export const getDemoDataBucketMembership = async (bucketID: string) => {
   const response = await AJAX({
     method: 'POST',
     url: `${baseURL}/buckets/${bucketID}/members`,
@@ -47,9 +45,7 @@ export const getDemoDataBucketMembership = async (
   }
 }
 
-export const deleteDemoDataBucketMembership = async (
-  bucketID: string,
-) => {
+export const deleteDemoDataBucketMembership = async (bucketID: string) => {
   try {
     const response = await AJAX({
       method: 'DELETE',

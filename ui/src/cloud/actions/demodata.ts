@@ -123,9 +123,9 @@ export const getDemoDataBucketMembership = ({
   }
 }
 
-export const deleteDemoDataBucketMembership = (bucket: DemoBucket) => async (
-  dispatch,
-) => {
+export const deleteDemoDataBucketMembership = (
+  bucket: DemoBucket
+) => async dispatch => {
   try {
     await deleteDemoDataBucketMembershipAJAX(bucket.id)
 
