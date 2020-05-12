@@ -35,6 +35,7 @@ import CreateVariableOverlay from 'src/variables/components/CreateVariableOverla
 import DataExplorerPage from 'src/dataExplorer/components/DataExplorerPage'
 import SaveAsOverlay from 'src/dataExplorer/components/SaveAsOverlay'
 import {MePage} from 'src/me'
+import NotebookPage from 'src/notebooks/components/Notebook'
 import NotFound from 'src/shared/components/NotFound'
 import GetLinks from 'src/shared/containers/GetLinks'
 import GetMe from 'src/shared/containers/GetMe'
@@ -94,6 +95,9 @@ import EditRuleOverlay from 'src/notifications/rules/components/EditRuleOverlay'
 import NewEndpointOverlay from 'src/notifications/endpoints/components/NewEndpointOverlay'
 import EditEndpointOverlay from 'src/notifications/endpoints/components/EditEndpointOverlay'
 import NoOrgsPage from 'src/organizations/containers/NoOrgsPage'
+
+// Utilities
+import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 
 // Overlays
 import OverlayHandler, {
@@ -278,6 +282,12 @@ class Root extends PureComponent {
                               </Route>
                             </Route>
                             <Route path="me" component={MePage} />
+                              {isFlagEnabled('notebooks') && (
+                                <Route
+                                  path="notebooks"
+                                  component={NotebookPage}
+                                />
+                              )}
                             <Route path="load-data">
                               <IndexRoute component={BucketsIndex} />
                               <Route path="tokens" component={TokensIndex}>
