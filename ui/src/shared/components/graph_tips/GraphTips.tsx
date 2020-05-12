@@ -11,7 +11,7 @@ const GraphTips: FC = () => (
       color={ComponentColor.Primary}
       testID="graphtips-question-mark"
       tooltipContents={
-        <span>
+        <>
           <h1>Graph Tips:</h1>
           <p>
             <code>Click + Drag</code> Zoom in (X or Y)
@@ -26,7 +26,7 @@ const GraphTips: FC = () => (
             <br />
             <code>Shift + Click</code> Show/Hide single Series
           </p>
-        </span>
+        </>
       }
     />
   </>

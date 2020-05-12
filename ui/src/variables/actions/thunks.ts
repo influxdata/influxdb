@@ -147,6 +147,33 @@ export const hydrateVariables = (skipCache?: boolean) => async (
   await hydration.promise
 }
 
+export const hydrateChangedVariable = (variable: Variable) => async (
+  dispatch: Dispatch<Action>,
+  getState: GetState
+) => {
+  const state = getState()
+  const org = getOrg(state)
+  const hydration = hydrateVars([variable], getAllVariablesFromState(state), {
+    orgID: org.id,
+    url: state.links.query.self,
+    skipCache: true,
+  })
+  hydration.on('status', (variable, status) => {
+    if (status === RemoteDataState.Loading) {
+      dispatch(setVariable(variable.id, status))
+      return
+    }
+    if (status === RemoteDataState.Done) {
+      const _variable = normalize<Variable, VariableEntities, string>(
+        variable,
+        variableSchema
+      )
+      dispatch(setVariable(variable.id, RemoteDataState.Done, _variable))
+    }
+  })
+  await hydration.promise
+}
+
 export const getVariable = (id: string) => async (
   dispatch: Dispatch<Action>
 ) => {
@@ -397,7 +424,6 @@ export const selectValue = (variableID: string, selected: string) => async (
   const state = getState()
   const contextID = currentContext(state)
   const variable = getVariableFromState(state, variableID)
-
   // Validate that we can make this selection
   const vals = normalizeValues(variable)
   if (!vals.includes(selected)) {
@@ -405,7 +431,7 @@ export const selectValue = (variableID: string, selected: string) => async (
   }
 
   await dispatch(selectValueInState(contextID, variableID, selected))
-
-  dispatch(hydrateVariables(true))
+  // only hydrate the changedVariable
+  dispatch(hydrateChangedVariable(variable))
   dispatch(updateQueryVars({[variable.name]: selected}))
 }
