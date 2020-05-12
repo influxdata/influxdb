@@ -125,7 +125,7 @@ test available=false 4
 test available=true 5
 ```
 ## CSV Data On Input
-This library supports all the concepts of [flux result annotated CSV](https://v2.docs.influxdata.com/v2.0/reference/syntax/annotated-csv/#tables) and provides a few extensions that allow to process existing/custom CSV files. The conversion to lineprotocol is driven by contents of annotation rows and layout of the header row.
+This library supports all the concepts of [flux result annotated CSV](https://v2.docs.influxdata.com/v2.0/reference/syntax/annotated-csv/#tables) and provides a few extensions that allow to process existing/custom CSV files. The conversion to line protocol is driven by contents of annotation rows and layout of the header row.
 
 #### New data types
 Existing [data types](https://v2.docs.influxdata.com/v2.0/reference/syntax/annotated-csv/#data-types) are supported. The CSV input can also contain the following data types that are used to associate a column value to a part of a protocol line
@@ -148,18 +148,20 @@ All data types can include the format that is used to parse column data. It is t
       - `dateTime:RFC3339` format is 2006-01-02T15:04:05Z07:00
       - `dateTime:RFC3339Nano` format is 2006-01-02T15:04:05.999999999Z07:00
       - `dateTime:number` represent UTCs time since epoch in nanoseconds
-   - the can be a layout described in https://golang.org/pkg/time layout, for example `dateTime:2006-01-02` parses 4-digit-year , '-' , 2-digit month ,'-' , 2 digit day of the month
+   - a custom layout as described in the [time](https://golang.org/pkg/time) package, for example `dateTime:2006-01-02` parses 4-digit-year , '-' , 2-digit month ,'-' , 2 digit day of the month
    - if the time format includes a time zone, the parsed date time respects the time zone; otherwise the timezone dependends on the presence of the new `#timezone` annotation; if there is no `#timezone` annotation, UTC is used
 - `double:format`
-   - the `format`'s first character is used to separate integer and fractional part (usually `.` or `,`), second and next format's characters (such as as `, _`) are removed  from the column value, these removed characters are typically used to visually separate large numbers into groups
-   - for example a Spanish locale value `3.494.826.157,123` is of `double:,.` type; the same `double` value is  _3494826157.123_
+   - the `format`'s first character is used to separate integer and fractional part (usually `.` or `,`), second and next format's characters (such as as `, _`) are removed from the column value, these removed characters are typically used to visually separate large numbers into groups
+   - for example:
+      - a Spanish locale value `3.494.826.157,123` is of `double:,.` type; the same `double` value is  _3494826157.123_
+      - `1_000_000` is of `double:._` type to be a million `double`
    - note that you have to quote column delimiters whenever they appear in a CSV column value, for example:
       - `#constant,"double:,.",myColumn,"1.234,011"`
 - `long:format` and `unsignedLong:format` support the same format as `double`, but everything after and including a fraction character is ignored
 - `boolean:truthy:falsy`
    - `truthy` and `falsy` are comma-separated lists of values, they can be empty to assume all values as truthy/falsy; for example `boolean:sí,yes,ja,oui,ano,да:no,nein,non,ne,нет` 
    - a  `boolean` data type (without the format) parses column values that start with any of _tTyY1_ as `true` values, _fFnN0_ as `false` values and fails on other values
-   - a column with an empty value is OOTB excluded in the protocol line; a default value is required to interpret empty value either using `#default` annotation or in a header line (see below)
+   - a column with an empty value is excluded in the protocol line unless a default value is supplied either using `#default` annotation or in a header line (see below)
 
 #### Header row with data types and default values
 The header row (i.e. the row that define column names) can also define column data types when supplied as `name|datatype`; for example `cpu|tag` defines a tag column named _cpu_ . Moreover, it can also specify a default value when supplied as `name|datatype|default`; for example, `count|long|0` defines a field column named _count_ of _long_ data type that will not skip the field if a column value is empty, but uses '0' as the column value.
