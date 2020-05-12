@@ -26,7 +26,7 @@ import {
 // Utils
 import {reportError} from 'src/shared/utils/errors'
 import {getErrorMessage} from 'src/utils/api'
-import {fireGAEvent} from 'src/shared/utils/analytics'
+import {fireEvent} from 'src/shared/utils/analytics'
 
 // Types
 import {Bucket, RemoteDataState, GetState, DemoBucket} from 'src/types'
@@ -118,7 +118,7 @@ export const getDemoDataBucketMembership = ({
 
     dispatch(notify(demoDataSucceeded(bucketName, url)))
 
-    fireGAEvent('demoData_bucketAdded', {demo_dataset: bucketName})
+    fireEvent('demoData_bucketAdded', {demo_dataset: bucketName})
   } catch (error) {
     const message = `Could not create dashboard for demodata bucket ${bucketName}: ${getErrorMessage(
       error
@@ -150,7 +150,7 @@ export const deleteDemoDataBucketMembership = (bucket: DemoBucket) => async (
     }
 
     dispatch(removeBucket(bucket.id))
-    fireGAEvent('demoData_bucketDeleted', {demo_dataset: bucket.name})
+    fireEvent('demoData_bucketDeleted', {demo_dataset: bucket.name})
   } catch (error) {
     dispatch(notify(demoDataDeleteBucketFailed(bucket.name, error)))
 
