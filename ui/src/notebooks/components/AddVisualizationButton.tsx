@@ -43,7 +43,7 @@ const AddVisualizationButton: FC<Props> = ({
 
   return (
     <Button
-      text="Add Visualization"
+      text="Visualization"
       icon={IconFont.BarChart}
       status={buttonStatus}
       color={ComponentColor.Primary}

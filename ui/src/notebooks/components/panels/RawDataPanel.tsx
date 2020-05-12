@@ -29,6 +29,12 @@ import {
 // Selectors
 import {getActiveTimeRange} from 'src/timeMachine/selectors/index'
 
+interface OwnProps {
+  id: string
+  onChangeID: (id: string) => void
+  dataSourceName?: string
+}
+
 interface StateProps {
   timeRange: TimeRange | null
   loading: RemoteDataState
@@ -40,9 +46,12 @@ interface StateProps {
   statuses: StatusRow[][]
 }
 
-type Props = StateProps
+type Props = OwnProps & StateProps
 
 const TimeMachineVis: SFC<Props> = ({
+  id,
+  onChangeID,
+  dataSourceName,
   loading,
   errorMessage,
   isInitialFetch,
@@ -51,7 +60,14 @@ const TimeMachineVis: SFC<Props> = ({
   giraffeResult,
 }) => {
   return (
-    <NotebookPanel title="Results" controlsRight={<CSVExportButton />}>
+    <NotebookPanel
+      id={id}
+      title={id}
+      dataSourceName={dataSourceName}
+      onTitleChange={onChangeID}
+      controlsRight={<CSVExportButton />}
+    >
+      <div className="notebook-panel--results">
       <ErrorBoundary>
         <EmptyQueryView
           loading={loading}
@@ -60,17 +76,18 @@ const TimeMachineVis: SFC<Props> = ({
           isInitialFetch={isInitialFetch}
           queries={viewProperties.queries}
           hasResults={checkResultsLength(giraffeResult)}
-        >
+          >
           <AutoSizer>
             {({width, height}) =>
               width &&
               height && (
                 <RawFluxDataTable files={files} width={width} height={height} />
-              )
-            }
+                )
+              }
           </AutoSizer>
         </EmptyQueryView>
       </ErrorBoundary>
+              </div>
     </NotebookPanel>
   )
 }

@@ -65,7 +65,13 @@ interface DispatchProps {
   onSetIsViewingRawData: typeof setIsViewingRawData
 }
 
-type Props = StateProps & DispatchProps
+interface OwnProps {
+  dataSourceName: string
+  title: string
+  onChangeTitle: (id: string) => void
+}
+
+type Props = OwnProps & StateProps & DispatchProps
 
 const VisualizationPanel: SFC<Props> = ({
   loading,
@@ -85,6 +91,9 @@ const VisualizationPanel: SFC<Props> = ({
   timeZone,
   statuses,
   onSetIsViewingRawData,
+  dataSourceName,
+  title,
+  onChangeTitle,
 }) => {
   // If the current selections for `xColumn`/`yColumn`/ etc. are invalid given
   // the current Flux response, attempt to make a valid selection instead. This
@@ -103,12 +112,21 @@ const VisualizationPanel: SFC<Props> = ({
     onSetIsViewingRawData(false)
   }
 
+  const controls = (
+    <>
+      <ViewTypeDropdown />
+      <VisOptionsButton />
+    </>
+  )
+
   return (
     <NotebookPanel
-      title="Visualization"
+      id={title}
+      title={title}
+      onTitleChange={onChangeTitle}
+      dataSourceName={dataSourceName}
       onRemove={handleRemovePanel}
-      controlsLeft={<ViewTypeDropdown />}
-      controlsRight={<VisOptionsButton />}
+      controlsRight={controls}
     >
       <ErrorBoundary>
         <EmptyQueryView

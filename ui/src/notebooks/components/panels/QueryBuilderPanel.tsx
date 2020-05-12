@@ -43,20 +43,37 @@ interface DispatchProps {
   onSetAutoRefresh: typeof setAutoRefresh
 }
 
-type Props = StateProps & DispatchProps
+interface OwnProps {
+  id: string
+  onChangeID: (id: string) => void
+  dataSourceName?: string
+}
+
+type Props = OwnProps & StateProps & DispatchProps
 
 class TimeMachineQueries extends PureComponent<Props> {
   public render() {
-    const {timeRange, isInCheckOverlay, activeQuery} = this.props
+    const {
+      timeRange,
+      isInCheckOverlay,
+      activeQuery,
+      id,
+      onChangeID,
+      dataSourceName,
+    } = this.props
 
     let controlsRight = (
-      <>{activeQuery.editMode === 'advanced' && <EditorShortcutsToolTip />}</>
+      <>
+        {activeQuery.editMode === 'advanced' && <EditorShortcutsToolTip />}
+        <TimeMachineQueriesSwitcher />
+      </>
     )
 
     if (!isInCheckOverlay) {
       controlsRight = (
         <>
           {activeQuery.editMode === 'advanced' && <EditorShortcutsToolTip />}
+          <TimeMachineQueriesSwitcher />
           <TimeRangeDropdown
             timeRange={timeRange}
             onSetTimeRange={this.handleSetTimeRange}
@@ -67,8 +84,9 @@ class TimeMachineQueries extends PureComponent<Props> {
 
     return (
       <NotebookPanel
-        title="Query Builder"
-        controlsLeft={<TimeMachineQueriesSwitcher />}
+        title={id}
+        onTitleChange={onChangeID}
+        dataSourceName={dataSourceName}
         controlsRight={controlsRight}
       >
         {this.queryEditor}

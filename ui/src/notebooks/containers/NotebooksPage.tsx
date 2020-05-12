@@ -1,9 +1,14 @@
 // Libraries
-import React, {FC, useEffect, ReactChildren} from 'react'
+import React, {FC, useEffect, ReactChildren, useState} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import {Page, Button, ComponentColor} from '@influxdata/clockface'
+import {
+  Page,
+  Button,
+  ComponentColor,
+  ComponentStatus,
+} from '@influxdata/clockface'
 import SaveAsButton from 'src/dataExplorer/components/SaveAsButton'
 import GetResources from 'src/resources/components/GetResources'
 import TimeZoneDropdown from 'src/shared/components/TimeZoneDropdown'
@@ -44,12 +49,22 @@ const NotebooksPage: FC<Props> = ({
   onSetActiveTimeMachine,
   onSetBuilderBucketIfExists,
 }) => {
+  const [markdownPanel, setMarkdownPanel] = useState<boolean>(false)
+
   useEffect(() => {
     const bucketQP = readQueryParams()['bucket']
     onSetActiveTimeMachine('de')
     queryBuilderFetcher.clearCache()
     onSetBuilderBucketIfExists(bucketQP)
   }, [])
+
+  const handleRemoveMarkdownPanel = (): void => {
+    setMarkdownPanel(false)
+  }
+
+  const handleAddMarkdownPanel = (): void => {
+    setMarkdownPanel(true)
+  }
 
   return (
     <Page titleTag={pageTitleSuffixer(['Notebook'])}>
@@ -61,10 +76,24 @@ const NotebooksPage: FC<Props> = ({
         </Page.Header>
         <Page.ControlBar fullWidth={true}>
           <Page.ControlBarLeft>
-            <Button text="Add Alert" color={ComponentColor.Secondary} />
+            <Button
+              text="Markdown"
+              onClick={handleAddMarkdownPanel}
+              color={ComponentColor.Default}
+              status={markdownPanel ? ComponentStatus.Disabled : ComponentStatus.Default}
+            />
+            <Button
+              text="Alert"
+              color={ComponentColor.Secondary}
+              status={ComponentStatus.Disabled}
+            />
             <AddVisualizationButton />
-            <Button text="Add Downsampler" color={ComponentColor.Success} />
-            <Button text="Add Custom Script" color={ComponentColor.Warning} />
+            <Button
+              text="Downsampler"
+              color={ComponentColor.Success}
+              status={ComponentStatus.Disabled}
+            />
+            <Button text="Custom Script" color={ComponentColor.Warning} />
           </Page.ControlBarLeft>
           <Page.ControlBarRight>
             <SubmitQueryButton />
@@ -77,7 +106,7 @@ const NotebooksPage: FC<Props> = ({
           <LimitChecker>
             <RateLimitAlert />
             <HoverTimeProvider>
-              <Notebook />
+              <Notebook showMarkdownPanel={markdownPanel} onRemoveMarkdownPanel={handleRemoveMarkdownPanel} />
             </HoverTimeProvider>
           </LimitChecker>
         </Page.Contents>
