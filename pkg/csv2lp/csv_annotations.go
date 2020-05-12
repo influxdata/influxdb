@@ -18,7 +18,7 @@ type annotationComment struct {
 	// setupColumn setups metadata that drives the way of how column data
 	// are parsed, mandatory when flag > 0
 	setupColumn func(column *CsvTableColumn, columnValue string)
-	// setupColumn setups metadata that drives the way of how the table data
+	// setupTable setups metadata that drives the way of how the table data
 	// are parsed, mandatory when flag == 0
 	setupTable func(table *CsvTable, row []string) error
 }
