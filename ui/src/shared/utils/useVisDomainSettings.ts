@@ -22,7 +22,7 @@ export const getValidRange = (
   data: NumericColumnData = [],
   timeRange: TimeRange | null
 ) => {
-  const range = extent((data as number[]) || [])
+  const range = extent(data as number[])
   if (isNull(timeRange)) {
     return range
   }
@@ -60,7 +60,7 @@ export const getRemainingRange = (
   timeRange: TimeRange | null,
   storedDomain: number[]
 ) => {
-  const range = extent(data as number[]) || []
+  const range = extent(data as number[])
   if (Array.isArray(range) && range.length >= 2) {
     const startTime = getStartTime(timeRange)
     const endTime = getEndTime(timeRange)
