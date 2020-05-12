@@ -38,3 +38,10 @@
   key: pushDownWindowAggregateRest
   default: false
   contact: Query Team
+
+- name: New Auth Package
+  description: Enables the refactored authorization api
+  key: newAuth
+  default: false
+  contact: Alirie Gray
+  lifetime: temporary

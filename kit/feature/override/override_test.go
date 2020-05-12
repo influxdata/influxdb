@@ -16,6 +16,7 @@ func TestFlagger(t *testing.T) {
 		expected       map[string]interface{}
 		expectMakeErr  bool
 		expectFlagsErr bool
+		byKey          feature.ByKeyFn
 	}{
 		{
 			name: "enabled happy path filtering",
@@ -66,11 +67,40 @@ func TestFlagger(t *testing.T) {
 			},
 			expectFlagsErr: true,
 		},
+		{
+			name: "typed base flags",
+			env: map[string]string{
+				"flag1": "411",
+				"flag2": "new2",
+				"flag3": "true",
+			},
+			defaults: []feature.Flag{
+				newBaseFlag("flag0", "original0"),
+				newBaseFlag("flag1", 41),
+				newBaseFlag("flag2", "original2"),
+				newBaseFlag("flag3", false),
+				newBaseFlag("flag4", "original4"),
+			},
+			byKey: newByKey(map[string]feature.Flag{
+				"flag0": newFlag("flag0", "original0"),
+				"flag1": newFlag("flag1", 41),
+				"flag2": newFlag("flag2", "original2"),
+				"flag3": newFlag("flag3", false),
+				"flag4": newFlag("flag4", "original4"),
+			}),
+			expected: map[string]interface{}{
+				"flag0": "original0",
+				"flag1": 411,
+				"flag2": "new2",
+				"flag3": true,
+				"flag4": "original4",
+			},
+		},
 	}
 
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
-			subject, err := Make(test.env)
+			subject, err := Make(test.env, test.byKey)
 			if err != nil {
 				if test.expectMakeErr {
 					return
@@ -95,7 +125,7 @@ func TestFlagger(t *testing.T) {
 				if xv, found := test.expected[k]; !found {
 					t.Errorf("unexpected key %s", k)
 				} else if v != xv {
-					t.Errorf("incorrect value for key %s: expected %v, got %v", k, xv, v)
+					t.Errorf("incorrect value for key %s: expected %v [%T], got %v [%T]", k, xv, xv, v, v)
 				}
 			}
 
@@ -111,4 +141,15 @@ func TestFlagger(t *testing.T) {
 
 func newFlag(key string, defaultValue interface{}) feature.Flag {
 	return feature.MakeFlag(key, key, "", defaultValue, feature.Temporary, false)
+}
+
+func newBaseFlag(key string, defaultValue interface{}) feature.Base {
+	return feature.MakeBase(key, key, "", defaultValue, feature.Temporary, false)
+}
+
+func newByKey(m map[string]feature.Flag) feature.ByKeyFn {
+	return func(k string) (feature.Flag, bool) {
+		v, found := m[k]
+		return v, found
+	}
 }

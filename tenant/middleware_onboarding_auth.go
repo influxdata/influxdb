@@ -24,12 +24,12 @@ func NewAuthedOnboardSvc(s influxdb.OnboardingService) *AuthedOnboardSvc {
 	}
 }
 
-// IsOnboarding pass through. this is handled by the underlieing service layer
+// IsOnboarding pass through. this is handled by the underlying service layer
 func (s *AuthedOnboardSvc) IsOnboarding(ctx context.Context) (bool, error) {
 	return s.s.IsOnboarding(ctx)
 }
 
-// OnboardInitialUser pass through. this is handled by the underlieing service layer
+// OnboardInitialUser pass through. this is handled by the underlying service layer
 func (s *AuthedOnboardSvc) OnboardInitialUser(ctx context.Context, req *influxdb.OnboardingRequest) (*influxdb.OnboardingResults, error) {
 	return s.s.OnboardInitialUser(ctx, req)
 }

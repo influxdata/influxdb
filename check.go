@@ -48,12 +48,6 @@ var (
 
 // CheckService represents a service for managing checks.
 type CheckService interface {
-	// UserResourceMappingService must be part of all NotificationRuleStore service,
-	// for create, search, delete.
-	UserResourceMappingService
-	// OrganizationService is needed for search filter
-	OrganizationService
-
 	// FindCheckByID returns a single check by ID.
 	FindCheckByID(ctx context.Context, id ID) (Check, error)
 

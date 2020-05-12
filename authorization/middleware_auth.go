@@ -6,17 +6,16 @@ import (
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/authorizer"
-	icontext "github.com/influxdata/influxdb/v2/context"
 )
 
 type AuthedAuthorizationService struct {
 	s  influxdb.AuthorizationService
-	ts influxdb.TenantService
+	ts TenantService
 }
 
 var _ influxdb.AuthorizationService = (*AuthedAuthorizationService)(nil)
 
-func NewAuthedAuthorizationService(s influxdb.AuthorizationService, ts influxdb.TenantService) *AuthedAuthorizationService {
+func NewAuthedAuthorizationService(s influxdb.AuthorizationService, ts TenantService) *AuthedAuthorizationService {
 	return &AuthedAuthorizationService{
 		s:  s,
 		ts: ts,
@@ -24,21 +23,6 @@ func NewAuthedAuthorizationService(s influxdb.AuthorizationService, ts influxdb.
 }
 
 func (s *AuthedAuthorizationService) CreateAuthorization(ctx context.Context, a *influxdb.Authorization) error {
-	if a.UserID == 0 {
-		auth, err := icontext.GetAuthorizer(ctx)
-		if err != nil {
-			return err
-		}
-
-		user, err := s.ts.FindUserByID(ctx, auth.GetUserID())
-		if err != nil {
-			// if we could not get the user from the Authorization object or the Context,
-			// then we cannot authorize the user
-			return err
-		}
-		a.UserID = user.ID
-	}
-
 	if _, _, err := authorizer.AuthorizeCreate(ctx, influxdb.AuthorizationsResourceType, a.OrgID); err != nil {
 		return err
 	}

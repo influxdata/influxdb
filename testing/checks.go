@@ -13,6 +13,7 @@ import (
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/parser"
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/notification"
 	"github.com/influxdata/influxdb/v2/notification/check"
@@ -160,14 +161,16 @@ type CheckFields struct {
 	Tasks                []influxdb.TaskCreate
 }
 
+type checkServiceFactory func(CheckFields, *testing.T) (influxdb.CheckService, *kv.Service, string, func())
+
 type checkServiceF func(
-	init func(CheckFields, *testing.T) (influxdb.CheckService, string, func()),
+	init checkServiceFactory,
 	t *testing.T,
 )
 
 // CheckService tests all the service functions.
 func CheckService(
-	init func(CheckFields, *testing.T) (influxdb.CheckService, string, func()),
+	init checkServiceFactory,
 	t *testing.T,
 ) {
 	tests := []struct {
@@ -212,7 +215,7 @@ func CheckService(
 
 // CreateCheck testing
 func CreateCheck(
-	init func(CheckFields, *testing.T) (influxdb.CheckService, string, func()),
+	init checkServiceFactory,
 	t *testing.T,
 ) {
 	type args struct {
@@ -754,7 +757,7 @@ func CreateCheck(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, _, done := init(tt.fields, t)
+			s, kv, _, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 			createCheck := influxdb.CheckCreate{Check: tt.args.check, Status: influxdb.Active}
@@ -762,7 +765,7 @@ func CreateCheck(
 			influxErrsEqual(t, tt.wants.err, err)
 
 			defer s.DeleteCheck(ctx, tt.args.check.GetID())
-			urms, _, err := s.FindUserResourceMappings(ctx, influxdb.UserResourceMappingFilter{
+			urms, _, err := kv.FindUserResourceMappings(ctx, influxdb.UserResourceMappingFilter{
 				ResourceType: influxdb.ChecksResourceType,
 			})
 			if err != nil {
@@ -788,7 +791,7 @@ func CreateCheck(
 
 // FindCheckByID testing
 func FindCheckByID(
-	init func(CheckFields, *testing.T) (influxdb.CheckService, string, func()),
+	init checkServiceFactory,
 	t *testing.T,
 ) {
 	type args struct {
@@ -855,7 +858,7 @@ func FindCheckByID(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, _, done := init(tt.fields, t)
+			s, _, _, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 
@@ -871,7 +874,7 @@ func FindCheckByID(
 
 // FindChecks testing
 func FindChecks(
-	init func(CheckFields, *testing.T) (influxdb.CheckService, string, func()),
+	init checkServiceFactory,
 	t *testing.T,
 ) {
 	type args struct {
@@ -1159,7 +1162,7 @@ func FindChecks(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, opPrefix, done := init(tt.fields, t)
+			s, _, opPrefix, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 
@@ -1194,7 +1197,7 @@ func FindChecks(
 
 // DeleteCheck testing
 func DeleteCheck(
-	init func(CheckFields, *testing.T) (influxdb.CheckService, string, func()),
+	init checkServiceFactory,
 	t *testing.T,
 ) {
 	type args struct {
@@ -1316,7 +1319,7 @@ data = from(bucket: "telegraf") |> range(start: -1m)`,
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, _, done := init(tt.fields, t)
+			s, _, _, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 			err := s.DeleteCheck(ctx, MustIDBase16(tt.args.ID))
@@ -1341,7 +1344,7 @@ data = from(bucket: "telegraf") |> range(start: -1m)`,
 
 // FindCheck testing
 func FindCheck(
-	init func(CheckFields, *testing.T) (influxdb.CheckService, string, func()),
+	init checkServiceFactory,
 	t *testing.T,
 ) {
 	type args struct {
@@ -1436,7 +1439,7 @@ func FindCheck(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, _, done := init(tt.fields, t)
+			s, _, _, done := init(tt.fields, t)
 			defer done()
 
 			var filter influxdb.CheckFilter
@@ -1459,7 +1462,7 @@ func FindCheck(
 
 // UpdateCheck testing
 func UpdateCheck(
-	init func(CheckFields, *testing.T) (influxdb.CheckService, string, func()),
+	init checkServiceFactory,
 	t *testing.T,
 ) {
 	type args struct {
@@ -1703,7 +1706,7 @@ data = from(bucket: "telegraf") |> range(start: -1m)`,
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, opPrefix, done := init(tt.fields, t)
+			s, _, opPrefix, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 
@@ -1721,7 +1724,7 @@ data = from(bucket: "telegraf") |> range(start: -1m)`,
 
 // PatchCheck testing
 func PatchCheck(
-	init func(CheckFields, *testing.T) (influxdb.CheckService, string, func()),
+	init checkServiceFactory,
 	t *testing.T,
 ) {
 	type args struct {
@@ -1875,7 +1878,7 @@ data = from(bucket: "telegraf") |> range(start: -1m)`,
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, _, done := init(tt.fields, t)
+			s, _, _, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 

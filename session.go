@@ -92,5 +92,7 @@ type SessionService interface {
 	FindSession(ctx context.Context, key string) (*Session, error)
 	ExpireSession(ctx context.Context, key string) error
 	CreateSession(ctx context.Context, user string) (*Session, error)
+	// TODO: update RenewSession to take a ID instead of a session.
+	// By taking a session object it could be confused to update more things about the session
 	RenewSession(ctx context.Context, session *Session, newExpiration time.Time) error
 }

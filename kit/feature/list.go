@@ -58,11 +58,26 @@ func PushDownWindowAggregateRest() BoolFlag {
 	return pushDownWindowAggregateRest
 }
 
+var newAuth = MakeBoolFlag(
+	"New Auth Package",
+	"newAuth",
+	"Alirie Gray",
+	false,
+	Temporary,
+	false,
+)
+
+// NewAuthPackage - Enables the refactored authorization api
+func NewAuthPackage() BoolFlag {
+	return newAuth
+}
+
 var all = []Flag{
 	backendExample,
 	frontendExample,
 	pushDownWindowAggregateCount,
 	pushDownWindowAggregateRest,
+	newAuth,
 }
 
 var byKey = map[string]Flag{
@@ -70,4 +85,5 @@ var byKey = map[string]Flag{
 	"frontendExample":              frontendExample,
 	"pushDownWindowAggregateCount": pushDownWindowAggregateCount,
 	"pushDownWindowAggregateRest":  pushDownWindowAggregateRest,
+	"newAuth":                      newAuth,
 }

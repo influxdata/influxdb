@@ -28,7 +28,7 @@ func (l *AuthLogger) CreateAuthorization(ctx context.Context, a *influxdb.Author
 	defer func(start time.Time) {
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {
-			l.logger.Error("failed to create authorization", zap.Error(err), dur)
+			l.logger.Debug("failed to create authorization", zap.Error(err), dur)
 			return
 		}
 		l.logger.Debug("authorization create", dur)
@@ -41,7 +41,7 @@ func (l *AuthLogger) FindAuthorizationByID(ctx context.Context, id influxdb.ID) 
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {
 			msg := fmt.Sprintf("failed to find authorization with ID %v", id)
-			l.logger.Error(msg, zap.Error(err), dur)
+			l.logger.Debug(msg, zap.Error(err), dur)
 			return
 		}
 		l.logger.Debug("auth find by ID", dur)
@@ -53,7 +53,7 @@ func (l *AuthLogger) FindAuthorizationByToken(ctx context.Context, t string) (a 
 	defer func(start time.Time) {
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {
-			l.logger.Error("failed to find authorization with token", zap.Error(err), dur)
+			l.logger.Debug("failed to find authorization with token", zap.Error(err), dur)
 			return
 		}
 		l.logger.Debug("auth find", dur)
@@ -66,7 +66,7 @@ func (l *AuthLogger) FindAuthorizations(ctx context.Context, filter influxdb.Aut
 	defer func(start time.Time) {
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {
-			l.logger.Error("failed to find authorizations matching the given filter", zap.Error(err), dur)
+			l.logger.Debug("failed to find authorizations matching the given filter", zap.Error(err), dur)
 			return
 		}
 		l.logger.Debug("authorizations find", dur)
@@ -78,7 +78,7 @@ func (l *AuthLogger) UpdateAuthorization(ctx context.Context, id influxdb.ID, up
 	defer func(start time.Time) {
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {
-			l.logger.Error("failed to update authorization", zap.Error(err), dur)
+			l.logger.Debug("failed to update authorization", zap.Error(err), dur)
 			return
 		}
 		l.logger.Debug("authorizationauthorization update", dur)
@@ -91,7 +91,7 @@ func (l *AuthLogger) DeleteAuthorization(ctx context.Context, id influxdb.ID) (e
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {
 			msg := fmt.Sprintf("failed to delete authorization with ID %v", id)
-			l.logger.Error(msg, zap.Error(err), dur)
+			l.logger.Debug(msg, zap.Error(err), dur)
 			return
 		}
 		l.logger.Debug("authorization delete", dur)

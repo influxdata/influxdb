@@ -60,7 +60,7 @@ import {
 export const createDashboardFromTemplate = async (
   template: DashboardTemplate,
   orgID: string
-): Promise<void> => {
+): Promise<Dashboard> => {
   try {
     const {content} = template
 
@@ -103,6 +103,8 @@ export const createDashboardFromTemplate = async (
     if (getResp.status !== 200) {
       throw new Error(getResp.data.message)
     }
+
+    return getResp.data as Dashboard
   } catch (error) {
     console.error(error)
     throw new Error(error.message)
