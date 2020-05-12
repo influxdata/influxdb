@@ -26,7 +26,7 @@ export const fireUserDataReady = function fireUserDataReady(
   })
 }
 
-export const fireGAEvent = (event: string, payload: object = {}) => {
+export const fireEvent = (event: string, payload: object = {}) => {
   window.dataLayer.push({
     event,
     ...payload,
@@ -35,15 +35,15 @@ export const fireGAEvent = (event: string, payload: object = {}) => {
 
 export const fireQueryEvent = (ownOrg: string, queryOrg: string) => {
   if (ownOrg === queryOrg) {
-    fireGAEvent('orgData_queried')
+    fireEvent('orgData_queried')
   } else {
-    fireGAEvent('demoData_queried')
+    fireEvent('demoData_queried')
   }
 }
 
 export const fireDashboardViewedEvent = (dashboardName: string) => {
-  const demo_dataset = DemoDataDashboardNames[dashboardName]
-  if (demo_dataset) {
-    fireGAEvent('demoData_dashboardViewed', {demo_dataset})
+  const demoDataset = DemoDataDashboardNames[dashboardName]
+  if (demoDataset) {
+    fireEvent('demoData_dashboardViewed', {demo_dataset: demoDataset})
   }
 }
