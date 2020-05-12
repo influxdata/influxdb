@@ -99,7 +99,7 @@ export const getDemoDataBucketMembership = ({
     dispatch(notify(demoDataAddBucketFailed(message)))
 
     reportError(error, {
-      name: 'getDemoDataBucketMembership function',
+      name: 'addDemoDataBucket failed in getDemoDataBucketMembership',
     })
 
     return
@@ -127,7 +127,7 @@ export const getDemoDataBucketMembership = ({
     dispatch(notify(demoDataAddBucketFailed(message)))
 
     reportError(error, {
-      name: 'getDemoDataBucketMembership function',
+      name: 'addDemoDataDashboard failed in getDemoDataBucketMembership',
     })
   }
 }
@@ -155,7 +155,7 @@ export const deleteDemoDataBucketMembership = (bucket: DemoBucket) => async (
     dispatch(notify(demoDataDeleteBucketFailed(bucket.name, error)))
 
     reportError(error, {
-      name: 'deleteDemoDataBucketMembership function',
+      name: 'deleteDemoDataBucket failed in deleteDemoDataBucketMembership',
     })
   }
 }
