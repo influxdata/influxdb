@@ -268,13 +268,10 @@ func (t *ToTransformation) RetractTable(id execute.DatasetID, key flux.GroupKey)
 // NewToTransformation returns a new *ToTransformation with the appropriate fields set.
 func NewToTransformation(ctx context.Context, d execute.Dataset, cache execute.TableBuilderCache, toSpec *ToProcedureSpec, deps ToDependencies) (x *ToTransformation, err error) {
 	var fn *execute.RowMapFn
-	//var err error
 	spec := toSpec.Spec
 	var bucketID, orgID *platform.ID
 	if spec.FieldFn.Fn != nil {
-		if fn, err = execute.NewRowMapFn(spec.FieldFn.Fn, compiler.ToScope(spec.FieldFn.Scope)); err != nil {
-			return nil, err
-		}
+		fn = execute.NewRowMapFn(spec.FieldFn.Fn, compiler.ToScope(spec.FieldFn.Scope))
 	}
 	// Get organization ID
 	if spec.Org != "" {
@@ -521,8 +518,10 @@ func writeTable(ctx context.Context, t *ToTransformation, tbl flux.Table) (err e
 	}
 
 	// prepare field function if applicable and record the number of values to write per row
+	var fn *execute.RowMapPreparedFn
 	if spec.FieldFn.Fn != nil {
-		if err = t.fn.Prepare(columns); err != nil {
+		var err error
+		if fn, err = t.fn.Prepare(columns); err != nil {
 			return err
 		}
 
@@ -587,11 +586,11 @@ func writeTable(ctx context.Context, t *ToTransformation, tbl flux.Table) (err e
 			}
 
 			var fieldValues values.Object
-			if spec.FieldFn.Fn == nil {
+			if fn == nil {
 				if fieldValues, err = defaultFieldMapping(er, i); err != nil {
 					return err
 				}
-			} else if fieldValues, err = t.fn.Eval(t.Ctx, i, er); err != nil {
+			} else if fieldValues, err = fn.Eval(t.Ctx, i, er); err != nil {
 				return err
 			}
 
