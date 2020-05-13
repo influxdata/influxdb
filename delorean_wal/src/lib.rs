@@ -784,7 +784,7 @@ mod tests {
     fn sequence_numbers_increase_by_number_of_pending_entries() -> Result {
         let dir = delorean_test_helpers::tmp_dir()?;
         let builder = WalBuilder::new(dir.as_ref());
-        let wal = builder.clone().wal()?;
+        let wal = builder.wal()?;
 
         // Write 1 entry then sync
         let mut w = wal.append();
