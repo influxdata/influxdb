@@ -10,6 +10,7 @@ export const OSS_FLAGS = {
   matchingNotificationRules: false,
   demodata: false,
   fluxParser: false,
+  cursorAtEOF: false,
   notebooks: false,
 }
 
@@ -23,6 +24,7 @@ export const CLOUD_FLAGS = {
   matchingNotificationRules: false,
   demodata: false,
   fluxParser: false,
+  cursorAtEOF: false,
   notebooks: false,
 }
 
