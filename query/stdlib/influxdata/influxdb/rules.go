@@ -27,6 +27,10 @@ func init() {
 		// For this rule to take effect the appropriate capabilities must be
 		// added AND feature flags must be enabled.
 		// PushDownWindowAggregateRule{},
+
+		// For this rule to take effect the corresponding feature flags must be
+		// enabled.
+		// PushDownGroupAggregateRule{},
 	)
 }
 
@@ -690,7 +694,7 @@ func (PushDownWindowAggregateRule) Rewrite(ctx context.Context, pn plan.Node) (p
 		}
 
 		minSpec := fnNode.ProcedureSpec().(*universe.MinProcedureSpec)
-		if minSpec.Column != "_value" {
+		if minSpec.Column != execute.DefaultValueColLabel {
 			return pn, false, nil
 		}
 	case universe.MaxKind:
@@ -699,7 +703,7 @@ func (PushDownWindowAggregateRule) Rewrite(ctx context.Context, pn plan.Node) (p
 		}
 
 		maxSpec := fnNode.ProcedureSpec().(*universe.MaxProcedureSpec)
-		if maxSpec.Column != "_value" {
+		if maxSpec.Column != execute.DefaultValueColLabel {
 			return pn, false, nil
 		}
 	case universe.MeanKind:
@@ -708,7 +712,7 @@ func (PushDownWindowAggregateRule) Rewrite(ctx context.Context, pn plan.Node) (p
 		}
 
 		meanSpec := fnNode.ProcedureSpec().(*universe.MeanProcedureSpec)
-		if len(meanSpec.Columns) != 1 || meanSpec.Columns[0] != "_value" {
+		if len(meanSpec.Columns) != 1 || meanSpec.Columns[0] != execute.DefaultValueColLabel {
 			return pn, false, nil
 		}
 	case universe.CountKind:
@@ -717,7 +721,7 @@ func (PushDownWindowAggregateRule) Rewrite(ctx context.Context, pn plan.Node) (p
 		}
 
 		countSpec := fnNode.ProcedureSpec().(*universe.CountProcedureSpec)
-		if len(countSpec.Columns) != 1 || countSpec.Columns[0] != "_value" {
+		if len(countSpec.Columns) != 1 || countSpec.Columns[0] != execute.DefaultValueColLabel {
 			return pn, false, nil
 		}
 	case universe.SumKind:
@@ -726,7 +730,7 @@ func (PushDownWindowAggregateRule) Rewrite(ctx context.Context, pn plan.Node) (p
 		}
 
 		sumSpec := fnNode.ProcedureSpec().(*universe.SumProcedureSpec)
-		if len(sumSpec.Columns) != 1 || sumSpec.Columns[0] != "_value" {
+		if len(sumSpec.Columns) != 1 || sumSpec.Columns[0] != execute.DefaultValueColLabel {
 			return pn, false, nil
 		}
 	}
@@ -763,4 +767,53 @@ func (PushDownWindowAggregateRule) Rewrite(ctx context.Context, pn plan.Node) (p
 		Aggregates:        []plan.ProcedureKind{fnNode.Kind()},
 		WindowEvery:       window.Every.Nanoseconds(),
 	}), true, nil
+}
+
+//
+// Push Down of group aggregates.
+// ReadGroupPhys |> { count }
+//
+type PushDownGroupAggregateRule struct{}
+
+func (PushDownGroupAggregateRule) Name() string {
+	return "PushDownGroupAggregateRule"
+}
+
+func (rule PushDownGroupAggregateRule) Pattern() plan.Pattern {
+	return plan.OneOf(
+		[]plan.ProcedureKind{
+			universe.CountKind,
+		},
+		plan.Pat(ReadGroupPhysKind))
+}
+
+func (PushDownGroupAggregateRule) Rewrite(ctx context.Context, pn plan.Node) (plan.Node, bool, error) {
+	// Check the aggregate function spec. Require operation on _value.
+	var aggregateMethod string
+	fnNode := pn
+	switch fnNode.Kind() {
+	case universe.CountKind:
+		if !feature.PushDownGroupAggregateCount().Enabled(ctx) {
+			return pn, false, nil
+		}
+
+		countSpec := fnNode.ProcedureSpec().(*universe.CountProcedureSpec)
+		if len(countSpec.Columns) != 1 || countSpec.Columns[0] != execute.DefaultValueColLabel {
+			return pn, false, nil
+		}
+		aggregateMethod = universe.CountKind
+	}
+
+	groupNode := fnNode.Predecessors()[0]
+	groupSpec := groupNode.ProcedureSpec().(*ReadGroupPhysSpec)
+
+	// Group spec must not already have an aggregate method.
+	if len(groupSpec.AggregateMethod) > 0 {
+		return pn, false, nil
+	}
+
+	// Rule passes.
+	rewrite := *groupSpec.Copy().(*ReadGroupPhysSpec)
+	rewrite.AggregateMethod = aggregateMethod
+	return plan.CreatePhysicalNode("ReadGroup", &rewrite), true, nil
 }
