@@ -8,7 +8,6 @@
 //!
 //! Work remaining:
 //!
-//! - File rollover
 //! - Metadata file
 //! - Atomic remove of entries
 //! - Tracking of the total size of all segments in the log
@@ -19,14 +18,17 @@ use arc_swap::ArcSwap;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use bytes::{Bytes, BytesMut};
 use crc32fast::Hasher;
+use once_cell::sync::Lazy;
+use regex::Regex;
 use snafu::{ensure, ResultExt, Snafu};
 use std::{
     convert::TryFrom,
+    ffi::OsStr,
     fs::{self, File, OpenOptions},
     io::{self, ErrorKind, Read, Seek, SeekFrom, Write},
     iter, mem, num,
     ops::{Deref, DerefMut},
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{
         atomic::{AtomicU64, Ordering},
         Arc,
@@ -122,6 +124,12 @@ enum InternalError {
         src: PathBuf,
         dst: PathBuf,
     },
+
+    UnableToReadDirectoryContents {
+        #[snafu(source(from(io::Error, Arc::new)))]
+        source: Arc<io::Error>,
+        path: PathBuf,
+    },
 }
 
 /// A specialized `Result` for WAL-related errors
@@ -133,14 +141,36 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Debug, Clone)]
 pub struct WalBuilder {
     root: PathBuf,
+    file_rollover_size: u64,
 }
 
 impl WalBuilder {
+    /// The default size to create new WAL files at. Currently 10MiB.
+    ///
+    /// See [WalBuilder::file_rollover_size]
+    pub const DEFAULT_FILE_ROLLOVER_SIZE_BYTES: u64 = 10 * 1024 * 1024;
+
     /// Create a new WAL rooted at the provided directory on disk.
     pub fn new(root: impl Into<PathBuf>) -> Self {
         // TODO: Error if `root` is not a directory?
         let root = root.into();
-        Self { root }
+        Self {
+            root,
+            file_rollover_size: Self::DEFAULT_FILE_ROLLOVER_SIZE_BYTES,
+        }
+    }
+
+    /// Set the size (in bytes) of each WAL file that should prompt a file rollover when it is
+    /// exceeded.
+    ///
+    /// File rollover happens per sync batch. If the file is underneath this file size limit at the
+    /// start of a sync operation, the entire sync batch will be written to that file even if
+    /// some of the entries in the batch cause the file to exceed the file size limit.
+    ///
+    /// See [WalBuilder::DEFAULT_FILE_ROLLOVER_SIZE_BYTES]
+    pub fn file_rollover_size(mut self, file_rollover_size: u64) -> Self {
+        self.file_rollover_size = file_rollover_size;
+        self
     }
 
     /// Consume the builder and create a `Wal`.
@@ -161,6 +191,9 @@ impl WalBuilder {
     /// Consume the builder to get an iterator of all entries in this
     /// WAL that have been persisted to disk.
     ///
+    /// Sequence numbers on the entries will be in increasing order, but if files have been
+    /// modified or deleted since getting this iterator, there may be gaps in the sequence.
+    ///
     /// # Asynchronous considerations
     ///
     /// This method performs blocking IO and care should be taken when using
@@ -170,7 +203,10 @@ impl WalBuilder {
     }
 
     fn file_locator(self) -> FileLocator {
-        FileLocator { root: self.root }
+        FileLocator {
+            root: self.root,
+            file_rollover_size: self.file_rollover_size,
+        }
     }
 }
 
@@ -298,7 +334,7 @@ where
 
         let outcome = (move || {
             // Get the file to write to
-            let mut file = self.files.open_file_for_append()?;
+            let mut file = self.files.open_file_for_append(sequence_number_base)?;
 
             // TODO: Would a user ever wish to resume or retry some failed IO?
             for (i, pending) in pending.iter().enumerate() {
@@ -347,17 +383,21 @@ where
 #[derive(Debug, Clone)]
 struct FileLocator {
     root: PathBuf,
+    file_rollover_size: u64,
 }
 
 impl FileLocator {
+    const PREFIX: &'static str = "wal_";
     const EXTENSION: &'static str = "db";
     const TEMP_EXTENSION: &'static str = "tmpdb";
 
-    fn open_file_for_read(&self) -> Result<Option<File>> {
-        // Currently only uses one file named `wal.db`, TODO: file rollover
-        let mut path = self.root.join("wal");
-        path.set_extension(Self::EXTENSION);
+    fn open_files_for_read(&self) -> Result<impl Iterator<Item = Result<Option<File>>> + '_> {
+        Ok(self
+            .existing_filenames()?
+            .map(move |path| self.open_file_for_read(&path)))
+    }
 
+    fn open_file_for_read(&self, path: &Path) -> Result<Option<File>> {
         let r = OpenOptions::new()
             .read(true)
             .write(false)
@@ -373,18 +413,63 @@ impl FileLocator {
         }
     }
 
-    fn open_file_for_append(&self) -> Result<SideFile> {
+    fn open_file_for_append(&self, starting_sequence_number: u64) -> Result<SideFile> {
         // TODO: create directories?
 
-        // File where data will end up eventually
-        let mut final_destination = self.root.join("wal");
-        final_destination.set_extension(Self::EXTENSION);
+        // Is there an existing file?
+        let existing_file = self.active_filename()?;
+
+        let final_destination = existing_file
+            .filter(|existing| {
+                // If there is an existing file, check its size.
+                fs::metadata(&existing)
+                    // Use the existing file if its size is under the file size limit.
+                    .map(|metadata| metadata.len() < self.file_rollover_size)
+                    .unwrap_or(false)
+            })
+            // If there is no file or the file is over the file size limit, start a new file.
+            .unwrap_or_else(|| self.filename_starting_at_sequence_number(starting_sequence_number));
 
         // Temporary file for the purposes of doing an atomic-ish write
         let mut temporary_destination = final_destination.clone();
         temporary_destination.set_extension(Self::TEMP_EXTENSION);
 
         SideFile::new(final_destination, temporary_destination)
+    }
+
+    fn active_filename(&self) -> Result<Option<PathBuf>> {
+        Ok(self.existing_filenames()?.last())
+    }
+
+    fn existing_filenames(&self) -> Result<impl Iterator<Item = PathBuf>> {
+        static FILENAME_PATTERN: Lazy<Regex> = Lazy::new(|| {
+            let pattern = format!(r"^{}[0-9a-f]{{16}}$", FileLocator::PREFIX);
+            Regex::new(&pattern).expect("Hardcoded regex should be valid")
+        });
+
+        let mut wal_paths: Vec<_> = fs::read_dir(&self.root)
+            .context(UnableToReadDirectoryContents { path: &self.root })?
+            .flatten() // Discard errors
+            .map(|e| e.path())
+            .filter(|path| path.extension() == Some(OsStr::new(Self::EXTENSION)))
+            .filter(|path| {
+                path.file_stem().map_or(false, |file_stem| {
+                    let file_stem = file_stem.to_string_lossy();
+                    FILENAME_PATTERN.is_match(&file_stem)
+                })
+            })
+            .collect();
+
+        wal_paths.sort();
+
+        Ok(wal_paths.into_iter())
+    }
+
+    fn filename_starting_at_sequence_number(&self, starting_sequence_number: u64) -> PathBuf {
+        let file_stem = format!("{}{:016x}", Self::PREFIX, starting_sequence_number);
+        let mut filename = self.root.join(file_stem);
+        filename.set_extension(Self::EXTENSION);
+        filename
     }
 }
 
@@ -479,10 +564,20 @@ impl Loader {
     }
 
     fn headers(files: FileLocator) -> Result<impl Iterator<Item = Result<Header>>> {
-        let mut file = match files.open_file_for_read()? {
-            Some(file) => file,
-            None => return Ok(Box::new(iter::empty()) as Box<dyn Iterator<Item = _>>),
-        };
+        let r = files
+            .open_files_for_read()?
+            .flat_map(|result_option_file| result_option_file.transpose())
+            .map(|result_file| result_file.and_then(Self::headers_from_one_file));
+
+        itertools::process_results(r, |iterator_of_iterators_of_result_headers| {
+            iterator_of_iterators_of_result_headers
+                .flatten()
+                .collect::<Vec<_>>()
+                .into_iter()
+        })
+    }
+
+    fn headers_from_one_file(mut file: File) -> Result<impl Iterator<Item = Result<Header>>> {
         let metadata = file.metadata().context(UnableToReadFileMetadata)?;
         let mut length_remaining = metadata.len();
 
@@ -506,10 +601,20 @@ impl Loader {
     }
 
     fn load(files: FileLocator) -> Result<impl Iterator<Item = Result<Entry>>> {
-        let mut file = match files.open_file_for_read()? {
-            Some(file) => file,
-            None => return Ok(Box::new(iter::empty()) as Box<dyn Iterator<Item = _>>),
-        };
+        let r = files
+            .open_files_for_read()?
+            .flat_map(|result_option_file| result_option_file.transpose())
+            .map(|result_file| result_file.and_then(Self::load_from_one_file));
+
+        itertools::process_results(r, |iterator_of_iterators_of_result_entries| {
+            iterator_of_iterators_of_result_entries
+                .flatten()
+                .collect::<Vec<_>>()
+                .into_iter()
+        })
+    }
+
+    fn load_from_one_file(mut file: File) -> Result<impl Iterator<Item = Result<Entry>>> {
         let metadata = file.metadata().context(UnableToReadFileMetadata)?;
         let mut length_remaining = metadata.len();
 
