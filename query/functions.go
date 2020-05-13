@@ -1432,11 +1432,13 @@ func (r *FloatHoltWintersReducer) Emit() []FloatPoint {
 }
 
 // Using the recursive relations compute the next values
+// Use float64() expression explicitly to disable the compiler's Fused Multiply Add (FMA) instruction selection
+// which can result in different rounding errors in floating point computations.
 func (r *FloatHoltWintersReducer) next(alpha, beta, gamma, phi, phiH, yT, lTp, bTp, sTm, sTmh float64) (yTh, lT, bT, sT float64) {
-	lT = alpha*(yT/sTm) + (1-alpha)*(lTp+phi*bTp)
-	bT = beta*(lT-lTp) + (1-beta)*phi*bTp
-	sT = gamma*(yT/(lTp+phi*bTp)) + (1-gamma)*sTm
-	yTh = (lT + phiH*bT) * sTmh
+	lT = float64(alpha*(yT/sTm)) + float64((1-alpha)*(lTp+phi*bTp))
+	bT = float64(beta*(lT-lTp)) + float64((1-beta)*phi*bTp)
+	sT = float64(gamma*(yT/(lTp+phi*bTp))) + float64((1-gamma)*sTm)
+	yTh = float64((lT + phiH*bT) * sTmh)
 	return
 }
 
