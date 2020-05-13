@@ -43,12 +43,12 @@ class VariableDropdown extends PureComponent<Props> {
     const dropdownStatus =
       values.length === 0 ? ComponentStatus.Disabled : ComponentStatus.Default
 
-    const widthLength = Math.max(
-      140,
-      values.reduce(function(a, b) {
+    const longestItemWidth =
+      Math.floor(values.reduce(function(a, b) {
         return a.length > b.length ? a : b
-      }, '').length * 8
-    )
+      }, '').length * 8.5)
+
+    const widthLength = Math.max(140, longestItemWidth)
 
     return (
       <div className="variable-dropdown">
@@ -82,7 +82,7 @@ class VariableDropdown extends PureComponent<Props> {
                     onClick={this.handleSelect}
                     selected={val === selectedValue}
                     testID="variable-dropdown--item"
-                    // wrapText={true}
+                    className="variable-dropdown--item"
                   >
                     {val}
                   </Dropdown.Item>
