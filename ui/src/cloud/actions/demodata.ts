@@ -79,14 +79,10 @@ export const getDemoDataBucketMembership = ({
 }) => async (dispatch, getState: GetState) => {
   const state = getState()
 
-  const {
-    me: {id: userID},
-  } = state
-
   const {id: orgID} = getOrg(state)
 
   try {
-    await getDemoDataBucketMembershipAJAX(bucketID, userID)
+    await getDemoDataBucketMembershipAJAX(bucketID)
 
     const normalizedBucket = await getNormalizedDemoDataBucket(bucketID)
 
@@ -132,16 +128,11 @@ export const getDemoDataBucketMembership = ({
   }
 }
 
-export const deleteDemoDataBucketMembership = (bucket: DemoBucket) => async (
-  dispatch,
-  getState: GetState
-) => {
-  const {
-    me: {id: userID},
-  } = getState()
-
+export const deleteDemoDataBucketMembership = (
+  bucket: DemoBucket
+) => async dispatch => {
   try {
-    await deleteDemoDataBucketMembershipAJAX(bucket.id, userID)
+    await deleteDemoDataBucketMembershipAJAX(bucket.id)
 
     const resp = await getBucket({bucketID: bucket.id})
 
