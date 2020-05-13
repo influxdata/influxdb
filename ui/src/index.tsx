@@ -282,12 +282,12 @@ class Root extends PureComponent {
                               </Route>
                             </Route>
                             <Route path="me" component={MePage} />
-                              {isFlagEnabled('notebooks') && (
-                                <Route
-                                  path="notebooks"
-                                  component={NotebookPage}
-                                />
-                              )}
+                            {isFlagEnabled('notebooks') && (
+                              <Route
+                                path="notebooks"
+                                component={NotebookPage}
+                              />
+                            )}
                             <Route path="load-data">
                               <IndexRoute component={BucketsIndex} />
                               <Route path="tokens" component={TokensIndex}>
