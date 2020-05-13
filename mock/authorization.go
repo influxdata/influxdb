@@ -4,6 +4,9 @@ import (
 	influxdb "github.com/influxdata/influxdb/v2"
 )
 
+// ensure Authorizer implements influxdb.Authorizer
+var _ influxdb.Authorizer = (*Authorizer)(nil)
+
 // Authorizer is an Authorizer for testing that can allow everything or use specific permissions
 type Authorizer struct {
 	Permissions []influxdb.Permission
@@ -22,11 +25,12 @@ func NewMockAuthorizer(allowAll bool, permissions []influxdb.Permission) *Author
 	}
 }
 
-func (a *Authorizer) Allowed(p influxdb.Permission) bool {
+func (a *Authorizer) PermissionSet() (influxdb.PermissionSet, error) {
 	if a.AllowAll {
-		return true
+		return influxdb.OperPermissions(), nil
 	}
-	return influxdb.PermissionAllowed(p, a.Permissions)
+
+	return a.Permissions, nil
 }
 
 func (a *Authorizer) Identifier() influxdb.ID {

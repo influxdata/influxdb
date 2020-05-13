@@ -32,14 +32,11 @@ export const getDemoDataBuckets = async (): Promise<Bucket[]> => {
   return buckets.filter(b => b.type == 'user') as Bucket[] // remove returned _tasks and _monitoring buckets
 }
 
-export const getDemoDataBucketMembership = async (
-  bucketID: string,
-  userID: string
-) => {
+// member's id is looked up from the session token passed with the request.
+export const getDemoDataBucketMembership = async (bucketID: string) => {
   const response = await AJAX({
     method: 'POST',
     url: `${baseURL}/buckets/${bucketID}/members`,
-    data: {userID},
   })
 
   if (response.status === '200') {
@@ -48,14 +45,11 @@ export const getDemoDataBucketMembership = async (
   }
 }
 
-export const deleteDemoDataBucketMembership = async (
-  bucketID: string,
-  userID: string
-) => {
+export const deleteDemoDataBucketMembership = async (bucketID: string) => {
   try {
     const response = await AJAX({
       method: 'DELETE',
-      url: `${baseURL}/buckets/${bucketID}/members/${userID}`,
+      url: `${baseURL}/buckets/${bucketID}/members`,
     })
 
     if (response.status === '200') {

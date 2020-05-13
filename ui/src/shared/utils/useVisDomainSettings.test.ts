@@ -1,5 +1,8 @@
 // Funcs
-import {getValidRange} from 'src/shared/utils/useVisDomainSettings'
+import {
+  getValidRange,
+  getRemainingRange,
+} from 'src/shared/utils/useVisDomainSettings'
 
 // Types
 import {numericColumnData as data} from 'mocks/dummyData'
@@ -47,7 +50,46 @@ describe('getValidRange', () => {
     const newRange = getValidRange(data, timeRange)
     expect(newRange[1]).toEqual(data[data.length - 1])
   })
-  it('should return the the start and end times based on the data array if no start / endTime are passed', () => {
+  it('should return the start and end times based on the data array if no start / endTime are passed', () => {
     expect(getValidRange(data, null)).toEqual([data[0], data[data.length - 1]])
+  })
+})
+
+describe('getRemainingRange', () => {
+  // const startTime: string = 'Nov 07 2019 02:46:51 GMT-0800'
+  const startTime: string = '2019-11-07T02:46:51Z'
+  const unixStart: number = 1573094811000
+  const endTime: string = '2019-11-28T14:46:51Z'
+  const unixEnd: number = 1574952411000
+  it('should return null when no parameters are input', () => {
+    expect(getRemainingRange(undefined, undefined, undefined)).toEqual(null)
+  })
+  it('should return null when no data is passed', () => {
+    const timeRange: CustomTimeRange = {
+      type: 'custom',
+      lower: startTime,
+      upper: endTime,
+    }
+    expect(getRemainingRange([], timeRange, [null, null])).toEqual(null)
+  })
+  it("should return the min y-axis if it's set", () => {
+    const timeRange: CustomTimeRange = {
+      type: 'custom',
+      lower: startTime,
+      upper: endTime,
+    }
+    const setMin = unixStart - 10
+    const [start] = getRemainingRange(data, timeRange, [setMin, null])
+    expect(start).toEqual(setMin)
+  })
+  it("should return the max y-axis if it's set", () => {
+    const timeRange: CustomTimeRange = {
+      type: 'custom',
+      lower: startTime,
+      upper: endTime,
+    }
+    const setMax = unixEnd + 10
+    const range = getRemainingRange(data, timeRange, [null, setMax])
+    expect(range[1]).toEqual(setMax)
   })
 })

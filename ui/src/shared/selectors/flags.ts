@@ -11,6 +11,7 @@ export const OSS_FLAGS = {
   demodata: false,
   fluxParser: false,
   cursorAtEOF: false,
+  notebooks: false,
 }
 
 export const CLOUD_FLAGS = {
@@ -24,6 +25,7 @@ export const CLOUD_FLAGS = {
   demodata: false,
   fluxParser: false,
   cursorAtEOF: false,
+  notebooks: false,
 }
 
 export const activeFlags = (state: AppState): FlagMap => {

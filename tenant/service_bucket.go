@@ -48,6 +48,14 @@ func (s *Service) FindBucketByName(ctx context.Context, orgID influxdb.ID, name 
 
 // FindBucket returns the first bucket that matches filter.
 func (s *Service) FindBucket(ctx context.Context, filter influxdb.BucketFilter) (*influxdb.Bucket, error) {
+	if filter.ID != nil {
+		return s.FindBucketByID(ctx, *filter.ID)
+	}
+
+	if filter.Name != nil && filter.OrganizationID != nil {
+		return s.FindBucketByName(ctx, *filter.OrganizationID, *filter.Name)
+	}
+
 	buckets, _, err := s.FindBuckets(ctx, filter, influxdb.FindOptions{
 		Limit: 1,
 	})

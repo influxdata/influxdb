@@ -2,6 +2,7 @@
 import React, {FC} from 'react'
 import {Link} from 'react-router'
 import {connect} from 'react-redux'
+import {get, defaultTo} from 'lodash'
 
 // Components
 import {
@@ -71,11 +72,8 @@ const CloudUpgradeNavBanner: FC<StateProps> = ({inView}) => {
   )
 }
 
-const mstp = ({
-  cloud: {
-    orgSettings: {settings},
-  },
-}: AppState) => {
+const mstp = (state: AppState) => {
+  const settings = defaultTo(get(state, 'cloud.orgSettings.settings', []), [])
   const hideUpgradeButtonSetting = settings.find(
     (setting: OrgSetting) => setting.key === HIDE_UPGRADE_CTA_KEY
   )
