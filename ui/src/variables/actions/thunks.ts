@@ -147,12 +147,13 @@ export const hydrateVariables = (skipCache?: boolean) => async (
   await hydration.promise
 }
 
-export const hydrateChangedVariable = (variable: Variable) => async (
+export const hydrateChangedVariable = (variableID: string) => async (
   dispatch: Dispatch<Action>,
   getState: GetState
 ) => {
   const state = getState()
   const org = getOrg(state)
+  const variable = getVariableFromState(state, variableID)
   const hydration = hydrateVars([variable], getAllVariablesFromState(state), {
     orgID: org.id,
     url: state.links.query.self,
@@ -432,6 +433,7 @@ export const selectValue = (variableID: string, selected: string) => async (
 
   await dispatch(selectValueInState(contextID, variableID, selected))
   // only hydrate the changedVariable
-  dispatch(hydrateChangedVariable(variable))
+  dispatch(hydrateChangedVariable(variableID))
+  // dispatch(hydrateVariables(true))
   dispatch(updateQueryVars({[variable.name]: selected}))
 }

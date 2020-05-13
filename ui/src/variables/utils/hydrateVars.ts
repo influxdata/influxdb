@@ -129,6 +129,8 @@ const findSubgraph = (
 
   // use an ID array to reduce the chance of reference errors
   const varIDs = variables.map(v => v.id)
+  // create an array of IDs to reference later
+  const graphIDs = []
   for (const node of graph) {
     const shouldKeep =
       varIDs.includes(node.variable.id) ||
@@ -138,12 +140,17 @@ const findSubgraph = (
 
     if (shouldKeep) {
       subgraph.add(node)
+      graphIDs.push(node.variable.id)
     }
   }
 
   for (const node of subgraph) {
-    node.parents = node.parents.filter(node => subgraph.has(node))
-    node.children = node.children.filter(node => subgraph.has(node))
+    // node.parents = node.parents.filter(n => {
+    //   const {id} = n.variable
+    //   return !graphIDs.includes(id)
+    // })
+    // node.parents = node.parents.filter(n => !subgraph.has(n))
+    node.children = node.children.filter(n => subgraph.has(n))
   }
 
   return [...subgraph]
@@ -488,6 +495,7 @@ export const hydrateVars = (
   // register listeners for the loading state changes
   Promise.resolve()
     .then(() => {
+      console.log('graph in promise resolve: ', graph)
       return Promise.all(findLeaves(graph).map(resolve))
     })
     .then(() => {
