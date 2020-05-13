@@ -9,6 +9,7 @@
 ### Bug Fixes
 
 1. [18066](https://github.com/influxdata/influxdb/pull/18066): Fixed bug that wasn't persisting timeFormat for Graph + Single Stat selections
+1. [17959](https://github.com/influxdata/influxdb/pull/17959): Authorizer now exposes full permission set
 
 ### UI Improvements
 
