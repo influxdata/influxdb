@@ -20,7 +20,6 @@ use delorean_test_helpers::*;
 use futures::prelude::*;
 use prost::Message;
 use std::convert::TryInto;
-use std::env;
 use std::process::{Child, Command, Stdio};
 use std::str;
 use std::time::{Duration, SystemTime};
@@ -46,7 +45,7 @@ use grpc::{
     TimestampRange,
 };
 
-type Error = Box<dyn std::error::Error>;
+type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
 type Result<T, E = Error> = std::result::Result<T, E>;
 
 macro_rules! assert_unwrap {
@@ -111,7 +110,7 @@ async fn write_data(
 
 #[tokio::test]
 async fn read_and_write_data() -> Result<()> {
-    let server = TestServer::new()?;
+    let mut server = TestServer::new()?;
     server.wait_until_ready().await;
 
     let org_id_str = "0000111100001111";
@@ -188,22 +187,8 @@ swap,host=server01,name=disk0 in=3i,out=4i {}",
         .expect("End time should have been after start time");
     let seconds_ago = duration.as_secs() + 1;
 
-    let text = read_data(
-        &client,
-        "/read",
-        org_id_str,
-        bucket_id_str,
-        r#"host="server01""#,
-        seconds_ago,
-    )
-    .await?;
-
-    // TODO: make a more sustainable way to manage expected data for tests, such as using the
-    // insta crate to manage snapshots.
-    assert_eq!(
-        text,
-        format!(
-            "\
+    let expected_read_data = format!(
+        "\
 _m,host,region,_f,_time,_value
 cpu_load_short,server01,us-west,value,{},0.64
 cpu_load_short,server01,us-west,value,{},0.000003
@@ -221,14 +206,46 @@ _m,host,name,_f,_time,_value
 swap,server01,disk0,out,{},4
 
 ",
-            ns_since_epoch,
-            ns_since_epoch + 4,
-            ns_since_epoch + 1,
-            ns_since_epoch + 3,
-            ns_since_epoch + 6,
-            ns_since_epoch + 6,
-        )
+        ns_since_epoch,
+        ns_since_epoch + 4,
+        ns_since_epoch + 1,
+        ns_since_epoch + 3,
+        ns_since_epoch + 6,
+        ns_since_epoch + 6,
     );
+
+    let text = read_data(
+        &client,
+        "/read",
+        org_id_str,
+        bucket_id_str,
+        r#"host="server01""#,
+        seconds_ago,
+    )
+    .await?;
+    assert_eq!(text, expected_read_data);
+
+    // Test the WAL by restarting the server
+    server.restart()?;
+    server.wait_until_ready().await;
+
+    // Then check the entries are restored from the WAL
+    let end_time = SystemTime::now();
+    let duration = end_time
+        .duration_since(start_time)
+        .expect("End time should have been after start time");
+    let seconds_ago = duration.as_secs() + 1;
+
+    let text = read_data(
+        &client,
+        "/read",
+        org_id_str,
+        bucket_id_str,
+        r#"host="server01""#,
+        seconds_ago,
+    )
+    .await?;
+    assert_eq!(text, expected_read_data);
 
     let mut storage_client = StorageClient::connect(GRPC_URL_BASE).await?;
 
@@ -586,11 +603,7 @@ impl TestServer {
     fn new() -> Result<Self> {
         let _ = dotenv::dotenv(); // load .env file if present
 
-        let root = env::var_os("TEST_DELOREAN_DB_DIR").unwrap_or_else(|| env::temp_dir().into());
-
-        let dir = tempfile::Builder::new()
-            .prefix("delorean")
-            .tempdir_in(root)?;
+        let dir = delorean_test_helpers::tmp_dir()?;
 
         let server_process = Command::cargo_bin("delorean")?
             .stdout(Stdio::null())
@@ -601,6 +614,15 @@ impl TestServer {
             dir,
             server_process,
         })
+    }
+
+    fn restart(&mut self) -> Result<()> {
+        self.server_process.kill()?;
+        self.server_process = Command::cargo_bin("delorean")?
+            .stdout(Stdio::null())
+            .env("DELOREAN_DB_DIR", self.dir.path())
+            .spawn()?;
+        Ok(())
     }
 
     async fn wait_until_ready(&self) {

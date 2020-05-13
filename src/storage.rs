@@ -85,3 +85,11 @@ impl From<io::Error> for StorageError {
         }
     }
 }
+
+impl From<delorean_wal::Error> for StorageError {
+    fn from(e: delorean_wal::Error) -> Self {
+        Self {
+            description: format!("WAL error: {} ({:?})", e, e),
+        }
+    }
+}

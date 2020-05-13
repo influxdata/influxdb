@@ -9,6 +9,7 @@ default-run = "delorean"
 members = [
     "delorean_test_helpers",
     "delorean_utilities",
+    "delorean_wal",
 ]
 
 [profile.release]
@@ -17,6 +18,8 @@ debug = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+delorean_wal = { path = "delorean_wal" }
+
 bytes = "0.5.4"
 integer-encoding = "1.0.7"
 
@@ -53,6 +56,7 @@ nom = "5.1.1"
 snafu = "0.6.2"
 either = "1.5.3"
 smallvec = "1.2.0"
+flatbuffers = "0.6.1"
 
 [dev-dependencies]
 delorean_test_helpers = { path = "delorean_test_helpers" }
