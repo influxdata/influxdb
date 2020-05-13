@@ -1,0 +1,34 @@
+{
+ "meta": {
+  "version": "1",
+  "type": "variable",
+  "name": "bucket-Template",
+  "description": "template for variable - bucket"
+ },
+ "content": {
+  "data": {
+   "type": "variable",
+   "attributes": {
+    "name": "Bucket",
+    "arguments": {
+     "type": "query",
+     "values": {
+      "query": "buckets()\n  |> filter(fn: (r) => r.name !~ /^_/)\n  |> rename(columns: {name: \"_value\"})\n  |> keep(columns: [\"_value\"])\n",
+      "language": "flux"
+     }
+    },
+    "selected": null
+   },
+   "relationships": {
+    "variable": {
+     "data": []
+    },
+    "label": {
+     "data": []
+    }
+   }
+  },
+  "included": []
+ },
+ "labels": []
+}

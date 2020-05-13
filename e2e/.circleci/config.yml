@@ -1,0 +1,46 @@
+version: 2
+jobs:
+  selenium_accept:
+    docker:
+      - image: circleci/node:lts-stretch-browsers
+      - image: quay.io/influxdb/influx:nightly
+        command: [--e2e-testing=true]
+    steps:
+      - checkout
+      - run:
+          name: Environment check
+          command: |
+            free -h
+            df -h
+            git --version
+            node --version && npm --version
+            docker --version
+            google-chrome --version && which google-chrome && chromedriver --version && which chromedriver
+            timeout 300 bash -c 'while [[ "$(curl -s -o /dev/null -w ''%{http_code}'' localhost:9999)" != "200" ]]; do sleep 5; done' || false
+
+      - run:
+          name: Selenium tests
+          command: |
+            set +e
+            npm install
+            ./node_modules/chromedriver/bin/chromedriver --version
+            npm test; TEST_RESULT=$?
+            npm run report:html
+            npm run report:junit
+            mkdir -p ~/test-results/cucumber
+            mkdir -p ~/artifacts/html
+            cp ~/project/report/cucumber_report.html ~/artifacts/html/cucumber_report.html
+            cp ~/project/report/cucumber_junit.xml ~/test-results/cucumber/report.xml
+            cp ~/project/report/cucumber_junit.xml ~/artifacts/report.xml
+            cp -r ~/project/screenshots ~/artifacts
+            ls -al
+            exit $TEST_RESULT
+      - store_test_results:
+          path: ~/test-results
+      - store_artifacts:
+          path: ~/artifacts
+workflows:
+  version: 2
+  troubleshoot:
+    jobs:
+      - selenium_accept
