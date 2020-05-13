@@ -44,10 +44,6 @@ module.exports = {
   module: {
     rules: [
       {
-        test: /flux_parser_bg.wasm$/,
-        type: 'webassembly/experimental',
-      },
-      {
         test: /flux_bg.wasm$/,
         type: 'webassembly/experimental',
       },

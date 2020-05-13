@@ -179,7 +179,6 @@ function isTimeCall(node: CallExpression): boolean {
 
 function isRangeNode(node: Node) {
   return (
-    get(node, 'type') === 'CallExpression' &&
     get(node, 'callee.type') === 'Identifier' &&
     get(node, 'callee.name') === 'range'
   )

@@ -1,5 +1,5 @@
 // APIs
-import {parse} from '@influxdata/flux-parser'
+import {parse} from 'src/external/parser'
 
 // Utils
 import {getMinDurationFromAST} from 'src/shared/utils/getMinDurationFromAST'
