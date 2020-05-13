@@ -35,7 +35,7 @@ export const NotebookContext = React.createContext<NotebookContextType>(
 )
 
 export const NotebookProvider: FC = ({children}) => {
-  const [id, setID] = useState(DEFAULT_CONTEXT.id)
+  const [id] = useState(DEFAULT_CONTEXT.id)
   const [pipes, setPipes] = useState(DEFAULT_CONTEXT.pipes)
 
   function addPipe(pipe: Pipe) {
