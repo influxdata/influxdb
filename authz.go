@@ -17,8 +17,8 @@ var (
 
 // Authorizer will authorize a permission.
 type Authorizer interface {
-	// Allowed returns true is the associated permission is allowed by the authorizer
-	Allowed(p Permission) bool
+	// PermissionSet returns the PermissionSet associated with the authorizer
+	PermissionSet() (PermissionSet, error)
 
 	// ID returns an identifier used for auditing.
 	Identifier() ID
@@ -199,6 +199,12 @@ func (t ResourceType) Valid() (err error) {
 	}
 
 	return err
+}
+
+type PermissionSet []Permission
+
+func (ps PermissionSet) Allowed(p Permission) bool {
+	return PermissionAllowed(p, ps)
 }
 
 // Permission defines an action and a resource.

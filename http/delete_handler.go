@@ -105,7 +105,7 @@ func (h *DeleteHandler) handleDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !a.Allowed(*p) {
+	if pset, err := a.PermissionSet(); err != nil || !pset.Allowed(*p) {
 		h.HandleHTTPError(ctx, &influxdb.Error{
 			Code: influxdb.EForbidden,
 			Op:   "http/handleDelete",
