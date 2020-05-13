@@ -779,4 +779,38 @@ mod tests {
 
         Ok(())
     }
+
+    #[test]
+    fn sequence_numbers_increase_by_number_of_pending_entries() -> Result {
+        let dir = delorean_test_helpers::tmp_dir()?;
+        let builder = WalBuilder::new(dir.as_ref());
+        let wal = builder.clone().wal()?;
+
+        // Write 1 entry then sync
+        let mut w = wal.append();
+        w.write_all(b"some")?;
+        w.finalize(())?;
+        let (to_notify, outcome) = wal.sync();
+        assert!(matches!(outcome, Ok(())));
+        assert_eq!(1, to_notify.len());
+
+        // Sequence number should increase by 1
+        assert_eq!(1, wal.sequence_number.load(Ordering::SeqCst));
+
+        // Write 2 entries then sync
+        let mut w = wal.append();
+        w.write_all(b"other")?;
+        w.finalize(())?;
+        let mut w = wal.append();
+        w.write_all(b"again")?;
+        w.finalize(())?;
+        let (to_notify, outcome) = wal.sync();
+        assert!(matches!(outcome, Ok(())));
+        assert_eq!(2, to_notify.len());
+
+        // Sequence number should increase by 2
+        assert_eq!(3, wal.sequence_number.load(Ordering::SeqCst));
+
+        Ok(())
+    }
 }
