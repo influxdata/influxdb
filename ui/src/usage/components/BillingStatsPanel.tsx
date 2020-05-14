@@ -24,6 +24,7 @@ const {Done} = RemoteDataState
 
 const BillingStatsPanel = ({table, widths}) => {
   const [status, data, error] = useClient(() => getOrgsBilling)
+
   console.log(status, data, error)
 
   if (status !== Done || data === null) {
@@ -31,6 +32,9 @@ const BillingStatsPanel = ({table, widths}) => {
   }
 
   const {startDate} = data
+
+  // TOOD(watts): simplify and pull out the "Panel Section Bodies" to consume the
+  // single numbers coming back from `getOrgsBilling`
 
   return (
     <Panel className="usage--panel billing-stats--panel">
