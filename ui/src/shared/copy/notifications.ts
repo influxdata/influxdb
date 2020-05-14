@@ -479,11 +479,15 @@ export const demoDataSucceeded = (
   link,
 })
 
-export const demoDataSwitchedOff = (): Notification => ({
+export const demoDataAvailability = (error: {
+  message: string
+  linkText?: string
+  link?: string
+}): Notification => ({
   ...defaultErrorNotification,
-  message: `Demo data buckets are temporarily unavailable. Please try again later.`,
+  ...error,
   duration: TEN_SECONDS,
-  type: 'demoDataUnavailableError',
+  type: 'demoDataAvailabilityError',
 })
 
 // Limits
