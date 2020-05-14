@@ -91,7 +91,7 @@ func (s *AuthedBucketService) CreateBucket(ctx context.Context, b *influxdb.Buck
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	if _, _, err := authorizer.AuthorizeCreate(ctx, influxdb.BucketsResourceType, b.OrgID); err != nil {
+	if _, _, err := authorizer.AuthorizeCreate(ctx, influxdb.BucketsResourceType, &b.OrgID); err != nil {
 		return err
 	}
 	return s.s.CreateBucket(ctx, b)

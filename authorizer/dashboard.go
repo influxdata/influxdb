@@ -46,7 +46,7 @@ func (s *DashboardService) FindDashboards(ctx context.Context, filter influxdb.D
 
 // CreateDashboard checks to see if the authorizer on context has write access to the global dashboards resource.
 func (s *DashboardService) CreateDashboard(ctx context.Context, b *influxdb.Dashboard) error {
-	if _, _, err := AuthorizeCreate(ctx, influxdb.DashboardsResourceType, b.OrganizationID); err != nil {
+	if _, _, err := AuthorizeCreate(ctx, influxdb.DashboardsResourceType, &b.OrganizationID); err != nil {
 		return err
 	}
 	return s.s.CreateDashboard(ctx, b)

@@ -53,7 +53,7 @@ func (s *ScraperTargetStoreService) ListTargets(ctx context.Context, filter infl
 
 // AddTarget checks to see if the authorizer on context has write access to the global scraper target resource.
 func (s *ScraperTargetStoreService) AddTarget(ctx context.Context, st *influxdb.ScraperTarget, userID influxdb.ID) error {
-	if _, _, err := AuthorizeCreate(ctx, influxdb.ScraperResourceType, st.OrgID); err != nil {
+	if _, _, err := AuthorizeCreate(ctx, influxdb.ScraperResourceType, &st.OrgID); err != nil {
 		return err
 	}
 	if _, _, err := AuthorizeWrite(ctx, influxdb.BucketsResourceType, st.BucketID, st.OrgID); err != nil {

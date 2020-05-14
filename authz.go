@@ -91,7 +91,12 @@ func (r Resource) String() string {
 		return filepath.Join(string(r.Type), r.ID.String())
 	}
 
-	return string(r.Type)
+	switch r.Type {
+	case OrgsResourceType, UsersResourceType:
+		return string(r.Type)
+	default:
+		return filepath.Join(string(OrgsResourceType), "*", string(r.Type))
+	}
 }
 
 const (

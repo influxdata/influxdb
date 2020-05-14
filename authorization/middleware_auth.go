@@ -23,7 +23,7 @@ func NewAuthedAuthorizationService(s influxdb.AuthorizationService, ts TenantSer
 }
 
 func (s *AuthedAuthorizationService) CreateAuthorization(ctx context.Context, a *influxdb.Authorization) error {
-	if _, _, err := authorizer.AuthorizeCreate(ctx, influxdb.AuthorizationsResourceType, a.OrgID); err != nil {
+	if _, _, err := authorizer.AuthorizeCreate(ctx, influxdb.AuthorizationsResourceType, &a.OrgID); err != nil {
 		return err
 	}
 	if _, _, err := authorizer.AuthorizeWriteResource(ctx, influxdb.UsersResourceType, a.UserID); err != nil {

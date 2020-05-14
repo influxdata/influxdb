@@ -76,7 +76,7 @@ func (s *LabelService) FindResourceLabels(ctx context.Context, filter influxdb.L
 
 // CreateLabel checks to see if the authorizer on context has write access to the new label's org.
 func (s *LabelService) CreateLabel(ctx context.Context, l *influxdb.Label) error {
-	if _, _, err := AuthorizeCreate(ctx, influxdb.LabelsResourceType, l.OrgID); err != nil {
+	if _, _, err := AuthorizeCreate(ctx, influxdb.LabelsResourceType, &l.OrgID); err != nil {
 		return err
 	}
 	return s.s.CreateLabel(ctx, l)

@@ -137,21 +137,25 @@ func AuthorizeWriteResource(ctx context.Context, rt influxdb.ResourceType, rid i
 }
 
 // AuthorizeOrgReadResource authorizes the given org to read the resources of the given type.
+// When orgID is nil this method ensures the authorizer has the permission to read the given
+// resource type for all organizations.
 // NOTE: this is pretty much the same as AuthorizeRead, in the case that the resource ID is ignored.
 // Use it in the case that you do not know which resource in particular you want to give access to.
-func AuthorizeOrgReadResource(ctx context.Context, rt influxdb.ResourceType, oid influxdb.ID) (influxdb.Authorizer, influxdb.Permission, error) {
-	return authorize(ctx, influxdb.ReadAction, rt, nil, &oid)
+func AuthorizeOrgReadResource(ctx context.Context, rt influxdb.ResourceType, oid *influxdb.ID) (influxdb.Authorizer, influxdb.Permission, error) {
+	return authorize(ctx, influxdb.ReadAction, rt, nil, oid)
 }
 
 // AuthorizeOrgWriteResource authorizes the given org to write the resources of the given type.
+// When orgID is nil this method ensures the authorizer has the permission to write the given
+// resource type for all organizations.
 // NOTE: this is pretty much the same as AuthorizeWrite, in the case that the resource ID is ignored.
 // Use it in the case that you do not know which resource in particular you want to give access to.
-func AuthorizeOrgWriteResource(ctx context.Context, rt influxdb.ResourceType, oid influxdb.ID) (influxdb.Authorizer, influxdb.Permission, error) {
-	return authorize(ctx, influxdb.WriteAction, rt, nil, &oid)
+func AuthorizeOrgWriteResource(ctx context.Context, rt influxdb.ResourceType, oid *influxdb.ID) (influxdb.Authorizer, influxdb.Permission, error) {
+	return authorize(ctx, influxdb.WriteAction, rt, nil, oid)
 }
 
-// AuthorizeCreate authorizes a user to create a resource of the given type for the given org.
-func AuthorizeCreate(ctx context.Context, rt influxdb.ResourceType, oid influxdb.ID) (influxdb.Authorizer, influxdb.Permission, error) {
+// AuthorizeCreate authorizes a user to create a resource of the given type for the given org or all orgs (orgID == nil).
+func AuthorizeCreate(ctx context.Context, rt influxdb.ResourceType, oid *influxdb.ID) (influxdb.Authorizer, influxdb.Permission, error) {
 	return AuthorizeOrgWriteResource(ctx, rt, oid)
 }
 

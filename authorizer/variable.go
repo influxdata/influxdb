@@ -46,7 +46,7 @@ func (s *VariableService) FindVariables(ctx context.Context, filter influxdb.Var
 
 // CreateVariable checks to see if the authorizer on context has write access to the global variable resource.
 func (s *VariableService) CreateVariable(ctx context.Context, v *influxdb.Variable) error {
-	if _, _, err := AuthorizeCreate(ctx, influxdb.VariablesResourceType, v.OrganizationID); err != nil {
+	if _, _, err := AuthorizeCreate(ctx, influxdb.VariablesResourceType, &v.OrganizationID); err != nil {
 		return err
 	}
 	return s.s.CreateVariable(ctx, v)

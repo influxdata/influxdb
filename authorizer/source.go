@@ -57,7 +57,7 @@ func (s *SourceService) FindSources(ctx context.Context, opts influxdb.FindOptio
 
 // CreateSource checks to see if the authorizer on context has write access to the global source resource.
 func (s *SourceService) CreateSource(ctx context.Context, src *influxdb.Source) error {
-	if _, _, err := AuthorizeCreate(ctx, influxdb.SourcesResourceType, src.OrganizationID); err != nil {
+	if _, _, err := AuthorizeCreate(ctx, influxdb.SourcesResourceType, &src.OrganizationID); err != nil {
 		return err
 	}
 	return s.s.CreateSource(ctx, src)

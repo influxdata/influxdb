@@ -50,7 +50,8 @@ func (s *NotificationRuleStore) FindNotificationRules(ctx context.Context, filte
 
 // CreateNotificationRule checks to see if the authorizer on context has write access to the global notification rule resource.
 func (s *NotificationRuleStore) CreateNotificationRule(ctx context.Context, nr influxdb.NotificationRuleCreate, userID influxdb.ID) error {
-	if _, _, err := AuthorizeCreate(ctx, influxdb.NotificationRuleResourceType, nr.GetOrgID()); err != nil {
+	orgID := nr.GetOrgID()
+	if _, _, err := AuthorizeCreate(ctx, influxdb.NotificationRuleResourceType, &orgID); err != nil {
 		return err
 	}
 	return s.s.CreateNotificationRule(ctx, nr, userID)
