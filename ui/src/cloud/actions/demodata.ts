@@ -132,6 +132,7 @@ export const deleteDemoDataBucketMembership = (
   try {
     await deleteDemoDataBucketMembershipAJAX(bucket.id)
 
+    // an unsuccessful delete membership req can also return 204 to prevent userID sniffing, so need to check that bucket is really unreachable
     const resp = await getBucket({bucketID: bucket.id})
 
     if (resp.status === 200) {
