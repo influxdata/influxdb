@@ -22,7 +22,7 @@ export const CLOUD_FLAGS = {
   telegrafEditor: false,
   customCheckQuery: false,
   matchingNotificationRules: false,
-  demodata: false,
+  demodata: true,
   fluxParser: false,
   cursorAtEOF: false,
   notebooks: false,
