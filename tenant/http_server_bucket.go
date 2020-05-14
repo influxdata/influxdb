@@ -250,28 +250,28 @@ func newBucketsResponse(ctx context.Context, opts influxdb.FindOptions, f influx
 func (h *BucketHandler) handlePostBucket(w http.ResponseWriter, r *http.Request) {
 	var b postBucketRequest
 	if err := h.api.DecodeJSON(r.Body, &b); err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 	if err := b.OK(); err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
 	bucket := b.toInfluxDB()
 
 	if err := validBucketName(bucket); err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
 	if err := h.bucketSvc.CreateBucket(r.Context(), bucket); err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 	h.log.Debug("Bucket created", zap.String("bucket", fmt.Sprint(bucket)))
 
-	h.api.Respond(w, http.StatusCreated, NewBucketResponse(bucket))
+	h.api.Respond(w, r, http.StatusCreated, NewBucketResponse(bucket))
 }
 
 type postBucketRequest struct {
@@ -334,55 +334,55 @@ func (h *BucketHandler) handleGetBucket(w http.ResponseWriter, r *http.Request) 
 
 	id, err := influxdb.IDFromString(chi.URLParam(r, "id"))
 	if err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
 	b, err := h.bucketSvc.FindBucketByID(ctx, *id)
 	if err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
 	h.log.Debug("Bucket retrieved", zap.String("bucket", fmt.Sprint(b)))
 
-	h.api.Respond(w, http.StatusOK, NewBucketResponse(b))
+	h.api.Respond(w, r, http.StatusOK, NewBucketResponse(b))
 }
 
 // handleDeleteBucket is the HTTP handler for the DELETE /api/v2/buckets/:id route.
 func (h *BucketHandler) handleDeleteBucket(w http.ResponseWriter, r *http.Request) {
 	id, err := influxdb.IDFromString(chi.URLParam(r, "id"))
 	if err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
 	if err := h.bucketSvc.DeleteBucket(r.Context(), *id); err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
 	h.log.Debug("Bucket deleted", zap.String("bucketID", id.String()))
 
-	h.api.Respond(w, http.StatusNoContent, nil)
+	h.api.Respond(w, r, http.StatusNoContent, nil)
 }
 
 // handleGetBuckets is the HTTP handler for the GET /api/v2/buckets route.
 func (h *BucketHandler) handleGetBuckets(w http.ResponseWriter, r *http.Request) {
 	bucketsRequest, err := decodeGetBucketsRequest(r)
 	if err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
 	bs, _, err := h.bucketSvc.FindBuckets(r.Context(), bucketsRequest.filter, bucketsRequest.opts)
 	if err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 	h.log.Debug("Buckets retrieved", zap.String("buckets", fmt.Sprint(bs)))
 
-	h.api.Respond(w, http.StatusOK, newBucketsResponse(r.Context(), bucketsRequest.opts, bucketsRequest.filter, bs))
+	h.api.Respond(w, r, http.StatusOK, newBucketsResponse(r.Context(), bucketsRequest.opts, bucketsRequest.filter, bs))
 }
 
 type getBucketsRequest struct {
@@ -432,38 +432,38 @@ func decodeGetBucketsRequest(r *http.Request) (*getBucketsRequest, error) {
 func (h *BucketHandler) handlePatchBucket(w http.ResponseWriter, r *http.Request) {
 	id, err := influxdb.IDFromString(chi.URLParam(r, "id"))
 	if err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
 	var reqBody bucketUpdate
 	if err := h.api.DecodeJSON(r.Body, &reqBody); err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
 	if reqBody.Name != nil {
 		b, err := h.bucketSvc.FindBucketByID(r.Context(), *id)
 		if err != nil {
-			h.api.Err(w, err)
+			h.api.Err(w, r, err)
 			return
 		}
 		b.Name = *reqBody.Name
 		if err := validBucketName(b); err != nil {
-			h.api.Err(w, err)
+			h.api.Err(w, r, err)
 			return
 		}
 	}
 
 	b, err := h.bucketSvc.UpdateBucket(r.Context(), *id, *reqBody.toInfluxDB())
 	if err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
 	h.log.Debug("Bucket updated", zap.String("bucket", fmt.Sprint(b)))
 
-	h.api.Respond(w, http.StatusOK, NewBucketResponse(b))
+	h.api.Respond(w, r, http.StatusOK, NewBucketResponse(b))
 }
 
 func (h *BucketHandler) lookupOrgByBucketID(ctx context.Context, id influxdb.ID) (influxdb.ID, error) {

@@ -81,7 +81,7 @@ func (h *SessionHandler) handleSignin(w http.ResponseWriter, r *http.Request) {
 
 	req, decErr := decodeSigninRequest(ctx, r)
 	if decErr != nil {
-		h.api.Err(w, ErrUnauthorized)
+		h.api.Err(w, r, ErrUnauthorized)
 		return
 	}
 
@@ -89,18 +89,18 @@ func (h *SessionHandler) handleSignin(w http.ResponseWriter, r *http.Request) {
 		Name: &req.Username,
 	})
 	if err != nil {
-		h.api.Err(w, ErrUnauthorized)
+		h.api.Err(w, r, ErrUnauthorized)
 		return
 	}
 
 	if err := h.passSvc.ComparePassword(ctx, u.ID, req.Password); err != nil {
-		h.api.Err(w, ErrUnauthorized)
+		h.api.Err(w, r, ErrUnauthorized)
 		return
 	}
 
 	s, e := h.sessionSvc.CreateSession(ctx, req.Username)
 	if e != nil {
-		h.api.Err(w, ErrUnauthorized)
+		h.api.Err(w, r, ErrUnauthorized)
 		return
 	}
 
@@ -134,12 +134,12 @@ func (h *SessionHandler) handleSignout(w http.ResponseWriter, r *http.Request) {
 
 	req, err := decodeSignoutRequest(ctx, r)
 	if err != nil {
-		h.api.Err(w, ErrUnauthorized)
+		h.api.Err(w, r, ErrUnauthorized)
 		return
 	}
 
 	if err := h.sessionSvc.ExpireSession(ctx, req.Key); err != nil {
-		h.api.Err(w, ErrUnauthorized)
+		h.api.Err(w, r, ErrUnauthorized)
 		return
 	}
 
