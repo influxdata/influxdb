@@ -88,11 +88,9 @@ export const getDemoDataBucketMembership = ({
 
     dispatch(addBucket(normalizedBucket))
   } catch (error) {
-    const message = `Failed to add demodata bucket ${bucketName}: ${getErrorMessage(
-      error
-    )}`
-
-    dispatch(notify(demoDataAddBucketFailed(message)))
+    dispatch(
+      notify(demoDataAddBucketFailed(bucketName, getErrorMessage(error)))
+    )
 
     reportError(error, {
       name: 'addDemoDataBucket failed in getDemoDataBucketMembership',
@@ -116,11 +114,9 @@ export const getDemoDataBucketMembership = ({
 
     fireEvent('demoData_bucketAdded', {demo_dataset: bucketName})
   } catch (error) {
-    const message = `Could not create dashboard for demodata bucket ${bucketName}: ${getErrorMessage(
-      error
-    )}`
+    const errorMessage = getErrorMessage(error)
 
-    dispatch(notify(demoDataAddBucketFailed(message)))
+    dispatch(notify(demoDataAddBucketFailed(bucketName, errorMessage)))
 
     reportError(error, {
       name: 'addDemoDataDashboard failed in getDemoDataBucketMembership',

@@ -452,9 +452,12 @@ export const getBucketFailed = (
 
 // Demodata buckets
 
-export const demoDataAddBucketFailed = (error: string): Notification => ({
+export const demoDataAddBucketFailed = (
+  bucketName: string,
+  message: string
+): Notification => ({
   ...defaultErrorNotification,
-  message: error,
+  message: `Could not create dashboard for demodata bucket ${bucketName}: ${message}`,
 })
 
 export const demoDataDeleteBucketFailed = (
@@ -480,6 +483,7 @@ export const demoDataSwitchedOff = (): Notification => ({
   ...defaultErrorNotification,
   message: `Demo data buckets are temporarily unavailable. Please try again later.`,
   duration: TEN_SECONDS,
+  type: 'demoDataUnavailableError',
 })
 
 // Limits
