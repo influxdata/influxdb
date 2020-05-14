@@ -118,9 +118,11 @@ export const getDemoDataBucketMembership = ({
 
     dispatch(notify(demoDataAddBucketFailed(bucketName, errorMessage)))
 
-    reportError(error, {
-      name: 'addDemoDataDashboard failed in getDemoDataBucketMembership',
-    })
+    if (errorMessage != 'creating dashboard would exceed quota') {
+      reportError(error, {
+        name: 'addDemoDataDashboard failed in getDemoDataBucketMembership',
+      })
+    }
   }
 }
 
