@@ -1,45 +1,40 @@
+// Libraries
 import React from 'react'
+import {getOrgsBilling} from './mocks'
 
-import {
-  Panel,
-  ReflessPopover,
-  PopoverInteraction,
-  PopoverPosition,
-  Appearance,
-} from '@influxdata/clockface'
+// Hooks
+import useClient from './useClient'
+
+import {Panel} from '@influxdata/clockface'
 
 import PanelSection from './PanelSection'
 import PanelSectionBody from './PanelSectionBody'
 
 import {GRAPH_INFO} from './constants'
+import BillingStatsHeader from './BillingStatsHeader'
+
+import {RemoteDataState} from 'src/types'
 
 const billingStats = () => {
   const titles = GRAPH_INFO.titles
   return GRAPH_INFO.billingStats.filter(stat => titles.includes(stat.title))
 }
 
-const BillingStatsPanel = ({
-  table,
-  widths,
-  billingStart: {date: billingStartDate, time: billingStartTime},
-}) => {
-  const today = new Date().toISOString()
-  const dateRange = `${billingStartTime} UTC to ${today} UTC`
+const {Done} = RemoteDataState
+
+const BillingStatsPanel = ({table, widths}) => {
+  const [status, data, error] = useClient(() => getOrgsBilling)
+  console.log(status, data, error)
+
+  if (status !== Done || data === null) {
+    return <div>'Loading...'</div>
+  }
+
+  const {startDate} = data
 
   return (
     <Panel className="usage--panel billing-stats--panel">
-      <Panel.Header className="usage--billing-header">
-        <ReflessPopover
-          distanceFromTrigger={16}
-          contents={() => <>{dateRange}</>}
-          appearance={Appearance.Outline}
-          position={PopoverPosition.ToTheRight}
-          showEvent={PopoverInteraction.Hover}
-          hideEvent={PopoverInteraction.Hover}
-        >
-          <h4 className="usage--billing-date-range">{`Billing Stats For ${billingStartDate} to Today`}</h4>
-        </ReflessPopover>
-      </Panel.Header>
+      <BillingStatsHeader startDate={startDate} />
       <PanelSection>
         {billingStats().map(graphInfo => {
           return (

@@ -52,33 +52,13 @@ class UsageToday extends Component<Props, State> {
   }
 
   render() {
-    const {
-      history,
-      limitStatuses,
-      accountType,
-      selectedRange,
-      billingStart,
-    } = this.props
-
-    /*
-  request
-  fetch(/orgs/{orgID}/billing)
-  => {
-    startDate: Date()
-    writesBytes: number
-    queryDuration: number
-    storageGBHours: number
-  }
-
-*/
+    const {history, limitStatuses, accountType, selectedRange} = this.props
 
     const {table: billingTable} = this.csvToTable(history.billingStats)
 
     const {table: limitsTable} = this.csvToTable(history.rateLimits)
 
     const {selectedUsageID} = this.state
-
-    console.log('billingStart: ', billingStart)
 
     return (
       <FlexBox
@@ -93,7 +73,6 @@ class UsageToday extends Component<Props, State> {
         />
         <BillingStatsPanel
           table={billingTable}
-          billingStart={billingStart}
           widths={PANEL_CONTENTS_WIDTHS.billingStats}
         />
         <TimeRangeDropdown

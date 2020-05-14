@@ -14,31 +14,31 @@ import {usageProps} from 'src/usage/components/constants/stubs'
 const url = '/api/experimental/quartz/usage'
 
 const UsagePage = () => {
-  const [status, setStatus] = useState(RemoteDataState.NotStarted)
+  // const [status, setStatus] = useState(RemoteDataState.NotStarted)
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const response = await fetch(url, {
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        })
+  // useEffect(() => {
+  //   const fetchData = async () => {
+  //     try {
+  //       const response = await fetch(url, {
+  //         headers: {
+  //           'Content-Type': 'application/json',
+  //         },
+  //       })
 
-        if (!response.ok) {
-          return setStatus(RemoteDataState.Error)
-        }
+  //       if (!response.ok) {
+  //         return setStatus(RemoteDataState.Error)
+  //       }
 
-        setStatus(RemoteDataState.Done)
-      } catch (error) {
-        console.error('FETCHING ERROR')
-        console.error(error)
-        setStatus(RemoteDataState.Error)
-      }
-    }
+  //       setStatus(RemoteDataState.Done)
+  //     } catch (error) {
+  //       console.error('FETCHING ERROR')
+  //       console.error(error)
+  //       setStatus(RemoteDataState.Error)
+  //     }
+  //   }
 
-    fetchData()
-  }, [])
+  //   fetchData()
+  // }, [])
 
   // let content = <div>You've got a problem</div>
 
