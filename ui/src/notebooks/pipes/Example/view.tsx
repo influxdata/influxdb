@@ -1,4 +1,4 @@
-import React, {FC, useContext} from 'react'
+import React, {FC, createElement, useContext} from 'react'
 import {PipeProp} from 'src/notebooks'
 import {NotebookContext} from 'src/notebooks/context/notebook'
 
