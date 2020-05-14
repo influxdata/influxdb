@@ -1,0 +1,149 @@
+@import "@influxdata/clockface/dist/variables.scss";
+
+$notebook-header-height: 46px;
+$notebook-size-toggle: 16px;
+
+.notebook-panel {
+  background-color: $g2-kevlar;
+  border-radius: $cf-radius;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  margin-bottom: $cf-marg-b;
+  transition: height 0.25s ease;
+}
+
+.notebook-panel--header {
+  background-color: $g3-castle;
+  border-radius: $cf-radius;
+  padding: 0 $cf-marg-b;
+  height: $notebook-header-height;
+  flex: 0 0 $notebook-header-height;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.notebook-panel--header-left,
+.notebook-panel--header-right {
+  flex: 1 0 $notebook-header-height;
+}
+
+.notebook-panel--title {
+  user-select: none;
+  font-size: 14px;
+  font-weight: $cf-font-weight--medium;
+  margin-left: $cf-marg-b;
+  margin-right: $cf-marg-c !important;
+}
+
+.notebook-panel--toggle {
+  width: $cf-form-sm-height;
+  height: $cf-form-sm-height;
+  position: relative;
+
+  &:after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: $notebook-size-toggle;
+    transition: height 0.25s cubic-bezier(0.25, 1, 0.5, 1), border-color 0.25s ease;
+    border: $cf-border solid $g8-storm;
+    border-radius: $cf-radius / 2;
+  }
+
+  &:hover {
+    cursor: pointer;
+    &:after {
+      border-color: $g13-mist;
+    }
+  }
+}
+
+.notebook-panel--body {
+  padding: $cf-marg-b;
+  flex: 1 0 0;
+  position: relative;
+}
+
+// Special styling for query builder inside notebook panel
+.notebook-panel--body .query-builder {
+  top: $cf-marg-b;
+  right: $cf-marg-b;
+  bottom: $cf-marg-b;
+  left: $cf-marg-b;
+  padding-top: 0;
+}
+
+/*
+  Notebook Panel Modes
+  ------------------------------------------------------------------------------
+*/
+
+.notebook-panel__hidden {
+  height: $notebook-header-height;
+
+  .notebook-panel--body {
+    display: none;
+  }
+
+  .notebook-panel--toggle:after {
+    height: $cf-border;
+  }
+}
+
+.notebook-panel__small {
+  height: 320px;
+
+  .notebook-panel--toggle:after {
+    height: $notebook-size-toggle / 2;
+  }
+}
+
+.notebook-panel__large {
+  height: 60vh;
+  min-height: 640px;
+
+  .notebook-panel--toggle:after {
+    height: $notebook-size-toggle;
+  }
+}
+
+
+.notebook-panel--visualization {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: stretch;
+  flex-direction: row;
+}
+
+.notebook-panel--view {
+  flex: 1 0 0;
+  position: relative;
+}
+
+.notebook-header--buttons {
+    display: inline-flex;
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+
+    > * {
+        margin-left: 4px;
+    }
+}
+.notebook--actions {
+    margin-top: $cf-marg-c;
+    display: inline-flex;
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+    justify-content: center;
+    width: 100%;
+
+    > * {
+        margin-left: 4px;
+    }
+}
+
