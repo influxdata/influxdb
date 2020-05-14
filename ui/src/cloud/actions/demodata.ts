@@ -88,11 +88,9 @@ export const getDemoDataBucketMembership = ({
 
     dispatch(addBucket(normalizedBucket))
   } catch (error) {
-    const message = `Failed to add demodata bucket ${bucketName}: ${getErrorMessage(
-      error
-    )}`
-
-    dispatch(notify(demoDataAddBucketFailed(message)))
+    dispatch(
+      notify(demoDataAddBucketFailed(bucketName, getErrorMessage(error)))
+    )
 
     reportError(error, {
       name: 'addDemoDataBucket failed in getDemoDataBucketMembership',
@@ -116,15 +114,15 @@ export const getDemoDataBucketMembership = ({
 
     fireEvent('demoData_bucketAdded', {demo_dataset: bucketName})
   } catch (error) {
-    const message = `Could not create dashboard for demodata bucket ${bucketName}: ${getErrorMessage(
-      error
-    )}`
+    const errorMessage = getErrorMessage(error)
 
-    dispatch(notify(demoDataAddBucketFailed(message)))
+    dispatch(notify(demoDataAddBucketFailed(bucketName, errorMessage)))
 
-    reportError(error, {
-      name: 'addDemoDataDashboard failed in getDemoDataBucketMembership',
-    })
+    if (errorMessage != 'creating dashboard would exceed quota') {
+      reportError(error, {
+        name: 'addDemoDataDashboard failed in getDemoDataBucketMembership',
+      })
+    }
   }
 }
 
@@ -134,6 +132,7 @@ export const deleteDemoDataBucketMembership = (
   try {
     await deleteDemoDataBucketMembershipAJAX(bucket.id)
 
+    // an unsuccessful delete membership req can also return 204 to prevent userID sniffing, so need to check that bucket is really unreachable
     const resp = await getBucket({bucketID: bucket.id})
 
     if (resp.status === 200) {
