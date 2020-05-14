@@ -3583,7 +3583,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Bucket"
-        422:
+        '422':
           description: Request body failed validation
           content:
             application/json:
@@ -4702,6 +4702,34 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/OperationLogs"
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/orgs/{orgID}/billing':
+    get:
+      operationId: GetOrgsCurrentBilling
+      tags:
+        - Organizations
+        - Billing
+      summary: Retrieve billing stats for cloud users
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: orgID
+          required: true
+          description: The organization ID.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Billing stats for organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BillingStats"
         default:
           description: Unexpected error
           content:
@@ -10257,6 +10285,23 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ScraperTargetResponse"
+    BillingStats:
+      type: object
+      properties:
+        startDate:
+          format: date-time
+          readOnly: true
+        writeBytes:
+          type: number
+        queryDurationSec:
+          type: number
+        storageGBHours:
+          type: number
+      required:
+        - startDate
+        - writeBytes
+        - queryDurationSec
+        - storageGBHours
     DocumentMeta:
       type: object
       properties:

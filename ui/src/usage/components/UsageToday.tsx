@@ -60,11 +60,25 @@ class UsageToday extends Component<Props, State> {
       billingStart,
     } = this.props
 
+    /*
+  request
+  fetch(/orgs/{orgID}/billing)
+  => {
+    startDate: Date()
+    writesBytes: number
+    queryDuration: number
+    storageGBHours: number
+  }
+
+*/
+
     const {table: billingTable} = this.csvToTable(history.billingStats)
 
     const {table: limitsTable} = this.csvToTable(history.rateLimits)
 
     const {selectedUsageID} = this.state
+
+    console.log('billingStart: ', billingStart)
 
     return (
       <FlexBox
