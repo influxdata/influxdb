@@ -393,10 +393,7 @@ jobs:
           keys:
             - influxdb-gomod-{{ checksum "go.sum" }} # Just match the go.sum checksum cache.
       - run: make protoc
-      - run:
-          name: Make Build
-          no_output_timeout: 30m
-          command: make build
+      - run: make build
       - persist_to_workspace:
           root: .
           paths:

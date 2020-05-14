@@ -23,9 +23,9 @@ export const DEFAULT_CONTEXT = {
 // NOTE: this just loads some test data for exploring the
 // interactions between types. Make sure it's never true
 // during the pull review process
-const TEST_MODE = false
+const TEST_MODE = true
 if (TEST_MODE) {
-  const TEST_NOTEBOOK = require('src/notesbooks/context/notebook.mock.json')
+  const TEST_NOTEBOOK = require('src/notebooks/context/notebook.mock.json')
   DEFAULT_CONTEXT.id = TEST_NOTEBOOK.id
   DEFAULT_CONTEXT.pipes = TEST_NOTEBOOK.pipes
 }
