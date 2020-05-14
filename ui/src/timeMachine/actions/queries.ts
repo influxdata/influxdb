@@ -1,5 +1,5 @@
 // Libraries
-import {parse} from '@influxdata/flux-parser'
+import {parse} from 'src/external/parser'
 import {get} from 'lodash'
 
 // API
