@@ -1,0 +1,30 @@
+{
+  "id":null,
+  "type":"deadman",
+  "status":"active",
+  "activeStatus":"active",
+  "name":"Deadman Crit Check",
+  "query":
+  {
+    "name":"",
+    "text":"from(bucket: \"qa\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"test\")\n  |> filter(fn: (r) => r[\"_field\"] == \"val\")",
+    "editMode":"builder",
+    "builderConfig":
+    {
+      "buckets":["qa"],
+      "tags":[{"key":"_measurement","values":["test"],"aggregateFunctionType":"filter"},{"key":"_field","values":["val"],"aggregateFunctionType":"filter"},{"key":"gen","values":[],"aggregateFunctionType":"filter"}],
+      "functions":[]
+    },
+    "hidden":false
+  },
+  "orgID":"05a7c4e449675000",
+  "labels":[],
+  "every":"5s",
+  "level":"CRIT",
+  "offset":"2s",
+  "reportZero":false,
+  "staleTime":"1m",
+  "statusMessageTemplate":"Check: ${ r._check_name } is: ${ r._level }",
+  "tags":[],
+  "timeSince":"30s"
+}

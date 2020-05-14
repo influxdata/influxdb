@@ -1,0 +1,100 @@
+{
+ "meta": {
+  "version": "1",
+  "type": "dashboard",
+  "name": "Notepad-Template",
+  "description": "template created from dashboard: Notepad"
+ },
+ "content": {
+  "data": {
+   "type": "dashboard",
+   "attributes": {
+    "name": "Notepad",
+    "description": ""
+   },
+   "relationships": {
+    "label": {
+     "data": []
+    },
+    "cell": {
+     "data": [
+      {
+       "type": "cell",
+       "id": "04a8ab4020f81000"
+      },
+      {
+       "type": "cell",
+       "id": "04a8ab5327b81000"
+      }
+     ]
+    },
+    "variable": {
+     "data": []
+    }
+   }
+  },
+  "included": [
+   {
+    "id": "04a8ab4020f81000",
+    "type": "cell",
+    "attributes": {
+     "x": 0,
+     "y": 0,
+     "w": 4,
+     "h": 4
+    },
+    "relationships": {
+     "view": {
+      "data": {
+       "type": "view",
+       "id": "04a8ab4020f81000"
+      }
+     }
+    }
+   },
+   {
+    "id": "04a8ab5327b81000",
+    "type": "cell",
+    "attributes": {
+     "x": 4,
+     "y": 0,
+     "w": 4,
+     "h": 4
+    },
+    "relationships": {
+     "view": {
+      "data": {
+       "type": "view",
+       "id": "04a8ab5327b81000"
+      }
+     }
+    }
+   },
+   {
+    "type": "view",
+    "id": "04a8ab4020f81000",
+    "attributes": {
+     "name": "Name this Cell",
+     "properties": {
+      "shape": "chronograf-v2",
+      "type": "markdown",
+      "note": "Simple note 1"
+     }
+    }
+   },
+   {
+    "type": "view",
+    "id": "04a8ab5327b81000",
+    "attributes": {
+     "name": "Name this Cell",
+     "properties": {
+      "shape": "chronograf-v2",
+      "type": "markdown",
+      "note": "Simple note 2"
+     }
+    }
+   }
+  ]
+ },
+ "labels": []
+}
