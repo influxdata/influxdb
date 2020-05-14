@@ -64,12 +64,7 @@ class TokensTab extends PureComponent<Props, State> {
       />
     )
 
-    const rightHeaderItems = (
-      <GenerateTokenDropdown
-        onSelectAllAccess={this.handleGenerateAllAccess}
-        onSelectReadWrite={this.handleGenerateReadWrite}
-      />
-    )
+    const rightHeaderItems = <GenerateTokenDropdown />
 
     return (
       <>
@@ -108,24 +103,6 @@ class TokensTab extends PureComponent<Props, State> {
 
   private get searchKeys(): AuthSearchKeys[] {
     return [AuthSearchKeys.Status, AuthSearchKeys.Description]
-  }
-
-  private handleGenerateAllAccess = () => {
-    const {
-      router,
-      params: {orgID},
-    } = this.props
-
-    router.push(`/orgs/${orgID}/load-data/tokens/generate/all-access`)
-  }
-
-  private handleGenerateReadWrite = () => {
-    const {
-      router,
-      params: {orgID},
-    } = this.props
-
-    router.push(`/orgs/${orgID}/load-data/tokens/generate/buckets`)
   }
 }
 
