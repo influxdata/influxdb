@@ -5,13 +5,31 @@ type TestError = Box<dyn std::error::Error + Send + Sync + 'static>;
 type Result<T = (), E = TestError> = std::result::Result<T, E>;
 
 fn wal_file_names(dir: impl Into<PathBuf>) -> Vec<String> {
-    let mut files: Vec<_> = fs::read_dir(&dir.into())
+    wal_paths(dir)
+        .iter()
+        .filter_map(|path| path.file_name().map(|p| p.to_string_lossy().to_string()))
+        .collect()
+}
+
+fn wal_paths(dir: impl Into<PathBuf>) -> Vec<PathBuf> {
+    let mut paths: Vec<_> = fs::read_dir(&dir.into())
         .expect("Cannot read WAL directory")
         .flatten() // Ignore errors
-        .map(|entry| entry.file_name().to_string_lossy().to_string())
+        .map(|entry| entry.path())
         .collect();
-    files.sort();
-    files
+    paths.sort();
+    paths
+}
+
+fn total_size_on_disk(dir: impl Into<PathBuf>) -> u64 {
+    wal_paths(&dir.into())
+        .iter()
+        .map(|file| {
+            fs::metadata(file)
+                .expect("Could not read file metadata")
+                .len()
+        })
+        .sum()
 }
 
 fn file_name_for_sequence_number(id: u64) -> String {
@@ -71,6 +89,9 @@ fn file_rollover() -> Result {
     let wal_files = wal_file_names(&dir.as_ref());
     assert!(wal_files.is_empty());
 
+    // Total size should be 0
+    assert_eq!(wal.total_size(), 0);
+
     // Reading the WAL should return Ok(empty vec)
     let wal_entries = all_entries(&builder)?;
     assert!(wal_entries.is_empty());
@@ -80,6 +101,9 @@ fn file_rollover() -> Result {
 
     // There should now be one existing WAL file
     assert_filenames_for_sequence_numbers!(dir, [0]);
+
+    // Total size should be that of all the files
+    assert_eq!(wal.total_size(), total_size_on_disk(&dir.as_ref()));
 
     // Should be able to read the entry back out
     let wal_entries = all_entries(&builder)?;
@@ -92,6 +116,9 @@ fn file_rollover() -> Result {
 
     // There should still be one existing WAL file
     assert_filenames_for_sequence_numbers!(dir, [0]);
+
+    // Total size should be that of all the files
+    assert_eq!(wal.total_size(), total_size_on_disk(&dir.as_ref()));
 
     // Should be able to read the entries back out
     let wal_entries = all_entries(&builder)?;
@@ -112,6 +139,9 @@ fn file_rollover() -> Result {
 
     // There should now be two existing WAL files
     assert_filenames_for_sequence_numbers!(dir, [0, 2]);
+
+    // Total size should be that of all the files
+    assert_eq!(wal.total_size(), total_size_on_disk(&dir.as_ref()));
 
     // Should be able to read the entries back out
     let wal_entries = all_entries(&builder)?;
@@ -142,6 +172,9 @@ fn file_rollover() -> Result {
     // There should still be two existing WAL files
     assert_filenames_for_sequence_numbers!(dir, [0, 2]);
 
+    // Total size should be that of all the files
+    assert_eq!(wal.total_size(), total_size_on_disk(&dir.as_ref()));
+
     // Should be able to read the entries back out
     let wal_entries = all_entries(&builder)?;
     assert_eq!(5, wal_entries.len());
@@ -163,9 +196,14 @@ fn file_rollover() -> Result {
     );
     assert_entry!(wal_entries[4], 4, b"another entry");
 
+    let total_file_size_before_delete = total_size_on_disk(&dir.as_ref());
+
     // Some process deletes the first WAL file
     let path = dir.path().join(file_name_for_sequence_number(0));
     fs::remove_file(path)?;
+
+    // Total size isn't aware of the out-of-band deletion
+    assert_eq!(wal.total_size(), total_file_size_before_delete);
 
     // Should be able to read the remaining entries back out
     let wal_entries = all_entries(&builder)?;
@@ -181,6 +219,12 @@ fn file_rollover() -> Result {
         b"one entry that puts the existing file over the limit"
     );
     assert_entry!(wal_entries[2], 4, b"another entry");
+
+    // Pretend the process restarts
+    let wal: delorean_wal::Wal<()> = builder.wal()?;
+
+    // Total size should be that of all the files, so without the file deleted out-of-band
+    assert_eq!(wal.total_size(), total_size_on_disk(&dir.as_ref()));
 
     Ok(())
 }
