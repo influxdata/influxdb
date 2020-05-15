@@ -23,7 +23,7 @@ func (h ErrorHandler) HandleHTTPError(ctx context.Context, err error, w http.Res
 	code := influxdb.ErrorCode(err)
 	w.Header().Set(PlatformErrorCodeHeader, code)
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.WriteHeader(ErrorCodeToStatusCode(code))
+	w.WriteHeader(ErrorCodeToStatusCode(ctx, code))
 	var e struct {
 		Code    string `json:"code"`
 		Message string `json:"message"`
@@ -51,12 +51,21 @@ func StatusCodeToErrorCode(statusCode int) string {
 
 // ErrorCodeToStatusCode maps an influxdb error code string to a
 // http status code integer.
-func ErrorCodeToStatusCode(code string) int {
+func ErrorCodeToStatusCode(ctx context.Context, code string) int {
+	// If the client disconnects early or times out then return a different
+	// error than the passed in error code. Client timeouts return a 408
+	// while disconnections return a non-standard Nginx HTTP 499 code.
+	if err := ctx.Err(); err == context.DeadlineExceeded {
+		return http.StatusRequestTimeout
+	} else if err == context.Canceled {
+		return 499 // https://httpstatuses.com/499
+	}
+
+	// Otherwise map internal error codes to HTTP status codes.
 	statusCode, ok := influxDBErrorToStatusCode[code]
 	if ok {
 		return statusCode
 	}
-
 	return http.StatusInternalServerError
 }
 

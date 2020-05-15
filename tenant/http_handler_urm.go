@@ -48,7 +48,7 @@ func (h *urmHandler) getURMsByType(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	req, err := h.decodeGetRequest(ctx, r)
 	if err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
@@ -59,7 +59,7 @@ func (h *urmHandler) getURMsByType(w http.ResponseWriter, r *http.Request) {
 	}
 	mappings, _, err := h.svc.FindUserResourceMappings(ctx, filter)
 	if err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
@@ -70,7 +70,7 @@ func (h *urmHandler) getURMsByType(w http.ResponseWriter, r *http.Request) {
 		}
 		user, err := h.userSvc.FindUserByID(ctx, m.UserID)
 		if err != nil {
-			h.api.Err(w, err)
+			h.api.Err(w, r, err)
 			return
 		}
 
@@ -78,7 +78,7 @@ func (h *urmHandler) getURMsByType(w http.ResponseWriter, r *http.Request) {
 	}
 	h.log.Debug("Members/owners retrieved", zap.String("users", fmt.Sprint(users)))
 
-	h.api.Respond(w, http.StatusOK, newResourceUsersResponse(filter, users))
+	h.api.Respond(w, r, http.StatusOK, newResourceUsersResponse(filter, users))
 
 }
 
@@ -112,13 +112,13 @@ func (h *urmHandler) postURMByType(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	req, err := h.decodePostRequest(ctx, r)
 	if err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
 	user, err := h.userSvc.FindUserByID(ctx, req.UserID)
 	if err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
@@ -129,12 +129,12 @@ func (h *urmHandler) postURMByType(w http.ResponseWriter, r *http.Request) {
 		UserType:     userType,
 	}
 	if err := h.svc.CreateUserResourceMapping(ctx, mapping); err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 	h.log.Debug("Member/owner created", zap.String("mapping", fmt.Sprint(mapping)))
 
-	h.api.Respond(w, http.StatusCreated, newResourceUserResponse(user, userType))
+	h.api.Respond(w, r, http.StatusCreated, newResourceUserResponse(user, userType))
 }
 
 type postRequest struct {
@@ -178,12 +178,12 @@ func (h *urmHandler) deleteURM(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	req, err := h.decodeDeleteRequest(ctx, r)
 	if err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
 	if err := h.svc.DeleteUserResourceMapping(ctx, req.resourceID, req.userID); err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 	h.log.Debug("Member deleted", zap.String("resourceID", req.resourceID.String()), zap.String("memberID", req.userID.String()))

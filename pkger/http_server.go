@@ -79,7 +79,7 @@ func (s *HTTPServer) listStacks(w http.ResponseWriter, r *http.Request) {
 	rawOrgID := q.Get("orgID")
 	orgID, err := influxdb.IDFromString(rawOrgID)
 	if err != nil {
-		s.api.Err(w, &influxdb.Error{
+		s.api.Err(w, r, &influxdb.Error{
 			Code: influxdb.EInvalid,
 			Msg:  fmt.Sprintf("organization id[%q] is invalid", rawOrgID),
 			Err:  err,
@@ -88,7 +88,7 @@ func (s *HTTPServer) listStacks(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := r.ParseForm(); err != nil {
-		s.api.Err(w, &influxdb.Error{
+		s.api.Err(w, r, &influxdb.Error{
 			Code: influxdb.EInvalid,
 			Msg:  "failed to parse form from encoded url",
 			Err:  err,
@@ -103,7 +103,7 @@ func (s *HTTPServer) listStacks(w http.ResponseWriter, r *http.Request) {
 	for _, idRaw := range r.Form["stackID"] {
 		id, err := influxdb.IDFromString(idRaw)
 		if err != nil {
-			s.api.Err(w, &influxdb.Error{
+			s.api.Err(w, r, &influxdb.Error{
 				Code: influxdb.EInvalid,
 				Msg:  fmt.Sprintf("stack ID[%q] provided is invalid", idRaw),
 				Err:  err,
@@ -115,14 +115,14 @@ func (s *HTTPServer) listStacks(w http.ResponseWriter, r *http.Request) {
 
 	stacks, err := s.svc.ListStacks(r.Context(), *orgID, filter)
 	if err != nil {
-		s.api.Err(w, err)
+		s.api.Err(w, r, err)
 		return
 	}
 	if stacks == nil {
 		stacks = []Stack{}
 	}
 
-	s.api.Respond(w, http.StatusOK, RespListStacks{
+	s.api.Respond(w, r, http.StatusOK, RespListStacks{
 		Stacks: stacks,
 	})
 }
@@ -174,14 +174,14 @@ type RespCreateStack struct {
 func (s *HTTPServer) createStack(w http.ResponseWriter, r *http.Request) {
 	var reqBody ReqCreateStack
 	if err := s.api.DecodeJSON(r.Body, &reqBody); err != nil {
-		s.api.Err(w, err)
+		s.api.Err(w, r, err)
 		return
 	}
 	defer r.Body.Close()
 
 	auth, err := pctx.GetAuthorizer(r.Context())
 	if err != nil {
-		s.api.Err(w, err)
+		s.api.Err(w, r, err)
 		return
 	}
 
@@ -192,11 +192,11 @@ func (s *HTTPServer) createStack(w http.ResponseWriter, r *http.Request) {
 		URLs:        reqBody.URLs,
 	})
 	if err != nil {
-		s.api.Err(w, err)
+		s.api.Err(w, r, err)
 		return
 	}
 
-	s.api.Respond(w, http.StatusCreated, RespCreateStack{
+	s.api.Respond(w, r, http.StatusCreated, RespCreateStack{
 		ID:          stack.ID.String(),
 		OrgID:       stack.OrgID.String(),
 		Name:        stack.Name,
@@ -209,13 +209,13 @@ func (s *HTTPServer) createStack(w http.ResponseWriter, r *http.Request) {
 func (s *HTTPServer) deleteStack(w http.ResponseWriter, r *http.Request) {
 	orgID, err := getRequiredOrgIDFromQuery(r.URL.Query())
 	if err != nil {
-		s.api.Err(w, err)
+		s.api.Err(w, r, err)
 		return
 	}
 
 	stackID, err := influxdb.IDFromString(chi.URLParam(r, "stack_id"))
 	if err != nil {
-		s.api.Err(w, &influxdb.Error{
+		s.api.Err(w, r, &influxdb.Error{
 			Code: influxdb.EInvalid,
 			Msg:  "the stack id provided in the path was invalid",
 			Err:  err,
@@ -225,7 +225,7 @@ func (s *HTTPServer) deleteStack(w http.ResponseWriter, r *http.Request) {
 
 	auth, err := pctx.GetAuthorizer(r.Context())
 	if err != nil {
-		s.api.Err(w, err)
+		s.api.Err(w, r, err)
 		return
 	}
 	userID := auth.GetUserID()
@@ -236,11 +236,11 @@ func (s *HTTPServer) deleteStack(w http.ResponseWriter, r *http.Request) {
 		StackID: *stackID,
 	})
 	if err != nil {
-		s.api.Err(w, err)
+		s.api.Err(w, r, err)
 		return
 	}
 
-	s.api.Respond(w, http.StatusNoContent, nil)
+	s.api.Respond(w, r, http.StatusNoContent, nil)
 }
 
 func getRequiredOrgIDFromQuery(q url.Values) (influxdb.ID, error) {
@@ -306,7 +306,7 @@ func (s *HTTPServer) createPkg(w http.ResponseWriter, r *http.Request) {
 
 	var reqBody ReqCreatePkg
 	if err := s.api.DecodeJSON(r.Body, &reqBody); err != nil {
-		s.api.Err(w, err)
+		s.api.Err(w, r, err)
 		return
 	}
 	defer r.Body.Close()
@@ -328,7 +328,7 @@ func (s *HTTPServer) createPkg(w http.ResponseWriter, r *http.Request) {
 
 	newPkg, err := s.svc.CreatePkg(r.Context(), opts...)
 	if err != nil {
-		s.api.Err(w, err)
+		s.api.Err(w, r, err)
 		return
 	}
 
@@ -347,7 +347,7 @@ func (s *HTTPServer) createPkg(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	}
 
-	s.encResp(w, enc, http.StatusOK, resp)
+	s.encResp(w, r, enc, http.StatusOK, resp)
 }
 
 // PkgRemote provides a package via a remote (i.e. a gist). If content type is not
@@ -432,13 +432,13 @@ func (s *HTTPServer) applyPkg(w http.ResponseWriter, r *http.Request) {
 	var reqBody ReqApplyPkg
 	encoding, err := decodeWithEncoding(r, &reqBody)
 	if err != nil {
-		s.api.Err(w, newDecodeErr(encoding.String(), err))
+		s.api.Err(w, r, newDecodeErr(encoding.String(), err))
 		return
 	}
 
 	orgID, err := influxdb.IDFromString(reqBody.OrgID)
 	if err != nil {
-		s.api.Err(w, &influxdb.Error{
+		s.api.Err(w, r, &influxdb.Error{
 			Code: influxdb.EInvalid,
 			Msg:  fmt.Sprintf("invalid organization ID provided: %q", reqBody.OrgID),
 		})
@@ -448,7 +448,7 @@ func (s *HTTPServer) applyPkg(w http.ResponseWriter, r *http.Request) {
 	var stackID influxdb.ID
 	if reqBody.StackID != nil {
 		if err := stackID.DecodeFromString(*reqBody.StackID); err != nil {
-			s.api.Err(w, &influxdb.Error{
+			s.api.Err(w, r, &influxdb.Error{
 				Code: influxdb.EInvalid,
 				Msg:  fmt.Sprintf("invalid stack ID provided: %q", *reqBody.StackID),
 			})
@@ -458,14 +458,14 @@ func (s *HTTPServer) applyPkg(w http.ResponseWriter, r *http.Request) {
 
 	auth, err := pctx.GetAuthorizer(r.Context())
 	if err != nil {
-		s.api.Err(w, err)
+		s.api.Err(w, r, err)
 		return
 	}
 	userID := auth.GetUserID()
 
 	parsedPkg, err := reqBody.Pkgs(encoding)
 	if err != nil {
-		s.api.Err(w, &influxdb.Error{
+		s.api.Err(w, r, &influxdb.Error{
 			Code: influxdb.EUnprocessableEntity,
 			Err:  err,
 		})
@@ -480,7 +480,7 @@ func (s *HTTPServer) applyPkg(w http.ResponseWriter, r *http.Request) {
 	if reqBody.DryRun {
 		sum, diff, err := s.svc.DryRun(r.Context(), *orgID, userID, parsedPkg, applyOpts...)
 		if IsParseErr(err) {
-			s.api.Respond(w, http.StatusUnprocessableEntity, RespApplyPkg{
+			s.api.Respond(w, r, http.StatusUnprocessableEntity, RespApplyPkg{
 				Diff:    diff,
 				Summary: sum,
 				Errors:  convertParseErr(err),
@@ -488,11 +488,11 @@ func (s *HTTPServer) applyPkg(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err != nil {
-			s.api.Err(w, err)
+			s.api.Err(w, r, err)
 			return
 		}
 
-		s.api.Respond(w, http.StatusOK, RespApplyPkg{
+		s.api.Respond(w, r, http.StatusOK, RespApplyPkg{
 			Diff:    diff,
 			Summary: sum,
 		})
@@ -503,11 +503,11 @@ func (s *HTTPServer) applyPkg(w http.ResponseWriter, r *http.Request) {
 
 	sum, diff, err := s.svc.Apply(r.Context(), *orgID, userID, parsedPkg, applyOpts...)
 	if err != nil && !IsParseErr(err) {
-		s.api.Err(w, err)
+		s.api.Err(w, r, err)
 		return
 	}
 
-	s.api.Respond(w, http.StatusCreated, RespApplyPkg{
+	s.api.Respond(w, r, http.StatusCreated, RespApplyPkg{
 		Diff:    diff,
 		Summary: sum,
 		Errors:  convertParseErr(err),
@@ -551,10 +551,10 @@ func newJSONEnc(w io.Writer) encoder {
 	return enc
 }
 
-func (s *HTTPServer) encResp(w http.ResponseWriter, enc encoder, code int, res interface{}) {
+func (s *HTTPServer) encResp(w http.ResponseWriter, r *http.Request, enc encoder, code int, res interface{}) {
 	w.WriteHeader(code)
 	if err := enc.Encode(res); err != nil {
-		s.api.Err(w, &influxdb.Error{
+		s.api.Err(w, r, &influxdb.Error{
 			Msg:  fmt.Sprintf("unable to marshal; Err: %v", err),
 			Code: influxdb.EInternal,
 			Err:  err,

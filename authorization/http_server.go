@@ -75,13 +75,13 @@ func (h *AuthHandler) handlePostAuthorization(w http.ResponseWriter, r *http.Req
 	ctx := r.Context()
 	a, err := decodePostAuthorizationRequest(ctx, r)
 	if err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
 	user, err := getAuthorizedUser(r, h.tenantService)
 	if err != nil {
-		h.api.Err(w, influxdb.ErrUnableToCreateToken)
+		h.api.Err(w, r, influxdb.ErrUnableToCreateToken)
 		return
 	}
 
@@ -93,13 +93,13 @@ func (h *AuthHandler) handlePostAuthorization(w http.ResponseWriter, r *http.Req
 	auth := a.toInfluxdb(userID)
 
 	if err := h.authSvc.CreateAuthorization(ctx, auth); err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
 	perms, err := newPermissionsResponse(ctx, auth.Permissions, h.lookupService)
 	if err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
@@ -107,11 +107,11 @@ func (h *AuthHandler) handlePostAuthorization(w http.ResponseWriter, r *http.Req
 
 	resp, err := h.newAuthResponse(ctx, auth, perms)
 	if err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
-	h.api.Respond(w, http.StatusCreated, resp)
+	h.api.Respond(w, r, http.StatusCreated, resp)
 }
 
 func getAuthorizedUser(r *http.Request, ts TenantService) (*influxdb.User, error) {
@@ -352,7 +352,7 @@ func (h *AuthHandler) handleGetAuthorizations(w http.ResponseWriter, r *http.Req
 	req, err := decodeGetAuthorizationsRequest(ctx, r)
 	if err != nil {
 		h.log.Info("Failed to decode request", zap.String("handler", "getAuthorizations"), zap.Error(err))
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
@@ -360,7 +360,7 @@ func (h *AuthHandler) handleGetAuthorizations(w http.ResponseWriter, r *http.Req
 	as, _, err := h.authSvc.FindAuthorizations(ctx, req.filter, opts)
 
 	if err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
@@ -369,7 +369,7 @@ func (h *AuthHandler) handleGetAuthorizations(w http.ResponseWriter, r *http.Req
 	if f.User != nil {
 		u, err := h.tenantService.FindUser(ctx, influxdb.UserFilter{Name: f.User})
 		if err != nil {
-			h.api.Err(w, err)
+			h.api.Err(w, r, err)
 			return
 		}
 		f.UserID = &u.ID
@@ -378,7 +378,7 @@ func (h *AuthHandler) handleGetAuthorizations(w http.ResponseWriter, r *http.Req
 	if f.Org != nil {
 		o, err := h.tenantService.FindOrganization(ctx, influxdb.OrganizationFilter{Name: f.Org})
 		if err != nil {
-			h.api.Err(w, err)
+			h.api.Err(w, r, err)
 			return
 		}
 		f.OrgID = &o.ID
@@ -388,7 +388,7 @@ func (h *AuthHandler) handleGetAuthorizations(w http.ResponseWriter, r *http.Req
 	for _, a := range as {
 		ps, err := newPermissionsResponse(ctx, a.Permissions, h.lookupService)
 		if err != nil {
-			h.api.Err(w, err)
+			h.api.Err(w, r, err)
 			return
 		}
 
@@ -402,7 +402,7 @@ func (h *AuthHandler) handleGetAuthorizations(w http.ResponseWriter, r *http.Req
 
 	h.log.Debug("Auths retrieved ", zap.String("auths", fmt.Sprint(auths)))
 
-	h.api.Respond(w, http.StatusOK, newAuthsResponse(auths))
+	h.api.Respond(w, r, http.StatusOK, newAuthsResponse(auths))
 }
 
 type getAuthorizationsRequest struct {
@@ -460,20 +460,20 @@ func (h *AuthHandler) handleGetAuthorization(w http.ResponseWriter, r *http.Requ
 	id, err := influxdb.IDFromString(chi.URLParam(r, "id"))
 	if err != nil {
 		h.log.Info("Failed to decode request", zap.String("handler", "getAuthorization"), zap.Error(err))
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
 	a, err := h.authSvc.FindAuthorizationByID(ctx, *id)
 	if err != nil {
 		// Don't log here, it should already be handled by the service
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
 	ps, err := newPermissionsResponse(ctx, a.Permissions, h.lookupService)
 	if err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
@@ -481,11 +481,11 @@ func (h *AuthHandler) handleGetAuthorization(w http.ResponseWriter, r *http.Requ
 
 	resp, err := h.newAuthResponse(ctx, a, ps)
 	if err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
-	h.api.Respond(w, http.StatusOK, resp)
+	h.api.Respond(w, r, http.StatusOK, resp)
 }
 
 // handleUpdateAuthorization is the HTTP handler for the PATCH /api/v2/authorizations/:id route that updates the authorization's status and desc.
@@ -494,36 +494,36 @@ func (h *AuthHandler) handleUpdateAuthorization(w http.ResponseWriter, r *http.R
 	req, err := decodeUpdateAuthorizationRequest(ctx, r)
 	if err != nil {
 		h.log.Info("Failed to decode request", zap.String("handler", "updateAuthorization"), zap.Error(err))
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
 	a, err := h.authSvc.FindAuthorizationByID(ctx, req.ID)
 	if err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
 	a, err = h.authSvc.UpdateAuthorization(ctx, a.ID, req.AuthorizationUpdate)
 	if err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
 	ps, err := newPermissionsResponse(ctx, a.Permissions, h.lookupService)
 	if err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 	h.log.Debug("Auth updated", zap.String("auth", fmt.Sprint(a)))
 
 	resp, err := h.newAuthResponse(ctx, a, ps)
 	if err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
-	h.api.Respond(w, http.StatusOK, resp)
+	h.api.Respond(w, r, http.StatusOK, resp)
 }
 
 type updateAuthorizationRequest struct {
@@ -553,13 +553,13 @@ func (h *AuthHandler) handleDeleteAuthorization(w http.ResponseWriter, r *http.R
 	id, err := influxdb.IDFromString(chi.URLParam(r, "id"))
 	if err != nil {
 		h.log.Info("Failed to decode request", zap.String("handler", "deleteAuthorization"), zap.Error(err))
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
 	if err := h.authSvc.DeleteAuthorization(r.Context(), *id); err != nil {
 		// Don't log here, it should already be handled by the service
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
