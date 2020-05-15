@@ -39,12 +39,12 @@ export const getDemoDataBucketMembership = async (bucketID: string) => {
     url: `${baseURL}/buckets/${bucketID}/members`,
   })
 
-  if (response.status === '200') {
+  if (response.status === 200) {
     // if sampledata route is not available gateway responds with 200 a correct success code is 204
     throw new Error('Could not reach demodata endpoint')
   }
 
-  if (response.status !== '204') {
+  if (response.status !== 204) {
     throw new Error(response.data)
   }
 }
@@ -56,12 +56,12 @@ export const deleteDemoDataBucketMembership = async (bucketID: string) => {
       url: `${baseURL}/buckets/${bucketID}/members`,
     })
 
-    if (response.status === '200') {
+    if (response.status === 200) {
       // if sampledata route is not available gateway responds with 200 a correct success code is 204
       throw new Error('Could not reach demodata endpoint')
     }
 
-    if (response.status !== '204') {
+    if (response.status !== 204) {
       throw new Error(response.data)
     }
   } catch (error) {
