@@ -1,17 +1,13 @@
-import React, {FC, createElement, useContext} from 'react'
+import {FC, createElement, useContext} from 'react'
 import {NotebookContext} from 'src/notebooks/context/notebook'
 
-import {PIPE_DEFINITIONS} from 'src/notebooks'
+import {PIPE_DEFINITIONS, PipeProp} from 'src/notebooks'
 
-interface PipeProps {
-  idx: number
-}
-
-const Pipe: FC<PipeProps> = ({idx}) => {
+const Pipe: FC<PipeProp> = ({idx}) => {
   const {pipes} = useContext(NotebookContext)
 
   if (!PIPE_DEFINITIONS.hasOwnProperty(pipes[idx].type)) {
-    throw new Error(`Pipe type [${type}] not registered`)
+    throw new Error(`Pipe type [${pipes[idx].type}] not registered`)
     return null
   }
 

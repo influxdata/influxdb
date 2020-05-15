@@ -1,10 +1,16 @@
+import {FunctionComponent, ComponentClass} from 'react'
+
+export interface PipeProp {
+  idx: number
+}
+
 // NOTE: keep this interface as small as possible and
 // don't take extending it lightly. this should only
 // define what ALL pipe types require to be included
 // on the page.
 export interface TypeRegistration {
   type: string // a unique string that identifies a pipe
-  component: JSX.Element // the view component for rendering the interface
+  component: FunctionComponent<PipeProp> | ComponentClass<PipeProp> // the view component for rendering the interface
   button: string // a human readable string for appending the type
   empty: any // the default state for an add
 }
@@ -17,7 +23,7 @@ export const PIPE_DEFINITIONS: TypeLookup = {}
 
 export function register(definition: TypeRegistration) {
   if (PIPE_DEFINITIONS.hasOwnProperty(definition.type)) {
-    throw new Exception(
+    throw new Error(
       `Pipe of type [${definition.type}] has already been registered`
     )
   }
