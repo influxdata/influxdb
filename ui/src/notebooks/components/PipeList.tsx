@@ -4,8 +4,8 @@ import {NotebookContext} from 'src/notebooks/context/notebook'
 
 const PipeList: FC = () => {
   const {id, pipes} = useContext(NotebookContext)
-  const _pipes = pipes.map((_, idx) => (
-    <Pipe idx={idx} key={`pipe-${id}-${idx}`} />
+  const _pipes = pipes.map((_, index) => (
+    <Pipe index={index} key={`pipe-${id}-${index}`} />
   ))
 
   return <>{_pipes}</>

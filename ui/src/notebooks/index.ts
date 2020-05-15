@@ -1,7 +1,7 @@
 import {FunctionComponent, ComponentClass} from 'react'
 
 export interface PipeProp {
-  idx: number
+  index: number
 }
 
 // NOTE: keep this interface as small as possible and
