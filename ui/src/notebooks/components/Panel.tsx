@@ -1,6 +1,5 @@
 // Libraries
-import React, {FC, ReactChildren, useState} from 'react'
-import classnames from 'classnames'
+import React, {FC, ReactChildren} from 'react'
 
 // Components
 import {
@@ -8,9 +7,10 @@ import {
   ComponentSize,
   AlignItems,
   JustifyContent,
-  SquareButton,
-  IconFont,
 } from '@influxdata/clockface'
+
+import usePanelState from 'src/notebooks/hooks/usePanelState'
+import RemoveButton from 'src/notebooks/components/RemoveButton'
 
 interface Props {
   children: ReactChildren | JSX.Element | JSX.Element[]
@@ -20,17 +20,6 @@ interface Props {
   onRemove?: () => void
 }
 
-type PanelState = 'hidden' | 'small' | 'large'
-interface ProgressMap {
-  [key: PanelState]: PanelState
-}
-
-const PANEL_PROGRESS: ProgressMap = {
-  hidden: 'small',
-  small: 'large',
-  large: 'hidden',
-}
-
 const Panel: FC<Props> = ({
   children,
   title,
@@ -38,28 +27,10 @@ const Panel: FC<Props> = ({
   controlsRight,
   onRemove,
 }) => {
-  const [panelState, setPanelState] = useState<PanelState>('small')
-
-  const panelClassName = classnames('notebook-panel', {
-    [`notebook-panel__${panelState}`]: panelState,
-  })
-  const childrenShouldBeVisible =
-    panelState === 'small' || panelState === 'large'
-
-  const handleToggle = (): void => {
-    setPanelState(PANEL_PROGRESS[panelState])
-  }
-
-  let removePanelButton
-
-  if (onRemove) {
-    removePanelButton = (
-      <SquareButton icon={IconFont.Remove} onClick={onRemove} />
-    )
-  }
+  const [className, showChildren, toggle] = usePanelState()
 
   return (
-    <div className={panelClassName}>
+    <div className={className}>
       <div className="notebook-panel--header">
         <FlexBox
           className="notebook-panel--header-left"
@@ -67,9 +38,9 @@ const Panel: FC<Props> = ({
           margin={ComponentSize.Small}
           justifyContent={JustifyContent.FlexStart}
         >
-          <div className="notebook-panel--toggle" onClick={handleToggle} />
+          <div className="notebook-panel--toggle" onClick={toggle} />
           <div className="notebook-panel--title">{title}</div>
-          {childrenShouldBeVisible && controlsLeft}
+          {showChildren && controlsLeft}
         </FlexBox>
         <FlexBox
           className="notebook-panel--header-right"
@@ -77,13 +48,11 @@ const Panel: FC<Props> = ({
           margin={ComponentSize.Small}
           justifyContent={JustifyContent.FlexEnd}
         >
-          {childrenShouldBeVisible && controlsRight}
-          {removePanelButton}
+          {showChildren && controlsRight}
+          <RemoveButton onRemove={onRemove} />
         </FlexBox>
       </div>
-      <div className="notebook-panel--body">
-        {childrenShouldBeVisible && children}
-      </div>
+      <div className="notebook-panel--body">{showChildren && children}</div>
     </div>
   )
 }

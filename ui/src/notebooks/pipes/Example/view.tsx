@@ -1,21 +1,18 @@
 import React, {FC, useContext} from 'react'
+import {PipeProp} from 'src/notebooks'
 import {NotebookContext} from 'src/notebooks/context/notebook'
 
 import Panel from 'src/notebooks/components/Panel'
 
-interface PipeProps {
-  idx: number
-}
-
 const TITLE = 'Example Pipe'
 
-const ExampleView: FC<PipeProps> = ({idx}) => {
+const ExampleView: FC<PipeProp> = ({index}) => {
   const {pipes, removePipe} = useContext(NotebookContext)
-  const pipe = pipes[idx]
+  const pipe = pipes[index]
 
-  if (idx) {
+  if (index) {
     return (
-      <Panel onRemove={() => removePipe(idx)} title={TITLE}>
+      <Panel onRemove={() => removePipe(index)} title={TITLE}>
         <h1>{pipe.text}</h1>
       </Panel>
     )
