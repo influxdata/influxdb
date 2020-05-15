@@ -190,6 +190,16 @@ func testFlux(t testing.TB, l *launcher.TestLauncher, file *ast.File) {
 	// this time we use a call to `run` so that the assertion error is triggered
 	runCalls := stdlib.TestingRunCalls(pkg)
 	pkg.Files[len(pkg.Files)-1] = runCalls
+
+	bs, err = json.Marshal(pkg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req = &query.Request{
+		OrganizationID: l.Org.ID,
+		Compiler:       lang.ASTCompiler{AST: bs},
+	}
 	r, err := l.FluxQueryService().Query(ctx, req)
 	if err != nil {
 		t.Fatal(err)
