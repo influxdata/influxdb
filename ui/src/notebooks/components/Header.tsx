@@ -50,7 +50,7 @@ const Header: FC = () => {
     })
   }
 
-  function submit() {}
+  function submit() {} // eslint-disable-line @typescript-eslint/no-empty-function
 
   return (
     <>
