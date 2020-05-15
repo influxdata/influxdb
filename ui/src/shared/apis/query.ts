@@ -75,6 +75,8 @@ export const runQuery = (
 }
 
 const processResponse = async (response: Response): Promise<RunQueryResult> => {
+    await new Promise(r => setTimeout(r, 9000))
+    console.log("thiscodeisrunning")
   switch (response.status) {
     case 200:
       return processSuccessResponse(response)

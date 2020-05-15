@@ -28,7 +28,7 @@ const LoadingRow: FC<Props> = ({index, style}) => {
           style={{
             width: `${width}px`,
             height: `${PLACEHOLDER_HEIGHT}px`,
-            animationDelay: `${(index % 5) / 2}s`,
+            animationDelay: `${((index % 5) / 2) * 100}ms`,
           }}
         />
       </div>

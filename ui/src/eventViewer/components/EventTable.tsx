@@ -1,5 +1,5 @@
 // Libraries
-import React, {useLayoutEffect, FC} from 'react'
+import React, {useLayoutEffect, FC, useEffect, useState} from 'react'
 import {AutoSizer, InfiniteLoader, List} from 'react-virtualized'
 
 // Components
@@ -8,6 +8,7 @@ import TableRow from 'src/eventViewer/components/TableRow'
 import LoadingRow from 'src/eventViewer/components/LoadingRow'
 import FooterRow from 'src/eventViewer/components/FooterRow'
 import ErrorRow from 'src/eventViewer/components/ErrorRow'
+import {Notification, Gradients, IconFont, ComponentSize} from '@influxdata/clockface'
 
 // Utils
 import {
@@ -30,9 +31,26 @@ const EventTable: FC<Props> = ({state, dispatch, loadRows, fields}) => {
 
   const loadMoreRows = () => loadNextRows(state, dispatch, loadRows)
 
+  const [isLongRunningQuery, setIsLongRunningQuery] = useState(false)
+
+  useEffect(() => {
+    console.log("useeffectbeingcalled")
+    setTimeout(
+    ()=>{setIsLongRunningQuery(true)}, 5000 
+    )
+  })
+
+  useEffect(() => {
+    console.log("somethingchanged")
+    if (isLongRunningQuery && !isRowLoaded) {
+      //notify
+      alert("notificationcomingsoon")
+    }
+  }, [isLongRunningQuery, isRowLoaded])
+
   const rowRenderer = ({key, index, style}) => {
     const isLastRow = index === state.rows.length
-
+    
     if (isLastRow && state.nextRowsStatus === RemoteDataState.Error) {
       return <ErrorRow key={key} index={index} style={style} />
     }
