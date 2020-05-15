@@ -49,7 +49,15 @@ func newReverseProxy(dest *url.URL, enablerKey string) *httputil.ReverseProxy {
 	defaultDirector := proxy.Director
 	proxy.Director = func(r *http.Request) {
 		defaultDirector(r)
+
 		r.Header.Set(headerProxyFlag, enablerKey)
+
+		// Override r.Host to prevent us sending this request back to ourselves.
+		// A bug in the stdlib causes this value to be preferred over the
+		// r.URL.Host (which is set in the default Director) if r.Host isn't
+		// empty (which it isn't).
+		// https://github.com/golang/go/issues/28168
+		r.Host = dest.Host
 	}
 	proxy.ModifyResponse = func(r *http.Response) error {
 		r.Header.Set(headerProxyFlag, enablerKey)

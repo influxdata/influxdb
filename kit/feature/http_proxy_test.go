@@ -88,7 +88,7 @@ func TestHTTPProxy_RequestHeader(t *testing.T) {
 	proxy := NewHTTPProxy(sURL, logger, en)
 
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest("GET", "http://example.com/foo", nil)
+	r := httptest.NewRequest(http.MethodGet, "http://example.com/foo", nil)
 	srcHandler(proxy)(w, r)
 }
 
@@ -104,7 +104,7 @@ func testHTTPProxy(logger *zap.Logger, enabler ProxyEnabler) (*http.Response, er
 	proxy := NewHTTPProxy(sURL, logger, enabler)
 
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest("GET", "http://example.com/foo", nil)
+	r := httptest.NewRequest(http.MethodGet, "http://example.com/foo", nil)
 	srcHandler(proxy)(w, r)
 
 	return w.Result(), nil
