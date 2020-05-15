@@ -11,7 +11,7 @@ import {AutoRefreshStatus, RemoteDataState} from 'src/types'
 import {TimeZoneDropdown} from 'src/shared/components/TimeZoneDropdown'
 import {SubmitQueryButton} from 'src/timeMachine/components/SubmitQueryButton'
 
-const Header: FC = () => {
+const Header: FC<{}> = () => {
   const {id} = useContext(NotebookContext)
   const {timeContext, addTimeContext, updateTimeContext} = useContext(
     TimeContext

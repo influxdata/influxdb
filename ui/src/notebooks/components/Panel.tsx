@@ -1,5 +1,6 @@
 // Libraries
-import React, {FC, ReactChildren} from 'react'
+import React, {FC, ReactChildren, useState} from 'react'
+import classnames from 'classnames'
 
 // Components
 import {
@@ -7,10 +8,9 @@ import {
   ComponentSize,
   AlignItems,
   JustifyContent,
+  SquareButton,
+  IconFont,
 } from '@influxdata/clockface'
-
-import usePanelState from 'src/notebooks/hooks/usePanelState'
-import RemoveButton from 'src/notebooks/components/RemoveButton'
 
 interface Props {
   children: ReactChildren | JSX.Element | JSX.Element[]
@@ -18,6 +18,17 @@ interface Props {
   controlsLeft?: JSX.Element | JSX.Element[]
   controlsRight?: JSX.Element | JSX.Element[]
   onRemove?: () => void
+}
+
+type PanelState = 'hidden' | 'small' | 'large'
+interface ProgressMap {
+  [key: PanelState]: PanelState
+}
+
+const PANEL_PROGRESS: ProgressMap = {
+  hidden: 'small',
+  small: 'large',
+  large: 'hidden',
 }
 
 const Panel: FC<Props> = ({
@@ -30,7 +41,7 @@ const Panel: FC<Props> = ({
   const [className, showChildren, toggle] = usePanelState()
 
   return (
-    <div className={className}>
+    <div className={panelClassName}>
       <div className="notebook-panel--header">
         <FlexBox
           className="notebook-panel--header-left"
@@ -38,7 +49,7 @@ const Panel: FC<Props> = ({
           margin={ComponentSize.Small}
           justifyContent={JustifyContent.FlexStart}
         >
-          <div className="notebook-panel--toggle" onClick={toggle} />
+          <div className="notebook-panel--toggle" onClick={handleToggle} />
           <div className="notebook-panel--title">{title}</div>
           {showChildren && controlsLeft}
         </FlexBox>
