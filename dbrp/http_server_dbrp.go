@@ -65,7 +65,7 @@ func (h *Handler) handlePostDBRP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var req createDBRPRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		h.api.Err(w, &influxdb.Error{
+		h.api.Err(w, r, &influxdb.Error{
 			Code: influxdb.EInvalid,
 			Msg:  "invalid json structure",
 			Err:  err,
@@ -81,10 +81,10 @@ func (h *Handler) handlePostDBRP(w http.ResponseWriter, r *http.Request) {
 		BucketID:        req.BucketID,
 	}
 	if err := h.dbrpSvc.Create(ctx, dbrp); err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
-	h.api.Respond(w, http.StatusCreated, dbrp)
+	h.api.Respond(w, r, http.StatusCreated, dbrp)
 }
 
 type getDBRPsResponse struct {
@@ -94,16 +94,16 @@ type getDBRPsResponse struct {
 func (h *Handler) handleGetDBRPs(w http.ResponseWriter, r *http.Request) {
 	filter, err := getFilterFromHTTPRequest(r)
 	if err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 	dbrps, _, err := h.dbrpSvc.FindMany(r.Context(), filter)
 	if err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
-	h.api.Respond(w, http.StatusOK, getDBRPsResponse{
+	h.api.Respond(w, r, http.StatusOK, getDBRPsResponse{
 		Content: dbrps,
 	})
 }
@@ -116,7 +116,7 @@ func (h *Handler) handleGetDBRP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	id := chi.URLParam(r, "id")
 	if id == "" {
-		h.api.Err(w, &influxdb.Error{
+		h.api.Err(w, r, &influxdb.Error{
 			Code: influxdb.EInvalid,
 			Msg:  "url missing id",
 		})
@@ -125,22 +125,22 @@ func (h *Handler) handleGetDBRP(w http.ResponseWriter, r *http.Request) {
 
 	var i influxdb.ID
 	if err := i.DecodeFromString(id); err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
 	orgID, err := mustGetOrgIDFromHTTPRequest(r)
 	if err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
 	dbrp, err := h.dbrpSvc.FindByID(ctx, *orgID, i)
 	if err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
-	h.api.Respond(w, http.StatusOK, getDBRPResponse{
+	h.api.Respond(w, r, http.StatusOK, getDBRPResponse{
 		Content: dbrp,
 	})
 }
@@ -155,7 +155,7 @@ func (h *Handler) handlePatchDBRP(w http.ResponseWriter, r *http.Request) {
 
 	id := chi.URLParam(r, "id")
 	if id == "" {
-		h.api.Err(w, &influxdb.Error{
+		h.api.Err(w, r, &influxdb.Error{
 			Code: influxdb.EInvalid,
 			Msg:  "url missing id",
 		})
@@ -164,24 +164,24 @@ func (h *Handler) handlePatchDBRP(w http.ResponseWriter, r *http.Request) {
 
 	var i influxdb.ID
 	if err := i.DecodeFromString(id); err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
 	orgID, err := mustGetOrgIDFromHTTPRequest(r)
 	if err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
 	dbrp, err := h.dbrpSvc.FindByID(ctx, *orgID, i)
 	if err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&bodyRequest); err != nil {
-		h.api.Err(w, &influxdb.Error{
+		h.api.Err(w, r, &influxdb.Error{
 			Code: influxdb.EInvalid,
 			Msg:  "invalid json structure",
 			Err:  err,
@@ -198,11 +198,11 @@ func (h *Handler) handlePatchDBRP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.dbrpSvc.Update(ctx, dbrp); err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
-	h.api.Respond(w, http.StatusOK, struct {
+	h.api.Respond(w, r, http.StatusOK, struct {
 		Content *influxdb.DBRPMappingV2 `json:"content"`
 	}{
 		Content: dbrp,
@@ -213,7 +213,7 @@ func (h *Handler) handleDeleteDBRP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	id := chi.URLParam(r, "id")
 	if id == "" {
-		h.api.Err(w, &influxdb.Error{
+		h.api.Err(w, r, &influxdb.Error{
 			Code: influxdb.EInvalid,
 			Msg:  "url missing id",
 		})
@@ -222,18 +222,18 @@ func (h *Handler) handleDeleteDBRP(w http.ResponseWriter, r *http.Request) {
 
 	var i influxdb.ID
 	if err := i.DecodeFromString(id); err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
 	orgID, err := mustGetOrgIDFromHTTPRequest(r)
 	if err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
 	if err := h.dbrpSvc.Delete(ctx, *orgID, i); err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
