@@ -2,6 +2,7 @@ import {useState} from 'react'
 import classnames from 'classnames'
 
 type PanelState = 'hidden' | 'small' | 'large'
+
 interface ProgressMap {
   [key: PanelState]: PanelState
 }
