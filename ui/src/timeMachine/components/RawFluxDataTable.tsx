@@ -5,7 +5,7 @@ import RawFluxDataGrid from 'src/timeMachine/components/RawFluxDataGrid'
 
 // Utils
 import {parseFiles} from 'src/timeMachine/utils/rawFluxDataTable'
-import { DapperScrollbars } from '@influxdata/clockface'
+import {DapperScrollbars} from '@influxdata/clockface'
 
 interface Props {
   files: string[]

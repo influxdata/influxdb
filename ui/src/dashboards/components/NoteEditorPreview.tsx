@@ -1,7 +1,7 @@
 import React, {SFC, MouseEvent} from 'react'
 
 import {MarkdownRenderer} from 'src/shared/components/views/MarkdownRenderer'
-import { DapperScrollbars } from '@influxdata/clockface'
+import {DapperScrollbars} from '@influxdata/clockface'
 
 interface Props {
   note: string

@@ -1,7 +1,7 @@
 import * as React from 'react'
 import CellMeasurerCacheDecorator from './CellMeasurerCacheDecorator'
 import {Grid} from 'react-virtualized'
-import { DapperScrollbars } from '@influxdata/clockface'
+import {DapperScrollbars} from '@influxdata/clockface'
 
 const SCROLLBAR_SIZE_BUFFER = 20
 type HeightWidthFunction = (arg: {index: number}) => number
