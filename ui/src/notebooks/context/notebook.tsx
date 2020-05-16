@@ -12,7 +12,7 @@ export interface NotebookContextType {
   removePipe: (idx: number) => void
 }
 
-export const DEFAULT_CONTEXT = {
+export const DEFAULT_CONTEXT: NotebookContextType = {
   id: 'new',
   pipes: [],
   addPipe: () => {},

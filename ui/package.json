@@ -79,6 +79,7 @@
     "@types/text-encoding": "^0.0.32",
     "@types/uuid": "^3.4.3",
     "@types/webpack": "^4.4.35",
+    "@types/webpack-env": "^1.15.2",
     "@typescript-eslint/eslint-plugin": "^2.6.0",
     "@typescript-eslint/parser": "^2.6.0",
     "acorn": "^6.0.6",
