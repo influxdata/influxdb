@@ -22,7 +22,7 @@ const GraphTips: FC = () => (
           </p>
           <h1>Static Legend Tips:</h1>
           <p>
-            <code>Click</code>Focus on single Series
+            <code>Click</code> Focus on single Series
             <br />
             <code>Shift + Click</code> Show/Hide single Series
           </p>

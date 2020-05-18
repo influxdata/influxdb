@@ -126,7 +126,6 @@ const findSubgraph = (
   variables: Variable[]
 ): VariableNode[] => {
   const subgraph: Set<VariableNode> = new Set()
-
   // use an ID array to reduce the chance of reference errors
   const varIDs = variables.map(v => v.id)
   // create an array of IDs to reference later
@@ -144,13 +143,14 @@ const findSubgraph = (
     }
   }
 
+  const removeDupAncestors = (n: VariableNode) => {
+    const {id} = n.variable
+    return !graphIDs.includes(id)
+  }
+
   for (const node of subgraph) {
-    // node.parents = node.parents.filter(n => {
-    //   const {id} = n.variable
-    //   return !graphIDs.includes(id)
-    // })
-    // node.parents = node.parents.filter(n => !subgraph.has(n))
-    node.children = node.children.filter(n => subgraph.has(n))
+    node.parents = node.parents.filter(removeDupAncestors)
+    node.children = node.children.filter(removeDupAncestors)
   }
 
   return [...subgraph]
@@ -230,15 +230,14 @@ const hydrateVarsHelper = async (
   if (node.status !== RemoteDataState.Loading) {
     node.status = RemoteDataState.Loading
     on.fire('status', node.variable, node.status)
-
     collectAncestors(node)
-      .filter(parent => parent.variable.arguments.type === 'query')
-      .forEach(parent => {
-        if (parent.status !== RemoteDataState.Loading) {
-          parent.status = RemoteDataState.Loading
-          on.fire('status', parent.variable, parent.status)
-        }
-      })
+    .filter(parent => parent.variable.arguments.type === 'query')
+    .forEach(parent => {
+      if (parent.status !== RemoteDataState.Loading) {
+        parent.status = RemoteDataState.Loading
+        on.fire('status', parent.variable, parent.status)
+      }
+    })
   }
 
   const descendants = collectDescendants(node)
@@ -398,10 +397,9 @@ export const hydrateVars = (
   allVariables: Variable[],
   options: HydrateVarsOptions
 ): EventedCancelBox<Variable[]> => {
-  const graph = findSubgraph(
-    createVariableGraph(allVariables),
-    variables
-  ).filter(n => n.variable.arguments.type !== 'system')
+  const graph = findSubgraph(createVariableGraph(allVariables), variables).filter(
+    n => n.variable.arguments.type !== 'system'
+  )
   invalidateCycles(graph)
 
   let isCancelled = false
@@ -494,10 +492,7 @@ export const hydrateVars = (
   // from the main execution thread, allowing external services to
   // register listeners for the loading state changes
   Promise.resolve()
-    .then(() => {
-      console.log('graph in promise resolve: ', graph)
-      return Promise.all(findLeaves(graph).map(resolve))
-    })
+    .then(() => Promise.all(findLeaves(graph).map(resolve)))
     .then(() => {
       deferred.resolve(extractResult(graph))
     })
