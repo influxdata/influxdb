@@ -11,6 +11,7 @@ const NotebookMinimap: FC<Props> = () => {
 
   return (
     <div className="notebook-minimap">
+      <div className="notebook-minimap--header">Minimap</div>
       {pipes.map((_, index) => (
         <div key={`pipe-${id}-${index}`} className="notebook-minimap--item">
           {`pipe${index}`}

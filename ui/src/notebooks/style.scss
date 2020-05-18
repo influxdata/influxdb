@@ -33,6 +33,14 @@ $notebook-divider-height: ($cf-marg-a * 2) + $cf-border;
   padding-left: $cf-marg-b;
 }
 
+.notebook-minimap--header {
+  font-size: 14px;
+  font-weight: $cf-font-weight--medium;
+  color: $g13-mist;
+  margin-bottom: $cf-marg-c;
+  user-select: none;
+}
+
 .notebook-minimap--item {
   user-select: none;
   border-radius: $cf-radius;
