@@ -33,3 +33,10 @@
   default: false
   contact: Alirie Gray
   lifetime: temporary
+
+- name: Session Service
+  description: A temporary switching system for the new session system
+  key: sessionService
+  default: false
+  contact: Lyon Hill
+  expose: true

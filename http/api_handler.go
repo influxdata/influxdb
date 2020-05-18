@@ -177,11 +177,6 @@ func NewAPIHandler(b *APIBackend, opts ...APIHandlerOptFn) *APIHandler {
 		b.OrganizationService)
 	h.Mount(prefixTargets, NewScraperHandler(b.Logger, scraperBackend))
 
-	sessionBackend := newSessionBackend(b.Logger.With(zap.String("handler", "session")), b)
-	sessionHandler := NewSessionHandler(b.Logger, sessionBackend)
-	h.Mount(prefixSignIn, sessionHandler)
-	h.Mount(prefixSignOut, sessionHandler)
-
 	sourceBackend := NewSourceBackend(b.Logger.With(zap.String("handler", "source")), b)
 	sourceBackend.SourceService = authorizer.NewSourceService(b.SourceService)
 	sourceBackend.BucketService = authorizer.NewBucketService(b.BucketService, noAuthUserResourceMappingService)
