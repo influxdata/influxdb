@@ -15,12 +15,16 @@ const NotebookPage: FC = () => {
   return (
     <NotebookProvider>
       <Page titleTag="Notebook">
-        <Page.Header fullWidth={false}>
+        <Page.Header fullWidth={true}>
           <Header />
         </Page.Header>
-        <Page.Contents fullWidth={false} scrollable={true}>
+        <Page.ControlBar fullWidth={true}>
+          <Page.ControlBarLeft>
+            <AddButtons />
+          </Page.ControlBarLeft>
+        </Page.ControlBar>
+        <Page.Contents fullWidth={true} scrollable={true}>
           <PipeList />
-          <AddButtons />
         </Page.Contents>
       </Page>
     </NotebookProvider>

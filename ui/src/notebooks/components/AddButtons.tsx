@@ -1,5 +1,10 @@
+// Libraries
 import React, {FC, useContext} from 'react'
+
+// Components
 import {Button, ComponentColor} from '@influxdata/clockface'
+
+// Constants
 import {NotebookContext} from 'src/notebooks/context/notebook'
 import {PIPE_DEFINITIONS} from 'src/notebooks'
 
@@ -22,7 +27,7 @@ const AddButtons: FC = () => {
     )
   })
 
-  return <div className="notebook--actions">{pipes}</div>
+  return <>{pipes}</>
 }
 
 export default AddButtons
