@@ -7,6 +7,8 @@ $notebook-panel--bg: mix($g1-raven, $g2-kevlar, 50%);
 
 $notebook-divider-height: ($cf-marg-a * 2) + $cf-border;
 
+
+// Page Layout
 .notebook {
   width: 100%;
   display: flex;
@@ -14,11 +16,46 @@ $notebook-divider-height: ($cf-marg-a * 2) + $cf-border;
   align-items: stretch;
 }
 
+.notebook-contents .cf-page-contents__fluid {
+  display: flex;
+  align-items: stretch;
+}
+
+.notebook-pipes {
+  flex: 1 0 0;
+}
+
+.notebook-minimap {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  flex: 0 0 140px;
+  padding-left: $cf-marg-b;
+}
+
+.notebook-minimap--item {
+  user-select: none;
+  border-radius: $cf-radius;
+  transition: background-color 0.25s ease, color 0.25s ease;
+  color: $g11-sidewalk;
+  font-size: 13px;
+  font-weight: $cf-font-weight--medium;
+  padding: $cf-marg-b;
+
+  &:hover {
+    cursor: pointer;
+    color: $g18-cloud;
+    background-color: $g3-castle;
+  }
+}
+
+// Notebook Panels
 .notebook-panel {
   display: flex;
   flex-direction: column;
   align-items: stretch;
   border-radius: $cf-radius;
+  margin-right: $cf-marg-d;
   
   &:after {
     content: '';
@@ -26,6 +63,14 @@ $notebook-divider-height: ($cf-marg-a * 2) + $cf-border;
     background-color: $g2-kevlar;
     border-radius: $cf-border / 2;
     margin: $cf-marg-a 0;
+  }
+
+  &:last-child {
+    margin-bottom: $cf-marg-d;
+
+    &:after {
+      content: none;
+    }
   }
 }
 
@@ -141,7 +186,6 @@ $notebook-divider-height: ($cf-marg-a * 2) + $cf-border;
   border-radius: 0 0 $cf-radius $cf-radius;
   padding: $cf-marg-b;
   padding-top: 0;
-  // flex: 1 0 0;
   position: relative;
 }
 
