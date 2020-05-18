@@ -429,7 +429,7 @@ func (data *Data) CreateContinuousQuery(database, name, query string) error {
 			// If the query string is the same, we'll silently return,
 			// otherwise we'll assume the user might be trying to
 			// overwrite an existing CQ with a different query.
-			if strings.ToLower(cq.Query) == strings.ToLower(query) {
+			if strings.EqualFold(cq.Query, query) {
 				return nil
 			}
 			return ErrContinuousQueryExists

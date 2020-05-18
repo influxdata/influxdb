@@ -31,9 +31,8 @@ func Exists(set []string, find string) bool {
 
 // ExistsIgnoreCase checks if a string is in a set but ignores its case.
 func ExistsIgnoreCase(set []string, find string) bool {
-	find = strings.ToLower(find)
 	for _, s := range set {
-		if strings.ToLower(s) == find {
+		if strings.EqualFold(s, find) {
 			return true
 		}
 	}

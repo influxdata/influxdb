@@ -151,9 +151,9 @@ func (s *Service) Open() error {
 	go s.processBatches(s.batcher)
 
 	var err error
-	if strings.ToLower(s.protocol) == "tcp" {
+	if strings.EqualFold(s.protocol, "tcp") {
 		s.addr, err = s.openTCPServer()
-	} else if strings.ToLower(s.protocol) == "udp" {
+	} else if strings.EqualFold(s.protocol, "udp") {
 		s.addr, err = s.openUDPServer()
 	} else {
 		return fmt.Errorf("unrecognized Graphite input protocol %s", s.protocol)
