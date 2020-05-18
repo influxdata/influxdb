@@ -230,7 +230,7 @@ func TestResponseWriter_MessagePack_Error(t *testing.T) {
 			if _, err := reader.WriteToJSON(&buf); err != nil {
 				t.Fatalf("unexpected error: %s", err)
 			}
-			want := fmt.Sprintf(`{"error":"test error"}`)
+			want := `{"error":"test error"}`
 			if have := strings.TrimSpace(buf.String()); have != want {
 				t.Fatalf("unexpected output: %s != %s", have, want)
 			}

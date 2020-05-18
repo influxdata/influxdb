@@ -1081,7 +1081,7 @@ func TestServer_Query_Math(t *testing.T) {
 		&Query{
 			name:    "SELECT sum of aggregates",
 			command: `SELECT max(value) + min(value) from db.rp.integer`,
-			exp:     fmt.Sprintf(`{"results":[{"statement_id":0,"series":[{"name":"integer","columns":["time","max_min"],"values":[["1970-01-01T00:00:00Z",84]]}]}]}`),
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"integer","columns":["time","max_min"],"values":[["1970-01-01T00:00:00Z",84]]}]}]}`,
 		},
 		&Query{
 			name:    "SELECT square of enclosed integer value",
@@ -1824,7 +1824,7 @@ func TestServer_Query_SelectRawDerivative(t *testing.T) {
 
 	test := NewTest("db0", "rp0")
 	test.writes = Writes{
-		&Write{data: fmt.Sprintf("cpu value=210 1278010021000000000\ncpu value=10 1278010022000000000")},
+		&Write{data: "cpu value=210 1278010021000000000\ncpu value=10 1278010022000000000"},
 	}
 
 	test.addQueries([]*Query{
@@ -1914,7 +1914,7 @@ func TestServer_Query_SelectGroupByTimeDerivative(t *testing.T) {
 
 	test := NewTest("db0", "rp0")
 	test.writes = Writes{
-		&Write{data: fmt.Sprintf(`cpu value=10 1278010020000000000
+		&Write{data: `cpu value=10 1278010020000000000
 cpu value=15 1278010021000000000
 cpu value=20 1278010022000000000
 cpu value=25 1278010023000000000
@@ -1927,7 +1927,7 @@ cpu0,host=server02 ticks=40,total=100 1278010020000000000
 cpu0,host=server02 ticks=45,total=100 1278010021000000000
 cpu0,host=server02 ticks=84,total=100 1278010022000000000
 cpu0,host=server02 ticks=101,total=100 1278010023000000000
-`)},
+`},
 	}
 
 	test.addQueries([]*Query{
@@ -2066,9 +2066,9 @@ func TestServer_Query_SelectGroupByTimeDerivativeWithFill(t *testing.T) {
 
 	test := NewTest("db0", "rp0")
 	test.writes = Writes{
-		&Write{data: fmt.Sprintf(`cpu value=10 1278010020000000000
+		&Write{data: `cpu value=10 1278010020000000000
 cpu value=20 1278010021000000000
-`)},
+`},
 	}
 
 	test.addQueries([]*Query{
@@ -2301,11 +2301,11 @@ func TestServer_Query_SelectGroupByTimeDifference(t *testing.T) {
 
 	test := NewTest("db0", "rp0")
 	test.writes = Writes{
-		&Write{data: fmt.Sprintf(`cpu value=10 1278010020000000000
+		&Write{data: `cpu value=10 1278010020000000000
 cpu value=15 1278010021000000000
 cpu value=20 1278010022000000000
 cpu value=25 1278010023000000000
-`)},
+`},
 	}
 
 	test.addQueries([]*Query{
@@ -2388,9 +2388,9 @@ func TestServer_Query_SelectGroupByTimeDifferenceWithFill(t *testing.T) {
 
 	test := NewTest("db0", "rp0")
 	test.writes = Writes{
-		&Write{data: fmt.Sprintf(`cpu value=10 1278010020000000000
+		&Write{data: `cpu value=10 1278010020000000000
 cpu value=20 1278010021000000000
-`)},
+`},
 	}
 
 	test.addQueries([]*Query{
@@ -2523,13 +2523,13 @@ func TestServer_Query_SelectGroupByTimeMovingAverage(t *testing.T) {
 
 	test := NewTest("db0", "rp0")
 	test.writes = Writes{
-		&Write{data: fmt.Sprintf(`cpu value=10 1278010020000000000
+		&Write{data: `cpu value=10 1278010020000000000
 cpu value=15 1278010021000000000
 cpu value=20 1278010022000000000
 cpu value=25 1278010023000000000
 cpu value=30 1278010024000000000
 cpu value=35 1278010025000000000
-`)},
+`},
 	}
 
 	test.addQueries([]*Query{
@@ -2612,11 +2612,11 @@ func TestServer_Query_SelectGroupByTimeMovingAverageWithFill(t *testing.T) {
 
 	test := NewTest("db0", "rp0")
 	test.writes = Writes{
-		&Write{data: fmt.Sprintf(`cpu value=10 1278010020000000000
+		&Write{data: `cpu value=10 1278010020000000000
 cpu value=15 1278010021000000000
 cpu value=30 1278010024000000000
 cpu value=35 1278010025000000000
-`)},
+`},
 	}
 
 	test.addQueries([]*Query{
@@ -2749,11 +2749,11 @@ func TestServer_Query_SelectGroupByTimeCumulativeSum(t *testing.T) {
 
 	test := NewTest("db0", "rp0")
 	test.writes = Writes{
-		&Write{data: fmt.Sprintf(`cpu value=10 1278010020000000000
+		&Write{data: `cpu value=10 1278010020000000000
 cpu value=15 1278010021000000000
 cpu value=20 1278010022000000000
 cpu value=25 1278010023000000000
-`)},
+`},
 	}
 
 	test.addQueries([]*Query{
@@ -2836,9 +2836,9 @@ func TestServer_Query_SelectGroupByTimeCumulativeSumWithFill(t *testing.T) {
 
 	test := NewTest("db0", "rp0")
 	test.writes = Writes{
-		&Write{data: fmt.Sprintf(`cpu value=10 1278010020000000000
+		&Write{data: `cpu value=10 1278010020000000000
 cpu value=20 1278010021000000000
-`)},
+`},
 	}
 
 	test.addQueries([]*Query{
@@ -2970,13 +2970,13 @@ func TestServer_Query_CumulativeCount(t *testing.T) {
 
 	test := NewTest("db0", "rp0")
 	test.writes = Writes{
-		&Write{data: fmt.Sprintf(`events signup=t 1005832000
+		&Write{data: `events signup=t 1005832000
 events signup=t 1048283000
 events signup=t 1784832000
 events signup=t 2000000000
 events signup=t 3084890000
 events signup=t 3838400000
-`)},
+`},
 	}
 
 	test.addQueries([]*Query{
@@ -3013,13 +3013,13 @@ func TestServer_Query_SelectGroupByTime_MultipleAggregates(t *testing.T) {
 
 	test := NewTest("db0", "rp0")
 	test.writes = Writes{
-		&Write{data: fmt.Sprintf(`test,t=a x=1i 1000000000
+		&Write{data: `test,t=a x=1i 1000000000
 test,t=b y=1i 1000000000
 test,t=a x=2i 2000000000
 test,t=b y=2i 2000000000
 test,t=a x=3i 3000000000
 test,t=b y=3i 3000000000
-`)},
+`},
 	}
 
 	test.addQueries([]*Query{
@@ -3056,8 +3056,8 @@ func TestServer_Query_MathWithFill(t *testing.T) {
 
 	test := NewTest("db0", "rp0")
 	test.writes = Writes{
-		&Write{data: fmt.Sprintf(`cpu value=15 1278010020000000000
-`)},
+		&Write{data: `cpu value=15 1278010020000000000
+`},
 	}
 
 	test.addQueries([]*Query{

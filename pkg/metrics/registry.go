@@ -59,7 +59,7 @@ func (r *Registry) MustRegisterGroup(name string) GID {
 
 func (r *Registry) mustGetGroupRegistry(id GID) *groupRegistry {
 	if int(id) >= len(r.groups) {
-		panic(fmt.Sprintf("invalid group ID"))
+		panic(fmt.Sprintf("invalid group ID %v", id))
 	}
 	return &r.groups[id]
 }
