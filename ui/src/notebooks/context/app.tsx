@@ -1,6 +1,7 @@
 import React, {FC} from 'react'
 import {connect} from 'react-redux'
 import {setTimeZone} from 'src/shared/actions/app'
+import { timeZone as timeZoneFromState } from 'src/shared/selectors/app'
 
 import {AppState, TimeZone} from 'src/types'
 
@@ -48,7 +49,7 @@ export const AppSettingProvider: FC<Props> = ({
 
 const mstp = (state: AppState): StateProps => {
   return {
-    timeZone: state.app.persisted.timeZone || ('Local' as TimeZone),
+    timeZone: timeZoneFromState(state),
   }
 }
 
