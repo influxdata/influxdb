@@ -1,7 +1,8 @@
 import React, {SFC, MouseEvent} from 'react'
 
+import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
+
 import {MarkdownRenderer} from 'src/shared/components/views/MarkdownRenderer'
-import {DapperScrollbars} from '@influxdata/clockface'
 
 interface Props {
   note: string
@@ -15,10 +16,10 @@ const cloudImageRenderer = (): any =>
 const NoteEditorPreview: SFC<Props> = props => {
   return (
     <div className="note-editor--preview">
-      <DapperScrollbars
+      <FancyScrollbar
         className="note-editor--preview-scroll"
         scrollTop={props.scrollTop}
-        onScroll={props.onScroll}
+        setScrollTop={props.onScroll}
       >
         <div className="note-editor--markdown-container">
           <MarkdownRenderer
@@ -30,7 +31,7 @@ const NoteEditorPreview: SFC<Props> = props => {
             }}
           />
         </div>
-      </DapperScrollbars>
+      </FancyScrollbar>
     </div>
   )
 }
