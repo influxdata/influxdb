@@ -399,7 +399,7 @@ func (e *Executor) recover(query *influxql.Query, results chan *Result) {
 		}
 
 		if willCrash {
-			e.Logger.Error(fmt.Sprintf("\n\n=====\nAll goroutines now follow:"))
+			e.Logger.Error("\n\n=====\nAll goroutines now follow:")
 			buf := debug.Stack()
 			e.Logger.Error(fmt.Sprintf("%s", buf))
 			os.Exit(1)
