@@ -31,6 +31,13 @@ func TestFlagger(t *testing.T) {
 				newFlag("flag3", "original3"),
 				newFlag("flag4", "original4"),
 			},
+			byKey: newByKey(map[string]feature.Flag{
+				"flag0": newFlag("flag0", "original0"),
+				"flag1": newFlag("flag1", "original1"),
+				"flag2": newFlag("flag2", "original2"),
+				"flag3": newFlag("flag3", "original3"),
+				"flag4": newFlag("flag4", "original4"),
+			}),
 			expected: map[string]interface{}{
 				"flag0": "original0",
 				"flag1": "new1",
@@ -51,6 +58,11 @@ func TestFlagger(t *testing.T) {
 				newFlag("floatflag", 42.42),
 				newFlag("boolflag", false),
 			},
+			byKey: newByKey(map[string]feature.Flag{
+				"intflag":   newFlag("intflag", 42),
+				"floatflag": newFlag("floatflag", 43.43),
+				"boolflag":  newFlag("boolflag", false),
+			}),
 			expected: map[string]interface{}{
 				"intflag":   43,
 				"floatflag": 43.43,
@@ -65,6 +77,9 @@ func TestFlagger(t *testing.T) {
 			defaults: []feature.Flag{
 				newFlag("key", 42),
 			},
+			byKey: newByKey(map[string]feature.Flag{
+				"key": newFlag("key", 42),
+			}),
 			expectFlagsErr: true,
 		},
 		{
@@ -95,6 +110,19 @@ func TestFlagger(t *testing.T) {
 				"flag3": true,
 				"flag4": "original4",
 			},
+		},
+		{
+			name: "override for non-existent flag",
+			env: map[string]string{
+				"dne": "foobar",
+			},
+			defaults: []feature.Flag{
+				newBaseFlag("key", "value"),
+			},
+			byKey: newByKey(map[string]feature.Flag{
+				"key": newFlag("key", "value"),
+			}),
+			expectMakeErr: true,
 		},
 	}
 

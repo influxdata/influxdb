@@ -22,6 +22,7 @@ import (
 	"github.com/influxdata/influxdb/v2/bolt"
 	"github.com/influxdata/influxdb/v2/chronograf/server"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/inspect"
+	"github.com/influxdata/influxdb/v2/dbrp"
 	"github.com/influxdata/influxdb/v2/endpoints"
 	"github.com/influxdata/influxdb/v2/gather"
 	"github.com/influxdata/influxdb/v2/http"
@@ -43,6 +44,7 @@ import (
 	"github.com/influxdata/influxdb/v2/query/control"
 	"github.com/influxdata/influxdb/v2/query/fluxlang"
 	"github.com/influxdata/influxdb/v2/query/stdlib/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2/session"
 	"github.com/influxdata/influxdb/v2/snowflake"
 	"github.com/influxdata/influxdb/v2/source"
 	"github.com/influxdata/influxdb/v2/storage"
@@ -596,7 +598,6 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		authSvc                   platform.AuthorizationService            = m.kvService
 		variableSvc               platform.VariableService                 = m.kvService
 		sourceSvc                 platform.SourceService                   = m.kvService
-		sessionSvc                platform.SessionService                  = m.kvService
 		dashboardSvc              platform.DashboardService                = m.kvService
 		dashboardLogSvc           platform.DashboardOperationLogService    = m.kvService
 		userLogSvc                platform.UserOperationLogService         = m.kvService
@@ -764,6 +765,13 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		}
 	}
 
+	dbrpSvc, err := dbrp.NewService(ctx, authorizer.NewBucketService(bucketSvc, userResourceSvc), m.kvStore)
+	if err != nil {
+		return err
+	}
+
+	dbrpSvc = dbrp.NewAuthorizedService(dbrpSvc)
+
 	var checkSvc platform.CheckService
 	{
 		coordinator := coordinator.NewCoordinator(m.log, m.scheduler, m.executor)
@@ -866,6 +874,14 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		flagger = f
 	}
 
+	var sessionSvc platform.SessionService
+	{
+		sessionSvc = session.NewService(session.NewStorage(inmem.NewSessionStore()), userSvc, userResourceSvc, authSvc, time.Duration(m.sessionLength)*time.Minute)
+		sessionSvc = session.NewSessionMetrics(m.reg, sessionSvc)
+		sessionSvc = session.NewSessionLogger(m.log.With(zap.String("service", "session")), sessionSvc)
+		sessionSvc = session.NewServiceController(flagger, m.kvService, sessionSvc)
+	}
+
 	m.apibackend = &http.APIBackend{
 		AssetsPath:           m.assetsPath,
 		HTTPErrorHandler:     kithttp.ErrorHandler(0),
@@ -883,6 +899,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		BucketService:                   storage.NewBucketService(bucketSvc, m.engine),
 		SessionService:                  sessionSvc,
 		UserService:                     userSvc,
+		DBRPService:                     dbrpSvc,
 		OrganizationService:             orgSvc,
 		UserResourceMappingService:      userResourceSvc,
 		LabelService:                    labelSvc,
@@ -985,8 +1002,21 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		authHTTPServer = kithttp.NewFeatureHandler(feature.NewAuthPackage(), flagger, oldHandler, newHandler, newHandler.Prefix())
 	}
 
+	var oldSessionHandler nethttp.Handler
+	var sessionHTTPServer *session.SessionHandler
 	{
-		platformHandler := http.NewPlatformHandler(m.apibackend, http.WithResourceHandler(pkgHTTPServer), http.WithResourceHandler(onboardHTTPServer), http.WithResourceHandler(authHTTPServer))
+		oldSessionHandler = http.NewSessionHandler(m.log.With(zap.String("handler", "old_session")), http.NewSessionBackend(m.log, m.apibackend))
+		sessionHTTPServer = session.NewSessionHandler(m.log.With(zap.String("handler", "session")), sessionSvc, userSvc, passwdsSvc)
+	}
+
+	{
+		platformHandler := http.NewPlatformHandler(m.apibackend,
+			http.WithResourceHandler(pkgHTTPServer),
+			http.WithResourceHandler(onboardHTTPServer),
+			http.WithResourceHandler(authHTTPServer),
+			http.WithResourceHandler(kithttp.NewFeatureHandler(feature.SessionService(), flagger, oldSessionHandler, sessionHTTPServer.SignInResourceHandler(), sessionHTTPServer.SignInResourceHandler().Prefix())),
+			http.WithResourceHandler(kithttp.NewFeatureHandler(feature.SessionService(), flagger, oldSessionHandler, sessionHTTPServer.SignOutResourceHandler(), sessionHTTPServer.SignOutResourceHandler().Prefix())),
+		)
 
 		httpLogger := m.log.With(zap.String("service", "http"))
 		m.httpServer.Handler = http.NewHandlerFromRegistry(

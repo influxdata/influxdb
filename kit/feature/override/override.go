@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/influxdata/influxdb/v2/kit/feature"
 )
@@ -15,12 +16,24 @@ type Flagger struct {
 }
 
 // Make a Flagger that returns defaults with any overrides parsed from the string.
-func Make(m map[string]string, byKey feature.ByKeyFn) (Flagger, error) {
+func Make(overrides map[string]string, byKey feature.ByKeyFn) (Flagger, error) {
 	if byKey == nil {
 		byKey = feature.ByKey
 	}
+
+	// Check all provided override keys correspond to an existing Flag.
+	var missing []string
+	for k := range overrides {
+		if _, found := byKey(k); !found {
+			missing = append(missing, k)
+		}
+	}
+	if len(missing) > 0 {
+		return Flagger{}, fmt.Errorf("configured overrides for non-existent flags: %s", strings.Join(missing, ","))
+	}
+
 	return Flagger{
-		overrides: m,
+		overrides: overrides,
 		byKey:     byKey,
 	}, nil
 }

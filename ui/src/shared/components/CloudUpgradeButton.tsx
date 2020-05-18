@@ -2,6 +2,7 @@
 import React, {FC} from 'react'
 import {Link} from 'react-router'
 import {connect} from 'react-redux'
+import {get, find} from 'lodash'
 
 // Components
 import CloudOnly from 'src/shared/components/cloud/CloudOnly'
@@ -36,12 +37,10 @@ const CloudUpgradeButton: FC<StateProps> = ({inView}) => {
   )
 }
 
-const mstp = ({
-  cloud: {
-    orgSettings: {settings},
-  },
-}: AppState) => {
-  const hideUpgradeButtonSetting = settings.find(
+const mstp = (state: AppState) => {
+  const settings = get(state, 'cloud.orgSettings.settings', [])
+  const hideUpgradeButtonSetting = find(
+    settings,
     (setting: OrgSetting) => setting.key === HIDE_UPGRADE_CTA_KEY
   )
   if (

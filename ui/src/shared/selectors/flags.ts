@@ -3,25 +3,29 @@ import {FlagMap} from 'src/shared/reducers/flags'
 import {CLOUD, CLOUD_BILLING_VISIBLE} from 'src/shared/constants'
 
 export const OSS_FLAGS = {
-  deleteWithPredicate: false,
-  downloadCellCSV: false,
-  telegrafEditor: false,
+  cursorAtEOF: false,
   customCheckQuery: false,
-  matchingNotificationRules: false,
+  deleteWithPredicate: false,
   demodata: false,
+  downloadCellCSV: false,
   fluxParser: false,
+  matchingNotificationRules: false,
+  notebooks: false,
+  telegrafEditor: false,
 }
 
 export const CLOUD_FLAGS = {
-  deleteWithPredicate: false,
-  multiUser: true,
   cloudBilling: CLOUD_BILLING_VISIBLE, // should be visible in dev and acceptance, but not in cloud
-  downloadCellCSV: false,
-  telegrafEditor: false,
+  cursorAtEOF: false,
   customCheckQuery: false,
-  matchingNotificationRules: false,
-  demodata: false,
+  deleteWithPredicate: false,
+  demodata: true,
+  downloadCellCSV: false,
   fluxParser: false,
+  matchingNotificationRules: false,
+  multiUser: true,
+  notebooks: false,
+  telegrafEditor: false,
 }
 
 export const activeFlags = (state: AppState): FlagMap => {

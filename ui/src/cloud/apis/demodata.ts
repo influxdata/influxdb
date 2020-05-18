@@ -32,35 +32,37 @@ export const getDemoDataBuckets = async (): Promise<Bucket[]> => {
   return buckets.filter(b => b.type == 'user') as Bucket[] // remove returned _tasks and _monitoring buckets
 }
 
-export const getDemoDataBucketMembership = async (
-  bucketID: string,
-  userID: string
-) => {
+// member's id is looked up from the session token passed with the request.
+export const getDemoDataBucketMembership = async (bucketID: string) => {
   const response = await AJAX({
     method: 'POST',
     url: `${baseURL}/buckets/${bucketID}/members`,
-    data: {userID},
   })
 
-  if (response.status === '200') {
-    // a failed or successful membership POST to sampledata should return 204
+  if (response.status === 200) {
+    // if sampledata route is not available gateway responds with 200 a correct success code is 204
     throw new Error('Could not reach demodata endpoint')
+  }
+
+  if (response.status !== 204) {
+    throw new Error(response.data)
   }
 }
 
-export const deleteDemoDataBucketMembership = async (
-  bucketID: string,
-  userID: string
-) => {
+export const deleteDemoDataBucketMembership = async (bucketID: string) => {
   try {
     const response = await AJAX({
       method: 'DELETE',
-      url: `${baseURL}/buckets/${bucketID}/members/${userID}`,
+      url: `${baseURL}/buckets/${bucketID}/members`,
     })
 
-    if (response.status === '200') {
-      // a failed or successful membership DELETE to sampledata should return 204
+    if (response.status === 200) {
+      // if sampledata route is not available gateway responds with 200 a correct success code is 204
       throw new Error('Could not reach demodata endpoint')
+    }
+
+    if (response.status !== 204) {
+      throw new Error(response.data)
     }
   } catch (error) {
     console.error(error)

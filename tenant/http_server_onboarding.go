@@ -65,12 +65,12 @@ func (h *OnboardHandler) handleIsOnboarding(w http.ResponseWriter, r *http.Reque
 	ctx := r.Context()
 	result, err := h.onboardingSvc.IsOnboarding(ctx)
 	if err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 	h.log.Debug("Onboarding eligibility check finished", zap.String("result", fmt.Sprint(result)))
 
-	h.api.Respond(w, http.StatusOK, isOnboardingResponse{result})
+	h.api.Respond(w, r, http.StatusOK, isOnboardingResponse{result})
 }
 
 // handleInitialOnboardRequest is the HTTP handler for the GET /api/v2/setup route.
@@ -78,17 +78,17 @@ func (h *OnboardHandler) handleInitialOnboardRequest(w http.ResponseWriter, r *h
 	ctx := r.Context()
 	req, err := decodeOnboardRequest(ctx, r)
 	if err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 	results, err := h.onboardingSvc.OnboardInitialUser(ctx, req)
 	if err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 	h.log.Debug("Onboarding setup completed", zap.String("results", fmt.Sprint(results)))
 
-	h.api.Respond(w, http.StatusCreated, NewOnboardingResponse(results))
+	h.api.Respond(w, r, http.StatusCreated, NewOnboardingResponse(results))
 }
 
 // isOnboarding is the HTTP handler for the POST /api/v2/setup route.
@@ -96,17 +96,17 @@ func (h *OnboardHandler) handleOnboardRequest(w http.ResponseWriter, r *http.Req
 	ctx := r.Context()
 	req, err := decodeOnboardRequest(ctx, r)
 	if err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 	results, err := h.onboardingSvc.OnboardUser(ctx, req)
 	if err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 	h.log.Debug("Onboarding setup completed", zap.String("results", fmt.Sprint(results)))
 
-	h.api.Respond(w, http.StatusCreated, NewOnboardingResponse(results))
+	h.api.Respond(w, r, http.StatusCreated, NewOnboardingResponse(results))
 }
 
 type onboardingResponse struct {

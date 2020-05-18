@@ -86,7 +86,7 @@ func (h *UserHandler) handlePostUserPassword(w http.ResponseWriter, r *http.Requ
 	var body passwordSetRequest
 	err := json.NewDecoder(r.Body).Decode(&body)
 	if err != nil {
-		h.api.Err(w, &influxdb.Error{
+		h.api.Err(w, r, &influxdb.Error{
 			Code: influxdb.EInvalid,
 			Err:  err,
 		})
@@ -96,7 +96,7 @@ func (h *UserHandler) handlePostUserPassword(w http.ResponseWriter, r *http.Requ
 	param := chi.URLParam(r, "id")
 	userID, err := influxdb.IDFromString(param)
 	if err != nil {
-		h.api.Err(w, &influxdb.Error{
+		h.api.Err(w, r, &influxdb.Error{
 			Msg: "invalid user ID provided in route",
 		})
 		return
@@ -104,7 +104,7 @@ func (h *UserHandler) handlePostUserPassword(w http.ResponseWriter, r *http.Requ
 
 	err = h.passwordSvc.SetPassword(r.Context(), *userID, body.Password)
 	if err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
@@ -120,7 +120,7 @@ func (h *UserHandler) putPassword(ctx context.Context, w http.ResponseWriter, r 
 	param := chi.URLParam(r, "id")
 	userID, err := influxdb.IDFromString(param)
 	if err != nil {
-		h.api.Err(w, &influxdb.Error{
+		h.api.Err(w, r, &influxdb.Error{
 			Msg: "invalid user ID provided in route",
 		})
 		return
@@ -138,7 +138,7 @@ func (h *UserHandler) handlePutUserPassword(w http.ResponseWriter, r *http.Reque
 	ctx := r.Context()
 	_, err := h.putPassword(ctx, w, r)
 	if err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 	h.log.Debug("User password updated")
@@ -182,7 +182,7 @@ func (h *UserHandler) handlePostUser(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	req, err := decodePostUserRequest(ctx, r)
 	if err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
@@ -191,12 +191,12 @@ func (h *UserHandler) handlePostUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.userSvc.CreateUser(ctx, req.User); err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 	h.log.Debug("User created", zap.String("user", fmt.Sprint(req.User)))
 
-	h.api.Respond(w, http.StatusCreated, newUserResponse(req.User))
+	h.api.Respond(w, r, http.StatusCreated, newUserResponse(req.User))
 }
 
 type postUserRequest struct {
@@ -220,7 +220,7 @@ func (h *UserHandler) handleGetMe(w http.ResponseWriter, r *http.Request) {
 
 	a, err := icontext.GetAuthorizer(ctx)
 	if err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
@@ -228,11 +228,11 @@ func (h *UserHandler) handleGetMe(w http.ResponseWriter, r *http.Request) {
 	user, err := h.userSvc.FindUserByID(ctx, id)
 
 	if err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
-	h.api.Respond(w, http.StatusOK, newUserResponse(user))
+	h.api.Respond(w, r, http.StatusOK, newUserResponse(user))
 }
 
 // handleGetUser is the HTTP handler for the GET /api/v2/users/:id route.
@@ -240,18 +240,18 @@ func (h *UserHandler) handleGetUser(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	req, err := decodeGetUserRequest(ctx, r)
 	if err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
 	b, err := h.userSvc.FindUserByID(ctx, req.UserID)
 	if err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 	h.log.Debug("User retrieved", zap.String("user", fmt.Sprint(b)))
 
-	h.api.Respond(w, http.StatusOK, newUserResponse(b))
+	h.api.Respond(w, r, http.StatusOK, newUserResponse(b))
 }
 
 type getUserRequest struct {
@@ -284,12 +284,12 @@ func (h *UserHandler) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	req, err := decodeDeleteUserRequest(ctx, r)
 	if err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
 	if err := h.userSvc.DeleteUser(ctx, req.UserID); err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 	h.log.Debug("User deleted", zap.String("userID", fmt.Sprint(req.UserID)))
@@ -373,18 +373,18 @@ func (h *UserHandler) handleGetUsers(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	req, err := decodeGetUsersRequest(ctx, r)
 	if err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
 	users, _, err := h.userSvc.FindUsers(ctx, req.filter)
 	if err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 	h.log.Debug("Users retrieved", zap.String("users", fmt.Sprint(users)))
 
-	h.api.Respond(w, http.StatusOK, newUsersResponse(users))
+	h.api.Respond(w, r, http.StatusOK, newUsersResponse(users))
 }
 
 type getUsersRequest struct {
@@ -415,18 +415,18 @@ func (h *UserHandler) handlePatchUser(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	req, err := decodePatchUserRequest(ctx, r)
 	if err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
 	b, err := h.userSvc.UpdateUser(ctx, req.UserID, req.Update)
 	if err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 	h.log.Debug("Users updated", zap.String("user", fmt.Sprint(b)))
 
-	h.api.Respond(w, http.StatusOK, newUserResponse(b))
+	h.api.Respond(w, r, http.StatusOK, newUserResponse(b))
 }
 
 type patchUserRequest struct {

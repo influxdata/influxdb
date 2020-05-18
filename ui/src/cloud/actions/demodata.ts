@@ -23,10 +23,13 @@ import {
   demoDataSucceeded,
 } from 'src/shared/copy/notifications'
 
-// Types
-import {Bucket, RemoteDataState, GetState, DemoBucket} from 'src/types'
+// Utils
 import {reportError} from 'src/shared/utils/errors'
 import {getErrorMessage} from 'src/utils/api'
+import {fireEvent} from 'src/shared/utils/analytics'
+
+// Types
+import {Bucket, RemoteDataState, GetState, DemoBucket} from 'src/types'
 
 export type Actions =
   | ReturnType<typeof setDemoDataStatus>
@@ -76,27 +79,21 @@ export const getDemoDataBucketMembership = ({
 }) => async (dispatch, getState: GetState) => {
   const state = getState()
 
-  const {
-    me: {id: userID},
-  } = state
-
   const {id: orgID} = getOrg(state)
 
   try {
-    await getDemoDataBucketMembershipAJAX(bucketID, userID)
+    await getDemoDataBucketMembershipAJAX(bucketID)
 
     const normalizedBucket = await getNormalizedDemoDataBucket(bucketID)
 
     dispatch(addBucket(normalizedBucket))
   } catch (error) {
-    const message = `Failed to add demodata bucket ${bucketName}: ${getErrorMessage(
-      error
-    )}`
-
-    dispatch(notify(demoDataAddBucketFailed(message)))
+    dispatch(
+      notify(demoDataAddBucketFailed(bucketName, getErrorMessage(error)))
+    )
 
     reportError(error, {
-      name: 'getDemoDataBucketMembership function',
+      name: 'addDemoDataBucket failed in getDemoDataBucketMembership',
     })
 
     return
@@ -114,30 +111,28 @@ export const getDemoDataBucketMembership = ({
     const url = `/orgs/${orgID}/dashboards/${createdDashboard.id}`
 
     dispatch(notify(demoDataSucceeded(bucketName, url)))
+
+    fireEvent('demoData_bucketAdded', {demo_dataset: bucketName})
   } catch (error) {
-    const message = `Could not create dashboard for demodata bucket ${bucketName}: ${getErrorMessage(
-      error
-    )}`
+    const errorMessage = getErrorMessage(error)
 
-    dispatch(notify(demoDataAddBucketFailed(message)))
+    dispatch(notify(demoDataAddBucketFailed(bucketName, errorMessage)))
 
-    reportError(error, {
-      name: 'getDemoDataBucketMembership function',
-    })
+    if (errorMessage != 'creating dashboard would exceed quota') {
+      reportError(error, {
+        name: 'addDemoDataDashboard failed in getDemoDataBucketMembership',
+      })
+    }
   }
 }
 
-export const deleteDemoDataBucketMembership = (bucket: DemoBucket) => async (
-  dispatch,
-  getState: GetState
-) => {
-  const {
-    me: {id: userID},
-  } = getState()
-
+export const deleteDemoDataBucketMembership = (
+  bucket: DemoBucket
+) => async dispatch => {
   try {
-    await deleteDemoDataBucketMembershipAJAX(bucket.id, userID)
+    await deleteDemoDataBucketMembershipAJAX(bucket.id)
 
+    // an unsuccessful delete membership req can also return 204 to prevent userID sniffing, so need to check that bucket is really unreachable
     const resp = await getBucket({bucketID: bucket.id})
 
     if (resp.status === 200) {
@@ -145,11 +140,12 @@ export const deleteDemoDataBucketMembership = (bucket: DemoBucket) => async (
     }
 
     dispatch(removeBucket(bucket.id))
+    fireEvent('demoData_bucketDeleted', {demo_dataset: bucket.name})
   } catch (error) {
     dispatch(notify(demoDataDeleteBucketFailed(bucket.name, error)))
 
     reportError(error, {
-      name: 'deleteDemoDataBucketMembership function',
+      name: 'deleteDemoDataBucket failed in deleteDemoDataBucketMembership',
     })
   }
 }

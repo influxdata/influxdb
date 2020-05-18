@@ -142,7 +142,7 @@ func Test_API(t *testing.T) {
 				responder := kithttp.NewAPI()
 
 				svr := func(w http.ResponseWriter, r *http.Request) {
-					responder.Respond(w, statusCode, map[string]string{
+					responder.Respond(w, r, statusCode, map[string]string{
 						"foo": "bar",
 					})
 				}
@@ -208,7 +208,7 @@ func Test_API(t *testing.T) {
 				responder := kithttp.NewAPI()
 
 				svr := func(w http.ResponseWriter, r *http.Request) {
-					responder.Err(w, tt.expectedErr)
+					responder.Err(w, r, tt.expectedErr)
 				}
 
 				testttp.

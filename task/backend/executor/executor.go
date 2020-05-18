@@ -48,7 +48,8 @@ func MultiLimit(limits ...LimitFunc) LimitFunc {
 type LimitFunc func(*influxdb.Task, *influxdb.Run) error
 
 type executorConfig struct {
-	maxWorkers int
+	maxWorkers    int
+	buildCompiler CompilerBuilderFunc
 }
 
 type executorOption func(*executorConfig)
@@ -60,10 +61,23 @@ func WithMaxWorkers(n int) executorOption {
 	}
 }
 
+// CompilerBuilderFunc is a function that yields a new flux.Compiler. The
+// context.Context provided can be assumed to be an authorized context.
+type CompilerBuilderFunc func(ctx context.Context, query string, now time.Time) (flux.Compiler, error)
+
+// WithCompilerBuilder is an Executor option that configures a
+// CompilerBuilderFunc to be used when compiling queries.
+func WithCompilerBuilder(builder CompilerBuilderFunc) executorOption {
+	return func(o *executorConfig) {
+		o.buildCompiler = builder
+	}
+}
+
 // NewExecutor creates a new task executor
 func NewExecutor(log *zap.Logger, qs query.QueryService, as influxdb.AuthorizationService, ts influxdb.TaskService, tcs backend.TaskControlService, opts ...executorOption) (*Executor, *ExecutorMetrics) {
 	cfg := &executorConfig{
-		maxWorkers: defaultMaxWorkers,
+		maxWorkers:    defaultMaxWorkers,
+		buildCompiler: NewASTCompiler,
 	}
 	for _, opt := range opts {
 		opt(cfg)
@@ -80,6 +94,7 @@ func NewExecutor(log *zap.Logger, qs query.QueryService, as influxdb.Authorizati
 		promiseQueue:    make(chan *promise, maxPromises),
 		workerLimit:     make(chan struct{}, cfg.maxWorkers),
 		limitFunc:       func(*influxdb.Task, *influxdb.Run) error { return nil }, // noop
+		buildCompiler:   cfg.buildCompiler,
 	}
 
 	e.metrics = NewExecutorMetrics(e)
@@ -114,6 +129,8 @@ type Executor struct {
 	// keep a pool of execution workers.
 	workerPool  sync.Pool
 	workerLimit chan struct{}
+
+	buildCompiler CompilerBuilderFunc
 }
 
 // SetLimitFunc sets the limit func for this task executor
@@ -264,7 +281,11 @@ type workerMaker struct {
 }
 
 func (wm *workerMaker) new() interface{} {
-	return &worker{wm.e, exhaustResultIterators}
+	return &worker{
+		e:                      wm.e,
+		exhaustResultIterators: exhaustResultIterators,
+		buildCompiler:          wm.e.buildCompiler,
+	}
 }
 
 type worker struct {
@@ -273,6 +294,8 @@ type worker struct {
 	// exhaustResultIterators is used to exhaust the result
 	// of a flux query
 	exhaustResultIterators func(res flux.Result) error
+
+	buildCompiler CompilerBuilderFunc
 }
 
 func (w *worker) work() {
@@ -392,24 +415,19 @@ func (w *worker) executeQuery(p *promise) {
 	// start
 	w.start(p)
 
-	pkg, err := runtime.ParseToJSON(p.task.Flux)
+	ctx = icontext.SetAuthorizer(ctx, p.task.Authorization)
+	compiler, err := w.buildCompiler(ctx, p.task.Flux, p.run.ScheduledFor)
 	if err != nil {
 		w.finish(p, influxdb.RunFail, influxdb.ErrFluxParseError(err))
 		return
 	}
 
-	sf := p.run.ScheduledFor
-
 	req := &query.Request{
 		Authorization:  p.auth,
 		OrganizationID: p.task.OrganizationID,
-		Compiler: lang.ASTCompiler{
-			AST: pkg,
-			Now: sf,
-		},
+		Compiler:       compiler,
 	}
 	req.WithReturnNoContent(true)
-	ctx = icontext.SetAuthorizer(ctx, p.task.Authorization)
 	it, err := w.e.qs.Query(ctx, req)
 	if err != nil {
 		// Assume the error should not be part of the runResult.
@@ -516,4 +534,24 @@ func exhaustResultIterators(res flux.Result) error {
 			return nil
 		})
 	})
+}
+
+// NewASTCompiler parses a Flux query string into an AST representatation.
+func NewASTCompiler(_ context.Context, query string, now time.Time) (flux.Compiler, error) {
+	pkg, err := runtime.ParseToJSON(query)
+	if err != nil {
+		return nil, err
+	}
+	return lang.ASTCompiler{
+		AST: pkg,
+		Now: now,
+	}, nil
+}
+
+// NewFluxCompiler wraps a Flux query string in a raw-query representation.
+func NewFluxCompiler(_ context.Context, query string, now time.Time) (flux.Compiler, error) {
+	return lang.FluxCompiler{
+		Query: query,
+		Now:   now,
+	}, nil
 }

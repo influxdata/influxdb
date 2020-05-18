@@ -1,0 +1,36 @@
+{
+    "id":null,
+    "type":"threshold",
+    "status":"active",
+    "activeStatus":"active",
+    "name":"Threshold Check from File",
+    "query":{
+         "name":"",
+         "text":"from(bucket: \"qa\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"test\")\n  |> filter(fn: (r) => r[\"_field\"] == \"val\")\n  |> aggregateWindow(every: 5s, fn: mean)\n  |> yield(name: \"mean\")",
+         "editMode":"builder",
+         "builderConfig": {
+             "buckets":["qa"],
+             "tags":[
+                {"key":"_measurement","values":["test"],"aggregateFunctionType":"filter"},
+                {"key":"_field","values":["val"],"aggregateFunctionType":"filter"},
+                {"key":"gen","values":[],"aggregateFunctionType":"filter"}
+             ],
+             "functions":[
+                {"name":"mean"}
+              ],
+             "aggregateWindow":{"period":"5s"}
+	 },
+         "hidden":false
+    },
+    "orgID":"05a67e89563c3000",
+    "labels":[],
+    "every":"5s",
+    "offset":"1s",
+    "statusMessageTemplate":"Check: ${ r._check_name } is: ${ r._level }",
+    "tags":[],
+    "thresholds":[
+        {"type":"greater","value":7.5,"level":"CRIT"},
+        {"type":"lesser","value":1.5,"level":"WARN"},
+        {"type":"range","level":"INFO","min":4.5,"max":5.5,"within":true}
+     ]
+}

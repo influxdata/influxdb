@@ -1,0 +1,37 @@
+{
+  "active": "development",
+  "default_user": {
+    "username": "admin",
+    "password": "changeit",
+    "org": "qa",
+    "bucket": "qa"
+  },
+  "development" : {
+    "config_id" : "development",
+    "protocol": "http",
+    "host" : "localhost",
+    "port" : "9999",
+    "def_ctx": "/",
+    "headless": false,
+    "sel_docker": false,
+    "browser": "chrome",
+    "screenshot_dir": "screenshots",
+    "influxdb": {
+      "version" : "2.0.0"
+    },
+    "window_size": {
+      "width": "1024",
+      "height": "933"
+    }
+   },
+  "nightly" : {
+    "config_id": "nightly",
+    "protocol": "http",
+    "host": "aws-somewhere",
+    "port": "9999",
+    "def_ctx": "/",
+    "headless": true,
+    "browser": "chrome",
+    "screenshot_dir": "screenshots"
+  }
+}

@@ -1,0 +1,44 @@
+{
+ "meta": {
+  "version": "1",
+  "type": "variable",
+  "name": "Slavia-Template",
+  "description": "template created from variable: Slavia"
+ },
+ "content": {
+  "data": {
+   "type": "variable",
+   "attributes": {
+    "name": "Slavia",
+    "arguments": {
+     "type": "constant",
+     "values": [
+      "cestina",
+      "polstina",
+      "slovenstina",
+      "serbstina",
+      "chorvatstina",
+      "bosenstina",
+      "bulharstina",
+      "ukranstina",
+      "belorustina",
+      "rustina"
+     ]
+    },
+    "selected": [
+     "cestina"
+    ]
+   },
+   "relationships": {
+    "variable": {
+     "data": []
+    },
+    "label": {
+     "data": []
+    }
+   }
+  },
+  "included": []
+ },
+ "labels": []
+}

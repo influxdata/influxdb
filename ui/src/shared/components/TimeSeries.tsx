@@ -28,9 +28,17 @@ import {buildVarsOption} from 'src/variables/utils/buildVarsOption'
 import 'intersection-observer'
 import {getAll} from 'src/resources/selectors'
 import {getOrgIDFromBuckets} from 'src/timeMachine/actions/queries'
+import {
+  isDemoDataAvailabilityError,
+  demoDataError,
+} from 'src/cloud/utils/demoDataErrors'
 
 // Constants
-import {rateLimitReached, resultTooLarge} from 'src/shared/copy/notifications'
+import {
+  rateLimitReached,
+  resultTooLarge,
+  demoDataAvailability,
+} from 'src/shared/copy/notifications'
 import {TIME_RANGE_START, TIME_RANGE_STOP} from 'src/variables/constants'
 
 // Actions
@@ -233,6 +241,9 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
 
       for (const result of results) {
         if (result.type === 'UNKNOWN_ERROR') {
+          if (isDemoDataAvailabilityError(result.code, result.message)) {
+            notify(demoDataAvailability(demoDataError(this.props.params.orgID)))
+          }
           errorMessage = result.message
           throw new Error(result.message)
         }

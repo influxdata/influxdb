@@ -95,36 +95,36 @@ func newOrgsResponse(orgs []*influxdb.Organization) *orgsResponse {
 func (h *OrgHandler) handlePostOrg(w http.ResponseWriter, r *http.Request) {
 	var org influxdb.Organization
 	if err := h.api.DecodeJSON(r.Body, &org); err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
 	if err := h.orgSvc.CreateOrganization(r.Context(), &org); err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
 	h.log.Debug("Org created", zap.String("org", fmt.Sprint(org)))
 
-	h.api.Respond(w, http.StatusCreated, newOrgResponse(org))
+	h.api.Respond(w, r, http.StatusCreated, newOrgResponse(org))
 }
 
 // handleGetOrg is the HTTP handler for the GET /api/v2/orgs/:id route.
 func (h *OrgHandler) handleGetOrg(w http.ResponseWriter, r *http.Request) {
 	id, err := influxdb.IDFromString(chi.URLParam(r, "id"))
 	if err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
 	org, err := h.orgSvc.FindOrganizationByID(r.Context(), *id)
 	if err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 	h.log.Debug("Org retrieved", zap.String("org", fmt.Sprint(org)))
 
-	h.api.Respond(w, http.StatusOK, newOrgResponse(*org))
+	h.api.Respond(w, r, http.StatusOK, newOrgResponse(*org))
 }
 
 // handleGetOrgs is the HTTP handler for the GET /api/v2/orgs route.
@@ -151,54 +151,54 @@ func (h *OrgHandler) handleGetOrgs(w http.ResponseWriter, r *http.Request) {
 
 	orgs, _, err := h.orgSvc.FindOrganizations(r.Context(), filter)
 	if err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 	h.log.Debug("Orgs retrieved", zap.String("org", fmt.Sprint(orgs)))
 
-	h.api.Respond(w, http.StatusOK, newOrgsResponse(orgs))
+	h.api.Respond(w, r, http.StatusOK, newOrgsResponse(orgs))
 }
 
 // handlePatchOrg is the HTTP handler for the PATH /api/v2/orgs route.
 func (h *OrgHandler) handlePatchOrg(w http.ResponseWriter, r *http.Request) {
 	id, err := influxdb.IDFromString(chi.URLParam(r, "id"))
 	if err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
 	var upd influxdb.OrganizationUpdate
 	if err := h.api.DecodeJSON(r.Body, &upd); err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
 	org, err := h.orgSvc.UpdateOrganization(r.Context(), *id, upd)
 	if err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 	h.log.Debug("Org updated", zap.String("org", fmt.Sprint(org)))
 
-	h.api.Respond(w, http.StatusOK, newOrgResponse(*org))
+	h.api.Respond(w, r, http.StatusOK, newOrgResponse(*org))
 }
 
 // handleDeleteOrganization is the HTTP handler for the DELETE /api/v2/orgs/:id route.
 func (h *OrgHandler) handleDeleteOrg(w http.ResponseWriter, r *http.Request) {
 	id, err := influxdb.IDFromString(chi.URLParam(r, "id"))
 	if err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
 	ctx := r.Context()
 	if err := h.orgSvc.DeleteOrganization(ctx, *id); err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 	h.log.Debug("Org deleted", zap.String("orgID", fmt.Sprint(id)))
 
-	h.api.Respond(w, http.StatusNoContent, nil)
+	h.api.Respond(w, r, http.StatusNoContent, nil)
 }
 
 func (h *OrgHandler) lookupOrgByID(ctx context.Context, id influxdb.ID) (influxdb.ID, error) {

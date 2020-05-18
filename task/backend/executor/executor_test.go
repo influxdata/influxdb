@@ -447,9 +447,13 @@ func testIteratorFailure(t *testing.T) {
 
 	// replace iterator exhaust function with one which errors
 	tes.ex.workerPool = sync.Pool{New: func() interface{} {
-		return &worker{tes.ex, func(flux.Result) error {
-			return errors.New("something went wrong exhausting iterator")
-		}}
+		return &worker{
+			e: tes.ex,
+			exhaustResultIterators: func(flux.Result) error {
+				return errors.New("something went wrong exhausting iterator")
+			},
+			buildCompiler: NewASTCompiler,
+		}
 	}}
 
 	script := fmt.Sprintf(fmtTestScript, t.Name())

@@ -1136,6 +1136,7 @@ func FindBucket(
 	type args struct {
 		name           string
 		organizationID influxdb.ID
+		id             influxdb.ID
 	}
 
 	type wants struct {
@@ -1184,6 +1185,40 @@ func FindBucket(
 			},
 		},
 		{
+			name: "find bucket by id",
+			fields: BucketFields{
+				Organizations: []*influxdb.Organization{
+					{
+						Name: "theorg",
+						ID:   MustIDBase16(orgOneID),
+					},
+				},
+				Buckets: []*influxdb.Bucket{
+					{
+						ID:    MustIDBase16(bucketOneID),
+						OrgID: MustIDBase16(orgOneID),
+						Name:  "abc",
+					},
+					{
+						ID:    MustIDBase16(bucketTwoID),
+						OrgID: MustIDBase16(orgOneID),
+						Name:  "xyz",
+					},
+				},
+			},
+			args: args{
+				id:             MustIDBase16(bucketOneID),
+				organizationID: MustIDBase16(orgOneID),
+			},
+			wants: wants{
+				bucket: &influxdb.Bucket{
+					ID:    MustIDBase16(bucketOneID),
+					OrgID: MustIDBase16(orgOneID),
+					Name:  "abc",
+				},
+			},
+		},
+		{
 			name: "missing bucket returns error",
 			fields: BucketFields{
 				Organizations: []*influxdb.Organization{
@@ -1216,6 +1251,9 @@ func FindBucket(
 			filter := influxdb.BucketFilter{}
 			if tt.args.name != "" {
 				filter.Name = &tt.args.name
+			}
+			if tt.args.id.Valid() {
+				filter.ID = &tt.args.id
 			}
 			if tt.args.organizationID.Valid() {
 				filter.OrganizationID = &tt.args.organizationID

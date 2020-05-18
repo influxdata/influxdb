@@ -20,7 +20,7 @@ func ValidResource(api *kit.API, lookupOrgByResourceID func(context.Context, inf
 			statusW := kit.NewStatusResponseWriter(w)
 			id, err := influxdb.IDFromString(chi.URLParam(r, "id"))
 			if err != nil {
-				api.Err(w, ErrCorruptID(err))
+				api.Err(w, r, ErrCorruptID(err))
 				return
 			}
 
@@ -28,7 +28,7 @@ func ValidResource(api *kit.API, lookupOrgByResourceID func(context.Context, inf
 
 			orgID, err := lookupOrgByResourceID(ctx, *id)
 			if err != nil {
-				api.Err(w, err)
+				api.Err(w, r, err)
 				return
 			}
 

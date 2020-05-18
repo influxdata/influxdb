@@ -321,18 +321,18 @@ func newBucketsResponse(ctx context.Context, opts influxdb.FindOptions, f influx
 func (h *BucketHandler) handlePostBucket(w http.ResponseWriter, r *http.Request) {
 	var b postBucketRequest
 	if err := h.api.DecodeJSON(r.Body, &b); err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
 	bucket := b.toInfluxDB()
 	if err := h.BucketService.CreateBucket(r.Context(), bucket); err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 	h.log.Debug("Bucket created", zap.String("bucket", fmt.Sprint(bucket)))
 
-	h.api.Respond(w, http.StatusCreated, NewBucketResponse(bucket, []*influxdb.Label{}))
+	h.api.Respond(w, r, http.StatusCreated, NewBucketResponse(bucket, []*influxdb.Label{}))
 }
 
 type postBucketRequest struct {
@@ -395,25 +395,25 @@ func (h *BucketHandler) handleGetBucket(w http.ResponseWriter, r *http.Request) 
 
 	id, err := decodeIDFromCtx(r.Context(), "id")
 	if err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
 	b, err := h.BucketService.FindBucketByID(ctx, id)
 	if err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
 	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: b.ID, ResourceType: influxdb.BucketsResourceType})
 	if err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
 	h.log.Debug("Bucket retrieved", zap.String("bucket", fmt.Sprint(b)))
 
-	h.api.Respond(w, http.StatusOK, NewBucketResponse(b, labels))
+	h.api.Respond(w, r, http.StatusOK, NewBucketResponse(b, labels))
 }
 
 func bucketIDPath(id influxdb.ID) string {
@@ -424,25 +424,25 @@ func bucketIDPath(id influxdb.ID) string {
 func (h *BucketHandler) handleGetBucketLog(w http.ResponseWriter, r *http.Request) {
 	id, err := decodeIDFromCtx(r.Context(), "id")
 	if err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
 	opts, err := influxdb.DecodeFindOptions(r)
 	if err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
 	log, _, err := h.BucketOperationLogService.GetBucketOperationLog(r.Context(), id, *opts)
 	if err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
 	h.log.Debug("Bucket log retrived", zap.String("bucket", fmt.Sprint(log)))
 
-	h.api.Respond(w, http.StatusOK, newBucketLogResponse(id, log))
+	h.api.Respond(w, r, http.StatusOK, newBucketLogResponse(id, log))
 }
 
 func newBucketLogResponse(id influxdb.ID, es []*influxdb.OperationLogEntry) *operationLogResponse {
@@ -462,18 +462,18 @@ func newBucketLogResponse(id influxdb.ID, es []*influxdb.OperationLogEntry) *ope
 func (h *BucketHandler) handleDeleteBucket(w http.ResponseWriter, r *http.Request) {
 	id, err := decodeIDFromCtx(r.Context(), "id")
 	if err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
 	if err := h.BucketService.DeleteBucket(r.Context(), id); err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
 	h.log.Debug("Bucket deleted", zap.String("bucketID", id.String()))
 
-	h.api.Respond(w, http.StatusNoContent, nil)
+	h.api.Respond(w, r, http.StatusNoContent, nil)
 }
 
 // handleGetBuckets is the HTTP handler for the GET /api/v2/buckets route.
@@ -489,7 +489,7 @@ func (h *BucketHandler) handleGetBuckets(w http.ResponseWriter, r *http.Request)
 
 	bucketID, err := decodeIDFromQuery(q, "id")
 	if err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 	if bucketID > 0 {
@@ -498,7 +498,7 @@ func (h *BucketHandler) handleGetBuckets(w http.ResponseWriter, r *http.Request)
 
 	orgID, err := decodeIDFromQuery(q, "orgID")
 	if err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 	if orgID > 0 {
@@ -507,18 +507,18 @@ func (h *BucketHandler) handleGetBuckets(w http.ResponseWriter, r *http.Request)
 
 	opts, err := influxdb.DecodeFindOptions(r)
 	if err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
 	bs, _, err := h.BucketService.FindBuckets(r.Context(), filter, *opts)
 	if err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 	h.log.Debug("Buckets retrieved", zap.String("buckets", fmt.Sprint(bs)))
 
-	h.api.Respond(w, http.StatusOK, newBucketsResponse(r.Context(), *opts, filter, bs, h.LabelService))
+	h.api.Respond(w, r, http.StatusOK, newBucketsResponse(r.Context(), *opts, filter, bs, h.LabelService))
 }
 
 type getBucketsRequest struct {
@@ -568,32 +568,32 @@ func decodeGetBucketsRequest(r *http.Request) (*getBucketsRequest, error) {
 func (h *BucketHandler) handlePatchBucket(w http.ResponseWriter, r *http.Request) {
 	id, err := decodeIDFromCtx(r.Context(), "id")
 	if err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
 	var reqBody bucketUpdate
 	if err := h.api.DecodeJSON(r.Body, &reqBody); err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
 	if reqBody.Name != nil {
 		b, err := h.BucketService.FindBucketByID(r.Context(), id)
 		if err != nil {
-			h.api.Err(w, err)
+			h.api.Err(w, r, err)
 			return
 		}
 		b.Name = *reqBody.Name
 		if err := validBucketName(b); err != nil {
-			h.api.Err(w, err)
+			h.api.Err(w, r, err)
 			return
 		}
 	}
 
 	b, err := h.BucketService.UpdateBucket(r.Context(), id, *reqBody.toInfluxDB())
 	if err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 
@@ -604,12 +604,12 @@ func (h *BucketHandler) handlePatchBucket(w http.ResponseWriter, r *http.Request
 		ResourceType: influxdb.BucketsResourceType,
 	})
 	if err != nil {
-		h.api.Err(w, err)
+		h.api.Err(w, r, err)
 		return
 	}
 	h.log.Debug("Bucket updated", zap.String("bucket", fmt.Sprint(b)))
 
-	h.api.Respond(w, http.StatusOK, NewBucketResponse(b, labels))
+	h.api.Respond(w, r, http.StatusOK, NewBucketResponse(b, labels))
 }
 
 // BucketService connects to Influx via HTTP using tokens to manage buckets

@@ -75,6 +75,9 @@ var authCreateFlags struct {
 
 	writeNotificationEndpointPermission bool
 	readNotificationEndpointPermission  bool
+
+	writeDBRPPermission bool
+	readDBRPPermission  bool
 }
 
 func authCreateCmd() *cobra.Command {
@@ -117,6 +120,9 @@ func authCreateCmd() *cobra.Command {
 
 	cmd.Flags().BoolVarP(&authCreateFlags.writeCheckPermission, "write-checks", "", false, "Grants the permission to create checks")
 	cmd.Flags().BoolVarP(&authCreateFlags.readCheckPermission, "read-checks", "", false, "Grants the permission to read checks")
+
+	cmd.Flags().BoolVarP(&authCreateFlags.writeDBRPPermission, "write-dbrps", "", false, "Grants the permission to create database retention policy mappings")
+	cmd.Flags().BoolVarP(&authCreateFlags.readDBRPPermission, "read-dbrps", "", false, "Grants the permission to read database retention policy mappings")
 
 	return cmd
 }
@@ -215,6 +221,11 @@ func authorizationCreateF(cmd *cobra.Command, args []string) error {
 			readPerm:     authCreateFlags.readUserPermission,
 			writePerm:    authCreateFlags.writeUserPermission,
 			ResourceType: platform.UsersResourceType,
+		},
+		{
+			readPerm:     authCreateFlags.readDBRPPermission,
+			writePerm:    authCreateFlags.writeDBRPPermission,
+			ResourceType: platform.DBRPResourceType,
 		},
 	}
 
