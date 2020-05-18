@@ -26,21 +26,15 @@ const Header: FC = () => {
   const {refresh, range} = timeContext[id]
 
   function updateRefresh(interval: number) {
-    if (interval === 0) {
-      updateTimeContext(id, {
-        refresh: {
-          status: AutoRefreshStatus.Paused,
-          interval,
-        },
-      } as TimeBlock)
-    } else {
-      updateTimeContext(id, {
-        refresh: {
-          status: AutoRefreshStatus.Active,
-          interval,
-        },
-      } as TimeBlock)
-    }
+    const status =
+      interval === 0 ? AutoRefreshStatus.Paused : AutoRefreshStatus.Active
+
+    updateTimeContext(id, {
+      refresh: {
+        status,
+        interval,
+      },
+    } as TimeBlock)
   }
 
   function updateRange(range) {
