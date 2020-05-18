@@ -80,7 +80,11 @@ const NotebooksPage: FC<Props> = ({
               text="Markdown"
               onClick={handleAddMarkdownPanel}
               color={ComponentColor.Default}
-              status={markdownPanel ? ComponentStatus.Disabled : ComponentStatus.Default}
+              status={
+                markdownPanel
+                  ? ComponentStatus.Disabled
+                  : ComponentStatus.Default
+              }
             />
             <Button
               text="Alert"
@@ -106,7 +110,10 @@ const NotebooksPage: FC<Props> = ({
           <LimitChecker>
             <RateLimitAlert />
             <HoverTimeProvider>
-              <Notebook showMarkdownPanel={markdownPanel} onRemoveMarkdownPanel={handleRemoveMarkdownPanel} />
+              <Notebook
+                showMarkdownPanel={markdownPanel}
+                onRemoveMarkdownPanel={handleRemoveMarkdownPanel}
+              />
             </HoverTimeProvider>
           </LimitChecker>
         </Page.Contents>

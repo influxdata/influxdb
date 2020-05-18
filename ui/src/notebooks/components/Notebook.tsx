@@ -25,7 +25,11 @@ interface OwnProps {
 
 type Props = OwnProps & StateProps
 
-const Notebook: FunctionComponent<Props> = ({isViewingRawData, showMarkdownPanel, onRemoveMarkdownPanel}) => {
+const Notebook: FunctionComponent<Props> = ({
+  isViewingRawData,
+  showMarkdownPanel,
+  onRemoveMarkdownPanel,
+}) => {
   const [queryName, setQueryName] = useState<string>('query_0')
   const [resultsName, setResultsName] = useState<string>('results_0')
   const [vizName, setVizName] = useState<string>('visualization_0')
@@ -33,14 +37,27 @@ const Notebook: FunctionComponent<Props> = ({isViewingRawData, showMarkdownPanel
 
   return (
     <div className="notebook">
-      {showMarkdownPanel && <MarkdownPanel title="Markdown" contents={markdownText} onChangeContents={updateMarkdownText} onRemovePanel={onRemoveMarkdownPanel} />}
+      {showMarkdownPanel && (
+        <MarkdownPanel
+          title="Markdown"
+          contents={markdownText}
+          onChangeContents={updateMarkdownText}
+          onRemovePanel={onRemoveMarkdownPanel}
+        />
+      )}
       <QueryBuilderPanel id={queryName} onChangeID={setQueryName} />
       <RawDataPanel
         id={resultsName}
         onChangeID={setResultsName}
         dataSourceName={queryName}
       />
-      {isViewingRawData && <VisualizationPanel dataSourceName={resultsName} title={vizName} onChangeTitle={setVizName} />}
+      {isViewingRawData && (
+        <VisualizationPanel
+          dataSourceName={resultsName}
+          title={vizName}
+          onChangeTitle={setVizName}
+        />
+      )}
     </div>
   )
 }

@@ -1,6 +1,9 @@
 $notebook-header-height: 46px;
 $notebook-size-toggle: 16px;
 $notebook-left-bar: 22px;
+$notebook-panel--bg: mix($g1-raven, $g2-kevlar, 50%);
+
+$notebook-divider-height: ($cf-marg-a * 2) + $cf-border;
 
 .notebook {
   width: 100%;
@@ -13,15 +16,35 @@ $notebook-left-bar: 22px;
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  margin-bottom: $cf-marg-a;
   border-radius: $cf-radius;
-  background-color: mix($g1-raven, $g2-kevlar, 50%);
+  
+  &:after {
+    content: '';
+    height: $cf-border;
+    background-color: $g2-kevlar;
+    border-radius: $cf-border / 2;
+    margin: $cf-marg-a 0;
+  }
+}
+
+// Highlight panel on hover
+.notebook-panel--header,
+.notebook-panel--body {
+  transition: background-color 0.25s ease;
+}
+
+.notebook-panel:hover {
+  .notebook-panel--header,
+  .notebook-panel--body {
+    background-color: $notebook-panel--bg;
+  }
 }
 
 .notebook-panel--header {
+  border-radius: $cf-radius $cf-radius 0 0;
   height: $notebook-header-height;
   flex: 0 0 $notebook-header-height;
-  padding: 0 $cf-marg-b 0 $cf-marg-c;
+  padding: 0 $cf-marg-b;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -30,6 +53,15 @@ $notebook-left-bar: 22px;
 .notebook-panel--header-left,
 .notebook-panel--header-right {
   flex: 1 0 $notebook-header-height;
+}
+
+.notebook-panel--header-right {
+  transition: opacity 0.25s ease;
+  opacity: 0;
+}
+
+.notebook-panel:hover .notebook-panel--header-right {
+  opacity: 1;
 }
 
 .notebook-panel--title,
@@ -104,6 +136,7 @@ $notebook-left-bar: 22px;
 }
 
 .notebook-panel--body {
+  border-radius: 0 0 $cf-radius $cf-radius;
   padding: $cf-marg-b;
   padding-top: 0;
   // flex: 1 0 0;
@@ -132,10 +165,41 @@ $notebook-left-bar: 22px;
   left: 0;
 }
 
+// Special styling for markdown panels
+.notebook-panel--markdown,
+.notebook-panel--markdown-edit {
+  font-size: 14px;
+  padding: $cf-marg-b;
+  border-radius: $cf-radius - 1px;
+  border-width: $cf-border;
+  border-style: solid;
+}
+
 .notebook-panel--markdown {
+  border-color: $notebook-panel--bg;
+}
+
+.notebook-panel--markdown-edit {
   padding: $cf-marg-b;
   background-color: $g1-raven;
-  border-radius: $cf-radius - 1px;
+  border-color: $cf-input-border--default;
+  color: $cf-input-text--default;
+  width: 100%;
+  min-width: 100%;
+  max-width: 100%;
+  transition: $cf-input--transition;
+  outline: none;
+
+  &:hover {
+    color: $cf-input-text--hover;
+    border-color: $cf-input-border--hover;
+  }
+
+  &:focus {
+    color: $cf-input-text--focused;
+    border-color: $cf-input-border--focused;
+    box-shadow: $cf-input--box-shadow;
+  }
 }
 
 .notebook-panel--results {
@@ -150,10 +214,14 @@ $notebook-left-bar: 22px;
 */
 
 .notebook-panel__hidden {
-  height: $notebook-header-height;
+  height: $notebook-header-height + $notebook-divider-height;
 
   .notebook-panel--body {
     display: none;
+  }
+
+  .notebook-panel--header {
+    border-radius: $cf-radius;
   }
 }
 
@@ -177,7 +245,7 @@ $notebook-left-bar: 22px;
 
 .notebook-panel--visualization {
   width: 100%;
-  height: 100%;
+  height: 320px;
   display: flex;
   align-items: stretch;
   flex-direction: row;

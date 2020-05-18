@@ -103,7 +103,7 @@ const NotebookPanel: FC<Props> = ({
 
   if (onTitleChange) {
     const onChange = (e: ChangeEvent<HTMLInputElement>): void => {
-      const trimmedValue = e.target.value.replace(' ','_')
+      const trimmedValue = e.target.value.replace(' ', '_')
       onTitleChange(trimmedValue)
     }
 

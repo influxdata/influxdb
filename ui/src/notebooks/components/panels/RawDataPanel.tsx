@@ -68,26 +68,30 @@ const TimeMachineVis: SFC<Props> = ({
       controlsRight={<CSVExportButton />}
     >
       <div className="notebook-panel--results">
-      <ErrorBoundary>
-        <EmptyQueryView
-          loading={loading}
-          errorFormat={ErrorFormat.Scroll}
-          errorMessage={errorMessage}
-          isInitialFetch={isInitialFetch}
-          queries={viewProperties.queries}
-          hasResults={checkResultsLength(giraffeResult)}
+        <ErrorBoundary>
+          <EmptyQueryView
+            loading={loading}
+            errorFormat={ErrorFormat.Scroll}
+            errorMessage={errorMessage}
+            isInitialFetch={isInitialFetch}
+            queries={viewProperties.queries}
+            hasResults={checkResultsLength(giraffeResult)}
           >
-          <AutoSizer>
-            {({width, height}) =>
-              width &&
-              height && (
-                <RawFluxDataTable files={files} width={width} height={height} />
+            <AutoSizer>
+              {({width, height}) =>
+                width &&
+                height && (
+                  <RawFluxDataTable
+                    files={files}
+                    width={width}
+                    height={height}
+                  />
                 )
               }
-          </AutoSizer>
-        </EmptyQueryView>
-      </ErrorBoundary>
-              </div>
+            </AutoSizer>
+          </EmptyQueryView>
+        </ErrorBoundary>
+      </div>
     </NotebookPanel>
   )
 }
