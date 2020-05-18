@@ -2,7 +2,7 @@ import React, {FC, useContext} from 'react'
 import {PipeProp} from 'src/notebooks'
 import {NotebookContext} from 'src/notebooks/context/notebook'
 
-import NotebookPanel from 'src/notebooks/components/panel/NotebookPanel'
+import {NotebookPanel} from 'src/notebooks/components/Notebook'
 
 const TITLE = 'Example Pipe'
 
