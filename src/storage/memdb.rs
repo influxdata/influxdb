@@ -16,20 +16,21 @@ use std::collections::{btree_map::Entry, BTreeMap, BTreeSet, HashMap};
 
 // TODO: return errors if trying to insert data out of order in an individual series
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct MemDB {
     pub id: String,
     series_data: SeriesData,
     series_map: SeriesMap,
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 struct SeriesData {
     current_size: usize,
     i64_series: HashMap<u64, SeriesBuffer<i64>>,
     f64_series: HashMap<u64, SeriesBuffer<f64>>,
 }
 
+#[derive(Clone)]
 struct SeriesBuffer<T: Clone> {
     values: Vec<ReadPoint<T>>,
 }
@@ -95,7 +96,7 @@ impl StoreInSeriesData for Point<f64> {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 struct SeriesMap {
     current_size: usize,
     last_id: u64,
