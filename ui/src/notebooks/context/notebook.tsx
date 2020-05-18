@@ -9,6 +9,7 @@ export interface NotebookContextType {
   pipes: Pipe[]
   addPipe: (pipe: Pipe) => void
   updatePipe: (idx: number, pipe: Pipe) => void
+  movePipe: (currentIdx: number, newIdx: number) => void
   removePipe: (idx: number) => void
 }
 
@@ -17,6 +18,7 @@ export const DEFAULT_CONTEXT: NotebookContextType = {
   pipes: [],
   addPipe: () => {},
   updatePipe: () => {},
+  movePipe: () => {},
   removePipe: () => {},
 }
 

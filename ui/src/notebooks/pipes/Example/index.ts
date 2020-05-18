@@ -8,7 +8,7 @@ register({
   type: 'example',
   component: ExampleView,
   button: 'Example Adding',
-  empty: () => ({
+  initial: () => ({
     text: 'Example Text ' + counter++,
   }),
 })

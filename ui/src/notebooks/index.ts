@@ -15,7 +15,7 @@ export interface TypeRegistration {
   type: string // a unique string that identifies a pipe
   component: FunctionComponent<PipeProp> | ComponentClass<PipeProp> // the view component for rendering the interface
   button: string // a human readable string for appending the type
-  empty: any // the default state for an add
+  initial: any // the default state for an add
 }
 
 export interface TypeLookup {
