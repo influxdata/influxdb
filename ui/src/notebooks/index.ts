@@ -2,6 +2,9 @@ import {FunctionComponent, ComponentClass} from 'react'
 
 export interface PipeProp {
   index: number
+  remove: () => void
+  moveUp: () => void
+  moveDown: () => void
 }
 
 // NOTE: keep this interface as small as possible and
