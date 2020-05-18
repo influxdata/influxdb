@@ -7,6 +7,8 @@ import (
 	"github.com/influxdata/influxql"
 )
 
+var matchAllRegex = regexp.MustCompile(`.+`)
+
 // RewriteStatement rewrites stmt into a new statement, if applicable.
 func RewriteStatement(stmt influxql.Statement) (influxql.Statement, error) {
 	switch stmt := stmt.(type) {
@@ -61,7 +63,7 @@ func rewriteShowFieldKeyCardinalityStatement(stmt *influxql.ShowFieldKeyCardinal
 	// Use all field keys, if zero.
 	if len(stmt.Sources) == 0 {
 		stmt.Sources = influxql.Sources{
-			&influxql.Measurement{Regex: &influxql.RegexLiteral{Val: regexp.MustCompile(`.+`)}},
+			&influxql.Measurement{Regex: &influxql.RegexLiteral{Val: matchAllRegex}},
 		}
 	}
 
@@ -123,7 +125,7 @@ func rewriteShowMeasurementCardinalityStatement(stmt *influxql.ShowMeasurementCa
 	// Use all measurements, if zero.
 	if len(stmt.Sources) == 0 {
 		stmt.Sources = influxql.Sources{
-			&influxql.Measurement{Regex: &influxql.RegexLiteral{Val: regexp.MustCompile(`.+`)}},
+			&influxql.Measurement{Regex: &influxql.RegexLiteral{Val: matchAllRegex}},
 		}
 	}
 
@@ -196,7 +198,7 @@ func rewriteShowSeriesCardinalityStatement(stmt *influxql.ShowSeriesCardinalityS
 	// Use all measurements, if zero.
 	if len(stmt.Sources) == 0 {
 		stmt.Sources = influxql.Sources{
-			&influxql.Measurement{Regex: &influxql.RegexLiteral{Val: regexp.MustCompile(`.+`)}},
+			&influxql.Measurement{Regex: &influxql.RegexLiteral{Val: matchAllRegex}},
 		}
 	}
 
@@ -278,7 +280,7 @@ func rewriteShowTagValuesCardinalityStatement(stmt *influxql.ShowTagValuesCardin
 	// Use all measurements, if zero.
 	if len(stmt.Sources) == 0 {
 		stmt.Sources = influxql.Sources{
-			&influxql.Measurement{Regex: &influxql.RegexLiteral{Val: regexp.MustCompile(`.+`)}},
+			&influxql.Measurement{Regex: &influxql.RegexLiteral{Val: matchAllRegex}},
 		}
 	}
 
@@ -366,7 +368,7 @@ func rewriteShowTagKeyCardinalityStatement(stmt *influxql.ShowTagKeyCardinalityS
 	// Use all measurements, if zero.
 	if len(stmt.Sources) == 0 {
 		stmt.Sources = influxql.Sources{
-			&influxql.Measurement{Regex: &influxql.RegexLiteral{Val: regexp.MustCompile(`.+`)}},
+			&influxql.Measurement{Regex: &influxql.RegexLiteral{Val: matchAllRegex}},
 		}
 	}
 
@@ -480,7 +482,7 @@ func rewriteSourcesCondition(sources influxql.Sources, cond influxql.Expr) influ
 
 func rewriteSources2(sources influxql.Sources, database string) influxql.Sources {
 	if len(sources) == 0 {
-		sources = influxql.Sources{&influxql.Measurement{Regex: &influxql.RegexLiteral{Val: matchAllRegex.Copy()}}}
+		sources = influxql.Sources{&influxql.Measurement{Regex: &influxql.RegexLiteral{Val: matchAllRegex}}}
 	}
 	for _, source := range sources {
 		switch source := source.(type) {
@@ -492,5 +494,3 @@ func rewriteSources2(sources influxql.Sources, database string) influxql.Sources
 	}
 	return sources
 }
-
-var matchAllRegex = regexp.MustCompile(`.+`)
