@@ -6,13 +6,13 @@ import classnames from 'classnames'
 import {
   FlexBox,
   ComponentSize,
-  ComponentStatus,
   AlignItems,
   JustifyContent,
-  SquareButton,
-  IconFont,
 } from '@influxdata/clockface'
 import RemovePanelButton from 'src/notebooks/components/panel/RemovePanelButton'
+import PanelVisibilityToggle from 'src/notebooks/components/panel/PanelVisibilityToggle'
+import MovePanelUpButton from 'src/notebooks/components/panel/MovePanelUpButton'
+import MovePanelDownButton from 'src/notebooks/components/panel/MovePanelDownButton'
 import NotebookPanelTitle from 'src/notebooks/components/panel/NotebookPanelTitle'
 
 interface Props {
@@ -28,6 +28,8 @@ interface Props {
   onMoveDown?: (id?: string) => void
 }
 
+export type NotebookPanelVisibility = 'hidden' | 'visible'
+
 const NotebookPanel: FC<Props> = ({
   id,
   children,
@@ -40,42 +42,13 @@ const NotebookPanel: FC<Props> = ({
   onMoveUp,
   onMoveDown,
 }) => {
-  const [panelState, setPanelState] = useState<'hidden' | 'visible'>('visible')
+  const [panelVisibility, setPanelVisibility] = useState<
+    NotebookPanelVisibility
+  >('visible')
 
   const panelClassName = classnames('notebook-panel', {
-    [`notebook-panel__${panelState}`]: panelState,
+    [`notebook-panel__${panelVisibility}`]: panelVisibility,
   })
-
-  const toggleIcon =
-    panelState === 'visible' ? IconFont.EyeOpen : IconFont.EyeClosed
-
-  const handleToggle = (): void => {
-    if (panelState === 'hidden') {
-      setPanelState('visible')
-    } else if (panelState === 'visible') {
-      setPanelState('hidden')
-    }
-  }
-
-  const movePanelUpButtonStatus = onMoveUp
-    ? ComponentStatus.Default
-    : ComponentStatus.Disabled
-
-  const movePanelDownButtonStatus = onMoveDown
-    ? ComponentStatus.Default
-    : ComponentStatus.Disabled
-
-  const handleMovePanelUp = (): void => {
-    if (onMoveUp) {
-      onMoveUp(id)
-    }
-  }
-
-  const handleMovePanelDown = (): void => {
-    if (onMoveDown) {
-      onMoveDown(id)
-    }
-  }
 
   return (
     <div className={panelClassName}>
@@ -100,24 +73,17 @@ const NotebookPanel: FC<Props> = ({
           justifyContent={JustifyContent.FlexEnd}
         >
           {controlsRight}
-          <SquareButton
-            icon={IconFont.CaretUp}
-            status={movePanelUpButtonStatus}
-            onClick={handleMovePanelUp}
-            titleText="Move this panel up"
+          <MovePanelUpButton onMoveUp={onMoveUp} id={id} />
+          <MovePanelDownButton onMoveDown={onMoveDown} id={id} />
+          <PanelVisibilityToggle
+            onToggle={setPanelVisibility}
+            visibility={panelVisibility}
           />
-          <SquareButton
-            icon={IconFont.CaretDown}
-            status={movePanelDownButtonStatus}
-            onClick={handleMovePanelDown}
-            titleText="Move this panel down"
-          />
-          <SquareButton icon={toggleIcon} onClick={handleToggle} />
           <RemovePanelButton id={id} onRemove={onRemove} />
         </FlexBox>
       </div>
       <div className="notebook-panel--body">
-        {panelState === 'visible' && children}
+        {panelVisibility === 'visible' && children}
       </div>
     </div>
   )
