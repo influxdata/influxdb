@@ -435,6 +435,7 @@ ${ r._check_name } is: ${ r._level } value was ${string(v: r.val)}
   Simple Count Check, Deadman Critical Check, Veille automatique - Avertissement, Bécik
   """
 
+@error-collateral
   Scenario: Threshold Check history - basic
     When hover over the name of the check card "Simple Count Check"
     # Collect some data - generate at least 1 event
@@ -454,6 +455,7 @@ ${ r._check_name } is: ${ r._level } value was ${string(v: r.val)}
     Then the Alerting page is loaded
     Then there is an alert card named "Simple Count Check"
 
+@error-collateral
   Scenario: Deadman Check history - basic
     When stop live data generator
     When wait "40" seconds
@@ -478,6 +480,7 @@ ${ r._check_name } is: ${ r._level } value was ${string(v: r.val)}
     """
 
 # Delete Check
+@error-collateral
   Scenario Template: Delete Check
     When hover over the name of the check card "<NAME>"
     When click delete of the check card "<NAME>"
