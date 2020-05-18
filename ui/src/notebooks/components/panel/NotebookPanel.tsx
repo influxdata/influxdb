@@ -11,8 +11,7 @@ import {
 } from '@influxdata/clockface'
 import RemovePanelButton from 'src/notebooks/components/panel/RemovePanelButton'
 import PanelVisibilityToggle from 'src/notebooks/components/panel/PanelVisibilityToggle'
-import MovePanelUpButton from 'src/notebooks/components/panel/MovePanelUpButton'
-import MovePanelDownButton from 'src/notebooks/components/panel/MovePanelDownButton'
+import MovePanelButton from 'src/notebooks/components/panel/MovePanelButton'
 import NotebookPanelTitle from 'src/notebooks/components/panel/NotebookPanelTitle'
 
 interface Props {
@@ -31,7 +30,6 @@ interface Props {
 export type NotebookPanelVisibility = 'hidden' | 'visible'
 
 const NotebookPanel: FC<Props> = ({
-  id,
   children,
   title,
   previousPanelTitle,
@@ -73,8 +71,8 @@ const NotebookPanel: FC<Props> = ({
           justifyContent={JustifyContent.FlexEnd}
         >
           {controlsRight}
-          <MovePanelUpButton onMoveUp={onMoveUp} />
-          <MovePanelDownButton onMoveDown={onMoveDown} />
+          <MovePanelButton direction="up" onClick={onMoveUp} />
+          <MovePanelButton direction="down" onClick={onMoveDown} />
           <PanelVisibilityToggle
             onToggle={setPanelVisibility}
             visibility={panelVisibility}
