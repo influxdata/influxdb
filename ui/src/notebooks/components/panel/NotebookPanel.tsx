@@ -22,9 +22,9 @@ interface Props {
   previousPanelTitle?: string
   controlsLeft?: JSX.Element | JSX.Element[]
   controlsRight?: JSX.Element | JSX.Element[]
-  onRemove?: (id?: string) => void
-  onMoveUp?: (id?: string) => void
-  onMoveDown?: (id?: string) => void
+  onRemove?: () => void
+  onMoveUp?: () => void
+  onMoveDown?: () => void
 }
 
 export type NotebookPanelVisibility = 'hidden' | 'visible'
