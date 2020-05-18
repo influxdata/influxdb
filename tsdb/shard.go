@@ -1099,22 +1099,6 @@ func (s *Shard) Restore(r io.Reader, basePath string) error {
 	return s.Open()
 }
 
-// Import imports data to the underlying engine for the shard. r should
-// be a reader from a backup created by Backup.
-func (s *Shard) Import(r io.Reader, basePath string) error {
-	// Special case - we can still import to a disabled shard, so we should
-	// only check if the engine is closed and not care if the shard is
-	// disabled.
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s._engine == nil {
-		return ErrEngineClosed
-	}
-
-	// Import to engine.
-	return s._engine.Import(r, basePath)
-}
-
 // CreateSnapshot will return a path to a temp directory
 // containing hard links to the underlying shard files.
 func (s *Shard) CreateSnapshot() (string, error) {

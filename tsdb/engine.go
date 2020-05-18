@@ -45,7 +45,6 @@ type Engine interface {
 	Backup(w io.Writer, basePath string, since time.Time) error
 	Export(w io.Writer, basePath string, start time.Time, end time.Time) error
 	Restore(r io.Reader, basePath string) error
-	Import(r io.Reader, basePath string) error
 	Digest() (io.ReadCloser, int64, error)
 
 	CreateIterator(ctx context.Context, measurement string, opt query.IteratorOptions) (query.Iterator, error)
