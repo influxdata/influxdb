@@ -22,8 +22,6 @@ interface Props {
 }
 
 export default class DashboardCards extends PureComponent<Props> {
-  private _frame
-  private _window
   private _observer
   private _spinner
 
@@ -96,8 +94,8 @@ export default class DashboardCards extends PureComponent<Props> {
     const {windowSize, pages} = this.state
 
     return (
-      <div style={{height: '100%', display: 'grid'}} ref={this.registerFrame}>
-        <div className="dashboards-card-grid" ref={this.registerWindow}>
+      <div style={{height: '100%', display: 'grid'}}>
+        <div className="dashboards-card-grid">
           {sortedDashboards
             .filter(d => d.status === RemoteDataState.Done)
             .slice(0, pages * windowSize)
