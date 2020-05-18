@@ -73,13 +73,13 @@ const NotebookPanel: FC<Props> = ({
           justifyContent={JustifyContent.FlexEnd}
         >
           {controlsRight}
-          <MovePanelUpButton onMoveUp={onMoveUp} id={id} />
-          <MovePanelDownButton onMoveDown={onMoveDown} id={id} />
+          <MovePanelUpButton onMoveUp={onMoveUp} />
+          <MovePanelDownButton onMoveDown={onMoveDown} />
           <PanelVisibilityToggle
             onToggle={setPanelVisibility}
             visibility={panelVisibility}
           />
-          <RemovePanelButton id={id} onRemove={onRemove} />
+          <RemovePanelButton onRemove={onRemove} />
         </FlexBox>
       </div>
       <div className="notebook-panel--body">

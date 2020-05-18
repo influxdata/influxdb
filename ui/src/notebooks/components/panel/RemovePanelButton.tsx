@@ -5,17 +5,16 @@ import React, {FC} from 'react'
 import {SquareButton, IconFont} from '@influxdata/clockface'
 
 interface Props {
-  id: string
-  onRemove?: (id: string) => void
+  onRemove?: () => void
 }
 
-const RemoveButton: FC<Props> = ({id, onRemove}) => {
+const RemoveButton: FC<Props> = ({onRemove}) => {
   if (!onRemove) {
     return null
   }
 
   const handleClick = (): void => {
-    onRemove(id)
+    onRemove()
   }
 
   return <SquareButton icon={IconFont.Remove} onClick={handleClick} />

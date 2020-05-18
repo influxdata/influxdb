@@ -5,16 +5,15 @@ import React, {FC} from 'react'
 import {SquareButton, IconFont, ComponentStatus} from '@influxdata/clockface'
 
 interface Props {
-  id: string
-  onMoveUp?: (id: string) => void
+  onMoveUp?: () => void
 }
 
-const MovePanelUpButton: FC<Props> = ({id, onMoveUp}) => {
+const MovePanelUpButton: FC<Props> = ({onMoveUp}) => {
   const status = onMoveUp ? ComponentStatus.Default : ComponentStatus.Disabled
 
   const handleClick = (): void => {
     if (onMoveUp) {
-      onMoveUp(id)
+      onMoveUp()
     }
   }
 
