@@ -214,10 +214,10 @@ class Root extends PureComponent {
                   <Route component={GetFlags}>
                     <Route component={GetOrganizations}>
                       <Route path="/">
-                        <Route path="usage" component={UsagePage} />
                         <Route path="no-orgs" component={NoOrgsPage} />
                         <IndexRoute component={RouteToOrg} />
                         <Route path="orgs" component={App}>
+                          <Route path="usage" component={UsagePage} />
                           <Route path="new" component={CreateOrgOverlay} />
                           <Route path=":orgID" component={SetOrg}>
                             <IndexRoute component={MePage} />
