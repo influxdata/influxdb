@@ -17,8 +17,12 @@ const AddButtons: FC = () => {
         key={def.type}
         text={def.button}
         onClick={() => {
+          let data = def.initial
+          if (typeof data === 'function') {
+            data = data()
+          }
           addPipe({
-            ...def.empty,
+            ...data,
             type,
           })
         }}

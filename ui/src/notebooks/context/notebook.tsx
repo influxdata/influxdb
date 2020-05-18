@@ -9,6 +9,7 @@ export interface NotebookContextType {
   pipes: Pipe[]
   addPipe: (pipe: Pipe) => void
   updatePipe: (idx: number, pipe: Pipe) => void
+  movePipe: (currentIdx: number, newIdx: number) => void
   removePipe: (idx: number) => void
 }
 
@@ -17,6 +18,7 @@ export const DEFAULT_CONTEXT: NotebookContextType = {
   pipes: [],
   addPipe: () => {},
   updatePipe: () => {},
+  movePipe: () => {},
   removePipe: () => {},
 }
 
@@ -55,6 +57,22 @@ export const NotebookProvider: FC = ({children}) => {
     })
   }
 
+  function movePipe(currentIdx: number, newIdx: number) {
+    setPipes(pipes => {
+      const idx = ((newIdx % pipes.length) + pipes.length) % pipes.length
+
+      if (idx === currentIdx) {
+        return pipes
+      }
+
+      const pipe = pipes.splice(currentIdx, 1)
+
+      pipes.splice(idx, 0, pipe[0])
+
+      return pipes.slice()
+    })
+  }
+
   function removePipe(idx: number) {
     setPipes(pipes => {
       pipes.splice(idx, 1)
@@ -68,6 +86,7 @@ export const NotebookProvider: FC = ({children}) => {
         id,
         pipes,
         updatePipe,
+        movePipe,
         addPipe,
         removePipe,
       }}
