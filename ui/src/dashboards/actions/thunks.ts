@@ -246,20 +246,25 @@ export const getDashboards = () => async (
         }
       })
       .forEach(entity => {
-        const viewsData = viewsFromCells(entity.cells, entity.id)
+        setImmediate(() => {
+          const viewsData = viewsFromCells(entity.cells, entity.id)
 
-        const normViews = normalize<View, ViewEntities, string[]>(
-          viewsData,
-          arrayOfViews
-        )
+          const normViews = normalize<View, ViewEntities, string[]>(
+            viewsData,
+            arrayOfViews
+          )
 
-        const normCells = normalize<Dashboard, DashboardEntities, string[]>(
-          entity.cells,
-          arrayOfCells
-        )
+          dispatch(setViews(RemoteDataState.Done, normViews))
+        })
 
-        dispatch(setViews(RemoteDataState.Done, normViews))
-        dispatch(setCells(entity.id, RemoteDataState.Done, normCells))
+        setImmediate(() => {
+          const normCells = normalize<Dashboard, DashboardEntities, string[]>(
+            entity.cells,
+            arrayOfCells
+          )
+
+          dispatch(setCells(entity.id, RemoteDataState.Done, normCells))
+        })
       })
   } catch (error) {
     dispatch(creators.setDashboards(RemoteDataState.Error))

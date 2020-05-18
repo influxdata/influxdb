@@ -32,29 +32,15 @@ export default class DashboardCards extends PureComponent<Props> {
   )
 
   state = {
-    hasMeasured: false,
     pages: 1,
     windowSize: 0,
   }
 
   public componentDidMount() {
     this.setState({
-      hasMeasured: false,
       page: 1,
-      windowSize: 0,
+      windowSize: 15,
     })
-  }
-
-  public componentDidUpdate() {
-    this.addMore()
-  }
-
-  private registerFrame = elem => {
-    this._frame = elem
-  }
-
-  private registerWindow = elem => {
-    this._window = elem
   }
 
   private registerSpinner = elem => {
@@ -87,44 +73,7 @@ export default class DashboardCards extends PureComponent<Props> {
         .reduce((prev, curr) => prev || curr, false)
     ) {
       this.setState({
-        pages: this.state.pages + 2,
-      })
-    }
-  }
-
-  private addMore = () => {
-    if (this.state.hasMeasured) {
-      return
-    }
-
-    if (
-      this.state.windowSize * this.state.pages >=
-      this.props.dashboards.length
-    ) {
-      return
-    }
-
-    if (!this._frame) {
-      return
-    }
-
-    const frame = this._frame.getBoundingClientRect()
-    const win = this._window.getBoundingClientRect()
-
-    if (frame.height <= win.height) {
-      this.setState(
-        {
-          windowSize: this.state.windowSize + 1,
-        },
-        () => {
-          this.addMore()
-        }
-      )
-    } else {
-      this.setState({
-        windowSize: this.state.windowSize,
-        pages: 3,
-        hasMeasured: true,
+        pages: this.state.pages + 1,
       })
     }
   }
@@ -144,7 +93,7 @@ export default class DashboardCards extends PureComponent<Props> {
       sortType
     )
 
-    const {windowSize, pages, hasMeasured} = this.state
+    const {windowSize, pages} = this.state
 
     return (
       <div style={{height: '100%', display: 'grid'}} ref={this.registerFrame}>
@@ -164,9 +113,9 @@ export default class DashboardCards extends PureComponent<Props> {
               />
             ))}
         </div>
-        {hasMeasured && windowSize * pages < dashboards.length && (
+        {windowSize * pages < dashboards.length && (
           <div
-            style={{height: '140px', margin: '24px auto'}}
+            style={{height: '140px', margin: '14px auto'}}
             ref={this.registerSpinner}
           >
             <TechnoSpinner />
