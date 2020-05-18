@@ -64,31 +64,29 @@ class DashboardCard extends PureComponent<Props> {
         testID="dashboard-card"
         contextMenu={this.contextMenu}
       >
-          <div style={{position: 'relative', height: '100%'}}>
-          <ResourceCard.EditableName
-            onUpdate={this.handleUpdateDashboard}
-            onClick={this.handleClickDashboard}
-            name={name}
-            noNameString={DEFAULT_DASHBOARD_NAME}
-            testID="dashboard-card--name"
-            buttonTestID="dashboard-card--name-button"
-            inputTestID="dashboard-card--input"
-          />
-          <ResourceCard.EditableDescription
-            onUpdate={this.handleUpdateDescription}
-            description={description}
-            placeholder={`Describe ${name}`}
-          />
-          <ResourceCard.Meta>
-            {relativeTimestampFormatter(updatedAt, 'Last modified ')}
-          </ResourceCard.Meta>
-          <InlineLabels
-            selectedLabelIDs={labels}
-            onFilterChange={onFilterChange}
-            onAddLabel={this.handleAddLabel}
-            onRemoveLabel={this.handleRemoveLabel}
-          />
-        </div>
+        <ResourceCard.EditableName
+          onUpdate={this.handleUpdateDashboard}
+          onClick={this.handleClickDashboard}
+          name={name}
+          noNameString={DEFAULT_DASHBOARD_NAME}
+          testID="dashboard-card--name"
+          buttonTestID="dashboard-card--name-button"
+          inputTestID="dashboard-card--input"
+        />
+        <ResourceCard.EditableDescription
+          onUpdate={this.handleUpdateDescription}
+          description={description}
+          placeholder={`Describe ${name}`}
+        />
+        <ResourceCard.Meta>
+          {relativeTimestampFormatter(updatedAt, 'Last modified ')}
+        </ResourceCard.Meta>
+        <InlineLabels
+          selectedLabelIDs={labels}
+          onFilterChange={onFilterChange}
+          onAddLabel={this.handleAddLabel}
+          onRemoveLabel={this.handleRemoveLabel}
+        />
       </ResourceCard>
     )
   }
