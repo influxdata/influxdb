@@ -516,7 +516,7 @@ type Result struct {
 
 // Query sends a command to the server and returns the Response.
 func (c *client) Query(q Query) (*Response, error) {
-	return c.QueryCtx(nil, q)
+	return c.QueryCtx(context.Background(), q)
 }
 
 // QueryCtx sends a command to the server and returns the Response.
@@ -591,7 +591,7 @@ func (c *client) QueryCtx(ctx context.Context, q Query) (*Response, error) {
 
 // QueryAsChunk sends a command to the server and returns the Response.
 func (c *client) QueryAsChunk(q Query) (*ChunkedResponse, error) {
-	req, err := c.createDefaultRequest(nil, q)
+	req, err := c.createDefaultRequest(context.Background(), q)
 	if err != nil {
 		return nil, err
 	}
