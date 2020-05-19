@@ -4,7 +4,6 @@ import {Page} from '@influxdata/clockface'
 import {NotebookProvider} from 'src/notebooks/context/notebook'
 import Header from 'src/notebooks/components/Header'
 import PipeList from 'src/notebooks/components/PipeList'
-import AddButtons from 'src/notebooks/components/AddButtons'
 import NotebookPanel from 'src/notebooks/components/panel/NotebookPanel'
 
 // NOTE: uncommon, but using this to scope the project
@@ -16,14 +15,7 @@ const NotebookPage: FC = () => {
   return (
     <NotebookProvider>
       <Page titleTag="Notebook">
-        <Page.Header fullWidth={true}>
-          <Header />
-        </Page.Header>
-        <Page.ControlBar fullWidth={true}>
-          <Page.ControlBarLeft>
-            <AddButtons />
-          </Page.ControlBarLeft>
-        </Page.ControlBar>
+        <Header />
         <Page.Contents fullWidth={true} scrollable={true}>
           <PipeList />
         </Page.Contents>
