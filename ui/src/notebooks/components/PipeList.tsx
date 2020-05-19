@@ -4,26 +4,24 @@ import {NotebookContext} from 'src/notebooks/context/notebook'
 import NotebookPanel from 'src/notebooks/components/panel/NotebookPanel'
 
 const PipeList: FC = () => {
-  const {id, pipes, removePipe, movePipe} = useContext(NotebookContext)
+  const {id, pipes, meta} = useContext(NotebookContext)
   const _pipes = pipes.map((_, index) => {
-    const canBeMovedUp = index > 0
-    const canBeMovedDown = index < pipes.length - 1
-    const canBeRemoved = index !== 0
+    const header = <NotebookPanel index={index} />
 
-    const moveUp = canBeMovedUp ? () => movePipe(index, index - 1) : null
-    const moveDown = canBeMovedDown ? () => movePipe(index, index + 1) : null
-    const remove = canBeRemoved ? () => removePipe(index) : null
+    if (!meta[index].visible) {
+      return (
+        <div key={`pipe-${id}-${index}`} className="panel-empty">
+          {header}
+        </div>
+      )
+    }
 
     return (
-      <NotebookPanel
-        key={`pipe-${id}-${index}`}
+      <Pipe
         index={index}
-        onMoveUp={moveUp}
-        onMoveDown={moveDown}
-        onRemove={remove}
-      >
-        <Pipe index={index} />
-      </NotebookPanel>
+        key={`pipe-${id}-${index}`}
+        contextInteraction={header}
+      />
     )
   })
 

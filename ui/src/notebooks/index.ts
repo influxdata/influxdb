@@ -2,6 +2,7 @@ import {FunctionComponent, ComponentClass} from 'react'
 
 export interface PipeProp {
   index: number
+  contextInteraction?: FunctionComponent | ComponentClass | JSX.Element
 }
 
 // NOTE: keep this interface as small as possible and

@@ -1,6 +1,5 @@
 // Libraries
-import React, {FC, ReactChildren, useContext} from 'react'
-import classnames from 'classnames'
+import React, {FC, useContext} from 'react'
 
 // Components
 import {
@@ -17,51 +16,39 @@ import NotebookPanelTitle from 'src/notebooks/components/panel/NotebookPanelTitl
 
 export interface Props {
   index: number
-  children: ReactChildren | JSX.Element | JSX.Element[]
-  onMoveUp?: () => void
-  onMoveDown?: () => void
-  onRemove?: () => void
 }
 
-const NotebookPanel: FC<Props> = ({
-  index,
-  children,
-  onMoveUp,
-  onMoveDown,
-  onRemove,
-}) => {
-  const {meta} = useContext(NotebookContext)
-  const isVisible = meta[index].visible
+const NotebookPanel: FC<Props> = ({index}) => {
+  const {pipes, removePipe, movePipe} = useContext(NotebookContext)
+  const canBeMovedUp = index > 0
+  const canBeMovedDown = index < pipes.length - 1
+  const canBeRemoved = index !== 0
 
-  const panelClassName = classnames('notebook-panel', {
-    [`notebook-panel__visible`]: isVisible,
-    [`notebook-panel__hidden`]: !isVisible,
-  })
+  const moveUp = canBeMovedUp ? () => movePipe(index, index - 1) : null
+  const moveDown = canBeMovedDown ? () => movePipe(index, index + 1) : null
+  const remove = canBeRemoved ? () => removePipe(index) : null
 
   return (
-    <div className={panelClassName}>
-      <div className="notebook-panel--header">
-        <FlexBox
-          className="notebook-panel--header-left"
-          alignItems={AlignItems.Center}
-          margin={ComponentSize.Small}
-          justifyContent={JustifyContent.FlexStart}
-        >
-          <NotebookPanelTitle index={index} />
-        </FlexBox>
-        <FlexBox
-          className="notebook-panel--header-right"
-          alignItems={AlignItems.Center}
-          margin={ComponentSize.Small}
-          justifyContent={JustifyContent.FlexEnd}
-        >
-          <MovePanelButton direction="up" onClick={onMoveUp} />
-          <MovePanelButton direction="down" onClick={onMoveDown} />
-          <PanelVisibilityToggle index={index} />
-          <RemovePanelButton onRemove={onRemove} />
-        </FlexBox>
-      </div>
-      <div className="notebook-panel--body">{isVisible && children}</div>
+    <div className="notebook-panel--header">
+      <FlexBox
+        className="notebook-panel--header-left"
+        alignItems={AlignItems.Center}
+        margin={ComponentSize.Small}
+        justifyContent={JustifyContent.FlexStart}
+      >
+        <NotebookPanelTitle index={index} />
+      </FlexBox>
+      <FlexBox
+        className="notebook-panel--header-right"
+        alignItems={AlignItems.Center}
+        margin={ComponentSize.Small}
+        justifyContent={JustifyContent.FlexEnd}
+      >
+        <MovePanelButton direction="up" onClick={moveUp} />
+        <MovePanelButton direction="down" onClick={moveDown} />
+        <PanelVisibilityToggle index={index} />
+        <RemovePanelButton onRemove={remove} />
+      </FlexBox>
     </div>
   )
 }

@@ -62,7 +62,7 @@ export const NotebookProvider: FC = ({children}) => {
     setPipes(add(pipe))
     setMeta(
       add({
-        title: `Notebook ${++GENERATOR_INDEX}`,
+        title: `Notebook_${++GENERATOR_INDEX}`,
         visible: true,
       })
     )
