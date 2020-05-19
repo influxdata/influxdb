@@ -18,9 +18,12 @@ fn main() -> Result<()> {
         .arg("-o")
         .arg(&out_dir)
         .arg("proto/delorean/wal.fbs")
-        .status()?;
-    if !status.success() {
-        panic!("`flatc` failed to compile the .fbs to Rust");
+        .status();
+
+    match status {
+        Ok(status) if !status.success() => panic!("`flatc` failed to compile the .fbs to Rust"),
+        Ok(_status) => {} // Successfully compiled
+        Err(err) => panic!("Could not execute `flatc`: {}", err),
     }
 
     Ok(())
