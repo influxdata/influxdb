@@ -8632,6 +8632,19 @@ components:
               type: string
               format: uri
       required: [id, email, role]
+    Invites:
+      type: object
+      properties:
+        links:
+          type: object
+          properties:
+            self:
+              type: string
+              format: uri
+        users:
+          type: array
+          items:
+            $ref: "#/components/schemas/Invites"
     CloudUser:
       properties:
         id:
