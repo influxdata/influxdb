@@ -5,7 +5,7 @@ import RawFluxDataGrid from 'src/timeMachine/components/RawFluxDataGrid'
 
 // Utils
 import {parseFiles} from 'src/timeMachine/utils/rawFluxDataTable'
-import {DapperScrollbars} from '@influxdata/clockface'
+import {DapperScrollbars, FusionScrollEvent} from '@influxdata/clockface'
 
 interface Props {
   files: string[]
@@ -58,11 +58,8 @@ class RawFluxDataTable extends PureComponent<Props, State> {
     )
   }
 
-  private onScrollbarsScroll = (e: MouseEvent<HTMLElement>) => {
-    e.preventDefault()
-    e.stopPropagation()
-
-    const {scrollTop, scrollLeft} = e.currentTarget
+  private onScrollbarsScroll = (e: FusionScrollEvent) => {
+    const {scrollTop, scrollLeft} = e
 
     this.setState({scrollLeft, scrollTop})
   }
