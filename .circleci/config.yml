@@ -7,7 +7,7 @@ jobs:
       docker_layer_caching: true
     environment:
       - PARALLELISM: 4 # Input to influxdb/build.py
-    parallelism: 5 # How many CircleCI test containers
+    parallelism: 4 # How many CircleCI test containers
     steps:
       - checkout
       - run:
