@@ -121,7 +121,7 @@ const collectAncestors = (
   - The node for one of the passed variables depends on this node
 
 */
-export const findSubgraph = (
+const findSubgraph = (
   graph: VariableNode[],
   variables: Variable[]
 ): VariableNode[] => {

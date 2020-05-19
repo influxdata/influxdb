@@ -635,6 +635,97 @@ export const defaultGraph: VariableNode[] = [
   },
 ]
 
+export const defaultVariables: Variable[] = [
+  {
+    id: '05b740973c68e000',
+    orgID: '05b740945a91b000',
+    name: 'static',
+    description: '',
+    selected: ['defbuck'],
+    arguments: {
+      type: 'constant',
+      values: ['beans', 'defbuck'],
+    },
+    createdAt: '2020-05-19T06:00:00.113169-07:00',
+    updatedAt: '2020-05-19T06:00:00.113169-07:00',
+    labels: [],
+    links: {
+      self: '/api/v2/variables/05b740973c68e000',
+      labels: '/api/v2/variables/05b740973c68e000/labels',
+      org: '/api/v2/orgs/05b740945a91b000',
+    },
+    status: RemoteDataState.Done,
+  },
+  {
+    id: '05b740974228e000',
+    orgID: '05b740945a91b000',
+    name: 'dependent',
+    description: '',
+    selected: [],
+    arguments: {
+      type: 'query',
+      values: {
+        query:
+          'from(bucket: v.static)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r["_measurement"] == "test")\n  |> keep(columns: ["container_name"])\n  |> rename(columns: {"container_name": "_value"})\n  |> last()\n  |> group()',
+        language: 'flux',
+        results: [],
+      },
+    },
+    createdAt: '2020-05-19T06:00:00.136597-07:00',
+    updatedAt: '2020-05-19T06:00:00.136597-07:00',
+    labels: [],
+    links: {
+      self: '/api/v2/variables/05b740974228e000',
+      labels: '/api/v2/variables/05b740974228e000/labels',
+      org: '/api/v2/orgs/05b740945a91b000',
+    },
+    status: RemoteDataState.Loading,
+  },
+  {
+    orgID: '',
+    id: 'timeRangeStart',
+    name: 'timeRangeStart',
+    arguments: {
+      type: 'system',
+      values: [
+        [
+          {
+            magnitude: 1,
+            unit: 'h',
+          },
+        ],
+      ],
+    },
+    status: RemoteDataState.Done,
+    labels: [],
+    selected: [],
+  },
+  {
+    orgID: '',
+    id: 'timeRangeStop',
+    name: 'timeRangeStop',
+    arguments: {
+      type: 'system',
+      values: ['now()'],
+    },
+    status: RemoteDataState.Done,
+    labels: [],
+    selected: [],
+  },
+  {
+    orgID: '',
+    id: 'windowPeriod',
+    name: 'windowPeriod',
+    arguments: {
+      type: 'system',
+      values: [10000],
+    },
+    status: RemoteDataState.Done,
+    labels: [],
+    selected: [],
+  },
+]
+
 export const defaultVariable: Variable[] = [
   {
     id: '05b73f4bffe8e000',

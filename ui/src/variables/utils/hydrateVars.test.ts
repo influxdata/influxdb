@@ -1,18 +1,12 @@
 // Utils
 import {ValueFetcher} from 'src/variables/utils/ValueFetcher'
-import {hydrateVars, findSubgraph} from 'src/variables/utils/hydrateVars'
+import {hydrateVars} from 'src/variables/utils/hydrateVars'
 
 // Mocks
-import {
-  createVariable,
-  defaultVariable,
-  defaultSubGraph,
-  defaultGraph,
-} from 'src/variables/mocks'
+import {createVariable} from 'src/variables/mocks'
 
 // Types
 import {Variable, CancellationError, RemoteDataState} from 'src/types'
-import {VariableNode} from 'src/variables/utils/hydrateVars'
 
 class FakeFetcher implements ValueFetcher {
   responses = {}
@@ -323,33 +317,5 @@ describe('hydrate vars', () => {
     })
 
     cancel()
-  })
-})
-
-describe('findSubgraph', () => {
-  test('find subgraphs', async () => {
-    const actual = await findSubgraph(defaultGraph, defaultVariable)
-
-    // We expect the end state of the graph to be:
-    //
-    //     digraph {
-    //       a -> b
-    //       b -> c
-    //       c -> d
-    //       d -> e
-    //       d -> b
-    //       f -> g
-    //       a [fontcolor = "red"]
-    //       b [fontcolor = "red"]
-    //       c [fontcolor = "red"]
-    //       d [fontcolor = "red"]
-    //       e [fontcolor = "green"]
-    //       f [fontcolor = "green"]
-    //       g [fontcolor = "green"]
-    //     }
-    //
-    // NOTE: these return falsy and not an empty array, because they are skipped
-    // within hydrateVars as not belonging to the graph
-    expect(actual).toEqual(defaultSubGraph)
   })
 })
