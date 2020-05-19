@@ -225,9 +225,7 @@ func (dec *FloatPointDecoder) DecodeFloatPoint(p *FloatPoint) error {
 		}
 
 		if len(pb.Trace) > 0 {
-			var err error
-			err = decodeIteratorTrace(dec.ctx, pb.Trace)
-			if err != nil {
+			if err := decodeIteratorTrace(dec.ctx, pb.Trace); err != nil {
 				return err
 			}
 			continue
@@ -450,9 +448,7 @@ func (dec *IntegerPointDecoder) DecodeIntegerPoint(p *IntegerPoint) error {
 		}
 
 		if len(pb.Trace) > 0 {
-			var err error
-			err = decodeIteratorTrace(dec.ctx, pb.Trace)
-			if err != nil {
+			if err := decodeIteratorTrace(dec.ctx, pb.Trace); err != nil {
 				return err
 			}
 			continue
@@ -673,9 +669,7 @@ func (dec *UnsignedPointDecoder) DecodeUnsignedPoint(p *UnsignedPoint) error {
 		}
 
 		if len(pb.Trace) > 0 {
-			var err error
-			err = decodeIteratorTrace(dec.ctx, pb.Trace)
-			if err != nil {
+			if err := decodeIteratorTrace(dec.ctx, pb.Trace); err != nil {
 				return err
 			}
 			continue
@@ -898,9 +892,7 @@ func (dec *StringPointDecoder) DecodeStringPoint(p *StringPoint) error {
 		}
 
 		if len(pb.Trace) > 0 {
-			var err error
-			err = decodeIteratorTrace(dec.ctx, pb.Trace)
-			if err != nil {
+			if err := decodeIteratorTrace(dec.ctx, pb.Trace); err != nil {
 				return err
 			}
 			continue
@@ -1123,9 +1115,7 @@ func (dec *BooleanPointDecoder) DecodeBooleanPoint(p *BooleanPoint) error {
 		}
 
 		if len(pb.Trace) > 0 {
-			var err error
-			err = decodeIteratorTrace(dec.ctx, pb.Trace)
-			if err != nil {
+			if err := decodeIteratorTrace(dec.ctx, pb.Trace); err != nil {
 				return err
 			}
 			continue
