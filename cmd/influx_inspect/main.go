@@ -18,6 +18,7 @@ import (
 	"github.com/influxdata/influxdb/cmd/influx_inspect/report"
 	"github.com/influxdata/influxdb/cmd/influx_inspect/reporttsi"
 	"github.com/influxdata/influxdb/cmd/influx_inspect/verify/seriesfile"
+	"github.com/influxdata/influxdb/cmd/influx_inspect/verify/tombstone"
 	"github.com/influxdata/influxdb/cmd/influx_inspect/verify/tsm"
 	_ "github.com/influxdata/influxdb/tsdb/engine"
 )
@@ -112,8 +113,13 @@ func (m *Main) Run(args ...string) error {
 		if err := name.Run(args...); err != nil {
 			return fmt.Errorf("verify-seriesfile: %s", err)
 		}
+	case "verify-tombstone":
+		name := tombstone.NewCommand()
+		if err := name.Run(args...); err != nil {
+			return fmt.Errorf("verify-tombstone: %s", err)
+		}
 	default:
-		return fmt.Errorf(`unknown command "%s"`+"\n"+`Run 'influx_inspect help' for usage`+"\n\n", name)
+		return fmt.Errorf(`unknown command "%s"`+"\n"+`Run 'influx_inspect help' for usage`, name)
 	}
 
 	return nil

@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e
+
 function printHelp() {
   >&2 echo "USAGE: $0 -s INFLUXDB_SHA -b INFLUXDB_BRANCH -v INFLUXDB_VERSION
 
@@ -45,7 +47,7 @@ fi
 
 cd influxdb
 git checkout "$SHA"
-dep ensure -vendor-only
+go mod vendor
 cd ..
 
 # Emit version metadata to appropriate files.

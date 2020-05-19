@@ -56,12 +56,12 @@ func TestKeyMerger_MergeTagKeys(t *testing.T) {
 		},
 	}
 
-	var km keyMerger
+	var km KeyMerger
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			km.clear()
+			km.Clear()
 			for _, tags := range tt.tags {
-				km.mergeTagKeys(tags)
+				km.MergeTagKeys(tags)
 			}
 
 			if got := km.String(); !cmp.Equal(got, tt.exp) {
@@ -120,12 +120,12 @@ func TestKeyMerger_MergeKeys(t *testing.T) {
 		},
 	}
 
-	var km keyMerger
+	var km KeyMerger
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			km.clear()
+			km.Clear()
 			for _, keys := range tt.keys {
-				km.mergeKeys(keys)
+				km.MergeKeys(keys)
 			}
 
 			if got := km.String(); !cmp.Equal(got, tt.exp) {
@@ -158,12 +158,12 @@ func BenchmarkKeyMerger_MergeKeys(b *testing.B) {
 		b.Run(strconv.Itoa(n), func(b *testing.B) {
 			b.ResetTimer()
 
-			var km keyMerger
+			var km KeyMerger
 			for i := 0; i < b.N; i++ {
 				for j := 0; j < n; j++ {
-					km.mergeKeys(keys[rand.Int()%len(keys)])
+					km.MergeKeys(keys[rand.Int()%len(keys)])
 				}
-				km.clear()
+				km.Clear()
 			}
 		})
 	}
@@ -192,12 +192,12 @@ func BenchmarkKeyMerger_MergeTagKeys(b *testing.B) {
 		b.Run(strconv.Itoa(n), func(b *testing.B) {
 			b.ResetTimer()
 
-			var km keyMerger
+			var km KeyMerger
 			for i := 0; i < b.N; i++ {
 				for j := 0; j < n; j++ {
-					km.mergeTagKeys(tags[rand.Int()%len(tags)])
+					km.MergeTagKeys(tags[rand.Int()%len(tags)])
 				}
-				km.clear()
+				km.Clear()
 			}
 		})
 	}

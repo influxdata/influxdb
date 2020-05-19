@@ -1,5 +1,5 @@
 diff --git b/flux/stdlib/influxdata/influxdb/buckets.go a/flux/stdlib/influxdata/influxdb/buckets.go
-index 4fd36f948..9ecbe4923 100644
+index 4fd36f948d..9ecbe49234 100644
 --- b/flux/stdlib/influxdata/influxdb/buckets.go
 +++ a/flux/stdlib/influxdata/influxdb/buckets.go
 @@ -2,6 +2,7 @@ package influxdb
@@ -168,7 +168,7 @@ index 4fd36f948..9ecbe4923 100644
  }
 -type BucketDependencies AllBucketLookup
 diff --git b/flux/stdlib/influxdata/influxdb/dependencies.go a/flux/stdlib/influxdata/influxdb/dependencies.go
-index 3303c2758..ad9a36ab6 100644
+index 3303c27589..ad9a36ab6d 100644
 --- b/flux/stdlib/influxdata/influxdb/dependencies.go
 +++ a/flux/stdlib/influxdata/influxdb/dependencies.go
 @@ -2,13 +2,9 @@ package influxdb
@@ -293,7 +293,7 @@ index 3303c2758..ad9a36ab6 100644
  	}
  	return deps, nil
 diff --git b/flux/stdlib/influxdata/influxdb/from.go a/flux/stdlib/influxdata/influxdb/from.go
-index cdd6789c1..6662f54fd 100644
+index cdd6789c19..6662f54fd4 100644
 --- b/flux/stdlib/influxdata/influxdb/from.go
 +++ a/flux/stdlib/influxdata/influxdb/from.go
 @@ -8,7 +8,6 @@ import (
@@ -337,7 +337,7 @@ index cdd6789c1..6662f54fd 100644
  	Bucket   string
  	BucketID string
 diff --git b/flux/stdlib/influxdata/influxdb/from_test.go a/flux/stdlib/influxdata/influxdb/from_test.go
-index dac3b13ee..daba8c936 100644
+index dac3b13eee..daba8c9362 100644
 --- b/flux/stdlib/influxdata/influxdb/from_test.go
 +++ a/flux/stdlib/influxdata/influxdb/from_test.go
 @@ -1,192 +1 @@
@@ -534,7 +534,7 @@ index dac3b13ee..daba8c936 100644
 -	}
 -}
 diff --git b/flux/stdlib/influxdata/influxdb/metrics.go a/flux/stdlib/influxdata/influxdb/metrics.go
-index 82577e3a5..dd3cee868 100644
+index 82577e3a57..dd3cee868b 100644
 --- b/flux/stdlib/influxdata/influxdb/metrics.go
 +++ a/flux/stdlib/influxdata/influxdb/metrics.go
 @@ -1,83 +1,3 @@
@@ -623,7 +623,7 @@ index 82577e3a5..dd3cee868 100644
 -}
 +// Storage metrics are not implemented in the 1.x flux engine.
 diff --git b/flux/stdlib/influxdata/influxdb/operators.go a/flux/stdlib/influxdata/influxdb/operators.go
-index 4203b074b..b0db49591 100644
+index 4203b074be..b0db495917 100644
 --- b/flux/stdlib/influxdata/influxdb/operators.go
 +++ a/flux/stdlib/influxdata/influxdb/operators.go
 @@ -2,14 +2,16 @@ package influxdb
@@ -716,10 +716,10 @@ index 4203b074b..b0db49591 100644
  
  // TimeBounds implements plan.BoundsAwareProcedureSpec.
 diff --git b/flux/stdlib/influxdata/influxdb/rules.go a/flux/stdlib/influxdata/influxdb/rules.go
-index 9e9e66283..4b6425ac9 100644
+index 4102a2a73e..8ce3a20e04 100644
 --- b/flux/stdlib/influxdata/influxdb/rules.go
 +++ a/flux/stdlib/influxdata/influxdb/rules.go
-@@ -192,6 +192,12 @@ func (rule PushDownReadTagKeysRule) Rewrite(pn plan.Node) (plan.Node, bool, erro
+@@ -198,6 +198,12 @@ func (rule PushDownReadTagKeysRule) Rewrite(pn plan.Node) (plan.Node, bool, erro
  	// constructing our own replacement. We do not care about it
  	// at the moment though which is why it is not in the pattern.
  
@@ -732,7 +732,7 @@ index 9e9e66283..4b6425ac9 100644
  	// The schema mutator needs to correspond to a keep call
  	// on the column specified by the keys procedure.
  	if len(keepSpec.Mutations) != 1 {
-@@ -221,6 +227,20 @@ func (rule PushDownReadTagKeysRule) Rewrite(pn plan.Node) (plan.Node, bool, erro
+@@ -227,6 +233,20 @@ func (rule PushDownReadTagKeysRule) Rewrite(pn plan.Node) (plan.Node, bool, erro
  	}), true, nil
  }
  
@@ -753,7 +753,7 @@ index 9e9e66283..4b6425ac9 100644
  // PushDownReadTagValuesRule matches 'ReadRange |> keep(columns: [tag]) |> group() |> distinct(column: tag)'.
  // The 'from()' must have already been merged with 'range' and, optionally,
  // may have been merged with 'filter'.
-@@ -298,6 +318,9 @@ var invalidTagKeysForTagValues = []string{
+@@ -304,6 +324,9 @@ var invalidTagKeysForTagValues = []string{
  	execute.DefaultValueColLabel,
  	execute.DefaultStartColLabel,
  	execute.DefaultStopColLabel,
@@ -764,7 +764,7 @@ index 9e9e66283..4b6425ac9 100644
  
  // isValidTagKeyForTagValues returns true if the given key can
 diff --git b/flux/stdlib/influxdata/influxdb/rules_test.go a/flux/stdlib/influxdata/influxdb/rules_test.go
-index 12514b8d8..676deda55 100644
+index b4f7b79efe..e27ecabf24 100644
 --- b/flux/stdlib/influxdata/influxdb/rules_test.go
 +++ a/flux/stdlib/influxdata/influxdb/rules_test.go
 @@ -12,7 +12,7 @@ import (
@@ -777,7 +777,7 @@ index 12514b8d8..676deda55 100644
  
  func fluxTime(t int64) flux.Time {
 diff --git b/flux/stdlib/influxdata/influxdb/source.go a/flux/stdlib/influxdata/influxdb/source.go
-index 1cff76b5b..3e0d5b654 100644
+index 0ace5b7dc5..3e0d5b6542 100644
 --- b/flux/stdlib/influxdata/influxdb/source.go
 +++ a/flux/stdlib/influxdata/influxdb/source.go
 @@ -3,7 +3,6 @@ package influxdb
@@ -798,7 +798,7 @@ index 1cff76b5b..3e0d5b654 100644
  	"github.com/influxdata/influxdb/tsdb/cursors"
  )
  
-@@ -36,17 +32,10 @@ type Source struct {
+@@ -36,24 +32,10 @@ type Source struct {
  	stats cursors.CursorStats
  
  	runner runner
@@ -811,12 +811,20 @@ index 1cff76b5b..3e0d5b654 100644
  func (s *Source) Run(ctx context.Context) {
 -	labelValues := s.m.getLabelValues(ctx, s.orgID, s.op)
 -	start := time.Now()
- 	err := s.runner.run(ctx)
+-	var err error
+-	if flux.IsExperimentalTracingEnabled() {
+-		span, ctxWithSpan := tracing.StartSpanFromContextWithOperationName(ctx, "source-"+s.op)
+-		err = s.runner.run(ctxWithSpan)
+-		span.Finish()
+-	} else {
+-		err = s.runner.run(ctx)
+-	}
 -	s.m.recordMetrics(labelValues, start)
++	err := s.runner.run(ctx)
  	for _, t := range s.ts {
  		t.Finish(s.id, err)
  	}
-@@ -123,10 +112,6 @@ func ReadFilterSource(id execute.DatasetID, r Reader, readSpec ReadFilterSpec, a
+@@ -130,10 +112,6 @@ func ReadFilterSource(id execute.DatasetID, r Reader, readSpec ReadFilterSpec, a
  	src.reader = r
  	src.readSpec = readSpec
  
@@ -827,7 +835,7 @@ index 1cff76b5b..3e0d5b654 100644
  	src.runner = src
  	return src
  }
-@@ -145,8 +130,7 @@ func (s *readFilterSource) run(ctx context.Context) error {
+@@ -152,8 +130,7 @@ func (s *readFilterSource) run(ctx context.Context) error {
  }
  
  func createReadFilterSource(s plan.ProcedureSpec, id execute.DatasetID, a execute.Administration) (execute.Source, error) {
@@ -837,7 +845,7 @@ index 1cff76b5b..3e0d5b654 100644
  
  	spec := s.(*ReadRangePhysSpec)
  
-@@ -158,18 +142,9 @@ func createReadFilterSource(s plan.ProcedureSpec, id execute.DatasetID, a execut
+@@ -165,18 +142,9 @@ func createReadFilterSource(s plan.ProcedureSpec, id execute.DatasetID, a execut
  		}
  	}
  
@@ -858,7 +866,7 @@ index 1cff76b5b..3e0d5b654 100644
  	if err != nil {
  		return nil, err
  	}
-@@ -182,10 +157,10 @@ func createReadFilterSource(s plan.ProcedureSpec, id execute.DatasetID, a execut
+@@ -189,10 +157,10 @@ func createReadFilterSource(s plan.ProcedureSpec, id execute.DatasetID, a execut
  		id,
  		deps.Reader,
  		ReadFilterSpec{
@@ -873,7 +881,7 @@ index 1cff76b5b..3e0d5b654 100644
  		},
  		a,
  	), nil
-@@ -206,10 +181,6 @@ func ReadGroupSource(id execute.DatasetID, r Reader, readSpec ReadGroupSpec, a e
+@@ -213,10 +181,6 @@ func ReadGroupSource(id execute.DatasetID, r Reader, readSpec ReadGroupSpec, a e
  	src.reader = r
  	src.readSpec = readSpec
  
@@ -884,7 +892,7 @@ index 1cff76b5b..3e0d5b654 100644
  	src.runner = src
  	return src
  }
-@@ -228,8 +199,7 @@ func (s *readGroupSource) run(ctx context.Context) error {
+@@ -235,8 +199,7 @@ func (s *readGroupSource) run(ctx context.Context) error {
  }
  
  func createReadGroupSource(s plan.ProcedureSpec, id execute.DatasetID, a execute.Administration) (execute.Source, error) {
@@ -894,7 +902,7 @@ index 1cff76b5b..3e0d5b654 100644
  
  	spec := s.(*ReadGroupPhysSpec)
  
-@@ -238,15 +208,9 @@ func createReadGroupSource(s plan.ProcedureSpec, id execute.DatasetID, a execute
+@@ -245,15 +208,9 @@ func createReadGroupSource(s plan.ProcedureSpec, id execute.DatasetID, a execute
  		return nil, errors.New("nil bounds passed to from")
  	}
  
@@ -912,7 +920,7 @@ index 1cff76b5b..3e0d5b654 100644
  	if err != nil {
  		return nil, err
  	}
-@@ -260,10 +224,10 @@ func createReadGroupSource(s plan.ProcedureSpec, id execute.DatasetID, a execute
+@@ -267,10 +224,10 @@ func createReadGroupSource(s plan.ProcedureSpec, id execute.DatasetID, a execute
  		deps.Reader,
  		ReadGroupSpec{
  			ReadFilterSpec: ReadFilterSpec{
@@ -927,7 +935,7 @@ index 1cff76b5b..3e0d5b654 100644
  			},
  			GroupMode:       ToGroupMode(spec.GroupMode),
  			GroupKeys:       spec.GroupKeys,
-@@ -274,18 +238,12 @@ func createReadGroupSource(s plan.ProcedureSpec, id execute.DatasetID, a execute
+@@ -281,18 +238,12 @@ func createReadGroupSource(s plan.ProcedureSpec, id execute.DatasetID, a execute
  }
  
  func createReadTagKeysSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID, a execute.Administration) (execute.Source, error) {
@@ -949,7 +957,7 @@ index 1cff76b5b..3e0d5b654 100644
  	if err != nil {
  		return nil, err
  	}
-@@ -301,10 +259,10 @@ func createReadTagKeysSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID,
+@@ -308,10 +259,10 @@ func createReadTagKeysSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID,
  		deps.Reader,
  		ReadTagKeysSpec{
  			ReadFilterSpec: ReadFilterSpec{
@@ -964,7 +972,7 @@ index 1cff76b5b..3e0d5b654 100644
  			},
  		},
  		a,
-@@ -326,10 +284,6 @@ func ReadTagKeysSource(id execute.DatasetID, r Reader, readSpec ReadTagKeysSpec,
+@@ -333,10 +284,6 @@ func ReadTagKeysSource(id execute.DatasetID, r Reader, readSpec ReadTagKeysSpec,
  	src.id = id
  	src.alloc = a.Allocator()
  
@@ -975,7 +983,7 @@ index 1cff76b5b..3e0d5b654 100644
  	src.runner = src
  	return src
  }
-@@ -343,18 +297,12 @@ func (s *readTagKeysSource) run(ctx context.Context) error {
+@@ -350,18 +297,12 @@ func (s *readTagKeysSource) run(ctx context.Context) error {
  }
  
  func createReadTagValuesSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID, a execute.Administration) (execute.Source, error) {
@@ -997,7 +1005,7 @@ index 1cff76b5b..3e0d5b654 100644
  	if err != nil {
  		return nil, err
  	}
-@@ -370,10 +318,10 @@ func createReadTagValuesSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID
+@@ -377,10 +318,10 @@ func createReadTagValuesSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID
  		deps.Reader,
  		ReadTagValuesSpec{
  			ReadFilterSpec: ReadFilterSpec{
@@ -1012,7 +1020,7 @@ index 1cff76b5b..3e0d5b654 100644
  			},
  			TagKey: spec.TagKey,
  		},
-@@ -396,10 +344,6 @@ func ReadTagValuesSource(id execute.DatasetID, r Reader, readSpec ReadTagValuesS
+@@ -403,10 +344,6 @@ func ReadTagValuesSource(id execute.DatasetID, r Reader, readSpec ReadTagValuesS
  	src.id = id
  	src.alloc = a.Allocator()
  
@@ -1024,7 +1032,7 @@ index 1cff76b5b..3e0d5b654 100644
  	return src
  }
 diff --git b/flux/stdlib/influxdata/influxdb/source_test.go a/flux/stdlib/influxdata/influxdb/source_test.go
-index 1cdda0f93..daba8c936 100644
+index 1cdda0f935..daba8c9362 100644
 --- b/flux/stdlib/influxdata/influxdb/source_test.go
 +++ a/flux/stdlib/influxdata/influxdb/source_test.go
 @@ -1,131 +1 @@
@@ -1160,7 +1168,7 @@ index 1cdda0f93..daba8c936 100644
 -	}
 -}
 diff --git b/flux/stdlib/influxdata/influxdb/storage.go a/flux/stdlib/influxdata/influxdb/storage.go
-index 4f574fb20..727894907 100644
+index 4f574fb20e..7278949076 100644
 --- b/flux/stdlib/influxdata/influxdb/storage.go
 +++ a/flux/stdlib/influxdata/influxdb/storage.go
 @@ -8,75 +8,33 @@ import (
@@ -1262,8 +1270,1575 @@ index 4f574fb20..727894907 100644
  
  	Bounds execute.Bounds
  
+diff --git b/flux/stdlib/influxdata/influxdb/to.go a/flux/stdlib/influxdata/influxdb/to.go
+index a70161bf32..6fecaa533a 100644
+--- b/flux/stdlib/influxdata/influxdb/to.go
++++ a/flux/stdlib/influxdata/influxdb/to.go
+@@ -1,702 +1,4 @@
+ package influxdb
+ 
+-import (
+-	"context"
+-	"errors"
+-	"fmt"
+-	"sort"
+-	"time"
+-
+-	"github.com/influxdata/flux"
+-	"github.com/influxdata/flux/codes"
+-	"github.com/influxdata/flux/compiler"
+-	"github.com/influxdata/flux/execute"
+-	"github.com/influxdata/flux/interpreter"
+-	"github.com/influxdata/flux/plan"
+-	"github.com/influxdata/flux/semantic"
+-	"github.com/influxdata/flux/stdlib/influxdata/influxdb"
+-	"github.com/influxdata/flux/stdlib/kafka"
+-	"github.com/influxdata/flux/values"
+-	platform "github.com/influxdata/influxdb"
+-	"github.com/influxdata/influxdb/kit/tracing"
+-	"github.com/influxdata/influxdb/models"
+-	"github.com/influxdata/influxdb/query"
+-	"github.com/influxdata/influxdb/storage"
+-	"github.com/influxdata/influxdb/tsdb"
+-)
+-
+-// ToKind is the kind for the `to` flux function
+-const ToKind = influxdb.ToKind
+-
+-// TODO(jlapacik) remove this once we have execute.DefaultFieldColLabel
+-const defaultFieldColLabel = "_field"
+-const DefaultMeasurementColLabel = "_measurement"
+-const DefaultBufferSize = 1 << 14
+-
+-// ToOpSpec is the flux.OperationSpec for the `to` flux function.
+-type ToOpSpec struct {
+-	Bucket            string                       `json:"bucket"`
+-	BucketID          string                       `json:"bucketID"`
+-	Org               string                       `json:"org"`
+-	OrgID             string                       `json:"orgID"`
+-	Host              string                       `json:"host"`
+-	Token             string                       `json:"token"`
+-	TimeColumn        string                       `json:"timeColumn"`
+-	MeasurementColumn string                       `json:"measurementColumn"`
+-	TagColumns        []string                     `json:"tagColumns"`
+-	FieldFn           interpreter.ResolvedFunction `json:"fieldFn"`
+-}
+-
+-func init() {
+-	toSignature := flux.FunctionSignature(
+-		map[string]semantic.PolyType{
+-			"bucket":            semantic.String,
+-			"bucketID":          semantic.String,
+-			"org":               semantic.String,
+-			"orgID":             semantic.String,
+-			"host":              semantic.String,
+-			"token":             semantic.String,
+-			"timeColumn":        semantic.String,
+-			"measurementColumn": semantic.String,
+-			"tagColumns":        semantic.Array,
+-			"fieldFn": semantic.NewFunctionPolyType(semantic.FunctionPolySignature{
+-				Parameters: map[string]semantic.PolyType{
+-					"r": semantic.Tvar(1),
+-				},
+-				Required: semantic.LabelSet{"r"},
+-				Return:   semantic.Tvar(2),
+-			}),
+-		},
+-		[]string{},
+-	)
+-
+-	flux.ReplacePackageValue("influxdata/influxdb", "to", flux.FunctionValueWithSideEffect(ToKind, createToOpSpec, toSignature))
+-	flux.RegisterOpSpec(ToKind, func() flux.OperationSpec { return &ToOpSpec{} })
+-	plan.RegisterProcedureSpecWithSideEffect(ToKind, newToProcedure, ToKind)
+-	execute.RegisterTransformation(ToKind, createToTransformation)
+-}
+-
+-// argsReader is an interface for OperationSpec that have the same method to read args.
+-type argsReader interface {
+-	flux.OperationSpec
+-	ReadArgs(args flux.Arguments) error
+-}
+-
+-// ReadArgs reads the args from flux.Arguments into the op spec
+-func (o *ToOpSpec) ReadArgs(args flux.Arguments) error {
+-	var err error
+-	var ok bool
+-
+-	if o.Bucket, ok, _ = args.GetString("bucket"); !ok {
+-		if o.BucketID, err = args.GetRequiredString("bucketID"); err != nil {
+-			return err
+-		}
+-	} else if o.BucketID, ok, _ = args.GetString("bucketID"); ok {
+-		return &flux.Error{
+-			Code: codes.Invalid,
+-			Msg:  "cannot provide both `bucket` and `bucketID` parameters to the `to` function",
+-		}
+-	}
+-
+-	if o.Org, ok, _ = args.GetString("org"); !ok {
+-		if o.OrgID, _, err = args.GetString("orgID"); err != nil {
+-			return err
+-		}
+-	} else if o.OrgID, ok, _ = args.GetString("orgID"); ok {
+-		return &flux.Error{
+-			Code: codes.Invalid,
+-			Msg:  "cannot provide both `org` and `orgID` parameters to the `to` function",
+-		}
+-	}
+-
+-	if o.Host, ok, _ = args.GetString("host"); ok {
+-		if o.Token, err = args.GetRequiredString("token"); err != nil {
+-			return err
+-		}
+-	}
+-
+-	if o.TimeColumn, ok, _ = args.GetString("timeColumn"); !ok {
+-		o.TimeColumn = execute.DefaultTimeColLabel
+-	}
+-
+-	if o.MeasurementColumn, ok, _ = args.GetString("measurementColumn"); !ok {
+-		o.MeasurementColumn = DefaultMeasurementColLabel
+-	}
+-
+-	if tags, ok, _ := args.GetArray("tagColumns", semantic.String); ok {
+-		o.TagColumns = make([]string, tags.Len())
+-		tags.Sort(func(i, j values.Value) bool {
+-			return i.Str() < j.Str()
+-		})
+-		tags.Range(func(i int, v values.Value) {
+-			o.TagColumns[i] = v.Str()
+-		})
+-	}
+-
+-	if fieldFn, ok, _ := args.GetFunction("fieldFn"); ok {
+-		if o.FieldFn, err = interpreter.ResolveFunction(fieldFn); err != nil {
+-			return err
+-		}
+-	}
+-
+-	return err
+-}
+-
+-func createToOpSpec(args flux.Arguments, a *flux.Administration) (flux.OperationSpec, error) {
+-	if err := a.AddParentFromArgs(args); err != nil {
+-		return nil, err
+-	}
+-
+-	_, httpOK, err := args.GetString("url")
+-	if err != nil {
+-		return nil, err
+-	}
+-
+-	_, kafkaOK, err := args.GetString("brokers")
+-	if err != nil {
+-		return nil, err
+-	}
+-
+-	var s argsReader
+-
+-	switch {
+-	case httpOK && kafkaOK:
+-		return nil, &flux.Error{
+-			Code: codes.Invalid,
+-			Msg:  "specify at most one of url, brokers in the same `to` function",
+-		}
+-	case kafkaOK:
+-		s = &kafka.ToKafkaOpSpec{}
+-	default:
+-		s = &ToOpSpec{}
+-	}
+-	if err := s.ReadArgs(args); err != nil {
+-		return nil, err
+-	}
+-	return s, nil
+-}
+-
+-// Kind returns the kind for the ToOpSpec function.
+-func (ToOpSpec) Kind() flux.OperationKind {
+-	return ToKind
+-}
+-
+-// BucketsAccessed returns the buckets accessed by the spec.
+-func (o *ToOpSpec) BucketsAccessed(orgID *platform.ID) (readBuckets, writeBuckets []platform.BucketFilter) {
+-	bf := platform.BucketFilter{}
+-	if o.Bucket != "" {
+-		bf.Name = &o.Bucket
+-	}
+-	if o.BucketID != "" {
+-		id, err := platform.IDFromString(o.BucketID)
+-		if err == nil {
+-			bf.ID = id
+-		}
+-	}
+-	if o.Org != "" {
+-		bf.Org = &o.Org
+-	}
+-	if o.OrgID != "" {
+-		id, err := platform.IDFromString(o.OrgID)
+-		if err == nil {
+-			bf.OrganizationID = id
+-		}
+-	}
+-	writeBuckets = append(writeBuckets, bf)
+-	return readBuckets, writeBuckets
+-}
+-
+-// ToProcedureSpec is the procedure spec for the `to` flux function.
+-type ToProcedureSpec struct {
+-	plan.DefaultCost
+-	Spec *ToOpSpec
+-}
+-
+-// Kind returns the kind for the procedure spec for the `to` flux function.
+-func (o *ToProcedureSpec) Kind() plan.ProcedureKind {
+-	return ToKind
+-}
+-
+-// Copy clones the procedure spec for `to` flux function.
+-func (o *ToProcedureSpec) Copy() plan.ProcedureSpec {
+-	s := o.Spec
+-	res := &ToProcedureSpec{
+-		Spec: &ToOpSpec{
+-			Bucket:            s.Bucket,
+-			BucketID:          s.BucketID,
+-			Org:               s.Org,
+-			OrgID:             s.OrgID,
+-			Host:              s.Host,
+-			Token:             s.Token,
+-			TimeColumn:        s.TimeColumn,
+-			MeasurementColumn: s.MeasurementColumn,
+-			TagColumns:        append([]string(nil), s.TagColumns...),
+-			FieldFn:           s.FieldFn.Copy(),
+-		},
+-	}
+-	return res
+-}
+-
+-func newToProcedure(qs flux.OperationSpec, a plan.Administration) (plan.ProcedureSpec, error) {
+-	spec, ok := qs.(*ToOpSpec)
+-	if !ok && spec != nil {
+-		return nil, &flux.Error{
+-			Code: codes.Internal,
+-			Msg:  fmt.Sprintf("invalid spec type %T", qs),
+-		}
+-	}
+-	return &ToProcedureSpec{Spec: spec}, nil
+-}
+-
+-func createToTransformation(id execute.DatasetID, mode execute.AccumulationMode, spec plan.ProcedureSpec, a execute.Administration) (execute.Transformation, execute.Dataset, error) {
+-	s, ok := spec.(*ToProcedureSpec)
+-	if !ok {
+-		return nil, nil, &flux.Error{
+-			Code: codes.Internal,
+-			Msg:  fmt.Sprintf("invalid spec type %T", spec),
+-		}
+-	}
+-	cache := execute.NewTableBuilderCache(a.Allocator())
+-	d := execute.NewDataset(id, mode, cache)
+-	deps := GetStorageDependencies(a.Context()).ToDeps
+-	t, err := NewToTransformation(a.Context(), d, cache, s, deps)
+-	if err != nil {
+-		return nil, nil, err
+-	}
+-	return t, d, nil
+-}
+-
+-// ToTransformation is the transformation for the `to` flux function.
+-type ToTransformation struct {
+-	Ctx                context.Context
+-	OrgID              platform.ID
+-	BucketID           platform.ID
+-	d                  execute.Dataset
+-	fn                 *execute.RowMapFn
+-	cache              execute.TableBuilderCache
+-	spec               *ToProcedureSpec
+-	implicitTagColumns bool
+-	deps               ToDependencies
+-	buf                *storage.BufferedPointsWriter
+-}
+-
+-// RetractTable retracts the table for the transformation for the `to` flux function.
+-func (t *ToTransformation) RetractTable(id execute.DatasetID, key flux.GroupKey) error {
+-	return t.d.RetractTable(key)
+-}
+-
+-// NewToTransformation returns a new *ToTransformation with the appropriate fields set.
+-func NewToTransformation(ctx context.Context, d execute.Dataset, cache execute.TableBuilderCache, toSpec *ToProcedureSpec, deps ToDependencies) (x *ToTransformation, err error) {
+-	var fn *execute.RowMapFn
+-	//var err error
+-	spec := toSpec.Spec
+-	var bucketID, orgID *platform.ID
+-	if spec.FieldFn.Fn != nil {
+-		if fn, err = execute.NewRowMapFn(spec.FieldFn.Fn, compiler.ToScope(spec.FieldFn.Scope)); err != nil {
+-			return nil, err
+-		}
+-	}
+-	// Get organization ID
+-	if spec.Org != "" {
+-		oID, ok := deps.OrganizationLookup.Lookup(ctx, spec.Org)
+-		if !ok {
+-			return nil, &flux.Error{
+-				Code: codes.NotFound,
+-				Msg:  fmt.Sprintf("failed to look up organization %q", spec.Org),
+-			}
+-		}
+-		orgID = &oID
+-	} else if spec.OrgID != "" {
+-		if orgID, err = platform.IDFromString(spec.OrgID); err != nil {
+-			return nil, err
+-		}
+-	} else {
+-		// No org or orgID provided as an arg, use the orgID from the context
+-		req := query.RequestFromContext(ctx)
+-		if req == nil {
+-			return nil, errors.New("missing request on context")
+-		}
+-		orgID = &req.OrganizationID
+-	}
+-
+-	// Get bucket ID
+-	if spec.Bucket != "" {
+-		bID, ok := deps.BucketLookup.Lookup(ctx, *orgID, spec.Bucket)
+-		if !ok {
+-			return nil, &flux.Error{
+-				Code: codes.NotFound,
+-				Msg:  fmt.Sprintf("failed to look up bucket %q in org %q", spec.Bucket, spec.Org),
+-			}
+-		}
+-		bucketID = &bID
+-	} else if bucketID, err = platform.IDFromString(spec.BucketID); err != nil {
+-		return nil, &flux.Error{
+-			Code: codes.Invalid,
+-			Msg:  "invalid bucket id",
+-			Err:  err,
+-		}
+-	}
+-	if orgID == nil || bucketID == nil {
+-		return nil, &flux.Error{
+-			Code: codes.Unknown,
+-			Msg:  "You must specify org and bucket",
+-		}
+-	}
+-	return &ToTransformation{
+-		Ctx:                ctx,
+-		OrgID:              *orgID,
+-		BucketID:           *bucketID,
+-		d:                  d,
+-		fn:                 fn,
+-		cache:              cache,
+-		spec:               toSpec,
+-		implicitTagColumns: spec.TagColumns == nil,
+-		deps:               deps,
+-		buf:                storage.NewBufferedPointsWriter(DefaultBufferSize, deps.PointsWriter),
+-	}, nil
+-}
+-
+-// Process does the actual work for the ToTransformation.
+-func (t *ToTransformation) Process(id execute.DatasetID, tbl flux.Table) error {
+-	if t.implicitTagColumns {
+-
+-		// If no tag columns are specified, by default we exclude
+-		// _field and _value from being tag columns.
+-		excludeColumns := map[string]bool{
+-			execute.DefaultValueColLabel: true,
+-			defaultFieldColLabel:         true,
+-		}
+-
+-		// If a field function is specified then we exclude any column that
+-		// is referenced in the function expression from being a tag column.
+-		if t.spec.Spec.FieldFn.Fn != nil {
+-			recordParam := t.spec.Spec.FieldFn.Fn.Block.Parameters.List[0].Key.Name
+-			exprNode := t.spec.Spec.FieldFn.Fn
+-			colVisitor := newFieldFunctionVisitor(recordParam, tbl.Cols())
+-
+-			// Walk the field function expression and record which columns
+-			// are referenced. None of these columns will be used as tag columns.
+-			semantic.Walk(colVisitor, exprNode)
+-			excludeColumns = colVisitor.captured
+-		}
+-
+-		addTagsFromTable(t.spec.Spec, tbl, excludeColumns)
+-	}
+-	return writeTable(t.Ctx, t, tbl)
+-}
+-
+-// fieldFunctionVisitor implements semantic.Visitor.
+-// fieldFunctionVisitor is used to walk the the field function expression
+-// of the `to` operation and to record all referenced columns. This visitor
+-// is only used when no tag columns are provided as input to the `to` func.
+-type fieldFunctionVisitor struct {
+-	columns  map[string]bool
+-	visited  map[semantic.Node]bool
+-	captured map[string]bool
+-	rowParam string
+-}
+-
+-func newFieldFunctionVisitor(rowParam string, cols []flux.ColMeta) *fieldFunctionVisitor {
+-	columns := make(map[string]bool, len(cols))
+-	for _, col := range cols {
+-		columns[col.Label] = true
+-	}
+-	return &fieldFunctionVisitor{
+-		columns:  columns,
+-		visited:  make(map[semantic.Node]bool, len(cols)),
+-		captured: make(map[string]bool, len(cols)),
+-		rowParam: rowParam,
+-	}
+-}
+-
+-// A field function is of the form `(r) => { Function Body }`, and it returns an object
+-// mapping field keys to values for each row r of the input. Visit records every column
+-// that is referenced in `Function Body`. These columns are either directly or indirectly
+-// used as value columns and as such need to be recorded so as not to be used as tag columns.
+-func (v *fieldFunctionVisitor) Visit(node semantic.Node) semantic.Visitor {
+-	if v.visited[node] {
+-		return v
+-	}
+-	if member, ok := node.(*semantic.MemberExpression); ok {
+-		if obj, ok := member.Object.(*semantic.IdentifierExpression); ok {
+-			if obj.Name == v.rowParam && v.columns[member.Property] {
+-				v.captured[member.Property] = true
+-			}
+-		}
+-	}
+-	v.visited[node] = true
+-	return v
+-}
+-
+-func (v *fieldFunctionVisitor) Done(node semantic.Node) {}
+-
+-func addTagsFromTable(spec *ToOpSpec, table flux.Table, exclude map[string]bool) {
+-	if cap(spec.TagColumns) < len(table.Cols()) {
+-		spec.TagColumns = make([]string, 0, len(table.Cols()))
+-	} else {
+-		spec.TagColumns = spec.TagColumns[:0]
+-	}
+-	for _, column := range table.Cols() {
+-		if column.Type == flux.TString && !exclude[column.Label] {
+-			spec.TagColumns = append(spec.TagColumns, column.Label)
+-		}
+-	}
+-	sort.Strings(spec.TagColumns)
+-}
+-
+-// UpdateWatermark updates the watermark for the transformation for the `to` flux function.
+-func (t *ToTransformation) UpdateWatermark(id execute.DatasetID, pt execute.Time) error {
+-	return t.d.UpdateWatermark(pt)
+-}
+-
+-// UpdateProcessingTime updates the processing time for the transformation for the `to` flux function.
+-func (t *ToTransformation) UpdateProcessingTime(id execute.DatasetID, pt execute.Time) error {
+-	return t.d.UpdateProcessingTime(pt)
+-}
+-
+-// Finish is called after the `to` flux function's transformation is done processing.
+-func (t *ToTransformation) Finish(id execute.DatasetID, err error) {
+-	if err == nil {
+-		err = t.buf.Flush(t.Ctx)
+-	}
+-	t.d.Finish(err)
+-}
+-
+-// ToDependencies contains the dependencies for executing the `to` function.
+-type ToDependencies struct {
+-	BucketLookup       BucketLookup
+-	OrganizationLookup OrganizationLookup
+-	PointsWriter       storage.PointsWriter
+-}
+-
+-// Validate returns an error if any required field is unset.
+-func (d ToDependencies) Validate() error {
+-	if d.BucketLookup == nil {
+-		return errors.New("missing bucket lookup dependency")
+-	}
+-	if d.OrganizationLookup == nil {
+-		return errors.New("missing organization lookup dependency")
+-	}
+-	if d.PointsWriter == nil {
+-		return errors.New("missing points writer dependency")
+-	}
+-	return nil
+-}
+-
+-type Stats struct {
+-	NRows    int
+-	Latest   time.Time
+-	Earliest time.Time
+-	NFields  int
+-	NTags    int
+-}
+-
+-func (s Stats) Update(o Stats) {
+-	s.NRows += o.NRows
+-	if s.Latest.IsZero() || o.Latest.Unix() > s.Latest.Unix() {
+-		s.Latest = o.Latest
+-	}
+-
+-	if s.Earliest.IsZero() || o.Earliest.Unix() < s.Earliest.Unix() {
+-		s.Earliest = o.Earliest
+-	}
+-
+-	if o.NFields > s.NFields {
+-		s.NFields = o.NFields
+-	}
+-
+-	if o.NTags > s.NTags {
+-		s.NTags = o.NTags
+-	}
+-}
+-
+-func writeTable(ctx context.Context, t *ToTransformation, tbl flux.Table) (err error) {
+-	span, ctx := tracing.StartSpanFromContext(ctx)
+-	defer span.Finish()
+-
+-	spec := t.spec.Spec
+-
+-	// cache tag columns
+-	columns := tbl.Cols()
+-	isTag := make([]bool, len(columns))
+-	for i, col := range columns {
+-		tagIdx := sort.SearchStrings(spec.TagColumns, col.Label)
+-		isTag[i] = tagIdx < len(spec.TagColumns) && spec.TagColumns[tagIdx] == col.Label
+-	}
+-	// do time
+-	timeColLabel := spec.TimeColumn
+-	timeColIdx := execute.ColIdx(timeColLabel, columns)
+-
+-	if timeColIdx < 0 {
+-		return &flux.Error{
+-			Code: codes.Invalid,
+-			Msg:  "no time column detected",
+-		}
+-	}
+-	if columns[timeColIdx].Type != flux.TTime {
+-		return &flux.Error{
+-			Code: codes.Invalid,
+-			Msg:  fmt.Sprintf("column %s of type %s is not of type %s", timeColLabel, columns[timeColIdx].Type, flux.TTime),
+-		}
+-	}
+-
+-	// prepare field function if applicable and record the number of values to write per row
+-	if spec.FieldFn.Fn != nil {
+-		if err = t.fn.Prepare(columns); err != nil {
+-			return err
+-		}
+-
+-	}
+-
+-	builder, new := t.cache.TableBuilder(tbl.Key())
+-	if new {
+-		if err := execute.AddTableCols(tbl, builder); err != nil {
+-			return err
+-		}
+-	}
+-
+-	measurementStats := make(map[string]Stats)
+-	measurementName := ""
+-	return tbl.Do(func(er flux.ColReader) error {
+-		var pointTime time.Time
+-		var points models.Points
+-		var tags models.Tags
+-		kv := make([][]byte, 2, er.Len()*2+2) // +2 for field key, value
+-		var fieldValues values.Object
+-		for i := 0; i < er.Len(); i++ {
+-			measurementName = ""
+-			fields := make(models.Fields)
+-			// leave space for measurement key, value at start, in an effort to
+-			// keep kv sorted
+-			kv = kv[:2]
+-			// Gather the timestamp and the tags.
+-			for j, col := range er.Cols() {
+-				switch {
+-				case col.Label == spec.MeasurementColumn:
+-					measurementName = string(er.Strings(j).Value(i))
+-					kv[0] = models.MeasurementTagKeyBytes
+-					kv[1] = er.Strings(j).Value(i)
+-				case col.Label == timeColLabel:
+-					pointTime = execute.ValueForRow(er, i, j).Time().Time()
+-				case isTag[j]:
+-					if col.Type != flux.TString {
+-						return errors.New("invalid type for tag column")
+-					}
+-					// TODO(docmerlin): instead of doing this sort of thing, it would be nice if we had a way that allocated a lot less.
+-					kv = append(kv, []byte(col.Label), er.Strings(j).Value(i))
+-				}
+-			}
+-
+-			if pointTime.IsZero() {
+-				return &flux.Error{
+-					Code: codes.Invalid,
+-					Msg:  "timestamp missing from block",
+-				}
+-			}
+-
+-			if measurementName == "" {
+-				return &flux.Error{
+-					Code: codes.Invalid,
+-					Msg:  fmt.Sprintf("no column with label %s exists", spec.MeasurementColumn),
+-				}
+-			}
+-
+-			if spec.FieldFn.Fn == nil {
+-				if fieldValues, err = defaultFieldMapping(er, i); err != nil {
+-					return err
+-				}
+-			} else if fieldValues, err = t.fn.Eval(t.Ctx, i, er); err != nil {
+-				return err
+-			}
+-
+-			fieldValues.Range(func(k string, v values.Value) {
+-				if v.IsNull() {
+-					fields[k] = nil
+-					return
+-				}
+-				switch v.Type() {
+-				case semantic.Float:
+-					fields[k] = v.Float()
+-				case semantic.Int:
+-					fields[k] = v.Int()
+-				case semantic.UInt:
+-					fields[k] = v.UInt()
+-				case semantic.String:
+-					fields[k] = v.Str()
+-				case semantic.Time:
+-					fields[k] = v.Time()
+-				case semantic.Bool:
+-					fields[k] = v.Bool()
+-				}
+-			})
+-
+-			mstats := Stats{
+-				NRows:    1,
+-				Latest:   pointTime,
+-				Earliest: pointTime,
+-				NFields:  len(fields),
+-				NTags:    len(kv) / 2,
+-			}
+-			_, ok := measurementStats[measurementName]
+-			if !ok {
+-				measurementStats[measurementName] = mstats
+-			} else {
+-				measurementStats[measurementName].Update(mstats)
+-			}
+-
+-			name := tsdb.EncodeNameString(t.OrgID, t.BucketID)
+-
+-			fieldNames := make([]string, 0, len(fields))
+-			for k := range fields {
+-				fieldNames = append(fieldNames, k)
+-			}
+-			sort.Strings(fieldNames)
+-
+-			for _, k := range fieldNames {
+-				v := fields[k]
+-				// append field tag key and field key
+-				kvf := append(kv, models.FieldKeyTagKeyBytes, []byte(k))
+-				tags, _ = models.NewTagsKeyValues(tags, kvf...)
+-
+-				pt, err := models.NewPoint(name, tags, models.Fields{k: v}, pointTime)
+-				if err != nil {
+-					return err
+-				}
+-				points = append(points, pt)
+-			}
+-
+-			if err := execute.AppendRecord(i, er, builder); err != nil {
+-				return err
+-			}
+-		}
+-
+-		return t.buf.WritePoints(ctx, points)
+-	})
+-}
+-
+-func defaultFieldMapping(er flux.ColReader, row int) (values.Object, error) {
+-	fieldColumnIdx := execute.ColIdx(defaultFieldColLabel, er.Cols())
+-	valueColumnIdx := execute.ColIdx(execute.DefaultValueColLabel, er.Cols())
+-
+-	if fieldColumnIdx < 0 {
+-		return nil, &flux.Error{
+-			Code: codes.Invalid,
+-			Msg:  "table has no _field column",
+-		}
+-	}
+-
+-	if valueColumnIdx < 0 {
+-		return nil, &flux.Error{
+-			Code: codes.Invalid,
+-			Msg:  "table has no _value column",
+-		}
+-	}
+-
+-	value := execute.ValueForRow(er, row, valueColumnIdx)
+-
+-	fieldValueMapping := values.NewObject()
+-	field := execute.ValueForRow(er, row, fieldColumnIdx)
+-	fieldValueMapping.Set(field.Str(), value)
+-
+-	return fieldValueMapping, nil
+-}
++// TODO(jsternberg): Implement the to method in influxdb 1.x.
++// This file is kept around so it shows up in the patch.
+diff --git b/flux/stdlib/influxdata/influxdb/to_test.go a/flux/stdlib/influxdata/influxdb/to_test.go
+index 8afc9128a8..daba8c9362 100644
+--- b/flux/stdlib/influxdata/influxdb/to_test.go
++++ a/flux/stdlib/influxdata/influxdb/to_test.go
+@@ -1,853 +1 @@
+ package influxdb_test
+-
+-import (
+-	"context"
+-	"fmt"
+-	"testing"
+-
+-	"github.com/google/go-cmp/cmp"
+-	"github.com/influxdata/flux"
+-	"github.com/influxdata/flux/ast"
+-	"github.com/influxdata/flux/dependencies/dependenciestest"
+-	"github.com/influxdata/flux/execute"
+-	"github.com/influxdata/flux/execute/executetest"
+-	"github.com/influxdata/flux/interpreter"
+-	"github.com/influxdata/flux/querytest"
+-	"github.com/influxdata/flux/semantic"
+-	"github.com/influxdata/flux/values/valuestest"
+-	platform "github.com/influxdata/influxdb"
+-	"github.com/influxdata/influxdb/mock"
+-	"github.com/influxdata/influxdb/models"
+-	_ "github.com/influxdata/influxdb/query/builtin"
+-	pquerytest "github.com/influxdata/influxdb/query/querytest"
+-	"github.com/influxdata/influxdb/query/stdlib/influxdata/influxdb"
+-	"github.com/influxdata/influxdb/tsdb"
+-)
+-
+-func TestTo_Query(t *testing.T) {
+-	tests := []querytest.NewQueryTestCase{
+-		{
+-			Name: "from with database with range",
+-			Raw:  `from(bucket:"mydb") |> to(bucket:"series1", org:"fred", host:"localhost", token:"auth-token", fieldFn: (r) => ({ col: r.col }) )`,
+-			Want: &flux.Spec{
+-				Operations: []*flux.Operation{
+-					{
+-						ID: "influxDBFrom0",
+-						Spec: &influxdb.FromOpSpec{
+-							Bucket: "mydb",
+-						},
+-					},
+-					{
+-						ID: "to1",
+-						Spec: &influxdb.ToOpSpec{
+-							Bucket:            "series1",
+-							Org:               "fred",
+-							Host:              "localhost",
+-							Token:             "auth-token",
+-							TimeColumn:        execute.DefaultTimeColLabel,
+-							MeasurementColumn: influxdb.DefaultMeasurementColLabel,
+-							FieldFn: interpreter.ResolvedFunction{
+-								Scope: valuestest.NowScope(),
+-								Fn: &semantic.FunctionExpression{
+-									Block: &semantic.FunctionBlock{
+-										Parameters: &semantic.FunctionParameters{
+-											List: []*semantic.FunctionParameter{
+-												{
+-													Key: &semantic.Identifier{Name: "r"},
+-												},
+-											},
+-										},
+-										Body: &semantic.ObjectExpression{
+-											Properties: []*semantic.Property{
+-												{
+-													Key: &semantic.Identifier{Name: "col"},
+-													Value: &semantic.MemberExpression{
+-														Object:   &semantic.IdentifierExpression{Name: "r"},
+-														Property: "col",
+-													},
+-												},
+-											},
+-										},
+-									},
+-								},
+-							},
+-						},
+-					},
+-				},
+-				Edges: []flux.Edge{
+-					{Parent: "influxDBFrom0", Child: "to1"},
+-				},
+-			},
+-		},
+-	}
+-	for _, tc := range tests {
+-		tc := tc
+-		t.Run(tc.Name, func(t *testing.T) {
+-			t.Parallel()
+-			querytest.NewQueryTestHelper(t, tc)
+-		})
+-	}
+-}
+-
+-func TestToOpSpec_BucketsAccessed(t *testing.T) {
+-	bucketName := "my_bucket"
+-	bucketIDString := "ddddccccbbbbaaaa"
+-	bucketID, err := platform.IDFromString(bucketIDString)
+-	if err != nil {
+-		t.Fatal(err)
+-	}
+-	orgName := "my_org"
+-	orgIDString := "aaaabbbbccccdddd"
+-	orgID, err := platform.IDFromString(orgIDString)
+-	if err != nil {
+-		t.Fatal(err)
+-	}
+-	tests := []pquerytest.BucketsAccessedTestCase{
+-		{
+-			Name:             "from() with bucket and to with org and bucket",
+-			Raw:              fmt.Sprintf(`from(bucket:"%s") |> to(bucket:"%s", org:"%s")`, bucketName, bucketName, orgName),
+-			WantReadBuckets:  &[]platform.BucketFilter{{Name: &bucketName}},
+-			WantWriteBuckets: &[]platform.BucketFilter{{Name: &bucketName, Org: &orgName}},
+-		},
+-		{
+-			Name:             "from() with bucket and to with orgID and bucket",
+-			Raw:              fmt.Sprintf(`from(bucket:"%s") |> to(bucket:"%s", orgID:"%s")`, bucketName, bucketName, orgIDString),
+-			WantReadBuckets:  &[]platform.BucketFilter{{Name: &bucketName}},
+-			WantWriteBuckets: &[]platform.BucketFilter{{Name: &bucketName, OrganizationID: orgID}},
+-		},
+-		{
+-			Name:             "from() with bucket and to with orgID and bucketID",
+-			Raw:              fmt.Sprintf(`from(bucket:"%s") |> to(bucketID:"%s", orgID:"%s")`, bucketName, bucketIDString, orgIDString),
+-			WantReadBuckets:  &[]platform.BucketFilter{{Name: &bucketName}},
+-			WantWriteBuckets: &[]platform.BucketFilter{{ID: bucketID, OrganizationID: orgID}},
+-		},
+-	}
+-
+-	for _, tc := range tests {
+-		tc := tc
+-		t.Run(tc.Name, func(t *testing.T) {
+-			t.Parallel()
+-			pquerytest.BucketsAccessedTestHelper(t, tc)
+-		})
+-	}
+-}
+-
+-func TestTo_Process(t *testing.T) {
+-	oid, _ := mock.OrganizationLookup{}.Lookup(context.Background(), "my-org")
+-	bid, _ := mock.BucketLookup{}.Lookup(context.Background(), oid, "my-bucket")
+-	type wanted struct {
+-		result *mock.PointsWriter
+-		tables []*executetest.Table
+-	}
+-	testCases := []struct {
+-		name string
+-		spec *influxdb.ToProcedureSpec
+-		data []flux.Table
+-		want wanted
+-	}{
+-		{
+-			name: "default case",
+-			spec: &influxdb.ToProcedureSpec{
+-				Spec: &influxdb.ToOpSpec{
+-					Org:               "my-org",
+-					Bucket:            "my-bucket",
+-					TimeColumn:        "_time",
+-					MeasurementColumn: "_measurement",
+-				},
+-			},
+-			data: []flux.Table{executetest.MustCopyTable(&executetest.Table{
+-				ColMeta: []flux.ColMeta{
+-					{Label: "_start", Type: flux.TTime},
+-					{Label: "_stop", Type: flux.TTime},
+-					{Label: "_time", Type: flux.TTime},
+-					{Label: "_measurement", Type: flux.TString},
+-					{Label: "_field", Type: flux.TString},
+-					{Label: "_value", Type: flux.TFloat},
+-				},
+-				Data: [][]interface{}{
+-					{execute.Time(0), execute.Time(100), execute.Time(11), "a", "_value", 2.0},
+-					{execute.Time(0), execute.Time(100), execute.Time(21), "a", "_value", 2.0},
+-					{execute.Time(0), execute.Time(100), execute.Time(21), "b", "_value", 1.0},
+-					{execute.Time(0), execute.Time(100), execute.Time(31), "a", "_value", 3.0},
+-					{execute.Time(0), execute.Time(100), execute.Time(41), "c", "_value", 4.0},
+-				},
+-			})},
+-			want: wanted{
+-				result: &mock.PointsWriter{
+-					Points: mockPoints(oid, bid, `a _value=2 11
+-a _value=2 21
+-b _value=1 21
+-a _value=3 31
+-c _value=4 41`),
+-				},
+-				tables: []*executetest.Table{{
+-					ColMeta: []flux.ColMeta{
+-						{Label: "_start", Type: flux.TTime},
+-						{Label: "_stop", Type: flux.TTime},
+-						{Label: "_time", Type: flux.TTime},
+-						{Label: "_measurement", Type: flux.TString},
+-						{Label: "_field", Type: flux.TString},
+-						{Label: "_value", Type: flux.TFloat},
+-					},
+-					Data: [][]interface{}{
+-						{execute.Time(0), execute.Time(100), execute.Time(11), "a", "_value", 2.0},
+-						{execute.Time(0), execute.Time(100), execute.Time(21), "a", "_value", 2.0},
+-						{execute.Time(0), execute.Time(100), execute.Time(21), "b", "_value", 1.0},
+-						{execute.Time(0), execute.Time(100), execute.Time(31), "a", "_value", 3.0},
+-						{execute.Time(0), execute.Time(100), execute.Time(41), "c", "_value", 4.0},
+-					},
+-				}},
+-			},
+-		},
+-		{
+-			name: "default with heterogeneous tag columns",
+-			spec: &influxdb.ToProcedureSpec{
+-				Spec: &influxdb.ToOpSpec{
+-					Org:               "my-org",
+-					Bucket:            "my-bucket",
+-					TimeColumn:        "_time",
+-					MeasurementColumn: "_measurement",
+-				},
+-			},
+-			data: []flux.Table{executetest.MustCopyTable(&executetest.Table{
+-				ColMeta: []flux.ColMeta{
+-					{Label: "_time", Type: flux.TTime},
+-					{Label: "_measurement", Type: flux.TString},
+-					{Label: "tag1", Type: flux.TString},
+-					{Label: "tag2", Type: flux.TString},
+-					{Label: "_field", Type: flux.TString},
+-					{Label: "_value", Type: flux.TFloat},
+-				},
+-				KeyCols: []string{"_measurement", "tag1", "tag2", "_field"},
+-				Data: [][]interface{}{
+-					{execute.Time(11), "a", "a", "aa", "_value", 2.0},
+-					{execute.Time(21), "a", "a", "bb", "_value", 2.0},
+-					{execute.Time(21), "a", "b", "cc", "_value", 1.0},
+-					{execute.Time(31), "a", "a", "dd", "_value", 3.0},
+-					{execute.Time(41), "a", "c", "ee", "_value", 4.0},
+-				},
+-			}),
+-				executetest.MustCopyTable(&executetest.Table{
+-					ColMeta: []flux.ColMeta{
+-						{Label: "_time", Type: flux.TTime},
+-						{Label: "_measurement", Type: flux.TString},
+-						{Label: "tagA", Type: flux.TString},
+-						{Label: "tagB", Type: flux.TString},
+-						{Label: "tagC", Type: flux.TString},
+-						{Label: "_field", Type: flux.TString},
+-						{Label: "_value", Type: flux.TFloat},
+-					},
+-					KeyCols: []string{"_measurement", "tagA", "tagB", "tagC", "_field"},
+-					Data: [][]interface{}{
+-						{execute.Time(11), "b", "a", "aa", "ff", "_value", 2.0},
+-						{execute.Time(21), "b", "a", "bb", "gg", "_value", 2.0},
+-						{execute.Time(21), "b", "b", "cc", "hh", "_value", 1.0},
+-						{execute.Time(31), "b", "a", "dd", "ii", "_value", 3.0},
+-						{execute.Time(41), "b", "c", "ee", "jj", "_value", 4.0},
+-					},
+-				}),
+-			},
+-			want: wanted{
+-				result: &mock.PointsWriter{
+-					Points: mockPoints(oid, bid, `a,tag1=a,tag2=aa _value=2 11
+-a,tag1=a,tag2=bb _value=2 21
+-a,tag1=b,tag2=cc _value=1 21
+-a,tag1=a,tag2=dd _value=3 31
+-a,tag1=c,tag2=ee _value=4 41
+-b,tagA=a,tagB=aa,tagC=ff _value=2 11
+-b,tagA=a,tagB=bb,tagC=gg _value=2 21
+-b,tagA=b,tagB=cc,tagC=hh _value=1 21
+-b,tagA=a,tagB=dd,tagC=ii _value=3 31
+-b,tagA=c,tagB=ee,tagC=jj _value=4 41`),
+-				},
+-				tables: []*executetest.Table{{
+-					ColMeta: []flux.ColMeta{
+-						{Label: "_time", Type: flux.TTime},
+-						{Label: "_measurement", Type: flux.TString},
+-						{Label: "tag1", Type: flux.TString},
+-						{Label: "tag2", Type: flux.TString},
+-						{Label: "_field", Type: flux.TString},
+-						{Label: "_value", Type: flux.TFloat},
+-					},
+-					KeyCols: []string{"_measurement", "tag1", "tag2", "_field"},
+-					Data: [][]interface{}{
+-						{execute.Time(11), "a", "a", "aa", "_value", 2.0},
+-						{execute.Time(21), "a", "a", "bb", "_value", 2.0},
+-						{execute.Time(21), "a", "b", "cc", "_value", 1.0},
+-						{execute.Time(31), "a", "a", "dd", "_value", 3.0},
+-						{execute.Time(41), "a", "c", "ee", "_value", 4.0},
+-					},
+-				},
+-					{
+-						ColMeta: []flux.ColMeta{
+-							{Label: "_time", Type: flux.TTime},
+-							{Label: "_measurement", Type: flux.TString},
+-							{Label: "tagA", Type: flux.TString},
+-							{Label: "tagB", Type: flux.TString},
+-							{Label: "tagC", Type: flux.TString},
+-							{Label: "_field", Type: flux.TString},
+-							{Label: "_value", Type: flux.TFloat},
+-						},
+-						KeyCols: []string{"_measurement", "tagA", "tagB", "tagC", "_field"},
+-						Data: [][]interface{}{
+-							{execute.Time(11), "b", "a", "aa", "ff", "_value", 2.0},
+-							{execute.Time(21), "b", "a", "bb", "gg", "_value", 2.0},
+-							{execute.Time(21), "b", "b", "cc", "hh", "_value", 1.0},
+-							{execute.Time(31), "b", "a", "dd", "ii", "_value", 3.0},
+-							{execute.Time(41), "b", "c", "ee", "jj", "_value", 4.0},
+-						},
+-					},
+-				},
+-			},
+-		},
+-		{
+-			name: "no _measurement with multiple tag columns",
+-			spec: &influxdb.ToProcedureSpec{
+-				Spec: &influxdb.ToOpSpec{
+-					Org:               "my-org",
+-					Bucket:            "my-bucket",
+-					TimeColumn:        "_time",
+-					MeasurementColumn: "tag1",
+-				},
+-			},
+-			data: []flux.Table{executetest.MustCopyTable(&executetest.Table{
+-				ColMeta: []flux.ColMeta{
+-					{Label: "_time", Type: flux.TTime},
+-					{Label: "tag1", Type: flux.TString},
+-					{Label: "tag2", Type: flux.TString},
+-					{Label: "_field", Type: flux.TString},
+-					{Label: "_value", Type: flux.TFloat},
+-				},
+-				Data: [][]interface{}{
+-					{execute.Time(11), "a", "aa", "_value", 2.0},
+-					{execute.Time(21), "a", "bb", "_value", 2.0},
+-					{execute.Time(21), "b", "cc", "_value", 1.0},
+-					{execute.Time(31), "a", "dd", "_value", 3.0},
+-					{execute.Time(41), "c", "ee", "_value", 4.0},
+-				},
+-			})},
+-			want: wanted{
+-				result: &mock.PointsWriter{
+-					Points: mockPoints(oid, bid, `a,tag2=aa _value=2 11
+-a,tag2=bb _value=2 21
+-b,tag2=cc _value=1 21
+-a,tag2=dd _value=3 31
+-c,tag2=ee _value=4 41`),
+-				},
+-				tables: []*executetest.Table{{
+-					ColMeta: []flux.ColMeta{
+-						{Label: "_time", Type: flux.TTime},
+-						{Label: "tag1", Type: flux.TString},
+-						{Label: "tag2", Type: flux.TString},
+-						{Label: "_field", Type: flux.TString},
+-						{Label: "_value", Type: flux.TFloat},
+-					},
+-					Data: [][]interface{}{
+-						{execute.Time(11), "a", "aa", "_value", 2.0},
+-						{execute.Time(21), "a", "bb", "_value", 2.0},
+-						{execute.Time(21), "b", "cc", "_value", 1.0},
+-						{execute.Time(31), "a", "dd", "_value", 3.0},
+-						{execute.Time(41), "c", "ee", "_value", 4.0},
+-					},
+-				}},
+-			},
+-		},
+-		{
+-			name: "explicit tags",
+-			spec: &influxdb.ToProcedureSpec{
+-				Spec: &influxdb.ToOpSpec{
+-					Org:               "my-org",
+-					Bucket:            "my-bucket",
+-					TimeColumn:        "_time",
+-					TagColumns:        []string{"tag1", "tag2"},
+-					MeasurementColumn: "_measurement",
+-				},
+-			},
+-			data: []flux.Table{executetest.MustCopyTable(&executetest.Table{
+-				ColMeta: []flux.ColMeta{
+-					{Label: "_time", Type: flux.TTime},
+-					{Label: "_measurement", Type: flux.TString},
+-					{Label: "_field", Type: flux.TString},
+-					{Label: "_value", Type: flux.TFloat},
+-					{Label: "tag1", Type: flux.TString},
+-					{Label: "tag2", Type: flux.TString},
+-				},
+-				Data: [][]interface{}{
+-					{execute.Time(11), "m", "_value", 2.0, "a", "aa"},
+-					{execute.Time(21), "m", "_value", 2.0, "a", "bb"},
+-					{execute.Time(21), "m", "_value", 1.0, "b", "cc"},
+-					{execute.Time(31), "m", "_value", 3.0, "a", "dd"},
+-					{execute.Time(41), "m", "_value", 4.0, "c", "ee"},
+-				},
+-			})},
+-			want: wanted{
+-				result: &mock.PointsWriter{
+-					Points: mockPoints(oid, bid, `m,tag1=a,tag2=aa _value=2 11
+-m,tag1=a,tag2=bb _value=2 21
+-m,tag1=b,tag2=cc _value=1 21
+-m,tag1=a,tag2=dd _value=3 31
+-m,tag1=c,tag2=ee _value=4 41`),
+-				},
+-				tables: []*executetest.Table{{
+-					ColMeta: []flux.ColMeta{
+-						{Label: "_time", Type: flux.TTime},
+-						{Label: "_measurement", Type: flux.TString},
+-						{Label: "_field", Type: flux.TString},
+-						{Label: "_value", Type: flux.TFloat},
+-						{Label: "tag1", Type: flux.TString},
+-						{Label: "tag2", Type: flux.TString},
+-					},
+-					Data: [][]interface{}{
+-						{execute.Time(11), "m", "_value", 2.0, "a", "aa"},
+-						{execute.Time(21), "m", "_value", 2.0, "a", "bb"},
+-						{execute.Time(21), "m", "_value", 1.0, "b", "cc"},
+-						{execute.Time(31), "m", "_value", 3.0, "a", "dd"},
+-						{execute.Time(41), "m", "_value", 4.0, "c", "ee"},
+-					},
+-				}},
+-			},
+-		},
+-		{
+-			name: "explicit field function",
+-			spec: &influxdb.ToProcedureSpec{
+-				Spec: &influxdb.ToOpSpec{
+-					Org:               "my-org",
+-					Bucket:            "my-bucket",
+-					TimeColumn:        "_time",
+-					MeasurementColumn: "_measurement",
+-					FieldFn: interpreter.ResolvedFunction{
+-						Scope: valuestest.NowScope(),
+-						Fn: &semantic.FunctionExpression{
+-							Block: &semantic.FunctionBlock{
+-								Parameters: &semantic.FunctionParameters{
+-									List: []*semantic.FunctionParameter{
+-										{
+-											Key: &semantic.Identifier{Name: "r"},
+-										},
+-									},
+-								},
+-								Body: &semantic.ObjectExpression{
+-									Properties: []*semantic.Property{
+-										{
+-											Key: &semantic.Identifier{Name: "temperature"},
+-											Value: &semantic.MemberExpression{
+-												Object:   &semantic.IdentifierExpression{Name: "r"},
+-												Property: "temperature",
+-											},
+-										},
+-									},
+-								},
+-							},
+-						},
+-					},
+-				},
+-			},
+-			data: []flux.Table{executetest.MustCopyTable(&executetest.Table{
+-				ColMeta: []flux.ColMeta{
+-					{Label: "_time", Type: flux.TTime},
+-					{Label: "_measurement", Type: flux.TString},
+-					{Label: "temperature", Type: flux.TFloat},
+-				},
+-				Data: [][]interface{}{
+-					{execute.Time(11), "a", 2.0},
+-					{execute.Time(21), "a", 2.0},
+-					{execute.Time(21), "b", 1.0},
+-					{execute.Time(31), "a", 3.0},
+-					{execute.Time(41), "c", 4.0},
+-				},
+-			})},
+-			want: wanted{
+-				result: &mock.PointsWriter{
+-					Points: mockPoints(oid, bid, `a temperature=2 11
+-a temperature=2 21
+-b temperature=1 21
+-a temperature=3 31
+-c temperature=4 41`),
+-				},
+-				tables: []*executetest.Table{{
+-					ColMeta: []flux.ColMeta{
+-						{Label: "_time", Type: flux.TTime},
+-						{Label: "_measurement", Type: flux.TString},
+-						{Label: "temperature", Type: flux.TFloat},
+-					},
+-					Data: [][]interface{}{
+-						{execute.Time(11), "a", 2.0},
+-						{execute.Time(21), "a", 2.0},
+-						{execute.Time(21), "b", 1.0},
+-						{execute.Time(31), "a", 3.0},
+-						{execute.Time(41), "c", 4.0},
+-					},
+-				}},
+-			},
+-		},
+-		{
+-			name: "infer tags from complex field function",
+-			spec: &influxdb.ToProcedureSpec{
+-				Spec: &influxdb.ToOpSpec{
+-					Org:               "my-org",
+-					Bucket:            "my-bucket",
+-					TimeColumn:        "_time",
+-					MeasurementColumn: "tag",
+-					FieldFn: interpreter.ResolvedFunction{
+-						Scope: valuestest.NowScope(),
+-						Fn: &semantic.FunctionExpression{
+-							Block: &semantic.FunctionBlock{
+-								Parameters: &semantic.FunctionParameters{
+-									List: []*semantic.FunctionParameter{
+-										{
+-											Key: &semantic.Identifier{Name: "r"},
+-										},
+-									},
+-								},
+-								Body: &semantic.ObjectExpression{
+-									Properties: []*semantic.Property{
+-										{
+-											Key: &semantic.Identifier{Name: "day"},
+-											Value: &semantic.MemberExpression{
+-												Object:   &semantic.IdentifierExpression{Name: "r"},
+-												Property: "day",
+-											},
+-										},
+-										{
+-											Key: &semantic.Identifier{Name: "temperature"},
+-											Value: &semantic.MemberExpression{
+-												Object:   &semantic.IdentifierExpression{Name: "r"},
+-												Property: "temperature",
+-											},
+-										},
+-										{
+-											Key: &semantic.Identifier{Name: "humidity"},
+-											Value: &semantic.MemberExpression{
+-												Object:   &semantic.IdentifierExpression{Name: "r"},
+-												Property: "humidity",
+-											},
+-										},
+-										{
+-											Key: &semantic.Identifier{Name: "ratio"},
+-											Value: &semantic.BinaryExpression{
+-												Operator: ast.DivisionOperator,
+-												Left: &semantic.MemberExpression{
+-													Object:   &semantic.IdentifierExpression{Name: "r"},
+-													Property: "temperature",
+-												},
+-												Right: &semantic.MemberExpression{
+-													Object:   &semantic.IdentifierExpression{Name: "r"},
+-													Property: "humidity",
+-												},
+-											},
+-										},
+-									},
+-								},
+-							},
+-						},
+-					},
+-				},
+-			},
+-			data: []flux.Table{executetest.MustCopyTable(&executetest.Table{
+-				ColMeta: []flux.ColMeta{
+-					{Label: "_time", Type: flux.TTime},
+-					{Label: "day", Type: flux.TString},
+-					{Label: "tag", Type: flux.TString},
+-					{Label: "temperature", Type: flux.TFloat},
+-					{Label: "humidity", Type: flux.TFloat},
+-				},
+-				Data: [][]interface{}{
+-					{execute.Time(11), "Monday", "a", 2.0, 1.0},
+-					{execute.Time(21), "Tuesday", "a", 2.0, 2.0},
+-					{execute.Time(21), "Wednesday", "b", 1.0, 4.0},
+-					{execute.Time(31), "Thursday", "a", 3.0, 3.0},
+-					{execute.Time(41), "Friday", "c", 4.0, 5.0},
+-				},
+-			})},
+-			want: wanted{
+-				result: &mock.PointsWriter{
+-					Points: mockPoints(oid, bid, `a day="Monday",humidity=1,ratio=2,temperature=2 11
+-a day="Tuesday",humidity=2,ratio=1,temperature=2 21
+-b day="Wednesday",humidity=4,ratio=0.25,temperature=1 21
+-a day="Thursday",humidity=3,ratio=1,temperature=3 31
+-c day="Friday",humidity=5,ratio=0.8,temperature=4 41`),
+-				},
+-				tables: []*executetest.Table{{
+-					ColMeta: []flux.ColMeta{
+-						{Label: "_time", Type: flux.TTime},
+-						{Label: "day", Type: flux.TString},
+-						{Label: "tag", Type: flux.TString},
+-						{Label: "temperature", Type: flux.TFloat},
+-						{Label: "humidity", Type: flux.TFloat},
+-					},
+-					Data: [][]interface{}{
+-						{execute.Time(11), "Monday", "a", 2.0, 1.0},
+-						{execute.Time(21), "Tuesday", "a", 2.0, 2.0},
+-						{execute.Time(21), "Wednesday", "b", 1.0, 4.0},
+-						{execute.Time(31), "Thursday", "a", 3.0, 3.0},
+-						{execute.Time(41), "Friday", "c", 4.0, 5.0},
+-					},
+-				}},
+-			},
+-		},
+-		{
+-			name: "explicit tag columns, multiple values in field function, and extra columns",
+-			spec: &influxdb.ToProcedureSpec{
+-				Spec: &influxdb.ToOpSpec{
+-					Org:               "my-org",
+-					Bucket:            "my-bucket",
+-					TimeColumn:        "_time",
+-					MeasurementColumn: "tag1",
+-					TagColumns:        []string{"tag2"},
+-					FieldFn: interpreter.ResolvedFunction{
+-						Scope: valuestest.NowScope(),
+-						Fn: &semantic.FunctionExpression{
+-							Block: &semantic.FunctionBlock{
+-								Parameters: &semantic.FunctionParameters{
+-									List: []*semantic.FunctionParameter{
+-										{
+-											Key: &semantic.Identifier{Name: "r"},
+-										},
+-									},
+-								},
+-								Body: &semantic.ObjectExpression{
+-									Properties: []*semantic.Property{
+-										{
+-											Key: &semantic.Identifier{Name: "temperature"},
+-											Value: &semantic.MemberExpression{
+-												Object:   &semantic.IdentifierExpression{Name: "r"},
+-												Property: "temperature",
+-											},
+-										},
+-										{
+-											Key: &semantic.Identifier{Name: "humidity"},
+-											Value: &semantic.MemberExpression{
+-												Object:   &semantic.IdentifierExpression{Name: "r"},
+-												Property: "humidity",
+-											},
+-										},
+-									},
+-								},
+-							},
+-						},
+-					},
+-				},
+-			},
+-			data: []flux.Table{executetest.MustCopyTable(&executetest.Table{
+-				ColMeta: []flux.ColMeta{
+-					{Label: "_start", Type: flux.TTime},
+-					{Label: "_stop", Type: flux.TTime},
+-					{Label: "_time", Type: flux.TTime},
+-					{Label: "tag1", Type: flux.TString},
+-					{Label: "tag2", Type: flux.TString},
+-					{Label: "other-string-column", Type: flux.TString},
+-					{Label: "temperature", Type: flux.TFloat},
+-					{Label: "humidity", Type: flux.TInt},
+-					{Label: "other-value-column", Type: flux.TFloat},
+-				},
+-				Data: [][]interface{}{
+-					{execute.Time(0), execute.Time(100), execute.Time(11), "a", "d", "misc", 2.0, int64(50), 1.0},
+-					{execute.Time(0), execute.Time(100), execute.Time(21), "a", "d", "misc", 2.0, int64(50), 1.0},
+-					{execute.Time(0), execute.Time(100), execute.Time(21), "b", "d", "misc", 1.0, int64(50), 1.0},
+-					{execute.Time(0), execute.Time(100), execute.Time(31), "a", "e", "misc", 3.0, int64(60), 1.0},
+-					{execute.Time(0), execute.Time(100), execute.Time(41), "c", "e", "misc", 4.0, int64(65), 1.0},
+-				},
+-			})},
+-			want: wanted{
+-				result: &mock.PointsWriter{
+-					Points: mockPoints(oid, bid, `a,tag2=d humidity=50i,temperature=2 11
+-a,tag2=d humidity=50i,temperature=2 21
+-b,tag2=d humidity=50i,temperature=1 21
+-a,tag2=e humidity=60i,temperature=3 31
+-c,tag2=e humidity=65i,temperature=4 41`),
+-				},
+-				tables: []*executetest.Table{{
+-					ColMeta: []flux.ColMeta{
+-						{Label: "_start", Type: flux.TTime},
+-						{Label: "_stop", Type: flux.TTime},
+-						{Label: "_time", Type: flux.TTime},
+-						{Label: "tag1", Type: flux.TString},
+-						{Label: "tag2", Type: flux.TString},
+-						{Label: "other-string-column", Type: flux.TString},
+-						{Label: "temperature", Type: flux.TFloat},
+-						{Label: "humidity", Type: flux.TInt},
+-						{Label: "other-value-column", Type: flux.TFloat},
+-					},
+-					Data: [][]interface{}{
+-						{execute.Time(0), execute.Time(100), execute.Time(11), "a", "d", "misc", 2.0, int64(50), 1.0},
+-						{execute.Time(0), execute.Time(100), execute.Time(21), "a", "d", "misc", 2.0, int64(50), 1.0},
+-						{execute.Time(0), execute.Time(100), execute.Time(21), "b", "d", "misc", 1.0, int64(50), 1.0},
+-						{execute.Time(0), execute.Time(100), execute.Time(31), "a", "e", "misc", 3.0, int64(60), 1.0},
+-						{execute.Time(0), execute.Time(100), execute.Time(41), "c", "e", "misc", 4.0, int64(65), 1.0},
+-					},
+-				}},
+-			},
+-		},
+-		{
+-			name: "multiple _field",
+-			spec: &influxdb.ToProcedureSpec{
+-				Spec: &influxdb.ToOpSpec{
+-					Org:               "my-org",
+-					Bucket:            "my-bucket",
+-					TimeColumn:        "_time",
+-					MeasurementColumn: "_measurement",
+-				},
+-			},
+-			data: []flux.Table{executetest.MustCopyTable(&executetest.Table{
+-				ColMeta: []flux.ColMeta{
+-					{Label: "_start", Type: flux.TTime},
+-					{Label: "_stop", Type: flux.TTime},
+-					{Label: "_time", Type: flux.TTime},
+-					{Label: "_measurement", Type: flux.TString},
+-					{Label: "_field", Type: flux.TString},
+-					{Label: "_value", Type: flux.TFloat},
+-				},
+-				Data: [][]interface{}{
+-					{execute.Time(0), execute.Time(100), execute.Time(11), "a", "_value", 2.0},
+-					{execute.Time(0), execute.Time(100), execute.Time(21), "a", "_value", 2.0},
+-					{execute.Time(0), execute.Time(100), execute.Time(21), "b", "_value", 1.0},
+-					{execute.Time(0), execute.Time(100), execute.Time(31), "a", "_hello", 3.0},
+-					{execute.Time(0), execute.Time(100), execute.Time(41), "c", "_hello", 4.0},
+-				},
+-			})},
+-			want: wanted{
+-				result: &mock.PointsWriter{
+-					Points: mockPoints(oid, bid, `a _value=2 11
+-a _value=2 21
+-b _value=1 21
+-a _hello=3 31
+-c _hello=4 41`),
+-				},
+-				tables: []*executetest.Table{{
+-					ColMeta: []flux.ColMeta{
+-						{Label: "_start", Type: flux.TTime},
+-						{Label: "_stop", Type: flux.TTime},
+-						{Label: "_time", Type: flux.TTime},
+-						{Label: "_measurement", Type: flux.TString},
+-						{Label: "_field", Type: flux.TString},
+-						{Label: "_value", Type: flux.TFloat},
+-					},
+-					Data: [][]interface{}{
+-						{execute.Time(0), execute.Time(100), execute.Time(11), "a", "_value", 2.0},
+-						{execute.Time(0), execute.Time(100), execute.Time(21), "a", "_value", 2.0},
+-						{execute.Time(0), execute.Time(100), execute.Time(21), "b", "_value", 1.0},
+-						{execute.Time(0), execute.Time(100), execute.Time(31), "a", "_hello", 3.0},
+-						{execute.Time(0), execute.Time(100), execute.Time(41), "c", "_hello", 4.0},
+-					},
+-				}},
+-			},
+-		},
+-		{
+-			name: "unordered tags",
+-			spec: &influxdb.ToProcedureSpec{
+-				Spec: &influxdb.ToOpSpec{
+-					Org:               "my-org",
+-					Bucket:            "my-bucket",
+-					TimeColumn:        "_time",
+-					TagColumns:        []string{"tag1", "tag2"},
+-					MeasurementColumn: "_measurement",
+-				},
+-			},
+-			data: []flux.Table{executetest.MustCopyTable(&executetest.Table{
+-				ColMeta: []flux.ColMeta{
+-					{Label: "_time", Type: flux.TTime},
+-					{Label: "_measurement", Type: flux.TString},
+-					{Label: "_field", Type: flux.TString},
+-					{Label: "_value", Type: flux.TFloat},
+-					{Label: "tag2", Type: flux.TString},
+-					{Label: "tag1", Type: flux.TString},
+-				},
+-				Data: [][]interface{}{
+-					{execute.Time(11), "m", "_value", 2.0, "aa", "a"},
+-					{execute.Time(21), "m", "_value", 2.0, "bb", "a"},
+-					{execute.Time(21), "m", "_value", 1.0, "cc", "b"},
+-					{execute.Time(31), "m", "_value", 3.0, "dd", "a"},
+-					{execute.Time(41), "m", "_value", 4.0, "ee", "c"},
+-				},
+-			})},
+-			want: wanted{
+-				result: &mock.PointsWriter{
+-					Points: mockPoints(oid, bid, `m,tag1=a,tag2=aa _value=2 11
+-m,tag1=a,tag2=bb _value=2 21
+-m,tag1=b,tag2=cc _value=1 21
+-m,tag1=a,tag2=dd _value=3 31
+-m,tag1=c,tag2=ee _value=4 41`),
+-				},
+-				tables: []*executetest.Table{{
+-					ColMeta: []flux.ColMeta{
+-						{Label: "_time", Type: flux.TTime},
+-						{Label: "_measurement", Type: flux.TString},
+-						{Label: "_field", Type: flux.TString},
+-						{Label: "_value", Type: flux.TFloat},
+-						{Label: "tag2", Type: flux.TString},
+-						{Label: "tag1", Type: flux.TString},
+-					},
+-					Data: [][]interface{}{
+-						{execute.Time(11), "m", "_value", 2.0, "aa", "a"},
+-						{execute.Time(21), "m", "_value", 2.0, "bb", "a"},
+-						{execute.Time(21), "m", "_value", 1.0, "cc", "b"},
+-						{execute.Time(31), "m", "_value", 3.0, "dd", "a"},
+-						{execute.Time(41), "m", "_value", 4.0, "ee", "c"},
+-					},
+-				}},
+-			},
+-		},
+-	}
+-
+-	for _, tc := range testCases {
+-		tc := tc
+-		t.Run(tc.name, func(t *testing.T) {
+-			deps := influxdb.Dependencies{
+-				FluxDeps: dependenciestest.Default(),
+-				StorageDeps: influxdb.StorageDependencies{
+-					ToDeps: mockDependencies(),
+-				},
+-			}
+-			executetest.ProcessTestHelper(
+-				t,
+-				tc.data,
+-				tc.want.tables,
+-				nil,
+-				func(d execute.Dataset, c execute.TableBuilderCache) execute.Transformation {
+-					ctx := deps.Inject(context.Background())
+-					newT, err := influxdb.NewToTransformation(ctx, d, c, tc.spec, deps.StorageDeps.ToDeps)
+-					if err != nil {
+-						t.Error(err)
+-					}
+-					return newT
+-				},
+-			)
+-			pw := deps.StorageDeps.ToDeps.PointsWriter.(*mock.PointsWriter)
+-			if len(pw.Points) != len(tc.want.result.Points) {
+-				t.Errorf("Expected result values to have length of %d but got %d", len(tc.want.result.Points), len(pw.Points))
+-			}
+-
+-			gotStr := pointsToStr(pw.Points)
+-			wantStr := pointsToStr(tc.want.result.Points)
+-
+-			if !cmp.Equal(gotStr, wantStr) {
+-				t.Errorf("got other than expected %s", cmp.Diff(gotStr, wantStr))
+-			}
+-		})
+-	}
+-}
+-
+-func mockDependencies() influxdb.ToDependencies {
+-	return influxdb.ToDependencies{
+-		BucketLookup:       mock.BucketLookup{},
+-		OrganizationLookup: mock.OrganizationLookup{},
+-		PointsWriter:       new(mock.PointsWriter),
+-	}
+-}
+-
+-func pointsToStr(points []models.Point) string {
+-	outStr := ""
+-	for _, x := range points {
+-		outStr += x.String() + "\n"
+-	}
+-	return outStr
+-}
+-
+-func mockPoints(org, bucket platform.ID, pointdata string) []models.Point {
+-	name := tsdb.EncodeName(org, bucket)
+-	points, err := models.ParsePoints([]byte(pointdata), name[:])
+-	if err != nil {
+-		return nil
+-	}
+-	return points
+-}
 diff --git b/flux/stdlib/influxdata/influxdb/v1/databases.go a/flux/stdlib/influxdata/influxdb/v1/databases.go
-index 6a6c59a76..1779f411c 100644
+index 6a6c59a76c..1779f411c5 100644
 --- b/flux/stdlib/influxdata/influxdb/v1/databases.go
 +++ a/flux/stdlib/influxdata/influxdb/v1/databases.go
 @@ -2,8 +2,8 @@ package v1
@@ -1437,1662 +3012,3 @@ index 6a6c59a76..1779f411c 100644
 -	}
 -	return nil
 -}
-diff --git b/patches/flux.patch a/patches/flux.patch
-index a35a722a5..743b1ddd2 100644
---- b/patches/flux.patch
-+++ a/patches/flux.patch
-@@ -0,0 +1,905 @@
-+diff -ur a/flux/stdlib/influxdata/influxdb/buckets.go b/flux/stdlib/influxdata/influxdb/buckets.go
-+--- a/flux/stdlib/influxdata/influxdb/buckets.go	2019-06-20 14:35:12.000000000 -0500
-++++ b/flux/stdlib/influxdata/influxdb/buckets.go	2019-06-25 10:03:53.000000000 -0500
-+@@ -1,6 +1,7 @@
-+ package influxdb
-+ 
-+ import (
-++	"errors"
-+ 	"fmt"
-+ 
-+ 	"github.com/influxdata/flux"
-+@@ -9,9 +10,8 @@
-+ 	"github.com/influxdata/flux/plan"
-+ 	"github.com/influxdata/flux/stdlib/influxdata/influxdb"
-+ 	"github.com/influxdata/flux/values"
-+-	platform "github.com/influxdata/influxdb"
-+-	"github.com/influxdata/influxdb/query"
-+-	"github.com/pkg/errors"
-++	"github.com/influxdata/influxdb/services/meta"
-++	"github.com/influxdata/influxql"
-+ )
-+ 
-+ func init() {
-+@@ -19,10 +19,9 @@
-+ }
-+ 
-+ type BucketsDecoder struct {
-+-	orgID   platform.ID
-+-	deps    BucketDependencies
-+-	buckets []*platform.Bucket
-+-	alloc   *memory.Allocator
-++	deps  BucketDependencies
-++	alloc *memory.Allocator
-++	user  meta.User
-+ }
-+ 
-+ func (bd *BucketsDecoder) Connect() error {
-+@@ -30,17 +29,12 @@
-+ }
-+ 
-+ func (bd *BucketsDecoder) Fetch() (bool, error) {
-+-	b, count := bd.deps.FindAllBuckets(bd.orgID)
-+-	if count <= 0 {
-+-		return false, fmt.Errorf("no buckets found in organization %v", bd.orgID)
-+-	}
-+-	bd.buckets = b
-+ 	return false, nil
-+ }
-+ 
-+ func (bd *BucketsDecoder) Decode() (flux.Table, error) {
-+ 	kb := execute.NewGroupKeyBuilder(nil)
-+-	kb.AddKeyValue("organizationID", values.NewString(bd.buckets[0].OrgID.String()))
-++	kb.AddKeyValue("organizationID", values.NewString(""))
-+ 	gk, err := kb.Build()
-+ 	if err != nil {
-+ 		return nil, err
-+@@ -48,43 +42,54 @@
-+ 
-+ 	b := execute.NewColListTableBuilder(gk, bd.alloc)
-+ 
-+-	if _, err := b.AddCol(flux.ColMeta{
-++	_, _ = b.AddCol(flux.ColMeta{
-+ 		Label: "name",
-+ 		Type:  flux.TString,
-+-	}); err != nil {
-+-		return nil, err
-+-	}
-+-	if _, err := b.AddCol(flux.ColMeta{
-++	})
-++	_, _ = b.AddCol(flux.ColMeta{
-+ 		Label: "id",
-+ 		Type:  flux.TString,
-+-	}); err != nil {
-+-		return nil, err
-+-	}
-+-	if _, err := b.AddCol(flux.ColMeta{
-++	})
-++	_, _ = b.AddCol(flux.ColMeta{
-++		Label: "organization",
-++		Type:  flux.TString,
-++	})
-++	_, _ = b.AddCol(flux.ColMeta{
-+ 		Label: "organizationID",
-+ 		Type:  flux.TString,
-+-	}); err != nil {
-+-		return nil, err
-+-	}
-+-	if _, err := b.AddCol(flux.ColMeta{
-++	})
-++	_, _ = b.AddCol(flux.ColMeta{
-+ 		Label: "retentionPolicy",
-+ 		Type:  flux.TString,
-+-	}); err != nil {
-+-		return nil, err
-+-	}
-+-	if _, err := b.AddCol(flux.ColMeta{
-++	})
-++	_, _ = b.AddCol(flux.ColMeta{
-+ 		Label: "retentionPeriod",
-+ 		Type:  flux.TInt,
-+-	}); err != nil {
-+-		return nil, err
-+-	}
-++	})
-+ 
-+-	for _, bucket := range bd.buckets {
-+-		_ = b.AppendString(0, bucket.Name)
-+-		_ = b.AppendString(1, bucket.ID.String())
-+-		_ = b.AppendString(2, bucket.OrgID.String())
-+-		_ = b.AppendString(3, bucket.RetentionPolicyName)
-+-		_ = b.AppendInt(4, bucket.RetentionPeriod.Nanoseconds())
-++	var hasAccess func(db string) bool
-++	if bd.user == nil {
-++		hasAccess = func(db string) bool {
-++			return true
-++		}
-++	} else {
-++		hasAccess = func(db string) bool {
-++			return bd.deps.Authorizer.AuthorizeDatabase(bd.user, influxql.ReadPrivilege, db) == nil ||
-++				bd.deps.Authorizer.AuthorizeDatabase(bd.user, influxql.WritePrivilege, db) == nil
-++		}
-++	}
-++
-++	for _, db := range bd.deps.MetaClient.Databases() {
-++		if hasAccess(db.Name) {
-++			for _, rp := range db.RetentionPolicies {
-++				_ = b.AppendString(0, db.Name+"/"+rp.Name)
-++				_ = b.AppendString(1, "")
-++				_ = b.AppendString(2, "influxdb")
-++				_ = b.AppendString(3, "")
-++				_ = b.AppendString(4, rp.Name)
-++				_ = b.AppendInt(5, rp.Duration.Nanoseconds())
-++			}
-++		}
-+ 	}
-+ 
-+ 	return b.Table()
-+@@ -103,25 +108,45 @@
-+ 	// the dependencies used for FromKind are adequate for what we need here
-+ 	// so there's no need to inject custom dependencies for buckets()
-+ 	deps := a.Dependencies()[influxdb.BucketsKind].(BucketDependencies)
-+-	req := query.RequestFromContext(a.Context())
-+-	if req == nil {
-+-		return nil, errors.New("missing request on context")
-++
-++	var user meta.User
-++	if deps.AuthEnabled {
-++		user = meta.UserFromContext(a.Context())
-++		if user == nil {
-++			return nil, errors.New("createBucketsSource: no user")
-++		}
-+ 	}
-+-	orgID := req.OrganizationID
-+ 
-+-	bd := &BucketsDecoder{orgID: orgID, deps: deps, alloc: a.Allocator()}
-++	bd := &BucketsDecoder{deps: deps, alloc: a.Allocator(), user: user}
-+ 
-+ 	return execute.CreateSourceFromDecoder(bd, dsid, a)
-++
-++}
-++
-++type MetaClient interface {
-++	Databases() []meta.DatabaseInfo
-++	Database(name string) *meta.DatabaseInfo
-+ }
-+ 
-+-type AllBucketLookup interface {
-+-	FindAllBuckets(orgID platform.ID) ([]*platform.Bucket, int)
-++type BucketDependencies struct {
-++	MetaClient  MetaClient
-++	Authorizer  Authorizer
-++	AuthEnabled bool
-++}
-++
-++func (d BucketDependencies) Validate() error {
-++	if d.MetaClient == nil {
-++		return errors.New("validate BucketDependencies: missing MetaClient")
-++	}
-++	if d.AuthEnabled && d.Authorizer == nil {
-++		return errors.New("validate BucketDependencies: missing Authorizer")
-++	}
-++	return nil
-+ }
-+-type BucketDependencies AllBucketLookup
-+ 
-+ func InjectBucketDependencies(depsMap execute.Dependencies, deps BucketDependencies) error {
-+-	if deps == nil {
-+-		return errors.New("missing all bucket lookup dependency")
-++	if err := deps.Validate(); err != nil {
-++		return err
-+ 	}
-+ 	depsMap[influxdb.BucketsKind] = deps
-+ 	return nil
-+diff -ur a/flux/stdlib/influxdata/influxdb/from.go b/flux/stdlib/influxdata/influxdb/from.go
-+--- a/flux/stdlib/influxdata/influxdb/from.go	2019-06-20 14:35:12.000000000 -0500
-++++ b/flux/stdlib/influxdata/influxdb/from.go	2019-06-25 13:49:49.000000000 -0500
-+@@ -8,7 +8,6 @@
-+ 	"github.com/influxdata/flux/plan"
-+ 	"github.com/influxdata/flux/semantic"
-+ 	"github.com/influxdata/flux/stdlib/influxdata/influxdb"
-+-	platform "github.com/influxdata/influxdb"
-+ 	"github.com/pkg/errors"
-+ )
-+ 
-+@@ -66,31 +65,6 @@
-+ 	return FromKind
-+ }
-+ 
-+-// BucketsAccessed makes FromOpSpec a query.BucketAwareOperationSpec
-+-func (s *FromOpSpec) BucketsAccessed(orgID *platform.ID) (readBuckets, writeBuckets []platform.BucketFilter) {
-+-	bf := platform.BucketFilter{}
-+-	if s.Bucket != "" {
-+-		bf.Name = &s.Bucket
-+-	}
-+-	if orgID != nil {
-+-		bf.OrganizationID = orgID
-+-	}
-+-
-+-	if len(s.BucketID) > 0 {
-+-		if id, err := platform.IDFromString(s.BucketID); err != nil {
-+-			invalidID := platform.InvalidID()
-+-			bf.ID = &invalidID
-+-		} else {
-+-			bf.ID = id
-+-		}
-+-	}
-+-
-+-	if bf.ID != nil || bf.Name != nil {
-+-		readBuckets = append(readBuckets, bf)
-+-	}
-+-	return readBuckets, writeBuckets
-+-}
-+-
-+ type FromProcedureSpec struct {
-+ 	Bucket   string
-+ 	BucketID string
-+diff -ur a/flux/stdlib/influxdata/influxdb/operators.go b/flux/stdlib/influxdata/influxdb/operators.go
-+--- a/flux/stdlib/influxdata/influxdb/operators.go	2019-06-20 14:35:12.000000000 -0500
-++++ b/flux/stdlib/influxdata/influxdb/operators.go	2019-06-25 13:49:49.000000000 -0500
-+@@ -3,13 +3,15 @@
-+ import (
-+ 	"context"
-+ 	"errors"
-+-	"fmt"
-++	"strings"
-+ 
-+ 	"github.com/influxdata/flux"
-++	"github.com/influxdata/flux/execute"
-+ 	"github.com/influxdata/flux/plan"
-+ 	"github.com/influxdata/flux/semantic"
-+ 	"github.com/influxdata/flux/values"
-+-	"github.com/influxdata/influxdb"
-++	"github.com/influxdata/influxdb/services/meta"
-++	"github.com/influxdata/influxql"
-+ )
-+ 
-+ const (
-+@@ -79,24 +81,43 @@
-+ 	return ns
-+ }
-+ 
-+-func (s *ReadRangePhysSpec) LookupBucketID(ctx context.Context, orgID influxdb.ID, buckets BucketLookup) (influxdb.ID, error) {
-+-	// Determine bucketID
-+-	switch {
-+-	case s.Bucket != "":
-+-		b, ok := buckets.Lookup(ctx, orgID, s.Bucket)
-+-		if !ok {
-+-			return 0, fmt.Errorf("could not find bucket %q", s.Bucket)
-++func (s *ReadRangePhysSpec) LookupDatabase(ctx context.Context, deps Dependencies, a execute.Administration) (string, string, error) {
-++	if len(s.BucketID) != 0 {
-++		return "", "", errors.New("cannot refer to buckets by their id in 1.x")
-++	}
-++
-++	var db, rp string
-++	if i := strings.IndexByte(s.Bucket, '/'); i == -1 {
-++		db = s.Bucket
-++	} else {
-++		rp = s.Bucket[i+1:]
-++		db = s.Bucket[:i]
-++	}
-++
-++	// validate and resolve db/rp
-++	di := deps.MetaClient.Database(db)
-++	if di == nil {
-++		return "", "", errors.New("no database")
-++	}
-++
-++	if deps.AuthEnabled {
-++		user := meta.UserFromContext(a.Context())
-++		if user == nil {
-++			return "", "", errors.New("createFromSource: no user")
-+ 		}
-+-		return b, nil
-+-	case len(s.BucketID) != 0:
-+-		var b influxdb.ID
-+-		if err := b.DecodeFromString(s.BucketID); err != nil {
-+-			return 0, err
-++		if err := deps.Authorizer.AuthorizeDatabase(user, influxql.ReadPrivilege, db); err != nil {
-++			return "", "", err
-+ 		}
-+-		return b, nil
-+-	default:
-+-		return 0, errors.New("no bucket name or id have been specified")
-+ 	}
-++
-++	if rp == "" {
-++		rp = di.DefaultRetentionPolicy
-++	}
-++
-++	if rpi := di.RetentionPolicy(rp); rpi == nil {
-++		return "", "", errors.New("invalid retention policy")
-++	}
-++	return db, rp, nil
-+ }
-+ 
-+ // TimeBounds implements plan.BoundsAwareProcedureSpec.
-+diff -ur a/flux/stdlib/influxdata/influxdb/rules.go b/flux/stdlib/influxdata/influxdb/rules.go
-+--- a/flux/stdlib/influxdata/influxdb/rules.go	2019-06-20 14:35:12.000000000 -0500
-++++ b/flux/stdlib/influxdata/influxdb/rules.go	2019-06-25 13:49:50.000000000 -0500
-+@@ -190,6 +190,12 @@
-+ 	// constructing our own replacement. We do not care about it
-+ 	// at the moment though which is why it is not in the pattern.
-+ 
-++	// The tag keys mechanism doesn't know about fields so we cannot
-++	// push down _field comparisons in 1.x.
-++	if hasFieldExpr(fromSpec.Filter) {
-++		return pn, false, nil
-++	}
-++
-+ 	// The schema mutator needs to correspond to a keep call
-+ 	// on the column specified by the keys procedure.
-+ 	if len(keepSpec.Mutations) != 1 {
-+@@ -219,6 +225,20 @@
-+ 	}), true, nil
-+ }
-+ 
-++func hasFieldExpr(expr semantic.Expression) bool {
-++	hasField := false
-++	v := semantic.CreateVisitor(func(node semantic.Node) {
-++		switch n := node.(type) {
-++		case *semantic.MemberExpression:
-++			if n.Property == "_field" {
-++				hasField = true
-++			}
-++		}
-++	})
-++	semantic.Walk(v, expr)
-++	return hasField
-++}
-++
-+ // PushDownReadTagValuesRule matches 'ReadRange |> keep(columns: [tag]) |> group() |> distinct(column: tag)'.
-+ // The 'from()' must have already been merged with 'range' and, optionally,
-+ // may have been merged with 'filter'.
-+@@ -296,6 +316,9 @@
-+ 	execute.DefaultValueColLabel,
-+ 	execute.DefaultStartColLabel,
-+ 	execute.DefaultStopColLabel,
-++	// TODO(jsternberg): There just doesn't seem to be a good way to do this
-++	// in the 1.x line of the release.
-++	"_field",
-+ }
-+ 
-+ // isValidTagKeyForTagValues returns true if the given key can
-+diff -ur a/flux/stdlib/influxdata/influxdb/rules_test.go b/flux/stdlib/influxdata/influxdb/rules_test.go
-+--- a/flux/stdlib/influxdata/influxdb/rules_test.go	2019-06-20 14:35:12.000000000 -0500
-++++ b/flux/stdlib/influxdata/influxdb/rules_test.go	2019-06-25 13:49:49.000000000 -0500
-+@@ -11,7 +11,7 @@
-+ 	"github.com/influxdata/flux/plan/plantest"
-+ 	"github.com/influxdata/flux/semantic"
-+ 	"github.com/influxdata/flux/stdlib/universe"
-+-	"github.com/influxdata/influxdb/query/stdlib/influxdata/influxdb"
-++	"github.com/influxdata/influxdb/flux/stdlib/influxdata/influxdb"
-+ )
-+ 
-+ func fluxTime(t int64) flux.Time {
-+diff -ur a/flux/stdlib/influxdata/influxdb/source.go b/flux/stdlib/influxdata/influxdb/source.go
-+--- a/flux/stdlib/influxdata/influxdb/source.go	2019-06-20 14:35:12.000000000 -0500
-++++ b/flux/stdlib/influxdata/influxdb/source.go	2019-06-25 13:49:49.000000000 -0500
-+@@ -9,8 +9,6 @@
-+ 	"github.com/influxdata/flux/memory"
-+ 	"github.com/influxdata/flux/plan"
-+ 	"github.com/influxdata/flux/semantic"
-+-	"github.com/influxdata/influxdb/kit/tracing"
-+-	"github.com/influxdata/influxdb/query"
-+ 	"github.com/influxdata/influxdb/tsdb/cursors"
-+ )
-+ 
-+@@ -131,8 +129,7 @@
-+ }
-+ 
-+ func createReadFilterSource(s plan.ProcedureSpec, id execute.DatasetID, a execute.Administration) (execute.Source, error) {
-+-	span, ctx := tracing.StartSpanFromContext(a.Context())
-+-	defer span.Finish()
-++	ctx := a.Context()
-+ 
-+ 	spec := s.(*ReadRangePhysSpec)
-+ 
-+@@ -143,13 +140,7 @@
-+ 
-+ 	deps := a.Dependencies()[FromKind].(Dependencies)
-+ 
-+-	req := query.RequestFromContext(a.Context())
-+-	if req == nil {
-+-		return nil, errors.New("missing request on context")
-+-	}
-+-
-+-	orgID := req.OrganizationID
-+-	bucketID, err := spec.LookupBucketID(ctx, orgID, deps.BucketLookup)
-++	db, rp, err := spec.LookupDatabase(ctx, deps, a)
-+ 	if err != nil {
-+ 		return nil, err
-+ 	}
-+@@ -162,10 +153,10 @@
-+ 		id,
-+ 		deps.Reader,
-+ 		ReadFilterSpec{
-+-			OrganizationID: orgID,
-+-			BucketID:       bucketID,
-+-			Bounds:         *bounds,
-+-			Predicate:      filter,
-++			Database:        db,
-++			RetentionPolicy: rp,
-++			Bounds:          *bounds,
-++			Predicate:       filter,
-+ 		},
-+ 		a.Allocator(),
-+ 	), nil
-+@@ -204,8 +195,7 @@
-+ }
-+ 
-+ func createReadGroupSource(s plan.ProcedureSpec, id execute.DatasetID, a execute.Administration) (execute.Source, error) {
-+-	span, ctx := tracing.StartSpanFromContext(a.Context())
-+-	defer span.Finish()
-++	ctx := a.Context()
-+ 
-+ 	spec := s.(*ReadGroupPhysSpec)
-+ 
-+@@ -216,13 +206,7 @@
-+ 
-+ 	deps := a.Dependencies()[FromKind].(Dependencies)
-+ 
-+-	req := query.RequestFromContext(a.Context())
-+-	if req == nil {
-+-		return nil, errors.New("missing request on context")
-+-	}
-+-
-+-	orgID := req.OrganizationID
-+-	bucketID, err := spec.LookupBucketID(ctx, orgID, deps.BucketLookup)
-++	db, rp, err := spec.LookupDatabase(ctx, deps, a)
-+ 	if err != nil {
-+ 		return nil, err
-+ 	}
-+@@ -236,10 +220,10 @@
-+ 		deps.Reader,
-+ 		ReadGroupSpec{
-+ 			ReadFilterSpec: ReadFilterSpec{
-+-				OrganizationID: orgID,
-+-				BucketID:       bucketID,
-+-				Bounds:         *bounds,
-+-				Predicate:      filter,
-++				Database:        db,
-++				RetentionPolicy: rp,
-++				Bounds:          *bounds,
-++				Predicate:       filter,
-+ 			},
-+ 			GroupMode:       ToGroupMode(spec.GroupMode),
-+ 			GroupKeys:       spec.GroupKeys,
-+@@ -250,18 +234,12 @@
-+ }
-+ 
-+ func createReadTagKeysSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID, a execute.Administration) (execute.Source, error) {
-+-	span, ctx := tracing.StartSpanFromContext(a.Context())
-+-	defer span.Finish()
-++	ctx := a.Context()
-+ 
-+ 	spec := prSpec.(*ReadTagKeysPhysSpec)
-+ 	deps := a.Dependencies()[FromKind].(Dependencies)
-+-	req := query.RequestFromContext(a.Context())
-+-	if req == nil {
-+-		return nil, errors.New("missing request on context")
-+-	}
-+-	orgID := req.OrganizationID
-+ 
-+-	bucketID, err := spec.LookupBucketID(ctx, orgID, deps.BucketLookup)
-++	db, rp, err := spec.LookupDatabase(ctx, deps, a)
-+ 	if err != nil {
-+ 		return nil, err
-+ 	}
-+@@ -277,10 +255,10 @@
-+ 		deps.Reader,
-+ 		ReadTagKeysSpec{
-+ 			ReadFilterSpec: ReadFilterSpec{
-+-				OrganizationID: orgID,
-+-				BucketID:       bucketID,
-+-				Bounds:         *bounds,
-+-				Predicate:      filter,
-++				Database:        db,
-++				RetentionPolicy: rp,
-++				Bounds:          *bounds,
-++				Predicate:       filter,
-+ 			},
-+ 		},
-+ 		a.Allocator(),
-+@@ -314,18 +292,12 @@
-+ }
-+ 
-+ func createReadTagValuesSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID, a execute.Administration) (execute.Source, error) {
-+-	span, ctx := tracing.StartSpanFromContext(a.Context())
-+-	defer span.Finish()
-++	ctx := a.Context()
-+ 
-+ 	spec := prSpec.(*ReadTagValuesPhysSpec)
-+ 	deps := a.Dependencies()[FromKind].(Dependencies)
-+-	req := query.RequestFromContext(a.Context())
-+-	if req == nil {
-+-		return nil, errors.New("missing request on context")
-+-	}
-+-	orgID := req.OrganizationID
-+ 
-+-	bucketID, err := spec.LookupBucketID(ctx, orgID, deps.BucketLookup)
-++	db, rp, err := spec.LookupDatabase(ctx, deps, a)
-+ 	if err != nil {
-+ 		return nil, err
-+ 	}
-+@@ -341,10 +313,10 @@
-+ 		deps.Reader,
-+ 		ReadTagValuesSpec{
-+ 			ReadFilterSpec: ReadFilterSpec{
-+-				OrganizationID: orgID,
-+-				BucketID:       bucketID,
-+-				Bounds:         *bounds,
-+-				Predicate:      filter,
-++				Database:        db,
-++				RetentionPolicy: rp,
-++				Bounds:          *bounds,
-++				Predicate:       filter,
-+ 			},
-+ 			TagKey: spec.TagKey,
-+ 		},
-+diff -ur a/flux/stdlib/influxdata/influxdb/storage.go b/flux/stdlib/influxdata/influxdb/storage.go
-+--- a/flux/stdlib/influxdata/influxdb/storage.go	2019-06-20 14:35:12.000000000 -0500
-++++ b/flux/stdlib/influxdata/influxdb/storage.go	2019-06-25 13:49:49.000000000 -0500
-+@@ -8,61 +8,36 @@
-+ 	"github.com/influxdata/flux/execute"
-+ 	"github.com/influxdata/flux/memory"
-+ 	"github.com/influxdata/flux/semantic"
-+-	platform "github.com/influxdata/influxdb"
-++	"github.com/influxdata/influxdb/services/meta"
-+ 	"github.com/influxdata/influxdb/tsdb/cursors"
-++	"github.com/influxdata/influxql"
-+ 	"github.com/pkg/errors"
-+ )
-+ 
-+-type HostLookup interface {
-+-	Hosts() []string
-+-	Watch() <-chan struct{}
-+-}
-+-
-+-type BucketLookup interface {
-+-	Lookup(ctx context.Context, orgID platform.ID, name string) (platform.ID, bool)
-+-}
-+-
-+-type OrganizationLookup interface {
-+-	Lookup(ctx context.Context, name string) (platform.ID, bool)
-++type Authorizer interface {
-++	AuthorizeDatabase(u meta.User, priv influxql.Privilege, database string) error
-+ }
-+ 
-+ type Dependencies struct {
-+-	Reader             Reader
-+-	BucketLookup       BucketLookup
-+-	OrganizationLookup OrganizationLookup
-++	Reader      Reader
-++	MetaClient  MetaClient
-++	Authorizer  Authorizer
-++	AuthEnabled bool
-+ }
-+ 
-+ func (d Dependencies) Validate() error {
-+ 	if d.Reader == nil {
-+ 		return errors.New("missing reader dependency")
-+ 	}
-+-	if d.BucketLookup == nil {
-+-		return errors.New("missing bucket lookup dependency")
-++	if d.MetaClient == nil {
-++		return errors.New("missing meta client dependency")
-+ 	}
-+-	if d.OrganizationLookup == nil {
-+-		return errors.New("missing organization lookup dependency")
-++	if d.AuthEnabled && d.Authorizer == nil {
-++		return errors.New("validate Dependencies: missing Authorizer")
-+ 	}
-+ 	return nil
-+ }
-+ 
-+-type StaticLookup struct {
-+-	hosts []string
-+-}
-+-
-+-func NewStaticLookup(hosts []string) StaticLookup {
-+-	return StaticLookup{
-+-		hosts: hosts,
-+-	}
-+-}
-+-
-+-func (l StaticLookup) Hosts() []string {
-+-	return l.hosts
-+-}
-+-func (l StaticLookup) Watch() <-chan struct{} {
-+-	// A nil channel always blocks, since hosts never change this is appropriate.
-+-	return nil
-+-}
-+-
-+ type GroupMode int
-+ 
-+ const (
-+@@ -85,8 +60,8 @@
-+ }
-+ 
-+ type ReadFilterSpec struct {
-+-	OrganizationID platform.ID
-+-	BucketID       platform.ID
-++	Database        string
-++	RetentionPolicy string
-+ 
-+ 	Bounds execute.Bounds
-+ 
-+diff -ur a/flux/stdlib/influxdata/influxdb/v1/databases.go b/flux/stdlib/influxdata/influxdb/v1/databases.go
-+--- a/flux/stdlib/influxdata/influxdb/v1/databases.go	2019-06-20 14:35:12.000000000 -0500
-++++ b/flux/stdlib/influxdata/influxdb/v1/databases.go	2019-06-25 10:03:53.000000000 -0500
-+@@ -2,17 +2,19 @@
-+ 
-+ import (
-+ 	"context"
-++	"errors"
-+ 	"fmt"
-+ 
-+ 	"github.com/influxdata/flux"
-+ 	"github.com/influxdata/flux/execute"
-+ 	"github.com/influxdata/flux/memory"
-+ 	"github.com/influxdata/flux/plan"
-+-	"github.com/influxdata/flux/stdlib/influxdata/influxdb/v1"
-++	v1 "github.com/influxdata/flux/stdlib/influxdata/influxdb/v1"
-+ 	"github.com/influxdata/flux/values"
-+-	platform "github.com/influxdata/influxdb"
-+-	"github.com/influxdata/influxdb/query"
-+-	"github.com/pkg/errors"
-++	"github.com/influxdata/influxdb/coordinator"
-++	"github.com/influxdata/influxdb/flux/stdlib/influxdata/influxdb"
-++	"github.com/influxdata/influxdb/services/meta"
-++	"github.com/influxdata/influxql"
-+ )
-+ 
-+ const DatabasesKind = v1.DatabasesKind
-+@@ -66,9 +68,9 @@
-+ }
-+ 
-+ type DatabasesDecoder struct {
-+-	orgID     platform.ID
-+-	deps      *DatabasesDependencies
-+-	databases []*platform.DBRPMapping
-++	deps      *DatabaseDependencies
-++	databases []meta.DatabaseInfo
-++	user      meta.User
-+ 	alloc     *memory.Allocator
-+ 	ctx       context.Context
-+ }
-+@@ -78,20 +80,13 @@
-+ }
-+ 
-+ func (bd *DatabasesDecoder) Fetch() (bool, error) {
-+-	b, _, err := bd.deps.DBRP.FindMany(bd.ctx, platform.DBRPMappingFilter{})
-+-	if err != nil {
-+-		return false, err
-+-	}
-+-	bd.databases = b
-++	bd.databases = bd.deps.MetaClient.Databases()
-+ 	return false, nil
-+ }
-+ 
-+ func (bd *DatabasesDecoder) Decode() (flux.Table, error) {
-+ 	kb := execute.NewGroupKeyBuilder(nil)
-+-	if len(bd.databases) == 0 {
-+-		return nil, errors.New("no 1.x databases found")
-+-	}
-+-	kb.AddKeyValue("organizationID", values.NewString(bd.databases[0].OrganizationID.String()))
-++	kb.AddKeyValue("organizationID", values.NewString(""))
-+ 	gk, err := kb.Build()
-+ 	if err != nil {
-+ 		return nil, err
-+@@ -136,16 +131,28 @@
-+ 		return nil, err
-+ 	}
-+ 
-++	var hasAccess func(db string) bool
-++	if bd.user == nil {
-++		hasAccess = func(db string) bool {
-++			return true
-++		}
-++	} else {
-++		hasAccess = func(db string) bool {
-++			return bd.deps.Authorizer.AuthorizeDatabase(bd.user, influxql.ReadPrivilege, db) == nil ||
-++				bd.deps.Authorizer.AuthorizeDatabase(bd.user, influxql.WritePrivilege, db) == nil
-++		}
-++	}
-++
-+ 	for _, db := range bd.databases {
-+-		if bucket, err := bd.deps.BucketLookup.FindBucketByID(bd.ctx, db.BucketID); err != nil {
-+-			return nil, err
-+-		} else {
-+-			_ = b.AppendString(0, db.OrganizationID.String())
-+-			_ = b.AppendString(1, db.Database)
-+-			_ = b.AppendString(2, db.RetentionPolicy)
-+-			_ = b.AppendInt(3, bucket.RetentionPeriod.Nanoseconds())
-+-			_ = b.AppendBool(4, db.Default)
-+-			_ = b.AppendString(5, db.BucketID.String())
-++		if hasAccess(db.Name) {
-++			for _, rp := range db.RetentionPolicies {
-++				_ = b.AppendString(0, "")
-++				_ = b.AppendString(1, db.Name)
-++				_ = b.AppendString(2, rp.Name)
-++				_ = b.AppendInt(3, rp.Duration.Nanoseconds())
-++				_ = b.AppendBool(4, db.DefaultRetentionPolicy == rp.Name)
-++				_ = b.AppendString(5, "")
-++			}
-+ 		}
-+ 	}
-+ 
-+@@ -162,34 +169,31 @@
-+ 		return nil, fmt.Errorf("invalid spec type %T", prSpec)
-+ 	}
-+ 
-+-	// the dependencies used for FromKind are adequate for what we need here
-+-	// so there's no need to inject custom dependencies for databases()
-+-	deps := a.Dependencies()[DatabasesKind].(DatabasesDependencies)
-+-	req := query.RequestFromContext(a.Context())
-+-	if req == nil {
-+-		return nil, errors.New("missing request on context")
-++	deps := a.Dependencies()[DatabasesKind].(DatabaseDependencies)
-++	var user meta.User
-++	if deps.AuthEnabled {
-++		user = meta.UserFromContext(a.Context())
-++		if user == nil {
-++			return nil, errors.New("createDatabasesSource: no user")
-++		}
-+ 	}
-+-	orgID := req.OrganizationID
-+-
-+-	bd := &DatabasesDecoder{orgID: orgID, deps: &deps, alloc: a.Allocator(), ctx: a.Context()}
-+-
-++	bd := &DatabasesDecoder{deps: &deps, alloc: a.Allocator(), ctx: a.Context(), user: user}
-+ 	return execute.CreateSourceFromDecoder(bd, dsid, a)
-+ }
-+ 
-+-type DatabasesDependencies struct {
-+-	DBRP         platform.DBRPMappingService
-+-	BucketLookup platform.BucketService
-++type DatabaseDependencies struct {
-++	MetaClient  coordinator.MetaClient
-++	Authorizer  influxdb.Authorizer
-++	AuthEnabled bool
-+ }
-+ 
-+-func InjectDatabasesDependencies(depsMap execute.Dependencies, deps DatabasesDependencies) error {
-+-	if deps.DBRP == nil {
-+-		return errors.New("missing all databases lookup dependency")
-++func InjectDatabaseDependencies(depsMap execute.Dependencies, deps DatabaseDependencies) error {
-++	if deps.MetaClient == nil {
-++		return errors.New("missing meta client dependency")
-+ 	}
-+-
-+-	if deps.BucketLookup == nil {
-+-		return errors.New("missing buckets lookup dependency")
-++	if deps.AuthEnabled && deps.Authorizer == nil {
-++		return errors.New("missing authorizer with auth enabled")
-+ 	}
-+-
-+ 	depsMap[DatabasesKind] = deps
-+ 	return nil
-+ }
-+diff -ur a/storage/reads/group_resultset.go b/storage/reads/group_resultset.go
-+--- a/storage/reads/group_resultset.go	2019-06-20 14:35:12.000000000 -0500
-++++ b/storage/reads/group_resultset.go	2019-06-25 13:49:49.000000000 -0500
-+@@ -7,7 +7,6 @@
-+ 	"math"
-+ 	"sort"
-+ 
-+-	"github.com/influxdata/influxdb/kit/tracing"
-+ 	"github.com/influxdata/influxdb/models"
-+ 	"github.com/influxdata/influxdb/storage/reads/datatypes"
-+ 	"github.com/influxdata/influxdb/tsdb/cursors"
-+@@ -112,16 +111,7 @@
-+ }
-+ 
-+ func (g *groupResultSet) sort() (int, error) {
-+-	span, _ := tracing.StartSpanFromContext(g.ctx)
-+-	defer span.Finish()
-+-	span.LogKV("group_type", g.req.Group.String())
-+-
-+ 	n, err := g.sortFn(g)
-+-
-+-	if err != nil {
-+-		span.LogKV("rows", n)
-+-	}
-+-
-+ 	return n, err
-+ }
-+ 
-+diff -ur a/storage/reads/group_resultset_test.go b/storage/reads/group_resultset_test.go
-+--- a/storage/reads/group_resultset_test.go	2019-06-20 14:35:12.000000000 -0500
-++++ b/storage/reads/group_resultset_test.go	2019-06-25 13:49:49.000000000 -0500
-+@@ -394,7 +394,7 @@
-+ 		vals[i] = gen.NewCounterByteSequenceCount(card[i])
-+ 	}
-+ 
-+-	tags := gen.NewTagsValuesSequenceValues("m0", "f0", "tag", vals)
-++	tags := gen.NewTagsValuesSequenceValues("tag", vals)
-+ 	rows := make([]reads.SeriesRow, tags.Count())
-+ 	for i := range rows {
-+ 		tags.Next()
-+diff -ur a/storage/reads/reader.go b/storage/reads/reader.go
-+--- a/storage/reads/reader.go	2019-06-20 14:35:12.000000000 -0500
-++++ b/storage/reads/reader.go	2019-06-25 13:49:49.000000000 -0500
-+@@ -10,8 +10,8 @@
-+ 	"github.com/influxdata/flux/execute"
-+ 	"github.com/influxdata/flux/memory"
-+ 	"github.com/influxdata/flux/values"
-++	"github.com/influxdata/influxdb/flux/stdlib/influxdata/influxdb"
-+ 	"github.com/influxdata/influxdb/models"
-+-	"github.com/influxdata/influxdb/query/stdlib/influxdata/influxdb"
-+ 	"github.com/influxdata/influxdb/storage/reads/datatypes"
-+ 	"github.com/influxdata/influxdb/tsdb/cursors"
-+ )
-+@@ -103,8 +103,8 @@
-+ 
-+ func (fi *filterIterator) Do(f func(flux.Table) error) error {
-+ 	src := fi.s.GetSource(
-+-		uint64(fi.spec.OrganizationID),
-+-		uint64(fi.spec.BucketID),
-++		fi.spec.Database,
-++		fi.spec.RetentionPolicy,
-+ 	)
-+ 
-+ 	// Setup read request
-+@@ -225,8 +225,8 @@
-+ 
-+ func (gi *groupIterator) Do(f func(flux.Table) error) error {
-+ 	src := gi.s.GetSource(
-+-		uint64(gi.spec.OrganizationID),
-+-		uint64(gi.spec.BucketID),
-++		gi.spec.Database,
-++		gi.spec.RetentionPolicy,
-+ 	)
-+ 
-+ 	// Setup read request
-+@@ -504,8 +504,8 @@
-+ 
-+ func (ti *tagKeysIterator) Do(f func(flux.Table) error) error {
-+ 	src := ti.s.GetSource(
-+-		uint64(ti.readSpec.OrganizationID),
-+-		uint64(ti.readSpec.BucketID),
-++		ti.readSpec.Database,
-++		ti.readSpec.RetentionPolicy,
-+ 	)
-+ 
-+ 	var req datatypes.TagKeysRequest
-+@@ -586,8 +586,8 @@
-+ 
-+ func (ti *tagValuesIterator) Do(f func(flux.Table) error) error {
-+ 	src := ti.s.GetSource(
-+-		uint64(ti.readSpec.OrganizationID),
-+-		uint64(ti.readSpec.BucketID),
-++		ti.readSpec.Database,
-++		ti.readSpec.RetentionPolicy,
-+ 	)
-+ 
-+ 	var req datatypes.TagValuesRequest
-+diff -ur a/storage/reads/store.go b/storage/reads/store.go
-+--- a/storage/reads/store.go	2019-06-20 14:35:12.000000000 -0500
-++++ b/storage/reads/store.go	2019-06-25 13:49:49.000000000 -0500
-+@@ -80,5 +80,5 @@
-+ 	TagKeys(ctx context.Context, req *datatypes.TagKeysRequest) (cursors.StringIterator, error)
-+ 	TagValues(ctx context.Context, req *datatypes.TagValuesRequest) (cursors.StringIterator, error)
-+ 
-+-	GetSource(orgID, bucketID uint64) proto.Message
-++	GetSource(db, rp string) proto.Message
-+ }
-+diff -ur a/storage/reads/table.go b/storage/reads/table.go
-+--- a/storage/reads/table.go	2019-06-20 14:35:12.000000000 -0500
-++++ b/storage/reads/table.go	2019-06-25 13:49:49.000000000 -0500
-+@@ -1,7 +1,5 @@
-+ package reads
-+ 
-+-//go:generate env GO111MODULE=on go run github.com/benbjohnson/tmpl -data=@types.tmpldata table.gen.go.tmpl
-+-
-+ import (
-+ 	"sync/atomic"
-+ 
-+diff -ur a/tsdb/cursors/gen.go b/tsdb/cursors/gen.go
-+--- a/tsdb/cursors/gen.go	2019-06-20 14:35:12.000000000 -0500
-++++ b/tsdb/cursors/gen.go	2019-06-25 14:00:51.000000000 -0500
-+@@ -1,3 +1 @@
-+ package cursors
-+-
-+-//go:generate env GO111MODULE=on go run github.com/benbjohnson/tmpl -data=@arrayvalues.gen.go.tmpldata arrayvalues.gen.go.tmpl
-diff --git b/storage/reads/group_resultset.go a/storage/reads/group_resultset.go
-index c7ed990bb..5d6ca33a4 100644
---- b/storage/reads/group_resultset.go
-+++ a/storage/reads/group_resultset.go
-@@ -7,7 +7,6 @@ import (
- 	"math"
- 	"sort"
- 
--	"github.com/influxdata/influxdb/kit/tracing"
- 	"github.com/influxdata/influxdb/models"
- 	"github.com/influxdata/influxdb/storage/reads/datatypes"
- 	"github.com/influxdata/influxdb/tsdb/cursors"
-@@ -112,16 +111,7 @@ func (g *groupResultSet) Next() GroupCursor {
- }
- 
- func (g *groupResultSet) sort() (int, error) {
--	span, _ := tracing.StartSpanFromContext(g.ctx)
--	defer span.Finish()
--	span.LogKV("group_type", g.req.Group.String())
--
- 	n, err := g.sortFn(g)
--
--	if err != nil {
--		span.LogKV("rows", n)
--	}
--
- 	return n, err
- }
- 
-diff --git b/storage/reads/group_resultset_test.go a/storage/reads/group_resultset_test.go
-index ee13d1616..eb1fc91fc 100644
---- b/storage/reads/group_resultset_test.go
-+++ a/storage/reads/group_resultset_test.go
-@@ -394,7 +394,7 @@ func BenchmarkNewGroupResultSet_GroupBy(b *testing.B) {
- 		vals[i] = gen.NewCounterByteSequenceCount(card[i])
- 	}
- 
--	tags := gen.NewTagsValuesSequenceValues("m0", "f0", "tag", vals)
-+	tags := gen.NewTagsValuesSequenceValues("tag", vals)
- 	rows := make([]reads.SeriesRow, tags.Count())
- 	for i := range rows {
- 		tags.Next()
-diff --git b/storage/reads/helpers_test.go a/storage/reads/helpers_test.go
-index d688ae365..ff8698b89 100644
---- b/storage/reads/helpers_test.go
-+++ a/storage/reads/helpers_test.go
-@@ -1,169 +1 @@
- package reads_test
--
--import (
--	"context"
--
--	"github.com/influxdata/influxdb/models"
--	"github.com/influxdata/influxdb/pkg/data/gen"
--	"github.com/influxdata/influxdb/storage/reads"
--	"github.com/influxdata/influxdb/tsdb"
--	"github.com/influxdata/influxdb/tsdb/cursors"
--)
--
--type seriesGeneratorCursorIterator struct {
--	g   gen.SeriesGenerator
--	f   floatTimeValuesGeneratorCursor
--	i   integerTimeValuesGeneratorCursor
--	u   unsignedTimeValuesGeneratorCursor
--	s   stringTimeValuesGeneratorCursor
--	b   booleanTimeValuesGeneratorCursor
--	cur cursors.Cursor
--}
--
--func (ci *seriesGeneratorCursorIterator) Next(ctx context.Context, r *cursors.CursorRequest) (cursors.Cursor, error) {
--	switch ci.g.FieldType() {
--	case models.Float:
--		ci.f.tv = ci.g.TimeValuesGenerator()
--		ci.cur = &ci.f
--	case models.Integer:
--		ci.i.tv = ci.g.TimeValuesGenerator()
--		ci.cur = &ci.i
--	case models.Unsigned:
--		ci.u.tv = ci.g.TimeValuesGenerator()
--		ci.cur = &ci.u
--	case models.String:
--		ci.s.tv = ci.g.TimeValuesGenerator()
--		ci.cur = &ci.s
--	case models.Boolean:
--		ci.b.tv = ci.g.TimeValuesGenerator()
--		ci.cur = &ci.b
--	default:
--		panic("unreachable")
--	}
--
--	return ci.cur, nil
--}
--
--func (ci *seriesGeneratorCursorIterator) Stats() cursors.CursorStats {
--	return ci.cur.Stats()
--}
--
--type seriesGeneratorSeriesCursor struct {
--	ci seriesGeneratorCursorIterator
--	r  reads.SeriesRow
--}
--
--func newSeriesGeneratorSeriesCursor(g gen.SeriesGenerator) *seriesGeneratorSeriesCursor {
--	s := &seriesGeneratorSeriesCursor{}
--	s.ci.g = g
--	s.r.Query = tsdb.CursorIterators{&s.ci}
--	return s
--}
--
--func (s *seriesGeneratorSeriesCursor) Close()     {}
--func (s *seriesGeneratorSeriesCursor) Err() error { return nil }
--
--func (s *seriesGeneratorSeriesCursor) Next() *reads.SeriesRow {
--	if s.ci.g.Next() {
--		s.r.SeriesTags = s.ci.g.Tags()
--		s.r.Tags = s.ci.g.Tags()
--		return &s.r
--	}
--	return nil
--}
--
--type timeValuesGeneratorCursor struct {
--	tv    gen.TimeValuesSequence
--	stats cursors.CursorStats
--}
--
--func (t timeValuesGeneratorCursor) Close()                     {}
--func (t timeValuesGeneratorCursor) Err() error                 { return nil }
--func (t timeValuesGeneratorCursor) Stats() cursors.CursorStats { return t.stats }
--
--type floatTimeValuesGeneratorCursor struct {
--	timeValuesGeneratorCursor
--	a tsdb.FloatArray
--}
--
--func (c *floatTimeValuesGeneratorCursor) Next() *cursors.FloatArray {
--	if c.tv.Next() {
--		c.tv.Values().(gen.FloatValues).Copy(&c.a)
--	} else {
--		c.a.Timestamps = c.a.Timestamps[:0]
--		c.a.Values = c.a.Values[:0]
--	}
--	c.stats.ScannedBytes += len(c.a.Values) * 8
--	c.stats.ScannedValues += c.a.Len()
--	return &c.a
--}
--
--type integerTimeValuesGeneratorCursor struct {
--	timeValuesGeneratorCursor
--	a tsdb.IntegerArray
--}
--
--func (c *integerTimeValuesGeneratorCursor) Next() *cursors.IntegerArray {
--	if c.tv.Next() {
--		c.tv.Values().(gen.IntegerValues).Copy(&c.a)
--	} else {
--		c.a.Timestamps = c.a.Timestamps[:0]
--		c.a.Values = c.a.Values[:0]
--	}
--	c.stats.ScannedBytes += len(c.a.Values) * 8
--	c.stats.ScannedValues += c.a.Len()
--	return &c.a
--}
--
--type unsignedTimeValuesGeneratorCursor struct {
--	timeValuesGeneratorCursor
--	a tsdb.UnsignedArray
--}
--
--func (c *unsignedTimeValuesGeneratorCursor) Next() *cursors.UnsignedArray {
--	if c.tv.Next() {
--		c.tv.Values().(gen.UnsignedValues).Copy(&c.a)
--	} else {
--		c.a.Timestamps = c.a.Timestamps[:0]
--		c.a.Values = c.a.Values[:0]
--	}
--	c.stats.ScannedBytes += len(c.a.Values) * 8
--	c.stats.ScannedValues += c.a.Len()
--	return &c.a
--}
--
--type stringTimeValuesGeneratorCursor struct {
--	timeValuesGeneratorCursor
--	a tsdb.StringArray
--}
--
--func (c *stringTimeValuesGeneratorCursor) Next() *cursors.StringArray {
--	if c.tv.Next() {
--		c.tv.Values().(gen.StringValues).Copy(&c.a)
--	} else {
--		c.a.Timestamps = c.a.Timestamps[:0]
--		c.a.Values = c.a.Values[:0]
--	}
--	for _, v := range c.a.Values {
--		c.stats.ScannedBytes += len(v)
--	}
--	c.stats.ScannedValues += c.a.Len()
--	return &c.a
--}
--
--type booleanTimeValuesGeneratorCursor struct {
--	timeValuesGeneratorCursor
--	a tsdb.BooleanArray
--}
--
--func (c *booleanTimeValuesGeneratorCursor) Next() *cursors.BooleanArray {
--	if c.tv.Next() {
--		c.tv.Values().(gen.BooleanValues).Copy(&c.a)
--	} else {
--		c.a.Timestamps = c.a.Timestamps[:0]
--		c.a.Values = c.a.Values[:0]
--	}
--	c.stats.ScannedBytes += len(c.a.Values)
--	c.stats.ScannedValues += c.a.Len()
--	return &c.a
--}
-diff --git b/storage/reads/reader.go a/storage/reads/reader.go
-index f9765dbe1..38acd4157 100644
---- b/storage/reads/reader.go
-+++ a/storage/reads/reader.go
-@@ -10,8 +10,8 @@ import (
- 	"github.com/influxdata/flux/execute"
- 	"github.com/influxdata/flux/memory"
- 	"github.com/influxdata/flux/values"
-+	"github.com/influxdata/influxdb/flux/stdlib/influxdata/influxdb"
- 	"github.com/influxdata/influxdb/models"
--	"github.com/influxdata/influxdb/query/stdlib/influxdata/influxdb"
- 	"github.com/influxdata/influxdb/storage/reads/datatypes"
- 	"github.com/influxdata/influxdb/tsdb/cursors"
- )
-@@ -103,8 +103,8 @@ func (fi *filterIterator) Statistics() cursors.CursorStats { return fi.stats }
- 
- func (fi *filterIterator) Do(f func(flux.Table) error) error {
- 	src := fi.s.GetSource(
--		uint64(fi.spec.OrganizationID),
--		uint64(fi.spec.BucketID),
-+		fi.spec.Database,
-+		fi.spec.RetentionPolicy,
- 	)
- 
- 	// Setup read request
-@@ -225,8 +225,8 @@ func (gi *groupIterator) Statistics() cursors.CursorStats { return gi.stats }
- 
- func (gi *groupIterator) Do(f func(flux.Table) error) error {
- 	src := gi.s.GetSource(
--		uint64(gi.spec.OrganizationID),
--		uint64(gi.spec.BucketID),
-+		gi.spec.Database,
-+		gi.spec.RetentionPolicy,
- 	)
- 
- 	// Setup read request
-@@ -504,8 +504,8 @@ type tagKeysIterator struct {
- 
- func (ti *tagKeysIterator) Do(f func(flux.Table) error) error {
- 	src := ti.s.GetSource(
--		uint64(ti.readSpec.OrganizationID),
--		uint64(ti.readSpec.BucketID),
-+		ti.readSpec.Database,
-+		ti.readSpec.RetentionPolicy,
- 	)
- 
- 	var req datatypes.TagKeysRequest
-@@ -586,8 +586,8 @@ type tagValuesIterator struct {
- 
- func (ti *tagValuesIterator) Do(f func(flux.Table) error) error {
- 	src := ti.s.GetSource(
--		uint64(ti.readSpec.OrganizationID),
--		uint64(ti.readSpec.BucketID),
-+		ti.readSpec.Database,
-+		ti.readSpec.RetentionPolicy,
- 	)
- 
- 	var req datatypes.TagValuesRequest
-diff --git b/storage/reads/reader_test.go a/storage/reads/reader_test.go
-index 4d660b3ff..8cc72783a 100644
---- b/storage/reads/reader_test.go
-+++ a/storage/reads/reader_test.go
-@@ -9,8 +9,8 @@ import (
- 	"github.com/influxdata/flux/execute"
- 	"github.com/influxdata/flux/execute/executetest"
- 	"github.com/influxdata/flux/memory"
-+	"github.com/influxdata/influxdb/flux/stdlib/influxdata/influxdb"
- 	"github.com/influxdata/influxdb/mock"
--	"github.com/influxdata/influxdb/query/stdlib/influxdata/influxdb"
- 	"github.com/influxdata/influxdb/storage/reads"
- 	"github.com/influxdata/influxdb/storage/reads/datatypes"
- 	"github.com/influxdata/influxdb/tsdb/cursors"
-diff --git b/storage/reads/response_writer_test.go a/storage/reads/response_writer_test.go
-index 0916c822b..0abaf7544 100644
---- b/storage/reads/response_writer_test.go
-+++ a/storage/reads/response_writer_test.go
-@@ -1,21 +1,12 @@
- package reads_test
- 
- import (
--	"context"
--	"errors"
- 	"fmt"
- 	"reflect"
--	"strings"
- 	"testing"
--	"time"
- 
--	"github.com/influxdata/influxdb"
- 	"github.com/influxdata/influxdb/mock"
--	"github.com/influxdata/influxdb/pkg/data/gen"
--	"github.com/influxdata/influxdb/pkg/testing/assert"
- 	"github.com/influxdata/influxdb/storage/reads"
--	"github.com/influxdata/influxdb/storage/reads/datatypes"
--	"github.com/influxdata/influxdb/tsdb"
- 	"github.com/influxdata/influxdb/tsdb/cursors"
- 	"google.golang.org/grpc/metadata"
- )
-@@ -132,403 +123,3 @@ func TestResponseWriter_WriteGroupResultSet_Stats(t *testing.T) {
- 		t.Errorf("expected scanned-bytes '%v' but got '%v'", []string{fmt.Sprint(scannedBytes)}, gotTrailer.Get("scanned-bytes"))
- 	}
- }
--
--var (
--	org         = influxdb.ID(0xff00ff00)
--	bucket      = influxdb.ID(0xcc00cc00)
--	orgBucketID = tsdb.EncodeName(org, bucket)
--)
--
--func makeTypedSeries(m, prefix, field string, val interface{}, valueCount int, counts ...int) gen.SeriesGenerator {
--	spec := gen.TimeSequenceSpec{Count: valueCount, Start: time.Unix(0, 0), Delta: time.Second}
--	ts := gen.NewTimestampSequenceFromSpec(spec)
--	var vg gen.TimeValuesSequence
--	switch val := val.(type) {
--	case float64:
--		vg = gen.NewTimeFloatValuesSequence(spec.Count, ts, gen.NewFloatConstantValuesSequence(val))
--	case int64:
--		vg = gen.NewTimeIntegerValuesSequence(spec.Count, ts, gen.NewIntegerConstantValuesSequence(val))
--	case int:
--		vg = gen.NewTimeIntegerValuesSequence(spec.Count, ts, gen.NewIntegerConstantValuesSequence(int64(val)))
--	case uint64:
--		vg = gen.NewTimeUnsignedValuesSequence(spec.Count, ts, gen.NewUnsignedConstantValuesSequence(val))
--	case string:
--		vg = gen.NewTimeStringValuesSequence(spec.Count, ts, gen.NewStringConstantValuesSequence(val))
--	case bool:
--		vg = gen.NewTimeBooleanValuesSequence(spec.Count, ts, gen.NewBooleanConstantValuesSequence(val))
--	default:
--		panic(fmt.Sprintf("unexpected type %T", val))
--	}
--
--	return gen.NewSeriesGenerator(orgBucketID, []byte(field), vg, gen.NewTagsValuesSequenceCounts(m, field, prefix, counts))
--}
--
--type sendSummary struct {
--	groupCount    int
--	seriesCount   int
--	floatCount    int
--	integerCount  int
--	unsignedCount int
--	stringCount   int
--	booleanCount  int
--}
--
--func (ss *sendSummary) makeSendFunc() func(*datatypes.ReadResponse) error {
--	return func(r *datatypes.ReadResponse) error {
--		for i := range r.Frames {
--			d := r.Frames[i].Data
--			switch p := d.(type) {
--			case *datatypes.ReadResponse_Frame_FloatPoints:
--				ss.floatCount += len(p.FloatPoints.Values)
--			case *datatypes.ReadResponse_Frame_IntegerPoints:
--				ss.integerCount += len(p.IntegerPoints.Values)
--			case *datatypes.ReadResponse_Frame_UnsignedPoints:
--				ss.unsignedCount += len(p.UnsignedPoints.Values)
--			case *datatypes.ReadResponse_Frame_StringPoints:
--				ss.stringCount += len(p.StringPoints.Values)
--			case *datatypes.ReadResponse_Frame_BooleanPoints:
--				ss.booleanCount += len(p.BooleanPoints.Values)
--			case *datatypes.ReadResponse_Frame_Series:
--				ss.seriesCount++
--			case *datatypes.ReadResponse_Frame_Group:
--				ss.groupCount++
--			default:
--				panic("unexpected")
--			}
--		}
--		return nil
--	}
--}
--
--func TestResponseWriter_WriteResultSet(t *testing.T) {
--	t.Run("normal", func(t *testing.T) {
--		t.Run("all types one series each", func(t *testing.T) {
--			exp := sendSummary{
--				seriesCount:   5,
--				floatCount:    500,
--				integerCount:  400,
--				unsignedCount: 300,
--				stringCount:   200,
--				booleanCount:  100,
--			}
--			var ss sendSummary
--
--			stream := mock.NewResponseStream()
--			stream.SendFunc = ss.makeSendFunc()
--			w := reads.NewResponseWriter(stream, 0)
--
--			var gens []gen.SeriesGenerator
--
--			gens = append(gens, makeTypedSeries("m0", "t", "ff", 3.3, exp.floatCount, 1))
--			gens = append(gens, makeTypedSeries("m0", "t", "if", 100, exp.integerCount, 1))
--			gens = append(gens, makeTypedSeries("m0", "t", "uf", uint64(25), exp.unsignedCount, 1))
--			gens = append(gens, makeTypedSeries("m0", "t", "sf", "foo", exp.stringCount, 1))
--			gens = append(gens, makeTypedSeries("m0", "t", "bf", false, exp.booleanCount, 1))
--
--			cur := newSeriesGeneratorSeriesCursor(gen.NewMergedSeriesGenerator(gens))
--			rs := reads.NewFilteredResultSet(context.Background(), &datatypes.ReadFilterRequest{}, cur)
--			err := w.WriteResultSet(rs)
--			if err != nil {
--				t.Fatalf("unexpected err: %v", err)
--			}
--			w.Flush()
--
--			assert.Equal(t, ss, exp)
--		})
--		t.Run("multi-series floats", func(t *testing.T) {
--			exp := sendSummary{
--				seriesCount: 5,
--				floatCount:  8600,
--			}
--			var ss sendSummary
--
--			stream := mock.NewResponseStream()
--			stream.SendFunc = ss.makeSendFunc()
--			w := reads.NewResponseWriter(stream, 0)
--
--			var gens []gen.SeriesGenerator
--			gens = append(gens, makeTypedSeries("m0", "t", "f0", 3.3, 2000, 1))
--			gens = append(gens, makeTypedSeries("m0", "t", "f1", 5.3, 1500, 1))
--			gens = append(gens, makeTypedSeries("m0", "t", "f2", 5.3, 2500, 1))
--			gens = append(gens, makeTypedSeries("m0", "t", "f3", -2.2, 900, 1))
--			gens = append(gens, makeTypedSeries("m0", "t", "f4", -9.2, 1700, 1))
--
--			cur := newSeriesGeneratorSeriesCursor(gen.NewMergedSeriesGenerator(gens))
--			rs := reads.NewFilteredResultSet(context.Background(), &datatypes.ReadFilterRequest{}, cur)
--			err := w.WriteResultSet(rs)
--			if err != nil {
--				t.Fatalf("unexpected err: %v", err)
--			}
--			w.Flush()
--
--			assert.Equal(t, ss, exp)
--		})
--
--		t.Run("multi-series strings", func(t *testing.T) {
--			exp := sendSummary{
--				seriesCount: 4,
--				stringCount: 6900,
--			}
--			var ss sendSummary
--
--			stream := mock.NewResponseStream()
--			stream.SendFunc = ss.makeSendFunc()
--			w := reads.NewResponseWriter(stream, 0)
--
--			var gens []gen.SeriesGenerator
--			gens = append(gens, makeTypedSeries("m0", "t", "s0", strings.Repeat("aaa", 100), 2000, 1))
--			gens = append(gens, makeTypedSeries("m0", "t", "s1", strings.Repeat("bbb", 200), 1500, 1))
--			gens = append(gens, makeTypedSeries("m0", "t", "s2", strings.Repeat("ccc", 300), 2500, 1))
--			gens = append(gens, makeTypedSeries("m0", "t", "s3", strings.Repeat("ddd", 200), 900, 1))
--
--			cur := newSeriesGeneratorSeriesCursor(gen.NewMergedSeriesGenerator(gens))
--			rs := reads.NewFilteredResultSet(context.Background(), &datatypes.ReadFilterRequest{}, cur)
--			err := w.WriteResultSet(rs)
--			if err != nil {
--				t.Fatalf("unexpected err: %v", err)
--			}
--			w.Flush()
--
--			assert.Equal(t, ss, exp)
--		})
--
--		t.Run("writer doesn't send series with no values", func(t *testing.T) {
--			exp := sendSummary{
--				seriesCount: 2,
--				stringCount: 3700,
--			}
--			var ss sendSummary
--
--			stream := mock.NewResponseStream()
--			stream.SendFunc = ss.makeSendFunc()
--			w := reads.NewResponseWriter(stream, 0)
--
--			var gens []gen.SeriesGenerator
--			gens = append(gens, makeTypedSeries("m0", "t", "s0", strings.Repeat("aaa", 100), 2000, 1))
--			gens = append(gens, makeTypedSeries("m0", "t", "s1", strings.Repeat("bbb", 200), 0, 1))
--			gens = append(gens, makeTypedSeries("m0", "t", "s2", strings.Repeat("ccc", 100), 1700, 1))
--			cur := newSeriesGeneratorSeriesCursor(gen.NewMergedSeriesGenerator(gens))
--
--			rs := reads.NewFilteredResultSet(context.Background(), &datatypes.ReadFilterRequest{}, cur)
--			err := w.WriteResultSet(rs)
--			if err != nil {
--				t.Fatalf("unexpected err: %v", err)
--			}
--			w.Flush()
--
--			assert.Equal(t, ss, exp)
--		})
--	})
--
--	t.Run("error conditions", func(t *testing.T) {
--		t.Run("writer returns stream error", func(t *testing.T) {
--			exp := errors.New("no write")
--
--			stream := mock.NewResponseStream()
--			stream.SendFunc = func(r *datatypes.ReadResponse) error { return exp }
--			w := reads.NewResponseWriter(stream, 0)
--
--			cur := newSeriesGeneratorSeriesCursor(makeTypedSeries("m0", "t", "f0", strings.Repeat("0", 1000), 2000, 1))
--			rs := reads.NewFilteredResultSet(context.Background(), &datatypes.ReadFilterRequest{}, cur)
--			_ = w.WriteResultSet(rs)
--			assert.Equal(t, w.Err(), exp)
--		})
--	})
--
--	t.Run("issues", func(t *testing.T) {
--		t.Run("short write", func(t *testing.T) {
--			t.Run("single string series", func(t *testing.T) {
--				exp := sendSummary{seriesCount: 1, stringCount: 1020}
--				var ss sendSummary
--
--				stream := mock.NewResponseStream()
--				stream.SendFunc = ss.makeSendFunc()
--				w := reads.NewResponseWriter(stream, 0)
--
--				cur := newSeriesGeneratorSeriesCursor(makeTypedSeries("m0", "t", "f0", strings.Repeat("0", 1000), exp.stringCount, 1))
--				rs := reads.NewFilteredResultSet(context.Background(), &datatypes.ReadFilterRequest{}, cur)
--				err := w.WriteResultSet(rs)
--				if err != nil {
--					t.Fatalf("unexpected err: %v", err)
--				}
--				w.Flush()
--
--				assert.Equal(t, ss, exp)
--			})
--
--			t.Run("single float series", func(t *testing.T) {
--				exp := sendSummary{seriesCount: 1, floatCount: 50500}
--				var ss sendSummary
--
--				stream := mock.NewResponseStream()
--				stream.SendFunc = ss.makeSendFunc()
--				w := reads.NewResponseWriter(stream, 0)
--
--				cur := newSeriesGeneratorSeriesCursor(makeTypedSeries("m0", "t", "f0", 5.5, exp.floatCount, 1))
--				rs := reads.NewFilteredResultSet(context.Background(), &datatypes.ReadFilterRequest{}, cur)
--				err := w.WriteResultSet(rs)
--				if err != nil {
--					t.Fatalf("unexpected err: %v", err)
--				}
--				w.Flush()
--
--				assert.Equal(t, ss, exp)
--			})
--
--			t.Run("multi series", func(t *testing.T) {
--				exp := sendSummary{seriesCount: 2, stringCount: 3700}
--				var ss sendSummary
--
--				stream := mock.NewResponseStream()
--				stream.SendFunc = ss.makeSendFunc()
--				w := reads.NewResponseWriter(stream, 0)
--
--				var gens []gen.SeriesGenerator
--				gens = append(gens, makeTypedSeries("m0", "t", "s0", strings.Repeat("aaa", 1000), 2200, 1))
--				gens = append(gens, makeTypedSeries("m0", "t", "s1", strings.Repeat("bbb", 1000), 1500, 1))
--
--				cur := newSeriesGeneratorSeriesCursor(gen.NewMergedSeriesGenerator(gens))
--				rs := reads.NewFilteredResultSet(context.Background(), &datatypes.ReadFilterRequest{}, cur)
--				err := w.WriteResultSet(rs)
--				if err != nil {
--					t.Fatalf("unexpected err: %v", err)
--				}
--				w.Flush()
--
--				assert.Equal(t, ss, exp)
--			})
--		})
--	})
--}
--
--func TestResponseWriter_WriteGroupResultSet(t *testing.T) {
--	t.Run("normal", func(t *testing.T) {
--		t.Run("all types one series each", func(t *testing.T) {
--			exp := sendSummary{
--				groupCount:    1,
--				seriesCount:   5,
--				floatCount:    500,
--				integerCount:  400,
--				unsignedCount: 300,
--				stringCount:   200,
--				booleanCount:  100,
--			}
--			var ss sendSummary
--
--			stream := mock.NewResponseStream()
--			stream.SendFunc = ss.makeSendFunc()
--			w := reads.NewResponseWriter(stream, 0)
--
--			newCursor := func() (cursor reads.SeriesCursor, e error) {
--				var gens []gen.SeriesGenerator
--				gens = append(gens, makeTypedSeries("m0", "t", "ff", 3.3, exp.floatCount, 1))
--				gens = append(gens, makeTypedSeries("m0", "t", "if", 100, exp.integerCount, 1))
--				gens = append(gens, makeTypedSeries("m0", "t", "uf", uint64(25), exp.unsignedCount, 1))
--				gens = append(gens, makeTypedSeries("m0", "t", "sf", "foo", exp.stringCount, 1))
--				gens = append(gens, makeTypedSeries("m0", "t", "bf", false, exp.booleanCount, 1))
--				return newSeriesGeneratorSeriesCursor(gen.NewMergedSeriesGenerator(gens)), nil
--			}
--
--			rs := reads.NewGroupResultSet(context.Background(), &datatypes.ReadGroupRequest{Group: datatypes.GroupNone}, newCursor)
--			err := w.WriteGroupResultSet(rs)
--			if err != nil {
--				t.Fatalf("unexpected err: %v", err)
--			}
--			w.Flush()
--
--			assert.Equal(t, ss, exp)
--		})
--		t.Run("multi-series floats", func(t *testing.T) {
--			exp := sendSummary{
--				groupCount:  1,
--				seriesCount: 5,
--				floatCount:  8600,
--			}
--			var ss sendSummary
--
--			stream := mock.NewResponseStream()
--			stream.SendFunc = ss.makeSendFunc()
--			w := reads.NewResponseWriter(stream, 0)
--
--			newCursor := func() (cursor reads.SeriesCursor, e error) {
--				var gens []gen.SeriesGenerator
--				gens = append(gens, makeTypedSeries("m0", "t", "f0", 3.3, 2000, 1))
--				gens = append(gens, makeTypedSeries("m0", "t", "f1", 5.3, 1500, 1))
--				gens = append(gens, makeTypedSeries("m0", "t", "f2", 5.3, 2500, 1))
--				gens = append(gens, makeTypedSeries("m0", "t", "f3", -2.2, 900, 1))
--				gens = append(gens, makeTypedSeries("m0", "t", "f4", -9.2, 1700, 1))
--				return newSeriesGeneratorSeriesCursor(gen.NewMergedSeriesGenerator(gens)), nil
--			}
--
--			rs := reads.NewGroupResultSet(context.Background(), &datatypes.ReadGroupRequest{Group: datatypes.GroupNone}, newCursor)
--			err := w.WriteGroupResultSet(rs)
--			if err != nil {
--				t.Fatalf("unexpected err: %v", err)
--			}
--			w.Flush()
--
--			assert.Equal(t, ss, exp)
--		})
--
--		t.Run("multi-series strings", func(t *testing.T) {
--			exp := sendSummary{
--				groupCount:  1,
--				seriesCount: 4,
--				stringCount: 6900,
--			}
--			var ss sendSummary
--
--			stream := mock.NewResponseStream()
--			stream.SendFunc = ss.makeSendFunc()
--			w := reads.NewResponseWriter(stream, 0)
--
--			newCursor := func() (cursor reads.SeriesCursor, e error) {
--				var gens []gen.SeriesGenerator
--				gens = append(gens, makeTypedSeries("m0", "t", "s0", strings.Repeat("aaa", 100), 2000, 1))
--				gens = append(gens, makeTypedSeries("m0", "t", "s1", strings.Repeat("bbb", 200), 1500, 1))
--				gens = append(gens, makeTypedSeries("m0", "t", "s2", strings.Repeat("ccc", 300), 2500, 1))
--				gens = append(gens, makeTypedSeries("m0", "t", "s3", strings.Repeat("ddd", 200), 900, 1))
--				return newSeriesGeneratorSeriesCursor(gen.NewMergedSeriesGenerator(gens)), nil
--			}
--
--			rs := reads.NewGroupResultSet(context.Background(), &datatypes.ReadGroupRequest{Group: datatypes.GroupNone}, newCursor)
--			err := w.WriteGroupResultSet(rs)
--			if err != nil {
--				t.Fatalf("unexpected err: %v", err)
--			}
--			w.Flush()
--
--			assert.Equal(t, ss, exp)
--		})
--
--		t.Run("writer doesn't send series with no values", func(t *testing.T) {
--			exp := sendSummary{
--				groupCount:  1,
--				seriesCount: 2,
--				stringCount: 3700,
--			}
--			var ss sendSummary
--
--			stream := mock.NewResponseStream()
--			stream.SendFunc = ss.makeSendFunc()
--			w := reads.NewResponseWriter(stream, 0)
--
--			newCursor := func() (cursor reads.SeriesCursor, e error) {
--				var gens []gen.SeriesGenerator
--				gens = append(gens, makeTypedSeries("m0", "t", "s0", strings.Repeat("aaa", 100), 2000, 1))
--				gens = append(gens, makeTypedSeries("m0", "t", "s1", strings.Repeat("bbb", 200), 0, 1))
--				gens = append(gens, makeTypedSeries("m0", "t", "s2", strings.Repeat("ccc", 100), 1700, 1))
--				return newSeriesGeneratorSeriesCursor(gen.NewMergedSeriesGenerator(gens)), nil
--			}
--
--			rs := reads.NewGroupResultSet(context.Background(), &datatypes.ReadGroupRequest{Group: datatypes.GroupNone}, newCursor)
--			err := w.WriteGroupResultSet(rs)
--			if err != nil {
--				t.Fatalf("unexpected err: %v", err)
--			}
--			w.Flush()
--
--			assert.Equal(t, ss, exp)
--		})
--	})
--}
-diff --git b/storage/reads/store.go a/storage/reads/store.go
-index 8918794b3..655d12d21 100644
---- b/storage/reads/store.go
-+++ a/storage/reads/store.go
-@@ -80,5 +80,5 @@ type Store interface {
- 	TagKeys(ctx context.Context, req *datatypes.TagKeysRequest) (cursors.StringIterator, error)
- 	TagValues(ctx context.Context, req *datatypes.TagValuesRequest) (cursors.StringIterator, error)
- 
--	GetSource(orgID, bucketID uint64) proto.Message
-+	GetSource(db, rp string) proto.Message
- }
-diff --git b/storage/reads/table.go a/storage/reads/table.go
-index 32784a538..3aa7485e2 100644
---- b/storage/reads/table.go
-+++ a/storage/reads/table.go
-@@ -1,7 +1,5 @@
- package reads
- 
--//go:generate env GO111MODULE=on go run github.com/benbjohnson/tmpl -data=@types.tmpldata table.gen.go.tmpl
--
- import (
- 	"errors"
- 	"sync/atomic"
-diff --git b/tsdb/cursors/gen.go a/tsdb/cursors/gen.go
-index 63316e5c0..ee7a8876a 100644
---- b/tsdb/cursors/gen.go
-+++ a/tsdb/cursors/gen.go
-@@ -1,3 +1 @@
- package cursors
--
--//go:generate env GO111MODULE=on go run github.com/benbjohnson/tmpl -data=@arrayvalues.gen.go.tmpldata arrayvalues.gen.go.tmpl

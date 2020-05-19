@@ -18,6 +18,7 @@ import (
 	"github.com/influxdata/influxdb/tsdb"
 )
 
+const TombstoneFileExtension = "tombstone"
 const (
 	headerSize = 4
 	v2header   = 0x1502
@@ -261,7 +262,7 @@ func (t *Tombstoner) Walk(fn func(t Tombstone) error) error {
 }
 
 func (t *Tombstoner) writeTombstoneV3(tombstones []Tombstone) error {
-	tmp, err := ioutil.TempFile(filepath.Dir(t.Path), "tombstone")
+	tmp, err := ioutil.TempFile(filepath.Dir(t.Path), TombstoneFileExtension)
 	if err != nil {
 		return err
 	}
@@ -686,7 +687,7 @@ func (t *Tombstoner) readTombstoneV4(f *os.File, fn func(t Tombstone) error) err
 }
 
 func (t *Tombstoner) tombstonePath() string {
-	if strings.HasSuffix(t.Path, "tombstone") {
+	if strings.HasSuffix(t.Path, TombstoneFileExtension) {
 		return t.Path
 	}
 
@@ -700,7 +701,7 @@ func (t *Tombstoner) tombstonePath() string {
 	}
 
 	// Append the "tombstone" suffix to create a 0000001.tombstone file
-	return filepath.Join(filepath.Dir(t.Path), filename+".tombstone")
+	return filepath.Join(filepath.Dir(t.Path), filename+"."+TombstoneFileExtension)
 }
 
 func (t *Tombstoner) writeTombstone(dst io.Writer, ts Tombstone) error {

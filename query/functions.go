@@ -308,26 +308,26 @@ func (r *FloatDerivativeReducer) AggregateFloat(p *FloatPoint) {
 
 // Emit emits the derivative of the reducer at the current point.
 func (r *FloatDerivativeReducer) Emit() []FloatPoint {
-	if !r.prev.Nil {
-		// Calculate the derivative of successive points by dividing the
-		// difference of each value by the elapsed time normalized to the interval.
-		diff := r.curr.Value - r.prev.Value
-		elapsed := r.curr.Time - r.prev.Time
-		if !r.ascending {
-			elapsed = -elapsed
-		}
-		value := diff / (float64(elapsed) / float64(r.interval.Duration))
-
-		// Mark this point as read by changing the previous point to nil.
-		r.prev.Nil = true
-
-		// Drop negative values for non-negative derivatives.
-		if r.isNonNegative && diff < 0 {
-			return nil
-		}
-		return []FloatPoint{{Time: r.curr.Time, Value: value}}
+	if r.prev.Nil {
+		return nil
 	}
-	return nil
+	// Calculate the derivative of successive points by dividing the
+	// difference of each value by the elapsed time normalized to the interval.
+	diff := r.curr.Value - r.prev.Value
+	elapsed := r.curr.Time - r.prev.Time
+	if !r.ascending {
+		elapsed = -elapsed
+	}
+	value := diff / (float64(elapsed) / float64(r.interval.Duration))
+
+	// Mark this point as read by changing the previous point to nil.
+	r.prev.Nil = true
+
+	// Drop negative values for non-negative derivatives.
+	if r.isNonNegative && diff < 0 {
+		return nil
+	}
+	return []FloatPoint{{Time: r.curr.Time, Value: value}}
 }
 
 // IntegerDerivativeReducer calculates the derivative of the aggregated points.
@@ -365,26 +365,27 @@ func (r *IntegerDerivativeReducer) AggregateInteger(p *IntegerPoint) {
 
 // Emit emits the derivative of the reducer at the current point.
 func (r *IntegerDerivativeReducer) Emit() []FloatPoint {
-	if !r.prev.Nil {
-		// Calculate the derivative of successive points by dividing the
-		// difference of each value by the elapsed time normalized to the interval.
-		diff := float64(r.curr.Value - r.prev.Value)
-		elapsed := r.curr.Time - r.prev.Time
-		if !r.ascending {
-			elapsed = -elapsed
-		}
-		value := diff / (float64(elapsed) / float64(r.interval.Duration))
-
-		// Mark this point as read by changing the previous point to nil.
-		r.prev.Nil = true
-
-		// Drop negative values for non-negative derivatives.
-		if r.isNonNegative && diff < 0 {
-			return nil
-		}
-		return []FloatPoint{{Time: r.curr.Time, Value: value}}
+	if r.prev.Nil {
+		return nil
 	}
-	return nil
+
+	// Calculate the derivative of successive points by dividing the
+	// difference of each value by the elapsed time normalized to the interval.
+	diff := float64(r.curr.Value - r.prev.Value)
+	elapsed := r.curr.Time - r.prev.Time
+	if !r.ascending {
+		elapsed = -elapsed
+	}
+	value := diff / (float64(elapsed) / float64(r.interval.Duration))
+
+	// Mark this point as read by changing the previous point to nil.
+	r.prev.Nil = true
+
+	// Drop negative values for non-negative derivatives.
+	if r.isNonNegative && diff < 0 {
+		return nil
+	}
+	return []FloatPoint{{Time: r.curr.Time, Value: value}}
 }
 
 // UnsignedDerivativeReducer calculates the derivative of the aggregated points.
@@ -422,31 +423,31 @@ func (r *UnsignedDerivativeReducer) AggregateUnsigned(p *UnsignedPoint) {
 
 // Emit emits the derivative of the reducer at the current point.
 func (r *UnsignedDerivativeReducer) Emit() []FloatPoint {
-	if !r.prev.Nil {
-		// Calculate the derivative of successive points by dividing the
-		// difference of each value by the elapsed time normalized to the interval.
-		var diff float64
-		if r.curr.Value > r.prev.Value {
-			diff = float64(r.curr.Value - r.prev.Value)
-		} else {
-			diff = -float64(r.prev.Value - r.curr.Value)
-		}
-		elapsed := r.curr.Time - r.prev.Time
-		if !r.ascending {
-			elapsed = -elapsed
-		}
-		value := diff / (float64(elapsed) / float64(r.interval.Duration))
-
-		// Mark this point as read by changing the previous point to nil.
-		r.prev.Nil = true
-
-		// Drop negative values for non-negative derivatives.
-		if r.isNonNegative && diff < 0 {
-			return nil
-		}
-		return []FloatPoint{{Time: r.curr.Time, Value: value}}
+	if r.prev.Nil {
+		return nil
 	}
-	return nil
+	// Calculate the derivative of successive points by dividing the
+	// difference of each value by the elapsed time normalized to the interval.
+	var diff float64
+	if r.curr.Value > r.prev.Value {
+		diff = float64(r.curr.Value - r.prev.Value)
+	} else {
+		diff = -float64(r.prev.Value - r.curr.Value)
+	}
+	elapsed := r.curr.Time - r.prev.Time
+	if !r.ascending {
+		elapsed = -elapsed
+	}
+	value := diff / (float64(elapsed) / float64(r.interval.Duration))
+
+	// Mark this point as read by changing the previous point to nil.
+	r.prev.Nil = true
+
+	// Drop negative values for non-negative derivatives.
+	if r.isNonNegative && diff < 0 {
+		return nil
+	}
+	return []FloatPoint{{Time: r.curr.Time, Value: value}}
 }
 
 // FloatDifferenceReducer calculates the derivative of the aggregated points.
@@ -480,21 +481,22 @@ func (r *FloatDifferenceReducer) AggregateFloat(p *FloatPoint) {
 
 // Emit emits the difference of the reducer at the current point.
 func (r *FloatDifferenceReducer) Emit() []FloatPoint {
-	if !r.prev.Nil {
-		// Calculate the difference of successive points.
-		value := r.curr.Value - r.prev.Value
-
-		// If it is non_negative_difference discard any negative value. Since
-		// prev is still marked as unread. The correctness can be ensured.
-		if r.isNonNegative && value < 0 {
-			return nil
-		}
-
-		// Mark this point as read by changing the previous point to nil.
-		r.prev.Nil = true
-		return []FloatPoint{{Time: r.curr.Time, Value: value}}
+	if r.prev.Nil {
+		return nil
 	}
-	return nil
+
+	// Calculate the difference of successive points.
+	value := r.curr.Value - r.prev.Value
+
+	// If it is non_negative_difference discard any negative value. Since
+	// prev is still marked as unread. The correctness can be ensured.
+	if r.isNonNegative && value < 0 {
+		return nil
+	}
+
+	// Mark this point as read by changing the previous point to nil.
+	r.prev.Nil = true
+	return []FloatPoint{{Time: r.curr.Time, Value: value}}
 }
 
 // IntegerDifferenceReducer calculates the derivative of the aggregated points.
@@ -528,22 +530,23 @@ func (r *IntegerDifferenceReducer) AggregateInteger(p *IntegerPoint) {
 
 // Emit emits the difference of the reducer at the current point.
 func (r *IntegerDifferenceReducer) Emit() []IntegerPoint {
-	if !r.prev.Nil {
-		// Calculate the difference of successive points.
-		value := r.curr.Value - r.prev.Value
-
-		// If it is non_negative_difference discard any negative value. Since
-		// prev is still marked as unread. The correctness can be ensured.
-		if r.isNonNegative && value < 0 {
-			return nil
-		}
-
-		// Mark this point as read by changing the previous point to nil.
-		r.prev.Nil = true
-
-		return []IntegerPoint{{Time: r.curr.Time, Value: value}}
+	if r.prev.Nil {
+		return nil
 	}
-	return nil
+
+	// Calculate the difference of successive points.
+	value := r.curr.Value - r.prev.Value
+
+	// If it is non_negative_difference discard any negative value. Since
+	// prev is still marked as unread. The correctness can be ensured.
+	if r.isNonNegative && value < 0 {
+		return nil
+	}
+
+	// Mark this point as read by changing the previous point to nil.
+	r.prev.Nil = true
+
+	return []IntegerPoint{{Time: r.curr.Time, Value: value}}
 }
 
 // UnsignedDifferenceReducer calculates the derivative of the aggregated points.
@@ -577,22 +580,23 @@ func (r *UnsignedDifferenceReducer) AggregateUnsigned(p *UnsignedPoint) {
 
 // Emit emits the difference of the reducer at the current point.
 func (r *UnsignedDifferenceReducer) Emit() []UnsignedPoint {
-	if !r.prev.Nil {
-		// If it is non_negative_difference discard any negative value. Since
-		// prev is still marked as unread. The correctness can be ensured.
-		if r.isNonNegative && r.curr.Value < r.prev.Value {
-			return nil
-		}
-
-		// Calculate the difference of successive points.
-		value := r.curr.Value - r.prev.Value
-
-		// Mark this point as read by changing the previous point to nil.
-		r.prev.Nil = true
-
-		return []UnsignedPoint{{Time: r.curr.Time, Value: value}}
+	if r.prev.Nil {
+		return nil
 	}
-	return nil
+
+	// If it is non_negative_difference discard any negative value. Since
+	// prev is still marked as unread. The correctness can be ensured.
+	if r.isNonNegative && r.curr.Value < r.prev.Value {
+		return nil
+	}
+
+	// Calculate the difference of successive points.
+	value := r.curr.Value - r.prev.Value
+
+	// Mark this point as read by changing the previous point to nil.
+	r.prev.Nil = true
+
+	return []UnsignedPoint{{Time: r.curr.Time, Value: value}}
 }
 
 // FloatMovingAverageReducer calculates the moving average of the aggregated points.

@@ -188,7 +188,11 @@ func NewHandler(c Config) *Handler {
 		},
 		Route{
 			"write", // Data-ingest route.
-			"POST", "/write", true, writeLogEnabled, h.serveWrite,
+			"POST", "/write", true, writeLogEnabled, h.serveWriteV1,
+		},
+		Route{
+			"write", // Data-ingest route.
+			"POST", "/api/v2/write", true, writeLogEnabled, h.serveWriteV2,
 		},
 		Route{
 			"prometheus-write", // Prometheus remote write
@@ -581,12 +585,8 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user meta.U
 	}
 
 	if h.Config.AuthEnabled {
-		if user != nil && user.AuthorizeUnrestricted() {
-			opts.Authorizer = query.OpenAuthorizer
-		} else {
-			// The current user determines the authorized actions.
-			opts.Authorizer = user
-		}
+		// The current user determines the authorized actions.
+		opts.Authorizer = user
 	} else {
 		// Auth is disabled, so allow everything.
 		opts.Authorizer = query.OpenAuthorizer
@@ -772,8 +772,83 @@ func (h *Handler) async(q *influxql.Query, results <-chan *query.Result) {
 	}
 }
 
-// serveWrite receives incoming series data in line protocol format and writes it to the database.
-func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user meta.User) {
+// bucket2drbp extracts a bucket and retention policy from a properly formatted
+// string.
+//
+// The 2.x compatible endpoints encode the databse and retention policy names
+// in the database URL query value.  It is encoded using a forward slash like
+// "database/retentionpolicy" and we should be able to simply split that string
+// on the forward slash.
+//
+func bucket2dbrp(bucket string) (string, string, error) {
+	// test for a slash in our bucket name.
+	switch idx := strings.IndexByte(bucket, '/'); idx {
+	case -1:
+		// if there is no slash, we're mapping bucket to the databse.
+		switch db := bucket; db {
+		case "":
+			// if our "database" is an empty string, this is an error.
+			return "", "", fmt.Errorf(`bucket name %q is missing a slash; not in "database/retention-policy" format`, bucket)
+		default:
+			return db, "", nil
+		}
+	default:
+		// there is a slash
+		switch db, rp := bucket[:idx], bucket[idx+1:]; {
+		case db == "":
+			// empty database is unrecoverable
+			return "", "", fmt.Errorf(`bucket name %q is in db/rp form but has an empty database`, bucket)
+		default:
+			return db, rp, nil
+		}
+	}
+}
+
+// serveWriteV2 maps v2 write parameters to a v1 style handler.  the concepts
+// of an "org" and "bucket" are mapped to v1 "database" and "retention
+// policies".
+func (h *Handler) serveWriteV2(w http.ResponseWriter, r *http.Request, user meta.User) {
+	precision := r.URL.Query().Get("precision")
+	switch precision {
+	case "ns":
+		precision = "n"
+	case "us":
+		precision = "u"
+	case "ms", "s", "":
+		// same as v1 so do nothing
+	default:
+		err := fmt.Sprintf("invalid precision %q (use ns, us, ms or s)", precision)
+		h.httpError(w, err, http.StatusBadRequest)
+	}
+
+	db, rp, err := bucket2dbrp(r.URL.Query().Get("bucket"))
+	if err != nil {
+		h.httpError(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	h.serveWrite(db, rp, precision, w, r, user)
+}
+
+// serveWriteV1 handles v1 style writes.
+func (h *Handler) serveWriteV1(w http.ResponseWriter, r *http.Request, user meta.User) {
+	precision := r.URL.Query().Get("precision")
+	switch precision {
+	case "", "n", "ns", "u", "ms", "s", "m", "h":
+		// it's valid
+	default:
+		err := fmt.Sprintf("invalid precision %q (use n, u, ms, s, m or h)", precision)
+		h.httpError(w, err, http.StatusBadRequest)
+	}
+
+	db := r.URL.Query().Get("db")
+	rp := r.URL.Query().Get("rp")
+
+	h.serveWrite(db, rp, precision, w, r, user)
+}
+
+// serveWrite receives incoming series data in line protocol format and writes
+// it to the database.
+func (h *Handler) serveWrite(database, retentionPolicy, precision string, w http.ResponseWriter, r *http.Request, user meta.User) {
 	atomic.AddInt64(&h.stats.WriteRequests, 1)
 	atomic.AddInt64(&h.stats.ActiveWriteRequests, 1)
 	defer func(start time.Time) {
@@ -782,7 +857,6 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user meta.U
 	}(time.Now())
 	h.requestTracker.Add(r, user)
 
-	database := r.URL.Query().Get("db")
 	if database == "" {
 		h.httpError(w, "database is required", http.StatusBadRequest)
 		return
@@ -853,7 +927,7 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user meta.U
 		h.Logger.Info("Write body received by handler", zap.ByteString("body", buf.Bytes()))
 	}
 
-	points, parseError := models.ParsePointsWithPrecision(buf.Bytes(), time.Now().UTC(), r.URL.Query().Get("precision"))
+	points, parseError := models.ParsePointsWithPrecision(buf.Bytes(), time.Now().UTC(), precision)
 	// Not points parsed correctly so return the error now
 	if parseError != nil && len(points) == 0 {
 		if parseError.Error() == "EOF" {
@@ -877,7 +951,7 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user meta.U
 	}
 
 	// Write points.
-	if err := h.PointsWriter.WritePoints(database, r.URL.Query().Get("rp"), consistency, user, points); influxdb.IsClientError(err) {
+	if err := h.PointsWriter.WritePoints(database, retentionPolicy, consistency, user, points); influxdb.IsClientError(err) {
 		atomic.AddInt64(&h.stats.PointsWrittenFail, int64(len(points)))
 		h.httpError(w, err.Error(), http.StatusBadRequest)
 		return
@@ -1381,6 +1455,8 @@ func (h *Handler) serveExpvar(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "\"memstats\": %s", val)
 	}
 
+	uniqueKeys := make(map[string]int)
+
 	for _, s := range stats {
 		val, err := json.Marshal(s)
 		if err != nil {
@@ -1412,6 +1488,12 @@ func (h *Handler) serveExpvar(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		key := buf.String()
+		v := uniqueKeys[key]
+		uniqueKeys[key] = v + 1
+		if v > 0 {
+			fmt.Fprintf(buf, ":%d", v)
+			key = buf.String()
+		}
 
 		if !first {
 			fmt.Fprintln(w, ",")

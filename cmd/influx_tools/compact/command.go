@@ -147,7 +147,7 @@ func newShardCompactor(path string, logger *zap.Logger) (sc *shardCompactor, err
 	}
 	sort.Strings(sc.tsm)
 
-	sc.tombstone, err = filepath.Glob(filepath.Join(path, fmt.Sprintf("*.%s", "tombstone")))
+	sc.tombstone, err = filepath.Glob(filepath.Join(path, fmt.Sprintf("*.%s", tsm1.TombstoneFileExtension)))
 	if err != nil {
 		return nil, fmt.Errorf("error reading tombstone files: %v", err)
 	}

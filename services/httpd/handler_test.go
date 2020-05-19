@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"os"
 	"reflect"
+	"sort"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -32,6 +33,8 @@ import (
 	"github.com/influxdata/influxdb/internal"
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/monitor"
+	"github.com/influxdata/influxdb/monitor/diagnostics"
 	"github.com/influxdata/influxdb/prometheus/remote"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/services/httpd"
@@ -1185,7 +1188,7 @@ func TestHandler_Flux_DisabledByDefault(t *testing.T) {
 	}
 
 	exp := "Flux query service disabled. Verify flux-enabled=true in the [http] section of the InfluxDB config.\n"
-	if got := string(w.Body.Bytes()); !cmp.Equal(got, exp) {
+	if got := w.Body.String(); got != exp {
 		t.Fatalf("unexpected body -got/+exp\n%s", cmp.Diff(got, exp))
 	}
 }
@@ -1405,7 +1408,7 @@ func TestHandler_Flux(t *testing.T) {
 			}
 
 			if test.expBody != "" {
-				if got := string(w.Body.Bytes()); !cmp.Equal(got, test.expBody) {
+				if got := w.Body.String(); got != test.expBody {
 					t.Fatalf("unexpected body -got/+exp\n%s", cmp.Diff(got, test.expBody))
 				}
 			}
@@ -1641,6 +1644,87 @@ func TestHandler_Write_NegativeMaxBodySize(t *testing.T) {
 	}
 }
 
+// TestHandler_Write_V1_Precision verifies v1 writes validate precision.
+func TestHandler_Write_V1_Precision(t *testing.T) {
+	h := NewHandler(false)
+	h.MetaClient.DatabaseFn = func(name string) *meta.DatabaseInfo {
+		return &meta.DatabaseInfo{}
+	}
+	h.PointsWriter.WritePointsFn = func(_, _ string, _ models.ConsistencyLevel, _ meta.User, _ []models.Point) error {
+		return nil
+	}
+
+	tests := []struct {
+		url    string
+		status int
+	}{
+		// Successful requests.
+		{"/write?db=foo", http.StatusNoContent},
+		{"/write?db=foo&precision=n", http.StatusNoContent},
+		{"/write?db=foo&precision=u", http.StatusNoContent},
+		{"/write?db=foo&precision=ms", http.StatusNoContent},
+		{"/write?db=foo&precision=s", http.StatusNoContent},
+		{"/write?db=foo&precision=m", http.StatusNoContent},
+		{"/write?db=foo&precision=h", http.StatusNoContent},
+		// Invalid requests.
+		{"/write?db=foo&precision=us", http.StatusBadRequest},
+	}
+
+	runTest := func(url string, status int) {
+		b := bytes.NewReader([]byte(`foo n=1`))
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, MustNewRequest("POST", url, b))
+		if w.Code != status {
+			t.Fatalf("unexpected result for: \"%s\"\n\texp: %d, got: %d\n\t%s", url, status, w.Code, w.Body)
+		}
+	}
+
+	for _, t := range tests {
+		runTest(t.url, t.status)
+	}
+}
+
+// TestHandler_Write_V2_Precision verifies v2 writes validate precision.
+func TestHandler_Write_V2_Precision(t *testing.T) {
+	h := NewHandler(false)
+	h.MetaClient.DatabaseFn = func(name string) *meta.DatabaseInfo {
+		return &meta.DatabaseInfo{}
+	}
+	h.PointsWriter.WritePointsFn = func(_, _ string, _ models.ConsistencyLevel, _ meta.User, _ []models.Point) error {
+		return nil
+	}
+
+	tests := []struct {
+		url    string
+		status int
+	}{
+		// Successful requests.
+		{"/api/v2/write?org=bar&bucket=foo", http.StatusNoContent},
+		{"/api/v2/write?org=bar&bucket=foo&precision=ns", http.StatusNoContent},
+		{"/api/v2/write?org=bar&bucket=foo&precision=us", http.StatusNoContent},
+		{"/api/v2/write?org=bar&bucket=foo&precision=ms", http.StatusNoContent},
+		{"/api/v2/write?org=bar&bucket=foo&precision=s", http.StatusNoContent},
+		// Invalid requests.
+		{"/api/v2/write?org=bar&bucket=foo&precision=n", http.StatusBadRequest},
+		{"/api/v2/write?org=bar&bucket=foo&precision=u", http.StatusBadRequest},
+		{"/api/v2/write?org=bar&bucket=foo&precision=m", http.StatusBadRequest},
+		{"/api/v2/write?org=bar&bucket=foo&precision=h", http.StatusBadRequest},
+	}
+
+	runTest := func(url string, status int) {
+		b := bytes.NewReader([]byte(`foo n=1`))
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, MustNewRequest("POST", url, b))
+		if w.Code != status {
+			t.Fatalf("unexpected result for: \"%s\"\n\texp: %d, got: %d\n\t%s", url, status, w.Code, w.Body)
+		}
+	}
+
+	for _, t := range tests {
+		runTest(t.url, t.status)
+	}
+}
+
 // Ensure X-Forwarded-For header writes the correct log message.
 func TestHandler_XForwardedFor(t *testing.T) {
 	var buf bytes.Buffer
@@ -1819,6 +1903,133 @@ func TestThrottler_Handler(t *testing.T) {
 	})
 }
 
+func TestHandlerDebugVars(t *testing.T) {
+	stats := func(s ...*monitor.Statistic) ([]*monitor.Statistic, error) {
+		return s, nil
+	}
+	stat := func(name string, tags map[string]string, vals map[string]interface{}) *monitor.Statistic {
+		return &monitor.Statistic{
+			Statistic: models.Statistic{
+				Name:   name,
+				Tags:   tags,
+				Values: vals,
+			},
+		}
+	}
+	tags := func(kv ...string) map[string]string {
+		if len(kv)%2 != 0 {
+			panic("expect even number of key/values")
+		}
+		res := make(map[string]string, len(kv)/2)
+		for i := 0; i < len(kv); i += 2 {
+			res[kv[i]] = kv[i+1]
+		}
+		return res
+	}
+	vals := func(kv ...interface{}) map[string]interface{} {
+		if len(kv)%2 != 0 {
+			panic("expect even number of key/values")
+		}
+		res := make(map[string]interface{}, len(kv)/2)
+		for i := 0; i < len(kv); i += 2 {
+			if key, ok := kv[i].(string); !ok {
+				panic("key must be string")
+			} else {
+				res[key] = kv[i+1]
+			}
+		}
+		return res
+	}
+
+	var Ignored = []string{"memstats", "cmdline"}
+	read := func(t *testing.T, b *bytes.Buffer, del ...string) map[string]interface{} {
+		t.Helper()
+		res := make(map[string]interface{})
+		if err := json.Unmarshal(b.Bytes(), &res); err != nil {
+			t.Fatal(err)
+		}
+
+		for _, k := range del {
+			delete(res, k)
+		}
+
+		return res
+	}
+	keys := func(m map[string]interface{}) []string {
+		keys := make([]string, 0, len(m))
+		for k := range m {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		return keys
+	}
+
+	// stats tests the results of serializing Monitor.Statistics
+	t.Run("stats", func(t *testing.T) {
+		t.Run("generates unique keys using known tags", func(t *testing.T) {
+			h := NewHandler(false)
+			h.Monitor.StatisticsFn = func(_ map[string]string) ([]*monitor.Statistic, error) {
+				return stats(
+					stat("database", tags("database", "foo"), nil),
+					stat("hh", tags("path", "/mnt/foo/bar"), nil),
+					stat("httpd", tags("bind", "127.0.0.1:8088", "proto", "https"), nil),
+					stat("other", tags("foo", "bar"), nil),
+					stat("shard", tags("path", "/mnt/foo", "id", "111"), nil),
+				)
+			}
+			req := MustNewRequest("GET", "/debug/vars", nil)
+			w := httptest.NewRecorder()
+			h.ServeHTTP(w, req)
+			got := keys(read(t, w.Body, Ignored...))
+			exp := []string{"database:foo", "hh:/mnt/foo/bar", "httpd:https:127.0.0.1:8088", "other", "shard:/mnt/foo:111"}
+			if !cmp.Equal(got, exp) {
+				t.Errorf("unexpected keys; -got/+exp\n%s", cmp.Diff(got, exp))
+			}
+		})
+
+		t.Run("generates numbered keys for collisions", func(t *testing.T) {
+			h := NewHandler(false)
+			h.Monitor.StatisticsFn = func(_ map[string]string) ([]*monitor.Statistic, error) {
+				return stats(
+					stat("hh_processor", tags("db", "foo", "shardID", "10"), vals("queueSize", 100)),
+					stat("hh_processor", tags("db", "foo", "shardID", "15"), vals("queueSize", 500)),
+					stat("hh_processor", tags("db", "bar", "shardID", "20"), vals("queueSize", 200)),
+					stat("hh_processor", tags("db", "bar", "shardID", "25"), vals("queueSize", 700)),
+				)
+			}
+			req := MustNewRequest("GET", "/debug/vars", nil)
+			w := httptest.NewRecorder()
+			h.ServeHTTP(w, req)
+			got := read(t, w.Body, Ignored...)
+			exp := map[string]interface{}{
+				"hh_processor": map[string]interface{}{
+					"name":   "hh_processor",
+					"tags":   map[string]interface{}{"db": "foo", "shardID": "10"},
+					"values": map[string]interface{}{"queueSize": float64(100)},
+				},
+				"hh_processor:1": map[string]interface{}{
+					"name":   "hh_processor",
+					"tags":   map[string]interface{}{"db": "foo", "shardID": "15"},
+					"values": map[string]interface{}{"queueSize": float64(500)},
+				},
+				"hh_processor:2": map[string]interface{}{
+					"name":   "hh_processor",
+					"tags":   map[string]interface{}{"db": "bar", "shardID": "20"},
+					"values": map[string]interface{}{"queueSize": float64(200)},
+				},
+				"hh_processor:3": map[string]interface{}{
+					"name":   "hh_processor",
+					"tags":   map[string]interface{}{"db": "bar", "shardID": "25"},
+					"values": map[string]interface{}{"queueSize": float64(700)},
+				},
+			}
+			if !cmp.Equal(got, exp) {
+				t.Errorf("unexpected keys; -got/+exp\n%s", cmp.Diff(got, exp))
+			}
+		})
+	})
+}
+
 // NewHandler represents a test wrapper for httpd.Handler.
 type Handler struct {
 	*httpd.Handler
@@ -1826,6 +2037,7 @@ type Handler struct {
 	StatementExecutor HandlerStatementExecutor
 	QueryAuthorizer   HandlerQueryAuthorizer
 	PointsWriter      HandlerPointsWriter
+	Monitor           *HandlerMonitor
 	Store             *internal.StorageStoreMock
 	Controller        *internal.FluxControllerMock
 }
@@ -1892,6 +2104,7 @@ func NewHandlerWithConfig(config httpd.Config) *Handler {
 	h.MetaClient = &internal.MetaClientMock{}
 	h.Store = internal.NewStorageStoreMock()
 	h.Controller = internal.NewFluxControllerMock()
+	h.Monitor = newHandlerMonitor()
 
 	h.Handler.MetaClient = h.MetaClient
 	h.Handler.Store = h.Store
@@ -1899,6 +2112,7 @@ func NewHandlerWithConfig(config httpd.Config) *Handler {
 	h.Handler.QueryExecutor.StatementExecutor = &h.StatementExecutor
 	h.Handler.QueryAuthorizer = &h.QueryAuthorizer
 	h.Handler.PointsWriter = &h.PointsWriter
+	h.Handler.Monitor = h.Monitor
 	h.Handler.Version = "0.0.0"
 	h.Handler.BuildType = "OSS"
 	h.Handler.Controller = h.Controller
@@ -1909,6 +2123,33 @@ func NewHandlerWithConfig(config httpd.Config) *Handler {
 	}
 
 	return h
+}
+
+// HandlerMonitor is a mock implementation of Handler.Monitor.
+type HandlerMonitor struct {
+	StatisticsFn  func(tags map[string]string) ([]*monitor.Statistic, error)
+	DiagnosticsFn func() (map[string]*diagnostics.Diagnostics, error)
+}
+
+// newHandlerMonitor returns a HandlerMonitor with default implementations
+// for each function.
+func newHandlerMonitor() *HandlerMonitor {
+	return &HandlerMonitor{
+		StatisticsFn: func(_ map[string]string) ([]*monitor.Statistic, error) {
+			return nil, nil
+		},
+		DiagnosticsFn: func() (map[string]*diagnostics.Diagnostics, error) {
+			return make(map[string]*diagnostics.Diagnostics), nil
+		},
+	}
+}
+
+func (m *HandlerMonitor) Statistics(tags map[string]string) ([]*monitor.Statistic, error) {
+	return m.StatisticsFn(tags)
+}
+
+func (m *HandlerMonitor) Diagnostics() (map[string]*diagnostics.Diagnostics, error) {
+	return m.DiagnosticsFn()
 }
 
 // HandlerStatementExecutor is a mock implementation of Handler.StatementExecutor.

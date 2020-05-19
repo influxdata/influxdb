@@ -7,7 +7,7 @@ import (
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/influxdb/coordinator"
-	_ "github.com/influxdata/influxdb/flux/builtin"
+	"github.com/influxdata/influxdb/flux/builtin"
 	"github.com/influxdata/influxdb/flux/stdlib/influxdata/influxdb"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
@@ -17,6 +17,8 @@ type MetaClient = coordinator.MetaClient
 type Authorizer = influxdb.Authorizer
 
 func NewController(mc MetaClient, reader influxdb.Reader, auth Authorizer, authEnabled bool, logger *zap.Logger) *Controller {
+	builtin.Initialize()
+
 	storageDeps, err := influxdb.NewDependencies(mc, reader, auth, authEnabled)
 	if err != nil {
 		panic(err)

@@ -1,17 +1,39 @@
+v1.8.1 [unreleased]
+-------------------
+
+### Features
+
+### Bugfixes
+
+-	[#17638](https://github.com/influxdata/influxdb/pull/17638): Verify precision in write requests.
+
 v1.8.0 [unreleased]
 -------------------
 
 ### Features
 
--	[#14315](https://github.com/influxdata/influxdb/pull/14315): Update to go 1.12.7
--	[#15222](https://github.com/influxdata/influxdb/pull/15222): Add options to authenticate pprof and ping endpoints.
+-	[#15952](https://github.com/influxdata/influxdb/pull/15952): Add influx_inspect verify-tombstone tool.
+-	[#16542](https://github.com/influxdata/influxdb/pull/16542): Add offline series compaction to influx_inspect buildtsi.
+-	[#16599](https://github.com/influxdata/influxdb/pull/16599): Make influx CLI support custom HTTP endpoint.
+-	[#16908](https://github.com/influxdata/influxdb/pull/16908): Add support for InfluxDB 2.0 write API.
+-	[#17187](https://github.com/influxdata/influxdb/pull/17187): Update Flux to v0.64.0.
+-	[#17188](https://github.com/influxdata/influxdb/pull/17188): Enhance support for bound parameters.
 
 ### Bugfixes
 
 -	[#10503](https://github.com/influxdata/influxdb/pull/10503): Delete rebuilds series index when series to be deleted are only found in cache.
 -	[#10504](https://github.com/influxdata/influxdb/issue/10504): Delete rebuilds series index when series to be deleted are outside timerange.
+-	[#14485](https://github.com/influxdata/influxdb/pull/14485): Parse Accept header correctly.
 -	[#16524](https://github.com/influxdata/influxdb/pull/16524): Upgrade compaction error log from `Info` to `Warn`.
--	[#16627](https://github.com/influxdata/influxdb/pull/16627): skip WriteSnapshot during backup if snapshotter is busy.
+-	[#16525](https://github.com/influxdata/influxdb/pull/16525): Remove double increment of meta index.
+-	[#16595](https://github.com/influxdata/influxdb/pull/16595): Improve series cardinality limit for inmem index.
+-	[#16606](https://github.com/influxdata/influxdb/pull/16606): Ensure all block data returned.
+-	[#16627](https://github.com/influxdata/influxdb/pull/16627): Skip WriteSnapshot during backup if snapshotter is busy.
+-	[#16709](https://github.com/influxdata/influxdb/pull/16709): Reduce influxd and influx startup time if Flux isn't used.
+-	[#16762](https://github.com/influxdata/influxdb/pull/16762): Fix bugs in -compact-series-file.
+-	[#16944](https://github.com/influxdata/influxdb/pull/16944): Update to Go 1.13.8 and Go modules.
+-	[#17032](https://github.com/influxdata/influxdb/pull/17032): Fix a SIGSEGV when accessing tsi active log.
+-	[#17204](https://github.com/influxdata/influxdb/pull/17204): Remove unsafe marshalling.
 
 v1.7.0 [unreleased]
 -------------------
@@ -31,13 +53,10 @@ v1.7.0 [unreleased]
 ### Bugfixes
 
 -	[#10005](https://github.com/influxdata/influxdb/pull/10005): Missing hardwareAddr in uuid v1 generation.
+-	[#10206](https://github.com/influxdata/influxdb/pull/10206): Fix legacy restore bug #10072
 -	[#10246](https://github.com/influxdata/influxdb/pull/10246): Fix the inherited interval for derivative and others.
 -	[#10333](https://github.com/influxdata/influxdb/pull/10333): Fix subquery functionality when a function references a tag from the subquery.
 -	[#10333](https://github.com/influxdata/influxdb/pull/10333): Strip tags from a subquery when the outer query does not group by that tag.
-
-### Bugfixes
-
--	[#10206](https://github.com/influxdata/influxdb/pull/10206): Fix legacy restore bug #10072
 
 v1.6.0 [2018-07-05]
 -------------------

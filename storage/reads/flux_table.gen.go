@@ -2,7 +2,7 @@
 // https://github.com/benbjohnson/tmpl
 //
 // DO NOT EDIT!
-// Source: table.gen.go.tmpl
+// Source: flux_table.gen.go.tmpl
 
 package reads
 
@@ -37,10 +37,11 @@ func newFloatTable(
 	cols []flux.ColMeta,
 	tags models.Tags,
 	defs [][]byte,
+	cache *tagsCache,
 	alloc *memory.Allocator,
 ) *floatTable {
 	t := &floatTable{
-		table: newTable(done, bounds, key, cols, defs, alloc),
+		table: newTable(done, bounds, key, cols, defs, cache, alloc),
 		cur:   cur,
 	}
 	t.readTags(tags)
@@ -113,10 +114,11 @@ func newFloatGroupTable(
 	cols []flux.ColMeta,
 	tags models.Tags,
 	defs [][]byte,
+	cache *tagsCache,
 	alloc *memory.Allocator,
 ) *floatGroupTable {
 	t := &floatGroupTable{
-		table: newTable(done, bounds, key, cols, defs, alloc),
+		table: newTable(done, bounds, key, cols, defs, cache, alloc),
 		gc:    gc,
 		cur:   cur,
 	}
@@ -220,10 +222,11 @@ func newIntegerTable(
 	cols []flux.ColMeta,
 	tags models.Tags,
 	defs [][]byte,
+	cache *tagsCache,
 	alloc *memory.Allocator,
 ) *integerTable {
 	t := &integerTable{
-		table: newTable(done, bounds, key, cols, defs, alloc),
+		table: newTable(done, bounds, key, cols, defs, cache, alloc),
 		cur:   cur,
 	}
 	t.readTags(tags)
@@ -296,10 +299,11 @@ func newIntegerGroupTable(
 	cols []flux.ColMeta,
 	tags models.Tags,
 	defs [][]byte,
+	cache *tagsCache,
 	alloc *memory.Allocator,
 ) *integerGroupTable {
 	t := &integerGroupTable{
-		table: newTable(done, bounds, key, cols, defs, alloc),
+		table: newTable(done, bounds, key, cols, defs, cache, alloc),
 		gc:    gc,
 		cur:   cur,
 	}
@@ -403,10 +407,11 @@ func newUnsignedTable(
 	cols []flux.ColMeta,
 	tags models.Tags,
 	defs [][]byte,
+	cache *tagsCache,
 	alloc *memory.Allocator,
 ) *unsignedTable {
 	t := &unsignedTable{
-		table: newTable(done, bounds, key, cols, defs, alloc),
+		table: newTable(done, bounds, key, cols, defs, cache, alloc),
 		cur:   cur,
 	}
 	t.readTags(tags)
@@ -479,10 +484,11 @@ func newUnsignedGroupTable(
 	cols []flux.ColMeta,
 	tags models.Tags,
 	defs [][]byte,
+	cache *tagsCache,
 	alloc *memory.Allocator,
 ) *unsignedGroupTable {
 	t := &unsignedGroupTable{
-		table: newTable(done, bounds, key, cols, defs, alloc),
+		table: newTable(done, bounds, key, cols, defs, cache, alloc),
 		gc:    gc,
 		cur:   cur,
 	}
@@ -586,10 +592,11 @@ func newStringTable(
 	cols []flux.ColMeta,
 	tags models.Tags,
 	defs [][]byte,
+	cache *tagsCache,
 	alloc *memory.Allocator,
 ) *stringTable {
 	t := &stringTable{
-		table: newTable(done, bounds, key, cols, defs, alloc),
+		table: newTable(done, bounds, key, cols, defs, cache, alloc),
 		cur:   cur,
 	}
 	t.readTags(tags)
@@ -662,10 +669,11 @@ func newStringGroupTable(
 	cols []flux.ColMeta,
 	tags models.Tags,
 	defs [][]byte,
+	cache *tagsCache,
 	alloc *memory.Allocator,
 ) *stringGroupTable {
 	t := &stringGroupTable{
-		table: newTable(done, bounds, key, cols, defs, alloc),
+		table: newTable(done, bounds, key, cols, defs, cache, alloc),
 		gc:    gc,
 		cur:   cur,
 	}
@@ -769,10 +777,11 @@ func newBooleanTable(
 	cols []flux.ColMeta,
 	tags models.Tags,
 	defs [][]byte,
+	cache *tagsCache,
 	alloc *memory.Allocator,
 ) *booleanTable {
 	t := &booleanTable{
-		table: newTable(done, bounds, key, cols, defs, alloc),
+		table: newTable(done, bounds, key, cols, defs, cache, alloc),
 		cur:   cur,
 	}
 	t.readTags(tags)
@@ -845,10 +854,11 @@ func newBooleanGroupTable(
 	cols []flux.ColMeta,
 	tags models.Tags,
 	defs [][]byte,
+	cache *tagsCache,
 	alloc *memory.Allocator,
 ) *booleanGroupTable {
 	t := &booleanGroupTable{
-		table: newTable(done, bounds, key, cols, defs, alloc),
+		table: newTable(done, bounds, key, cols, defs, cache, alloc),
 		gc:    gc,
 		cur:   cur,
 	}

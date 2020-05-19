@@ -423,7 +423,7 @@ func (p *SeriesPartition) EnableCompactions() {
 }
 
 func (p *SeriesPartition) compactionsEnabled() bool {
-	return p.compactionsDisabled == 0
+	return p.compactionLimiter != nil && p.compactionsDisabled == 0
 }
 
 // AppendSeriesIDs returns a list of all series ids.
@@ -685,7 +685,7 @@ func (c *SeriesPartitionCompactor) insertKeyIDMap(dst []byte, capacity int64, se
 			binary.BigEndian.PutUint64(elem[8:], id)
 
 			// Swap with values in that position.
-			hash, key, offset, id = elemHash, elemKey, elemOffset, elemID
+			offset, id = elemOffset, elemID
 
 			// Update current distance.
 			dist = d
@@ -722,7 +722,7 @@ func (c *SeriesPartitionCompactor) insertIDOffsetMap(dst []byte, capacity int64,
 			binary.BigEndian.PutUint64(elem[8:], uint64(offset))
 
 			// Swap with values in that position.
-			hash, id, offset = elemHash, elemID, elemOffset
+			id, offset = elemID, elemOffset
 
 			// Update current distance.
 			dist = d

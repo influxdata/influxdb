@@ -186,10 +186,11 @@ as follows:
 
 ```go
 // queryDB convenience function to query the database
-func queryDB(clnt client.Client, cmd string) (res []client.Result, err error) {
+func queryDB(clnt client.Client, cmd string, params map[string]interface{}) (res []client.Result, err error) {
 	q := client.Query{
-		Command:  cmd,
-		Database: MyDB,
+		Command:    cmd,
+		Database:   MyDB,
+		Parameters: params,
 	}
 	if response, err := clnt.Query(q); err == nil {
 		if response.Error() != nil {
@@ -203,10 +204,19 @@ func queryDB(clnt client.Client, cmd string) (res []client.Result, err error) {
 }
 ```
 
+#### Parameter support
+
+The special parameters such as `client.Identifier` and `client.IntegerValue` are only supported in version 1.8 or greater.
+Versions before 1.8 only support literal types like `string`, `int64`, `float64`, and `bool`.
+The below queries cannot use parameters in versions before 1.8 and will have to use `fmt.Sprintf` to construct the query instead.
+Constructing queries using `fmt.Sprintf` is unsafe and vulnerable to query injection if they are constructed with user data.
+
 #### Creating a Database
 
 ```go
-_, err := queryDB(clnt, fmt.Sprintf("CREATE DATABASE %s", MyDB))
+_, err := queryDB(clnt, "CREATE DATABASE $db", client.Params{
+	"db": client.Identifier(MyDB),
+})
 if err != nil {
 	log.Fatal(err)
 }
@@ -215,8 +225,11 @@ if err != nil {
 #### Count Records
 
 ```go
-q := fmt.Sprintf("SELECT count(%s) FROM %s", "value", MyMeasurement)
-res, err := queryDB(clnt, q)
+q := "SELECT count($field) FROM $m"
+res, err := queryDB(clnt, q, client.Params{
+	"field": client.Identifier("value"),
+	"m":     client.Identifier(MyMeasurement),
+})
 if err != nil {
 	log.Fatal(err)
 }
@@ -227,8 +240,11 @@ log.Printf("Found a total of %v records\n", count)
 #### Find the last 10 _shapes_ records
 
 ```go
-q := fmt.Sprintf("SELECT * FROM %s LIMIT %d", MyMeasurement, 10)
-res, err = queryDB(clnt, q)
+q := "SELECT * FROM $m LIMIT $n"
+res, err = queryDB(clnt, q, client.Params{
+	"m": client.Identifier(MyMeasurement),
+	"n": 10,
+})
 if err != nil {
 	log.Fatal(err)
 }

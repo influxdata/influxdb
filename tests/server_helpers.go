@@ -132,7 +132,7 @@ func (s *RemoteServer) DropDatabase(db string) error {
 
 // Reset attempts to remove all database state by dropping everything
 func (s *RemoteServer) Reset() error {
-	stmt := fmt.Sprintf("SHOW+DATABASES")
+	stmt := "SHOW+DATABASES"
 	results, err := s.HTTPPost(s.URL()+"/query?q="+stmt, nil)
 	if err != nil {
 		return err

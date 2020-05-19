@@ -1061,7 +1061,7 @@ func testStoreCardinalityDuplicates(t *testing.T, store *Store) {
 			// For other shards we write a random sub-section of all the points.
 			// which will duplicate the series and shouldn't increase the
 			// cardinality.
-			from, to := rand.Intn(len(points)), rand.Intn(len(points))
+			from, to = rand.Intn(len(points)), rand.Intn(len(points))
 			if from > to {
 				from, to = to, from
 			}

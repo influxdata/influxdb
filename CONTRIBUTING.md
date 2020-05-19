@@ -41,13 +41,13 @@ We really like to receive feature requests, as it helps us prioritize our work. 
 Contributing to the source code
 ---------------
 
-InfluxDB follows standard Go project structure. This means that all your Go development are done in `$GOPATH/src`. GOPATH can be any directory under which InfluxDB and all its dependencies will be cloned. For full details on the project structure, follow along below.
+InfluxDB requires go 1.13 or later and uses go modules to manage dependencies.  This means that all of your Go development is done wherever you choose to check out the source.  There is no need to place the source in your `$GOPATH`.  In fact, we recommend against placing it within `$GOPATH`.
 
-You should also read our [coding guide](https://github.com/influxdata/influxdb/blob/master/CODING_GUIDELINES.md), to understand better how to write code for InfluxDB.
+You should also read our [coding guide](https://github.com/influxdata/influxdb/blob/master-1.x/CODING_GUIDELINES.md), to understand better how to write code for InfluxDB.
 
 Submitting a pull request
 ------------
-To submit a pull request you should fork the InfluxDB repository, and make your change on a feature branch of your fork. Then generate a pull request from your branch against *master* of the InfluxDB repository. Include in your pull request details of your change -- the why *and* the how -- as well as the testing your performed. Also, be sure to run the test suite with your change in place. Changes that cause tests to fail cannot be merged.
+To submit a pull request you should fork the InfluxDB repository, and make your change on a feature branch of your fork. Then generate a pull request from your branch against *master-1.x* of the InfluxDB repository. Include in your pull request details of your change -- the why *and* the how -- as well as the testing your performed. Also, be sure to run the test suite with your change in place. Changes that cause tests to fail cannot be merged.
 
 There will usually be some back and forth as we finalize the change, but once that completes it may be merged.
 
@@ -69,7 +69,7 @@ second to sign our CLA, which can be found
 
 Installing Go
 -------------
-InfluxDB requires Go 1.12.
+InfluxDB requires Go 1.13.
 
 At InfluxDB we find gvm, a Go version manager, useful for installing Go. For instructions
 on how to install it see [the gvm page on github](https://github.com/moovweb/gvm).
@@ -77,14 +77,8 @@ on how to install it see [the gvm page on github](https://github.com/moovweb/gvm
 After installing gvm you can install and set the default go version by
 running the following:
 
-    gvm install go1.12
-    gvm use go1.12 --default
-
-Installing Dep
--------------
-InfluxDB uses [dep](https://github.com/golang/dep) to manage dependencies.  Install it by running the following:
-
-    go get github.com/golang/dep/cmd/dep
+    gvm install go1.13
+    gvm use go1.13 --default
 
 Revision Control Systems
 -------------
@@ -111,9 +105,6 @@ Cloning a fork
 If you wish to work with fork of InfluxDB, your own fork for example, you must still follow the directory structure above. But instead of cloning the main repo, instead clone your fork. Follow the steps below to work with a fork:
 
 ```bash
-    export GOPATH=$HOME/gocodez
-    mkdir -p $GOPATH/src/github.com/influxdata
-    cd $GOPATH/src/github.com/influxdata
     git clone git@github.com:<username>/influxdb
 ```
 
@@ -125,8 +116,7 @@ Build and Test
 Make sure you have Go installed and the project structure as shown above. To then get the dependencies for the project, execute the following commands:
 
 ```bash
-cd $GOPATH/src/github.com/influxdata/influxdb
-dep ensure
+cd influxdb
 ```
 
 To then build and install the binaries, run the following command.
@@ -227,7 +217,7 @@ Pre-commit checks
 
 We have a pre-commit hook to make sure code is formatted properly and vetted before you commit any changes. We strongly recommend using the pre-commit hook to guard against accidentally committing unformatted code. To use the pre-commit hook, run the following:
 ```bash
-    cd $GOPATH/src/github.com/influxdata/influxdb
+    cd influxdb
     cp .hooks/pre-commit .git/hooks/
 ```
 In case the commit is rejected because it's not formatted you can run
@@ -277,9 +267,9 @@ func BenchmarkSomething(b *testing.B) {
 
 Continuous Integration testing
 -----
-InfluxDB uses CircleCI for continuous integration testing. CircleCI executes [test.sh](https://github.com/influxdata/influxdb/blob/master/test.sh), so you may do the same on your local development environment before creating a pull request.
+InfluxDB uses CircleCI for continuous integration testing. CircleCI executes [test.sh](https://github.com/influxdata/influxdb/blob/master-1.x/test.sh), so you may do the same on your local development environment before creating a pull request.
 
-The `test.sh` script executes a test suite with 5 variants (standard 64 bit, 64 bit with race detection, 32 bit, TSI, go version 1.12), each executes with a different arg, 0 through 4. Unless you know differently, `./test.sh 0` is probably all you need.
+The `test.sh` script executes a test suite with 5 variants (standard 64 bit, 64 bit with race detection, 32 bit, TSI, go version 1.13), each executes with a different arg, 0 through 4. Unless you know differently, `./test.sh 0` is probably all you need.
 
 
 Distributions

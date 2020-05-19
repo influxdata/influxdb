@@ -482,21 +482,31 @@ func (f *FileStore) Open() error {
 	if err != nil {
 		return err
 	}
-	ext := fmt.Sprintf(".%s", TmpTSMFileExtension)
+
+	// ascertain the current temp directory number by examining the existing
+	// directories and choosing the one with the higest basename when converted
+	// to an integer.
 	for _, fi := range tmpfiles {
-		if fi.IsDir() && strings.HasSuffix(fi.Name(), ext) {
-			ss := strings.Split(filepath.Base(fi.Name()), ".")
-			if len(ss) == 2 {
-				if i, err := strconv.Atoi(ss[0]); err != nil {
-					if i > f.currentTempDirID {
-						f.currentTempDirID = i
-					}
-				}
-			}
+		if !fi.IsDir() || !strings.HasSuffix(fi.Name(), "."+TmpTSMFileExtension) {
+			continue
 		}
+
+		ss := strings.Split(filepath.Base(fi.Name()), ".")
+		if len(ss) != 2 {
+			continue
+		}
+
+		i, err := strconv.Atoi(ss[0])
+		if err != nil || i <= f.currentTempDirID {
+			continue
+		}
+
+		// i must be a valid integer and greater than f.currentTempDirID at this
+		// point
+		f.currentTempDirID = i
 	}
 
-	files, err := filepath.Glob(filepath.Join(f.dir, fmt.Sprintf("*.%s", TSMFileExtension)))
+	files, err := filepath.Glob(filepath.Join(f.dir, "*."+TSMFileExtension))
 	if err != nil {
 		return err
 	}
@@ -924,7 +934,9 @@ func (f *FileStore) BlockCount(path string, idx int) int {
 				}
 			}
 			_, _, _, _, _, block, _ := iter.Read()
-			return BlockCount(block)
+			// on Error, BlockCount(block) returns 0 for cnt
+			cnt, _ := BlockCount(block)
+			return cnt
 		}
 	}
 	return 0
