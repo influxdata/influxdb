@@ -121,7 +121,7 @@ const collectAncestors = (
   - The node for one of the passed variables depends on this node
 
 */
-const findSubgraph = (
+export const findSubgraph = (
   graph: VariableNode[],
   variables: Variable[]
 ): VariableNode[] => {
@@ -231,13 +231,13 @@ const hydrateVarsHelper = async (
     node.status = RemoteDataState.Loading
     on.fire('status', node.variable, node.status)
     collectAncestors(node)
-    .filter(parent => parent.variable.arguments.type === 'query')
-    .forEach(parent => {
-      if (parent.status !== RemoteDataState.Loading) {
-        parent.status = RemoteDataState.Loading
-        on.fire('status', parent.variable, parent.status)
-      }
-    })
+      .filter(parent => parent.variable.arguments.type === 'query')
+      .forEach(parent => {
+        if (parent.status !== RemoteDataState.Loading) {
+          parent.status = RemoteDataState.Loading
+          on.fire('status', parent.variable, parent.status)
+        }
+      })
   }
 
   const descendants = collectDescendants(node)
@@ -397,9 +397,10 @@ export const hydrateVars = (
   allVariables: Variable[],
   options: HydrateVarsOptions
 ): EventedCancelBox<Variable[]> => {
-  const graph = findSubgraph(createVariableGraph(allVariables), variables).filter(
-    n => n.variable.arguments.type !== 'system'
-  )
+  const graph = findSubgraph(
+    createVariableGraph(allVariables),
+    variables
+  ).filter(n => n.variable.arguments.type !== 'system')
   invalidateCycles(graph)
 
   let isCancelled = false
