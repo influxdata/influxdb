@@ -1,5 +1,6 @@
 // Libraries
-import React, {useLayoutEffect, FC, useEffect, useState} from 'react'
+import React, {useLayoutEffect, FC, useEffect, useState, Dispatch} from 'react'
+import {connect} from 'react-redux'
 import {AutoSizer, InfiniteLoader, List} from 'react-virtualized'
 
 // Components
@@ -9,6 +10,10 @@ import LoadingRow from 'src/eventViewer/components/LoadingRow'
 import FooterRow from 'src/eventViewer/components/FooterRow'
 import ErrorRow from 'src/eventViewer/components/ErrorRow'
 import {Notification, Gradients, IconFont, ComponentSize} from '@influxdata/clockface'
+
+// Actions
+import {notify as notifyAction} from 'src/shared/actions/notifications'
+import {checkStatusLoading} from 'src/shared/copy/notifications'
 
 // Utils
 import {
@@ -20,31 +25,40 @@ import {
 import {EventViewerChildProps, Fields} from 'src/eventViewer/types'
 import {RemoteDataState} from 'src/types'
 
-type Props = EventViewerChildProps & {
+// Constants
+import * as copy from 'src/shared/copy/notifications'
+
+type DispatchProps = {
+  notify: typeof notifyAction
+}
+
+type OwnProps = {
   fields: Fields
 }
 
-const EventTable: FC<Props> = ({state, dispatch, loadRows, fields}) => {
+type Props = EventViewerChildProps & DispatchProps & OwnProps
+
+const EventTable: FC<Props> = ({state, dispatch, loadRows, fields, notify}) => {
+
   const rowCount = getRowCount(state)
 
   const isRowLoaded = ({index}) => !!state.rows[index]
+
+  const isRowLoadedBoolean = !!state.rows[0]
 
   const loadMoreRows = () => loadNextRows(state, dispatch, loadRows)
 
   const [isLongRunningQuery, setIsLongRunningQuery] = useState(false)
 
   useEffect(() => {
-    console.log("useeffectbeingcalled")
     setTimeout(
     ()=>{setIsLongRunningQuery(true)}, 5000 
     )
   })
 
   useEffect(() => {
-    console.log("somethingchanged")
-    if (isLongRunningQuery && !isRowLoaded) {
-      //notify
-      alert("notificationcomingsoon")
+    if (isLongRunningQuery && !isRowLoadedBoolean) {
+      notify(copy.checkStatusLoading)
     }
   }, [isLongRunningQuery, isRowLoaded])
 
@@ -121,4 +135,12 @@ const EventTable: FC<Props> = ({state, dispatch, loadRows, fields}) => {
   )
 }
 
-export default EventTable
+
+const mdtp:DispatchProps = {
+  notify: notifyAction,
+}
+
+export default connect<{}, DispatchProps, OwnProps>(
+  null,
+  mdtp
+)(EventTable)
