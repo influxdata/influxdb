@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/docker/docker/pkg/ioutils"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/influxdata/flux"
@@ -69,13 +70,6 @@ func TestLoggingProxyQueryService(t *testing.T) {
 		},
 	}
 
-	wantTime := time.Now()
-	lpqs := query.NewLoggingProxyQueryService(zap.NewNop(), logger, pqs)
-	lpqs.SetNowFunctionForTesting(func() time.Time {
-		return wantTime
-	})
-
-	var buf bytes.Buffer
 	req := &query.ProxyRequest{
 		Request: query.Request{
 			Authorization:  nil,
@@ -84,25 +78,69 @@ func TestLoggingProxyQueryService(t *testing.T) {
 		},
 		Dialect: nil,
 	}
-	stats, err := lpqs.Query(context.Background(), &buf, req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !cmp.Equal(wantStats, stats, opts...) {
-		t.Errorf("unexpected query stats: -want/+got\n%s", cmp.Diff(wantStats, stats, opts...))
-	}
-	traceID := reporter.GetSpans()[0].Context().(jaeger.SpanContext).TraceID().String()
-	wantLogs := []query.Log{{
-		Time:           wantTime,
-		OrganizationID: orgID,
-		TraceID:        traceID,
-		Sampled:        true,
-		Error:          nil,
-		ProxyRequest:   req,
-		ResponseSize:   int64(wantBytes),
-		Statistics:     wantStats,
-	}}
-	if !cmp.Equal(wantLogs, logs, opts...) {
-		t.Errorf("unexpected query logs: -want/+got\n%s", cmp.Diff(wantLogs, logs, opts...))
-	}
+
+	t.Run("log", func(t *testing.T) {
+		defer func() {
+			logs = nil
+		}()
+		wantTime := time.Now()
+		lpqs := query.NewLoggingProxyQueryService(zap.NewNop(), logger, pqs)
+		lpqs.SetNowFunctionForTesting(func() time.Time {
+			return wantTime
+		})
+
+		var buf bytes.Buffer
+		stats, err := lpqs.Query(context.Background(), &buf, req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !cmp.Equal(wantStats, stats, opts...) {
+			t.Errorf("unexpected query stats: -want/+got\n%s", cmp.Diff(wantStats, stats, opts...))
+		}
+		traceID := reporter.GetSpans()[0].Context().(jaeger.SpanContext).TraceID().String()
+		wantLogs := []query.Log{{
+			Time:           wantTime,
+			OrganizationID: orgID,
+			TraceID:        traceID,
+			Sampled:        true,
+			Error:          nil,
+			ProxyRequest:   req,
+			ResponseSize:   int64(wantBytes),
+			Statistics:     wantStats,
+		}}
+		if !cmp.Equal(wantLogs, logs, opts...) {
+			t.Errorf("unexpected query logs: -want/+got\n%s", cmp.Diff(wantLogs, logs, opts...))
+		}
+	})
+
+	t.Run("conditional logging", func(t *testing.T) {
+		defer func() {
+			logs = nil
+		}()
+
+		loggingKey := "do-logging"
+		condLog := query.ConditionalLogging(func(ctx context.Context) bool {
+			return ctx.Value(loggingKey) != nil
+		})
+
+		lpqs := query.NewLoggingProxyQueryService(zap.NewNop(), logger, pqs, condLog)
+		_, err := lpqs.Query(context.Background(), &ioutils.NopWriter{}, req)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if len(logs) != 0 {
+			t.Fatal("expected query service not to log")
+		}
+
+		ctx := context.WithValue(context.Background(), loggingKey, true)
+		_, err = lpqs.Query(ctx, &ioutils.NopWriter{}, req)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if len(logs) != 1 {
+			t.Fatal("expected query service to log")
+		}
+	})
 }
