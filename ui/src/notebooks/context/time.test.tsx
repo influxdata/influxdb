@@ -2,7 +2,6 @@ import React from 'react'
 
 import {render} from 'react-testing-library'
 
-import {NotebookProvider} from 'src/notebooks/context/notebook'
 import {
   TimeContext,
   TimeProvider,
@@ -10,6 +9,7 @@ import {
 } from 'src/notebooks/context/time'
 
 describe('Notebook Time Context', () => {
+  /* eslint-disable @typescript-eslint/unbound-method */
   const originalError = console.error
 
   beforeAll(() => {
@@ -24,6 +24,7 @@ describe('Notebook Time Context', () => {
   afterAll(() => {
     console.error = originalError
   })
+  /* eslint-enable @typescript-eslint/unbound-method */
 
   it('registers a default context on add', () => {
     const contextCallback = jest.fn()
@@ -100,7 +101,7 @@ describe('Notebook Time Context', () => {
       </TimeProvider>
     )
 
-    let context = contextCallback.mock.calls[0][0]
+    const context = contextCallback.mock.calls[0][0]
     expect(context.timeContext).toEqual({})
 
     context.addTimeContext('sweet')
@@ -118,7 +119,7 @@ describe('Notebook Time Context', () => {
       </TimeProvider>
     )
 
-    let context = contextCallback.mock.calls[0][0]
+    const context = contextCallback.mock.calls[0][0]
     expect(context.timeContext).toEqual({})
 
     expect(() => {

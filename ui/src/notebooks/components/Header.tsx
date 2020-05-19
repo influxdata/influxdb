@@ -4,6 +4,7 @@ import {Page} from '@influxdata/clockface'
 import {NotebookContext} from 'src/notebooks/context/notebook'
 import {TimeProvider, TimeContext, TimeBlock} from 'src/notebooks/context/time'
 import AppSettingProvider, {AppSettingContext} from 'src/notebooks/context/app'
+import AddButtons from 'src/notebooks/components/AddButtons'
 
 import TimeRangeDropdown from 'src/shared/components/TimeRangeDropdown'
 import AutoRefreshDropdown from 'src/shared/components/dropdown_auto_refresh/AutoRefreshDropdown'
@@ -48,21 +49,33 @@ const Header: FC = () => {
 
   return (
     <>
-      <Page.Title title="Notebooks" />
-      <div className="notebook-header--buttons">
-        <TimeZoneDropdown timeZone={timeZone} onSetTimeZone={onSetTimeZone} />
-        <TimeRangeDropdown timeRange={range} onSetTimeRange={updateRange} />
-        <AutoRefreshDropdown
-          selected={refresh}
-          onChoose={updateRefresh}
-          showManualRefresh={false}
-        />
-        <SubmitQueryButton
-          submitButtonDisabled={false}
-          queryStatus={RemoteDataState.NotStarted}
-          onSubmit={submit}
-        />
-      </div>
+      <Page.Header>
+        <Page.Title title="Notebooks" />
+      </Page.Header>
+      <Page.ControlBar fullWidth={true}>
+        <Page.ControlBarLeft>
+          <AddButtons />
+        </Page.ControlBarLeft>
+        <Page.ControlBarRight>
+          <div className="notebook-header--buttons">
+            <TimeZoneDropdown
+              timeZone={timeZone}
+              onSetTimeZone={onSetTimeZone}
+            />
+            <TimeRangeDropdown timeRange={range} onSetTimeRange={updateRange} />
+            <AutoRefreshDropdown
+              selected={refresh}
+              onChoose={updateRefresh}
+              showManualRefresh={false}
+            />
+            <SubmitQueryButton
+              submitButtonDisabled={false}
+              queryStatus={RemoteDataState.NotStarted}
+              onSubmit={submit}
+            />
+          </div>
+        </Page.ControlBarRight>
+      </Page.ControlBar>
     </>
   )
 }
