@@ -9,7 +9,7 @@
 #      1: race enabled 64bit tests
 #      2: normal 32bit tests
 #      3: tsi build
-#      4: go 1.12
+#      4: go 1.13
 #      count: print the number of test environments
 #      *: to run all tests in parallel containers
 #
@@ -32,7 +32,7 @@ TIMEOUT=${TIMEOUT-1500s}
 DOCKER_RM=${DOCKER_RM-true}
 
 # Update this value if you add a new test environment.
-ENV_COUNT=5
+ENV_COUNT=4
 
 # Default return code 0
 rc=0
@@ -123,14 +123,9 @@ case $ENVIRONMENT_INDEX in
         run_test_docker Dockerfile_build_ubuntu64 test_64bit --test --junit-report
         rc=$?
         ;;
-    4)
-        # go1.12
-        run_test_docker Dockerfile_build_ubuntu64_go1.12 test_64bit --test --junit-report
-        rc=$?
-        ;;
-    "count")
-        echo $ENV_COUNT
-        ;;
+		"count")
+				echo $ENV_COUNT
+				;;
     *)
         echo "No individual test environment specified running tests for all $ENV_COUNT environments."
         # Run all test environments
