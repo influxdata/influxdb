@@ -119,9 +119,6 @@ describe('hydrate vars', () => {
     //       f [fontcolor = "green"]
     //       g [fontcolor = "green"]
     //     }
-    //
-    // NOTE: these return falsy and not an empty array, because they are skipped
-    // within hydrateVars as not belonging to the graph
     expect(
       actual.filter(v => v.id === 'a')[0].arguments.values.results
     ).toEqual([])
