@@ -1520,6 +1520,11 @@
   dependencies:
     "@types/node" "*"
 
+"@types/webpack-env@^1.15.2":
+  version "1.15.2"
+  resolved "https://registry.yarnpkg.com/@types/webpack-env/-/webpack-env-1.15.2.tgz#927997342bb9f4a5185a86e6579a0a18afc33b0a"
+  integrity sha512-67ZgZpAlhIICIdfQrB5fnDvaKFcDxpKibxznfYRVAT4mQE41Dido/3Ty+E3xGBmTogc5+0Qb8tWhna+5B8z1iQ==
+
 "@types/webpack@^4.4.31", "@types/webpack@^4.4.35":
   version "4.4.35"
   resolved "https://registry.yarnpkg.com/@types/webpack/-/webpack-4.4.35.tgz#b7088eb2d471d5645e5503d272783cafa753583b"
