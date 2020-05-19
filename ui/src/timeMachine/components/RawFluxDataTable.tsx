@@ -1,5 +1,5 @@
 // Libraries
-import React, {PureComponent, MouseEvent} from 'react'
+import React, {PureComponent} from 'react'
 import memoizeOne from 'memoize-one'
 import RawFluxDataGrid from 'src/timeMachine/components/RawFluxDataGrid'
 
