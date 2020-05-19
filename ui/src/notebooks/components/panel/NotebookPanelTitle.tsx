@@ -1,55 +1,41 @@
 // Libraries
-import React, {FC, ChangeEvent} from 'react'
-
-// Components
-import {Icon, IconFont} from '@influxdata/clockface'
+import React, {FC, ChangeEvent, useContext} from 'react'
+import {NotebookContext, PipeMeta} from 'src/notebooks/context/notebook'
 
 interface Props {
-  title: string
-  onTitleChange?: (title: string) => void
-  previousPanelTitle?: string
+  index: number
 }
 
-const NotebookPanelTitle: FC<Props> = ({
-  title,
-  onTitleChange,
-  previousPanelTitle,
-}) => {
+const NotebookPanelTitle: FC<Props> = ({index}) => {
+  const {meta, updateMeta} = useContext(NotebookContext)
+  const title = meta[index].title
+  const onTitleChange = (value: string) => {
+    updateMeta(index, {
+      title: value,
+    } as PipeMeta)
+  }
+
   let sourceName
   let titleElement = <div className="notebook-panel--title">{title}</div>
 
-  if (previousPanelTitle) {
-    sourceName = (
-      <div className="notebook-panel--data-source">
-        {previousPanelTitle}
-        <Icon
-          glyph={IconFont.CaretRight}
-          className="notebook-panel--data-caret"
-        />
-      </div>
-    )
+  const onChange = (e: ChangeEvent<HTMLInputElement>): void => {
+    const trimmedValue = e.target.value.replace(' ', '_')
+    onTitleChange(trimmedValue)
   }
 
-  if (onTitleChange) {
-    const onChange = (e: ChangeEvent<HTMLInputElement>): void => {
-      const trimmedValue = e.target.value.replace(' ', '_')
-      onTitleChange(trimmedValue)
-    }
-
-    titleElement = (
-      <input
-        type="text"
-        value={title}
-        onChange={onChange}
-        placeholder="Enter an ID"
-        className="notebook-panel--editable-title"
-        autoComplete="off"
-        autoCorrect="off"
-        spellCheck={false}
-        maxLength={30}
-      />
-    )
-  }
+  titleElement = (
+    <input
+      type="text"
+      value={title}
+      onChange={onChange}
+      placeholder="Enter an ID"
+      className="notebook-panel--editable-title"
+      autoComplete="off"
+      autoCorrect="off"
+      spellCheck={false}
+      maxLength={30}
+    />
+  )
 
   return (
     <>
