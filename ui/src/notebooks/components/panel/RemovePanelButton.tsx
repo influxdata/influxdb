@@ -13,7 +13,11 @@ const RemoveButton: FC<Props> = ({onRemove}) => {
     return null
   }
 
-  return <SquareButton icon={IconFont.Remove} onClick={onRemove} />
+  const handleClick = (): void => {
+    onRemove()
+  }
+
+  return <SquareButton icon={IconFont.Remove} onClick={handleClick} />
 }
 
 export default RemoveButton

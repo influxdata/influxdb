@@ -25,8 +25,8 @@ type SessionBackend struct {
 	UserService      platform.UserService
 }
 
-// newSessionBackend creates a new SessionBackend with associated logger.
-func newSessionBackend(log *zap.Logger, b *APIBackend) *SessionBackend {
+// NewSessionBackend creates a new SessionBackend with associated logger.
+func NewSessionBackend(log *zap.Logger, b *APIBackend) *SessionBackend {
 	return &SessionBackend{
 		HTTPErrorHandler: b.HTTPErrorHandler,
 		log:              log,
