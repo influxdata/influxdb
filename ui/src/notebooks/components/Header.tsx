@@ -12,6 +12,8 @@ import {AutoRefreshStatus, RemoteDataState} from 'src/types'
 import {TimeZoneDropdown} from 'src/shared/components/TimeZoneDropdown'
 import {SubmitQueryButton} from 'src/timeMachine/components/SubmitQueryButton'
 
+const FULL_WIDTH = true
+
 const Header: FC = () => {
   const {id} = useContext(NotebookContext)
   const {timeContext, addTimeContext, updateTimeContext} = useContext(
@@ -49,10 +51,10 @@ const Header: FC = () => {
 
   return (
     <>
-      <Page.Header>
+      <Page.Header fullWidth={FULL_WIDTH}>
         <Page.Title title="Notebooks" />
       </Page.Header>
-      <Page.ControlBar fullWidth={true}>
+      <Page.ControlBar fullWidth={FULL_WIDTH}>
         <Page.ControlBarLeft>
           <AddButtons />
         </Page.ControlBarLeft>
