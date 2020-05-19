@@ -12,11 +12,9 @@ export interface TimeState {
   [key: string]: TimeBlock
 }
 
-export const DEFAULT_STATE: TimeState = {
-  new: {
-    range: DEFAULT_TIME_RANGE,
-    refresh: AUTOREFRESH_DEFAULT,
-  },
+export const DEFAULT_STATE: TimeBlock = {
+  range: DEFAULT_TIME_RANGE,
+  refresh: AUTOREFRESH_DEFAULT,
 }
 
 export interface TimeContext {
@@ -27,7 +25,7 @@ export interface TimeContext {
 }
 
 export const DEFAULT_CONTEXT: TimeContext = {
-  timeContext: DEFAULT_STATE,
+  timeContext: {},
   addTimeContext: () => {},
   updateTimeContext: () => {},
   removeTimeContext: () => {},
@@ -36,7 +34,7 @@ export const DEFAULT_CONTEXT: TimeContext = {
 export const TimeContext = React.createContext<TimeContext>(DEFAULT_CONTEXT)
 
 export const TimeProvider: FC = ({children}) => {
-  const [timeContext, setTimeContext] = useState(DEFAULT_STATE)
+  const [timeContext, setTimeContext] = useState({})
 
   function addTimeContext(id: string, block?: TimeBlock) {
     setTimeContext(ranges => {
@@ -49,7 +47,7 @@ export const TimeProvider: FC = ({children}) => {
 
       return {
         ...ranges,
-        [id]: {...(block || DEFAULT_CONTEXT['new'])},
+        [id]: {...(block || DEFAULT_STATE)},
       }
     })
   }
@@ -68,6 +66,10 @@ export const TimeProvider: FC = ({children}) => {
 
   function removeTimeContext(id: string) {
     setTimeContext(ranges => {
+      if (!ranges.hasOwnProperty(id)) {
+        throw new Error(`TimeContext[${id}] doesn't exist`)
+        return ranges
+      }
       delete ranges[id]
       return {...ranges}
     })

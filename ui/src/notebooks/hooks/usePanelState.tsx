@@ -4,7 +4,7 @@ import classnames from 'classnames'
 type PanelState = 'hidden' | 'small' | 'large'
 
 interface ProgressMap {
-  [key: PanelState]: PanelState
+  [key: string]: PanelState
 }
 
 const PANEL_PROGRESS: ProgressMap = {

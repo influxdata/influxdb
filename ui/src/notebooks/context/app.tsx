@@ -1,7 +1,7 @@
 import React, {FC} from 'react'
 import {connect} from 'react-redux'
 import {setTimeZone} from 'src/shared/actions/app'
-import { timeZone as timeZoneFromState } from 'src/shared/selectors/app'
+import {timeZone as timeZoneFromState} from 'src/shared/selectors/app'
 
 import {AppState, TimeZone} from 'src/types'
 
