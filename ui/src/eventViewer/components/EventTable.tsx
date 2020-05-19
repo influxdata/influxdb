@@ -1,5 +1,5 @@
 // Libraries
-import React, {useLayoutEffect, FC, useEffect, useState, Dispatch} from 'react'
+import React, {useLayoutEffect, FC, useEffect, useState} from 'react'
 import {connect} from 'react-redux'
 import {AutoSizer, InfiniteLoader, List} from 'react-virtualized'
 
@@ -9,11 +9,9 @@ import TableRow from 'src/eventViewer/components/TableRow'
 import LoadingRow from 'src/eventViewer/components/LoadingRow'
 import FooterRow from 'src/eventViewer/components/FooterRow'
 import ErrorRow from 'src/eventViewer/components/ErrorRow'
-import {Notification, Gradients, IconFont, ComponentSize} from '@influxdata/clockface'
 
 // Actions
 import {notify as notifyAction} from 'src/shared/actions/notifications'
-import {checkStatusLoading} from 'src/shared/copy/notifications'
 
 // Utils
 import {
@@ -39,7 +37,6 @@ type OwnProps = {
 type Props = EventViewerChildProps & DispatchProps & OwnProps
 
 const EventTable: FC<Props> = ({state, dispatch, loadRows, fields, notify}) => {
-
   const rowCount = getRowCount(state)
 
   const isRowLoaded = ({index}) => !!state.rows[index]
@@ -51,9 +48,9 @@ const EventTable: FC<Props> = ({state, dispatch, loadRows, fields, notify}) => {
   const [isLongRunningQuery, setIsLongRunningQuery] = useState(false)
 
   useEffect(() => {
-    setTimeout(
-    ()=>{setIsLongRunningQuery(true)}, 5000 
-    )
+    setTimeout(() => {
+      setIsLongRunningQuery(true)
+    }, 5000)
   })
 
   useEffect(() => {
@@ -64,7 +61,7 @@ const EventTable: FC<Props> = ({state, dispatch, loadRows, fields, notify}) => {
 
   const rowRenderer = ({key, index, style}) => {
     const isLastRow = index === state.rows.length
-    
+
     if (isLastRow && state.nextRowsStatus === RemoteDataState.Error) {
       return <ErrorRow key={key} index={index} style={style} />
     }
@@ -135,8 +132,7 @@ const EventTable: FC<Props> = ({state, dispatch, loadRows, fields, notify}) => {
   )
 }
 
-
-const mdtp:DispatchProps = {
+const mdtp: DispatchProps = {
   notify: notifyAction,
 }
 
