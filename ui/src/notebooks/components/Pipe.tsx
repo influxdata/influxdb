@@ -3,7 +3,8 @@ import {NotebookContext} from 'src/notebooks/context/notebook'
 
 import {PIPE_DEFINITIONS, PipeProp} from 'src/notebooks'
 
-const Pipe: FC<PipeProp> = ({index}) => {
+const Pipe: FC<PipeProp> = props => {
+  const {index} = props
   const {pipes} = useContext(NotebookContext)
 
   if (!PIPE_DEFINITIONS.hasOwnProperty(pipes[index].type)) {
@@ -11,7 +12,7 @@ const Pipe: FC<PipeProp> = ({index}) => {
     return null
   }
 
-  return createElement(PIPE_DEFINITIONS[pipes[index].type].component, {index})
+  return createElement(PIPE_DEFINITIONS[pipes[index].type].component, props)
 }
 
 export default Pipe
