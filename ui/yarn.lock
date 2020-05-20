@@ -1021,10 +1021,10 @@
   resolved "https://registry.yarnpkg.com/@influxdata/flux-lsp-browser/-/flux-lsp-browser-0.5.8.tgz#95372a08d0d6179efcbed58bc0c4230a17ad9d5b"
   integrity sha512-uaza9uZ6IBt9CWNJs4Cfpa3uSt3AsErfy9xKpjUVkuUYOWmJb3qtqAj7mnWzSjvOjRBXbB3ghHkgOnivxTis+g==
 
-"@influxdata/flux@^0.4.0":
-  version "0.4.0"
-  resolved "https://registry.yarnpkg.com/@influxdata/flux/-/flux-0.4.0.tgz#7780f1344175c3dc784fb935e7224c6758d44846"
-  integrity sha512-m678aFy2fUMlBFwbZ8dG1yawuLUAzOEJm6jPdZR6ezUW/Z07mLk1XwMEbCMk7vFkx1f7cbZ0Yxe/sDt0uwRcxA==
+"@influxdata/flux@^0.5.1":
+  version "0.5.1"
+  resolved "https://registry.yarnpkg.com/@influxdata/flux/-/flux-0.5.1.tgz#e39e7a7af9163fc9494422c8fed77f3ae1b68f56"
+  integrity sha512-GHlkXBhSdJ2m56JzDkbnKPAqLj3/lexPooacu14AWTO4f2sDGLmzM7r0AxgdtU1M2x7EXNBwgGOI5EOAdN6mkw==
 
 "@influxdata/giraffe@0.18.0":
   version "0.18.0"
