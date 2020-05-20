@@ -1,26 +1,23 @@
 // Libraries
-import React, {FC} from 'react'
+import React, {FC, useContext} from 'react'
 
 // Components
 import {SquareButton, IconFont} from '@influxdata/clockface'
+import {NotebookContext, PipeMeta} from 'src/notebooks/context/notebook'
 
-// Types
-import {NotebookPanelVisibility} from 'src/notebooks/components/panel/NotebookPanel'
-
-interface Props {
-  visibility: NotebookPanelVisibility
-  onToggle: (visibility: NotebookPanelVisibility) => void
+export interface Props {
+  index: number
 }
 
-const PanelVisibilityToggle: FC<Props> = ({visibility, onToggle}) => {
-  const icon = visibility === 'visible' ? IconFont.EyeOpen : IconFont.EyeClosed
+const PanelVisibilityToggle: FC<Props> = ({index}) => {
+  const {meta, updateMeta} = useContext(NotebookContext)
+
+  const icon = meta[index].visible ? IconFont.EyeOpen : IconFont.EyeClosed
 
   const handleClick = (): void => {
-    if (visibility === 'hidden') {
-      onToggle('visible')
-    } else if (visibility === 'visible') {
-      onToggle('hidden')
-    }
+    updateMeta(index, {
+      visible: !meta[index].visible,
+    } as PipeMeta)
   }
 
   return <SquareButton icon={icon} onClick={handleClick} />

@@ -35,12 +35,6 @@ type NotificationRule interface {
 
 // NotificationRuleStore represents a service for managing notification rule.
 type NotificationRuleStore interface {
-	// UserResourceMappingService must be part of all NotificationRuleStore service,
-	// for create, search, delete.
-	UserResourceMappingService
-	// OrganizationService is needed for search filter
-	OrganizationService
-
 	// FindNotificationRuleByID returns a single notification rule by ID.
 	FindNotificationRuleByID(ctx context.Context, id ID) (NotificationRule, error)
 

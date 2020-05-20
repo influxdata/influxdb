@@ -90,6 +90,22 @@ const queryTagKeys = async (orgID, bucket) => {
   return raw
 }
 
+const queryTagValues = async (orgID, bucket, tag) => {
+  if (!orgID || orgID === '') {
+    throw new Error('no org is provided')
+  }
+
+  const query = `import "influxdata/influxdb/v1"
+      v1.tagValues(bucket:"${bucket}", tag: "${tag}")`
+
+  const raw = await runQuery(orgID, query).promise
+  if (raw.type !== 'SUCCESS') {
+    throw new Error('failed to get tagKeys')
+  }
+
+  return raw
+}
+
 export class LSPServer {
   private server: WASMServer
   private messageID: number = 0
@@ -103,12 +119,23 @@ export class LSPServer {
     this.server.register_buckets_callback(this.getBuckets)
     this.server.register_measurements_callback(this.getMeasurements)
     this.server.register_tag_keys_callback(this.getTagKeys)
+    this.server.register_tag_values_callback(this.getTagValues)
     this.store = reduxStore
   }
 
   getTagKeys = async bucket => {
     try {
       const response = await queryTagKeys(this.orgID, bucket)
+      return parseQueryResponse(response)
+    } catch (e) {
+      console.error(e)
+      return []
+    }
+  }
+
+  getTagValues = async (bucket, tag) => {
+    try {
+      const response = await queryTagValues(this.orgID, bucket, tag)
       return parseQueryResponse(response)
     } catch (e) {
       console.error(e)

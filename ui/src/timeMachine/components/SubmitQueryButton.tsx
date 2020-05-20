@@ -26,7 +26,7 @@ interface StateProps {
 }
 
 interface DispatchProps {
-  onSubmit: typeof saveAndExecuteQueries
+  onSubmit: typeof saveAndExecuteQueries | (() => void)
 }
 
 type Props = StateProps & DispatchProps
@@ -63,6 +63,8 @@ class SubmitQueryButton extends PureComponent<Props> {
     this.props.onSubmit()
   }
 }
+
+export {SubmitQueryButton}
 
 const mstp = (state: AppState) => {
   const submitButtonDisabled = getActiveQuery(state).text === ''

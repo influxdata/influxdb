@@ -8,7 +8,6 @@ require (
 	github.com/RoaringBitmap/roaring v0.4.16
 	github.com/andreyvit/diff v0.0.0-20170406064948-c7f18ee00883
 	github.com/apache/arrow/go/arrow v0.0.0-20191024131854-af6fa24be0db
-	github.com/aws/aws-sdk-go v1.16.15 // indirect
 	github.com/benbjohnson/clock v0.0.0-20161215174838-7dc76406b6d3
 	github.com/benbjohnson/tmpl v1.0.0
 	github.com/boltdb/bolt v1.3.1 // indirect
@@ -37,7 +36,7 @@ require (
 	github.com/google/go-cmp v0.3.1
 	github.com/google/go-github v17.0.0+incompatible
 	github.com/google/go-jsonnet v0.14.0
-	github.com/goreleaser/goreleaser v0.97.0
+	github.com/google/go-querystring v1.0.0 // indirect
 	github.com/hashicorp/go-msgpack v0.0.0-20150518234257-fa3f63826f7c // indirect
 	github.com/hashicorp/raft v1.0.0 // indirect
 	github.com/hashicorp/vault/api v1.0.2
@@ -53,7 +52,6 @@ require (
 	github.com/kevinburke/go-bindata v3.11.0+incompatible
 	github.com/mattn/go-colorable v0.1.4 // indirect
 	github.com/mattn/go-isatty v0.0.8
-	github.com/mattn/go-zglob v0.0.1 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.1
 	github.com/mileusna/useragent v0.0.0-20190129205925-3e331f0949a5
 	github.com/mna/pigeon v1.0.1-0.20180808201053-bb0192cfc2ae
@@ -113,5 +111,3 @@ require (
 replace github.com/Sirupsen/logrus => github.com/sirupsen/logrus v1.2.0
 
 replace github.com/influxdata/platform => /dev/null
-
-replace github.com/goreleaser/goreleaser => github.com/influxdata/goreleaser v0.97.0-influx

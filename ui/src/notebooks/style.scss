@@ -19,7 +19,7 @@ $notebook-divider-height: ($cf-marg-a * 2) + $cf-border;
   flex-direction: column;
   align-items: stretch;
   border-radius: $cf-radius;
-  
+
   &:after {
     content: '';
     height: $cf-border;
@@ -267,4 +267,14 @@ $notebook-divider-height: ($cf-marg-a * 2) + $cf-border;
 }
 .notebook-panel--body .view-options--container {
   padding: $cf-marg-c;
+}
+
+.notebook-header--buttons {
+    display: inline-flex;
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+
+    > * {
+        margin-left: 4px;
+    }
 }
