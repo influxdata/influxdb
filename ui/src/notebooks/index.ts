@@ -1,7 +1,7 @@
 import {FunctionComponent, ComponentClass, ReactNode} from 'react'
 
 export interface PipeContextProps {
-    children?: ReactNode
+  children?: ReactNode
 }
 
 export type PipeData = any
@@ -9,7 +9,9 @@ export type PipeData = any
 export interface PipeProp {
   data: PipeData
   onUpdate: (data: PipeData) => void
-  Context: FunctionComponent<PipeContextProps> | ComponentClass<PipeContextProps>
+  Context:
+    | FunctionComponent<PipeContextProps>
+    | ComponentClass<PipeContextProps>
 }
 
 // NOTE: keep this interface as small as possible and

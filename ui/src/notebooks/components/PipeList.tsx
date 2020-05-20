@@ -7,16 +7,16 @@ import NotebookPanel from 'src/notebooks/components/panel/NotebookPanel'
 const PipeList: FC = () => {
   const {id, pipes, updatePipe} = useContext(NotebookContext)
   const _pipes = pipes.map((pipe, index) => {
-      const panel: FC<PipeContextProps> = (props) => {
-          const _props = {
-              ...props,
-              index
-          }
-
-          return createElement(NotebookPanel, _props)
+    const panel: FC<PipeContextProps> = props => {
+      const _props = {
+        ...props,
+        index,
       }
+
+      return createElement(NotebookPanel, _props)
+    }
     const onUpdate = (data: PipeData) => {
-        updatePipe(index, data)
+      updatePipe(index, data)
     }
 
     return (

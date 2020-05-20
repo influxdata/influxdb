@@ -38,29 +38,29 @@ const NotebookPanel: FC<Props> = ({index, children}) => {
   })
 
   return (
-      <div className={panelClassName}>
-    <div className="notebook-panel--header">
-      <FlexBox
-        className="notebook-panel--header-left"
-        alignItems={AlignItems.Center}
-        margin={ComponentSize.Small}
-        justifyContent={JustifyContent.FlexStart}
-      >
-        <NotebookPanelTitle index={index} />
-      </FlexBox>
-      <FlexBox
-        className="notebook-panel--header-right"
-        alignItems={AlignItems.Center}
-        margin={ComponentSize.Small}
-        justifyContent={JustifyContent.FlexEnd}
-      >
-        <MovePanelButton direction="up" onClick={moveUp} />
-        <MovePanelButton direction="down" onClick={moveDown} />
-        <PanelVisibilityToggle index={index} />
-        <RemovePanelButton onRemove={remove} />
-      </FlexBox>
-    </div>
-    <div className="notebook-panel--body">{isVisible && children}</div>
+    <div className={panelClassName}>
+      <div className="notebook-panel--header">
+        <FlexBox
+          className="notebook-panel--header-left"
+          alignItems={AlignItems.Center}
+          margin={ComponentSize.Small}
+          justifyContent={JustifyContent.FlexStart}
+        >
+          <NotebookPanelTitle index={index} />
+        </FlexBox>
+        <FlexBox
+          className="notebook-panel--header-right"
+          alignItems={AlignItems.Center}
+          margin={ComponentSize.Small}
+          justifyContent={JustifyContent.FlexEnd}
+        >
+          <MovePanelButton direction="up" onClick={moveUp} />
+          <MovePanelButton direction="down" onClick={moveDown} />
+          <PanelVisibilityToggle index={index} />
+          <RemovePanelButton onRemove={remove} />
+        </FlexBox>
+      </div>
+      <div className="notebook-panel--body">{isVisible && children}</div>
     </div>
   )
 }
