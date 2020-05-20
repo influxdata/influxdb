@@ -9,12 +9,16 @@ import {
   AlignItems,
   JustifyContent,
 } from '@influxdata/clockface'
-import {PipeContextProps} from 'src/notebooks'
-import {NotebookContext} from 'src/notebooks/context/notebook'
 import RemovePanelButton from 'src/notebooks/components/panel/RemovePanelButton'
 import PanelVisibilityToggle from 'src/notebooks/components/panel/PanelVisibilityToggle'
 import MovePanelButton from 'src/notebooks/components/panel/MovePanelButton'
 import NotebookPanelTitle from 'src/notebooks/components/panel/NotebookPanelTitle'
+
+// Types
+import {PipeContextProps} from 'src/notebooks'
+
+// Contexts
+import {NotebookContext} from 'src/notebooks/context/notebook'
 
 export interface Props extends PipeContextProps {
   index: number
