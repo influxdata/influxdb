@@ -71,7 +71,7 @@ const EventMarker: FC<Props> = ({xScale, xDomain, events, xFormatter}) => {
           />
         </div>
         {tooltipVisible && trigger.current && (
-          <BoxTooltip triggerRect={triggerRect} maxWidth={500}>
+          <BoxTooltip triggerRect={triggerRect} maxWidth={formattedEvents[0].message.length *50}>
             <EventMarkerTooltip events={formattedEvents} />
           </BoxTooltip>
         )}
