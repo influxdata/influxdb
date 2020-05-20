@@ -65,13 +65,16 @@ export const NotebookProvider: FC = ({children}) => {
     )
   }
 
+  // NOTE: do not return a pipes.slice in here, or
+  // everything will rerender all the time and the
+  // fans kick on and your lap will get warm
   function updatePipe(idx: number, pipe: PipeData) {
     setPipes(pipes => {
       pipes[idx] = {
         ...pipes[idx],
         ...pipe,
       }
-      return pipes.slice()
+      return pipes
     })
   }
 

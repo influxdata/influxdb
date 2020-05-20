@@ -1,11 +1,9 @@
-import React, {FC, useContext} from 'react'
+import React, {FC, useMemo} from 'react'
 import {PipeProp} from 'src/notebooks'
-import {NotebookContext} from 'src/notebooks/context/notebook'
 import {TimeMachineFluxEditor} from 'src/timeMachine/components/TimeMachineFluxEditor'
 
-const Query: FC<PipeProp> = ({index}) => {
-  const {pipes, updatePipe} = useContext(NotebookContext)
-  const {queries, activeQuery} = pipes[index]
+const Query: FC<PipeProp> = ({data, onUpdate, Context}) => {
+  const {queries, activeQuery} = data
   const query = queries[activeQuery]
 
   function updateText(text) {
@@ -15,25 +13,22 @@ const Query: FC<PipeProp> = ({index}) => {
       text,
     }
 
-    updatePipe(index, {queries: _queries})
+    onUpdate({queries: _queries})
   }
 
-  const queryPipes = pipes
-    .map(({type}, index) => ({type, index}))
-    .filter(pipe => pipe.type === 'query')
-  const isLast = queryPipes[queryPipes.length - 1].index === index
-
-  return (
-    <div className="notebook-query">
+  const editor = useMemo(
+    () => (
       <TimeMachineFluxEditor
         activeQueryText={query.text}
         activeTab={activeQuery}
         onSetActiveQueryText={updateText}
         onSubmitQueries={() => {}}
-        skipFocus={!isLast}
       />
-    </div>
+    ),
+    [query.text]
   )
+
+  return <Context>{editor}</Context>
 }
 
 export default Query

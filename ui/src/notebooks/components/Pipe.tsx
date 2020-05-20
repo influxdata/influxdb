@@ -1,4 +1,4 @@
-import {FC, createElement} from 'react'
+import {FC, createElement, useMemo} from 'react'
 
 import {PIPE_DEFINITIONS, PipeProp} from 'src/notebooks'
 
@@ -10,7 +10,10 @@ const Pipe: FC<PipeProp> = props => {
     return null
   }
 
-  return createElement(PIPE_DEFINITIONS[data.type].component, props)
+  return useMemo(
+    () => createElement(PIPE_DEFINITIONS[data.type].component, props),
+    [data]
+  )
 }
 
 export default Pipe
