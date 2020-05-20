@@ -42,10 +42,10 @@ archive:
 snapshot:
   name_template: 'nightly'
 
-s3:
-  -
-    bucket: dl.influxdata.com
-    region: us-east-1
+blobs:
+  - provider: "s3"
+    bucket: "dl.influxdata.com"
+    region: "us-east-1"
     folder: "platform/nightlies/"
 
 dockers:
