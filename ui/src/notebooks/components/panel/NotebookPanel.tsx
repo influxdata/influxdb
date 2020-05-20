@@ -1,5 +1,5 @@
 // Libraries
-import React, {FC, ReactChildren, useState} from 'react'
+import React, {FC, useContext} from 'react'
 import classnames from 'classnames'
 
 // Components
@@ -9,43 +9,32 @@ import {
   AlignItems,
   JustifyContent,
 } from '@influxdata/clockface'
+import {PipeContextProps} from 'src/notebooks'
+import {NotebookContext} from 'src/notebooks/context/notebook'
 import RemovePanelButton from 'src/notebooks/components/panel/RemovePanelButton'
 import PanelVisibilityToggle from 'src/notebooks/components/panel/PanelVisibilityToggle'
 import MovePanelButton from 'src/notebooks/components/panel/MovePanelButton'
 import NotebookPanelTitle from 'src/notebooks/components/panel/NotebookPanelTitle'
 
-interface Props {
-  id: string
-  children: ReactChildren | JSX.Element | JSX.Element[]
-  title: string
-  onTitleChange?: (title: string) => void
-  previousPanelTitle?: string
-  controlsLeft?: JSX.Element | JSX.Element[]
-  controlsRight?: JSX.Element | JSX.Element[]
-  onRemove?: () => void
-  onMoveUp?: () => void
-  onMoveDown?: () => void
+export interface Props extends PipeContextProps {
+  index: number
 }
 
-export type NotebookPanelVisibility = 'hidden' | 'visible'
+const NotebookPanel: FC<Props> = ({index, children}) => {
+  const {pipes, removePipe, movePipe, meta} = useContext(NotebookContext)
+  const canBeMovedUp = index > 0
+  const canBeMovedDown = index < pipes.length - 1
+  const canBeRemoved = index !== 0
 
-const NotebookPanel: FC<Props> = ({
-  children,
-  title,
-  previousPanelTitle,
-  onTitleChange,
-  controlsLeft,
-  controlsRight,
-  onRemove,
-  onMoveUp,
-  onMoveDown,
-}) => {
-  const [panelVisibility, setPanelVisibility] = useState<
-    NotebookPanelVisibility
-  >('visible')
+  const moveUp = canBeMovedUp ? () => movePipe(index, index - 1) : null
+  const moveDown = canBeMovedDown ? () => movePipe(index, index + 1) : null
+  const remove = canBeRemoved ? () => removePipe(index) : null
+
+  const isVisible = meta[index].visible
 
   const panelClassName = classnames('notebook-panel', {
-    [`notebook-panel__${panelVisibility}`]: panelVisibility,
+    [`notebook-panel__visible`]: isVisible,
+    [`notebook-panel__hidden`]: !isVisible,
   })
 
   return (
@@ -57,12 +46,7 @@ const NotebookPanel: FC<Props> = ({
           margin={ComponentSize.Small}
           justifyContent={JustifyContent.FlexStart}
         >
-          <NotebookPanelTitle
-            title={title}
-            onTitleChange={onTitleChange}
-            previousPanelTitle={previousPanelTitle}
-          />
-          {controlsLeft}
+          <NotebookPanelTitle index={index} />
         </FlexBox>
         <FlexBox
           className="notebook-panel--header-right"
@@ -70,19 +54,13 @@ const NotebookPanel: FC<Props> = ({
           margin={ComponentSize.Small}
           justifyContent={JustifyContent.FlexEnd}
         >
-          {controlsRight}
-          <MovePanelButton direction="up" onClick={onMoveUp} />
-          <MovePanelButton direction="down" onClick={onMoveDown} />
-          <PanelVisibilityToggle
-            onToggle={setPanelVisibility}
-            visibility={panelVisibility}
-          />
-          <RemovePanelButton onRemove={onRemove} />
+          <MovePanelButton direction="up" onClick={moveUp} />
+          <MovePanelButton direction="down" onClick={moveDown} />
+          <PanelVisibilityToggle index={index} />
+          <RemovePanelButton onRemove={remove} />
         </FlexBox>
       </div>
-      <div className="notebook-panel--body">
-        {panelVisibility === 'visible' && children}
-      </div>
+      <div className="notebook-panel--body">{isVisible && children}</div>
     </div>
   )
 }

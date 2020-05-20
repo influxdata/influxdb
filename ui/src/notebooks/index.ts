@@ -1,10 +1,17 @@
-import {FunctionComponent, ComponentClass} from 'react'
+import {FunctionComponent, ComponentClass, ReactNode} from 'react'
+
+export interface PipeContextProps {
+  children?: ReactNode
+}
+
+export type PipeData = any
 
 export interface PipeProp {
-  index: number
-  remove: () => void
-  moveUp: () => void
-  moveDown: () => void
+  data: PipeData
+  onUpdate: (data: PipeData) => void
+  Context:
+    | FunctionComponent<PipeContextProps>
+    | ComponentClass<PipeContextProps>
 }
 
 // NOTE: keep this interface as small as possible and
