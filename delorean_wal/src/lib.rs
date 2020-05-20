@@ -8,8 +8,6 @@
 //!
 //! Work remaining:
 //!
-//! - Entry sequence number
-//! - File rollover
 //! - Metadata file
 //! - Atomic remove of entries
 //! - Tracking of the total size of all segments in the log
@@ -20,15 +18,21 @@ use arc_swap::ArcSwap;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use bytes::{Bytes, BytesMut};
 use crc32fast::Hasher;
+use once_cell::sync::Lazy;
+use regex::Regex;
 use snafu::{ensure, ResultExt, Snafu};
 use std::{
     convert::TryFrom,
+    ffi::OsStr,
     fs::{self, File, OpenOptions},
-    io::{self, Read, Write},
-    iter, num,
+    io::{self, ErrorKind, Read, Seek, SeekFrom, Write},
+    iter, mem, num,
     ops::{Deref, DerefMut},
-    path::PathBuf,
-    sync::Arc,
+    path::{Path, PathBuf},
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc,
+    },
 };
 
 /// Opaque public `Error` type
@@ -37,6 +41,16 @@ pub struct Error(InternalError);
 
 #[derive(Debug, Snafu, Clone)]
 enum InternalError {
+    UnableToReadFileMetadata {
+        #[snafu(source(from(io::Error, Arc::new)))]
+        source: Arc<io::Error>,
+    },
+
+    UnableToReadSequenceNumber {
+        #[snafu(source(from(io::Error, Arc::new)))]
+        source: Arc<io::Error>,
+    },
+
     UnableToReadChecksum {
         #[snafu(source(from(io::Error, Arc::new)))]
         source: Arc<io::Error>,
@@ -65,6 +79,11 @@ enum InternalError {
     ChunkSizeTooLarge {
         source: num::TryFromIntError,
         actual: usize,
+    },
+
+    UnableToWriteSequenceNumber {
+        #[snafu(source(from(io::Error, Arc::new)))]
+        source: Arc<io::Error>,
     },
 
     UnableToWriteChecksum {
@@ -105,6 +124,12 @@ enum InternalError {
         src: PathBuf,
         dst: PathBuf,
     },
+
+    UnableToReadDirectoryContents {
+        #[snafu(source(from(io::Error, Arc::new)))]
+        source: Arc<io::Error>,
+        path: PathBuf,
+    },
 }
 
 /// A specialized `Result` for WAL-related errors
@@ -116,14 +141,36 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Debug, Clone)]
 pub struct WalBuilder {
     root: PathBuf,
+    file_rollover_size: u64,
 }
 
 impl WalBuilder {
+    /// The default size to create new WAL files at. Currently 10MiB.
+    ///
+    /// See [WalBuilder::file_rollover_size]
+    pub const DEFAULT_FILE_ROLLOVER_SIZE_BYTES: u64 = 10 * 1024 * 1024;
+
     /// Create a new WAL rooted at the provided directory on disk.
     pub fn new(root: impl Into<PathBuf>) -> Self {
         // TODO: Error if `root` is not a directory?
         let root = root.into();
-        Self { root }
+        Self {
+            root,
+            file_rollover_size: Self::DEFAULT_FILE_ROLLOVER_SIZE_BYTES,
+        }
+    }
+
+    /// Set the size (in bytes) of each WAL file that should prompt a file rollover when it is
+    /// exceeded.
+    ///
+    /// File rollover happens per sync batch. If the file is underneath this file size limit at the
+    /// start of a sync operation, the entire sync batch will be written to that file even if
+    /// some of the entries in the batch cause the file to exceed the file size limit.
+    ///
+    /// See [WalBuilder::DEFAULT_FILE_ROLLOVER_SIZE_BYTES]
+    pub fn file_rollover_size(mut self, file_rollover_size: u64) -> Self {
+        self.file_rollover_size = file_rollover_size;
+        self
     }
 
     /// Consume the builder and create a `Wal`.
@@ -132,12 +179,20 @@ impl WalBuilder {
     ///
     /// - `N` is a type that will be returned when this batch is synchronized to
     ///   disk (or attempted to). It should be cheaply clonable.
-    pub fn wal<N: Clone>(self) -> Wal<N> {
+    ///
+    /// # Asynchronous considerations
+    ///
+    /// This method performs blocking IO and care should be taken when using
+    /// it in an asynchronous context.
+    pub fn wal<N: Clone>(self) -> Result<Wal<N>> {
         Wal::new(self.file_locator())
     }
 
     /// Consume the builder to get an iterator of all entries in this
     /// WAL that have been persisted to disk.
+    ///
+    /// Sequence numbers on the entries will be in increasing order, but if files have been
+    /// modified or deleted since getting this iterator, there may be gaps in the sequence.
     ///
     /// # Asynchronous considerations
     ///
@@ -148,7 +203,10 @@ impl WalBuilder {
     }
 
     fn file_locator(self) -> FileLocator {
-        FileLocator { root: self.root }
+        FileLocator {
+            root: self.root,
+            file_rollover_size: self.file_rollover_size,
+        }
     }
 }
 
@@ -169,7 +227,7 @@ impl WalBuilder {
 ///
 /// // This value should be cloned and used across multiple tasks, such as per
 /// // HTTP request.
-/// let wal = WalBuilder::new(root_path).wal::<mpsc::Sender<delorean_wal::Result<_>>>();
+/// let wal = WalBuilder::new(root_path).wal::<mpsc::Sender<delorean_wal::Result<_>>>()?;
 ///
 /// // We will mimic a HTTP request as a Tokio task.
 /// // There can be many of these.
@@ -210,6 +268,7 @@ where
     N: Clone,
 {
     files: FileLocator,
+    sequence_number: Arc<AtomicU64>,
     pending: Arc<ArcSwap<Vec<Pending<N>>>>,
 }
 
@@ -217,11 +276,16 @@ impl<N> Wal<N>
 where
     N: Clone,
 {
-    fn new(files: FileLocator) -> Self {
-        Self {
+    fn new(files: FileLocator) -> Result<Self> {
+        let last_sequence_number = Loader::last_sequence_number(files.clone())?;
+        let sequence_number = last_sequence_number.map_or(0, |last| last + 1);
+        let sequence_number = Arc::new(sequence_number.into());
+
+        Ok(Self {
             files,
+            sequence_number,
             pending: Default::default(),
-        }
+        })
     }
 
     /// Start appending data to this WAL.
@@ -248,32 +312,49 @@ where
     ///
     /// This method performs blocking IO and care should be taken when using
     /// it in an asynchronous context.
+    ///
+    /// # Multiprocessing considerations
+    ///
+    /// Data corruption should not occur if this method is called
+    /// multiple times concurrently, but an error might be returned or
+    /// the order that data is written to disk might not correspond to
+    /// your intuition.
     pub fn sync(&self) -> (Vec<N>, Result<()>) {
         // Atomically get all pending operations and start a new list.
         let pending = self.pending.swap(Default::default());
         let pending = &**pending;
 
+        let n_pending = pending.len();
+        let n_pending =
+            u64::try_from(n_pending).expect("Only designed to run on 64-bit systems or lower");
+
+        let sequence_number_base = self.sequence_number.fetch_add(n_pending, Ordering::SeqCst);
+
         let to_notify: Vec<_> = pending.iter().map(|p| N::clone(&p.notify)).collect();
 
         let outcome = (move || {
             // Get the file to write to
-            let mut file = self.files.open_file_for_append()?;
+            let mut file = self.files.open_file_for_append(sequence_number_base)?;
 
             // TODO: Would a user ever wish to resume or retry some failed IO?
-            for pending in pending {
+            for (i, pending) in pending.iter().enumerate() {
+                let i = u64::try_from(i).expect("Only designed to run on 64-bit systems or lower");
+                let sequence_number = sequence_number_base + i;
+
                 let Pending {
                     checksum,
-                    data,
+                    ref data,
                     len,
                     ..
-                } = pending;
+                } = *pending;
 
-                // TODO: also write a sequence number
-                file.write_u32::<LittleEndian>(*checksum)
-                    .context(UnableToWriteChecksum)?;
-                file.write_u32::<LittleEndian>(*len)
-                    .context(UnableToWriteLength)?;
+                let header = Header {
+                    sequence_number,
+                    checksum,
+                    len,
+                };
 
+                header.write(&mut *file)?;
                 file.write_all(&data).context(UnableToWriteData)?;
             }
 
@@ -302,38 +383,93 @@ where
 #[derive(Debug, Clone)]
 struct FileLocator {
     root: PathBuf,
+    file_rollover_size: u64,
 }
 
 impl FileLocator {
+    const PREFIX: &'static str = "wal_";
     const EXTENSION: &'static str = "db";
     const TEMP_EXTENSION: &'static str = "tmpdb";
 
-    fn open_file_for_read(&self) -> Result<File> {
-        // Currently only uses one file named `wal.db`, TODO: file rollover
-        let mut path = self.root.join("wal");
-        path.set_extension(Self::EXTENSION);
+    fn open_files_for_read(&self) -> Result<impl Iterator<Item = Result<Option<File>>> + '_> {
+        Ok(self
+            .existing_filenames()?
+            .map(move |path| self.open_file_for_read(&path)))
+    }
 
-        OpenOptions::new()
+    fn open_file_for_read(&self, path: &Path) -> Result<Option<File>> {
+        let r = OpenOptions::new()
             .read(true)
             .write(false)
             .create(false)
-            .open(&path)
-            .context(UnableToOpenFile { path })
-            .map_err(Into::into)
+            .open(&path);
+
+        match r {
+            Err(e) if e.kind() == ErrorKind::NotFound => Ok(None),
+            r => r
+                .map(Some)
+                .context(UnableToOpenFile { path })
+                .map_err(Into::into),
+        }
     }
 
-    fn open_file_for_append(&self) -> Result<SideFile> {
+    fn open_file_for_append(&self, starting_sequence_number: u64) -> Result<SideFile> {
         // TODO: create directories?
 
-        // File where data will end up eventually
-        let mut final_destination = self.root.join("wal");
-        final_destination.set_extension(Self::EXTENSION);
+        // Is there an existing file?
+        let existing_file = self.active_filename()?;
+
+        let final_destination = existing_file
+            .filter(|existing| {
+                // If there is an existing file, check its size.
+                fs::metadata(&existing)
+                    // Use the existing file if its size is under the file size limit.
+                    .map(|metadata| metadata.len() < self.file_rollover_size)
+                    .unwrap_or(false)
+            })
+            // If there is no file or the file is over the file size limit, start a new file.
+            .unwrap_or_else(|| self.filename_starting_at_sequence_number(starting_sequence_number));
 
         // Temporary file for the purposes of doing an atomic-ish write
         let mut temporary_destination = final_destination.clone();
         temporary_destination.set_extension(Self::TEMP_EXTENSION);
 
         SideFile::new(final_destination, temporary_destination)
+    }
+
+    fn active_filename(&self) -> Result<Option<PathBuf>> {
+        Ok(self.existing_filenames()?.last())
+    }
+
+    fn existing_filenames(&self) -> Result<impl Iterator<Item = PathBuf>> {
+        static FILENAME_PATTERN: Lazy<Regex> = Lazy::new(|| {
+            let pattern = format!(r"^{}[0-9a-f]{{16}}$", FileLocator::PREFIX);
+            Regex::new(&pattern).expect("Hardcoded regex should be valid")
+        });
+
+        let mut wal_paths: Vec<_> = fs::read_dir(&self.root)
+            .context(UnableToReadDirectoryContents { path: &self.root })?
+            .flatten() // Discard errors
+            .map(|e| e.path())
+            .filter(|path| path.extension() == Some(OsStr::new(Self::EXTENSION)))
+            .filter(|path| {
+                path.file_stem().map_or(false, |file_stem| {
+                    let file_stem = file_stem.to_string_lossy();
+                    FILENAME_PATTERN.is_match(&file_stem)
+                })
+            })
+            .collect();
+
+        wal_paths.sort();
+
+        Ok(wal_paths.into_iter())
+    }
+
+    fn filename_starting_at_sequence_number(&self, starting_sequence_number: u64) -> PathBuf {
+        let file_stem = format!("{}{:016x}", Self::PREFIX, starting_sequence_number);
+        let mut filename = self.root.join(file_stem);
+        filename.set_extension(Self::EXTENSION);
+        filename
     }
 }
 
@@ -422,26 +558,91 @@ impl DerefMut for SideFile {
 struct Loader;
 
 impl Loader {
-    fn load(files: FileLocator) -> Result<impl Iterator<Item = Result<Entry>>> {
-        let mut file = files.open_file_for_read()?;
-        Ok(iter::from_fn(move || Self::load_one(&mut file).transpose()))
+    fn last_sequence_number(files: FileLocator) -> Result<Option<u64>> {
+        let last = Self::headers(files)?.last().transpose()?;
+        Ok(last.map(|h| h.sequence_number))
     }
 
-    fn load_one(file: &mut File) -> Result<Option<Entry>> {
-        let expected_checksum = match file.read_u32::<LittleEndian>() {
-            Err(e) if e.kind() == io::ErrorKind::UnexpectedEof => return Ok(None),
-            e => e.context(UnableToReadChecksum)?,
-        };
-        let expected_len = file
-            .read_u32::<LittleEndian>()
-            .context(UnableToReadLength)?;
+    fn headers(files: FileLocator) -> Result<impl Iterator<Item = Result<Header>>> {
+        let r = files
+            .open_files_for_read()?
+            .flat_map(|result_option_file| result_option_file.transpose())
+            .map(|result_file| result_file.and_then(Self::headers_from_one_file));
 
-        let expected_len_us = usize::try_from(expected_len)
-            .expect("Only designed to run on 32-bit systems or higher");
+        itertools::process_results(r, |iterator_of_iterators_of_result_headers| {
+            iterator_of_iterators_of_result_headers
+                .flatten()
+                .collect::<Vec<_>>()
+                .into_iter()
+        })
+    }
+
+    fn headers_from_one_file(mut file: File) -> Result<impl Iterator<Item = Result<Header>>> {
+        let metadata = file.metadata().context(UnableToReadFileMetadata)?;
+        let mut length_remaining = metadata.len();
+
+        Ok(Box::new(iter::from_fn(move || {
+            if length_remaining == 0 {
+                return None;
+            }
+
+            match Header::read(&mut file) {
+                Ok(header) => {
+                    let data_len = i64::from(header.len);
+                    file.seek(SeekFrom::Current(data_len)).unwrap();
+
+                    length_remaining -= Header::LEN + u64::from(header.len);
+
+                    Some(Ok(header))
+                }
+                Err(e) => Some(Err(e)),
+            }
+        })))
+    }
+
+    fn load(files: FileLocator) -> Result<impl Iterator<Item = Result<Entry>>> {
+        let r = files
+            .open_files_for_read()?
+            .flat_map(|result_option_file| result_option_file.transpose())
+            .map(|result_file| result_file.and_then(Self::load_from_one_file));
+
+        itertools::process_results(r, |iterator_of_iterators_of_result_entries| {
+            iterator_of_iterators_of_result_entries
+                .flatten()
+                .collect::<Vec<_>>()
+                .into_iter()
+        })
+    }
+
+    fn load_from_one_file(mut file: File) -> Result<impl Iterator<Item = Result<Entry>>> {
+        let metadata = file.metadata().context(UnableToReadFileMetadata)?;
+        let mut length_remaining = metadata.len();
+
+        Ok(Box::new(iter::from_fn(move || {
+            if length_remaining == 0 {
+                return None;
+            }
+
+            match Self::load_one(&mut file) {
+                Ok((entry, bytes_read)) => {
+                    length_remaining -= bytes_read;
+
+                    Some(Ok(entry))
+                }
+                Err(e) => Some(Err(e)),
+            }
+        })))
+    }
+
+    fn load_one(file: &mut File) -> Result<(Entry, u64)> {
+        let header = Header::read(&mut *file)?;
+
+        let expected_len_us =
+            usize::try_from(header.len).expect("Only designed to run on 32-bit systems or higher");
 
         let mut data = Vec::with_capacity(expected_len_us);
         let actual_len = file
-            .take(u64::from(expected_len))
+            .take(u64::from(header.len))
             .read_to_end(&mut data)
             .context(UnableToReadData)?;
 
@@ -458,14 +659,56 @@ impl Loader {
         let actual_checksum = hasher.finalize();
 
         ensure!(
-            expected_checksum == actual_checksum,
+            header.checksum == actual_checksum,
             ChecksumMismatch {
-                expected: expected_checksum,
+                expected: header.checksum,
                 actual: actual_checksum
             }
         );
 
-        Ok(Some(Entry { data }))
+        let entry = Entry {
+            sequence_number: header.sequence_number,
+            data,
+        };
+
+        let bytes_read = Header::LEN + u64::from(header.len);
+
+        Ok((entry, bytes_read))
+    }
+}
+
+#[derive(Debug)]
+struct Header {
+    sequence_number: u64,
+    checksum: u32,
+    len: u32,
+}
+
+impl Header {
+    const LEN: u64 = (mem::size_of::<u64>() + mem::size_of::<u32>() + mem::size_of::<u32>()) as u64;
+
+    fn read(mut r: impl Read) -> Result<Self> {
+        let sequence_number = r
+            .read_u64::<LittleEndian>()
+            .context(UnableToReadSequenceNumber)?;
+        let checksum = r.read_u32::<LittleEndian>().context(UnableToReadChecksum)?;
+        let len = r.read_u32::<LittleEndian>().context(UnableToReadLength)?;
+
+        Ok(Self {
+            sequence_number,
+            checksum,
+            len,
+        })
+    }
+
+    fn write(&self, mut w: impl Write) -> Result<()> {
+        w.write_u64::<LittleEndian>(self.sequence_number)
+            .context(UnableToWriteSequenceNumber)?;
+        w.write_u32::<LittleEndian>(self.checksum)
+            .context(UnableToWriteChecksum)?;
+        w.write_u32::<LittleEndian>(self.len)
+            .context(UnableToWriteLength)?;
+        Ok(())
     }
 }
 
@@ -474,10 +717,16 @@ impl Loader {
 /// This corresponds to one call to `Wal::append`.
 #[derive(Debug)]
 pub struct Entry {
+    sequence_number: u64,
     data: Vec<u8>,
 }
 
 impl Entry {
+    /// Gets the unique, increasing sequence number associated with this data
+    pub fn sequence_number(&self) -> u64 {
+        self.sequence_number
+    }
+
     /// Gets a reference to the entry's data
     pub fn as_data(&self) -> &[u8] {
         &self.data
@@ -602,6 +851,70 @@ mod tests {
         let s = fs::read_to_string(existing_path)?;
 
         assert_eq!("helloworld", s);
+
+        Ok(())
+    }
+
+    #[test]
+    fn sequence_numbers_are_persisted() -> Result {
+        let dir = delorean_test_helpers::tmp_dir()?;
+        let builder = WalBuilder::new(dir.as_ref());
+        let mut wal;
+
+        // Create one in-memory WAL and sync it
+        {
+            wal = builder.clone().wal()?;
+
+            let mut w = wal.append();
+            w.write_all(b"some")?;
+            w.write_all(b"data")?;
+            w.finalize(())?;
+
+            let (to_notify, outcome) = wal.sync();
+            assert!(matches!(outcome, Ok(())));
+            assert_eq!(1, to_notify.len());
+        }
+
+        // Pretend the process restarts
+        {
+            wal = builder.wal()?;
+
+            assert_eq!(1, wal.sequence_number.load(Ordering::SeqCst));
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn sequence_numbers_increase_by_number_of_pending_entries() -> Result {
+        let dir = delorean_test_helpers::tmp_dir()?;
+        let builder = WalBuilder::new(dir.as_ref());
+        let wal = builder.wal()?;
+
+        // Write 1 entry then sync
+        let mut w = wal.append();
+        w.write_all(b"some")?;
+        w.finalize(())?;
+        let (to_notify, outcome) = wal.sync();
+        assert!(matches!(outcome, Ok(())));
+        assert_eq!(1, to_notify.len());
+
+        // Sequence number should increase by 1
+        assert_eq!(1, wal.sequence_number.load(Ordering::SeqCst));
+
+        // Write 2 entries then sync
+        let mut w = wal.append();
+        w.write_all(b"other")?;
+        w.finalize(())?;
+        let mut w = wal.append();
+        w.write_all(b"again")?;
+        w.finalize(())?;
+        let (to_notify, outcome) = wal.sync();
+        assert!(matches!(outcome, Ok(())));
+        assert_eq!(2, to_notify.len());
+
+        // Sequence number should increase by 2
+        assert_eq!(3, wal.sequence_number.load(Ordering::SeqCst));
 
         Ok(())
     }

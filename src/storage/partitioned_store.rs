@@ -229,7 +229,9 @@ impl Partition {
 }
 
 fn start_wal_sync_task(wal_builder: WalBuilder) -> Wal<mpsc::Sender<delorean_wal::Result<()>>> {
-    let wal = wal_builder.wal::<mpsc::Sender<_>>();
+    let wal = wal_builder
+        .wal::<mpsc::Sender<_>>()
+        .expect("TODO handle failures");
 
     tokio::spawn({
         let wal = wal.clone();
