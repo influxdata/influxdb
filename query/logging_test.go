@@ -4,10 +4,10 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"io/ioutil"
 	"testing"
 	"time"
 
-	"github.com/docker/docker/pkg/ioutils"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/influxdata/flux"
@@ -124,7 +124,7 @@ func TestLoggingProxyQueryService(t *testing.T) {
 		})
 
 		lpqs := query.NewLoggingProxyQueryService(zap.NewNop(), logger, pqs, condLog)
-		_, err := lpqs.Query(context.Background(), &ioutils.NopWriter{}, req)
+		_, err := lpqs.Query(context.Background(), ioutil.Discard, req)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -134,7 +134,7 @@ func TestLoggingProxyQueryService(t *testing.T) {
 		}
 
 		ctx := context.WithValue(context.Background(), loggingKey, true)
-		_, err = lpqs.Query(ctx, &ioutils.NopWriter{}, req)
+		_, err = lpqs.Query(ctx, ioutil.Discard, req)
 		if err != nil {
 			t.Fatal(err)
 		}
