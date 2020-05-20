@@ -1207,7 +1207,7 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 
 	tests := make([]plantest.RuleTestCase, 0)
 
-	// construct a simple plan with a specific window
+	// construct a simple plan with a specific window and aggregate function
 	simplePlanWithWindowAgg := func( window universe.WindowProcedureSpec, agg plan.NodeID, spec plan.ProcedureSpec ) *plantest.PlanSpec {
 		return &plantest.PlanSpec{
 			Nodes: []plan.Node{
@@ -1557,6 +1557,220 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 		Rules: []plan.Rule{ influxdb.PushDownWindowAggregateRule{}},
 		Before: simplePlanWithWindowAgg( window1m, "count", countProcedureSpec() ),
 		After: simpleResult( "count" ),
+		NoChange: true,
+	})
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.Name, func(t *testing.T) {
+			t.Parallel()
+			plantest.PhysicalRuleTestHelper(t, &tc)
+		})
+	}
+}
+
+//
+// Group Aggregate Testing
+//
+func TestPushDownGroupAggregateRule(t *testing.T) {
+	// Turn on all flags
+	flagger := mock.NewFlagger(map[feature.Flag] interface{}{
+		feature.PushDownGroupAggregateCount(): true,
+	})
+
+	ctx, _ := feature.Annotate(context.Background(), flagger)
+
+	readGroupAgg := func(aggregateMethod string) *influxdb.ReadGroupPhysSpec{
+		return &influxdb.ReadGroupPhysSpec{
+			ReadRangePhysSpec: influxdb.ReadRangePhysSpec {
+				Bucket: "my-bucket",
+				Bounds: flux.Bounds{
+					Start: fluxTime(5),
+					Stop:  fluxTime(10),
+				},
+			},
+			GroupMode: flux.GroupModeBy,
+			GroupKeys: []string{"_measurement", "tag0", "tag1"},
+			AggregateMethod: aggregateMethod,
+		}
+	}
+	readGroup := func() *influxdb.ReadGroupPhysSpec {
+		return readGroupAgg("")
+	}
+
+	tests := make([]plantest.RuleTestCase, 0)
+
+	// construct a simple plan with a specific aggregate
+	simplePlanWithAgg := func( agg plan.NodeID, spec plan.ProcedureSpec ) *plantest.PlanSpec {
+		return &plantest.PlanSpec{
+			Nodes: []plan.Node{
+				plan.CreateLogicalNode("ReadGroup", readGroup()),
+				plan.CreateLogicalNode(agg, spec),
+			},
+			Edges: [][2]int{
+				{0, 1},
+			},
+		}
+	}
+
+	// construct a simple result
+	simpleResult := func( proc string ) *plantest.PlanSpec {
+		return &plantest.PlanSpec{
+			Nodes: []plan.Node{
+				plan.CreatePhysicalNode("ReadGroup", readGroupAgg(proc) ),
+			},
+		}
+	}
+
+	minProcedureSpec := func() *universe.MinProcedureSpec {
+		return &universe.MinProcedureSpec{
+			SelectorConfig: execute.SelectorConfig{Column: "_value"},
+		}
+	}
+	countProcedureSpec := func() *universe.CountProcedureSpec {
+		return &universe.CountProcedureSpec{
+			AggregateConfig: execute.AggregateConfig{Columns: []string{"_value"}},
+		}
+	}
+	sumProcedureSpec := func() *universe.SumProcedureSpec {
+		return &universe.SumProcedureSpec{
+			AggregateConfig: execute.AggregateConfig{Columns: []string{"_value"}},
+		}
+	}
+
+	// ReadGroup -> count => ReadGroup
+	tests = append(tests, plantest.RuleTestCase{
+		Context: ctx,
+		Name: "SimplePassCount",
+		Rules: []plan.Rule{ influxdb.PushDownGroupAggregateRule{}},
+		Before: simplePlanWithAgg( "count", countProcedureSpec() ),
+		After: simpleResult( "count" ),
+	})
+
+	// Rewrite with successors
+	// ReadGroup -> count -> sum {2} => ReadGroup -> count {2}
+	tests = append(tests, plantest.RuleTestCase{
+		Context: ctx,
+		Name: "WithSuccessor1",
+		Rules: []plan.Rule{ influxdb.PushDownGroupAggregateRule{}},
+		Before: &plantest.PlanSpec{
+			Nodes: []plan.Node{
+				plan.CreateLogicalNode("ReadGroup", readGroup()),
+				plan.CreateLogicalNode("count", countProcedureSpec() ),
+				plan.CreateLogicalNode("sum", sumProcedureSpec() ),
+				plan.CreateLogicalNode("sum", sumProcedureSpec() ),
+			},
+			Edges: [][2]int{
+				{0, 1},
+				{1, 2},
+				{1, 3},
+			},
+		},
+		After: &plantest.PlanSpec{
+			Nodes: []plan.Node{
+				plan.CreatePhysicalNode("ReadGroup", readGroupAgg("count") ),
+				plan.CreateLogicalNode("sum", sumProcedureSpec() ),
+				plan.CreateLogicalNode("sum", sumProcedureSpec() ),
+			},
+			Edges: [][2]int{
+				{0, 1},
+				{0, 2},
+			},
+		},
+	})
+
+	// Cannot replace a ReadGroup that already has an aggregate. This exercises
+	// the check that ReadGroup aggregate is not set.
+	// ReadGroup -> count -> count => ReadGroup -> count
+	tests = append(tests, plantest.RuleTestCase{
+		Context: ctx,
+		Name: "WithSuccessor2",
+		Rules: []plan.Rule{ influxdb.PushDownGroupAggregateRule{}},
+		Before: &plantest.PlanSpec{
+			Nodes: []plan.Node{
+				plan.CreateLogicalNode("ReadGroup", readGroup()),
+				plan.CreateLogicalNode("count", countProcedureSpec() ),
+				plan.CreateLogicalNode("count", countProcedureSpec() ),
+			},
+			Edges: [][2]int{
+				{0, 1},
+				{1, 2},
+			},
+		},
+		After: &plantest.PlanSpec{
+			Nodes: []plan.Node{
+				plan.CreatePhysicalNode("ReadGroup", readGroupAgg("count") ),
+				plan.CreateLogicalNode("count", countProcedureSpec() ),
+			},
+			Edges: [][2]int{
+				{0, 1},
+			},
+		},
+	})
+
+	// Bad count column
+	// ReadGroup -> count => NO-CHANGE
+	tests = append(tests, plantest.RuleTestCase{
+		Name: "BadCountCol",
+		Context: ctx,
+		Rules: []plan.Rule{ influxdb.PushDownGroupAggregateRule{}},
+		Before: simplePlanWithAgg( "count", &universe.CountProcedureSpec{
+			AggregateConfig: execute.AggregateConfig{Columns: []string{"_valmoo"}},
+		}),
+		NoChange: true,
+	})
+
+	// No match due to a collapsed node having a successor
+	// ReadGroup -> count 
+	//          \-> min
+	tests = append(tests, plantest.RuleTestCase{
+		Name: "CollapsedWithSuccessor",
+		Context: ctx,
+		Rules: []plan.Rule{ influxdb.PushDownGroupAggregateRule{}},
+		Before: &plantest.PlanSpec{
+			Nodes: []plan.Node{
+				plan.CreateLogicalNode("ReadGroup", readGroup()),
+				plan.CreateLogicalNode("count", countProcedureSpec() ),
+				plan.CreateLogicalNode("min", minProcedureSpec() ),
+			},
+			Edges: [][2]int{
+				{0, 1},
+				{0, 2},
+			},
+		},
+		NoChange: true,
+	})
+
+	// No pattern match
+	// ReadGroup -> filter -> min -> NO-CHANGE
+	pushableFn1 := executetest.FunctionExpression(t, `(r) => true`)
+
+	makeResolvedFilterFn := func(expr *semantic.FunctionExpression) interpreter.ResolvedFunction {
+		return interpreter.ResolvedFunction{
+			Scope: nil,
+			Fn:    expr,
+		}
+	}
+	noPatternMatch1 := func() *plantest.PlanSpec{
+		return &plantest.PlanSpec{
+			Nodes: []plan.Node{
+				plan.CreateLogicalNode("ReadGroup", readGroup()),
+				plan.CreatePhysicalNode("filter", &universe.FilterProcedureSpec{
+					Fn: makeResolvedFilterFn(pushableFn1),
+				}),
+				plan.CreateLogicalNode("count", countProcedureSpec() ),
+			},
+			Edges: [][2]int{
+				{0, 1},
+				{1, 2},
+			},
+		}
+	}
+	tests = append(tests, plantest.RuleTestCase{
+		Name: "NoPatternMatch",
+		Context: ctx,
+		Rules: []plan.Rule{ influxdb.PushDownWindowAggregateRule{}},
+		Before: noPatternMatch1(),
 		NoChange: true,
 	})
 

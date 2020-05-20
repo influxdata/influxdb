@@ -86,6 +86,20 @@ func SessionService() BoolFlag {
 	return sessionService
 }
 
+var pushDownGroupAggregateCount = MakeBoolFlag(
+	"Push Down Group Aggregate Count",
+	"pushDownGroupAggregateCount",
+	"Query Team",
+	false,
+	Temporary,
+	false,
+)
+
+// PushDownGroupAggregateCount - Enable the count variant of PushDownGroupAggregate planner rule
+func PushDownGroupAggregateCount() BoolFlag {
+	return pushDownGroupAggregateCount
+}
+
 var all = []Flag{
 	backendExample,
 	frontendExample,
@@ -93,6 +107,7 @@ var all = []Flag{
 	pushDownWindowAggregateRest,
 	newAuth,
 	sessionService,
+	pushDownGroupAggregateCount,
 }
 
 var byKey = map[string]Flag{
@@ -102,4 +117,5 @@ var byKey = map[string]Flag{
 	"pushDownWindowAggregateRest":  pushDownWindowAggregateRest,
 	"newAuth":                      newAuth,
 	"sessionService":               sessionService,
+	"pushDownGroupAggregateCount":  pushDownGroupAggregateCount,
 }
