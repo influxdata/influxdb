@@ -1,16 +1,11 @@
-import React, {FC, useContext} from 'react'
+import React, {FC} from 'react'
 import {PipeProp} from 'src/notebooks'
-import {NotebookContext} from 'src/notebooks/context/notebook'
 
-const ExampleView: FC<PipeProp> = ({index, contextInteraction}) => {
-  const {pipes} = useContext(NotebookContext)
-  const pipe = pipes[index]
-
+const ExampleView: FC<PipeProp> = ({data, Context}) => {
   return (
-    <div className="pipe-example">
-      {contextInteraction}
-      <h1>{pipe.text}</h1>
-    </div>
+    <Context>
+      <h1>{data.text}</h1>
+    </Context>
   )
 }
 

@@ -19,13 +19,26 @@ $notebook-divider-height: ($cf-marg-a * 2) + $cf-border;
   flex-direction: column;
   align-items: stretch;
   border-radius: $cf-radius;
-
+  
   &:after {
     content: '';
     height: $cf-border;
     background-color: $g2-kevlar;
     border-radius: $cf-border / 2;
     margin: $cf-marg-a 0;
+  }
+}
+
+// Highlight panel on hover
+.notebook-panel--header,
+.notebook-panel--body {
+  transition: background-color 0.25s ease;
+}
+
+.notebook-panel:hover {
+  .notebook-panel--header,
+  .notebook-panel--body {
+    background-color: $notebook-panel--bg;
   }
 }
 
@@ -42,6 +55,15 @@ $notebook-divider-height: ($cf-marg-a * 2) + $cf-border;
 .notebook-panel--header-left,
 .notebook-panel--header-right {
   flex: 1 0 $notebook-header-height;
+}
+
+.notebook-panel--header-right {
+  transition: opacity 0.25s ease;
+  opacity: 0;
+}
+
+.notebook-panel:hover .notebook-panel--header-right {
+  opacity: 1;
 }
 
 .notebook-panel--title,

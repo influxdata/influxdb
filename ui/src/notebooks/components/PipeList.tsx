@@ -1,26 +1,30 @@
-import React, {FC, useContext} from 'react'
+import React, {FC, useContext, createElement} from 'react'
+import {PipeContextProps, PipeData} from 'src/notebooks'
 import Pipe from 'src/notebooks/components/Pipe'
 import {NotebookContext} from 'src/notebooks/context/notebook'
 import NotebookPanel from 'src/notebooks/components/panel/NotebookPanel'
 
 const PipeList: FC = () => {
-  const {id, pipes, meta} = useContext(NotebookContext)
-  const _pipes = pipes.map((_, index) => {
-    const header = <NotebookPanel index={index} />
+  const {id, pipes, updatePipe} = useContext(NotebookContext)
+  const _pipes = pipes.map((pipe, index) => {
+      const panel: FC<PipeContextProps> = (props) => {
+          const _props = {
+              ...props,
+              index
+          }
 
-    if (!meta[index].visible) {
-      return (
-        <div key={`pipe-${id}-${index}`} className="panel-empty">
-          {header}
-        </div>
-      )
+          return createElement(NotebookPanel, _props)
+      }
+    const onUpdate = (data: PipeData) => {
+        updatePipe(index, data)
     }
 
     return (
       <Pipe
-        index={index}
         key={`pipe-${id}-${index}`}
-        contextInteraction={header}
+        data={pipe}
+        onUpdate={onUpdate}
+        Context={panel}
       />
     )
   })

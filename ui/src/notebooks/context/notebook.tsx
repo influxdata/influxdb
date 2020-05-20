@@ -1,8 +1,5 @@
 import React, {FC, useState} from 'react'
-
-// TODO make this polymorphic to mimic the self registration
-// of pipe stages
-export type Pipe = any
+import {PipeData} from 'src/notebooks'
 
 export interface PipeMeta {
   title: string
@@ -11,10 +8,10 @@ export interface PipeMeta {
 
 export interface NotebookContextType {
   id: string
-  pipes: Pipe[]
+  pipes: PipeData[]
   meta: PipeMeta[] // data only used for the view layer for Notebooks
-  addPipe: (pipe: Pipe) => void
-  updatePipe: (idx: number, pipe: Pipe) => void
+  addPipe: (pipe: PipeData) => void
+  updatePipe: (idx: number, pipe: PipeData) => void
   updateMeta: (idx: number, pipe: PipeMeta) => void
   movePipe: (currentIdx: number, newIdx: number) => void
   removePipe: (idx: number) => void
@@ -52,7 +49,7 @@ export const NotebookProvider: FC = ({children}) => {
   const [pipes, setPipes] = useState(DEFAULT_CONTEXT.pipes)
   const [meta, setMeta] = useState(DEFAULT_CONTEXT.meta)
 
-  function addPipe(pipe: Pipe) {
+  function addPipe(pipe: PipeData) {
     const add = data => {
       return pipes => {
         pipes.push(data)
@@ -68,7 +65,7 @@ export const NotebookProvider: FC = ({children}) => {
     )
   }
 
-  function updatePipe(idx: number, pipe: Pipe) {
+  function updatePipe(idx: number, pipe: PipeData) {
     setPipes(pipes => {
       pipes[idx] = {
         ...pipes[idx],
