@@ -121,14 +121,15 @@ const collectAncestors = (
   - The node for one of the passed variables depends on this node
 
 */
-const findSubgraph = (
+export const findSubgraph = (
   graph: VariableNode[],
   variables: Variable[]
 ): VariableNode[] => {
   const subgraph: Set<VariableNode> = new Set()
-
   // use an ID array to reduce the chance of reference errors
   const varIDs = variables.map(v => v.id)
+  // create an array of IDs to reference later
+  const graphIDs = []
   for (const node of graph) {
     const shouldKeep =
       varIDs.includes(node.variable.id) ||
@@ -138,12 +139,18 @@ const findSubgraph = (
 
     if (shouldKeep) {
       subgraph.add(node)
+      graphIDs.push(node.variable.id)
     }
   }
 
+  const removeDupAncestors = (n: VariableNode) => {
+    const {id} = n.variable
+    return !graphIDs.includes(id)
+  }
+
   for (const node of subgraph) {
-    node.parents = node.parents.filter(node => subgraph.has(node))
-    node.children = node.children.filter(node => subgraph.has(node))
+    node.parents = node.parents.filter(removeDupAncestors)
+    node.children = node.children.filter(removeDupAncestors)
   }
 
   return [...subgraph]
@@ -223,7 +230,6 @@ const hydrateVarsHelper = async (
   if (node.status !== RemoteDataState.Loading) {
     node.status = RemoteDataState.Loading
     on.fire('status', node.variable, node.status)
-
     collectAncestors(node)
       .filter(parent => parent.variable.arguments.type === 'query')
       .forEach(parent => {
@@ -487,9 +493,7 @@ export const hydrateVars = (
   // from the main execution thread, allowing external services to
   // register listeners for the loading state changes
   Promise.resolve()
-    .then(() => {
-      return Promise.all(findLeaves(graph).map(resolve))
-    })
+    .then(() => Promise.all(findLeaves(graph).map(resolve)))
     .then(() => {
       deferred.resolve(extractResult(graph))
     })
