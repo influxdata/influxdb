@@ -749,6 +749,27 @@ describe('DataExplorer', () => {
           })
         })
       })
+
+      it.only('can view table data with raw data & scroll', () => {
+        // build the query to return data from beforeEach
+        cy.getByTestID(`selector-list m`).click()
+        cy.getByTestID('selector-list v').click()
+        cy.getByTestID(`selector-list tv1`).click()
+        cy.getByTestID('selector-list sort').click()
+
+        cy.getByTestID('time-machine-submit-button').click()
+
+        cy.getByTestID('view-type--dropdown').click()
+        cy.getByTestID(`view-type--table`).click()
+        // check to see that the FE rows are NOT sorted with flux sort
+        cy.get('.table-graph-cell__sort-asc').should('not.exist')
+        cy.get('.table-graph-cell__sort-desc').should('not.exist')
+        // view raw data table
+        cy.getByTestID('raw-data--toggle').click()
+        cy.getByTestID('raw-data-table').should('exist')
+        //scroll to the bottom and make sure things load
+        cy.getByTestID('rawdata-table--scrollbar').scrollTo('bottom')
+      })
     })
   })
 
