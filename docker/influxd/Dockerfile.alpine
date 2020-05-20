@@ -1,0 +1,7 @@
+FROM alpine:3.9
+
+COPY docker/influxd/entrypoint.sh /entrypoint.sh
+COPY influx influxd /usr/bin/
+
+ENTRYPOINT [ "/entrypoint.sh" ]
+CMD ["influxd"]

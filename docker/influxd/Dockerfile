@@ -1,11 +1,8 @@
 FROM debian:stable-slim
-COPY influx influxd /usr/bin/
 
 EXPOSE 9999
 
 ENV DEBIAN_FRONTEND noninteractive
-
-COPY docker/influxd/entrypoint.sh /entrypoint.sh
 
 RUN apt-get update \
 	&& apt-get install -y \
@@ -14,6 +11,9 @@ RUN apt-get update \
 	&& apt-get clean autoclean \
 	&& apt-get autoremove --yes \
 	&& rm -rf /var/lib/{apt,dpkg,cache,log}
+
+COPY docker/influxd/entrypoint.sh /entrypoint.sh
+COPY influx influxd /usr/bin/
 
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["influxd"]
