@@ -23,7 +23,6 @@ export const CLOUD_FLAGS = {
   downloadCellCSV: false,
   fluxParser: false,
   matchingNotificationRules: false,
-  multiUser: true,
   notebooks: false,
   telegrafEditor: false,
 }
