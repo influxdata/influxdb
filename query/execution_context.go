@@ -24,6 +24,9 @@ type ExecutionContext struct {
 	// Options used to start this query.
 	ExecutionOptions
 
+	// If this query should execute without time constraints
+	DisallowUnbounded bool
+
 	mu   sync.RWMutex
 	done chan struct{}
 	err  error

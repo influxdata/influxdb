@@ -12,7 +12,8 @@ import (
 
 // CompileOptions are the customization options for the compiler.
 type CompileOptions struct {
-	Now time.Time
+	Now                   time.Time // Stores stable and reusable concept of "now" at compilation time.
+	disallowUnboundedTime bool      // Indicates that we should not allow unbounded time.  Name chosen so that the zero-value of "false" is useful.
 }
 
 // Statement is a compiled query statement.
@@ -109,9 +110,11 @@ func Compile(stmt *influxql.SelectStatement, opt CompileOptions) (Statement, err
 	if err := c.preprocess(c.stmt); err != nil {
 		return nil, err
 	}
+
 	if err := c.compile(c.stmt); err != nil {
 		return nil, err
 	}
+
 	c.stmt.TimeAlias = c.TimeFieldName
 	c.stmt.Condition = c.Condition
 
@@ -141,8 +144,13 @@ func (c *compiledStatement) preprocess(stmt *influxql.SelectStatement) error {
 	if err := c.validateCondition(cond); err != nil {
 		return err
 	}
+
 	c.Condition = cond
 	c.TimeRange = t
+
+	if c.IsUnbounded() {
+		return fmt.Errorf("can not executed unbounded query")
+	}
 
 	// Read the dimensions of the query, validate them, and retrieve the interval
 	// if it exists.
@@ -168,6 +176,18 @@ func (c *compiledStatement) preprocess(stmt *influxql.SelectStatement) error {
 		}
 	}
 	return nil
+}
+
+// IsUnbounded returns true if some explicit time bound (either upper or lower)
+// was specified. If it is unbounded, it returns false.
+//
+// TODO(ayan): A time that returns true for IsZero() is a sentinel value that a
+// user *could* potentially enter.
+//
+// It might be interesting to make the .Min and .Max members pointers so that
+// we can make a distinction between NO time and a valid time.
+func (c *compiledStatement) IsUnbounded() bool {
+	return c.TimeRange.Min.IsZero() && c.TimeRange.Max.IsZero()
 }
 
 func (c *compiledStatement) compile(stmt *influxql.SelectStatement) error {

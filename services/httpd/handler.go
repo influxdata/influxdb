@@ -577,11 +577,12 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user meta.U
 	async := r.FormValue("async") == "true"
 
 	opts := query.ExecutionOptions{
-		Database:        db,
-		RetentionPolicy: r.FormValue("rp"),
-		ChunkSize:       chunkSize,
-		ReadOnly:        r.Method == "GET",
-		NodeID:          nodeID,
+		Database:          db,
+		RetentionPolicy:   r.FormValue("rp"),
+		ChunkSize:         chunkSize,
+		ReadOnly:          r.Method == "GET",
+		NodeID:            nodeID,
+		DisallowUnbounded: false,
 	}
 
 	if h.Config.AuthEnabled {

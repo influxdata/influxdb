@@ -211,10 +211,11 @@ func (t *TaskManager) AttachQuery(q *influxql.Query, opt ExecutionOptions, inter
 	t.nextID++
 
 	ctx := &ExecutionContext{
-		Context:          context.Background(),
-		QueryID:          qid,
-		task:             query,
-		ExecutionOptions: opt,
+		Context:           context.Background(),
+		QueryID:           qid,
+		task:              query,
+		ExecutionOptions:  opt,
+		DisallowUnbounded: opt.DisallowUnbounded,
 	}
 	ctx.watch()
 	return ctx, func() { t.DetachQuery(qid) }, nil

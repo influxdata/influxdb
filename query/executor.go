@@ -143,6 +143,9 @@ type ExecutionOptions struct {
 
 	// AbortCh is a channel that signals when results are no longer desired by the caller.
 	AbortCh <-chan struct{}
+
+	// If this query should execute without time constraints
+	DisallowUnbounded bool
 }
 
 type (

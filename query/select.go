@@ -37,6 +37,9 @@ type SelectOptions struct {
 
 	// Maximum number of buckets for a statement.
 	MaxBucketsN int
+
+	// FIXME: document this
+	DisallowUnboundedTime bool
 }
 
 // ShardMapper retrieves and maps shards into an IteratorCreator that can later be
@@ -77,7 +80,7 @@ type PreparedStatement interface {
 // Prepare will compile the statement with the default compile options and
 // then prepare the query.
 func Prepare(stmt *influxql.SelectStatement, shardMapper ShardMapper, opt SelectOptions) (PreparedStatement, error) {
-	c, err := Compile(stmt, CompileOptions{})
+	c, err := Compile(stmt, CompileOptions{disallowUnboundedTime: opt.DisallowUnboundedTime})
 	if err != nil {
 		return nil, err
 	}
