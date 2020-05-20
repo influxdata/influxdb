@@ -371,19 +371,16 @@ func decodeCheckFilter(ctx context.Context, r *http.Request) (*influxdb.CheckFil
 	}
 
 	q := r.URL.Query()
-	if orgIDStr := q.Get("orgID"); orgIDStr != "" {
-		orgID, err := influxdb.IDFromString(orgIDStr)
-		if err != nil {
-			return f, opts, &influxdb.Error{
-				Code: influxdb.EInvalid,
-				Msg:  "orgID is invalid",
-				Err:  err,
-			}
+	orgIDStr := q.Get("orgID")
+	if orgIDStr == "" {
+		return nil, nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  "orgID is required",
 		}
-		f.OrgID = orgID
-	} else if orgNameStr := q.Get("org"); orgNameStr != "" {
-		f.Org = &orgNameStr
 	}
+
+	f.OrgID, err = influxdb.IDFromString(orgIDStr)
+
 	return f, opts, err
 }
 

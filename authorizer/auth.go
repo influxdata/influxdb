@@ -65,7 +65,7 @@ func (s *AuthorizationService) FindAuthorizations(ctx context.Context, filter in
 
 // CreateAuthorization checks to see if the authorizer on context has write access to the global authorizations resource.
 func (s *AuthorizationService) CreateAuthorization(ctx context.Context, a *influxdb.Authorization) error {
-	if _, _, err := AuthorizeCreate(ctx, influxdb.AuthorizationsResourceType, a.OrgID); err != nil {
+	if _, _, err := AuthorizeCreate(ctx, influxdb.AuthorizationsResourceType, &a.OrgID); err != nil {
 		return err
 	}
 	if _, _, err := AuthorizeWriteResource(ctx, influxdb.UsersResourceType, a.UserID); err != nil {

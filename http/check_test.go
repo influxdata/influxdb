@@ -26,9 +26,11 @@ import (
 
 // NewMockCheckBackend returns a CheckBackend with mock services.
 func NewMockCheckBackend(t *testing.T) *CheckBackend {
+	var errorHandler kithttp.ErrorHandler
 	return &CheckBackend{
 		log: zaptest.NewLogger(t),
 
+		HTTPErrorHandler:           errorHandler,
 		CheckService:               mock.NewCheckService(),
 		UserResourceMappingService: mock.NewUserResourceMappingService(),
 		LabelService:               mock.NewLabelService(),
@@ -63,7 +65,7 @@ func TestService_handleGetChecks(t *testing.T) {
 		wants  wants
 	}{
 		{
-			name: "get all checks",
+			name: "get all checks for org",
 			fields: fields{
 				&mock.CheckService{
 					FindChecksFn: func(ctx context.Context, filter influxdb.CheckFilter, opts ...influxdb.FindOptions) ([]influxdb.Check, int, error) {
@@ -72,7 +74,7 @@ func TestService_handleGetChecks(t *testing.T) {
 								Base: check.Base{
 									ID:     influxTesting.MustIDBase16("0b501e7e557ab1ed"),
 									Name:   "hello",
-									OrgID:  influxTesting.MustIDBase16("50f7ba1150f7ba11"),
+									OrgID:  influxTesting.MustIDBase16("7e55e118dbabb1ed"),
 									TaskID: 3,
 								},
 								Level: notification.Info,
@@ -117,6 +119,7 @@ func TestService_handleGetChecks(t *testing.T) {
 			args: args{
 				map[string][]string{
 					"limit": {"1"},
+					"orgID": {"7e55e118dbabb1ed"},
 				},
 			},
 			wants: wants{
@@ -125,8 +128,8 @@ func TestService_handleGetChecks(t *testing.T) {
 				body: `
 {
   "links": {
-    "self": "/api/v2/checks?descending=false&limit=1&offset=0",
-    "next": "/api/v2/checks?descending=false&limit=1&offset=1"
+    "self": "/api/v2/checks?descending=false&limit=1&offset=0&orgID=7e55e118dbabb1ed",
+    "next": "/api/v2/checks?descending=false&limit=1&offset=1&orgID=7e55e118dbabb1ed"
   },
   "checks": [
     {
@@ -140,7 +143,7 @@ func TestService_handleGetChecks(t *testing.T) {
 			"createdAt": "0001-01-01T00:00:00Z",
 			"updatedAt": "0001-01-01T00:00:00Z",
       "id": "0b501e7e557ab1ed",
-			"orgID": "50f7ba1150f7ba11",
+			"orgID": "7e55e118dbabb1ed",
 			"name": "hello",
 			"level": "INFO",
 			"query": {
@@ -255,6 +258,7 @@ func TestService_handleGetChecks(t *testing.T) {
 			args: args{
 				map[string][]string{
 					"limit": {"1"},
+					"orgID": {"50f7ba1150f7ba11"},
 				},
 			},
 			wants: wants{
@@ -263,9 +267,34 @@ func TestService_handleGetChecks(t *testing.T) {
 				body: `
 {
   "links": {
-    "self": "/api/v2/checks?descending=false&limit=1&offset=0"
+    "self": "/api/v2/checks?descending=false&limit=1&offset=0&orgID=50f7ba1150f7ba11"
   },
   "checks": []
+}`,
+			},
+		},
+		{
+			name: "get all checks no orgID",
+			fields: fields{
+				&mock.CheckService{
+					FindChecksFn: func(ctx context.Context, filter influxdb.CheckFilter, opts ...influxdb.FindOptions) ([]influxdb.Check, int, error) {
+						return []influxdb.Check{}, 0, nil
+					},
+				},
+				&mock.LabelService{},
+			},
+			args: args{
+				map[string][]string{
+					"limit": {"1"},
+				},
+			},
+			wants: wants{
+				statusCode:  http.StatusBadRequest,
+				contentType: "application/json; charset=utf-8",
+				body: `
+{
+    "code": "invalid",
+    "message": "orgID is required"
 }`,
 			},
 		},

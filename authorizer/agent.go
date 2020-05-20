@@ -30,7 +30,7 @@ func (a *AuthAgent) OrgPermissions(ctx context.Context, orgID influxdb.ID, actio
 }
 
 func (a *AuthAgent) IsWritable(ctx context.Context, orgID influxdb.ID, resType influxdb.ResourceType) error {
-	_, _, resTypeErr := AuthorizeOrgWriteResource(ctx, resType, orgID)
+	_, _, resTypeErr := AuthorizeOrgWriteResource(ctx, resType, &orgID)
 	_, _, orgErr := AuthorizeWriteOrg(ctx, orgID)
 
 	if resTypeErr != nil && orgErr != nil {

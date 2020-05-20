@@ -40,13 +40,11 @@ func (s *CheckService) FindCheckByID(ctx context.Context, id influxdb.ID) (influ
 
 // FindChecks retrieves all checks that match the provided filter and then filters the list down to only the resources that are authorized.
 func (s *CheckService) FindChecks(ctx context.Context, filter influxdb.CheckFilter, opt ...influxdb.FindOptions) ([]influxdb.Check, int, error) {
-	// TODO: we'll likely want to push this operation into the database eventually since fetching the whole list of data
-	// will likely be expensive.
-	chks, _, err := s.s.FindChecks(ctx, filter, opt...)
-	if err != nil {
+	if _, _, err := AuthorizeOrgReadResource(ctx, influxdb.ChecksResourceType, filter.OrgID); err != nil {
 		return nil, 0, err
 	}
-	return AuthorizeFindChecks(ctx, chks)
+
+	return s.s.FindChecks(ctx, filter, opt...)
 }
 
 // FindCheck will return the check.
@@ -63,7 +61,8 @@ func (s *CheckService) FindCheck(ctx context.Context, filter influxdb.CheckFilte
 
 // CreateCheck checks to see if the authorizer on context has write access to the global check resource.
 func (s *CheckService) CreateCheck(ctx context.Context, chk influxdb.CheckCreate, userID influxdb.ID) error {
-	if _, _, err := AuthorizeCreate(ctx, influxdb.ChecksResourceType, chk.GetOrgID()); err != nil {
+	orgID := chk.GetOrgID()
+	if _, _, err := AuthorizeCreate(ctx, influxdb.ChecksResourceType, &orgID); err != nil {
 		return err
 	}
 	return s.s.CreateCheck(ctx, chk, userID)

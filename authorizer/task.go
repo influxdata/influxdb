@@ -95,7 +95,7 @@ func (ts *taskServiceValidator) CreateTask(ctx context.Context, t influxdb.TaskC
 		return nil, influxdb.ErrInvalidOwnerID
 	}
 
-	a, p, err := AuthorizeCreate(ctx, influxdb.TasksResourceType, t.OrganizationID)
+	a, p, err := AuthorizeCreate(ctx, influxdb.TasksResourceType, &t.OrganizationID)
 	loggerFields := []zap.Field{zap.String("method", "CreateTask")}
 	if err := ts.processPermissionError(a, p, err, loggerFields...); err != nil {
 		return nil, err

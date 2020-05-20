@@ -10,6 +10,7 @@
 
 1. [18066](https://github.com/influxdata/influxdb/pull/18066): Fixed bug that wasn't persisting timeFormat for Graph + Single Stat selections
 1. [17959](https://github.com/influxdata/influxdb/pull/17959): Authorizer now exposes full permission set
+1. [18083](https://github.com/influxdata/influxdb/pull/18083): Checks now enforces orgID on list action as per swagger specification
 
 ### UI Improvements
 

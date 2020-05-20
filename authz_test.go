@@ -404,7 +404,7 @@ func TestPermission_String(t *testing.T) {
 					Type: platform.BucketsResourceType,
 				},
 			},
-			want: `write:buckets`,
+			want: `write:orgs/*/buckets`,
 		},
 		{
 			name: "valid permission with no org id",

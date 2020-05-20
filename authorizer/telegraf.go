@@ -48,7 +48,7 @@ func (s *TelegrafConfigService) FindTelegrafConfigs(ctx context.Context, filter 
 
 // CreateTelegrafConfig checks to see if the authorizer on context has write access to the global telegraf config resource.
 func (s *TelegrafConfigService) CreateTelegrafConfig(ctx context.Context, tc *influxdb.TelegrafConfig, userID influxdb.ID) error {
-	if _, _, err := AuthorizeCreate(ctx, influxdb.TelegrafsResourceType, tc.OrgID); err != nil {
+	if _, _, err := AuthorizeCreate(ctx, influxdb.TelegrafsResourceType, &tc.OrgID); err != nil {
 		return err
 	}
 	return s.s.CreateTelegrafConfig(ctx, tc, userID)

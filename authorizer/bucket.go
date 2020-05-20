@@ -2,6 +2,7 @@ package authorizer
 
 import (
 	"context"
+
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 )
@@ -87,7 +88,7 @@ func (s *BucketService) CreateBucket(ctx context.Context, b *influxdb.Bucket) er
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	if _, _, err := AuthorizeCreate(ctx, influxdb.BucketsResourceType, b.OrgID); err != nil {
+	if _, _, err := AuthorizeCreate(ctx, influxdb.BucketsResourceType, &b.OrgID); err != nil {
 		return err
 	}
 	return s.s.CreateBucket(ctx, b)

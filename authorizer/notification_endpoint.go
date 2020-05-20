@@ -62,7 +62,8 @@ func (s *NotificationEndpointService) FindNotificationEndpoints(ctx context.Cont
 
 // CreateNotificationEndpoint checks to see if the authorizer on context has write access to the global notification endpoint resource.
 func (s *NotificationEndpointService) CreateNotificationEndpoint(ctx context.Context, edp influxdb.NotificationEndpoint, userID influxdb.ID) error {
-	if _, _, err := AuthorizeCreate(ctx, influxdb.NotificationEndpointResourceType, edp.GetOrgID()); err != nil {
+	orgID := edp.GetOrgID()
+	if _, _, err := AuthorizeCreate(ctx, influxdb.NotificationEndpointResourceType, &orgID); err != nil {
 		return err
 	}
 	return s.s.CreateNotificationEndpoint(ctx, edp, userID)

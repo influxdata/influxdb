@@ -126,6 +126,7 @@ func TestCheckService_FindChecks(t *testing.T) {
 	}
 	type args struct {
 		permission influxdb.Permission
+		filter     influxdb.CheckFilter
 	}
 	type wants struct {
 		err    error
@@ -198,7 +199,7 @@ func TestCheckService_FindChecks(t *testing.T) {
 			},
 		},
 		{
-			name: "authorized to access a single orgs checks",
+			name: "authorized to access a single orgs checks (wants for all orgs)",
 			fields: fields{
 				CheckService: &mock.CheckService{
 					FindChecksFn: func(ctx context.Context, filter influxdb.CheckFilter, opt ...influxdb.FindOptions) ([]influxdb.Check, int, error) {
@@ -235,6 +236,47 @@ func TestCheckService_FindChecks(t *testing.T) {
 				},
 			},
 			wants: wants{
+				err: &influxdb.Error{
+					Code: influxdb.EUnauthorized,
+					Msg:  "read:orgs/*/checks is unauthorized",
+				},
+			},
+		},
+		{
+			name: "authorized to access a single orgs checks (wants their org)",
+			fields: fields{
+				CheckService: &mock.CheckService{
+					FindChecksFn: func(ctx context.Context, filter influxdb.CheckFilter, opt ...influxdb.FindOptions) ([]influxdb.Check, int, error) {
+						return []influxdb.Check{
+							&check.Deadman{
+								Base: check.Base{
+									ID:    1,
+									OrgID: 10,
+								},
+							},
+							&check.Deadman{
+								Base: check.Base{
+									ID:    2,
+									OrgID: 10,
+								},
+							},
+						}, 2, nil
+					},
+				},
+			},
+			args: args{
+				filter: influxdb.CheckFilter{
+					OrgID: influxdbtesting.IDPtr(10),
+				},
+				permission: influxdb.Permission{
+					Action: influxdb.ReadAction,
+					Resource: influxdb.Resource{
+						Type:  influxdb.ChecksResourceType,
+						OrgID: influxdbtesting.IDPtr(10),
+					},
+				},
+			},
+			wants: wants{
 				checks: []influxdb.Check{
 					&check.Deadman{
 						Base: check.Base{
@@ -260,7 +302,7 @@ func TestCheckService_FindChecks(t *testing.T) {
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
-			ts, _, err := s.FindChecks(ctx, influxdb.CheckFilter{})
+			ts, _, err := s.FindChecks(ctx, tt.args.filter)
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 
 			if diff := cmp.Diff(ts, tt.wants.checks, checkCmpOptions...); diff != "" {
