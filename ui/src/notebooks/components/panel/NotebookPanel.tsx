@@ -24,7 +24,7 @@ export interface Props extends PipeContextProps {
   index: number
 }
 
-const NotebookPanel: FC<Props> = ({index, children}) => {
+const NotebookPanel: FC<Props> = ({index, children, controls}) => {
   const {pipes, removePipe, movePipe, meta} = useContext(NotebookContext)
   const canBeMovedUp = index > 0
   const canBeMovedDown = index < pipes.length - 1
@@ -58,6 +58,7 @@ const NotebookPanel: FC<Props> = ({index, children}) => {
           margin={ComponentSize.Small}
           justifyContent={JustifyContent.FlexEnd}
         >
+          {controls}
           <MovePanelButton direction="up" onClick={moveUp} />
           <MovePanelButton direction="down" onClick={moveDown} />
           <PanelVisibilityToggle index={index} />
