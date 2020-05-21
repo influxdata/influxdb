@@ -13,7 +13,7 @@ import {MarkdownRenderer} from 'src/shared/components/views/MarkdownRenderer'
 const MarkdownPanel: FC<PipeProp> = ({data, Context, onUpdate}) => {
   const handleToggleMode = (mode: MarkdownMode): void => {
     const updatedData = {...data, mode}
-    
+
     onUpdate(updatedData)
   }
 
@@ -35,14 +35,11 @@ const MarkdownPanel: FC<PipeProp> = ({data, Context, onUpdate}) => {
     panelContents = (
       <div className="notebook-panel--markdown markdown-format">
         <MarkdownRenderer text={data.text} />
-      </div>)
+      </div>
+    )
   }
 
-  return (
-    <Context controls={controls}>
-      {panelContents}
-    </Context>
-  )
+  return <Context controls={controls}>{panelContents}</Context>
 }
 
 export default MarkdownPanel

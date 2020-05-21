@@ -12,7 +12,11 @@ const MarkdownPanelEditor: FC<Props> = ({text, onChange}) => {
   }
 
   return (
-    <textarea className="notebook-panel--markdown-editor" value={text} onChange={handleTextAreaChange} />
+    <textarea
+      className="notebook-panel--markdown-editor"
+      value={text}
+      onChange={handleTextAreaChange}
+    />
   )
 }
 
