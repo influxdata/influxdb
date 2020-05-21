@@ -143,6 +143,7 @@ $notebook-divider-height: ($cf-marg-a * 2) + $cf-border;
   padding-top: 0;
   // flex: 1 0 0;
   position: relative;
+  min-height: 200px;
 }
 
 // Special styling for query builder inside notebook panel

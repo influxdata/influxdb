@@ -1,4 +1,4 @@
-import React, {FC, useState} from 'react'
+import React, {FC, useState, useCallback} from 'react'
 import {AutoRefresh, TimeRange} from 'src/types'
 import {DEFAULT_TIME_RANGE} from 'src/shared/constants/timeRanges'
 import {AUTOREFRESH_DEFAULT} from 'src/shared/constants'
@@ -36,7 +36,7 @@ export const TimeContext = React.createContext<TimeContext>(DEFAULT_CONTEXT)
 export const TimeProvider: FC = ({children}) => {
   const [timeContext, setTimeContext] = useState({})
 
-  function addTimeContext(id: string, block?: TimeBlock) {
+  const addTimeContext = useCallback((id: string, block?: TimeBlock) => {
     setTimeContext(ranges => {
       if (ranges.hasOwnProperty(id)) {
         throw new Error(
@@ -50,9 +50,9 @@ export const TimeProvider: FC = ({children}) => {
         [id]: {...(block || DEFAULT_STATE)},
       }
     })
-  }
+  })
 
-  function updateTimeContext(id: string, block: TimeBlock) {
+  const updateTimeContext = useCallback((id: string, block: TimeBlock) => {
     setTimeContext(ranges => {
       return {
         ...ranges,
@@ -62,9 +62,9 @@ export const TimeProvider: FC = ({children}) => {
         },
       }
     })
-  }
+  })
 
-  function removeTimeContext(id: string) {
+  const removeTimeContext = useCallback((id: string) => {
     setTimeContext(ranges => {
       if (!ranges.hasOwnProperty(id)) {
         throw new Error(`TimeContext[${id}] doesn't exist`)
@@ -73,7 +73,7 @@ export const TimeProvider: FC = ({children}) => {
       delete ranges[id]
       return {...ranges}
     })
-  }
+  })
 
   return (
     <TimeContext.Provider

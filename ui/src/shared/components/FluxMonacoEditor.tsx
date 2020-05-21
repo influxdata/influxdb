@@ -4,8 +4,6 @@ import {ProtocolToMonacoConverter} from 'monaco-languageclient/lib/monaco-conver
 
 // Components
 import MonacoEditor from 'react-monaco-editor'
-import FluxBucketProvider from 'src/shared/components/FluxBucketProvider'
-import GetResources from 'src/resources/components/GetResources'
 
 // Utils
 import FLUXLANGID from 'src/external/monaco.flux.syntax'
@@ -30,6 +28,8 @@ interface Props {
   setEditorInstance?: (editor: EditorType) => void
   skipFocus?: boolean
 }
+
+const WrappedProvider: FC<Props> = ({}) => {}
 
 const FluxEditorMonaco: FC<Props> = ({
   script,
@@ -101,11 +101,9 @@ const FluxEditorMonaco: FC<Props> = ({
     }
   }
 
+  console.log('sweeeeeeeet')
   return (
     <div className="flux-editor--monaco" data-testid="flux-editor">
-      <GetResources resources={[ResourceType.Buckets]}>
-        <FluxBucketProvider />
-      </GetResources>
       <MonacoEditor
         language={FLUXLANGID}
         theme={THEME_NAME}

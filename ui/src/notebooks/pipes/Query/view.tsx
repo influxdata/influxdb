@@ -1,6 +1,6 @@
 import React, {FC, useMemo} from 'react'
 import {PipeProp} from 'src/notebooks'
-import {TimeMachineFluxEditor} from 'src/timeMachine/components/TimeMachineFluxEditor'
+import FluxMonacoEditor from 'src/shared/components/FluxMonacoEditor'
 
 const Query: FC<PipeProp> = ({data, onUpdate, Context}) => {
   const {queries, activeQuery} = data
@@ -16,19 +16,17 @@ const Query: FC<PipeProp> = ({data, onUpdate, Context}) => {
     onUpdate({queries: _queries})
   }
 
-  const editor = useMemo(
-    () => (
-      <TimeMachineFluxEditor
-        activeQueryText={query.text}
-        activeTab={activeQuery}
-        onSetActiveQueryText={updateText}
-        onSubmitQueries={() => {}}
-      />
-    ),
-    [query.text]
-  )
-
-  return <Context>{editor}</Context>
+  return useMemo(() => {
+    return (
+      <Context>
+        <FluxMonacoEditor
+          script={query.text}
+          onChangeScript={updateText}
+          onSubmitScript={() => {}}
+        />
+      </Context>
+    )
+  }, [query.text])
 }
 
 export default Query
