@@ -93,6 +93,11 @@ export const SigninError: Notification = {
   message: `Could not sign in`,
 }
 
+export const checkStatusLoading: Notification = {
+  ...defaultSuccessNotification,
+  message: `Currently loading checks`,
+}
+
 export const QuickstartScraperCreationSuccess: Notification = {
   ...defaultSuccessNotification,
   message: `The InfluxDB Scraper has been configured for ${QUICKSTART_SCRAPER_TARGET_URL}`,
