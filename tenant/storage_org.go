@@ -104,7 +104,7 @@ func (s *Store) GetOrgByName(ctx context.Context, tx kv.Tx, n string) (*influxdb
 
 	var id influxdb.ID
 	if err := id.Decode(uid); err != nil {
-		return nil, ErrCorruptID(err)
+		return nil, influxdb.ErrCorruptID(err)
 	}
 	return s.GetOrg(ctx, tx, id)
 }

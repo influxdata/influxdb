@@ -7,6 +7,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2"
 	influxdbcontext "github.com/influxdata/influxdb/v2/context"
+	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"github.com/influxdata/influxdb/v2/mock"
 	influxdbtesting "github.com/influxdata/influxdb/v2/testing"
 )
@@ -105,7 +106,7 @@ func TestURMService_FindUserResourceMappings(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			s := NewAuthedURMService(tt.fields.OrgService, tt.fields.UserResourceMappingService)
 			orgID := influxdbtesting.IDPtr(10)
-			ctx := context.WithValue(context.Background(), ctxOrgKey, *orgID)
+			ctx := context.WithValue(context.Background(), kithttp.CtxOrgKey, *orgID)
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			urms, _, err := s.FindUserResourceMappings(ctx, influxdb.UserResourceMappingFilter{})
