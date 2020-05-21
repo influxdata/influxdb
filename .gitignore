@@ -143,3 +143,15 @@ cypress/videos
 
 # vendored files
 /vendor
+
+# DShell Ignores
+.ash_history
+.bash_history
+.cache/
+.cargo/
+.dockerignore
+.influxdbv2/
+.profile
+.rustup/
+.yarnrc
+go/

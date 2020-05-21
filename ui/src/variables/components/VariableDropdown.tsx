@@ -97,9 +97,16 @@ class VariableDropdown extends PureComponent<Props> {
   }
 
   private handleSelect = (selectedValue: string) => {
-    const {variableID, onSelectValue, onSelect} = this.props
+    const {
+      variableID,
+      onSelectValue,
+      onSelect,
+      selectedValue: prevSelectedValue,
+    } = this.props
 
-    onSelectValue(variableID, selectedValue)
+    if (prevSelectedValue !== selectedValue) {
+      onSelectValue(variableID, selectedValue)
+    }
 
     if (onSelect) {
       onSelect()

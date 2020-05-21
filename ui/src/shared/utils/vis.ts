@@ -136,8 +136,8 @@ export const parseYBounds = (
     return null
   }
 
-  const min = isNaN(parseInt(bounds[0])) ? null : parseInt(bounds[0])
-  const max = isNaN(parseInt(bounds[1])) ? null : parseInt(bounds[1])
+  const min = isNaN(parseFloat(bounds[0])) ? null : parseFloat(bounds[0])
+  const max = isNaN(parseFloat(bounds[1])) ? null : parseFloat(bounds[1])
   return [min, max]
 }
 

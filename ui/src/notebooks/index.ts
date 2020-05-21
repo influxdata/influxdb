@@ -1,7 +1,17 @@
-import {FunctionComponent, ComponentClass} from 'react'
+import {FunctionComponent, ComponentClass, ReactNode} from 'react'
+
+export interface PipeContextProps {
+  children?: ReactNode
+}
+
+export type PipeData = any
 
 export interface PipeProp {
-  index: number
+  data: PipeData
+  onUpdate: (data: PipeData) => void
+  Context:
+    | FunctionComponent<PipeContextProps>
+    | ComponentClass<PipeContextProps>
 }
 
 // NOTE: keep this interface as small as possible and
@@ -12,7 +22,7 @@ export interface TypeRegistration {
   type: string // a unique string that identifies a pipe
   component: FunctionComponent<PipeProp> | ComponentClass<PipeProp> // the view component for rendering the interface
   button: string // a human readable string for appending the type
-  empty: any // the default state for an add
+  initial: any // the default state for an add
 }
 
 export interface TypeLookup {

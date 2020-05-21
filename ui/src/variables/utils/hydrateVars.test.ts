@@ -1,9 +1,19 @@
 // Utils
 import {ValueFetcher} from 'src/variables/utils/ValueFetcher'
-import {hydrateVars} from 'src/variables/utils/hydrateVars'
+import {
+  hydrateVars,
+  createVariableGraph,
+  findSubgraph,
+} from 'src/variables/utils/hydrateVars'
 
 // Mocks
-import {createVariable} from 'src/variables/mocks'
+import {
+  createVariable,
+  associatedVariable,
+  defaultVariable,
+  defaultVariables,
+  timeRangeStartVariable,
+} from 'src/variables/mocks'
 
 // Types
 import {Variable, CancellationError, RemoteDataState} from 'src/types'
@@ -109,21 +119,18 @@ describe('hydrate vars', () => {
     //       f [fontcolor = "green"]
     //       g [fontcolor = "green"]
     //     }
-    //
-    // NOTE: these return falsy and not an empty array, because they are skipped
-    // within hydrateVars as not belonging to the graph
     expect(
       actual.filter(v => v.id === 'a')[0].arguments.values.results
-    ).toBeFalsy()
+    ).toEqual([])
     expect(
       actual.filter(v => v.id === 'b')[0].arguments.values.results
-    ).toBeFalsy()
+    ).toEqual([])
     expect(
       actual.filter(v => v.id === 'c')[0].arguments.values.results
-    ).toBeFalsy()
+    ).toEqual([])
     expect(
       actual.filter(v => v.id === 'd')[0].arguments.values.results
-    ).toBeFalsy()
+    ).toEqual([])
 
     expect(
       actual.filter(v => v.id === 'e')[0].arguments.values.results
@@ -241,11 +248,9 @@ describe('hydrate vars', () => {
       actual.filter(v => v.id === 'a')[0].arguments.values.results
     ).toEqual(['aVal'])
     expect(actual.filter(v => v.id === 'a')[0].selected).toEqual(['aVal'])
-
     expect(actual.filter(v => v.id === 'b')[0].arguments.values).toEqual({
       k: 'v',
     })
-    expect(actual.filter(v => v.id === 'b')[0].selected).toEqual(['k'])
   })
 
   // This ensures that the update of a dependant variable updates the
@@ -317,5 +322,40 @@ describe('hydrate vars', () => {
     })
 
     cancel()
+  })
+})
+
+describe('findSubgraph', () => {
+  test('should return the update variable with all associated parents', async () => {
+    const variableGraph = await createVariableGraph(defaultVariables)
+    const actual = await findSubgraph(variableGraph, [defaultVariable])
+    // returns the single subgraph result
+    expect(actual.length).toEqual(1)
+    const [subgraph] = actual
+    // expect the subgraph to return the passed in variable
+    expect(subgraph.variable).toEqual(defaultVariable)
+    // expect the parent to be returned with the returning variable
+    expect(subgraph.parents[0].variable).toEqual(associatedVariable)
+  })
+  test('should return the variable with no parents when no association exists', async () => {
+    const a = createVariable('a', 'f(x: v.b)')
+    const variableGraph = await createVariableGraph([...defaultVariables, a])
+    const actual = await findSubgraph(variableGraph, [a])
+    expect(actual.length).toEqual(1)
+    const [subgraph] = actual
+    // expect the subgraph to return the passed in variable
+    expect(subgraph.variable).toEqual(a)
+    // expect the parent to be returned with the returning variable
+    expect(subgraph.parents).toEqual([])
+  })
+  test('should return the update default (timeRange) variable with associated parents', async () => {
+    const variableGraph = await createVariableGraph(defaultVariables)
+    const actual = await findSubgraph(variableGraph, [timeRangeStartVariable])
+    expect(actual.length).toEqual(1)
+    const [subgraph] = actual
+    // expect the subgraph to return the passed in variable
+    expect(subgraph.variable).toEqual(timeRangeStartVariable)
+    // expect the parent to be returned with the returning variable
+    expect(subgraph.parents[0].variable).toEqual(associatedVariable)
   })
 })

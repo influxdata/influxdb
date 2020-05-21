@@ -1,5 +1,10 @@
+// Libraries
 import React, {FC, useContext} from 'react'
+
+// Components
 import {Button, ComponentColor} from '@influxdata/clockface'
+
+// Constants
 import {NotebookContext} from 'src/notebooks/context/notebook'
 import {PIPE_DEFINITIONS} from 'src/notebooks'
 
@@ -12,8 +17,12 @@ const AddButtons: FC = () => {
         key={def.type}
         text={def.button}
         onClick={() => {
+          let data = def.initial
+          if (typeof data === 'function') {
+            data = data()
+          }
           addPipe({
-            ...def.empty,
+            ...data,
             type,
           })
         }}
@@ -22,7 +31,7 @@ const AddButtons: FC = () => {
     )
   })
 
-  return <div className="notebook--actions">{pipes}</div>
+  return <>{pipes}</>
 }
 
 export default AddButtons
