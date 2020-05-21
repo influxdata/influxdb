@@ -24,7 +24,7 @@ import {EventViewerChildProps, Fields} from 'src/eventViewer/types'
 import {RemoteDataState} from 'src/types'
 
 // Constants
-import * as copy from 'src/shared/copy/notifications'
+import {checkStatusLoading} from 'src/shared/copy/notifications'
 
 type DispatchProps = {
   notify: typeof notifyAction
@@ -55,7 +55,7 @@ const EventTable: FC<Props> = ({state, dispatch, loadRows, fields, notify}) => {
 
   useEffect(() => {
     if (isLongRunningQuery && !isRowLoadedBoolean) {
-      notify(copy.checkStatusLoading)
+      notify(checkStatusLoading)
     }
   }, [isLongRunningQuery, isRowLoaded])
 
