@@ -19,12 +19,12 @@ const UsersPage: FC = () => {
   if (status === RemoteDataState.Error) {
     return (
       <div>
-        Error: <code>{JSON.stringify(error, null, 2)}</code>
+        Error: <pre>{JSON.stringify(error, null, 2)}</pre>
       </div>
     )
   }
 
-  return <code>{JSON.stringify(data, null, 2)}</code>
+  return <pre>{JSON.stringify(data, null, 2)}</pre>
 }
 
 export default UsersPage
