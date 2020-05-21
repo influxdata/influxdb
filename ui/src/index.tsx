@@ -99,6 +99,7 @@ import NewEndpointOverlay from 'src/notifications/endpoints/components/NewEndpoi
 import EditEndpointOverlay from 'src/notifications/endpoints/components/EditEndpointOverlay'
 import NoOrgsPage from 'src/organizations/containers/NoOrgsPage'
 import UsagePage from 'src/usage/components/UsagePage'
+import UsersPage from 'src/users/components/UsersPage'
 
 // Utilities
 import {isFlagEnabled} from 'src/shared/utils/featureFlag'
@@ -221,6 +222,7 @@ class Root extends PureComponent {
                           <Route path="new" component={CreateOrgOverlay} />
                           <Route path=":orgID" component={SetOrg}>
                             <IndexRoute component={MePage} />
+                            <Route path="users" component={UsersPage} />
                             <Route path="tasks" component={TasksPage}>
                               <Route
                                 path=":id/export"

@@ -47,6 +47,7 @@ ui/src/api/git_push.sh
 
 # UI generated typescript types
 ui/src/client/generatedRoutes.ts
+ui/src/client/unifyRoutes.ts
 
 http/swagger_gen.go
 

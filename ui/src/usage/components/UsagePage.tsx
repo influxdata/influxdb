@@ -1,5 +1,5 @@
 // Libraries
-import React, {useState, useEffect} from 'react'
+import React from 'react'
 import {Page} from '@influxdata/clockface'
 
 // Components
@@ -11,7 +11,7 @@ import {RemoteDataState} from 'src/types'
 // Constants
 import {usageProps} from 'src/usage/components/constants/stubs'
 
-const url = '/api/experimental/quartz/usage'
+// const url = '/api/experimental/quartz/usage'
 
 const UsagePage = () => {
   // const [status, setStatus] = useState(RemoteDataState.NotStarted)

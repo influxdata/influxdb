@@ -45,7 +45,8 @@
     "tsc:cypress": "tsc -p ./cypress/tsconfig.json --noEmit --pretty --skipLibCheck",
     "cy": "CYPRESS_baseUrl=http://localhost:9999 cypress open",
     "cy:dev": "CYPRESS_baseUrl=http://localhost:8080 cypress open",
-    "generate": "oats ../http/swagger.yml > ./src/client/generatedRoutes.ts"
+    "generate": "oats ../http/swagger.yml > ./src/client/generatedRoutes.ts",
+    "generate:unify": "oats ../http/unify.yml > ./src/client/unifyRoutes.ts"
   },
   "author": "",
   "devDependencies": {
