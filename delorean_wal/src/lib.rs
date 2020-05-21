@@ -10,7 +10,6 @@
 //!
 //! - Metadata file
 //! - Atomic remove of entries
-//! - Tracking of the total size of all segments in the log
 //! - More testing for correctness; the existing tests mostly demonstrate possible usages.
 //! - Error handling
 
@@ -270,6 +269,7 @@ where
     files: FileLocator,
     sequence_number: Arc<AtomicU64>,
     pending: Arc<ArcSwap<Vec<Pending<N>>>>,
+    total_size: Arc<AtomicU64>,
 }
 
 impl<N> Wal<N>
@@ -281,10 +281,13 @@ where
         let sequence_number = last_sequence_number.map_or(0, |last| last + 1);
         let sequence_number = Arc::new(sequence_number.into());
 
+        let total_size = files.total_size();
+
         Ok(Self {
             files,
             sequence_number,
             pending: Default::default(),
+            total_size: Arc::new(total_size.into()),
         })
     }
 
@@ -300,6 +303,13 @@ where
     /// handling.
     pub fn append(&self) -> Append<'_, N> {
         Append::new(self)
+    }
+
+    /// Total size, in bytes, of all the data in all the files in the WAL. If files are deleted
+    /// from disk without deleting them through the WAL, the size won't reflect that deletion
+    /// until the WAL is recreated.
+    pub fn total_size(&self) -> u64 {
+        self.total_size.load(Ordering::SeqCst)
     }
 
     // TODO: Maybe a third struct?
@@ -336,6 +346,8 @@ where
             // Get the file to write to
             let mut file = self.files.open_file_for_append(sequence_number_base)?;
 
+            let len_before = file.metadata().context(UnableToReadFileMetadata)?.len();
+
             // TODO: Would a user ever wish to resume or retry some failed IO?
             for (i, pending) in pending.iter().enumerate() {
                 let i = u64::try_from(i).expect("Only designed to run on 64-bit systems or lower");
@@ -358,7 +370,11 @@ where
                 file.write_all(&data).context(UnableToWriteData)?;
             }
 
+            let len_after = file.metadata().context(UnableToReadFileMetadata)?.len();
             file.sync_all_and_rename().context(UnableToSync)?;
+
+            self.total_size
+                .fetch_add(len_after - len_before, Ordering::SeqCst);
 
             Ok(())
         })();
@@ -395,6 +411,20 @@ impl FileLocator {
         Ok(self
             .existing_filenames()?
             .map(move |path| self.open_file_for_read(&path)))
+    }
+
+    fn total_size(&self) -> u64 {
+        self.existing_filenames()
+            .map(|files| {
+                files
+                    .map(|file| {
+                        fs::metadata(file)
+                            .map(|metadata| metadata.len())
+                            .unwrap_or(0)
+                    })
+                    .sum()
+            })
+            .unwrap_or(0)
     }
 
     fn open_file_for_read(&self, path: &Path) -> Result<Option<File>> {

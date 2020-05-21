@@ -1,62 +1,9 @@
-use delorean_wal::{Entry, WalBuilder};
-use std::{fs, io::Write, path::PathBuf};
+use delorean_wal::WalBuilder;
+use std::{fs, io::Write};
 
-type TestError = Box<dyn std::error::Error + Send + Sync + 'static>;
-type Result<T = (), E = TestError> = std::result::Result<T, E>;
-
-fn wal_file_names(dir: impl Into<PathBuf>) -> Vec<String> {
-    let mut files: Vec<_> = fs::read_dir(&dir.into())
-        .expect("Cannot read WAL directory")
-        .flatten() // Ignore errors
-        .map(|entry| entry.file_name().to_string_lossy().to_string())
-        .collect();
-    files.sort();
-    files
-}
-
-fn file_name_for_sequence_number(id: u64) -> String {
-    format!("wal_{:016x}.db", id)
-}
-
-fn all_entries(builder: &WalBuilder) -> Result<Vec<Entry>> {
-    builder
-        .clone()
-        .entries()?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(Into::into)
-}
-
-macro_rules! assert_filenames_for_sequence_numbers {
-    ($dir:expr, [$($id:expr),* $(,)?] $(,)?) => {{
-        let actual = wal_file_names(&$dir.as_ref());
-        let expected = [$(file_name_for_sequence_number($id)),*];
-        assert_eq!(actual, expected);
-    }};
-}
-
-macro_rules! assert_entry {
-    ($entry:expr, $seq_num:expr, $data: expr $(,)?) => {{
-        assert_eq!($seq_num, $entry.sequence_number());
-        assert_eq!($data.as_ref(), $entry.as_data());
-    }};
-}
-
-macro_rules! create_and_sync_batch {
-    ($wal:expr, [$($entry:expr),* $(,)?] $(,)?) => {{
-        let mut count = 0;
-
-        $({
-            let mut w = $wal.append();
-            w.write_all($entry)?;
-            w.finalize(())?;
-            count += 1;
-        })*
-
-        let (to_notify, outcome) = $wal.sync();
-        assert!(matches!(outcome, Ok(())));
-        assert_eq!(count, to_notify.len());
-    }};
-}
+#[macro_use]
+mod helpers;
+use crate::helpers::*;
 
 #[test]
 #[allow(clippy::cognitive_complexity)]
