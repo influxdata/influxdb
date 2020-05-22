@@ -23,6 +23,7 @@ const Query: FC<PipeProp> = ({data, onUpdate, Context}) => {
           script={query.text}
           onChangeScript={updateText}
           onSubmitScript={() => {}}
+          autogrow
         />
       </Context>
     ),
