@@ -10,9 +10,11 @@ import TimeMachineAlerting from 'src/timeMachine/components/TimeMachineAlerting'
 import TimeMachineVis from 'src/timeMachine/components/Vis'
 import ViewOptions from 'src/timeMachine/components/view_options/ViewOptions'
 import TimeMachineCheckQuery from 'src/timeMachine/components/TimeMachineCheckQuery'
+import EasyMode from 'src/timeMachine/components/EasyMode'
 
 // Utils
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
+import {FeatureFlag} from 'src/shared/utils/featureFlag'
 
 // Types
 import {AppState, TimeMachineTab} from 'src/types'
@@ -58,16 +60,21 @@ const TimeMachine: FunctionComponent<StateProps> = ({
               <TimeMachineVis />
             </div>
           </DraggableResizer.Panel>
-          <DraggableResizer.Panel>
-            <div
-              className="time-machine--bottom"
-              data-testid="time-machine--bottom"
-            >
-              <div className="time-machine--bottom-contents">
-                {bottomContents}
+          <FeatureFlag name="easymode" equals={true}>
+            <EasyMode />
+          </FeatureFlag>
+          <FeatureFlag name="easymode" equals={false}>
+            <DraggableResizer.Panel>
+              <div
+                className="time-machine--bottom"
+                data-testid="time-machine--bottom"
+              >
+                <div className="time-machine--bottom-contents">
+                  {bottomContents}
+                </div>
               </div>
-            </div>
-          </DraggableResizer.Panel>
+            </DraggableResizer.Panel>
+          </FeatureFlag>
         </DraggableResizer>
       </div>
     </>

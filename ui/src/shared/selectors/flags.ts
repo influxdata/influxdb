@@ -12,6 +12,7 @@ export const OSS_FLAGS = {
   matchingNotificationRules: false,
   notebooks: false,
   telegrafEditor: false,
+  easymode: false,
 }
 
 export const CLOUD_FLAGS = {
@@ -25,6 +26,7 @@ export const CLOUD_FLAGS = {
   matchingNotificationRules: false,
   notebooks: false,
   telegrafEditor: false,
+  easymode: false,
 }
 
 export const activeFlags = (state: AppState): FlagMap => {
