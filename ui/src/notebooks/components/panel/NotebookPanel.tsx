@@ -1,5 +1,5 @@
 // Libraries
-import React, {FC, useContext, useCallback} from 'react'
+import React, {FC, useContext, useCallback, ReactNode} from 'react'
 import classnames from 'classnames'
 
 // Components
@@ -26,9 +26,10 @@ export interface Props extends PipeContextProps {
 
 export interface HeaderProps {
   index: number
+  controls?: ReactNode
 }
 
-const NotebookPanelHeader: FC<HeaderProps> = ({index}) => {
+const NotebookPanelHeader: FC<HeaderProps> = ({index, controls}) => {
   const {pipes, removePipe, movePipe} = useContext(NotebookContext)
   const canBeMovedUp = index > 0
   const canBeMovedDown = index < pipes.length - 1
@@ -63,6 +64,7 @@ const NotebookPanelHeader: FC<HeaderProps> = ({index}) => {
         margin={ComponentSize.Small}
         justifyContent={JustifyContent.FlexEnd}
       >
+        {controls}
         <MovePanelButton direction="up" onClick={moveUp} />
         <MovePanelButton direction="down" onClick={moveDown} />
         <PanelVisibilityToggle index={index} />
@@ -72,8 +74,7 @@ const NotebookPanelHeader: FC<HeaderProps> = ({index}) => {
   )
 }
 
-const NotebookPanel: FC<Props> = props => {
-  const {index, children} = props
+const NotebookPanel: FC<Props> = ({index, children, controls}) => {
   const {meta} = useContext(NotebookContext)
 
   const isVisible = meta[index].visible
@@ -85,7 +86,7 @@ const NotebookPanel: FC<Props> = props => {
 
   return (
     <div className={panelClassName}>
-      <NotebookPanelHeader index={index} />
+      <NotebookPanelHeader index={index} controls={controls} />
       <div className="notebook-panel--body">{children}</div>
     </div>
   )
