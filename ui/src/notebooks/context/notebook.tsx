@@ -130,8 +130,6 @@ export const NotebookProvider: FC = ({children}) => {
     [id]
   )
 
-  const chidlin = useMemo(() => <>{children}</>, [id, pipes, meta])
-
   return (
     <NotebookContext.Provider
       value={{
@@ -145,7 +143,7 @@ export const NotebookProvider: FC = ({children}) => {
         removePipe,
       }}
     >
-      {chidlin}
+      {children}
     </NotebookContext.Provider>
   )
 }
