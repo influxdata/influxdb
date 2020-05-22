@@ -81,6 +81,18 @@ export class Signin extends PureComponent<Props, State> {
 
       clearInterval(this.intervalID)
 
+      const redirectToFeatureFlag = true
+
+      if (CLOUD && redirectToFeatureFlag) {
+        const url = new URL(
+          `${
+            window.location.origin
+          }${CLOUD_SIGNIN_PATHNAME}?redirectTo=${pathname}`
+        )
+        window.location.pathname = url.pathname
+        throw error
+      }
+
       if (CLOUD) {
         // TODO: add returnTo to CLOUD signin
         window.location.pathname = CLOUD_SIGNIN_PATHNAME

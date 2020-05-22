@@ -58,11 +58,26 @@ func SessionService() BoolFlag {
 	return sessionService
 }
 
+var redirectto = MakeBoolFlag(
+	"RedirectTo Path After Login",
+	"redirectto",
+	"Ariel Salem / Monitoring Team",
+	true,
+	Temporary,
+	true,
+)
+
+// RedirecttoPathAfterLogin - redirect users to their origin path request after logging in
+func RedirecttoPathAfterLogin() BoolFlag {
+	return redirectto
+}
+
 var all = []Flag{
 	backendExample,
 	frontendExample,
 	newAuth,
 	sessionService,
+	redirectto,
 }
 
 var byKey = map[string]Flag{
@@ -70,4 +85,5 @@ var byKey = map[string]Flag{
 	"frontendExample": frontendExample,
 	"newAuth":         newAuth,
 	"sessionService":  sessionService,
+	"redirectto":      redirectto,
 }
