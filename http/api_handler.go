@@ -126,7 +126,6 @@ func NewAPIHandler(b *APIBackend, opts ...APIHandlerOptFn) *APIHandler {
 
 	noAuthUserResourceMappingService := b.UserResourceMappingService
 	b.UserResourceMappingService = authorizer.NewURMService(b.OrgLookupService, b.UserResourceMappingService)
-	b.LabelService = authorizer.NewLabelServiceWithOrg(b.LabelService, b.OrgLookupService)
 
 	h.Mount("/api/v2", serveLinksHandler(b.HTTPErrorHandler))
 
@@ -154,8 +153,6 @@ func NewAPIHandler(b *APIBackend, opts ...APIHandlerOptFn) *APIHandler {
 
 	fluxBackend := NewFluxBackend(b.Logger.With(zap.String("handler", "query")), b)
 	h.Mount(prefixQuery, NewFluxHandler(b.Logger, fluxBackend))
-
-	h.Mount(prefixLabels, NewLabelHandler(b.Logger, b.LabelService, b.HTTPErrorHandler))
 
 	notificationEndpointBackend := NewNotificationEndpointBackend(b.Logger.With(zap.String("handler", "notificationEndpoint")), b)
 	notificationEndpointBackend.NotificationEndpointService = authorizer.NewNotificationEndpointService(b.NotificationEndpointService,
