@@ -89,6 +89,7 @@ export class Signin extends PureComponent<Props, State> {
             window.location.href
           }`
         )
+        window.localStorage.setItem('redirectTo', window.location.href)
         window.location.href = url.href
         throw error
       }

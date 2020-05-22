@@ -19,10 +19,12 @@ export const createAuthorization = async (
   }
 }
 
-export const getAuth0Config = async (): Promise<Auth0Config> => {
+export const getAuth0Config = async (
+  redirectTo: string
+): Promise<Auth0Config> => {
   try {
     const response = await fetch(
-      `${getAPIBasepath()}/api/v2private/oauth/clientConfig`
+      `${getAPIBasepath()}/api/v2private/oauth/clientConfig?redirectTo=${redirectTo}`
     )
     const data = await response.json()
     return data

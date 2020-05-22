@@ -61,7 +61,8 @@ class LoginPageContents extends PureComponent<DispatchProps> {
 
   public async componentDidMount() {
     try {
-      const config = await getAuth0Config()
+      const redirectTo = window.localStorage.getItem('redirectTo') || '/'
+      const config = await getAuth0Config(redirectTo)
       this.auth0 = new auth0js.WebAuth({
         domain: config.domain,
         clientID: config.clientID,
