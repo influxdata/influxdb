@@ -85,11 +85,11 @@ export class Signin extends PureComponent<Props, State> {
 
       if (CLOUD && redirectToFeatureFlag) {
         const url = new URL(
-          `${
-            window.location.origin
-          }${CLOUD_SIGNIN_PATHNAME}?redirectTo=${pathname}`
+          `${window.location.origin}${CLOUD_SIGNIN_PATHNAME}?redirectTo=${
+            window.location.href
+          }`
         )
-        window.location.pathname = url.pathname
+        window.location.href = url.href
         throw error
       }
 
