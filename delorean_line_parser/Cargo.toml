@@ -1,0 +1,14 @@
+[package]
+name = "delorean_line_parser"
+version = "0.1.0"
+authors = ["Paul Dix <paul@pauldix.net>"]
+edition = "2018"
+
+[dependencies]
+either = "1.5.3"
+nom = "5.1.1"
+smallvec = "1.2.0"
+snafu = "0.6.2"
+
+[dev-dependencies]
+delorean_test_helpers = { path = "../delorean_test_helpers" }
