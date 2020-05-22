@@ -5,6 +5,7 @@ import (
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/authorizer"
+	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 )
 
 type AuthedURMService struct {
@@ -26,8 +27,8 @@ func (s *AuthedURMService) FindUserResourceMappings(ctx context.Context, filter 
 	}
 
 	authedUrms := urms[:0]
+	orgID := kithttp.OrgIDFromContext(ctx)
 	for _, urm := range urms {
-		orgID := orgIDFromContext(ctx)
 		if orgID != nil {
 			if _, _, err := authorizer.AuthorizeRead(ctx, urm.ResourceType, urm.ResourceID, *orgID); err != nil {
 				continue
@@ -44,7 +45,7 @@ func (s *AuthedURMService) FindUserResourceMappings(ctx context.Context, filter 
 }
 
 func (s *AuthedURMService) CreateUserResourceMapping(ctx context.Context, m *influxdb.UserResourceMapping) error {
-	orgID := orgIDFromContext(ctx)
+	orgID := kithttp.OrgIDFromContext(ctx)
 	if orgID != nil {
 		if _, _, err := authorizer.AuthorizeWrite(ctx, m.ResourceType, m.ResourceID, *orgID); err != nil {
 			return err
@@ -71,7 +72,7 @@ func (s *AuthedURMService) DeleteUserResourceMapping(ctx context.Context, resour
 
 	// There should only be one because resourceID and userID are used to create the primary key for urms
 	for _, urm := range urms {
-		orgID := orgIDFromContext(ctx)
+		orgID := kithttp.OrgIDFromContext(ctx)
 		if orgID != nil {
 			if _, _, err := authorizer.AuthorizeWrite(ctx, urm.ResourceType, urm.ResourceID, *orgID); err != nil {
 				return err

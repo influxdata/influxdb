@@ -18,10 +18,10 @@ type BucketMetrics struct {
 var _ influxdb.BucketService = (*BucketMetrics)(nil)
 
 // NewBucketMetrics returns a metrics service middleware for the Bucket Service.
-func NewBucketMetrics(reg prometheus.Registerer, s influxdb.BucketService, opts ...MetricsOption) *BucketMetrics {
-	o := applyOpts(opts...)
+func NewBucketMetrics(reg prometheus.Registerer, s influxdb.BucketService, opts ...metric.MetricsOption) *BucketMetrics {
+	o := metric.ApplyMetricOpts(opts...)
 	return &BucketMetrics{
-		rec:           metric.New(reg, o.applySuffix("bucket")),
+		rec:           metric.New(reg, o.ApplySuffix("bucket")),
 		bucketService: s,
 	}
 }

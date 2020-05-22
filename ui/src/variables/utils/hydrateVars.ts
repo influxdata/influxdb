@@ -128,8 +128,9 @@ export const findSubgraph = (
   const subgraph: Set<VariableNode> = new Set()
   // use an ID array to reduce the chance of reference errors
   const varIDs = variables.map(v => v.id)
+  // TODO: uncomment this when variable hydration is resolved
   // create an array of IDs to reference later
-  const graphIDs = []
+  // const graphIDs = []
   for (const node of graph) {
     const shouldKeep =
       varIDs.includes(node.variable.id) ||
@@ -139,20 +140,21 @@ export const findSubgraph = (
 
     if (shouldKeep) {
       subgraph.add(node)
-      graphIDs.push(node.variable.id)
+      // graphIDs.push(node.variable.id)
     }
   }
 
-  const removeDupAncestors = (n: VariableNode) => {
-    const {id} = n.variable
-    return !graphIDs.includes(id)
-  }
+  // const removeDupAncestors = (n: VariableNode) => {
+  //   const {id} = n.variable
+  //   return !graphIDs.includes(id)
+  // }
 
   for (const node of subgraph) {
-    node.parents = node.parents.filter(removeDupAncestors)
-    node.children = node.children.filter(removeDupAncestors)
+    // node.parents = node.parents.filter(removeDupAncestors)
+    // node.children = node.children.filter(removeDupAncestors)
+    node.parents = node.parents.filter(node => subgraph.has(node))
+    node.children = node.children.filter(node => subgraph.has(node))
   }
-
   return [...subgraph]
 }
 

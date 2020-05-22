@@ -4,7 +4,6 @@ import {Page} from '@influxdata/clockface'
 import {NotebookProvider} from 'src/notebooks/context/notebook'
 import Header from 'src/notebooks/components/Header'
 import PipeList from 'src/notebooks/components/PipeList'
-import NotebookPanel from 'src/notebooks/components/panel/NotebookPanel'
 
 // NOTE: uncommon, but using this to scope the project
 // within the page and not bleed it's dependancies outside
@@ -24,5 +23,4 @@ const NotebookPage: FC = () => {
   )
 }
 
-export {NotebookPanel}
 export default NotebookPage

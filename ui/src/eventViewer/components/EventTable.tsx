@@ -1,5 +1,6 @@
 // Libraries
-import React, {useLayoutEffect, FC} from 'react'
+import React, {useLayoutEffect, FC, useEffect, useState} from 'react'
+import {connect} from 'react-redux'
 import {AutoSizer, InfiniteLoader, List} from 'react-virtualized'
 
 // Components
@@ -8,6 +9,9 @@ import TableRow from 'src/eventViewer/components/TableRow'
 import LoadingRow from 'src/eventViewer/components/LoadingRow'
 import FooterRow from 'src/eventViewer/components/FooterRow'
 import ErrorRow from 'src/eventViewer/components/ErrorRow'
+
+// Actions
+import {notify as notifyAction} from 'src/shared/actions/notifications'
 
 // Utils
 import {
@@ -19,16 +23,41 @@ import {
 import {EventViewerChildProps, Fields} from 'src/eventViewer/types'
 import {RemoteDataState} from 'src/types'
 
-type Props = EventViewerChildProps & {
+// Constants
+import {checkStatusLoading} from 'src/shared/copy/notifications'
+
+type DispatchProps = {
+  notify: typeof notifyAction
+}
+
+type OwnProps = {
   fields: Fields
 }
 
-const EventTable: FC<Props> = ({state, dispatch, loadRows, fields}) => {
+type Props = EventViewerChildProps & DispatchProps & OwnProps
+
+const EventTable: FC<Props> = ({state, dispatch, loadRows, fields, notify}) => {
   const rowCount = getRowCount(state)
 
   const isRowLoaded = ({index}) => !!state.rows[index]
 
+  const isRowLoadedBoolean = !!state.rows[0]
+
   const loadMoreRows = () => loadNextRows(state, dispatch, loadRows)
+
+  const [isLongRunningQuery, setIsLongRunningQuery] = useState(false)
+
+  useEffect(() => {
+    setTimeout(() => {
+      setIsLongRunningQuery(true)
+    }, 5000)
+  })
+
+  useEffect(() => {
+    if (isLongRunningQuery && !isRowLoadedBoolean) {
+      notify(checkStatusLoading)
+    }
+  }, [isLongRunningQuery, isRowLoaded])
 
   const rowRenderer = ({key, index, style}) => {
     const isLastRow = index === state.rows.length
@@ -103,4 +132,11 @@ const EventTable: FC<Props> = ({state, dispatch, loadRows, fields}) => {
   )
 }
 
-export default EventTable
+const mdtp: DispatchProps = {
+  notify: notifyAction,
+}
+
+export default connect<{}, DispatchProps, OwnProps>(
+  null,
+  mdtp
+)(EventTable)

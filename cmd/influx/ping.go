@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -18,6 +19,9 @@ func cmdPing(f *globalFlags, opts genericCLIOpts) *cobra.Command {
 
 		c := http.Client{
 			Timeout: 5 * time.Second,
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: flags.skipVerify},
+			},
 		}
 		url := flags.Host + "/health"
 		resp, err := c.Get(url)
