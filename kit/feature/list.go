@@ -39,7 +39,7 @@ var pushDownWindowAggregateCount = MakeBoolFlag(
 	false,
 )
 
-// PushDownWindowAggregateCount - Enable Count variant of PushDownWindowAggregateRule
+// PushDownWindowAggregateCount - Enable Count variant of PushDownWindowAggregateRule and PushDownBareAggregateRule
 func PushDownWindowAggregateCount() BoolFlag {
 	return pushDownWindowAggregateCount
 }
@@ -53,7 +53,7 @@ var pushDownWindowAggregateRest = MakeBoolFlag(
 	false,
 )
 
-// PushDownWindowAggregateRest - Enable non-Count variants of PushDownWindowAggregateRule (stage 2)
+// PushDownWindowAggregateRest - Enable non-Count variants of PushDownWindowAggregateRule and PushDownWindowAggregateRule (stage 2)
 func PushDownWindowAggregateRest() BoolFlag {
 	return pushDownWindowAggregateRest
 }

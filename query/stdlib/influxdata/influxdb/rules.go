@@ -2,6 +2,7 @@ package influxdb
 
 import (
 	"context"
+	"math"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/ast"
@@ -24,9 +25,10 @@ func init() {
 		PushDownReadTagKeysRule{},
 		PushDownReadTagValuesRule{},
 		SortedPivotRule{},
-		// For this rule to take effect the appropriate capabilities must be
+		// For the following two rules to take effect the appropriate capabilities must be
 		// added AND feature flags must be enabled.
 		// PushDownWindowAggregateRule{},
+		// PushDownBareAggregateRule{},
 
 		// For this rule to take effect the corresponding feature flags must be
 		// enabled.
@@ -658,81 +660,89 @@ func (PushDownWindowAggregateRule) Name() string {
 	return "PushDownWindowAggregateRule"
 }
 
+var windowPushableAggs = []plan.ProcedureKind{
+	universe.MinKind,
+	universe.MaxKind,
+	universe.MeanKind,
+	universe.CountKind,
+	universe.SumKind,
+}
+
 func (rule PushDownWindowAggregateRule) Pattern() plan.Pattern {
-	return plan.OneOf(
-		[]plan.ProcedureKind{
-			universe.MinKind,
-			universe.MaxKind,
-			universe.MeanKind,
-			universe.CountKind,
-			universe.SumKind,
-		},
+	return plan.OneOf(windowPushableAggs,
 		plan.Pat(universe.WindowKind, plan.Pat(ReadRangePhysKind)))
 }
 
-func (PushDownWindowAggregateRule) Rewrite(ctx context.Context, pn plan.Node) (plan.Node, bool, error) {
+func canPushWindowedAggregate(ctx context.Context, fnNode plan.Node) bool {
 	// Check Capabilities
 	reader := GetStorageDependencies(ctx).FromDeps.Reader
 	windowAggregateReader, ok := reader.(query.WindowAggregateReader)
 	if !ok {
-		return pn, false, nil
+		return false
 	}
 	caps := windowAggregateReader.GetWindowAggregateCapability(ctx)
 	if caps == nil {
-		return pn, false, nil
+		return false
 	}
 
 	// Check the aggregate function spec. Require operation on _value. There
 	// are two feature flags covering all cases. One specifically for Count,
 	// and another for the rest. There are individual capability tests for all
 	// cases.
-	fnNode := pn
 	switch fnNode.Kind() {
 	case universe.MinKind:
 		if !feature.PushDownWindowAggregateRest().Enabled(ctx) || !caps.HaveMin() {
-			return pn, false, nil
+			return false
 		}
 
 		minSpec := fnNode.ProcedureSpec().(*universe.MinProcedureSpec)
 		if minSpec.Column != execute.DefaultValueColLabel {
-			return pn, false, nil
+			return false
 		}
 	case universe.MaxKind:
 		if !feature.PushDownWindowAggregateRest().Enabled(ctx) || !caps.HaveMax() {
-			return pn, false, nil
+			return false
 		}
 
 		maxSpec := fnNode.ProcedureSpec().(*universe.MaxProcedureSpec)
 		if maxSpec.Column != execute.DefaultValueColLabel {
-			return pn, false, nil
+			return false
 		}
 	case universe.MeanKind:
 		if !feature.PushDownWindowAggregateRest().Enabled(ctx) || !caps.HaveMean() {
-			return pn, false, nil
+			return false
 		}
 
 		meanSpec := fnNode.ProcedureSpec().(*universe.MeanProcedureSpec)
 		if len(meanSpec.Columns) != 1 || meanSpec.Columns[0] != execute.DefaultValueColLabel {
-			return pn, false, nil
+			return false
 		}
 	case universe.CountKind:
 		if !feature.PushDownWindowAggregateCount().Enabled(ctx) || !caps.HaveCount() {
-			return pn, false, nil
+			return false
 		}
 
 		countSpec := fnNode.ProcedureSpec().(*universe.CountProcedureSpec)
 		if len(countSpec.Columns) != 1 || countSpec.Columns[0] != execute.DefaultValueColLabel {
-			return pn, false, nil
+			return false
 		}
 	case universe.SumKind:
 		if !feature.PushDownWindowAggregateRest().Enabled(ctx) || !caps.HaveSum() {
-			return pn, false, nil
+			return false
 		}
 
 		sumSpec := fnNode.ProcedureSpec().(*universe.SumProcedureSpec)
 		if len(sumSpec.Columns) != 1 || sumSpec.Columns[0] != execute.DefaultValueColLabel {
-			return pn, false, nil
+			return false
 		}
+	}
+	return true
+}
+
+func (PushDownWindowAggregateRule) Rewrite(ctx context.Context, pn plan.Node) (plan.Node, bool, error) {
+	fnNode := pn
+	if !canPushWindowedAggregate(ctx, fnNode) {
+		return pn, false, nil
 	}
 
 	windowNode := fnNode.Predecessors()[0]
@@ -766,6 +776,35 @@ func (PushDownWindowAggregateRule) Rewrite(ctx context.Context, pn plan.Node) (p
 		ReadRangePhysSpec: *fromSpec.Copy().(*ReadRangePhysSpec),
 		Aggregates:        []plan.ProcedureKind{fnNode.Kind()},
 		WindowEvery:       window.Every.Nanoseconds(),
+	}), true, nil
+}
+
+// PushDownBareAggregateRule is a rule that allows pushing down of aggregates
+// that are directly over a ReadRange source.
+type PushDownBareAggregateRule struct{}
+
+func (p PushDownBareAggregateRule) Name() string {
+	return "PushDownWindowAggregateRule"
+}
+
+func (p PushDownBareAggregateRule) Pattern() plan.Pattern {
+	return plan.OneOf(windowPushableAggs,
+		plan.Pat(ReadRangePhysKind))
+}
+
+func (p PushDownBareAggregateRule) Rewrite(ctx context.Context, pn plan.Node) (plan.Node, bool, error) {
+	fnNode := pn
+	if !canPushWindowedAggregate(ctx, fnNode) {
+		return pn, false, nil
+	}
+
+	fromNode := fnNode.Predecessors()[0]
+	fromSpec := fromNode.ProcedureSpec().(*ReadRangePhysSpec)
+
+	return plan.CreatePhysicalNode("ReadWindowAggregate", &ReadWindowAggregatePhysSpec{
+		ReadRangePhysSpec: *fromSpec.Copy().(*ReadRangePhysSpec),
+		Aggregates:        []plan.ProcedureKind{fnNode.Kind()},
+		WindowEvery:       math.MaxInt64,
 	}), true, nil
 }
 

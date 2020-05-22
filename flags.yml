@@ -28,13 +28,13 @@
   expose: true
 
 - name: Push Down Window Aggregate Count
-  description: Enable Count variant of PushDownWindowAggregateRule
+  description: Enable Count variant of PushDownWindowAggregateRule and PushDownBareAggregateRule
   key: pushDownWindowAggregateCount
   default: false
   contact: Query Team
 
 - name: Push Down Window Aggregate Rest
-  description: Enable non-Count variants of PushDownWindowAggregateRule (stage 2)
+  description: Enable non-Count variants of PushDownWindowAggregateRule and PushDownWindowAggregateRule (stage 2)
   key: pushDownWindowAggregateRest
   default: false
   contact: Query Team
