@@ -3,9 +3,11 @@ import CSharpLogo from '../graphics/CSharpLogo'
 import GoLogo from '../graphics/GoLogo'
 import JavaLogo from '../graphics/JavaLogo'
 import JSLogo from '../graphics/JSLogo'
+import KotlinLogo from '../graphics/KotlinLogo'
 import PHPLogo from '../graphics/PHPLogo'
 import PythonLogo from '../graphics/PythonLogo'
 import RubyLogo from '../graphics/RubyLogo'
+import ScalaLogo from '../graphics/ScalaLogo'
 
 export interface ClientLibrary {
   id: string
@@ -392,12 +394,127 @@ $writeApi->write($point, WritePrecision::S, $bucket, $org);`,
 $writeApi->write($dataArray, WritePrecision::S, $bucket, $org);`,
 }
 
+export const clientKotlinLibrary = {
+  id: 'kotlin',
+  name: 'Kotlin',
+  url:
+    'https://github.com/influxdata/influxdb-client-java/tree/master/client-kotlin',
+  image: KotlinLogo,
+  buildWithMavenCodeSnippet: `<dependency>
+  <groupId>com.influxdb</groupId>
+  <artifactId>influxdb-client-kotlin</artifactId>
+  <version>1.8.0</version>
+</dependency>`,
+  buildWithGradleCodeSnippet: `dependencies {
+  compile "com.influxdb:influxdb-client-kotlin:1.8.0"
+}`,
+  initializeClientCodeSnippet: `package example
+
+import com.influxdb.client.kotlin.InfluxDBClientKotlinFactory
+import kotlinx.coroutines.channels.consumeEach
+import kotlinx.coroutines.channels.filter
+import kotlinx.coroutines.channels.take
+import kotlinx.coroutines.runBlocking
+
+fun main() = runBlocking {
+
+    // You can generate a Token from the "Tokens Tab" in the UI
+    val token = "<%= token %>"
+    val org = "<%= org %>"
+    val bucket = "<%= bucket %>"
+
+    val client = InfluxDBClientKotlinFactory.create("<%= server %>", token.toCharArray(), org)
+}`,
+  executeQueryCodeSnippet: `val query = ("from(bucket: \\"$bucket\\")"
+  + " |> range(start: -1d)"
+  + " |> filter(fn: (r) => (r[\\"_measurement\\"] == \\"cpu\\" and r[\\"_field\\"] == \\"usage_system\\"))")
+
+// Result is returned as a stream
+val results = client.getQueryKotlinApi().query(query)
+
+// Example of additional result stream processing on client side
+results
+  // filter on client side using \`filter\` built-in operator
+  .filter { "cpu0" == it.getValueByKey("cpu") }
+  // take first 20 records
+  .take(20)
+  // print results
+  .consumeEach { println("Measurement: $\{it.measurement}, value: $\{it.value}") }
+  
+client.close()`,
+}
+
+export const clientScalaLibrary = {
+  id: 'scala',
+  name: 'Scala',
+  url:
+    'https://github.com/influxdata/influxdb-client-java/tree/master/client-scala',
+  image: ScalaLogo,
+  buildWithSBTCodeSnippet: `libraryDependencies += "com.influxdb" % "influxdb-client-scala" % "1.8.0"`,
+  buildWithMavenCodeSnippet: `<dependency>
+  <groupId>com.influxdb</groupId>
+  <artifactId>influxdb-client-scala</artifactId>
+  <version>1.8.0</version>
+</dependency>`,
+  buildWithGradleCodeSnippet: `dependencies {
+  compile "com.influxdb:influxdb-client-scala:1.8.0"
+}`,
+  initializeClientCodeSnippet: `package example
+
+import akka.actor.ActorSystem
+import akka.stream.scaladsl.Sink
+import com.influxdb.client.scala.InfluxDBClientScalaFactory
+import com.influxdb.query.FluxRecord
+
+import scala.concurrent.Await
+import scala.concurrent.duration.Duration
+
+object InfluxDB2ScalaExample {
+
+  implicit val system: ActorSystem = ActorSystem("it-tests")
+
+  def main(args: Array[String]): Unit = {
+
+    // You can generate a Token from the "Tokens Tab" in the UI
+    val token = "<%= token %>"
+    val org = "<%= org %>"
+    val bucket = "<%= bucket %>"
+
+    val client = InfluxDBClientScalaFactory.create("<%= server %>", token.toCharArray, org)
+  }
+}`,
+  executeQueryCodeSnippet: `val query = (s"""from(bucket: "$bucket")"""
+  + " |> range(start: -1d)"
+  + " |> filter(fn: (r) => (r[\\"_measurement\\"] == \\"cpu\\" and r[\\"_field\\"] == \\"usage_system\\"))")
+
+// Result is returned as a stream
+val results = client.getQueryScalaApi().query(query)
+
+// Example of additional result stream processing on client side
+val sink = results
+  // filter on client side using \`filter\` built-in operator
+  .filter(it => "cpu0" == it.getValueByKey("cpu"))
+  // take first 20 records
+  .take(20)
+  // print results
+  .runWith(Sink.foreach[FluxRecord](it => println(s"Measurement: $\{it.getMeasurement}, value: $\{it.getValue}")
+  ))
+
+// wait to finish
+Await.result(sink, Duration.Inf)
+
+client.close()
+system.terminate()`,
+}
+
 export const clientLibraries: ClientLibrary[] = [
   clientCSharpLibrary,
   clientGoLibrary,
   clientJavaLibrary,
   clientJSLibrary,
+  clientKotlinLibrary,
   clientPHPLibrary,
   clientPythonLibrary,
   clientRubyLibrary,
+  clientScalaLibrary,
 ]
