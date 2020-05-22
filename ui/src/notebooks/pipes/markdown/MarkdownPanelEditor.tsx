@@ -16,6 +16,7 @@ const MarkdownPanelEditor: FC<Props> = ({text, onChange}) => {
       className="notebook-panel--markdown-editor"
       value={text}
       onChange={handleTextAreaChange}
+      autoFocus={true}
     />
   )
 }

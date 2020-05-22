@@ -10,6 +10,6 @@ register({
   button: 'Markdown',
   initial: () => ({
     text: 'Content',
-    mode: 'preview',
+    mode: 'edit',
   }),
 })
