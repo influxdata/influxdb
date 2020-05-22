@@ -50,7 +50,7 @@ export const TimeProvider: FC = ({children}) => {
         [id]: {...(block || DEFAULT_STATE)},
       }
     })
-  })
+  }, [])
 
   const updateTimeContext = useCallback((id: string, block: TimeBlock) => {
     setTimeContext(ranges => {
@@ -62,7 +62,7 @@ export const TimeProvider: FC = ({children}) => {
         },
       }
     })
-  })
+  }, [])
 
   const removeTimeContext = useCallback((id: string) => {
     setTimeContext(ranges => {
@@ -73,7 +73,7 @@ export const TimeProvider: FC = ({children}) => {
       delete ranges[id]
       return {...ranges}
     })
-  })
+  }, [])
 
   return (
     <TimeContext.Provider

@@ -16,8 +16,8 @@ const Query: FC<PipeProp> = ({data, onUpdate, Context}) => {
     onUpdate({queries: _queries})
   }
 
-  return useMemo(() => {
-    return (
+  return useMemo(
+    () => (
       <Context>
         <FluxMonacoEditor
           script={query.text}
@@ -25,8 +25,9 @@ const Query: FC<PipeProp> = ({data, onUpdate, Context}) => {
           onSubmitScript={() => {}}
         />
       </Context>
-    )
-  }, [query.text])
+    ),
+    [query.text]
+  )
 }
 
 export default Query

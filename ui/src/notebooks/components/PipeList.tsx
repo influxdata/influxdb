@@ -1,46 +1,34 @@
-import React, {
-  FC,
-  useContext,
-  useEffect,
-  memo,
-  useCallback,
-  createElement,
-} from 'react'
+import React, {FC, useContext, useCallback, createElement, useMemo} from 'react'
 import {PipeContextProps, PipeData} from 'src/notebooks'
 import Pipe from 'src/notebooks/components/Pipe'
 import {NotebookContext} from 'src/notebooks/context/notebook'
 import NotebookPanel from 'src/notebooks/components/panel/NotebookPanel'
 
-const lookup = {}
+interface NotebookPipeProps {
+  index: number
+  data: PipeData
+  onUpdate: (index: number, pipe: PipeData) => void
+}
 
-const NotebookPipe: FC = memo(({index, data, onUpdate}) => {
-  if (index in lookup) {
-    console.log(
-      'rerender',
-      lookup[index].data === data,
-      lookup[index].onUpdate === onUpdate
-    )
-    console.log('\t', data, lookup[index].data)
-  }
-  lookup[index] = {
-    data,
-    onUpdate,
-  }
-  const panel: FC<PipeContextProps> = props => {
-    const _props = {
-      ...props,
-      index,
-    }
+const NotebookPipe: FC<NotebookPipeProps> = ({index, data, onUpdate}) => {
+  const panel: FC<PipeContextProps> = useMemo(
+    () => props => {
+      const _props = {
+        ...props,
+        index,
+      }
 
-    return createElement(NotebookPanel, _props)
-  }
+      return createElement(NotebookPanel, _props)
+    },
+    [index]
+  )
 
   const _onUpdate = (data: PipeData) => {
     onUpdate(index, data)
   }
 
   return <Pipe data={data} onUpdate={_onUpdate} Context={panel} />
-})
+}
 
 const PipeList: FC = () => {
   const {id, pipes, updatePipe} = useContext(NotebookContext)

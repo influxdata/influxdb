@@ -61,7 +61,7 @@ const ConnectedAutoRefreshDropdown = ({context, update}) => {
   )
 }
 
-const EnsureTimeContextExists: FC = ({children}) => {
+const EnsureTimeContextExists: FC = () => {
   const {id} = useContext(NotebookContext)
   const {timeContext, addTimeContext, updateTimeContext} = useContext(
     TimeContext

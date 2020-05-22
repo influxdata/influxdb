@@ -14,7 +14,7 @@ import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 
 // Types
 import {OnChangeScript} from 'src/types/flux'
-import {EditorType, ResourceType} from 'src/types'
+import {EditorType} from 'src/types'
 
 import './FluxMonacoEditor.scss'
 import {editor as monacoEditor} from 'monaco-editor'
@@ -28,8 +28,6 @@ interface Props {
   setEditorInstance?: (editor: EditorType) => void
   skipFocus?: boolean
 }
-
-const WrappedProvider: FC<Props> = ({}) => {}
 
 const FluxEditorMonaco: FC<Props> = ({
   script,
@@ -101,7 +99,6 @@ const FluxEditorMonaco: FC<Props> = ({
     }
   }
 
-  console.log('sweeeeeeeet')
   return (
     <div className="flux-editor--monaco" data-testid="flux-editor">
       <MonacoEditor

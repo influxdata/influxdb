@@ -1,4 +1,4 @@
-import React, {FC, createElement, useEffect, useMemo} from 'react'
+import {FC, createElement, useMemo} from 'react'
 
 import {PIPE_DEFINITIONS, PipeProp} from 'src/notebooks'
 
