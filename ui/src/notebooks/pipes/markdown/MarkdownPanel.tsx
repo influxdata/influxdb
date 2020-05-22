@@ -12,9 +12,7 @@ import {MarkdownRenderer} from 'src/shared/components/views/MarkdownRenderer'
 
 const MarkdownPanel: FC<PipeProp> = ({data, Context, onUpdate}) => {
   const handleToggleMode = (mode: MarkdownMode): void => {
-    const updatedData = {...data, mode}
-
-    onUpdate(updatedData)
+    onUpdate({mode})
   }
 
   const controls = (
@@ -22,9 +20,7 @@ const MarkdownPanel: FC<PipeProp> = ({data, Context, onUpdate}) => {
   )
 
   const handleChange = (text: string): void => {
-    const updatedData = {...data, text}
-
-    onUpdate(updatedData)
+    onUpdate({text})
   }
 
   let panelContents = (
