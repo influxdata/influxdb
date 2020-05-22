@@ -1,4 +1,4 @@
-import React, {FC, useState, useMemo, useCallback} from 'react'
+import React, {FC, useState, useCallback} from 'react'
 import {PipeData} from 'src/notebooks'
 
 export interface PipeMeta {
