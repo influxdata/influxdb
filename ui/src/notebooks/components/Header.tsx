@@ -1,4 +1,4 @@
-import React, {FC, useContext} from 'react'
+import React, {FC, useContext, useCallback, useMemo} from 'react'
 
 import {Page} from '@influxdata/clockface'
 import {NotebookContext} from 'src/notebooks/context/notebook'
@@ -14,25 +14,34 @@ import {SubmitQueryButton} from 'src/timeMachine/components/SubmitQueryButton'
 
 const FULL_WIDTH = true
 
-const Header: FC = () => {
-  const {id} = useContext(NotebookContext)
-  const {timeContext, addTimeContext, updateTimeContext} = useContext(
-    TimeContext
-  )
+const ConnectedTimeZoneDropdown = React.memo(() => {
   const {timeZone, onSetTimeZone} = useContext(AppSettingContext)
 
-  if (!timeContext.hasOwnProperty(id)) {
-    addTimeContext(id)
-    return null
+  return <TimeZoneDropdown timeZone={timeZone} onSetTimeZone={onSetTimeZone} />
+})
+
+const ConnectedTimeRangeDropdown = ({context, update}) => {
+  const {range} = context
+
+  const updateRange = range => {
+    update({
+      range,
+    })
   }
 
-  const {refresh, range} = timeContext[id]
+  return useMemo(() => {
+    return <TimeRangeDropdown timeRange={range} onSetTimeRange={updateRange} />
+  }, [range])
+}
 
-  function updateRefresh(interval: number) {
+const ConnectedAutoRefreshDropdown = ({context, update}) => {
+  const {refresh} = context
+
+  const updateRefresh = (interval: number) => {
     const status =
       interval === 0 ? AutoRefreshStatus.Paused : AutoRefreshStatus.Active
 
-    updateTimeContext(id, {
+    update({
       refresh: {
         status,
         interval,
@@ -40,13 +49,46 @@ const Header: FC = () => {
     } as TimeBlock)
   }
 
-  function updateRange(range) {
-    updateTimeContext(id, {
-      ...timeContext[id],
-      range,
-    })
+  return useMemo(
+    () => (
+      <AutoRefreshDropdown
+        selected={refresh}
+        onChoose={updateRefresh}
+        showManualRefresh={false}
+      />
+    ),
+    [refresh]
+  )
+}
+
+const EnsureTimeContextExists: FC = () => {
+  const {id} = useContext(NotebookContext)
+  const {timeContext, addTimeContext, updateTimeContext} = useContext(
+    TimeContext
+  )
+
+  const update = useCallback(
+    data => {
+      updateTimeContext(id, data)
+    },
+    [id]
+  )
+
+  if (!timeContext.hasOwnProperty(id)) {
+    addTimeContext(id)
+    return null
   }
 
+  return (
+    <>
+      <ConnectedTimeZoneDropdown />
+      <ConnectedTimeRangeDropdown context={timeContext[id]} update={update} />
+      <ConnectedAutoRefreshDropdown context={timeContext[id]} update={update} />
+    </>
+  )
+}
+
+const Header: FC = () => {
   function submit() {} // eslint-disable-line @typescript-eslint/no-empty-function
 
   return (
@@ -60,16 +102,7 @@ const Header: FC = () => {
         </Page.ControlBarLeft>
         <Page.ControlBarRight>
           <div className="notebook-header--buttons">
-            <TimeZoneDropdown
-              timeZone={timeZone}
-              onSetTimeZone={onSetTimeZone}
-            />
-            <TimeRangeDropdown timeRange={range} onSetTimeRange={updateRange} />
-            <AutoRefreshDropdown
-              selected={refresh}
-              onChoose={updateRefresh}
-              showManualRefresh={false}
-            />
+            <EnsureTimeContextExists />
             <SubmitQueryButton
               submitButtonDisabled={false}
               queryStatus={RemoteDataState.NotStarted}
@@ -82,8 +115,6 @@ const Header: FC = () => {
   )
 }
 
-export {Header}
-
 export default () => (
   <TimeProvider>
     <AppSettingProvider>
@@ -91,3 +122,5 @@ export default () => (
     </AppSettingProvider>
   </TimeProvider>
 )
+
+export {Header}

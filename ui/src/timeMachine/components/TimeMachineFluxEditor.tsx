@@ -28,8 +28,8 @@ interface StateProps {
 }
 
 interface DispatchProps {
-  onSetActiveQueryText: typeof setActiveQueryText
-  onSubmitQueries: typeof saveAndExecuteQueries
+  onSetActiveQueryText: typeof setActiveQueryText | ((text: string) => void)
+  onSubmitQueries: typeof saveAndExecuteQueries | (() => void)
 }
 
 type Props = StateProps & DispatchProps
@@ -159,6 +159,8 @@ const TimeMachineFluxEditor: FC<Props> = ({
     </div>
   )
 }
+
+export {TimeMachineFluxEditor}
 
 const mstp = (state: AppState) => {
   const activeQueryText = getActiveQuery(state).text

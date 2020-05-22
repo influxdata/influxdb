@@ -22,6 +22,8 @@ import {getAllVariables, asAssignment} from 'src/variables/selectors'
 import {buildVarsOption} from 'src/variables/utils/buildVarsOption'
 import {runQuery} from 'src/shared/apis/query'
 import {parseResponse as parse} from 'src/shared/parsing/flux/response'
+import {getOrg} from 'src/organizations/selectors'
+import {fetchAllBuckets} from 'src/buckets/actions/thunks'
 
 import {store} from 'src/index'
 
@@ -109,8 +111,6 @@ const queryTagValues = async (orgID, bucket, tag) => {
 export class LSPServer {
   private server: WASMServer
   private messageID: number = 0
-  private buckets: string[] = []
-  private orgID: string = ''
   private documentVersions: {[key: string]: number} = {}
   public store: Store<AppState & LocalStorage>
 
@@ -125,7 +125,8 @@ export class LSPServer {
 
   getTagKeys = async bucket => {
     try {
-      const response = await queryTagKeys(this.orgID, bucket)
+      const org = getOrg(this.store.getState())
+      const response = await queryTagKeys(org.id, bucket)
       return parseQueryResponse(response)
     } catch (e) {
       console.error(e)
@@ -135,7 +136,8 @@ export class LSPServer {
 
   getTagValues = async (bucket, tag) => {
     try {
-      const response = await queryTagValues(this.orgID, bucket, tag)
+      const org = getOrg(this.store.getState())
+      const response = await queryTagValues(org.id, bucket, tag)
       return parseQueryResponse(response)
     } catch (e) {
       console.error(e)
@@ -143,26 +145,27 @@ export class LSPServer {
     }
   }
 
-  getBuckets = () => {
-    return Promise.resolve(this.buckets)
+  getBuckets = async () => {
+    try {
+      const org = getOrg(this.store.getState())
+      const buckets = await fetchAllBuckets(org.id)
+
+      return Object.values(buckets.entities.buckets).map(b => b.name)
+    } catch (e) {
+      console.error(e)
+      return []
+    }
   }
 
   getMeasurements = async (bucket: string) => {
     try {
-      const response = await queryMeasurements(this.orgID, bucket)
+      const org = getOrg(this.store.getState())
+      const response = await queryMeasurements(org.id, bucket)
       return parseQueryResponse(response)
     } catch (e) {
       console.error(e)
       return []
     }
-  }
-
-  updateBuckets(buckets: string[]) {
-    this.buckets = buckets
-  }
-
-  setOrg(orgID: string) {
-    this.orgID = orgID
   }
 
   initialize() {
