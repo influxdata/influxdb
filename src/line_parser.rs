@@ -348,7 +348,7 @@ impl<'a> Series<'a> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 enum FieldValue {
     I64(i64),
     F64(f64),
@@ -796,6 +796,26 @@ mod test {
     type Error = Box<dyn std::error::Error>;
     type Result<T = (), E = Error> = std::result::Result<T, E>;
 
+    impl FieldValue {
+        fn unwrap_i64(self) -> i64 {
+            match self {
+                Self::I64(v) => v,
+                _ => panic!("field was not an i64"),
+            }
+        }
+
+        fn unwrap_f64(self) -> f64 {
+            match self {
+                Self::F64(v) => v,
+                _ => panic!("field was not an f64"),
+            }
+        }
+    }
+
+    fn parse(s: &str) -> Result<Vec<ParsedLine<'_>>, super::Error> {
+        super::parse_lines(s).collect()
+    }
+
     #[test]
     fn parse_no_fields() -> Result {
         let input = "foo 1234";
@@ -811,9 +831,10 @@ mod test {
         let input = "foo asdf=23i 1234";
         let vals = parse(input)?;
 
-        assert_eq!(vals[0].series(), "foo\tasdf");
-        assert_eq!(vals[0].time(), 1234);
-        assert_eq!(vals[0].i64_value().unwrap(), 23);
+        assert_eq!(vals[0].series.measurement, "foo");
+        assert_eq!(vals[0].timestamp, Some(1234));
+        assert_eq!(vals[0].field_set[0].0, "asdf");
+        assert_eq!(vals[0].field_set[0].1.unwrap_i64(), 23);
 
         Ok(())
     }
@@ -823,9 +844,13 @@ mod test {
         let input = "foo asdf=44 546";
         let vals = parse(input)?;
 
-        assert_eq!(vals[0].series(), "foo\tasdf");
-        assert_eq!(vals[0].time(), 546);
-        assert!(approximately_equal(vals[0].f64_value().unwrap(), 44.0));
+        assert_eq!(vals[0].series.measurement, "foo");
+        assert_eq!(vals[0].timestamp, Some(546));
+        assert_eq!(vals[0].field_set[0].0, "asdf");
+        assert!(approximately_equal(
+            vals[0].field_set[0].1.unwrap_f64(),
+            44.0
+        ));
 
         Ok(())
     }
@@ -835,9 +860,13 @@ mod test {
         let input = "foo asdf=3.74 123";
         let vals = parse(input)?;
 
-        assert_eq!(vals[0].series(), "foo\tasdf");
-        assert_eq!(vals[0].time(), 123);
-        assert!(approximately_equal(vals[0].f64_value().unwrap(), 3.74));
+        assert_eq!(vals[0].series.measurement, "foo");
+        assert_eq!(vals[0].timestamp, Some(123));
+        assert_eq!(vals[0].field_set[0].0, "asdf");
+        assert!(approximately_equal(
+            vals[0].field_set[0].1.unwrap_f64(),
+            3.74
+        ));
 
         Ok(())
     }
@@ -847,13 +876,14 @@ mod test {
         let input = "foo asdf=23i,bar=5i 1234";
         let vals = parse(input)?;
 
-        assert_eq!(vals[0].series(), "foo\tasdf");
-        assert_eq!(vals[0].time(), 1234);
-        assert_eq!(vals[0].i64_value().unwrap(), 23);
+        assert_eq!(vals[0].series.measurement, "foo");
+        assert_eq!(vals[0].timestamp, Some(1234));
 
-        assert_eq!(vals[1].series(), "foo\tbar");
-        assert_eq!(vals[1].time(), 1234);
-        assert_eq!(vals[1].i64_value().unwrap(), 5);
+        assert_eq!(vals[0].field_set[0].0, "asdf");
+        assert_eq!(vals[0].field_set[0].1.unwrap_i64(), 23);
+
+        assert_eq!(vals[0].field_set[1].0, "bar");
+        assert_eq!(vals[0].field_set[1].1.unwrap_i64(), 5);
 
         Ok(())
     }
@@ -863,13 +893,20 @@ mod test {
         let input = "foo asdf=23.1,bar=5 1234";
         let vals = parse(input)?;
 
-        assert_eq!(vals[0].series(), "foo\tasdf");
-        assert_eq!(vals[0].time(), 1234);
-        assert!(approximately_equal(vals[0].f64_value().unwrap(), 23.1));
+        assert_eq!(vals[0].series.measurement, "foo");
+        assert_eq!(vals[0].timestamp, Some(1234));
 
-        assert_eq!(vals[1].series(), "foo\tbar");
-        assert_eq!(vals[1].time(), 1234);
-        assert!(approximately_equal(vals[1].f64_value().unwrap(), 5.0));
+        assert_eq!(vals[0].field_set[0].0, "asdf");
+        assert!(approximately_equal(
+            vals[0].field_set[0].1.unwrap_f64(),
+            23.1
+        ));
+
+        assert_eq!(vals[0].field_set[1].0, "bar");
+        assert!(approximately_equal(
+            vals[0].field_set[1].1.unwrap_f64(),
+            5.0
+        ));
 
         Ok(())
     }
@@ -879,13 +916,17 @@ mod test {
         let input = "foo asdf=23.1,bar=5i 1234";
         let vals = parse(input)?;
 
-        assert_eq!(vals[0].series(), "foo\tasdf");
-        assert_eq!(vals[0].time(), 1234);
-        assert!(approximately_equal(vals[0].f64_value().unwrap(), 23.1));
+        assert_eq!(vals[0].series.measurement, "foo");
+        assert_eq!(vals[0].timestamp, Some(1234));
 
-        assert_eq!(vals[1].series(), "foo\tbar");
-        assert_eq!(vals[1].time(), 1234);
-        assert_eq!(vals[1].i64_value().unwrap(), 5);
+        assert_eq!(vals[0].field_set[0].0, "asdf");
+        assert!(approximately_equal(
+            vals[0].field_set[0].1.unwrap_f64(),
+            23.1
+        ));
+
+        assert_eq!(vals[0].field_set[1].0, "bar");
+        assert_eq!(vals[0].field_set[1].1.unwrap_i64(), 5);
 
         Ok(())
     }
@@ -896,7 +937,7 @@ mod test {
         let vals = parse(input)?;
 
         assert_eq!(vals.len(), 1);
-        assert_eq!(vals[0].i64_value().unwrap(), -1);
+        assert_eq!(vals[0].field_set[0].1.unwrap_i64(), -1);
 
         Ok(())
     }
@@ -907,7 +948,10 @@ mod test {
         let vals = parse(input)?;
 
         assert_eq!(vals.len(), 1);
-        assert!(approximately_equal(vals[0].f64_value().unwrap(), -1.0));
+        assert!(approximately_equal(
+            vals[0].field_set[0].1.unwrap_f64(),
+            -1.0
+        ));
 
         Ok(())
     }
@@ -945,25 +989,39 @@ mod test {
         let input = "foo,tag1=1,tag2=2 value=1 123";
         let vals = parse(input)?;
 
-        assert_eq!(vals[0].series(), "foo,tag1=1,tag2=2\tvalue");
+        assert_eq!(vals[0].series.measurement, "foo");
+
+        assert_eq!(vals[0].series.tag_set.as_ref().unwrap()[0].0, "tag1");
+        assert_eq!(vals[0].series.tag_set.as_ref().unwrap()[0].1, "1");
+
+        assert_eq!(vals[0].series.tag_set.as_ref().unwrap()[1].0, "tag2");
+        assert_eq!(vals[0].series.tag_set.as_ref().unwrap()[1].1, "2");
+
+        assert_eq!(vals[0].field_set[0].0, "value");
 
         Ok(())
     }
 
     #[test]
     fn parse_tag_set_unsorted() -> Result {
-        let input = "foo,tag2=2,tag1=1 value=1 123";
-        let vals = parse(input)?;
+        let input = "foo,tag2=2,tag1=1";
+        let (remaining, series) = series(input)?;
 
-        assert_eq!(vals[0].series(), "foo,tag1=1,tag2=2\tvalue");
+        assert!(remaining.is_empty());
+        assert_eq!(series.generate_base()?, "foo,tag1=1,tag2=2");
 
         Ok(())
     }
 
     #[test]
     fn parse_tag_set_duplicate_tags() -> Result {
-        let input = "foo,tag=1,tag=2 value=1 123";
-        let err = parse(input).expect_err("Parsing duplicate tags should fail");
+        let input = "foo,tag=1,tag=2";
+        let (remaining, series) = series(input)?;
+
+        assert!(remaining.is_empty());
+        let err = series
+            .generate_base()
+            .expect_err("Parsing duplicate tags should fail");
 
         assert_eq!(
             err.to_string(),
@@ -979,13 +1037,15 @@ mod test {
 foo value2=2i 123"#;
         let vals = parse(input)?;
 
-        assert_eq!(vals[0].series(), "foo\tvalue1");
-        assert_eq!(vals[0].time(), 123);
-        assert_eq!(vals[0].i64_value().unwrap(), 1);
+        assert_eq!(vals[0].series.measurement, "foo");
+        assert_eq!(vals[0].timestamp, Some(123));
+        assert_eq!(vals[0].field_set[0].0, "value1");
+        assert_eq!(vals[0].field_set[0].1.unwrap_i64(), 1);
 
-        assert_eq!(vals[1].series(), "foo\tvalue2");
-        assert_eq!(vals[1].time(), 123);
-        assert_eq!(vals[1].i64_value().unwrap(), 2);
+        assert_eq!(vals[1].series.measurement, "foo");
+        assert_eq!(vals[1].timestamp, Some(123));
+        assert_eq!(vals[1].field_set[0].0, "value2");
+        assert_eq!(vals[1].field_set[0].1.unwrap_i64(), 2);
 
         Ok(())
     }
@@ -1007,9 +1067,10 @@ foo value2=2i 123"#;
         let input = r#"foo value1=1i -123"#;
         let vals = parse(input)?;
 
-        assert_eq!(vals[0].series(), "foo\tvalue1");
-        assert_eq!(vals[0].time(), -123);
-        assert_eq!(vals[0].i64_value().unwrap(), 1);
+        assert_eq!(vals[0].series.measurement, "foo");
+        assert_eq!(vals[0].timestamp, Some(-123));
+        assert_eq!(vals[0].field_set[0].0, "value1");
+        assert_eq!(vals[0].field_set[0].1.unwrap_i64(), 1);
 
         Ok(())
     }
@@ -1053,9 +1114,10 @@ foo value2=2i 123"#;
         let input = "  measurement  a=1i  123  ";
         let vals = parse(input)?;
 
-        assert_eq!(vals[0].series(), "measurement\ta");
-        assert_eq!(vals[0].time(), 123);
-        assert_eq!(vals[0].i64_value().unwrap(), 1);
+        assert_eq!(vals[0].series.measurement, "measurement");
+        assert_eq!(vals[0].timestamp, Some(123));
+        assert_eq!(vals[0].field_set[0].0, "a");
+        assert_eq!(vals[0].field_set[0].1.unwrap_i64(), 1);
 
         Ok(())
     }
@@ -1311,15 +1373,20 @@ her"#,
         let input = "foo,tag0=value1 asdf=23.1,bar=5i";
         let vals = parse(input)?;
 
-        assert_eq!(vals[0].series(), "foo,tag0=value1\tasdf");
-        // Just test that we haven't traveled back in time
-        assert!(vals[0].time() > 1_583_443_428_970_606_000);
-        assert!(approximately_equal(vals[0].f64_value().unwrap(), 23.1));
+        assert_eq!(vals[0].series.measurement, "foo");
+        assert_eq!(vals[0].series.tag_set.as_ref().unwrap()[0].0, "tag0");
+        assert_eq!(vals[0].series.tag_set.as_ref().unwrap()[0].1, "value1");
 
-        assert_eq!(vals[1].series(), "foo,tag0=value1\tbar");
-        // Just test that we haven't traveled back in time
-        assert!(vals[1].time() > 1_583_443_428_970_606_000);
-        assert_eq!(vals[1].i64_value().unwrap(), 5);
+        assert_eq!(vals[0].timestamp, None);
+
+        assert_eq!(vals[0].field_set[0].0, "asdf");
+        assert!(approximately_equal(
+            vals[0].field_set[0].1.unwrap_f64(),
+            23.1
+        ));
+
+        assert_eq!(vals[0].field_set[1].0, "bar");
+        assert_eq!(vals[0].field_set[1].1.unwrap_i64(), 5);
 
         Ok(())
     }
