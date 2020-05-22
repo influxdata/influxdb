@@ -141,9 +141,7 @@ $notebook-divider-height: ($cf-marg-a * 2) + $cf-border;
   border-radius: 0 0 $cf-radius $cf-radius;
   padding: $cf-marg-b;
   padding-top: 0;
-  // flex: 1 0 0;
   position: relative;
-  min-height: 200px;
 }
 
 // Special styling for query builder inside notebook panel
@@ -158,14 +156,13 @@ $notebook-divider-height: ($cf-marg-a * 2) + $cf-border;
   padding-top: 0;
 }
 
-.notebook-panel--body .flux-editor {
+.notebook-panel--body .flux-editor--monaco {
   position: relative;
-  height: 320px;
-  width: 100%;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  left: 0;
+  min-height: 320px;
+
+  .react-monaco-editor-container {
+    position: absolute;
+  }
 }
 
 .notebook-panel--results {
