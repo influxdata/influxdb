@@ -4,12 +4,14 @@ import {PipeData} from 'src/notebooks'
 export interface PipeMeta {
   title: string
   visible: boolean
+  showResults: boolean
 }
 
 export interface NotebookContextType {
   id: string
   pipes: PipeData[]
   meta: PipeMeta[] // data only used for the view layer for Notebooks
+  results: any[]
   addPipe: (pipe: PipeData) => void
   updatePipe: (idx: number, pipe: PipeData) => void
   updateMeta: (idx: number, pipe: PipeMeta) => void
@@ -21,6 +23,7 @@ export const DEFAULT_CONTEXT: NotebookContextType = {
   id: 'new',
   pipes: [],
   meta: [],
+  results: [],
   addPipe: () => {},
   updatePipe: () => {},
   updateMeta: () => {},
@@ -31,11 +34,12 @@ export const DEFAULT_CONTEXT: NotebookContextType = {
 // NOTE: this just loads some test data for exploring the
 // interactions between types. Make sure it's never true
 // during the pull review process
-const TEST_MODE = false
+const TEST_MODE = true
 if (TEST_MODE) {
   const TEST_NOTEBOOK = require('src/notebooks/context/notebook.mock.json')
   DEFAULT_CONTEXT.id = TEST_NOTEBOOK.id
   DEFAULT_CONTEXT.pipes = TEST_NOTEBOOK.pipes
+  DEFAULT_CONTEXT.meta = TEST_NOTEBOOK.meta
 }
 
 export const NotebookContext = React.createContext<NotebookContextType>(
@@ -48,9 +52,11 @@ export const NotebookProvider: FC = ({children}) => {
   const [id] = useState(DEFAULT_CONTEXT.id)
   const [pipes, setPipes] = useState(DEFAULT_CONTEXT.pipes)
   const [meta, setMeta] = useState(DEFAULT_CONTEXT.meta)
+  const [results, setResults] = useState(DEFAULT_CONTEXT.results)
 
   const _setPipes = useCallback(setPipes, [id])
   const _setMeta = useCallback(setMeta, [id])
+  const _setResults = useCallback(setResults, [id])
 
   const addPipe = useCallback(
     (pipe: PipeData) => {
@@ -65,7 +71,11 @@ export const NotebookProvider: FC = ({children}) => {
         add({
           title: `Notebook_${++GENERATOR_INDEX}`,
           visible: true,
+          showResults: false
         })
+      )
+      _setResults(
+          add([])
       )
     },
     [id]
@@ -80,6 +90,7 @@ export const NotebookProvider: FC = ({children}) => {
         }
         return pipes.slice()
       })
+      _setResults([])
     },
     [id]
   )
@@ -114,6 +125,7 @@ export const NotebookProvider: FC = ({children}) => {
       }
       _setPipes(move)
       _setMeta(move)
+      _setResults([])
     },
     [id]
   )
@@ -126,6 +138,7 @@ export const NotebookProvider: FC = ({children}) => {
       }
       _setPipes(remove)
       _setMeta(remove)
+      _setResults([])
     },
     [id]
   )
@@ -136,8 +149,10 @@ export const NotebookProvider: FC = ({children}) => {
         id,
         pipes,
         meta,
+        results,
         updatePipe,
         updateMeta,
+        setResults,
         movePipe,
         addPipe,
         removePipe,

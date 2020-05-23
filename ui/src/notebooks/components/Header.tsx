@@ -11,6 +11,11 @@ import AutoRefreshDropdown from 'src/shared/components/dropdown_auto_refresh/Aut
 import {AutoRefreshStatus, RemoteDataState} from 'src/types'
 import {TimeZoneDropdown} from 'src/shared/components/TimeZoneDropdown'
 import {SubmitQueryButton} from 'src/timeMachine/components/SubmitQueryButton'
+import {parseFiles} from 'src/timeMachine/utils/rawFluxDataTable'
+import {runQuery} from 'src/shared/apis/query'
+import {getWindowVars} from 'src/variables/utils/getWindowVars'
+import {buildVarsOption} from 'src/variables/utils/buildVarsOption'
+import {asAssignment} from 'src/variables/selectors'
 
 const FULL_WIDTH = true
 
@@ -61,6 +66,84 @@ const ConnectedAutoRefreshDropdown = ({context, update}) => {
   )
 }
 
+const PREVIOUS_REGEXP = /__PREVIOUS_RESULT__/g
+const ConnectedSubmitButton = React.memo(() => {
+  const {timeZone, onSetTimeZone} = useContext(AppSettingContext)
+  const {pipes, setResults} = useContext(NotebookContext)
+  const {org, variables} = useContext(AppSettingContext)
+
+  // TODO: move this to a central controller so that
+  // pipes can request for themselves
+  const submit = () => {
+      const vars = variables.map(v => asAssignment(v))
+        Promise.all(pipes.reduce((stages, pipe, idx) => {
+            if (pipe.type === 'query') {
+                let text = pipe.queries[pipe.activeQuery].text
+                let requirements = {}
+
+                if (PREVIOUS_REGEXP.test(text)) {
+                    requirements = {
+                        ...(idx === 0 ? {} : stages[stages.length - 1].requirements),
+                        [`prev_${idx}`]: stages[stages.length - 1].text
+                    }
+                    text = text.replace(PREVIOUS_REGEXP, `prev_${idx}`)
+                }
+
+                stages.push({
+                    text,
+                    instances: [ idx ],
+                    requirements
+                })
+            } else {
+                stages[stages.length - 1].instances.push(idx);
+            }
+
+            return stages
+        }, []).map(query => {
+            const queryText = Object.entries(query.requirements).map(([key, value]) => `${key} = (\n${value}\n)\n\n`).join('') + query.text
+
+        const windowVars = getWindowVars(queryText, vars)
+        const extern = buildVarsOption([...vars, ...windowVars])
+
+        return runQuery(org.id, queryText, extern).promise
+            .then(raw => {
+                if (raw.type !== 'SUCCESS') {
+                    throw new Error('dun fucked up')
+                }
+
+                return raw
+            })
+            .then(raw => {
+                return parseFiles([raw.csv])
+            })
+            .then(response => {
+                return {
+                    ...query,
+                    results: response
+                }
+            })
+        })).then(responses => {
+            return responses.reduce((acc, { results, instances }) => {
+                instances.map(index => {
+                    acc[index] = results
+                })
+
+                return acc
+            }, [])
+        }).then(results => {
+            setResults(results)
+        })
+  }
+
+  return (
+      <SubmitQueryButton
+              submitButtonDisabled={false}
+              queryStatus={RemoteDataState.NotStarted}
+              onSubmit={submit}
+            />
+  )
+})
+
 const EnsureTimeContextExists: FC = () => {
   const {id} = useContext(NotebookContext)
   const {timeContext, addTimeContext, updateTimeContext} = useContext(
@@ -89,9 +172,7 @@ const EnsureTimeContextExists: FC = () => {
 }
 
 const Header: FC = () => {
-  function submit() {} // eslint-disable-line @typescript-eslint/no-empty-function
-
-  return (
+    return (
     <>
       <Page.Header fullWidth={FULL_WIDTH}>
         <Page.Title title="Notebooks" />
@@ -103,11 +184,7 @@ const Header: FC = () => {
         <Page.ControlBarRight>
           <div className="notebook-header--buttons">
             <EnsureTimeContextExists />
-            <SubmitQueryButton
-              submitButtonDisabled={false}
-              queryStatus={RemoteDataState.NotStarted}
-              onSubmit={submit}
-            />
+              <ConnectedSubmitButton />
           </div>
         </Page.ControlBarRight>
       </Page.ControlBar>

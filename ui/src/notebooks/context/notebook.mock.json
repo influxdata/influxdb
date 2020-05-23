@@ -32,10 +32,12 @@
       ]
     },
     {
-        "type": "visualization"
+        "type": "example",
+        "text": "not flux"
     },
     {
-        "type": "visualization"
+        "type": "example",
+        "text": "not flux"
     },
     {
       "type": "query",
@@ -53,7 +55,8 @@
       ]
     },
     {
-        "type": "visualization"
+        "type": "example",
+        "text": "not flux"
     },
     {
       "type": "query",
@@ -71,8 +74,36 @@
       ]
     },
     {
-        "type": "visualization"
+        "type": "example",
+        "text": "not flux"
     }
+  ],
+  "meta": [
+      {
+          "title": "0001",
+          "visible": true
+      }, {
+          "title": "0002",
+          "visible": true
+      }, {
+          "title": "0003",
+          "visible": true
+      }, {
+          "title": "0004",
+          "visible": true
+      }, {
+          "title": "0005",
+          "visible": true
+      }, {
+          "title": "0006",
+          "visible": true
+      }, {
+          "title": "0007",
+          "visible": true
+      }, {
+          "title": "0008",
+          "visible": true
+      }
   ]
 }
 

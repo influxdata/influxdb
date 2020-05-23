@@ -1,5 +1,5 @@
 // Libraries
-import React, {FC, useContext, useCallback, ReactNode} from 'react'
+import React, {FC, useContext, useMemo, useCallback, ReactNode} from 'react'
 import classnames from 'classnames'
 
 // Components
@@ -13,6 +13,7 @@ import RemovePanelButton from 'src/notebooks/components/panel/RemovePanelButton'
 import PanelVisibilityToggle from 'src/notebooks/components/panel/PanelVisibilityToggle'
 import MovePanelButton from 'src/notebooks/components/panel/MovePanelButton'
 import NotebookPanelTitle from 'src/notebooks/components/panel/NotebookPanelTitle'
+import RawFluxDataGrid from 'src/timeMachine/components/RawFluxDataGrid'
 
 // Types
 import {PipeContextProps} from 'src/notebooks'
@@ -74,6 +75,31 @@ const NotebookPanelHeader: FC<HeaderProps> = ({index, controls}) => {
   )
 }
 
+const NotebookResults: FC = ({index}) => {
+  const {pipes, results} = useContext(NotebookContext)
+  const result = results[index]
+
+  return useMemo(() => {
+      if (!result || pipes[index].type !== 'query') {
+          return false
+      }
+      return (
+          <div style={{width: '100%',
+    overflow: 'auto',
+    position: 'relative',
+    height: '250px'}}>
+      <RawFluxDataGrid
+        scrollTop={0}
+        scrollLeft={0}
+          width={1200}
+          height={300}
+          data={result.data}
+          maxColumnCount={result.maxColumnCount}/>
+          </div>
+      )
+  }, [result])
+}
+
 const NotebookPanel: FC<Props> = ({index, children, controls}) => {
   const {meta} = useContext(NotebookContext)
 
@@ -88,6 +114,7 @@ const NotebookPanel: FC<Props> = ({index, children, controls}) => {
     <div className={panelClassName}>
       <NotebookPanelHeader index={index} controls={controls} />
       <div className="notebook-panel--body">{children}</div>
+        <NotebookResults index={index} />
     </div>
   )
 }
