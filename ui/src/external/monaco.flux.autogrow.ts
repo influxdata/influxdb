@@ -10,7 +10,9 @@ export const registerAutogrow = editor => {
       return
     }
 
-    const lineHeight = editor.getOption(window.monaco.editor.EditorOption.lineHeight)
+    const lineHeight = editor.getOption(
+      window.monaco.editor.EditorOption.lineHeight
+    )
     const lineCount = (editor.getModel() || {}).getLineCount() || 1
     const height = editor.getTopForLineNumber(lineCount + 1) + lineHeight
 
