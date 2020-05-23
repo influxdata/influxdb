@@ -74,6 +74,10 @@ export class Signin extends PureComponent<Props, State> {
   private checkForLogin = async () => {
     try {
       await client.users.me()
+      const redirectIsSet = !!window.localStorage.getItem('redirectTo')
+      if (redirectIsSet) {
+        window.localStorage.removeItem('redirectTo')
+      }
     } catch (error) {
       const {
         location: {pathname},
