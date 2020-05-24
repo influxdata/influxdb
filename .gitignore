@@ -83,15 +83,12 @@ cmd/influxd/version.go
 **/influx_stress
 !**/influx_stress/
 
-/influxd
 **/influxd
 !**/influxd/
 
-/influx
 **/influx
 !**/influx/
 
-/influxdb
 **/influxdb
 !**/influxdb/
 
