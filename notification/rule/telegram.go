@@ -13,10 +13,10 @@ import (
 // Telegram is the notification rule config of telegram.
 type Telegram struct {
 	Base
+	MessageTemplate       string `json:"messageTemplate"`
 	Channel               string `json:"channel"`
 	ParseMode             string `json:"parseMode"`
 	DisableWebPagePreview bool   `json:"disableWebPagePreview"`
-	MessageTemplate       string `json:"messageTemplate"`
 }
 
 // GenerateFlux generates a flux script for the telegram notification rule.
