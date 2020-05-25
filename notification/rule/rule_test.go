@@ -321,6 +321,42 @@ func TestJSON(t *testing.T) {
 				MessageTemplate: "msg1",
 			},
 		},
+		{
+			name: "simple telegram",
+			src: &rule.Telegram{
+				Base: rule.Base{
+					ID:          influxTesting.MustIDBase16(id1),
+					OwnerID:     influxTesting.MustIDBase16(id2),
+					Name:        "name1",
+					OrgID:       influxTesting.MustIDBase16(id3),
+					RunbookLink: "runbooklink1",
+					SleepUntil:  &time3,
+					Every:       mustDuration("1h"),
+					TagRules: []notification.TagRule{
+						{
+							Tag: influxdb.Tag{
+								Key:   "k1",
+								Value: "v1",
+							},
+							Operator: influxdb.NotEqual,
+						},
+						{
+							Tag: influxdb.Tag{
+								Key:   "k2",
+								Value: "v2",
+							},
+							Operator: influxdb.RegexEqual,
+						},
+					},
+					CRUDLog: influxdb.CRUDLog{
+						CreatedAt: timeGen1.Now(),
+						UpdatedAt: timeGen2.Now(),
+					},
+				},
+				Channel:         "channel1",
+				MessageTemplate: "blah",
+			},
+		},
 	}
 	for _, c := range cases {
 		b, err := json.Marshal(c.src)
