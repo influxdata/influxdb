@@ -287,7 +287,7 @@ func (s *Service) FindMany(ctx context.Context, filter influxdb.DBRPMappingFilte
 		}
 	}
 
-	return ms, len(ms), s.store.View(ctx, func(tx kv.Tx) error {
+	err := s.store.View(ctx, func(tx kv.Tx) error {
 		// Optimized path, use index.
 		if orgID := filter.OrgID; orgID != nil {
 			// The index performs a prefix search.
@@ -338,6 +338,8 @@ func (s *Service) FindMany(ctx context.Context, filter influxdb.DBRPMappingFilte
 		}
 		return nil
 	})
+
+	return ms, len(ms), err
 }
 
 // Create creates a new mapping.
