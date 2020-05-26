@@ -1,6 +1,6 @@
 import React, {FC, useContext, useCallback, useMemo} from 'react'
 
-import {Page} from '@influxdata/clockface'
+import {Page, IconFont} from '@influxdata/clockface'
 import {NotebookContext} from 'src/notebooks/context/notebook'
 import {TimeProvider, TimeContext, TimeBlock} from 'src/notebooks/context/time'
 import AppSettingProvider, {AppSettingContext} from 'src/notebooks/context/app'
@@ -104,6 +104,8 @@ const Header: FC = () => {
           <div className="notebook-header--buttons">
             <EnsureTimeContextExists />
             <SubmitQueryButton
+              icon={IconFont.Play}
+              text="Run Notebook"
               submitButtonDisabled={false}
               queryStatus={RemoteDataState.NotStarted}
               onSubmit={submit}
