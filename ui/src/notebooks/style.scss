@@ -1,4 +1,4 @@
-@import "@influxdata/clockface/dist/variables.scss";
+@import '@influxdata/clockface/dist/variables.scss';
 
 $notebook-header-height: 46px;
 $notebook-size-toggle: 16px;
@@ -123,7 +123,8 @@ $notebook-divider-height: ($cf-marg-a * 2) + $cf-border;
     left: 50%;
     transform: translate(-50%, -50%);
     width: $notebook-size-toggle;
-    transition: height 0.25s cubic-bezier(0.25, 1, 0.5, 1), border-color 0.25s ease;
+    transition: height 0.25s cubic-bezier(0.25, 1, 0.5, 1),
+      border-color 0.25s ease;
     border: $cf-border solid $g8-storm;
     border-radius: $cf-radius / 2;
   }
@@ -221,11 +222,11 @@ $notebook-divider-height: ($cf-marg-a * 2) + $cf-border;
 }
 
 .notebook-header--buttons {
-    display: inline-flex;
-    flex: 0 0 auto;
-    flex-wrap: wrap;
+  display: inline-flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
 
-    > * {
-        margin-left: 4px;
-    }
+  > * {
+    margin-left: 4px;
+  }
 }
