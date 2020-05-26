@@ -7,11 +7,11 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/authorizer"
-	influxdbcontext "github.com/influxdata/influxdb/context"
-	"github.com/influxdata/influxdb/mock"
-	influxdbtesting "github.com/influxdata/influxdb/testing"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/authorizer"
+	influxdbcontext "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/mock"
+	influxdbtesting "github.com/influxdata/influxdb/v2/testing"
 )
 
 var dashboardCmpOptions = cmp.Options{
@@ -107,7 +107,7 @@ func TestDashboardService_FindDashboardByID(t *testing.T) {
 			s := authorizer.NewDashboardService(tt.fields.DashboardService)
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			_, err := s.FindDashboardByID(ctx, tt.args.id)
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
@@ -232,7 +232,7 @@ func TestDashboardService_FindDashboards(t *testing.T) {
 			s := authorizer.NewDashboardService(tt.fields.DashboardService)
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			dashboards, _, err := s.FindDashboards(ctx, influxdb.DashboardFilter{}, influxdb.FindOptions{})
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
@@ -347,7 +347,7 @@ func TestDashboardService_UpdateDashboard(t *testing.T) {
 			s := authorizer.NewDashboardService(tt.fields.DashboardService)
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{tt.args.permissions})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			_, err := s.UpdateDashboard(ctx, tt.args.id, influxdb.DashboardUpdate{})
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
@@ -452,7 +452,7 @@ func TestDashboardService_DeleteDashboard(t *testing.T) {
 			s := authorizer.NewDashboardService(tt.fields.DashboardService)
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{tt.args.permissions})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			err := s.DeleteDashboard(ctx, tt.args.id)
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
@@ -534,7 +534,7 @@ func TestDashboardService_CreateDashboard(t *testing.T) {
 			s := authorizer.NewDashboardService(tt.fields.DashboardService)
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			err := s.CreateDashboard(ctx, &influxdb.Dashboard{OrganizationID: tt.args.orgID})
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
@@ -652,7 +652,7 @@ func TestDashboardService_WriteDashboardCell(t *testing.T) {
 			s := authorizer.NewDashboardService(tt.fields.DashboardService)
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			err := s.AddDashboardCell(ctx, 1, &influxdb.Cell{}, influxdb.AddDashboardCellOptions{})
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
@@ -758,7 +758,7 @@ func TestDashboardService_FindDashboardCellView(t *testing.T) {
 			s := authorizer.NewDashboardService(tt.fields.DashboardService)
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			_, err := s.GetDashboardCellView(ctx, 1, 1)
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)

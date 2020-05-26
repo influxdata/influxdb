@@ -6,7 +6,6 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import ResourceFetcher from 'src/shared/components/resource_fetcher'
 import CompletionAdvancedButton from 'src/onboarding/components/CompletionAdvancedButton'
 import CompletionQuickStartButton from 'src/onboarding/components/CompletionQuickStartButton'
-import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 
 // Constants
 import {
@@ -21,7 +20,6 @@ import {ossMetricsTemplate} from 'src/templates/constants/defaultTemplates'
 import {getDashboards} from 'src/organizations/apis'
 import {client} from 'src/utils/api'
 import {createDashboardFromTemplate as createDashboardFromTemplateAJAX} from 'src/templates/api'
-import * as api from 'src/client'
 
 // Types
 import {
@@ -30,8 +28,9 @@ import {
   ComponentSize,
   Columns,
   Grid,
+  DapperScrollbars,
 } from '@influxdata/clockface'
-import {Dashboard, Organization} from 'src/types'
+import {Dashboard} from 'src/types'
 import {ScraperTargetRequest} from '@influxdata/influx'
 import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
 import {QUICKSTART_SCRAPER_TARGET_URL} from 'src/dataLoaders/constants/pluginConfigs'
@@ -39,15 +38,6 @@ import {QUICKSTART_SCRAPER_TARGET_URL} from 'src/dataLoaders/constants/pluginCon
 interface Props extends OnboardingStepProps {
   orgID: string
   bucketID: string
-}
-
-const getOrganizations = async () => {
-  const resp = await api.getOrgs({})
-  if (resp.status !== 200) {
-    throw new Error(resp.data.message)
-  }
-
-  return resp.data.orgs
 }
 
 @ErrorHandling
@@ -66,7 +56,7 @@ class CompletionStep extends PureComponent<Props> {
     return (
       <div className="onboarding-step">
         <div className="wizard-step--scroll-area">
-          <FancyScrollbar autoHide={false}>
+          <DapperScrollbars autoHide={false}>
             <div className="wizard-step--scroll-content">
               <h3 className="wizard-step--title">You are ready to go!</h3>
               <h5 className="wizard-step--sub-title">
@@ -104,16 +94,7 @@ class CompletionStep extends PureComponent<Props> {
                       widthSM={Columns.Four}
                     >
                       <div className="wizard-completion--option">
-                        <ResourceFetcher<Organization[]>
-                          fetcher={getOrganizations}
-                        >
-                          {orgs => (
-                            <CompletionAdvancedButton
-                              onExit={onExit}
-                              orgs={orgs}
-                            />
-                          )}
-                        </ResourceFetcher>
+                        <CompletionAdvancedButton onExit={onExit} />
                         <dt>Whoa looks like you’re an expert!</dt>
                         <dd>
                           This allows you to set up Telegraf, scrapers, and much
@@ -145,7 +126,7 @@ class CompletionStep extends PureComponent<Props> {
               </dl>
               <h5 className="wizard-step--sub-title" />
             </div>
-          </FancyScrollbar>
+          </DapperScrollbars>
         </div>
       </div>
     )

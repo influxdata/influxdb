@@ -13,23 +13,33 @@ import EmptyGraphMessage from 'src/shared/components/EmptyGraphMessage'
 import GraphLoadingDots from 'src/shared/components/GraphLoadingDots'
 
 // Utils
-import {useVisDomainSettings} from 'src/shared/utils/useVisDomainSettings'
+import {
+  useVisXDomainSettings,
+  useVisYDomainSettings,
+} from 'src/shared/utils/useVisDomainSettings'
 import {
   getFormatter,
   geomToInterpolation,
   filterNoisyColumns,
-  parseBounds,
+  parseXBounds,
+  parseYBounds,
   defaultXColumn,
   defaultYColumn,
 } from 'src/shared/utils/vis'
 
 // Constants
-import {VIS_THEME} from 'src/shared/constants'
+import {VIS_THEME, VIS_THEME_LIGHT} from 'src/shared/constants'
 import {DEFAULT_LINE_COLORS} from 'src/shared/constants/graphColorPalettes'
 import {INVALID_DATA_COPY} from 'src/shared/copy/cell'
 
 // Types
-import {RemoteDataState, XYViewProperties, TimeZone, TimeRange} from 'src/types'
+import {
+  RemoteDataState,
+  XYViewProperties,
+  TimeZone,
+  TimeRange,
+  Theme,
+} from 'src/types'
 
 interface Props {
   children: (config: Config) => JSX.Element
@@ -39,6 +49,7 @@ interface Props {
   table: Table
   timeZone: TimeZone
   viewProperties: XYViewProperties
+  theme: Theme
 }
 
 const XYPlot: FunctionComponent<Props> = ({
@@ -73,10 +84,10 @@ const XYPlot: FunctionComponent<Props> = ({
     position,
     timeFormat,
   },
+  theme,
 }) => {
-  const storedXDomain = useMemo(() => parseBounds(xBounds), [xBounds])
-  const storedYDomain = useMemo(() => parseBounds(yBounds), [yBounds])
-
+  const storedXDomain = useMemo(() => parseXBounds(xBounds), [xBounds])
+  const storedYDomain = useMemo(() => parseYBounds(yBounds), [yBounds])
   const xColumn = storedXColumn || defaultXColumn(table)
   const yColumn = storedYColumn || defaultYColumn(table)
 
@@ -101,7 +112,7 @@ const XYPlot: FunctionComponent<Props> = ({
 
   const groupKey = [...fluxGroupKeyUnion, 'result']
 
-  const [xDomain, onSetXDomain, onResetXDomain] = useVisDomainSettings(
+  const [xDomain, onSetXDomain, onResetXDomain] = useVisXDomainSettings(
     storedXDomain,
     table.getColumn(xColumn, 'number'),
     timeRange
@@ -122,7 +133,7 @@ const XYPlot: FunctionComponent<Props> = ({
     return table.getColumn(yColumn, 'number')
   }, [table, yColumn, position])
 
-  const [yDomain, onSetYDomain, onResetYDomain] = useVisDomainSettings(
+  const [yDomain, onSetYDomain, onResetYDomain] = useVisYDomainSettings(
     storedYDomain,
     memoizedYColumnData
   )
@@ -148,8 +159,10 @@ const XYPlot: FunctionComponent<Props> = ({
     timeFormat,
   })
 
+  const currentTheme = theme === 'light' ? VIS_THEME_LIGHT : VIS_THEME
+
   const config: Config = {
-    ...VIS_THEME,
+    ...currentTheme,
     table,
     xAxisLabel,
     yAxisLabel,

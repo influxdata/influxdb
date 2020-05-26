@@ -3,9 +3,9 @@ import React, {Component} from 'react'
 import classnames from 'classnames'
 
 // Components
+import {DapperScrollbars} from '@influxdata/clockface'
 import SideBarTab from 'src/dataLoaders/components/side_bar/SideBarTab'
 import SideBarButton from 'src/dataLoaders/components/side_bar/SideBarButton'
-import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 
 export enum SideBarTabStatus {
   Default = 'default',
@@ -32,9 +32,9 @@ class SideBar extends Component<Props> {
       <div className={this.containerClassName}>
         <div className="side-bar--container">
           <h3 className="side-bar--title">{title}</h3>
-          <FancyScrollbar autoHide={false}>
+          <DapperScrollbars autoHide={false}>
             <div className="side-bar--tabs">{this.childTabs}</div>
-          </FancyScrollbar>
+          </DapperScrollbars>
         </div>
       </div>
     )

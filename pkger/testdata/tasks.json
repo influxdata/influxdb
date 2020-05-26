@@ -3,16 +3,17 @@
     "apiVersion": "influxdata.com/v2alpha1",
     "kind": "Label",
     "metadata": {
-      "name": "label_1"
+      "name": "label-1"
     }
   },
   {
     "apiVersion": "influxdata.com/v2alpha1",
     "kind": "Task",
     "metadata": {
-      "name": "task_0"
+      "name": "task-uuid"
     },
     "spec": {
+      "name": "task-0",
       "description": "desc_0",
       "every": "10m",
       "offset": "15s",
@@ -21,7 +22,7 @@
       "associations": [
         {
           "kind": "Label",
-          "name": "label_1"
+          "name": "label-1"
         }
       ]
     }
@@ -30,7 +31,7 @@
     "apiVersion": "influxdata.com/v2alpha1",
     "kind": "Task",
     "metadata": {
-      "name": "task_1"
+      "name": "task-1"
     },
     "spec": {
       "description": "desc_1",
@@ -39,7 +40,7 @@
       "associations": [
         {
           "kind": "Label",
-          "name": "label_1"
+          "name": "label-1"
         }
       ]
     }

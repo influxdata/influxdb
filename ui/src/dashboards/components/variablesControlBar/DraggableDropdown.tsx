@@ -13,7 +13,7 @@ import {
 import classnames from 'classnames'
 
 // Components
-import VariableDropdown from './VariableDropdown'
+import VariableDropdown from 'src/variables/components/VariableDropdown'
 
 // Constants
 const dropdownType = 'dropdown'
@@ -32,7 +32,6 @@ interface Props {
   index: number
   name: string
   moveDropdown: (dragIndex: number, hoverIndex: number) => void
-  dashboardID: string
 }
 
 interface DropdownSourceCollectedProps {
@@ -72,7 +71,6 @@ class Dropdown extends React.Component<
     const {
       name,
       id,
-      dashboardID,
       isDragging,
       connectDragSource,
       connectDropTarget,
@@ -96,7 +94,7 @@ class Dropdown extends React.Component<
               )}
               <span>{name}</span>
             </div>
-            <VariableDropdown variableID={id} dashboardID={dashboardID} />
+            <VariableDropdown variableID={id} />
           </div>
         )}
         <div className="variable-dropdown--placeholder" />

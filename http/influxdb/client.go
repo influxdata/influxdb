@@ -5,10 +5,10 @@ import (
 	"net/http"
 	"net/url"
 
-	platform "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/chronograf"
-	"github.com/influxdata/influxdb/chronograf/influx"
-	"github.com/influxdata/influxdb/kit/tracing"
+	platform "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/chronograf"
+	"github.com/influxdata/influxdb/v2/chronograf/influx"
+	"github.com/influxdata/influxdb/v2/kit/tracing"
 )
 
 // Shared transports for all clients to prevent leaking connections

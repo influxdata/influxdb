@@ -22,7 +22,7 @@ export const getValidRange = (
   data: NumericColumnData = [],
   timeRange: TimeRange | null
 ) => {
-  const range = extent((data as number[]) || [])
+  const range = extent(data as number[])
   if (isNull(timeRange)) {
     return range
   }
@@ -36,7 +36,7 @@ export const getValidRange = (
   return range
 }
 
-export const useVisDomainSettings = (
+export const useVisXDomainSettings = (
   storedDomain: number[],
   data: NumericColumnData,
   timeRange: TimeRange | null = null
@@ -47,6 +47,48 @@ export const useVisDomainSettings = (
     }
 
     return getValidRange(data, timeRange)
+  }, [storedDomain, data])
+
+  const [domain, setDomain] = useOneWayState(initialDomain)
+  const resetDomain = () => setDomain(initialDomain)
+
+  return [domain, setDomain, resetDomain]
+}
+
+export const getRemainingRange = (
+  data: NumericColumnData = [],
+  timeRange: TimeRange | null,
+  storedDomain: number[]
+) => {
+  const range = extent(data as number[])
+  if (Array.isArray(range) && range.length >= 2) {
+    const startTime = getStartTime(timeRange)
+    const endTime = getEndTime(timeRange)
+    const start = storedDomain[0]
+      ? storedDomain[0]
+      : Math.min(startTime, range[0])
+    const end = storedDomain[1] ? storedDomain[1] : Math.max(endTime, range[1])
+    return [start, end]
+  }
+  return range
+}
+
+export const useVisYDomainSettings = (
+  storedDomain: number[],
+  data: NumericColumnData,
+  timeRange: TimeRange | null = null
+) => {
+  const initialDomain = useMemo(() => {
+    if (
+      !Array.isArray(storedDomain) ||
+      storedDomain.every(val => val === null)
+    ) {
+      return getValidRange(data, timeRange)
+    }
+    if (storedDomain.includes(null)) {
+      return getRemainingRange(data, timeRange, storedDomain)
+    }
+    return storedDomain
   }, [storedDomain, data])
 
   const [domain, setDomain] = useOneWayState(initialDomain)

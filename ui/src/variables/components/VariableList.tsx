@@ -14,8 +14,6 @@ import {Sort} from '@influxdata/clockface'
 // Selectors
 import {getSortedResources} from 'src/shared/utils/sort'
 
-type SortKey = keyof Variable | 'arguments.type'
-
 interface Props {
   variables: Variable[]
   emptyState: JSX.Element
@@ -24,7 +22,6 @@ interface Props {
   sortKey: string
   sortDirection: Sort
   sortType: SortTypes
-  onClickColumn: (nextSort: Sort, sortKey: SortKey) => void
 }
 
 interface State {
@@ -49,35 +46,17 @@ export default class VariableList extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {emptyState, sortKey, sortDirection, onClickColumn} = this.props
+    const {emptyState} = this.props
 
     return (
       <>
         <ResourceList>
-          <ResourceList.Header>
-            <ResourceList.Sorter
-              name="Name"
-              sortKey={this.headerKeys[0]}
-              sort={sortKey === this.headerKeys[0] ? sortDirection : Sort.None}
-              onClick={onClickColumn}
-            />
-            <ResourceList.Sorter
-              name="Type"
-              sortKey={this.headerKeys[1]}
-              sort={sortKey === this.headerKeys[1] ? sortDirection : Sort.None}
-              onClick={onClickColumn}
-            />
-          </ResourceList.Header>
           <ResourceList.Body emptyState={emptyState}>
             {this.rows}
           </ResourceList.Body>
         </ResourceList>
       </>
     )
-  }
-
-  private get headerKeys(): SortKey[] {
-    return ['name', 'arguments.type']
   }
 
   private get rows(): JSX.Element[] {

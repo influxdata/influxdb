@@ -4,9 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/influxdata/influxdb"
-
-	"github.com/influxdata/influxdb/kv"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -68,6 +67,20 @@ func TestIndexStore(t *testing.T) {
 			assert.Equal(t, encodeID(t, expected.ID), rawIndex)
 		})
 
+		t.Run("updating entity that doesn't exist returns not found error", func(t *testing.T) {
+			indexStore, done, kvStore := newFooIndexStore(t, "put")
+			defer done()
+
+			expected := testPutBase(t, kvStore, indexStore, indexStore.EntStore.BktName)
+
+			err := kvStore.Update(context.Background(), func(tx kv.Tx) error {
+				ent := newFooEnt(33333, expected.OrgID, "safe name")
+				return indexStore.Put(context.TODO(), tx, ent, kv.PutUpdate())
+			})
+			require.Error(t, err)
+			assert.Equal(t, influxdb.ENotFound, influxdb.ErrorCode(err))
+		})
+
 		t.Run("updating entity with no naming collision succeeds", func(t *testing.T) {
 			indexStore, done, kvStore := newFooIndexStore(t, "put")
 			defer done()
@@ -87,6 +100,23 @@ func TestIndexStore(t *testing.T) {
 				return err
 			})
 			require.NoError(t, err)
+		})
+
+		t.Run("updating an existing entity to a new unique identifier should delete the existing unique key", func(t *testing.T) {
+			indexStore, done, kvStore := newFooIndexStore(t, "put")
+			defer done()
+
+			expected := testPutBase(t, kvStore, indexStore, indexStore.EntStore.BktName)
+
+			update(t, kvStore, func(tx kv.Tx) error {
+				entCopy := newFooEnt(expected.ID, expected.OrgID, "safe name")
+				return indexStore.Put(context.TODO(), tx, entCopy, kv.PutUpdate())
+			})
+
+			update(t, kvStore, func(tx kv.Tx) error {
+				ent := newFooEnt(33, expected.OrgID, expected.Name)
+				return indexStore.Put(context.TODO(), tx, ent, kv.PutNew())
+			})
 		})
 
 		t.Run("error cases", func(t *testing.T) {

@@ -9,8 +9,8 @@ import (
 	"regexp"
 	"text/tabwriter"
 
-	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/tsdb/seriesfile"
+	"github.com/influxdata/influxdb/v2/models"
+	"github.com/influxdata/influxdb/v2/tsdb/seriesfile"
 	"go.uber.org/zap"
 )
 
@@ -119,21 +119,18 @@ func (cmd *DumpTSI) printSeries(sfile *seriesfile.SeriesFile) error {
 	fmt.Fprintln(tw, "Series\t")
 
 	// Iterate over each series.
-	itr := sfile.SeriesIDIterator()
-	for {
-		e, err := itr.Next()
-		if err != nil {
-			return err
-		} else if e.SeriesID.ID == 0 {
+	seriesIDs := sfile.SeriesIDs()
+	for _, seriesID := range seriesIDs {
+		if seriesID.ID == 0 {
 			break
 		}
-		name, tags := seriesfile.ParseSeriesKey(sfile.SeriesKey(e.SeriesID))
+		name, tags := seriesfile.ParseSeriesKey(sfile.SeriesKey(seriesID))
 
 		if !cmd.matchSeries(name, tags) {
 			continue
 		}
 
-		deleted := sfile.IsDeleted(e.SeriesID)
+		deleted := sfile.IsDeleted(seriesID)
 
 		fmt.Fprintf(tw, "%s%s\t%v\n", name, tags.HashKey(), deletedString(deleted))
 	}

@@ -1,4 +1,4 @@
-import {CLOUD_FLAGS, OSS_FLAGS} from 'src/shared/utils/featureFlag'
+import {CLOUD_FLAGS, OSS_FLAGS} from 'src/shared/selectors/flags'
 
 describe("getting the user's feature flags", () => {
   beforeEach(() => {

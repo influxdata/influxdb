@@ -38,7 +38,11 @@ export default class ViewTokenOverlay extends PureComponent<Props> {
 
     return (
       <Overlay.Container>
-        <Overlay.Header title={description} onDismiss={this.handleDismiss} />
+        <Overlay.Header
+          title={description}
+          onDismiss={this.handleDismiss}
+          wrapText={true}
+        />
         <Overlay.Body>
           <CodeSnippet
             copyText={this.props.auth.token}

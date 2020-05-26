@@ -14,13 +14,13 @@ import ErrorBoundary from 'src/shared/components/ErrorBoundary'
 
 // Utils
 import {
-  getVariablesForDashboard,
-  getDashboardValuesStatus,
+  getVariables,
   getDashboardVariablesStatus,
 } from 'src/variables/selectors'
+import {filterUnusedVars} from 'src/shared/utils/filterUnusedVars'
 
 // Actions
-import {moveVariable} from 'src/variables/actions/creators'
+import {moveVariable} from 'src/variables/actions/thunks'
 
 // Types
 import {AppState, Variable} from 'src/types'
@@ -34,10 +34,8 @@ import withDragDropContext from 'src/shared/decorators/withDragDropContext'
 
 interface StateProps {
   variables: Variable[]
-  valuesStatus: RemoteDataState
   variablesStatus: RemoteDataState
   inPresentationMode: boolean
-  dashboardID: string
   show: boolean
 }
 
@@ -57,7 +55,6 @@ class VariablesControlBar extends PureComponent<Props, State> {
 
   static getDerivedStateFromProps(props, state) {
     if (
-      props.valuesStatus === RemoteDataState.Done &&
       props.variablesStatus === RemoteDataState.Done &&
       state.initialLoading !== RemoteDataState.Done
     ) {
@@ -109,7 +106,7 @@ class VariablesControlBar extends PureComponent<Props, State> {
   }
 
   private get barContents(): JSX.Element {
-    const {dashboardID, variables, valuesStatus} = this.props
+    const {variables, variablesStatus} = this.props
     return (
       <div className="variables-control-bar--full">
         {variables.map((v, i) => (
@@ -118,12 +115,11 @@ class VariablesControlBar extends PureComponent<Props, State> {
               name={v.name}
               id={v.id}
               index={i}
-              dashboardID={dashboardID}
               moveDropdown={this.handleMoveDropdown}
             />
           </ErrorBoundary>
         ))}
-        {valuesStatus === RemoteDataState.Loading && (
+        {variablesStatus === RemoteDataState.Loading && (
           <TechnoSpinner diameterPixels={18} />
         )}
       </div>
@@ -144,8 +140,8 @@ class VariablesControlBar extends PureComponent<Props, State> {
     originalIndex: number,
     newIndex: number
   ): void => {
-    const {dashboardID, moveVariable} = this.props
-    moveVariable(originalIndex, newIndex, dashboardID)
+    const {moveVariable} = this.props
+    moveVariable(originalIndex, newIndex)
   }
 }
 
@@ -155,8 +151,7 @@ const mdtp = {
 
 const mstp = (state: AppState): StateProps => {
   const dashboardID = state.currentDashboard.id
-  const variables = getVariablesForDashboard(state, dashboardID)
-  const valuesStatus = getDashboardValuesStatus(state, dashboardID)
+  const variables = getVariables(state)
   const variablesStatus = getDashboardVariablesStatus(state)
   const show = state.userSettings.showVariablesControls
 
@@ -167,11 +162,14 @@ const mstp = (state: AppState): StateProps => {
   } = state
 
   return {
-    variables,
-    valuesStatus,
+    variables: filterUnusedVars(
+      variables,
+      Object.values(state.resources.views.byID).filter(
+        variable => variable.dashboardID === dashboardID
+      )
+    ),
     variablesStatus,
     inPresentationMode,
-    dashboardID,
     show,
   }
 }

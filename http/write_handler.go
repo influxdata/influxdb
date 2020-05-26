@@ -10,14 +10,14 @@ import (
 	"net/http"
 
 	"github.com/influxdata/httprouter"
-	"github.com/influxdata/influxdb"
-	pcontext "github.com/influxdata/influxdb/context"
-	"github.com/influxdata/influxdb/http/metric"
-	"github.com/influxdata/influxdb/kit/tracing"
-	kithttp "github.com/influxdata/influxdb/kit/transport/http"
-	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/storage"
-	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/v2"
+	pcontext "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/http/metric"
+	"github.com/influxdata/influxdb/v2/kit/tracing"
+	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
+	"github.com/influxdata/influxdb/v2/models"
+	"github.com/influxdata/influxdb/v2/storage"
+	"github.com/influxdata/influxdb/v2/tsdb"
 	"go.uber.org/zap"
 )
 
@@ -244,8 +244,8 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !a.Allowed(*p) {
-		handleError(err, influxdb.EForbidden, "insufficient permissions for write")
+	if pset, err := a.PermissionSet(); err != nil || !pset.Allowed(*p) {
+		handleError(nil, influxdb.EForbidden, "insufficient permissions for write")
 		return
 	}
 
@@ -410,7 +410,7 @@ func (s *WriteService) Write(ctx context.Context, orgID, bucketID influxdb.ID, r
 		return err
 	}
 
-	req, err := http.NewRequest("POST", u.String(), r)
+	req, err := http.NewRequestWithContext(ctx, "POST", u.String(), r)
 	if err != nil {
 		return err
 	}

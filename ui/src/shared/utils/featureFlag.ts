@@ -1,60 +1,26 @@
 import {FunctionComponent} from 'react'
-import {CLOUD, CLOUD_BILLING_VISIBLE} from 'src/shared/constants'
+import {activeFlags} from 'src/shared/selectors/flags'
+import {clearOverrides, setOverride} from 'src/shared/actions/flags'
 
-export const OSS_FLAGS = {
-  deleteWithPredicate: false,
-  downloadCellCSV: false,
-  telegrafEditor: false,
-  customCheckQuery: false,
-  matchingNotificationRules: false,
-  regionBasedLoginPage: false,
-}
-
-export const CLOUD_FLAGS = {
-  deleteWithPredicate: false,
-  multiUser: false,
-  cloudBilling: CLOUD_BILLING_VISIBLE, // should be visible in dev and acceptance, but not in cloud
-  downloadCellCSV: false,
-  telegrafEditor: false,
-  customCheckQuery: false,
-  matchingNotificationRules: false,
-  regionBasedLoginPage: false,
-}
+import configureStore from 'src/store/configureStore'
 
 export const isFlagEnabled = (flagName: string, equals?: string | boolean) => {
-  let localStorageFlags
   let _equals = equals
-
-  try {
-    localStorageFlags = JSON.parse(window.localStorage.featureFlags)
-  } catch {
-    localStorageFlags = {}
-  }
+  const store = configureStore()
+  const flags = activeFlags(store.getState())
 
   if (_equals === undefined) {
     _equals = true
   }
 
-  if (localStorageFlags.hasOwnProperty(flagName)) {
-    return localStorageFlags[flagName] === _equals
-  }
-
-  if (CLOUD) {
-    if (CLOUD_FLAGS.hasOwnProperty(flagName)) {
-      return CLOUD_FLAGS[flagName] === _equals
-    }
-
-    return false
-  }
-
-  if (OSS_FLAGS.hasOwnProperty(flagName)) {
-    return OSS_FLAGS[flagName] === _equals
+  if (flags.hasOwnProperty(flagName)) {
+    return flags[flagName] === _equals
   }
 
   return false
 }
 
-// type influx.toggleFeature('myFlag') to disable / enable any feature flag
+// type influx.toggle('myFlag') to disable / enable any feature flag
 export const FeatureFlag: FunctionComponent<{
   name: string
   equals?: string | boolean
@@ -66,16 +32,7 @@ export const FeatureFlag: FunctionComponent<{
   return children as any
 }
 
-export const getUserFlags = function getUserFlags() {
-  const flagKeys = CLOUD ? Object.keys(CLOUD_FLAGS) : Object.keys(OSS_FLAGS)
-
-  const flags = {}
-  flagKeys.forEach(key => {
-    flags[key] = isFlagEnabled(key)
-  })
-
-  return flags
-}
+export const getUserFlags = () => activeFlags(configureStore().getState())
 
 /* eslint-disable no-console */
 const list = () => {
@@ -85,50 +42,24 @@ const list = () => {
 /* eslint-enable no-console */
 
 const reset = () => {
-  const featureFlags = JSON.parse(window.localStorage.featureFlags || '{}')
-
-  if (CLOUD) {
-    Object.keys(featureFlags).forEach(k => {
-      if (!CLOUD_FLAGS.hasOwnProperty(k)) {
-        delete featureFlags[k]
-      } else {
-        featureFlags[k] = CLOUD_FLAGS[k]
-      }
-    })
-  } else {
-    Object.keys(featureFlags).forEach(k => {
-      if (!OSS_FLAGS.hasOwnProperty(k)) {
-        delete featureFlags[k]
-      } else {
-        featureFlags[k] = OSS_FLAGS[k]
-      }
-    })
-  }
-
-  window.localStorage.featureFlags = JSON.stringify(featureFlags)
+  const store = configureStore()
+  store.dispatch(clearOverrides())
 }
 
 export const set = (flagName: string, value: string | boolean) => {
-  const featureFlags = JSON.parse(window.localStorage.featureFlags || '{}')
-
-  featureFlags[flagName] = value
-
-  window.localStorage.featureFlags = JSON.stringify(featureFlags)
-
-  return featureFlags[flagName]
+  const store = configureStore()
+  store.dispatch(setOverride(flagName, value))
 }
 
-export const toggleLocalStorageFlag = (flagName: string) => {
-  const featureFlags = JSON.parse(window.localStorage.featureFlags || '{}')
+export const toggle = (flagName: string): boolean => {
+  const flags = getUserFlags()
 
-  featureFlags[flagName] = !featureFlags[flagName]
+  set(flagName, !flags[flagName])
 
-  window.localStorage.featureFlags = JSON.stringify(featureFlags)
-
-  return featureFlags[flagName]
+  return !flags[flagName]
 }
 
 // Expose utility in dev tools console for convenience
 const w: any = window
 
-w.influx = {toggleFeature: toggleLocalStorageFlag, list, reset, set}
+w.influx = {toggle, list, reset, set}

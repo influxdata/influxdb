@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2"
 )
 
 // CoordinatingNotificationRuleStore acts as a NotificationRuleStore decorator that handles coordinating the api request

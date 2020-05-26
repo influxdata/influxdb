@@ -1,0 +1,18 @@
+.pipe-example {
+    .notebook-panel--header {
+        transition: opacity 0.2s;
+        opacity: 0;
+    }
+
+    &:hover {
+        .notebook-panel--header {
+            opacity: 1;
+
+        }
+    }
+
+    h1 {
+        margin: 0;
+        padding: 1em 0;
+    }
+}

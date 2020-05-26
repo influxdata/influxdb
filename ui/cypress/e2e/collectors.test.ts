@@ -225,8 +225,11 @@ describe('Collectors', () => {
           })
         })
 
-        cy.getByTestID('name-sorter')
+        cy.getByTestID('resource-sorter--button')
           .click()
+          .then(() => {
+            cy.getByTestID('resource-sorter--name-desc').click()
+          })
           .then(() => {
             // NOTE: this then is just here to let me scope this variable (alex)
             const teletubbies = telegrafs
@@ -280,7 +283,7 @@ describe('Collectors', () => {
               cy.contains('Done')
                 .click()
                 .then(() => {
-                  cy.get('.icon.checkmark').should('exist')
+                  cy.get('.cf-icon.checkmark').should('exist')
                 })
             })
         })
@@ -289,21 +292,14 @@ describe('Collectors', () => {
       it('handles busted input', () => {
         // do nothing when clicking done with no urls
         cy.contains('Done').click()
-        cy.contains('Done').should('exist')
-        cy.contains('Nginx').should('exist')
+        cy.contains('nginx').should('exist')
+        cy.get('.cf-icon.circle-thick').should('exist')
 
+        cy.contains('nginx').click()
         cy.getByTestID('input-field').type('youre mom')
         cy.contains('Add').click()
-
-        cy.contains('youre mom')
-          .should('exist')
-          .then(() => {
-            cy.contains('Done')
-              .click()
-              .then(() => {
-                cy.get('.icon.remove').should('exist')
-              })
-          })
+        cy.contains('Done').click()
+        cy.get('.cf-icon.remove').should('exist')
       })
     })
 
@@ -342,7 +338,7 @@ describe('Collectors', () => {
               cy.contains('alan bean').should('not.exist')
 
               cy.contains('Done').click()
-              cy.get('.icon.checkmark').should('exist')
+              cy.get('.cf-icon.checkmark').should('exist')
             })
         })
       })
@@ -351,8 +347,7 @@ describe('Collectors', () => {
         cy.contains('Done')
           .click()
           .then(() => {
-            cy.contains('Done').should('exist')
-            cy.contains('Redis').should('exist')
+            cy.contains('redis').should('exist')
           })
       })
     })

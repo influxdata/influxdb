@@ -3,13 +3,13 @@ package tenant
 import (
 	"fmt"
 
-	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2"
 )
 
 var (
 	// ErrOrgNotFound is used when the user is not found.
 	ErrOrgNotFound = &influxdb.Error{
-		Msg:  "org not found",
+		Msg:  "organization not found",
 		Code: influxdb.ENotFound,
 	}
 )
@@ -20,6 +20,14 @@ func OrgAlreadyExistsError(name string) error {
 	return &influxdb.Error{
 		Code: influxdb.EConflict,
 		Msg:  fmt.Sprintf("organization with name %s already exists", name),
+	}
+}
+
+func OrgNotFoundByName(name string) error {
+	return &influxdb.Error{
+		Code: influxdb.ENotFound,
+		Op:   influxdb.OpFindOrganizations,
+		Msg:  fmt.Sprintf("organization name \"%s\" not found", name),
 	}
 }
 

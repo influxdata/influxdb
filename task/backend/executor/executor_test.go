@@ -11,16 +11,16 @@ import (
 	"time"
 
 	"github.com/influxdata/flux"
-	"github.com/influxdata/influxdb"
-	icontext "github.com/influxdata/influxdb/context"
-	"github.com/influxdata/influxdb/inmem"
-	"github.com/influxdata/influxdb/kit/prom"
-	"github.com/influxdata/influxdb/kit/prom/promtest"
-	tracetest "github.com/influxdata/influxdb/kit/tracing/testing"
-	"github.com/influxdata/influxdb/kv"
-	"github.com/influxdata/influxdb/query"
-	"github.com/influxdata/influxdb/task/backend"
-	"github.com/influxdata/influxdb/task/backend/scheduler"
+	"github.com/influxdata/influxdb/v2"
+	icontext "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/inmem"
+	"github.com/influxdata/influxdb/v2/kit/prom"
+	"github.com/influxdata/influxdb/v2/kit/prom/promtest"
+	tracetest "github.com/influxdata/influxdb/v2/kit/tracing/testing"
+	"github.com/influxdata/influxdb/v2/kv"
+	"github.com/influxdata/influxdb/v2/query"
+	"github.com/influxdata/influxdb/v2/task/backend"
+	"github.com/influxdata/influxdb/v2/task/backend/scheduler"
 	"github.com/opentracing/opentracing-go"
 	"github.com/uber/jaeger-client-go"
 	"go.uber.org/zap/zaptest"
@@ -444,9 +444,13 @@ func testIteratorFailure(t *testing.T) {
 
 	// replace iterator exhaust function with one which errors
 	tes.ex.workerPool = sync.Pool{New: func() interface{} {
-		return &worker{tes.ex, func(flux.Result) error {
-			return errors.New("something went wrong exhausting iterator")
-		}}
+		return &worker{
+			e: tes.ex,
+			exhaustResultIterators: func(flux.Result) error {
+				return errors.New("something went wrong exhausting iterator")
+			},
+			buildCompiler: NewASTCompiler,
+		}
 	}}
 
 	script := fmt.Sprintf(fmtTestScript, t.Name())

@@ -7,16 +7,21 @@ import EmptyGraphMessage from 'src/shared/components/EmptyGraphMessage'
 import GraphLoadingDots from 'src/shared/components/GraphLoadingDots'
 
 // Utils
-import {useVisDomainSettings} from 'src/shared/utils/useVisDomainSettings'
+import {useVisXDomainSettings} from 'src/shared/utils/useVisDomainSettings'
 import {getFormatter} from 'src/shared/utils/vis'
 
 // Constants
-import {VIS_THEME} from 'src/shared/constants'
+import {VIS_THEME, VIS_THEME_LIGHT} from 'src/shared/constants'
 import {DEFAULT_LINE_COLORS} from 'src/shared/constants/graphColorPalettes'
 import {INVALID_DATA_COPY} from 'src/shared/copy/cell'
 
 // Types
-import {RemoteDataState, HistogramViewProperties, TimeZone} from 'src/types'
+import {
+  RemoteDataState,
+  HistogramViewProperties,
+  TimeZone,
+  Theme,
+} from 'src/types'
 
 interface Props {
   table: Table
@@ -24,6 +29,7 @@ interface Props {
   viewProperties: HistogramViewProperties
   children: (config: Config) => JSX.Element
   timeZone: TimeZone
+  theme?: Theme
 }
 
 const HistogramPlot: FunctionComponent<Props> = ({
@@ -40,10 +46,11 @@ const HistogramPlot: FunctionComponent<Props> = ({
     xAxisLabel,
     xDomain: storedXDomain,
   },
+  theme,
 }) => {
   const columnKeys = table.columnKeys
 
-  const [xDomain, onSetXDomain, onResetXDomain] = useVisDomainSettings(
+  const [xDomain, onSetXDomain, onResetXDomain] = useVisXDomainSettings(
     storedXDomain,
     table.getColumn(xColumn, 'number')
   )
@@ -64,8 +71,10 @@ const HistogramPlot: FunctionComponent<Props> = ({
 
   const xFormatter = getFormatter(table.getColumnType(xColumn), {timeZone})
 
+  const currentTheme = theme === 'light' ? VIS_THEME_LIGHT : VIS_THEME
+
   const config: Config = {
-    ...VIS_THEME,
+    ...currentTheme,
     table,
     xAxisLabel,
     xDomain,

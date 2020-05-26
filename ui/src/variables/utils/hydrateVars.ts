@@ -1,11 +1,7 @@
 // Utils
 import {valueFetcher, ValueFetcher} from 'src/variables/utils/ValueFetcher'
 import Deferred from 'src/utils/Deferred'
-import {getVarAssignment} from 'src/variables/utils/getVarAssignment'
-import {
-  resolveSelectedKey,
-  resolveSelectedValue,
-} from 'src/variables/utils/resolveSelectedValue'
+import {asAssignment} from 'src/variables/selectors'
 
 // Constants
 import {OPTION_NAME, BOUNDARY_GROUP} from 'src/variables/constants/index'
@@ -15,7 +11,6 @@ import {
   RemoteDataState,
   Variable,
   VariableValues,
-  VariableValuesByID,
   ValueSelections,
 } from 'src/types'
 import {CancelBox, CancellationError} from 'src/types/promises'
@@ -32,51 +27,59 @@ export interface VariableNode {
 interface HydrateVarsOptions {
   url: string
   orgID: string
-  selections: ValueSelections
+  selections?: ValueSelections
   fetcher?: ValueFetcher
+  skipCache?: boolean
+}
+
+export interface EventedCancelBox<T> extends CancelBox<T> {
+  on?: any
 }
 
 export const createVariableGraph = (
   allVariables: Variable[]
 ): VariableNode[] => {
-  const nodesByID: {[variableID: string]: VariableNode} = {}
-
-  // First initialize all the nodes
-  for (const variable of allVariables) {
-    nodesByID[variable.id] = {
-      variable,
-      values: null,
-      parents: [],
-      children: [],
-      status: RemoteDataState.NotStarted,
-      cancel: () => {},
-    }
-  }
+  const nodesByID: {[variableID: string]: VariableNode} = allVariables.reduce(
+    (prev, curr) => {
+      let status = RemoteDataState.Done
+      if (curr.arguments.type === 'query') {
+        status = RemoteDataState.NotStarted
+      }
+      prev[curr.id] = {
+        variable: curr,
+        values: null,
+        parents: [],
+        children: [],
+        status,
+        cancel: () => {},
+      }
+      return prev
+    },
+    {}
+  )
 
   // Then initialize all the edges (the `parents` and `children` references)
-  for (const variable of allVariables) {
-    if (!isQueryVar(variable)) {
-      continue
-    }
-
-    const childIDs = getVarChildren(variable, allVariables).map(
-      child => child.id
-    )
-
-    for (const childID of childIDs) {
-      nodesByID[variable.id].children.push(nodesByID[childID])
-      nodesByID[childID].parents.push(nodesByID[variable.id])
-    }
-  }
+  Object.keys(nodesByID)
+    .filter(k => nodesByID[k].variable.arguments.type === 'query')
+    .forEach(k => {
+      getVarChildren(nodesByID[k].variable, allVariables)
+        .map(child => child.id)
+        .forEach(c => {
+          nodesByID[k].children.push(nodesByID[c])
+          nodesByID[c].parents.push(nodesByID[k])
+        })
+    })
 
   return Object.values(nodesByID)
 }
 
-const isQueryVar = (v: Variable) => v.arguments.type === 'query'
-export const isInQuery = (query: string, v: Variable) =>
-  !!query.match(
-    new RegExp(`${BOUNDARY_GROUP}${OPTION_NAME}.${v.name}${BOUNDARY_GROUP}`)
+export const isInQuery = (query: string, v: Variable) => {
+  const regexp = new RegExp(
+    `${BOUNDARY_GROUP}${OPTION_NAME}.${v.name}${BOUNDARY_GROUP}`
   )
+
+  return regexp.test(query)
+}
 
 const getVarChildren = (
   {
@@ -118,29 +121,40 @@ const collectAncestors = (
   - The node for one of the passed variables depends on this node
 
 */
-const findSubgraph = (
+export const findSubgraph = (
   graph: VariableNode[],
   variables: Variable[]
 ): VariableNode[] => {
   const subgraph: Set<VariableNode> = new Set()
-
+  // use an ID array to reduce the chance of reference errors
+  const varIDs = variables.map(v => v.id)
+  // TODO: uncomment this when variable hydration is resolved
+  // create an array of IDs to reference later
+  // const graphIDs = []
   for (const node of graph) {
     const shouldKeep =
-      variables.includes(node.variable) ||
+      varIDs.includes(node.variable.id) ||
       collectAncestors(node).some(ancestor =>
-        variables.includes(ancestor.variable)
+        varIDs.includes(ancestor.variable.id)
       )
 
     if (shouldKeep) {
       subgraph.add(node)
+      // graphIDs.push(node.variable.id)
     }
   }
 
+  // const removeDupAncestors = (n: VariableNode) => {
+  //   const {id} = n.variable
+  //   return !graphIDs.includes(id)
+  // }
+
   for (const node of subgraph) {
+    // node.parents = node.parents.filter(removeDupAncestors)
+    // node.children = node.children.filter(removeDupAncestors)
     node.parents = node.parents.filter(node => subgraph.has(node))
     node.children = node.children.filter(node => subgraph.has(node))
   }
-
   return [...subgraph]
 }
 
@@ -151,54 +165,10 @@ const errorVariableValues = (
   message = 'Failed to load values for variable'
 ): VariableValues => ({
   values: null,
-  selectedKey: null,
-  selectedValue: null,
+  selected: null,
   valueType: null,
   error: message,
 })
-
-/*
-  Get the `VariableValues` for a map variable.
-*/
-const mapVariableValues = (
-  variable: Variable,
-  prevSelection: string,
-  defaultSelection: string
-): VariableValues => {
-  const keys: string[] = Object.keys(variable.arguments.values)
-  const selectedKey = resolveSelectedKey(keys, prevSelection, defaultSelection)
-  return {
-    valueType: 'string',
-    values: variable.arguments.values,
-    selectedKey,
-    selectedValue: resolveSelectedValue(
-      variable.arguments.values,
-      selectedKey,
-      defaultSelection
-    ),
-  }
-}
-
-/*
-  Get the `VariableValues` for a constant variable.
-*/
-const constVariableValues = (
-  variable: Variable,
-  prevSelection: string,
-  defaultSelection: string
-): VariableValues => {
-  const {values} = variable.arguments
-
-  return {
-    valueType: 'string',
-    values,
-    selectedValue: resolveSelectedValue(
-      values,
-      prevSelection,
-      defaultSelection
-    ),
-  }
-}
 
 /*
   Find all the descendants of a node.
@@ -226,28 +196,56 @@ export const collectDescendants = (
 
   This assumes that every descendant of this node has already been hydrated.
 */
+// TODO: figure out how to type the `on` function
 const hydrateVarsHelper = async (
   node: VariableNode,
-  options: HydrateVarsOptions
+  options: HydrateVarsOptions,
+  on?: any
 ): Promise<VariableValues> => {
   const variableType = node.variable.arguments.type
-  const prevSelection = options.selections[node.variable.id]
-  const defaultSelection = node.variable.selected
-    ? node.variable.selected[0]
-    : null
 
+  // this assumes that the variable hydration is done in the selector 'getVariable'
   if (variableType === 'map') {
-    return mapVariableValues(node.variable, prevSelection, defaultSelection)
+    return {
+      valueType: 'string',
+      values: node.variable.arguments.values,
+      selected: node.variable.selected,
+    }
   }
 
   if (variableType === 'constant') {
-    return constVariableValues(node.variable, prevSelection, defaultSelection)
+    return {
+      valueType: 'string',
+      values: node.variable.arguments.values,
+      selected: node.variable.selected,
+    }
+  }
+
+  if (variableType === 'system') {
+    return {
+      valueType: 'string',
+      values: node.variable.arguments.values,
+      selected: node.variable.selected,
+    }
+  }
+
+  if (node.status !== RemoteDataState.Loading) {
+    node.status = RemoteDataState.Loading
+    on.fire('status', node.variable, node.status)
+    collectAncestors(node)
+      .filter(parent => parent.variable.arguments.type === 'query')
+      .forEach(parent => {
+        if (parent.status !== RemoteDataState.Loading) {
+          parent.status = RemoteDataState.Loading
+          on.fire('status', parent.variable, parent.status)
+        }
+      })
   }
 
   const descendants = collectDescendants(node)
-  const assignments = descendants.map(node =>
-    getVarAssignment(node.variable.name, node.values)
-  )
+  const assignments = descendants
+    .map(node => asAssignment(node.variable))
+    .filter(v => !!v)
 
   const {url, orgID} = options
   const {query} = node.variable.arguments.values
@@ -258,14 +256,18 @@ const hydrateVarsHelper = async (
     orgID,
     query,
     assignments,
-    prevSelection,
-    defaultSelection
+    null,
+    '',
+    options.skipCache
   )
 
   node.cancel = request.cancel
 
   const values = await request.promise
 
+  // NOTE: do not fire `done` event here, as the value
+  // has not been properly hydrated yet
+  node.status = RemoteDataState.Done
   return values
 }
 
@@ -274,17 +276,13 @@ const hydrateVarsHelper = async (
   resolved (successfully or not).
 */
 const readyToResolve = (parent: VariableNode): boolean =>
-  parent.status === RemoteDataState.NotStarted &&
   parent.children.every(child => child.status === RemoteDataState.Done)
 
 /*
   Find all `NotStarted` nodes in the graph that have no children.
 */
 const findLeaves = (graph: VariableNode[]): VariableNode[] =>
-  graph.filter(
-    node =>
-      node.children.length === 0 && node.status === RemoteDataState.NotStarted
-  )
+  graph.filter(node => node.children.length === 0)
 
 /*
   Given a node, attempt to find a cycle that the node is a part of. If no cycle
@@ -337,10 +335,13 @@ const invalidateAncestors = (node: VariableNode): void => {
 
   for (const ancestor of ancestors) {
     ancestor.status = RemoteDataState.Error
+    if (ancestor.variable.arguments.type === 'query') {
+      ancestor.variable.arguments.values.results = []
+    }
   }
 }
 
-const extractResult = (graph: VariableNode[]): VariableValuesByID => {
+const extractResult = (graph: VariableNode[]): Variable[] => {
   const result = {}
 
   for (const node of graph) {
@@ -348,10 +349,10 @@ const extractResult = (graph: VariableNode[]): VariableValuesByID => {
       node.values = errorVariableValues()
     }
 
-    result[node.variable.id] = node.values
+    result[node.variable.id] = node.variable
   }
 
-  return result
+  return Object.values(result)
 }
 
 /*
@@ -397,9 +398,11 @@ export const hydrateVars = (
   variables: Variable[],
   allVariables: Variable[],
   options: HydrateVarsOptions
-): CancelBox<VariableValuesByID> => {
-  const graph = findSubgraph(createVariableGraph(allVariables), variables)
-
+): EventedCancelBox<Variable[]> => {
+  const graph = findSubgraph(
+    createVariableGraph(allVariables),
+    variables
+  ).filter(n => n.variable.arguments.type !== 'system')
   invalidateCycles(graph)
 
   let isCancelled = false
@@ -409,12 +412,42 @@ export const hydrateVars = (
       return
     }
 
-    node.status === RemoteDataState.Loading
-
     try {
-      node.values = await hydrateVarsHelper(node, options)
-      node.variable.selected = [node.values.selectedKey]
-      node.status = RemoteDataState.Done
+      // TODO: terminate the concept of node.values at the fetcher and just use variables
+      node.values = await hydrateVarsHelper(node, options, on)
+
+      if (node.variable.arguments.type === 'query') {
+        node.variable.arguments.values.results = node.values.values as string[]
+      } else {
+        node.variable.arguments.values = node.values.values
+      }
+
+      node.variable.selected = node.variable.selected || []
+
+      // ensure that the selected value defaults propegate for
+      // nested queryies.
+      if (
+        node.variable.arguments.type === 'query' ||
+        node.variable.arguments.type === 'constant'
+      ) {
+        if (
+          !(node.values.values as string[]).includes(node.variable.selected[0])
+        ) {
+          node.variable.selected = []
+        }
+      } else if (node.variable.arguments.type === 'map') {
+        if (
+          !Object.keys(node.values.values).includes(node.variable.selected[0])
+        ) {
+          node.variable.selected = []
+        }
+      }
+
+      if (!node.variable.selected || !node.variable.selected[0]) {
+        node.variable.selected = node.values.selected
+      }
+
+      on.fire('status', node.variable, node.status)
 
       return Promise.all(node.parents.filter(readyToResolve).map(resolve))
     } catch (e) {
@@ -423,6 +456,7 @@ export const hydrateVars = (
       }
 
       node.status = RemoteDataState.Error
+      node.variable.arguments.values.results = []
 
       invalidateAncestors(node)
     }
@@ -436,9 +470,35 @@ export const hydrateVars = (
     deferred.reject(new CancellationError())
   }
 
-  Promise.all(findLeaves(graph).map(resolve)).then(() => {
-    deferred.resolve(extractResult(graph))
-  })
+  const on = (function() {
+    const callbacks = {}
+    const ret = (evt, cb) => {
+      if (!callbacks.hasOwnProperty(evt)) {
+        callbacks[evt] = []
+      }
 
-  return {promise: deferred.promise, cancel}
+      callbacks[evt].push(cb)
+    }
+
+    ret.fire = (evt, ...args) => {
+      if (!callbacks.hasOwnProperty(evt)) {
+        return
+      }
+
+      callbacks[evt].forEach(cb => cb.apply(cb, args))
+    }
+
+    return ret
+  })()
+
+  // NOTE: wrapping in a resolve disconnects the following findLeaves
+  // from the main execution thread, allowing external services to
+  // register listeners for the loading state changes
+  Promise.resolve()
+    .then(() => Promise.all(findLeaves(graph).map(resolve)))
+    .then(() => {
+      deferred.resolve(extractResult(graph))
+    })
+
+  return {promise: deferred.promise, cancel, on}
 }

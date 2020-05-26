@@ -1,7 +1,7 @@
 import React, {SFC, MouseEvent} from 'react'
-import ReactMarkdown from 'react-markdown'
 
-import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
+import {MarkdownRenderer} from 'src/shared/components/views/MarkdownRenderer'
+import {DapperScrollbars} from '@influxdata/clockface'
 
 interface Props {
   note: string
@@ -9,22 +9,28 @@ interface Props {
   onScroll: (e: MouseEvent) => void
 }
 
+const cloudImageRenderer = (): any =>
+  "We don't support images in markdown for security purposes"
+
 const NoteEditorPreview: SFC<Props> = props => {
   return (
     <div className="note-editor--preview">
-      <FancyScrollbar
+      <DapperScrollbars
         className="note-editor--preview-scroll"
         scrollTop={props.scrollTop}
-        setScrollTop={props.onScroll}
+        onScroll={props.onScroll}
       >
         <div className="note-editor--markdown-container">
-          <ReactMarkdown
-            source={props.note}
-            escapeHtml={true}
+          <MarkdownRenderer
+            text={props.note}
             className="markdown-format"
+            cloudRenderers={{
+              image: cloudImageRenderer,
+              imageReference: cloudImageRenderer,
+            }}
           />
         </div>
-      </FancyScrollbar>
+      </DapperScrollbars>
     </div>
   )
 }

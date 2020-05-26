@@ -19,9 +19,6 @@ import {CLOUD, CLOUD_SIGNIN_PATHNAME} from 'src/shared/constants'
 // Types
 import {RemoteDataState} from 'src/types'
 
-// Utils
-import {isFlagEnabled} from 'src/shared/utils/featureFlag'
-
 interface State {
   loading: RemoteDataState
 }
@@ -84,15 +81,9 @@ export class Signin extends PureComponent<Props, State> {
 
       clearInterval(this.intervalID)
 
-      if (CLOUD && isFlagEnabled('regionBasedLoginPage')) {
-        this.props.router.replace('/login')
-        return
-      }
-
-      // TODO: add returnTo to CLOUD signin
       if (CLOUD) {
+        // TODO: add returnTo to CLOUD signin
         window.location.pathname = CLOUD_SIGNIN_PATHNAME
-
         throw error
       }
 

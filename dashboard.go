@@ -223,8 +223,9 @@ func (f DashboardFilter) QueryParams() map[string][]string {
 
 // DashboardUpdate is the patch structure for a dashboard.
 type DashboardUpdate struct {
-	Name        *string `json:"name"`
-	Description *string `json:"description"`
+	Name        *string  `json:"name"`
+	Description *string  `json:"description"`
+	Cells       *[]*Cell `json:"cells"`
 }
 
 // Apply applies an update to a dashboard.
@@ -235,6 +236,10 @@ func (u DashboardUpdate) Apply(d *Dashboard) error {
 
 	if u.Description != nil {
 		d.Description = *u.Description
+	}
+
+	if u.Cells != nil {
+		d.Cells = *u.Cells
 	}
 
 	return nil
@@ -683,6 +688,7 @@ type LinePlusSingleStatProperties struct {
 	YColumn           string           `json:"yColumn"`
 	ShadeBelow        bool             `json:"shadeBelow"`
 	Position          string           `json:"position"`
+	TimeFormat        string           `json:"timeFormat"`
 }
 
 // XYViewProperties represents options for line, bar, step, or stacked view in Chronograf

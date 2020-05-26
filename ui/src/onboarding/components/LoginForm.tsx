@@ -1,5 +1,5 @@
 // Libraries
-import React, {FC, useState, ChangeEvent} from 'react'
+import React, {FC, useState, ChangeEvent, MouseEvent} from 'react'
 import {
   Button,
   ButtonShape,
@@ -8,15 +8,22 @@ import {
   ComponentColor,
   ComponentSize,
   ComponentStatus,
+  FlexBox,
   Form,
   Grid,
   Input,
   InputType,
   VisibilityInput,
+  FlexDirection,
+  JustifyContent,
 } from '@influxdata/clockface'
+import HelperText from 'src/onboarding/components/HelperText'
 
 // Types
 import {FormFieldValidation} from 'src/types'
+
+// Constants
+import {CLOUD_URL} from 'src/shared/constants'
 
 interface Props {
   buttonStatus: ComponentStatus
@@ -25,7 +32,7 @@ interface Props {
   passwordValidation: FormFieldValidation
   password: string
   handleInputChange: (event: ChangeEvent<HTMLInputElement>) => void
-  handleForgotPasswordClick: () => void
+  handleForgotPasswordClick: (event: MouseEvent<HTMLAnchorElement>) => void
 }
 
 export const LoginForm: FC<Props> = ({
@@ -41,7 +48,7 @@ export const LoginForm: FC<Props> = ({
   return (
     <>
       <Grid>
-        <Grid.Row className="sign-up--form-padded-row">
+        <Grid.Row>
           <Grid.Column widthXS={Columns.Twelve}>
             <Form.Element
               label="Work Email Address"
@@ -87,12 +94,22 @@ export const LoginForm: FC<Props> = ({
           </Grid.Column>
         </Grid.Row>
       </Grid>
-      <a onClick={handleForgotPasswordClick} className="login--forgot-password">
-        Forgot Password?
-      </a>
+      <FlexBox
+        direction={FlexDirection.Row}
+        justifyContent={JustifyContent.SpaceBetween}
+      >
+        <HelperText>
+          <a href="" onClick={handleForgotPasswordClick}>
+            Forgot Password
+          </a>
+        </HelperText>
+        <HelperText>
+          <a href={CLOUD_URL}>Sign Up</a>
+        </HelperText>
+      </FlexBox>
       <Button
         className="create-account--button"
-        text="Login"
+        text="Log In"
         color={ComponentColor.Primary}
         size={ComponentSize.Large}
         type={ButtonType.Submit}

@@ -1,0 +1,39 @@
+{
+ "meta": {
+  "version": "1",
+  "type": "variable",
+  "name": "Jehlicnany-Template",
+  "description": "template created from variable: Jehlicnany"
+ },
+ "content": {
+  "data": {
+   "type": "variable",
+   "attributes": {
+    "name": "Jehlicnany",
+    "arguments": {
+     "type": "map",
+     "values": {
+      "borovice": "pinus",
+      "jedle": "abies",
+      "modrin": "larix",
+      "tis": "taxus",
+      "zerav": "tuje"
+     }
+    },
+    "selected": [
+     "jedle"
+    ]
+   },
+   "relationships": {
+    "variable": {
+     "data": []
+    },
+    "label": {
+     "data": []
+    }
+   }
+  },
+  "included": []
+ },
+ "labels": []
+}

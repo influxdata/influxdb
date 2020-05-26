@@ -1,9 +1,9 @@
 package predicate
 
 import (
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/storage/reads/datatypes"
-	"github.com/influxdata/influxdb/tsdb/tsm1"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/storage/reads/datatypes"
+	"github.com/influxdata/influxdb/v2/tsdb/tsm1"
 )
 
 // Node is a predicate node.

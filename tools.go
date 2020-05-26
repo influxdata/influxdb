@@ -7,7 +7,6 @@ import (
 	_ "github.com/editorconfig-checker/editorconfig-checker/cmd/editorconfig-checker"
 	_ "github.com/gogo/protobuf/protoc-gen-gogo"
 	_ "github.com/gogo/protobuf/protoc-gen-gogofaster"
-	_ "github.com/goreleaser/goreleaser"
 	_ "github.com/kevinburke/go-bindata/go-bindata"
 	_ "github.com/mna/pigeon"
 	_ "golang.org/x/tools/cmd/stringer"

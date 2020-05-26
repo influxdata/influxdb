@@ -46,14 +46,16 @@ func (a *Authorization) Valid() error {
 	return nil
 }
 
-// Allowed returns true if the authorization is active and request permission
-// exists in the authorization's list of permissions.
-func (a *Authorization) Allowed(p Permission) bool {
+// PermissionSet returns the set of permissions associated with the Authorization.
+func (a *Authorization) PermissionSet() (PermissionSet, error) {
 	if !a.IsActive() {
-		return false
+		return nil, &Error{
+			Code: EUnauthorized,
+			Msg:  "token is inactive",
+		}
 	}
 
-	return PermissionAllowed(p, a.Permissions)
+	return a.Permissions, nil
 }
 
 // IsActive is a stub for idpe.
@@ -103,7 +105,7 @@ type AuthorizationService interface {
 	CreateAuthorization(ctx context.Context, a *Authorization) error
 
 	// UpdateAuthorization updates the status and description if available.
-	UpdateAuthorization(ctx context.Context, id ID, udp *AuthorizationUpdate) (*Authorization, error)
+	UpdateAuthorization(ctx context.Context, id ID, upd *AuthorizationUpdate) (*Authorization, error)
 
 	// Removes a authorization by token.
 	DeleteAuthorization(ctx context.Context, id ID) error

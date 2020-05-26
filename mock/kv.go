@@ -4,7 +4,7 @@ import (
 	"context"
 	"io"
 
-	"github.com/influxdata/influxdb/kv"
+	"github.com/influxdata/influxdb/v2/kv"
 )
 
 var _ (kv.Store) = (*Store)(nil)
@@ -61,6 +61,7 @@ var _ (kv.Bucket) = (*Bucket)(nil)
 // in a key value store
 type Bucket struct {
 	GetFn           func(key []byte) ([]byte, error)
+	GetBatchFn      func(keys ...[]byte) ([][]byte, error)
 	CursorFn        func() (kv.Cursor, error)
 	PutFn           func(key, value []byte) error
 	DeleteFn        func(key []byte) error
@@ -70,6 +71,11 @@ type Bucket struct {
 // Get returns a key within this bucket. Errors if key does not exist.
 func (b *Bucket) Get(key []byte) ([]byte, error) {
 	return b.GetFn(key)
+}
+
+// GetBatch returns a set of keys values within this bucket.
+func (b *Bucket) GetBatch(keys ...[]byte) ([][]byte, error) {
+	return b.GetBatchFn(keys...)
 }
 
 // Cursor returns a cursor at the beginning of this bucket.

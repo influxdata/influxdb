@@ -13,6 +13,8 @@ import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
 import GetAssetLimits from 'src/cloud/components/GetAssetLimits'
 import AssetLimitAlert from 'src/cloud/components/AssetLimitAlert'
+import ResourceSortDropdown from 'src/shared/components/resource_sort_dropdown/ResourceSortDropdown'
+import CloudUpgradeButton from 'src/shared/components/CloudUpgradeButton'
 
 // Utils
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
@@ -22,9 +24,11 @@ import {extractDashboardLimits} from 'src/cloud/utils/limits'
 import {createDashboard as createDashboardAction} from 'src/dashboards/actions/thunks'
 
 // Types
-import {AppState} from 'src/types'
+import {AppState, ResourceType} from 'src/types'
 import {LimitStatus} from 'src/cloud/actions/limits'
-import {ComponentStatus} from '@influxdata/clockface'
+import {ComponentStatus, Sort} from '@influxdata/clockface'
+import {SortTypes} from 'src/shared/utils/sort'
+import {DashboardSortKey} from 'src/shared/components/resource_sort_dropdown/generateSortItems'
 
 interface DispatchProps {
   createDashboard: typeof createDashboardAction
@@ -43,6 +47,9 @@ type Props = DispatchProps & StateProps & OwnProps
 
 interface State {
   searchTerm: string
+  sortDirection: Sort
+  sortType: SortTypes
+  sortKey: DashboardSortKey
 }
 
 @ErrorHandling
@@ -52,12 +59,15 @@ class DashboardIndex extends PureComponent<Props, State> {
 
     this.state = {
       searchTerm: '',
+      sortDirection: Sort.Ascending,
+      sortType: SortTypes.String,
+      sortKey: 'name',
     }
   }
 
   public render() {
     const {createDashboard, limitStatus} = this.props
-    const {searchTerm} = this.state
+    const {searchTerm, sortDirection, sortType, sortKey} = this.state
     return (
       <>
         <Page
@@ -66,6 +76,7 @@ class DashboardIndex extends PureComponent<Props, State> {
         >
           <Page.Header fullWidth={false}>
             <Page.Title title="Dashboards" />
+            <CloudUpgradeButton />
           </Page.Header>
           <Page.ControlBar fullWidth={false}>
             <Page.ControlBarLeft>
@@ -73,6 +84,13 @@ class DashboardIndex extends PureComponent<Props, State> {
                 placeholderText="Filter dashboards..."
                 onSearch={this.handleFilterDashboards}
                 searchTerm={searchTerm}
+              />
+              <ResourceSortDropdown
+                resourceType={ResourceType.Dashboards}
+                sortDirection={sortDirection}
+                sortKey={sortKey}
+                sortType={sortType}
+                onSelect={this.handleSort}
               />
             </Page.ControlBarLeft>
             <Page.ControlBarRight>
@@ -99,6 +117,9 @@ class DashboardIndex extends PureComponent<Props, State> {
               <DashboardsIndexContents
                 searchTerm={searchTerm}
                 onFilterChange={this.handleFilterDashboards}
+                sortDirection={sortDirection}
+                sortType={sortType}
+                sortKey={sortKey}
               />
             </GetAssetLimits>
           </Page.Contents>
@@ -106,6 +127,14 @@ class DashboardIndex extends PureComponent<Props, State> {
         {this.props.children}
       </>
     )
+  }
+
+  private handleSort = (
+    sortKey: DashboardSortKey,
+    sortDirection: Sort,
+    sortType: SortTypes
+  ): void => {
+    this.setState({sortKey, sortDirection, sortType})
   }
 
   private handleFilterDashboards = (searchTerm: string): void => {

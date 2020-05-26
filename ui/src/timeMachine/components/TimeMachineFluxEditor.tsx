@@ -4,10 +4,7 @@ import {connect} from 'react-redux'
 
 // Components
 import FluxEditor from 'src/shared/components/FluxMonacoEditor'
-import Threesizer from 'src/shared/components/threesizer/Threesizer'
-import FluxFunctionsToolbar from 'src/timeMachine/components/fluxFunctionsToolbar/FluxFunctionsToolbar'
-import VariableToolbar from 'src/timeMachine/components/variableToolbar/VariableToolbar'
-import ToolbarTab from 'src/timeMachine/components/ToolbarTab'
+import FluxToolbar from 'src/timeMachine/components/FluxToolbar'
 
 // Actions
 import {setActiveQueryText} from 'src/timeMachine/actions'
@@ -16,24 +13,23 @@ import {saveAndExecuteQueries} from 'src/timeMachine/actions/queries'
 // Utils
 import {getActiveQuery, getActiveTimeMachine} from 'src/timeMachine/selectors'
 import {
-  formatFunctionForInsert,
+  functionRequiresNewLine,
   generateImport,
 } from 'src/timeMachine/utils/insertFunction'
 
-// Constants
-import {HANDLE_VERTICAL, HANDLE_NONE} from 'src/shared/constants'
-
 // Types
 import {AppState, FluxToolbarFunction, EditorType} from 'src/types'
+import * as monacoEditor from 'monaco-editor/esm/vs/editor/editor.api'
 
 interface StateProps {
   activeQueryText: string
   activeTab: string
+  skipFocus?: boolean
 }
 
 interface DispatchProps {
-  onSetActiveQueryText: typeof setActiveQueryText
-  onSubmitQueries: typeof saveAndExecuteQueries
+  onSetActiveQueryText: typeof setActiveQueryText | ((text: string) => void)
+  onSubmitQueries: typeof saveAndExecuteQueries | (() => void)
 }
 
 type Props = StateProps & DispatchProps
@@ -43,17 +39,9 @@ const TimeMachineFluxEditor: FC<Props> = ({
   onSubmitQueries,
   onSetActiveQueryText,
   activeTab,
+  skipFocus,
 }) => {
-  const [displayFluxFunctions, setDisplayFluxFunctions] = useState(true)
   const [editorInstance, setEditorInstance] = useState<EditorType>(null)
-
-  const showFluxFunctions = () => {
-    setDisplayFluxFunctions(true)
-  }
-
-  const hideFluxFunctions = () => {
-    setDisplayFluxFunctions(false)
-  }
 
   const handleInsertVariable = (variableName: string): void => {
     const p = editorInstance.getPosition()
@@ -71,31 +59,69 @@ const TimeMachineFluxEditor: FC<Props> = ({
     onSetActiveQueryText(editorInstance.getValue())
   }
 
-  const handleInsertFluxFunction = (func: FluxToolbarFunction): void => {
+  const getInsertLineNumber = (currentLineNumber: number): number => {
+    const scriptLines = activeQueryText.split('\n')
+
+    const currentLine =
+      scriptLines[currentLineNumber] || scriptLines[scriptLines.length - 1]
+
+    // Insert on the current line if its an empty line
+    if (!currentLine.trim()) {
+      return currentLineNumber
+    }
+
+    return currentLineNumber + 1
+  }
+
+  const defaultColumnPosition = 1 // beginning column of the row
+
+  const getFluxTextAndRange = (
+    func: FluxToolbarFunction
+  ): {text: string; range: monacoEditor.Range} => {
     const p = editorInstance.getPosition()
-    // sets the range based on the current position
-    let range = new window.monaco.Range(
-      p.lineNumber,
-      p.column,
-      p.lineNumber,
-      p.column
-    )
+    const insertLineNumber = getInsertLineNumber(p.lineNumber)
+
+    let row = insertLineNumber
+
+    const [currentRange] = editorInstance.getVisibleRanges()
+    // Determines whether the new insert line is beyond the current range
+    let shouldInsertOnLastLine = insertLineNumber > currentRange.endLineNumber
     // edge case for when user toggles to the script editor
     // this defaults the cursor to the initial position (top-left, 1:1 position)
-    if (p.lineNumber === 1 && p.column === 1) {
-      const [currentRange] = editorInstance.getVisibleRanges()
+    if (p.lineNumber === 1 && p.column === defaultColumnPosition) {
       // adds the function to the end of the query
-      range = new window.monaco.Range(
-        currentRange.endLineNumber + 1,
-        p.column,
-        currentRange.endLineNumber + 1,
-        p.column
-      )
+      shouldInsertOnLastLine = true
+      row = currentRange.endLineNumber + 1
     }
+
+    let text = ''
+    if (shouldInsertOnLastLine) {
+      text = `\n  |> ${func.example}`
+    } else {
+      text = `  |> ${func.example}\n`
+    }
+
+    if (functionRequiresNewLine(func.name)) {
+      text = `\n${func.example}\n`
+    }
+
+    const range = new window.monaco.Range(
+      row,
+      defaultColumnPosition,
+      row,
+      defaultColumnPosition
+    )
+
+    return {text, range}
+  }
+
+  const handleInsertFluxFunction = (func: FluxToolbarFunction): void => {
+    const {text, range} = getFluxTextAndRange(func)
+
     const edits = [
       {
         range,
-        text: formatFunctionForInsert(func.name, func.example),
+        text,
       },
     ]
     const importStatement = generateImport(
@@ -112,61 +138,29 @@ const TimeMachineFluxEditor: FC<Props> = ({
     onSetActiveQueryText(editorInstance.getValue())
   }
 
-  const divisions = [
-    {
-      size: 0.75,
-      handleDisplay: HANDLE_NONE,
-      render: () => {
-        return (
-          <FluxEditor
-            script={activeQueryText}
-            onChangeScript={onSetActiveQueryText}
-            onSubmitScript={onSubmitQueries}
-            setEditorInstance={setEditorInstance}
-          />
-        )
-      },
-    },
-    {
-      render: () => {
-        return (
-          <>
-            <div className="toolbar-tab-container">
-              {activeTab !== 'customCheckQuery' && (
-                <ToolbarTab
-                  onSetActive={hideFluxFunctions}
-                  name="Variables"
-                  active={!displayFluxFunctions}
-                />
-              )}
-              <ToolbarTab
-                onSetActive={showFluxFunctions}
-                name="Functions"
-                active={displayFluxFunctions}
-                testID="functions-toolbar-tab"
-              />
-            </div>
-            {displayFluxFunctions ? (
-              <FluxFunctionsToolbar
-                onInsertFluxFunction={handleInsertFluxFunction}
-              />
-            ) : (
-              <VariableToolbar onClickVariable={handleInsertVariable} />
-            )}
-          </>
-        )
-      },
-      handlePixels: 6,
-      size: 0.25,
-    },
-  ]
-
   return (
-    <div className="time-machine-flux-editor">
-      <Threesizer orientation={HANDLE_VERTICAL} divisions={divisions} />
+    <div className="flux-editor">
+      <div className="flux-editor--left-panel">
+        <FluxEditor
+          script={activeQueryText}
+          onChangeScript={onSetActiveQueryText}
+          onSubmitScript={onSubmitQueries}
+          setEditorInstance={setEditorInstance}
+          skipFocus={skipFocus}
+        />
+      </div>
+      <div className="flux-editor--right-panel">
+        <FluxToolbar
+          activeQueryBuilderTab={activeTab}
+          onInsertFluxFunction={handleInsertFluxFunction}
+          onInsertVariable={handleInsertVariable}
+        />
+      </div>
     </div>
   )
 }
+
+export {TimeMachineFluxEditor}
 
 const mstp = (state: AppState) => {
   const activeQueryText = getActiveQuery(state).text

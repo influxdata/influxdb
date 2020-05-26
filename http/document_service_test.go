@@ -7,15 +7,15 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/authorizer"
-	icontext "github.com/influxdata/influxdb/context"
-	httpmock "github.com/influxdata/influxdb/http/mock"
-	"github.com/influxdata/influxdb/inmem"
-	"github.com/influxdata/influxdb/kit/transport/http"
-	"github.com/influxdata/influxdb/kv"
-	"github.com/influxdata/influxdb/mock"
-	itesting "github.com/influxdata/influxdb/testing"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/authorizer"
+	icontext "github.com/influxdata/influxdb/v2/context"
+	httpmock "github.com/influxdata/influxdb/v2/http/mock"
+	"github.com/influxdata/influxdb/v2/inmem"
+	"github.com/influxdata/influxdb/v2/kit/transport/http"
+	"github.com/influxdata/influxdb/v2/kv"
+	"github.com/influxdata/influxdb/v2/mock"
+	itesting "github.com/influxdata/influxdb/v2/testing"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -33,7 +33,7 @@ func setup(t *testing.T) (func(auth influxdb.Authorizer) *httptest.Server, func(
 	ctx := context.Background()
 	// Need this to make resource creation work.
 	// We are not testing authorization in the setup.
-	ctx = icontext.SetAuthorizer(ctx, mock.Authorization{})
+	ctx = icontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(true, nil))
 	if err := svc.Initialize(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -647,16 +647,19 @@ func AddLabels(t *testing.T) {
 	})
 
 	t.Run("add same twice", func(t *testing.T) {
-		// TODO(affo)
-		t.Skip("see https://github.com/influxdata/influxdb/issues/17092")
-
 		serverFn, clientFn, fx := setup(t)
-		server := serverFn(fx.auth(influxdb.WriteAction))
+		server := serverFn(func() influxdb.Authorizer {
+			a := fx.auth(influxdb.WriteAction)
+			// The LabelService uses a "standard auth" mode.
+			// That's  why we need to add further permissions and the org ones are not enough.
+			fx.addLabelPermission(a, influxdb.WriteAction, fx.Labels[0].ID)
+			return a
+		}())
 		defer server.Close()
 		client := clientFn(server.URL)
 		if _, err := client.AddDocumentLabel(context.Background(), namespace, fx.Document.ID, fx.Labels[0].ID); err != nil {
-			if !strings.Contains(err.Error(), "???") {
-				t.Errorf("unexpected error: %v", err)
+			if !strings.Contains(err.Error(), influxdb.ErrLabelExistsOnResource.Msg) {
+				t.Errorf("unexpected error: %v", err.Error())
 			}
 		} else {
 			t.Error("expected error got none")

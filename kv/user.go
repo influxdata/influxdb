@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/influxdata/influxdb"
-	icontext "github.com/influxdata/influxdb/context"
+	"github.com/influxdata/influxdb/v2"
+	icontext "github.com/influxdata/influxdb/v2/context"
 )
 
 var (
@@ -230,6 +230,11 @@ func (s *Service) CreateUser(ctx context.Context, u *influxdb.User) error {
 	})
 }
 
+// CreateUserTx is used when importing kv as a library
+func (s *Service) CreateUserTx(ctx context.Context, tx Tx, u *influxdb.User) error {
+	return s.createUser(ctx, tx, u)
+}
+
 func (s *Service) createUser(ctx context.Context, tx Tx, u *influxdb.User) error {
 	if err := s.uniqueUserName(ctx, tx, u); err != nil {
 		return err
@@ -349,7 +354,7 @@ func (s *Service) updateUser(ctx context.Context, tx Tx, id influxdb.ID, upd inf
 	}
 
 	if upd.Name != nil {
-		if err := s.removeUserFromIndex(ctx, tx, id, *upd.Name); err != nil {
+		if err := s.removeUserFromIndex(ctx, tx, id, u.Name); err != nil {
 			return nil, err
 		}
 

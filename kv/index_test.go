@@ -1,10 +1,16 @@
 package kv_test
 
 import (
+	"context"
+	"errors"
+	"io/ioutil"
+	"os"
 	"testing"
 
-	"github.com/influxdata/influxdb/inmem"
-	influxdbtesting "github.com/influxdata/influxdb/testing"
+	"github.com/influxdata/influxdb/v2/bolt"
+	"github.com/influxdata/influxdb/v2/inmem"
+	influxdbtesting "github.com/influxdata/influxdb/v2/testing"
+	"go.uber.org/zap/zaptest"
 )
 
 func Test_Inmem_Index(t *testing.T) {
@@ -19,4 +25,29 @@ func Test_Bolt_Index(t *testing.T) {
 	defer closeBolt()
 
 	influxdbtesting.TestIndex(t, s)
+}
+
+func Benchmark_Inmem_Index_Walk(b *testing.B) {
+	influxdbtesting.BenchmarkIndexWalk(b, inmem.NewKVStore(), 1000, 200)
+}
+
+func Benchmark_Bolt_Index_Walk(b *testing.B) {
+	f, err := ioutil.TempFile("", "influxdata-bolt-")
+	if err != nil {
+		b.Fatal(errors.New("unable to open temporary boltdb file"))
+	}
+	f.Close()
+
+	path := f.Name()
+	s := bolt.NewKVStore(zaptest.NewLogger(b), path)
+	if err := s.Open(context.Background()); err != nil {
+		b.Fatal(err)
+	}
+
+	defer func() {
+		s.Close()
+		os.Remove(path)
+	}()
+
+	influxdbtesting.BenchmarkIndexWalk(b, s, 1000, 200)
 }

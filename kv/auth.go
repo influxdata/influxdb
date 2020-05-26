@@ -6,8 +6,8 @@ import (
 	"fmt"
 
 	"github.com/buger/jsonparser"
-	influxdb "github.com/influxdata/influxdb"
-	jsonp "github.com/influxdata/influxdb/pkg/jsonparser"
+	influxdb "github.com/influxdata/influxdb/v2"
+	jsonp "github.com/influxdata/influxdb/v2/pkg/jsonparser"
 )
 
 var (
@@ -301,6 +301,11 @@ func (s *Service) CreateAuthorization(ctx context.Context, a *influxdb.Authoriza
 	return s.kv.Update(ctx, func(tx Tx) error {
 		return s.createAuthorization(ctx, tx, a)
 	})
+}
+
+// CreateAuthorizationTx is used when importing kv as a library
+func (s *Service) CreateAuthorizationTx(ctx context.Context, tx Tx, a *influxdb.Authorization) error {
+	return s.createAuthorization(ctx, tx, a)
 }
 
 func (s *Service) createAuthorization(ctx context.Context, tx Tx, a *influxdb.Authorization) error {

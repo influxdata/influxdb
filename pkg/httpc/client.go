@@ -7,7 +7,7 @@ import (
 	"net/url"
 	"path"
 
-	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2"
 )
 
 type (
@@ -76,51 +76,51 @@ func New(opts ...ClientOptFn) (*Client, error) {
 }
 
 // Delete generates a DELETE request.
-func (c *Client) Delete(urlPath string, rest ...string) *Req {
-	return c.Req(http.MethodDelete, nil, urlPath, rest...)
+func (c *Client) Delete(urlPath ...string) *Req {
+	return c.Req(http.MethodDelete, nil, urlPath...)
 }
 
 // Get generates a GET request.
-func (c *Client) Get(urlPath string, rest ...string) *Req {
-	return c.Req(http.MethodGet, nil, urlPath, rest...)
+func (c *Client) Get(urlPath ...string) *Req {
+	return c.Req(http.MethodGet, nil, urlPath...)
 }
 
 // Patch generates a PATCH request.
-func (c *Client) Patch(bFn BodyFn, urlPath string, rest ...string) *Req {
-	return c.Req(http.MethodPatch, bFn, urlPath, rest...)
+func (c *Client) Patch(bFn BodyFn, urlPath ...string) *Req {
+	return c.Req(http.MethodPatch, bFn, urlPath...)
 }
 
 // PatchJSON generates a PATCH request. This is to be used with value or pointer to value type.
 // Providing a stream/reader will result in disappointment.
-func (c *Client) PatchJSON(v interface{}, urlPath string, rest ...string) *Req {
-	return c.Patch(BodyJSON(v), urlPath, rest...)
+func (c *Client) PatchJSON(v interface{}, urlPath ...string) *Req {
+	return c.Patch(BodyJSON(v), urlPath...)
 }
 
 // Post generates a POST request.
-func (c *Client) Post(bFn BodyFn, urlPath string, rest ...string) *Req {
-	return c.Req(http.MethodPost, bFn, urlPath, rest...)
+func (c *Client) Post(bFn BodyFn, urlPath ...string) *Req {
+	return c.Req(http.MethodPost, bFn, urlPath...)
 }
 
 // PostJSON generates a POST request and json encodes the body. This is to be
 // used with value or pointer to value type. Providing a stream/reader will result
 // in disappointment.
-func (c *Client) PostJSON(v interface{}, urlPath string, rest ...string) *Req {
-	return c.Post(BodyJSON(v), urlPath, rest...)
+func (c *Client) PostJSON(v interface{}, urlPath ...string) *Req {
+	return c.Post(BodyJSON(v), urlPath...)
 }
 
 // Put generates a PUT request.
-func (c *Client) Put(bFn BodyFn, urlPath string, rest ...string) *Req {
-	return c.Req(http.MethodPut, bFn, urlPath, rest...)
+func (c *Client) Put(bFn BodyFn, urlPath ...string) *Req {
+	return c.Req(http.MethodPut, bFn, urlPath...)
 }
 
 // PutJSON generates a PUT request. This is to be used with value or pointer to value type.
 // Providing a stream/reader will result in disappointment.
-func (c *Client) PutJSON(v interface{}, urlPath string, rest ...string) *Req {
-	return c.Put(BodyJSON(v), urlPath, rest...)
+func (c *Client) PutJSON(v interface{}, urlPath ...string) *Req {
+	return c.Put(BodyJSON(v), urlPath...)
 }
 
 // Req constructs a request.
-func (c *Client) Req(method string, bFn BodyFn, urlPath string, rest ...string) *Req {
+func (c *Client) Req(method string, bFn BodyFn, urlPath ...string) *Req {
 	bodyF := BodyEmpty
 	if bFn != nil {
 		bodyF = bFn
@@ -165,7 +165,7 @@ func (c *Client) Req(method string, bFn BodyFn, urlPath string, rest ...string) 
 		body = &buf
 	}
 
-	req, err := http.NewRequest(method, c.buildURL(urlPath, rest...), body)
+	req, err := http.NewRequest(method, c.buildURL(urlPath...), body)
 	if err != nil {
 		return &Req{err: err}
 	}
@@ -205,11 +205,10 @@ func (c *Client) Clone(opts ...ClientOptFn) (*Client, error) {
 	return New(append(existingOpts, opts...)...)
 }
 
-func (c *Client) buildURL(urlPath string, rest ...string) string {
+func (c *Client) buildURL(urlPath ...string) string {
 	u := c.addr
-	u.Path = path.Join(u.Path, urlPath)
-	if len(rest) > 0 {
-		u.Path = path.Join(u.Path, path.Join(rest...))
+	if len(urlPath) > 0 {
+		u.Path = path.Join(u.Path, path.Join(urlPath...))
 	}
 	return u.String()
 }

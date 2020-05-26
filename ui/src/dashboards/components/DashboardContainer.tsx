@@ -9,6 +9,9 @@ import DashboardPage from 'src/dashboards/components/DashboardPage'
 import GetTimeRange from 'src/dashboards/components/GetTimeRange'
 import DashboardRoute from 'src/shared/components/DashboardRoute'
 
+// Actions
+import {setCurrentPage} from 'src/shared/reducers/currentPage'
+
 // Utils
 import {GlobalAutoRefresher} from 'src/utils/AutoRefresher'
 
@@ -25,9 +28,18 @@ interface StateProps {
   dashboard: string
 }
 
-type Props = StateProps
+interface DispatchProps {
+  onSetCurrentPage: typeof setCurrentPage
+}
 
-const DashboardContainer: FC<Props> = ({autoRefresh, dashboard, children}) => {
+type Props = StateProps & DispatchProps
+
+const DashboardContainer: FC<Props> = ({
+  autoRefresh,
+  dashboard,
+  children,
+  onSetCurrentPage,
+}) => {
   useEffect(() => {
     if (autoRefresh.status === Active) {
       GlobalAutoRefresher.poll(autoRefresh.interval)
@@ -40,6 +52,13 @@ const DashboardContainer: FC<Props> = ({autoRefresh, dashboard, children}) => {
       GlobalAutoRefresher.stopPolling()
     }
   }, [autoRefresh.status, autoRefresh.interval])
+
+  useEffect(() => {
+    onSetCurrentPage('dashboard')
+    return () => {
+      onSetCurrentPage('not set')
+    }
+  }, [])
 
   return (
     <DashboardRoute>
@@ -63,4 +82,11 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-export default connect<StateProps>(mstp)(DashboardContainer)
+const mdtp: DispatchProps = {
+  onSetCurrentPage: setCurrentPage,
+}
+
+export default connect<StateProps, DispatchProps>(
+  mstp,
+  mdtp
+)(DashboardContainer)

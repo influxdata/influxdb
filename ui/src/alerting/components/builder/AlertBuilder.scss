@@ -4,17 +4,17 @@
 */
 
 .alert-builder {
-  padding: 0 $ix-marg-c;
-  background-color: $g2-kevlar;
-}
-
-.alert-builder--controls {
-  border-bottom: 0;
-  padding-right: $ix-marg-c;
+  height: 100%;
+  padding-top: $cf-marg-b;
+  display: flex;
 }
 
 .alert-builder--card {
-  margin-bottom: $ix-marg-c;
+  margin-right: $ix-marg-b;
+
+  &:last-child {
+    margin-right: 0;
+  }
 
   .builder-card--contents {
     min-height: 100%;
@@ -25,13 +25,24 @@
   }
 
   &.alert-builder--meta-card {
-    flex: 1 0 280px !important;
+    flex: 1 0 140px !important;
   }
   &.alert-builder--message-card {
-    flex: 3 0 320px !important;
+    flex: 3 0 140px !important;
   }
   &.alert-builder--conditions-card {
-    flex: 2 0 320px !important;
+    flex: 2 0 200px !important;
+  }
+  @media screen and (min-width: $cf-grid--breakpoint-md) {
+    &.alert-builder--meta-card {
+      flex: 1 0 280px !important;
+    }
+    &.alert-builder--message-card {
+      flex: 3 0 320px !important;
+    }
+    &.alert-builder--conditions-card {
+      flex: 2 0 320px !important;
+    }
   }
 }
 

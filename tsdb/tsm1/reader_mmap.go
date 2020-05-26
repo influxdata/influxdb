@@ -7,7 +7,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/influxdata/influxdb/pkg/fs"
+	"github.com/influxdata/influxdb/v2/pkg/fs"
 	"go.uber.org/zap"
 )
 

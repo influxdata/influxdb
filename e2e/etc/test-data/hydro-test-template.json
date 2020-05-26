@@ -1,0 +1,175 @@
+{
+ "meta": {
+  "name": "Hydro test dashboard-Template",
+  "type": "dashboard",
+  "description": "template created from dashboard: Hydro test dashboard",
+  "version": "1",
+  "createdAt": "2019-10-21T12:46:22.452466985Z",
+  "updatedAt": "2019-10-21T12:46:22.452467111Z"
+ },
+ "content": {
+  "data": {
+   "attributes": {
+    "description": "",
+    "name": "Hydro test dashboard"
+   },
+   "relationships": {
+    "cell": {
+     "data": [
+      {
+       "id": "04a79573194a5000",
+       "type": "cell"
+      },
+      {
+       "id": "04a795c71d4a5000",
+       "type": "cell"
+      }
+     ]
+    },
+    "label": {
+     "data": []
+    },
+    "variable": {
+     "data": []
+    }
+   },
+   "type": "dashboard"
+  },
+  "included": [
+   {
+    "attributes": {
+     "h": 4,
+     "w": 4,
+     "x": 0,
+     "y": 0
+    },
+    "id": "04a79573194a5000",
+    "relationships": {
+     "view": {
+      "data": {
+       "id": "04a79573194a5000",
+       "type": "view"
+      }
+     }
+    },
+    "type": "cell"
+   },
+   {
+    "attributes": {
+     "h": 4,
+     "w": 4,
+     "x": 4,
+     "y": 0
+    },
+    "id": "04a795c71d4a5000",
+    "relationships": {
+     "view": {
+      "data": {
+       "id": "04a795c71d4a5000",
+       "type": "view"
+      }
+     }
+    },
+    "type": "cell"
+   },
+   {
+    "attributes": {
+     "name": "Name this Cell",
+     "properties": {
+      "axes": {
+       "x": {
+        "base": "10",
+        "bounds": [
+         "",
+         ""
+        ],
+        "label": "",
+        "prefix": "",
+        "scale": "linear",
+        "suffix": ""
+       },
+       "y": {
+        "base": "10",
+        "bounds": [
+         "",
+         ""
+        ],
+        "label": "",
+        "prefix": "",
+        "scale": "linear",
+        "suffix": ""
+       }
+      },
+      "colors": [
+       {
+        "hex": "#31C0F6",
+        "id": "f583e27b-5ada-4eb2-9ac6-37af00f3c016",
+        "name": "Nineteen Eighty Four",
+        "type": "scale",
+        "value": 0
+       },
+       {
+        "hex": "#A500A5",
+        "id": "26bb82bd-364a-4ff6-b0ce-5905adc15bf2",
+        "name": "Nineteen Eighty Four",
+        "type": "scale",
+        "value": 0
+       },
+       {
+        "hex": "#FF7E27",
+        "id": "932f9e8b-1aee-49b7-841a-238bb2a73ea9",
+        "name": "Nineteen Eighty Four",
+        "type": "scale",
+        "value": 0
+       }
+      ],
+      "geom": "line",
+      "legend": {},
+      "note": "",
+      "queries": [
+       {
+        "builderConfig": {
+         "aggregateWindow": {
+          "period": "auto"
+         },
+         "buckets": [],
+         "functions": [],
+         "tags": [
+          {
+           "key": "_measurement",
+           "values": []
+          }
+         ]
+        },
+        "editMode": "advanced",
+        "name": "",
+        "text": "from(bucket: \"qa\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"hydro\")\n  |> filter(fn: (r) => r._field == \"level\")"
+       }
+      ],
+      "shadeBelow": false,
+      "shape": "chronograf-v2",
+      "showNoteWhenEmpty": false,
+      "type": "xy",
+      "xColumn": "_time",
+      "yColumn": "_value"
+     }
+    },
+    "id": "04a79573194a5000",
+    "type": "view"
+   },
+   {
+    "attributes": {
+     "name": "Name this Cell",
+     "properties": {
+      "note": "This is dashboard shows randomized hydrological data for a month time window.  To see the curve set the time window to at least 2d. ",
+      "shape": "chronograf-v2",
+      "type": "markdown"
+     }
+    },
+    "id": "04a795c71d4a5000",
+    "type": "view"
+   }
+  ]
+ },
+ "labels": []
+}

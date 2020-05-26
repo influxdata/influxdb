@@ -55,20 +55,23 @@ class TokensTab extends PureComponent<Props, State> {
     const {searchTerm, sortKey, sortDirection, sortType} = this.state
     const {tokens} = this.props
 
+    const leftHeaderItems = (
+      <SearchWidget
+        searchTerm={searchTerm}
+        placeholderText="Filter Tokens..."
+        onSearch={this.handleChangeSearchTerm}
+        testID="input-field--filter"
+      />
+    )
+
+    const rightHeaderItems = <GenerateTokenDropdown />
+
     return (
       <>
-        <TabbedPageHeader>
-          <SearchWidget
-            searchTerm={searchTerm}
-            placeholderText="Filter Tokens..."
-            onSearch={this.handleChangeSearchTerm}
-            testID="input-field--filter"
-          />
-          <GenerateTokenDropdown
-            onSelectAllAccess={this.handleGenerateAllAccess}
-            onSelectReadWrite={this.handleGenerateReadWrite}
-          />
-        </TabbedPageHeader>
+        <TabbedPageHeader
+          childrenLeft={leftHeaderItems}
+          childrenRight={rightHeaderItems}
+        />
         <FilterAuthorizations
           list={tokens}
           searchTerm={searchTerm}
@@ -100,24 +103,6 @@ class TokensTab extends PureComponent<Props, State> {
 
   private get searchKeys(): AuthSearchKeys[] {
     return [AuthSearchKeys.Status, AuthSearchKeys.Description]
-  }
-
-  private handleGenerateAllAccess = () => {
-    const {
-      router,
-      params: {orgID},
-    } = this.props
-
-    router.push(`/orgs/${orgID}/load-data/tokens/generate/all-access`)
-  }
-
-  private handleGenerateReadWrite = () => {
-    const {
-      router,
-      params: {orgID},
-    } = this.props
-
-    router.push(`/orgs/${orgID}/load-data/tokens/generate/buckets`)
   }
 }
 

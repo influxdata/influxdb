@@ -163,16 +163,19 @@ bench: libflux
 
 build: all
 
-dist:
-	$(GO_RUN) github.com/goreleaser/goreleaser --snapshot --rm-dist --config=.goreleaser-nightly.yml
+goreleaser:
+	curl -sfL -o goreleaser-install https://install.goreleaser.com/github.com/goreleaser/goreleaser.sh
+	sh goreleaser-install v0.135.0
 
-nightly:
-	$(GO_RUN) github.com/goreleaser/goreleaser --snapshot --rm-dist --publish-snapshots --config=.goreleaser-nightly.yml
+dist: goreleaser
+	./bin/goreleaser --rm-dist --config=.goreleaser-nightly.yml
 
-release:
-	$(GO_INSTALL) github.com/goreleaser/goreleaser
+nightly: goreleaser
+	./bin/goreleaser --rm-dist --config=.goreleaser-nightly.yml
+
+release: goreleaser
 	git checkout -- go.sum # avoid dirty git repository caused by go install
-	goreleaser release --rm-dist
+	./bin/goreleaser release --rm-dist
 
 clean:
 	@for d in $(SUBDIRS); do $(MAKE) -C $$d clean; done
@@ -206,5 +209,24 @@ protoc:
 	unzip -o -d /go /tmp/protoc.zip
 	chmod +x /go/bin/protoc
 
+# generate feature flags
+flags:
+	$(GO_GENERATE) ./kit/feature
+
+docker-image-influx:
+	@cp .gitignore .dockerignore
+	@docker image build -t influxdb:dev --target influx .
+
+docker-image-ui:
+	@cp .gitignore .dockerignore
+	@docker image build -t influxui:dev --target ui .
+	
+dshell-image:
+	@cp .gitignore .dockerignore
+	@docker image build --build-arg "USERID=$(shell id -u)" -t influxdb:dshell --target dshell .
+
+dshell: dshell-image
+	@docker container run --rm -p 9999:9999 -p 8080:8080 -u $(shell id -u) -it -v $(shell pwd):/code -w /code influxdb:dshell 
+
 # .PHONY targets represent actions that do not create an actual file.
-.PHONY: all $(SUBDIRS) run fmt checkfmt tidy checktidy checkgenerate test test-go test-js test-go-race bench clean node_modules vet nightly chronogiraffe dist ping protoc e2e run-e2e influxd libflux
+.PHONY: all $(SUBDIRS) run fmt checkfmt tidy checktidy checkgenerate test test-go test-js test-go-race bench clean node_modules vet nightly chronogiraffe dist ping protoc e2e run-e2e influxd libflux flags dshell dclean docker-image-flux docker-image-influx goreleaser

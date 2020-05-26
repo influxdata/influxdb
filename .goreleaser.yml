@@ -1,6 +1,7 @@
 project_name: influxdb
 builds:
-  - goos:
+  - id: influx
+    goos:
     - linux
     - darwin
     goarch:
@@ -12,7 +13,8 @@ builds:
       - CGO_ENABLED=0
     ldflags: -s -w -X main.version={{.Version}} -X main.commit={{.ShortCommit}} -X main.date={{.Date}}
     binary: influx
-  - goos:
+  - id: influxd
+    goos:
     - linux
     - darwin
     goarch:
@@ -29,22 +31,21 @@ builds:
     hooks:
       pre: make generate
 
-archive:
-  format: tar.gz
-  wrap_in_directory: true
-  format_overrides:
-    - goos: windows
-      format: zip
-  name_template: 'influxdb_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{
-    .Arm }}{{ end }}'
-  files:
-  - LICENSE
-  - README.md
+archives:
+  - format: tar.gz
+    wrap_in_directory: true
+    format_overrides:
+      - goos: windows
+        format: zip
+    name_template: 'influxdb_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}'
+    files:
+      - LICENSE
+      - README.md
 
-s3:
-  -
-    bucket: dl.influxdata.com
-    region: us-east-1
+blobs:
+  - provider: "s3"
+    bucket: "dl.influxdata.com"
+    region: "us-east-1"
     folder: "influxdb/releases/"
 
 dockers:

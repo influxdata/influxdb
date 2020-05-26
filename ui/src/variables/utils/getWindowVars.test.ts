@@ -22,7 +22,7 @@ describe('getWindowPeriodVariable', () => {
   })
 
   test('should return a dynamic windowPeriod depending on the timeRange that is input', () => {
-    jest.mock('@influxdata/flux-parser', () => {
+    jest.mock('src/external/parser', () => {
       return {
         parse: jest.fn(() => ({
           type: 'File',
@@ -62,8 +62,8 @@ describe('getWindowPeriodVariable', () => {
         id: 'windowPeriod',
         name: 'windowPeriod',
         arguments: {
-          type: 'map',
-          values: {'240000': 240000},
+          type: 'system',
+          values: [240000],
         },
         status: 'Done',
         labels: [],

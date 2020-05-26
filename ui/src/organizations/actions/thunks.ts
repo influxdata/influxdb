@@ -18,6 +18,8 @@ import {
 } from 'src/organizations/actions/creators'
 
 // Constants
+import {CLOUD} from 'src/shared/constants'
+
 import {
   orgCreateSuccess,
   orgCreateFailed,
@@ -28,6 +30,8 @@ import {
   orgRenameSuccess,
   orgRenameFailed,
 } from 'src/shared/copy/notifications'
+
+import {fireOrgIdReady} from 'src/shared/utils/analytics'
 
 // Schemas
 import {orgSchema, arrayOfOrgs} from 'src/schemas'
@@ -60,6 +64,10 @@ export const getOrganizations = () => async (
       orgs,
       arrayOfOrgs
     )
+
+    if (CLOUD) {
+      fireOrgIdReady(organizations.result)
+    }
 
     dispatch(setOrgs(RemoteDataState.Done, organizations))
 

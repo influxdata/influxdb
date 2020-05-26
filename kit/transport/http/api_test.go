@@ -10,9 +10,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/influxdata/influxdb"
-	kithttp "github.com/influxdata/influxdb/kit/transport/http"
-	"github.com/influxdata/influxdb/pkg/testttp"
+	"github.com/influxdata/influxdb/v2"
+	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
+	"github.com/influxdata/influxdb/v2/pkg/testttp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -142,7 +142,7 @@ func Test_API(t *testing.T) {
 				responder := kithttp.NewAPI()
 
 				svr := func(w http.ResponseWriter, r *http.Request) {
-					responder.Respond(w, statusCode, map[string]string{
+					responder.Respond(w, r, statusCode, map[string]string{
 						"foo": "bar",
 					})
 				}
@@ -208,7 +208,7 @@ func Test_API(t *testing.T) {
 				responder := kithttp.NewAPI()
 
 				svr := func(w http.ResponseWriter, r *http.Request) {
-					responder.Err(w, tt.expectedErr)
+					responder.Err(w, r, tt.expectedErr)
 				}
 
 				testttp.

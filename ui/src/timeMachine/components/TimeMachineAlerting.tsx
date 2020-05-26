@@ -17,7 +17,7 @@ import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 const TimeMachineAlerting: FunctionComponent = () => {
   return (
     <div className="time-machine-queries">
-      <div className="time-machine-queries--controls alert-builder--controls">
+      <div className="time-machine-queries--controls">
         <div className="time-machine--editor-title">Configure a Check</div>
         <div className="time-machine-queries--buttons">
           <FlexBox

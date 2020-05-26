@@ -31,12 +31,13 @@ interface Props extends CellRendererProps {
   timeFormatter: (time: string) => string
 }
 
-const URL_REGEXP = /(https?:\/\/[^\s]+)/g
+const URL_REGEXP = /((http|https)?:\/\/[^\s]+)/g
 
 // NOTE: rip this out if you spend time any here as per:
 // https://stackoverflow.com/questions/1500260/detect-urls-in-text-with-javascript/1500501#1500501
 function asLink(str) {
-  if (!URL_REGEXP.test('' + str)) {
+  const isURL = `${str}`.includes('http://') || `${str}`.includes('https://')
+  if (isURL === false) {
     return str
   }
 
@@ -249,7 +250,7 @@ class TableCell extends PureComponent<Props> {
     const {properties, data, dataType, timeFormatter} = this.props
     const {decimalPlaces} = properties
 
-    if (dataType.includes('dateTime')) {
+    if (data && dataType.includes('dateTime')) {
       return timeFormatter(data)
     }
 

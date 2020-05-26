@@ -15,7 +15,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/influxdata/influxdb/pkg/escape"
+	"github.com/influxdata/influxdb/v2/pkg/escape"
 )
 
 const (
@@ -74,6 +74,14 @@ var (
 	// ErrInvalidKevValuePairs is returned when the number of key, value pairs
 	// is odd, indicating a missing value.
 	ErrInvalidKevValuePairs = errors.New("key/value pairs is an odd length")
+
+	// ErrMeasurementTagExpected is returned by ParseMeasurement when parsing a
+	// series key where the first tag key is not a measurement.
+	ErrMeasurementTagExpected = errors.New("measurement tag expected")
+
+	// ErrInvalidKey is returned by ParseMeasurement when parsing a an empty
+	// or invalid series key.
+	ErrInvalidKey = errors.New("invalid key")
 )
 
 const (
@@ -377,6 +385,34 @@ func ParseName(buf []byte) []byte {
 	}
 
 	return UnescapeMeasurement(name)
+}
+
+// ParseMeasurement returns the value of the tag identified by MeasurementTagKey; otherwise,
+// an error is returned.
+//
+// buf must be a normalized series key, such that the tags are
+// lexicographically sorted and therefore the measurement tag is first.
+func ParseMeasurement(buf []byte) ([]byte, error) {
+	pos, name := scanTo(buf, 0, ',')
+
+	// it's an empty key, so there are no tags
+	if len(name) == 0 {
+		return nil, ErrInvalidKey
+	}
+
+	i := pos + 1
+	var key, value []byte
+	i, key = scanTo(buf, i, '=')
+	if string(key) != MeasurementTagKey {
+		return nil, ErrMeasurementTagExpected
+	}
+
+	_, value = scanTagValue(buf, i+1)
+	if bytes.IndexByte(value, '\\') != -1 {
+		// hasEscape
+		return unescapeTag(value), nil
+	}
+	return value, nil
 }
 
 // ValidPrecision checks if the precision is known.
@@ -1338,7 +1374,13 @@ func pointKey(measurement string, tags Tags, fields Fields, t time.Time) ([]byte
 		}
 	}
 
-	key := MakeKey([]byte(measurement), tags)
+	estimatedSize := len(measurement) + 10 // add additional buffer for escaping & spaces
+	for _, t := range tags {
+		estimatedSize += len(t.Key) + len(t.Value) + 2
+	}
+	buf := make([]byte, 0, estimatedSize)
+
+	key := AppendMakeKey(buf, []byte(measurement), tags)
 	for field := range fields {
 		sz := seriesKeySizeV1(key, []byte(field))
 		if sz > MaxKeyLength {
@@ -2407,23 +2449,26 @@ func (p *point) Reset() {
 // again later to an int64
 // NOTE2: uint is accepted, and may be 64 bits, and is for some reason accepted...
 func (p Fields) MarshalBinary() []byte {
-	var b []byte
+	sz := len(p) - 1 // separators
 	keys := make([]string, 0, len(p))
-
 	for k := range p {
 		keys = append(keys, k)
+		sz += len(k)
 	}
 
-	// Not really necessary, can probably be removed.
-	sort.Strings(keys)
+	// Only sort if we have multiple fields to sort.
+	// This length check removes an allocation incurred by the sort.
+	if len(keys) > 1 {
+		sort.Strings(keys)
+	}
 
+	b := make([]byte, 0, sz)
 	for i, k := range keys {
 		if i > 0 {
 			b = append(b, ',')
 		}
 		b = appendField(b, k, p[k])
 	}
-
 	return b
 }
 

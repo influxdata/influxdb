@@ -7,11 +7,11 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/mock"
-	"github.com/influxdata/influxdb/notification"
-	"github.com/influxdata/influxdb/notification/endpoint"
-	"github.com/influxdata/influxdb/notification/rule"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/mock"
+	"github.com/influxdata/influxdb/v2/notification"
+	"github.com/influxdata/influxdb/v2/notification/endpoint"
+	"github.com/influxdata/influxdb/v2/notification/rule"
 )
 
 // NotificationRuleFields includes prepopulated data for mapping tests.
@@ -345,14 +345,6 @@ func CreateNotificationRule(
 			}
 			if diff := cmp.Diff(nrs, tt.wants.notificationRules, notificationRuleCmpOptions...); diff != "" {
 				t.Errorf("notificationRules are different -got/+want\ndiff %s", diff)
-			}
-
-			urms, _, err := s.FindUserResourceMappings(ctx, urmFilter)
-			if err != nil {
-				t.Fatalf("failed to retrieve user resource mappings: %v", err)
-			}
-			if diff := cmp.Diff(urms, tt.wants.userResourceMapping, userResourceMappingCmpOptions...); diff != "" {
-				t.Errorf("user resource mappings are different -got/+want\ndiff %s", diff)
 			}
 		})
 	}
@@ -2709,17 +2701,6 @@ func DeleteNotificationRule(
 			}
 			if diff := cmp.Diff(nrs, tt.wants.notificationRules, notificationRuleCmpOptions...); diff != "" {
 				t.Errorf("notification rules are different -got/+want\ndiff %s", diff)
-			}
-
-			urms, _, err := s.FindUserResourceMappings(ctx, influxdb.UserResourceMappingFilter{
-				UserID:       tt.args.userID,
-				ResourceType: influxdb.NotificationRuleResourceType,
-			})
-			if err != nil {
-				t.Fatalf("failed to retrieve user resource mappings: %v", err)
-			}
-			if diff := cmp.Diff(urms, tt.wants.userResourceMappings, userResourceMappingCmpOptions...); diff != "" {
-				t.Errorf("user resource mappings are different -got/+want\ndiff %s", diff)
 			}
 		})
 	}

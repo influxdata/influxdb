@@ -1,7 +1,7 @@
 // Libraries
 import React, {PureComponent, MouseEvent} from 'react'
 import {connect} from 'react-redux'
-import {get} from 'lodash'
+import {get, capitalize} from 'lodash'
 import {withRouter, WithRouterProps} from 'react-router'
 import {
   Button,
@@ -61,31 +61,27 @@ class TemplateCard extends PureComponent<Props & WithRouterProps> {
     const {template, onFilterChange} = this.props
 
     return (
-      <ResourceCard
-        testID="template-card"
-        contextMenu={this.contextMenu}
-        name={
-          <ResourceCard.EditableName
-            onClick={this.handleNameClick}
-            onUpdate={this.handleUpdateTemplateName}
-            name={template.meta.name}
-            noNameString={DEFAULT_TEMPLATE_NAME}
-            testID="template-card--name"
-            buttonTestID="template-card--name-button"
-            inputTestID="template-card--input"
-          />
-        }
-        description={this.description}
-        labels={
-          <InlineLabels
-            selectedLabelIDs={template.labels}
-            onFilterChange={onFilterChange}
-            onAddLabel={this.handleAddLabel}
-            onRemoveLabel={this.handleRemoveLabel}
-          />
-        }
-        metaData={[this.templateType]}
-      />
+      <ResourceCard testID="template-card" contextMenu={this.contextMenu}>
+        <ResourceCard.EditableName
+          onClick={this.handleNameClick}
+          onUpdate={this.handleUpdateTemplateName}
+          name={template.meta.name}
+          noNameString={DEFAULT_TEMPLATE_NAME}
+          testID="template-card--name"
+          buttonTestID="template-card--name-button"
+          inputTestID="template-card--input"
+        />
+        {this.description}
+        <ResourceCard.Meta>
+          {capitalize(get(template, 'content.data.type', ''))}
+        </ResourceCard.Meta>
+        <InlineLabels
+          selectedLabelIDs={template.labels}
+          onFilterChange={onFilterChange}
+          onAddLabel={this.handleAddLabel}
+          onRemoveLabel={this.handleRemoveLabel}
+        />
+      </ResourceCard>
     )
   }
 
@@ -118,16 +114,6 @@ class TemplateCard extends PureComponent<Props & WithRouterProps> {
         description={description}
         placeholder={`Describe ${name} Template`}
       />
-    )
-  }
-
-  private get templateType(): JSX.Element {
-    const {template} = this.props
-
-    return (
-      <div className="resource-list--meta-item">
-        {get(template, 'meta.type', '')}
-      </div>
     )
   }
 

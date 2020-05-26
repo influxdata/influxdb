@@ -3,7 +3,12 @@ import React, {Component, RefObject, CSSProperties} from 'react'
 import {isEqual} from 'lodash'
 import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
-import {fromFlux, FromFluxResult} from '@influxdata/giraffe'
+import {
+  default as fromFlux,
+  FromFluxResult,
+} from 'src/shared/utils/fromFlux.legacy'
+import {fromFlux as fromFluxGiraffe} from '@influxdata/giraffe'
+import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 
 // API
 import {
@@ -14,15 +19,27 @@ import {
 import {runStatusesQuery} from 'src/alerting/utils/statusEvents'
 
 // Utils
-import {checkQueryResult} from 'src/shared/utils/checkQueryResult'
+import {getTimeRange} from 'src/dashboards/selectors'
+import {getVariables, asAssignment} from 'src/variables/selectors'
+import {getRangeVariable} from 'src/variables/utils/getTimeRangeVars'
+import {isInQuery} from 'src/variables/utils/hydrateVars'
 import {getWindowVars} from 'src/variables/utils/getWindowVars'
 import {buildVarsOption} from 'src/variables/utils/buildVarsOption'
 import 'intersection-observer'
 import {getAll} from 'src/resources/selectors'
 import {getOrgIDFromBuckets} from 'src/timeMachine/actions/queries'
+import {
+  isDemoDataAvailabilityError,
+  demoDataError,
+} from 'src/cloud/utils/demoDataErrors'
 
 // Constants
-import {rateLimitReached, resultTooLarge} from 'src/shared/copy/notifications'
+import {
+  rateLimitReached,
+  resultTooLarge,
+  demoDataAvailability,
+} from 'src/shared/copy/notifications'
+import {TIME_RANGE_START, TIME_RANGE_STOP} from 'src/variables/constants'
 
 // Actions
 import {notify as notifyAction} from 'src/shared/actions/notifications'
@@ -35,6 +52,7 @@ import {
   Bucket,
   ResourceType,
   DashboardQuery,
+  Variable,
   VariableAssignment,
   AppState,
   CancelBox,
@@ -53,6 +71,7 @@ interface QueriesState {
 interface StateProps {
   queryLink: string
   buckets: Bucket[]
+  variables: Variable[]
 }
 
 interface OwnProps {
@@ -179,17 +198,27 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
 
     try {
       const startTime = Date.now()
+      let errorMessage: string = ''
 
       // Cancel any existing queries
       this.pendingResults.forEach(({cancel}) => cancel())
+      const usedVars = variables.filter(v => v.arguments.type !== 'system')
+      const waitList = usedVars.filter(v => v.status !== RemoteDataState.Done)
 
+      // If a variable is loading, and a cell requires it, leave the cell to never resolve,
+      // keeping it in a loading state until the variable is resolved
+      if (usedVars.length && waitList.length) {
+        await new Promise(() => {})
+      }
+
+      const vars = variables.map(v => asAssignment(v))
       // Issue new queries
       this.pendingResults = queries.map(({text}) => {
         const orgID =
           getOrgIDFromBuckets(text, buckets) || this.props.params.orgID
 
-        const windowVars = getWindowVars(text, variables)
-        const extern = buildVarsOption([...variables, ...windowVars])
+        const windowVars = getWindowVars(text, vars)
+        const extern = buildVarsOption([...vars, ...windowVars])
 
         return runQuery(orgID, text, extern)
       })
@@ -199,7 +228,7 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
 
       let statuses = [] as StatusRow[][]
       if (check) {
-        const extern = buildVarsOption(variables)
+        const extern = buildVarsOption(vars)
         this.pendingCheckStatuses = runStatusesQuery(
           this.props.params.orgID,
           check.id,
@@ -212,10 +241,15 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
 
       for (const result of results) {
         if (result.type === 'UNKNOWN_ERROR') {
+          if (isDemoDataAvailabilityError(result.code, result.message)) {
+            notify(demoDataAvailability(demoDataError(this.props.params.orgID)))
+          }
+          errorMessage = result.message
           throw new Error(result.message)
         }
 
         if (result.type === 'RATE_LIMIT_ERROR') {
+          errorMessage = result.message
           notify(rateLimitReached(result.retryAfter))
 
           throw new Error(result.message)
@@ -224,16 +258,22 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
         if (result.didTruncate) {
           notify(resultTooLarge(result.bytesRead))
         }
-
-        checkQueryResult(result.csv)
       }
 
       const files = (results as RunQuerySuccessResult[]).map(r => r.csv)
-      const giraffeResult = fromFlux(files.join('\n\n'))
+      let giraffeResult
+
+      if (isFlagEnabled('fluxParser')) {
+        giraffeResult = fromFlux(files.join('\n\n'))
+      } else {
+        giraffeResult = fromFluxGiraffe(files.join('\n\n'))
+      }
+
       this.pendingReload = false
 
       this.setState({
         giraffeResult,
+        errorMessage,
         files,
         duration,
         loading: RemoteDataState.Done,
@@ -278,12 +318,27 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
   }
 }
 
-const mstp = (state: AppState): StateProps => {
-  const {links} = state
+const mstp = (state: AppState, props: OwnProps): StateProps => {
+  const timeRange = getTimeRange(state)
+
+  // NOTE: cannot use getAllVariables here because the TimeSeries
+  // component appends it automatically. That should be fixed
+  // NOTE: limit the variables returned to those that are used,
+  // as this prevents resending when other queries get sent
+  const queries = props.queries.map(q => q.text).filter(t => !!t.trim())
+  const vars = getVariables(state).filter(v =>
+    queries.some(t => isInQuery(t, v))
+  )
+  const variables = [
+    ...vars,
+    getRangeVariable(TIME_RANGE_START, timeRange),
+    getRangeVariable(TIME_RANGE_STOP, timeRange),
+  ]
 
   return {
-    queryLink: links.query.self,
+    queryLink: state.links.query.self,
     buckets: getAll<Bucket>(state, ResourceType.Buckets),
+    variables,
   }
 }
 

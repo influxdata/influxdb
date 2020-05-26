@@ -5,8 +5,8 @@ import (
 	"path"
 	"testing"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/pkg/testttp"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/pkg/testttp"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -67,7 +67,7 @@ func TestCors(t *testing.T) {
 			name:           "OPTIONS with Origin",
 			method:         "OPTIONS",
 			headers:        []string{"Origin", "http://myapp.com"},
-			expectedStatus: http.StatusOK,
+			expectedStatus: http.StatusNoContent,
 		},
 		{
 			name:           "GET with Origin",
@@ -75,8 +75,7 @@ func TestCors(t *testing.T) {
 			headers:        []string{"Origin", "http://anotherapp.com"},
 			expectedStatus: http.StatusOK,
 			expectedHeaders: map[string]string{
-				"Access-Control-Allow-Methods": "POST, GET, OPTIONS, PUT, DELETE",
-				"Access-Control-Allow-Origin":  "http://anotherapp.com",
+				"Access-Control-Allow-Origin": "http://anotherapp.com",
 			},
 		},
 	}

@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2"
 )
 
 // TODO: eradicate this with migration strategy
@@ -102,7 +102,7 @@ func newVariableStore() *IndexStore {
 	return &IndexStore{
 		Resource:   resource,
 		EntStore:   NewStoreBase(resource, []byte("variablesv1"), EncIDKey, EncBodyJSON, decodeVarEntFn, decValToEntFn),
-		IndexStore: NewOrgNameKeyStore(resource, []byte("variablesindexv1"), true),
+		IndexStore: NewOrgNameKeyStore(resource, []byte("variablesindexv1"), false),
 	}
 }
 

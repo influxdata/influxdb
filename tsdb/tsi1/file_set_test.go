@@ -6,10 +6,10 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/tsdb"
-	"github.com/influxdata/influxdb/tsdb/seriesfile"
-	"github.com/influxdata/influxdb/tsdb/tsi1"
+	"github.com/influxdata/influxdb/v2/models"
+	"github.com/influxdata/influxdb/v2/tsdb"
+	"github.com/influxdata/influxdb/v2/tsdb/seriesfile"
+	"github.com/influxdata/influxdb/v2/tsdb/tsi1"
 )
 
 // Ensure fileset can return an iterator over all series in the index.
@@ -34,11 +34,8 @@ func TestFileSet_SeriesIDIterator(t *testing.T) {
 		}
 		defer fs.Release()
 
-		itr := fs.SeriesFile().SeriesIDIterator()
-		if itr == nil {
-			t.Fatal("expected iterator")
-		}
-		if result := mustReadAllSeriesIDIteratorString(fs.SeriesFile(), itr); !reflect.DeepEqual(result, []string{
+		seriesIDs := fs.SeriesFile().SeriesIDs()
+		if result := seriesIDsToStrings(fs.SeriesFile(), seriesIDs); !reflect.DeepEqual(result, []string{
 			"cpu,[{region east}]",
 			"cpu,[{region west}]",
 			"mem,[{region east}]",
@@ -64,12 +61,8 @@ func TestFileSet_SeriesIDIterator(t *testing.T) {
 		}
 		defer fs.Release()
 
-		itr := fs.SeriesFile().SeriesIDIterator()
-		if itr == nil {
-			t.Fatal("expected iterator")
-		}
-
-		if result := mustReadAllSeriesIDIteratorString(fs.SeriesFile(), itr); !reflect.DeepEqual(result, []string{
+		seriesIDs := fs.SeriesFile().SeriesIDs()
+		if result := seriesIDsToStrings(fs.SeriesFile(), seriesIDs); !reflect.DeepEqual(result, []string{
 			"cpu,[{region east}]",
 			"cpu,[{region north}]",
 			"cpu,[{region west}]",
@@ -307,6 +300,10 @@ func mustReadAllSeriesIDIteratorString(sfile *seriesfile.SeriesFile, itr tsdb.Se
 		ids = append(ids, e.SeriesID)
 	}
 
+	return seriesIDsToStrings(sfile, ids)
+}
+
+func seriesIDsToStrings(sfile *seriesfile.SeriesFile, ids []tsdb.SeriesID) []string {
 	// Convert to keys and sort.
 	keys := sfile.SeriesKeys(ids)
 	sort.Slice(keys, func(i, j int) bool { return seriesfile.CompareSeriesKeys(keys[i], keys[j]) == -1 })

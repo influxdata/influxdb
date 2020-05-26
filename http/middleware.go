@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	kithttp "github.com/influxdata/influxdb/kit/transport/http"
+	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"go.uber.org/zap"
 )
 
@@ -33,7 +33,7 @@ func LoggingMW(log *zap.Logger) kithttp.Middleware {
 
 				errReferenceField := zap.Skip()
 				if errReference := w.Header().Get(kithttp.PlatformErrorCodeHeader); errReference != "" {
-					errReferenceField = zap.String("error_code", kithttp.PlatformErrorCodeHeader)
+					errReferenceField = zap.String("error_code", errReference)
 				}
 
 				fields := []zap.Field{

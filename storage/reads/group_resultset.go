@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/influxdata/influxdb/kit/tracing"
-	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/storage/reads/datatypes"
-	"github.com/influxdata/influxdb/tsdb/cursors"
+	"github.com/influxdata/influxdb/v2/kit/tracing"
+	"github.com/influxdata/influxdb/v2/models"
+	"github.com/influxdata/influxdb/v2/storage/reads/datatypes"
+	"github.com/influxdata/influxdb/v2/tsdb/cursors"
 )
 
 type groupResultSet struct {
@@ -247,7 +247,8 @@ func (g *groupResultSet) groupBySort() (int, error) {
 			nr.SortKey = make([]byte, 0, l)
 			for _, v := range vals {
 				nr.SortKey = append(nr.SortKey, v...)
-				nr.SortKey = append(nr.SortKey, ',')
+				// separate sort key values with ascii null character
+				nr.SortKey = append(nr.SortKey, '\000')
 			}
 
 			seriesRows = append(seriesRows, &nr)

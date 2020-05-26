@@ -1,7 +1,7 @@
 import * as React from 'react'
 import CellMeasurerCacheDecorator from './CellMeasurerCacheDecorator'
-import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 import {Grid} from 'react-virtualized'
+import {DapperScrollbars, FusionScrollEvent} from '@influxdata/clockface'
 
 const SCROLLBAR_SIZE_BUFFER = 20
 type HeightWidthFunction = (arg: {index: number}) => number
@@ -401,9 +401,8 @@ class MultiGrid extends React.PureComponent<PropsMultiGrid, State> {
     return this.topGridHeight
   }
 
-  private onScrollbarsScroll = (e: React.MouseEvent<HTMLElement>) => {
-    const {target} = e
-    this.onScroll(target)
+  private onScrollbarsScroll = (e: FusionScrollEvent) => {
+    this.onScroll(e)
   }
 
   private onScroll = scrollInfo => {
@@ -472,12 +471,12 @@ class MultiGrid extends React.PureComponent<PropsMultiGrid, State> {
     const height = this.getBottomGridHeight(props)
 
     return (
-      <FancyScrollbar
+      <DapperScrollbars
         style={{...this.bottomRightGridStyle, width, height}}
         autoHide={true}
         scrollTop={this.state.scrollTop}
         scrollLeft={this.state.scrollLeft}
-        setScrollTop={this.onScrollbarsScroll}
+        onScroll={this.onScrollbarsScroll}
       >
         <Grid
           {...props}
@@ -503,7 +502,7 @@ class MultiGrid extends React.PureComponent<PropsMultiGrid, State> {
           }}
           width={width}
         />
-      </FancyScrollbar>
+      </DapperScrollbars>
     )
   }
 

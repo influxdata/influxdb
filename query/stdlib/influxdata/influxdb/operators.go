@@ -9,14 +9,15 @@ import (
 	"github.com/influxdata/flux/plan"
 	"github.com/influxdata/flux/semantic"
 	"github.com/influxdata/flux/values"
-	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2"
 )
 
 const (
-	ReadRangePhysKind     = "ReadRangePhysKind"
-	ReadGroupPhysKind     = "ReadGroupPhysKind"
-	ReadTagKeysPhysKind   = "ReadTagKeysPhysKind"
-	ReadTagValuesPhysKind = "ReadTagValuesPhysKind"
+	ReadRangePhysKind           = "ReadRangePhysKind"
+	ReadGroupPhysKind           = "ReadGroupPhysKind"
+	ReadWindowAggregatePhysKind = "ReadWindowAggregatePhysKind"
+	ReadTagKeysPhysKind         = "ReadTagKeysPhysKind"
+	ReadTagValuesPhysKind       = "ReadTagValuesPhysKind"
 )
 
 type ReadGroupPhysSpec struct {
@@ -115,6 +116,28 @@ func (s *ReadRangePhysSpec) TimeBounds(predecessorBounds *plan.Bounds) *plan.Bou
 		Start: values.ConvertTime(s.Bounds.Start.Time(s.Bounds.Now)),
 		Stop:  values.ConvertTime(s.Bounds.Stop.Time(s.Bounds.Now)),
 	}
+}
+
+type ReadWindowAggregatePhysSpec struct {
+	plan.DefaultCost
+	ReadRangePhysSpec
+
+	WindowEvery int64
+	Aggregates  []string
+}
+
+func (s *ReadWindowAggregatePhysSpec) Kind() plan.ProcedureKind {
+	return ReadWindowAggregatePhysKind
+}
+
+func (s *ReadWindowAggregatePhysSpec) Copy() plan.ProcedureSpec {
+	ns := new(ReadWindowAggregatePhysSpec)
+
+	ns.ReadRangePhysSpec = *s.ReadRangePhysSpec.Copy().(*ReadRangePhysSpec)
+	ns.WindowEvery = s.WindowEvery
+	ns.Aggregates = s.Aggregates
+
+	return ns
 }
 
 type ReadTagKeysPhysSpec struct {

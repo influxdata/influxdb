@@ -7,8 +7,8 @@ import (
 	"net/http"
 
 	"github.com/influxdata/httprouter"
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/pkg/httpc"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/pkg/httpc"
 	"go.uber.org/zap"
 )
 
@@ -98,7 +98,7 @@ func newGetVariablesResponse(ctx context.Context, variables []*influxdb.Variable
 	num := len(variables)
 	resp := getVariablesResponse{
 		Variables: make([]variableResponse, 0, num),
-		Links:     newPagingLinks(prefixVariables, opts, f, num),
+		Links:     influxdb.NewPagingLinks(prefixVariables, opts, f, num),
 	}
 
 	for _, variable := range variables {
@@ -115,7 +115,7 @@ type getVariablesRequest struct {
 }
 
 func decodeGetVariablesRequest(ctx context.Context, r *http.Request) (*getVariablesRequest, error) {
-	opts, err := decodeFindOptions(r)
+	opts, err := influxdb.DecodeFindOptions(r)
 	if err != nil {
 		return nil, err
 	}
@@ -457,7 +457,7 @@ func (s *VariableService) FindVariableByID(ctx context.Context, id influxdb.ID) 
 // FindVariables returns a list of variables that match filter.
 // Additional options provide pagination & sorting.
 func (s *VariableService) FindVariables(ctx context.Context, filter influxdb.VariableFilter, opts ...influxdb.FindOptions) ([]*influxdb.Variable, error) {
-	params := findOptionParams(opts...)
+	params := influxdb.FindOptionParams(opts...)
 	if filter.OrganizationID != nil {
 		params = append(params, [2]string{"orgID", filter.OrganizationID.String()})
 	}

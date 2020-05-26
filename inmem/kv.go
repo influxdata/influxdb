@@ -8,11 +8,14 @@ import (
 	"sync"
 
 	"github.com/google/btree"
-	"github.com/influxdata/influxdb/kv"
+	"github.com/influxdata/influxdb/v2/kv"
 )
 
 // ensure *KVStore implement kv.Store interface
 var _ kv.Store = (*KVStore)(nil)
+
+// ensure *KVStore implements kv.AutoMigrationStore
+var _ kv.AutoMigrationStore = (*KVStore)(nil)
 
 // cursorBatchSize is the size of a batch sent by a forward cursors
 // tree iterator
@@ -59,6 +62,11 @@ func (s *KVStore) Update(ctx context.Context, fn func(kv.Tx) error) error {
 
 func (s *KVStore) Backup(ctx context.Context, w io.Writer) error {
 	panic("not implemented")
+}
+
+// AutoMigrate returns itlsef as *KVStore is safe to migrate automically on initialize.
+func (s *KVStore) AutoMigrate() kv.Store {
+	return s
 }
 
 // Flush removes all data from the buckets.  Used for testing.
@@ -185,6 +193,32 @@ func (b *Bucket) Get(key []byte) ([]byte, error) {
 	}
 
 	return j.value, nil
+}
+
+// Get retrieves a batch of values for the provided keys.
+func (b *Bucket) GetBatch(keys ...[]byte) ([][]byte, error) {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+
+	values := make([][]byte, len(keys))
+
+	for idx, key := range keys {
+		i := b.btree.Get(&item{key: key})
+
+		if i == nil {
+			// leave value as nil slice
+			continue
+		}
+
+		j, ok := i.(*item)
+		if !ok {
+			return nil, fmt.Errorf("error item is type %T not *item", i)
+		}
+
+		values[idx] = j.value
+	}
+
+	return values, nil
 }
 
 // Put sets the key value pair provided.

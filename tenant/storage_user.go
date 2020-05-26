@@ -4,13 +4,15 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/kv"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kv"
 )
 
 var (
 	userBucket = []byte("usersv1")
 	userIndex  = []byte("userindexv1")
+
+	userpasswordBucket = []byte("userspasswordv1")
 )
 
 func unmarshalUser(v []byte) (*influxdb.User, error) {
@@ -46,7 +48,7 @@ func (s *Store) uniqueUserName(ctx context.Context, tx kv.Tx, uname string) erro
 
 	// no error means this is not unique
 	if err == nil {
-		return kv.NotUniqueError
+		return UserAlreadyExistsError(uname)
 	}
 
 	// any other error is some sort of internal server error
@@ -93,7 +95,7 @@ func (s *Store) GetUserByName(ctx context.Context, tx kv.Tx, n string) (*influxd
 
 	var id influxdb.ID
 	if err := id.Decode(uid); err != nil {
-		return nil, ErrCorruptID(err)
+		return nil, influxdb.ErrCorruptID(err)
 	}
 	return s.GetUser(ctx, tx, id)
 }
@@ -144,6 +146,14 @@ func (s *Store) ListUsers(ctx context.Context, tx kv.Tx, opt ...influxdb.FindOpt
 }
 
 func (s *Store) CreateUser(ctx context.Context, tx kv.Tx, u *influxdb.User) error {
+	if !u.ID.Valid() {
+		id, err := s.generateSafeID(ctx, tx, userBucket)
+		if err != nil {
+			return err
+		}
+		u.ID = id
+	}
+
 	encodedID, err := u.ID.Encode()
 	if err != nil {
 		return InvalidUserIDError(err)
@@ -190,7 +200,7 @@ func (s *Store) UpdateUser(ctx context.Context, tx kv.Tx, id influxdb.ID, upd in
 		return nil, err
 	}
 
-	if upd.Name != nil {
+	if upd.Name != nil && *upd.Name != u.Name {
 		if err := s.uniqueUserName(ctx, tx, *upd.Name); err != nil {
 			return nil, err
 		}
@@ -260,5 +270,72 @@ func (s *Store) DeleteUser(ctx context.Context, tx kv.Tx, id influxdb.ID) error 
 		return ErrInternalServiceError(err)
 	}
 
-	return nil
+	// Clean up users password.
+	ub, err := tx.Bucket(userpasswordBucket)
+	if err != nil {
+		return UnavailablePasswordServiceError(err)
+	}
+	if err := ub.Delete(encodedID); err != nil {
+		return err
+	}
+
+	// Clean up user URMs.
+	urms, err := s.ListURMs(ctx, tx, influxdb.UserResourceMappingFilter{UserID: id})
+	if err != nil {
+		return err
+	}
+	// Do not fail fast on error.
+	// Try to avoid as much as possible the effects of partial deletion.
+	aggErr := NewAggregateError()
+	for _, urm := range urms {
+		if err := s.DeleteURM(ctx, tx, urm.ResourceID, urm.UserID); err != nil {
+			aggErr.Add(err)
+		}
+	}
+	return aggErr.Err()
+}
+
+func (s *Store) GetPassword(ctx context.Context, tx kv.Tx, id influxdb.ID) (string, error) {
+	encodedID, err := id.Encode()
+	if err != nil {
+		return "", InvalidUserIDError(err)
+	}
+
+	b, err := tx.Bucket(userpasswordBucket)
+	if err != nil {
+		return "", UnavailablePasswordServiceError(err)
+	}
+
+	passwd, err := b.Get(encodedID)
+
+	return string(passwd), err
+}
+
+func (s *Store) SetPassword(ctx context.Context, tx kv.Tx, id influxdb.ID, password string) error {
+	encodedID, err := id.Encode()
+	if err != nil {
+		return InvalidUserIDError(err)
+	}
+
+	b, err := tx.Bucket(userpasswordBucket)
+	if err != nil {
+		return UnavailablePasswordServiceError(err)
+	}
+
+	return b.Put(encodedID, []byte(password))
+}
+
+func (s *Store) DeletePassword(ctx context.Context, tx kv.Tx, id influxdb.ID) error {
+	encodedID, err := id.Encode()
+	if err != nil {
+		return InvalidUserIDError(err)
+	}
+
+	b, err := tx.Bucket(userpasswordBucket)
+	if err != nil {
+		return UnavailablePasswordServiceError(err)
+	}
+
+	return b.Delete(encodedID)
+
 }

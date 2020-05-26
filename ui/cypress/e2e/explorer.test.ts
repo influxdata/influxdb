@@ -369,7 +369,7 @@ describe('DataExplorer', () => {
       cy.getByTestID('switch-to-script-editor')
         .should('be.visible')
         .click()
-      cy.getByTestID('flux-function aggregate.rate').click()
+      cy.getByTestID('flux--aggregate.rate--inject').click()
       // check to see if import is defaulted to the top
       cy.get('.view-line')
         .first()
@@ -384,9 +384,9 @@ describe('DataExplorer', () => {
       })
 
       // can hover over flux functions
-      cy.getByTestID('toolbar-popover--contents').should('not.exist')
-      cy.getByTestID('flux-function aggregateWindow').trigger('mouseover')
-      cy.getByTestID('toolbar-popover--contents').should('exist')
+      cy.getByTestID('flux-docs--aggregateWindow').should('not.exist')
+      cy.getByTestID('flux--aggregateWindow').trigger('mouseover')
+      cy.getByTestID('flux-docs--aggregateWindow').should('exist')
 
       cy.getByTestID('switch-query-builder-confirm--button').click()
 
@@ -405,6 +405,26 @@ describe('DataExplorer', () => {
       cy.getByTestID('switch-to-script-editor')
         .should('be.visible')
         .click()
+    })
+
+    it('shows flux errors', () => {
+      cy.getByTestID('time-machine--bottom').then(() => {
+        cy.getByTestID('flux-editor').within(() => {
+          cy.get('textarea').type('foo |> bar', {force: true})
+
+          cy.get('.squiggly-error').should('be.visible')
+        })
+      })
+    })
+
+    it('shows flux signatures', () => {
+      cy.getByTestID('time-machine--bottom').then(() => {
+        cy.getByTestID('flux-editor').within(() => {
+          cy.get('textarea').type('from(', {force: true})
+
+          cy.get('.signature').should('be.visible')
+        })
+      })
     })
 
     it('enables the submit button when a query is typed', () => {
@@ -443,12 +463,12 @@ describe('DataExplorer', () => {
     it('imports the appropriate packages to build a query', () => {
       cy.getByTestID('functions-toolbar-tab').click()
 
-      cy.getByTestID('flux-function from').click()
-      cy.getByTestID('flux-function range').click()
-      cy.getByTestID('flux-function math.abs').click()
-      cy.getByTestID('flux-function math.floor').click()
-      cy.getByTestID('flux-function strings.title').click()
-      cy.getByTestID('flux-function strings.trim').click()
+      cy.getByTestID('flux--from--inject').click()
+      cy.getByTestID('flux--range--inject').click()
+      cy.getByTestID('flux--math.abs--inject').click()
+      cy.getByTestID('flux--math.floor--inject').click()
+      cy.getByTestID('flux--strings.title--inject').click()
+      cy.getByTestID('flux--strings.trim--inject').click()
 
       cy.wait(100)
 
@@ -470,7 +490,7 @@ describe('DataExplorer', () => {
     it('can use the function selector to build a query', () => {
       cy.getByTestID('functions-toolbar-tab').click()
 
-      cy.getByTestID('flux-function from').click()
+      cy.getByTestID('flux--from--inject').click()
 
       getTimeMachineText().then(text => {
         const expected = FROM.example
@@ -478,7 +498,7 @@ describe('DataExplorer', () => {
         cy.fluxEqual(text, expected).should('be.true')
       })
 
-      cy.getByTestID('flux-function range').click()
+      cy.getByTestID('flux--range--inject').click()
 
       getTimeMachineText().then(text => {
         const expected = `${FROM.example}|>${RANGE.example}`
@@ -486,7 +506,7 @@ describe('DataExplorer', () => {
         cy.fluxEqual(text, expected).should('be.true')
       })
 
-      cy.getByTestID('flux-function mean').click()
+      cy.getByTestID('flux--mean--inject').click()
 
       getTimeMachineText().then(text => {
         const expected = `${FROM.example}|>${RANGE.example}|>${MEAN.example}`
@@ -497,7 +517,7 @@ describe('DataExplorer', () => {
 
     it('can filter aggregation functions by name from script editor mode', () => {
       cy.get('.cf-input-field').type('covariance')
-      cy.getByTestID('toolbar-function').should('have.length', 1)
+      cy.get('.flux-toolbar--list-item').should('have.length', 1)
     })
 
     it('shows the empty state when the query returns no results', () => {
@@ -536,13 +556,15 @@ describe('DataExplorer', () => {
 
       cy.getByTestID('toolbar-tab').click()
       // checks to see if the default variables exist
-      cy.get('.variables-toolbar--label').contains('timeRangeStart')
-      cy.get('.variables-toolbar--label').contains('timeRangeStop')
-      cy.get('.variables-toolbar--label').contains('windowPeriod')
+      cy.getByTestID('variable--timeRangeStart')
+      cy.getByTestID('variable--timeRangeStop')
+      cy.getByTestID('variable--windowPeriod')
       //insert variable name by clicking on variable
-      cy.get('.variables-toolbar--label')
+      cy.get('.flux-toolbar--variable')
         .first()
-        .click()
+        .within(() => {
+          cy.contains('Inject').click()
+        })
 
       cy.getByTestID('save-query-as').click()
       cy.getByTestID('task--radio-button').click()
@@ -657,6 +679,34 @@ describe('DataExplorer', () => {
         cy.getByTestID('raw-data--toggle').click()
         cy.getByTestID('raw-data-table').should('exist')
         cy.getByTestID('raw-data--toggle').click()
+      })
+
+      it('can set min or max y-axis values', () => {
+        // build the query to return data from beforeEach
+        cy.getByTestID(`selector-list m`).click()
+        cy.getByTestID('selector-list v').click()
+        cy.getByTestID(`selector-list tv1`).click()
+
+        cy.getByTestID('time-machine-submit-button').click()
+        cy.getByTestID('cog-cell--button').click()
+        cy.getByTestID('select-group--option')
+          .contains('Custom')
+          .click()
+        cy.getByTestID('auto-domain--min')
+          .type('-100')
+          .blur()
+
+        cy.getByTestID('form--element-error').should('not.exist')
+        // find no errors
+        cy.getByTestID('auto-domain--max')
+          .type('450')
+          .blur()
+        // find no errors
+        cy.getByTestID('form--element-error').should('not.exist')
+        cy.getByTestID('auto-domain--min')
+          .clear()
+          .blur()
+        cy.getByTestID('form--element-error').should('not.exist')
       })
 
       it('can view table data & sort values numerically', () => {

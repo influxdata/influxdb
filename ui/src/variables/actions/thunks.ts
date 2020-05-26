@@ -5,11 +5,13 @@ import {normalize} from 'normalizr'
 import {notify} from 'src/shared/actions/notifications'
 import {setExportTemplate} from 'src/templates/actions/creators'
 import {
-  setValues,
   setVariables,
   setVariable,
+  selectValue as selectValueInState,
   removeVariable,
+  moveVariable as moveVariableInState,
 } from 'src/variables/actions/creators'
+import {updateQueryVars} from 'src/dashboards/actions/ranges'
 
 // Schemas
 import {variableSchema, arrayOfVariables} from 'src/schemas/variables'
@@ -20,12 +22,17 @@ import {hydrateVars} from 'src/variables/utils/hydrateVars'
 import {createVariableFromTemplate as createVariableFromTemplateAJAX} from 'src/templates/api'
 
 // Utils
-import {getValueSelections, extractVariablesList} from 'src/variables/selectors'
-import {CancelBox} from 'src/types/promises'
+import {
+  getVariable as getVariableFromState,
+  getVariables as getVariablesFromState,
+  getAllVariables as getAllVariablesFromState,
+  normalizeValues,
+} from 'src/variables/selectors'
 import {variableToTemplate} from 'src/shared/utils/resourceToTemplate'
 import {findDependentVariables} from 'src/variables/utils/exportVariables'
 import {getOrg} from 'src/organizations/selectors'
 import {getLabels, getStatus} from 'src/resources/selectors'
+import {currentContext} from 'src/shared/selectors/currentContext'
 
 // Constants
 import * as copy from 'src/shared/copy/notifications'
@@ -37,9 +44,9 @@ import {
   RemoteDataState,
   VariableTemplate,
   Label,
+  GenVariable,
   Variable,
   VariableEntities,
-  VariableValuesByID,
   ResourceType,
 } from 'src/types'
 import {Action as NotifyAction} from 'src/shared/actions/notifications'
@@ -56,6 +63,7 @@ export const getVariables = () => async (
 ) => {
   try {
     const state = getState()
+
     if (
       getStatus(state, ResourceType.Variables) === RemoteDataState.NotStarted
     ) {
@@ -73,12 +81,98 @@ export const getVariables = () => async (
       arrayOfVariables
     )
 
-    dispatch(setVariables(RemoteDataState.Done, variables))
+    const varsByID = getVariablesFromState(state).reduce((prev, curr) => {
+      prev[curr.id] = curr
+      return prev
+    }, {})
+
+    // migrate the selected values from the existing variables into the new ones
+    variables.result
+      .map(k => {
+        return variables.entities.variables[k]
+      })
+      .filter(e => {
+        return varsByID.hasOwnProperty(e.id)
+      })
+      .forEach(v => {
+        variables.entities.variables[v.id].selected = varsByID[v.id].selected
+      })
+
+    // Make sure all the queries are marked for update
+    variables.result
+      .map(k => {
+        return variables.entities.variables[k]
+      })
+      .filter(e => {
+        return e.arguments.type === 'query'
+      })
+      .forEach(v => {
+        variables.entities.variables[v.id].status = RemoteDataState.NotStarted
+      })
+
+    await dispatch(setVariables(RemoteDataState.Done, variables))
   } catch (error) {
     console.error(error)
     dispatch(setVariables(RemoteDataState.Error))
     dispatch(notify(copy.getVariablesFailed()))
   }
+}
+
+// TODO: make this context aware
+export const hydrateVariables = (skipCache?: boolean) => async (
+  dispatch: Dispatch<Action>,
+  getState: GetState
+) => {
+  const state = getState()
+  const org = getOrg(state)
+  const vars = getVariablesFromState(state)
+  const hydration = hydrateVars(vars, getAllVariablesFromState(state), {
+    orgID: org.id,
+    url: state.links.query.self,
+    skipCache,
+  })
+  hydration.on('status', (variable, status) => {
+    if (status === RemoteDataState.Loading) {
+      dispatch(setVariable(variable.id, status))
+      return
+    }
+    if (status === RemoteDataState.Done) {
+      const _variable = normalize<Variable, VariableEntities, string>(
+        variable,
+        variableSchema
+      )
+      dispatch(setVariable(variable.id, RemoteDataState.Done, _variable))
+    }
+  })
+  await hydration.promise
+}
+
+export const hydrateChangedVariable = (variableID: string) => async (
+  dispatch: Dispatch<Action>,
+  getState: GetState
+) => {
+  const state = getState()
+  const org = getOrg(state)
+  const variable = getVariableFromState(state, variableID)
+  const hydration = hydrateVars([variable], getAllVariablesFromState(state), {
+    orgID: org.id,
+    url: state.links.query.self,
+    skipCache: true,
+  })
+  hydration.on('status', (variable, status) => {
+    if (status === RemoteDataState.Loading) {
+      dispatch(setVariable(variable.id, status))
+      return
+    }
+    if (status === RemoteDataState.Done) {
+      const _variable = normalize<Variable, VariableEntities, string>(
+        variable,
+        variableSchema
+      )
+      dispatch(setVariable(variable.id, RemoteDataState.Done, _variable))
+    }
+  })
+  await hydration.promise
 }
 
 export const getVariable = (id: string) => async (
@@ -106,7 +200,7 @@ export const getVariable = (id: string) => async (
 }
 
 export const createVariable = (
-  variable: Pick<Variable, 'name' | 'arguments'>
+  variable: Pick<GenVariable, 'name' | 'arguments'>
 ) => async (dispatch: Dispatch<Action>, getState: GetState) => {
   try {
     const org = getOrg(getState())
@@ -168,7 +262,7 @@ export const updateVariable = (id: string, props: Variable) => async (
     const resp = await api.patchVariable({
       variableID: id,
       data: {
-        ...props,
+        ...(props as GenVariable),
         labels,
       },
     })
@@ -209,46 +303,12 @@ export const deleteVariable = (id: string) => async (
   }
 }
 
-interface PendingValueRequests {
-  [contextID: string]: CancelBox<VariableValuesByID>
-}
-
-const pendingValueRequests: PendingValueRequests = {}
-
-export const refreshVariableValues = (
-  contextID: string,
-  variables: Variable[]
-) => async (dispatch: Dispatch<Action>, getState: GetState): Promise<void> => {
-  dispatch(setValues(contextID, RemoteDataState.Loading))
-
-  try {
-    const state = getState()
-    const org = getOrg(state)
-    const url = state.links.query.self
-    const selections = getValueSelections(state, contextID)
-    const allVariables = extractVariablesList(state)
-
-    if (pendingValueRequests[contextID]) {
-      pendingValueRequests[contextID].cancel()
-    }
-
-    pendingValueRequests[contextID] = hydrateVars(variables, allVariables, {
-      url,
-      orgID: org.id,
-      selections,
-    })
-
-    const values = await pendingValueRequests[contextID].promise
-
-    dispatch(setValues(contextID, RemoteDataState.Done, values))
-  } catch (error) {
-    if (error.name === 'CancellationError') {
-      return
-    }
-
-    console.error(error)
-    dispatch(setValues(contextID, RemoteDataState.Error))
-  }
+export const moveVariable = (originalIndex: number, newIndex: number) => async (
+  dispatch,
+  getState: GetState
+) => {
+  const contextID = currentContext(getState())
+  await dispatch(moveVariableInState(originalIndex, newIndex, contextID))
 }
 
 export const convertToTemplate = (variableID: string) => async (
@@ -356,4 +416,24 @@ export const removeVariableLabelAsync = (
     console.error(error)
     dispatch(notify(copy.removeVariableLabelFailed()))
   }
+}
+
+export const selectValue = (variableID: string, selected: string) => async (
+  dispatch: Dispatch<Action | ReturnType<typeof hydrateVariables>>,
+  getState: GetState
+) => {
+  const state = getState()
+  const contextID = currentContext(state)
+  const variable = getVariableFromState(state, variableID)
+  // Validate that we can make this selection
+  const vals = normalizeValues(variable)
+  if (!vals.includes(selected)) {
+    return
+  }
+
+  await dispatch(selectValueInState(contextID, variableID, selected))
+  // only hydrate the changedVariable
+  dispatch(hydrateVariables(true))
+  // dispatch(hydrateChangedVariable(variableID))
+  dispatch(updateQueryVars({[variable.name]: selected}))
 }

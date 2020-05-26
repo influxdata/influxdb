@@ -1,6 +1,7 @@
 package influxdb_test
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -11,9 +12,9 @@ import (
 	"github.com/influxdata/flux/plan/plantest"
 	"github.com/influxdata/flux/querytest"
 	"github.com/influxdata/flux/stdlib/universe"
-	platform "github.com/influxdata/influxdb"
-	pquerytest "github.com/influxdata/influxdb/query/querytest"
-	"github.com/influxdata/influxdb/query/stdlib/influxdata/influxdb"
+	platform "github.com/influxdata/influxdb/v2"
+	pquerytest "github.com/influxdata/influxdb/v2/query/querytest"
+	"github.com/influxdata/influxdb/v2/query/stdlib/influxdata/influxdb"
 )
 
 func TestFrom_NewQuery(t *testing.T) {
@@ -180,7 +181,7 @@ func TestFromValidation(t *testing.T) {
 		influxdb.PushDownFilterRule{},
 		influxdb.PushDownGroupRule{},
 	))
-	_, err := pp.Plan(ps)
+	_, err := pp.Plan(context.Background(), ps)
 	if err == nil {
 		t.Error("Expected query with no call to range to fail physical planning")
 	}

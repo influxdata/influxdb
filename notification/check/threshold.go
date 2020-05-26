@@ -7,9 +7,9 @@ import (
 
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/parser"
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/notification"
-	"github.com/influxdata/influxdb/notification/flux"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/notification"
+	"github.com/influxdata/influxdb/v2/notification/flux"
 )
 
 var _ influxdb.Check = (*Threshold)(nil)
@@ -380,7 +380,7 @@ func (b ThresholdConfigBase) GetLevel() notification.CheckLevel {
 // Lesser threshold type.
 type Lesser struct {
 	ThresholdConfigBase
-	Value float64 `json:"value,omitempty"`
+	Value float64 `json:"value"`
 }
 
 // Type of the threshold config.
@@ -404,7 +404,7 @@ func (td Lesser) MarshalJSON() ([]byte, error) {
 // Greater threshold type.
 type Greater struct {
 	ThresholdConfigBase
-	Value float64 `json:"value,omitempty"`
+	Value float64 `json:"value"`
 }
 
 // Type of the threshold config.

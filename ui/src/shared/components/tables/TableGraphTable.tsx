@@ -2,6 +2,7 @@
 import React, {PureComponent} from 'react'
 import _ from 'lodash'
 import {timeFormatter} from '@influxdata/giraffe'
+import classnames from 'classnames'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -27,7 +28,7 @@ const COLUMN_MIN_WIDTH = 100
 const ROW_HEIGHT = 30
 
 // Types
-import {TableViewProperties, TimeZone} from 'src/types'
+import {TableViewProperties, TimeZone, Theme} from 'src/types'
 import {TransformTableDataReturnType} from 'src/dashboards/utils/tableGraph'
 
 export interface ColumnWidths {
@@ -49,14 +50,13 @@ interface OwnProps {
   properties: TableViewProperties
   onSort: (fieldName: string) => void
   timeZone: TimeZone
+  theme: Theme
 }
 
 type Props = OwnProps & InjectedHoverProps
 
 interface State {
   timeColumnWidth: number
-  hoveredColumnIndex: number
-  hoveredRowIndex: number
   totalColumnWidths: number
   shouldResize: boolean
 }
@@ -67,12 +67,20 @@ class TableGraphTable extends PureComponent<Props, State> {
     timeColumnWidth: 0,
     shouldResize: false,
     totalColumnWidths: 0,
-    hoveredRowIndex: NULL_ARRAY_INDEX,
-    hoveredColumnIndex: NULL_ARRAY_INDEX,
   }
+
+  protected hoveredColumnIndex: number
+  protected hoveredRowIndex: number
 
   private gridContainer: HTMLDivElement
   private multiGrid?: MultiGrid
+
+  constructor(props) {
+    super(props)
+
+    this.hoveredRowIndex = NULL_ARRAY_INDEX
+    this.hoveredColumnIndex = NULL_ARRAY_INDEX
+  }
 
   public componentDidUpdate() {
     if (this.state.shouldResize) {
@@ -90,15 +98,19 @@ class TableGraphTable extends PureComponent<Props, State> {
   public render() {
     const {
       transformedDataBundle: {transformedData},
+      theme,
     } = this.props
 
     const rowCount = this.columnCount === 0 ? 0 : transformedData.length
     const fixedColumnCount = this.fixFirstColumn && this.columnCount > 1 ? 1 : 0
     const {scrollToColumn, scrollToRow} = this.scrollToColRow
+    const tableClassName = classnames('time-machine-table', {
+      'time-machine-table__light-mode': theme === 'light',
+    })
 
     return (
       <div
-        className="time-machine-table"
+        className={tableClassName}
         ref={gridContainer => (this.gridContainer = gridContainer)}
         onMouseLeave={this.handleMouseLeave}
       >
@@ -211,9 +223,8 @@ class TableGraphTable extends PureComponent<Props, State> {
     const {
       transformedDataBundle: {sortedTimeVals},
     } = this.props
-    const {hoveredColumnIndex} = this.state
     const {hoverTime} = this.props
-    const hoveringThisTable = hoveredColumnIndex !== NULL_ARRAY_INDEX
+    const hoveringThisTable = this.hoveredColumnIndex !== NULL_ARRAY_INDEX
 
     if (!hoverTime || hoveringThisTable || !this.isTimeVisible) {
       return {scrollToColumn: 0, scrollToRow: -1}
@@ -260,10 +271,9 @@ class TableGraphTable extends PureComponent<Props, State> {
 
       onSetHoverTime(new Date(hoverTime).valueOf())
     }
-    this.setState({
-      hoveredColumnIndex: +dataset.columnIndex,
-      hoveredRowIndex: +dataset.rowIndex,
-    })
+
+    this.hoveredColumnIndex = +dataset.columnIndex
+    this.hoveredRowIndex = +dataset.rowIndex
   }
 
   private handleMouseLeave = (): void => {
@@ -272,10 +282,9 @@ class TableGraphTable extends PureComponent<Props, State> {
     if (onSetHoverTime) {
       onSetHoverTime(0)
     }
-    this.setState({
-      hoveredColumnIndex: NULL_ARRAY_INDEX,
-      hoveredRowIndex: NULL_ARRAY_INDEX,
-    })
+
+    this.hoveredColumnIndex = NULL_ARRAY_INDEX
+    this.hoveredRowIndex = NULL_ARRAY_INDEX
   }
 
   private calculateColumnWidth = (columnSizerWidth: number) => (column: {
@@ -355,9 +364,8 @@ class TableGraphTable extends PureComponent<Props, State> {
       onSort,
       properties,
     } = this.props
-    const {hoveredRowIndex, hoveredColumnIndex} = this.state
     const {scrollToRow} = this.scrollToColRow
-    const hoverIndex = scrollToRow >= 0 ? scrollToRow : hoveredRowIndex
+    const hoverIndex = scrollToRow >= 0 ? scrollToRow : this.hoveredRowIndex
 
     return (
       <TableCell
@@ -370,7 +378,7 @@ class TableGraphTable extends PureComponent<Props, State> {
         hoveredRowIndex={hoverIndex}
         properties={properties}
         resolvedFieldOptions={resolvedFieldOptions}
-        hoveredColumnIndex={hoveredColumnIndex}
+        hoveredColumnIndex={this.hoveredColumnIndex}
         isFirstColumnFixed={this.fixFirstColumn}
         isVerticalTimeAxis={this.isVerticalTimeAxis}
         onClickFieldName={onSort}

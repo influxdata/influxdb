@@ -41,7 +41,7 @@ class CreateOrgOverlay extends PureComponent<Props, State> {
     super(props)
     this.state = {
       org: {name: ''},
-      bucket: {name: '', retentionRules: []},
+      bucket: {name: '', retentionRules: [], readableRetention: 'forever'},
       orgNameInputStatus: ComponentStatus.Default,
       bucketNameInputStatus: ComponentStatus.Default,
       orgErrorMessage: '',

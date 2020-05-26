@@ -12,18 +12,18 @@ import (
 	"sync"
 	"time"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/kit/tracing"
-	"github.com/influxdata/influxdb/logger"
-	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/pkg/limiter"
-	"github.com/influxdata/influxdb/storage/wal"
-	"github.com/influxdata/influxdb/tsdb"
-	"github.com/influxdata/influxdb/tsdb/cursors"
-	"github.com/influxdata/influxdb/tsdb/seriesfile"
-	"github.com/influxdata/influxdb/tsdb/tsi1"
-	"github.com/influxdata/influxdb/tsdb/tsm1"
-	"github.com/influxdata/influxdb/tsdb/value"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/tracing"
+	"github.com/influxdata/influxdb/v2/logger"
+	"github.com/influxdata/influxdb/v2/models"
+	"github.com/influxdata/influxdb/v2/pkg/limiter"
+	"github.com/influxdata/influxdb/v2/storage/wal"
+	"github.com/influxdata/influxdb/v2/tsdb"
+	"github.com/influxdata/influxdb/v2/tsdb/cursors"
+	"github.com/influxdata/influxdb/v2/tsdb/seriesfile"
+	"github.com/influxdata/influxdb/v2/tsdb/tsi1"
+	"github.com/influxdata/influxdb/v2/tsdb/tsm1"
+	"github.com/influxdata/influxdb/v2/tsdb/value"
 	"github.com/influxdata/influxql"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
@@ -168,7 +168,7 @@ func NewEngine(path string, c Config, options ...Option) *Engine {
 
 	// Initialize series file.
 	e.sfile = seriesfile.NewSeriesFile(c.GetSeriesFilePath(path))
-	e.sfile.LargeWriteThreshold = c.TSDB.LargeSeriesWriteThreshold
+	e.sfile.LargeWriteThreshold = c.SeriesFile.LargeSeriesWriteThreshold
 
 	// Initialise index.
 	e.index = tsi1.NewIndex(e.sfile, c.Index,
@@ -326,6 +326,20 @@ func (e *Engine) replayWAL() error {
 		zap.Error(err))
 
 	return err
+}
+
+// EnableCompactions allows the series file, index, & underlying engine to compact.
+func (e *Engine) EnableCompactions() {
+	e.sfile.EnableCompactions()
+	e.index.EnableCompactions()
+	e.engine.SetCompactionsEnabled(true)
+}
+
+// DisableCompactions disables compactions in the series file, index, & engine.
+func (e *Engine) DisableCompactions() {
+	e.sfile.DisableCompactions()
+	e.index.DisableCompactions()
+	e.engine.SetCompactionsEnabled(false)
 }
 
 // runRetentionEnforcer runs the retention enforcer in a separate goroutine.
@@ -784,17 +798,6 @@ func (e *Engine) SeriesCardinality() int64 {
 // Path returns the path of the engine's base directory.
 func (e *Engine) Path() string {
 	return e.path
-}
-
-// ApplyFnToSeriesIDSet allows the caller to apply fn to the SeriesIDSet held
-// within the engine's index.
-func (e *Engine) ApplyFnToSeriesIDSet(fn func(*tsdb.SeriesIDSet)) {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-	if e.closing == nil {
-		return
-	}
-	fn(e.index.SeriesIDSet())
 }
 
 // MeasurementCardinalityStats returns cardinality stats for all measurements.

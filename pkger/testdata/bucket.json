@@ -3,7 +3,7 @@
     "apiVersion": "influxdata.com/v2alpha1",
     "kind": "Bucket",
     "metadata": {
-      "name": "rucket_11"
+      "name": "rucket-11"
     },
     "spec": {
       "description": "bucket 1 description",
@@ -13,6 +13,17 @@
           "everySeconds": 3600
         }
       ]
+    }
+  },
+  {
+    "apiVersion": "influxdata.com/v2alpha1",
+    "kind": "Bucket",
+    "metadata": {
+      "name": "rucket-22"
+    },
+    "spec": {
+      "name": "display name",
+      "description": "bucket 2 description"
     }
   }
 ]

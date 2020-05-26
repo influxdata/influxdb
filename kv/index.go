@@ -141,8 +141,7 @@ func NewIndex(mapping IndexMapping, opts ...IndexOption) *Index {
 	return index
 }
 
-// Initialize creates the bucket if it does not already exist.
-func (i *Index) Initialize(ctx context.Context, store Store) error {
+func (i *Index) initialize(ctx context.Context, store Store) error {
 	return store.Update(ctx, func(tx Tx) error {
 		// create bucket if not exist
 		_, err := tx.Bucket(i.IndexBucket())
@@ -180,6 +179,56 @@ func indexKeyParts(indexKey []byte) (fk, pk []byte, err error) {
 	return
 }
 
+// ensure IndexMigration implements MigrationSpec
+var _ MigrationSpec = (*IndexMigration)(nil)
+
+// IndexMigration is a migration for adding and removing an index.
+// These are constructed via the Index.Migration function.
+type IndexMigration struct {
+	*Index
+	opts []PopulateOption
+}
+
+// Name returns a readable name for the index migration.
+func (i *IndexMigration) MigrationName() string {
+	return fmt.Sprintf("add index %q", string(i.IndexBucket()))
+}
+
+// Up initializes the index bucket and populates the index.
+func (i *IndexMigration) Up(ctx context.Context, store Store) (err error) {
+	wrapErr := func(err error) error {
+		if err == nil {
+			return nil
+		}
+
+		return fmt.Errorf("migration (up) %s: %w", i.MigrationName(), err)
+	}
+
+	if err = i.initialize(ctx, store); err != nil {
+		return wrapErr(err)
+	}
+
+	_, err = i.Populate(ctx, store, i.opts...)
+	return wrapErr(err)
+}
+
+// Down deletes all entries from the index.
+func (i *IndexMigration) Down(ctx context.Context, store Store) error {
+	if err := i.DeleteAll(ctx, store); err != nil {
+		return fmt.Errorf("migration (down) %s: %w", i.MigrationName(), err)
+	}
+
+	return nil
+}
+
+// Migration creates an IndexMigration for the underlying Index.
+func (i *Index) Migration(opts ...PopulateOption) *IndexMigration {
+	return &IndexMigration{
+		Index: i,
+		opts:  opts,
+	}
+}
+
 // Insert creates a single index entry for the provided primary key on the foreign key.
 func (i *Index) Insert(tx Tx, foreignKey, primaryKey []byte) error {
 	bkt, err := i.indexBucket(tx)
@@ -202,7 +251,7 @@ func (i *Index) Delete(tx Tx, foreignKey, primaryKey []byte) error {
 
 // Walk walks the source bucket using keys found in the index using the provided foreign key
 // given the index has been fully populated.
-func (i *Index) Walk(tx Tx, foreignKey []byte, visitFn VisitFunc) error {
+func (i *Index) Walk(ctx context.Context, tx Tx, foreignKey []byte, visitFn VisitFunc) error {
 	// skip walking if configured to do so as the index
 	// is currently being used purely to write the index
 	if !i.canRead {
@@ -225,7 +274,7 @@ func (i *Index) Walk(tx Tx, foreignKey []byte, visitFn VisitFunc) error {
 		return err
 	}
 
-	return indexWalk(cursor, sourceBucket, visitFn)
+	return indexWalk(ctx, cursor, sourceBucket, visitFn)
 }
 
 // PopulateConfig configures a call to Populate
@@ -500,25 +549,34 @@ func (i *Index) verify(ctx context.Context, store Store, includeMissingSource bo
 // indexWalk consumes the indexKey and primaryKey pairs in the index bucket and looks up their
 // associated primaryKey's value in the provided source bucket.
 // When an item is located in the source, the provided visit function is called with primary key and associated value.
-func indexWalk(indexCursor ForwardCursor, sourceBucket Bucket, visit VisitFunc) (err error) {
-	defer func() {
-		if cerr := indexCursor.Close(); cerr != nil && err == nil {
-			err = cerr
-		}
-	}()
-
+func indexWalk(ctx context.Context, indexCursor ForwardCursor, sourceBucket Bucket, visit VisitFunc) (err error) {
+	var keys [][]byte
 	for ik, pk := indexCursor.Next(); ik != nil; ik, pk = indexCursor.Next() {
-		v, err := sourceBucket.Get(pk)
-		if err != nil {
-			return err
-		}
+		keys = append(keys, pk)
+	}
 
-		if err := visit(pk, v); err != nil {
-			return fmt.Errorf("for index entry %q: %w", string(ik), err)
+	if err := indexCursor.Err(); err != nil {
+		return err
+	}
+
+	if err := indexCursor.Close(); err != nil {
+		return err
+	}
+
+	values, err := sourceBucket.GetBatch(keys...)
+	if err != nil {
+		return err
+	}
+
+	for i, value := range values {
+		if value != nil {
+			if err := visit(keys[i], value); err != nil {
+				return err
+			}
 		}
 	}
 
-	return indexCursor.Err()
+	return nil
 }
 
 // readEntireIndex returns the entire current state of the index
@@ -540,7 +598,7 @@ func (i *Index) readEntireIndex(ctx context.Context, store Store) (map[string]ma
 			continue
 		}
 
-		index[string(fk)] = map[string]struct{}{string(pk): struct{}{}}
+		index[string(fk)] = map[string]struct{}{string(pk): {}}
 	}
 
 	return index, nil

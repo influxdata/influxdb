@@ -8,8 +8,8 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	platform "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/mock"
+	platform "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/mock"
 )
 
 const (
@@ -1044,6 +1044,7 @@ func UpdateDashboard(
 		name        string
 		description string
 		id          platform.ID
+		cells       []*platform.Cell
 	}
 	type wants struct {
 		err       error
@@ -1156,6 +1157,69 @@ func UpdateDashboard(
 			},
 		},
 		{
+			name: "update description name and cells",
+			fields: DashboardFields{
+				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2009, time.November, 10, 24, 0, 0, 0, time.UTC)},
+				IDGenerator: mock.IDGenerator{IDFn: func() platform.ID {
+					return 5
+				}},
+				Dashboards: []*platform.Dashboard{
+					{
+						ID:             MustIDBase16(dashOneID),
+						OrganizationID: 1,
+						Name:           "dashboard1",
+					},
+					{
+						ID:             MustIDBase16(dashTwoID),
+						OrganizationID: 1,
+						Name:           "dashboard2",
+					},
+				},
+			},
+			args: args{
+				id:          MustIDBase16(dashOneID),
+				description: "changed",
+				name:        "changed",
+				cells: []*platform.Cell{
+					{
+						CellProperty: platform.CellProperty{X: 0, Y: 2},
+						View: &platform.View{
+							Properties: &platform.SingleStatViewProperties{
+								Type:    platform.ViewPropertyTypeSingleStat,
+								Queries: []platform.DashboardQuery{{Text: "buckets() |> count()"}},
+							},
+						},
+					},
+				},
+			},
+			wants: wants{
+				dashboard: &platform.Dashboard{
+					ID:             MustIDBase16(dashOneID),
+					OrganizationID: 1,
+					Name:           "changed",
+					Description:    "changed",
+					Meta: platform.DashboardMeta{
+						UpdatedAt: time.Date(2009, time.November, 10, 24, 0, 0, 0, time.UTC),
+					},
+					Cells: []*platform.Cell{
+						{
+							ID:           5,
+							CellProperty: platform.CellProperty{X: 0, Y: 2},
+							View: &platform.View{
+								ViewContents: platform.ViewContents{
+									ID: 5,
+								},
+								Properties: &platform.SingleStatViewProperties{
+									Type:    platform.ViewPropertyTypeSingleStat,
+									Queries: []platform.DashboardQuery{{Text: "buckets() |> count()"}},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
 			name: "update with id not exist",
 			fields: DashboardFields{
 				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2009, time.November, 10, 24, 0, 0, 0, time.UTC)},
@@ -1199,6 +1263,9 @@ func UpdateDashboard(
 			}
 			if tt.args.description != "" {
 				upd.Description = &tt.args.description
+			}
+			if tt.args.cells != nil {
+				upd.Cells = &tt.args.cells
 			}
 
 			dashboard, err := s.UpdateDashboard(ctx, tt.args.id, upd)

@@ -1,13 +1,11 @@
 // Libraries
-import React, {PureComponent, MouseEvent} from 'react'
+import React, {PureComponent} from 'react'
 import memoizeOne from 'memoize-one'
 import RawFluxDataGrid from 'src/timeMachine/components/RawFluxDataGrid'
 
-// Components
-import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
-
 // Utils
 import {parseFiles} from 'src/timeMachine/utils/rawFluxDataTable'
+import {DapperScrollbars, FusionScrollEvent} from '@influxdata/clockface'
 
 interface Props {
   files: string[]
@@ -35,7 +33,7 @@ class RawFluxDataTable extends PureComponent<Props, State> {
 
     return (
       <div className="raw-flux-data-table" data-testid="raw-data-table">
-        <FancyScrollbar
+        <DapperScrollbars
           style={{
             overflowY: 'hidden',
             width: tableWidth,
@@ -44,7 +42,7 @@ class RawFluxDataTable extends PureComponent<Props, State> {
           autoHide={false}
           scrollTop={scrollTop}
           scrollLeft={scrollLeft}
-          setScrollTop={this.onScrollbarsScroll}
+          onScroll={this.onScrollbarsScroll}
         >
           <RawFluxDataGrid
             scrollTop={scrollTop}
@@ -55,16 +53,13 @@ class RawFluxDataTable extends PureComponent<Props, State> {
             data={data}
             key={files[0]}
           />
-        </FancyScrollbar>
+        </DapperScrollbars>
       </div>
     )
   }
 
-  private onScrollbarsScroll = (e: MouseEvent<HTMLElement>) => {
-    e.preventDefault()
-    e.stopPropagation()
-
-    const {scrollTop, scrollLeft} = e.currentTarget
+  private onScrollbarsScroll = (e: FusionScrollEvent) => {
+    const {scrollTop, scrollLeft} = e
 
     this.setState({scrollLeft, scrollTop})
   }

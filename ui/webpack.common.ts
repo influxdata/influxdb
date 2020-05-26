@@ -44,11 +44,11 @@ module.exports = {
   module: {
     rules: [
       {
-        test: /flux_parser_bg.wasm$/,
+        test: /flux_bg.wasm$/,
         type: 'webassembly/experimental',
       },
       {
-        test: /^((?!flux_parser_bg|flux-lsp-browser_bg).)*.wasm$/,
+        test: /^((?!flux_parser_bg|flux-lsp-browser_bg|flux_bg).)*.wasm$/,
         loader: 'file-loader',
         type: 'javascript/auto',
       },

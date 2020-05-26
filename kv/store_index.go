@@ -6,8 +6,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/kit/tracing"
+	"github.com/influxdata/influxdb/v2"
+	ierrors "github.com/influxdata/influxdb/v2/kit/errors"
+	"github.com/influxdata/influxdb/v2/kit/tracing"
 )
 
 // IndexStore provides a entity store that uses an index lookup.
@@ -178,13 +179,39 @@ func (s *IndexStore) validNew(ctx context.Context, tx Tx, ent Entity) error {
 		}
 	}
 
-	if _, err := s.EntStore.FindEnt(ctx, tx, ent); err != nil && influxdb.ErrorCode(err) != influxdb.ENotFound {
-		return &influxdb.Error{Code: influxdb.EInternal, Err: err}
+	_, err = s.EntStore.FindEnt(ctx, tx, ent)
+	if err == nil || influxdb.ErrorCode(err) != influxdb.ENotFound {
+		return &influxdb.Error{Code: influxdb.EConflict, Err: err}
 	}
 	return nil
 }
 
-func (s *IndexStore) validUpdate(ctx context.Context, tx Tx, ent Entity) error {
+func (s *IndexStore) validUpdate(ctx context.Context, tx Tx, ent Entity) (e error) {
+	// first check to make sure the existing entity exists in the ent store
+	existingVal, err := s.EntStore.FindEnt(ctx, tx, Entity{PK: ent.PK})
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		if e != nil {
+			return
+		}
+		// we need to cleanup the unique key entry when this is deemed
+		// a valid update
+		pk, err := ent.PK()
+		if err != nil {
+			e = ierrors.Wrap(err, "failed to encode PK")
+			return
+		}
+		existingEnt, err := s.EntStore.ConvertValToEntFn(pk, existingVal)
+		if err != nil {
+			e = ierrors.Wrap(err, "failed to convert value")
+			return
+		}
+		e = s.IndexStore.DeleteEnt(ctx, tx, existingEnt)
+	}()
+
 	idxVal, err := s.IndexStore.FindEnt(ctx, tx, ent)
 	if err != nil {
 		if influxdb.ErrorCode(err) == influxdb.ENotFound {
@@ -219,7 +246,7 @@ func (s *IndexStore) validUpdate(ctx context.Context, tx Tx, ent Entity) error {
 		}
 	}
 
-	return s.IndexStore.DeleteEnt(ctx, tx, ent)
+	return nil
 }
 
 func sameKeys(key1, key2 EncodeFn) error {

@@ -3,23 +3,45 @@
     "apiVersion": "influxdata.com/v2alpha1",
     "kind": "Label",
     "metadata": {
-      "name": "label_1"
+      "name": "label-1"
+    }
+  },
+  {
+    "apiVersion": "influxdata.com/v2alpha1",
+    "kind": "Label",
+    "metadata": {
+      "name": "label-2"
     }
   },
   {
     "apiVersion": "influxdata.com/v2alpha1",
     "kind": "Telegraf",
     "metadata": {
-      "name": "first_tele_config"
+      "name": "first-tele-config"
     },
     "spec": {
+      "name": "display name",
       "description": "desc",
       "associations": [
         {
           "kind": "Label",
-          "name": "label_1"
+          "name": "label-1"
+        },
+        {
+          "kind": "Label",
+          "name": "label-2"
         }
       ],
+      "config": "# Configuration for telegraf agent\n        [agent]\n          ## Default data collection interval for all inputs\n          interval = \"10s\"\n          ## Rounds collection interval to 'interval'\n          ## ie, if interval=\"10s\" then always collect on :00, :10, :20, etc.\n          round_interval = true\n\n          ## Telegraf will send metrics to outputs in batches of at most\n          ## metric_batch_size metrics.\n          ## This controls the size of writes that Telegraf sends to output plugins.\n          metric_batch_size = 1000\n\n          ## For failed writes, telegraf will cache metric_buffer_limit metrics for each\n          ## output, and will flush this buffer on a successful write. Oldest metrics\n          ## are dropped first when this buffer fills.\n          ## This buffer only fills when writes fail to output plugin(s).\n          metric_buffer_limit = 10000\n\n          ## Collection jitter is used to jitter the collection by a random amount.\n          ## Each plugin will sleep for a random time within jitter before collecting.\n          ## This can be used to avoid many plugins querying things like sysfs at the\n          ## same time, which can have a measurable effect on the system.\n          collection_jitter = \"0s\"\n\n          ## Default flushing interval for all outputs. Maximum flush_interval will be\n          ## flush_interval + flush_jitter\n          flush_interval = \"10s\"\n          ## Jitter the flush interval by a random amount. This is primarily to avoid\n          ## large write spikes for users running a large number of telegraf instances.\n          ## ie, a jitter of 5s and interval 10s means flushes will happen every 10-15s\n          flush_jitter = \"0s\"\n\n          ## By default or when set to \"0s\", precision will be set to the same\n          ## timestamp order as the collection interval, with the maximum being 1s.\n          ##   ie, when interval = \"10s\", precision will be \"1s\"\n          ##       when interval = \"250ms\", precision will be \"1ms\"\n          ## Precision will NOT be used for service inputs. It is up to each individual\n          ## service input to set the timestamp at the appropriate precision.\n          ## Valid time units are \"ns\", \"us\" (or \"µs\"), \"ms\", \"s\".\n          precision = \"\"\n\n          ## Logging configuration:\n          ## Run telegraf with debug log messages.\n          debug = false\n          ## Run telegraf in quiet mode (error log messages only).\n          quiet = false\n          ## Specify the log file name. The empty string means to log to stderr.\n          logfile = \"\"\n\n          ## Override default hostname, if empty use os.Hostname()\n          hostname = \"\"\n          ## If set to true, do no set the \"host\" tag in the telegraf agent.\n          omit_hostname = false\n        [[outputs.influxdb_v2]]\n          ## The URLs of the InfluxDB cluster nodes.\n          ##\n          ## Multiple URLs can be specified for a single cluster, only ONE of the\n          ## urls will be written to each interval.\n          ## urls exp: http://127.0.0.1:9999\n          urls = [\"http://localhost:9999\"]\n\n          ## Token for authentication.\n          token = \"$INFLUX_TOKEN\"\n\n          ## Organization is the name of the organization you wish to write to; must exist.\n          organization = \"rg\"\n\n          ## Destination bucket to write into.\n          bucket = \"rucket_3\"\n        [[inputs.cpu]]\n          ## Whether to report per-cpu stats or not\n          percpu = true\n          ## Whether to report total system cpu stats or not\n          totalcpu = true\n          ## If true, collect raw CPU time metrics.\n          collect_cpu_time = false\n          ## If true, compute and report the sum of all non-idle CPU states.\n          report_active = false\n        [[inputs.disk]]\n          ## By default stats will be gathered for all mount points.\n          ## Set mount_points will restrict the stats to only the specified mount points.\n          # mount_points = [\"/\"]\n          ## Ignore mount points by filesystem type.\n          ignore_fs = [\"tmpfs\", \"devtmpfs\", \"devfs\", \"overlay\", \"aufs\", \"squashfs\"]\n        [[inputs.diskio]]\n        [[inputs.mem]]\n        [[inputs.net]]\n        [[inputs.processes]]\n        [[inputs.swap]]\n        [[inputs.system]]"
+    }
+  },
+  {
+    "apiVersion": "influxdata.com/v2alpha1",
+    "kind": "Telegraf",
+    "metadata": {
+      "name": "tele-2"
+    },
+    "spec": {
       "config": "# Configuration for telegraf agent\n        [agent]\n          ## Default data collection interval for all inputs\n          interval = \"10s\"\n          ## Rounds collection interval to 'interval'\n          ## ie, if interval=\"10s\" then always collect on :00, :10, :20, etc.\n          round_interval = true\n\n          ## Telegraf will send metrics to outputs in batches of at most\n          ## metric_batch_size metrics.\n          ## This controls the size of writes that Telegraf sends to output plugins.\n          metric_batch_size = 1000\n\n          ## For failed writes, telegraf will cache metric_buffer_limit metrics for each\n          ## output, and will flush this buffer on a successful write. Oldest metrics\n          ## are dropped first when this buffer fills.\n          ## This buffer only fills when writes fail to output plugin(s).\n          metric_buffer_limit = 10000\n\n          ## Collection jitter is used to jitter the collection by a random amount.\n          ## Each plugin will sleep for a random time within jitter before collecting.\n          ## This can be used to avoid many plugins querying things like sysfs at the\n          ## same time, which can have a measurable effect on the system.\n          collection_jitter = \"0s\"\n\n          ## Default flushing interval for all outputs. Maximum flush_interval will be\n          ## flush_interval + flush_jitter\n          flush_interval = \"10s\"\n          ## Jitter the flush interval by a random amount. This is primarily to avoid\n          ## large write spikes for users running a large number of telegraf instances.\n          ## ie, a jitter of 5s and interval 10s means flushes will happen every 10-15s\n          flush_jitter = \"0s\"\n\n          ## By default or when set to \"0s\", precision will be set to the same\n          ## timestamp order as the collection interval, with the maximum being 1s.\n          ##   ie, when interval = \"10s\", precision will be \"1s\"\n          ##       when interval = \"250ms\", precision will be \"1ms\"\n          ## Precision will NOT be used for service inputs. It is up to each individual\n          ## service input to set the timestamp at the appropriate precision.\n          ## Valid time units are \"ns\", \"us\" (or \"µs\"), \"ms\", \"s\".\n          precision = \"\"\n\n          ## Logging configuration:\n          ## Run telegraf with debug log messages.\n          debug = false\n          ## Run telegraf in quiet mode (error log messages only).\n          quiet = false\n          ## Specify the log file name. The empty string means to log to stderr.\n          logfile = \"\"\n\n          ## Override default hostname, if empty use os.Hostname()\n          hostname = \"\"\n          ## If set to true, do no set the \"host\" tag in the telegraf agent.\n          omit_hostname = false\n        [[outputs.influxdb_v2]]\n          ## The URLs of the InfluxDB cluster nodes.\n          ##\n          ## Multiple URLs can be specified for a single cluster, only ONE of the\n          ## urls will be written to each interval.\n          ## urls exp: http://127.0.0.1:9999\n          urls = [\"http://localhost:9999\"]\n\n          ## Token for authentication.\n          token = \"$INFLUX_TOKEN\"\n\n          ## Organization is the name of the organization you wish to write to; must exist.\n          organization = \"rg\"\n\n          ## Destination bucket to write into.\n          bucket = \"rucket_3\"\n        [[inputs.cpu]]\n          ## Whether to report per-cpu stats or not\n          percpu = true\n          ## Whether to report total system cpu stats or not\n          totalcpu = true\n          ## If true, collect raw CPU time metrics.\n          collect_cpu_time = false\n          ## If true, compute and report the sum of all non-idle CPU states.\n          report_active = false\n        [[inputs.disk]]\n          ## By default stats will be gathered for all mount points.\n          ## Set mount_points will restrict the stats to only the specified mount points.\n          # mount_points = [\"/\"]\n          ## Ignore mount points by filesystem type.\n          ignore_fs = [\"tmpfs\", \"devtmpfs\", \"devfs\", \"overlay\", \"aufs\", \"squashfs\"]\n        [[inputs.diskio]]\n        [[inputs.mem]]\n        [[inputs.net]]\n        [[inputs.processes]]\n        [[inputs.swap]]\n        [[inputs.system]]"
     }
   }

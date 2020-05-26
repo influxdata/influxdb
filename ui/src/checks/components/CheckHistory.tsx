@@ -10,6 +10,7 @@ import CheckHistoryVisualization from 'src/checks/components/CheckHistoryVisuali
 import AlertHistoryQueryParams from 'src/alerting/components/AlertHistoryQueryParams'
 import EventTable from 'src/eventViewer/components/EventTable'
 import GetResources from 'src/resources/components/GetResources'
+import CloudUpgradeButton from 'src/shared/components/CloudUpgradeButton'
 
 //Context
 import {ResourceIDsContext} from 'src/alerting/components/AlertHistoryIndex'
@@ -20,6 +21,7 @@ import {STATUS_FIELDS} from 'src/alerting/constants/history'
 // Utils
 import {loadStatuses, getInitialState} from 'src/alerting/utils/history'
 import {getCheckIDs} from 'src/checks/selectors'
+import {getTimeZone} from 'src/dashboards/selectors'
 
 // Types
 import {ResourceIDs} from 'src/checks/reducers'
@@ -63,6 +65,7 @@ const CheckHistory: FC<Props> = ({
                   title="Check Statuses"
                   testID="alert-history-title"
                 />
+                <CloudUpgradeButton />
               </Page.Header>
               <Page.ControlBar fullWidth={true}>
                 <Page.ControlBarLeft>
@@ -99,7 +102,7 @@ const CheckHistory: FC<Props> = ({
 }
 
 const mstp = (state: AppState, props: OwnProps) => {
-  const timeZone = state.app.persisted.timeZone
+  const timeZone = getTimeZone(state)
   const checkIDs = getCheckIDs(state)
   const check = getByID<Check>(state, ResourceType.Checks, props.params.checkID)
 

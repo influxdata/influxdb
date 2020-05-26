@@ -38,6 +38,27 @@ jobs:
       - store_test_results:
           path: ~/project
           destination: daily-junit
+  litmus_integration:
+    machine: true
+    steps:
+      - attach_workspace:
+          at: ~/project
+      - run: docker login -u=$QUAY_USER -p=$QUAY_PASS quay.io
+      - run: docker run --entrypoint "./run_litmus_tests_oss.sh" -e TEST_LIST=tests_lists/gateway_api_tests.list -e INFLUXPATH=/Litmus/result/bin/linux/influx -e BINARYPATH=/Litmus/result/bin/linux/influxd -e BOLTPATH=/tmp/influxd_test/influxd.bolt -e ENGINEPATH=/tmp/influxd_test --net host -v /var/run/docker.sock:/var/run/docker.sock -v ~/project:/Litmus/result quay.io/influxdb/litmus:latest
+      - run:
+          name: Litmus Integration Tests Success
+          when: on_success
+          command: bash ~/project/etc/litmus_success_notify.sh Integration
+      - run:
+          name: Litmus Integration Tests Failure
+          when: on_fail
+          command: bash ~/project/etc/litmus_fail_notify.sh Integration
+      - store_artifacts:
+          path: ~/project
+          destination: raw-daily-output
+      - store_test_results:
+          path: ~/project
+          destination: daily-junit
   litmus_nightly:
     machine: true
     steps:
@@ -254,6 +275,42 @@ jobs:
           destination: raw-test-output
       - store_test_results: # Upload test results for display in Test Summary: https://circleci.com/docs/2.0/collect-test-data/
           path: /tmp/test-results
+
+  lint-feature-flags:
+    docker:
+      - image: circleci/golang:1.13
+    environment:
+      GOCACHE: /tmp/go-cache
+      GOFLAGS: "-mod=readonly -p=2" # Go on Circle thinks 32 CPUs are available, but there aren't.
+    working_directory: /go/src/github.com/influxdata/influxdb
+    steps:
+      - checkout
+      # Populate GOCACHE.
+      - restore_cache:
+          name: Restoring GOCACHE
+          keys:
+            - influxdb-gocache-{{ .Branch }}-{{ .Revision }} # Matches when retrying a single run.
+            - influxdb-gocache-{{ .Branch }}- # Matches a new commit on an existing branch.
+            - influxdb-gocache- # Matches a new branch.
+      # Populate GOPATH/pkg.
+      - restore_cache:
+          name: Restoring GOPATH/pkg/mod
+          keys:
+            - influxdb-gomod-{{ checksum "go.sum" }} # Matches based on go.sum checksum.
+      - run: ./scripts/ci/lint/flags.bash
+      - skip_if_not_master
+      - save_cache:
+          name: Saving GOCACHE
+          key: influxdb-gocache-{{ .Branch }}-{{ .Revision }}
+          paths:
+            - /tmp/go-cache
+          when: always
+      - save_cache:
+          name: Saving GOPATH/pkg/mod
+          key: influxdb-gomod-{{ checksum "go.sum" }}
+          paths:
+            - /go/pkg/mod
+          when: always
   golint:
     docker:
       - image: circleci/golang:1.13
@@ -424,13 +481,20 @@ workflows:
           filters:
             branches:
               only: /^(?!pull\/).*$/
+      - litmus_integration:
+          requires:
+            - litmus_daily
+          filters:
+            branches:
+              only:
+                - master
   e2e:
     jobs:
       - e2e
   hourly-e2e:
     triggers:
       - schedule:
-          cron: '0 * * * *'
+          cron: "0 * * * *"
           filters:
             branches:
               only:
@@ -440,7 +504,7 @@ workflows:
   nightly:
     triggers:
       - schedule:
-          cron: "0 7 * * *"
+          cron: "0 5 * * *"
           filters:
             branches:
               only:

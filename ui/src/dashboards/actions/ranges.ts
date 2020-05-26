@@ -1,11 +1,11 @@
 // Libraries
 import qs from 'qs'
 import {replace, RouterAction} from 'react-router-redux'
-import {Dispatch, Action} from 'redux'
+import {Dispatch} from 'redux'
 import {get, pickBy} from 'lodash'
 
 // Actions
-import {notify} from 'src/shared/actions/notifications'
+import {notify, Action as NotifyAction} from 'src/shared/actions/notifications'
 
 // Utils
 import {stripPrefix} from 'src/utils/basepath'
@@ -91,8 +91,20 @@ export const updateQueryParams = (updatedQueryParams: object): RouterAction => {
   return replace(newLocation)
 }
 
+export const updateQueryVars = varsObj => {
+  const urlVars = qs.parse(window.location.search, {ignoreQueryPrefix: true})
+  const vars = {
+    ...(urlVars.vars || {}),
+    ...varsObj,
+  }
+
+  return updateQueryParams({
+    vars,
+  })
+}
+
 export const updateTimeRangeFromQueryParams = (dashboardID: string) => (
-  dispatch: Dispatch<Action>,
+  dispatch: Dispatch<Action | NotifyAction>,
   getState
 ): void => {
   const {ranges} = getState()

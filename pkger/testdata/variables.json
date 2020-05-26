@@ -3,10 +3,11 @@
     "apiVersion": "influxdata.com/v2alpha1",
     "kind": "Variable",
     "metadata": {
-      "name": "var_query_1"
+      "name": "var-query-1"
     },
     "spec": {
-      "description": "var_query_1 desc",
+      "name": "query var",
+      "description": "query var desc",
       "type": "query",
       "query": "buckets()  |> filter(fn: (r) => r.name !~ /^_/)  |> rename(columns: {name: \"_value\"})  |> keep(columns: [\"_value\"])",
       "language": "flux"
@@ -16,10 +17,10 @@
     "apiVersion": "influxdata.com/v2alpha1",
     "kind": "Variable",
     "metadata": {
-      "name": "var_query_2"
+      "name": "var-query-2"
     },
     "spec": {
-      "description": "var_query_2 desc",
+      "description": "var-query-2 desc",
       "type": "query",
       "query": "an influxql query of sorts",
       "language": "influxql"
@@ -29,10 +30,10 @@
     "apiVersion": "influxdata.com/v2alpha1",
     "kind": "Variable",
     "metadata": {
-      "name": "var_const_3"
+      "name": "var-const-3"
     },
     "spec": {
-      "description": "var_const_3 desc",
+      "description": "var-const-3 desc",
       "type": "constant",
       "values": ["first val"]
     }
@@ -41,10 +42,10 @@
     "apiVersion": "influxdata.com/v2alpha1",
     "kind": "Variable",
     "metadata": {
-      "name": "var_map_4"
+      "name": "var-map-4"
     },
     "spec": {
-      "description": "var_map_4 desc",
+      "description": "var-map-4 desc",
       "type": "map",
       "values": {
         "k1": "v1"

@@ -6,6 +6,7 @@ $builder-card--header-margin: $ix-marg-b + $ix-border;
   display: flex;
   flex: 1 1 0;
   flex-wrap: nowrap;
+  position: absolute;
   height: 100%;
 
   > * {

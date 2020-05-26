@@ -5,11 +5,11 @@ import (
 	"errors"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/influxdata/influxdb/kit/tracing"
-	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/storage/reads"
-	"github.com/influxdata/influxdb/storage/reads/datatypes"
-	"github.com/influxdata/influxdb/tsdb/cursors"
+	"github.com/influxdata/influxdb/v2/kit/tracing"
+	"github.com/influxdata/influxdb/v2/models"
+	"github.com/influxdata/influxdb/v2/storage/reads"
+	"github.com/influxdata/influxdb/v2/storage/reads/datatypes"
+	"github.com/influxdata/influxdb/v2/tsdb/cursors"
 	"github.com/influxdata/influxql"
 )
 
@@ -152,4 +152,14 @@ func (s *store) GetSource(orgID, bucketID uint64) proto.Message {
 		BucketID:       bucketID,
 		OrganizationID: orgID,
 	}
+}
+
+func (s *store) HasWindowAggregateCapability(ctx context.Context, capability ...*reads.WindowAggregateCapability) bool {
+	return false
+}
+
+// WindowAggregate will invoke a ReadWindowAggregateRequest against the Store.
+func (s *store) WindowAggregate(ctx context.Context, req *datatypes.ReadWindowAggregateRequest) (reads.ResultSet, error) {
+	// TODO: https://github.com/influxdata/idpe/issues/6805
+	return nil, errors.New("WindowAggregate is not implemented")
 }

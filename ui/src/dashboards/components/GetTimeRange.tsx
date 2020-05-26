@@ -2,7 +2,7 @@
 import React, {FC, useEffect} from 'react'
 import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
-import {getTimeRangeByDashboardID} from 'src/dashboards/selectors'
+import {getTimeRange} from 'src/dashboards/selectors'
 
 // Actions
 import * as actions from 'src/dashboards/actions/ranges'
@@ -36,6 +36,7 @@ const GetTimeRange: FC<Props> = ({
       return
     }
 
+    // TODO: map this to current contextID
     setDashboardTimeRange(params.dashboardID, timeRange)
     const {lower, upper} = timeRange
     updateQueryParams({
@@ -47,8 +48,8 @@ const GetTimeRange: FC<Props> = ({
   return <div />
 }
 
-const mstp = (state: AppState, props: Props) => {
-  const timeRange = getTimeRangeByDashboardID(state, props.params.dashboardID)
+const mstp = (state: AppState) => {
+  const timeRange = getTimeRange(state)
   return {timeRange}
 }
 

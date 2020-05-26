@@ -9,11 +9,11 @@ import (
 
 	"github.com/golang/gddo/httputil"
 	"github.com/influxdata/httprouter"
-	"github.com/influxdata/influxdb"
-	platform "github.com/influxdata/influxdb"
-	pctx "github.com/influxdata/influxdb/context"
-	"github.com/influxdata/influxdb/pkg/httpc"
-	"github.com/influxdata/influxdb/telegraf/plugins"
+	"github.com/influxdata/influxdb/v2"
+	platform "github.com/influxdata/influxdb/v2"
+	pctx "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/pkg/httpc"
+	"github.com/influxdata/influxdb/v2/telegraf/plugins"
 	"go.uber.org/zap"
 )
 
@@ -439,7 +439,7 @@ func (s *TelegrafService) FindTelegrafConfigByID(ctx context.Context, id platfor
 // FindTelegrafConfigs returns a list of telegraf configs that match filter and the total count of matching telegraf configs.
 // Additional options provide pagination & sorting.
 func (s *TelegrafService) FindTelegrafConfigs(ctx context.Context, f platform.TelegrafConfigFilter, opt ...platform.FindOptions) ([]*platform.TelegrafConfig, int, error) {
-	params := findOptionParams(opt...)
+	params := influxdb.FindOptionParams(opt...)
 	if f.OrgID != nil {
 		params = append(params, [2]string{"orgID", f.OrgID.String()})
 	}
@@ -485,7 +485,15 @@ func (s *TelegrafService) CreateTelegrafConfig(ctx context.Context, tc *platform
 // UpdateTelegrafConfig updates a single telegraf config.
 // Returns the new telegraf config after update.
 func (s *TelegrafService) UpdateTelegrafConfig(ctx context.Context, id platform.ID, tc *platform.TelegrafConfig, userID platform.ID) (*platform.TelegrafConfig, error) {
-	panic("not implemented")
+	var teleResp platform.TelegrafConfig
+	err := s.client.
+		PutJSON(tc, prefixTelegraf, id.String()).
+		DecodeJSON(&teleResp).
+		Do(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &teleResp, nil
 }
 
 // DeleteTelegrafConfig removes a telegraf config by ID.

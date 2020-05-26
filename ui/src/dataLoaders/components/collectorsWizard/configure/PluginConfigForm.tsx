@@ -4,9 +4,8 @@ import {connect} from 'react-redux'
 import _ from 'lodash'
 
 // Components
-import {Form} from '@influxdata/clockface'
+import {Form, DapperScrollbars} from '@influxdata/clockface'
 import ConfigFieldHandler from 'src/dataLoaders/components/collectorsWizard/configure/ConfigFieldHandler'
-import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 
 // Actions
 import {
@@ -40,7 +39,7 @@ export class PluginConfigForm extends PureComponent<Props> {
     const {configFields, telegrafPlugin} = this.props
     return (
       <Form onSubmit={this.handleSubmitForm} className="data-loading--form">
-        <FancyScrollbar
+        <DapperScrollbars
           autoHide={false}
           className="data-loading--scroll-content"
         >
@@ -65,7 +64,7 @@ export class PluginConfigForm extends PureComponent<Props> {
             configFields={configFields}
             telegrafPlugin={telegrafPlugin}
           />
-        </FancyScrollbar>
+        </DapperScrollbars>
         <OnboardingButtons
           autoFocusNext={this.autoFocus}
           nextButtonText="Done"
@@ -90,6 +89,7 @@ export class PluginConfigForm extends PureComponent<Props> {
     const activeTelegrafPlugin = telegrafPlugins.find(tp => tp.active)
     if (!!activeTelegrafPlugin) {
       if (!activeTelegrafPlugin.hasOwnProperty('plugin')) {
+        onSetActiveTelegrafPlugin('')
         return
       }
       onSetPluginConfiguration(activeTelegrafPlugin.name)

@@ -4,16 +4,14 @@ import "context"
 
 // OnboardingService represents a service for the first run.
 type OnboardingService interface {
-	PasswordsService
-	BucketService
-	OrganizationService
-	UserService
-	AuthorizationService
-
 	// IsOnboarding determine if onboarding request is allowed.
 	IsOnboarding(ctx context.Context) (bool, error)
-	// Generate OnboardingResults.
-	Generate(ctx context.Context, req *OnboardingRequest) (*OnboardingResults, error)
+
+	// OnboardInitialUser OnboardingResults.
+	OnboardInitialUser(ctx context.Context, req *OnboardingRequest) (*OnboardingResults, error)
+
+	// OnboardUser creates a new user/org/buckets
+	OnboardUser(ctx context.Context, req *OnboardingRequest) (*OnboardingResults, error)
 }
 
 // OnboardingResults is a group of elements required for first run.

@@ -153,8 +153,7 @@ describe('labels', () => {
       .contains(newLabelDescription)
       .should('be.visible')
     cy.getByTestID('label-card')
-      .children('div.cf-resource-card--contents')
-      .children('div.cf-resource-card--row')
+      .children('div.cf-flex-box')
       .children('div.cf-label')
       .invoke('attr', 'style')
       .should('contain', hex2BgColor(newLabelColor))
@@ -197,8 +196,7 @@ describe('labels', () => {
         .should('be.visible')
 
       cy.getByTestID('label-card')
-        .children('div.cf-resource-card--contents')
-        .children('div.cf-resource-card--row')
+        .children('div.cf-flex-box')
         .children('div.cf-label')
         .invoke('attr', 'style')
         .should('contain', hex2BgColor(oldLabelColor))
@@ -242,8 +240,7 @@ describe('labels', () => {
         .contains(newLabelDescription)
         .should('be.visible')
       cy.getByTestID('label-card')
-        .children('div.cf-resource-card--contents')
-        .children('div.cf-resource-card--row')
+        .children('div.cf-flex-box')
         .children('div.cf-label')
         .invoke('attr', 'style')
         .should('contain', hex2BgColor(newLabelColor))
@@ -284,7 +281,11 @@ describe('labels', () => {
       }
     })
 
-    cy.getByTestID('sorter--name').click()
+    cy.getByTestID('resource-sorter--button')
+      .click()
+      .then(() => {
+        cy.getByTestID('resource-sorter--name-desc').click()
+      })
 
     // check sort desc
     cy.getByTestIDSubStr('label--pill').then(labels => {
@@ -296,7 +297,11 @@ describe('labels', () => {
     })
 
     // reset to asc
-    cy.getByTestID('sorter--name').click()
+    cy.getByTestID('resource-sorter--button')
+      .click()
+      .then(() => {
+        cy.getByTestID('resource-sorter--name-asc').click()
+      })
 
     cy.getByTestIDSubStr('label--pill').then(labels => {
       for (let i = 0; i < labels.length; i++) {
@@ -332,27 +337,32 @@ describe('labels', () => {
       a.description < b.description ? -1 : a.description > b.description ? 1 : 0
     )
     // check sort asc
-    cy.getByTestID('sorter--desc').click()
+    cy.getByTestID('resource-sorter--button')
+      .click()
+      .then(() => {
+        cy.getByTestID('resource-sorter--properties.description-asc').click()
+      })
 
-    cy.getByTestIDSubStr('resource-card').then(labels => {
+    cy.getByTestID('label-card').then(labels => {
       for (let i = 0; i < labels.length; i++) {
-        cy.getByTestIDSubStr('resource-card')
+        cy.getByTestID('label-card--description')
           .eq(i)
-          .should('have.text', 'Description: ' + names[i].description)
+          .should('have.text', names[i].description)
       }
     })
 
     // check sort desc
-    cy.getByTestID('sorter--desc').click()
+    cy.getByTestID('resource-sorter--button')
+      .click()
+      .then(() => {
+        cy.getByTestID('resource-sorter--properties.description-desc').click()
+      })
 
-    cy.getByTestIDSubStr('resource-card').then(labels => {
+    cy.getByTestID('label-card').then(labels => {
       for (let i = 0; i < labels.length; i++) {
-        cy.getByTestIDSubStr('resource-card')
+        cy.getByTestID('label-card--description')
           .eq(i)
-          .should(
-            'have.text',
-            'Description: ' + names[labels.length - (i + 1)].description
-          )
+          .should('have.text', names[labels.length - (i + 1)].description)
       }
     })
   })

@@ -7,8 +7,9 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	platform "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/mock"
+	"github.com/influxdata/influxdb/v2"
+	platform "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/mock"
 )
 
 const (
@@ -20,6 +21,15 @@ const (
 var userCmpOptions = cmp.Options{
 	cmp.Comparer(func(x, y []byte) bool {
 		return bytes.Equal(x, y)
+	}),
+	cmp.Comparer(func(x, y *influxdb.User) bool {
+		if x == nil && y == nil {
+			return true
+		}
+		if x != nil && y == nil || y != nil && x == nil {
+			return false
+		}
+		return x.Name == y.Name && x.OAuthID == y.OAuthID && x.Status == y.Status
 	}),
 	cmp.Transformer("Sort", func(in []*platform.User) []*platform.User {
 		out := append([]*platform.User(nil), in...) // Copy input to avoid mutating it
@@ -68,6 +78,10 @@ func UserService(
 		{
 			name: "UpdateUser",
 			fn:   UpdateUser,
+		},
+		{
+			name: "UpdateUser_IndexHygiene",
+			fn:   UpdateUser_IndexHygiene,
 		},
 	}
 	for _, tt := range tests {
@@ -855,6 +869,34 @@ func UpdateUser(
 			},
 		},
 		{
+			name: "update name to same name",
+			fields: UserFields{
+				Users: []*platform.User{
+					{
+						ID:     MustIDBase16(userOneID),
+						Name:   "user1",
+						Status: platform.Active,
+					},
+					{
+						ID:     MustIDBase16(userTwoID),
+						Name:   "user2",
+						Status: platform.Active,
+					},
+				},
+			},
+			args: args{
+				id:   MustIDBase16(userOneID),
+				name: "user1",
+			},
+			wants: wants{
+				user: &platform.User{
+					ID:     MustIDBase16(userOneID),
+					Name:   "user1",
+					Status: platform.Active,
+				},
+			},
+		},
+		{
 			name: "update status",
 			fields: UserFields{
 				Users: []*platform.User{
@@ -938,4 +980,54 @@ func UpdateUser(
 			}
 		})
 	}
+}
+
+func UpdateUser_IndexHygiene(
+	init func(UserFields, *testing.T) (platform.UserService, string, func()),
+	t *testing.T,
+) {
+
+	oldUserName := "user1"
+	users := UserFields{
+		Users: []*platform.User{
+			{
+				ID:     MustIDBase16(userOneID),
+				Name:   oldUserName,
+				Status: "active",
+			},
+		},
+	}
+	s, _, done := init(users, t)
+	defer done()
+
+	newUserName := "user1Updated"
+	upd := platform.UserUpdate{
+		Name: &newUserName,
+	}
+
+	ctx := context.Background()
+	_, err := s.UpdateUser(ctx, MustIDBase16(userOneID), upd)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// Ensure we can find the user with the new name.
+	_, nerr := s.FindUser(ctx, platform.UserFilter{
+		Name: &newUserName,
+	})
+	if nerr != nil {
+		t.Error("unexpected error when finding user by name", nerr)
+	}
+
+	// Ensure we cannot find a user with the old name. The index used when
+	// searching by name should have been cleared out by the UpdateUser
+	// operation.
+	_, oerr := s.FindUser(ctx, platform.UserFilter{
+		Name: &oldUserName,
+	})
+	ErrorsEqual(t, oerr, &platform.Error{
+		Code: platform.ENotFound,
+		Op:   platform.OpFindUser,
+		Msg:  "user not found",
+	})
 }

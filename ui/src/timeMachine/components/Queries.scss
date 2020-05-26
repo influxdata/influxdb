@@ -24,7 +24,7 @@
   margin-bottom: $cf-marg-a;
   position: relative;
   flex: 1 1 auto;
-  
+
   &::-webkit-scrollbar {
     height: 0;
     width: 0;
@@ -48,6 +48,7 @@
 .time-machine-queries--body {
   flex-grow: 1;
   position: relative;
+  height: 100%;
 }
 
 .time-machine-influxql-editor {
@@ -59,10 +60,8 @@
 }
 
 .time-machine--editor-title {
-  height: 38px;
   user-select: none;
   font-weight: 500;
-  line-height: 30px;
   padding-left: 6px;
   color: $g13-mist;
 }

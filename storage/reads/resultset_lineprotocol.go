@@ -5,8 +5,8 @@ import (
 	"io"
 	"strconv"
 
-	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/tsdb/cursors"
+	"github.com/influxdata/influxdb/v2/models"
+	"github.com/influxdata/influxdb/v2/tsdb/cursors"
 )
 
 // ResultSetToLineProtocol transforms rs to line protocol and writes the
@@ -111,7 +111,7 @@ func cursorToLineProtocol(wr io.Writer, line []byte, cur cursors.Cursor) error {
 			if a.Len() > 0 {
 				for i := range a.Timestamps {
 					buf := strconv.AppendQuote(line, a.Values[i])
-					buf = append(buf, 'i', ' ')
+					buf = append(buf, ' ')
 					buf = strconv.AppendInt(buf, a.Timestamps[i], 10)
 					wr.Write(buf)
 					wr.Write(newLine)

@@ -11,8 +11,8 @@ import (
 	"net/http"
 	"strings"
 
-	platform "github.com/influxdata/influxdb"
-	"github.com/pkg/errors"
+	platform "github.com/influxdata/influxdb/v2"
+	khttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 )
 
 // AuthzError is returned for authorization errors. When this error type is returned,
@@ -58,11 +58,13 @@ func CheckError(resp *http.Response) (err error) {
 		}
 	}
 
+	perr := &platform.Error{
+		Code: khttp.StatusCodeToErrorCode(resp.StatusCode),
+	}
+
 	if resp.StatusCode == http.StatusUnsupportedMediaType {
-		return &platform.Error{
-			Code: platform.EInvalid,
-			Msg:  fmt.Sprintf("invalid media type: %q", resp.Header.Get("Content-Type")),
-		}
+		perr.Msg = fmt.Sprintf("invalid media type: %q", resp.Header.Get("Content-Type"))
+		return perr
 	}
 
 	contentType := resp.Header.Get("Content-Type")
@@ -74,24 +76,32 @@ func CheckError(resp *http.Response) (err error) {
 
 	var buf bytes.Buffer
 	if _, err := io.Copy(&buf, resp.Body); err != nil {
-		return &platform.Error{
-			Code: platform.EInternal,
-			Msg:  err.Error(),
-		}
+		perr.Msg = "failed to read error response"
+		perr.Err = err
+		return perr
 	}
 
 	switch mediatype {
 	case "application/json":
-		pe := new(platform.Error)
-		if err := json.Unmarshal(buf.Bytes(), pe); err != nil {
-			line, _ := buf.ReadString('\n')
-			return errors.Wrap(stderrors.New(strings.TrimSuffix(line, "\n")), err.Error())
+		if err := json.Unmarshal(buf.Bytes(), perr); err != nil {
+			perr.Msg = fmt.Sprintf("attempted to unmarshal error as JSON but failed: %q", err)
+			perr.Err = firstLineAsError(buf)
 		}
-		return pe
 	default:
-		line, _ := buf.ReadString('\n')
-		return stderrors.New(strings.TrimSuffix(line, "\n"))
+		perr.Err = firstLineAsError(buf)
 	}
+
+	if perr.Code == "" {
+		// given it was unset during attempt to unmarshal as JSON
+		perr.Code = khttp.StatusCodeToErrorCode(resp.StatusCode)
+	}
+
+	return perr
+}
+
+func firstLineAsError(buf bytes.Buffer) error {
+	line, _ := buf.ReadString('\n')
+	return stderrors.New(strings.TrimSuffix(line, "\n"))
 }
 
 // UnauthorizedError encodes a error message and status code for unauthorized access.

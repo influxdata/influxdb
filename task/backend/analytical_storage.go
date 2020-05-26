@@ -9,9 +9,9 @@ import (
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/lang"
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/query"
-	"github.com/influxdata/influxdb/storage"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/query"
+	"github.com/influxdata/influxdb/v2/storage"
 	"go.uber.org/zap"
 )
 
@@ -326,7 +326,7 @@ func (as *AnalyticalStorage) RetryRun(ctx context.Context, taskID, runID influxd
 		return run, err
 	}
 
-	// try finding the run (in our system or underlieing)
+	// try finding the run (in our system or underlying)
 	run, err = as.FindRunByID(ctx, taskID, runID)
 	if err != nil {
 		return run, err

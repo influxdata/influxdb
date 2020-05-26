@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import _ from 'lodash'
+import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import {Dropdown} from '@influxdata/clockface'
@@ -8,14 +8,9 @@ import {Dropdown} from '@influxdata/clockface'
 // Types
 import {IconFont, ComponentColor} from '@influxdata/clockface'
 
-interface OwnProps {
-  onSelectAllAccess: () => void
-  onSelectReadWrite: () => void
-}
+type Props = WithRouterProps
 
-type Props = OwnProps
-
-export default class GenerateTokenDropdown extends PureComponent<Props> {
+class GenerateTokenDropdown extends PureComponent<Props> {
   public render() {
     return (
       <Dropdown
@@ -74,9 +69,29 @@ export default class GenerateTokenDropdown extends PureComponent<Props> {
 
   private handleSelect = (selection: string): void => {
     if (selection === this.allAccessOption) {
-      this.props.onSelectAllAccess()
+      this.handleAllAccess()
     } else if (selection === this.bucketReadWriteOption) {
-      this.props.onSelectReadWrite()
+      this.handleReadWrite()
     }
   }
+
+  private handleAllAccess = () => {
+    const {
+      router,
+      params: {orgID},
+    } = this.props
+
+    router.push(`/orgs/${orgID}/load-data/tokens/generate/all-access`)
+  }
+
+  private handleReadWrite = () => {
+    const {
+      router,
+      params: {orgID},
+    } = this.props
+
+    router.push(`/orgs/${orgID}/load-data/tokens/generate/buckets`)
+  }
 }
+
+export default withRouter<{}>(GenerateTokenDropdown)

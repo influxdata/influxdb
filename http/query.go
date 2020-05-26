@@ -20,10 +20,10 @@ import (
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/flux/parser"
 	"github.com/influxdata/flux/repl"
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/jsonweb"
-	"github.com/influxdata/influxdb/query"
-	transpiler "github.com/influxdata/influxdb/query/influxql"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/jsonweb"
+	"github.com/influxdata/influxdb/v2/query"
+	transpiler "github.com/influxdata/influxdb/v2/query/influxql"
 	"github.com/influxdata/influxql"
 )
 
@@ -37,6 +37,7 @@ type QueryRequest struct {
 	Spec    *flux.Spec   `json:"spec,omitempty"`
 	AST     *ast.Package `json:"ast,omitempty"`
 	Dialect QueryDialect `json:"dialect"`
+	Now     time.Time    `json:"now"`
 
 	// InfluxQL fields
 	Bucket string `json:"bucket,omitempty"`
@@ -252,12 +253,17 @@ func (r QueryRequest) proxyRequest(now func() time.Time) (*query.ProxyRequest, e
 	if err := r.Validate(); err != nil {
 		return nil, err
 	}
+
+	n := r.Now
+	if n.IsZero() {
+		n = now()
+	}
+
 	// Query is preferred over AST
 	var compiler flux.Compiler
 	if r.Query != "" {
 		switch r.Type {
 		case "influxql":
-			n := now()
 			compiler = &transpiler.Compiler{
 				Now:    &n,
 				Query:  r.Query,
@@ -267,7 +273,7 @@ func (r QueryRequest) proxyRequest(now func() time.Time) (*query.ProxyRequest, e
 			fallthrough
 		default:
 			compiler = lang.FluxCompiler{
-				Now:    now(),
+				Now:    n,
 				Extern: r.Extern,
 				Query:  r.Query,
 			}
@@ -275,7 +281,7 @@ func (r QueryRequest) proxyRequest(now func() time.Time) (*query.ProxyRequest, e
 	} else if r.AST != nil {
 		c := lang.ASTCompiler{
 			AST: r.AST,
-			Now: now(),
+			Now: n,
 		}
 		if r.Extern != nil {
 			c.PrependFile(r.Extern)
@@ -345,6 +351,7 @@ func QueryRequestFromProxyRequest(req *query.ProxyRequest) (*QueryRequest, error
 	case lang.ASTCompiler:
 		qr.Type = "flux"
 		qr.AST = c.AST
+		qr.Now = c.Now
 	default:
 		return nil, fmt.Errorf("unsupported compiler %T", c)
 	}

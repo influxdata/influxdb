@@ -6,7 +6,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/influxdata/influxdb/nats"
+	"github.com/influxdata/influxdb/v2/nats"
 )
 
 // TestNats use the mocked nats publisher and subscriber

@@ -3,11 +3,10 @@ import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import {Form} from '@influxdata/clockface'
+import {Form, DapperScrollbars} from '@influxdata/clockface'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import StreamingSelector from 'src/dataLoaders/components/collectorsWizard/select/StreamingSelector'
 import OnboardingButtons from 'src/onboarding/components/OnboardingButtons'
-import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 
 // Actions
 import {
@@ -49,7 +48,7 @@ export class SelectCollectorsStep extends PureComponent<Props> {
         onSubmit={this.props.onIncrementCurrentStepIndex}
         className="data-loading--form"
       >
-        <FancyScrollbar
+        <DapperScrollbars
           autoHide={false}
           className="data-loading--scroll-content"
         >
@@ -86,7 +85,7 @@ export class SelectCollectorsStep extends PureComponent<Props> {
               Configure these Plugins
             </a>
           </h5>
-        </FancyScrollbar>
+        </DapperScrollbars>
         <OnboardingButtons
           autoFocusNext={true}
           nextButtonStatus={this.nextButtonStatus}

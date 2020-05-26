@@ -6,10 +6,10 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/tsdb"
-	"github.com/influxdata/influxdb/tsdb/cursors"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/models"
+	"github.com/influxdata/influxdb/v2/tsdb"
+	"github.com/influxdata/influxdb/v2/tsdb/cursors"
 )
 
 func TestTimeRangeIterator(t *testing.T) {
@@ -355,6 +355,14 @@ func TestExcludeEntries(t *testing.T) {
 				e:   entries(0, 10, 12, 15, 19, 21),
 				min: 12,
 				max: 30,
+			},
+			exp: entries(12, 15, 19, 21),
+		},
+		{
+			args: args{
+				e:   entries(0, 10, 12, 15, 19, 21),
+				min: 13,
+				max: 20,
 			},
 			exp: entries(12, 15, 19, 21),
 		},

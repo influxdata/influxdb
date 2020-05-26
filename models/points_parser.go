@@ -152,7 +152,7 @@ func (pp *pointsParser) parsePoints(buf []byte) (err error) {
 		}
 
 		// strip the newline if one is present
-		if block[len(block)-1] == '\n' {
+		if lb := block[len(block)-1]; lb == '\n' || lb == '\r' {
 			block = block[:len(block)-1]
 		}
 

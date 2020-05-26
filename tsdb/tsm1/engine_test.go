@@ -13,14 +13,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/logger"
-	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/toml"
-	"github.com/influxdata/influxdb/tsdb"
-	"github.com/influxdata/influxdb/tsdb/seriesfile"
-	"github.com/influxdata/influxdb/tsdb/tsi1"
-	"github.com/influxdata/influxdb/tsdb/tsm1"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/logger"
+	"github.com/influxdata/influxdb/v2/models"
+	"github.com/influxdata/influxdb/v2/toml"
+	"github.com/influxdata/influxdb/v2/tsdb"
+	"github.com/influxdata/influxdb/v2/tsdb/seriesfile"
+	"github.com/influxdata/influxdb/v2/tsdb/tsi1"
+	"github.com/influxdata/influxdb/v2/tsdb/tsm1"
 	"github.com/influxdata/influxql"
 	"go.uber.org/zap/zaptest"
 )
@@ -40,20 +40,14 @@ func TestIndex_SeriesIDSet(t *testing.T) {
 
 	// Collect series IDs.
 	seriesIDMap := map[string]tsdb.SeriesID{}
-	var e tsdb.SeriesIDElem
-	var err error
-
-	itr := engine.sfile.SeriesIDIterator()
-	for e, err = itr.Next(); ; e, err = itr.Next() {
-		if err != nil {
-			t.Fatal(err)
-		} else if e.SeriesID.IsZero() {
+	for _, seriesID := range engine.sfile.SeriesIDs() {
+		if seriesID.IsZero() {
 			break
 		}
 
-		name, tags := seriesfile.ParseSeriesKey(engine.sfile.SeriesKey(e.SeriesID))
+		name, tags := seriesfile.ParseSeriesKey(engine.sfile.SeriesKey(seriesID))
 		key := fmt.Sprintf("%s%s", name, tags.HashKey())
-		seriesIDMap[key] = e.SeriesID
+		seriesIDMap[key] = seriesID
 	}
 
 	for _, id := range seriesIDMap {

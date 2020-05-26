@@ -4,14 +4,14 @@ import (
 	"context"
 	"testing"
 
-	influxdb "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/kv"
-	influxdbtesting "github.com/influxdata/influxdb/testing"
+	influxdb "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kv"
+	influxdbtesting "github.com/influxdata/influxdb/v2/testing"
 	"go.uber.org/zap/zaptest"
 )
 
 func TestBoltOnboardingService(t *testing.T) {
-	influxdbtesting.Generate(initBoltOnboardingService, t)
+	influxdbtesting.OnboardInitialUser(initBoltOnboardingService, t)
 }
 
 func initBoltOnboardingService(f influxdbtesting.OnboardingFields, t *testing.T) (influxdb.OnboardingService, func()) {

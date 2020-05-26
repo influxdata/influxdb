@@ -1,4 +1,4 @@
-import {Actions, ActionTypes} from 'src/shared/actions/me'
+import {Actions, SET_ME} from 'src/shared/actions/me'
 
 export interface MeLinks {
   self: string
@@ -11,7 +11,7 @@ export interface MeState {
   links: MeLinks
 }
 
-const defaultState = {
+const defaultState: MeState = {
   id: '',
   name: '',
   links: {
@@ -22,8 +22,11 @@ const defaultState = {
 
 export default (state = defaultState, action: Actions): MeState => {
   switch (action.type) {
-    case ActionTypes.SetMe:
-      return action.payload.me
+    case SET_ME:
+      return {
+        ...state,
+        ...action.payload.me,
+      }
     default:
       return state
   }

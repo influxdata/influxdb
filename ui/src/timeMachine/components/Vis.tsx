@@ -21,6 +21,7 @@ import {
   getFillColumnsSelection,
   getSymbolColumnsSelection,
 } from 'src/timeMachine/selectors'
+import {getTimeRange, getTimeZone} from 'src/dashboards/selectors'
 
 // Types
 import {
@@ -130,6 +131,7 @@ const TimeMachineVis: SFC<Props> = ({
               checkThresholds={checkThresholds}
               timeZone={timeZone}
               statuses={statuses}
+              theme="dark"
             />
           )}
         </EmptyQueryView>
@@ -139,6 +141,7 @@ const TimeMachineVis: SFC<Props> = ({
 }
 
 const mstp = (state: AppState): StateProps => {
+  const activeTimeMachine = getActiveTimeMachine(state)
   const {
     isViewingRawData,
     view: {properties: viewProperties},
@@ -149,8 +152,8 @@ const mstp = (state: AppState): StateProps => {
       files,
       statuses,
     },
-    timeRange,
-  } = getActiveTimeMachine(state)
+  } = activeTimeMachine
+  const timeRange = getTimeRange(state)
   const {
     alertBuilder: {type: checkType, thresholds: checkThresholds},
   } = state
@@ -161,7 +164,7 @@ const mstp = (state: AppState): StateProps => {
   const fillColumns = getFillColumnsSelection(state)
   const symbolColumns = getSymbolColumnsSelection(state)
 
-  const timeZone = state.app.persisted.timeZone
+  const timeZone = getTimeZone(state)
 
   return {
     loading,

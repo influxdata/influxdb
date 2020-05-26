@@ -71,8 +71,9 @@ var ErrInvalidOrgFilter = &Error{
 
 // OrganizationFilter represents a set of filter that restrict the returned results.
 type OrganizationFilter struct {
-	Name *string
-	ID   *ID
+	Name   *string
+	ID     *ID
+	UserID *ID
 }
 
 func ErrInternalOrgServiceError(op string, err error) *Error {

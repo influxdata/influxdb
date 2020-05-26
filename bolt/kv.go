@@ -10,13 +10,16 @@ import (
 	"time"
 
 	bolt "github.com/coreos/bbolt"
-	"github.com/influxdata/influxdb/kit/tracing"
-	"github.com/influxdata/influxdb/kv"
+	"github.com/influxdata/influxdb/v2/kit/tracing"
+	"github.com/influxdata/influxdb/v2/kv"
 	"go.uber.org/zap"
 )
 
 // check that *KVStore implement kv.Store interface.
 var _ kv.Store = (*KVStore)(nil)
+
+// ensure *KVStore implements kv.AutoMigrationStore.
+var _ kv.AutoMigrationStore = (*KVStore)(nil)
 
 // KVStore is a kv.Store backed by boltdb.
 type KVStore struct {
@@ -32,6 +35,11 @@ func NewKVStore(log *zap.Logger, path string) *KVStore {
 		path: path,
 		log:  log,
 	}
+}
+
+// AutoMigrate returns itself as it is safe to automatically apply migrations on initialization.
+func (s *KVStore) AutoMigrate() kv.Store {
+	return s
 }
 
 // Open creates boltDB file it doesn't exists and opens it otherwise.
@@ -187,6 +195,21 @@ func (b *Bucket) Get(key []byte) ([]byte, error) {
 	}
 
 	return val, nil
+}
+
+// GetBatch retrieves the values for the provided keys.
+func (b *Bucket) GetBatch(keys ...[]byte) ([][]byte, error) {
+	values := make([][]byte, len(keys))
+	for idx, key := range keys {
+		val := b.bucket.Get(key)
+		if len(val) == 0 {
+			continue
+		}
+
+		values[idx] = val
+	}
+
+	return values, nil
 }
 
 // Put sets the value at the provided key.

@@ -8,6 +8,22 @@
 
 ## Quickstart
 
+## Docker
+
+We've provided `make` targets that provide an "interactive" development experience using Docker.
+
+
+```console
+make dshell
+```
+
+This command builds a development container image and puts you inside a container with all the tooling you require to develop and build InfluxDB.
+You can use the "Local" instructions once inside this container and work on the premise that you have everything installed.
+
+Other container runtimes should work, but we've only tested with Docker and Podman (`alias docker=podman`).
+
+## Local
+
 Assuming you have Go 1.13, Node LTS, and yarn installed, and some means of ingesting data locally (e.g. telegraf):
 
 You'll need two terminal tabs to run influxdb from source: one to run the go application server, the other to run the development server that will listen for front-end changes, rebuild the bundle, serve the new bundle, then reload your webpage for you.

@@ -65,18 +65,18 @@ describe('Buckets', () => {
       })
 
       cy.get<Bucket>('@bucket').then(() => {
-        cy.getByTestID(`cf-resource-card--meta-item`).should(
-          'contain',
-          '7 days'
-        )
+        cy.getByTestID(`bucket-retention`).should('contain', '7 days')
       })
     })
 
     describe('Searching and Sorting', () => {
       it('can sort by name and retention', () => {
         const buckets = ['defbuck', '_tasks', '_monitoring']
-        cy.getByTestID('name-sorter')
+        cy.getByTestID('resource-sorter--button')
           .click()
+          .then(() => {
+            cy.getByTestID('resource-sorter--name-desc').click()
+          })
           .then(() => {
             cy.get('[data-testid*="bucket-card"]').each((val, index) => {
               const testID = val.attr('data-testid')
@@ -84,8 +84,13 @@ describe('Buckets', () => {
             })
           })
 
-        cy.getByTestID('name-sorter')
+        cy.getByTestID('resource-sorter--button')
           .click()
+          .then(() => {
+            cy.getByTestID(
+              'resource-sorter--retentionRules[0].everySeconds-desc'
+            ).click()
+          })
           .then(() => {
             const asc_buckets = buckets.slice().sort()
             cy.get('[data-testid*="bucket-card"]').each((val, index) => {
@@ -253,35 +258,45 @@ describe('Buckets', () => {
 
   describe('add data', () => {
     it('writing data to buckets', () => {
-      // writing a well-formed line is accepted
-      cy.getByTestID('add-data--button').click()
-      cy.getByTestID('bucket-add-line-protocol').click()
-      cy.getByTestID('Enter Manually').click()
-      cy.getByTestID('line-protocol--text-area').type('m1,t1=v1 v=1.0')
-      cy.getByTestID('next').click()
-      cy.getByTestID('line-protocol--status').should('have.class', 'success')
-      cy.getByTestID('next').click()
+      cy.get('@org').then(({id: orgID}: Organization) => {
+        // writing a well-formed line is accepted
+        cy.getByTestID('add-data--button').click()
+        cy.getByTestID('bucket-add-client-library').click()
+        cy.location('pathname').should(
+          'be',
+          `/orgs/${orgID}/load-data/client-libraries`
+        )
+        cy.go('back')
+        cy.getByTestID('add-data--button').click()
 
-      // writing a poorly-formed line errors
-      cy.getByTestID('add-data--button').click()
-      cy.getByTestID('bucket-add-line-protocol').click()
-      cy.getByTestID('Enter Manually').click()
-      cy.getByTestID('line-protocol--text-area').type('invalid invalid')
-      cy.getByTestID('next').click()
-      cy.getByTestID('line-protocol--status').should('have.class', 'error')
-      cy.getByTestID('next').click()
+        cy.getByTestID('bucket-add-line-protocol').click()
+        cy.getByTestID('Enter Manually').click()
+        cy.getByTestID('line-protocol--text-area').type('m1,t1=v1 v=1.0')
+        cy.getByTestID('next').click()
+        cy.getByTestID('line-protocol--status').should('have.class', 'success')
+        cy.getByTestID('next').click()
 
-      // writing a well-formed line with millisecond precision is accepted
-      cy.getByTestID('add-data--button').click()
-      cy.getByTestID('bucket-add-line-protocol').click()
-      cy.getByTestID('Enter Manually').click()
-      cy.getByTestID('wizard-step--lp-precision--dropdown').click()
-      cy.getByTestID('wizard-step--lp-precision-ms').click()
-      const now = Date.now()
-      cy.getByTestID('line-protocol--text-area').type(`m2,t2=v2 v=2.0 ${now}`)
-      cy.getByTestID('next').click()
-      cy.getByTestID('line-protocol--status').should('have.class', 'success')
-      cy.getByTestID('next').click()
+        // writing a poorly-formed line errors
+        cy.getByTestID('add-data--button').click()
+        cy.getByTestID('bucket-add-line-protocol').click()
+        cy.getByTestID('Enter Manually').click()
+        cy.getByTestID('line-protocol--text-area').type('invalid invalid')
+        cy.getByTestID('next').click()
+        cy.getByTestID('line-protocol--status').should('have.class', 'error')
+        cy.getByTestID('next').click()
+
+        // writing a well-formed line with millisecond precision is accepted
+        cy.getByTestID('add-data--button').click()
+        cy.getByTestID('bucket-add-line-protocol').click()
+        cy.getByTestID('Enter Manually').click()
+        cy.getByTestID('wizard-step--lp-precision--dropdown').click()
+        cy.getByTestID('wizard-step--lp-precision-ms').click()
+        const now = Date.now()
+        cy.getByTestID('line-protocol--text-area').type(`m2,t2=v2 v=2.0 ${now}`)
+        cy.getByTestID('next').click()
+        cy.getByTestID('line-protocol--status').should('have.class', 'success')
+        cy.getByTestID('next').click()
+      })
     })
   })
 })

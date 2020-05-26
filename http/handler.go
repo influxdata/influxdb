@@ -7,8 +7,8 @@ import (
 	_ "net/http/pprof" // used for debug pprof at the default path.
 
 	"github.com/go-chi/chi"
-	"github.com/influxdata/influxdb/kit/prom"
-	kithttp "github.com/influxdata/influxdb/kit/transport/http"
+	"github.com/influxdata/influxdb/v2/kit/prom"
+	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
@@ -108,17 +108,30 @@ func NewHandlerFromRegistry(name string, reg *prom.Registry, opts ...HandlerOptF
 	h.initMetrics()
 
 	r := chi.NewRouter()
-	r.Use(
-		kithttp.Trace(name),
-		kithttp.Metrics(name, h.requests, h.requestDur),
-	)
-	{
-		r.Mount(MetricsPath, opt.metricsHandler)
-		r.Mount(ReadyPath, opt.readyHandler)
-		r.Mount(HealthPath, opt.healthHandler)
-		r.Mount(DebugPath, opt.debugHandler)
-		r.Mount("/", opt.apiHandler)
-	}
+	// only gather metrics for system handlers
+	r.Group(func(r chi.Router) {
+		r.Use(
+			kithttp.Metrics(name, h.requests, h.requestDur),
+		)
+		{
+			r.Mount(MetricsPath, opt.metricsHandler)
+			r.Mount(ReadyPath, opt.readyHandler)
+			r.Mount(HealthPath, opt.healthHandler)
+			r.Mount(DebugPath, opt.debugHandler)
+		}
+	})
+
+	// gather metrics and traces for everything else
+	r.Group(func(r chi.Router) {
+		r.Use(
+			kithttp.Trace(name),
+			kithttp.Metrics(name, h.requests, h.requestDur),
+		)
+		{
+			r.Mount("/", opt.apiHandler)
+		}
+	})
+
 	h.r = r
 
 	reg.MustRegister(h.PrometheusCollectors()...)

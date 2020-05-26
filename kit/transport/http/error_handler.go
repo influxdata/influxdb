@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2"
 )
 
 // ErrorHandler is the error handler in http package.
@@ -21,13 +21,9 @@ func (h ErrorHandler) HandleHTTPError(ctx context.Context, err error, w http.Res
 	}
 
 	code := influxdb.ErrorCode(err)
-	httpCode, ok := statusCodePlatformError[code]
-	if !ok {
-		httpCode = http.StatusBadRequest
-	}
 	w.Header().Set(PlatformErrorCodeHeader, code)
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.WriteHeader(httpCode)
+	w.WriteHeader(ErrorCodeToStatusCode(ctx, code))
 	var e struct {
 		Code    string `json:"code"`
 		Message string `json:"message"`
@@ -40,4 +36,59 @@ func (h ErrorHandler) HandleHTTPError(ctx context.Context, err error, w http.Res
 	}
 	b, _ := json.Marshal(e)
 	_, _ = w.Write(b)
+}
+
+// StatusCodeToErrorCode maps a http status code integer to an
+// influxdb error code string.
+func StatusCodeToErrorCode(statusCode int) string {
+	errorCode, ok := httpStatusCodeToInfluxDBError[statusCode]
+	if ok {
+		return errorCode
+	}
+
+	return influxdb.EInternal
+}
+
+// ErrorCodeToStatusCode maps an influxdb error code string to a
+// http status code integer.
+func ErrorCodeToStatusCode(ctx context.Context, code string) int {
+	// If the client disconnects early or times out then return a different
+	// error than the passed in error code. Client timeouts return a 408
+	// while disconnections return a non-standard Nginx HTTP 499 code.
+	if err := ctx.Err(); err == context.DeadlineExceeded {
+		return http.StatusRequestTimeout
+	} else if err == context.Canceled {
+		return 499 // https://httpstatuses.com/499
+	}
+
+	// Otherwise map internal error codes to HTTP status codes.
+	statusCode, ok := influxDBErrorToStatusCode[code]
+	if ok {
+		return statusCode
+	}
+	return http.StatusInternalServerError
+}
+
+// influxDBErrorToStatusCode is a mapping of ErrorCode to http status code.
+var influxDBErrorToStatusCode = map[string]int{
+	influxdb.EInternal:            http.StatusInternalServerError,
+	influxdb.EInvalid:             http.StatusBadRequest,
+	influxdb.EUnprocessableEntity: http.StatusUnprocessableEntity,
+	influxdb.EEmptyValue:          http.StatusBadRequest,
+	influxdb.EConflict:            http.StatusUnprocessableEntity,
+	influxdb.ENotFound:            http.StatusNotFound,
+	influxdb.EUnavailable:         http.StatusServiceUnavailable,
+	influxdb.EForbidden:           http.StatusForbidden,
+	influxdb.ETooManyRequests:     http.StatusTooManyRequests,
+	influxdb.EUnauthorized:        http.StatusUnauthorized,
+	influxdb.EMethodNotAllowed:    http.StatusMethodNotAllowed,
+	influxdb.ETooLarge:            http.StatusRequestEntityTooLarge,
+}
+
+var httpStatusCodeToInfluxDBError = map[int]string{}
+
+func init() {
+	for k, v := range influxDBErrorToStatusCode {
+		httpStatusCodeToInfluxDBError[v] = k
+	}
 }

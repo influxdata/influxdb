@@ -14,35 +14,25 @@ interface MinMaxInputsProps {
   initialMin: string
   initialMax: string
   onSetMinMax: (minMax: [number, number]) => void
-  onSetErrorMessage: (errorMessage: string) => void
 }
 
 const MinMaxInputs: SFC<MinMaxInputsProps> = ({
   initialMin,
   initialMax,
   onSetMinMax,
-  onSetErrorMessage,
 }) => {
   const [minInput, setMinInput] = useOneWayState(initialMin)
   const [maxInput, setMaxInput] = useOneWayState(initialMax)
 
   const emitIfValid = () => {
-    const newMin = parseFloat(minInput)
-    const newMax = parseFloat(maxInput)
-
+    let newMin = parseFloat(minInput)
+    let newMax = parseFloat(maxInput)
     if (isNaN(newMin)) {
-      onSetErrorMessage('Must supply a valid minimum value')
-      return
+      newMin = null
     }
 
     if (isNaN(newMax)) {
-      onSetErrorMessage('Must supply a valid maximum value')
-      return
-    }
-
-    if (newMin >= newMax) {
-      onSetErrorMessage('Minium value must be less than maximum')
-      return
+      newMax = null
     }
 
     if (initialMin === minInput && initialMax === maxInput) {
@@ -50,7 +40,6 @@ const MinMaxInputs: SFC<MinMaxInputsProps> = ({
       return
     }
 
-    onSetErrorMessage('')
     onSetMinMax([newMin, newMax])
   }
 
@@ -69,6 +58,7 @@ const MinMaxInputs: SFC<MinMaxInputsProps> = ({
             onChange={e => setMinInput(e.target.value)}
             onBlur={emitIfValid}
             onKeyPress={handleKeyPress}
+            testID="auto-domain--min"
           />
         </Form.Element>
       </Grid.Column>
@@ -79,11 +69,16 @@ const MinMaxInputs: SFC<MinMaxInputsProps> = ({
             onChange={e => setMaxInput(e.target.value)}
             onBlur={emitIfValid}
             onKeyPress={handleKeyPress}
+            testID="auto-domain--max"
           />
         </Form.Element>
       </Grid.Column>
     </>
   )
+}
+
+const formatDomainValue = (value: number | null): string => {
+  return value === null ? '' : String(value)
 }
 
 interface AutoDomainInputProps {
@@ -98,28 +93,21 @@ const AutoDomainInput: SFC<AutoDomainInputProps> = ({
   label = 'Set Domain',
 }) => {
   const [showInputs, setShowInputs] = useState(!!domain)
-  const [errorMessage, setErrorMessage] = useState('')
 
   const handleChooseAuto = () => {
     setShowInputs(false)
-    setErrorMessage('')
     onSetDomain(null)
   }
 
   const handleChooseCustom = () => {
     setShowInputs(true)
-    setErrorMessage('')
   }
 
-  const initialMin = domain ? String(domain[0]) : ''
-  const initialMax = domain ? String(domain[1]) : ''
+  const initialMin = Array.isArray(domain) ? formatDomainValue(domain[0]) : ''
+  const initialMax = Array.isArray(domain) ? formatDomainValue(domain[1]) : ''
 
   return (
-    <Form.Element
-      label={label}
-      errorMessage={errorMessage}
-      className="auto-domain-input"
-    >
+    <Form.Element label={label} className="auto-domain-input">
       <Grid>
         <Grid.Row>
           <Grid.Column widthXS={Columns.Twelve}>
@@ -153,7 +141,6 @@ const AutoDomainInput: SFC<AutoDomainInputProps> = ({
               initialMin={initialMin}
               initialMax={initialMax}
               onSetMinMax={onSetDomain}
-              onSetErrorMessage={setErrorMessage}
             />
           </Grid.Row>
         )}

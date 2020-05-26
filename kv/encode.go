@@ -4,7 +4,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2"
 )
 
 // EncodeFn returns an encoding when called. Closures are your friend here.
@@ -45,5 +45,12 @@ func EncID(id influxdb.ID) EncodeFn {
 			return nil, errors.New("no ID was provided")
 		}
 		return id.Encode()
+	}
+}
+
+// EncBytes is a basic pass through for providing raw bytes.
+func EncBytes(b []byte) EncodeFn {
+	return func() ([]byte, error) {
+		return b, nil
 	}
 }

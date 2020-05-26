@@ -1,13 +1,15 @@
 package http
 
 import (
+	"context"
 	"net/http"
 	"path"
 	"strings"
 	"time"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/kit/tracing"
+	"github.com/go-chi/chi"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/tracing"
 	ua "github.com/mileusna/useragent"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -18,13 +20,18 @@ type Middleware func(http.Handler) http.Handler
 func SetCORS(next http.Handler) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
 		if origin := r.Header.Get("Origin"); origin != "" {
+			// Access-Control-Allow-Origin must be present in every response
 			w.Header().Set("Access-Control-Allow-Origin", origin)
+		}
+		if r.Method == http.MethodOptions {
+			// allow and stop processing in pre-flight requests
 			w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
-			w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, Authorization")
+			w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, Authorization, User-Agent")
+			w.WriteHeader(http.StatusNoContent)
+			return
 		}
 		next.ServeHTTP(w, r)
 	}
-
 	return http.HandlerFunc(fn)
 }
 
@@ -124,4 +131,44 @@ func shiftPath(p string) (head, tail string) {
 		return p[1:], "/"
 	}
 	return p[1:i], p[i:]
+}
+
+type OrgContext string
+
+const CtxOrgKey OrgContext = "orgID"
+
+// ValidResource make sure a resource exists when a sub system needs to be mounted to an api
+func ValidResource(api *API, lookupOrgByResourceID func(context.Context, influxdb.ID) (influxdb.ID, error)) Middleware {
+	return func(next http.Handler) http.Handler {
+		fn := func(w http.ResponseWriter, r *http.Request) {
+			statusW := NewStatusResponseWriter(w)
+			id, err := influxdb.IDFromString(chi.URLParam(r, "id"))
+			if err != nil {
+				api.Err(w, r, influxdb.ErrCorruptID(err))
+				return
+			}
+
+			ctx := r.Context()
+
+			orgID, err := lookupOrgByResourceID(ctx, *id)
+			if err != nil {
+				api.Err(w, r, err)
+				return
+			}
+
+			// embed OrgID into context
+			next.ServeHTTP(statusW, r.WithContext(context.WithValue(ctx, CtxOrgKey, orgID)))
+		}
+		return http.HandlerFunc(fn)
+	}
+}
+
+// OrgIDFromContext ....
+func OrgIDFromContext(ctx context.Context) *influxdb.ID {
+	v := ctx.Value(CtxOrgKey)
+	if v == nil {
+		return nil
+	}
+	id := v.(influxdb.ID)
+	return &id
 }

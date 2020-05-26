@@ -7,7 +7,7 @@ export const getBrowserBasepath = () => {
 }
 
 export const getBasepath = () => {
-  if (BASE_PATH === '/') {
+  if (!BASE_PATH || BASE_PATH === '/') {
     return ''
   }
 
@@ -15,7 +15,7 @@ export const getBasepath = () => {
 }
 
 export const getAPIBasepath = () => {
-  if (API_BASE_PATH === '/') {
+  if (!API_BASE_PATH || API_BASE_PATH === '/') {
     return ''
   }
 

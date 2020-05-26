@@ -3,8 +3,6 @@
   ------------------------------------------------------------------------------
 */
 
-$inline-labels--popover-caret: 12px;
-
 .inline-labels--editor {
   min-height: 18px;
   position: relative;
@@ -17,28 +15,7 @@ $inline-labels--popover-caret: 12px;
 }
 
 .inline-labels--popover {
-  position: absolute;
-  top: calc(100% + #{$inline-labels--popover-caret - $ix-marg-a});
-  left: $inline-labels--popover-caret * -2;
-  width: 320px;
-  background-color: $g5-pepper;
-  padding: $ix-marg-c;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  border-radius: $radius;
-  @extend %drop-shadow;
-  z-index: 1000;
-
-  &:after {
-    content: '';
-    border: $inline-labels--popover-caret solid transparent;
-    border-bottom-color: $g5-pepper;
-    position: absolute;
-    top: 0;
-    left: ($inline-labels--popover-caret * 3) - $ix-border;
-    transform: translate(-50%, -100%);
-  }
+  width: 330px;
 }
 
 .inline-labels--popover-heading {
@@ -46,13 +23,13 @@ $inline-labels--popover-caret: 12px;
   user-select: none;
   text-align: center;
   color: $g13-mist;
-  margin-bottom: $ix-marg-c;
+  margin-bottom: $cf-marg-c;
 }
 
 .inline-labels--list-container {
   background-color: $g3-castle;
   border-radius: $radius;
-  margin-top: $ix-marg-a;
+  margin-top: $cf-marg-a;
   overflow: hidden;
 }
 
@@ -63,11 +40,16 @@ $inline-labels--popover-caret: 12px;
   align-items: stretch;
 }
 
-.inline-labels--list-item {
+.inline-labels--list-item,
+.inline-labels--create-new {
+  padding: $cf-marg-a $cf-marg-b;
+  min-height: $cf-form-sm-height;
+  font-size: $cf-form-sm-font;
   display: flex;
-  align-items: flex-start;
-  padding: $ix-marg-a $ix-marg-b;
+  align-items: center;
+}
 
+.inline-labels--list-item {
   &.active {
     background-color: $c-pool;
   }
@@ -79,16 +61,17 @@ $inline-labels--popover-caret: 12px;
 }
 
 .inline-labels--create-new {
-  min-height: 26px;
-  font-size: 13px;
-  font-weight: 500;
+  line-height: $cf-form-sm-font;
+  font-weight: $cf-font-weight--medium;
   color: $g11-sidewalk;
   transition: background-color 0.25s ease, color 0.25s ease;
+  white-space: pre-wrap;
   word-break: break-all;
   word-wrap: break-word;
 
   strong {
-    font-weight: 900;
+    display: inline;
+    font-weight: $cf-font-weight--bold;
     color: $g15-platinum;
   }
 
@@ -98,116 +81,5 @@ $inline-labels--popover-caret: 12px;
     strong {
       color: $g20-white;
     }
-  }
-}
-
-.inline-labels--empty {
-  width: 100%;
-  font-size: 13px;
-  font-weight: 500;
-  user-select: none;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  color: $g9-mountain;
-  font-style: italic;
-  min-height: 30px;
-  line-height: 30px;
-
-  &:first-child {
-    margin-bottom: $ix-marg-b - ($ix-border / 2);
-  }
-}
-
-.inline-labels--selection {
-  display: flex;
-  flex-wrap: nowrap;
-  margin-bottom: $ix-marg-c;
-}
-
-.inline-labels--remove-all {
-  margin-top: $ix-marg-b;
-  margin-left: $ix-marg-b;
-}
-
-.inline-labels--selected,
-.inline-labels--none-selected {
-  flex: 1 0 0;
-  margin-top: $ix-marg-b;
-}
-
-.inline-labels--none-selected {
-  font-size: 13px;
-  color: $g10-wolf;
-  font-weight: 500;
-  font-style: italic;
-  user-select: none;
-}
-
-/*
-Round button for opening popover
-------------------------------------------------------------------------------
-*/
-
-$label-margin: 1px;
-$label-edit-button-diameter: 18px; // Should be the same as the height of labels
-
-.inline-labels--add {
-  width: $label-edit-button-diameter;
-  height: $label-edit-button-diameter;
-  margin: $label-margin;
-  position: relative;
-  transition: opacity 0.25s ease;
-
-  &:before,
-  &:after {
-    content: '';
-    pointer-events: none;
-    background-color: $g20-white;
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    z-index: 3;
-    transition: width 0.25s ease;
-    height: $ix-border;
-    width: $label-edit-button-diameter - $ix-marg-b;
-    border-radius: $ix-border / 2;
-  }
-
-  &:after {
-    transform: translate(-50%, -50%) rotate(90deg);
-  }
-
-  > .button.button-sm {
-    position: absolute;
-    z-index: 2;
-    top: 50%;
-    left: 50%;
-    width: $label-edit-button-diameter;
-    height: $label-edit-button-diameter;
-    transform: translate(-50%, -50%);
-    border-radius: 50%;
-    color: transparent;
-    transition: background-color 0.25s ease, border-color 0.25s ease,
-      box-shadow 0.25s ease, height 0.25s ease, width 0.25s ease;
-
-    > .button-icon {
-      font-size: $form-sm-font;
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-    }
-  }
-
-  &:hover > .button.button-sm {
-    width: $form-sm-height - $ix-marg-a;
-    height: $form-sm-height - $ix-marg-a;
-  }
-
-  &:hover:before,
-  &:hover:after {
-    width: $form-sm-height - $ix-marg-c;
   }
 }

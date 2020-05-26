@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/v2/query"
 )
 
 // Value represents a TSM-encoded value.
@@ -47,7 +47,9 @@ func NewValue(t int64, value interface{}) Value {
 func NewRawIntegerValue(t int64, v int64) IntegerValue { return IntegerValue{unixnano: t, value: v} }
 
 // NewRawUnsignedValue returns a new unsigned integer value.
-func NewRawUnsignedValue(t int64, v uint64) UnsignedValue { return UnsignedValue{unixnano: t, value: v} }
+func NewRawUnsignedValue(t int64, v uint64) UnsignedValue {
+	return UnsignedValue{unixnano: t, value: v}
+}
 
 // NewRawFloatValue returns a new float value.
 func NewRawFloatValue(t int64, v float64) FloatValue { return FloatValue{unixnano: t, value: v} }
@@ -76,8 +78,8 @@ func NewStringValue(t int64, v string) Value { return NewRawStringValue(t, v) }
 // EmptyValue is used when there is no appropriate other value.
 type EmptyValue struct{}
 
-// UnixNano returns tsdb.EOF.
-func (e EmptyValue) UnixNano() int64 { return tsdb.EOF }
+// UnixNano returns query.ZeroTime.
+func (e EmptyValue) UnixNano() int64 { return query.ZeroTime }
 
 // Value returns nil.
 func (e EmptyValue) Value() interface{} { return nil }

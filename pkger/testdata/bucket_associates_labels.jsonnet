@@ -15,7 +15,7 @@ local LabelAssociations(names=[]) = [
     for name in names
 ];
 
-local Bucket(name, desc, secs, associations=LabelAssociations(['label_1'])) = {
+local Bucket(name, desc, secs, associations=LabelAssociations(['label-1'])) = {
     apiVersion: 'influxdata.com/v2alpha1',
     kind: 'Bucket',
     metadata: {
@@ -31,8 +31,8 @@ local Bucket(name, desc, secs, associations=LabelAssociations(['label_1'])) = {
 };
 
 [
-    Label("label_1",desc="desc_1", color='#eee888'),
-    Bucket(name="rucket_1", desc="desc_1", secs=10000),
-    Bucket("rucket_2", "desc_2", 20000),
-    Bucket("rucket_3", "desc_3", 30000),
+    Label("label-1",desc="desc_1", color='#eee888'),
+    Bucket(name="rucket-1", desc="desc_1", secs=10000),
+    Bucket("rucket-2", "desc-2", 20000),
+    Bucket("rucket-3", "desc_3", 30000),
 ]

@@ -36,7 +36,7 @@ export const DASHBOARD_LAYOUT_ROW_HEIGHT = 83.5
 export const NOTIFICATION_TRANSITION = 250
 export const FIVE_SECONDS = 5000
 export const TEN_SECONDS = 10000
-export const INFINITE = -1
+export const FIFTEEN_SECONDS = 15000
 
 export const HOMEPAGE_PATHNAME = 'me'
 
@@ -62,10 +62,10 @@ export const CLOUD_CHECKOUT_PATH = '/checkout'
 export const CLOUD_BILLING_PATH = '/billing'
 export const CLOUD_USAGE_PATH = '/usage'
 export const CLOUD_LOGOUT_PATH = '/logout'
-export const CLOUD_USERS_PATH = '/users/index'
+export const CLOUD_USERS_PATH = '/users'
 
 export const FLUX_RESPONSE_BYTES_LIMIT = CLOUD
-  ? 10 * 1024 * 1024 // 10 MiB
+  ? 27 * 1024 * 1024 // 27 MiB  (desa: this was determined by looking at queries responses in the cloud app)
   : 100 * 1024 * 1024 // 100 MiB
 
 export const VIS_SIG_DIGITS = 4
@@ -81,6 +81,20 @@ export const VIS_THEME: Partial<Config> = {
   legendFontBrightColor: InfluxColors.Chromium,
   legendBackgroundColor: InfluxColors.Raven,
   legendBorder: `1px solid ${InfluxColors.Kevlar}`,
+  legendCrosshairColor: InfluxColors.Smoke,
+}
+
+export const VIS_THEME_LIGHT: Partial<Config> = {
+  axisColor: InfluxColors.Whisper,
+  gridColor: InfluxColors.Whisper,
+  gridOpacity: 1,
+  tickFont: '500 11px Rubik',
+  tickFontColor: InfluxColors.Mountain,
+  legendFont: '12px Rubik',
+  legendFontColor: InfluxColors.Graphite,
+  legendFontBrightColor: InfluxColors.Forge,
+  legendBackgroundColor: InfluxColors.Ghost,
+  legendBorder: `1px solid ${InfluxColors.Whisper}`,
   legendCrosshairColor: InfluxColors.Smoke,
 }
 

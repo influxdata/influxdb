@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/kv"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kv"
 )
 
 var (
@@ -25,7 +25,7 @@ func bucketIndexKey(o influxdb.ID, name string) ([]byte, error) {
 	}
 	k := make([]byte, influxdb.IDLength+len(name))
 	copy(k, orgID)
-	copy(k[influxdb.IDLength:], []byte(name))
+	copy(k[influxdb.IDLength:], name)
 	return k, nil
 }
 
@@ -52,7 +52,7 @@ func (s *Store) uniqueBucketName(ctx context.Context, tx kv.Tx, oid influxdb.ID,
 
 	// no error means this is not unique
 	if err == nil {
-		return kv.NotUniqueError
+		return BucketAlreadyExistsError(uname)
 	}
 
 	// any other error is some sort of internal server error
@@ -138,7 +138,7 @@ func (s *Store) GetBucketByName(ctx context.Context, tx kv.Tx, orgID influxdb.ID
 				OrgID:           orgID,
 			}, nil
 		default:
-			return nil, ErrBucketNotFound
+			return nil, ErrBucketNotFoundByName(n)
 		}
 	}
 
@@ -187,7 +187,11 @@ func (s *Store) ListBuckets(ctx context.Context, tx kv.Tx, filter BucketFilter, 
 		return nil, err
 	}
 
-	cursor, err := b.ForwardCursor(nil)
+	var opts []kv.CursorOption
+	if o.Descending {
+		opts = append(opts, kv.WithCursorDirection(kv.CursorDescending))
+	}
+	cursor, err := b.ForwardCursor(nil, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -273,6 +277,14 @@ func (s *Store) listBucketsByOrg(ctx context.Context, tx kv.Tx, orgID influxdb.I
 }
 
 func (s *Store) CreateBucket(ctx context.Context, tx kv.Tx, bucket *influxdb.Bucket) error {
+	if !bucket.ID.Valid() {
+		id, err := s.generateSafeID(ctx, tx, bucketBucket)
+		if err != nil {
+			return err
+		}
+		bucket.ID = id
+	}
+
 	encodedID, err := bucket.ID.Encode()
 	if err != nil {
 		return InvalidOrgIDError(err)
@@ -327,9 +339,13 @@ func (s *Store) UpdateBucket(ctx context.Context, tx kv.Tx, id influxdb.ID, upd 
 	}
 
 	bucket.SetUpdatedAt(time.Now())
-	if upd.Name != nil {
+	if upd.Name != nil && bucket.Name != *upd.Name {
+		if bucket.Type == influxdb.BucketTypeSystem {
+			return nil, errRenameSystemBucket
+		}
+
 		if err := s.uniqueBucketName(ctx, tx, bucket.OrgID, *upd.Name); err != nil {
-			return nil, err
+			return nil, ErrBucketNameNotUnique
 		}
 
 		idx, err := tx.Bucket(bucketIndex)

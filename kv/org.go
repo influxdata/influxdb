@@ -7,13 +7,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/influxdata/influxdb/resource"
-
+	"github.com/influxdata/influxdb/v2/resource"
 	"go.uber.org/zap"
 
-	"github.com/influxdata/influxdb"
-	icontext "github.com/influxdata/influxdb/context"
-	"github.com/influxdata/influxdb/kit/tracing"
+	"github.com/influxdata/influxdb/v2"
+	icontext "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/kit/tracing"
 )
 
 const (
@@ -237,6 +236,29 @@ func (s *Service) FindOrganizations(ctx context.Context, filter influxdb.Organiz
 	}
 
 	os := []*influxdb.Organization{}
+
+	if filter.UserID != nil {
+		// find urms for orgs with this user
+		urms, _, err := s.FindUserResourceMappings(ctx, influxdb.UserResourceMappingFilter{
+			UserID:       *filter.UserID,
+			ResourceType: influxdb.OrgsResourceType,
+		}, opt...)
+
+		if err != nil {
+			return nil, 0, err
+		}
+		// find orgs by the urm's resource ids.
+		for _, urm := range urms {
+			o, err := s.FindOrganizationByID(ctx, urm.ResourceID)
+			if err == nil {
+				// if there is an error then this is a crufty urm and we should just move on
+				os = append(os, o)
+			}
+		}
+
+		return os, len(os), nil
+	}
+
 	filterFn := filterOrganizationsFn(filter)
 	err := s.kv.View(ctx, func(tx Tx) error {
 		return forEachOrganization(ctx, tx, func(o *influxdb.Organization) bool {
@@ -277,6 +299,11 @@ func (s *Service) CreateOrganization(ctx context.Context, o *influxdb.Organizati
 // authorizer found on context. If no authorizer is found on context if returns an error.
 func (s *Service) addOrgOwner(ctx context.Context, tx Tx, orgID influxdb.ID) error {
 	return s.addResourceOwner(ctx, tx, influxdb.OrgsResourceType, orgID)
+}
+
+// CreateOrganizationTx is used when importing kv as a library
+func (s *Service) CreateOrganizationTx(ctx context.Context, tx Tx, o *influxdb.Organization) (err error) {
+	return s.createOrganization(ctx, tx, o)
 }
 
 func (s *Service) createOrganization(ctx context.Context, tx Tx, o *influxdb.Organization) (err error) {

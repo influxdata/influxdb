@@ -4,7 +4,7 @@ import (
 	"errors"
 
 	"github.com/dgrijalva/jwt-go"
-	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2"
 )
 
 const kind = "jwt"
@@ -89,22 +89,13 @@ type Token struct {
 	KeyID string `json:"kid"`
 	// Permissions is the set of authorized permissions for the token
 	Permissions []influxdb.Permission `json:"permissions"`
+	// UserID for the token
+	UserID string `json:"uid,omitempty"`
 }
 
-// Allowed returns whether or not a permission is allowed based
-// on the set of permissions within the Token
-func (t *Token) Allowed(p influxdb.Permission) bool {
-	if err := p.Valid(); err != nil {
-		return false
-	}
-
-	for _, perm := range t.Permissions {
-		if perm.Matches(p) {
-			return true
-		}
-	}
-
-	return false
+// PermissionSet returns the set of permissions associated with the token.
+func (t *Token) PermissionSet() (influxdb.PermissionSet, error) {
+	return t.Permissions, nil
 }
 
 // Identifier returns the identifier for this Token
@@ -121,7 +112,11 @@ func (t *Token) Identifier() influxdb.ID {
 // GetUserID returns an invalid id as tokens are generated
 // with permissions rather than for or by a particular user
 func (t *Token) GetUserID() influxdb.ID {
-	return influxdb.InvalidID()
+	id, err := influxdb.IDFromString(t.UserID)
+	if err != nil {
+		return influxdb.InvalidID()
+	}
+	return *id
 }
 
 // Kind returns the string "jwt" which is used for auditing

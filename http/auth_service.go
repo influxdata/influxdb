@@ -9,9 +9,10 @@ import (
 	"time"
 
 	"github.com/influxdata/httprouter"
-	platform "github.com/influxdata/influxdb"
-	platcontext "github.com/influxdata/influxdb/context"
-	"github.com/influxdata/influxdb/pkg/httpc"
+	"github.com/influxdata/influxdb/v2"
+	platform "github.com/influxdata/influxdb/v2"
+	platcontext "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/pkg/httpc"
 	"go.uber.org/zap"
 )
 
@@ -657,7 +658,7 @@ func (s *AuthorizationService) FindAuthorizationByToken(ctx context.Context, tok
 // FindAuthorizations returns a list of authorizations that match filter and the total count of matching authorizations.
 // Additional options provide pagination & sorting.
 func (s *AuthorizationService) FindAuthorizations(ctx context.Context, filter platform.AuthorizationFilter, opt ...platform.FindOptions) ([]*platform.Authorization, int, error) {
-	params := findOptionParams(opt...)
+	params := influxdb.FindOptionParams(opt...)
 	if filter.ID != nil {
 		params = append(params, [2]string{"id", filter.ID.String()})
 	}

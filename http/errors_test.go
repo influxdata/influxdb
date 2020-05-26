@@ -9,10 +9,9 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/http"
-	kithttp "github.com/influxdata/influxdb/kit/transport/http"
-	"github.com/pkg/errors"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/http"
+	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 )
 
 func TestCheckError(t *testing.T) {
@@ -43,7 +42,10 @@ func TestCheckError(t *testing.T) {
 				w.WriteHeader(500)
 				_, _ = io.WriteString(w, "upstream timeout\n")
 			},
-			want: stderrors.New("upstream timeout"),
+			want: &influxdb.Error{
+				Code: influxdb.EInternal,
+				Err:  stderrors.New("upstream timeout"),
+			},
 		},
 		{
 			name: "error with bad json",
@@ -52,7 +54,44 @@ func TestCheckError(t *testing.T) {
 				w.WriteHeader(500)
 				_, _ = io.WriteString(w, "upstream timeout\n")
 			},
-			want: errors.Wrap(stderrors.New("upstream timeout"), "invalid character 'u' looking for beginning of value"),
+			want: &influxdb.Error{
+				Code: influxdb.EInternal,
+				Msg:  `attempted to unmarshal error as JSON but failed: "invalid character 'u' looking for beginning of value"`,
+				Err:  stderrors.New("upstream timeout"),
+			},
+		},
+		{
+			name: "error with no content-type (encoded as json - with code)",
+			write: func(w *httptest.ResponseRecorder) {
+				w.WriteHeader(500)
+				_, _ = io.WriteString(w, `{"error": "service unavailable", "code": "unavailable"}`)
+			},
+			want: &influxdb.Error{
+				Code: influxdb.EUnavailable,
+				Err:  stderrors.New("service unavailable"),
+			},
+		},
+		{
+			name: "error with no content-type (encoded as json - no code)",
+			write: func(w *httptest.ResponseRecorder) {
+				w.WriteHeader(503)
+				_, _ = io.WriteString(w, `{"error": "service unavailable"}`)
+			},
+			want: &influxdb.Error{
+				Code: influxdb.EUnavailable,
+				Err:  stderrors.New("service unavailable"),
+			},
+		},
+		{
+			name: "error with no content-type (not json encoded)",
+			write: func(w *httptest.ResponseRecorder) {
+				w.WriteHeader(503)
+			},
+			want: &influxdb.Error{
+				Code: influxdb.EUnavailable,
+				Msg:  `attempted to unmarshal error as JSON but failed: "unexpected end of JSON input"`,
+				Err:  stderrors.New(""),
+			},
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

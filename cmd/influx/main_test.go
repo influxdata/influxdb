@@ -5,7 +5,7 @@ import (
 	"io/ioutil"
 	"testing"
 
-	"github.com/influxdata/influxdb/cmd/influx/config"
+	"github.com/influxdata/influxdb/v2/cmd/influx/config"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -57,6 +57,22 @@ func Test_influx_cmd(t *testing.T) {
 					Host:  "HOST",
 				},
 				skipVerify: true,
+				local:      true,
+			},
+		},
+		{
+			name: "env vars and flags set",
+			args: []string{"--local=true", "--token=flag-token", "--host=flag-host"},
+			envVars: map[string]string{
+				"INFLUX_TOKEN": "TOKEN",
+				"INFLUX_HOST":  "HOST",
+			},
+			expected: globalFlags{
+				Config: config.Config{
+					Token: "flag-token",
+					Host:  "flag-host",
+				},
+				skipVerify: false,
 				local:      true,
 			},
 		},

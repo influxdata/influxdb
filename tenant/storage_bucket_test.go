@@ -8,10 +8,10 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/inmem"
-	"github.com/influxdata/influxdb/kv"
-	"github.com/influxdata/influxdb/tenant"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/inmem"
+	"github.com/influxdata/influxdb/v2/kv"
+	"github.com/influxdata/influxdb/v2/tenant"
 )
 
 // type Bucket struct {
@@ -124,7 +124,7 @@ func TestBucket(t *testing.T) {
 					t.Fatal("failed to get correct error when looking for invalid bucket by id")
 				}
 
-				if _, err := store.GetBucketByName(context.Background(), tx, 3, "notabucket"); err != tenant.ErrBucketNotFound {
+				if _, err := store.GetBucketByName(context.Background(), tx, 3, "notabucket"); err.Error() != tenant.ErrBucketNotFoundByName("notabucket").Error() {
 					t.Fatal("failed to get correct error when looking for invalid bucket by name")
 				}
 
@@ -214,7 +214,7 @@ func TestBucket(t *testing.T) {
 			update: func(t *testing.T, store *tenant.Store, tx kv.Tx) {
 				bucket5 := "bucket5"
 				_, err := store.UpdateBucket(context.Background(), tx, influxdb.ID(3), influxdb.BucketUpdate{Name: &bucket5})
-				if err != kv.NotUniqueError {
+				if err != tenant.ErrBucketNameNotUnique {
 					t.Fatal("failed to error on duplicate bucketname")
 				}
 

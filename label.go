@@ -25,6 +25,13 @@ var (
 		Code: EInvalid,
 		Msg:  "label name is empty",
 	}
+
+	// ErrLabelExistsOnResource is used when attempting to add a label to a resource
+	// when that label already exists on the resource
+	ErrLabelExistsOnResource = &Error{
+		Code: EConflict,
+		Msg:  "Cannot add label, label already exists on resource",
+	}
 )
 
 // LabelService represents a service for managing resource labels

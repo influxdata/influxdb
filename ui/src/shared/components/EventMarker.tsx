@@ -43,7 +43,7 @@ const EventMarker: FC<Props> = ({xScale, xDomain, events, xFormatter}) => {
   let triggerRect: DOMRect = null
 
   if (trigger.current) {
-    triggerRect = trigger.current.getBoundingClientRect() as DOMRect
+    triggerRect = trigger.current.getBoundingClientRect()
   }
 
   const {time} = events[0]
@@ -71,7 +71,10 @@ const EventMarker: FC<Props> = ({xScale, xDomain, events, xFormatter}) => {
           />
         </div>
         {tooltipVisible && trigger.current && (
-          <BoxTooltip triggerRect={triggerRect} maxWidth={500}>
+          <BoxTooltip
+            triggerRect={triggerRect}
+            maxWidth={formattedEvents[0].message.length * 50}
+          >
             <EventMarkerTooltip events={formattedEvents} />
           </BoxTooltip>
         )}

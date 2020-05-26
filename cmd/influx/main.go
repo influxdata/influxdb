@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -10,21 +11,21 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/bolt"
-	"github.com/influxdata/influxdb/cmd/influx/config"
-	"github.com/influxdata/influxdb/cmd/influx/internal"
-	"github.com/influxdata/influxdb/http"
-	"github.com/influxdata/influxdb/internal/fs"
-	"github.com/influxdata/influxdb/kit/cli"
-	"github.com/influxdata/influxdb/kv"
-	"github.com/influxdata/influxdb/pkg/httpc"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/bolt"
+	"github.com/influxdata/influxdb/v2/cmd/influx/config"
+	"github.com/influxdata/influxdb/v2/cmd/influx/internal"
+	"github.com/influxdata/influxdb/v2/http"
+	"github.com/influxdata/influxdb/v2/internal/fs"
+	"github.com/influxdata/influxdb/v2/kit/cli"
+	"github.com/influxdata/influxdb/v2/kv"
+	"github.com/influxdata/influxdb/v2/pkg/httpc"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 )
 
-const maxTCPConnections = 128
+const maxTCPConnections = 10
 
 func main() {
 	influxCmd := influxCmd()
@@ -68,19 +69,28 @@ type genericCLIOpts struct {
 	runEWrapFn cobraRunEMiddleware
 }
 
-func (o genericCLIOpts) newCmd(use string, runE func(*cobra.Command, []string) error) *cobra.Command {
+func (o genericCLIOpts) newCmd(use string, runE func(*cobra.Command, []string) error, useRunEMiddleware bool) *cobra.Command {
 	cmd := &cobra.Command{
 		Args: cobra.NoArgs,
 		Use:  use,
 		RunE: runE,
 	}
-	if runE != nil && o.runEWrapFn != nil {
+
+	canWrapRunE := runE != nil && o.runEWrapFn != nil
+	if useRunEMiddleware && canWrapRunE {
 		cmd.RunE = o.runEWrapFn(runE)
+	} else if canWrapRunE {
+		cmd.RunE = runE
 	}
+
 	cmd.SetOut(o.w)
 	cmd.SetIn(o.in)
 	cmd.SetErr(o.errW)
 	return cmd
+}
+
+func (o genericCLIOpts) writeJSON(v interface{}) error {
+	return writeJSON(o.w, v)
 }
 
 func (o genericCLIOpts) newTabWriter() *internal.TabWriter {
@@ -148,7 +158,7 @@ func (b *cmdInfluxBuilder) cmd(childCmdFns ...func(f *globalFlags, opt genericCL
 		setViperOptions()
 	})
 
-	cmd := b.newCmd("influx", nil)
+	cmd := b.newCmd("influx", nil, false)
 	cmd.Short = "Influx Client"
 	cmd.SilenceUsage = true
 
@@ -167,22 +177,31 @@ func (b *cmdInfluxBuilder) cmd(childCmdFns ...func(f *globalFlags, opt genericCL
 		{
 			DestP:      &flags.Host,
 			Flag:       "host",
-			Default:    "http://localhost:9999",
 			Desc:       "HTTP address of Influx",
 			Persistent: true,
 		},
 	}
 	fOpts.mustRegister(cmd)
 
-	if flags.Token == "" {
-		// migration credential token
-		migrateOldCredential()
+	// migration credential token
+	migrateOldCredential()
 
-		// this is after the flagOpts register b/c we don't want to show the default value
-		// in the usage display. This will add it as the config, then if a token flag
-		// is provided too, the flag will take precedence.
-		flags.Config = getConfigFromDefaultPath()
+	// this is after the flagOpts register b/c we don't want to show the default value
+	// in the usage display. This will add it as the config, then if a token flag
+	// is provided too, the flag will take precedence.
+	cfg := getConfigFromDefaultPath()
+
+	// we have some indirection here b/c of how the Config is embedded on the
+	// global flags type. For the time being, we check to see if there was a
+	// value set on flags registered (via env vars), and override the host/token
+	// values if they are.
+	if flags.Token != "" {
+		cfg.Token = flags.Token
 	}
+	if flags.Host != "" {
+		cfg.Host = flags.Host
+	}
+	flags.Config = cfg
 
 	cmd.PersistentFlags().BoolVar(&flags.local, "local", false, "Run commands locally against the filesystem")
 	cmd.PersistentFlags().BoolVar(&flags.skipVerify, "skip-verify", false, "SkipVerify controls whether a client verifies the server's certificate chain and host name.")
@@ -192,6 +211,9 @@ func (b *cmdInfluxBuilder) cmd(childCmdFns ...func(f *globalFlags, opt genericCL
 		c.Flags().BoolP("help", "h", false, fmt.Sprintf("Help for the %s command ", c.Name()))
 	})
 
+	// completion command goes last, after the walk, so that all
+	// commands have every flag listed in the bash|zsh completions.
+	cmd.AddCommand(completionCmd(cmd))
 	return cmd
 }
 
@@ -262,7 +284,10 @@ func getConfigFromDefaultPath() config.Config {
 	if err != nil {
 		return config.DefaultConfig
 	}
-	activated, _ := config.ParseActiveConfig(r)
+	activated, err := config.ParseActiveConfig(r)
+	if err != nil {
+		return config.DefaultConfig
+	}
 	return activated
 }
 
@@ -271,14 +296,17 @@ func migrateOldCredential() {
 	if err != nil {
 		return // no need for migration
 	}
+
 	tokB, err := ioutil.ReadFile(filepath.Join(dir, http.DefaultTokenFile))
 	if err != nil {
 		return // no need for migration
 	}
+
 	err = writeConfigToPath(strings.TrimSpace(string(tokB)), "", filepath.Join(dir, http.DefaultConfigsFile), dir)
 	if err != nil {
 		return
 	}
+
 	// ignore the remove err
 	_ = os.Remove(filepath.Join(dir, http.DefaultTokenFile))
 }
@@ -287,14 +315,9 @@ func writeConfigToPath(tok, org, path, dir string) error {
 	p := &config.DefaultConfig
 	p.Token = tok
 	p.Org = org
-	pp := map[string]config.Config{
-		"default": *p,
-	}
 
-	return config.LocalConfigsSVC{
-		Path: path,
-		Dir:  dir,
-	}.WriteConfigs(pp)
+	_, err := config.NewLocalConfigSVC(path, dir).CreateConfig(*p)
+	return err
 }
 
 func checkSetup(host string, skipVerify bool) error {
@@ -324,6 +347,7 @@ func checkSetupRunEMiddleware(f *globalFlags) cobraRunEMiddleware {
 			}
 
 			if setupErr := checkSetup(f.Host, f.skipVerify); setupErr != nil && influxdb.EUnauthorized != influxdb.ErrorCode(setupErr) {
+				cmd.OutOrStderr().Write([]byte(fmt.Sprintf("Error: %s\n", internal.ErrorFmt(err).Error())))
 				return internal.ErrorFmt(setupErr)
 			}
 
@@ -384,16 +408,25 @@ func (o *organization) getID(orgSVC influxdb.OrganizationService) (influxdb.ID, 
 			return 0, fmt.Errorf("invalid org ID provided: %s", err.Error())
 		}
 		return *influxOrgID, nil
-	} else if o.name != "" {
+	}
+
+	getOrgByName := func(name string) (influxdb.ID, error) {
 		org, err := orgSVC.FindOrganization(context.Background(), influxdb.OrganizationFilter{
-			Name: &o.name,
+			Name: &name,
 		})
 		if err != nil {
-			return 0, fmt.Errorf("%v", err)
+			return 0, err
 		}
 		return org.ID, nil
 	}
-	return 0, fmt.Errorf("failed to locate an organization id")
+	if o.name != "" {
+		return getOrgByName(o.name)
+	}
+	// last check is for the org set in the CLI config. This will be last in priority.
+	if flags.Org != "" {
+		return getOrgByName(flags.Org)
+	}
+	return 0, fmt.Errorf("failed to locate organization criteria")
 }
 
 func (o *organization) validOrgFlags(f *globalFlags) error {
@@ -427,10 +460,39 @@ func (f flagOpts) mustRegister(cmd *cobra.Command) {
 	cli.BindOptions(cmd, f)
 }
 
+func registerPrintOptions(cmd *cobra.Command, headersP, jsonOutP *bool) {
+	var opts flagOpts
+	if headersP != nil {
+		opts = append(opts, cli.Opt{
+			DestP:   headersP,
+			Flag:    "hide-headers",
+			EnvVar:  "HIDE_HEADERS",
+			Desc:    "Hide the table headers; defaults false",
+			Default: false,
+		})
+	}
+	if jsonOutP != nil {
+		opts = append(opts, cli.Opt{
+			DestP:   jsonOutP,
+			Flag:    "json",
+			EnvVar:  "OUTPUT_JSON",
+			Desc:    "Output data as json; defaults false",
+			Default: false,
+		})
+	}
+	opts.mustRegister(cmd)
+}
+
 func setViperOptions() {
 	viper.SetEnvPrefix("INFLUX")
 	viper.AutomaticEnv()
 	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
+}
+
+func writeJSON(w io.Writer, v interface{}) error {
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "\t")
+	return enc.Encode(v)
 }
 
 func newBucketService() (influxdb.BucketService, error) {

@@ -9,12 +9,12 @@ import {
   SMTPNotificationRuleBase,
   PagerDutyNotificationRuleBase,
   HTTPNotificationRuleBase,
-  Check as GenCheck,
-  ThresholdCheck as GenThresholdCheck,
-  DeadmanCheck as GenDeadmanCheck,
+  Check as GCheck,
+  ThresholdCheck as GThresholdCheck,
+  DeadmanCheck as GDeadmanCheck,
   CustomCheck as GenCustomCheck,
-  NotificationRule as GenRule,
-  NotificationEndpoint as GenEndpoint,
+  NotificationRule as GRule,
+  NotificationEndpoint as GEndpoint,
   TaskStatusType,
   Threshold,
   CheckBase as GenCheckBase,
@@ -37,7 +37,7 @@ type EndpointOverrides = {
   labels: string[]
 }
 // GenEndpoint is the shape of a NotificationEndpoint from the server -- before any UI specific fields are or modified
-export type GenEndpoint = GenEndpoint
+export type GenEndpoint = GEndpoint
 export type NotificationEndpoint =
   | (Omit<SlackNotificationEndpoint, 'status' | 'labels'> & EndpointOverrides)
   | (Omit<PagerDutyNotificationEndpoint, 'status' | 'labels'> &
@@ -50,7 +50,7 @@ export type NotificationEndpointBase = Omit<GenEndpointBase, 'labels'> &
 type RuleOverrides = {status: RemoteDataState; activeStatus: TaskStatusType}
 
 // GenRule is the shape of a NotificationRule from the server -- before any UI specific fields are added or modified
-export type GenRule = GenRule
+export type GenRule = GRule
 export type NotificationRule = GenRule & RuleOverrides
 
 export type StatusRuleDraft = WithClientID<StatusRule>
@@ -127,9 +127,9 @@ type CheckOverrides = {
 export type CheckBase = Omit<GenCheckBase, 'status'> & CheckOverrides
 
 // GenCheck is the shape of a Check from the server -- before UI specific properties are added
-export type GenCheck = GenCheck
-export type GenThresholdCheck = GenThresholdCheck
-export type GenDeadmanCheck = GenDeadmanCheck
+export type GenCheck = GCheck
+export type GenThresholdCheck = GThresholdCheck
+export type GenDeadmanCheck = GDeadmanCheck
 
 export type ThresholdCheck = Omit<GenThresholdCheck, 'status' | 'labels'> &
   CheckOverrides

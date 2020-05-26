@@ -1,0 +1,37 @@
+{
+ "meta": {
+  "version": "1",
+  "type": "variable",
+  "name": "Ryby-Template",
+  "description": "template created from variable: Ryby"
+ },
+ "content": {
+  "data": {
+   "type": "variable",
+   "attributes": {
+    "name": "Ryby",
+    "arguments": {
+     "type": "map",
+     "values": {
+      "kapr": "Cyprinus carpio",
+      "lin": "Tinca tinca",
+      "losos": "Salmo salar",
+      "pstruh": "Salmo trutta",
+      "sih": "Coregonus"
+     }
+    },
+    "selected": null
+   },
+   "relationships": {
+    "variable": {
+     "data": []
+    },
+    "label": {
+     "data": []
+    }
+   }
+  },
+  "included": []
+ },
+ "labels": []
+}

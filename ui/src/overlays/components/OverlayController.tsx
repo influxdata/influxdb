@@ -13,6 +13,10 @@ import AllAccessTokenOverlay from 'src/authorizations/components/AllAccessTokenO
 import BucketsTokenOverlay from 'src/authorizations/components/BucketsTokenOverlay'
 import TelegrafConfigOverlay from 'src/telegrafs/components/TelegrafConfigOverlay'
 import TelegrafOutputOverlay from 'src/telegrafs/components/TelegrafOutputOverlay'
+import OrgSwitcherOverlay from 'src/pageLayout/components/OrgSwitcherOverlay'
+import CreateBucketOverlay from 'src/buckets/components/CreateBucketOverlay'
+
+// Actions
 import {dismissOverlay} from 'src/overlays/actions/overlays'
 
 interface StateProps {
@@ -55,6 +59,12 @@ const OverlayController: FunctionComponent<OverlayControllerProps> = props => {
       break
     case 'telegraf-output':
       activeOverlay = <TelegrafOutputOverlay onClose={closer} />
+      break
+    case 'switch-organizations':
+      activeOverlay = <OrgSwitcherOverlay onClose={closer} />
+      break
+    case 'create-bucket':
+      activeOverlay = <CreateBucketOverlay onClose={closer} />
       break
     default:
       visibility = false

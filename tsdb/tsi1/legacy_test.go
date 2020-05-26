@@ -6,7 +6,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/influxdata/influxdb/tsdb/seriesfile"
+	"github.com/influxdata/influxdb/v2/tsdb/seriesfile"
 )
 
 func TestLegacyOpen(t *testing.T) {

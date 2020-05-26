@@ -18,6 +18,7 @@ import {
   BucketEntities,
   Label,
   ResourceType,
+  OwnBucket,
 } from 'src/types'
 
 // Utils
@@ -35,6 +36,7 @@ import {
 } from 'src/buckets/actions/creators'
 import {notify, Action as NotifyAction} from 'src/shared/actions/notifications'
 import {checkBucketLimits} from 'src/cloud/actions/limits'
+import {fetchDemoDataBuckets} from 'src/cloud/apis/demodata'
 
 // Constants
 import {
@@ -48,8 +50,26 @@ import {
   addBucketLabelFailed,
   removeBucketLabelFailed,
 } from 'src/shared/copy/notifications'
+import {LIMIT} from 'src/resources/constants'
 
 type Action = BucketAction | NotifyAction
+
+export const fetchAllBuckets = async (orgID: string) => {
+  const resp = await api.getBuckets({
+    query: {orgID, limit: LIMIT},
+  })
+
+  if (resp.status !== 200) {
+    throw new Error(resp.data.message)
+  }
+
+  const demoDataBuckets = await fetchDemoDataBuckets()
+
+  return normalize<Bucket, BucketEntities, string[]>(
+    [...resp.data.buckets, ...demoDataBuckets],
+    arrayOfBuckets
+  )
+}
 
 export const getBuckets = () => async (
   dispatch: Dispatch<Action>,
@@ -62,16 +82,7 @@ export const getBuckets = () => async (
     }
     const org = getOrg(state)
 
-    const resp = await api.getBuckets({query: {orgID: org.id}})
-
-    if (resp.status !== 200) {
-      throw new Error(resp.data.message)
-    }
-
-    const buckets = normalize<Bucket, BucketEntities, string[]>(
-      resp.data.buckets,
-      arrayOfBuckets
-    )
+    const buckets = await fetchAllBuckets(org.id)
 
     dispatch(setBuckets(RemoteDataState.Done, buckets))
   } catch (error) {
@@ -81,7 +92,7 @@ export const getBuckets = () => async (
   }
 }
 
-export const createBucket = (bucket: Bucket) => async (
+export const createBucket = (bucket: OwnBucket) => async (
   dispatch: Dispatch<Action | ReturnType<typeof checkBucketLimits>>,
   getState: GetState
 ) => {
@@ -108,7 +119,7 @@ export const createBucket = (bucket: Bucket) => async (
   }
 }
 
-export const updateBucket = (bucket: Bucket) => async (
+export const updateBucket = (bucket: OwnBucket) => async (
   dispatch: Dispatch<Action>,
   getState: GetState
 ) => {
@@ -139,7 +150,7 @@ export const updateBucket = (bucket: Bucket) => async (
   }
 }
 
-export const renameBucket = (originalName: string, bucket: Bucket) => async (
+export const renameBucket = (originalName: string, bucket: OwnBucket) => async (
   dispatch: Dispatch<Action>,
   getState: GetState
 ) => {
@@ -247,7 +258,7 @@ export const deleteBucketLabel = (bucketID: string, label: Label) => async (
   }
 }
 
-const denormalizeBucket = (state: AppState, bucket: Bucket): GenBucket => {
+const denormalizeBucket = (state: AppState, bucket: OwnBucket): GenBucket => {
   const labels = getLabels(state, bucket.labels)
   return {
     ...bucket,

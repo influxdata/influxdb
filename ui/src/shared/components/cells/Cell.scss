@@ -20,6 +20,8 @@ $cell--header-button-active-color: $c-pool;
 .cell--view {
   flex: 1 0 0;
   position: relative;
+  overflow: hidden;
+  height: 100%;
 
   > .single-stat {
     border-radius: $radius;
@@ -56,7 +58,7 @@ $cell--header-button-active-color: $c-pool;
   white-space: normal;
 }
 
-.dashboard .cell--view-empty .empty-graph-error {
+.dashboard .cell--view-empty {
   top: $ix-marg-c + $cell--header-size;
 }
 
@@ -148,7 +150,7 @@ $cell--header-button-active-color: $c-pool;
     position: absolute;
     top: 50%;
     left: 50%;
-    transform: translate(-50%,-50%);
+    transform: translate(-50%, -50%);
   }
 
   .cell:hover &:not(.cell--context__active) {

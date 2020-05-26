@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/kv"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kv"
 )
 
 var (
@@ -35,7 +35,7 @@ func (s *Store) uniqueOrgName(ctx context.Context, tx kv.Tx, uname string) error
 
 	// no error means this is not unique
 	if err == nil {
-		return kv.NotUniqueError
+		return OrgAlreadyExistsError(uname)
 	}
 
 	// any other error is some sort of internal server error
@@ -95,7 +95,7 @@ func (s *Store) GetOrgByName(ctx context.Context, tx kv.Tx, n string) (*influxdb
 
 	uid, err := b.Get(organizationIndexKey(n))
 	if err == kv.ErrKeyNotFound {
-		return nil, ErrOrgNotFound
+		return nil, OrgNotFoundByName(n)
 	}
 
 	if err != nil {
@@ -104,7 +104,7 @@ func (s *Store) GetOrgByName(ctx context.Context, tx kv.Tx, n string) (*influxdb
 
 	var id influxdb.ID
 	if err := id.Decode(uid); err != nil {
-		return nil, ErrCorruptID(err)
+		return nil, influxdb.ErrCorruptID(err)
 	}
 	return s.GetOrg(ctx, tx, id)
 }
@@ -155,6 +155,14 @@ func (s *Store) ListOrgs(ctx context.Context, tx kv.Tx, opt ...influxdb.FindOpti
 }
 
 func (s *Store) CreateOrg(ctx context.Context, tx kv.Tx, o *influxdb.Organization) error {
+	if !o.ID.Valid() {
+		id, err := s.generateSafeID(ctx, tx, organizationBucket)
+		if err != nil {
+			return err
+		}
+		o.ID = id
+	}
+
 	encodedID, err := o.ID.Encode()
 	if err != nil {
 		return InvalidOrgIDError(err)
@@ -204,7 +212,7 @@ func (s *Store) UpdateOrg(ctx context.Context, tx kv.Tx, id influxdb.ID, upd inf
 	}
 
 	u.SetUpdatedAt(time.Now())
-	if upd.Name != nil {
+	if upd.Name != nil && u.Name != *upd.Name {
 		if err := s.uniqueOrgName(ctx, tx, *upd.Name); err != nil {
 			return nil, err
 		}

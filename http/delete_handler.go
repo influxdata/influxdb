@@ -9,10 +9,10 @@ import (
 	"time"
 
 	"github.com/influxdata/httprouter"
-	"github.com/influxdata/influxdb"
-	pcontext "github.com/influxdata/influxdb/context"
-	"github.com/influxdata/influxdb/kit/tracing"
-	"github.com/influxdata/influxdb/predicate"
+	"github.com/influxdata/influxdb/v2"
+	pcontext "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/kit/tracing"
+	"github.com/influxdata/influxdb/v2/predicate"
 	"go.uber.org/zap"
 )
 
@@ -105,7 +105,7 @@ func (h *DeleteHandler) handleDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !a.Allowed(*p) {
+	if pset, err := a.PermissionSet(); err != nil || !pset.Allowed(*p) {
 		h.HandleHTTPError(ctx, &influxdb.Error{
 			Code: influxdb.EForbidden,
 			Op:   "http/handleDelete",
@@ -148,7 +148,7 @@ func decodeDeleteRequest(ctx context.Context, r *http.Request, orgSvc influxdb.O
 		return nil, err
 	}
 
-	if dr.Bucket, err = queryBucket(ctx, r, bucketSvc); err != nil {
+	if dr.Bucket, err = queryBucket(ctx, dr.Org.ID, r, bucketSvc); err != nil {
 		return nil, err
 	}
 	return dr, nil

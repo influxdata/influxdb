@@ -1,9 +1,19 @@
 // Utils
 import {ValueFetcher} from 'src/variables/utils/ValueFetcher'
-import {hydrateVars} from 'src/variables/utils/hydrateVars'
+import {
+  hydrateVars,
+  createVariableGraph,
+  findSubgraph,
+} from 'src/variables/utils/hydrateVars'
 
 // Mocks
-import {createMapVariable, createVariable} from 'src/variables/mocks'
+import {
+  createVariable,
+  associatedVariable,
+  defaultVariable,
+  defaultVariables,
+  timeRangeStartVariable,
+} from 'src/variables/mocks'
 
 // Types
 import {Variable, CancellationError, RemoteDataState} from 'src/types'
@@ -11,10 +21,21 @@ import {Variable, CancellationError, RemoteDataState} from 'src/types'
 class FakeFetcher implements ValueFetcher {
   responses = {}
 
-  fetch(_, __, query, ___, ____, _____) {
+  fetch(_, __, query, ___, ____, _____, ______) {
+    if (this.responses.hasOwnProperty(query)) {
+      return {
+        cancel: () => {},
+        promise: this.responses[query],
+      }
+    }
+
     return {
       cancel: () => {},
-      promise: this.responses[query],
+      promise: Promise.resolve({
+        values: [],
+        valueType: 'string',
+        selected: [],
+      }),
     }
   }
 
@@ -52,7 +73,7 @@ describe('hydrate vars', () => {
       Promise.resolve({
         values: ['eVal'],
         valueType: 'string',
-        selectedValue: 'eVal',
+        selected: ['eVal'],
       })
     )
 
@@ -61,7 +82,7 @@ describe('hydrate vars', () => {
       Promise.resolve({
         values: ['gVal'],
         valueType: 'string',
-        selectedValue: 'gVal',
+        selected: ['gVal'],
       })
     )
 
@@ -70,7 +91,7 @@ describe('hydrate vars', () => {
       Promise.resolve({
         values: ['fVal'],
         valueType: 'string',
-        selectedValue: 'fVal',
+        selected: ['fVal'],
       })
     )
 
@@ -98,33 +119,33 @@ describe('hydrate vars', () => {
     //       f [fontcolor = "green"]
     //       g [fontcolor = "green"]
     //     }
-    //
-    expect(actual.a.error).toBeTruthy()
-    expect(actual.b.error).toBeTruthy()
-    expect(actual.c.error).toBeTruthy()
-    expect(actual.d.error).toBeTruthy()
+    expect(
+      actual.filter(v => v.id === 'a')[0].arguments.values.results
+    ).toBeFalsy()
+    expect(
+      actual.filter(v => v.id === 'b')[0].arguments.values.results
+    ).toBeFalsy()
+    expect(
+      actual.filter(v => v.id === 'c')[0].arguments.values.results
+    ).toBeFalsy()
+    expect(
+      actual.filter(v => v.id === 'd')[0].arguments.values.results
+    ).toBeFalsy()
 
-    expect(actual.e.error).toBeFalsy()
-    expect(actual.f.error).toBeFalsy()
-    expect(actual.g.error).toBeFalsy()
+    expect(
+      actual.filter(v => v.id === 'e')[0].arguments.values.results
+    ).toEqual(['eVal'])
+    expect(actual.filter(v => v.id === 'e')[0].selected).toEqual(['eVal'])
 
-    expect(actual.e).toEqual({
-      values: ['eVal'],
-      valueType: 'string',
-      selectedValue: 'eVal',
-    })
+    expect(
+      actual.filter(v => v.id === 'g')[0].arguments.values.results
+    ).toEqual(['gVal'])
+    expect(actual.filter(v => v.id === 'g')[0].selected).toEqual(['gVal'])
 
-    expect(actual.g).toEqual({
-      values: ['gVal'],
-      valueType: 'string',
-      selectedValue: 'gVal',
-    })
-
-    expect(actual.f).toEqual({
-      values: ['fVal'],
-      valueType: 'string',
-      selectedValue: 'fVal',
-    })
+    expect(
+      actual.filter(v => v.id === 'f')[0].arguments.values.results
+    ).toEqual(['fVal'])
+    expect(actual.filter(v => v.id === 'f')[0].selected).toEqual(['fVal'])
   })
 
   test('should invalidate all ancestors of a node when it fails', async () => {
@@ -148,11 +169,11 @@ describe('hydrate vars', () => {
       Promise.resolve({
         values: ['cVal'],
         valueType: 'string',
-        selectedValue: 'cVal',
+        selected: ['cVal'],
       })
     )
 
-    fetcher.setResponse(b, Promise.reject(new Error('oopsy whoopsies')))
+    fetcher.setResponse(b, Promise.reject('oopsy whoopsies'))
 
     const actual = await hydrateVars(vars, vars, {
       url: '',
@@ -171,9 +192,17 @@ describe('hydrate vars', () => {
     //       c [fontcolor = "green"]
     //     }
     //
-    expect(actual.a.error).toBeTruthy()
-    expect(actual.b.error).toBeTruthy()
-    expect(actual.c.error).toBeFalsy()
+    expect(
+      actual.filter(v => v.id === 'a')[0].arguments.values.results
+    ).toEqual([])
+    expect(
+      actual.filter(v => v.id === 'b')[0].arguments.values.results
+    ).toEqual([])
+
+    expect(
+      actual.filter(v => v.id === 'c')[0].arguments.values.results
+    ).toEqual(['cVal'])
+    expect(actual.filter(v => v.id === 'c')[0].selected).toEqual(['cVal'])
   })
 
   test('works with map template variables', async () => {
@@ -202,7 +231,7 @@ describe('hydrate vars', () => {
       Promise.resolve({
         values: ['aVal'],
         valueType: 'string',
-        selectedValue: 'aVal',
+        selected: ['aVal'],
       })
     )
 
@@ -215,10 +244,17 @@ describe('hydrate vars', () => {
 
     // Basic test for now, we would need an icky mock to assert that the
     // appropriate substitution is actually taking place
-    expect(actual.a.error).toBeFalsy()
-    expect(actual.b.error).toBeFalsy()
+    expect(
+      actual.filter(v => v.id === 'a')[0].arguments.values.results
+    ).toEqual(['aVal'])
+    expect(actual.filter(v => v.id === 'a')[0].selected).toEqual(['aVal'])
+    expect(actual.filter(v => v.id === 'b')[0].arguments.values).toEqual({
+      k: 'v',
+    })
   })
 
+  // This ensures that the update of a dependant variable updates the
+  // parent variable
   test('works with constant template variables', async () => {
     const a = createVariable('a', 'f(x: v.b)')
 
@@ -243,7 +279,7 @@ describe('hydrate vars', () => {
       Promise.resolve({
         values: ['aVal'],
         valueType: 'string',
-        selectedValue: 'aVal',
+        selected: ['aVal'],
       })
     )
 
@@ -254,8 +290,15 @@ describe('hydrate vars', () => {
       fetcher,
     }).promise
 
-    expect(actual.a.error).toBeFalsy()
-    expect(actual.b.error).toBeFalsy()
+    expect(
+      actual.filter(v => v.id === 'a')[0].arguments.values.results
+    ).toEqual(['aVal'])
+    expect(actual.filter(v => v.id === 'a')[0].selected).toEqual(['aVal'])
+
+    expect(actual.filter(v => v.id === 'b')[0].arguments.values).toEqual([
+      'v1',
+      'v2',
+    ])
   })
 
   test('should be cancellable', done => {
@@ -280,39 +323,39 @@ describe('hydrate vars', () => {
 
     cancel()
   })
+})
 
-  test('returns the selected key/value pair of the selected map', async () => {
-    const firstVariable = createMapVariable('0495e1b2c71fd000', {
-      key1: 'value1',
-      key2: 'value2',
-    })
-    const secondVariable = createMapVariable('04960a2028efe000', {
-      key3: 'value3',
-      key4: 'value4',
-    })
-
-    const expected = {
-      '0495e1b2c71fd000': {
-        valueType: 'string',
-        values: {
-          key1: 'value1',
-          key2: 'value2',
-        },
-        selectedKey: 'key2',
-        selectedValue: 'value2',
-      },
-    }
-
-    const actual = await hydrateVars(
-      [firstVariable],
-      [firstVariable, secondVariable],
-      {
-        url: '',
-        orgID: '',
-        selections: {'0495e1b2c71fd000': 'key2'},
-      }
-    ).promise
-
-    expect(actual).toEqual(expected)
+xdescribe('findSubgraph', () => {
+  test('should return the update variable with all associated parents', async () => {
+    const variableGraph = await createVariableGraph(defaultVariables)
+    const actual = await findSubgraph(variableGraph, [defaultVariable])
+    // returns the single subgraph result
+    expect(actual.length).toEqual(1)
+    const [subgraph] = actual
+    // expect the subgraph to return the passed in variable
+    expect(subgraph.variable).toEqual(defaultVariable)
+    // expect the parent to be returned with the returning variable
+    expect(subgraph.parents[0].variable).toEqual(associatedVariable)
+  })
+  test('should return the variable with no parents when no association exists', async () => {
+    const a = createVariable('a', 'f(x: v.b)')
+    const variableGraph = await createVariableGraph([...defaultVariables, a])
+    const actual = await findSubgraph(variableGraph, [a])
+    expect(actual.length).toEqual(1)
+    const [subgraph] = actual
+    // expect the subgraph to return the passed in variable
+    expect(subgraph.variable).toEqual(a)
+    // expect the parent to be returned with the returning variable
+    expect(subgraph.parents).toEqual([])
+  })
+  test('should return the update default (timeRange) variable with associated parents', async () => {
+    const variableGraph = await createVariableGraph(defaultVariables)
+    const actual = await findSubgraph(variableGraph, [timeRangeStartVariable])
+    expect(actual.length).toEqual(1)
+    const [subgraph] = actual
+    // expect the subgraph to return the passed in variable
+    expect(subgraph.variable).toEqual(timeRangeStartVariable)
+    // expect the parent to be returned with the returning variable
+    expect(subgraph.parents[0].variable).toEqual(associatedVariable)
   })
 })

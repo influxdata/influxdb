@@ -22,6 +22,9 @@ describe('Checks', () => {
       })
     })
     cy.get('[data-testid="resource-list--body"]', {timeout: PAGE_LOAD_SLA})
+
+    // User can only see all panels at once on large screens
+    cy.getByTestID('alerting-tab--checks').click({force: true})
   })
 
   it('can validate a threshold check', () => {
@@ -77,6 +80,9 @@ describe('Checks', () => {
       cy.getByTestID('save-cell--button').should('be.disabled')
       cy.getByTestID('checkeo--header alerting-tab').click()
       cy.getByTestID('add-threshold-condition-WARN').click()
+      cy.getByTestID('input-field')
+        .clear()
+        .type('0')
       cy.getByTestID('save-cell--button').click()
       cy.getByTestID('check-card').should('have.length', 1)
       cy.getByTestID('notification-error').should('not.exist')
@@ -101,6 +107,25 @@ describe('Checks', () => {
       })
     })
 
+    it('should allow created checks edited checks to persist changes (especially if the value is 0)', () => {
+      const checkName = 'Check it out!'
+      // Selects the check to edit
+      cy.getByTestID('check-card--name').should('have.length', 1)
+      cy.getByTestID('check-card--name').click()
+      // ensures that the check WARN value is set to 0
+      cy.getByTestID('input-field')
+        .should('have.value', '0')
+        .clear()
+        .type('7')
+      // renames the check
+      cy.getByTestID('page-title')
+        .contains('Name this Check')
+        .type(checkName)
+      cy.getByTestID('save-cell--button').click()
+      // checks that the values persisted
+      cy.getByTestID('check-card--name').contains(checkName)
+    })
+
     it('can edit the check card', () => {
       // toggle on / off
       cy.get('.cf-resource-card__disabled').should('not.exist')
@@ -117,6 +142,8 @@ describe('Checks', () => {
       cy.getByTestID('popover--dialog')
         .should('exist')
         .contains('Last Run Status:')
+        // Need to trigger mouseout else the popover obscures the other buttons
+        .trigger('mouseout')
 
       // create a label
       cy.getByTestID('check-card').within(() => {

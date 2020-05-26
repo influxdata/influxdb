@@ -20,15 +20,15 @@ import (
 	"github.com/influxdata/flux/iocounter"
 	"github.com/influxdata/flux/parser"
 	"github.com/influxdata/httprouter"
-	"github.com/influxdata/influxdb"
-	pcontext "github.com/influxdata/influxdb/context"
-	"github.com/influxdata/influxdb/http/metric"
-	"github.com/influxdata/influxdb/kit/check"
-	"github.com/influxdata/influxdb/kit/tracing"
-	kithttp "github.com/influxdata/influxdb/kit/transport/http"
-	"github.com/influxdata/influxdb/logger"
-	"github.com/influxdata/influxdb/query"
-	"github.com/influxdata/influxdb/query/influxql"
+	"github.com/influxdata/influxdb/v2"
+	pcontext "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/http/metric"
+	"github.com/influxdata/influxdb/v2/kit/check"
+	"github.com/influxdata/influxdb/v2/kit/tracing"
+	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
+	"github.com/influxdata/influxdb/v2/logger"
+	"github.com/influxdata/influxdb/v2/query"
+	"github.com/influxdata/influxdb/v2/query/influxql"
 	"github.com/pkg/errors"
 	prom "github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
@@ -46,6 +46,7 @@ type FluxBackend struct {
 	log                *zap.Logger
 	QueryEventRecorder metric.EventRecorder
 
+	AlgoWProxy          FeatureProxyHandler
 	OrganizationService influxdb.OrganizationService
 	ProxyQueryService   query.ProxyQueryService
 }
@@ -56,7 +57,7 @@ func NewFluxBackend(log *zap.Logger, b *APIBackend) *FluxBackend {
 		HTTPErrorHandler:   b.HTTPErrorHandler,
 		log:                log,
 		QueryEventRecorder: b.QueryEventRecorder,
-
+		AlgoWProxy:         b.AlgoWProxy,
 		ProxyQueryService: routingQueryService{
 			InfluxQLService: b.InfluxQLService,
 			DefaultService:  b.FluxService,
@@ -103,11 +104,11 @@ func NewFluxHandler(log *zap.Logger, b *FluxBackend) *FluxHandler {
 
 	// query reponses can optionally be gzip encoded
 	qh := gziphandler.GzipHandler(http.HandlerFunc(h.handleQuery))
-	h.Handler("POST", prefixQuery, qh)
-	h.HandlerFunc("POST", "/api/v2/query/ast", h.postFluxAST)
-	h.HandlerFunc("POST", "/api/v2/query/analyze", h.postQueryAnalyze)
-	h.HandlerFunc("GET", "/api/v2/query/suggestions", h.getFluxSuggestions)
-	h.HandlerFunc("GET", "/api/v2/query/suggestions/:name", h.getFluxSuggestion)
+	h.Handler("POST", prefixQuery, withFeatureProxy(b.AlgoWProxy, qh))
+	h.Handler("POST", "/api/v2/query/ast", withFeatureProxy(b.AlgoWProxy, http.HandlerFunc(h.postFluxAST)))
+	h.Handler("POST", "/api/v2/query/analyze", withFeatureProxy(b.AlgoWProxy, http.HandlerFunc(h.postQueryAnalyze)))
+	h.Handler("GET", "/api/v2/query/suggestions", withFeatureProxy(b.AlgoWProxy, http.HandlerFunc(h.getFluxSuggestions)))
+	h.Handler("GET", "/api/v2/query/suggestions/:name", withFeatureProxy(b.AlgoWProxy, http.HandlerFunc(h.getFluxSuggestion)))
 	return h
 }
 

@@ -54,14 +54,16 @@ func (s *Session) Expired() error {
 	return nil
 }
 
-// Allowed returns true if the authorization is unexpired and request permission
-// exists in the sessions list of permissions.
-func (s *Session) Allowed(p Permission) bool {
+// PermissionSet returns the set of permissions associated with the session.
+func (s *Session) PermissionSet() (PermissionSet, error) {
 	if err := s.Expired(); err != nil {
-		return false
+		return nil, &Error{
+			Code: EUnauthorized,
+			Err:  err,
+		}
 	}
 
-	return PermissionAllowed(p, s.Permissions)
+	return s.Permissions, nil
 }
 
 // Kind returns session and is used for auditing.
@@ -92,5 +94,7 @@ type SessionService interface {
 	FindSession(ctx context.Context, key string) (*Session, error)
 	ExpireSession(ctx context.Context, key string) error
 	CreateSession(ctx context.Context, user string) (*Session, error)
+	// TODO: update RenewSession to take a ID instead of a session.
+	// By taking a session object it could be confused to update more things about the session
 	RenewSession(ctx context.Context, session *Session, newExpiration time.Time) error
 }

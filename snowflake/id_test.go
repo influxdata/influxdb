@@ -3,7 +3,7 @@ package snowflake
 import (
 	"testing"
 
-	platform "github.com/influxdata/influxdb"
+	platform "github.com/influxdata/influxdb/v2"
 )
 
 func TestIDLength(t *testing.T) {

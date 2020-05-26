@@ -4,9 +4,9 @@ import (
 	"context"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/storage/reads/datatypes"
-	"github.com/influxdata/influxdb/tsdb/cursors"
+	"github.com/influxdata/influxdb/v2/models"
+	"github.com/influxdata/influxdb/v2/storage/reads/datatypes"
+	"github.com/influxdata/influxdb/v2/tsdb/cursors"
 )
 
 type ResultSet interface {
@@ -81,4 +81,18 @@ type Store interface {
 	TagValues(ctx context.Context, req *datatypes.TagValuesRequest) (cursors.StringIterator, error)
 
 	GetSource(orgID, bucketID uint64) proto.Message
+}
+
+// WindowAggregateCapability describes what is supported by WindowAggregateStore.
+type WindowAggregateCapability struct{}
+
+// WindowAggregateStore implements the WindowAggregate capability.
+type WindowAggregateStore interface {
+	// HasWindowAggregateCapability checks if this Store supports the capability.
+	// If WindowAggregateCapability is passed to the method, then the struct
+	// is filled with a detailed list of what the RPC call supports.
+	HasWindowAggregateCapability(ctx context.Context, capability ...*WindowAggregateCapability) bool
+
+	// WindowAggregate will invoke a ReadWindowAggregateRequest against the Store.
+	WindowAggregate(ctx context.Context, req *datatypes.ReadWindowAggregateRequest) (ResultSet, error)
 }

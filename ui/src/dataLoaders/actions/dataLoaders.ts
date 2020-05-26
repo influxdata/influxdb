@@ -6,7 +6,7 @@ import {normalize} from 'normalizr'
 import {client} from 'src/utils/api'
 import {ScraperTargetRequest, PermissionResource} from '@influxdata/influx'
 import {createAuthorization} from 'src/authorizations/apis'
-import {postWrite as apiPostWrite, postLabel as apiPostLabel} from 'src/client'
+import {postWrite as apiPostWrite} from 'src/client'
 
 // Schemas
 import {authSchema} from 'src/schemas'
@@ -14,8 +14,9 @@ import {telegrafSchema} from 'src/schemas/telegrafs'
 
 // Utils
 import {createNewPlugin} from 'src/dataLoaders/utils/pluginConfigs'
-import {addLabelDefaults} from 'src/labels/utils'
 import {getDataLoaders, getSteps} from 'src/dataLoaders/selectors'
+import {getBucketByName} from 'src/buckets/selectors'
+import {getByID} from 'src/resources/selectors'
 import {getOrg} from 'src/organizations/selectors'
 
 // Constants
@@ -37,13 +38,12 @@ import {
 import {
   GetState,
   RemoteDataState,
-  LabelProperties,
   Authorization,
   AuthEntities,
+  ResourceType,
   TelegrafEntities,
   Telegraf,
 } from 'src/types'
-import {ILabel} from '@influxdata/influx'
 import {
   WritePrecision,
   TelegrafRequest,
@@ -57,9 +57,10 @@ import {addTelegraf, editTelegraf} from 'src/telegrafs/actions/creators'
 import {addAuthorization} from 'src/authorizations/actions/creators'
 import {notify} from 'src/shared/actions/notifications'
 import {
+  readWriteCardinalityLimitReached,
   TelegrafConfigCreationError,
   TelegrafConfigCreationSuccess,
-  readWriteCardinalityLimitReached,
+  TokenCreationError,
 } from 'src/shared/copy/notifications'
 
 const DEFAULT_COLLECTION_INTERVAL = 10000
@@ -401,6 +402,61 @@ export const createOrUpdateTelegrafConfigAsync = () => async (
   createTelegraf(dispatch, getState, plugins)
 }
 
+export const generateTelegrafToken = (configID: string) => async (
+  dispatch,
+  getState: GetState
+) => {
+  try {
+    const state = getState()
+    const orgID = getOrg(state).id
+    const telegraf = getByID<Telegraf>(state, ResourceType.Telegrafs, configID)
+    const bucketName = get(telegraf, 'metadata.buckets[0]', '')
+    if (bucketName === '') {
+      throw new Error(
+        'A token cannot be generated without a corresponding bucket'
+      )
+    }
+    const bucket = getBucketByName(state, bucketName)
+
+    const permissions = [
+      {
+        action: Permission.ActionEnum.Write,
+        resource: {
+          type: PermissionResource.TypeEnum.Buckets,
+          id: bucket.id,
+          orgID,
+        },
+      },
+      {
+        action: Permission.ActionEnum.Read,
+        resource: {
+          type: PermissionResource.TypeEnum.Telegrafs,
+          id: configID,
+          orgID,
+        },
+      },
+    ]
+
+    const token = {
+      name: `${telegraf.name} token`,
+      orgID,
+      description: `WRITE ${bucketName} bucket / READ ${
+        telegraf.name
+      } telegraf config`,
+      permissions,
+    }
+
+    // create token
+    const createdToken = await createAuthorization(token)
+
+    // add token to data loader state
+    dispatch(setToken(createdToken.token))
+  } catch (error) {
+    console.error(error)
+    dispatch(notify(TokenCreationError))
+  }
+}
+
 const createTelegraf = async (dispatch, getState: GetState, plugins) => {
   try {
     const state = getState()
@@ -461,40 +517,8 @@ const createTelegraf = async (dispatch, getState: GetState, plugins) => {
     // add token to authorizations state
     dispatch(addAuthorization(normAuth))
 
-    // create token label
-    const properties = {
-      color: '#FFFFFF',
-      description: `token for telegraf config: ${telegrafConfigName}`,
-      tokenID: createdToken.id,
-    } as LabelProperties // hack to make compiler work
-
-    const resp = await apiPostLabel({
-      data: {
-        orgID: org.id,
-        name: `@influxdata.token-${new Date().getTime()}`, // fix for https://github.com/influxdata/influxdb/issues/15730
-        properties,
-      },
-    })
-
-    if (resp.status !== 201) {
-      throw new Error(resp.data.message)
-    }
-
-    const createdLabel = addLabelDefaults(resp.data.label)
-
-    // add label to telegraf config
-    const label = await client.telegrafConfigs.addLabel(
-      tc.id,
-      createdLabel as ILabel
-    )
-
-    const config = {
-      ...tc,
-      labels: [label],
-    }
-
     const normTelegraf = normalize<Telegraf, TelegrafEntities, string>(
-      config,
+      tc,
       telegrafSchema
     )
 
@@ -597,12 +621,14 @@ export const writeLineProtocolAction = (
     } else if (resp.status === 429) {
       dispatch(notify(readWriteCardinalityLimitReached(resp.data.message)))
       dispatch(setLPStatus(RemoteDataState.Error))
+    } else if (resp.status === 403) {
+      dispatch(setLPStatus(RemoteDataState.Error, resp.data.message))
     } else {
+      dispatch(setLPStatus(RemoteDataState.Error, 'failed to write data'))
       throw new Error(get(resp, 'data.message', 'Failed to write data'))
     }
   } catch (error) {
     console.error(error)
-    dispatch(setLPStatus(RemoteDataState.Error, error.message))
   }
 }
 

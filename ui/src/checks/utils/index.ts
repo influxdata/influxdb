@@ -35,6 +35,10 @@ export const builderToPostCheck = (state: AppState) => {
   if (check.type === 'deadman') {
     return toDeadManPostCheck(alertBuilder, check)
   }
+
+  if (check.type === 'custom') {
+    return {...check, status: check.activeStatus}
+  }
 }
 
 const toDeadManPostCheck = (

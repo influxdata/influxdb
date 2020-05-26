@@ -26,27 +26,12 @@ interface StateProps {
 }
 
 interface DispatchProps {
-  onSubmit: typeof saveAndExecuteQueries
+  onSubmit: typeof saveAndExecuteQueries | (() => void)
 }
 
 type Props = StateProps & DispatchProps
 
-interface State {
-  didClick: boolean
-}
-
-class SubmitQueryButton extends PureComponent<Props, State> {
-  public state: State = {didClick: false}
-
-  public componentDidUpdate(prevProps: Props) {
-    if (
-      prevProps.queryStatus === RemoteDataState.Loading &&
-      this.props.queryStatus === RemoteDataState.Done
-    ) {
-      this.setState({didClick: false})
-    }
-  }
-
+class SubmitQueryButton extends PureComponent<Props> {
   public render() {
     return (
       <Button
@@ -62,14 +47,12 @@ class SubmitQueryButton extends PureComponent<Props, State> {
 
   private get buttonStatus(): ComponentStatus {
     const {queryStatus, submitButtonDisabled} = this.props
-    const {didClick} = this.state
 
     if (submitButtonDisabled) {
       return ComponentStatus.Disabled
     }
 
-    if (queryStatus === RemoteDataState.Loading && didClick) {
-      // Only show loading state for button if it was just clicked
+    if (queryStatus === RemoteDataState.Loading) {
       return ComponentStatus.Loading
     }
 
@@ -78,9 +61,10 @@ class SubmitQueryButton extends PureComponent<Props, State> {
 
   private handleClick = (): void => {
     this.props.onSubmit()
-    this.setState({didClick: true})
   }
 }
+
+export {SubmitQueryButton}
 
 const mstp = (state: AppState) => {
   const submitButtonDisabled = getActiveQuery(state).text === ''

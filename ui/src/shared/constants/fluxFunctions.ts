@@ -381,7 +381,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     package: '',
     desc: 'Tests whether a value is a member of a set.',
     example: 'contains(value: 1, set: [1,2,3])',
-    category: 'Test',
+    category: 'Tests',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/built-in/tests/contains/',
   },
@@ -482,9 +482,25 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     ],
     package: 'csv',
     desc: 'Retrieves data from a comma-separated value (CSV) data source.',
-    example: 'csv.from(file: "/path/to/data-file.csv")',
+    example: 'csv.from(csv: csvData)',
     category: 'Inputs',
     link: 'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/csv/from/',
+  },
+  {
+    name: 'csv.from',
+    args: [
+      {
+        name: 'url',
+        desc: 'The URL to retrieve annotated CSV from.',
+        type: 'String',
+      },
+    ],
+    package: 'experimental/csv',
+    desc: 'Retrieves annotated CSV data from a URL.',
+    example: 'csv.from(url: "http://example.com/data.csv")',
+    category: 'Inputs',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/experimental/csv/from/',
   },
   {
     name: 'cumulativeSum',
@@ -927,6 +943,22 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/experimental/addduration/',
   },
   {
+    name: 'experimental.alignTime',
+    args: [
+      {
+        name: 'alignTo',
+        desc: 'UTC time to align tables to. Default is 1970-01-01T00:00:00Z.',
+        type: 'Time',
+      },
+    ],
+    package: 'experimental',
+    desc: 'Aligns input tables to a common start time.',
+    example: 'experimental.alignTime(alignTo: v.timeRangeStart)',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/experimental/aligntime/',
+  },
+  {
     name: 'experimental.group',
     args: [
       {
@@ -949,6 +981,35 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     category: 'Transformations',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/experimental/group/',
+  },
+  {
+    name: 'experimental.join',
+    args: [
+      {
+        name: 'left',
+        desc: 'First of two streams of tables to join.',
+        type: 'Stream of tables',
+      },
+      {
+        name: 'right',
+        desc: 'Second of two streams of tables to join.',
+        type: 'Stream of tables',
+      },
+      {
+        name: 'fn',
+        desc:
+          'A function that maps new output rows using left and right input rows.',
+        type: 'Function',
+      },
+    ],
+    package: 'experimental',
+    desc:
+      'Joins two streams of tables on the group key and _time column. Use the fn parameter to map output tables.',
+    example:
+      'experimental.join(left: left, right: right, fn: (left, right) => ({left with lv: left._value, rv: right._value }))',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/experimental/join/',
   },
   {
     name: 'experimental.objectKeys',
@@ -1332,6 +1393,40 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     category: 'Transformations',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/experimental/geo/s2cellidtoken/',
+  },
+  {
+    name: 'geo.shapeData',
+    args: [
+      {
+        name: 'latField',
+        desc: 'Name of existing latitude field.',
+        type: 'String',
+      },
+      {
+        name: 'lonField',
+        desc: 'Name of existing longitude field.',
+        type: 'String',
+      },
+      {
+        name: 'level',
+        desc: 'S2 cell level to use when generating the S2 cell ID token.',
+        type: 'Integer',
+      },
+      {
+        name: 'correlationKey',
+        desc:
+          'List of columns used to uniquely identify a row for output. Default is `["_time"]`.',
+        type: 'Array of Strings',
+      },
+    ],
+    package: 'experimental/geo',
+    desc:
+      'Renames existing latitude and longitude fields to `lat` and `lon` and adds an `s2_cell_id` tag.',
+    example:
+      'geo.shapeData(latField: "latitude", lonField: "longitude", level: 10)',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/experimental/geo/shapedata/',
   },
   {
     name: 'geo.strictFilter',
@@ -4832,7 +4927,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     package: 'testing',
     desc: 'Tests if an input stream is empty.',
     example: 'testing.assertEmpty()',
-    category: 'Test',
+    category: 'Tests',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/testing/assertempty/',
   },
@@ -4847,18 +4942,18 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       {
         name: 'got',
         desc: 'The stream containing data to test.',
-        type: 'Obscflect',
+        type: 'Stream of tables',
       },
       {
         name: 'want',
         desc: 'The stream that contains the expected data to test against.',
-        type: 'Object',
+        type: 'Stream of tables',
       },
     ],
     package: 'testing',
     desc: 'Tests whether two streams have identical data.',
     example: 'testing.assertEquals(got: got, want: want)',
-    category: 'Test',
+    category: 'Tests',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/testing/assertequals/',
   },
@@ -4868,18 +4963,24 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       {
         name: 'got',
         desc: 'The stream containing data to test.',
-        type: 'Obscflect',
+        type: 'Stream of tables',
       },
       {
         name: 'want',
         desc: 'The stream that contains the expected data to test against.',
-        type: 'Object',
+        type: 'Stream of tables',
+      },
+      {
+        name: 'epsilon',
+        desc:
+          'How far apart two float values can be, but still considered equal. Defaults to `0.000000001`.',
+        type: 'Float',
       },
     ],
     package: 'testing',
     desc: 'Produces a diff between two streams.',
     example: 'testing.assertEquals(got: got, want: want)',
-    category: 'Test',
+    category: 'Tests',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/testing/diff/',
   },
@@ -5360,6 +5461,12 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         desc:
           'The column containing the window stop time. Defaults to `"_stop"`.',
         type: 'String',
+      },
+      {
+        name: 'createEmpty',
+        desc:
+          'Specifies whether empty tables should be created. Defaults to `false`.',
+        type: 'Boolean',
       },
     ],
     package: '',

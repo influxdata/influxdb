@@ -4,7 +4,8 @@ import (
 	"net/http"
 	"strings"
 
-	kithttp "github.com/influxdata/influxdb/kit/transport/http"
+	"github.com/influxdata/influxdb/v2/kit/feature"
+	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 )
 
 // PlatformHandler is a collection of all the service handlers.
@@ -17,7 +18,7 @@ type PlatformHandler struct {
 // NewPlatformHandler returns a platform handler that serves the API and associated assets.
 func NewPlatformHandler(b *APIBackend, opts ...APIHandlerOptFn) *PlatformHandler {
 	h := NewAuthenticationHandler(b.Logger, b.HTTPErrorHandler)
-	h.Handler = NewAPIHandler(b, opts...)
+	h.Handler = feature.NewHandler(b.Logger, b.Flagger, feature.Flags(), NewAPIHandler(b, opts...))
 	h.AuthorizationService = b.AuthorizationService
 	h.SessionService = b.SessionService
 	h.SessionRenewDisabled = b.SessionRenewDisabled
