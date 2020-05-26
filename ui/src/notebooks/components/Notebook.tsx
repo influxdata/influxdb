@@ -2,7 +2,7 @@ import React, {FC} from 'react'
 
 import {Page} from '@influxdata/clockface'
 import {NotebookProvider} from 'src/notebooks/context/notebook'
-import Header from 'src/notebooks/components/Header'
+import Header from 'src/notebooks/components/header'
 import PipeList from 'src/notebooks/components/PipeList'
 
 // NOTE: uncommon, but using this to scope the project
