@@ -10,6 +10,7 @@ import FLUXLANGID from 'src/external/monaco.flux.syntax'
 import THEME_NAME from 'src/external/monaco.flux.theme'
 import loadServer, {LSPServer} from 'src/external/monaco.flux.server'
 import {comments, submit} from 'src/external/monaco.flux.hotkeys'
+import {registerAutogrow} from 'src/external/monaco.autogrow'
 import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 
 // Types
@@ -27,6 +28,7 @@ interface Props {
   onSubmitScript?: () => void
   setEditorInstance?: (editor: EditorType) => void
   skipFocus?: boolean
+  autogrow?: boolean
 }
 
 const FluxEditorMonaco: FC<Props> = ({
@@ -35,6 +37,7 @@ const FluxEditorMonaco: FC<Props> = ({
   onSubmitScript,
   setEditorInstance,
   skipFocus,
+  autogrow,
 }) => {
   const lspServer = useRef<LSPServer>(null)
   const [editorInst, seteditorInst] = useState<EditorType | null>(null)
@@ -65,6 +68,10 @@ const FluxEditorMonaco: FC<Props> = ({
         onSubmitScript()
       }
     })
+
+    if (autogrow) {
+      registerAutogrow(editor)
+    }
 
     try {
       lspServer.current = await loadServer()
