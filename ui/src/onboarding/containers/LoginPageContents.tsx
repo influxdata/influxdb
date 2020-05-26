@@ -31,6 +31,7 @@ import {Auth0Connection, FormFieldValidation} from 'src/types'
 import {notify} from 'src/shared/actions/notifications'
 import {passwordResetSuccessfully} from 'src/shared/copy/notifications'
 import {getAuth0Config} from 'src/authorizations/apis'
+import {getFromLocalStorage} from 'src/localStorage'
 
 interface ErrorObject {
   emailError?: string
@@ -64,7 +65,7 @@ class LoginPageContents extends PureComponent<DispatchProps> {
     try {
       let config
       if (isFlagEnabled('redirectto')) {
-        const redirectTo = window.localStorage.getItem('redirectTo') || '/'
+        const redirectTo = getFromLocalStorage('redirectTo') || '/'
         config = await getAuth0Config(redirectTo)
       } else {
         config = await getAuth0Config()
