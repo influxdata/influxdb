@@ -64,6 +64,9 @@ func TestHealthHandler(t *testing.T) {
 			if _, found := content["version"]; !found {
 				t.Errorf("%q. HealthHandler() no version reported", tt.name)
 			}
+			if _, found := content["commit"]; !found {
+				t.Errorf("%q. HealthHandler() no commit reported", tt.name)
+			}
 		})
 	}
 }
