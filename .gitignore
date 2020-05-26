@@ -155,3 +155,4 @@ cypress/videos
 .rustup/
 .yarnrc
 go/
+goreleaser-install
