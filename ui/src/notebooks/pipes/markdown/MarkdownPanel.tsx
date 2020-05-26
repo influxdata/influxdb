@@ -7,7 +7,7 @@ import {MarkdownMode} from './'
 
 // Components
 import MarkdownModeToggle from './MarkdownModeToggle'
-import MarkdownPanelEditor from './MarkdownPanelEditor'
+import MarkdownMonacoEditor from 'src/shared/components/MarkdownMonacoEditor'
 import {MarkdownRenderer} from 'src/shared/components/views/MarkdownRenderer'
 
 const MarkdownPanel: FC<PipeProp> = ({data, Context, onUpdate}) => {
@@ -24,7 +24,11 @@ const MarkdownPanel: FC<PipeProp> = ({data, Context, onUpdate}) => {
   }
 
   let panelContents = (
-    <MarkdownPanelEditor text={data.text} onChange={handleChange} />
+    <MarkdownMonacoEditor
+      script={data.text}
+      onChangeScript={handleChange}
+      autogrow
+    />
   )
 
   if (data.mode === 'preview') {

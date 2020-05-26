@@ -22,13 +22,17 @@ import {editor as monacoEditor} from 'monaco-editor'
 import {Diagnostic} from 'monaco-languageclient/lib/services'
 
 const p2m = new ProtocolToMonacoConverter()
-interface Props {
+
+export interface EditorProps {
   script: string
   onChangeScript: OnChangeScript
   onSubmitScript?: () => void
-  setEditorInstance?: (editor: EditorType) => void
   skipFocus?: boolean
   autogrow?: boolean
+}
+
+interface Props extends EditorProps {
+  setEditorInstance?: (editor: EditorType) => void
 }
 
 const FluxEditorMonaco: FC<Props> = ({
