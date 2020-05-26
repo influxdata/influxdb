@@ -8,6 +8,7 @@ import {
   SlackNotificationRuleBase,
   SMTPNotificationRuleBase,
   PagerDutyNotificationRuleBase,
+  TelegramNotificationRuleBase,
   NotificationEndpoint,
   NotificationRuleDraft,
   HTTPNotificationRuleBase,
@@ -22,6 +23,7 @@ type RuleVariantFields =
   | SMTPNotificationRuleBase
   | PagerDutyNotificationRuleBase
   | HTTPNotificationRuleBase
+  | TelegramNotificationRuleBase
 
 const defaultMessage =
   'Notification Rule: ${ r._notification_rule_name } triggered by check: ${ r._check_name }: ${ r._message }'
@@ -43,6 +45,16 @@ export const getRuleVariantDefaults = (
 
     case 'http': {
       return {type: 'http', url: ''}
+    }
+
+    case 'telegram': {
+      return {
+        messageTemplate: defaultMessage,
+        channel: '',
+        parseMode: 'MarkdownV2',
+        disableWebPagePreview: false,
+        type: 'telegram',
+      }
     }
 
     default: {

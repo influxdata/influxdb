@@ -20,6 +20,7 @@ import {
   CheckBase as GenCheckBase,
   NotificationEndpointBase as GenEndpointBase,
   TelegramNotificationRuleBase,
+  TelegramNotificationEndpoint,
 } from 'src/client'
 import {RemoteDataState} from 'src/types'
 
@@ -44,6 +45,8 @@ export type NotificationEndpoint =
   | (Omit<PagerDutyNotificationEndpoint, 'status' | 'labels'> &
       EndpointOverrides)
   | (Omit<HTTPNotificationEndpoint, 'status' | 'labels'> & EndpointOverrides)
+  | (Omit<TelegramNotificationEndpoint, 'status' | 'labels'> &
+      EndpointOverrides)
 export type NotificationEndpointBase = Omit<GenEndpointBase, 'labels'> &
   EndpointOverrides
 
@@ -187,4 +190,7 @@ export {
   PostNotificationRule,
   CheckPatch,
   TaskStatusType,
+  TelegramNotificationEndpoint,
+  TelegramNotificationRuleBase,
+  TelegramNotificationRule,
 } from '../client'
