@@ -1,4 +1,4 @@
-import React, {FC, useState} from 'react'
+import React, {FC, useState, useCallback} from 'react'
 import {PipeData} from 'src/notebooks'
 
 export interface PipeMeta {
@@ -49,68 +49,86 @@ export const NotebookProvider: FC = ({children}) => {
   const [pipes, setPipes] = useState(DEFAULT_CONTEXT.pipes)
   const [meta, setMeta] = useState(DEFAULT_CONTEXT.meta)
 
-  function addPipe(pipe: PipeData) {
-    const add = data => {
-      return pipes => {
-        pipes.push(data)
+  const _setPipes = useCallback(setPipes, [id])
+  const _setMeta = useCallback(setMeta, [id])
+
+  const addPipe = useCallback(
+    (pipe: PipeData) => {
+      const add = data => {
+        return pipes => {
+          pipes.push(data)
+          return pipes.slice()
+        }
+      }
+      _setPipes(add(pipe))
+      _setMeta(
+        add({
+          title: `Notebook_${++GENERATOR_INDEX}`,
+          visible: true,
+        })
+      )
+    },
+    [id]
+  )
+
+  const updatePipe = useCallback(
+    (idx: number, pipe: PipeData) => {
+      _setPipes(pipes => {
+        pipes[idx] = {
+          ...pipes[idx],
+          ...pipe,
+        }
+        return pipes.slice()
+      })
+    },
+    [id]
+  )
+
+  const updateMeta = useCallback(
+    (idx: number, pipe: PipeMeta) => {
+      _setMeta(pipes => {
+        pipes[idx] = {
+          ...pipes[idx],
+          ...pipe,
+        }
+        return pipes.slice()
+      })
+    },
+    [id]
+  )
+
+  const movePipe = useCallback(
+    (currentIdx: number, newIdx: number) => {
+      const move = list => {
+        const idx = ((newIdx % list.length) + list.length) % list.length
+
+        if (idx === currentIdx) {
+          return list
+        }
+
+        const pipe = list.splice(currentIdx, 1)
+
+        list.splice(idx, 0, pipe[0])
+
+        return list.slice()
+      }
+      _setPipes(move)
+      _setMeta(move)
+    },
+    [id]
+  )
+
+  const removePipe = useCallback(
+    (idx: number) => {
+      const remove = pipes => {
+        pipes.splice(idx, 1)
         return pipes.slice()
       }
-    }
-    setPipes(add(pipe))
-    setMeta(
-      add({
-        title: `Notebook_${++GENERATOR_INDEX}`,
-        visible: true,
-      })
-    )
-  }
-
-  function updatePipe(idx: number, pipe: PipeData) {
-    setPipes(pipes => {
-      pipes[idx] = {
-        ...pipes[idx],
-        ...pipe,
-      }
-      return pipes.slice()
-    })
-  }
-
-  function updateMeta(idx: number, pipe: PipeMeta) {
-    setMeta(pipes => {
-      pipes[idx] = {
-        ...pipes[idx],
-        ...pipe,
-      }
-      return pipes.slice()
-    })
-  }
-
-  function movePipe(currentIdx: number, newIdx: number) {
-    const move = list => {
-      const idx = ((newIdx % list.length) + list.length) % list.length
-
-      if (idx === currentIdx) {
-        return list
-      }
-
-      const pipe = list.splice(currentIdx, 1)
-
-      list.splice(idx, 0, pipe[0])
-
-      return list.slice()
-    }
-    setPipes(move)
-    setMeta(move)
-  }
-
-  function removePipe(idx: number) {
-    const remove = pipes => {
-      pipes.splice(idx, 1)
-      return pipes.slice()
-    }
-    setPipes(remove)
-    setMeta(remove)
-  }
+      _setPipes(remove)
+      _setMeta(remove)
+    },
+    [id]
+  )
 
   return (
     <NotebookContext.Provider

@@ -2,6 +2,7 @@ import {FunctionComponent, ComponentClass, ReactNode} from 'react'
 
 export interface PipeContextProps {
   children?: ReactNode
+  controls?: ReactNode
 }
 
 export type PipeData = any

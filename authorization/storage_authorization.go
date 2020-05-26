@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 
 	"github.com/buger/jsonparser"
-	influxdb "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kv"
 	jsonp "github.com/influxdata/influxdb/v2/pkg/jsonparser"
 )

@@ -1,0 +1,45 @@
+@import "@influxdata/clockface/dist/variables.scss";
+
+$notebook-panel--bg: mix($g1-raven, $g2-kevlar, 50%);
+
+.notebook-panel--markdown,
+.notebook-panel--markdown-editor {
+	font-size: 14px;
+	line-height: 16px;
+  padding: $cf-marg-b;
+  border-radius: $cf-radius - 1px;
+  border-width: $cf-border;
+	border-style: solid;
+	transition: border-color 0.25s ease;
+}
+
+.notebook-panel--markdown {
+  border-color: $g1-raven;
+
+  .notebook-panel:hover & {
+		border-color: $notebook-panel--bg;
+  }
+}
+
+.notebook-panel--markdown-editor {
+  padding: $cf-marg-b;
+  background-color: $g1-raven;
+  border-color: $cf-input-border--default;
+  color: $cf-input-text--default;
+  width: 100%;
+  min-width: 100%;
+  max-width: 100%;
+  transition: $cf-input--transition;
+  outline: none;
+
+  &:hover {
+    color: $cf-input-text--hover;
+    border-color: $cf-input-border--hover;
+  }
+
+  &:focus {
+    color: $cf-input-text--focused;
+    border-color: $cf-input-border--focused;
+    box-shadow: $cf-input--box-shadow;
+  }
+}

@@ -53,7 +53,7 @@ func NewHTTPOrgHandler(log *zap.Logger, orgService influxdb.OrganizationService,
 			r.Delete("/", svr.handleDeleteOrg)
 
 			// mount embedded resources
-			mountableRouter := r.With(ValidResource(svr.api, svr.lookupOrgByID))
+			mountableRouter := r.With(kithttp.ValidResource(svr.api, svr.lookupOrgByID))
 			mountableRouter.Mount("/members", urm)
 			mountableRouter.Mount("/owners", urm)
 			mountableRouter.Mount("/labels", labelHandler)

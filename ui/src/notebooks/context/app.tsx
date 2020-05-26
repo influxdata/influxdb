@@ -30,22 +30,20 @@ export const AppSettingContext = React.createContext<AppSettingContextType>(
   DEFAULT_CONTEXT
 )
 
-export const AppSettingProvider: FC<Props> = ({
-  timeZone,
-  onSetTimeZone,
-  children,
-}) => {
-  return (
-    <AppSettingContext.Provider
-      value={{
-        timeZone,
-        onSetTimeZone,
-      }}
-    >
-      {children}
-    </AppSettingContext.Provider>
-  )
-}
+export const AppSettingProvider: FC<Props> = React.memo(
+  ({timeZone, onSetTimeZone, children}) => {
+    return (
+      <AppSettingContext.Provider
+        value={{
+          timeZone,
+          onSetTimeZone,
+        }}
+      >
+        {children}
+      </AppSettingContext.Provider>
+    )
+  }
+)
 
 const mstp = (state: AppState): StateProps => {
   return {

@@ -82,14 +82,6 @@ func (s *Service) FindBuckets(ctx context.Context, filter influxdb.BucketFilter,
 		return []*influxdb.Bucket{b}, 1, nil
 	}
 
-	if filter.Name != nil && filter.OrganizationID != nil {
-		b, err := s.FindBucketByName(ctx, *filter.OrganizationID, *filter.Name)
-		if err != nil {
-			return nil, 0, err
-		}
-		return []*influxdb.Bucket{b}, 1, nil
-	}
-
 	var buckets []*influxdb.Bucket
 	err := s.store.View(ctx, func(tx kv.Tx) error {
 		if filter.OrganizationID == nil && filter.Org != nil {
@@ -98,6 +90,15 @@ func (s *Service) FindBuckets(ctx context.Context, filter influxdb.BucketFilter,
 				return err
 			}
 			filter.OrganizationID = &org.ID
+		}
+
+		if filter.Name != nil && filter.OrganizationID != nil {
+			b, err := s.store.GetBucketByName(ctx, tx, *filter.OrganizationID, *filter.Name)
+			if err != nil {
+				return err
+			}
+			buckets = []*influxdb.Bucket{b}
+			return nil
 		}
 
 		bs, err := s.store.ListBuckets(ctx, tx, BucketFilter{

@@ -243,6 +243,7 @@ func CreateLabel(
 			args: args{
 				label: &influxdb.Label{
 					Name:  "Tag2",
+					ID:    MustIDBase16(labelOneID),
 					OrgID: MustIDBase16(orgOneID),
 					Properties: map[string]string{
 						"color": "fff000",
@@ -940,32 +941,6 @@ func CreateLabelMapping(
 				},
 			},
 		},
-		// {
-		// 	name: "duplicate label mappings",
-		// 	fields: LabelFields{
-		// 		IDGenerator: mock.NewIDGenerator(labelOneID, t),
-		// 		Labels:      []*influxdb.Label{},
-		// 	},
-		// 	args: args{
-		// 		label: &influxdb.Label{
-		// 			Name: "Tag2",
-		// 			Properties: map[string]string{
-		// 				"color": "fff000",
-		// 			},
-		// 		},
-		// 	},
-		// 	wants: wants{
-		// 		labels: []*influxdb.Label{
-		// 			{
-		// 				ID:   MustIDBase16(labelOneID),
-		// 				Name: "Tag2",
-		// 				Properties: map[string]string{
-		// 					"color": "fff000",
-		// 				},
-		// 			},
-		// 		},
-		// 	},
-		// },
 	}
 
 	for _, tt := range tests {

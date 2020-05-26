@@ -433,6 +433,7 @@ export const selectValue = (variableID: string, selected: string) => async (
 
   await dispatch(selectValueInState(contextID, variableID, selected))
   // only hydrate the changedVariable
-  dispatch(hydrateChangedVariable(variableID))
+  dispatch(hydrateVariables(true))
+  // dispatch(hydrateChangedVariable(variableID))
   dispatch(updateQueryVars({[variable.name]: selected}))
 }

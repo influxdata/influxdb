@@ -25,6 +25,15 @@ var (
 	}
 )
 
+// ErrCorruptID means the ID stored in the Store is corrupt.
+func ErrCorruptID(err error) *Error {
+	return &Error{
+		Code: EInvalid,
+		Msg:  "corrupt ID provided",
+		Err:  err,
+	}
+}
+
 // ID is a unique identifier.
 //
 // Its zero value is not a valid ID.
