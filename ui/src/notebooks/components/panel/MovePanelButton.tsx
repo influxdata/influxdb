@@ -1,5 +1,5 @@
 // Libraries
-import React, {FC} from 'react'
+import React, {FC, MouseEvent} from 'react'
 
 // Components
 import {SquareButton, IconFont, ComponentStatus} from '@influxdata/clockface'
@@ -13,8 +13,9 @@ const MovePanelUpButton: FC<Props> = ({onClick, direction}) => {
   const status = onClick ? ComponentStatus.Default : ComponentStatus.Disabled
   const icon = direction === 'up' ? IconFont.CaretUp : IconFont.CaretDown
 
-  const handleClick = (): void => {
+  const handleClick = (e: MouseEvent<HTMLButtonElement>): void => {
     if (onClick) {
+      e.stopPropagation()
       onClick()
     }
   }
