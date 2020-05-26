@@ -10,6 +10,13 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
 import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 
+// Utils
+import {
+  getFromLocalStorage,
+  removeFromLocalStorage,
+  setToLocalStorage,
+} from 'src/localStorage'
+
 // Actions
 import {notify as notifyAction} from 'src/shared/actions/notifications'
 
@@ -75,9 +82,9 @@ export class Signin extends PureComponent<Props, State> {
   private checkForLogin = async () => {
     try {
       await client.users.me()
-      const redirectIsSet = !!window.localStorage.getItem('redirectTo')
+      const redirectIsSet = !!getFromLocalStorage('redirectTo')
       if (redirectIsSet) {
-        window.localStorage.removeItem('redirectTo')
+        removeFromLocalStorage('redirectTo')
       }
     } catch (error) {
       const {
@@ -92,7 +99,7 @@ export class Signin extends PureComponent<Props, State> {
             window.location.href
           }`
         )
-        window.localStorage.setItem('redirectTo', window.location.href)
+        setToLocalStorage('redirectTo', window.location.href)
         window.location.href = url.href
         throw error
       }
