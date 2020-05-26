@@ -121,6 +121,11 @@ func (s *Service) FindBuckets(ctx context.Context, filter influxdb.BucketFilter,
 		return buckets, len(buckets), nil
 	}
 
+	// if a name is provided dont fill in system buckets
+	if filter.Name != nil {
+		return buckets, len(buckets), nil
+	}
+
 	// NOTE: this is a remnant of the old system.
 	// There are org that do not have system buckets stored, but still need to be displayed.
 	needsSystemBuckets := true
