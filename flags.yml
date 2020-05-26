@@ -40,11 +40,3 @@
   default: false
   contact: Lyon Hill
   expose: true
-
-- name: RedirectTo Path After Login
-  description: redirect users to their origin path request after logging in
-  key: redirectto
-  default: false
-  contact: Ariel Salem / Monitoring Team
-  lifetime: temporary
-  expose: true
