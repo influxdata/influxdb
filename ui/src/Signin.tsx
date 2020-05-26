@@ -8,6 +8,7 @@ import {client} from 'src/utils/api'
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
+import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 
 // Actions
 import {notify as notifyAction} from 'src/shared/actions/notifications'
@@ -85,9 +86,7 @@ export class Signin extends PureComponent<Props, State> {
 
       clearInterval(this.intervalID)
 
-      const redirectToFeatureFlag = true
-
-      if (CLOUD && redirectToFeatureFlag) {
+      if (CLOUD && isFlagEnabled('redirectto')) {
         const url = new URL(
           `${window.location.origin}${CLOUD_SIGNIN_PATHNAME}?redirectTo=${
             window.location.href
