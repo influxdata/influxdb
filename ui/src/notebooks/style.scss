@@ -29,17 +29,9 @@ $notebook-divider-height: ($cf-marg-a * 2) + $cf-border;
   }
 }
 
-// Highlight panel on hover
 .notebook-panel--header,
 .notebook-panel--body {
   transition: background-color 0.25s ease;
-}
-
-.notebook-panel:hover {
-  .notebook-panel--header,
-  .notebook-panel--body {
-    background-color: $notebook-panel--bg;
-  }
 }
 
 .notebook-panel--header {
@@ -60,10 +52,6 @@ $notebook-divider-height: ($cf-marg-a * 2) + $cf-border;
 .notebook-panel--header-right {
   transition: opacity 0.25s ease;
   opacity: 0;
-}
-
-.notebook-panel:hover .notebook-panel--header-right {
-  opacity: 1;
 }
 
 .notebook-panel--title,
@@ -96,6 +84,17 @@ $notebook-divider-height: ($cf-marg-a * 2) + $cf-border;
   &:hover,
   &:focus {
     color: $g20-white;
+  }
+}
+
+// Focus state
+.notebook-panel__focus {
+  .notebook-panel--header,
+  .notebook-panel--body {
+    background-color: $notebook-panel--bg;
+  }
+  .notebook-panel--header-right {
+    opacity: 1;
   }
 }
 

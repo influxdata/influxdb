@@ -4,6 +4,7 @@ import {PipeData} from 'src/notebooks'
 export interface PipeMeta {
   title: string
   visible: boolean
+  focus: boolean
 }
 
 export interface NotebookContextType {
