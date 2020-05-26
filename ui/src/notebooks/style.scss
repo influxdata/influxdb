@@ -27,6 +27,10 @@ $notebook-divider-height: ($cf-marg-a * 2) + $cf-border;
     border-radius: $cf-border / 2;
     margin: $cf-marg-a 0;
   }
+
+  &:last-of-type:after {
+      display: none;
+  }
 }
 
 .notebook-panel--header,
