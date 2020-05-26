@@ -370,9 +370,12 @@ func CreateDBRPMappingV2(
 				}
 			}
 
-			dbrpMappings, _, err := s.FindMany(ctx, influxdb.DBRPMappingFilterV2{})
+			dbrpMappings, n, err := s.FindMany(ctx, influxdb.DBRPMappingFilterV2{})
 			if err != nil {
 				t.Fatalf("failed to retrieve dbrps: %v", err)
+			}
+			if n != len(tt.wants.dbrpMappings) {
+				t.Errorf("want dbrpMappings count of %d, got %d", len(tt.wants.dbrpMappings), n)
 			}
 			if diff := cmp.Diff(tt.wants.dbrpMappings, dbrpMappings, DBRPMappingCmpOptionsV2...); diff != "" {
 				t.Errorf("dbrpMappings are different -want/+got\ndiff %s", diff)
