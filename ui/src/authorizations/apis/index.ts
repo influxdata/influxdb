@@ -1,6 +1,7 @@
 import AJAX from 'src/utils/ajax'
 import {Authorization, Auth0Config} from 'src/types'
 import {getAPIBasepath} from 'src/utils/basepath'
+import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 
 export const createAuthorization = async (
   authorization
@@ -23,9 +24,11 @@ export const getAuth0Config = async (
   redirectTo: string
 ): Promise<Auth0Config> => {
   try {
-    const response = await fetch(
-      `${getAPIBasepath()}/api/v2private/oauth/clientConfig?redirectTo=${redirectTo}`
-    )
+    let url = `${getAPIBasepath()}/api/v2private/oauth/clientConfig`
+    if (isFlagEnabled('redirectto')) {
+      url = `${getAPIBasepath()}/api/v2private/oauth/clientConfig?redirectTo=${redirectTo}`
+    }
+    const response = await fetch(url)
     const data = await response.json()
     return data
   } catch (error) {
