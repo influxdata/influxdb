@@ -618,6 +618,7 @@ impl TestServer {
 
     fn restart(&mut self) -> Result<()> {
         self.server_process.kill()?;
+        self.server_process.wait()?;
         self.server_process = Command::cargo_bin("delorean")?
             .stdout(Stdio::null())
             .env("DELOREAN_DB_DIR", self.dir.path())
