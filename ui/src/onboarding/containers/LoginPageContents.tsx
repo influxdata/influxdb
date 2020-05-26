@@ -22,6 +22,7 @@ import auth0js, {WebAuth} from 'auth0-js'
 import {LoginForm} from 'src/onboarding/components/LoginForm'
 import {SocialButton} from 'src/shared/components/SocialButton'
 import {GoogleLogo} from 'src/clientLibraries/graphics'
+import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 
 // Types
 import {Auth0Connection, FormFieldValidation} from 'src/types'
@@ -61,8 +62,13 @@ class LoginPageContents extends PureComponent<DispatchProps> {
 
   public async componentDidMount() {
     try {
-      const redirectTo = window.localStorage.getItem('redirectTo') || '/'
-      const config = await getAuth0Config(redirectTo)
+      let config
+      if (isFlagEnabled('redirectto')) {
+        const redirectTo = window.localStorage.getItem('redirectTo') || '/'
+        config = await getAuth0Config(redirectTo)
+      } else {
+        config = await getAuth0Config()
+      }
       this.auth0 = new auth0js.WebAuth({
         domain: config.domain,
         clientID: config.clientID,
