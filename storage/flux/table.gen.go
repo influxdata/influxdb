@@ -133,8 +133,7 @@ func newFloatWindowTable(
 func (t *floatWindowTable) advance() bool {
 	if t.arr == nil {
 		t.arr = t.cur.Next()
-		l := t.arr.Len()
-		if l == 0 {
+		if t.arr.Len() == 0 {
 			t.arr = nil
 			return false
 		}
@@ -151,16 +150,14 @@ func (t *floatWindowTable) advance() bool {
 	rangeEnd := int64(t.bounds.Stop)
 	stop := t.arr.Timestamps[t.idxInArr]
 	start := stop - t.windowEvery
-	if stop > rangeEnd {
-		stop = rangeEnd
-	}
 	if start < rangeStart {
 		start = rangeStart
 	}
-	stopArr := arrow.NewInt([]int64{stop}, t.alloc)
-	startArr := arrow.NewInt([]int64{start}, t.alloc)
-	columnReader.cols[startColIdx] = startArr
-	columnReader.cols[stopColIdx] = stopArr
+	if stop > rangeEnd {
+		stop = rangeEnd
+	}
+	columnReader.cols[startColIdx] = arrow.NewInt([]int64{start}, t.alloc)
+	columnReader.cols[stopColIdx] = arrow.NewInt([]int64{stop}, t.alloc)
 	columnReader.cols[windowedValueColIdx] = t.toArrowBuffer(t.arr.Values[t.idxInArr : t.idxInArr+1])
 	t.appendTags(columnReader)
 	t.idxInArr++
@@ -397,8 +394,7 @@ func newIntegerWindowTable(
 func (t *integerWindowTable) advance() bool {
 	if t.arr == nil {
 		t.arr = t.cur.Next()
-		l := t.arr.Len()
-		if l == 0 {
+		if t.arr.Len() == 0 {
 			t.arr = nil
 			return false
 		}
@@ -415,16 +411,14 @@ func (t *integerWindowTable) advance() bool {
 	rangeEnd := int64(t.bounds.Stop)
 	stop := t.arr.Timestamps[t.idxInArr]
 	start := stop - t.windowEvery
-	if stop > rangeEnd {
-		stop = rangeEnd
-	}
 	if start < rangeStart {
 		start = rangeStart
 	}
-	stopArr := arrow.NewInt([]int64{stop}, t.alloc)
-	startArr := arrow.NewInt([]int64{start}, t.alloc)
-	columnReader.cols[startColIdx] = startArr
-	columnReader.cols[stopColIdx] = stopArr
+	if stop > rangeEnd {
+		stop = rangeEnd
+	}
+	columnReader.cols[startColIdx] = arrow.NewInt([]int64{start}, t.alloc)
+	columnReader.cols[stopColIdx] = arrow.NewInt([]int64{stop}, t.alloc)
 	columnReader.cols[windowedValueColIdx] = t.toArrowBuffer(t.arr.Values[t.idxInArr : t.idxInArr+1])
 	t.appendTags(columnReader)
 	t.idxInArr++
@@ -661,8 +655,7 @@ func newUnsignedWindowTable(
 func (t *unsignedWindowTable) advance() bool {
 	if t.arr == nil {
 		t.arr = t.cur.Next()
-		l := t.arr.Len()
-		if l == 0 {
+		if t.arr.Len() == 0 {
 			t.arr = nil
 			return false
 		}
@@ -679,16 +672,14 @@ func (t *unsignedWindowTable) advance() bool {
 	rangeEnd := int64(t.bounds.Stop)
 	stop := t.arr.Timestamps[t.idxInArr]
 	start := stop - t.windowEvery
-	if stop > rangeEnd {
-		stop = rangeEnd
-	}
 	if start < rangeStart {
 		start = rangeStart
 	}
-	stopArr := arrow.NewInt([]int64{stop}, t.alloc)
-	startArr := arrow.NewInt([]int64{start}, t.alloc)
-	columnReader.cols[startColIdx] = startArr
-	columnReader.cols[stopColIdx] = stopArr
+	if stop > rangeEnd {
+		stop = rangeEnd
+	}
+	columnReader.cols[startColIdx] = arrow.NewInt([]int64{start}, t.alloc)
+	columnReader.cols[stopColIdx] = arrow.NewInt([]int64{stop}, t.alloc)
 	columnReader.cols[windowedValueColIdx] = t.toArrowBuffer(t.arr.Values[t.idxInArr : t.idxInArr+1])
 	t.appendTags(columnReader)
 	t.idxInArr++
@@ -925,8 +916,7 @@ func newStringWindowTable(
 func (t *stringWindowTable) advance() bool {
 	if t.arr == nil {
 		t.arr = t.cur.Next()
-		l := t.arr.Len()
-		if l == 0 {
+		if t.arr.Len() == 0 {
 			t.arr = nil
 			return false
 		}
@@ -943,16 +933,14 @@ func (t *stringWindowTable) advance() bool {
 	rangeEnd := int64(t.bounds.Stop)
 	stop := t.arr.Timestamps[t.idxInArr]
 	start := stop - t.windowEvery
-	if stop > rangeEnd {
-		stop = rangeEnd
-	}
 	if start < rangeStart {
 		start = rangeStart
 	}
-	stopArr := arrow.NewInt([]int64{stop}, t.alloc)
-	startArr := arrow.NewInt([]int64{start}, t.alloc)
-	columnReader.cols[startColIdx] = startArr
-	columnReader.cols[stopColIdx] = stopArr
+	if stop > rangeEnd {
+		stop = rangeEnd
+	}
+	columnReader.cols[startColIdx] = arrow.NewInt([]int64{start}, t.alloc)
+	columnReader.cols[stopColIdx] = arrow.NewInt([]int64{stop}, t.alloc)
 	columnReader.cols[windowedValueColIdx] = t.toArrowBuffer(t.arr.Values[t.idxInArr : t.idxInArr+1])
 	t.appendTags(columnReader)
 	t.idxInArr++
@@ -1189,8 +1177,7 @@ func newBooleanWindowTable(
 func (t *booleanWindowTable) advance() bool {
 	if t.arr == nil {
 		t.arr = t.cur.Next()
-		l := t.arr.Len()
-		if l == 0 {
+		if t.arr.Len() == 0 {
 			t.arr = nil
 			return false
 		}
@@ -1207,16 +1194,14 @@ func (t *booleanWindowTable) advance() bool {
 	rangeEnd := int64(t.bounds.Stop)
 	stop := t.arr.Timestamps[t.idxInArr]
 	start := stop - t.windowEvery
-	if stop > rangeEnd {
-		stop = rangeEnd
-	}
 	if start < rangeStart {
 		start = rangeStart
 	}
-	stopArr := arrow.NewInt([]int64{stop}, t.alloc)
-	startArr := arrow.NewInt([]int64{start}, t.alloc)
-	columnReader.cols[startColIdx] = startArr
-	columnReader.cols[stopColIdx] = stopArr
+	if stop > rangeEnd {
+		stop = rangeEnd
+	}
+	columnReader.cols[startColIdx] = arrow.NewInt([]int64{start}, t.alloc)
+	columnReader.cols[stopColIdx] = arrow.NewInt([]int64{stop}, t.alloc)
 	columnReader.cols[windowedValueColIdx] = t.toArrowBuffer(t.arr.Values[t.idxInArr : t.idxInArr+1])
 	t.appendTags(columnReader)
 	t.idxInArr++
