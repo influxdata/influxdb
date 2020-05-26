@@ -19,6 +19,7 @@ import {createView} from 'src/views/helpers'
 import {getOrg} from 'src/organizations/selectors'
 import {toPostCheck, builderToPostCheck} from 'src/checks/utils'
 import {getAll, getStatus} from 'src/resources/selectors'
+import {getErrorMessage} from 'src/utils/api'
 
 // Actions
 import {
@@ -151,17 +152,14 @@ export const createCheckFromTimeMachine = () => async (
   dispatch: Dispatch<Action | SendToTimeMachineAction>,
   getState: GetState
 ): Promise<void> => {
+  const rename = 'Please rename the check before saving'
   try {
     const state = getState()
     const check = builderToPostCheck(state)
     const resp = await api.postCheck({data: check})
     if (resp.status !== 201) {
       if (resp.data.code.includes('conflict')) {
-        throw new Error(
-          `A check named ${
-            check.name
-          } already exists. Please rename the check before saving`
-        )
+        throw new Error(`A check named ${check.name} already exists. ${rename}`)
       }
       throw new Error(resp.data.message)
     }
@@ -178,11 +176,14 @@ export const createCheckFromTimeMachine = () => async (
     dispatch(resetAlertBuilder())
   } catch (error) {
     console.error(error)
-    dispatch(notify(copy.createCheckFailed(error.message)))
-    reportError(error, {
-      context: {state: getState()},
-      name: 'saveCheckFromTimeMachine function',
-    })
+    const message = getErrorMessage(error)
+    dispatch(notify(copy.createCheckFailed(message)))
+    if (!message.includes(rename)) {
+      reportError(error, {
+        context: {state: getState()},
+        name: 'saveCheckFromTimeMachine function',
+      })
+    }
   }
 }
 

@@ -1,4 +1,4 @@
-package tenant
+package metric
 
 import "fmt"
 
@@ -10,7 +10,7 @@ func defaultOpts() *metricOpts {
 	return &metricOpts{}
 }
 
-func (o *metricOpts) applySuffix(prefix string) string {
+func (o *metricOpts) ApplySuffix(prefix string) string {
 	if o.serviceSuffix != "" {
 		return fmt.Sprintf("%s_%s", prefix, o.serviceSuffix)
 	}
@@ -27,7 +27,7 @@ func WithSuffix(suffix string) MetricsOption {
 	}
 }
 
-func applyOpts(opts ...MetricsOption) *metricOpts {
+func ApplyMetricOpts(opts ...MetricsOption) *metricOpts {
 	o := defaultOpts()
 	for _, opt := range opts {
 		opt(o)

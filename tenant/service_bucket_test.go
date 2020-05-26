@@ -55,3 +55,32 @@ func initBucketService(s kv.Store, f influxdbtesting.BucketFields, t *testing.T)
 		}
 	}
 }
+
+func TestBucketFind(t *testing.T) {
+	s, close, err := NewTestInmemStore(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer close()
+	storage, err := tenant.NewStore(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	svc := tenant.NewService(storage)
+	o := &influxdb.Organization{
+		Name: "theorg",
+	}
+
+	if err := svc.CreateOrganization(context.Background(), o); err != nil {
+		t.Fatal(err)
+	}
+	name := "thebucket"
+	_, _, err = svc.FindBuckets(context.Background(), influxdb.BucketFilter{
+		Name: &name,
+		Org:  &o.Name,
+	})
+	if err.Error() != `bucket "thebucket" not found` {
+		t.Fatal(err)
+	}
+}

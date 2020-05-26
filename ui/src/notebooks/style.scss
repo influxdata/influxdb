@@ -91,7 +91,7 @@ $notebook-divider-height: ($cf-marg-a * 2) + $cf-border;
   font-weight: $cf-font-weight--medium;
   transition: color 0.25s ease, background-color 0.25s ease;
   outline: none;
-  width: 228px;
+  width: 350px;
 
   &:hover,
   &:focus {
@@ -141,7 +141,6 @@ $notebook-divider-height: ($cf-marg-a * 2) + $cf-border;
   border-radius: 0 0 $cf-radius $cf-radius;
   padding: $cf-marg-b;
   padding-top: 0;
-  // flex: 1 0 0;
   position: relative;
 }
 
@@ -157,50 +156,12 @@ $notebook-divider-height: ($cf-marg-a * 2) + $cf-border;
   padding-top: 0;
 }
 
-.notebook-panel--body .flux-editor {
+.notebook-panel--body .flux-editor--monaco {
   position: relative;
-  height: 320px;
-  width: 100%;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  left: 0;
-}
+  min-height: 320px;
 
-// Special styling for markdown panels
-.notebook-panel--markdown,
-.notebook-panel--markdown-edit {
-  font-size: 14px;
-  padding: $cf-marg-b;
-  border-radius: $cf-radius - 1px;
-  border-width: $cf-border;
-  border-style: solid;
-}
-
-.notebook-panel--markdown {
-  border-color: $notebook-panel--bg;
-}
-
-.notebook-panel--markdown-edit {
-  padding: $cf-marg-b;
-  background-color: $g1-raven;
-  border-color: $cf-input-border--default;
-  color: $cf-input-text--default;
-  width: 100%;
-  min-width: 100%;
-  max-width: 100%;
-  transition: $cf-input--transition;
-  outline: none;
-
-  &:hover {
-    color: $cf-input-text--hover;
-    border-color: $cf-input-border--hover;
-  }
-
-  &:focus {
-    color: $cf-input-text--focused;
-    border-color: $cf-input-border--focused;
-    box-shadow: $cf-input--box-shadow;
+  .react-monaco-editor-container {
+    position: absolute;
   }
 }
 

@@ -48,7 +48,6 @@ class OrgNavigation extends PureComponent<Props> {
         id: 'members-quartz',
         cloudOnly: true,
         href: `${CLOUD_URL}/organizations/${orgID}${CLOUD_USERS_PATH}`,
-        featureFlag: 'multiUser',
       },
       {
         text: 'About',

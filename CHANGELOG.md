@@ -1,18 +1,20 @@
-## v2.0.0-beta.11 [unreleased]
+## v2.0.0-beta.11 [2020-05-26]
 
 ### Features
 
 1. [18011](https://github.com/influxdata/influxdb/pull/18011): Integrate UTC dropdown when making custom time range query
 1. [18040](https://github.com/influxdata/influxdb/pull/18040): Allow for min OR max y-axis visualization settings rather than min AND max
 1. [17764](https://github.com/influxdata/influxdb/pull/17764): Add CSV to line protocol conversion library
+1. [18059](https://github.com/influxdata/influxdb/pull/18059): Make the dropdown width adjustable
+1. [18173](https://github.com/influxdata/influxdb/pull/18173): Add version to /health response
 
 ### Bug Fixes
 
 1. [18066](https://github.com/influxdata/influxdb/pull/18066): Fixed bug that wasn't persisting timeFormat for Graph + Single Stat selections
 1. [17959](https://github.com/influxdata/influxdb/pull/17959): Authorizer now exposes full permission set
 1. [18071](https://github.com/influxdata/influxdb/pull/18071): Fixed issue that was causing variable selections to hydrate all variable values
-
-### UI Improvements
+1. [18016](https://github.com/influxdata/influxdb/pull/18016): Remove the fancy scrollbars
+1. [18171](https://github.com/influxdata/influxdb/pull/18171): Check status now displaying warning if loading a large amount
 
 ## v2.0.0-beta.10 [2020-05-07]
 
