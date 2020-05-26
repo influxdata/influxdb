@@ -101,6 +101,8 @@ func (t *floatTable) advance() bool {
 type floatWindowTable struct {
 	floatTable
 	windowEvery int64
+	arr         *cursors.FloatArray
+	idxInArr    int
 }
 
 func newFloatWindowTable(
@@ -129,32 +131,42 @@ func newFloatWindowTable(
 }
 
 func (t *floatWindowTable) advance() bool {
-	cursor := t.cur.Next()
-	cursorLength := cursor.Len()
-	if cursorLength == 0 {
-		return false
+	if t.arr == nil {
+		t.arr = t.cur.Next()
+		l := t.arr.Len()
+		if l == 0 {
+			t.arr = nil
+			return false
+		}
+		t.idxInArr = 0
 	}
 
 	// Retrieve the buffer for the data to avoid allocating
 	// additional slices. If the buffer is still being used
 	// because the references were retained, then we will
 	// allocate a new buffer.
-	columnReader := t.allocateBuffer(cursorLength)
+	columnReader := t.allocateBuffer(1)
 	// regain the window start time from the window end time
 	rangeStart := int64(t.bounds.Start)
-	startTimes := arrow.NewIntBuilder(t.alloc)
-	startTimes.Resize(len(cursor.Timestamps))
-	for i := 0; i < cursorLength; i++ {
-		timestamp := cursor.Timestamps[i] - t.windowEvery
-		if timestamp < rangeStart {
-			timestamp = rangeStart
-		}
-		startTimes.Append(timestamp)
+	rangeEnd := int64(t.bounds.Stop)
+	stop := t.arr.Timestamps[t.idxInArr]
+	start := stop - t.windowEvery
+	if stop > rangeEnd {
+		stop = rangeEnd
 	}
-	columnReader.cols[startColIdx] = startTimes.NewArray()
-	columnReader.cols[stopColIdx] = arrow.NewInt(cursor.Timestamps, t.alloc)
-	columnReader.cols[windowedValueColIdx] = t.toArrowBuffer(cursor.Values)
+	if start < rangeStart {
+		start = rangeStart
+	}
+	stopArr := arrow.NewInt([]int64{stop}, t.alloc)
+	startArr := arrow.NewInt([]int64{start}, t.alloc)
+	columnReader.cols[startColIdx] = startArr
+	columnReader.cols[stopColIdx] = stopArr
+	columnReader.cols[windowedValueColIdx] = t.toArrowBuffer(t.arr.Values[t.idxInArr : t.idxInArr+1])
 	t.appendTags(columnReader)
+	t.idxInArr++
+	if t.idxInArr == t.arr.Len() {
+		t.arr = nil
+	}
 	return true
 }
 
@@ -353,6 +365,8 @@ func (t *integerTable) advance() bool {
 type integerWindowTable struct {
 	integerTable
 	windowEvery int64
+	arr         *cursors.IntegerArray
+	idxInArr    int
 }
 
 func newIntegerWindowTable(
@@ -381,32 +395,42 @@ func newIntegerWindowTable(
 }
 
 func (t *integerWindowTable) advance() bool {
-	cursor := t.cur.Next()
-	cursorLength := cursor.Len()
-	if cursorLength == 0 {
-		return false
+	if t.arr == nil {
+		t.arr = t.cur.Next()
+		l := t.arr.Len()
+		if l == 0 {
+			t.arr = nil
+			return false
+		}
+		t.idxInArr = 0
 	}
 
 	// Retrieve the buffer for the data to avoid allocating
 	// additional slices. If the buffer is still being used
 	// because the references were retained, then we will
 	// allocate a new buffer.
-	columnReader := t.allocateBuffer(cursorLength)
+	columnReader := t.allocateBuffer(1)
 	// regain the window start time from the window end time
 	rangeStart := int64(t.bounds.Start)
-	startTimes := arrow.NewIntBuilder(t.alloc)
-	startTimes.Resize(len(cursor.Timestamps))
-	for i := 0; i < cursorLength; i++ {
-		timestamp := cursor.Timestamps[i] - t.windowEvery
-		if timestamp < rangeStart {
-			timestamp = rangeStart
-		}
-		startTimes.Append(timestamp)
+	rangeEnd := int64(t.bounds.Stop)
+	stop := t.arr.Timestamps[t.idxInArr]
+	start := stop - t.windowEvery
+	if stop > rangeEnd {
+		stop = rangeEnd
 	}
-	columnReader.cols[startColIdx] = startTimes.NewArray()
-	columnReader.cols[stopColIdx] = arrow.NewInt(cursor.Timestamps, t.alloc)
-	columnReader.cols[windowedValueColIdx] = t.toArrowBuffer(cursor.Values)
+	if start < rangeStart {
+		start = rangeStart
+	}
+	stopArr := arrow.NewInt([]int64{stop}, t.alloc)
+	startArr := arrow.NewInt([]int64{start}, t.alloc)
+	columnReader.cols[startColIdx] = startArr
+	columnReader.cols[stopColIdx] = stopArr
+	columnReader.cols[windowedValueColIdx] = t.toArrowBuffer(t.arr.Values[t.idxInArr : t.idxInArr+1])
 	t.appendTags(columnReader)
+	t.idxInArr++
+	if t.idxInArr == t.arr.Len() {
+		t.arr = nil
+	}
 	return true
 }
 
@@ -605,6 +629,8 @@ func (t *unsignedTable) advance() bool {
 type unsignedWindowTable struct {
 	unsignedTable
 	windowEvery int64
+	arr         *cursors.UnsignedArray
+	idxInArr    int
 }
 
 func newUnsignedWindowTable(
@@ -633,32 +659,42 @@ func newUnsignedWindowTable(
 }
 
 func (t *unsignedWindowTable) advance() bool {
-	cursor := t.cur.Next()
-	cursorLength := cursor.Len()
-	if cursorLength == 0 {
-		return false
+	if t.arr == nil {
+		t.arr = t.cur.Next()
+		l := t.arr.Len()
+		if l == 0 {
+			t.arr = nil
+			return false
+		}
+		t.idxInArr = 0
 	}
 
 	// Retrieve the buffer for the data to avoid allocating
 	// additional slices. If the buffer is still being used
 	// because the references were retained, then we will
 	// allocate a new buffer.
-	columnReader := t.allocateBuffer(cursorLength)
+	columnReader := t.allocateBuffer(1)
 	// regain the window start time from the window end time
 	rangeStart := int64(t.bounds.Start)
-	startTimes := arrow.NewIntBuilder(t.alloc)
-	startTimes.Resize(len(cursor.Timestamps))
-	for i := 0; i < cursorLength; i++ {
-		timestamp := cursor.Timestamps[i] - t.windowEvery
-		if timestamp < rangeStart {
-			timestamp = rangeStart
-		}
-		startTimes.Append(timestamp)
+	rangeEnd := int64(t.bounds.Stop)
+	stop := t.arr.Timestamps[t.idxInArr]
+	start := stop - t.windowEvery
+	if stop > rangeEnd {
+		stop = rangeEnd
 	}
-	columnReader.cols[startColIdx] = startTimes.NewArray()
-	columnReader.cols[stopColIdx] = arrow.NewInt(cursor.Timestamps, t.alloc)
-	columnReader.cols[windowedValueColIdx] = t.toArrowBuffer(cursor.Values)
+	if start < rangeStart {
+		start = rangeStart
+	}
+	stopArr := arrow.NewInt([]int64{stop}, t.alloc)
+	startArr := arrow.NewInt([]int64{start}, t.alloc)
+	columnReader.cols[startColIdx] = startArr
+	columnReader.cols[stopColIdx] = stopArr
+	columnReader.cols[windowedValueColIdx] = t.toArrowBuffer(t.arr.Values[t.idxInArr : t.idxInArr+1])
 	t.appendTags(columnReader)
+	t.idxInArr++
+	if t.idxInArr == t.arr.Len() {
+		t.arr = nil
+	}
 	return true
 }
 
@@ -857,6 +893,8 @@ func (t *stringTable) advance() bool {
 type stringWindowTable struct {
 	stringTable
 	windowEvery int64
+	arr         *cursors.StringArray
+	idxInArr    int
 }
 
 func newStringWindowTable(
@@ -885,32 +923,42 @@ func newStringWindowTable(
 }
 
 func (t *stringWindowTable) advance() bool {
-	cursor := t.cur.Next()
-	cursorLength := cursor.Len()
-	if cursorLength == 0 {
-		return false
+	if t.arr == nil {
+		t.arr = t.cur.Next()
+		l := t.arr.Len()
+		if l == 0 {
+			t.arr = nil
+			return false
+		}
+		t.idxInArr = 0
 	}
 
 	// Retrieve the buffer for the data to avoid allocating
 	// additional slices. If the buffer is still being used
 	// because the references were retained, then we will
 	// allocate a new buffer.
-	columnReader := t.allocateBuffer(cursorLength)
+	columnReader := t.allocateBuffer(1)
 	// regain the window start time from the window end time
 	rangeStart := int64(t.bounds.Start)
-	startTimes := arrow.NewIntBuilder(t.alloc)
-	startTimes.Resize(len(cursor.Timestamps))
-	for i := 0; i < cursorLength; i++ {
-		timestamp := cursor.Timestamps[i] - t.windowEvery
-		if timestamp < rangeStart {
-			timestamp = rangeStart
-		}
-		startTimes.Append(timestamp)
+	rangeEnd := int64(t.bounds.Stop)
+	stop := t.arr.Timestamps[t.idxInArr]
+	start := stop - t.windowEvery
+	if stop > rangeEnd {
+		stop = rangeEnd
 	}
-	columnReader.cols[startColIdx] = startTimes.NewArray()
-	columnReader.cols[stopColIdx] = arrow.NewInt(cursor.Timestamps, t.alloc)
-	columnReader.cols[windowedValueColIdx] = t.toArrowBuffer(cursor.Values)
+	if start < rangeStart {
+		start = rangeStart
+	}
+	stopArr := arrow.NewInt([]int64{stop}, t.alloc)
+	startArr := arrow.NewInt([]int64{start}, t.alloc)
+	columnReader.cols[startColIdx] = startArr
+	columnReader.cols[stopColIdx] = stopArr
+	columnReader.cols[windowedValueColIdx] = t.toArrowBuffer(t.arr.Values[t.idxInArr : t.idxInArr+1])
 	t.appendTags(columnReader)
+	t.idxInArr++
+	if t.idxInArr == t.arr.Len() {
+		t.arr = nil
+	}
 	return true
 }
 
@@ -1109,6 +1157,8 @@ func (t *booleanTable) advance() bool {
 type booleanWindowTable struct {
 	booleanTable
 	windowEvery int64
+	arr         *cursors.BooleanArray
+	idxInArr    int
 }
 
 func newBooleanWindowTable(
@@ -1137,32 +1187,42 @@ func newBooleanWindowTable(
 }
 
 func (t *booleanWindowTable) advance() bool {
-	cursor := t.cur.Next()
-	cursorLength := cursor.Len()
-	if cursorLength == 0 {
-		return false
+	if t.arr == nil {
+		t.arr = t.cur.Next()
+		l := t.arr.Len()
+		if l == 0 {
+			t.arr = nil
+			return false
+		}
+		t.idxInArr = 0
 	}
 
 	// Retrieve the buffer for the data to avoid allocating
 	// additional slices. If the buffer is still being used
 	// because the references were retained, then we will
 	// allocate a new buffer.
-	columnReader := t.allocateBuffer(cursorLength)
+	columnReader := t.allocateBuffer(1)
 	// regain the window start time from the window end time
 	rangeStart := int64(t.bounds.Start)
-	startTimes := arrow.NewIntBuilder(t.alloc)
-	startTimes.Resize(len(cursor.Timestamps))
-	for i := 0; i < cursorLength; i++ {
-		timestamp := cursor.Timestamps[i] - t.windowEvery
-		if timestamp < rangeStart {
-			timestamp = rangeStart
-		}
-		startTimes.Append(timestamp)
+	rangeEnd := int64(t.bounds.Stop)
+	stop := t.arr.Timestamps[t.idxInArr]
+	start := stop - t.windowEvery
+	if stop > rangeEnd {
+		stop = rangeEnd
 	}
-	columnReader.cols[startColIdx] = startTimes.NewArray()
-	columnReader.cols[stopColIdx] = arrow.NewInt(cursor.Timestamps, t.alloc)
-	columnReader.cols[windowedValueColIdx] = t.toArrowBuffer(cursor.Values)
+	if start < rangeStart {
+		start = rangeStart
+	}
+	stopArr := arrow.NewInt([]int64{stop}, t.alloc)
+	startArr := arrow.NewInt([]int64{start}, t.alloc)
+	columnReader.cols[startColIdx] = startArr
+	columnReader.cols[stopColIdx] = stopArr
+	columnReader.cols[windowedValueColIdx] = t.toArrowBuffer(t.arr.Values[t.idxInArr : t.idxInArr+1])
 	t.appendTags(columnReader)
+	t.idxInArr++
+	if t.idxInArr == t.arr.Len() {
+		t.arr = nil
+	}
 	return true
 }
 

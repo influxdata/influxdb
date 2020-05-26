@@ -255,9 +255,6 @@ WINDOWS:
 		firstTimestamp := a.Timestamps[rowIdx]
 		windowStart := firstTimestamp - firstTimestamp%c.every
 		windowEnd := windowStart + c.every
-		if windowEnd > c.tr.End {
-			windowEnd = c.tr.End
-		}
 		for ; rowIdx < a.Len(); rowIdx++ {
 			ts := a.Timestamps[rowIdx]
 			if ts >= windowEnd {
@@ -533,9 +530,6 @@ WINDOWS:
 		firstTimestamp := a.Timestamps[rowIdx]
 		windowStart := firstTimestamp - firstTimestamp%c.every
 		windowEnd := windowStart + c.every
-		if windowEnd > c.tr.End {
-			windowEnd = c.tr.End
-		}
 		for ; rowIdx < a.Len(); rowIdx++ {
 			ts := a.Timestamps[rowIdx]
 			if ts >= windowEnd {
@@ -811,9 +805,6 @@ WINDOWS:
 		firstTimestamp := a.Timestamps[rowIdx]
 		windowStart := firstTimestamp - firstTimestamp%c.every
 		windowEnd := windowStart + c.every
-		if windowEnd > c.tr.End {
-			windowEnd = c.tr.End
-		}
 		for ; rowIdx < a.Len(); rowIdx++ {
 			ts := a.Timestamps[rowIdx]
 			if ts >= windowEnd {
@@ -1049,9 +1040,6 @@ WINDOWS:
 		firstTimestamp := a.Timestamps[rowIdx]
 		windowStart := firstTimestamp - firstTimestamp%c.every
 		windowEnd := windowStart + c.every
-		if windowEnd > c.tr.End {
-			windowEnd = c.tr.End
-		}
 		for ; rowIdx < a.Len(); rowIdx++ {
 			ts := a.Timestamps[rowIdx]
 			if ts >= windowEnd {
@@ -1287,9 +1275,6 @@ WINDOWS:
 		firstTimestamp := a.Timestamps[rowIdx]
 		windowStart := firstTimestamp - firstTimestamp%c.every
 		windowEnd := windowStart + c.every
-		if windowEnd > c.tr.End {
-			windowEnd = c.tr.End
-		}
 		for ; rowIdx < a.Len(); rowIdx++ {
 			ts := a.Timestamps[rowIdx]
 			if ts >= windowEnd {
