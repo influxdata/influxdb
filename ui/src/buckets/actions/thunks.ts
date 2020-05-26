@@ -54,6 +54,23 @@ import {LIMIT} from 'src/resources/constants'
 
 type Action = BucketAction | NotifyAction
 
+export const fetchAllBuckets = async (orgID: string) => {
+  const resp = await api.getBuckets({
+    query: {orgID, limit: LIMIT},
+  })
+
+  if (resp.status !== 200) {
+    throw new Error(resp.data.message)
+  }
+
+  const demoDataBuckets = await fetchDemoDataBuckets()
+
+  return normalize<Bucket, BucketEntities, string[]>(
+    [...resp.data.buckets, ...demoDataBuckets],
+    arrayOfBuckets
+  )
+}
+
 export const getBuckets = () => async (
   dispatch: Dispatch<Action>,
   getState: GetState
@@ -65,20 +82,7 @@ export const getBuckets = () => async (
     }
     const org = getOrg(state)
 
-    const resp = await api.getBuckets({
-      query: {orgID: org.id, limit: LIMIT},
-    })
-
-    if (resp.status !== 200) {
-      throw new Error(resp.data.message)
-    }
-
-    const demoDataBuckets = await fetchDemoDataBuckets()
-
-    const buckets = normalize<Bucket, BucketEntities, string[]>(
-      [...resp.data.buckets, ...demoDataBuckets],
-      arrayOfBuckets
-    )
+    const buckets = await fetchAllBuckets(org.id)
 
     dispatch(setBuckets(RemoteDataState.Done, buckets))
   } catch (error) {

@@ -311,6 +311,14 @@ func (s *Service) PutLabel(ctx context.Context, l *influxdb.Label) error {
 	})
 }
 
+// CreateUserResourceMappingForOrg is a public function that calls createUserResourceMappingForOrg used only for the label service
+// it can be removed when URMs are removed from the label service
+func (s *Service) CreateUserResourceMappingForOrg(ctx context.Context, tx Tx, orgID influxdb.ID, resID influxdb.ID, resType influxdb.ResourceType) error {
+	err := s.createUserResourceMappingForOrg(ctx, tx, orgID, resID, resType)
+
+	return err
+}
+
 func (s *Service) createUserResourceMappingForOrg(ctx context.Context, tx Tx, orgID influxdb.ID, resID influxdb.ID, resType influxdb.ResourceType) error {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()

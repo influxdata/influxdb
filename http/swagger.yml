@@ -10893,6 +10893,10 @@ components:
           enum:
             - pass
             - fail
+        version:
+          type: string
+        commit:
+          type: string
     Labels:
       type: array
       items:

@@ -29,13 +29,23 @@ export const loadLocalStorage = (): LocalStorage => {
   }
 }
 
+const isValidJSONString = errorString => {
+  try {
+    JSON.parse(errorString)
+  } catch (e) {
+    return false
+  }
+  return true
+}
+
 export const saveToLocalStorage = (state: LocalStorage): void => {
   try {
     window.localStorage.setItem(
       'state',
       JSON.stringify(normalizeSetLocalStorage(state))
     )
-  } catch (err) {
-    console.error('Unable to save state to local storage: ', JSON.parse(err))
+  } catch (error) {
+    const errorMessage = isValidJSONString(error) ? JSON.parse(error) : error
+    console.error('Unable to save state to local storage: ', errorMessage)
   }
 }

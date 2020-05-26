@@ -36,7 +36,7 @@ export const loadStatuses = (
   orgID: string,
   {offset, limit, since, until, filter}: LoadRowsOptions
 ): CancelBox<StatusRow[]> => {
-  const start = since ? Math.round(since / 1000) : '-60d'
+  const start = since ? Math.round(since / 1000) : '-1d'
   const fluxFilter = filter ? searchExprToFlux(renameTagKeys(filter)) : null
 
   const query = `

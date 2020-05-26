@@ -52,7 +52,7 @@ func NewHTTPBucketHandler(log *zap.Logger, bucketSvc influxdb.BucketService, urm
 			r.Delete("/", svr.handleDeleteBucket)
 
 			// mount embedded resources
-			mountableRouter := r.With(ValidResource(svr.api, svr.lookupOrgByBucketID))
+			mountableRouter := r.With(kithttp.ValidResource(svr.api, svr.lookupOrgByBucketID))
 			mountableRouter.Mount("/members", urmHandler)
 			mountableRouter.Mount("/owners", urmHandler)
 			mountableRouter.Mount("/labels", labelHandler)
