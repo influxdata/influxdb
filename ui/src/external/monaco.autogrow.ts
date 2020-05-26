@@ -18,7 +18,7 @@ export const registerAutogrow = editor => {
 
     if (prevHeight !== Math.max(MIN_HEIGHT, height)) {
       prevHeight = Math.max(MIN_HEIGHT, height)
-      editorElement.style.height = `${height}px`
+      editorElement.style.height = `${prevHeight}px`
       editor.layout()
     }
   }
