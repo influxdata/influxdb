@@ -1,4 +1,4 @@
-import React, {FC, useContext, useCallback, useMemo} from 'react'
+import React, {FC, useContext, useCallback} from 'react'
 
 import {NotebookContext} from 'src/notebooks/context/notebook'
 import {TimeProvider, TimeContext, TimeBlock} from 'src/notebooks/context/time'
@@ -11,14 +11,19 @@ import AutoRefreshDropdown from 'src/notebooks/components/header/AutoRefreshDrop
 import {SubmitQueryButton} from 'src/timeMachine/components/SubmitQueryButton'
 import {RemoteDataState} from 'src/types'
 
-const Buttons:FC = () => {
+export interface TimeContextProps {
+  context: TimeBlock
+  update: (data: TimeBlock) => void
+}
+
+const Buttons: FC = () => {
   const {id} = useContext(NotebookContext)
   const {timeContext, addTimeContext, updateTimeContext} = useContext(
     TimeContext
   )
 
   const update = useCallback(
-    data => {
+    (data: TimeBlock) => {
       updateTimeContext(id, data)
     },
     [id]
@@ -31,22 +36,22 @@ const Buttons:FC = () => {
     return null
   }
 
-    return (
-        <TimeProvider>
-            <AppSettingProvider>
-          <div className="notebook-header--buttons">
-      <TimeZoneDropdown />
-      <TimeRangeDropdown context={timeContext[id]} update={update} />
-      <AutoRefreshDropdown context={timeContext[id]} update={update} />
-            <SubmitQueryButton
-              submitButtonDisabled={false}
-              queryStatus={RemoteDataState.NotStarted}
-              onSubmit={submit}
-            />
-          </div>
-            </AppSettingProvider>
-        </TimeProvider>
-    )
+  return (
+    <TimeProvider>
+      <AppSettingProvider>
+        <div className="notebook-header--buttons">
+          <TimeZoneDropdown />
+          <TimeRangeDropdown context={timeContext[id]} update={update} />
+          <AutoRefreshDropdown context={timeContext[id]} update={update} />
+          <SubmitQueryButton
+            submitButtonDisabled={false}
+            queryStatus={RemoteDataState.NotStarted}
+            onSubmit={submit}
+          />
+        </div>
+      </AppSettingProvider>
+    </TimeProvider>
+  )
 }
 
 export default Buttons
