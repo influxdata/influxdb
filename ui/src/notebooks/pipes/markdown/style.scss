@@ -21,25 +21,11 @@ $notebook-panel--bg: mix($g1-raven, $g2-kevlar, 50%);
   }
 }
 
-.notebook-panel--markdown-editor {
-  padding: $cf-marg-b;
-  background-color: $g1-raven;
-  border-color: $cf-input-border--default;
-  color: $cf-input-text--default;
-  width: 100%;
-  min-width: 100%;
-  max-width: 100%;
-  transition: $cf-input--transition;
-  outline: none;
+.notebook-panel--body .markdown-editor--monaco {
+  position: relative;
 
-  &:hover {
-    color: $cf-input-text--hover;
-    border-color: $cf-input-border--hover;
-  }
-
-  &:focus {
-    color: $cf-input-text--focused;
-    border-color: $cf-input-border--focused;
-    box-shadow: $cf-input--box-shadow;
+  .react-monaco-editor-container {
+      min-height: 100px;
   }
 }
+
