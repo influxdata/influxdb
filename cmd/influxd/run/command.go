@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"syscall"
 	"time"
 
 	"github.com/influxdata/influxdb/logger"
@@ -49,6 +50,8 @@ type Command struct {
 
 	Server *Server
 
+	Root string
+
 	// How to get environment variables. Normally set to os.Getenv, except for tests.
 	Getenv func(string) string
 }
@@ -62,15 +65,35 @@ func NewCommand() *Command {
 		Stdout:  os.Stdout,
 		Stderr:  os.Stderr,
 		Logger:  zap.NewNop(),
+		Root:    "",
 	}
+}
+
+// Set the root of the current process to a specificied directory and set
+// current working directory to the root ("/") of that.
+func (cmd *Command) Chroot(root string) error {
+	if err := syscall.Chroot(root); err != nil {
+		return err
+	}
+	if err := os.Chdir("/"); err != nil {
+		return err
+	}
+	return nil
 }
 
 // Run parses the config from args and runs the server.
 func (cmd *Command) Run(args ...string) error {
+
 	// Parse the command line flags.
 	options, err := cmd.ParseFlags(args...)
 	if err != nil {
 		return err
+	}
+
+	if options.Root != "" {
+		if err := cmd.Chroot(options.Root); err != nil {
+			return err
+		}
 	}
 
 	config, err := cmd.ParseConfig(options.GetConfigPath())
@@ -194,6 +217,7 @@ func (cmd *Command) ParseFlags(args ...string) (Options, error) {
 	fs := flag.NewFlagSet("", flag.ContinueOnError)
 	fs.StringVar(&options.ConfigPath, "config", "", "")
 	fs.StringVar(&options.PIDFile, "pidfile", "", "")
+	fs.StringVar(&options.Root, "chroot", "", "")
 	// Ignore hostname option.
 	_ = fs.String("hostname", "", "")
 	fs.StringVar(&options.CPUProfile, "cpuprofile", "", "")
@@ -267,6 +291,7 @@ Usage: influxd run [flags]
 // Options represents the command line options that can be parsed.
 type Options struct {
 	ConfigPath string
+	Root       string
 	PIDFile    string
 	CPUProfile string
 	MemProfile string
