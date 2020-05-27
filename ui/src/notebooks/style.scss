@@ -14,6 +14,13 @@ $notebook-divider-height: ($cf-marg-a * 2) + $cf-border;
   align-items: stretch;
 }
 
+.notebook--add-cell-label {
+  user-select: none;
+  margin: 0 $cf-marg-c 0 0;
+  font-size: 14px;
+  font-weight: $cf-font-weight--medium;
+}
+
 .notebook-panel {
   display: flex;
   flex-direction: column;
