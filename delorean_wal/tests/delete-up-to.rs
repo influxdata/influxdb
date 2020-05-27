@@ -64,7 +64,7 @@ fn delete_up_to() -> Result {
     );
     assert_entry!(wal_entries[4], 4, b"another entry");
 
-    // Not including 3, is this expected?
+    // Not including 3!
     wal.delete_up_to_entry(3)?;
 
     // There should be one existing WAL file
@@ -77,8 +77,8 @@ fn delete_up_to() -> Result {
     let wal_entries = all_entries(&builder)?;
     assert_eq!(4, wal_entries.len());
 
-    // Is it expected that 2 is still readable, because we asked to delete it but couldn't because
-    // it was in a file with 3?
+    // 2 is still readable, because we asked to delete it but couldn't because it was in a file
+    // with 3.
     assert_entry!(
         wal_entries[0],
         2,
