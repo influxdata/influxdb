@@ -129,6 +129,18 @@ describe('DataExplorer', () => {
         })
       })
     })
+
+    it('should error when value is above "670" in bin size', () => {
+      cy.get('.view-options').within(() => {
+        cy.getByTestID('grid--column').within(() => {
+          cy.getByTestID('bin-size-input')
+            .clear()
+            .type('670')
+            .getByTestID('bin-size-input--error')
+            .should('have.length', 1)
+        })
+      })
+    })
   })
 
   describe('numeric input validation when changing number of decimal places in Single Stat', () => {

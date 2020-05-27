@@ -97,7 +97,7 @@ const HeatmapOptions: FunctionComponent<Props> = props => {
     const val = convertUserInputToNumOrNaN(e)
     setBinInput(val)
 
-    if (isNaN(val) || val < 5) {
+    if (isNaN(val) || val < 5 || val > 670) {
       setBinInputStatus(ComponentStatus.Error)
       return
     }
@@ -142,6 +142,7 @@ const HeatmapOptions: FunctionComponent<Props> = props => {
           value={binInput}
           type={InputType.Number}
           onChange={onSetBinSize}
+          testID={'bin-size-input'}
         />
       </Form.Element>
       <h5 className="view-options--header">X Axis</h5>
