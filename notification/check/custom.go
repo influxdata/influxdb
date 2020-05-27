@@ -5,9 +5,9 @@ import (
 	"time"
 
 	"github.com/influxdata/flux/ast"
-	"github.com/influxdata/flux/parser"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/notification/flux"
+	"github.com/influxdata/influxdb/v2/query"
 )
 
 var _ influxdb.Check = &Custom{}
@@ -61,15 +61,16 @@ type Custom struct {
 // 	|> monitor.check(data: check, messageFn:messageFn, warn:warn, crit:crit, info:info)
 
 // GenerateFlux returns the check query text directly
-func (c Custom) GenerateFlux() (string, error) {
+func (c Custom) GenerateFlux(lang influxdb.FluxLanguageService) (string, error) {
 	return c.Query.Text, nil
 }
 
 // sanitizeFlux modifies the check query text to include correct _check_id param in check object
-func (c Custom) sanitizeFlux() (string, error) {
-	p := parser.ParseSource(c.Query.Text)
-
-	if errs := ast.GetErrors(p); len(errs) != 0 {
+func (c Custom) sanitizeFlux(lang influxdb.FluxLanguageService) (string, error) {
+	p, err := query.Parse(lang, c.Query.Text)
+	if p == nil {
+		return "", err
+	} else if errs := ast.GetErrors(p); len(errs) != 0 {
 		return "", multiError(errs)
 	}
 
@@ -102,9 +103,12 @@ func propertyHasValue(prop *ast.Property, key string, value string) bool {
 	return ok && prop.Key.Key() == key && stringLit.Value == value
 }
 
-func (c *Custom) hasRequiredTaskOptions() (err error) {
+func (c *Custom) hasRequiredTaskOptions(lang influxdb.FluxLanguageService) (err error) {
 
-	p := parser.ParseSource(c.Query.Text)
+	p, err := query.Parse(lang, c.Query.Text)
+	if p == nil {
+		return err
+	}
 
 	hasOptionTask := false
 	hasName := false
@@ -168,8 +172,11 @@ func (c *Custom) hasRequiredTaskOptions() (err error) {
 	return nil
 }
 
-func (c *Custom) hasRequiredCheckParameters() (err error) {
-	p := parser.ParseSource(c.Query.Text)
+func (c *Custom) hasRequiredCheckParameters(lang influxdb.FluxLanguageService) (err error) {
+	p, err := query.Parse(lang, c.Query.Text)
+	if p == nil {
+		return err
+	}
 
 	hasCheckObject := false
 	checkNameMatches := false
@@ -213,18 +220,18 @@ func (c *Custom) hasRequiredCheckParameters() (err error) {
 }
 
 // Valid checks whether check flux is valid, returns error if invalid
-func (c *Custom) Valid() error {
+func (c *Custom) Valid(lang influxdb.FluxLanguageService) error {
 
-	if err := c.hasRequiredCheckParameters(); err != nil {
+	if err := c.hasRequiredCheckParameters(lang); err != nil {
 		return err
 	}
 
-	if err := c.hasRequiredTaskOptions(); err != nil {
+	if err := c.hasRequiredTaskOptions(lang); err != nil {
 		return err
 	}
 
 	// add or replace _check_id parameter on the check object
-	script, err := c.sanitizeFlux()
+	script, err := c.sanitizeFlux(lang)
 	if err != nil {
 		return err
 	}

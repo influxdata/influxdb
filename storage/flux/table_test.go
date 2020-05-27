@@ -18,7 +18,7 @@ import (
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/pkg/data/gen"
-	"github.com/influxdata/influxdb/v2/query/stdlib/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2/query"
 	"github.com/influxdata/influxdb/v2/storage"
 	storageflux "github.com/influxdata/influxdb/v2/storage/flux"
 	"github.com/influxdata/influxdb/v2/storage/readservice"
@@ -114,9 +114,9 @@ func BenchmarkReadFilter(b *testing.B) {
 		End:   mustParseTime("2019-11-26T00:00:00Z"),
 	}
 	sg := gen.NewSeriesGeneratorFromSpec(&spec, tr)
-	benchmarkRead(b, sg, func(r influxdb.Reader) error {
+	benchmarkRead(b, sg, func(r query.StorageReader) error {
 		mem := &memory.Allocator{}
-		tables, err := r.ReadFilter(context.Background(), influxdb.ReadFilterSpec{
+		tables, err := r.ReadFilter(context.Background(), query.ReadFilterSpec{
 			OrganizationID: spec.OrgID,
 			BucketID:       spec.BucketID,
 			Bounds: execute.Bounds{
@@ -134,7 +134,7 @@ func BenchmarkReadFilter(b *testing.B) {
 	})
 }
 
-func benchmarkRead(b *testing.B, sg gen.SeriesGenerator, f func(r influxdb.Reader) error) {
+func benchmarkRead(b *testing.B, sg gen.SeriesGenerator, f func(r query.StorageReader) error) {
 	logger := zaptest.NewLogger(b)
 	rootDir, err := ioutil.TempDir("", "storage-reads-test")
 	if err != nil {

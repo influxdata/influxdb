@@ -5,6 +5,10 @@ import (
 	"io"
 
 	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/ast"
+	"github.com/influxdata/flux/interpreter"
+	"github.com/influxdata/flux/values"
+	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/check"
 )
 
@@ -32,4 +36,33 @@ type ProxyQueryService interface {
 	// Query performs the requested query and encodes the results into w.
 	// The number of bytes written to w is returned __independent__ of any error.
 	Query(ctx context.Context, w io.Writer, req *ProxyRequest) (flux.Statistics, error)
+}
+
+// Parse will take flux source code and produce a package.
+// If there are errors when parsing, the first error is returned.
+// An ast.Package may be returned when a parsing error occurs,
+// but it may be null if parsing didn't even occur.
+//
+// This will return an error if the FluxLanguageService is nil.
+func Parse(lang influxdb.FluxLanguageService, source string) (*ast.Package, error) {
+	if lang == nil {
+		return nil, &influxdb.Error{
+			Code: influxdb.EInternal,
+			Msg:  "flux is not configured; cannot parse",
+		}
+	}
+	return lang.Parse(source)
+}
+
+// EvalAST will evaluate and run an AST.
+//
+// This will return an error if the FluxLanguageService is nil.
+func EvalAST(ctx context.Context, lang influxdb.FluxLanguageService, astPkg *ast.Package) ([]interpreter.SideEffect, values.Scope, error) {
+	if lang == nil {
+		return nil, nil, &influxdb.Error{
+			Code: influxdb.EInternal,
+			Msg:  "flux is not configured; cannot evaluate",
+		}
+	}
+	return lang.EvalAST(ctx, astPkg)
 }

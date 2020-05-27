@@ -19,6 +19,7 @@ import (
 	tracetest "github.com/influxdata/influxdb/v2/kit/tracing/testing"
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/query"
+	"github.com/influxdata/influxdb/v2/query/fluxlang"
 	"github.com/influxdata/influxdb/v2/task/backend"
 	"github.com/influxdata/influxdb/v2/task/backend/scheduler"
 	"github.com/opentracing/opentracing-go"
@@ -52,7 +53,9 @@ func taskExecutorSystem(t *testing.T) tes {
 		qs  = query.QueryServiceBridge{
 			AsyncQueryService: aqs,
 		}
-		i           = kv.NewService(zaptest.NewLogger(t), inmem.NewKVStore())
+		i = kv.NewService(zaptest.NewLogger(t), inmem.NewKVStore(), kv.ServiceConfig{
+			FluxLanguageService: fluxlang.DefaultService,
+		})
 		tcs         = &taskControlService{TaskControlService: i}
 		ex, metrics = NewExecutor(zaptest.NewLogger(t), qs, i, i, tcs)
 	)

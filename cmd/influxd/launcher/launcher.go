@@ -43,6 +43,7 @@ import (
 	infprom "github.com/influxdata/influxdb/v2/prometheus"
 	"github.com/influxdata/influxdb/v2/query"
 	"github.com/influxdata/influxdb/v2/query/control"
+	"github.com/influxdata/influxdb/v2/query/fluxlang"
 	"github.com/influxdata/influxdb/v2/query/stdlib/influxdata/influxdb"
 	"github.com/influxdata/influxdb/v2/session"
 	"github.com/influxdata/influxdb/v2/snowflake"
@@ -268,12 +269,6 @@ func buildLauncherCommand(l *Launcher, cmd *cobra.Command) {
 			Desc:    "TLS key for HTTPs",
 		},
 		{
-			DestP:   &l.enableNewMetaStore,
-			Flag:    "new-meta-store",
-			Default: true,
-			Desc:    "enables the new meta store",
-		},
-		{
 			DestP:   &l.noTasks,
 			Flag:    "no-tasks",
 			Default: false,
@@ -339,8 +334,6 @@ type Launcher struct {
 	boltPath        string
 	enginePath      string
 	secretStore     string
-
-	enableNewMetaStore bool
 
 	featureFlags map[string]string
 
@@ -549,7 +542,8 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	}
 
 	serviceConfig := kv.ServiceConfig{
-		SessionLength: time.Duration(m.sessionLength) * time.Minute,
+		SessionLength:       time.Duration(m.sessionLength) * time.Minute,
+		FluxLanguageService: fluxlang.DefaultService,
 	}
 
 	flushers := flushers{}
@@ -588,12 +582,6 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	m.reg.MustRegister(m.boltClient)
 
 	var (
-		userSvc         platform.UserService                = m.kvService
-		orgSvc          platform.OrganizationService        = m.kvService
-		userResourceSvc platform.UserResourceMappingService = m.kvService
-		bucketSvc       platform.BucketService              = m.kvService
-		passwdsSvc      platform.PasswordsService           = m.kvService
-
 		authSvc                   platform.AuthorizationService            = m.kvService
 		variableSvc               platform.VariableService                 = m.kvService
 		sourceSvc                 platform.SourceService                   = m.kvService
@@ -615,15 +603,15 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		m.log.Error("Failed creating new meta store", zap.Error(err))
 		return err
 	}
+	ts := tenant.NewService(store)
 
-	if m.enableNewMetaStore {
-		ts := tenant.NewService(store)
-		userSvc = tenant.NewUserLogger(m.log.With(zap.String("store", "new")), tenant.NewUserMetrics(m.reg, ts, metric.WithSuffix("new")))
-		orgSvc = tenant.NewOrgLogger(m.log.With(zap.String("store", "new")), tenant.NewOrgMetrics(m.reg, ts, metric.WithSuffix("new")))
-		userResourceSvc = tenant.NewURMLogger(m.log.With(zap.String("store", "new")), tenant.NewUrmMetrics(m.reg, ts, metric.WithSuffix("new")))
-		bucketSvc = tenant.NewBucketLogger(m.log.With(zap.String("store", "new")), tenant.NewBucketMetrics(m.reg, ts, metric.WithSuffix("new")))
-		passwdsSvc = tenant.NewPasswordLogger(m.log.With(zap.String("store", "new")), tenant.NewPasswordMetrics(m.reg, ts, metric.WithSuffix("new")))
-	}
+	var (
+		userSvc         platform.UserService                = tenant.NewUserLogger(m.log.With(zap.String("store", "new")), tenant.NewUserMetrics(m.reg, ts, metric.WithSuffix("new")))
+		orgSvc          platform.OrganizationService        = tenant.NewOrgLogger(m.log.With(zap.String("store", "new")), tenant.NewOrgMetrics(m.reg, ts, metric.WithSuffix("new")))
+		userResourceSvc platform.UserResourceMappingService = tenant.NewURMLogger(m.log.With(zap.String("store", "new")), tenant.NewUrmMetrics(m.reg, ts, metric.WithSuffix("new")))
+		bucketSvc       platform.BucketService              = tenant.NewBucketLogger(m.log.With(zap.String("store", "new")), tenant.NewBucketMetrics(m.reg, ts, metric.WithSuffix("new")))
+		passwdsSvc      platform.PasswordsService           = tenant.NewPasswordLogger(m.log.With(zap.String("store", "new")), tenant.NewPasswordMetrics(m.reg, ts, metric.WithSuffix("new")))
+	)
 
 	switch m.secretStore {
 	case "bolt":
@@ -912,6 +900,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		PasswordsService:                passwdsSvc,
 		InfluxQLService:                 storageQueryService,
 		FluxService:                     storageQueryService,
+		FluxLanguageService:             fluxlang.DefaultService,
 		TaskService:                     taskSvc,
 		TelegrafService:                 telegrafSvc,
 		NotificationRuleStore:           notificationRuleSvc,
@@ -966,6 +955,11 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		pkgHTTPServer = pkger.NewHTTPServer(pkgServerLogger, pkgSVC)
 	}
 
+	var userHTTPServer *tenant.UserHandler
+	{
+		userHTTPServer = tenant.NewHTTPUserHandler(m.log.With(zap.String("handler", "user")), tenant.NewAuthedUserService(userSvc), tenant.NewAuthedPasswordService(passwdsSvc))
+	}
+
 	var onboardHTTPServer *tenant.OnboardHandler
 	{
 		onboardSvc := tenant.NewOnboardService(store, authSvc)                                            // basic service
@@ -1014,6 +1008,8 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 			http.WithResourceHandler(authHTTPServer),
 			http.WithResourceHandler(kithttp.NewFeatureHandler(feature.SessionService(), flagger, oldSessionHandler, sessionHTTPServer.SignInResourceHandler(), sessionHTTPServer.SignInResourceHandler().Prefix())),
 			http.WithResourceHandler(kithttp.NewFeatureHandler(feature.SessionService(), flagger, oldSessionHandler, sessionHTTPServer.SignOutResourceHandler(), sessionHTTPServer.SignOutResourceHandler().Prefix())),
+			http.WithResourceHandler(userHTTPServer.MeResourceHandler()),
+			http.WithResourceHandler(userHTTPServer.UserResourceHandler()),
 		)
 
 		httpLogger := m.log.With(zap.String("service", "http"))

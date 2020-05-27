@@ -16,6 +16,7 @@ import (
 	"github.com/influxdata/influxdb/v2/query"
 	_ "github.com/influxdata/influxdb/v2/query/builtin"
 	"github.com/influxdata/influxdb/v2/query/control"
+	"github.com/influxdata/influxdb/v2/query/fluxlang"
 	stdlib "github.com/influxdata/influxdb/v2/query/stdlib/influxdata/influxdb"
 	"github.com/influxdata/influxdb/v2/storage"
 	storageflux "github.com/influxdata/influxdb/v2/storage/flux"
@@ -31,7 +32,9 @@ func TestAnalyticalStore(t *testing.T) {
 		t,
 		func(t *testing.T) (*servicetest.System, context.CancelFunc) {
 			ctx, cancelFunc := context.WithCancel(context.Background())
-			svc := kv.NewService(zaptest.NewLogger(t), inmem.NewKVStore())
+			svc := kv.NewService(zaptest.NewLogger(t), inmem.NewKVStore(), kv.ServiceConfig{
+				FluxLanguageService: fluxlang.DefaultService,
+			})
 			if err := svc.Initialize(ctx); err != nil {
 				t.Fatalf("error initializing urm service: %v", err)
 			}

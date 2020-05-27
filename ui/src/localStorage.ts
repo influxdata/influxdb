@@ -29,6 +29,30 @@ export const loadLocalStorage = (): LocalStorage => {
   }
 }
 
+export const setToLocalStorage = (prop: string, value: any): void => {
+  try {
+    window.localStorage.setItem(prop, value)
+  } catch (error) {
+    console.error('unable to setItem onto localStorage: ', error)
+  }
+}
+
+export const getFromLocalStorage = (prop: string): any => {
+  try {
+    return window.localStorage.getItem(prop)
+  } catch (error) {
+    console.error('unable to getItem onto localStorage: ', error)
+  }
+}
+
+export const removeFromLocalStorage = (prop: string): void => {
+  try {
+    return window.localStorage.removeItem(prop)
+  } catch (error) {
+    console.error('unable to getItem onto localStorage: ', error)
+  }
+}
+
 const isValidJSONString = errorString => {
   try {
     JSON.parse(errorString)

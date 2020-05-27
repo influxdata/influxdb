@@ -1,10 +1,8 @@
-package notification
+package options
 
 import (
-	"bytes"
 	"fmt"
 	"strconv"
-	"time"
 	"unicode"
 	"unicode/utf8"
 
@@ -12,50 +10,6 @@ import (
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/codes"
 )
-
-// Duration is a custom type used for generating flux compatible durations.
-type Duration ast.DurationLiteral
-
-// TimeDuration convert notification.Duration to time.Duration.
-func (d Duration) TimeDuration() time.Duration {
-	dl := ast.DurationLiteral(d)
-	dd, _ := ast.DurationFrom(&dl, time.Time{})
-	return dd
-}
-
-// MarshalJSON turns a Duration into a JSON-ified string.
-func (d Duration) MarshalJSON() ([]byte, error) {
-	var b bytes.Buffer
-	b.WriteByte('"')
-	for _, d := range d.Values {
-		b.WriteString(strconv.Itoa(int(d.Magnitude)))
-		b.WriteString(d.Unit)
-	}
-	b.WriteByte('"')
-
-	return b.Bytes(), nil
-}
-
-// UnmarshalJSON turns a flux duration literal into a Duration.
-func (d *Duration) UnmarshalJSON(b []byte) error {
-	dur, err := parseDuration(string(b[1 : len(b)-1]))
-	if err != nil {
-		return err
-	}
-
-	*d = Duration{Values: dur}
-
-	return nil
-}
-
-// FromTimeDuration converts a time.Duration to a notification.Duration type.
-func FromTimeDuration(d time.Duration) (Duration, error) {
-	dur, err := parseDuration(d.String())
-	if err != nil {
-		return Duration{}, err
-	}
-	return Duration{Values: dur}, nil
-}
 
 // TODO(jsternberg): This file copies over code from an internal package
 // because we need them from an internal package and the only way they
@@ -65,6 +19,31 @@ func FromTimeDuration(d time.Duration) (Duration, error) {
 //
 // In the future, we should consider exposing these functions from flux
 // in a non-internal package outside of the parser package.
+
+// ParseSignedDuration is a helper wrapper around parser.ParseSignedDuration.
+// We use it because we need to clear the basenode, but flux does not.
+func ParseSignedDuration(text string) (*ast.DurationLiteral, error) {
+	// TODO(jsternberg): This is copied from an internal package in flux to break a dependency
+	// on the parser package where this method is exposed.
+	// Consider exposing this properly in flux.
+	r, s := utf8.DecodeRuneInString(text)
+	if r == '-' {
+		d, err := parseDuration(text[s:])
+		if err != nil {
+			return nil, err
+		}
+		for i := range d {
+			d[i].Magnitude = -d[i].Magnitude
+		}
+		return &ast.DurationLiteral{Values: d}, nil
+	}
+
+	d, err := parseDuration(text)
+	if err != nil {
+		return nil, err
+	}
+	return &ast.DurationLiteral{Values: d}, nil
+}
 
 // parseDuration will convert a string into components of the duration.
 func parseDuration(lit string) ([]ast.Duration, error) {

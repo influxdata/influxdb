@@ -257,7 +257,7 @@ jobs:
             # filter internal/promqltests because it has special go.mod
             TESTFILES=$(go list ./... | grep -v internal/promqltests | circleci tests split --split-by=timings)
             echo $TESTFILES
-            GOTRACEBACK=all GO111MODULE=on FLUX_PARSER_TYPE=rust CGO_LDFLAGS="$(cat .cgo_ldflags)" gotestsum --format standard-quiet --junitfile /tmp/test-results/gotestsum.xml -- -race -count=1 -tags 'libflux' $TESTFILES
+            GOTRACEBACK=all GO111MODULE=on ./env gotestsum --format standard-quiet --junitfile /tmp/test-results/gotestsum.xml -- -race -count=1 $TESTFILES
       - save_cache:
           name: Saving GOCACHE
           key: influxdb-gocache-{{ .Branch }}-{{ .Revision }}
@@ -352,7 +352,7 @@ jobs:
       - run: make checktidy
       - run: GO111MODULE=on go mod vendor # staticcheck looks in vendor for dependencies.
       - run: GO111MODULE=on go install honnef.co/go/tools/cmd/staticcheck # Install staticcheck from the version we specify in go.mod.
-      - run: GO111MODULE=on staticcheck ./...
+      - run: GO111MODULE=on ./env staticcheck ./...
       - save_cache:
           name: Saving GOCACHE
           key: influxdb-gocache-{{ .Branch }}-{{ .Revision }}
@@ -509,6 +509,7 @@ workflows:
             branches:
               only:
                 - master
+                - feat/use-algo-w
     jobs:
       - gotest
       - golint
@@ -522,7 +523,9 @@ workflows:
             - jslint
           filters:
             branches:
-              only: master
+              only:
+                - master
+                - feat/use-algo-w
       - litmus_nightly:
           requires:
             - deploy-nightly

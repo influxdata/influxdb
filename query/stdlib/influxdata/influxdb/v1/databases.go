@@ -6,64 +6,35 @@ import (
 	"time"
 
 	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/codes"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/flux/plan"
-	"github.com/influxdata/flux/stdlib/influxdata/influxdb/v1"
+	v1 "github.com/influxdata/flux/stdlib/influxdata/influxdb/v1"
 	"github.com/influxdata/flux/values"
 	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/query"
 	"github.com/pkg/errors"
 )
 
-const DatabasesKind = v1.DatabasesKind
-
-type DatabasesOpSpec struct {
-}
-
-func init() {
-	flux.ReplacePackageValue("influxdata/influxdb/v1", DatabasesKind, flux.FunctionValue(DatabasesKind, createDatabasesOpSpec, v1.DatabasesSignature))
-	flux.RegisterOpSpec(DatabasesKind, newDatabasesOp)
-	plan.RegisterProcedureSpec(DatabasesKind, newDatabasesProcedure, DatabasesKind)
-}
-
-func createDatabasesOpSpec(args flux.Arguments, a *flux.Administration) (flux.OperationSpec, error) {
-	spec := new(DatabasesOpSpec)
-	return spec, nil
-}
-
-func newDatabasesOp() flux.OperationSpec {
-	return new(DatabasesOpSpec)
-}
-
-func (s *DatabasesOpSpec) Kind() flux.OperationKind {
-	return DatabasesKind
-}
-
-type DatabasesProcedureSpec struct {
-	plan.DefaultCost
-}
-
-func newDatabasesProcedure(qs flux.OperationSpec, pa plan.Administration) (plan.ProcedureSpec, error) {
-	_, ok := qs.(*DatabasesOpSpec)
-	if !ok {
-		return nil, fmt.Errorf("invalid spec type %T", qs)
-	}
-
-	return &DatabasesProcedureSpec{}, nil
-}
-
-func (s *DatabasesProcedureSpec) Kind() plan.ProcedureKind {
-	return DatabasesKind
-}
-
-func (s *DatabasesProcedureSpec) Copy() plan.ProcedureSpec {
-	ns := new(DatabasesProcedureSpec)
-	return ns
-}
+const DatabasesKind = "influxdata/influxdb/v1.localDatabases"
 
 func init() {
 	execute.RegisterSource(DatabasesKind, createDatabasesSource)
+	plan.RegisterPhysicalRules(LocalDatabasesRule{})
+}
+
+type LocalDatabasesProcedureSpec struct {
+	plan.DefaultCost
+}
+
+func (s *LocalDatabasesProcedureSpec) Kind() plan.ProcedureKind {
+	return DatabasesKind
+}
+
+func (s *LocalDatabasesProcedureSpec) Copy() plan.ProcedureSpec {
+	ns := new(LocalDatabasesProcedureSpec)
+	return ns
 }
 
 type DatabasesDecoder struct {
@@ -177,7 +148,7 @@ func (bd *DatabasesDecoder) Close() error {
 }
 
 func createDatabasesSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID, a execute.Administration) (execute.Source, error) {
-	_, ok := prSpec.(*DatabasesProcedureSpec)
+	_, ok := prSpec.(*LocalDatabasesProcedureSpec)
 	if !ok {
 		return nil, fmt.Errorf("invalid spec type %T", prSpec)
 	}
@@ -218,4 +189,28 @@ func (d DatabasesDependencies) Validate() error {
 		return errors.New("missing buckets lookup dependency")
 	}
 	return nil
+}
+
+type LocalDatabasesRule struct{}
+
+func (rule LocalDatabasesRule) Name() string {
+	return "influxdata/influxdb.LocalDatabasesRule"
+}
+
+func (rule LocalDatabasesRule) Pattern() plan.Pattern {
+	return plan.Pat(v1.DatabasesKind)
+}
+
+func (rule LocalDatabasesRule) Rewrite(ctx context.Context, node plan.Node) (plan.Node, bool, error) {
+	fromSpec := node.ProcedureSpec().(*v1.DatabasesProcedureSpec)
+	if fromSpec.Host != nil {
+		return node, false, nil
+	} else if fromSpec.Org != nil {
+		return node, false, &flux.Error{
+			Code: codes.Unimplemented,
+			Msg:  "buckets cannot list from a separate organization; please specify a host or remove the organization",
+		}
+	}
+
+	return plan.CreateLogicalNode("localDatabases", &LocalDatabasesProcedureSpec{}), true, nil
 }
