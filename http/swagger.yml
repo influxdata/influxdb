@@ -4531,7 +4531,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   "/orgs/{orgID}/invites/{inviteID}/resend":
     post:
-      operationId: DeleteOrgsIDInviteID
+      operationId: PostOrgsIDInviteID
       tags:
         - Invites
         - Organizations
