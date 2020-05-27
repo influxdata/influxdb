@@ -20,7 +20,16 @@ const MovePanelUpButton: FC<Props> = ({onClick, direction}) => {
     }
   }
 
-  return <SquareButton icon={icon} onClick={handleClick} status={status} />
+  const title = `Move this cell ${direction}`
+
+  return (
+    <SquareButton
+      icon={icon}
+      onClick={handleClick}
+      titleText={title}
+      status={status}
+    />
+  )
 }
 
 export default MovePanelUpButton
