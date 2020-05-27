@@ -1,6 +1,7 @@
 project_name: platform
 builds:
-  - goos:
+  - id: influx
+    goos:
       - linux
       - darwin
     goarch:
@@ -11,7 +12,8 @@ builds:
       - GO111MODULE=on
     ldflags: -s -w -X main.version={{.Version}} -X main.commit={{.ShortCommit}} -X main.date={{.Date}}
     binary: influx
-  - goos:
+  - id: influxd
+    goos:
       - linux
       - darwin
     goarch:
