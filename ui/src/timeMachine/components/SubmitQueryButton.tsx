@@ -8,6 +8,7 @@ import {
   ComponentColor,
   ComponentSize,
   ComponentStatus,
+  IconFont,
 } from '@influxdata/clockface'
 
 // Actions
@@ -29,18 +30,32 @@ interface DispatchProps {
   onSubmit: typeof saveAndExecuteQueries | (() => void)
 }
 
-type Props = StateProps & DispatchProps
+interface OwnProps {
+  text?: string
+  icon?: IconFont
+  testID?: string
+}
+
+type Props = OwnProps & StateProps & DispatchProps
 
 class SubmitQueryButton extends PureComponent<Props> {
+  public static defaultProps = {
+    text: 'Submit',
+    testID: 'time-machine-submit-button',
+  }
+
   public render() {
+    const {text, icon, testID} = this.props
+
     return (
       <Button
-        text="Submit"
+        text={text}
+        icon={icon}
         size={ComponentSize.Small}
         status={this.buttonStatus}
         onClick={this.handleClick}
         color={ComponentColor.Primary}
-        testID="time-machine-submit-button"
+        testID={testID}
       />
     )
   }

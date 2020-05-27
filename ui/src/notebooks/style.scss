@@ -27,6 +27,10 @@ $notebook-divider-height: ($cf-marg-a * 2) + $cf-border;
     border-radius: $cf-border / 2;
     margin: $cf-marg-a 0;
   }
+
+  &:last-of-type:after {
+      display: none;
+  }
 }
 
 // Highlight panel on hover
@@ -154,15 +158,6 @@ $notebook-divider-height: ($cf-marg-a * 2) + $cf-border;
   bottom: 0;
   left: 0;
   padding-top: 0;
-}
-
-.notebook-panel--body .flux-editor--monaco {
-  position: relative;
-  min-height: 320px;
-
-  .react-monaco-editor-container {
-    position: absolute;
-  }
 }
 
 .notebook-panel--results {
