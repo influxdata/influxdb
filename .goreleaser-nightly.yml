@@ -1,22 +1,22 @@
 project_name: platform
 builds:
   - goos:
-    - linux
-    - darwin
+      - linux
+      - darwin
     goarch:
-    - amd64
-    - arm64
+      - amd64
+      - arm64
     main: ./cmd/influx/
     env:
       - GO111MODULE=on
     ldflags: -s -w -X main.version={{.Version}} -X main.commit={{.ShortCommit}} -X main.date={{.Date}}
     binary: influx
   - goos:
-    - linux
-    - darwin
+      - linux
+      - darwin
     goarch:
-    - amd64
-    - arm64
+      - amd64
+      - arm64
     main: ./cmd/influxd/
     flags:
       - -tags=assets
@@ -27,20 +27,19 @@ builds:
     hooks:
       pre: make generate
 
-archive:
-  format: tar.gz
-  wrap_in_directory: true
-  format_overrides:
-    - goos: windows
-      format: zip
-  name_template: '{{ .Binary }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{
-    .Arm }}{{ end }}'
-  files:
-  - LICENSE
-  - README.md
+archives:
+  - format: tar.gz
+    wrap_in_directory: true
+    format_overrides:
+      - goos: windows
+        format: zip
+    name_template: "{{ .Binary }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
+    files:
+      - LICENSE
+      - README.md
 
 snapshot:
-  name_template: 'nightly'
+  name_template: "nightly"
 
 blobs:
   - provider: "s3"
@@ -52,10 +51,10 @@ dockers:
   - goos: linux
     goarch: amd64
     binaries:
-    - influxd
-    - influx
+      - influxd
+      - influx
     image_templates:
-      - 'quay.io/influxdb/influx:{{ .Version }}'
+      - "quay.io/influxdb/influx:{{ .Version }}"
     dockerfile: docker/influxd/Dockerfile
     extra_files:
       - docker/influxd/entrypoint.sh
