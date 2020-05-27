@@ -970,42 +970,6 @@ spec:
           value: 5000
 `,
 					},
-					{
-						name:           "missing a query value",
-						validationErrs: 1,
-						valFields:      []string{fieldSpec, "charts[0].queries[0].query"},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
-kind: Dashboard
-metadata:
-  name: dash-1
-spec:
-  description: desc1
-  charts:
-    - kind:   gauge
-      name:   gauge
-      note: gauge note
-      noteOnEmpty: true
-      xPos:  1
-      yPos:  2
-      width:  6
-      height: 3
-      queries:
-        - query:
-      colors:
-        - name: laser
-          type: min
-          hex: "#8F8AF4"
-          value: 0
-        - name: laser
-          type: threshold
-          hex: "#8F8AF4"
-          value: 700
-        - name: laser
-          type: max
-          hex: "#8F8AF4"
-          value: 5000
-`,
-					},
 				}
 
 				for _, tt := range tests {
@@ -1124,46 +1088,6 @@ spec:
         - hex: "#000004"
 `,
 					},
-					{
-						name:           "missing a query value",
-						validationErrs: 1,
-						valFields:      []string{fieldSpec, "charts[0].queries[0].query"},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
-kind: Dashboard
-metadata:
-  name: dash-0
-spec:
-  charts:
-    - kind:   heatmap
-      name:   heatmap
-      xPos:  1
-      yPos:  2
-      width:  6
-      height: 3
-      binSize: 10
-      xCol: _time
-      yCol: _value
-      queries:
-        - query:
-      colors:
-        - hex: "#000004"
-      axes:
-        - name: "x"
-          label: "x_label"
-          prefix: "x_prefix"
-          suffix: "x_suffix"
-          domain:
-            - 0
-            - 10
-        - name: "y"
-          label: "y_label"
-          prefix: "y_prefix"
-          suffix: "y_suffix"
-          domain:
-            - 0
-            - 100
-`,
-					},
 				}
 
 				for _, tt := range tests {
@@ -1236,38 +1160,6 @@ spec:
           value: 0
           name: mycolor
       axes:
-`,
-					},
-					{
-						name:           "missing a query value",
-						validationErrs: 1,
-						valFields:      []string{fieldSpec, "charts[0].queries[0].query"},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
-kind: Dashboard
-metadata:
-  name: dash-0
-spec:
-  description: a dashboard w/ single histogram chart
-  charts:
-    - kind: Histogram
-      name: histogram chart
-      xCol: _value
-      width:  6
-      height: 3
-      binCount: 30
-      queries:
-        - query:
-      colors:
-        - hex: "#8F8AF4"
-          type: scale
-          value: 0
-          name: mycolor
-      axes:
-        - name : "x"
-          label: x_label
-          domain:
-            - 0
-            - 10
 `,
 					},
 				}
@@ -1365,87 +1257,6 @@ spec:
       colors:
         - hex: "#8F8AF4"
         - hex: "#F4CF31"
-`,
-					},
-					{
-						name:           "missing query value",
-						validationErrs: 1,
-						valFields:      []string{fieldSpec, "charts[0].queries[0].query"},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
-kind: Dashboard
-metadata:
-  name:  dash-0
-spec:
-  description: a dashboard w/ single scatter chart
-  charts:
-    - kind:   Scatter
-      name:   scatter chart
-      xPos:  1
-      yPos:  2
-      xCol: _time
-      yCol: _value
-      width:  6
-      height: 3
-      queries:
-        - query:
-      colors:
-        - hex: "#8F8AF4"
-        - hex: "#F4CF31"
-      axes:
-        - name : "x"
-          label: x_label
-          prefix: x_prefix
-          suffix: x_suffix
-          domain:
-            - 0
-            - 10
-        - name: "y"
-          label: y_label
-          prefix: y_prefix
-          suffix: y_suffix
-          domain:
-            - 0
-            - 100
-`,
-					},
-					{
-						name:           "no queries provided",
-						validationErrs: 1,
-						valFields:      []string{fieldSpec, "charts[0].queries"},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
-kind: Dashboard
-metadata:
-  name:  dash-0
-spec:
-  description: a dashboard w/ single scatter chart
-  charts:
-    - kind:   Scatter
-      name:   scatter chart
-      xPos:  1
-      yPos:  2
-      xCol: _time
-      yCol: _value
-      width:  6
-      height: 3
-      colors:
-        - hex: "#8F8AF4"
-        - hex: "#F4CF31"
-        - hex: "#FFFFFF"
-      axes:
-        - name : "x"
-          label: x_label
-          prefix: x_prefix
-          suffix: x_suffix
-          domain:
-            - 0
-            - 10
-        - name: "y"
-          label: y_label
-          prefix: y_prefix
-          suffix: y_suffix
-          domain:
-            - 0
-            - 100
 `,
 					},
 					{
@@ -1737,54 +1548,6 @@ spec:
 `,
 					},
 					{
-						name:           "query missing text value",
-						validationErrs: 1,
-						valFields:      []string{fieldSpec, "charts[0].queries[0].query"},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
-kind: Dashboard
-metadata:
-  name: dash-1
-spec:
-  description: desc1
-  charts:
-    - kind:   Single_Stat
-      name:   single stat
-      xPos: 1
-      yPos: 2
-      width:  6
-      height: 3
-      queries:
-        - query:
-      colors:
-        - name: laser
-          type: text
-          hex: "#8F8AF4"
-`,
-					},
-					{
-						name:           "no queries provided",
-						validationErrs: 1,
-						valFields:      []string{fieldSpec, "charts[0].queries"},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
-kind: Dashboard
-metadata:
-  name: dash-1
-spec:
-  description: desc1
-  charts:
-    - kind:   Single_Stat
-      name:   single stat
-      xPos: 1
-      yPos: 2
-      width:  6
-      height: 3
-      colors:
-        - name: laser
-          type: text
-          hex: "#8F8AF4"
-`,
-					},
-					{
 						name:           "no width provided",
 						validationErrs: 1,
 						valFields:      []string{fieldSpec, "charts[0].width"},
@@ -1850,7 +1613,6 @@ metadata:
 spec:
 `,
 					},
-
 					{
 						name:           "spec name too short",
 						validationErrs: 1,
@@ -1959,92 +1721,6 @@ spec:
         - name: laser
           type: text
           value: 3
-      axes:
-        - name : "x"
-          label: x_label
-          prefix: x_prefix
-          suffix: x_suffix
-          base: 10
-          scale: linear
-        - name: "y"
-          label: y_label
-          prefix: y_prefix
-          suffix: y_suffix
-          base: 10
-          scale: linear
-`,
-					},
-					{
-						name:           "missing query value",
-						validationErrs: 1,
-						valFields:      []string{fieldSpec, "charts[0].queries[0].query"},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
-kind: Dashboard
-metadata:
-  name: dash-1
-spec:
-  description: desc1
-  charts:
-    - kind:   Single_Stat_Plus_Line
-      name:   single stat plus line
-      xPos:  1
-      yPos:  2
-      width:  6
-      height: 3
-      position: overlaid
-      queries:
-        - query:
-      colors:
-        - name: laser
-          type: text
-          hex: "#8F8AF4"
-          value: 3
-        - name: android
-          type: scale
-          hex: "#F4CF31"
-          value: 1
-      axes:
-        - name : "x"
-          label: x_label
-          prefix: x_prefix
-          suffix: x_suffix
-          base: 10
-          scale: linear
-        - name: "y"
-          label: y_label
-          prefix: y_prefix
-          suffix: y_suffix
-          base: 10
-          scale: linear
-`,
-					},
-					{
-						name:           "no queries provided",
-						validationErrs: 1,
-						valFields:      []string{fieldSpec, "charts[0].queries"},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
-kind: Dashboard
-metadata:
-  name: dash-1
-spec:
-  description: desc1
-  charts:
-    - kind:   Single_Stat_Plus_Line
-      name:   single stat plus line
-      xPos:  1
-      yPos:  2
-      width:  6
-      height: 3
-      position: overlaid
-      colors:
-        - name: laser
-          type: text
-          hex: "#8F8AF4"
-          value: 3
-        - name: android
-          type: scale
-          hex: "#F4CF31"
-          value: 1
       axes:
         - name : "x"
           label: x_label
@@ -2319,56 +1995,6 @@ spec:
         - name: laser
           type: min
           hex: 
-          value: 3.0`,
-					},
-					{
-						name:           "missing query value",
-						validationErrs: 1,
-						valFields:      []string{fieldSpec, "charts[0].queries[0].query"},
-						pkgStr: `
-apiVersion: influxdata.com/v2alpha1
-kind: Dashboard
-metadata:
-  name: dash-1
-spec:
-  description: desc1
-  charts:
-    - kind:   Table
-      name:   table
-      xPos:  1
-      yPos:  2
-      width:  6
-      height: 3
-      queries:
-        - query:
-      colors:
-        - name: laser
-          type: min
-          hex: peru
-          value: 3.0`,
-					},
-					{
-						name:           "no queries provided",
-						validationErrs: 1,
-						valFields:      []string{fieldSpec, "charts[0].queries"},
-						pkgStr: `
-apiVersion: influxdata.com/v2alpha1
-kind: Dashboard
-metadata:
-  name: dash-1
-spec:
-  description: desc1
-  charts:
-    - kind:   Table
-      name:   table
-      xPos:  1
-      yPos:  2
-      width:  6
-      height: 3
-      colors:
-        - name: laser
-          type: min
-          hex: peru 
           value: 3.0`,
 					},
 					{
