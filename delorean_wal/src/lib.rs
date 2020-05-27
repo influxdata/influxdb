@@ -8,7 +8,6 @@
 //!
 //! Work remaining:
 //!
-//! - Atomic remove of entries
 //! - More testing for correctness; the existing tests mostly demonstrate possible usages.
 //! - Error handling
 
@@ -315,6 +314,25 @@ where
     /// until the WAL is recreated.
     pub fn total_size(&self) -> u64 {
         self.total_size.load(Ordering::SeqCst)
+    }
+
+    /// Deletes files up to, but not including, the file that contains the entry number specified
+    pub fn delete_up_to_entry(&self, entry_number: u64) -> Result<()> {
+        let mut iter = self.files.existing_filenames()?.peekable();
+        let hypothetical_filename = self
+            .files
+            .filename_starting_at_sequence_number(entry_number);
+
+        while let Some(inner_path) = iter.next() {
+            if iter.peek().map_or(false, |p| p < &hypothetical_filename) {
+                // Intentionally ignore failures. Should we collect them for reporting instead?
+                let _ = fs::remove_file(inner_path);
+            } else {
+                break;
+            }
+        }
+
+        Ok(())
     }
 
     // TODO: Maybe a third struct?
