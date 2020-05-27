@@ -87,9 +87,12 @@ const NotebookPanel: FC<Props> = ({index, children, controls}) => {
     'notebook-panel__focus': isFocused,
   })
 
-  const updatePanelFocus = (focus: boolean): void => {
-    updateMeta(index, {focus} as PipeMeta)
-  }
+  const updatePanelFocus = useCallback(
+    (focus: boolean): void => {
+      updateMeta(index, {focus} as PipeMeta)
+    },
+    [index, meta]
+  )
 
   const handleClick = (e: MouseEvent<HTMLDivElement>): void => {
     e.stopPropagation()
