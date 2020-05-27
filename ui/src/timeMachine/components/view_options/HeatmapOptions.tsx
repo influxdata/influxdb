@@ -142,7 +142,7 @@ const HeatmapOptions: FunctionComponent<Props> = props => {
           value={binInput}
           type={InputType.Number}
           onChange={onSetBinSize}
-          testID={'bin-size-input'}
+          testID='bin-size-input'
         />
       </Form.Element>
       <h5 className="view-options--header">X Axis</h5>
