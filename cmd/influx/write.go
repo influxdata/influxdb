@@ -192,7 +192,9 @@ func fluxWriteF(cmd *cobra.Command, args []string) error {
 	}
 
 	if writeFlags.Bucket != "" && writeFlags.BucketID != "" {
-		return fmt.Errorf("please specify one of bucket or bucket-id")
+		return fmt.Errorf("please specify either bucket or bucket-id, not both")
+	} else if writeFlags.Bucket == "" && writeFlags.BucketID == "" {
+		return fmt.Errorf("please specify either bucket or bucket-id")
 	}
 
 	if !models.ValidPrecision(writeFlags.Precision) {
