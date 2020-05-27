@@ -10,6 +10,7 @@ pub mod partitioned_store;
 pub mod predicate;
 pub mod remote_partition;
 pub mod s3_partition;
+pub mod tsm;
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct ReadPoint<T: Clone> {
@@ -82,6 +83,14 @@ impl From<io::Error> for StorageError {
     fn from(e: io::Error) -> Self {
         Self {
             description: format!("TODO - io error: {} ({:?})", e, e),
+        }
+    }
+}
+
+impl From<std::str::Utf8Error> for StorageError {
+    fn from(e: std::str::Utf8Error) -> Self {
+        Self {
+            description: format!("TODO - utf8 error: {} ({:?})", e, e),
         }
     }
 }
