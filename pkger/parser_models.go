@@ -705,7 +705,6 @@ func (c chart) validProperties() []validationErr {
 
 	validatorFns := []func() []validationErr{
 		c.validBaseProps,
-		c.Queries.valid,
 		c.Colors.valid,
 	}
 	for _, validatorFn := range validatorFns {
@@ -958,34 +957,6 @@ func (q queries) influxDashQueries() []influxdb.DashboardQuery {
 		iQueries = append(iQueries, newQuery)
 	}
 	return iQueries
-}
-
-func (q queries) valid() []validationErr {
-	var fails []validationErr
-	if len(q) == 0 {
-		fails = append(fails, validationErr{
-			Field: fieldChartQueries,
-			Msg:   "at least 1 query must be provided",
-		})
-	}
-
-	for i, qq := range q {
-		qErr := validationErr{
-			Field: fieldChartQueries,
-			Index: intPtr(i),
-		}
-		if qq.Query == "" {
-			qErr.Nested = append(fails, validationErr{
-				Field: fieldQuery,
-				Msg:   "a query must be provided",
-			})
-		}
-		if len(qErr.Nested) > 0 {
-			fails = append(fails, qErr)
-		}
-	}
-
-	return fails
 }
 
 const (
