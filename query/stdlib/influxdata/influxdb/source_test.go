@@ -37,19 +37,19 @@ func (mockTableIterator) Statistics() cursors.CursorStats {
 type mockReader struct {
 }
 
-func (mockReader) ReadFilter(ctx context.Context, spec influxdb.ReadFilterSpec, alloc *memory.Allocator) (influxdb.TableIterator, error) {
+func (mockReader) ReadFilter(ctx context.Context, spec query.ReadFilterSpec, alloc *memory.Allocator) (query.TableIterator, error) {
 	return &mockTableIterator{}, nil
 }
 
-func (mockReader) ReadGroup(ctx context.Context, spec influxdb.ReadGroupSpec, alloc *memory.Allocator) (influxdb.TableIterator, error) {
+func (mockReader) ReadGroup(ctx context.Context, spec query.ReadGroupSpec, alloc *memory.Allocator) (query.TableIterator, error) {
 	return &mockTableIterator{}, nil
 }
 
-func (mockReader) ReadTagKeys(ctx context.Context, spec influxdb.ReadTagKeysSpec, alloc *memory.Allocator) (influxdb.TableIterator, error) {
+func (mockReader) ReadTagKeys(ctx context.Context, spec query.ReadTagKeysSpec, alloc *memory.Allocator) (query.TableIterator, error) {
 	return &mockTableIterator{}, nil
 }
 
-func (mockReader) ReadTagValues(ctx context.Context, spec influxdb.ReadTagValuesSpec, alloc *memory.Allocator) (influxdb.TableIterator, error) {
+func (mockReader) ReadTagValues(ctx context.Context, spec query.ReadTagValuesSpec, alloc *memory.Allocator) (query.TableIterator, error) {
 	return &mockTableIterator{}, nil
 }
 
@@ -120,7 +120,7 @@ func TestMetrics(t *testing.T) {
 	rfs := influxdb.ReadFilterSource(
 		execute.DatasetID(uuid.FromTime(time.Now())),
 		&mockReader{},
-		influxdb.ReadFilterSpec{
+		query.ReadFilterSpec{
 			OrganizationID: *orgID,
 		},
 		a,
@@ -201,12 +201,12 @@ func TestReadWindowAggregateSource(t *testing.T) {
 					BucketID: bucketID.String(),
 				},
 				WindowEvery: 10,
-				Aggregates: []string{
+				Aggregates: []plan.ProcedureKind{
 					universe.SumKind,
 				},
 			}
 			reader := &mock.WindowAggregateStoreReader{
-				ReadWindowAggregateFn: func(ctx context.Context, spec influxdb.ReadWindowAggregateSpec, alloc *memory.Allocator) (influxdb.TableIterator, error) {
+				ReadWindowAggregateFn: func(ctx context.Context, spec query.ReadWindowAggregateSpec, alloc *memory.Allocator) (query.TableIterator, error) {
 					if want, got := orgID, spec.OrganizationID; want != got {
 						t.Errorf("unexpected organization id -want/+got:\n\t- %s\n\t+ %s", want, got)
 					}

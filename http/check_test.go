@@ -20,6 +20,7 @@ import (
 	"github.com/influxdata/influxdb/v2/notification"
 	"github.com/influxdata/influxdb/v2/notification/check"
 	"github.com/influxdata/influxdb/v2/pkg/testttp"
+	"github.com/influxdata/influxdb/v2/query/fluxlang"
 	influxTesting "github.com/influxdata/influxdb/v2/testing"
 	"go.uber.org/zap/zaptest"
 )
@@ -34,6 +35,7 @@ func NewMockCheckBackend(t *testing.T) *CheckBackend {
 		LabelService:               mock.NewLabelService(),
 		UserService:                mock.NewUserService(),
 		OrganizationService:        mock.NewOrganizationService(),
+		FluxLanguageService:        fluxlang.DefaultService,
 	}
 }
 

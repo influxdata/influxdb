@@ -43,6 +43,7 @@ import (
 	infprom "github.com/influxdata/influxdb/v2/prometheus"
 	"github.com/influxdata/influxdb/v2/query"
 	"github.com/influxdata/influxdb/v2/query/control"
+	"github.com/influxdata/influxdb/v2/query/fluxlang"
 	"github.com/influxdata/influxdb/v2/query/stdlib/influxdata/influxdb"
 	"github.com/influxdata/influxdb/v2/session"
 	"github.com/influxdata/influxdb/v2/snowflake"
@@ -541,7 +542,8 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	}
 
 	serviceConfig := kv.ServiceConfig{
-		SessionLength: time.Duration(m.sessionLength) * time.Minute,
+		SessionLength:       time.Duration(m.sessionLength) * time.Minute,
+		FluxLanguageService: fluxlang.DefaultService,
 	}
 
 	flushers := flushers{}
@@ -898,6 +900,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		PasswordsService:                passwdsSvc,
 		InfluxQLService:                 storageQueryService,
 		FluxService:                     storageQueryService,
+		FluxLanguageService:             fluxlang.DefaultService,
 		TaskService:                     taskSvc,
 		TelegrafService:                 telegrafSvc,
 		NotificationRuleStore:           notificationRuleSvc,

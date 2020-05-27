@@ -10,6 +10,7 @@ import (
 	"github.com/influxdata/flux/parser"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/notification/check"
+	"github.com/influxdata/influxdb/v2/query/fluxlang"
 )
 
 func TestCheck_Valid(t *testing.T) {
@@ -169,7 +170,7 @@ data
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 
-			err := tt.args.custom.Valid()
+			err := tt.args.custom.Valid(fluxlang.DefaultService)
 
 			if exp, got := tt.wants.err, err; exp != nil && got != nil {
 				// expected error, got error check that they match

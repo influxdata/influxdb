@@ -31,6 +31,7 @@ type CheckBackend struct {
 	LabelService               influxdb.LabelService
 	UserService                influxdb.UserService
 	OrganizationService        influxdb.OrganizationService
+	FluxLanguageService        influxdb.FluxLanguageService
 }
 
 // NewCheckBackend returns a new instance of CheckBackend.
@@ -45,6 +46,7 @@ func NewCheckBackend(log *zap.Logger, b *APIBackend) *CheckBackend {
 		LabelService:               b.LabelService,
 		UserService:                b.UserService,
 		OrganizationService:        b.OrganizationService,
+		FluxLanguageService:        b.FluxLanguageService,
 	}
 }
 
@@ -60,6 +62,7 @@ type CheckHandler struct {
 	LabelService               influxdb.LabelService
 	UserService                influxdb.UserService
 	OrganizationService        influxdb.OrganizationService
+	FluxLanguageService        influxdb.FluxLanguageService
 }
 
 const (
@@ -87,6 +90,7 @@ func NewCheckHandler(log *zap.Logger, b *CheckBackend) *CheckHandler {
 		UserService:                b.UserService,
 		TaskService:                b.TaskService,
 		OrganizationService:        b.OrganizationService,
+		FluxLanguageService:        b.FluxLanguageService,
 	}
 
 	h.Handler("POST", prefixChecks, withFeatureProxy(b.AlgoWProxy, http.HandlerFunc(h.handlePostCheck)))
@@ -299,7 +303,7 @@ func (h *CheckHandler) handleGetCheckQuery(w http.ResponseWriter, r *http.Reques
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	flux, err := chk.GenerateFlux()
+	flux, err := chk.GenerateFlux(h.FluxLanguageService)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
@@ -434,7 +438,7 @@ func decodePostCheckRequest(r *http.Request) (postCheckRequest, error) {
 	}, nil
 }
 
-func decodePutCheckRequest(ctx context.Context, r *http.Request) (influxdb.CheckCreate, error) {
+func decodePutCheckRequest(ctx context.Context, lang influxdb.FluxLanguageService, r *http.Request) (influxdb.CheckCreate, error) {
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
@@ -472,7 +476,7 @@ func decodePutCheckRequest(ctx context.Context, r *http.Request) (influxdb.Check
 	}
 	chk.SetID(*i)
 
-	if err := chk.Valid(); err != nil {
+	if err := chk.Valid(lang); err != nil {
 		return influxdb.CheckCreate{}, err
 	}
 
@@ -601,7 +605,7 @@ func (h *CheckHandler) mapNewCheckLabels(ctx context.Context, chk influxdb.Check
 // handlePutCheck is the HTTP handler for the PUT /api/v2/checks route.
 func (h *CheckHandler) handlePutCheck(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	chk, err := decodePutCheckRequest(ctx, r)
+	chk, err := decodePutCheckRequest(ctx, h.FluxLanguageService, r)
 	if err != nil {
 		h.log.Debug("Failed to decode request", zap.Error(err))
 		h.HandleHTTPError(ctx, err, w)

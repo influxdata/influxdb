@@ -6,6 +6,7 @@ import (
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/notification"
 	"github.com/influxdata/influxdb/v2/notification/check"
+	"github.com/influxdata/influxdb/v2/query/fluxlang"
 )
 
 func TestDeadman_GenerateFlux(t *testing.T) {
@@ -216,7 +217,7 @@ data
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, err := tt.args.deadman.GenerateFlux()
+			s, err := tt.args.deadman.GenerateFlux(fluxlang.DefaultService)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}

@@ -154,8 +154,8 @@ func (s *store) GetSource(orgID, bucketID uint64) proto.Message {
 	}
 }
 
-func (s *store) HasWindowAggregateCapability(ctx context.Context, capability ...*reads.WindowAggregateCapability) bool {
-	return false
+func (s *store) GetWindowAggregateCapability(ctx context.Context) reads.WindowAggregateCapability {
+	return nil
 }
 
 // WindowAggregate will invoke a ReadWindowAggregateRequest against the Store.

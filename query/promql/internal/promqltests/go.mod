@@ -1,6 +1,6 @@
 module github.com/influxdata/promqltests
 
-go 1.13
+go 1.12
 
 require (
 	github.com/alecthomas/units v0.0.0-20190924025748-f65c72e2690d // indirect
@@ -11,9 +11,8 @@ require (
 	github.com/glycerine/goconvey v0.0.0-20190410193231-58a59202ab31 // indirect
 	github.com/go-kit/kit v0.10.0 // indirect
 	github.com/google/go-cmp v0.4.0
-	github.com/google/uuid v1.1.1 // indirect
 	github.com/hashicorp/go-rootcerts v1.0.2 // indirect
-	github.com/influxdata/flux v0.67.0
+	github.com/influxdata/flux v0.67.1-0.20200512174851-f7d273712b6b
 	github.com/influxdata/influxdb/v2 v2.0.0-00010101000000-000000000000
 	github.com/influxdata/influxql v1.0.1 // indirect
 	github.com/influxdata/promql/v2 v2.12.0
@@ -28,7 +27,6 @@ require (
 	github.com/spf13/afero v1.2.2 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/willf/bitset v1.1.10 // indirect
-	golang.org/x/crypto v0.0.0-20191206172530-e9b2fee46413 // indirect
 	golang.org/x/net v0.0.0-20200301022130-244492dfa37a // indirect
 	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d // indirect
 	golang.org/x/sys v0.0.0-20200302150141-5c8b2ff67527 // indirect

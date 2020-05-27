@@ -593,7 +593,7 @@ func (s *Service) createTask(ctx context.Context, tx Tx, tc influxdb.TaskCreate)
 	// 	return nil, influxdb.ErrInvalidOwnerID
 	// }
 
-	opt, err := options.FromScript(tc.Flux)
+	opt, err := options.FromScript(s.FluxLanguageService, tc.Flux)
 	if err != nil {
 		return nil, influxdb.ErrTaskOptionParse(err)
 	}
@@ -742,12 +742,12 @@ func (s *Service) updateTask(ctx context.Context, tx Tx, id influxdb.ID, upd inf
 
 	// update the flux script
 	if !upd.Options.IsZero() || upd.Flux != nil {
-		if err = upd.UpdateFlux(task.Flux); err != nil {
+		if err = upd.UpdateFlux(s.FluxLanguageService, task.Flux); err != nil {
 			return nil, err
 		}
 		task.Flux = *upd.Flux
 
-		options, err := options.FromScript(*upd.Flux)
+		options, err := options.FromScript(s.FluxLanguageService, *upd.Flux)
 		if err != nil {
 			return nil, influxdb.ErrTaskOptionParse(err)
 		}

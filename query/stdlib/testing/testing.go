@@ -90,6 +90,7 @@ var FluxEndToEndSkipList = map[string]map[string]string{
 		"to_uint": "dateTime conversion issue: https://github.com/influxdata/influxdb/issues/14575",
 
 		"holt_winters_panic": "Expected output is an empty table which breaks the testing framework (https://github.com/influxdata/influxdb/issues/14749)",
+		"map_nulls":          "to cannot write null values",
 	},
 	"experimental": {
 		"set":       "Reason TBD",
@@ -134,9 +135,6 @@ var FluxEndToEndSkipList = map[string]map[string]string{
 	},
 	"testing/chronograf": {
 		"buckets": "unbounded test",
-	},
-	"testing/influxql": {
-		"aggregate_group_by_time": "https://github.com/influxdata/influxdb/issues/16940",
 	},
 	"testing/kapacitor": {
 		"fill_default": "unknown field type for f1",
