@@ -8,6 +8,14 @@ import {client} from 'src/utils/api'
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
+import {isFlagEnabled} from 'src/shared/utils/featureFlag'
+
+// Utils
+import {
+  getFromLocalStorage,
+  removeFromLocalStorage,
+  setToLocalStorage,
+} from 'src/localStorage'
 
 // Actions
 import {notify as notifyAction} from 'src/shared/actions/notifications'
@@ -74,12 +82,27 @@ export class Signin extends PureComponent<Props, State> {
   private checkForLogin = async () => {
     try {
       await client.users.me()
+      const redirectIsSet = !!getFromLocalStorage('redirectTo')
+      if (redirectIsSet) {
+        removeFromLocalStorage('redirectTo')
+      }
     } catch (error) {
       const {
         location: {pathname},
       } = this.props
 
       clearInterval(this.intervalID)
+
+      if (CLOUD && isFlagEnabled('redirectto')) {
+        const url = new URL(
+          `${window.location.origin}${CLOUD_SIGNIN_PATHNAME}?redirectTo=${
+            window.location.href
+          }`
+        )
+        setToLocalStorage('redirectTo', window.location.href)
+        window.location.href = url.href
+        throw error
+      }
 
       if (CLOUD) {
         // TODO: add returnTo to CLOUD signin
