@@ -93,3 +93,11 @@ impl From<delorean_wal::Error> for StorageError {
         }
     }
 }
+
+impl From<serde_json::Error> for StorageError {
+    fn from(e: serde_json::Error) -> Self {
+        Self {
+            description: format!("JSON error: {} ({:?})", e, e),
+        }
+    }
+}

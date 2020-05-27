@@ -13,6 +13,7 @@ use futures::{
     stream::{BoxStream, Stream},
     FutureExt, SinkExt, StreamExt,
 };
+use serde::{Deserialize, Serialize};
 use std::{
     cmp::Ordering,
     collections::BTreeMap,
@@ -24,6 +25,13 @@ use std::{
     time::Duration,
 };
 use tokio::task;
+
+#[derive(Clone)]
+pub enum PartitionStore {
+    MemDB(Box<MemDB>),
+    S3(Box<S3Partition>),
+    Remote(Box<RemotePartition>),
+}
 
 /// A Partition is a block of data. It has methods for reading the metadata like which measurements,
 /// tags, tag values, and fields exist, along with the raw time series data. It is designed to work
@@ -38,90 +46,99 @@ use tokio::task;
 /// A Partition may optionally have a write-ahead log.
 pub struct Partition {
     store: PartitionStore,
-    wal: Option<WalDetails>,
+    wal_details: Option<WalDetails>,
 }
 
 struct WalDetails {
     wal: Wal<mpsc::Sender<delorean_wal::Result<()>>>,
+    metadata: WalMetadata,
     // There is no mechanism available to the HTTP API to trigger an immediate sync yet
     #[allow(dead_code)]
     start_sync_tx: mpsc::Sender<()>,
 }
 
-pub enum PartitionStore {
-    MemDB(Box<MemDB>),
-    S3(Box<S3Partition>),
-    Remote(Box<RemotePartition>),
+impl WalDetails {
+    async fn write_metadata(&self) -> Result<(), StorageError> {
+        let metadata_path = self.wal.metadata_path();
+        Ok(tokio::fs::write(metadata_path, serde_json::to_string(&self.metadata)?).await?)
+    }
 }
 
 impl Partition {
-    pub fn new(store: PartitionStore, wal_dir: Option<PathBuf>) -> Partition {
-        let wal = wal_dir.map(|dir| {
-            let wal_builder = WalBuilder::new(dir);
-            start_wal_sync_task(wal_builder)
-        });
-
-        Partition { wal, store }
+    pub fn new_without_wal(store: PartitionStore) -> Partition {
+        Partition {
+            store,
+            wal_details: None,
+        }
     }
 
-    pub fn restore_memdb_from_wal(
+    pub async fn new_with_wal(
+        store: PartitionStore,
+        wal_dir: PathBuf,
+    ) -> Result<Partition, StorageError> {
+        let wal_builder = WalBuilder::new(wal_dir);
+        let wal_details = start_wal_sync_task(wal_builder).await?;
+        wal_details.write_metadata().await?;
+
+        Ok(Partition {
+            store,
+            wal_details: Some(wal_details),
+        })
+    }
+
+    pub async fn restore_memdb_from_wal(
         bucket_name: &str,
         bucket_dir: PathBuf,
     ) -> Result<Partition, StorageError> {
         let partition_id = bucket_name.to_string();
         let mut db = MemDB::new(partition_id);
         let wal_builder = WalBuilder::new(bucket_dir);
+        let wal_details = start_wal_sync_task(wal_builder.clone()).await?;
 
-        let mut points = Vec::new();
+        match wal_details.metadata.format {
+            WalFormat::Unknown => {
+                return Err(StorageError {
+                    description: "Cannot restore from WAL; unknown format".into(),
+                })
+            }
+            WalFormat::FlatBuffers => {
+                let mut points = Vec::new();
 
-        for entry in wal_builder.clone().entries()? {
-            let entry = entry?;
-            let bytes = entry.as_data();
+                for entry in wal_builder.entries()? {
+                    let entry = entry?;
+                    let bytes = entry.as_data();
 
-            let entry = flatbuffers::get_root::<wal::Entry>(&bytes);
+                    let entry = flatbuffers::get_root::<wal::Entry>(&bytes);
 
-            if let Some(entry_type) = entry.entry_type() {
-                if let Some(write) = entry_type.write() {
-                    if let Some(wal_points) = write.points() {
-                        for wal_point in wal_points {
-                            points.push(wal_point.into());
+                    if let Some(entry_type) = entry.entry_type() {
+                        if let Some(write) = entry_type.write() {
+                            if let Some(wal_points) = write.points() {
+                                for wal_point in wal_points {
+                                    points.push(wal_point.into());
+                                }
+                            }
                         }
                     }
                 }
+
+                db.write_points(&mut points)?;
             }
         }
 
-        db.write_points(&mut points)?;
-
-        let partition_store = PartitionStore::MemDB(Box::new(db));
+        let store = PartitionStore::MemDB(Box::new(db));
+        wal_details.write_metadata().await?;
 
         Ok(Partition {
-            store: partition_store,
-            wal: Some(start_wal_sync_task(wal_builder)),
+            store,
+            wal_details: Some(wal_details),
         })
     }
 
-    pub fn id(&self) -> &str {
-        match &self.store {
-            PartitionStore::MemDB(db) => &db.id,
-            PartitionStore::S3(_) => panic!("s3 partition not implemented!"),
-            PartitionStore::Remote(_) => panic!("remote partition not implemented!"),
-        }
-    }
-
-    pub fn size(&self) -> usize {
-        match &self.store {
-            PartitionStore::MemDB(db) => db.size(),
-            PartitionStore::S3(_) => panic!("s3 partition not implemented!"),
-            PartitionStore::Remote(_) => panic!("remote partition not implemented!"),
-        }
-    }
-
     pub async fn write_points(&mut self, points: &mut [PointType]) -> Result<(), StorageError> {
-        // TODO: Allow each kind of Partition to configure the guarantees around when this
+        // TODO: Allow each kind of PartitionWithWal to configure the guarantees around when this
         // function returns and the state of data in regards to the WAL
 
-        if let Some(WalDetails { wal, .. }) = &self.wal {
+        if let Some(WalDetails { wal, .. }) = &self.wal_details {
             let (ingest_done_tx, mut ingest_done_rx) = mpsc::channel(1);
 
             let mut w = wal.append();
@@ -138,6 +155,22 @@ impl Partition {
 
         match &mut self.store {
             PartitionStore::MemDB(db) => db.write_points(points),
+            PartitionStore::S3(_) => panic!("s3 partition not implemented!"),
+            PartitionStore::Remote(_) => panic!("remote partition not implemented!"),
+        }
+    }
+
+    pub fn id(&self) -> &str {
+        match &self.store {
+            PartitionStore::MemDB(db) => &db.id,
+            PartitionStore::S3(_) => panic!("s3 partition not implemented!"),
+            PartitionStore::Remote(_) => panic!("remote partition not implemented!"),
+        }
+    }
+
+    pub fn size(&self) -> usize {
+        match &self.store {
+            PartitionStore::MemDB(db) => db.size(),
             PartitionStore::S3(_) => panic!("s3 partition not implemented!"),
             PartitionStore::Remote(_) => panic!("remote partition not implemented!"),
         }
@@ -235,10 +268,15 @@ impl Partition {
     }
 }
 
-fn start_wal_sync_task(wal_builder: WalBuilder) -> WalDetails {
-    let wal = wal_builder
-        .wal::<mpsc::Sender<_>>()
-        .expect("TODO handle failures");
+async fn start_wal_sync_task(wal_builder: WalBuilder) -> Result<WalDetails, StorageError> {
+    let wal = wal_builder.wal::<mpsc::Sender<_>>()?;
+
+    let metadata = tokio::fs::read_to_string(wal.metadata_path())
+        .await
+        .and_then(|raw_metadata| {
+            serde_json::from_str::<WalMetadata>(&raw_metadata).map_err(Into::into)
+        })
+        .unwrap_or_default();
 
     let (start_sync_tx, mut start_sync_rx) = mpsc::channel(1);
 
@@ -267,7 +305,33 @@ fn start_wal_sync_task(wal_builder: WalBuilder) -> WalDetails {
         }
     });
 
-    WalDetails { wal, start_sync_tx }
+    Ok(WalDetails {
+        wal,
+        start_sync_tx,
+        metadata,
+    })
+}
+
+/// Metadata about this particular WAL
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
+pub struct WalMetadata {
+    format: WalFormat,
+}
+
+impl Default for WalMetadata {
+    fn default() -> Self {
+        WalMetadata {
+            format: WalFormat::FlatBuffers,
+        }
+    }
+}
+
+/// Supported WAL formats that can be restored
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
+enum WalFormat {
+    FlatBuffers,
+    #[serde(other)]
+    Unknown,
 }
 
 fn points_to_flatbuffer(points: &[PointType]) -> flatbuffers::FlatBufferBuilder {
@@ -728,6 +792,7 @@ impl PartialOrd for PartitionKeyValues {
 mod tests {
     use super::*;
     use futures::{stream, StreamExt};
+    use std::fs;
 
     #[test]
     fn string_merge_stream() {
@@ -937,5 +1002,47 @@ mod tests {
             partition_key_values.values,
             vec![Some(String::from("west")), None, Some(String::from("b"))]
         );
+    }
+
+    type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
+    type Result<T, E = Error> = std::result::Result<T, E>;
+
+    #[tokio::test(threaded_scheduler)]
+    async fn partition_writes_wal_metadata() -> Result<()> {
+        let store = PartitionStore::MemDB(Box::new(MemDB::new("wal metadata write".into())));
+        let dir = delorean_test_helpers::tmp_dir()?.into_path();
+        let partition = Partition::new_with_wal(store, dir).await?;
+        let wal_metadata_path = partition.wal_details.unwrap().wal.metadata_path();
+
+        let metadata_file_contents = fs::read_to_string(wal_metadata_path)?;
+
+        assert_eq!(metadata_file_contents, r#"{"format":"FlatBuffers"}"#);
+        Ok(())
+    }
+
+    #[tokio::test(threaded_scheduler)]
+    async fn partition_checks_metadata_for_supported_format() -> Result<()> {
+        let bucket_name = "wal metadata read";
+        let store = PartitionStore::MemDB(Box::new(MemDB::new(bucket_name.into())));
+        let dir = delorean_test_helpers::tmp_dir()?.into_path();
+
+        let wal_metadata_path = {
+            // Create a new Partition to get the WAL metadata path, then drop it
+            let partition = Partition::new_with_wal(store.clone(), dir.clone()).await?;
+            partition.wal_details.unwrap().wal.metadata_path()
+        };
+
+        // Change the metadata to say the WAL is in some format other than what we know about
+        let unsupported_format_metadata = r#"{"format":"NotAnythingSupported"}"#;
+        fs::write(wal_metadata_path, unsupported_format_metadata)?;
+
+        let partition_error = Partition::restore_memdb_from_wal(bucket_name, dir).await;
+
+        assert!(partition_error.is_err());
+        assert_eq!(
+            partition_error.err().unwrap().to_string(),
+            "Cannot restore from WAL; unknown format"
+        );
+        Ok(())
     }
 }

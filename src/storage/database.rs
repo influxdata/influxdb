@@ -19,7 +19,7 @@ struct Organization {
 
 impl Organization {
     // create_bucket_if_not_exists inserts the bucket into the map and returns its id
-    fn create_bucket_if_not_exists(
+    async fn create_bucket_if_not_exists(
         &mut self,
         mut bucket: Bucket,
         wal_root_dir: Option<PathBuf>,
@@ -41,7 +41,7 @@ impl Organization {
 
                 self.bucket_name_to_id.insert(bucket.name.clone(), id);
                 self.bucket_data
-                    .insert(id, Arc::new(BucketData::new(bucket, wal_dir)));
+                    .insert(id, Arc::new(BucketData::new(bucket, wal_dir).await?));
                 Ok(id)
             }
         }
@@ -55,7 +55,7 @@ impl Organization {
         }
     }
 
-    fn restore_from_wal(org_dir: &PathBuf) -> Result<Organization, StorageError> {
+    async fn restore_from_wal(org_dir: &PathBuf) -> Result<Organization, StorageError> {
         let org_id: Id = org_dir
             .file_name()
             .expect("Path should not end in ..")
@@ -87,7 +87,7 @@ impl Organization {
                 index_levels: vec![],
             };
 
-            let bucket_data = BucketData::restore_from_wal(bucket, bucket_dir)?;
+            let bucket_data = BucketData::restore_from_wal(bucket, bucket_dir).await?;
 
             let id: Id = id.try_into().expect("usize plus 1 can't be zero");
             org.bucket_name_to_id.insert(bucket_name, id);
@@ -107,21 +107,25 @@ struct BucketData {
 impl BucketData {
     const BATCH_SIZE: usize = 100_000;
 
-    fn new(bucket: Bucket, wal_dir: Option<PathBuf>) -> BucketData {
+    async fn new(bucket: Bucket, wal_dir: Option<PathBuf>) -> Result<BucketData, StorageError> {
         let partition_id = bucket.name.clone();
-        let partition = Partition::new(
-            PartitionStore::MemDB(Box::new(MemDB::new(partition_id))),
-            wal_dir,
-        );
+        let store = PartitionStore::MemDB(Box::new(MemDB::new(partition_id)));
+        let partition = match wal_dir {
+            Some(dir) => Partition::new_with_wal(store, dir).await?,
+            None => Partition::new_without_wal(store),
+        };
 
-        BucketData {
+        Ok(BucketData {
             config: bucket,
             partition: RwLock::new(partition),
-        }
+        })
     }
 
-    fn restore_from_wal(bucket: Bucket, bucket_dir: PathBuf) -> Result<BucketData, StorageError> {
-        let partition = Partition::restore_memdb_from_wal(&bucket.name, bucket_dir)?;
+    async fn restore_from_wal(
+        bucket: Bucket,
+        bucket_dir: PathBuf,
+    ) -> Result<BucketData, StorageError> {
+        let partition = Partition::restore_memdb_from_wal(&bucket.name, bucket_dir).await?;
 
         Ok(BucketData {
             config: bucket,
@@ -245,7 +249,7 @@ impl Database {
 
             for org_dir in fs::read_dir(wal_dir)? {
                 let org_dir = org_dir?;
-                let org = Organization::restore_from_wal(&org_dir.path())?;
+                let org = Organization::restore_from_wal(&org_dir.path()).await?;
                 orgs.insert(org.id, RwLock::new(org));
             }
         }
@@ -297,6 +301,7 @@ impl Database {
 
         // TODO: Add a way to configure whether a particular bucket has a WAL
         org.create_bucket_if_not_exists(bucket, self.dir.clone())
+            .await
     }
 
     pub async fn read_points(

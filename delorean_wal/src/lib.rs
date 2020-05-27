@@ -8,7 +8,6 @@
 //!
 //! Work remaining:
 //!
-//! - Metadata file
 //! - Atomic remove of entries
 //! - More testing for correctness; the existing tests mostly demonstrate possible usages.
 //! - Error handling
@@ -289,6 +288,12 @@ where
             pending: Default::default(),
             total_size: Arc::new(total_size.into()),
         })
+    }
+
+    /// A path to a file for storing arbitrary metadata about this WAL, guaranteed not to collide
+    /// with the data files.
+    pub fn metadata_path(&self) -> PathBuf {
+        self.files.root.join("metadata")
     }
 
     /// Start appending data to this WAL.
