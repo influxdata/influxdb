@@ -160,7 +160,8 @@
 //! ╚═════════════════════════════════════╝
 //! ```
 
-use crate::encoders::{float, integer, timestamp};
+use crate::encoders::timestamp;
+use crate::encoders::Encoder;
 use crate::storage::StorageError;
 
 use integer_encoding::*;
@@ -199,52 +200,6 @@ impl<'a> BlockType for &'a str {
 impl BlockType for u64 {
     const BYTE_MARKER: u8 = 4;
     type BlockSummary = UnsignedBlockSummary;
-}
-
-/// Types implementing `Encoder` are able to encode themselves into compressed
-/// blocks of data.
-pub trait Encoder {
-    fn encode(&self, dst: &mut Vec<u8>) -> Result<(), StorageError>;
-}
-
-impl Encoder for Vec<f64> {
-    fn encode(&self, dst: &mut Vec<u8>) -> Result<(), StorageError> {
-        float::encode(&self, dst).map_err(|e| StorageError {
-            description: e.to_string(),
-        })
-    }
-}
-
-impl Encoder for Vec<i64> {
-    fn encode(&self, dst: &mut Vec<u8>) -> Result<(), StorageError> {
-        integer::encode(&self, dst).map_err(|e| StorageError {
-            description: e.to_string(),
-        })
-    }
-}
-
-impl Encoder for Vec<u64> {
-    fn encode(&self, _: &mut Vec<u8>) -> Result<(), StorageError> {
-        Err(StorageError {
-            description: String::from("not yet implemented"),
-        })
-    }
-}
-
-impl Encoder for Vec<&str> {
-    fn encode(&self, _: &mut Vec<u8>) -> Result<(), StorageError> {
-        Err(StorageError {
-            description: String::from("not yet implemented"),
-        })
-    }
-}
-
-impl Encoder for Vec<bool> {
-    fn encode(&self, _: &mut Vec<u8>) -> Result<(), StorageError> {
-        Err(StorageError {
-            description: String::from("not yet implemented"),
-        })
-    }
 }
 
 /// `Hasher` provides a sub-set of the `std::hash::Hasher` API.
