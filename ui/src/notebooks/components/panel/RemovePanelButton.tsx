@@ -17,7 +17,13 @@ const RemoveButton: FC<Props> = ({onRemove}) => {
     onRemove()
   }
 
-  return <SquareButton icon={IconFont.Remove} onClick={handleClick} />
+  return (
+    <SquareButton
+      icon={IconFont.Remove}
+      onClick={handleClick}
+      titleText="Remove this cell"
+    />
+  )
 }
 
 export default RemoveButton
