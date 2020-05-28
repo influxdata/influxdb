@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	platform "github.com/influxdata/influxdb/v2"
-	"github.com/influxdata/influxdb/v2/cmd/influx/internal"
 	"github.com/influxdata/influxdb/v2/http"
 	"github.com/influxdata/influxdb/v2/kit/signals"
 	"github.com/influxdata/influxdb/v2/models"
@@ -148,8 +147,8 @@ func (writeFlags *writeFlagsType) createLineReader(cmd *cobra.Command, args []st
 	// add stdin or a single argument
 	switch {
 	case len(args) == 0:
-		// use also stdIn unless it is a terminal
-		if !internal.IsCharacterDevice(cmd.InOrStdin()) {
+		// use also stdIn if it is a terminal
+		if !isCharacterDevice(cmd.InOrStdin()) {
 			readers = append(readers, decode(cmd.InOrStdin()))
 		}
 	case args[0] == "-":
@@ -285,4 +284,17 @@ func fluxWriteDryrunF(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed: %v", err)
 	}
 	return nil
+}
+
+// IsCharacterDevice returns true if the supplied reader is a character device (a terminal)
+func isCharacterDevice(reader io.Reader) bool {
+	file, isFile := reader.(*os.File)
+	if !isFile {
+		return false
+	}
+	info, err := file.Stat()
+	if err != nil {
+		return false
+	}
+	return (info.Mode() & os.ModeCharDevice) == os.ModeCharDevice
 }
