@@ -35,8 +35,6 @@ func newWindowAggregateArrayCursor(ctx context.Context, req *datatypes.ReadWindo
 	}
 
 	switch req.Aggregate[0].Type {
-	case datatypes.AggregateTypeSum:
-		return newSumArrayCursor(cursor)
 	case datatypes.AggregateTypeCount:
 		return newWindowCountArrayCursor(cursor, req)
 	default:
@@ -82,31 +80,26 @@ func newWindowCountArrayCursor(cur cursors.Cursor, req *datatypes.ReadWindowAggr
 		return &integerFloatWindowCountArrayCursor{
 			FloatArrayCursor: cur,
 			every:            req.WindowEvery,
-			tr:               req.Range,
 		}
 	case cursors.IntegerArrayCursor:
 		return &integerIntegerWindowCountArrayCursor{
 			IntegerArrayCursor: cur,
 			every:              req.WindowEvery,
-			tr:                 req.Range,
 		}
 	case cursors.UnsignedArrayCursor:
 		return &integerUnsignedWindowCountArrayCursor{
 			UnsignedArrayCursor: cur,
 			every:               req.WindowEvery,
-			tr:                  req.Range,
 		}
 	case cursors.StringArrayCursor:
 		return &integerStringWindowCountArrayCursor{
 			StringArrayCursor: cur,
 			every:             req.WindowEvery,
-			tr:                req.Range,
 		}
 	case cursors.BooleanArrayCursor:
 		return &integerBooleanWindowCountArrayCursor{
 			BooleanArrayCursor: cur,
 			every:              req.WindowEvery,
-			tr:                 req.Range,
 		}
 	default:
 		panic(fmt.Sprintf("unreachable: %T", cur))

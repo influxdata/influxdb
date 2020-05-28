@@ -239,7 +239,6 @@ func (c *integer{{.Name}}CountArrayCursor) Next() *cursors.IntegerArray {
 type integer{{.Name}}WindowCountArrayCursor struct {
 	cursors.{{.Name}}ArrayCursor
 	every int64
-	tr    datatypes.TimestampRange
 }
 
 func (c *integer{{.Name}}WindowCountArrayCursor) Stats() cursors.CursorStats {

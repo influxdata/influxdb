@@ -9,7 +9,6 @@ package reads
 import (
 	"errors"
 
-	"github.com/influxdata/influxdb/v2/storage/reads/datatypes"
 	"github.com/influxdata/influxdb/v2/tsdb/cursors"
 )
 
@@ -232,7 +231,6 @@ func (c *integerFloatCountArrayCursor) Next() *cursors.IntegerArray {
 type integerFloatWindowCountArrayCursor struct {
 	cursors.FloatArrayCursor
 	every int64
-	tr    datatypes.TimestampRange
 }
 
 func (c *integerFloatWindowCountArrayCursor) Stats() cursors.CursorStats {
@@ -507,7 +505,6 @@ func (c *integerIntegerCountArrayCursor) Next() *cursors.IntegerArray {
 type integerIntegerWindowCountArrayCursor struct {
 	cursors.IntegerArrayCursor
 	every int64
-	tr    datatypes.TimestampRange
 }
 
 func (c *integerIntegerWindowCountArrayCursor) Stats() cursors.CursorStats {
@@ -782,7 +779,6 @@ func (c *integerUnsignedCountArrayCursor) Next() *cursors.IntegerArray {
 type integerUnsignedWindowCountArrayCursor struct {
 	cursors.UnsignedArrayCursor
 	every int64
-	tr    datatypes.TimestampRange
 }
 
 func (c *integerUnsignedWindowCountArrayCursor) Stats() cursors.CursorStats {
@@ -1017,7 +1013,6 @@ func (c *integerStringCountArrayCursor) Next() *cursors.IntegerArray {
 type integerStringWindowCountArrayCursor struct {
 	cursors.StringArrayCursor
 	every int64
-	tr    datatypes.TimestampRange
 }
 
 func (c *integerStringWindowCountArrayCursor) Stats() cursors.CursorStats {
@@ -1252,7 +1247,6 @@ func (c *integerBooleanCountArrayCursor) Next() *cursors.IntegerArray {
 type integerBooleanWindowCountArrayCursor struct {
 	cursors.BooleanArrayCursor
 	every int64
-	tr    datatypes.TimestampRange
 }
 
 func (c *integerBooleanWindowCountArrayCursor) Stats() cursors.CursorStats {

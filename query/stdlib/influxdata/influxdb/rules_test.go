@@ -1208,7 +1208,7 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 
 	tests := make([]plantest.RuleTestCase, 0)
 
-	// construct a simple plan with a specific window construct a simple plan with a specific window and aggregate function
+	// construct a simple plan with a specific window and aggregate function
 	simplePlanWithWindowAgg := func(window universe.WindowProcedureSpec, agg plan.NodeID, spec plan.ProcedureSpec) *plantest.PlanSpec {
 		return &plantest.PlanSpec{
 			Nodes: []plan.Node{
