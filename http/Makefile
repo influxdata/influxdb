@@ -14,7 +14,7 @@ clean: $(SUBDIRS)
 
 swagger_gen.go: swagger.go redoc.go swagger.yml
 	go generate -x
-	echo '//lint:file-ignore ST1005 Ignore error strings should not be capitalized' >> swagger_gen.go
+	@echo '//lint:file-ignore ST1005 Ignore error strings should not be capitalized' >> swagger_gen.go
 
 GO_RUN := env GO111MODULE=on go run
 
