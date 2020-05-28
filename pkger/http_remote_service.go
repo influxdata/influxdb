@@ -177,8 +177,14 @@ func (s *HTTPRemoteService) apply(ctx context.Context, orgID influxdb.ID, pkg *P
 		return PkgImpactSummary{}, err
 	}
 
-	return PkgImpactSummary{
+	impact := PkgImpactSummary{
 		Diff:    resp.Diff,
 		Summary: resp.Summary,
-	}, NewParseError(resp.Errors...)
+	}
+
+	if stackID, err := influxdb.IDFromString(resp.StackID); err == nil {
+		impact.StackID = *stackID
+	}
+
+	return impact, NewParseError(resp.Errors...)
 }

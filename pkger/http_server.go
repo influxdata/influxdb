@@ -422,6 +422,7 @@ func (r ReqApplyPkg) Pkgs(encoding Encoding) (*Pkg, error) {
 
 // RespApplyPkg is the response body for the apply pkg endpoint.
 type RespApplyPkg struct {
+	StackID string  `json:"stackID" yaml:"stackID"`
 	Diff    Diff    `json:"diff" yaml:"diff"`
 	Summary Summary `json:"summary" yaml:"summary"`
 
@@ -481,6 +482,7 @@ func (s *HTTPServer) applyPkg(w http.ResponseWriter, r *http.Request) {
 		impact, err := s.svc.DryRun(r.Context(), *orgID, userID, parsedPkg, applyOpts...)
 		if IsParseErr(err) {
 			s.api.Respond(w, r, http.StatusUnprocessableEntity, RespApplyPkg{
+				StackID: impact.StackID.String(),
 				Diff:    impact.Diff,
 				Summary: impact.Summary,
 				Errors:  convertParseErr(err),
@@ -493,6 +495,7 @@ func (s *HTTPServer) applyPkg(w http.ResponseWriter, r *http.Request) {
 		}
 
 		s.api.Respond(w, r, http.StatusOK, RespApplyPkg{
+			StackID: impact.StackID.String(),
 			Diff:    impact.Diff,
 			Summary: impact.Summary,
 		})
@@ -508,6 +511,7 @@ func (s *HTTPServer) applyPkg(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.api.Respond(w, r, http.StatusCreated, RespApplyPkg{
+		StackID: impact.StackID.String(),
 		Diff:    impact.Diff,
 		Summary: impact.Summary,
 		Errors:  convertParseErr(err),
