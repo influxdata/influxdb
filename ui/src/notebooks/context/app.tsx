@@ -39,7 +39,6 @@ export const AppSettingProvider: FC<Props> = React.memo(
     const [miniMapVisibility, setMiniMapVisibility] = useState<boolean>(false)
 
     const onToggleMiniMap = (): void => {
-      console.log('boop')
       setMiniMapVisibility(!miniMapVisibility)
     }
 

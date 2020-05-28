@@ -147,7 +147,6 @@ export const NotebookProvider: FC = ({children}) => {
 
       if (targetPipe) {
         const {offsetTop} = targetPipe
-        console.log('scrollToPipe', offsetTop)
         setListScrollPosition(offsetTop)
       }
     },
