@@ -1,18 +1,23 @@
 import React, {FC, useState, useCallback} from 'react'
 import {PipeData} from 'src/notebooks'
+import {FromFluxResult} from '@influxdata/giraffe'
 
 export interface PipeMeta {
   title: string
   visible: boolean
+  loading: boolean
 }
 
+// TODO: this is screaming for normalization. figure out frontend uuids for cells
 export interface NotebookContextType {
   id: string
   pipes: PipeData[]
   meta: PipeMeta[] // data only used for the view layer for Notebooks
+  results: FromFluxResult[]
   addPipe: (pipe: PipeData) => void
   updatePipe: (idx: number, pipe: PipeData) => void
   updateMeta: (idx: number, pipe: PipeMeta) => void
+  updateResult: (idx: number, result: FromFluxResult) => void
   movePipe: (currentIdx: number, newIdx: number) => void
   removePipe: (idx: number) => void
 }
@@ -21,9 +26,11 @@ export const DEFAULT_CONTEXT: NotebookContextType = {
   id: 'new',
   pipes: [],
   meta: [],
+  results: [],
   addPipe: () => {},
   updatePipe: () => {},
   updateMeta: () => {},
+  updateResult: () => {},
   movePipe: () => {},
   removePipe: () => {},
 }
@@ -31,11 +38,13 @@ export const DEFAULT_CONTEXT: NotebookContextType = {
 // NOTE: this just loads some test data for exploring the
 // interactions between types. Make sure it's never true
 // during the pull review process
-const TEST_MODE = false
+const TEST_MODE = true
 if (TEST_MODE) {
   const TEST_NOTEBOOK = require('src/notebooks/context/notebook.mock.json')
   DEFAULT_CONTEXT.id = TEST_NOTEBOOK.id
   DEFAULT_CONTEXT.pipes = TEST_NOTEBOOK.pipes
+  DEFAULT_CONTEXT.meta = TEST_NOTEBOOK.meta
+  DEFAULT_CONTEXT.results = new Array(TEST_NOTEBOOK.pipes.length)
 }
 
 export const NotebookContext = React.createContext<NotebookContextType>(
@@ -48,9 +57,11 @@ export const NotebookProvider: FC = ({children}) => {
   const [id] = useState(DEFAULT_CONTEXT.id)
   const [pipes, setPipes] = useState(DEFAULT_CONTEXT.pipes)
   const [meta, setMeta] = useState(DEFAULT_CONTEXT.meta)
+  const [results, setResults] = useState(DEFAULT_CONTEXT.results)
 
   const _setPipes = useCallback(setPipes, [id])
   const _setMeta = useCallback(setMeta, [id])
+  const _setResults = useCallback(setResults, [id])
 
   const addPipe = useCallback(
     (pipe: PipeData) => {
@@ -61,10 +72,12 @@ export const NotebookProvider: FC = ({children}) => {
         }
       }
       _setPipes(add(pipe))
+      _setResults(add({}))
       _setMeta(
         add({
           title: `Notebook_${++GENERATOR_INDEX}`,
           visible: true,
+          loading: false,
         })
       )
     },
@@ -97,6 +110,18 @@ export const NotebookProvider: FC = ({children}) => {
     [id]
   )
 
+  const updateResult = useCallback(
+    (idx: number, results: FromFluxResult) => {
+      _setResults(pipes => {
+        pipes[idx] = {
+          ...results,
+        } as FromFluxResult
+        return pipes.slice()
+      })
+    },
+    [id]
+  )
+
   const movePipe = useCallback(
     (currentIdx: number, newIdx: number) => {
       const move = list => {
@@ -114,6 +139,7 @@ export const NotebookProvider: FC = ({children}) => {
       }
       _setPipes(move)
       _setMeta(move)
+      _setResults(move)
     },
     [id]
   )
@@ -126,6 +152,7 @@ export const NotebookProvider: FC = ({children}) => {
       }
       _setPipes(remove)
       _setMeta(remove)
+      _setResults(remove)
     },
     [id]
   )
@@ -136,8 +163,10 @@ export const NotebookProvider: FC = ({children}) => {
         id,
         pipes,
         meta,
+        results,
         updatePipe,
         updateMeta,
+        updateResult,
         movePipe,
         addPipe,
         removePipe,
