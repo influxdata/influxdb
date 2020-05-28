@@ -30,6 +30,7 @@ const MiniMap: FC = () => {
       key={`minimap-${pipe.title}-${index}`}
       title={pipe.title}
       focus={pipe.focus}
+      visible={pipe.visible}
       index={index}
       onClick={handleClick}
     />

@@ -5,13 +5,15 @@ import classnames from 'classnames'
 interface Props {
   title: string
   focus: boolean
+  visible: boolean
   index: number
   onClick: (index: number) => void
 }
 
-const MiniMapItem: FC<Props> = ({title, focus, onClick, index}) => {
+const MiniMapItem: FC<Props> = ({title, focus, onClick, index, visible}) => {
   const className = classnames('notebook-minimap--item', {
     'notebook-minimap--item__focus': focus,
+    'notebook-minimap--item__hidden': !visible,
   })
 
   const handleClick = (): void => {
