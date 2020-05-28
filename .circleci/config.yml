@@ -15,6 +15,33 @@ commands:
             sh -s -- --default-toolchain stable -y
             echo 'source $HOME/.cargo/env' >> $BASH_ENV
 
+  install_release_tools:
+    description: >
+      This will install the cross compilers necessary to build release binaries.
+    steps:
+      - run:
+          name: Install cross compilers
+          command: >
+            sudo apt-get install -y --no-install-recommends
+            gcc-arm-linux-gnueabihf libc6-dev-armhf-cross
+            gcc-aarch64-linux-gnu libc6-dev-arm64-cross
+      - run:
+          name: Install additional rust targets
+          command: |
+            rustup target add aarch64-unknown-linux-gnu \
+                              arm-unknown-linux-gnueabihf \
+                              armv7-unknown-linux-gnueabihf
+            echo 'export CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER=gcc' >> $HOME/.cargo/env
+            echo 'export CARGO_TARGET_ARM_UNKNOWN_LINUX_GNUEABIHF_LINKER=arm-linux-gnueabihf-gcc' >> $HOME/.cargo/env
+            echo 'export CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_LINKER=arm-linux-gnueabihf-gcc' >> $HOME/.cargo/env
+            echo 'export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc' >> $HOME/.cargo/env
+      - run:
+          name: Install pkg-config wrapper
+          command: go build -o /go/bin/pkg-config github.com/influxdata/pkg-config
+      - run:
+          name: Copy xcc wrapper script for cross compilation
+          command: install xcc.sh /go/bin/xcc
+
 jobs:
   litmus_daily:
     machine: true
@@ -426,6 +453,8 @@ jobs:
           name: "Docker Login"
           command: docker login -u "$QUAY_USER" -p $QUAY_PASS quay.io
       - run: sudo apt-get install -y bzr
+      - install_rust_compiler
+      - install_release_tools
       - run: make protoc # installs protoc
       - run:
           name: "Build nightly"
@@ -461,6 +490,8 @@ jobs:
           name: "Docker Login"
           command: docker login -u "$QUAY_USER" -p $QUAY_PASS quay.io
       - run: sudo apt-get install -y bzr
+      - install_rust_compiler
+      - install_release_tools
       - run: make protoc # installs protoc
       - run:
           name: "Build release"
