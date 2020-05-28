@@ -100,6 +100,20 @@ func PushDownGroupAggregateCount() BoolFlag {
 	return pushDownGroupAggregateCount
 }
 
+var newLabels = MakeBoolFlag(
+	"New Label Package",
+	"newLabels",
+	"Alirie Gray",
+	false,
+	Temporary,
+	false,
+)
+
+// NewLabelPackage - Enables the refactored labels api
+func NewLabelPackage() BoolFlag {
+	return newLabels
+}
+
 var all = []Flag{
 	backendExample,
 	frontendExample,
@@ -108,6 +122,7 @@ var all = []Flag{
 	newAuth,
 	sessionService,
 	pushDownGroupAggregateCount,
+	newLabels,
 }
 
 var byKey = map[string]Flag{
@@ -118,4 +133,5 @@ var byKey = map[string]Flag{
 	"newAuth":                      newAuth,
 	"sessionService":               sessionService,
 	"pushDownGroupAggregateCount":  pushDownGroupAggregateCount,
+	"newLabels":                    newLabels,
 }

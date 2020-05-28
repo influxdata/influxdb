@@ -47,6 +47,10 @@ func NewLabelHandler(log *zap.Logger, s influxdb.LabelService, he influxdb.HTTPE
 	return h
 }
 
+func (h *LabelHandler) Prefix() string {
+	return prefixLabels
+}
+
 // handlePostLabel is the HTTP handler for the POST /api/v2/labels route.
 func (h *LabelHandler) handlePostLabel(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()

@@ -58,3 +58,11 @@
   key: pushDownGroupAggregateCount
   default: false
   contact: Query Team
+
+- name: New Label Package
+  description: Enables the refactored labels api
+  key: newLabels
+  default: false
+  contact: Alirie Gray
+  lifetime: temporary
+

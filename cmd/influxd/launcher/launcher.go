@@ -37,6 +37,7 @@ import (
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"github.com/influxdata/influxdb/v2/kv"
+	"github.com/influxdata/influxdb/v2/label"
 	influxlogger "github.com/influxdata/influxdb/v2/logger"
 	"github.com/influxdata/influxdb/v2/nats"
 	"github.com/influxdata/influxdb/v2/pkger"
@@ -592,7 +593,6 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		orgLogSvc                 platform.OrganizationOperationLogService = m.kvService
 		scraperTargetSvc          platform.ScraperTargetStoreService       = m.kvService
 		telegrafSvc               platform.TelegrafConfigStore             = m.kvService
-		labelSvc                  platform.LabelService                    = m.kvService
 		secretSvc                 platform.SecretService                   = m.kvService
 		lookupSvc                 platform.LookupService                   = m.kvService
 		notificationEndpointStore platform.NotificationEndpointService     = m.kvService
@@ -869,6 +869,17 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		sessionSvc = session.NewServiceController(flagger, m.kvService, sessionSvc)
 	}
 
+	var labelSvc platform.LabelService
+	{
+		labelsStore, err := label.NewStore(m.kvStore)
+		if err != nil {
+			m.log.Error("Failed creating new labels store", zap.Error(err))
+			return err
+		}
+		ls := label.NewService(labelsStore, m.kvService)
+		labelSvc = label.NewLabelController(flagger, m.kvService, ls)
+	}
+
 	m.apibackend = &http.APIBackend{
 		AssetsPath:           m.assetsPath,
 		HTTPErrorHandler:     kithttp.ErrorHandler(0),
@@ -970,6 +981,21 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		onboardHTTPServer = tenant.NewHTTPOnboardHandler(m.log, onboardSvc)
 	}
 
+	// feature flagging for new labels service
+	var labelsHTTPServer *kithttp.FeatureHandler
+	{
+		b := m.apibackend
+		labelSvcWithOrg := authorizer.NewLabelServiceWithOrg(labelSvc, b.OrgLookupService)
+		oldHandler := http.NewLabelHandler(m.log.With(zap.String("handler", "labels")), labelSvcWithOrg, kithttp.ErrorHandler(0))
+
+		labelSvc = label.NewAuthedLabelService(labelSvc, b.OrgLookupService)
+		labelSvc = label.NewLabelLogger(m.log.With(zap.String("handler", "labels")), labelSvc)
+		labelSvc = label.NewLabelMetrics(m.reg, labelSvc)
+		newHandler := label.NewHTTPLabelHandler(m.log, labelSvc)
+
+		labelsHTTPServer = kithttp.NewFeatureHandler(feature.NewLabelPackage(), flagger, oldHandler, newHandler, newHandler.Prefix())
+	}
+
 	// feature flagging for new authorization service
 	var authHTTPServer *kithttp.FeatureHandler
 	{
@@ -1006,6 +1032,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 			http.WithResourceHandler(pkgHTTPServer),
 			http.WithResourceHandler(onboardHTTPServer),
 			http.WithResourceHandler(authHTTPServer),
+			http.WithResourceHandler(labelsHTTPServer),
 			http.WithResourceHandler(kithttp.NewFeatureHandler(feature.SessionService(), flagger, oldSessionHandler, sessionHTTPServer.SignInResourceHandler(), sessionHTTPServer.SignInResourceHandler().Prefix())),
 			http.WithResourceHandler(kithttp.NewFeatureHandler(feature.SessionService(), flagger, oldSessionHandler, sessionHTTPServer.SignOutResourceHandler(), sessionHTTPServer.SignOutResourceHandler().Prefix())),
 			http.WithResourceHandler(userHTTPServer.MeResourceHandler()),
