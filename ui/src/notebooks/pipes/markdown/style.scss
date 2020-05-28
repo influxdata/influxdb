@@ -1,31 +1,19 @@
-@import "@influxdata/clockface/dist/variables.scss";
+@import '@influxdata/clockface/dist/variables.scss';
 
 $notebook-panel--bg: mix($g1-raven, $g2-kevlar, 50%);
 
-.notebook-panel--markdown,
-.notebook-panel--markdown-editor {
-	font-size: 14px;
-	line-height: 16px;
+.notebook-panel--markdown {
+  font-size: 14px;
+  line-height: 16px;
   padding: $cf-marg-b;
   border-radius: $cf-radius - 1px;
-  border-width: $cf-border;
-	border-style: solid;
-	transition: border-color 0.25s ease;
-}
-
-.notebook-panel--markdown {
-  border-color: $g1-raven;
-
-  .notebook-panel:hover & {
-		border-color: $notebook-panel--bg;
-  }
+  transition: border-color 0.25s ease;
 }
 
 .notebook-panel--body .markdown-editor--monaco {
   position: relative;
 
   .react-monaco-editor-container {
-      min-height: 100px;
+    min-height: 100px;
   }
 }
-
