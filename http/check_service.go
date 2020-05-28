@@ -24,7 +24,6 @@ type CheckBackend struct {
 	influxdb.HTTPErrorHandler
 	log *zap.Logger
 
-	AlgoWProxy                 FeatureProxyHandler
 	TaskService                influxdb.TaskService
 	CheckService               influxdb.CheckService
 	UserResourceMappingService influxdb.UserResourceMappingService
@@ -39,7 +38,6 @@ func NewCheckBackend(log *zap.Logger, b *APIBackend) *CheckBackend {
 	return &CheckBackend{
 		HTTPErrorHandler:           b.HTTPErrorHandler,
 		log:                        log,
-		AlgoWProxy:                 b.AlgoWProxy,
 		TaskService:                b.TaskService,
 		CheckService:               b.CheckService,
 		UserResourceMappingService: b.UserResourceMappingService,
@@ -93,13 +91,13 @@ func NewCheckHandler(log *zap.Logger, b *CheckBackend) *CheckHandler {
 		FluxLanguageService:        b.FluxLanguageService,
 	}
 
-	h.Handler("POST", prefixChecks, withFeatureProxy(b.AlgoWProxy, http.HandlerFunc(h.handlePostCheck)))
+	h.HandlerFunc("POST", prefixChecks, h.handlePostCheck)
 	h.HandlerFunc("GET", prefixChecks, h.handleGetChecks)
 	h.HandlerFunc("GET", checksIDPath, h.handleGetCheck)
 	h.HandlerFunc("GET", checksIDQueryPath, h.handleGetCheckQuery)
 	h.HandlerFunc("DELETE", checksIDPath, h.handleDeleteCheck)
-	h.Handler("PUT", checksIDPath, withFeatureProxy(b.AlgoWProxy, http.HandlerFunc(h.handlePutCheck)))
-	h.Handler("PATCH", checksIDPath, withFeatureProxy(b.AlgoWProxy, http.HandlerFunc(h.handlePatchCheck)))
+	h.HandlerFunc("PUT", checksIDPath, h.handlePutCheck)
+	h.HandlerFunc("PATCH", checksIDPath, h.handlePatchCheck)
 
 	memberBackend := MemberBackend{
 		HTTPErrorHandler:           b.HTTPErrorHandler,

@@ -44,7 +44,6 @@ type FluxBackend struct {
 	log                *zap.Logger
 	QueryEventRecorder metric.EventRecorder
 
-	AlgoWProxy          FeatureProxyHandler
 	OrganizationService influxdb.OrganizationService
 	ProxyQueryService   query.ProxyQueryService
 	FluxLanguageService influxdb.FluxLanguageService
@@ -56,7 +55,6 @@ func NewFluxBackend(log *zap.Logger, b *APIBackend) *FluxBackend {
 		HTTPErrorHandler:   b.HTTPErrorHandler,
 		log:                log,
 		QueryEventRecorder: b.QueryEventRecorder,
-		AlgoWProxy:         b.AlgoWProxy,
 		ProxyQueryService: routingQueryService{
 			InfluxQLService: b.InfluxQLService,
 			DefaultService:  b.FluxService,
@@ -106,11 +104,11 @@ func NewFluxHandler(log *zap.Logger, b *FluxBackend) *FluxHandler {
 
 	// query reponses can optionally be gzip encoded
 	qh := gziphandler.GzipHandler(http.HandlerFunc(h.handleQuery))
-	h.Handler("POST", prefixQuery, withFeatureProxy(b.AlgoWProxy, qh))
-	h.Handler("POST", "/api/v2/query/ast", withFeatureProxy(b.AlgoWProxy, http.HandlerFunc(h.postFluxAST)))
-	h.Handler("POST", "/api/v2/query/analyze", withFeatureProxy(b.AlgoWProxy, http.HandlerFunc(h.postQueryAnalyze)))
-	h.Handler("GET", "/api/v2/query/suggestions", withFeatureProxy(b.AlgoWProxy, http.HandlerFunc(h.getFluxSuggestions)))
-	h.Handler("GET", "/api/v2/query/suggestions/:name", withFeatureProxy(b.AlgoWProxy, http.HandlerFunc(h.getFluxSuggestion)))
+	h.Handler("POST", prefixQuery, qh)
+	h.HandlerFunc("POST", "/api/v2/query/ast", h.postFluxAST)
+	h.HandlerFunc("POST", "/api/v2/query/analyze", h.postQueryAnalyze)
+	h.HandlerFunc("GET", "/api/v2/query/suggestions", h.getFluxSuggestions)
+	h.HandlerFunc("GET", "/api/v2/query/suggestions/:name", h.getFluxSuggestion)
 	return h
 }
 

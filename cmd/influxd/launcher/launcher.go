@@ -892,7 +892,6 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		BackupService:        backupService,
 		KVBackupService:      m.kvService,
 		AuthorizationService: authSvc,
-		AlgoWProxy:           &http.NoopProxyHandler{},
 		// Wrap the BucketService in a storage backed one that will ensure deleted buckets are removed from the storage engine.
 		BucketService:                   storage.NewBucketService(bucketSvc, m.engine),
 		SessionService:                  sessionSvc,

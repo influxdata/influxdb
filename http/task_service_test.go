@@ -30,7 +30,6 @@ func NewMockTaskBackend(t *testing.T) *TaskBackend {
 	return &TaskBackend{
 		log: zaptest.NewLogger(t).With(zap.String("handler", "task")),
 
-		AlgoWProxy:           &NoopProxyHandler{},
 		AuthorizationService: mock.NewAuthorizationService(),
 		TaskService:          &mock.TaskService{},
 		OrganizationService: &mock.OrganizationService{
