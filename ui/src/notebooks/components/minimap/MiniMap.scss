@@ -2,10 +2,13 @@
 @import '~src/notebooks/NotebookVariables.scss';
 
 .notebook-minimap {
-  padding-right: $cf-marg-b;
-  padding-left: $cf-marg-d;
   flex: 0 0 200px;
   border-right: $cf-border solid $notebook-divider-color;
+}
+
+.notebook-minimap--list {
+  padding-left: $cf-marg-d;
+  padding-right: $cf-marg-b;
 }
 
 .notebook-minimap--item {

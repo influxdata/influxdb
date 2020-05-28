@@ -6,6 +6,7 @@ import {AppSettingContext} from 'src/notebooks/context/app'
 import {NotebookContext, PipeMeta} from 'src/notebooks/context/notebook'
 
 // Components
+import {DapperScrollbars} from '@influxdata/clockface'
 import MiniMapItem from 'src/notebooks/components/minimap/MiniMapItem'
 
 // Styles
@@ -34,7 +35,11 @@ const MiniMap: FC = () => {
     />
   ))
 
-  return <div className="notebook-minimap">{pipes}</div>
+  return (
+    <DapperScrollbars className="notebook-minimap" autoHide={true}>
+      <div className="notebook-minimap--list">{pipes}</div>
+    </DapperScrollbars>
+  )
 }
 
 export default MiniMap
