@@ -9,7 +9,7 @@ use nom::{
     combinator::{map, opt, recognize},
     sequence::{preceded, separated_pair, terminated, tuple},
 };
-use smallvec::SmallVec;
+use smallvec::{smallvec, SmallVec};
 use snafu::{ResultExt, Snafu};
 use std::{
     borrow::Cow,
@@ -78,6 +78,44 @@ impl nom::error::ParseError<&str> for Error {
     }
 }
 
+/// Represents a single parsed line of line protocol data
+///
+/// Here is an example of how to parse the line protocol data
+/// `cpu,host=A,region=west usage_system=64.2 1590488773254420000`
+/// into a `ParsedLine`:
+///
+/// ```
+/// use delorean_line_parser::{ParsedLine, FieldValue};
+///
+/// let mut parsed_lines =
+///     delorean_line_parser::parse_lines(
+///         "cpu,host=A,region=west usage_system=64i 1590488773254420000"
+///     );
+/// let parsed_line = parsed_lines
+///     .next()
+///     .expect("Should have at least one line")
+///     .expect("Should parse successfully");
+///
+/// let ParsedLine {
+///     series,
+///     field_set,
+///     timestamp,
+/// } = parsed_line;
+///
+/// assert_eq!(series.measurement, "cpu");
+///
+/// let tags = series.tag_set.unwrap();
+/// assert_eq!(tags[0].0, "host");
+/// assert_eq!(tags[0].1, "A");
+/// assert_eq!(tags[1].0, "region");
+/// assert_eq!(tags[1].1, "west");
+///
+/// let field = &field_set[0];
+/// assert_eq!(field.0, "usage_system");
+/// assert_eq!(field.1, FieldValue::I64(64));
+///
+/// assert_eq!(timestamp, Some(1590488773254420000));
+/// ```
 #[derive(Debug)]
 pub struct ParsedLine<'a> {
     pub series: Series<'a>,
@@ -85,6 +123,8 @@ pub struct ParsedLine<'a> {
     pub timestamp: Option<i64>,
 }
 
+/// Represents the identifier of a series (measurement, tagset) for
+/// line protocol data
 #[derive(Debug)]
 pub struct Series<'a> {
     raw_input: &'a str,
@@ -162,12 +202,17 @@ impl<'a> Series<'a> {
 pub type FieldSet<'a> = SmallVec<[(EscapedStr<'a>, FieldValue); 4]>;
 pub type TagSet<'a> = SmallVec<[(EscapedStr<'a>, EscapedStr<'a>); 8]>;
 
-#[derive(Debug, Copy, Clone)]
+/// Allowed types of Fields in a `ParsedLine`
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum FieldValue {
     I64(i64),
     F64(f64),
 }
 
+/// Represents a sequence of effectively unescaped strings.
+///
+/// If we had the input string `"a\nb"`, the `EscapedStr` will hold ["a", "b"].
+/// If we had `a\b`, this will also hold ["a", "b"].
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct EscapedStr<'a>(SmallVec<[&'a str; 1]>);
 
@@ -193,6 +238,12 @@ impl<'a> EscapedStr<'a> {
 impl From<EscapedStr<'_>> for String {
     fn from(other: EscapedStr<'_>) -> Self {
         other.to_string()
+    }
+}
+
+impl<'a> From<&'a str> for EscapedStr<'a> {
+    fn from(other: &'a str) -> Self {
+        Self(smallvec![other])
     }
 }
 
@@ -623,8 +674,33 @@ mod test {
         }
     }
 
+    #[test]
+    fn escaped_str_basic() -> Result {
+        // Demonstrate how strings without any escapes are handled.
+        let es = EscapedStr::from("Foo");
+        assert_eq!(es.to_string(), "Foo".to_string());
+        assert!(!es.is_escaped(), "There are no escaped values");
+        assert!(!es.ends_with("F"));
+        assert!(!es.ends_with("z"));
+        assert!(!es.ends_with("zz"));
+        assert!(es.ends_with("o"));
+        assert!(es.ends_with("oo"));
+        assert!(es.ends_with("Foo"));
+        Ok(())
+    }
+
+    // TODO Add test / figure out how strings with escape strings are actually handled
+
     fn parse(s: &str) -> Result<Vec<ParsedLine<'_>>, super::Error> {
         super::parse_lines(s).collect()
+    }
+
+    #[test]
+    fn parse_empty() -> Result {
+        let input = "";
+        let vals = parse(input);
+        assert_eq!(vals.unwrap().len(), 0);
+        Ok(())
     }
 
     #[test]
