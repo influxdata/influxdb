@@ -15,6 +15,9 @@ import PanelVisibilityToggle from 'src/notebooks/components/panel/PanelVisibilit
 import MovePanelButton from 'src/notebooks/components/panel/MovePanelButton'
 import NotebookPanelTitle from 'src/notebooks/components/panel/NotebookPanelTitle'
 
+// Constants
+import {NOTEBOOK_PANEL_ID} from 'src/notebooks/constants'
+
 // Types
 import {PipeContextProps} from 'src/notebooks'
 
@@ -105,7 +108,11 @@ const NotebookPanel: FC<Props> = ({index, children, controls}) => {
 
   return (
     <ClickOutside onClickOutside={handleClickOutside}>
-      <div className={panelClassName} onClick={handleClick}>
+      <div
+        className={panelClassName}
+        onClick={handleClick}
+        id={`${NOTEBOOK_PANEL_ID}${index}`}
+      >
         <NotebookPanelHeader index={index} controls={controls} />
         <div className="notebook-panel--body">{children}</div>
       </div>
