@@ -1,13 +1,6 @@
 import {SFC} from 'react'
-import CSharpLogo from '../graphics/CSharpLogo'
-import GoLogo from '../graphics/GoLogo'
-import JavaLogo from '../graphics/JavaLogo'
-import JSLogo from '../graphics/JSLogo'
-import KotlinLogo from '../graphics/KotlinLogo'
-import PHPLogo from '../graphics/PHPLogo'
-import PythonLogo from '../graphics/PythonLogo'
-import RubyLogo from '../graphics/RubyLogo'
-import ScalaLogo from '../graphics/ScalaLogo'
+import {
+  CSharpLogo,GoLogo,JavaLogo,JSLogo,KotlinLogo,PHPLogo,PythonLogo,RubyLogo,ScalaLogo} from '../graphics'
 
 export interface ClientLibrary {
   id: string
