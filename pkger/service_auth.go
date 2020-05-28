@@ -56,10 +56,10 @@ func (s *authMW) CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*Pkg
 	return s.next.CreatePkg(ctx, setters...)
 }
 
-func (s *authMW) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (Summary, Diff, error) {
+func (s *authMW) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (PkgImpactSummary, error) {
 	return s.next.DryRun(ctx, orgID, userID, pkg, opts...)
 }
 
-func (s *authMW) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (Summary, Diff, error) {
+func (s *authMW) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (PkgImpactSummary, error) {
 	return s.next.Apply(ctx, orgID, userID, pkg, opts...)
 }

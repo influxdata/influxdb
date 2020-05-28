@@ -133,25 +133,25 @@ func (s *HTTPRemoteService) CreatePkg(ctx context.Context, setters ...CreatePkgS
 // DryRun provides a dry run of the pkg application. The pkg will be marked verified
 // for later calls to Apply. This func will be run on an Apply if it has not been run
 // already.
-func (s *HTTPRemoteService) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (Summary, Diff, error) {
+func (s *HTTPRemoteService) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (PkgImpactSummary, error) {
 	return s.apply(ctx, orgID, pkg, true, opts...)
 }
 
 // Apply will apply all the resources identified in the provided pkg. The entire pkg will be applied
 // in its entirety. If a failure happens midway then the entire pkg will be rolled back to the state
 // from before the pkg was applied.
-func (s *HTTPRemoteService) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (Summary, Diff, error) {
+func (s *HTTPRemoteService) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (PkgImpactSummary, error) {
 	return s.apply(ctx, orgID, pkg, false, opts...)
 }
 
-func (s *HTTPRemoteService) apply(ctx context.Context, orgID influxdb.ID, pkg *Pkg, dryRun bool, opts ...ApplyOptFn) (Summary, Diff, error) {
+func (s *HTTPRemoteService) apply(ctx context.Context, orgID influxdb.ID, pkg *Pkg, dryRun bool, opts ...ApplyOptFn) (PkgImpactSummary, error) {
 	opt := applyOptFromOptFns(opts...)
 
 	var rawPkg []byte
 	if pkg != nil {
 		b, err := pkg.Encode(EncodingJSON)
 		if err != nil {
-			return Summary{}, Diff{}, err
+			return PkgImpactSummary{}, err
 		}
 		rawPkg = b
 	}
@@ -174,8 +174,11 @@ func (s *HTTPRemoteService) apply(ctx context.Context, orgID influxdb.ID, pkg *P
 		DecodeJSON(&resp).
 		Do(ctx)
 	if err != nil {
-		return Summary{}, Diff{}, err
+		return PkgImpactSummary{}, err
 	}
 
-	return resp.Summary, resp.Diff, NewParseError(resp.Errors...)
+	return PkgImpactSummary{
+		Diff:    resp.Diff,
+		Summary: resp.Summary,
+	}, NewParseError(resp.Errors...)
 }

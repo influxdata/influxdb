@@ -96,7 +96,7 @@ func (s *loggingMW) CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (p
 	return s.next.CreatePkg(ctx, setters...)
 }
 
-func (s *loggingMW) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (sum Summary, diff Diff, err error) {
+func (s *loggingMW) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (impact PkgImpactSummary, err error) {
 	defer func(start time.Time) {
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {
@@ -114,7 +114,7 @@ func (s *loggingMW) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *
 			o(&opt)
 		}
 
-		fields := s.summaryLogFields(sum)
+		fields := s.summaryLogFields(impact.Summary)
 		if opt.StackID != 0 {
 			fields = append(fields, zap.Stringer("stackID", opt.StackID))
 		}
@@ -124,7 +124,7 @@ func (s *loggingMW) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *
 	return s.next.DryRun(ctx, orgID, userID, pkg, opts...)
 }
 
-func (s *loggingMW) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (sum Summary, diff Diff, err error) {
+func (s *loggingMW) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (impact PkgImpactSummary, err error) {
 	defer func(start time.Time) {
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {
@@ -137,7 +137,7 @@ func (s *loggingMW) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *P
 			return
 		}
 
-		fields := s.summaryLogFields(sum)
+		fields := s.summaryLogFields(impact.Summary)
 
 		opt := applyOptFromOptFns(opts...)
 		if opt.StackID != 0 {
