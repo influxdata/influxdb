@@ -1,4 +1,4 @@
-import React, {FC, useState} from 'react'
+import React, {FC} from 'react'
 import {connect} from 'react-redux'
 import {setTimeZone} from 'src/shared/actions/app'
 import {timeZone as timeZoneFromState} from 'src/shared/selectors/app'
@@ -19,15 +19,11 @@ type Modifier = typeof setTimeZone
 export interface AppSettingContextType {
   timeZone: TimeZone
   onSetTimeZone: Modifier
-  miniMapVisibility: boolean
-  onToggleMiniMap: () => void
 }
 
 export const DEFAULT_CONTEXT: AppSettingContextType = {
   timeZone: 'Local' as TimeZone,
   onSetTimeZone: ((() => {}) as any) as Modifier,
-  miniMapVisibility: true,
-  onToggleMiniMap: () => {},
 }
 
 export const AppSettingContext = React.createContext<AppSettingContextType>(
@@ -36,19 +32,11 @@ export const AppSettingContext = React.createContext<AppSettingContextType>(
 
 export const AppSettingProvider: FC<Props> = React.memo(
   ({timeZone, onSetTimeZone, children}) => {
-    const [miniMapVisibility, setMiniMapVisibility] = useState<boolean>(false)
-
-    const onToggleMiniMap = (): void => {
-      setMiniMapVisibility(!miniMapVisibility)
-    }
-
     return (
       <AppSettingContext.Provider
         value={{
           timeZone,
           onSetTimeZone,
-          miniMapVisibility,
-          onToggleMiniMap,
         }}
       >
         {children}
