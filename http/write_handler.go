@@ -209,6 +209,15 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 	orgID = org.ID
 	span.LogKV("org_id", orgID)
 
+	if req.Bucket == "" {
+		// if we still dont have a bucket time to error
+		h.HandleHTTPError(ctx, &influxdb.Error{
+			Code: influxdb.ENotFound,
+			Op:   "http/handleWrite",
+			Msg:  "bucket not found",
+		}, w)
+	}
+
 	var bucket *influxdb.Bucket
 	if id, err := influxdb.IDFromString(req.Bucket); err == nil {
 		// Decoded ID successfully. Make sure it's a real bucket.
