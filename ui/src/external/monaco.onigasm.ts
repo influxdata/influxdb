@@ -56,7 +56,7 @@ async function loader() {
 
     loading = true
 
-    loadWASM(require(`onigasm/lib/onigasm.wasm`)).then(async () => {
+    loadWASM(require(`onigasm/lib/onigasm.wasm`)).then(() => {
       wasm = true
 
       const registry = new Registry({
