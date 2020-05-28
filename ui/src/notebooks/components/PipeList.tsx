@@ -10,7 +10,9 @@ import EmptyPipeList from 'src/notebooks/components/EmptyPipeList'
 import {DapperScrollbars} from '@influxdata/clockface'
 
 const PipeList: FC = () => {
-  const {id, pipes, updatePipe} = useContext(NotebookContext)
+  const {id, pipes, updatePipe, listScrollPosition} = useContext(
+    NotebookContext
+  )
   const update = useCallback(updatePipe, [id])
 
   if (!pipes.length) {
@@ -33,6 +35,7 @@ const PipeList: FC = () => {
       className="notebook-main"
       autoHide={true}
       noScrollX={true}
+      scrollTop={listScrollPosition}
     >
       {_pipes}
     </DapperScrollbars>
