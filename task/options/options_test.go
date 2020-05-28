@@ -10,6 +10,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2/pkg/pointer"
 	_ "github.com/influxdata/influxdb/v2/query/builtin"
+	"github.com/influxdata/influxdb/v2/query/fluxlang"
 	"github.com/influxdata/influxdb/v2/task/options"
 )
 
@@ -103,7 +104,7 @@ func TestFromScript(t *testing.T) {
 			exp: options.Options{Name: "test_task_smoke_name", Every: *(options.MustParseDuration("30s")), Retry: pointer.Int64(1), Concurrency: pointer.Int64(1)}, shouldErr: false}, // TODO(docmerlin): remove this once tasks fully supports all flux duration units.
 
 	} {
-		o, err := options.FromScript(c.script)
+		o, err := options.FromScript(fluxlang.DefaultService, c.script)
 		if c.shouldErr && err == nil {
 			t.Fatalf("script %q should have errored but didn't", c.script)
 		} else if !c.shouldErr && err != nil {
@@ -121,7 +122,7 @@ func TestFromScript(t *testing.T) {
 
 func BenchmarkFromScriptFunc(b *testing.B) {
 	for n := 0; n < b.N; n++ {
-		_, err := options.FromScript(`option task = {every: 20s, name: "foo"} from(bucket:"x") |> range(start:-1h)`)
+		_, err := options.FromScript(fluxlang.DefaultService, `option task = {every: 20s, name: "foo"} from(bucket:"x") |> range(start:-1h)`)
 		if err != nil {
 			fmt.Printf("error: %v", err)
 		}
@@ -133,11 +134,11 @@ func TestFromScriptWithUnknownOptions(t *testing.T) {
 	const bodySuffix = `} from(bucket:"b") |> range(start:-1m)`
 
 	// Script without unknown option should be good.
-	if _, err := options.FromScript(optPrefix + bodySuffix); err != nil {
+	if _, err := options.FromScript(fluxlang.DefaultService, optPrefix+bodySuffix); err != nil {
 		t.Fatal(err)
 	}
 
-	_, err := options.FromScript(optPrefix + `, Offset: 2s, foo: "bar"` + bodySuffix)
+	_, err := options.FromScript(fluxlang.DefaultService, optPrefix+`, Offset: 2s, foo: "bar"`+bodySuffix)
 	if err == nil {
 		t.Fatal("expected error from unknown option but got nil")
 	}

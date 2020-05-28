@@ -2,24 +2,64 @@ package influxdb
 
 import (
 	"context"
+	"math"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/ast"
+	"github.com/influxdata/flux/codes"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/plan"
 	"github.com/influxdata/flux/semantic"
+	"github.com/influxdata/flux/stdlib/influxdata/influxdb"
 	"github.com/influxdata/flux/stdlib/universe"
+	"github.com/influxdata/influxdb/v2/kit/feature"
+	"github.com/influxdata/influxdb/v2/query"
 )
 
 func init() {
 	plan.RegisterPhysicalRules(
+		FromStorageRule{},
 		PushDownRangeRule{},
 		PushDownFilterRule{},
 		PushDownGroupRule{},
 		PushDownReadTagKeysRule{},
 		PushDownReadTagValuesRule{},
 		SortedPivotRule{},
+		// For the following two rules to take effect the appropriate capabilities must be
+		// added AND feature flags must be enabled.
+		// PushDownWindowAggregateRule{},
+		// PushDownBareAggregateRule{},
+
+		// For this rule to take effect the corresponding feature flags must be
+		// enabled.
+		// PushDownGroupAggregateRule{},
 	)
+}
+
+type FromStorageRule struct{}
+
+func (rule FromStorageRule) Name() string {
+	return "influxdata/influxdb.FromStorageRule"
+}
+
+func (rule FromStorageRule) Pattern() plan.Pattern {
+	return plan.Pat(influxdb.FromKind)
+}
+
+func (rule FromStorageRule) Rewrite(ctx context.Context, node plan.Node) (plan.Node, bool, error) {
+	fromSpec := node.ProcedureSpec().(*influxdb.FromProcedureSpec)
+	if fromSpec.Host != nil {
+		return node, false, nil
+	} else if fromSpec.Org != nil {
+		return node, false, &flux.Error{
+			Code: codes.Unimplemented,
+			Msg:  "reads from the storage engine cannot read from a separate organization; please specify a host or remove the organization",
+		}
+	}
+
+	return plan.CreateLogicalNode("fromStorage", &FromStorageProcedureSpec{
+		Bucket: fromSpec.Bucket,
+	}), true, nil
 }
 
 // PushDownGroupRule pushes down a group operation to storage
@@ -75,12 +115,11 @@ func (rule PushDownRangeRule) Pattern() plan.Pattern {
 // Rewrite converts 'from |> range' into 'ReadRange'
 func (rule PushDownRangeRule) Rewrite(ctx context.Context, node plan.Node) (plan.Node, bool, error) {
 	fromNode := node.Predecessors()[0]
-	fromSpec := fromNode.ProcedureSpec().(*FromProcedureSpec)
-
+	fromSpec := fromNode.ProcedureSpec().(*FromStorageProcedureSpec)
 	rangeSpec := node.ProcedureSpec().(*universe.RangeProcedureSpec)
 	return plan.CreatePhysicalNode("ReadRange", &ReadRangePhysSpec{
-		Bucket:   fromSpec.Bucket,
-		BucketID: fromSpec.BucketID,
+		Bucket:   fromSpec.Bucket.Name,
+		BucketID: fromSpec.Bucket.ID,
 		Bounds:   rangeSpec.Bounds,
 	}), true, nil
 }
@@ -108,17 +147,17 @@ func (PushDownFilterRule) Rewrite(ctx context.Context, pn plan.Node) (plan.Node,
 		return pn, false, nil
 	}
 
-	bodyExpr, ok := filterSpec.Fn.Fn.Block.Body.(semantic.Expression)
+	bodyExpr, ok := filterSpec.Fn.Fn.GetFunctionBodyExpression()
 	if !ok {
 		return pn, false, nil
 	}
 
-	if len(filterSpec.Fn.Fn.Block.Parameters.List) != 1 {
+	if len(filterSpec.Fn.Fn.Parameters.List) != 1 {
 		// I would expect that type checking would catch this, but just to be safe...
 		return pn, false, nil
 	}
 
-	paramName := filterSpec.Fn.Fn.Block.Parameters.List[0].Key.Name
+	paramName := filterSpec.Fn.Fn.Parameters.List[0].Key.Name
 
 	pushable, notPushable, err := semantic.PartitionPredicates(bodyExpr, func(e semantic.Expression) (bool, error) {
 		return isPushableExpr(paramName, e)
@@ -133,16 +172,25 @@ func (PushDownFilterRule) Rewrite(ctx context.Context, pn plan.Node) (plan.Node,
 	}
 	pushable, _ = rewritePushableExpr(pushable)
 
-	newFromSpec := fromSpec.Copy().(*ReadRangePhysSpec)
-	if newFromSpec.FilterSet {
-		newBody := semantic.ExprsToConjunction(newFromSpec.Filter.Block.Body.(semantic.Expression), pushable)
-		newFromSpec.Filter.Block.Body = newBody
-	} else {
-		newFromSpec.FilterSet = true
-		// NOTE: We loose the scope here, but that is ok because we can't push down the scope to storage.
-		newFromSpec.Filter = filterSpec.Fn.Fn.Copy().(*semantic.FunctionExpression)
-		newFromSpec.Filter.Block.Body = pushable
+	// Convert the pushable expression to a storage predicate.
+	predicate, err := ToStoragePredicate(pushable, paramName)
+	if err != nil {
+		return nil, false, err
 	}
+
+	// If the filter has already been set, then combine the existing predicate
+	// with the new one.
+	if fromSpec.Filter != nil {
+		mergedPredicate, err := mergePredicates(ast.AndOperator, fromSpec.Filter, predicate)
+		if err != nil {
+			return nil, false, err
+		}
+		predicate = mergedPredicate
+	}
+
+	// Copy the specification and set the predicate.
+	newFromSpec := fromSpec.Copy().(*ReadRangePhysSpec)
+	newFromSpec.Filter = predicate
 
 	if notPushable == nil {
 		// All predicates could be pushed down, so eliminate the filter
@@ -159,7 +207,11 @@ func (PushDownFilterRule) Rewrite(ctx context.Context, pn plan.Node) (plan.Node,
 	}
 
 	newFilterSpec := filterSpec.Copy().(*universe.FilterProcedureSpec)
-	newFilterSpec.Fn.Fn.Block.Body = notPushable
+	newFilterSpec.Fn.Fn.Block = &semantic.Block{
+		Body: []semantic.Statement{
+			&semantic.ReturnStatement{Argument: notPushable},
+		},
+	}
 	if err := pn.ReplaceSpec(newFilterSpec); err != nil {
 		return nil, false, err
 	}
@@ -596,4 +648,211 @@ func (SortedPivotRule) Rewrite(ctx context.Context, pn plan.Node) (plan.Node, bo
 		return nil, false, err
 	}
 	return pn, false, nil
+}
+
+//
+// Push Down of window aggregates.
+// ReadRangePhys |> window |> { min, max, mean, count, sum }
+//
+type PushDownWindowAggregateRule struct{}
+
+func (PushDownWindowAggregateRule) Name() string {
+	return "PushDownWindowAggregateRule"
+}
+
+var windowPushableAggs = []plan.ProcedureKind{
+	universe.MinKind,
+	universe.MaxKind,
+	universe.MeanKind,
+	universe.CountKind,
+	universe.SumKind,
+}
+
+func (rule PushDownWindowAggregateRule) Pattern() plan.Pattern {
+	return plan.OneOf(windowPushableAggs,
+		plan.Pat(universe.WindowKind, plan.Pat(ReadRangePhysKind)))
+}
+
+func canPushWindowedAggregate(ctx context.Context, fnNode plan.Node) bool {
+	// Check Capabilities
+	reader := GetStorageDependencies(ctx).FromDeps.Reader
+	windowAggregateReader, ok := reader.(query.WindowAggregateReader)
+	if !ok {
+		return false
+	}
+	caps := windowAggregateReader.GetWindowAggregateCapability(ctx)
+	if caps == nil {
+		return false
+	}
+
+	// Check the aggregate function spec. Require operation on _value. There
+	// are two feature flags covering all cases. One specifically for Count,
+	// and another for the rest. There are individual capability tests for all
+	// cases.
+	switch fnNode.Kind() {
+	case universe.MinKind:
+		if !feature.PushDownWindowAggregateRest().Enabled(ctx) || !caps.HaveMin() {
+			return false
+		}
+
+		minSpec := fnNode.ProcedureSpec().(*universe.MinProcedureSpec)
+		if minSpec.Column != execute.DefaultValueColLabel {
+			return false
+		}
+	case universe.MaxKind:
+		if !feature.PushDownWindowAggregateRest().Enabled(ctx) || !caps.HaveMax() {
+			return false
+		}
+
+		maxSpec := fnNode.ProcedureSpec().(*universe.MaxProcedureSpec)
+		if maxSpec.Column != execute.DefaultValueColLabel {
+			return false
+		}
+	case universe.MeanKind:
+		if !feature.PushDownWindowAggregateRest().Enabled(ctx) || !caps.HaveMean() {
+			return false
+		}
+
+		meanSpec := fnNode.ProcedureSpec().(*universe.MeanProcedureSpec)
+		if len(meanSpec.Columns) != 1 || meanSpec.Columns[0] != execute.DefaultValueColLabel {
+			return false
+		}
+	case universe.CountKind:
+		if !feature.PushDownWindowAggregateCount().Enabled(ctx) || !caps.HaveCount() {
+			return false
+		}
+
+		countSpec := fnNode.ProcedureSpec().(*universe.CountProcedureSpec)
+		if len(countSpec.Columns) != 1 || countSpec.Columns[0] != execute.DefaultValueColLabel {
+			return false
+		}
+	case universe.SumKind:
+		if !feature.PushDownWindowAggregateRest().Enabled(ctx) || !caps.HaveSum() {
+			return false
+		}
+
+		sumSpec := fnNode.ProcedureSpec().(*universe.SumProcedureSpec)
+		if len(sumSpec.Columns) != 1 || sumSpec.Columns[0] != execute.DefaultValueColLabel {
+			return false
+		}
+	}
+	return true
+}
+
+func (PushDownWindowAggregateRule) Rewrite(ctx context.Context, pn plan.Node) (plan.Node, bool, error) {
+	fnNode := pn
+	if !canPushWindowedAggregate(ctx, fnNode) {
+		return pn, false, nil
+	}
+
+	windowNode := fnNode.Predecessors()[0]
+	windowSpec := windowNode.ProcedureSpec().(*universe.WindowProcedureSpec)
+	fromNode := windowNode.Predecessors()[0]
+	fromSpec := fromNode.ProcedureSpec().(*ReadRangePhysSpec)
+
+	// every and period must be equal
+	// every.months must be zero
+	// every.isNegative must be false
+	// offset: must be zero
+	// timeColumn: must be "_time"
+	// startColumn: must be "_start"
+	// stopColumn: must be "_stop"
+	// createEmpty: must be false
+	window := windowSpec.Window
+	if !window.Every.Equal(window.Period) ||
+		window.Every.Months() != 0 ||
+		window.Every.IsNegative() ||
+		window.Every.IsZero() ||
+		!window.Offset.IsZero() ||
+		windowSpec.TimeColumn != "_time" ||
+		windowSpec.StartColumn != "_start" ||
+		windowSpec.StopColumn != "_stop" ||
+		windowSpec.CreateEmpty {
+		return pn, false, nil
+	}
+
+	// Rule passes.
+	return plan.CreatePhysicalNode("ReadWindowAggregate", &ReadWindowAggregatePhysSpec{
+		ReadRangePhysSpec: *fromSpec.Copy().(*ReadRangePhysSpec),
+		Aggregates:        []plan.ProcedureKind{fnNode.Kind()},
+		WindowEvery:       window.Every.Nanoseconds(),
+	}), true, nil
+}
+
+// PushDownBareAggregateRule is a rule that allows pushing down of aggregates
+// that are directly over a ReadRange source.
+type PushDownBareAggregateRule struct{}
+
+func (p PushDownBareAggregateRule) Name() string {
+	return "PushDownWindowAggregateRule"
+}
+
+func (p PushDownBareAggregateRule) Pattern() plan.Pattern {
+	return plan.OneOf(windowPushableAggs,
+		plan.Pat(ReadRangePhysKind))
+}
+
+func (p PushDownBareAggregateRule) Rewrite(ctx context.Context, pn plan.Node) (plan.Node, bool, error) {
+	fnNode := pn
+	if !canPushWindowedAggregate(ctx, fnNode) {
+		return pn, false, nil
+	}
+
+	fromNode := fnNode.Predecessors()[0]
+	fromSpec := fromNode.ProcedureSpec().(*ReadRangePhysSpec)
+
+	return plan.CreatePhysicalNode("ReadWindowAggregate", &ReadWindowAggregatePhysSpec{
+		ReadRangePhysSpec: *fromSpec.Copy().(*ReadRangePhysSpec),
+		Aggregates:        []plan.ProcedureKind{fnNode.Kind()},
+		WindowEvery:       math.MaxInt64,
+	}), true, nil
+}
+
+//
+// Push Down of group aggregates.
+// ReadGroupPhys |> { count }
+//
+type PushDownGroupAggregateRule struct{}
+
+func (PushDownGroupAggregateRule) Name() string {
+	return "PushDownGroupAggregateRule"
+}
+
+func (rule PushDownGroupAggregateRule) Pattern() plan.Pattern {
+	return plan.OneOf(
+		[]plan.ProcedureKind{
+			universe.CountKind,
+		},
+		plan.Pat(ReadGroupPhysKind))
+}
+
+func (PushDownGroupAggregateRule) Rewrite(ctx context.Context, pn plan.Node) (plan.Node, bool, error) {
+	// Check the aggregate function spec. Require operation on _value.
+	var aggregateMethod string
+	fnNode := pn
+	switch fnNode.Kind() {
+	case universe.CountKind:
+		if !feature.PushDownGroupAggregateCount().Enabled(ctx) {
+			return pn, false, nil
+		}
+
+		countSpec := fnNode.ProcedureSpec().(*universe.CountProcedureSpec)
+		if len(countSpec.Columns) != 1 || countSpec.Columns[0] != execute.DefaultValueColLabel {
+			return pn, false, nil
+		}
+		aggregateMethod = universe.CountKind
+	}
+
+	groupNode := fnNode.Predecessors()[0]
+	groupSpec := groupNode.ProcedureSpec().(*ReadGroupPhysSpec)
+
+	// Group spec must not already have an aggregate method.
+	if len(groupSpec.AggregateMethod) > 0 {
+		return pn, false, nil
+	}
+
+	// Rule passes.
+	rewrite := *groupSpec.Copy().(*ReadGroupPhysSpec)
+	rewrite.AggregateMethod = aggregateMethod
+	return plan.CreatePhysicalNode("ReadGroup", &rewrite), true, nil
 }

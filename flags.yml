@@ -27,6 +27,18 @@
   contact: Gavin Cabbage
   expose: true
 
+- name: Push Down Window Aggregate Count
+  description: Enable Count variant of PushDownWindowAggregateRule and PushDownBareAggregateRule
+  key: pushDownWindowAggregateCount
+  default: false
+  contact: Query Team
+
+- name: Push Down Window Aggregate Rest
+  description: Enable non-Count variants of PushDownWindowAggregateRule and PushDownWindowAggregateRule (stage 2)
+  key: pushDownWindowAggregateRest
+  default: false
+  contact: Query Team
+
 - name: New Auth Package
   description: Enables the refactored authorization api
   key: newAuth
@@ -40,3 +52,9 @@
   default: false
   contact: Lyon Hill
   expose: true
+
+- name: Push Down Group Aggregate Count
+  description: Enable the count variant of PushDownGroupAggregate planner rule
+  key: pushDownGroupAggregateCount
+  default: false
+  contact: Query Team

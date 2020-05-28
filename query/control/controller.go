@@ -28,6 +28,7 @@ import (
 	"github.com/influxdata/flux/codes"
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/flux/memory"
+	"github.com/influxdata/flux/runtime"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/errors"
 	"github.com/influxdata/influxdb/v2/kit/prom"
@@ -338,7 +339,7 @@ func (c *Controller) compileQuery(q *Query, compiler flux.Compiler) (err error) 
 		}
 	}
 
-	prog, err := compiler.Compile(ctx)
+	prog, err := compiler.Compile(ctx, runtime.Default)
 	if err != nil {
 		return &flux.Error{
 			Msg: "compilation failed",

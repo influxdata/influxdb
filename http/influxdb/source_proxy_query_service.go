@@ -11,7 +11,6 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/flux/lang"
-	"github.com/influxdata/flux/repl"
 	platform "github.com/influxdata/influxdb/v2"
 	platformhttp "github.com/influxdata/influxdb/v2/http"
 	"github.com/influxdata/influxdb/v2/kit/check"
@@ -43,7 +42,6 @@ func (s *SourceProxyQueryService) fluxQuery(ctx context.Context, w io.Writer, re
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 	request := struct {
-		Spec    *flux.Spec   `json:"spec"`
 		Query   string       `json:"query"`
 		Type    string       `json:"type"`
 		Dialect flux.Dialect `json:"dialect"`
@@ -53,9 +51,6 @@ func (s *SourceProxyQueryService) fluxQuery(ctx context.Context, w io.Writer, re
 	case lang.FluxCompiler:
 		request.Query = c.Query
 		request.Type = lang.FluxCompilerType
-	case repl.Compiler:
-		request.Spec = c.Spec
-		request.Type = repl.CompilerType
 	default:
 		return flux.Statistics{}, tracing.LogError(span, fmt.Errorf("compiler type not supported: %s", c.CompilerType()))
 	}

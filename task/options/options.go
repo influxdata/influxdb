@@ -3,6 +3,7 @@ package options
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -10,7 +11,7 @@ import (
 	"github.com/influxdata/cron"
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/ast"
-	"github.com/influxdata/flux/parser"
+	"github.com/influxdata/flux/interpreter"
 	"github.com/influxdata/flux/semantic"
 	"github.com/influxdata/flux/values"
 	"github.com/influxdata/influxdb/v2/pkg/pointer"
@@ -51,7 +52,7 @@ func (a Duration) String() string {
 
 // Parse parses a string into a Duration.
 func (a *Duration) Parse(s string) error {
-	q, err := parseSignedDuration(s)
+	q, err := ParseSignedDuration(s)
 	if err != nil {
 		return ErrTaskInvalidDuration(err)
 	}
@@ -68,20 +69,9 @@ func MustParseDuration(s string) (dur *Duration) {
 	return dur
 }
 
-// parseSignedDuration is a helper wrapper around parser.ParseSignedDuration.
-// We use it because we need to clear the basenode, but flux does not.
-func parseSignedDuration(text string) (*ast.DurationLiteral, error) {
-	q, err := parser.ParseSignedDuration(text)
-	if err != nil {
-		return nil, err
-	}
-	q.BaseNode = ast.BaseNode{}
-	return q, err
-}
-
 // UnmarshalText unmarshals text into a Duration.
 func (a *Duration) UnmarshalText(text []byte) error {
-	q, err := parseSignedDuration(string(text))
+	q, err := ParseSignedDuration(string(text))
 	if err != nil {
 		return err
 	}
@@ -202,18 +192,30 @@ func newDeps() flux.Dependencies {
 	return deps
 }
 
+// FluxLanguageService is a service for interacting with flux code.
+type FluxLanguageService interface {
+	// Parse will take flux source code and produce a package.
+	// If there are errors when parsing, the first error is returned.
+	// An ast.Package may be returned when a parsing error occurs,
+	// but it may be null if parsing didn't even occur.
+	Parse(source string) (*ast.Package, error)
+
+	// EvalAST will evaluate and run an AST.
+	EvalAST(ctx context.Context, astPkg *ast.Package) ([]interpreter.SideEffect, values.Scope, error)
+}
+
 // FromScript extracts Options from a Flux script.
-func FromScript(script string) (Options, error) {
+func FromScript(lang FluxLanguageService, script string) (Options, error) {
 	opt := Options{Retry: pointer.Int64(1), Concurrency: pointer.Int64(1)}
 
-	fluxAST, err := flux.Parse(script)
+	fluxAST, err := parse(lang, script)
 	if err != nil {
 		return opt, err
 	}
 	durTypes := grabTaskOptionAST(fluxAST, optEvery, optOffset)
 	// TODO(desa): should be dependencies.NewEmpty(), but for now we'll hack things together
 	ctx := newDeps().Inject(context.Background())
-	_, scope, err := flux.EvalAST(ctx, fluxAST)
+	_, scope, err := evalAST(ctx, lang, fluxAST)
 	if err != nil {
 		return opt, err
 	}
@@ -224,7 +226,7 @@ func FromScript(script string) (Options, error) {
 		return opt, ErrMissingRequiredTaskOption("task")
 	}
 	// check to make sure task is an object
-	if err := checkNature(task.PolyType().Nature(), semantic.Object); err != nil {
+	if err := checkNature(task.Type().Nature(), semantic.Object); err != nil {
 		return opt, err
 	}
 	optObject := task.Object()
@@ -237,7 +239,7 @@ func FromScript(script string) (Options, error) {
 		return opt, ErrMissingRequiredTaskOption("name")
 	}
 
-	if err := checkNature(nameVal.PolyType().Nature(), semantic.String); err != nil {
+	if err := checkNature(nameVal.Type().Nature(), semantic.String); err != nil {
 		return opt, err
 	}
 	opt.Name = nameVal.Str()
@@ -252,21 +254,21 @@ func FromScript(script string) (Options, error) {
 	}
 
 	if cronOK {
-		if err := checkNature(crVal.PolyType().Nature(), semantic.String); err != nil {
+		if err := checkNature(crVal.Type().Nature(), semantic.String); err != nil {
 			return opt, err
 		}
 		opt.Cron = crVal.Str()
 	}
 
 	if everyOK {
-		if err := checkNature(everyVal.PolyType().Nature(), semantic.Duration); err != nil {
+		if err := checkNature(everyVal.Type().Nature(), semantic.Duration); err != nil {
 			return opt, err
 		}
 		dur, ok := durTypes["every"]
 		if !ok || dur == nil {
 			return opt, ErrParseTaskOptionField("every")
 		}
-		durNode, err := parseSignedDuration(dur.Location().Source)
+		durNode, err := ParseSignedDuration(dur.Location().Source)
 		if err != nil {
 			return opt, err
 		}
@@ -280,14 +282,14 @@ func FromScript(script string) (Options, error) {
 	}
 
 	if offsetVal, ok := optObject.Get(optOffset); ok {
-		if err := checkNature(offsetVal.PolyType().Nature(), semantic.Duration); err != nil {
+		if err := checkNature(offsetVal.Type().Nature(), semantic.Duration); err != nil {
 			return opt, err
 		}
 		dur, ok := durTypes["offset"]
 		if !ok || dur == nil {
 			return opt, ErrParseTaskOptionField("offset")
 		}
-		durNode, err := parseSignedDuration(dur.Location().Source)
+		durNode, err := ParseSignedDuration(dur.Location().Source)
 		if err != nil {
 			return opt, err
 		}
@@ -300,14 +302,14 @@ func FromScript(script string) (Options, error) {
 	}
 
 	if concurrencyVal, ok := optObject.Get(optConcurrency); ok {
-		if err := checkNature(concurrencyVal.PolyType().Nature(), semantic.Int); err != nil {
+		if err := checkNature(concurrencyVal.Type().Nature(), semantic.Int); err != nil {
 			return opt, err
 		}
 		opt.Concurrency = pointer.Int64(concurrencyVal.Int())
 	}
 
 	if retryVal, ok := optObject.Get(optRetry); ok {
-		if err := checkNature(retryVal.PolyType().Nature(), semantic.Int); err != nil {
+		if err := checkNature(retryVal.Type().Nature(), semantic.Int); err != nil {
 			return opt, err
 		}
 		opt.Retry = pointer.Int64(retryVal.Int())
@@ -428,4 +430,27 @@ func validateOptionNames(o values.Object) error {
 	}
 
 	return nil
+}
+
+// parse will take flux source code and produce a package.
+// If there are errors when parsing, the first error is returned.
+// An ast.Package may be returned when a parsing error occurs,
+// but it may be null if parsing didn't even occur.
+//
+// This will return an error if the FluxLanguageService is nil.
+func parse(lang FluxLanguageService, source string) (*ast.Package, error) {
+	if lang == nil {
+		return nil, errors.New("flux is not configured; cannot parse")
+	}
+	return lang.Parse(source)
+}
+
+// EvalAST will evaluate and run an AST.
+//
+// This will return an error if the FluxLanguageService is nil.
+func evalAST(ctx context.Context, lang FluxLanguageService, astPkg *ast.Package) ([]interpreter.SideEffect, values.Scope, error) {
+	if lang == nil {
+		return nil, nil, errors.New("flux is not configured; cannot evaluate")
+	}
+	return lang.EvalAST(ctx, astPkg)
 }

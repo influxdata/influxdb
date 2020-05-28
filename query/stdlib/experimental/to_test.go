@@ -3,7 +3,6 @@ package experimental_test
 import (
 	"context"
 	"errors"
-	"fmt"
 	"testing"
 	"time"
 
@@ -17,7 +16,6 @@ import (
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/models"
 	_ "github.com/influxdata/influxdb/v2/query/builtin"
-	pquerytest "github.com/influxdata/influxdb/v2/query/querytest"
 	"github.com/influxdata/influxdb/v2/query/stdlib/experimental"
 	"github.com/influxdata/influxdb/v2/query/stdlib/influxdata/influxdb"
 	"github.com/influxdata/influxdb/v2/tsdb"
@@ -36,9 +34,9 @@ from(bucket:"mydb")
 			Want: &flux.Spec{
 				Operations: []*flux.Operation{
 					{
-						ID: "influxDBFrom0",
+						ID: "from0",
 						Spec: &influxdb.FromOpSpec{
-							Bucket: "mydb",
+							Bucket: influxdb.NameOrID{Name: "mydb"},
 						},
 					},
 					{
@@ -69,7 +67,7 @@ from(bucket:"mydb")
 					},
 				},
 				Edges: []flux.Edge{
-					{Parent: "influxDBFrom0", Child: "range1"},
+					{Parent: "from0", Child: "range1"},
 					{Parent: "range1", Child: "pivot2"},
 					{Parent: "pivot2", Child: "experimental-to3"},
 				},
@@ -81,53 +79,6 @@ from(bucket:"mydb")
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
 			querytest.NewQueryTestHelper(t, tc)
-		})
-	}
-}
-
-func TestToOpSpec_BucketsAccessed(t *testing.T) {
-	bucketName := "my_bucket"
-	bucketIDString := "ddddccccbbbbaaaa"
-	bucketID, err := platform.IDFromString(bucketIDString)
-	if err != nil {
-		t.Fatal(err)
-	}
-	orgName := "my_org"
-	orgIDString := "aaaabbbbccccdddd"
-	orgID, err := platform.IDFromString(orgIDString)
-	if err != nil {
-		t.Fatal(err)
-	}
-	tests := []pquerytest.BucketsAccessedTestCase{
-		{
-			Name: "from() with bucket and to with org and bucket",
-			Raw: fmt.Sprintf(`import "experimental"
-from(bucket:"%s")
-  |> experimental.to(bucket:"%s", org:"%s")`, bucketName, bucketName, orgName),
-			WantReadBuckets:  &[]platform.BucketFilter{{Name: &bucketName}},
-			WantWriteBuckets: &[]platform.BucketFilter{{Name: &bucketName, Org: &orgName}},
-		},
-		{
-			Name: "from() with bucket and to with orgID and bucket",
-			Raw: fmt.Sprintf(`import "experimental"
-from(bucket:"%s") |> experimental.to(bucket:"%s", orgID:"%s")`, bucketName, bucketName, orgIDString),
-			WantReadBuckets:  &[]platform.BucketFilter{{Name: &bucketName}},
-			WantWriteBuckets: &[]platform.BucketFilter{{Name: &bucketName, OrganizationID: orgID}},
-		},
-		{
-			Name: "from() with bucket and to with orgID and bucketID",
-			Raw: fmt.Sprintf(`import "experimental"
-from(bucket:"%s") |> experimental.to(bucketID:"%s", orgID:"%s")`, bucketName, bucketIDString, orgIDString),
-			WantReadBuckets:  &[]platform.BucketFilter{{Name: &bucketName}},
-			WantWriteBuckets: &[]platform.BucketFilter{{ID: bucketID, OrganizationID: orgID}},
-		},
-	}
-
-	for _, tc := range tests {
-		tc := tc
-		t.Run(tc.Name, func(t *testing.T) {
-			t.Parallel()
-			pquerytest.BucketsAccessedTestHelper(t, tc)
 		})
 	}
 }

@@ -2,14 +2,17 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
+	"net/http"
 
 	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/dependencies/filesystem"
+	"github.com/influxdata/flux/plan"
 	"github.com/influxdata/flux/repl"
+	"github.com/influxdata/flux/runtime"
 	_ "github.com/influxdata/flux/stdlib"
-	platform "github.com/influxdata/influxdb/v2"
-	"github.com/influxdata/influxdb/v2/http"
-	"github.com/influxdata/influxdb/v2/query"
+	"github.com/influxdata/flux/stdlib/influxdata/influxdb"
 	_ "github.com/influxdata/influxdb/v2/query/stdlib"
 	"github.com/spf13/cobra"
 )
@@ -37,19 +40,19 @@ func replF(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	orgSVC, err := newOrganizationService()
-	if err != nil {
-		return err
-	}
+	plan.RegisterLogicalRules(
+		influxdb.DefaultFromAttributes{
+			Org: &influxdb.NameOrID{
+				ID:   replFlags.org.id,
+				Name: replFlags.org.name,
+			},
+			Host:  &flags.Host,
+			Token: &flags.Token,
+		},
+	)
+	runtime.FinalizeBuiltIns()
 
-	orgID, err := replFlags.org.getID(orgSVC)
-	if err != nil {
-		return err
-	}
-
-	flux.FinalizeBuiltIns()
-
-	r, err := getFluxREPL(flags.Host, flags.Token, flags.skipVerify, orgID)
+	r, err := getFluxREPL(flags.skipVerify)
 	if err != nil {
 		return err
 	}
@@ -58,17 +61,18 @@ func replF(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func getFluxREPL(addr, token string, skipVerify bool, orgID platform.ID) (*repl.REPL, error) {
-	qs := &http.FluxQueryService{
-		Addr:               addr,
-		Token:              token,
-		InsecureSkipVerify: skipVerify,
+func getFluxREPL(skipVerify bool) (*repl.REPL, error) {
+	deps := flux.NewDefaultDependencies()
+	deps.Deps.FilesystemService = filesystem.SystemFS
+	if skipVerify {
+		deps.Deps.HTTPClient = &http.Client{
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{
+					InsecureSkipVerify: true,
+				},
+			},
+		}
 	}
-	q := &query.REPLQuerier{
-		OrganizationID: orgID,
-		QueryService:   qs,
-	}
-	// background context is OK here, and DefaultDependencies are noop deps.  Also safe
-	// since we send all queries to the server side.
-	return repl.New(context.Background(), flux.NewDefaultDependencies(), q), nil
+	ctx := deps.Inject(context.Background())
+	return repl.New(ctx, deps), nil
 }

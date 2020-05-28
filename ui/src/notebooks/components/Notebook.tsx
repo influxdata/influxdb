@@ -15,9 +15,7 @@ const NotebookPage: FC = () => {
     <NotebookProvider>
       <Page titleTag="Notebook">
         <Header />
-        <Page.Contents fullWidth={true} scrollable={true}>
-          <PipeList />
-        </Page.Contents>
+        <PipeList />
       </Page>
     </NotebookProvider>
   )

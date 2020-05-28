@@ -4,12 +4,12 @@
 package builtin
 
 import (
-	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/runtime"
 
 	_ "github.com/influxdata/flux/stdlib"              // Import the stdlib
 	_ "github.com/influxdata/influxdb/v2/query/stdlib" // Import the stdlib
 )
 
 func init() {
-	flux.FinalizeBuiltIns()
+	runtime.FinalizeBuiltIns()
 }

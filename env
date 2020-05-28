@@ -2,6 +2,9 @@
 
 set -e
 
+# https://stackoverflow.com/a/246128
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+
 verbose_flag=""
 while getopts vx arg; do
   case "$arg" in
@@ -11,8 +14,7 @@ while getopts vx arg; do
 done
 shift $((OPTIND-1))
 
-CGO_LDFLAGS=$(go run github.com/influxdata/flux/internal/cmd/flux-config --libs $verbose_flag)
-export CGO_LDFLAGS
+export PKG_CONFIG="${DIR}/scripts/pkg-config.sh"
 
 # If this script is being executed, it will be executed under bash
 # so the bash source variable should be present. If the variable

@@ -6,6 +6,7 @@ export interface PipeMeta {
   title: string
   visible: boolean
   loading: boolean
+  focus: boolean
 }
 
 // TODO: this is screaming for normalization. figure out frontend uuids for cells
@@ -75,9 +76,10 @@ export const NotebookProvider: FC = ({children}) => {
       _setResults(add({}))
       _setMeta(
         add({
-          title: `Notebook_${++GENERATOR_INDEX}`,
+          title: `Cell_${++GENERATOR_INDEX}`,
           visible: true,
           loading: false,
+          focus: false,
         })
       )
     },

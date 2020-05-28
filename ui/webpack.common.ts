@@ -26,6 +26,7 @@ module.exports = {
   resolve: {
     alias: {
       src: path.resolve(__dirname, 'src'),
+      assets: path.resolve(__dirname, 'assets'),
       react: path.resolve('./node_modules/react'),
     },
     extensions: ['.tsx', '.ts', '.js', '.wasm'],

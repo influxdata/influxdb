@@ -7,6 +7,7 @@ import (
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/notification"
 	"github.com/influxdata/influxdb/v2/notification/check"
+	"github.com/influxdata/influxdb/v2/query/fluxlang"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -396,7 +397,7 @@ data
 		t.Run(tt.name, func(t *testing.T) {
 			// TODO(desa): change this to GenerateFlux() when we don't need to code
 			// around the monitor package not being available.
-			p, err := tt.args.threshold.GenerateFluxAST()
+			p, err := tt.args.threshold.GenerateFluxAST(fluxlang.DefaultService)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
