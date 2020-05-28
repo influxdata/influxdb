@@ -23,7 +23,8 @@ const MiniMap: FC = () => {
   }
 
   const handleClick = (idx: number): void => {
-    scrollToPipe(idx)
+    const {panelRef} = meta[idx]
+    scrollToPipe(panelRef)
     updateMeta(idx, {focus: true} as PipeMeta)
   }
 

@@ -1,5 +1,13 @@
 // Libraries
-import React, {FC, useContext, useCallback, ReactNode, MouseEvent} from 'react'
+import React, {
+  FC,
+  useContext,
+  useCallback,
+  useEffect,
+  ReactNode,
+  MouseEvent,
+  useRef,
+} from 'react'
 import classnames from 'classnames'
 
 // Components
@@ -14,9 +22,6 @@ import RemovePanelButton from 'src/notebooks/components/panel/RemovePanelButton'
 import PanelVisibilityToggle from 'src/notebooks/components/panel/PanelVisibilityToggle'
 import MovePanelButton from 'src/notebooks/components/panel/MovePanelButton'
 import NotebookPanelTitle from 'src/notebooks/components/panel/NotebookPanelTitle'
-
-// Constants
-import {NOTEBOOK_PANEL_ID} from 'src/notebooks/constants'
 
 // Types
 import {PipeContextProps} from 'src/notebooks'
@@ -80,9 +85,14 @@ const NotebookPanelHeader: FC<HeaderProps> = ({index, controls}) => {
 
 const NotebookPanel: FC<Props> = ({index, children, controls}) => {
   const {meta, updateMeta} = useContext(NotebookContext)
+  const panelRef = useRef<HTMLDivElement>(null)
 
   const isVisible = meta[index].visible
   const isFocused = meta[index].focus
+
+  useEffect(() => {
+    updateMeta(index, {panelRef} as PipeMeta)
+  })
 
   const panelClassName = classnames('notebook-panel', {
     [`notebook-panel__visible`]: isVisible,
@@ -108,11 +118,7 @@ const NotebookPanel: FC<Props> = ({index, children, controls}) => {
 
   return (
     <ClickOutside onClickOutside={handleClickOutside}>
-      <div
-        className={panelClassName}
-        onClick={handleClick}
-        id={`${NOTEBOOK_PANEL_ID}${index}`}
-      >
+      <div className={panelClassName} onClick={handleClick} ref={panelRef}>
         <NotebookPanelHeader index={index} controls={controls} />
         <div className="notebook-panel--body">{children}</div>
       </div>

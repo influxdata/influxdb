@@ -1,12 +1,9 @@
 // Libraries
-import React, {FC, useState} from 'react'
-
-// Constants
-import {NOTEBOOK_PANEL_ID} from 'src/notebooks/constants'
+import React, {FC, useState, RefObject} from 'react'
 
 export interface ScrollContextType {
   scrollPosition: number
-  scrollToPipe: (idx: number) => void
+  scrollToPipe: (panelRef: RefObject<HTMLDivElement>) => void
 }
 
 export const DEFAULT_CONTEXT: ScrollContextType = {
@@ -23,11 +20,9 @@ export const ScrollProvider: FC = ({children}) => {
     DEFAULT_CONTEXT.scrollPosition
   )
 
-  const scrollToPipe = (idx: number) => {
-    const targetPipe = document.getElementById(`${NOTEBOOK_PANEL_ID}${idx}`)
-
-    if (targetPipe) {
-      const {offsetTop} = targetPipe
+  const scrollToPipe = (panelRef: RefObject<HTMLDivElement>) => {
+    if (panelRef && panelRef.current) {
+      const {offsetTop} = panelRef.current
       setListScrollPosition(offsetTop)
     }
   }
