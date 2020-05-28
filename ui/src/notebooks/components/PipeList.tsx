@@ -34,7 +34,7 @@ const PipeList: FC = () => {
       autoHide={true}
       noScrollX={true}
     >
-      <div className="notebook-list">{_pipes}</div>
+      {_pipes}
     </DapperScrollbars>
   )
 }

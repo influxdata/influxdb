@@ -1,8 +1,8 @@
 @import '@influxdata/clockface/dist/variables.scss';
 
 $notebook-header-height: 46px;
-$notebook-size-toggle: 16px;
-$notebook-left-bar: 22px;
+
+$notebook-panel--gutter: $cf-marg-d;
 $notebook-panel--bg: mix($g1-raven, $g2-kevlar, 50%);
 
 $notebook-divider-height: ($cf-marg-a * 2) + $cf-border;

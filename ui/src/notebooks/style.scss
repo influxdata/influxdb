@@ -25,9 +25,8 @@
   flex: 1 0 0;
 }
 
-.notebook-list,
 .notebook-empty {
-  padding: 0 $cf-marg-d;
+  padding: 0 $notebook-panel--gutter;
 }
 
 .notebook-panel {
@@ -35,6 +34,7 @@
   flex-direction: column;
   align-items: stretch;
   border-radius: $cf-radius;
+  margin: 0 $notebook-panel--gutter;
 
   &:after {
     content: '';
@@ -130,37 +130,6 @@
   top: -2px;
 }
 
-.notebook-panel--toggle {
-  top: 0;
-  left: 0;
-  width: $notebook-left-bar;
-  background-color: $g2-kevlar;
-  border-radius: $cf-radius;
-  height: 100%;
-  position: absolute;
-
-  &:after {
-    box-sizing: border-box;
-    content: '';
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: $notebook-size-toggle;
-    transition: height 0.25s cubic-bezier(0.25, 1, 0.5, 1),
-      border-color 0.25s ease;
-    border: $cf-border solid $g8-storm;
-    border-radius: $cf-radius / 2;
-  }
-
-  &:hover {
-    cursor: pointer;
-    &:after {
-      border-color: $g13-mist;
-    }
-  }
-}
-
 .notebook-panel--body {
   border-radius: 0 0 $cf-radius $cf-radius;
   padding: $cf-marg-b;
@@ -208,15 +177,6 @@
 }
 
 /*
-  Notebook Action Bar aka Footer
-  ------------------------------------------------------------------------------
-*/
-
-.notebook--actions {
-  margin-top: $cf-marg-c;
-}
-
-/*
   Visualization Panel
   ------------------------------------------------------------------------------
 */
@@ -251,6 +211,6 @@
   flex-wrap: wrap;
 
   > * {
-    margin-left: 4px;
+    margin-left: $cf-marg-a;
   }
 }
