@@ -1,9 +1,6 @@
 import React, {FC, useState, useCallback} from 'react'
 import {PipeData} from 'src/notebooks'
 
-// Constants
-import {NOTEBOOK_PANEL_ID} from 'src/notebooks/constants'
-
 export interface PipeMeta {
   title: string
   visible: boolean
@@ -14,26 +11,22 @@ export interface NotebookContextType {
   id: string
   pipes: PipeData[]
   meta: PipeMeta[] // data only used for the view layer for Notebooks
-  listScrollPosition: number
   addPipe: (pipe: PipeData) => void
   updatePipe: (idx: number, pipe: PipeData) => void
   updateMeta: (idx: number, pipe: PipeMeta) => void
   movePipe: (currentIdx: number, newIdx: number) => void
   removePipe: (idx: number) => void
-  scrollToPipe: (idx: number) => void
 }
 
 export const DEFAULT_CONTEXT: NotebookContextType = {
   id: 'new',
   pipes: [],
   meta: [],
-  listScrollPosition: 0,
   addPipe: () => {},
   updatePipe: () => {},
   updateMeta: () => {},
   movePipe: () => {},
   removePipe: () => {},
-  scrollToPipe: () => {},
 }
 
 // NOTE: this just loads some test data for exploring the
@@ -56,9 +49,6 @@ export const NotebookProvider: FC = ({children}) => {
   const [id] = useState(DEFAULT_CONTEXT.id)
   const [pipes, setPipes] = useState(DEFAULT_CONTEXT.pipes)
   const [meta, setMeta] = useState(DEFAULT_CONTEXT.meta)
-  const [listScrollPosition, setListScrollPosition] = useState(
-    DEFAULT_CONTEXT.listScrollPosition
-  )
 
   const _setPipes = useCallback(setPipes, [id])
   const _setMeta = useCallback(setMeta, [id])
@@ -141,18 +131,6 @@ export const NotebookProvider: FC = ({children}) => {
     [id]
   )
 
-  const scrollToPipe = useCallback(
-    (idx: number) => {
-      const targetPipe = document.getElementById(`${NOTEBOOK_PANEL_ID}${idx}`)
-
-      if (targetPipe) {
-        const {offsetTop} = targetPipe
-        setListScrollPosition(offsetTop)
-      }
-    },
-    [id]
-  )
-
   return (
     <NotebookContext.Provider
       value={{
@@ -164,8 +142,6 @@ export const NotebookProvider: FC = ({children}) => {
         movePipe,
         addPipe,
         removePipe,
-        listScrollPosition,
-        scrollToPipe,
       }}
     >
       {children}

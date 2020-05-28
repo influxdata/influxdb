@@ -4,6 +4,7 @@ import React, {FC, useContext} from 'react'
 // Contexts
 import {AppSettingContext} from 'src/notebooks/context/app'
 import {NotebookContext, PipeMeta} from 'src/notebooks/context/notebook'
+import {ScrollContext} from 'src/notebooks/context/scroll'
 
 // Components
 import {DapperScrollbars} from '@influxdata/clockface'
@@ -14,7 +15,8 @@ import 'src/notebooks/components/minimap/MiniMap.scss'
 
 const MiniMap: FC = () => {
   const {miniMapVisibility} = useContext(AppSettingContext)
-  const {meta, scrollToPipe, updateMeta} = useContext(NotebookContext)
+  const {meta, updateMeta} = useContext(NotebookContext)
+  const {scrollToPipe} = useContext(ScrollContext)
 
   if (!miniMapVisibility) {
     return null
