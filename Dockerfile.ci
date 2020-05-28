@@ -1,0 +1,53 @@
+# Build any binaries that can be copied into the CI image
+FROM rust:buster AS flatc
+RUN apt-get update \
+  && mkdir -p /usr/share/man/man1 \
+  && apt-get install -y \
+    git mercurial xvfb apt \
+    locales sudo openssh-client ca-certificates tar gzip parallel \
+    net-tools netcat unzip zip bzip2 gnupg curl wget make \
+    musl musl-dev musl-tools clang cmake llvm \
+  && git clone -- https://github.com/google/flatbuffers.git /usr/local/src/flatbuffers \
+  && cmake -S /usr/local/src/flatbuffers -B /usr/local/src/flatbuffers \
+    -G "Unix Makefiles" \
+    -DCMAKE_BUILD_TYPE=Release \
+  && make -C /usr/local/src/flatbuffers -j $(nproc) flatc
+
+# Build actual image used for CI pipeline
+FROM rust:buster
+
+COPY --from=flatc /usr/local/src/flatbuffers/flatc /usr/bin/flatc
+# make Apt non-interactive
+RUN echo 'APT::Get::Assume-Yes "true";' > /etc/apt/apt.conf.d/90circleci \
+  && echo 'DPkg::Options "--force-confnew";' >> /etc/apt/apt.conf.d/90circleci
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update \
+  && mkdir -p /usr/share/man/man1 \
+  && apt-get install -y \
+    git mercurial xvfb apt \
+    locales sudo openssh-client ca-certificates tar gzip parallel \
+    net-tools netcat unzip zip bzip2 gnupg curl wget make \
+    musl musl-dev musl-tools clang llvm \
+  && apt-get clean autoclean \
+	&& apt-get autoremove --yes \
+	&& rm -rf /var/lib/{apt,dpkg,cache,log}
+
+# Set timezone to UTC by default
+RUN ln -sf /usr/share/zoneinfo/Etc/UTC /etc/localtime
+# Use unicode
+RUN locale-gen C.UTF-8 || true
+ENV LANG=C.UTF-8
+
+RUN rustup component add rustfmt
+
+RUN groupadd -g 1500 rust \
+  && useradd -u 1500 -g rust -s /bin/bash -m rust \
+  && echo 'rust ALL=NOPASSWD: ALL' >> /etc/sudoers.d/10-rust \
+  && echo 'Defaults    env_keep += "DEBIAN_FRONTEND"' >> /etc/sudoers.d/env_keep
+
+USER rust
+ENV PATH /home/rust/.local/bin:/home/rust/bin:${PATH}
+
+CMD ["/bin/bash"]
