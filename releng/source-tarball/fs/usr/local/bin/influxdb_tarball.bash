@@ -45,7 +45,7 @@ fi
 
 cd influxdb
 git checkout "$SHA"
-dep ensure -vendor-only
+go mod vendor
 cd ..
 
 # Emit version metadata to appropriate files.
