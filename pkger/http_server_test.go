@@ -153,9 +153,9 @@ func TestPkgerHTTPServer(t *testing.T) {
 			for _, tt := range tests {
 				fn := func(t *testing.T) {
 					svc := &fakeSVC{
-						dryRunFn: func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.Summary, pkger.Diff, error) {
+						dryRunFn: func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.PkgImpactSummary, error) {
 							if err := pkg.Validate(); err != nil {
-								return pkger.Summary{}, pkger.Diff{}, err
+								return pkger.PkgImpactSummary{}, err
 							}
 							sum := pkg.Summary()
 							var diff pkger.Diff
@@ -166,7 +166,10 @@ func TestPkgerHTTPServer(t *testing.T) {
 									},
 								})
 							}
-							return sum, diff, nil
+							return pkger.PkgImpactSummary{
+								Summary: sum,
+								Diff:    diff,
+							}, nil
 						},
 					}
 
@@ -209,9 +212,9 @@ func TestPkgerHTTPServer(t *testing.T) {
 			for _, tt := range tests {
 				fn := func(t *testing.T) {
 					svc := &fakeSVC{
-						dryRunFn: func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.Summary, pkger.Diff, error) {
+						dryRunFn: func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.PkgImpactSummary, error) {
 							if err := pkg.Validate(); err != nil {
-								return pkger.Summary{}, pkger.Diff{}, err
+								return pkger.PkgImpactSummary{}, err
 							}
 							sum := pkg.Summary()
 							var diff pkger.Diff
@@ -222,7 +225,10 @@ func TestPkgerHTTPServer(t *testing.T) {
 									},
 								})
 							}
-							return sum, diff, nil
+							return pkger.PkgImpactSummary{
+								Diff:    diff,
+								Summary: sum,
+							}, nil
 						},
 					}
 
@@ -313,9 +319,9 @@ func TestPkgerHTTPServer(t *testing.T) {
 			for _, tt := range tests {
 				fn := func(t *testing.T) {
 					svc := &fakeSVC{
-						dryRunFn: func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.Summary, pkger.Diff, error) {
+						dryRunFn: func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.PkgImpactSummary, error) {
 							if err := pkg.Validate(); err != nil {
-								return pkger.Summary{}, pkger.Diff{}, err
+								return pkger.PkgImpactSummary{}, err
 							}
 							sum := pkg.Summary()
 							var diff pkger.Diff
@@ -326,7 +332,11 @@ func TestPkgerHTTPServer(t *testing.T) {
 									},
 								})
 							}
-							return sum, diff, nil
+
+							return pkger.PkgImpactSummary{
+								Diff:    diff,
+								Summary: sum,
+							}, nil
 						},
 					}
 
@@ -385,8 +395,10 @@ func TestPkgerHTTPServer(t *testing.T) {
 			for _, tt := range tests {
 				fn := func(t *testing.T) {
 					svc := &fakeSVC{
-						dryRunFn: func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.Summary, pkger.Diff, error) {
-							return pkg.Summary(), pkger.Diff{}, nil
+						dryRunFn: func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.PkgImpactSummary, error) {
+							return pkger.PkgImpactSummary{
+								Summary: pkg.Summary(),
+							}, nil
 						},
 					}
 
@@ -407,7 +419,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 
 	t.Run("apply a pkg", func(t *testing.T) {
 		svc := &fakeSVC{
-			applyFn: func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.Summary, pkger.Diff, error) {
+			applyFn: func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.PkgImpactSummary, error) {
 				var opt pkger.ApplyOpt
 				for _, o := range opts {
 					o(&opt)
@@ -425,7 +437,11 @@ func TestPkgerHTTPServer(t *testing.T) {
 				for key := range opt.MissingSecrets {
 					sum.MissingSecrets = append(sum.MissingSecrets, key)
 				}
-				return sum, diff, nil
+
+				return pkger.PkgImpactSummary{
+					Diff:    diff,
+					Summary: sum,
+				}, nil
 			},
 		}
 
@@ -824,8 +840,8 @@ func decodeBody(t *testing.T, r io.Reader, v interface{}) {
 type fakeSVC struct {
 	initStack    func(ctx context.Context, userID influxdb.ID, stack pkger.Stack) (pkger.Stack, error)
 	listStacksFn func(ctx context.Context, orgID influxdb.ID, filter pkger.ListFilter) ([]pkger.Stack, error)
-	dryRunFn     func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.Summary, pkger.Diff, error)
-	applyFn      func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.Summary, pkger.Diff, error)
+	dryRunFn     func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.PkgImpactSummary, error)
+	applyFn      func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.PkgImpactSummary, error)
 }
 
 var _ pkger.SVC = (*fakeSVC)(nil)
@@ -852,7 +868,7 @@ func (f *fakeSVC) CreatePkg(ctx context.Context, setters ...pkger.CreatePkgSetFn
 	panic("not implemented")
 }
 
-func (f *fakeSVC) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.Summary, pkger.Diff, error) {
+func (f *fakeSVC) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.PkgImpactSummary, error) {
 	if f.dryRunFn == nil {
 		panic("not implemented")
 	}
@@ -860,7 +876,7 @@ func (f *fakeSVC) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *pk
 	return f.dryRunFn(ctx, orgID, userID, pkg, opts...)
 }
 
-func (f *fakeSVC) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.Summary, pkger.Diff, error) {
+func (f *fakeSVC) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.PkgImpactSummary, error) {
 	if f.applyFn == nil {
 		panic("not implemented")
 	}

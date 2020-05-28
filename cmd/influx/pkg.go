@@ -153,12 +153,12 @@ func (b *cmdPkgBuilder) pkgApplyRunEFn(cmd *cobra.Command, args []string) error 
 		pkger.ApplyWithStackID(stackID),
 	}
 
-	drySum, diff, err := svc.DryRun(context.Background(), influxOrgID, 0, pkg, opts...)
+	dryRunImpact, err := svc.DryRun(context.Background(), influxOrgID, 0, pkg, opts...)
 	if err != nil {
 		return err
 	}
 
-	providedSecrets := mapKeys(drySum.MissingSecrets, b.applyOpts.secrets)
+	providedSecrets := mapKeys(dryRunImpact.Summary.MissingSecrets, b.applyOpts.secrets)
 	if !isTTY {
 		const skipDefault = "$$skip-this-key$$"
 		for _, secretKey := range missingValKeys(providedSecrets) {
@@ -170,7 +170,7 @@ func (b *cmdPkgBuilder) pkgApplyRunEFn(cmd *cobra.Command, args []string) error 
 		}
 	}
 
-	if err := b.printPkgDiff(diff); err != nil {
+	if err := b.printPkgDiff(dryRunImpact.Diff); err != nil {
 		return err
 	}
 
@@ -183,18 +183,18 @@ func (b *cmdPkgBuilder) pkgApplyRunEFn(cmd *cobra.Command, args []string) error 
 		}
 	}
 
-	if b.applyOpts.force != "conflict" && isTTY && diff.HasConflicts() {
+	if b.applyOpts.force != "conflict" && isTTY && dryRunImpact.Diff.HasConflicts() {
 		return errors.New("package has conflicts with existing resources and cannot safely apply")
 	}
 
 	opts = append(opts, pkger.ApplyWithSecrets(providedSecrets))
 
-	summary, _, err := svc.Apply(context.Background(), influxOrgID, 0, pkg, opts...)
+	impact, err := svc.Apply(context.Background(), influxOrgID, 0, pkg, opts...)
 	if err != nil {
 		return err
 	}
 
-	b.printPkgSummary(summary)
+	b.printPkgSummary(impact.Summary)
 
 	return nil
 }
