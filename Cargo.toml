@@ -62,12 +62,15 @@ either = "1.5.3"
 flatbuffers = "0.6.1"
 
 [dev-dependencies]
-delorean_test_helpers = { path = "delorean_test_helpers" }
-criterion = "0.3"
 assert_cmd = "1.0.0"
-tempfile = "3.1.0"
+chrono = "0.4"
+criterion = "0.3"
+delorean_test_helpers = { path = "delorean_test_helpers" }
+libflate = "1.0.0"
 rand = "0.7.2"
 reqwest = { version = "0.10.1", features = ["blocking"] }
+predicates = "1.0.4"
+tempfile = "3.1.0"
 
 [[bench]]
 name = "encoders"

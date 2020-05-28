@@ -2,6 +2,7 @@ use crate::storage::StorageError;
 
 use std::io::BufRead;
 use std::io::{Read, Seek, SeekFrom};
+use std::u64;
 
 pub struct TSMFile<R>
 where
@@ -74,8 +75,18 @@ impl<T: Read> Index<T> {
         self.curr_offset += 2;
         let count = u16::from_be_bytes(buf);
 
+        let mut buf2: [u8; 8] = [0; 8];
+
+        buf2.copy_from_slice(&key_bytes[..8]);
+        let org_id = InfluxID::from_be_bytes(buf2);
+
+        buf2.copy_from_slice(&key_bytes[8..16]);
+        let bucket_id = InfluxID::from_be_bytes(buf2);
+
         Ok(IndexEntry {
             key: key_bytes,
+            org_id,
+            bucket_id,
             block_type,
             count,
             curr_block: 1,
@@ -157,9 +168,42 @@ impl<T: Read> Iterator for Index<T> {
     }
 }
 
+#[derive(Clone, Debug)]
+/// InfluxID represents an InfluxDB ID used in InfluxDB 2.x to represent
+/// organization and bucket identifiers.
+pub struct InfluxID(u64);
+
+#[allow(dead_code)]
+impl InfluxID {
+    fn new_str(s: &str) -> Result<InfluxID, StorageError> {
+        let v = u64::from_str_radix(s, 16).map_err(|e| StorageError {
+            description: e.to_string(),
+        })?;
+        Ok(InfluxID(v))
+    }
+
+    fn from_be_bytes(bytes: [u8; 8]) -> InfluxID {
+        InfluxID(u64::from_be_bytes(bytes))
+    }
+}
+
+impl std::fmt::Display for InfluxID {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+        write!(f, "{:016x}", self.0)
+    }
+}
+
+impl std::cmp::PartialEq for InfluxID {
+    fn eq(&self, r: &InfluxID) -> bool {
+        self.0 == r.0
+    }
+}
+
 #[derive(Clone)]
 pub struct IndexEntry {
     key: Vec<u8>,
+    org_id: InfluxID,
+    bucket_id: InfluxID,
     block_type: u8,
     count: u16,
 
@@ -176,17 +220,17 @@ pub struct Block {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
     use libflate::gzip::Decoder;
     use std::fs::File;
+    use std::i64;
     use std::io::BufReader;
     use std::io::Cursor;
 
     #[test]
     fn read_tsm_index() {
-        let file =
-            File::open("/Users/edd/rust/delorean/src/storage/000000000000005-000000002.tsm.gz");
+        let file = File::open("tests/fixtures/000000000000005-000000002.tsm.gz");
         let mut decoder = Decoder::new(file.unwrap()).unwrap();
         let mut buf = Vec::new();
         decoder.read_to_end(&mut buf).unwrap();
@@ -196,5 +240,56 @@ mod test {
 
         assert_eq!(index.curr_offset, 3_893_272);
         assert_eq!(index.count(), 2159)
+    }
+
+    #[test]
+    fn read_tsm_block() {
+        let file = File::open("tests/fixtures/000000000000005-000000002.tsm.gz");
+        let mut decoder = Decoder::new(file.unwrap()).unwrap();
+        let mut buf = Vec::new();
+        decoder.read_to_end(&mut buf).unwrap();
+
+        let mut reader = TSMFile::new(BufReader::new(Cursor::new(buf)), 4_222_248);
+        let index = reader.index().unwrap();
+
+        let mut got_blocks: u64 = 0;
+        let mut got_min_time = i64::MAX;
+        let mut got_max_time = i64::MIN;
+
+        // every block in the fixture file is for the 05c19117091a1000 org and
+        // 05c19117091a1001 bucket.
+        let org_id = InfluxID::new_str("05c19117091a1000").unwrap();
+        let bucket_id = InfluxID::new_str("05c19117091a1001").unwrap();
+
+        for index_entry in index {
+            match index_entry {
+                Ok(entry) => {
+                    got_blocks += entry.count as u64;
+
+                    if entry.block.min_time < got_min_time {
+                        got_min_time = entry.block.min_time;
+                    }
+
+                    if entry.block.max_time > got_max_time {
+                        got_max_time = entry.block.max_time;
+                    }
+
+                    assert_eq!(entry.org_id, org_id);
+                    assert_eq!(entry.bucket_id, bucket_id);
+                }
+                Err(e) => panic!("{:?} {:?}", e, got_blocks),
+            }
+        }
+
+        assert_eq!(got_blocks, 2159); // 2,159 blocks in the file
+        assert_eq!(got_min_time, 1590585404546128000); // earliest time is 2020-05-27T13:16:44.546128Z
+        assert_eq!(got_max_time, 1590597378379824000); // latest time is 2020-05-27T16:36:18.379824Z
+    }
+
+    #[test]
+    fn influx_id() {
+        let id = InfluxID::new_str("20aa9b0").unwrap();
+        assert_eq!(id, InfluxID(34253232));
+        assert_eq!(format!("{}", id), "00000000020aa9b0");
     }
 }
