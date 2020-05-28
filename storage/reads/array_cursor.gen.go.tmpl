@@ -3,6 +3,7 @@ package reads
 import (
 	"errors"
 
+	"github.com/influxdata/influxdb/v2/storage/reads/datatypes"
 	"github.com/influxdata/influxdb/v2/tsdb/cursors"
 )
 
@@ -233,6 +234,60 @@ func (c *integer{{.Name}}CountArrayCursor) Next() *cursors.IntegerArray {
 			return res
 		}
 	}
+}
+
+type integer{{.Name}}WindowCountArrayCursor struct {
+	cursors.{{.Name}}ArrayCursor
+	every int64
+}
+
+func (c *integer{{.Name}}WindowCountArrayCursor) Stats() cursors.CursorStats {
+	return c.{{.Name}}ArrayCursor.Stats()
+}
+
+func (c *integer{{.Name}}WindowCountArrayCursor) Next() *cursors.IntegerArray {
+	a := c.{{.Name}}ArrayCursor.Next()
+	if a.Len() == 0 {
+		return &cursors.IntegerArray{}
+	}
+
+	res := cursors.NewIntegerArrayLen(0)
+	rowIdx := 0
+	var acc int64 = 0
+
+	// enumerate windows
+WINDOWS:
+	for {
+		firstTimestamp := a.Timestamps[rowIdx]
+		windowStart := firstTimestamp - firstTimestamp%c.every
+		windowEnd := windowStart + c.every
+		for ; rowIdx < a.Len(); rowIdx++ {
+			ts := a.Timestamps[rowIdx]
+			if ts >= windowEnd {
+				// new window detected, close the current window
+				if acc > 0 {
+					res.Timestamps = append(res.Timestamps, windowEnd)
+					res.Values = append(res.Values, acc)
+				}
+				// start the new window
+				acc = 0
+				continue WINDOWS
+			} else {
+				acc++
+			}
+		}
+		// get the next chunk
+		a = c.{{.Name}}ArrayCursor.Next()
+		if a.Len() == 0 {
+			if acc > 0 {
+				res.Timestamps = append(res.Timestamps, windowEnd)
+				res.Values = append(res.Values, acc)
+			}
+			break
+		}
+		rowIdx = 0
+	}
+	return res
 }
 
 type {{.name}}EmptyArrayCursor struct {
