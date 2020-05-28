@@ -7393,6 +7393,7 @@ components:
             - notificationRules
             - notificationEndpoints
             - checks
+            - dbrp
         id:
           type: string
           nullable: true
