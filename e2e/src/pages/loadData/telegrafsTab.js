@@ -39,15 +39,15 @@ const configurationDescrInput = '[data-testid=input-field][title*=\'Configuratio
 const configurationPluginsSideBar = '//*[*[text()=\'Plugins\']]//div[contains(@class,\'side-bar--tabs\')]';
 
 //Telegraf wizard edit plugin
-const pluginDockerEditEndpoint = '//*[label/span[text()=\'endpoint\']]//*[@data-testid=\'input-field\']';
-const pluginK8SEditEndpoint = '//*[label/span[text()=\'url\']]//*[@data-testid=\'input-field\']';
-const pluginNGINXEditEndpoint = '//*[label/span[text()=\'urls\']]//*[@data-testid=\'input-field\']';
+const pluginDockerEditEndpoint = '//*[.//*[text()=\'endpoint\']][@data-testid=\'form--element\']//*[@data-testid=\'input-field\']';
+const pluginK8SEditEndpoint = '//*[.//*[text()=\'url\']][@data-testid=\'form--element\']//*[@data-testid=\'input-field\']';
+const pluginNGINXEditEndpoint = '//*[.//*[text()=\'urls\']][@data-testid=\'form--element\']//*[@data-testid=\'input-field\']';
 const pluginNGINXAddUrlButton = '[data-testid=button][title=\'Add to list of urls\']';
 const pluginNGINXDeleteFirstURL = '[data-testid=confirmation-button--button][title=\'Delete\']:nth-of-type(1)';
 const pluginNGINXDeleteURLConfirmButton = '[data-testid=confirmation-button--confirm-button]';
 const pluginNGINXURLListItems = '[data-testid=overlay--body] [data-testid=\'grid--column\'] [data-testid=index-list]';
-const pluginRedisServersEditEndpoint = '//*[label/span[text()=\'servers\']]//*[@data-testid=\'input-field\']';
-const pluginRedisPasswordEditEndpoint = '//*[label/span[text()=\'password\']]//*[@data-testid=\'input-field\']';
+const pluginRedisServersEditEndpoint = '//*[.//*[text()=\'servers\']][@data-testid=\'form--element\']//*[@data-testid=\'input-field\']';
+const pluginRedisPasswordEditEndpoint = '//*[.//*[text()=\'password\']][@data-testid=\'form--element\']//*[@data-testid=\'input-field\']';
 
 //Telegraf wizard step 3
 const codeToken = '//pre[contains(text(), \'TOKEN\')]';

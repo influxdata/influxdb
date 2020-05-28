@@ -15,6 +15,12 @@ const eventMarkerToggleByType = '[data-testid=event-marker-vis-toggle-%TYPE%] > 
 
 const canvasGraphAxes = 'canvas.giraffe-axes';
 const canvasGraphContent = 'canvas.giraffe-layer-line';
+const graphToolTip = '[data-testid=giraffe-tooltip]';
+const graphToolTipColumnValue = '//*[@data-testid=\'giraffe-tooltip-table\']/*[.//*[text()=\'%COLUMN%\']]/*[2]';
+
+const eventMarkerTooltip = '[data-testid=app-wrapper]';
+const eventMarkerColumnValue = '//*[@data-testid=\'app-wrapper\']//*[./*[text()=\'%COLUMN%\']]/*[2]';
+
 
 const eventTable = '.event-table';
 
@@ -94,6 +100,22 @@ class checkStatusHistoryPage extends influxPage {
 
     async getEventMarkerToggleByType(type){
         return await this.driver.findElement(By.css(eventMarkerToggleByType.replace('%TYPE%', type.toLowerCase())));
+    }
+
+    async getEventMarkerTooltip(){
+        return await this.driver.findElement(By.css(eventMarkerTooltip));
+    }
+
+    async getGraphToolTip(){
+        return await this.driver.findElement(By.css(graphToolTip));
+    }
+
+    async graphToolTipColumnValue(column){
+        return await this.driver.findElement(By.xpath(graphToolTipColumnValue.replace('%COLUMN%', column)));
+    }
+
+    async eventMarkerColumnValue(column){
+        return await this.driver.findElement(By.xpath(eventMarkerColumnValue.replace('%COLUMN%', column)));
     }
 
 }

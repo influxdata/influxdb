@@ -34,15 +34,15 @@ const createVariableQueryCodeMirror = '.CodeMirror';
 const createVariableQueryMonacoEdit = '.monaco-editor';
 const createVariableTextArea = '[data-testid=overlay--body] [data-testid=textarea]';
 const createVariableTypeDropdownItem = '[data-testid=\'variable-form--dropdown-%ITEM%\']';
-const createVariableDefaultValDropdown = '//*[@data-testid=\'form--element\'][label/span[text() = \'Select A Default\']]//*[@data-testid=\'dropdown--button\']';
+const createVariableDefaultValDropdown = '//*[@data-testid=\'form--element\'][*/*[text() = \'Select A Default\']]//*[@data-testid=\'dropdown--button\']';
 const createVariableInfoPara = '//*[@data-testid=\'grid--column\'][p[contains(text(), \'ontains\')]]';
 const createVariableDefaultValDropdownItem = '[data-testid=dropdown-item][id=\'%ITEM%\']';
 const createVariableDefaultValCSVDropdownItem = '//*[@data-testid=\'dropdown-item\']//*[text() = \'%ITEM%\']';
 
 // edit variable popup
-const editVariableTypeDropdown = '//*[@data-testid=\'form--element\'][.//span[text()  = \'Type\']]//*[@data-testid=\'dropdown--button\']';
-const editVariableTypeDropdownItem = '//*[@data-testid=\'form--element\'][.//span[text()  = \'Type\']]//*[@data-testid=\'dropdown-item\'][@id=\'%ITEM%\']';
-const editVariableNameInput = '//*[@data-testid=\'form--element\'][.//span[text()  = \'Name\']]//input';
+const editVariableTypeDropdown = '//*[@data-testid=\'form--element\'][.//*[text()=\'Type\']]//*[@data-testid=\'dropdown--button\']';
+const editVariableTypeDropdownItem = '//*[@data-testid=\'form--element\'][.//*[text()=\'Type\']]//*[@data-testid=\'dropdown-item\'][@id=\'%ITEM%\']';
+const editVariableNameInput = '//*[@data-testid=\'form--element\'][.//*[text()=\'Name\']]//input';
 const editWarnVariablSubmit = '[data-testid=danger-confirmation-button]';
 const editVariableNameChangeSubmit = '[data-testid=rename-variable-submit]';
 

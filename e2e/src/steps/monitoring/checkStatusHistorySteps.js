@@ -74,8 +74,8 @@ class checkStatusHistorySteps extends influxSteps {
             let last = await this.ckHistPage.getEventMarkerByIndex(markers.length);
             //console.log("DEBUG first " + JSON.stringify(await first.getRect()));
             //console.log("DEBUG last " + JSON.stringify(await last.getRect()));
-            await this.driver.executeScript('arguments[0].style.border=\'3px solid red\'', first);
-            await this.driver.executeScript('arguments[0].style.border=\'3px solid red\'', last);
+            //await this.driver.executeScript('arguments[0].style.border=\'3px solid red\'', first);
+            //await this.driver.executeScript('arguments[0].style.border=\'3px solid red\'', last);
             await this.ckHistPage.getCanvasGraphContent().then(async canvas => {
                 //console.log("DEBUG canvas " + JSON.stringify(await canvas.getRect()));
                 let action = await this.driver.actions();
