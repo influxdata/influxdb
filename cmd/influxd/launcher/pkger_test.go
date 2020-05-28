@@ -1439,6 +1439,8 @@ func TestLauncher_Pkger(t *testing.T) {
 			}),
 			pkger.WithNotificationEndpointSVC(l.NotificationEndpointService(t)),
 			pkger.WithNotificationRuleSVC(l.NotificationRuleService()),
+			pkger.WithOrganizationService(l.OrganizationService()),
+			pkger.WithStore(pkger.NewStoreKV(l.kvStore)),
 			pkger.WithTaskSVC(l.TaskServiceKV()),
 			pkger.WithTelegrafSVC(l.TelegrafService(t)),
 			pkger.WithVariableSVC(l.VariableService(t)),
@@ -1645,6 +1647,8 @@ spec:
 		// this initial test is also setup for the sub tests
 		impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID, newPkg(t))
 		require.NoError(t, err)
+
+		assert.NotZero(t, impact.StackID)
 
 		sum1 := impact.Summary
 
@@ -2174,6 +2178,8 @@ spec:
 				pkger.WithLabelSVC(l.LabelService(t)),
 				pkger.WithNotificationEndpointSVC(l.NotificationEndpointService(t)),
 				pkger.WithNotificationRuleSVC(l.NotificationRuleService()),
+				pkger.WithOrganizationService(l.OrganizationService()),
+				pkger.WithStore(pkger.NewStoreKV(l.kvStore)),
 				pkger.WithTaskSVC(l.TaskServiceKV()),
 				pkger.WithTelegrafSVC(l.TelegrafService(t)),
 				pkger.WithVariableSVC(l.VariableService(t)),
@@ -2262,6 +2268,7 @@ spec:
 
 		impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkg)
 		require.NoError(t, err)
+		assert.NotZero(t, impact.StackID)
 
 		require.Len(t, impact.Summary.Tasks, 1)
 	})
@@ -2372,6 +2379,7 @@ spec:
 
 		impact, err := svc.DryRun(ctx, l.Org.ID, l.User.ID, pkg)
 		require.NoError(t, err)
+		assert.Zero(t, impact.StackID)
 
 		sum := impact.Summary
 
@@ -2420,6 +2428,7 @@ spec:
 			"var-1-name-ref":      "var_threeve",
 		}))
 		require.NoError(t, err)
+		assert.NotZero(t, impact.StackID)
 
 		sum = impact.Summary
 

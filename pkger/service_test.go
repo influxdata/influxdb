@@ -33,17 +33,26 @@ func TestService(t *testing.T) {
 			endpointSVC: mock.NewNotificationEndpointService(),
 			orgSVC:      mock.NewOrganizationService(),
 			ruleSVC:     mock.NewNotificationRuleStore(),
-			taskSVC:     mock.NewTaskService(),
-			teleSVC:     mock.NewTelegrafConfigStore(),
-			varSVC:      mock.NewVariableService(),
+			store: &fakeStore{
+				createFn: func(ctx context.Context, stack Stack) error {
+					return nil
+				},
+				readFn: func(ctx context.Context, id influxdb.ID) (Stack, error) {
+					return Stack{ID: id}, nil
+				},
+				updateFn: func(ctx context.Context, stack Stack) error {
+					return nil
+				},
+			},
+			taskSVC: mock.NewTaskService(),
+			teleSVC: mock.NewTelegrafConfigStore(),
+			varSVC:  mock.NewVariableService(),
 		}
 		for _, o := range opts {
 			o(&opt)
 		}
 
-		return NewService(
-			WithIDGenerator(opt.idGen),
-			WithTimeGenerator(opt.timeGen),
+		applyOpts := []ServiceSetterFn{
 			WithStore(opt.store),
 			WithBucketSVC(opt.bucketSVC),
 			WithCheckSVC(opt.checkSVC),
@@ -56,7 +65,15 @@ func TestService(t *testing.T) {
 			WithTaskSVC(opt.taskSVC),
 			WithTelegrafSVC(opt.teleSVC),
 			WithVariableSVC(opt.varSVC),
-		)
+		}
+		if opt.idGen != nil {
+			applyOpts = append(applyOpts, WithIDGenerator(opt.idGen))
+		}
+		if opt.timeGen != nil {
+			applyOpts = append(applyOpts, WithTimeGenerator(opt.timeGen))
+		}
+
+		return NewService(applyOpts...)
 	}
 
 	t.Run("DryRun", func(t *testing.T) {
@@ -3244,6 +3261,8 @@ func levelPtr(l notification.CheckLevel) *notification.CheckLevel {
 
 type fakeStore struct {
 	createFn func(ctx context.Context, stack Stack) error
+	readFn   func(ctx context.Context, id influxdb.ID) (Stack, error)
+	updateFn func(ctx context.Context, stack Stack) error
 }
 
 var _ Store = (*fakeStore)(nil)
@@ -3260,10 +3279,16 @@ func (s *fakeStore) ListStacks(ctx context.Context, orgID influxdb.ID, f ListFil
 }
 
 func (s *fakeStore) ReadStackByID(ctx context.Context, id influxdb.ID) (Stack, error) {
+	if s.readFn != nil {
+		return s.readFn(ctx, id)
+	}
 	panic("not implemented")
 }
 
 func (s *fakeStore) UpdateStack(ctx context.Context, stack Stack) error {
+	if s.updateFn != nil {
+		return s.updateFn(ctx, stack)
+	}
 	panic("not implemented")
 }
 

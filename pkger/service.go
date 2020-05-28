@@ -692,6 +692,7 @@ func (s *Service) filterOrgResourceKinds(resourceKindFilters []Kind) []struct {
 
 // PkgImpactSummary represents the impact the application of a pkg will have on the system.
 type PkgImpactSummary struct {
+	StackID influxdb.ID
 	Diff    Diff
 	Summary Summary
 }
@@ -719,6 +720,7 @@ func (s *Service) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *Pk
 	}
 
 	return PkgImpactSummary{
+		StackID: opt.StackID,
 		Diff:    state.diff(),
 		Summary: newSummaryFromStatePkg(state, pkg),
 	}, nil
@@ -1215,11 +1217,17 @@ func (s *Service) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg
 		return PkgImpactSummary{}, err
 	}
 
-	defer func(stackID influxdb.ID) {
-		if stackID == 0 {
-			return
+	stackID := opt.StackID
+	// if stackID is not provided, a stack will be provided for the application.
+	if stackID == 0 {
+		newStack, err := s.InitStack(ctx, userID, Stack{OrgID: orgID})
+		if err != nil {
+			return PkgImpactSummary{}, err
 		}
+		stackID = newStack.ID
+	}
 
+	defer func(stackID influxdb.ID) {
 		updateStackFn := s.updateStackAfterSuccess
 		if e != nil {
 			updateStackFn = s.updateStackAfterRollback
@@ -1240,6 +1248,7 @@ func (s *Service) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg
 	pkg.applySecrets(opt.MissingSecrets)
 
 	return PkgImpactSummary{
+		StackID: stackID,
 		Diff:    state.diff(),
 		Summary: newSummaryFromStatePkg(state, pkg),
 	}, nil

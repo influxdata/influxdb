@@ -7859,6 +7859,8 @@ components:
     PkgSummary:
       type: object
       properties:
+        stackID:
+          type: string
         summary:
           type: object
           properties:
