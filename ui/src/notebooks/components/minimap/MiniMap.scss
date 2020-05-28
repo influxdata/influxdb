@@ -1,0 +1,31 @@
+@import '@influxdata/clockface/dist/variables.scss';
+@import '~src/notebooks/NotebookVariables.scss';
+
+.notebook-minimap {
+  padding-right: $cf-marg-b;
+  padding-left: $cf-marg-d;
+  flex: 0 0 200px;
+  border-right: $cf-border solid $notebook-divider-color;
+}
+
+.notebook-minimap--item {
+  font-size: 14px;
+  font-weight: $cf-font-weight--medium;
+  color: $g11-sidewalk;
+  transition: color 0.25s ease, background-color 0.25s ease;
+  height: $cf-marg-d;
+  line-height: $cf-marg-d;
+  padding: 0 $cf-marg-b;
+  border-radius: $cf-radius;
+  user-select: none;
+
+  &:hover {
+    cursor: pointer;
+  }
+}
+
+.notebook-minimap--item:hover,
+.notebook-minimap--item__focus {
+  color: $g18-cloud;
+  background-color: $g3-castle;
+}
