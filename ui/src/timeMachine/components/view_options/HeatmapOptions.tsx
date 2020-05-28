@@ -97,7 +97,7 @@ const HeatmapOptions: FunctionComponent<Props> = props => {
     const val = convertUserInputToNumOrNaN(e)
     setBinInput(val)
 
-    if (isNaN(val) || val < 5 || val > 670) {
+    if (isNaN(val) || val < 5 ) {
       setBinInputStatus(ComponentStatus.Error)
       return
     }
