@@ -3,9 +3,14 @@
 
 .notebook {
   width: 100%;
+  height: 100%;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: stretch;
+}
+
+.notebook-page .cf-page-contents__fluid {
+  padding: 0;
 }
 
 .notebook--add-cell-label {
@@ -13,6 +18,16 @@
   margin: 0 $cf-marg-c 0 0;
   font-size: 14px;
   font-weight: $cf-font-weight--medium;
+}
+
+.notebook-main,
+.notebook-empty {
+  flex: 1 0 0;
+}
+
+.notebook-list,
+.notebook-empty {
+  padding: 0 $cf-marg-d;
 }
 
 .notebook-panel {
@@ -24,7 +39,7 @@
   &:after {
     content: '';
     height: $cf-border;
-    background-color: $g2-kevlar;
+    background-color: $notebook-divider-color;
     border-radius: $cf-border / 2;
     margin: $cf-marg-a 0;
   }

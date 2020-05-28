@@ -7,33 +7,35 @@ import {NotebookContext} from 'src/notebooks/context/notebook'
 // Components
 import NotebookPipe from 'src/notebooks/components/NotebookPipe'
 import EmptyPipeList from 'src/notebooks/components/EmptyPipeList'
-import {Page} from '@influxdata/clockface'
+import {DapperScrollbars} from '@influxdata/clockface'
 
 const PipeList: FC = () => {
   const {id, pipes, updatePipe} = useContext(NotebookContext)
   const update = useCallback(updatePipe, [id])
 
-  const scrollable = !!pipes.length
-
-  let _pipes: JSX.Element | JSX.Element[] = <EmptyPipeList />
-
-  if (pipes.length) {
-    _pipes = pipes.map((_, index) => {
-      return (
-        <NotebookPipe
-          key={`pipe-${id}-${index}`}
-          index={index}
-          data={pipes[index]}
-          onUpdate={update}
-        />
-      )
-    })
+  if (!pipes.length) {
+    return <EmptyPipeList />
   }
 
+  const _pipes = pipes.map((_, index) => {
+    return (
+      <NotebookPipe
+        key={`pipe-${id}-${index}`}
+        index={index}
+        data={pipes[index]}
+        onUpdate={update}
+      />
+    )
+  })
+
   return (
-    <Page.Contents fullWidth={true} scrollable={scrollable}>
-      {_pipes}
-    </Page.Contents>
+    <DapperScrollbars
+      className="notebook-main"
+      autoHide={true}
+      noScrollX={true}
+    >
+      <div className="notebook-list">{_pipes}</div>
+    </DapperScrollbars>
   )
 }
 
