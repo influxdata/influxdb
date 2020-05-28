@@ -10,6 +10,7 @@ import {IconFont} from '@influxdata/clockface'
 import {RemoteDataState} from 'src/types'
 
 const PREVIOUS_REGEXP = /__PREVIOUS_RESULT__/g
+const COMMENT_REMOVER = /(\/\*([\s\S]*?)\*\/)|(\/\/(.*)$)/gm
 
 export const Submit: FC = () => {
   const {query} = useContext(QueryContext)
@@ -28,7 +29,7 @@ export const Submit: FC = () => {
 
         if (pipe.type === 'query') {
           let text = pipe.queries[pipe.activeQuery].text.replace(
-            /(\/\*([\s\S]*?)\*\/)|(\/\/(.*)$)/gm,
+            COMMENT_REMOVER,
             ''
           )
           let requirements = {}

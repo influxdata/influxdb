@@ -6,7 +6,7 @@ import MonacoEditor from 'react-monaco-editor'
 
 // Utils
 import LANGID from 'src/external/monaco.markdown.syntax'
-import THEME_NAME from 'src/external/monaco.markdown.theme'
+import THEME_NAME from 'src/external/monaco.flux.theme'
 import {registerAutogrow} from 'src/external/monaco.autogrow'
 import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 
