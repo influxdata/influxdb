@@ -1,8 +1,8 @@
 // Libraries
 import React, {FC, useContext} from 'react'
+import {connect} from 'react-redux'
 
 // Contexts
-import {AppSettingContext} from 'src/notebooks/context/app'
 import {NotebookContext, PipeMeta} from 'src/notebooks/context/notebook'
 import {ScrollContext} from 'src/notebooks/context/scroll'
 
@@ -10,15 +10,21 @@ import {ScrollContext} from 'src/notebooks/context/scroll'
 import {DapperScrollbars} from '@influxdata/clockface'
 import MiniMapItem from 'src/notebooks/components/minimap/MiniMapItem'
 
+// Types
+import {AppState, NotebookMiniMapState} from 'src/types'
+
 // Styles
 import 'src/notebooks/components/minimap/MiniMap.scss'
 
-const MiniMap: FC = () => {
-  const {miniMapVisibility} = useContext(AppSettingContext)
+interface StateProps {
+  notebookMiniMapState: NotebookMiniMapState
+}
+
+const MiniMap: FC<StateProps> = ({notebookMiniMapState}) => {
   const {meta, updateMeta} = useContext(NotebookContext)
   const {scrollToPipe} = useContext(ScrollContext)
 
-  if (!miniMapVisibility) {
+  if (notebookMiniMapState === 'collapsed') {
     return null
   }
 
@@ -46,4 +52,19 @@ const MiniMap: FC = () => {
   )
 }
 
-export default MiniMap
+const mstp = (state: AppState): StateProps => {
+  const {
+    app: {
+      persisted: {notebookMiniMapState},
+    },
+  } = state
+
+  return {
+    notebookMiniMapState,
+  }
+}
+
+export default connect<StateProps, {}>(
+  mstp,
+  null
+)(MiniMap)
