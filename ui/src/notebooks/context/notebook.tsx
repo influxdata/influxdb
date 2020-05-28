@@ -1,11 +1,12 @@
 import React, {FC, useState, useCallback} from 'react'
+import {RemoteDataState} from 'src/types'
 import {PipeData} from 'src/notebooks'
 import {FromFluxResult} from '@influxdata/giraffe'
 
 export interface PipeMeta {
   title: string
   visible: boolean
-  loading: boolean
+  loading: RemoteDataState
   focus: boolean
 }
 
@@ -78,7 +79,7 @@ export const NotebookProvider: FC = ({children}) => {
         add({
           title: `Cell_${++GENERATOR_INDEX}`,
           visible: true,
-          loading: false,
+          loading: RemoteDataState.NotStarted,
           focus: false,
         })
       )

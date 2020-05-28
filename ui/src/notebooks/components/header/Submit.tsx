@@ -25,7 +25,7 @@ export const Submit: FC = () => {
   const submit = () => {
     pipes
       .reduce((stages, pipe, index) => {
-        updateMeta(index, {loading: true} as PipeMeta)
+        updateMeta(index, {loading: RemoteDataState.Loading} as PipeMeta)
 
         if (pipe.type === 'query') {
           let text = pipe.queries[pipe.activeQuery].text.replace(
@@ -61,7 +61,7 @@ export const Submit: FC = () => {
 
         return query(queryText).then(response => {
           queryStruct.instances.forEach(index => {
-            updateMeta(index, {loading: false} as PipeMeta)
+            updateMeta(index, {loading: RemoteDataState.Done} as PipeMeta)
             updateResult(index, response)
           })
         })
