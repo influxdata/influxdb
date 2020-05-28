@@ -24,6 +24,8 @@ func newAggregateArrayCursor(ctx context.Context, agg *datatypes.Aggregate, curs
 	switch agg.Type {
 	case datatypes.AggregateTypeCount:
 		return newCountArrayCursor(cursor)
+	case datatypes.AggregateTypeSum:
+		return newSumArrayCursor(cursor)
 	default:
 		panic("invalid aggregate")
 	}
