@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/flux/parser"
+	"github.com/influxdata/flux/runtime"
 	"github.com/influxdata/flux/stdlib"
 
 	platform "github.com/influxdata/influxdb/v2"
@@ -27,7 +29,7 @@ import (
 var ctx = influxdbcontext.SetAuthorizer(context.Background(), mock.NewMockAuthorizer(true, nil))
 
 func init() {
-	flux.FinalizeBuiltIns()
+	runtime.FinalizeBuiltIns()
 }
 
 func TestFluxEndToEnd(t *testing.T) {
@@ -158,9 +160,14 @@ func testFlux(t testing.TB, l *launcher.TestLauncher, file *ast.File) {
 	inspectCalls := stdlib.TestingInspectCalls(pkg)
 	pkg.Files = append(pkg.Files, inspectCalls)
 
+	bs, err := json.Marshal(pkg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	req := &query.Request{
 		OrganizationID: l.Org.ID,
-		Compiler:       lang.ASTCompiler{AST: pkg},
+		Compiler:       lang.ASTCompiler{AST: bs},
 	}
 	if r, err := l.FluxQueryService().Query(ctx, req); err != nil {
 		t.Fatal(err)
@@ -183,6 +190,16 @@ func testFlux(t testing.TB, l *launcher.TestLauncher, file *ast.File) {
 	// this time we use a call to `run` so that the assertion error is triggered
 	runCalls := stdlib.TestingRunCalls(pkg)
 	pkg.Files[len(pkg.Files)-1] = runCalls
+
+	bs, err = json.Marshal(pkg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req = &query.Request{
+		OrganizationID: l.Org.ID,
+		Compiler:       lang.ASTCompiler{AST: bs},
+	}
 	r, err := l.FluxQueryService().Query(ctx, req)
 	if err != nil {
 		t.Fatal(err)

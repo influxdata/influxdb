@@ -13,6 +13,7 @@ const PanelVisibilityToggle: FC<Props> = ({index}) => {
   const {meta, updateMeta} = useContext(NotebookContext)
 
   const icon = meta[index].visible ? IconFont.EyeOpen : IconFont.EyeClosed
+  const title = meta[index].visible ? 'Collapse cell' : 'Expand cell'
 
   const handleClick = (): void => {
     updateMeta(index, {
@@ -20,7 +21,7 @@ const PanelVisibilityToggle: FC<Props> = ({index}) => {
     } as PipeMeta)
   }
 
-  return <SquareButton icon={icon} onClick={handleClick} />
+  return <SquareButton icon={icon} onClick={handleClick} titleText={title} />
 }
 
 export default PanelVisibilityToggle

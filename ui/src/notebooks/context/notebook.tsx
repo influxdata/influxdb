@@ -4,6 +4,7 @@ import {PipeData} from 'src/notebooks'
 export interface PipeMeta {
   title: string
   visible: boolean
+  focus: boolean
 }
 
 export interface NotebookContextType {
@@ -63,7 +64,7 @@ export const NotebookProvider: FC = ({children}) => {
       _setPipes(add(pipe))
       _setMeta(
         add({
-          title: `Notebook_${++GENERATOR_INDEX}`,
+          title: `Cell_${++GENERATOR_INDEX}`,
           visible: true,
         })
       )

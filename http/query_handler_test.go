@@ -28,6 +28,7 @@ import (
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	influxmock "github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/query"
+	"github.com/influxdata/influxdb/v2/query/fluxlang"
 	"github.com/influxdata/influxdb/v2/query/mock"
 	"go.uber.org/zap/zaptest"
 )
@@ -259,7 +260,8 @@ func TestFluxHandler_postFluxAST(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h := &FluxHandler{
-				HTTPErrorHandler: kithttp.ErrorHandler(0),
+				HTTPErrorHandler:    kithttp.ErrorHandler(0),
+				FluxLanguageService: fluxlang.DefaultService,
 			}
 			h.postFluxAST(tt.w, tt.r)
 			if got := tt.w.Body.String(); got != tt.want {
@@ -338,6 +340,7 @@ func TestFluxHandler_PostQuery_Errors(t *testing.T) {
 				}
 			},
 		},
+		FluxLanguageService: fluxlang.DefaultService,
 	}
 	h := NewFluxHandler(zaptest.NewLogger(t), b)
 
@@ -497,6 +500,7 @@ func TestFluxService_Query_gzip(t *testing.T) {
 		QueryEventRecorder:  noopEventRecorder{},
 		OrganizationService: orgService,
 		ProxyQueryService:   queryService,
+		FluxLanguageService: fluxlang.DefaultService,
 	}
 
 	fluxHandler := NewFluxHandler(zaptest.NewLogger(t), fluxBackend)
@@ -633,6 +637,7 @@ func benchmarkQuery(b *testing.B, disableCompression bool) {
 		QueryEventRecorder:  noopEventRecorder{},
 		OrganizationService: orgService,
 		ProxyQueryService:   queryService,
+		FluxLanguageService: fluxlang.DefaultService,
 	}
 
 	fluxHandler := NewFluxHandler(zaptest.NewLogger(b), fluxBackend)

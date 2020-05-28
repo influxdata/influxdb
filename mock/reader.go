@@ -4,30 +4,30 @@ import (
 	"context"
 
 	"github.com/influxdata/flux/memory"
-	"github.com/influxdata/influxdb/v2/query/stdlib/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2/query"
 )
 
 type StorageReader struct {
-	ReadFilterFn    func(ctx context.Context, spec influxdb.ReadFilterSpec, alloc *memory.Allocator) (influxdb.TableIterator, error)
-	ReadGroupFn     func(ctx context.Context, spec influxdb.ReadGroupSpec, alloc *memory.Allocator) (influxdb.TableIterator, error)
-	ReadTagKeysFn   func(ctx context.Context, spec influxdb.ReadTagKeysSpec, alloc *memory.Allocator) (influxdb.TableIterator, error)
-	ReadTagValuesFn func(ctx context.Context, spec influxdb.ReadTagValuesSpec, alloc *memory.Allocator) (influxdb.TableIterator, error)
+	ReadFilterFn    func(ctx context.Context, spec query.ReadFilterSpec, alloc *memory.Allocator) (query.TableIterator, error)
+	ReadGroupFn     func(ctx context.Context, spec query.ReadGroupSpec, alloc *memory.Allocator) (query.TableIterator, error)
+	ReadTagKeysFn   func(ctx context.Context, spec query.ReadTagKeysSpec, alloc *memory.Allocator) (query.TableIterator, error)
+	ReadTagValuesFn func(ctx context.Context, spec query.ReadTagValuesSpec, alloc *memory.Allocator) (query.TableIterator, error)
 	CloseFn         func()
 }
 
-func (s *StorageReader) ReadFilter(ctx context.Context, spec influxdb.ReadFilterSpec, alloc *memory.Allocator) (influxdb.TableIterator, error) {
+func (s *StorageReader) ReadFilter(ctx context.Context, spec query.ReadFilterSpec, alloc *memory.Allocator) (query.TableIterator, error) {
 	return s.ReadFilterFn(ctx, spec, alloc)
 }
 
-func (s *StorageReader) ReadGroup(ctx context.Context, spec influxdb.ReadGroupSpec, alloc *memory.Allocator) (influxdb.TableIterator, error) {
+func (s *StorageReader) ReadGroup(ctx context.Context, spec query.ReadGroupSpec, alloc *memory.Allocator) (query.TableIterator, error) {
 	return s.ReadGroupFn(ctx, spec, alloc)
 }
 
-func (s *StorageReader) ReadTagKeys(ctx context.Context, spec influxdb.ReadTagKeysSpec, alloc *memory.Allocator) (influxdb.TableIterator, error) {
+func (s *StorageReader) ReadTagKeys(ctx context.Context, spec query.ReadTagKeysSpec, alloc *memory.Allocator) (query.TableIterator, error) {
 	return s.ReadTagKeysFn(ctx, spec, alloc)
 }
 
-func (s *StorageReader) ReadTagValues(ctx context.Context, spec influxdb.ReadTagValuesSpec, alloc *memory.Allocator) (influxdb.TableIterator, error) {
+func (s *StorageReader) ReadTagValues(ctx context.Context, spec query.ReadTagValuesSpec, alloc *memory.Allocator) (query.TableIterator, error) {
 	return s.ReadTagValuesFn(ctx, spec, alloc)
 }
 
@@ -42,21 +42,18 @@ func (s *StorageReader) Close() {
 
 type WindowAggregateStoreReader struct {
 	*StorageReader
-	HasWindowAggregateCapabilityFn func(ctx context.Context, capability ...*influxdb.WindowAggregateCapability) bool
-	ReadWindowAggregateFn          func(ctx context.Context, spec influxdb.ReadWindowAggregateSpec, alloc *memory.Allocator) (influxdb.TableIterator, error)
+	GetWindowAggregateCapabilityFn func(ctx context.Context) query.WindowAggregateCapability
+	ReadWindowAggregateFn          func(ctx context.Context, spec query.ReadWindowAggregateSpec, alloc *memory.Allocator) (query.TableIterator, error)
 }
 
-func (s *WindowAggregateStoreReader) HasWindowAggregateCapability(ctx context.Context, capability ...*influxdb.WindowAggregateCapability) bool {
+func (s *WindowAggregateStoreReader) GetWindowAggregateCapability(ctx context.Context) query.WindowAggregateCapability {
 	// Use the function if it exists.
-	if s.HasWindowAggregateCapabilityFn != nil {
-		return s.HasWindowAggregateCapabilityFn(ctx)
+	if s.GetWindowAggregateCapabilityFn != nil {
+		return s.GetWindowAggregateCapabilityFn(ctx)
 	}
-
-	// Provide a default implementation if one wasn't set.
-	// This will return true if the other function was set.
-	return s.ReadWindowAggregateFn != nil
+	return nil
 }
 
-func (s *WindowAggregateStoreReader) ReadWindowAggregate(ctx context.Context, spec influxdb.ReadWindowAggregateSpec, alloc *memory.Allocator) (influxdb.TableIterator, error) {
+func (s *WindowAggregateStoreReader) ReadWindowAggregate(ctx context.Context, spec query.ReadWindowAggregateSpec, alloc *memory.Allocator) (query.TableIterator, error) {
 	return s.ReadWindowAggregateFn(ctx, spec, alloc)
 }

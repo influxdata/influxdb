@@ -13,6 +13,7 @@ const Header: FC = () => (
     </Page.Header>
     <Page.ControlBar fullWidth={FULL_WIDTH}>
       <Page.ControlBarLeft>
+        <h3 className="notebook--add-cell-label">Add Cell:</h3>
         <AddButtons />
       </Page.ControlBarLeft>
       <Page.ControlBarRight>

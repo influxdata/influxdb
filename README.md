@@ -84,6 +84,46 @@ Logs to stdout by default:
 $ bin/$(uname -s | tr '[:upper:]' '[:lower:]')/influxd
 ```
 
+### Building with the go command
+
+The `Makefile` provides a wrapper around configuring the utilities for building influxdb. For those wanting to use the `go` command directly, one of two things can be done.
+
+First, the `env` script is located in the root of the repository. This script can be used to execute `go` commands with the appropriate environment configuration.
+
+```bash
+$ ./env go build ./cmd/influxd
+```
+
+Another method is to configure the `pkg-config` utility. Follow the instructions [here](https://github.com/influxdata/flux#getting-started) to install and configure `pkg-config` and then the normal go commands will work.
+
+The first step is to install the `pkg-config` command.
+
+```bash
+# On Debian/Ubuntu
+$ sudo apt-get install -y clang pkg-config
+# On Mac OS X with Homebrew
+$ brew install pkg-config
+```
+
+Install the `pkg-config` wrapper utility of the same name to a different path that is earlier in the PATH.
+
+```bash
+# Install the pkg-config wrapper utility
+$ go build -o ~/go/bin/ github.com/influxdata/pkg-config
+# Ensure the GOBIN directory is on your PATH
+$ export PATH=$HOME/go/bin:${PATH}
+$ which -a pkg-config
+/home/user/go/bin/pkg-config
+/usr/bin/pkg-config
+```
+
+Then all `go` build commands should work.
+
+```bash
+$ go build ./cmd/influxd
+$ go test ./...
+```
+
 ## Getting Started
 
 For a complete getting started guide, please see our full [online documentation site](https://v2.docs.influxdata.com/v2.0/). 

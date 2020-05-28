@@ -12,6 +12,7 @@ import (
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/notification"
 	"github.com/influxdata/influxdb/v2/notification/check"
+	"github.com/influxdata/influxdb/v2/query/fluxlang"
 	influxTesting "github.com/influxdata/influxdb/v2/testing"
 )
 
@@ -154,7 +155,7 @@ func TestValidCheck(t *testing.T) {
 		},
 	}
 	for _, c := range cases {
-		got := c.src.Valid()
+		got := c.src.Valid(fluxlang.DefaultService)
 		influxTesting.ErrorsEqual(t, got, c.err)
 	}
 }

@@ -13,14 +13,14 @@ const (
 
 // Check represents the information required to generate a periodic check task.
 type Check interface {
-	Valid() error
+	Valid(lang FluxLanguageService) error
 	Type() string
 	ClearPrivateData()
 	SetTaskID(ID)
 	GetTaskID() ID
 	GetOwnerID() ID
 	SetOwnerID(ID)
-	GenerateFlux() (string, error)
+	GenerateFlux(lang FluxLanguageService) (string, error)
 	json.Marshaler
 
 	CRUDLogSetter

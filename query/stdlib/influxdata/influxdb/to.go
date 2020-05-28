@@ -13,6 +13,7 @@ import (
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/interpreter"
 	"github.com/influxdata/flux/plan"
+	"github.com/influxdata/flux/runtime"
 	"github.com/influxdata/flux/semantic"
 	"github.com/influxdata/flux/stdlib/influxdata/influxdb"
 	"github.com/influxdata/flux/stdlib/kafka"
@@ -48,29 +49,8 @@ type ToOpSpec struct {
 }
 
 func init() {
-	toSignature := flux.FunctionSignature(
-		map[string]semantic.PolyType{
-			"bucket":            semantic.String,
-			"bucketID":          semantic.String,
-			"org":               semantic.String,
-			"orgID":             semantic.String,
-			"host":              semantic.String,
-			"token":             semantic.String,
-			"timeColumn":        semantic.String,
-			"measurementColumn": semantic.String,
-			"tagColumns":        semantic.Array,
-			"fieldFn": semantic.NewFunctionPolyType(semantic.FunctionPolySignature{
-				Parameters: map[string]semantic.PolyType{
-					"r": semantic.Tvar(1),
-				},
-				Required: semantic.LabelSet{"r"},
-				Return:   semantic.Tvar(2),
-			}),
-		},
-		[]string{},
-	)
-
-	flux.ReplacePackageValue("influxdata/influxdb", "to", flux.FunctionValueWithSideEffect(ToKind, createToOpSpec, toSignature))
+	toSignature := runtime.MustLookupBuiltinType("influxdata/influxdb", ToKind)
+	runtime.ReplacePackageValue("influxdata/influxdb", "to", flux.MustValue(flux.FunctionValueWithSideEffect(ToKind, createToOpSpec, toSignature)))
 	flux.RegisterOpSpec(ToKind, func() flux.OperationSpec { return &ToOpSpec{} })
 	plan.RegisterProcedureSpecWithSideEffect(ToKind, newToProcedure, ToKind)
 	execute.RegisterTransformation(ToKind, createToTransformation)
@@ -288,13 +268,10 @@ func (t *ToTransformation) RetractTable(id execute.DatasetID, key flux.GroupKey)
 // NewToTransformation returns a new *ToTransformation with the appropriate fields set.
 func NewToTransformation(ctx context.Context, d execute.Dataset, cache execute.TableBuilderCache, toSpec *ToProcedureSpec, deps ToDependencies) (x *ToTransformation, err error) {
 	var fn *execute.RowMapFn
-	//var err error
 	spec := toSpec.Spec
 	var bucketID, orgID *platform.ID
 	if spec.FieldFn.Fn != nil {
-		if fn, err = execute.NewRowMapFn(spec.FieldFn.Fn, compiler.ToScope(spec.FieldFn.Scope)); err != nil {
-			return nil, err
-		}
+		fn = execute.NewRowMapFn(spec.FieldFn.Fn, compiler.ToScope(spec.FieldFn.Scope))
 	}
 	// Get organization ID
 	if spec.Org != "" {
@@ -370,7 +347,7 @@ func (t *ToTransformation) Process(id execute.DatasetID, tbl flux.Table) error {
 		// If a field function is specified then we exclude any column that
 		// is referenced in the function expression from being a tag column.
 		if t.spec.Spec.FieldFn.Fn != nil {
-			recordParam := t.spec.Spec.FieldFn.Fn.Block.Parameters.List[0].Key.Name
+			recordParam := t.spec.Spec.FieldFn.Fn.Parameters.List[0].Key.Name
 			exprNode := t.spec.Spec.FieldFn.Fn
 			colVisitor := newFieldFunctionVisitor(recordParam, tbl.Cols())
 
@@ -541,8 +518,10 @@ func writeTable(ctx context.Context, t *ToTransformation, tbl flux.Table) (err e
 	}
 
 	// prepare field function if applicable and record the number of values to write per row
+	var fn *execute.RowMapPreparedFn
 	if spec.FieldFn.Fn != nil {
-		if err = t.fn.Prepare(columns); err != nil {
+		var err error
+		if fn, err = t.fn.Prepare(columns); err != nil {
 			return err
 		}
 
@@ -562,7 +541,6 @@ func writeTable(ctx context.Context, t *ToTransformation, tbl flux.Table) (err e
 		var points models.Points
 		var tags models.Tags
 		kv := make([][]byte, 2, er.Len()*2+2) // +2 for field key, value
-		var fieldValues values.Object
 	outer:
 		for i := 0; i < er.Len(); i++ {
 			measurementName = ""
@@ -607,11 +585,12 @@ func writeTable(ctx context.Context, t *ToTransformation, tbl flux.Table) (err e
 				}
 			}
 
-			if spec.FieldFn.Fn == nil {
+			var fieldValues values.Object
+			if fn == nil {
 				if fieldValues, err = defaultFieldMapping(er, i); err != nil {
 					return err
 				}
-			} else if fieldValues, err = t.fn.Eval(t.Ctx, i, er); err != nil {
+			} else if fieldValues, err = fn.Eval(t.Ctx, i, er); err != nil {
 				return err
 			}
 
@@ -620,7 +599,7 @@ func writeTable(ctx context.Context, t *ToTransformation, tbl flux.Table) (err e
 					fields[k] = nil
 					return
 				}
-				switch v.Type() {
+				switch v.Type().Nature() {
 				case semantic.Float:
 					fields[k] = v.Float()
 				case semantic.Int:
@@ -699,10 +678,14 @@ func defaultFieldMapping(er flux.ColReader, row int) (values.Object, error) {
 	}
 
 	value := execute.ValueForRow(er, row, valueColumnIdx)
-
-	fieldValueMapping := values.NewObject()
 	field := execute.ValueForRow(er, row, fieldColumnIdx)
+	props := []semantic.PropertyType{
+		{
+			Key:   []byte(field.Str()),
+			Value: value.Type(),
+		},
+	}
+	fieldValueMapping := values.NewObject(semantic.NewObjectType(props))
 	fieldValueMapping.Set(field.Str(), value)
-
 	return fieldValueMapping, nil
 }

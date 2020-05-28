@@ -76,6 +76,7 @@ type APIBackend struct {
 	PasswordsService                influxdb.PasswordsService
 	InfluxQLService                 query.ProxyQueryService
 	FluxService                     query.ProxyQueryService
+	FluxLanguageService             influxdb.FluxLanguageService
 	TaskService                     influxdb.TaskService
 	CheckService                    influxdb.CheckService
 	TelegrafService                 influxdb.TelegrafConfigStore
@@ -195,12 +196,6 @@ func NewAPIHandler(b *APIBackend, opts ...APIHandlerOptFn) *APIHandler {
 	h.Mount(prefixTelegrafPlugins, NewTelegrafHandler(b.Logger, telegrafBackend))
 	h.Mount(prefixTelegraf, NewTelegrafHandler(b.Logger, telegrafBackend))
 
-	userBackend := NewUserBackend(b.Logger.With(zap.String("handler", "user")), b)
-	userBackend.UserService = authorizer.NewUserService(b.UserService)
-	userBackend.PasswordsService = authorizer.NewPasswordService(b.PasswordsService)
-	userHandler := NewUserHandler(b.Logger, userBackend)
-	h.Mount(prefixMe, userHandler)
-	h.Mount(prefixUsers, userHandler)
 	h.Mount("/api/v2/flags", b.FlagsHandler)
 
 	variableBackend := NewVariableBackend(b.Logger.With(zap.String("handler", "variable")), b)
