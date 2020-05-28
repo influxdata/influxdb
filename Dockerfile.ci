@@ -1,5 +1,5 @@
 # Build any binaries that can be copied into the CI image
-FROM rust:buster AS flatc
+FROM rust:slim-buster AS flatc
 RUN apt-get update \
   && mkdir -p /usr/share/man/man1 \
   && apt-get install -y \
@@ -14,7 +14,7 @@ RUN apt-get update \
   && make -C /usr/local/src/flatbuffers -j $(nproc) flatc
 
 # Build actual image used for CI pipeline
-FROM rust:buster
+FROM rust:slim-buster
 
 COPY --from=flatc /usr/local/src/flatbuffers/flatc /usr/bin/flatc
 # make Apt non-interactive
