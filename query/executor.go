@@ -111,6 +111,9 @@ func (a openAuthorizer) AuthorizeQuery(_ string, _ *influxql.Query) error { retu
 // function should be preferred over directly checking if an Authorizer is nil
 // or not.
 func AuthorizerIsOpen(a Authorizer) bool {
+	if u, ok := a.(interface{ AuthorizeUnrestricted() bool }); ok {
+		return u.AuthorizeUnrestricted()
+	}
 	return a == nil || a == OpenAuthorizer
 }
 
