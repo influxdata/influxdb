@@ -52,11 +52,11 @@
       "height": "933"
     },
     "default_user": {
-      "username": "tomas.klapka@bonitoo.io",
+      "username": "qa1@bonitoo4influxdata.com",
       "password": "change1t",
-      "org": "qa",
-      "bucket": "qa",
-      "orgID": "e81576123825396a"
+      "org": "qa1@bonitoo4influxdata.com",
+      "bucket": "qa1's Bucket",
+      "orgID": "8864d10598fc08a7"
     }
   }
 }
