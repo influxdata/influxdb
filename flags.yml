@@ -13,6 +13,14 @@
 #   lifetime:     Expected lifetime of the flag; temporary or permanent, default temporary
 #   expose:       Boolean indicating whether the flag should be exposed to callers; default false
 
+- name: App Metrics
+  description: Send UI Telementry to Tools cluster - should always be false in OSS
+  key: appMetrics
+  default: false
+  expose: true
+  contact: Bucky, Monitoring Team
+  lifetime: permanent
+
 - name: Backend Example
   description: A permanent backend example boolean flag
   key: backendExample
