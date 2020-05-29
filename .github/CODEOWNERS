@@ -12,5 +12,5 @@ http/swagger.yml @influxdata/monitoring-team
 /pkger/ @influxdata/tools-team
 
 # Storage code
-/storage/ @influxdata/storage-team-assigner
-/tsdb/ @influxdata/storage-team-assigner
+/storage/ @influxdata/storage-team
+/tsdb/ @influxdata/storage-team
