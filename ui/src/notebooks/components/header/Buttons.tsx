@@ -10,11 +10,7 @@ import AppSettingProvider from 'src/notebooks/context/app'
 import TimeZoneDropdown from 'src/notebooks/components/header/TimeZoneDropdown'
 import TimeRangeDropdown from 'src/notebooks/components/header/TimeRangeDropdown'
 import AutoRefreshDropdown from 'src/notebooks/components/header/AutoRefreshDropdown'
-import {SubmitQueryButton} from 'src/timeMachine/components/SubmitQueryButton'
-import {IconFont} from '@influxdata/clockface'
-
-// Types
-import {RemoteDataState} from 'src/types'
+import Submit from 'src/notebooks/components/header/Submit'
 
 export interface TimeContextProps {
   context: TimeBlock
@@ -34,31 +30,25 @@ const Buttons: FC = () => {
     [id]
   )
 
-  function submit() {} // eslint-disable-line @typescript-eslint/no-empty-function
-
   if (!timeContext.hasOwnProperty(id)) {
     addTimeContext(id)
     return null
   }
 
   return (
-    <TimeProvider>
-      <AppSettingProvider>
-        <div className="notebook-header--buttons">
-          <TimeZoneDropdown />
-          <TimeRangeDropdown context={timeContext[id]} update={update} />
-          <AutoRefreshDropdown context={timeContext[id]} update={update} />
-          <SubmitQueryButton
-            text="Run Notebook"
-            icon={IconFont.Play}
-            submitButtonDisabled={false}
-            queryStatus={RemoteDataState.NotStarted}
-            onSubmit={submit}
-          />
-        </div>
-      </AppSettingProvider>
-    </TimeProvider>
+    <div className="notebook-header--buttons">
+      <TimeZoneDropdown />
+      <TimeRangeDropdown context={timeContext[id]} update={update} />
+      <AutoRefreshDropdown context={timeContext[id]} update={update} />
+      <Submit />
+    </div>
   )
 }
 
-export default Buttons
+export default () => (
+  <TimeProvider>
+    <AppSettingProvider>
+      <Buttons />
+    </AppSettingProvider>
+  </TimeProvider>
+)

@@ -1,16 +1,21 @@
 import React, {FC, createElement, useMemo} from 'react'
 
-import {PipeContextProps, PipeData} from 'src/notebooks'
+import {PipeContextProps, PipeData, PipeProp} from 'src/notebooks'
 import Pipe from 'src/notebooks/components/Pipe'
 import NotebookPanel from 'src/notebooks/components/panel/NotebookPanel'
 
-export interface NotebookPipeProps {
+export interface NotebookPipeProps
+  extends Omit<Omit<PipeProp, 'Context'>, 'onUpdate'> {
   index: number
-  data: PipeData
-  onUpdate: (index: number, pipe: PipeData) => void
+  onUpdate: (idx: number, data: PipeData) => void
 }
 
-const NotebookPipe: FC<NotebookPipeProps> = ({index, data, onUpdate}) => {
+const NotebookPipe: FC<NotebookPipeProps> = ({
+  index,
+  data,
+  onUpdate,
+  results,
+}) => {
   const panel: FC<PipeContextProps> = useMemo(
     () => props => {
       const _props = {
@@ -27,7 +32,9 @@ const NotebookPipe: FC<NotebookPipeProps> = ({index, data, onUpdate}) => {
     onUpdate(index, data)
   }
 
-  return <Pipe data={data} onUpdate={_onUpdate} Context={panel} />
+  return (
+    <Pipe data={data} onUpdate={_onUpdate} results={results} Context={panel} />
+  )
 }
 
 export default NotebookPipe

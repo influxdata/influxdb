@@ -1,32 +1,18 @@
-import loader from 'src/external/monaco.onigasm'
-import {Registry} from 'monaco-textmate' // peer dependency
-import {wireTmGrammars} from 'monaco-editor-textmate'
+import register from 'src/external/monaco.onigasm'
 
-import {MonacoType} from 'src/types'
+const LANGID = 'flux'
 
-const FLUXLANGID = 'flux'
+async function addSyntax() {
+  await register(LANGID, async () => ({
+    format: 'json',
+    content: await import(/* webpackPrefetch: 0 */ 'src/external/flux.tmLanguage.json').then(
+      data => {
+        return JSON.stringify(data)
+      }
+    ),
+  }))
 
-async function addSyntax(monaco: MonacoType) {
-  monaco.languages.register({id: FLUXLANGID})
-
-  await loader()
-
-  const registry = new Registry({
-    getGrammarDefinition: async () => ({
-      format: 'json',
-      content: await import(/* webpackPrefetch: 0 */ 'src/external/flux.tmLanguage.json').then(
-        data => {
-          return JSON.stringify(data)
-        }
-      ),
-    }),
-  })
-
-  // map of monaco "language id's" to TextMate scopeNames
-  const grammars = new Map()
-  grammars.set(FLUXLANGID, FLUXLANGID)
-
-  monaco.languages.setLanguageConfiguration(FLUXLANGID, {
+  window.monaco.languages.setLanguageConfiguration(LANGID, {
     autoClosingPairs: [
       {open: '"', close: '"'},
       {open: '[', close: ']'},
@@ -35,10 +21,8 @@ async function addSyntax(monaco: MonacoType) {
       {open: '(', close: ')'},
     ],
   })
-
-  await wireTmGrammars(monaco, registry, grammars)
 }
 
-addSyntax(window.monaco)
+addSyntax()
 
-export default FLUXLANGID
+export default LANGID
