@@ -264,28 +264,31 @@ func TestStore_DropConcurrentWriteMultipleShards(t *testing.T) {
 
 		s.MustWriteToShardString(2, "mem,server=b v=1 20")
 
-		var wg sync.WaitGroup
-		wg.Add(2)
-
+		errCh := make(chan error, 2)
 		go func() {
-			defer wg.Done()
 			for i := 0; i < 50; i++ {
 				s.MustWriteToShardString(1, "cpu,server=a v=1 10")
 				s.MustWriteToShardString(2, "cpu,server=b v=1 20")
 			}
+			errCh <- nil
 		}()
 
 		go func() {
-			defer wg.Done()
+			var err error
 			for i := 0; i < 50; i++ {
-				err := s.DeleteMeasurement("db0", "cpu")
-				if err != nil {
-					t.Fatal(err)
+				if err = s.DeleteMeasurement("db0", "cpu"); err != nil {
+					break
 				}
 			}
+			errCh <- err
 		}()
 
-		wg.Wait()
+		// wait for signals from our two go routines.
+		for i := 0; i < cap(errCh); i++ {
+			if err := <-errCh; err != nil {
+				t.Fatal(err)
+			}
+		}
 
 		err := s.DeleteMeasurement("db0", "cpu")
 		if err != nil {
@@ -2060,11 +2063,11 @@ func TestStore_TagValues_ConcurrentDropShard(t *testing.T) {
 				default:
 					stmt, err := influxql.ParseStatement(`SHOW TAG VALUES WITH KEY = "host"`)
 					if err != nil {
-						t.Fatal(err)
+						errC <- err
 					}
 					rewrite, err := query.RewriteStatement(stmt)
 					if err != nil {
-						t.Fatal(err)
+						errC <- err
 					}
 
 					cond := rewrite.(*influxql.ShowTagValuesStatement).Condition
