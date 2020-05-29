@@ -161,15 +161,18 @@ goreleaser:
 	curl -sfL -o goreleaser-install https://install.goreleaser.com/github.com/goreleaser/goreleaser.sh
 	sh goreleaser-install v0.135.0
 
+# Parallelism for goreleaser must be set to 1 so it doesn't
+# attempt to invoke pkg-config, which invokes cargo,
+# for multiple targets at the same time.
 dist: goreleaser
-	./bin/goreleaser --rm-dist --config=.goreleaser-nightly.yml
+	./bin/goreleaser -p 1 --rm-dist --config=.goreleaser-nightly.yml
 
 nightly: goreleaser
-	./bin/goreleaser --rm-dist --config=.goreleaser-nightly.yml
+	./bin/goreleaser -p 1 --rm-dist --config=.goreleaser-nightly.yml
 
 release: goreleaser
 	git checkout -- go.sum # avoid dirty git repository caused by go install
-	./bin/goreleaser release --rm-dist
+	./bin/goreleaser release -p 1 --rm-dist
 
 clean:
 	@for d in $(SUBDIRS); do $(MAKE) -C $$d clean; done
