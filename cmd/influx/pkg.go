@@ -194,7 +194,7 @@ func (b *cmdPkgBuilder) pkgApplyRunEFn(cmd *cobra.Command, args []string) error 
 		return err
 	}
 
-	b.printPkgSummary(impact.Summary)
+	b.printPkgSummary(impact.StackID, impact.Summary)
 
 	return nil
 }
@@ -334,7 +334,7 @@ func (b *cmdPkgBuilder) cmdPkgSummary() *cobra.Command {
 			return err
 		}
 
-		return b.printPkgSummary(pkg.Summary())
+		return b.printPkgSummary(0, pkg.Summary())
 	}
 
 	cmd := b.newCmd("summary", runE, false)
@@ -1164,13 +1164,19 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
 	return nil
 }
 
-func (b *cmdPkgBuilder) printPkgSummary(sum pkger.Summary) error {
+func (b *cmdPkgBuilder) printPkgSummary(stackID influxdb.ID, sum pkger.Summary) error {
 	if b.quiet {
 		return nil
 	}
 
 	if b.json {
-		return b.writeJSON(sum)
+		return b.writeJSON(struct {
+			StackID string `json:"stackID"`
+			Summary pkger.Summary
+		}{
+			StackID: stackID.String(),
+			Summary: sum,
+		})
 	}
 
 	commonHeaders := []string{"Package Name", "ID", "Resource Name"}
@@ -1323,6 +1329,10 @@ func (b *cmdPkgBuilder) printPkgSummary(sum pkger.Summary) error {
 		tablePrintFn("MISSING SECRETS", headers, len(secrets), func(i int) []string {
 			return []string{secrets[i]}
 		})
+	}
+
+	if stackID != 0 {
+		fmt.Fprintln(b.w, "Stack ID: "+stackID.String())
 	}
 
 	return nil
