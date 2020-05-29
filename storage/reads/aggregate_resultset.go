@@ -60,5 +60,8 @@ func (r *windowAggregateResultSet) Stats() cursors.CursorStats {
 }
 
 func (r *windowAggregateResultSet) Tags() models.Tags {
+	if r.seriesRow == nil {
+		return models.Tags{}
+	}
 	return r.seriesRow.Tags
 }
