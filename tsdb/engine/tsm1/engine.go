@@ -1856,6 +1856,18 @@ func (e *Engine) WriteSnapshot() (err error) {
 		if err == nil {
 			log.Info("Snapshot for path written", zap.String("path", e.path), zap.Duration("duration", elapsed))
 		}
+
+		// cleanup temp files
+		e.Cache.mu.Lock()
+		defer e.Cache.mu.Unlock()
+
+		if e.Cache.stats.SnapshotCount == 0 {
+			err = e.cleanupTempShardSnapshots()
+			if err != nil {
+				e.logger.Error("Failed to run snapshot cleanup", zap.String("path", e.path), zap.Error(err))
+			}
+		}
+
 		logEnd()
 	}()
 
@@ -2336,6 +2348,16 @@ func (e *Engine) reloadCache() error {
 // cleanup removes all temp files and dirs that exist on disk.  This is should only be run at startup to avoid
 // removing tmp files that are still in use.
 func (e *Engine) cleanup() error {
+	err := e.cleanupTempShardSnapshots()
+	if err != nil {
+		return err
+	}
+
+	return e.cleanupTempTSMFiles()
+}
+
+// cleanup any `.tmp` directories that were left over from failed shard snapshots
+func (e *Engine) cleanupTempShardSnapshots() error {
 	allfiles, err := ioutil.ReadDir(e.path)
 	if os.IsNotExist(err) {
 		return nil
@@ -2353,7 +2375,7 @@ func (e *Engine) cleanup() error {
 		}
 	}
 
-	return e.cleanupTempTSMFiles()
+	return nil
 }
 
 func (e *Engine) cleanupTempTSMFiles() error {
