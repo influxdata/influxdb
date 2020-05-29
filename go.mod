@@ -1,6 +1,6 @@
 module github.com/influxdata/influxdb/v2
 
-go 1.13
+go 1.14
 
 require (
 	cloud.google.com/go/bigtable v1.3.0 // indirect
