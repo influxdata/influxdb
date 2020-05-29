@@ -18,15 +18,21 @@ RUN apt install --yes \
         llvm-dev \
         make \
         nodejs \
+        pkg-config \
         protobuf-compiler \
         ragel \
         rustc \
         yarn
 
+ENV GOPATH=/go
+ENV PATH /go/bin:$PATH
+RUN go get github.com/influxdata/pkg-config
+
 FROM dbuild AS dshell
 
 ARG USERID=1000
 RUN adduser --quiet --home /code --uid ${USERID} --disabled-password --gecos "" influx
+RUN chown -R ${USERID} /go
 USER influx
 
 ENTRYPOINT [ "/bin/bash" ]
