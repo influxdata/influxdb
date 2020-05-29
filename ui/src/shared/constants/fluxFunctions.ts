@@ -5369,8 +5369,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     ],
     package: 'influxdata/influxdb/v1',
     desc: 'Returns a list of fields in a bucket.',
-    example:
-      'v1.fieldKeys(bucket: "example-bucket")',
+    example: 'v1.fieldKeys(bucket: "example-bucket")',
     category: 'Inputs',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/influxdb-v1/measurementfieldkeys/',
