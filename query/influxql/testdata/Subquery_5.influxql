@@ -1,0 +1,1 @@
+SELECT min FROM (SELECT min(f) FROM m) WHERE min >= 0

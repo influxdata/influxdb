@@ -190,3 +190,36 @@ then `61m` should be used.
 
 For anything lower than milliseconds that is static, the duration should
 be truncated. A value of zero should be shown as `0s`.
+
+## Stacktraces
+
+Logging stacktraces is special within the zap library. There are two
+different ways to do it, but one of them will lead to more user-friendly
+output and is the preferred way to log stacktraces.
+
+A stacktrace should only be computed if it is known that the log message
+will be logged and the stacktrace should be attached to the log entry
+using the special struct field rather than within the context.
+
+Below is a code sample using the zap logger.
+
+```go
+var logger *zap.Logger
+
+// ...
+
+if entry := logger.Check(zapcore.InfoLevel, "A panic happened"); entry != nil {
+    entry.Stack = string(debug.Stack())
+    entry.Write(/* additional context here */)
+}
+```
+
+The reason for this is because certain encoders will handle the `Stack`
+field in a special way. The console encoder, the user-friendly one used
+when a TTY is present, will print out a newline and then pretty-print
+the stack separately from the context. The logfmt encoder will encode
+the stack as a normal context key so that it can follow the logfmt encoding.
+
+If the `zap.Stack(string)` method is used and included as part of the context,
+then the stack will always be included within the context instead of handled
+in the special way dictated by the encoder.

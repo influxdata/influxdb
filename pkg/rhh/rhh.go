@@ -3,9 +3,12 @@ package rhh
 import (
 	"bytes"
 	"encoding/binary"
+	"math/rand"
 	"sort"
+	"time"
 
 	"github.com/cespare/xxhash"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 // HashMap represents a hash map that implements Robin Hood Hashing.
@@ -21,13 +24,23 @@ type HashMap struct {
 	loadFactor int
 
 	tmpKey []byte
+
+	tracker *rhhTracker
 }
 
+// NewHashMap initialises a new Hashmap with the provided options.
 func NewHashMap(opt Options) *HashMap {
+	if opt.Metrics == nil {
+		opt.Metrics = NewMetrics("", "", nil)
+	}
+
 	m := &HashMap{
 		capacity:   pow2(opt.Capacity), // Limited to 2^64.
 		loadFactor: opt.LoadFactor,
+		tracker:    newRHHTracker(opt.Metrics, opt.Labels),
 	}
+	m.tracker.enabled = opt.MetricsEnabled
+
 	m.alloc()
 	return m
 }
@@ -39,28 +52,78 @@ func (m *HashMap) Reset() {
 		m.elems[i].reset()
 	}
 	m.n = 0
+	m.tracker.SetSize(0)
 }
 
+func (m *HashMap) LoadFactor() int { return m.loadFactor }
+
+// Get returns the value for a key from the Hashmap, or nil if no key exists.
 func (m *HashMap) Get(key []byte) interface{} {
+	var now time.Time
+	var sample bool
+	if rand.Float64() < 0.1 {
+		now = time.Now()
+		sample = true
+	}
+
 	i := m.index(key)
+
+	if sample {
+		m.tracker.ObserveGet(time.Since(now))
+	}
+
 	if i == -1 {
+		m.tracker.IncGetMiss()
 		return nil
 	}
+	m.tracker.IncGetHit()
 	return m.elems[i].value
 }
 
-func (m *HashMap) Put(key []byte, val interface{}) {
+func (m *HashMap) put(key []byte, val interface{}, instrument bool) {
+	var now time.Time
+	var samplePut bool
+
+	if instrument && rand.Float64() < 0.1 {
+		now = time.Now()
+		samplePut = true
+	}
+
 	// Grow the map if we've run out of slots.
 	m.n++
 	if m.n > m.threshold {
-		m.grow()
+		m.Grow(m.capacity * 2)
 	}
 
 	// If the key was overwritten then decrement the size.
 	overwritten := m.insert(HashKey(key), key, val)
+	if instrument && samplePut {
+		m.tracker.ObservePut(time.Since(now))
+	}
+
 	if overwritten {
 		m.n--
+		if instrument {
+			m.tracker.IncPutHit()
+		}
+	} else if instrument {
+		m.tracker.SetSize(uint64(m.n))
+		m.tracker.SetLoadFactor(float64(m.n) / float64(m.capacity) * 100.0)
+		m.tracker.IncPutMiss()
 	}
+}
+
+// Put stores the value at key in the Hashmap, overwriting an existing value if
+// one exists. If the maximum load of the Hashmap is reached, the Hashmap will
+// first resize itself.
+func (m *HashMap) Put(key []byte, val interface{}) {
+	m.put(key, val, true)
+}
+
+// PutQuiet is equivalent to Put, but no instrumentation code is executed. It can
+// be faster when many keys are being inserted into the Hashmap.
+func (m *HashMap) PutQuiet(key []byte, val interface{}) {
+	m.put(key, val, false)
 }
 
 func (m *HashMap) insert(hash int64, key []byte, val interface{}) (overwritten bool) {
@@ -120,14 +183,20 @@ func (m *HashMap) alloc() {
 	m.mask = int64(m.capacity - 1)
 }
 
-// grow doubles the capacity and reinserts all existing hashes & elements.
-func (m *HashMap) grow() {
+// Grow increases the capacity and reinserts all existing hashes & elements.
+func (m *HashMap) Grow(sz int64) {
+	// Ensure new capacity is a power of two and greater than current capacity.
+	sz = pow2(sz)
+	if sz <= m.capacity {
+		return
+	}
+
 	// Copy old elements and hashes.
 	elems, hashes := m.elems, m.hashes
 	capacity := m.capacity
 
-	// Double capacity & reallocate.
-	m.capacity *= 2
+	// Increase capacity & reallocate.
+	m.capacity = sz
 	m.alloc()
 
 	// Copy old elements to new hash/elem list.
@@ -186,7 +255,7 @@ func (m *HashMap) AverageProbeCount() float64 {
 		}
 		sum += float64(Dist(hash, i, m.capacity))
 	}
-	return sum/float64(m.n) + 1.0
+	return sum / (float64(m.n) + 1.0)
 }
 
 // Keys returns a list of sorted keys.
@@ -202,6 +271,130 @@ func (m *HashMap) Keys() [][]byte {
 	sort.Sort(byteSlices(a))
 	return a
 }
+
+// PrometheusCollectors returns the metrics associated with this hashmap.
+func (m *HashMap) PrometheusCollectors() []prometheus.Collector {
+	return m.tracker.metrics.PrometheusCollectors()
+}
+
+type rhhTracker struct {
+	metrics    *Metrics
+	enabled    bool
+	baseLabels prometheus.Labels
+
+	// Prevent allocations by initialising these static maps when creating a
+	// new tracker.
+	hitIncLabels  prometheus.Labels
+	missIncLabels prometheus.Labels
+}
+
+// Labels returns a copy of the default labels used by the tracker's metrics.
+// The returned map is safe for modification.
+func (t *rhhTracker) Labels() prometheus.Labels {
+	labels := make(prometheus.Labels, len(t.baseLabels))
+	for k, v := range t.baseLabels {
+		labels[k] = v
+	}
+	return labels
+}
+
+func newRHHTracker(metrics *Metrics, defaultLabels prometheus.Labels) *rhhTracker {
+	tracker := &rhhTracker{metrics: metrics, enabled: true}
+
+	// Create a copy of the provided labels.
+	tracker.baseLabels = make(prometheus.Labels, len(defaultLabels))
+	for k, v := range defaultLabels {
+		tracker.baseLabels[k] = v
+	}
+
+	tracker.hitIncLabels = tracker.Labels()
+	tracker.hitIncLabels["status"] = "hit"
+	tracker.missIncLabels = tracker.Labels()
+	tracker.missIncLabels["status"] = "miss"
+
+	return tracker
+}
+
+func (t *rhhTracker) SetLoadFactor(load float64) {
+	if !t.enabled {
+		return
+	}
+
+	t.metrics.LoadFactor.With(t.baseLabels).Set(load)
+}
+
+func (t *rhhTracker) SetSize(sz uint64) {
+	if !t.enabled {
+		return
+	}
+
+	t.metrics.Size.With(t.baseLabels).Set(float64(sz))
+}
+
+func (t *rhhTracker) ObserveGet(d time.Duration) {
+	if !t.enabled {
+		return
+	}
+
+	t.metrics.GetDuration.With(t.baseLabels).Observe(float64(d.Nanoseconds()))
+	t.metrics.LastGetDuration.With(t.baseLabels).Set(float64(d.Nanoseconds()))
+}
+
+func (t *rhhTracker) ObservePut(d time.Duration) {
+	if !t.enabled {
+		return
+	}
+
+	t.metrics.InsertDuration.With(t.baseLabels).Observe(float64(d.Nanoseconds()))
+	t.metrics.LastInsertDuration.With(t.baseLabels).Set(float64(d.Nanoseconds()))
+}
+
+func (t *rhhTracker) SetGrowDuration(d time.Duration) {
+	if !t.enabled {
+		return
+	}
+
+	t.metrics.LastGrowDuration.With(t.baseLabels).Set(d.Seconds())
+}
+
+// TODO(edd): currently no safe way to calculate this concurrently.
+func (t *rhhTracker) SetProbeCount(length float64) {
+	if !t.enabled {
+		return
+	}
+
+	t.metrics.MeanProbeCount.With(t.baseLabels).Set(length)
+}
+
+func (t *rhhTracker) incGet(status string) {
+	if !t.enabled {
+		return
+	}
+
+	labels := t.hitIncLabels
+	if status == "miss" {
+		labels = t.missIncLabels
+	}
+	t.metrics.Gets.With(labels).Inc()
+}
+
+func (t *rhhTracker) IncGetHit()  { t.incGet("hit") }
+func (t *rhhTracker) IncGetMiss() { t.incGet("miss") }
+
+func (t *rhhTracker) incPut(status string) {
+	if !t.enabled {
+		return
+	}
+
+	labels := t.hitIncLabels
+	if status == "miss" {
+		labels = t.missIncLabels
+	}
+	t.metrics.Puts.With(labels).Inc()
+}
+
+func (t *rhhTracker) IncPutHit()  { t.incPut("hit") }
+func (t *rhhTracker) IncPutMiss() { t.incPut("miss") }
 
 type hashElem struct {
 	key   []byte
@@ -223,14 +416,18 @@ func (e *hashElem) setKey(v []byte) {
 
 // Options represents initialization options that are passed to NewHashMap().
 type Options struct {
-	Capacity   int64
-	LoadFactor int
+	Capacity       int64
+	LoadFactor     int
+	MetricsEnabled bool
+	Metrics        *Metrics
+	Labels         prometheus.Labels
 }
 
 // DefaultOptions represents a default set of options to pass to NewHashMap().
 var DefaultOptions = Options{
-	Capacity:   256,
-	LoadFactor: 90,
+	Capacity:       256,
+	LoadFactor:     90,
+	MetricsEnabled: true,
 }
 
 // HashKey computes a hash of key. Hash is always non-zero.

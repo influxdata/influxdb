@@ -1,53 +1,74 @@
-Contributing to InfluxDB
-========================
+# Contributing to InfluxDB v2
 
-Bug reports
----------------
-Before you file an issue, please search existing issues in case it has already been filed, or perhaps even fixed. If you file an issue, please include the following.
-* Full details of your operating system (or distribution) e.g. 64-bit Ubuntu 14.04.
+## Bug reports
+Before you file an issue, please search existing issues in case it has already been filed, or perhaps even fixed.
+If you file an issue, please include the following.
+* Full details of your operating system (or distribution) e.g. `64bit Ubuntu 18.04`.
 * The version of InfluxDB you are running
 * Whether you installed it using a pre-built package, or built it from source.
-* A small test case, if applicable, that demonstrates the issues.
+* Clear steps to reproduce the issue described, if at all possible.
 
-Remember the golden rule of bug reports: **The easier you make it for us to reproduce the problem, the faster it will get fixed.**
+The easier it is for us to reproduce the problem, the easier it is for us to fix it.
 If you have never written a bug report before, or if you want to brush up on your bug reporting skills, we recommend reading [Simon Tatham's essay "How to Report Bugs Effectively."](http://www.chiark.greenend.org.uk/~sgtatham/bugs.html)
 
-Test cases should be in the form of `curl` commands. For example:
+
+Ideally, test cases would be in the form of `curl` commands.
+For example:
 ```bash
-# create database
-curl -X POST http://localhost:8086/query --data-urlencode "q=CREATE DATABASE mydb"
-
-# create retention policy
-curl -X POST http://localhost:8086/query --data-urlencode "q=CREATE RETENTION POLICY myrp ON mydb DURATION 365d REPLICATION 1 DEFAULT"
-
 # write data
-curl -X POST http://localhost:8086/write?db=mydb --data-binary "cpu,region=useast,host=server_1,service=redis value=61"
+curl -XPOST "http://localhost:9999/api/v2/write?org=YOUR_ORG&bucket=YOUR_BUCKET&precision=s" \
+  --header "Authorization: Token YOURAUTHTOKEN" \
+  --data-raw "mem,host=host1 used_percent=23.43234543 1556896326"
 
-# Delete a Measurement
-curl -X POST http://localhost:8086/query  --data-urlencode 'db=mydb' --data-urlencode 'q=DROP MEASUREMENT cpu'
-
-# Query the Measurement
+# query data
 # Bug: expected it to return no data, but data comes back.
-curl -X POST http://localhost:8086/query  --data-urlencode 'db=mydb' --data-urlencode 'q=SELECT * from cpu'
+curl http://localhost:9999/api/v2/query?org=my-org -XPOST -sS \
+  -H 'Authorization: Token YOURAUTHTOKEN' \
+  -H 'Accept: application/csv' \
+  -H 'Content-type: application/vnd.flux' \
+  -d 'from(bucket:"example-bucket")
+    |> range(start:-1000h)
+    |> group(columns:["_measurement"], mode:"by")
+    |> sum()'
 ```
-**If you don't include a clear test case like this, your issue may not be investigated, and may even be closed**. If writing the data is too difficult, please zip up your data directory and include a link to it in your bug report.
 
-Please note that issues are *not the place to file general questions* such as "how do I use collectd with InfluxDB?" Questions of this nature should be sent to the [InfluxData Community](https://community.influxdata.com/), not filed as issues. Issues like this will be closed.
+Test cases with `influx` commands are also helpful.
+For example:
+```
+# write data
+influx write -o YOUR_ORG -b YOUR_BUCKET -p s -t YOURAUTHTOKEN \
+  "mem,host=host1 used_percent=23.43234543 1556896326"
 
-Feature requests
----------------
-We really like to receive feature requests, as it helps us prioritize our work. Please be clear about your requirements, as incomplete feature requests may simply be closed if we don't understand what you would like to see added to InfluxDB.
+# query data
+# Bug: expected it to return no data, but data comes back.
+influx query -o YOUR_ORG -t YOURAUTHTOKEN 'from(bucket:"example-bucket")
+  |> range(start:-1000h)
+  |> group(columns:["_measurement"], mode:"by")
+  |> sum()'
+```
 
-Contributing to the source code
----------------
+If you don't include a clear test case like this it will be very difficult for us to investigate your issue.
+If writing the data is too difficult, please zip up your data directory and include a link to it in your bug report.
 
-InfluxDB follows standard Go project structure. This means that all your Go development are done in `$GOPATH/src`. GOPATH can be any directory under which InfluxDB and all its dependencies will be cloned. For full details on the project structure, follow along below.
+Please note that issues are *not the place to file general support requests* such as "how do I use collectd with InfluxDB?"
+Questions of this nature should be sent to the [InfluxData Community](https://community.influxdata.com/), not filed as issues.
 
-You should also read our [coding guide](https://github.com/influxdata/influxdb/blob/master/CODING_GUIDELINES.md), to understand better how to write code for InfluxDB.
+## Feature requests
+We really like to receive feature requests as it helps us prioritize our work.
+Please be clear about your requirements and goals, help us to understand what you would like to see added to InfluxD with examples and the reasons why it is important to you.
+If you find your feature request already exists as a Github issue please indicate your support for that feature by using the "thumbs up" reaction.
 
-Submitting a pull request
-------------
-To submit a pull request you should fork the InfluxDB repository, and make your change on a feature branch of your fork. Then generate a pull request from your branch against *master* of the InfluxDB repository. Include in your pull request details of your change -- the why *and* the how -- as well as the testing your performed. Also, be sure to run the test suite with your change in place. Changes that cause tests to fail cannot be merged.
+## Contributing to the source code
+InfluxDB requires Go 1.13 and uses Go modules.
+
+You should read our [coding guide](https://github.com/influxdata/influxdb/blob/master/DEVELOPMENT.md), to understand better how to write code for InfluxDB.
+
+## Submitting a pull request
+To submit a pull request you should fork the InfluxDB repository, and make your change on a feature branch of your fork.
+Then generate a pull request from your branch against *master* of the InfluxDB repository.
+Include in your pull request details of your change -- the why *and* the how -- as well as the testing your performed.
+Also, be sure to run the test suite with your change in place.
+Changes that cause tests to fail cannot be merged.
 
 There will usually be some back and forth as we finalize the change, but once that completes it may be merged.
 
@@ -60,120 +81,86 @@ To assist in review for the PR, please add the following to your pull request co
 - [ ] Sign [CLA](https://influxdata.com/community/cla/) (if not already signed)
 ```
 
-Signing the CLA
----------------
+## Security Vulnerability Reporting
+InfluxData takes security and our users' trust very seriously.
+If you believe you have found a security issue in any of our open source projects, please responsibly disclose it by contacting security@influxdata.com.
+More details about security vulnerability reporting, including our GPG key, [can be found here](https://www.influxdata.com/how-to-report-security-vulnerabilities/).
 
-If you are going to be contributing back to InfluxDB please take a
-second to sign our CLA, which can be found
-[on our website](https://influxdata.com/community/cla/).
 
-Installing Go
--------------
-InfluxDB requires Go 1.10.3.
+## Signing the CLA
 
-At InfluxDB we find gvm, a Go version manager, useful for installing Go. For instructions
-on how to install it see [the gvm page on github](https://github.com/moovweb/gvm).
+If you are going to be contributing back to InfluxDB please take a second to sign our CLA, which can be found [on our website](https://influxdata.com/community/cla/).
 
-After installing gvm you can install and set the default go version by
-running the following:
+## Installing Go
+InfluxDB requires Go 1.13.
 
-    gvm install go1.10.3
-    gvm use go1.10.3 --default
+At InfluxData we find `gvm`, a Go version manager, useful for installing Go.
+For instructions on how to install it see [the gvm page on github](https://github.com/moovweb/gvm).
 
-Installing Dep
--------------
-InfluxDB uses [dep](https://github.com/golang/dep) to manage dependencies.  Install it by running the following:
+After installing gvm you can install and set the default go version by running the following:
+```bash
+$ gvm install go1.13
+$ gvm use go1.13 --default
+```
 
-    go get github.com/golang/dep/cmd/dep
+## Revision Control Systems
+Go has the ability to import remote packages via revision control systems with the `go get` command.
+To ensure that you can retrieve any remote package, be sure to install the following rcs software to your system.
+Currently the project only depends on `git` and `bzr`.
 
-Revision Control Systems
--------------
-Go has the ability to import remote packages via revision control systems with the `go get` command.  To ensure that you can retrieve any remote package, be sure to install the following rcs software to your system.
-Currently the project only depends on `git` and `mercurial`.
+ * [Install Git](http://git-scm.com/book/en/Getting-Started-Installing-Git)
+ * [Install Bazaar](http://doc.bazaar.canonical.com/latest/en/user-guide/installing_bazaar.html)
 
-* [Install Git](http://git-scm.com/book/en/Getting-Started-Installing-Git)
-* [Install Mercurial](http://mercurial.selenic.com/wiki/Download)
+## Getting & Building From Source
 
-Getting the source
-------
-Setup the project structure and fetch the repo like so:
+Since we depend on Go modules and use standard Go tooling, you can simply check out and build InfluxDB at your preferred location on your filesystem.
 
 ```bash
-    mkdir $HOME/gocodez
-    export GOPATH=$HOME/gocodez
-    go get github.com/influxdata/influxdb
+$ git clone git@github.com:influxdata/influxdb.git
 ```
 
-You can add the line `export GOPATH=$HOME/gocodez` to your bash/zsh file to be set for every shell instead of having to manually run it everytime.
+## Building, Testing, and Installing
 
-Cloning a fork
--------------
-If you wish to work with fork of InfluxDB, your own fork for example, you must still follow the directory structure above. But instead of cloning the main repo, instead clone your fork. Follow the steps below to work with a fork:
+InfluxDB uses the standard Go tooling so the `build`, `install`, and `test` subcommands work as expected.
+In the root of the InfluxDB git repository, you can simply run the following commands:
+
+### Building
 
 ```bash
-    export GOPATH=$HOME/gocodez
-    mkdir -p $GOPATH/src/github.com/influxdata
-    cd $GOPATH/src/github.com/influxdata
-    git clone git@github.com:<username>/influxdb
+$ go build ./...
 ```
 
-Retaining the directory structure `$GOPATH/src/github.com/influxdata` is necessary so that Go imports work correctly.
-
-Build and Test
------
-
-Make sure you have Go installed and the project structure as shown above. To then get the dependencies for the project, execute the following commands:
+### Installing
 
 ```bash
-cd $GOPATH/src/github.com/influxdata/influxdb
-dep ensure
+$ go install ./...
 ```
 
-To then build and install the binaries, run the following command.
-```bash
-go clean ./...
-go install ./...
-```
-The binaries will be located in `$GOPATH/bin`. Please note that the InfluxDB binary is named `influxd`, not `influxdb`.
+### Testing
 
-To set the version and commit flags during the build pass the following to the **install** command:
+This project is built from various languages. To run test for all langauges and components use:
 
 ```bash
--ldflags="-X main.version=$VERSION -X main.branch=$BRANCH -X main.commit=$COMMIT"
+$ make test
 ```
 
-where `$VERSION` is the version, `$BRANCH` is the branch, and `$COMMIT` is the git commit hash.
-
-If you want to build packages, see `build.py` usage information:
+To run tests for just the Javascript component use:
 
 ```bash
-python build.py --help
-
-# Or to build a package for your current system
-python build.py --package
+$ make test-js
 ```
 
-To run the tests, execute the following command:
+To run tests for just the Go/Rust components use:
 
 ```bash
-cd $GOPATH/src/github.com/influxdata/influxdb
-go test -v ./...
-
-# run tests that match some pattern
-go test -run=TestDatabase . -v
-
-# run tests and show coverage
-go test -coverprofile /tmp/cover . && go tool cover -html /tmp/cover
+$ make test-go
 ```
 
-To install go cover, run the following command:
-```
-go get golang.org/x/tools/cmd/cover
-```
 
-Generated Google Protobuf code
------------------
-Most changes to the source do not require that the generated protocol buffer code be changed. But if you need to modify the protocol buffer code, you'll first need to install the protocol buffers toolchain.
+## Generated Google Protobuf code
+
+Most changes to the source do not require that the generated protocol buffer code be changed.
+But if you need to modify the protocol buffer code, you'll first need to install the protocol buffers toolchain.
 
 First install the [protocol buffer compiler](https://developers.google.com/protocol-buffers/
 ) 2.6.1 or later for your OS:
@@ -181,15 +168,15 @@ First install the [protocol buffer compiler](https://developers.google.com/proto
 Then install the go plugins:
 
 ```bash
-go get github.com/gogo/protobuf/proto
-go get github.com/gogo/protobuf/protoc-gen-gogo
-go get github.com/gogo/protobuf/gogoproto
+$ go get github.com/gogo/protobuf/proto
+$ go get github.com/gogo/protobuf/protoc-gen-gogo
+$ go get github.com/gogo/protobuf/gogoproto
 ```
 
 Finally run, `go generate` after updating any `*.proto` file:
 
 ```bash
-go generate ./...
+$ go generate ./...
 ```
 **Troubleshooting**
 
@@ -198,16 +185,13 @@ If generating the protobuf code is failing for you, check each of the following:
 * Ensure the command `protoc-gen-gogo`, found in `GOPATH/bin`, is on your path. This can be done by adding `GOPATH/bin` to `PATH`.
 
 
-Generated Go Templates
-----------------------
+## Generated Go Templates
 
-The query engine requires optimized data structures for each data type so
-instead of writing each implementation several times we use templates. _Do not
-change code that ends in a `.gen.go` extension!_ Instead you must edit the
-`.gen.go.tmpl` file that was used to generate it.
+The query engine requires optimized data structures for each data type so instead of writing each implementation several times we use templates.
+_Do not change code that ends in a `.gen.go` extension!_
+Instead you must edit the `.gen.go.tmpl` file that was used to generate it.
 
-Once you've edited the template file, you'll need the [`tmpl`][tmpl] utility
-to generate the code:
+Once you've edited the template file, you'll need the [`tmpl`][tmpl] utility to generate the code:
 
 ```sh
 $ go get github.com/benbjohnson/tmpl
@@ -221,43 +205,23 @@ $ go generate ./...
 
 [tmpl]: https://github.com/benbjohnson/tmpl
 
+## Profiling
 
-Pre-commit checks
--------------
+When troubleshooting problems with CPU or memory the Go toolchain can be helpful.
+You can start InfluxDB with CPU and memory profiling turned on.
+For example:
 
-We have a pre-commit hook to make sure code is formatted properly and vetted before you commit any changes. We strongly recommend using the pre-commit hook to guard against accidentally committing unformatted code. To use the pre-commit hook, run the following:
 ```bash
-    cd $GOPATH/src/github.com/influxdata/influxdb
-    cp .hooks/pre-commit .git/hooks/
-```
-In case the commit is rejected because it's not formatted you can run
-the following to format the code:
-
-```
-go fmt ./...
-go vet ./...
-```
-
-To install go vet, run the following command:
-```
-go get golang.org/x/tools/cmd/vet
-```
-
-NOTE: If you have not installed mercurial, the above command will fail.  See [Revision Control Systems](#revision-control-systems) above.
-
-For more information on `go vet`, [read the GoDoc](https://godoc.org/golang.org/x/tools/cmd/vet).
-
-Profiling
------
-When troubleshooting problems with CPU or memory the Go toolchain can be helpful. You can start InfluxDB with CPU and memory profiling turned on. For example:
-
-```sh
 # start influx with profiling
-./influxd -cpuprofile influxdcpu.prof -memprof influxdmem.prof
+
+$ ./influxd -cpuprofile influxdcpu.prof -memprof influxdmem.prof
+
 # run queries, writes, whatever you're testing
 # Quit out of influxd and influxd.prof will then be written.
 # open up pprof to examine the profiling data.
-go tool pprof ./influxd influxd.prof
+
+$ go tool pprof ./influxd influxd.prof
+
 # once inside run "web", opens up browser with the CPU graph
 # can also run "web <function name>" to zoom in. Or "list <function name>" to see specific lines
 ```
@@ -274,9 +238,3 @@ func BenchmarkSomething(b *testing.B) {
   // do something that you want to profile...
 }
 ```
-
-Continuous Integration testing
------
-InfluxDB uses CircleCI for continuous integration testing. CircleCI executes [test.sh](https://github.com/influxdata/influxdb/blob/master/test.sh), so you may do the same on your local development environment before creating a pull request.
-
-The `test.sh` script executes a test suite with 5 variants (standard 64 bit, 64 bit with race detection, 32 bit, TSI, go version 1.10.3), each executes with a different arg, 0 through 4. Unless you know differently, `./test.sh 0` is probably all you need.

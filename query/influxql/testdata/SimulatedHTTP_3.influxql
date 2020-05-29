@@ -1,0 +1,1 @@
+SELECT l, r FROM (SELECT bottom(n, 10) AS r FROM requests WHERE time >= 84h AND time <= 168h GROUP BY *), (SELECT top(n, 10) AS l FROM requests WHERE time >= 0 AND time < 84h GROUP BY *) GROUP BY *

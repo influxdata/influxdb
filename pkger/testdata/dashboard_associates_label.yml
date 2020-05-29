@@ -1,0 +1,20 @@
+apiVersion: influxdata.com/v2alpha1
+kind: Label
+metadata:
+  name: label-1
+---
+apiVersion: influxdata.com/v2alpha1
+kind: Label
+metadata:
+  name: label-2
+---
+apiVersion: influxdata.com/v2alpha1
+kind: Dashboard
+metadata:
+  name: dash-1
+spec:
+  associations:
+    - kind: Label
+      name: label-1
+    - kind: Label
+      name: label-2

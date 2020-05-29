@@ -1,0 +1,42 @@
+{
+  "id": "05dde59a-a52f-4ede-81fa-0c6011f29287",
+  "measurement": "kubernetes_system_container",
+  "app": "kubernetes",
+  "autoflow": true,
+  "cells": [
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "64cf0f60-e157-4c03-9d7e-c280a7e2695f",
+      "name": "K8s - Kubelet Millicores",
+      "queries": [
+        {
+          "query": "SELECT mean(\"cpu_usage_nanocores\") / 1000000 AS \"cpu_usage_millicores\" FROM \":db:\".\":rp:\".\"kubernetes_system_container\"",
+          "groupbys": [],
+          "wheres": [
+            "\"container_name\" = 'kubelet'"
+          ]
+        }
+      ]
+    },
+    {
+      "x": 4,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "4a7454d1-4d60-4077-9e7b-8c915a00fe66",
+      "name": "K8s - Kubelet Memory Bytes",
+      "queries": [
+        {
+          "query": "SELECT mean(\"memory_usage_bytes\") AS \"memory_usage_bytes\" FROM \":db:\".\":rp:\".\"kubernetes_system_container\"",
+          "groupbys": [],
+          "wheres": [
+            "\"container_name\" = 'kubelet'"
+          ]
+        }
+      ]
+    }
+  ]
+}

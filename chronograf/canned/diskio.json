@@ -1,0 +1,33 @@
+{
+  "id": "9e3a9fcd-a363-4470-991e-a4d6987a94c8",
+  "measurement": "diskio",
+  "app": "system",
+  "autoflow": true,
+  "cells": [
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "7f647740-d9f0-4012-8e7a-5d898c8f271e",
+      "name": "System – Disk MB/s",
+      "queries": [
+        {
+          "query": "SELECT non_negative_derivative(max(\"read_bytes\"), 1s) / 1000000 AS \"read_megabytes_per_second\" FROM \":db:\".\":rp:\".\"diskio\"",
+          "groupbys": [
+            "\"name\""
+          ],
+          "wheres": [],
+          "label": "MB/s"
+        },
+        {
+          "query": "SELECT non_negative_derivative(max(\"write_bytes\"), 1s) / 1000000 AS \"write_megabytes_per_second\" FROM \":db:\".\":rp:\".\"diskio\"",
+          "groupbys": [
+            "\"name\""
+          ],
+          "wheres": []
+        }
+      ]
+    }
+  ]
+}

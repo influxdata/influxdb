@@ -1,0 +1,77 @@
+---
+apiVersion: influxdata.com/v2alpha1
+kind: Label
+metadata:
+  name: label-1
+---
+apiVersion: influxdata.com/v2alpha1
+kind: CheckThreshold
+metadata:
+  name: check-0
+spec:
+  description: desc_0
+  every: 1m
+  offset: 15s
+  query:  >
+    from(bucket: "rucket_1")
+      |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+      |> filter(fn: (r) => r._measurement == "cpu")
+      |> filter(fn: (r) => r._field == "usage_idle")
+      |> aggregateWindow(every: 1m, fn: mean)
+      |> yield(name: "mean")
+  status: inactive
+  statusMessageTemplate: "Check: ${ r._check_name } is: ${ r._level }"
+  tags:
+    - key: tag_1
+      value: val_1
+    - key: tag_2
+      value: val_2
+  thresholds:
+    - type: greater
+      level: CRIT
+      value: 50.0
+      allValues: true
+    - type: lesser
+      level: warn
+      value: 49.9
+    - type: inside_range
+      level: INfO
+      min: 30.0
+      max: 45.0
+    - type: outside_range
+      level: ok
+      min: 30.0
+      max: 35.0
+  associations:
+    - kind: Label
+      name: label-1
+---
+apiVersion: influxdata.com/v2alpha1
+kind: CheckDeadman
+metadata:
+  name: check-1
+spec:
+  name: display name
+  description: desc_1
+  every: 5m
+  level: cRiT
+  offset: 10s
+  query:  >
+    from(bucket: "rucket_1")
+      |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+      |> filter(fn: (r) => r._measurement == "cpu")
+      |> filter(fn: (r) => r._field == "usage_idle")
+      |> aggregateWindow(every: 1m, fn: mean)
+      |> yield(name: "mean")
+  reportZero: true
+  staleTime: 10m
+  statusMessageTemplate: "Check: ${ r._check_name } is: ${ r._level }"
+  tags:
+    - key: tag_1
+      value: val_1
+    - key: tag_2
+      value: val_2
+  timeSince: 90s
+  associations:
+    - kind: Label
+      name: label-1

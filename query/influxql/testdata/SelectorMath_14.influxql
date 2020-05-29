@@ -1,0 +1,1 @@
+SELECT max(f3), f3 FROM m 

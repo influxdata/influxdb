@@ -15,16 +15,27 @@ type SeriesIDSet struct {
 }
 
 // NewSeriesIDSet returns a new instance of SeriesIDSet.
-func NewSeriesIDSet(a ...uint64) *SeriesIDSet {
+func NewSeriesIDSet(a ...SeriesID) *SeriesIDSet {
 	ss := &SeriesIDSet{bitmap: roaring.NewBitmap()}
 	if len(a) > 0 {
 		a32 := make([]uint32, len(a))
 		for i := range a {
-			a32[i] = uint32(a[i])
+			a32[i] = uint32(a[i].RawID())
 		}
 		ss.bitmap.AddMany(a32)
 	}
 	return ss
+}
+
+// NewSeriesIDSetNegate returns a new SeriesIDSet containing all the elements in a
+// that are not present in b. That is, the set difference between a and b.
+func NewSeriesIDSetNegate(a, b *SeriesIDSet) *SeriesIDSet {
+	a.RLock()
+	defer a.RUnlock()
+	b.RLock()
+	defer b.RUnlock()
+
+	return &SeriesIDSet{bitmap: roaring.AndNot(a.bitmap, b.bitmap)}
 }
 
 // Bytes estimates the memory footprint of this SeriesIDSet, in bytes.
@@ -38,7 +49,7 @@ func (s *SeriesIDSet) Bytes() int {
 }
 
 // Add adds the series id to the set.
-func (s *SeriesIDSet) Add(id uint64) {
+func (s *SeriesIDSet) Add(id SeriesID) {
 	s.Lock()
 	defer s.Unlock()
 	s.AddNoLock(id)
@@ -46,12 +57,29 @@ func (s *SeriesIDSet) Add(id uint64) {
 
 // AddNoLock adds the series id to the set. Add is not safe for use from multiple
 // goroutines. Callers must manage synchronization.
-func (s *SeriesIDSet) AddNoLock(id uint64) {
-	s.bitmap.Add(uint32(id))
+func (s *SeriesIDSet) AddNoLock(id SeriesID) {
+	s.bitmap.Add(uint32(id.RawID()))
+}
+
+// AddMany adds multiple ids to the SeriesIDSet. AddMany takes a lock, so may not be
+// optimal to call many times with few ids.
+func (s *SeriesIDSet) AddMany(ids ...SeriesID) {
+	if len(ids) == 0 {
+		return
+	}
+
+	a32 := make([]uint32, len(ids))
+	for i := range ids {
+		a32[i] = uint32(ids[i].RawID())
+	}
+
+	s.Lock()
+	defer s.Unlock()
+	s.bitmap.AddMany(a32)
 }
 
 // Contains returns true if the id exists in the set.
-func (s *SeriesIDSet) Contains(id uint64) bool {
+func (s *SeriesIDSet) Contains(id SeriesID) bool {
 	s.RLock()
 	x := s.ContainsNoLock(id)
 	s.RUnlock()
@@ -60,12 +88,12 @@ func (s *SeriesIDSet) Contains(id uint64) bool {
 
 // ContainsNoLock returns true if the id exists in the set. ContainsNoLock is
 // not safe for use from multiple goroutines. The caller must manage synchronization.
-func (s *SeriesIDSet) ContainsNoLock(id uint64) bool {
-	return s.bitmap.Contains(uint32(id))
+func (s *SeriesIDSet) ContainsNoLock(id SeriesID) bool {
+	return s.bitmap.Contains(uint32(id.RawID()))
 }
 
 // Remove removes the id from the set.
-func (s *SeriesIDSet) Remove(id uint64) {
+func (s *SeriesIDSet) Remove(id SeriesID) {
 	s.Lock()
 	defer s.Unlock()
 	s.RemoveNoLock(id)
@@ -73,8 +101,8 @@ func (s *SeriesIDSet) Remove(id uint64) {
 
 // RemoveNoLock removes the id from the set. RemoveNoLock is not safe for use
 // from multiple goroutines. The caller must manage synchronization.
-func (s *SeriesIDSet) RemoveNoLock(id uint64) {
-	s.bitmap.Remove(uint32(id))
+func (s *SeriesIDSet) RemoveNoLock(id SeriesID) {
+	s.bitmap.Remove(uint32(id.RawID()))
 }
 
 // Cardinality returns the cardinality of the SeriesIDSet.
@@ -108,6 +136,19 @@ func (s *SeriesIDSet) Merge(others ...*SeriesIDSet) {
 	s.Unlock()
 }
 
+// MergeInPlace merges other into s, modifying s in the process.
+func (s *SeriesIDSet) MergeInPlace(other *SeriesIDSet) {
+	if s == other {
+		return
+	}
+
+	other.RLock()
+	s.Lock()
+	s.bitmap.Or(other.bitmap)
+	s.Unlock()
+	other.RUnlock()
+}
+
 // Equals returns true if other and s are the same set of ids.
 func (s *SeriesIDSet) Equals(other *SeriesIDSet) bool {
 	if s == other {
@@ -130,33 +171,31 @@ func (s *SeriesIDSet) And(other *SeriesIDSet) *SeriesIDSet {
 	return &SeriesIDSet{bitmap: roaring.And(s.bitmap, other.bitmap)}
 }
 
-// AndNot returns a new SeriesIDSet containing elements that were present in s,
-// but not present in other.
-func (s *SeriesIDSet) AndNot(other *SeriesIDSet) *SeriesIDSet {
+// RemoveSet removes all values in other from s, if they exist.
+func (s *SeriesIDSet) RemoveSet(other *SeriesIDSet) {
 	s.RLock()
 	defer s.RUnlock()
 	other.RLock()
 	defer other.RUnlock()
-
-	return &SeriesIDSet{bitmap: roaring.AndNot(s.bitmap, other.bitmap)}
+	s.bitmap.AndNot(other.bitmap)
 }
 
 // ForEach calls f for each id in the set. The function is applied to the IDs
 // in ascending order.
-func (s *SeriesIDSet) ForEach(f func(id uint64)) {
+func (s *SeriesIDSet) ForEach(f func(id SeriesID)) {
 	s.RLock()
 	defer s.RUnlock()
 	itr := s.bitmap.Iterator()
 	for itr.HasNext() {
-		f(uint64(itr.Next()))
+		f(NewSeriesID(uint64(itr.Next())))
 	}
 }
 
 // ForEachNoLock calls f for each id in the set without taking a lock.
-func (s *SeriesIDSet) ForEachNoLock(f func(id uint64)) {
+func (s *SeriesIDSet) ForEachNoLock(f func(id SeriesID)) {
 	itr := s.bitmap.Iterator()
 	for itr.HasNext() {
-		f(uint64(itr.Next()))
+		f(NewSeriesID(uint64(itr.Next())))
 	}
 }
 
@@ -178,8 +217,13 @@ func (s *SeriesIDSet) Diff(other *SeriesIDSet) {
 
 // Clone returns a new SeriesIDSet with a deep copy of the underlying bitmap.
 func (s *SeriesIDSet) Clone() *SeriesIDSet {
-	s.RLock()
-	defer s.RUnlock()
+	// Cloning the SeriesIDSet involves cloning s's bitmap.
+	// Unfortunately, if the bitmap is set to COW, the original bitmap is modified during clone,
+	// so we have to take a write lock rather than a read lock.
+	// For now, we'll just hold a write lock for clone; if this shows up as a bottleneck later,
+	// we can conditionally RLock if we are not COW.
+	s.Lock()
+	defer s.Unlock()
 	return s.CloneNoLock()
 }
 
@@ -217,6 +261,18 @@ func (s *SeriesIDSet) WriteTo(w io.Writer) (int64, error) {
 	s.RLock()
 	defer s.RUnlock()
 	return s.bitmap.WriteTo(w)
+}
+
+// Clear clears the underlying bitmap for re-use. Clear is safe for use by multiple goroutines.
+func (s *SeriesIDSet) Clear() {
+	s.Lock()
+	defer s.Unlock()
+	s.ClearNoLock()
+}
+
+// ClearNoLock clears the underlying bitmap for re-use without taking a lock.
+func (s *SeriesIDSet) ClearNoLock() {
+	s.bitmap.Clear()
 }
 
 // Slice returns a slice of series ids.

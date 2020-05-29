@@ -1,0 +1,108 @@
+Serving React with light-weight Go
+Lessons learned while building Chronograf
+19:00 15 Mar 2017
+Tags: react, go, chronograf
+
+Chris Goller
+Architect, InfluxData
+chris@influxdb.com
+@goller
+
+* Demo
+- Source: [[https://github.com/influxdata/influxdb/chronograf]]
+- [[http://localhost:8888]]
+
+* Chronograf Goals
+
+- Single Page Application
+- Install to Productivity in 2 mins
+- Familiar dev environment for Javascript _and_ Go
+
+* Agenda
+
+- Walking through the middleware stack
+- Satisfying both Go and Javascript developers
+
+* Simplest File Server
+
+.code simple/router_go
+
+- However, React routing needs "wildcard" route to return same HTML page.
+- Client-Side Routing!
+
+* React routing
+- simple routing in react applications use fragments
+- but if the server supports wildcarding then we can get nice looking routes
+
+* Wildcard routing to default asset
+
+.code net/http/fs_go /func FileServer/,/^}/
+
+Implement `FileSystem` with a default file
+
+.code simple/dir_go /type/,/OMIT END/
+
+* Minimal React Host Server
+
+.code simple/react_go
+
+* Problems with SPA
+- Slow loads
+- Typically, not scrapable
+
+* Caching
+- Cache-Control: [[https://tools.ietf.org/html/rfc7234#section-5.2]]
+- ETag: [[https://tools.ietf.org/html/rfc7232#section-2.3]]
+
+.code caching/dist_go /w\./,/^}/
+
+- Strong ETag validation
+
+* Compression
+- gzip middleware by `github.com/NYTimes/gziphandler`
+.code gzip/mux_go
+
+* Authentication and Authorization
+- If authenticated able to see assets else redirected to /login
+- If authorized able to read parts of REST API
+
+.code auth/auth_go /func AuthorizedToken/,/^}/
+
+* Bonus middleware :)
+
+* HSTS
+.code hsts/hsts_go /HSTS/,/^}/
+
+- informs the client to cache that HTTPS should be used for a length of time.
+- if client receives HTTP instead reject as a possible man-in-the-middle.
+- HSTS doesn't redirect HTTP to HTTPS but rather is only used on HTTPS responses.
+
+* Version
+.code version/version_go /func Version/,/^}/
+- Not necessarily directly useful for React
+- Nice for debugging
+
+* Asset Rewriting
+- index.html generally comes from /
+- Operationally, nice to serve from different routes
+- Better way? Help!
+.code prefixer/url_prefixer_go /\*URLPrefixer/,/^}/
+
+* Development Environment
+- One repository
+- "Native" tooling for all developers
+- Demo
+- One build system to rule them all... make!
+
+* Makefile
+- Get all vendoring depedencies and build everything!
+    make
+
+- Test Go and Javascript
+    make test
+
+- Run Go server
+    make run
+
+- Continuous builds of the Go server
+    make continuous

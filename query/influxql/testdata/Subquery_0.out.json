@@ -1,0 +1,1 @@
+{"results":[{"statement_id":0,"series":[{"name":"m","tags":{"t1":"0"},"columns":["time","mean"],"values":[["1970-01-01T00:00:00Z",0.4972543348725745]]},{"name":"m","tags":{"t1":"1"},"columns":["time","mean"],"values":[["1970-01-01T00:00:00Z",0.49105920910334355]]}]}]}

@@ -1,0 +1,42 @@
+{
+  "id": "6fba9b06-b9d3-4e67-a41e-177d585dfe28",
+  "measurement": "ping",
+  "app": "ping",
+  "autoflow": true,
+  "cells": [
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "f58a157b-9f2f-4175-94c7-c250d9491c11",
+      "name": "Ping – Packet Loss Percent",
+      "queries": [
+        {
+          "query": "select max(\"percent_packet_loss\") as \"packet_loss\" from ping",
+          "groupbys": [
+            "\"url\""
+          ],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "865f646f-6ed9-4878-81f6-2b9e0d40697d",
+      "name": "Ping – Response Times (ms)",
+      "queries": [
+        {
+          "query": "select mean(\"average_response_ms\") as \"average\", mean(\"minimum_response_ms\") as \"min\", mean(\"maximum_response_ms\") as \"max\" from ping",
+          "groupbys": [
+            "\"url\""
+          ],
+          "wheres": []
+        }
+      ]
+    }
+  ]
+}

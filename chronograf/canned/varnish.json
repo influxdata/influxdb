@@ -1,0 +1,22 @@
+{
+  "id": "83c57d16-a778-43ed-8941-0f9fec3408fa",
+  "measurement": "varnish",
+  "app": "varnish",
+  "cells": [
+    {
+      "x": 0,
+      "y": 0,
+      "w": 12,
+      "h": 4,
+      "i": "10b406cc-50a8-4c14-bf0e-5fe8bce1661c",
+      "name": "Varnish - Cache Hits/Misses",
+      "queries": [
+        {
+          "query": "select non_negative_derivative(mean(cache_hit)) as hits, non_negative_derivative(mean(cache_miss)) as misses from varnish",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    }
+  ]
+}

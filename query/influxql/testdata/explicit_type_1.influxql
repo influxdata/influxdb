@@ -1,0 +1,1 @@
+SELECT mean(x::field) FROM m GROUP BY x::tag

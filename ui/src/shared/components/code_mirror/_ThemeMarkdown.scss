@@ -1,0 +1,69 @@
+/*
+  CodeMirror "Markdown" Theme
+  ------------------------------------------------------------------------------
+  Intended for use with the Markdown CodeMirror Mode
+*/
+
+.cm-s-markdown {
+  background-color: $g2-kevlar;
+  color: $g15-platinum;
+  padding: 12px;
+  border: 2px solid $g5-pepper;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+
+  &:hover {
+    border-color: $g7-graphite;
+    cursor: text;
+  }
+
+  &.CodeMirror-focused {
+    border-color: $c-pool;
+    box-shadow: 0 0 6px 0 $c-pool;
+  }
+
+  .cm-italic {
+    font-style: italic;
+  }
+
+  .cm-bold {
+    font-weight: 900;
+  }
+
+  .cm-strikethrough {
+    text-decoration: none;
+    opacity: 0.5;
+  }
+
+  .cm-heading {
+    color: $c-honeydew;
+  }
+
+  .cm-image {
+    color: $c-comet;
+  }
+
+  .cm-link {
+    color: $c-pool;
+    text-decoration: none;
+  }
+
+  .cm-blockquote {
+    color: $g18-cloud;
+    background-color: $g3-castle;
+  }
+
+  .CodeMirror-scrollbar-filler {
+    background-color: transparent;
+  }
+
+  .CodeMirror-vscrollbar,
+  .CodeMirror-hscrollbar {
+    @include custom-scrollbar-round($g2-kevlar, $c-pool);
+  }
+}
+
+.cm-s-markdown.CodeMirror-empty {
+  font-style: italic;
+  color: $g9-mountain;
+}
+

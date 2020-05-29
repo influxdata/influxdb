@@ -1,0 +1,10 @@
+{
+  "orgs": "/orgs",
+  "dashboards": "/dashboards",
+  "explorer": "/data-explorer",
+  "alerting": "/alerting",
+  "checks": "/checks",
+  "endpoints": "/endpoints",
+  "rules": "/rules",
+  "buckets": "/load-data/buckets"
+}

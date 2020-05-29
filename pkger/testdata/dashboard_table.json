@@ -1,0 +1,57 @@
+[
+    {
+        "apiVersion": "influxdata.com/v2alpha1",
+        "kind": "Dashboard",
+        "metadata": {
+            "name": "dash-1"
+        },
+        "spec": {
+            "description": "desc1",
+            "charts": [
+                {
+                    "kind": "table",
+                    "name": "table",
+                    "note": "table note",
+                    "noteOnEmpty": true,
+                    "xPos": 1,
+                    "yPos": 2,
+                    "width": 6,
+                    "height": 3,
+                    "decimalPlaces": 1,
+                    "queries": [
+                        {
+                            "query": "from(bucket: v.bucket)  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)  |> filter(fn: (r) => r._measurement == \"boltdb_writes_total\")  |> filter(fn: (r) => r._field == \"counter\")"
+                        }
+                    ],
+                    "colors": [
+                        {
+                            "name": "laser",
+                            "type": "min",
+                            "hex": "#8F8AF4",
+                            "value": 3.0
+                        }
+                    ],
+                    "fieldOptions": [
+                        {
+                            "fieldName": "_value",
+                            "displayName": "MB",
+                            "visible": true
+                        },
+                        {
+                            "fieldName": "_time",
+                            "displayName": "time (ms)",
+                            "visible": true
+                        }
+                    ],
+                    "tableOptions": {
+                        "verticalTimeAxis": true,
+                        "sortBy": "_time",
+                        "wrapping": "truncate",
+                        "fixFirstColumn": true
+                    },
+                    "timeFormat": "YYYY:MMMM:DD"
+                }
+            ]
+        }
+    }
+]

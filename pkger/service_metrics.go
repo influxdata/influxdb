@@ -1,0 +1,63 @@
+package pkger
+
+import (
+	"context"
+
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/metric"
+	"github.com/influxdata/influxdb/v2/kit/prom"
+)
+
+type mwMetrics struct {
+	// RED metrics
+	rec *metric.REDClient
+
+	next SVC
+}
+
+var _ SVC = (*mwMetrics)(nil)
+
+// MWMetrics is a metrics service middleware for the notification endpoint service.
+func MWMetrics(reg *prom.Registry) SVCMiddleware {
+	return func(svc SVC) SVC {
+		return &mwMetrics{
+			rec:  metric.New(reg, "pkger"),
+			next: svc,
+		}
+	}
+}
+
+func (s *mwMetrics) InitStack(ctx context.Context, userID influxdb.ID, newStack Stack) (Stack, error) {
+	rec := s.rec.Record("init_stack")
+	stack, err := s.next.InitStack(ctx, userID, newStack)
+	return stack, rec(err)
+}
+
+func (s *mwMetrics) DeleteStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) error {
+	rec := s.rec.Record("delete_stack")
+	return rec(s.next.DeleteStack(ctx, identifiers))
+}
+
+func (s *mwMetrics) ListStacks(ctx context.Context, orgID influxdb.ID, f ListFilter) ([]Stack, error) {
+	rec := s.rec.Record("list_stacks")
+	stacks, err := s.next.ListStacks(ctx, orgID, f)
+	return stacks, rec(err)
+}
+
+func (s *mwMetrics) CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*Pkg, error) {
+	rec := s.rec.Record("create_pkg")
+	pkg, err := s.next.CreatePkg(ctx, setters...)
+	return pkg, rec(err)
+}
+
+func (s *mwMetrics) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (PkgImpactSummary, error) {
+	rec := s.rec.Record("dry_run")
+	impact, err := s.next.DryRun(ctx, orgID, userID, pkg, opts...)
+	return impact, rec(err)
+}
+
+func (s *mwMetrics) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (PkgImpactSummary, error) {
+	rec := s.rec.Record("apply")
+	impact, err := s.next.Apply(ctx, orgID, userID, pkg, opts...)
+	return impact, rec(err)
+}

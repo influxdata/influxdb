@@ -1,0 +1,4 @@
+# docs: https://github.com/probot/semantic-pull-requests#configuration
+# Always validate the PR title AND all the commits
+titleAndCommits: true
+allowMergeCommits: true

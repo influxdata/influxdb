@@ -1,0 +1,35 @@
+[
+  {
+    "apiVersion": "influxdata.com/v2alpha1",
+    "kind": "Label",
+    "metadata": {
+      "name": "label-2"
+    },
+    "spec": {
+      "color": "#000000",
+      "description": "label 2 description"
+    }
+  },
+  {
+    "apiVersion": "influxdata.com/v2alpha1",
+    "kind": "Label",
+    "metadata": {
+      "name": "label-1"
+    },
+    "spec": {
+      "color": "#FFFFFF",
+      "description": "label 1 description"
+    }
+  },
+  {
+    "apiVersion": "influxdata.com/v2alpha1",
+    "kind": "Label",
+    "metadata": {
+      "name": "label-3"
+    },
+    "spec": {
+      "name": "display name",
+      "description": "label 3 description"
+    }
+  }
+]

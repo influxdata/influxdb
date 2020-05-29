@@ -1,0 +1,77 @@
+apiVersion: influxdata.com/v2alpha1
+kind: Label
+metadata:
+  name: label-1
+---
+apiVersion: influxdata.com/v2alpha1
+kind: NotificationEndpointSlack
+metadata:
+  name: slack-notification-endpoint
+spec:
+  name: slack name
+  description: slack desc
+  url: https://hooks.slack.com/services/bip/piddy/boppidy
+  status: active
+  token: tokenval
+  associations:
+    - kind: Label
+      name: label-1
+---
+apiVersion: influxdata.com/v2alpha1
+kind: NotificationEndpointHTTP
+metadata:
+  name: http-none-auth-notification-endpoint
+spec:
+  type: none
+  description: http none auth desc
+  method: get
+  url:  https://www.example.com/endpoint/noneauth
+  status: active
+  associations:
+    - kind: Label
+      name: label-1
+---
+apiVersion: influxdata.com/v2alpha1
+kind: NotificationEndpointHTTP
+metadata:
+  name: http-basic-auth-notification-endpoint
+spec:
+  name: basic endpoint name
+  description: http basic auth desc
+  type: basic
+  method: pOsT
+  url:  https://www.example.com/endpoint/basicauth
+  username: "secret username"
+  password: "secret password"
+  status: inactive
+  associations:
+    - kind: Label
+      name: label-1
+---
+apiVersion: influxdata.com/v2alpha1
+kind: NotificationEndpointHTTP
+metadata:
+  name: http-bearer-auth-notification-endpoint
+spec:
+  description: http bearer auth desc
+  type: bearer
+  method: puT
+  url:  https://www.example.com/endpoint/bearerauth
+  token: "secret token"
+  associations:
+    - kind: Label
+      name: label-1
+---
+apiVersion: influxdata.com/v2alpha1
+kind: NotificationEndpointPagerDuty
+metadata:
+  name: pager-duty-notification-endpoint
+spec:
+  name: pager duty name
+  description: pager duty desc
+  url:  http://localhost:8080/orgs/7167eb6719fa34e5/alert-history
+  routingKey: "secret routing-key"
+  status: active
+  associations:
+    - kind: Label
+      name: label-1

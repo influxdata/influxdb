@@ -1,0 +1,1 @@
+SELECT count(f) FROM m WHERE time >= 0 AND time <= 500s GROUP BY time(10s) fill(-1000)

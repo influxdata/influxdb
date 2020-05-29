@@ -1,4 +1,4 @@
-// Package simple8b implements the 64bit integer encoding algoritm as published
+// Package simple8b implements the 64bit integer encoding algorithm as published
 // by Ann and Moffat in "Index compression using 64-bit words", Softw. Pract. Exper. 2010; 40:131–147
 //
 // It is capable of encoding multiple integers with values betweeen 0 and to 1^60 -1, in a single word.
@@ -21,7 +21,7 @@ package simple8b
 // └──────────────┴─────────────────────────────────────────────────────────────┘
 //
 // For example, when the number of values can be encoded using 4 bits, selected 5 is encoded in the
-// 4 most significant bits followed by 15 values encoded used 4 bits each in the remaing 60 bits.
+// 4 most significant bits followed by 15 values encoded used 4 bits each in the remaining 60 bits.
 import (
 	"encoding/binary"
 	"errors"
@@ -194,22 +194,22 @@ type packing struct {
 }
 
 var selector [16]packing = [16]packing{
-	packing{240, 0, unpack240, pack240},
-	packing{120, 0, unpack120, pack120},
-	packing{60, 1, unpack60, pack60},
-	packing{30, 2, unpack30, pack30},
-	packing{20, 3, unpack20, pack20},
-	packing{15, 4, unpack15, pack15},
-	packing{12, 5, unpack12, pack12},
-	packing{10, 6, unpack10, pack10},
-	packing{8, 7, unpack8, pack8},
-	packing{7, 8, unpack7, pack7},
-	packing{6, 10, unpack6, pack6},
-	packing{5, 12, unpack5, pack5},
-	packing{4, 15, unpack4, pack4},
-	packing{3, 20, unpack3, pack3},
-	packing{2, 30, unpack2, pack2},
-	packing{1, 60, unpack1, pack1},
+	{240, 0, unpack240, pack240},
+	{120, 0, unpack120, pack120},
+	{60, 1, unpack60, pack60},
+	{30, 2, unpack30, pack30},
+	{20, 3, unpack20, pack20},
+	{15, 4, unpack15, pack15},
+	{12, 5, unpack12, pack12},
+	{10, 6, unpack10, pack10},
+	{8, 7, unpack8, pack8},
+	{7, 8, unpack7, pack7},
+	{6, 10, unpack6, pack6},
+	{5, 12, unpack5, pack5},
+	{4, 15, unpack4, pack4},
+	{3, 20, unpack3, pack3},
+	{2, 30, unpack2, pack2},
+	{1, 60, unpack1, pack1},
 }
 
 // Count returns the number of integers encoded in the byte slice
@@ -347,6 +347,31 @@ func Encode(src []uint64) (value uint64, n int, err error) {
 	}
 }
 
+const (
+	S8B_BIT_SIZE = 60
+)
+
+var (
+	numBits = [...][2]byte{
+		// { number of values, max bits per value }
+		{60, 1},
+		{30, 2},
+		{20, 3},
+		{15, 4},
+		{12, 5},
+		{10, 6},
+		{8, 7},
+		{7, 8},
+		{6, 10},
+		{5, 12},
+		{4, 15},
+		{3, 20},
+		{2, 30},
+		{1, 60},
+	}
+	ErrValueOutOfBounds = errors.New("value out of bounds")
+)
+
 // Encode returns a packed slice of the values from src.  If a value is over
 // 1 << 60, an error is returned.  The input src is modified to avoid extra
 // allocations.  If you need to re-use, use a copy.
@@ -357,64 +382,77 @@ func EncodeAll(src []uint64) ([]uint64, error) {
 	dst := src
 	j := 0
 
-	for {
-		if i >= len(src) {
-			break
-		}
+NEXTVALUE:
+	for i < len(src) {
 		remaining := src[i:]
 
-		if canPack(remaining, 240, 0) {
-			dst[j] = 0
-			i += 240
-		} else if canPack(remaining, 120, 0) {
-			dst[j] = 1 << 60
-			i += 120
-		} else if canPack(remaining, 60, 1) {
-			dst[j] = pack60(src[i : i+60])
-			i += 60
-		} else if canPack(remaining, 30, 2) {
-			dst[j] = pack30(src[i : i+30])
-			i += 30
-		} else if canPack(remaining, 20, 3) {
-			dst[j] = pack20(src[i : i+20])
-			i += 20
-		} else if canPack(remaining, 15, 4) {
-			dst[j] = pack15(src[i : i+15])
-			i += 15
-		} else if canPack(remaining, 12, 5) {
-			dst[j] = pack12(src[i : i+12])
-			i += 12
-		} else if canPack(remaining, 10, 6) {
-			dst[j] = pack10(src[i : i+10])
-			i += 10
-		} else if canPack(remaining, 8, 7) {
-			dst[j] = pack8(src[i : i+8])
-			i += 8
-		} else if canPack(remaining, 7, 8) {
-			dst[j] = pack7(src[i : i+7])
-			i += 7
-		} else if canPack(remaining, 6, 10) {
-			dst[j] = pack6(src[i : i+6])
-			i += 6
-		} else if canPack(remaining, 5, 12) {
-			dst[j] = pack5(src[i : i+5])
-			i += 5
-		} else if canPack(remaining, 4, 15) {
-			dst[j] = pack4(src[i : i+4])
-			i += 4
-		} else if canPack(remaining, 3, 20) {
-			dst[j] = pack3(src[i : i+3])
-			i += 3
-		} else if canPack(remaining, 2, 30) {
-			dst[j] = pack2(src[i : i+2])
-			i += 2
-		} else if canPack(remaining, 1, 60) {
-			dst[j] = pack1(src[i : i+1])
-			i += 1
-		} else {
-			return nil, fmt.Errorf("value out of bounds")
+		// try to pack run of 240 or 120 1s
+		if len(remaining) >= 120 {
+			// Invariant: len(a) is fixed to 120 or 240 values
+			var a []uint64
+			if len(remaining) >= 240 {
+				a = remaining[:240]
+			} else {
+				a = remaining[:120]
+			}
+
+			// search for the longest sequence of 1s in a
+			// Postcondition: k equals the index of the last 1 or -1
+			k := 0
+			for k = range a {
+				if a[k] != 1 {
+					k--
+					break
+				}
+			}
+
+			v := uint64(0)
+			switch {
+			case k == 239:
+				// 240 1s
+				i += 240
+
+			case k >= 119:
+				// at least 120 1s
+				v = 1 << 60
+				i += 120
+
+			default:
+				goto CODES
+			}
+
+			dst[j] = v
+			j++
+			continue
 		}
-		j += 1
+
+	CODES:
+		for code := range numBits {
+			intN := int(numBits[code][0])
+			bitN := numBits[code][1]
+			if intN > len(remaining) {
+				continue
+			}
+
+			maxVal := uint64(1 << (bitN & 0x3f))
+			val := uint64(code+2) << S8B_BIT_SIZE
+
+			for k, inV := range remaining {
+				if k < intN {
+					if inV >= maxVal {
+						continue CODES
+					}
+					val |= inV << ((byte(k) * bitN) & 0x3f)
+				} else {
+					break
+				}
+			}
+			dst[j] = val
+			j += 1
+			i += intN
+			continue NEXTVALUE
+		}
+		return nil, ErrValueOutOfBounds
 	}
 	return dst[:j], nil
 }
@@ -430,13 +468,12 @@ func Decode(dst *[240]uint64, v uint64) (n int, err error) {
 
 // Decode writes the uncompressed values from src to dst.  It returns the number
 // of values written or an error.
+//go:nocheckptr
+// nocheckptr while the underlying struct layout doesn't change
 func DecodeAll(dst, src []uint64) (value int, err error) {
 	j := 0
 	for _, v := range src {
-		sel := v >> 60
-		if sel >= 16 {
-			return 0, fmt.Errorf("invalid selector value: %b", sel)
-		}
+		sel := (v >> 60) & 0xf
 		selector[sel].unpack(v, (*[240]uint64)(unsafe.Pointer(&dst[j])))
 		j += selector[sel].n
 	}
@@ -445,6 +482,8 @@ func DecodeAll(dst, src []uint64) (value int, err error) {
 
 // DecodeBytesBigEndian writes the compressed, big-endian values from src to dst.  It returns the number
 // of values written or an error.
+//go:nocheckptr
+// nocheckptr while the underlying struct layout doesn't change
 func DecodeBytesBigEndian(dst []uint64, src []byte) (value int, err error) {
 	if len(src)&7 != 0 {
 		return 0, errors.New("src length is not multiple of 8")
@@ -468,11 +507,6 @@ func canPack(src []uint64, n, bits int) bool {
 		return false
 	}
 
-	end := len(src)
-	if n < end {
-		end = n
-	}
-
 	// Selector 0,1 are special and use 0 bits to encode runs of 1's
 	if bits == 0 {
 		for _, v := range src {
@@ -485,8 +519,8 @@ func canPack(src []uint64, n, bits int) bool {
 
 	max := uint64((1 << uint64(bits)) - 1)
 
-	for i := 0; i < end; i++ {
-		if src[i] > max {
+	for _, s := range src[:n] {
+		if s > max {
 			return false
 		}
 	}
@@ -506,6 +540,7 @@ func pack120(src []uint64) uint64 {
 
 // pack60 packs 60 values from in using 1 bit each
 func pack60(src []uint64) uint64 {
+	_ = src[59] // eliminate multiple bounds checks
 	return 2<<60 |
 		src[0] |
 		src[1]<<1 |
@@ -572,6 +607,7 @@ func pack60(src []uint64) uint64 {
 
 // pack30 packs 30 values from in using 2 bits each
 func pack30(src []uint64) uint64 {
+	_ = src[29] // eliminate multiple bounds checks
 	return 3<<60 |
 		src[0] |
 		src[1]<<2 |
@@ -607,6 +643,7 @@ func pack30(src []uint64) uint64 {
 
 // pack20 packs 20 values from in using 3 bits each
 func pack20(src []uint64) uint64 {
+	_ = src[19] // eliminate multiple bounds checks
 	return 4<<60 |
 		src[0] |
 		src[1]<<3 |
@@ -632,6 +669,7 @@ func pack20(src []uint64) uint64 {
 
 // pack15 packs 15 values from in using 3 bits each
 func pack15(src []uint64) uint64 {
+	_ = src[14] // eliminate multiple bounds checks
 	return 5<<60 |
 		src[0] |
 		src[1]<<4 |
@@ -652,6 +690,7 @@ func pack15(src []uint64) uint64 {
 
 // pack12 packs 12 values from in using 5 bits each
 func pack12(src []uint64) uint64 {
+	_ = src[11] // eliminate multiple bounds checks
 	return 6<<60 |
 		src[0] |
 		src[1]<<5 |
@@ -669,6 +708,7 @@ func pack12(src []uint64) uint64 {
 
 // pack10 packs 10 values from in using 6 bits each
 func pack10(src []uint64) uint64 {
+	_ = src[9] // eliminate multiple bounds checks
 	return 7<<60 |
 		src[0] |
 		src[1]<<6 |
@@ -684,6 +724,7 @@ func pack10(src []uint64) uint64 {
 
 // pack8 packs 8 values from in using 7 bits each
 func pack8(src []uint64) uint64 {
+	_ = src[7] // eliminate multiple bounds checks
 	return 8<<60 |
 		src[0] |
 		src[1]<<7 |
@@ -697,6 +738,7 @@ func pack8(src []uint64) uint64 {
 
 // pack7 packs 7 values from in using 8 bits each
 func pack7(src []uint64) uint64 {
+	_ = src[6] // eliminate multiple bounds checks
 	return 9<<60 |
 		src[0] |
 		src[1]<<8 |
@@ -709,6 +751,7 @@ func pack7(src []uint64) uint64 {
 
 // pack6 packs 6 values from in using 10 bits each
 func pack6(src []uint64) uint64 {
+	_ = src[5] // eliminate multiple bounds checks
 	return 10<<60 |
 		src[0] |
 		src[1]<<10 |
@@ -720,6 +763,7 @@ func pack6(src []uint64) uint64 {
 
 // pack5 packs 5 values from in using 12 bits each
 func pack5(src []uint64) uint64 {
+	_ = src[4] // eliminate multiple bounds checks
 	return 11<<60 |
 		src[0] |
 		src[1]<<12 |
@@ -730,6 +774,7 @@ func pack5(src []uint64) uint64 {
 
 // pack4 packs 4 values from in using 15 bits each
 func pack4(src []uint64) uint64 {
+	_ = src[3] // eliminate multiple bounds checks
 	return 12<<60 |
 		src[0] |
 		src[1]<<15 |
@@ -739,6 +784,7 @@ func pack4(src []uint64) uint64 {
 
 // pack3 packs 3 values from in using 20 bits each
 func pack3(src []uint64) uint64 {
+	_ = src[2] // eliminate multiple bounds checks
 	return 13<<60 |
 		src[0] |
 		src[1]<<20 |
@@ -747,6 +793,7 @@ func pack3(src []uint64) uint64 {
 
 // pack2 packs 2 values from in using 30 bits each
 func pack2(src []uint64) uint64 {
+	_ = src[1] // eliminate multiple bounds checks
 	return 14<<60 |
 		src[0] |
 		src[1]<<30

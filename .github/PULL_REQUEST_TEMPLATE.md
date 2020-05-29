@@ -1,10 +1,13 @@
-###### Required for all non-trivial PRs
-- [ ] Sign [CLA](https://influxdata.com/community/cla/) (if not already signed)
+Closes #
 
-###### Required only if applicable
-_You can erase any checkboxes below this note if they are not applicable to your Pull Request._
-- [ ] [InfluxQL Spec](https://github.com/influxdata/influxdb/blob/master/influxql/README.md) updated
-- [ ] Provide example syntax
-- [ ] Update man page when modifying a command
-- [ ] Config changes: update sample config (`etc/config.sample.toml`), server `NewDemoConfig` method, and `Diagnostics` methods reporting config settings, if necessary
-- [ ] [InfluxData Documentation](https://github.com/influxdata/docs.influxdata.com): issue filed or pull request submitted \<link to issue or pull request\>
+Describe your proposed changes here.
+
+<!-- Checkboxes below this note can be erased if not applicable to your Pull Request. -->
+
+- [ ] [CHANGELOG.md](https://github.com/influxdata/influxdb/blob/master/CHANGELOG.md) updated with a link to the PR (not the Issue)
+- [ ] [Well-formatted commit messages](https://www.conventionalcommits.org/en/v1.0.0-beta.3/)
+- [ ] Rebased/mergeable
+- [ ] Tests pass
+- [ ] http/swagger.yml updated (if modified Go structs or API)
+- [ ] Documentation updated or issue created (provide link to issue/pr)
+- [ ] Signed [CLA](https://influxdata.com/community/cla/) (if not already signed)

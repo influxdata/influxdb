@@ -1,0 +1,88 @@
+@import "src/style/modules";
+
+$selector-list--checkbox-size: 14px;
+$selector-list--dot-size: 6px;
+$selector-list--h-padding: $ix-marg-c;
+
+.selector-list--item {
+  font-weight: 500;
+  padding: ($ix-marg-a + $ix-border) $selector-list--h-padding;
+  margin-bottom: 2px;
+  cursor: pointer;
+  color: $g12-forge;
+  font-family: $cf-code-font;
+  font-size: $form-sm-font;
+  line-height: $form-sm-font;
+  background-color: transparent;
+  transition: background-color 0.25s ease, color 0.25s ease;
+  border: 0;
+  outline: 0;
+  width: 100%;
+  text-align: left;
+
+  &:hover {
+    background-color: $g5-pepper;
+  }
+
+  &.selected {
+    background-color: $c-pool;
+    color: $g20-white;
+  }
+
+  &.selected:hover {
+    background-color: $c-pool;
+  }
+}
+
+.selector-list--item__disabled,
+.selector-list--item__disabled:hover {
+  cursor: default;
+  background-color: transparent;
+  font-style: italic;
+  color: $g9-mountain;
+}
+
+.selector-list--checkbox {
+  padding-left: $ix-marg-d - $ix-border;
+  position: relative;
+
+  &:before,
+  &:after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    transition: background-color 0.25s ease;
+  }
+
+  &:before {
+    left: $selector-list--h-padding;
+    z-index: 2;
+    width: $selector-list--checkbox-size;
+    height: $selector-list--checkbox-size;
+    background-color: $g2-kevlar;
+    border-radius: 3px;
+  }
+
+  &:after {
+    left: $selector-list--h-padding;
+    z-index: 3;
+    width: $selector-list--dot-size;
+    height: $selector-list--dot-size;
+    background-color: $c-hydrogen;
+    transition: opacity 0.25s ease, transform 0.25s ease;
+    border-radius: 50%;
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.8,1.8);
+  }
+
+  &.selected {
+    &:before {
+      background-color: $c-sapphire;
+    }
+    &:after {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1,1);
+    }
+  }
+}

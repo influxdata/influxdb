@@ -1,0 +1,27 @@
+#!/bin/bash
+
+set -e
+
+# https://stackoverflow.com/a/246128
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+
+verbose_flag=""
+while getopts vx arg; do
+  case "$arg" in
+    v) verbose_flag="--verbose";;
+    x) set -x;;
+  esac
+done
+shift $((OPTIND-1))
+
+export PKG_CONFIG="${DIR}/scripts/pkg-config.sh"
+
+# If this script is being executed, it will be executed under bash
+# so the bash source variable should be present. If the variable
+# matches the current script, then we are being executed and the
+# default argument should be to print the environment.
+if [ $# -eq 0 ] && [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  set -- env
+fi
+
+if [ $# -gt 0 ]; then exec "$@"; fi

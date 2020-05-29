@@ -1,0 +1,659 @@
+openapi: "3.0.0"
+info:
+  title: Chronograf
+  version: 1.5.0.0
+servers:
+  - url: /chronograf/v2
+paths:
+  /cells:
+    post:
+      tags:
+        - Cells
+      summary: Create a cell
+      requestBody:
+          description: cell to create
+          required: true
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cell"
+      responses:
+        '201':
+          description: Added cell
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cell"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    get:
+      tags:
+        - Cells
+      summary: Get all cells
+      responses:
+        '200':
+          description: all cells
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cells"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/cells/{cellID}':
+   get:
+    tags:
+      - Cells
+    summary: Get a single Cell
+    parameters:
+        - in: path
+          name: cellID
+          schema:
+            type: string
+          required: true
+          description: ID of cell to update
+    responses:
+        '200':
+          description: get a single cell
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cell"
+        '404':
+          description: cell not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+   patch:
+      tags:
+        - Cells
+      summary: Update a single cell
+      requestBody:
+          description: patching of a cell
+          required: true
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cell"
+      parameters:
+        - in: path
+          name: cellID
+          schema:
+            type: string
+          required: true
+          description: ID of cell to update
+      responses:
+        '200':
+          description: Updated cell
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cell"
+        '404':
+          description: cell not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+   delete:
+      tags:
+        - Cells
+      summary: Delete a cell
+      parameters:
+        - in: path
+          name: cellID
+          schema:
+            type: string
+          required: true
+          description: ID of cell to update
+      responses:
+        '204':
+          description: delete has been accepted
+        '404':
+          description: cell not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /dashboards:
+    post:
+      tags:
+        - Dashboards
+      summary: Create a dashboard
+      requestBody:
+          description: dashboard to create
+          required: true
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Dashboard"
+      responses:
+        '201':
+          description: Added dashboard
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Dashboard"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    get:
+      tags:
+        - Dashboards
+      summary: Get all dashboards
+      responses:
+        '200':
+          description: all dashboards
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Dashboards"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/dashboards/{dashboardID}':
+   get:
+    tags:
+      - Dashboards
+    summary: Get a single Dashboard
+    parameters:
+        - in: path
+          name: dashboardID
+          schema:
+            type: string
+          required: true
+          description: ID of dashboard to update
+    responses:
+        '200':
+          description: get a single dashboard
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Dashboard"
+        '404':
+          description: dashboard not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+   patch:
+      tags:
+        - Dashboards
+      summary: Update a single dashboard
+      requestBody:
+          description: patching of a dashboard
+          required: true
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Dashboard"
+      parameters:
+        - in: path
+          name: dashboardID
+          schema:
+            type: string
+          required: true
+          description: ID of dashboard to update
+      responses:
+        '200':
+          description: Updated dashboard
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Dashboard"
+        '404':
+          description: dashboard not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+   delete:
+      tags:
+        - Dashboards
+      summary: Delete a dashboard
+      parameters:
+        - in: path
+          name: dashboardID
+          schema:
+            type: string
+          required: true
+          description: ID of dashboard to update
+      responses:
+        '204':
+          description: delete has been accepted
+        '404':
+          description: dashboard not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+components:
+  schemas:
+    Link:
+      type: object
+      readOnly: true
+      description: URI of resource.
+      properties:
+        href:
+          type: string
+          format: url
+      required: [href]
+    Links:
+      type: object
+      readOnly: true
+      properties:
+        self:
+          $ref: "#/components/schemas/Link"
+      required: [self]
+    Field:
+      type: object
+      properties:
+        value:
+          description: >-
+            value is the value of the field.  Meaning of the value is implied by
+            the `type` key
+          type: string
+        type:
+          description: >-
+            type describes the field type. func is a function; field is a field
+            reference
+          type: string
+          enum:
+            - func
+            - field
+            - integer
+            - number
+            - regex
+            - wildcard
+        alias:
+          description: >-
+            Alias overrides the field name in the returned response.  Applies only
+            if type is `func`
+          type: string
+        args:
+          description: Args are the arguments to the function
+          type: array
+          items:
+            $ref: '#/components/schemas/Field'
+    QueryConfig:
+      type: object
+      required:
+        - database
+        - measurement
+        - retentionPolicy
+        - areTagsAccepted
+        - tags
+        - groupBy
+        - fields
+      properties:
+        id:
+          type: string
+        database:
+          type: string
+        measurement:
+          type: string
+        retentionPolicy:
+          type: string
+        areTagsAccepted:
+          type: boolean
+        rawText:
+          type: string
+        tags:
+          type: object
+        groupBy:
+          type: object
+          properties:
+            time:
+              type: string
+            tags:
+              type: array
+              items:
+                type: string
+          required:
+            - time
+            - tags
+        fields:
+          type: array
+          items:
+            $ref: '#/components/schemas/Field'
+        range:
+          type: object
+          properties:
+            lower:
+              type: string
+            upper:
+              type: string
+          required:
+            - lower
+            - upper
+    DashboardQuery:
+      type: object
+      required:
+        - query
+      properties:
+        label:
+          type: string
+          description: Optional Y-axis user-facing label
+        range:
+          description: Optional default range of the Y-axis
+          type: object
+          required:
+            - upper
+            - lower
+          properties:
+            upper:
+              description: Upper bound of the display range of the Y-axis
+              type: integer
+              format: int64
+            lower:
+              description: Lower bound of the display range of the Y-axis
+              type: integer
+              format: int64
+        query:
+          type: string
+        source:
+          type: string
+          format: url
+          description: Optional URI for data source for this query
+        queryConfig:
+          $ref: '#/components/schemas/QueryConfig'
+        name:
+          type: string
+          description: An optional word or phrase that refers to the query
+    Axis:
+      type: object
+      description: A description of a particular axis for a visualization
+      properties:
+        bounds:
+          type: array
+          minItems: 0
+          maxItems: 2
+          description: >-
+            The extents of an axis in the form [lower, upper]. Clients determine
+            whether bounds are to be inclusive or exclusive of their limits
+          items:
+            type: integer
+            format: int64
+        label:
+          description: label is a description of this Axis
+          type: string
+        prefix:
+          description: Prefix represents a label prefix for formatting axis values.
+          type: string
+        suffix:
+          description: Suffix represents a label suffix for formatting axis values.
+          type: string
+        base:
+          description: Base represents the radix for formatting axis values.
+          type: string
+        scale:
+          description: 'Scale is the axis formatting scale. Supported: "log", "linear"'
+          type: string
+    DashboardColor:
+      type: object
+      description: Color defines an encoding of data value into color space
+      properties:
+        id:
+          description: ID is the unique id of the cell color
+          type: string
+        type:
+          description: Type is how the color is used.
+          type: string
+          enum:
+            - min
+            - max
+            - threshold
+        hex:
+          description: Hex is the hex number of the color
+          type: string
+          maxLength: 7
+          minLength: 7
+        name:
+          description: Name is the user-facing name of the hex color
+          type: string
+        value:
+          description: Value is the data value mapped to this color
+          type: number
+          format: float
+    RenamableField:
+      description: Describes a field that can be renamed and made visible or invisible
+      type: object
+      properties:
+        internalName:
+          description: This is the calculated name of a field
+          readOnly: true
+          type: string
+        displayName:
+          description: This is the name that a field is renamed to by the user
+          type: string
+        visible:
+          description: Indicates whether this field should be visible on the table
+          type: boolean
+    V1Visualization:
+      properties:
+        type:
+          type: string
+          enum: ["chronograf-v1"]
+        queries:
+          type: array
+          items:
+            $ref: "#/components/schemas/DashboardQuery"
+        axes:
+          description: The viewport for a Cell's visualizations
+          type: object
+          properties:
+            x:
+              $ref: '#/components/schemas/Axis'
+            y:
+              $ref: '#/components/schemas/Axis'
+            y2:
+              $ref: '#/components/schemas/Axis'
+        graphType:
+          description: The viewport for a cell's graph/visualization
+          type: string
+          enum:
+            - single-stat
+            - line
+            - line-plus-single-stat
+            - line-stacked
+            - line-stepplot
+            - bar
+            - gauge
+            - table
+          default: line
+        colors:
+          description: Colors define color encoding of data into a visualization
+          type: array
+          items:
+            $ref: "#/components/schemas/DashboardColor"
+        legend:
+          description: Legend define encoding of data into a cell's legend
+          type: object
+          properties:
+            type:
+              description: type is the style of the legend
+              type: string
+              enum:
+                - static
+            orientation:
+              description: >-
+                orientation is the location of the legend with respect to the cell
+                graph
+              type: string
+              enum:
+                - top
+                - bottom
+                - left
+                - right
+        tableOptions:
+          properties:
+            verticalTimeAxis:
+              description: >-
+                verticalTimeAxis describes the orientation of the table by
+                indicating whether the time axis will be displayed vertically
+              type: boolean
+            sortBy:
+              $ref: "#/components/schemas/RenamableField"
+            wrapping:
+              description: wrapping describes the text wrapping style to be used in table cells
+              type: string
+              enum:
+                - truncate
+                - wrap
+                - single-line
+            fixFirstColumn:
+              description: >-
+                fixFirstColumn indicates whether the first column of the table
+                should be locked
+              type: boolean
+        fieldOptions:
+          description: >-
+            fieldOptions represent the fields retrieved by the query with
+            customization options
+          type: array
+          items:
+            $ref: '#/components/schemas/RenamableField'
+        timeFormat:
+          description: >-
+            timeFormat describes the display format for time values according to
+            moment.js date formatting
+          type: string
+        decimalPoints:
+          description: >-
+            decimal points indicates whether and how many digits to show after
+            decimal point
+          type: object
+          properties:
+            isEnforced:
+              description: Indicates whether decimal point setting should be enforced
+              type: boolean
+            digits:
+              description: The number of digists after decimal to display
+              type: integer
+    EmptyVisualization:
+      properties:
+        type:
+          type: string
+          enum: ["empty"]
+    Cell:
+      properties:
+        links:
+          $ref: "#/components/schemas/Links"
+        id:
+          readOnly: true
+          type: string
+        name:
+          type: string
+        visualization:
+          oneOf:
+            - $ref: "#/components/schemas/V1Visualization"
+            - $ref: "#/components/schemas/EmptyVisualization"
+    Cells:
+      type: object
+      properties:
+        links:
+          $ref: "#/components/schemas/Links"
+        cells:
+          type: array
+          items:
+            $ref: "#/components/schemas/Cell"
+    DashboardCell:
+      type: object
+      properties:
+        x:
+          type: integer
+          format: int32
+        y:
+          type: integer
+          format: int32
+        w:
+          type: integer
+          format: int32
+        h:
+          type: integer
+          format: int32
+        ref:
+          type: string
+          description: The reference to a cell from the cells API
+    Dashboard:
+      properties:
+        links:
+          $ref: "#/components/schemas/Links"
+        id:
+          readOnly: true
+          type: string
+        name:
+          type: string
+        cells:
+          type: array
+          items:
+            $ref: "#/components/schemas/DashboardCell"
+    Dashboards:
+      type: object
+      properties:
+        links:
+          $ref: "#/components/schemas/Links"
+        dashboards:
+          type: array
+          items:
+            $ref: "#/components/schemas/Dashboards"
+    Error:
+      properties:
+        code:
+          readOnly: true
+          type: integer
+          format: int32
+        message:
+          readOnly: true
+          type: string
+      required: [code, message]

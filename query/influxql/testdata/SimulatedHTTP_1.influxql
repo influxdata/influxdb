@@ -1,0 +1,1 @@
+SELECT top(n, path, 3) FROM (SELECT mean(n) AS n FROM requests WHERE time >=0 AND time <= 168h GROUP BY time(5m), *)

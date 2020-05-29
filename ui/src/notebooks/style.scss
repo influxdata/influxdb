@@ -1,0 +1,216 @@
+@import '@influxdata/clockface/dist/variables.scss';
+@import '~src/notebooks/NotebookVariables.scss';
+
+.notebook {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+}
+
+.notebook-page .cf-page-contents__fluid {
+  padding: 0;
+}
+
+.notebook--add-cell-label {
+  user-select: none;
+  margin: 0 $cf-marg-c 0 0;
+  font-size: 14px;
+  font-weight: $cf-font-weight--medium;
+}
+
+.notebook-main,
+.notebook-empty {
+  flex: 1 0 0;
+}
+
+.notebook-empty {
+  padding: 0 $notebook-panel--gutter;
+}
+
+.notebook-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  border-radius: $cf-radius;
+  margin: 0 $notebook-panel--gutter;
+
+  &:after {
+    content: '';
+    height: $cf-border;
+    background-color: $notebook-divider-color;
+    border-radius: $cf-border / 2;
+    margin: $cf-marg-a 0;
+  }
+
+  &:last-of-type:after {
+    display: none;
+  }
+}
+
+.notebook-panel--header,
+.notebook-panel--body {
+  transition: background-color 0.25s ease;
+}
+
+.notebook-panel--header {
+  border-radius: $cf-radius $cf-radius 0 0;
+  height: $notebook-header-height;
+  flex: 0 0 $notebook-header-height;
+  padding: 0 $cf-marg-b;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.notebook-panel--header-left,
+.notebook-panel--header-right {
+  flex: 1 0 $notebook-header-height;
+}
+
+.notebook-panel--header-right {
+  transition: opacity 0.25s ease;
+  opacity: 0;
+}
+
+.notebook-panel--title,
+.notebook-panel--data-source {
+  font-size: 14px;
+  font-weight: $cf-font-weight--medium;
+  user-select: none;
+  margin-right: $cf-marg-b !important;
+}
+
+.notebook-panel--title {
+  color: $g15-platinum;
+}
+
+.notebook-panel--data-source {
+  color: $c-laser;
+}
+
+.notebook-panel--editable-title {
+  background-color: transparent;
+  border: 0;
+  color: $g15-platinum;
+  font-size: 14px;
+  font-family: $cf-text-font;
+  font-weight: $cf-font-weight--medium;
+  transition: color 0.25s ease, background-color 0.25s ease;
+  outline: none;
+  width: 350px;
+
+  &:hover,
+  &:focus {
+    color: $g20-white;
+  }
+}
+
+// Focus state
+.notebook-panel__focus,
+.notebook-panel:hover {
+  .notebook-panel--header-right {
+    opacity: 1;
+  }
+}
+
+.notebook-panel__focus {
+  .notebook-panel--header,
+  .notebook-panel--body {
+    background-color: $notebook-panel--bg;
+  }
+}
+
+.notebook-panel--data-caret {
+  display: inline-block;
+  margin-left: $cf-marg-a;
+  font-size: 0.8em;
+  position: relative;
+  top: -2px;
+}
+
+.notebook-panel--body {
+  border-radius: 0 0 $cf-radius $cf-radius;
+  padding: $cf-marg-b;
+  padding-top: 0;
+  position: relative;
+}
+
+// Special styling for query builder inside notebook panel
+.notebook-panel--body .query-builder {
+  position: relative;
+  height: 320px;
+  width: 100%;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  padding-top: 0;
+}
+
+.notebook-panel--results {
+  width: 100%;
+  height: 320px;
+  position: relative;
+}
+
+/*
+  Notebook Panel Modes
+  ------------------------------------------------------------------------------
+*/
+
+.notebook-panel__hidden {
+  height: $notebook-header-height + $notebook-divider-height;
+
+  .notebook-panel--body {
+    display: none;
+  }
+
+  .notebook-panel--header {
+    border-radius: $cf-radius;
+  }
+}
+
+.notebook-panel__visible {
+  min-height: $notebook-header-height;
+}
+
+/*
+  Visualization Panel
+  ------------------------------------------------------------------------------
+*/
+
+.notebook-panel--visualization {
+  width: 100%;
+  height: 320px;
+  display: flex;
+  align-items: stretch;
+  flex-direction: row;
+}
+
+.notebook-panel--view {
+  flex: 1 0 0;
+  position: relative;
+}
+
+// Special styling for view options inside notebook panel
+.notebook-panel--body .view-options {
+  flex: 0 0 340px;
+  border-radius: 0;
+  background-color: transparent;
+  margin-right: 0;
+}
+.notebook-panel--body .view-options--container {
+  padding: $cf-marg-c;
+}
+
+.notebook-header--buttons {
+  display: inline-flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+
+  > * {
+    margin-left: $cf-marg-a;
+  }
+}

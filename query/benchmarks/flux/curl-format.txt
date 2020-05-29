@@ -1,0 +1,5 @@
+\n
+time_starttransfer: %{time_starttransfer}\n
+size_download:      %{size_download}\n
+time_total:         %{time_total}\n
+\n

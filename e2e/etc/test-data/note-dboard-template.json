@@ -1,0 +1,68 @@
+{
+ "meta": {
+  "name": "Note Dashboard-Template",
+  "type": "dashboard",
+  "description": "template created from dashboard: Note Dashboard",
+  "version": "1",
+  "createdAt": "2019-10-21T14:16:31.163226513Z",
+  "updatedAt": "2019-10-21T14:16:31.163226637Z"
+ },
+ "content": {
+  "data": {
+   "attributes": {
+    "description": "",
+    "name": "Note Dashboard"
+   },
+   "relationships": {
+    "cell": {
+     "data": [
+      {
+       "id": "04a7aa8e284a5000",
+       "type": "cell"
+      }
+     ]
+    },
+    "label": {
+     "data": []
+    },
+    "variable": {
+     "data": []
+    }
+   },
+   "type": "dashboard"
+  },
+  "included": [
+   {
+    "attributes": {
+     "h": 4,
+     "w": 4,
+     "x": 0,
+     "y": 0
+    },
+    "id": "04a7aa8e284a5000",
+    "relationships": {
+     "view": {
+      "data": {
+       "id": "04a7aa8e284a5000",
+       "type": "view"
+      }
+     }
+    },
+    "type": "cell"
+   },
+   {
+    "attributes": {
+     "name": "Name this Cell",
+     "properties": {
+      "note": "This dashboard just contains a note",
+      "shape": "chronograf-v2",
+      "type": "markdown"
+     }
+    },
+    "id": "04a7aa8e284a5000",
+    "type": "view"
+   }
+  ]
+ },
+ "labels": []
+}

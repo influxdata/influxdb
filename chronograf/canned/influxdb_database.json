@@ -1,0 +1,28 @@
+{
+  "id": "543aa120-14ba-46a2-8ef9-6e6c7be3d600",
+  "measurement": "influxdb_database",
+  "app": "influxdb",
+  "autoflow": true,
+  "cells": [
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "ebc3e2df-640f-4344-b493-d5aae873b6d3",
+      "name": "InfluxDB - Cardinality",
+      "queries": [
+        {
+          "query": "SELECT max(\"numMeasurements\") AS \"measurements\" FROM \":db:\".\":rp:\".\"influxdb_database\"",
+          "groupbys": [],
+          "wheres": []
+        },
+        {
+          "query": "SELECT max(\"numSeries\") AS \"series\" FROM \":db:\".\":rp:\".\"influxdb_database\"",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    }
+  ]
+}

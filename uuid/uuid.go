@@ -45,7 +45,7 @@ import (
 type UUID [16]byte
 
 var timeBase = time.Date(1582, time.October, 15, 0, 0, 0, 0, time.UTC).Unix()
-var hardwareAddr [6]byte = hwAddrFunc()
+var hardwareAddr = hwAddrFunc()
 var clockSeq uint32
 
 func hwAddrFunc() [6]byte {

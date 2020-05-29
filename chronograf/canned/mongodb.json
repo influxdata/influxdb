@@ -1,0 +1,120 @@
+{
+  "id": "921298ad-0cdd-44f4-839b-10c319e7fcc7",
+  "measurement": "mongodb",
+  "app": "mongodb",
+  "autoflow": true,
+  "cells": [
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "b2631fd5-7d32-4a31-9edf-98362fd3626e",
+      "name": "MongoDB – Read/Second",
+      "queries": [
+        {
+          "query": "SELECT mean(queries_per_sec) AS queries_per_second, mean(getmores_per_sec) AS getmores_per_second FROM \":db:\".\":rp:\".\"mongodb\"",
+          "label": "reads/s",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "9362e390-951b-4dba-adec-40c261e37604",
+      "name": "MongoDB – Writes/Second",
+      "queries": [
+        {
+          "query": "SELECT mean(inserts_per_sec) AS inserts_per_second, mean(updates_per_sec) AS updates_per_second, mean(deletes_per_sec) AS deletes_per_second FROM \":db:\".\":rp:\".\"mongodb\"",
+          "label": "writes/s",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "7ca54d4c-9f0d-47fd-a7fe-2d01e832bbf4",
+      "name": "MongoDB – Active Connections",
+      "queries": [
+        {
+          "query": "SELECT mean(open_connections) AS open_connections FROM \":db:\".\":rp:\".\"mongodb\"",
+          "label": "count",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "ea5ae388-9ca3-42f9-835f-cc9b265705be",
+      "name": "MongoDB – Reads/Writes Waiting in Queue",
+      "queries": [
+        {
+          "query": "SELECT max(queued_reads) AS queued_reads, max(queued_writes) as queued_writes FROM \":db:\".\":rp:\".\"mongodb\"",
+          "label": "count",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "631dcbba-c997-4fd7-b640-754a1b36026c",
+      "name": "MongoDB – Network Bytes/Second",
+      "queries": [
+        {
+          "query": "SELECT mean(net_in_bytes) AS net_in_bytes, mean(net_out_bytes) as net_out_bytes FROM \":db:\".\":rp:\".\"mongodb\"",
+          "label": "bytes/s",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "5b03bef0-e5e9-4b53-b5f8-1d1b740cf5a2",
+      "name": "MongoDB – Page Faults",
+      "queries": [
+        {
+          "query": "SELECT mean(page_faults_per_sec) AS page_faults_per_second FROM \":db:\".\":rp:\".\"mongodb\"",
+          "label": "faults/s",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "4bc98883-2347-46bb-9459-1c6fe7fb47a8",
+      "name": "MongoDB – Memory Usage (MB)",
+      "queries": [
+        {
+          "query": "SELECT mean(vsize_megabytes) AS virtual_memory_megabytes, mean(resident_megabytes) as resident_memory_megabytes FROM \":db:\".\":rp:\".\"mongodb\"",
+          "label": "MB",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    }
+  ]
+}

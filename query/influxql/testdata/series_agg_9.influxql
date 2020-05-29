@@ -1,0 +1,1 @@
+SELECT sum(f) FROM m GROUP BY *

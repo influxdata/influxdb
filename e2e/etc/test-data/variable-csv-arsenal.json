@@ -1,0 +1,44 @@
+{
+ "meta": {
+  "version": "1",
+  "type": "variable",
+  "name": "Arsenal-Template",
+  "description": "template created from variable: Arsenal"
+ },
+ "content": {
+  "data": {
+   "type": "variable",
+   "attributes": {
+    "name": "Arsenal",
+    "arguments": {
+     "type": "constant",
+     "values": [
+      "Henry",
+      "Wright",
+      "Bastin",
+      "Radford",
+      "Brain",
+      "Drake",
+      "Lishman",
+      "van Persie",
+      "Hulme",
+      "Jack"
+     ]
+    },
+    "selected": [
+     "Henry"
+    ]
+   },
+   "relationships": {
+    "variable": {
+     "data": []
+    },
+    "label": {
+     "data": []
+    }
+   }
+  },
+  "included": []
+ },
+ "labels": []
+}

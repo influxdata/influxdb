@@ -1,0 +1,1 @@
+SELECT count("n") FROM "ctr" WHERE time >= 630m AND time <= 840m

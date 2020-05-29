@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "module": "commonjs",
+    "target": "es5",
+    "esModuleInterop": true
+  },
+  "exclude": [
+    "assets",
+    "build",
+    "node_modules",
+    "cypress",
+    "webpack.tsconfig.json"
+  ]
+}

@@ -3,11 +3,10 @@ package snowflake
 import (
 	"fmt"
 	"math/rand"
+	"reflect"
 	"sort"
 	"sync/atomic"
 	"testing"
-
-	"github.com/influxdata/influxdb/pkg/testing/assert"
 )
 
 func TestEncode(t *testing.T) {
@@ -25,7 +24,9 @@ func TestEncode(t *testing.T) {
 		t.Run(fmt.Sprintf("0x%03x→%s", test.v, test.exp), func(t *testing.T) {
 			var s [11]byte
 			encode(&s, test.v)
-			assert.Equal(t, string(s[:]), test.exp)
+			if got, exp := string(s[:]), test.exp; got != exp {
+				t.Fatalf("got %q, expected %q", got, exp)
+			}
 		})
 	}
 }
@@ -50,12 +51,16 @@ func TestSorting(t *testing.T) {
 	})
 
 	sort.Strings(vals)
-	assert.Equal(t, vals, exp)
+	if !reflect.DeepEqual(vals, exp) {
+		t.Fatalf("got %v, expected %v", vals, exp)
+	}
 }
 
 func TestMachineID(t *testing.T) {
 	for i := 0; i < serverMax; i++ {
-		assert.Equal(t, New(i).MachineID(), i)
+		if got, exp := New(i).MachineID(), i; got != exp {
+			t.Fatalf("got %d, expected %d", got, exp)
+		}
 	}
 }
 

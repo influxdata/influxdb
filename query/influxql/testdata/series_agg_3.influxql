@@ -1,0 +1,1 @@
+SELECT elapsed(f) FROM m GROUP BY *

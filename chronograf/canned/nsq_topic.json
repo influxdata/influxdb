@@ -1,0 +1,78 @@
+{
+  "id": "f7be6717-61df-4e58-ac4a-e4f49f95d847",
+  "measurement": "nsq_topic",
+  "app": "nsq",
+  "autoflow": true,
+  "cells": [
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "f07967cb-2c2a-41cb-8420-f041f46b0635",
+      "name": "NSQ - Topic Messages",
+      "queries": [
+        {
+          "query": "SELECT mean(\"depth\") AS \"depth\" FROM \":db:\".\":rp:\".\"nsq_topic\"",
+          "groupbys": [
+            "\"topic\""
+          ],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 4,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "912f337b-3af2-42af-9352-b31a5bc3b431",
+      "name": "NSQ - Topic Messages on Disk",
+      "queries": [
+        {
+          "query": "SELECT mean(\"backend_depth\") AS \"backend_depth\" FROM \":db:\".\":rp:\".\"nsq_topic\"",
+          "groupbys": [
+            "\"topic\""
+          ],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 4,
+      "w": 4,
+      "h": 4,
+      "i": "06909f21-f035-4668-8193-8e06a018accb",
+      "name": "NSQ - Topic Ingress",
+      "queries": [
+        {
+          "query": "SELECT non_negative_derivative(max(\"message_count\")) AS \"messages_per_second\" FROM \":db:\".\":rp:\".\"nsq_topic\"",
+          "groupbys": [
+            "\"topic\"",
+            "\"host\""
+          ],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 4,
+      "y": 4,
+      "w": 4,
+      "h": 4,
+      "i": "a5aa73a5-42aa-464a-aaaa-0a7a50632a0a",
+      "name": "NSQ topic egress",
+      "queries": [
+        {
+          "query": "SELECT non_negative_derivative(max(\"message_count\")) - non_negative_derivative(max(\"depth\")) AS \"messages_per_second\" FROM \":db:\".\":rp:\".\"nsq_topic\"",
+          "groupbys": [
+            "\"topic\"",
+            "\"host\""
+          ],
+          "wheres": []
+        }
+      ]
+    }
+  ]
+}

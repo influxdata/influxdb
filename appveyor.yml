@@ -1,37 +1,33 @@
 version: 0.{build}
 pull_requests:
   do_not_increment_build_number: true
-branches:
-  only:
-  - master
+
+# After a PR is opened, don't run separate appveyor builds for the branch - only builds for the PR.
+skip_branch_with_pr: true
 
 os: Windows Server 2012 R2
 
 # Custom clone folder (variables are not expanded here).
-clone_folder: c:\gopath\src\github.com\influxdata\influxdb
+clone_folder: c:\influxdb
 
 # Environment variables
 environment:
-  GOROOT: C:\go110
-  GOPATH: C:\gopath
+  GOROOT: C:\go111
+  GOFLAGS: "-mod=readonly"
 
 # Scripts that run after cloning repository
 install:
- - set PATH=%GOROOT%\bin;%GOPATH%\bin;%PATH%
- - rmdir c:\go /s /q
+#  - choco install bzr # Needed to install go modules
+ - set PATH=%GOROOT%\bin;%GOPATH%\bin;C:\Program Files (x86)\Bazaar\;%PATH%
  - echo %PATH%
  - echo %GOPATH%
- - cd C:\gopath\src\github.com\influxdata\influxdb
+ - cd C:\influxdb
  - go version
  - go env
- - go get github.com/golang/dep/cmd/dep
- - cd C:\gopath\src\github.com\influxdata\influxdb
- - dep ensure -vendor-only
 
-# To run your custom scripts instead of automatic MSBuild
-build_script:
- - go get -t -v ./...
- - go test -timeout 15m -v ./...
+build: false
+deploy: false
 
-# To disable deployment
-deploy: off
+test_script:
+  - echo "Appveyor needs to be re-enabled. See https://github.com/influxdata/influxdb/issues/10937"
+  # - go test -timeout 15m -v ./...

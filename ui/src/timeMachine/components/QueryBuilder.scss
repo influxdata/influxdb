@@ -1,0 +1,30 @@
+.query-builder {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  bottom: 0;
+  padding-top: $ix-marg-b;
+  display: flex;
+  flex-direction: column;
+  @include no-user-select();
+
+  .function-selector {
+    margin-left: $ix-marg-b;
+  }
+}
+
+.query-builder--cards {
+  flex: 1 1 0;
+  display: flex;
+  justify-content: space-between;
+}
+
+.builder-card--list > .query-builder--add-card-button {
+  height: 100%;
+  background-color: $g4-onyx;
+  border-color: $g4-onyx;
+  flex-grow: 0;
+  flex-shrink: 0;
+}
+
