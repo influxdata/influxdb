@@ -11,6 +11,7 @@ const allPermissionTypes: PermissionTypes[] = [
   'buckets',
   'checks',
   'dashboards',
+  'dbrp',
   'documents',
   'labels',
   'notificationRules',
@@ -36,6 +37,7 @@ const ensureT = (orgID: string) => (t: PermissionTypes): Permission[] => {
     case 'buckets':
     case 'checks':
     case 'dashboards':
+    case 'dbrp':
     case 'documents':
     case 'labels':
     case 'notificationRules':

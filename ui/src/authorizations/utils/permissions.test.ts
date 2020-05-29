@@ -62,6 +62,20 @@ const hvhs: Permission[] = [
     action: 'read',
     resource: {
       orgID: 'bulldogs',
+      type: 'dbrp',
+    },
+  },
+  {
+    action: 'write',
+    resource: {
+      orgID: 'bulldogs',
+      type: 'dbrp',
+    },
+  },
+  {
+    action: 'read',
+    resource: {
+      orgID: 'bulldogs',
       type: 'documents',
     },
   },

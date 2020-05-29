@@ -1,4 +1,4 @@
-import React, {FC, useState, useCallback} from 'react'
+import React, {FC, useState, useCallback, RefObject} from 'react'
 import {RemoteDataState} from 'src/types'
 import {PipeData} from 'src/notebooks'
 import {FromFluxResult} from '@influxdata/giraffe'
@@ -8,6 +8,7 @@ export interface PipeMeta {
   visible: boolean
   loading: RemoteDataState
   focus: boolean
+  panelRef: RefObject<HTMLDivElement>
 }
 
 // TODO: this is screaming for normalization. figure out frontend uuids for cells

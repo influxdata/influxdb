@@ -3,7 +3,7 @@ import {combineReducers} from 'redux'
 // Types
 import {ActionTypes, Action} from 'src/shared/actions/app'
 import {AUTOREFRESH_DEFAULT_INTERVAL} from 'src/shared/constants'
-import {TimeZone, NavBarState, Theme} from 'src/types'
+import {TimeZone, NavBarState, Theme, NotebookMiniMapState} from 'src/types'
 
 export interface AppState {
   ephemeral: {
@@ -15,6 +15,7 @@ export interface AppState {
     timeZone: TimeZone
     navBarState: NavBarState
     theme: Theme
+    notebookMiniMapState: NotebookMiniMapState
   }
 }
 
@@ -28,6 +29,7 @@ const initialState: AppState = {
     showTemplateControlBar: false,
     timeZone: 'Local',
     navBarState: 'collapsed',
+    notebookMiniMapState: 'expanded',
   },
 }
 
@@ -80,6 +82,12 @@ const appPersistedReducer = (
       const {timeZone} = action.payload
 
       return {...state, timeZone}
+    }
+
+    case ActionTypes.SetNotebookMiniMapState: {
+      const notebookMiniMapState = action.notebookMiniMapState
+
+      return {...state, notebookMiniMapState}
     }
 
     case 'SET_NAV_BAR_STATE': {

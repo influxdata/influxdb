@@ -9,7 +9,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2"
 	influxdbcontext "github.com/influxdata/influxdb/v2/context"
-	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"github.com/influxdata/influxdb/v2/mock"
 	influxdbtesting "github.com/influxdata/influxdb/v2/testing"
 )
@@ -20,6 +19,11 @@ const (
 
 var (
 	orgOneInfluxID = influxdbtesting.MustIDBase16(orgOneID)
+	orgSvc         = &mock.OrganizationService{
+		FindResourceOrganizationIDF: func(_ context.Context, _ influxdb.ResourceType, _ influxdb.ID) (influxdb.ID, error) {
+			return orgOneInfluxID, nil
+		},
+	}
 )
 
 var labelCmpOptions = cmp.Options{
@@ -112,7 +116,7 @@ func TestLabelService_FindLabelByID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := NewAuthedLabelService(tt.fields.LabelService)
+			s := NewAuthedLabelService(tt.fields.LabelService, orgSvc)
 
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
@@ -267,9 +271,9 @@ func TestLabelService_FindLabels(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := NewAuthedLabelService(tt.fields.LabelService)
+			s := NewAuthedLabelService(tt.fields.LabelService, orgSvc)
 
-			ctx := context.WithValue(context.Background(), kithttp.CtxOrgKey, orgOneInfluxID)
+			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			labels, err := s.FindLabels(ctx, influxdb.LabelFilter{})
@@ -375,7 +379,7 @@ func TestLabelService_UpdateLabel(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := NewAuthedLabelService(tt.fields.LabelService)
+			s := NewAuthedLabelService(tt.fields.LabelService, orgSvc)
 
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
@@ -475,7 +479,7 @@ func TestLabelService_DeleteLabel(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := NewAuthedLabelService(tt.fields.LabelService)
+			s := NewAuthedLabelService(tt.fields.LabelService, orgSvc)
 
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
@@ -579,7 +583,7 @@ func TestLabelService_CreateLabel(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := NewAuthedLabelService(tt.fields.LabelService)
+			s := NewAuthedLabelService(tt.fields.LabelService, orgSvc)
 
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
@@ -811,9 +815,9 @@ func TestLabelService_FindResourceLabels(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := NewAuthedLabelService(tt.fields.LabelService)
+			s := NewAuthedLabelService(tt.fields.LabelService, orgSvc)
 
-			ctx := context.WithValue(context.Background(), kithttp.CtxOrgKey, orgOneInfluxID)
+			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			labels, err := s.FindResourceLabels(ctx, tt.args.filter)
@@ -963,7 +967,7 @@ func TestLabelService_CreateLabelMapping(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := NewAuthedLabelService(tt.fields.LabelService)
+			s := NewAuthedLabelService(tt.fields.LabelService, orgSvc)
 
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
@@ -1111,7 +1115,7 @@ func TestLabelService_DeleteLabelMapping(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := NewAuthedLabelService(tt.fields.LabelService)
+			s := NewAuthedLabelService(tt.fields.LabelService, orgSvc)
 
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))

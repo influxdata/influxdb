@@ -422,6 +422,7 @@ func (r ReqApplyPkg) Pkgs(encoding Encoding) (*Pkg, error) {
 
 // RespApplyPkg is the response body for the apply pkg endpoint.
 type RespApplyPkg struct {
+	StackID string  `json:"stackID" yaml:"stackID"`
 	Diff    Diff    `json:"diff" yaml:"diff"`
 	Summary Summary `json:"summary" yaml:"summary"`
 
@@ -478,11 +479,12 @@ func (s *HTTPServer) applyPkg(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if reqBody.DryRun {
-		sum, diff, err := s.svc.DryRun(r.Context(), *orgID, userID, parsedPkg, applyOpts...)
+		impact, err := s.svc.DryRun(r.Context(), *orgID, userID, parsedPkg, applyOpts...)
 		if IsParseErr(err) {
 			s.api.Respond(w, r, http.StatusUnprocessableEntity, RespApplyPkg{
-				Diff:    diff,
-				Summary: sum,
+				StackID: impact.StackID.String(),
+				Diff:    impact.Diff,
+				Summary: impact.Summary,
 				Errors:  convertParseErr(err),
 			})
 			return
@@ -493,23 +495,25 @@ func (s *HTTPServer) applyPkg(w http.ResponseWriter, r *http.Request) {
 		}
 
 		s.api.Respond(w, r, http.StatusOK, RespApplyPkg{
-			Diff:    diff,
-			Summary: sum,
+			StackID: impact.StackID.String(),
+			Diff:    impact.Diff,
+			Summary: impact.Summary,
 		})
 		return
 	}
 
 	applyOpts = append(applyOpts, ApplyWithSecrets(reqBody.Secrets))
 
-	sum, diff, err := s.svc.Apply(r.Context(), *orgID, userID, parsedPkg, applyOpts...)
+	impact, err := s.svc.Apply(r.Context(), *orgID, userID, parsedPkg, applyOpts...)
 	if err != nil && !IsParseErr(err) {
 		s.api.Err(w, r, err)
 		return
 	}
 
 	s.api.Respond(w, r, http.StatusCreated, RespApplyPkg{
-		Diff:    diff,
-		Summary: sum,
+		StackID: impact.StackID.String(),
+		Diff:    impact.Diff,
+		Summary: impact.Summary,
 		Errors:  convertParseErr(err),
 	})
 }

@@ -54,9 +54,11 @@ import ClientCSharpOverlay from 'src/clientLibraries/components/ClientCSharpOver
 import ClientGoOverlay from 'src/clientLibraries/components/ClientGoOverlay'
 import ClientJavaOverlay from 'src/clientLibraries/components/ClientJavaOverlay'
 import ClientJSOverlay from 'src/clientLibraries/components/ClientJSOverlay'
+import ClientKotlinOverlay from 'src/clientLibraries/components/ClientKotlinOverlay'
 import ClientPHPOverlay from 'src/clientLibraries/components/ClientPHPOverlay'
 import ClientPythonOverlay from 'src/clientLibraries/components/ClientPythonOverlay'
 import ClientRubyOverlay from 'src/clientLibraries/components/ClientRubyOverlay'
+import ClientScalaOverlay from 'src/clientLibraries/components/ClientScalaOverlay'
 import TemplateImportOverlay from 'src/templates/components/TemplateImportOverlay'
 import TemplateExportOverlay from 'src/templates/components/TemplateExportOverlay'
 import VariablesIndex from 'src/variables/containers/VariablesIndex'
@@ -372,6 +374,10 @@ class Root extends PureComponent {
                                   component={ClientJSOverlay}
                                 />
                                 <Route
+                                  path="kotlin"
+                                  component={ClientKotlinOverlay}
+                                />
+                                <Route
                                   path="php"
                                   component={ClientPHPOverlay}
                                 />
@@ -382,6 +388,10 @@ class Root extends PureComponent {
                                 <Route
                                   path="ruby"
                                   component={ClientRubyOverlay}
+                                />
+                                <Route
+                                  path="scala"
+                                  component={ClientScalaOverlay}
                                 />
                               </Route>
                             </Route>

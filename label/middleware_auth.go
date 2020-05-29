@@ -6,19 +6,20 @@ import (
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/authorizer"
-	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 )
 
 var _ influxdb.LabelService = (*AuthedLabelService)(nil)
 
 type AuthedLabelService struct {
-	s influxdb.LabelService
+	s      influxdb.LabelService
+	orgSvc authorizer.OrganizationService
 }
 
 // NewAuthedLabelService constructs an instance of an authorizing label serivce.
-func NewAuthedLabelService(s influxdb.LabelService) *AuthedLabelService {
+func NewAuthedLabelService(s influxdb.LabelService, orgSvc authorizer.OrganizationService) *AuthedLabelService {
 	return &AuthedLabelService{
-		s: s,
+		s:      s,
+		orgSvc: orgSvc,
 	}
 }
 func (s *AuthedLabelService) CreateLabel(ctx context.Context, l *influxdb.Label) error {
@@ -57,19 +58,22 @@ func (s *AuthedLabelService) FindResourceLabels(ctx context.Context, filter infl
 	if err := filter.ResourceType.Valid(); err != nil {
 		return nil, err
 	}
-	// first fetch all labels for this resource
-	ls, err := s.s.FindResourceLabels(ctx, filter)
+
+	if s.orgSvc == nil {
+		return nil, errors.New("failed to find orgSvc")
+	}
+	orgID, err := s.orgSvc.FindResourceOrganizationID(ctx, filter.ResourceType, filter.ResourceID)
 	if err != nil {
 		return nil, err
 	}
 
-	// check the permissions for the resource by the org on the context
-	orgID := kithttp.OrgIDFromContext(ctx)
-	if orgID == nil {
-		return nil, errors.New("failed to find orgID on context")
+	if _, _, err := authorizer.AuthorizeRead(ctx, filter.ResourceType, filter.ResourceID, orgID); err != nil {
+		return nil, err
 	}
 
-	if _, _, err := authorizer.AuthorizeRead(ctx, filter.ResourceType, filter.ResourceID, *orgID); err != nil {
+	// first fetch all labels for this resource
+	ls, err := s.s.FindResourceLabels(ctx, filter)
+	if err != nil {
 		return nil, err
 	}
 
@@ -108,6 +112,7 @@ func (s *AuthedLabelService) CreateLabelMapping(ctx context.Context, m *influxdb
 	if err != nil {
 		return err
 	}
+
 	if _, _, err := authorizer.AuthorizeWrite(ctx, influxdb.LabelsResourceType, m.LabelID, l.OrgID); err != nil {
 		return err
 	}
