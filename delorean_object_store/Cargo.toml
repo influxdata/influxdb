@@ -1,0 +1,23 @@
+[package]
+name = "delorean_object_store"
+version = "0.1.0"
+authors = ["Paul Dix <paul@pauldix.net>"]
+edition = "2018"
+
+[dependencies]
+bytes = "0.5.4"
+dotenv = "0.15.0"
+futures = "0.3.5"
+snafu = { version = "0.6.6", features = ["futures"] }
+
+# Amazon S3 integration
+rusoto_core = "0.43.0"
+rusoto_credential = "0.43.0"
+rusoto_s3 = "0.43.0"
+
+# Google Cloud Storage integration
+cloud-storage = { version = "0.3.7", git = "https://github.com/integer32llc/cloud-storage-rs.git", branch = "improve-api" }
+tokio = { version = "0.2", features = ["full"] }
+
+[dev-dependencies]
+tokio = { version = "0.2", features = ["full"] }

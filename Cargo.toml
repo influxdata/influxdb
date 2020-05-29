@@ -9,6 +9,7 @@ default-run = "delorean"
 members = [
     "delorean_ingest",
     "delorean_line_parser",
+    "delorean_object_store",
     "delorean_parquet",
     "delorean_table",
     "delorean_table_schema",
@@ -21,8 +22,6 @@ members = [
 [profile.release]
 debug = true
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 delorean_generated_types = { path = "delorean_generated_types" }
 delorean_ingest = { path = "delorean_ingest" }
@@ -31,6 +30,7 @@ delorean_parquet = { path = "delorean_parquet" }
 delorean_table = { path = "delorean_table" }
 delorean_table_schema = { path = "delorean_table_schema" }
 delorean_wal = { path = "delorean_wal" }
+delorean_object_store = { path = "delorean_object_store" }
 
 bytes = "0.5.4"
 integer-encoding = "1.0.7"
