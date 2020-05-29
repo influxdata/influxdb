@@ -1,11 +1,5 @@
 {
   "active": "development",
-  "default_user": {
-    "username": "admin",
-    "password": "changeit",
-    "org": "qa",
-    "bucket": "qa"
-  },
   "development" : {
     "config_id" : "development",
     "protocol": "http",
@@ -22,8 +16,14 @@
     "window_size": {
       "width": "1024",
       "height": "933"
+    },
+    "default_user": {
+      "username": "admin",
+      "password": "changeit",
+      "org": "qa",
+      "bucket": "qa"
     }
-   },
+  },
   "nightly" : {
     "config_id": "nightly",
     "protocol": "http",
@@ -33,5 +33,30 @@
     "headless": true,
     "browser": "chrome",
     "screenshot_dir": "screenshots"
+  },
+  "cloud": {
+    "config_id" : "cloud",
+    "protocol": "https",
+    "host" : "eu-central-1-1.aws.cloud2.influxdata.com",
+    "port" : "443",
+    "def_ctx": "/",
+    "headless": false,
+    "sel_docker": false,
+    "browser": "chrome",
+    "screenshot_dir": "screenshots",
+    "influxdb": {
+      "version" : "2.0.0"
+    },
+    "window_size": {
+      "width": "1024",
+      "height": "933"
+    },
+    "default_user": {
+      "username": "tomas.klapka@bonitoo.io",
+      "password": "change1t",
+      "org": "qa",
+      "bucket": "qa",
+      "orgID": "e81576123825396a"
+    }
   }
 }

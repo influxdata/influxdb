@@ -29,7 +29,7 @@
     "cucumber-html-reporter": "^5.0.0",
     "cucumber-junit-convert": "^1.0.2",
     "cucumber-pretty": "^1.5.2",
-    "eslint": "^6.1.0",
+    "eslint": "^7.1.0",
     "geckodriver": "^1.16.2",
     "mkdirp": "^0.5.1",
     "selenium-webdriver": "^4.0.0-alpha.7"

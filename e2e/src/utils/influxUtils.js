@@ -4,19 +4,12 @@ const axios = require('axios');
 const fs = require('fs');
 const csvParseSync = require('csv-parse/lib/sync');
 
-const active_config = require(__basedir + '/e2e.conf.json').active;
-const config = require(__basedir + '/e2e.conf.json')[active_config];
-const defaultUser = require(__basedir + '/e2e.conf.json').default_user;
+let active_config = require(__basedir + '/e2e.conf.json').active;
+//let config = require(__basedir + '/e2e.conf.json')[active_config];
+let headless = false;
+let selDocker = false;
 
 const mil2Nano = 1000000;
-
-axios.defaults.baseURL = `${config.protocol}://${config.host}:${config.port}`;
-
-global.__config = config;
-global.__defaultUser = defaultUser;
-global.__users = { 'init': undefined };
-global.__killLiveDataGen = false;
-global.__liveDataGenRunning = false;
 
 process.argv.slice(2).forEach((val) => {
 
@@ -24,18 +17,37 @@ process.argv.slice(2).forEach((val) => {
 
     switch(pair[0]){
     case 'headless': //overrides value in config file
-        config.headless = (pair[1] === 'true');
+        //config.headless = (pair[1] === 'true');
+        headless = (pair[1] === 'true');
         break;
     case 'sel_docker':
     case 'selDocker':
-        config.sel_docker = (pair[1] === 'true');
+        //config.sel_docker = (pair[1] === 'true');
+        selDocker = (pair[1] === 'true');
         break;
+    case 'activeConf':
+    case 'active_conf':
+        //config = require(__basedir + '/e2e.conf.json')[pair[1]];
+        active_config = pair[1];
     }
-
 });
+
+const config = require(__basedir + '/e2e.conf.json')[active_config];
+const defaultUser = config.default_user;
+config.sel_docker = selDocker;
+config.headless = headless;
+
+global.__config = config;
+global.__defaultUser = defaultUser;
+global.__users = { 'init': undefined };
+global.__killLiveDataGen = false;
+global.__liveDataGenRunning = false;
 
 console.log(config.headless ? 'running headless' : 'running headed');
 console.log(config.sel_docker ? 'running for selenium in docker' : 'running for selenium standard');
+console.log(`active configuration ${JSON.stringify(config)}`);
+
+axios.defaults.baseURL = `${config.protocol}://${config.host}:${config.port}`;
 
 /* Uncomment to debug axios
 axios.interceptors.request.use(request => {
