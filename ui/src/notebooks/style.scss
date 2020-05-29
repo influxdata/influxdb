@@ -1,17 +1,16 @@
 @import '@influxdata/clockface/dist/variables.scss';
-
-$notebook-header-height: 46px;
-$notebook-size-toggle: 16px;
-$notebook-left-bar: 22px;
-$notebook-panel--bg: mix($g1-raven, $g2-kevlar, 50%);
-
-$notebook-divider-height: ($cf-marg-a * 2) + $cf-border;
+@import '~src/notebooks/NotebookVariables.scss';
 
 .notebook {
   width: 100%;
+  height: 100%;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: stretch;
+}
+
+.notebook-page .cf-page-contents__fluid {
+  padding: 0;
 }
 
 .notebook--add-cell-label {
@@ -21,16 +20,26 @@ $notebook-divider-height: ($cf-marg-a * 2) + $cf-border;
   font-weight: $cf-font-weight--medium;
 }
 
+.notebook-main,
+.notebook-empty {
+  flex: 1 0 0;
+}
+
+.notebook-empty {
+  padding: 0 $notebook-panel--gutter;
+}
+
 .notebook-panel {
   display: flex;
   flex-direction: column;
   align-items: stretch;
   border-radius: $cf-radius;
+  margin: 0 $notebook-panel--gutter;
 
   &:after {
     content: '';
     height: $cf-border;
-    background-color: $g2-kevlar;
+    background-color: $notebook-divider-color;
     border-radius: $cf-border / 2;
     margin: $cf-marg-a 0;
   }
@@ -121,37 +130,6 @@ $notebook-divider-height: ($cf-marg-a * 2) + $cf-border;
   top: -2px;
 }
 
-.notebook-panel--toggle {
-  top: 0;
-  left: 0;
-  width: $notebook-left-bar;
-  background-color: $g2-kevlar;
-  border-radius: $cf-radius;
-  height: 100%;
-  position: absolute;
-
-  &:after {
-    box-sizing: border-box;
-    content: '';
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: $notebook-size-toggle;
-    transition: height 0.25s cubic-bezier(0.25, 1, 0.5, 1),
-      border-color 0.25s ease;
-    border: $cf-border solid $g8-storm;
-    border-radius: $cf-radius / 2;
-  }
-
-  &:hover {
-    cursor: pointer;
-    &:after {
-      border-color: $g13-mist;
-    }
-  }
-}
-
 .notebook-panel--body {
   border-radius: 0 0 $cf-radius $cf-radius;
   padding: $cf-marg-b;
@@ -199,15 +177,6 @@ $notebook-divider-height: ($cf-marg-a * 2) + $cf-border;
 }
 
 /*
-  Notebook Action Bar aka Footer
-  ------------------------------------------------------------------------------
-*/
-
-.notebook--actions {
-  margin-top: $cf-marg-c;
-}
-
-/*
   Visualization Panel
   ------------------------------------------------------------------------------
 */
@@ -242,6 +211,6 @@ $notebook-divider-height: ($cf-marg-a * 2) + $cf-border;
   flex-wrap: wrap;
 
   > * {
-    margin-left: 4px;
+    margin-left: $cf-marg-a;
   }
 }

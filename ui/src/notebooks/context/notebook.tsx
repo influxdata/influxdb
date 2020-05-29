@@ -1,10 +1,11 @@
-import React, {FC, useState, useCallback} from 'react'
+import React, {FC, useState, useCallback, RefObject} from 'react'
 import {PipeData} from 'src/notebooks'
 
 export interface PipeMeta {
   title: string
   visible: boolean
   focus: boolean
+  panelRef: RefObject<HTMLDivElement>
 }
 
 export interface NotebookContextType {
