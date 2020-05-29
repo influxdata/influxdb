@@ -6,7 +6,8 @@ const csvParseSync = require('csv-parse/lib/sync');
 
 let active_config = require(__basedir + '/e2e.conf.json').active;
 //let config = require(__basedir + '/e2e.conf.json')[active_config];
-let headless = false;
+let setHeadless = false;
+let newHeadless = false;
 let selDocker = false;
 
 const mil2Nano = 1000000;
@@ -18,7 +19,8 @@ process.argv.slice(2).forEach((val) => {
     switch(pair[0]){
     case 'headless': //overrides value in config file
         //config.headless = (pair[1] === 'true');
-        headless = (pair[1] === 'true');
+        setHeadless = true;
+        newHeadless = (pair[1] === 'true');
         break;
     case 'sel_docker':
     case 'selDocker':
@@ -35,7 +37,7 @@ process.argv.slice(2).forEach((val) => {
 const config = require(__basedir + '/e2e.conf.json')[active_config];
 const defaultUser = config.default_user;
 config.sel_docker = selDocker;
-config.headless = headless;
+config.headless = setHeadless ? newHeadless : config.headless;
 
 global.__config = config;
 global.__defaultUser = defaultUser;
