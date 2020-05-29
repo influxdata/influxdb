@@ -100,6 +100,7 @@ import NoOrgsPage from 'src/organizations/containers/NoOrgsPage'
 
 // Utilities
 import {isFlagEnabled} from 'src/shared/utils/featureFlag'
+import {writeNavigationTimingMetrics} from 'src/cloud/utils/rum'
 
 // Overlays
 import OverlayHandler, {
@@ -512,3 +513,5 @@ class Root extends PureComponent {
 if (rootNode) {
   render(<Root />, rootNode)
 }
+
+writeNavigationTimingMetrics()

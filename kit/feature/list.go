@@ -2,6 +2,20 @@
 
 package feature
 
+var appMetrics = MakeBoolFlag(
+	"App Metrics",
+	"appMetrics",
+	"Bucky, Monitoring Team",
+	false,
+	Permanent,
+	true,
+)
+
+// AppMetrics - Send UI Telementry to Tools cluster - should always be false in OSS
+func AppMetrics() BoolFlag {
+	return appMetrics
+}
+
 var backendExample = MakeBoolFlag(
 	"Backend Example",
 	"backendExample",
@@ -115,6 +129,7 @@ func NewLabelPackage() BoolFlag {
 }
 
 var all = []Flag{
+	appMetrics,
 	backendExample,
 	frontendExample,
 	pushDownWindowAggregateCount,
@@ -126,6 +141,7 @@ var all = []Flag{
 }
 
 var byKey = map[string]Flag{
+	"appMetrics":                   appMetrics,
 	"backendExample":               backendExample,
 	"frontendExample":              frontendExample,
 	"pushDownWindowAggregateCount": pushDownWindowAggregateCount,
