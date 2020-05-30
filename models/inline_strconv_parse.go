@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"strconv"
 	"unsafe"
+	"runtime"
 )
 
 // parseIntBytes is a zero-alloc wrapper around strconv.ParseInt.
@@ -34,11 +35,11 @@ func parseBoolBytes(b []byte) (bool, error) {
 // It is unsafe, and is intended to prepare input to short-lived functions
 // that require strings.
 func unsafeBytesToString(in []byte) string {
+	s := ""
 	src := *(*reflect.SliceHeader)(unsafe.Pointer(&in))
-	dst := reflect.StringHeader{
-		Data: src.Data,
-		Len:  src.Len,
-	}
-	s := *(*string)(unsafe.Pointer(&dst))
+	dst := (*reflect.StringHeader)(unsafe.Pointer(&s))
+	dst.Data = src.Data
+	dst.Len = src.Len
+	runtime.KeepAlive(in)
 	return s
 }
