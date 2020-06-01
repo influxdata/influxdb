@@ -33,6 +33,14 @@ func (s *traceMW) DeleteStack(ctx context.Context, identifiers struct{ OrgID, Us
 	return s.next.DeleteStack(ctx, identifiers)
 }
 
+func (s *traceMW) ExportStack(ctx context.Context, orgID, stackID influxdb.ID) (*Pkg, error) {
+	span, ctx := tracing.StartSpanFromContextWithOperationName(ctx, "ExportStack")
+	span.LogFields(log.String("org_id", orgID.String()))
+	span.LogFields(log.String("stack_id", stackID.String()))
+	defer span.Finish()
+	return s.next.ExportStack(ctx, orgID, stackID)
+}
+
 func (s *traceMW) ListStacks(ctx context.Context, orgID influxdb.ID, f ListFilter) ([]Stack, error) {
 	span, ctx := tracing.StartSpanFromContextWithOperationName(ctx, "ListStacks")
 	defer span.Finish()

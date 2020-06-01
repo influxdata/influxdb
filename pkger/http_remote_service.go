@@ -62,6 +62,30 @@ func (s *HTTPRemoteService) DeleteStack(ctx context.Context, identifiers struct{
 		Do(ctx)
 }
 
+func (s *HTTPRemoteService) ExportStack(ctx context.Context, orgID, stackID influxdb.ID) (*Pkg, error) {
+	pkg := new(Pkg)
+	err := s.Client.
+		Get(RoutePrefix, "stacks", stackID.String(), "export").
+		QueryParams([2]string{"orgID", orgID.String()}).
+		Decode(func(resp *http.Response) error {
+			decodedPkg, err := Parse(EncodingJSON, FromReader(resp.Body))
+			if err != nil {
+				return err
+			}
+			pkg = decodedPkg
+			return nil
+		}).
+		Do(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := pkg.Validate(ValidWithoutResources()); err != nil {
+		return nil, err
+	}
+	return pkg, nil
+}
+
 func (s *HTTPRemoteService) ListStacks(ctx context.Context, orgID influxdb.ID, f ListFilter) ([]Stack, error) {
 	queryParams := [][2]string{{"orgID", orgID.String()}}
 	for _, name := range f.Names {

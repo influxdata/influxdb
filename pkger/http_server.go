@@ -56,6 +56,8 @@ func NewHTTPServer(log *zap.Logger, svc SVC) *HTTPServer {
 			r.Post("/", svr.createStack)
 			r.Get("/", svr.listStacks)
 			r.Delete("/{stack_id}", svr.deleteStack)
+			r.With(middleware.AllowContentType("text/yml", "application/x-yaml", "application/json")).
+				Get("/{stack_id}/export", svr.exportStack)
 		})
 	}
 
@@ -241,6 +243,47 @@ func (s *HTTPServer) deleteStack(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.api.Respond(w, r, http.StatusNoContent, nil)
+}
+
+func (s *HTTPServer) exportStack(w http.ResponseWriter, r *http.Request) {
+	encoding := pkgEncoding(r.Header)
+
+	orgID, err := getRequiredOrgIDFromQuery(r.URL.Query())
+	if err != nil {
+		s.api.Err(w, r, err)
+		return
+	}
+
+	stackID, err := influxdb.IDFromString(chi.URLParam(r, "stack_id"))
+	if err != nil {
+		s.api.Err(w, r, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  "the stack id provided in the path was invalid",
+			Err:  err,
+		})
+		return
+	}
+
+	pkg, err := s.svc.ExportStack(r.Context(), orgID, *stackID)
+	if err != nil {
+		s.api.Err(w, r, err)
+		return
+	}
+
+	b, err := pkg.Encode(encoding)
+	if err != nil {
+		s.api.Err(w, r, err)
+		return
+	}
+
+	switch encoding {
+	case EncodingYAML:
+		w.Header().Set("Content-Type", "application/x-yaml")
+	default:
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	}
+
+	s.api.Write(w, http.StatusOK, b)
 }
 
 func getRequiredOrgIDFromQuery(q url.Values) (influxdb.ID, error) {
