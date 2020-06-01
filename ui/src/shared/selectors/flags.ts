@@ -11,6 +11,7 @@ export const OSS_FLAGS = {
   fluxParser: false,
   matchingNotificationRules: false,
   notebooks: false,
+  redirectToCloud: false,
   telegrafEditor: false,
 }
 
@@ -24,6 +25,7 @@ export const CLOUD_FLAGS = {
   fluxParser: false,
   matchingNotificationRules: false,
   notebooks: false,
+  redirectToCloud: false,
   telegrafEditor: false,
 }
 

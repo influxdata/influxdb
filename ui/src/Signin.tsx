@@ -93,7 +93,7 @@ export class Signin extends PureComponent<Props, State> {
 
       clearInterval(this.intervalID)
 
-      if (CLOUD && isFlagEnabled('redirectto')) {
+      if (CLOUD && isFlagEnabled('redirectToCloud')) {
         const url = new URL(
           `${window.location.origin}${CLOUD_SIGNIN_PATHNAME}?redirectTo=${
             window.location.href
