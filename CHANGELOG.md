@@ -3,6 +3,7 @@
 ### Features
 
 1. [18279](https://github.com/influxdata/influxdb/pull/18279): Make all pkg applications stateful via stacks
+1. [18322](https://github.com/influxdata/influxdb/pull/18322): Add ability to export a stack's existing (as they are in the platform) resource state as a pkg
 
 ## v2.0.0-beta.11 [2020-05-26]
 

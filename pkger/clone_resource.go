@@ -146,17 +146,7 @@ func (ex *resourceExporter) Objects() []Object {
 		objects = append(objects, obj)
 	}
 
-	sort.Slice(objects, func(i, j int) bool {
-		iName, jName := objects[i].Name(), objects[j].Name()
-		iKind, jKind := objects[i].Kind, objects[j].Kind
-
-		if iKind.is(jKind) {
-			return iName < jName
-		}
-		return kindPriorities[iKind] < kindPriorities[jKind]
-	})
-
-	return objects
+	return sortObjects(objects)
 }
 
 func (ex *resourceExporter) uniqByNameResID() influxdb.ID {

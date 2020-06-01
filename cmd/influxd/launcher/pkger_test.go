@@ -1426,6 +1426,292 @@ func TestLauncher_Pkger(t *testing.T) {
 				})
 			})
 		})
+
+		t.Run("exporting the existing state of stack resources to a pkg", func(t *testing.T) {
+			testStackApplyFn := func(t *testing.T) (pkger.Summary, pkger.Stack, func()) {
+				t.Helper()
+
+				stack, cleanup := newStackFn(t, pkger.Stack{})
+				defer func() {
+					if t.Failed() {
+						cleanup()
+					}
+				}()
+
+				var (
+					initialBucketPkgName   = "rucketeer-1"
+					initialCheckPkgName    = "checkers"
+					initialDashPkgName     = "dash-of-salt"
+					initialEndpointPkgName = "endzo"
+					initialLabelPkgName    = "labelino"
+					initialRulePkgName     = "oh-doyle-rules"
+					initialTaskPkgName     = "tap"
+					initialTelegrafPkgName = "teletype"
+					initialVariablePkgName = "laces-out-dan"
+				)
+
+				labelObj := newLabelObject(initialLabelPkgName, "label 1", "init desc", "#222eee")
+				setAssociation := func(o pkger.Object) pkger.Object {
+					o.AddAssociations(pkger.ObjectAssociation{
+						Kind:    pkger.KindLabel,
+						PkgName: labelObj.Name(),
+					})
+					return o
+				}
+
+				initialPkg := newPkg(
+					setAssociation(newBucketObject(initialBucketPkgName, "display name", "init desc")),
+					setAssociation(newCheckDeadmanObject(t, initialCheckPkgName, "check_0", time.Minute)),
+					setAssociation(newDashObject(initialDashPkgName, "dash_0", "init desc")),
+					setAssociation(newEndpointHTTP(initialEndpointPkgName, "endpoint_0", "init desc")),
+					labelObj,
+					setAssociation(newRuleObject(t, initialRulePkgName, "rule_0", initialEndpointPkgName, "init desc")),
+					setAssociation(newTaskObject(initialTaskPkgName, "task_0", "init desc")),
+					setAssociation(newTelegrafObject(initialTelegrafPkgName, "tele_0", "init desc")),
+					setAssociation(newVariableObject(initialVariablePkgName, "var char", "init desc")),
+				)
+
+				impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID, initialPkg, pkger.ApplyWithStackID(stack.ID))
+				require.NoError(t, err)
+
+				summary := impact.Summary
+
+				hasAssociation := func(t *testing.T, actual []pkger.SummaryLabel) {
+					t.Helper()
+					require.Len(t, actual, 1, "unexpected number of label mappings")
+					assert.Equal(t, actual[0].PkgName, labelObj.Name())
+				}
+
+				require.Len(t, summary.Buckets, 1)
+				assert.NotZero(t, summary.Buckets[0].ID)
+				assert.Equal(t, "display name", summary.Buckets[0].Name)
+				assert.Equal(t, "init desc", summary.Buckets[0].Description)
+				hasAssociation(t, summary.Buckets[0].LabelAssociations)
+
+				require.Len(t, summary.Checks, 1)
+				assert.NotZero(t, summary.Checks[0].Check.GetID())
+				assert.Equal(t, "check_0", summary.Checks[0].Check.GetName())
+				hasAssociation(t, summary.Checks[0].LabelAssociations)
+
+				require.Len(t, summary.Dashboards, 1)
+				assert.NotZero(t, summary.Dashboards[0].ID)
+				assert.Equal(t, "dash_0", summary.Dashboards[0].Name)
+				hasAssociation(t, summary.Dashboards[0].LabelAssociations)
+
+				require.Len(t, summary.NotificationEndpoints, 1)
+				assert.NotZero(t, summary.NotificationEndpoints[0].NotificationEndpoint.GetID())
+				assert.Equal(t, "endpoint_0", summary.NotificationEndpoints[0].NotificationEndpoint.GetName())
+				hasAssociation(t, summary.NotificationEndpoints[0].LabelAssociations)
+
+				require.Len(t, summary.Labels, 1)
+				assert.NotZero(t, summary.Labels[0].ID)
+				assert.Equal(t, "label 1", summary.Labels[0].Name)
+				assert.Equal(t, "init desc", summary.Labels[0].Properties.Description)
+				assert.Equal(t, "#222eee", summary.Labels[0].Properties.Color)
+
+				require.Len(t, summary.NotificationRules, 1)
+				assert.NotZero(t, summary.NotificationRules[0].ID)
+				assert.Equal(t, "rule_0", summary.NotificationRules[0].Name)
+				assert.Equal(t, initialEndpointPkgName, summary.NotificationRules[0].EndpointPkgName)
+				assert.Equal(t, "init desc", summary.NotificationRules[0].Description)
+				hasAssociation(t, summary.NotificationRules[0].LabelAssociations)
+
+				require.Len(t, summary.Tasks, 1)
+				assert.NotZero(t, summary.Tasks[0].ID)
+				assert.Equal(t, "task_0", summary.Tasks[0].Name)
+				assert.Equal(t, "init desc", summary.Tasks[0].Description)
+				hasAssociation(t, summary.Tasks[0].LabelAssociations)
+
+				require.Len(t, summary.TelegrafConfigs, 1)
+				assert.NotZero(t, summary.TelegrafConfigs[0].TelegrafConfig.ID)
+				assert.Equal(t, "tele_0", summary.TelegrafConfigs[0].TelegrafConfig.Name)
+				assert.Equal(t, "init desc", summary.TelegrafConfigs[0].TelegrafConfig.Description)
+				hasAssociation(t, summary.TelegrafConfigs[0].LabelAssociations)
+
+				require.Len(t, summary.Variables, 1)
+				assert.NotZero(t, summary.Variables[0].ID)
+				assert.Equal(t, "var char", summary.Variables[0].Name)
+				assert.Equal(t, "init desc", summary.Variables[0].Description)
+				hasAssociation(t, summary.Variables[0].LabelAssociations)
+
+				// verify changes reflected in platform
+				{
+					actualBkt := resourceCheck.mustGetBucket(t, byName("display name"))
+					assert.Equal(t, summary.Buckets[0].ID, pkger.SafeID(actualBkt.ID))
+
+					actualCheck := resourceCheck.mustGetCheck(t, byName("check_0"))
+					assert.Equal(t, summary.Checks[0].Check.GetID(), actualCheck.GetID())
+
+					actualDash := resourceCheck.mustGetDashboard(t, byName("dash_0"))
+					assert.Equal(t, summary.Dashboards[0].ID, pkger.SafeID(actualDash.ID))
+
+					actualEndpint := resourceCheck.mustGetEndpoint(t, byName("endpoint_0"))
+					assert.Equal(t, summary.NotificationEndpoints[0].NotificationEndpoint.GetID(), actualEndpint.GetID())
+
+					actualLabel := resourceCheck.mustGetLabel(t, byName("label 1"))
+					assert.Equal(t, summary.Labels[0].ID, pkger.SafeID(actualLabel.ID))
+
+					actualRule := resourceCheck.mustGetRule(t, byName("rule_0"))
+					assert.Equal(t, summary.NotificationRules[0].ID, pkger.SafeID(actualRule.GetID()))
+
+					actualTask := resourceCheck.mustGetTask(t, byName("task_0"))
+					assert.Equal(t, summary.Tasks[0].ID, pkger.SafeID(actualTask.ID))
+
+					actualTele := resourceCheck.mustGetTelegrafConfig(t, byName("tele_0"))
+					assert.Equal(t, summary.TelegrafConfigs[0].TelegrafConfig.ID, actualTele.ID)
+
+					actualVar := resourceCheck.mustGetVariable(t, byName("var char"))
+					assert.Equal(t, summary.Variables[0].ID, pkger.SafeID(actualVar.ID))
+				}
+
+				return summary, stack, cleanup
+			}
+
+			t.Run("should be return pkg matching source pkg when all resources are unchanged", func(t *testing.T) {
+				initialSum, stack, cleanup := testStackApplyFn(t)
+				defer cleanup()
+
+				exportedPkg, err := svc.ExportStack(ctx, l.Org.ID, stack.ID)
+				require.NoError(t, err)
+
+				hasAssociation := func(t *testing.T, actual []pkger.SummaryLabel) {
+					t.Helper()
+					assert.Len(t, actual, 1, "unexpected number of label mappings")
+					if len(actual) != 1 {
+						return
+					}
+					assert.Equal(t, actual[0].PkgName, initialSum.Labels[0].PkgName)
+				}
+
+				sum := exportedPkg.Summary()
+
+				require.Len(t, sum.Buckets, 1, "missing required buckets")
+				assert.Equal(t, initialSum.Buckets[0].PkgName, sum.Buckets[0].PkgName)
+				assert.Equal(t, initialSum.Buckets[0].Name, sum.Buckets[0].Name)
+				hasAssociation(t, sum.Buckets[0].LabelAssociations)
+
+				require.Len(t, sum.Checks, 1, "missing required checks")
+				assert.Equal(t, initialSum.Checks[0].PkgName, sum.Checks[0].PkgName)
+				assert.Equal(t, initialSum.Checks[0].Check.GetName(), sum.Checks[0].Check.GetName())
+				hasAssociation(t, sum.Checks[0].LabelAssociations)
+
+				require.Len(t, sum.Dashboards, 1, "missing required dashboards")
+				assert.Equal(t, initialSum.Dashboards[0].PkgName, sum.Dashboards[0].PkgName)
+				assert.Equal(t, initialSum.Dashboards[0].Name, sum.Dashboards[0].Name)
+				hasAssociation(t, sum.Dashboards[0].LabelAssociations)
+
+				require.Len(t, sum.Labels, 1, "missing required labels")
+				assert.Equal(t, initialSum.Labels[0].PkgName, sum.Labels[0].PkgName)
+				assert.Equal(t, initialSum.Labels[0].Name, sum.Labels[0].Name)
+
+				require.Len(t, sum.NotificationRules, 1, "missing required rules")
+				assert.Equal(t, initialSum.NotificationRules[0].PkgName, sum.NotificationRules[0].PkgName)
+				assert.Equal(t, initialSum.NotificationRules[0].Name, sum.NotificationRules[0].Name)
+				assert.Equal(t, initialSum.NotificationRules[0].EndpointPkgName, sum.NotificationRules[0].EndpointPkgName)
+				assert.Equal(t, initialSum.NotificationRules[0].EndpointType, sum.NotificationRules[0].EndpointType)
+				hasAssociation(t, sum.NotificationRules[0].LabelAssociations)
+
+				require.Len(t, sum.Tasks, 1, "missing required tasks")
+				assert.Equal(t, initialSum.Tasks[0].PkgName, sum.Tasks[0].PkgName)
+				assert.Equal(t, initialSum.Tasks[0].Name, sum.Tasks[0].Name)
+				hasAssociation(t, sum.Tasks[0].LabelAssociations)
+
+				require.Len(t, sum.TelegrafConfigs, 1, "missing required telegraf configs")
+				assert.Equal(t, initialSum.TelegrafConfigs[0].PkgName, sum.TelegrafConfigs[0].PkgName)
+				assert.Equal(t, initialSum.TelegrafConfigs[0].TelegrafConfig.Name, sum.TelegrafConfigs[0].TelegrafConfig.Name)
+				hasAssociation(t, sum.TelegrafConfigs[0].LabelAssociations)
+
+				require.Len(t, sum.Variables, 1, "missing required variables")
+				assert.Equal(t, initialSum.Variables[0].PkgName, sum.Variables[0].PkgName)
+				assert.Equal(t, initialSum.Variables[0].Name, sum.Variables[0].Name)
+				hasAssociation(t, sum.Variables[0].LabelAssociations)
+			})
+
+			t.Run("when label associations have changed", func(t *testing.T) {
+				newLabelAssociationTestFn := func(t *testing.T) (pkger.Stack, pkger.Summary, func()) {
+					t.Helper()
+
+					stack, cleanup := newStackFn(t, pkger.Stack{})
+					defer func() {
+						if t.Failed() {
+							cleanup()
+						}
+					}()
+
+					labelObj := newLabelObject("test-label", "", "", "")
+					bktObj := newBucketObject("test-bucket", "", "")
+					bktObj.AddAssociations(pkger.ObjectAssociation{
+						Kind:    pkger.KindLabel,
+						PkgName: labelObj.Name(),
+					})
+					pkg := newPkg(bktObj, labelObj)
+
+					impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkg, pkger.ApplyWithStackID(stack.ID))
+					require.NoError(t, err)
+
+					require.Len(t, impact.Summary.Labels, 1)
+					require.Len(t, impact.Summary.Buckets, 1)
+					require.Len(t, impact.Summary.Buckets[0].LabelAssociations, 1)
+
+					return stack, impact.Summary, cleanup
+				}
+
+				t.Run("should not export associations removed in platform", func(t *testing.T) {
+					stack, initialSummary, cleanup := newLabelAssociationTestFn(t)
+					defer cleanup()
+
+					// TODO(jsteenb2): cannot figure out the issue with the http.LabelService returning
+					//				   the bad HTTP method error :-(. Revisit this and replace with the
+					//				   the HTTP client when possible. Goal is to remove the kvservice
+					//				   dep here.
+					err := l.kvService.DeleteLabelMapping(ctx, &influxdb.LabelMapping{
+						LabelID:      influxdb.ID(initialSummary.Labels[0].ID),
+						ResourceID:   influxdb.ID(initialSummary.Buckets[0].ID),
+						ResourceType: influxdb.BucketsResourceType,
+					})
+					require.NoError(t, err)
+
+					exportedPkg, err := svc.ExportStack(ctx, l.Org.ID, stack.ID)
+					require.NoError(t, err)
+
+					exportedSum := exportedPkg.Summary()
+					require.Len(t, exportedSum.Labels, 1)
+					require.Len(t, exportedSum.Buckets, 1)
+					require.Empty(t, exportedSum.Buckets[0].LabelAssociations, "received unexpected label associations")
+				})
+
+				t.Run("should not export associations platform resources not associated with stack", func(t *testing.T) {
+					stack, initialSummary, cleanup := newLabelAssociationTestFn(t)
+					defer cleanup()
+
+					newLabel := &influxdb.Label{
+						OrgID: l.Org.ID,
+						Name:  "test-label-2",
+					}
+					require.NoError(t, l.kvService.CreateLabel(ctx, newLabel))
+
+					// TODO(jsteenb2): cannot figure out the issue with the http.LabelService returning
+					//				   the bad HTTP method error :-(. Revisit this and replace with the
+					//				   the HTTP client when possible. Goal is to remove the kvservice
+					//				   dep here.
+					err := l.kvService.CreateLabelMapping(ctx, &influxdb.LabelMapping{
+						LabelID:      newLabel.ID,
+						ResourceID:   influxdb.ID(initialSummary.Buckets[0].ID),
+						ResourceType: influxdb.BucketsResourceType,
+					})
+					require.NoError(t, err)
+
+					exportedPkg, err := svc.ExportStack(ctx, l.Org.ID, stack.ID)
+					require.NoError(t, err)
+
+					exportedSum := exportedPkg.Summary()
+					require.Len(t, exportedSum.Labels, 1)
+					require.Len(t, exportedSum.Buckets, 1)
+					require.Len(t, exportedSum.Buckets[0].LabelAssociations, 1)
+					assert.Equal(t, initialSummary.Labels[0].PkgName, exportedSum.Buckets[0].LabelAssociations[0].PkgName)
+				})
+			})
+		})
 	})
 
 	t.Run("errors incurred during application of package rolls back to state before package", func(t *testing.T) {

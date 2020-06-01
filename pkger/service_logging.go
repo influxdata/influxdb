@@ -61,6 +61,23 @@ func (s *loggingMW) DeleteStack(ctx context.Context, identifiers struct{ OrgID, 
 	return s.next.DeleteStack(ctx, identifiers)
 }
 
+func (s *loggingMW) ExportStack(ctx context.Context, orgID, stackID influxdb.ID) (pkg *Pkg, err error) {
+	defer func(start time.Time) {
+		if err == nil {
+			return
+		}
+
+		s.logger.Error(
+			"failed to export stack",
+			zap.Error(err),
+			zap.Stringer("orgID", orgID),
+			zap.Stringer("stackID", stackID),
+			zap.Duration("took", time.Since(start)),
+		)
+	}(time.Now())
+	return s.next.ExportStack(ctx, orgID, stackID)
+}
+
 func (s *loggingMW) ListStacks(ctx context.Context, orgID influxdb.ID, f ListFilter) (stacks []Stack, err error) {
 	defer func(start time.Time) {
 		if err == nil {

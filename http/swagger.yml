@@ -4728,6 +4728,9 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Pkg"
+            application/x-yaml:
+              schema:
+                $ref: "#/components/schemas/Pkg"
         default:
           description: Unexpected error
           content:
@@ -4936,6 +4939,41 @@ paths:
       responses:
         "204":
           description: Stack and all its associated resources are deleted
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /packages/stacks/{stack_id}/export:
+    delete:
+      operationId: ExportStack
+      tags:
+        - InfluxPackages
+      summary: Export a stack's resources in the form of a package
+      parameters:
+        - in: path
+          name: stack_id
+          required: true
+          schema:
+            type: string
+          description: The stack id to be removed
+        - in: query
+          name: orgID
+          required: true
+          schema:
+            type: string
+          description: The organization id of the user
+      responses:
+        "200":
+          description: Stack and all its associated resources are deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pkg"
+            application/x-yaml:
+              schema:
+                $ref: "#/components/schemas/Pkg"
         default:
           description: Unexpected error
           content:
