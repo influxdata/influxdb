@@ -59,9 +59,7 @@ func initLabelService(s kv.Store, f influxdbtesting.LabelFields, t *testing.T) (
 		t.Fatalf("failed to create label store: %v", err)
 	}
 
-	kvSvc := kv.NewService(zaptest.NewLogger(t), s)
-
-	svc := label.NewService(st, kvSvc)
+	svc := label.NewService(st)
 	ctx := context.Background()
 
 	for _, l := range f.Labels {
