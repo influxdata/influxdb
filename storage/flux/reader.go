@@ -592,10 +592,13 @@ func (wai *windowAggregateIterator) Do(f func(flux.Table) error) error {
 	if rs == nil {
 		return nil
 	}
-	return wai.handleRead(f, rs, req.WindowEvery)
+	return wai.handleRead(f, rs)
 }
 
-func (wai *windowAggregateIterator) handleRead(f func(flux.Table) error, rs storage.ResultSet, windowEvery int64) error {
+func (wai *windowAggregateIterator) handleRead(f func(flux.Table) error, rs storage.ResultSet) error {
+	windowEvery := wai.spec.WindowEvery
+	createEmpty := wai.spec.CreateEmpty
+
 	// these resources must be closed if not nil on return
 	var (
 		cur   cursors.Cursor
@@ -627,19 +630,19 @@ READ:
 		switch typedCur := cur.(type) {
 		case cursors.IntegerArrayCursor:
 			cols, defs := determineTableColsForWindowAggregate(rs.Tags(), flux.TInt)
-			table = newIntegerWindowTable(done, typedCur, bnds, windowEvery, key, cols, rs.Tags(), defs, wai.cache, wai.alloc)
+			table = newIntegerWindowTable(done, typedCur, bnds, windowEvery, createEmpty, key, cols, rs.Tags(), defs, wai.cache, wai.alloc)
 		case cursors.FloatArrayCursor:
 			cols, defs := determineTableColsForWindowAggregate(rs.Tags(), flux.TFloat)
-			table = newFloatWindowTable(done, typedCur, bnds, windowEvery, key, cols, rs.Tags(), defs, wai.cache, wai.alloc)
+			table = newFloatWindowTable(done, typedCur, bnds, windowEvery, createEmpty, key, cols, rs.Tags(), defs, wai.cache, wai.alloc)
 		case cursors.UnsignedArrayCursor:
 			cols, defs := determineTableColsForWindowAggregate(rs.Tags(), flux.TUInt)
-			table = newUnsignedWindowTable(done, typedCur, bnds, windowEvery, key, cols, rs.Tags(), defs, wai.cache, wai.alloc)
+			table = newUnsignedWindowTable(done, typedCur, bnds, windowEvery, createEmpty, key, cols, rs.Tags(), defs, wai.cache, wai.alloc)
 		case cursors.BooleanArrayCursor:
 			cols, defs := determineTableColsForWindowAggregate(rs.Tags(), flux.TBool)
-			table = newBooleanWindowTable(done, typedCur, bnds, windowEvery, key, cols, rs.Tags(), defs, wai.cache, wai.alloc)
+			table = newBooleanWindowTable(done, typedCur, bnds, windowEvery, createEmpty, key, cols, rs.Tags(), defs, wai.cache, wai.alloc)
 		case cursors.StringArrayCursor:
 			cols, defs := determineTableColsForWindowAggregate(rs.Tags(), flux.TString)
-			table = newStringWindowTable(done, typedCur, bnds, windowEvery, key, cols, rs.Tags(), defs, wai.cache, wai.alloc)
+			table = newStringWindowTable(done, typedCur, bnds, windowEvery, createEmpty, key, cols, rs.Tags(), defs, wai.cache, wai.alloc)
 		default:
 			panic(fmt.Sprintf("unreachable: %T", typedCur))
 		}
@@ -647,7 +650,7 @@ READ:
 		cur = nil
 
 		if !table.Empty() {
-			if err := f(table); err != nil {
+			if err := splitWindows(wai.ctx, table, f); err != nil {
 				table.Close()
 				table = nil
 				return err

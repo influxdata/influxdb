@@ -111,6 +111,7 @@ type ReadWindowAggregatePhysSpec struct {
 
 	WindowEvery int64
 	Aggregates  []plan.ProcedureKind
+	CreateEmpty bool
 }
 
 func (s *ReadWindowAggregatePhysSpec) Kind() plan.ProcedureKind {
@@ -123,6 +124,7 @@ func (s *ReadWindowAggregatePhysSpec) Copy() plan.ProcedureSpec {
 	ns.ReadRangePhysSpec = *s.ReadRangePhysSpec.Copy().(*ReadRangePhysSpec)
 	ns.WindowEvery = s.WindowEvery
 	ns.Aggregates = s.Aggregates
+	ns.CreateEmpty = s.CreateEmpty
 
 	return ns
 }

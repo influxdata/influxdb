@@ -766,8 +766,7 @@ func (PushDownWindowAggregateRule) Rewrite(ctx context.Context, pn plan.Node) (p
 		!window.Offset.IsZero() ||
 		windowSpec.TimeColumn != "_time" ||
 		windowSpec.StartColumn != "_start" ||
-		windowSpec.StopColumn != "_stop" ||
-		windowSpec.CreateEmpty {
+		windowSpec.StopColumn != "_stop" {
 		return pn, false, nil
 	}
 
@@ -776,6 +775,7 @@ func (PushDownWindowAggregateRule) Rewrite(ctx context.Context, pn plan.Node) (p
 		ReadRangePhysSpec: *fromSpec.Copy().(*ReadRangePhysSpec),
 		Aggregates:        []plan.ProcedureKind{fnNode.Kind()},
 		WindowEvery:       window.Every.Nanoseconds(),
+		CreateEmpty:       windowSpec.CreateEmpty,
 	}), true, nil
 }
 
