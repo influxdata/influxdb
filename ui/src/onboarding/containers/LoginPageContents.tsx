@@ -64,7 +64,7 @@ class LoginPageContents extends PureComponent<DispatchProps> {
   public async componentDidMount() {
     try {
       let config
-      if (isFlagEnabled('redirectto')) {
+      if (isFlagEnabled('redirectToCloud')) {
         const redirectTo = getFromLocalStorage('redirectTo') || '/'
         config = await getAuth0Config(redirectTo)
       } else {
