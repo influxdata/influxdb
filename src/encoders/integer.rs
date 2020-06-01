@@ -30,6 +30,8 @@ pub fn encode<'a>(src: &[i64], dst: &'a mut Vec<u8>) -> Result<(), Box<dyn Error
             max = deltas[i];
         }
     }
+
+    // deltas[0] is the first value in the sequence.
     deltas[0] = zig_zag_encode(src[0]);
 
     if deltas.len() > 2 {
@@ -43,7 +45,8 @@ pub fn encode<'a>(src: &[i64], dst: &'a mut Vec<u8>) -> Result<(), Box<dyn Error
 
         // Encode with RLE if possible.
         if use_rle {
-            encode_rle(deltas[0], deltas[1], deltas.len() as u64, dst);
+            // count is the number of deltas repeating excluding first value.
+            encode_rle(deltas[0], deltas[1], deltas.len() as u64 - 1, dst);
             // 4 high bits of first byte used for the encoding type
             dst[0] |= (Encoding::Rle as u8) << 4;
             return Ok(());
@@ -94,8 +97,8 @@ fn i64_to_u64_vector(src: &[i64]) -> Vec<u64> {
 // encode_rle encodes the value v, delta and count into dst.
 //
 // v should be the first element of a sequence, delta the difference that each
-// value in the sequence differs by, and count the total number of values in the
-// sequence.
+// value in the sequence differs by, and count the number of times that the delta
+// is repeated.
 fn encode_rle(v: u64, delta: u64, count: u64, dst: &mut Vec<u8>) {
     let max_var_int_size = 10; // max number of bytes needed to store var int
     dst.push(0); // save a byte for encoding type
@@ -180,9 +183,13 @@ fn decode_rle(src: &[u8], dst: &mut Vec<i64>) -> Result<(), Box<dyn Error>> {
     a.copy_from_slice(&src[0..8]);
     let mut first = zig_zag_decode(u64::from_be_bytes(a));
     let delta_z = zig_zag_decode(delta);
+
+    // first values stored raw
+    dst.push(first);
+
     for _ in 0..count {
-        dst.push(first);
         first = first.wrapping_add(delta_z);
+        dst.push(first);
     }
     Ok(())
 }
@@ -339,5 +346,26 @@ mod tests {
             // verify got same values back
             assert_eq!(got, exp, "{}", test.name);
         }
+    }
+
+    #[test]
+    // This tests against a defect found when decoding a TSM block from InfluxDB.
+    fn rle_regression() {
+        let values = vec![809201799168i64; 509];
+        let mut enc = vec![];
+        encode(&values, &mut enc).expect("encoding failed");
+
+        // this is a compressed rle integer block representing 509 identical
+        // 809201799168 values.
+        let enc_influx = [32, 0, 0, 1, 120, 208, 95, 32, 0, 0, 252, 3];
+
+        // ensure that encoder produces same bytes as InfluxDB encoder.
+        assert_eq!(enc, enc_influx);
+
+        let mut dec = vec![];
+        decode(&enc, &mut dec).expect("failed to decode");
+
+        assert_eq!(dec.len(), values.len());
+        assert_eq!(dec, values);
     }
 }
