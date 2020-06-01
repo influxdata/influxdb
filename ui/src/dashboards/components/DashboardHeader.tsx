@@ -160,6 +160,7 @@ const DashboardHeader: FC<Props> = ({
             icon={IconFont.TextBlock}
             text="Add Note"
             onClick={handleAddNote}
+            testID="add-note--button"
           />
           <Button
             icon={IconFont.Cube}
