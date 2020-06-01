@@ -351,6 +351,7 @@ func createReadWindowAggregateSource(s plan.ProcedureSpec, id execute.DatasetID,
 			},
 			WindowEvery: spec.WindowEvery,
 			Aggregates:  spec.Aggregates,
+			CreateEmpty: spec.CreateEmpty,
 		},
 		a,
 	), nil

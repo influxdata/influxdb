@@ -1224,13 +1224,14 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 	}
 
 	// construct a simple result
-	simpleResult := func(proc plan.ProcedureKind) *plantest.PlanSpec {
+	simpleResult := func(proc plan.ProcedureKind, createEmpty bool) *plantest.PlanSpec {
 		return &plantest.PlanSpec{
 			Nodes: []plan.Node{
 				plan.CreatePhysicalNode("ReadWindowAggregate", &influxdb.ReadWindowAggregatePhysSpec{
 					ReadRangePhysSpec: readRange,
 					Aggregates:        []plan.ProcedureKind{proc},
 					WindowEvery:       60000000000,
+					CreateEmpty:       createEmpty,
 				}),
 			},
 		}
@@ -1268,7 +1269,7 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 		Name:    "SimplePassMin",
 		Rules:   []plan.Rule{influxdb.PushDownWindowAggregateRule{}},
 		Before:  simplePlanWithWindowAgg(window1m, "min", minProcedureSpec()),
-		After:   simpleResult("min"),
+		After:   simpleResult("min", false),
 	})
 
 	// ReadRange -> window -> max => ReadWindowAggregate
@@ -1277,7 +1278,7 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 		Name:    "SimplePassMax",
 		Rules:   []plan.Rule{influxdb.PushDownWindowAggregateRule{}},
 		Before:  simplePlanWithWindowAgg(window1m, "max", maxProcedureSpec()),
-		After:   simpleResult("max"),
+		After:   simpleResult("max", false),
 	})
 
 	// ReadRange -> window -> mean => ReadWindowAggregate
@@ -1286,7 +1287,7 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 		Name:    "SimplePassMean",
 		Rules:   []plan.Rule{influxdb.PushDownWindowAggregateRule{}},
 		Before:  simplePlanWithWindowAgg(window1m, "mean", meanProcedureSpec()),
-		After:   simpleResult("mean"),
+		After:   simpleResult("mean", false),
 	})
 
 	// ReadRange -> window -> count => ReadWindowAggregate
@@ -1295,7 +1296,7 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 		Name:    "SimplePassCount",
 		Rules:   []plan.Rule{influxdb.PushDownWindowAggregateRule{}},
 		Before:  simplePlanWithWindowAgg(window1m, "count", countProcedureSpec()),
-		After:   simpleResult("count"),
+		After:   simpleResult("count", false),
 	})
 
 	// ReadRange -> window -> sum => ReadWindowAggregate
@@ -1304,7 +1305,7 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 		Name:    "SimplePassSum",
 		Rules:   []plan.Rule{influxdb.PushDownWindowAggregateRule{}},
 		Before:  simplePlanWithWindowAgg(window1m, "sum", sumProcedureSpec()),
-		After:   simpleResult("sum"),
+		After:   simpleResult("sum", false),
 	})
 
 	// Rewrite with successors
@@ -1384,10 +1385,16 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 	badWindow5.StopColumn = "_stappp"
 	simpleMinUnchanged("BadStop", badWindow5)
 
-	// Condition not met: createEmpty is not false
-	badWindow6 := window1m
-	badWindow6.CreateEmpty = true
-	simpleMinUnchanged("BadCreateEmpty", badWindow6)
+	// Condition met: createEmpty is true.
+	window6 := window1m
+	window6.CreateEmpty = true
+	tests = append(tests, plantest.RuleTestCase{
+		Context: haveCaps,
+		Name:    "CreateEmptyPassMin",
+		Rules:   []plan.Rule{influxdb.PushDownWindowAggregateRule{}},
+		Before:  simplePlanWithWindowAgg(window6, "min", minProcedureSpec()),
+		After:   simpleResult("min", true),
+	})
 
 	// Condition not met: duration too long.
 	simpleMinUnchanged("WindowTooLarge", window1y)
@@ -1554,7 +1561,7 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 		Name:     "FailNoCaps",
 		Rules:    []plan.Rule{influxdb.PushDownWindowAggregateRule{}},
 		Before:   simplePlanWithWindowAgg(window1m, "count", countProcedureSpec()),
-		After:    simpleResult("count"),
+		After:    simpleResult("count", false),
 		NoChange: true,
 	})
 
