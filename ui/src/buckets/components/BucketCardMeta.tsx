@@ -14,7 +14,7 @@ import {
 import {notify as notifyAction} from 'src/shared/actions/notifications'
 
 // Components
-import {ResourceCard, Icon, IconFont} from '@influxdata/clockface'
+import {ResourceCard} from '@influxdata/clockface'
 
 // Types
 import {OwnBucket} from 'src/types'
@@ -50,7 +50,7 @@ const BucketCardMeta: FC<Props> = ({bucket, notify}) => {
     </span>
   )
 
-  if (bucket.type !== 'user') {
+  if (bucket.type === 'system') {
     return (
       <ResourceCard.Meta>
         <span
