@@ -25,7 +25,7 @@ RUN apt-get update \
   && mkdir -p /usr/share/man/man1 \
   && apt-get install -y \
     git locales sudo openssh-client ca-certificates tar gzip parallel \
-    unzip zip bzip2 gnupg curl make \
+    unzip zip bzip2 gnupg curl make pkg-config libssl-dev \
     musl musl-dev musl-tools clang llvm \
     --no-install-recommends \
   && apt-get clean autoclean \
