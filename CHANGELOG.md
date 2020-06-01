@@ -4,6 +4,10 @@
 
 1. [18279](https://github.com/influxdata/influxdb/pull/18279): Make all pkg applications stateful via stacks
 
+### UI Improvements
+
+1. [18319](https://github.com/influxdata/influxdb/pull/18319): Display bucket ID in bucket list and enable 1 click copying
+
 ## v2.0.0-beta.11 [2020-05-26]
 
 ### Features
