@@ -15,8 +15,9 @@ import {
   getByInputValue,
   getByTitle,
   createTask,
-  createVariable,
   createMapVariable,
+  createCSVVariable,
+  createQueryVariable,
   createAndAddLabel,
   createLabel,
   createBucket,
@@ -39,8 +40,9 @@ declare global {
       signin: typeof signin
       setupUser: typeof setupUser
       createSource: typeof createSource
+      createCSVVariable: typeof createCSVVariable
+      createQueryVariable: typeof createQueryVariable
       createTask: typeof createTask
-      createVariable: typeof createVariable
       createMapVariable: typeof createMapVariable
       createDashboardTemplate: typeof createDashboardTemplate
       createDashboard: typeof createDashboard

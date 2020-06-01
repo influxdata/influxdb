@@ -103,7 +103,7 @@ class NoteEditorOverlay extends PureComponent<Props, State> {
     }
 
     return (
-      <Overlay.Container maxWidth={900}>
+      <Overlay.Container maxWidth={900} testID="note-editor--overlay">
         <Overlay.Header
           title={this.overlayTitle}
           onDismiss={this.handleDismiss}
@@ -123,6 +123,7 @@ class NoteEditorOverlay extends PureComponent<Props, State> {
             color={ComponentColor.Success}
             status={this.saveButtonStatus}
             onClick={this.handleSave}
+            testID="save-note--button"
           />
         </Overlay.Footer>
       </Overlay.Container>
