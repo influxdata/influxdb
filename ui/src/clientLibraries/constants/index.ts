@@ -258,11 +258,13 @@ queryApi.queryRows(query, {
     console.log('\\nFinished SUCCESS')
   },
 })`,
-  writingDataLineProtocolCodeSnippet: `const writeApi = client.getWriteApi(org, bucket)
-  
-const data = 'mem,host=host1 used_percent=23.43234543' // Line protocol string
-writeApi.writeRecord(data)
+  writingDataLineProtocolCodeSnippet: `const {Point} = require('@influxdata/influxdb-client')
+const writeApi = client.getWriteApi(org, bucket)
+writeApi.useDefaultTags({host: 'host1'})
 
+const point = new Point('mem')
+  .floatField('used_percent', 23.43234543)
+writeApi.writePoint(point)
 writeApi
     .close()
     .then(() => {
