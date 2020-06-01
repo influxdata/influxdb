@@ -228,6 +228,60 @@ func (c *integerFloatCountArrayCursor) Next() *cursors.IntegerArray {
 	}
 }
 
+type integerFloatWindowCountArrayCursor struct {
+	cursors.FloatArrayCursor
+	every int64
+}
+
+func (c *integerFloatWindowCountArrayCursor) Stats() cursors.CursorStats {
+	return c.FloatArrayCursor.Stats()
+}
+
+func (c *integerFloatWindowCountArrayCursor) Next() *cursors.IntegerArray {
+	a := c.FloatArrayCursor.Next()
+	if a.Len() == 0 {
+		return &cursors.IntegerArray{}
+	}
+
+	res := cursors.NewIntegerArrayLen(0)
+	rowIdx := 0
+	var acc int64 = 0
+
+	// enumerate windows
+WINDOWS:
+	for {
+		firstTimestamp := a.Timestamps[rowIdx]
+		windowStart := firstTimestamp - firstTimestamp%c.every
+		windowEnd := windowStart + c.every
+		for ; rowIdx < a.Len(); rowIdx++ {
+			ts := a.Timestamps[rowIdx]
+			if ts >= windowEnd {
+				// new window detected, close the current window
+				if acc > 0 {
+					res.Timestamps = append(res.Timestamps, windowEnd)
+					res.Values = append(res.Values, acc)
+				}
+				// start the new window
+				acc = 0
+				continue WINDOWS
+			} else {
+				acc++
+			}
+		}
+		// get the next chunk
+		a = c.FloatArrayCursor.Next()
+		if a.Len() == 0 {
+			if acc > 0 {
+				res.Timestamps = append(res.Timestamps, windowEnd)
+				res.Values = append(res.Values, acc)
+			}
+			break
+		}
+		rowIdx = 0
+	}
+	return res
+}
+
 type floatEmptyArrayCursor struct {
 	res cursors.FloatArray
 }
@@ -446,6 +500,60 @@ func (c *integerIntegerCountArrayCursor) Next() *cursors.IntegerArray {
 			return res
 		}
 	}
+}
+
+type integerIntegerWindowCountArrayCursor struct {
+	cursors.IntegerArrayCursor
+	every int64
+}
+
+func (c *integerIntegerWindowCountArrayCursor) Stats() cursors.CursorStats {
+	return c.IntegerArrayCursor.Stats()
+}
+
+func (c *integerIntegerWindowCountArrayCursor) Next() *cursors.IntegerArray {
+	a := c.IntegerArrayCursor.Next()
+	if a.Len() == 0 {
+		return &cursors.IntegerArray{}
+	}
+
+	res := cursors.NewIntegerArrayLen(0)
+	rowIdx := 0
+	var acc int64 = 0
+
+	// enumerate windows
+WINDOWS:
+	for {
+		firstTimestamp := a.Timestamps[rowIdx]
+		windowStart := firstTimestamp - firstTimestamp%c.every
+		windowEnd := windowStart + c.every
+		for ; rowIdx < a.Len(); rowIdx++ {
+			ts := a.Timestamps[rowIdx]
+			if ts >= windowEnd {
+				// new window detected, close the current window
+				if acc > 0 {
+					res.Timestamps = append(res.Timestamps, windowEnd)
+					res.Values = append(res.Values, acc)
+				}
+				// start the new window
+				acc = 0
+				continue WINDOWS
+			} else {
+				acc++
+			}
+		}
+		// get the next chunk
+		a = c.IntegerArrayCursor.Next()
+		if a.Len() == 0 {
+			if acc > 0 {
+				res.Timestamps = append(res.Timestamps, windowEnd)
+				res.Values = append(res.Values, acc)
+			}
+			break
+		}
+		rowIdx = 0
+	}
+	return res
 }
 
 type integerEmptyArrayCursor struct {
@@ -668,6 +776,60 @@ func (c *integerUnsignedCountArrayCursor) Next() *cursors.IntegerArray {
 	}
 }
 
+type integerUnsignedWindowCountArrayCursor struct {
+	cursors.UnsignedArrayCursor
+	every int64
+}
+
+func (c *integerUnsignedWindowCountArrayCursor) Stats() cursors.CursorStats {
+	return c.UnsignedArrayCursor.Stats()
+}
+
+func (c *integerUnsignedWindowCountArrayCursor) Next() *cursors.IntegerArray {
+	a := c.UnsignedArrayCursor.Next()
+	if a.Len() == 0 {
+		return &cursors.IntegerArray{}
+	}
+
+	res := cursors.NewIntegerArrayLen(0)
+	rowIdx := 0
+	var acc int64 = 0
+
+	// enumerate windows
+WINDOWS:
+	for {
+		firstTimestamp := a.Timestamps[rowIdx]
+		windowStart := firstTimestamp - firstTimestamp%c.every
+		windowEnd := windowStart + c.every
+		for ; rowIdx < a.Len(); rowIdx++ {
+			ts := a.Timestamps[rowIdx]
+			if ts >= windowEnd {
+				// new window detected, close the current window
+				if acc > 0 {
+					res.Timestamps = append(res.Timestamps, windowEnd)
+					res.Values = append(res.Values, acc)
+				}
+				// start the new window
+				acc = 0
+				continue WINDOWS
+			} else {
+				acc++
+			}
+		}
+		// get the next chunk
+		a = c.UnsignedArrayCursor.Next()
+		if a.Len() == 0 {
+			if acc > 0 {
+				res.Timestamps = append(res.Timestamps, windowEnd)
+				res.Values = append(res.Values, acc)
+			}
+			break
+		}
+		rowIdx = 0
+	}
+	return res
+}
+
 type unsignedEmptyArrayCursor struct {
 	res cursors.UnsignedArray
 }
@@ -848,6 +1010,60 @@ func (c *integerStringCountArrayCursor) Next() *cursors.IntegerArray {
 	}
 }
 
+type integerStringWindowCountArrayCursor struct {
+	cursors.StringArrayCursor
+	every int64
+}
+
+func (c *integerStringWindowCountArrayCursor) Stats() cursors.CursorStats {
+	return c.StringArrayCursor.Stats()
+}
+
+func (c *integerStringWindowCountArrayCursor) Next() *cursors.IntegerArray {
+	a := c.StringArrayCursor.Next()
+	if a.Len() == 0 {
+		return &cursors.IntegerArray{}
+	}
+
+	res := cursors.NewIntegerArrayLen(0)
+	rowIdx := 0
+	var acc int64 = 0
+
+	// enumerate windows
+WINDOWS:
+	for {
+		firstTimestamp := a.Timestamps[rowIdx]
+		windowStart := firstTimestamp - firstTimestamp%c.every
+		windowEnd := windowStart + c.every
+		for ; rowIdx < a.Len(); rowIdx++ {
+			ts := a.Timestamps[rowIdx]
+			if ts >= windowEnd {
+				// new window detected, close the current window
+				if acc > 0 {
+					res.Timestamps = append(res.Timestamps, windowEnd)
+					res.Values = append(res.Values, acc)
+				}
+				// start the new window
+				acc = 0
+				continue WINDOWS
+			} else {
+				acc++
+			}
+		}
+		// get the next chunk
+		a = c.StringArrayCursor.Next()
+		if a.Len() == 0 {
+			if acc > 0 {
+				res.Timestamps = append(res.Timestamps, windowEnd)
+				res.Values = append(res.Values, acc)
+			}
+			break
+		}
+		rowIdx = 0
+	}
+	return res
+}
+
 type stringEmptyArrayCursor struct {
 	res cursors.StringArray
 }
@@ -1026,6 +1242,60 @@ func (c *integerBooleanCountArrayCursor) Next() *cursors.IntegerArray {
 			return res
 		}
 	}
+}
+
+type integerBooleanWindowCountArrayCursor struct {
+	cursors.BooleanArrayCursor
+	every int64
+}
+
+func (c *integerBooleanWindowCountArrayCursor) Stats() cursors.CursorStats {
+	return c.BooleanArrayCursor.Stats()
+}
+
+func (c *integerBooleanWindowCountArrayCursor) Next() *cursors.IntegerArray {
+	a := c.BooleanArrayCursor.Next()
+	if a.Len() == 0 {
+		return &cursors.IntegerArray{}
+	}
+
+	res := cursors.NewIntegerArrayLen(0)
+	rowIdx := 0
+	var acc int64 = 0
+
+	// enumerate windows
+WINDOWS:
+	for {
+		firstTimestamp := a.Timestamps[rowIdx]
+		windowStart := firstTimestamp - firstTimestamp%c.every
+		windowEnd := windowStart + c.every
+		for ; rowIdx < a.Len(); rowIdx++ {
+			ts := a.Timestamps[rowIdx]
+			if ts >= windowEnd {
+				// new window detected, close the current window
+				if acc > 0 {
+					res.Timestamps = append(res.Timestamps, windowEnd)
+					res.Values = append(res.Values, acc)
+				}
+				// start the new window
+				acc = 0
+				continue WINDOWS
+			} else {
+				acc++
+			}
+		}
+		// get the next chunk
+		a = c.BooleanArrayCursor.Next()
+		if a.Len() == 0 {
+			if acc > 0 {
+				res.Timestamps = append(res.Timestamps, windowEnd)
+				res.Values = append(res.Values, acc)
+			}
+			break
+		}
+		rowIdx = 0
+	}
+	return res
 }
 
 type booleanEmptyArrayCursor struct {

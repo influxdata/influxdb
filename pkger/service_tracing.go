@@ -51,14 +51,14 @@ func (s *traceMW) CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (pkg
 	return s.next.CreatePkg(ctx, setters...)
 }
 
-func (s *traceMW) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (sum Summary, diff Diff, err error) {
+func (s *traceMW) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (PkgImpactSummary, error) {
 	span, ctx := tracing.StartSpanFromContextWithOperationName(ctx, "DryRun")
 	span.LogKV("orgID", orgID.String(), "userID", userID.String())
 	defer span.Finish()
 	return s.next.DryRun(ctx, orgID, userID, pkg, opts...)
 }
 
-func (s *traceMW) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (sum Summary, diff Diff, err error) {
+func (s *traceMW) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (PkgImpactSummary, error) {
 	span, ctx := tracing.StartSpanFromContextWithOperationName(ctx, "Apply")
 	span.LogKV("orgID", orgID.String(), "userID", userID.String())
 	defer span.Finish()

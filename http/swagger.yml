@@ -112,6 +112,35 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  /setup/user:
+    post:
+      operationId: PostSetupUser
+      tags:
+        - Setup
+      summary: Set up a new user, org and bucket
+      description: Post an onboarding request to set up a new user, org and bucket.
+      parameters:
+        - $ref: "#/components/parameters/TraceSpan"
+      requestBody:
+        description: Source to create
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OnboardingRequest"
+      responses:
+        "201":
+          description: Created default user, bucket, org
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OnboardingResponse"
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   /documents/templates:
     get:
       operationId: GetDocumentsTemplates
@@ -7393,6 +7422,7 @@ components:
             - notificationRules
             - notificationEndpoints
             - checks
+            - dbrp
         id:
           type: string
           nullable: true
@@ -7829,6 +7859,8 @@ components:
     PkgSummary:
       type: object
       properties:
+        stackID:
+          type: string
         summary:
           type: object
           properties:
@@ -10939,6 +10971,8 @@ components:
           type: string
         properties:
           type: object
+          additionalProperties:
+            type: string
           description: Key/Value pairs associated with this label. Keys can be removed by sending an update with an empty value.
           example: { "color": "ffb3b3", "description": "this is a description" }
     LabelMapping:

@@ -2,6 +2,7 @@ package label
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/influxdata/influxdb/v2"
@@ -144,13 +145,17 @@ func (s *Service) DeleteLabel(ctx context.Context, id influxdb.ID) error {
 
 // CreateLabelMapping creates a new mapping between a resource and a label.
 func (s *Service) CreateLabelMapping(ctx context.Context, m *influxdb.LabelMapping) error {
+	fmt.Println("creating label mapping")
 	err := s.store.View(ctx, func(tx kv.Tx) error {
 		if _, err := s.store.GetLabel(ctx, tx, m.LabelID); err != nil {
+			fmt.Println("could not get label")
 			return err
 		}
+
 		ls := []*influxdb.Label{}
 		err := s.store.FindResourceLabels(ctx, tx, influxdb.LabelMappingFilter{ResourceID: m.ResourceID, ResourceType: m.ResourceType}, &ls)
 		if err != nil {
+			fmt.Println("could not get resource labels")
 			return err
 		}
 		for i := 0; i < len(ls); i++ {
@@ -162,10 +167,12 @@ func (s *Service) CreateLabelMapping(ctx context.Context, m *influxdb.LabelMappi
 		return nil
 	})
 	if err != nil {
+		fmt.Println("could not .....?")
 		return err
 	}
 
 	return s.store.Update(ctx, func(tx kv.Tx) error {
+		fmt.Println("calling to store ")
 		return s.store.CreateLabelMapping(ctx, tx, m)
 	})
 }

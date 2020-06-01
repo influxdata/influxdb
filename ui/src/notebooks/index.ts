@@ -1,4 +1,5 @@
 import {FunctionComponent, ComponentClass, ReactNode} from 'react'
+import {FromFluxResult} from '@influxdata/giraffe'
 
 export interface PipeContextProps {
   children?: ReactNode
@@ -10,6 +11,8 @@ export type PipeData = any
 export interface PipeProp {
   data: PipeData
   onUpdate: (data: PipeData) => void
+  results?: FromFluxResult
+
   Context:
     | FunctionComponent<PipeContextProps>
     | ComponentClass<PipeContextProps>

@@ -153,12 +153,12 @@ func (b *cmdPkgBuilder) pkgApplyRunEFn(cmd *cobra.Command, args []string) error 
 		pkger.ApplyWithStackID(stackID),
 	}
 
-	drySum, diff, err := svc.DryRun(context.Background(), influxOrgID, 0, pkg, opts...)
+	dryRunImpact, err := svc.DryRun(context.Background(), influxOrgID, 0, pkg, opts...)
 	if err != nil {
 		return err
 	}
 
-	providedSecrets := mapKeys(drySum.MissingSecrets, b.applyOpts.secrets)
+	providedSecrets := mapKeys(dryRunImpact.Summary.MissingSecrets, b.applyOpts.secrets)
 	if !isTTY {
 		const skipDefault = "$$skip-this-key$$"
 		for _, secretKey := range missingValKeys(providedSecrets) {
@@ -170,7 +170,7 @@ func (b *cmdPkgBuilder) pkgApplyRunEFn(cmd *cobra.Command, args []string) error 
 		}
 	}
 
-	if err := b.printPkgDiff(diff); err != nil {
+	if err := b.printPkgDiff(dryRunImpact.Diff); err != nil {
 		return err
 	}
 
@@ -183,18 +183,18 @@ func (b *cmdPkgBuilder) pkgApplyRunEFn(cmd *cobra.Command, args []string) error 
 		}
 	}
 
-	if b.applyOpts.force != "conflict" && isTTY && diff.HasConflicts() {
+	if b.applyOpts.force != "conflict" && isTTY && dryRunImpact.Diff.HasConflicts() {
 		return errors.New("package has conflicts with existing resources and cannot safely apply")
 	}
 
 	opts = append(opts, pkger.ApplyWithSecrets(providedSecrets))
 
-	summary, _, err := svc.Apply(context.Background(), influxOrgID, 0, pkg, opts...)
+	impact, err := svc.Apply(context.Background(), influxOrgID, 0, pkg, opts...)
 	if err != nil {
 		return err
 	}
 
-	b.printPkgSummary(summary)
+	b.printPkgSummary(impact.StackID, impact.Summary)
 
 	return nil
 }
@@ -334,7 +334,7 @@ func (b *cmdPkgBuilder) cmdPkgSummary() *cobra.Command {
 			return err
 		}
 
-		return b.printPkgSummary(pkg.Summary())
+		return b.printPkgSummary(0, pkg.Summary())
 	}
 
 	cmd := b.newCmd("summary", runE, false)
@@ -1164,13 +1164,19 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
 	return nil
 }
 
-func (b *cmdPkgBuilder) printPkgSummary(sum pkger.Summary) error {
+func (b *cmdPkgBuilder) printPkgSummary(stackID influxdb.ID, sum pkger.Summary) error {
 	if b.quiet {
 		return nil
 	}
 
 	if b.json {
-		return b.writeJSON(sum)
+		return b.writeJSON(struct {
+			StackID string `json:"stackID"`
+			Summary pkger.Summary
+		}{
+			StackID: stackID.String(),
+			Summary: sum,
+		})
 	}
 
 	commonHeaders := []string{"Package Name", "ID", "Resource Name"}
@@ -1323,6 +1329,10 @@ func (b *cmdPkgBuilder) printPkgSummary(sum pkger.Summary) error {
 		tablePrintFn("MISSING SECRETS", headers, len(secrets), func(i int) []string {
 			return []string{secrets[i]}
 		})
+	}
+
+	if stackID != 0 {
+		fmt.Fprintln(b.w, "Stack ID: "+stackID.String())
 	}
 
 	return nil
