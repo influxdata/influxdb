@@ -3,10 +3,8 @@ FROM rust:slim-buster AS flatc
 RUN apt-get update \
   && mkdir -p /usr/share/man/man1 \
   && apt-get install -y \
-    git mercurial xvfb apt \
-    locales sudo openssh-client ca-certificates tar gzip parallel \
-    net-tools netcat unzip zip bzip2 gnupg curl wget make \
-    musl musl-dev musl-tools clang cmake llvm \
+    git make clang cmake llvm \
+    --no-install-recommends \
   && git clone -- https://github.com/google/flatbuffers.git /usr/local/src/flatbuffers \
   && cmake -S /usr/local/src/flatbuffers -B /usr/local/src/flatbuffers \
     -G "Unix Makefiles" \
@@ -18,18 +16,18 @@ FROM rust:slim-buster
 
 COPY --from=flatc /usr/local/src/flatbuffers/flatc /usr/bin/flatc
 # make Apt non-interactive
-RUN echo 'APT::Get::Assume-Yes "true";' > /etc/apt/apt.conf.d/90circleci \
-  && echo 'DPkg::Options "--force-confnew";' >> /etc/apt/apt.conf.d/90circleci
+RUN echo 'APT::Get::Assume-Yes "true";' > /etc/apt/apt.conf.d/90ci \
+  && echo 'DPkg::Options "--force-confnew";' >> /etc/apt/apt.conf.d/90ci
 
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update \
   && mkdir -p /usr/share/man/man1 \
   && apt-get install -y \
-    git mercurial xvfb apt \
-    locales sudo openssh-client ca-certificates tar gzip parallel \
-    net-tools netcat unzip zip bzip2 gnupg curl wget make \
+    git locales sudo openssh-client ca-certificates tar gzip parallel \
+    unzip zip bzip2 gnupg curl make \
     musl musl-dev musl-tools clang llvm \
+    --no-install-recommends \
   && apt-get clean autoclean \
 	&& apt-get autoremove --yes \
 	&& rm -rf /var/lib/{apt,dpkg,cache,log}
@@ -40,7 +38,7 @@ RUN ln -sf /usr/share/zoneinfo/Etc/UTC /etc/localtime
 RUN locale-gen C.UTF-8 || true
 ENV LANG=C.UTF-8
 
-RUN rustup component add rustfmt
+RUN rustup component add rustfmt clippy
 
 RUN groupadd -g 1500 rust \
   && useradd -u 1500 -g rust -s /bin/bash -m rust \
