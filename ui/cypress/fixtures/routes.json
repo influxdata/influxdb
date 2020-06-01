@@ -6,5 +6,6 @@
   "checks": "/checks",
   "endpoints": "/endpoints",
   "rules": "/rules",
-  "buckets": "/load-data/buckets"
+  "buckets": "/load-data/buckets",
+  "telegrafs": "/load-data/telegrafs"
 }
