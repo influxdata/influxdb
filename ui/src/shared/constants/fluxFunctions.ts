@@ -959,6 +959,28 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/experimental/aligntime/',
   },
   {
+    name: 'experimental.chain',
+    args: [
+      {
+        name: 'first',
+        desc: 'The first query to execute.',
+        type: 'Stream of Tables',
+      },
+      {
+        name: 'second',
+        desc: 'The second query to execute.',
+        type: 'Stream of Tables',
+      },
+    ],
+    package: 'experimental',
+    desc:
+      'Executes two queries sequentially rather than in parallel and outputs the results of the second query.',
+    example: 'experimental.chain(first: query1, second: query2)',
+    category: 'Inputs',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/experimental/chain/',
+  },
+  {
     name: 'experimental.group',
     args: [
       {
@@ -1197,6 +1219,50 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     category: 'Transformations',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/built-in/transformations/filter/',
+  },
+  {
+    name: 'findColumn',
+    args: [
+      {
+        name: 'fn',
+        desc: 'Predicate function for matching keys in a table’s group key.',
+        type: 'Function',
+      },
+      {
+        name: 'column',
+        desc: 'Name of the column to extract.',
+        type: 'String',
+      },
+    ],
+    package: '',
+    desc:
+      'Returns an array of values in a specified column from the first table in a stream of tables where the group key values match the specified predicate.',
+    example: 'findColumn(fn: (key) => key.host == "host1", column: "_value")',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/built-in/transformations/stream-table/findcolumn/',
+  },
+  {
+    name: 'findRecord',
+    args: [
+      {
+        name: 'fn',
+        desc: 'Predicate function for matching keys in a table’s group key.',
+        type: 'Function',
+      },
+      {
+        name: 'idx',
+        desc: 'Index of the record to extract.',
+        type: 'Integer',
+      },
+    ],
+    package: '',
+    desc:
+      'Returns a record at a specified index from the first table in a stream of tables where the group key values match the specified predicate.',
+    example: 'findRecord(fn: (key) => key.host == "host1", idx: 0)',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/built-in/transformations/stream-table/findrecord/',
   },
   {
     name: 'first',
@@ -5282,6 +5348,33 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/built-in/transformations/selectors/unique/',
   },
   {
+    name: 'v1.fieldKeys',
+    args: [
+      {
+        name: 'bucket',
+        desc: 'The bucket to list field keys from.',
+        type: 'String',
+      },
+      {
+        name: 'predicate',
+        desc:
+          'Predicate function that filters field keys. Defaults is (r) => true.',
+        type: 'Function',
+      },
+      {
+        name: 'start',
+        desc: 'The oldest time to include in results. Defaults is `-30d`.',
+        type: 'Duration | Time',
+      },
+    ],
+    package: 'influxdata/influxdb/v1',
+    desc: 'Returns a list of fields in a bucket.',
+    example: 'v1.fieldKeys(bucket: "example-bucket")',
+    category: 'Inputs',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/influxdb-v1/measurementfieldkeys/',
+  },
+  {
     name: 'v1.fieldsAsCols',
     args: [],
     package: 'influxdata/influxdb/v1',
@@ -5290,6 +5383,33 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     category: 'Transformations',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/influxdb-v1/fieldsascols/',
+  },
+  {
+    name: 'v1.measurementFieldKeys',
+    args: [
+      {
+        name: 'bucket',
+        desc: 'The bucket to list field keys from.',
+        type: 'String',
+      },
+      {
+        name: 'measurement',
+        desc: 'The measurement to list field keys from.',
+        type: 'String',
+      },
+      {
+        name: 'start',
+        desc: 'The oldest time to include in results. Defaults is `-30d`.',
+        type: 'Duration | Time',
+      },
+    ],
+    package: 'influxdata/influxdb/v1',
+    desc: 'Returns a list of fields in a measurement.',
+    example:
+      'v1.measurementFieldKeys(bucket: "example-bucket", measurement: "example-measurement")',
+    category: 'Inputs',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/influxdb-v1/measurementfieldkeys/',
   },
   {
     name: 'v1.measurementTagKeys',
@@ -5310,7 +5430,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     desc: 'Returns a list of tag keys for a specific measurement.',
     example:
       'v1.measurementTagKeys(bucket: "example-bucket", measurement: "mem")',
-    category: 'Transformations',
+    category: 'Inputs',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/influxdb-v1/measurementtagkeys/',
   },
@@ -5338,7 +5458,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     desc: 'Returns a list of tag values for a specific measurement.',
     example:
       'v1.measurementTagValues(bucket: "example-bucket", measurement: "mem", tag: "host")',
-    category: 'Transformations',
+    category: 'Inputs',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/influxdb-v1/measurementtagvalues/',
   },
@@ -5354,7 +5474,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     package: 'influxdata/influxdb/v1',
     desc: 'Returns a list of measurements in a specific bucket.',
     example: 'v1.measurements(bucket: "example-bucket")',
-    category: 'Transformations',
+    category: 'Inputs',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/influxdb-v1/measurements/',
   },
@@ -5382,7 +5502,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     package: 'influxdata/influxdb/v1',
     desc: 'Returns a list of tag keys for all series that match the predicate.',
     example: 'v1.tagKeys(bucket: "example-bucket")',
-    category: 'Transformations',
+    category: 'Inputs',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/influxdb-v1/tagkeys/',
   },
@@ -5414,8 +5534,8 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     ],
     package: 'influxdata/influxdb/v1',
     desc: 'Returns a list of unique values for a given tag.',
-    example: 'v1.tagValues(bucket: "example-bucket")',
-    category: 'Transformations',
+    example: 'v1.tagValues(bucket: "example-bucket", tag: "example-tag")',
+    category: 'Inputs',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/influxdb-v1/tagvalues/',
   },
