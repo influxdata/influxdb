@@ -99,7 +99,7 @@ import NewEndpointOverlay from 'src/notifications/endpoints/components/NewEndpoi
 import EditEndpointOverlay from 'src/notifications/endpoints/components/EditEndpointOverlay'
 import NoOrgsPage from 'src/organizations/containers/NoOrgsPage'
 import UsagePage from 'src/usage/components/UsagePage'
-import UsersPage from 'src/users/components/UsersPage'
+import UsersPage from 'src/users/components/UsersContainer'
 
 // Utilities
 import {isFlagEnabled} from 'src/shared/utils/featureFlag'

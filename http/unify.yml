@@ -62,6 +62,31 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
   "/orgs/{orgID}/invites":
+    get:
+      operationId: GetInvites
+      tags:
+        - Invites
+      parameters:
+        - $ref: "#/components/parameters/TraceSpan"
+        - in: path
+          name: orgID
+          description: Specifies the organization ID of the Invite.
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: A list of cloud invites
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Invites"
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
     post:
       operationId: PostOrgsIDInvites
       tags:
