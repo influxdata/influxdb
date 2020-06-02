@@ -36,7 +36,7 @@ func (s *Telegram) GenerateFlux(e influxdb.NotificationEndpoint) (string, error)
 func (s *Telegram) GenerateFluxAST(e *endpoint.Telegram) (*ast.Package, error) {
 	f := flux.File(
 		s.Name,
-		flux.Imports("influxdata/influxdb/monitor", "telegram", "influxdata/influxdb/secrets", "experimental"),
+		flux.Imports("influxdata/influxdb/monitor", "contrib/sranka/telegram", "influxdata/influxdb/secrets", "experimental"),
 		s.generateFluxASTBody(e),
 	)
 	return &ast.Package{Package: "main", Files: []*ast.File{f}}, nil

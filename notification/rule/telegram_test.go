@@ -105,7 +105,7 @@ func TestTelegram_GenerateFlux(t *testing.T) {
 			script: `package main
 // foo
 import "influxdata/influxdb/monitor"
-import "telegram"
+import "contrib/sranka/telegram"
 import "influxdata/influxdb/secrets"
 import "experimental"
 
@@ -177,7 +177,7 @@ all_statuses
 			script: `package main
 // foo
 import "influxdata/influxdb/monitor"
-import "telegram"
+import "contrib/sranka/telegram"
 import "influxdata/influxdb/secrets"
 import "experimental"
 
