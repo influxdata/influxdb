@@ -21,6 +21,10 @@ env_logger = "0.7.1"
 log = "0.4.8"
 snafu = "0.6.2"
 
+[dev-dependencies]
+predicates = "1.0.4"
+assert_cmd = "1.0.0"
+
 [[bin]]
 # (D)elorian (S)torage Tool
 name = "dstool"

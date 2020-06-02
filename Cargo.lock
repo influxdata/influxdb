@@ -393,7 +393,6 @@ dependencies = [
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "num 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "num_cpus 1.13.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "predicates 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "prost 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "prost-types 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.7.3 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -423,10 +422,12 @@ dependencies = [
 name = "delorean_storage_tool"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "clap 2.33.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "delorean_line_parser 0.1.0",
  "env_logger 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "predicates 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "snafu 0.6.8 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
