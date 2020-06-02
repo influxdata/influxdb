@@ -129,17 +129,20 @@ const collectAncestors = (
 */
 const getRootChildNode = (
   node: VariableNode,
-  acc: Set<VariableNode> = new Set()
+  acc: Set<VariableNode> = new Set(),
+  cache: {[key: string]: boolean | undefined} = {}
 ): VariableNode => {
   if (node.children.length === 0) {
     return node
   }
   for (const child of node.children) {
-    if (child.children.length > 0) {
-      getRootChildNode(child, acc)
-    } else {
-      return child
+    // by checking the cache for existing variables, we ensure that the graph stops
+    // when an existing node has already been encountered, invalidating a cycle if one exists
+    if (child.children.length > 0 && !cache[child.variable.id]) {
+      cache[child.variable.id] = true
+      return getRootChildNode(child, acc, cache)
     }
+    return child
   }
 }
 
@@ -223,7 +226,11 @@ export const findSubgraph = (
         )
         subgraph.add(filteredNodes)
         subgraphIDs[rootChild.variable.id] = true
-        subgraphIDs = {...subgraphIDs, ...subsetIDs}
+        subgraphIDs = {
+          [rootChild.variable.id]: true,
+          ...subgraphIDs,
+          ...subsetIDs,
+        }
       } else {
         subgraph.add(rootChild)
         subgraphIDs[rootChild.variable.id] = true
@@ -366,7 +373,7 @@ const findLeaves = (graph: VariableNode[]): VariableNode[] =>
 */
 const findCyclicPath = (node: VariableNode): VariableNode[] => {
   try {
-    findCyclicPathHelper(node, [])
+    findCyclicPathHelper(node, [], {})
   } catch (cyclicPath) {
     return cyclicPath
   }
@@ -376,14 +383,18 @@ const findCyclicPath = (node: VariableNode): VariableNode[] => {
 
 const findCyclicPathHelper = (
   node: VariableNode,
-  seen: VariableNode[]
+  seen: VariableNode[],
+  cache: {[key: string]: undefined | boolean} = {}
 ): void => {
-  if (seen.includes(node)) {
+  if (cache[node.variable.id]) {
     throw seen
   }
 
   for (const child of node.children) {
-    findCyclicPathHelper(child, [...seen, node])
+    findCyclicPathHelper(child, [...seen, node], {
+      ...cache,
+      [node.variable.id]: true,
+    })
   }
 }
 
