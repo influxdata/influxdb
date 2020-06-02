@@ -74,7 +74,7 @@ export const createVariableGraph = (
   return Object.values(nodesByID)
 }
 
-export const isInQuery = (query: string, v: Variable) => {
+export const isInQuery = (query: string, v: Variable): boolean => {
   const regexp = new RegExp(
     `${BOUNDARY_GROUP}${OPTION_NAME}.${v.name}${BOUNDARY_GROUP}`
   )
@@ -194,6 +194,7 @@ const getDeduplicatedRootChild = (
   - The node for one of the passed variables depends on this node
 
 */
+// TODO(ariel): rename this back to findSubgraph & update tests once feature flag is removed
 export const findSubgraphFeature = (
   graph: VariableNode[],
   variables: Variable[]
@@ -513,8 +514,7 @@ export const hydrateVars = (
   options: HydrateVarsOptions
 ): EventedCancelBox<Variable[]> => {
   let findSubgraphFunction = findSubgraph
-  if (true) {
-    // if (isFlagEnabled('hydratevars')) {
+  if (isFlagEnabled('hydratevars')) {
     findSubgraphFunction = findSubgraphFeature
   }
 
