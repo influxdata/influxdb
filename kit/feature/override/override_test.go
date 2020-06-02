@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/influxdata/influxdb/v2/kit/feature"
+	"github.com/influxdata/influxdb/v2/kit/feature/lifetime"
 )
 
 func TestFlagger(t *testing.T) {
@@ -168,11 +169,11 @@ func TestFlagger(t *testing.T) {
 }
 
 func newFlag(key string, defaultValue interface{}) feature.Flag {
-	return feature.MakeFlag(key, key, "", defaultValue, feature.Temporary, false)
+	return feature.MakeFlag(key, key, "", defaultValue, defaultValue, lifetime.Temporary, false)
 }
 
 func newBaseFlag(key string, defaultValue interface{}) feature.Base {
-	return feature.MakeBase(key, key, "", defaultValue, feature.Temporary, false)
+	return feature.MakeBase(key, key, "", defaultValue, defaultValue, lifetime.Temporary, false)
 }
 
 func newByKey(m map[string]feature.Flag) feature.ByKeyFn {

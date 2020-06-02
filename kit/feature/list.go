@@ -2,12 +2,15 @@
 
 package feature
 
+import "github.com/influxdata/influxdb/v2/kit/feature/lifetime"
+
 var appMetrics = MakeBoolFlag(
 	"App Metrics",
 	"appMetrics",
 	"Bucky, Monitoring Team",
 	false,
-	Permanent,
+	false,
+	lifetime.Permanent,
 	true,
 )
 
@@ -21,7 +24,8 @@ var backendExample = MakeBoolFlag(
 	"backendExample",
 	"Gavin Cabbage",
 	false,
-	Permanent,
+	false,
+	lifetime.Permanent,
 	false,
 )
 
@@ -35,7 +39,8 @@ var frontendExample = MakeIntFlag(
 	"frontendExample",
 	"Gavin Cabbage",
 	42,
-	Temporary,
+	42,
+	lifetime.Temporary,
 	true,
 )
 
@@ -49,7 +54,8 @@ var pushDownWindowAggregateCount = MakeBoolFlag(
 	"pushDownWindowAggregateCount",
 	"Query Team",
 	false,
-	Temporary,
+	false,
+	lifetime.Temporary,
 	false,
 )
 
@@ -63,7 +69,8 @@ var pushDownWindowAggregateRest = MakeBoolFlag(
 	"pushDownWindowAggregateRest",
 	"Query Team",
 	false,
-	Temporary,
+	false,
+	lifetime.Temporary,
 	false,
 )
 
@@ -77,7 +84,8 @@ var newAuth = MakeBoolFlag(
 	"newAuth",
 	"Alirie Gray",
 	false,
-	Temporary,
+	false,
+	lifetime.Temporary,
 	false,
 )
 
@@ -91,7 +99,8 @@ var sessionService = MakeBoolFlag(
 	"sessionService",
 	"Lyon Hill",
 	false,
-	Temporary,
+	false,
+	lifetime.Temporary,
 	true,
 )
 
@@ -105,7 +114,8 @@ var pushDownGroupAggregateCount = MakeBoolFlag(
 	"pushDownGroupAggregateCount",
 	"Query Team",
 	false,
-	Temporary,
+	false,
+	lifetime.Temporary,
 	false,
 )
 
@@ -119,7 +129,8 @@ var newLabels = MakeBoolFlag(
 	"newLabels",
 	"Alirie Gray",
 	false,
-	Temporary,
+	false,
+	lifetime.Temporary,
 	false,
 )
 

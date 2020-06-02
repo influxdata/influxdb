@@ -374,6 +374,7 @@ type Launcher struct {
 	Stdout     io.Writer
 	Stderr     io.Writer
 	apibackend *http.APIBackend
+	flagger    feature.Flagger
 }
 
 type stoppingScheduler interface {
@@ -849,7 +850,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		Addr: m.httpBindAddress,
 	}
 
-	flagger := feature.DefaultFlagger()
+	var flagger feature.Flagger
 	if len(m.featureFlags) > 0 {
 		f, err := overrideflagger.Make(m.featureFlags, feature.ByKey)
 		if err != nil {
@@ -859,6 +860,10 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		}
 		m.log.Info("Running with feature flag overrides", zap.Any("overrides", m.featureFlags))
 		flagger = f
+	} else if m.flagger != nil {
+		flagger = m.flagger
+	} else {
+		flagger = feature.DefaultFlagger()
 	}
 
 	var sessionSvc platform.SessionService

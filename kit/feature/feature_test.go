@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/influxdata/influxdb/v2/kit/feature"
+	"github.com/influxdata/influxdb/v2/kit/feature/lifetime"
 )
 
 func Test_feature(t *testing.T) {
@@ -181,5 +182,73 @@ func (f testFlagsFlagger) Flags(ctx context.Context, flags ...feature.Flag) (map
 }
 
 func newFlag(key string, defaultValue interface{}) feature.Flag {
-	return feature.MakeFlag(key, key, "", defaultValue, feature.Temporary, false)
+	return feature.MakeFlag(key, key, "", defaultValue, defaultValue, lifetime.Temporary, false)
 }
+
+
+func Test_testingDefaults(t *testing.T) {
+	cases := []struct {
+		name     string
+		flag     feature.Flag
+		err      error
+		values   map[string]interface{}
+		ctx      context.Context
+		expected interface{}
+	}{
+		{
+			name:     "bool missing use testing true",
+			flag:     newFlagTd("test", false, true),
+			expected: true,
+		},
+		{
+			name:     "bool missing use testing false",
+			flag:     newFlagTd("test", true, false),
+			expected: false,
+		},
+		{
+			name:     "int missing use testing",
+			flag:     newFlagTd("test", int32(0), int32(65)),
+			expected: int32(65),
+		},
+		{
+			name:     "float missing use testing",
+			flag:     newFlagTd("test", 0.0, 65.65),
+			expected: 65.65,
+		},
+		{
+			name:     "string missing use testing",
+			flag:     newFlagTd("test", "nope", "mydefault"),
+			expected: "mydefault",
+		},
+	}
+
+	for _, test := range cases {
+		t.Run("flagger "+test.name, func(t *testing.T) {
+			flagger := feature.TestingFlagger()
+
+			var actual interface{}
+			switch flag := test.flag.(type) {
+			case feature.BoolFlag:
+				actual = flag.Enabled(test.ctx, flagger)
+			case feature.FloatFlag:
+				actual = flag.Float(test.ctx, flagger)
+			case feature.IntFlag:
+				actual = flag.Int(test.ctx, flagger)
+			case feature.StringFlag:
+				actual = flag.String(test.ctx, flagger)
+			default:
+				t.Errorf("unknown flag type %T (%#v)", flag, flag)
+			}
+
+			if actual != test.expected {
+				t.Errorf("unexpected flag value: got %v, want %v", actual, test.expected)
+			}
+		})
+	}
+}
+
+// New flag with a distinct testing default.
+func newFlagTd(key string, defaultValue interface{}, testingDefault interface{} ) feature.Flag {
+	return feature.MakeFlag(key, key, "", defaultValue, testingDefault, lifetime.Temporary, false)
+}
+

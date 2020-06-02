@@ -20,6 +20,7 @@ import (
 	"github.com/influxdata/influxdb/v2/bolt"
 	influxdbcontext "github.com/influxdata/influxdb/v2/context"
 	"github.com/influxdata/influxdb/v2/http"
+	"github.com/influxdata/influxdb/v2/kit/feature"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/pkg/httpc"
 	"github.com/influxdata/influxdb/v2/pkger"
@@ -53,6 +54,7 @@ func NewTestLauncher() *TestLauncher {
 	l.Launcher.Stdin = &l.Stdin
 	l.Launcher.Stdout = &l.Stdout
 	l.Launcher.Stderr = &l.Stderr
+	l.Launcher.flagger = feature.TestingFlagger()
 	if testing.Verbose() {
 		l.Launcher.Stdout = io.MultiWriter(l.Launcher.Stdout, os.Stdout)
 		l.Launcher.Stderr = io.MultiWriter(l.Launcher.Stderr, os.Stderr)

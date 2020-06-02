@@ -5,6 +5,7 @@ package feature
 import (
 	"context"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/kit/feature/lifetime"
 )
 
 // Flag represents a generic feature flag with a key and a default.
@@ -15,26 +16,29 @@ type Flag interface {
 	// Type-specific flag implementations may expose a typed default
 	// (e.g. BoolFlag includes a boolean Default field).
 	Default() interface{}
+	// TestingDefault returns the type-agnostic default value to be
+	// used during testing.
+	TestingDefault() interface{}
 	// Expose the flag.
 	Expose() bool
 }
 
 // MakeFlag constructs a Flag. The concrete implementation is inferred from the provided default.
-func MakeFlag(name, key, owner string, defaultValue interface{}, lifetime Lifetime, expose bool) Flag {
-	b := MakeBase(name, key, owner, defaultValue, lifetime, expose)
+func MakeFlag(name, key, owner string, defaultValue interface{}, testingDefault interface{}, lifetime lifetime.Lifetime, expose bool) Flag {
+	b := MakeBase(name, key, owner, defaultValue, testingDefault, lifetime, expose)
 	switch v := defaultValue.(type) {
 	case bool:
-		return BoolFlag{b, v}
+		return BoolFlag{b, v, testingDefault.(bool)}
 	case float64:
-		return FloatFlag{b, v}
+		return FloatFlag{b, v, testingDefault.(float64)}
 	case int32:
-		return IntFlag{b, v}
+		return IntFlag{b, v, testingDefault.(int32)}
 	case int:
-		return IntFlag{b, int32(v)}
+		return IntFlag{b, int32(v), int32(testingDefault.(int))}
 	case string:
-		return StringFlag{b, v}
+		return StringFlag{b, v, testingDefault.(string)}
 	default:
-		return StringFlag{b, fmt.Sprintf("%v", v)}
+		return StringFlag{b, fmt.Sprintf("%v", v), fmt.Sprintf("%v", v)}
 	}
 }
 
@@ -46,10 +50,12 @@ type Base struct {
 	key string
 	// defaultValue for the flag.
 	defaultValue interface{}
+	// testing default value for the flag.
+	testingDefault interface{}
 	// owner is an individual or team responsible for the flag.
 	owner string
 	// lifetime of the feature flag.
-	lifetime Lifetime
+	lifetime lifetime.Lifetime
 	// expose the flag.
 	expose bool
 }
@@ -57,14 +63,15 @@ type Base struct {
 var _ Flag = Base{}
 
 // MakeBase constructs a flag flag.
-func MakeBase(name, key, owner string, defaultValue interface{}, lifetime Lifetime, expose bool) Base {
+func MakeBase(name, key, owner string, defaultValue interface{}, testingDefault interface{}, lifetime lifetime.Lifetime, expose bool) Base {
 	return Base{
-		name:         name,
-		key:          key,
-		owner:        owner,
-		defaultValue: defaultValue,
-		lifetime:     lifetime,
-		expose:       expose,
+		name:           name,
+		key:            key,
+		owner:          owner,
+		defaultValue:   defaultValue,
+		testingDefault: testingDefault,
+		lifetime:       lifetime,
+		expose:         expose,
 	}
 }
 
@@ -76,6 +83,11 @@ func (f Base) Key() string {
 // Default returns the type-agnostic zero value for the flag.
 func (f Base) Default() interface{} {
 	return f.defaultValue
+}
+
+// Default returns the type-agnostic zero value for the flag.
+func (f Base) TestingDefault() interface{} {
+	return f.testingDefault
 }
 
 // Expose the flag.
@@ -111,14 +123,15 @@ func (f Base) value(ctx context.Context, flagger ...Flagger) (interface{}, bool)
 type StringFlag struct {
 	Base
 	defaultString string
+	testingString string
 }
 
 var _ Flag = StringFlag{}
 
 // MakeStringFlag returns a string flag with the given Base and default.
-func MakeStringFlag(name, key, owner string, defaultValue string, lifetime Lifetime, expose bool) StringFlag {
-	b := MakeBase(name, key, owner, defaultValue, lifetime, expose)
-	return StringFlag{b, defaultValue}
+func MakeStringFlag(name, key, owner string, defaultValue string, testingDefault string, lifetime lifetime.Lifetime, expose bool) StringFlag {
+	b := MakeBase(name, key, owner, defaultValue, testingDefault, lifetime, expose)
+	return StringFlag{b, defaultValue, testingDefault}
 }
 
 // String value of the flag on the request context.
@@ -138,14 +151,15 @@ func (f StringFlag) String(ctx context.Context, flagger ...Flagger) string {
 type FloatFlag struct {
 	Base
 	defaultFloat float64
+	testingFloat float64
 }
 
 var _ Flag = FloatFlag{}
 
 // MakeFloatFlag returns a string flag with the given Base and default.
-func MakeFloatFlag(name, key, owner string, defaultValue float64, lifetime Lifetime, expose bool) FloatFlag {
-	b := MakeBase(name, key, owner, defaultValue, lifetime, expose)
-	return FloatFlag{b, defaultValue}
+func MakeFloatFlag(name, key, owner string, defaultValue float64, testingDefault float64, lifetime lifetime.Lifetime, expose bool) FloatFlag {
+	b := MakeBase(name, key, owner, defaultValue, testingDefault, lifetime, expose)
+	return FloatFlag{b, defaultValue, testingDefault}
 }
 
 // Float value of the flag on the request context.
@@ -165,14 +179,15 @@ func (f FloatFlag) Float(ctx context.Context, flagger ...Flagger) float64 {
 type IntFlag struct {
 	Base
 	defaultInt int32
+	testingInt int32
 }
 
 var _ Flag = IntFlag{}
 
 // MakeIntFlag returns a string flag with the given Base and default.
-func MakeIntFlag(name, key, owner string, defaultValue int32, lifetime Lifetime, expose bool) IntFlag {
-	b := MakeBase(name, key, owner, defaultValue, lifetime, expose)
-	return IntFlag{b, defaultValue}
+func MakeIntFlag(name, key, owner string, defaultValue int32, testingDefault int32, lifetime lifetime.Lifetime, expose bool) IntFlag {
+	b := MakeBase(name, key, owner, defaultValue, testingDefault, lifetime, expose)
+	return IntFlag{b, defaultValue, testingDefault}
 }
 
 // Int value of the flag on the request context.
@@ -192,14 +207,15 @@ func (f IntFlag) Int(ctx context.Context, flagger ...Flagger) int32 {
 type BoolFlag struct {
 	Base
 	defaultBool bool
+	testingBool bool
 }
 
 var _ Flag = BoolFlag{}
 
 // MakeBoolFlag returns a string flag with the given Base and default.
-func MakeBoolFlag(name, key, owner string, defaultValue bool, lifetime Lifetime, expose bool) BoolFlag {
-	b := MakeBase(name, key, owner, defaultValue, lifetime, expose)
-	return BoolFlag{b, defaultValue}
+func MakeBoolFlag(name, key, owner string, defaultValue bool, testingDefault bool, lifetime lifetime.Lifetime, expose bool) BoolFlag {
+	b := MakeBase(name, key, owner, defaultValue, testingDefault, lifetime, expose)
+	return BoolFlag{b, defaultValue, testingDefault}
 }
 
 // Enabled indicates whether flag is true or false on the request context.
