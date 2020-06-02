@@ -2,15 +2,6 @@ version: 2.1
 
 # Adding these commands but need confirmation of cache location
 commands:
-  rust_nightly:
-    description: Install nightly tools
-    steps:
-      - run:
-          name: Install nightly
-          command: rustup toolchain install nightly
-      - run:
-          name: rustup component
-          command: rustup component add rustfmt clippy
   cache_restore:
     description: Restore Cargo Cache
     steps:
@@ -35,7 +26,6 @@ jobs:
       - image: quay.io/influxdb/rust:ci
     steps:
       - checkout
-      - rust_nightly
       - run:
           name: Rust fmt
           command: cargo fmt --all -- --check
@@ -44,7 +34,6 @@ jobs:
       - image: quay.io/influxdb/rust:ci
     steps:
       - checkout
-      - rust_nightly
       - run:
           name: Clippy
           command: cargo clippy --all-targets --workspace -- -D warnings
@@ -54,6 +43,10 @@ jobs:
     steps:
       - checkout
       - cache_restore
+      # need to build the dstool binary to use it in tests
+      - run:
+          name: Cargo build
+          command: cargo build --workspace
       - run:
           name: Cargo test
           command: cargo test --workspace
