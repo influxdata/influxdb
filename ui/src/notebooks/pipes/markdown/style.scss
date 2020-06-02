@@ -1,7 +1,5 @@
 @import '@influxdata/clockface/dist/variables.scss';
 
-$notebook-panel--bg: mix($g1-raven, $g2-kevlar, 50%);
-
 .notebook-panel--markdown {
   font-size: 14px;
   line-height: 16px;
