@@ -1,0 +1,42 @@
+.user-list-invite--form-panel {
+  border: $cf-border solid $c-sapphire;
+  margin-bottom: $cf-marg-d + $cf-marg-a;
+
+  .user-list-invite--form-heading {
+    color: $c-neutrino;
+  }
+}
+
+.user-list-invite--form {
+  display: inline-flex;
+  flex-direction: row;
+  justify-content: flex-start;
+  align-items: flex-end;
+
+  .element {
+    margin-right: $cf-marg-b;
+    flex-basis: 150px;
+
+    label {
+      color: $c-neutrino;
+    }
+  }
+
+  .email--input {
+    flex-grow: 1;
+    max-width: 450px;
+  }
+}
+
+.user-role--dropdown--button,
+.user-role--dropdown-item,
+.user-role--dropdown-item,
+.user-list-cell-role,
+.user-list-cell-role,
+.user-list-cell-status {
+  text-transform: capitalize;
+}
+
+.user-list-email {
+  font-weight: bold;
+}
