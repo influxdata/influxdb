@@ -1,4 +1,5 @@
 use crate::encoders::*;
+use crate::storage::block::*;
 use crate::storage::StorageError;
 
 use integer_encoding::VarInt;
@@ -156,7 +157,7 @@ impl<R: BufRead + Seek> Index<R> {
         idx += len as usize;
 
         match block_type {
-            0 => {
+            F64_BLOCKTYPE_MARKER => {
                 // values will be same length as time-stamps.
                 let mut values: Vec<f64> = Vec::with_capacity(ts.len());
                 float::decode_influxdb(&data[idx..], &mut values).map_err(|e| StorageError {
@@ -168,7 +169,7 @@ impl<R: BufRead + Seek> Index<R> {
 
                 Ok(BlockData::Float { ts, values })
             }
-            1 => {
+            I64_BLOCKTYPE_MARKER => {
                 // values will be same length as time-stamps.
                 let mut values: Vec<i64> = Vec::with_capacity(ts.len());
                 integer::decode(&data[idx..], &mut values).map_err(|e| StorageError {
@@ -180,13 +181,13 @@ impl<R: BufRead + Seek> Index<R> {
 
                 Ok(BlockData::Integer { ts, values })
             }
-            2 => Err(StorageError {
+            BOOL_BLOCKTYPE_MARKER => Err(StorageError {
                 description: String::from("bool block type unsupported"),
             }),
-            3 => Err(StorageError {
+            STRING_BLOCKTYPE_MARKER => Err(StorageError {
                 description: String::from("string block type unsupported"),
             }),
-            4 => Err(StorageError {
+            U64_BLOCKTYPE_MARKER => Err(StorageError {
                 description: String::from("unsigned integer block type unsupported"),
             }),
             _ => Err(StorageError {
@@ -574,11 +575,11 @@ mod tests {
         blocks.push(f64_block);
 
         // // Find the first integer block index entry in the file.
-        // let i64_entry = index
-        //     .find(|e| e.as_ref().unwrap().block_type == 1_u8)
-        //     .unwrap()
-        //     .unwrap();
-        // blocks.push(&index.decode_block(&i64_entry.block).unwrap());
+        let i64_entry = index
+            .find(|e| e.as_ref().unwrap().block_type == 1_u8)
+            .unwrap()
+            .unwrap();
+        blocks.push(&index.decode_block(&i64_entry.block).unwrap());
 
         for block in blocks {
             // The first integer block in the value should have 509 values in it.
