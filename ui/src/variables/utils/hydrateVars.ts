@@ -2,6 +2,7 @@
 import {valueFetcher, ValueFetcher} from 'src/variables/utils/ValueFetcher'
 import Deferred from 'src/utils/Deferred'
 import {asAssignment} from 'src/variables/selectors'
+import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 
 // Constants
 import {OPTION_NAME, BOUNDARY_GROUP} from 'src/variables/constants/index'
@@ -189,7 +190,7 @@ const getDeduplicatedRootChild = (
   - The node for one of the passed variables depends on this node
 
 */
-export const findSubgraph = (
+export const findSubgraphFeature = (
   graph: VariableNode[],
   variables: Variable[]
 ): VariableNode[] => {
@@ -238,6 +239,31 @@ export const findSubgraph = (
     }
   }
 
+  return [...subgraph]
+}
+export const findSubgraph = (
+  graph: VariableNode[],
+  variables: Variable[]
+): VariableNode[] => {
+  const subgraph: Set<VariableNode> = new Set()
+  // use an ID array to reduce the chance of reference errors
+  const varIDs = variables.map(v => v.id)
+  for (const node of graph) {
+    const shouldKeep =
+      varIDs.includes(node.variable.id) ||
+      collectAncestors(node).some(ancestor =>
+        varIDs.includes(ancestor.variable.id)
+      )
+
+    if (shouldKeep) {
+      subgraph.add(node)
+    }
+  }
+
+  for (const node of subgraph) {
+    node.parents = node.parents.filter(node => subgraph.has(node))
+    node.children = node.children.filter(node => subgraph.has(node))
+  }
   return [...subgraph]
 }
 
@@ -486,7 +512,12 @@ export const hydrateVars = (
   allVariables: Variable[],
   options: HydrateVarsOptions
 ): EventedCancelBox<Variable[]> => {
-  const graph = findSubgraph(
+  let findSubgraphFunction = findSubgraph
+  if (isFlagEnabled('hydratevars')) {
+    findSubgraphFunction = findSubgraphFeature
+  }
+
+  const graph = findSubgraphFunction(
     createVariableGraph(allVariables),
     variables
   ).filter(n => n.variable.arguments.type !== 'system')

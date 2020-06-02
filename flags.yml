@@ -103,3 +103,9 @@
   contact: Alirie Gray
   lifetime: temporary
 
+- name: New Hydrate Vars Functionality
+  description: Enables a minimalistic variable hydration
+  key: hydratevars
+  default: false
+  contact: Ariel Salem / Monitoring Team
+  lifetime: temporary

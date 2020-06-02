@@ -33,6 +33,7 @@ import {findDependentVariables} from 'src/variables/utils/exportVariables'
 import {getOrg} from 'src/organizations/selectors'
 import {getLabels, getStatus} from 'src/resources/selectors'
 import {currentContext} from 'src/shared/selectors/currentContext'
+import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 
 // Constants
 import * as copy from 'src/shared/copy/notifications'
@@ -433,6 +434,10 @@ export const selectValue = (variableID: string, selected: string) => async (
 
   await dispatch(selectValueInState(contextID, variableID, selected))
   // only hydrate the changedVariable
-  dispatch(hydrateChangedVariable(variableID))
+  if (isFlagEnabled('hydratevars')) {
+    dispatch(hydrateChangedVariable(variableID))
+  } else {
+    dispatch(hydrateVariables(true))
+  }
   dispatch(updateQueryVars({[variable.name]: selected}))
 }
