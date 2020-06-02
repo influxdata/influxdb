@@ -409,11 +409,11 @@ fn parse_tsm_key(
 
 /// BlockData describes the various types of block data that can be held within
 /// a TSM file.
-pub enum BlockData<'a> {
+pub enum BlockData {
     Float { ts: Vec<i64>, values: Vec<f64> },
     Integer { ts: Vec<i64>, values: Vec<i64> },
     Bool { ts: Vec<i64>, values: Vec<bool> },
-    Str { ts: Vec<i64>, values: Vec<&'a str> },
+    Str { ts: Vec<i64>, values: Vec<String> },
     Unsigned { ts: Vec<i64>, values: Vec<u64> },
 }
 
@@ -574,12 +574,13 @@ mod tests {
         let f64_block = &index.decode_block(&f64_entry.block).unwrap();
         blocks.push(f64_block);
 
-        // // Find the first integer block index entry in the file.
+        // Find the first integer block index entry in the file.
         let i64_entry = index
             .find(|e| e.as_ref().unwrap().block_type == 1_u8)
             .unwrap()
             .unwrap();
-        blocks.push(&index.decode_block(&i64_entry.block).unwrap());
+        let i64_block = &index.decode_block(&i64_entry.block).unwrap();
+        blocks.push(i64_block);
 
         for block in blocks {
             // The first integer block in the value should have 509 values in it.
