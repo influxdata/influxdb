@@ -97,6 +97,50 @@ func (b *cmdPkgBuilder) cmd() *cobra.Command {
 func (b *cmdPkgBuilder) cmdPkgApply() *cobra.Command {
 	cmd := b.newCmd("pkg", b.pkgApplyRunEFn, true)
 	cmd.Short = "Apply a pkg to create resources"
+	cmd.Long = `
+	The pkg command applies InfluxDB template(s). Use the command to create new
+	resources via a declarative template. The pkg command can consume templates
+	via file(s), url(s), stdin, or any combination of the 3. Each run of the pkg
+	command ensures that all templates applied are applied in unison as a transaction.
+	If any unexpected errors are discovered then all side effects are rolled back.
+
+	Examples:
+		# Apply a template via a file
+		influx pkg -f $PATH_TO_TEMPLATE/template.json
+
+		# Apply a stack that has associated templates. In this example the stack has a remote
+		# template associated with it.
+		influx pkg --stack-id $STACK_ID
+
+		# Apply a template associated with a stack. Stacks make template application idempotent.
+		influx pkg -f $PATH_TO_TEMPLATE/template.json --stack-id $STACK_ID
+
+		# Apply multiple template files together (mix of yaml and json)
+		influx pkg \
+			-f $PATH_TO_TEMPLATE/template_1.json \
+			-f $PATH_TO_TEMPLATE/template_2.yml
+
+		# Apply a template from a url
+		influx pkg -u https://raw.githubusercontent.com/influxdata/community-templates/master/docker/docker.yml
+
+		# Apply a template from STDIN
+		cat $TEMPLATE.json | influx pkg --encoding json
+
+		# Applying a directory of templates, takes everything from provided directory
+		influx pkg -f $PATH_TO_TEMPLATE_DIR
+
+		# Applying a directory of templates, recursively descending into child directories
+		influx pkg -R -f $PATH_TO_TEMPLATE_DIR
+
+		# Applying directories from many sources, file and URL
+		influx pkg -f $PATH_TO_TEMPLATE/template.yml -f $URL_TO_TEMPLATE
+
+	For information about finding and using InfluxDB templates, see
+	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/pkg/.
+
+	For more templates created by the community, see
+	https://github.com/influxdata/community-templates.
+`
 
 	b.org.register(cmd, false)
 	b.registerPkgFileFlags(cmd)
@@ -202,6 +246,26 @@ func (b *cmdPkgBuilder) pkgApplyRunEFn(cmd *cobra.Command, args []string) error 
 func (b *cmdPkgBuilder) cmdPkgExport() *cobra.Command {
 	cmd := b.newCmd("export", b.pkgExportRunEFn, true)
 	cmd.Short = "Export existing resources as a package"
+	cmd.Long = `
+	The pkg export command provides a mechanism to export existing resources to a
+	template. Each template resource kind is supported via flags.
+
+	Examples:
+		# export buckets by ID
+		influx pkg export --buckets=$ID1,$ID2,$ID3
+
+		# export buckets, labels, and dashboards by ID
+		influx pkg export \
+			--buckets=$BID1,$BID2,$BID3 \
+			--labels=$LID1,$LID2,$LID3 \
+			--dashboards=$DID1,$DID2,$DID3
+
+	All of the resources are supported via the examples provided above. Provide the
+	resource flag and then provide the IDs.
+
+	For information about exporting InfluxDB templates, see
+	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/pkg/export/
+`
 	cmd.AddCommand(
 		b.cmdPkgExportAll(),
 		b.cmdPkgExportStack(),
@@ -279,6 +343,39 @@ func (b *cmdPkgBuilder) pkgExportRunEFn(cmd *cobra.Command, args []string) error
 func (b *cmdPkgBuilder) cmdPkgExportAll() *cobra.Command {
 	cmd := b.newCmd("all", b.pkgExportAllRunEFn, true)
 	cmd.Short = "Export all existing resources for an organization as a package"
+	cmd.Long = `
+	The pkg export all command will export all resources for an organization. The
+	command also provides a mechanism to filter by label name or resource kind.
+
+	Examples:
+		# Export all resources for an organization
+		influx pkg export all --org $ORG_NAME
+
+		# Export all bucket resources
+		influx pkg export all --org $ORG_NAME --filter=resourceKind=Bucket
+
+		# Export all resources associated with label Foo
+		influx pkg export all --org $ORG_NAME --filter=labelName=Foo
+
+		# Export all bucket resources and filter by label Foo
+		influx pkg export all --org $ORG_NAME \
+			--filter=resourceKind=Bucket \
+			--filter=labelName=Foo
+
+		# Export all bucket or dashboard resources and filter by label Foo.
+		# note: like filters are unioned and filter types are intersections.
+		#		This example will export a resource if it is a dashboard or
+		#		bucket and has an associated label of Foo.
+		influx pkg export all --org $ORG_NAME \
+			--filter=resourceKind=Bucket \
+			--filter=resourceKind=Dashboard \
+			--filter=labelName=Foo
+
+	For information about exporting InfluxDB templates, see
+	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/pkg/export
+	and
+	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/pkg/export/all
+`
 
 	cmd.Flags().StringVarP(&b.file, "file", "f", "", "output file for created pkg; defaults to std out if no file provided; the extension of provided file (.yml/.json) will dictate encoding")
 	cmd.Flags().StringArrayVar(&b.filters, "filter", nil, "Filter exported resources by labelName or resourceKind (format: --filter=labelName=example)")
@@ -333,6 +430,20 @@ func (b *cmdPkgBuilder) pkgExportAllRunEFn(cmd *cobra.Command, args []string) er
 func (b *cmdPkgBuilder) cmdPkgExportStack() *cobra.Command {
 	cmd := b.newCmd("stack $STACK_ID", b.pkgExportStackRunEFn, true)
 	cmd.Short = "Export all existing resources for an organization as a package"
+	cmd.Long = `
+	The pkg export stack command exports the resources associated with a stack as
+	they currently exist in the platform. All the same metadata.name fields will be
+	reused.
+
+	Example:
+		# Export by a stack
+		influx pkg export stack $STACK_ID
+
+	For information about exporting InfluxDB templates, see
+	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/pkg/export
+	and
+	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/pkg/stack/
+`
 	cmd.Args = cobra.ExactValidArgs(1)
 
 	cmd.Flags().StringVarP(&b.file, "file", "f", "", "output file for created pkg; defaults to std out if no file provided; the extension of provided file (.yml/.json) will dictate encoding")
@@ -415,6 +526,25 @@ func (b *cmdPkgBuilder) cmdStack() *cobra.Command {
 func (b *cmdPkgBuilder) cmdStackInit() *cobra.Command {
 	cmd := b.newCmd("init", b.stackInitRunEFn, true)
 	cmd.Short = "Initialize a stack"
+	cmd.Long = `
+	The pkg stack init command creates a new stack to associated templates with.
+	A stack is used to make applying templates idempotent. When you apply a template
+	and associate it with a stack, the stack can manage the created/updated resources
+	from the template back to the platform. This enables a multitude of useful features.
+	Any associated template urls will be applied when applying templates via a stack.
+
+	Examples:
+		# Initialize a stack with a name and description
+		influx pkg stack init -n $STACK_NAME -d $STACK_DESCRIPTION
+
+		# Initialize a stack with a name and urls to associate with stack.
+		influx pkg stack init -n $STACK_NAME -u $PATH_TO_TEMPLATE
+
+	For information about how stacks work with InfluxDB templates, see
+	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/pkg/stack/
+	and
+	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/pkg/stack/init/
+`
 
 	cmd.Flags().StringVarP(&b.name, "stack-name", "n", "", "Name given to created stack")
 	cmd.Flags().StringVarP(&b.description, "stack-description", "d", "", "Description given to created stack")
