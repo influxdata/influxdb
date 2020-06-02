@@ -24,8 +24,8 @@ enum ReturnCode {
 
 fn convert(input_filename: &str, output_filename: &str) -> Result<()> {
     info!("dstool starting");
-    debug!("reading from input file {}", input_filename);
-    debug!("writing to output file {}", output_filename);
+    debug!("Reading from input file {}", input_filename);
+    debug!("Writing to output file {}", output_filename);
 
     // TODO: make a streaming parser that you can stream data through in blocks.
     // for now, just read the whole thing into RAM...
