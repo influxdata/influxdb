@@ -15,7 +15,7 @@ import (
 
 func setup(t *testing.T) (*dbrp.Client, func()) {
 	t.Helper()
-	svc := &mock.DBRPMappingServiceV2{
+	dbrpSvc := &mock.DBRPMappingServiceV2{
 		CreateFn: func(ctx context.Context, dbrp *influxdb.DBRPMappingV2) error {
 			dbrp.ID = 1
 			return nil
@@ -34,7 +34,15 @@ func setup(t *testing.T) (*dbrp.Client, func()) {
 			return []*influxdb.DBRPMappingV2{}, 0, nil
 		},
 	}
-	server := httptest.NewServer(dbrp.NewHTTPHandler(zaptest.NewLogger(t), svc))
+	orgSvc := &mock.OrganizationService{
+		FindOrganizationF: func(ctx context.Context, filter influxdb.OrganizationFilter) (*influxdb.Organization, error) {
+			return &influxdb.Organization{
+				ID:   *filter.ID,
+				Name: "org",
+			}, nil
+		},
+	}
+	server := httptest.NewServer(dbrp.NewHTTPHandler(zaptest.NewLogger(t), dbrpSvc, orgSvc))
 	client, err := httpc.New(httpc.WithAddr(server.URL), httpc.WithStatusFn(http.CheckError))
 	if err != nil {
 		t.Fatal(err)
