@@ -11721,6 +11721,7 @@ components:
     DBRP:
       required:
         - orgID
+        - org
         - bucketID
         - database
         - retention_policy
@@ -11732,6 +11733,9 @@ components:
         orgID:
           type: string
           description: the organization ID that owns this mapping.
+        org:
+          type: string
+          description: the organization that owns this mapping.
         bucketID:
           type: string
           description: the bucket ID used as target for the translation.
