@@ -1689,6 +1689,7 @@ func TestLauncher_Pkger(t *testing.T) {
 						Name:  "test-label-2",
 					}
 					require.NoError(t, l.kvService.CreateLabel(ctx, newLabel))
+					defer resourceCheck.mustDeleteLabel(t, newLabel.ID)
 
 					// TODO(jsteenb2): cannot figure out the issue with the http.LabelService returning
 					//				   the bad HTTP method error :-(. Revisit this and replace with the
