@@ -8,6 +8,7 @@
 ### Bug Fixes
 
 1. [18331](https://github.com/influxdata/influxdb/pull/18331): Support organization name in addition to ID in DBRP operations
+1. [18335](https://github.com/influxdata/influxdb/pull/18335): Disable failing when providing an unexpected error to influx CLI
 
 ## v2.0.0-beta.11 [2020-05-26]
 

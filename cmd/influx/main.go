@@ -74,6 +74,11 @@ func (o genericCLIOpts) newCmd(use string, runE func(*cobra.Command, []string) e
 		Args: cobra.NoArgs,
 		Use:  use,
 		RunE: runE,
+		FParseErrWhitelist: cobra.FParseErrWhitelist{
+			// allows for unknown flags, parser does not crap the bed
+			// when providing a flag that doesn't exist/match.
+			UnknownFlags: true,
+		},
 	}
 
 	canWrapRunE := runE != nil && o.runEWrapFn != nil
