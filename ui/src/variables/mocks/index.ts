@@ -639,7 +639,7 @@ export const defaultVariable: Variable = {
   id: '05b73f4bffe8e000',
   orgID: '05b73f49a1d1b000',
   name: 'static',
-  description: '',
+  description: 'defaultVariable',
   selected: ['defbuck'],
   arguments: {type: 'constant', values: ['beans', 'defbuck']},
   createdAt: '2020-05-19T05:54:20.927477-07:00',
@@ -657,7 +657,7 @@ export const associatedVariable: Variable = {
   id: '05b740974228e000',
   orgID: '05b740945a91b000',
   name: 'dependent',
-  description: '',
+  description: 'associatedVariable',
   selected: [],
   arguments: {
     type: 'query',
@@ -699,32 +699,36 @@ export const timeRangeStartVariable: Variable = {
   selected: [],
 }
 
+export const timeRangeStopVariable: Variable = {
+  orgID: '',
+  id: 'timeRangeStop',
+  name: 'timeRangeStop',
+  arguments: {
+    type: 'system',
+    values: ['now()'],
+  },
+  status: RemoteDataState.Done,
+  labels: [],
+  selected: [],
+}
+
+export const windowPeriodVariable: Variable = {
+  orgID: '',
+  id: 'windowPeriod',
+  name: 'windowPeriod',
+  arguments: {
+    type: 'system',
+    values: [10000],
+  },
+  status: RemoteDataState.Done,
+  labels: [],
+  selected: [],
+}
+
 export const defaultVariables: Variable[] = [
   defaultVariable,
   associatedVariable,
   timeRangeStartVariable,
-  {
-    orgID: '',
-    id: 'timeRangeStop',
-    name: 'timeRangeStop',
-    arguments: {
-      type: 'system',
-      values: ['now()'],
-    },
-    status: RemoteDataState.Done,
-    labels: [],
-    selected: [],
-  },
-  {
-    orgID: '',
-    id: 'windowPeriod',
-    name: 'windowPeriod',
-    arguments: {
-      type: 'system',
-      values: [10000],
-    },
-    status: RemoteDataState.Done,
-    labels: [],
-    selected: [],
-  },
+  timeRangeStopVariable,
+  windowPeriodVariable,
 ]

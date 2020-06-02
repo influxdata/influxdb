@@ -113,14 +113,10 @@ const collectAncestors = (
 }
 
 /*
-  Collect youngest child of a node (or the tail of the LinkedList within our graph).
+  Using the current node as the root, create a PostOrder DFS for the given node
+  Where we check each cascading parent's children in order to hydrate the children before the parents
 
-  A node `a` is a child of `b` if there exists a path from `b` to `a`.
-
-  This function determines the root child in order to easily hydrate parent variables and
-  resolve and prevent rehydrating variables that have already been passed in.
-
-  In the example below, we have 3 variables `a`, `b`, `c` where a is a parent to b, which is a parent to c:
+  In the example below, we have 3 variables `a`, `b`, `c` where `a` is a parent to `b`, which a parent to `c`:
 
   a --> b --> c
 
@@ -128,23 +124,31 @@ const collectAncestors = (
 
   `c` with a reference to its parent `b`, which should have a reference to its parent `a`
 */
-const getRootChildNode = (
+
+const postOrderDFS = (
   node: VariableNode,
   acc: Set<VariableNode> = new Set(),
   cache: {[key: string]: boolean | undefined} = {}
-): VariableNode => {
-  if (node.children.length === 0) {
-    return node
-  }
+): VariableNode[] => {
+  // Handle the edge case that the function is
+  // called without providing the root node
+  if (!node) return [...acc]
+
   for (const child of node.children) {
     // by checking the cache for existing variables, we ensure that the graph stops
     // when an existing node has already been encountered, invalidating a cycle if one exists
-    if (child.children.length > 0 && !cache[child.variable.id]) {
+    if (!cache[child.variable.id]) {
       cache[child.variable.id] = true
-      return getRootChildNode(child, acc, cache)
+      // Recurse down the n-ary tree until we reach a leaf (node with no children)
+      // where this loop will not execute
+      postOrderDFS(child, acc, cache)
     }
-    return child
   }
+
+  // Add the current node only after visiting all of its children, left to right
+  acc.add(node)
+
+  return [...acc]
 }
 
 /*
@@ -201,41 +205,37 @@ export const findSubgraphFeature = (
   let subgraphIDs = {}
   for (const node of graph) {
     const shouldKeep = varIDs.includes(node.variable.id)
-
-    // get youngest child of the node in order to find the lowest common denominator amongst the nodes
-    const rootChild = getRootChildNode(node)
-    // by checking whether the subgraphIDs[rootChild.variable.id] !== true, we are ensuring that the root
-    // node has not yet been added to the subgraph. Therefore, if a rootChild has already been added to the
-    // subgraph, we prevent that rootChild from being added & hydrated again
-    if (shouldKeep && subgraphIDs[rootChild.variable.id] !== true) {
-      if (rootChild.parents.length > 0) {
-        /*
-          Once a node exists within the subgraph (whether nested as a parent or as the rootNode)
-          we want to remove any further to that node within the subgraph.
-          This can be particularly challenging when a parent node has multiple child nodes that have been passed in.
-          For example, if variables `a` and `b` are both children to `c`,
-          and `a` & `b` are both variables that should be hydrated, we would need to reset a parent
-          reference for one of the variables so that `c` is not hydrated twice.
-          This can be achieved by storing a reference to all the existing nodeIDs within the subgraph to the `graphIDs`
-          and checking for any collisions before adding the node to the subgraph.
-          If a parent collision is detected, that node's parent is simply set to [] since we know that
-          the parent was already hydrated based on a previous input
-        */
-        const {node: filteredNodes, subsetIDs} = getDeduplicatedRootChild(
-          rootChild,
-          subgraphIDs
-        )
-        subgraph.add(filteredNodes)
-        subgraphIDs[rootChild.variable.id] = true
-        subgraphIDs = {
-          [rootChild.variable.id]: true,
-          ...subgraphIDs,
-          ...subsetIDs,
+    if (shouldKeep) {
+      const postOrderNodeList = postOrderDFS(node)
+      postOrderNodeList.forEach(variableNode => {
+        const {id} = variableNode.variable
+        // Checking whether the subgraphIDs[id] !== true, we are ensuring that the
+        // node has been added to the subgraph. This prevents excessive variable rehydration
+        if (subgraphIDs[id] !== true) {
+          /*
+            Once a node exists within the subgraph (whether nested as a parent or as the input node)
+            we want to remove any further reference to that node within the subgraph.
+            This can be particularly challenging when a parent node has multiple child nodes that have been passed in.
+            For example, if variables `a` and `b` are both children to `c`,
+            and `a` & `b` are both variables that should be hydrated, we would need to reset a parent
+            reference for one of the variables so that `c` is not hydrated twice.
+            This can be achieved by storing a reference to all the existing nodeIDs within the subgraph to the `graphIDs`
+            and checking for any collisions before adding the node to the subgraph.
+            If a parent collision is detected, that node's parent is simply set to [] since we know that
+            the parent was already hydrated based on a previous input
+          */
+          const {node: filteredNodes, subsetIDs} = getDeduplicatedRootChild(
+            variableNode,
+            subgraphIDs
+          )
+          subgraph.add(filteredNodes)
+          subgraphIDs = {
+            [id]: true,
+            ...subgraphIDs,
+            ...subsetIDs,
+          }
         }
-      } else {
-        subgraph.add(rootChild)
-        subgraphIDs[rootChild.variable.id] = true
-      }
+      })
     }
   }
 
@@ -513,8 +513,8 @@ export const hydrateVars = (
   options: HydrateVarsOptions
 ): EventedCancelBox<Variable[]> => {
   let findSubgraphFunction = findSubgraph
-  // if (true) {
-  if (isFlagEnabled('hydratevars')) {
+  if (true) {
+    // if (isFlagEnabled('hydratevars')) {
     findSubgraphFunction = findSubgraphFeature
   }
 
