@@ -57,7 +57,7 @@ impl<R: BufRead + Seek> Index<R> {
     /// or will return an error. read_index_entry updates the offset on the Index
     /// but it's the caller's responsibility to stop reading entries when the index
     /// has been exhausted.
-    fn read_index_entry(&mut self) -> Result<IndexEntry, StorageError> {
+    pub fn read_index_entry(&mut self) -> Result<IndexEntry, StorageError> {
         // read length of series key
         let mut buf: [u8; 2] = [0; 2];
         self.r.read_exact(&mut buf)?;
@@ -96,7 +96,7 @@ impl<R: BufRead + Seek> Index<R> {
     /// read_block_entry will yield the next block entry within an index entry.
     /// It is the caller's responsibility to stop reading block entries when they
     /// have all been read for an index entry.
-    fn read_block_entry(&mut self) -> Result<Block, StorageError> {
+    pub fn read_block_entry(&mut self) -> Result<Block, StorageError> {
         // read min time on block entry
         let mut buf: [u8; 8] = [0; 8];
         self.r.read_exact(&mut buf[..])?;
@@ -133,7 +133,7 @@ impl<R: BufRead + Seek> Index<R> {
     //
     // The vectors are guaranteed to have the same length, with a maximum length
     // of 1000.
-    fn decode_block(&mut self, block: &Block) -> Result<BlockData, StorageError> {
+    pub fn decode_block(&mut self, block: &Block) -> Result<BlockData, StorageError> {
         self.r.seek(SeekFrom::Start(block.offset))?;
 
         let mut data: Vec<u8> = vec![0; block.size as usize];
@@ -408,7 +408,7 @@ fn parse_tsm_key(
 
 /// BlockData describes the various types of block data that can be held within
 /// a TSM file.
-enum BlockData<'a> {
+pub enum BlockData<'a> {
     Float { ts: Vec<i64>, values: Vec<f64> },
     Integer { ts: Vec<i64>, values: Vec<i64> },
     Bool { ts: Vec<i64>, values: Vec<bool> },
@@ -417,6 +417,7 @@ enum BlockData<'a> {
 }
 
 #[derive(Copy, Clone)]
+#[allow(dead_code)]
 pub struct Block {
     min_time: i64,
     max_time: i64,
