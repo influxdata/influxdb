@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/bolt"
@@ -26,6 +27,12 @@ import (
 )
 
 const maxTCPConnections = 10
+
+var (
+	version = "dev"
+	commit  = "none"
+	date    = time.Now().UTC().Format(time.RFC3339)
+)
 
 func main() {
 	influxCmd := influxCmd()
@@ -218,8 +225,21 @@ func (b *cmdInfluxBuilder) cmd(childCmdFns ...func(f *globalFlags, opt genericCL
 
 	// completion command goes last, after the walk, so that all
 	// commands have every flag listed in the bash|zsh completions.
-	cmd.AddCommand(completionCmd(cmd))
+	cmd.AddCommand(
+		completionCmd(cmd),
+		cmdVersion(),
+	)
 	return cmd
+}
+
+func cmdVersion() *cobra.Command {
+	return &cobra.Command{
+		Use:   "version",
+		Short: "Print the influx CLI version",
+		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Printf("Influx CLI %s (git: %s) build_date: %s\n", version, commit, date)
+		},
+	}
 }
 
 func influxCmd(opts ...genericCLIOptFn) *cobra.Command {
