@@ -29,7 +29,6 @@ const Query: FC<PipeProp> = ({data, onUpdate, Context, results}) => {
   }
 
   const onUpdateSize = (rawDataSize: RawDataSize): void => {
-    console.log('onUpdateSize Query')
     onUpdate({rawDataSize})
   }
 
