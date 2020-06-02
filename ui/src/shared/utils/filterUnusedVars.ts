@@ -20,6 +20,8 @@ export const filterUnusedVars = (variables: Variable[], views: View[]) => {
     (acc, vp) => [...acc, ...vp.queries.map(query => query.text)],
     [] as Array<string>
   )
+  // TODO: make sure to parse out variables for other used variables
+  // console.log('queryTexts: ', queryTexts)
 
   const varsInUse = variables.filter(variable =>
     queryTexts.some(text => isInQuery(text, variable))

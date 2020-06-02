@@ -112,6 +112,71 @@ const collectAncestors = (
 }
 
 /*
+  Collect youngest child of a node (or the tail of the LinkedList within our graph).
+
+  A node `a` is a child of `b` if there exists a path from `b` to `a`.
+
+  This function determines the root child in order to easily hydrate parent variables and
+  resolve and prevent rehydrating variables that have already been passed in.
+
+  In the example below, we have 3 variables `a`, `b`, `c` where a is a parent to b, which is a parent to c:
+
+  a --> b --> c
+
+  If `a`, `b`, or `c` are passed into this function, we should expect that the output for each should be:
+
+  `c` with a reference to its parent `b`, which should have a reference to its parent `a`
+*/
+const getRootChildNode = (
+  node: VariableNode,
+  acc: Set<VariableNode> = new Set()
+): VariableNode => {
+  if (node.children.length === 0) {
+    return node
+  }
+  for (const child of node.children) {
+    if (child.children.length > 0) {
+      getRootChildNode(child, acc)
+    } else {
+      return child
+    }
+  }
+}
+
+/*
+  Filters out any parents that have already been referenced in a previous node
+
+  A node `a` & `c` are children of `b` if there exists a path:
+
+            b
+          /   \
+         a     c
+
+  This function safely filters out a duplicate reference to the parent `b`
+  When both `a` and `c` are passed as variables to be hydrated, since `b` should
+  already be `hydrated` by the first variable that is passed in.
+*/
+export interface DeduplicatedRoot {
+  node: VariableNode
+  subsetIDs: {[key: string]: boolean}
+}
+
+const getDeduplicatedRootChild = (
+  node: VariableNode,
+  subsetIDs: {[key: string]: boolean | undefined}
+): DeduplicatedRoot => {
+  for (const n of node.parents) {
+    if (!subsetIDs[n.variable.id]) {
+      subsetIDs[n.variable.id] = true
+      getDeduplicatedRootChild(n, subsetIDs)
+    } else {
+      node.parents = []
+    }
+  }
+  return {node, subsetIDs}
+}
+
+/*
   Given a variable graph, return the minimal subgraph containing only the nodes
   needed to hydrate the values for variables in the passed `variables` argument.
 
@@ -128,33 +193,44 @@ export const findSubgraph = (
   const subgraph: Set<VariableNode> = new Set()
   // use an ID array to reduce the chance of reference errors
   const varIDs = variables.map(v => v.id)
-  // TODO: uncomment this when variable hydration is resolved
-  // create an array of IDs to reference later
-  // const graphIDs = []
+  // create an ID reference object to identify relevant root variables to hydrate
+  let subgraphIDs = {}
   for (const node of graph) {
-    const shouldKeep =
-      varIDs.includes(node.variable.id) ||
-      collectAncestors(node).some(ancestor =>
-        varIDs.includes(ancestor.variable.id)
-      )
+    const shouldKeep = varIDs.includes(node.variable.id)
 
-    if (shouldKeep) {
-      subgraph.add(node)
-      // graphIDs.push(node.variable.id)
+    // get youngest child of the node in order to find the lowest common denominator amongst the nodes
+    const rootChild = getRootChildNode(node)
+    // by checking whether the subgraphIDs[rootChild.variable.id] !== true, we are ensuring that the root
+    // node has not yet been added to the subgraph. Therefore, if a rootChild has already been added to the
+    // subgraph, we prevent that rootChild from being added & hydrated again
+    if (shouldKeep && subgraphIDs[rootChild.variable.id] !== true) {
+      if (rootChild.parents.length > 0) {
+        /*
+          Once a node exists within the subgraph (whether nested as a parent or as the rootNode)
+          we want to remove any further to that node within the subgraph.
+          This can be particularly challenging when a parent node has multiple child nodes that have been passed in.
+          For example, if variables `a` and `b` are both children to `c`,
+          and `a` & `b` are both variables that should be hydrated, we would need to reset a parent
+          reference for one of the variables so that `c` is not hydrated twice.
+          This can be achieved by storing a reference to all the existing nodeIDs within the subgraph to the `graphIDs`
+          and checking for any collisions before adding the node to the subgraph.
+          If a parent collision is detected, that node's parent is simply set to [] since we know that
+          the parent was already hydrated based on a previous input
+        */
+        const {node: filteredNodes, subsetIDs} = getDeduplicatedRootChild(
+          rootChild,
+          subgraphIDs
+        )
+        subgraph.add(filteredNodes)
+        subgraphIDs[rootChild.variable.id] = true
+        subgraphIDs = {...subgraphIDs, ...subsetIDs}
+      } else {
+        subgraph.add(rootChild)
+        subgraphIDs[rootChild.variable.id] = true
+      }
     }
   }
 
-  // const removeDupAncestors = (n: VariableNode) => {
-  //   const {id} = n.variable
-  //   return !graphIDs.includes(id)
-  // }
-
-  for (const node of subgraph) {
-    // node.parents = node.parents.filter(removeDupAncestors)
-    // node.children = node.children.filter(removeDupAncestors)
-    node.parents = node.parents.filter(node => subgraph.has(node))
-    node.children = node.children.filter(node => subgraph.has(node))
-  }
   return [...subgraph]
 }
 
