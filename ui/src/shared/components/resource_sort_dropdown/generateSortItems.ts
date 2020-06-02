@@ -10,6 +10,7 @@ import {
   Bucket,
   Telegraf,
   Scraper,
+  Authorization,
 } from 'src/types'
 
 export type DashboardSortKey = keyof Dashboard | 'meta.updatedAt'
@@ -20,6 +21,7 @@ export type TemplateSortKey = keyof Template | 'meta.name' | 'meta.description'
 export type BucketSortKey = keyof Bucket | 'retentionRules[0].everySeconds'
 export type TelegrafSortKey = keyof Telegraf
 export type ScraperSortKey = keyof Scraper
+export type AuthorizationSortKey = keyof Authorization
 
 export type SortKey =
   | DashboardSortKey
@@ -30,6 +32,7 @@ export type SortKey =
   | BucketSortKey
   | TelegrafSortKey
   | ScraperSortKey
+  | AuthorizationSortKey
 
 export interface SortDropdownItem {
   label: string
@@ -290,6 +293,45 @@ export const generateSortItems = (
         {
           label: 'Bucket (Descending)',
           sortKey: 'bucket',
+          sortType: SortTypes.String,
+          sortDirection: Sort.Descending,
+        },
+      ]
+    case ResourceType.Authorizations:
+      return [
+        {
+          label: 'Description (A → Z)',
+          sortKey: 'description',
+          sortType: SortTypes.String,
+          sortDirection: Sort.Ascending,
+        },
+        {
+          label: 'Description (Z → A)',
+          sortKey: 'description',
+          sortType: SortTypes.String,
+          sortDirection: Sort.Descending,
+        },
+        {
+          label: 'Status (Active)',
+          sortKey: 'status',
+          sortType: SortTypes.String,
+          sortDirection: Sort.Ascending,
+        },
+        {
+          label: 'Status (Inactive)',
+          sortKey: 'status',
+          sortType: SortTypes.String,
+          sortDirection: Sort.Descending,
+        },
+        {
+          label: 'Date Created (Oldest)',
+          sortKey: 'createdAt',
+          sortType: SortTypes.String,
+          sortDirection: Sort.Ascending,
+        },
+        {
+          label: 'Date Created (Newest)',
+          sortKey: 'createdAt',
           sortType: SortTypes.String,
           sortDirection: Sort.Descending,
         },

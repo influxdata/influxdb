@@ -17,6 +17,8 @@
 ### UI Improvements
 
 1. [18319](https://github.com/influxdata/influxdb/pull/18319): Display bucket ID in bucket list and enable 1 click copying
+1. [18361](https://github.com/influxdata/influxdb/pull/18361): Tokens list is now consistent with the other resource lists
+
 
 ## v2.0.0-beta.11 [2020-05-26]
 
