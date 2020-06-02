@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
+	"sync"
 	"time"
 
 	platform "github.com/influxdata/influxdb/v2"
@@ -33,6 +35,8 @@ type Batcher struct {
 	MaxFlushInterval time.Duration         // MaxFlushInterval is the maximum amount of time to wait before flushing
 	MaxLineLength    int                   // MaxLineLength specifies the maximum length of a single line
 	Service          platform.WriteService // Service receives batches flushed from Batcher.
+	// Number of concurrent workers that write to service
+	WriteWorkers int
 }
 
 // Write reads r in batches and sends to the output.
@@ -113,9 +117,56 @@ func (b *Batcher) write(ctx context.Context, org, bucket platform.ID, lines <-ch
 	timer := time.NewTimer(flushInterval)
 	defer func() { _ = timer.Stop() }()
 
-	buf := make([]byte, 0, maxBytes)
-	r := bytes.NewReader(buf)
+	// a limited set of workers is used to write data
+	workers := int(math.Max(float64(b.WriteWorkers), 1))
 
+	// write buffers are reused
+	var buffPoolMux sync.Mutex
+	bufferPool := make([][]byte, 0, workers)
+	newBuffer := func() []byte {
+		buffPoolMux.Lock()
+		defer buffPoolMux.Unlock()
+		var buf []byte
+		if len(bufferPool) > 0 {
+			buf = bufferPool[len(bufferPool)-1]
+			bufferPool = bufferPool[0 : len(bufferPool)-1]
+		} else {
+			buf = make([]byte, 0, maxBytes)
+		}
+		return buf
+	}
+	reuseBuffer := func(buf []byte) {
+		buffPoolMux.Lock()
+		bufferPool = append(bufferPool, buf[:0])
+		buffPoolMux.Unlock()
+	}
+
+	// process the jobs by workers
+	var workerGroup sync.WaitGroup
+	defer workerGroup.Wait()
+	writeJobs := make(chan []byte)
+	// start workers for jobs
+	for i := 0; i < workers; i++ {
+		workerGroup.Add(1)
+		go func() {
+			for {
+				buf, more := <-writeJobs
+				if more {
+					err := b.Service.Write(ctx, org, bucket, bytes.NewReader(buf))
+					reuseBuffer(buf)
+					if err != nil {
+						errC <- err
+						return
+					}
+					continue
+				}
+				break
+			}
+			workerGroup.Done()
+		}()
+	}
+
+	buf := newBuffer()
 	var line []byte
 	var more = true
 	// if read closes the channel normally, exit the loop
@@ -127,30 +178,25 @@ func (b *Batcher) write(ctx context.Context, org, bucket platform.ID, lines <-ch
 			}
 			// write if we exceed the max lines OR read routine has finished
 			if len(buf) >= maxBytes || (!more && len(buf) > 0) {
-				r.Reset(buf)
 				timer.Reset(flushInterval)
-				if err := b.Service.Write(ctx, org, bucket, r); err != nil {
-					errC <- err
-					return
-				}
-				buf = buf[:0]
+				writeJobs <- buf
+				buf = newBuffer()
 			}
 		case <-timer.C:
 			if len(buf) > 0 {
-				r.Reset(buf)
 				timer.Reset(flushInterval)
-				if err := b.Service.Write(ctx, org, bucket, r); err != nil {
-					errC <- err
-					return
-				}
-				buf = buf[:0]
+				writeJobs <- buf
+				buf = newBuffer()
 			}
 		case <-ctx.Done():
+			close(writeJobs)
 			errC <- ctx.Err()
 			return
 		}
 	}
 
+	close(writeJobs)
+	workerGroup.Wait()
 	errC <- nil
 }
 
