@@ -103,6 +103,10 @@ jobs:
       - cache_restore
       - install_clang
       - install_flatc
+      # need to build the dstool binary to use it in tests
+      - run:
+          name: Cargo build
+          command: cargo build --workspace
       - run:
           name: Cargo test
           command: cargo test --workspace
