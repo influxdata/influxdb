@@ -95,7 +95,7 @@ export const writeNavigationTimingMetrics = async function writeNavigationTiming
 
     const line = {measurement, tags, fields}
 
-    const url = '/app-metrics'
+    const url = '/api/v2/app-metrics'
     fetch(url, {
       method: 'POST',
       body: JSON.stringify(line),
