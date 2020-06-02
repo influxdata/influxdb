@@ -41,6 +41,8 @@ type writeFlagsType struct {
 	IgnoreDataTypeInColumnName bool
 	Encoding                   string
 	ErrorsFile                 string
+	Workers                    int
+	MaxFlushBytes              int
 }
 
 var writeFlags writeFlagsType
@@ -91,6 +93,9 @@ func cmdWrite(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd.PersistentFlags().MarkHidden("xIgnoreDataTypeInColumnName") // should be used only upon explicit advice
 	cmd.PersistentFlags().StringVar(&writeFlags.Encoding, "encoding", "UTF-8", "Character encoding of input files or stdin")
 	cmd.PersistentFlags().StringVar(&writeFlags.ErrorsFile, "errors-file", "", "The path to the file to write rejected rows to")
+	cmd.PersistentFlags().IntVar(&writeFlags.Workers, "workers", 1, "The number of concurrent workers to write data")
+	cmd.PersistentFlags().IntVar(&writeFlags.MaxFlushBytes, "xMaxFlushBytes", write.DefaultMaxBytes, "The maximum number of bytes to buffer before flushing")
+	cmd.PersistentFlags().MarkHidden("xMaxFlushBytes") // should be used only upon explicit advice or during testing
 
 	cmdDryRun := opt.newCmd("dryrun", fluxWriteDryrunF, false)
 	cmdDryRun.Args = cobra.MaximumNArgs(1)
@@ -315,6 +320,7 @@ func fluxWriteF(cmd *cobra.Command, args []string) error {
 	ac := flags.config()
 	// write to InfluxDB
 	s := write.Batcher{
+		MaxFlushBytes: writeFlags.MaxFlushBytes,
 		Service: &ihttp.WriteService{
 			Addr:               ac.Host,
 			Token:              ac.Token,
@@ -322,6 +328,7 @@ func fluxWriteF(cmd *cobra.Command, args []string) error {
 			InsecureSkipVerify: flags.skipVerify,
 		},
 		MaxLineLength: writeFlags.MaxLineLength,
+		WriteWorkers:  writeFlags.Workers,
 	}
 	if err := s.Write(ctx, orgID, bucketID, r); err != nil && err != context.Canceled {
 		return fmt.Errorf("failed to write data: %v", err)

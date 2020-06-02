@@ -35,7 +35,7 @@ type Batcher struct {
 	MaxFlushInterval time.Duration         // MaxFlushInterval is the maximum amount of time to wait before flushing
 	MaxLineLength    int                   // MaxLineLength specifies the maximum length of a single line
 	Service          platform.WriteService // Service receives batches flushed from Batcher.
-	// Number of concurrent workers that write to service
+	// WriteWorkers is a number of concurrent workers that write to service
 	WriteWorkers int
 }
 
