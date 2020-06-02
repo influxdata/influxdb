@@ -1,8 +1,114 @@
+@import '@influxdata/clockface/dist/variables.scss';
+
+$notebook-results-header: 47px;
+$notebook-results-small: 200px;
+$notebook-results-medium: 400px;
+$notebook-results-large: 600px;
+
 .notebook-panel--body .flux-editor--monaco {
   position: relative;
 
   .react-monaco-editor-container {
-      min-height: 100px;
+    min-height: 100px;
   }
 }
 
+.notebook-raw-data {
+  margin-top: $cf-marg-a;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  width: 100%;
+  border: $cf-border solid $g2-kevlar;
+  background-color: $g2-kevlar;
+  border-radius: $cf-radius 0 0 $cf-radius;
+}
+
+.notebook-raw-data__small {
+  height: $notebook-results-small;
+}
+
+.notebook-raw-data__medium {
+  height: $notebook-results-medium;
+}
+
+.notebook-raw-data__large {
+  height: $notebook-results-large;
+}
+
+.notebook-raw-data--header {
+  color: $g8-storm;
+  width: $notebook-results-header;
+  flex: 0 0 $notebook-results-header;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: $cf-marg-b 0;
+}
+
+.notebook-raw-data--body,
+.notebook-raw-data--empty {
+  position: relative;
+  flex: 1 0 0;
+}
+
+.notebook-raw-data--empty {
+  color: $g8-storm;
+  user-select: none;
+  padding: $cf-marg-b 0;
+  font-weight: $cf-font-weight--medium;
+}
+
+.notebook-raw-data__success {
+  height: 200px;
+}
+
+.notebook-raw-data--size-toggle {
+  border-radius: 50%;
+  position: relative;
+  width: 24px;
+  height: 24px;
+  margin-bottom: $cf-marg-a;
+  border: $cf-border solid $g3-castle;
+  background-color: $g1-raven;
+  transition: background-color 0.25s ease;
+
+  &:after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    border-radius: 50%;
+    transition: width 0.25s ease, height 0.25s ease, background-color 0.25s ease;
+    transform: translate(-50%, -50%);
+    background-color: $g5-pepper;
+  }
+
+  &:hover {
+    cursor: pointer;
+
+    &:after {
+      background-color: $g7-graphite;
+    }
+  }
+}
+
+.notebook-raw-data--size-toggle__active:after,
+.notebook-raw-data--size-toggle__active:hover:after {
+  background-color: $c-pool;
+}
+
+.notebook-raw-data--size-toggle__small:after {
+  width: 8px;
+  height: 8px;
+}
+
+.notebook-raw-data--size-toggle__medium:after {
+  width: 12px;
+  height: 12px;
+}
+
+.notebook-raw-data--size-toggle__large:after {
+  width: 16px;
+  height: 16px;
+}

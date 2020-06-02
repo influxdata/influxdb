@@ -4,14 +4,19 @@ import {get} from 'lodash'
 
 // Types
 import {PipeProp} from 'src/notebooks'
+import {RawDataSize} from 'src/notebooks/pipes/Query'
 
 // Components
 import FluxMonacoEditor from 'src/shared/components/FluxMonacoEditor'
 import Results from 'src/notebooks/pipes/Query/Results'
 
+// Styles
+import 'src/notebooks/pipes/Query/style.scss'
+
 const Query: FC<PipeProp> = ({data, onUpdate, Context, results}) => {
   const {queries, activeQuery} = data
   const query = queries[activeQuery]
+  const size = get(data, 'rawDataSize', 'small')
 
   function updateText(text) {
     const _queries = queries.slice()
@@ -23,6 +28,11 @@ const Query: FC<PipeProp> = ({data, onUpdate, Context, results}) => {
     onUpdate({queries: _queries})
   }
 
+  const onUpdateSize = (rawDataSize: RawDataSize): void => {
+    console.log('onUpdateSize Query')
+    onUpdate({rawDataSize})
+  }
+
   return useMemo(
     () => (
       <Context>
@@ -32,9 +42,10 @@ const Query: FC<PipeProp> = ({data, onUpdate, Context, results}) => {
           onSubmitScript={() => {}}
           autogrow
         />
+        <Results results={results} size={size} onUpdateSize={onUpdateSize} />
       </Context>
     ),
-    [query.text]
+    [query.text, results, data.rawDataSize]
   )
 }
 
