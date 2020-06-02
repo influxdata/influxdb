@@ -4,12 +4,13 @@ use std::error::Error;
 // is useful because blocks do not always end aligned to bytes, and spare empty
 // bits can otherwise have undesirable semantic meaning.
 const SENTINEL: u64 = 0x7ff8_0000_0000_00ff; // in the quiet NaN range.
+const SENTINEL_INFLUXDB: u64 = 0x7ff8_0000_0000_0001; // legacy NaN value used by InfluxDB
 
-fn is_sentinel_f64(v: f64) -> bool {
-    v.to_bits() == SENTINEL
+fn is_sentinel_f64(v: f64, sentinel: u64) -> bool {
+    v.to_bits() == sentinel
 }
-fn is_sentinel_u64(v: u64) -> bool {
-    v == SENTINEL
+fn is_sentinel_u64(v: u64, sentinel: u64) -> bool {
+    v == sentinel
 }
 
 /// encode encodes a vector of floats into dst.
@@ -45,7 +46,7 @@ pub fn encode(src: &[f64], dst: &mut Vec<u8>) -> Result<(), Box<dyn Error>> {
         let x;
         if i < src.len() {
             x = src[i];
-            if is_sentinel_f64(x) {
+            if is_sentinel_f64(x, SENTINEL) {
                 return Err(From::from("unsupported value"));
             }
         } else {
@@ -313,11 +314,31 @@ const BIT_MASK: [u64; 64] = [
     0x7fff_ffff_ffff_ffff,
 ];
 
+/// decode decodes the provided slice of bytes into a vector of f64 values.
+pub fn decode(src: &[u8], dst: &mut Vec<f64>) -> Result<(), Box<dyn Error>> {
+    decode_with_sentinel(src, dst, SENTINEL)
+}
+
+/// decode_influxdb decodes the provided slice of bytes, which must have been
+/// encoded into a TSM file via InfluxDB's encoder.
+///
+/// TODO(edd): InfluxDB uses a different  sentinel value to terminate a block
+/// than we chose to use for the float decoder. As we settle on a story around
+/// compression of f64 blocks we may be able to clean this API and not have
+/// multiple methods.
+pub fn decode_influxdb(src: &[u8], dst: &mut Vec<f64>) -> Result<(), Box<dyn Error>> {
+    decode_with_sentinel(src, dst, SENTINEL_INFLUXDB)
+}
+
 /// decode decodes a slice of bytes into a vector of floats.
 #[allow(dead_code)]
 #[allow(clippy::many_single_char_names)]
 #[allow(clippy::useless_let_if_seq)]
-pub fn decode(src: &[u8], dst: &mut Vec<f64>) -> Result<(), Box<dyn Error>> {
+fn decode_with_sentinel(
+    src: &[u8],
+    dst: &mut Vec<f64>,
+    sentinel: u64,
+) -> Result<(), Box<dyn Error>> {
     if src.len() < 9 {
         return Ok(());
     }
@@ -479,7 +500,7 @@ pub fn decode(src: &[u8], dst: &mut Vec<f64>) -> Result<(), Box<dyn Error>> {
         val ^= s_bits << (trailing_n & 0x3f);
 
         // check for sentinel value
-        if is_sentinel_u64(val) {
+        if is_sentinel_u64(val, sentinel) {
             break;
         }
         dst.push(f64::from_bits(val));
@@ -1656,5 +1677,21 @@ mod tests {
             // verify got same values back
             assert_eq!(got, src, "{}", test.name);
         }
+    }
+
+    #[test]
+    fn decode_influxdb() {
+        // A block compressed with InfluxDB's gorilla encoder containing 507 0
+        // values.
+        let enc_influxdb = [
+            16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 48, 255, 255, 224, 0, 0, 0, 0, 0, 4,
+        ];
+
+        let mut got = vec![];
+        let exp = vec![0.0; 507];
+        super::decode_influxdb(&enc_influxdb, &mut got).expect("failed to decode");
+        assert_eq!(got, exp);
     }
 }
