@@ -1,8 +1,15 @@
+// Libraries
 import React, {FC, useMemo} from 'react'
-import {PipeProp} from 'src/notebooks'
-import FluxMonacoEditor from 'src/shared/components/FluxMonacoEditor'
+import {get} from 'lodash'
 
-const Query: FC<PipeProp> = ({data, onUpdate, Context}) => {
+// Types
+import {PipeProp} from 'src/notebooks'
+
+// Components
+import FluxMonacoEditor from 'src/shared/components/FluxMonacoEditor'
+import Results from 'src/notebooks/pipes/Query/Results'
+
+const Query: FC<PipeProp> = ({data, onUpdate, Context, results}) => {
   const {queries, activeQuery} = data
   const query = queries[activeQuery]
 

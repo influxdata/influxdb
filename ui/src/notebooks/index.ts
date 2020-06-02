@@ -1,5 +1,5 @@
 import {FunctionComponent, ComponentClass, ReactNode} from 'react'
-import {FromFluxResult} from '@influxdata/giraffe'
+import {BothResults} from 'src/notebooks/context/query'
 
 export interface PipeContextProps {
   children?: ReactNode
@@ -11,7 +11,7 @@ export type PipeData = any
 export interface PipeProp {
   data: PipeData
   onUpdate: (data: PipeData) => void
-  results?: FromFluxResult
+  results?: BothResults
 
   Context:
     | FunctionComponent<PipeContextProps>
