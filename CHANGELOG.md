@@ -1,6 +1,10 @@
 v1.8.1 [unreleased]
 -------------------
 
+### Bugfixes
+
+- [#18326](https://github.com/influxdata/influxdb/pull/18326): Remove leftover .tmp folders after backup/snapshot
+
 v1.8.0 [2020-04-11]
 -------------------
 
