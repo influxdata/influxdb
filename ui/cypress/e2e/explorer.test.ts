@@ -518,7 +518,7 @@ describe('DataExplorer', () => {
     it('can filter aggregation functions by name from script editor mode', () => {
       cy.getByTestID('input-field')
         .type('covariance')
-        .should('have.length', 10)
+        .should('have.value', 'covariance')
       cy.get('.flux-toolbar--list-item').should('have.length', 1)
     })
 
