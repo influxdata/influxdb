@@ -87,14 +87,14 @@ describe('tokens', () => {
         cy.fixture('routes').then(({orgs}) => {
           cy.visit(`${orgs}/${id}/load-data/tokens`)
         })
-        cy.get('[data-testid="index-list"]', {timeout: PAGE_LOAD_SLA})
+        cy.get('[data-testid="resource-list"]', {timeout: PAGE_LOAD_SLA})
       })
     })
   })
 
   it('can list tokens', () => {
-    cy.getByTestID('table-row').should('have.length', 4)
-    cy.getByTestID('table-row').then(rows => {
+    cy.getByTestID('resource-card').should('have.length', 4)
+    cy.getByTestID('resource-card').then(rows => {
       authData = authData.sort((a, b) =>
         // eslint-disable-next-line
         a.description < b.description
@@ -105,11 +105,9 @@ describe('tokens', () => {
       )
 
       for (let i = 0; i < rows.length; i++) {
-        cy.getByTestID('editable-name')
+        cy.getByTestID('resource-editable-name')
           .eq(i)
-          .children('a')
-          .children('span')
-          .should('have.text', authData[i].description)
+          .contains(authData[i].description)
 
         if (authData[i].status) {
           cy.getByTestID('slide-toggle')
@@ -127,22 +125,22 @@ describe('tokens', () => {
   it('can filter tokens', () => {
     // basic filter
     cy.getByTestID('input-field--filter').type('test')
-    cy.getByTestID('table-row').should('have.length', 3)
+    cy.getByTestID('resource-card').should('have.length', 3)
 
     // clear filter
     cy.getByTestID('input-field--filter').clear()
-    cy.getByTestID('table-row').should('have.length', 4)
+    cy.getByTestID('resource-card').should('have.length', 4)
 
     // exotic filter
     cy.getByTestID('input-field--filter').type('\u0950')
-    cy.getByTestID('table-row').should('have.length', 1)
+    cy.getByTestID('resource-card').should('have.length', 1)
   })
 
   it('can change token activation status', () => {
     // toggle on
-    cy.getByTestID('table-row')
+    cy.getByTestID('resource-card')
       .contains('token test 02')
-      .parents('[data-testid=table-row]')
+      .parents('[data-testid=resource-card]')
       .within(() => {
         cy.getByTestID('slide-toggle')
           .click()
@@ -162,16 +160,16 @@ describe('tokens', () => {
           })
       })
 
-    cy.getByTestID('table-row')
+    cy.getByTestID('resource-card')
       .contains('token test 02')
-      .parents('[data-testid=table-row]')
+      .parents('[data-testid=resource-card]')
       .within(() => {
         cy.getByTestID('slide-toggle').should('have.class', 'active')
       })
 
-    cy.getByTestID('table-row')
+    cy.getByTestID('resource-card')
       .contains('token test 02')
-      .parents('[data-testid=table-row]')
+      .parents('[data-testid=resource-card]')
       .within(() => {
         cy.getByTestID('slide-toggle')
           .click()
@@ -191,67 +189,63 @@ describe('tokens', () => {
           })
       })
 
-    cy.getByTestID('table-row')
+    cy.getByTestID('resource-card')
       .contains('token test 02')
-      .parents('[data-testid=table-row]')
+      .parents('[data-testid=resource-card]')
       .within(() => {
         cy.getByTestID('slide-toggle').should('not.have.class', 'active')
       })
   })
 
   it('can delete a token', () => {
-    cy.getByTestID('table-row').should('have.length', 4)
+    cy.getByTestID('resource-card').should('have.length', 4)
 
-    cy.getByTestID('table-row')
+    cy.getByTestID('resource-card')
       .contains('token test 03')
-      .parents('[data-testid=table-row]')
+      .parents('[data-testid=resource-card]')
       .within(() => {
-        cy.getByTestID('delete-token--button').click()
-      })
-      .then(() => {
-        cy.getByTestID('delete-token--popover--contents').within(() => {
-          cy.getByTestID('delete-token--confirm-button').click()
-        })
+        cy.getByTestID('context-menu').click()
+
+        cy.getByTestID('delete-token')
+          .contains('Delete')
+          .click()
       })
 
-    cy.getByTestID('table-row').should('have.length', 3)
+    cy.getByTestID('resource-card').should('have.length', 3)
 
-    cy.getByTestID('table-row')
+    cy.getByTestID('resource-card')
       .contains('token test 03')
       .should('not.exist')
 
     // Delete remaining tokens
-    cy.getByTestID('table-row')
+    cy.getByTestID('resource-card')
       .first()
       .within(() => {
-        cy.getByTestID('delete-token--button').click()
-      })
-      .then(() => {
-        cy.getByTestID('delete-token--popover--contents').within(() => {
-          cy.getByTestID('delete-token--confirm-button').click()
-        })
+        cy.getByTestID('context-menu').click()
+
+        cy.getByTestID('delete-token')
+          .contains('Delete')
+          .click()
       })
 
-    cy.getByTestID('table-row')
+    cy.getByTestID('resource-card')
       .first()
       .within(() => {
-        cy.getByTestID('delete-token--button').click()
-      })
-      .then(() => {
-        cy.getByTestID('delete-token--popover--contents').within(() => {
-          cy.getByTestID('delete-token--confirm-button').click()
-        })
+        cy.getByTestID('context-menu').click()
+
+        cy.getByTestID('delete-token')
+          .contains('Delete')
+          .click()
       })
 
-    cy.getByTestID('table-row')
+    cy.getByTestID('resource-card')
       .first()
       .within(() => {
-        cy.getByTestID('delete-token--button').click()
-      })
-      .then(() => {
-        cy.getByTestID('delete-token--popover--contents').within(() => {
-          cy.getByTestID('delete-token--confirm-button').click()
-        })
+        cy.getByTestID('context-menu').click()
+
+        cy.getByTestID('delete-token')
+          .contains('Delete')
+          .click()
       })
 
     // Assert empty state
@@ -261,7 +255,7 @@ describe('tokens', () => {
   })
 
   it('can generate a read/write token', () => {
-    cy.getByTestID('table-row').should('have.length', 4)
+    cy.getByTestID('resource-card').should('have.length', 4)
 
     // create some extra buckets for filters
     cy.get<Organization>('@org').then(({id, name}: Organization) => {
@@ -280,7 +274,7 @@ describe('tokens', () => {
       // check cancel
       cy.getByTestID('button--cancel').click()
       cy.getByTestID('overlay--container').should('not.be.visible')
-      cy.getByTestID('table-row').should('have.length', 4)
+      cy.getByTestID('resource-card').should('have.length', 4)
 
       // open overlay - again
       cy.getByTestID('dropdown-button--gen-token').click()
@@ -305,11 +299,11 @@ describe('tokens', () => {
       cy.getByTestID('button--save').click()
 
       // Verify token
-      cy.getByTestID('table-row')
+      cy.getByTestID('resource-card')
         .should('have.length', 5)
         .contains('Jeton 01')
         .should('be.visible')
-      cy.getByTestID('table-row')
+      cy.getByTestID('resource-card')
         .contains('Jeton 01')
         .click()
       cy.getByTestID('overlay--container').should('be.visible')
@@ -349,7 +343,7 @@ describe('tokens', () => {
     })
 
     it('can view a token', () => {
-      cy.getByTestID('table-row')
+      cy.getByTestID('resource-card')
         .contains('token test \u0950')
         .click()
 
