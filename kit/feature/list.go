@@ -188,7 +188,7 @@ var hydratevars = MakeBoolFlag(
 	"New Hydrate Vars Functionality",
 	"hydratevars",
 	"Ariel Salem / Monitoring Team",
-	false,
+	true,
 	Temporary,
 	false,
 )

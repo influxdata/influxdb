@@ -513,6 +513,7 @@ export const hydrateVars = (
   options: HydrateVarsOptions
 ): EventedCancelBox<Variable[]> => {
   let findSubgraphFunction = findSubgraph
+  // if (true) {
   if (isFlagEnabled('hydratevars')) {
     findSubgraphFunction = findSubgraphFeature
   }
@@ -529,7 +530,6 @@ export const hydrateVars = (
     if (isCancelled) {
       return
     }
-
     try {
       // TODO: terminate the concept of node.values at the fetcher and just use variables
       node.values = await hydrateVarsHelper(node, options, on)

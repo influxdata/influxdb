@@ -3,7 +3,7 @@ import {ValueFetcher} from 'src/variables/utils/ValueFetcher'
 import {
   hydrateVars,
   createVariableGraph,
-  findSubgraph,
+  findSubgraphFeature,
 } from 'src/variables/utils/hydrateVars'
 
 // Mocks
@@ -119,19 +119,10 @@ describe('hydrate vars', () => {
     //       f [fontcolor = "green"]
     //       g [fontcolor = "green"]
     //     }
-    // TODO(ariel): figured out if these tests are necessary
-    // expect(
-    //   actual.filter(v => v.id === 'a')[0].arguments.values.results
-    // ).toBeFalsy()
+    expect(actual.length).toEqual(3)
     expect(
       actual.filter(v => v.id === 'b')[0].arguments.values.results
     ).toBeFalsy()
-    // expect(
-    //   actual.filter(v => v.id === 'c')[0].arguments.values.results
-    // ).toBeFalsy()
-    // expect(
-    //   actual.filter(v => v.id === 'd')[0].arguments.values.results
-    // ).toBeFalsy()
 
     expect(
       actual.filter(v => v.id === 'e')[0].arguments.values.results
@@ -142,11 +133,6 @@ describe('hydrate vars', () => {
       actual.filter(v => v.id === 'g')[0].arguments.values.results
     ).toEqual(['gVal'])
     expect(actual.filter(v => v.id === 'g')[0].selected).toEqual(['gVal'])
-
-    // expect(
-    //   actual.filter(v => v.id === 'f')[0].arguments.values.results
-    // ).toEqual(['fVal'])
-    // expect(actual.filter(v => v.id === 'f')[0].selected).toEqual(['fVal'])
   })
 
   test('should invalidate all ancestors of a node when it fails', async () => {
@@ -192,19 +178,8 @@ describe('hydrate vars', () => {
     //       b [fontcolor = "red"]
     //       c [fontcolor = "green"]
     //     }
-    //
-    // TODO(ariel): determine if these are still relevant
-    // expect(
-    //   actual.filter(v => v.id === 'a')[0].arguments.values.results
-    // ).toEqual([])
-    // expect(
-    //   actual.filter(v => v.id === 'b')[0].arguments.values.results
-    // ).toEqual([])
-
-    expect(
-      actual.filter(v => v.id === 'c')[0].arguments.values.results
-    ).toEqual(['cVal'])
-    expect(actual.filter(v => v.id === 'c')[0].selected).toEqual(['cVal'])
+    expect(actual.length).toEqual(1)
+    expect(actual).toEqual([c])
   })
 
   test('works with map template variables', async () => {
@@ -246,14 +221,8 @@ describe('hydrate vars', () => {
 
     // Basic test for now, we would need an icky mock to assert that the
     // appropriate substitution is actually taking place
-    // TODO(ariel): determine if these are still necessary checks
-    // expect(
-    //   actual.filter(v => v.id === 'a')[0].arguments.values.results
-    // ).toEqual(['aVal'])
-    // expect(actual.filter(v => v.id === 'a')[0].selected).toEqual(['aVal'])
-    expect(actual.filter(v => v.id === 'b')[0].arguments.values).toEqual({
-      k: 'v',
-    })
+    expect(actual.length).toEqual(1)
+    expect(actual).toEqual([b])
   })
 
   // This ensures that the update of a dependant variable updates the
@@ -292,16 +261,9 @@ describe('hydrate vars', () => {
       selections: {},
       fetcher,
     }).promise
-    // TODO(ariel): determine if these are still necessary checks
-    // expect(
-    //   actual.filter(v => v.id === 'a')[0].arguments.values.results
-    // ).toEqual(['aVal'])
-    // expect(actual.filter(v => v.id === 'a')[0].selected).toEqual(['aVal'])
 
-    expect(actual.filter(v => v.id === 'b')[0].arguments.values).toEqual([
-      'v1',
-      'v2',
-    ])
+    expect(actual.length).toEqual(1)
+    expect(actual).toEqual([b])
   })
 
   test('should be cancellable', done => {
@@ -326,9 +288,43 @@ describe('hydrate vars', () => {
 
     cancel()
   })
+
+  test('should return the child node with associated parents', async () => {
+    /*
+     This example deals with the following situation where a parent with a child has been passed in.
+     Practically speaking, this looks like:
+
+              associatedVariable
+                    |
+                    |
+                defaultVariable
+
+      By passing in the defaultVariable, we expect the child to be returned with a reference to the parent:
+
+      [
+        {
+          variable: defaultVariable,
+          parent: [associatedVariable]
+        },
+      ]
+      The reason for this is because we want the youngest child node (end of the LL tail) to load first, followed by its parents.
+    */
+
+    const fetcher = new FakeFetcher()
+
+    const actual = await hydrateVars([associatedVariable], defaultVariables, {
+      url: '',
+      orgID: '',
+      selections: {},
+      fetcher,
+    }).promise
+
+    expect(actual.length).toEqual(1)
+    expect(actual).toEqual([defaultVariable])
+  })
 })
 
-describe('findSubgraph', () => {
+describe('findSubgraphFeature', () => {
   const getParentNodes = (node, acc: Set<string> = new Set()): string[] => {
     for (const parent of node.parents) {
       if (!acc.has(parent)) {
@@ -355,7 +351,7 @@ describe('findSubgraph', () => {
     */
     const a = createVariable('a', 'f(x: v.b)')
     const variableGraph = await createVariableGraph([...defaultVariables, a])
-    const actual = await findSubgraph(variableGraph, [a])
+    const actual = await findSubgraphFeature(variableGraph, [a])
     expect(actual.length).toEqual(1)
     const [subgraph] = actual
     // expect the subgraph to return the passed in variable
@@ -383,7 +379,9 @@ describe('findSubgraph', () => {
       The reason for this is because we want the youngest child node (end of the LL tail) to load first, followed by its parents.
     */
     const variableGraph = await createVariableGraph(defaultVariables)
-    const actual = await findSubgraph(variableGraph, [timeRangeStartVariable])
+    const actual = await findSubgraphFeature(variableGraph, [
+      timeRangeStartVariable,
+    ])
     expect(actual.length).toEqual(1)
     const [subgraph] = actual
     // expect the subgraph to return the passed in variable
@@ -421,7 +419,7 @@ describe('findSubgraph', () => {
     */
     const a = createVariable('a', 'f()')
     const variableGraph = await createVariableGraph([...defaultVariables, a])
-    const actual = await findSubgraph(variableGraph, [
+    const actual = await findSubgraphFeature(variableGraph, [
       defaultVariable,
       associatedVariable,
       a,
@@ -461,7 +459,7 @@ describe('findSubgraph', () => {
       The reason for this is because we want the youngest child node (end of the LL tail) to load first, followed by its parents.
     */
     const variableGraph = await createVariableGraph(defaultVariables)
-    const actual = await findSubgraph(variableGraph, [defaultVariable])
+    const actual = await findSubgraphFeature(variableGraph, [defaultVariable])
     // returns the subgraph result
     expect(actual.length).toEqual(1)
     const resultIDs = actual.map(v => v.variable.id)
@@ -496,7 +494,9 @@ describe('findSubgraph', () => {
       The reason for this is because we want the youngest child node (end of the LL tail) to load first, followed by its parents.
     */
     const variableGraph = await createVariableGraph(defaultVariables)
-    const actual = await findSubgraph(variableGraph, [associatedVariable])
+    const actual = await findSubgraphFeature(variableGraph, [
+      associatedVariable,
+    ])
     // returns the subgraph result
     expect(actual.length).toEqual(1)
     const resultIDs = actual.map(v => v.variable.id)
@@ -537,7 +537,7 @@ describe('findSubgraph', () => {
       rely upon that in order to resolve timeRangeStart
     */
     const variableGraph = await createVariableGraph(defaultVariables)
-    const actual = await findSubgraph(variableGraph, [
+    const actual = await findSubgraphFeature(variableGraph, [
       timeRangeStartVariable,
       associatedVariable,
     ])
