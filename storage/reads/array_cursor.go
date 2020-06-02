@@ -3,6 +3,7 @@ package reads
 import (
 	"context"
 	"fmt"
+	"math"
 
 	"github.com/influxdata/influxdb/v2/storage/reads/datatypes"
 	"github.com/influxdata/influxdb/v2/tsdb/cursors"
@@ -62,47 +63,37 @@ func newSumArrayCursor(cur cursors.Cursor) cursors.Cursor {
 func newCountArrayCursor(cur cursors.Cursor) cursors.Cursor {
 	switch cur := cur.(type) {
 	case cursors.FloatArrayCursor:
-		return &integerFloatCountArrayCursor{FloatArrayCursor: cur}
+		return newIntegerFloatCountArrayCursor(cur)
 	case cursors.IntegerArrayCursor:
-		return &integerIntegerCountArrayCursor{IntegerArrayCursor: cur}
+		return newIntegerIntegerCountArrayCursor(cur)
 	case cursors.UnsignedArrayCursor:
-		return &integerUnsignedCountArrayCursor{UnsignedArrayCursor: cur}
+		return newIntegerUnsignedCountArrayCursor(cur)
 	case cursors.StringArrayCursor:
-		return &integerStringCountArrayCursor{StringArrayCursor: cur}
+		return newIntegerStringCountArrayCursor(cur)
 	case cursors.BooleanArrayCursor:
-		return &integerBooleanCountArrayCursor{BooleanArrayCursor: cur}
+		return newIntegerBooleanCountArrayCursor(cur)
 	default:
 		panic(fmt.Sprintf("unreachable: %T", cur))
 	}
 }
 
 func newWindowCountArrayCursor(cur cursors.Cursor, req *datatypes.ReadWindowAggregateRequest) cursors.Cursor {
+	if req.WindowEvery == math.MaxInt64 {
+		// This means to aggregate over the entire range,
+		// don't do windowed aggregation.
+		return newCountArrayCursor(cur)
+	}
 	switch cur := cur.(type) {
 	case cursors.FloatArrayCursor:
-		return &integerFloatWindowCountArrayCursor{
-			FloatArrayCursor: cur,
-			every:            req.WindowEvery,
-		}
+		return newIntegerFloatWindowCountArrayCursor(cur, req.WindowEvery)
 	case cursors.IntegerArrayCursor:
-		return &integerIntegerWindowCountArrayCursor{
-			IntegerArrayCursor: cur,
-			every:              req.WindowEvery,
-		}
+		return newIntegerIntegerWindowCountArrayCursor(cur, req.WindowEvery)
 	case cursors.UnsignedArrayCursor:
-		return &integerUnsignedWindowCountArrayCursor{
-			UnsignedArrayCursor: cur,
-			every:               req.WindowEvery,
-		}
+		return newIntegerUnsignedWindowCountArrayCursor(cur, req.WindowEvery)
 	case cursors.StringArrayCursor:
-		return &integerStringWindowCountArrayCursor{
-			StringArrayCursor: cur,
-			every:             req.WindowEvery,
-		}
+		return newIntegerStringWindowCountArrayCursor(cur, req.WindowEvery)
 	case cursors.BooleanArrayCursor:
-		return &integerBooleanWindowCountArrayCursor{
-			BooleanArrayCursor: cur,
-			every:              req.WindowEvery,
-		}
+		return newIntegerBooleanWindowCountArrayCursor(cur, req.WindowEvery)
 	default:
 		panic(fmt.Sprintf("unreachable: %T", cur))
 	}
