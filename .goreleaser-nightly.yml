@@ -15,8 +15,8 @@ builds:
       - GO111MODULE=on
       - CGO_ENABLED=1
       - CC=xcc
-      - PKG_CONFIG=/go/bin/pkg-config
-    ldflags: -s -w -X main.version={{.Version}} -X main.commit={{.ShortCommit}} -X main.date={{.Date}}
+      - PKG_CONFIG=$GOPATH/bin/pkg-config
+    ldflags: -s -w -X main.version=nightly -X main.commit={{.ShortCommit}} -X main.date={{.Date}}
     binary: influx
   - id: influxd
     goos:
@@ -35,8 +35,8 @@ builds:
       - GO111MODULE=on
       - CGO_ENABLED=1
       - CC=xcc
-      - PKG_CONFIG=/go/bin/pkg-config
-    ldflags: -s -w -X main.version={{.Version}} -X main.commit={{.ShortCommit}} -X main.date={{.Date}}
+      - PKG_CONFIG=$GOPATH/bin/pkg-config
+    ldflags: -s -w -X main.version=nightly -X main.commit={{.ShortCommit}} -X main.date={{.Date}}
     binary: influxd
     hooks:
       pre: make generate
@@ -47,13 +47,10 @@ archives:
     format_overrides:
       - goos: windows
         format: zip
-    name_template: "{{ .Binary }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
+    name_template: "{{ .Binary }}_nightly_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
     files:
       - LICENSE
       - README.md
-
-snapshot:
-  name_template: "nightly"
 
 blobs:
   - provider: "s3"
@@ -68,7 +65,7 @@ dockers:
       - influxd
       - influx
     image_templates:
-      - "quay.io/influxdb/influx:{{ .Version }}"
+      - "quay.io/influxdb/influx:nightly"
     dockerfile: docker/influxd/Dockerfile
     extra_files:
       - docker/influxd/entrypoint.sh
