@@ -42,34 +42,26 @@ func WithAuth(fn func(r *http.Request)) ClientOptFn {
 
 // WithAuthToken provides token auth for requests.
 func WithAuthToken(token string) ClientOptFn {
-	return func(opts *clientOpt) error {
-		fn := func(r *http.Request) {
-			r.Header.Set("Authorization", "Token "+token)
-		}
-		return WithAuth(fn)(opts)
-	}
+	return WithAuth(func(r *http.Request) {
+		r.Header.Set("Authorization", "Token "+token)
+	})
 }
 
 // WithSessionCookie provides cookie auth for requests to mimic the browser.
 // Typically, session is influxdb.Session.Key.
 func WithSessionCookie(session string) ClientOptFn {
-	return func(opts *clientOpt) error {
-		fn := func(r *http.Request) {
-			r.AddCookie(&http.Cookie{
-				Name:  "session",
-				Value: session,
-			})
-		}
-		return WithAuth(fn)(opts)
-	}
+	return WithAuth(func(r *http.Request) {
+		r.AddCookie(&http.Cookie{
+			Name:  "session",
+			Value: session,
+		})
+	})
 }
 
 // WithContentType sets the content type that will be applied to the requests created
 // by the Client.
 func WithContentType(ct string) ClientOptFn {
-	return func(opt *clientOpt) error {
-		return WithHeader(headerContentType, ct)(opt)
-	}
+	return WithHeader(headerContentType, ct)
 }
 
 func withDoer(d doer) ClientOptFn {
@@ -89,6 +81,11 @@ func WithHeader(header, val string) ClientOptFn {
 		opt.headers.Add(header, val)
 		return nil
 	}
+}
+
+// WithUserAgentHeader sets the user agent for the http client requests.
+func WithUserAgentHeader(userAgent string) ClientOptFn {
+	return WithHeader("User-Agent", userAgent)
 }
 
 // WithHTTPClient sets the raw http client on the httpc Client.
@@ -136,12 +133,9 @@ func WithWriterFn(fn WriteCloserFn) ClientOptFn {
 
 // WithWriterGZIP gzips the request body generated from this client.
 func WithWriterGZIP() ClientOptFn {
-	return func(opt *clientOpt) error {
-		fn := func(w io.WriteCloser) (string, string, io.WriteCloser) {
-			return headerContentEncoding, "gzip", gzip.NewWriter(w)
-		}
-		return WithWriterFn(fn)(opt)
-	}
+	return WithWriterFn(func(w io.WriteCloser) (string, string, io.WriteCloser) {
+		return headerContentEncoding, "gzip", gzip.NewWriter(w)
+	})
 }
 
 func defaultHTTPClient(scheme string, insecure bool) *http.Client {

@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -51,7 +52,17 @@ func newHTTPClient() (*httpc.Client, error) {
 		return httpClient, nil
 	}
 
-	c, err := http.NewHTTPClient(flags.Host, flags.Token, flags.skipVerify)
+	userAgent := fmt.Sprintf(
+		"influx/%s (%s) Sha/%s Date/%s",
+		version, runtime.GOOS, commit, date,
+	)
+
+	c, err := http.NewHTTPClient(
+		flags.Host,
+		flags.Token,
+		flags.skipVerify,
+		httpc.WithUserAgentHeader(userAgent),
+	)
 	if err != nil {
 		return nil, err
 	}
