@@ -2,60 +2,6 @@ version: 2.1
 
 # Adding these commands but need confirmation of cache location
 commands:
-  install_clang:
-    description: Install clang
-    steps:
-      - run:
-          name: Install clang
-          command: sudo apt install -y clang
-      - run:
-          name: Add llvm-config to the PATH
-          command: sudo update-alternatives --install /usr/bin/llvm-config llvm-config /usr/lib/llvm-7/bin/llvm-config 1
-  install_flatc:
-    description: Install Flatbuffers compiler
-    steps:
-      - run:
-          name: Install CMake
-          command: sudo apt install -y cmake
-      - run:
-          name: Checkout Flatbuffers
-          command: >
-            git clone --
-            https://github.com/google/flatbuffers.git
-            /home/circleci/flatbuffers
-      - run:
-          name: Create Flatbuffers Makefiles
-          command: >
-            cmake
-            -S /home/circleci/flatbuffers
-            -B /home/circleci/flatbuffers
-            -G "Unix Makefiles"
-            -DCMAKE_BUILD_TYPE=Release
-      - run:
-          name: Build Flatbuffers
-          command: >
-            make
-            -C /home/circleci/flatbuffers
-            -j $(nproc)
-            flatc
-      - run:
-          name: Add flatc to the PATH
-          command: >
-            sudo update-alternatives --install
-            /usr/bin/flatc
-            flatc
-            /home/circleci/flatbuffers/flatc
-            1
-
-  rust_nightly:
-    description: Install nightly tools
-    steps:
-      - run:
-          name: Install nightly
-          command: rustup toolchain install nightly
-      - run:
-          name: rustup component
-          command: rustup component add rustfmt clippy
   cache_restore:
     description: Restore Cargo Cache
     steps:
@@ -77,32 +23,26 @@ commands:
 jobs:
   fmt:
     docker:
-      - image: circleci/rust:latest
+      - image: quay.io/influxdb/rust:ci
     steps:
       - checkout
-      - rust_nightly
       - run:
           name: Rust fmt
           command: cargo fmt --all -- --check
   lint:
     docker:
-      - image: circleci/rust:latest
+      - image: quay.io/influxdb/rust:ci
     steps:
       - checkout
-      - rust_nightly
-      - install_clang
-      - install_flatc
       - run:
           name: Clippy
           command: cargo clippy --all-targets --workspace -- -D warnings
   test:
     docker:
-      - image: circleci/rust:latest
+      - image: quay.io/influxdb/rust:ci
     steps:
       - checkout
       - cache_restore
-      - install_clang
-      - install_flatc
       # need to build the dstool binary to use it in tests
       - run:
           name: Cargo build
@@ -113,16 +53,26 @@ jobs:
       - cache_save
   build:
     docker:
-      - image: circleci/rust:latest
+      - image: quay.io/influxdb/rust:ci
     steps:
       - checkout
       - cache_restore
-      - install_clang
-      - install_flatc
       - run:
           name: Cargo build
           command: cargo build --workspace
       - cache_save
+  ci_image:
+    machine: true
+    steps:
+      - checkout
+      - run: |
+          echo "$QUAY_PASS" | docker login quay.io --username $QUAY_USER --password-stdin
+      - run: |
+          COMMIT_SHA=$(git rev-parse --short HEAD)
+          docker build -t quay.io/influxdb/rust:$COMMIT_SHA -f Dockerfile.ci .
+          docker tag quay.io/influxdb/rust:$COMMIT_SHA quay.io/influxdb/rust:ci
+          docker push quay.io/influxdb/rust:$COMMIT_SHA
+          docker push quay.io/influxdb/rust:ci
 
 workflows:
   version: 2
@@ -132,3 +82,13 @@ workflows:
       - lint
       - test
       - build
+  ci_image:
+    triggers:
+      - schedule:
+          cron: "0 5 * * *"
+          filters:
+            branches:
+              only:
+                - master
+    jobs:
+      - ci_image
