@@ -84,6 +84,8 @@ $(CMDS): $(SOURCES)
 # Ease of use build for just the go binary
 influxd: bin/$(GOOS)/influxd
 
+influx: bin/$(GOOS)/influx
+
 #
 # Define targets for the web ui
 #
