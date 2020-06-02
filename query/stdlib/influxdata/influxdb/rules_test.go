@@ -28,7 +28,12 @@ import (
 // present
 type mockReaderCaps struct {
 	query.StorageReader
-	Have bool
+	Have              bool
+	GroupCapabilities query.GroupCapability
+}
+
+func (caps mockReaderCaps) GetGroupCapability(ctx context.Context) query.GroupCapability {
+	return caps.GroupCapabilities
 }
 
 func (caps mockReaderCaps) GetWindowAggregateCapability(ctx context.Context) query.WindowAggregateCapability {
@@ -38,6 +43,15 @@ func (caps mockReaderCaps) GetWindowAggregateCapability(ctx context.Context) que
 func (caps mockReaderCaps) ReadWindowAggregate(ctx context.Context, spec query.ReadWindowAggregateSpec, alloc *memory.Allocator) (query.TableIterator, error) {
 	return nil, nil
 }
+
+type mockGroupCapability struct {
+	count, sum, first, last bool
+}
+
+func (c mockGroupCapability) HaveCount() bool { return c.count }
+func (c mockGroupCapability) HaveSum() bool   { return c.sum }
+func (c mockGroupCapability) HaveFirst() bool { return c.first }
+func (c mockGroupCapability) HaveLast() bool  { return c.last }
 
 // Mock Window Aggregate Capability
 type mockWAC struct {
@@ -1689,11 +1703,24 @@ func TestPushDownBareAggregateRule(t *testing.T) {
 //
 func TestPushDownGroupAggregateRule(t *testing.T) {
 	// Turn on all flags
-	flagger := mock.NewFlagger(map[feature.Flag]interface{}{
+	ctx, _ := feature.Annotate(context.Background(), mock.NewFlagger(map[feature.Flag]interface{}{
 		feature.PushDownGroupAggregateCount(): true,
-	})
+		feature.PushDownGroupAggregateSum():   true,
+		feature.PushDownGroupAggregateFirst(): true,
+		feature.PushDownGroupAggregateLast():  true,
+	}))
 
-	ctx, _ := feature.Annotate(context.Background(), flagger)
+	caps := func(c query.GroupCapability) context.Context {
+		deps := influxdb.StorageDependencies{
+			FromDeps: influxdb.FromDependencies{
+				Reader: mockReaderCaps{
+					GroupCapabilities: c,
+				},
+				Metrics: influxdb.NewMetrics(nil),
+			},
+		}
+		return deps.Inject(ctx)
+	}
 
 	readGroupAgg := func(aggregateMethod string) *influxdb.ReadGroupPhysSpec {
 		return &influxdb.ReadGroupPhysSpec{
@@ -1728,44 +1755,145 @@ func TestPushDownGroupAggregateRule(t *testing.T) {
 		}
 	}
 
-	// construct a simple result
-	simpleResult := func(proc string) *plantest.PlanSpec {
-		return &plantest.PlanSpec{
-			Nodes: []plan.Node{
-				plan.CreatePhysicalNode("ReadGroup", readGroupAgg(proc)),
-			},
-		}
-	}
-
 	minProcedureSpec := func() *universe.MinProcedureSpec {
 		return &universe.MinProcedureSpec{
-			SelectorConfig: execute.SelectorConfig{Column: "_value"},
+			SelectorConfig: execute.DefaultSelectorConfig,
+		}
+	}
+	maxProcedureSpec := func() *universe.MaxProcedureSpec {
+		return &universe.MaxProcedureSpec{
+			SelectorConfig: execute.DefaultSelectorConfig,
 		}
 	}
 	countProcedureSpec := func() *universe.CountProcedureSpec {
 		return &universe.CountProcedureSpec{
-			AggregateConfig: execute.AggregateConfig{Columns: []string{"_value"}},
+			AggregateConfig: execute.DefaultAggregateConfig,
 		}
 	}
 	sumProcedureSpec := func() *universe.SumProcedureSpec {
 		return &universe.SumProcedureSpec{
-			AggregateConfig: execute.AggregateConfig{Columns: []string{"_value"}},
+			AggregateConfig: execute.DefaultAggregateConfig,
+		}
+	}
+	firstProcedureSpec := func() *universe.FirstProcedureSpec {
+		return &universe.FirstProcedureSpec{
+			SelectorConfig: execute.DefaultSelectorConfig,
+		}
+	}
+	lastProcedureSpec := func() *universe.LastProcedureSpec {
+		return &universe.LastProcedureSpec{
+			SelectorConfig: execute.DefaultSelectorConfig,
 		}
 	}
 
-	// ReadGroup -> count => ReadGroup
+	// ReadGroup() -> count => ReadGroup(count) -> sum
 	tests = append(tests, plantest.RuleTestCase{
-		Context: ctx,
-		Name:    "SimplePassCount",
+		Context: caps(mockGroupCapability{count: true}),
+		Name:    "RewriteGroupCount",
 		Rules:   []plan.Rule{influxdb.PushDownGroupAggregateRule{}},
 		Before:  simplePlanWithAgg("count", countProcedureSpec()),
-		After:   simpleResult("count"),
+		After: &plantest.PlanSpec{
+			Nodes: []plan.Node{
+				plan.CreateLogicalNode("ReadGroupAggregate", readGroupAgg("count")),
+				plan.CreateLogicalNode("sum", sumProcedureSpec()),
+			},
+			Edges: [][2]int{
+				{0, 1},
+			},
+		},
+	})
+
+	// ReadGroup() -> count => ReadGroup() -> count
+	tests = append(tests, plantest.RuleTestCase{
+		Context:  caps(mockGroupCapability{}),
+		Name:     "NoCountCapability",
+		Rules:    []plan.Rule{influxdb.PushDownGroupAggregateRule{}},
+		Before:   simplePlanWithAgg("count", countProcedureSpec()),
+		NoChange: true,
+	})
+
+	// ReadGroup() -> sum => ReadGroup(sum) -> sum
+	tests = append(tests, plantest.RuleTestCase{
+		Context: caps(mockGroupCapability{sum: true}),
+		Name:    "RewriteGroupSum",
+		Rules:   []plan.Rule{influxdb.PushDownGroupAggregateRule{}},
+		Before:  simplePlanWithAgg("sum", sumProcedureSpec()),
+		After: &plantest.PlanSpec{
+			Nodes: []plan.Node{
+				plan.CreateLogicalNode("ReadGroupAggregate", readGroupAgg("sum")),
+				plan.CreateLogicalNode("sum", sumProcedureSpec()),
+			},
+			Edges: [][2]int{
+				{0, 1},
+			},
+		},
+	})
+
+	// ReadGroup() -> sum => ReadGroup() -> sum
+	tests = append(tests, plantest.RuleTestCase{
+		Context:  caps(mockGroupCapability{}),
+		Name:     "NoSumCapability",
+		Rules:    []plan.Rule{influxdb.PushDownGroupAggregateRule{}},
+		Before:   simplePlanWithAgg("sum", sumProcedureSpec()),
+		NoChange: true,
+	})
+
+	// ReadGroup() -> first => ReadGroup(first) -> min
+	tests = append(tests, plantest.RuleTestCase{
+		Context: caps(mockGroupCapability{first: true}),
+		Name:    "RewriteGroupFirst",
+		Rules:   []plan.Rule{influxdb.PushDownGroupAggregateRule{}},
+		Before:  simplePlanWithAgg("first", firstProcedureSpec()),
+		After: &plantest.PlanSpec{
+			Nodes: []plan.Node{
+				plan.CreateLogicalNode("ReadGroupAggregate", readGroupAgg("first")),
+				plan.CreateLogicalNode("min", minProcedureSpec()),
+			},
+			Edges: [][2]int{
+				{0, 1},
+			},
+		},
+	})
+
+	// ReadGroup() -> first => ReadGroup() -> first
+	tests = append(tests, plantest.RuleTestCase{
+		Context:  caps(mockGroupCapability{}),
+		Name:     "NoFirstCapability",
+		Rules:    []plan.Rule{influxdb.PushDownGroupAggregateRule{}},
+		Before:   simplePlanWithAgg("first", firstProcedureSpec()),
+		NoChange: true,
+	})
+
+	// ReadGroup() -> last => ReadGroup(last) -> max
+	tests = append(tests, plantest.RuleTestCase{
+		Context: caps(mockGroupCapability{last: true}),
+		Name:    "RewriteGroupLast",
+		Rules:   []plan.Rule{influxdb.PushDownGroupAggregateRule{}},
+		Before:  simplePlanWithAgg("last", lastProcedureSpec()),
+		After: &plantest.PlanSpec{
+			Nodes: []plan.Node{
+				plan.CreateLogicalNode("ReadGroupAggregate", readGroupAgg("last")),
+				plan.CreateLogicalNode("max", maxProcedureSpec()),
+			},
+			Edges: [][2]int{
+				{0, 1},
+			},
+		},
+	})
+
+	// ReadGroup() -> last => ReadGroup() -> last
+	tests = append(tests, plantest.RuleTestCase{
+		Context:  caps(mockGroupCapability{}),
+		Name:     "RewriteGroupLast",
+		Rules:    []plan.Rule{influxdb.PushDownGroupAggregateRule{}},
+		Before:   simplePlanWithAgg("last", lastProcedureSpec()),
+		NoChange: true,
 	})
 
 	// Rewrite with successors
-	// ReadGroup -> count -> sum {2} => ReadGroup -> count {2}
+	// ReadGroup() -> count -> sum {2} => ReadGroup(count) -> sum -> sum {2}
 	tests = append(tests, plantest.RuleTestCase{
-		Context: ctx,
+		Context: caps(mockGroupCapability{count: true}),
 		Name:    "WithSuccessor1",
 		Rules:   []plan.Rule{influxdb.PushDownGroupAggregateRule{}},
 		Before: &plantest.PlanSpec{
@@ -1783,22 +1911,24 @@ func TestPushDownGroupAggregateRule(t *testing.T) {
 		},
 		After: &plantest.PlanSpec{
 			Nodes: []plan.Node{
-				plan.CreatePhysicalNode("ReadGroup", readGroupAgg("count")),
+				plan.CreatePhysicalNode("ReadGroupAggregate", readGroupAgg("count")),
+				plan.CreateLogicalNode("sum", sumProcedureSpec()),
 				plan.CreateLogicalNode("sum", sumProcedureSpec()),
 				plan.CreateLogicalNode("sum", sumProcedureSpec()),
 			},
 			Edges: [][2]int{
 				{0, 1},
-				{0, 2},
+				{1, 2},
+				{1, 3},
 			},
 		},
 	})
 
 	// Cannot replace a ReadGroup that already has an aggregate. This exercises
 	// the check that ReadGroup aggregate is not set.
-	// ReadGroup -> count -> count => ReadGroup -> count
+	// ReadGroup() -> count -> count => ReadGroup(count) -> sum -> count
 	tests = append(tests, plantest.RuleTestCase{
-		Context: ctx,
+		Context: caps(mockGroupCapability{count: true}),
 		Name:    "WithSuccessor2",
 		Rules:   []plan.Rule{influxdb.PushDownGroupAggregateRule{}},
 		Before: &plantest.PlanSpec{
@@ -1814,11 +1944,13 @@ func TestPushDownGroupAggregateRule(t *testing.T) {
 		},
 		After: &plantest.PlanSpec{
 			Nodes: []plan.Node{
-				plan.CreatePhysicalNode("ReadGroup", readGroupAgg("count")),
+				plan.CreatePhysicalNode("ReadGroupAggregate", readGroupAgg("count")),
+				plan.CreateLogicalNode("sum", sumProcedureSpec()),
 				plan.CreateLogicalNode("count", countProcedureSpec()),
 			},
 			Edges: [][2]int{
 				{0, 1},
+				{1, 2},
 			},
 		},
 	})
@@ -1827,7 +1959,7 @@ func TestPushDownGroupAggregateRule(t *testing.T) {
 	// ReadGroup -> count => NO-CHANGE
 	tests = append(tests, plantest.RuleTestCase{
 		Name:    "BadCountCol",
-		Context: ctx,
+		Context: caps(mockGroupCapability{count: true}),
 		Rules:   []plan.Rule{influxdb.PushDownGroupAggregateRule{}},
 		Before: simplePlanWithAgg("count", &universe.CountProcedureSpec{
 			AggregateConfig: execute.AggregateConfig{Columns: []string{"_valmoo"}},
@@ -1840,7 +1972,7 @@ func TestPushDownGroupAggregateRule(t *testing.T) {
 	//          \-> min
 	tests = append(tests, plantest.RuleTestCase{
 		Name:    "CollapsedWithSuccessor",
-		Context: ctx,
+		Context: caps(mockGroupCapability{count: true}),
 		Rules:   []plan.Rule{influxdb.PushDownGroupAggregateRule{}},
 		Before: &plantest.PlanSpec{
 			Nodes: []plan.Node{
@@ -1883,7 +2015,7 @@ func TestPushDownGroupAggregateRule(t *testing.T) {
 	}
 	tests = append(tests, plantest.RuleTestCase{
 		Name:     "NoPatternMatch",
-		Context:  ctx,
+		Context:  caps(mockGroupCapability{count: true}),
 		Rules:    []plan.Rule{influxdb.PushDownWindowAggregateRule{}},
 		Before:   noPatternMatch1(),
 		NoChange: true,
