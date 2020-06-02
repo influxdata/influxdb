@@ -202,7 +202,10 @@ func (b *cmdPkgBuilder) pkgApplyRunEFn(cmd *cobra.Command, args []string) error 
 func (b *cmdPkgBuilder) cmdPkgExport() *cobra.Command {
 	cmd := b.newCmd("export", b.pkgExportRunEFn, true)
 	cmd.Short = "Export existing resources as a package"
-	cmd.AddCommand(b.cmdPkgExportAll())
+	cmd.AddCommand(
+		b.cmdPkgExportAll(),
+		b.cmdPkgExportStack(),
+	)
 
 	cmd.Flags().StringVarP(&b.file, "file", "f", "", "output file for created pkg; defaults to std out if no file provided; the extension of provided file (.yml/.json) will dictate encoding")
 	cmd.Flags().StringVar(&b.exportOpts.resourceType, "resource-type", "", "The resource type provided will be associated with all IDs via stdin.")
@@ -250,7 +253,7 @@ func (b *cmdPkgBuilder) pkgExportRunEFn(cmd *cobra.Command, args []string) error
 	}
 
 	if b.exportOpts.resourceType == "" {
-		return b.writePkg(cmd.OutOrStdout(), pkgSVC, b.file, opts...)
+		return b.exportPkg(cmd.OutOrStdout(), pkgSVC, b.file, opts...)
 	}
 
 	kind := pkger.Kind(b.exportOpts.resourceType)
@@ -270,7 +273,7 @@ func (b *cmdPkgBuilder) pkgExportRunEFn(cmd *cobra.Command, args []string) error
 		return err
 	}
 
-	return b.writePkg(cmd.OutOrStdout(), pkgSVC, b.file, append(opts, resTypeOpt)...)
+	return b.exportPkg(cmd.OutOrStdout(), pkgSVC, b.file, append(opts, resTypeOpt)...)
 }
 
 func (b *cmdPkgBuilder) cmdPkgExportAll() *cobra.Command {
@@ -324,7 +327,42 @@ func (b *cmdPkgBuilder) pkgExportAllRunEFn(cmd *cobra.Command, args []string) er
 		LabelNames:    labelNames,
 		ResourceKinds: resourceKinds,
 	})
-	return b.writePkg(cmd.OutOrStdout(), pkgSVC, b.file, orgOpt)
+	return b.exportPkg(cmd.OutOrStdout(), pkgSVC, b.file, orgOpt)
+}
+
+func (b *cmdPkgBuilder) cmdPkgExportStack() *cobra.Command {
+	cmd := b.newCmd("stack $STACK_ID", b.pkgExportStackRunEFn, true)
+	cmd.Short = "Export all existing resources for an organization as a package"
+	cmd.Args = cobra.ExactValidArgs(1)
+
+	cmd.Flags().StringVarP(&b.file, "file", "f", "", "output file for created pkg; defaults to std out if no file provided; the extension of provided file (.yml/.json) will dictate encoding")
+	b.org.register(cmd, false)
+
+	return cmd
+}
+
+func (b *cmdPkgBuilder) pkgExportStackRunEFn(cmd *cobra.Command, args []string) error {
+	pkgSVC, orgSVC, err := b.svcFn()
+	if err != nil {
+		return err
+	}
+
+	stackID, err := influxdb.IDFromString(args[0])
+	if err != nil {
+		return err
+	}
+
+	orgID, err := b.org.getID(orgSVC)
+	if err != nil {
+		return err
+	}
+
+	pkg, err := pkgSVC.ExportStack(context.Background(), orgID, *stackID)
+	if err != nil {
+		return err
+	}
+
+	return b.writePkg(b.w, b.file, pkg)
 }
 
 func (b *cmdPkgBuilder) cmdPkgSummary() *cobra.Command {
@@ -609,12 +647,16 @@ func (b *cmdPkgBuilder) registerPkgFileFlags(cmd *cobra.Command) {
 	cmd.MarkFlagFilename("encoding", "yaml", "yml", "json", "jsonnet")
 }
 
-func (b *cmdPkgBuilder) writePkg(w io.Writer, pkgSVC pkger.SVC, outPath string, opts ...pkger.CreatePkgSetFn) error {
+func (b *cmdPkgBuilder) exportPkg(w io.Writer, pkgSVC pkger.SVC, outPath string, opts ...pkger.CreatePkgSetFn) error {
 	pkg, err := pkgSVC.CreatePkg(context.Background(), opts...)
 	if err != nil {
 		return err
 	}
 
+	return b.writePkg(w, outPath, pkg)
+}
+
+func (b *cmdPkgBuilder) writePkg(w io.Writer, outPath string, pkg *pkger.Pkg) error {
 	buf, err := createPkgBuf(pkg, outPath)
 	if err != nil {
 		return err
