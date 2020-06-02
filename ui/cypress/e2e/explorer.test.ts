@@ -750,7 +750,7 @@ describe('DataExplorer', () => {
         })
       })
 
-      it.only('can view table data with raw data & scroll', () => {
+      it('can view table data with raw data & scroll to ', () => {
         // build the query to return data from beforeEach
         cy.getByTestID(`selector-list m`).click()
         cy.getByTestID('selector-list v').click()
@@ -761,15 +761,23 @@ describe('DataExplorer', () => {
 
         cy.getByTestID('view-type--dropdown').click()
         cy.getByTestID(`view-type--table`).click()
-        // check to see that the FE rows are NOT sorted with flux sort
-        cy.get('.table-graph-cell__sort-asc').should('not.exist')
-        cy.get('.table-graph-cell__sort-desc').should('not.exist')
         // view raw data table
         cy.getByTestID('raw-data--toggle').click()
-        cy.getByTestID('raw-data-table').should('exist')
-        //scroll to the bottom and make sure things load
-        cy.getByTestID('rawdata-table--scrollbar').scrollTo('bottom')
-      })
+
+        cy.get('.time-machine--view').within(() => {
+          cy.get('.cf-dapper-scrollbars--thumb-y') // TODO(zoe): replace with test ids https://github.com/influxdata/clockface/issues/507
+            .trigger('mousedown')
+            .trigger('mousemove', {clientY: 5000})
+            .trigger('mouseup')
+
+          cy.get('.cf-dapper-scrollbars--thumb-x') // TODO(zoe): replace with test ids https://github.com/influxdata/clockface/issues/507
+            .trigger('mousedown')
+            .trigger('mousemove', {clientX: 1000})
+            .trigger('mouseup')
+        })
+
+        cy.getByTestID(`raw-flux-data-table--cell ${numLines}`).should('be.visible')
+       })
     })
   })
 
