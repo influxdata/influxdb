@@ -83,7 +83,9 @@ impl<R: BufRead + Seek> Index<R> {
             key: key_bytes,
             _org_id: None,
             _bucket_id: None,
-            // _measurement: None,
+            measurement_name: None,
+            tag_pairs: None,
+            field: None,
             block_type,
             count,
             curr_block: 1,
@@ -172,6 +174,10 @@ impl<R: BufRead + Seek> Index<R> {
                 integer::decode(&data[idx..], &mut values).map_err(|e| StorageError {
                     description: e.to_string(),
                 })?;
+
+                // seek to original position in index before returning to caller.
+                self.r.seek(SeekFrom::Start(self.curr_offset))?;
+
                 Ok(BlockData::Integer { ts, values })
             }
             2 => Err(StorageError {
@@ -235,7 +241,11 @@ pub struct IndexEntry {
     key: Vec<u8>,
     _org_id: Option<InfluxID>,
     _bucket_id: Option<InfluxID>,
-    // _measurement: Option<&'a str>,
+
+    measurement_name: Option<String>,
+    tag_pairs: Option<Vec<(String, String)>>,
+    field: Option<String>,
+
     block_type: u8,
     count: u16,
 
@@ -244,8 +254,8 @@ pub struct IndexEntry {
 }
 
 impl IndexEntry {
-    // org_id returns the organisation ID that this entry belongs to.
-    fn org_id(&mut self) -> InfluxID {
+    /// org_id returns the organisation ID that this entry belongs to.
+    pub fn org_id(&mut self) -> InfluxID {
         match &self._org_id {
             Some(id) => id.clone(),
             None => {
@@ -259,8 +269,8 @@ impl IndexEntry {
         }
     }
 
-    // bucket_id returns the organisation ID that this entry belongs to.
-    fn bucket_id(&mut self) -> InfluxID {
+    /// bucket_id returns the organisation ID that this entry belongs to.
+    pub fn bucket_id(&mut self) -> InfluxID {
         match &self._bucket_id {
             Some(id) => id.clone(),
             None => {
@@ -273,6 +283,127 @@ impl IndexEntry {
             }
         }
     }
+
+    /// measurement returns the measurement name for the current index entry.
+    ///
+    /// measurement may return an error if there is a problem parsing the series
+    /// key in the index entry.
+    pub fn measurement(&mut self) -> Result<String, StorageError> {
+        match &self.field {
+            Some(m) => Ok(m.clone()),
+            None => {
+                let (m, tp, f) = parse_tsm_key(self.key.to_vec())?;
+                self.measurement_name = Some(m.clone());
+                self.tag_pairs = Some(tp);
+                self.field = Some(f);
+                Ok(m)
+            }
+        }
+    }
+
+    /// tagset returns the tagset for the current index entry.
+    ///
+    /// The tagset consists of a vector of key/value tuples. The field key and
+    /// measurement are not included in the returned set.
+    ///
+    /// tagset may return an error if there is a problem parsing the series
+    /// key in the index entry.
+    pub fn tagset(&mut self) -> Result<Vec<(String, String)>, StorageError> {
+        match &self.tag_pairs {
+            Some(tp) => Ok(tp.clone()),
+            None => {
+                let (m, tp, f) = parse_tsm_key(self.key.to_vec())?;
+                self.measurement_name = Some(m);
+                self.tag_pairs = Some(tp.clone());
+                self.field = Some(f);
+                Ok(tp)
+            }
+        }
+    }
+
+    /// field_key returns the field key for the current index entry.
+    ///
+    /// field_key may return an error if there is a problem parsing the series
+    /// key in the index entry.
+    pub fn field_key(&mut self) -> Result<String, StorageError> {
+        match &self.field {
+            Some(f) => Ok(f.clone()),
+            None => {
+                let (m, tp, f) = parse_tsm_key(self.key.to_vec())?;
+                self.measurement_name = Some(m.clone());
+                self.tag_pairs = Some(tp);
+                self.field = Some(f);
+                Ok(m)
+            }
+        }
+    }
+}
+
+// parse_tsm_key parses from the series key the measurement, field key and tag
+// set.
+//
+// It does not provide access to the org and bucket ids on the key, these can
+// be accessed via org_id() and bucket_id() respectively.
+//
+// TODO: handle escapes in the series key for , = and \t
+//
+fn parse_tsm_key(
+    mut key: Vec<u8>,
+) -> Result<(String, Vec<(String, String)>, String), StorageError> {
+    // skip over org id, bucket id, comma, null byte (measurement) and =
+    // The next n-1 bytes are the measurement name, where the nᵗʰ byte is a `,`.
+    key = key.drain(8 + 8 + 1 + 1 + 1..).collect::<Vec<u8>>();
+    let mut i = 0;
+    // TODO(edd): can we make this work with take_while?
+    while i != key.len() {
+        if key[i] == ',' as u8 {
+            break;
+        }
+        i += 1;
+    }
+
+    let mut rem_key = key.drain(i..).collect::<Vec<u8>>();
+    let measurement = String::from_utf8(key).map_err(|e| StorageError {
+        description: e.to_string(),
+    })?;
+
+    let mut pairs = Vec::<(String, String)>::with_capacity(10);
+    let mut reading_key = true;
+    let mut key = String::with_capacity(100);
+    let mut value = String::with_capacity(100);
+
+    // skip the comma separating measurement tag
+    for byte in rem_key.drain(1..) {
+        match byte {
+            44 => {
+                // ,
+                reading_key = true;
+                pairs.push((key, value));
+                key = String::with_capacity(250);
+                value = String::with_capacity(250);
+            }
+            61 => {
+                // =
+                reading_key = false;
+            }
+            _ => {
+                if reading_key {
+                    key.push(byte as char);
+                } else {
+                    value.push(byte as char);
+                }
+            }
+        }
+    }
+
+    // fields are stored on the series keys in TSM indexes as follows:
+    //
+    // <field_key><4-byte delimiter><field_key>
+    //
+    // so we can trim the parsed value.
+    let field_trim_length = (value.len() - 4) / 2;
+    let (field, _) = value.split_at(field_trim_length);
+    Ok((measurement, pairs, field.to_string()))
 }
 
 /// BlockData describes the various types of block data that can be held within
@@ -327,6 +458,7 @@ impl std::cmp::PartialEq for InfluxID {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use hex;
     use libflate::gzip;
     use std::fs::File;
     use std::i64;
@@ -385,6 +517,30 @@ mod tests {
 
                     assert_eq!(e.org_id(), org_id);
                     assert_eq!(e.bucket_id(), bucket_id);
+
+                    assert!(
+                        e.measurement().is_ok(),
+                        format!(
+                            "failed to parse measurement name for {:}",
+                            String::from_utf8_lossy(entry.key.as_slice())
+                        )
+                    );
+
+                    assert!(
+                        e.tagset().is_ok(),
+                        format!(
+                            "failed to parse tagset for {:}",
+                            String::from_utf8_lossy(entry.key.as_slice())
+                        )
+                    );
+
+                    assert!(
+                        e.field_key().is_ok(),
+                        format!(
+                            "failed to parse field key for {:}",
+                            String::from_utf8_lossy(entry.key.as_slice())
+                        )
+                    );
                 }
                 Err(e) => panic!("{:?} {:?}", e, got_blocks),
             }
@@ -450,5 +606,37 @@ mod tests {
         let id = InfluxID::new_str("20aa9b0").unwrap();
         assert_eq!(id, InfluxID(34253232));
         assert_eq!(format!("{}", id), "00000000020aa9b0");
+    }
+
+    #[test]
+    fn parse_tsm_key() {
+        //<org_id bucket_id>,\x00=http_api_request_duration_seconds,handler=platform,method=POST,path=/api/v2/setup,status=2XX,user_agent=Firefox,\xff=sum#!~#sum
+        let buf = vec![
+            "05C19117091A100005C19117091A10012C003D68747470",
+            "5F6170695F726571756573745F6475726174696F6E5F73",
+            "65636F6E64732C68616E646C65723D706C6174666F726D",
+            "2C6D6574686F643D504F53542C706174683D2F6170692F",
+            "76322F73657475702C7374617475733D3258582C757365",
+            "725F6167656E743D46697265666F782CFF3D73756D2321",
+            "7E2373756D",
+        ]
+        .join("");
+        let tsm_key = hex::decode(buf).unwrap();
+
+        let (measurement, tag_pairs, field_key) = super::parse_tsm_key(tsm_key).unwrap();
+        assert_eq!(
+            measurement,
+            String::from("http_api_request_duration_seconds")
+        );
+
+        let exp_tag_pairs = vec![
+            (String::from("handler"), String::from("platform")),
+            (String::from("method"), String::from("POST")),
+            (String::from("path"), String::from("/api/v2/setup")),
+            (String::from("status"), String::from("2XX")),
+            (String::from("user_agent"), String::from("Firefox")),
+        ];
+        assert_eq!(tag_pairs, exp_tag_pairs);
+        assert_eq!(field_key, String::from("sum"));
     }
 }

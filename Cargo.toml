@@ -66,6 +66,7 @@ assert_cmd = "1.0.0"
 chrono = "0.4"
 criterion = "0.3"
 delorean_test_helpers = { path = "delorean_test_helpers" }
+hex = "0.4.2"
 libflate = "1.0.0"
 rand = "0.7.2"
 reqwest = { version = "0.10.1", features = ["blocking"] }
