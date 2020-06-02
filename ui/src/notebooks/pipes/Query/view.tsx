@@ -1,6 +1,5 @@
 // Libraries
 import React, {FC, useMemo} from 'react'
-import {get} from 'lodash'
 
 // Types
 import {PipeProp} from 'src/notebooks'
@@ -16,7 +15,7 @@ import 'src/notebooks/pipes/Query/style.scss'
 const Query: FC<PipeProp> = ({data, onUpdate, Context, results}) => {
   const {queries, activeQuery} = data
   const query = queries[activeQuery]
-  const size = get(data, 'rawDataSize', 'small')
+  const size = data.rawDataSize || 'small'
 
   function updateText(text) {
     const _queries = queries.slice()
