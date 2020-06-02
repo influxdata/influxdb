@@ -11,6 +11,7 @@
 
 1. [18331](https://github.com/influxdata/influxdb/pull/18331): Support organization name in addition to ID in DBRP operations
 1. [18335](https://github.com/influxdata/influxdb/pull/18335): Disable failing when providing an unexpected error to influx CLI
+1. [18345](https://github.com/influxdata/influxdb/pull/18345): Have influx delete cmd respect the config
 
 ## v2.0.0-beta.11 [2020-05-26]
 
