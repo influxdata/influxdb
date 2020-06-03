@@ -90,19 +90,22 @@ func (s *Storage) ListSecret(ctx context.Context, tx kv.Tx, orgID influxdb.ID) (
 
 	keys := []string{}
 
-	for k, _ := cur.Next(); k != nil; k, _ = cur.Next() {
-
+	err = kv.WalkCursor(ctx, cur, func(k, v []byte) error {
 		id, key, err := decodeSecretKey(k)
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 		if id != orgID {
 			// We've reached the end of the keyspace for the provided orgID
-			break
+			return nil
 		}
 
 		keys = append(keys, key)
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 
 	return keys, nil

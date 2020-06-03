@@ -18,8 +18,7 @@ type handler struct {
 	idLookupKey string
 }
 
-// NewHandler generates a mountable handler for URMs. It needs to know how it will be looking up your resource id
-// this system assumes you are using chi syntax for query string params `/orgs/{id}/` so it can use chi.URLParam().
+// NewHandler creates a new handler for the secret service
 func NewHandler(log *zap.Logger, idLookupKey string, svc influxdb.SecretService) http.Handler {
 	h := &handler{
 		log: log,
