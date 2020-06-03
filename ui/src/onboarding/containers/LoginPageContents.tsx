@@ -73,10 +73,6 @@ class LoginPageContents extends PureComponent<DispatchProps> {
       })
     } catch (error) {
       console.error(error)
-      // TODO: uncomment after demo day
-      // redirect to universal login page if there's an error
-      // window.location.href =
-      // 'https://auth.a.influxcloud.net/'
       throw error
     }
   }
