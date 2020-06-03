@@ -51,7 +51,6 @@
   "devDependencies": {
     "@babel/core": "^7.5.5",
     "@babel/preset-env": "^7.5.5",
-    "@cypress/webpack-preprocessor": "^4.0.3",
     "@influxdata/oats": "0.5.0",
     "@types/chroma-js": "^1.3.4",
     "@types/codemirror": "^0.0.56",
