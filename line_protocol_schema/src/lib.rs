@@ -1,32 +1,32 @@
-/// This module is used to represent the abstract "schema" of a set of line
-/// protocol data records, as defined in the
-/// [documentation](https://docs.influxdata.com/influxdb/v1.8/write_protocols/line_protocol_tutorial)
-///
-/// The line protocol format has an inherently "flexible" schema
-/// (e.g. the tags and fields for a measurement can and do change over
-/// time), the schema only makes sense for a given set of rows (not
-/// all possible rows in that measurement).
-///
-/// The line protocol schema consists of a series of columns, each with a
-/// specific type, indexed by 0.
-///
-/// ```
-/// use line_protocol_schema::{SchemaBuilder, DataType, ColumnDefinition};
-/// let schema = SchemaBuilder::new(String::from("my_measurement"))
-///     .tag("tag1")
-///     .field("field1", DataType::Float)
-///     .field("field2", DataType::Boolean)
-///     .tag("tag2")
-///     .build();
-///
-/// let cols = schema.get_col_defs();
-/// assert_eq!(cols.len(), 5);
-/// assert_eq!(cols[0], ColumnDefinition::new("tag1", 0, DataType::String));
-/// assert_eq!(cols[1], ColumnDefinition::new("tag2", 1, DataType::String));
-/// assert_eq!(cols[2], ColumnDefinition::new("field1", 2, DataType::Float));
-/// assert_eq!(cols[3], ColumnDefinition::new("field2", 3, DataType::Boolean));
-/// assert_eq!(cols[4], ColumnDefinition::new("timestamp", 4, DataType::Timestamp));
-/// ```
+//! This module is used to represent the abstract "schema" of a set of line
+//! protocol data records, as defined in the
+//! [documentation](https://docs.influxdata.com/influxdb/v1.8/write_protocols/line_protocol_tutorial)
+//!
+//! The line protocol format has an inherently "flexible" schema
+//! (e.g. the tags and fields for a measurement can and do change over
+//! time), the schema only makes sense for a given set of rows (not
+//! all possible rows in that measurement).
+//!
+//! The line protocol schema consists of a series of columns, each with a
+//! specific type, indexed by 0.
+//!
+//! ```
+//! use line_protocol_schema::{SchemaBuilder, DataType, ColumnDefinition};
+//! let schema = SchemaBuilder::new(String::from("my_measurement"))
+//!     .tag("tag1")
+//!     .field("field1", DataType::Float)
+//!     .field("field2", DataType::Boolean)
+//!     .tag("tag2")
+//!     .build();
+//!
+//! let cols = schema.get_col_defs();
+//! assert_eq!(cols.len(), 5);
+//! assert_eq!(cols[0], ColumnDefinition::new("tag1", 0, DataType::String));
+//! assert_eq!(cols[1], ColumnDefinition::new("tag2", 1, DataType::String));
+//! assert_eq!(cols[2], ColumnDefinition::new("field1", 2, DataType::Float));
+//! assert_eq!(cols[3], ColumnDefinition::new("field2", 3, DataType::Boolean));
+//! assert_eq!(cols[4], ColumnDefinition::new("timestamp", 4, DataType::Timestamp));
+//! ```
 use std::collections::BTreeMap;
 
 /// Represents a specific Line Protocol Tag name
