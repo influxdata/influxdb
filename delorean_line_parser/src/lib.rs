@@ -212,7 +212,7 @@ pub enum FieldValue {
 /// Represents a sequence of effectively unescaped strings.
 ///
 /// If we had the input string `"a\nb"`, the `EscapedStr` will hold ["a", "b"].
-/// If we had `a\b`, this will also hold ["a", "b"].
+/// If we had `"Foo\\aBar"`, the `EscapedStr` will hold ["Foo", "\\", "a", "Bar"].
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct EscapedStr<'a>(SmallVec<[&'a str; 1]>);
 
@@ -678,7 +678,7 @@ mod test {
     fn escaped_str_basic() -> Result {
         // Demonstrate how strings without any escapes are handled.
         let es = EscapedStr::from("Foo");
-        assert_eq!(es.to_string(), "Foo".to_string());
+        assert_eq!(es, "Foo");
         assert!(!es.is_escaped(), "There are no escaped values");
         assert!(!es.ends_with("F"));
         assert!(!es.ends_with("z"));
@@ -689,7 +689,39 @@ mod test {
         Ok(())
     }
 
-    // TODO Add test / figure out how strings with escape strings are actually handled
+    #[test]
+    fn escaped_str_multi() -> Result {
+        // Get an EscapedStr that has multiple parts by parsing a
+        // measurement name with a non-whitespace escape character
+        let (remaining, es) = measurement("Foo\\aBar")?;
+        assert!(remaining.is_empty());
+        assert_eq!(es, EscapedStr(smallvec!["Foo", "\\", "a", "Bar"]));
+        assert!(es.is_escaped());
+
+        // Test ends with across boundaries
+        assert!(es.ends_with("Bar"));
+
+        // Test PartialEq implementation for escaped str
+        assert!(es == "Foo\\aBar");
+        assert!(es != "Foo\\aBa");
+        assert!(es != "Foo\\aBaz");
+        assert!(es != "Foo\\a");
+        assert!(es != "Foo\\");
+        assert!(es != "Foo");
+        assert!(es != "Fo");
+        assert!(es != "F");
+        assert!(es != "");
+
+        Ok(())
+    }
+
+    #[test]
+    fn escaped_str_multi_to_string() -> Result {
+        let (_, es) = measurement("Foo\\aBar")?;
+        // test the From<> implementation
+        assert_eq!(String::from(es), "Foo\\aBar");
+        Ok(())
+    }
 
     fn parse(s: &str) -> Result<Vec<ParsedLine<'_>>, super::Error> {
         super::parse_lines(s).collect()
