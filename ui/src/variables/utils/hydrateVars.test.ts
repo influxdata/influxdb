@@ -5,6 +5,7 @@ import {
   createVariableGraph,
   findSubgraphFeature,
 } from 'src/variables/utils/hydrateVars'
+import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 
 // Mocks
 import {
@@ -123,7 +124,9 @@ describe('hydrate vars', () => {
       We expect the final outcome to be the two associated variables as the parents,
       Since those are the bottom-most children of the graph cycle
     */
-    expect(actual.length).toEqual(2)
+    if (isFlagEnabled('hydratevars')) {
+      expect(actual.length).toEqual(2)
+    }
     expect(
       actual.filter(v => v.id === 'e')[0].arguments.values.results
     ).toEqual(['eVal'])
@@ -177,7 +180,9 @@ describe('hydrate vars', () => {
     //       b [fontcolor = "red"]
     //       c [fontcolor = "green"]
     //     }
-    expect(actual.length).toEqual(1)
+    if (isFlagEnabled('hydratevars')) {
+      expect(actual.length).toEqual(1)
+    }
     const [cResult] = actual
     expect(cResult.arguments.values.results).toEqual(['cVal'])
     expect(cResult.selected).toEqual(['cVal'])
@@ -222,7 +227,9 @@ describe('hydrate vars', () => {
 
     // Basic test for now, we would need an icky mock to assert that the
     // appropriate substitution is actually taking place
-    expect(actual.length).toEqual(1)
+    if (isFlagEnabled('hydratevars')) {
+      expect(actual.length).toEqual(1)
+    }
     const [bResult] = actual
     expect(bResult.arguments.values).toEqual({
       k: 'v',
@@ -266,7 +273,9 @@ describe('hydrate vars', () => {
       fetcher,
     }).promise
 
-    expect(actual.length).toEqual(1)
+    if (isFlagEnabled('hydratevars')) {
+      expect(actual.length).toEqual(1)
+    }
     const [bResult] = actual
     expect(bResult.arguments.values).toEqual(['v1', 'v2'])
   })
