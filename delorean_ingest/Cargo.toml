@@ -1,5 +1,5 @@
 [package]
-name = "line_protocol_schema"
+name = "delorean_ingest"
 version = "0.1.0"
 authors = ["Andrew Lamb <alamb@influxdata.com>"]
 edition = "2018"
@@ -7,4 +7,7 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+snafu = "0.6.2"
 log = "0.4.8"
+delorean_line_parser = { path = "../delorean_line_parser" }
+line_protocol_schema = { path = "../line_protocol_schema" }

@@ -241,9 +241,28 @@ impl From<EscapedStr<'_>> for String {
     }
 }
 
+impl From<&EscapedStr<'_>> for String {
+    fn from(other: &EscapedStr<'_>) -> Self {
+        other.to_string()
+    }
+}
+
 impl<'a> From<&'a str> for EscapedStr<'a> {
     fn from(other: &'a str) -> Self {
         Self(smallvec![other])
+    }
+}
+
+impl PartialEq<String> for EscapedStr<'_> {
+    fn eq(&self, other: &String) -> bool {
+        let s: &str = other;
+        *self == s
+    }
+}
+
+impl PartialEq<EscapedStr<'_>> for String {
+    fn eq(&self, other: &EscapedStr<'_>) -> bool {
+        other == self
     }
 }
 
@@ -258,6 +277,12 @@ impl PartialEq<&str> for EscapedStr<'_> {
             }
         }
         head.is_empty()
+    }
+}
+
+impl PartialEq<EscapedStr<'_>> for &str {
+    fn eq(&self, other: &EscapedStr<'_>) -> bool {
+        other == self
     }
 }
 
@@ -1296,5 +1321,22 @@ her"#,
         assert_eq!(vals[0].field_set[1].1.unwrap_i64(), 5);
 
         Ok(())
+    }
+
+    #[test]
+    #[allow(clippy::op_ref)]
+    // Clippy disabled because it wascomplaining about uselessly
+    // taking references on both sides of the eq op but that actually
+    // invokes a different implementation of partial eq which I wanted
+    // to test.
+    fn string_comparison() {
+        let es = EscapedStr::from("foobar");
+        let s = String::from("foobar");
+
+        assert!(es == s);
+        assert!(s == es);
+
+        assert!(&es == &s);
+        assert!(&s == &es);
     }
 }

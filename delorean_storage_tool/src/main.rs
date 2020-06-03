@@ -1,10 +1,13 @@
 use std::fs;
 use std::sync::Arc;
 
-use log::{debug, info};
+use log::{debug, info, warn};
 
 use clap::{crate_authors, crate_version, App, Arg, SubCommand};
 use snafu::Snafu;
+
+use delorean_ingest::LineProtocolConverter;
+use delorean_line_parser::parse_lines;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -17,6 +20,15 @@ pub enum Error {
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
+impl From<delorean_line_parser::Error> for Error {
+    fn from(other: delorean_line_parser::Error) -> Self {
+        Error::IOError {
+            message: String::from("Error from parser"),
+            source: Arc::new(other),
+        }
+    }
+}
+
 enum ReturnCode {
     InternalError = 1,
     ConversionFailed = 2,
@@ -28,15 +40,41 @@ fn convert(input_filename: &str, output_filename: &str) -> Result<()> {
     debug!("Writing to output file {}", output_filename);
 
     // TODO: make a streaming parser that you can stream data through in blocks.
-    // for now, just read the whole thing into RAM...
+    // for now, just read the whole input file into RAM...
     let buf = fs::read_to_string(input_filename).map_err(|e| {
-        let msg = format!("Error reading {}", input_filename);
+        let message = format!("Error reading {}", input_filename);
         Error::IOError {
-            message: msg,
+            message,
             source: Arc::new(e),
         }
     })?;
     info!("Read {} bytes from {}", buf.len(), input_filename);
+
+    // FIXME: Design something sensible to do with lines that don't
+    // parse rather than just dropping them on the floor
+    let only_good_lines = parse_lines(&buf).filter_map(|r| match r {
+        Ok(line) => Some(line),
+        Err(e) => {
+            warn!("Ignorning line with parse error: {}", e);
+            None
+        }
+    });
+
+    // The idea here is to use the first few parsed lines to deduce the schema
+    let converter = match LineProtocolConverter::new(only_good_lines) {
+        Ok(converter) => converter,
+        Err(e) => {
+            let message = String::from("Error creating line protocol converter");
+            return Err(Error::IOError {
+                message,
+                source: Arc::new(e),
+            });
+        }
+    };
+
+    debug!("Extracted schema: {:?}", converter.schema());
+
+    // TODO: convert the sample and remaining good lines
 
     unimplemented!("The actual conversion");
 }

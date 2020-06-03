@@ -15,6 +15,7 @@ edition = "2018"
 # https://doc.rust-lang.org/stable/cargo/reference/specifying-dependencies.html#specifying-dependencies-from-git-repositories
 #parquet = { path = "/Users/alamb/Software/arrow/rust/parquet", version = "0.18.0-SNAPSHOT" }
 delorean_line_parser = { path = "../delorean_line_parser" }
+delorean_ingest = { path = "../delorean_ingest" }
 
 clap = "2.33.1"
 env_logger = "0.7.1"

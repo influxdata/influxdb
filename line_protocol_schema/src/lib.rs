@@ -29,6 +29,8 @@
 //! ```
 use std::collections::BTreeMap;
 
+use log::warn;
+
 /// Represents a specific Line Protocol Tag name
 #[derive(Debug, PartialEq)]
 pub struct Tag {
@@ -112,6 +114,10 @@ pub struct Schema {
 }
 
 impl Schema {
+    pub fn measurement(&self) -> &str {
+        &self.measurement
+    }
+
     // Return a Vec of `ColumnDefinition`s such that
     // `v[idx].index == idx` for all columns
     // (aka that the vec is in the same order as the columns of the schema
@@ -156,7 +162,11 @@ impl SchemaBuilder {
         }
     }
 
-    /// Add a new tag name to the schema
+    pub fn get_measurement_name(&self) -> &String {
+        &self.measurement_name
+    }
+
+    /// Add a new tag name to the schema.
     pub fn tag(mut self, name: &str) -> Self {
         // check for existing tag (FIXME make this faster)
         if self.tag_names.iter().find(|&s| s == name).is_none() {
@@ -175,9 +185,8 @@ impl SchemaBuilder {
         {
             Some((_, existing_type)) => {
                 if *existing_type != data_type {
-                    // FIXME: return Result rather than panic here.
-                    panic!("Field '{}' type changed. Previously it had type {:?} but attempted to set type {:?}",
-                           name, existing_type, data_type);
+                    warn!("Ignoring new type for field '{}': Previously it had type {:?}, attempted to set type {:?}.",
+                          name, existing_type, data_type);
                 }
             }
             None => {
@@ -288,14 +297,19 @@ mod test {
     }
 
     #[test]
-    #[should_panic]
     fn duplicate_field_name_different_type() {
-        SchemaBuilder::new(String::from("my_measurement"))
+        let schema = SchemaBuilder::new(String::from("my_measurement"))
             .field("field1", DataType::Float)
             .field("field1", DataType::Integer)
             .build();
-        // TBD better error handling -- what should happen if there is
-        // a new type seen for an existing field?
+        // second Integer definition should be ignored, and type remains float
+        let cols = schema.get_col_defs();
+        assert_eq!(cols.len(), 2);
+        assert_eq!(cols[0], ColumnDefinition::new("field1", 0, DataType::Float));
+        assert_eq!(
+            cols[1],
+            ColumnDefinition::new("timestamp", 1, DataType::Timestamp)
+        );
     }
 
     #[test]

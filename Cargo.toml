@@ -7,6 +7,7 @@ default-run = "delorean"
 
 [workspace]
 members = [
+    "delorean_ingest",
     "delorean_line_parser",
     "delorean_storage_tool",
     "delorean_test_helpers",

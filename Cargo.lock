@@ -408,6 +408,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "delorean_ingest"
+version = "0.1.0"
+dependencies = [
+ "delorean_line_parser 0.1.0",
+ "line_protocol_schema 0.1.0",
+ "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "snafu 0.6.8 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
 name = "delorean_line_parser"
 version = "0.1.0"
 dependencies = [
@@ -424,6 +434,7 @@ version = "0.1.0"
 dependencies = [
  "assert_cmd 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "clap 2.33.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "delorean_ingest 0.1.0",
  "delorean_line_parser 0.1.0",
  "env_logger 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -894,6 +905,9 @@ dependencies = [
 [[package]]
 name = "line_protocol_schema"
 version = "0.1.0"
+dependencies = [
+ "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
+]
 
 [[package]]
 name = "log"
