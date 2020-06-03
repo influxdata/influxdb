@@ -42,14 +42,14 @@ builds:
       pre: make generate
 
 archives:
-  - id: influxctl
+  - id: influxdb_client
     builds: ["influx"]
     format: tar.gz
     wrap_in_directory: true
     format_overrides:
       - goos: windows
         format: zip
-    name_template: 'influxdbctl_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}'
+    name_template: 'influxdb_client_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}'
     files:
       - LICENSE
       - README.md
