@@ -120,7 +120,7 @@ func (b *Batcher) write(ctx context.Context, org, bucket platform.ID, lines <-ch
 	// a limited set of workers is used to write data
 	workers := int(math.Max(float64(b.WriteWorkers), 1))
 
-	// write buffers are reused
+	// reuse buffers in a bufferPool
 	var buffPoolMux sync.Mutex
 	bufferPool := make([][]byte, 0, workers)
 	newBuffer := func() []byte {
@@ -141,34 +141,56 @@ func (b *Batcher) write(ctx context.Context, org, bucket platform.ID, lines <-ch
 		buffPoolMux.Unlock()
 	}
 
-	// process the jobs by workers
+	// send data by multiple workers
 	var workerGroup sync.WaitGroup
-	defer workerGroup.Wait()
-	writeJobs := make(chan []byte)
+	writeDataC := make(chan []byte)
+	workerErrorsC := make(chan error, workers)
 	// start workers for jobs
 	for i := 0; i < workers; i++ {
 		workerGroup.Add(1)
 		go func() {
+			defer workerGroup.Done()
 			for {
-				buf, more := <-writeJobs
+				buf, more := <-writeDataC
 				if more {
 					err := b.Service.Write(ctx, org, bucket, bytes.NewReader(buf))
 					reuseBuffer(buf)
 					if err != nil {
-						errC <- err
+						workerErrorsC <- err
 						return
 					}
 					continue
 				}
-				break
+				return
 			}
-			workerGroup.Done()
 		}()
 	}
 
 	buf := newBuffer()
 	var line []byte
 	var more = true
+	var writeError error
+
+	// pass return value through errC
+	defer func() {
+		// wait for workers to finish
+		close(writeDataC)
+		workerGroup.Wait()
+		// use the last error, if any
+		if writeError != nil {
+			errC <- writeError
+			return
+		}
+		select {
+		// if a worker failed, report it
+		case writeError = <-workerErrorsC:
+			errC <- writeError
+		// success
+		default:
+			errC <- nil
+		}
+	}()
+
 	// if read closes the channel normally, exit the loop
 	for more {
 		select {
@@ -179,25 +201,22 @@ func (b *Batcher) write(ctx context.Context, org, bucket platform.ID, lines <-ch
 			// write if we exceed the max lines OR read routine has finished
 			if len(buf) >= maxBytes || (!more && len(buf) > 0) {
 				timer.Reset(flushInterval)
-				writeJobs <- buf
+				writeDataC <- buf
 				buf = newBuffer()
 			}
 		case <-timer.C:
 			if len(buf) > 0 {
 				timer.Reset(flushInterval)
-				writeJobs <- buf
+				writeDataC <- buf
 				buf = newBuffer()
 			}
 		case <-ctx.Done():
-			close(writeJobs)
-			errC <- ctx.Err()
+			writeError = ctx.Err()
+			return
+		case writeError = <-workerErrorsC:
 			return
 		}
 	}
-
-	close(writeJobs)
-	workerGroup.Wait()
-	errC <- nil
 }
 
 // ScanLines is used in bufio.Scanner.Split to split lines of line protocol.
