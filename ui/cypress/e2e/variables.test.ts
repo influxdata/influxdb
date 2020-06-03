@@ -11,7 +11,7 @@ describe('Variables', () => {
     })
   })
 
-  it('can create a CSV, map, and query variable', () => {
+  it('can CRUD a CSV, map, and query variable', () => {
     cy.getByTestID('resource-card variable').should('have.length', 1)
     // ensure that the default variables are not accessible on the Variables Tab
     cy.getByTestID('resource-card variable').should(
@@ -36,6 +36,7 @@ describe('Variables', () => {
     cy.getByTestID('variable-type-dropdown--button').click()
     cy.getByTestID('variable-type-dropdown-constant').click()
 
+    // Create a CSV variable
     const variableName = 'a Second Variable'
     cy.getByInputName('name').type(variableName)
 
@@ -53,6 +54,7 @@ describe('Variables', () => {
     cy.getByTestID(`variable-card--name ${variableName}`).click()
     cy.getByTestID('notification-success--dismiss').click()
 
+    // Change it to a Query variable
     cy.getByTestID('edit-variable--overlay').within(() => {
       cy.getByTestID('variable-type-dropdown--button').click()
       cy.getByTestID('variable-type-dropdown-query').click()
@@ -74,6 +76,7 @@ describe('Variables', () => {
     cy.getByTestID('notification-success--dismiss').click()
     cy.getByTestID(`variable-card--name ${variableName}`).click()
 
+    // Change it to a Map variable
     cy.getByTestID('edit-variable--overlay').within(() => {
       cy.getByTestID('variable-type-dropdown--button').click()
       cy.getByTestID('variable-type-dropdown-map').click()
@@ -95,6 +98,33 @@ describe('Variables', () => {
     cy.getByTestID('notification-success--dismiss').click()
 
     cy.getByTestID('resource-card variable').should('have.length', 2)
+
+    // Delete a variable
+    cy.getByTestID('context-delete-menu')
+      .first()
+      .click({force: true})
+    cy.getByTestID('context-delete-variable')
+      .first()
+      .click({force: true})
+
+    cy.getByTestID('notification-success--dismiss').click()
+
+    // Rename the variable
+    cy.getByTestID('context-menu')
+      .first()
+      .click({force: true})
+
+    cy.getByTestID('context-rename-variable').click({force: true})
+
+    cy.getByTestID('danger-confirmation-button').click()
+
+    cy.getByInputName('name').type('-renamed')
+
+    cy.getByTestID('rename-variable-submit').click()
+
+    cy.get('.cf-resource-name--text').should($s =>
+      expect($s).to.contain('-renamed')
+    )
   })
 
   it('keeps user input in text area when attempting to import invalid JSON', () => {
@@ -120,45 +150,7 @@ describe('Variables', () => {
     cy.getByTestID('import-overlay--textarea').contains('this is invalid')
   })
 
-  it('can delete a variable', () => {
-    cy.get<Organization>('@org').then(({id}) => {
-      cy.createQueryVariable(id, 'anotherVariable')
-    })
-
-    cy.getByTestID('resource-card variable').should('have.length', 2)
-
-    cy.getByTestID('context-delete-menu')
-      .first()
-      .click({force: true})
-    cy.getByTestID('context-delete-variable')
-      .first()
-      .click({force: true})
-
-    cy.getByTestID('notification-success--dismiss').click()
-
-    cy.getByTestID('resource-card variable').should('have.length', 1)
-  })
-
-  it('can edit a variable and add a label', () => {
-    cy.getByTestID('resource-card variable').should('have.length', 1)
-
-    cy.getByTestID('context-menu')
-      .first()
-      .click({force: true})
-
-    cy.getByTestID('context-rename-variable').click({force: true})
-
-    cy.getByTestID('danger-confirmation-button').click()
-
-    cy.getByInputName('name').type('-renamed')
-
-    cy.getByTestID('rename-variable-submit').click()
-
-    cy.get('.cf-resource-name--text').should($s =>
-      expect($s).to.contain('-renamed')
-    )
-
-    // Create a label
+  it('can add a label', () => {
     cy.getByTestID('resource-card variable').within(() => {
       cy.getByTestID('inline-labels--add').click()
     })
