@@ -75,17 +75,31 @@ export const NotebookProvider: FC = ({children}) => {
         }
       }
       _setPipes(add(pipe))
-      _setResults(add({}))
-      _setMeta(
-        add({
-          title: `Cell_${++GENERATOR_INDEX}`,
-          visible: true,
-          loading: RemoteDataState.NotStarted,
-          focus: false,
-        })
-      )
+      if (pipes.length && pipe.type !== 'query') {
+        console.log('uh oh', pipe, results, meta)
+        _setResults(add({...results[results.length - 1]}))
+        _setMeta(
+          add({
+            title: `Cell_${++GENERATOR_INDEX}`,
+            visible: true,
+            loading: meta[meta.length - 1].loading,
+            focus: false,
+          })
+        )
+      } else {
+        console.log('getting myself a fresh one')
+        _setResults(add({}))
+        _setMeta(
+          add({
+            title: `Cell_${++GENERATOR_INDEX}`,
+            visible: true,
+            loading: RemoteDataState.NotStarted,
+            focus: false,
+          })
+        )
+      }
     },
-    [id]
+    [id, pipes, meta, results]
   )
 
   const updatePipe = useCallback(
@@ -98,11 +112,12 @@ export const NotebookProvider: FC = ({children}) => {
         return pipes.slice()
       })
     },
-    [id]
+    [id, pipes]
   )
 
   const updateMeta = useCallback(
     (idx: number, pipe: PipeMeta) => {
+      console.log('updating meta', pipe)
       _setMeta(pipes => {
         pipes[idx] = {
           ...pipes[idx],
@@ -111,11 +126,12 @@ export const NotebookProvider: FC = ({children}) => {
         return pipes.slice()
       })
     },
-    [id]
+    [id, meta]
   )
 
   const updateResult = useCallback(
     (idx: number, results: BothResults) => {
+      console.log('updating results', results)
       _setResults(pipes => {
         pipes[idx] = {
           ...results,
@@ -123,7 +139,7 @@ export const NotebookProvider: FC = ({children}) => {
         return pipes.slice()
       })
     },
-    [id]
+    [id, results]
   )
 
   const movePipe = useCallback(

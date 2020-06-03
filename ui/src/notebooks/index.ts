@@ -1,4 +1,5 @@
 import {FunctionComponent, ComponentClass, ReactNode} from 'react'
+import {RemoteDataState} from 'src/types'
 import {BothResults} from 'src/notebooks/context/query'
 
 export interface PipeContextProps {
@@ -12,6 +13,7 @@ export interface PipeProp {
   data: PipeData
   onUpdate: (data: PipeData) => void
   results?: BothResults
+  loading: RemoteDataState
 
   Context:
     | FunctionComponent<PipeContextProps>

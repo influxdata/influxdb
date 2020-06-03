@@ -2,7 +2,6 @@ import React, {FC, useContext} from 'react'
 import {PipeProp} from 'src/notebooks'
 import EmptyQueryView, {ErrorFormat} from 'src/shared/components/EmptyQueryView'
 import ViewSwitcher from 'src/shared/components/ViewSwitcher'
-import {RemoteDataState} from 'src/types'
 import {checkResultsLength} from 'src/shared/utils/vis'
 
 // NOTE we dont want any pipe component to be directly dependent
@@ -11,12 +10,7 @@ import {checkResultsLength} from 'src/shared/utils/vis'
 // the notebook folder is purely a convenience
 import {AppSettingContext} from 'src/notebooks/context/app'
 
-const Visualization: FC<PipeProp> = ({data, results, Context}) => {
-  const loading = results.error
-    ? RemoteDataState.Error
-    : results.parsed
-    ? RemoteDataState.Done
-    : RemoteDataState.NotStarted
+const Visualization: FC<PipeProp> = ({data, results, Context, loading}) => {
   const {timeZone} = useContext(AppSettingContext)
 
   return (
