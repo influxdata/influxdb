@@ -13,13 +13,13 @@
 1. [18331](https://github.com/influxdata/influxdb/pull/18331): Support organization name in addition to ID in DBRP operations
 1. [18335](https://github.com/influxdata/influxdb/pull/18335): Disable failing when providing an unexpected error to influx CLI
 1. [18345](https://github.com/influxdata/influxdb/pull/18345): Have influx delete cmd respect the config
-   <<<<<<< HEAD
 1. [18385](https://github.com/influxdata/influxdb/pull/18385): Store initialization for pkger enforced on reads
 
 ### UI Improvements
 
 1. [18319](https://github.com/influxdata/influxdb/pull/18319): Display bucket ID in bucket list and enable 1 click copying
 1. [18361](https://github.com/influxdata/influxdb/pull/18361): Tokens list is now consistent with the other resource lists
+1. [18346](https://github.com/influxdata/influxdb/pull/18346): Reduce the number of variables being hydrated when toggling variables
 
 ## v2.0.0-beta.11 [2020-05-26]
 
