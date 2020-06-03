@@ -33,7 +33,7 @@
     "test:e2e:report": "junit-viewer --results=junit-results --save-file=cypress/site/junit-report.html",
     "test:e2e:clean": "rm junit-results/*.xml",
     "test:e2e:all": "yarn test:e2e:clean && yarn test:e2e; yarn test:e2e:report;",
-    "test:circleci": "yarn run test:ci --maxWorkers=2",
+    "test:circleci": "mkdir ./coverage && yarn run test:ci --maxWorkers=2",
     "test:ci": "JEST_JUNIT_OUTPUT_DIR=\"./coverage\" jest --ci --coverage",
     "lint": "yarn tsc && yarn prettier && yarn eslint",
     "eslint": "eslint '{src,cypress}/**/*.{ts,tsx}'",
