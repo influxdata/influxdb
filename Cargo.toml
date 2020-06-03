@@ -12,6 +12,7 @@ members = [
     "delorean_test_helpers",
     "delorean_utilities",
     "delorean_wal",
+    "line_protocol_schema",
 ]
 
 [profile.release]

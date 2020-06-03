@@ -892,6 +892,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "line_protocol_schema"
+version = "0.1.0"
+
+[[package]]
 name = "log"
 version = "0.4.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
