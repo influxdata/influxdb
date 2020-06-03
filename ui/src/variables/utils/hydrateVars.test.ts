@@ -394,9 +394,13 @@ describe('hydrate vars', () => {
       selections: {},
       fetcher,
     }).promise
-
-    expect(actual.length).toEqual(1)
-    expect(actual).toEqual([defaultVariable])
+    if (isFlagEnabled('hydratevars')) {
+      expect(actual.length).toEqual(1)
+      expect(actual).toEqual([defaultVariable])
+    }
+    // TODO(ariel): remove the if condition above when feature is good
+    // Also remove the following tests:
+    expect(actual.length).toEqual(2)
   })
 })
 
