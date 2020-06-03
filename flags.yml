@@ -28,6 +28,14 @@
   contact: Gavin Cabbage
   lifetime: permanent
 
+- name: Community Templates
+  description: Replace current template uploading functionality with community driven templates
+  key: communityTemplates
+  default: false
+  expose: true
+  contact: Bucky, Johnny Steenbergen (Berg)
+  lifetime: permanent
+
 - name: Frontend Example
   description: A temporary frontend example integer flag
   key: frontendExample
