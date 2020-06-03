@@ -127,11 +127,11 @@ where
 }
 
 impl<R: BufRead + Seek> Index<R> {
-    /// read_index_entry will yield either the next index entry in a TSM file's index
-    /// or will return an error. read_index_entry updates the offset on the Index
+    /// next_index_entry will yield either the next index entry in a TSM file's index
+    /// or will return an error. next_index_entry updates the offset on the Index
     /// but it's the caller's responsibility to stop reading entries when the index
     /// has been exhausted.
-    fn read_index_entry(&mut self) -> Result<IndexEntry, StorageError> {
+    fn next_index_entry(&mut self) -> Result<IndexEntry, StorageError> {
         // read length of series key
         let mut buf: [u8; 2] = [0; 2];
         self.r.read_exact(&mut buf)?;
@@ -163,14 +163,14 @@ impl<R: BufRead + Seek> Index<R> {
             block_type,
             count,
             curr_block: 1,
-            block: self.read_block_entry()?,
+            block: self.next_block_entry()?,
         })
     }
 
-    /// read_block_entry will yield the next block entry within an index entry.
+    /// next_block_entry will yield the next block entry within an index entry.
     /// It is the caller's responsibility to stop reading block entries when they
     /// have all been read for an index entry.
-    fn read_block_entry(&mut self) -> Result<Block, StorageError> {
+    fn next_block_entry(&mut self) -> Result<Block, StorageError> {
         // read min time on block entry
         let mut buf: [u8; 8] = [0; 8];
         self.r.read_exact(&mut buf[..])?;
@@ -264,7 +264,7 @@ impl<R: BufRead + Seek> Index<R> {
                 description: String::from("unsigned integer block type unsupported"),
             }),
             _ => Err(StorageError {
-                description: String::from(format!("unsupported block type {:?}", block_type)),
+                description: format!("unsupported block type {:?}", block_type),
             }),
         }
     }
@@ -285,7 +285,7 @@ impl<R: BufRead + Seek> Iterator for Index<R> {
                     // there are more block entries for this index entry. Read
                     // the next block entry.
                     let mut next = curr.clone();
-                    match self.read_block_entry() {
+                    match self.next_block_entry() {
                         Ok(block) => next.block = block,
                         Err(e) => return Some(Err(e)),
                     }
@@ -293,13 +293,13 @@ impl<R: BufRead + Seek> Iterator for Index<R> {
                     self.next = Some(next);
                 } else {
                     // no more block entries. Move onto the next entry.
-                    match self.read_index_entry() {
+                    match self.next_index_entry() {
                         Ok(entry) => self.next = Some(entry),
                         Err(e) => return Some(Err(e)),
                     }
                 }
             }
-            None => match self.read_index_entry() {
+            None => match self.next_index_entry() {
                 Ok(entry) => self.next = Some(entry),
                 Err(e) => return Some(Err(e)),
             },
@@ -366,11 +366,11 @@ impl IndexEntry {
         match &self.field {
             Some(m) => Ok(m.clone()),
             None => {
-                let (m, tp, f) = parse_tsm_key(self.key.to_vec())?;
-                self.measurement_name = Some(m.clone());
-                self.tag_pairs = Some(tp);
-                self.field = Some(f);
-                Ok(m)
+                let key = parse_tsm_key(self.key.to_vec())?;
+                self.measurement_name = Some(key.measurement.clone());
+                self.tag_pairs = Some(key.tagset);
+                self.field = Some(key.field_key);
+                Ok(key.measurement)
             }
         }
     }
@@ -386,11 +386,11 @@ impl IndexEntry {
         match &self.tag_pairs {
             Some(tp) => Ok(tp.clone()),
             None => {
-                let (m, tp, f) = parse_tsm_key(self.key.to_vec())?;
-                self.measurement_name = Some(m);
-                self.tag_pairs = Some(tp.clone());
-                self.field = Some(f);
-                Ok(tp)
+                let key = parse_tsm_key(self.key.to_vec())?;
+                self.measurement_name = Some(key.measurement);
+                self.tag_pairs = Some(key.tagset.clone());
+                self.field = Some(key.field_key);
+                Ok(key.tagset)
             }
         }
     }
@@ -403,14 +403,20 @@ impl IndexEntry {
         match &self.field {
             Some(f) => Ok(f.clone()),
             None => {
-                let (m, tp, f) = parse_tsm_key(self.key.to_vec())?;
-                self.measurement_name = Some(m.clone());
-                self.tag_pairs = Some(tp);
-                self.field = Some(f);
-                Ok(m)
+                let key = parse_tsm_key(self.key.to_vec())?;
+                self.measurement_name = Some(key.measurement);
+                self.tag_pairs = Some(key.tagset);
+                self.field = Some(key.field_key.clone());
+                Ok(key.field_key)
             }
         }
     }
+}
+
+struct ParsedTSMKey {
+    measurement: String,
+    tagset: Vec<(String, String)>,
+    field_key: String,
 }
 
 /// parse_tsm_key parses from the series key the measurement, field key and tag
@@ -421,16 +427,14 @@ impl IndexEntry {
 ///
 /// TODO: handle escapes in the series key for , = and \t
 ///
-fn parse_tsm_key(
-    mut key: Vec<u8>,
-) -> Result<(String, Vec<(String, String)>, String), StorageError> {
+fn parse_tsm_key(mut key: Vec<u8>) -> Result<ParsedTSMKey, StorageError> {
     // skip over org id, bucket id, comma, null byte (measurement) and =
     // The next n-1 bytes are the measurement name, where the nᵗʰ byte is a `,`.
     key = key.drain(8 + 8 + 1 + 1 + 1..).collect::<Vec<u8>>();
     let mut i = 0;
     // TODO(edd): can we make this work with take_while?
     while i != key.len() {
-        if key[i] == ',' as u8 {
+        if key[i] == b',' {
             break;
         }
         i += 1;
@@ -441,7 +445,7 @@ fn parse_tsm_key(
         description: e.to_string(),
     })?;
 
-    let mut pairs = Vec::<(String, String)>::with_capacity(10);
+    let mut tagset = Vec::<(String, String)>::with_capacity(10);
     let mut reading_key = true;
     let mut key = String::with_capacity(100);
     let mut value = String::with_capacity(100);
@@ -452,7 +456,7 @@ fn parse_tsm_key(
             44 => {
                 // ,
                 reading_key = true;
-                pairs.push((key, value));
+                tagset.push((key, value));
                 key = String::with_capacity(250);
                 value = String::with_capacity(250);
             }
@@ -477,7 +481,11 @@ fn parse_tsm_key(
     // so we can trim the parsed value.
     let field_trim_length = (value.len() - 4) / 2;
     let (field, _) = value.split_at(field_trim_length);
-    Ok((measurement, pairs, field.to_string()))
+    Ok(ParsedTSMKey {
+        measurement,
+        tagset,
+        field_key: field.to_string(),
+    })
 }
 
 /// `Block` holds information about location and time range of a block of data.
@@ -534,7 +542,6 @@ impl std::cmp::PartialEq for InfluxID {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use hex;
     use libflate::gzip;
     use std::fs::File;
     use std::i64;
@@ -623,8 +630,8 @@ mod tests {
         }
 
         assert_eq!(got_blocks, 2159); // 2,159 blocks in the file
-        assert_eq!(got_min_time, 1590585404546128000); // earliest time is 2020-05-27T13:16:44.546128Z
-        assert_eq!(got_max_time, 1590597378379824000); // latest time is 2020-05-27T16:36:18.379824Z
+        assert_eq!(got_min_time, 1_590_585_404_546_128_000); // earliest time is 2020-05-27T13:16:44.546128Z
+        assert_eq!(got_max_time, 1_590_597_378_379_824_000); // latest time is 2020-05-27T16:36:18.379824Z
     }
 
     #[test]
@@ -682,7 +689,7 @@ mod tests {
     #[test]
     fn influx_id() {
         let id = InfluxID::new_str("20aa9b0").unwrap();
-        assert_eq!(id, InfluxID(34253232));
+        assert_eq!(id, InfluxID(34_253_232));
         assert_eq!(format!("{}", id), "00000000020aa9b0");
     }
 
@@ -701,20 +708,20 @@ mod tests {
         .join("");
         let tsm_key = hex::decode(buf).unwrap();
 
-        let (measurement, tag_pairs, field_key) = super::parse_tsm_key(tsm_key).unwrap();
+        let parsed_key = super::parse_tsm_key(tsm_key).unwrap();
         assert_eq!(
-            measurement,
+            parsed_key.measurement,
             String::from("http_api_request_duration_seconds")
         );
 
-        let exp_tag_pairs = vec![
+        let exp_tagset = vec![
             (String::from("handler"), String::from("platform")),
             (String::from("method"), String::from("POST")),
             (String::from("path"), String::from("/api/v2/setup")),
             (String::from("status"), String::from("2XX")),
             (String::from("user_agent"), String::from("Firefox")),
         ];
-        assert_eq!(tag_pairs, exp_tag_pairs);
-        assert_eq!(field_key, String::from("sum"));
+        assert_eq!(parsed_key.tagset, exp_tagset);
+        assert_eq!(parsed_key.field_key, String::from("sum"));
     }
 }
