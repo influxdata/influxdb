@@ -1,6 +1,6 @@
 //! This module is used to represent the abstract "schema" of a set of line
 //! protocol data records, as defined in the
-//! [documentation](https://docs.influxdata.com/influxdb/v1.8/write_protocols/line_protocol_tutorial)
+//! [documentation](https://docs.influxdata.com/influxdb/v1.8/write_protocols/line_protocol_tutorial).
 //!
 //! The line protocol format has an inherently "flexible" schema
 //! (e.g. the tags and fields for a measurement can and do change over
@@ -46,8 +46,9 @@ impl Tag {
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
-/// Line Protocol Data Types from
-/// https://docs.influxdata.com/influxdb/v1.8/write_protocols/line_protocol_tutorial/#data-types
+/// Line Protocol Data Types as defined in [the InfluxData documentation](influx)
+///
+/// [influx]: https://docs.influxdata.com/influxdb/v1.8/write_protocols/line_protocol_tutorial/#data-types
 pub enum DataType {
     /// 64-bit floating point number (TDB if NULLs / Nans are allowed)
     Float,
@@ -101,7 +102,7 @@ impl ColumnDefinition {
 
 /// Represents the overall "schema" of line protocol data. See the
 /// module definition for more details and example of how to construct
-/// and access a `Schema` object;
+/// and access a `Schema` object.
 #[derive(Debug)]
 pub struct Schema {
     measurement: String,
@@ -111,8 +112,8 @@ pub struct Schema {
 }
 
 impl Schema {
-    // Return a Vec of ColumnDefinition's such that
-    // v[idx].index == idx for all columns
+    // Return a Vec of `ColumnDefinition`s such that
+    // `v[idx].index == idx` for all columns
     // (aka that the vec is in the same order as the columns of the schema
     // FIXME : consider pre-computing this on schema directly.
     pub fn get_col_defs(&self) -> Vec<ColumnDefinition> {
@@ -138,7 +139,7 @@ impl Schema {
     }
 }
 
-/// Used to create new Schema objects
+/// Used to create new `Schema` objects
 pub struct SchemaBuilder {
     measurement_name: String,
     tag_names: Vec<String>,
@@ -155,7 +156,7 @@ impl SchemaBuilder {
         }
     }
 
-    /// Add a new tag name to the schema.
+    /// Add a new tag name to the schema
     pub fn tag(mut self, name: &str) -> Self {
         // check for existing tag (FIXME make this faster)
         if self.tag_names.iter().find(|&s| s == name).is_none() {
