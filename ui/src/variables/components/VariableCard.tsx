@@ -37,7 +37,7 @@ class VariableCard extends PureComponent<Props & WithRouterProps> {
 
     return (
       <ResourceCard
-        testID="resource-card"
+        testID="resource-card variable"
         contextMenu={
           <VariableContextMenu
             variable={variable}
@@ -50,6 +50,7 @@ class VariableCard extends PureComponent<Props & WithRouterProps> {
         <ResourceCard.Name
           onClick={this.handleNameClick}
           name={variable.name}
+          testID={`variable-card--name ${variable.name}`}
         />
         <ResourceCard.Meta>
           <>Type: {variable.arguments.type}</>
