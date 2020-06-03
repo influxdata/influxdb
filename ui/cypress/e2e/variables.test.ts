@@ -1,5 +1,3 @@
-import {Organization} from '../../src/types'
-
 describe('Variables', () => {
   beforeEach(() => {
     cy.flush()
