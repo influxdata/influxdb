@@ -157,7 +157,7 @@ paths:
       tags:
         - Invites
         - Organizations
-      summary: Resends an invite
+      summary: Re-sends an invite
       parameters:
         - $ref: "#/components/parameters/TraceSpan"
         - in: path
