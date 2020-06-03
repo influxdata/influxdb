@@ -210,9 +210,9 @@ jobs:
             TESTFILES=$(circleci tests glob "src/**/*.test.ts*" | circleci tests split --split-by=timings)
             yarn test:circleci $TESTFILES
       - store_test_results:
-          path: coverage
+          path: ui/coverage
       - store_artifacts:
-          path: coverage
+          path: ui/coverage
           destination: raw-test-output
       - save_cache:
           key: 'yarn-cached-packages-{{ checksum "yarn.lock" }}'
