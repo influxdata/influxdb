@@ -30,6 +30,20 @@ func BackendExample() BoolFlag {
 	return backendExample
 }
 
+var communityTemplates = MakeBoolFlag(
+	"Community Templates",
+	"communityTemplates",
+	"Bucky, Johnny Steenbergen (Berg)",
+	false,
+	Permanent,
+	true,
+)
+
+// CommunityTemplates - Replace current template uploading functionality with community driven templates
+func CommunityTemplates() BoolFlag {
+	return communityTemplates
+}
+
 var frontendExample = MakeIntFlag(
 	"Frontend Example",
 	"frontendExample",
@@ -131,6 +145,7 @@ func NewLabelPackage() BoolFlag {
 var all = []Flag{
 	appMetrics,
 	backendExample,
+	communityTemplates,
 	frontendExample,
 	pushDownWindowAggregateCount,
 	pushDownWindowAggregateRest,
@@ -143,6 +158,7 @@ var all = []Flag{
 var byKey = map[string]Flag{
 	"appMetrics":                   appMetrics,
 	"backendExample":               backendExample,
+	"communityTemplates":           communityTemplates,
 	"frontendExample":              frontendExample,
 	"pushDownWindowAggregateCount": pushDownWindowAggregateCount,
 	"pushDownWindowAggregateRest":  pushDownWindowAggregateRest,
