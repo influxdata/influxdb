@@ -31,7 +31,7 @@ import {
 
 interface Props {
   giraffeResult: FromFluxResult
-  files: string[]
+  files?: string[]
   loading: RemoteDataState
   properties: QueryViewProperties | CheckViewProperties
   timeZone: TimeZone

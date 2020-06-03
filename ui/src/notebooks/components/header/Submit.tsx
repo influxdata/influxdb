@@ -47,7 +47,7 @@ export const Submit: FC = () => {
             instances: [index],
             requirements,
           })
-        } else {
+        } else if (stages.length) {
           stages[stages.length - 1].instances.push(index)
         }
 
