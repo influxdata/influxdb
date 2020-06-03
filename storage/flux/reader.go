@@ -70,6 +70,13 @@ func (r *storeReader) ReadFilter(ctx context.Context, spec query.ReadFilterSpec,
 	}, nil
 }
 
+func (r *storeReader) GetGroupCapability(ctx context.Context) query.GroupCapability {
+	if aggStore, ok := r.s.(storage.GroupStore); ok {
+		return aggStore.GetGroupCapability(ctx)
+	}
+	return nil
+}
+
 func (r *storeReader) ReadGroup(ctx context.Context, spec query.ReadGroupSpec, alloc *memory.Allocator) (query.TableIterator, error) {
 	return &groupIterator{
 		ctx:   ctx,
