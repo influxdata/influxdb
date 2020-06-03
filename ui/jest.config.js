@@ -32,6 +32,6 @@ module.exports = {
     '!./src/**/*.test.{js,jsx,ts,tsx}',
   ],
   coverageDirectory: './coverage',
-  coverageReporters: ['html', 'cobertura'],
+  coverageReporters: ['html', 'cobertura', 'json'],
   reporters: ['default', 'jest-junit'],
 }

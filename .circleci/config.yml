@@ -209,6 +209,8 @@ jobs:
             cd ui
             TESTFILES=$(circleci tests glob "src/**/*.test.ts*" | circleci tests split --split-by=timings)
             yarn test:circleci $TESTFILES
+    post:
+      - "for i in $(seq 1 $CIRCLE_NODE_TOTAL) ; do scp node$i:~/ui/coverage.json coverage-node$i.json ; done"
       - store_test_results:
           path: ui/coverage
       - store_artifacts:
