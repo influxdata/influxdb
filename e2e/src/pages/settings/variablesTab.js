@@ -29,11 +29,11 @@ const importVariableDragNDropHeader = '.drag-and-drop--header';
 // create variable popup
 const createVarPopupCreateButton = '[data-testid=overlay--container] button[title=\'Create Variable\']';
 const createVariableNameInput = '[data-testid=overlay--body] [data-testid=input-field]';
-const createVariableTypeDropdown = '[data-testid=\'variable-form--dropdown-button\']';
+const createVariableTypeDropdown = '[data-testid=\'variable-type-dropdown--button\']';
 const createVariableQueryCodeMirror = '.CodeMirror';
 const createVariableQueryMonacoEdit = '.monaco-editor';
 const createVariableTextArea = '[data-testid=overlay--body] [data-testid=textarea]';
-const createVariableTypeDropdownItem = '[data-testid=\'variable-form--dropdown-%ITEM%\']';
+const createVariableTypeDropdownItem = '[data-testid=\'variable-type-dropdown-%ITEM%\']';
 const createVariableDefaultValDropdown = '//*[@data-testid=\'form--element\'][label/span[text() = \'Select A Default\']]//*[@data-testid=\'dropdown--button\']';
 const createVariableInfoPara = '//*[@data-testid=\'grid--column\'][p[contains(text(), \'ontains\')]]';
 const createVariableDefaultValDropdownItem = '[data-testid=dropdown-item][id=\'%ITEM%\']';

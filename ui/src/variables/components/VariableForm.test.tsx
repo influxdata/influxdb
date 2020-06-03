@@ -68,11 +68,11 @@ describe('Variables.Components.VariableForm', () => {
       const {wrapper, actions} = setup()
       const {getByTestId} = wrapper
 
-      const button = getByTestId('variable-form--dropdown-button')
+      const button = getByTestId('variable-type-dropdown--button')
 
       fireEvent.click(button)
 
-      const item = getByTestId('variable-form--dropdown-query')
+      const item = getByTestId('variable-type-dropdown-query')
 
       fireEvent.click(item)
 
@@ -83,11 +83,11 @@ describe('Variables.Components.VariableForm', () => {
       const {wrapper, actions} = setup()
       const {getByTestId} = wrapper
 
-      const button = getByTestId('variable-form--dropdown-button')
+      const button = getByTestId('variable-type-dropdown--button')
 
       fireEvent.click(button)
 
-      const item = getByTestId('variable-form--dropdown-map')
+      const item = getByTestId('variable-type-dropdown-map')
 
       fireEvent.click(item)
 
