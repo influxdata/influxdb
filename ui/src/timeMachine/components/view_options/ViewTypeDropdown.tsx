@@ -15,7 +15,7 @@ import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 import {VIS_GRAPHICS} from 'src/timeMachine/constants/visGraphics'
 
 // Types
-import {View, NewView, AppState, ViewType} from 'src/types'
+import {AppState, ViewType} from 'src/types'
 import {ComponentStatus} from 'src/clockface'
 
 interface DispatchProps {
@@ -23,7 +23,7 @@ interface DispatchProps {
 }
 
 interface StateProps {
-  view: View | NewView
+  viewType: ViewType
 }
 
 type Props = DispatchProps & StateProps
@@ -75,22 +75,22 @@ class ViewTypeDropdown extends PureComponent<Props> {
   }
 
   private get dropdownStatus(): ComponentStatus {
-    const {view} = this.props
+    const {viewType} = this.props
 
-    if (view.properties.type === 'check') {
+    if (viewType === 'check') {
       return ComponentStatus.Disabled
     }
     return ComponentStatus.Valid
   }
 
   private get selectedView(): ViewType {
-    const {view} = this.props
+    const {viewType} = this.props
 
-    if (view.properties.type === 'check') {
+    if (viewType === 'check') {
       return 'xy'
     }
 
-    return view.properties.type
+    return viewType
   }
 
   private getVewTypeGraphic = (viewType: ViewType): JSX.Element => {
@@ -107,10 +107,12 @@ class ViewTypeDropdown extends PureComponent<Props> {
   }
 }
 
+export {ViewTypeDropdown}
+
 const mstp = (state: AppState): StateProps => {
   const {view} = getActiveTimeMachine(state)
 
-  return {view}
+  return {viewType: view.properties.type}
 }
 
 const mdtp: DispatchProps = {
