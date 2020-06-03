@@ -126,15 +126,44 @@ describe('hydrate vars', () => {
     */
     if (isFlagEnabled('hydratevars')) {
       expect(actual.length).toEqual(2)
+      expect(
+        actual.filter(v => v.id === 'e')[0].arguments.values.results
+      ).toEqual(['eVal'])
+      expect(actual.filter(v => v.id === 'e')[0].selected).toEqual(['eVal'])
+      expect(
+        actual.filter(v => v.id === 'g')[0].arguments.values.results
+      ).toEqual(['gVal'])
+      expect(actual.filter(v => v.id === 'g')[0].selected).toEqual(['gVal'])
     }
+    // TODO(ariel): remove the if condition above when feature is good
+    // Also remove the following tests:
+    expect(
+      actual.filter(v => v.id === 'a')[0].arguments.values.results
+    ).toBeFalsy()
+    expect(
+      actual.filter(v => v.id === 'b')[0].arguments.values.results
+    ).toBeFalsy()
+    expect(
+      actual.filter(v => v.id === 'c')[0].arguments.values.results
+    ).toBeFalsy()
+    expect(
+      actual.filter(v => v.id === 'd')[0].arguments.values.results
+    ).toBeFalsy()
+
     expect(
       actual.filter(v => v.id === 'e')[0].arguments.values.results
     ).toEqual(['eVal'])
     expect(actual.filter(v => v.id === 'e')[0].selected).toEqual(['eVal'])
+
     expect(
       actual.filter(v => v.id === 'g')[0].arguments.values.results
     ).toEqual(['gVal'])
     expect(actual.filter(v => v.id === 'g')[0].selected).toEqual(['gVal'])
+
+    expect(
+      actual.filter(v => v.id === 'f')[0].arguments.values.results
+    ).toEqual(['fVal'])
+    expect(actual.filter(v => v.id === 'f')[0].selected).toEqual(['fVal'])
   })
 
   test('should invalidate all ancestors of a node when it fails', async () => {
@@ -182,10 +211,23 @@ describe('hydrate vars', () => {
     //     }
     if (isFlagEnabled('hydratevars')) {
       expect(actual.length).toEqual(1)
+      const [cResult] = actual
+      expect(cResult.arguments.values.results).toEqual(['cVal'])
+      expect(cResult.selected).toEqual(['cVal'])
     }
-    const [cResult] = actual
-    expect(cResult.arguments.values.results).toEqual(['cVal'])
-    expect(cResult.selected).toEqual(['cVal'])
+    // TODO(ariel): remove the if condition above when feature is good
+    // Also remove the following tests:
+    expect(
+      actual.filter(v => v.id === 'a')[0].arguments.values.results
+    ).toEqual([])
+    expect(
+      actual.filter(v => v.id === 'b')[0].arguments.values.results
+    ).toEqual([])
+
+    expect(
+      actual.filter(v => v.id === 'c')[0].arguments.values.results
+    ).toEqual(['cVal'])
+    expect(actual.filter(v => v.id === 'c')[0].selected).toEqual(['cVal'])
   })
 
   test('works with map template variables', async () => {
@@ -229,9 +271,18 @@ describe('hydrate vars', () => {
     // appropriate substitution is actually taking place
     if (isFlagEnabled('hydratevars')) {
       expect(actual.length).toEqual(1)
+      const [bResult] = actual
+      expect(bResult.arguments.values).toEqual({
+        k: 'v',
+      })
     }
-    const [bResult] = actual
-    expect(bResult.arguments.values).toEqual({
+    // TODO(ariel): remove the if condition above when feature is good
+    // Also remove the following tests:
+    expect(
+      actual.filter(v => v.id === 'a')[0].arguments.values.results
+    ).toEqual(['aVal'])
+    expect(actual.filter(v => v.id === 'a')[0].selected).toEqual(['aVal'])
+    expect(actual.filter(v => v.id === 'b')[0].arguments.values).toEqual({
       k: 'v',
     })
   })
@@ -275,9 +326,20 @@ describe('hydrate vars', () => {
 
     if (isFlagEnabled('hydratevars')) {
       expect(actual.length).toEqual(1)
+      const [bResult] = actual
+      expect(bResult.arguments.values).toEqual(['v1', 'v2'])
     }
-    const [bResult] = actual
-    expect(bResult.arguments.values).toEqual(['v1', 'v2'])
+    // TODO(ariel): remove the if condition above when feature is good
+    // Also remove the following tests:
+    expect(
+      actual.filter(v => v.id === 'a')[0].arguments.values.results
+    ).toEqual(['aVal'])
+    expect(actual.filter(v => v.id === 'a')[0].selected).toEqual(['aVal'])
+
+    expect(actual.filter(v => v.id === 'b')[0].arguments.values).toEqual([
+      'v1',
+      'v2',
+    ])
   })
 
   test('should be cancellable', done => {
