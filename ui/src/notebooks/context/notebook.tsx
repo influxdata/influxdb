@@ -76,7 +76,6 @@ export const NotebookProvider: FC = ({children}) => {
       }
       _setPipes(add(pipe))
       if (pipes.length && pipe.type !== 'query') {
-        console.log('uh oh', pipe, results, meta)
         _setResults(add({...results[results.length - 1]}))
         _setMeta(
           add({
@@ -87,7 +86,6 @@ export const NotebookProvider: FC = ({children}) => {
           })
         )
       } else {
-        console.log('getting myself a fresh one')
         _setResults(add({}))
         _setMeta(
           add({
@@ -117,7 +115,6 @@ export const NotebookProvider: FC = ({children}) => {
 
   const updateMeta = useCallback(
     (idx: number, pipe: PipeMeta) => {
-      console.log('updating meta', pipe)
       _setMeta(pipes => {
         pipes[idx] = {
           ...pipes[idx],
@@ -131,7 +128,6 @@ export const NotebookProvider: FC = ({children}) => {
 
   const updateResult = useCallback(
     (idx: number, results: BothResults) => {
-      console.log('updating results', results)
       _setResults(pipes => {
         pipes[idx] = {
           ...results,
