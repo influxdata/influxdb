@@ -74,7 +74,6 @@ export const NotebookProvider: FC = ({children}) => {
           return pipes.slice()
         }
       }
-      _setPipes(add(pipe))
       if (pipes.length && pipe.type !== 'query') {
         _setResults(add({...results[results.length - 1]}))
         _setMeta(
@@ -96,6 +95,7 @@ export const NotebookProvider: FC = ({children}) => {
           })
         )
       }
+      _setPipes(add(pipe))
     },
     [id, pipes, meta, results]
   )
