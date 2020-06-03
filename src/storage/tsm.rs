@@ -1,3 +1,4 @@
+//! Types for reading and writing TSM files produced by InfluxDB >= 2.x
 use crate::encoders::*;
 use crate::storage::block::*;
 use crate::storage::StorageError;
@@ -6,7 +7,79 @@ use integer_encoding::VarInt;
 use std::io::{BufRead, Seek, SeekFrom};
 use std::u64;
 
-pub struct TSMFile<R>
+/// `TSMReader` allows you to read all block and index data within a TSM file.
+///
+/// # Examples
+///
+/// Iterating over the TSM index.
+///
+/// ```
+/// # use crate::delorean::storage::tsm::*;
+/// # use libflate::gzip;
+/// # use std::fs::File;
+/// # use std::io::BufReader;
+/// # use std::io::Cursor;
+/// # use std::io::Read;
+/// # let file = File::open("tests/fixtures/000000000000005-000000002.tsm.gz");
+/// # let mut decoder = gzip::Decoder::new(file.unwrap()).unwrap();
+/// # let mut buf = Vec::new();
+/// # decoder.read_to_end(&mut buf).unwrap();
+/// # let r = Cursor::new(buf);
+///
+/// let mut reader = TSMReader::new(BufReader::new(r), 4_222_248);
+/// let mut index = reader.index().unwrap();
+///
+/// // index allows you to access each index entry, and each block for each
+/// // entry in order.
+/// let index = reader.index().unwrap();
+/// for index_entry in index {
+///     match index_entry {
+///         Ok(mut entry) => println!(
+///             "bucket id is {:?}, measurement name is {:?}",
+///             entry.bucket_id(),
+///             entry.measurement()
+///         ),
+///         Err(e) => println!("got an error {:?}", e),
+///     }
+/// }
+/// ```
+///
+/// Decoding a block.
+///
+/// ```
+/// # use crate::delorean::storage::tsm::*;
+/// # use libflate::gzip;
+/// # use std::fs::File;
+/// # use std::io::BufReader;
+/// # use std::io::Cursor;
+/// # use std::io::Read;
+/// # let file = File::open("tests/fixtures/000000000000005-000000002.tsm.gz");
+/// # let mut decoder = gzip::Decoder::new(file.unwrap()).unwrap();
+/// # let mut buf = Vec::new();
+/// # decoder.read_to_end(&mut buf).unwrap();
+/// # let r = Cursor::new(buf);
+///
+/// // Initializing a TSMReader requires a buffered reader and the length of the stream.
+/// let mut reader = TSMReader::new(BufReader::new(r), 4_222_248);
+///
+/// // index allows you to access each index entry in order.
+/// let mut index = reader.index().unwrap();
+///
+/// let mut entry = index.next().unwrap().unwrap();
+/// println!("this index entry has {:?} blocks", entry.count);
+///
+/// // access the decoded time stamps and values for the first block
+/// // associated with the index entry.
+/// match index.decode_block(&entry.block).unwrap() {
+///     BlockData::Float { ts: _, values: _ } => {}
+///     BlockData::Integer { ts: _, values: _ } => {}
+///     BlockData::Bool { ts: _, values: _ } => {}
+///     BlockData::Str { ts: _, values: _ } => {}
+///     BlockData::Unsigned { ts: _, values: _ } => {}
+/// }
+/// ```
+///
+pub struct TSMReader<R>
 where
     R: BufRead + Seek,
 {
@@ -14,12 +87,12 @@ where
     len: usize,
 }
 
-impl<R> TSMFile<R>
+impl<R> TSMReader<R>
 where
     R: BufRead + Seek,
 {
-    pub fn new(r: R, len: usize) -> TSMFile<R> {
-        TSMFile { r, len }
+    pub fn new(r: R, len: usize) -> TSMReader<R> {
+        TSMReader { r, len }
     }
 
     pub fn index(&mut self) -> Result<Index<&mut R>, StorageError> {
@@ -58,7 +131,7 @@ impl<R: BufRead + Seek> Index<R> {
     /// or will return an error. read_index_entry updates the offset on the Index
     /// but it's the caller's responsibility to stop reading entries when the index
     /// has been exhausted.
-    pub fn read_index_entry(&mut self) -> Result<IndexEntry, StorageError> {
+    fn read_index_entry(&mut self) -> Result<IndexEntry, StorageError> {
         // read length of series key
         let mut buf: [u8; 2] = [0; 2];
         self.r.read_exact(&mut buf)?;
@@ -97,7 +170,7 @@ impl<R: BufRead + Seek> Index<R> {
     /// read_block_entry will yield the next block entry within an index entry.
     /// It is the caller's responsibility to stop reading block entries when they
     /// have all been read for an index entry.
-    pub fn read_block_entry(&mut self) -> Result<Block, StorageError> {
+    fn read_block_entry(&mut self) -> Result<Block, StorageError> {
         // read min time on block entry
         let mut buf: [u8; 8] = [0; 8];
         self.r.read_exact(&mut buf[..])?;
@@ -237,6 +310,7 @@ impl<R: BufRead + Seek> Iterator for Index<R> {
     }
 }
 
+/// `IndexEntry` provides lazy accessors for components of the entry.
 #[derive(Clone)]
 pub struct IndexEntry {
     key: Vec<u8>,
@@ -247,15 +321,14 @@ pub struct IndexEntry {
     tag_pairs: Option<Vec<(String, String)>>,
     field: Option<String>,
 
-    block_type: u8,
-    count: u16,
-
-    block: Block,
+    pub block_type: u8,
+    pub count: u16,
+    pub block: Block,
     curr_block: u16,
 }
 
 impl IndexEntry {
-    /// org_id returns the organisation ID that this entry belongs to.
+    /// Get the organization ID that this entry belongs to.
     pub fn org_id(&mut self) -> InfluxID {
         match &self._org_id {
             Some(id) => id.clone(),
@@ -270,7 +343,7 @@ impl IndexEntry {
         }
     }
 
-    /// bucket_id returns the organisation ID that this entry belongs to.
+    /// Get the bucket ID that this entry belongs to.
     pub fn bucket_id(&mut self) -> InfluxID {
         match &self._bucket_id {
             Some(id) => id.clone(),
@@ -285,9 +358,9 @@ impl IndexEntry {
         }
     }
 
-    /// measurement returns the measurement name for the current index entry.
+    /// Get the measurement name for the current index entry.
     ///
-    /// measurement may return an error if there is a problem parsing the series
+    /// `measurement` may return an error if there is a problem parsing the series
     /// key in the index entry.
     pub fn measurement(&mut self) -> Result<String, StorageError> {
         match &self.field {
@@ -302,12 +375,12 @@ impl IndexEntry {
         }
     }
 
-    /// tagset returns the tagset for the current index entry.
+    /// Get the tag-set for the current index entry.
     ///
-    /// The tagset consists of a vector of key/value tuples. The field key and
+    /// The tag-set consists of a vector of key/value tuples. The field key and
     /// measurement are not included in the returned set.
     ///
-    /// tagset may return an error if there is a problem parsing the series
+    /// `tagset` may return an error if there is a problem parsing the series
     /// key in the index entry.
     pub fn tagset(&mut self) -> Result<Vec<(String, String)>, StorageError> {
         match &self.tag_pairs {
@@ -322,9 +395,9 @@ impl IndexEntry {
         }
     }
 
-    /// field_key returns the field key for the current index entry.
+    /// Get the field key for the current index entry.
     ///
-    /// field_key may return an error if there is a problem parsing the series
+    /// `field_key` may return an error if there is a problem parsing the series
     /// key in the index entry.
     pub fn field_key(&mut self) -> Result<String, StorageError> {
         match &self.field {
@@ -340,14 +413,14 @@ impl IndexEntry {
     }
 }
 
-// parse_tsm_key parses from the series key the measurement, field key and tag
-// set.
-//
-// It does not provide access to the org and bucket ids on the key, these can
-// be accessed via org_id() and bucket_id() respectively.
-//
-// TODO: handle escapes in the series key for , = and \t
-//
+/// parse_tsm_key parses from the series key the measurement, field key and tag
+/// set.
+///
+/// It does not provide access to the org and bucket ids on the key, these can
+/// be accessed via org_id() and bucket_id() respectively.
+///
+/// TODO: handle escapes in the series key for , = and \t
+///
 fn parse_tsm_key(
     mut key: Vec<u8>,
 ) -> Result<(String, Vec<(String, String)>, String), StorageError> {
@@ -407,16 +480,7 @@ fn parse_tsm_key(
     Ok((measurement, pairs, field.to_string()))
 }
 
-/// BlockData describes the various types of block data that can be held within
-/// a TSM file.
-pub enum BlockData {
-    Float { ts: Vec<i64>, values: Vec<f64> },
-    Integer { ts: Vec<i64>, values: Vec<i64> },
-    Bool { ts: Vec<i64>, values: Vec<bool> },
-    Str { ts: Vec<i64>, values: Vec<String> },
-    Unsigned { ts: Vec<i64>, values: Vec<u64> },
-}
-
+/// `Block` holds information about location and time range of a block of data.
 #[derive(Copy, Clone)]
 #[allow(dead_code)]
 pub struct Block {
@@ -426,8 +490,18 @@ pub struct Block {
     size: u32,
 }
 
+/// `BlockData` describes the various types of block data that can be held within
+/// a TSM file.
+pub enum BlockData {
+    Float { ts: Vec<i64>, values: Vec<f64> },
+    Integer { ts: Vec<i64>, values: Vec<i64> },
+    Bool { ts: Vec<i64>, values: Vec<bool> },
+    Str { ts: Vec<i64>, values: Vec<String> },
+    Unsigned { ts: Vec<i64>, values: Vec<u64> },
+}
+
 #[derive(Clone, Debug)]
-/// InfluxID represents an InfluxDB ID used in InfluxDB 2.x to represent
+/// `InfluxID` represents an InfluxDB ID used in InfluxDB 2.x to represent
 /// organization and bucket identifiers.
 pub struct InfluxID(u64);
 
@@ -475,7 +549,7 @@ mod tests {
         let mut buf = Vec::new();
         decoder.read_to_end(&mut buf).unwrap();
 
-        let mut reader = TSMFile::new(BufReader::new(Cursor::new(buf)), 4_222_248);
+        let mut reader = TSMReader::new(BufReader::new(Cursor::new(buf)), 4_222_248);
         let index = reader.index().unwrap();
 
         assert_eq!(index.curr_offset, 3_893_272);
@@ -489,7 +563,7 @@ mod tests {
         let mut buf = Vec::new();
         decoder.read_to_end(&mut buf).unwrap();
 
-        let mut reader = TSMFile::new(BufReader::new(Cursor::new(buf)), 4_222_248);
+        let mut reader = TSMReader::new(BufReader::new(Cursor::new(buf)), 4_222_248);
         let index = reader.index().unwrap();
 
         let mut got_blocks: u64 = 0;
@@ -559,8 +633,9 @@ mod tests {
         let mut decoder = gzip::Decoder::new(file.unwrap()).unwrap();
         let mut buf = Vec::new();
         decoder.read_to_end(&mut buf).unwrap();
+        let r = Cursor::new(buf);
 
-        let mut reader = TSMFile::new(BufReader::new(Cursor::new(buf)), 4_222_248);
+        let mut reader = TSMReader::new(BufReader::new(r), 4_222_248);
         let mut index = reader.index().unwrap();
 
         let mut blocks = vec![];
