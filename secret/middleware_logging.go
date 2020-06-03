@@ -24,7 +24,7 @@ func NewLogger(log *zap.Logger, s influxdb.SecretService) *Logger {
 	}
 }
 
-// FindSession calls the underlying secret service and logs the results of the request
+// LoadSecret retrieves the secret value v found at key k for organization orgID.
 func (l *Logger) LoadSecret(ctx context.Context, orgID influxdb.ID, key string) (str string, err error) {
 	defer func(start time.Time) {
 		dur := zap.Duration("took", time.Since(start))
@@ -38,7 +38,7 @@ func (l *Logger) LoadSecret(ctx context.Context, orgID influxdb.ID, key string) 
 
 }
 
-// ExpireSession calls the underlying secret service and logs the results of the request
+// GetSecretKeys retrieves all secret keys that are stored for the organization orgID.
 func (l *Logger) GetSecretKeys(ctx context.Context, orgID influxdb.ID) (strs []string, err error) {
 	defer func(start time.Time) {
 		dur := zap.Duration("took", time.Since(start))
@@ -52,7 +52,7 @@ func (l *Logger) GetSecretKeys(ctx context.Context, orgID influxdb.ID) (strs []s
 
 }
 
-// CreateSession calls the underlying secret service and logs the results of the request
+// PutSecret stores the secret pair (k,v) for the organization orgID.
 func (l *Logger) PutSecret(ctx context.Context, orgID influxdb.ID, key string, val string) (err error) {
 	defer func(start time.Time) {
 		dur := zap.Duration("took", time.Since(start))
@@ -66,7 +66,7 @@ func (l *Logger) PutSecret(ctx context.Context, orgID influxdb.ID, key string, v
 
 }
 
-// RenewSession calls the underlying secret service and logs the results of the request
+// PutSecrets puts all provided secrets and overwrites any previous values.
 func (l *Logger) PutSecrets(ctx context.Context, orgID influxdb.ID, m map[string]string) (err error) {
 	defer func(start time.Time) {
 		dur := zap.Duration("took", time.Since(start))
@@ -80,7 +80,7 @@ func (l *Logger) PutSecrets(ctx context.Context, orgID influxdb.ID, m map[string
 
 }
 
-// CreateSession calls the underlying secret service and logs the results of the request
+// PatchSecrets patches all provided secrets and updates any previous values.
 func (l *Logger) PatchSecrets(ctx context.Context, orgID influxdb.ID, m map[string]string) (err error) {
 	defer func(start time.Time) {
 		dur := zap.Duration("took", time.Since(start))
@@ -94,7 +94,7 @@ func (l *Logger) PatchSecrets(ctx context.Context, orgID influxdb.ID, m map[stri
 
 }
 
-// RenewSession calls the underlying secret service and logs the results of the request
+// DeleteSecret removes a single secret from the secret store.
 func (l *Logger) DeleteSecret(ctx context.Context, orgID influxdb.ID, keys ...string) (err error) {
 	defer func(start time.Time) {
 		dur := zap.Duration("took", time.Since(start))
