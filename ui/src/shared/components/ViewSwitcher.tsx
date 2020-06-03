@@ -35,8 +35,8 @@ interface Props {
   loading: RemoteDataState
   properties: QueryViewProperties | CheckViewProperties
   timeZone: TimeZone
-  statuses: StatusRow[][]
-  timeRange: TimeRange | null
+  statuses?: StatusRow[][]
+  timeRange?: TimeRange | null
   checkType?: CheckType
   checkThresholds?: Threshold[]
   theme: Theme

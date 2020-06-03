@@ -41,7 +41,10 @@ export default class EmptyQueryView extends PureComponent<Props> {
       errorFormat,
     } = this.props
 
-    if (loading === RemoteDataState.NotStarted || !queries || !queries.length) {
+    if (
+      loading === RemoteDataState.NotStarted ||
+      (queries && !queries.length)
+    ) {
       return (
         <EmptyGraphMessage
           message={emptyGraphCopy}

@@ -14,6 +14,7 @@ import {fromFlux as parse, FromFluxResult} from '@influxdata/giraffe'
 export interface BothResults {
   parsed: FromFluxResult
   raw: string
+  error?: string
 }
 
 export interface QueryContextType {
@@ -46,8 +47,7 @@ export const QueryProvider: FC<Props> = ({children, variables, org}) => {
     return runQuery(org.id, text, extern)
       .promise.then(raw => {
         if (raw.type !== 'SUCCESS') {
-          // TODO actually pipe this somewhere
-          throw new Error('Unable to fetch results')
+          throw new Error(raw.message)
         }
 
         return raw
@@ -56,6 +56,7 @@ export const QueryProvider: FC<Props> = ({children, variables, org}) => {
         return {
           raw: raw.csv,
           parsed: parse(raw.csv),
+          error: null,
         }
       })
   }
