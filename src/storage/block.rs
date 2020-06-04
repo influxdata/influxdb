@@ -170,6 +170,12 @@ use std::convert::TryInto;
 use std::io::{Seek, SeekFrom, Write};
 use std::{u16, u32};
 
+pub const F64_BLOCKTYPE_MARKER: u8 = 0;
+pub const I64_BLOCKTYPE_MARKER: u8 = 1;
+pub const BOOL_BLOCKTYPE_MARKER: u8 = 2;
+pub const STRING_BLOCKTYPE_MARKER: u8 = 3;
+pub const U64_BLOCKTYPE_MARKER: u8 = 4;
+
 /// BlockType defines all the possible block types.
 pub trait BlockType: Sized + Default + Clone + Copy {
     const BYTE_MARKER: u8;
@@ -177,27 +183,27 @@ pub trait BlockType: Sized + Default + Clone + Copy {
 }
 
 impl BlockType for f64 {
-    const BYTE_MARKER: u8 = 0;
+    const BYTE_MARKER: u8 = F64_BLOCKTYPE_MARKER;
     type BlockSummary = FloatBlockSummary;
 }
 
 impl BlockType for i64 {
-    const BYTE_MARKER: u8 = 1;
+    const BYTE_MARKER: u8 = I64_BLOCKTYPE_MARKER;
     type BlockSummary = IntegerBlockSummary;
 }
 
 impl BlockType for bool {
-    const BYTE_MARKER: u8 = 2;
+    const BYTE_MARKER: u8 = BOOL_BLOCKTYPE_MARKER;
     type BlockSummary = BoolBlockSummary;
 }
 
 impl<'a> BlockType for &'a str {
-    const BYTE_MARKER: u8 = 3;
+    const BYTE_MARKER: u8 = STRING_BLOCKTYPE_MARKER;
     type BlockSummary = StringBlockSummary<'a>;
 }
 
 impl BlockType for u64 {
-    const BYTE_MARKER: u8 = 4;
+    const BYTE_MARKER: u8 = U64_BLOCKTYPE_MARKER;
     type BlockSummary = UnsignedBlockSummary;
 }
 
