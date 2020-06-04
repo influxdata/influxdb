@@ -155,11 +155,9 @@ impl<R: BufRead + Seek> Index<R> {
 
         Ok(IndexEntry {
             key: key_bytes,
-            _org_id: None,
-            _bucket_id: None,
-            measurement_name: None,
-            tag_pairs: None,
-            field: None,
+            parsed_key: None,
+            org_id: None,
+            bucket_id: None,
             block_type,
             count,
             curr_block: 1,
@@ -221,7 +219,7 @@ impl<R: BufRead + Seek> Index<R> {
         idx += 1;
 
         // first decode the timestamp block.
-        let mut ts: Vec<i64> = Vec::with_capacity(1000); // 1000 is the max block size
+        let mut ts: Vec<i64> = Vec::with_capacity(MAX_BLOCK_VALUES); // 1000 is the max block size
         let (len, n) = u64::decode_var(&data[idx..]); // size of timestamp block
         idx += n;
         timestamp::decode(&data[idx..idx + (len as usize)], &mut ts).map_err(|e| StorageError {
@@ -314,12 +312,10 @@ impl<R: BufRead + Seek> Iterator for Index<R> {
 #[derive(Clone)]
 pub struct IndexEntry {
     key: Vec<u8>,
-    _org_id: Option<InfluxID>,
-    _bucket_id: Option<InfluxID>,
+    parsed_key: Option<ParsedTSMKey>,
 
-    measurement_name: Option<String>,
-    tag_pairs: Option<Vec<(String, String)>>,
-    field: Option<String>,
+    org_id: Option<InfluxID>,
+    bucket_id: Option<InfluxID>,
 
     pub block_type: u8,
     pub count: u16,
@@ -330,14 +326,11 @@ pub struct IndexEntry {
 impl IndexEntry {
     /// Get the organization ID that this entry belongs to.
     pub fn org_id(&mut self) -> InfluxID {
-        match &self._org_id {
-            Some(id) => id.clone(),
+        match &self.org_id {
+            Some(id) => *id,
             None => {
-                let mut buf2: [u8; 8] = [0; 8];
-
-                buf2.copy_from_slice(&self.key[..8]);
-                let id = InfluxID::from_be_bytes(buf2);
-                self._org_id = Some(id.clone());
+                let id = IndexEntry::extract_id_from_slice(&self.key[..8]);
+                self.org_id = Some(id);
                 id
             }
         }
@@ -345,17 +338,20 @@ impl IndexEntry {
 
     /// Get the bucket ID that this entry belongs to.
     pub fn bucket_id(&mut self) -> InfluxID {
-        match &self._bucket_id {
-            Some(id) => id.clone(),
+        match &self.bucket_id {
+            Some(id) => *id,
             None => {
-                let mut buf2: [u8; 8] = [0; 8];
-
-                buf2.copy_from_slice(&self.key[8..16]);
-                let id = InfluxID::from_be_bytes(buf2);
-                self._bucket_id = Some(id.clone());
+                let id = IndexEntry::extract_id_from_slice(&self.key[8..16]);
+                self.bucket_id = Some(id);
                 id
             }
         }
+    }
+
+    fn extract_id_from_slice(data: &[u8]) -> InfluxID {
+        let mut buf: [u8; 8] = [0; 8];
+        buf.copy_from_slice(&data[..8]);
+        InfluxID::from_be_bytes(buf)
     }
 
     /// Get the measurement name for the current index entry.
@@ -363,14 +359,13 @@ impl IndexEntry {
     /// `measurement` may return an error if there is a problem parsing the series
     /// key in the index entry.
     pub fn measurement(&mut self) -> Result<String, StorageError> {
-        match &self.field {
-            Some(m) => Ok(m.clone()),
+        match &self.parsed_key {
+            Some(k) => Ok(k.measurement.clone()),
             None => {
-                let key = parse_tsm_key(self.key.to_vec())?;
-                self.measurement_name = Some(key.measurement.clone());
-                self.tag_pairs = Some(key.tagset);
-                self.field = Some(key.field_key);
-                Ok(key.measurement)
+                let parsed_key = parse_tsm_key(self.key.to_vec())?;
+                let measurement = parsed_key.measurement.clone();
+                self.parsed_key = Some(parsed_key);
+                Ok(measurement)
             }
         }
     }
@@ -383,14 +378,13 @@ impl IndexEntry {
     /// `tagset` may return an error if there is a problem parsing the series
     /// key in the index entry.
     pub fn tagset(&mut self) -> Result<Vec<(String, String)>, StorageError> {
-        match &self.tag_pairs {
-            Some(tp) => Ok(tp.clone()),
+        match &self.parsed_key {
+            Some(k) => Ok(k.tagset.clone()),
             None => {
-                let key = parse_tsm_key(self.key.to_vec())?;
-                self.measurement_name = Some(key.measurement);
-                self.tag_pairs = Some(key.tagset.clone());
-                self.field = Some(key.field_key);
-                Ok(key.tagset)
+                let parsed_key = parse_tsm_key(self.key.to_vec())?;
+                let tagset = parsed_key.tagset.clone();
+                self.parsed_key = Some(parsed_key);
+                Ok(tagset)
             }
         }
     }
@@ -400,19 +394,19 @@ impl IndexEntry {
     /// `field_key` may return an error if there is a problem parsing the series
     /// key in the index entry.
     pub fn field_key(&mut self) -> Result<String, StorageError> {
-        match &self.field {
-            Some(f) => Ok(f.clone()),
+        match &self.parsed_key {
+            Some(k) => Ok(k.field_key.clone()),
             None => {
-                let key = parse_tsm_key(self.key.to_vec())?;
-                self.measurement_name = Some(key.measurement);
-                self.tag_pairs = Some(key.tagset);
-                self.field = Some(key.field_key.clone());
-                Ok(key.field_key)
+                let parsed_key = parse_tsm_key(self.key.to_vec())?;
+                let field_key = parsed_key.field_key.clone();
+                self.parsed_key = Some(parsed_key);
+                Ok(field_key)
             }
         }
     }
 }
 
+#[derive(Clone)]
 struct ParsedTSMKey {
     measurement: String,
     tagset: Vec<(String, String)>,
@@ -498,6 +492,9 @@ pub struct Block {
     size: u32,
 }
 
+// MAX_BLOCK_VALUES is the maximum number of values a TSM block can store.
+const MAX_BLOCK_VALUES: usize = 1000;
+
 /// `BlockData` describes the various types of block data that can be held within
 /// a TSM file.
 pub enum BlockData {
@@ -508,7 +505,7 @@ pub enum BlockData {
     Unsigned { ts: Vec<i64>, values: Vec<u64> },
 }
 
-#[derive(Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 /// `InfluxID` represents an InfluxDB ID used in InfluxDB 2.x to represent
 /// organization and bucket identifiers.
 pub struct InfluxID(u64);
@@ -530,12 +527,6 @@ impl InfluxID {
 impl std::fmt::Display for InfluxID {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
         write!(f, "{:016x}", self.0)
-    }
-}
-
-impl std::cmp::PartialEq for InfluxID {
-    fn eq(&self, r: &InfluxID) -> bool {
-        self.0 == r.0
     }
 }
 
