@@ -2,26 +2,30 @@
 import React, {FC} from 'react'
 import {BothResults} from 'src/notebooks/context/query'
 import {AutoSizer} from 'react-virtualized'
-import classnames from 'classnames'
 
 // Components
 import RawFluxDataTable from 'src/timeMachine/components/RawFluxDataTable'
-import ResultsHeader from 'src/notebooks/pipes/Query/ResultsHeader'
+import ResultsResizer from 'src/notebooks/pipes/Query/ResultsResizer'
 
 // Types
-import {RawDataSize} from 'src/notebooks/pipes/Query'
+import {ResultsVisibility} from 'src/notebooks/pipes/Query'
 
 interface Props {
   results: BothResults
-  size: RawDataSize
-  onUpdateSize: (size: RawDataSize) => void
+  visibility: ResultsVisibility
+  onUpdateVisibility: (visibility: ResultsVisibility) => void
+  height: number
+  onUpdateHeight: (height: number) => void
 }
 
-const Results: FC<Props> = ({results, size, onUpdateSize}) => {
+const Results: FC<Props> = ({
+  results,
+  visibility,
+  onUpdateVisibility,
+  height,
+  onUpdateHeight,
+}) => {
   const resultsExist = !!results.raw
-  const className = classnames('notebook-raw-data', {
-    [`notebook-raw-data__${size}`]: resultsExist && size,
-  })
 
   let resultsBody = (
     <div className="notebook-raw-data--empty">
@@ -29,33 +33,38 @@ const Results: FC<Props> = ({results, size, onUpdateSize}) => {
     </div>
   )
 
-  if (resultsExist) {
+  if (resultsExist && visibility === 'hidden') {
+    resultsBody = <div className="notebook-raw-data--empty">Results hidden</div>
+  }
+
+  if (resultsExist && visibility === 'visible') {
     resultsBody = (
-      <div className="notebook-raw-data--body">
-        <AutoSizer>
-          {({width, height}) =>
-            width &&
-            height && (
-              <RawFluxDataTable
-                files={[results.raw]}
-                width={width}
-                height={height}
-              />
-            )
-          }
-        </AutoSizer>
-      </div>
+      <AutoSizer>
+        {({width, height}) =>
+          width &&
+          height && (
+            <RawFluxDataTable
+              files={[results.raw]}
+              width={width}
+              height={height}
+            />
+          )
+        }
+      </AutoSizer>
     )
   }
 
   return (
-    <div className={className}>
-      <ResultsHeader
-        resultsExist={resultsExist}
-        size={size}
-        onUpdateSize={onUpdateSize}
-      />
-      {resultsBody}
+    <div className="notebook-raw-data">
+      <ResultsResizer
+        visibility={visibility}
+        height={height}
+        onUpdateHeight={onUpdateHeight}
+        onUpdateVisibility={onUpdateVisibility}
+        resizingEnabled={resultsExist}
+      >
+        {resultsBody}
+      </ResultsResizer>
     </div>
   )
 }
