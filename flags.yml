@@ -75,6 +75,27 @@
   default: false
   contact: Query Team
 
+- name: Push Down Group Aggregate Sum
+  description: Enable the sum variant of PushDownGroupAggregate planner rule
+  key: pushDownGroupAggregateSum
+  default: false
+  contact: Query Team
+  lifetime: temporary
+
+- name: Push Down Group Aggregate First
+  description: Enable the first variant of PushDownGroupAggregate planner rule
+  key: pushDownGroupAggregateFirst
+  default: false
+  contact: Query Team
+  lifetime: temporary
+
+- name: Push Down Group Aggregate Last
+  description: Enable the last variant of PushDownGroupAggregate planner rule
+  key: pushDownGroupAggregateLast
+  default: false
+  contact: Query Team
+  lifetime: temporary
+
 - name: New Label Package
   description: Enables the refactored labels api
   key: newLabels

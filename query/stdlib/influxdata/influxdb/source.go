@@ -211,7 +211,7 @@ func ReadGroupSource(id execute.DatasetID, r query.StorageReader, readSpec query
 
 	src.m = GetStorageDependencies(a.Context()).FromDeps.Metrics
 	src.orgID = readSpec.OrganizationID
-	src.op = "readGroup"
+	src.op = readSpec.Name()
 
 	src.runner = src
 	return src
