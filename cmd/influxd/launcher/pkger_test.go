@@ -65,129 +65,129 @@ func TestLauncher_Pkger(t *testing.T) {
 		}
 	}
 
+	newPkg := func(objects ...pkger.Object) *pkger.Pkg {
+		return &pkger.Pkg{Objects: objects}
+	}
+
+	newBucketObject := func(pkgName, name, desc string) pkger.Object {
+		obj := pkger.BucketToObject("", influxdb.Bucket{
+			Name:        name,
+			Description: desc,
+		})
+		obj.SetMetadataName(pkgName)
+		return obj
+	}
+
+	newCheckDeadmanObject := func(t *testing.T, pkgName, name string, every time.Duration) pkger.Object {
+		t.Helper()
+
+		d, err := notification.FromTimeDuration(every)
+		require.NoError(t, err)
+
+		obj := pkger.CheckToObject("", &check.Deadman{
+			Base: check.Base{
+				Name:  name,
+				Every: &d,
+				Query: influxdb.DashboardQuery{
+					Text: `from(bucket: "rucket_1") |> range(start: -1d)`,
+				},
+				StatusMessageTemplate: "Check: ${ r._check_name } is: ${ r._level }",
+			},
+			Level: notification.Critical,
+		})
+		obj.SetMetadataName(pkgName)
+		return obj
+	}
+
+	newDashObject := func(pkgName, name, desc string) pkger.Object {
+		obj := pkger.DashboardToObject("", influxdb.Dashboard{
+			Name:        name,
+			Description: desc,
+		})
+		obj.SetMetadataName(pkgName)
+		return obj
+	}
+
+	newEndpointHTTP := func(pkgName, name, description string) pkger.Object {
+		obj := pkger.NotificationEndpointToObject("", &endpoint.HTTP{
+			Base: endpoint.Base{
+				Name:        name,
+				Description: description,
+				Status:      influxdb.Inactive,
+			},
+			AuthMethod: "none",
+			URL:        "http://example.com",
+			Method:     "GET",
+		})
+		obj.SetMetadataName(pkgName)
+		return obj
+	}
+
+	newLabelObject := func(pkgName, name, desc, color string) pkger.Object {
+		obj := pkger.LabelToObject("", influxdb.Label{
+			Name: name,
+			Properties: map[string]string{
+				"color":       color,
+				"description": desc,
+			},
+		})
+		obj.SetMetadataName(pkgName)
+		return obj
+	}
+
+	newRuleObject := func(t *testing.T, pkgName, name, endpointPkgName, desc string) pkger.Object {
+		t.Helper()
+
+		every, err := notification.FromTimeDuration(time.Hour)
+		require.NoError(t, err)
+
+		obj := pkger.NotificationRuleToObject("", endpointPkgName, &rule.HTTP{
+			Base: rule.Base{
+				Name:        name,
+				Description: desc,
+				Every:       &every,
+				StatusRules: []notification.StatusRule{{CurrentLevel: notification.Critical}},
+			},
+		})
+		obj.SetMetadataName(pkgName)
+		return obj
+	}
+
+	newTaskObject := func(pkgName, name, description string) pkger.Object {
+		obj := pkger.TaskToObject("", influxdb.Task{
+			Name:        name,
+			Description: description,
+			Flux:        "buckets()",
+			Every:       "1h",
+		})
+		obj.SetMetadataName(pkgName)
+		return obj
+	}
+
+	newTelegrafObject := func(pkgName, name, description string) pkger.Object {
+		obj := pkger.TelegrafToObject("", influxdb.TelegrafConfig{
+			Name:        name,
+			Description: description,
+			Config:      telegrafCfg,
+		})
+		obj.SetMetadataName(pkgName)
+		return obj
+	}
+
+	newVariableObject := func(pkgName, name, description string) pkger.Object {
+		obj := pkger.VariableToObject("", influxdb.Variable{
+			Name:        name,
+			Description: description,
+			Arguments: &influxdb.VariableArguments{
+				Type:   "constant",
+				Values: influxdb.VariableConstantValues{"a", "b"},
+			},
+		})
+		obj.SetMetadataName(pkgName)
+		return obj
+	}
+
 	t.Run("managing pkg state with stacks", func(t *testing.T) {
-		newPkg := func(objects ...pkger.Object) *pkger.Pkg {
-			return &pkger.Pkg{Objects: objects}
-		}
-
-		newBucketObject := func(pkgName, name, desc string) pkger.Object {
-			obj := pkger.BucketToObject("", influxdb.Bucket{
-				Name:        name,
-				Description: desc,
-			})
-			obj.SetMetadataName(pkgName)
-			return obj
-		}
-
-		newCheckDeadmanObject := func(t *testing.T, pkgName, name string, every time.Duration) pkger.Object {
-			t.Helper()
-
-			d, err := notification.FromTimeDuration(every)
-			require.NoError(t, err)
-
-			obj := pkger.CheckToObject("", &check.Deadman{
-				Base: check.Base{
-					Name:  name,
-					Every: &d,
-					Query: influxdb.DashboardQuery{
-						Text: `from(bucket: "rucket_1") |> range(start: -1d)`,
-					},
-					StatusMessageTemplate: "Check: ${ r._check_name } is: ${ r._level }",
-				},
-				Level: notification.Critical,
-			})
-			obj.SetMetadataName(pkgName)
-			return obj
-		}
-
-		newDashObject := func(pkgName, name, desc string) pkger.Object {
-			obj := pkger.DashboardToObject("", influxdb.Dashboard{
-				Name:        name,
-				Description: desc,
-			})
-			obj.SetMetadataName(pkgName)
-			return obj
-		}
-
-		newEndpointHTTP := func(pkgName, name, description string) pkger.Object {
-			obj := pkger.NotificationEndpointToObject("", &endpoint.HTTP{
-				Base: endpoint.Base{
-					Name:        name,
-					Description: description,
-					Status:      influxdb.Inactive,
-				},
-				AuthMethod: "none",
-				URL:        "http://example.com",
-				Method:     "GET",
-			})
-			obj.SetMetadataName(pkgName)
-			return obj
-		}
-
-		newLabelObject := func(pkgName, name, desc, color string) pkger.Object {
-			obj := pkger.LabelToObject("", influxdb.Label{
-				Name: name,
-				Properties: map[string]string{
-					"color":       color,
-					"description": desc,
-				},
-			})
-			obj.SetMetadataName(pkgName)
-			return obj
-		}
-
-		newRuleObject := func(t *testing.T, pkgName, name, endpointPkgName, desc string) pkger.Object {
-			t.Helper()
-
-			every, err := notification.FromTimeDuration(time.Hour)
-			require.NoError(t, err)
-
-			obj := pkger.NotificationRuleToObject("", endpointPkgName, &rule.HTTP{
-				Base: rule.Base{
-					Name:        name,
-					Description: desc,
-					Every:       &every,
-					StatusRules: []notification.StatusRule{{CurrentLevel: notification.Critical}},
-				},
-			})
-			obj.SetMetadataName(pkgName)
-			return obj
-		}
-
-		newTaskObject := func(pkgName, name, description string) pkger.Object {
-			obj := pkger.TaskToObject("", influxdb.Task{
-				Name:        name,
-				Description: description,
-				Flux:        "buckets()",
-				Every:       "1h",
-			})
-			obj.SetMetadataName(pkgName)
-			return obj
-		}
-
-		newTelegrafObject := func(pkgName, name, description string) pkger.Object {
-			obj := pkger.TelegrafToObject("", influxdb.TelegrafConfig{
-				Name:        name,
-				Description: description,
-				Config:      telegrafCfg,
-			})
-			obj.SetMetadataName(pkgName)
-			return obj
-		}
-
-		newVariableObject := func(pkgName, name, description string) pkger.Object {
-			obj := pkger.VariableToObject("", influxdb.Variable{
-				Name:        name,
-				Description: description,
-				Arguments: &influxdb.VariableArguments{
-					Type:   "constant",
-					Values: influxdb.VariableConstantValues{"a", "b"},
-				},
-			})
-			obj.SetMetadataName(pkgName)
-			return obj
-		}
-
 		t.Run("creating a stack", func(t *testing.T) {
 			_, cleanup := newStackFn(t, pkger.Stack{
 				OrgID:       l.Org.ID,
@@ -1733,7 +1733,7 @@ func TestLauncher_Pkger(t *testing.T) {
 			pkger.WithVariableSVC(l.VariableService(t)),
 		)
 
-		_, err := svc.Apply(ctx, l.Org.ID, l.User.ID, newPkg(t))
+		_, err := svc.Apply(ctx, l.Org.ID, l.User.ID, newCompletePkg(t))
 		require.Error(t, err)
 
 		bkts, _, err := l.BucketService(t).FindBuckets(ctx, influxdb.BucketFilter{OrganizationID: &l.Org.ID})
@@ -1804,7 +1804,7 @@ func TestLauncher_Pkger(t *testing.T) {
 	}
 
 	t.Run("dry run a package with no existing resources", func(t *testing.T) {
-		impact, err := svc.DryRun(ctx, l.Org.ID, l.User.ID, newPkg(t))
+		impact, err := svc.DryRun(ctx, l.Org.ID, l.User.ID, newCompletePkg(t))
 		require.NoError(t, err)
 
 		sum, diff := impact.Summary, impact.Diff
@@ -1932,7 +1932,7 @@ spec:
 
 	t.Run("apply a package of all new resources", func(t *testing.T) {
 		// this initial test is also setup for the sub tests
-		impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID, newPkg(t))
+		impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID, newCompletePkg(t))
 		require.NoError(t, err)
 
 		assert.NotZero(t, impact.StackID)
@@ -2254,7 +2254,7 @@ spec:
 		t.Run("pkg with same bkt-var-label does nto create new resources for them", func(t *testing.T) {
 			// validate the new package doesn't create new resources for bkts/labels/vars
 			// since names collide.
-			impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID, newPkg(t))
+			impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID, newCompletePkg(t))
 			require.NoError(t, err)
 
 			sum2 := impact.Summary
@@ -2560,6 +2560,27 @@ spec:
 		require.Len(t, impact.Summary.Tasks, 1)
 	})
 
+	t.Run("applying a pkg without a stack will have a stack created for it", func(t *testing.T) {
+		pkg := newPkg(newBucketObject("room", "for", "more"))
+
+		impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkg)
+		require.NoError(t, err)
+
+		require.NotZero(t, impact.StackID)
+		require.Len(t, impact.Summary.Buckets, 1)
+		require.NotZero(t, impact.Summary.Buckets[0].ID)
+
+		stacks, err := svc.ListStacks(ctx, l.Org.ID, pkger.ListFilter{
+			StackIDs: []influxdb.ID{impact.StackID},
+		})
+		require.NoError(t, err)
+
+		require.Len(t, stacks, 1)
+		require.Len(t, stacks[0].Resources, 1)
+		assert.Equal(t, stacks[0].Resources[0].PkgName, "room")
+		assert.Equal(t, influxdb.ID(impact.Summary.Buckets[0].ID), stacks[0].Resources[0].ID)
+	})
+
 	t.Run("apply a package with env refs", func(t *testing.T) {
 		pkgStr := fmt.Sprintf(`
 apiVersion: %[1]s
@@ -2733,7 +2754,7 @@ spec:
 	})
 }
 
-func newPkg(t *testing.T) *pkger.Pkg {
+func newCompletePkg(t *testing.T) *pkger.Pkg {
 	t.Helper()
 
 	pkg, err := pkger.Parse(pkger.EncodingYAML, pkger.FromString(pkgYMLStr))
