@@ -56,7 +56,7 @@ func New(reg prometheus.Registerer, service string) *REDClient {
 func (c *REDClient) Record(method string) func(error) error {
 	start := time.Now()
 	return func(err error) error {
-		c.reqs.With(prometheus.Labels{"method": method})
+		c.reqs.With(prometheus.Labels{"method": method}).Inc()
 
 		if err != nil {
 			c.errs.With(prometheus.Labels{
