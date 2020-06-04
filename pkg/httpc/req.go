@@ -38,6 +38,15 @@ func (r *Req) Accept(contentType string) *Req {
 	return r.Header("Accept", contentType)
 }
 
+// Auth sets the authorization for a request.
+func (r *Req) Auth(authFn func(r *http.Request)) *Req {
+	if r.err != nil {
+		return r
+	}
+	r.authFn = authFn
+	return r
+}
+
 // ContentType sets the Content-Type header to the provided content type on the request.
 func (r *Req) ContentType(contentType string) *Req {
 	return r.Header("Content-Type", contentType)
