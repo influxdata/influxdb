@@ -87,8 +87,6 @@ const Visualization: FC<PipeProp> = ({
     />
   )
 
-  console.log('neat', data.properties)
-
   return (
     <Context controls={controls}>
       <div className="notebook-visualization">
