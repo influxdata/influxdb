@@ -7,7 +7,7 @@ use clap::{crate_authors, crate_version, App, Arg, SubCommand};
 use snafu::Snafu;
 
 use delorean_ingest::LineProtocolConverter;
-use delorean_line_parser::parse_lines;
+use delorean_line_parser::{parse_lines, ParsedLine};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -34,6 +34,8 @@ enum ReturnCode {
     ConversionFailed = 2,
 }
 
+static SCHEMA_SAMPLE_SIZE: usize = 5;
+
 fn convert(input_filename: &str, output_filename: &str) -> Result<()> {
     info!("dstool starting");
     debug!("Reading from input file {}", input_filename);
@@ -52,7 +54,7 @@ fn convert(input_filename: &str, output_filename: &str) -> Result<()> {
 
     // FIXME: Design something sensible to do with lines that don't
     // parse rather than just dropping them on the floor
-    let only_good_lines = parse_lines(&buf).filter_map(|r| match r {
+    let mut only_good_lines = parse_lines(&buf).filter_map(|r| match r {
         Ok(line) => Some(line),
         Err(e) => {
             warn!("Ignorning line with parse error: {}", e);
@@ -60,8 +62,11 @@ fn convert(input_filename: &str, output_filename: &str) -> Result<()> {
         }
     });
 
+    let schema_sample: Vec<ParsedLine> =
+        only_good_lines.by_ref().take(SCHEMA_SAMPLE_SIZE).collect();
+
     // The idea here is to use the first few parsed lines to deduce the schema
-    let converter = match LineProtocolConverter::new(only_good_lines) {
+    let converter = match LineProtocolConverter::new(&schema_sample) {
         Ok(converter) => converter,
         Err(e) => {
             let message = String::from("Error creating line protocol converter");

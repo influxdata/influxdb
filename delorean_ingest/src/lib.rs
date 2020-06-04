@@ -38,10 +38,8 @@ impl LineProtocolConverter {
     /// that have the same schema (e.g. tag names, field names,
     /// measurements).
     ///
-    pub fn new<'a>(
-        lines: impl Iterator<Item = ParsedLine<'a>>,
-    ) -> Result<LineProtocolConverter, Error> {
-        let mut peekable_iter = lines.peekable();
+    pub fn new(lines: &[ParsedLine<'_>]) -> Result<LineProtocolConverter, Error> {
+        let mut peekable_iter = lines.iter().peekable();
         let first_line = peekable_iter.peek().context(NeedsAtLeastOneLine)?;
 
         let mut builder = SchemaBuilder::new(&first_line.series.measurement);
@@ -84,17 +82,19 @@ mod delorean_ingest_tests {
     use super::*;
     use line_protocol_schema::ColumnDefinition;
 
-    fn only_good_lines(data: &str) -> impl Iterator<Item = ParsedLine<'_>> {
-        delorean_line_parser::parse_lines(data).filter_map(|r| {
-            assert!(r.is_ok());
-            r.ok()
-        })
+    fn only_good_lines(data: &str) -> Vec<ParsedLine<'_>> {
+        delorean_line_parser::parse_lines(data)
+            .filter_map(|r| {
+                assert!(r.is_ok());
+                r.ok()
+            })
+            .collect()
     }
 
     #[test]
     fn no_lines() {
         let parsed_lines = only_good_lines("");
-        let converter_result = LineProtocolConverter::new(parsed_lines);
+        let converter_result = LineProtocolConverter::new(&parsed_lines);
 
         assert!(matches!(converter_result, Err(Error::NeedsAtLeastOneLine)));
     }
@@ -104,7 +104,7 @@ mod delorean_ingest_tests {
         let parsed_lines =
             only_good_lines("cpu,host=A,region=west usage_system=64i 1590488773254420000");
 
-        let converter = LineProtocolConverter::new(parsed_lines).expect("conversion successful");
+        let converter = LineProtocolConverter::new(&parsed_lines).expect("conversion successful");
         assert_eq!(converter.schema.measurement(), "cpu");
 
         let cols = converter.schema.get_col_defs();
@@ -133,7 +133,7 @@ mod delorean_ingest_tests {
             cpu,host=A,region=east usage_system=67i 1590488773254430000"#,
         );
 
-        let converter = LineProtocolConverter::new(parsed_lines).expect("conversion successful");
+        let converter = LineProtocolConverter::new(&parsed_lines).expect("conversion successful");
         assert_eq!(converter.schema.measurement(), "cpu");
 
         let cols = converter.schema.get_col_defs();
@@ -164,7 +164,7 @@ mod delorean_ingest_tests {
         );
 
         // when we extract the schema
-        let converter = LineProtocolConverter::new(parsed_lines).expect("conversion successful");
+        let converter = LineProtocolConverter::new(&parsed_lines).expect("conversion successful");
         assert_eq!(converter.schema.measurement(), "cpu");
 
         // then both field names appear in the resulting schema
@@ -200,7 +200,7 @@ mod delorean_ingest_tests {
         );
 
         // when we extract the schema
-        let converter = LineProtocolConverter::new(parsed_lines).expect("conversion successful");
+        let converter = LineProtocolConverter::new(&parsed_lines).expect("conversion successful");
         assert_eq!(converter.schema.measurement(), "cpu");
 
         // Then both tag names appear in the resulting schema
@@ -232,7 +232,7 @@ mod delorean_ingest_tests {
         );
 
         // when we extract the schema
-        let converter = LineProtocolConverter::new(parsed_lines).expect("conversion successful");
+        let converter = LineProtocolConverter::new(&parsed_lines).expect("conversion successful");
         assert_eq!(converter.schema.measurement(), "cpu");
 
         // Then the first field type appears in the resulting schema (TBD is this what we want??)
@@ -260,7 +260,7 @@ mod delorean_ingest_tests {
         );
 
         // when we extract the schema
-        let converter_result = LineProtocolConverter::new(parsed_lines);
+        let converter_result = LineProtocolConverter::new(&parsed_lines);
 
         // Then the converter does not support it
         assert!(matches!(
