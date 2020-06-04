@@ -798,7 +798,7 @@ describe('DataExplorer', () => {
             .trigger('mousedown', {force: true})
             .trigger('mousemove', {clientY: 5000})
             .trigger('mouseup')
-
+        })
         cy.getByTestID(`raw-flux-data-table--cell ${numLines}`).should(
           'be.visible'
         )
