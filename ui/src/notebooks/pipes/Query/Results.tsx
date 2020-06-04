@@ -24,9 +24,7 @@ const Results: FC<Props> = ({results, size, onUpdateSize}) => {
   })
 
   let resultsBody = (
-    <div className="notebook-raw-data--empty">
-      Run the Notebook to see results
-    </div>
+    <div className="notebook-raw-data--empty">Run the Flow to see results</div>
   )
 
   if (resultsExist) {
