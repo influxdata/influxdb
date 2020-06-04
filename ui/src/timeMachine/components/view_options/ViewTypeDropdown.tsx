@@ -19,7 +19,7 @@ import {AppState, ViewType} from 'src/types'
 import {ComponentStatus} from 'src/clockface'
 
 interface DispatchProps {
-  onUpdateType: typeof setType
+  onUpdateType: typeof setType | ((type: ViewType) => void)
 }
 
 interface StateProps {

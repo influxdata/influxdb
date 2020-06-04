@@ -4,6 +4,7 @@ import EmptyQueryView, {ErrorFormat} from 'src/shared/components/EmptyQueryView'
 import ViewSwitcher from 'src/shared/components/ViewSwitcher'
 import {ViewTypeDropdown} from 'src/timeMachine/components/view_options/ViewTypeDropdown'
 import {checkResultsLength} from 'src/shared/utils/vis'
+import {ViewType} from 'src/types'
 import {createView} from 'src/views/helpers'
 
 // NOTE we dont want any pipe component to be directly dependent
@@ -24,7 +25,7 @@ const Visualization: FC<PipeProp> = ({
   const updateType = (type: ViewType) => {
     const newView = createView(type)
 
-    if (type === 'table' && results.parsed) {
+    if (newView.properties.type === 'table' && results.parsed) {
       const existing = (newView.properties.fieldOptions || []).reduce(
         (prev, curr) => {
           prev[curr.internalName] = curr
@@ -47,15 +48,23 @@ const Visualization: FC<PipeProp> = ({
       newView.properties = {...newView.properties, fieldOptions}
     }
 
-    if ((type === 'histogram' || type === 'scatter') && results.parsed) {
+    if (
+      (newView.properties.type === 'histogram' ||
+        newView.properties.type === 'scatter') &&
+      results.parsed
+    ) {
       newView.properties.fillColumns = results.parsed.fluxGroupKeyUnion
     }
 
-    if (type === 'scatter' && results.parsed) {
+    if (newView.properties.type === 'scatter' && results.parsed) {
       newView.properties.symbolColumns = results.parsed.fluxGroupKeyUnion
     }
 
-    if ((type === 'heatmap' || type === 'scatter') && results.parsed) {
+    if (
+      (newView.properties.type === 'heatmap' ||
+        newView.properties.type === 'scatter') &&
+      results.parsed
+    ) {
       newView.properties.xColumn =
         ['_time', '_start', '_stop'].filter(field =>
           results.parsed.table.columnKeys.includes(field)
@@ -64,8 +73,6 @@ const Visualization: FC<PipeProp> = ({
         ['_value'].filter(field =>
           results.parsed.table.columnKeys.includes(field)
         )[0] || results.parsed.table.columnKeys[0]
-
-      console.log('neat', newView.properties)
     }
 
     onUpdate({
