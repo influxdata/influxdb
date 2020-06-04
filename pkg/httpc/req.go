@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/tracing"
 )
 
 const (
@@ -144,6 +145,19 @@ func (r *Req) Do(ctx context.Context) error {
 }
 
 func (r *Req) do(ctx context.Context) error {
+	span, ctx := tracing.StartSpanFromContextWithOperationName(ctx, r.req.URL.String())
+	defer span.Finish()
+
+	u := r.req.URL
+	span.LogKV(
+		"scheme", u.Scheme,
+		"host", u.Host,
+		"path", u.Path,
+		"query_params", u.Query().Encode(),
+	)
+
+	tracing.InjectToHTTPRequest(span, r.req)
+
 	resp, err := r.client.Do(r.req.WithContext(ctx))
 	if err != nil {
 		return err
@@ -152,6 +166,11 @@ func (r *Req) do(ctx context.Context) error {
 		io.Copy(ioutil.Discard, resp.Body) // drain body completely
 		resp.Body.Close()
 	}()
+
+	span.LogKV(
+		"response_code", resp.StatusCode,
+		"response_byte", resp.ContentLength,
+	)
 
 	if r.respFn != nil {
 		if err := r.respFn(resp); err != nil {
