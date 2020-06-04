@@ -46,6 +46,7 @@ import (
 	"github.com/influxdata/influxdb/v2/query/control"
 	"github.com/influxdata/influxdb/v2/query/fluxlang"
 	"github.com/influxdata/influxdb/v2/query/stdlib/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2/secret"
 	"github.com/influxdata/influxdb/v2/session"
 	"github.com/influxdata/influxdb/v2/snowflake"
 	"github.com/influxdata/influxdb/v2/source"
@@ -594,7 +595,6 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		orgLogSvc                 platform.OrganizationOperationLogService = m.kvService
 		scraperTargetSvc          platform.ScraperTargetStoreService       = m.kvService
 		telegrafSvc               platform.TelegrafConfigStore             = m.kvService
-		secretSvc                 platform.SecretService                   = m.kvService
 		lookupSvc                 platform.LookupService                   = m.kvService
 		notificationEndpointStore platform.NotificationEndpointService     = m.kvService
 	)
@@ -613,6 +613,14 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		bucketSvc       platform.BucketService              = tenant.NewBucketLogger(m.log.With(zap.String("store", "new")), tenant.NewBucketMetrics(m.reg, ts, metric.WithSuffix("new")))
 		passwdsSvc      platform.PasswordsService           = tenant.NewPasswordLogger(m.log.With(zap.String("store", "new")), tenant.NewPasswordMetrics(m.reg, ts, metric.WithSuffix("new")))
 	)
+
+	secretStore, err := secret.NewStore(m.kvStore)
+	if err != nil {
+		m.log.Error("Failed creating new meta store", zap.Error(err))
+		return err
+	}
+
+	var secretSvc platform.SecretService = secret.NewMetricService(m.reg, secret.NewLogger(m.log.With(zap.String("service", "secret")), secret.NewService(secretStore)))
 
 	switch m.secretStore {
 	case "bolt":
@@ -1028,6 +1036,13 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		sessionHTTPServer = session.NewSessionHandler(m.log.With(zap.String("handler", "session")), sessionSvc, userSvc, passwdsSvc)
 	}
 
+	var orgHTTPServer *tenant.OrgHandler
+	{
+		secretHandler := secret.NewHandler(m.log, "id", secret.NewAuthedService(secretSvc))
+		urmHandler := tenant.NewURMHandler(m.log.With(zap.String("handler", "urm")), platform.OrgsResourceType, "id", userSvc, tenant.NewAuthedURMService(orgSvc, userResourceSvc))
+		orgHTTPServer = tenant.NewHTTPOrgHandler(m.log.With(zap.String("handler", "org")), orgSvc, urmHandler, labelsHTTPServer, secretHandler)
+	}
+
 	{
 		platformHandler := http.NewPlatformHandler(m.apibackend,
 			http.WithResourceHandler(pkgHTTPServer),
@@ -1038,6 +1053,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 			http.WithResourceHandler(kithttp.NewFeatureHandler(feature.SessionService(), m.flagger, oldSessionHandler, sessionHTTPServer.SignOutResourceHandler(), sessionHTTPServer.SignOutResourceHandler().Prefix())),
 			http.WithResourceHandler(userHTTPServer.MeResourceHandler()),
 			http.WithResourceHandler(userHTTPServer.UserResourceHandler()),
+			http.WithResourceHandler(orgHTTPServer),
 		)
 
 		httpLogger := m.log.With(zap.String("service", "http"))
