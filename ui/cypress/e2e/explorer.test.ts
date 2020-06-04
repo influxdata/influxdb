@@ -508,6 +508,7 @@ describe('DataExplorer', () => {
 
     it('can filter aggregation functions by name from script editor mode', () => {
       cy.getByTestID('input-field')
+        .clear() //TODO (zoe) when cypress resolves bug remove clear  https://github.com/cypress-io/cypress/issues/5480
         .type('covariance')
         .should('have.value', 'covariance')
       cy.get('.flux-toolbar--list-item').should('have.length', 1)
