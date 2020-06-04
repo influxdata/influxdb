@@ -8,7 +8,7 @@ const EmptyPipeList: FC = () => {
   return (
     <div className="notebook-empty">
       <div className="notebook-empty--graphic" />
-      <h3>Welcome to Notebooks</h3>
+      <h3>Welcome to Flows</h3>
       <p>
         This is a more flexible way to explore, visualize, and (eventually)
         alert on your data

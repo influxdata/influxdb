@@ -82,7 +82,7 @@ export const Submit: FC = () => {
 
   return (
     <SubmitQueryButton
-      text="Run Notebook"
+      text="Run Flow"
       icon={IconFont.Play}
       submitButtonDisabled={false}
       queryStatus={RemoteDataState.NotStarted}
