@@ -1415,7 +1415,7 @@ func (s *Service) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg
 		if err := updateStackFn(ctx, stackID, state); err != nil {
 			s.log.Error("failed to update stack", zap.Error(err))
 		}
-	}(opt.StackID)
+	}(stackID)
 
 	coordinator := &rollbackCoordinator{sem: make(chan struct{}, s.applyReqLimit)}
 	defer coordinator.rollback(s.log, &e, orgID)
