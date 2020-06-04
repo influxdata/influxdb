@@ -71,6 +71,10 @@ type ReadGroupSpec struct {
 	AggregateMethod string
 }
 
+func (spec *ReadGroupSpec) Name() string {
+	return fmt.Sprintf("readGroup(%s)", spec.AggregateMethod)
+}
+
 type ReadTagKeysSpec struct {
 	ReadFilterSpec
 }
