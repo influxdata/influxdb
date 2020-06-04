@@ -751,7 +751,7 @@ describe('DataExplorer', () => {
         })
       })
 
-      it('can view table data with raw data & scroll to bottom and see data in raw data table', () => {
+      it('can view table data with raw data & scroll to bottom', () => {
         // build the query to return data from beforeEach
         cy.getByTestID(`selector-list m`).click()
         cy.getByTestID('selector-list v').click()
@@ -782,7 +782,7 @@ describe('DataExplorer', () => {
         )
       })
 
-      it('can view table data with raw data & scroll to bottom and see data in table', () => {
+      it('can view table data & scroll to bottom', () => {
         // build the query to return data from beforeEach
         cy.getByTestID(`selector-list m`).click()
         cy.getByTestID('selector-list v').click()
