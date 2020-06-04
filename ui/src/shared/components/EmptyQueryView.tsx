@@ -20,12 +20,12 @@ export enum ErrorFormat {
 }
 
 interface Props {
-  errorMessage: string
+  errorMessage?: string
   errorFormat: ErrorFormat
-  isInitialFetch: boolean
+  isInitialFetch?: boolean
   loading: RemoteDataState
   hasResults: boolean
-  queries: DashboardQuery[]
+  queries?: DashboardQuery[]
   fallbackNote?: string
 }
 
@@ -41,7 +41,10 @@ export default class EmptyQueryView extends PureComponent<Props> {
       errorFormat,
     } = this.props
 
-    if (loading === RemoteDataState.NotStarted || !queries.length) {
+    if (
+      loading === RemoteDataState.NotStarted ||
+      (queries && !queries.length)
+    ) {
       return (
         <EmptyGraphMessage
           message={emptyGraphCopy}

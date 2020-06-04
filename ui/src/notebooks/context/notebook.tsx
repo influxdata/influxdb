@@ -74,18 +74,30 @@ export const NotebookProvider: FC = ({children}) => {
           return pipes.slice()
         }
       }
+      if (pipes.length && pipe.type !== 'query') {
+        _setResults(add({...results[results.length - 1]}))
+        _setMeta(
+          add({
+            title: `Cell_${++GENERATOR_INDEX}`,
+            visible: true,
+            loading: meta[meta.length - 1].loading,
+            focus: false,
+          })
+        )
+      } else {
+        _setResults(add({}))
+        _setMeta(
+          add({
+            title: `Cell_${++GENERATOR_INDEX}`,
+            visible: true,
+            loading: RemoteDataState.NotStarted,
+            focus: false,
+          })
+        )
+      }
       _setPipes(add(pipe))
-      _setResults(add({}))
-      _setMeta(
-        add({
-          title: `Cell_${++GENERATOR_INDEX}`,
-          visible: true,
-          loading: RemoteDataState.NotStarted,
-          focus: false,
-        })
-      )
     },
-    [id]
+    [id, pipes, meta, results]
   )
 
   const updatePipe = useCallback(
@@ -98,7 +110,7 @@ export const NotebookProvider: FC = ({children}) => {
         return pipes.slice()
       })
     },
-    [id]
+    [id, pipes]
   )
 
   const updateMeta = useCallback(
@@ -111,7 +123,7 @@ export const NotebookProvider: FC = ({children}) => {
         return pipes.slice()
       })
     },
-    [id]
+    [id, meta]
   )
 
   const updateResult = useCallback(
@@ -123,7 +135,7 @@ export const NotebookProvider: FC = ({children}) => {
         return pipes.slice()
       })
     },
-    [id]
+    [id, results]
   )
 
   const movePipe = useCallback(
