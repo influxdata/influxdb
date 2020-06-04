@@ -373,7 +373,7 @@ func (s *Service) ExportStack(ctx context.Context, orgID, stackID influxdb.ID) (
 			}
 			obj = CheckToObject("", ch)
 		case KindDashboard:
-			dash, err := s.dashSVC.FindDashboardByID(ctx, res.ID)
+			dash, err := findDashboardByIDFull(ctx, s.dashSVC, res.ID)
 			if influxdb.ErrorCode(err) == influxdb.ENotFound {
 				continue
 			}
