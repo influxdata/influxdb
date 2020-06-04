@@ -799,12 +799,6 @@ describe('DataExplorer', () => {
             .trigger('mousemove', {clientY: 5000})
             .trigger('mouseup')
 
-          cy.get('.cf-dapper-scrollbars--thumb-x') // TODO(zoe): replace with test ids https://github.com/influxdata/clockface/issues/507
-            .trigger('mousedown', {force: true})
-            .trigger('mousemove', {clientX: 1000})
-            .trigger('mouseup')
-        })
-
         cy.getByTestID(`raw-flux-data-table--cell ${numLines}`).should(
           'be.visible'
         )
