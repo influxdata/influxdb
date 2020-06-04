@@ -1757,12 +1757,16 @@ func TestPushDownGroupAggregateRule(t *testing.T) {
 
 	minProcedureSpec := func() *universe.MinProcedureSpec {
 		return &universe.MinProcedureSpec{
-			SelectorConfig: execute.DefaultSelectorConfig,
+			SelectorConfig: execute.SelectorConfig{
+				Column: execute.DefaultTimeColLabel,
+			},
 		}
 	}
 	maxProcedureSpec := func() *universe.MaxProcedureSpec {
 		return &universe.MaxProcedureSpec{
-			SelectorConfig: execute.DefaultSelectorConfig,
+			SelectorConfig: execute.SelectorConfig{
+				Column: execute.DefaultTimeColLabel,
+			},
 		}
 	}
 	countProcedureSpec := func() *universe.CountProcedureSpec {

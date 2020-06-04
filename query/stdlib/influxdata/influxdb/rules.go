@@ -873,7 +873,9 @@ func (PushDownGroupAggregateRule) Rewrite(ctx context.Context, pn plan.Node) (pl
 	case universe.FirstKind:
 		// ReadGroup() -> first => ReadGroup(first) -> min
 		root := plan.CreatePhysicalNode("min", &universe.MinProcedureSpec{
-			SelectorConfig: execute.DefaultSelectorConfig,
+			SelectorConfig: execute.SelectorConfig{
+				Column: execute.DefaultTimeColLabel,
+			},
 		})
 
 		leaf := plan.CreatePhysicalNode("ReadGroupAggregate", &ReadGroupPhysSpec{
@@ -889,7 +891,9 @@ func (PushDownGroupAggregateRule) Rewrite(ctx context.Context, pn plan.Node) (pl
 	case universe.LastKind:
 		// ReadGroup() -> last => ReadGroup(last) -> max
 		root := plan.CreatePhysicalNode("max", &universe.MaxProcedureSpec{
-			SelectorConfig: execute.DefaultSelectorConfig,
+			SelectorConfig: execute.SelectorConfig{
+				Column: execute.DefaultTimeColLabel,
+			},
 		})
 
 		leaf := plan.CreatePhysicalNode("ReadGroupAggregate", &ReadGroupPhysSpec{
