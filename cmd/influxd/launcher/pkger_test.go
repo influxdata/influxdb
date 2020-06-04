@@ -36,6 +36,16 @@ func TestLauncher_Pkger(t *testing.T) {
 
 	resourceCheck := newResourceChecker(l)
 
+	deleteStackFn := func(t *testing.T, stackID influxdb.ID) {
+		t.Helper()
+		err := svc.DeleteStack(ctx, struct{ OrgID, UserID, StackID influxdb.ID }{
+			OrgID:   l.Org.ID,
+			UserID:  l.User.ID,
+			StackID: stackID,
+		})
+		require.NoError(t, err, "failed to delete stack and its associated resources")
+	}
+
 	newStackFn := func(t *testing.T, stack pkger.Stack) (pkger.Stack, func()) {
 		t.Helper()
 
@@ -56,12 +66,7 @@ func TestLauncher_Pkger(t *testing.T) {
 		return newStack, func() {
 			// deletes are idempotent, so any error encountered here is not a not found error
 			// but rather an error to concern ourselves with.
-			err := svc.DeleteStack(ctx, struct{ OrgID, UserID, StackID influxdb.ID }{
-				OrgID:   l.Org.ID,
-				UserID:  l.User.ID,
-				StackID: newStack.ID,
-			})
-			require.NoError(t, err, "failed to delete stack and its associated resources")
+			deleteStackFn(t, newStack.ID)
 		}
 	}
 
@@ -1627,6 +1632,51 @@ func TestLauncher_Pkger(t *testing.T) {
 				hasAssociation(t, sum.Variables[0].LabelAssociations)
 			})
 
+			t.Run("should return all associated dashboards in full", func(t *testing.T) {
+				dash := influxdb.Dashboard{
+					Name: "dasher",
+					Cells: []*influxdb.Cell{
+						{
+							ID: 1,
+							CellProperty: influxdb.CellProperty{
+								H: 1,
+								W: 2,
+							},
+							View: &influxdb.View{
+								ViewContents: influxdb.ViewContents{
+									Name: "name",
+								},
+								Properties: influxdb.MarkdownViewProperties{
+									Type: influxdb.ViewPropertyTypeMarkdown,
+									Note: "the markdown",
+								},
+							},
+						},
+					},
+				}
+
+				pkg := newPkg(pkger.DashboardToObject("", dash))
+
+				impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkg)
+				require.NoError(t, err)
+
+				defer deleteStackFn(t, impact.StackID)
+
+				require.Len(t, impact.Summary.Dashboards, 1)
+
+				exportedPkg, err := svc.ExportStack(ctx, l.Org.ID, impact.StackID)
+				require.NoError(t, err)
+
+				summary := exportedPkg.Summary()
+				require.Len(t, summary.Dashboards, 1)
+
+				exportedDash := summary.Dashboards[0]
+				require.Len(t, exportedDash.Charts, 1)
+
+				expectedChartProps := dash.Cells[0].View.Properties
+				assert.Equal(t, expectedChartProps, exportedDash.Charts[0].Properties)
+			})
+
 			t.Run("when label associations have changed", func(t *testing.T) {
 				newLabelAssociationTestFn := func(t *testing.T) (pkger.Stack, pkger.Summary, func()) {
 					t.Helper()
@@ -2567,6 +2617,8 @@ spec:
 		require.NoError(t, err)
 
 		require.NotZero(t, impact.StackID)
+		defer deleteStackFn(t, impact.StackID)
+
 		require.Len(t, impact.Summary.Buckets, 1)
 		require.NotZero(t, impact.Summary.Buckets[0].ID)
 
