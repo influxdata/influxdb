@@ -11,7 +11,8 @@ let iSteps = new influxSteps(__wdriver);
 
 Given(/^I reset the environment$/, async () => {
     await bSteps.driver.sleep(1000); //since gets called after scenarios, need a short delay to avoid promise resolution issues
-    await flush();
+    await bSteps.resetEnvironment();
+    //await flush();
 });
 
 /*
@@ -62,7 +63,7 @@ When(/^close all notifications$/, async() => {
 // newUser if not DEFAULT should follow {username: 'name', password: 'password', org: 'org', bucket: 'bucket'}
 Given(/^run setup over REST "(.*?)"$/, async( newUser ) => {
 
-    await influxUtils.flush();
+    //await influxUtils.flush();
 
     if(newUser === 'DEFAULT'){
         await influxUtils.setupUser(__defaultUser);
@@ -73,6 +74,26 @@ Given(/^run setup over REST "(.*?)"$/, async( newUser ) => {
         }
         await influxUtils.setupUser(user);
     }
+
+});
+
+Given(/^run setup user "(.*)"$/, {timeout: 15000}, async newUser => {
+   await influxUtils.setupNewUser(newUser);
+});
+
+Given(/^run setup over CLI docker "(.*?)"$/, async( newUser ) => {
+
+    if(newUser === 'DEFAULT'){
+        await influxUtils.setupUserDockerCLI(__defaultUser);
+    }else{
+        let user = JSON.parse(newUser);
+        if(user.password.length < 8 ){
+            throw Error(`Password: ${user.password} is shorter than 8 chars`);
+        }
+        await influxUtils.setupUser(user);
+    }
+
+    await bSteps.driver.sleep(1000); //give system chance to write everything down
 
 });
 
@@ -125,16 +146,17 @@ When(/^write sine data for org "(.*?)" to bucket "(.*?)"$/, async (org, bucket) 
 
 });
 
-When(/^query sine data for org of user "(.*)" from bucket "(.*)"$/, async (user, bucket) => {
-    let startTime = '-1d';
-    let org = influxUtils.getUser(user).orgid;
-    let query = `from(bucket: "${bucket}")
-  |> range(start: ${startTime}) 
-  |> filter(fn: (r) => r._measurement == "sinus")
-  |> filter(fn: (r) => r._field == "point")`;
+When(/^simple query data "(.*)" for org of user "(.*)" from bucket "(.*)" over "(.*)"$/, async (items, userName, bucket, period) => {
 
-    let results = await influxUtils.query(org, query);
-    console.log('DEBUG results: ' + results);
+    let dataDef = JSON.parse(items.replace(/\\/g,""));
+    let targetBucket = (bucket === 'DEFAULT') ? __defaultUser.bucket : 'fred';
+    let query = `from(bucket: "${targetBucket}")
+  |> range(start: ${period}) 
+  |> filter(fn: (r) => r._measurement == "${dataDef.name}")
+  |> filter(fn: (r) => r._field == "${dataDef.measurement}")`;
+
+    let results = await influxUtils.query(userName, query);
+    console.log('DEBUG results: ' + JSON.stringify(results));
 });
 
 
@@ -160,8 +182,9 @@ When(/^API create a bucket named "(.*)" for user "(.*)"$/, async (bucket, userna
 
 When(/^API create a label "(.*)" described as "(.*)" with color "(.*)" for user "(.*)"$/,
     async (labelName, labelDescr, labelColor, user) => {
-        let orgID = influxUtils.getUser((user === 'DEFAULT') ? __defaultUser.username : user).orgid;
-        await influxUtils.createLabel(orgID, labelName, labelDescr, labelColor);
+        //let orgID = influxUtils.getUser((user === 'DEFAULT') ? __defaultUser.username : user).orgid;
+        await influxUtils.createLabel(influxUtils.getUser((user === 'DEFAULT') ? __defaultUser.username : user),
+            labelName, labelDescr, labelColor);
     });
 
 When(/^open page "(.*?)" for user "(.*?)"$/, async (page, username) => {
@@ -249,9 +272,12 @@ When(/^generate a line protocol testdata file "(.*)" based on:$/, async (filePat
     await influxUtils.genLineProtocolFile(filePath, def);
 });
 
-When(/^generate a line protocol testdata for user "(.*)" based on:$/, async (user, def) => {
-    await influxUtils.writeLineProtocolData((user === 'DEFAULT')? __defaultUser: await influxUtils.getUser(user),
-        def);
+When(/^generate a line protocol testdata for user "(.*)" based on:$/, async (userName, def) => {
+
+    //await influxUtils.writeLineProtocolData((user === 'DEFAULT')? __defaultUser: await influxUtils.getUser(user),
+    //    def);
+
+    await influxUtils.writeLineProtocolData(userName, def);
 });
 
 When(/^create the "(.*)" variable "(.*)" with default "(.*)" for user "(.*)" with values:$/,

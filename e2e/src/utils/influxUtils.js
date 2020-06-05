@@ -3,12 +3,22 @@ const process = require('process');
 const axios = require('axios');
 const fs = require('fs');
 const csvParseSync = require('csv-parse/lib/sync');
+const {exec} = require('child_process');
+const util = require('util');
+const exec_prom = util.promisify(exec);
 
 let active_config = require(__basedir + '/e2e.conf.json').active;
 //let config = require(__basedir + '/e2e.conf.json')[active_config];
 let setHeadless = false;
 let newHeadless = false;
 let selDocker = false;
+
+let nowNano = new Date().getTime() * 1000000;
+let intervalNano = 600 * 1000 * 1000000; //10 min in nanosecs
+
+const {InfluxDB, Point} = require('@influxdata/influxdb-client');
+const {DashboardsAPI, SetupAPI, LabelsAPI, OrgsAPI} = require('@influxdata/influxdb-client-apis');
+
 
 const mil2Nano = 1000000;
 
@@ -44,12 +54,13 @@ global.__defaultUser = defaultUser;
 global.__users = { 'init': undefined };
 global.__killLiveDataGen = false;
 global.__liveDataGenRunning = false;
+global.__reportedResetOnce = false;
 
 console.log(config.headless ? 'running headless' : 'running headed');
 console.log(config.sel_docker ? 'running for selenium in docker' : 'running for selenium standard');
 console.log(`active configuration ${JSON.stringify(config)}`);
 
-axios.defaults.baseURL = `${config.protocol}://${config.host}:${config.port}`;
+axios.defaults.baseURL = `${config.influx_url}`;
 
 /* Uncomment to debug axios
 axios.interceptors.request.use(request => {
@@ -64,22 +75,196 @@ axios.interceptors.response.use(response => {
 */
 
 const flush = async () => {
-    // console.log('calling flush')
-    await axios.get('/debug/flush');
+    let res = await axios.get('/debug/flush').catch(async error => {
+        console.log("DEBUG error " + JSON.stringify(error))
+    });
     delete global.__users;
     global.__users = { 'init': undefined };
 };
 
-// user { username: 'name', password: 'password', org; 'orgname', bucket: 'bucketname' }
-const setupUser = async(user) => {
+const removeConfInDocker = async () => {
+    await exec_prom('docker exec influx2_solo rm /root/.influxdbv2/configs || true');
+};
+
+//for compatibility with old test style - until all are updated
+const setupUser = async(newUser) => {
+
+    console.log("DEBUG user old style start " + JSON.stringify(newUser));
+    await setupUserRest(newUser);
+    await putUser(newUser);
+    await __wdriver.sleep(1000);
+    await setUserOrgId(newUser);
+
+    console.log("DEBUG user old style end " + JSON.stringify(newUser));
+};
+
+const setUserOrgId = async(user) => {
+    //now grab the first org
+    let orgsAPI = new OrgsAPI(new InfluxDB({url: __config.influx_url, token: user.token, timeout: 20000}));
+
+    let orgs = await orgsAPI.getOrgs();
+
+    user.orgid = orgs.orgs[0].id;
+};
+
+// user { username: 'name', password: 'password', org; 'orgname', bucket: 'bucketname', token: 'optional_token' }
+const setupNewUser = async(newUser) => {
+
+    let user = newUser.toUpperCase() === 'DEFAULT' ? __defaultUser : JSON.parse(newUser);
+
+    if(user.password === 'ENV'){
+        resolvePasswordFromEnv(user);
+    }
+
+    await resolveUserTokenBeforeCreate(user);
+
+    console.log(`--- preparing to setup user on ${__config.influx_url}`);
+
+    switch(__config.create_method.toUpperCase()){
+        case 'REST':
+            console.log(`--- Creating new User '${user.username}' over REST ---`);
+            await setupUserRest(user)
+            break;
+        case 'CLI_DOCKER':
+            console.log(`--- Creating new User '${user.username}' with CLI to docker container ${__config.docker_name} ---`);
+            await setupUserDockerCLI(user);
+            break;
+        case 'CLI':
+            console.log(`--- Creating new user '${user.username}' with CLI using influx CLI client at ${__config.influx_path} ---`);
+            await setupUserCLI(user);
+            break;
+        case "SKIP":
+            console.log(`Skipping creating user '${user.username}' on target deployment ` +
+                `at ${__config.host}.  User should already exist there` );
+            break;
+        default:
+            throw `Unkown create user method ${__config.create_method}`
+    }
+
+    putUser(user);
+
+    await __wdriver.sleep(1000); //give db chance to update before continuing
+
+    await setUserOrgId(user);
+
+    console.log("DEBUG user post setup " + JSON.stringify(user));
+};
+
+const resolvePasswordFromEnv = async(user) => {
+
+    if(user.password.toUpperCase() === 'ENV'){
+        let envar = `${__config.config_id.toUpperCase()}_DEFAULT_USER_PASSWORD`;
+        user.password = process.env[envar]
+    }
+
+};
+
+const resolveUserTokenBeforeCreate = async(user) => {
+    if(typeof user.token === 'undefined'){
+        return;
+    }
+    if(user.token.toUpperCase() === 'ENV'){
+
+        let envar = `${__config.config_id.toUpperCase()}_DEFAULT_USER_TOKEN`;
+        user.token = process.env[envar]
+    }
+};
+
+const setupUserRest = async(user) => {
+
+    const setupAPI = new SetupAPI(new InfluxDB(__config.influx_url));
+
+    console.log("DEBUG user " + JSON.stringify(user));
+
+    setupAPI.getSetup().then(async ({allowed}) => {
+
+        let body = {org: user.org, bucket: user.bucket, username: user.username, password: user.password };
+
+        if(user.token){
+            body.token = user.token;
+        }
+
+        if(allowed){
+            await setupAPI.postSetup({
+                body: body,
+            });
+            console.log(`--- Setup user ${JSON.stringify(user)} at ${__config.influx_url} success ---`)
+        }else{
+          console.log(`--- Failed to setup user ${JSON.stringify(user)} at ${__config.influx_url} ---`);
+        }
+    }).catch(async error => {
+        console.log(`\n--- Setup user ${JSON.stringify(user)} ended in ERROR ---`);
+        console.error(error)
+    });
+/*
     await axios.post('/api/v2/setup', user).then(resp => {
         user.id = resp.data.user.id;
         user.orgid = resp.data.org.id;
         user.bucketid = resp.data.bucket.id;
-        putUser(user);
-        //console.log("DEBUG __users: " + JSON.stringify(__users, null, '\t'))
-        //console.log("DEBUG resp " + JSON.stringify(resp.data, null, '\t'))
     });
+    */
+};
+
+const setupUserDockerCLI = async(user) => {
+
+    await removeConfInDocker();
+
+    let command = `docker exec ${__config.docker_name} /usr/bin/influx setup` +
+        ` --host ${__config.influx_url}` +
+        ` -o ${user.org} -b ${user.bucket} -u ${user.username} -p ${user.password}`;
+    if(typeof user.token !== 'undefined'){
+        command = command + ` -t ${user.token}`;
+    }
+
+    command = command + ' -f';
+
+    await exec_prom(command).catch(async error => {
+        console.warn(error);
+    });
+};
+
+const setupUserCLI = async(user) => {
+
+    let configsPath = `${process.env.HOME}/.influxdbv2/configs`;
+
+    if(await fs.existsSync(configsPath)){
+        await console.log(`--- removing configs ${configsPath} ---`);
+        await fs.unlink(configsPath, async err => {
+            if(err) throw err;
+            await console.log(`--- ${configsPath} deleted ---`);
+        })
+    }
+
+    let command = `${__config.influx_path} setup` +
+        ` --host ${__config.influx_url}` +
+        ` -o ${user.org} -b ${user.bucket} -u ${user.username} -p ${user.password}`;
+    if(typeof user.token !== 'undefined'){
+        command = command + ` -t ${user.token}`;
+    }
+
+    command = command + ' -f';
+
+    exec(command, async (error, stdout, stderr) => {
+        if(error){
+            await console.error("ERROR: " + error);
+        }
+       await console.log(stdout);
+       if(stderr){
+           await console.error(stderr)
+       }
+    });
+
+};
+
+//reserved for future solutions
+const setupCloudUser = async(userName) => {
+    if(__config.config_id !== 'cloud'){
+        throw `Attempt to setup cloud user with config ${__config.config_id}`
+    }
+
+    if(userName.toUpperCase() !== 'DEFAULT'){
+        throw `${userName} not handled.  Currently only DEFAULT cloud user in e2e.conf.json is handled.`
+    }
 };
 
 // user { username: 'name', password: 'password', org; 'orgname', bucket: 'bucketname' }
@@ -126,17 +311,29 @@ const endSession = async() => {
     delete axios.defaults.headers.common['Cookie'];
 };
 
-let nowNano = new Date().getTime() * 1000000;
-
-let intervalNano = 600 * 1000 * 1000000; //10 min in nanosecs
-
-const writeData = async (org, //string
-    bucket, //string
+const writeData = async (userName, //string
     lines = ['testmeas value=300 ' + (nowNano - (3 * intervalNano)),
         'testmeas value=200 ' + (nowNano - (2 * intervalNano)),
         'testmeas value=100 ' + (nowNano - intervalNano)],
     chunkSize = 100) => {
 
+    let user = (userName === 'DEFAULT')? __defaultUser: await getUser(userName);
+
+    console.log("DEBUG __defaultUser " + JSON.stringify(user));
+
+    //const influxDB = new InfluxDB({url: __config.influx_url, token: user.token});
+
+    const writeAPI = await new InfluxDB({url: __config.influx_url, token: user.token})
+        .getWriteApi(user.org, user.bucket, 'ns');
+
+    await writeAPI.writeRecords(lines);
+
+    await writeAPI.close().catch(e => {
+        console.error(`ERROR closing write connection: ${e}`);
+        throw e;
+    })
+
+    /*
     let chunk = [];
     let chunkCt = 0;
 
@@ -153,12 +350,56 @@ const writeData = async (org, //string
         chunkCt += chunkSize;
         chunk = [];
     }
-
+*/
 };
 
-const query = async(orgID, //string
+const query = async(userName, //string
     query // string
 ) => {
+
+    let user = (userName === 'DEFAULT')? __defaultUser: await getUser(userName);
+
+    console.log("DEBUG query: " + query)
+
+
+    const queryApi = await new InfluxDB({url: __config.influx_url, token: user.token})
+        .getQueryApi(user.org);
+
+    //need to return array of strings as result
+
+    let result = [];
+    let done = false;
+
+    queryApi.queryRows(query, {
+        next(row, tableMeta) {
+            const o = tableMeta.toObject(row);
+            result.push(o);
+        },
+        error(error) {
+            console.error(error);
+            console.log('\nFinished ERROR')
+        },
+        complete() {
+            console.log('\nFinished SUCCESS');
+            done = true;
+        },
+    });
+
+    //O.K. since can't seem to use await or then() poll for result
+    let currentTime = new Date().getTime();
+    ttl = currentTime + 30;
+    while(!done  && currentTime < ttl){
+        console.log("DEBUG currentTIme " + currentTime);
+        await __wdriver.sleep(1000);
+        currentTime = new Date().getTime();
+    }
+
+    if(!done){
+        console.error("DEBUG timed out getting query result testVal")
+    }
+
+    return result;
+    /*
     return await axios({method: 'post',
         url: '/api/v2/query?orgID=' + orgID,
         data: {'query': query} }).then(async response => {
@@ -166,7 +407,7 @@ const query = async(orgID, //string
     }).catch(async err => {
         console.log('CAUGHT ERROR: ' + err);
     });
-
+   */
 
 };
 
@@ -213,12 +454,23 @@ const createBucket = async(orgId, // String
 
 //TODO - create cell and view to attach to dashboard
 const createDashboard = async(name, orgId) => {
+
+    console.log(`DEBUG createDashboard ${name} ${orgId}`);
+
+    const dbdsAPI = new DashboardsAPI(new InfluxDB({url: __config.influx_url, token: __defaultUser.token, timeout: 20000}));
+    await dbdsAPI.postDashboards({body: {name: name, orgID: orgId}}).catch(async error => {
+        console.log('--- Error Creating dashboard ---');
+        console.error(error);
+        throw error;
+    });
+
+/*
     return await axios.post('/api/v2/dashboards', { name, orgId }).then(resp => {
         return resp.data;
     }).catch(err => {
         console.log('ERROR: ' + err);
         throw(err); // rethrow it to cucumber
-    });
+    }); */
 };
 
 const getDashboards = async() => {
@@ -230,13 +482,35 @@ const getDashboards = async() => {
     });
 };
 
+const getAuthorizations = async() => {
+    return await axios.get('/api/v2/authorizations').then(resp => {
+        return resp.data;
+    }).catch(err => {
+        console.log('ERROR: ' + err);
+        throw(err);
+    });
+};
+
 // http://localhost:9999/api/v2/labels
 // {"orgID":"8576cb897e0b4ce9","name":"MyLabel","properties":{"description":"","color":"#7CE490"}}
-const createLabel = async(orgId,
+const createLabel = async(user,
     labelName,
     labelDescr,
     labelColor ) =>{
 
+    console.log("DEBUG user " + JSON.stringify(user));
+
+    const lblAPI = new LabelsAPI(new InfluxDB({url: __config.influx_url, token: user.token, timeout: 20000}));
+
+    let lblCreateReq = {body: {name: labelName, orgID: user.orgid}}; //,
+        //properties: { description: labelDescr, color: labelColor }};
+
+    await lblAPI.postLabels(lblCreateReq).catch(async error => {
+       console.log('--- Error Creating label ---');
+       console.error(error);
+       throw error;
+    });
+/*
     return await axios({
         method: 'post',
         url: '/api/v2/labels',
@@ -247,7 +521,7 @@ const createLabel = async(orgId,
     }).catch(err => {
         console.log('ERROR: ' + err);
         throw(err);
-    });
+    }); */
 };
 
 
@@ -333,7 +607,7 @@ const createAlertCheckFromFile = async(filepath, orgID) => {
 
 };
 
-const writeLineProtocolData = async (user, def) => {
+const writeLineProtocolData = async (userName, def) => {
 
     let define = JSON.parse(def);
 
@@ -361,7 +635,7 @@ const writeLineProtocolData = async (user, def) => {
         }
     }
 
-    await writeData(user.org, user.bucket, dataPoints);
+    await writeData(userName, dataPoints);
 };
 
 // sample def : { "points": 10, "measurement":"level", "start": "-60h", "algo": "hydro", "prec": "sec"}
@@ -669,6 +943,66 @@ const stopLiveDataGen = function(){
    __killLiveDataGen = true;
 };
 
+const checkNodeJSClient = async function(userName){
+
+    let user = getUser(userName.toUpperCase() === 'DEFAULT'? __defaultUser.username : userName )
+
+    const client = new InfluxDB({url: __config.influx_url, token: user.token});
+
+    //Write data
+    const writeApi = client.getWriteApi(user.org, user.bucket);
+
+    const data = 'mem,host=host1 used_percent=23.43234543'; // Line protocol string
+    await writeApi.writeRecord(data);
+
+    await writeApi
+        .close()
+        .then(() => {
+            console.log('FINISHED writing data')
+        })
+        .catch(e => {
+            console.error(e);
+            console.log('\nFinished ERROR writing data')
+        });
+
+    //Execute query
+    const queryApi = client.getQueryApi(user.org);
+
+    const query = `from(bucket: "${user.bucket}") |> range(start: -1h)`;
+    await queryApi.queryRows(query, {
+        next(row, tableMeta) {
+            const o = tableMeta.toObject(row);
+            console.log("DEBUG o " + JSON.stringify(o));
+            console.log(
+                `${o._time} ${o._measurement} in '${o.host}': ${o._field}=${o._value}`
+            )
+        },
+        error(error) {
+            console.error(error);
+            console.log('\nFinished ERROR')
+        },
+        complete() {
+            console.log('\nFinished SUCCESS')
+        },
+    })
+
+};
+
+const checkNodeJSClientAPI = async function(userName){
+
+    let user = getUser(userName.toUpperCase() === 'DEFAULT'? __defaultUser.username : userName );
+
+    console.log('------ Dashboard check  ------')
+
+    const influxDB = new InfluxDB({url: __config.influx_url, token: user.token, timeout: 20000});
+    const dbdAPI = new DashboardsAPI(influxDB);
+    let dashboards = await dbdAPI.getDashboards();
+
+    console.log("DEBUG dashboards " + JSON.stringify(dashboards));
+
+
+};
+
 module.exports = { flush,
     config,
     defaultUser,
@@ -695,8 +1029,12 @@ module.exports = { flush,
     readFileToBuffer,
     readCSV,
     createTemplateFromFile,
+    checkNodeJSClient,
+    checkNodeJSClientAPI,
+    removeConfInDocker,
     removeFileIfExists,
     removeFilesByRegex,
+    setupNewUser,
     startLiveDataGen,
     stopLiveDataGen,
     fileExists,

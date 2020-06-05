@@ -1,0 +1,24 @@
+import { AfterAll, Given, Then, When } from 'cucumber';
+const cloudSteps = require(__srcdir + '/steps/cloudSteps.js');
+
+let cSteps = new cloudSteps(__wdriver);
+
+When(/^setup default cloud user$/, async () => {
+  await cSteps.setupDefaultCloudUser();
+});
+
+When(/^I open the cloud login$/, {timeout: 30000}, async () => {
+  await cSteps.openCloudLogin();
+});
+
+When(/^log in to the cloud$/, async () => {
+  await cSteps.logInToCloud();
+});
+
+When(/^check NodeJS Client as "(.*)"$/, async userName => {
+  await cSteps.checkJavaScriptClient(userName);
+});
+
+When(/^check NodeJS API Client as "(.*)"$/, async userName => {
+  await cSteps.checkJavaScriptAPIClient(userName);
+});

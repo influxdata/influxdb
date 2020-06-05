@@ -38,16 +38,29 @@ class baseSteps{
         await this.driver.sleep(timeout);
     }
 
+    async resetEnvironment(){
+        switch(__config.deployment.toUpperCase()){
+            case 'CLOUD':
+                if(!__reportedResetOnce) console.log("---- TODO Resetting against cloud -----");
+                break;
+            case 'NIGHTLY_DOCKER':
+                if(!__reportedResetOnce) console.log("----- Resetting against nightly docker -----");
+                await influxUtils.flush();
+                break;
+            case 'LOCAL_BUILD':
+                if(!__reportedResetOnce) console.log("---- TODO Resetting against local build -----");
+                //todo review if works against local build
+                await influxUtils.flush();
+                break;
+        }
+    }
+
     async clearBrowserLocalStorage(){
         await this.driver.executeScript('window.localStorage.clear()');
     }
 
-    /* async open(url){
-        await this.driver.get(url);
-    } */
-
     async openBase(){
-        await this.driver.get( `${__config.protocol}://${__config.host}:${__config.port}/`);
+        await this.driver.get( __config.influx_url);
         await this.driver.wait(function(driver = this.driver) {
             return driver.executeScript('return document.readyState').then(function(readyState) {
                 return readyState === 'complete';
@@ -57,7 +70,7 @@ class baseSteps{
     }
 
     async openContext(ctx){
-        await this.driver.get( `${__config.protocol}://${__config.host}:${__config.port}/` + ctx);
+        await this.driver.get( `${__config.influx_url}/` + ctx);
         await this.driver.wait(function(driver = this.driver) {
             return driver.executeScript('return document.readyState').then(function(readyState) {
                 return readyState === 'complete';
