@@ -21,7 +21,7 @@
 //! Future compatibility will include Azure Blob Storage, Minio, and Ceph.
 
 use bytes::Bytes;
-use futures::{Stream, StreamExt, TryStreamExt};
+use futures::{stream, Stream, StreamExt, TryStreamExt};
 use rusoto_credential::ChainProvider;
 use rusoto_s3::S3;
 use snafu::{futures::TryStreamExt as _, OptionExt, ResultExt, Snafu};
@@ -74,10 +74,15 @@ impl ObjectStore {
     }
 
     /// List all the objects with the given prefix.
-    pub async fn list(&self, prefix: Option<&str>) -> Result<Vec<String>> {
+    pub async fn list<'a>(
+        &'a self,
+        prefix: Option<&'a str>,
+    ) -> Result<impl Stream<Item = Result<Vec<String>>> + 'a> {
         Ok(match &self.0 {
-            ObjectStoreIntegration::AmazonS3(s3) => s3.list(prefix).await?,
-            ObjectStoreIntegration::GoogleCloudStorage(gcs) => gcs.list(prefix).await?,
+            ObjectStoreIntegration::AmazonS3(s3) => s3.list(prefix).await?.err_into().boxed(),
+            ObjectStoreIntegration::GoogleCloudStorage(gcs) => {
+                gcs.list(prefix).await?.err_into().boxed()
+            }
         })
     }
 }
@@ -160,19 +165,11 @@ impl GoogleCloudStorage {
     }
 
     /// List all the objects with the given prefix.
-    async fn list(&self, prefix: Option<&str>) -> InternalResult<Vec<String>> {
-        let bucket_name = self.bucket_name.clone();
-        let prefix = prefix.map(|p| p.to_string());
-
-        let objects = tokio::task::spawn_blocking(move || match prefix {
-            Some(prefix) => cloud_storage::Object::list_prefix(&bucket_name, &prefix),
-            None => cloud_storage::Object::list(&bucket_name),
-        })
-        .await
-        .context(UnableToListDataFromGcs)?
-        .context(UnableToListDataFromGcs2)?;
-
-        Ok(objects.into_iter().map(|o| o.name).collect())
+    async fn list<'a>(
+        &'a self,
+        prefix: Option<&'a str>,
+    ) -> InternalResult<impl Stream<Item = InternalResult<Vec<String>>> + 'a> {
+        Ok(stream::empty())
     }
 }
 
@@ -267,19 +264,56 @@ impl AmazonS3 {
     }
 
     /// List all the objects with the given prefix.
-    async fn list(&self, prefix: Option<&str>) -> InternalResult<Vec<String>> {
-        let list_request = rusoto_s3::ListObjectsV2Request {
-            bucket: self.bucket_name.clone(),
-            prefix: prefix.map(ToString::to_string),
-            ..Default::default()
-        };
+    async fn list<'a>(
+        &'a self,
+        prefix: Option<&'a str>,
+    ) -> InternalResult<impl Stream<Item = InternalResult<Vec<String>>> + 'a> {
+        #[derive(Clone)]
+        enum ListState {
+            Start,
+            HasMore(String),
+            Done,
+        }
+        use ListState::*;
 
-        let resp = self.client.list_objects_v2(list_request).await?;
+        Ok(stream::unfold(ListState::Start, move |state| async move {
+            let mut list_request = rusoto_s3::ListObjectsV2Request {
+                bucket: self.bucket_name.clone(),
+                prefix: prefix.map(ToString::to_string),
+                ..Default::default()
+            };
 
-        let contents = resp.contents.unwrap_or_default();
-        let names = contents.into_iter().flat_map(|object| object.key).collect();
+            match state.clone() {
+                HasMore(continuation_token) => {
+                    list_request.continuation_token = Some(continuation_token);
+                }
+                Done => {
+                    return None;
+                }
+                // If this is the first request we've made, we don't need to make any modifications
+                // to the request
+                Start => {}
+            }
 
-        Ok(names)
+            let resp = match self.client.list_objects_v2(list_request).await {
+                Ok(resp) => resp,
+                Err(e) => return Some((Err(e.into()), state)),
+            };
+
+            let contents = resp.contents.unwrap_or_default();
+            let names = contents.into_iter().flat_map(|object| object.key).collect();
+
+            // The AWS response contains a field named `is_truncated` as well as
+            // `next_continuation_token`, and we're assuming that `next_continuation_token` is only
+            // set when `is_truncated` is true (and therefore not checking `is_truncated`).
+            let next_state = if let Some(next_continuation_token) = resp.next_continuation_token {
+                ListState::HasMore(next_continuation_token)
+            } else {
+                ListState::Done
+            };
+
+            Some((Ok(names), next_state))
+        }))
     }
 }
 
@@ -372,8 +406,21 @@ mod tests {
     type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
     type Result<T, E = Error> = std::result::Result<T, E>;
 
+    async fn flatten_list_stream(
+        storage: &ObjectStore,
+        prefix: Option<&str>,
+    ) -> Result<Vec<String>> {
+        storage
+            .list(prefix)
+            .await?
+            .map_ok(|v| stream::iter(v).map(Ok))
+            .try_flatten()
+            .try_collect()
+            .await
+    }
+
     async fn put_get_delete_list(storage: &ObjectStore) -> Result<()> {
-        let content_list = storage.list(None).await?;
+        let content_list = flatten_list_stream(storage, None).await?;
         assert!(content_list.is_empty());
 
         let data = Bytes::from("arbitrary data");
@@ -385,15 +432,15 @@ mod tests {
             .await?;
 
         // List everything
-        let content_list = storage.list(None).await?;
+        let content_list = flatten_list_stream(storage, None).await?;
         assert_eq!(content_list, &[location]);
 
         // List everything starting with a prefix that should return results
-        let content_list = storage.list(Some("test")).await?;
+        let content_list = flatten_list_stream(storage, Some("test")).await?;
         assert_eq!(content_list, &[location]);
 
         // List everything starting with a prefix that shouldn't return results
-        let content_list = storage.list(Some("something")).await?;
+        let content_list = flatten_list_stream(storage, Some("something")).await?;
         assert!(content_list.is_empty());
 
         let read_data = storage
@@ -406,7 +453,7 @@ mod tests {
 
         storage.delete(location).await?;
 
-        let content_list = storage.list(None).await?;
+        let content_list = flatten_list_stream(storage, None).await?;
         assert!(content_list.is_empty());
 
         Ok(())
