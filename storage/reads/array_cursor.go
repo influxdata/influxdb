@@ -63,15 +63,15 @@ func newSumArrayCursor(cur cursors.Cursor) cursors.Cursor {
 func newCountArrayCursor(cur cursors.Cursor) cursors.Cursor {
 	switch cur := cur.(type) {
 	case cursors.FloatArrayCursor:
-		return newIntegerFloatCountArrayCursor(cur)
+		return newFloatCountArrayCursor(cur)
 	case cursors.IntegerArrayCursor:
-		return newIntegerIntegerCountArrayCursor(cur)
+		return newIntegerCountArrayCursor(cur)
 	case cursors.UnsignedArrayCursor:
-		return newIntegerUnsignedCountArrayCursor(cur)
+		return newUnsignedCountArrayCursor(cur)
 	case cursors.StringArrayCursor:
-		return newIntegerStringCountArrayCursor(cur)
+		return newStringCountArrayCursor(cur)
 	case cursors.BooleanArrayCursor:
-		return newIntegerBooleanCountArrayCursor(cur)
+		return newBooleanCountArrayCursor(cur)
 	default:
 		panic(fmt.Sprintf("unreachable: %T", cur))
 	}
@@ -85,15 +85,15 @@ func newWindowCountArrayCursor(cur cursors.Cursor, req *datatypes.ReadWindowAggr
 	}
 	switch cur := cur.(type) {
 	case cursors.FloatArrayCursor:
-		return newIntegerFloatWindowCountArrayCursor(cur, req.WindowEvery)
+		return newFloatWindowCountArrayCursor(cur, req.WindowEvery)
 	case cursors.IntegerArrayCursor:
-		return newIntegerIntegerWindowCountArrayCursor(cur, req.WindowEvery)
+		return newIntegerWindowCountArrayCursor(cur, req.WindowEvery)
 	case cursors.UnsignedArrayCursor:
-		return newIntegerUnsignedWindowCountArrayCursor(cur, req.WindowEvery)
+		return newUnsignedWindowCountArrayCursor(cur, req.WindowEvery)
 	case cursors.StringArrayCursor:
-		return newIntegerStringWindowCountArrayCursor(cur, req.WindowEvery)
+		return newStringWindowCountArrayCursor(cur, req.WindowEvery)
 	case cursors.BooleanArrayCursor:
-		return newIntegerBooleanWindowCountArrayCursor(cur, req.WindowEvery)
+		return newBooleanWindowCountArrayCursor(cur, req.WindowEvery)
 	default:
 		panic(fmt.Sprintf("unreachable: %T", cur))
 	}

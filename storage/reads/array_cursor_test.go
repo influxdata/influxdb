@@ -296,6 +296,21 @@ func TestIntegerIntegerCountArrayCursor(t *testing.T) {
 				makeIntegerArray(1, maxTimestamp, 40*time.Minute, func(int64) int64 { return 120 }),
 			},
 		},
+		{
+			name: "whole series, with max int64 timestamp",
+			inputArrays: []*cursors.IntegerArray{
+				{
+					Timestamps: []int64{math.MaxInt64},
+					Values:     []int64{0},
+				},
+			},
+			want: []*cursors.IntegerArray{
+				{
+					Timestamps: []int64{math.MaxInt64},
+					Values:     []int64{1},
+				},
+			},
+		},
 	}
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -313,7 +328,7 @@ func TestIntegerIntegerCountArrayCursor(t *testing.T) {
 					return &cursors.IntegerArray{}
 				},
 			}
-			countArrayCursor := newIntegerIntegerWindowCountArrayCursor(mc, int64(tc.every))
+			countArrayCursor := newIntegerWindowCountArrayCursor(mc, int64(tc.every))
 			got := make([]*cursors.IntegerArray, 0, len(tc.want))
 			for a := countArrayCursor.Next(); a.Len() != 0; a = countArrayCursor.Next() {
 				got = append(got, copyIntegerArray(a))
@@ -327,7 +342,7 @@ func TestIntegerIntegerCountArrayCursor(t *testing.T) {
 }
 
 func TestNewCountArrayCursor(t *testing.T) {
-	want := &integerIntegerWindowCountArrayCursor{
+	want := &integerWindowCountArrayCursor{
 		IntegerArrayCursor: &MockIntegerArrayCursor{},
 		res:                cursors.NewIntegerArrayLen(1),
 		tmp:                &cursors.IntegerArray{},
@@ -335,14 +350,14 @@ func TestNewCountArrayCursor(t *testing.T) {
 
 	got := newCountArrayCursor(&MockIntegerArrayCursor{})
 
-	if diff := cmp.Diff(got, want, cmp.AllowUnexported(integerIntegerWindowCountArrayCursor{})); diff != "" {
+	if diff := cmp.Diff(got, want, cmp.AllowUnexported(integerWindowCountArrayCursor{})); diff != "" {
 		t.Fatalf("did not get expected cursor; -got/+want:\n%v", diff)
 	}
 }
 
 func TestNewWindowCountArrayCursor(t *testing.T) {
 	t.Run("hour window", func(t *testing.T) {
-		want := &integerIntegerWindowCountArrayCursor{
+		want := &integerWindowCountArrayCursor{
 			IntegerArrayCursor: &MockIntegerArrayCursor{},
 			every:              int64(time.Hour),
 			res:                cursors.NewIntegerArrayLen(MaxPointsPerBlock),
@@ -354,13 +369,13 @@ func TestNewWindowCountArrayCursor(t *testing.T) {
 		}
 		got := newWindowCountArrayCursor(&MockIntegerArrayCursor{}, req)
 
-		if diff := cmp.Diff(got, want, cmp.AllowUnexported(integerIntegerWindowCountArrayCursor{})); diff != "" {
+		if diff := cmp.Diff(got, want, cmp.AllowUnexported(integerWindowCountArrayCursor{})); diff != "" {
 			t.Fatalf("did not get expected cursor; -got/+want:\n%v", diff)
 		}
 	})
 
 	t.Run("count whole series", func(t *testing.T) {
-		want := &integerIntegerWindowCountArrayCursor{
+		want := &integerWindowCountArrayCursor{
 			IntegerArrayCursor: &MockIntegerArrayCursor{},
 			every:              0,
 			res:                cursors.NewIntegerArrayLen(1),
@@ -372,7 +387,7 @@ func TestNewWindowCountArrayCursor(t *testing.T) {
 		}
 		got := newWindowCountArrayCursor(&MockIntegerArrayCursor{}, req)
 
-		if diff := cmp.Diff(got, want, cmp.AllowUnexported(integerIntegerWindowCountArrayCursor{})); diff != "" {
+		if diff := cmp.Diff(got, want, cmp.AllowUnexported(integerWindowCountArrayCursor{})); diff != "" {
 			t.Fatalf("did not get expected cursor; -got/+want:\n%v", diff)
 		}
 	})

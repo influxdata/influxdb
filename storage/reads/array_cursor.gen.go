@@ -201,19 +201,19 @@ func (c floatArraySumCursor) Next() *cursors.FloatArray {
 	}
 }
 
-type integerFloatWindowCountArrayCursor struct {
+type floatWindowCountArrayCursor struct {
 	cursors.FloatArrayCursor
 	every int64
 	res   *cursors.IntegerArray
 	tmp   *cursors.FloatArray
 }
 
-func newIntegerFloatWindowCountArrayCursor(cur cursors.FloatArrayCursor, every int64) *integerFloatWindowCountArrayCursor {
+func newFloatWindowCountArrayCursor(cur cursors.FloatArrayCursor, every int64) *floatWindowCountArrayCursor {
 	resLen := MaxPointsPerBlock
 	if every == 0 {
 		resLen = 1
 	}
-	return &integerFloatWindowCountArrayCursor{
+	return &floatWindowCountArrayCursor{
 		FloatArrayCursor: cur,
 		every:            every,
 		res:              cursors.NewIntegerArrayLen(resLen),
@@ -221,16 +221,16 @@ func newIntegerFloatWindowCountArrayCursor(cur cursors.FloatArrayCursor, every i
 	}
 }
 
-func newIntegerFloatCountArrayCursor(cur cursors.FloatArrayCursor) *integerFloatWindowCountArrayCursor {
+func newFloatCountArrayCursor(cur cursors.FloatArrayCursor) *floatWindowCountArrayCursor {
 	// zero means aggregate over the whole series
-	return newIntegerFloatWindowCountArrayCursor(cur, 0)
+	return newFloatWindowCountArrayCursor(cur, 0)
 }
 
-func (c *integerFloatWindowCountArrayCursor) Stats() cursors.CursorStats {
+func (c *floatWindowCountArrayCursor) Stats() cursors.CursorStats {
 	return c.FloatArrayCursor.Stats()
 }
 
-func (c *integerFloatWindowCountArrayCursor) Next() *cursors.IntegerArray {
+func (c *floatWindowCountArrayCursor) Next() *cursors.IntegerArray {
 	pos := 0
 	c.res.Timestamps = c.res.Timestamps[:cap(c.res.Timestamps)]
 	c.res.Values = c.res.Values[:cap(c.res.Values)]
@@ -511,19 +511,19 @@ func (c integerArraySumCursor) Next() *cursors.IntegerArray {
 	}
 }
 
-type integerIntegerWindowCountArrayCursor struct {
+type integerWindowCountArrayCursor struct {
 	cursors.IntegerArrayCursor
 	every int64
 	res   *cursors.IntegerArray
 	tmp   *cursors.IntegerArray
 }
 
-func newIntegerIntegerWindowCountArrayCursor(cur cursors.IntegerArrayCursor, every int64) *integerIntegerWindowCountArrayCursor {
+func newIntegerWindowCountArrayCursor(cur cursors.IntegerArrayCursor, every int64) *integerWindowCountArrayCursor {
 	resLen := MaxPointsPerBlock
 	if every == 0 {
 		resLen = 1
 	}
-	return &integerIntegerWindowCountArrayCursor{
+	return &integerWindowCountArrayCursor{
 		IntegerArrayCursor: cur,
 		every:              every,
 		res:                cursors.NewIntegerArrayLen(resLen),
@@ -531,16 +531,16 @@ func newIntegerIntegerWindowCountArrayCursor(cur cursors.IntegerArrayCursor, eve
 	}
 }
 
-func newIntegerIntegerCountArrayCursor(cur cursors.IntegerArrayCursor) *integerIntegerWindowCountArrayCursor {
+func newIntegerCountArrayCursor(cur cursors.IntegerArrayCursor) *integerWindowCountArrayCursor {
 	// zero means aggregate over the whole series
-	return newIntegerIntegerWindowCountArrayCursor(cur, 0)
+	return newIntegerWindowCountArrayCursor(cur, 0)
 }
 
-func (c *integerIntegerWindowCountArrayCursor) Stats() cursors.CursorStats {
+func (c *integerWindowCountArrayCursor) Stats() cursors.CursorStats {
 	return c.IntegerArrayCursor.Stats()
 }
 
-func (c *integerIntegerWindowCountArrayCursor) Next() *cursors.IntegerArray {
+func (c *integerWindowCountArrayCursor) Next() *cursors.IntegerArray {
 	pos := 0
 	c.res.Timestamps = c.res.Timestamps[:cap(c.res.Timestamps)]
 	c.res.Values = c.res.Values[:cap(c.res.Values)]
@@ -821,19 +821,19 @@ func (c unsignedArraySumCursor) Next() *cursors.UnsignedArray {
 	}
 }
 
-type integerUnsignedWindowCountArrayCursor struct {
+type unsignedWindowCountArrayCursor struct {
 	cursors.UnsignedArrayCursor
 	every int64
 	res   *cursors.IntegerArray
 	tmp   *cursors.UnsignedArray
 }
 
-func newIntegerUnsignedWindowCountArrayCursor(cur cursors.UnsignedArrayCursor, every int64) *integerUnsignedWindowCountArrayCursor {
+func newUnsignedWindowCountArrayCursor(cur cursors.UnsignedArrayCursor, every int64) *unsignedWindowCountArrayCursor {
 	resLen := MaxPointsPerBlock
 	if every == 0 {
 		resLen = 1
 	}
-	return &integerUnsignedWindowCountArrayCursor{
+	return &unsignedWindowCountArrayCursor{
 		UnsignedArrayCursor: cur,
 		every:               every,
 		res:                 cursors.NewIntegerArrayLen(resLen),
@@ -841,16 +841,16 @@ func newIntegerUnsignedWindowCountArrayCursor(cur cursors.UnsignedArrayCursor, e
 	}
 }
 
-func newIntegerUnsignedCountArrayCursor(cur cursors.UnsignedArrayCursor) *integerUnsignedWindowCountArrayCursor {
+func newUnsignedCountArrayCursor(cur cursors.UnsignedArrayCursor) *unsignedWindowCountArrayCursor {
 	// zero means aggregate over the whole series
-	return newIntegerUnsignedWindowCountArrayCursor(cur, 0)
+	return newUnsignedWindowCountArrayCursor(cur, 0)
 }
 
-func (c *integerUnsignedWindowCountArrayCursor) Stats() cursors.CursorStats {
+func (c *unsignedWindowCountArrayCursor) Stats() cursors.CursorStats {
 	return c.UnsignedArrayCursor.Stats()
 }
 
-func (c *integerUnsignedWindowCountArrayCursor) Next() *cursors.IntegerArray {
+func (c *unsignedWindowCountArrayCursor) Next() *cursors.IntegerArray {
 	pos := 0
 	c.res.Timestamps = c.res.Timestamps[:cap(c.res.Timestamps)]
 	c.res.Values = c.res.Values[:cap(c.res.Values)]
@@ -1091,19 +1091,19 @@ func (c *stringArrayCursor) nextArrayCursor() bool {
 	return ok
 }
 
-type integerStringWindowCountArrayCursor struct {
+type stringWindowCountArrayCursor struct {
 	cursors.StringArrayCursor
 	every int64
 	res   *cursors.IntegerArray
 	tmp   *cursors.StringArray
 }
 
-func newIntegerStringWindowCountArrayCursor(cur cursors.StringArrayCursor, every int64) *integerStringWindowCountArrayCursor {
+func newStringWindowCountArrayCursor(cur cursors.StringArrayCursor, every int64) *stringWindowCountArrayCursor {
 	resLen := MaxPointsPerBlock
 	if every == 0 {
 		resLen = 1
 	}
-	return &integerStringWindowCountArrayCursor{
+	return &stringWindowCountArrayCursor{
 		StringArrayCursor: cur,
 		every:             every,
 		res:               cursors.NewIntegerArrayLen(resLen),
@@ -1111,16 +1111,16 @@ func newIntegerStringWindowCountArrayCursor(cur cursors.StringArrayCursor, every
 	}
 }
 
-func newIntegerStringCountArrayCursor(cur cursors.StringArrayCursor) *integerStringWindowCountArrayCursor {
+func newStringCountArrayCursor(cur cursors.StringArrayCursor) *stringWindowCountArrayCursor {
 	// zero means aggregate over the whole series
-	return newIntegerStringWindowCountArrayCursor(cur, 0)
+	return newStringWindowCountArrayCursor(cur, 0)
 }
 
-func (c *integerStringWindowCountArrayCursor) Stats() cursors.CursorStats {
+func (c *stringWindowCountArrayCursor) Stats() cursors.CursorStats {
 	return c.StringArrayCursor.Stats()
 }
 
-func (c *integerStringWindowCountArrayCursor) Next() *cursors.IntegerArray {
+func (c *stringWindowCountArrayCursor) Next() *cursors.IntegerArray {
 	pos := 0
 	c.res.Timestamps = c.res.Timestamps[:cap(c.res.Timestamps)]
 	c.res.Values = c.res.Values[:cap(c.res.Values)]
@@ -1361,19 +1361,19 @@ func (c *booleanArrayCursor) nextArrayCursor() bool {
 	return ok
 }
 
-type integerBooleanWindowCountArrayCursor struct {
+type booleanWindowCountArrayCursor struct {
 	cursors.BooleanArrayCursor
 	every int64
 	res   *cursors.IntegerArray
 	tmp   *cursors.BooleanArray
 }
 
-func newIntegerBooleanWindowCountArrayCursor(cur cursors.BooleanArrayCursor, every int64) *integerBooleanWindowCountArrayCursor {
+func newBooleanWindowCountArrayCursor(cur cursors.BooleanArrayCursor, every int64) *booleanWindowCountArrayCursor {
 	resLen := MaxPointsPerBlock
 	if every == 0 {
 		resLen = 1
 	}
-	return &integerBooleanWindowCountArrayCursor{
+	return &booleanWindowCountArrayCursor{
 		BooleanArrayCursor: cur,
 		every:              every,
 		res:                cursors.NewIntegerArrayLen(resLen),
@@ -1381,16 +1381,16 @@ func newIntegerBooleanWindowCountArrayCursor(cur cursors.BooleanArrayCursor, eve
 	}
 }
 
-func newIntegerBooleanCountArrayCursor(cur cursors.BooleanArrayCursor) *integerBooleanWindowCountArrayCursor {
+func newBooleanCountArrayCursor(cur cursors.BooleanArrayCursor) *booleanWindowCountArrayCursor {
 	// zero means aggregate over the whole series
-	return newIntegerBooleanWindowCountArrayCursor(cur, 0)
+	return newBooleanWindowCountArrayCursor(cur, 0)
 }
 
-func (c *integerBooleanWindowCountArrayCursor) Stats() cursors.CursorStats {
+func (c *booleanWindowCountArrayCursor) Stats() cursors.CursorStats {
 	return c.BooleanArrayCursor.Stats()
 }
 
-func (c *integerBooleanWindowCountArrayCursor) Next() *cursors.IntegerArray {
+func (c *booleanWindowCountArrayCursor) Next() *cursors.IntegerArray {
 	pos := 0
 	c.res.Timestamps = c.res.Timestamps[:cap(c.res.Timestamps)]
 	c.res.Values = c.res.Values[:cap(c.res.Values)]
