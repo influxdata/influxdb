@@ -8,6 +8,7 @@ import (
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
+	"github.com/opentracing/opentracing-go"
 )
 
 type Entity struct {
@@ -123,12 +124,14 @@ func NewStoreBase(resource string, bktName []byte, encKeyFn, encBodyFn EncodeEnt
 // EntKey returns the key for the entity provided. This is a shortcut for grabbing the EntKey without
 // having to juggle the encoding funcs.
 func (s *StoreBase) EntKey(ctx context.Context, ent Entity) ([]byte, error) {
+	span, ctx := s.startSpan(ctx)
+	defer span.Finish()
 	return s.encodeEnt(ctx, ent, s.EncodeEntKeyFn)
 }
 
 // Init creates the buckets.
 func (s *StoreBase) Init(ctx context.Context, tx Tx) error {
-	span, ctx := tracing.StartSpanFromContextWithOperationName(ctx, "bucket_"+string(s.BktName))
+	span, ctx := s.startSpan(ctx)
 	defer span.Finish()
 
 	if _, err := s.bucket(ctx, tx); err != nil {
@@ -158,7 +161,7 @@ type (
 
 // Delete deletes entities by the provided options.
 func (s *StoreBase) Delete(ctx context.Context, tx Tx, opts DeleteOpts) error {
-	span, ctx := tracing.StartSpanFromContext(ctx)
+	span, ctx := s.startSpan(ctx)
 	defer span.Finish()
 
 	if opts.FilterFn == nil {
@@ -181,7 +184,7 @@ func (s *StoreBase) Delete(ctx context.Context, tx Tx, opts DeleteOpts) error {
 
 // DeleteEnt deletes an entity.
 func (s *StoreBase) DeleteEnt(ctx context.Context, tx Tx, ent Entity) error {
-	span, ctx := tracing.StartSpanFromContext(ctx)
+	span, ctx := s.startSpan(ctx)
 	defer span.Finish()
 
 	encodedID, err := s.EntKey(ctx, ent)
@@ -221,7 +224,7 @@ type (
 // the set options. When a prefix is provided, the prefix is used to
 // seek the bucket.
 func (s *StoreBase) Find(ctx context.Context, tx Tx, opts FindOpts) error {
-	span, ctx := tracing.StartSpanFromContext(ctx)
+	span, ctx := s.startSpan(ctx)
 	defer span.Finish()
 
 	ctx, cancel := context.WithCancel(ctx)
@@ -257,7 +260,7 @@ func (s *StoreBase) Find(ctx context.Context, tx Tx, opts FindOpts) error {
 // An example entity should not include a Body, but rather the ID,
 // Name, or OrgID.
 func (s *StoreBase) FindEnt(ctx context.Context, tx Tx, ent Entity) (interface{}, error) {
-	span, ctx := tracing.StartSpanFromContext(ctx)
+	span, ctx := s.startSpan(ctx)
 	defer span.Finish()
 
 	encodedID, err := s.EntKey(ctx, ent)
@@ -305,7 +308,7 @@ func PutUpdate() PutOptionFn {
 
 // Put will persist the entity.
 func (s *StoreBase) Put(ctx context.Context, tx Tx, ent Entity, opts ...PutOptionFn) error {
-	span, ctx := tracing.StartSpanFromContext(ctx)
+	span, ctx := s.startSpan(ctx)
 	defer span.Finish()
 
 	var opt putOption
@@ -336,6 +339,9 @@ func (s *StoreBase) Put(ctx context.Context, tx Tx, ent Entity, opts ...PutOptio
 }
 
 func (s *StoreBase) putValidate(ctx context.Context, tx Tx, ent Entity, opt putOption) error {
+	span, ctx := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
 	if !opt.isUpdate && !opt.isNew {
 		return nil
 	}
@@ -493,6 +499,13 @@ func (s *StoreBase) encodeEnt(ctx context.Context, ent Entity, fn EncodeEntFn) (
 		}
 	}
 	return encoded, nil
+}
+
+func (s *StoreBase) startSpan(ctx context.Context) (opentracing.Span, context.Context) {
+	span, ctx := tracing.StartSpanFromContext(ctx)
+	span.SetTag("Bucket", string(s.BktName))
+	span.SetTag("Resource", s.Resource)
+	return span, ctx
 }
 
 type iterator struct {
