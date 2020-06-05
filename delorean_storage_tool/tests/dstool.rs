@@ -23,7 +23,7 @@ mod dstool_tests {
         let mut cmd = Command::cargo_bin("dstool").unwrap();
         let assert = cmd
             .arg("convert")
-            .arg("../tests/fixtures/lineproto/temperature.txt")
+            .arg("../tests/fixtures/lineproto/temperature.lp")
             .arg("/tmp/out.parquet")
             .assert();
 

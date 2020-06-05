@@ -88,8 +88,8 @@ fn main() {
     let help = r#"Delorean Storage Tool
 
 Examples:
-    # converts line protocol formatted data in temperature.txt to out.parquet
-    dstool convert temperature.txt out.parquet
+    # converts line protocol formatted data in temperature.lp to out.parquet
+    dstool convert temperature.lp out.parquet
 
 "#;
 
