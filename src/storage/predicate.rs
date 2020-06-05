@@ -1,7 +1,9 @@
-use crate::delorean::node::Logical;
-use crate::delorean::node::{Comparison, Value};
-use crate::delorean::{node, Node, Predicate};
+use crate::generated_types::{
+    node::{self, Comparison, Logical, Value},
+    Node, Predicate,
+};
 use crate::storage::StorageError;
+
 use croaring::Treemap;
 use std::iter::Peekable;
 use std::str::Chars;

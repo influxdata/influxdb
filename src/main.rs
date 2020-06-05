@@ -3,7 +3,7 @@
 #[macro_use]
 extern crate log;
 
-use delorean::delorean::{
+use delorean::generated_types::{
     delorean_server::DeloreanServer, storage_server::StorageServer, Bucket, TimestampRange,
 };
 use delorean::id::Id;

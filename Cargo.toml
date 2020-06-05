@@ -11,6 +11,7 @@ members = [
     "delorean_line_parser",
     "delorean_storage_tool",
     "delorean_test_helpers",
+    "delorean_generated_types",
     "delorean_utilities",
     "delorean_wal",
     "line_protocol_schema",
@@ -22,6 +23,7 @@ debug = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+delorean_generated_types = { path = "delorean_generated_types" }
 delorean_line_parser = { path = "delorean_line_parser" }
 delorean_wal = { path = "delorean_wal" }
 
@@ -80,7 +82,3 @@ harness = false
 [[bench]]
 name = "line_parser"
 harness = false
-
-[build-dependencies]
-tonic-build = "0.2.0"
-rand = "0.7.2"

@@ -14,7 +14,7 @@ use std::u64;
 /// Iterating over the TSM index.
 ///
 /// ```
-/// # use crate::delorean::storage::tsm::*;
+/// # use delorean::storage::tsm::*;
 /// # use libflate::gzip;
 /// # use std::fs::File;
 /// # use std::io::BufReader;
@@ -47,7 +47,7 @@ use std::u64;
 /// Decoding a block.
 ///
 /// ```
-/// # use crate::delorean::storage::tsm::*;
+/// # use delorean::storage::tsm::*;
 /// # use libflate::gzip;
 /// # use std::fs::File;
 /// # use std::io::BufReader;

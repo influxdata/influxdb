@@ -1,4 +1,4 @@
-use crate::delorean::{Node, Predicate, TimestampRange};
+use crate::generated_types::{Node, Predicate, TimestampRange};
 use crate::line_parser::{self, index_pairs, Point, PointType};
 use crate::storage::partitioned_store::{ReadBatch, ReadValues};
 use crate::storage::predicate::{Evaluate, EvaluateVisitor};

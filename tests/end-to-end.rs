@@ -16,6 +16,17 @@
 // - Stopping the server after all relevant tests are run
 
 use assert_cmd::prelude::*;
+use delorean_generated_types::{
+    delorean_client::DeloreanClient,
+    node::{Comparison, Value},
+    read_group_request::Group,
+    read_response::{frame::Data, DataType},
+    storage_client::StorageClient,
+    Bucket, CreateBucketRequest, MeasurementFieldsRequest, MeasurementNamesRequest,
+    MeasurementTagKeysRequest, MeasurementTagValuesRequest, Node, Organization, Predicate,
+    ReadFilterRequest, ReadGroupRequest, ReadSource, Tag, TagKeysRequest, TagValuesRequest,
+    TimestampRange,
+};
 use delorean_test_helpers::*;
 use futures::prelude::*;
 use prost::Message;
@@ -28,22 +39,6 @@ use tempfile::TempDir;
 
 const URL_BASE: &str = "http://localhost:8080/api/v2";
 const GRPC_URL_BASE: &str = "http://localhost:8082/";
-
-mod grpc {
-    tonic::include_proto!("influxdata.platform.storage");
-}
-
-use grpc::{
-    delorean_client::DeloreanClient,
-    node::{Comparison, Value},
-    read_group_request::Group,
-    read_response::{frame::Data, DataType},
-    storage_client::StorageClient,
-    Bucket, CreateBucketRequest, MeasurementFieldsRequest, MeasurementNamesRequest,
-    MeasurementTagKeysRequest, MeasurementTagValuesRequest, Node, Organization, Predicate,
-    ReadFilterRequest, ReadGroupRequest, ReadSource, Tag, TagKeysRequest, TagValuesRequest,
-    TimestampRange,
-};
 
 type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
 type Result<T, E = Error> = std::result::Result<T, E>;

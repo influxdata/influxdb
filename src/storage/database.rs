@@ -1,4 +1,4 @@
-use crate::delorean::{Bucket, Predicate, TimestampRange};
+use crate::generated_types::{Bucket, Predicate, TimestampRange};
 use crate::id::Id;
 use crate::line_parser::PointType;
 use crate::storage::{

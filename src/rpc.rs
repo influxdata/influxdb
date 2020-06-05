@@ -1,4 +1,4 @@
-use delorean::delorean::{
+use delorean::generated_types::{
     delorean_server::Delorean,
     measurement_fields_response::MessageField,
     read_response::{
