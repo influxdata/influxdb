@@ -1,10 +1,29 @@
-.notebook-visualization {
-    min-height: 250px;
+@import '@influxdata/clockface/dist/variables.scss';
 
-    .empty-graph-error {
-        height: 200px;
-    }
-    .time-machine-tables {
-        height: 200px;
-    }
+.notebook-visualization {
+  background-color: $g2-kevlar;
+  border-radius: $cf-radius;
+  border: $cf-border solid $g2-kevlar;
+  display: flex;
+  align-items: stretch;
+}
+
+.notebook-visualization--header {
+  width: 47px;
+  flex: 0 0 47px;
+}
+
+.notebook-visualization--view {
+  flex: 1 0 0;
+  border-radius: $cf-radius - 1px;
+  background-color: $g0-obsidian;
+  min-height: 200px;
+  padding: $cf-marg-b + $cf-marg-a;
+
+  .empty-graph-error {
+    height: 200px;
+  }
+  .time-machine-tables {
+    height: 200px;
+  }
 }

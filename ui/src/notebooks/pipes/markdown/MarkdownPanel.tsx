@@ -9,10 +9,19 @@ import {MarkdownMode} from './'
 import MarkdownModeToggle from './MarkdownModeToggle'
 import MarkdownMonacoEditor from 'src/shared/components/MarkdownMonacoEditor'
 import {MarkdownRenderer} from 'src/shared/components/views/MarkdownRenderer'
+import {ClickOutside} from '@influxdata/clockface'
 
 const MarkdownPanel: FC<PipeProp> = ({data, Context, onUpdate}) => {
   const handleToggleMode = (mode: MarkdownMode): void => {
     onUpdate({mode})
+  }
+
+  const handleClickOutside = (): void => {
+    onUpdate({mode: 'preview'})
+  }
+
+  const handlePreviewClick = (): void => {
+    onUpdate({mode: 'edit'})
   }
 
   const controls = (
@@ -24,16 +33,21 @@ const MarkdownPanel: FC<PipeProp> = ({data, Context, onUpdate}) => {
   }
 
   let panelContents = (
-    <MarkdownMonacoEditor
-      script={data.text}
-      onChangeScript={handleChange}
-      autogrow
-    />
+    <ClickOutside onClickOutside={handleClickOutside}>
+      <MarkdownMonacoEditor
+        script={data.text}
+        onChangeScript={handleChange}
+        autogrow
+      />
+    </ClickOutside>
   )
 
   if (data.mode === 'preview') {
     panelContents = (
-      <div className="notebook-panel--markdown markdown-format">
+      <div
+        className="notebook-panel--markdown markdown-format"
+        onClick={handlePreviewClick}
+      >
         <MarkdownRenderer text={data.text} />
       </div>
     )
