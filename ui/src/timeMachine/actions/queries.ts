@@ -110,7 +110,14 @@ const isFromBucket = (node: Node) => {
   )
 }
 
-export const executeQueries = () => async (dispatch, getState: GetState) => {
+export const setQueryToLoading = () => dispatch => {
+  dispatch(setQueryResults(RemoteDataState.Loading, [], null))
+}
+
+export const executeQueries = (abortController?: AbortController) => async (
+  dispatch,
+  getState: GetState
+) => {
   reportSimpleQueryPerformanceEvent('executeQueries function start')
 
   const state = getState()
@@ -160,9 +167,8 @@ export const executeQueries = () => async (dispatch, getState: GetState) => {
 
       const extern = buildVarsOption(variableAssignments)
 
-      return runQuery(orgID, text, extern)
+      return runQuery(orgID, text, extern, abortController)
     })
-
     const results = await Promise.all(pendingResults.map(r => r.promise))
     reportSimpleQueryPerformanceEvent('executeQueries queries end')
 
@@ -209,13 +215,14 @@ export const executeQueries = () => async (dispatch, getState: GetState) => {
       setQueryResults(RemoteDataState.Done, files, duration, null, statuses)
     )
     reportSimpleQueryPerformanceEvent('executeQueries function start')
-  } catch (e) {
-    if (e.name === 'CancellationError') {
+  } catch (error) {
+    if (error.name === 'CancellationError') {
+      dispatch(setQueryResults(RemoteDataState.Done, null, null))
       return
     }
 
-    console.error(e)
-    dispatch(setQueryResults(RemoteDataState.Error, null, null, e.message))
+    console.error(error)
+    dispatch(setQueryResults(RemoteDataState.Error, null, null, error.message))
   }
 }
 
@@ -227,9 +234,11 @@ const saveDraftQueries = (): SaveDraftQueriesAction => ({
   type: 'SAVE_DRAFT_QUERIES',
 })
 
-export const saveAndExecuteQueries = () => dispatch => {
+export const saveAndExecuteQueries = (
+  abortController?: AbortController
+) => dispatch => {
   dispatch(saveDraftQueries())
-  dispatch(executeQueries())
+  dispatch(executeQueries(abortController))
 }
 
 export const executeCheckQuery = () => async (dispatch, getState: GetState) => {
