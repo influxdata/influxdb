@@ -135,25 +135,35 @@ func (s *SpanTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	return s.base.RoundTrip(r)
 }
 
-func httpClient(scheme string, insecure bool) *http.Client {
-	tr := &http.Transport{
+// DefaultTransport wraps http.DefaultTransport in SpanTransport to inject
+// tracing headers into all outgoing requests.
+var DefaultTransport http.RoundTripper = &SpanTransport{base: http.DefaultTransport}
+
+// DefaultTransportInsecure is identical to DefaultTransport, with
+// the exception that tls.Config is configured with InsecureSkipVerify
+// set to true.
+var DefaultTransportInsecure http.RoundTripper = &SpanTransport{
+	base: &http.Transport{
 		Proxy: http.ProxyFromEnvironment,
 		DialContext: (&net.Dialer{
 			Timeout:   30 * time.Second,
 			KeepAlive: 30 * time.Second,
 			DualStack: true,
 		}).DialContext,
+		ForceAttemptHTTP2:     true,
 		MaxIdleConns:          100,
 		IdleConnTimeout:       90 * time.Second,
 		TLSHandshakeTimeout:   10 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
-	}
-	if scheme == "https" && insecure {
-		tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
-	}
-	return &http.Client{
-		Transport: &SpanTransport{
-			base: tr,
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: true,
 		},
+	},
+}
+
+func httpClient(scheme string, insecure bool) *http.Client {
+	if scheme == "https" && insecure {
+		return &http.Client{Transport: DefaultTransportInsecure}
 	}
+	return &http.Client{Transport: DefaultTransport}
 }
