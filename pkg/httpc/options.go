@@ -138,23 +138,29 @@ func WithWriterGZIP() ClientOptFn {
 	})
 }
 
+// DefaultTransportInsecure is identical to http.DefaultTransport, with
+// the exception that tls.Config is configured with InsecureSkipVerify
+// set to true.
+var DefaultTransportInsecure http.RoundTripper = &http.Transport{
+	Proxy: http.ProxyFromEnvironment,
+	DialContext: (&net.Dialer{
+		Timeout:   30 * time.Second,
+		KeepAlive: 30 * time.Second,
+		DualStack: true,
+	}).DialContext,
+	ForceAttemptHTTP2:     true,
+	MaxIdleConns:          100,
+	IdleConnTimeout:       90 * time.Second,
+	TLSHandshakeTimeout:   10 * time.Second,
+	ExpectContinueTimeout: 1 * time.Second,
+	TLSClientConfig: &tls.Config{
+		InsecureSkipVerify: true,
+	},
+}
+
 func defaultHTTPClient(scheme string, insecure bool) *http.Client {
-	tr := http.Transport{
-		Proxy: http.ProxyFromEnvironment,
-		DialContext: (&net.Dialer{
-			Timeout:   30 * time.Second,
-			KeepAlive: 30 * time.Second,
-			DualStack: true,
-		}).DialContext,
-		MaxIdleConns:          100,
-		IdleConnTimeout:       90 * time.Second,
-		TLSHandshakeTimeout:   10 * time.Second,
-		ExpectContinueTimeout: 1 * time.Second,
-	}
 	if scheme == "https" && insecure {
-		tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+		return &http.Client{Transport: DefaultTransportInsecure}
 	}
-	return &http.Client{
-		Transport: &tr,
-	}
+	return &http.Client{Transport: http.DefaultTransport}
 }
