@@ -289,7 +289,6 @@ where
     fn write_to<W: Write, H: Hasher>(&self, w: &mut W, h: &mut H) -> Result<usize, StorageError>;
 }
 
-#[derive(Default)]
 /// `Block` is a container for a compressed block of timestamps and associated values.
 ///
 /// Blocks comprise a server-assigned ID, a `BlockSummary`, and the `BlockData` itself.
@@ -299,6 +298,7 @@ where
 /// any values written in are ordered by time, though the `Block` implementation
 /// will ensure that values added in subsequent calls to `push` are sorted with
 /// respect to the contents of previous calls.
+#[derive(Debug, Default)]
 pub struct Block<T>
 where
     T: BlockType,
@@ -461,6 +461,7 @@ where
 ///
 /// `BlockData` ensures that data is sorted on read only, maximising write
 /// performance.
+#[derive(Debug)]
 struct BlockData<T> {
     values: Vec<(i64, T)>, // TODO(edd): this data layout needs to change.
     sorted: bool,          // indicates if the block data is currently sorted.
@@ -552,7 +553,7 @@ where
 /// - smallest and largest values written to the block.
 
 // TODO(edd) need to support big float representation...
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct FloatBlockSummary {
     count: u16, // max number of values in block 65,535
     sum: f64,
@@ -631,7 +632,7 @@ impl BlockSummary<f64> for FloatBlockSummary {
 ///
 /// `IntegerBlockSummary` maintains the sum using a big int to ensure multiple large
 /// values can be summarised in the block.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct IntegerBlockSummary {
     count: u16, // max number of values in block 65,535
     sum: BigInt,
@@ -733,7 +734,7 @@ impl BlockSummary<i64> for IntegerBlockSummary {
 
 /// `BoolBlockSummary` provides a summary of a bool block, tracking the count of
 /// values in the block.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct BoolBlockSummary {
     count: u16, // max number of values in block 65,535
 
@@ -785,7 +786,7 @@ impl BlockSummary<bool> for BoolBlockSummary {
 
 /// `StringBlockSummary` provides a summary of a string block, tracking the count of
 /// values in the block.
-#[derive(Clone, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct StringBlockSummary<'a> {
     count: u16, // max number of values in block 65,535
 
@@ -844,7 +845,7 @@ impl<'a> BlockSummary<&'a str> for StringBlockSummary<'a> {
 ///
 /// `UnsignedBlockSummary` maintains the sum using a big uint to ensure multiple large
 /// values can be summarised in the block.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct UnsignedBlockSummary {
     count: u16, // max number of values in block 65,535
     sum: BigUint,

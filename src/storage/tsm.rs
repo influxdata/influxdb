@@ -80,6 +80,7 @@ use std::u64;
 /// }
 /// ```
 ///
+#[derive(Debug)]
 pub struct TSMReader<R>
 where
     R: BufRead + Seek,
@@ -115,6 +116,7 @@ where
     }
 }
 
+#[derive(Debug)]
 pub struct Index<R>
 where
     R: BufRead + Seek,
@@ -310,7 +312,7 @@ impl<R: BufRead + Seek> Iterator for Index<R> {
 }
 
 /// `IndexEntry` provides lazy accessors for components of the entry.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct IndexEntry {
     key: Vec<u8>,
     parsed_key: Option<ParsedTSMKey>,
@@ -407,7 +409,7 @@ impl IndexEntry {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 struct ParsedTSMKey {
     measurement: String,
     tagset: Vec<(String, String)>,
@@ -484,7 +486,7 @@ fn parse_tsm_key(mut key: Vec<u8>) -> Result<ParsedTSMKey, StorageError> {
 }
 
 /// `Block` holds information about location and time range of a block of data.
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 #[allow(dead_code)]
 pub struct Block {
     min_time: i64,
@@ -498,6 +500,7 @@ const MAX_BLOCK_VALUES: usize = 1000;
 
 /// `BlockData` describes the various types of block data that can be held within
 /// a TSM file.
+#[derive(Debug)]
 pub enum BlockData {
     Float { ts: Vec<i64>, values: Vec<f64> },
     Integer { ts: Vec<i64>, values: Vec<i64> },

@@ -1,3 +1,6 @@
+#![deny(rust_2018_idioms)]
+#![warn(missing_debug_implementations, clippy::explicit_iter_loop)]
+
 //! Utility to generate data to ingest for development and testing purposes.
 //!
 //! Similar to `storectl generate`.

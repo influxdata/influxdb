@@ -17,6 +17,7 @@ use serde::{Deserialize, Serialize};
 use std::{
     cmp::Ordering,
     collections::BTreeMap,
+    fmt,
     io::Write,
     mem,
     path::PathBuf,
@@ -26,7 +27,7 @@ use std::{
 };
 use tokio::task;
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum PartitionStore {
     MemDB(Box<MemDB>),
     S3(Box<S3Partition>),
@@ -44,11 +45,13 @@ pub enum PartitionStore {
 /// remote partition.
 ///
 /// A Partition may optionally have a write-ahead log.
+#[derive(Debug)]
 pub struct Partition {
     store: PartitionStore,
     wal_details: Option<WalDetails>,
 }
 
+#[derive(Debug)]
 struct WalDetails {
     wal: Wal<mpsc::Sender<delorean_wal::Result<()>>>,
     metadata: WalMetadata,
@@ -440,6 +443,7 @@ impl From<wal::Point<'_>> for PointType {
 /// StringMergeStream will do a merge sort with deduplication of multiple streams of Strings. This
 /// is used for combining results from multiple partitions for calls to get measurements, tag keys,
 /// tag values, or field keys. It assumes the incoming streams are in sorted order with no duplicates.
+#[derive(Debug)]
 pub struct StringMergeStream<'a> {
     states: Vec<StreamState<'a, String>>,
     drained: bool,
@@ -448,6 +452,18 @@ pub struct StringMergeStream<'a> {
 struct StreamState<'a, T> {
     stream: BoxStream<'a, T>,
     next: Poll<Option<T>>,
+}
+
+impl<T> fmt::Debug for StreamState<'_, T>
+where
+    T: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("streamstate")
+            .field("stream", &"<no information>")
+            .field("next", &self.next)
+            .finish()
+    }
 }
 
 impl StringMergeStream<'_> {
@@ -537,6 +553,7 @@ impl Stream for StringMergeStream<'_> {
 /// always of the same type for a given key, and that those values are in time sorted order. A
 /// stream can have multiple batches with the same key, as long as the values across those batches
 /// are in time sorted order (ascending).
+#[derive(Debug)]
 pub struct ReadMergeStream<'a> {
     states: Vec<StreamState<'a, ReadBatch>>,
     drained: bool,
