@@ -110,12 +110,23 @@ pub struct Schema {
     measurement: String,
     tags: BTreeMap<String, Tag>,
     fields: BTreeMap<String, Field>,
+    timestamp_name: String,
     timestamp_index: u32,
 }
 
 impl Schema {
     pub fn measurement(&self) -> &str {
         &self.measurement
+    }
+
+    /// Return true if `col_def` holds values for a Tag (as opposed to Field or Timestamp)
+    pub fn is_tag(&self, col_def: &ColumnDefinition) -> bool {
+        self.tags.contains_key(&col_def.name)
+    }
+
+    /// Return the name of the column used to store timestamps
+    pub fn timestamp(&self) -> &String {
+        &self.timestamp_name
     }
 
     // Return a Vec of `ColumnDefinition`s such that
@@ -135,7 +146,7 @@ impl Schema {
             data_type: field.data_type,
         }));
         cols.push(ColumnDefinition {
-            name: String::from("timestamp"),
+            name: self.timestamp_name.clone(),
             index: self.timestamp_index,
             data_type: DataType::Timestamp,
         });
@@ -225,6 +236,7 @@ impl SchemaBuilder {
                 })
                 .collect(),
             timestamp_index: indexer.next().unwrap(),
+            timestamp_name: String::from("timestamp"),
         }
     }
 }
@@ -378,5 +390,18 @@ mod test {
         );
         assert_eq!(cols[1], ColumnDefinition::new("field1", 1, DataType::Float));
         assert_eq!(cols[2], ColumnDefinition::new("tag1", 2, DataType::String));
+    }
+
+    #[test]
+    fn is_tag() {
+        let schema = SchemaBuilder::new("my_measurement")
+            .tag("tag1")
+            .field("field1", DataType::Float)
+            .build();
+        let cols = schema.get_col_defs();
+
+        assert!(schema.is_tag(&cols[0]));
+        assert!(!schema.is_tag(&cols[1]));
+        assert!(!schema.is_tag(&cols[2]));
     }
 }

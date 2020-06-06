@@ -1,0 +1,22 @@
+[package]
+name = "delorean_table"
+version = "0.1.0"
+authors = ["Andrew Lamb <alamb@influxdata.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[dependencies]
+snafu = "0.6.2"
+log = "0.4.8"
+
+# I get a build error when I use this one:
+# failed to run custom build command for `arrow-flight v0.17.0`
+#parquet = "0.17.0"
+# this, we are living on the edge and pull directly from the arrow repo.
+# https://github.com/apache/arrow/commit/31c7a50a2e4c69e2b7fa2ffa5e7bd3e89500bd6b
+parquet = { git = "https://github.com/apache/arrow.git", rev="31c7a50a", version = "0.18.0-SNAPSHOT" }
+
+line_protocol_schema = { path = "../line_protocol_schema" }
+
+[dev-dependencies]
+delorean_test_helpers ={ path = "../delorean_test_helpers" }

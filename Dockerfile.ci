@@ -41,6 +41,10 @@ ENV LANG=C.UTF-8
 RUN rustup toolchain install nightly-2020-04-22
 RUN rustup component add rustfmt clippy --toolchain nightly-2020-04-22
 
+
+RUN rustup toolchain install nightly-2020-04-22
+RUN rustup component add rustfmt clippy --toolchain nightly-2020-04-22
+
 RUN groupadd -g 1500 rust \
   && useradd -u 1500 -g rust -s /bin/bash -m rust \
   && echo 'rust ALL=NOPASSWD: ALL' >> /etc/sudoers.d/10-rust \

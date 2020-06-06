@@ -8,6 +8,11 @@ edition = "2018"
 
 [dependencies]
 snafu = "0.6.2"
+env_logger = "0.7.1"
 log = "0.4.8"
 delorean_line_parser = { path = "../delorean_line_parser" }
+delorean_table = { path = "../delorean_table" }
 line_protocol_schema = { path = "../line_protocol_schema" }
+
+[dev-dependencies]
+delorean_test_helpers ={ path = "../delorean_test_helpers" }
