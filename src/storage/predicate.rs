@@ -224,6 +224,7 @@ pub trait EvaluateVisitor {
     fn equal(&mut self, left: &str, right: &str) -> Result<Treemap, StorageError>;
 }
 
+#[derive(Debug)]
 pub struct Evaluate<V: EvaluateVisitor>(V);
 
 impl<V: EvaluateVisitor> Evaluate<V> {

@@ -1,5 +1,5 @@
 #![deny(rust_2018_idioms)]
-#![warn(clippy::explicit_iter_loop)]
+#![warn(missing_debug_implementations, clippy::explicit_iter_loop)]
 
 use std::{error, fmt};
 

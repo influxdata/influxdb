@@ -1,3 +1,6 @@
+#![deny(rust_2018_idioms)]
+#![warn(missing_debug_implementations, clippy::explicit_iter_loop)]
+
 //! Library with code for (aspirationally) ingesting various data formats into Delorean
 use log::debug;
 use snafu::{OptionExt, Snafu};
@@ -7,6 +10,7 @@ use delorean_line_parser::{FieldValue, ParsedLine};
 use line_protocol_schema::{DataType, Schema, SchemaBuilder};
 
 /// Handles converting raw line protocol `ParsedLine` structures into Delorean format.
+#[derive(Debug)]
 pub struct LineProtocolConverter {
     // Schema is used in tests and will be used to actually convert data shortly
     schema: Schema,

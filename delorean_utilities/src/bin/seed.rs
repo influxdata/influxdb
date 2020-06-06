@@ -1,3 +1,6 @@
+#![deny(rust_2018_idioms)]
+#![warn(missing_debug_implementations, clippy::explicit_iter_loop)]
+
 //! Utility to seed a running delorean instance with data for development and testing purposes.
 //!
 //! Similar to `inch`.

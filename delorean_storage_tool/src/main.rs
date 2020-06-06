@@ -1,3 +1,6 @@
+#![deny(rust_2018_idioms)]
+#![warn(missing_debug_implementations, clippy::explicit_iter_loop)]
+
 use std::fs;
 use std::sync::Arc;
 
@@ -62,7 +65,7 @@ fn convert(input_filename: &str, output_filename: &str) -> Result<()> {
         }
     });
 
-    let schema_sample: Vec<ParsedLine> =
+    let schema_sample: Vec<ParsedLine<'_>> =
         only_good_lines.by_ref().take(SCHEMA_SAMPLE_SIZE).collect();
 
     // The idea here is to use the first few parsed lines to deduce the schema

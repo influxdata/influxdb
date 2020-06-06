@@ -11,6 +11,7 @@ use futures::StreamExt;
 use std::{collections::HashMap, convert::TryInto, fs, fs::DirBuilder, path::PathBuf, sync::Arc};
 use tokio::sync::RwLock;
 
+#[derive(Debug)]
 struct Organization {
     id: Id,
     bucket_data: HashMap<Id, Arc<BucketData>>,
@@ -98,6 +99,7 @@ impl Organization {
     }
 }
 
+#[derive(Debug)]
 struct BucketData {
     config: Bucket,
     // TODO: wire up rules for partitioning data and storing and reading from multiple partitions
@@ -220,6 +222,7 @@ impl BucketData {
     }
 }
 
+#[derive(Debug)]
 pub struct Database {
     dir: Option<PathBuf>,
     organizations: RwLock<HashMap<Id, RwLock<Organization>>>,
