@@ -47,7 +47,7 @@ func newFloatTable(
 		cur:   cur,
 	}
 	t.readTags(tags)
-	t.advance()
+	t.init(t.advance)
 
 	return t
 }
@@ -137,7 +137,7 @@ func newFloatWindowTable(
 		t.nextTS = start + (every - start%every)
 	}
 	t.readTags(tags)
-	t.advance()
+	t.init(t.advance)
 
 	return t
 }
@@ -332,7 +332,7 @@ func newFloatGroupTable(
 		cur:   cur,
 	}
 	t.readTags(tags)
-	t.advance()
+	t.init(t.advance)
 
 	return t
 }
@@ -445,7 +445,7 @@ func newIntegerTable(
 		cur:   cur,
 	}
 	t.readTags(tags)
-	t.advance()
+	t.init(t.advance)
 
 	return t
 }
@@ -535,7 +535,7 @@ func newIntegerWindowTable(
 		t.nextTS = start + (every - start%every)
 	}
 	t.readTags(tags)
-	t.advance()
+	t.init(t.advance)
 
 	return t
 }
@@ -730,7 +730,7 @@ func newIntegerGroupTable(
 		cur:   cur,
 	}
 	t.readTags(tags)
-	t.advance()
+	t.init(t.advance)
 
 	return t
 }
@@ -843,7 +843,7 @@ func newUnsignedTable(
 		cur:   cur,
 	}
 	t.readTags(tags)
-	t.advance()
+	t.init(t.advance)
 
 	return t
 }
@@ -933,7 +933,7 @@ func newUnsignedWindowTable(
 		t.nextTS = start + (every - start%every)
 	}
 	t.readTags(tags)
-	t.advance()
+	t.init(t.advance)
 
 	return t
 }
@@ -1128,7 +1128,7 @@ func newUnsignedGroupTable(
 		cur:   cur,
 	}
 	t.readTags(tags)
-	t.advance()
+	t.init(t.advance)
 
 	return t
 }
@@ -1241,7 +1241,7 @@ func newStringTable(
 		cur:   cur,
 	}
 	t.readTags(tags)
-	t.advance()
+	t.init(t.advance)
 
 	return t
 }
@@ -1331,7 +1331,7 @@ func newStringWindowTable(
 		t.nextTS = start + (every - start%every)
 	}
 	t.readTags(tags)
-	t.advance()
+	t.init(t.advance)
 
 	return t
 }
@@ -1526,7 +1526,7 @@ func newStringGroupTable(
 		cur:   cur,
 	}
 	t.readTags(tags)
-	t.advance()
+	t.init(t.advance)
 
 	return t
 }
@@ -1639,7 +1639,7 @@ func newBooleanTable(
 		cur:   cur,
 	}
 	t.readTags(tags)
-	t.advance()
+	t.init(t.advance)
 
 	return t
 }
@@ -1729,7 +1729,7 @@ func newBooleanWindowTable(
 		t.nextTS = start + (every - start%every)
 	}
 	t.readTags(tags)
-	t.advance()
+	t.init(t.advance)
 
 	return t
 }
@@ -1924,7 +1924,7 @@ func newBooleanGroupTable(
 		cur:   cur,
 	}
 	t.readTags(tags)
-	t.advance()
+	t.init(t.advance)
 
 	return t
 }
