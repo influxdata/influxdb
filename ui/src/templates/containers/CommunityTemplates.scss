@@ -1,0 +1,13 @@
+.community-templates-upload {
+  margin: $ix-marg-b 0;
+  display: grid;
+  grid-template-rows: 80px 150px;
+  grid-template-columns: 1fr;
+  grid-row-gap: $ix-marg-b;
+  grid-column-gap: $ix-marg-b;
+}
+
+.community-templates-template-url {
+  display: inline-block;
+  margin-right: 15px;
+}
