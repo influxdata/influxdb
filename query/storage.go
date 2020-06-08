@@ -89,6 +89,7 @@ type ReadWindowAggregateSpec struct {
 	WindowEvery int64
 	Aggregates  []plan.ProcedureKind
 	CreateEmpty bool
+	TimeColumn  string
 }
 
 // TableIterator is a table iterator that also keeps track of cursor statistics from the storage engine.
