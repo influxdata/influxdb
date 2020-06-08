@@ -72,15 +72,48 @@ func copyIntegerArray(src *cursors.IntegerArray) *cursors.IntegerArray {
 	return dst
 }
 
+type aggArrayCursorTest struct {
+	name           string
+	createCursorFn func(cur cursors.IntegerArrayCursor, every int64) cursors.IntegerArrayCursor
+	every          time.Duration
+	inputArrays    []*cursors.IntegerArray
+	want           []*cursors.IntegerArray
+}
+
+func (a *aggArrayCursorTest) run(t *testing.T) {
+	t.Helper()
+	t.Run(a.name, func(t *testing.T) {
+		var resultN int
+		mc := &MockIntegerArrayCursor{
+			CloseFunc: func() {},
+			ErrFunc:   func() error { return nil },
+			StatsFunc: func() cursors.CursorStats { return cursors.CursorStats{} },
+			NextFunc: func() *cursors.IntegerArray {
+				if resultN < len(a.inputArrays) {
+					a := a.inputArrays[resultN]
+					resultN++
+					return a
+				}
+				return &cursors.IntegerArray{}
+			},
+		}
+		countArrayCursor := a.createCursorFn(mc, int64(a.every))
+		got := make([]*cursors.IntegerArray, 0, len(a.want))
+		for a := countArrayCursor.Next(); a.Len() != 0; a = countArrayCursor.Next() {
+			got = append(got, copyIntegerArray(a))
+		}
+
+		if diff := cmp.Diff(got, a.want); diff != "" {
+			t.Fatalf("did not get expected result from count array cursor; -got/+want:\n%v", diff)
+		}
+
+	})
+}
+
 func TestIntegerIntegerCountArrayCursor(t *testing.T) {
 	maxTimestamp := time.Unix(0, math.MaxInt64)
 
-	testcases := []struct {
-		name        string
-		every       time.Duration
-		inputArrays []*cursors.IntegerArray
-		want        []*cursors.IntegerArray
-	}{
+	testcases := []aggArrayCursorTest{
 		{
 			name:  "window",
 			every: 15 * time.Minute,
@@ -313,31 +346,10 @@ func TestIntegerIntegerCountArrayCursor(t *testing.T) {
 		},
 	}
 	for _, tc := range testcases {
-		t.Run(tc.name, func(t *testing.T) {
-			var resultN int
-			mc := &MockIntegerArrayCursor{
-				CloseFunc: func() {},
-				ErrFunc:   func() error { return nil },
-				StatsFunc: func() cursors.CursorStats { return cursors.CursorStats{} },
-				NextFunc: func() *cursors.IntegerArray {
-					if resultN < len(tc.inputArrays) {
-						a := tc.inputArrays[resultN]
-						resultN++
-						return a
-					}
-					return &cursors.IntegerArray{}
-				},
-			}
-			countArrayCursor := newIntegerWindowCountArrayCursor(mc, int64(tc.every))
-			got := make([]*cursors.IntegerArray, 0, len(tc.want))
-			for a := countArrayCursor.Next(); a.Len() != 0; a = countArrayCursor.Next() {
-				got = append(got, copyIntegerArray(a))
-			}
-
-			if diff := cmp.Diff(got, tc.want); diff != "" {
-				t.Fatalf("did not get expected result from count array cursor; -got/+want:\n%v", diff)
-			}
-		})
+		tc.createCursorFn = func(cur cursors.IntegerArrayCursor, every int64) cursors.IntegerArrayCursor {
+			return newIntegerWindowCountArrayCursor(cur, every)
+		}
+		tc.run(t)
 	}
 }
 
