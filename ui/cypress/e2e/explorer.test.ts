@@ -508,6 +508,7 @@ describe('DataExplorer', () => {
 
     it('can filter aggregation functions by name from script editor mode', () => {
       cy.getByTestID('input-field')
+        .clear() //TODO (zoe) when cypress resolves bug remove clear  https://github.com/cypress-io/cypress/issues/5480
         .type('covariance')
         .should('have.value', 'covariance')
       cy.get('.flux-toolbar--list-item').should('have.length', 1)
@@ -748,6 +749,58 @@ describe('DataExplorer', () => {
             }
           })
         })
+      })
+
+      it('can view table data with raw data & scroll to bottom', () => {
+        // build the query to return data from beforeEach
+        cy.getByTestID(`selector-list m`).click()
+        cy.getByTestID('selector-list v').click()
+        cy.getByTestID(`selector-list tv1`).click()
+        cy.getByTestID('selector-list sort').click()
+
+        cy.getByTestID('time-machine-submit-button').click()
+
+        cy.getByTestID('view-type--dropdown').click()
+        cy.getByTestID(`view-type--table`).click()
+        // view raw data table
+        cy.getByTestID('raw-data--toggle').click()
+
+        cy.get('.time-machine--view').within(() => {
+          cy.get('.cf-dapper-scrollbars--thumb-y') // TODO(zoe): replace with test ids https://github.com/influxdata/clockface/issues/507
+            .trigger('mousedown', {force: true})
+            .trigger('mousemove', {clientY: 5000})
+            .trigger('mouseup')
+
+          cy.get('.cf-dapper-scrollbars--thumb-x') // TODO(zoe): replace with test ids https://github.com/influxdata/clockface/issues/507
+            .trigger('mousedown', {force: true})
+            .trigger('mousemove', {clientX: 1000})
+            .trigger('mouseup')
+        })
+
+        cy.getByTestID(`raw-flux-data-table--cell ${numLines}`).should(
+          'be.visible'
+        )
+      })
+
+      it('can view table data & scroll to bottom', () => {
+        // build the query to return data from beforeEach
+        cy.getByTestID(`selector-list m`).click()
+        cy.getByTestID('selector-list v').click()
+        cy.getByTestID(`selector-list tv1`).click()
+        cy.getByTestID('selector-list sort').click()
+
+        cy.getByTestID('time-machine-submit-button').click()
+
+        cy.getByTestID('view-type--dropdown').click()
+        cy.getByTestID(`view-type--table`).click()
+
+        cy.get('.time-machine--view').within(() => {
+          cy.get('.cf-dapper-scrollbars--thumb-y') // TODO(zoe): replace with test ids https://github.com/influxdata/clockface/issues/507
+            .trigger('mousedown', {force: true})
+            .trigger('mousemove', {clientY: 5000})
+            .trigger('mouseup')
+        })
+        cy.get(`[title="${numLines}"]`).should('be.visible')
       })
     })
   })

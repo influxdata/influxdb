@@ -31,12 +31,12 @@ import {
 
 interface Props {
   giraffeResult: FromFluxResult
-  files: string[]
+  files?: string[]
   loading: RemoteDataState
   properties: QueryViewProperties | CheckViewProperties
   timeZone: TimeZone
-  statuses: StatusRow[][]
-  timeRange: TimeRange | null
+  statuses?: StatusRow[][]
+  timeRange?: TimeRange | null
   checkType?: CheckType
   checkThresholds?: Threshold[]
   theme: Theme

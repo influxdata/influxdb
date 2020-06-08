@@ -61,7 +61,7 @@ class UpdateVariableOverlay extends PureComponent<Props, State> {
     const {workingVariable, hasValidArgs} = this.state
 
     return (
-      <Overlay visible={true}>
+      <Overlay visible={true} testID="edit-variable--overlay">
         <Overlay.Container maxWidth={1000}>
           <Overlay.Header title="Edit Variable" onDismiss={this.handleClose} />
           <Overlay.Body>
@@ -88,7 +88,11 @@ class UpdateVariableOverlay extends PureComponent<Props, State> {
                     <Form.Element label="Type" required={true}>
                       <Dropdown
                         button={(active, onClick) => (
-                          <Dropdown.Button active={active} onClick={onClick}>
+                          <Dropdown.Button
+                            active={active}
+                            onClick={onClick}
+                            testID="variable-type-dropdown--button"
+                          >
                             {this.typeDropdownLabel}
                           </Dropdown.Button>
                         )}
@@ -103,6 +107,7 @@ class UpdateVariableOverlay extends PureComponent<Props, State> {
                                 selected={
                                   v.type === workingVariable.arguments.type
                                 }
+                                testID={`variable-type-dropdown-${v.type}`}
                               >
                                 {v.label}
                               </Dropdown.Item>

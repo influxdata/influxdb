@@ -83,7 +83,7 @@ export default class VariableForm extends PureComponent<Props, State> {
                     <Dropdown.Button
                       active={active}
                       onClick={onClick}
-                      testID="variable-form--dropdown-button"
+                      testID="variable-type-dropdown--button"
                     >
                       {this.typeDropdownLabel}
                     </Dropdown.Button>
@@ -94,7 +94,7 @@ export default class VariableForm extends PureComponent<Props, State> {
                         <Dropdown.Item
                           key={v.type}
                           id={v.type}
-                          testID={`variable-form--dropdown-${v.type}`}
+                          testID={`variable-type-dropdown-${v.type}`}
                           value={v.type}
                           onClick={this.handleChangeType}
                           selected={v.type === variableType}

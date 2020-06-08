@@ -93,12 +93,11 @@ export const writeNavigationTimingMetrics = async function writeNavigationTiming
     )[0] as PerformanceNavigationTiming
     const fields = buildFieldsFromTiming(navigationTiming)
 
-    const line = {measurement, tags, fields}
+    const points = {points: [{measurement, tags, fields}]}
 
-    const url = '/api/v2/app-metrics'
-    fetch(url, {
+    fetch('/api/v2/app-metrics', {
       method: 'POST',
-      body: JSON.stringify(line),
+      body: JSON.stringify(points),
       headers: {
         'Content-Type': 'application/json',
       },

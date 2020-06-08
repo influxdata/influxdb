@@ -373,7 +373,7 @@ func (s *Service) ExportStack(ctx context.Context, orgID, stackID influxdb.ID) (
 			}
 			obj = CheckToObject("", ch)
 		case KindDashboard:
-			dash, err := s.dashSVC.FindDashboardByID(ctx, res.ID)
+			dash, err := findDashboardByIDFull(ctx, s.dashSVC, res.ID)
 			if influxdb.ErrorCode(err) == influxdb.ENotFound {
 				continue
 			}
@@ -1415,7 +1415,7 @@ func (s *Service) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg
 		if err := updateStackFn(ctx, stackID, state); err != nil {
 			s.log.Error("failed to update stack", zap.Error(err))
 		}
-	}(opt.StackID)
+	}(stackID)
 
 	coordinator := &rollbackCoordinator{sem: make(chan struct{}, s.applyReqLimit)}
 	defer coordinator.rollback(s.log, &e, orgID)

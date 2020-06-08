@@ -15,6 +15,7 @@ const NotebookPipe: FC<NotebookPipeProps> = ({
   data,
   onUpdate,
   results,
+  loading,
 }) => {
   const panel: FC<PipeContextProps> = useMemo(
     () => props => {
@@ -33,7 +34,13 @@ const NotebookPipe: FC<NotebookPipeProps> = ({
   }
 
   return (
-    <Pipe data={data} onUpdate={_onUpdate} results={results} Context={panel} />
+    <Pipe
+      data={data}
+      onUpdate={_onUpdate}
+      loading={loading}
+      results={results}
+      Context={panel}
+    />
   )
 }
 

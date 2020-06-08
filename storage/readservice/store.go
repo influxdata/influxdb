@@ -14,15 +14,20 @@ import (
 )
 
 type store struct {
-	viewer reads.Viewer
-	cap    WindowAggregateCapability
+	viewer    reads.Viewer
+	groupCap  GroupCapability
+	windowCap WindowAggregateCapability
 }
 
 // NewStore creates a store used to query time-series data.
 func NewStore(viewer reads.Viewer) reads.Store {
 	return &store{
 		viewer: viewer,
-		cap: WindowAggregateCapability{
+		groupCap: GroupCapability{
+			Count: true,
+			Sum:   true,
+		},
+		windowCap: WindowAggregateCapability{
 			Count: true,
 		},
 	}
@@ -49,6 +54,10 @@ func (s *store) ReadFilter(ctx context.Context, req *datatypes.ReadFilterRequest
 	}
 
 	return reads.NewFilteredResultSet(ctx, req, cur), nil
+}
+
+func (s *store) GetGroupCapability(ctx context.Context) reads.GroupCapability {
+	return s.groupCap
 }
 
 func (s *store) ReadGroup(ctx context.Context, req *datatypes.ReadGroupRequest) (reads.GroupResultSet, error) {
@@ -161,7 +170,7 @@ func (s *store) GetSource(orgID, bucketID uint64) proto.Message {
 }
 
 func (s *store) GetWindowAggregateCapability(ctx context.Context) reads.WindowAggregateCapability {
-	return s.cap
+	return s.windowCap
 }
 
 // WindowAggregate will invoke a ReadWindowAggregateRequest against the Store.
@@ -187,6 +196,18 @@ func (s *store) WindowAggregate(ctx context.Context, req *datatypes.ReadWindowAg
 
 	return reads.NewWindowAggregateResultSet(ctx, req, cur)
 }
+
+type GroupCapability struct {
+	Count bool
+	Sum   bool
+	First bool
+	Last  bool
+}
+
+func (c GroupCapability) HaveCount() bool { return c.Count }
+func (c GroupCapability) HaveSum() bool   { return c.Sum }
+func (c GroupCapability) HaveFirst() bool { return c.First }
+func (c GroupCapability) HaveLast() bool  { return c.Last }
 
 type WindowAggregateCapability struct {
 	Min   bool

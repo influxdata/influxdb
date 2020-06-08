@@ -22,7 +22,6 @@ import auth0js, {WebAuth} from 'auth0-js'
 import {LoginForm} from 'src/onboarding/components/LoginForm'
 import {SocialButton} from 'src/shared/components/SocialButton'
 import {GoogleLogo} from 'src/clientLibraries/graphics'
-import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 
 // Types
 import {Auth0Connection, FormFieldValidation} from 'src/types'
@@ -63,13 +62,8 @@ class LoginPageContents extends PureComponent<DispatchProps> {
 
   public async componentDidMount() {
     try {
-      let config
-      if (isFlagEnabled('redirectToCloud')) {
-        const redirectTo = getFromLocalStorage('redirectTo') || '/'
-        config = await getAuth0Config(redirectTo)
-      } else {
-        config = await getAuth0Config()
-      }
+      const redirectTo = getFromLocalStorage('redirectTo') || '/'
+      const config = await getAuth0Config(redirectTo)
       this.auth0 = new auth0js.WebAuth({
         domain: config.domain,
         clientID: config.clientID,
@@ -79,10 +73,6 @@ class LoginPageContents extends PureComponent<DispatchProps> {
       })
     } catch (error) {
       console.error(error)
-      // TODO: uncomment after demo day
-      // redirect to universal login page if there's an error
-      // window.location.href =
-      // 'https://auth.a.influxcloud.net/'
       throw error
     }
   }

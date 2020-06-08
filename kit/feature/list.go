@@ -30,6 +30,20 @@ func BackendExample() BoolFlag {
 	return backendExample
 }
 
+var communityTemplates = MakeBoolFlag(
+	"Community Templates",
+	"communityTemplates",
+	"Bucky, Johnny Steenbergen (Berg)",
+	false,
+	Permanent,
+	true,
+)
+
+// CommunityTemplates - Replace current template uploading functionality with community driven templates
+func CommunityTemplates() BoolFlag {
+	return communityTemplates
+}
+
 var frontendExample = MakeIntFlag(
 	"Frontend Example",
 	"frontendExample",
@@ -114,6 +128,48 @@ func PushDownGroupAggregateCount() BoolFlag {
 	return pushDownGroupAggregateCount
 }
 
+var pushDownGroupAggregateSum = MakeBoolFlag(
+	"Push Down Group Aggregate Sum",
+	"pushDownGroupAggregateSum",
+	"Query Team",
+	false,
+	Temporary,
+	false,
+)
+
+// PushDownGroupAggregateSum - Enable the sum variant of PushDownGroupAggregate planner rule
+func PushDownGroupAggregateSum() BoolFlag {
+	return pushDownGroupAggregateSum
+}
+
+var pushDownGroupAggregateFirst = MakeBoolFlag(
+	"Push Down Group Aggregate First",
+	"pushDownGroupAggregateFirst",
+	"Query Team",
+	false,
+	Temporary,
+	false,
+)
+
+// PushDownGroupAggregateFirst - Enable the first variant of PushDownGroupAggregate planner rule
+func PushDownGroupAggregateFirst() BoolFlag {
+	return pushDownGroupAggregateFirst
+}
+
+var pushDownGroupAggregateLast = MakeBoolFlag(
+	"Push Down Group Aggregate Last",
+	"pushDownGroupAggregateLast",
+	"Query Team",
+	false,
+	Temporary,
+	false,
+)
+
+// PushDownGroupAggregateLast - Enable the last variant of PushDownGroupAggregate planner rule
+func PushDownGroupAggregateLast() BoolFlag {
+	return pushDownGroupAggregateLast
+}
+
 var newLabels = MakeBoolFlag(
 	"New Label Package",
 	"newLabels",
@@ -131,23 +187,31 @@ func NewLabelPackage() BoolFlag {
 var all = []Flag{
 	appMetrics,
 	backendExample,
+	communityTemplates,
 	frontendExample,
 	pushDownWindowAggregateCount,
 	pushDownWindowAggregateRest,
 	newAuth,
 	sessionService,
 	pushDownGroupAggregateCount,
+	pushDownGroupAggregateSum,
+	pushDownGroupAggregateFirst,
+	pushDownGroupAggregateLast,
 	newLabels,
 }
 
 var byKey = map[string]Flag{
 	"appMetrics":                   appMetrics,
 	"backendExample":               backendExample,
+	"communityTemplates":           communityTemplates,
 	"frontendExample":              frontendExample,
 	"pushDownWindowAggregateCount": pushDownWindowAggregateCount,
 	"pushDownWindowAggregateRest":  pushDownWindowAggregateRest,
 	"newAuth":                      newAuth,
 	"sessionService":               sessionService,
 	"pushDownGroupAggregateCount":  pushDownGroupAggregateCount,
+	"pushDownGroupAggregateSum":    pushDownGroupAggregateSum,
+	"pushDownGroupAggregateFirst":  pushDownGroupAggregateFirst,
+	"pushDownGroupAggregateLast":   pushDownGroupAggregateLast,
 	"newLabels":                    newLabels,
 }

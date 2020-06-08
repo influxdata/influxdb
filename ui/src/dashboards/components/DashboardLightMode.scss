@@ -37,7 +37,7 @@
     background-color: $c-pool;
   }
 
-  .cell--context  {
+  .cell--context {
     color: $g13-mist;
   }
   .cell:hover .cell--context {
@@ -61,6 +61,10 @@
 
   .markdown-format {
     color: $g7-graphite;
+
+    strong {
+      color: $g6-smoke;
+    }
 
     code {
       background-color: $g19-ghost;

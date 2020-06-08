@@ -42,6 +42,7 @@ class RawFluxDataTable extends PureComponent<Props, State> {
           autoHide={false}
           scrollTop={scrollTop}
           scrollLeft={scrollLeft}
+          testID="rawdata-table--scrollbar"
           onScroll={this.onScrollbarsScroll}
         >
           <RawFluxDataGrid
