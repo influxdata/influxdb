@@ -3,7 +3,6 @@ package reads
 import (
 	"context"
 	"fmt"
-	"math"
 
 	"github.com/influxdata/influxdb/v2/storage/reads/datatypes"
 	"github.com/influxdata/influxdb/v2/tsdb/cursors"
@@ -18,84 +17,52 @@ func (v *singleValue) Value(key string) (interface{}, bool) {
 }
 
 func newAggregateArrayCursor(ctx context.Context, agg *datatypes.Aggregate, cursor cursors.Cursor) cursors.Cursor {
+	return newWindowAggregateArrayCursor(ctx, agg, 0, cursor)
+}
+
+func newWindowAggregateArrayCursor(ctx context.Context, agg *datatypes.Aggregate, every int64, cursor cursors.Cursor) cursors.Cursor {
 	if cursor == nil {
 		return nil
 	}
 
 	switch agg.Type {
 	case datatypes.AggregateTypeCount:
-		return newCountArrayCursor(cursor)
+		return newWindowCountArrayCursor(cursor, every)
 	case datatypes.AggregateTypeSum:
-		return newSumArrayCursor(cursor)
-	default:
-		panic("invalid aggregate")
-	}
-}
-
-func newWindowAggregateArrayCursor(ctx context.Context, req *datatypes.ReadWindowAggregateRequest, cursor cursors.Cursor) cursors.Cursor {
-	if cursor == nil {
-		return nil
-	}
-
-	switch req.Aggregate[0].Type {
-	case datatypes.AggregateTypeCount:
-		return newWindowCountArrayCursor(cursor, req)
+		return newWindowSumArrayCursor(cursor, every)
 	default:
 		// TODO(sgc): should be validated higher up
 		panic("invalid aggregate")
 	}
 }
 
-func newSumArrayCursor(cur cursors.Cursor) cursors.Cursor {
+func newWindowCountArrayCursor(cur cursors.Cursor, every int64) cursors.Cursor {
 	switch cur := cur.(type) {
 	case cursors.FloatArrayCursor:
-		return newFloatArraySumCursor(cur)
+		return newFloatWindowCountArrayCursor(cur, every)
 	case cursors.IntegerArrayCursor:
-		return newIntegerArraySumCursor(cur)
+		return newIntegerWindowCountArrayCursor(cur, every)
 	case cursors.UnsignedArrayCursor:
-		return newUnsignedArraySumCursor(cur)
-	default:
-		// TODO(sgc): propagate an error instead?
-		return nil
-	}
-}
-
-func newCountArrayCursor(cur cursors.Cursor) cursors.Cursor {
-	switch cur := cur.(type) {
-	case cursors.FloatArrayCursor:
-		return newFloatCountArrayCursor(cur)
-	case cursors.IntegerArrayCursor:
-		return newIntegerCountArrayCursor(cur)
-	case cursors.UnsignedArrayCursor:
-		return newUnsignedCountArrayCursor(cur)
+		return newUnsignedWindowCountArrayCursor(cur, every)
 	case cursors.StringArrayCursor:
-		return newStringCountArrayCursor(cur)
+		return newStringWindowCountArrayCursor(cur, every)
 	case cursors.BooleanArrayCursor:
-		return newBooleanCountArrayCursor(cur)
+		return newBooleanWindowCountArrayCursor(cur, every)
 	default:
 		panic(fmt.Sprintf("unreachable: %T", cur))
 	}
 }
 
-func newWindowCountArrayCursor(cur cursors.Cursor, req *datatypes.ReadWindowAggregateRequest) cursors.Cursor {
-	if req.WindowEvery == math.MaxInt64 {
-		// This means to aggregate over the entire range,
-		// don't do windowed aggregation.
-		return newCountArrayCursor(cur)
-	}
+func newWindowSumArrayCursor(cur cursors.Cursor, every int64) cursors.Cursor {
 	switch cur := cur.(type) {
 	case cursors.FloatArrayCursor:
-		return newFloatWindowCountArrayCursor(cur, req.WindowEvery)
+		return newFloatWindowSumArrayCursor(cur, every)
 	case cursors.IntegerArrayCursor:
-		return newIntegerWindowCountArrayCursor(cur, req.WindowEvery)
+		return newIntegerWindowSumArrayCursor(cur, every)
 	case cursors.UnsignedArrayCursor:
-		return newUnsignedWindowCountArrayCursor(cur, req.WindowEvery)
-	case cursors.StringArrayCursor:
-		return newStringWindowCountArrayCursor(cur, req.WindowEvery)
-	case cursors.BooleanArrayCursor:
-		return newBooleanWindowCountArrayCursor(cur, req.WindowEvery)
+		return newUnsignedWindowSumArrayCursor(cur, every)
 	default:
-		panic(fmt.Sprintf("unreachable: %T", cur))
+		panic(fmt.Sprintf("unsupported for aggregate sum: %T", cur))
 	}
 }
 

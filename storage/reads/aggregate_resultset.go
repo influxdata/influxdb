@@ -2,6 +2,7 @@ package reads
 
 import (
 	"context"
+	"math"
 
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"github.com/influxdata/influxdb/v2/models"
@@ -44,8 +45,16 @@ func (r *windowAggregateResultSet) Next() bool {
 }
 
 func (r *windowAggregateResultSet) Cursor() cursors.Cursor {
+	agg := r.req.Aggregate[0]
+	every := r.req.WindowEvery
 	cursor := r.arrayCursors.createCursor(*r.seriesRow)
-	return newWindowAggregateArrayCursor(r.ctx, r.req, cursor)
+
+	if every == math.MaxInt64 {
+		// This means to aggregate over whole series for the query's time range
+		return newAggregateArrayCursor(r.ctx, agg, cursor)
+	} else {
+		return newWindowAggregateArrayCursor(r.ctx, agg, every, cursor)
+	}
 }
 
 func (r *windowAggregateResultSet) Close() {}
