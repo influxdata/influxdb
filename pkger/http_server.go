@@ -39,12 +39,6 @@ func NewHTTPServer(log *zap.Logger, svc SVC) *HTTPServer {
 	}
 
 	r := chi.NewRouter()
-	r.Use(
-		middleware.Recoverer,
-		middleware.RequestID,
-		middleware.RealIP,
-	)
-
 	{
 		r.With(middleware.AllowContentType("text/yml", "application/x-yaml", "application/json")).
 			Post("/", svr.createPkg)
