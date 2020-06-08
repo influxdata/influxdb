@@ -19,7 +19,7 @@
 
 1. [18319](https://github.com/influxdata/influxdb/pull/18319): Display bucket ID in bucket list and enable 1 click copying
 1. [18361](https://github.com/influxdata/influxdb/pull/18361): Tokens list is now consistent with the other resource lists
-
+1. [18346](https://github.com/influxdata/influxdb/pull/18346): Reduce the number of variables being hydrated when toggling variables
 
 ## v2.0.0-beta.11 [2020-05-26]
 

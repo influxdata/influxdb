@@ -184,6 +184,20 @@ func NewLabelPackage() BoolFlag {
 	return newLabels
 }
 
+var hydratevars = MakeBoolFlag(
+	"New Hydrate Vars Functionality",
+	"hydratevars",
+	"Ariel Salem / Monitoring Team",
+	false,
+	Temporary,
+	false,
+)
+
+// NewHydrateVarsFunctionality - Enables a minimalistic variable hydration
+func NewHydrateVarsFunctionality() BoolFlag {
+	return hydratevars
+}
+
 var all = []Flag{
 	appMetrics,
 	backendExample,
@@ -198,6 +212,7 @@ var all = []Flag{
 	pushDownGroupAggregateFirst,
 	pushDownGroupAggregateLast,
 	newLabels,
+	hydratevars,
 }
 
 var byKey = map[string]Flag{
@@ -214,4 +229,5 @@ var byKey = map[string]Flag{
 	"pushDownGroupAggregateFirst":  pushDownGroupAggregateFirst,
 	"pushDownGroupAggregateLast":   pushDownGroupAggregateLast,
 	"newLabels":                    newLabels,
+	"hydratevars":                  hydratevars,
 }
