@@ -9,6 +9,8 @@ import {
   RemoteDataState,
 } from 'src/types'
 
+import {DEFAULT_DASHBOARD_SORT_OPTIONS} from 'src/dashboards/constants'
+
 export const dbCell: Cell = {
   x: 1,
   y: 2,
@@ -34,6 +36,7 @@ export const dashboard: Dashboard = {
     self: '/v2/dashboards/1',
     cells: '/v2/dashboards/cells',
   },
+  sortOptions: DEFAULT_DASHBOARD_SORT_OPTIONS,
 }
 
 export const axes: Axes = {
