@@ -175,6 +175,17 @@ When(/^API create a dashboard named "(.*?)" for user "(.*?)"$/, async (name, use
 
 });
 
+//Troubleshoot method
+When(/^API get all dashboards for user "(.*?)"$/, async user => {
+
+    let dboards = await influxUtils.getDashboards(user);
+
+    console.info(`DUMP dboards for user (${user}):\n  ${JSON.stringify(dboards)}`);
+
+});
+
+
+
 When(/^API create a bucket named "(.*)" for user "(.*)"$/, async (bucket, username) => {
     let user = await influxUtils.getUser((username === 'DEFAULT') ? __defaultUser.username : username);
     await influxUtils.createBucket(user.orgid, user.org, bucket);
@@ -281,10 +292,10 @@ When(/^generate a line protocol testdata for user "(.*)" based on:$/, async (use
 });
 
 When(/^create the "(.*)" variable "(.*)" with default "(.*)" for user "(.*)" with values:$/,
-    async(type, name, defVal, user, values) => {
+    async(type, name, defVal, userName, values) => {
     type = type === 'csv' ? 'constant' : type.toLowerCase();
-    let orgID = influxUtils.getUser((user === 'DEFAULT') ? __defaultUser.username : user).orgid;
-    await influxUtils.createVariable(orgID, name, type, values, defVal)
+    //let orgID = influxUtils.getUser((user === 'DEFAULT') ? __defaultUser.username : user).orgid;
+    await influxUtils.createVariable(userName, name, type, values, defVal)
 });
 
 //For troubleshooting - up to 5 min
@@ -300,14 +311,14 @@ When(/^press the "(.*)" key$/, async key => {
     await bSteps.pressKeyAndWait(key);
 });
 
-When(/^create a new template from the file "(.*)" for user "(.*)"$/, async (filepath, user) => {
-    let orgID = influxUtils.getUser((user === 'DEFAULT') ? __defaultUser.username : user).orgid;
-    await influxUtils.createTemplateFromFile(filepath, orgID);
+When(/^create a new template from the file "(.*)" for user "(.*)"$/, async (filepath, userName) => {
+    //let orgID = influxUtils.getUser((user === 'DEFAULT') ? __defaultUser.username : user).orgid;
+    await influxUtils.createTemplateFromFile(userName, filepath);
 });
 
-When(/^create check over API from file "(.*)" for user "(.*)"$/, async (filepath, user) => {
-    let orgID = influxUtils.getUser((user === 'DEFAULT') ? __defaultUser.username : user).orgid;
-    await influxUtils.createAlertCheckFromFile(filepath, orgID);
+When(/^create check over API from file "(.*)" for user "(.*)"$/, async (filepath, userName) => {
+    //let orgID = influxUtils.getUser((user === 'DEFAULT') ? __defaultUser.username : user).orgid;
+    await influxUtils.createAlertCheckFromFile(userName, filepath);
 });
 
 When(/^remove file "(.*)" if exists$/, async filePath => {
@@ -393,6 +404,12 @@ Then(/^the add label popover does not contain create new$/, async () => {
 
 When(/^clear the popover label selector filter$/, async () => {
     await bSteps.clearDashboardLabelsFilter();
+});
+
+//For Inspection
+When(/^get authorizations for user "(.*)"$/, async userName => {
+    let auths = await influxUtils.getAuthorizations(userName);
+    console.info(`Authorizations for ${userName}:\n${JSON.stringify(auths)}`);
 });
 
 

@@ -17,7 +17,15 @@ let nowNano = new Date().getTime() * 1000000;
 let intervalNano = 600 * 1000 * 1000000; //10 min in nanosecs
 
 const {InfluxDB, Point} = require('@influxdata/influxdb-client');
-const {DashboardsAPI, SetupAPI, LabelsAPI, OrgsAPI} = require('@influxdata/influxdb-client-apis');
+const { AuthorizationsAPI,
+    BucketsAPI,
+    ChecksAPI,
+    DashboardsAPI,
+    DocumentsAPI,
+    LabelsAPI,
+    OrgsAPI,
+    SetupAPI,
+    VariablesAPI} = require('@influxdata/influxdb-client-apis');
 
 
 const mil2Nano = 1000000;
@@ -423,12 +431,18 @@ const parseQueryResults = async(results) => {
     return resultsMapArr;
 };
 
+// TODO - add retentionRules or retention policy rp
 //{"name":"ASDF","retentionRules":[],"orgID":"727d19908f30184f","organization":"qa"}
 const createBucket = async(orgId, // String
     orgName, //String
     bucketName, //String
 ) => {
-    //throw "createBuctket() not implemented";
+
+    bucketAPI = new BucketsAPI(new InfluxDB({url: __config.influx_url, token: __defaultUser.token, timeout: 20000}));
+
+    await bucketAPI.postBuckets({body: {name: bucketName, orgID: orgId}});
+
+    /*
     return await axios({
         method: 'post',
         url: '/api/v2/buckets',
@@ -437,7 +451,7 @@ const createBucket = async(orgId, // String
         return response.data;
     }).catch(async err => {
         console.log('influxUtils.createBucket - Error ' + err);
-    });
+    });*/
 };
 
 //TODO - create cell and view to attach to dashboard
@@ -461,22 +475,40 @@ const createDashboard = async(name, orgId) => {
     }); */
 };
 
-const getDashboards = async() => {
+
+// TODO - replace with client API
+const getDashboards = async(userName) => {
+
+    let user = getUser(userName);
+
+    const dbdsAPI = new DashboardsAPI(new InfluxDB({url: __config.influx_url, token: user.token, timeout: 20000}));
+
+    return await dbdsAPI.getDashboards();
+    /*
     return await axios.get('/api/v2/dashboards').then(resp => {
         return resp.data;
     }).catch(err => {
         console.log('ERROR: ' + err);
         throw(err);
-    });
+    });*/
 };
 
-const getAuthorizations = async() => {
+// TODO - replace with Client API
+const getAuthorizations = async(userName) => {
+
+    let user = getUser(userName);
+
+    let authsAPI = new AuthorizationsAPI(new InfluxDB({url: __config.influx_url, token: user.token, timeout: 20000}));
+
+    return await authsAPI.getAuthorizations();
+
+    /*
     return await axios.get('/api/v2/authorizations').then(resp => {
         return resp.data;
     }).catch(err => {
         console.log('ERROR: ' + err);
         throw(err);
-    });
+    });*/
 };
 
 // http://localhost:9999/api/v2/labels
@@ -512,13 +544,28 @@ const createLabel = async(user,
     }); */
 };
 
+//TODO - replace with client API
+const createVariable = async(userName, name, type, values, selected = null ) => {
 
-const createVariable = async(orgId, name, type, values, selected = null ) => {
+    let user = getUser(userName);
+
+    let varAPI = new VariablesAPI(new InfluxDB({url: __config.influx_url, token: user.token, timeout: 20000}));
 
     let parseValues = JSON.parse(values);
 
     let reSel = selected === null ? selected : JSON.parse(selected);
 
+    return await varAPI.postVariables({body: {name: name,
+            orgID: user.orgid,
+            arguments: {
+                type: type,
+                values: parseValues
+            },
+            selected: reSel
+       }
+    })
+
+    /*
     return await axios({
         method: 'post',
         url: '/api/v2/variables',
@@ -537,11 +584,20 @@ const createVariable = async(orgId, name, type, values, selected = null ) => {
         console.log('ERROR: ' + err );
         throw(err);
     })
+    */
 
 };
 
-const getDocTemplates = async(orgId) => {
+//TODO replace with client API
+const getDocTemplates = async(userName) => {
 
+    let user = getUser(userName);
+
+    let docsAPI = new DocumentsAPI(new InfluxDB({url: __config.influx_url, token: user.token, timeout: 20000, }));
+
+    return await docsAPI.getDocumentsTemplates({orgID: user.orgid});
+
+    /*
     return await axios({
         method: 'get',
         url: `/api/v2/documents/templates?orgID=${orgId}`
@@ -550,14 +606,26 @@ const getDocTemplates = async(orgId) => {
     }).catch(err => {
         throw(err);
     });
+    */
 
 };
 
-const createTemplateFromFile = async(filepath, orgID) => {
+//TODO - replace with client API
+
+const createTemplateFromFile = async(userName, filepath) => {
+
+    let user = getUser(userName);
+
+    let docsAPI = new DocumentsAPI(new InfluxDB({url: __config.influx_url, token: user.token, timeout: 20000}));
+
+
     let content = await readFileToBuffer(process.cwd() + '/' + filepath);
     let newTemplate = JSON.parse(content);
-    newTemplate.orgID = orgID;
+    newTemplate.orgID = user.orgid;
 
+    docsAPI.postDocumentsTemplates({ body: newTemplate});
+
+    /*
     return await axios({
         method: 'POST',
         url: '/api/v2/documents/templates',
@@ -567,10 +635,15 @@ const createTemplateFromFile = async(filepath, orgID) => {
     }).catch(err => {
         throw(err);
     });
+    */
 
 };
 
-const createAlertCheckFromFile = async(filepath, orgID) => {
+//TODO - replace with client API
+
+const createAlertCheckFromFile = async(userName, filepath) => {
+
+    let user = getUser(userName);
 
     let content = await readFileToBuffer(process.cwd() + '/' + filepath);
     //let re = /\\/g;
@@ -580,8 +653,13 @@ const createAlertCheckFromFile = async(filepath, orgID) => {
     //let newCheck = JSON.parse('{"id":null,"type":"threshold","status":"active","activeStatus":"active","name":"ASDF","query":{"name":"","text":"from(bucket: \\"qa\\")\\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\\n  |> filter(fn: (r) => r[\\"_measurement\\"] == \\"test\\")\\n  |> filter(fn: (r) => r[\\"_field\\"] == \\"val\\")\\n  |> aggregateWindow(every: 1m, fn: mean)\\n  |> yield(name: \\"mean\\")","editMode":"builder","builderConfig":{"buckets":["qa"],"tags":[{"key":"_measurement","values":["test"],"aggregateFunctionType":"filter"},{"key":"_field","values":["val"],"aggregateFunctionType":"filter"},{"key":"gen","values":[],"aggregateFunctionType":"filter"}],"functions":[{"name":"mean"}],"aggregateWindow":{"period":"1m"}},"hidden":false},"orgID":"05a6a2d5ea213000","labels":[],"every":"1m","offset":"0s","statusMessageTemplate":"Check: ${ r._check_name } is: ${ r._level }","tags":[],"thresholds":[{"type":"greater","value":7.5,"level":"CRIT"}]}');
     let newCheck = JSON.parse(content);
 
-    newCheck.orgID = orgID;
+    newCheck.orgID = user.orgid;
 
+    let chkAPI = new ChecksAPI(new InfluxDB({url: __config.influx_url, token: user.token, timeout: 20000}));
+
+    chkAPI.createCheck({body: newCheck});
+
+/*
     return await axios({
         method: 'POST',
         url: '/api/v2/checks',
@@ -592,7 +670,7 @@ const createAlertCheckFromFile = async(filepath, orgID) => {
         console.error("DEBUG err " + JSON.stringify(err));
         throw(err);
     });
-
+*/
 };
 
 const writeLineProtocolData = async (userName, def) => {
@@ -1019,6 +1097,7 @@ module.exports = { flush,
     createTemplateFromFile,
     checkNodeJSClient,
     checkNodeJSClientAPI,
+    getAuthorizations,
     removeConfInDocker,
     removeFileIfExists,
     removeFilesByRegex,
