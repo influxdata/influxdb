@@ -184,12 +184,37 @@ func (a *API) Respond(w http.ResponseWriter, r *http.Request, status int, v inte
 		return
 	}
 
+	a.write(w, writer, status, b)
+}
+
+// Write allows the user to write raw bytes to the response writer. This
+// operation does not have a fail case, all failures here will be logged.
+func (a *API) Write(w http.ResponseWriter, status int, b []byte) {
+	if status == http.StatusNoContent {
+		w.WriteHeader(status)
+		return
+	}
+
+	var writer io.WriteCloser = noopCloser{Writer: w}
+	// we'll double close to make sure its always closed even
+	//on issues before the write
+	defer writer.Close()
+
+	if a != nil && a.encodeGZIP {
+		w.Header().Set("Content-Encoding", "gzip")
+		writer = gzip.NewWriter(w)
+	}
+
+	a.write(w, writer, status, b)
+}
+
+func (a *API) write(w http.ResponseWriter, wc io.WriteCloser, status int, b []byte) {
 	w.WriteHeader(status)
-	if _, err := writer.Write(b); err != nil {
+	if _, err := wc.Write(b); err != nil {
 		a.logErr("failed to write to response writer", zap.Error(err))
 	}
 
-	if err := writer.Close(); err != nil {
+	if err := wc.Close(); err != nil {
 		a.logErr("failed to close response writer", zap.Error(err))
 	}
 }

@@ -40,6 +40,18 @@ func (s *StorageReader) Close() {
 	}
 }
 
+type GroupStoreReader struct {
+	*StorageReader
+	GroupCapabilityFn func(ctx context.Context) query.GroupCapability
+}
+
+func (s *GroupStoreReader) GetGroupCapability(ctx context.Context) query.GroupCapability {
+	if s.GroupCapabilityFn != nil {
+		return s.GroupCapabilityFn(ctx)
+	}
+	return nil
+}
+
 type WindowAggregateStoreReader struct {
 	*StorageReader
 	GetWindowAggregateCapabilityFn func(ctx context.Context) query.WindowAggregateCapability

@@ -75,7 +75,11 @@ class MapVariableBuilder extends PureComponent<Props, State> {
             <Form.Element label="Select A Default">
               <Dropdown
                 button={(active, onClick) => (
-                  <Dropdown.Button active={active} onClick={onClick}>
+                  <Dropdown.Button
+                    active={active}
+                    onClick={onClick}
+                    testID="map-variable-dropdown--button"
+                  >
                     {this.defaultID}
                   </Dropdown.Button>
                 )}

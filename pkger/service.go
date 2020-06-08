@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"path"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -61,6 +62,7 @@ const ResourceTypeStack influxdb.ResourceType = "stack"
 type SVC interface {
 	InitStack(ctx context.Context, userID influxdb.ID, stack Stack) (Stack, error)
 	DeleteStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) error
+	ExportStack(ctx context.Context, orgID, stackID influxdb.ID) (*Pkg, error)
 	ListStacks(ctx context.Context, orgID influxdb.ID, filter ListFilter) ([]Stack, error)
 
 	CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*Pkg, error)
@@ -331,6 +333,184 @@ func (s *Service) DeleteStack(ctx context.Context, identifiers struct{ OrgID, Us
 	}
 
 	return s.store.DeleteStack(ctx, identifiers.StackID)
+}
+
+func (s *Service) ExportStack(ctx context.Context, orgID, stackID influxdb.ID) (*Pkg, error) {
+	stack, err := s.store.ReadStackByID(ctx, stackID)
+	if err != nil {
+		return nil, err
+	}
+
+	labelObjs, availablePkgLabels, err := s.exportStackLabels(ctx, stack.Resources)
+	if err != nil {
+		return nil, err
+	}
+
+	pkg := Pkg{Objects: labelObjs}
+	for _, res := range stack.Resources {
+		var (
+			obj Object
+			err error
+		)
+
+		switch res.Kind {
+		case KindBucket:
+			bkt, err := s.bucketSVC.FindBucketByID(ctx, res.ID)
+			if influxdb.ErrorCode(err) == influxdb.ENotFound {
+				continue
+			}
+			if err != nil {
+				return nil, ierrors.Wrap(err, fmt.Sprintf("failed to find bucket[%s]", res.ID.String()))
+			}
+			obj = BucketToObject("", *bkt)
+		case KindCheck, KindCheckDeadman, KindCheckThreshold:
+			ch, err := s.checkSVC.FindCheckByID(ctx, res.ID)
+			if influxdb.ErrorCode(err) == influxdb.ENotFound {
+				continue
+			}
+			if err != nil {
+				return nil, ierrors.Wrap(err, fmt.Sprintf("failed to find check[%s]", res.ID.String()))
+			}
+			obj = CheckToObject("", ch)
+		case KindDashboard:
+			dash, err := findDashboardByIDFull(ctx, s.dashSVC, res.ID)
+			if influxdb.ErrorCode(err) == influxdb.ENotFound {
+				continue
+			}
+			if err != nil {
+				return nil, ierrors.Wrap(err, fmt.Sprintf("failed to find dashboard[%s]", res.ID.String()))
+			}
+			obj = DashboardToObject("", *dash)
+		case KindLabel:
+			// these labels have already been discovered. All valid associations with the
+			// labels to be exported will be added, those that are not, will not be added.
+			continue
+		case KindNotificationEndpoint,
+			KindNotificationEndpointHTTP,
+			KindNotificationEndpointPagerDuty,
+			KindNotificationEndpointSlack:
+			e, err := s.endpointSVC.FindNotificationEndpointByID(ctx, res.ID)
+			if influxdb.ErrorCode(err) == influxdb.ENotFound {
+				continue
+			}
+			if err != nil {
+				return nil, ierrors.Wrap(err, fmt.Sprintf("failed to find endpoint[%s]", res.ID.String()))
+			}
+			obj = NotificationEndpointToObject("", e)
+		case KindNotificationRule:
+			e, err := s.ruleSVC.FindNotificationRuleByID(ctx, res.ID)
+			if influxdb.ErrorCode(err) == influxdb.ENotFound {
+				continue
+			}
+			if err != nil {
+				return nil, ierrors.Wrap(err, fmt.Sprintf("failed to find rule[%s]", res.ID.String()))
+			}
+			var endpointName string
+			for _, ass := range res.Associations {
+				if ass.Kind.is(KindNotificationEndpoint) {
+					endpointName = ass.PkgName
+					break
+				}
+			}
+			// rule is invalid if the endpoint is deleted
+			if endpointName == "" {
+				continue
+			}
+			obj = NotificationRuleToObject("", endpointName, e)
+		case KindTask:
+			t, err := s.taskSVC.FindTaskByID(ctx, res.ID)
+			if influxdb.ErrorCode(err) == influxdb.ENotFound {
+				continue
+			}
+			if err != nil {
+				return nil, ierrors.Wrap(err, fmt.Sprintf("failed to find task[%s]", res.ID.String()))
+			}
+			obj = TaskToObject("", *t)
+		case KindTelegraf:
+			t, err := s.teleSVC.FindTelegrafConfigByID(ctx, res.ID)
+			if influxdb.ErrorCode(err) == influxdb.ENotFound {
+				continue
+			}
+			if err != nil {
+				return nil, ierrors.Wrap(err, fmt.Sprintf("failed to find telegraf config[%s]", res.ID.String()))
+			}
+			obj = TelegrafToObject("", *t)
+		case KindVariable:
+			v, err := s.varSVC.FindVariableByID(ctx, res.ID)
+			if influxdb.ErrorCode(err) == influxdb.ENotFound {
+				continue
+			}
+			if err != nil {
+				return nil, ierrors.Wrap(err, fmt.Sprintf("failed to find variable[%s]", res.ID.String()))
+			}
+			obj = VariableToObject("", *v)
+		default:
+			continue
+		}
+
+		labelAssociations, err := s.exportStackResourceLabelAssociations(ctx, res, availablePkgLabels)
+		if err != nil {
+			return nil, err
+		}
+		if len(labelAssociations) > 0 {
+			obj.AddAssociations(labelAssociations...)
+		}
+		obj.SetMetadataName(res.PkgName)
+		pkg.Objects = append(pkg.Objects, obj)
+	}
+
+	pkg.Objects = sortObjects(pkg.Objects)
+	return &pkg, nil
+}
+
+func (s *Service) exportStackLabels(ctx context.Context, resources []StackResource) ([]Object, map[string]string, error) {
+	var objects []Object
+	availablePkgLabels := make(map[string]string) // pkgName => label name
+	for _, res := range resources {
+		if !res.Kind.is(KindLabel) {
+			continue
+		}
+		label, err := s.labelSVC.FindLabelByID(ctx, res.ID)
+		if influxdb.ErrorCode(err) == influxdb.ENotFound {
+			continue
+		}
+		if err != nil {
+			return nil, nil, ierrors.Wrap(err, fmt.Sprintf("failed to find label[%s]", res.ID.String()))
+		}
+		obj := LabelToObject("", *label)
+		obj.SetMetadataName(res.PkgName)
+		objects = append(objects, obj)
+		availablePkgLabels[res.PkgName] = label.Name
+	}
+	return objects, availablePkgLabels, nil
+}
+
+func (s *Service) exportStackResourceLabelAssociations(ctx context.Context, res StackResource, availablePkgLabels map[string]string) ([]ObjectAssociation, error) {
+	labels, err := s.labelSVC.FindResourceLabels(ctx, influxdb.LabelMappingFilter{
+		ResourceID:   res.ID,
+		ResourceType: res.Kind.ResourceType(),
+	})
+	if err != nil {
+		wrapper := fmt.Sprintf("failed to find label mappings for %s[%s]", res.Kind, res.ID)
+		return nil, ierrors.Wrap(err, wrapper)
+	}
+
+	existingLabels := make(map[string]bool)
+	for _, l := range labels {
+		existingLabels[l.Name] = true
+	}
+
+	var associations []ObjectAssociation
+	for _, ass := range res.Associations {
+		// only labels that exist in the PKG AND PLATFORM will be exported as associations.
+		if ass.Kind.is(KindLabel) && existingLabels[availablePkgLabels[ass.PkgName]] {
+			associations = append(associations, ObjectAssociation{
+				Kind:    KindLabel,
+				PkgName: ass.PkgName,
+			})
+		}
+	}
+	return associations, nil
 }
 
 // ListFilter are filter options for filtering stacks from being returned.
@@ -1235,7 +1415,7 @@ func (s *Service) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg
 		if err := updateStackFn(ctx, stackID, state); err != nil {
 			s.log.Error("failed to update stack", zap.Error(err))
 		}
-	}(opt.StackID)
+	}(stackID)
 
 	coordinator := &rollbackCoordinator{sem: make(chan struct{}, s.applyReqLimit)}
 	defer coordinator.rollback(s.log, &e, orgID)
@@ -3046,6 +3226,19 @@ func getLabelIDMap(ctx context.Context, labelSVC influxdb.LabelService, labelNam
 		}
 	}
 	return mLabelIDs, nil
+}
+
+func sortObjects(objects []Object) []Object {
+	sort.Slice(objects, func(i, j int) bool {
+		iName, jName := objects[i].Name(), objects[j].Name()
+		iKind, jKind := objects[i].Kind, objects[j].Kind
+
+		if iKind.is(jKind) {
+			return iName < jName
+		}
+		return kindPriorities[iKind] < kindPriorities[jKind]
+	})
+	return objects
 }
 
 type doMutex struct {

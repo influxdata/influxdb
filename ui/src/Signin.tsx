@@ -8,7 +8,6 @@ import {client} from 'src/utils/api'
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
-import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 
 // Utils
 import {
@@ -93,7 +92,7 @@ export class Signin extends PureComponent<Props, State> {
 
       clearInterval(this.intervalID)
 
-      if (CLOUD && isFlagEnabled('redirectto')) {
+      if (CLOUD) {
         const url = new URL(
           `${window.location.origin}${CLOUD_SIGNIN_PATHNAME}?redirectTo=${
             window.location.href
@@ -101,12 +100,6 @@ export class Signin extends PureComponent<Props, State> {
         )
         setToLocalStorage('redirectTo', window.location.href)
         window.location.href = url.href
-        throw error
-      }
-
-      if (CLOUD) {
-        // TODO: add returnTo to CLOUD signin
-        window.location.pathname = CLOUD_SIGNIN_PATHNAME
         throw error
       }
 

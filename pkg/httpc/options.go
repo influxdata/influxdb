@@ -42,34 +42,26 @@ func WithAuth(fn func(r *http.Request)) ClientOptFn {
 
 // WithAuthToken provides token auth for requests.
 func WithAuthToken(token string) ClientOptFn {
-	return func(opts *clientOpt) error {
-		fn := func(r *http.Request) {
-			r.Header.Set("Authorization", "Token "+token)
-		}
-		return WithAuth(fn)(opts)
-	}
+	return WithAuth(func(r *http.Request) {
+		r.Header.Set("Authorization", "Token "+token)
+	})
 }
 
 // WithSessionCookie provides cookie auth for requests to mimic the browser.
 // Typically, session is influxdb.Session.Key.
 func WithSessionCookie(session string) ClientOptFn {
-	return func(opts *clientOpt) error {
-		fn := func(r *http.Request) {
-			r.AddCookie(&http.Cookie{
-				Name:  "session",
-				Value: session,
-			})
-		}
-		return WithAuth(fn)(opts)
-	}
+	return WithAuth(func(r *http.Request) {
+		r.AddCookie(&http.Cookie{
+			Name:  "session",
+			Value: session,
+		})
+	})
 }
 
 // WithContentType sets the content type that will be applied to the requests created
 // by the Client.
 func WithContentType(ct string) ClientOptFn {
-	return func(opt *clientOpt) error {
-		return WithHeader(headerContentType, ct)(opt)
-	}
+	return WithHeader(headerContentType, ct)
 }
 
 func withDoer(d doer) ClientOptFn {
@@ -89,6 +81,11 @@ func WithHeader(header, val string) ClientOptFn {
 		opt.headers.Add(header, val)
 		return nil
 	}
+}
+
+// WithUserAgentHeader sets the user agent for the http client requests.
+func WithUserAgentHeader(userAgent string) ClientOptFn {
+	return WithHeader("User-Agent", userAgent)
 }
 
 // WithHTTPClient sets the raw http client on the httpc Client.
@@ -136,31 +133,34 @@ func WithWriterFn(fn WriteCloserFn) ClientOptFn {
 
 // WithWriterGZIP gzips the request body generated from this client.
 func WithWriterGZIP() ClientOptFn {
-	return func(opt *clientOpt) error {
-		fn := func(w io.WriteCloser) (string, string, io.WriteCloser) {
-			return headerContentEncoding, "gzip", gzip.NewWriter(w)
-		}
-		return WithWriterFn(fn)(opt)
-	}
+	return WithWriterFn(func(w io.WriteCloser) (string, string, io.WriteCloser) {
+		return headerContentEncoding, "gzip", gzip.NewWriter(w)
+	})
+}
+
+// DefaultTransportInsecure is identical to http.DefaultTransport, with
+// the exception that tls.Config is configured with InsecureSkipVerify
+// set to true.
+var DefaultTransportInsecure http.RoundTripper = &http.Transport{
+	Proxy: http.ProxyFromEnvironment,
+	DialContext: (&net.Dialer{
+		Timeout:   30 * time.Second,
+		KeepAlive: 30 * time.Second,
+		DualStack: true,
+	}).DialContext,
+	ForceAttemptHTTP2:     true,
+	MaxIdleConns:          100,
+	IdleConnTimeout:       90 * time.Second,
+	TLSHandshakeTimeout:   10 * time.Second,
+	ExpectContinueTimeout: 1 * time.Second,
+	TLSClientConfig: &tls.Config{
+		InsecureSkipVerify: true,
+	},
 }
 
 func defaultHTTPClient(scheme string, insecure bool) *http.Client {
-	tr := http.Transport{
-		Proxy: http.ProxyFromEnvironment,
-		DialContext: (&net.Dialer{
-			Timeout:   30 * time.Second,
-			KeepAlive: 30 * time.Second,
-			DualStack: true,
-		}).DialContext,
-		MaxIdleConns:          100,
-		IdleConnTimeout:       90 * time.Second,
-		TLSHandshakeTimeout:   10 * time.Second,
-		ExpectContinueTimeout: 1 * time.Second,
-	}
 	if scheme == "https" && insecure {
-		tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+		return &http.Client{Transport: DefaultTransportInsecure}
 	}
-	return &http.Client{
-		Transport: &tr,
-	}
+	return &http.Client{Transport: http.DefaultTransport}
 }

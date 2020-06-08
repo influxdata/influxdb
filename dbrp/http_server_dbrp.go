@@ -21,14 +21,16 @@ type Handler struct {
 	api     *kithttp.API
 	log     *zap.Logger
 	dbrpSvc influxdb.DBRPMappingServiceV2
+	orgSvc  influxdb.OrganizationService
 }
 
 // NewHTTPHandler constructs a new http server.
-func NewHTTPHandler(log *zap.Logger, dbrpSvc influxdb.DBRPMappingServiceV2) *Handler {
+func NewHTTPHandler(log *zap.Logger, dbrpSvc influxdb.DBRPMappingServiceV2, orgSvc influxdb.OrganizationService) *Handler {
 	h := &Handler{
 		api:     kithttp.NewAPI(kithttp.WithLog(log)),
 		log:     log,
 		dbrpSvc: dbrpSvc,
+		orgSvc:  orgSvc,
 	}
 
 	r := chi.NewRouter()
@@ -57,6 +59,7 @@ type createDBRPRequest struct {
 	Database        string      `json:"database"`
 	RetentionPolicy string      `json:"retention_policy"`
 	Default         bool        `json:"default"`
+	Org             string      `json:"organization"`
 	OrganizationID  influxdb.ID `json:"organization_id"`
 	BucketID        influxdb.ID `json:"bucket_id"`
 }
@@ -71,6 +74,21 @@ func (h *Handler) handlePostDBRP(w http.ResponseWriter, r *http.Request) {
 			Err:  err,
 		})
 		return
+	}
+
+	if !req.OrganizationID.Valid() {
+		if req.Org == "" {
+			h.api.Err(w, r, influxdb.ErrInvalidID)
+			return
+		}
+		org, err := h.orgSvc.FindOrganization(r.Context(), influxdb.OrganizationFilter{
+			Name: &req.Org,
+		})
+		if err != nil {
+			h.api.Err(w, r, influxdb.ErrOrgNotFound)
+			return
+		}
+		req.OrganizationID = org.ID
 	}
 
 	dbrp := &influxdb.DBRPMappingV2{
@@ -92,7 +110,7 @@ type getDBRPsResponse struct {
 }
 
 func (h *Handler) handleGetDBRPs(w http.ResponseWriter, r *http.Request) {
-	filter, err := getFilterFromHTTPRequest(r)
+	filter, err := h.getFilterFromHTTPRequest(r)
 	if err != nil {
 		h.api.Err(w, r, err)
 		return
@@ -129,7 +147,7 @@ func (h *Handler) handleGetDBRP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	orgID, err := mustGetOrgIDFromHTTPRequest(r)
+	orgID, err := h.mustGetOrgIDFromHTTPRequest(r)
 	if err != nil {
 		h.api.Err(w, r, err)
 		return
@@ -168,7 +186,7 @@ func (h *Handler) handlePatchDBRP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	orgID, err := mustGetOrgIDFromHTTPRequest(r)
+	orgID, err := h.mustGetOrgIDFromHTTPRequest(r)
 	if err != nil {
 		h.api.Err(w, r, err)
 		return
@@ -226,7 +244,7 @@ func (h *Handler) handleDeleteDBRP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	orgID, err := mustGetOrgIDFromHTTPRequest(r)
+	orgID, err := h.mustGetOrgIDFromHTTPRequest(r)
 	if err != nil {
 		h.api.Err(w, r, err)
 		return
@@ -240,9 +258,9 @@ func (h *Handler) handleDeleteDBRP(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func getFilterFromHTTPRequest(r *http.Request) (f influxdb.DBRPMappingFilterV2, err error) {
+func (h *Handler) getFilterFromHTTPRequest(r *http.Request) (f influxdb.DBRPMappingFilterV2, err error) {
 	// Always provide OrgID.
-	f.OrgID, err = mustGetOrgIDFromHTTPRequest(r)
+	f.OrgID, err = h.mustGetOrgIDFromHTTPRequest(r)
 	if err != nil {
 		return f, err
 	}
@@ -289,13 +307,25 @@ func getIDFromHTTPRequest(r *http.Request, key string) (*influxdb.ID, error) {
 	return &id, nil
 }
 
-func mustGetOrgIDFromHTTPRequest(r *http.Request) (*influxdb.ID, error) {
+// mustGetOrgIDFromHTTPRequest returns the org ID parameter from the request, falling
+// back to looking up the org ID by org name if the ID parameter is not present.
+func (h *Handler) mustGetOrgIDFromHTTPRequest(r *http.Request) (*influxdb.ID, error) {
 	orgID, err := getIDFromHTTPRequest(r, "orgID")
 	if err != nil {
 		return nil, err
 	}
 	if orgID == nil {
-		return nil, influxdb.ErrOrgNotFound
+		name := r.URL.Query().Get("org")
+		if name == "" {
+			return nil, influxdb.ErrOrgNotFound
+		}
+		org, err := h.orgSvc.FindOrganization(r.Context(), influxdb.OrganizationFilter{
+			Name: &name,
+		})
+		if err != nil {
+			return nil, influxdb.ErrOrgNotFound
+		}
+		orgID = &org.ID
 	}
 	return orgID, nil
 }

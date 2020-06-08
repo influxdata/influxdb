@@ -247,12 +247,13 @@ func (c *integerFloatWindowCountArrayCursor) Next() *cursors.IntegerArray {
 	rowIdx := 0
 	var acc int64 = 0
 
+	firstTimestamp := a.Timestamps[rowIdx]
+	windowStart := firstTimestamp - firstTimestamp%c.every
+	windowEnd := windowStart + c.every
+
 	// enumerate windows
 WINDOWS:
 	for {
-		firstTimestamp := a.Timestamps[rowIdx]
-		windowStart := firstTimestamp - firstTimestamp%c.every
-		windowEnd := windowStart + c.every
 		for ; rowIdx < a.Len(); rowIdx++ {
 			ts := a.Timestamps[rowIdx]
 			if ts >= windowEnd {
@@ -263,6 +264,9 @@ WINDOWS:
 				}
 				// start the new window
 				acc = 0
+				firstTimestamp = a.Timestamps[rowIdx]
+				windowStart = firstTimestamp - firstTimestamp%c.every
+				windowEnd = windowStart + c.every
 				continue WINDOWS
 			} else {
 				acc++
@@ -521,12 +525,13 @@ func (c *integerIntegerWindowCountArrayCursor) Next() *cursors.IntegerArray {
 	rowIdx := 0
 	var acc int64 = 0
 
+	firstTimestamp := a.Timestamps[rowIdx]
+	windowStart := firstTimestamp - firstTimestamp%c.every
+	windowEnd := windowStart + c.every
+
 	// enumerate windows
 WINDOWS:
 	for {
-		firstTimestamp := a.Timestamps[rowIdx]
-		windowStart := firstTimestamp - firstTimestamp%c.every
-		windowEnd := windowStart + c.every
 		for ; rowIdx < a.Len(); rowIdx++ {
 			ts := a.Timestamps[rowIdx]
 			if ts >= windowEnd {
@@ -537,6 +542,9 @@ WINDOWS:
 				}
 				// start the new window
 				acc = 0
+				firstTimestamp = a.Timestamps[rowIdx]
+				windowStart = firstTimestamp - firstTimestamp%c.every
+				windowEnd = windowStart + c.every
 				continue WINDOWS
 			} else {
 				acc++
@@ -795,12 +803,13 @@ func (c *integerUnsignedWindowCountArrayCursor) Next() *cursors.IntegerArray {
 	rowIdx := 0
 	var acc int64 = 0
 
+	firstTimestamp := a.Timestamps[rowIdx]
+	windowStart := firstTimestamp - firstTimestamp%c.every
+	windowEnd := windowStart + c.every
+
 	// enumerate windows
 WINDOWS:
 	for {
-		firstTimestamp := a.Timestamps[rowIdx]
-		windowStart := firstTimestamp - firstTimestamp%c.every
-		windowEnd := windowStart + c.every
 		for ; rowIdx < a.Len(); rowIdx++ {
 			ts := a.Timestamps[rowIdx]
 			if ts >= windowEnd {
@@ -811,6 +820,9 @@ WINDOWS:
 				}
 				// start the new window
 				acc = 0
+				firstTimestamp = a.Timestamps[rowIdx]
+				windowStart = firstTimestamp - firstTimestamp%c.every
+				windowEnd = windowStart + c.every
 				continue WINDOWS
 			} else {
 				acc++
@@ -1029,12 +1041,13 @@ func (c *integerStringWindowCountArrayCursor) Next() *cursors.IntegerArray {
 	rowIdx := 0
 	var acc int64 = 0
 
+	firstTimestamp := a.Timestamps[rowIdx]
+	windowStart := firstTimestamp - firstTimestamp%c.every
+	windowEnd := windowStart + c.every
+
 	// enumerate windows
 WINDOWS:
 	for {
-		firstTimestamp := a.Timestamps[rowIdx]
-		windowStart := firstTimestamp - firstTimestamp%c.every
-		windowEnd := windowStart + c.every
 		for ; rowIdx < a.Len(); rowIdx++ {
 			ts := a.Timestamps[rowIdx]
 			if ts >= windowEnd {
@@ -1045,6 +1058,9 @@ WINDOWS:
 				}
 				// start the new window
 				acc = 0
+				firstTimestamp = a.Timestamps[rowIdx]
+				windowStart = firstTimestamp - firstTimestamp%c.every
+				windowEnd = windowStart + c.every
 				continue WINDOWS
 			} else {
 				acc++
@@ -1263,12 +1279,13 @@ func (c *integerBooleanWindowCountArrayCursor) Next() *cursors.IntegerArray {
 	rowIdx := 0
 	var acc int64 = 0
 
+	firstTimestamp := a.Timestamps[rowIdx]
+	windowStart := firstTimestamp - firstTimestamp%c.every
+	windowEnd := windowStart + c.every
+
 	// enumerate windows
 WINDOWS:
 	for {
-		firstTimestamp := a.Timestamps[rowIdx]
-		windowStart := firstTimestamp - firstTimestamp%c.every
-		windowEnd := windowStart + c.every
 		for ; rowIdx < a.Len(); rowIdx++ {
 			ts := a.Timestamps[rowIdx]
 			if ts >= windowEnd {
@@ -1279,6 +1296,9 @@ WINDOWS:
 				}
 				// start the new window
 				acc = 0
+				firstTimestamp = a.Timestamps[rowIdx]
+				windowStart = firstTimestamp - firstTimestamp%c.every
+				windowEnd = windowStart + c.every
 				continue WINDOWS
 			} else {
 				acc++

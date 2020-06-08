@@ -40,7 +40,7 @@ describe('Dashboard', () => {
     cy.getByTestID('dashboard-card').should('contain', newName)
   })
 
-  it('can create a cell', () => {
+  it('can create a View and Note cell', () => {
     cy.get('@org').then(({id: orgID}: Organization) => {
       cy.createDashboard(orgID).then(({body}) => {
         cy.fixture('routes').then(({orgs}) => {
@@ -49,9 +49,28 @@ describe('Dashboard', () => {
       })
     })
 
+    // View cell
     cy.getByTestID('add-cell--button').click()
     cy.getByTestID('save-cell--button').click()
     cy.getByTestID('cell--view-empty').should('have.length', 1)
+
+    // Remove view cell
+    cy.getByTestID('cell-context--toggle').click()
+    cy.getByTestID('cell-context--delete').click()
+    cy.getByTestID('cell-context--delete-confirm').click()
+
+    cy.getByTestID('empty-state').should('exist')
+
+    const noteText = 'this is a note cell'
+
+    // Note cell
+    cy.getByTestID('add-note--button').click()
+    cy.getByTestID('note-editor--overlay').within(() => {
+      cy.get('.CodeMirror').type(noteText)
+      cy.getByTestID('save-note--button').click()
+    })
+
+    cy.getByTestID('cell--view-empty').contains(noteText)
   })
 
   // fix for https://github.com/influxdata/influxdb/issues/15239

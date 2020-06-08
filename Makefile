@@ -84,6 +84,8 @@ $(CMDS): $(SOURCES)
 # Ease of use build for just the go binary
 influxd: bin/$(GOOS)/influxd
 
+influx: bin/$(GOOS)/influx
+
 #
 # Define targets for the web ui
 #
@@ -160,15 +162,17 @@ build: all
 goreleaser:
 	curl -sfL -o goreleaser-install https://install.goreleaser.com/github.com/goreleaser/goreleaser.sh
 	sh goreleaser-install v0.135.0
+	go build -o $(GOPATH)/bin/pkg-config github.com/influxdata/pkg-config
+	install xcc.sh $(GOPATH)/bin/xcc
 
 # Parallelism for goreleaser must be set to 1 so it doesn't
 # attempt to invoke pkg-config, which invokes cargo,
 # for multiple targets at the same time.
 dist: goreleaser
-	./bin/goreleaser -p 1 --rm-dist --config=.goreleaser-nightly.yml
+	./bin/goreleaser -p 1 --skip-validate --rm-dist --config=.goreleaser-nightly.yml
 
 nightly: goreleaser
-	./bin/goreleaser -p 1 --rm-dist --config=.goreleaser-nightly.yml
+	./bin/goreleaser -p 1 --skip-validate --rm-dist --config=.goreleaser-nightly.yml
 
 release: goreleaser
 	git checkout -- go.sum # avoid dirty git repository caused by go install

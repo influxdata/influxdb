@@ -44,6 +44,14 @@ func (s *authMW) DeleteStack(ctx context.Context, identifiers struct{ OrgID, Use
 	return s.next.DeleteStack(ctx, identifiers)
 }
 
+func (s *authMW) ExportStack(ctx context.Context, orgID, stackID influxdb.ID) (*Pkg, error) {
+	err := s.authAgent.OrgPermissions(ctx, orgID, influxdb.ReadAction)
+	if err != nil {
+		return nil, err
+	}
+	return s.next.ExportStack(ctx, orgID, stackID)
+}
+
 func (s *authMW) ListStacks(ctx context.Context, orgID influxdb.ID, f ListFilter) ([]Stack, error) {
 	err := s.authAgent.OrgPermissions(ctx, orgID, influxdb.ReadAction)
 	if err != nil {

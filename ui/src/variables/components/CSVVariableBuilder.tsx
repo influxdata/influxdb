@@ -61,6 +61,7 @@ export default class CSVTemplateBuilder extends PureComponent<Props, State> {
                 options={values}
                 selectedOption={this.defaultID}
                 onSelect={onSelectDefault}
+                testID="csv-value-select-dropdown"
               />
             </Form.Element>
           </Grid.Column>

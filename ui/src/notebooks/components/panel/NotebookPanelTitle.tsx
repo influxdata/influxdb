@@ -19,8 +19,7 @@ const NotebookPanelTitle: FC<Props> = ({index}) => {
   let titleElement = <div className="notebook-panel--title">{title}</div>
 
   const onChange = (e: ChangeEvent<HTMLInputElement>): void => {
-    const trimmedValue = e.target.value.replace(' ', '_')
-    onTitleChange(trimmedValue)
+    onTitleChange(e.target.value)
   }
 
   titleElement = (

@@ -1,7 +1,10 @@
 // Libraries
 import React, {FC, useContext, useEffect} from 'react'
 import {SubmitQueryButton} from 'src/timeMachine/components/SubmitQueryButton'
-import QueryProvider, {QueryContext} from 'src/notebooks/context/query'
+import QueryProvider, {
+  QueryContext,
+  BothResults,
+} from 'src/notebooks/context/query'
 import {NotebookContext, PipeMeta} from 'src/notebooks/context/notebook'
 import {TimeContext} from 'src/notebooks/context/time'
 import {IconFont} from '@influxdata/clockface'
@@ -47,7 +50,7 @@ export const Submit: FC = () => {
             instances: [index],
             requirements,
           })
-        } else {
+        } else if (stages.length) {
           stages[stages.length - 1].instances.push(index)
         }
 
@@ -59,18 +62,27 @@ export const Submit: FC = () => {
             .map(([key, value]) => `${key} = (\n${value}\n)\n\n`)
             .join('') + queryStruct.text
 
-        return query(queryText).then(response => {
-          queryStruct.instances.forEach(index => {
-            updateMeta(index, {loading: RemoteDataState.Done} as PipeMeta)
-            updateResult(index, response)
+        return query(queryText)
+          .then(response => {
+            queryStruct.instances.forEach(index => {
+              updateMeta(index, {loading: RemoteDataState.Done} as PipeMeta)
+              updateResult(index, response)
+            })
           })
-        })
+          .catch(e => {
+            queryStruct.instances.forEach(index => {
+              updateMeta(index, {loading: RemoteDataState.Error} as PipeMeta)
+              updateResult(index, {
+                error: e.message,
+              } as BothResults)
+            })
+          })
       })
   }
 
   return (
     <SubmitQueryButton
-      text="Run Notebook"
+      text="Run Flow"
       icon={IconFont.Play}
       submitButtonDisabled={false}
       queryStatus={RemoteDataState.NotStarted}

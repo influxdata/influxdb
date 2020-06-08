@@ -13,11 +13,27 @@
 #   lifetime:     Expected lifetime of the flag; temporary or permanent, default temporary
 #   expose:       Boolean indicating whether the flag should be exposed to callers; default false
 
+- name: App Metrics
+  description: Send UI Telementry to Tools cluster - should always be false in OSS
+  key: appMetrics
+  default: false
+  expose: true
+  contact: Bucky, Monitoring Team
+  lifetime: permanent
+
 - name: Backend Example
   description: A permanent backend example boolean flag
   key: backendExample
   default: false
   contact: Gavin Cabbage
+  lifetime: permanent
+
+- name: Community Templates
+  description: Replace current template uploading functionality with community driven templates
+  key: communityTemplates
+  default: false
+  expose: true
+  contact: Bucky, Johnny Steenbergen (Berg)
   lifetime: permanent
 
 - name: Frontend Example
@@ -58,6 +74,27 @@
   key: pushDownGroupAggregateCount
   default: false
   contact: Query Team
+
+- name: Push Down Group Aggregate Sum
+  description: Enable the sum variant of PushDownGroupAggregate planner rule
+  key: pushDownGroupAggregateSum
+  default: false
+  contact: Query Team
+  lifetime: temporary
+
+- name: Push Down Group Aggregate First
+  description: Enable the first variant of PushDownGroupAggregate planner rule
+  key: pushDownGroupAggregateFirst
+  default: false
+  contact: Query Team
+  lifetime: temporary
+
+- name: Push Down Group Aggregate Last
+  description: Enable the last variant of PushDownGroupAggregate planner rule
+  key: pushDownGroupAggregateLast
+  default: false
+  contact: Query Team
+  lifetime: temporary
 
 - name: New Label Package
   description: Enables the refactored labels api

@@ -1,7 +1,7 @@
 import React, {FC, useState, useCallback, RefObject} from 'react'
 import {RemoteDataState} from 'src/types'
 import {PipeData} from 'src/notebooks'
-import {FromFluxResult} from '@influxdata/giraffe'
+import {BothResults} from 'src/notebooks/context/query'
 
 export interface PipeMeta {
   title: string
@@ -16,11 +16,11 @@ export interface NotebookContextType {
   id: string
   pipes: PipeData[]
   meta: PipeMeta[] // data only used for the view layer for Notebooks
-  results: FromFluxResult[]
+  results: BothResults[]
   addPipe: (pipe: PipeData) => void
   updatePipe: (idx: number, pipe: PipeData) => void
   updateMeta: (idx: number, pipe: PipeMeta) => void
-  updateResult: (idx: number, result: FromFluxResult) => void
+  updateResult: (idx: number, result: BothResults) => void
   movePipe: (currentIdx: number, newIdx: number) => void
   removePipe: (idx: number) => void
 }
@@ -74,18 +74,30 @@ export const NotebookProvider: FC = ({children}) => {
           return pipes.slice()
         }
       }
+      if (pipes.length && pipe.type !== 'query') {
+        _setResults(add({...results[results.length - 1]}))
+        _setMeta(
+          add({
+            title: `Cell_${++GENERATOR_INDEX}`,
+            visible: true,
+            loading: meta[meta.length - 1].loading,
+            focus: false,
+          })
+        )
+      } else {
+        _setResults(add({}))
+        _setMeta(
+          add({
+            title: `Cell_${++GENERATOR_INDEX}`,
+            visible: true,
+            loading: RemoteDataState.NotStarted,
+            focus: false,
+          })
+        )
+      }
       _setPipes(add(pipe))
-      _setResults(add({}))
-      _setMeta(
-        add({
-          title: `Cell_${++GENERATOR_INDEX}`,
-          visible: true,
-          loading: RemoteDataState.NotStarted,
-          focus: false,
-        })
-      )
     },
-    [id]
+    [id, pipes, meta, results]
   )
 
   const updatePipe = useCallback(
@@ -98,7 +110,7 @@ export const NotebookProvider: FC = ({children}) => {
         return pipes.slice()
       })
     },
-    [id]
+    [id, pipes]
   )
 
   const updateMeta = useCallback(
@@ -111,19 +123,19 @@ export const NotebookProvider: FC = ({children}) => {
         return pipes.slice()
       })
     },
-    [id]
+    [id, meta]
   )
 
   const updateResult = useCallback(
-    (idx: number, results: FromFluxResult) => {
+    (idx: number, results: BothResults) => {
       _setResults(pipes => {
         pipes[idx] = {
           ...results,
-        } as FromFluxResult
+        } as BothResults
         return pipes.slice()
       })
     },
-    [id]
+    [id, results]
   )
 
   const movePipe = useCallback(

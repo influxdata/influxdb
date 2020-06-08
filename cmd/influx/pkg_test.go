@@ -729,6 +729,10 @@ func (f *fakePkgSVC) DeleteStack(ctx context.Context, identifiers struct{ OrgID,
 	panic("not implemented")
 }
 
+func (f *fakePkgSVC) ExportStack(ctx context.Context, orgID, stackID influxdb.ID) (*pkger.Pkg, error) {
+	panic("not implemented")
+}
+
 func (f *fakePkgSVC) CreatePkg(ctx context.Context, setters ...pkger.CreatePkgSetFn) (*pkger.Pkg, error) {
 	if f.createFn != nil {
 		return f.createFn(ctx, setters...)

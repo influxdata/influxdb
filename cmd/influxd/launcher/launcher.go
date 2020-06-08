@@ -876,7 +876,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 			m.log.Error("Failed creating new labels store", zap.Error(err))
 			return err
 		}
-		ls := label.NewService(labelsStore, m.kvService)
+		ls := label.NewService(labelsStore)
 		labelSvc = label.NewLabelController(flagger, m.kvService, ls)
 	}
 

@@ -16,7 +16,7 @@ const NotebookPage: FC = () => {
   return (
     <NotebookProvider>
       <ScrollProvider>
-        <Page titleTag="Notebook">
+        <Page titleTag="Flows">
           <Header />
           <Page.Contents
             fullWidth={true}

@@ -203,7 +203,7 @@ func NewAPIHandler(b *APIBackend, opts ...APIHandlerOptFn) *APIHandler {
 	backupBackend.BackupService = authorizer.NewBackupService(backupBackend.BackupService)
 	h.Mount(prefixBackup, NewBackupHandler(backupBackend))
 
-	h.Mount(dbrp.PrefixDBRP, dbrp.NewHTTPHandler(b.Logger, b.DBRPService))
+	h.Mount(dbrp.PrefixDBRP, dbrp.NewHTTPHandler(b.Logger, b.DBRPService, b.OrganizationService))
 
 	writeBackend := NewWriteBackend(b.Logger.With(zap.String("handler", "write")), b)
 	h.Mount(prefixWrite, NewWriteHandler(b.Logger, writeBackend,

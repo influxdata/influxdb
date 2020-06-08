@@ -211,7 +211,7 @@ func ReadGroupSource(id execute.DatasetID, r query.StorageReader, readSpec query
 
 	src.m = GetStorageDependencies(a.Context()).FromDeps.Metrics
 	src.orgID = readSpec.OrganizationID
-	src.op = "readGroup"
+	src.op = readSpec.Name()
 
 	src.runner = src
 	return src
@@ -351,6 +351,7 @@ func createReadWindowAggregateSource(s plan.ProcedureSpec, id execute.DatasetID,
 			},
 			WindowEvery: spec.WindowEvery,
 			Aggregates:  spec.Aggregates,
+			CreateEmpty: spec.CreateEmpty,
 		},
 		a,
 	), nil

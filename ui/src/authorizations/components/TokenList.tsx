@@ -4,7 +4,7 @@ import _ from 'lodash'
 import memoizeOne from 'memoize-one'
 
 // Components
-import {Overlay, IndexList} from '@influxdata/clockface'
+import {Overlay, ResourceList} from '@influxdata/clockface'
 import TokenRow from 'src/authorizations/components/TokenRow'
 import ViewTokenOverlay from 'src/authorizations/components/ViewTokenOverlay'
 
@@ -15,12 +15,12 @@ import {Sort} from '@influxdata/clockface'
 
 // Utils
 import {getSortedResources} from 'src/shared/utils/sort'
-import TokensEmptyState from './TokensEmptyState'
 
 type SortKey = keyof Authorization
 
 interface Props {
   auths: Authorization[]
+  emptyState: JSX.Element
   searchTerm: string
   sortKey: string
   sortDirection: Sort
@@ -47,35 +47,16 @@ export default class TokenList extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {sortKey, sortDirection, onClickColumn, searchTerm} = this.props
     const {isTokenOverlayVisible, authInView} = this.state
 
     return (
       <>
-        <IndexList>
-          <IndexList.Header>
-            <IndexList.HeaderCell
-              sortKey={this.headerKeys[0]}
-              sort={sortKey === this.headerKeys[0] ? sortDirection : Sort.None}
-              columnName="Description"
-              onClick={onClickColumn}
-              width="50%"
-            />
-            <IndexList.HeaderCell
-              sortKey={this.headerKeys[1]}
-              sort={sortKey === this.headerKeys[1] ? sortDirection : Sort.None}
-              columnName="Status"
-              onClick={onClickColumn}
-              width="50%"
-            />
-          </IndexList.Header>
-          <IndexList.Body
-            emptyState={<TokensEmptyState searchTerm={searchTerm} />}
-            columnCount={2}
-          >
+        <ResourceList>
+          <ResourceList.Body emptyState={this.props.emptyState}>
             {this.rows}
-          </IndexList.Body>
-        </IndexList>
+          </ResourceList.Body>
+        </ResourceList>
+
         <Overlay visible={isTokenOverlayVisible}>
           <ViewTokenOverlay
             auth={authInView}
@@ -84,10 +65,6 @@ export default class TokenList extends PureComponent<Props, State> {
         </Overlay>
       </>
     )
-  }
-
-  private get headerKeys(): SortKey[] {
-    return ['description', 'status']
   }
 
   private get rows(): JSX.Element[] {

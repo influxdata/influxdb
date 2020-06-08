@@ -146,17 +146,7 @@ func (ex *resourceExporter) Objects() []Object {
 		objects = append(objects, obj)
 	}
 
-	sort.Slice(objects, func(i, j int) bool {
-		iName, jName := objects[i].Name(), objects[j].Name()
-		iKind, jKind := objects[i].Kind, objects[j].Kind
-
-		if iKind.is(jKind) {
-			return iName < jName
-		}
-		return kindPriorities[iKind] < kindPriorities[jKind]
-	})
-
-	return objects
+	return sortObjects(objects)
 }
 
 func (ex *resourceExporter) uniqByNameResID() influxdb.ID {
@@ -213,7 +203,7 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 		}
 		mapResource(ch.GetOrgID(), uniqByNameResID, KindCheck, CheckToObject(r.Name, ch))
 	case r.Kind.is(KindDashboard):
-		dash, err := ex.findDashboardByIDFull(ctx, r.ID)
+		dash, err := findDashboardByIDFull(ctx, ex.dashSVC, r.ID)
 		if err != nil {
 			return err
 		}
@@ -361,21 +351,6 @@ func (ex *resourceExporter) getEndpointRule(ctx context.Context, id influxdb.ID)
 	return rule, ruleEndpoint, nil
 }
 
-func (ex *resourceExporter) findDashboardByIDFull(ctx context.Context, id influxdb.ID) (*influxdb.Dashboard, error) {
-	dash, err := ex.dashSVC.FindDashboardByID(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	for _, cell := range dash.Cells {
-		v, err := ex.dashSVC.GetDashboardCellView(ctx, id, cell.ID)
-		if err != nil {
-			return nil, err
-		}
-		cell.View = v
-	}
-	return dash, nil
-}
-
 func (ex *resourceExporter) uniqName() string {
 	uuid := strings.ToLower(idGenerator.ID().String())
 	for i := 1; i < 250; i++ {
@@ -386,6 +361,21 @@ func (ex *resourceExporter) uniqName() string {
 	}
 	// if all else fails, generate a UUID for the name
 	return uuid
+}
+
+func findDashboardByIDFull(ctx context.Context, dashSVC influxdb.DashboardService, id influxdb.ID) (*influxdb.Dashboard, error) {
+	dash, err := dashSVC.FindDashboardByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	for _, cell := range dash.Cells {
+		v, err := dashSVC.GetDashboardCellView(ctx, id, cell.ID)
+		if err != nil {
+			return nil, err
+		}
+		cell.View = v
+	}
+	return dash, nil
 }
 
 func uniqResourcesToClone(resources []ResourceToClone) []ResourceToClone {

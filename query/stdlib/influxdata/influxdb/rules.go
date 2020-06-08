@@ -29,10 +29,7 @@ func init() {
 		// added AND feature flags must be enabled.
 		PushDownWindowAggregateRule{},
 		// PushDownBareAggregateRule{},
-
-		// For this rule to take effect the corresponding feature flags must be
-		// enabled.
-		// PushDownGroupAggregateRule{},
+		PushDownGroupAggregateRule{},
 	)
 }
 
@@ -766,8 +763,7 @@ func (PushDownWindowAggregateRule) Rewrite(ctx context.Context, pn plan.Node) (p
 		!window.Offset.IsZero() ||
 		windowSpec.TimeColumn != "_time" ||
 		windowSpec.StartColumn != "_start" ||
-		windowSpec.StopColumn != "_stop" ||
-		windowSpec.CreateEmpty {
+		windowSpec.StopColumn != "_stop" {
 		return pn, false, nil
 	}
 
@@ -776,6 +772,7 @@ func (PushDownWindowAggregateRule) Rewrite(ctx context.Context, pn plan.Node) (p
 		ReadRangePhysSpec: *fromSpec.Copy().(*ReadRangePhysSpec),
 		Aggregates:        []plan.ProcedureKind{fnNode.Kind()},
 		WindowEvery:       window.Every.Nanoseconds(),
+		CreateEmpty:       windowSpec.CreateEmpty,
 	}), true, nil
 }
 
@@ -822,37 +819,130 @@ func (rule PushDownGroupAggregateRule) Pattern() plan.Pattern {
 	return plan.OneOf(
 		[]plan.ProcedureKind{
 			universe.CountKind,
+			universe.SumKind,
+			universe.FirstKind,
+			universe.LastKind,
 		},
 		plan.Pat(ReadGroupPhysKind))
 }
 
 func (PushDownGroupAggregateRule) Rewrite(ctx context.Context, pn plan.Node) (plan.Node, bool, error) {
-	// Check the aggregate function spec. Require operation on _value.
-	var aggregateMethod string
-	fnNode := pn
-	switch fnNode.Kind() {
-	case universe.CountKind:
-		if !feature.PushDownGroupAggregateCount().Enabled(ctx) {
-			return pn, false, nil
-		}
-
-		countSpec := fnNode.ProcedureSpec().(*universe.CountProcedureSpec)
-		if len(countSpec.Columns) != 1 || countSpec.Columns[0] != execute.DefaultValueColLabel {
-			return pn, false, nil
-		}
-		aggregateMethod = universe.CountKind
-	}
-
-	groupNode := fnNode.Predecessors()[0]
-	groupSpec := groupNode.ProcedureSpec().(*ReadGroupPhysSpec)
-
-	// Group spec must not already have an aggregate method.
-	if len(groupSpec.AggregateMethod) > 0 {
+	group := pn.Predecessors()[0].ProcedureSpec().(*ReadGroupPhysSpec)
+	// Cannot push down multiple aggregates
+	if len(group.AggregateMethod) > 0 {
 		return pn, false, nil
 	}
 
-	// Rule passes.
-	rewrite := *groupSpec.Copy().(*ReadGroupPhysSpec)
-	rewrite.AggregateMethod = aggregateMethod
-	return plan.CreatePhysicalNode("ReadGroup", &rewrite), true, nil
+	if !canPushGroupedAggregate(ctx, pn) {
+		return pn, false, nil
+	}
+
+	switch pn.Kind() {
+	case universe.CountKind:
+		// ReadGroup() -> count => ReadGroup(count) -> sum
+		root := plan.CreatePhysicalNode("sum", &universe.SumProcedureSpec{
+			AggregateConfig: execute.DefaultAggregateConfig,
+		})
+
+		leaf := plan.CreatePhysicalNode("ReadGroupAggregate", &ReadGroupPhysSpec{
+			ReadRangePhysSpec: group.ReadRangePhysSpec,
+			GroupMode:         group.GroupMode,
+			GroupKeys:         group.GroupKeys,
+			AggregateMethod:   universe.CountKind,
+		})
+
+		root.AddPredecessors(leaf)
+		leaf.AddSuccessors(root)
+		return root, true, nil
+	case universe.SumKind:
+		// ReadGroup() -> sum => ReadGroup(sum) -> sum
+		root := plan.CreatePhysicalNode("sum", &universe.SumProcedureSpec{
+			AggregateConfig: execute.DefaultAggregateConfig,
+		})
+
+		leaf := plan.CreatePhysicalNode("ReadGroupAggregate", &ReadGroupPhysSpec{
+			ReadRangePhysSpec: group.ReadRangePhysSpec,
+			GroupMode:         group.GroupMode,
+			GroupKeys:         group.GroupKeys,
+			AggregateMethod:   universe.SumKind,
+		})
+
+		root.AddPredecessors(leaf)
+		leaf.AddSuccessors(root)
+		return root, true, nil
+	case universe.FirstKind:
+		// ReadGroup() -> first => ReadGroup(first) -> min
+		root := plan.CreatePhysicalNode("min", &universe.MinProcedureSpec{
+			SelectorConfig: execute.SelectorConfig{
+				Column: execute.DefaultTimeColLabel,
+			},
+		})
+
+		leaf := plan.CreatePhysicalNode("ReadGroupAggregate", &ReadGroupPhysSpec{
+			ReadRangePhysSpec: group.ReadRangePhysSpec,
+			GroupMode:         group.GroupMode,
+			GroupKeys:         group.GroupKeys,
+			AggregateMethod:   universe.FirstKind,
+		})
+
+		root.AddPredecessors(leaf)
+		leaf.AddSuccessors(root)
+		return root, true, nil
+	case universe.LastKind:
+		// ReadGroup() -> last => ReadGroup(last) -> max
+		root := plan.CreatePhysicalNode("max", &universe.MaxProcedureSpec{
+			SelectorConfig: execute.SelectorConfig{
+				Column: execute.DefaultTimeColLabel,
+			},
+		})
+
+		leaf := plan.CreatePhysicalNode("ReadGroupAggregate", &ReadGroupPhysSpec{
+			ReadRangePhysSpec: group.ReadRangePhysSpec,
+			GroupMode:         group.GroupMode,
+			GroupKeys:         group.GroupKeys,
+			AggregateMethod:   universe.LastKind,
+		})
+
+		root.AddPredecessors(leaf)
+		leaf.AddSuccessors(root)
+		return root, true, nil
+	}
+	return pn, false, nil
+}
+
+func canPushGroupedAggregate(ctx context.Context, pn plan.Node) bool {
+	reader := GetStorageDependencies(ctx).FromDeps.Reader
+	aggregator, ok := reader.(query.GroupAggregator)
+	if !ok {
+		return false
+	}
+	caps := aggregator.GetGroupCapability(ctx)
+	if caps == nil {
+		return false
+	}
+	switch pn.Kind() {
+	case universe.CountKind:
+		agg := pn.ProcedureSpec().(*universe.CountProcedureSpec)
+		return caps.HaveCount() &&
+			feature.PushDownGroupAggregateCount().Enabled(ctx) &&
+			len(agg.Columns) == 1 &&
+			agg.Columns[0] == execute.DefaultValueColLabel
+	case universe.SumKind:
+		agg := pn.ProcedureSpec().(*universe.SumProcedureSpec)
+		return caps.HaveSum() &&
+			feature.PushDownGroupAggregateSum().Enabled(ctx) &&
+			len(agg.Columns) == 1 &&
+			agg.Columns[0] == execute.DefaultValueColLabel
+	case universe.FirstKind:
+		agg := pn.ProcedureSpec().(*universe.FirstProcedureSpec)
+		return caps.HaveFirst() &&
+			feature.PushDownGroupAggregateFirst().Enabled(ctx) &&
+			agg.Column == execute.DefaultValueColLabel
+	case universe.LastKind:
+		agg := pn.ProcedureSpec().(*universe.LastProcedureSpec)
+		return caps.HaveLast() &&
+			feature.PushDownGroupAggregateLast().Enabled(ctx) &&
+			agg.Column == execute.DefaultValueColLabel
+	}
+	return false
 }

@@ -11,7 +11,7 @@ import EmptyPipeList from 'src/notebooks/components/EmptyPipeList'
 import {DapperScrollbars} from '@influxdata/clockface'
 
 const PipeList: FC = () => {
-  const {id, pipes, updatePipe} = useContext(NotebookContext)
+  const {id, pipes, updatePipe, results, meta} = useContext(NotebookContext)
   const {scrollPosition} = useContext(ScrollContext)
   const update = useCallback(updatePipe, [id])
 
@@ -26,6 +26,8 @@ const PipeList: FC = () => {
         index={index}
         data={pipes[index]}
         onUpdate={update}
+        results={results[index]}
+        loading={meta[index].loading}
       />
     )
   })
