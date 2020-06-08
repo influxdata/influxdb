@@ -50,6 +50,7 @@ import BucketsIndex from 'src/buckets/containers/BucketsIndex'
 import TemplatesIndex from 'src/templates/containers/TemplatesIndex'
 import TelegrafsPage from 'src/telegrafs/containers/TelegrafsPage'
 import ClientLibrariesPage from 'src/clientLibraries/containers/ClientLibrariesPage'
+import ClientArduinoOverlay from 'src/clientLibraries/components/ClientArduinoOverlay'
 import ClientCSharpOverlay from 'src/clientLibraries/components/ClientCSharpOverlay'
 import ClientGoOverlay from 'src/clientLibraries/components/ClientGoOverlay'
 import ClientJavaOverlay from 'src/clientLibraries/components/ClientJavaOverlay'
@@ -361,6 +362,10 @@ class Root extends PureComponent {
                                 path="client-libraries"
                                 component={ClientLibrariesPage}
                               >
+                                <Route
+                                  path="arduino"
+                                  component={ClientArduinoOverlay}
+                                />
                                 <Route
                                   path="csharp"
                                   component={ClientCSharpOverlay}
