@@ -2,7 +2,6 @@
 #![warn(missing_debug_implementations, clippy::explicit_iter_loop)]
 
 use std::fs;
-use std::sync::Arc;
 
 use log::{debug, info, warn};
 
@@ -11,24 +10,52 @@ use snafu::Snafu;
 
 use delorean_ingest::LineProtocolConverter;
 use delorean_line_parser::{parse_lines, ParsedLine};
+use delorean_parquet::writer::{DeloreanTableWriter, Error as DeloreanTableWriterError};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display(r#"IO Error: {} ({})"#, message, source))]
-    IOError {
+    IO {
         message: String,
-        source: Arc<dyn std::error::Error>,
+        source: std::io::Error,
+    },
+    Parsing {
+        source: delorean_line_parser::Error,
+    },
+    Conversion {
+        source: delorean_ingest::Error,
+    },
+    Writing {
+        source: DeloreanTableWriterError,
     },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
+impl From<std::io::Error> for Error {
+    fn from(other: std::io::Error) -> Self {
+        Error::IO {
+            message: String::from("io error"),
+            source: other,
+        }
+    }
+}
+
 impl From<delorean_line_parser::Error> for Error {
     fn from(other: delorean_line_parser::Error) -> Self {
-        Error::IOError {
-            message: String::from("Error from parser"),
-            source: Arc::new(other),
-        }
+        Error::Parsing { source: other }
+    }
+}
+
+impl From<delorean_ingest::Error> for Error {
+    fn from(other: delorean_ingest::Error) -> Self {
+        Error::Conversion { source: other }
+    }
+}
+
+impl From<DeloreanTableWriterError> for Error {
+    fn from(other: DeloreanTableWriterError) -> Self {
+        Error::Writing { source: other }
     }
 }
 
@@ -46,12 +73,9 @@ fn convert(input_filename: &str, output_filename: &str) -> Result<()> {
 
     // TODO: make a streaming parser that you can stream data through in blocks.
     // for now, just read the whole input file into RAM...
-    let buf = fs::read_to_string(input_filename).map_err(|e| {
+    let buf = fs::read_to_string(input_filename).map_err(|source| {
         let message = format!("Error reading {}", input_filename);
-        Error::IOError {
-            message,
-            source: Arc::new(e),
-        }
+        Error::IO { message, source }
     })?;
     info!("Read {} bytes from {}", buf.len(), input_filename);
 
@@ -69,22 +93,20 @@ fn convert(input_filename: &str, output_filename: &str) -> Result<()> {
         only_good_lines.by_ref().take(SCHEMA_SAMPLE_SIZE).collect();
 
     // The idea here is to use the first few parsed lines to deduce the schema
-    let converter = match LineProtocolConverter::new(&schema_sample) {
-        Ok(converter) => converter,
-        Err(e) => {
-            let message = String::from("Error creating line protocol converter");
-            return Err(Error::IOError {
-                message,
-                source: Arc::new(e),
-            });
-        }
-    };
+    let converter = LineProtocolConverter::new(&schema_sample)?;
+    debug!("Using schema deduced from sample: {:?}", converter.schema());
 
-    debug!("Extracted schema: {:?}", converter.schema());
+    info!("Schema deduced. Writing output to {} ...", output_filename);
+    let output_file = fs::File::create(output_filename)?;
 
-    // TODO: convert the sample and remaining good lines
+    let mut writer = DeloreanTableWriter::new(converter.schema(), output_file)?;
 
-    unimplemented!("The actual conversion");
+    // Write the sample and then the remaining lines
+    writer.write_batch(&converter.pack_lines(schema_sample.into_iter()))?;
+    writer.write_batch(&converter.pack_lines(only_good_lines))?;
+    writer.close()?;
+    info!("Completing writing {} successfully", output_filename);
+    Ok(())
 }
 
 fn main() {

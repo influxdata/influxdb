@@ -9,3 +9,4 @@ edition = "2018"
 [dependencies]
 dotenv = "0.15.0"
 tempfile = "3.1.0"
+env_logger = "0.7.1"

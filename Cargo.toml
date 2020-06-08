@@ -9,6 +9,7 @@ default-run = "delorean"
 members = [
     "delorean_ingest",
     "delorean_line_parser",
+    "delorean_parquet",
     "delorean_storage_tool",
     "delorean_table",
     "delorean_test_helpers",

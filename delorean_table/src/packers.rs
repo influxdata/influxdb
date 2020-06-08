@@ -40,7 +40,7 @@ impl StringPacker {
                 self.rep_levels.push(1);
             }
             None => {
-                self.values.push(ByteArray::new());
+                self.values.push(ByteArray::from(""));
                 self.def_levels.push(0);
                 self.rep_levels.push(1);
             }

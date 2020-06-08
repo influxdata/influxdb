@@ -1,10 +1,11 @@
 [package]
-name = "delorean_table"
+name = "delorean_parquet"
 version = "0.1.0"
 authors = ["Andrew Lamb <alamb@influxdata.com>"]
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
 [dependencies]
 snafu = "0.6.2"
 log = "0.4.8"
@@ -16,7 +17,9 @@ log = "0.4.8"
 # https://github.com/apache/arrow/commit/31c7a50a2e4c69e2b7fa2ffa5e7bd3e89500bd6b
 parquet = { git = "https://github.com/apache/arrow.git", rev="31c7a50a", version = "0.18.0-SNAPSHOT" }
 
+delorean_table = { path = "../delorean_table" }
 line_protocol_schema = { path = "../line_protocol_schema" }
 
+
 [dev-dependencies]
-delorean_test_helpers ={ path = "../delorean_test_helpers" }
+delorean_test_helpers = { path = "../delorean_test_helpers" }

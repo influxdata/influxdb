@@ -21,18 +21,35 @@ mod dstool_tests {
     #[test]
     fn convert_good_input_filename() {
         let mut cmd = Command::cargo_bin("dstool").unwrap();
+
+        let parquet_path = delorean_test_helpers::tempfile::Builder::new()
+            .prefix("dstool_e2e")
+            .suffix(".parquet")
+            .tempfile()
+            .expect("error creating temp file")
+            .into_temp_path();
+        let parquet_filename_string = parquet_path.to_string_lossy().to_string();
+
         let assert = cmd
             .arg("convert")
             .arg("../tests/fixtures/lineproto/temperature.lp")
-            .arg("/tmp/out.parquet")
+            .arg(&parquet_filename_string)
             .assert();
 
+        let expected_success_string = format!(
+            "Completing writing {} successfully",
+            parquet_filename_string
+        );
+
         assert
-            .failure()
-            .code(101)
+            .success()
             .stderr(predicate::str::contains("dstool starting"))
-            .stderr(predicate::str::contains(
-                "not implemented: The actual conversion",
-            ));
+            .stderr(predicate::str::contains("Schema deduced"))
+            .stderr(predicate::str::contains(expected_success_string));
+
+        // TODO: add a dump command to dstool and verify that the dump
+        // of the written parquet file is as expected.
+
+        parquet_path.close().expect("deleting temporary file");
     }
 }

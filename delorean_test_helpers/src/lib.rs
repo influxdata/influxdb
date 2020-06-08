@@ -2,7 +2,7 @@
 #![warn(missing_debug_implementations, clippy::explicit_iter_loop)]
 
 use std::{env, f64};
-use tempfile::TempDir;
+pub use tempfile;
 
 pub type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
 pub type Result<T = (), E = Error> = std::result::Result<T, E>;
@@ -17,7 +17,7 @@ pub fn all_approximately_equal(f1: &[f64], f2: &[f64]) -> bool {
     f1.len() == f2.len() && f1.iter().zip(f2).all(|(&a, &b)| approximately_equal(a, b))
 }
 
-pub fn tmp_dir() -> Result<TempDir> {
+pub fn tmp_dir() -> Result<tempfile::TempDir> {
     let _ = dotenv::dotenv();
 
     let root = env::var_os("TEST_DELOREAN_DB_DIR").unwrap_or_else(|| env::temp_dir().into());
@@ -25,4 +25,9 @@ pub fn tmp_dir() -> Result<TempDir> {
     Ok(tempfile::Builder::new()
         .prefix("delorean")
         .tempdir_in(root)?)
+}
+
+pub fn enable_logging() {
+    std::env::set_var("RUST_LOG", "debug");
+    env_logger::init();
 }

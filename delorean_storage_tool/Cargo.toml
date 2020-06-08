@@ -9,6 +9,7 @@ edition = "2018"
 [dependencies]
 delorean_line_parser = { path = "../delorean_line_parser" }
 delorean_ingest = { path = "../delorean_ingest" }
+delorean_parquet = { path = "../delorean_parquet" }
 
 clap = "2.33.1"
 env_logger = "0.7.1"
@@ -18,6 +19,7 @@ snafu = "0.6.2"
 [dev-dependencies]
 predicates = "1.0.4"
 assert_cmd = "1.0.0"
+delorean_test_helpers = { path = "../delorean_test_helpers" }
 
 [[bin]]
 # (D)elorian (S)torage Tool

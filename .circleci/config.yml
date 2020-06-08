@@ -52,6 +52,7 @@ jobs:
   test:
     docker:
       - image: quay.io/influxdb/rust:ci
+    resource_class: medium+
     steps:
       - checkout
       - cache_restore

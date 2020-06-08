@@ -429,12 +429,6 @@ mod delorean_ingest_tests {
         Ok(())
     }
 
-    #[allow(dead_code)]
-    fn enable_logging() {
-        std::env::set_var("RUST_LOG", "debug");
-        env_logger::init();
-    }
-
     // gets the packer's value as a string.
     fn get_string_val(packer: &Packer, idx: usize) -> &str {
         packer.as_string_packer().values[idx].as_utf8().unwrap()
@@ -452,8 +446,6 @@ mod delorean_ingest_tests {
 
     #[test]
     fn pack_data_value() -> Result<(), Error> {
-        //enable_logging();
-
         let parsed_lines = only_good_lines(LP_DATA);
         assert_eq!(parsed_lines.len(), EXPECTED_NUM_LINES);
 
