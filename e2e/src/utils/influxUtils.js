@@ -368,37 +368,25 @@ const query = async(userName, //string
     //need to return array of strings as result
 
     let result = [];
-    let done = false;
 
-    queryApi.queryRows(query, {
-        next(row, tableMeta) {
-            const o = tableMeta.toObject(row);
-            result.push(o);
-        },
-        error(error) {
-            console.error(error);
-            console.log('\nFinished ERROR')
-        },
-        complete() {
-            console.log('\nFinished SUCCESS');
-            done = true;
-        },
+    return await new Promise((resolve,reject) => {
+        queryApi.queryRows(query, {
+            next(row, tableMeta) {
+                const o = tableMeta.toObject(row);
+                result.push(o);
+            },
+            error(error) {
+                reject(error)
+            },
+            complete() {
+                resolve(result);
+            },
+        });
+    }).catch(async error => {
+        console.error('Caught Error on Query: ' + error);
+        throw error;
     });
 
-    //O.K. since can't seem to use await or then() poll for result
-    let currentTime = new Date().getTime();
-    ttl = currentTime + 30;
-    while(!done  && currentTime < ttl){
-        console.log("DEBUG currentTIme " + currentTime);
-        await __wdriver.sleep(1000);
-        currentTime = new Date().getTime();
-    }
-
-    if(!done){
-        console.error("DEBUG timed out getting query result testVal")
-    }
-
-    return result;
     /*
     return await axios({method: 'post',
         url: '/api/v2/query?orgID=' + orgID,
