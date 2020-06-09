@@ -76,7 +76,7 @@ func (h baseHandler) panic(w http.ResponseWriter, r *http.Request, rcv interface
 	pe := &platform.Error{
 		Code: platform.EInternal,
 		Msg:  "a panic has occurred",
-		Err:  fmt.Errorf("%v", rcv),
+		Err:  fmt.Errorf("%s: %v", r.URL.String(), rcv),
 	}
 
 	l := getPanicLogger()
