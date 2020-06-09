@@ -1,67 +1,41 @@
 #![deny(rust_2018_idioms)]
 #![warn(missing_debug_implementations, clippy::explicit_iter_loop)]
 
-use clap::{crate_authors, crate_version, App, Arg, SubCommand};
-use delorean_ingest::LineProtocolConverter;
-use delorean_line_parser::{parse_lines, ParsedLine};
-use delorean_parquet::writer::{DeloreanTableWriter, Error as DeloreanTableWriterError};
 use log::{debug, info, warn};
-use snafu::{ResultExt, Snafu};
 use std::fs;
 
-#[derive(Debug, Snafu)]
-pub enum Error {
-    #[snafu(display("Error reading {} ({})", name.display(), source))]
-    UnableToReadInput {
-        name: std::path::PathBuf,
-        source: std::io::Error,
-    },
+use clap::{crate_authors, crate_version, App, Arg, SubCommand};
 
-    UnableToCreateFile {
-        name: std::path::PathBuf,
-        source: std::io::Error,
-    },
+use delorean_ingest::LineProtocolConverter;
+use delorean_line_parser::{parse_lines, ParsedLine};
+use delorean_parquet::writer::DeloreanTableWriter;
 
-    #[snafu(context(false))]
-    Conversion {
-        source: delorean_ingest::Error,
-    },
+mod error;
+mod file_meta;
+mod input;
 
-    UnableToCreateTableWriter {
-        source: DeloreanTableWriterError,
-    },
+use error::{Error, Result};
 
-    UnableToWriteSchemaSample {
-        source: DeloreanTableWriterError,
-    },
-
-    UnableToWriteGoodLines {
-        source: DeloreanTableWriterError,
-    },
-
-    UnableToCloseTableWriter {
-        source: DeloreanTableWriterError,
-    },
-}
-
-type Result<T, E = Error> = std::result::Result<T, E>;
+use file_meta::dump_meta;
 
 enum ReturnCode {
     InternalError = 1,
     ConversionFailed = 2,
+    MetadataDumpFailed = 3,
 }
 
 static SCHEMA_SAMPLE_SIZE: usize = 5;
 
 fn convert(input_filename: &str, output_filename: &str) -> Result<()> {
-    info!("dstool starting");
+    info!("dstool convert starting");
     debug!("Reading from input file {}", input_filename);
     debug!("Writing to output file {}", output_filename);
 
     // TODO: make a streaming parser that you can stream data through in blocks.
     // for now, just read the whole input file into RAM...
-    let buf = fs::read_to_string(input_filename).context(UnableToReadInput {
-        name: input_filename,
+    let buf = fs::read_to_string(input_filename).map_err(|e| Error::UnableToReadInput {
+        name: String::from(input_filename),
+        source: e,
     })?;
     info!("Read {} bytes from {}", buf.len(), input_filename);
 
@@ -83,21 +57,24 @@ fn convert(input_filename: &str, output_filename: &str) -> Result<()> {
     debug!("Using schema deduced from sample: {:?}", converter.schema());
 
     info!("Schema deduced. Writing output to {} ...", output_filename);
-    let output_file = fs::File::create(output_filename).context(UnableToCreateFile {
-        name: output_filename,
+    let output_file = fs::File::create(output_filename).map_err(|e| Error::UnableToCreateFile {
+        name: String::from(output_filename),
+        source: e,
     })?;
 
     let mut writer = DeloreanTableWriter::new(converter.schema(), output_file)
-        .context(UnableToCreateTableWriter)?;
+        .map_err(|e| Error::UnableToCreateTableWriter { source: e })?;
 
     // Write the sample and then the remaining lines
     writer
         .write_batch(&converter.pack_lines(schema_sample.into_iter()))
-        .context(UnableToWriteSchemaSample)?;
+        .map_err(|e| Error::UnableToWriteSchemaSample { source: e })?;
     writer
         .write_batch(&converter.pack_lines(only_good_lines))
-        .context(UnableToWriteGoodLines)?;
-    writer.close().context(UnableToCloseTableWriter)?;
+        .map_err(|e| Error::UnableToWriteGoodLines { source: e })?;
+    writer
+        .close()
+        .map_err(|e| Error::UnableToCloseTableWriter { source: e })?;
     info!("Completing writing {} successfully", output_filename);
     Ok(())
 }
@@ -132,6 +109,16 @@ Examples:
                         .index(2),
                 ),
         )
+        .subcommand(
+            SubCommand::with_name("meta")
+                .about("Print out metadata information about a storage file")
+                .arg(
+                    Arg::with_name("INPUT")
+                        .help("The input filename to read from")
+                        .required(true)
+                        .index(1),
+                ),
+        )
         .arg(
             Arg::with_name("verbose")
                 .short("v")
@@ -158,6 +145,15 @@ Examples:
             Err(e) => {
                 eprintln!("Conversion failed: {}", e);
                 std::process::exit(ReturnCode::ConversionFailed as _)
+            }
+        }
+    } else if let Some(matches) = matches.subcommand_matches("meta") {
+        let input_filename = matches.value_of("INPUT").unwrap();
+        match dump_meta(&input_filename) {
+            Ok(()) => debug!("Metadata dump completed successfully"),
+            Err(e) => {
+                eprintln!("Metadata dump failed: {}", e);
+                std::process::exit(ReturnCode::MetadataDumpFailed as _)
             }
         }
     } else {

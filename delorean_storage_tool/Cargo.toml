@@ -10,6 +10,8 @@ edition = "2018"
 delorean_line_parser = { path = "../delorean_line_parser" }
 delorean_ingest = { path = "../delorean_ingest" }
 delorean_parquet = { path = "../delorean_parquet" }
+delorean = { path = ".." }
+libflate = "1.0.0"
 
 clap = "2.33.1"
 env_logger = "0.7.1"

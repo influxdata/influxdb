@@ -648,11 +648,13 @@ version = "0.1.0"
 dependencies = [
  "assert_cmd",
  "clap",
+ "delorean",
  "delorean_ingest",
  "delorean_line_parser",
  "delorean_parquet",
  "delorean_test_helpers",
  "env_logger",
+ "libflate",
  "log 0.4.8",
  "predicates",
  "snafu",
