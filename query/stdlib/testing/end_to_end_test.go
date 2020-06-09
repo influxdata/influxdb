@@ -205,6 +205,7 @@ func testFlux(t testing.TB, l *launcher.TestLauncher, file *ast.File) {
 		t.Fatal(err)
 	}
 
+	needInspect := false
 	for r.More() {
 		v := r.Next()
 		if err := v.Tables().Do(func(tbl flux.Table) error {
@@ -212,13 +213,25 @@ func testFlux(t testing.TB, l *launcher.TestLauncher, file *ast.File) {
 				return nil
 			})
 		}); err != nil {
+			needInspect = true
 			t.Error(err)
 		}
 	}
 	if err := r.Err(); err != nil {
 		t.Error(err)
+		needInspect = true
+	}
+	if needInspect {
 		// Replace the testing.run calls with testing.inspect calls.
 		pkg.Files[len(pkg.Files)-1] = inspectCalls
+		bs, err = json.Marshal(pkg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		req = &query.Request{
+			OrganizationID: l.Org.ID,
+			Compiler:       lang.ASTCompiler{AST: bs},
+		}
 		r, err := l.FluxQueryService().Query(ctx, req)
 		if err != nil {
 			t.Fatal(err)
