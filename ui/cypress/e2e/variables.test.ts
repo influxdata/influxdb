@@ -104,9 +104,7 @@ describe('Variables', () => {
     cy.getByTestID('resource-card variable').should('have.length', 2)
 
     // Search variable by name
-    cy.getByTestID('search-widget')
-      .should('have.length', 1)
-      .type(variableName)
+    cy.getByTestID('search-widget').type(variableName)
 
     cy.getByTestID('resource-card variable')
       .should('have.length', 1)
@@ -122,9 +120,7 @@ describe('Variables', () => {
 
     cy.getByTestID('notification-success--dismiss').click()
 
-    cy.getByTestID('search-widget')
-      .should('have.length', 1)
-      .clear()
+    cy.getByTestID('search-widget').clear()
 
     cy.getByTestID('resource-card variable')
       .should('have.length', 1)
@@ -171,7 +167,7 @@ describe('Variables', () => {
     cy.getByTestID('import-overlay--textarea').contains('this is invalid')
   })
 
-  it.only('can create and delete a label and filter a variable by label name', () => {
+  it('can create and delete a label and filter a variable by label name & sort by variable name', () => {
     cy.getByTestID('resource-card variable').within(() => {
       cy.getByTestID('inline-labels--add').click()
     })
@@ -192,6 +188,7 @@ describe('Variables', () => {
 
     // Create a CSV variable
     const variableName = 'a Second Variable'
+    const defaultVar = 'Little Variable'
     cy.getByInputName('name').type(variableName)
 
     cy.get('textarea').type('1,2,3,4,5,6')
@@ -205,19 +202,38 @@ describe('Variables', () => {
       .contains('Create')
       .click()
 
-    cy.getByTestID('search-widget')
-      .should('have.length', 1)
-      .type(labelName)
+    cy.getByTestID('search-widget').type(labelName)
 
     cy.getByTestID('resource-card variable')
       .should('have.length', 1)
-      .contains('Little Variable')
+      .contains(defaultVar)
 
     // Delete the label
     cy.getByTestID(`label--pill--delete ${labelName}`).click({force: true})
     cy.getByTestID('resource-card variable').should('have.length', 0)
     cy.getByTestID('search-widget').clear()
-    cy.getByTestID('resource-card variable').should('have.length', 2)
     cy.getByTestID('inline-labels--empty').should('exist')
+
+    const expected = [variableName, defaultVar]
+    expected.sort()
+
+    cy.getByTestID('resource-card variable')
+      .should('have.length', 2)
+      .each((_, index) => {
+        cy.get('.cf-resource-name--text').should($s =>
+          expect($s).to.contain(expected[index])
+        )
+      })
+
+    expected.reverse()
+
+    cy.getByTestID('resource-sorter--button').click()
+    cy.getByTestID('resource-sorter--name-desc').click()
+
+    cy.getByTestID('resource-card variable').each((_, index) => {
+      cy.get('.cf-resource-name--text').should($s =>
+        expect($s).to.contain(expected[index])
+      )
+    })
   })
 })
