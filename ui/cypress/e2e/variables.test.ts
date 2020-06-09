@@ -10,6 +10,12 @@ describe('Variables', () => {
   })
 
   it('can CRUD a CSV, map, and query variable', () => {
+    // Navigate away from and back to variables index
+    cy.getByTestID('nav-item-dashboards').click()
+    cy.getByTestID('nav-item-settings').click()
+    cy.getByTestID('templates--tab').click()
+    cy.getByTestID('variables--tab').click()
+
     cy.getByTestID('resource-card variable').should('have.length', 1)
     // ensure that the default variables are not accessible on the Variables Tab
     cy.getByTestID('resource-card variable').should(

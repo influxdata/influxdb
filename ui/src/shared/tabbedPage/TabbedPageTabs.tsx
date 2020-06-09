@@ -29,6 +29,7 @@ const SettingsNavigation: FC<Props> = ({activeTab, tabs, onTabClick}) => {
       {tabs.map(t => {
         let tab = (
           <Tabs.Tab
+            testID={`${t.id}--tab`}
             key={t.id}
             text={t.text}
             id={t.id}
