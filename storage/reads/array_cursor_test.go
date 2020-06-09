@@ -478,9 +478,12 @@ func TestIntegerSumArrayCursor(t *testing.T) {
 				makeIntegerArray(3, mustParseTime("2010-01-01T00:40:00Z"), 40*time.Minute,
 					func(i int64) int64 {
 						switch i {
-						case 0: return 80
-						case 1: return 100
-						case 2: return 120
+						case 0:
+							return 80
+						case 1:
+							return 100
+						case 2:
+							return 120
 						}
 						return -1
 					}),

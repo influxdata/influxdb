@@ -4,6 +4,7 @@ import (
 	"context"
 	"math"
 
+	"github.com/influxdata/influxdb/v2/kit/errors"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/storage/reads/datatypes"
@@ -22,9 +23,13 @@ func NewWindowAggregateResultSet(ctx context.Context, req *datatypes.ReadWindowA
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
+	span.LogKV("aggregate_window_every", req.WindowEvery)
 	for _, aggregate := range req.Aggregate {
 		span.LogKV("aggregate_type", aggregate.String())
-		span.LogKV("aggregate_window_every", req.WindowEvery)
+	}
+
+	if nAggs := len(req.Aggregate); nAggs != 1 {
+		return nil, errors.Errorf(errors.InternalError, "attempt to create a windowAggregateResultSet with %v aggregate functions", nAggs)
 	}
 
 	results := &windowAggregateResultSet{
