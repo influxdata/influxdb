@@ -40,7 +40,7 @@
 //   contact: My Name
 // ```
 //
-// My flag type is inferred to be boolean by my defaulf of `false` when I run
+// My flag type is inferred to be boolean by my default of `false` when I run
 // `make flags` and the `feature` package now includes `func MyFeature() BoolFlag`.
 //
 // I use this to control my backend code with
@@ -69,7 +69,7 @@
 // ```
 //
 // ```
-// influxd --feature-flags flag1:value1,flag2:value2
+// influxd --feature-flags flag1=value1,flag2=value2
 // ```
 //
 package feature
