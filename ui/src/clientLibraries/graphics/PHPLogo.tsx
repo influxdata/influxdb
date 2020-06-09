@@ -5,12 +5,10 @@ const PHPLogo: SFC = () => {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
-      x="0"
-      y="0"
       enableBackground="new 0 0 100 100"
-      version="1.1"
       viewBox="0 0 100 100"
       xmlSpace="preserve"
+      preserveAspectRatio="xMidYMid meet"
     >
       <style>{`.st0{fill:#FFFFFF;}`}</style>
       <g transform="translate(-44.632 -141.55)">
