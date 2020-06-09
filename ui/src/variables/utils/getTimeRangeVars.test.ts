@@ -1,18 +1,23 @@
 import {getTimeRangeVars} from 'src/variables/utils/getTimeRangeVars'
 import {pastHourTimeRange} from 'src/shared/constants/timeRanges'
 
+import moment from 'moment'
+
 const custom = 'custom' as 'custom'
 
 describe('getTimeRangeVars', () => {
   test('should handle relative lower dates', () => {
     const actual = getTimeRangeVars(pastHourTimeRange)
+    const expected =
+      moment
+        .utc(new Date())
+        .subtract(1, 'h')
+        .format('YYYY-MM-DDTHH:mm:00.000') + 'Z'
 
     const init = actual[0].init as any
 
-    expect(init.type).toEqual('UnaryExpression')
-    expect(init.operator).toEqual('-')
-    expect(init.argument.type).toEqual('DurationLiteral')
-    expect(init.argument.values).toEqual([{magnitude: 1, unit: 'h'}])
+    expect(init.type).toEqual('DateTimeLiteral')
+    expect(init.value).toEqual(expected)
   })
 
   test('should handle custom lower dates', () => {
@@ -43,13 +48,12 @@ describe('getTimeRangeVars', () => {
 
   test('should set non-existent upper dates to now', () => {
     const actual = getTimeRangeVars(pastHourTimeRange)
+    const expected =
+      moment.utc(new Date()).format('YYYY-MM-DDTHH:mm:00.000') + 'Z'
 
     expect(actual[1].init).toEqual({
-      type: 'CallExpression',
-      callee: {
-        type: 'Identifier',
-        name: 'now',
-      },
+      type: 'DateTimeLiteral',
+      value: expected,
     })
   })
 })

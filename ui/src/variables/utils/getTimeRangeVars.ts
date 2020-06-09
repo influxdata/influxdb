@@ -1,5 +1,4 @@
 // Utils
-import {parseDuration, timeRangeToDuration} from 'src/shared/utils/duration'
 import {asAssignment} from 'src/variables/selectors'
 
 // Constants
