@@ -98,7 +98,7 @@ Given(/^run setup over CLI docker "(.*?)"$/, async( newUser ) => {
 });
 
 When(/^API sign in user "(.*?)"$/, async username => {
-    await influxUtils.signIn((username === 'DEFAULT') ? __defaultUser.username : username).then(async () => {
+    await influxUtils.signInAxios((username === 'DEFAULT') ? __defaultUser.username : username).then(async () => {
         // await sSteps.driver.sleep(1500)
 
     }).catch(async err => {
@@ -146,6 +146,7 @@ When(/^write sine data for org "(.*?)" to bucket "(.*?)"$/, async (org, bucket) 
 
 });
 
+//For Inspection purposes
 When(/^simple query data "(.*)" for org of user "(.*)" from bucket "(.*)" over "(.*)"$/, async (items, userName, bucket, period) => {
 
     let dataDef = JSON.parse(items.replace(/\\/g,""));
@@ -156,7 +157,7 @@ When(/^simple query data "(.*)" for org of user "(.*)" from bucket "(.*)" over "
   |> filter(fn: (r) => r._field == "${dataDef.measurement}")`;
 
     let results = await influxUtils.query(userName, query);
-    console.log('DEBUG results: ' + JSON.stringify(results));
+    console.info('INFO results: ' + JSON.stringify(results));
 });
 
 
@@ -192,10 +193,8 @@ When(/^API create a bucket named "(.*)" for user "(.*)"$/, async (bucket, userna
 });
 
 When(/^API create a label "(.*)" described as "(.*)" with color "(.*)" for user "(.*)"$/,
-    async (labelName, labelDescr, labelColor, user) => {
-        //let orgID = influxUtils.getUser((user === 'DEFAULT') ? __defaultUser.username : user).orgid;
-        await influxUtils.createLabel(influxUtils.getUser((user === 'DEFAULT') ? __defaultUser.username : user),
-            labelName, labelDescr, labelColor);
+    async (labelName, labelDescr, labelColor, userName) => {
+        await influxUtils.createLabel(userName, labelName, labelDescr, labelColor);
     });
 
 When(/^open page "(.*?)" for user "(.*?)"$/, async (page, username) => {

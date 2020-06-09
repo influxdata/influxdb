@@ -151,7 +151,7 @@ class dashboardSteps extends influxSteps {
                 }
                 __dataBuffer.rect[name] = rect;
                 //debug why resize not saved
-                //await influxUtils.signIn('admin');
+                //await influxUtils.signInAxios('admin');
                 //let dashboards = await influxUtils.getDashboards();
                 //console.log("DEBUG dashboards " + JSON.stringify(dashboards));
 
@@ -449,7 +449,7 @@ class dashboardSteps extends influxSteps {
             await resizer.click();
 
             //debug why resize not saved
-            //await influxUtils.signIn('admin');
+            //await influxUtils.signInAxios('admin');
             //let dashboards = await influxUtils.getDashboards();
             //console.log("DEBUG dashboards " + JSON.stringify(dashboards));
 
@@ -463,7 +463,7 @@ class dashboardSteps extends influxSteps {
         await this.dbdPage.getCellByName(name).then(async cell => {
 
             //debug why resize not saved
-            //await influxUtils.signIn('admin');
+            //await influxUtils.signInAxios('admin');
             //let dashboards = await influxUtils.getDashboards();
             //console.log("DEBUG dashboards " + JSON.stringify(dashboards));
 

@@ -16,7 +16,7 @@ let selDocker = false;
 let nowNano = new Date().getTime() * 1000000;
 let intervalNano = 600 * 1000 * 1000000; //10 min in nanosecs
 
-const {InfluxDB, Point} = require('@influxdata/influxdb-client');
+const {InfluxDB} = require('@influxdata/influxdb-client');
 const { AuthorizationsAPI,
     BucketsAPI,
     ChecksAPI,
@@ -68,6 +68,7 @@ console.log(config.headless ? 'running headless' : 'running headed');
 console.log(config.sel_docker ? 'running for selenium in docker' : 'running for selenium standard');
 console.log(`active configuration ${JSON.stringify(config)}`);
 
+//Need to keep axios for calls to /debug/flush
 axios.defaults.baseURL = `${config.influx_url}`;
 
 /* Uncomment to debug axios
@@ -83,7 +84,7 @@ axios.interceptors.response.use(response => {
 */
 
 const flush = async () => {
-    let res = await axios.get('/debug/flush').catch(async error => {
+    await axios.get('/debug/flush').catch(async error => {
         console.log("DEBUG error " + JSON.stringify(error))
     });
     delete global.__users;
@@ -97,13 +98,12 @@ const removeConfInDocker = async () => {
 //for compatibility with old test style - until all are updated
 const setupUser = async(newUser) => {
 
-    console.log("DEBUG user old style start " + JSON.stringify(newUser));
+    console.warn("WARNING: call to user old style start " + JSON.stringify(newUser));
     await setupUserRest(newUser);
     await putUser(newUser);
     await __wdriver.sleep(1000);
     await setUserOrgId(newUser);
 
-    console.log("DEBUG user old style end " + JSON.stringify(newUser));
 };
 
 const setUserOrgId = async(user) => {
@@ -154,8 +154,6 @@ const setupNewUser = async(newUser) => {
     await __wdriver.sleep(1000); //give db chance to update before continuing
 
     await setUserOrgId(user);
-
-    console.log("DEBUG user post setup " + JSON.stringify(user));
 };
 
 const resolvePasswordFromEnv = async(user) => {
@@ -182,8 +180,6 @@ const setupUserRest = async(user) => {
 
     const setupAPI = new SetupAPI(new InfluxDB(__config.influx_url));
 
-    console.log("DEBUG user " + JSON.stringify(user));
-
     setupAPI.getSetup().then(async ({allowed}) => {
 
         let body = {org: user.org, bucket: user.bucket, username: user.username, password: user.password };
@@ -198,19 +194,12 @@ const setupUserRest = async(user) => {
             });
             console.log(`--- Setup user ${JSON.stringify(user)} at ${__config.influx_url} success ---`)
         }else{
-          console.log(`--- Failed to setup user ${JSON.stringify(user)} at ${__config.influx_url} ---`);
+          console.error(`--- Failed to setup user ${JSON.stringify(user)} at ${__config.influx_url} ---`);
         }
     }).catch(async error => {
-        console.log(`\n--- Setup user ${JSON.stringify(user)} ended in ERROR ---`);
+        console.error(`\n--- Setup user ${JSON.stringify(user)} ended in ERROR ---`);
         console.error(error)
     });
-/*
-    await axios.post('/api/v2/setup', user).then(resp => {
-        user.id = resp.data.user.id;
-        user.orgid = resp.data.org.id;
-        user.bucketid = resp.data.bucket.id;
-    });
-    */
 };
 
 const setupUserDockerCLI = async(user) => {
@@ -296,7 +285,8 @@ const getUser = (name) => {
     throw `"${name}" is not a key in global users`;
 };
 
-const signIn = async (username) => {
+//TODO - replace or remove in usages
+const signInAxios = async (username) => {
 
     let user = getUser(username);
     return await axios.post('/api/v2/signin', '', {auth: {username: user.username, password: user.password}}).then(async resp => {
@@ -315,6 +305,7 @@ const signIn = async (username) => {
 
 };
 
+//TODO - replace or remove in usages
 const endSession = async() => {
     delete axios.defaults.headers.common['Cookie'];
 };
@@ -322,14 +313,9 @@ const endSession = async() => {
 const writeData = async (userName, //string
     lines = ['testmeas value=300 ' + (nowNano - (3 * intervalNano)),
         'testmeas value=200 ' + (nowNano - (2 * intervalNano)),
-        'testmeas value=100 ' + (nowNano - intervalNano)],
-    chunkSize = 100) => {
+        'testmeas value=100 ' + (nowNano - intervalNano)]) => {
 
-    let user = (userName === 'DEFAULT')? __defaultUser: await getUser(userName);
-
-    console.log("DEBUG __defaultUser " + JSON.stringify(user));
-
-    //const influxDB = new InfluxDB({url: __config.influx_url, token: user.token});
+    let user = await getUser(userName);
 
     const writeAPI = await new InfluxDB({url: __config.influx_url, token: user.token})
         .getWriteApi(user.org, user.bucket, 'ns');
@@ -337,38 +323,16 @@ const writeData = async (userName, //string
     await writeAPI.writeRecords(lines);
 
     await writeAPI.close().catch(e => {
-        console.error(`ERROR closing write connection: ${e}`);
+        console.error(`ERROR: closing write connection: ${e}`);
         throw e;
     })
-
-    /*
-    let chunk = [];
-    let chunkCt = 0;
-
-    while(chunkCt < lines.length){
-        chunk = ((chunkCt + chunkSize) <= lines.length) ?
-            lines.slice(chunkCt, chunkCt + chunkSize - 1) :
-            lines.slice(chunkCt, chunkCt + (lines.length % chunkSize));
-        await axios.post('/api/v2/write?org=' + org + '&bucket=' + bucket, chunk.join('\n') ).then(() => {
-            //  console.log(resp.status)
-        }).catch( err => {
-            console.log(err);
-        });
-
-        chunkCt += chunkSize;
-        chunk = [];
-    }
-*/
 };
 
 const query = async(userName, //string
     query // string
 ) => {
 
-    let user = (userName === 'DEFAULT')? __defaultUser: await getUser(userName);
-
-    console.log("DEBUG query: " + query)
-
+    let user = await getUser(userName);
 
     const queryApi = await new InfluxDB({url: __config.influx_url, token: user.token})
         .getQueryApi(user.org);
@@ -394,19 +358,9 @@ const query = async(userName, //string
         console.error('Caught Error on Query: ' + error);
         throw error;
     });
-
-    /*
-    return await axios({method: 'post',
-        url: '/api/v2/query?orgID=' + orgID,
-        data: {'query': query} }).then(async response => {
-        return response.data;
-    }).catch(async err => {
-        console.log('CAUGHT ERROR: ' + err);
-    });
-   */
-
 };
 
+// TODO - verify usages with changes using client API
 //Parse query result string to Array[Map()] of column items
 const parseQueryResults = async(results) => {
     let resultsArr = results.split('\r\n,');
@@ -441,42 +395,18 @@ const createBucket = async(orgId, // String
     bucketAPI = new BucketsAPI(new InfluxDB({url: __config.influx_url, token: __defaultUser.token, timeout: 20000}));
 
     await bucketAPI.postBuckets({body: {name: bucketName, orgID: orgId}});
-
-    /*
-    return await axios({
-        method: 'post',
-        url: '/api/v2/buckets',
-        data: { 'name': bucketName, 'orgID': orgId, 'organization': orgName }
-    }).then(async response => {
-        return response.data;
-    }).catch(async err => {
-        console.log('influxUtils.createBucket - Error ' + err);
-    });*/
 };
 
 //TODO - create cell and view to attach to dashboard
 const createDashboard = async(name, orgId) => {
-
-    console.log(`DEBUG createDashboard ${name} ${orgId}`);
-
     const dbdsAPI = new DashboardsAPI(new InfluxDB({url: __config.influx_url, token: __defaultUser.token, timeout: 20000}));
     await dbdsAPI.postDashboards({body: {name: name, orgID: orgId}}).catch(async error => {
         console.log('--- Error Creating dashboard ---');
         console.error(error);
         throw error;
     });
-
-/*
-    return await axios.post('/api/v2/dashboards', { name, orgId }).then(resp => {
-        return resp.data;
-    }).catch(err => {
-        console.log('ERROR: ' + err);
-        throw(err); // rethrow it to cucumber
-    }); */
 };
 
-
-// TODO - replace with client API
 const getDashboards = async(userName) => {
 
     let user = getUser(userName);
@@ -484,16 +414,8 @@ const getDashboards = async(userName) => {
     const dbdsAPI = new DashboardsAPI(new InfluxDB({url: __config.influx_url, token: user.token, timeout: 20000}));
 
     return await dbdsAPI.getDashboards();
-    /*
-    return await axios.get('/api/v2/dashboards').then(resp => {
-        return resp.data;
-    }).catch(err => {
-        console.log('ERROR: ' + err);
-        throw(err);
-    });*/
 };
 
-// TODO - replace with Client API
 const getAuthorizations = async(userName) => {
 
     let user = getUser(userName);
@@ -501,50 +423,29 @@ const getAuthorizations = async(userName) => {
     let authsAPI = new AuthorizationsAPI(new InfluxDB({url: __config.influx_url, token: user.token, timeout: 20000}));
 
     return await authsAPI.getAuthorizations();
-
-    /*
-    return await axios.get('/api/v2/authorizations').then(resp => {
-        return resp.data;
-    }).catch(err => {
-        console.log('ERROR: ' + err);
-        throw(err);
-    });*/
 };
 
 // http://localhost:9999/api/v2/labels
 // {"orgID":"8576cb897e0b4ce9","name":"MyLabel","properties":{"description":"","color":"#7CE490"}}
-const createLabel = async(user,
+const createLabel = async(userName,
     labelName,
     labelDescr,
     labelColor ) =>{
 
-    console.log("DEBUG user " + JSON.stringify(user));
+    let user = getUser(userName);
 
     const lblAPI = new LabelsAPI(new InfluxDB({url: __config.influx_url, token: user.token, timeout: 20000}));
 
-    let lblCreateReq = {body: {name: labelName, orgID: user.orgid}}; //,
-        //properties: { description: labelDescr, color: labelColor }};
+    let lblCreateReq = {body: {name: labelName, orgID: user.orgid,
+        properties: { description: labelDescr, color: labelColor }}};
 
     await lblAPI.postLabels(lblCreateReq).catch(async error => {
        console.log('--- Error Creating label ---');
        console.error(error);
        throw error;
     });
-/*
-    return await axios({
-        method: 'post',
-        url: '/api/v2/labels',
-        data: { 'orgId': orgId, 'name': labelName,
-            'properties': { 'description': labelDescr, 'color': labelColor }}
-    }).then(resp => {
-        return resp.data;
-    }).catch(err => {
-        console.log('ERROR: ' + err);
-        throw(err);
-    }); */
 };
 
-//TODO - replace with client API
 const createVariable = async(userName, name, type, values, selected = null ) => {
 
     let user = getUser(userName);
@@ -564,31 +465,8 @@ const createVariable = async(userName, name, type, values, selected = null ) => 
             selected: reSel
        }
     })
-
-    /*
-    return await axios({
-        method: 'post',
-        url: '/api/v2/variables',
-        data: {
-            'orgId': orgId,
-            'name': name,
-            'selected': reSel,
-            'arguments': {
-                'type': type,
-                'values': parseValues
-            }
-        }
-    }).then(resp => {
-        return resp.data;
-    }).catch(err => {
-        console.log('ERROR: ' + err );
-        throw(err);
-    })
-    */
-
 };
 
-//TODO replace with client API
 const getDocTemplates = async(userName) => {
 
     let user = getUser(userName);
@@ -596,21 +474,7 @@ const getDocTemplates = async(userName) => {
     let docsAPI = new DocumentsAPI(new InfluxDB({url: __config.influx_url, token: user.token, timeout: 20000, }));
 
     return await docsAPI.getDocumentsTemplates({orgID: user.orgid});
-
-    /*
-    return await axios({
-        method: 'get',
-        url: `/api/v2/documents/templates?orgID=${orgId}`
-    }).then(resp => {
-        return resp.data;
-    }).catch(err => {
-        throw(err);
-    });
-    */
-
 };
-
-//TODO - replace with client API
 
 const createTemplateFromFile = async(userName, filepath) => {
 
@@ -624,33 +488,14 @@ const createTemplateFromFile = async(userName, filepath) => {
     newTemplate.orgID = user.orgid;
 
     docsAPI.postDocumentsTemplates({ body: newTemplate});
-
-    /*
-    return await axios({
-        method: 'POST',
-        url: '/api/v2/documents/templates',
-        data: newTemplate
-    }).then(resp => {
-        return resp.data;
-    }).catch(err => {
-        throw(err);
-    });
-    */
-
 };
-
-//TODO - replace with client API
 
 const createAlertCheckFromFile = async(userName, filepath) => {
 
     let user = getUser(userName);
 
     let content = await readFileToBuffer(process.cwd() + '/' + filepath);
-    //let re = /\\/g;
-    //content = content.replace(/\\/g, "\\\\\\");
-    ///console.log("DEBUG content \n" + content +  "\n");
 
-    //let newCheck = JSON.parse('{"id":null,"type":"threshold","status":"active","activeStatus":"active","name":"ASDF","query":{"name":"","text":"from(bucket: \\"qa\\")\\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\\n  |> filter(fn: (r) => r[\\"_measurement\\"] == \\"test\\")\\n  |> filter(fn: (r) => r[\\"_field\\"] == \\"val\\")\\n  |> aggregateWindow(every: 1m, fn: mean)\\n  |> yield(name: \\"mean\\")","editMode":"builder","builderConfig":{"buckets":["qa"],"tags":[{"key":"_measurement","values":["test"],"aggregateFunctionType":"filter"},{"key":"_field","values":["val"],"aggregateFunctionType":"filter"},{"key":"gen","values":[],"aggregateFunctionType":"filter"}],"functions":[{"name":"mean"}],"aggregateWindow":{"period":"1m"}},"hidden":false},"orgID":"05a6a2d5ea213000","labels":[],"every":"1m","offset":"0s","statusMessageTemplate":"Check: ${ r._check_name } is: ${ r._level }","tags":[],"thresholds":[{"type":"greater","value":7.5,"level":"CRIT"}]}');
     let newCheck = JSON.parse(content);
 
     newCheck.orgID = user.orgid;
@@ -658,19 +503,6 @@ const createAlertCheckFromFile = async(userName, filepath) => {
     let chkAPI = new ChecksAPI(new InfluxDB({url: __config.influx_url, token: user.token, timeout: 20000}));
 
     chkAPI.createCheck({body: newCheck});
-
-/*
-    return await axios({
-        method: 'POST',
-        url: '/api/v2/checks',
-        data: newCheck
-    }).then(resp => {
-        return resp.data;
-    }).catch(err => {
-        console.error("DEBUG err " + JSON.stringify(err));
-        throw(err);
-    });
-*/
 };
 
 const writeLineProtocolData = async (userName, def) => {
@@ -683,7 +515,6 @@ const writeLineProtocolData = async (userName, def) => {
     let intervals = await getIntervalMillis(define.points, define.start);
     let startMillis = nowMillis - intervals.full;
 
-//    let samples = await genPoints(define.algo, define.points);
     let samples;
     if(define.data === undefined) {
         samples = await genPoints(define.algo, define.points);
@@ -773,7 +604,7 @@ const genPoints = async (algo, count, data = null) => {
 const getIntervalMillis = async(count, start) => {
     let time = start.slice(0, -1);
     let fullInterval  = 0;
-    let pointInterval = 0;
+    let pointInterval;
     switch(start[start.length - 1]){
     case 'd': //days
         fullInterval = Math.abs(parseInt(time)) * 24 * 60000 * 60;
@@ -890,7 +721,7 @@ const genDicoValues = async(count,data) => {
 
 
 const readFileToBuffer = async function(filepath) {
-    return await fs.readFileSync(filepath, 'utf-8'); //, async (err) => {
+    return await fs.readFileSync(filepath, 'utf-8');
 };
 
 const removeFileIfExists = async function(filepath){
@@ -984,7 +815,7 @@ const dataGenProcess = async function(def = {pulse: 333, model: 'count10'}){
                break;
        }
        //console.log("PULSE " + val);
-       await writeData(__defaultUser.org,__defaultUser.bucket, [
+       await writeData(__defaultUser.username, [
            `test,gen=gen val=${val} ${current * mil2Nano}`
        ]);
        __liveDataGenRunning = true;
@@ -995,11 +826,11 @@ const dataGenProcess = async function(def = {pulse: 333, model: 'count10'}){
     __liveDataGenRunning = false;
 };
 
-const startLiveDataGen = function(def){
+const startLiveDataGen = async function(def){
     if(!__liveDataGenRunning) {
         console.log(`Starting live generator with ${JSON.stringify(def)} ${(new Date()).toISOString()}`);
         __killLiveDataGen = false;
-        dataGenProcess(JSON.parse(def));
+        await dataGenProcess(JSON.parse(def));
     }else{
         console.log(`Live Data Generator already running ${(new Date()).toISOString()}`);
     }
@@ -1009,73 +840,13 @@ const stopLiveDataGen = function(){
    __killLiveDataGen = true;
 };
 
-const checkNodeJSClient = async function(userName){
-
-    let user = getUser(userName.toUpperCase() === 'DEFAULT'? __defaultUser.username : userName )
-
-    const client = new InfluxDB({url: __config.influx_url, token: user.token});
-
-    //Write data
-    const writeApi = client.getWriteApi(user.org, user.bucket);
-
-    const data = 'mem,host=host1 used_percent=23.43234543'; // Line protocol string
-    await writeApi.writeRecord(data);
-
-    await writeApi
-        .close()
-        .then(() => {
-            console.log('FINISHED writing data')
-        })
-        .catch(e => {
-            console.error(e);
-            console.log('\nFinished ERROR writing data')
-        });
-
-    //Execute query
-    const queryApi = client.getQueryApi(user.org);
-
-    const query = `from(bucket: "${user.bucket}") |> range(start: -1h)`;
-    await queryApi.queryRows(query, {
-        next(row, tableMeta) {
-            const o = tableMeta.toObject(row);
-            console.log("DEBUG o " + JSON.stringify(o));
-            console.log(
-                `${o._time} ${o._measurement} in '${o.host}': ${o._field}=${o._value}`
-            )
-        },
-        error(error) {
-            console.error(error);
-            console.log('\nFinished ERROR')
-        },
-        complete() {
-            console.log('\nFinished SUCCESS')
-        },
-    })
-
-};
-
-const checkNodeJSClientAPI = async function(userName){
-
-    let user = getUser(userName.toUpperCase() === 'DEFAULT'? __defaultUser.username : userName );
-
-    console.log('------ Dashboard check  ------')
-
-    const influxDB = new InfluxDB({url: __config.influx_url, token: user.token, timeout: 20000});
-    const dbdAPI = new DashboardsAPI(influxDB);
-    let dashboards = await dbdAPI.getDashboards();
-
-    console.log("DEBUG dashboards " + JSON.stringify(dashboards));
-
-
-};
-
 module.exports = { flush,
     config,
     defaultUser,
     setupUser,
     putUser,
     getUser,
-    signIn,
+    signInAxios,
     endSession,
     writeData,
     createDashboard,
@@ -1095,8 +866,6 @@ module.exports = { flush,
     readFileToBuffer,
     readCSV,
     createTemplateFromFile,
-    checkNodeJSClient,
-    checkNodeJSClientAPI,
     getAuthorizations,
     removeConfInDocker,
     removeFileIfExists,

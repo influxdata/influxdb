@@ -183,7 +183,7 @@ Scenario: Add Manual Line Protocol Data to Default
   When API sign in user "DEFAULT"
   Then the bucket "DEFAULT" for user "DEFAULT" contains:
 """
-{ "points": 12, "field": "foo", "measurement": "fibonacci", "start": "-3h", "vals": ["1","233"], "rows": ["1","-1"] }
+{ "points": 12, "field": "foo", "measurement": "fibonacci", "start": "-3h", "vals": [1,233], "rows": ["0","-1"] }
 """
 
 @error-collateral
@@ -231,7 +231,7 @@ Scenario: Add Manual Line Protocol Data to Default
     #Then the bucket "DEFAULT" for user "DEFAULT" contains "20" datapoints of "hydro" data with value named "level" starting at "-60h"
     Then the bucket "DEFAULT" for user "DEFAULT" contains:
     """
-    { "points": 20, "field": "level", "measurement": "hydro", "start": "-60h", "vals": "skip", "rows": ["1","-1"], "name": "hydro" }
+    { "points": 20, "field": "level", "measurement": "hydro", "start": "-72h", "vals": "skip", "rows": ["0","-1"], "name": "hydro" }
     """
 
 @tested

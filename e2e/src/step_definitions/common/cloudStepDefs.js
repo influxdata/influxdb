@@ -14,11 +14,3 @@ When(/^I open the cloud login$/, {timeout: 30000}, async () => {
 When(/^log in to the cloud$/, async () => {
   await cSteps.logInToCloud();
 });
-
-When(/^check NodeJS Client as "(.*)"$/, async userName => {
-  await cSteps.checkJavaScriptClient(userName);
-});
-
-When(/^check NodeJS API Client as "(.*)"$/, async userName => {
-  await cSteps.checkJavaScriptAPIClient(userName);
-});

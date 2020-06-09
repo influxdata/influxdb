@@ -289,7 +289,11 @@ class baseSteps{
     }
 
     //Example def { "points": 20, "field": "level", "measurement": "hydro", "start": "-60h", "vals": "skip", "rows": ["1","-1"] }
-    async verifyBucketContainsByDef(bucket, user, def){
+    async verifyBucketContainsByDef(bucketName, userName, def){
+
+        let user = influxUtils.getUser(userName);
+
+        let bucket = (bucketName === 'DEFAULT') ? user.bucket : bucketName;
 
         let define = JSON.parse(def);
 
@@ -299,34 +303,21 @@ class baseSteps{
     |> filter(fn: (r) => r._measurement == "${define.measurement}")
     |> filter(fn: (r) => r._field == "${define.field}")`;
 
-        let results = await influxUtils.query(user.orgid, query);
-
-
-        let resTable = await (await results.split('\r\n')).filter((row) => {
-            return row.split(',').length > 9;
-        });
-
-        let headers = resTable[0].split(',');
-        headers.shift();
-        let mesIn = headers.indexOf('_measurement');
-        let fieldIn = headers.indexOf('_field');
-        let valIn = headers.indexOf('_value');
+        let results = await influxUtils.query(userName, query);
 
         for(let i = 0; i < define.rows.length; i++){
             let recs;
             if(parseInt(define.rows[i]) === -1){  // last record
-                recs = resTable[resTable.length - 1].split(',');
+                recs = results[results.length - 1];
             }else{ //by normal index {0,1,2...N}
-                recs = resTable[parseInt(define.rows[i])].split(',');
+                recs = results[parseInt(define.rows[i])];
             }
 
-            recs.shift();
-
-            expect(recs[fieldIn]).to.equal(define.field);
-            expect(recs[mesIn]).to.equal(define.measurement);
+            expect(recs['_field']).to.equal(define.field);
+            expect(recs['_measurement']).to.equal(define.measurement);
 
             if(typeof(define.vals) !== 'string'){
-                expect(recs[valIn]).to.equal(define.vals[i]);
+                expect(recs['_value']).to.equal(define.vals[i]);
             }
 
         }

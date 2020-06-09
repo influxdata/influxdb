@@ -41,16 +41,6 @@ class cloudSteps extends baseSteps {
         await this.clickAndWait(await this.loginPage.getLogInButton());
     }
 
-    async checkJavaScriptClient(userName){
-        console.log("--- Checking NodeJS Client ---");
-        await influxUtils.checkNodeJSClient(userName);
-    }
-
-    async checkJavaScriptAPIClient(userName){
-        console.log("--- Checking NodeJS Client API ---");
-        await influxUtils.checkNodeJSClientAPI(userName);
-    }
-
 }
 
 module.exports = cloudSteps;

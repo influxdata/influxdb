@@ -74,11 +74,8 @@ When(/^Enter the value "(.*)" for the card "(.*)"$/, {timeout: 10000}, async ( n
 });
 
 Then(/^the named query "(.*)" by user "(.*)" on the bucket "(.*)" contains the values "(.*)"$/,
-    async (queryName, user, bucket, values) => {
-        await scrTabSteps.verifyNamedQueryResponseValues(queryName,
-            user,
-            (bucket === 'DEFAULT') ? __defaultUser.bucket : bucket,
-            values);
+    async (queryName, userName, bucketName, values) => {
+        await scrTabSteps.verifyNamedQueryResponseValues(queryName, userName, bucketName, values);
     });
 
 Then(/^the delete button of the scraper card named "(.*)" is not present$/, async name => {
