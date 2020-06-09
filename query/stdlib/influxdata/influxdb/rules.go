@@ -25,10 +25,8 @@ func init() {
 		PushDownReadTagKeysRule{},
 		PushDownReadTagValuesRule{},
 		SortedPivotRule{},
-		// For the following two rules to take effect the appropriate capabilities must be
-		// added AND feature flags must be enabled.
 		PushDownWindowAggregateRule{},
-		// PushDownBareAggregateRule{},
+		PushDownBareAggregateRule{},
 		PushDownGroupAggregateRule{},
 	)
 }
@@ -781,7 +779,7 @@ func (PushDownWindowAggregateRule) Rewrite(ctx context.Context, pn plan.Node) (p
 type PushDownBareAggregateRule struct{}
 
 func (p PushDownBareAggregateRule) Name() string {
-	return "PushDownWindowAggregateRule"
+	return "PushDownBareAggregateRule"
 }
 
 func (p PushDownBareAggregateRule) Pattern() plan.Pattern {
