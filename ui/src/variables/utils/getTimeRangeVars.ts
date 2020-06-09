@@ -8,6 +8,7 @@ import {TIME_RANGE_START, TIME_RANGE_STOP} from 'src/variables/constants'
 // Types
 import {RemoteDataState, TimeRange, Variable} from 'src/types'
 import {VariableAssignment} from 'src/types/ast'
+import {formatTimeRange} from 'src/shared/utils/time'
 
 // TODO kill this function
 export const getTimeRangeVars = (
@@ -32,7 +33,7 @@ export const getRangeVariable = (
       name: TIME_RANGE_STOP,
       arguments: {
         type: 'system',
-        values: ['now()'],
+        values: [formatTimeRange('now()')],
       },
       status: RemoteDataState.Done,
       labels: [],
@@ -40,15 +41,13 @@ export const getRangeVariable = (
   }
 
   if (which === TIME_RANGE_START && timeRange.type !== 'custom') {
-    const duration = parseDuration(timeRangeToDuration(timeRange))
-
     return {
       orgID: '',
       id: which,
       name: which,
       arguments: {
         type: 'system',
-        values: [duration],
+        values: [formatTimeRange(timeRange.lower)],
       },
       status: RemoteDataState.Done,
       labels: [],
