@@ -86,18 +86,74 @@ func PushDownWindowAggregateSum() BoolFlag {
 	return pushDownWindowAggregateSum
 }
 
-var pushDownWindowAggregateRest = MakeBoolFlag(
-	"Push Down Window Aggregate Rest",
-	"pushDownWindowAggregateRest",
+var pushDownWindowAggregateMin = MakeBoolFlag(
+	"Push Down Window Aggregate Min",
+	"pushDownWindowAggregateMin",
 	"Query Team",
 	false,
 	Temporary,
 	false,
 )
 
-// PushDownWindowAggregateRest - Enable non-Count, non-Sum variants of PushDownWindowAggregateRule and PushDownWindowAggregateRule (stage 2)
-func PushDownWindowAggregateRest() BoolFlag {
-	return pushDownWindowAggregateRest
+// PushDownWindowAggregateMin - Enable Min variant of PushDownWindowAggregateRule and PushDownBareAggregateRule
+func PushDownWindowAggregateMin() BoolFlag {
+	return pushDownWindowAggregateMin
+}
+
+var pushDownWindowAggregateMax = MakeBoolFlag(
+	"Push Down Window Aggregate Max",
+	"pushDownWindowAggregateMax",
+	"Query Team",
+	false,
+	Temporary,
+	false,
+)
+
+// PushDownWindowAggregateMax - Enable Max variant of PushDownWindowAggregateRule and PushDownBareAggregateRule
+func PushDownWindowAggregateMax() BoolFlag {
+	return pushDownWindowAggregateMax
+}
+
+var pushDownWindowAggregateMean = MakeBoolFlag(
+	"Push Down Window Aggregate Mean",
+	"pushDownWindowAggregateMean",
+	"Query Team",
+	false,
+	Temporary,
+	false,
+)
+
+// PushDownWindowAggregateMean - Enable Mean variant of PushDownWindowAggregateRule and PushDownBareAggregateRule
+func PushDownWindowAggregateMean() BoolFlag {
+	return pushDownWindowAggregateMean
+}
+
+var pushDownWindowAggregateFirst = MakeBoolFlag(
+	"Push Down Window Aggregate First",
+	"pushDownWindowAggregateFirst",
+	"Query Team",
+	false,
+	Temporary,
+	false,
+)
+
+// PushDownWindowAggregateFirst - Enable First variant of PushDownWindowAggregateRule and PushDownBareAggregateRule
+func PushDownWindowAggregateFirst() BoolFlag {
+	return pushDownWindowAggregateFirst
+}
+
+var pushDownWindowAggregateLast = MakeBoolFlag(
+	"Push Down Window Aggregate Last",
+	"pushDownWindowAggregateLast",
+	"Query Team",
+	false,
+	Temporary,
+	false,
+)
+
+// PushDownWindowAggregateLast - Enable Last variant of PushDownWindowAggregateRule and PushDownBareAggregateRule
+func PushDownWindowAggregateLast() BoolFlag {
+	return pushDownWindowAggregateLast
 }
 
 var newAuth = MakeBoolFlag(
@@ -233,7 +289,11 @@ var all = []Flag{
 	frontendExample,
 	pushDownWindowAggregateCount,
 	pushDownWindowAggregateSum,
-	pushDownWindowAggregateRest,
+	pushDownWindowAggregateMin,
+	pushDownWindowAggregateMax,
+	pushDownWindowAggregateMean,
+	pushDownWindowAggregateFirst,
+	pushDownWindowAggregateLast,
 	newAuth,
 	sessionService,
 	pushDownGroupAggregateCount,
@@ -252,7 +312,11 @@ var byKey = map[string]Flag{
 	"frontendExample":              frontendExample,
 	"pushDownWindowAggregateCount": pushDownWindowAggregateCount,
 	"pushDownWindowAggregateSum":   pushDownWindowAggregateSum,
-	"pushDownWindowAggregateRest":  pushDownWindowAggregateRest,
+	"pushDownWindowAggregateMin":   pushDownWindowAggregateMin,
+	"pushDownWindowAggregateMax":   pushDownWindowAggregateMax,
+	"pushDownWindowAggregateMean":  pushDownWindowAggregateMean,
+	"pushDownWindowAggregateFirst": pushDownWindowAggregateFirst,
+	"pushDownWindowAggregateLast":  pushDownWindowAggregateLast,
 	"newAuth":                      newAuth,
 	"sessionService":               sessionService,
 	"pushDownGroupAggregateCount":  pushDownGroupAggregateCount,

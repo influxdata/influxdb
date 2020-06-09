@@ -957,7 +957,7 @@ from(bucket: v.bucket)
 		},
 		{
 			name: "count group",
-			op: "readGroup(count)",
+			op:   "readGroup(count)",
 			q: `
 from(bucket: v.bucket)
 	|> range(start: 1970-01-01T00:00:00Z, stop: 1970-01-01T00:00:15Z)
@@ -994,7 +994,7 @@ from(bucket: v.bucket)
 		},
 		{
 			name: "sum group",
-			op: "readGroup(sum)",
+			op:   "readGroup(sum)",
 			q: `
 from(bucket: v.bucket)
 	|> range(start: 1970-01-01T00:00:00Z, stop: 1970-01-01T00:00:15Z)

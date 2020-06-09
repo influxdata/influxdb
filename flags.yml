@@ -55,9 +55,33 @@
   default: false
   contact: Query Team
 
-- name: Push Down Window Aggregate Rest
-  description: Enable non-Count, non-Sum variants of PushDownWindowAggregateRule and PushDownWindowAggregateRule (stage 2)
-  key: pushDownWindowAggregateRest
+- name: Push Down Window Aggregate Min
+  description: Enable Min variant of PushDownWindowAggregateRule and PushDownBareAggregateRule
+  key: pushDownWindowAggregateMin
+  default: false
+  contact: Query Team
+
+- name: Push Down Window Aggregate Max
+  description: Enable Max variant of PushDownWindowAggregateRule and PushDownBareAggregateRule
+  key: pushDownWindowAggregateMax
+  default: false
+  contact: Query Team
+
+- name: Push Down Window Aggregate Mean
+  description: Enable Mean variant of PushDownWindowAggregateRule and PushDownBareAggregateRule
+  key: pushDownWindowAggregateMean
+  default: false
+  contact: Query Team
+
+- name: Push Down Window Aggregate First
+  description: Enable First variant of PushDownWindowAggregateRule and PushDownBareAggregateRule
+  key: pushDownWindowAggregateFirst
+  default: false
+  contact: Query Team
+
+- name: Push Down Window Aggregate Last
+  description: Enable Last variant of PushDownWindowAggregateRule and PushDownBareAggregateRule
+  key: pushDownWindowAggregateLast
   default: false
   contact: Query Team
 
