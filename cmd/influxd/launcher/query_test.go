@@ -748,7 +748,7 @@ from(bucket: "%s")
 	}
 }
 
-func TestLauncher_Query_PushDownWindowAggregate(t *testing.T) {
+func TestLauncher_Query_PushDownWindowAggregateAndBareAggregate(t *testing.T) {
 	l := launcher.RunTestLauncherOrFail(t, ctx,
 		"--feature-flags", "pushDownWindowAggregateCount=true")
 	l.SetupOrFail(t)
@@ -809,6 +809,22 @@ from(bucket: v.bucket)
 ,,0,5,f,m0,k0,1970-01-01T00:00:05Z
 ,,0,5,f,m0,k0,1970-01-01T00:00:10Z
 ,,0,5,f,m0,k0,1970-01-01T00:00:15Z
+`,
+		},
+		{
+			name: "bare count",
+			q: `
+from(bucket: v.bucket)
+	|> range(start: 1970-01-01T00:00:00Z, stop: 1970-01-01T00:00:15Z)
+	|> count()
+	|> drop(columns: ["_start", "_stop"])
+`,
+			res: `
+#group,false,false,false,true,true,true
+#datatype,string,long,long,string,string,string
+#default,_result,,,,,
+,result,table,_value,_field,_measurement,k
+,,0,15,f,m0,k0
 `,
 		},
 	} {
