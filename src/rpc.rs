@@ -24,7 +24,7 @@ use std::sync::Arc;
 use tokio::sync::mpsc;
 use tonic::Status;
 
-use crate::App;
+use crate::server::App;
 
 pub struct GrpcServer {
     pub app: Arc<App>,
