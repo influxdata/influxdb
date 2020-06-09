@@ -174,7 +174,7 @@ func TestRouter_Panic(t *testing.T) {
 				body: `
 {
   "code": "internal error",
-  "message": "a panic has occurred: not implemented"
+  "message": "a panic has occurred: /ping: not implemented"
 }`,
 			},
 		},
