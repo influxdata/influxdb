@@ -1,63 +1,50 @@
 #![deny(rust_2018_idioms)]
 #![warn(missing_debug_implementations, clippy::explicit_iter_loop)]
 
-use std::fs;
-
-use log::{debug, info, warn};
-
 use clap::{crate_authors, crate_version, App, Arg, SubCommand};
-use snafu::Snafu;
-
 use delorean_ingest::LineProtocolConverter;
 use delorean_line_parser::{parse_lines, ParsedLine};
 use delorean_parquet::writer::{DeloreanTableWriter, Error as DeloreanTableWriterError};
+use log::{debug, info, warn};
+use snafu::{ResultExt, Snafu};
+use std::fs;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
-    #[snafu(display(r#"IO Error: {} ({})"#, message, source))]
-    IO {
-        message: String,
+    #[snafu(display("Error reading {} ({})", name.display(), source))]
+    UnableToReadInput {
+        name: std::path::PathBuf,
         source: std::io::Error,
     },
-    Parsing {
-        source: delorean_line_parser::Error,
+
+    UnableToCreateFile {
+        name: std::path::PathBuf,
+        source: std::io::Error,
     },
+
+    #[snafu(context(false))]
     Conversion {
         source: delorean_ingest::Error,
     },
-    Writing {
+
+    UnableToCreateTableWriter {
+        source: DeloreanTableWriterError,
+    },
+
+    UnableToWriteSchemaSample {
+        source: DeloreanTableWriterError,
+    },
+
+    UnableToWriteGoodLines {
+        source: DeloreanTableWriterError,
+    },
+
+    UnableToCloseTableWriter {
         source: DeloreanTableWriterError,
     },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
-
-impl From<std::io::Error> for Error {
-    fn from(other: std::io::Error) -> Self {
-        Error::IO {
-            message: String::from("io error"),
-            source: other,
-        }
-    }
-}
-
-impl From<delorean_line_parser::Error> for Error {
-    fn from(other: delorean_line_parser::Error) -> Self {
-        Error::Parsing { source: other }
-    }
-}
-
-impl From<delorean_ingest::Error> for Error {
-    fn from(other: delorean_ingest::Error) -> Self {
-        Error::Conversion { source: other }
-    }
-}
-
-impl From<DeloreanTableWriterError> for Error {
-    fn from(other: DeloreanTableWriterError) -> Self {
-        Error::Writing { source: other }
-    }
-}
 
 enum ReturnCode {
     InternalError = 1,
@@ -73,9 +60,8 @@ fn convert(input_filename: &str, output_filename: &str) -> Result<()> {
 
     // TODO: make a streaming parser that you can stream data through in blocks.
     // for now, just read the whole input file into RAM...
-    let buf = fs::read_to_string(input_filename).map_err(|source| {
-        let message = format!("Error reading {}", input_filename);
-        Error::IO { message, source }
+    let buf = fs::read_to_string(input_filename).context(UnableToReadInput {
+        name: input_filename,
     })?;
     info!("Read {} bytes from {}", buf.len(), input_filename);
 
@@ -97,14 +83,21 @@ fn convert(input_filename: &str, output_filename: &str) -> Result<()> {
     debug!("Using schema deduced from sample: {:?}", converter.schema());
 
     info!("Schema deduced. Writing output to {} ...", output_filename);
-    let output_file = fs::File::create(output_filename)?;
+    let output_file = fs::File::create(output_filename).context(UnableToCreateFile {
+        name: output_filename,
+    })?;
 
-    let mut writer = DeloreanTableWriter::new(converter.schema(), output_file)?;
+    let mut writer = DeloreanTableWriter::new(converter.schema(), output_file)
+        .context(UnableToCreateTableWriter)?;
 
     // Write the sample and then the remaining lines
-    writer.write_batch(&converter.pack_lines(schema_sample.into_iter()))?;
-    writer.write_batch(&converter.pack_lines(only_good_lines))?;
-    writer.close()?;
+    writer
+        .write_batch(&converter.pack_lines(schema_sample.into_iter()))
+        .context(UnableToWriteSchemaSample)?;
+    writer
+        .write_batch(&converter.pack_lines(only_good_lines))
+        .context(UnableToWriteGoodLines)?;
+    writer.close().context(UnableToCloseTableWriter)?;
     info!("Completing writing {} successfully", output_filename);
     Ok(())
 }
