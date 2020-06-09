@@ -218,8 +218,8 @@ func NewHandler(c Config) *Handler {
 			"status-head",
 			"HEAD", "/status", false, true, authWrapper(h.serveStatus),
 		},
-		Route{ // Ping
-			"ping",
+		Route{ // Health
+			"health",
 			"GET", "/health", false, true, authWrapper(h.serveHealth),
 		},
 		Route{
@@ -1845,6 +1845,7 @@ func cors(inner http.Handler) http.Handler {
 				`Authorization`,
 				`Content-Length`,
 				`Content-Type`,
+				`User-Agent`,
 				`X-CSRF-Token`,
 				`X-HTTP-Method-Override`,
 			}, ", "))
