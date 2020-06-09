@@ -1,5 +1,6 @@
-use delorean_parquet::writer::DeloreanTableWriter;
-use delorean_table::packers::Packer;
+use delorean_parquet::writer::DeloreanParquetTableWriter;
+
+use delorean_table::{packers::Packer, DeloreanTableWriter};
 use delorean_table_schema::DataType;
 use std::fs;
 
@@ -59,7 +60,7 @@ fn test_write_parquet_data() {
     let output_file = fs::File::create(&output_path).expect("can't open temp file for writing");
 
     let mut parquet_writer =
-        DeloreanTableWriter::new(&schema, output_file).expect("can't create parquet writer");
+        DeloreanParquetTableWriter::new(&schema, output_file).expect("can't create parquet writer");
     parquet_writer
         .write_batch(&packers)
         .expect("can't write batch");

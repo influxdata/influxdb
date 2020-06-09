@@ -20,6 +20,7 @@ use parquet::{
 use std::io::{Seek, Write};
 
 use delorean_table::packers::Packer;
+use delorean_table::{DeloreanTableWriter, Error as TableError};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -32,9 +33,17 @@ pub enum Error {
     MismatchedColumns { message: String },
 }
 
-/// A `DeloreanTableWriter` is used for writing batches of rows
+impl From<Error> for TableError {
+    fn from(other: Error) -> Self {
+        TableError::Data {
+            source: Box::new(other),
+        }
+    }
+}
+
+/// A `DeloreanParquetTableWriter` is used for writing batches of rows
 /// represented using the structures in `delorean_table` to parquet files.
-pub struct DeloreanTableWriter<W>
+pub struct DeloreanParquetTableWriter<W>
 where
     W: Write + Seek + TryClone,
 {
@@ -42,7 +51,7 @@ where
     file_writer: SerializedFileWriter<W>,
 }
 
-impl<W: 'static> DeloreanTableWriter<W>
+impl<W: 'static> DeloreanParquetTableWriter<W>
 where
     W: Write + Seek + TryClone,
 {
@@ -53,8 +62,9 @@ where
     /// # use std::fs;
     /// # use delorean_table_schema;
     /// # use delorean_table_schema::DataType;
+    /// # use delorean_table::DeloreanTableWriter;
     /// # use delorean_table::packers::Packer;
-    /// # use delorean_parquet::writer::DeloreanTableWriter;
+    /// # use delorean_parquet::writer::DeloreanParquetTableWriter;
     ///
     /// let schema = delorean_table_schema::SchemaBuilder::new("measurement_name")
     ///      .tag("tag1")
@@ -76,7 +86,7 @@ where
     /// output_file_name.push("example.parquet");
     /// let output_file = fs::File::create(output_file_name.as_path()).unwrap();
     ///
-    /// let mut parquet_writer = DeloreanTableWriter::new(&schema, output_file).unwrap();
+    /// let mut parquet_writer = DeloreanParquetTableWriter::new(&schema, output_file).unwrap();
     ///
     /// // write the actual data to parquet
     /// parquet_writer.write_batch(&packers).unwrap();
@@ -89,7 +99,7 @@ where
     pub fn new(
         schema: &delorean_table_schema::Schema,
         writer: W,
-    ) -> Result<DeloreanTableWriter<W>, Error> {
+    ) -> Result<DeloreanParquetTableWriter<W>, Error> {
         let writer_props = create_writer_props(&schema);
         let parquet_schema = convert_to_parquet_schema(&schema)?;
 
@@ -98,7 +108,7 @@ where
             message: String::from("Error trying to create a SerializedFileWriter"),
         })?;
 
-        let parquet_writer = DeloreanTableWriter {
+        let parquet_writer = DeloreanParquetTableWriter {
             parquet_schema,
             file_writer,
         };
@@ -108,12 +118,16 @@ where
         );
         Ok(parquet_writer)
     }
-
+}
+impl<W: 'static> DeloreanTableWriter for DeloreanParquetTableWriter<W>
+where
+    W: Write + Seek + TryClone,
+{
     /// Writes a batch of packed data to the output file in a single
     /// column chunk
     ///
     /// TODO: better control of column chunks
-    pub fn write_batch(&mut self, packers: &[Packer]) -> Result<(), Error> {
+    fn write_batch(&mut self, packers: &[Packer]) -> Result<(), TableError> {
         // now write out the data
         let mut row_group_writer =
             self.file_writer
@@ -134,8 +148,10 @@ where
             let packer = match packers.get(column_number) {
                 Some(packer) => packer,
                 None => {
-                    return Err(Error::MismatchedColumns {
-                        message: format!("Could not get packer for column {}", column_number),
+                    return Err(TableError::Other {
+                        source: Box::new(Error::MismatchedColumns {
+                            message: format!("Could not get packer for column {}", column_number),
+                        }),
                     });
                 }
             };
@@ -218,7 +234,7 @@ where
     }
 
     /// Closes this writer, and finalizes the underlying parquet file
-    pub fn close(&mut self) -> Result<(), Error> {
+    fn close(&mut self) -> Result<(), TableError> {
         self.file_writer.close().context(ParquetLibraryError {
             message: String::from("Can't close file writer"),
         })?;

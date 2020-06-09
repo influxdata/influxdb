@@ -4,29 +4,45 @@
 //! Library with code for (aspirationally) ingesting various data formats into Delorean
 //! TODO move this to delorean/src/ingest/line_protocol.rs?
 use log::debug;
-use snafu::{OptionExt, Snafu};
+use snafu::{OptionExt, ResultExt, Snafu};
 
 use std::collections::BTreeMap;
 
 use delorean_line_parser::{FieldValue, ParsedLine};
-use delorean_table::packers::Packer;
+use delorean_table::{DeloreanTableWriter, DeloreanTableWriterSource, Error as TableError, Packer};
 use delorean_table_schema::{DataType, Schema, SchemaBuilder};
-
-/// Handles converting raw line protocol `ParsedLine` structures into Delorean format.
-#[derive(Debug)]
-pub struct LineProtocolConverter {
-    // Schema is used in tests and will be used to actually convert data shortly
-    schema: Schema,
-}
 
 #[derive(Snafu, Debug)]
 pub enum Error {
-    /// Conversion needs at least one line of data
+    #[snafu(display(r#"Conversion needs at least one line of data"#))]
     NeedsAtLeastOneLine,
 
     // Only a single line protocol measurement field is currently supported
     #[snafu(display(r#"More than one measurement not yet supported: {}"#, message))]
     OnlyOneMeasurementSupported { message: String },
+
+    #[snafu(display(r#"Error writing to TableWriter: {}"#, source))]
+    Writing { source: TableError },
+
+    #[snafu(display(r#"Error creating TableWriter: {}"#, source))]
+    WriterCreation { source: TableError },
+}
+
+/// Handles converting raw line protocol `ParsedLine` structures into Delorean format.
+pub struct LineProtocolConverter {
+    // Schema is used in tests
+    schema: Schema,
+    // the writer to use for writing chunks of lines
+    table_writer: Box<dyn DeloreanTableWriter>,
+}
+
+impl std::fmt::Debug for LineProtocolConverter {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LineProtocolConverter")
+            .field("schema", &self.schema)
+            .field("table_writer", &"DYNAMIC")
+            .finish()
+    }
 }
 
 /// `LineProtocolConverter` are used to
@@ -45,7 +61,10 @@ impl LineProtocolConverter {
     /// that have the same schema (e.g. tag names, field names,
     /// measurements).
     ///
-    pub fn new(lines: &[ParsedLine<'_>]) -> Result<LineProtocolConverter, Error> {
+    pub fn new(
+        lines: &[ParsedLine<'_>],
+        mut table_writer_source: Box<dyn DeloreanTableWriterSource>,
+    ) -> Result<LineProtocolConverter, Error> {
         let mut peekable_iter = lines.iter().peekable();
         let first_line = peekable_iter.peek().context(NeedsAtLeastOneLine)?;
 
@@ -80,17 +99,29 @@ impl LineProtocolConverter {
 
         let schema = builder.build();
         debug!("Deduced line protocol schema: {:#?}", schema);
-        Ok(LineProtocolConverter { schema })
+
+        let table_writer = table_writer_source
+            .next_writer(&schema)
+            .context(WriterCreation)?;
+        Ok(LineProtocolConverter {
+            schema,
+            table_writer,
+        })
     }
 
     /// Packs a sequence of `ParsedLine`s (which are row-based) from a
-    /// single measurement into a columnar memory format. Among other
-    /// things, this format is suitable for writing data out column by
-    /// column (e.g. parquet).
-    ///
-    /// FIXME: the plan is to switch from `Packer` to something based
-    /// on Apache Arrow.
-    pub fn pack_lines<'a>(&self, lines: impl Iterator<Item = ParsedLine<'a>>) -> Vec<Packer> {
+    /// single measurement into a columnar memory format and writes
+    /// them to the underlying table writer.
+    pub fn ingest_lines<'a>(
+        &mut self,
+        lines: impl Iterator<Item = ParsedLine<'a>>,
+    ) -> Result<(), Error> {
+        let packers = self.pack_lines(lines);
+        self.table_writer.write_batch(&packers).context(Writing)
+    }
+
+    /// Internal implementation: packs the `ParsedLine` structures into a
+    fn pack_lines<'a>(&mut self, lines: impl Iterator<Item = ParsedLine<'a>>) -> Vec<Packer> {
         let col_defs = self.schema.get_col_defs();
         let mut packers: Vec<Packer> = col_defs
             .iter()
@@ -189,16 +220,55 @@ impl LineProtocolConverter {
                 "Should have added 1 row to all packers"
             );
         }
-
         packers
+    }
+
+    /// Finalizes all work of this converter and closes the underlying writer.
+    pub fn finalize(&mut self) -> Result<(), Error> {
+        self.table_writer.close().context(Writing)
     }
 }
 
 #[cfg(test)]
 mod delorean_ingest_tests {
     use super::*;
+    use delorean_table::{DeloreanTableWriter, DeloreanTableWriterSource, Error as TableError};
     use delorean_table_schema::ColumnDefinition;
     use delorean_test_helpers::approximately_equal;
+
+    struct NoOpWriter {}
+
+    impl DeloreanTableWriter for NoOpWriter {
+        fn write_batch(&mut self, _packers: &[Packer]) -> Result<(), TableError> {
+            Ok(())
+        }
+
+        fn close(&mut self) -> Result<(), TableError> {
+            Ok(())
+        }
+    }
+
+    // Constructs NoOpWriters
+    struct NoOpWriterSource {
+        made: bool,
+    }
+
+    impl NoOpWriterSource {
+        fn new() -> Box<NoOpWriterSource> {
+            Box::new(NoOpWriterSource { made: false })
+        }
+    }
+
+    impl DeloreanTableWriterSource for NoOpWriterSource {
+        fn next_writer(
+            &mut self,
+            _schema: &Schema,
+        ) -> Result<Box<dyn DeloreanTableWriter>, TableError> {
+            assert!(!self.made);
+            self.made = true;
+            Ok(Box::new(NoOpWriter {}))
+        }
+    }
 
     fn only_good_lines(data: &str) -> Vec<ParsedLine<'_>> {
         delorean_line_parser::parse_lines(data)
@@ -212,7 +282,7 @@ mod delorean_ingest_tests {
     #[test]
     fn no_lines() {
         let parsed_lines = only_good_lines("");
-        let converter_result = LineProtocolConverter::new(&parsed_lines);
+        let converter_result = LineProtocolConverter::new(&parsed_lines, NoOpWriterSource::new());
 
         assert!(matches!(converter_result, Err(Error::NeedsAtLeastOneLine)));
     }
@@ -222,7 +292,8 @@ mod delorean_ingest_tests {
         let parsed_lines =
             only_good_lines("cpu,host=A,region=west usage_system=64i 1590488773254420000");
 
-        let converter = LineProtocolConverter::new(&parsed_lines).expect("conversion successful");
+        let converter = LineProtocolConverter::new(&parsed_lines, NoOpWriterSource::new())
+            .expect("conversion successful");
         assert_eq!(converter.schema.measurement(), "cpu");
 
         let cols = converter.schema.get_col_defs();
@@ -251,7 +322,8 @@ mod delorean_ingest_tests {
             cpu,host=A,region=east usage_system=67i 1590488773254430000"#,
         );
 
-        let converter = LineProtocolConverter::new(&parsed_lines).expect("conversion successful");
+        let converter = LineProtocolConverter::new(&parsed_lines, NoOpWriterSource::new())
+            .expect("conversion successful");
         assert_eq!(converter.schema.measurement(), "cpu");
 
         let cols = converter.schema.get_col_defs();
@@ -282,7 +354,8 @@ mod delorean_ingest_tests {
         );
 
         // when we extract the schema
-        let converter = LineProtocolConverter::new(&parsed_lines).expect("conversion successful");
+        let converter = LineProtocolConverter::new(&parsed_lines, NoOpWriterSource::new())
+            .expect("conversion successful");
         assert_eq!(converter.schema.measurement(), "cpu");
 
         // then both field names appear in the resulting schema
@@ -318,7 +391,8 @@ mod delorean_ingest_tests {
         );
 
         // when we extract the schema
-        let converter = LineProtocolConverter::new(&parsed_lines).expect("conversion successful");
+        let converter = LineProtocolConverter::new(&parsed_lines, NoOpWriterSource::new())
+            .expect("conversion successful");
         assert_eq!(converter.schema.measurement(), "cpu");
 
         // Then both tag names appear in the resulting schema
@@ -350,7 +424,8 @@ mod delorean_ingest_tests {
         );
 
         // when we extract the schema
-        let converter = LineProtocolConverter::new(&parsed_lines).expect("conversion successful");
+        let converter = LineProtocolConverter::new(&parsed_lines, NoOpWriterSource::new())
+            .expect("conversion successful");
         assert_eq!(converter.schema.measurement(), "cpu");
 
         // Then the first field type appears in the resulting schema (TBD is this what we want??)
@@ -378,7 +453,7 @@ mod delorean_ingest_tests {
         );
 
         // when we extract the schema
-        let converter_result = LineProtocolConverter::new(&parsed_lines);
+        let converter_result = LineProtocolConverter::new(&parsed_lines, NoOpWriterSource::new());
 
         // Then the converter does not support it
         assert!(matches!(
@@ -410,7 +485,7 @@ mod delorean_ingest_tests {
         assert_eq!(parsed_lines.len(), EXPECTED_NUM_LINES);
 
         // when we extract the schema
-        let converter = LineProtocolConverter::new(&parsed_lines)?;
+        let converter = LineProtocolConverter::new(&parsed_lines, NoOpWriterSource::new())?;
 
         // Then the correct schema is extracted
         let cols = converter.schema.get_col_defs();
@@ -450,7 +525,7 @@ mod delorean_ingest_tests {
         assert_eq!(parsed_lines.len(), EXPECTED_NUM_LINES);
 
         // when we extract the schema and pack the values
-        let converter = LineProtocolConverter::new(&parsed_lines)?;
+        let mut converter = LineProtocolConverter::new(&parsed_lines, NoOpWriterSource::new())?;
         let packers = converter.pack_lines(parsed_lines.into_iter());
 
         // 4 columns so 4 packers

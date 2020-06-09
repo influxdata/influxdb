@@ -652,6 +652,8 @@ dependencies = [
  "delorean_ingest",
  "delorean_line_parser",
  "delorean_parquet",
+ "delorean_table",
+ "delorean_table_schema",
  "delorean_test_helpers",
  "env_logger",
  "libflate",

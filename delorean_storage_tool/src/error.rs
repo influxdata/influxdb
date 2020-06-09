@@ -1,7 +1,8 @@
 use snafu::Snafu;
 
 use delorean::storage::StorageError;
-use delorean_parquet::writer::Error as DeloreanTableWriterError;
+use delorean_ingest::Error as IngestError;
+use delorean_parquet::writer::Error as ParquetWriterError;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -36,17 +37,20 @@ pub enum Error {
     #[snafu(display("Error converting data {}", source))]
     Conversion { source: delorean_ingest::Error },
 
-    #[snafu(display("Error creating a table writer {}", source))]
-    UnableToCreateTableWriter { source: DeloreanTableWriterError },
+    #[snafu(display("Error creating a parquet table writer {}", source))]
+    UnableToCreateParquetTableWriter { source: ParquetWriterError },
+
+    #[snafu(display("Error creating a line protocol converter {}", source))]
+    UnableToCreateLineProtocolConverter { source: IngestError },
 
     #[snafu(display("Error writing the sample schema {}", source))]
-    UnableToWriteSchemaSample { source: DeloreanTableWriterError },
+    UnableToWriteSchemaSample { source: IngestError },
 
     #[snafu(display("Error writing remaining lines {}", source))]
-    UnableToWriteGoodLines { source: DeloreanTableWriterError },
+    UnableToWriteGoodLines { source: IngestError },
 
     #[snafu(display("Error while closing the table writer {}", source))]
-    UnableToCloseTableWriter { source: DeloreanTableWriterError },
+    UnableToCloseTableWriter { source: IngestError },
 
     #[snafu(display(r#"Error reading TSM data: {}"#, source))]
     TSM { source: StorageError },

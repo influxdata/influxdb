@@ -8,7 +8,9 @@ use clap::{crate_authors, crate_version, App, Arg, SubCommand};
 
 use delorean_ingest::LineProtocolConverter;
 use delorean_line_parser::{parse_lines, ParsedLine};
-use delorean_parquet::writer::DeloreanTableWriter;
+use delorean_parquet::writer::DeloreanParquetTableWriter;
+use delorean_table::{DeloreanTableWriter, DeloreanTableWriterSource, Error as TableError};
+use delorean_table_schema::Schema;
 
 mod error;
 mod file_meta;
@@ -25,6 +27,42 @@ enum ReturnCode {
 }
 
 static SCHEMA_SAMPLE_SIZE: usize = 5;
+
+/// Creates  `DeloreanParquetTableWriter` suitable for writing
+#[derive(Debug)]
+struct ParquetWriterSource {
+    output_filename: String,
+    // This creator only supports  a single filename at this time
+    // so track if it has alread been made, for errors
+    made_file: bool,
+}
+
+impl DeloreanTableWriterSource for ParquetWriterSource {
+    // Returns a `DeloreanTableWriter suitable for writing data from packers.
+    fn next_writer(&mut self, schema: &Schema) -> Result<Box<dyn DeloreanTableWriter>, TableError> {
+        if self.made_file {
+            return Err(TableError::Other {
+                source: Box::new(Error::NotImplemented {
+                    operation_name: String::from("Multiple measurements"),
+                }),
+            });
+        }
+
+        let output_file = fs::File::create(&self.output_filename).map_err(|e| TableError::IO {
+            message: format!("Error creating output file {}", self.output_filename),
+            source: e,
+        })?;
+        info!("Writing output to {} ...", self.output_filename);
+
+        let writer = DeloreanParquetTableWriter::new(schema, output_file).map_err(|e| {
+            TableError::Other {
+                source: Box::new(Error::UnableToCreateParquetTableWriter { source: e }),
+            }
+        })?;
+        self.made_file = true;
+        Ok(Box::new(writer))
+    }
+}
 
 fn convert(input_filename: &str, output_filename: &str) -> Result<()> {
     info!("dstool convert starting");
@@ -49,31 +87,31 @@ fn convert(input_filename: &str, output_filename: &str) -> Result<()> {
         }
     });
 
+    let writer_source = Box::new(ParquetWriterSource {
+        output_filename: String::from(output_filename),
+        made_file: false,
+    });
+
     let schema_sample: Vec<ParsedLine<'_>> =
         only_good_lines.by_ref().take(SCHEMA_SAMPLE_SIZE).collect();
 
     // The idea here is to use the first few parsed lines to deduce the schema
-    let converter = LineProtocolConverter::new(&schema_sample)?;
+    let mut converter = LineProtocolConverter::new(&schema_sample, writer_source)
+        .map_err(|e| Error::UnableToCreateLineProtocolConverter { source: e })?;
+
     debug!("Using schema deduced from sample: {:?}", converter.schema());
 
     info!("Schema deduced. Writing output to {} ...", output_filename);
-    let output_file = fs::File::create(output_filename).map_err(|e| Error::UnableToCreateFile {
-        name: String::from(output_filename),
-        source: e,
-    })?;
-
-    let mut writer = DeloreanTableWriter::new(converter.schema(), output_file)
-        .map_err(|e| Error::UnableToCreateTableWriter { source: e })?;
 
     // Write the sample and then the remaining lines
-    writer
-        .write_batch(&converter.pack_lines(schema_sample.into_iter()))
+    converter
+        .ingest_lines(schema_sample.into_iter())
         .map_err(|e| Error::UnableToWriteSchemaSample { source: e })?;
-    writer
-        .write_batch(&converter.pack_lines(only_good_lines))
+    converter
+        .ingest_lines(only_good_lines)
         .map_err(|e| Error::UnableToWriteGoodLines { source: e })?;
-    writer
-        .close()
+    converter
+        .finalize()
         .map_err(|e| Error::UnableToCloseTableWriter { source: e })?;
     info!("Completing writing {} successfully", output_filename);
     Ok(())
