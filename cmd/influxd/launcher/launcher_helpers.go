@@ -20,10 +20,13 @@ import (
 	"github.com/influxdata/influxdb/v2/bolt"
 	influxdbcontext "github.com/influxdata/influxdb/v2/context"
 	"github.com/influxdata/influxdb/v2/http"
+	"github.com/influxdata/influxdb/v2/kit/feature"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/pkg/httpc"
 	"github.com/influxdata/influxdb/v2/pkger"
 	"github.com/influxdata/influxdb/v2/query"
+	dto "github.com/prometheus/client_model/go"
+	"github.com/prometheus/common/expfmt"
 )
 
 // TestLauncher is a test wrapper for launcher.Launcher.
@@ -224,6 +227,7 @@ func (tl *TestLauncher) MustExecuteQuery(query string) *QueryResults {
 // Callers of ExecuteQuery must call Done on the returned QueryResults.
 func (tl *TestLauncher) ExecuteQuery(q string) (*QueryResults, error) {
 	ctx := influxdbcontext.SetAuthorizer(context.Background(), mock.NewMockAuthorizer(true, nil))
+	ctx, _ = feature.Annotate(ctx, tl.flagger)
 	fq, err := tl.QueryController().Query(ctx, &query.Request{
 		Authorization:  tl.Auth,
 		OrganizationID: tl.Auth.OrgID,
@@ -406,6 +410,25 @@ func (tl *TestLauncher) HTTPClient(tb testing.TB) *httpc.Client {
 		tl.httpClient = client
 	}
 	return tl.httpClient
+}
+
+func (tl *TestLauncher) Metrics(tb testing.TB) (metrics map[string]*dto.MetricFamily) {
+	req := tl.HTTPClient(tb).
+		Get("/metrics").
+		RespFn(func(resp *nethttp.Response) error {
+			if resp.StatusCode != nethttp.StatusOK {
+				return fmt.Errorf("unexpected status code: %d %s", resp.StatusCode, resp.Status)
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			var parser expfmt.TextParser
+			metrics, _ = parser.TextToMetricFamilies(resp.Body)
+			return nil
+		})
+	if err := req.Do(context.Background()); err != nil {
+		tb.Fatal(err)
+	}
+	return metrics
 }
 
 // QueryResult wraps a single flux.Result with some helper methods.
