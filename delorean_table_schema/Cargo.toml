@@ -1,5 +1,5 @@
 [package]
-name = "line_protocol_schema"
+name = "delorean_table_schema"
 version = "0.1.0"
 authors = ["Andrew Lamb <alamb@influxdata.com>"]
 edition = "2018"

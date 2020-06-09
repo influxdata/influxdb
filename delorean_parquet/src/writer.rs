@@ -51,14 +51,14 @@ where
     ///
     /// ```
     /// # use std::fs;
-    /// # use line_protocol_schema;
-    /// # use line_protocol_schema::DataType;
+    /// # use delorean_table_schema;
+    /// # use delorean_table_schema::DataType;
     /// # use delorean_table::packers::Packer;
     /// # use delorean_parquet::writer::DeloreanTableWriter;
     ///
-    /// let schema = line_protocol_schema::SchemaBuilder::new("measurement_name")
+    /// let schema = delorean_table_schema::SchemaBuilder::new("measurement_name")
     ///      .tag("tag1")
-    ///      .field("field1", line_protocol_schema::DataType::Integer)
+    ///      .field("field1", delorean_table_schema::DataType::Integer)
     ///      .build();
     ///
     /// let mut packers = vec![
@@ -87,7 +87,7 @@ where
     /// # std::fs::remove_file(output_file_name);
     /// ```
     pub fn new(
-        schema: &line_protocol_schema::Schema,
+        schema: &delorean_table_schema::Schema,
         writer: W,
     ) -> Result<DeloreanTableWriter<W>, Error> {
         let writer_props = create_writer_props(&schema);
@@ -234,7 +234,7 @@ fn parquet_schema_as_string(parquet_schema: &parquet::schema::types::Type) -> St
 
 // Converts from line protocol `Schema` to the equivalent parquet schema `Type`.
 fn convert_to_parquet_schema(
-    schema: &line_protocol_schema::Schema,
+    schema: &delorean_table_schema::Schema,
 ) -> Result<Rc<parquet::schema::types::Type>, Error> {
     let mut parquet_columns = Vec::new();
 
@@ -242,15 +242,15 @@ fn convert_to_parquet_schema(
     for col_def in col_defs {
         debug!("Determining parquet schema for column {:?}", col_def);
         let (physical_type, logical_type) = match col_def.data_type {
-            line_protocol_schema::DataType::Boolean => (PhysicalType::BOOLEAN, None),
-            line_protocol_schema::DataType::Float => (PhysicalType::DOUBLE, None),
-            line_protocol_schema::DataType::Integer => {
+            delorean_table_schema::DataType::Boolean => (PhysicalType::BOOLEAN, None),
+            delorean_table_schema::DataType::Float => (PhysicalType::DOUBLE, None),
+            delorean_table_schema::DataType::Integer => {
                 (PhysicalType::INT64, Some(LogicalType::UINT_64))
             }
-            line_protocol_schema::DataType::String => {
+            delorean_table_schema::DataType::String => {
                 (PhysicalType::BYTE_ARRAY, Some(LogicalType::UTF8))
             }
-            line_protocol_schema::DataType::Timestamp => {
+            delorean_table_schema::DataType::Timestamp => {
                 // The underlying parquet library doesn't seem to have
                 // support for TIMESTAMP_NANOs yet. FIXME we need to
                 // fix this as otherwise any other application that
@@ -297,7 +297,7 @@ fn convert_to_parquet_schema(
 
 /// Create the parquet writer properties (which defines the encoding
 /// and compression for each column) for a given schema.
-fn create_writer_props(schema: &line_protocol_schema::Schema) -> Rc<WriterProperties> {
+fn create_writer_props(schema: &delorean_table_schema::Schema) -> Rc<WriterProperties> {
     let mut builder = WriterProperties::builder();
 
     // TODO: Maybe tweak more of these settings for maximum performance.
@@ -313,9 +313,9 @@ fn create_writer_props(schema: &line_protocol_schema::Schema) -> Rc<WriterProper
         let col_path = ColumnPath::from(col_def.name.clone());
 
         match col_def.data_type {
-            data_type @ line_protocol_schema::DataType::Boolean
-            | data_type @ line_protocol_schema::DataType::Float
-            | data_type @ line_protocol_schema::DataType::Integer => {
+            data_type @ delorean_table_schema::DataType::Boolean
+            | data_type @ delorean_table_schema::DataType::Float
+            | data_type @ delorean_table_schema::DataType::Integer => {
                 debug!(
                     "Setting encoding of {:?} col {} to RLE",
                     data_type, col_path
@@ -323,18 +323,18 @@ fn create_writer_props(schema: &line_protocol_schema::Schema) -> Rc<WriterProper
                 builder = builder.set_column_encoding(col_path, Encoding::RLE);
             }
             // tag values are often very much repeated
-            line_protocol_schema::DataType::String if schema.is_tag(&col_def) => {
+            delorean_table_schema::DataType::String if schema.is_tag(&col_def) => {
                 debug!(
                     "Setting encoding of tag val DataType::String col {} to dictionary",
                     col_path
                 );
                 builder = builder.set_column_dictionary_enabled(col_path, true);
             }
-            line_protocol_schema::DataType::String => {
+            delorean_table_schema::DataType::String => {
                 debug!("Setting encoding of non-tag val DataType::String col {} to DELTA_LENGTH_BYTE_ARRAY", col_path);
                 builder = builder.set_column_encoding(col_path, Encoding::DELTA_LENGTH_BYTE_ARRAY);
             }
-            line_protocol_schema::DataType::Timestamp => {
+            delorean_table_schema::DataType::Timestamp => {
                 debug!(
                     "Setting encoding of LPTimestamp col {} to DELTA_BINARY_PACKED",
                     col_path
@@ -382,12 +382,12 @@ mod tests {
 
     #[test]
     fn test_convert_to_parquet_schema() {
-        let schema = line_protocol_schema::SchemaBuilder::new("measurement_name")
+        let schema = delorean_table_schema::SchemaBuilder::new("measurement_name")
             .tag("tag1")
-            .field("string_field", line_protocol_schema::DataType::String)
-            .field("float_field", line_protocol_schema::DataType::Float)
-            .field("int_field", line_protocol_schema::DataType::Integer)
-            .field("bool_field", line_protocol_schema::DataType::Boolean)
+            .field("string_field", delorean_table_schema::DataType::String)
+            .field("float_field", delorean_table_schema::DataType::Float)
+            .field("int_field", delorean_table_schema::DataType::Integer)
+            .field("bool_field", delorean_table_schema::DataType::Boolean)
             .build();
 
         let parquet_schema = convert_to_parquet_schema(&schema).expect("conversion successful");
@@ -408,12 +408,12 @@ mod tests {
 
     #[test]
     fn test_create_writer_props() {
-        let schema = line_protocol_schema::SchemaBuilder::new("measurement_name")
+        let schema = delorean_table_schema::SchemaBuilder::new("measurement_name")
             .tag("tag1")
-            .field("string_field", line_protocol_schema::DataType::String)
-            .field("float_field", line_protocol_schema::DataType::Float)
-            .field("int_field", line_protocol_schema::DataType::Integer)
-            .field("bool_field", line_protocol_schema::DataType::Boolean)
+            .field("string_field", delorean_table_schema::DataType::String)
+            .field("float_field", delorean_table_schema::DataType::Float)
+            .field("int_field", delorean_table_schema::DataType::Integer)
+            .field("bool_field", delorean_table_schema::DataType::Boolean)
             .build();
 
         let writer_props = create_writer_props(&schema);

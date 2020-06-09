@@ -11,7 +11,7 @@
 //! specific type, indexed by 0.
 //!
 //! ```
-//! use line_protocol_schema::{SchemaBuilder, DataType, ColumnDefinition};
+//! use delorean_table_schema::{SchemaBuilder, DataType, ColumnDefinition};
 //! let schema = SchemaBuilder::new(String::from("my_measurement"))
 //!     .tag("tag1")
 //!     .field("field1", DataType::Float)

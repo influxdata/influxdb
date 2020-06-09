@@ -169,13 +169,15 @@ pub enum Packer {
 
 impl Packer {
     /// Create a new packer that can pack values of the specified protocol type
-    pub fn new(t: line_protocol_schema::DataType) -> Packer {
+    pub fn new(t: delorean_table_schema::DataType) -> Packer {
         match t {
-            line_protocol_schema::DataType::String => Packer::StringPackerType(StringPacker::new()),
-            line_protocol_schema::DataType::Float => Packer::FloatPackerType(FloatPacker::new()),
-            line_protocol_schema::DataType::Integer => Packer::IntPackerType(IntPacker::new()),
-            line_protocol_schema::DataType::Boolean => Packer::BoolPackerType(BoolPacker::new()),
-            line_protocol_schema::DataType::Timestamp => Packer::IntPackerType(IntPacker::new()),
+            delorean_table_schema::DataType::String => {
+                Packer::StringPackerType(StringPacker::new())
+            }
+            delorean_table_schema::DataType::Float => Packer::FloatPackerType(FloatPacker::new()),
+            delorean_table_schema::DataType::Integer => Packer::IntPackerType(IntPacker::new()),
+            delorean_table_schema::DataType::Boolean => Packer::BoolPackerType(BoolPacker::new()),
+            delorean_table_schema::DataType::Timestamp => Packer::IntPackerType(IntPacker::new()),
         }
     }
 
@@ -280,8 +282,8 @@ impl Packer {
 #[cfg(test)]
 mod test {
     use super::*;
+    use delorean_table_schema::DataType;
     use delorean_test_helpers::approximately_equal;
-    use line_protocol_schema::DataType;
 
     #[test]
     fn string_packer() {

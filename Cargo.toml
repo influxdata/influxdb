@@ -12,11 +12,11 @@ members = [
     "delorean_parquet",
     "delorean_storage_tool",
     "delorean_table",
+    "delorean_table_schema",
     "delorean_test_helpers",
     "delorean_generated_types",
     "delorean_utilities",
     "delorean_wal",
-    "line_protocol_schema",
 ]
 
 [profile.release]

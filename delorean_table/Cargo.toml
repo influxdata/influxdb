@@ -16,7 +16,7 @@ log = "0.4.8"
 # https://github.com/apache/arrow/commit/31c7a50a2e4c69e2b7fa2ffa5e7bd3e89500bd6b
 parquet = { git = "https://github.com/apache/arrow.git", rev="31c7a50a", version = "0.18.0-SNAPSHOT" }
 
-line_protocol_schema = { path = "../line_protocol_schema" }
+delorean_table_schema = { path = "../delorean_table_schema" }
 
 [dev-dependencies]
 delorean_test_helpers ={ path = "../delorean_test_helpers" }

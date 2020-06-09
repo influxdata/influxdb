@@ -10,7 +10,7 @@ use std::collections::BTreeMap;
 
 use delorean_line_parser::{FieldValue, ParsedLine};
 use delorean_table::packers::Packer;
-use line_protocol_schema::{DataType, Schema, SchemaBuilder};
+use delorean_table_schema::{DataType, Schema, SchemaBuilder};
 
 /// Handles converting raw line protocol `ParsedLine` structures into Delorean format.
 #[derive(Debug)]
@@ -197,8 +197,8 @@ impl LineProtocolConverter {
 #[cfg(test)]
 mod delorean_ingest_tests {
     use super::*;
+    use delorean_table_schema::ColumnDefinition;
     use delorean_test_helpers::approximately_equal;
-    use line_protocol_schema::ColumnDefinition;
 
     fn only_good_lines(data: &str) -> Vec<ParsedLine<'_>> {
         delorean_line_parser::parse_lines(data)

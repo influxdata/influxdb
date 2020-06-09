@@ -612,9 +612,9 @@ version = "0.1.0"
 dependencies = [
  "delorean_line_parser",
  "delorean_table",
+ "delorean_table_schema",
  "delorean_test_helpers",
  "env_logger",
- "line_protocol_schema",
  "log 0.4.8",
  "snafu",
 ]
@@ -635,8 +635,8 @@ name = "delorean_parquet"
 version = "0.1.0"
 dependencies = [
  "delorean_table",
+ "delorean_table_schema",
  "delorean_test_helpers",
- "line_protocol_schema",
  "log 0.4.8",
  "parquet",
  "snafu",
@@ -664,11 +664,18 @@ dependencies = [
 name = "delorean_table"
 version = "0.1.0"
 dependencies = [
+ "delorean_table_schema",
  "delorean_test_helpers",
- "line_protocol_schema",
  "log 0.4.8",
  "parquet",
  "snafu",
+]
+
+[[package]]
+name = "delorean_table_schema"
+version = "0.1.0"
+dependencies = [
+ "log 0.4.8",
 ]
 
 [[package]]
@@ -1274,13 +1281,6 @@ checksum = "f2b111a074963af1d37a139918ac6d49ad1d0d5e47f72fd55388619691a7d753"
 dependencies = [
  "cc",
  "winapi 0.3.8",
-]
-
-[[package]]
-name = "line_protocol_schema"
-version = "0.1.0"
-dependencies = [
- "log 0.4.8",
 ]
 
 [[package]]
