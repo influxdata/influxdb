@@ -337,6 +337,7 @@ type Launcher struct {
 	secretStore     string
 
 	featureFlags map[string]string
+	flagger      feature.Flagger
 
 	// Query options.
 	concurrencyQuota                int
@@ -849,7 +850,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		Addr: m.httpBindAddress,
 	}
 
-	flagger := feature.DefaultFlagger()
+	m.flagger = feature.DefaultFlagger()
 	if len(m.featureFlags) > 0 {
 		f, err := overrideflagger.Make(m.featureFlags, feature.ByKey)
 		if err != nil {
@@ -858,7 +859,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 			return err
 		}
 		m.log.Info("Running with feature flag overrides", zap.Any("overrides", m.featureFlags))
-		flagger = f
+		m.flagger = f
 	}
 
 	var sessionSvc platform.SessionService
@@ -866,7 +867,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		sessionSvc = session.NewService(session.NewStorage(inmem.NewSessionStore()), userSvc, userResourceSvc, authSvc, time.Duration(m.sessionLength)*time.Minute)
 		sessionSvc = session.NewSessionMetrics(m.reg, sessionSvc)
 		sessionSvc = session.NewSessionLogger(m.log.With(zap.String("service", "session")), sessionSvc)
-		sessionSvc = session.NewServiceController(flagger, m.kvService, sessionSvc)
+		sessionSvc = session.NewServiceController(m.flagger, m.kvService, sessionSvc)
 	}
 
 	var labelSvc platform.LabelService
@@ -877,7 +878,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 			return err
 		}
 		ls := label.NewService(labelsStore)
-		labelSvc = label.NewLabelController(flagger, m.kvService, ls)
+		labelSvc = label.NewLabelController(m.flagger, m.kvService, ls)
 	}
 
 	m.apibackend = &http.APIBackend{
@@ -925,7 +926,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		OrgLookupService:                m.kvService,
 		WriteEventRecorder:              infprom.NewEventRecorder("write"),
 		QueryEventRecorder:              infprom.NewEventRecorder("query"),
-		Flagger:                         flagger,
+		Flagger:                         m.flagger,
 		FlagsHandler:                    feature.NewFlagsHandler(kithttp.ErrorHandler(0), feature.ByKey),
 	}
 
@@ -993,7 +994,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		labelSvc = label.NewLabelMetrics(m.reg, labelSvc)
 		newHandler := label.NewHTTPLabelHandler(m.log, labelSvc)
 
-		labelsHTTPServer = kithttp.NewFeatureHandler(feature.NewLabelPackage(), flagger, oldHandler, newHandler, newHandler.Prefix())
+		labelsHTTPServer = kithttp.NewFeatureHandler(feature.NewLabelPackage(), m.flagger, oldHandler, newHandler, newHandler.Prefix())
 	}
 
 	// feature flagging for new authorization service
@@ -1017,7 +1018,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		authService = authorization.NewAuthLogger(authLogger, authService)
 
 		newHandler := authorization.NewHTTPAuthHandler(m.log, authService, ts, lookupSvc)
-		authHTTPServer = kithttp.NewFeatureHandler(feature.NewAuthPackage(), flagger, oldHandler, newHandler, newHandler.Prefix())
+		authHTTPServer = kithttp.NewFeatureHandler(feature.NewAuthPackage(), m.flagger, oldHandler, newHandler, newHandler.Prefix())
 	}
 
 	var oldSessionHandler nethttp.Handler
@@ -1033,8 +1034,8 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 			http.WithResourceHandler(onboardHTTPServer),
 			http.WithResourceHandler(authHTTPServer),
 			http.WithResourceHandler(labelsHTTPServer),
-			http.WithResourceHandler(kithttp.NewFeatureHandler(feature.SessionService(), flagger, oldSessionHandler, sessionHTTPServer.SignInResourceHandler(), sessionHTTPServer.SignInResourceHandler().Prefix())),
-			http.WithResourceHandler(kithttp.NewFeatureHandler(feature.SessionService(), flagger, oldSessionHandler, sessionHTTPServer.SignOutResourceHandler(), sessionHTTPServer.SignOutResourceHandler().Prefix())),
+			http.WithResourceHandler(kithttp.NewFeatureHandler(feature.SessionService(), m.flagger, oldSessionHandler, sessionHTTPServer.SignInResourceHandler(), sessionHTTPServer.SignInResourceHandler().Prefix())),
+			http.WithResourceHandler(kithttp.NewFeatureHandler(feature.SessionService(), m.flagger, oldSessionHandler, sessionHTTPServer.SignOutResourceHandler(), sessionHTTPServer.SignOutResourceHandler().Prefix())),
 			http.WithResourceHandler(userHTTPServer.MeResourceHandler()),
 			http.WithResourceHandler(userHTTPServer.UserResourceHandler()),
 		)
