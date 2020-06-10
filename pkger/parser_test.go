@@ -914,52 +914,53 @@ spec:
 		})
 	})
 
-	t.Run("pkg with single dashboard and single chart", func(t *testing.T) {
-		t.Run("gauge chart", func(t *testing.T) {
-			t.Run("happy path", func(t *testing.T) {
-				testfileRunner(t, "testdata/dashboard_gauge", func(t *testing.T, pkg *Pkg) {
-					sum := pkg.Summary()
-					require.Len(t, sum.Dashboards, 1)
+	t.Run("pkg with dashboard", func(t *testing.T) {
+		t.Run("single chart should be successful", func(t *testing.T) {
+			t.Run("gauge chart", func(t *testing.T) {
+				t.Run("happy path", func(t *testing.T) {
+					testfileRunner(t, "testdata/dashboard_gauge", func(t *testing.T, pkg *Pkg) {
+						sum := pkg.Summary()
+						require.Len(t, sum.Dashboards, 1)
 
-					actual := sum.Dashboards[0]
-					assert.Equal(t, "dash-1", actual.Name)
-					assert.Equal(t, "desc1", actual.Description)
+						actual := sum.Dashboards[0]
+						assert.Equal(t, "dash-1", actual.Name)
+						assert.Equal(t, "desc1", actual.Description)
 
-					require.Len(t, actual.Charts, 1)
-					actualChart := actual.Charts[0]
-					assert.Equal(t, 3, actualChart.Height)
-					assert.Equal(t, 6, actualChart.Width)
-					assert.Equal(t, 1, actualChart.XPosition)
-					assert.Equal(t, 2, actualChart.YPosition)
+						require.Len(t, actual.Charts, 1)
+						actualChart := actual.Charts[0]
+						assert.Equal(t, 3, actualChart.Height)
+						assert.Equal(t, 6, actualChart.Width)
+						assert.Equal(t, 1, actualChart.XPosition)
+						assert.Equal(t, 2, actualChart.YPosition)
 
-					props, ok := actualChart.Properties.(influxdb.GaugeViewProperties)
-					require.True(t, ok)
-					assert.Equal(t, "gauge", props.GetType())
-					assert.Equal(t, "gauge note", props.Note)
-					assert.True(t, props.ShowNoteWhenEmpty)
+						props, ok := actualChart.Properties.(influxdb.GaugeViewProperties)
+						require.True(t, ok)
+						assert.Equal(t, "gauge", props.GetType())
+						assert.Equal(t, "gauge note", props.Note)
+						assert.True(t, props.ShowNoteWhenEmpty)
 
-					require.Len(t, props.Queries, 1)
-					q := props.Queries[0]
-					queryText := `from(bucket: v.bucket)  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)  |> filter(fn: (r) => r._measurement == "boltdb_writes_total")  |> filter(fn: (r) => r._field == "counter")`
-					assert.Equal(t, queryText, q.Text)
-					assert.Equal(t, "advanced", q.EditMode)
+						require.Len(t, props.Queries, 1)
+						q := props.Queries[0]
+						queryText := `from(bucket: v.bucket)  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)  |> filter(fn: (r) => r._measurement == "boltdb_writes_total")  |> filter(fn: (r) => r._field == "counter")`
+						assert.Equal(t, queryText, q.Text)
+						assert.Equal(t, "advanced", q.EditMode)
 
-					require.Len(t, props.ViewColors, 3)
-					c := props.ViewColors[0]
-					assert.Equal(t, "laser", c.Name)
-					assert.Equal(t, "min", c.Type)
-					assert.Equal(t, "#8F8AF4", c.Hex)
-					assert.Equal(t, 0.0, c.Value)
+						require.Len(t, props.ViewColors, 3)
+						c := props.ViewColors[0]
+						assert.Equal(t, "laser", c.Name)
+						assert.Equal(t, "min", c.Type)
+						assert.Equal(t, "#8F8AF4", c.Hex)
+						assert.Equal(t, 0.0, c.Value)
+					})
 				})
-			})
 
-			t.Run("handles invalid config", func(t *testing.T) {
-				tests := []testPkgResourceError{
-					{
-						name:           "color mixing a hex value",
-						validationErrs: 1,
-						valFields:      []string{fieldSpec, "charts[0].colors[0].hex"},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
+				t.Run("handles invalid config", func(t *testing.T) {
+					tests := []testPkgResourceError{
+						{
+							name:           "color mixing a hex value",
+							validationErrs: 1,
+							valFields:      []string{fieldSpec, "charts[0].colors[0].hex"},
+							pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
   name: dash-1
@@ -990,61 +991,61 @@ spec:
           hex: "#8F8AF4"
           value: 5000
 `,
-					},
-				}
+						},
+					}
 
-				for _, tt := range tests {
-					testPkgErrors(t, KindDashboard, tt)
-				}
-			})
-		})
-
-		t.Run("heatmap chart", func(t *testing.T) {
-			t.Run("happy path", func(t *testing.T) {
-				testfileRunner(t, "testdata/dashboard_heatmap", func(t *testing.T, pkg *Pkg) {
-					sum := pkg.Summary()
-					require.Len(t, sum.Dashboards, 1)
-
-					actual := sum.Dashboards[0]
-					assert.Equal(t, "dash-0", actual.Name)
-					assert.Equal(t, "a dashboard w/ heatmap chart", actual.Description)
-
-					require.Len(t, actual.Charts, 1)
-					actualChart := actual.Charts[0]
-					assert.Equal(t, 3, actualChart.Height)
-					assert.Equal(t, 6, actualChart.Width)
-					assert.Equal(t, 1, actualChart.XPosition)
-					assert.Equal(t, 2, actualChart.YPosition)
-
-					props, ok := actualChart.Properties.(influxdb.HeatmapViewProperties)
-					require.True(t, ok)
-					assert.Equal(t, "heatmap", props.GetType())
-					assert.Equal(t, "heatmap note", props.Note)
-					assert.Equal(t, int32(10), props.BinSize)
-					assert.True(t, props.ShowNoteWhenEmpty)
-
-					assert.Equal(t, []float64{0, 10}, props.XDomain)
-					assert.Equal(t, []float64{0, 100}, props.YDomain)
-
-					require.Len(t, props.Queries, 1)
-					q := props.Queries[0]
-					queryText := `from(bucket: v.bucket)  |> range(start: v.timeRangeStart)  |> filter(fn: (r) => r._measurement == "mem")  |> filter(fn: (r) => r._field == "used_percent")  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)  |> yield(name: "mean")`
-					assert.Equal(t, queryText, q.Text)
-					assert.Equal(t, "advanced", q.EditMode)
-
-					require.Len(t, props.ViewColors, 12)
-					c := props.ViewColors[0]
-					assert.Equal(t, "#000004", c)
+					for _, tt := range tests {
+						testPkgErrors(t, KindDashboard, tt)
+					}
 				})
 			})
 
-			t.Run("handles invalid config", func(t *testing.T) {
-				tests := []testPkgResourceError{
-					{
-						name:           "a color is missing a hex value",
-						validationErrs: 1,
-						valFields:      []string{fieldSpec, "charts[0].colors[2].hex"},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
+			t.Run("heatmap chart", func(t *testing.T) {
+				t.Run("happy path", func(t *testing.T) {
+					testfileRunner(t, "testdata/dashboard_heatmap", func(t *testing.T, pkg *Pkg) {
+						sum := pkg.Summary()
+						require.Len(t, sum.Dashboards, 1)
+
+						actual := sum.Dashboards[0]
+						assert.Equal(t, "dash-0", actual.Name)
+						assert.Equal(t, "a dashboard w/ heatmap chart", actual.Description)
+
+						require.Len(t, actual.Charts, 1)
+						actualChart := actual.Charts[0]
+						assert.Equal(t, 3, actualChart.Height)
+						assert.Equal(t, 6, actualChart.Width)
+						assert.Equal(t, 1, actualChart.XPosition)
+						assert.Equal(t, 2, actualChart.YPosition)
+
+						props, ok := actualChart.Properties.(influxdb.HeatmapViewProperties)
+						require.True(t, ok)
+						assert.Equal(t, "heatmap", props.GetType())
+						assert.Equal(t, "heatmap note", props.Note)
+						assert.Equal(t, int32(10), props.BinSize)
+						assert.True(t, props.ShowNoteWhenEmpty)
+
+						assert.Equal(t, []float64{0, 10}, props.XDomain)
+						assert.Equal(t, []float64{0, 100}, props.YDomain)
+
+						require.Len(t, props.Queries, 1)
+						q := props.Queries[0]
+						queryText := `from(bucket: v.bucket)  |> range(start: v.timeRangeStart)  |> filter(fn: (r) => r._measurement == "mem")  |> filter(fn: (r) => r._field == "used_percent")  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)  |> yield(name: "mean")`
+						assert.Equal(t, queryText, q.Text)
+						assert.Equal(t, "advanced", q.EditMode)
+
+						require.Len(t, props.ViewColors, 12)
+						c := props.ViewColors[0]
+						assert.Equal(t, "#000004", c)
+					})
+				})
+
+				t.Run("handles invalid config", func(t *testing.T) {
+					tests := []testPkgResourceError{
+						{
+							name:           "a color is missing a hex value",
+							validationErrs: 1,
+							valFields:      []string{fieldSpec, "charts[0].colors[2].hex"},
+							pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
   name: dash-0
@@ -1082,12 +1083,12 @@ spec:
             - 0
             - 100
 `,
-					},
-					{
-						name:           "missing axes",
-						validationErrs: 1,
-						valFields:      []string{fieldSpec, "charts[0].axes"},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
+						},
+						{
+							name:           "missing axes",
+							validationErrs: 1,
+							valFields:      []string{fieldSpec, "charts[0].axes"},
+							pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
   name: dash-0
@@ -1108,58 +1109,58 @@ spec:
       colors:
         - hex: "#000004"
 `,
-					},
-				}
+						},
+					}
 
-				for _, tt := range tests {
-					testPkgErrors(t, KindDashboard, tt)
-				}
-			})
-		})
-
-		t.Run("histogram chart", func(t *testing.T) {
-			t.Run("happy path", func(t *testing.T) {
-				testfileRunner(t, "testdata/dashboard_histogram", func(t *testing.T, pkg *Pkg) {
-					sum := pkg.Summary()
-					require.Len(t, sum.Dashboards, 1)
-
-					actual := sum.Dashboards[0]
-					assert.Equal(t, "dash-0", actual.Name)
-					assert.Equal(t, "a dashboard w/ single histogram chart", actual.Description)
-
-					require.Len(t, actual.Charts, 1)
-					actualChart := actual.Charts[0]
-					assert.Equal(t, 3, actualChart.Height)
-					assert.Equal(t, 6, actualChart.Width)
-
-					props, ok := actualChart.Properties.(influxdb.HistogramViewProperties)
-					require.True(t, ok)
-					assert.Equal(t, "histogram", props.GetType())
-					assert.Equal(t, "histogram note", props.Note)
-					assert.Equal(t, 30, props.BinCount)
-					assert.True(t, props.ShowNoteWhenEmpty)
-					assert.Equal(t, []float64{0, 10}, props.XDomain)
-					assert.Equal(t, []string{"a", "b"}, props.FillColumns)
-					require.Len(t, props.Queries, 1)
-					q := props.Queries[0]
-					queryText := `from(bucket: v.bucket) |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r._measurement == "boltdb_reads_total") |> filter(fn: (r) => r._field == "counter")`
-					assert.Equal(t, queryText, q.Text)
-					assert.Equal(t, "advanced", q.EditMode)
-
-					require.Len(t, props.ViewColors, 3)
-					assert.Equal(t, "#8F8AF4", props.ViewColors[0].Hex)
-					assert.Equal(t, "#F4CF31", props.ViewColors[1].Hex)
-					assert.Equal(t, "#FFFFFF", props.ViewColors[2].Hex)
+					for _, tt := range tests {
+						testPkgErrors(t, KindDashboard, tt)
+					}
 				})
 			})
 
-			t.Run("handles invalid config", func(t *testing.T) {
-				tests := []testPkgResourceError{
-					{
-						name:           "missing x-axis",
-						validationErrs: 1,
-						valFields:      []string{fieldSpec, "charts[0].axes"},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
+			t.Run("histogram chart", func(t *testing.T) {
+				t.Run("happy path", func(t *testing.T) {
+					testfileRunner(t, "testdata/dashboard_histogram", func(t *testing.T, pkg *Pkg) {
+						sum := pkg.Summary()
+						require.Len(t, sum.Dashboards, 1)
+
+						actual := sum.Dashboards[0]
+						assert.Equal(t, "dash-0", actual.Name)
+						assert.Equal(t, "a dashboard w/ single histogram chart", actual.Description)
+
+						require.Len(t, actual.Charts, 1)
+						actualChart := actual.Charts[0]
+						assert.Equal(t, 3, actualChart.Height)
+						assert.Equal(t, 6, actualChart.Width)
+
+						props, ok := actualChart.Properties.(influxdb.HistogramViewProperties)
+						require.True(t, ok)
+						assert.Equal(t, "histogram", props.GetType())
+						assert.Equal(t, "histogram note", props.Note)
+						assert.Equal(t, 30, props.BinCount)
+						assert.True(t, props.ShowNoteWhenEmpty)
+						assert.Equal(t, []float64{0, 10}, props.XDomain)
+						assert.Equal(t, []string{"a", "b"}, props.FillColumns)
+						require.Len(t, props.Queries, 1)
+						q := props.Queries[0]
+						queryText := `from(bucket: v.bucket) |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r._measurement == "boltdb_reads_total") |> filter(fn: (r) => r._field == "counter")`
+						assert.Equal(t, queryText, q.Text)
+						assert.Equal(t, "advanced", q.EditMode)
+
+						require.Len(t, props.ViewColors, 3)
+						assert.Equal(t, "#8F8AF4", props.ViewColors[0].Hex)
+						assert.Equal(t, "#F4CF31", props.ViewColors[1].Hex)
+						assert.Equal(t, "#FFFFFF", props.ViewColors[2].Hex)
+					})
+				})
+
+				t.Run("handles invalid config", func(t *testing.T) {
+					tests := []testPkgResourceError{
+						{
+							name:           "missing x-axis",
+							validationErrs: 1,
+							valFields:      []string{fieldSpec, "charts[0].axes"},
+							pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
   name: dash-0
@@ -1182,82 +1183,82 @@ spec:
           name: mycolor
       axes:
 `,
-					},
-				}
+						},
+					}
 
-				for _, tt := range tests {
-					testPkgErrors(t, KindDashboard, tt)
-				}
-			})
-		})
-
-		t.Run("markdown chart", func(t *testing.T) {
-			t.Run("happy path", func(t *testing.T) {
-				testfileRunner(t, "testdata/dashboard_markdown", func(t *testing.T, pkg *Pkg) {
-					sum := pkg.Summary()
-					require.Len(t, sum.Dashboards, 1)
-
-					actual := sum.Dashboards[0]
-					assert.Equal(t, "dash-0", actual.Name)
-					assert.Equal(t, "a dashboard w/ single markdown chart", actual.Description)
-
-					require.Len(t, actual.Charts, 1)
-					actualChart := actual.Charts[0]
-
-					props, ok := actualChart.Properties.(influxdb.MarkdownViewProperties)
-					require.True(t, ok)
-					assert.Equal(t, "markdown", props.GetType())
-					assert.Equal(t, "## markdown note", props.Note)
-				})
-			})
-		})
-
-		t.Run("scatter chart", func(t *testing.T) {
-			t.Run("happy path", func(t *testing.T) {
-				testfileRunner(t, "testdata/dashboard_scatter", func(t *testing.T, pkg *Pkg) {
-					sum := pkg.Summary()
-					require.Len(t, sum.Dashboards, 1)
-
-					actual := sum.Dashboards[0]
-					assert.Equal(t, "dash-0", actual.Name)
-					assert.Equal(t, "a dashboard w/ single scatter chart", actual.Description)
-
-					require.Len(t, actual.Charts, 1)
-					actualChart := actual.Charts[0]
-					assert.Equal(t, 3, actualChart.Height)
-					assert.Equal(t, 6, actualChart.Width)
-					assert.Equal(t, 1, actualChart.XPosition)
-					assert.Equal(t, 2, actualChart.YPosition)
-
-					props, ok := actualChart.Properties.(influxdb.ScatterViewProperties)
-					require.True(t, ok)
-					assert.Equal(t, "scatter note", props.Note)
-					assert.True(t, props.ShowNoteWhenEmpty)
-
-					require.Len(t, props.Queries, 1)
-					q := props.Queries[0]
-					expectedQuery := `from(bucket: v.bucket)  |> range(start: v.timeRangeStart)  |> filter(fn: (r) => r._measurement == "mem")  |> filter(fn: (r) => r._field == "used_percent")  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)  |> yield(name: "mean")`
-					assert.Equal(t, expectedQuery, q.Text)
-					assert.Equal(t, "advanced", q.EditMode)
-
-					assert.Equal(t, []float64{0, 10}, props.XDomain)
-					assert.Equal(t, []float64{0, 100}, props.YDomain)
-					assert.Equal(t, "x_label", props.XAxisLabel)
-					assert.Equal(t, "y_label", props.YAxisLabel)
-					assert.Equal(t, "x_prefix", props.XPrefix)
-					assert.Equal(t, "y_prefix", props.YPrefix)
-					assert.Equal(t, "x_suffix", props.XSuffix)
-					assert.Equal(t, "y_suffix", props.YSuffix)
+					for _, tt := range tests {
+						testPkgErrors(t, KindDashboard, tt)
+					}
 				})
 			})
 
-			t.Run("handles invalid config", func(t *testing.T) {
-				tests := []testPkgResourceError{
-					{
-						name:           "missing axes",
-						validationErrs: 1,
-						valFields:      []string{fieldSpec, "charts[0].axes"},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
+			t.Run("markdown chart", func(t *testing.T) {
+				t.Run("happy path", func(t *testing.T) {
+					testfileRunner(t, "testdata/dashboard_markdown", func(t *testing.T, pkg *Pkg) {
+						sum := pkg.Summary()
+						require.Len(t, sum.Dashboards, 1)
+
+						actual := sum.Dashboards[0]
+						assert.Equal(t, "dash-0", actual.Name)
+						assert.Equal(t, "a dashboard w/ single markdown chart", actual.Description)
+
+						require.Len(t, actual.Charts, 1)
+						actualChart := actual.Charts[0]
+
+						props, ok := actualChart.Properties.(influxdb.MarkdownViewProperties)
+						require.True(t, ok)
+						assert.Equal(t, "markdown", props.GetType())
+						assert.Equal(t, "## markdown note", props.Note)
+					})
+				})
+			})
+
+			t.Run("scatter chart", func(t *testing.T) {
+				t.Run("happy path", func(t *testing.T) {
+					testfileRunner(t, "testdata/dashboard_scatter", func(t *testing.T, pkg *Pkg) {
+						sum := pkg.Summary()
+						require.Len(t, sum.Dashboards, 1)
+
+						actual := sum.Dashboards[0]
+						assert.Equal(t, "dash-0", actual.Name)
+						assert.Equal(t, "a dashboard w/ single scatter chart", actual.Description)
+
+						require.Len(t, actual.Charts, 1)
+						actualChart := actual.Charts[0]
+						assert.Equal(t, 3, actualChart.Height)
+						assert.Equal(t, 6, actualChart.Width)
+						assert.Equal(t, 1, actualChart.XPosition)
+						assert.Equal(t, 2, actualChart.YPosition)
+
+						props, ok := actualChart.Properties.(influxdb.ScatterViewProperties)
+						require.True(t, ok)
+						assert.Equal(t, "scatter note", props.Note)
+						assert.True(t, props.ShowNoteWhenEmpty)
+
+						require.Len(t, props.Queries, 1)
+						q := props.Queries[0]
+						expectedQuery := `from(bucket: v.bucket)  |> range(start: v.timeRangeStart)  |> filter(fn: (r) => r._measurement == "mem")  |> filter(fn: (r) => r._field == "used_percent")  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)  |> yield(name: "mean")`
+						assert.Equal(t, expectedQuery, q.Text)
+						assert.Equal(t, "advanced", q.EditMode)
+
+						assert.Equal(t, []float64{0, 10}, props.XDomain)
+						assert.Equal(t, []float64{0, 100}, props.YDomain)
+						assert.Equal(t, "x_label", props.XAxisLabel)
+						assert.Equal(t, "y_label", props.YAxisLabel)
+						assert.Equal(t, "x_prefix", props.XPrefix)
+						assert.Equal(t, "y_prefix", props.YPrefix)
+						assert.Equal(t, "x_suffix", props.XSuffix)
+						assert.Equal(t, "y_suffix", props.YSuffix)
+					})
+				})
+
+				t.Run("handles invalid config", func(t *testing.T) {
+					tests := []testPkgResourceError{
+						{
+							name:           "missing axes",
+							validationErrs: 1,
+							valFields:      []string{fieldSpec, "charts[0].axes"},
+							pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
   name:  dash-0
@@ -1279,12 +1280,12 @@ spec:
         - hex: "#8F8AF4"
         - hex: "#F4CF31"
 `,
-					},
-					{
-						name:           "no width provided",
-						validationErrs: 1,
-						valFields:      []string{fieldSpec, "charts[0].width"},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
+						},
+						{
+							name:           "no width provided",
+							validationErrs: 1,
+							valFields:      []string{fieldSpec, "charts[0].width"},
+							pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
   name:  dash-0
@@ -1321,12 +1322,12 @@ spec:
             - 0
             - 100
 `,
-					},
-					{
-						name:           "no height provided",
-						validationErrs: 1,
-						valFields:      []string{fieldSpec, "charts[0].height"},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
+						},
+						{
+							name:           "no height provided",
+							validationErrs: 1,
+							valFields:      []string{fieldSpec, "charts[0].height"},
+							pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
   name:  dash-0
@@ -1363,12 +1364,12 @@ spec:
             - 0
             - 100
 `,
-					},
-					{
-						name:           "missing hex color",
-						validationErrs: 1,
-						valFields:      []string{fieldSpec, "charts[0].colors[0].hex"},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
+						},
+						{
+							name:           "missing hex color",
+							validationErrs: 1,
+							valFields:      []string{fieldSpec, "charts[0].colors[0].hex"},
+							pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
   name:  dash-0
@@ -1408,12 +1409,12 @@ spec:
             - 0
             - 100
 `,
-					},
-					{
-						name:           "missing x axis",
-						validationErrs: 1,
-						valFields:      []string{fieldSpec, "charts[0].axes"},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
+						},
+						{
+							name:           "missing x axis",
+							validationErrs: 1,
+							valFields:      []string{fieldSpec, "charts[0].axes"},
+							pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
   name:  dash-0
@@ -1444,12 +1445,12 @@ spec:
             - 0
             - 100
 `,
-					},
-					{
-						name:           "missing y axis",
-						validationErrs: 1,
-						valFields:      []string{fieldSpec, "charts[0].axes"},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
+						},
+						{
+							name:           "missing y axis",
+							validationErrs: 1,
+							valFields:      []string{fieldSpec, "charts[0].axes"},
+							pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
   name:  dash-0
@@ -1480,72 +1481,72 @@ spec:
             - 0
             - 10
 `,
-					},
-				}
+						},
+					}
 
-				for _, tt := range tests {
-					testPkgErrors(t, KindDashboard, tt)
-				}
-			})
-		})
-
-		t.Run("single stat chart", func(t *testing.T) {
-			t.Run("happy path", func(t *testing.T) {
-				testfileRunner(t, "testdata/dashboard", func(t *testing.T, pkg *Pkg) {
-					sum := pkg.Summary()
-					require.Len(t, sum.Dashboards, 2)
-
-					actual := sum.Dashboards[0]
-					assert.Equal(t, "dash-1", actual.PkgName)
-					assert.Equal(t, "display name", actual.Name)
-					assert.Equal(t, "desc1", actual.Description)
-
-					require.Len(t, actual.Charts, 1)
-					actualChart := actual.Charts[0]
-					assert.Equal(t, 3, actualChart.Height)
-					assert.Equal(t, 6, actualChart.Width)
-					assert.Equal(t, 1, actualChart.XPosition)
-					assert.Equal(t, 2, actualChart.YPosition)
-
-					props, ok := actualChart.Properties.(influxdb.SingleStatViewProperties)
-					require.True(t, ok)
-					assert.Equal(t, "single-stat", props.GetType())
-					assert.Equal(t, "single stat note", props.Note)
-					assert.True(t, props.ShowNoteWhenEmpty)
-					assert.True(t, props.DecimalPlaces.IsEnforced)
-					assert.Equal(t, int32(1), props.DecimalPlaces.Digits)
-					assert.Equal(t, "days", props.Suffix)
-					assert.Equal(t, "true", props.TickSuffix)
-					assert.Equal(t, "sumtin", props.Prefix)
-					assert.Equal(t, "true", props.TickPrefix)
-
-					require.Len(t, props.Queries, 1)
-					q := props.Queries[0]
-					queryText := `from(bucket: v.bucket) |> range(start: v.timeRangeStart) |> filter(fn: (r) => r._measurement == "processes") |> filter(fn: (r) => r._field == "running" or r._field == "blocked") |> aggregateWindow(every: v.windowPeriod, fn: max) |> yield(name: "max")`
-					assert.Equal(t, queryText, q.Text)
-					assert.Equal(t, "advanced", q.EditMode)
-
-					require.Len(t, props.ViewColors, 1)
-					c := props.ViewColors[0]
-					assert.Equal(t, "laser", c.Name)
-					assert.Equal(t, "text", c.Type)
-					assert.Equal(t, "#8F8AF4", c.Hex)
-					assert.Equal(t, 3.0, c.Value)
-
-					actual2 := sum.Dashboards[1]
-					assert.Equal(t, "dash-2", actual2.PkgName)
-					assert.Equal(t, "dash-2", actual2.Name)
-					assert.Equal(t, "desc", actual2.Description)
+					for _, tt := range tests {
+						testPkgErrors(t, KindDashboard, tt)
+					}
 				})
 			})
 
-			t.Run("handles invalid config", func(t *testing.T) {
-				tests := []testPkgResourceError{
-					{
-						name:           "color missing hex value",
-						validationErrs: 1,
-						valFields:      []string{fieldSpec, "charts[0].colors[0].hex"},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
+			t.Run("single stat chart", func(t *testing.T) {
+				t.Run("happy path", func(t *testing.T) {
+					testfileRunner(t, "testdata/dashboard", func(t *testing.T, pkg *Pkg) {
+						sum := pkg.Summary()
+						require.Len(t, sum.Dashboards, 2)
+
+						actual := sum.Dashboards[0]
+						assert.Equal(t, "dash-1", actual.PkgName)
+						assert.Equal(t, "display name", actual.Name)
+						assert.Equal(t, "desc1", actual.Description)
+
+						require.Len(t, actual.Charts, 1)
+						actualChart := actual.Charts[0]
+						assert.Equal(t, 3, actualChart.Height)
+						assert.Equal(t, 6, actualChart.Width)
+						assert.Equal(t, 1, actualChart.XPosition)
+						assert.Equal(t, 2, actualChart.YPosition)
+
+						props, ok := actualChart.Properties.(influxdb.SingleStatViewProperties)
+						require.True(t, ok)
+						assert.Equal(t, "single-stat", props.GetType())
+						assert.Equal(t, "single stat note", props.Note)
+						assert.True(t, props.ShowNoteWhenEmpty)
+						assert.True(t, props.DecimalPlaces.IsEnforced)
+						assert.Equal(t, int32(1), props.DecimalPlaces.Digits)
+						assert.Equal(t, "days", props.Suffix)
+						assert.Equal(t, "true", props.TickSuffix)
+						assert.Equal(t, "sumtin", props.Prefix)
+						assert.Equal(t, "true", props.TickPrefix)
+
+						require.Len(t, props.Queries, 1)
+						q := props.Queries[0]
+						queryText := `from(bucket: v.bucket) |> range(start: v.timeRangeStart) |> filter(fn: (r) => r._measurement == "processes") |> filter(fn: (r) => r._field == "running" or r._field == "blocked") |> aggregateWindow(every: v.windowPeriod, fn: max) |> yield(name: "max")`
+						assert.Equal(t, queryText, q.Text)
+						assert.Equal(t, "advanced", q.EditMode)
+
+						require.Len(t, props.ViewColors, 1)
+						c := props.ViewColors[0]
+						assert.Equal(t, "laser", c.Name)
+						assert.Equal(t, "text", c.Type)
+						assert.Equal(t, "#8F8AF4", c.Hex)
+						assert.Equal(t, 3.0, c.Value)
+
+						actual2 := sum.Dashboards[1]
+						assert.Equal(t, "dash-2", actual2.PkgName)
+						assert.Equal(t, "dash-2", actual2.Name)
+						assert.Equal(t, "desc", actual2.Description)
+					})
+				})
+
+				t.Run("handles invalid config", func(t *testing.T) {
+					tests := []testPkgResourceError{
+						{
+							name:           "color missing hex value",
+							validationErrs: 1,
+							valFields:      []string{fieldSpec, "charts[0].colors[0].hex"},
+							pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
   name: dash-1
@@ -1567,12 +1568,12 @@ spec:
           type: text
           value: 3
 `,
-					},
-					{
-						name:           "no width provided",
-						validationErrs: 1,
-						valFields:      []string{fieldSpec, "charts[0].width"},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
+						},
+						{
+							name:           "no width provided",
+							validationErrs: 1,
+							valFields:      []string{fieldSpec, "charts[0].width"},
+							pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
   name: dash-1
@@ -1591,12 +1592,12 @@ spec:
           type: text
           hex: "#8F8AF4"
 `,
-					},
-					{
-						name:           "no height provided",
-						validationErrs: 1,
-						valFields:      []string{fieldSpec, "charts[0].height"},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
+						},
+						{
+							name:           "no height provided",
+							validationErrs: 1,
+							valFields:      []string{fieldSpec, "charts[0].height"},
+							pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
   name: dash-1
@@ -1615,12 +1616,12 @@ spec:
           type: text
           hex: "#8F8AF4"
 `,
-					},
-					{
-						name:           "duplicate metadata names",
-						validationErrs: 1,
-						valFields:      []string{fieldMetadata, fieldName},
-						pkgStr: `
+						},
+						{
+							name:           "duplicate metadata names",
+							validationErrs: 1,
+							valFields:      []string{fieldMetadata, fieldName},
+							pkgStr: `
 apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
@@ -1633,12 +1634,12 @@ metadata:
   name: dash-1
 spec:
 `,
-					},
-					{
-						name:           "spec name too short",
-						validationErrs: 1,
-						valFields:      []string{fieldSpec, fieldName},
-						pkgStr: `
+						},
+						{
+							name:           "spec name too short",
+							validationErrs: 1,
+							valFields:      []string{fieldSpec, fieldName},
+							pkgStr: `
 apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
@@ -1646,82 +1647,82 @@ metadata:
 spec:
   name: d
 `,
-					},
-				}
-
-				for _, tt := range tests {
-					testPkgErrors(t, KindDashboard, tt)
-				}
-			})
-		})
-
-		t.Run("single stat plus line chart", func(t *testing.T) {
-			t.Run("happy path", func(t *testing.T) {
-				testfileRunner(t, "testdata/dashboard_single_stat_plus_line", func(t *testing.T, pkg *Pkg) {
-					sum := pkg.Summary()
-					require.Len(t, sum.Dashboards, 1)
-
-					actual := sum.Dashboards[0]
-					assert.Equal(t, "dash-1", actual.Name)
-					assert.Equal(t, "desc1", actual.Description)
-
-					require.Len(t, actual.Charts, 1)
-					actualChart := actual.Charts[0]
-					assert.Equal(t, 3, actualChart.Height)
-					assert.Equal(t, 6, actualChart.Width)
-					assert.Equal(t, 1, actualChart.XPosition)
-					assert.Equal(t, 2, actualChart.YPosition)
-
-					props, ok := actualChart.Properties.(influxdb.LinePlusSingleStatProperties)
-					require.True(t, ok)
-					assert.Equal(t, "single stat plus line note", props.Note)
-					assert.True(t, props.ShowNoteWhenEmpty)
-					assert.True(t, props.DecimalPlaces.IsEnforced)
-					assert.Equal(t, int32(1), props.DecimalPlaces.Digits)
-					assert.Equal(t, "days", props.Suffix)
-					assert.Equal(t, "sumtin", props.Prefix)
-					assert.Equal(t, "overlaid", props.Position)
-					assert.Equal(t, "leg_type", props.Legend.Type)
-					assert.Equal(t, "horizontal", props.Legend.Orientation)
-
-					require.Len(t, props.Queries, 1)
-					q := props.Queries[0]
-					expectedQuery := `from(bucket: v.bucket)  |> range(start: v.timeRangeStart)  |> filter(fn: (r) => r._measurement == "mem")  |> filter(fn: (r) => r._field == "used_percent")  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)  |> yield(name: "mean")`
-					assert.Equal(t, expectedQuery, q.Text)
-					assert.Equal(t, "advanced", q.EditMode)
-
-					for _, key := range []string{"x", "y"} {
-						xAxis, ok := props.Axes[key]
-						require.True(t, ok, "key="+key)
-						assert.Equal(t, "10", xAxis.Base, "key="+key)
-						assert.Equal(t, key+"_label", xAxis.Label, "key="+key)
-						assert.Equal(t, key+"_prefix", xAxis.Prefix, "key="+key)
-						assert.Equal(t, "linear", xAxis.Scale, "key="+key)
-						assert.Equal(t, key+"_suffix", xAxis.Suffix, "key="+key)
+						},
 					}
 
-					require.Len(t, props.ViewColors, 2)
-					c := props.ViewColors[0]
-					assert.Equal(t, "laser", c.Name)
-					assert.Equal(t, "text", c.Type)
-					assert.Equal(t, "#8F8AF4", c.Hex)
-					assert.Equal(t, 3.0, c.Value)
-
-					c = props.ViewColors[1]
-					assert.Equal(t, "android", c.Name)
-					assert.Equal(t, "scale", c.Type)
-					assert.Equal(t, "#F4CF31", c.Hex)
-					assert.Equal(t, 1.0, c.Value)
+					for _, tt := range tests {
+						testPkgErrors(t, KindDashboard, tt)
+					}
 				})
 			})
 
-			t.Run("handles invalid config", func(t *testing.T) {
-				tests := []testPkgResourceError{
-					{
-						name:           "color missing hex value",
-						validationErrs: 1,
-						valFields:      []string{fieldSpec, "charts[0].colors[0].hex"},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
+			t.Run("single stat plus line chart", func(t *testing.T) {
+				t.Run("happy path", func(t *testing.T) {
+					testfileRunner(t, "testdata/dashboard_single_stat_plus_line", func(t *testing.T, pkg *Pkg) {
+						sum := pkg.Summary()
+						require.Len(t, sum.Dashboards, 1)
+
+						actual := sum.Dashboards[0]
+						assert.Equal(t, "dash-1", actual.Name)
+						assert.Equal(t, "desc1", actual.Description)
+
+						require.Len(t, actual.Charts, 1)
+						actualChart := actual.Charts[0]
+						assert.Equal(t, 3, actualChart.Height)
+						assert.Equal(t, 6, actualChart.Width)
+						assert.Equal(t, 1, actualChart.XPosition)
+						assert.Equal(t, 2, actualChart.YPosition)
+
+						props, ok := actualChart.Properties.(influxdb.LinePlusSingleStatProperties)
+						require.True(t, ok)
+						assert.Equal(t, "single stat plus line note", props.Note)
+						assert.True(t, props.ShowNoteWhenEmpty)
+						assert.True(t, props.DecimalPlaces.IsEnforced)
+						assert.Equal(t, int32(1), props.DecimalPlaces.Digits)
+						assert.Equal(t, "days", props.Suffix)
+						assert.Equal(t, "sumtin", props.Prefix)
+						assert.Equal(t, "overlaid", props.Position)
+						assert.Equal(t, "leg_type", props.Legend.Type)
+						assert.Equal(t, "horizontal", props.Legend.Orientation)
+
+						require.Len(t, props.Queries, 1)
+						q := props.Queries[0]
+						expectedQuery := `from(bucket: v.bucket)  |> range(start: v.timeRangeStart)  |> filter(fn: (r) => r._measurement == "mem")  |> filter(fn: (r) => r._field == "used_percent")  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)  |> yield(name: "mean")`
+						assert.Equal(t, expectedQuery, q.Text)
+						assert.Equal(t, "advanced", q.EditMode)
+
+						for _, key := range []string{"x", "y"} {
+							xAxis, ok := props.Axes[key]
+							require.True(t, ok, "key="+key)
+							assert.Equal(t, "10", xAxis.Base, "key="+key)
+							assert.Equal(t, key+"_label", xAxis.Label, "key="+key)
+							assert.Equal(t, key+"_prefix", xAxis.Prefix, "key="+key)
+							assert.Equal(t, "linear", xAxis.Scale, "key="+key)
+							assert.Equal(t, key+"_suffix", xAxis.Suffix, "key="+key)
+						}
+
+						require.Len(t, props.ViewColors, 2)
+						c := props.ViewColors[0]
+						assert.Equal(t, "laser", c.Name)
+						assert.Equal(t, "text", c.Type)
+						assert.Equal(t, "#8F8AF4", c.Hex)
+						assert.Equal(t, 3.0, c.Value)
+
+						c = props.ViewColors[1]
+						assert.Equal(t, "android", c.Name)
+						assert.Equal(t, "scale", c.Type)
+						assert.Equal(t, "#F4CF31", c.Hex)
+						assert.Equal(t, 1.0, c.Value)
+					})
+				})
+
+				t.Run("handles invalid config", func(t *testing.T) {
+					tests := []testPkgResourceError{
+						{
+							name:           "color missing hex value",
+							validationErrs: 1,
+							valFields:      []string{fieldSpec, "charts[0].colors[0].hex"},
+							pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
   name: dash-1
@@ -1756,12 +1757,12 @@ spec:
           base: 10
           scale: linear
 `,
-					},
-					{
-						name:           "no width provided",
-						validationErrs: 1,
-						valFields:      []string{fieldSpec, "charts[0].width"},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
+						},
+						{
+							name:           "no width provided",
+							validationErrs: 1,
+							valFields:      []string{fieldSpec, "charts[0].width"},
+							pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
   name: dash-1
@@ -1801,12 +1802,12 @@ spec:
           base: 10
           scale: linear
 `,
-					},
-					{
-						name:           "no height provided",
-						validationErrs: 1,
-						valFields:      []string{fieldSpec, "charts[0].height"},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
+						},
+						{
+							name:           "no height provided",
+							validationErrs: 1,
+							valFields:      []string{fieldSpec, "charts[0].height"},
+							pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
   name: dash-1
@@ -1845,12 +1846,12 @@ spec:
           base: 10
           scale: linear
 `,
-					},
-					{
-						name:           "missing x axis",
-						validationErrs: 1,
-						valFields:      []string{fieldSpec, "charts[0].axes"},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
+						},
+						{
+							name:           "missing x axis",
+							validationErrs: 1,
+							valFields:      []string{fieldSpec, "charts[0].axes"},
+							pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
   name: dash-1
@@ -1884,12 +1885,12 @@ spec:
           base: 10
           scale: linear
 `,
-					},
-					{
-						name:           "missing y axis",
-						validationErrs: 1,
-						valFields:      []string{fieldSpec, "charts[0].axes"},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
+						},
+						{
+							name:           "missing y axis",
+							validationErrs: 1,
+							valFields:      []string{fieldSpec, "charts[0].axes"},
+							pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
   name: dash-1
@@ -1923,79 +1924,79 @@ spec:
           base: 10
           scale: linear
 `,
-					},
-				}
+						},
+					}
 
-				for _, tt := range tests {
-					testPkgErrors(t, KindDashboard, tt)
-				}
-			})
-		})
-
-		t.Run("table chart", func(t *testing.T) {
-			t.Run("happy path", func(t *testing.T) {
-				testfileRunner(t, "testdata/dashboard_table", func(t *testing.T, pkg *Pkg) {
-					sum := pkg.Summary()
-					require.Len(t, sum.Dashboards, 1)
-
-					actual := sum.Dashboards[0]
-					assert.Equal(t, "dash-1", actual.Name)
-					assert.Equal(t, "desc1", actual.Description)
-
-					require.Len(t, actual.Charts, 1)
-					actualChart := actual.Charts[0]
-					assert.Equal(t, 3, actualChart.Height)
-					assert.Equal(t, 6, actualChart.Width)
-					assert.Equal(t, 1, actualChart.XPosition)
-					assert.Equal(t, 2, actualChart.YPosition)
-
-					props, ok := actualChart.Properties.(influxdb.TableViewProperties)
-					require.True(t, ok)
-					assert.Equal(t, "table note", props.Note)
-					assert.True(t, props.ShowNoteWhenEmpty)
-					assert.True(t, props.DecimalPlaces.IsEnforced)
-					assert.Equal(t, int32(1), props.DecimalPlaces.Digits)
-					assert.Equal(t, "YYYY:MMMM:DD", props.TimeFormat)
-
-					require.Len(t, props.Queries, 1)
-					q := props.Queries[0]
-					expectedQuery := `from(bucket: v.bucket)  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)  |> filter(fn: (r) => r._measurement == "boltdb_writes_total")  |> filter(fn: (r) => r._field == "counter")`
-					assert.Equal(t, expectedQuery, q.Text)
-					assert.Equal(t, "advanced", q.EditMode)
-
-					require.Len(t, props.ViewColors, 1)
-					c := props.ViewColors[0]
-					assert.Equal(t, "laser", c.Name)
-					assert.Equal(t, "min", c.Type)
-					assert.Equal(t, "#8F8AF4", c.Hex)
-					assert.Equal(t, 3.0, c.Value)
-
-					tableOpts := props.TableOptions
-					assert.True(t, tableOpts.VerticalTimeAxis)
-					assert.Equal(t, "_time", tableOpts.SortBy.InternalName)
-					assert.Equal(t, "truncate", tableOpts.Wrapping)
-					assert.True(t, tableOpts.FixFirstColumn)
-
-					assert.Contains(t, props.FieldOptions, influxdb.RenamableField{
-						InternalName: "_value",
-						DisplayName:  "MB",
-						Visible:      true,
-					})
-					assert.Contains(t, props.FieldOptions, influxdb.RenamableField{
-						InternalName: "_time",
-						DisplayName:  "time (ms)",
-						Visible:      true,
-					})
+					for _, tt := range tests {
+						testPkgErrors(t, KindDashboard, tt)
+					}
 				})
 			})
 
-			t.Run("handles invalid config", func(t *testing.T) {
-				tests := []testPkgResourceError{
-					{
-						name:           "color missing hex value",
-						validationErrs: 1,
-						valFields:      []string{fieldSpec, "charts[0].colors[0].hex"},
-						pkgStr: `
+			t.Run("table chart", func(t *testing.T) {
+				t.Run("happy path", func(t *testing.T) {
+					testfileRunner(t, "testdata/dashboard_table", func(t *testing.T, pkg *Pkg) {
+						sum := pkg.Summary()
+						require.Len(t, sum.Dashboards, 1)
+
+						actual := sum.Dashboards[0]
+						assert.Equal(t, "dash-1", actual.Name)
+						assert.Equal(t, "desc1", actual.Description)
+
+						require.Len(t, actual.Charts, 1)
+						actualChart := actual.Charts[0]
+						assert.Equal(t, 3, actualChart.Height)
+						assert.Equal(t, 6, actualChart.Width)
+						assert.Equal(t, 1, actualChart.XPosition)
+						assert.Equal(t, 2, actualChart.YPosition)
+
+						props, ok := actualChart.Properties.(influxdb.TableViewProperties)
+						require.True(t, ok)
+						assert.Equal(t, "table note", props.Note)
+						assert.True(t, props.ShowNoteWhenEmpty)
+						assert.True(t, props.DecimalPlaces.IsEnforced)
+						assert.Equal(t, int32(1), props.DecimalPlaces.Digits)
+						assert.Equal(t, "YYYY:MMMM:DD", props.TimeFormat)
+
+						require.Len(t, props.Queries, 1)
+						q := props.Queries[0]
+						expectedQuery := `from(bucket: v.bucket)  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)  |> filter(fn: (r) => r._measurement == "boltdb_writes_total")  |> filter(fn: (r) => r._field == "counter")`
+						assert.Equal(t, expectedQuery, q.Text)
+						assert.Equal(t, "advanced", q.EditMode)
+
+						require.Len(t, props.ViewColors, 1)
+						c := props.ViewColors[0]
+						assert.Equal(t, "laser", c.Name)
+						assert.Equal(t, "min", c.Type)
+						assert.Equal(t, "#8F8AF4", c.Hex)
+						assert.Equal(t, 3.0, c.Value)
+
+						tableOpts := props.TableOptions
+						assert.True(t, tableOpts.VerticalTimeAxis)
+						assert.Equal(t, "_time", tableOpts.SortBy.InternalName)
+						assert.Equal(t, "truncate", tableOpts.Wrapping)
+						assert.True(t, tableOpts.FixFirstColumn)
+
+						assert.Contains(t, props.FieldOptions, influxdb.RenamableField{
+							InternalName: "_value",
+							DisplayName:  "MB",
+							Visible:      true,
+						})
+						assert.Contains(t, props.FieldOptions, influxdb.RenamableField{
+							InternalName: "_time",
+							DisplayName:  "time (ms)",
+							Visible:      true,
+						})
+					})
+				})
+
+				t.Run("handles invalid config", func(t *testing.T) {
+					tests := []testPkgResourceError{
+						{
+							name:           "color missing hex value",
+							validationErrs: 1,
+							valFields:      []string{fieldSpec, "charts[0].colors[0].hex"},
+							pkgStr: `
 apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
@@ -2017,12 +2018,12 @@ spec:
           type: min
           hex: 
           value: 3.0`,
-					},
-					{
-						name:           "no width provided",
-						validationErrs: 1,
-						valFields:      []string{fieldSpec, "charts[0].width"},
-						pkgStr: `
+						},
+						{
+							name:           "no width provided",
+							validationErrs: 1,
+							valFields:      []string{fieldSpec, "charts[0].width"},
+							pkgStr: `
 apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
@@ -2043,12 +2044,12 @@ spec:
           type: min
           hex: peru
           value: 3.0`,
-					},
-					{
-						name:           "no height provided",
-						validationErrs: 1,
-						valFields:      []string{fieldSpec, "charts[0].height"},
-						pkgStr: `
+						},
+						{
+							name:           "no height provided",
+							validationErrs: 1,
+							valFields:      []string{fieldSpec, "charts[0].height"},
+							pkgStr: `
 apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
@@ -2069,12 +2070,12 @@ spec:
           type: min
           hex: peru
           value: 3.0`,
-					},
-					{
-						name:           "invalid wrapping table option",
-						validationErrs: 1,
-						valFields:      []string{fieldSpec, "charts[0].tableOptions.wrapping"},
-						pkgStr: `
+						},
+						{
+							name:           "invalid wrapping table option",
+							validationErrs: 1,
+							valFields:      []string{fieldSpec, "charts[0].tableOptions.wrapping"},
+							pkgStr: `
 apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
@@ -2100,62 +2101,62 @@ spec:
           hex: "#8F8AF4"
           value: 3.0
 `,
-					},
-				}
+						},
+					}
 
-				for _, tt := range tests {
-					testPkgErrors(t, KindDashboard, tt)
-				}
-			})
-		})
-
-		t.Run("xy chart", func(t *testing.T) {
-			t.Run("happy path", func(t *testing.T) {
-				testfileRunner(t, "testdata/dashboard_xy", func(t *testing.T, pkg *Pkg) {
-					sum := pkg.Summary()
-					require.Len(t, sum.Dashboards, 1)
-
-					actual := sum.Dashboards[0]
-					assert.Equal(t, "dash-1", actual.Name)
-					assert.Equal(t, "desc1", actual.Description)
-
-					require.Len(t, actual.Charts, 1)
-					actualChart := actual.Charts[0]
-					assert.Equal(t, 3, actualChart.Height)
-					assert.Equal(t, 6, actualChart.Width)
-					assert.Equal(t, 1, actualChart.XPosition)
-					assert.Equal(t, 2, actualChart.YPosition)
-
-					props, ok := actualChart.Properties.(influxdb.XYViewProperties)
-					require.True(t, ok)
-					assert.Equal(t, "xy", props.GetType())
-					assert.Equal(t, true, props.ShadeBelow)
-					assert.Equal(t, "xy chart note", props.Note)
-					assert.True(t, props.ShowNoteWhenEmpty)
-					assert.Equal(t, "stacked", props.Position)
-
-					require.Len(t, props.Queries, 1)
-					q := props.Queries[0]
-					queryText := `from(bucket: v.bucket)  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)  |> filter(fn: (r) => r._measurement == "boltdb_writes_total")  |> filter(fn: (r) => r._field == "counter")`
-					assert.Equal(t, queryText, q.Text)
-					assert.Equal(t, "advanced", q.EditMode)
-
-					require.Len(t, props.ViewColors, 1)
-					c := props.ViewColors[0]
-					assert.Equal(t, "laser", c.Name)
-					assert.Equal(t, "scale", c.Type)
-					assert.Equal(t, "#8F8AF4", c.Hex)
-					assert.Equal(t, 3.0, c.Value)
+					for _, tt := range tests {
+						testPkgErrors(t, KindDashboard, tt)
+					}
 				})
 			})
 
-			t.Run("handles invalid config", func(t *testing.T) {
-				tests := []testPkgResourceError{
-					{
-						name:           "color missing hex value",
-						validationErrs: 1,
-						valFields:      []string{fieldSpec, "charts[0].colors[0].hex"},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
+			t.Run("xy chart", func(t *testing.T) {
+				t.Run("happy path", func(t *testing.T) {
+					testfileRunner(t, "testdata/dashboard_xy", func(t *testing.T, pkg *Pkg) {
+						sum := pkg.Summary()
+						require.Len(t, sum.Dashboards, 1)
+
+						actual := sum.Dashboards[0]
+						assert.Equal(t, "dash-1", actual.Name)
+						assert.Equal(t, "desc1", actual.Description)
+
+						require.Len(t, actual.Charts, 1)
+						actualChart := actual.Charts[0]
+						assert.Equal(t, 3, actualChart.Height)
+						assert.Equal(t, 6, actualChart.Width)
+						assert.Equal(t, 1, actualChart.XPosition)
+						assert.Equal(t, 2, actualChart.YPosition)
+
+						props, ok := actualChart.Properties.(influxdb.XYViewProperties)
+						require.True(t, ok)
+						assert.Equal(t, "xy", props.GetType())
+						assert.Equal(t, true, props.ShadeBelow)
+						assert.Equal(t, "xy chart note", props.Note)
+						assert.True(t, props.ShowNoteWhenEmpty)
+						assert.Equal(t, "stacked", props.Position)
+
+						require.Len(t, props.Queries, 1)
+						q := props.Queries[0]
+						queryText := `from(bucket: v.bucket)  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)  |> filter(fn: (r) => r._measurement == "boltdb_writes_total")  |> filter(fn: (r) => r._field == "counter")`
+						assert.Equal(t, queryText, q.Text)
+						assert.Equal(t, "advanced", q.EditMode)
+
+						require.Len(t, props.ViewColors, 1)
+						c := props.ViewColors[0]
+						assert.Equal(t, "laser", c.Name)
+						assert.Equal(t, "scale", c.Type)
+						assert.Equal(t, "#8F8AF4", c.Hex)
+						assert.Equal(t, 3.0, c.Value)
+					})
+				})
+
+				t.Run("handles invalid config", func(t *testing.T) {
+					tests := []testPkgResourceError{
+						{
+							name:           "color missing hex value",
+							validationErrs: 1,
+							valFields:      []string{fieldSpec, "charts[0].colors[0].hex"},
+							pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
   name: dash-1
@@ -2191,12 +2192,12 @@ spec:
           base: 10
           scale: linear
 `,
-					},
-					{
-						name:           "invalid geom flag",
-						validationErrs: 1,
-						valFields:      []string{fieldSpec, fieldDashCharts, fieldChartGeom},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
+						},
+						{
+							name:           "invalid geom flag",
+							validationErrs: 1,
+							valFields:      []string{fieldSpec, fieldDashCharts, fieldChartGeom},
+							pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
   name: dash-1
@@ -2233,61 +2234,87 @@ spec:
           base: 10
           scale: linear
 `,
-					},
-				}
+						},
+					}
 
-				for _, tt := range tests {
-					testPkgErrors(t, KindDashboard, tt)
-				}
-			})
-		})
-	})
-
-	t.Run("pkg with dashboard and labels associated", func(t *testing.T) {
-		t.Run("happy path", func(t *testing.T) {
-			testfileRunner(t, "testdata/dashboard_associates_label", func(t *testing.T, pkg *Pkg) {
-				sum := pkg.Summary()
-				require.Len(t, sum.Dashboards, 1)
-
-				actual := sum.Dashboards[0]
-				assert.Equal(t, "dash-1", actual.Name)
-
-				require.Len(t, actual.LabelAssociations, 2)
-				assert.Equal(t, "label-1", actual.LabelAssociations[0].Name)
-				assert.Equal(t, "label-2", actual.LabelAssociations[1].Name)
-
-				expectedMappings := []SummaryLabelMapping{
-					{
-						Status:          StateStatusNew,
-						ResourceType:    influxdb.DashboardsResourceType,
-						ResourcePkgName: "dash-1",
-						ResourceName:    "dash-1",
-						LabelPkgName:    "label-1",
-						LabelName:       "label-1",
-					},
-					{
-						Status:          StateStatusNew,
-						ResourceType:    influxdb.DashboardsResourceType,
-						ResourcePkgName: "dash-1",
-						ResourceName:    "dash-1",
-						LabelPkgName:    "label-2",
-						LabelName:       "label-2",
-					},
-				}
-
-				for _, expectedMapping := range expectedMappings {
-					assert.Contains(t, sum.LabelMappings, expectedMapping)
-				}
+					for _, tt := range tests {
+						testPkgErrors(t, KindDashboard, tt)
+					}
+				})
 			})
 		})
 
-		t.Run("association doesn't exist then provides an error", func(t *testing.T) {
-			tests := []testPkgResourceError{
-				{
-					name:    "no labels provided",
-					assErrs: 1,
-					assIdxs: []int{0},
-					pkgStr: `apiVersion: influxdata.com/v2alpha1
+		t.Run("with env refs should be valid", func(t *testing.T) {
+			testfileRunner(t, "testdata/dashboard_ref.yml", func(t *testing.T, pkg *Pkg) {
+				actual := pkg.Summary().Dashboards
+				require.Len(t, actual, 1)
+
+				expected := SummaryDashboard{
+					PkgName:           "env-meta-name",
+					Name:              "env-spec-name",
+					LabelAssociations: []SummaryLabel{},
+					EnvReferences: []SummaryReference{
+						{
+							Field:        "metadata.name",
+							EnvRefKey:    "meta-name",
+							DefaultValue: "env-meta-name",
+						},
+						{
+							Field:        "spec.name",
+							EnvRefKey:    "spec-name",
+							DefaultValue: "env-spec-name",
+						},
+					},
+				}
+				assert.Equal(t, expected, actual[0])
+			})
+		})
+
+		t.Run("and labels associated should be sucessful", func(t *testing.T) {
+			t.Run("happy path", func(t *testing.T) {
+				testfileRunner(t, "testdata/dashboard_associates_label", func(t *testing.T, pkg *Pkg) {
+					sum := pkg.Summary()
+					require.Len(t, sum.Dashboards, 1)
+
+					actual := sum.Dashboards[0]
+					assert.Equal(t, "dash-1", actual.Name)
+
+					require.Len(t, actual.LabelAssociations, 2)
+					assert.Equal(t, "label-1", actual.LabelAssociations[0].Name)
+					assert.Equal(t, "label-2", actual.LabelAssociations[1].Name)
+
+					expectedMappings := []SummaryLabelMapping{
+						{
+							Status:          StateStatusNew,
+							ResourceType:    influxdb.DashboardsResourceType,
+							ResourcePkgName: "dash-1",
+							ResourceName:    "dash-1",
+							LabelPkgName:    "label-1",
+							LabelName:       "label-1",
+						},
+						{
+							Status:          StateStatusNew,
+							ResourceType:    influxdb.DashboardsResourceType,
+							ResourcePkgName: "dash-1",
+							ResourceName:    "dash-1",
+							LabelPkgName:    "label-2",
+							LabelName:       "label-2",
+						},
+					}
+
+					for _, expectedMapping := range expectedMappings {
+						assert.Contains(t, sum.LabelMappings, expectedMapping)
+					}
+				})
+			})
+
+			t.Run("association doesn't exist then provides an error", func(t *testing.T) {
+				tests := []testPkgResourceError{
+					{
+						name:    "no labels provided",
+						assErrs: 1,
+						assIdxs: []int{0},
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
   name: dash-1
@@ -2296,12 +2323,12 @@ spec:
     - kind: Label
       name: label-1
 `,
-				},
-				{
-					name:    "mixed found and not found",
-					assErrs: 1,
-					assIdxs: []int{1},
-					pkgStr: `apiVersion: influxdata.com/v2alpha1
+					},
+					{
+						name:    "mixed found and not found",
+						assErrs: 1,
+						assIdxs: []int{1},
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Label
 metadata:
   name: label-1
@@ -2317,12 +2344,12 @@ spec:
     - kind: Label
       name: unfound label
 `,
-				},
-				{
-					name:    "multiple not found",
-					assErrs: 1,
-					assIdxs: []int{0, 1},
-					pkgStr: `apiVersion: influxdata.com/v2alpha1
+					},
+					{
+						name:    "multiple not found",
+						assErrs: 1,
+						assIdxs: []int{0, 1},
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Label
 metadata:
   name: label-1
@@ -2338,12 +2365,12 @@ spec:
     - kind: Label
       name: unfound label
 `,
-				},
-				{
-					name:    "duplicate valid nested labels",
-					assErrs: 1,
-					assIdxs: []int{1},
-					pkgStr: `apiVersion: influxdata.com/v2alpha1
+					},
+					{
+						name:    "duplicate valid nested labels",
+						assErrs: 1,
+						assIdxs: []int{1},
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Label
 metadata:
   name: label-1
@@ -2359,12 +2386,13 @@ spec:
     - kind: Label
       name: label-1
 `,
-				},
-			}
+					},
+				}
 
-			for _, tt := range tests {
-				testPkgErrors(t, KindDashboard, tt)
-			}
+				for _, tt := range tests {
+					testPkgErrors(t, KindDashboard, tt)
+				}
+			})
 		})
 	})
 

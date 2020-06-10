@@ -466,6 +466,7 @@ func (d *dashboard) summarize() SummaryDashboard {
 		Name:              d.Name(),
 		Description:       d.Description,
 		LabelAssociations: toSummaryLabels(d.labels...),
+		EnvReferences:     summarizeCommonReferences(d.identity, d.labels),
 	}
 	for _, c := range d.Charts {
 		iDash.Charts = append(iDash.Charts, SummaryChart{

@@ -7983,6 +7983,8 @@ components:
                     type: array
                     items:
                       $ref: "#/components/schemas/PkgChart"
+                  envReferences:
+                    $ref: "#/components/schemas/PkgEnvReferences"
             labelMappings:
               type: array
               items:
