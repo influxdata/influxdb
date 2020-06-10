@@ -251,6 +251,7 @@ func (c *check) summarize() SummaryCheck {
 		PkgName:           c.PkgName(),
 		Status:            c.Status(),
 		LabelAssociations: toSummaryLabels(c.labels...),
+		EnvReferences:     summarizeCommonReferences(c.identity, c.labels),
 	}
 	switch c.kind {
 	case checkKindThreshold:

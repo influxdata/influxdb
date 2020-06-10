@@ -442,10 +442,12 @@ type SummaryBucket struct {
 
 // SummaryCheck provides a summary of a pkg check.
 type SummaryCheck struct {
-	PkgName           string          `json:"pkgName"`
-	Check             influxdb.Check  `json:"check"`
-	Status            influxdb.Status `json:"status"`
-	LabelAssociations []SummaryLabel  `json:"labelAssociations"`
+	PkgName string          `json:"pkgName"`
+	Check   influxdb.Check  `json:"check"`
+	Status  influxdb.Status `json:"status"`
+
+	LabelAssociations []SummaryLabel     `json:"labelAssociations"`
+	EnvReferences     []SummaryReference `json:"envReferences"`
 }
 
 func (s *SummaryCheck) UnmarshalJSON(b []byte) error {
