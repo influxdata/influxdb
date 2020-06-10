@@ -15,7 +15,6 @@ describe('Notebook Time Context', () => {
   beforeAll(() => {
     console.error = (...args) => {
       if (/Warning.*not wrapped in act/.test(args[0])) {
-        console.log('TRIGGERING')
         return
       }
       originalError.call(console, ...args)
