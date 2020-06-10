@@ -643,7 +643,8 @@ type SummaryTask struct {
 	Query       string          `json:"query"`
 	Status      influxdb.Status `json:"status"`
 
-	LabelAssociations []SummaryLabel `json:"labelAssociations"`
+	EnvReferences     []SummaryReference `json:"envReferences"`
+	LabelAssociations []SummaryLabel     `json:"labelAssociations"`
 }
 
 // SummaryTelegraf provides a summary of a pkg telegraf config.

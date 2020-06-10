@@ -8105,6 +8105,8 @@ components:
                     type: string
                   status:
                     type: string
+                  envReferences:
+                    $ref: "#/components/schemas/PkgEnvReferences"
             telegrafConfigs:
               type: array
               items:
