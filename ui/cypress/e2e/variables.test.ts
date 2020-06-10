@@ -215,25 +215,23 @@ describe('Variables', () => {
     cy.getByTestID('inline-labels--empty').should('exist')
 
     const expected = [variableName, defaultVar]
-    expected.sort()
 
     cy.getByTestID('resource-card variable')
       .should('have.length', 2)
-      .each((_, index) => {
-        cy.get('.cf-resource-name--text').should($s =>
-          expect($s).to.contain(expected[index])
-        )
-      })
-
-    expected.reverse()
+      .first()
+      .contains(variableName)
+    cy.getByTestID('resource-card variable')
+      .last()
+      .contains(defaultVar)
 
     cy.getByTestID('resource-sorter--button').click()
     cy.getByTestID('resource-sorter--name-desc').click()
 
-    cy.getByTestID('resource-card variable').each((_, index) => {
-      cy.get('.cf-resource-name--text').should($s =>
-        expect($s).to.contain(expected[index])
-      )
-    })
+    cy.getByTestID('resource-card variable')
+      .first()
+      .contains(defaultVar)
+    cy.getByTestID('resource-card variable')
+      .last()
+      .contains(variableName)
   })
 })
