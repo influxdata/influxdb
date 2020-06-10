@@ -136,7 +136,7 @@ impl GoogleCloudStorage {
         .context(UnableToGetDataFromGcs)?
         .context(UnableToGetDataFromGcs2)?;
 
-        Ok(futures::stream::once(async move { Ok(bytes) }))
+        Ok(futures::stream::once(async move { Ok(bytes.into()) }))
     }
 
     /// Delete the object at the specified location.

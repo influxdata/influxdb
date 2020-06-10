@@ -16,7 +16,7 @@ rusoto_credential = "0.43.0"
 rusoto_s3 = "0.43.0"
 
 # Google Cloud Storage integration
-cloud-storage = { version = "0.3.7", git = "https://github.com/integer32llc/cloud-storage-rs.git", branch = "improve-api" }
+cloud-storage = { version = "0.4.0" }
 tokio = { version = "0.2", features = ["full"] }
 
 [dev-dependencies]
