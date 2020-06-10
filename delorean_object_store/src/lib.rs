@@ -3,20 +3,8 @@
 
 //! # delorean_object_store
 //!
-//! This crate provides APIs for interacting with object storage services.
-//!
-//! Work remaining in the first milestone:
-//!
-//! - Google Cloud Storage
-//!   - PUT
-//!   - GET
-//!   - DELETE
-//!   - List all objects given a prefix
-//! - S3
-//!   - PUT
-//!   - GET
-//!   - DELETE
-//!   - List all objects given a prefix
+//! This crate provides APIs for interacting with object storage services. It currently supports
+//! PUT, GET, DELETE, and list for Google Cloud Storage, Amazon S3, and in-memory storage.
 //!
 //! Future compatibility will include Azure Blob Storage, Minio, and Ceph.
 
