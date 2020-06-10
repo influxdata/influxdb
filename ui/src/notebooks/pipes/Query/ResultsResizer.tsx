@@ -29,6 +29,7 @@ const ResultsResizer: FC<Props> = ({
   resizingEnabled,
 }) => {
   const [size, updateSize] = useState<number>(height)
+  const [isDragging, updateDragging] = useState<boolean>(false)
   const resultsBodyRef = useRef<HTMLDivElement>(null)
   const dragHandleRef = useRef<HTMLDivElement>(null)
 
@@ -62,6 +63,24 @@ const ResultsResizer: FC<Props> = ({
     }
   }, [height])
 
+  // Handle changes in drag state
+  useEffect(() => {
+    if (isDragging === true) {
+      dragHandleRef.current &&
+        dragHandleRef.current.classList.add(
+          'notebook-raw-data--drag-handle__dragging'
+        )
+    }
+
+    if (isDragging === false) {
+      dragHandleRef.current &&
+        dragHandleRef.current.classList.remove(
+          'notebook-raw-data--drag-handle__dragging'
+        )
+      onUpdateHeight(size)
+    }
+  }, [isDragging])
+
   const handleMouseMove = (e: MouseEvent): void => {
     if (!resultsBodyRef.current) {
       return
@@ -75,15 +94,10 @@ const ResultsResizer: FC<Props> = ({
     )
 
     updateSize(updatedHeight)
-    console.log('handleMouseMove', updatedHeight)
   }
 
   const handleMouseDown = (): void => {
-    if (dragHandleRef.current) {
-      dragHandleRef.current.classList.add(
-        'notebook-raw-data--drag-handle__dragging'
-      )
-    }
+    updateDragging(true)
     const body = document.getElementsByTagName('body')[0]
     body && body.classList.add('notebook-results--dragging')
 
@@ -92,22 +106,13 @@ const ResultsResizer: FC<Props> = ({
   }
 
   const handleMouseUp = (): void => {
-    if (dragHandleRef.current) {
-      dragHandleRef.current.classList.remove(
-        'notebook-raw-data--drag-handle__dragging'
-      )
-    }
+    updateDragging(false)
     const body = document.getElementsByTagName('body')[0]
     body && body.classList.remove('notebook-results--dragging')
-
-    console.log('handleMouseUp', size)
-    onUpdateHeight(size)
 
     window.removeEventListener('mousemove', handleMouseMove)
     window.removeEventListener('mouseup', handleMouseUp)
   }
-
-  console.log('height', height, 'size', size)
 
   return (
     <>
