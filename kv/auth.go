@@ -37,6 +37,7 @@ func (s *Service) FindAuthorizationByID(ctx context.Context, id influxdb.ID) (*i
 		}
 
 		a = auth
+		a.Permissions = append(a.Permissions, influxdb.MePermissions(a.UserID)...)
 		return nil
 	})
 
@@ -94,6 +95,7 @@ func (s *Service) FindAuthorizationByToken(ctx context.Context, n string) (*infl
 		}
 
 		a = auth
+		a.Permissions = append(a.Permissions, influxdb.MePermissions(a.UserID)...)
 
 		return nil
 	})
@@ -257,6 +259,10 @@ func (s *Service) FindAuthorizations(ctx context.Context, filter influxdb.Author
 		return nil, 0, &influxdb.Error{
 			Err: err,
 		}
+	}
+
+	for _, a := range as {
+		a.Permissions = append(a.Permissions, influxdb.MePermissions(a.UserID)...)
 	}
 
 	return as, len(as), nil
