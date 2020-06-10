@@ -70,6 +70,13 @@ func (r *storeReader) ReadFilter(ctx context.Context, spec query.ReadFilterSpec,
 	}, nil
 }
 
+func (r *storeReader) GetGroupCapability(ctx context.Context) query.GroupCapability {
+	if aggStore, ok := r.s.(storage.GroupStore); ok {
+		return aggStore.GetGroupCapability(ctx)
+	}
+	return nil
+}
+
 func (r *storeReader) ReadGroup(ctx context.Context, spec query.ReadGroupSpec, alloc *memory.Allocator) (query.TableIterator, error) {
 	return &groupIterator{
 		ctx:   ctx,
@@ -402,12 +409,15 @@ const (
 	valueColIdx         = 3
 )
 
-func determineTableColsForWindowAggregate(tags models.Tags, typ flux.ColType) ([]flux.ColMeta, [][]byte) {
+func determineTableColsForWindowAggregate(tags models.Tags, typ flux.ColType, hasTimeCol bool) ([]flux.ColMeta, [][]byte) {
 	var cols []flux.ColMeta
 	var defs [][]byte
 
 	// aggregates remove the _time column
 	size := 3
+	if hasTimeCol {
+		size++
+	}
 	cols = make([]flux.ColMeta, size+len(tags))
 	defs = make([][]byte, size+len(tags))
 	cols[startColIdx] = flux.ColMeta{
@@ -418,9 +428,20 @@ func determineTableColsForWindowAggregate(tags models.Tags, typ flux.ColType) ([
 		Label: execute.DefaultStopColLabel,
 		Type:  flux.TTime,
 	}
-	cols[windowedValueColIdx] = flux.ColMeta{
-		Label: execute.DefaultValueColLabel,
-		Type:  typ,
+	if hasTimeCol {
+		cols[timeColIdx] = flux.ColMeta{
+			Label: execute.DefaultTimeColLabel,
+			Type:  flux.TTime,
+		}
+		cols[valueColIdx] = flux.ColMeta{
+			Label: execute.DefaultValueColLabel,
+			Type:  typ,
+		}
+	} else {
+		cols[windowedValueColIdx] = flux.ColMeta{
+			Label: execute.DefaultValueColLabel,
+			Type:  typ,
+		}
 	}
 	for j, tag := range tags {
 		cols[size+j] = flux.ColMeta{
@@ -598,6 +619,13 @@ func (wai *windowAggregateIterator) Do(f func(flux.Table) error) error {
 func (wai *windowAggregateIterator) handleRead(f func(flux.Table) error, rs storage.ResultSet) error {
 	windowEvery := wai.spec.WindowEvery
 	createEmpty := wai.spec.CreateEmpty
+	timeColumn := wai.spec.TimeColumn
+	if timeColumn == "" {
+		tableFn := f
+		f = func(table flux.Table) error {
+			return splitWindows(wai.ctx, table, tableFn)
+		}
+	}
 
 	// these resources must be closed if not nil on return
 	var (
@@ -627,22 +655,23 @@ READ:
 		bnds := wai.spec.Bounds
 		key := defaultGroupKeyForSeries(rs.Tags(), bnds)
 		done := make(chan struct{})
+		hasTimeCol := timeColumn != ""
 		switch typedCur := cur.(type) {
 		case cursors.IntegerArrayCursor:
-			cols, defs := determineTableColsForWindowAggregate(rs.Tags(), flux.TInt)
-			table = newIntegerWindowTable(done, typedCur, bnds, windowEvery, createEmpty, key, cols, rs.Tags(), defs, wai.cache, wai.alloc)
+			cols, defs := determineTableColsForWindowAggregate(rs.Tags(), flux.TInt, hasTimeCol)
+			table = newIntegerWindowTable(done, typedCur, bnds, windowEvery, createEmpty, timeColumn, key, cols, rs.Tags(), defs, wai.cache, wai.alloc)
 		case cursors.FloatArrayCursor:
-			cols, defs := determineTableColsForWindowAggregate(rs.Tags(), flux.TFloat)
-			table = newFloatWindowTable(done, typedCur, bnds, windowEvery, createEmpty, key, cols, rs.Tags(), defs, wai.cache, wai.alloc)
+			cols, defs := determineTableColsForWindowAggregate(rs.Tags(), flux.TFloat, hasTimeCol)
+			table = newFloatWindowTable(done, typedCur, bnds, windowEvery, createEmpty, timeColumn, key, cols, rs.Tags(), defs, wai.cache, wai.alloc)
 		case cursors.UnsignedArrayCursor:
-			cols, defs := determineTableColsForWindowAggregate(rs.Tags(), flux.TUInt)
-			table = newUnsignedWindowTable(done, typedCur, bnds, windowEvery, createEmpty, key, cols, rs.Tags(), defs, wai.cache, wai.alloc)
+			cols, defs := determineTableColsForWindowAggregate(rs.Tags(), flux.TUInt, hasTimeCol)
+			table = newUnsignedWindowTable(done, typedCur, bnds, windowEvery, createEmpty, timeColumn, key, cols, rs.Tags(), defs, wai.cache, wai.alloc)
 		case cursors.BooleanArrayCursor:
-			cols, defs := determineTableColsForWindowAggregate(rs.Tags(), flux.TBool)
-			table = newBooleanWindowTable(done, typedCur, bnds, windowEvery, createEmpty, key, cols, rs.Tags(), defs, wai.cache, wai.alloc)
+			cols, defs := determineTableColsForWindowAggregate(rs.Tags(), flux.TBool, hasTimeCol)
+			table = newBooleanWindowTable(done, typedCur, bnds, windowEvery, createEmpty, timeColumn, key, cols, rs.Tags(), defs, wai.cache, wai.alloc)
 		case cursors.StringArrayCursor:
-			cols, defs := determineTableColsForWindowAggregate(rs.Tags(), flux.TString)
-			table = newStringWindowTable(done, typedCur, bnds, windowEvery, createEmpty, key, cols, rs.Tags(), defs, wai.cache, wai.alloc)
+			cols, defs := determineTableColsForWindowAggregate(rs.Tags(), flux.TString, hasTimeCol)
+			table = newStringWindowTable(done, typedCur, bnds, windowEvery, createEmpty, timeColumn, key, cols, rs.Tags(), defs, wai.cache, wai.alloc)
 		default:
 			panic(fmt.Sprintf("unreachable: %T", typedCur))
 		}
@@ -650,7 +679,7 @@ READ:
 		cur = nil
 
 		if !table.Empty() {
-			if err := splitWindows(wai.ctx, table, f); err != nil {
+			if err := f(table); err != nil {
 				table.Close()
 				table = nil
 				return err

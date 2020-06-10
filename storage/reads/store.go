@@ -84,6 +84,14 @@ type Store interface {
 	GetSource(orgID, bucketID uint64) proto.Message
 }
 
+type GroupCapability interface {
+	query.GroupCapability
+}
+
+type GroupStore interface {
+	GetGroupCapability(ctx context.Context) GroupCapability
+}
+
 // WindowAggregateCapability describes what is supported by WindowAggregateStore.
 type WindowAggregateCapability interface {
 	query.WindowAggregateCapability

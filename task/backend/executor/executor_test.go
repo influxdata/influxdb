@@ -452,7 +452,8 @@ func testIteratorFailure(t *testing.T) {
 			exhaustResultIterators: func(flux.Result) error {
 				return errors.New("something went wrong exhausting iterator")
 			},
-			buildCompiler: NewASTCompiler,
+			systemBuildCompiler:    NewASTCompiler,
+			nonSystemBuildCompiler: NewASTCompiler,
 		}
 	}}
 

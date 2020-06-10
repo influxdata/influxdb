@@ -45,7 +45,7 @@ interface Props {
   children: (config: Config) => JSX.Element
   fluxGroupKeyUnion: string[]
   loading: RemoteDataState
-  timeRange: TimeRange | null
+  timeRange?: TimeRange | null
   table: Table
   timeZone: TimeZone
   viewProperties: XYViewProperties

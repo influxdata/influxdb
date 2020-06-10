@@ -96,7 +96,12 @@ export default class extends PureComponent<Props, State> {
         className="raw-flux-data-table--cell"
         title={datum}
       >
-        <div className="raw-flux-data-table--cell-bg">{datum}</div>
+        <div
+          className="raw-flux-data-table--cell-bg"
+          data-testid={`raw-flux-data-table--cell ${datum}`}
+        >
+          {datum}
+        </div>
       </div>
     )
   }

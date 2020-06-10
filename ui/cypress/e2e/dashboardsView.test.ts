@@ -40,7 +40,7 @@ describe('Dashboard', () => {
     cy.getByTestID('dashboard-card').should('contain', newName)
   })
 
-  it('can create a View and Note cell', () => {
+  it('can create and destroy cells', () => {
     cy.get('@org').then(({id: orgID}: Organization) => {
       cy.createDashboard(orgID).then(({body}) => {
         cy.fixture('routes').then(({orgs}) => {
@@ -71,6 +71,11 @@ describe('Dashboard', () => {
     })
 
     cy.getByTestID('cell--view-empty').contains(noteText)
+
+    // Remove note cell
+    cy.getByTestID('cell-context--toggle').click()
+    cy.getByTestID('cell-context--delete').click()
+    cy.getByTestID('cell-context--delete-confirm').click()
   })
 
   // fix for https://github.com/influxdata/influxdb/issues/15239
@@ -83,7 +88,7 @@ describe('Dashboard', () => {
       })
     })
 
-    // Add an empty celly cell
+    // Add an empty cell
     cy.getByTestID('add-cell--button').click()
     cy.getByTestID('save-cell--button').click()
     cy.getByTestID('cell--view-empty').should('be.visible')

@@ -74,6 +74,7 @@
 @import 'src/pageLayout/components/RenamablePageTitle.scss';
 @import 'src/pageLayout/components/OrgSwitcherOverlay.scss';
 @import 'src/pageLayout/components/TabbedPage.scss';
+@import 'src/templates/containers/CommunityTemplates.scss';
 @import 'src/timeMachine/components/SelectorList.scss';
 @import 'src/timeMachine/components/Queries.scss';
 @import 'src/timeMachine/components/EditorShortcutsTooltip.scss';
@@ -123,6 +124,7 @@
 @import 'src/dashboards/components/DashboardsCardGrid.scss';
 @import 'src/dashboards/components/DashboardLightMode.scss';
 @import 'src/buckets/components/DemoDataDropdown.scss';
+@import 'src/buckets/components/BucketCardMeta.scss';
 @import 'src/shared/components/notifications/Notification.scss';
 
 // External

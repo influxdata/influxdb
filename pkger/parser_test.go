@@ -1118,7 +1118,7 @@ spec:
 					assert.Equal(t, 30, props.BinCount)
 					assert.True(t, props.ShowNoteWhenEmpty)
 					assert.Equal(t, []float64{0, 10}, props.XDomain)
-					assert.Equal(t, []string{}, props.FillColumns)
+					assert.Equal(t, []string{"a", "b"}, props.FillColumns)
 					require.Len(t, props.Queries, 1)
 					q := props.Queries[0]
 					queryText := `from(bucket: v.bucket) |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r._measurement == "boltdb_reads_total") |> filter(fn: (r) => r._field == "counter")`

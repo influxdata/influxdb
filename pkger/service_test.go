@@ -1804,7 +1804,7 @@ func TestService(t *testing.T) {
 									Queries:           []influxdb.DashboardQuery{newQuery()},
 									ShowNoteWhenEmpty: true,
 									ViewColors:        []influxdb.ViewColor{{Type: "scale", Hex: "#8F8AF4", Value: 0}, {Type: "scale", Hex: "#8F8AF4", Value: 0}, {Type: "scale", Hex: "#8F8AF4", Value: 0}},
-									FillColumns:       []string{},
+									FillColumns:       []string{"a", "b"},
 									XColumn:           "_value",
 									XDomain:           []float64{0, 10},
 									XAxisLabel:        "x_label",

@@ -6,6 +6,10 @@ import {Cell, Dashboard, RemoteDataState} from 'src/types'
 import {DecimalPlaces} from 'src/types'
 import {DEFAULT_TIME_FORMAT} from 'src/shared/constants'
 
+import {SortTypes} from 'src/shared/utils/sort'
+import {Sort} from '@influxdata/clockface'
+import {DashboardSortKey} from 'src/shared/components/resource_sort_dropdown/generateSortItems'
+
 export const UNTITLED_GRAPH: string = 'Untitled Graph'
 
 export const DEFAULT_DECIMAL_PLACES: DecimalPlaces = {
@@ -68,11 +72,18 @@ export type EmptyDefaultDashboard = Pick<
   cells: NewDefaultCell[]
 }
 
+export const DEFAULT_DASHBOARD_SORT_OPTIONS = {
+  sortDirection: Sort.Ascending,
+  sortType: SortTypes.String,
+  sortKey: 'name' as DashboardSortKey,
+}
+
 export const EMPTY_DASHBOARD: EmptyDefaultDashboard = {
   id: '0',
   name: '',
   cells: [NEW_DEFAULT_DASHBOARD_CELL],
   status: RemoteDataState.Done,
+  sortOptions: DEFAULT_DASHBOARD_SORT_OPTIONS,
 }
 
 export const DashboardTemplate: EmptyDefaultDashboard = {
@@ -80,6 +91,7 @@ export const DashboardTemplate: EmptyDefaultDashboard = {
   name: 'Create a New Dashboard',
   cells: [],
   status: RemoteDataState.Done,
+  sortOptions: DEFAULT_DASHBOARD_SORT_OPTIONS,
 }
 
 type NewDefaultDashboard = Pick<

@@ -24,6 +24,17 @@ type StorageReader interface {
 	Close()
 }
 
+type GroupCapability interface {
+	HaveCount() bool
+	HaveSum() bool
+	HaveFirst() bool
+	HaveLast() bool
+}
+
+type GroupAggregator interface {
+	GetGroupCapability(ctx context.Context) GroupCapability
+}
+
 // WindowAggregateCapability describes what is supported by WindowAggregateReader.
 type WindowAggregateCapability interface {
 	HaveMin() bool
@@ -60,6 +71,10 @@ type ReadGroupSpec struct {
 	AggregateMethod string
 }
 
+func (spec *ReadGroupSpec) Name() string {
+	return fmt.Sprintf("readGroup(%s)", spec.AggregateMethod)
+}
+
 type ReadTagKeysSpec struct {
 	ReadFilterSpec
 }
@@ -74,6 +89,7 @@ type ReadWindowAggregateSpec struct {
 	WindowEvery int64
 	Aggregates  []plan.ProcedureKind
 	CreateEmpty bool
+	TimeColumn  string
 }
 
 // TableIterator is a table iterator that also keeps track of cursor statistics from the storage engine.

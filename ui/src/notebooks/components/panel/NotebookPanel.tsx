@@ -92,7 +92,7 @@ const NotebookPanel: FC<Props> = ({index, children, controls}) => {
 
   useEffect(() => {
     updateMeta(index, {panelRef} as PipeMeta)
-  })
+  }, [])
 
   const panelClassName = classnames('notebook-panel', {
     [`notebook-panel__visible`]: isVisible,

@@ -28,7 +28,12 @@ import (
 // present
 type mockReaderCaps struct {
 	query.StorageReader
-	Have bool
+	Have              bool
+	GroupCapabilities query.GroupCapability
+}
+
+func (caps mockReaderCaps) GetGroupCapability(ctx context.Context) query.GroupCapability {
+	return caps.GroupCapabilities
 }
 
 func (caps mockReaderCaps) GetWindowAggregateCapability(ctx context.Context) query.WindowAggregateCapability {
@@ -38,6 +43,15 @@ func (caps mockReaderCaps) GetWindowAggregateCapability(ctx context.Context) que
 func (caps mockReaderCaps) ReadWindowAggregate(ctx context.Context, spec query.ReadWindowAggregateSpec, alloc *memory.Allocator) (query.TableIterator, error) {
 	return nil, nil
 }
+
+type mockGroupCapability struct {
+	count, sum, first, last bool
+}
+
+func (c mockGroupCapability) HaveCount() bool { return c.count }
+func (c mockGroupCapability) HaveSum() bool   { return c.sum }
+func (c mockGroupCapability) HaveFirst() bool { return c.first }
+func (c mockGroupCapability) HaveLast() bool  { return c.last }
 
 // Mock Window Aggregate Capability
 type mockWAC struct {
@@ -1186,6 +1200,7 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 	dur0 := values.ConvertDuration(0)
 	durNeg, _ := values.ParseDuration("-60s")
 	dur1y, _ := values.ParseDuration("1y")
+	durInf := values.ConvertDuration(math.MaxInt64)
 
 	window := func(dur values.Duration) universe.WindowProcedureSpec {
 		return universe.WindowProcedureSpec{
@@ -1205,6 +1220,9 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 	window2m := window(dur2m)
 	windowNeg := window(durNeg)
 	window1y := window(dur1y)
+	windowInf := window(durInf)
+	windowInfCreateEmpty := windowInf
+	windowInfCreateEmpty.CreateEmpty = true
 
 	tests := make([]plantest.RuleTestCase, 0)
 
@@ -1224,8 +1242,8 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 	}
 
 	// construct a simple result
-	simpleResult := func(proc plan.ProcedureKind, createEmpty bool) *plantest.PlanSpec {
-		return &plantest.PlanSpec{
+	simpleResult := func(proc plan.ProcedureKind, createEmpty bool, successors ...plan.Node) *plantest.PlanSpec {
+		spec := &plantest.PlanSpec{
 			Nodes: []plan.Node{
 				plan.CreatePhysicalNode("ReadWindowAggregate", &influxdb.ReadWindowAggregatePhysSpec{
 					ReadRangePhysSpec: readRange,
@@ -1235,6 +1253,11 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 				}),
 			},
 		}
+		for i, successor := range successors {
+			spec.Nodes = append(spec.Nodes, successor)
+			spec.Edges = append(spec.Edges, [2]int{i, i + 1})
+		}
+		return spec
 	}
 
 	minProcedureSpec := func() *universe.MinProcedureSpec {
@@ -1386,13 +1409,13 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 	simpleMinUnchanged("BadStop", badWindow5)
 
 	// Condition met: createEmpty is true.
-	window6 := window1m
-	window6.CreateEmpty = true
+	windowCreateEmpty1m := window1m
+	windowCreateEmpty1m.CreateEmpty = true
 	tests = append(tests, plantest.RuleTestCase{
 		Context: haveCaps,
 		Name:    "CreateEmptyPassMin",
 		Rules:   []plan.Rule{influxdb.PushDownWindowAggregateRule{}},
-		Before:  simplePlanWithWindowAgg(window6, "min", minProcedureSpec()),
+		Before:  simplePlanWithWindowAgg(windowCreateEmpty1m, "min", minProcedureSpec()),
 		After:   simpleResult("min", true),
 	})
 
@@ -1565,6 +1588,291 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 		NoChange: true,
 	})
 
+	duplicate := func(column, as string) *universe.SchemaMutationProcedureSpec {
+		return &universe.SchemaMutationProcedureSpec{
+			Mutations: []universe.SchemaMutation{
+				&universe.DuplicateOpSpec{
+					Column: column,
+					As:     as,
+				},
+			},
+		}
+	}
+
+	aggregateWindowPlan := func(window universe.WindowProcedureSpec, agg plan.NodeID, spec plan.ProcedureSpec, timeColumn string) *plantest.PlanSpec {
+		return &plantest.PlanSpec{
+			Nodes: []plan.Node{
+				plan.CreateLogicalNode("ReadRange", &readRange),
+				plan.CreateLogicalNode("window1", &window),
+				plan.CreateLogicalNode(agg, spec),
+				plan.CreateLogicalNode("duplicate", duplicate(timeColumn, "_time")),
+				plan.CreateLogicalNode("window2", &windowInf),
+			},
+			Edges: [][2]int{
+				{0, 1},
+				{1, 2},
+				{2, 3},
+				{3, 4},
+			},
+		}
+	}
+
+	aggregateWindowResult := func(proc plan.ProcedureKind, createEmpty bool, timeColumn string, successors ...plan.Node) *plantest.PlanSpec {
+		spec := &plantest.PlanSpec{
+			Nodes: []plan.Node{
+				plan.CreatePhysicalNode("ReadWindowAggregateByTime", &influxdb.ReadWindowAggregatePhysSpec{
+					ReadRangePhysSpec: readRange,
+					Aggregates:        []plan.ProcedureKind{proc},
+					WindowEvery:       60000000000,
+					CreateEmpty:       createEmpty,
+					TimeColumn:        timeColumn,
+				}),
+			},
+		}
+		for i, successor := range successors {
+			spec.Nodes = append(spec.Nodes, successor)
+			spec.Edges = append(spec.Edges, [2]int{i, i + 1})
+		}
+		return spec
+	}
+
+	// Push down the duplicate |> window(every: inf)
+	tests = append(tests, plantest.RuleTestCase{
+		Context: haveCaps,
+		Name:    "AggregateWindowCount",
+		Rules: []plan.Rule{
+			influxdb.PushDownWindowAggregateRule{},
+			influxdb.PushDownWindowAggregateByTimeRule{},
+		},
+		Before: aggregateWindowPlan(window1m, "count", countProcedureSpec(), "_stop"),
+		After:  aggregateWindowResult("count", false, "_stop"),
+	})
+
+	// Push down the duplicate |> window(every: inf) using _start column
+	tests = append(tests, plantest.RuleTestCase{
+		Context: haveCaps,
+		Name:    "AggregateWindowCount",
+		Rules: []plan.Rule{
+			influxdb.PushDownWindowAggregateRule{},
+			influxdb.PushDownWindowAggregateByTimeRule{},
+		},
+		Before: aggregateWindowPlan(window1m, "count", countProcedureSpec(), "_start"),
+		After:  aggregateWindowResult("count", false, "_start"),
+	})
+
+	// Push down duplicate |> window(every: inf) with create empty.
+	tests = append(tests, plantest.RuleTestCase{
+		Context: haveCaps,
+		Name:    "AggregateWindowCountCreateEmpty",
+		Rules: []plan.Rule{
+			influxdb.PushDownWindowAggregateRule{},
+			influxdb.PushDownWindowAggregateByTimeRule{},
+		},
+		Before: aggregateWindowPlan(windowCreateEmpty1m, "count", countProcedureSpec(), "_stop"),
+		After:  aggregateWindowResult("count", true, "_stop"),
+	})
+
+	// Invalid duplicate column.
+	tests = append(tests, plantest.RuleTestCase{
+		Context: haveCaps,
+		Name:    "AggregateWindowCountInvalidDuplicateColumn",
+		Rules: []plan.Rule{
+			influxdb.PushDownWindowAggregateRule{},
+			influxdb.PushDownWindowAggregateByTimeRule{},
+		},
+		Before: aggregateWindowPlan(window1m, "count", countProcedureSpec(), "_value"),
+		After: simpleResult("count", false,
+			plan.CreatePhysicalNode("duplicate", duplicate("_value", "_time")),
+			plan.CreatePhysicalNode("window2", &windowInf),
+		),
+	})
+
+	// Invalid duplicate as.
+	tests = append(tests, plantest.RuleTestCase{
+		Context: haveCaps,
+		Name:    "AggregateWindowCountInvalidDuplicateAs",
+		Rules: []plan.Rule{
+			influxdb.PushDownWindowAggregateRule{},
+			influxdb.PushDownWindowAggregateByTimeRule{},
+		},
+		Before: &plantest.PlanSpec{
+			Nodes: []plan.Node{
+				plan.CreateLogicalNode("ReadRange", &readRange),
+				plan.CreateLogicalNode("window1", &window1m),
+				plan.CreateLogicalNode("count", countProcedureSpec()),
+				plan.CreateLogicalNode("duplicate", duplicate("_stop", "time")),
+				plan.CreateLogicalNode("window2", &windowInf),
+			},
+			Edges: [][2]int{
+				{0, 1},
+				{1, 2},
+				{2, 3},
+				{3, 4},
+			},
+		},
+		After: simpleResult("count", false,
+			plan.CreatePhysicalNode("duplicate", duplicate("_stop", "time")),
+			plan.CreatePhysicalNode("window2", &windowInf),
+		),
+	})
+
+	// Invalid closing window.
+	tests = append(tests, plantest.RuleTestCase{
+		Context: haveCaps,
+		Name:    "AggregateWindowCountInvalidClosingWindow",
+		Rules: []plan.Rule{
+			influxdb.PushDownWindowAggregateRule{},
+			influxdb.PushDownWindowAggregateByTimeRule{},
+		},
+		Before: &plantest.PlanSpec{
+			Nodes: []plan.Node{
+				plan.CreateLogicalNode("ReadRange", &readRange),
+				plan.CreateLogicalNode("window1", &window1m),
+				plan.CreateLogicalNode("count", countProcedureSpec()),
+				plan.CreateLogicalNode("duplicate", duplicate("_stop", "_time")),
+				plan.CreateLogicalNode("window2", &window1m),
+			},
+			Edges: [][2]int{
+				{0, 1},
+				{1, 2},
+				{2, 3},
+				{3, 4},
+			},
+		},
+		After: simpleResult("count", false,
+			plan.CreatePhysicalNode("duplicate", duplicate("_stop", "_time")),
+			plan.CreatePhysicalNode("window2", &window1m),
+		),
+	})
+
+	// Invalid closing window with multiple problems.
+	tests = append(tests, plantest.RuleTestCase{
+		Context: haveCaps,
+		Name:    "AggregateWindowCountInvalidClosingWindowMultiple",
+		Rules: []plan.Rule{
+			influxdb.PushDownWindowAggregateRule{},
+			influxdb.PushDownWindowAggregateByTimeRule{},
+		},
+		Before: &plantest.PlanSpec{
+			Nodes: []plan.Node{
+				plan.CreateLogicalNode("ReadRange", &readRange),
+				plan.CreateLogicalNode("window1", &window1m),
+				plan.CreateLogicalNode("count", countProcedureSpec()),
+				plan.CreateLogicalNode("duplicate", duplicate("_stop", "_time")),
+				plan.CreateLogicalNode("window2", &badWindow3),
+			},
+			Edges: [][2]int{
+				{0, 1},
+				{1, 2},
+				{2, 3},
+				{3, 4},
+			},
+		},
+		After: simpleResult("count", false,
+			plan.CreatePhysicalNode("duplicate", duplicate("_stop", "_time")),
+			plan.CreatePhysicalNode("window2", &badWindow3),
+		),
+	})
+
+	// Invalid closing window with multiple problems.
+	tests = append(tests, plantest.RuleTestCase{
+		Context: haveCaps,
+		Name:    "AggregateWindowCountInvalidClosingWindowCreateEmpty",
+		Rules: []plan.Rule{
+			influxdb.PushDownWindowAggregateRule{},
+			influxdb.PushDownWindowAggregateByTimeRule{},
+		},
+		Before: &plantest.PlanSpec{
+			Nodes: []plan.Node{
+				plan.CreateLogicalNode("ReadRange", &readRange),
+				plan.CreateLogicalNode("window1", &window1m),
+				plan.CreateLogicalNode("count", countProcedureSpec()),
+				plan.CreateLogicalNode("duplicate", duplicate("_stop", "_time")),
+				plan.CreateLogicalNode("window2", &windowInfCreateEmpty),
+			},
+			Edges: [][2]int{
+				{0, 1},
+				{1, 2},
+				{2, 3},
+				{3, 4},
+			},
+		},
+		After: simpleResult("count", false,
+			plan.CreatePhysicalNode("duplicate", duplicate("_stop", "_time")),
+			plan.CreatePhysicalNode("window2", &windowInfCreateEmpty),
+		),
+	})
+
+	// Multiple matching patterns.
+	tests = append(tests, plantest.RuleTestCase{
+		Context: haveCaps,
+		Name:    "AggregateWindowCountMultipleMatches",
+		Rules: []plan.Rule{
+			influxdb.PushDownWindowAggregateRule{},
+			influxdb.PushDownWindowAggregateByTimeRule{},
+		},
+		Before: &plantest.PlanSpec{
+			Nodes: []plan.Node{
+				plan.CreateLogicalNode("ReadRange", &readRange),
+				plan.CreateLogicalNode("window1", &window1m),
+				plan.CreateLogicalNode("count", countProcedureSpec()),
+				plan.CreateLogicalNode("duplicate", duplicate("_stop", "_time")),
+				plan.CreateLogicalNode("window2", &windowInf),
+				plan.CreateLogicalNode("duplicate2", duplicate("_stop", "_time")),
+				plan.CreateLogicalNode("window3", &windowInf),
+			},
+			Edges: [][2]int{
+				{0, 1},
+				{1, 2},
+				{2, 3},
+				{3, 4},
+				{4, 5},
+				{5, 6},
+			},
+		},
+		After: aggregateWindowResult("count", false, "_stop",
+			plan.CreatePhysicalNode("duplicate2", duplicate("_stop", "_time")),
+			plan.CreatePhysicalNode("window3", &windowInf),
+		),
+	})
+
+	rename := universe.SchemaMutationProcedureSpec{
+		Mutations: []universe.SchemaMutation{
+			&universe.RenameOpSpec{
+				Columns: map[string]string{"_time": "time"},
+			},
+		},
+	}
+
+	// Wrong schema mutator.
+	tests = append(tests, plantest.RuleTestCase{
+		Context: haveCaps,
+		Name:    "AggregateWindowCountWrongSchemaMutator",
+		Rules: []plan.Rule{
+			influxdb.PushDownWindowAggregateRule{},
+			influxdb.PushDownWindowAggregateByTimeRule{},
+		},
+		Before: &plantest.PlanSpec{
+			Nodes: []plan.Node{
+				plan.CreateLogicalNode("ReadRange", &readRange),
+				plan.CreateLogicalNode("window1", &window1m),
+				plan.CreateLogicalNode("count", countProcedureSpec()),
+				plan.CreateLogicalNode("rename", &rename),
+				plan.CreateLogicalNode("window2", &windowInf),
+			},
+			Edges: [][2]int{
+				{0, 1},
+				{1, 2},
+				{2, 3},
+				{3, 4},
+			},
+		},
+		After: simpleResult("count", false,
+			plan.CreatePhysicalNode("rename", &rename),
+			plan.CreatePhysicalNode("window2", &windowInf),
+		),
+	})
+
 	for _, tc := range tests {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
@@ -1689,11 +1997,24 @@ func TestPushDownBareAggregateRule(t *testing.T) {
 //
 func TestPushDownGroupAggregateRule(t *testing.T) {
 	// Turn on all flags
-	flagger := mock.NewFlagger(map[feature.Flag]interface{}{
+	ctx, _ := feature.Annotate(context.Background(), mock.NewFlagger(map[feature.Flag]interface{}{
 		feature.PushDownGroupAggregateCount(): true,
-	})
+		feature.PushDownGroupAggregateSum():   true,
+		feature.PushDownGroupAggregateFirst(): true,
+		feature.PushDownGroupAggregateLast():  true,
+	}))
 
-	ctx, _ := feature.Annotate(context.Background(), flagger)
+	caps := func(c query.GroupCapability) context.Context {
+		deps := influxdb.StorageDependencies{
+			FromDeps: influxdb.FromDependencies{
+				Reader: mockReaderCaps{
+					GroupCapabilities: c,
+				},
+				Metrics: influxdb.NewMetrics(nil),
+			},
+		}
+		return deps.Inject(ctx)
+	}
 
 	readGroupAgg := func(aggregateMethod string) *influxdb.ReadGroupPhysSpec {
 		return &influxdb.ReadGroupPhysSpec{
@@ -1728,44 +2049,149 @@ func TestPushDownGroupAggregateRule(t *testing.T) {
 		}
 	}
 
-	// construct a simple result
-	simpleResult := func(proc string) *plantest.PlanSpec {
-		return &plantest.PlanSpec{
-			Nodes: []plan.Node{
-				plan.CreatePhysicalNode("ReadGroup", readGroupAgg(proc)),
+	minProcedureSpec := func() *universe.MinProcedureSpec {
+		return &universe.MinProcedureSpec{
+			SelectorConfig: execute.SelectorConfig{
+				Column: execute.DefaultTimeColLabel,
 			},
 		}
 	}
-
-	minProcedureSpec := func() *universe.MinProcedureSpec {
-		return &universe.MinProcedureSpec{
-			SelectorConfig: execute.SelectorConfig{Column: "_value"},
+	maxProcedureSpec := func() *universe.MaxProcedureSpec {
+		return &universe.MaxProcedureSpec{
+			SelectorConfig: execute.SelectorConfig{
+				Column: execute.DefaultTimeColLabel,
+			},
 		}
 	}
 	countProcedureSpec := func() *universe.CountProcedureSpec {
 		return &universe.CountProcedureSpec{
-			AggregateConfig: execute.AggregateConfig{Columns: []string{"_value"}},
+			AggregateConfig: execute.DefaultAggregateConfig,
 		}
 	}
 	sumProcedureSpec := func() *universe.SumProcedureSpec {
 		return &universe.SumProcedureSpec{
-			AggregateConfig: execute.AggregateConfig{Columns: []string{"_value"}},
+			AggregateConfig: execute.DefaultAggregateConfig,
+		}
+	}
+	firstProcedureSpec := func() *universe.FirstProcedureSpec {
+		return &universe.FirstProcedureSpec{
+			SelectorConfig: execute.DefaultSelectorConfig,
+		}
+	}
+	lastProcedureSpec := func() *universe.LastProcedureSpec {
+		return &universe.LastProcedureSpec{
+			SelectorConfig: execute.DefaultSelectorConfig,
 		}
 	}
 
-	// ReadGroup -> count => ReadGroup
+	// ReadGroup() -> count => ReadGroup(count) -> sum
 	tests = append(tests, plantest.RuleTestCase{
-		Context: ctx,
-		Name:    "SimplePassCount",
+		Context: caps(mockGroupCapability{count: true}),
+		Name:    "RewriteGroupCount",
 		Rules:   []plan.Rule{influxdb.PushDownGroupAggregateRule{}},
 		Before:  simplePlanWithAgg("count", countProcedureSpec()),
-		After:   simpleResult("count"),
+		After: &plantest.PlanSpec{
+			Nodes: []plan.Node{
+				plan.CreateLogicalNode("ReadGroupAggregate", readGroupAgg("count")),
+				plan.CreateLogicalNode("sum", sumProcedureSpec()),
+			},
+			Edges: [][2]int{
+				{0, 1},
+			},
+		},
+	})
+
+	// ReadGroup() -> count => ReadGroup() -> count
+	tests = append(tests, plantest.RuleTestCase{
+		Context:  caps(mockGroupCapability{}),
+		Name:     "NoCountCapability",
+		Rules:    []plan.Rule{influxdb.PushDownGroupAggregateRule{}},
+		Before:   simplePlanWithAgg("count", countProcedureSpec()),
+		NoChange: true,
+	})
+
+	// ReadGroup() -> sum => ReadGroup(sum) -> sum
+	tests = append(tests, plantest.RuleTestCase{
+		Context: caps(mockGroupCapability{sum: true}),
+		Name:    "RewriteGroupSum",
+		Rules:   []plan.Rule{influxdb.PushDownGroupAggregateRule{}},
+		Before:  simplePlanWithAgg("sum", sumProcedureSpec()),
+		After: &plantest.PlanSpec{
+			Nodes: []plan.Node{
+				plan.CreateLogicalNode("ReadGroupAggregate", readGroupAgg("sum")),
+				plan.CreateLogicalNode("sum", sumProcedureSpec()),
+			},
+			Edges: [][2]int{
+				{0, 1},
+			},
+		},
+	})
+
+	// ReadGroup() -> sum => ReadGroup() -> sum
+	tests = append(tests, plantest.RuleTestCase{
+		Context:  caps(mockGroupCapability{}),
+		Name:     "NoSumCapability",
+		Rules:    []plan.Rule{influxdb.PushDownGroupAggregateRule{}},
+		Before:   simplePlanWithAgg("sum", sumProcedureSpec()),
+		NoChange: true,
+	})
+
+	// ReadGroup() -> first => ReadGroup(first) -> min
+	tests = append(tests, plantest.RuleTestCase{
+		Context: caps(mockGroupCapability{first: true}),
+		Name:    "RewriteGroupFirst",
+		Rules:   []plan.Rule{influxdb.PushDownGroupAggregateRule{}},
+		Before:  simplePlanWithAgg("first", firstProcedureSpec()),
+		After: &plantest.PlanSpec{
+			Nodes: []plan.Node{
+				plan.CreateLogicalNode("ReadGroupAggregate", readGroupAgg("first")),
+				plan.CreateLogicalNode("min", minProcedureSpec()),
+			},
+			Edges: [][2]int{
+				{0, 1},
+			},
+		},
+	})
+
+	// ReadGroup() -> first => ReadGroup() -> first
+	tests = append(tests, plantest.RuleTestCase{
+		Context:  caps(mockGroupCapability{}),
+		Name:     "NoFirstCapability",
+		Rules:    []plan.Rule{influxdb.PushDownGroupAggregateRule{}},
+		Before:   simplePlanWithAgg("first", firstProcedureSpec()),
+		NoChange: true,
+	})
+
+	// ReadGroup() -> last => ReadGroup(last) -> max
+	tests = append(tests, plantest.RuleTestCase{
+		Context: caps(mockGroupCapability{last: true}),
+		Name:    "RewriteGroupLast",
+		Rules:   []plan.Rule{influxdb.PushDownGroupAggregateRule{}},
+		Before:  simplePlanWithAgg("last", lastProcedureSpec()),
+		After: &plantest.PlanSpec{
+			Nodes: []plan.Node{
+				plan.CreateLogicalNode("ReadGroupAggregate", readGroupAgg("last")),
+				plan.CreateLogicalNode("max", maxProcedureSpec()),
+			},
+			Edges: [][2]int{
+				{0, 1},
+			},
+		},
+	})
+
+	// ReadGroup() -> last => ReadGroup() -> last
+	tests = append(tests, plantest.RuleTestCase{
+		Context:  caps(mockGroupCapability{}),
+		Name:     "RewriteGroupLast",
+		Rules:    []plan.Rule{influxdb.PushDownGroupAggregateRule{}},
+		Before:   simplePlanWithAgg("last", lastProcedureSpec()),
+		NoChange: true,
 	})
 
 	// Rewrite with successors
-	// ReadGroup -> count -> sum {2} => ReadGroup -> count {2}
+	// ReadGroup() -> count -> sum {2} => ReadGroup(count) -> sum -> sum {2}
 	tests = append(tests, plantest.RuleTestCase{
-		Context: ctx,
+		Context: caps(mockGroupCapability{count: true}),
 		Name:    "WithSuccessor1",
 		Rules:   []plan.Rule{influxdb.PushDownGroupAggregateRule{}},
 		Before: &plantest.PlanSpec{
@@ -1783,22 +2209,24 @@ func TestPushDownGroupAggregateRule(t *testing.T) {
 		},
 		After: &plantest.PlanSpec{
 			Nodes: []plan.Node{
-				plan.CreatePhysicalNode("ReadGroup", readGroupAgg("count")),
+				plan.CreatePhysicalNode("ReadGroupAggregate", readGroupAgg("count")),
+				plan.CreateLogicalNode("sum", sumProcedureSpec()),
 				plan.CreateLogicalNode("sum", sumProcedureSpec()),
 				plan.CreateLogicalNode("sum", sumProcedureSpec()),
 			},
 			Edges: [][2]int{
 				{0, 1},
-				{0, 2},
+				{1, 2},
+				{1, 3},
 			},
 		},
 	})
 
 	// Cannot replace a ReadGroup that already has an aggregate. This exercises
 	// the check that ReadGroup aggregate is not set.
-	// ReadGroup -> count -> count => ReadGroup -> count
+	// ReadGroup() -> count -> count => ReadGroup(count) -> sum -> count
 	tests = append(tests, plantest.RuleTestCase{
-		Context: ctx,
+		Context: caps(mockGroupCapability{count: true}),
 		Name:    "WithSuccessor2",
 		Rules:   []plan.Rule{influxdb.PushDownGroupAggregateRule{}},
 		Before: &plantest.PlanSpec{
@@ -1814,11 +2242,13 @@ func TestPushDownGroupAggregateRule(t *testing.T) {
 		},
 		After: &plantest.PlanSpec{
 			Nodes: []plan.Node{
-				plan.CreatePhysicalNode("ReadGroup", readGroupAgg("count")),
+				plan.CreatePhysicalNode("ReadGroupAggregate", readGroupAgg("count")),
+				plan.CreateLogicalNode("sum", sumProcedureSpec()),
 				plan.CreateLogicalNode("count", countProcedureSpec()),
 			},
 			Edges: [][2]int{
 				{0, 1},
+				{1, 2},
 			},
 		},
 	})
@@ -1827,7 +2257,7 @@ func TestPushDownGroupAggregateRule(t *testing.T) {
 	// ReadGroup -> count => NO-CHANGE
 	tests = append(tests, plantest.RuleTestCase{
 		Name:    "BadCountCol",
-		Context: ctx,
+		Context: caps(mockGroupCapability{count: true}),
 		Rules:   []plan.Rule{influxdb.PushDownGroupAggregateRule{}},
 		Before: simplePlanWithAgg("count", &universe.CountProcedureSpec{
 			AggregateConfig: execute.AggregateConfig{Columns: []string{"_valmoo"}},
@@ -1840,7 +2270,7 @@ func TestPushDownGroupAggregateRule(t *testing.T) {
 	//          \-> min
 	tests = append(tests, plantest.RuleTestCase{
 		Name:    "CollapsedWithSuccessor",
-		Context: ctx,
+		Context: caps(mockGroupCapability{count: true}),
 		Rules:   []plan.Rule{influxdb.PushDownGroupAggregateRule{}},
 		Before: &plantest.PlanSpec{
 			Nodes: []plan.Node{
@@ -1883,7 +2313,7 @@ func TestPushDownGroupAggregateRule(t *testing.T) {
 	}
 	tests = append(tests, plantest.RuleTestCase{
 		Name:     "NoPatternMatch",
-		Context:  ctx,
+		Context:  caps(mockGroupCapability{count: true}),
 		Rules:    []plan.Rule{influxdb.PushDownWindowAggregateRule{}},
 		Before:   noPatternMatch1(),
 		NoChange: true,

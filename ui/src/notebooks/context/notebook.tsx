@@ -74,18 +74,40 @@ export const NotebookProvider: FC = ({children}) => {
           return pipes.slice()
         }
       }
+
+      if (
+        pipe.type === 'query' &&
+        pipes.filter(p => p.type === 'query').length
+      ) {
+        pipe.queries[0].text =
+          '// tip: use the __PREVIOUS_RESULT__ variable to link your queries\n\n' +
+          pipe.queries[0].text
+      }
+
+      if (pipes.length && pipe.type !== 'query') {
+        _setResults(add({...results[results.length - 1]}))
+        _setMeta(
+          add({
+            title: `Cell_${++GENERATOR_INDEX}`,
+            visible: true,
+            loading: meta[meta.length - 1].loading,
+            focus: false,
+          })
+        )
+      } else {
+        _setResults(add({}))
+        _setMeta(
+          add({
+            title: `Cell_${++GENERATOR_INDEX}`,
+            visible: true,
+            loading: RemoteDataState.NotStarted,
+            focus: false,
+          })
+        )
+      }
       _setPipes(add(pipe))
-      _setResults(add({}))
-      _setMeta(
-        add({
-          title: `Cell_${++GENERATOR_INDEX}`,
-          visible: true,
-          loading: RemoteDataState.NotStarted,
-          focus: false,
-        })
-      )
     },
-    [id]
+    [id, pipes, meta, results]
   )
 
   const updatePipe = useCallback(
@@ -98,7 +120,7 @@ export const NotebookProvider: FC = ({children}) => {
         return pipes.slice()
       })
     },
-    [id]
+    [id, pipes]
   )
 
   const updateMeta = useCallback(
@@ -111,7 +133,7 @@ export const NotebookProvider: FC = ({children}) => {
         return pipes.slice()
       })
     },
-    [id]
+    [id, meta]
   )
 
   const updateResult = useCallback(
@@ -123,7 +145,7 @@ export const NotebookProvider: FC = ({children}) => {
         return pipes.slice()
       })
     },
-    [id]
+    [id, results]
   )
 
   const movePipe = useCallback(
