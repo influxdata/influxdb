@@ -1169,6 +1169,8 @@ func (h *Handler) servePromWrite(w http.ResponseWriter, r *http.Request, user me
 // servePromRead will convert a Prometheus remote read request into a storage
 // query and returns data in Prometheus remote read protobuf format.
 func (h *Handler) servePromRead(w http.ResponseWriter, r *http.Request, user meta.User) {
+	atomic.AddInt64(&h.stats.PromReadRequests, 1)
+	h.requestTracker.Add(r, user)
 	compressed, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		h.httpError(w, err.Error(), http.StatusInternalServerError)
@@ -1190,6 +1192,17 @@ func (h *Handler) servePromRead(w http.ResponseWriter, r *http.Request, user met
 	// Query the DB and create a ReadResponse for Prometheus
 	db := r.FormValue("db")
 	rp := r.FormValue("rp")
+
+	if h.Config.AuthEnabled && h.Config.PromReadAuthEnabled {
+		if user == nil {
+			h.httpError(w, fmt.Sprintf("user is required to read from database %q", db), http.StatusForbidden)
+			return
+		}
+		if !user.AuthorizeDatabase(influxql.ReadPrivilege, db) {
+			h.httpError(w, fmt.Sprintf("user %q is not authorized to read from database %q", user.ID(), db), http.StatusForbidden)
+			return
+		}
+	}
 
 	readRequest, err := prometheus.ReadRequestToInfluxStorageRequest(&req, db, rp)
 	if err != nil {
