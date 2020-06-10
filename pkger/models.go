@@ -434,9 +434,10 @@ type SummaryBucket struct {
 	PkgName     string `json:"pkgName"`
 	Description string `json:"description"`
 	// TODO: return retention rules?
-	RetentionPeriod   time.Duration      `json:"retentionPeriod"`
-	LabelAssociations []SummaryLabel     `json:"labelAssociations"`
+	RetentionPeriod time.Duration `json:"retentionPeriod"`
+
 	EnvReferences     []SummaryReference `json:"envReferences"`
+	LabelAssociations []SummaryLabel     `json:"labelAssociations"`
 }
 
 // SummaryCheck provides a summary of a pkg check.
@@ -475,7 +476,8 @@ type SummaryDashboard struct {
 	Description string         `json:"description"`
 	Charts      []SummaryChart `json:"charts"`
 
-	LabelAssociations []SummaryLabel `json:"labelAssociations"`
+	EnvReferences     []SummaryReference `json:"envReferences"`
+	LabelAssociations []SummaryLabel     `json:"labelAssociations"`
 }
 
 // SummaryChart provides a summary of a pkg dashboard's chart.
@@ -597,6 +599,7 @@ type SummaryLabel struct {
 		Color       string `json:"color"`
 		Description string `json:"description"`
 	} `json:"properties"`
+
 	EnvReferences []SummaryReference `json:"envReferences"`
 }
 
