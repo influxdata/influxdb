@@ -13,6 +13,7 @@ spec:
       width:  6
       height: 3
       binCount: 30
+      fillColumns: ["a", "b"]
       queries:
         - query: >
             from(bucket: v.bucket) |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r._measurement == "boltdb_reads_total") |> filter(fn: (r) => r._field == "counter")
