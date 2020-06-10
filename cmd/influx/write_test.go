@@ -10,6 +10,7 @@ import (
 	"log"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"strings"
 	"testing"
@@ -87,8 +88,23 @@ func Test_writeFlags_dump(t *testing.T) {
 // are combined and transformed to provide a reader of protocol lines
 func Test_writeFlags_createLineReader(t *testing.T) {
 	defer removeTempFiles()
-	csvFile1 := createTempFile("csv", []byte("_measurement,b,c,d\nf1,f2,f3,f4"))
+	fileContents := "_measurement,b,c,d\nf1,f2,f3,f4"
+	csvFile1 := createTempFile("csv", []byte(fileContents))
 	stdInContents := "i,j,_measurement,k\nstdin1,stdin2,stdin3,stdin4"
+
+	// use a test HTTP server to provide CSV data
+	server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		// fmt.Println(req.URL.String())
+		query := req.URL.Query()
+		if contentType := query.Get("Content-Type"); contentType != "" {
+			rw.Header().Set("Content-Type", contentType)
+		}
+		rw.WriteHeader(http.StatusOK)
+		if data := query.Get("data"); data != "" {
+			rw.Write([]byte(data))
+		}
+	}))
+	defer server.Close()
 
 	var tests = []struct {
 		name string
@@ -99,6 +115,8 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 		// output
 		firstLineCorrection int // 0 unless shifted by prepended headers or skipped rows
 		lines               []string
+		// lpData indicates the the data are line protocol data
+		lpData bool
 	}{
 		{
 			name: "read data from CSV file + transform to line protocol",
@@ -177,6 +195,43 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 				"stdin3 i=stdin1,j=stdin2,k=stdin4",
 			},
 		},
+		{
+			name: "read data from .csv URL + transform to line protocol",
+			flags: writeFlagsType{
+				URLs: []string{(server.URL + "/a.csv?data=" + url.QueryEscape(fileContents))},
+			},
+			lines: []string{
+				"f1 b=f2,c=f3,d=f4",
+			},
+		},
+		{
+			name: "read data from .csv URL + change header line + transform to line protocol",
+			flags: writeFlagsType{
+				URLs:       []string{(server.URL + "/a.csv?data=" + url.QueryEscape(fileContents))},
+				Headers:    []string{"k,j,_measurement,i"},
+				SkipHeader: 1,
+			},
+			lines: []string{
+				"f3 k=f1,j=f2,i=f4",
+			},
+		},
+		{
+			name: "read data from having text/csv URL resource + transform to line protocol",
+			flags: writeFlagsType{
+				URLs: []string{(server.URL + "/a?Content-Type=text/csv&data=" + url.QueryEscape(fileContents))},
+			},
+			lines: []string{
+				"f1 b=f2,c=f3,d=f4",
+			},
+		},
+		{
+			name: "read line protocol data from URL",
+			flags: writeFlagsType{
+				URLs: []string{(server.URL + "/a?data=" + url.QueryEscape(fileContents))},
+			},
+			lines:  strings.Split(fileContents, "\n"),
+			lpData: true,
+		},
 	}
 
 	for _, test := range tests {
@@ -187,9 +242,11 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 			defer closer.Close()
 			require.Nil(t, err)
 			require.NotNil(t, reader)
-			csvToLineReader, ok := reader.(*csv2lp.CsvToLineReader)
-			require.True(t, ok)
-			require.Equal(t, csvToLineReader.LineNumber, test.firstLineCorrection)
+			if !test.lpData {
+				csvToLineReader, ok := reader.(*csv2lp.CsvToLineReader)
+				require.True(t, ok)
+				require.Equal(t, csvToLineReader.LineNumber, test.firstLineCorrection)
+			}
 			lines := readLines(reader)
 			require.Equal(t, test.lines, lines)
 		})
@@ -200,6 +257,11 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 func Test_writeFlags_createLineReader_errors(t *testing.T) {
 	defer removeTempFiles()
 	csvFile1 := createTempFile("csv", []byte("_measurement,b,c,d\nf1,f2,f3,f4"))
+	// use a test HTTP server to server errors
+	server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		rw.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
 
 	var tests = []struct {
 		name string
@@ -228,6 +290,27 @@ func Test_writeFlags_createLineReader_errors(t *testing.T) {
 				Files: []string{csvFile1 + "x"},
 			},
 			message: csvFile1,
+		},
+		{
+			name: "unsupported URL",
+			flags: writeFlagsType{
+				URLs: []string{"wit://whatever"},
+			},
+			message: "wit://whatever",
+		},
+		{
+			name: "invalid URL",
+			flags: writeFlagsType{
+				URLs: []string{"http://test%zy"}, // 2 hex digits after % expected
+			},
+			message: "http://test%zy",
+		},
+		{
+			name: "URL with 500 status code",
+			flags: writeFlagsType{
+				URLs: []string{server.URL},
+			},
+			message: server.URL,
 		},
 	}
 	for _, test := range tests {
