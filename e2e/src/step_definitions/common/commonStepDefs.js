@@ -11,7 +11,8 @@ let iSteps = new influxSteps(__wdriver);
 
 Given(/^I reset the environment$/, async () => {
     await bSteps.driver.sleep(1000); //since gets called after scenarios, need a short delay to avoid promise resolution issues
-    await flush();
+    await bSteps.resetEnvironment();
+    //await flush();
 });
 
 /*
@@ -62,7 +63,7 @@ When(/^close all notifications$/, async() => {
 // newUser if not DEFAULT should follow {username: 'name', password: 'password', org: 'org', bucket: 'bucket'}
 Given(/^run setup over REST "(.*?)"$/, async( newUser ) => {
 
-    await influxUtils.flush();
+    //await influxUtils.flush();
 
     if(newUser === 'DEFAULT'){
         await influxUtils.setupUser(__defaultUser);
@@ -76,8 +77,28 @@ Given(/^run setup over REST "(.*?)"$/, async( newUser ) => {
 
 });
 
+Given(/^run setup user "(.*)"$/, {timeout: 15000}, async newUser => {
+   await influxUtils.setupNewUser(newUser);
+});
+
+Given(/^run setup over CLI docker "(.*?)"$/, async( newUser ) => {
+
+    if(newUser === 'DEFAULT'){
+        await influxUtils.setupUserDockerCLI(__defaultUser);
+    }else{
+        let user = JSON.parse(newUser);
+        if(user.password.length < 8 ){
+            throw Error(`Password: ${user.password} is shorter than 8 chars`);
+        }
+        await influxUtils.setupUser(user);
+    }
+
+    await bSteps.driver.sleep(1000); //give system chance to write everything down
+
+});
+
 When(/^API sign in user "(.*?)"$/, async username => {
-    await influxUtils.signIn((username === 'DEFAULT') ? __defaultUser.username : username).then(async () => {
+    await influxUtils.signInAxios((username === 'DEFAULT') ? __defaultUser.username : username).then(async () => {
         // await sSteps.driver.sleep(1500)
 
     }).catch(async err => {
@@ -125,16 +146,18 @@ When(/^write sine data for org "(.*?)" to bucket "(.*?)"$/, async (org, bucket) 
 
 });
 
-When(/^query sine data for org of user "(.*)" from bucket "(.*)"$/, async (user, bucket) => {
-    let startTime = '-1d';
-    let org = influxUtils.getUser(user).orgid;
-    let query = `from(bucket: "${bucket}")
-  |> range(start: ${startTime}) 
-  |> filter(fn: (r) => r._measurement == "sinus")
-  |> filter(fn: (r) => r._field == "point")`;
+//For Inspection purposes
+When(/^simple query data "(.*)" for org of user "(.*)" from bucket "(.*)" over "(.*)"$/, async (items, userName, bucket, period) => {
 
-    let results = await influxUtils.query(org, query);
-    console.log('DEBUG results: ' + results);
+    let dataDef = JSON.parse(items.replace(/\\/g,""));
+    let targetBucket = (bucket === 'DEFAULT') ? __defaultUser.bucket : 'fred';
+    let query = `from(bucket: "${targetBucket}")
+  |> range(start: ${period}) 
+  |> filter(fn: (r) => r._measurement == "${dataDef.name}")
+  |> filter(fn: (r) => r._field == "${dataDef.measurement}")`;
+
+    let results = await influxUtils.query(userName, query);
+    console.info('INFO results: ' + JSON.stringify(results));
 });
 
 
@@ -153,15 +176,25 @@ When(/^API create a dashboard named "(.*?)" for user "(.*?)"$/, async (name, use
 
 });
 
+//Troubleshoot method
+When(/^API get all dashboards for user "(.*?)"$/, async user => {
+
+    let dboards = await influxUtils.getDashboards(user);
+
+    console.info(`DUMP dboards for user (${user}):\n  ${JSON.stringify(dboards)}`);
+
+});
+
+
+
 When(/^API create a bucket named "(.*)" for user "(.*)"$/, async (bucket, username) => {
     let user = await influxUtils.getUser((username === 'DEFAULT') ? __defaultUser.username : username);
     await influxUtils.createBucket(user.orgid, user.org, bucket);
 });
 
 When(/^API create a label "(.*)" described as "(.*)" with color "(.*)" for user "(.*)"$/,
-    async (labelName, labelDescr, labelColor, user) => {
-        let orgID = influxUtils.getUser((user === 'DEFAULT') ? __defaultUser.username : user).orgid;
-        await influxUtils.createLabel(orgID, labelName, labelDescr, labelColor);
+    async (labelName, labelDescr, labelColor, userName) => {
+        await influxUtils.createLabel(userName, labelName, labelDescr, labelColor);
     });
 
 When(/^open page "(.*?)" for user "(.*?)"$/, async (page, username) => {
@@ -249,16 +282,19 @@ When(/^generate a line protocol testdata file "(.*)" based on:$/, async (filePat
     await influxUtils.genLineProtocolFile(filePath, def);
 });
 
-When(/^generate a line protocol testdata for user "(.*)" based on:$/, async (user, def) => {
-    await influxUtils.writeLineProtocolData((user === 'DEFAULT')? __defaultUser: await influxUtils.getUser(user),
-        def);
+When(/^generate a line protocol testdata for user "(.*)" based on:$/, async (userName, def) => {
+
+    //await influxUtils.writeLineProtocolData((user === 'DEFAULT')? __defaultUser: await influxUtils.getUser(user),
+    //    def);
+
+    await influxUtils.writeLineProtocolData(userName, def);
 });
 
 When(/^create the "(.*)" variable "(.*)" with default "(.*)" for user "(.*)" with values:$/,
-    async(type, name, defVal, user, values) => {
+    async(type, name, defVal, userName, values) => {
     type = type === 'csv' ? 'constant' : type.toLowerCase();
-    let orgID = influxUtils.getUser((user === 'DEFAULT') ? __defaultUser.username : user).orgid;
-    await influxUtils.createVariable(orgID, name, type, values, defVal)
+    //let orgID = influxUtils.getUser((user === 'DEFAULT') ? __defaultUser.username : user).orgid;
+    await influxUtils.createVariable(userName, name, type, values, defVal)
 });
 
 //For troubleshooting - up to 5 min
@@ -274,14 +310,14 @@ When(/^press the "(.*)" key$/, async key => {
     await bSteps.pressKeyAndWait(key);
 });
 
-When(/^create a new template from the file "(.*)" for user "(.*)"$/, async (filepath, user) => {
-    let orgID = influxUtils.getUser((user === 'DEFAULT') ? __defaultUser.username : user).orgid;
-    await influxUtils.createTemplateFromFile(filepath, orgID);
+When(/^create a new template from the file "(.*)" for user "(.*)"$/, async (filepath, userName) => {
+    //let orgID = influxUtils.getUser((user === 'DEFAULT') ? __defaultUser.username : user).orgid;
+    await influxUtils.createTemplateFromFile(userName, filepath);
 });
 
-When(/^create check over API from file "(.*)" for user "(.*)"$/, async (filepath, user) => {
-    let orgID = influxUtils.getUser((user === 'DEFAULT') ? __defaultUser.username : user).orgid;
-    await influxUtils.createAlertCheckFromFile(filepath, orgID);
+When(/^create check over API from file "(.*)" for user "(.*)"$/, async (filepath, userName) => {
+    //let orgID = influxUtils.getUser((user === 'DEFAULT') ? __defaultUser.username : user).orgid;
+    await influxUtils.createAlertCheckFromFile(userName, filepath);
 });
 
 When(/^remove file "(.*)" if exists$/, async filePath => {
@@ -367,6 +403,12 @@ Then(/^the add label popover does not contain create new$/, async () => {
 
 When(/^clear the popover label selector filter$/, async () => {
     await bSteps.clearDashboardLabelsFilter();
+});
+
+//For Inspection
+When(/^get authorizations for user "(.*)"$/, async userName => {
+    let auths = await influxUtils.getAuthorizations(userName);
+    console.info(`Authorizations for ${userName}:\n${JSON.stringify(auths)}`);
 });
 
 

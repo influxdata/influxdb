@@ -157,19 +157,19 @@ class scrapersSteps extends baseSteps{
         });
     }
 
-    async verifyNamedQueryResponseValues(queryName, username, bucket, values, field = '_value'){
-        let user = await influxUtils.getUser((username === 'DEFAULT') ? __defaultUser.username : username);
+    async verifyNamedQueryResponseValues(queryName, userName, bucketName, values, field = '_value'){
+        let user = await influxUtils.getUser(userName);
         let query;
         query = namedQueriesMap.get(queryName);
-        query = query.replace('[BUCKET]', bucket);
+        query = query.replace('[BUCKET]', (bucketName === 'DEFAULT') ? user.bucket : bucketName);
 
-        let resultsMapArr = await influxUtils.parseQueryResults(await influxUtils.query(user.orgid, query));
+        let results = await influxUtils.query(user.username, query);
 
         let targetValues = values.split(',');
 
         targetValues.forEach(async value => {
-            await expect(resultsMapArr.filter(rec =>
-                rec.get(field) === targetValues[0]
+            await expect(results.filter(rec =>
+                rec[field] === targetValues[0]
             ).length).to.be.above(0, `failed to locate record with value ${value} in field ${field}`);
         });
     }
