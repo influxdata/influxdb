@@ -101,7 +101,6 @@ const Visualization: FC<PipeProp> = ({
             <ViewSwitcher
               giraffeResult={results.parsed}
               files={[results.raw]}
-              loading={loading}
               properties={data.properties}
               timeZone={timeZone}
               theme="dark"
