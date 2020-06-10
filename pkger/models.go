@@ -658,11 +658,13 @@ type SummaryTelegraf struct {
 
 // SummaryVariable provides a summary of a pkg variable.
 type SummaryVariable struct {
-	ID                SafeID                      `json:"id,omitempty"`
-	PkgName           string                      `json:"pkgName"`
-	OrgID             SafeID                      `json:"orgID,omitempty"`
-	Name              string                      `json:"name"`
-	Description       string                      `json:"description"`
-	Arguments         *influxdb.VariableArguments `json:"arguments"`
-	LabelAssociations []SummaryLabel              `json:"labelAssociations"`
+	ID          SafeID                      `json:"id,omitempty"`
+	PkgName     string                      `json:"pkgName"`
+	OrgID       SafeID                      `json:"orgID,omitempty"`
+	Name        string                      `json:"name"`
+	Description string                      `json:"description"`
+	Arguments   *influxdb.VariableArguments `json:"arguments"`
+
+	EnvReferences     []SummaryReference `json:"envReferences"`
+	LabelAssociations []SummaryLabel     `json:"labelAssociations"`
 }
