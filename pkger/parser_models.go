@@ -35,10 +35,10 @@ func (i *identity) PkgName() string {
 
 func (i *identity) summarizeReferences() []SummaryReference {
 	refs := make([]SummaryReference, 0)
-	if i.name != nil && i.name.EnvRef != "" {
+	if i.name.hasEnvRef() {
 		refs = append(refs, convertRefToRefSummary("metadata.name", i.name))
 	}
-	if i.displayName != nil && i.displayName.EnvRef != "" {
+	if i.displayName.hasEnvRef() {
 		refs = append(refs, convertRefToRefSummary("spec.name", i.displayName))
 	}
 	return refs
@@ -1474,7 +1474,7 @@ func (r *notificationRule) summarize() SummaryNotificationRule {
 	}
 
 	envRefs := summarizeCommonReferences(r.identity, r.labels)
-	if r.endpointName != nil && r.endpointName.EnvRef != "" {
+	if r.endpointName.hasEnvRef() {
 		envRefs = append(envRefs, convertRefToRefSummary("spec.endpointName", r.endpointName))
 	}
 
@@ -1722,6 +1722,7 @@ func (t *task) summarize() SummaryTask {
 		Query:       t.query,
 		Status:      t.Status(),
 
+		EnvReferences:     summarizeCommonReferences(t.identity, t.labels),
 		LabelAssociations: toSummaryLabels(t.labels...),
 	}
 }
@@ -1993,6 +1994,10 @@ type references struct {
 
 func (r *references) hasValue() bool {
 	return r.EnvRef != "" || r.Secret != "" || r.val != nil
+}
+
+func (r *references) hasEnvRef() bool {
+	return r != nil && r.EnvRef != ""
 }
 
 func (r *references) String() string {
