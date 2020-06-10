@@ -1,0 +1,6 @@
+{
+  "devDependencies": {
+    "@testing-library/react": "^10.2.1"
+  },
+  "version": "0.0.0"
+}
