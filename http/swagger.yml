@@ -8486,10 +8486,15 @@ components:
           type: string
         name:
           type: string
-        description:
-          type: string
-        retentionPeriod:
-          type: string
+        properties:
+          type: object
+          properties:
+            color:
+              type: string
+            description:
+              type: string
+        envReferences:
+          $ref: "#/components/schemas/PkgEnvReferences"
     PkgChart:
       type: object
       properties:

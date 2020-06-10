@@ -678,33 +678,15 @@ func TestService(t *testing.T) {
 					sum := impact.Summary
 					require.Len(t, sum.Labels, 3)
 
-					assert.Contains(t, sum.Labels, SummaryLabel{
-						ID:      1,
-						OrgID:   SafeID(orgID),
-						PkgName: "label-1",
-						Name:    "label-1",
-						Properties: struct {
-							Color       string `json:"color"`
-							Description string `json:"description"`
-						}{
-							Color:       "#FFFFFF",
-							Description: "label 1 description",
-						},
-					})
+					expectedLabel := sumLabelGen("label-1", "label-1", "#FFFFFF", "label 1 description")
+					expectedLabel.ID = 1
+					expectedLabel.OrgID = SafeID(orgID)
+					assert.Contains(t, sum.Labels, expectedLabel)
 
-					assert.Contains(t, sum.Labels, SummaryLabel{
-						ID:      2,
-						OrgID:   SafeID(orgID),
-						PkgName: "label-2",
-						Name:    "label-2",
-						Properties: struct {
-							Color       string `json:"color"`
-							Description string `json:"description"`
-						}{
-							Color:       "#000000",
-							Description: "label 2 description",
-						},
-					})
+					expectedLabel = sumLabelGen("label-2", "label-2", "#000000", "label 2 description")
+					expectedLabel.ID = 2
+					expectedLabel.OrgID = SafeID(orgID)
+					assert.Contains(t, sum.Labels, expectedLabel)
 				})
 			})
 
@@ -736,7 +718,6 @@ func TestService(t *testing.T) {
 
 					stubExisting := func(name string, id influxdb.ID) *influxdb.Label {
 						pkgLabel := pkg.mLabels[name]
-						fmt.Println(name, pkgLabel)
 						return &influxdb.Label{
 							// makes all pkg changes same as they are on the existing
 							ID:    id,
@@ -785,33 +766,15 @@ func TestService(t *testing.T) {
 					sum := impact.Summary
 					require.Len(t, sum.Labels, 3)
 
-					assert.Contains(t, sum.Labels, SummaryLabel{
-						ID:      1,
-						OrgID:   SafeID(orgID),
-						PkgName: "label-1",
-						Name:    "label-1",
-						Properties: struct {
-							Color       string `json:"color"`
-							Description string `json:"description"`
-						}{
-							Color:       "#FFFFFF",
-							Description: "label 1 description",
-						},
-					})
+					expectedLabel := sumLabelGen("label-1", "label-1", "#FFFFFF", "label 1 description")
+					expectedLabel.ID = 1
+					expectedLabel.OrgID = SafeID(orgID)
+					assert.Contains(t, sum.Labels, expectedLabel)
 
-					assert.Contains(t, sum.Labels, SummaryLabel{
-						ID:      2,
-						OrgID:   SafeID(orgID),
-						PkgName: "label-2",
-						Name:    "label-2",
-						Properties: struct {
-							Color       string `json:"color"`
-							Description string `json:"description"`
-						}{
-							Color:       "#000000",
-							Description: "label 2 description",
-						},
-					})
+					expectedLabel = sumLabelGen("label-2", "label-2", "#000000", "label 2 description")
+					expectedLabel.ID = 2
+					expectedLabel.OrgID = SafeID(orgID)
+					assert.Contains(t, sum.Labels, expectedLabel)
 
 					assert.Equal(t, 1, fakeLabelSVC.CreateLabelCalls.Count()) // only called for second label
 				})

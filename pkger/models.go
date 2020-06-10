@@ -597,6 +597,7 @@ type SummaryLabel struct {
 		Color       string `json:"color"`
 		Description string `json:"description"`
 	} `json:"properties"`
+	EnvReferences []SummaryReference `json:"envReferences"`
 }
 
 // SummaryLabelMapping provides a summary of a label mapped with a single resource.
