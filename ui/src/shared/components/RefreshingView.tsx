@@ -7,6 +7,7 @@ import {connect} from 'react-redux'
 import TimeSeries from 'src/shared/components/TimeSeries'
 import EmptyQueryView, {ErrorFormat} from 'src/shared/components/EmptyQueryView'
 import ViewSwitcher from 'src/shared/components/ViewSwitcher'
+import ViewLoadingSpinner from 'src/shared/components/ViewLoadingSpinner'
 
 // Utils
 import {GlobalAutoRefresher} from 'src/utils/AutoRefresher'
@@ -82,7 +83,7 @@ class RefreshingView extends PureComponent<Props, State> {
         }) => {
           return (
             <>
-              <p>{loading}</p>
+              <ViewLoadingSpinner loading={loading} />
               <EmptyQueryView
                 errorFormat={ErrorFormat.Scroll}
                 errorMessage={errorMessage}
