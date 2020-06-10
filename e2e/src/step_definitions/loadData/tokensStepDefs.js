@@ -4,7 +4,7 @@ const tokensSteps = require(__srcdir + '/steps/loadData/tokensSteps.js');
 
 let tknSteps = new tokensSteps(__wdriver);
 
-Then(/^the tokens tab is loaded$/, async () => {
+Then(/^the tokens tab is loaded$/, {timeout: 10000}, async () => {
     await tknSteps.isLoaded();
 });
 
@@ -161,6 +161,14 @@ Then(/^the token described as "(.*)" is enabled$/, async descr => {
 
 Then(/^the first tokens are sorted by description as "(.*)"$/, async list => {
     await tknSteps.verifyTokenSortOrder(list);
+});
+
+When(/^click the tokens sorter button$/, async () => {
+   await tknSteps.clickTokensSorterButton();
+});
+
+When(/^click the tokens sorter item "(.*)"$/, async item => {
+   await tknSteps.clickTokensSorterItem(item);
 });
 
 When(/^click the tokens sort By Name button$/, async () => {
