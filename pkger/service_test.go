@@ -506,6 +506,7 @@ func TestService(t *testing.T) {
 						Description:       "bucket 1 description",
 						RetentionPeriod:   time.Hour,
 						LabelAssociations: []SummaryLabel{},
+						EnvReferences:     []SummaryReference{},
 					}
 					assert.Contains(t, sum.Buckets, expected)
 				})
@@ -557,6 +558,7 @@ func TestService(t *testing.T) {
 						Description:       "bucket 1 description",
 						RetentionPeriod:   time.Hour,
 						LabelAssociations: []SummaryLabel{},
+						EnvReferences:     []SummaryReference{},
 					}
 					assert.Contains(t, sum.Buckets, expected)
 					assert.Zero(t, fakeBktSVC.CreateBucketCalls.Count())

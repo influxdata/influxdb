@@ -33,6 +33,21 @@ func (i *identity) PkgName() string {
 	return i.name.String()
 }
 
+func (i *identity) summarizeReferences() []SummaryReference {
+	refs := make([]SummaryReference, 0)
+	if i.name != nil && i.name.EnvRef != "" {
+		refs = append(refs, convertRefToRefSummary("metadata.name", i.name))
+	}
+	if i.displayName != nil && i.displayName.EnvRef != "" {
+		refs = append(refs, convertRefToRefSummary("spec.name", i.displayName))
+	}
+	return refs
+}
+
+func summarizeCommonReferences(ident identity, labels sortedLabels) []SummaryReference {
+	return append(ident.summarizeReferences(), labels.summarizeReferences()...)
+}
+
 const (
 	fieldAPIVersion   = "apiVersion"
 	fieldAssociations = "associations"
@@ -79,6 +94,7 @@ func (b *bucket) summarize() SummaryBucket {
 		Description:       b.Description,
 		RetentionPeriod:   b.RetentionRules.RP(),
 		LabelAssociations: toSummaryLabels(b.labels...),
+		EnvReferences:     summarizeCommonReferences(b.identity, b.labels),
 	}
 }
 
@@ -1167,6 +1183,14 @@ func toSummaryLabels(labels ...*label) []SummaryLabel {
 
 type sortedLabels []*label
 
+func (s sortedLabels) summarizeReferences() []SummaryReference {
+	refs := make([]SummaryReference, 0)
+	for _, l := range s {
+		refs = append(refs, l.summarizeReferences()...)
+	}
+	return refs
+}
+
 func (s sortedLabels) Len() int {
 	return len(s)
 }
@@ -1969,9 +1993,13 @@ func (r *references) String() string {
 		return v
 	}
 	if r.EnvRef != "" {
-		return "env-" + r.EnvRef
+		return r.defaultEnvValue()
 	}
 	return ""
+}
+
+func (r *references) defaultEnvValue() string {
+	return "env-" + r.EnvRef
 }
 
 func (r *references) StringVal() string {
@@ -1990,6 +2018,15 @@ func (r *references) SecretField() influxdb.SecretField {
 		return influxdb.SecretField{Value: &str}
 	}
 	return influxdb.SecretField{}
+}
+
+func convertRefToRefSummary(field string, ref *references) SummaryReference {
+	return SummaryReference{
+		Field:        field,
+		EnvRefKey:    ref.EnvRef,
+		Value:        ref.StringVal(),
+		DefaultValue: ref.defaultEnvValue(),
+	}
 }
 
 func isValidName(name string, minLength int) (validationErr, bool) {
