@@ -2417,8 +2417,8 @@ spec:
 		})
 	})
 
-	t.Run("pkg with notification endpoints and labels associated", func(t *testing.T) {
-		t.Run("happy path", func(t *testing.T) {
+	t.Run("pkg with notification endpoints", func(t *testing.T) {
+		t.Run("and labels associated should be successful", func(t *testing.T) {
 			testfileRunner(t, "testdata/notification_endpoint", func(t *testing.T, pkg *Pkg) {
 				expectedEndpoints := []SummaryNotificationEndpoint{
 					{
@@ -2509,6 +2509,27 @@ spec:
 						LabelName:       "label-1",
 					})
 				}
+			})
+		})
+
+		t.Run("with env refs should be valid", func(t *testing.T) {
+			testfileRunner(t, "testdata/notification_endpoint_ref.yml", func(t *testing.T, pkg *Pkg) {
+				actual := pkg.Summary().NotificationEndpoints
+				require.Len(t, actual, 1)
+
+				expectedEnvRefs := []SummaryReference{
+					{
+						Field:        "metadata.name",
+						EnvRefKey:    "meta-name",
+						DefaultValue: "env-meta-name",
+					},
+					{
+						Field:        "spec.name",
+						EnvRefKey:    "spec-name",
+						DefaultValue: "env-spec-name",
+					},
+				}
+				assert.Equal(t, expectedEnvRefs, actual[0].EnvReferences)
 			})
 		})
 
