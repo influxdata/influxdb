@@ -1851,6 +1851,7 @@ func (t *telegraf) summarize() SummaryTelegraf {
 		PkgName:           t.PkgName(),
 		TelegrafConfig:    cfg,
 		LabelAssociations: toSummaryLabels(t.labels...),
+		EnvReferences:     summarizeCommonReferences(t.identity, t.labels),
 	}
 }
 
