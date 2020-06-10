@@ -649,9 +649,11 @@ type SummaryTask struct {
 
 // SummaryTelegraf provides a summary of a pkg telegraf config.
 type SummaryTelegraf struct {
-	PkgName           string                  `json:"pkgName"`
-	TelegrafConfig    influxdb.TelegrafConfig `json:"telegrafConfig"`
-	LabelAssociations []SummaryLabel          `json:"labelAssociations"`
+	PkgName        string                  `json:"pkgName"`
+	TelegrafConfig influxdb.TelegrafConfig `json:"telegrafConfig"`
+
+	EnvReferences     []SummaryReference `json:"envReferences"`
+	LabelAssociations []SummaryLabel     `json:"labelAssociations"`
 }
 
 // SummaryVariable provides a summary of a pkg variable.

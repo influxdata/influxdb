@@ -3342,8 +3342,8 @@ spec:
 		})
 	})
 
-	t.Run("pkg with telegraf and label associations", func(t *testing.T) {
-		t.Run("with valid fields", func(t *testing.T) {
+	t.Run("pkg with telegraf config", func(t *testing.T) {
+		t.Run("and associated labels should be successful", func(t *testing.T) {
 			testfileRunner(t, "testdata/telegraf", func(t *testing.T, pkg *Pkg) {
 				sum := pkg.Summary()
 				require.Len(t, sum.TelegrafConfigs, 2)
@@ -3373,6 +3373,27 @@ spec:
 				expectedMapping.LabelPkgName = "label-2"
 				expectedMapping.LabelName = "label-2"
 				assert.Equal(t, expectedMapping, sum.LabelMappings[1])
+			})
+		})
+
+		t.Run("with env refs should be valid", func(t *testing.T) {
+			testfileRunner(t, "testdata/telegraf_ref.yml", func(t *testing.T, pkg *Pkg) {
+				actual := pkg.Summary().TelegrafConfigs
+				require.Len(t, actual, 1)
+
+				expectedEnvRefs := []SummaryReference{
+					{
+						Field:        "metadata.name",
+						EnvRefKey:    "meta-name",
+						DefaultValue: "env-meta-name",
+					},
+					{
+						Field:        "spec.name",
+						EnvRefKey:    "spec-name",
+						DefaultValue: "env-spec-name",
+					},
+				}
+				assert.Equal(t, expectedEnvRefs, actual[0].EnvReferences)
 			})
 		})
 

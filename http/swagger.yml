@@ -8120,6 +8120,8 @@ components:
                         type: array
                         items:
                           $ref: "#/components/schemas/PkgSummaryLabel"
+                      envReferences:
+                        $ref: "#/components/schemas/PkgEnvReferences"
             variables:
               type: array
               items:
