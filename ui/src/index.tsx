@@ -48,7 +48,6 @@ import NewVEO from 'src/dashboards/components/NewVEO'
 import OnboardingWizardPage from 'src/onboarding/containers/OnboardingWizardPage'
 import BucketsIndex from 'src/buckets/containers/BucketsIndex'
 import TemplatesIndex from 'src/templates/containers/TemplatesIndex'
-import {CommunityTemplatesIndex} from 'src/templates/containers/CommunityTemplatesIndex'
 import TelegrafsPage from 'src/telegrafs/containers/TelegrafsPage'
 import ClientLibrariesPage from 'src/clientLibraries/containers/ClientLibrariesPage'
 import ClientArduinoOverlay from 'src/clientLibraries/components/ClientArduinoOverlay'
@@ -99,6 +98,9 @@ import EditRuleOverlay from 'src/notifications/rules/components/EditRuleOverlay'
 import NewEndpointOverlay from 'src/notifications/endpoints/components/NewEndpointOverlay'
 import EditEndpointOverlay from 'src/notifications/endpoints/components/EditEndpointOverlay'
 import NoOrgsPage from 'src/organizations/containers/NoOrgsPage'
+
+import {CommunityTemplatesIndex} from 'src/templates/containers/CommunityTemplatesIndex'
+import {CommunityTemplateImportOverlay} from 'src/templates/components/CommunityTemplateImportOverlay'
 
 // Utilities
 import {isFlagEnabled} from 'src/shared/utils/featureFlag'
@@ -435,8 +437,8 @@ class Root extends PureComponent {
                                   component={CommunityTemplatesIndex}
                                 >
                                   <Route
-                                    path="import"
-                                    component={TemplateImportOverlay}
+                                    path="import/:templateName"
+                                    component={CommunityTemplateImportOverlay}
                                   />
                                   <Route
                                     path=":id/export"
