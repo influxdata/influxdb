@@ -104,6 +104,8 @@ func TestLauncher_SetupWithUsers(t *testing.T) {
 		t.Fatalf("unexpected status code: %d, body: %s, headers: %v", resp.StatusCode, body, resp.Header)
 	}
 
+	// perform lookup with login session
+	// users session has scope for users within own org
 	r, err = nethttp.NewRequest("GET", l.URL()+"/api/v2/users", nil)
 	if err != nil {
 		t.Fatal(err)
@@ -135,7 +137,54 @@ func TestLauncher_SetupWithUsers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error unmarshaling user: %v", err)
 	}
+
+	if len(exp.Users) != 1 {
+		t.Fatalf("unexpected number of users: %#+v", exp)
+	}
+
+	if exp.Users[0].Name != "USER" {
+		t.Fatalf(`expected only user to be listed is "USER", found %q`, exp.Users[0].Name)
+	}
+
+	// perform same lookup with god token
+	// god token has scope for all users
+	r = l.NewHTTPRequestOrFail(t, "GET", "/api/v2/users", l.Auth.Token, "")
+	resp, err = nethttp.DefaultClient.Do(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	body, err = ioutil.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := resp.Body.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	if resp.StatusCode != nethttp.StatusOK {
+		t.Fatalf("unexpected status code: %d, body: %s, headers: %v", resp.StatusCode, body, resp.Header)
+	}
+
+	exp = struct {
+		Users []platform.User `json:"users"`
+	}{}
+
+	err = json.Unmarshal(body, &exp)
+	if err != nil {
+		t.Fatalf("unexpected error unmarshaling user: %v", err)
+	}
+
 	if len(exp.Users) != 2 {
-		t.Fatalf("unexpected 2 users: %#+v", exp)
+		t.Fatalf("unexpected number of users: %#+v", exp)
+	}
+
+	if exp.Users[0].Name != "USER" {
+		t.Fatalf(`expected only user to be listed is "USER", found %q`, exp.Users[0].Name)
+	}
+
+	if exp.Users[1].Name != "USER2" {
+		t.Fatalf(`expected only user to be listed is "USER2", found %q`, exp.Users[0].Name)
 	}
 }
