@@ -3491,6 +3491,71 @@ spec:
 			})
 		})
 
+		t.Run("with env refs should be valid", func(t *testing.T) {
+			testfileRunner(t, "testdata/variable_ref.yml", func(t *testing.T, pkg *Pkg) {
+				actual := pkg.Summary().Variables
+				require.Len(t, actual, 1)
+
+				expectedEnvRefs := []SummaryReference{
+					{
+						Field:        "metadata.name",
+						EnvRefKey:    "meta-name",
+						DefaultValue: "env-meta-name",
+					},
+					{
+						Field:        "spec.name",
+						EnvRefKey:    "spec-name",
+						DefaultValue: "env-spec-name",
+					},
+				}
+				assert.Equal(t, expectedEnvRefs, actual[0].EnvReferences)
+			})
+		})
+
+		t.Run("and labels associated", func(t *testing.T) {
+			testfileRunner(t, "testdata/variable_associates_label.yml", func(t *testing.T, pkg *Pkg) {
+				sum := pkg.Summary()
+				require.Len(t, sum.Labels, 1)
+
+				vars := sum.Variables
+				require.Len(t, vars, 1)
+
+				expectedLabelMappings := []struct {
+					varName string
+					labels  []string
+				}{
+					{
+						varName: "var-1",
+						labels:  []string{"label-1"},
+					},
+				}
+				for i, expected := range expectedLabelMappings {
+					v := vars[i]
+					require.Len(t, v.LabelAssociations, len(expected.labels))
+
+					for j, label := range expected.labels {
+						assert.Equal(t, label, v.LabelAssociations[j].Name)
+					}
+				}
+
+				expectedMappings := []SummaryLabelMapping{
+					{
+						Status:          StateStatusNew,
+						ResourcePkgName: "var-1",
+						ResourceName:    "var-1",
+						LabelPkgName:    "label-1",
+						LabelName:       "label-1",
+					},
+				}
+
+				require.Len(t, sum.LabelMappings, len(expectedMappings))
+				for i, expected := range expectedMappings {
+					expected.ResourceType = influxdb.VariablesResourceType
+					assert.Equal(t, expected, sum.LabelMappings[i])
+				}
+			})
+		})
+
 		t.Run("handles bad config", func(t *testing.T) {
 			tests := []testPkgResourceError{
 				{
@@ -3631,50 +3696,6 @@ spec:
 
 			for _, tt := range tests {
 				testPkgErrors(t, KindVariable, tt)
-			}
-		})
-	})
-
-	t.Run("pkg with variable and labels associated", func(t *testing.T) {
-		testfileRunner(t, "testdata/variable_associates_label.yml", func(t *testing.T, pkg *Pkg) {
-			sum := pkg.Summary()
-			require.Len(t, sum.Labels, 1)
-
-			vars := sum.Variables
-			require.Len(t, vars, 1)
-
-			expectedLabelMappings := []struct {
-				varName string
-				labels  []string
-			}{
-				{
-					varName: "var-1",
-					labels:  []string{"label-1"},
-				},
-			}
-			for i, expected := range expectedLabelMappings {
-				v := vars[i]
-				require.Len(t, v.LabelAssociations, len(expected.labels))
-
-				for j, label := range expected.labels {
-					assert.Equal(t, label, v.LabelAssociations[j].Name)
-				}
-			}
-
-			expectedMappings := []SummaryLabelMapping{
-				{
-					Status:          StateStatusNew,
-					ResourcePkgName: "var-1",
-					ResourceName:    "var-1",
-					LabelPkgName:    "label-1",
-					LabelName:       "label-1",
-				},
-			}
-
-			require.Len(t, sum.LabelMappings, len(expectedMappings))
-			for i, expected := range expectedMappings {
-				expected.ResourceType = influxdb.VariablesResourceType
-				assert.Equal(t, expected, sum.LabelMappings[i])
 			}
 		})
 	})

@@ -1910,6 +1910,7 @@ func (v *variable) summarize() SummaryVariable {
 		Description:       v.Description,
 		Arguments:         v.influxVarArgs(),
 		LabelAssociations: toSummaryLabels(v.labels...),
+		EnvReferences:     summarizeCommonReferences(v.identity, v.labels),
 	}
 }
 
