@@ -78,7 +78,7 @@ func cmdWrite(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd.PersistentFlags().StringVar(&writeFlags.Format, "format", "", "Input format, either lp (Line Protocol) or csv (Comma Separated Values). Defaults to lp unless '.csv' extension")
 	cmd.PersistentFlags().StringArrayVar(&writeFlags.Headers, "header", []string{}, "Header prepends lines to input data; Example --header HEADER1 --header HEADER2")
 	cmd.PersistentFlags().StringArrayVarP(&writeFlags.Files, "file", "f", []string{}, "The path to the file to import")
-	cmd.PersistentFlags().StringArrayVarP(&writeFlags.URLs, "url", "u", []string{}, "The url with data to import")
+	cmd.PersistentFlags().StringArrayVarP(&writeFlags.URLs, "url", "u", []string{}, "The URL to import data from")
 	cmd.PersistentFlags().BoolVar(&writeFlags.Debug, "debug", false, "Log CSV columns to stderr before reading data rows")
 	cmd.PersistentFlags().BoolVar(&writeFlags.SkipRowOnError, "skipRowOnError", false, "Log CSV data errors to stderr and continue with CSV processing")
 	cmd.PersistentFlags().IntVar(&writeFlags.SkipHeader, "skipHeader", 0, "Skip the first <n> rows from input data")
