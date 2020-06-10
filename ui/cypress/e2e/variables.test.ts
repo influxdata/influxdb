@@ -214,8 +214,6 @@ describe('Variables', () => {
     cy.getByTestID('search-widget').clear()
     cy.getByTestID('inline-labels--empty').should('exist')
 
-    const expected = [variableName, defaultVar]
-
     cy.getByTestID('resource-card variable')
       .should('have.length', 2)
       .first()
