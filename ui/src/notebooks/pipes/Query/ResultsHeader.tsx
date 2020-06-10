@@ -25,13 +25,13 @@ const ResultsHeader: FC<Props> = ({
 }) => {
   const glyph = visibility === 'visible' ? IconFont.EyeOpen : IconFont.EyeClosed
   const className = classnames('notebook-raw-data--header', {
-    [`notebook-raw-data--header__${visibility}`]: visibility,
+    [`notebook-raw-data--header__${visibility}`]: resizingEnabled && visibility,
   })
 
   if (!resizingEnabled) {
     return (
       <div className={className}>
-        <Icon glyph={IconFont.Zap} />
+        <Icon glyph={IconFont.Zap} className="notebook-raw-data--vis-toggle" />
       </div>
     )
   }
@@ -47,7 +47,7 @@ const ResultsHeader: FC<Props> = ({
   return (
     <div className={className}>
       <div onClick={handleToggleVisibility}>
-        <Icon glyph={glyph} />
+        <Icon className="notebook-raw-data--vis-toggle" glyph={glyph} />
       </div>
       <div
         className="notebook-raw-data--drag-handle"

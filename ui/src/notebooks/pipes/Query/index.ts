@@ -10,7 +10,7 @@ register({
   button: 'Custom Script',
   initial: {
     resultsVisibility: 'visible',
-    resultsPanelHeight: undefined,
+    resultsPanelHeight: 200,
     activeQuery: 0,
     queries: [
       {

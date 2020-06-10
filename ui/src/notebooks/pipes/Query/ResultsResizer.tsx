@@ -1,5 +1,7 @@
 // Libraries
-import React, {FC, useRef, useEffect, ReactNode} from 'react'
+import React, {FC, useRef, useEffect, ReactNode, useState} from 'react'
+import {round} from 'lodash'
+import classnames from 'classnames'
 
 // Components
 import ResultsHeader from 'src/notebooks/pipes/Query/ResultsHeader'
@@ -26,20 +28,39 @@ const ResultsResizer: FC<Props> = ({
   onUpdateVisibility,
   resizingEnabled,
 }) => {
+  const [size, updateSize] = useState<number>(height)
   const resultsBodyRef = useRef<HTMLDivElement>(null)
   const dragHandleRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
+  const resultsBodyClassName = classnames('notebook-raw-data--body', {
+    [`notebook-raw-data--body__${visibility}`]: resizingEnabled && visibility,
+  })
+
+  const updateResultsStyle = (): void => {
     if (resultsBodyRef.current && resizingEnabled && visibility === 'visible') {
-      resultsBodyRef.current.setAttribute('style', `height: ${height}px`)
-    } else if (
-      resultsBodyRef.current &&
-      resizingEnabled &&
-      visibility === 'hidden'
-    ) {
-      resultsBodyRef.current.setAttribute('style', undefined)
+      resultsBodyRef.current.setAttribute('style', `height: ${size}px`)
+    } else {
+      resultsBodyRef.current.setAttribute('style', '')
     }
-  }, [height, visibility, resizingEnabled])
+  }
+
+  // Ensure results renders with proper height on initial render
+  useEffect(() => {
+    updateResultsStyle()
+  }, [])
+
+  // Update results height when associated props change
+  useEffect(() => {
+    updateResultsStyle()
+  }, [size, visibility, resizingEnabled])
+
+  // Update local height when context height changes
+  // so long as it is a different value
+  useEffect(() => {
+    if (height !== size) {
+      updateSize(height)
+    }
+  }, [height])
 
   const handleMouseMove = (e: MouseEvent): void => {
     if (!resultsBodyRef.current) {
@@ -49,9 +70,12 @@ const ResultsResizer: FC<Props> = ({
     const {pageY} = e
     const {top} = resultsBodyRef.current.getBoundingClientRect()
 
-    const updatedHeight = Math.max(pageY - top, MINIMUM_RESULTS_PANEL_HEIGHT)
+    const updatedHeight = round(
+      Math.max(pageY - top, MINIMUM_RESULTS_PANEL_HEIGHT)
+    )
 
-    onUpdateHeight(updatedHeight)
+    updateSize(updatedHeight)
+    console.log('handleMouseMove', updatedHeight)
   }
 
   const handleMouseDown = (): void => {
@@ -76,9 +100,14 @@ const ResultsResizer: FC<Props> = ({
     const body = document.getElementsByTagName('body')[0]
     body && body.classList.remove('notebook-results--dragging')
 
+    console.log('handleMouseUp', size)
+    onUpdateHeight(size)
+
     window.removeEventListener('mousemove', handleMouseMove)
     window.removeEventListener('mouseup', handleMouseUp)
   }
+
+  console.log('height', height, 'size', size)
 
   return (
     <>
@@ -89,7 +118,7 @@ const ResultsResizer: FC<Props> = ({
         onStartDrag={handleMouseDown}
         dragHandleRef={dragHandleRef}
       />
-      <div className="notebook-raw-data--body" ref={resultsBodyRef}>
+      <div className={resultsBodyClassName} ref={resultsBodyRef}>
         {children}
       </div>
     </>
