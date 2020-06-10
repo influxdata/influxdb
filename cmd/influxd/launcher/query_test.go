@@ -802,13 +802,13 @@ from(bucket: v.bucket)
 	|> drop(columns: ["_start", "_stop"])
 `,
 			res: `
-#datatype,string,long,long,string,string,string,dateTime:RFC3339
-#group,false,false,false,true,true,true,false
+#datatype,string,long,dateTime:RFC3339,long,string,string,string
+#group,false,false,false,false,true,true,true
 #default,_result,,,,,,
-,result,table,_value,_field,_measurement,k,_time
-,,0,5,f,m0,k0,1970-01-01T00:00:05Z
-,,0,5,f,m0,k0,1970-01-01T00:00:10Z
-,,0,5,f,m0,k0,1970-01-01T00:00:15Z
+,result,table,_time,_value,_field,_measurement,k
+,,0,1970-01-01T00:00:05Z,5,f,m0,k0
+,,0,1970-01-01T00:00:10Z,5,f,m0,k0
+,,0,1970-01-01T00:00:15Z,5,f,m0,k0
 `,
 		},
 		{
