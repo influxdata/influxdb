@@ -1,6 +1,6 @@
 // Libraries
 import React from 'react'
-import {render, fireEvent} from 'react-testing-library'
+import {render, fireEvent} from '@testing-library/react'
 
 // Components
 import InlineLabelsList from 'src/shared/components/inlineLabels/InlineLabelsList'

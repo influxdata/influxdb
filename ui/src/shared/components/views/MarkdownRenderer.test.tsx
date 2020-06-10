@@ -1,6 +1,6 @@
 import React from 'react'
 
-import {render} from 'react-testing-library'
+import {render} from '@testing-library/react'
 
 describe('the MarkdownRenderer wrapper around ReactMarkdown', () => {
   describe('image rendering behavior', () => {

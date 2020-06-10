@@ -1,6 +1,6 @@
 import React from 'react'
 
-import {render} from 'react-testing-library'
+import {render} from '@testing-library/react'
 
 import {
   TimeContext,
@@ -15,6 +15,7 @@ describe('Notebook Time Context', () => {
   beforeAll(() => {
     console.error = (...args) => {
       if (/Warning.*not wrapped in act/.test(args[0])) {
+        console.log('TRIGGERING')
         return
       }
       originalError.call(console, ...args)
