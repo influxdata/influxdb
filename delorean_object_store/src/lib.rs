@@ -413,6 +413,7 @@ pub struct Error(InternalError);
 
 impl Error {
     #[cfg(test)]
+    #[cfg(test_aws)]
     fn s3_error_due_to_credentials(&self) -> bool {
         use rusoto_core::RusotoError;
         use InternalError::*;
@@ -555,6 +556,7 @@ mod tests {
     // DELETE nonexisting location
     // PUT overwriting
 
+    #[cfg(test_gcs)]
     mod google_cloud_storage {
         use std::env;
 
@@ -579,6 +581,7 @@ mod tests {
         }
     }
 
+    #[cfg(test_aws)]
     mod amazon_s3 {
         use std::env;
 

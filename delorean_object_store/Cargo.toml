@@ -21,3 +21,6 @@ tokio = { version = "0.2", features = ["full"] }
 
 [dev-dependencies]
 tokio = { version = "0.2", features = ["full"] }
+
+[build-dependencies]
+dotenv = "0.15.0"
