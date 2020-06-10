@@ -9,7 +9,7 @@ describe('Variables', () => {
     })
   })
 
-  it('can CRUD a CSV, map, and query variable', () => {
+  it('can CRUD a CSV, map, and query variable and search for variables based on names', () => {
     // Navigate away from and back to variables index
     cy.getByTestID('nav-item-dashboards').click()
     cy.getByTestID('nav-item-settings').click()
@@ -103,6 +103,13 @@ describe('Variables', () => {
 
     cy.getByTestID('resource-card variable').should('have.length', 2)
 
+    // Search variable by name
+    cy.getByTestID('search-widget').type(variableName)
+
+    cy.getByTestID('resource-card variable')
+      .should('have.length', 1)
+      .contains(variableName)
+
     // Delete a variable
     cy.getByTestID('context-delete-menu')
       .first()
@@ -112,6 +119,12 @@ describe('Variables', () => {
       .click({force: true})
 
     cy.getByTestID('notification-success--dismiss').click()
+
+    cy.getByTestID('search-widget').clear()
+
+    cy.getByTestID('resource-card variable')
+      .should('have.length', 1)
+      .contains('Little Variable')
 
     // Rename the variable
     cy.getByTestID('context-menu')
@@ -154,18 +167,69 @@ describe('Variables', () => {
     cy.getByTestID('import-overlay--textarea').contains('this is invalid')
   })
 
-  it('can add a label', () => {
+  it('can create and delete a label and filter a variable by label name & sort by variable name', () => {
     cy.getByTestID('resource-card variable').within(() => {
       cy.getByTestID('inline-labels--add').click()
     })
 
-    const labelName = 'l1'
+    const labelName = 'label'
     cy.getByTestID('inline-labels--popover--contents').type(labelName)
     cy.getByTestID('inline-labels--create-new').click()
     cy.getByTestID('create-label-form--submit').click()
 
+    cy.getByTestID('add-resource-dropdown--button').click()
+
+    cy.getByTestID('add-resource-dropdown--new').should('have.length', 1)
+
+    cy.getByTestID('add-resource-dropdown--new').click()
+
+    cy.getByTestID('variable-type-dropdown--button').click()
+    cy.getByTestID('variable-type-dropdown-constant').click()
+
+    // Create a CSV variable
+    const variableName = 'a Second Variable'
+    const defaultVar = 'Little Variable'
+    cy.getByInputName('name').type(variableName)
+
+    cy.get('textarea').type('1,2,3,4,5,6')
+
+    cy.getByTestID('csv-value-select-dropdown')
+      .click()
+      .contains('6')
+      .click()
+
+    cy.get('form')
+      .contains('Create')
+      .click()
+
+    cy.getByTestID('search-widget').type(labelName)
+
+    cy.getByTestID('resource-card variable')
+      .should('have.length', 1)
+      .contains(defaultVar)
+
     // Delete the label
     cy.getByTestID(`label--pill--delete ${labelName}`).click({force: true})
+    cy.getByTestID('resource-card variable').should('have.length', 0)
+    cy.getByTestID('search-widget').clear()
     cy.getByTestID('inline-labels--empty').should('exist')
+
+    cy.getByTestID('resource-card variable')
+      .should('have.length', 2)
+      .first()
+      .contains(variableName)
+    cy.getByTestID('resource-card variable')
+      .last()
+      .contains(defaultVar)
+
+    cy.getByTestID('resource-sorter--button').click()
+    cy.getByTestID('resource-sorter--name-desc').click()
+
+    cy.getByTestID('resource-card variable')
+      .first()
+      .contains(defaultVar)
+    cy.getByTestID('resource-card variable')
+      .last()
+      .contains(variableName)
   })
 })
