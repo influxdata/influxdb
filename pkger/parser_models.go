@@ -1134,6 +1134,7 @@ func (l *label) summarize() SummaryLabel {
 			Color:       l.Color,
 			Description: l.Description,
 		},
+		EnvReferences: l.identity.summarizeReferences(),
 	}
 }
 

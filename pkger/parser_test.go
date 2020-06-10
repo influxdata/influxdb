@@ -189,43 +189,35 @@ spec:
 				labels := pkg.Summary().Labels
 				require.Len(t, labels, 3)
 
-				expectedLabel := SummaryLabel{
-					PkgName: "label-1",
-					Name:    "label-1",
-					Properties: struct {
-						Color       string `json:"color"`
-						Description string `json:"description"`
-					}{
-						Color:       "#FFFFFF",
-						Description: "label 1 description",
-					},
-				}
+				expectedLabel := sumLabelGen("label-1", "label-1", "#FFFFFF", "label 1 description")
 				assert.Equal(t, expectedLabel, labels[0])
 
-				expectedLabel = SummaryLabel{
-					PkgName: "label-2",
-					Name:    "label-2",
-					Properties: struct {
-						Color       string `json:"color"`
-						Description string `json:"description"`
-					}{
-						Color:       "#000000",
-						Description: "label 2 description",
-					},
-				}
+				expectedLabel = sumLabelGen("label-2", "label-2", "#000000", "label 2 description")
 				assert.Equal(t, expectedLabel, labels[1])
 
-				expectedLabel = SummaryLabel{
-					PkgName: "label-3",
-					Name:    "display name",
-					Properties: struct {
-						Color       string `json:"color"`
-						Description string `json:"description"`
-					}{
-						Description: "label 3 description",
-					},
-				}
+				expectedLabel = sumLabelGen("label-3", "display name", "", "label 3 description")
 				assert.Equal(t, expectedLabel, labels[2])
+			})
+		})
+
+		t.Run("with env refs should be valid", func(t *testing.T) {
+			testfileRunner(t, "testdata/label_ref.yml", func(t *testing.T, pkg *Pkg) {
+				actual := pkg.Summary().Labels
+				require.Len(t, actual, 1)
+
+				expected := sumLabelGen("env-meta-name", "env-spec-name", "", "",
+					SummaryReference{
+						Field:        "metadata.name",
+						EnvRefKey:    "meta-name",
+						DefaultValue: "env-meta-name",
+					},
+					SummaryReference{
+						Field:        "spec.name",
+						EnvRefKey:    "spec-name",
+						DefaultValue: "env-spec-name",
+					},
+				)
+				assert.Contains(t, actual, expected)
 			})
 		})
 
@@ -3659,14 +3651,7 @@ spec:
 		sum := pkg.Summary()
 
 		labels := []SummaryLabel{
-			{
-				PkgName: "label-1",
-				Name:    "label-1",
-				Properties: struct {
-					Color       string `json:"color"`
-					Description string `json:"description"`
-				}{Color: "#eee888", Description: "desc_1"},
-			},
+			sumLabelGen("label-1", "label-1", "#eee888", "desc_1"),
 		}
 		assert.Equal(t, labels, sum.Labels)
 
@@ -4139,6 +4124,24 @@ func testfileRunner(t *testing.T, path string, testFn func(t *testing.T, pkg *Pk
 			}
 		}
 		t.Run(tt.name, fn)
+	}
+}
+
+func sumLabelGen(pkgName, name, color, desc string, envRefs ...SummaryReference) SummaryLabel {
+	if envRefs == nil {
+		envRefs = make([]SummaryReference, 0)
+	}
+	return SummaryLabel{
+		PkgName: pkgName,
+		Name:    name,
+		Properties: struct {
+			Color       string `json:"color"`
+			Description string `json:"description"`
+		}{
+			Color:       color,
+			Description: desc,
+		},
+		EnvReferences: envRefs,
 	}
 }
 
