@@ -6,7 +6,6 @@ import {flatMap} from 'lodash'
 
 // Components
 import EmptyGraphMessage from 'src/shared/components/EmptyGraphMessage'
-import GraphLoadingDots from 'src/shared/components/GraphLoadingDots'
 import ThresholdMarkers from 'src/shared/components/ThresholdMarkers'
 import EventMarkers from 'src/shared/components/EventMarkers'
 
@@ -20,7 +19,6 @@ import {DEFAULT_LINE_COLORS} from 'src/shared/constants/graphColorPalettes'
 
 // Types
 import {
-  RemoteDataState,
   CheckViewProperties,
   TimeZone,
   CheckType,
@@ -42,7 +40,6 @@ interface OwnProps {
   checkType: CheckType
   thresholds: Threshold[]
   fluxGroupKeyUnion: string[]
-  loading: RemoteDataState
   timeZone: TimeZone
   viewProperties: CheckViewProperties
   children: (config: Config) => JSX.Element
@@ -54,7 +51,6 @@ type Props = OwnProps & DispatchProps
 const CheckPlot: FunctionComponent<Props> = ({
   table,
   fluxGroupKeyUnion,
-  loading,
   children,
   timeZone,
   statuses,
@@ -156,7 +152,6 @@ const CheckPlot: FunctionComponent<Props> = ({
 
   return (
     <div className="time-series-container time-series-container--alert-check">
-      {loading === RemoteDataState.Loading && <GraphLoadingDots />}
       {children(config)}
     </div>
   )

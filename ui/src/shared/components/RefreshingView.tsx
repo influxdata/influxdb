@@ -81,26 +81,28 @@ class RefreshingView extends PureComponent<Props, State> {
           statuses,
         }) => {
           return (
-            <EmptyQueryView
-              errorFormat={ErrorFormat.Scroll}
-              errorMessage={errorMessage}
-              hasResults={checkResultsLength(giraffeResult)}
-              loading={loading}
-              isInitialFetch={isInitialFetch}
-              queries={this.queries}
-              fallbackNote={this.fallbackNote}
-            >
-              <ViewSwitcher
-                files={files}
-                giraffeResult={giraffeResult}
+            <>
+              <p>{loading}</p>
+              <EmptyQueryView
+                errorFormat={ErrorFormat.Scroll}
+                errorMessage={errorMessage}
+                hasResults={checkResultsLength(giraffeResult)}
                 loading={loading}
-                properties={properties}
-                timeRange={ranges}
-                statuses={statuses}
-                timeZone={timeZone}
-                theme={theme}
-              />
-            </EmptyQueryView>
+                isInitialFetch={isInitialFetch}
+                queries={this.queries}
+                fallbackNote={this.fallbackNote}
+              >
+                <ViewSwitcher
+                  files={files}
+                  giraffeResult={giraffeResult}
+                  properties={properties}
+                  timeRange={ranges}
+                  statuses={statuses}
+                  timeZone={timeZone}
+                  theme={theme}
+                />
+              </EmptyQueryView>
+            </>
           )
         }}
       </TimeSeries>

@@ -4,7 +4,6 @@ import {Config, Table} from '@influxdata/giraffe'
 
 // Components
 import EmptyGraphMessage from 'src/shared/components/EmptyGraphMessage'
-import GraphLoadingDots from 'src/shared/components/GraphLoadingDots'
 
 // Utils
 import {useVisXDomainSettings} from 'src/shared/utils/useVisDomainSettings'
@@ -16,16 +15,10 @@ import {DEFAULT_LINE_COLORS} from 'src/shared/constants/graphColorPalettes'
 import {INVALID_DATA_COPY} from 'src/shared/copy/cell'
 
 // Types
-import {
-  RemoteDataState,
-  HistogramViewProperties,
-  TimeZone,
-  Theme,
-} from 'src/types'
+import {HistogramViewProperties, TimeZone, Theme} from 'src/types'
 
 interface Props {
   table: Table
-  loading: RemoteDataState
   viewProperties: HistogramViewProperties
   children: (config: Config) => JSX.Element
   timeZone: TimeZone
@@ -34,7 +27,6 @@ interface Props {
 
 const HistogramPlot: FunctionComponent<Props> = ({
   table,
-  loading,
   children,
   timeZone,
   viewProperties: {
@@ -93,12 +85,7 @@ const HistogramPlot: FunctionComponent<Props> = ({
     ],
   }
 
-  return (
-    <>
-      {loading === RemoteDataState.Loading && <GraphLoadingDots />}
-      {children(config)}
-    </>
-  )
+  return children(config)
 }
 
 export default HistogramPlot
