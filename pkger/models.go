@@ -446,8 +446,8 @@ type SummaryCheck struct {
 	Check   influxdb.Check  `json:"check"`
 	Status  influxdb.Status `json:"status"`
 
-	LabelAssociations []SummaryLabel     `json:"labelAssociations"`
 	EnvReferences     []SummaryReference `json:"envReferences"`
+	LabelAssociations []SummaryLabel     `json:"labelAssociations"`
 }
 
 func (s *SummaryCheck) UnmarshalJSON(b []byte) error {
@@ -536,8 +536,8 @@ type SummaryNotificationEndpoint struct {
 	PkgName              string                        `json:"pkgName"`
 	NotificationEndpoint influxdb.NotificationEndpoint `json:"notificationEndpoint"`
 
-	LabelAssociations []SummaryLabel     `json:"labelAssociations"`
 	EnvReferences     []SummaryReference `json:"envReferences"`
+	LabelAssociations []SummaryLabel     `json:"labelAssociations"`
 }
 
 // UnmarshalJSON unmarshals the notificatio endpoint. This is necessary b/c of
@@ -572,13 +572,15 @@ type (
 		EndpointPkgName string `json:"endpointPkgName"`
 		EndpointType    string `json:"endpointType"`
 
-		Every             string              `json:"every"`
-		LabelAssociations []SummaryLabel      `json:"labelAssociations"`
-		Offset            string              `json:"offset"`
-		MessageTemplate   string              `json:"messageTemplate"`
-		Status            influxdb.Status     `json:"status"`
-		StatusRules       []SummaryStatusRule `json:"statusRules"`
-		TagRules          []SummaryTagRule    `json:"tagRules"`
+		Every           string              `json:"every"`
+		Offset          string              `json:"offset"`
+		MessageTemplate string              `json:"messageTemplate"`
+		Status          influxdb.Status     `json:"status"`
+		StatusRules     []SummaryStatusRule `json:"statusRules"`
+		TagRules        []SummaryTagRule    `json:"tagRules"`
+
+		EnvReferences     []SummaryReference `json:"envReferences"`
+		LabelAssociations []SummaryLabel     `json:"labelAssociations"`
 	}
 
 	SummaryStatusRule struct {

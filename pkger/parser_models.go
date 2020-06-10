@@ -1473,6 +1473,11 @@ func (r *notificationRule) summarize() SummaryNotificationRule {
 		endpointType = r.associatedEndpoint.kind.String()
 	}
 
+	envRefs := summarizeCommonReferences(r.identity, r.labels)
+	if r.endpointName != nil && r.endpointName.EnvRef != "" {
+		envRefs = append(envRefs, convertRefToRefSummary("spec.endpointName", r.endpointName))
+	}
+
 	return SummaryNotificationRule{
 		PkgName:           r.PkgName(),
 		Name:              r.Name(),
@@ -1481,6 +1486,7 @@ func (r *notificationRule) summarize() SummaryNotificationRule {
 		Description:       r.description,
 		Every:             r.every.String(),
 		LabelAssociations: toSummaryLabels(r.labels...),
+		EnvReferences:     envRefs,
 		Offset:            r.offset.String(),
 		MessageTemplate:   r.msgTemplate,
 		Status:            r.Status(),
