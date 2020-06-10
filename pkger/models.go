@@ -434,8 +434,9 @@ type SummaryBucket struct {
 	PkgName     string `json:"pkgName"`
 	Description string `json:"description"`
 	// TODO: return retention rules?
-	RetentionPeriod   time.Duration  `json:"retentionPeriod"`
-	LabelAssociations []SummaryLabel `json:"labelAssociations"`
+	RetentionPeriod   time.Duration      `json:"retentionPeriod"`
+	LabelAssociations []SummaryLabel     `json:"labelAssociations"`
+	EnvReferences     []SummaryReference `json:"envReferences"`
 }
 
 // SummaryCheck provides a summary of a pkg check.
@@ -609,6 +610,15 @@ type SummaryLabelMapping struct {
 	LabelPkgName    string                `json:"labelPkgName"`
 	LabelName       string                `json:"labelName"`
 	LabelID         SafeID                `json:"labelID"`
+}
+
+// SummaryReference informs the consumer of required references for
+// this resource.
+type SummaryReference struct {
+	Field        string `json:"resourceField"`
+	EnvRefKey    string `json:"envRefKey"`
+	Value        string `json:"value"`
+	DefaultValue string `json:"defaultValue"`
 }
 
 // SummaryTask provides a summary of a task.

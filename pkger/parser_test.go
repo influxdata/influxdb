@@ -32,6 +32,7 @@ func TestParse(t *testing.T) {
 					Description:       "bucket 1 description",
 					RetentionPeriod:   time.Hour,
 					LabelAssociations: []SummaryLabel{},
+					EnvReferences:     []SummaryReference{},
 				}
 				assert.Equal(t, expectedBucket, actual)
 
@@ -41,12 +42,40 @@ func TestParse(t *testing.T) {
 					Name:              "display name",
 					Description:       "bucket 2 description",
 					LabelAssociations: []SummaryLabel{},
+					EnvReferences:     []SummaryReference{},
 				}
 				assert.Equal(t, expectedBucket, actual)
 			})
 		})
 
-		t.Run("handles bad config", func(t *testing.T) {
+		t.Run("with env refs should be valid", func(t *testing.T) {
+			testfileRunner(t, "testdata/bucket_ref.yml", func(t *testing.T, pkg *Pkg) {
+				buckets := pkg.Summary().Buckets
+				require.Len(t, buckets, 1)
+
+				actual := buckets[0]
+				expectedBucket := SummaryBucket{
+					PkgName:           "env-meta-name",
+					Name:              "env-spec-name",
+					LabelAssociations: []SummaryLabel{},
+					EnvReferences: []SummaryReference{
+						{
+							Field:        "metadata.name",
+							EnvRefKey:    "meta-name",
+							DefaultValue: "env-meta-name",
+						},
+						{
+							Field:        "spec.name",
+							EnvRefKey:    "spec-name",
+							DefaultValue: "env-spec-name",
+						},
+					},
+				}
+				assert.Equal(t, expectedBucket, actual)
+			})
+		})
+
+		t.Run("should handle bad config", func(t *testing.T) {
 			tests := []testPkgResourceError{
 				{
 					name:           "missing name",
@@ -3648,6 +3677,7 @@ spec:
 				Description:       "desc_1",
 				RetentionPeriod:   10000 * time.Second,
 				LabelAssociations: labels,
+				EnvReferences:     []SummaryReference{},
 			},
 			{
 				PkgName:           "rucket-2",
@@ -3655,6 +3685,7 @@ spec:
 				Description:       "desc-2",
 				RetentionPeriod:   20000 * time.Second,
 				LabelAssociations: labels,
+				EnvReferences:     []SummaryReference{},
 			},
 			{
 				PkgName:           "rucket-3",
@@ -3662,6 +3693,7 @@ spec:
 				Description:       "desc_3",
 				RetentionPeriod:   30000 * time.Second,
 				LabelAssociations: labels,
+				EnvReferences:     []SummaryReference{},
 			},
 		}
 		assert.Equal(t, bkts, sum.Buckets)
