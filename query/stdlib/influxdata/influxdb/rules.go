@@ -30,6 +30,7 @@ func init() {
 		PushDownWindowAggregateByTimeRule{},
 		PushDownBareAggregateRule{},
 		PushDownGroupAggregateRule{},
+		SwitchFillImplRule{},
 	)
 }
 
@@ -1009,4 +1010,25 @@ func canPushGroupedAggregate(ctx context.Context, pn plan.Node) bool {
 			agg.Column == execute.DefaultValueColLabel
 	}
 	return false
+}
+
+type SwitchFillImplRule struct{}
+
+func (SwitchFillImplRule) Name() string {
+	return "SwitchFillImplRule"
+}
+
+func (SwitchFillImplRule) Pattern() plan.Pattern {
+	return plan.Pat(universe.FillKind, plan.Any())
+}
+
+func (r SwitchFillImplRule) Rewrite(ctx context.Context, pn plan.Node) (plan.Node, bool, error) {
+	if !feature.MemoryOptimizedFill().Enabled(ctx) {
+		spec := pn.ProcedureSpec().Copy()
+		universe.UseDeprecatedImpl(spec)
+		if err := pn.ReplaceSpec(spec); err != nil {
+			return nil, false, err
+		}
+	}
+	return pn, false, nil
 }
