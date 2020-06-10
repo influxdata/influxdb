@@ -1188,8 +1188,12 @@ type sortedLabels []*label
 
 func (s sortedLabels) summarizeReferences() []SummaryReference {
 	refs := make([]SummaryReference, 0)
-	for _, l := range s {
-		refs = append(refs, l.summarizeReferences()...)
+	for i, l := range s {
+		if !l.name.hasEnvRef() {
+			continue
+		}
+		field := fmt.Sprintf("spec.%s[%d].name", fieldAssociations, i)
+		refs = append(refs, convertRefToRefSummary(field, l.name))
 	}
 	return refs
 }

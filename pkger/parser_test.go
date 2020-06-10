@@ -50,28 +50,27 @@ func TestParse(t *testing.T) {
 
 		t.Run("with env refs should be valid", func(t *testing.T) {
 			testfileRunner(t, "testdata/bucket_ref.yml", func(t *testing.T, pkg *Pkg) {
-				buckets := pkg.Summary().Buckets
-				require.Len(t, buckets, 1)
+				actual := pkg.Summary().Buckets
+				require.Len(t, actual, 1)
 
-				actual := buckets[0]
-				expectedBucket := SummaryBucket{
-					PkgName:           "env-meta-name",
-					Name:              "env-spec-name",
-					LabelAssociations: []SummaryLabel{},
-					EnvReferences: []SummaryReference{
-						{
-							Field:        "metadata.name",
-							EnvRefKey:    "meta-name",
-							DefaultValue: "env-meta-name",
-						},
-						{
-							Field:        "spec.name",
-							EnvRefKey:    "spec-name",
-							DefaultValue: "env-spec-name",
-						},
+				expectedEnvRefs := []SummaryReference{
+					{
+						Field:        "metadata.name",
+						EnvRefKey:    "meta-name",
+						DefaultValue: "env-meta-name",
+					},
+					{
+						Field:        "spec.name",
+						EnvRefKey:    "spec-name",
+						DefaultValue: "env-spec-name",
+					},
+					{
+						Field:        "spec.associations[0].name",
+						EnvRefKey:    "label-meta-name",
+						DefaultValue: "env-label-meta-name",
 					},
 				}
-				assert.Equal(t, expectedBucket, actual)
+				assert.Equal(t, expectedEnvRefs, actual[0].EnvReferences)
 			})
 		})
 
@@ -586,6 +585,11 @@ spec:
 						Field:        "spec.name",
 						EnvRefKey:    "spec-name",
 						DefaultValue: "env-spec-name",
+					},
+					{
+						Field:        "spec.associations[0].name",
+						EnvRefKey:    "label-meta-name",
+						DefaultValue: "env-label-meta-name",
 					},
 				}
 				assert.Equal(t, expectedEnvRefs, actual[0].EnvReferences)
@@ -2270,24 +2274,24 @@ spec:
 				actual := pkg.Summary().Dashboards
 				require.Len(t, actual, 1)
 
-				expected := SummaryDashboard{
-					PkgName:           "env-meta-name",
-					Name:              "env-spec-name",
-					LabelAssociations: []SummaryLabel{},
-					EnvReferences: []SummaryReference{
-						{
-							Field:        "metadata.name",
-							EnvRefKey:    "meta-name",
-							DefaultValue: "env-meta-name",
-						},
-						{
-							Field:        "spec.name",
-							EnvRefKey:    "spec-name",
-							DefaultValue: "env-spec-name",
-						},
+				expected := []SummaryReference{
+					{
+						Field:        "metadata.name",
+						EnvRefKey:    "meta-name",
+						DefaultValue: "env-meta-name",
+					},
+					{
+						Field:        "spec.name",
+						EnvRefKey:    "spec-name",
+						DefaultValue: "env-spec-name",
+					},
+					{
+						Field:        "spec.associations[0].name",
+						EnvRefKey:    "label-meta-name",
+						DefaultValue: "env-label-meta-name",
 					},
 				}
-				assert.Equal(t, expected, actual[0])
+				assert.Equal(t, expected, actual[0].EnvReferences)
 			})
 		})
 
@@ -2527,6 +2531,11 @@ spec:
 						Field:        "spec.name",
 						EnvRefKey:    "spec-name",
 						DefaultValue: "env-spec-name",
+					},
+					{
+						Field:        "spec.associations[0].name",
+						EnvRefKey:    "label-meta-name",
+						DefaultValue: "env-label-meta-name",
 					},
 				}
 				assert.Equal(t, expectedEnvRefs, actual[0].EnvReferences)
@@ -2846,6 +2855,11 @@ spec:
 						Field:        "spec.name",
 						EnvRefKey:    "spec-name",
 						DefaultValue: "env-spec-name",
+					},
+					{
+						Field:        "spec.associations[0].name",
+						EnvRefKey:    "label-meta-name",
+						DefaultValue: "env-label-meta-name",
 					},
 					{
 						Field:        "spec.endpointName",
@@ -3179,6 +3193,11 @@ spec:
 						EnvRefKey:    "spec-name",
 						DefaultValue: "env-spec-name",
 					},
+					{
+						Field:        "spec.associations[0].name",
+						EnvRefKey:    "label-meta-name",
+						DefaultValue: "env-label-meta-name",
+					},
 				}
 				assert.Equal(t, expectedEnvRefs, actual[0].EnvReferences)
 			})
@@ -3392,6 +3411,11 @@ spec:
 						EnvRefKey:    "spec-name",
 						DefaultValue: "env-spec-name",
 					},
+					{
+						Field:        "spec.associations[0].name",
+						EnvRefKey:    "label-meta-name",
+						DefaultValue: "env-label-meta-name",
+					},
 				}
 				assert.Equal(t, expectedEnvRefs, actual[0].EnvReferences)
 			})
@@ -3506,6 +3530,11 @@ spec:
 						Field:        "spec.name",
 						EnvRefKey:    "spec-name",
 						DefaultValue: "env-spec-name",
+					},
+					{
+						Field:        "spec.associations[0].name",
+						EnvRefKey:    "label-meta-name",
+						DefaultValue: "env-label-meta-name",
 					},
 				}
 				assert.Equal(t, expectedEnvRefs, actual[0].EnvReferences)
