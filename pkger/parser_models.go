@@ -1278,6 +1278,7 @@ func (n *notificationEndpoint) summarize() SummaryNotificationEndpoint {
 	sum := SummaryNotificationEndpoint{
 		PkgName:           n.PkgName(),
 		LabelAssociations: toSummaryLabels(n.labels...),
+		EnvReferences:     summarizeCommonReferences(n.identity, n.labels),
 	}
 
 	switch n.kind {

@@ -535,7 +535,9 @@ func (s *SummaryChart) UnmarshalJSON(b []byte) error {
 type SummaryNotificationEndpoint struct {
 	PkgName              string                        `json:"pkgName"`
 	NotificationEndpoint influxdb.NotificationEndpoint `json:"notificationEndpoint"`
-	LabelAssociations    []SummaryLabel                `json:"labelAssociations"`
+
+	LabelAssociations []SummaryLabel     `json:"labelAssociations"`
+	EnvReferences     []SummaryReference `json:"envReferences"`
 }
 
 // UnmarshalJSON unmarshals the notificatio endpoint. This is necessary b/c of
