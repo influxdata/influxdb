@@ -483,6 +483,7 @@ const (
 	fieldChartColors        = "colors"
 	fieldChartDecimalPlaces = "decimalPlaces"
 	fieldChartDomain        = "domain"
+	fieldChartFillColumns   = "fillColumns"
 	fieldChartGeom          = "geom"
 	fieldChartHeight        = "height"
 	fieldChartLegend        = "legend"
@@ -527,6 +528,7 @@ type chart struct {
 	BinCount        int
 	Position        string
 	FieldOptions    []fieldOption
+	FillColumns     []string
 	TableOptions    tableOptions
 	TimeFormat      string
 }
@@ -574,7 +576,7 @@ func (c chart) properties() influxdb.ViewProperties {
 			Type:              influxdb.ViewPropertyTypeHistogram,
 			Queries:           c.Queries.influxDashQueries(),
 			ViewColors:        c.Colors.influxViewColors(),
-			FillColumns:       []string{},
+			FillColumns:       c.FillColumns,
 			XColumn:           c.XCol,
 			XDomain:           c.Axes.get("x").Domain,
 			XAxisLabel:        c.Axes.get("x").Label,
