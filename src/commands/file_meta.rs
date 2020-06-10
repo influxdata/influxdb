@@ -8,8 +8,8 @@ use delorean::storage::StorageError;
 
 use log::{debug, info};
 
-use crate::error::{Error, Result};
-use crate::input::{FileType, InputReader};
+use crate::commands::error::{Error, Result};
+use crate::commands::input::{FileType, InputReader};
 
 pub fn dump_meta(input_filename: &str) -> Result<()> {
     info!("dstool meta starting");

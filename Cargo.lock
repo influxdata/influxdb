@@ -558,12 +558,17 @@ dependencies = [
  "byteorder",
  "bytes",
  "chrono",
+ "clap",
  "crc32fast",
  "criterion",
  "croaring",
  "csv",
  "delorean_generated_types",
+ "delorean_ingest",
  "delorean_line_parser",
+ "delorean_parquet",
+ "delorean_table",
+ "delorean_table_schema",
  "delorean_test_helpers",
  "delorean_wal",
  "dirs 2.0.2",
@@ -639,26 +644,6 @@ dependencies = [
  "delorean_test_helpers",
  "log 0.4.8",
  "parquet",
- "snafu",
-]
-
-[[package]]
-name = "delorean_storage_tool"
-version = "0.1.0"
-dependencies = [
- "assert_cmd",
- "clap",
- "delorean",
- "delorean_ingest",
- "delorean_line_parser",
- "delorean_parquet",
- "delorean_table",
- "delorean_table_schema",
- "delorean_test_helpers",
- "env_logger",
- "libflate",
- "log 0.4.8",
- "predicates",
  "snafu",
 ]
 
