@@ -157,7 +157,20 @@ impl GoogleCloudStorage {
         &'a self,
         prefix: Option<&'a str>,
     ) -> InternalResult<impl Stream<Item = InternalResult<Vec<String>>> + 'a> {
-        Ok(stream::empty())
+        let bucket_name = self.bucket_name.clone();
+        let prefix = prefix.map(|p| p.to_string());
+
+        let objects = tokio::task::spawn_blocking(move || match prefix {
+            Some(prefix) => cloud_storage::Object::list_prefix(&bucket_name, &prefix),
+            None => cloud_storage::Object::list(&bucket_name),
+        })
+        .await
+        .context(UnableToListDataFromGcs)?
+        .context(UnableToListDataFromGcs2)?;
+
+        Ok(futures::stream::once(async move {
+            Ok(objects.into_iter().map(|o| o.name).collect())
+        }))
     }
 }
 
