@@ -13,7 +13,9 @@ use futures::{stream, Stream, StreamExt, TryStreamExt};
 use rusoto_credential::ChainProvider;
 use rusoto_s3::S3;
 use snafu::{futures::TryStreamExt as _, OptionExt, ResultExt, Snafu};
-use std::fmt;
+use tokio::sync::RwLock;
+
+use std::{collections::HashMap, fmt};
 
 /// Universal interface to multiple object store services.
 #[derive(Debug)]
@@ -30,6 +32,11 @@ impl ObjectStore {
         ObjectStore(ObjectStoreIntegration::GoogleCloudStorage(gcs))
     }
 
+    /// Configure in-memory storage.
+    pub fn new_in_memory(in_mem: InMemory) -> Self {
+        ObjectStore(ObjectStoreIntegration::InMemory(in_mem))
+    }
+
     /// Save the provided bytes to the specified location.
     pub async fn put<S>(&self, location: &str, bytes: S) -> Result<()>
     where
@@ -38,6 +45,7 @@ impl ObjectStore {
         match &self.0 {
             ObjectStoreIntegration::AmazonS3(s3) => s3.put(location, bytes).await?,
             ObjectStoreIntegration::GoogleCloudStorage(gcs) => gcs.put(location, bytes).await?,
+            ObjectStoreIntegration::InMemory(in_mem) => in_mem.put(location, bytes).await?,
         }
 
         Ok(())
@@ -48,6 +56,7 @@ impl ObjectStore {
         Ok(match &self.0 {
             ObjectStoreIntegration::AmazonS3(s3) => s3.get(location).await?.boxed(),
             ObjectStoreIntegration::GoogleCloudStorage(gcs) => gcs.get(location).await?.boxed(),
+            ObjectStoreIntegration::InMemory(in_mem) => in_mem.get(location).await?.boxed(),
         })
     }
 
@@ -56,6 +65,7 @@ impl ObjectStore {
         match &self.0 {
             ObjectStoreIntegration::AmazonS3(s3) => s3.delete(location).await?,
             ObjectStoreIntegration::GoogleCloudStorage(gcs) => gcs.delete(location).await?,
+            ObjectStoreIntegration::InMemory(in_mem) => in_mem.delete(location).await?,
         }
 
         Ok(())
@@ -71,6 +81,9 @@ impl ObjectStore {
             ObjectStoreIntegration::GoogleCloudStorage(gcs) => {
                 gcs.list(prefix).await?.err_into().boxed()
             }
+            ObjectStoreIntegration::InMemory(in_mem) => {
+                in_mem.list(prefix).await?.err_into().boxed()
+            }
         })
     }
 }
@@ -80,6 +93,7 @@ impl ObjectStore {
 enum ObjectStoreIntegration {
     GoogleCloudStorage(GoogleCloudStorage),
     AmazonS3(AmazonS3),
+    InMemory(InMemory),
 }
 
 /// Configuration for connecting to [Google Cloud Storage](https://cloud.google.com/storage/).
@@ -318,6 +332,77 @@ impl AmazonS3 {
     }
 }
 
+/// In-memory storage suitable for testing or for opting out of using a cloud storage provider.
+#[derive(Debug, Default)]
+pub struct InMemory {
+    storage: RwLock<HashMap<String, Bytes>>,
+}
+
+impl InMemory {
+    /// Create new in-memory storage.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Save the provided bytes to the specified location.
+    async fn put<S>(&self, location: &str, bytes: S) -> InternalResult<()>
+    where
+        S: Stream<Item = std::io::Result<Bytes>> + Send + Sync + 'static,
+    {
+        let content = bytes
+            .map_ok(|b| bytes::BytesMut::from(&b[..]))
+            .try_concat()
+            .await
+            .context(UnableToPutDataInMemory)?;
+        let content = content.freeze();
+
+        self.storage
+            .write()
+            .await
+            .insert(location.to_string(), content);
+        Ok(())
+    }
+
+    /// Return the bytes that are stored at the specified location.
+    async fn get(&self, location: &str) -> InternalResult<impl Stream<Item = Result<Bytes>>> {
+        let data = self
+            .storage
+            .read()
+            .await
+            .get(location)
+            .cloned()
+            .context(NoDataInMemory)?;
+
+        Ok(futures::stream::once(async move { Ok(data) }))
+    }
+
+    /// Delete the object at the specified location.
+    async fn delete(&self, location: &str) -> InternalResult<()> {
+        self.storage.write().await.remove(location);
+        Ok(())
+    }
+
+    /// List all the objects with the given prefix.
+    async fn list<'a>(
+        &'a self,
+        prefix: Option<&'a str>,
+    ) -> InternalResult<impl Stream<Item = InternalResult<Vec<String>>> + 'a> {
+        let list = if let Some(prefix) = prefix {
+            self.storage
+                .read()
+                .await
+                .keys()
+                .filter(|k| k.starts_with(prefix))
+                .cloned()
+                .collect()
+        } else {
+            self.storage.read().await.keys().cloned().collect()
+        };
+
+        Ok(futures::stream::once(async move { Ok(list) }))
+    }
+}
+
 /// A specialized `Result` for object store-related errors
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 type InternalResult<T, E = InternalError> = std::result::Result<T, E>;
@@ -398,6 +483,11 @@ enum InternalError {
     UnableToListDataFromS3 {
         source: rusoto_core::RusotoError<rusoto_s3::ListObjectsV2Error>,
     },
+
+    UnableToPutDataInMemory {
+        source: std::io::Error,
+    },
+    NoDataInMemory,
 }
 
 #[cfg(test)]
@@ -526,6 +616,18 @@ mod tests {
             }
 
             r
+        }
+    }
+
+    mod in_memory {
+        use super::*;
+
+        #[tokio::test]
+        async fn in_memory_test() -> Result<()> {
+            let integration = ObjectStore::new_in_memory(InMemory::new());
+
+            put_get_delete_list(&integration).await?;
+            Ok(())
         }
     }
 }
