@@ -42,6 +42,7 @@ interface Props {
   onInputChange: (e: ChangeEvent<HTMLInputElement>) => void
   filteredLabels: Label[]
   onAddLabel: (labelID: string) => void
+  visible: boolean
 }
 
 @ErrorHandling
@@ -57,6 +58,7 @@ export default class InlineLabelPopover extends PureComponent<Props> {
       onUpdateSelectedItemID,
       onInputChange,
       filteredLabels,
+      visible,
     } = this.props
 
     return (
@@ -65,8 +67,9 @@ export default class InlineLabelPopover extends PureComponent<Props> {
         position={PopoverPosition.Below}
         triggerRef={triggerRef}
         distanceFromTrigger={8}
-        showEvent={PopoverInteraction.Click}
-        hideEvent={PopoverInteraction.Click}
+        visible={visible}
+        showEvent={PopoverInteraction.None}
+        hideEvent={PopoverInteraction.None}
         testID="inline-labels--popover"
         className="inline-labels--popover"
         contents={() => (
