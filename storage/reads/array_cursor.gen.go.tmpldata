@@ -3,8 +3,6 @@
 		"Name":"Float",
 		"name":"float",
 		"Type":"float64",
-		"ValueType":"FloatValue",
-		"Nil":"0",
 		"Aggs": [
 			{
 		 		"Name":"Count",
@@ -26,8 +24,6 @@
 		"Name":"Integer",
 		"name":"integer",
 		"Type":"int64",
-		"ValueType":"IntegerValue",
-		"Nil":"0",
 		"Aggs": [
 			{
 		 		"Name":"Count",
@@ -49,8 +45,6 @@
 		"Name":"Unsigned",
 		"name":"unsigned",
 		"Type":"uint64",
-		"ValueType":"UnsignedValue",
-		"Nil":"0",
 		"Aggs": [
 			{
 		 		"Name":"Count",
@@ -72,8 +66,6 @@
 		"Name":"String",
 		"name":"string",
 		"Type":"string",
-		"ValueType":"StringValue",
-		"Nil":"\"\"",
 		"Aggs": [
 			{
 		 		"Name":"Count",
@@ -88,8 +80,6 @@
 		"Name":"Boolean",
 		"name":"boolean",
 		"Type":"bool",
-		"ValueType":"BooleanValue",
-		"Nil":"false",
 		"Aggs": [
 			{
 		 		"Name":"Count",
