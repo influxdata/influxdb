@@ -2,6 +2,7 @@ package reads
 
 import (
 	"errors"
+	"fmt"
 	"math"
 
 	"github.com/influxdata/influxdb/v2/tsdb/cursors"
@@ -14,6 +15,32 @@ const (
 	MaxPointsPerBlock = 1000
 )
 
+func newWindowCountArrayCursor(cur cursors.Cursor, every int64) cursors.Cursor {
+	switch cur := cur.(type) {
+{{range .}}{{/* every type supports count */}}
+	case cursors.{{.Name}}ArrayCursor:
+		return new{{.Name}}WindowCountArrayCursor(cur, every)
+{{end}}
+	default:
+		panic(fmt.Sprintf("unreachable: %T", cur))
+	}
+}
+
+func newWindowSumArrayCursor(cur cursors.Cursor, every int64) cursors.Cursor {
+	switch cur := cur.(type) {
+{{range .}}
+{{$Type := .Name}}
+{{range .Aggs}}
+{{if eq .Name "Sum"}}
+	case cursors.{{$Type}}ArrayCursor:
+		return new{{$Type}}WindowSumArrayCursor(cur, every)
+{{end}}
+{{end}}{{/* for each supported agg fn */}}
+{{end}}{{/* for each field type */}}
+	default:
+		panic(fmt.Sprintf("unsupported for aggregate sum: %T", cur))
+	}
+}
 {{range .}}
 {{$arrayType := print "*cursors." .Name "Array"}}
 {{$type := print .name "ArrayFilterCursor"}}

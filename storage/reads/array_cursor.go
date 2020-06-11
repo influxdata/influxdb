@@ -36,36 +36,6 @@ func newWindowAggregateArrayCursor(ctx context.Context, agg *datatypes.Aggregate
 	}
 }
 
-func newWindowCountArrayCursor(cur cursors.Cursor, every int64) cursors.Cursor {
-	switch cur := cur.(type) {
-	case cursors.FloatArrayCursor:
-		return newFloatWindowCountArrayCursor(cur, every)
-	case cursors.IntegerArrayCursor:
-		return newIntegerWindowCountArrayCursor(cur, every)
-	case cursors.UnsignedArrayCursor:
-		return newUnsignedWindowCountArrayCursor(cur, every)
-	case cursors.StringArrayCursor:
-		return newStringWindowCountArrayCursor(cur, every)
-	case cursors.BooleanArrayCursor:
-		return newBooleanWindowCountArrayCursor(cur, every)
-	default:
-		panic(fmt.Sprintf("unreachable: %T", cur))
-	}
-}
-
-func newWindowSumArrayCursor(cur cursors.Cursor, every int64) cursors.Cursor {
-	switch cur := cur.(type) {
-	case cursors.FloatArrayCursor:
-		return newFloatWindowSumArrayCursor(cur, every)
-	case cursors.IntegerArrayCursor:
-		return newIntegerWindowSumArrayCursor(cur, every)
-	case cursors.UnsignedArrayCursor:
-		return newUnsignedWindowSumArrayCursor(cur, every)
-	default:
-		panic(fmt.Sprintf("unsupported for aggregate sum: %T", cur))
-	}
-}
-
 type cursorContext struct {
 	ctx            context.Context
 	req            *cursors.CursorRequest
