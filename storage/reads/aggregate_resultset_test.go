@@ -18,7 +18,13 @@ func TestNewWindowAggregateResultSet_Tags(t *testing.T) {
 			"clicks click=1 1",
 		)}
 
-	request := datatypes.ReadWindowAggregateRequest{}
+	request := datatypes.ReadWindowAggregateRequest{
+		Aggregate: []*datatypes.Aggregate{
+			{
+				Type: datatypes.AggregateTypeCount,
+			},
+		},
+	}
 	resultSet, err := reads.NewWindowAggregateResultSet(context.Background(), &request, &newCursor)
 
 	if err != nil {
@@ -108,7 +114,13 @@ func TestNewWindowAggregateResultSet_Stats(t *testing.T) {
 		"clicks click=1 1",
 	)
 
-	request := datatypes.ReadWindowAggregateRequest{}
+	request := datatypes.ReadWindowAggregateRequest{
+		Aggregate: []*datatypes.Aggregate{
+			{
+				Type: datatypes.AggregateTypeCount,
+			},
+		},
+	}
 	resultSet, err := reads.NewWindowAggregateResultSet(context.Background(), &request, &newCursor)
 
 	if err != nil {

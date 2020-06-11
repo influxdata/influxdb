@@ -2,6 +2,7 @@ package reads
 
 import (
 	"errors"
+	"fmt"
 	"math"
 
 	"github.com/influxdata/influxdb/v2/tsdb/cursors"
@@ -14,6 +15,32 @@ const (
 	MaxPointsPerBlock = 1000
 )
 
+func newWindowCountArrayCursor(cur cursors.Cursor, every int64) cursors.Cursor {
+	switch cur := cur.(type) {
+{{range .}}{{/* every type supports count */}}
+	case cursors.{{.Name}}ArrayCursor:
+		return new{{.Name}}WindowCountArrayCursor(cur, every)
+{{end}}
+	default:
+		panic(fmt.Sprintf("unreachable: %T", cur))
+	}
+}
+
+func newWindowSumArrayCursor(cur cursors.Cursor, every int64) cursors.Cursor {
+	switch cur := cur.(type) {
+{{range .}}
+{{$Type := .Name}}
+{{range .Aggs}}
+{{if eq .Name "Sum"}}
+	case cursors.{{$Type}}ArrayCursor:
+		return new{{$Type}}WindowSumArrayCursor(cur, every)
+{{end}}
+{{end}}{{/* for each supported agg fn */}}
+{{end}}{{/* for each field type */}}
+	default:
+		panic(fmt.Sprintf("unsupported for aggregate sum: %T", cur))
+	}
+}
 {{range .}}
 {{$arrayType := print "*cursors." .Name "Array"}}
 {{$type := print .name "ArrayFilterCursor"}}
@@ -161,100 +188,54 @@ func (c *{{.name}}ArrayCursor) nextArrayCursor() bool {
 	return ok
 }
 
-{{if .Agg}}
-{{$type := print .name "ArraySumCursor"}}
-{{$Type := print .Name "ArraySumCursor"}}
+{{/* create an aggregate cursor for each aggregate function supported by the type */}}
+{{$Name := .Name}}
+{{$name := .name}}
+{{range .Aggs}}
+{{$aggName := .Name}}
 
-
-type {{$type}} struct {
-	cursors.{{.Name}}ArrayCursor
-	ts [1]int64
-	vs [1]{{.Type}}
-	res {{$arrayType}}
-}
-
-func new{{$Type}}(cur cursors.{{.Name}}ArrayCursor) *{{$type}} {
-	return &{{$type}}{
-		{{.Name}}ArrayCursor: cur,
-		res:                  &cursors.{{.Name}}Array{},
-	}
-}
-
-func (c {{$type}}) Stats() cursors.CursorStats { return c.{{.Name}}ArrayCursor.Stats() }
-
-func (c {{$type}}) Next() {{$arrayType}} {
-	a := c.{{.Name}}ArrayCursor.Next()
-	if len(a.Timestamps) == 0 {
-		return a
-	}
-
-	ts := a.Timestamps[0]
-	var acc {{.Type}}
-
-	for {
-		for _, v := range a.Values {
-			acc += v
-		}
-		a = c.{{.Name}}ArrayCursor.Next()
-		if len(a.Timestamps) == 0 {
-			c.ts[0] = ts
-			c.vs[0] = acc
-			c.res.Timestamps = c.ts[:]
-			c.res.Values = c.vs[:]
-			return c.res
-		}
-	}
-}
-
-{{end}}
-
-type {{.name}}WindowCountArrayCursor struct {
-	cursors.{{.Name}}ArrayCursor
+type {{$name}}Window{{$aggName}}ArrayCursor struct {
+	cursors.{{$Name}}ArrayCursor
 	every int64
-	res   *cursors.IntegerArray
+	res   *cursors.{{.AccTypeName}}Array
 	tmp   {{$arrayType}}
 }
 
-func new{{.Name}}WindowCountArrayCursor(cur cursors.{{.Name}}ArrayCursor, every int64) *{{.name}}WindowCountArrayCursor {
+func new{{$Name}}Window{{$aggName}}ArrayCursor(cur cursors.{{$Name}}ArrayCursor, every int64) *{{$name}}Window{{$aggName}}ArrayCursor {
 	resLen := MaxPointsPerBlock
 	if every == 0 {
 		resLen = 1
 	}
-	return &{{.name}}WindowCountArrayCursor{
-		{{.Name}}ArrayCursor: cur,
+	return &{{$name}}Window{{$aggName}}ArrayCursor{
+		{{$Name}}ArrayCursor: cur,
 		every: every,
-		res: cursors.NewIntegerArrayLen(resLen),
-		tmp: &cursors.{{.Name}}Array{},
+		res: cursors.New{{.AccTypeName}}ArrayLen(resLen),
+		tmp: &cursors.{{$Name}}Array{},
 	}
 }
 
-func new{{.Name}}CountArrayCursor(cur cursors.{{.Name}}ArrayCursor) *{{.name}}WindowCountArrayCursor {
-	// zero means aggregate over the whole series
-	return new{{.Name}}WindowCountArrayCursor(cur, 0)
+func (c *{{$name}}Window{{$aggName}}ArrayCursor) Stats() cursors.CursorStats {
+	return c.{{$Name}}ArrayCursor.Stats()
 }
 
-func (c *{{.name}}WindowCountArrayCursor) Stats() cursors.CursorStats {
-	return c.{{.Name}}ArrayCursor.Stats()
-}
-
-func (c *{{.name}}WindowCountArrayCursor) Next() *cursors.IntegerArray {
+func (c *{{$name}}Window{{$aggName}}ArrayCursor) Next() *cursors.{{.AccTypeName}}Array {
 	pos := 0
 	c.res.Timestamps = c.res.Timestamps[:cap(c.res.Timestamps)]
 	c.res.Values = c.res.Values[:cap(c.res.Values)]
 
-	var a *cursors.{{.Name}}Array
+	var a *cursors.{{$Name}}Array
 	if c.tmp.Len() > 0 {
 		a = c.tmp
 	} else {
-		a = c.{{.Name}}ArrayCursor.Next()
+		a = c.{{$Name}}ArrayCursor.Next()
 	}
 
 	if a.Len() == 0 {
-		return &cursors.IntegerArray{}
+		return &cursors.{{.AccTypeName}}Array{}
 	}
 
 	rowIdx := 0
-	var acc int64 = 0
+	var acc {{.AccType}} = {{.AccInit}}
 
 	var windowEnd int64
 	if c.every != 0 {
@@ -265,6 +246,8 @@ func (c *{{.name}}WindowCountArrayCursor) Next() *cursors.IntegerArray {
 		windowEnd = math.MaxInt64
 	}
 
+	windowHasPoints := false
+
 	// enumerate windows
 WINDOWS:
 	for {
@@ -273,7 +256,7 @@ WINDOWS:
 			if c.every != 0 && ts >= windowEnd {
 				// new window detected, close the current window
 				// do not generate a point for empty windows
-				if acc > 0 {
+				if windowHasPoints {
 					c.res.Timestamps[pos] = windowEnd
 					c.res.Values[pos] = acc
 					pos++
@@ -288,15 +271,17 @@ WINDOWS:
 				}
 
 				// start the new window
-				acc = 0
+				acc = {{.AccInit}}
 
 				firstTimestamp := a.Timestamps[rowIdx]
 				windowStart := firstTimestamp - firstTimestamp%c.every
 				windowEnd = windowStart + c.every
+				windowHasPoints = false
 
 				continue WINDOWS
 			} else {
-				acc++
+				{{.Accumulate}}
+				windowHasPoints = true
 			}
 		}
 
@@ -306,11 +291,11 @@ WINDOWS:
 		c.tmp.Values = nil
 
 		// get the next chunk
-		a = c.{{.Name}}ArrayCursor.Next()
+		a = c.{{$Name}}ArrayCursor.Next()
 		if a.Len() == 0 {
 			// write the final point
 			// do not generate a point for empty windows
-			if acc > 0 {
+			if windowHasPoints {
 				c.res.Timestamps[pos] = windowEnd
 				c.res.Values[pos] = acc
 				pos++
@@ -325,6 +310,8 @@ WINDOWS:
 
 	return c.res
 }
+
+{{end}}{{/* range .Aggs */}}
 
 type {{.name}}EmptyArrayCursor struct {
 	res cursors.{{.Name}}Array
