@@ -27,6 +27,7 @@ type table struct {
 	done chan struct{}
 
 	colBufs *colReader
+	empty   bool
 
 	err error
 
@@ -59,7 +60,7 @@ func newTable(
 func (t *table) Key() flux.GroupKey   { return t.key }
 func (t *table) Cols() []flux.ColMeta { return t.cols }
 func (t *table) Err() error           { return t.err }
-func (t *table) Empty() bool          { return t.colBufs == nil || t.colBufs.l == 0 }
+func (t *table) Empty() bool          { return t.empty }
 
 func (t *table) Cancel() {
 	atomic.StoreInt32(&t.cancelled, 1)
@@ -67,6 +68,10 @@ func (t *table) Cancel() {
 
 func (t *table) isCancelled() bool {
 	return atomic.LoadInt32(&t.cancelled) != 0
+}
+
+func (t *table) init(advance func() bool) {
+	t.empty = !advance()
 }
 
 func (t *table) do(f func(flux.ColReader) error, advance func() bool) error {

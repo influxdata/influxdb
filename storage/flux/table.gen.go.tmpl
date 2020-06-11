@@ -41,7 +41,7 @@ func new{{.Name}}Table(
 		cur:   cur,
 	}
 	t.readTags(tags)
-	t.advance()
+	t.init(t.advance)
 
 	return t
 }
@@ -131,7 +131,7 @@ func new{{.Name}}WindowTable(
 		t.nextTS = start + (every - start % every)
 	}
 	t.readTags(tags)
-	t.advance()
+	t.init(t.advance)
 
 	return t
 }
@@ -326,7 +326,7 @@ func new{{.Name}}GroupTable(
 		cur:   cur,
 	}
 	t.readTags(tags)
-	t.advance()
+	t.init(t.advance)
 
 	return t
 }
