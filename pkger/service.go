@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-stack/stack"
 	"github.com/influxdata/influxdb/v2"
 	ierrors "github.com/influxdata/influxdb/v2/kit/errors"
 	icheck "github.com/influxdata/influxdb/v2/notification/check"
@@ -324,7 +325,7 @@ func (s *Service) DeleteStack(ctx context.Context, identifiers struct{ OrgID, Us
 		return err
 	}
 
-	coordinator := &rollbackCoordinator{sem: make(chan struct{}, s.applyReqLimit)}
+	coordinator := newRollbackCoordinator(s.log, s.applyReqLimit)
 	defer coordinator.rollback(s.log, &e, identifiers.OrgID)
 
 	err = s.applyState(ctx, coordinator, identifiers.OrgID, identifiers.UserID, state, nil)
@@ -1417,7 +1418,7 @@ func (s *Service) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg
 		}
 	}(stackID)
 
-	coordinator := &rollbackCoordinator{sem: make(chan struct{}, s.applyReqLimit)}
+	coordinator := newRollbackCoordinator(s.log, s.applyReqLimit)
 	defer coordinator.rollback(s.log, &e, orgID)
 
 	err = s.applyState(ctx, coordinator, orgID, userID, state, opt.MissingSecrets)
@@ -2405,7 +2406,10 @@ func (s *Service) applyTask(ctx context.Context, userID influxdb.ID, t *stateTas
 			opt.Every.Parse(every.String())
 		}
 		if offset := t.parserTask.offset; offset > 0 {
-			opt.Offset.Parse(offset.String())
+			var off options.Duration
+			if err := off.Parse(offset.String()); err == nil {
+				opt.Offset = &off
+			}
 		}
 
 		updatedTask, err := s.taskSVC.UpdateTask(ctx, t.ID(), influxdb.TaskUpdate{
@@ -2465,7 +2469,10 @@ func (s *Service) rollbackTasks(ctx context.Context, tasks []*stateTask) error {
 				opt.Every.Parse(every)
 			}
 			if offset := t.existing.Offset; offset > 0 {
-				opt.Offset.Parse(offset.String())
+				var off options.Duration
+				if err := off.Parse(offset.String()); err == nil {
+					opt.Offset = &off
+				}
 			}
 
 			_, err = s.taskSVC.UpdateTask(ctx, t.ID(), influxdb.TaskUpdate{
@@ -3269,9 +3276,17 @@ type (
 )
 
 type rollbackCoordinator struct {
+	logger    *zap.Logger
 	rollbacks []rollbacker
 
 	sem chan struct{}
+}
+
+func newRollbackCoordinator(logger *zap.Logger, reqLimit int) *rollbackCoordinator {
+	return &rollbackCoordinator{
+		logger: logger,
+		sem:    make(chan struct{}, reqLimit),
+	}
 }
 
 func (r *rollbackCoordinator) runTilEnd(ctx context.Context, orgID, userID influxdb.ID, appliers ...applier) error {
@@ -3295,6 +3310,21 @@ func (r *rollbackCoordinator) runTilEnd(ctx context.Context, orgID, userID influ
 
 				ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 				defer cancel()
+
+				defer func() {
+					if recover() != nil {
+						r.logger.Panic(
+							"panic applying "+resource,
+							zap.String("stack_trace", fmt.Sprintf("%+v", stack.Trace())),
+						)
+						errStr.add(errMsg{
+							resource: resource,
+							err: applyErrBody{
+								msg: fmt.Sprintf("panic: %s paniced", resource),
+							},
+						})
+					}
+				}()
 
 				if err := app.creater.fn(ctx, i, orgID, userID); err != nil {
 					errStr.add(errMsg{resource: resource, err: *err})
