@@ -1,6 +1,5 @@
 // Libraries
 import React, {FC, useRef, useEffect, ReactNode, useState} from 'react'
-import {round} from 'lodash'
 import classnames from 'classnames'
 
 // Components
@@ -89,7 +88,7 @@ const ResultsResizer: FC<Props> = ({
     const {pageY} = e
     const {top} = resultsBodyRef.current.getBoundingClientRect()
 
-    const updatedHeight = round(
+    const updatedHeight = Math.round(
       Math.max(pageY - top, MINIMUM_RESULTS_PANEL_HEIGHT)
     )
 
