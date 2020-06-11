@@ -10,13 +10,14 @@ describe('Variables', () => {
   })
 
   it('can CRUD a CSV, map, and query variable and search for variables based on names', () => {
-    // Navigate away from and back to variables index
+    // Navigate away from and back to variables index using the nav bar
     cy.getByTestID('nav-item-dashboards').click()
     cy.getByTestID('nav-item-settings').click()
     cy.getByTestID('templates--tab').click()
     cy.getByTestID('variables--tab').click()
 
     cy.getByTestID('resource-card variable').should('have.length', 1)
+
     // ensure that the default variables are not accessible on the Variables Tab
     cy.getByTestID('resource-card variable').should(
       'not.contain',
@@ -32,8 +33,6 @@ describe('Variables', () => {
     )
 
     cy.getByTestID('add-resource-dropdown--button').click()
-
-    cy.getByTestID('add-resource-dropdown--new').should('have.length', 1)
 
     cy.getByTestID('add-resource-dropdown--new').click()
 
@@ -139,9 +138,67 @@ describe('Variables', () => {
 
     cy.getByTestID('rename-variable-submit').click()
 
-    cy.get('.cf-resource-name--text').should($s =>
-      expect($s).to.contain('-renamed')
+    cy.getByTestID('notification-success--dismiss').click()
+
+    cy.getByTestID(`variable-card--name Little Variable-renamed`).should(
+      'exist'
     )
+
+    // Create a Map variable from scratch
+    cy.getByTestID('add-resource-dropdown--button').click()
+
+    cy.getByTestID('add-resource-dropdown--new').click()
+
+    cy.getByTestID('variable-type-dropdown--button').click()
+    cy.getByTestID('variable-type-dropdown-map').click()
+
+    const mapVariableName = 'Map Variable'
+    cy.getByInputName('name').type(mapVariableName)
+
+    cy.get('textarea').type(`Astrophel Chaudhary,"bDhZbuVj5RV94NcFXZPm"
+      Ochieng Benes,"YIhg6SoMKRUH8FMlHs3V"`)
+
+    cy.getByTestID('map-variable-dropdown--button')
+      .click()
+      .last()
+      .click()
+
+    cy.get('form')
+      .contains('Create')
+      .click()
+
+    cy.getByTestID('notification-success--dismiss').click()
+    cy.getByTestID(`variable-card--name ${mapVariableName}`).should('exist')
+
+    // Create a Query variable from scratch
+    cy.getByTestID('add-resource-dropdown--button').click()
+
+    cy.getByTestID('add-resource-dropdown--new').click()
+
+    cy.getByTestID('variable-type-dropdown--button').click()
+    cy.getByTestID('variable-type-dropdown-map').click()
+
+    const queryVariableName = 'Query Variable'
+    cy.getByInputName('name').type(queryVariableName)
+
+    cy.getByTestID('variable-type-dropdown--button').click()
+    cy.getByTestID('variable-type-dropdown-query').click()
+
+    cy.getByTestID('flux-editor').within(() => {
+      cy.get('.react-monaco-editor-container')
+        .click()
+        .focused()
+        .type('filter(fn: (r) => r._field == "cpu")', {
+          force: true,
+        })
+    })
+
+    cy.get('form')
+      .contains('Create')
+      .click()
+
+    cy.getByTestID('notification-success--dismiss').click()
+    cy.getByTestID(`variable-card--name ${queryVariableName}`).should('exist')
   })
 
   it('keeps user input in text area when attempting to import invalid JSON', () => {
@@ -198,7 +255,6 @@ describe('Variables', () => {
       .contains('6')
       .click()
 
-    cy.get('form')
       .contains('Create')
       .click()
 
