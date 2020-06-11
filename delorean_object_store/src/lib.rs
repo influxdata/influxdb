@@ -15,7 +15,7 @@ use rusoto_s3::S3;
 use snafu::{futures::TryStreamExt as _, OptionExt, ResultExt, Snafu};
 use tokio::sync::RwLock;
 
-use std::{collections::HashMap, fmt};
+use std::{collections::BTreeMap, fmt};
 
 /// Universal interface to multiple object store services.
 #[derive(Debug)]
@@ -335,7 +335,7 @@ impl AmazonS3 {
 /// In-memory storage suitable for testing or for opting out of using a cloud storage provider.
 #[derive(Debug, Default)]
 pub struct InMemory {
-    storage: RwLock<HashMap<String, Bytes>>,
+    storage: RwLock<BTreeMap<String, Bytes>>,
 }
 
 impl InMemory {
