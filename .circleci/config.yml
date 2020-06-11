@@ -50,7 +50,7 @@ commands:
             echo 'export CARGO_TARGET_ARM_UNKNOWN_LINUX_GNUEABIHF_LINKER=arm-linux-gnueabihf-gcc' >> $HOME/.cargo/env
             echo 'export CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_LINKER=arm-linux-gnueabihf-gcc' >> $HOME/.cargo/env
             echo 'export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc' >> $HOME/.cargo/env
-            echo 'export CARGO_TARGET_X86_64_APPLE_DARWIN_LINKER=/opt/osxcross/target/o64-clang' >> $HOME/.cargo/env
+            echo 'export CARGO_TARGET_X86_64_APPLE_DARWIN_LINKER=/opt/osxcross/target/bin/o64-clang' >> $HOME/.cargo/env
       - run:
           name: Install pkg-config wrapper
           command: go build -o /go/bin/pkg-config github.com/influxdata/pkg-config
