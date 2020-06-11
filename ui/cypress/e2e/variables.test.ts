@@ -234,6 +234,8 @@ describe('Variables', () => {
     cy.getByTestID('inline-labels--create-new').click()
     cy.getByTestID('create-label-form--submit').click()
 
+    cy.getByTestID('overlay--children').should('not.exist')
+
     cy.getByTestID('add-resource-dropdown--button').click()
 
     cy.getByTestID('add-resource-dropdown--new').should('have.length', 1)
@@ -255,6 +257,7 @@ describe('Variables', () => {
       .contains('6')
       .click()
 
+    cy.get('form')
       .contains('Create')
       .click()
 
