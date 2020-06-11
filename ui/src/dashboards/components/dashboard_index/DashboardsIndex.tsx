@@ -22,9 +22,10 @@ import {extractDashboardLimits} from 'src/cloud/utils/limits'
 
 // Actions
 import {createDashboard as createDashboardAction} from 'src/dashboards/actions/thunks'
+import {setDashboardSort} from 'src/dashboards/actions/creators'
 
 // Types
-import {AppState, ResourceType} from 'src/types'
+import {AppState, ResourceType, DashboardSortParams} from 'src/types'
 import {LimitStatus} from 'src/cloud/actions/limits'
 import {ComponentStatus, Sort} from '@influxdata/clockface'
 import {SortTypes} from 'src/shared/utils/sort'
@@ -32,10 +33,12 @@ import {DashboardSortKey} from 'src/shared/components/resource_sort_dropdown/gen
 
 interface DispatchProps {
   createDashboard: typeof createDashboardAction
+  setDashboardSort: typeof setDashboardSort
 }
 
 interface StateProps {
   limitStatus: LimitStatus
+  sortOptions: DashboardSortParams
 }
 
 interface OwnProps {
@@ -47,9 +50,6 @@ type Props = DispatchProps & StateProps & OwnProps
 
 interface State {
   searchTerm: string
-  sortDirection: Sort
-  sortType: SortTypes
-  sortKey: DashboardSortKey
 }
 
 @ErrorHandling
@@ -59,15 +59,12 @@ class DashboardIndex extends PureComponent<Props, State> {
 
     this.state = {
       searchTerm: '',
-      sortDirection: Sort.Ascending,
-      sortType: SortTypes.String,
-      sortKey: 'name',
     }
   }
 
   public render() {
-    const {createDashboard, limitStatus} = this.props
-    const {searchTerm, sortDirection, sortType, sortKey} = this.state
+    const {createDashboard, limitStatus, sortOptions} = this.props
+    const {searchTerm} = this.state
     return (
       <>
         <Page
@@ -87,9 +84,9 @@ class DashboardIndex extends PureComponent<Props, State> {
               />
               <ResourceSortDropdown
                 resourceType={ResourceType.Dashboards}
-                sortDirection={sortDirection}
-                sortKey={sortKey}
-                sortType={sortType}
+                sortDirection={sortOptions.sortDirection}
+                sortKey={sortOptions.sortKey}
+                sortType={sortOptions.sortType}
                 onSelect={this.handleSort}
               />
             </Page.ControlBarLeft>
@@ -117,9 +114,9 @@ class DashboardIndex extends PureComponent<Props, State> {
               <DashboardsIndexContents
                 searchTerm={searchTerm}
                 onFilterChange={this.handleFilterDashboards}
-                sortDirection={sortDirection}
-                sortType={sortType}
-                sortKey={sortKey}
+                sortDirection={sortOptions.sortDirection}
+                sortType={sortOptions.sortType}
+                sortKey={sortOptions.sortKey}
               />
             </GetAssetLimits>
           </Page.Contents>
@@ -134,7 +131,7 @@ class DashboardIndex extends PureComponent<Props, State> {
     sortDirection: Sort,
     sortType: SortTypes
   ): void => {
-    this.setState({sortKey, sortDirection, sortType})
+    this.props.setDashboardSort({sortKey, sortDirection, sortType})
   }
 
   private handleFilterDashboards = (searchTerm: string): void => {
@@ -170,14 +167,17 @@ const mstp = (state: AppState): StateProps => {
   const {
     cloud: {limits},
   } = state
+  const sortOptions = state.resources.dashboards['sortOptions']
 
   return {
     limitStatus: extractDashboardLimits(limits),
+    sortOptions,
   }
 }
 
 const mdtp: DispatchProps = {
   createDashboard: createDashboardAction,
+  setDashboardSort,
 }
 
 export default connect<StateProps, DispatchProps, OwnProps>(

@@ -7,6 +7,7 @@ import {connect} from 'react-redux'
 import TimeSeries from 'src/shared/components/TimeSeries'
 import EmptyQueryView, {ErrorFormat} from 'src/shared/components/EmptyQueryView'
 import ViewSwitcher from 'src/shared/components/ViewSwitcher'
+import ViewLoadingSpinner from 'src/shared/components/ViewLoadingSpinner'
 
 // Utils
 import {GlobalAutoRefresher} from 'src/utils/AutoRefresher'
@@ -81,26 +82,28 @@ class RefreshingView extends PureComponent<Props, State> {
           statuses,
         }) => {
           return (
-            <EmptyQueryView
-              errorFormat={ErrorFormat.Scroll}
-              errorMessage={errorMessage}
-              hasResults={checkResultsLength(giraffeResult)}
-              loading={loading}
-              isInitialFetch={isInitialFetch}
-              queries={this.queries}
-              fallbackNote={this.fallbackNote}
-            >
-              <ViewSwitcher
-                files={files}
-                giraffeResult={giraffeResult}
+            <>
+              <ViewLoadingSpinner loading={loading} />
+              <EmptyQueryView
+                errorFormat={ErrorFormat.Scroll}
+                errorMessage={errorMessage}
+                hasResults={checkResultsLength(giraffeResult)}
                 loading={loading}
-                properties={properties}
-                timeRange={ranges}
-                statuses={statuses}
-                timeZone={timeZone}
-                theme={theme}
-              />
-            </EmptyQueryView>
+                isInitialFetch={isInitialFetch}
+                queries={this.queries}
+                fallbackNote={this.fallbackNote}
+              >
+                <ViewSwitcher
+                  files={files}
+                  giraffeResult={giraffeResult}
+                  properties={properties}
+                  timeRange={ranges}
+                  statuses={statuses}
+                  timeZone={timeZone}
+                  theme={theme}
+                />
+              </EmptyQueryView>
+            </>
           )
         }}
       </TimeSeries>

@@ -568,6 +568,7 @@ func convertCellView(cell influxdb.Cell) chart {
 		ch.Kind = chartKindHistogram
 		ch.Queries = convertQueries(p.Queries)
 		ch.Colors = convertColors(p.ViewColors)
+		ch.FillColumns = p.FillColumns
 		ch.XCol = p.XColumn
 		ch.Axes = []axis{{Label: p.XAxisLabel, Name: "x", Domain: p.XDomain}}
 		ch.Note = p.Note
@@ -657,6 +658,10 @@ func convertChartToResource(ch chart) Resource {
 
 	if ch.Legend.Type != "" {
 		r[fieldChartLegend] = ch.Legend
+	}
+
+	if len(ch.FillColumns) > 0 {
+		r[fieldChartFillColumns] = ch.FillColumns
 	}
 
 	if zero := new(tableOptions); ch.TableOptions != *zero {

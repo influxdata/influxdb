@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/influxdata/influxdb/v2/storage/reads/datatypes"
 	"github.com/influxdata/influxdb/v2/tsdb/cursors"
 )
 
@@ -42,15 +43,15 @@ func TestIntegerFilterArrayCursor(t *testing.T) {
 	}
 }
 
-func makeIntegerArray(n int64, tsStart time.Time, tsStep time.Duration, vStart, vStep int64) *cursors.IntegerArray {
+func makeIntegerArray(n int, tsStart time.Time, tsStep time.Duration, valueFn func(i int64) int64) *cursors.IntegerArray {
 	ia := &cursors.IntegerArray{
 		Timestamps: make([]int64, n),
 		Values:     make([]int64, n),
 	}
 
-	for i := int64(0); i < n; i++ {
-		ia.Timestamps[i] = tsStart.UnixNano() + i*int64(tsStep)
-		ia.Values[i] = vStart + i*vStep
+	for i := 0; i < n; i++ {
+		ia.Timestamps[i] = tsStart.UnixNano() + int64(i)*int64(tsStep)
+		ia.Values[i] = valueFn(int64(i))
 	}
 
 	return ia
@@ -64,15 +65,55 @@ func mustParseTime(ts string) time.Time {
 	return t
 }
 
+func copyIntegerArray(src *cursors.IntegerArray) *cursors.IntegerArray {
+	dst := cursors.NewIntegerArrayLen(src.Len())
+	copy(dst.Timestamps, src.Timestamps)
+	copy(dst.Values, src.Values)
+	return dst
+}
+
+type aggArrayCursorTest struct {
+	name           string
+	createCursorFn func(cur cursors.IntegerArrayCursor, every int64) cursors.IntegerArrayCursor
+	every          time.Duration
+	inputArrays    []*cursors.IntegerArray
+	want           []*cursors.IntegerArray
+}
+
+func (a *aggArrayCursorTest) run(t *testing.T) {
+	t.Helper()
+	t.Run(a.name, func(t *testing.T) {
+		var resultN int
+		mc := &MockIntegerArrayCursor{
+			CloseFunc: func() {},
+			ErrFunc:   func() error { return nil },
+			StatsFunc: func() cursors.CursorStats { return cursors.CursorStats{} },
+			NextFunc: func() *cursors.IntegerArray {
+				if resultN < len(a.inputArrays) {
+					a := a.inputArrays[resultN]
+					resultN++
+					return a
+				}
+				return &cursors.IntegerArray{}
+			},
+		}
+		countArrayCursor := a.createCursorFn(mc, int64(a.every))
+		got := make([]*cursors.IntegerArray, 0, len(a.want))
+		for a := countArrayCursor.Next(); a.Len() != 0; a = countArrayCursor.Next() {
+			got = append(got, copyIntegerArray(a))
+		}
+
+		if diff := cmp.Diff(got, a.want); diff != "" {
+			t.Fatalf("did not get expected result from count array cursor; -got/+want:\n%v", diff)
+		}
+
+	})
+}
+
 func TestIntegerIntegerCountArrayCursor(t *testing.T) {
 	maxTimestamp := time.Unix(0, math.MaxInt64)
 
-	testcases := []struct {
-		name        string
-		every       time.Duration
-		inputArrays []*cursors.IntegerArray
-		want        []*cursors.IntegerArray
-	}{
+	testcases := []aggArrayCursorTest{
 		{
 			name:  "window",
 			every: 15 * time.Minute,
@@ -80,11 +121,74 @@ func TestIntegerIntegerCountArrayCursor(t *testing.T) {
 				makeIntegerArray(
 					60,
 					mustParseTime("2010-01-01T00:00:00Z"), time.Minute,
-					100, 1,
+					func(i int64) int64 { return 100 + i },
 				),
 			},
 			want: []*cursors.IntegerArray{
-				makeIntegerArray(4, mustParseTime("2010-01-01T00:15:00Z"), 15*time.Minute, 15, 0),
+				makeIntegerArray(4, mustParseTime("2010-01-01T00:15:00Z"), 15*time.Minute, func(int64) int64 { return 15 }),
+			},
+		},
+		{
+			name:  "empty windows",
+			every: time.Minute,
+			inputArrays: []*cursors.IntegerArray{
+				makeIntegerArray(
+					4,
+					mustParseTime("2010-01-01T00:00:00Z"), 15*time.Minute,
+					func(i int64) int64 { return 100 + i },
+				),
+			},
+			want: []*cursors.IntegerArray{
+				makeIntegerArray(
+					4,
+					mustParseTime("2010-01-01T00:01:00Z"), 15*time.Minute,
+					func(i int64) int64 { return 1 },
+				),
+			},
+		},
+		{
+			name:  "unaligned window",
+			every: 15 * time.Minute,
+			inputArrays: []*cursors.IntegerArray{
+				makeIntegerArray(
+					60,
+					mustParseTime("2010-01-01T00:00:30Z"), time.Minute,
+					func(i int64) int64 { return 100 + i },
+				),
+			},
+			want: []*cursors.IntegerArray{
+				makeIntegerArray(
+					4,
+					mustParseTime("2010-01-01T00:15:00Z"), 15*time.Minute,
+					func(i int64) int64 {
+						return 15
+					}),
+			},
+		},
+		{
+			name:  "more unaligned window",
+			every: 15 * time.Minute,
+			inputArrays: []*cursors.IntegerArray{
+				makeIntegerArray(
+					60,
+					mustParseTime("2010-01-01T00:01:30Z"), time.Minute,
+					func(i int64) int64 { return 100 + i },
+				),
+			},
+			want: []*cursors.IntegerArray{
+				makeIntegerArray(
+					5,
+					mustParseTime("2010-01-01T00:15:00Z"), 15*time.Minute,
+					func(i int64) int64 {
+						switch i {
+						case 0:
+							return 14
+						case 4:
+							return 1
+						default:
+							return 15
+						}
+					}),
 			},
 		},
 		{
@@ -94,16 +198,16 @@ func TestIntegerIntegerCountArrayCursor(t *testing.T) {
 				makeIntegerArray(
 					60,
 					mustParseTime("2010-01-01T00:00:00Z"), time.Minute,
-					100, 1,
+					func(i int64) int64 { return 100 + i },
 				),
 				makeIntegerArray(
 					60,
 					mustParseTime("2010-01-01T01:00:00Z"), time.Minute,
-					200, 1,
+					func(i int64) int64 { return 200 + i },
 				),
 			},
 			want: []*cursors.IntegerArray{
-				makeIntegerArray(8, mustParseTime("2010-01-01T00:15:00Z"), 15*time.Minute, 15, 0),
+				makeIntegerArray(8, mustParseTime("2010-01-01T00:15:00Z"), 15*time.Minute, func(int64) int64 { return 15 }),
 			},
 		},
 		{
@@ -113,120 +217,192 @@ func TestIntegerIntegerCountArrayCursor(t *testing.T) {
 				makeIntegerArray(
 					60,
 					mustParseTime("2010-01-01T00:00:00Z"), time.Minute,
-					100, 1,
+					func(i int64) int64 { return 100 + i },
 				),
 				makeIntegerArray(
 					60,
 					mustParseTime("2010-01-01T01:00:00Z"), time.Minute,
-					200, 1,
+					func(i int64) int64 { return 200 + i },
 				),
 			},
 			want: []*cursors.IntegerArray{
-				makeIntegerArray(3, mustParseTime("2010-01-01T00:40:00Z"), 40*time.Minute, 40, 0),
+				makeIntegerArray(3, mustParseTime("2010-01-01T00:40:00Z"), 40*time.Minute, func(int64) int64 { return 40 }),
 			},
 		},
 		{
-			name:  "window max int every",
-			every: time.Duration(math.MaxInt64),
+			name:  "more windows than MaxPointsPerBlock",
+			every: 2 * time.Millisecond,
+			inputArrays: []*cursors.IntegerArray{
+				makeIntegerArray( // 1 second, one point per ms
+					1000,
+					mustParseTime("2010-01-01T00:00:00Z"), time.Millisecond,
+					func(i int64) int64 { return i },
+				),
+				makeIntegerArray( // 1 second, one point per ms
+					1000,
+					mustParseTime("2010-01-01T00:00:01Z"), time.Millisecond,
+					func(i int64) int64 { return i },
+				),
+				makeIntegerArray( // 1 second, one point per ms
+					1000,
+					mustParseTime("2010-01-01T00:00:02Z"), time.Millisecond,
+					func(i int64) int64 { return i },
+				),
+			},
+			want: []*cursors.IntegerArray{
+				makeIntegerArray(
+					1000,
+					mustParseTime("2010-01-01T00:00:00.002Z"), 2*time.Millisecond,
+					func(i int64) int64 { return 2 },
+				),
+				makeIntegerArray(
+					500,
+					mustParseTime("2010-01-01T00:00:02.002Z"), 2*time.Millisecond,
+					func(i int64) int64 { return 2 },
+				),
+			},
+		},
+		{
+			name: "whole series",
 			inputArrays: []*cursors.IntegerArray{
 				makeIntegerArray(
 					60,
 					mustParseTime("2010-01-01T00:00:00Z"), time.Minute,
-					100, 1,
+					func(i int64) int64 { return 100 + i },
 				),
 			},
 			want: []*cursors.IntegerArray{
-				makeIntegerArray(1, maxTimestamp, 40*time.Minute, 60, 0),
+				makeIntegerArray(1, maxTimestamp, 40*time.Minute, func(i int64) int64 { return 60 }),
 			},
 		},
 		{
-			name:  "window max int every two arrays",
-			every: time.Duration(math.MaxInt64),
+			name:        "whole series no points",
+			inputArrays: []*cursors.IntegerArray{{}},
+			want:        []*cursors.IntegerArray{},
+		},
+		{
+			name: "whole series two arrays",
 			inputArrays: []*cursors.IntegerArray{
 				makeIntegerArray(
 					60,
 					mustParseTime("2010-01-01T00:00:00Z"), time.Minute,
-					100, 1,
+					func(i int64) int64 { return 100 + i },
 				),
 				makeIntegerArray(
 					60,
 					mustParseTime("2010-01-01T01:00:00Z"), time.Minute,
-					100, 1,
+					func(i int64) int64 { return 100 + i },
 				),
 			},
 			want: []*cursors.IntegerArray{
-				makeIntegerArray(1, maxTimestamp, 40*time.Minute, 120, 0),
+				makeIntegerArray(1, maxTimestamp, 40*time.Minute, func(int64) int64 { return 120 }),
 			},
 		},
 		{
-			name:  "window max int span epoch",
-			every: time.Duration(math.MaxInt64),
+			name: "whole series span epoch",
 			inputArrays: []*cursors.IntegerArray{
 				makeIntegerArray(
 					120,
 					mustParseTime("1969-12-31T23:00:00Z"), time.Minute,
-					100, 1,
+					func(i int64) int64 { return 100 + i },
 				),
 			},
 			want: []*cursors.IntegerArray{
-				makeIntegerArray(1, maxTimestamp, 40*time.Minute, 120, 0),
+				makeIntegerArray(1, maxTimestamp, 40*time.Minute, func(int64) int64 { return 120 }),
 			},
 		},
 		{
-			name:  "window max int span epoch two arrays",
-			every: time.Duration(math.MaxInt64),
+			name: "whole series span epoch two arrays",
 			inputArrays: []*cursors.IntegerArray{
 				makeIntegerArray(
 					60,
 					mustParseTime("1969-12-31T23:00:00Z"), time.Minute,
-					100, 1,
+					func(i int64) int64 { return 100 + i },
 				),
 				makeIntegerArray(
 					60,
 					mustParseTime("1970-01-01T00:00:00Z"), time.Minute,
-					100, 1,
+					func(i int64) int64 { return 100 + i },
 				),
 			},
 			want: []*cursors.IntegerArray{
-				makeIntegerArray(1, maxTimestamp, 40*time.Minute, 120, 0),
+				makeIntegerArray(1, maxTimestamp, 40*time.Minute, func(int64) int64 { return 120 }),
+			},
+		},
+		{
+			name: "whole series, with max int64 timestamp",
+			inputArrays: []*cursors.IntegerArray{
+				{
+					Timestamps: []int64{math.MaxInt64},
+					Values:     []int64{0},
+				},
+			},
+			want: []*cursors.IntegerArray{
+				{
+					Timestamps: []int64{math.MaxInt64},
+					Values:     []int64{1},
+				},
 			},
 		},
 	}
 	for _, tc := range testcases {
-		t.Run(tc.name, func(t *testing.T) {
-			var resultN int
-			mc := &MockIntegerArrayCursor{
-				CloseFunc: func() {},
-				ErrFunc:   func() error { return nil },
-				StatsFunc: func() cursors.CursorStats { return cursors.CursorStats{} },
-				NextFunc: func() *cursors.IntegerArray {
-					if resultN < len(tc.inputArrays) {
-						a := tc.inputArrays[resultN]
-						resultN++
-						return a
-					}
-					return &cursors.IntegerArray{}
-				},
-			}
-			var countArrayCursor cursors.IntegerArrayCursor
-			if tc.every != 0 {
-				countArrayCursor = &integerIntegerWindowCountArrayCursor{
-					IntegerArrayCursor: mc,
-					every:              int64(tc.every),
-				}
-			} else {
-				countArrayCursor = newCountArrayCursor(mc).(cursors.IntegerArrayCursor)
-			}
-			got := make([]*cursors.IntegerArray, 0, len(tc.want))
-			for a := countArrayCursor.Next(); a.Len() != 0; a = countArrayCursor.Next() {
-				got = append(got, a)
-			}
-
-			if diff := cmp.Diff(got, tc.want); diff != "" {
-				t.Fatalf("did not get expected result from count array cursor; -got/+want:\n%v", diff)
-			}
-		})
+		tc.createCursorFn = func(cur cursors.IntegerArrayCursor, every int64) cursors.IntegerArrayCursor {
+			return newIntegerWindowCountArrayCursor(cur, every)
+		}
+		tc.run(t)
 	}
+}
+
+func TestNewCountArrayCursor(t *testing.T) {
+	want := &integerWindowCountArrayCursor{
+		IntegerArrayCursor: &MockIntegerArrayCursor{},
+		res:                cursors.NewIntegerArrayLen(1),
+		tmp:                &cursors.IntegerArray{},
+	}
+
+	got := newCountArrayCursor(&MockIntegerArrayCursor{})
+
+	if diff := cmp.Diff(got, want, cmp.AllowUnexported(integerWindowCountArrayCursor{})); diff != "" {
+		t.Fatalf("did not get expected cursor; -got/+want:\n%v", diff)
+	}
+}
+
+func TestNewWindowCountArrayCursor(t *testing.T) {
+	t.Run("hour window", func(t *testing.T) {
+		want := &integerWindowCountArrayCursor{
+			IntegerArrayCursor: &MockIntegerArrayCursor{},
+			every:              int64(time.Hour),
+			res:                cursors.NewIntegerArrayLen(MaxPointsPerBlock),
+			tmp:                &cursors.IntegerArray{},
+		}
+
+		req := &datatypes.ReadWindowAggregateRequest{
+			WindowEvery: int64(time.Hour),
+		}
+		got := newWindowCountArrayCursor(&MockIntegerArrayCursor{}, req)
+
+		if diff := cmp.Diff(got, want, cmp.AllowUnexported(integerWindowCountArrayCursor{})); diff != "" {
+			t.Fatalf("did not get expected cursor; -got/+want:\n%v", diff)
+		}
+	})
+
+	t.Run("count whole series", func(t *testing.T) {
+		want := &integerWindowCountArrayCursor{
+			IntegerArrayCursor: &MockIntegerArrayCursor{},
+			every:              0,
+			res:                cursors.NewIntegerArrayLen(1),
+			tmp:                &cursors.IntegerArray{},
+		}
+
+		req := &datatypes.ReadWindowAggregateRequest{
+			WindowEvery: math.MaxInt64,
+		}
+		got := newWindowCountArrayCursor(&MockIntegerArrayCursor{}, req)
+
+		if diff := cmp.Diff(got, want, cmp.AllowUnexported(integerWindowCountArrayCursor{})); diff != "" {
+			t.Fatalf("did not get expected cursor; -got/+want:\n%v", diff)
+		}
+	})
 }
 
 type MockIntegerArrayCursor struct {

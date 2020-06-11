@@ -18,7 +18,6 @@ import CheckPlot from 'src/shared/components/CheckPlot'
 import {
   CheckViewProperties,
   QueryViewProperties,
-  RemoteDataState,
   SingleStatViewProperties,
   StatusRow,
   TimeZone,
@@ -32,7 +31,6 @@ import {
 interface Props {
   giraffeResult: FromFluxResult
   files?: string[]
-  loading: RemoteDataState
   properties: QueryViewProperties | CheckViewProperties
   timeZone: TimeZone
   statuses?: StatusRow[][]
@@ -44,7 +42,6 @@ interface Props {
 
 const ViewSwitcher: FunctionComponent<Props> = ({
   properties,
-  loading,
   timeRange,
   files,
   giraffeResult: {table, fluxGroupKeyUnion},
@@ -99,7 +96,6 @@ const ViewSwitcher: FunctionComponent<Props> = ({
         <XYPlot
           timeRange={timeRange}
           fluxGroupKeyUnion={fluxGroupKeyUnion}
-          loading={loading}
           table={table}
           timeZone={timeZone}
           viewProperties={properties}
@@ -129,7 +125,6 @@ const ViewSwitcher: FunctionComponent<Props> = ({
         <XYPlot
           timeRange={timeRange}
           fluxGroupKeyUnion={fluxGroupKeyUnion}
-          loading={loading}
           table={table}
           timeZone={timeZone}
           viewProperties={xyProperties}
@@ -159,7 +154,6 @@ const ViewSwitcher: FunctionComponent<Props> = ({
       return (
         <HistogramPlot
           table={table}
-          loading={loading}
           timeZone={timeZone}
           viewProperties={properties}
           theme={theme}
@@ -172,7 +166,6 @@ const ViewSwitcher: FunctionComponent<Props> = ({
       return (
         <HeatmapPlot
           timeRange={timeRange}
-          loading={loading}
           table={table}
           timeZone={timeZone}
           viewProperties={properties}
@@ -186,7 +179,6 @@ const ViewSwitcher: FunctionComponent<Props> = ({
       return (
         <ScatterPlot
           timeRange={timeRange}
-          loading={loading}
           table={table}
           viewProperties={properties}
           timeZone={timeZone}
@@ -203,7 +195,6 @@ const ViewSwitcher: FunctionComponent<Props> = ({
           thresholds={checkThresholds}
           table={table}
           fluxGroupKeyUnion={fluxGroupKeyUnion}
-          loading={loading}
           timeZone={timeZone}
           viewProperties={properties}
           statuses={statuses}

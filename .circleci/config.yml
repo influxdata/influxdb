@@ -20,21 +20,36 @@ commands:
       This will install the cross compilers necessary to build release binaries.
     steps:
       - run:
-          name: Install cross compilers
+          name: Install linux cross compilers
           command: >
             sudo apt-get install -y --no-install-recommends
             gcc-arm-linux-gnueabihf libc6-dev-armhf-cross
             gcc-aarch64-linux-gnu libc6-dev-arm64-cross
       - run:
+          name: Install macOS cross compilers
+          command: |
+            sudo apt-get install libxml2-dev libssl-dev zlib1g-dev
+            sudo mkdir -p /opt/osxcross
+            cd /opt
+            sudo git clone https://github.com/tpoechtrager/osxcross.git
+            cd osxcross
+            sudo git checkout c2ad5e859d12a295c3f686a15bd7181a165bfa82
+            sudo curl -L -o \
+              ./tarballs/MacOSX10.11.sdk.tar.xz \
+              https://macos-sdks.s3.amazonaws.com/MacOSX10.11.sdk.tar.xz
+            UNATTENDED=1 PORTABLE=true sudo ./build.sh
+      - run:
           name: Install additional rust targets
           command: |
             rustup target add aarch64-unknown-linux-gnu \
                               arm-unknown-linux-gnueabihf \
-                              armv7-unknown-linux-gnueabihf
+                              armv7-unknown-linux-gnueabihf \
+                              x86_64-apple-darwin
             echo 'export CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER=gcc' >> $HOME/.cargo/env
             echo 'export CARGO_TARGET_ARM_UNKNOWN_LINUX_GNUEABIHF_LINKER=arm-linux-gnueabihf-gcc' >> $HOME/.cargo/env
             echo 'export CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_LINKER=arm-linux-gnueabihf-gcc' >> $HOME/.cargo/env
             echo 'export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc' >> $HOME/.cargo/env
+            echo 'export CARGO_TARGET_X86_64_APPLE_DARWIN_LINKER=/opt/osxcross/target/o64-clang' >> $HOME/.cargo/env
       - run:
           name: Install pkg-config wrapper
           command: go build -o /go/bin/pkg-config github.com/influxdata/pkg-config

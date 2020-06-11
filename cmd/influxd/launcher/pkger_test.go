@@ -193,17 +193,11 @@ func TestLauncher_Pkger(t *testing.T) {
 	}
 
 	t.Run("managing pkg state with stacks", func(t *testing.T) {
-		t.Run("creating a stack", func(t *testing.T) {
-			_, cleanup := newStackFn(t, pkger.Stack{
-				OrgID:       l.Org.ID,
-				Name:        "first stack",
-				Description: "desc",
-				URLs:        []string{"http://example.com"},
-			})
-			cleanup()
-		})
-
 		t.Run("list stacks", func(t *testing.T) {
+			stacks, err := svc.ListStacks(ctx, l.Org.ID, pkger.ListFilter{})
+			require.NoError(t, err)
+			require.Empty(t, stacks)
+
 			newStack1, cleanup1 := newStackFn(t, pkger.Stack{
 				Name: "first stack",
 			})
@@ -249,6 +243,16 @@ func TestLauncher_Pkger(t *testing.T) {
 				require.Len(t, stacks, 1)
 				containsStack(t, stacks, newStack2)
 			})
+		})
+
+		t.Run("creating a stack", func(t *testing.T) {
+			_, cleanup := newStackFn(t, pkger.Stack{
+				OrgID:       l.Org.ID,
+				Name:        "first stack",
+				Description: "desc",
+				URLs:        []string{"http://example.com"},
+			})
+			cleanup()
 		})
 
 		t.Run("delete a stack", func(t *testing.T) {

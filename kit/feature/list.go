@@ -184,6 +184,34 @@ func NewLabelPackage() BoolFlag {
 	return newLabels
 }
 
+var hydratevars = MakeBoolFlag(
+	"New Hydrate Vars Functionality",
+	"hydratevars",
+	"Ariel Salem / Monitoring Team",
+	false,
+	Temporary,
+	true,
+)
+
+// NewHydrateVarsFunctionality - Enables a minimalistic variable hydration
+func NewHydrateVarsFunctionality() BoolFlag {
+	return hydratevars
+}
+
+var memoryOptimizedFill = MakeBoolFlag(
+	"Memory Optimized Fill",
+	"memoryOptimizedFill",
+	"Query Team",
+	false,
+	Temporary,
+	false,
+)
+
+// MemoryOptimizedFill - Enable the memory optimized fill()
+func MemoryOptimizedFill() BoolFlag {
+	return memoryOptimizedFill
+}
+
 var all = []Flag{
 	appMetrics,
 	backendExample,
@@ -198,6 +226,8 @@ var all = []Flag{
 	pushDownGroupAggregateFirst,
 	pushDownGroupAggregateLast,
 	newLabels,
+	hydratevars,
+	memoryOptimizedFill,
 }
 
 var byKey = map[string]Flag{
@@ -214,4 +244,6 @@ var byKey = map[string]Flag{
 	"pushDownGroupAggregateFirst":  pushDownGroupAggregateFirst,
 	"pushDownGroupAggregateLast":   pushDownGroupAggregateLast,
 	"newLabels":                    newLabels,
+	"hydratevars":                  hydratevars,
+	"memoryOptimizedFill":          memoryOptimizedFill,
 }

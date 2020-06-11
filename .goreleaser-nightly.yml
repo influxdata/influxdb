@@ -3,10 +3,7 @@ builds:
   - id: influx
     goos:
       - linux
-      # Darwin cross compilation involves installing
-      # a compiler toolchain for it.
-      # https://github.com/influxdata/flux/issues/2654
-      # - darwin
+      - darwin
     goarch:
       - amd64
       - arm64
@@ -16,15 +13,13 @@ builds:
       - CGO_ENABLED=1
       - CC=xcc
       - PKG_CONFIG=$GOPATH/bin/pkg-config
+      - MACOSX_DEPLOYMENT_TARGET=10.11
     ldflags: -s -w -X main.version=nightly -X main.commit={{.ShortCommit}} -X main.date={{.Date}}
     binary: influx
   - id: influxd
     goos:
       - linux
-      # Darwin cross compilation involves installing
-      # a compiler toolchain for it.
-      # https://github.com/influxdata/flux/issues/2654
-      # - darwin
+      - darwin
     goarch:
       - amd64
       - arm64
@@ -36,6 +31,7 @@ builds:
       - CGO_ENABLED=1
       - CC=xcc
       - PKG_CONFIG=$GOPATH/bin/pkg-config
+      - MACOSX_DEPLOYMENT_TARGET=10.11
     ldflags: -s -w -X main.version=nightly -X main.commit={{.ShortCommit}} -X main.date={{.Date}}
     binary: influxd
     hooks:

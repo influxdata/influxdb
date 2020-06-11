@@ -34,10 +34,22 @@ export const buildFieldsFromTiming = function buildFieldsFromTiming(
   const totalServer = timing.responseEnd - timing.requestStart
 
   //  UI measurements
-  const domProcessing = timing.domComplete - timing.responseEnd
-  const domContentLoading = timing.domComplete - timing.domInteractive
-  const windowLoadEvent = timing.loadEventEnd - timing.loadEventStart
+  let domProcessing = timing.responseEnd
+  let domContentLoading = timing.domInteractive
+  let windowLoadEvent = timing.loadEventStart
 
+  // these values will be 0 if the event hasn't fired (e.g. because it's not finished) before the request is sent
+  if (timing.domComplete > 0) {
+    domProcessing = timing.domComplete - timing.responseEnd
+  }
+  if (timing.domComplete > 0) {
+    domContentLoading = timing.domComplete - timing.domInteractive
+  }
+  if (windowLoadEvent > 0) {
+    windowLoadEvent = timing.loadEventEnd - timing.loadEventStart
+  }
+
+  // tls and worker may not be set by the user agent - guard against that
   let tls = 0
   if (timing.secureConnectionStart > 0) {
     tls = timing.connectEnd - timing.secureConnectionStart

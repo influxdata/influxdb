@@ -57,12 +57,15 @@ func newHTTPClient() (*httpc.Client, error) {
 		version, runtime.GOOS, commit, date,
 	)
 
-	c, err := http.NewHTTPClient(
-		flags.Host,
-		flags.Token,
-		flags.skipVerify,
+	opts := []httpc.ClientOptFn{
 		httpc.WithUserAgentHeader(userAgent),
-	)
+	}
+	// This is useful for forcing tracing on a given endpoint.
+	if flags.traceDebugID != "" {
+		opts = append(opts, httpc.WithHeader("jaeger-debug-id", flags.traceDebugID))
+	}
+
+	c, err := http.NewHTTPClient(flags.Host, flags.Token, flags.skipVerify, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -146,8 +149,9 @@ func runEMiddlware(mw cobraRunEMiddleware) genericCLIOptFn {
 
 type globalFlags struct {
 	config.Config
-	local      bool
-	skipVerify bool
+	local        bool
+	skipVerify   bool
+	traceDebugID string
 }
 
 var flags globalFlags
@@ -201,6 +205,12 @@ func (b *cmdInfluxBuilder) cmd(childCmdFns ...func(f *globalFlags, opt genericCL
 			DestP:      &flags.Host,
 			Flag:       "host",
 			Desc:       "HTTP address of Influx",
+			Persistent: true,
+		},
+		{
+			DestP:      &flags.traceDebugID,
+			Flag:       "trace-debug-id",
+			Hidden:     true,
 			Persistent: true,
 		},
 	}
@@ -259,17 +269,20 @@ func influxCmd(opts ...genericCLIOptFn) *cobra.Command {
 		cmdAuth,
 		cmdBackup,
 		cmdBucket,
+		cmdConfig,
 		cmdDelete,
+		cmdExport,
 		cmdOrganization,
 		cmdPing,
-		cmdPkg,
-		cmdConfig,
 		cmdQuery,
-		cmdTranspile,
 		cmdREPL,
 		cmdSecret,
 		cmdSetup,
+		cmdStack,
 		cmdTask,
+		cmdTemplate,
+		cmdApply,
+		cmdTranspile,
 		cmdUser,
 		cmdWrite,
 	)

@@ -1,6 +1,6 @@
 import * as React from 'react'
 import {useState} from 'react'
-import {render, fireEvent, wait, getNodeText} from 'react-testing-library'
+import {render, fireEvent, waitFor, getNodeText} from '@testing-library/react'
 import ThresholdsSettings from 'src/shared/components/ThresholdsSettings'
 import {BASE_THRESHOLD_ID} from 'src/shared/constants/thresholds'
 import {Color} from 'src/types'
@@ -162,7 +162,7 @@ describe('ThresholdSettings', () => {
     fireEvent.blur(input1)
 
     // Wait for the changes to propogate to the test component
-    await wait(() => {
+    await waitFor(() => {
       getByTestId('did-rerender')
     })
 

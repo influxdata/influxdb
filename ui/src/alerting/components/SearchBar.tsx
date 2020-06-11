@@ -66,6 +66,7 @@ const SearchBar: FC<Props> = ({
           status={inputStatus}
           onChange={e => search(state, dispatch, loadRows, e.target.value)}
           onFocus={() => setIsFocused(true)}
+          testID="check-status-input"
         />
       </ClickOutside>
       {state.searchInput.trim() !== '' && (
@@ -78,6 +79,7 @@ const SearchBar: FC<Props> = ({
       )}
       {isFocused && (
         <DropdownMenu
+          testID="check-status-dropdown"
           className="status-search-bar--suggestions"
           noScrollX={true}
           noScrollY={true}

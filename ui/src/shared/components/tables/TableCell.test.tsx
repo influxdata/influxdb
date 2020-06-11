@@ -1,5 +1,5 @@
 import React from 'react'
-import {render} from 'react-testing-library'
+import {render} from '@testing-library/react'
 import TableCell from 'src/shared/components/tables/TableCell'
 import {TableViewProperties} from 'src/client'
 import {PropsMultiGrid} from 'src/shared/components/MultiGrid'

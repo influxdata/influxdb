@@ -54,7 +54,7 @@ class MapVariableBuilder extends PureComponent<Props, State> {
     const {entries} = this
 
     return (
-      <Form.Element label="Comma Separated Values">
+      <Form.Element label="Comma Separated Key-Value Pairs Per Line">
         <Grid.Row>
           <Grid.Column>
             <TextArea
@@ -67,7 +67,7 @@ class MapVariableBuilder extends PureComponent<Props, State> {
         <Grid.Row>
           <Grid.Column widthXS={Columns.Six}>
             <p>
-              Mapping Contains <strong>{entries.length}</strong> key-value pair
+              Mapping contains <strong>{entries.length}</strong> key-value pair
               {pluralize(entries)}
             </p>
           </Grid.Column>

@@ -228,7 +228,7 @@ func TestCmdPkg(t *testing.T) {
 					return &pkg, nil
 				},
 			}
-			return newCmdPkgBuilder(fakeSVCFn(pkgSVC), opt).cmd()
+			return newCmdPkgBuilder(fakeSVCFn(pkgSVC), opt).cmdApply()
 		}
 
 		for _, tt := range tests {
@@ -348,7 +348,7 @@ func TestCmdPkg(t *testing.T) {
 			}
 
 			builder := newCmdPkgBuilder(fakeSVCFn(pkgSVC), opt)
-			return builder.cmd()
+			return builder.cmdApply()
 		}
 		for _, tt := range tests {
 			tt.args = append(tt.args,
@@ -421,7 +421,7 @@ func TestCmdPkg(t *testing.T) {
 				out(ioutil.Discard),
 			)
 			cmd := builder.cmd(func(f *globalFlags, opt genericCLIOpts) *cobra.Command {
-				return newCmdPkgBuilder(fakeSVCFn(new(fakePkgSVC)), opt).cmd()
+				return newCmdPkgBuilder(fakeSVCFn(new(fakePkgSVC)), opt).cmdApply()
 			})
 
 			cmd.SetArgs([]string{
@@ -444,7 +444,7 @@ func TestCmdPkg(t *testing.T) {
 				out(ioutil.Discard),
 			)
 			cmd := builder.cmd(func(f *globalFlags, opt genericCLIOpts) *cobra.Command {
-				return newCmdPkgBuilder(fakeSVCFn(new(fakePkgSVC)), opt).cmd()
+				return newCmdPkgBuilder(fakeSVCFn(new(fakePkgSVC)), opt).cmdApply()
 			})
 			cmd.SetArgs([]string{"pkg", "validate"})
 
@@ -485,8 +485,8 @@ func TestCmdPkg(t *testing.T) {
 						"--org-id=" + influxdb.ID(1).String(),
 						"--stack-name=foo",
 						"--stack-description=desc",
-						"--package-url=http://example.com/1",
-						"--package-url=http://example.com/2",
+						"--template-url=http://example.com/1",
+						"--template-url=http://example.com/2",
 					},
 					expectedStack: pkger.Stack{
 						OrgID:       1,
@@ -542,7 +542,7 @@ func TestCmdPkg(t *testing.T) {
 								return stack, nil
 							},
 						}
-						return newCmdPkgBuilder(fakeSVCFn(echoSVC), opt).cmd()
+						return newCmdPkgBuilder(fakeSVCFn(echoSVC), opt).cmdApply()
 					})
 
 					baseArgs := []string{"pkg", "stack", "init", "--json"}

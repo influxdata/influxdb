@@ -41,7 +41,7 @@ func new{{.Name}}Table(
 		cur:   cur,
 	}
 	t.readTags(tags)
-	t.advance()
+	t.init(t.advance)
 
 	return t
 }
@@ -100,6 +100,7 @@ type {{.name}}WindowTable struct {
 	nextTS      int64
 	idxInArr    int
 	createEmpty bool
+	timeColumn  string
 }
 
 func new{{.Name}}WindowTable(
@@ -108,6 +109,7 @@ func new{{.Name}}WindowTable(
 	bounds execute.Bounds,
 	every int64,
 	createEmpty bool,
+	timeColumn string,
 	key flux.GroupKey,
 	cols []flux.ColMeta,
 	tags models.Tags,
@@ -122,13 +124,14 @@ func new{{.Name}}WindowTable(
 		},
 		windowEvery: every,
 		createEmpty: createEmpty,
+		timeColumn:  timeColumn,
 	}
 	if t.createEmpty {
 		start := int64(bounds.Start)
 		t.nextTS = start + (every - start % every)
 	}
 	t.readTags(tags)
-	t.advance()
+	t.init(t.advance)
 
 	return t
 }
@@ -137,37 +140,64 @@ func (t *{{.name}}WindowTable) Do(f func(flux.ColReader) error) error {
 	return t.do(f, t.advance)
 }
 
-// createNextWindow will read the timestamps from the array
-// cursor and construct the values for the next window.
-func (t *{{.name}}WindowTable) createNextWindow() (start, stop *array.Int64, ok bool) {
-	var stopT int64
+// createNextBufferTimes will read the timestamps from the array
+// cursor and construct the values for the next buffer.
+func (t *{{.name}}WindowTable) createNextBufferTimes() (start, stop *array.Int64, ok bool) {
+	startB := arrow.NewIntBuilder(t.alloc)
+	stopB := arrow.NewIntBuilder(t.alloc)
+
 	if t.createEmpty {
-		stopT = t.nextTS
-		t.nextTS += t.windowEvery
-	} else {
-		if !t.nextBuffer() {
+		// There are no more windows when the start time is greater
+		// than or equal to the stop time.
+		if startT := t.nextTS - t.windowEvery; startT >= int64(t.bounds.Stop) {
 			return nil, nil, false
 		}
-		stopT = t.arr.Timestamps[t.idxInArr]
+
+		// Create a buffer with the buffer size.
+		// TODO(jsternberg): Calculate the exact size with max points as the maximum.
+		startB.Resize(storage.MaxPointsPerBlock)
+		stopB.Resize(storage.MaxPointsPerBlock)
+		for ; ; t.nextTS += t.windowEvery {
+			startT, stopT := t.getWindowBoundsFor(t.nextTS)
+			if startT >= int64(t.bounds.Stop) {
+				break
+			}
+			startB.Append(startT)
+			stopB.Append(stopT)
+		}
+		start = startB.NewInt64Array()
+		stop = stopB.NewInt64Array()
+		return start, stop, true
 	}
 
-	// Regain the window start time from the window end time.
-	startT := stopT - t.windowEvery
+	// Retrieve the next buffer so we can copy the timestamps.
+	if !t.nextBuffer() {
+		return nil, nil, false
+	}
+
+	// Copy over the timestamps from the next buffer and adjust
+	// times for the boundaries.
+	startB.Resize(len(t.arr.Timestamps))
+	stopB.Resize(len(t.arr.Timestamps))
+	for _, stopT := range t.arr.Timestamps {
+		startT, stopT := t.getWindowBoundsFor(stopT)
+		startB.Append(startT)
+		stopB.Append(stopT)
+	}
+	start = startB.NewInt64Array()
+	stop = stopB.NewInt64Array()
+	return start, stop, true
+}
+
+func (t *{{.name}}WindowTable) getWindowBoundsFor(ts int64) (startT, stopT int64) {
+	startT, stopT = ts - t.windowEvery, ts
 	if startT < int64(t.bounds.Start) {
 		startT = int64(t.bounds.Start)
 	}
 	if stopT > int64(t.bounds.Stop) {
 		stopT = int64(t.bounds.Stop)
 	}
-
-	// If the start time is after our stop boundary,
-	// we exit here when create empty is true.
-	if t.createEmpty && startT >= int64(t.bounds.Stop) {
-		return nil, nil, false
-	}
-	start = arrow.NewInt([]int64{startT}, t.alloc)
-	stop = arrow.NewInt([]int64{stopT}, t.alloc)
-	return start, stop, true
+	return startT, stopT
 }
 
 // nextAt will retrieve the next value that can be used with
@@ -238,7 +268,7 @@ func (t *{{.name}}WindowTable) appendValues(intervals []int64, appendValue func(
 
 func (t *{{.name}}WindowTable) advance() bool {
 	// Create the timestamps for the next window.
-	start, stop, ok := t.createNextWindow()
+	start, stop, ok := t.createNextBufferTimes()
 	if !ok {
 		return false
 	}
@@ -249,9 +279,22 @@ func (t *{{.name}}WindowTable) advance() bool {
 	// because the references were retained, then we will
 	// allocate a new buffer.
 	cr := t.allocateBuffer(stop.Len())
-	cr.cols[startColIdx] = start
-	cr.cols[stopColIdx] = stop
-	cr.cols[windowedValueColIdx] = values
+	if t.timeColumn != "" {
+		switch t.timeColumn {
+		case execute.DefaultStopColLabel:
+			cr.cols[timeColIdx] = stop
+			start.Release()
+		case execute.DefaultStartColLabel:
+			cr.cols[timeColIdx] = start
+			stop.Release()
+		}
+		cr.cols[valueColIdx] = values
+		t.appendBounds(cr)
+	} else {
+		cr.cols[startColIdx] = start
+		cr.cols[stopColIdx] = stop
+		cr.cols[windowedValueColIdx] = values
+	}
 	t.appendTags(cr)
 	return true
 }
@@ -283,7 +326,7 @@ func new{{.Name}}GroupTable(
 		cur:   cur,
 	}
 	t.readTags(tags)
-	t.advance()
+	t.init(t.advance)
 
 	return t
 }

@@ -116,27 +116,29 @@ const Visualization: FC<PipeProp> = ({
   return (
     <Context controls={controls}>
       <div className="notebook-visualization">
+        <div className="notebook-visualization--header" />
+        <div className="notebook-visualization--view">
         <DashboardList
           show={showExport}
           query={results.source}
           onClose={toggleExport}
           properties={data.properties}
         />
-        <EmptyQueryView
-          loading={loading}
-          errorMessage={results.error}
-          errorFormat={ErrorFormat.Scroll}
-          hasResults={checkResultsLength(results.parsed)}
-        >
-          <ViewSwitcher
-            giraffeResult={results.parsed}
-            files={[results.raw]}
+          <EmptyQueryView
             loading={loading}
-            properties={data.properties}
-            timeZone={timeZone}
-            theme="dark"
-          />
-        </EmptyQueryView>
+            errorMessage={results.error}
+            errorFormat={ErrorFormat.Scroll}
+            hasResults={checkResultsLength(results.parsed)}
+          >
+            <ViewSwitcher
+              giraffeResult={results.parsed}
+              files={[results.raw]}
+              properties={data.properties}
+              timeZone={timeZone}
+              theme="dark"
+            />
+          </EmptyQueryView>
+        </div>
       </div>
     </Context>
   )
