@@ -5,7 +5,7 @@ import {AutoSizer} from 'react-virtualized'
 
 // Components
 import RawFluxDataTable from 'src/timeMachine/components/RawFluxDataTable'
-import ResultsResizer from 'src/notebooks/pipes/Query/ResultsResizer'
+import Resizer from 'src/notebooks/pipes/Query/Resizer'
 
 interface Props {
   data: any
@@ -18,11 +18,7 @@ const Results: FC<Props> = ({results, onUpdate, data}) => {
 
   return (
     <div className="notebook-raw-data">
-      <ResultsResizer
-        data={data}
-        onUpdate={onUpdate}
-        resizingEnabled={resultsExist}
-      >
+      <Resizer data={data} onUpdate={onUpdate} resizingEnabled={resultsExist}>
         <AutoSizer>
           {({width, height}) =>
             width &&
@@ -35,7 +31,7 @@ const Results: FC<Props> = ({results, onUpdate, data}) => {
             )
           }
         </AutoSizer>
-      </ResultsResizer>
+      </Resizer>
     </div>
   )
 }
