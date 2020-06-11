@@ -118,12 +118,12 @@ const Visualization: FC<PipeProp> = ({
       <div className="notebook-visualization">
         <div className="notebook-visualization--header" />
         <div className="notebook-visualization--view">
-        <DashboardList
-          show={showExport}
-          query={results.source}
-          onClose={toggleExport}
-          properties={data.properties}
-        />
+          <DashboardList
+            show={showExport}
+            query={results.source}
+            onClose={toggleExport}
+            properties={data.properties}
+          />
           <EmptyQueryView
             loading={loading}
             errorMessage={results.error}
