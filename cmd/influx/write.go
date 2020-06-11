@@ -9,7 +9,6 @@ import (
 	"net/url"
 	"os"
 	"strings"
-	"time"
 
 	platform "github.com/influxdata/influxdb/v2"
 	ihttp "github.com/influxdata/influxdb/v2/http"
@@ -151,13 +150,17 @@ func (writeFlags *writeFlagsType) createLineReader(cmd *cobra.Command, args []st
 
 	// #18349 allow URL data sources, a simple alternative to `curl -f -s http://... | influx write ...`
 	if len(writeFlags.URLs) > 0 {
-		client := http.Client{Timeout: 5 * time.Minute}
+		client := http.DefaultClient
 		for _, addr := range writeFlags.URLs {
 			u, err := url.Parse(addr)
 			if err != nil {
 				return nil, csv2lp.MultiCloser(closers...), fmt.Errorf("failed to open %q: %v", addr, err)
 			}
-			resp, err := client.Get(addr)
+			req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, addr, nil)
+			if err != nil {
+				return nil, csv2lp.MultiCloser(closers...), fmt.Errorf("failed to open %q: %v", addr, err)
+			}
+			resp, err := client.Do(req)
 			if err != nil {
 				return nil, csv2lp.MultiCloser(closers...), fmt.Errorf("failed to open %q: %v", addr, err)
 			}
