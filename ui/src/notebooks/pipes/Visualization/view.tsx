@@ -1,9 +1,11 @@
-import React, {FC, useContext} from 'react'
+import React, {FC, useContext, useState} from 'react'
 import {PipeProp} from 'src/notebooks'
 import EmptyQueryView, {ErrorFormat} from 'src/shared/components/EmptyQueryView'
+import DashboardList from './DashboardList'
 import ViewSwitcher from 'src/shared/components/ViewSwitcher'
 import {ViewTypeDropdown} from 'src/timeMachine/components/view_options/ViewTypeDropdown'
 import {checkResultsLength} from 'src/shared/utils/vis'
+import {SquareButton, IconFont, ComponentStatus} from '@influxdata/clockface'
 import {ViewType} from 'src/types'
 import {createView} from 'src/views/helpers'
 
@@ -21,10 +23,14 @@ const Visualization: FC<PipeProp> = ({
   loading,
 }) => {
   const {timeZone} = useContext(AppSettingContext)
+  const [showExport, updateShowExport] = useState(false)
 
   const updateType = (type: ViewType) => {
     const newView = createView(type)
 
+    // TODO: all of this needs to be removed by refactoring
+    // the underlying logic. Managing state like this is a
+    // recipe for long dev cycles, stale logic, and many bugs
     if (newView.properties.type === 'table' && results.parsed) {
       const existing = (newView.properties.fieldOptions || []).reduce(
         (prev, curr) => {
@@ -80,16 +86,42 @@ const Visualization: FC<PipeProp> = ({
     })
   }
 
+  const exportStatus =
+    !showExport && results.source
+      ? ComponentStatus.Default
+      : ComponentStatus.Disabled
+  const toggleExport = () => {
+    if (!results.source) {
+      return
+    }
+
+    updateShowExport(!showExport)
+  }
+
   const controls = (
-    <ViewTypeDropdown
-      viewType={data.properties.type}
-      onUpdateType={updateType}
-    />
+    <>
+      <ViewTypeDropdown
+        viewType={data.properties.type}
+        onUpdateType={updateType}
+      />
+      <SquareButton
+        icon={IconFont.Export}
+        onClick={toggleExport}
+        titleText="Save to Dashboard"
+        status={exportStatus}
+      />
+    </>
   )
 
   return (
     <Context controls={controls}>
       <div className="notebook-visualization">
+        <DashboardList
+          show={showExport}
+          query={results.source}
+          onClose={toggleExport}
+          properties={data.properties}
+        />
         <EmptyQueryView
           loading={loading}
           errorMessage={results.error}

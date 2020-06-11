@@ -4,7 +4,19 @@
     .empty-graph-error {
         height: 200px;
     }
+
     .time-machine-tables {
         height: 200px;
     }
+}
+
+.notebook-visualization--dashboard-list {
+    h1 {
+        display: inline-block;
+    }
+}
+
+.notebook-visualization--dashboard-list-dropdown {
+    display: inline-block;
+    width: 200px;
 }
