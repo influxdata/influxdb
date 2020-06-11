@@ -3,7 +3,7 @@ import React, {FC, useRef, useEffect, ReactNode, useState} from 'react'
 import classnames from 'classnames'
 
 // Components
-import ResultsHeader from 'src/notebooks/pipes/Query/ResultsHeader'
+import ResizerHeader from 'src/notebooks/pipes/Query/ResizerHeader'
 
 // Types
 import {ResultsVisibility} from 'src/notebooks/pipes/Query'
@@ -17,12 +17,7 @@ interface Props {
 
 const MINIMUM_RESULTS_PANEL_HEIGHT = 100
 
-const ResultsResizer: FC<Props> = ({
-  data,
-  onUpdate,
-  children,
-  resizingEnabled,
-}) => {
+const Resizer: FC<Props> = ({data, onUpdate, children, resizingEnabled}) => {
   const height = data.resultsPanelHeight
   const visibility = data.resultsVisibility
 
@@ -138,7 +133,7 @@ const ResultsResizer: FC<Props> = ({
 
   return (
     <>
-      <ResultsHeader
+      <ResizerHeader
         resizingEnabled={resizingEnabled}
         visibility={visibility}
         onUpdateVisibility={handleUpdateVisibility}
@@ -152,4 +147,4 @@ const ResultsResizer: FC<Props> = ({
   )
 }
 
-export default ResultsResizer
+export default Resizer
