@@ -34,7 +34,9 @@ const SECONDS = 60
 const TIMER_WAIT = 1000
 
 interface ExtendedRouterProps extends WithRouterProps {
-  orgID: string
+  params: {
+    orgID: string
+  }
 }
 
 type Props = ExtendedRouterProps & OwnProps
