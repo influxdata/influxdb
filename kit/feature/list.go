@@ -190,7 +190,7 @@ var hydratevars = MakeBoolFlag(
 	"Ariel Salem / Monitoring Team",
 	false,
 	Temporary,
-	false,
+	true,
 )
 
 // NewHydrateVarsFunctionality - Enables a minimalistic variable hydration
