@@ -64,6 +64,8 @@ const notePopupEditorPreview = '[data-testid=overlay--body] .note-editor--previe
 const notePopupEditorPreviewTag = '[data-testid=overlay--body] .note-editor--preview %TAG%';
 const notePopupEditorPreviewText = '[data-testid=overlay--body] .note-editor--preview .markdown-format';
 const notePopupGuideLink = '[href*=\'markdownguide.org\']';
+const notePopupCancel = '[data-testid=overlay--footer] button[title=Cancel]';
+const notePopupSave = '[data-testid=overlay--footer] button[title=Save]';
 
 const notePopover = '[data-testid=popover--dialog]';
 const notePopoverContents = '[data-testid=popover--dialog] .markdown-format';
@@ -247,6 +249,14 @@ class dashboardPage extends influxPage {
 
     async getNotePopupGuideLink(){
         return await this.driver.findElement(By.css(notePopupGuideLink));
+    }
+
+    async getNotePopupCancel(){
+        return await this.driver.findElement(By.css(notePopupCancel));
+    }
+
+    async getNotePopupSave(){
+        return await this.driver.findElement(By.css(notePopupSave));
     }
 
     async getCellNoteByName(name){

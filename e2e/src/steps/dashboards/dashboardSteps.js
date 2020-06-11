@@ -269,6 +269,10 @@ class dashboardSteps extends influxSteps {
         });
     }
 
+    async clickNotePopupCance(){
+        await this.clickAndWait(await this.dbdPage.getNotePopupCancel());
+    }
+
     async clickDashboardPopOverlayEditNote(){
         await this.clickAndWait(await this.dbdPage.getcellPopoverContentsEditNote(), async () => {
             await this.driver.sleep(1000);
@@ -301,8 +305,8 @@ class dashboardSteps extends influxSteps {
         await this.verifyElementContainsText(await this.dbdPage.getPopupTitle(), 'Edit Note');
         await this.assertVisible(await this.dbdPage.getNotePopupCodeMirror());
         await this.assertVisible(await this.dbdPage.getPopupDismiss());
-        await this.assertVisible(await this.dbdPage.getPopupCancelSimple());
-        await this.assertVisible(await this.dbdPage.getPopupSaveSimple());
+        await this.assertVisible(await this.dbdPage.getNotePopupCancel());
+        await this.assertVisible(await this.dbdPage.getNotePopupSave());
         await this.assertVisible(await this.dbdPage.getNotePopupNoDataToggle());
         await this.assertVisible(await this.dbdPage.getNotePopupEditorPreview());
     }

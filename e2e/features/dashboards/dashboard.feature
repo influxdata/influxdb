@@ -81,7 +81,7 @@ Feature: Dashboards - Dashboard - Base
     Then popup is not loaded
     When toggle context menu of dashboard cell named "вре́менный"
     When click cell content popover add note
-    Then click popup cancel simple button
+    Then click note popup cancel
     Then popup is not loaded
     When toggle context menu of dashboard cell named "вре́менный"
     When click cell content popover add note

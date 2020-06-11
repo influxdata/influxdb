@@ -10,7 +10,7 @@ const formInputError = '[data-testid=input-error]';
 const popupOverlay = '[data-testid=overlay]';
 const popupDismiss = '[data-testid=overlay--header] button[class*=dismiss]';
 const popupCancel = '[data-testid=overlay] button[data-testid=button--cancel]';
-const popupCancelSimple = '[data-testid=overlay] button[title=Cancel]';
+const popupCancelSimple = '[data-testid=overlay--body] button[title=Cancel] ';
 const popupWizardContinue = '[data-testid=overlay--body] [data-testid=next]';
 const popupSave = '[data-testid=overlay--container] button[data-testid=button--save] ';
 const popupSaveSimple = '[data-testid=overlay--footer] button[title=\'Save\']';
