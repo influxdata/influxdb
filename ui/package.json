@@ -105,6 +105,7 @@
     "http-proxy-middleware": "^0.18.0",
     "identity-obj-proxy": "^3.0.0",
     "jest": "^24.8.0",
+    "jest-fetch-mock": "^3.0.3",
     "jest-junit": "^10.0.0",
     "jsdom": "^9.0.0",
     "junit-viewer": "^4.11.1",

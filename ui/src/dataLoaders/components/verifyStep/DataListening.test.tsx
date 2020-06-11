@@ -1,5 +1,7 @@
 // Libraries
 import React from 'react'
+import fetchMock from 'jest-fetch-mock'
+fetchMock.enableMocks()
 
 // Components
 import DataListening from 'src/dataLoaders/components/verifyStep/DataListening'
