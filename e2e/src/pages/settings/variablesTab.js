@@ -34,7 +34,7 @@ const createVariableQueryCodeMirror = '.CodeMirror';
 const createVariableQueryMonacoEdit = '.monaco-editor';
 const createVariableTextArea = '[data-testid=overlay--body] [data-testid=textarea]';
 const createVariableTypeDropdownItem = '[data-testid=\'variable-type-dropdown-%ITEM%\']';
-const createVariableDefaultValDropdown = '//*[@data-testid=\'form--element\'][label/span[text() = \'Select A Default\']]//*[@data-testid=\'dropdown--button\']';
+const createVariableDefaultValDropdown = '//*[@data-testid=\'form--element\'][.//*[text() = \'Select A Default\']]//*[contains(@data-testid,\'dropdown--button\')]';
 const createVariableInfoPara = '//*[@data-testid=\'grid--column\'][p[contains(text(), \'ontains\')]]';
 const createVariableDefaultValDropdownItem = '[data-testid=dropdown-item][id=\'%ITEM%\']';
 const createVariableDefaultValCSVDropdownItem = '//*[@data-testid=\'dropdown-item\']//*[text() = \'%ITEM%\']';
