@@ -7,8 +7,11 @@ import {AutoSizer} from 'react-virtualized'
 import RawFluxDataTable from 'src/timeMachine/components/RawFluxDataTable'
 import Resizer from 'src/notebooks/pipes/Query/Resizer'
 
+// Types
+import {PipeData} from 'src/notebooks/index'
+
 interface Props {
-  data: any
+  data: PipeData
   results: BothResults
   onUpdate: (data: any) => void
 }

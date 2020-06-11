@@ -7,9 +7,10 @@ import ResizerHeader from 'src/notebooks/pipes/Query/ResizerHeader'
 
 // Types
 import {ResultsVisibility} from 'src/notebooks/pipes/Query'
+import {PipeData} from 'src/notebooks/index'
 
 interface Props {
-  data: any
+  data: PipeData
   onUpdate: (data: any) => void
   children: ReactNode
   resizingEnabled: boolean
