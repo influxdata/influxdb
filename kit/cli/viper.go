@@ -16,6 +16,7 @@ type Opt struct {
 
 	EnvVar     string
 	Flag       string
+	Hidden     bool
 	Persistent bool
 	Required   bool
 	Short      rune // using rune b/c it guarantees correctness. a short must always be a string of length 1
@@ -177,6 +178,12 @@ func BindOptions(cmd *cobra.Command, opts []Opt) {
 			// if you get a panic here, sorry about that!
 			// anyway, go ahead and make a PR and add another type.
 			panic(fmt.Errorf("unknown destination type %t", o.DestP))
+		}
+
+		// so weirdness with the flagset her, the flag must be set before marking it
+		// hidden. This is in contrast to the MarkRequired, which can be set before...
+		if o.Hidden {
+			flagset.MarkHidden(o.Flag)
 		}
 	}
 }

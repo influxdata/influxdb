@@ -7,6 +7,8 @@
 1. [18334](https://github.com/influxdata/influxdb/pull/18334): Update influx pkg commands with improved usage and examples in long form.
 1. [18344](https://github.com/influxdata/influxdb/pull/18344): Extend influx CLI with version and User-Agent.
 1. [18355](https://github.com/influxdata/influxdb/pull/18355): Integrate RedirectTo functionality so CLOUD users now get navigated back to the originally linked page after login
+1. [18392](https://github.com/influxdata/influxdb/pull/18392): Consolidate pkg influx commands under templates. This removes some nesting of the CLI commands as part of that.
+1. [18400](https://github.com/influxdata/influxdb/pull/18400): Dashboards maintain sort order after navigating away
 
 ### Bug Fixes
 
@@ -14,12 +16,14 @@
 1. [18335](https://github.com/influxdata/influxdb/pull/18335): Disable failing when providing an unexpected error to influx CLI
 1. [18345](https://github.com/influxdata/influxdb/pull/18345): Have influx delete cmd respect the config
 1. [18385](https://github.com/influxdata/influxdb/pull/18385): Store initialization for pkger enforced on reads
+1. [18434](https://github.com/influxdata/influxdb/pull/18434): Backfill missing fillColumns field for histograms in pkger
 
 ### UI Improvements
 
 1. [18319](https://github.com/influxdata/influxdb/pull/18319): Display bucket ID in bucket list and enable 1 click copying
 1. [18361](https://github.com/influxdata/influxdb/pull/18361): Tokens list is now consistent with the other resource lists
-
+1. [18346](https://github.com/influxdata/influxdb/pull/18346): Reduce the number of variables being hydrated when toggling variables
+1. [18447](https://github.com/influxdata/influxdb/pull/18447): Redesign dashboard cell loading indicator to be more obvious
 
 ## v2.0.0-beta.11 [2020-05-26]
 

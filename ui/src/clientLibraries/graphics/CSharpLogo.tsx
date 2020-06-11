@@ -6,7 +6,7 @@ const CSharpLogo: SFC = () => {
     <svg
       width="100%"
       height="100%"
-      xmlns="http://www.w3.org/2000/svg"
+      preserveAspectRatio="xMidYMid meet"
       viewBox="0 0 300 300"
     >
       <style>
