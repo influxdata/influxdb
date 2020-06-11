@@ -109,6 +109,47 @@ func (a *aggArrayCursorTest) run(t *testing.T) {
 	})
 }
 
+func TestFirstArrayCursor(t *testing.T) {
+	arr := []*cursors.IntegerArray{
+		makeIntegerArray(
+			1000,
+			mustParseTime("1970-01-01T00:00:01Z"), time.Millisecond,
+			func(i int64) int64 { return 3 + i },
+		),
+		makeIntegerArray(
+			1000,
+			mustParseTime("1970-01-01T00:00:02Z"), time.Millisecond,
+			func(i int64) int64 { return 1003 + i },
+		),
+	}
+	idx := -1
+	cur := &MockIntegerArrayCursor{
+		CloseFunc: func() {},
+		ErrFunc:   func() error { return nil },
+		StatsFunc: func() cursors.CursorStats { return cursors.CursorStats{} },
+		NextFunc: func() *cursors.IntegerArray {
+			if idx++; idx < len(arr) {
+				return arr[idx]
+			}
+			return &cursors.IntegerArray{}
+		},
+	}
+	aggCursor := newIntegerFirstArrayCursor(cur)
+	want := []*cursors.IntegerArray{
+		{
+			Timestamps: []int64{mustParseTime("1970-01-01T00:00:01Z").UnixNano()},
+			Values:     []int64{3},
+		},
+	}
+	got := []*cursors.IntegerArray{}
+	for a := aggCursor.Next(); a.Len() != 0; a = aggCursor.Next() {
+		got = append(got, a)
+	}
+	if !cmp.Equal(want, got) {
+		t.Fatalf("unexpected result; -want/+got:\n%v", cmp.Diff(want, got))
+	}
+}
+
 func TestIntegerCountArrayCursor(t *testing.T) {
 	maxTimestamp := time.Unix(0, math.MaxInt64)
 

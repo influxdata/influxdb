@@ -15,6 +15,17 @@ const (
 	MaxPointsPerBlock = 1000
 )
 
+func newFirstArrayCursor(cur cursors.Cursor) cursors.Cursor {
+	switch cur := cur.(type) {
+{{range .}}{{/* every type supports first */}}
+	case cursors.{{.Name}}ArrayCursor:
+		return new{{.Name}}FirstArrayCursor(cur)
+{{end}}
+	default:
+		panic(fmt.Sprintf("unreachable: %T", cur))
+	}
+}
+
 func newWindowCountArrayCursor(cur cursors.Cursor, every int64) cursors.Cursor {
 	switch cur := cur.(type) {
 {{range .}}{{/* every type supports count */}}
@@ -186,6 +197,35 @@ func (c *{{.name}}ArrayCursor) nextArrayCursor() bool {
 	}
 
 	return ok
+}
+
+type {{.name}}FirstArrayCursor struct {
+	cursors.{{.Name}}ArrayCursor
+	res {{$arrayType}}
+	done bool
+}
+
+func new{{.Name}}FirstArrayCursor(cur cursors.{{.Name}}ArrayCursor) *{{.name}}FirstArrayCursor {
+	return &{{.name}}FirstArrayCursor{
+		{{.Name}}ArrayCursor: cur,
+		res: cursors.New{{.Name}}ArrayLen(1),
+	}
+}
+
+func (c *{{.name}}FirstArrayCursor) Stats() cursors.CursorStats { return c.{{.Name}}ArrayCursor.Stats() }
+
+func (c *{{.name}}FirstArrayCursor) Next() {{$arrayType}} {
+	if c.done {
+		return &cursors.{{.Name}}Array{}
+	}
+	a := c.{{.Name}}ArrayCursor.Next()
+	if len(a.Timestamps) == 0 {
+		return a
+	}
+	c.done = true
+	c.res.Timestamps[0] = a.Timestamps[0]
+	c.res.Values[0] = a.Values[0]
+	return c.res
 }
 
 {{/* create an aggregate cursor for each aggregate function supported by the type */}}

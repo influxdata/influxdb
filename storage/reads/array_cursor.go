@@ -17,6 +17,10 @@ func (v *singleValue) Value(key string) (interface{}, bool) {
 }
 
 func newAggregateArrayCursor(ctx context.Context, agg *datatypes.Aggregate, cursor cursors.Cursor) cursors.Cursor {
+	switch agg.Type {
+	case datatypes.AggregateTypeFirst, datatypes.AggregateTypeLast:
+		return newFirstArrayCursor(cursor)
+	}
 	return newWindowAggregateArrayCursor(ctx, agg, 0, cursor)
 }
 
