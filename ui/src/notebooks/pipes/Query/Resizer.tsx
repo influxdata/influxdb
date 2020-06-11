@@ -6,7 +6,7 @@ import classnames from 'classnames'
 import ResizerHeader from 'src/notebooks/pipes/Query/ResizerHeader'
 
 // Types
-import {ResultsVisibility} from 'src/notebooks/pipes/Query'
+import {Visibility} from 'src/notebooks/pipes/Query'
 import {PipeData} from 'src/notebooks/index'
 
 interface Props {
@@ -39,9 +39,7 @@ const Resizer: FC<Props> = ({data, onUpdate, children, resizingEnabled}) => {
     }
   }
 
-  const handleUpdateVisibility = (
-    resultsVisibility: ResultsVisibility
-  ): void => {
+  const handleUpdateVisibility = (resultsVisibility: Visibility): void => {
     onUpdate({resultsVisibility})
   }
 

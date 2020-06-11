@@ -2,7 +2,7 @@ import {register} from 'src/notebooks'
 import View from './view'
 import './style.scss'
 
-export type ResultsVisibility = 'visible' | 'hidden'
+export type Visibility = 'visible' | 'hidden'
 
 register({
   type: 'query',

@@ -6,17 +6,17 @@ import classnames from 'classnames'
 import {Icon, IconFont} from '@influxdata/clockface'
 
 // Types
-import {ResultsVisibility} from 'src/notebooks/pipes/Query'
+import {Visibility} from 'src/notebooks/pipes/Query'
 
 interface Props {
-  visibility: ResultsVisibility
-  onUpdateVisibility: (visibility: ResultsVisibility) => void
+  visibility: Visibility
+  onUpdateVisibility: (visibility: Visibility) => void
   onStartDrag: () => void
   resizingEnabled: boolean
   dragHandleRef: RefObject<HTMLDivElement>
 }
 
-const ResultsHeader: FC<Props> = ({
+const ResizerHeader: FC<Props> = ({
   visibility,
   onUpdateVisibility,
   onStartDrag,
@@ -63,4 +63,4 @@ const ResultsHeader: FC<Props> = ({
   )
 }
 
-export default ResultsHeader
+export default ResizerHeader
