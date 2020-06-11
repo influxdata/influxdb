@@ -1,6 +1,6 @@
 // Libraries
 import React from 'react'
-import {render} from 'react-testing-library'
+import {render} from '@testing-library/react'
 
 // NOTE: stubbing is required here as the CopyButton component
 // requires a redux store (alex)
