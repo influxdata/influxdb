@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/flux/execute"
@@ -746,6 +747,90 @@ from(bucket: "%s")
 	if err := executetest.EqualResultIterators(csvResultIterator, fromResultIterator); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func TestLauncher_PushDownAggregates(t *testing.T) {
+	l := launcher.RunTestLauncherOrFail(t, ctx,
+		"--feature-flags",
+		"pushDownGroupAggregateFirst=true",
+		"--feature-flags",
+		"pushDownGroupAggregateLast=true",
+	)
+
+	defer l.ShutdownOrFail(t, ctx)
+
+	org := l.OnBoardOrFail(t, &influxdb.OnboardingRequest{
+		User:     "user",
+		Password: "password",
+		Org:      "org",
+		Bucket:   "bucket",
+	})
+
+	l.WriteOrFail(t, org, `
+m,t=a f=1i 01
+m,t=a f=2i 02
+m,t=a f=3i 03
+m,t=a f=4i 04
+m,t=b f=4i 05
+m,t=b f=3i 06
+m,t=b f=2i 07
+m,t=b f=1i 08
+`)
+
+	t.Run("group first", func(t *testing.T) {
+		query := `
+from(bucket: "bucket")
+	|> range(start: 0)
+	|> group(columns: ["t"])
+	|> first()
+	|> keep(columns: ["_time", "_value", "field", "t"])`
+
+		want := `,result,table,_time,_value,t
+,_result,0,1970-01-01T00:00:00.000000001Z,1,a
+,_result,1,1970-01-01T00:00:00.000000005Z,4,b
+`
+
+		if got := l.QueryFlux(t, org.Org, org.Auth.Token, query); got != want {
+			t.Fatalf("unexpected result: -want/+got\n%s", cmp.Diff(want, got))
+		}
+		if readOpCount(t, l, "readGroup(first)") != 1 {
+			t.Fatal("first was not pushed down")
+		}
+	})
+
+	t.Run("group last", func(t *testing.T) {
+		query := `
+from(bucket: "bucket")
+	|> range(start: 0)
+	|> group(columns: ["t"])
+	|> last()
+	|> keep(columns: ["_time", "_value", "field", "t"])`
+
+		want := `,result,table,_time,_value,t
+,_result,0,1970-01-01T00:00:00.000000004Z,4,a
+,_result,1,1970-01-01T00:00:00.000000008Z,1,b
+`
+
+		if got := l.QueryFlux(t, org.Org, org.Auth.Token, query); got != want {
+			t.Fatalf("unexpected result: -want/+got\n%s", cmp.Diff(want, got))
+		}
+		if readOpCount(t, l, "readGroup(last)") != 1 {
+			t.Fatal("last was not pushed down")
+		}
+	})
+}
+
+func readOpCount(t testing.TB, l *launcher.TestLauncher, op string) uint64 {
+	if mf := l.Metrics(t)["query_influxdb_source_read_request_duration_seconds"]; mf != nil {
+		for _, m := range mf.Metric {
+			for _, label := range m.Label {
+				if label.GetName() == "op" && label.GetValue() == op {
+					return m.Histogram.GetSampleCount()
+				}
+			}
+		}
+	}
+	return 0
 }
 
 func TestLauncher_Query_PushDownWindowAggregateAndBareAggregate(t *testing.T) {
