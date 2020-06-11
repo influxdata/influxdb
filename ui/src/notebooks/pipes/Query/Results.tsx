@@ -2,34 +2,26 @@
 import React, {FC} from 'react'
 import {BothResults} from 'src/notebooks/context/query'
 import {AutoSizer} from 'react-virtualized'
-import classnames from 'classnames'
 
 // Components
 import RawFluxDataTable from 'src/timeMachine/components/RawFluxDataTable'
-import ResultsHeader from 'src/notebooks/pipes/Query/ResultsHeader'
+import Resizer from 'src/notebooks/pipes/Query/Resizer'
 
 // Types
-import {RawDataSize} from 'src/notebooks/pipes/Query'
+import {PipeData} from 'src/notebooks/index'
 
 interface Props {
+  data: PipeData
   results: BothResults
-  size: RawDataSize
-  onUpdateSize: (size: RawDataSize) => void
+  onUpdate: (data: any) => void
 }
 
-const Results: FC<Props> = ({results, size, onUpdateSize}) => {
+const Results: FC<Props> = ({results, onUpdate, data}) => {
   const resultsExist = !!results.raw
-  const className = classnames('notebook-raw-data', {
-    [`notebook-raw-data__${size}`]: resultsExist && size,
-  })
 
-  let resultsBody = (
-    <div className="notebook-raw-data--empty">Run the Flow to see results</div>
-  )
-
-  if (resultsExist) {
-    resultsBody = (
-      <div className="notebook-raw-data--body">
+  return (
+    <div className="notebook-raw-data">
+      <Resizer data={data} onUpdate={onUpdate} resizingEnabled={resultsExist}>
         <AutoSizer>
           {({width, height}) =>
             width &&
@@ -42,18 +34,7 @@ const Results: FC<Props> = ({results, size, onUpdateSize}) => {
             )
           }
         </AutoSizer>
-      </div>
-    )
-  }
-
-  return (
-    <div className={className}>
-      <ResultsHeader
-        resultsExist={resultsExist}
-        size={size}
-        onUpdateSize={onUpdateSize}
-      />
-      {resultsBody}
+      </Resizer>
     </div>
   )
 }

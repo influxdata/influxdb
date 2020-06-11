@@ -3,7 +3,6 @@ import React, {FC, useMemo} from 'react'
 
 // Types
 import {PipeProp} from 'src/notebooks'
-import {RawDataSize} from 'src/notebooks/pipes/Query'
 
 // Components
 import FluxMonacoEditor from 'src/shared/components/FluxMonacoEditor'
@@ -15,7 +14,6 @@ import 'src/notebooks/pipes/Query/style.scss'
 const Query: FC<PipeProp> = ({data, onUpdate, Context, results}) => {
   const {queries, activeQuery} = data
   const query = queries[activeQuery]
-  const size = data.rawDataSize || 'small'
 
   function updateText(text) {
     const _queries = queries.slice()
@@ -27,10 +25,6 @@ const Query: FC<PipeProp> = ({data, onUpdate, Context, results}) => {
     onUpdate({queries: _queries})
   }
 
-  const onUpdateSize = (rawDataSize: RawDataSize): void => {
-    onUpdate({rawDataSize})
-  }
-
   return useMemo(
     () => (
       <Context>
@@ -40,10 +34,10 @@ const Query: FC<PipeProp> = ({data, onUpdate, Context, results}) => {
           onSubmitScript={() => {}}
           autogrow
         />
-        <Results results={results} size={size} onUpdateSize={onUpdateSize} />
+        <Results results={results} onUpdate={onUpdate} data={data} />
       </Context>
     ),
-    [query.text, results, data.rawDataSize]
+    [query.text, results, data.resultsVisibility, data.resultsPanelHeight]
   )
 }
 
