@@ -8,13 +8,13 @@ const nameSort = '[data-testid=resource-list--sorter]:nth-of-type(1)';
 const typeSort = '[data-testid=resource-list--sorter]:nth-of-type(2)';
 const createVariableEmpty = '[data-testid=resource-list--body] [data-testid=add-resource-dropdown--button]';
 const createVariableItem = '[data-testid=add-resource-dropdown--%ITEM%]';
-const variableCardNamed = '//*[@data-testid=\'resource-card\'][.//*[text()=\'%NAME%\']]';
-const variableCardNames = '//*[@data-testid=\'resource-name\']/span';
-const variableCardName = '//*[@data-testid=\'resource-name\']//span[text()=\'%NAME%\']';
-const variableCardContextMenu = '//*[@data-testid=\'resource-card\'][.//span[text()=\'%NAME%\']]//*[@data-testid=\'context-menu\']';
-const variableCardContextMenuItem = '//*[@data-testid=\'resource-card\'][.//span[text()=\'%NAME%\']]//*[button[@data-testid=\'context-menu\']]//button[text()=\'%ITEM%\']';
-const variableCardContextDelete = '//*[@data-testid=\'resource-card\'][.//span[text() = \'%NAME%\']]//*[@data-testid=\'context-delete-menu\']';
-const variableCardContextDeleteConfirm = '//*[@data-testid=\'resource-card\'][.//span[text() = \'%NAME%\']]//*[@data-testid=\'context-delete-variable\']';
+const variableCardNamed = '//*[@data-testid=\'resource-card variable\'][.//*[text()=\'%NAME%\']]';
+const variableCardNames = '[data-testid^=\'variable-card--name\'] span';
+const variableCardName = '//*[@data-testid=\'variable-card--name %NAME%\']//span[text()=\'%NAME%\']';
+const variableCardContextMenu = '//*[@data-testid=\'resource-card variable\'][.//span[text()=\'%NAME%\']]//*[@data-testid=\'context-menu\']';
+const variableCardContextMenuItem = '//*[@data-testid=\'resource-card variable\'][.//span[text()=\'%NAME%\']]//*[button[@data-testid=\'context-menu\']]//button[text()=\'%ITEM%\']';
+const variableCardContextDelete = '//*[@data-testid=\'resource-card variable\'][.//span[text() = \'%NAME%\']]//*[@data-testid=\'context-delete-menu\']';
+const variableCardContextDeleteConfirm = '//*[@data-testid=\'resource-card variable\'][.//span[text() = \'%NAME%\']]//*[@data-testid=\'context-delete-variable\']';
 
 const urlCtx = 'variables';
 
@@ -40,8 +40,8 @@ const createVariableDefaultValDropdownItem = '[data-testid=dropdown-item][id=\'%
 const createVariableDefaultValCSVDropdownItem = '//*[@data-testid=\'dropdown-item\']//*[text() = \'%ITEM%\']';
 
 // edit variable popup
-const editVariableTypeDropdown = '//*[@data-testid=\'form--element\'][.//*[text()=\'Type\']]//*[@data-testid=\'dropdown--button\']';
-const editVariableTypeDropdownItem = '//*[@data-testid=\'form--element\'][.//*[text()=\'Type\']]//*[@data-testid=\'dropdown-item\'][@id=\'%ITEM%\']';
+const editVariableTypeDropdown = '[data-testid=\'variable-type-dropdown--button\']';
+const editVariableTypeDropdownItem = '[data-testid=\'variable-type-dropdown-%ITEM%\']';
 const editVariableNameInput = '//*[@data-testid=\'form--element\'][.//*[text()=\'Name\']]//input';
 const editWarnVariablSubmit = '[data-testid=danger-confirmation-button]';
 const editVariableNameChangeSubmit = '[data-testid=rename-variable-submit]';
@@ -186,11 +186,11 @@ class variablesTab extends settingsPage{
     }
 
     async getVariableCardNames(){
-        return await this.driver.findElements(By.xpath(variableCardNames));
+        return await this.driver.findElements(By.css(variableCardNames));
     }
 
     async getVariableCardName(name){
-        return await this.driver.findElement(By.xpath(variableCardName.replace('%NAME%', name)));
+        return await this.driver.findElement(By.xpath(variableCardName.replace(/%NAME%/g, name)));
     }
 
     async getNameSort(){
@@ -213,12 +213,12 @@ class variablesTab extends settingsPage{
     }
 
     async getEditVariableTypeDropdown(){
-        return await this.driver.findElement(By.xpath(editVariableTypeDropdown));
+        return await this.driver.findElement(By.css(editVariableTypeDropdown));
     }
 
 
     async getEditVariableTypeDropdownItem(item){
-        return await this.driver.findElement(By.xpath(editVariableTypeDropdownItem.replace('%ITEM%', item)));
+        return await this.driver.findElement(By.css(editVariableTypeDropdownItem.replace('%ITEM%', item.toLowerCase())));
     }
 
     async getEditVariableNameInput(){
