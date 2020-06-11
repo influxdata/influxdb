@@ -1,6 +1,15 @@
-# This is an example .env file showing all of the environment variables that can 
+# This is an example .env file showing all of the environment variables that can
 # be configured within the project.
 #
 #- DELOREAN_DB_DIR=/home/user/.delorean
 #- TEST_DELOREAN_DB_DIR=/home/user/.delorean_test
-
+#
+# If using Amazon S3 as an object store:
+#- AWS_ACCESS_KEY_ID=access_key_value
+#- AWS_SECRET_ACCESS_KEY=secret_access_key_value
+#- AWS_DEFAULT_REGION=us-east-2
+#- AWS_S3_BUCKET_NAME=bucket_name
+#
+# If using Google Cloud Storage as an object store:
+#- GCS_BUCKET_NAME=bucket_name
+#- SERVICE_ACCOUNT=/path/to/auth/info.json
