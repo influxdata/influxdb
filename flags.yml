@@ -109,6 +109,7 @@
   default: false
   contact: Ariel Salem / Monitoring Team
   lifetime: temporary
+  expose: true
 
 - name: Memory Optimized Fill
   description: Enable the memory optimized fill()
