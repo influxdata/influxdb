@@ -17,6 +17,7 @@
 1. [18345](https://github.com/influxdata/influxdb/pull/18345): Have influx delete cmd respect the config
 1. [18385](https://github.com/influxdata/influxdb/pull/18385): Store initialization for pkger enforced on reads
 1. [18434](https://github.com/influxdata/influxdb/pull/18434): Backfill missing fillColumns field for histograms in pkger
+1. [18471](https://github.com/influxdata/influxdb/pull/18471): Notifies the user how to escape presentation mode when the feature is toggled
 
 ### UI Improvements
 
