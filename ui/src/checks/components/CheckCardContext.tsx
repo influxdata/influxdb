@@ -18,8 +18,12 @@ const CheckCardContext: FunctionComponent<Props> = ({
 }) => {
   return (
     <Context>
-      <Context.Menu icon={IconFont.EyeOpen}>
-        <Context.Item label="View History" action={onView} />
+      <Context.Menu icon={IconFont.EyeOpen} testID="context-history-menu">
+        <Context.Item
+          label="View History"
+          action={onView}
+          testID="context-history-task"
+        />
       </Context.Menu>
       <Context.Menu icon={IconFont.Duplicate} color={ComponentColor.Secondary}>
         <Context.Item label="Clone" action={onClone} />

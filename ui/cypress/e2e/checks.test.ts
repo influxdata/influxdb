@@ -160,4 +160,47 @@ describe('Checks', () => {
       cy.getByTestID('inline-labels--empty').should('exist')
     })
   })
+
+  describe('Access alert history page', () => {
+    it('After check creation confirm history page has graph', () => {
+      // creates a check before each iteration
+      // TODO: refactor into a request with other before each
+      cy.getByTestID('create-check').click()
+      cy.getByTestID('create-threshold-check').click()
+      cy.getByTestID(`selector-list ${measurement}`).click()
+      cy.getByTestID('save-cell--button').should('be.disabled')
+      cy.getByTestID(`selector-list ${field}`).click()
+      cy.getByTestID('save-cell--button').should('be.disabled')
+      cy.getByTestID('checkeo--header alerting-tab').click()
+      cy.getByTestID('add-threshold-condition-CRIT').click()
+      cy.getByTestID('input-field')
+        .clear()
+        .type('0')
+      cy.getByTestID('add-threshold-condition-WARN').click()
+      cy.getByTestID('schedule-check')
+        .clear()
+        .type('5s')
+      cy.getByTestID('offset-options')
+        .clear()
+        .type('1s')
+      cy.getByTestID('save-cell--button').click()
+      cy.getByTestID('check-card').should('have.length', 1)
+      cy.getByTestID('notification-error').should('not.exist')
+      cy.getByTestID('context-history-menu').click()
+      cy.getByTestID('context-history-task').click()
+      cy.getByTestID('giraffe-axes').should('be.visible')
+
+      //Clicking the check status input results in dropdown and clicking outside removes dropdown
+      cy.getByTestID('check-status-input').click()
+      cy.getByTestID('check-status-dropdown').should('be.visible')
+      cy.getByTestID('alert-history-title').click()
+      cy.getByTestID('check-status-dropdown').should('not.exist')
+
+      //Minimize the graph by dragging
+      cy.get('.threshold-marker--area.threshold-marker--crit')
+        .trigger('mousedown', {which: 1, pageX: 600, pageY: 100})
+        .trigger('mousemove', {which: 1, pageX: 700, pageY: 100})
+        .trigger('mouseup', {force: true})
+    })
+  })
 })
