@@ -28,7 +28,8 @@ commands:
       - run:
           name: Install macOS cross compilers
           command: |
-            sudo apt-get install libxml2-dev libssl-dev zlib1g-dev
+            sudo apt-get install -y --no-install-recommends \
+              cmake patch libxml2-dev libssl-dev zlib1g-dev
             sudo mkdir -p /opt/osxcross
             cd /opt
             sudo git clone https://github.com/tpoechtrager/osxcross.git
@@ -37,7 +38,7 @@ commands:
             sudo curl -L -o \
               ./tarballs/MacOSX10.11.sdk.tar.xz \
               https://macos-sdks.s3.amazonaws.com/MacOSX10.11.sdk.tar.xz
-            UNATTENDED=1 PORTABLE=true sudo ./build.sh
+            sudo UNATTENDED=1 PORTABLE=true ./build.sh
       - run:
           name: Install additional rust targets
           command: |
