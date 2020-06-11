@@ -3,7 +3,6 @@ import React, {FC, useMemo} from 'react'
 
 // Types
 import {PipeProp} from 'src/notebooks'
-import {ResultsVisibility} from 'src/notebooks/pipes/Query'
 
 // Components
 import FluxMonacoEditor from 'src/shared/components/FluxMonacoEditor'
@@ -28,16 +27,6 @@ const Query: FC<PipeProp> = ({data, onUpdate, Context, results}) => {
     onUpdate({queries: _queries})
   }
 
-  const handleUpdateResultsVisibility = (
-    resultsVisibility: ResultsVisibility
-  ): void => {
-    onUpdate({resultsVisibility})
-  }
-
-  const handleUpdateResultsHeight = (resultsPanelHeight: number): void => {
-    onUpdate({resultsPanelHeight})
-  }
-
   return useMemo(
     () => (
       <Context>
@@ -49,10 +38,9 @@ const Query: FC<PipeProp> = ({data, onUpdate, Context, results}) => {
         />
         <Results
           results={results}
+          onUpdate={onUpdate}
           height={resultsHeight}
-          onUpdateHeight={handleUpdateResultsHeight}
           visibility={resultsVisibility}
-          onUpdateVisibility={handleUpdateResultsVisibility}
         />
       </Context>
     ),

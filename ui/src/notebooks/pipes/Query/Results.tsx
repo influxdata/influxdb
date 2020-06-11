@@ -13,19 +13,22 @@ import {ResultsVisibility} from 'src/notebooks/pipes/Query'
 interface Props {
   results: BothResults
   visibility: ResultsVisibility
-  onUpdateVisibility: (visibility: ResultsVisibility) => void
+  onUpdate: (data: any) => void
   height: number
-  onUpdateHeight: (height: number) => void
 }
 
-const Results: FC<Props> = ({
-  results,
-  visibility,
-  onUpdateVisibility,
-  height,
-  onUpdateHeight,
-}) => {
+const Results: FC<Props> = ({results, visibility, onUpdate, height}) => {
   const resultsExist = !!results.raw
+
+  const handleUpdateResultsVisibility = (
+    resultsVisibility: ResultsVisibility
+  ): void => {
+    onUpdate({resultsVisibility})
+  }
+
+  const handleUpdateResultsHeight = (resultsPanelHeight: number): void => {
+    onUpdate({resultsPanelHeight})
+  }
 
   let resultsBody = (
     <div className="notebook-raw-data--empty">Run the Flow to see results</div>
@@ -57,8 +60,8 @@ const Results: FC<Props> = ({
       <ResultsResizer
         visibility={visibility}
         height={height}
-        onUpdateHeight={onUpdateHeight}
-        onUpdateVisibility={onUpdateVisibility}
+        onUpdateHeight={handleUpdateResultsHeight}
+        onUpdateVisibility={handleUpdateResultsVisibility}
         resizingEnabled={resultsExist}
       >
         {resultsBody}
