@@ -9,24 +9,23 @@ import ResultsHeader from 'src/notebooks/pipes/Query/ResultsHeader'
 import {ResultsVisibility} from 'src/notebooks/pipes/Query'
 
 interface Props {
-  height: number
-  onUpdateHeight: (height: number) => void
+  data: any
+  onUpdate: (data: any) => void
   children: ReactNode
-  visibility: ResultsVisibility
-  onUpdateVisibility: (visibility: ResultsVisibility) => void
   resizingEnabled: boolean
 }
 
 const MINIMUM_RESULTS_PANEL_HEIGHT = 100
 
 const ResultsResizer: FC<Props> = ({
-  height,
-  onUpdateHeight,
+  data,
+  onUpdate,
   children,
-  visibility,
-  onUpdateVisibility,
   resizingEnabled,
 }) => {
+  const height = data.resultsPanelHeight
+  const visibility = data.resultsVisibility
+
   const [size, updateSize] = useState<number>(height)
   const [isDragging, updateDragging] = useState<boolean>(false)
   const resultsBodyRef = useRef<HTMLDivElement>(null)
@@ -42,6 +41,16 @@ const ResultsResizer: FC<Props> = ({
     } else {
       resultsBodyRef.current.setAttribute('style', '')
     }
+  }
+
+  const handleUpdateVisibility = (
+    resultsVisibility: ResultsVisibility
+  ): void => {
+    onUpdate({resultsVisibility})
+  }
+
+  const handleUpdateHeight = (resultsPanelHeight: number): void => {
+    onUpdate({resultsPanelHeight})
   }
 
   // Ensure results renders with proper height on initial render
@@ -76,7 +85,7 @@ const ResultsResizer: FC<Props> = ({
         dragHandleRef.current.classList.remove(
           'notebook-raw-data--drag-handle__dragging'
         )
-      onUpdateHeight(size)
+      handleUpdateHeight(size)
     }
   }, [isDragging])
 
@@ -113,17 +122,31 @@ const ResultsResizer: FC<Props> = ({
     window.removeEventListener('mouseup', handleMouseUp)
   }
 
+  let resultsBody = children
+
+  if (!resizingEnabled) {
+    resultsBody = (
+      <div className="notebook-raw-data--empty">
+        Run the Flow to see results
+      </div>
+    )
+  }
+
+  if (resizingEnabled && visibility === 'hidden') {
+    resultsBody = <div className="notebook-raw-data--empty">Results hidden</div>
+  }
+
   return (
     <>
       <ResultsHeader
         resizingEnabled={resizingEnabled}
         visibility={visibility}
-        onUpdateVisibility={onUpdateVisibility}
+        onUpdateVisibility={handleUpdateVisibility}
         onStartDrag={handleMouseDown}
         dragHandleRef={dragHandleRef}
       />
       <div className={resultsBodyClassName} ref={resultsBodyRef}>
-        {children}
+        {resultsBody}
       </div>
     </>
   )

@@ -14,8 +14,6 @@ import 'src/notebooks/pipes/Query/style.scss'
 const Query: FC<PipeProp> = ({data, onUpdate, Context, results}) => {
   const {queries, activeQuery} = data
   const query = queries[activeQuery]
-  const resultsVisibility = data.resultsVisibility || 'visible'
-  const resultsHeight = data.resultsPanelHeight
 
   function updateText(text) {
     const _queries = queries.slice()
@@ -36,12 +34,7 @@ const Query: FC<PipeProp> = ({data, onUpdate, Context, results}) => {
           onSubmitScript={() => {}}
           autogrow
         />
-        <Results
-          results={results}
-          onUpdate={onUpdate}
-          height={resultsHeight}
-          visibility={resultsVisibility}
-        />
+        <Results results={results} onUpdate={onUpdate} data={data} />
       </Context>
     ),
     [query.text, results, data.resultsVisibility, data.resultsPanelHeight]
