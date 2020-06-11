@@ -1200,6 +1200,7 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 	dur0 := values.ConvertDuration(0)
 	durNeg, _ := values.ParseDuration("-60s")
 	dur1y, _ := values.ParseDuration("1y")
+	durInf := values.ConvertDuration(math.MaxInt64)
 
 	window := func(dur values.Duration) universe.WindowProcedureSpec {
 		return universe.WindowProcedureSpec{
@@ -1219,6 +1220,9 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 	window2m := window(dur2m)
 	windowNeg := window(durNeg)
 	window1y := window(dur1y)
+	windowInf := window(durInf)
+	windowInfCreateEmpty := windowInf
+	windowInfCreateEmpty.CreateEmpty = true
 
 	tests := make([]plantest.RuleTestCase, 0)
 
@@ -1238,8 +1242,8 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 	}
 
 	// construct a simple result
-	simpleResult := func(proc plan.ProcedureKind, createEmpty bool) *plantest.PlanSpec {
-		return &plantest.PlanSpec{
+	simpleResult := func(proc plan.ProcedureKind, createEmpty bool, successors ...plan.Node) *plantest.PlanSpec {
+		spec := &plantest.PlanSpec{
 			Nodes: []plan.Node{
 				plan.CreatePhysicalNode("ReadWindowAggregate", &influxdb.ReadWindowAggregatePhysSpec{
 					ReadRangePhysSpec: readRange,
@@ -1249,6 +1253,11 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 				}),
 			},
 		}
+		for i, successor := range successors {
+			spec.Nodes = append(spec.Nodes, successor)
+			spec.Edges = append(spec.Edges, [2]int{i, i + 1})
+		}
+		return spec
 	}
 
 	minProcedureSpec := func() *universe.MinProcedureSpec {
@@ -1400,13 +1409,13 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 	simpleMinUnchanged("BadStop", badWindow5)
 
 	// Condition met: createEmpty is true.
-	window6 := window1m
-	window6.CreateEmpty = true
+	windowCreateEmpty1m := window1m
+	windowCreateEmpty1m.CreateEmpty = true
 	tests = append(tests, plantest.RuleTestCase{
 		Context: haveCaps,
 		Name:    "CreateEmptyPassMin",
 		Rules:   []plan.Rule{influxdb.PushDownWindowAggregateRule{}},
-		Before:  simplePlanWithWindowAgg(window6, "min", minProcedureSpec()),
+		Before:  simplePlanWithWindowAgg(windowCreateEmpty1m, "min", minProcedureSpec()),
 		After:   simpleResult("min", true),
 	})
 
@@ -1579,7 +1588,366 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 		NoChange: true,
 	})
 
+	duplicate := func(column, as string) *universe.SchemaMutationProcedureSpec {
+		return &universe.SchemaMutationProcedureSpec{
+			Mutations: []universe.SchemaMutation{
+				&universe.DuplicateOpSpec{
+					Column: column,
+					As:     as,
+				},
+			},
+		}
+	}
+
+	aggregateWindowPlan := func(window universe.WindowProcedureSpec, agg plan.NodeID, spec plan.ProcedureSpec, timeColumn string) *plantest.PlanSpec {
+		return &plantest.PlanSpec{
+			Nodes: []plan.Node{
+				plan.CreateLogicalNode("ReadRange", &readRange),
+				plan.CreateLogicalNode("window1", &window),
+				plan.CreateLogicalNode(agg, spec),
+				plan.CreateLogicalNode("duplicate", duplicate(timeColumn, "_time")),
+				plan.CreateLogicalNode("window2", &windowInf),
+			},
+			Edges: [][2]int{
+				{0, 1},
+				{1, 2},
+				{2, 3},
+				{3, 4},
+			},
+		}
+	}
+
+	aggregateWindowResult := func(proc plan.ProcedureKind, createEmpty bool, timeColumn string, successors ...plan.Node) *plantest.PlanSpec {
+		spec := &plantest.PlanSpec{
+			Nodes: []plan.Node{
+				plan.CreatePhysicalNode("ReadWindowAggregateByTime", &influxdb.ReadWindowAggregatePhysSpec{
+					ReadRangePhysSpec: readRange,
+					Aggregates:        []plan.ProcedureKind{proc},
+					WindowEvery:       60000000000,
+					CreateEmpty:       createEmpty,
+					TimeColumn:        timeColumn,
+				}),
+			},
+		}
+		for i, successor := range successors {
+			spec.Nodes = append(spec.Nodes, successor)
+			spec.Edges = append(spec.Edges, [2]int{i, i + 1})
+		}
+		return spec
+	}
+
+	// Push down the duplicate |> window(every: inf)
+	tests = append(tests, plantest.RuleTestCase{
+		Context: haveCaps,
+		Name:    "AggregateWindowCount",
+		Rules: []plan.Rule{
+			influxdb.PushDownWindowAggregateRule{},
+			influxdb.PushDownWindowAggregateByTimeRule{},
+		},
+		Before: aggregateWindowPlan(window1m, "count", countProcedureSpec(), "_stop"),
+		After:  aggregateWindowResult("count", false, "_stop"),
+	})
+
+	// Push down the duplicate |> window(every: inf) using _start column
+	tests = append(tests, plantest.RuleTestCase{
+		Context: haveCaps,
+		Name:    "AggregateWindowCount",
+		Rules: []plan.Rule{
+			influxdb.PushDownWindowAggregateRule{},
+			influxdb.PushDownWindowAggregateByTimeRule{},
+		},
+		Before: aggregateWindowPlan(window1m, "count", countProcedureSpec(), "_start"),
+		After:  aggregateWindowResult("count", false, "_start"),
+	})
+
+	// Push down duplicate |> window(every: inf) with create empty.
+	tests = append(tests, plantest.RuleTestCase{
+		Context: haveCaps,
+		Name:    "AggregateWindowCountCreateEmpty",
+		Rules: []plan.Rule{
+			influxdb.PushDownWindowAggregateRule{},
+			influxdb.PushDownWindowAggregateByTimeRule{},
+		},
+		Before: aggregateWindowPlan(windowCreateEmpty1m, "count", countProcedureSpec(), "_stop"),
+		After:  aggregateWindowResult("count", true, "_stop"),
+	})
+
+	// Invalid duplicate column.
+	tests = append(tests, plantest.RuleTestCase{
+		Context: haveCaps,
+		Name:    "AggregateWindowCountInvalidDuplicateColumn",
+		Rules: []plan.Rule{
+			influxdb.PushDownWindowAggregateRule{},
+			influxdb.PushDownWindowAggregateByTimeRule{},
+		},
+		Before: aggregateWindowPlan(window1m, "count", countProcedureSpec(), "_value"),
+		After: simpleResult("count", false,
+			plan.CreatePhysicalNode("duplicate", duplicate("_value", "_time")),
+			plan.CreatePhysicalNode("window2", &windowInf),
+		),
+	})
+
+	// Invalid duplicate as.
+	tests = append(tests, plantest.RuleTestCase{
+		Context: haveCaps,
+		Name:    "AggregateWindowCountInvalidDuplicateAs",
+		Rules: []plan.Rule{
+			influxdb.PushDownWindowAggregateRule{},
+			influxdb.PushDownWindowAggregateByTimeRule{},
+		},
+		Before: &plantest.PlanSpec{
+			Nodes: []plan.Node{
+				plan.CreateLogicalNode("ReadRange", &readRange),
+				plan.CreateLogicalNode("window1", &window1m),
+				plan.CreateLogicalNode("count", countProcedureSpec()),
+				plan.CreateLogicalNode("duplicate", duplicate("_stop", "time")),
+				plan.CreateLogicalNode("window2", &windowInf),
+			},
+			Edges: [][2]int{
+				{0, 1},
+				{1, 2},
+				{2, 3},
+				{3, 4},
+			},
+		},
+		After: simpleResult("count", false,
+			plan.CreatePhysicalNode("duplicate", duplicate("_stop", "time")),
+			plan.CreatePhysicalNode("window2", &windowInf),
+		),
+	})
+
+	// Invalid closing window.
+	tests = append(tests, plantest.RuleTestCase{
+		Context: haveCaps,
+		Name:    "AggregateWindowCountInvalidClosingWindow",
+		Rules: []plan.Rule{
+			influxdb.PushDownWindowAggregateRule{},
+			influxdb.PushDownWindowAggregateByTimeRule{},
+		},
+		Before: &plantest.PlanSpec{
+			Nodes: []plan.Node{
+				plan.CreateLogicalNode("ReadRange", &readRange),
+				plan.CreateLogicalNode("window1", &window1m),
+				plan.CreateLogicalNode("count", countProcedureSpec()),
+				plan.CreateLogicalNode("duplicate", duplicate("_stop", "_time")),
+				plan.CreateLogicalNode("window2", &window1m),
+			},
+			Edges: [][2]int{
+				{0, 1},
+				{1, 2},
+				{2, 3},
+				{3, 4},
+			},
+		},
+		After: simpleResult("count", false,
+			plan.CreatePhysicalNode("duplicate", duplicate("_stop", "_time")),
+			plan.CreatePhysicalNode("window2", &window1m),
+		),
+	})
+
+	// Invalid closing window with multiple problems.
+	tests = append(tests, plantest.RuleTestCase{
+		Context: haveCaps,
+		Name:    "AggregateWindowCountInvalidClosingWindowMultiple",
+		Rules: []plan.Rule{
+			influxdb.PushDownWindowAggregateRule{},
+			influxdb.PushDownWindowAggregateByTimeRule{},
+		},
+		Before: &plantest.PlanSpec{
+			Nodes: []plan.Node{
+				plan.CreateLogicalNode("ReadRange", &readRange),
+				plan.CreateLogicalNode("window1", &window1m),
+				plan.CreateLogicalNode("count", countProcedureSpec()),
+				plan.CreateLogicalNode("duplicate", duplicate("_stop", "_time")),
+				plan.CreateLogicalNode("window2", &badWindow3),
+			},
+			Edges: [][2]int{
+				{0, 1},
+				{1, 2},
+				{2, 3},
+				{3, 4},
+			},
+		},
+		After: simpleResult("count", false,
+			plan.CreatePhysicalNode("duplicate", duplicate("_stop", "_time")),
+			plan.CreatePhysicalNode("window2", &badWindow3),
+		),
+	})
+
+	// Invalid closing window with multiple problems.
+	tests = append(tests, plantest.RuleTestCase{
+		Context: haveCaps,
+		Name:    "AggregateWindowCountInvalidClosingWindowCreateEmpty",
+		Rules: []plan.Rule{
+			influxdb.PushDownWindowAggregateRule{},
+			influxdb.PushDownWindowAggregateByTimeRule{},
+		},
+		Before: &plantest.PlanSpec{
+			Nodes: []plan.Node{
+				plan.CreateLogicalNode("ReadRange", &readRange),
+				plan.CreateLogicalNode("window1", &window1m),
+				plan.CreateLogicalNode("count", countProcedureSpec()),
+				plan.CreateLogicalNode("duplicate", duplicate("_stop", "_time")),
+				plan.CreateLogicalNode("window2", &windowInfCreateEmpty),
+			},
+			Edges: [][2]int{
+				{0, 1},
+				{1, 2},
+				{2, 3},
+				{3, 4},
+			},
+		},
+		After: simpleResult("count", false,
+			plan.CreatePhysicalNode("duplicate", duplicate("_stop", "_time")),
+			plan.CreatePhysicalNode("window2", &windowInfCreateEmpty),
+		),
+	})
+
+	// Multiple matching patterns.
+	tests = append(tests, plantest.RuleTestCase{
+		Context: haveCaps,
+		Name:    "AggregateWindowCountMultipleMatches",
+		Rules: []plan.Rule{
+			influxdb.PushDownWindowAggregateRule{},
+			influxdb.PushDownWindowAggregateByTimeRule{},
+		},
+		Before: &plantest.PlanSpec{
+			Nodes: []plan.Node{
+				plan.CreateLogicalNode("ReadRange", &readRange),
+				plan.CreateLogicalNode("window1", &window1m),
+				plan.CreateLogicalNode("count", countProcedureSpec()),
+				plan.CreateLogicalNode("duplicate", duplicate("_stop", "_time")),
+				plan.CreateLogicalNode("window2", &windowInf),
+				plan.CreateLogicalNode("duplicate2", duplicate("_stop", "_time")),
+				plan.CreateLogicalNode("window3", &windowInf),
+			},
+			Edges: [][2]int{
+				{0, 1},
+				{1, 2},
+				{2, 3},
+				{3, 4},
+				{4, 5},
+				{5, 6},
+			},
+		},
+		After: aggregateWindowResult("count", false, "_stop",
+			plan.CreatePhysicalNode("duplicate2", duplicate("_stop", "_time")),
+			plan.CreatePhysicalNode("window3", &windowInf),
+		),
+	})
+
+	rename := universe.SchemaMutationProcedureSpec{
+		Mutations: []universe.SchemaMutation{
+			&universe.RenameOpSpec{
+				Columns: map[string]string{"_time": "time"},
+			},
+		},
+	}
+
+	// Wrong schema mutator.
+	tests = append(tests, plantest.RuleTestCase{
+		Context: haveCaps,
+		Name:    "AggregateWindowCountWrongSchemaMutator",
+		Rules: []plan.Rule{
+			influxdb.PushDownWindowAggregateRule{},
+			influxdb.PushDownWindowAggregateByTimeRule{},
+		},
+		Before: &plantest.PlanSpec{
+			Nodes: []plan.Node{
+				plan.CreateLogicalNode("ReadRange", &readRange),
+				plan.CreateLogicalNode("window1", &window1m),
+				plan.CreateLogicalNode("count", countProcedureSpec()),
+				plan.CreateLogicalNode("rename", &rename),
+				plan.CreateLogicalNode("window2", &windowInf),
+			},
+			Edges: [][2]int{
+				{0, 1},
+				{1, 2},
+				{2, 3},
+				{3, 4},
+			},
+		},
+		After: simpleResult("count", false,
+			plan.CreatePhysicalNode("rename", &rename),
+			plan.CreatePhysicalNode("window2", &windowInf),
+		),
+	})
+
 	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.Name, func(t *testing.T) {
+			t.Parallel()
+			plantest.PhysicalRuleTestHelper(t, &tc)
+		})
+	}
+}
+
+func TestSwitchFillImplRule(t *testing.T) {
+	flagger := mock.NewFlagger(map[feature.Flag]interface{}{
+		feature.MemoryOptimizedFill(): true,
+	})
+	withFlagger, _ := feature.Annotate(context.Background(), flagger)
+	readRange := &influxdb.ReadRangePhysSpec{
+		Bucket: "my-bucket",
+		Bounds: flux.Bounds{
+			Start: fluxTime(5),
+			Stop:  fluxTime(10),
+		},
+	}
+	sourceSpec := &universe.DualImplProcedureSpec{
+		ProcedureSpec: &universe.FillProcedureSpec{
+			DefaultCost: plan.DefaultCost{},
+			Column:      "_value",
+			Value:       values.NewFloat(0),
+			UsePrevious: false,
+		},
+		UseDeprecated: false,
+	}
+	targetSpec := sourceSpec.Copy().(*universe.DualImplProcedureSpec)
+	universe.UseDeprecatedImpl(targetSpec)
+
+	testcases := []plantest.RuleTestCase{
+		{
+			Context: withFlagger,
+			Name:    "enable memory optimized fill",
+			Rules:   []plan.Rule{influxdb.SwitchFillImplRule{}},
+			Before: &plantest.PlanSpec{
+				Nodes: []plan.Node{
+					plan.CreatePhysicalNode("ReadRange", readRange),
+					plan.CreatePhysicalNode("fill", sourceSpec),
+				},
+				Edges: [][2]int{
+					{0, 1},
+				},
+			},
+			NoChange: true,
+		},
+		{
+			Context: context.Background(),
+			Name:    "disable memory optimized fill",
+			Rules:   []plan.Rule{influxdb.SwitchFillImplRule{}},
+			Before: &plantest.PlanSpec{
+				Nodes: []plan.Node{
+					plan.CreatePhysicalNode("ReadRange", readRange),
+					plan.CreatePhysicalNode("fill", sourceSpec),
+				},
+				Edges: [][2]int{
+					{0, 1},
+				},
+			},
+			After: &plantest.PlanSpec{
+				Nodes: []plan.Node{
+					plan.CreatePhysicalNode("ReadRange", readRange),
+					plan.CreatePhysicalNode("fill", targetSpec),
+				},
+				Edges: [][2]int{
+					{0, 1},
+				},
+			},
+		},
+	}
+
+	for _, tc := range testcases {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()

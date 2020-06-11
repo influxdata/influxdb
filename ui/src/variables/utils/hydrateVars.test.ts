@@ -3,8 +3,9 @@ import {ValueFetcher} from 'src/variables/utils/ValueFetcher'
 import {
   hydrateVars,
   createVariableGraph,
-  findSubgraph,
+  findSubgraphFeature,
 } from 'src/variables/utils/hydrateVars'
+import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 
 // Mocks
 import {
@@ -119,6 +120,23 @@ describe('hydrate vars', () => {
     //       f [fontcolor = "green"]
     //       g [fontcolor = "green"]
     //     }
+    /*
+      We expect the final outcome to be the two associated variables as the parents,
+      Since those are the bottom-most children of the graph cycle
+    */
+    if (isFlagEnabled('hydratevars')) {
+      expect(actual.length).toEqual(2)
+      expect(
+        actual.filter(v => v.id === 'e')[0].arguments.values.results
+      ).toEqual(['eVal'])
+      expect(actual.filter(v => v.id === 'e')[0].selected).toEqual(['eVal'])
+      expect(
+        actual.filter(v => v.id === 'g')[0].arguments.values.results
+      ).toEqual(['gVal'])
+      expect(actual.filter(v => v.id === 'g')[0].selected).toEqual(['gVal'])
+    }
+    // TODO(ariel): remove the if condition above when feature is good
+    // Also remove the following tests:
     expect(
       actual.filter(v => v.id === 'a')[0].arguments.values.results
     ).toBeFalsy()
@@ -191,7 +209,14 @@ describe('hydrate vars', () => {
     //       b [fontcolor = "red"]
     //       c [fontcolor = "green"]
     //     }
-    //
+    if (isFlagEnabled('hydratevars')) {
+      expect(actual.length).toEqual(1)
+      const [cResult] = actual
+      expect(cResult.arguments.values.results).toEqual(['cVal'])
+      expect(cResult.selected).toEqual(['cVal'])
+    }
+    // TODO(ariel): remove the if condition above when feature is good
+    // Also remove the following tests:
     expect(
       actual.filter(v => v.id === 'a')[0].arguments.values.results
     ).toEqual([])
@@ -244,6 +269,15 @@ describe('hydrate vars', () => {
 
     // Basic test for now, we would need an icky mock to assert that the
     // appropriate substitution is actually taking place
+    if (isFlagEnabled('hydratevars')) {
+      expect(actual.length).toEqual(1)
+      const [bResult] = actual
+      expect(bResult.arguments.values).toEqual({
+        k: 'v',
+      })
+    }
+    // TODO(ariel): remove the if condition above when feature is good
+    // Also remove the following tests:
     expect(
       actual.filter(v => v.id === 'a')[0].arguments.values.results
     ).toEqual(['aVal'])
@@ -290,6 +324,13 @@ describe('hydrate vars', () => {
       fetcher,
     }).promise
 
+    if (isFlagEnabled('hydratevars')) {
+      expect(actual.length).toEqual(1)
+      const [bResult] = actual
+      expect(bResult.arguments.values).toEqual(['v1', 'v2'])
+    }
+    // TODO(ariel): remove the if condition above when feature is good
+    // Also remove the following tests:
     expect(
       actual.filter(v => v.id === 'a')[0].arguments.values.results
     ).toEqual(['aVal'])
@@ -323,24 +364,74 @@ describe('hydrate vars', () => {
 
     cancel()
   })
+
+  test('should return the child node with associated parents', async () => {
+    /*
+     This example deals with the following situation where a parent with a child has been passed in.
+     Practically speaking, this looks like:
+
+              associatedVariable
+                    |
+                    |
+                defaultVariable
+
+      By passing in the defaultVariable, we expect the child to be returned with a reference to the parent:
+
+      [
+        {
+          variable: defaultVariable,
+          parent: [associatedVariable]
+        },
+      ]
+      The reason for this is because we want the youngest child node (end of the LL tail) to load first, followed by its parents.
+    */
+
+    const fetcher = new FakeFetcher()
+
+    const actual = await hydrateVars([associatedVariable], defaultVariables, {
+      url: '',
+      orgID: '',
+      selections: {},
+      fetcher,
+    }).promise
+    if (isFlagEnabled('hydratevars')) {
+      expect(actual.length).toEqual(1)
+      expect(actual).toEqual([defaultVariable])
+    }
+    // TODO(ariel): remove the if condition above when feature is good
+    // Also remove the following tests:
+    expect(actual.length).toEqual(2)
+  })
 })
 
-xdescribe('findSubgraph', () => {
-  test('should return the update variable with all associated parents', async () => {
-    const variableGraph = await createVariableGraph(defaultVariables)
-    const actual = await findSubgraph(variableGraph, [defaultVariable])
-    // returns the single subgraph result
-    expect(actual.length).toEqual(1)
-    const [subgraph] = actual
-    // expect the subgraph to return the passed in variable
-    expect(subgraph.variable).toEqual(defaultVariable)
-    // expect the parent to be returned with the returning variable
-    expect(subgraph.parents[0].variable).toEqual(associatedVariable)
-  })
+describe('findSubgraphFeature', () => {
+  const getParentNodeIDs = (node, acc: Set<string> = new Set()): string[] => {
+    for (const parent of node.parents) {
+      if (!acc.has(parent)) {
+        acc.add(parent.variable.id)
+        getParentNodeIDs(parent, acc)
+      }
+    }
+    return [...acc]
+  }
+
   test('should return the variable with no parents when no association exists', async () => {
+    /*
+     This example deals with the following situation where a node with no relationship is passed in:
+     By passing in the variable `a`, we expect the child to be returned with a reference to the parent.
+     However, since no children or parents exist, the following should be:
+
+      [
+        {
+          variable: a,
+          parent: []
+          children: [],
+        },
+      ]
+    */
     const a = createVariable('a', 'f(x: v.b)')
     const variableGraph = await createVariableGraph([...defaultVariables, a])
-    const actual = await findSubgraph(variableGraph, [a])
+    const actual = await findSubgraphFeature(variableGraph, [a])
     expect(actual.length).toEqual(1)
     const [subgraph] = actual
     // expect the subgraph to return the passed in variable
@@ -349,13 +440,241 @@ xdescribe('findSubgraph', () => {
     expect(subgraph.parents).toEqual([])
   })
   test('should return the update default (timeRange) variable with associated parents', async () => {
+    /*
+     This example deals with the following situation where a parent with a child has been passed in:
+
+              associatedVariable
+                    |
+                    |
+                timeRangeStart
+
+      By passing in the timeRangeStart, we expect the child to be returned with a reference to the parent:
+
+      [
+        {
+          variable: timeRangeStart,
+          parent: [associatedVariable]
+        },
+      ]
+      The reason for this is because we want the youngest child node (end of the LL tail) to load first, followed by its parents.
+    */
     const variableGraph = await createVariableGraph(defaultVariables)
-    const actual = await findSubgraph(variableGraph, [timeRangeStartVariable])
+    const actual = await findSubgraphFeature(variableGraph, [
+      timeRangeStartVariable,
+    ])
     expect(actual.length).toEqual(1)
     const [subgraph] = actual
     // expect the subgraph to return the passed in variable
     expect(subgraph.variable).toEqual(timeRangeStartVariable)
     // expect the parent to be returned with the returning variable
     expect(subgraph.parents[0].variable).toEqual(associatedVariable)
+  })
+  test('should filter out inputs that have already been loaded based on a previous associated variable', async () => {
+    /*
+     This example deals with the following situation where a parent with a child has been passed in, and a unrelated variable is passed in.
+     Practically speaking, this looks like:
+
+              associatedVariable          a
+                    |
+                    |
+                defaultVariable
+
+      By passing in the defaultVariable, we expect the child to be returned with a reference to the parent.
+      Since the variable `a` does not have any parent/child relationship, we expect it to simply be returned:
+
+      [
+        {
+          variable: defaultVariable,
+          parent: [associatedVariable]
+        },
+
+          variable: timeRangeStart,
+          parent: []
+        },
+        {
+          variable: timeRangeStop,
+          parent: []
+        },
+        {
+          variable: a,
+          children: [],
+          parent: [],
+        }
+      ]
+      The reason for this is because we want the youngest child node (end of the LL tail) to load first, followed by its parents.
+      Since defaultVariable is the youngest child node, and since `a` doesn't have a child node,
+      we expect those values to be returned with any references to their parents
+    */
+    const a = createVariable('a', 'f()')
+    const variableGraph = await createVariableGraph([...defaultVariables, a])
+    const actual = await findSubgraphFeature(variableGraph, [
+      defaultVariable,
+      associatedVariable,
+      a,
+    ])
+    // returns the four subgraph results
+    expect(actual.length).toEqual(4)
+    const [defaultVarInResult] = actual.filter(
+      vn => vn.variable.id === defaultVariable.id
+    )
+    expect(defaultVarInResult.variable).toEqual(defaultVariable)
+    // expect the subgraph to return the passed in variable
+    const parentIDs = getParentNodeIDs(defaultVarInResult)
+    expect(parentIDs.length).toEqual(1)
+    const [parentID] = parentIDs
+    // expect the defaultVariable to have the associatedVariable as a parent
+    expect(parentID).toEqual(associatedVariable.id)
+    const [timeRangeResult] = actual.filter(
+      vn => vn.variable.id === timeRangeStartVariable.id
+    )
+    expect(timeRangeResult).toEqual(timeRangeResult)
+    // expect the subgraph to return the passed in variable
+    const rents = getParentNodeIDs(timeRangeResult)
+    expect(rents).toEqual([])
+  })
+  test('should return the child node (defaultVariable) with associated parents of the input (associatedVariable) when the child node is passed in', async () => {
+    /*
+     This example deals with the following situation where a parent with a child has been passed in.
+     Practically speaking, this looks like:
+
+              associatedVariable
+                    |
+                    |
+                defaultVariable
+
+      By passing in the defaultVariable, we expect the child to be returned with a reference to the parent:
+
+      [
+        {
+          variable: defaultVariable,
+          parent: [associatedVariable]
+        },
+      ]
+      The reason for this is because we want the youngest child node (end of the LL tail) to load first, followed by its parents.
+    */
+    const variableGraph = await createVariableGraph(defaultVariables)
+    const actual = await findSubgraphFeature(variableGraph, [defaultVariable])
+    // returns the subgraph result
+    expect(actual.length).toEqual(1)
+    const resultIDs = actual.map(v => v.variable.id)
+    // expect the one variables with no children to be output
+    expect(resultIDs).toEqual([defaultVariable.id])
+    expect(actual[0].children).toEqual([])
+    // expect the subgraph to return the passed in variable
+    const parentIDs = getParentNodeIDs(actual[0])
+    expect(parentIDs.length).toEqual(1)
+    const [parentID] = parentIDs
+    // expect the defaultVariable to have the associatedVariable as a parent
+    expect(parentID).toEqual(associatedVariable.id)
+  })
+  test('should return all the child nodes if the input variable has children', async () => {
+    /*
+     This example deals with the following situation where a parent with multiple children has been passed in.
+     Practically speaking, this looks like:
+
+                    associatedVariable
+                  /          |         \
+                /           |          \
+      timeRangeStart  defaultVariable   timeRangeStop
+
+      By passing in the associatedVariable, we expect the first to be returned with a reference to the parent,
+      while the subsequent children should not include a reference to the parent:
+
+      [
+        {
+          variable: defaultVariable,
+          parent: [associatedVariable]
+        },
+        {
+          variable: timeRangeStart,
+          parent: []
+        },
+        {
+          variable: timeRangeStop,
+          parent: []
+        },
+      ]
+      The reason for this is because we want the youngest child node (end of the LL tail) to load first, followed by its parents.
+    */
+    const variableGraph = await createVariableGraph(defaultVariables)
+    const actual = await findSubgraphFeature(variableGraph, [
+      associatedVariable,
+    ])
+    // returns the subgraph result
+    expect(actual.length).toEqual(3)
+    // expect the one variables with no children to be output
+    const [defaultVarInResult] = actual.filter(
+      vn => vn.variable.id === defaultVariable.id
+    )
+    expect(defaultVarInResult.variable).toEqual(defaultVariable)
+    // expect the subgraph to return the passed in variable
+    const parents = getParentNodeIDs(defaultVarInResult)
+    expect(parents.length).toEqual(1)
+    const [parent] = parents
+    // expect the defaultVariable to have the associatedVariable as a parent
+    expect(parent).toEqual(associatedVariable.id)
+    const [timeRangeResult] = actual.filter(
+      vn => vn.variable.id === timeRangeStartVariable.id
+    )
+    expect(timeRangeResult).toEqual(timeRangeResult)
+    // expect the subgraph to return the passed in variable
+    const rents = getParentNodeIDs(timeRangeResult)
+    expect(rents).toEqual([])
+  })
+  test('should only return the child nodes (defaultVariable, timeRangeStart, timeRangeStop) with the like parents filtered out of the second variable (timeRangeStart) when the multiple common parents are passed in', async () => {
+    /*
+     This example deals with the following situation where a parent has two children.
+     In this case, both the defaultVariable and timeRangeStart are children to associatedVariable.
+     Practically speaking, this looks like:
+
+                    associatedVariable
+                  /          |         \
+                /           |          \
+      timeRangeStart  defaultVariable   timeRangeStop
+
+      By passing in the associatedVariable and the timeRangeStart, the output should be:
+
+      [
+        {
+          variable: defaultVariable,
+          parent: [associatedVariable]
+        },
+        {
+          variable: timeRangeStart,
+          parent: [],
+        },
+        {
+          variable: timeRangeStop,
+          parent: [],
+        },
+      ]
+      The reason for this is because we deduplicate parent nodes that have already been loaded.
+      Since the defaultVariable has already hydrated the associatedVariable, we can
+      rely upon that in order to resolve timeRangeStart
+    */
+    const variableGraph = await createVariableGraph(defaultVariables)
+    const actual = await findSubgraphFeature(variableGraph, [
+      timeRangeStartVariable,
+      associatedVariable,
+    ])
+    // returns the subgraph result
+    expect(actual.length).toEqual(3)
+    const [defaultVarInResult] = actual.filter(
+      vn => vn.variable.id === defaultVariable.id
+    )
+    expect(defaultVarInResult.variable).toEqual(defaultVariable)
+    // expect the subgraph to return the passed in variable
+    const parentIDs = getParentNodeIDs(defaultVarInResult)
+    expect(parentIDs.length).toEqual(1)
+    const [parentID] = parentIDs
+    // expect the defaultVariable to have the associatedVariable as a parent
+    expect(parentID).toEqual(associatedVariable.id)
+    const [timeRangeResult] = actual.filter(
+      vn => vn.variable.id === timeRangeStartVariable.id
+    )
+    expect(timeRangeResult).toEqual(timeRangeResult)
+    // expect the subgraph to return the passed in variable
+    const rents = getParentNodeIDs(timeRangeResult)
+    expect(rents).toEqual([])
   })
 })

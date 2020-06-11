@@ -8,6 +8,7 @@ import classnames from 'classnames'
 // Components
 import EmptyQueryView, {ErrorFormat} from 'src/shared/components/EmptyQueryView'
 import ViewSwitcher from 'src/shared/components/ViewSwitcher'
+import ViewLoadingSpinner from 'src/shared/components/ViewLoadingSpinner'
 import RawFluxDataTable from 'src/timeMachine/components/RawFluxDataTable'
 import ErrorBoundary from 'src/shared/components/ErrorBoundary'
 
@@ -99,6 +100,7 @@ const TimeMachineVis: SFC<Props> = ({
   return (
     <div className={timeMachineViewClassName}>
       <ErrorBoundary>
+        <ViewLoadingSpinner loading={loading} />
         <EmptyQueryView
           loading={loading}
           errorFormat={ErrorFormat.Scroll}
@@ -125,7 +127,6 @@ const TimeMachineVis: SFC<Props> = ({
               giraffeResult={giraffeResult}
               timeRange={timeRange}
               files={files}
-              loading={loading}
               properties={resolvedViewProperties}
               checkType={checkType}
               checkThresholds={checkThresholds}

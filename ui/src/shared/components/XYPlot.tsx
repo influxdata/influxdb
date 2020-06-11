@@ -10,7 +10,6 @@ import {
 
 // Components
 import EmptyGraphMessage from 'src/shared/components/EmptyGraphMessage'
-import GraphLoadingDots from 'src/shared/components/GraphLoadingDots'
 
 // Utils
 import {
@@ -33,18 +32,11 @@ import {DEFAULT_LINE_COLORS} from 'src/shared/constants/graphColorPalettes'
 import {INVALID_DATA_COPY} from 'src/shared/copy/cell'
 
 // Types
-import {
-  RemoteDataState,
-  XYViewProperties,
-  TimeZone,
-  TimeRange,
-  Theme,
-} from 'src/types'
+import {XYViewProperties, TimeZone, TimeRange, Theme} from 'src/types'
 
 interface Props {
   children: (config: Config) => JSX.Element
   fluxGroupKeyUnion: string[]
-  loading: RemoteDataState
   timeRange?: TimeRange | null
   table: Table
   timeZone: TimeZone
@@ -55,7 +47,6 @@ interface Props {
 const XYPlot: FunctionComponent<Props> = ({
   children,
   fluxGroupKeyUnion,
-  loading,
   timeRange,
   table,
   timeZone,
@@ -192,12 +183,7 @@ const XYPlot: FunctionComponent<Props> = ({
     ],
   }
 
-  return (
-    <>
-      {loading === RemoteDataState.Loading && <GraphLoadingDots />}
-      {children(config)}
-    </>
-  )
+  return children(config)
 }
 
 export default XYPlot

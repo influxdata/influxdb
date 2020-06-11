@@ -7,12 +7,24 @@ import {
   BuilderConfig,
 } from 'src/client'
 import {RemoteDataState} from 'src/types'
+import {Sort} from '@influxdata/clockface'
+import {SortTypes} from 'src/shared/utils/sort'
+import {DashboardSortKey} from 'src/shared/components/resource_sort_dropdown/generateSortItems'
 
 export type FieldOption = RenamableField
 
 export interface SortOptions {
   field: string
   direction: string
+}
+
+export {Sort} from '@influxdata/clockface'
+export {SortTypes} from 'src/shared/utils/sort'
+
+export interface DashboardSortParams {
+  sortDirection: Sort
+  sortType: SortTypes
+  sortKey: DashboardSortKey
 }
 
 export interface DashboardDraftQuery extends DashboardQuery {
@@ -34,6 +46,7 @@ export interface Dashboard extends Omit<GenDashboard, 'cells' | 'labels'> {
   cells: string[]
   labels: string[]
   status: RemoteDataState
+  sortOptions: DashboardSortParams
 }
 
 export type Omit<K, V> = Pick<K, Exclude<keyof K, V>>

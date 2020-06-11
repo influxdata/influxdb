@@ -7,6 +7,7 @@ import {Plot} from '@influxdata/giraffe'
 import CheckPlot from 'src/shared/components/CheckPlot'
 import EmptyQueryView, {ErrorFormat} from 'src/shared/components/EmptyQueryView'
 import TimeSeries from 'src/shared/components/TimeSeries'
+import ViewLoadingSpinner from 'src/shared/components/ViewLoadingSpinner'
 
 // Types
 import {ResourceIDs} from 'src/checks/reducers'
@@ -44,28 +45,30 @@ const CheckHistoryVisualization: FC<Props> = ({check, timeZone}) => {
     >
       {({giraffeResult, loading, errorMessage, isInitialFetch, statuses}) => {
         return (
-          <EmptyQueryView
-            errorFormat={ErrorFormat.Tooltip}
-            errorMessage={errorMessage}
-            hasResults={checkResultsLength(giraffeResult)}
-            loading={loading}
-            isInitialFetch={isInitialFetch}
-            queries={[check.query]}
-            fallbackNote={null}
-          >
-            <CheckPlot
-              checkType={check.type}
-              thresholds={check.type === 'threshold' ? check.thresholds : []}
-              table={get(giraffeResult, 'table')}
-              fluxGroupKeyUnion={get(giraffeResult, 'fluxGroupKeyUnion')}
+          <>
+            <ViewLoadingSpinner loading={loading} />
+            <EmptyQueryView
+              errorFormat={ErrorFormat.Tooltip}
+              errorMessage={errorMessage}
+              hasResults={checkResultsLength(giraffeResult)}
               loading={loading}
-              timeZone={timeZone}
-              viewProperties={view.properties}
-              statuses={statuses}
+              isInitialFetch={isInitialFetch}
+              queries={[check.query]}
+              fallbackNote={null}
             >
-              {config => <Plot config={config} />}
-            </CheckPlot>
-          </EmptyQueryView>
+              <CheckPlot
+                checkType={check.type}
+                thresholds={check.type === 'threshold' ? check.thresholds : []}
+                table={get(giraffeResult, 'table')}
+                fluxGroupKeyUnion={get(giraffeResult, 'fluxGroupKeyUnion')}
+                timeZone={timeZone}
+                viewProperties={view.properties}
+                statuses={statuses}
+              >
+                {config => <Plot config={config} />}
+              </CheckPlot>
+            </EmptyQueryView>
+          </>
         )
       }}
     </TimeSeries>

@@ -1,5 +1,9 @@
 // Types
-import {RemoteDataState, DashboardEntities} from 'src/types'
+import {
+  RemoteDataState,
+  DashboardEntities,
+  DashboardSortParams,
+} from 'src/types'
 import {NormalizedSchema} from 'normalizr'
 import {setLabelOnResource} from 'src/labels/actions/creators'
 
@@ -10,6 +14,7 @@ export const REMOVE_DASHBOARD = 'REMOVE_DASHBOARD'
 export const REMOVE_DASHBOARD_LABEL = 'REMOVE_DASHBOARD_LABEL'
 export const SET_DASHBOARD = 'SET_DASHBOARD'
 export const SET_DASHBOARDS = 'SET_DASHBOARDS'
+export const SET_DASHBOARD_SORT = 'SET_DASHBOARD_SORT'
 
 export type Action =
   | ReturnType<typeof editDashboard>
@@ -18,6 +23,7 @@ export type Action =
   | ReturnType<typeof setDashboard>
   | ReturnType<typeof setDashboards>
   | ReturnType<typeof setLabelOnResource>
+  | ReturnType<typeof setDashboardSort>
 
 // R is the type of the value of the "result" key in normalizr's normalization
 type DashboardSchema<R extends string | string[]> = NormalizedSchema<
@@ -40,6 +46,12 @@ export const setDashboards = (
     type: SET_DASHBOARDS,
     status,
     schema,
+  } as const)
+
+export const setDashboardSort = (sortOptions: DashboardSortParams) =>
+  ({
+    type: SET_DASHBOARD_SORT,
+    sortOptions,
   } as const)
 
 export const setDashboard = (

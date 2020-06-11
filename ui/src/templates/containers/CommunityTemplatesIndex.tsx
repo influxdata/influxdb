@@ -4,18 +4,31 @@ import {connect} from 'react-redux'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {Page} from '@influxdata/clockface'
+import {
+  Bullet,
+  Button,
+  ComponentColor,
+  ComponentSize,
+  Heading,
+  HeadingElement,
+  Input,
+  LinkButton,
+  LinkTarget,
+  Page,
+  Panel,
+} from '@influxdata/clockface'
 import SettingsTabbedPage from 'src/settings/components/SettingsTabbedPage'
 import SettingsHeader from 'src/settings/components/SettingsHeader'
-import TemplatesPage from 'src/templates/components/TemplatesPage'
-import GetResources from 'src/resources/components/GetResources'
 
 // Utils
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
 import {getOrg} from 'src/organizations/selectors'
 
 // Types
-import {AppState, Organization, ResourceType} from 'src/types'
+import {AppState, Organization} from 'src/types'
+
+const communityTemplatesUrl =
+  'https://github.com/influxdata/community-templates#templates'
 
 interface StateProps {
   org: Organization
@@ -25,9 +38,8 @@ type Props = WithRouterProps & StateProps
 
 @ErrorHandling
 class CTI extends Component<Props> {
-  componentDidMount() {
-    // eslint-disable-next-line no-console
-    console.log('CommunityTemplatesIndex - the flag is working')
+  state = {
+    currentTemplate: '',
   }
 
   public render() {
@@ -37,9 +49,55 @@ class CTI extends Component<Props> {
         <Page titleTag={pageTitleSuffixer(['Templates', 'Settings'])}>
           <SettingsHeader />
           <SettingsTabbedPage activeTab="templates" orgID={org.id}>
-            <GetResources resources={[ResourceType.Templates]}>
-              <TemplatesPage onImport={this.handleImport} />
-            </GetResources>
+            {/* todo: maybe make this not a div */}
+            <div className="community-templates-upload">
+              <Panel className="community-templates-upload-panel">
+                <Panel.SymbolHeader
+                  symbol={<Bullet text={1} size={ComponentSize.Medium} />}
+                  title={
+                    <Heading element={HeadingElement.H4}>
+                      Find a template then return here to install it
+                    </Heading>
+                  }
+                  size={ComponentSize.Small}
+                >
+                  <LinkButton
+                    color={ComponentColor.Primary}
+                    href={communityTemplatesUrl}
+                    size={ComponentSize.Small}
+                    target={LinkTarget.Blank}
+                    text="Browse Community Templates"
+                  />
+                </Panel.SymbolHeader>
+              </Panel>
+              <Panel className="community-templates-panel">
+                <Panel.SymbolHeader
+                  symbol={<Bullet text={2} size={ComponentSize.Medium} />}
+                  title={
+                    <Heading element={HeadingElement.H4}>
+                      Paste the Template's Github URL below
+                    </Heading>
+                  }
+                  size={ComponentSize.Medium}
+                />
+                <Panel.Body size={ComponentSize.Large}>
+                  <div>
+                    <Input
+                      className="community-templates-template-url"
+                      onChange={this.handleTemplateChange}
+                      placeholder="Enter the URL of an InfluxDB Template..."
+                      value={this.state.currentTemplate}
+                      style={{width: '80%'}}
+                    />
+                    <Button
+                      onClick={this.handleImport}
+                      size={ComponentSize.Small}
+                      text="Lookup Template"
+                    />
+                  </div>
+                </Panel.Body>
+              </Panel>
+            </div>
           </SettingsTabbedPage>
         </Page>
         {children}
@@ -50,6 +108,10 @@ class CTI extends Component<Props> {
   private handleImport = () => {
     const {router, org} = this.props
     router.push(`/orgs/${org.id}/settings/templates/import`)
+  }
+
+  private handleTemplateChange = event => {
+    this.setState({currentTemplate: event.target.value})
   }
 }
 

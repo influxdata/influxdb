@@ -39,12 +39,6 @@ func NewHTTPServer(log *zap.Logger, svc SVC) *HTTPServer {
 	}
 
 	r := chi.NewRouter()
-	r.Use(
-		middleware.Recoverer,
-		middleware.RequestID,
-		middleware.RealIP,
-	)
-
 	{
 		r.With(middleware.AllowContentType("text/yml", "application/x-yaml", "application/json")).
 			Post("/", svr.createPkg)
@@ -246,8 +240,6 @@ func (s *HTTPServer) deleteStack(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *HTTPServer) exportStack(w http.ResponseWriter, r *http.Request) {
-	encoding := pkgEncoding(r.Header)
-
 	orgID, err := getRequiredOrgIDFromQuery(r.URL.Query())
 	if err != nil {
 		s.api.Err(w, r, err)
@@ -269,6 +261,8 @@ func (s *HTTPServer) exportStack(w http.ResponseWriter, r *http.Request) {
 		s.api.Err(w, r, err)
 		return
 	}
+
+	encoding := pkgEncoding(r.Header.Get("Accept"))
 
 	b, err := pkg.Encode(encoding)
 	if err != nil {
@@ -345,8 +339,6 @@ func (r *ReqCreatePkg) OK() error {
 type RespCreatePkg []Object
 
 func (s *HTTPServer) createPkg(w http.ResponseWriter, r *http.Request) {
-	encoding := pkgEncoding(r.Header)
-
 	var reqBody ReqCreatePkg
 	if err := s.api.DecodeJSON(r.Body, &reqBody); err != nil {
 		s.api.Err(w, r, err)
@@ -381,7 +373,7 @@ func (s *HTTPServer) createPkg(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var enc encoder
-	switch encoding {
+	switch pkgEncoding(r.Header.Get("Accept")) {
 	case EncodingYAML:
 		enc = yaml.NewEncoder(w)
 		w.Header().Set("Content-Type", "application/x-yaml")
@@ -460,7 +452,7 @@ func (r ReqApplyPkg) Pkgs(encoding Encoding) (*Pkg, error) {
 		rawPkgs = append(rawPkgs, pkg)
 	}
 
-	return Combine(rawPkgs, ValidWithoutResources())
+	return Combine(rawPkgs, ValidWithoutResources(), ValidSkipParseError())
 }
 
 // RespApplyPkg is the response body for the apply pkg endpoint.
@@ -566,7 +558,7 @@ type encoder interface {
 }
 
 func decodeWithEncoding(r *http.Request, v interface{}) (Encoding, error) {
-	encoding := pkgEncoding(r.Header)
+	encoding := pkgEncoding(r.Header.Get("Content-Type"))
 
 	var dec interface{ Decode(interface{}) error }
 	switch encoding {
@@ -581,8 +573,8 @@ func decodeWithEncoding(r *http.Request, v interface{}) (Encoding, error) {
 	return encoding, dec.Decode(v)
 }
 
-func pkgEncoding(headers http.Header) Encoding {
-	switch contentType := headers.Get("Content-Type"); contentType {
+func pkgEncoding(contentType string) Encoding {
+	switch contentType {
 	case "application/x-jsonnet":
 		return EncodingJsonnet
 	case "text/yml", "application/x-yaml":

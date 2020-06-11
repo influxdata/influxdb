@@ -33,6 +33,21 @@ func (i *identity) PkgName() string {
 	return i.name.String()
 }
 
+func (i *identity) summarizeReferences() []SummaryReference {
+	refs := make([]SummaryReference, 0)
+	if i.name.hasEnvRef() {
+		refs = append(refs, convertRefToRefSummary("metadata.name", i.name))
+	}
+	if i.displayName.hasEnvRef() {
+		refs = append(refs, convertRefToRefSummary("spec.name", i.displayName))
+	}
+	return refs
+}
+
+func summarizeCommonReferences(ident identity, labels sortedLabels) []SummaryReference {
+	return append(ident.summarizeReferences(), labels.summarizeReferences()...)
+}
+
 const (
 	fieldAPIVersion   = "apiVersion"
 	fieldAssociations = "associations"
@@ -79,6 +94,7 @@ func (b *bucket) summarize() SummaryBucket {
 		Description:       b.Description,
 		RetentionPeriod:   b.RetentionRules.RP(),
 		LabelAssociations: toSummaryLabels(b.labels...),
+		EnvReferences:     summarizeCommonReferences(b.identity, b.labels),
 	}
 }
 
@@ -235,6 +251,7 @@ func (c *check) summarize() SummaryCheck {
 		PkgName:           c.PkgName(),
 		Status:            c.Status(),
 		LabelAssociations: toSummaryLabels(c.labels...),
+		EnvReferences:     summarizeCommonReferences(c.identity, c.labels),
 	}
 	switch c.kind {
 	case checkKindThreshold:
@@ -450,6 +467,7 @@ func (d *dashboard) summarize() SummaryDashboard {
 		Name:              d.Name(),
 		Description:       d.Description,
 		LabelAssociations: toSummaryLabels(d.labels...),
+		EnvReferences:     summarizeCommonReferences(d.identity, d.labels),
 	}
 	for _, c := range d.Charts {
 		iDash.Charts = append(iDash.Charts, SummaryChart{
@@ -483,6 +501,7 @@ const (
 	fieldChartColors        = "colors"
 	fieldChartDecimalPlaces = "decimalPlaces"
 	fieldChartDomain        = "domain"
+	fieldChartFillColumns   = "fillColumns"
 	fieldChartGeom          = "geom"
 	fieldChartHeight        = "height"
 	fieldChartLegend        = "legend"
@@ -527,6 +546,7 @@ type chart struct {
 	BinCount        int
 	Position        string
 	FieldOptions    []fieldOption
+	FillColumns     []string
 	TableOptions    tableOptions
 	TimeFormat      string
 }
@@ -574,7 +594,7 @@ func (c chart) properties() influxdb.ViewProperties {
 			Type:              influxdb.ViewPropertyTypeHistogram,
 			Queries:           c.Queries.influxDashQueries(),
 			ViewColors:        c.Colors.influxViewColors(),
-			FillColumns:       []string{},
+			FillColumns:       c.FillColumns,
 			XColumn:           c.XCol,
 			XDomain:           c.Axes.get("x").Domain,
 			XAxisLabel:        c.Axes.get("x").Label,
@@ -1116,6 +1136,7 @@ func (l *label) summarize() SummaryLabel {
 			Color:       l.Color,
 			Description: l.Description,
 		},
+		EnvReferences: l.identity.summarizeReferences(),
 	}
 }
 
@@ -1164,6 +1185,18 @@ func toSummaryLabels(labels ...*label) []SummaryLabel {
 }
 
 type sortedLabels []*label
+
+func (s sortedLabels) summarizeReferences() []SummaryReference {
+	refs := make([]SummaryReference, 0)
+	for i, l := range s {
+		if !l.name.hasEnvRef() {
+			continue
+		}
+		field := fmt.Sprintf("spec.%s[%d].name", fieldAssociations, i)
+		refs = append(refs, convertRefToRefSummary(field, l.name))
+	}
+	return refs
+}
 
 func (s sortedLabels) Len() int {
 	return len(s)
@@ -1249,6 +1282,7 @@ func (n *notificationEndpoint) summarize() SummaryNotificationEndpoint {
 	sum := SummaryNotificationEndpoint{
 		PkgName:           n.PkgName(),
 		LabelAssociations: toSummaryLabels(n.labels...),
+		EnvReferences:     summarizeCommonReferences(n.identity, n.labels),
 	}
 
 	switch n.kind {
@@ -1443,6 +1477,11 @@ func (r *notificationRule) summarize() SummaryNotificationRule {
 		endpointType = r.associatedEndpoint.kind.String()
 	}
 
+	envRefs := summarizeCommonReferences(r.identity, r.labels)
+	if r.endpointName.hasEnvRef() {
+		envRefs = append(envRefs, convertRefToRefSummary("spec.endpointName", r.endpointName))
+	}
+
 	return SummaryNotificationRule{
 		PkgName:           r.PkgName(),
 		Name:              r.Name(),
@@ -1451,6 +1490,7 @@ func (r *notificationRule) summarize() SummaryNotificationRule {
 		Description:       r.description,
 		Every:             r.every.String(),
 		LabelAssociations: toSummaryLabels(r.labels...),
+		EnvReferences:     envRefs,
 		Offset:            r.offset.String(),
 		MessageTemplate:   r.msgTemplate,
 		Status:            r.Status(),
@@ -1686,6 +1726,7 @@ func (t *task) summarize() SummaryTask {
 		Query:       t.query,
 		Status:      t.Status(),
 
+		EnvReferences:     summarizeCommonReferences(t.identity, t.labels),
 		LabelAssociations: toSummaryLabels(t.labels...),
 	}
 }
@@ -1814,6 +1855,7 @@ func (t *telegraf) summarize() SummaryTelegraf {
 		PkgName:           t.PkgName(),
 		TelegrafConfig:    cfg,
 		LabelAssociations: toSummaryLabels(t.labels...),
+		EnvReferences:     summarizeCommonReferences(t.identity, t.labels),
 	}
 }
 
@@ -1872,6 +1914,7 @@ func (v *variable) summarize() SummaryVariable {
 		Description:       v.Description,
 		Arguments:         v.influxVarArgs(),
 		LabelAssociations: toSummaryLabels(v.labels...),
+		EnvReferences:     summarizeCommonReferences(v.identity, v.labels),
 	}
 }
 
@@ -1959,6 +2002,10 @@ func (r *references) hasValue() bool {
 	return r.EnvRef != "" || r.Secret != "" || r.val != nil
 }
 
+func (r *references) hasEnvRef() bool {
+	return r != nil && r.EnvRef != ""
+}
+
 func (r *references) String() string {
 	if r == nil {
 		return ""
@@ -1967,9 +2014,13 @@ func (r *references) String() string {
 		return v
 	}
 	if r.EnvRef != "" {
-		return "env-" + r.EnvRef
+		return r.defaultEnvValue()
 	}
 	return ""
+}
+
+func (r *references) defaultEnvValue() string {
+	return "env-" + r.EnvRef
 }
 
 func (r *references) StringVal() string {
@@ -1988,6 +2039,15 @@ func (r *references) SecretField() influxdb.SecretField {
 		return influxdb.SecretField{Value: &str}
 	}
 	return influxdb.SecretField{}
+}
+
+func convertRefToRefSummary(field string, ref *references) SummaryReference {
+	return SummaryReference{
+		Field:        field,
+		EnvRefKey:    ref.EnvRef,
+		Value:        ref.StringVal(),
+		DefaultValue: ref.defaultEnvValue(),
+	}
 }
 
 func isValidName(name string, minLength int) (validationErr, bool) {
