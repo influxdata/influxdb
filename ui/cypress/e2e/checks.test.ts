@@ -161,8 +161,8 @@ describe('Checks', () => {
     })
   })
 
-  describe('Alert history page loads after check created after set duration', () => {
-    beforeEach(() => {
+  describe('Access alert history page', () => {
+    it('After check creation confirm history page has graph', () => {
       // creates a check before each iteration
       // TODO: refactor into a request with other before each
       cy.getByTestID('create-check').click()
@@ -186,21 +186,17 @@ describe('Checks', () => {
       cy.getByTestID('save-cell--button').click()
       cy.getByTestID('check-card').should('have.length', 1)
       cy.getByTestID('notification-error').should('not.exist')
-
-      cy.wait(10000)
       cy.getByTestID('context-history-menu').click()
       cy.getByTestID('context-history-task').click()
       cy.getByTestID('giraffe-axes').should('be.visible')
-    })
 
-    it('Clicking the check status input results in dropdown and clicking outside removes dropdown', () => {
+      //Clicking the check status input results in dropdown and clicking outside removes dropdown
       cy.getByTestID('check-status-input').click()
       cy.getByTestID('check-status-dropdown').should('be.visible')
       cy.getByTestID('alert-history-title').click()
       cy.getByTestID('check-status-dropdown').should('not.exist')
-    })
 
-    it('Minimize the graph by dragging', () => {
+      //Minimize the graph by dragging
       cy.get('.threshold-marker--area.threshold-marker--crit')
         .trigger('mousedown', {which: 1, pageX: 600, pageY: 100})
         .trigger('mousemove', {which: 1, pageX: 700, pageY: 100})
