@@ -25,7 +25,10 @@ type Props = OwnProps & StateProps & DispatchProps
 
 const DashboardLightModeToggle: FC<Props> = ({theme, onSetTheme}) => {
   return (
-    <SelectGroup testID="presentation-mode-toggle" shape={ButtonShape.Square}>
+    <SelectGroup
+      testID="presentation-mode-toggle-group"
+      shape={ButtonShape.Square}
+    >
       <SelectGroup.Option
         onClick={() => onSetTheme('dark')}
         value={false}
