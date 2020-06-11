@@ -1,3 +1,5 @@
+import {CLOUD} from 'src/shared/constants'
+
 type func = (...args: any[]) => any
 
 export class AutoRefresher {
@@ -35,6 +37,9 @@ export class AutoRefresher {
   }
 
   private refresh = () => {
+    if (CLOUD) {
+      return
+    }
     this.subscribers.forEach(fn => fn())
   }
 }
