@@ -818,6 +818,50 @@ from(bucket: "bucket")
 			t.Fatal("last was not pushed down")
 		}
 	})
+
+	t.Run("bare first", func(t *testing.T) {
+		t.Skip("bare first not implemented")
+
+		query := `
+from(bucket: "bucket")
+	|> range(start: 0)
+	|> first()
+	|> keep(columns: ["_time", "_value", "field", "t"])`
+
+		want := `,result,table,_time,_value,t
+,_result,0,1970-01-01T00:00:00.000000001Z,1,a
+,_result,1,1970-01-01T00:00:00.000000005Z,4,b
+`
+
+		if got := l.QueryFlux(t, org.Org, org.Auth.Token, query); got != want {
+			t.Fatalf("unexpected result: -want/+got\n%s", cmp.Diff(want, got))
+		}
+		if readOpCount(t, l, "readWindow(first)") != 1 {
+			t.Fatal("first was not pushed down")
+		}
+	})
+
+	t.Run("bare last", func(t *testing.T) {
+		t.Skip("bare last not implemented")
+
+		query := `
+from(bucket: "bucket")
+	|> range(start: 0)
+	|> last()
+	|> keep(columns: ["_time", "_value", "field", "t"])`
+
+		want := `,result,table,_time,_value,t
+,_result,0,1970-01-01T00:00:00.000000004Z,4,a
+,_result,1,1970-01-01T00:00:00.000000008Z,1,b
+`
+
+		if got := l.QueryFlux(t, org.Org, org.Auth.Token, query); got != want {
+			t.Fatalf("unexpected result: -want/+got\n%s", cmp.Diff(want, got))
+		}
+		if readOpCount(t, l, "readWindow(last)") != 1 {
+			t.Fatal("last was not pushed down")
+		}
+	})
 }
 
 func readOpCount(t testing.TB, l *launcher.TestLauncher, op string) uint64 {
