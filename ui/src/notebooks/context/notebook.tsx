@@ -75,15 +75,6 @@ export const NotebookProvider: FC = ({children}) => {
         }
       }
 
-      if (
-        pipe.type === 'query' &&
-        pipes.filter(p => p.type === 'query').length
-      ) {
-        pipe.queries[0].text =
-          '// tip: use the __PREVIOUS_RESULT__ variable to link your queries\n\n' +
-          pipe.queries[0].text
-      }
-
       if (pipes.length && pipe.type !== 'query') {
         _setResults(add({...results[results.length - 1]}))
         _setMeta(
@@ -105,7 +96,25 @@ export const NotebookProvider: FC = ({children}) => {
           })
         )
       }
-      _setPipes(add(pipe))
+
+      if (pipe.type === 'query') {
+        if (!pipes.filter(p => p.type === 'query').length) {
+          _setPipes(add(pipe))
+        } else {
+          const _pipe = {
+            ...pipe,
+            queries: [
+              {
+                ...pipe.queries[0],
+                text:
+                  '// tip: use the __PREVIOUS_RESULT__ variable to link your queries\n\n' +
+                  pipe.queries[0].text,
+              },
+            ],
+          }
+          _setPipes(add(_pipe))
+        }
+      }
     },
     [id, pipes, meta, results]
   )
