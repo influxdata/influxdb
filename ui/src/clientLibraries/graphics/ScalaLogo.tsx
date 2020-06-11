@@ -3,7 +3,12 @@ import React, {SFC} from 'react'
 
 const ScalaLogo: SFC = () => {
   return (
-    <svg viewBox="0 0 64 64" height={100} width={100}>
+    <svg
+      viewBox="0 0 64 64"
+      height={100}
+      width={100}
+      preserveAspectRatio="xMidYMid meet"
+    >
       <linearGradient id="scala-a">
         <stop offset={0} stopColor="#656565" />
         <stop offset={1} stopColor="#010101" />

@@ -4,12 +4,11 @@ import React, {SFC} from 'react'
 const KotlinLogo: SFC = () => {
   return (
     <svg
-      x={0}
-      y={0}
       viewBox="0 0 60 60"
       xmlSpace="preserve"
+      preserveAspectRatio="xMidYMid meet"
       width="80"
-      height="100"
+      height="80"
     >
       <linearGradient
         id="kotlin-a"

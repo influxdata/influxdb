@@ -28,8 +28,20 @@ import (
 
 type pkgSVCsFn func() (pkger.SVC, influxdb.OrganizationService, error)
 
-func cmdPkg(f *globalFlags, opts genericCLIOpts) *cobra.Command {
-	return newCmdPkgBuilder(newPkgerSVC, opts).cmd()
+func cmdApply(f *globalFlags, opts genericCLIOpts) *cobra.Command {
+	return newCmdPkgBuilder(newPkgerSVC, opts).cmdApply()
+}
+
+func cmdExport(f *globalFlags, opts genericCLIOpts) *cobra.Command {
+	return newCmdPkgBuilder(newPkgerSVC, opts).cmdPkgExport()
+}
+
+func cmdStack(f *globalFlags, opts genericCLIOpts) *cobra.Command {
+	return newCmdPkgBuilder(newPkgerSVC, opts).cmdStack()
+}
+
+func cmdTemplate(f *globalFlags, opts genericCLIOpts) *cobra.Command {
+	return newCmdPkgBuilder(newPkgerSVC, opts).cmdTemplate()
 }
 
 type cmdPkgBuilder struct {
@@ -82,61 +94,70 @@ func newCmdPkgBuilder(svcFn pkgSVCsFn, opts genericCLIOpts) *cmdPkgBuilder {
 	}
 }
 
-func (b *cmdPkgBuilder) cmd() *cobra.Command {
+func (b *cmdPkgBuilder) cmdApply() *cobra.Command {
 	cmd := b.cmdPkgApply()
-	cmd.AddCommand(
+
+	// all these commands are deprecated under the old pkg cmds.
+	// these are moving to root commands.
+	deprecatedCmds := []*cobra.Command{
 		b.cmdPkgExport(),
-		b.cmdPkgSummary(),
+		b.cmdTemplateSummary(),
+		b.cmdStackDeprecated(),
 		b.cmdPkgValidate(),
-		b.cmdStack(),
-	)
+	}
+	for i := range deprecatedCmds {
+		deprecatedCmds[i].Hidden = true
+	}
+
+	cmd.AddCommand(deprecatedCmds...)
 
 	return cmd
 }
 
 func (b *cmdPkgBuilder) cmdPkgApply() *cobra.Command {
-	cmd := b.newCmd("pkg", b.pkgApplyRunEFn, true)
-	cmd.Short = "Apply a pkg to create resources"
+	cmd := b.newCmd("apply", b.pkgApplyRunEFn, true)
+	cmd.Aliases = []string{"pkg"}
+	cmd.Short = "Apply a template to manage resources"
 	cmd.Long = `
-	The pkg command applies InfluxDB template(s). Use the command to create new
-	resources via a declarative template. The pkg command can consume templates
-	via file(s), url(s), stdin, or any combination of the 3. Each run of the pkg
+	The apply command applies InfluxDB template(s). Use the command to create new
+	resources via a declarative template. The apply command can consume templates
+	via file(s), url(s), stdin, or any combination of the 3. Each run of the apply
 	command ensures that all templates applied are applied in unison as a transaction.
 	If any unexpected errors are discovered then all side effects are rolled back.
 
 	Examples:
 		# Apply a template via a file
-		influx pkg -f $PATH_TO_TEMPLATE/template.json
+		influx apply -f $PATH_TO_TEMPLATE/template.json
 
 		# Apply a stack that has associated templates. In this example the stack has a remote
 		# template associated with it.
-		influx pkg --stack-id $STACK_ID
+		influx apply --stack-id $STACK_ID
 
 		# Apply a template associated with a stack. Stacks make template application idempotent.
-		influx pkg -f $PATH_TO_TEMPLATE/template.json --stack-id $STACK_ID
+		influx apply -f $PATH_TO_TEMPLATE/template.json --stack-id $STACK_ID
 
 		# Apply multiple template files together (mix of yaml and json)
-		influx pkg \
+		influx apply \
 			-f $PATH_TO_TEMPLATE/template_1.json \
 			-f $PATH_TO_TEMPLATE/template_2.yml
 
 		# Apply a template from a url
-		influx pkg -u https://raw.githubusercontent.com/influxdata/community-templates/master/docker/docker.yml
+		influx apply -u https://raw.githubusercontent.com/influxdata/community-templates/master/docker/docker.yml
 
 		# Apply a template from STDIN
-		cat $TEMPLATE.json | influx pkg --encoding json
+		cat $TEMPLATE.json | influx apply --encoding json
 
 		# Applying a directory of templates, takes everything from provided directory
-		influx pkg -f $PATH_TO_TEMPLATE_DIR
+		influx apply -f $PATH_TO_TEMPLATE_DIR
 
 		# Applying a directory of templates, recursively descending into child directories
-		influx pkg -R -f $PATH_TO_TEMPLATE_DIR
+		influx apply -R -f $PATH_TO_TEMPLATE_DIR
 
 		# Applying directories from many sources, file and URL
-		influx pkg -f $PATH_TO_TEMPLATE/template.yml -f $URL_TO_TEMPLATE
+		influx apply -f $PATH_TO_TEMPLATE/template.yml -f $URL_TO_TEMPLATE
 
 	For information about finding and using InfluxDB templates, see
-	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/pkg/.
+	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/apply/.
 
 	For more templates created by the community, see
 	https://github.com/influxdata/community-templates.
@@ -150,8 +171,8 @@ func (b *cmdPkgBuilder) cmdPkgApply() *cobra.Command {
 	cmd.Flags().StringVar(&b.stackID, "stack-id", "", "Stack ID to associate pkg application")
 
 	b.applyOpts.secrets = []string{}
-	cmd.Flags().StringSliceVar(&b.applyOpts.secrets, "secret", nil, "Secrets to provide alongside the package; format should --secret=SECRET_KEY=SECRET_VALUE --secret=SECRET_KEY_2=SECRET_VALUE_2")
-	cmd.Flags().StringSliceVar(&b.applyOpts.envRefs, "env-ref", nil, "Environment references to provide alongside the package; format should --env-ref=REF_KEY=REF_VALUE --env-ref=REF_KEY_2=REF_VALUE_2")
+	cmd.Flags().StringSliceVar(&b.applyOpts.secrets, "secret", nil, "Secrets to provide alongside the template; format should --secret=SECRET_KEY=SECRET_VALUE --secret=SECRET_KEY_2=SECRET_VALUE_2")
+	cmd.Flags().StringSliceVar(&b.applyOpts.envRefs, "env-ref", nil, "Environment references to provide alongside the template; format should --env-ref=REF_KEY=REF_VALUE --env-ref=REF_KEY_2=REF_VALUE_2")
 
 	return cmd
 }
@@ -247,15 +268,15 @@ func (b *cmdPkgBuilder) cmdPkgExport() *cobra.Command {
 	cmd := b.newCmd("export", b.pkgExportRunEFn, true)
 	cmd.Short = "Export existing resources as a package"
 	cmd.Long = `
-	The pkg export command provides a mechanism to export existing resources to a
+	The export command provides a mechanism to export existing resources to a
 	template. Each template resource kind is supported via flags.
 
 	Examples:
 		# export buckets by ID
-		influx pkg export --buckets=$ID1,$ID2,$ID3
+		influx export --buckets=$ID1,$ID2,$ID3
 
 		# export buckets, labels, and dashboards by ID
-		influx pkg export \
+		influx export \
 			--buckets=$BID1,$BID2,$BID3 \
 			--labels=$LID1,$LID2,$LID3 \
 			--dashboards=$DID1,$DID2,$DID3
@@ -264,14 +285,14 @@ func (b *cmdPkgBuilder) cmdPkgExport() *cobra.Command {
 	resource flag and then provide the IDs.
 
 	For information about exporting InfluxDB templates, see
-	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/pkg/export/
+	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/export/
 `
 	cmd.AddCommand(
 		b.cmdPkgExportAll(),
 		b.cmdPkgExportStack(),
 	)
 
-	cmd.Flags().StringVarP(&b.file, "file", "f", "", "output file for created pkg; defaults to std out if no file provided; the extension of provided file (.yml/.json) will dictate encoding")
+	cmd.Flags().StringVarP(&b.file, "file", "f", "", "output file for created template; defaults to std out if no file provided; the extension of provided file (.yml/.json) will dictate encoding")
 	cmd.Flags().StringVar(&b.exportOpts.resourceType, "resource-type", "", "The resource type provided will be associated with all IDs via stdin.")
 	cmd.Flags().StringVar(&b.exportOpts.buckets, "buckets", "", "List of bucket ids comma separated")
 	cmd.Flags().StringVar(&b.exportOpts.checks, "checks", "", "List of check ids comma separated")
@@ -344,7 +365,7 @@ func (b *cmdPkgBuilder) cmdPkgExportAll() *cobra.Command {
 	cmd := b.newCmd("all", b.pkgExportAllRunEFn, true)
 	cmd.Short = "Export all existing resources for an organization as a package"
 	cmd.Long = `
-	The pkg export all command will export all resources for an organization. The
+	The export all command will export all resources for an organization. The
 	command also provides a mechanism to filter by label name or resource kind.
 
 	Examples:
@@ -352,13 +373,13 @@ func (b *cmdPkgBuilder) cmdPkgExportAll() *cobra.Command {
 		influx pkg export all --org $ORG_NAME
 
 		# Export all bucket resources
-		influx pkg export all --org $ORG_NAME --filter=resourceKind=Bucket
+		influx export all --org $ORG_NAME --filter=resourceKind=Bucket
 
 		# Export all resources associated with label Foo
-		influx pkg export all --org $ORG_NAME --filter=labelName=Foo
+		influx export all --org $ORG_NAME --filter=labelName=Foo
 
 		# Export all bucket resources and filter by label Foo
-		influx pkg export all --org $ORG_NAME \
+		influx export all --org $ORG_NAME \
 			--filter=resourceKind=Bucket \
 			--filter=labelName=Foo
 
@@ -366,18 +387,18 @@ func (b *cmdPkgBuilder) cmdPkgExportAll() *cobra.Command {
 		# note: like filters are unioned and filter types are intersections.
 		#		This example will export a resource if it is a dashboard or
 		#		bucket and has an associated label of Foo.
-		influx pkg export all --org $ORG_NAME \
+		influx export all --org $ORG_NAME \
 			--filter=resourceKind=Bucket \
 			--filter=resourceKind=Dashboard \
 			--filter=labelName=Foo
 
 	For information about exporting InfluxDB templates, see
-	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/pkg/export
+	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/export
 	and
-	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/pkg/export/all
+	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/export/all
 `
 
-	cmd.Flags().StringVarP(&b.file, "file", "f", "", "output file for created pkg; defaults to std out if no file provided; the extension of provided file (.yml/.json) will dictate encoding")
+	cmd.Flags().StringVarP(&b.file, "file", "f", "", "output file for created template; defaults to std out if no file provided; the extension of provided file (.yml/.json) will dictate encoding")
 	cmd.Flags().StringArrayVar(&b.filters, "filter", nil, "Filter exported resources by labelName or resourceKind (format: --filter=labelName=example)")
 
 	b.org.register(cmd, false)
@@ -429,24 +450,24 @@ func (b *cmdPkgBuilder) pkgExportAllRunEFn(cmd *cobra.Command, args []string) er
 
 func (b *cmdPkgBuilder) cmdPkgExportStack() *cobra.Command {
 	cmd := b.newCmd("stack $STACK_ID", b.pkgExportStackRunEFn, true)
-	cmd.Short = "Export all existing resources for an organization as a package"
+	cmd.Short = "Export all existing resources for associated with a stack as a template"
 	cmd.Long = `
-	The pkg export stack command exports the resources associated with a stack as
+	The export stack command exports the resources associated with a stack as
 	they currently exist in the platform. All the same metadata.name fields will be
 	reused.
 
 	Example:
 		# Export by a stack
-		influx pkg export stack $STACK_ID
+		influx export stack $STACK_ID
 
 	For information about exporting InfluxDB templates, see
-	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/pkg/export
+	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/export
 	and
-	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/pkg/stack/
+	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/export/stack/
 `
 	cmd.Args = cobra.ExactValidArgs(1)
 
-	cmd.Flags().StringVarP(&b.file, "file", "f", "", "output file for created pkg; defaults to std out if no file provided; the extension of provided file (.yml/.json) will dictate encoding")
+	cmd.Flags().StringVarP(&b.file, "file", "f", "", "output file for created template; defaults to std out if no file provided; the extension of provided file (.yml/.json) will dictate encoding")
 	b.org.register(cmd, false)
 
 	return cmd
@@ -476,7 +497,20 @@ func (b *cmdPkgBuilder) pkgExportStackRunEFn(cmd *cobra.Command, args []string) 
 	return b.writePkg(b.w, b.file, pkg)
 }
 
-func (b *cmdPkgBuilder) cmdPkgSummary() *cobra.Command {
+func (b *cmdPkgBuilder) cmdTemplate() *cobra.Command {
+	cmd := b.newTemplateCmd("template")
+	cmd.Short = "Summarize the provided template"
+	cmd.AddCommand(b.cmdPkgValidate())
+	return cmd
+}
+
+func (b *cmdPkgBuilder) cmdTemplateSummary() *cobra.Command {
+	cmd := b.newTemplateCmd("summary")
+	cmd.Short = "Summarize the provided package"
+	return cmd
+}
+
+func (b *cmdPkgBuilder) newTemplateCmd(usage string) *cobra.Command {
 	runE := func(cmd *cobra.Command, args []string) error {
 		pkg, _, err := b.readPkg()
 		if err != nil {
@@ -486,8 +520,7 @@ func (b *cmdPkgBuilder) cmdPkgSummary() *cobra.Command {
 		return b.printPkgSummary(0, pkg.Summary())
 	}
 
-	cmd := b.newCmd("summary", runE, false)
-	cmd.Short = "Summarize the provided package"
+	cmd := b.newCmd(usage, runE, false)
 
 	b.registerPkgFileFlags(cmd)
 	b.registerPkgPrintOpts(cmd)
@@ -505,7 +538,7 @@ func (b *cmdPkgBuilder) cmdPkgValidate() *cobra.Command {
 	}
 
 	cmd := b.newCmd("validate", runE, false)
-	cmd.Short = "Validate the provided package"
+	cmd.Short = "Validate the provided template"
 
 	b.registerPkgFileFlags(cmd)
 
@@ -513,6 +546,16 @@ func (b *cmdPkgBuilder) cmdPkgValidate() *cobra.Command {
 }
 
 func (b *cmdPkgBuilder) cmdStack() *cobra.Command {
+	cmd := b.newCmdStackList("stacks")
+	cmd.Short = "List stack(s) and associated templates. Sub commands are useful for managing stacks."
+	cmd.AddCommand(
+		b.cmdStackInit(),
+		b.cmdStackRemove(),
+	)
+	return cmd
+}
+
+func (b *cmdPkgBuilder) cmdStackDeprecated() *cobra.Command {
 	cmd := b.newCmd("stack", nil, false)
 	cmd.Short = "Stack management commands"
 	cmd.AddCommand(
@@ -527,28 +570,28 @@ func (b *cmdPkgBuilder) cmdStackInit() *cobra.Command {
 	cmd := b.newCmd("init", b.stackInitRunEFn, true)
 	cmd.Short = "Initialize a stack"
 	cmd.Long = `
-	The pkg stack init command creates a new stack to associated templates with.
-	A stack is used to make applying templates idempotent. When you apply a template
+	The stack init command creates a new stack to associated templates with. A
+	stack is used to make applying templates idempotent. When you apply a template
 	and associate it with a stack, the stack can manage the created/updated resources
 	from the template back to the platform. This enables a multitude of useful features.
 	Any associated template urls will be applied when applying templates via a stack.
 
 	Examples:
 		# Initialize a stack with a name and description
-		influx pkg stack init -n $STACK_NAME -d $STACK_DESCRIPTION
+		influx stack init -n $STACK_NAME -d $STACK_DESCRIPTION
 
 		# Initialize a stack with a name and urls to associate with stack.
-		influx pkg stack init -n $STACK_NAME -u $PATH_TO_TEMPLATE
+		influx stack init -n $STACK_NAME -u $PATH_TO_TEMPLATE
 
 	For information about how stacks work with InfluxDB templates, see
-	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/pkg/stack/
+	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/stack/
 	and
-	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/pkg/stack/init/
+	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/stack/init/
 `
 
 	cmd.Flags().StringVarP(&b.name, "stack-name", "n", "", "Name given to created stack")
 	cmd.Flags().StringVarP(&b.description, "stack-description", "d", "", "Description given to created stack")
-	cmd.Flags().StringArrayVarP(&b.urls, "package-url", "u", nil, "Package urls to associate with new stack")
+	cmd.Flags().StringArrayVarP(&b.urls, "template-url", "u", nil, "Template urls to associate with new stack")
 	registerPrintOptions(cmd, &b.hideHeaders, &b.json)
 
 	b.org.register(cmd, false)
@@ -601,10 +644,15 @@ func (b *cmdPkgBuilder) stackInitRunEFn(cmd *cobra.Command, args []string) error
 }
 
 func (b *cmdPkgBuilder) cmdStackList() *cobra.Command {
-	cmd := b.newCmd("list [flags]", b.stackListRunEFn, true)
+	cmd := b.newCmdStackList("list")
 	cmd.Short = "List stack(s) and associated resources"
 	cmd.Aliases = []string{"ls"}
+	return cmd
+}
 
+func (b *cmdPkgBuilder) newCmdStackList(cmdName string) *cobra.Command {
+	usage := fmt.Sprintf("%s [flags]", cmdName)
+	cmd := b.newCmd(usage, b.stackListRunEFn, true)
 	cmd.Flags().StringArrayVar(&b.stackIDs, "stack-id", nil, "Stack IDs to filter by")
 	cmd.Flags().StringArrayVar(&b.names, "stack-name", nil, "Stack names to filter by")
 	registerPrintOptions(cmd, &b.hideHeaders, &b.json)
@@ -767,11 +815,11 @@ func (b *cmdPkgBuilder) registerPkgPrintOpts(cmd *cobra.Command) {
 }
 
 func (b *cmdPkgBuilder) registerPkgFileFlags(cmd *cobra.Command) {
-	cmd.Flags().StringSliceVarP(&b.files, "file", "f", nil, "Path to package file")
+	cmd.Flags().StringSliceVarP(&b.files, "file", "f", nil, "Path to template file")
 	cmd.MarkFlagFilename("file", "yaml", "yml", "json", "jsonnet")
-	cmd.Flags().BoolVarP(&b.recurse, "recurse", "R", false, "Process the directory used in -f, --file recursively. Useful when you want to manage related manifests organized within the same directory.")
+	cmd.Flags().BoolVarP(&b.recurse, "recurse", "R", false, "Process the directory used in -f, --file recursively. Useful when you want to manage related templates organized within the same directory.")
 
-	cmd.Flags().StringSliceVarP(&b.urls, "url", "u", nil, "URL to a package file")
+	cmd.Flags().StringSliceVarP(&b.urls, "template-url", "u", nil, "URL to template file")
 
 	cmd.Flags().StringVarP(&b.encoding, "encoding", "e", "", "Encoding for the input stream. If a file is provided will gather encoding type from file extension. If extension provided will override.")
 	cmd.MarkFlagFilename("encoding", "yaml", "yml", "json", "jsonnet")

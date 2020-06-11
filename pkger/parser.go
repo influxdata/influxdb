@@ -1340,6 +1340,7 @@ func parseChart(r Resource) (chart, []validationErr) {
 		YCol:        r.stringShort(fieldChartYCol),
 		XPos:        r.intShort(fieldChartXPos),
 		YPos:        r.intShort(fieldChartYPos),
+		FillColumns: r.slcStr(fieldChartFillColumns),
 	}
 
 	if presLeg, ok := r[fieldChartLegend].(legend); ok {

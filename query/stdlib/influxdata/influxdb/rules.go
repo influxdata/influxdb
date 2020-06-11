@@ -12,6 +12,7 @@ import (
 	"github.com/influxdata/flux/semantic"
 	"github.com/influxdata/flux/stdlib/influxdata/influxdb"
 	"github.com/influxdata/flux/stdlib/universe"
+	"github.com/influxdata/flux/values"
 	"github.com/influxdata/influxdb/v2/kit/feature"
 	"github.com/influxdata/influxdb/v2/query"
 )
@@ -25,11 +26,11 @@ func init() {
 		PushDownReadTagKeysRule{},
 		PushDownReadTagValuesRule{},
 		SortedPivotRule{},
-		// For the following two rules to take effect the appropriate capabilities must be
-		// added AND feature flags must be enabled.
 		PushDownWindowAggregateRule{},
-		// PushDownBareAggregateRule{},
+		PushDownWindowAggregateByTimeRule{},
+		PushDownBareAggregateRule{},
 		PushDownGroupAggregateRule{},
+		SwitchFillImplRule{},
 	)
 }
 
@@ -776,12 +777,76 @@ func (PushDownWindowAggregateRule) Rewrite(ctx context.Context, pn plan.Node) (p
 	}), true, nil
 }
 
+// PushDownWindowAggregateWithTimeRule will match the given pattern.
+// ReadWindowAggregatePhys |> duplicate |> window(every: inf)
+//
+// If this pattern matches and the arguments to duplicate are
+// matching time column names, it will set the time column on
+// the spec.
+type PushDownWindowAggregateByTimeRule struct{}
+
+func (PushDownWindowAggregateByTimeRule) Name() string {
+	return "PushDownWindowAggregateByTimeRule"
+}
+
+func (rule PushDownWindowAggregateByTimeRule) Pattern() plan.Pattern {
+	return plan.Pat(universe.WindowKind,
+		plan.Pat(universe.SchemaMutationKind,
+			plan.Pat(ReadWindowAggregatePhysKind)))
+}
+
+func (PushDownWindowAggregateByTimeRule) Rewrite(ctx context.Context, pn plan.Node) (plan.Node, bool, error) {
+	windowNode := pn
+	windowSpec := windowNode.ProcedureSpec().(*universe.WindowProcedureSpec)
+
+	duplicateNode := windowNode.Predecessors()[0]
+	duplicateSpec, duplicateSpecOk := func() (*universe.DuplicateOpSpec, bool) {
+		s := duplicateNode.ProcedureSpec().(*universe.SchemaMutationProcedureSpec)
+		if len(s.Mutations) != 1 {
+			return nil, false
+		}
+		mutator, ok := s.Mutations[0].(*universe.DuplicateOpSpec)
+		return mutator, ok
+	}()
+	if !duplicateSpecOk {
+		return pn, false, nil
+	}
+
+	// The As field must be the default time value
+	// and the column must be start or stop.
+	if duplicateSpec.As != execute.DefaultTimeColLabel ||
+		(duplicateSpec.Column != execute.DefaultStartColLabel && duplicateSpec.Column != execute.DefaultStopColLabel) {
+		return pn, false, nil
+	}
+
+	// window(every: inf)
+	if windowSpec.Window.Every != values.ConvertDuration(math.MaxInt64) ||
+		windowSpec.Window.Every != windowSpec.Window.Period ||
+		windowSpec.TimeColumn != execute.DefaultTimeColLabel ||
+		windowSpec.StartColumn != execute.DefaultStartColLabel ||
+		windowSpec.StopColumn != execute.DefaultStopColLabel ||
+		windowSpec.CreateEmpty {
+		return pn, false, nil
+	}
+
+	// Cannot rewrite if already was rewritten.
+	windowAggregateNode := duplicateNode.Predecessors()[0]
+	windowAggregateSpec := windowAggregateNode.ProcedureSpec().(*ReadWindowAggregatePhysSpec)
+	if windowAggregateSpec.TimeColumn != "" {
+		return pn, false, nil
+	}
+
+	// Rule passes.
+	windowAggregateSpec.TimeColumn = duplicateSpec.Column
+	return plan.CreatePhysicalNode("ReadWindowAggregateByTime", windowAggregateSpec), true, nil
+}
+
 // PushDownBareAggregateRule is a rule that allows pushing down of aggregates
 // that are directly over a ReadRange source.
 type PushDownBareAggregateRule struct{}
 
 func (p PushDownBareAggregateRule) Name() string {
-	return "PushDownWindowAggregateRule"
+	return "PushDownBareAggregateRule"
 }
 
 func (p PushDownBareAggregateRule) Pattern() plan.Pattern {
@@ -945,4 +1010,25 @@ func canPushGroupedAggregate(ctx context.Context, pn plan.Node) bool {
 			agg.Column == execute.DefaultValueColLabel
 	}
 	return false
+}
+
+type SwitchFillImplRule struct{}
+
+func (SwitchFillImplRule) Name() string {
+	return "SwitchFillImplRule"
+}
+
+func (SwitchFillImplRule) Pattern() plan.Pattern {
+	return plan.Pat(universe.FillKind, plan.Any())
+}
+
+func (r SwitchFillImplRule) Rewrite(ctx context.Context, pn plan.Node) (plan.Node, bool, error) {
+	if !feature.MemoryOptimizedFill().Enabled(ctx) {
+		spec := pn.ProcedureSpec().Copy()
+		universe.UseDeprecatedImpl(spec)
+		if err := pn.ReplaceSpec(spec); err != nil {
+			return nil, false, err
+		}
+	}
+	return pn, false, nil
 }

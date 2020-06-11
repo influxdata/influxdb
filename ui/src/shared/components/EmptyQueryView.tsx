@@ -72,7 +72,7 @@ export default class EmptyQueryView extends PureComponent<Props> {
       (isInitialFetch || !hasResults) &&
       loading === RemoteDataState.Loading
     ) {
-      return <EmptyGraphMessage message="Loading..." />
+      return <EmptyGraphMessage message="" />
     }
 
     if (!hasResults && fallbackNote) {

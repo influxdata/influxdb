@@ -13,6 +13,7 @@ import {
 import {
   Action,
   SET_DASHBOARD,
+  SET_DASHBOARD_SORT,
   REMOVE_DASHBOARD,
   SET_DASHBOARDS,
   REMOVE_DASHBOARD_LABEL,
@@ -35,12 +36,15 @@ import {
   setRelation,
 } from 'src/resources/reducers/helpers'
 
+import {DEFAULT_DASHBOARD_SORT_OPTIONS} from 'src/dashboards/constants'
+
 type DashboardsState = ResourceState['dashboards']
 
 const initialState = () => ({
   byID: {},
   allIDs: [],
   status: RemoteDataState.NotStarted,
+  sortOptions: DEFAULT_DASHBOARD_SORT_OPTIONS,
 })
 
 export const dashboardsReducer = (
@@ -63,6 +67,14 @@ export const dashboardsReducer = (
 
       case SET_DASHBOARD: {
         setResourceAtID<Dashboard>(draftState, action, ResourceType.Dashboards)
+
+        return
+      }
+
+      case SET_DASHBOARD_SORT: {
+        const {sortOptions} = action
+
+        draftState['sortOptions'] = sortOptions
 
         return
       }

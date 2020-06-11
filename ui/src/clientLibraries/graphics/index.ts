@@ -1,3 +1,4 @@
+import ArduinoLogo from 'src/clientLibraries/graphics/ArduinoLogo'
 import CSharpLogo from 'src/clientLibraries/graphics/CSharpLogo'
 import {GithubLogo} from 'src/clientLibraries/graphics/GithubLogo'
 import GoLogo from 'src/clientLibraries/graphics/GoLogo'
@@ -11,6 +12,7 @@ import RubyLogo from 'src/clientLibraries/graphics/RubyLogo'
 import ScalaLogo from 'src/clientLibraries/graphics/ScalaLogo'
 
 export {
+  ArduinoLogo,
   CSharpLogo,
   GithubLogo,
   GoLogo,

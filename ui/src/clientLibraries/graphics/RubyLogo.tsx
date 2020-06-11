@@ -6,11 +6,10 @@ const RubyLogo: SFC = () => {
     <svg
       version="1.1"
       id="Layer_1"
-      x="0px"
-      y="0px"
       viewBox="0 0 48 48"
       enableBackground="new 0 0 48 48"
       xmlSpace="preserve"
+      preserveAspectRatio="xMidYMid meet"
     >
       <polygon fill="#9B1010" points="42,14 40,40 14,42 " />
       <polygon fill="#B71C1C" points="28,28 40,40 42,14 " />
