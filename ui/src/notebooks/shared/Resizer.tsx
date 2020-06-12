@@ -53,18 +53,18 @@ const Resizer: FC<Props> = ({
 
   const [size, updateSize] = useState<number>(height)
   const [isDragging, updateDragging] = useState<boolean>(false)
-  const resultsBodyRef = useRef<HTMLDivElement>(null)
+  const bodyRef = useRef<HTMLDivElement>(null)
   const dragHandleRef = useRef<HTMLDivElement>(null)
 
-  const resultsBodyClassName = classnames('panel-resizer--body', {
+  const bodyClassName = classnames('panel-resizer--body', {
     [`panel-resizer--body__${visibility}`]: resizingEnabled && visibility,
   })
 
   const updateResultsStyle = (): void => {
-    if (resultsBodyRef.current && resizingEnabled && visibility === 'visible') {
-      resultsBodyRef.current.setAttribute('style', `height: ${size}px`)
+    if (bodyRef.current && resizingEnabled && visibility === 'visible') {
+      bodyRef.current.setAttribute('style', `height: ${size}px`)
     } else {
-      resultsBodyRef.current.setAttribute('style', '')
+      bodyRef.current.setAttribute('style', '')
     }
   }
 
@@ -113,12 +113,12 @@ const Resizer: FC<Props> = ({
   }, [isDragging])
 
   const handleMouseMove = (e: MouseEvent): void => {
-    if (!resultsBodyRef.current) {
+    if (!bodyRef.current) {
       return
     }
 
     const {pageY} = e
-    const {top} = resultsBodyRef.current.getBoundingClientRect()
+    const {top} = bodyRef.current.getBoundingClientRect()
 
     const updatedHeight = Math.round(Math.max(pageY - top, minimumHeight))
 
@@ -128,7 +128,7 @@ const Resizer: FC<Props> = ({
   const handleMouseDown = (): void => {
     updateDragging(true)
     const body = document.getElementsByTagName('body')[0]
-    body && body.classList.add('notebook-results--dragging')
+    body && body.classList.add('panel-resizer-dragging')
 
     window.addEventListener('mousemove', handleMouseMove)
     window.addEventListener('mouseup', handleMouseUp)
@@ -137,20 +137,20 @@ const Resizer: FC<Props> = ({
   const handleMouseUp = (): void => {
     updateDragging(false)
     const body = document.getElementsByTagName('body')[0]
-    body && body.classList.remove('notebook-results--dragging')
+    body && body.classList.remove('panel-resizer-dragging')
 
     window.removeEventListener('mousemove', handleMouseMove)
     window.removeEventListener('mouseup', handleMouseUp)
   }
 
-  let resultsBody = children
+  let body = children
 
   if (!resizingEnabled) {
-    resultsBody = <div className="panel-resizer--empty">{emptyText}</div>
+    body = <div className="panel-resizer--empty">{emptyText}</div>
   }
 
   if (resizingEnabled && visibility === 'hidden') {
-    resultsBody = <div className="panel-resizer--empty">{hiddenText}</div>
+    body = <div className="panel-resizer--empty">{hiddenText}</div>
   }
 
   return (
@@ -165,8 +165,8 @@ const Resizer: FC<Props> = ({
         onUpdateVisibility={handleUpdateVisibility}
         toggleVisibilityEnabled={toggleVisibilityEnabled}
       />
-      <div className={resultsBodyClassName} ref={resultsBodyRef}>
-        {resultsBody}
+      <div className={bodyClassName} ref={bodyRef}>
+        {body}
       </div>
     </div>
   )
