@@ -1,3 +1,6 @@
+#![deny(rust_2018_idioms)]
+#![warn(missing_debug_implementations, clippy::explicit_iter_loop)]
+
 //! This module is used to represent the abstract "schema" of a set of line
 //! protocol data records, as defined in the
 //! [documentation](https://docs.influxdata.com/influxdb/v1.8/write_protocols/line_protocol_tutorial).
@@ -157,6 +160,7 @@ impl Schema {
 }
 
 /// Used to create new `Schema` objects
+#[derive(Debug)]
 pub struct SchemaBuilder {
     measurement_name: String,
     tag_names: Vec<String>,
