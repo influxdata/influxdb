@@ -8,6 +8,9 @@ import {AppState, Organization, ResourceType} from 'src/types'
 // Actions
 import {setOrg as setOrgAction} from 'src/organizations/actions/creators'
 
+// Utils
+import {updateReportingContext} from 'src/cloud/utils/reporting'
+
 // Decorators
 import {InjectedRouter} from 'react-router'
 import {
@@ -49,6 +52,7 @@ const SetOrg: FC<Props> = ({
     const foundOrg = orgs.find(o => o.id === orgID)
     if (foundOrg) {
       setOrg(foundOrg)
+      updateReportingContext('orgID', orgID)
       setLoading(RemoteDataState.Done)
       return
     }
