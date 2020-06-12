@@ -1169,6 +1169,7 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 	// Turn on all variants.
 	flagger := mock.NewFlagger(map[feature.Flag]interface{}{
 		feature.PushDownWindowAggregateCount(): true,
+		feature.PushDownWindowAggregateSum():   true,
 		feature.PushDownWindowAggregateRest():  true,
 	})
 
@@ -1960,6 +1961,7 @@ func TestPushDownBareAggregateRule(t *testing.T) {
 	// Turn on support for window aggregate count
 	flagger := mock.NewFlagger(map[feature.Flag]interface{}{
 		feature.PushDownWindowAggregateCount(): true,
+		feature.PushDownWindowAggregateSum():   true,
 	})
 
 	withFlagger, _ := feature.Annotate(context.Background(), flagger)
@@ -1985,10 +1987,12 @@ func TestPushDownBareAggregateRule(t *testing.T) {
 		},
 	}
 
-	readWindowAggregate := &influxdb.ReadWindowAggregatePhysSpec{
-		ReadRangePhysSpec: *(readRange.Copy().(*influxdb.ReadRangePhysSpec)),
-		WindowEvery:       math.MaxInt64,
-		Aggregates:        []plan.ProcedureKind{universe.CountKind},
+	readWindowAggregate := func(proc plan.ProcedureKind) *influxdb.ReadWindowAggregatePhysSpec {
+		return &influxdb.ReadWindowAggregatePhysSpec{
+			ReadRangePhysSpec: *(readRange.Copy().(*influxdb.ReadRangePhysSpec)),
+			WindowEvery:       math.MaxInt64,
+			Aggregates:        []plan.ProcedureKind{proc},
+		}
 	}
 
 	minProcedureSpec := func() *universe.MinProcedureSpec {
@@ -1998,6 +2002,11 @@ func TestPushDownBareAggregateRule(t *testing.T) {
 	}
 	countProcedureSpec := func() *universe.CountProcedureSpec {
 		return &universe.CountProcedureSpec{
+			AggregateConfig: execute.AggregateConfig{Columns: []string{"_value"}},
+		}
+	}
+	sumProcedureSpec := func() *universe.SumProcedureSpec {
+		return &universe.SumProcedureSpec{
 			AggregateConfig: execute.AggregateConfig{Columns: []string{"_value"}},
 		}
 	}
@@ -2019,7 +2028,27 @@ func TestPushDownBareAggregateRule(t *testing.T) {
 			},
 			After: &plantest.PlanSpec{
 				Nodes: []plan.Node{
-					plan.CreatePhysicalNode("ReadWindowAggregate", readWindowAggregate),
+					plan.CreatePhysicalNode("ReadWindowAggregate", readWindowAggregate("count")),
+				},
+			},
+		},
+		{
+			// successful push down
+			Context: haveCaps,
+			Name:    "push down sum",
+			Rules:   []plan.Rule{influxdb.PushDownBareAggregateRule{}},
+			Before: &plantest.PlanSpec{
+				Nodes: []plan.Node{
+					plan.CreatePhysicalNode("ReadRange", readRange),
+					plan.CreatePhysicalNode("sum", sumProcedureSpec()),
+				},
+				Edges: [][2]int{
+					{0, 1},
+				},
+			},
+			After: &plantest.PlanSpec{
+				Nodes: []plan.Node{
+					plan.CreatePhysicalNode("ReadWindowAggregate", readWindowAggregate("sum")),
 				},
 			},
 		},

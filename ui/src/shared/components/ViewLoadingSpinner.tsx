@@ -27,7 +27,7 @@ const ViewLoadingSpinner: FunctionComponent<Props> = ({loading}) => {
   }
 
   useEffect(() => {
-    if (loading === RemoteDataState.Done) {
+    if (loading === RemoteDataState.Done || RemoteDataState.Error) {
       resetTimer()
     }
 

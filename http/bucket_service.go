@@ -62,7 +62,6 @@ type BucketHandler struct {
 const (
 	prefixBuckets          = "/api/v2/buckets"
 	bucketsIDPath          = "/api/v2/buckets/:id"
-	bucketsIDLogPath       = "/api/v2/buckets/:id/logs"
 	bucketsIDMembersPath   = "/api/v2/buckets/:id/members"
 	bucketsIDMembersIDPath = "/api/v2/buckets/:id/members/:userID"
 	bucketsIDOwnersPath    = "/api/v2/buckets/:id/owners"
@@ -89,7 +88,6 @@ func NewBucketHandler(log *zap.Logger, b *BucketBackend) *BucketHandler {
 	h.HandlerFunc("POST", prefixBuckets, h.handlePostBucket)
 	h.HandlerFunc("GET", prefixBuckets, h.handleGetBuckets)
 	h.HandlerFunc("GET", bucketsIDPath, h.handleGetBucket)
-	h.HandlerFunc("GET", bucketsIDLogPath, h.handleGetBucketLog)
 	h.HandlerFunc("PATCH", bucketsIDPath, h.handlePatchBucket)
 	h.HandlerFunc("DELETE", bucketsIDPath, h.handleDeleteBucket)
 
@@ -418,44 +416,6 @@ func (h *BucketHandler) handleGetBucket(w http.ResponseWriter, r *http.Request) 
 
 func bucketIDPath(id influxdb.ID) string {
 	return path.Join(prefixBuckets, id.String())
-}
-
-// handleGetBucketLog retrieves a bucket log by the buckets ID.
-func (h *BucketHandler) handleGetBucketLog(w http.ResponseWriter, r *http.Request) {
-	id, err := decodeIDFromCtx(r.Context(), "id")
-	if err != nil {
-		h.api.Err(w, r, err)
-		return
-	}
-
-	opts, err := influxdb.DecodeFindOptions(r)
-	if err != nil {
-		h.api.Err(w, r, err)
-		return
-	}
-
-	log, _, err := h.BucketOperationLogService.GetBucketOperationLog(r.Context(), id, *opts)
-	if err != nil {
-		h.api.Err(w, r, err)
-		return
-	}
-
-	h.log.Debug("Bucket log retrived", zap.String("bucket", fmt.Sprint(log)))
-
-	h.api.Respond(w, r, http.StatusOK, newBucketLogResponse(id, log))
-}
-
-func newBucketLogResponse(id influxdb.ID, es []*influxdb.OperationLogEntry) *operationLogResponse {
-	logs := make([]*operationLogEntryResponse, 0, len(es))
-	for _, e := range es {
-		logs = append(logs, newOperationLogEntryResponse(e))
-	}
-	return &operationLogResponse{
-		Links: map[string]string{
-			"self": fmt.Sprintf("/api/v2/buckets/%s/logs", id),
-		},
-		Logs: logs,
-	}
 }
 
 // handleDeleteBucket is the HTTP handler for the DELETE /api/v2/buckets/:id route.

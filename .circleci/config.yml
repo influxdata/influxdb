@@ -28,7 +28,8 @@ commands:
       - run:
           name: Install macOS cross compilers
           command: |
-            sudo apt-get install libxml2-dev libssl-dev zlib1g-dev
+            sudo apt-get install -y --no-install-recommends \
+              cmake patch libxml2-dev libssl-dev zlib1g-dev
             sudo mkdir -p /opt/osxcross
             cd /opt
             sudo git clone https://github.com/tpoechtrager/osxcross.git
@@ -37,7 +38,7 @@ commands:
             sudo curl -L -o \
               ./tarballs/MacOSX10.11.sdk.tar.xz \
               https://macos-sdks.s3.amazonaws.com/MacOSX10.11.sdk.tar.xz
-            UNATTENDED=1 PORTABLE=true sudo ./build.sh
+            sudo UNATTENDED=1 PORTABLE=true ./build.sh
       - run:
           name: Install additional rust targets
           command: |
@@ -49,7 +50,7 @@ commands:
             echo 'export CARGO_TARGET_ARM_UNKNOWN_LINUX_GNUEABIHF_LINKER=arm-linux-gnueabihf-gcc' >> $HOME/.cargo/env
             echo 'export CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_LINKER=arm-linux-gnueabihf-gcc' >> $HOME/.cargo/env
             echo 'export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc' >> $HOME/.cargo/env
-            echo 'export CARGO_TARGET_X86_64_APPLE_DARWIN_LINKER=/opt/osxcross/target/o64-clang' >> $HOME/.cargo/env
+            echo 'export CARGO_TARGET_X86_64_APPLE_DARWIN_LINKER=/opt/osxcross/target/bin/o64-clang' >> $HOME/.cargo/env
       - run:
           name: Install pkg-config wrapper
           command: go build -o /go/bin/pkg-config github.com/influxdata/pkg-config

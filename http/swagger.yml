@@ -3126,36 +3126,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-  "/dashboards/{dashboardID}/logs":
-    get:
-      operationId: GetDashboardsIDLogs
-      tags:
-        - Dashboards
-        - OperationLogs
-      summary: Retrieve operation logs for a dashboard
-      parameters:
-        - $ref: "#/components/parameters/TraceSpan"
-        - $ref: "#/components/parameters/Offset"
-        - $ref: "#/components/parameters/Limit"
-        - in: path
-          name: dashboardID
-          required: true
-          description: The dashboard ID.
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Operation logs for the dashboard
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/OperationLogs"
-        default:
-          description: Unexpected error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
   /query/ast:
     post:
       operationId: PostQueryAst
@@ -3962,36 +3932,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-  "/buckets/{bucketID}/logs":
-    get:
-      operationId: GetBucketsIDLogs
-      tags:
-        - Buckets
-        - OperationLogs
-      summary: Retrieve operation logs for a bucket
-      parameters:
-        - $ref: "#/components/parameters/TraceSpan"
-        - $ref: "#/components/parameters/Offset"
-        - $ref: "#/components/parameters/Limit"
-        - in: path
-          name: bucketID
-          required: true
-          description: The bucket ID.
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Operation logs for the bucket
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/OperationLogs"
-        default:
-          description: Unexpected error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
   /orgs:
     get:
       operationId: GetOrgs
@@ -4672,36 +4612,6 @@ paths:
       responses:
         "204":
           description: Owner removed
-        default:
-          description: Unexpected error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-  "/orgs/{orgID}/logs":
-    get:
-      operationId: GetOrgsIDLogs
-      tags:
-        - Organizations
-        - OperationLogs
-      summary: Retrieve operation logs for an organization
-      parameters:
-        - $ref: "#/components/parameters/TraceSpan"
-        - $ref: "#/components/parameters/Offset"
-        - $ref: "#/components/parameters/Limit"
-        - in: path
-          name: orgID
-          required: true
-          description: The organization ID.
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Operation logs for the organization
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/OperationLogs"
         default:
           description: Unexpected error
           content:
@@ -5894,36 +5804,6 @@ paths:
           description: Password successfully updated
         default:
           description: Unsuccessful authentication
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-  "/users/{userID}/logs":
-    get:
-      operationId: GetUsersIDLogs
-      tags:
-        - Users
-        - OperationLogs
-      summary: Retrieve operation logs for a user
-      parameters:
-        - $ref: "#/components/parameters/TraceSpan"
-        - $ref: "#/components/parameters/Offset"
-        - $ref: "#/components/parameters/Limit"
-        - in: path
-          name: userID
-          required: true
-          description: The user ID.
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Operation logs for the user
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/OperationLogs"
-        default:
-          description: Unexpected error
           content:
             application/json:
               schema:
@@ -7574,7 +7454,6 @@ components:
           readOnly: true
           example:
             labels: "/api/v2/buckets/1/labels"
-            logs: "/api/v2/buckets/1/logs"
             members: "/api/v2/buckets/1/members"
             org: "/api/v2/orgs/2"
             owners: "/api/v2/buckets/1/owners"
@@ -7583,9 +7462,6 @@ components:
           properties:
             labels:
               description: URL to retrieve labels for this bucket
-              $ref: "#/components/schemas/Link"
-            logs:
-              description: URL to retrieve operation logs for this bucket
               $ref: "#/components/schemas/Link"
             members:
               description: URL to retrieve members that can read this bucket
@@ -7698,35 +7574,6 @@ components:
           description: A description of the event that occurred.
           type: string
           example: Halt and catch fire
-    OperationLog:
-      type: object
-      readOnly: true
-      properties:
-        description:
-          type: string
-          description: A description of the event that occurred.
-          example: Bucket Created
-        time:
-          type: string
-          description: Time event occurred, RFC3339Nano.
-          format: date-time
-        userID:
-          type: string
-          description: ID of the user who operated the event.
-        links:
-          type: object
-          properties:
-            user:
-              $ref: "#/components/schemas/Link"
-    OperationLogs:
-      type: object
-      properties:
-        logs:
-          type: array
-          items:
-            $ref: "#/components/schemas/OperationLog"
-        links:
-          $ref: "#/components/schemas/Links"
     Organization:
       properties:
         links:
@@ -7741,7 +7588,6 @@ components:
             buckets: "/api/v2/buckets?org=myorg"
             tasks: "/api/v2/tasks?org=myorg"
             dashboards: "/api/v2/dashboards?org=myorg"
-            logs: "/api/v2/orgs/1/logs"
           properties:
             self:
               $ref: "#/components/schemas/Link"
@@ -7758,8 +7604,6 @@ components:
             tasks:
               $ref: "#/components/schemas/Link"
             dashboards:
-              $ref: "#/components/schemas/Link"
-            logs:
               $ref: "#/components/schemas/Link"
         id:
           readOnly: true
@@ -8587,15 +8431,11 @@ components:
             self: "/api/v2/tasks/1/runs/1"
             task: "/api/v2/tasks/1"
             retry: "/api/v2/tasks/1/runs/1/retry"
-            logs: "/api/v2/tasks/1/runs/1/logs"
           properties:
             self:
               type: string
               format: uri
             task:
-              type: string
-              format: uri
-            logs:
               type: string
               format: uri
             retry:
@@ -8808,12 +8648,8 @@ components:
           readOnly: true
           example:
             self: "/api/v2/users/1"
-            logs: "/api/v2/users/1/logs"
           properties:
             self:
-              type: string
-              format: uri
-            logs:
               type: string
               format: uri
       required: [name]
@@ -10078,7 +9914,6 @@ components:
                 cells: "/api/v2/dashboards/1/cells"
                 owners: "/api/v2/dashboards/1/owners"
                 members: "/api/v2/dashboards/1/members"
-                logs: "/api/v2/dashboards/1/logs"
                 labels: "/api/v2/dashboards/1/labels"
                 org: "/api/v2/labels/1"
               properties:
@@ -10089,8 +9924,6 @@ components:
                 members:
                   $ref: "#/components/schemas/Link"
                 owners:
-                  $ref: "#/components/schemas/Link"
-                logs:
                   $ref: "#/components/schemas/Link"
                 labels:
                   $ref: "#/components/schemas/Link"
@@ -10125,7 +9958,6 @@ components:
                 cells: "/api/v2/dashboards/1/cells"
                 owners: "/api/v2/dashboards/1/owners"
                 members: "/api/v2/dashboards/1/members"
-                logs: "/api/v2/dashboards/1/logs"
                 labels: "/api/v2/dashboards/1/labels"
                 org: "/api/v2/labels/1"
               properties:
@@ -10136,8 +9968,6 @@ components:
                 members:
                   $ref: "#/components/schemas/Link"
                 owners:
-                  $ref: "#/components/schemas/Link"
-                logs:
                   $ref: "#/components/schemas/Link"
                 labels:
                   $ref: "#/components/schemas/Link"

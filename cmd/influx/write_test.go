@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"compress/gzip"
+	"context"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -237,7 +238,7 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			command := cmdWrite(&globalFlags{}, genericCLIOpts{in: test.stdIn})
-			reader, closer, err := test.flags.createLineReader(command, test.arguments)
+			reader, closer, err := test.flags.createLineReader(context.Background(), command, test.arguments)
 			require.NotNil(t, closer)
 			defer closer.Close()
 			require.Nil(t, err)
@@ -316,7 +317,7 @@ func Test_writeFlags_createLineReader_errors(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			command := cmdWrite(&globalFlags{}, genericCLIOpts{in: strings.NewReader("")})
-			_, closer, err := test.flags.createLineReader(command, []string{})
+			_, closer, err := test.flags.createLineReader(context.Background(), command, []string{})
 			require.NotNil(t, closer)
 			defer closer.Close()
 			require.NotNil(t, err)
