@@ -175,15 +175,12 @@ jobs:
             google-chrome --version && which google-chrome && chromedriver --version && which chromedriver
             timeout 300 bash -c 'while [[ "$(curl -s -o /dev/null -w ''%{http_code}'' localhost:9999)" != "200" ]]; do sleep 5; done' || false
       - run:
-          name: Checkout Tests
-          command: git clone --single-branch --branch 2.0-Beta https://github.com/bonitoo-io/selenium-accept-infl2.git
-      - run:
           name: Selenium tests
           command: |
             set +e
-            cd selenium-accept-infl2
+            cd e2e
             npm install
-            npm test; TEST_RESULT=$?
+            npm test headless=true; TEST_RESULT=$?
             npm run report:html
             npm run report:junit
             mkdir -p ~/test-results/cucumber
