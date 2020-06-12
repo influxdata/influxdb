@@ -5,9 +5,9 @@ import DashboardList from './DashboardList'
 import ViewSwitcher from 'src/shared/components/ViewSwitcher'
 import {ViewTypeDropdown} from 'src/timeMachine/components/view_options/ViewTypeDropdown'
 import {checkResultsLength} from 'src/shared/utils/vis'
-import {SquareButton, IconFont, ComponentStatus} from '@influxdata/clockface'
 import {ViewType} from 'src/types'
 import {createView} from 'src/views/helpers'
+import ExportVisualizationButton from 'src/notebooks/pipes/Visualization/ExportVisualizationButton'
 
 // NOTE we dont want any pipe component to be directly dependent
 // to any notebook concepts as this'll limit future reusability
@@ -23,7 +23,7 @@ const Visualization: FC<PipeProp> = ({
   loading,
 }) => {
   const {timeZone} = useContext(AppSettingContext)
-  const [showExport, updateShowExport] = useState(false)
+  // const [showExport, updateShowExport] = useState(false)
 
   const updateType = (type: ViewType) => {
     const newView = createView(type)
@@ -86,17 +86,13 @@ const Visualization: FC<PipeProp> = ({
     })
   }
 
-  const exportStatus =
-    !showExport && results.source
-      ? ComponentStatus.Default
-      : ComponentStatus.Disabled
-  const toggleExport = () => {
-    if (!results.source) {
-      return
-    }
+  // const toggleExport = () => {
+  //   if (!results.source) {
+  //     return
+  //   }
 
-    updateShowExport(!showExport)
-  }
+  //   updateShowExport(!showExport)
+  // }
 
   const controls = (
     <>
@@ -104,12 +100,15 @@ const Visualization: FC<PipeProp> = ({
         viewType={data.properties.type}
         onUpdateType={updateType}
       />
-      <SquareButton
-        icon={IconFont.Export}
-        onClick={toggleExport}
-        titleText="Save to Dashboard"
-        status={exportStatus}
-      />
+      <ExportVisualizationButton disabled={!results.source}>
+        {onHidePopover => (
+          <DashboardList
+            query={results.source}
+            onClose={onHidePopover}
+            properties={data.properties}
+          />
+        )}
+      </ExportVisualizationButton>
     </>
   )
 
@@ -118,12 +117,6 @@ const Visualization: FC<PipeProp> = ({
       <div className="notebook-visualization">
         <div className="notebook-visualization--header" />
         <div className="notebook-visualization--view">
-          <DashboardList
-            show={showExport}
-            query={results.source}
-            onClose={toggleExport}
-            properties={data.properties}
-          />
           <EmptyQueryView
             loading={loading}
             errorMessage={results.error}

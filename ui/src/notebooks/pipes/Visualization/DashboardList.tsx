@@ -25,6 +25,13 @@ import {
   SquareButton,
   IconFont,
   ComponentStatus,
+  ComponentColor,
+  FlexBox,
+  ComponentSize,
+  AlignItems,
+  JustifyContent,
+  DropdownMenuTheme,
+  InputLabel,
 } from '@influxdata/clockface'
 
 interface StateProps {
@@ -38,7 +45,6 @@ interface DispatchProps {
 }
 
 interface OwnProps {
-  show: boolean
   query: string
   properties: ViewProperties
   onClose: () => void
@@ -47,7 +53,6 @@ interface OwnProps {
 type Props = StateProps & DispatchProps & OwnProps
 
 const DashboardList: FC<Props> = ({
-  show,
   query,
   properties,
   onClose,
@@ -64,15 +69,6 @@ const DashboardList: FC<Props> = ({
     loadDashboards()
   }, [])
 
-  useEffect(() => {
-    setSelectedDashboard(null)
-    setNewName(DEFAULT_DASHBOARD_NAME)
-  }, [show])
-
-  if (!show) {
-    return null
-  }
-
   const isEditingName =
     selectedDashboard && selectedDashboard.id === DashboardTemplate.id
   const changeName = evt => {
@@ -80,57 +76,47 @@ const DashboardList: FC<Props> = ({
   }
 
   const nameInput = isEditingName && (
-    <div className="notebook-visualization--dashboard-name-editor">
-      <label>New Dashboard Name</label>
+    <div className="notebook-visualization--dashboard-list-section">
+      <InputLabel className="notebook-visualization--dashboard-list-label">
+        New Dashboard Name
+      </InputLabel>
       <Input
         type={InputType.Text}
-        placeholder="Add dashboard name"
+        placeholder="Name new dashboard"
         name="dashboardName"
         value={newName}
         onChange={changeName}
-        testID="save-as-dashboard-cell--dashboard-name"
+        autoFocus={true}
       />
     </div>
   )
 
-  const dropdownItems = [
-    {...DashboardTemplate, name: newName},
-    ...dashboards,
-  ].map(d => (
+  const dropdownItems = dashboards.map(d => (
     <Dropdown.Item
       id={d.id}
       key={d.id}
       value={d}
-      onClick={() => {
-        setSelectedDashboard(d)
-      }}
+      onClick={setSelectedDashboard}
       selected={selectedDashboard && selectedDashboard.id === d.id}
     >
       {d.name}
     </Dropdown.Item>
   ))
-  const dropdown = !isEditingName && (
-    <div className="notebook-visualization--dashboard-list-dropdown">
-      <Dropdown
-        button={(active, onClick) => (
-          <Dropdown.Button
-            active={active}
-            onClick={onClick}
-            testID="save-as-dashboard-cell--dropdown"
-          >
-            {selectedDashboard ? selectedDashboard.name : 'Select a Dashboard'}
-          </Dropdown.Button>
-        )}
-        menu={onCollapse => (
-          <Dropdown.Menu
-            onCollapse={onCollapse}
-            testID="save-as-dashboard-cell--dropdown-menu"
-          >
-            {dropdownItems}
-          </Dropdown.Menu>
-        )}
-      />
-    </div>
+
+  const dropdown = (
+    <Dropdown.Menu scrollToSelected={false} theme={DropdownMenuTheme.Sapphire}>
+      <Dropdown.Item
+        value={DashboardTemplate}
+        onClick={setSelectedDashboard}
+        selected={
+          selectedDashboard && selectedDashboard.id === DashboardTemplate.id
+        }
+      >
+        Create a New Dashboard
+      </Dropdown.Item>
+      <Dropdown.Divider />
+      {dropdownItems}
+    </Dropdown.Menu>
   )
 
   const saveStatus = selectedDashboard
@@ -152,7 +138,9 @@ const DashboardList: FC<Props> = ({
     } as View
 
     if (selectedDashboard.id === DashboardTemplate.id) {
-      createViewAndDashboard(org.id, selectedDashboard.name, view)
+      if (org.id) {
+        createViewAndDashboard(org.id, selectedDashboard.name, view)
+      }
     } else {
       createView(selectedDashboard.id, view)
     }
@@ -162,23 +150,32 @@ const DashboardList: FC<Props> = ({
 
   return (
     <div className="notebook-visualization--dashboard-list">
-      <h1>choose a dashboard to export to</h1>
+      <h4>Export Visualization</h4>
+      <InputLabel className="notebook-visualization--dashboard-list-label">
+        Choose a Dashboard
+      </InputLabel>
       {dropdown}
       {nameInput}
-
-      <div className="notebook-visualization--dashboard-list-actions">
-        <SquareButton
-          icon={IconFont.Checkmark}
-          onClick={save}
-          titleText="Save to Dashboard"
-          status={saveStatus}
-        />
+      <FlexBox
+        alignItems={AlignItems.Center}
+        stretchToFitWidth={true}
+        margin={ComponentSize.Medium}
+        justifyContent={JustifyContent.Center}
+        className="notebook-visualization--dashboard-list-section"
+      >
         <SquareButton
           icon={IconFont.Remove}
           onClick={onClose}
           titleText="Cancel"
         />
-      </div>
+        <SquareButton
+          icon={IconFont.Checkmark}
+          onClick={save}
+          titleText="Save to Dashboard"
+          status={saveStatus}
+          color={ComponentColor.Success}
+        />
+      </FlexBox>
     </div>
   )
 }

@@ -29,12 +29,22 @@
 }
 
 .notebook-visualization--dashboard-list {
-    h1 {
-        display: inline-block;
-    }
+  width: 300px;
+  padding: $cf-marg-c;
+  text-align: center;
+  font-size: 14px;
+
+  h4 {
+    margin-top: 0;
+  }
 }
 
-.notebook-visualization--dashboard-list-dropdown {
-    display: inline-block;
-    width: 200px;
+.notebook-visualization--dashboard-list-section {
+  margin-top: $cf-marg-c;
+}
+
+.notebook-visualization--dashboard-list-label {
+  display: inline-block;
+  color: $g11-sidewalk;
+  margin-bottom: $cf-marg-b;
 }
