@@ -54,11 +54,13 @@ class DateRangePicker extends PureComponent<Props, State> {
               dateTime={lower}
               onSelectDate={this.handleSelectLower}
               label="Start"
+              maxDate={upper}
             />
             <DatePicker
               dateTime={upper}
               onSelectDate={this.handleSelectUpper}
               label="Stop"
+              minDate={lower}
             />
           </div>
           <Button
