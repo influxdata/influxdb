@@ -300,6 +300,8 @@ class TagSelector extends PureComponent<Props> {
 const mstp = (state: AppState, ownProps: OwnProps): StateProps => {
   const activeQueryBuilder = getActiveTimeMachine(state).queryBuilder
 
+  console.log("propsindex", ownProps.index)
+  console.log("activequery", activeQueryBuilder.tags)
   const {
     keys,
     keysSearchTerm,
