@@ -15,7 +15,7 @@ import VariableItem from 'src/timeMachine/components/variableToolbar/VariableIte
 import {hydrateVariables} from 'src/variables/actions/thunks'
 
 // Utils
-import {getAllVariables} from 'src/variables/selectors'
+import {getAllVariables, sortVariablesByName} from 'src/variables/selectors'
 
 // Types
 import {AppState, Variable} from 'src/types'
@@ -76,7 +76,7 @@ const VariableToolbar: FunctionComponent<Props> = ({
 const mstp = (state: AppState): StateProps => {
   const variables = getAllVariables(state)
 
-  return {variables}
+  return {variables: sortVariablesByName(variables)}
 }
 
 const mdtp = {

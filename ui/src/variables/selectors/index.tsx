@@ -111,9 +111,13 @@ export const getAllVariables = (
       return prev
     }, [])
     .filter(v => !!v)
-    .sort((a, b) => (a.name.toLowerCase() > b.name.toLowerCase() ? 1 : -1))
   return vars
 }
+
+export const sortVariablesByName = (variables: Variable[]): Variable[] =>
+  variables.sort((a, b) =>
+    a.name.toLowerCase() > b.name.toLowerCase() ? 1 : -1
+  )
 
 export const getVariable = (state: AppState, variableID: string): Variable => {
   const contextID = currentContext(state)
