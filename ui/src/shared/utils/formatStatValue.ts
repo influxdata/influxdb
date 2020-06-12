@@ -16,31 +16,39 @@ interface FormatStatValueOptions {
   suffix?: string
 }
 
+const getAutoDigits = (value: number | string): number => {
+  const decimalIndex = value.toString().indexOf('.')
+
+  return decimalIndex === -1 ? 0 : 2
+}
+
 export const formatStatValue = (
-  value: number | string = 0,
+  value: number | string,
   {decimalPlaces, prefix, suffix}: FormatStatValueOptions = {}
 ): string => {
   let localeFormattedValue: undefined | string | number
 
+  let digits: number
+
+  if (decimalPlaces && decimalPlaces.isEnforced) {
+    digits = decimalPlaces.digits
+  } else {
+    digits = getAutoDigits(value)
+  }
+
+  digits = Math.min(digits, MAX_DECIMAL_PLACES)
+
   if (isNumber(value)) {
-    let digits: number
+    const roundedValue = Number(value).toFixed(digits)
+    const endsWithZero = /\.[1-9]{0,}0{1,}$/
 
-    if (decimalPlaces && decimalPlaces.isEnforced) {
-      digits = decimalPlaces.digits
-    } else {
-      digits = getAutoDigits(value)
-    }
-
-    const roundedValue = value.toFixed(digits)
-
-    localeFormattedValue =
-      Number(roundedValue) === 0
-        ? roundedValue
-        : Number(roundedValue).toLocaleString(undefined, {
-            maximumFractionDigits: MAX_DECIMAL_PLACES,
-          })
+    localeFormattedValue = endsWithZero.test(roundedValue)
+      ? roundedValue
+      : Number(roundedValue).toLocaleString(undefined, {
+          maximumFractionDigits: MAX_DECIMAL_PLACES,
+        })
   } else if (isString(value)) {
-    localeFormattedValue = value
+    localeFormattedValue = value ? Number(value).toFixed(digits) : value
   } else {
     return 'Data cannot be displayed'
   }
@@ -49,10 +57,4 @@ export const formatStatValue = (
   const formattedValue = `${prefix || ''}${localeFormattedValue}${suffix || ''}`
 
   return formattedValue
-}
-
-const getAutoDigits = (value: number): number => {
-  const decimalIndex = value.toString().indexOf('.')
-
-  return decimalIndex === -1 ? 0 : 2
 }
