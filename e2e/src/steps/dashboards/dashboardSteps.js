@@ -316,8 +316,8 @@ class dashboardSteps extends influxSteps {
         await this.verifyElementContainsText(await this.dbdPage.getPopupTitle(), `${state} Note`);
         await this.assertVisible(await this.dbdPage.getNotePopupCodeMirror());
         await this.assertVisible(await this.dbdPage.getPopupDismiss());
-        await this.assertVisible(await this.dbdPage.getPopupCancelSimple());
-        await this.assertVisible(await this.dbdPage.getPopupSaveSimple());
+        await this.assertVisible(await this.dbdPage.getNotePopupCancel());
+        await this.assertVisible(await this.dbdPage.getNotePopupSave());
         await this.assertVisible(await this.dbdPage.getNotePopupEditorPreview());
         await this.assertVisible(await this.dbdPage.getNotePopupGuideLink());
     }
