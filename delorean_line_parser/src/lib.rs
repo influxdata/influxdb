@@ -998,6 +998,40 @@ foo value2=2i 123"#;
     }
 
     #[test]
+    fn parse_multiple_measurements_become_multiple_points() -> Result {
+        let input = r#"foo value1=1i 123
+bar value2=2i 123"#;
+        let vals = parse(input)?;
+
+        assert_eq!(vals[0].series.measurement, "foo");
+        assert_eq!(vals[0].timestamp, Some(123));
+        assert_eq!(vals[0].field_set[0].0, "value1");
+        assert_eq!(vals[0].field_set[0].1.unwrap_i64(), 1);
+
+        assert_eq!(vals[1].series.measurement, "bar");
+        assert_eq!(vals[1].timestamp, Some(123));
+        assert_eq!(vals[1].field_set[0].0, "value2");
+        assert_eq!(vals[1].field_set[0].1.unwrap_i64(), 2);
+
+        Ok(())
+    }
+
+    #[test]
+    fn parse_trailing_whitespace_is_fine() -> Result {
+        let input = r#"foo,tag=val value1=1i 123
+
+"#;
+        let vals = parse(input)?;
+
+        assert_eq!(vals[0].series.measurement, "foo");
+        assert_eq!(vals[0].timestamp, Some(123));
+        assert_eq!(vals[0].field_set[0].0, "value1");
+        assert_eq!(vals[0].field_set[0].1.unwrap_i64(), 1);
+
+        Ok(())
+    }
+
+    #[test]
     fn parse_negative_timestamp() -> Result {
         let input = r#"foo value1=1i -123"#;
         let vals = parse(input)?;
