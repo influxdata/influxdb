@@ -19,8 +19,8 @@ interface Props {
 const MINIMUM_RESULTS_PANEL_HEIGHT = 100
 
 const Resizer: FC<Props> = ({data, onUpdate, children, resizingEnabled}) => {
-  const height = data.resultsPanelHeight
-  const visibility = data.resultsVisibility
+  const height = data.panelHeight
+  const visibility = data.panelVisibility
 
   const [size, updateSize] = useState<number>(height)
   const [isDragging, updateDragging] = useState<boolean>(false)
@@ -39,12 +39,12 @@ const Resizer: FC<Props> = ({data, onUpdate, children, resizingEnabled}) => {
     }
   }
 
-  const handleUpdateVisibility = (resultsVisibility: Visibility): void => {
-    onUpdate({resultsVisibility})
+  const handleUpdateVisibility = (panelVisibility: Visibility): void => {
+    onUpdate({panelVisibility})
   }
 
-  const handleUpdateHeight = (resultsPanelHeight: number): void => {
-    onUpdate({resultsPanelHeight})
+  const handleUpdateHeight = (panelHeight: number): void => {
+    onUpdate({panelHeight})
   }
 
   // Ensure results renders with proper height on initial render
@@ -131,7 +131,7 @@ const Resizer: FC<Props> = ({data, onUpdate, children, resizingEnabled}) => {
   }
 
   return (
-    <>
+    <div className="notebook-raw-data">
       <ResizerHeader
         resizingEnabled={resizingEnabled}
         visibility={visibility}
@@ -142,7 +142,7 @@ const Resizer: FC<Props> = ({data, onUpdate, children, resizingEnabled}) => {
       <div className={resultsBodyClassName} ref={resultsBodyRef}>
         {resultsBody}
       </div>
-    </>
+    </div>
   )
 }
 
