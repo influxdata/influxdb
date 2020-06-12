@@ -139,10 +139,12 @@ export class TaskCard extends PureComponent<Props & WithRouterProps> {
     )
   }
 
-  private handleNameClick = (e: MouseEvent) => {
-    e.preventDefault()
-
-    this.props.onSelect(this.props.task.id)
+  private handleNameClick = (event: MouseEvent) => {
+    if (event.metaKey) {
+      this.props.onSelect(this.props.task.id, true)
+    } else {
+      this.props.onSelect(this.props.task.id)
+    }
   }
 
   private handleViewRuns = () => {
