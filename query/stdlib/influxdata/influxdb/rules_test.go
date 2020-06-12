@@ -1169,7 +1169,7 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 	// Turn on all variants.
 	flagger := mock.NewFlagger(map[feature.Flag]interface{}{
 		feature.PushDownWindowAggregateCount(): true,
-		feature.PushDownWindowAggregateSum(): true,
+		feature.PushDownWindowAggregateSum():   true,
 		feature.PushDownWindowAggregateRest():  true,
 	})
 
@@ -1961,7 +1961,7 @@ func TestPushDownBareAggregateRule(t *testing.T) {
 	// Turn on support for window aggregate count
 	flagger := mock.NewFlagger(map[feature.Flag]interface{}{
 		feature.PushDownWindowAggregateCount(): true,
-		feature.PushDownWindowAggregateSum(): true,
+		feature.PushDownWindowAggregateSum():   true,
 	})
 
 	withFlagger, _ := feature.Annotate(context.Background(), flagger)

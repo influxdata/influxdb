@@ -683,10 +683,8 @@ func canPushWindowedAggregate(ctx context.Context, fnNode plan.Node) bool {
 		return false
 	}
 
-	// Check the aggregate function spec. Require operation on _value. There
-	// are two feature flags covering all cases. One specifically for Count, one for Sum,
-	// and another for the rest. There are individual capability tests for all
-	// cases.
+	// Check the aggregate function spec. Require the operation on _value
+	// and check the feature flag associated with the aggregate function.
 	switch fnNode.Kind() {
 	case universe.MinKind:
 		if !feature.PushDownWindowAggregateRest().Enabled(ctx) || !caps.HaveMin() {
