@@ -2,9 +2,7 @@
 
 ### Features
 
-1. [18480](https://github.com/influxdata/influxdb/pull/18480): Allows tasks to open in new tabs
-
-## v2.0.0-beta.12 [2020-06-11]
+## v2.0.0-beta.12 [2020-06-12]
 
 ### Features
 
@@ -15,6 +13,7 @@
 1. [18355](https://github.com/influxdata/influxdb/pull/18355): Integrate RedirectTo functionality so CLOUD users now get navigated back to the originally linked page after login
 1. [18392](https://github.com/influxdata/influxdb/pull/18392): Consolidate pkg influx commands under templates. This removes some nesting of the CLI commands as part of that.
 1. [18400](https://github.com/influxdata/influxdb/pull/18400): Dashboards maintain sort order after navigating away
+1. [18480](https://github.com/influxdata/influxdb/pull/18480): Allows tasks to open in new tabs
 
 ### Bug Fixes
 
