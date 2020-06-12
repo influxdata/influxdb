@@ -454,6 +454,8 @@ github.com/influxdata/line-protocol v0.0.0-20180522152040-32c6aa80de5e h1:/o3vQt
 github.com/influxdata/line-protocol v0.0.0-20180522152040-32c6aa80de5e/go.mod h1:4kt73NQhadE3daL3WhR5EJ/J2ocX0PZzwxQ0gXJ7oFE=
 github.com/influxdata/pkg-config v0.2.0 h1:pqfYtUqPbyhLxWdwb6ShyZDs2B/t/07wV/+53DvKElY=
 github.com/influxdata/pkg-config v0.2.0/go.mod h1:EMS7Ll0S4qkzDk53XS3Z72/egBsPInt+BeRxb0WeSwk=
+github.com/influxdata/pkg-config v0.2.2 h1:dyQJb//Vc7Vf56uE853P6r+3xy8rd6RNVe1PP+TWIM4=
+github.com/influxdata/pkg-config v0.2.2/go.mod h1:EMS7Ll0S4qkzDk53XS3Z72/egBsPInt+BeRxb0WeSwk=
 github.com/influxdata/promql/v2 v2.12.0 h1:kXn3p0D7zPw16rOtfDR+wo6aaiH8tSMfhPwONTxrlEc=
 github.com/influxdata/promql/v2 v2.12.0/go.mod h1:fxOPu+DY0bqCTCECchSRtWfc+0X19ybifQhZoQNF5D8=
 github.com/influxdata/tdigest v0.0.0-20181121200506-bf2b5ad3c0a9 h1:MHTrDWmQpHq/hkq+7cw9oYAt2PqUw52TZazRA0N7PGE=
