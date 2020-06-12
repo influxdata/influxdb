@@ -538,7 +538,7 @@ workflows:
   hourly-e2e:
     triggers:
       - schedule:
-          cron: "0 * * * *"
+          cron: "0 21 * * *"
           filters:
             branches:
               only:
@@ -579,7 +579,7 @@ workflows:
   bonitoo-check:
     triggers:
       - schedule:
-          cron: "0 * * * *"
+          cron: "00 06,18 * * *"
           filters:
             branches: 
               only: 
