@@ -111,6 +111,7 @@ export const getAllVariables = (
       return prev
     }, [])
     .filter(v => !!v)
+    .sort((a, b) => (a.name.toLowerCase() > b.name.toLowerCase() ? 1 : -1))
   return vars
 }
 
