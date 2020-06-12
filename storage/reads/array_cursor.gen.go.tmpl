@@ -15,22 +15,22 @@ const (
 	MaxPointsPerBlock = 1000
 )
 
-func newFirstArrayCursor(cur cursors.Cursor) cursors.Cursor {
+func newLimitArrayCursor(cur cursors.Cursor) cursors.Cursor {
 	switch cur := cur.(type) {
 {{range .}}{{/* every type supports first */}}
 	case cursors.{{.Name}}ArrayCursor:
-		return new{{.Name}}FirstArrayCursor(cur)
+		return new{{.Name}}LimitArrayCursor(cur)
 {{end}}
 	default:
 		panic(fmt.Sprintf("unreachable: %T", cur))
 	}
 }
 
-func newWindowFirstArrayCursor(cur cursors.Cursor, every int64) cursors.Cursor {
+func newWindowLimitArrayCursor(cur cursors.Cursor, every int64) cursors.Cursor {
 	switch cur := cur.(type) {
 {{range .}}{{/* every type supports first */}}
 	case cursors.{{.Name}}ArrayCursor:
-		return new{{.Name}}WindowFirstArrayCursor(cur, every)
+		return new{{.Name}}WindowLimitArrayCursor(cur, every)
 {{end}}
 	default:
 		panic(fmt.Sprintf("unreachable: %T", cur))
@@ -210,22 +210,22 @@ func (c *{{.name}}ArrayCursor) nextArrayCursor() bool {
 	return ok
 }
 
-type {{.name}}FirstArrayCursor struct {
+type {{.name}}LimitArrayCursor struct {
 	cursors.{{.Name}}ArrayCursor
 	res {{$arrayType}}
 	done bool
 }
 
-func new{{.Name}}FirstArrayCursor(cur cursors.{{.Name}}ArrayCursor) *{{.name}}FirstArrayCursor {
-	return &{{.name}}FirstArrayCursor{
+func new{{.Name}}LimitArrayCursor(cur cursors.{{.Name}}ArrayCursor) *{{.name}}LimitArrayCursor {
+	return &{{.name}}LimitArrayCursor{
 		{{.Name}}ArrayCursor: cur,
 		res: cursors.New{{.Name}}ArrayLen(1),
 	}
 }
 
-func (c *{{.name}}FirstArrayCursor) Stats() cursors.CursorStats { return c.{{.Name}}ArrayCursor.Stats() }
+func (c *{{.name}}LimitArrayCursor) Stats() cursors.CursorStats { return c.{{.Name}}ArrayCursor.Stats() }
 
-func (c *{{.name}}FirstArrayCursor) Next() {{$arrayType}} {
+func (c *{{.name}}LimitArrayCursor) Next() {{$arrayType}} {
 	if c.done {
 		return &cursors.{{.Name}}Array{}
 	}
@@ -239,7 +239,7 @@ func (c *{{.name}}FirstArrayCursor) Next() {{$arrayType}} {
 	return c.res
 }
 
-type {{.name}}WindowFirstArrayCursor struct {
+type {{.name}}WindowLimitArrayCursor struct {
 	cursors.{{.Name}}ArrayCursor
 	every int64
 	final int64
@@ -247,11 +247,11 @@ type {{.name}}WindowFirstArrayCursor struct {
 	tmp {{$arrayType}}
 }
 
-func new{{.Name}}WindowFirstArrayCursor(cur cursors.{{.Name}}ArrayCursor, every int64) *{{.name}}WindowFirstArrayCursor {
+func new{{.Name}}WindowLimitArrayCursor(cur cursors.{{.Name}}ArrayCursor, every int64) *{{.name}}WindowLimitArrayCursor {
 	if every == 0 {
 		every = math.MaxInt64
 	}
-	return &{{.name}}WindowFirstArrayCursor{
+	return &{{.name}}WindowLimitArrayCursor{
 		{{.Name}}ArrayCursor: cur,
 		every: every,
 		final: math.MinInt64,
@@ -260,11 +260,11 @@ func new{{.Name}}WindowFirstArrayCursor(cur cursors.{{.Name}}ArrayCursor, every 
 	}
 }
 
-func (c *{{.name}}WindowFirstArrayCursor) Stats() cursors.CursorStats {
+func (c *{{.name}}WindowLimitArrayCursor) Stats() cursors.CursorStats {
 	return c.{{.Name}}ArrayCursor.Stats()
 }
 
-func (c *{{.name}}WindowFirstArrayCursor) Next() *cursors.{{.Name}}Array {
+func (c *{{.name}}WindowLimitArrayCursor) Next() *cursors.{{.Name}}Array {
 	c.res.Timestamps = c.res.Timestamps[:0]
 	c.res.Values = c.res.Values[:0]
 

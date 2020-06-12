@@ -21,46 +21,46 @@ const (
 	MaxPointsPerBlock = 1000
 )
 
-func newFirstArrayCursor(cur cursors.Cursor) cursors.Cursor {
+func newLimitArrayCursor(cur cursors.Cursor) cursors.Cursor {
 	switch cur := cur.(type) {
 
 	case cursors.FloatArrayCursor:
-		return newFloatFirstArrayCursor(cur)
+		return newFloatLimitArrayCursor(cur)
 
 	case cursors.IntegerArrayCursor:
-		return newIntegerFirstArrayCursor(cur)
+		return newIntegerLimitArrayCursor(cur)
 
 	case cursors.UnsignedArrayCursor:
-		return newUnsignedFirstArrayCursor(cur)
+		return newUnsignedLimitArrayCursor(cur)
 
 	case cursors.StringArrayCursor:
-		return newStringFirstArrayCursor(cur)
+		return newStringLimitArrayCursor(cur)
 
 	case cursors.BooleanArrayCursor:
-		return newBooleanFirstArrayCursor(cur)
+		return newBooleanLimitArrayCursor(cur)
 
 	default:
 		panic(fmt.Sprintf("unreachable: %T", cur))
 	}
 }
 
-func newWindowFirstArrayCursor(cur cursors.Cursor, every int64) cursors.Cursor {
+func newWindowLimitArrayCursor(cur cursors.Cursor, every int64) cursors.Cursor {
 	switch cur := cur.(type) {
 
 	case cursors.FloatArrayCursor:
-		return newFloatWindowFirstArrayCursor(cur, every)
+		return newFloatWindowLimitArrayCursor(cur, every)
 
 	case cursors.IntegerArrayCursor:
-		return newIntegerWindowFirstArrayCursor(cur, every)
+		return newIntegerWindowLimitArrayCursor(cur, every)
 
 	case cursors.UnsignedArrayCursor:
-		return newUnsignedWindowFirstArrayCursor(cur, every)
+		return newUnsignedWindowLimitArrayCursor(cur, every)
 
 	case cursors.StringArrayCursor:
-		return newStringWindowFirstArrayCursor(cur, every)
+		return newStringWindowLimitArrayCursor(cur, every)
 
 	case cursors.BooleanArrayCursor:
-		return newBooleanWindowFirstArrayCursor(cur, every)
+		return newBooleanWindowLimitArrayCursor(cur, every)
 
 	default:
 		panic(fmt.Sprintf("unreachable: %T", cur))
@@ -248,22 +248,22 @@ func (c *floatArrayCursor) nextArrayCursor() bool {
 	return ok
 }
 
-type floatFirstArrayCursor struct {
+type floatLimitArrayCursor struct {
 	cursors.FloatArrayCursor
 	res  *cursors.FloatArray
 	done bool
 }
 
-func newFloatFirstArrayCursor(cur cursors.FloatArrayCursor) *floatFirstArrayCursor {
-	return &floatFirstArrayCursor{
+func newFloatLimitArrayCursor(cur cursors.FloatArrayCursor) *floatLimitArrayCursor {
+	return &floatLimitArrayCursor{
 		FloatArrayCursor: cur,
 		res:              cursors.NewFloatArrayLen(1),
 	}
 }
 
-func (c *floatFirstArrayCursor) Stats() cursors.CursorStats { return c.FloatArrayCursor.Stats() }
+func (c *floatLimitArrayCursor) Stats() cursors.CursorStats { return c.FloatArrayCursor.Stats() }
 
-func (c *floatFirstArrayCursor) Next() *cursors.FloatArray {
+func (c *floatLimitArrayCursor) Next() *cursors.FloatArray {
 	if c.done {
 		return &cursors.FloatArray{}
 	}
@@ -277,7 +277,7 @@ func (c *floatFirstArrayCursor) Next() *cursors.FloatArray {
 	return c.res
 }
 
-type floatWindowFirstArrayCursor struct {
+type floatWindowLimitArrayCursor struct {
 	cursors.FloatArrayCursor
 	every int64
 	final int64
@@ -285,11 +285,11 @@ type floatWindowFirstArrayCursor struct {
 	tmp   *cursors.FloatArray
 }
 
-func newFloatWindowFirstArrayCursor(cur cursors.FloatArrayCursor, every int64) *floatWindowFirstArrayCursor {
+func newFloatWindowLimitArrayCursor(cur cursors.FloatArrayCursor, every int64) *floatWindowLimitArrayCursor {
 	if every == 0 {
 		every = math.MaxInt64
 	}
-	return &floatWindowFirstArrayCursor{
+	return &floatWindowLimitArrayCursor{
 		FloatArrayCursor: cur,
 		every:            every,
 		final:            math.MinInt64,
@@ -298,11 +298,11 @@ func newFloatWindowFirstArrayCursor(cur cursors.FloatArrayCursor, every int64) *
 	}
 }
 
-func (c *floatWindowFirstArrayCursor) Stats() cursors.CursorStats {
+func (c *floatWindowLimitArrayCursor) Stats() cursors.CursorStats {
 	return c.FloatArrayCursor.Stats()
 }
 
-func (c *floatWindowFirstArrayCursor) Next() *cursors.FloatArray {
+func (c *floatWindowLimitArrayCursor) Next() *cursors.FloatArray {
 	c.res.Timestamps = c.res.Timestamps[:0]
 	c.res.Values = c.res.Values[:0]
 
@@ -731,22 +731,22 @@ func (c *integerArrayCursor) nextArrayCursor() bool {
 	return ok
 }
 
-type integerFirstArrayCursor struct {
+type integerLimitArrayCursor struct {
 	cursors.IntegerArrayCursor
 	res  *cursors.IntegerArray
 	done bool
 }
 
-func newIntegerFirstArrayCursor(cur cursors.IntegerArrayCursor) *integerFirstArrayCursor {
-	return &integerFirstArrayCursor{
+func newIntegerLimitArrayCursor(cur cursors.IntegerArrayCursor) *integerLimitArrayCursor {
+	return &integerLimitArrayCursor{
 		IntegerArrayCursor: cur,
 		res:                cursors.NewIntegerArrayLen(1),
 	}
 }
 
-func (c *integerFirstArrayCursor) Stats() cursors.CursorStats { return c.IntegerArrayCursor.Stats() }
+func (c *integerLimitArrayCursor) Stats() cursors.CursorStats { return c.IntegerArrayCursor.Stats() }
 
-func (c *integerFirstArrayCursor) Next() *cursors.IntegerArray {
+func (c *integerLimitArrayCursor) Next() *cursors.IntegerArray {
 	if c.done {
 		return &cursors.IntegerArray{}
 	}
@@ -760,7 +760,7 @@ func (c *integerFirstArrayCursor) Next() *cursors.IntegerArray {
 	return c.res
 }
 
-type integerWindowFirstArrayCursor struct {
+type integerWindowLimitArrayCursor struct {
 	cursors.IntegerArrayCursor
 	every int64
 	final int64
@@ -768,11 +768,11 @@ type integerWindowFirstArrayCursor struct {
 	tmp   *cursors.IntegerArray
 }
 
-func newIntegerWindowFirstArrayCursor(cur cursors.IntegerArrayCursor, every int64) *integerWindowFirstArrayCursor {
+func newIntegerWindowLimitArrayCursor(cur cursors.IntegerArrayCursor, every int64) *integerWindowLimitArrayCursor {
 	if every == 0 {
 		every = math.MaxInt64
 	}
-	return &integerWindowFirstArrayCursor{
+	return &integerWindowLimitArrayCursor{
 		IntegerArrayCursor: cur,
 		every:              every,
 		final:              math.MinInt64,
@@ -781,11 +781,11 @@ func newIntegerWindowFirstArrayCursor(cur cursors.IntegerArrayCursor, every int6
 	}
 }
 
-func (c *integerWindowFirstArrayCursor) Stats() cursors.CursorStats {
+func (c *integerWindowLimitArrayCursor) Stats() cursors.CursorStats {
 	return c.IntegerArrayCursor.Stats()
 }
 
-func (c *integerWindowFirstArrayCursor) Next() *cursors.IntegerArray {
+func (c *integerWindowLimitArrayCursor) Next() *cursors.IntegerArray {
 	c.res.Timestamps = c.res.Timestamps[:0]
 	c.res.Values = c.res.Values[:0]
 
@@ -1214,22 +1214,22 @@ func (c *unsignedArrayCursor) nextArrayCursor() bool {
 	return ok
 }
 
-type unsignedFirstArrayCursor struct {
+type unsignedLimitArrayCursor struct {
 	cursors.UnsignedArrayCursor
 	res  *cursors.UnsignedArray
 	done bool
 }
 
-func newUnsignedFirstArrayCursor(cur cursors.UnsignedArrayCursor) *unsignedFirstArrayCursor {
-	return &unsignedFirstArrayCursor{
+func newUnsignedLimitArrayCursor(cur cursors.UnsignedArrayCursor) *unsignedLimitArrayCursor {
+	return &unsignedLimitArrayCursor{
 		UnsignedArrayCursor: cur,
 		res:                 cursors.NewUnsignedArrayLen(1),
 	}
 }
 
-func (c *unsignedFirstArrayCursor) Stats() cursors.CursorStats { return c.UnsignedArrayCursor.Stats() }
+func (c *unsignedLimitArrayCursor) Stats() cursors.CursorStats { return c.UnsignedArrayCursor.Stats() }
 
-func (c *unsignedFirstArrayCursor) Next() *cursors.UnsignedArray {
+func (c *unsignedLimitArrayCursor) Next() *cursors.UnsignedArray {
 	if c.done {
 		return &cursors.UnsignedArray{}
 	}
@@ -1243,7 +1243,7 @@ func (c *unsignedFirstArrayCursor) Next() *cursors.UnsignedArray {
 	return c.res
 }
 
-type unsignedWindowFirstArrayCursor struct {
+type unsignedWindowLimitArrayCursor struct {
 	cursors.UnsignedArrayCursor
 	every int64
 	final int64
@@ -1251,11 +1251,11 @@ type unsignedWindowFirstArrayCursor struct {
 	tmp   *cursors.UnsignedArray
 }
 
-func newUnsignedWindowFirstArrayCursor(cur cursors.UnsignedArrayCursor, every int64) *unsignedWindowFirstArrayCursor {
+func newUnsignedWindowLimitArrayCursor(cur cursors.UnsignedArrayCursor, every int64) *unsignedWindowLimitArrayCursor {
 	if every == 0 {
 		every = math.MaxInt64
 	}
-	return &unsignedWindowFirstArrayCursor{
+	return &unsignedWindowLimitArrayCursor{
 		UnsignedArrayCursor: cur,
 		every:               every,
 		final:               math.MinInt64,
@@ -1264,11 +1264,11 @@ func newUnsignedWindowFirstArrayCursor(cur cursors.UnsignedArrayCursor, every in
 	}
 }
 
-func (c *unsignedWindowFirstArrayCursor) Stats() cursors.CursorStats {
+func (c *unsignedWindowLimitArrayCursor) Stats() cursors.CursorStats {
 	return c.UnsignedArrayCursor.Stats()
 }
 
-func (c *unsignedWindowFirstArrayCursor) Next() *cursors.UnsignedArray {
+func (c *unsignedWindowLimitArrayCursor) Next() *cursors.UnsignedArray {
 	c.res.Timestamps = c.res.Timestamps[:0]
 	c.res.Values = c.res.Values[:0]
 
@@ -1697,22 +1697,22 @@ func (c *stringArrayCursor) nextArrayCursor() bool {
 	return ok
 }
 
-type stringFirstArrayCursor struct {
+type stringLimitArrayCursor struct {
 	cursors.StringArrayCursor
 	res  *cursors.StringArray
 	done bool
 }
 
-func newStringFirstArrayCursor(cur cursors.StringArrayCursor) *stringFirstArrayCursor {
-	return &stringFirstArrayCursor{
+func newStringLimitArrayCursor(cur cursors.StringArrayCursor) *stringLimitArrayCursor {
+	return &stringLimitArrayCursor{
 		StringArrayCursor: cur,
 		res:               cursors.NewStringArrayLen(1),
 	}
 }
 
-func (c *stringFirstArrayCursor) Stats() cursors.CursorStats { return c.StringArrayCursor.Stats() }
+func (c *stringLimitArrayCursor) Stats() cursors.CursorStats { return c.StringArrayCursor.Stats() }
 
-func (c *stringFirstArrayCursor) Next() *cursors.StringArray {
+func (c *stringLimitArrayCursor) Next() *cursors.StringArray {
 	if c.done {
 		return &cursors.StringArray{}
 	}
@@ -1726,7 +1726,7 @@ func (c *stringFirstArrayCursor) Next() *cursors.StringArray {
 	return c.res
 }
 
-type stringWindowFirstArrayCursor struct {
+type stringWindowLimitArrayCursor struct {
 	cursors.StringArrayCursor
 	every int64
 	final int64
@@ -1734,11 +1734,11 @@ type stringWindowFirstArrayCursor struct {
 	tmp   *cursors.StringArray
 }
 
-func newStringWindowFirstArrayCursor(cur cursors.StringArrayCursor, every int64) *stringWindowFirstArrayCursor {
+func newStringWindowLimitArrayCursor(cur cursors.StringArrayCursor, every int64) *stringWindowLimitArrayCursor {
 	if every == 0 {
 		every = math.MaxInt64
 	}
-	return &stringWindowFirstArrayCursor{
+	return &stringWindowLimitArrayCursor{
 		StringArrayCursor: cur,
 		every:             every,
 		final:             math.MinInt64,
@@ -1747,11 +1747,11 @@ func newStringWindowFirstArrayCursor(cur cursors.StringArrayCursor, every int64)
 	}
 }
 
-func (c *stringWindowFirstArrayCursor) Stats() cursors.CursorStats {
+func (c *stringWindowLimitArrayCursor) Stats() cursors.CursorStats {
 	return c.StringArrayCursor.Stats()
 }
 
-func (c *stringWindowFirstArrayCursor) Next() *cursors.StringArray {
+func (c *stringWindowLimitArrayCursor) Next() *cursors.StringArray {
 	c.res.Timestamps = c.res.Timestamps[:0]
 	c.res.Values = c.res.Values[:0]
 
@@ -2063,22 +2063,22 @@ func (c *booleanArrayCursor) nextArrayCursor() bool {
 	return ok
 }
 
-type booleanFirstArrayCursor struct {
+type booleanLimitArrayCursor struct {
 	cursors.BooleanArrayCursor
 	res  *cursors.BooleanArray
 	done bool
 }
 
-func newBooleanFirstArrayCursor(cur cursors.BooleanArrayCursor) *booleanFirstArrayCursor {
-	return &booleanFirstArrayCursor{
+func newBooleanLimitArrayCursor(cur cursors.BooleanArrayCursor) *booleanLimitArrayCursor {
+	return &booleanLimitArrayCursor{
 		BooleanArrayCursor: cur,
 		res:                cursors.NewBooleanArrayLen(1),
 	}
 }
 
-func (c *booleanFirstArrayCursor) Stats() cursors.CursorStats { return c.BooleanArrayCursor.Stats() }
+func (c *booleanLimitArrayCursor) Stats() cursors.CursorStats { return c.BooleanArrayCursor.Stats() }
 
-func (c *booleanFirstArrayCursor) Next() *cursors.BooleanArray {
+func (c *booleanLimitArrayCursor) Next() *cursors.BooleanArray {
 	if c.done {
 		return &cursors.BooleanArray{}
 	}
@@ -2092,7 +2092,7 @@ func (c *booleanFirstArrayCursor) Next() *cursors.BooleanArray {
 	return c.res
 }
 
-type booleanWindowFirstArrayCursor struct {
+type booleanWindowLimitArrayCursor struct {
 	cursors.BooleanArrayCursor
 	every int64
 	final int64
@@ -2100,11 +2100,11 @@ type booleanWindowFirstArrayCursor struct {
 	tmp   *cursors.BooleanArray
 }
 
-func newBooleanWindowFirstArrayCursor(cur cursors.BooleanArrayCursor, every int64) *booleanWindowFirstArrayCursor {
+func newBooleanWindowLimitArrayCursor(cur cursors.BooleanArrayCursor, every int64) *booleanWindowLimitArrayCursor {
 	if every == 0 {
 		every = math.MaxInt64
 	}
-	return &booleanWindowFirstArrayCursor{
+	return &booleanWindowLimitArrayCursor{
 		BooleanArrayCursor: cur,
 		every:              every,
 		final:              math.MinInt64,
@@ -2113,11 +2113,11 @@ func newBooleanWindowFirstArrayCursor(cur cursors.BooleanArrayCursor, every int6
 	}
 }
 
-func (c *booleanWindowFirstArrayCursor) Stats() cursors.CursorStats {
+func (c *booleanWindowLimitArrayCursor) Stats() cursors.CursorStats {
 	return c.BooleanArrayCursor.Stats()
 }
 
-func (c *booleanWindowFirstArrayCursor) Next() *cursors.BooleanArray {
+func (c *booleanWindowLimitArrayCursor) Next() *cursors.BooleanArray {
 	c.res.Timestamps = c.res.Timestamps[:0]
 	c.res.Values = c.res.Values[:0]
 

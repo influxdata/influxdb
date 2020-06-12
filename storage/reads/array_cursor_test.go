@@ -109,7 +109,7 @@ func (a *aggArrayCursorTest) run(t *testing.T) {
 	})
 }
 
-func TestFirstArrayCursor(t *testing.T) {
+func TestLimitArrayCursor(t *testing.T) {
 	arr := []*cursors.IntegerArray{
 		makeIntegerArray(
 			1000,
@@ -134,7 +134,7 @@ func TestFirstArrayCursor(t *testing.T) {
 			return &cursors.IntegerArray{}
 		},
 	}
-	aggCursor := newIntegerFirstArrayCursor(cur)
+	aggCursor := newIntegerLimitArrayCursor(cur)
 	want := []*cursors.IntegerArray{
 		{
 			Timestamps: []int64{mustParseTime("1970-01-01T00:00:01Z").UnixNano()},
@@ -150,7 +150,7 @@ func TestFirstArrayCursor(t *testing.T) {
 	}
 }
 
-func TestWindowFirstArrayCursor(t *testing.T) {
+func TestWindowLimitArrayCursor(t *testing.T) {
 	testcases := []aggArrayCursorTest{
 		{
 			name:  "window",
@@ -409,7 +409,7 @@ func TestWindowFirstArrayCursor(t *testing.T) {
 	}
 	for _, tc := range testcases {
 		tc.createCursorFn = func(cur cursors.IntegerArrayCursor, every int64) cursors.IntegerArrayCursor {
-			return newIntegerWindowFirstArrayCursor(cur, every)
+			return newIntegerWindowLimitArrayCursor(cur, every)
 		}
 		tc.run(t)
 	}
