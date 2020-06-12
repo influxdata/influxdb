@@ -114,6 +114,8 @@ export const NotebookProvider: FC = ({children}) => {
           }
           _setPipes(add(_pipe))
         }
+      } else {
+        _setPipes(add(pipe))
       }
     },
     [id, pipes, meta, results]
