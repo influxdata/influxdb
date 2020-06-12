@@ -291,8 +291,7 @@ impl PartialEq<EscapedStr<'_>> for &str {
 
 pub fn parse_lines(mut i: &str) -> impl Iterator<Item = Result<ParsedLine<'_>>> {
     std::iter::from_fn(move || {
-        let (remaining, _) = line_whitespace(i).expect("Cannot fail to parse whitespace");
-        i = remaining;
+        i = trim_leading(i);
 
         if i.is_empty() {
             return None;
@@ -420,9 +419,9 @@ fn timestamp(i: &str) -> IResult<&str, i64> {
     })(i)
 }
 
-/// Consumes all whitespace at the beginning / end of lines, including
-/// completely commented-out lines
-fn line_whitespace(mut i: &str) -> IResult<&str, ()> {
+/// Truncates the input slice to remove all whitespace from the
+/// beginning (left), including completely commented-out lines
+fn trim_leading(mut i: &str) -> &str {
     loop {
         let offset = i
             .find(|c| !is_whitespace_boundary_char(c))
@@ -433,7 +432,7 @@ fn line_whitespace(mut i: &str) -> IResult<&str, ()> {
             let offset = i.find('\n').unwrap_or_else(|| i.len());
             i = &i[offset..];
         } else {
-            break Ok((i, ()));
+            break i;
         }
     }
 }
@@ -739,6 +738,25 @@ mod test {
         assert!(es != "Fo");
         assert!(es != "F");
         assert!(es != "");
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_trim_leading() -> Result {
+        assert_eq!(trim_leading(&String::from("")), "");
+        assert_eq!(trim_leading(&String::from("  a b c ")), "a b c ");
+        assert_eq!(trim_leading(&String::from("  a ")), "a ");
+        assert_eq!(trim_leading(&String::from("\n  a ")), "a ");
+        assert_eq!(trim_leading(&String::from("\t  a ")), "a ");
+
+        // comments
+        assert_eq!(trim_leading(&String::from("  #comment\n a ")), "a ");
+        assert_eq!(trim_leading(&String::from("#comment\tcomment")), "");
+        assert_eq!(
+            trim_leading(&String::from("#comment\n #comment2\n#comment\na")),
+            "a"
+        );
 
         Ok(())
     }
