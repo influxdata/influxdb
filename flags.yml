@@ -49,8 +49,14 @@
   default: false
   contact: Query Team
 
+- name: Push Down Window Aggregate Sum
+  description: Enable Sum variant of PushDownWindowAggregateRule and PushDownBareAggregateRule
+  key: pushDownWindowAggregateSum
+  default: false
+  contact: Query Team
+
 - name: Push Down Window Aggregate Rest
-  description: Enable non-Count variants of PushDownWindowAggregateRule and PushDownWindowAggregateRule (stage 2)
+  description: Enable non-Count, non-Sum variants of PushDownWindowAggregateRule and PushDownWindowAggregateRule (stage 2)
   key: pushDownWindowAggregateRest
   default: false
   contact: Query Team

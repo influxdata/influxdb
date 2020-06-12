@@ -750,7 +750,7 @@ from(bucket: "%s")
 
 func TestLauncher_Query_PushDownWindowAggregateAndBareAggregate(t *testing.T) {
 	l := launcher.RunTestLauncherOrFail(t, ctx,
-		"--feature-flags", "pushDownWindowAggregateCount=true")
+		"--feature-flags", "pushDownWindowAggregateCount=true,pushDownWindowAggregateSum=true")
 	l.SetupOrFail(t)
 	defer l.ShutdownOrFail(t, ctx)
 
@@ -827,6 +827,40 @@ from(bucket: v.bucket)
 ,,0,15,f,m0,k0
 `,
 		},
+		{
+			name: "sum",
+			q: `
+from(bucket: v.bucket)
+	|> range(start: 1970-01-01T00:00:00Z, stop: 1970-01-01T00:00:15Z)
+	|> aggregateWindow(every: 5s, fn: sum)
+	|> drop(columns: ["_start", "_stop"])
+`,
+			res: `
+#datatype,string,long,dateTime:RFC3339,long,string,string,string
+#group,false,false,false,false,true,true,true
+#default,_result,,,,,,
+,result,table,_time,_value,_field,_measurement,k
+,,0,1970-01-01T00:00:05Z,10,f,m0,k0
+,,0,1970-01-01T00:00:10Z,22,f,m0,k0
+,,0,1970-01-01T00:00:15Z,35,f,m0,k0
+`,
+		},
+		{
+			name: "bare sum",
+			q: `
+from(bucket: v.bucket)
+	|> range(start: 1970-01-01T00:00:00Z, stop: 1970-01-01T00:00:15Z)
+	|> sum()
+	|> drop(columns: ["_start", "_stop"])
+`,
+			res: `
+#group,false,false,false,true,true,true
+#datatype,string,long,long,string,string,string
+#default,_result,,,,,
+,result,table,_value,_field,_measurement,k
+,,0,67,f,m0,k0
+`,
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			wantCount := getReadRequestCount() + 1
@@ -850,6 +884,156 @@ from(bucket: v.bucket)
 			}
 
 			if want, got := wantCount, getReadRequestCount(); want != got {
+				t.Fatalf("unexpected sample count -want/+got:\n\t- %d\n\t+ %d", want, got)
+			}
+		})
+	}
+}
+
+func TestLauncher_Query_PushDownGroupAggregate(t *testing.T) {
+	l := launcher.RunTestLauncherOrFail(t, ctx,
+		"--feature-flags", "pushDownGroupAggregateCount=true,pushDownGroupAggregateSum=true")
+	l.SetupOrFail(t)
+	defer l.ShutdownOrFail(t, ctx)
+
+	l.WritePointsOrFail(t, `
+m0,k=k0,kk=kk0 f=0i 0
+m0,k=k0,kk=kk1 f=1i 1000000000
+m0,k=k0,kk=kk0 f=2i 2000000000
+m0,k=k0,kk=kk1 f=3i 3000000000
+m0,k=k0,kk=kk0 f=4i 4000000000
+m0,k=k0,kk=kk1 f=5i 5000000000
+m0,k=k0,kk=kk0 f=6i 6000000000
+m0,k=k0,kk=kk1 f=5i 7000000000
+m0,k=k0,kk=kk0 f=0i 8000000000
+m0,k=k0,kk=kk1 f=6i 9000000000
+m0,k=k0,kk=kk0 f=6i 10000000000
+m0,k=k0,kk=kk1 f=7i 11000000000
+m0,k=k0,kk=kk0 f=5i 12000000000
+m0,k=k0,kk=kk1 f=8i 13000000000
+m0,k=k0,kk=kk0 f=9i 14000000000
+m0,k=k0,kk=kk1 f=5i 15000000000
+`)
+
+	getReadRequestCount := func(op string) uint64 {
+		const metricName = "query_influxdb_source_read_request_duration_seconds"
+		mf := l.Metrics(t)[metricName]
+		if mf != nil {
+			fmt.Printf("%v\n", mf)
+			for _, m := range mf.Metric {
+				for _, label := range m.Label {
+					if label.GetName() == "op" && label.GetValue() == op {
+						return m.Histogram.GetSampleCount()
+					}
+				}
+			}
+		}
+		return 0
+	}
+
+	for _, tt := range []struct {
+		name string
+		q    string
+		op   string
+		res  string
+	}{
+		{
+			name: "count group none",
+			q: `
+from(bucket: v.bucket)
+	|> range(start: 1970-01-01T00:00:00Z, stop: 1970-01-01T00:00:15Z)
+	|> group()
+	|> count()
+	|> drop(columns: ["_start", "_stop"])
+`,
+			op: "readGroup(count)",
+			res: `
+#datatype,string,long,long
+#group,false,false,false
+#default,_result,,
+,result,table,_value
+,,0,15
+`,
+		},
+		{
+			name: "count group",
+			op: "readGroup(count)",
+			q: `
+from(bucket: v.bucket)
+	|> range(start: 1970-01-01T00:00:00Z, stop: 1970-01-01T00:00:15Z)
+	|> group(columns: ["kk"])
+	|> count()
+	|> drop(columns: ["_start", "_stop"])
+`,
+			res: `
+#datatype,string,long,string,long
+#group,false,false,true,false
+#default,_result,,,
+,result,table,kk,_value
+,,0,kk0,8
+,,1,kk1,7
+`,
+		},
+		{
+			name: "sum group none",
+			q: `
+from(bucket: v.bucket)
+	|> range(start: 1970-01-01T00:00:00Z, stop: 1970-01-01T00:00:15Z)
+	|> group()
+	|> sum()
+	|> drop(columns: ["_start", "_stop"])
+`,
+			op: "readGroup(sum)",
+			res: `
+#datatype,string,long,long
+#group,false,false,false
+#default,_result,,
+,result,table,_value
+,,0,67
+`,
+		},
+		{
+			name: "sum group",
+			op: "readGroup(sum)",
+			q: `
+from(bucket: v.bucket)
+	|> range(start: 1970-01-01T00:00:00Z, stop: 1970-01-01T00:00:15Z)
+	|> group(columns: ["kk"])
+	|> sum()
+	|> drop(columns: ["_start", "_stop"])
+`,
+			res: `
+#datatype,string,long,string,long
+#group,false,false,true,false
+#default,_result,,,
+,result,table,kk,_value
+,,0,kk0,32
+,,1,kk1,35
+`,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			wantCount := getReadRequestCount(tt.op) + 1
+
+			prelude := fmt.Sprintf("v = {bucket: \"%s\", timeRangeStart: 1970-01-01T00:00:00Z, timeRangeStop: 1970-01-01T00:00:15Z}", l.Bucket.Name)
+			queryStr := prelude + "\n" + tt.q
+			res := l.MustExecuteQuery(queryStr)
+			defer res.Done()
+			got := flux.NewSliceResultIterator(res.Results)
+			defer got.Release()
+
+			dec := csv.NewMultiResultDecoder(csv.ResultDecoderConfig{})
+			want, err := dec.Decode(ioutil.NopCloser(strings.NewReader(tt.res)))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer want.Release()
+
+			if err := executetest.EqualResultIterators(want, got); err != nil {
+				t.Error(err)
+			}
+
+			if want, got := wantCount, getReadRequestCount(tt.op); want != got {
 				t.Fatalf("unexpected sample count -want/+got:\n\t- %d\n\t+ %d", want, got)
 			}
 		})
