@@ -19,11 +19,7 @@ import InlineLabels from 'src/shared/components/inlineLabels/InlineLabels'
 import LastRunTaskStatus from 'src/shared/components/lastRunTaskStatus/LastRunTaskStatus'
 
 // Actions
-import {
-  addTaskLabel,
-  deleteTaskLabel,
-  selectTask,
-} from 'src/tasks/actions/thunks'
+import {addTaskLabel, deleteTaskLabel} from 'src/tasks/actions/thunks'
 
 // Types
 import {ComponentColor} from '@influxdata/clockface'
@@ -36,7 +32,6 @@ interface PassedProps {
   task: Task
   onActivate: (task: Task) => void
   onDelete: (task: Task) => void
-  onSelect: typeof selectTask
   onClone: (task: Task) => void
   onRunTask: (taskID: string) => void
   onUpdate: (name: string, taskID: string) => void
@@ -140,10 +135,16 @@ export class TaskCard extends PureComponent<Props & WithRouterProps> {
   }
 
   private handleNameClick = (event: MouseEvent) => {
+    const {
+      params: {orgID},
+      router,
+      task,
+    } = this.props
+    const url = `/orgs/${orgID}/tasks/${task.id}`
     if (event.metaKey) {
-      this.props.onSelect(this.props.task.id, true)
+      window.open(url, '_blank')
     } else {
-      this.props.onSelect(this.props.task.id)
+      router.push(url)
     }
   }
 

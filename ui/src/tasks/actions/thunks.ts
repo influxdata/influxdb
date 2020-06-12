@@ -282,19 +282,6 @@ export const setAllTaskOptionsByID = (taskID: string) => async (
   }
 }
 
-export const selectTask = (taskID: string, commandClick?: boolean) => (
-  dispatch: Dispatch<Action>,
-  getState: GetState
-) => {
-  const org = getOrg(getState())
-
-  if (commandClick) {
-    window.open(`/orgs/${org.id}/tasks/${taskID}`, '_blank')
-  } else {
-    dispatch(push(`/orgs/${org.id}/tasks/${taskID}`))
-  }
-}
-
 export const goToTasks = () => (
   dispatch: Dispatch<Action>,
   getState: GetState

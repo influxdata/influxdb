@@ -11,7 +11,7 @@ import EmptyTasksList from 'src/tasks/components/EmptyTasksList'
 import {Task} from 'src/types'
 import {SortTypes} from 'src/shared/utils/sort'
 import {Sort} from '@influxdata/clockface'
-import {selectTask, addTaskLabel, runTask} from 'src/tasks/actions/thunks'
+import {addTaskLabel, runTask} from 'src/tasks/actions/thunks'
 import {checkTaskLimits as checkTaskLimitsAction} from 'src/cloud/actions/limits'
 import {TaskSortKey} from 'src/shared/components/resource_sort_dropdown/generateSortItems'
 
@@ -27,7 +27,6 @@ interface Props {
   onClone: (task: Task) => void
   onFilterChange: (searchTerm: string) => void
   totalCount: number
-  onSelect: typeof selectTask
   onAddTaskLabel: typeof addTaskLabel
   onRunTask: typeof runTask
   onUpdate: (name: string, taskID: string) => void
@@ -100,7 +99,7 @@ export default class TasksList extends PureComponent<Props, State> {
       sortType,
       onActivate,
       onDelete,
-      onSelect,
+      onSelectTask,
       onClone,
       onUpdate,
       onRunTask,
@@ -121,7 +120,6 @@ export default class TasksList extends PureComponent<Props, State> {
         onActivate={onActivate}
         onDelete={onDelete}
         onClone={onClone}
-        onSelect={onSelect}
         onUpdate={onUpdate}
         onRunTask={onRunTask}
         onFilterChange={onFilterChange}
