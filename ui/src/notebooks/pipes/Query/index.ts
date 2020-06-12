@@ -9,8 +9,8 @@ register({
   component: View,
   button: 'Custom Script',
   initial: {
-    resultsVisibility: 'visible',
-    resultsPanelHeight: 200,
+    panelVisibility: 'visible',
+    panelHeight: 200,
     activeQuery: 0,
     queries: [
       {

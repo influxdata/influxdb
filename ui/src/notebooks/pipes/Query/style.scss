@@ -26,18 +26,6 @@ $notebook-results--drag-handle: 30px;
   border-radius: $cf-radius 0 0 $cf-radius;
 }
 
-.notebook-raw-data__small {
-  height: $notebook-results-small;
-}
-
-.notebook-raw-data__medium {
-  height: $notebook-results-medium;
-}
-
-.notebook-raw-data__large {
-  height: $notebook-results-large;
-}
-
 .notebook-raw-data--header {
   color: $g8-storm;
   width: $notebook-results-header;

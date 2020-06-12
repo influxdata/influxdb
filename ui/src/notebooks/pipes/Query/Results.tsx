@@ -20,22 +20,20 @@ const Results: FC<Props> = ({results, onUpdate, data}) => {
   const resultsExist = !!results.raw
 
   return (
-    <div className="notebook-raw-data">
-      <Resizer data={data} onUpdate={onUpdate} resizingEnabled={resultsExist}>
-        <AutoSizer>
-          {({width, height}) =>
-            width &&
-            height && (
-              <RawFluxDataTable
-                files={[results.raw]}
-                width={width}
-                height={height}
-              />
-            )
-          }
-        </AutoSizer>
-      </Resizer>
-    </div>
+    <Resizer data={data} onUpdate={onUpdate} resizingEnabled={resultsExist}>
+      <AutoSizer>
+        {({width, height}) =>
+          width &&
+          height && (
+            <RawFluxDataTable
+              files={[results.raw]}
+              width={width}
+              height={height}
+            />
+          )
+        }
+      </AutoSizer>
+    </Resizer>
   )
 }
 
