@@ -1,3 +1,9 @@
+## v2.0.0-beta.13 [unreleased]
+
+### Features
+
+1. [18480](https://github.com/influxdata/influxdb/pull/18480): Allows tasks to open in new tabs
+
 ## v2.0.0-beta.12 [2020-06-11]
 
 ### Features
