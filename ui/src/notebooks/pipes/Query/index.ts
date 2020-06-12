@@ -6,6 +6,7 @@ export type Visibility = 'visible' | 'hidden'
 
 register({
   type: 'query',
+  priority: 1,
   component: View,
   button: 'Custom Script',
   initial: {
