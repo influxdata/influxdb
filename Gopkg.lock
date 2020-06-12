@@ -523,15 +523,15 @@
   version = "v0.50.2"
 
 [[projects]]
-  digest = "1:a56e8bb5d96771d927b51963554589937d280877671482b45529e14c3e45f39b"
+  digest = "1:488639be850ddc33969609e08f783d3e9d129c7a0f6f2c4186b11475bb94c29d"
   name = "github.com/influxdata/influxql"
   packages = [
     ".",
     "internal",
   ]
   pruneopts = "UT"
-  revision = "57f403b00b124eb900835c0c944e9b60d848db5e"
-  version = "v1.0.1"
+  revision = "1cbfca8e56b6eaa120f5b5161e4f0d5edcc9e513"
+  version = "v1.0.0"
 
 [[projects]]
   branch = "master"
