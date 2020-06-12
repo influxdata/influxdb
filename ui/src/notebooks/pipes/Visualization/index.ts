@@ -7,6 +7,8 @@ register({
   component: View,
   button: 'Visualization',
   initial: {
+    panelVisibility: 'visible',
+    panelHeight: 200,
     properties: {
       type: 'xy',
       position: 'overlaid',
