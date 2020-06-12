@@ -198,7 +198,9 @@ describe('Variables', () => {
       .click()
 
     cy.getByTestID('notification-success--dismiss').click()
-    cy.getByTestID(`variable-card--name ${queryVariableName}`).contains(queryVariableName)
+    cy.getByTestID(`variable-card--name ${queryVariableName}`).contains(
+      queryVariableName
+    )
   })
 
   it('keeps user input in text area when attempting to import invalid JSON', () => {
