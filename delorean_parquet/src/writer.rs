@@ -1,9 +1,6 @@
 //! This module contains the code to write delorean table data to parquet
-use std::rc::Rc;
-
+use delorean_table::{packers::Packer, DeloreanTableWriter, Error as TableError};
 use log::debug;
-use snafu::{ResultExt, Snafu};
-
 use parquet::{
     basic::{Compression, Encoding, LogicalType, Repetition, Type as PhysicalType},
     errors::ParquetError,
@@ -17,10 +14,12 @@ use parquet::{
         types::{ColumnPath, Type},
     },
 };
-use std::io::{Seek, Write};
-
-use delorean_table::packers::Packer;
-use delorean_table::{DeloreanTableWriter, Error as TableError};
+use snafu::{ResultExt, Snafu};
+use std::{
+    fmt,
+    io::{Seek, Write},
+    rc::Rc,
+};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -239,6 +238,18 @@ where
             message: String::from("Can't close file writer"),
         })?;
         Ok(())
+    }
+}
+
+impl<W> fmt::Debug for DeloreanParquetTableWriter<W>
+where
+    W: Write + Seek + TryClone,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("DeloreanParquetTableWriter")
+            .field("parquet_schema", &self.parquet_schema)
+            .field("file_writer", &"SerializedFileWriter")
+            .finish()
     }
 }
 
