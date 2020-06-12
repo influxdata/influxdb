@@ -33,6 +33,10 @@ import {
   DropdownMenuTheme,
   InputLabel,
 } from '@influxdata/clockface'
+import {Notification, NotificationStyle} from 'src/types'
+
+// Actions
+import {notify as notifyAction} from 'src/shared/actions/notifications'
 
 interface StateProps {
   dashboards: Dashboard[]
@@ -42,6 +46,7 @@ interface DispatchProps {
   loadDashboards: typeof getDashboards
   createViewAndDashboard: typeof createDashboardWithView
   createView: typeof createCellWithView
+  notify: typeof notifyAction
 }
 
 interface OwnProps {
@@ -52,7 +57,19 @@ interface OwnProps {
 
 type Props = StateProps & DispatchProps & OwnProps
 
+const ExportConfirmationNotification = (
+  dashboardName: string
+): Notification => {
+  return {
+    message: `Visualization added to ${dashboardName}`,
+    style: NotificationStyle.Success,
+    icon: IconFont.Checkmark,
+    duration: 6666,
+  }
+}
+
 const DashboardList: FC<Props> = ({
+  notify,
   query,
   properties,
   onClose,
@@ -143,6 +160,7 @@ const DashboardList: FC<Props> = ({
       }
     } else {
       createView(selectedDashboard.id, view)
+      notify(ExportConfirmationNotification(selectedDashboard.name))
     }
 
     onClose()
@@ -194,6 +212,7 @@ const mdtp: DispatchProps = {
   loadDashboards: getDashboards,
   createView: createCellWithView,
   createViewAndDashboard: createDashboardWithView,
+  notify: notifyAction,
 }
 
 export default connect<StateProps, DispatchProps, OwnProps>(
