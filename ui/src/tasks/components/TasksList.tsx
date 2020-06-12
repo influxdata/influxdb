@@ -99,7 +99,6 @@ export default class TasksList extends PureComponent<Props, State> {
       sortType,
       onActivate,
       onDelete,
-      onSelectTask,
       onClone,
       onUpdate,
       onRunTask,
