@@ -3,22 +3,51 @@ import React, {FC, useRef, useEffect, ReactNode, useState} from 'react'
 import classnames from 'classnames'
 
 // Components
-import ResizerHeader from 'src/notebooks/pipes/Query/ResizerHeader'
+import ResizerHeader from 'src/notebooks/shared/ResizerHeader'
 
 // Types
-import {Visibility} from 'src/notebooks/pipes/Query'
+import {IconFont} from '@influxdata/clockface'
 import {PipeData} from 'src/notebooks/index'
+
+// Styles
+import 'src/notebooks/shared/Resizer.scss'
+
+export type Visibility = 'visible' | 'hidden'
 
 interface Props {
   data: PipeData
-  onUpdate: (data: any) => void
+  onUpdate: (data: PipeData) => void
   children: ReactNode
+  /** If true the resizer can be toggled between Hidden & Visible */
+  toggleVisibilityEnabled: boolean
+  /** If true the resizer cannot be resized, have its visibility toggled, and children will be hidden */
   resizingEnabled: boolean
+  /** Icon to display in header when resizing is disabled */
+  emptyIcon?: IconFont
+  /** Text to display when resizing is disabled */
+  emptyText: string
+  /** Text to display when the resizer is collapsed */
+  hiddenText?: string
+  /** When resizing is enabled the panel cannot be resized below this amount */
+  minimumHeight?: number
+  /** Renders this element beneath the visibility toggle in the header */
+  additionalControls?: JSX.Element | JSX.Element[]
 }
 
-const MINIMUM_RESULTS_PANEL_HEIGHT = 100
+const MINIMUM_RESIZER_HEIGHT = 100
 
-const Resizer: FC<Props> = ({data, onUpdate, children, resizingEnabled}) => {
+const Resizer: FC<Props> = ({
+  data,
+  onUpdate,
+  children,
+  emptyIcon = IconFont.Zap,
+  emptyText,
+  hiddenText = 'Hidden',
+  minimumHeight = MINIMUM_RESIZER_HEIGHT,
+  resizingEnabled,
+  additionalControls,
+  toggleVisibilityEnabled,
+}) => {
   const height = data.panelHeight
   const visibility = data.panelVisibility
 
@@ -27,8 +56,8 @@ const Resizer: FC<Props> = ({data, onUpdate, children, resizingEnabled}) => {
   const resultsBodyRef = useRef<HTMLDivElement>(null)
   const dragHandleRef = useRef<HTMLDivElement>(null)
 
-  const resultsBodyClassName = classnames('notebook-raw-data--body', {
-    [`notebook-raw-data--body__${visibility}`]: resizingEnabled && visibility,
+  const resultsBodyClassName = classnames('panel-resizer--body', {
+    [`panel-resizer--body__${visibility}`]: resizingEnabled && visibility,
   })
 
   const updateResultsStyle = (): void => {
@@ -70,14 +99,14 @@ const Resizer: FC<Props> = ({data, onUpdate, children, resizingEnabled}) => {
     if (isDragging === true) {
       dragHandleRef.current &&
         dragHandleRef.current.classList.add(
-          'notebook-raw-data--drag-handle__dragging'
+          'panel-resizer--drag-handle__dragging'
         )
     }
 
     if (isDragging === false) {
       dragHandleRef.current &&
         dragHandleRef.current.classList.remove(
-          'notebook-raw-data--drag-handle__dragging'
+          'panel-resizer--drag-handle__dragging'
         )
       handleUpdateHeight(size)
     }
@@ -91,9 +120,7 @@ const Resizer: FC<Props> = ({data, onUpdate, children, resizingEnabled}) => {
     const {pageY} = e
     const {top} = resultsBodyRef.current.getBoundingClientRect()
 
-    const updatedHeight = Math.round(
-      Math.max(pageY - top, MINIMUM_RESULTS_PANEL_HEIGHT)
-    )
+    const updatedHeight = Math.round(Math.max(pageY - top, minimumHeight))
 
     updateSize(updatedHeight)
   }
@@ -119,25 +146,24 @@ const Resizer: FC<Props> = ({data, onUpdate, children, resizingEnabled}) => {
   let resultsBody = children
 
   if (!resizingEnabled) {
-    resultsBody = (
-      <div className="notebook-raw-data--empty">
-        Run the Flow to see results
-      </div>
-    )
+    resultsBody = <div className="panel-resizer--empty">{emptyText}</div>
   }
 
   if (resizingEnabled && visibility === 'hidden') {
-    resultsBody = <div className="notebook-raw-data--empty">Results hidden</div>
+    resultsBody = <div className="panel-resizer--empty">{hiddenText}</div>
   }
 
   return (
-    <div className="notebook-raw-data">
+    <div className="panel-resizer">
       <ResizerHeader
-        resizingEnabled={resizingEnabled}
+        emptyIcon={emptyIcon}
         visibility={visibility}
-        onUpdateVisibility={handleUpdateVisibility}
         onStartDrag={handleMouseDown}
         dragHandleRef={dragHandleRef}
+        resizingEnabled={resizingEnabled}
+        additionalControls={additionalControls}
+        onUpdateVisibility={handleUpdateVisibility}
+        toggleVisibilityEnabled={toggleVisibilityEnabled}
       />
       <div className={resultsBodyClassName} ref={resultsBodyRef}>
         {resultsBody}

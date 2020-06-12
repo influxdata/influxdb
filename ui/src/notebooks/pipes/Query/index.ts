@@ -2,8 +2,6 @@ import {register} from 'src/notebooks'
 import View from './view'
 import './style.scss'
 
-export type Visibility = 'visible' | 'hidden'
-
 register({
   type: 'query',
   component: View,

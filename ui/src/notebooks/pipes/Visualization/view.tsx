@@ -5,7 +5,7 @@ import React, {FC, useContext} from 'react'
 import EmptyQueryView, {ErrorFormat} from 'src/shared/components/EmptyQueryView'
 import ViewSwitcher from 'src/shared/components/ViewSwitcher'
 import {ViewTypeDropdown} from 'src/timeMachine/components/view_options/ViewTypeDropdown'
-import Resizer from 'src/notebooks/pipes/Query/Resizer'
+import Resizer from 'src/notebooks/shared/Resizer'
 
 // Utilities
 import {checkResultsLength} from 'src/shared/utils/vis'
@@ -14,6 +14,7 @@ import {createView} from 'src/views/helpers'
 // Types
 import {PipeProp} from 'src/notebooks'
 import {ViewType} from 'src/types'
+import {IconFont} from '@influxdata/clockface'
 
 // NOTE we dont want any pipe component to be directly dependent
 // to any notebook concepts as this'll limit future reusability
@@ -97,7 +98,14 @@ const Visualization: FC<PipeProp> = ({
 
   return (
     <Context controls={controls}>
-      <Resizer data={data} onUpdate={onUpdate} resizingEnabled={!!results.raw}>
+      <Resizer
+        data={data}
+        onUpdate={onUpdate}
+        resizingEnabled={!!results.raw}
+        emptyText="No data to visualize"
+        emptyIcon={IconFont.BarChart}
+        toggleVisibilityEnabled={false}
+      >
         <div className="notebook-visualization">
           <div className="notebook-visualization--view">
             <EmptyQueryView
