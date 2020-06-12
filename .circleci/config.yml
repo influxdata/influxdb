@@ -180,7 +180,8 @@ jobs:
             set +e
             cd e2e
             npm install
-            npm test headless=true; TEST_RESULT=$?
+            sed -i "s/\"headless\": false/\"headless\": true/g" e2e.conf.json
+            npm test; TEST_RESULT=$?
             npm run report:html
             npm run report:junit
             mkdir -p ~/test-results/cucumber
