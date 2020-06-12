@@ -1,6 +1,5 @@
-import React, {FC, useEffect, useState, useContext} from 'react'
+import React, {FC, useEffect, useState} from 'react'
 import {connect} from 'react-redux'
-import {AppSettingContext} from 'src/notebooks/context/app'
 import {getDashboards} from 'src/dashboards/actions/thunks'
 import {
   createCellWithView,
@@ -34,12 +33,14 @@ import {
   InputLabel,
 } from '@influxdata/clockface'
 import {Notification, NotificationStyle} from 'src/types'
+import {getOrg} from 'src/organizations/selectors'
 
 // Actions
 import {notify as notifyAction} from 'src/shared/actions/notifications'
 
 interface StateProps {
   dashboards: Dashboard[]
+  orgID: string
 }
 
 interface DispatchProps {
@@ -69,6 +70,7 @@ const ExportConfirmationNotification = (
 }
 
 const DashboardList: FC<Props> = ({
+  orgID,
   notify,
   query,
   properties,
@@ -80,7 +82,6 @@ const DashboardList: FC<Props> = ({
 }) => {
   const [selectedDashboard, setSelectedDashboard] = useState(null)
   const [newName, setNewName] = useState(DEFAULT_DASHBOARD_NAME)
-  const {org} = useContext(AppSettingContext)
 
   useEffect(() => {
     loadDashboards()
@@ -155,9 +156,7 @@ const DashboardList: FC<Props> = ({
     } as View
 
     if (selectedDashboard.id === DashboardTemplate.id) {
-      if (org.id) {
-        createViewAndDashboard(org.id, selectedDashboard.name, view)
-      }
+      createViewAndDashboard(orgID, selectedDashboard.name, view)
     } else {
       createView(selectedDashboard.id, view)
       notify(ExportConfirmationNotification(selectedDashboard.name))
@@ -202,9 +201,11 @@ export {DashboardList}
 
 const mstp = (state: AppState): StateProps => {
   const dashboards = getAll<Dashboard>(state, ResourceType.Dashboards)
+  const orgID = getOrg(state).id
 
   return {
     dashboards,
+    orgID,
   }
 }
 
