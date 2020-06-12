@@ -90,6 +90,10 @@ const DashboardList: FC<Props> = ({
   const isEditingName =
     selectedDashboard && selectedDashboard.id === DashboardTemplate.id
   const changeName = evt => {
+    setSelectedDashboard({
+      ...selectedDashboard,
+      name: evt.target.value,
+    })
     setNewName(evt.target.value)
   }
 
