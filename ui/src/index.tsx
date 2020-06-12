@@ -546,4 +546,6 @@ if (rootNode) {
   render(<Root />, rootNode)
 }
 
-writeNavigationTimingMetrics()
+window.addEventListener('load', _event => {
+  writeNavigationTimingMetrics()
+})
