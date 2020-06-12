@@ -27,6 +27,14 @@ impl StringPacker {
         }
     }
 
+    fn with_capacity(capacity: usize) -> StringPacker {
+        StringPacker {
+            values: Vec::with_capacity(capacity),
+            def_levels: Vec::with_capacity(capacity),
+            rep_levels: Vec::with_capacity(capacity),
+        }
+    }
+
     fn len(&self) -> usize {
         self.values.len()
     }
@@ -61,6 +69,14 @@ impl FloatPacker {
             values: Vec::new(),
             def_levels: Vec::new(),
             rep_levels: Vec::new(),
+        }
+    }
+
+    fn with_capacity(capacity: usize) -> FloatPacker {
+        FloatPacker {
+            values: Vec::with_capacity(capacity),
+            def_levels: Vec::with_capacity(capacity),
+            rep_levels: Vec::with_capacity(capacity),
         }
     }
 
@@ -101,6 +117,14 @@ impl IntPacker {
         }
     }
 
+    fn with_capacity(capacity: usize) -> IntPacker {
+        IntPacker {
+            values: Vec::with_capacity(capacity),
+            def_levels: Vec::with_capacity(capacity),
+            rep_levels: Vec::with_capacity(capacity),
+        }
+    }
+
     fn len(&self) -> usize {
         self.values.len()
     }
@@ -135,6 +159,14 @@ impl BoolPacker {
             values: Vec::new(),
             def_levels: Vec::new(),
             rep_levels: Vec::new(),
+        }
+    }
+
+    fn with_capacity(capacity: usize) -> BoolPacker {
+        BoolPacker {
+            values: Vec::with_capacity(capacity),
+            def_levels: Vec::with_capacity(capacity),
+            rep_levels: Vec::with_capacity(capacity),
         }
     }
 
@@ -178,6 +210,27 @@ impl Packer {
             delorean_table_schema::DataType::Integer => Packer::IntPackerType(IntPacker::new()),
             delorean_table_schema::DataType::Boolean => Packer::BoolPackerType(BoolPacker::new()),
             delorean_table_schema::DataType::Timestamp => Packer::IntPackerType(IntPacker::new()),
+        }
+    }
+
+    /// Create a new packer that can pack values of the specified type, with the specified capacity
+    pub fn with_capacity(t: delorean_table_schema::DataType, capacity: usize) -> Packer {
+        match t {
+            delorean_table_schema::DataType::String => {
+                Packer::StringPackerType(StringPacker::with_capacity(capacity))
+            }
+            delorean_table_schema::DataType::Float => {
+                Packer::FloatPackerType(FloatPacker::with_capacity(capacity))
+            }
+            delorean_table_schema::DataType::Integer => {
+                Packer::IntPackerType(IntPacker::with_capacity(capacity))
+            }
+            delorean_table_schema::DataType::Boolean => {
+                Packer::BoolPackerType(BoolPacker::with_capacity(capacity))
+            }
+            delorean_table_schema::DataType::Timestamp => {
+                Packer::IntPackerType(IntPacker::with_capacity(capacity))
+            }
         }
     }
 
@@ -284,6 +337,29 @@ mod test {
     use super::*;
     use delorean_table_schema::DataType;
     use delorean_test_helpers::approximately_equal;
+
+    #[test]
+    fn with_capacity() {
+        let string_packer = StringPacker::with_capacity(42);
+        assert_eq!(string_packer.values.capacity(), 42);
+        assert_eq!(string_packer.def_levels.capacity(), 42);
+        assert_eq!(string_packer.rep_levels.capacity(), 42);
+
+        let float_packer = FloatPacker::with_capacity(43);
+        assert_eq!(float_packer.values.capacity(), 43);
+        assert_eq!(float_packer.def_levels.capacity(), 43);
+        assert_eq!(float_packer.rep_levels.capacity(), 43);
+
+        let int_packer = IntPacker::with_capacity(44);
+        assert_eq!(int_packer.values.capacity(), 44);
+        assert_eq!(int_packer.def_levels.capacity(), 44);
+        assert_eq!(int_packer.rep_levels.capacity(), 44);
+
+        let bool_packer = BoolPacker::with_capacity(45);
+        assert_eq!(bool_packer.values.capacity(), 45);
+        assert_eq!(bool_packer.def_levels.capacity(), 45);
+        assert_eq!(bool_packer.rep_levels.capacity(), 45);
+    }
 
     #[test]
     fn string_packer() {

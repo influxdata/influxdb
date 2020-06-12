@@ -18,6 +18,12 @@ pub enum Error {
         source: std::io::Error,
     },
 
+    #[snafu(display(
+        "Can not write multiple measurements to a single file. Saw new measurement named {}",
+        new_measurement_name
+    ))]
+    MultipleMeasurementsToSingleFile { new_measurement_name: String },
+
     #[snafu(display("Not implemented: {}", operation_name))]
     NotImplemented { operation_name: String },
 
@@ -39,9 +45,6 @@ pub enum Error {
 
     #[snafu(display("Error creating a parquet table writer {}", source))]
     UnableToCreateParquetTableWriter { source: ParquetWriterError },
-
-    #[snafu(display("Error creating a line protocol converter {}", source))]
-    UnableToCreateLineProtocolConverter { source: IngestError },
 
     #[snafu(display("Error writing the sample schema {}", source))]
     UnableToWriteSchemaSample { source: IngestError },

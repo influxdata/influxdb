@@ -40,14 +40,16 @@ fn convert_good_input_filename() {
         .assert();
 
     let expected_success_string = format!(
-        "Completing writing {} successfully",
+        "Completing writing to {} successfully",
         parquet_filename_string
     );
 
     assert
         .success()
         .stderr(predicate::str::contains("dstool convert starting"))
-        .stderr(predicate::str::contains("Schema deduced"))
+        .stderr(predicate::str::contains(
+            "Writing output for measurement h2o_temperature",
+        ))
         .stderr(predicate::str::contains(expected_success_string));
 
     // TODO: add a dump command to dstool and verify that the dump

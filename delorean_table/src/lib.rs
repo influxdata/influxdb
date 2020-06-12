@@ -34,3 +34,13 @@ pub trait DeloreanTableWriterSource {
     /// Returns a `DeloreanTableWriter suitable for writing data from packers.
     fn next_writer(&mut self, schema: &Schema) -> Result<Box<dyn DeloreanTableWriter>, Error>;
 }
+
+/// Ergonomics: implement DeloreanTableWriterSource for Box'd values
+impl<S> DeloreanTableWriterSource for Box<S>
+where
+    S: DeloreanTableWriterSource + ?Sized,
+{
+    fn next_writer(&mut self, schema: &Schema) -> Result<Box<dyn DeloreanTableWriter>, Error> {
+        (**self).next_writer(schema)
+    }
+}

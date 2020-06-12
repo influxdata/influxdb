@@ -216,7 +216,7 @@ pub enum FieldValue {
 ///
 /// If we had the input string `"a\nb"`, the `EscapedStr` will hold ["a", "b"].
 /// If we had `"Foo\\aBar"`, the `EscapedStr` will hold ["Foo", "\\", "a", "Bar"].
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct EscapedStr<'a>(SmallVec<[&'a str; 1]>);
 
 impl fmt::Display for EscapedStr<'_> {

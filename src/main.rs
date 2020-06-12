@@ -52,7 +52,7 @@ Examples:
                 .arg(
                     Arg::with_name("OUTPUT")
                         .takes_value(true)
-                        .help("The filename to write the output.")
+                        .help("The filename or directory to write the output.")
                         .required(true)
                         .index(2),
                 ),
