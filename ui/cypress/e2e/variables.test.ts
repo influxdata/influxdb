@@ -140,8 +140,8 @@ describe('Variables', () => {
 
     cy.getByTestID('notification-success--dismiss').click()
 
-    cy.getByTestID(`variable-card--name Little Variable-renamed`).should(
-      'exist'
+    cy.getByTestID(`variable-card--name Little Variable-renamed`).contains(
+      '-renamed'
     )
 
     // Create a Map variable from scratch
@@ -198,7 +198,7 @@ describe('Variables', () => {
       .click()
 
     cy.getByTestID('notification-success--dismiss').click()
-    cy.getByTestID(`variable-card--name ${queryVariableName}`).should('exist')
+    cy.getByTestID(`variable-card--name ${queryVariableName}`).contains(queryVariableName)
   })
 
   it('keeps user input in text area when attempting to import invalid JSON', () => {
