@@ -571,7 +571,7 @@ func TestPromiseFailure(t *testing.T) {
 	}
 
 	if len(runs) != 1 {
-		t.Fatalf("expected 0 runs on failed promise: got: %d, %#v", len(runs), runs[0])
+		t.Fatalf("expected 1 runs on failed promise: got: %d, %#v", len(runs), runs[0])
 	}
 
 	if runs[0].Status != "failed" {
