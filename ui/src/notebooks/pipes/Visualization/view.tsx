@@ -1,4 +1,4 @@
-import React, {FC, useContext, useState} from 'react'
+import React, {FC, useContext} from 'react'
 import {PipeProp} from 'src/notebooks'
 import EmptyQueryView, {ErrorFormat} from 'src/shared/components/EmptyQueryView'
 import DashboardList from './DashboardList'
@@ -23,7 +23,6 @@ const Visualization: FC<PipeProp> = ({
   loading,
 }) => {
   const {timeZone} = useContext(AppSettingContext)
-  // const [showExport, updateShowExport] = useState(false)
 
   const updateType = (type: ViewType) => {
     const newView = createView(type)
@@ -85,14 +84,6 @@ const Visualization: FC<PipeProp> = ({
       properties: newView.properties,
     })
   }
-
-  // const toggleExport = () => {
-  //   if (!results.source) {
-  //     return
-  //   }
-
-  //   updateShowExport(!showExport)
-  // }
 
   const controls = (
     <>
