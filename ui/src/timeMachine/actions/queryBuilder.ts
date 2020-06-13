@@ -7,6 +7,7 @@ import {fetchDemoDataBuckets} from 'src/cloud/apis/demodata'
 // Utils
 import {getActiveQuery, getActiveTimeMachine} from 'src/timeMachine/selectors'
 import {getTimeRangeWithTimezone} from 'src/dashboards/selectors'
+import {reportSimpleQPEvent} from 'src/cloud/utils/reporting'
 
 // Types
 import {
@@ -150,6 +151,7 @@ export const loadBuckets = () => async (
   dispatch: Dispatch<Action | ReturnType<typeof selectBucket>>,
   getState: GetState
 ) => {
+  reportSimpleQPEvent('loadBuckets function start', Date.now())
   const orgID = getOrg(getState()).id
 
   dispatch(setBuilderBucketsStatus(RemoteDataState.Loading))
@@ -180,6 +182,7 @@ export const loadBuckets = () => async (
     } else {
       dispatch(selectBucket(buckets[0], true))
     }
+    reportSimpleQPEvent('loadBuckets function end', Date.now())
   } catch (e) {
     if (e.name === 'CancellationError') {
       return
@@ -202,6 +205,8 @@ export const loadTagSelector = (index: number) => async (
   dispatch: Dispatch<Action | ReturnType<typeof loadTagSelectorValues>>,
   getState: GetState
 ) => {
+  reportSimpleQPEvent('loadTagSelector function start', Date.now())
+
   const {buckets, tags} = getActiveQuery(getState()).builderConfig
 
   if (!tags[index] || !buckets[0]) {
@@ -256,6 +261,7 @@ export const loadTagSelector = (index: number) => async (
 
     dispatch(setBuilderTagKeys(index, keys))
     dispatch(loadTagSelectorValues(index))
+    reportSimpleQPEvent('loadTagSelector function end', Date.now())
   } catch (e) {
     if (e.name === 'CancellationError') {
       return
@@ -270,6 +276,8 @@ const loadTagSelectorValues = (index: number) => async (
   dispatch: Dispatch<Action | ReturnType<typeof loadTagSelector>>,
   getState: GetState
 ) => {
+  reportSimpleQPEvent('loadTagSelectorValues function start', Date.now())
+
   const state = getState()
   const {buckets, tags} = getActiveQuery(state).builderConfig
   const tagsSelections = tags.slice(0, index)
@@ -315,6 +323,7 @@ const loadTagSelectorValues = (index: number) => async (
 
     dispatch(setBuilderTagValues(index, values))
     dispatch(loadTagSelector(index + 1))
+    reportSimpleQPEvent('loadTagSelectorValues function end', Date.now())
   } catch (e) {
     if (e.name === 'CancellationError') {
       return

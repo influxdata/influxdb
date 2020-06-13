@@ -16,6 +16,7 @@ import {saveAndExecuteQueries} from 'src/timeMachine/actions/queries'
 
 // Utils
 import {getActiveTimeMachine, getActiveQuery} from 'src/timeMachine/selectors'
+import {reportSimpleQPEvent} from 'src/cloud/utils/reporting'
 
 // Types
 import {RemoteDataState} from 'src/types'
@@ -76,6 +77,7 @@ class SubmitQueryButton extends PureComponent<Props> {
 
   private handleClick = (): void => {
     this.props.onSubmit()
+    reportSimpleQPEvent('SubmitQueryButton click', Date.now())
   }
 }
 

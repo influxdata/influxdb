@@ -16,6 +16,7 @@ import {loadBuckets, addTagSelector} from 'src/timeMachine/actions/queryBuilder'
 
 // Utils
 import {getActiveQuery, getActiveTimeMachine} from 'src/timeMachine/selectors'
+import {reportSimpleQPEvent} from 'src/cloud/utils/reporting'
 
 // Types
 import {CheckType, AppState} from 'src/types'
@@ -37,6 +38,11 @@ type Props = StateProps & DispatchProps
 interface State {}
 
 class TimeMachineQueryBuilder extends PureComponent<Props, State> {
+  constructor(props) {
+    super(props)
+    reportSimpleQPEvent('TimeMachineQueryBuilder load start', Date.now())
+  }
+
   public componentDidMount() {
     this.props.onLoadBuckets()
   }
