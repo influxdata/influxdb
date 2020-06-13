@@ -14,9 +14,10 @@
 
 use bytes::Bytes;
 use futures::{stream, Stream, StreamExt, TryStreamExt};
+use rusoto_core::ByteStream;
 use rusoto_credential::ChainProvider;
 use rusoto_s3::S3;
-use snafu::{futures::TryStreamExt as _, OptionExt, ResultExt, Snafu};
+use snafu::{ensure, futures::TryStreamExt as _, OptionExt, ResultExt, Snafu};
 use tokio::sync::RwLock;
 
 use std::{collections::BTreeMap, fmt};
@@ -42,14 +43,16 @@ impl ObjectStore {
     }
 
     /// Save the provided bytes to the specified location.
-    pub async fn put<S>(&self, location: &str, bytes: S) -> Result<()>
+    pub async fn put<S>(&self, location: &str, bytes: S, length: usize) -> Result<()>
     where
         S: Stream<Item = std::io::Result<Bytes>> + Send + Sync + 'static,
     {
         match &self.0 {
-            ObjectStoreIntegration::AmazonS3(s3) => s3.put(location, bytes).await?,
-            ObjectStoreIntegration::GoogleCloudStorage(gcs) => gcs.put(location, bytes).await?,
-            ObjectStoreIntegration::InMemory(in_mem) => in_mem.put(location, bytes).await?,
+            ObjectStoreIntegration::AmazonS3(s3) => s3.put(location, bytes, length).await?,
+            ObjectStoreIntegration::GoogleCloudStorage(gcs) => {
+                gcs.put(location, bytes, length).await?
+            }
+            ObjectStoreIntegration::InMemory(in_mem) => in_mem.put(location, bytes, length).await?,
         }
 
         Ok(())
@@ -115,7 +118,7 @@ impl GoogleCloudStorage {
     }
 
     /// Save the provided bytes to the specified location.
-    async fn put<S>(&self, location: &str, bytes: S) -> InternalResult<()>
+    async fn put<S>(&self, location: &str, bytes: S, length: usize) -> InternalResult<()>
     where
         S: Stream<Item = std::io::Result<Bytes>> + Send + Sync + 'static,
     {
@@ -125,6 +128,14 @@ impl GoogleCloudStorage {
             .await
             .expect("Should have been able to collect streaming data")
             .to_vec();
+
+        ensure!(
+            temporary_non_streaming.len() == length,
+            DataDoesNotMatchLength {
+                actual: temporary_non_streaming.len(),
+                expected: length,
+            }
+        );
 
         let location = location.to_string();
         let bucket_name = self.bucket_name.clone();
@@ -229,23 +240,16 @@ impl AmazonS3 {
     }
 
     /// Save the provided bytes to the specified location.
-    async fn put<S>(&self, location: &str, bytes: S) -> InternalResult<()>
+    async fn put<S>(&self, location: &str, bytes: S, length: usize) -> InternalResult<()>
     where
         S: Stream<Item = std::io::Result<Bytes>> + Send + Sync + 'static,
     {
-        // Rusoto theoretically supports streaming, but won't actually until this is fixed:
-        // https://github.com/rusoto/rusoto/issues/1752
-        let temporary_non_streaming = bytes
-            .map_ok(|b| bytes::BytesMut::from(&b[..]))
-            .try_concat()
-            .await
-            .expect("Should have been able to collect streaming data")
-            .to_vec();
+        let bytes = ByteStream::new_with_size(bytes, length);
 
         let put_request = rusoto_s3::PutObjectRequest {
             bucket: self.bucket_name.clone(),
             key: location.to_string(),
-            body: Some(temporary_non_streaming.into()),
+            body: Some(bytes),
             ..Default::default()
         };
 
@@ -349,7 +353,7 @@ impl InMemory {
     }
 
     /// Save the provided bytes to the specified location.
-    async fn put<S>(&self, location: &str, bytes: S) -> InternalResult<()>
+    async fn put<S>(&self, location: &str, bytes: S, length: usize) -> InternalResult<()>
     where
         S: Stream<Item = std::io::Result<Bytes>> + Send + Sync + 'static,
     {
@@ -358,6 +362,15 @@ impl InMemory {
             .try_concat()
             .await
             .context(UnableToPutDataInMemory)?;
+
+        ensure!(
+            content.len() == length,
+            DataDoesNotMatchLength {
+                actual: content.len(),
+                expected: length,
+            }
+        );
+
         let content = content.freeze();
 
         self.storage
@@ -442,6 +455,11 @@ impl Error {
 
 #[derive(Debug, Snafu)]
 enum InternalError {
+    DataDoesNotMatchLength {
+        expected: usize,
+        actual: usize,
+    },
+
     UnableToPutDataToGcs {
         source: tokio::task::JoinError,
     },
@@ -502,6 +520,16 @@ mod tests {
     type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
     type Result<T, E = Error> = std::result::Result<T, E>;
 
+    macro_rules! assert_error {
+        ($res:expr, $error_pat:pat$(,)?) => {
+            assert!(
+                matches!($res, Err(super::Error($error_pat))),
+                "was: {:?}",
+                $res,
+            )
+        };
+    }
+
     async fn flatten_list_stream(
         storage: &ObjectStore,
         prefix: Option<&str>,
@@ -524,7 +552,11 @@ mod tests {
 
         let stream_data = std::io::Result::Ok(data.clone());
         storage
-            .put(location, futures::stream::once(async move { stream_data }))
+            .put(
+                location,
+                futures::stream::once(async move { stream_data }),
+                data.len(),
+            )
             .await?;
 
         // List everything
@@ -634,6 +666,24 @@ mod tests {
             let integration = ObjectStore::new_in_memory(InMemory::new());
 
             put_get_delete_list(&integration).await?;
+            Ok(())
+        }
+
+        #[tokio::test]
+        async fn length_mismatch_is_an_error() -> Result<()> {
+            let integration = ObjectStore::new_in_memory(InMemory::new());
+
+            let bytes = stream::once(async { Ok(Bytes::from("hello world")) });
+            let res = integration.put("junk", bytes, 0).await;
+
+            assert_error!(
+                res,
+                InternalError::DataDoesNotMatchLength {
+                    expected: 0,
+                    actual: 11,
+                },
+            );
+
             Ok(())
         }
     }
