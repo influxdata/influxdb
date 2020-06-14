@@ -215,8 +215,9 @@ export const executeQueries = (abortController?: AbortController) => async (
       setQueryResults(RemoteDataState.Done, files, duration, null, statuses)
     )
     reportSimpleQueryPerformanceEvent('executeQueries function start')
+    return results
   } catch (error) {
-    if (error.name === 'CancellationError') {
+    if (error.name === 'CancellationError' || error.name === 'AbortError') {
       dispatch(setQueryResults(RemoteDataState.Done, null, null))
       return
     }
