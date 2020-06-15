@@ -184,18 +184,18 @@ jobs:
             npm test; TEST_RESULT=$?
             npm run report:html
             npm run report:junit
-            mkdir -p ~/test-results/cucumber
-            mkdir -p ~/artifacts/html
-            cp ~/project/selenium-accept-infl2/report/cucumber_report.html ~/artifacts/html/cucumber_report.html
-            cp ~/project/selenium-accept-infl2/report/cucumber_junit.xml ~/test-results/cucumber/report.xml
-            cp ~/project/selenium-accept-infl2/report/cucumber_junit.xml ~/artifacts/report.xml
-            cp -r ~/project/selenium-accept-infl2/screenshots ~/artifacts
+            mkdir -p ~/e2e/test-results/cucumber
+            mkdir -p ~/e2e/artifacts/html
+            cp ~/project/influxdb/e2e/report/cucumber_report.html ~/e2e/artifacts/html/cucumber_report.html
+            cp ~/project/influxdb/e2e/report/cucumber_junit.xml ~/e2e/test-results/cucumber/report.xml
+            cp ~/project/influxdb/e2e/report/cucumber_junit.xml ~/e2e/artifacts/report.xml
+            cp -r ~/project/influxdb/e2e/screenshots ~/e2e/artifacts
             ls -al
             exit $TEST_RESULT
       - store_test_results:
-          path: ~/test-results
+          path: ~/e2e/test-results
       - store_artifacts:
-          path: ~/artifacts
+          path: ~/e2e/artifacts
   jstest:
     docker:
       - image: circleci/golang:1.13-node-browsers
