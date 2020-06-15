@@ -211,7 +211,7 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.WriteHeader(http.StatusNoContent)
+	sw.WriteHeader(http.StatusNoContent)
 }
 
 // checkBucketWritePermissions checks an Authorizer for write permissions to a
