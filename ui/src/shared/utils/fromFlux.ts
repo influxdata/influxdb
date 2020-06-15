@@ -196,7 +196,10 @@ export default function fromFlux(csv: string): ParsedFlux {
       csv.substring(
         chunks[currentChunkIndex].start,
         chunks[currentChunkIndex].stop
-      )
+      ), {
+          delimiter: ',',
+          newline: '\n'
+      }
     ).data
 
     // trim whitespace from the beginning

@@ -230,4 +230,14 @@ there",5
     expect(flux.fluxGroupKeyUnion).toEqual([])
     expect((fluxLegacy.table as any).columns['_value'].data).toEqual([28])
   })
+
+  test('it crushes whatever this bug is', () => {
+      const CSV=require('!raw-loader!./fromFlux.newline.csv')
+
+      let flux
+      expect(() => {
+          flux = fromFlux(CSV)
+      }).not.toThrow()
+      expect(flux.table.columnKeys.length).toEqual(17)
+  })
 })
