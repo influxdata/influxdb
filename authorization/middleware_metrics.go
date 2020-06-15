@@ -17,7 +17,7 @@ type AuthMetrics struct {
 
 var _ influxdb.AuthorizationService = (*AuthMetrics)(nil)
 
-func NewAuthMetrics(reg prometheus.Registerer, s influxdb.AuthorizationService, opts ...metric.MetricsOption) *AuthMetrics {
+func NewAuthMetrics(reg prometheus.Registerer, s influxdb.AuthorizationService, opts ...metric.ClientOptFn) *AuthMetrics {
 	o := metric.ApplyMetricOpts(opts...)
 	return &AuthMetrics{
 		rec:         metric.New(reg, o.ApplySuffix("token")),
