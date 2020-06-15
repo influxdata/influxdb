@@ -15,6 +15,31 @@ const (
 	MaxPointsPerBlock = 1000
 )
 
+func newLimitArrayCursor(cur cursors.Cursor) cursors.Cursor {
+	switch cur := cur.(type) {
+{{range .}}{{/* every type supports first */}}
+	case cursors.{{.Name}}ArrayCursor:
+		return new{{.Name}}LimitArrayCursor(cur)
+{{end}}
+	default:
+		panic(fmt.Sprintf("unreachable: %T", cur))
+	}
+}
+
+func newWindowLimitArrayCursor(cur cursors.Cursor, every int64) cursors.Cursor {
+	if every == 0 {
+		return newLimitArrayCursor(cur)
+	}
+	switch cur := cur.(type) {
+{{range .}}{{/* every type supports first */}}
+	case cursors.{{.Name}}ArrayCursor:
+		return new{{.Name}}WindowLimitArrayCursor(cur, every)
+{{end}}
+	default:
+		panic(fmt.Sprintf("unreachable: %T", cur))
+	}
+}
+
 func newWindowCountArrayCursor(cur cursors.Cursor, every int64) cursors.Cursor {
 	switch cur := cur.(type) {
 {{range .}}{{/* every type supports count */}}
@@ -186,6 +211,105 @@ func (c *{{.name}}ArrayCursor) nextArrayCursor() bool {
 	}
 
 	return ok
+}
+
+type {{.name}}LimitArrayCursor struct {
+	cursors.{{.Name}}ArrayCursor
+	res {{$arrayType}}
+	done bool
+}
+
+func new{{.Name}}LimitArrayCursor(cur cursors.{{.Name}}ArrayCursor) *{{.name}}LimitArrayCursor {
+	return &{{.name}}LimitArrayCursor{
+		{{.Name}}ArrayCursor: cur,
+		res: cursors.New{{.Name}}ArrayLen(1),
+	}
+}
+
+func (c *{{.name}}LimitArrayCursor) Stats() cursors.CursorStats { return c.{{.Name}}ArrayCursor.Stats() }
+
+func (c *{{.name}}LimitArrayCursor) Next() {{$arrayType}} {
+	if c.done {
+		return &cursors.{{.Name}}Array{}
+	}
+	a := c.{{.Name}}ArrayCursor.Next()
+	if len(a.Timestamps) == 0 {
+		return a
+	}
+	c.done = true
+	c.res.Timestamps[0] = a.Timestamps[0]
+	c.res.Values[0] = a.Values[0]
+	return c.res
+}
+
+type {{.name}}WindowLimitArrayCursor struct {
+	cursors.{{.Name}}ArrayCursor
+	every int64
+	final int64
+	res {{$arrayType}}
+	tmp {{$arrayType}}
+}
+
+func new{{.Name}}WindowLimitArrayCursor(cur cursors.{{.Name}}ArrayCursor, every int64) *{{.name}}WindowLimitArrayCursor {
+	return &{{.name}}WindowLimitArrayCursor{
+		{{.Name}}ArrayCursor: cur,
+		every: every,
+		final: math.MinInt64,
+		res: cursors.New{{.Name}}ArrayLen(MaxPointsPerBlock),
+		tmp: &cursors.{{.Name}}Array{},
+	}
+}
+
+func (c *{{.name}}WindowLimitArrayCursor) Stats() cursors.CursorStats {
+	return c.{{.Name}}ArrayCursor.Stats()
+}
+
+func (c *{{.name}}WindowLimitArrayCursor) Next() *cursors.{{.Name}}Array {
+	c.res.Timestamps = c.res.Timestamps[:0]
+	c.res.Values = c.res.Values[:0]
+
+	every := c.every
+	if every == 0 {
+		every = math.MaxInt64
+	}
+
+NEXT:
+	var a *cursors.{{.Name}}Array
+
+	if c.tmp.Len() > 0 {
+		a = c.tmp
+	} else {
+		a = c.{{.Name}}ArrayCursor.Next()
+	}
+
+	if a.Len() == 0 {
+		return c.res
+	}
+
+	for i, t := range a.Timestamps {
+		if t < c.final {
+			continue
+		}
+
+		beg := t - t % every
+		end := beg + every
+
+		c.final = end
+
+		c.res.Timestamps = append(c.res.Timestamps, t)
+		c.res.Values = append(c.res.Values, a.Values[i])
+
+		if c.res.Len() == MaxPointsPerBlock {
+			c.tmp.Timestamps = a.Timestamps[i+1:]
+			c.tmp.Values = a.Values[i+1:]
+			return c.res
+		}
+	}
+
+	c.tmp.Timestamps = nil
+	c.tmp.Values = nil
+
+	goto NEXT
 }
 
 {{/* create an aggregate cursor for each aggregate function supported by the type */}}

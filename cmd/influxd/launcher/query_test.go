@@ -892,7 +892,15 @@ from(bucket: v.bucket)
 
 func TestLauncher_Query_PushDownGroupAggregate(t *testing.T) {
 	l := launcher.RunTestLauncherOrFail(t, ctx,
-		"--feature-flags", "pushDownGroupAggregateCount=true,pushDownGroupAggregateSum=true")
+		"--feature-flags",
+		"pushDownGroupAggregateCount=true",
+		"--feature-flags",
+		"pushDownGroupAggregateSum=true",
+		"--feature-flags",
+		"pushDownGroupAggregateFirst=true",
+		"--feature-flags",
+		"pushDownGroupAggregateLast=true",
+	)
 	l.SetupOrFail(t)
 	defer l.ShutdownOrFail(t, ctx)
 
@@ -938,6 +946,78 @@ m0,k=k0,kk=kk1 f=5i 15000000000
 		res  string
 	}{
 		{
+			name: "group first",
+			q: `
+from(bucket: v.bucket)
+	|> range(start: 0)
+	|> group(columns: ["k"])
+	|> first()
+	|> keep(columns: ["_time", "_value"])
+`,
+			op: "readGroup(first)",
+			res: `
+#datatype,string,long,dateTime:RFC3339,long
+#group,false,false,false,false
+#default,_result,,,
+,result,table,_time,_value
+,,0,1970-01-01T00:00:00.00Z,0
+`,
+		},
+		{
+			name: "group none first",
+			q: `
+from(bucket: v.bucket)
+	|> range(start: 0)
+	|> group()
+	|> first()
+	|> keep(columns: ["_time", "_value"])
+`,
+			op: "readGroup(first)",
+			res: `
+#datatype,string,long,dateTime:RFC3339,long
+#group,false,false,false,false
+#default,_result,,,
+,result,table,_time,_value
+,,0,1970-01-01T00:00:00.00Z,0
+`,
+		},
+		{
+			name: "group last",
+			q: `
+from(bucket: v.bucket)
+	|> range(start: 0)
+	|> group(columns: ["k"])
+	|> last()
+	|> keep(columns: ["_time", "_value"])
+`,
+			op: "readGroup(last)",
+			res: `
+#datatype,string,long,dateTime:RFC3339,long
+#group,false,false,false,false
+#default,_result,,,
+,result,table,_time,_value
+,,0,1970-01-01T00:00:15.00Z,5
+`,
+		},
+		{
+			name: "group none last",
+			q: `
+from(bucket: v.bucket)
+	|> range(start: 0)
+	|> group()
+	|> last()
+	|> keep(columns: ["_time", "_value"])
+`,
+			op: "readGroup(last)",
+			res: `
+#datatype,string,long,dateTime:RFC3339,long
+#group,false,false,false,false
+#default,_result,,,
+,result,table,_time,_value
+,,0,1970-01-01T00:00:15.00Z,5
+`,
+		},
+		{
 			name: "count group none",
 			q: `
 from(bucket: v.bucket)
@@ -957,7 +1037,7 @@ from(bucket: v.bucket)
 		},
 		{
 			name: "count group",
-			op: "readGroup(count)",
+			op:   "readGroup(count)",
 			q: `
 from(bucket: v.bucket)
 	|> range(start: 1970-01-01T00:00:00Z, stop: 1970-01-01T00:00:15Z)
@@ -994,7 +1074,7 @@ from(bucket: v.bucket)
 		},
 		{
 			name: "sum group",
-			op: "readGroup(sum)",
+			op:   "readGroup(sum)",
 			q: `
 from(bucket: v.bucket)
 	|> range(start: 1970-01-01T00:00:00Z, stop: 1970-01-01T00:00:15Z)

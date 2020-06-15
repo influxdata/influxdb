@@ -17,6 +17,10 @@ func (v *singleValue) Value(key string) (interface{}, bool) {
 }
 
 func newAggregateArrayCursor(ctx context.Context, agg *datatypes.Aggregate, cursor cursors.Cursor) cursors.Cursor {
+	switch agg.Type {
+	case datatypes.AggregateTypeFirst, datatypes.AggregateTypeLast:
+		return newLimitArrayCursor(cursor)
+	}
 	return newWindowAggregateArrayCursor(ctx, agg, 0, cursor)
 }
 
@@ -30,6 +34,8 @@ func newWindowAggregateArrayCursor(ctx context.Context, agg *datatypes.Aggregate
 		return newWindowCountArrayCursor(cursor, every)
 	case datatypes.AggregateTypeSum:
 		return newWindowSumArrayCursor(cursor, every)
+	case datatypes.AggregateTypeFirst, datatypes.AggregateTypeLast:
+		return newWindowLimitArrayCursor(cursor, every)
 	default:
 		// TODO(sgc): should be validated higher up
 		panic("invalid aggregate")

@@ -26,6 +26,8 @@ func NewStore(viewer reads.Viewer) reads.Store {
 		groupCap: GroupCapability{
 			Count: true,
 			Sum:   true,
+			First: true,
+			Last:  true,
 		},
 		windowCap: WindowAggregateCapability{
 			Count: true,
