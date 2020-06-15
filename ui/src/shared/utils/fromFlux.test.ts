@@ -1,6 +1,9 @@
 import fromFlux from './fromFlux'
 import fromFluxLegacy from './fromFlux.legacy'
 
+const fs = require('fs')
+const path = require('path')
+
 describe('fromFlux', () => {
   test('can parse a Flux CSV with mismatched schemas', () => {
     const CSV = `#group,false,false,true,true,false,true,true,true,true,true
@@ -232,12 +235,31 @@ there",5
   })
 
   test('it crushes whatever this bug is', () => {
-      const CSV=require('!raw-loader!./fromFlux.newline.csv')
+    const file = path.join(__dirname, './', 'fromFlux.newline.csv')
+    const CSV = fs.readFileSync(file, 'utf8', function(err: any, data: any) {
+      return data
+    })
 
-      let flux
-      expect(() => {
-          flux = fromFlux(CSV)
-      }).not.toThrow()
-      expect(flux.table.columnKeys.length).toEqual(17)
+    let flux
+    expect(() => {
+      flux = fromFlux(CSV)
+    }).not.toThrow()
+    expect(flux.table.columnKeys.length).toEqual(17)
+  })
+
+  test('it doesnt group all results', () => {
+    const file = path.join(__dirname, './', 'fromFlux.grouping.csv')
+    const CSV = fs.readFileSync(file, 'utf8', function(err: any, data: any) {
+      return data
+    })
+    const flux = fromFlux(CSV)
+    console.log(flux.table.columns.result)
+    const results = Object.keys(
+      flux.table.columns.result.data.reduce((acc, curr) => {
+        acc['' + curr] = true
+        return acc
+      }, {})
+    )
+    expect(results.length).toEqual(4)
   })
 })
