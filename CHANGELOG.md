@@ -3,6 +3,7 @@
 ### Features
 
 1. [18387](https://github.com/influxdata/influxdb/pull/18387): Integrate query cancellation after queries have been submitted
+1. [18515](https://github.com/influxdata/influxdb/pull/18515): Extend templates with the source file|url|reader.
 
 ## v2.0.0-beta.12 [2020-06-12]
 

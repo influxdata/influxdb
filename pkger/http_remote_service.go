@@ -68,7 +68,7 @@ func (s *HTTPRemoteService) ExportStack(ctx context.Context, orgID, stackID infl
 		Get(RoutePrefix, "stacks", stackID.String(), "export").
 		QueryParams([2]string{"orgID", orgID.String()}).
 		Decode(func(resp *http.Response) error {
-			decodedPkg, err := Parse(EncodingJSON, FromReader(resp.Body))
+			decodedPkg, err := Parse(EncodingJSON, FromReader(resp.Body, ""))
 			if err != nil {
 				return err
 			}
@@ -139,7 +139,7 @@ func (s *HTTPRemoteService) CreatePkg(ctx context.Context, setters ...CreatePkgS
 	err := s.Client.
 		PostJSON(reqBody, RoutePrefix).
 		Decode(func(resp *http.Response) error {
-			pkg, err := Parse(EncodingJSON, FromReader(resp.Body))
+			pkg, err := Parse(EncodingJSON, FromReader(resp.Body, "export"))
 			newPkg = pkg
 			return err
 		}).
@@ -157,35 +157,37 @@ func (s *HTTPRemoteService) CreatePkg(ctx context.Context, setters ...CreatePkgS
 // DryRun provides a dry run of the pkg application. The pkg will be marked verified
 // for later calls to Apply. This func will be run on an Apply if it has not been run
 // already.
-func (s *HTTPRemoteService) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (PkgImpactSummary, error) {
-	return s.apply(ctx, orgID, pkg, true, opts...)
+func (s *HTTPRemoteService) DryRun(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (PkgImpactSummary, error) {
+	return s.apply(ctx, orgID, true, opts...)
 }
 
 // Apply will apply all the resources identified in the provided pkg. The entire pkg will be applied
 // in its entirety. If a failure happens midway then the entire pkg will be rolled back to the state
 // from before the pkg was applied.
-func (s *HTTPRemoteService) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (PkgImpactSummary, error) {
-	return s.apply(ctx, orgID, pkg, false, opts...)
+func (s *HTTPRemoteService) Apply(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (PkgImpactSummary, error) {
+	return s.apply(ctx, orgID, false, opts...)
 }
 
-func (s *HTTPRemoteService) apply(ctx context.Context, orgID influxdb.ID, pkg *Pkg, dryRun bool, opts ...ApplyOptFn) (PkgImpactSummary, error) {
+func (s *HTTPRemoteService) apply(ctx context.Context, orgID influxdb.ID, dryRun bool, opts ...ApplyOptFn) (PkgImpactSummary, error) {
 	opt := applyOptFromOptFns(opts...)
 
-	var rawPkg []byte
-	if pkg != nil {
+	var rawPkg ReqRawPkg
+	for _, pkg := range opt.Pkgs {
 		b, err := pkg.Encode(EncodingJSON)
 		if err != nil {
 			return PkgImpactSummary{}, err
 		}
-		rawPkg = b
+		rawPkg.Pkg = b
+		rawPkg.Sources = pkg.sources
+		rawPkg.ContentType = EncodingJSON.String()
 	}
 
 	reqBody := ReqApplyPkg{
-		OrgID:   orgID.String(),
-		DryRun:  dryRun,
-		EnvRefs: opt.EnvRefs,
-		Secrets: opt.MissingSecrets,
-		RawPkg:  rawPkg,
+		OrgID:       orgID.String(),
+		DryRun:      dryRun,
+		EnvRefs:     opt.EnvRefs,
+		Secrets:     opt.MissingSecrets,
+		RawTemplate: rawPkg,
 	}
 	if opt.StackID != 0 {
 		stackID := opt.StackID.String()
@@ -202,6 +204,7 @@ func (s *HTTPRemoteService) apply(ctx context.Context, orgID influxdb.ID, pkg *P
 	}
 
 	impact := PkgImpactSummary{
+		Sources: resp.Sources,
 		Diff:    resp.Diff,
 		Summary: resp.Summary,
 	}

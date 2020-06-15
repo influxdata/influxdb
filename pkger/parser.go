@@ -8,6 +8,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"regexp"
 	"sort"
 	"strconv"
@@ -96,21 +97,38 @@ func Parse(encoding Encoding, readerFn ReaderFn, opts ...ValidateOptFn) (*Pkg, e
 // FromFile reads a file from disk and provides a reader from it.
 func FromFile(filePath string) ReaderFn {
 	return func() (io.Reader, string, error) {
+		u, err := url.Parse(filePath)
+		if err != nil {
+			return nil, filePath, &influxdb.Error{
+				Code: influxdb.EInvalid,
+				Msg:  "invalid filepath provided",
+				Err:  err,
+			}
+		}
+		if u.Scheme == "" {
+			u.Scheme = "file"
+		}
+
 		// not using os.Open to avoid having to deal with closing the file in here
-		b, err := ioutil.ReadFile(filePath)
+		b, err := ioutil.ReadFile(u.Path)
 		if err != nil {
 			return nil, filePath, err
 		}
-		return bytes.NewBuffer(b), filePath, nil
+
+		return bytes.NewBuffer(b), u.String(), nil
 	}
 }
 
 // FromReader simply passes the reader along. Useful when consuming
 // this from an HTTP request body. There are a number of other useful
 // places for this functional input.
-func FromReader(r io.Reader) ReaderFn {
+func FromReader(r io.Reader, sources ...string) ReaderFn {
 	return func() (io.Reader, string, error) {
-		return r, "byte stream", nil
+		source := "byte stream"
+		if len(sources) > 0 {
+			source = formatSources(sources)
+		}
+		return r, source, nil
 	}
 }
 
@@ -334,6 +352,12 @@ func (p *Pkg) Encode(encoding Encoding) ([]byte, error) {
 		return nil, err
 	}
 	return buf.Bytes(), nil
+}
+
+func (p *Pkg) Sources() []string {
+	// note: we prevent the internal field from being changed by enabling access
+	// 		 to the sources via the exported method here.
+	return p.sources
 }
 
 // Summary returns a package Summary that describes all the resources and

@@ -385,38 +385,50 @@ func (s *HTTPServer) createPkg(w http.ResponseWriter, r *http.Request) {
 	s.encResp(w, r, enc, http.StatusOK, resp)
 }
 
-// PkgRemote provides a package via a remote (i.e. a gist). If content type is not
+// ReqPkgRemote provides a package via a remote (i.e. a gist). If content type is not
 // provided then the service will do its best to discern the content type of the
 // contents.
-type PkgRemote struct {
-	URL         string `json:"url"`
-	ContentType string `json:"contentType"`
+type ReqPkgRemote struct {
+	URL         string `json:"url" yaml:"url"`
+	ContentType string `json:"contentType" yaml:"contentType"`
 }
 
 // Encoding returns the encoding type that corresponds to the given content type.
-func (p PkgRemote) Encoding() Encoding {
-	ct := strings.ToLower(p.ContentType)
-	urlBase := path.Ext(p.URL)
-	switch {
-	case ct == "jsonnet" || urlBase == ".jsonnet":
-		return EncodingJsonnet
-	case ct == "json" || urlBase == ".json":
-		return EncodingJSON
-	case ct == "yml" || ct == "yaml" || urlBase == ".yml" || urlBase == ".yaml":
-		return EncodingYAML
-	default:
-		return EncodingSource
+func (p ReqPkgRemote) Encoding() Encoding {
+	return convertEncoding(p.ContentType, p.URL)
+}
+
+type ReqRawPkg struct {
+	ContentType string          `json:"contentType" yaml:"contentType"`
+	Sources     []string        `json:"sources" yaml:"sources"`
+	Pkg         json.RawMessage `json:"contents" yaml:"contents"`
+}
+
+func (p ReqRawPkg) Encoding() Encoding {
+	var source string
+	if len(p.Sources) > 0 {
+		source = p.Sources[0]
 	}
+	return convertEncoding(p.ContentType, source)
 }
 
 // ReqApplyPkg is the request body for a json or yaml body for the apply pkg endpoint.
 type ReqApplyPkg struct {
-	DryRun  bool              `json:"dryRun" yaml:"dryRun"`
-	OrgID   string            `json:"orgID" yaml:"orgID"`
-	StackID *string           `json:"stackID" yaml:"stackID"` // optional: non nil value signals stack should be used
-	Remotes []PkgRemote       `json:"remotes" yaml:"remotes"`
+	DryRun  bool           `json:"dryRun" yaml:"dryRun"`
+	OrgID   string         `json:"orgID" yaml:"orgID"`
+	StackID *string        `json:"stackID" yaml:"stackID"` // optional: non nil value signals stack should be used
+	Remotes []ReqPkgRemote `json:"remotes" yaml:"remotes"`
+
+	// TODO(jsteenb2): pkg references will all be replaced by template references
+	// 	these 2 exist alongside the templates for backwards compatibility
+	// 	until beta13 rolls out the door. This code should get axed when the next
+	//	OSS release goes out.
 	RawPkgs []json.RawMessage `json:"packages" yaml:"packages"`
 	RawPkg  json.RawMessage   `json:"package" yaml:"package"`
+
+	RawTemplates []ReqRawPkg `json:"templates" yaml:"templates"`
+	RawTemplate  ReqRawPkg   `json:"template" yaml:"template"`
+
 	EnvRefs map[string]string `json:"envRefs"`
 	Secrets map[string]string `json:"secrets"`
 }
@@ -442,11 +454,31 @@ func (r ReqApplyPkg) Pkgs(encoding Encoding) (*Pkg, error) {
 		if rawPkg == nil {
 			continue
 		}
+
 		pkg, err := Parse(encoding, FromReader(bytes.NewReader(rawPkg)), ValidSkipParseError())
 		if err != nil {
 			return nil, &influxdb.Error{
 				Code: influxdb.EUnprocessableEntity,
-				Msg:  fmt.Sprintf("pkg [%d] had an issue: %s", i, err.Error()),
+				Msg:  fmt.Sprintf("pkg[%d] had an issue: %s", i, err.Error()),
+			}
+		}
+		rawPkgs = append(rawPkgs, pkg)
+	}
+
+	for i, rawTmpl := range append(r.RawTemplates, r.RawTemplate) {
+		if rawTmpl.Pkg == nil {
+			continue
+		}
+		enc := encoding
+		if sourceEncoding := rawTmpl.Encoding(); sourceEncoding != EncodingSource {
+			enc = sourceEncoding
+		}
+		pkg, err := Parse(enc, FromReader(bytes.NewReader(rawTmpl.Pkg), rawTmpl.Sources...), ValidSkipParseError())
+		if err != nil {
+			sources := formatSources(rawTmpl.Sources)
+			return nil, &influxdb.Error{
+				Code: influxdb.EUnprocessableEntity,
+				Msg:  fmt.Sprintf("pkg[%d] from source(s) %q had an issue: %s", i, sources, err.Error()),
 			}
 		}
 		rawPkgs = append(rawPkgs, pkg)
@@ -457,9 +489,10 @@ func (r ReqApplyPkg) Pkgs(encoding Encoding) (*Pkg, error) {
 
 // RespApplyPkg is the response body for the apply pkg endpoint.
 type RespApplyPkg struct {
-	StackID string  `json:"stackID" yaml:"stackID"`
-	Diff    Diff    `json:"diff" yaml:"diff"`
-	Summary Summary `json:"summary" yaml:"summary"`
+	Sources []string `json:"sources" yaml:"sources"`
+	StackID string   `json:"stackID" yaml:"stackID"`
+	Diff    Diff     `json:"diff" yaml:"diff"`
+	Summary Summary  `json:"summary" yaml:"summary"`
 
 	Errors []ValidationErr `json:"errors,omitempty" yaml:"errors,omitempty"`
 }
@@ -510,13 +543,15 @@ func (s *HTTPServer) applyPkg(w http.ResponseWriter, r *http.Request) {
 
 	applyOpts := []ApplyOptFn{
 		ApplyWithEnvRefs(reqBody.EnvRefs),
+		ApplyWithPkg(parsedPkg),
 		ApplyWithStackID(stackID),
 	}
 
 	if reqBody.DryRun {
-		impact, err := s.svc.DryRun(r.Context(), *orgID, userID, parsedPkg, applyOpts...)
+		impact, err := s.svc.DryRun(r.Context(), *orgID, userID, applyOpts...)
 		if IsParseErr(err) {
 			s.api.Respond(w, r, http.StatusUnprocessableEntity, RespApplyPkg{
+				Sources: append([]string{}, impact.Sources...), // guarantee non nil slice
 				StackID: impact.StackID.String(),
 				Diff:    impact.Diff,
 				Summary: impact.Summary,
@@ -530,6 +565,7 @@ func (s *HTTPServer) applyPkg(w http.ResponseWriter, r *http.Request) {
 		}
 
 		s.api.Respond(w, r, http.StatusOK, RespApplyPkg{
+			Sources: append([]string{}, impact.Sources...), // guarantee non nil slice
 			StackID: impact.StackID.String(),
 			Diff:    impact.Diff,
 			Summary: impact.Summary,
@@ -539,13 +575,14 @@ func (s *HTTPServer) applyPkg(w http.ResponseWriter, r *http.Request) {
 
 	applyOpts = append(applyOpts, ApplyWithSecrets(reqBody.Secrets))
 
-	impact, err := s.svc.Apply(r.Context(), *orgID, userID, parsedPkg, applyOpts...)
+	impact, err := s.svc.Apply(r.Context(), *orgID, userID, applyOpts...)
 	if err != nil && !IsParseErr(err) {
 		s.api.Err(w, r, err)
 		return
 	}
 
 	s.api.Respond(w, r, http.StatusCreated, RespApplyPkg{
+		Sources: append([]string{}, impact.Sources...), // guarantee non nil slice
 		StackID: impact.StackID.String(),
 		Diff:    impact.Diff,
 		Summary: impact.Summary,
@@ -555,6 +592,10 @@ func (s *HTTPServer) applyPkg(w http.ResponseWriter, r *http.Request) {
 
 type encoder interface {
 	Encode(interface{}) error
+}
+
+func formatSources(sources []string) string {
+	return strings.Join(sources, "; ")
 }
 
 func decodeWithEncoding(r *http.Request, v interface{}) (Encoding, error) {
@@ -581,6 +622,21 @@ func pkgEncoding(contentType string) Encoding {
 		return EncodingYAML
 	default:
 		return EncodingJSON
+	}
+}
+
+func convertEncoding(ct, rawURL string) Encoding {
+	ct = strings.ToLower(ct)
+	urlBase := path.Ext(rawURL)
+	switch {
+	case ct == "jsonnet" || urlBase == ".jsonnet":
+		return EncodingJsonnet
+	case ct == "json" || urlBase == ".json":
+		return EncodingJSON
+	case ct == "yml" || ct == "yaml" || urlBase == ".yml" || urlBase == ".yaml":
+		return EncodingYAML
+	default:
+		return EncodingSource
 	}
 }
 
