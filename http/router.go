@@ -28,7 +28,8 @@ func NewRouter(h platform.HTTPErrorHandler) *httprouter.Router {
 	return router
 }
 
-func newBaseChiRouter(errorHandler platform.HTTPErrorHandler) chi.Router {
+// NewBaseChiRouter returns a new chi router with a 404 handler, a 405 handler, and a panic handler.
+func NewBaseChiRouter(errorHandler platform.HTTPErrorHandler) chi.Router {
 	router := chi.NewRouter()
 	bh := baseHandler{HTTPErrorHandler: errorHandler}
 	router.NotFound(bh.notFound)
