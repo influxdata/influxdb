@@ -45,6 +45,9 @@ func newLimitArrayCursor(cur cursors.Cursor) cursors.Cursor {
 }
 
 func newWindowLimitArrayCursor(cur cursors.Cursor, every int64) cursors.Cursor {
+	if every == 0 {
+		return newLimitArrayCursor(cur)
+	}
 	switch cur := cur.(type) {
 
 	case cursors.FloatArrayCursor:
@@ -286,9 +289,6 @@ type floatWindowLimitArrayCursor struct {
 }
 
 func newFloatWindowLimitArrayCursor(cur cursors.FloatArrayCursor, every int64) *floatWindowLimitArrayCursor {
-	if every == 0 {
-		every = math.MaxInt64
-	}
 	return &floatWindowLimitArrayCursor{
 		FloatArrayCursor: cur,
 		every:            every,
@@ -305,6 +305,11 @@ func (c *floatWindowLimitArrayCursor) Stats() cursors.CursorStats {
 func (c *floatWindowLimitArrayCursor) Next() *cursors.FloatArray {
 	c.res.Timestamps = c.res.Timestamps[:0]
 	c.res.Values = c.res.Values[:0]
+
+	every := c.every
+	if every == 0 {
+		every = math.MaxInt64
+	}
 
 NEXT:
 	var a *cursors.FloatArray
@@ -324,8 +329,8 @@ NEXT:
 			continue
 		}
 
-		beg := t - t%c.every
-		end := beg + c.every
+		beg := t - t%every
+		end := beg + every
 
 		c.final = end
 
@@ -769,9 +774,6 @@ type integerWindowLimitArrayCursor struct {
 }
 
 func newIntegerWindowLimitArrayCursor(cur cursors.IntegerArrayCursor, every int64) *integerWindowLimitArrayCursor {
-	if every == 0 {
-		every = math.MaxInt64
-	}
 	return &integerWindowLimitArrayCursor{
 		IntegerArrayCursor: cur,
 		every:              every,
@@ -788,6 +790,11 @@ func (c *integerWindowLimitArrayCursor) Stats() cursors.CursorStats {
 func (c *integerWindowLimitArrayCursor) Next() *cursors.IntegerArray {
 	c.res.Timestamps = c.res.Timestamps[:0]
 	c.res.Values = c.res.Values[:0]
+
+	every := c.every
+	if every == 0 {
+		every = math.MaxInt64
+	}
 
 NEXT:
 	var a *cursors.IntegerArray
@@ -807,8 +814,8 @@ NEXT:
 			continue
 		}
 
-		beg := t - t%c.every
-		end := beg + c.every
+		beg := t - t%every
+		end := beg + every
 
 		c.final = end
 
@@ -1252,9 +1259,6 @@ type unsignedWindowLimitArrayCursor struct {
 }
 
 func newUnsignedWindowLimitArrayCursor(cur cursors.UnsignedArrayCursor, every int64) *unsignedWindowLimitArrayCursor {
-	if every == 0 {
-		every = math.MaxInt64
-	}
 	return &unsignedWindowLimitArrayCursor{
 		UnsignedArrayCursor: cur,
 		every:               every,
@@ -1271,6 +1275,11 @@ func (c *unsignedWindowLimitArrayCursor) Stats() cursors.CursorStats {
 func (c *unsignedWindowLimitArrayCursor) Next() *cursors.UnsignedArray {
 	c.res.Timestamps = c.res.Timestamps[:0]
 	c.res.Values = c.res.Values[:0]
+
+	every := c.every
+	if every == 0 {
+		every = math.MaxInt64
+	}
 
 NEXT:
 	var a *cursors.UnsignedArray
@@ -1290,8 +1299,8 @@ NEXT:
 			continue
 		}
 
-		beg := t - t%c.every
-		end := beg + c.every
+		beg := t - t%every
+		end := beg + every
 
 		c.final = end
 
@@ -1735,9 +1744,6 @@ type stringWindowLimitArrayCursor struct {
 }
 
 func newStringWindowLimitArrayCursor(cur cursors.StringArrayCursor, every int64) *stringWindowLimitArrayCursor {
-	if every == 0 {
-		every = math.MaxInt64
-	}
 	return &stringWindowLimitArrayCursor{
 		StringArrayCursor: cur,
 		every:             every,
@@ -1754,6 +1760,11 @@ func (c *stringWindowLimitArrayCursor) Stats() cursors.CursorStats {
 func (c *stringWindowLimitArrayCursor) Next() *cursors.StringArray {
 	c.res.Timestamps = c.res.Timestamps[:0]
 	c.res.Values = c.res.Values[:0]
+
+	every := c.every
+	if every == 0 {
+		every = math.MaxInt64
+	}
 
 NEXT:
 	var a *cursors.StringArray
@@ -1773,8 +1784,8 @@ NEXT:
 			continue
 		}
 
-		beg := t - t%c.every
-		end := beg + c.every
+		beg := t - t%every
+		end := beg + every
 
 		c.final = end
 
@@ -2101,9 +2112,6 @@ type booleanWindowLimitArrayCursor struct {
 }
 
 func newBooleanWindowLimitArrayCursor(cur cursors.BooleanArrayCursor, every int64) *booleanWindowLimitArrayCursor {
-	if every == 0 {
-		every = math.MaxInt64
-	}
 	return &booleanWindowLimitArrayCursor{
 		BooleanArrayCursor: cur,
 		every:              every,
@@ -2120,6 +2128,11 @@ func (c *booleanWindowLimitArrayCursor) Stats() cursors.CursorStats {
 func (c *booleanWindowLimitArrayCursor) Next() *cursors.BooleanArray {
 	c.res.Timestamps = c.res.Timestamps[:0]
 	c.res.Values = c.res.Values[:0]
+
+	every := c.every
+	if every == 0 {
+		every = math.MaxInt64
+	}
 
 NEXT:
 	var a *cursors.BooleanArray
@@ -2139,8 +2152,8 @@ NEXT:
 			continue
 		}
 
-		beg := t - t%c.every
-		end := beg + c.every
+		beg := t - t%every
+		end := beg + every
 
 		c.final = end
 
