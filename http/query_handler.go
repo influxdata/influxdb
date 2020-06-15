@@ -22,6 +22,7 @@ import (
 	pcontext "github.com/influxdata/influxdb/v2/context"
 	"github.com/influxdata/influxdb/v2/http/metric"
 	"github.com/influxdata/influxdb/v2/kit/check"
+	"github.com/influxdata/influxdb/v2/kit/feature"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"github.com/influxdata/influxdb/v2/logger"
@@ -48,6 +49,7 @@ type FluxBackend struct {
 	OrganizationService influxdb.OrganizationService
 	ProxyQueryService   query.ProxyQueryService
 	FluxLanguageService influxdb.FluxLanguageService
+	Flagger             feature.Flagger
 }
 
 // NewFluxBackend returns a new instance of FluxBackend.
@@ -63,6 +65,7 @@ func NewFluxBackend(log *zap.Logger, b *APIBackend) *FluxBackend {
 		},
 		OrganizationService: b.OrganizationService,
 		FluxLanguageService: b.FluxLanguageService,
+		Flagger:             b.Flagger,
 	}
 }
 
@@ -83,6 +86,8 @@ type FluxHandler struct {
 	FluxLanguageService influxdb.FluxLanguageService
 
 	EventRecorder metric.EventRecorder
+
+	Flagger feature.Flagger
 }
 
 // Prefix provides the route prefix.
@@ -102,6 +107,7 @@ func NewFluxHandler(log *zap.Logger, b *FluxBackend) *FluxHandler {
 		OrganizationService: b.OrganizationService,
 		EventRecorder:       b.QueryEventRecorder,
 		FluxLanguageService: b.FluxLanguageService,
+		Flagger:             b.Flagger,
 	}
 
 	// query reponses can optionally be gzip encoded
@@ -170,6 +176,7 @@ func (h *FluxHandler) handleQuery(w http.ResponseWriter, r *http.Request) {
 
 	// Transform the context into one with the request's authorization.
 	ctx = pcontext.SetAuthorizer(ctx, req.Request.Authorization)
+	ctx, _ = feature.Annotate(ctx, h.Flagger)
 
 	hd, ok := req.Dialect.(HTTPDialect)
 	if !ok {

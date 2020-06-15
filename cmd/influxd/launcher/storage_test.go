@@ -17,7 +17,7 @@ import (
 )
 
 func TestStorage_WriteAndQuery(t *testing.T) {
-	l := launcher.RunTestLauncherOrFail(t, ctx)
+	l := launcher.RunTestLauncherOrFail(t, ctx, nil)
 
 	org1 := l.OnBoardOrFail(t, &influxdb.OnboardingRequest{
 		User:     "USER-1",
@@ -54,7 +54,7 @@ func TestStorage_WriteAndQuery(t *testing.T) {
 }
 
 func TestLauncher_WriteAndQuery(t *testing.T) {
-	l := launcher.RunTestLauncherOrFail(t, ctx)
+	l := launcher.RunTestLauncherOrFail(t, ctx, nil)
 	l.SetupOrFail(t)
 	defer l.ShutdownOrFail(t, ctx)
 
@@ -92,7 +92,7 @@ func TestLauncher_WriteAndQuery(t *testing.T) {
 }
 
 func TestLauncher_BucketDelete(t *testing.T) {
-	l := launcher.RunTestLauncherOrFail(t, ctx)
+	l := launcher.RunTestLauncherOrFail(t, ctx, nil)
 	l.SetupOrFail(t)
 	defer l.ShutdownOrFail(t, ctx)
 
@@ -158,7 +158,7 @@ func TestLauncher_BucketDelete(t *testing.T) {
 }
 
 func TestStorage_CacheSnapshot_Size(t *testing.T) {
-	l := launcher.NewTestLauncher()
+	l := launcher.NewTestLauncher(nil)
 	l.StorageConfig.Engine.Cache.SnapshotMemorySize = 10
 	l.StorageConfig.Engine.Cache.SnapshotAgeDuration = toml.Duration(time.Hour)
 	defer l.ShutdownOrFail(t, ctx)
@@ -204,7 +204,7 @@ func TestStorage_CacheSnapshot_Size(t *testing.T) {
 }
 
 func TestStorage_CacheSnapshot_Age(t *testing.T) {
-	l := launcher.NewTestLauncher()
+	l := launcher.NewTestLauncher(nil)
 	l.StorageConfig.Engine.Cache.SnapshotAgeDuration = toml.Duration(time.Second)
 	defer l.ShutdownOrFail(t, ctx)
 
