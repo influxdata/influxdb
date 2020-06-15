@@ -175,7 +175,10 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 	sw := kithttp.NewStatusResponseWriter(w)
 	recorder := NewWriteUsageRecorder(sw, h.EventRecorder)
 	var requestBytes int
-	defer recorder.Record(ctx, requestBytes, org.ID, r.URL.Path)
+	defer func() {
+		// Close around the requestBytes variable to placate the linter.
+		recorder.Record(ctx, requestBytes, org.ID, r.URL.Path)
+	}()
 
 	bucket, err := h.findBucket(ctx, org.ID, req.Bucket)
 	if err != nil {
@@ -303,7 +306,7 @@ func (pw *PointsParser) parsePoints(ctx context.Context, orgID, bucketID influxd
 		}
 	}
 
-	span, ctx := tracing.StartSpanFromContextWithOperationName(ctx, "encoding and parsing")
+	span, _ := tracing.StartSpanFromContextWithOperationName(ctx, "encoding and parsing")
 	encoded := tsdb.EncodeName(orgID, bucketID)
 	mm := models.EscapeMeasurement(encoded[:])
 
