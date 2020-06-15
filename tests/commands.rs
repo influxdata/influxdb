@@ -1,9 +1,32 @@
+use std::fs;
 use std::fs::File;
+use std::io::{BufReader, Read};
+use std::path::Path;
 
 use assert_cmd::assert::Assert;
 use assert_cmd::Command;
 use libflate::gzip;
 use predicates::prelude::*;
+
+/// Validates that p is a valid parquet file
+fn validate_parquet_file(p: &Path) {
+    // Verify file extension is parquet
+    let file_extension = p
+        .extension()
+        .map_or(String::from(""), |ext| ext.to_string_lossy().to_string());
+    assert_eq!(file_extension, "parquet");
+
+    // TODO: verify we can decode the contents of the parquet file and
+    // it is as expected. For now, just use a check against the magic
+    // `PAR1` bytes all parquet files start with.
+    let mut reader = BufReader::new(File::open(p).expect("Error reading file"));
+
+    let mut first_four = [0; 4];
+    reader
+        .read_exact(&mut first_four)
+        .expect("Error reading first four bytes");
+    assert_eq!(&first_four, b"PAR1");
+}
 
 #[test]
 fn convert_bad_input_filename() {
@@ -52,8 +75,60 @@ fn convert_good_input_filename() {
         ))
         .stderr(predicate::str::contains(expected_success_string));
 
-    // TODO: add a dump command to dstool and verify that the dump
-    // of the written parquet file is as expected.
+    validate_parquet_file(&parquet_path);
+}
+
+#[test]
+fn convert_multiple_measurements() {
+    let mut cmd = Command::cargo_bin("delorean").unwrap();
+
+    // Create a directory
+    let parquet_output_path = delorean_test_helpers::tempfile::Builder::new()
+        .prefix("dstool_e2e")
+        .tempdir()
+        .expect("error creating temp directory");
+
+    let parquet_output_dir_path = parquet_output_path.path().to_string_lossy().to_string();
+
+    let assert = cmd
+        .arg("convert")
+        .arg("tests/fixtures/lineproto/air_and_water.lp")
+        .arg(&parquet_output_dir_path)
+        .assert();
+
+    let expected_success_string = format!(
+        "Completing writing to {} successfully",
+        parquet_output_dir_path
+    );
+
+    assert
+        .success()
+        .stderr(predicate::str::contains("dstool convert starting"))
+        .stderr(predicate::str::contains("Writing to output directory"))
+        .stderr(predicate::str::contains(
+            "Writing output for measurement h2o_temperature",
+        ))
+        .stderr(predicate::str::contains(
+            "Writing output for measurement air_temperature",
+        ))
+        .stderr(predicate::str::contains(expected_success_string));
+
+    // check that the two files have been written successfully
+    let mut output_files: Vec<_> = fs::read_dir(parquet_output_path.path())
+        .expect("reading directory")
+        .map(|dir_ent| {
+            let dir_ent = dir_ent.expect("error reading dir entry");
+            validate_parquet_file(&dir_ent.path());
+            dir_ent.file_name().to_string_lossy().to_string()
+        })
+        .collect();
+
+    // Ensure the order is consistent before comparing them
+    output_files.sort();
+    assert_eq!(
+        output_files,
+        vec!["air_temperature.parquet", "h2o_temperature.parquet"]
+    );
 }
 
 #[test]
