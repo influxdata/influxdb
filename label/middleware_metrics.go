@@ -15,7 +15,7 @@ type LabelMetrics struct {
 	labelService influxdb.LabelService
 }
 
-func NewLabelMetrics(reg prometheus.Registerer, s influxdb.LabelService, opts ...metric.MetricsOption) *LabelMetrics {
+func NewLabelMetrics(reg prometheus.Registerer, s influxdb.LabelService, opts ...metric.ClientOptFn) *LabelMetrics {
 	o := metric.ApplyMetricOpts(opts...)
 	return &LabelMetrics{
 		rec:          metric.New(reg, o.ApplySuffix("org")),
