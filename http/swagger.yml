@@ -4732,6 +4732,10 @@ paths:
                       type: string
                     description:
                       type: string
+                    sources:
+                      type: array
+                      items:
+                        type: string
                     urls:
                       type: array
                       items:
@@ -7647,11 +7651,29 @@ components:
         stackID:
           type: string
         package:
-          $ref: "#/components/schemas/Pkg"
+          type: object
+          properties:
+            contentType:
+              type: string
+            sources:
+              type: array
+              items:
+                type: string
+            package:
+              $ref: "#/components/schemas/Pkg"
         packages:
           type: array
           items:
-            $ref: "#/components/schemas/Pkg"
+            type: object
+            properties:
+              contentType:
+                type: string
+              sources:
+                type: array
+                items:
+                  type: string
+              package:
+                $ref: "#/components/schemas/Pkg"
         secrets:
           type: object
           additionalProperties:
@@ -7759,6 +7781,10 @@ components:
     PkgSummary:
       type: object
       properties:
+        sources:
+          type: array
+          items:
+            type: string
         stackID:
           type: string
         summary:

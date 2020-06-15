@@ -56,14 +56,14 @@ func (s *mwMetrics) CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*
 	return pkg, rec(err)
 }
 
-func (s *mwMetrics) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (PkgImpactSummary, error) {
+func (s *mwMetrics) DryRun(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (PkgImpactSummary, error) {
 	rec := s.rec.Record("dry_run")
-	impact, err := s.next.DryRun(ctx, orgID, userID, pkg, opts...)
+	impact, err := s.next.DryRun(ctx, orgID, userID, opts...)
 	return impact, rec(err)
 }
 
-func (s *mwMetrics) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (PkgImpactSummary, error) {
+func (s *mwMetrics) Apply(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (PkgImpactSummary, error) {
 	rec := s.rec.Record("apply")
-	impact, err := s.next.Apply(ctx, orgID, userID, pkg, opts...)
+	impact, err := s.next.Apply(ctx, orgID, userID, opts...)
 	return impact, rec(err)
 }

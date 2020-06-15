@@ -214,11 +214,12 @@ func (b *cmdPkgBuilder) pkgApplyRunEFn(cmd *cobra.Command, args []string) error 
 	}
 
 	opts := []pkger.ApplyOptFn{
+		pkger.ApplyWithPkg(pkg),
 		pkger.ApplyWithEnvRefs(providedEnvRefs),
 		pkger.ApplyWithStackID(stackID),
 	}
 
-	dryRunImpact, err := svc.DryRun(context.Background(), influxOrgID, 0, pkg, opts...)
+	dryRunImpact, err := svc.DryRun(context.Background(), influxOrgID, 0, opts...)
 	if err != nil {
 		return err
 	}
@@ -254,7 +255,7 @@ func (b *cmdPkgBuilder) pkgApplyRunEFn(cmd *cobra.Command, args []string) error 
 
 	opts = append(opts, pkger.ApplyWithSecrets(providedSecrets))
 
-	impact, err := svc.Apply(context.Background(), influxOrgID, 0, pkg, opts...)
+	impact, err := svc.Apply(context.Background(), influxOrgID, 0, opts...)
 	if err != nil {
 		return err
 	}

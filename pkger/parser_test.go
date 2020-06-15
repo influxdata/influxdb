@@ -3,6 +3,7 @@ package pkger
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -4255,7 +4256,14 @@ func nextField(t *testing.T, field string) (string, int) {
 
 func validParsedPkgFromFile(t *testing.T, path string, encoding Encoding) *Pkg {
 	t.Helper()
-	return newParsedPkg(t, FromFile(path), encoding)
+
+	pkg := newParsedPkg(t, FromFile(path), encoding)
+	u := url.URL{
+		Scheme: "file",
+		Path:   path,
+	}
+	require.Equal(t, []string{u.String()}, pkg.Sources())
+	return pkg
 }
 
 func newParsedPkg(t *testing.T, fn ReaderFn, encoding Encoding, opts ...ValidateOptFn) *Pkg {
