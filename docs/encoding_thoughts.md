@@ -132,3 +132,5 @@ TODO: it is possible to read parquet without having to scan all the row groups. 
 The information about what tag values are in what row groups can be stored in the parquet file metadata information. This metadata could also be used to store information about the ranges of field values as well
 
 We would have to be clever about ensuring that tags with high cardinality didn't explode the metadata size
+
+Another use case you might map out is spans — super high cardinality from a series perspective with minimal data per series. We see this in tracing use cases (for monitoring) and for potentially nested sessions (in general).
