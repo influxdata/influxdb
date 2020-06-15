@@ -26,9 +26,7 @@ const (
 // the name.  It interprets the &org= parameter as either the name
 // or the ID.
 func queryOrganization(ctx context.Context, r *http.Request, svc platform.OrganizationService) (o *platform.Organization, err error) {
-
 	filter := platform.OrganizationFilter{}
-
 	if organization := r.URL.Query().Get(Org); organization != "" {
 		if id, err := platform.IDFromString(organization); err == nil {
 			filter.ID = id
