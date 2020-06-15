@@ -3,6 +3,7 @@ import {
   getVariables,
   getAllVariables,
   getVariable,
+  sortVariablesByName,
 } from 'src/variables/selectors'
 import {AppState} from 'src/types'
 
@@ -58,6 +59,16 @@ const MOCKSTATE = ({
 } as any) as AppState
 
 describe('VariableSelectors', () => {
+  describe('sortVariablesByName', () => {
+    it('should sort variables alphabetically', () => {
+      const vars = sortVariablesByName(getVariables(MOCKSTATE))
+
+      expect(vars.length).toEqual(2)
+      expect(vars[0].name).toEqual('1234')
+      expect(vars[1].name).toEqual('5678')
+    })
+  })
+
   describe('getVariable', () => {
     it('should grab a variable', () => {
       const vardawg = getVariable(MOCKSTATE, '1234')

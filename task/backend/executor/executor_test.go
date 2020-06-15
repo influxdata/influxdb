@@ -535,6 +535,51 @@ func testErrorHandling(t *testing.T) {
 	*/
 }
 
+func TestPromiseFailure(t *testing.T) {
+	t.Parallel()
+
+	tes := taskExecutorSystem(t)
+
+	var (
+		script = fmt.Sprintf(fmtTestScript, t.Name())
+		ctx    = icontext.SetAuthorizer(context.Background(), tes.tc.Auth)
+		span   = opentracing.GlobalTracer().StartSpan("test-span")
+	)
+	ctx = opentracing.ContextWithSpan(ctx, span)
+
+	task, err := tes.i.CreateTask(ctx, influxdb.TaskCreate{OrganizationID: tes.tc.OrgID, OwnerID: tes.tc.Auth.GetUserID(), Flux: script})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := tes.i.DeleteTask(ctx, task.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	promise, err := tes.ex.PromisedExecute(ctx, scheduler.ID(task.ID), time.Unix(123, 0), time.Unix(126, 0))
+	if err == nil {
+		t.Fatal("failed to error on promise create")
+	}
+
+	if promise != nil {
+		t.Fatalf("expected no promise but recieved one: %+v", promise)
+	}
+
+	runs, _, err := tes.i.FindRuns(context.Background(), influxdb.RunFilter{Task: task.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(runs) != 1 {
+		t.Fatalf("expected 1 runs on failed promise: got: %d, %#v", len(runs), runs[0])
+	}
+
+	if runs[0].Status != "failed" {
+		t.Fatal("failed to set failed state")
+	}
+
+}
+
 type taskControlService struct {
 	backend.TaskControlService
 

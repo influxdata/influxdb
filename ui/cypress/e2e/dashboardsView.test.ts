@@ -40,7 +40,7 @@ describe('Dashboard', () => {
     cy.getByTestID('dashboard-card').should('contain', newName)
   })
 
-  it('can create and destroy cells', () => {
+  it('can create and destroy cells & toggle in and out of presentation mode', () => {
     cy.get('@org').then(({id: orgID}: Organization) => {
       cy.createDashboard(orgID).then(({body}) => {
         cy.fixture('routes').then(({orgs}) => {
@@ -53,6 +53,17 @@ describe('Dashboard', () => {
     cy.getByTestID('add-cell--button').click()
     cy.getByTestID('save-cell--button').click()
     cy.getByTestID('cell--view-empty').should('have.length', 1)
+
+    // toggle presentation mode
+    cy.getByTestID('presentation-mode-toggle').click()
+    // ensure a notification is sent when toggling to presentation mode
+    cy.getByTestID('notification-primary--children').should('exist')
+    // escape to toggle the presentation mode off
+    cy.get('body').trigger('keyup', {
+      keyCode: 27,
+      code: 'Escape',
+      key: 'Escape',
+    })
 
     // Remove view cell
     cy.getByTestID('cell-context--toggle').click()

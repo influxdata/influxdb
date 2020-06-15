@@ -20,7 +20,6 @@ import {
   updateTaskStatus,
   updateTaskName,
   deleteTask,
-  selectTask,
   cloneTask,
   addTaskLabel,
   runTask,
@@ -56,7 +55,6 @@ interface ConnectedDispatchProps {
   updateTaskName: typeof updateTaskName
   deleteTask: typeof deleteTask
   cloneTask: typeof cloneTask
-  selectTask: typeof selectTask
   setSearchTerm: typeof setSearchTermAction
   setShowInactive: typeof setShowInactiveAction
   onAddTaskLabel: typeof addTaskLabel
@@ -109,7 +107,6 @@ class TasksPage extends PureComponent<Props, State> {
   public render(): JSX.Element {
     const {sortKey, sortDirection, sortType} = this.state
     const {
-      selectTask,
       setSearchTerm,
       updateTaskName,
       searchTerm,
@@ -160,7 +157,6 @@ class TasksPage extends PureComponent<Props, State> {
                       onDelete={this.handleDelete}
                       onCreate={this.handleCreateTask}
                       onClone={this.handleClone}
-                      onSelect={selectTask}
                       onAddTaskLabel={onAddTaskLabel}
                       onRunTask={onRunTask}
                       onFilterChange={setSearchTerm}
@@ -293,7 +289,6 @@ const mdtp: ConnectedDispatchProps = {
   updateTaskStatus,
   updateTaskName,
   deleteTask,
-  selectTask,
   cloneTask,
   setSearchTerm: setSearchTermAction,
   setShowInactive: setShowInactiveAction,

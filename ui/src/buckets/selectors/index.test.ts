@@ -30,7 +30,6 @@ describe('Bucket Selector', () => {
         updatedAt: '2019-11-05T08:58:09.593805-08:00',
         links: {
           labels: '/api/v2/buckets/7902bd683453c00c/labels',
-          logs: '/api/v2/buckets/7902bd683453c00c/logs',
           members: '/api/v2/buckets/7902bd683453c00c/members',
           org: '/api/v2/orgs/e483753c9bdb47bf',
           owners: '/api/v2/buckets/7902bd683453c00c/owners',
@@ -50,7 +49,6 @@ describe('Bucket Selector', () => {
         updatedAt: '2019-10-15T11:10:27.970567-07:00',
         links: {
           labels: '/api/v2/buckets/7f44462ac794c7c1/labels',
-          logs: '/api/v2/buckets/7f44462ac794c7c1/logs',
           members: '/api/v2/buckets/7f44462ac794c7c1/members',
           org: '/api/v2/orgs/e483753c9bdb47bf',
           owners: '/api/v2/buckets/7f44462ac794c7c1/owners',
@@ -70,7 +68,6 @@ describe('Bucket Selector', () => {
         updatedAt: '2019-11-05T08:57:59.280486-08:00',
         links: {
           labels: '/api/v2/buckets/a8fee6b433c16f86/labels',
-          logs: '/api/v2/buckets/a8fee6b433c16f86/logs',
           members: '/api/v2/buckets/a8fee6b433c16f86/members',
           org: '/api/v2/orgs/e483753c9bdb47bf',
           owners: '/api/v2/buckets/a8fee6b433c16f86/owners',
@@ -90,7 +87,6 @@ describe('Bucket Selector', () => {
         updatedAt: '2019-10-18T14:05:24.838292-07:00',
         links: {
           labels: '/api/v2/buckets/adbb0107da2d7d38/labels',
-          logs: '/api/v2/buckets/adbb0107da2d7d38/logs',
           members: '/api/v2/buckets/adbb0107da2d7d38/members',
           org: '/api/v2/orgs/e483753c9bdb47bf',
           owners: '/api/v2/buckets/adbb0107da2d7d38/owners',
@@ -110,7 +106,6 @@ describe('Bucket Selector', () => {
         updatedAt: '2019-11-05T08:58:16.873502-08:00',
         links: {
           labels: '/api/v2/buckets/e2871ad8f92e752a/labels',
-          logs: '/api/v2/buckets/e2871ad8f92e752a/logs',
           members: '/api/v2/buckets/e2871ad8f92e752a/members',
           org: '/api/v2/orgs/e483753c9bdb47bf',
           owners: '/api/v2/buckets/e2871ad8f92e752a/owners',
@@ -135,7 +130,6 @@ describe('Bucket Selector', () => {
         updatedAt: '0001-01-01T00:00:00Z',
         links: {
           labels: '/api/v2/buckets/000000000000000a/labels',
-          logs: '/api/v2/buckets/000000000000000a/logs',
           members: '/api/v2/buckets/000000000000000a/members',
           org: '/api/v2/orgs/',
           owners: '/api/v2/buckets/000000000000000a/owners',
@@ -160,7 +154,6 @@ describe('Bucket Selector', () => {
         updatedAt: '0001-01-01T00:00:00Z',
         links: {
           labels: '/api/v2/buckets/000000000000000b/labels',
-          logs: '/api/v2/buckets/000000000000000b/logs',
           members: '/api/v2/buckets/000000000000000b/members',
           org: '/api/v2/orgs/',
           owners: '/api/v2/buckets/000000000000000b/owners',

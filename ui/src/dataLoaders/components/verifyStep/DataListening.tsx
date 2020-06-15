@@ -33,8 +33,16 @@ const FETCH_WAIT = 5000
 const SECONDS = 60
 const TIMER_WAIT = 1000
 
+interface ExtendedRouterProps extends WithRouterProps {
+  params: {
+    orgID: string
+  }
+}
+
+type Props = ExtendedRouterProps & OwnProps
+
 @ErrorHandling
-class DataListening extends PureComponent<OwnProps & WithRouterProps, State> {
+class DataListening extends PureComponent<Props, State> {
   private intervalID: NodeJS.Timer
   private startTime: number
   private timer: NodeJS.Timer

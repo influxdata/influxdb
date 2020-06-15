@@ -18,6 +18,7 @@ import autoRefreshOptions, {
 
 // Types
 import {AutoRefresh, AutoRefreshStatus} from 'src/types'
+import {CLOUD} from 'src/shared/constants'
 
 const DROPDOWN_WIDTH_COLLAPSED = 50
 const DROPDOWN_WIDTH_FULL = 84
@@ -46,6 +47,9 @@ export default class AutoRefreshDropdown extends Component<Props> {
   }
 
   public render() {
+    if (CLOUD) {
+      return false
+    }
     return (
       <div className={this.className}>
         <Dropdown

@@ -7,7 +7,7 @@ jest.mock('honeybadger-js', () => {
   }
 })
 
-import {render} from 'react-testing-library'
+import {render} from '@testing-library/react'
 
 describe('the NoteEditor markdown renderer', () => {
   describe('image rendering behavior', () => {

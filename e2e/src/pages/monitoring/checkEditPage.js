@@ -23,8 +23,8 @@ const previewThresholdHandleByLevel = '[class*=\'threshold-marker--handle thresh
 // Configure Check Controls
 
 //    Properties
-const confChkIntervalInput = '//*[./*/*[text() = \'Schedule Every\']]//*[@data-testid=\'duration-input\']';
-const confChkOffset = '//*[./*/*[text() = \'Offset\']]//*[@data-testid=\'duration-input\']';
+const confChkIntervalInput = '[data-testid=schedule-check]';
+const confChkOffset = '[data-testid=offset-options]';
 const confChkAddTagButton = '//*[./*/*[text() = \'Tags\']]//*[@data-testid=\'dashed-button\']';
 //    Status Message Template
 const confChkMessageTextArea = '[data-testid=status-message-textarea]';
@@ -104,11 +104,11 @@ class checkEditPage extends influxPage {
     }
 
     async getConfChkIntervalInput(){
-        return await this.driver.findElement(By.xpath(confChkIntervalInput));
+        return await this.driver.findElement(By.css(confChkIntervalInput));
     }
 
     async getConfChkOffset(){
-        return await this.driver.findElement(By.xpath(confChkOffset));
+        return await this.driver.findElement(By.css(confChkOffset));
     }
 
     async getConfChkAddTagButton(){

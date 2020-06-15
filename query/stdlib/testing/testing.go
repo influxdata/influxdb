@@ -134,7 +134,8 @@ var FluxEndToEndSkipList = map[string]map[string]string{
 		"join": "unbounded test",
 	},
 	"testing/chronograf": {
-		"buckets": "unbounded test",
+		"buckets":                "unbounded test",
+		"aggregate_window_count": "flakey test: https://github.com/influxdata/influxdb/issues/18463",
 	},
 	"testing/kapacitor": {
 		"fill_default": "unknown field type for f1",

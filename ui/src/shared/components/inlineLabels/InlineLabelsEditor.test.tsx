@@ -1,7 +1,7 @@
 // Libraries
 import React from 'react'
 import {act} from 'react-dom/test-utils'
-import {fireEvent} from 'react-testing-library'
+import {fireEvent} from '@testing-library/react'
 import 'intersection-observer'
 
 // Components

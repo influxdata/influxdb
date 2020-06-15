@@ -2,14 +2,14 @@ import {register} from 'src/notebooks'
 import View from './view'
 import './style.scss'
 
-export type RawDataSize = 'small' | 'medium' | 'large'
-
 register({
   type: 'query',
+  priority: 1,
   component: View,
   button: 'Custom Script',
   initial: {
-    rawDataSize: 'small',
+    panelVisibility: 'visible',
+    panelHeight: 200,
     activeQuery: 0,
     queries: [
       {

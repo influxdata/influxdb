@@ -1,6 +1,6 @@
 import React from 'react'
 import DurationSelector from './DurationSelector'
-import {render, getByText} from 'react-testing-library'
+import {render, getByText} from '@testing-library/react'
 
 describe('DurationSelector', () => {
   test('should match selected duration to duration option', () => {

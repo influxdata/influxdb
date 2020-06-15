@@ -282,15 +282,6 @@ export const setAllTaskOptionsByID = (taskID: string) => async (
   }
 }
 
-export const selectTask = (taskID: string) => (
-  dispatch: Dispatch<Action>,
-  getState: GetState
-) => {
-  const org = getOrg(getState())
-
-  dispatch(push(`/orgs/${org.id}/tasks/${taskID}`))
-}
-
 export const goToTasks = () => (
   dispatch: Dispatch<Action>,
   getState: GetState

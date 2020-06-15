@@ -1,6 +1,6 @@
 // Libraries
 import React from 'react'
-import {fireEvent} from 'react-testing-library'
+import {fireEvent} from '@testing-library/react'
 
 // Components
 import VariableTooltipContents from 'src/timeMachine/components/variableToolbar/VariableTooltipContents'
@@ -64,7 +64,7 @@ const setInitialState = (state: AppState) => {
 describe("Time Machine's variable dropdown", () => {
   describe('rendering map type variables', () => {
     it("renders the variables' keys, rather than their values", () => {
-      const {getByTestId, getByText} = renderWithRedux(
+      const {getByTestId, getByText, getAllByText} = renderWithRedux(
         <VariableTooltipContents variableID="04960e76e5afe000" />,
         setInitialState
       )
@@ -72,7 +72,7 @@ describe("Time Machine's variable dropdown", () => {
       fireEvent.click(getByText('Value'))
       fireEvent.click(getByTestId('variable-dropdown--button'))
       Object.keys(variableValues).forEach(variableKey => {
-        expect(getByText(variableKey)).toBeTruthy()
+        expect(getAllByText(variableKey)).toBeTruthy()
       })
     })
   })
