@@ -42,7 +42,6 @@ const NotebookPanelHeader: FC<HeaderProps> = ({index, controls}) => {
   const {pipes, removePipe, movePipe} = useContext(NotebookContext)
   const canBeMovedUp = index > 0
   const canBeMovedDown = index < pipes.length - 1
-  const canBeRemoved = index !== 0
 
   const moveUp = useCallback(
     canBeMovedUp ? () => movePipe(index, index - 1) : null,
@@ -52,10 +51,7 @@ const NotebookPanelHeader: FC<HeaderProps> = ({index, controls}) => {
     canBeMovedDown ? () => movePipe(index, index + 1) : null,
     [index, pipes]
   )
-  const remove = useCallback(canBeRemoved ? () => removePipe(index) : null, [
-    index,
-    pipes,
-  ])
+  const remove = useCallback(() => removePipe(index), [index, pipes])
 
   return (
     <div className="notebook-panel--header">
