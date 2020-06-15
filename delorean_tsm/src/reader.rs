@@ -295,11 +295,12 @@ where
                 description: String::from("bool block type unsupported"),
             }),
             BlockType::Str => {
-                let len = ts.len();
-                Ok(BlockData::Str {
-                    ts,
-                    values: vec!["unsupported string!!".to_string(); len as usize],
-                })
+                // values will be same length as time-stamps.
+                let mut values = Vec::with_capacity(ts.len());
+                encoders::string::decode(&data[idx..], &mut values).map_err(|e| TSMError {
+                    description: e.to_string(),
+                })?;
+                Ok(BlockData::Str { ts, values })
             }
             BlockType::Unsigned => Err(TSMError {
                 description: String::from("unsigned integer block type unsupported"),
@@ -458,9 +459,6 @@ mod tests {
             match entry.block_type {
                 BlockType::Bool => {
                     eprintln!("Note: ignoring bool block, not implemented");
-                }
-                BlockType::Str => {
-                    eprintln!("Note: ignoring Str block, not implemented");
                 }
                 BlockType::Unsigned => {
                     eprintln!("Note: ignoring unsigned block, not implemented");

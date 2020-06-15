@@ -767,6 +767,7 @@ dependencies = [
  "integer-encoding",
  "libflate",
  "rand 0.7.3",
+ "snap",
 ]
 
 [[package]]
