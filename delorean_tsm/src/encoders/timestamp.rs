@@ -101,7 +101,7 @@ fn i64_to_u64_vector(src: &[i64]) -> Vec<u64> {
 // value in the sequence differs by, and count the total number of values in the
 // sequence.
 fn encode_rle(v: u64, delta: u64, count: u64, dst: &mut Vec<u8>) {
-    let max_var_int_size = 10; // max number of bytes needed to store var int
+    use super::MAX_VAR_INT_64;
 
     // Keep a byte back for the scaler.
     dst.push(0);
@@ -116,8 +116,8 @@ fn encode_rle(v: u64, delta: u64, count: u64, dst: &mut Vec<u8>) {
         div /= 10;
     }
 
-    if dst.len() <= n + max_var_int_size {
-        dst.resize(n + max_var_int_size, 0);
+    if dst.len() <= n + MAX_VAR_INT_64 {
+        dst.resize(n + MAX_VAR_INT_64, 0);
     }
 
     // 4 low bits are the log10 divisor.
@@ -133,8 +133,8 @@ fn encode_rle(v: u64, delta: u64, count: u64, dst: &mut Vec<u8>) {
         n += delta.encode_var(&mut dst[n..]);
     }
 
-    if dst.len() - n <= max_var_int_size {
-        dst.resize(n + max_var_int_size, 0);
+    if dst.len() - n <= MAX_VAR_INT_64 {
+        dst.resize(n + MAX_VAR_INT_64, 0);
     }
     // finally, encode the number of times the delta is repeated.
     n += count.encode_var(&mut dst[n..]);
