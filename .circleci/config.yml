@@ -580,7 +580,7 @@ workflows:
   bonitoo-check:
     triggers:
       - schedule:
-          cron: "30 * * * *"
+          cron: "01 8,20 * * *"
           filters:
             branches: 
               only: 
