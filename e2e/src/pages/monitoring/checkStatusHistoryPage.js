@@ -2,7 +2,7 @@ const influxPage = require(__srcdir + '/pages/influxPage.js');
 const { By } = require('selenium-webdriver');
 
 const alertHistoryTitle = '[data-testid=alert-history-title]';
-const filterInput = '//*[./*[@data-testid=\'input-field--default\']]//*[@data-testid=\'input-field\']';
+const filterInput = '//*[./*[@data-testid=\'check-status-input--default\']]//*[@data-testid=\'check-status-input\']';
 const eventRows = '.event-row';
 const eventRowCheckNameField = '//*[./*[@class=\'event-row\']][%INDEX%]//a';
 const eventRowsAtLevel = '//*[./*[@class=\'event-row\']]//*[contains(@class,\'level-table-field--%LEVEL%\')]';
