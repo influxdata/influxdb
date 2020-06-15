@@ -13,7 +13,7 @@ register({
     activeQuery: 0,
     queries: [
       {
-        text: '',
+        text: '// Write Flux script here',
         editMode: 'advanced',
         builderConfig: {
           buckets: [],
