@@ -7,7 +7,7 @@ const eventRows = '.event-row';
 const eventRowCheckNameField = '//*[./*[@class=\'event-row\']][%INDEX%]//a';
 const eventRowsAtLevel = '//*[./*[@class=\'event-row\']]//*[contains(@class,\'level-table-field--%LEVEL%\')]';
 const eventMarkersDiv = '[data-testid=event-markers]';
-const eventFilterExamplesDropdown = '[data-testid=dropdown-menu]';
+const eventFilterExamplesDropdown = '[data-testid=check-status-dropdown--contents]';
 const eventMarkerByIndex = '[data-testid=event-markers] > div:nth-of-type(%INDEX%)';
 const eventMarkers  = '[data-testid=event-markers] > *';
 const eventMarkersByType = '[data-testid=event-markers] > [class*=\'event-marker--line__%TYPE%\'';
