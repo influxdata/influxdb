@@ -19,7 +19,6 @@ fn is_sentinel_u64(v: u64, sentinel: u64) -> bool {
 /// paper. Each subsequent value is compared to the previous and the XOR of the
 /// two is determined. Leading and trailing zero bits are then analysed and
 /// representations based on those are stored.
-#[allow(dead_code)]
 #[allow(clippy::many_single_char_names)]
 pub fn encode(src: &[f64], dst: &mut Vec<u8>) -> Result<(), Box<dyn Error>> {
     dst.truncate(0); // reset buffer.
@@ -331,7 +330,6 @@ pub fn decode_influxdb(src: &[u8], dst: &mut Vec<f64>) -> Result<(), Box<dyn Err
 }
 
 /// decode decodes a slice of bytes into a vector of floats.
-#[allow(dead_code)]
 #[allow(clippy::many_single_char_names)]
 #[allow(clippy::useless_let_if_seq)]
 fn decode_with_sentinel(
