@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net/http"
+	"net/url"
 	"os"
 	"strings"
 
 	platform "github.com/influxdata/influxdb/v2"
-	"github.com/influxdata/influxdb/v2/http"
+	ihttp "github.com/influxdata/influxdb/v2/http"
 	"github.com/influxdata/influxdb/v2/kit/signals"
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/pkg/csv2lp"
@@ -28,8 +30,9 @@ type writeFlagsType struct {
 	Bucket                     string
 	Precision                  string
 	Format                     string
-	Files                      []string
 	Headers                    []string
+	Files                      []string
+	URLs                       []string
 	Debug                      bool
 	SkipRowOnError             bool
 	SkipHeader                 int
@@ -72,8 +75,9 @@ func cmdWrite(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	}
 	opts.mustRegister(cmd)
 	cmd.PersistentFlags().StringVar(&writeFlags.Format, "format", "", "Input format, either lp (Line Protocol) or csv (Comma Separated Values). Defaults to lp unless '.csv' extension")
-	cmd.PersistentFlags().StringArrayVarP(&writeFlags.Files, "file", "f", []string{}, "The path to the file to import")
 	cmd.PersistentFlags().StringArrayVar(&writeFlags.Headers, "header", []string{}, "Header prepends lines to input data; Example --header HEADER1 --header HEADER2")
+	cmd.PersistentFlags().StringArrayVarP(&writeFlags.Files, "file", "f", []string{}, "The path to the file to import")
+	cmd.PersistentFlags().StringArrayVarP(&writeFlags.URLs, "url", "u", []string{}, "The URL to import data from")
 	cmd.PersistentFlags().BoolVar(&writeFlags.Debug, "debug", false, "Log CSV columns to stderr before reading data rows")
 	cmd.PersistentFlags().BoolVar(&writeFlags.SkipRowOnError, "skipRowOnError", false, "Log CSV data errors to stderr and continue with CSV processing")
 	cmd.PersistentFlags().IntVar(&writeFlags.SkipHeader, "skipHeader", 0, "Skip the first <n> rows from input data")
@@ -97,16 +101,16 @@ func (writeFlags *writeFlagsType) dump(args []string) {
 }
 
 // createLineReader uses writeFlags and cli arguments to create a reader that produces line protocol
-func (writeFlags *writeFlagsType) createLineReader(cmd *cobra.Command, args []string) (io.Reader, io.Closer, error) {
-	readers := make([]io.Reader, 0, 2*len(writeFlags.Headers)+2*len(writeFlags.Files)+1)
-	closers := make([]io.Closer, 0, len(writeFlags.Files))
-
+func (writeFlags *writeFlagsType) createLineReader(ctx context.Context, cmd *cobra.Command, args []string) (io.Reader, io.Closer, error) {
 	files := writeFlags.Files
 	if len(args) > 0 && len(args[0]) > 1 && args[0][0] == '@' {
 		// backward compatibility: @ in arg denotes a file
 		files = append(files, args[0][1:])
 		args = args[:0]
 	}
+
+	readers := make([]io.Reader, 0, 2*len(writeFlags.Headers)+2*len(files)+2*len(writeFlags.URLs)+1)
+	closers := make([]io.Closer, 0, len(files)+len(writeFlags.URLs))
 
 	// validate input format
 	if len(writeFlags.Format) > 0 && writeFlags.Format != inputFormatLineProtocol && writeFlags.Format != inputFormatCsv {
@@ -139,6 +143,34 @@ func (writeFlags *writeFlagsType) createLineReader(cmd *cobra.Command, args []st
 			closers = append(closers, f)
 			readers = append(readers, decode(f), strings.NewReader("\n"))
 			if len(writeFlags.Format) == 0 && strings.HasSuffix(file, ".csv") {
+				writeFlags.Format = inputFormatCsv
+			}
+		}
+	}
+
+	// #18349 allow URL data sources, a simple alternative to `curl -f -s http://... | influx write ...`
+	if len(writeFlags.URLs) > 0 {
+		client := http.DefaultClient
+		for _, addr := range writeFlags.URLs {
+			u, err := url.Parse(addr)
+			if err != nil {
+				return nil, csv2lp.MultiCloser(closers...), fmt.Errorf("failed to open %q: %v", addr, err)
+			}
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, addr, nil)
+			if err != nil {
+				return nil, csv2lp.MultiCloser(closers...), fmt.Errorf("failed to open %q: %v", addr, err)
+			}
+			resp, err := client.Do(req)
+			if err != nil {
+				return nil, csv2lp.MultiCloser(closers...), fmt.Errorf("failed to open %q: %v", addr, err)
+			}
+			closers = append(closers, resp.Body)
+			if resp.StatusCode/100 != 2 {
+				return nil, csv2lp.MultiCloser(closers...), fmt.Errorf("failed to open %q: response status_code=%d", addr, resp.StatusCode)
+			}
+			readers = append(readers, decode(resp.Body), strings.NewReader("\n"))
+			if len(writeFlags.Format) == 0 &&
+				(strings.HasSuffix(u.Path, ".csv") || strings.HasPrefix(resp.Header.Get("Content-Type"), "text/csv")) {
 				writeFlags.Format = inputFormatCsv
 			}
 		}
@@ -225,7 +257,7 @@ func fluxWriteF(cmd *cobra.Command, args []string) error {
 		filter.Org = &writeFlags.org.name
 	}
 
-	ctx := context.Background()
+	ctx := signals.WithStandardSignals(context.Background())
 	buckets, n, err := bs.FindBuckets(ctx, filter)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve buckets: %v", err)
@@ -243,7 +275,7 @@ func fluxWriteF(cmd *cobra.Command, args []string) error {
 	bucketID, orgID := buckets[0].ID, buckets[0].OrgID
 
 	// create line reader
-	r, closer, err := writeFlags.createLineReader(cmd, args)
+	r, closer, err := writeFlags.createLineReader(ctx, cmd, args)
 	if closer != nil {
 		defer closer.Close()
 	}
@@ -253,14 +285,13 @@ func fluxWriteF(cmd *cobra.Command, args []string) error {
 
 	// write to InfluxDB
 	s := write.Batcher{
-		Service: &http.WriteService{
+		Service: &ihttp.WriteService{
 			Addr:               flags.Host,
 			Token:              flags.Token,
 			Precision:          writeFlags.Precision,
 			InsecureSkipVerify: flags.skipVerify,
 		},
 	}
-	ctx = signals.WithStandardSignals(ctx)
 	if err := s.Write(ctx, orgID, bucketID, r); err != nil && err != context.Canceled {
 		return fmt.Errorf("failed to write data: %v", err)
 	}
@@ -271,7 +302,8 @@ func fluxWriteF(cmd *cobra.Command, args []string) error {
 func fluxWriteDryrunF(cmd *cobra.Command, args []string) error {
 	writeFlags.dump(args) // print flags when in Debug mode
 	// create line reader
-	r, closer, err := writeFlags.createLineReader(cmd, args)
+	ctx := signals.WithStandardSignals(context.Background())
+	r, closer, err := writeFlags.createLineReader(ctx, cmd, args)
 	if closer != nil {
 		defer closer.Close()
 	}

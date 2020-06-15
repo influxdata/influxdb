@@ -3,9 +3,9 @@
 .notebook-visualization {
   background-color: $g2-kevlar;
   border-radius: $cf-radius;
-  border: $cf-border solid $g2-kevlar;
   display: flex;
   align-items: stretch;
+  height: 100%;
 }
 
 .notebook-visualization--header {
@@ -14,15 +14,15 @@
 }
 
 .notebook-visualization--view {
-  flex: 1 0 0;
-  border-radius: $cf-radius - 1px;
+  width: 100%;
+  border-radius: $cf-radius-sm;
   background-color: $g0-obsidian;
-  min-height: 200px;
   padding: $cf-marg-b + $cf-marg-a;
 
   .empty-graph-error {
     height: 200px;
   }
+
   .time-machine-tables {
     height: 200px;
   }

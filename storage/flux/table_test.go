@@ -83,6 +83,187 @@ func (r *StorageReader) ReadWindowAggregate(ctx context.Context, spec query.Read
 	return wr.ReadWindowAggregate(ctx, spec, alloc)
 }
 
+func TestStorageReader_ReadFilter(t *testing.T) {
+	reader := NewStorageReader(t, func(org, bucket influxdb.ID) (gen.SeriesGenerator, gen.TimeRange) {
+		tagsSpec := &gen.TagsSpec{
+			Tags: []*gen.TagValuesSpec{
+				{
+					TagKey: "t0",
+					Values: func() gen.CountableSequence {
+						return gen.NewCounterByteSequence("a-%s", 0, 3)
+					},
+				},
+			},
+		}
+		spec := gen.Spec{
+			OrgID:    org,
+			BucketID: bucket,
+			Measurements: []gen.MeasurementSpec{
+				{
+					Name:     "m0",
+					TagsSpec: tagsSpec,
+					FieldValuesSpec: &gen.FieldValuesSpec{
+						Name: "f0",
+						TimeSequenceSpec: gen.TimeSequenceSpec{
+							Count: math.MaxInt32,
+							Delta: 10 * time.Second,
+						},
+						DataType: models.Float,
+						Values: func(spec gen.TimeSequenceSpec) gen.TimeValuesSequence {
+							return gen.NewTimeFloatValuesSequence(
+								spec.Count,
+								gen.NewTimestampSequenceFromSpec(spec),
+								gen.NewFloatArrayValuesSequence([]float64{1.0, 2.0, 3.0}),
+							)
+						},
+					},
+				},
+			},
+		}
+		tr := gen.TimeRange{
+			Start: mustParseTime("2019-11-25T00:00:00Z"),
+			End:   mustParseTime("2019-11-25T00:00:30Z"),
+		}
+		return gen.NewSeriesGeneratorFromSpec(&spec, tr), tr
+	})
+	defer reader.Close()
+
+	mem := &memory.Allocator{}
+	ti, err := reader.ReadFilter(context.Background(), query.ReadFilterSpec{
+		OrganizationID: reader.Org,
+		BucketID:       reader.Bucket,
+		Bounds:         reader.Bounds,
+	}, mem)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	makeTable := func(t0 string) *executetest.Table {
+		start, stop := reader.Bounds.Start, reader.Bounds.Stop
+		return &executetest.Table{
+			KeyCols: []string{"_start", "_stop", "_field", "_measurement", "t0"},
+			ColMeta: []flux.ColMeta{
+				{Label: "_start", Type: flux.TTime},
+				{Label: "_stop", Type: flux.TTime},
+				{Label: "_time", Type: flux.TTime},
+				{Label: "_value", Type: flux.TFloat},
+				{Label: "_field", Type: flux.TString},
+				{Label: "_measurement", Type: flux.TString},
+				{Label: "t0", Type: flux.TString},
+			},
+			Data: [][]interface{}{
+				{start, stop, Time("2019-11-25T00:00:00Z"), 1.0, "f0", "m0", t0},
+				{start, stop, Time("2019-11-25T00:00:10Z"), 2.0, "f0", "m0", t0},
+				{start, stop, Time("2019-11-25T00:00:20Z"), 3.0, "f0", "m0", t0},
+			},
+		}
+	}
+
+	want := []*executetest.Table{
+		makeTable("a-0"),
+		makeTable("a-1"),
+		makeTable("a-2"),
+	}
+	executetest.NormalizeTables(want)
+	sort.Sort(executetest.SortedTables(want))
+
+	var got []*executetest.Table
+	if err := ti.Do(func(table flux.Table) error {
+		t, err := executetest.ConvertTable(table)
+		if err != nil {
+			return err
+		}
+		got = append(got, t)
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	executetest.NormalizeTables(got)
+	sort.Sort(executetest.SortedTables(got))
+
+	// compare these two
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("unexpected results -want/+got:\n%s", diff)
+	}
+}
+
+func TestStorageReader_Table(t *testing.T) {
+	reader := NewStorageReader(t, func(org, bucket influxdb.ID) (gen.SeriesGenerator, gen.TimeRange) {
+		tagsSpec := &gen.TagsSpec{
+			Tags: []*gen.TagValuesSpec{
+				{
+					TagKey: "t0",
+					Values: func() gen.CountableSequence {
+						return gen.NewCounterByteSequence("a-%s", 0, 3)
+					},
+				},
+			},
+		}
+		spec := gen.Spec{
+			OrgID:    org,
+			BucketID: bucket,
+			Measurements: []gen.MeasurementSpec{
+				{
+					Name:     "m0",
+					TagsSpec: tagsSpec,
+					FieldValuesSpec: &gen.FieldValuesSpec{
+						Name: "f0",
+						TimeSequenceSpec: gen.TimeSequenceSpec{
+							Count: math.MaxInt32,
+							Delta: 10 * time.Second,
+						},
+						DataType: models.Float,
+						Values: func(spec gen.TimeSequenceSpec) gen.TimeValuesSequence {
+							return gen.NewTimeFloatValuesSequence(
+								spec.Count,
+								gen.NewTimestampSequenceFromSpec(spec),
+								gen.NewFloatArrayValuesSequence([]float64{1.0, 2.0, 3.0}),
+							)
+						},
+					},
+				},
+			},
+		}
+		tr := gen.TimeRange{
+			Start: mustParseTime("2019-11-25T00:00:00Z"),
+			End:   mustParseTime("2019-11-25T00:00:30Z"),
+		}
+		return gen.NewSeriesGeneratorFromSpec(&spec, tr), tr
+	})
+	defer reader.Close()
+
+	for _, tc := range []struct {
+		name  string
+		newFn func(ctx context.Context, alloc *memory.Allocator) flux.TableIterator
+	}{
+		{
+			name: "ReadFilter",
+			newFn: func(ctx context.Context, alloc *memory.Allocator) flux.TableIterator {
+				ti, err := reader.ReadFilter(context.Background(), query.ReadFilterSpec{
+					OrganizationID: reader.Org,
+					BucketID:       reader.Bucket,
+					Bounds:         reader.Bounds,
+				}, alloc)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return ti
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			executetest.RunTableTests(t, executetest.TableTest{
+				NewFn: tc.newFn,
+				IsDone: func(table flux.Table) bool {
+					return table.(interface {
+						IsDone() bool
+					}).IsDone()
+				},
+			})
+		})
+	}
+}
+
 func TestStorageReader_ReadWindowAggregate(t *testing.T) {
 	reader := NewStorageReader(t, func(org, bucket influxdb.ID) (gen.SeriesGenerator, gen.TimeRange) {
 		tagsSpec := &gen.TagsSpec{

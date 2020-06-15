@@ -1,6 +1,6 @@
 // Libraries
 import React from 'react'
-import {fireEvent} from 'react-testing-library'
+import {fireEvent} from '@testing-library/react'
 
 // Components
 import VariableDropdown from 'src/variables/components/VariableDropdown'

@@ -72,6 +72,20 @@ func PushDownWindowAggregateCount() BoolFlag {
 	return pushDownWindowAggregateCount
 }
 
+var pushDownWindowAggregateSum = MakeBoolFlag(
+	"Push Down Window Aggregate Sum",
+	"pushDownWindowAggregateSum",
+	"Query Team",
+	false,
+	Temporary,
+	false,
+)
+
+// PushDownWindowAggregateSum - Enable Sum variant of PushDownWindowAggregateRule and PushDownBareAggregateRule
+func PushDownWindowAggregateSum() BoolFlag {
+	return pushDownWindowAggregateSum
+}
+
 var pushDownWindowAggregateRest = MakeBoolFlag(
 	"Push Down Window Aggregate Rest",
 	"pushDownWindowAggregateRest",
@@ -81,7 +95,7 @@ var pushDownWindowAggregateRest = MakeBoolFlag(
 	false,
 )
 
-// PushDownWindowAggregateRest - Enable non-Count variants of PushDownWindowAggregateRule and PushDownWindowAggregateRule (stage 2)
+// PushDownWindowAggregateRest - Enable non-Count, non-Sum variants of PushDownWindowAggregateRule and PushDownWindowAggregateRule (stage 2)
 func PushDownWindowAggregateRest() BoolFlag {
 	return pushDownWindowAggregateRest
 }
@@ -190,7 +204,7 @@ var hydratevars = MakeBoolFlag(
 	"Ariel Salem / Monitoring Team",
 	false,
 	Temporary,
-	false,
+	true,
 )
 
 // NewHydrateVarsFunctionality - Enables a minimalistic variable hydration
@@ -218,6 +232,7 @@ var all = []Flag{
 	communityTemplates,
 	frontendExample,
 	pushDownWindowAggregateCount,
+	pushDownWindowAggregateSum,
 	pushDownWindowAggregateRest,
 	newAuth,
 	sessionService,
@@ -236,6 +251,7 @@ var byKey = map[string]Flag{
 	"communityTemplates":           communityTemplates,
 	"frontendExample":              frontendExample,
 	"pushDownWindowAggregateCount": pushDownWindowAggregateCount,
+	"pushDownWindowAggregateSum":   pushDownWindowAggregateSum,
 	"pushDownWindowAggregateRest":  pushDownWindowAggregateRest,
 	"newAuth":                      newAuth,
 	"sessionService":               sessionService,

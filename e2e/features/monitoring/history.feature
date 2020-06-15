@@ -33,7 +33,8 @@ Feature: Monitoring - Alerts - History
     When click event history filter input
     Then the event history examples dropdown is visible
     When click the alert history title
-    Then the event history examples dropdown is not visible
+    Then the event history examples dropdown is not visible 
+    
     When get events history graph area
     When get event marker types and locations
     When zoom into event markers

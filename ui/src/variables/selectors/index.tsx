@@ -114,6 +114,11 @@ export const getAllVariables = (
   return vars
 }
 
+export const sortVariablesByName = (variables: Variable[]): Variable[] =>
+  variables.sort((a, b) =>
+    a.name.toLowerCase() > b.name.toLowerCase() ? 1 : -1
+  )
+
 export const getVariable = (state: AppState, variableID: string): Variable => {
   const contextID = currentContext(state)
   const ctx = get(state, ['resources', 'variables', 'values', contextID])

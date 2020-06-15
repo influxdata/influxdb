@@ -1,5 +1,5 @@
 import * as React from 'react'
-import {render, fireEvent, wait} from 'react-testing-library'
+import {render, fireEvent, waitFor} from '@testing-library/react'
 import {LowercaseCheckStatusLevel} from 'src/types'
 
 import {scaleLinear} from 'd3-scale'
@@ -90,7 +90,7 @@ describe('EventMarkers', () => {
       'eye-open'
     )
 
-    await wait(() => getByTestId(`eventMarker`))
+    await waitFor(() => getAllByTestId(`eventMarker`))
     expect(getAllByTestId(`eventMarker`)).toHaveLength(2)
   })
 })

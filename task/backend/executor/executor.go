@@ -214,8 +214,20 @@ func (e *Executor) createRun(ctx context.Context, id influxdb.ID, scheduledFor t
 	if err != nil {
 		return nil, err
 	}
+	p, err := e.createPromise(ctx, r)
+	if err != nil {
+		if err := e.tcs.AddRunLog(ctx, id, r.ID, time.Now().UTC(), fmt.Sprintf("Failed to enqueue run: %s", err.Error())); err != nil {
+			e.log.Error("failed to fail create run: AddRunLog:", zap.Error(err))
+		}
+		if err := e.tcs.UpdateRunState(ctx, id, r.ID, time.Now().UTC(), influxdb.RunFail); err != nil {
+			e.log.Error("failed to fail create run: UpdateRunState:", zap.Error(err))
+		}
+		if _, err := e.tcs.FinishRun(ctx, id, r.ID); err != nil {
+			e.log.Error("failed to fail create run: FinishRun:", zap.Error(err))
+		}
+	}
 
-	return e.createPromise(ctx, r)
+	return p, err
 }
 
 func (e *Executor) startWorker() {

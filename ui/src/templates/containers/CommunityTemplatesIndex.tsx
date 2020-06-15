@@ -23,6 +23,10 @@ import SettingsHeader from 'src/settings/components/SettingsHeader'
 // Utils
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
 import {getOrg} from 'src/organizations/selectors'
+import {
+  getGithubUrlFromTemplateName,
+  getTemplateNameFromGithubUrl,
+} from 'src/templates/utils'
 
 // Types
 import {AppState, Organization} from 'src/types'
@@ -34,12 +38,26 @@ interface StateProps {
   org: Organization
 }
 
-type Props = WithRouterProps & StateProps
+interface OwnProps extends WithRouterProps {
+  params: {templateName: string}
+}
+
+type Props = OwnProps & StateProps
 
 @ErrorHandling
-class CTI extends Component<Props> {
+class UnconnectedTemplatesIndex extends Component<Props> {
   state = {
     currentTemplate: '',
+  }
+
+  public componentDidMount() {
+    if (this.props.params.templateName) {
+      this.setState({
+        currentTemplate: getGithubUrlFromTemplateName(
+          this.props.params.templateName
+        ),
+      })
+    }
   }
 
   public render() {
@@ -86,11 +104,11 @@ class CTI extends Component<Props> {
                       className="community-templates-template-url"
                       onChange={this.handleTemplateChange}
                       placeholder="Enter the URL of an InfluxDB Template..."
-                      value={this.state.currentTemplate}
                       style={{width: '80%'}}
+                      value={this.state.currentTemplate}
                     />
                     <Button
-                      onClick={this.handleImport}
+                      onClick={this.startTemplateInstall}
                       size={ComponentSize.Small}
                       text="Lookup Template"
                     />
@@ -105,9 +123,19 @@ class CTI extends Component<Props> {
     )
   }
 
-  private handleImport = () => {
+  private startTemplateInstall = () => {
+    if (!this.state.currentTemplate) {
+      console.error('undefined')
+      return false
+    }
+
+    const name = getTemplateNameFromGithubUrl(this.state.currentTemplate)
+    this.showInstallerOverlay(name)
+  }
+
+  private showInstallerOverlay = templateName => {
     const {router, org} = this.props
-    router.push(`/orgs/${org.id}/settings/templates/import`)
+    router.push(`/orgs/${org.id}/settings/templates/import/${templateName}`)
   }
 
   private handleTemplateChange = event => {
@@ -124,4 +152,4 @@ const mstp = (state: AppState): StateProps => {
 export const CommunityTemplatesIndex = connect<StateProps, {}, {}>(
   mstp,
   null
-)(withRouter<{}>(CTI))
+)(withRouter<{}>(UnconnectedTemplatesIndex))

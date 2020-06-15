@@ -68,6 +68,7 @@ const CheckMetaCard: FC<Props> = ({
                   value={every}
                   suggestions={DURATIONS}
                   onSubmit={onSelectCheckEvery}
+                  testID="schedule-check"
                 />
               </Form.Element>
             </Grid.Column>
@@ -77,6 +78,7 @@ const CheckMetaCard: FC<Props> = ({
                   value={offset}
                   suggestions={CHECK_OFFSET_OPTIONS}
                   onSubmit={onSetOffset}
+                  testID="offset-options"
                 />
               </Form.Element>
             </Grid.Column>

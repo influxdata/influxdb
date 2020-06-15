@@ -7,6 +7,7 @@ import {get, isEmpty} from 'lodash'
 import {getSaveableView} from 'src/timeMachine/selectors'
 import {getOrg} from 'src/organizations/selectors'
 import {getAll} from 'src/resources/selectors'
+import {sortDashboardByName} from 'src/dashboards/selectors'
 
 // Components
 import {Form, Input, Button, Grid} from '@influxdata/clockface'
@@ -234,7 +235,11 @@ const mstp = (state: AppState): StateProps => {
   const org = getOrg(state)
   const dashboards = getAll<Dashboard>(state, ResourceType.Dashboards)
 
-  return {dashboards, view, orgID: get(org, 'id', '')}
+  return {
+    dashboards: sortDashboardByName(dashboards),
+    view,
+    orgID: get(org, 'id', ''),
+  }
 }
 
 const mdtp: DispatchProps = {

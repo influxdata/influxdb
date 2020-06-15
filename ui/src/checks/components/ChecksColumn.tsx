@@ -5,6 +5,9 @@ import {connect} from 'react-redux'
 
 // Selectors
 import {getAll} from 'src/resources/selectors'
+import {sortChecksByName} from 'src/checks/selectors'
+import {sortRulesByName} from 'src/notifications/rules/selectors'
+import {sortEndpointsByName} from 'src/notifications/endpoints/selectors'
 
 // Components
 import CheckCards from 'src/checks/components/CheckCards'
@@ -105,9 +108,9 @@ const mstp = (state: AppState) => {
   )
 
   return {
-    checks,
-    rules,
-    endpoints,
+    checks: sortChecksByName(checks),
+    rules: sortRulesByName(rules),
+    endpoints: sortEndpointsByName(endpoints),
   }
 }
 
