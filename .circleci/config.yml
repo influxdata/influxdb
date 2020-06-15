@@ -181,7 +181,7 @@ jobs:
             cd e2e
             npm install
             sed -i "s/\"headless\": false/\"headless\": true/g" e2e.conf.json
-            npm test; TEST_RESULT=$?
+            npm test  -- features/onboarding/onboarding.feature; TEST_RESULT=$?
             npm run report:html
             npm run report:junit
             mkdir -p ~/e2e/test-results/cucumber
