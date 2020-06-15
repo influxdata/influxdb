@@ -422,6 +422,18 @@ pub enum BlockData {
     Unsigned { ts: Vec<i64>, values: Vec<u64> },
 }
 
+impl BlockData {
+    pub fn is_empty(&self) -> bool {
+        match &self {
+            BlockData::Float { ts, values: _ } => ts.is_empty(),
+            BlockData::Integer { ts, values: _ } => ts.is_empty(),
+            BlockData::Bool { ts, values: _ } => ts.is_empty(),
+            BlockData::Str { ts, values: _ } => ts.is_empty(),
+            BlockData::Unsigned { ts, values: _ } => ts.is_empty(),
+        }
+    }
+}
+
 #[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 /// `InfluxID` represents an InfluxDB ID used in InfluxDB 2.x to represent
 /// organization and bucket identifiers.
