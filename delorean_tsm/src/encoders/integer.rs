@@ -15,7 +15,7 @@ enum Encoding {
 /// deltas are then zig-zag encoded. The resulting zig-zag encoded deltas are
 /// further compressed if possible, either via bit-packing using simple8b or by
 /// run-length encoding the deltas if they're all the same.
-pub fn encode<'a>(src: &[i64], dst: &'a mut Vec<u8>) -> Result<(), Box<dyn Error>> {
+pub fn encode(src: &[i64], dst: &mut Vec<u8>) -> Result<(), Box<dyn Error>> {
     dst.truncate(0); // reset buffer.
     if src.is_empty() {
         return Ok(());
@@ -117,7 +117,7 @@ fn encode_rle(v: u64, delta: u64, count: u64, dst: &mut Vec<u8>) {
 }
 
 /// decode decodes a slice of bytes into a vector of signed integers.
-pub fn decode<'a>(src: &[u8], dst: &'a mut Vec<i64>) -> Result<(), Box<dyn Error>> {
+pub fn decode(src: &[u8], dst: &mut Vec<i64>) -> Result<(), Box<dyn Error>> {
     if src.is_empty() {
         return Ok(());
     }
