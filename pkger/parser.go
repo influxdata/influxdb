@@ -22,7 +22,7 @@ import (
 type (
 	// ReaderFn is used for functional inputs to abstract the individual
 	// entrypoints for the reader itself.
-	ReaderFn func() (io.Reader, error)
+	ReaderFn func() (r io.Reader, source string, err error)
 
 	// Encoder is an encodes a type.
 	Encoder interface {
@@ -65,34 +65,43 @@ var ErrInvalidEncoding = errors.New("invalid encoding provided")
 // Parse parses a pkg defined by the encoding and readerFns. As of writing this
 // we can parse both a YAML, JSON, and Jsonnet formats of the Pkg model.
 func Parse(encoding Encoding, readerFn ReaderFn, opts ...ValidateOptFn) (*Pkg, error) {
-	r, err := readerFn()
+	r, source, err := readerFn()
 	if err != nil {
 		return nil, err
 	}
 
+	var pkgFn func(io.Reader, ...ValidateOptFn) (*Pkg, error)
 	switch encoding {
 	case EncodingJSON:
-		return parseJSON(r, opts...)
+		pkgFn = parseJSON
 	case EncodingJsonnet:
-		return parseJsonnet(r, opts...)
+		pkgFn = parseJsonnet
 	case EncodingSource:
-		return parseSource(r, opts...)
+		pkgFn = parseSource
 	case EncodingYAML:
-		return parseYAML(r, opts...)
+		pkgFn = parseYAML
 	default:
 		return nil, ErrInvalidEncoding
 	}
+
+	pkg, err := pkgFn(r, opts...)
+	if err != nil {
+		return nil, err
+	}
+	pkg.sources = []string{source}
+
+	return pkg, nil
 }
 
 // FromFile reads a file from disk and provides a reader from it.
 func FromFile(filePath string) ReaderFn {
-	return func() (io.Reader, error) {
+	return func() (io.Reader, string, error) {
 		// not using os.Open to avoid having to deal with closing the file in here
 		b, err := ioutil.ReadFile(filePath)
 		if err != nil {
-			return nil, err
+			return nil, filePath, err
 		}
-		return bytes.NewBuffer(b), nil
+		return bytes.NewBuffer(b), filePath, nil
 	}
 }
 
@@ -100,40 +109,43 @@ func FromFile(filePath string) ReaderFn {
 // this from an HTTP request body. There are a number of other useful
 // places for this functional input.
 func FromReader(r io.Reader) ReaderFn {
-	return func() (io.Reader, error) {
-		return r, nil
+	return func() (io.Reader, string, error) {
+		return r, "byte stream", nil
 	}
 }
 
 // FromString parses a pkg from a raw string value. This is very useful
 // in tests.
 func FromString(s string) ReaderFn {
-	return func() (io.Reader, error) {
-		return strings.NewReader(s), nil
+	return func() (io.Reader, string, error) {
+		return strings.NewReader(s), "string", nil
 	}
 }
 
 // FromHTTPRequest parses a pkg from the request body of a HTTP request. This is
 // very useful when using packages that are hosted..
 func FromHTTPRequest(addr string) ReaderFn {
-	return func() (io.Reader, error) {
+	return func() (io.Reader, string, error) {
 		client := http.Client{Timeout: 5 * time.Minute}
 		resp, err := client.Get(addr)
 		if err != nil {
-			return nil, err
+			return nil, addr, err
 		}
 		defer resp.Body.Close()
 
 		var buf bytes.Buffer
 		if _, err := io.Copy(&buf, resp.Body); err != nil {
-			return nil, err
+			return nil, addr, err
 		}
 
 		if resp.StatusCode/100 != 2 {
-			return nil, fmt.Errorf("bad response: status_code=%d body=%q", resp.StatusCode, strings.TrimSpace(buf.String()))
+			return nil, addr, fmt.Errorf(
+				"bad response: address=%s status_code=%d body=%q",
+				addr, resp.StatusCode, strings.TrimSpace(buf.String()),
+			)
 		}
 
-		return &buf, nil
+		return &buf, addr, nil
 	}
 }
 
@@ -274,6 +286,7 @@ func (k Object) SetMetadataName(name string) {
 // to another power, the graphing of the package is handled within itself.
 type Pkg struct {
 	Objects []Object `json:"-" yaml:"-"`
+	sources []string
 
 	mLabels                map[string]*label
 	mBuckets               map[string]*bucket
@@ -446,6 +459,10 @@ func (p *Pkg) Contains(k Kind, pkgName string) bool {
 func Combine(pkgs []*Pkg, validationOpts ...ValidateOptFn) (*Pkg, error) {
 	newPkg := new(Pkg)
 	for _, p := range pkgs {
+		if len(p.Objects) == 0 {
+			continue
+		}
+		newPkg.sources = append(newPkg.sources, p.sources...)
 		newPkg.Objects = append(newPkg.Objects, p.Objects...)
 	}
 
