@@ -3,6 +3,7 @@ import React, {FC, useContext} from 'react'
 
 // Components
 import EmptyQueryView, {ErrorFormat} from 'src/shared/components/EmptyQueryView'
+import DashboardList from './DashboardList'
 import ViewSwitcher from 'src/shared/components/ViewSwitcher'
 import {ViewTypeDropdown} from 'src/timeMachine/components/view_options/ViewTypeDropdown'
 import Resizer from 'src/notebooks/shared/Resizer'
@@ -10,6 +11,7 @@ import Resizer from 'src/notebooks/shared/Resizer'
 // Utilities
 import {checkResultsLength} from 'src/shared/utils/vis'
 import {createView} from 'src/views/helpers'
+import ExportVisualizationButton from 'src/notebooks/pipes/Visualization/ExportVisualizationButton'
 
 // Types
 import {PipeProp} from 'src/notebooks'
@@ -34,6 +36,9 @@ const Visualization: FC<PipeProp> = ({
   const updateType = (type: ViewType) => {
     const newView = createView(type)
 
+    // TODO: all of this needs to be removed by refactoring
+    // the underlying logic. Managing state like this is a
+    // recipe for long dev cycles, stale logic, and many bugs
     if (newView.properties.type === 'table' && results.parsed) {
       const existing = (newView.properties.fieldOptions || []).reduce(
         (prev, curr) => {
@@ -90,10 +95,21 @@ const Visualization: FC<PipeProp> = ({
   }
 
   const controls = (
-    <ViewTypeDropdown
-      viewType={data.properties.type}
-      onUpdateType={updateType}
-    />
+    <>
+      <ViewTypeDropdown
+        viewType={data.properties.type}
+        onUpdateType={updateType}
+      />
+      <ExportVisualizationButton disabled={!results.source}>
+        {onHidePopover => (
+          <DashboardList
+            query={results.source}
+            onClose={onHidePopover}
+            properties={data.properties}
+          />
+        )}
+      </ExportVisualizationButton>
+    </>
   )
 
   return (

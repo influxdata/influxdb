@@ -12,6 +12,7 @@ import {TimeContext} from 'src/notebooks/context/time'
 import {fromFlux as parse, FromFluxResult} from '@influxdata/giraffe'
 
 export interface BothResults {
+  source: string
   parsed: FromFluxResult
   raw: string
   error?: string
@@ -54,6 +55,7 @@ export const QueryProvider: FC<Props> = ({children, variables, org}) => {
       })
       .then(raw => {
         return {
+          source: text,
           raw: raw.csv,
           parsed: parse(raw.csv),
           error: null,
