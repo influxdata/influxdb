@@ -32,13 +32,13 @@ require (
 	github.com/go-stack/stack v1.8.0
 	github.com/gogo/protobuf v1.3.1
 	github.com/golang/gddo v0.0.0-20181116215533-9bd4a3295021
-	github.com/golang/protobuf v1.3.3
+	github.com/golang/protobuf v1.4.2
 	github.com/golang/snappy v0.0.1
 	github.com/google/btree v1.0.0
-	github.com/google/go-cmp v0.4.0
+	github.com/google/go-cmp v0.4.1
 	github.com/google/go-github v17.0.0+incompatible
 	github.com/google/go-jsonnet v0.14.0
-	github.com/goreleaser/goreleaser v0.135.0
+	github.com/goreleaser/goreleaser v0.138.0
 	github.com/hashicorp/go-msgpack v0.0.0-20150518234257-fa3f63826f7c // indirect
 	github.com/hashicorp/raft v1.0.0 // indirect
 	github.com/hashicorp/vault/api v1.0.2
@@ -77,7 +77,7 @@ require (
 	github.com/spf13/cobra v1.0.0
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.6.1
-	github.com/stretchr/testify v1.5.1
+	github.com/stretchr/testify v1.6.1
 	github.com/tcnksm/go-input v0.0.0-20180404061846-548a7d7a8ee8
 	github.com/testcontainers/testcontainers-go v0.0.0-20190108154635-47c0da630f72
 	github.com/tinylib/msgp v1.1.0 // indirect
@@ -92,18 +92,18 @@ require (
 	go.uber.org/multierr v1.4.0
 	go.uber.org/zap v1.10.0
 	golang.org/x/crypto v0.0.0-20200323165209-0ec3e9974c59
-	golang.org/x/net v0.0.0-20200202094626-16171245cfb2
+	golang.org/x/net v0.0.0-20200602114024-627f9648deb9
 	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d
-	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e
-	golang.org/x/sys v0.0.0-20200212091648-12a6c2dcc1e4
+	golang.org/x/sync v0.0.0-20200317015054-43a5402ce75a
+	golang.org/x/sys v0.0.0-20200602225109-6fdc65e7d980
 	golang.org/x/text v0.3.2
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0
-	golang.org/x/tools v0.0.0-20200212150539-ea181f53ac56
-	google.golang.org/api v0.17.0
-	google.golang.org/grpc v1.27.1
+	golang.org/x/tools v0.0.0-20200608174601-1b747fd94509
+	google.golang.org/api v0.26.0
+	google.golang.org/grpc v1.29.1
 	gopkg.in/vmihailenco/msgpack.v2 v2.9.1 // indirect
-	gopkg.in/yaml.v3 v3.0.0-20200121175148-a6ecf24a6d71
-	honnef.co/go/tools v0.0.1-2019.2.3.0.20190904154718-afd67930eec2
+	gopkg.in/yaml.v3 v3.0.0-20200313102051-9f266ea9e77c
+	honnef.co/go/tools v0.0.1-2020.1.4
 	labix.org/v2/mgo v0.0.0-20140701140051-000000000287 // indirect
 	launchpad.net/gocheck v0.0.0-20140225173054-000000000087 // indirect
 )
