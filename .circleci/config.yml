@@ -186,10 +186,10 @@ jobs:
             npm run report:junit
             mkdir -p ~/e2e/test-results/cucumber
             mkdir -p ~/e2e/artifacts/html
-            cp ~/project/influxdb/e2e/report/cucumber_report.html ~/e2e/artifacts/html/cucumber_report.html
-            cp ~/project/influxdb/e2e/report/cucumber_junit.xml ~/e2e/test-results/cucumber/report.xml
-            cp ~/project/influxdb/e2e/report/cucumber_junit.xml ~/e2e/artifacts/report.xml
-            cp -r ~/project/influxdb/e2e/screenshots ~/e2e/artifacts
+            cp ~/project/e2e/report/cucumber_report.html ~/e2e/artifacts/html/cucumber_report.html
+            cp ~/project/e2e/report/cucumber_junit.xml ~/e2e/test-results/cucumber/report.xml
+            cp ~/project/e2e/report/cucumber_junit.xml ~/e2e/artifacts/report.xml
+            cp -r ~/project/e2e/screenshots ~/e2e/artifacts
             ls -al
             exit $TEST_RESULT
       - store_test_results:
