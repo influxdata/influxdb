@@ -32,6 +32,10 @@ import {
   isDemoDataAvailabilityError,
   demoDataError,
 } from 'src/cloud/utils/demoDataErrors'
+import {
+  reportSimpleQueryPerformanceEvent,
+  reportQueryPerformanceEvent,
+} from 'src/cloud/utils/reporting'
 
 // Types
 import {CancelBox} from 'src/types/promises'
@@ -107,6 +111,8 @@ const isFromBucket = (node: Node) => {
 }
 
 export const executeQueries = () => async (dispatch, getState: GetState) => {
+  reportSimpleQueryPerformanceEvent('executeQueries function start')
+
   const state = getState()
 
   const allBuckets = getAll<Bucket>(state, ResourceType.Buckets)
@@ -140,8 +146,14 @@ export const executeQueries = () => async (dispatch, getState: GetState) => {
     const startTime = window.performance.now()
 
     pendingResults.forEach(({cancel}) => cancel())
+    reportSimpleQueryPerformanceEvent('executeQueries queries start')
 
     pendingResults = queries.map(({text}) => {
+      reportQueryPerformanceEvent({
+        timestamp: Date.now(),
+        fields: {},
+        tags: {event: 'executeQueries queries', query: text},
+      })
       const orgID = getOrgIDFromBuckets(text, allBuckets) || getOrg(state).id
 
       fireQueryEvent(getOrg(state).id, orgID)
@@ -152,6 +164,8 @@ export const executeQueries = () => async (dispatch, getState: GetState) => {
     })
 
     const results = await Promise.all(pendingResults.map(r => r.promise))
+    reportSimpleQueryPerformanceEvent('executeQueries queries end')
+
     const duration = window.performance.now() - startTime
 
     let statuses = [[]] as StatusRow[][]
@@ -194,6 +208,7 @@ export const executeQueries = () => async (dispatch, getState: GetState) => {
     dispatch(
       setQueryResults(RemoteDataState.Done, files, duration, null, statuses)
     )
+    reportSimpleQueryPerformanceEvent('executeQueries function start')
   } catch (e) {
     if (e.name === 'CancellationError') {
       return
