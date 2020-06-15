@@ -15,7 +15,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/flux/execute"
@@ -749,134 +748,6 @@ from(bucket: "%s")
 	}
 }
 
-func TestLauncher_PushDownAggregates(t *testing.T) {
-	l := launcher.RunTestLauncherOrFail(t, ctx,
-		"--feature-flags",
-		"pushDownGroupAggregateFirst=true",
-		"--feature-flags",
-		"pushDownGroupAggregateLast=true",
-	)
-
-	defer l.ShutdownOrFail(t, ctx)
-
-	org := l.OnBoardOrFail(t, &influxdb.OnboardingRequest{
-		User:     "user",
-		Password: "password",
-		Org:      "org",
-		Bucket:   "bucket",
-	})
-
-	l.WriteOrFail(t, org, `
-m,t=a f=1i 01
-m,t=a f=2i 02
-m,t=a f=3i 03
-m,t=a f=4i 04
-m,t=b f=4i 05
-m,t=b f=3i 06
-m,t=b f=2i 07
-m,t=b f=1i 08
-`)
-
-	t.Run("group first", func(t *testing.T) {
-		query := `
-from(bucket: "bucket")
-	|> range(start: 0)
-	|> group(columns: ["t"])
-	|> first()
-	|> keep(columns: ["_time", "_value", "field", "t"])`
-
-		want := `,result,table,_time,_value,t
-,_result,0,1970-01-01T00:00:00.000000001Z,1,a
-,_result,1,1970-01-01T00:00:00.000000005Z,4,b
-`
-
-		if got := l.QueryFlux(t, org.Org, org.Auth.Token, query); got != want {
-			t.Fatalf("unexpected result: -want/+got\n%s", cmp.Diff(want, got))
-		}
-		if readOpCount(t, l, "readGroup(first)") != 1 {
-			t.Fatal("first was not pushed down")
-		}
-	})
-
-	t.Run("group last", func(t *testing.T) {
-		query := `
-from(bucket: "bucket")
-	|> range(start: 0)
-	|> group(columns: ["t"])
-	|> last()
-	|> keep(columns: ["_time", "_value", "field", "t"])`
-
-		want := `,result,table,_time,_value,t
-,_result,0,1970-01-01T00:00:00.000000004Z,4,a
-,_result,1,1970-01-01T00:00:00.000000008Z,1,b
-`
-
-		if got := l.QueryFlux(t, org.Org, org.Auth.Token, query); got != want {
-			t.Fatalf("unexpected result: -want/+got\n%s", cmp.Diff(want, got))
-		}
-		if readOpCount(t, l, "readGroup(last)") != 1 {
-			t.Fatal("last was not pushed down")
-		}
-	})
-
-	t.Run("bare first", func(t *testing.T) {
-		t.Skip("bare first not implemented")
-
-		query := `
-from(bucket: "bucket")
-	|> range(start: 0)
-	|> first()
-	|> keep(columns: ["_time", "_value", "field", "t"])`
-
-		want := `,result,table,_time,_value,t
-,_result,0,1970-01-01T00:00:00.000000001Z,1,a
-,_result,1,1970-01-01T00:00:00.000000005Z,4,b
-`
-
-		if got := l.QueryFlux(t, org.Org, org.Auth.Token, query); got != want {
-			t.Fatalf("unexpected result: -want/+got\n%s", cmp.Diff(want, got))
-		}
-		if readOpCount(t, l, "readWindow(first)") != 1 {
-			t.Fatal("first was not pushed down")
-		}
-	})
-
-	t.Run("bare last", func(t *testing.T) {
-		t.Skip("bare last not implemented")
-
-		query := `
-from(bucket: "bucket")
-	|> range(start: 0)
-	|> last()
-	|> keep(columns: ["_time", "_value", "field", "t"])`
-
-		want := `,result,table,_time,_value,t
-,_result,0,1970-01-01T00:00:00.000000004Z,4,a
-,_result,1,1970-01-01T00:00:00.000000008Z,1,b
-`
-
-		if got := l.QueryFlux(t, org.Org, org.Auth.Token, query); got != want {
-			t.Fatalf("unexpected result: -want/+got\n%s", cmp.Diff(want, got))
-		}
-		if readOpCount(t, l, "readWindow(last)") != 1 {
-			t.Fatal("last was not pushed down")
-		}
-	})
-}
-
-func readOpCount(t testing.TB, l *launcher.TestLauncher, op string) uint64 {
-	if mf := l.Metrics(t)["query_influxdb_source_read_request_duration_seconds"]; mf != nil {
-		for _, m := range mf.Metric {
-			for _, label := range m.Label {
-				if label.GetName() == "op" && label.GetValue() == op {
-					return m.Histogram.GetSampleCount()
-				}
-			}
-		}
-	}
-	return 0
-}
-
 func TestLauncher_Query_PushDownWindowAggregateAndBareAggregate(t *testing.T) {
 	l := launcher.RunTestLauncherOrFail(t, ctx,
 		"--feature-flags", "pushDownWindowAggregateCount=true,pushDownWindowAggregateSum=true")
@@ -1021,7 +892,15 @@ from(bucket: v.bucket)
 
 func TestLauncher_Query_PushDownGroupAggregate(t *testing.T) {
 	l := launcher.RunTestLauncherOrFail(t, ctx,
-		"--feature-flags", "pushDownGroupAggregateCount=true,pushDownGroupAggregateSum=true")
+		"--feature-flags",
+		"pushDownGroupAggregateCount=true",
+		"--feature-flags",
+		"pushDownGroupAggregateSum=true",
+		"--feature-flags",
+		"pushDownGroupAggregateFirst=true",
+		"--feature-flags",
+		"pushDownGroupAggregateLast=true",
+	)
 	l.SetupOrFail(t)
 	defer l.ShutdownOrFail(t, ctx)
 
@@ -1067,6 +946,78 @@ m0,k=k0,kk=kk1 f=5i 15000000000
 		res  string
 	}{
 		{
+			name: "group first",
+			q: `
+from(bucket: v.bucket)
+	|> range(start: 0)
+	|> group(columns: ["k"])
+	|> first()
+	|> keep(columns: ["_time", "_value"])
+`,
+			op: "readGroup(first)",
+			res: `
+#datatype,string,long,dateTime:RFC3339,long
+#group,false,false,false,false
+#default,_result,,,
+,result,table,_time,_value
+,,0,1970-01-01T00:00:00.00Z,0
+`,
+		},
+		{
+			name: "group none first",
+			q: `
+from(bucket: v.bucket)
+	|> range(start: 0)
+	|> group()
+	|> first()
+	|> keep(columns: ["_time", "_value"])
+`,
+			op: "readGroup(first)",
+			res: `
+#datatype,string,long,dateTime:RFC3339,long
+#group,false,false,false,false
+#default,_result,,,
+,result,table,_time,_value
+,,0,1970-01-01T00:00:00.00Z,0
+`,
+		},
+		{
+			name: "group last",
+			q: `
+from(bucket: v.bucket)
+	|> range(start: 0)
+	|> group(columns: ["k"])
+	|> last()
+	|> keep(columns: ["_time", "_value"])
+`,
+			op: "readGroup(last)",
+			res: `
+#datatype,string,long,dateTime:RFC3339,long
+#group,false,false,false,false
+#default,_result,,,
+,result,table,_time,_value
+,,0,1970-01-01T00:00:15.00Z,5
+`,
+		},
+		{
+			name: "group none last",
+			q: `
+from(bucket: v.bucket)
+	|> range(start: 0)
+	|> group()
+	|> last()
+	|> keep(columns: ["_time", "_value"])
+`,
+			op: "readGroup(last)",
+			res: `
+#datatype,string,long,dateTime:RFC3339,long
+#group,false,false,false,false
+#default,_result,,,
+,result,table,_time,_value
+,,0,1970-01-01T00:00:15.00Z,5
+`,
+		},
+		{
 			name: "count group none",
 			q: `
 from(bucket: v.bucket)
@@ -1086,7 +1037,7 @@ from(bucket: v.bucket)
 		},
 		{
 			name: "count group",
-			op: "readGroup(count)",
+			op:   "readGroup(count)",
 			q: `
 from(bucket: v.bucket)
 	|> range(start: 1970-01-01T00:00:00Z, stop: 1970-01-01T00:00:15Z)
@@ -1123,7 +1074,7 @@ from(bucket: v.bucket)
 		},
 		{
 			name: "sum group",
-			op: "readGroup(sum)",
+			op:   "readGroup(sum)",
 			q: `
 from(bucket: v.bucket)
 	|> range(start: 1970-01-01T00:00:00Z, stop: 1970-01-01T00:00:15Z)
