@@ -7,9 +7,9 @@ use integer_encoding::VarInt;
 use std::io::{BufRead, Seek, SeekFrom};
 use std::u64;
 
-/// `TSMReader` allows you to read all block and index data within a TSM file.
+/// `TSMIndexReader` allows you to read index data within a TSM file.
 ///
-/// # Examples
+/// # Example
 ///
 /// Iterating over the TSM index.
 ///
@@ -27,7 +27,7 @@ use std::u64;
 /// # let data_len = buf.len();
 /// # let r = Cursor::new(buf);
 ///
-/// let reader = TSMReader::try_new(BufReader::new(r), data_len).unwrap();
+/// let reader = TSMIndexReader::try_new(BufReader::new(r), data_len).unwrap();
 ///
 /// // reader allows you to access each index entry, and each block for each
 /// // entry in order.
@@ -46,37 +46,8 @@ use std::u64;
 /// }
 /// ```
 ///
-/// Decoding a block.
-///
-/// ```
-/// # use delorean::storage::tsm::*;
-/// # use libflate::gzip;
-/// # use std::fs::File;
-/// # use std::io::BufReader;
-/// # use std::io::Cursor;
-/// # use std::io::Read;
-/// # let file = File::open("tests/fixtures/000000000000005-000000002.tsm.gz");
-/// # let mut decoder = gzip::Decoder::new(file.unwrap()).unwrap();
-/// # let mut buf = Vec::new();
-/// # decoder.read_to_end(&mut buf).unwrap();
-/// # let r = Cursor::new(buf);
-/// // Initializing a TSMReader requires a buffered reader and the length of the stream.
-/// let mut reader = TSMReader::try_new(BufReader::new(r), 4_222_248).unwrap();
-/// let entry = reader.next().unwrap().unwrap();
-/// println!("this index entry has {:?} blocks", entry.count);
-/// // access the decoded time stamps and values for the first block
-/// // associated with the index entry.
-/// match reader.decode_block(&entry.block).unwrap() {
-///     BlockData::Float { ts: _, values: _ } => {}
-///     BlockData::Integer { ts: _, values: _ } => {}
-///     BlockData::Bool { ts: _, values: _ } => {}
-///     BlockData::Str { ts: _, values: _ } => {}
-///     BlockData::Unsigned { ts: _, values: _ } => {}
-/// }
-///```
-///
 #[derive(Debug)]
-pub struct TSMReader<R>
+pub struct TSMIndexReader<R>
 where
     R: BufRead + Seek,
 {
@@ -89,7 +60,7 @@ where
     next: Option<IndexEntry>,
 }
 
-impl<R> TSMReader<R>
+impl<R> TSMIndexReader<R>
 where
     R: BufRead + Seek,
 {
@@ -178,78 +149,9 @@ where
             size,
         })
     }
-
-    /// decode_block decodes the current block pointed to by the provided index
-    /// entry, returning two vectors containing the timestamps and values.
-    /// decode_block will seek back to the original position in the index before
-    /// returning.
-    ///
-    /// The vectors are guaranteed to have the same length, with a maximum
-    /// length of 1000.
-    pub fn decode_block(&mut self, block: &Block) -> Result<BlockData, StorageError> {
-        self.r.seek(SeekFrom::Start(block.offset))?;
-
-        let mut data: Vec<u8> = vec![0; block.size as usize];
-        self.r.read_exact(&mut data)?;
-
-        // TODO(edd): skip 32-bit CRC checksum at beginning of block for now
-        let mut idx = 4;
-
-        // determine the block type
-        let block_type = data[idx];
-        idx += 1;
-
-        // first decode the timestamp block.
-        let mut ts: Vec<i64> = Vec::with_capacity(MAX_BLOCK_VALUES); // 1000 is the max block size
-        let (len, n) = u64::decode_var(&data[idx..]); // size of timestamp block
-        idx += n;
-        timestamp::decode(&data[idx..idx + (len as usize)], &mut ts).map_err(|e| StorageError {
-            description: e.to_string(),
-        })?;
-        idx += len as usize;
-
-        match block_type {
-            F64_BLOCKTYPE_MARKER => {
-                // values will be same length as time-stamps.
-                let mut values: Vec<f64> = Vec::with_capacity(ts.len());
-                float::decode_influxdb(&data[idx..], &mut values).map_err(|e| StorageError {
-                    description: e.to_string(),
-                })?;
-
-                // seek to original position in index before returning to caller.
-                self.r.seek(SeekFrom::Start(self.curr_offset))?;
-
-                Ok(BlockData::Float { ts, values })
-            }
-            I64_BLOCKTYPE_MARKER => {
-                // values will be same length as time-stamps.
-                let mut values: Vec<i64> = Vec::with_capacity(ts.len());
-                integer::decode(&data[idx..], &mut values).map_err(|e| StorageError {
-                    description: e.to_string(),
-                })?;
-
-                // seek to original position in index before returning to caller.
-                self.r.seek(SeekFrom::Start(self.curr_offset))?;
-
-                Ok(BlockData::Integer { ts, values })
-            }
-            BOOL_BLOCKTYPE_MARKER => Err(StorageError {
-                description: String::from("bool block type unsupported"),
-            }),
-            STRING_BLOCKTYPE_MARKER => Err(StorageError {
-                description: String::from("string block type unsupported"),
-            }),
-            U64_BLOCKTYPE_MARKER => Err(StorageError {
-                description: String::from("unsigned integer block type unsupported"),
-            }),
-            _ => Err(StorageError {
-                description: format!("unsupported block type {:?}", block_type),
-            }),
-        }
-    }
 }
 
-impl<R: BufRead + Seek> Iterator for TSMReader<R> {
+impl<R: BufRead + Seek> Iterator for TSMIndexReader<R> {
     type Item = Result<IndexEntry, StorageError>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -398,6 +300,87 @@ fn parse_tsm_key(mut key: Vec<u8>) -> Result<ParsedTSMKey, StorageError> {
     })
 }
 
+/// `TSMBlockReader` allows you to read and decode TSM blocks from within a TSM
+/// file.
+///
+#[derive(Debug)]
+pub struct TSMBlockReader<R>
+where
+    R: BufRead + Seek,
+{
+    r: R,
+}
+
+impl<R> TSMBlockReader<R>
+where
+    R: BufRead + Seek,
+{
+    pub fn new(r: R) -> Self {
+        Self { r }
+    }
+
+    /// decode_block decodes a block whose location is described by the provided
+    /// `Block`.
+    ///
+    /// The components of the returned `BlockData` are guaranteed to have
+    /// identical lengths.
+    pub fn decode_block(&mut self, block: &Block) -> Result<BlockData, StorageError> {
+        self.r.seek(SeekFrom::Start(block.offset))?;
+
+        let mut data: Vec<u8> = vec![0; block.size as usize];
+        self.r.read_exact(&mut data)?;
+
+        // TODO(edd): skip 32-bit CRC checksum at beginning of block for now
+        let mut idx = 4;
+
+        // determine the block type
+        let block_type = data[idx];
+        idx += 1;
+
+        // first decode the timestamp block.
+        let mut ts: Vec<i64> = Vec::with_capacity(MAX_BLOCK_VALUES); // 1000 is the max block size
+        let (len, n) = u64::decode_var(&data[idx..]); // size of timestamp block
+        idx += n;
+        timestamp::decode(&data[idx..idx + (len as usize)], &mut ts).map_err(|e| StorageError {
+            description: e.to_string(),
+        })?;
+        idx += len as usize;
+
+        match block_type {
+            F64_BLOCKTYPE_MARKER => {
+                // values will be same length as time-stamps.
+                let mut values: Vec<f64> = Vec::with_capacity(ts.len());
+                float::decode_influxdb(&data[idx..], &mut values).map_err(|e| StorageError {
+                    description: e.to_string(),
+                })?;
+
+                Ok(BlockData::Float { ts, values })
+            }
+            I64_BLOCKTYPE_MARKER => {
+                // values will be same length as time-stamps.
+                let mut values: Vec<i64> = Vec::with_capacity(ts.len());
+                integer::decode(&data[idx..], &mut values).map_err(|e| StorageError {
+                    description: e.to_string(),
+                })?;
+
+                Ok(BlockData::Integer { ts, values })
+            }
+            BOOL_BLOCKTYPE_MARKER => Err(StorageError {
+                description: String::from("bool block type unsupported"),
+            }),
+            STRING_BLOCKTYPE_MARKER => Err(StorageError {
+                description: String::from("string block type unsupported"),
+            }),
+            U64_BLOCKTYPE_MARKER => Err(StorageError {
+                description: String::from("unsigned integer block type unsupported"),
+            }),
+            _ => Err(StorageError {
+                description: format!("unsupported block type {:?}", block_type),
+            }),
+        }
+    }
+}
+
 /// `Block` holds information about location and time range of a block of data.
 #[derive(Debug, Copy, Clone)]
 #[allow(dead_code)]
@@ -476,7 +459,7 @@ mod tests {
         let mut buf = Vec::new();
         decoder.read_to_end(&mut buf).unwrap();
 
-        let reader = TSMReader::try_new(BufReader::new(Cursor::new(buf)), 4_222_248).unwrap();
+        let reader = TSMIndexReader::try_new(BufReader::new(Cursor::new(buf)), 4_222_248).unwrap();
 
         assert_eq!(reader.curr_offset, 3_893_272);
         assert_eq!(reader.count(), 2159)
@@ -489,7 +472,7 @@ mod tests {
         let mut buf = Vec::new();
         decoder.read_to_end(&mut buf).unwrap();
 
-        let reader = TSMReader::try_new(BufReader::new(Cursor::new(buf)), 4_222_248).unwrap();
+        let reader = TSMIndexReader::try_new(BufReader::new(Cursor::new(buf)), 4_222_248).unwrap();
 
         let mut got_blocks: u64 = 0;
         let mut got_min_time = i64::MAX;
@@ -544,26 +527,27 @@ mod tests {
         decoder.read_to_end(&mut buf).unwrap();
         let r = Cursor::new(buf);
 
-        let mut reader = TSMReader::try_new(BufReader::new(r), 4_222_248).unwrap();
+        let mut block_reader = TSMBlockReader::new(BufReader::new(r));
+
+        let block_defs = vec![
+            super::Block {
+                min_time: 1590585530000000000,
+                max_time: 1590590600000000000,
+                offset: 5339,
+                size: 153,
+            },
+            super::Block {
+                min_time: 1590585520000000000,
+                max_time: 1590590600000000000,
+                offset: 190770,
+                size: 30,
+            },
+        ];
 
         let mut blocks = vec![];
-        // Find the float block with offset 5339 in the file.
-        let f64_entry = reader
-            .find(|e| {
-                e.as_ref().unwrap().block.offset == 5339 && e.as_ref().unwrap().block_type == 0_u8
-            })
-            .unwrap()
-            .unwrap();
-        let f64_block = &reader.decode_block(&f64_entry.block).unwrap();
-        blocks.push(f64_block);
-
-        // Find the first integer block index entry in the file.
-        let i64_entry = reader
-            .find(|e| e.as_ref().unwrap().block_type == 1_u8)
-            .unwrap()
-            .unwrap();
-        let i64_block = &reader.decode_block(&i64_entry.block).unwrap();
-        blocks.push(i64_block);
+        for def in block_defs {
+            blocks.push(block_reader.decode_block(&def).unwrap());
+        }
 
         for block in blocks {
             // The first integer block in the value should have 509 values in it.
@@ -634,12 +618,12 @@ mod tests {
         let mut buf = Vec::new();
         decoder.read_to_end(&mut buf).unwrap();
         let data_len = buf.len();
-        let r = Cursor::new(buf);
 
-        let mut reader = TSMReader::try_new(BufReader::new(r), data_len).unwrap();
+        let mut index_reader =
+            TSMIndexReader::try_new(BufReader::new(Cursor::new(&buf)), data_len).unwrap();
         let mut blocks = Vec::new();
 
-        for res in &mut reader {
+        for res in &mut index_reader {
             let entry = res.unwrap();
             let key = entry.parse_key().unwrap();
             assert!(!key.measurement.is_empty());
@@ -656,8 +640,9 @@ mod tests {
             }
         }
 
+        let mut block_reader = TSMBlockReader::new(Cursor::new(&buf));
         for block in blocks {
-            reader
+            block_reader
                 .decode_block(&block)
                 .expect("error decoding block data");
         }

@@ -4,7 +4,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::convert::TryInto;
 
-use delorean::storage::tsm::{IndexEntry, InfluxID, TSMReader};
+use delorean::storage::tsm::{IndexEntry, InfluxID, TSMIndexReader};
 use delorean::storage::StorageError;
 
 use delorean_parquet::metadata::print_parquet_metadata;
@@ -29,7 +29,7 @@ pub fn dump_meta(input_filename: &str) -> Result<()> {
                 .try_into()
                 .expect("File size more than usize");
             let reader =
-                TSMReader::try_new(input_reader, len).map_err(|e| Error::TSM { source: e })?;
+                TSMIndexReader::try_new(input_reader, len).map_err(|e| Error::TSM { source: e })?;
 
             let mut stats_builder = TSMMetadataBuilder::new();
 
