@@ -285,7 +285,6 @@ export default function fromFlux(csv: string): ParsedFlux {
           name: columnName,
           group: annotations['#group'][columnName],
           type: TO_COLUMN_TYPE[columnType],
-          default: annotations['#default'][columnName],
           data: [],
         }
       }
@@ -299,8 +298,8 @@ export default function fromFlux(csv: string): ParsedFlux {
           runningTotal + currentLineIndex - headerLocation - 1
         ] = parseValue(
           parsed[currentLineIndex][currentColumnIndex] ||
-            output[columnKey].default,
-          output[columnKey].type
+            annotations['#default'][columnName],
+          TO_COLUMN_TYPE[columnType]
         )
       }
     }
