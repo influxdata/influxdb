@@ -348,9 +348,6 @@ func (p *Pkg) Summary() Summary {
 	}
 
 	for _, c := range p.checks() {
-		if c.shouldRemove {
-			continue
-		}
 		sum.Checks = append(sum.Checks, c.summarize())
 	}
 
@@ -359,18 +356,12 @@ func (p *Pkg) Summary() Summary {
 	}
 
 	for _, l := range p.labels() {
-		if l.shouldRemove {
-			continue
-		}
 		sum.Labels = append(sum.Labels, l.summarize())
 	}
 
 	sum.LabelMappings = p.labelMappings()
 
 	for _, n := range p.notificationEndpoints() {
-		if n.shouldRemove {
-			continue
-		}
 		sum.NotificationEndpoints = append(sum.NotificationEndpoints, n.summarize())
 	}
 
@@ -387,9 +378,6 @@ func (p *Pkg) Summary() Summary {
 	}
 
 	for _, v := range p.variables() {
-		if v.shouldRemove {
-			continue
-		}
 		sum.Variables = append(sum.Variables, v.summarize())
 	}
 
