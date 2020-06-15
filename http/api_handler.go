@@ -121,7 +121,7 @@ func WithResourceHandler(resHandler kithttp.ResourceHandler) APIHandlerOptFn {
 // NewAPIHandler constructs all api handlers beneath it and returns an APIHandler
 func NewAPIHandler(b *APIBackend, opts ...APIHandlerOptFn) *APIHandler {
 	h := &APIHandler{
-		Router: NewBaseChiRouter(b.HTTPErrorHandler),
+		Router: NewBaseChiRouter(kithttp.NewAPI(kithttp.WithLog(b.Logger))),
 	}
 
 	noAuthUserResourceMappingService := b.UserResourceMappingService
