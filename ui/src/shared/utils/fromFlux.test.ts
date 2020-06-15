@@ -253,7 +253,6 @@ there",5
       return data
     })
     const flux = fromFlux(CSV)
-    console.log(flux.table.columns.result)
     const results = Object.keys(
       flux.table.columns.result.data.reduce((acc, curr) => {
         acc['' + curr] = true

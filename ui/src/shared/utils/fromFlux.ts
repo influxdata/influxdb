@@ -125,7 +125,6 @@ export interface ParsedFluxColumn {
   name: string
   group: string
   type: InternalTypes
-  default: string
   data: ParsedReturnTypes[]
 }
 
