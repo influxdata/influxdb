@@ -30,7 +30,7 @@ interface StateProps {
 
 interface DispatchProps {
   onSubmit: typeof saveAndExecuteQueries | (() => void)
-  onNotify: typeof notify | (() => void)
+  onNotify?: typeof notify
 }
 
 interface OwnProps {
@@ -104,7 +104,9 @@ class SubmitQueryButton extends PureComponent<Props> {
   }
 
   private handleCancelClick = (): void => {
-    this.props.onNotify(queryCancelRequest())
+    if (this.props.onNotify) {
+      this.props.onNotify(queryCancelRequest())
+    }
     if (this.abortController) {
       this.abortController.abort()
       this.abortController = null

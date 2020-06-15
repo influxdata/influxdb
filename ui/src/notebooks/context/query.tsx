@@ -30,20 +30,6 @@ export const QueryContext = React.createContext<QueryContextType>(
   DEFAULT_CONTEXT
 )
 
-export interface SubmitQueryButtonContextType {
-  onNotify: () => void
-  setQueryToLoading: () => void
-}
-
-const defaultSubmitBtnContext: SubmitQueryButtonContextType = {
-  onNotify: () => {},
-  setQueryToLoading: () => {},
-}
-
-export const SubmitQueryButtonContext = React.createContext<
-  SubmitQueryButtonContextType
->(defaultSubmitBtnContext)
-
 type Props = StateProps
 export const QueryProvider: FC<Props> = ({children, variables, org}) => {
   const {id} = useContext(NotebookContext)
