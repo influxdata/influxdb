@@ -22,10 +22,6 @@ export interface QueryContextType {
   query: (text: string) => Promise<BothResults>
 }
 
-export interface QueryContextType {
-  query: (text: string) => Promise<BothResults>
-}
-
 export const DEFAULT_CONTEXT: QueryContextType = {
   query: () => Promise.resolve({} as BothResults),
 }

@@ -54,14 +54,14 @@ export const runQuery = (
 
   const controller = abortController || new AbortController()
 
-  const response = fetch(url, {
+  const request = fetch(url, {
     method: 'POST',
     headers,
     body: JSON.stringify(body),
     signal: controller.signal,
   })
 
-  const promise = response
+  const promise = request
     .then(processResponse)
     .catch(e =>
       e.name === 'AbortError'

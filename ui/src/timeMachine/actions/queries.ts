@@ -110,8 +110,8 @@ const isFromBucket = (node: Node) => {
   )
 }
 
-export const setQueryToLoading = () => dispatch => {
-  dispatch(setQueryResults(RemoteDataState.Loading, [], null))
+export const setQueryToLoading = (): void => {
+  setQueryResults(RemoteDataState.Loading, [], null)
 }
 
 export const executeQueries = (abortController?: AbortController) => async (
@@ -238,6 +238,7 @@ const saveDraftQueries = (): SaveDraftQueriesAction => ({
 export const saveAndExecuteQueries = (
   abortController?: AbortController
 ) => dispatch => {
+  dispatch(setQueryToLoading())
   dispatch(saveDraftQueries())
   dispatch(executeQueries(abortController))
 }
