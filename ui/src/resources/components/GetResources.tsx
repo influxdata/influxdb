@@ -19,7 +19,7 @@ import {getTemplates} from 'src/templates/actions/thunks'
 import {getVariables} from 'src/variables/actions/thunks'
 
 //Utils
-import {reportSimpleQPEvent} from 'src/cloud/utils/reporting'
+import {reportSimpleQueryPerformanceEvent} from 'src/cloud/utils/reporting'
 
 // Types
 import {AppState, RemoteDataState, ResourceType} from 'src/types'
@@ -63,12 +63,12 @@ class GetResources extends PureComponent<Props, StateProps> {
   public componentDidMount() {
     const {resources} = this.props
     const promises = []
-    reportSimpleQPEvent('GetResources request start', Date.now())
+    reportSimpleQueryPerformanceEvent('GetResources request start')
     resources.forEach(resource => {
       promises.push(this.getResourceDetails(resource))
     })
     Promise.all(promises).then(() =>
-      reportSimpleQPEvent('GetResources request end', Date.now())
+      reportSimpleQueryPerformanceEvent('GetResources request end')
     )
   }
 

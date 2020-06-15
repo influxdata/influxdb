@@ -11,19 +11,12 @@ import {
 
 let reportingTags = {}
 let reportingPoints = []
+let isReportScheduled = false
+const reportingInterval = 5 // seconds
 
 export const updateReportingContext = (key: string, value: string) => {
   reportingTags = {...reportingTags, [key]: value}
 }
-
-export const throttledReport = () => {
-  const tempPoints = reportingPoints
-  reportingPoints = []
-  reportPointsAPI({
-    points: tempPoints,
-  })
-}
-let isReportScheduled = false
 
 export const reportEvent = ({timestamp, measurement, fields, tags}: Point) => {
   if (!isFlagEnabled('appMetrics')) {
@@ -46,11 +39,11 @@ export const reportEvent = ({timestamp, measurement, fields, tags}: Point) => {
       reportPointsAPI({
         points: tempPoints,
       })
-    }, 5000)
+    }, reportingInterval * 1000)
   }
 }
 
-export const reportQPEvent = ({
+export const reportQueryPerformanceEvent = ({
   timestamp,
   fields,
   tags,
@@ -62,9 +55,9 @@ export const reportQPEvent = ({
   reportEvent({timestamp, measurement: 'UIQueryPerformance', fields, tags})
 }
 
-export const reportSimpleQPEvent = (event: string, timestamp: number) => {
-  reportQPEvent({
-    timestamp,
+export const reportSimpleQueryPerformanceEvent = (event: string) => {
+  reportQueryPerformanceEvent({
+    timestamp: Date.now(),
     fields: {},
     tags: {event},
   })
@@ -73,7 +66,7 @@ export const reportSimpleQPEvent = (event: string, timestamp: number) => {
 export const useLoadTimeReporting = (event: string) => {
   const [loadStartTime] = useState(Date.now())
   useEffect(() => {
-    reportQPEvent({
+    reportQueryPerformanceEvent({
       timestamp: loadStartTime,
       fields: {},
       tags: {event},
