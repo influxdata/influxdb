@@ -17,7 +17,7 @@ interface Props {
 }
 
 const Results: FC<Props> = ({results, onUpdate, data}) => {
-  const resultsExist = !!results.raw
+  const resultsExist = !!results.raw && results.parsed.table.length
 
   return (
     <Resizer
