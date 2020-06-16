@@ -289,7 +289,7 @@ func ReadWindowAggregateSource(id execute.DatasetID, r query.WindowAggregateRead
 
 	src.m = GetStorageDependencies(a.Context()).FromDeps.Metrics
 	src.orgID = readSpec.OrganizationID
-	src.op = "readWindowAggregate"
+	src.op = readSpec.Name()
 
 	src.runner = src
 	return src
