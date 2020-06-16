@@ -28,6 +28,7 @@ export interface TypeRegistration {
   type: string // a unique string that identifies a pipe
   priority?: number // 0 is lowest priority, equal priorities revert to string comparison
   disabled?: boolean // if you should show it or not
+  featureFlag?: string // designates a flag that should enable the panel type
   component: FunctionComponent<PipeProp> | ComponentClass<PipeProp> // the view component for rendering the interface
   button: string // a human readable string for appending the type
   initial: any // the default state for an add
