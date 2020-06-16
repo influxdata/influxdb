@@ -99,6 +99,18 @@ const removeConfInDocker = async () => {
 const setupUser = async(newUser) => {
 
     console.warn("WARNING: call to user old style start " + JSON.stringify(newUser));
+
+    if(newUser.username === 'ENV'){
+        await resolveUsernameFromEnv(newUser);
+    }
+
+
+    if(newUser.password === 'ENV'){
+        await resolvePasswordFromEnv(newUser);
+    }
+
+    await resolveUserTokenBeforeCreate(newUser);
+
     await setupUserRest(newUser);
     await putUser(newUser);
     await __wdriver.sleep(1000);
@@ -120,8 +132,13 @@ const setupNewUser = async(newUser) => {
 
     let user = newUser.toUpperCase() === 'DEFAULT' ? __defaultUser : JSON.parse(newUser);
 
+    if(user.username === 'ENV'){
+        await resolveUsernameFromEnv(user);
+    }
+
+
     if(user.password === 'ENV'){
-        resolvePasswordFromEnv(user);
+        await resolvePasswordFromEnv(user);
     }
 
     await resolveUserTokenBeforeCreate(user);
@@ -164,6 +181,16 @@ const resolvePasswordFromEnv = async(user) => {
     }
 
 };
+
+const resolveUsernameFromEnv = async(user) => {
+
+    if(user.password.toUpperCase() === 'ENV'){
+        let envar = `${__config.config_id.toUpperCase()}_DEFAULT_USERNAME`;
+        user.username = process.env[envar]
+    }
+
+};
+
 
 const resolveUserTokenBeforeCreate = async(user) => {
     if(typeof user.token === 'undefined'){
