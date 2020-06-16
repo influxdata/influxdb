@@ -773,13 +773,14 @@ m0,k=k0 f=9i 14000000000
 m0,k=k0 f=5i 15000000000
 `)
 
-	getReadRequestCount := func() uint64 {
+	getReadRequestCount := func(op string) uint64 {
 		const metricName = "query_influxdb_source_read_request_duration_seconds"
 		mf := l.Metrics(t)[metricName]
 		if mf != nil {
+			fmt.Printf("%v\n", mf)
 			for _, m := range mf.Metric {
 				for _, label := range m.Label {
-					if label.GetName() == "op" && label.GetValue() == "readWindowAggregate" {
+					if label.GetName() == "op" && label.GetValue() == op {
 						return m.Histogram.GetSampleCount()
 					}
 				}
@@ -791,6 +792,7 @@ m0,k=k0 f=5i 15000000000
 	for _, tt := range []struct {
 		name string
 		q    string
+		op   string
 		res  string
 	}{
 		{
@@ -801,6 +803,7 @@ from(bucket: v.bucket)
 	|> aggregateWindow(every: 5s, fn: count)
 	|> drop(columns: ["_start", "_stop"])
 `,
+			op: "readWindow(count)",
 			res: `
 #datatype,string,long,dateTime:RFC3339,long,string,string,string
 #group,false,false,false,false,true,true,true
@@ -819,6 +822,7 @@ from(bucket: v.bucket)
 	|> count()
 	|> drop(columns: ["_start", "_stop"])
 `,
+			op: "readWindow(count)",
 			res: `
 #group,false,false,false,true,true,true
 #datatype,string,long,long,string,string,string
@@ -835,6 +839,7 @@ from(bucket: v.bucket)
 	|> aggregateWindow(every: 5s, fn: sum)
 	|> drop(columns: ["_start", "_stop"])
 `,
+			op: "readWindow(sum)",
 			res: `
 #datatype,string,long,dateTime:RFC3339,long,string,string,string
 #group,false,false,false,false,true,true,true
@@ -853,6 +858,7 @@ from(bucket: v.bucket)
 	|> sum()
 	|> drop(columns: ["_start", "_stop"])
 `,
+			op: "readWindow(sum)",
 			res: `
 #group,false,false,false,true,true,true
 #datatype,string,long,long,string,string,string
@@ -863,7 +869,7 @@ from(bucket: v.bucket)
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			wantCount := getReadRequestCount() + 1
+			wantCount := getReadRequestCount(tt.op) + 1
 
 			prelude := fmt.Sprintf("v = {bucket: \"%s\", timeRangeStart: 1970-01-01T00:00:00Z, timeRangeStop: 1970-01-01T00:00:15Z}", l.Bucket.Name)
 			queryStr := prelude + "\n" + tt.q
@@ -883,7 +889,7 @@ from(bucket: v.bucket)
 				t.Fatal(err)
 			}
 
-			if want, got := wantCount, getReadRequestCount(); want != got {
+			if want, got := wantCount, getReadRequestCount(tt.op); want != got {
 				t.Fatalf("unexpected sample count -want/+got:\n\t- %d\n\t+ %d", want, got)
 			}
 		})

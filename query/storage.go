@@ -92,6 +92,14 @@ type ReadWindowAggregateSpec struct {
 	TimeColumn  string
 }
 
+func (spec *ReadWindowAggregateSpec) Name() string {
+	var agg string
+	if len(spec.Aggregates) > 0 {
+		agg = string(spec.Aggregates[0])
+	}
+	return fmt.Sprintf("readWindow(%s)", agg)
+}
+
 // TableIterator is a table iterator that also keeps track of cursor statistics from the storage engine.
 type TableIterator interface {
 	flux.TableIterator
