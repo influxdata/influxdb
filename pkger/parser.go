@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"path"
 	"regexp"
 	"sort"
 	"strconv"
@@ -140,12 +141,15 @@ func FromString(s string) ReaderFn {
 	}
 }
 
+var defaultHTTPClient = &http.Client{
+	Timeout: time.Minute,
+}
+
 // FromHTTPRequest parses a pkg from the request body of a HTTP request. This is
 // very useful when using packages that are hosted..
 func FromHTTPRequest(addr string) ReaderFn {
 	return func() (io.Reader, string, error) {
-		client := http.Client{Timeout: 5 * time.Minute}
-		resp, err := client.Get(addr)
+		resp, err := defaultHTTPClient.Get(normalizeGithubURLToContent(addr))
 		if err != nil {
 			return nil, addr, err
 		}
@@ -165,6 +169,35 @@ func FromHTTPRequest(addr string) ReaderFn {
 
 		return &buf, addr, nil
 	}
+}
+
+const (
+	githubRawContentHost = "raw.githubusercontent.com"
+	githubHost           = "github.com"
+)
+
+func normalizeGithubURLToContent(addr string) string {
+	u, err := url.Parse(addr)
+	if err != nil {
+		return addr
+	}
+
+	if u.Host == githubHost {
+		switch path.Ext(u.Path) {
+		case ".yaml", ".yml", ".json", ".jsonnet":
+		default:
+			return u.String()
+		}
+
+		parts := strings.Split(u.Path, "/")
+		if len(parts) < 4 {
+			return u.String()
+		}
+		u.Host = githubRawContentHost
+		u.Path = path.Join(append(parts[:3], parts[4:]...)...)
+	}
+
+	return u.String()
 }
 
 func parseJSON(r io.Reader, opts ...ValidateOptFn) (*Pkg, error) {

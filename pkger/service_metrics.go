@@ -3,6 +3,7 @@ package pkger
 import (
 	"context"
 	"net/url"
+	"path"
 	"strings"
 
 	"github.com/influxdata/influxdb/v2"
@@ -110,8 +111,8 @@ func normalizeRemoteSources(sources []string) []url.URL {
 		if !strings.HasPrefix(u.Scheme, "http") {
 			continue
 		}
-		if u.Host == "raw.githubusercontent.com" {
-			u.Host = "github.com"
+		if u.Host == githubRawContentHost {
+			u.Host = githubHost
 			u.Path = normalizeRawGithubPath(u.Path)
 		}
 		out = append(out, *u)
@@ -127,5 +128,5 @@ func normalizeRawGithubPath(rawPath string) string {
 	// keep /account/repo as base, then append the blob to it
 	tail := append([]string{"blob"}, parts[3:]...)
 	parts = append(parts[:3], tail...)
-	return strings.Join(parts, "/")
+	return path.Join(parts...)
 }

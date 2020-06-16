@@ -5,6 +5,7 @@
 1. [18387](https://github.com/influxdata/influxdb/pull/18387): Integrate query cancellation after queries have been submitted
 1. [18515](https://github.com/influxdata/influxdb/pull/18515): Extend templates with the source file|url|reader.
 1. [18539](https://github.com/influxdata/influxdb/pull/18539): Collect stats on installed influxdata community template usage.
+1. [18541](https://github.com/influxdata/influxdb/pull/18541): Pkger allow raw github.com host URLs for yaml|json|jsonnet URLs
 
 ## v2.0.0-beta.12 [2020-06-12]
 
