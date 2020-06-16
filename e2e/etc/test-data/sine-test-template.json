@@ -151,7 +151,8 @@
       "showNoteWhenEmpty": false,
       "xColumn": "_time",
       "yColumn": "_value",
-      "shadeBelow": false
+      "shadeBelow": false,
+      "hoverDimension": "auto"
      }
     }
    },
