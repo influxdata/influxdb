@@ -1,7 +1,7 @@
 import React, {FC, useState, useCallback, RefObject} from 'react'
 import {RemoteDataState} from 'src/types'
 import {PipeData} from 'src/notebooks'
-import {BothResults} from 'src/notebooks/context/query'
+import {BothResults} from 'src/notebooks'
 
 export interface PipeMeta {
   title: string

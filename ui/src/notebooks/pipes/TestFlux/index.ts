@@ -1,0 +1,44 @@
+import {register} from 'src/notebooks'
+import View from './view'
+
+register({
+  type: 'test',
+  component: View,
+  priority: -1,
+  disabled: true,
+  button: 'Flux Result Tester',
+  initial: {
+    panelVisibility: 'visible',
+    panelHeight: 200,
+    properties: {
+      type: 'xy',
+      position: 'overlaid',
+      legend: {},
+      note: '',
+      showNoteWhenEmpty: false,
+      axes: {
+        x: {
+          bounds: ['', ''],
+          label: '',
+          prefix: '',
+          suffix: '',
+          base: '10',
+          scale: 'linear',
+        },
+        y: {
+          bounds: ['', ''],
+          label: '',
+          prefix: '',
+          suffix: '',
+          base: '10',
+          scale: 'linear',
+        },
+      },
+      xColumn: '_time',
+      yColumn: 'state',
+      shadeBelow: true,
+      geom: 'monotoneX',
+      shape: 'chronograf-v2',
+    },
+  },
+})
