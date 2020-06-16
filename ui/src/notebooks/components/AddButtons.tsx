@@ -8,11 +8,14 @@ import {Button, ComponentColor} from '@influxdata/clockface'
 import {NotebookContext} from 'src/notebooks/context/notebook'
 import {PIPE_DEFINITIONS} from 'src/notebooks'
 
+// Utils
+import {isFlagEnabled} from 'src/shared/utils/featureFlag'
+
 const AddButtons: FC = () => {
   const {addPipe} = useContext(NotebookContext)
 
   const pipes = Object.entries(PIPE_DEFINITIONS)
-    .filter(([_, def]) => !def.disabled)
+    .filter(([_, def]) => !def.disabled && (!def.featureFlag || isFlagEnabled(def.featureFlag)))
     .sort((a, b) => {
       const aPriority = a[1].priority || 0
       const bPriority = b[1].priority || 0
