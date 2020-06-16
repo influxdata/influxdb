@@ -9089,6 +9089,9 @@ components:
           type: string
         shadeBelow:
           type: boolean
+        hoverDimension:
+          type: string
+          enum: [auto, x, y, xy]
         position:
           type: string
           enum: [overlaid, stacked]
@@ -9145,6 +9148,9 @@ components:
           type: string
         shadeBelow:
           type: boolean
+        hoverDimension:
+          type: string
+          enum: [auto, x, y, xy]
         position:
           type: string
           enum: [overlaid, stacked]

@@ -147,6 +147,7 @@
        }
       ],
       "shadeBelow": false,
+      "hoverDimension": "auto",
       "shape": "chronograf-v2",
       "showNoteWhenEmpty": false,
       "type": "xy",
