@@ -88,27 +88,27 @@ describe('Dashboard', () => {
     cy.getByTestID('cell--view-empty').contains(noteText)
     cy.getByTestID('cell--view-empty').should('not.contain', headerPrefix)
 
-    let prevWidth = 0
-    let prevHeight = 0
-
     cy.getByTestID('cell--view-empty').within(([$cell]) => {
-      prevWidth = $cell.clientWidth
-      prevHeight = $cell.clientHeight
+      const prevWidth = $cell.clientWidth
+      const prevHeight = $cell.clientHeight
+      cy.wrap(prevWidth).as('prevWidth')
+      cy.wrap(prevHeight).as('prevHeight')
     })
 
     // Resize Cell
     cy.get('.react-resizable-handle')
-      .trigger('mouseover', {force: true})
-      .trigger('mousedown')
-      .trigger('mousemove', {clientX: 800, clientY: 800})
-      .trigger('mouseup')
+      .trigger('mousedown', {which: 1, force: true})
+      .trigger('mousemove', {
+        clientX: 800,
+        clientY: 800,
+      })
+      .trigger('mouseup', {force: true})
 
     cy.getByTestID('cell--view-empty').within(([$cell]) => {
       const currWidth = $cell.clientWidth
       const currHeight = $cell.clientHeight
-
-      expect(prevWidth).to.be.below(currWidth)
-      expect(prevHeight).to.be.below(currHeight)
+      cy.get('@prevWidth').should('be.lessThan', currWidth)
+      cy.get('@prevHeight').should('be.lessThan', currHeight)
     })
 
     // Remove note cell
