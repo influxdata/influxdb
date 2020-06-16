@@ -29,7 +29,7 @@ import {getOrg} from 'src/organizations/selectors'
 import {getAll} from 'src/resources/selectors'
 
 //Actions
-import {editActiveQueryWithBuilder} from 'src/timeMachine/actions'
+import {editActiveQueryWithBuilderSync} from 'src/timeMachine/actions'
 
 
 // Constants
@@ -53,7 +53,6 @@ export type Action =
   | ReturnType<typeof setValuesSearchTerm>
   | ReturnType<typeof setKeysSearchTerm>
   | ReturnType<typeof setBuilderTagsStatus>
-  | ReturnType<typeof editActiveQueryWithBuilder>
   
 export const setBuilderAggregateFunctionType = (
   builderAggregateFunctionType: BuilderAggregateFunctionType,
@@ -460,12 +459,12 @@ export const reloadTagSelectors = () => (dispatch: Dispatch<Action>) => {
 }
 
 export const setBuilderBucketIfExists = (bucketName: string) => (
-  dispatch: Dispatch<Action>,
+  dispatch: Dispatch<Action | ReturnType<typeof editActiveQueryWithBuilderSync>>,
   getState: GetState
 ) => {
   const buckets = getAll<Bucket>(getState(), ResourceType.Buckets)
   if (buckets.find(b => b.name === bucketName)) {
-    dispatch(editActiveQueryWithBuilder())
+    dispatch(editActiveQueryWithBuilderSync())
     dispatch(setBuilderBucket(bucketName, true))
   }
 }
