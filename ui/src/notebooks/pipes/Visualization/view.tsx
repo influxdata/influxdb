@@ -118,7 +118,7 @@ const Visualization: FC<PipeProp> = ({
         data={data}
         onUpdate={onUpdate}
         resizingEnabled={!!results.raw}
-        emptyText="No data to visualize"
+        emptyText="This cell will visualize results from the previous cell"
         emptyIcon={IconFont.BarChart}
         toggleVisibilityEnabled={false}
       >
