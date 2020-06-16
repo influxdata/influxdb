@@ -88,6 +88,29 @@ describe('Dashboard', () => {
     cy.getByTestID('cell--view-empty').contains(noteText)
     cy.getByTestID('cell--view-empty').should('not.contain', headerPrefix)
 
+    let prevWidth = 0
+    let prevHeight = 0
+
+    cy.getByTestID('cell--view-empty').within(([$cell]) => {
+      prevWidth = $cell.clientWidth
+      prevHeight = $cell.clientHeight
+    })
+
+    // Resize Cell
+    cy.get('.react-resizable-handle')
+      .trigger('mouseover', {force: true})
+      .trigger('mousedown')
+      .trigger('mousemove', {clientX: 800, clientY: 800})
+      .trigger('mouseup')
+
+    cy.getByTestID('cell--view-empty').within(([$cell]) => {
+      const currWidth = $cell.clientWidth
+      const currHeight = $cell.clientHeight
+
+      expect(prevWidth).to.be.below(currWidth)
+      expect(prevHeight).to.be.below(currHeight)
+    })
+
     // Remove note cell
     cy.getByTestID('cell-context--toggle').click()
     cy.getByTestID('cell-context--delete').click()
