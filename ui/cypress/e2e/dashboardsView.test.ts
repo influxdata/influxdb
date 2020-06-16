@@ -73,15 +73,20 @@ describe('Dashboard', () => {
     cy.getByTestID('empty-state').should('exist')
 
     const noteText = 'this is a note cell'
+    const headerPrefix = '#'
 
     // Note cell
     cy.getByTestID('add-note--button').click()
     cy.getByTestID('note-editor--overlay').within(() => {
-      cy.get('.CodeMirror').type(noteText)
+      cy.get('.CodeMirror').type(`${headerPrefix} ${noteText}`)
+      cy.getByTestID('note-editor--preview').contains(noteText)
+      cy.getByTestID('note-editor--preview').should('not.contain', headerPrefix)
+
       cy.getByTestID('save-note--button').click()
     })
 
     cy.getByTestID('cell--view-empty').contains(noteText)
+    cy.getByTestID('cell--view-empty').should('not.contain', headerPrefix)
 
     // Remove note cell
     cy.getByTestID('cell-context--toggle').click()
