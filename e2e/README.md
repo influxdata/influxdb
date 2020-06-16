@@ -101,5 +101,3 @@ Steps classes should directly or indirectly inherit from the `baseSteps` class i
 Pages should inherit directly or indirectly from the `basePage` class in `basePage.js`.  This contains many common selectors and element getters found either in the over all framework or in common components such as wizards and popups.  
 
 The file `commonStepDefs.js` contains a library of test statements leveraging `baseSteps` and covering functionality that will often need to be repeated.  It also contains steps for accessing methods from `influxUtils.js` for accessing the REST api through AXIOS, which is useful for setting up test data for a feature set.
-
-
