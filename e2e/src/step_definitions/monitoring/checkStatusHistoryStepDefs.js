@@ -3,7 +3,7 @@ const checkStatusHistorySteps = require(__srcdir + '/steps/monitoring/checkStatu
 
 let ckStatHistSteps = new checkStatusHistorySteps(__wdriver);
 
-Then(/^the Check statusses page is loaded$/, async() => {
+Then(/^the Check statusses page is loaded$/, {timeout: 10000}, async() => {
     await ckStatHistSteps.isLoaded();
     await ckStatHistSteps.verifyIsLoaded();
 });

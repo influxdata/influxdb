@@ -4,11 +4,13 @@ import {
   ADD_TEMPLATE_SUMMARY,
   POPULATE_TEMPLATE_SUMMARIES,
   REMOVE_TEMPLATE_SUMMARY,
+  SET_ACTIVE_COMMUNITY_TEMPLATE,
   SET_EXPORT_TEMPLATE,
   SET_TEMPLATE_SUMMARY,
   SET_TEMPLATES_STATUS,
 } from 'src/templates/actions/creators'
 import {
+  CommunityTemplate,
   ResourceType,
   RemoteDataState,
   TemplateSummary,
@@ -22,6 +24,7 @@ import {
 } from 'src/resources/reducers/helpers'
 
 export const defaultState = (): TemplatesState => ({
+  activeCommunityTemplate: {} as CommunityTemplate,
   status: RemoteDataState.NotStarted,
   byID: {},
   allIDs: [],
@@ -56,6 +59,13 @@ export const templatesReducer = (
           ResourceType.Templates
         )
 
+        return
+      }
+
+      case SET_ACTIVE_COMMUNITY_TEMPLATE: {
+        const {template} = action
+
+        draftState.activeCommunityTemplate = template
         return
       }
 

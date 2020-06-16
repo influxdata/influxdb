@@ -121,7 +121,7 @@ func WithResourceHandler(resHandler kithttp.ResourceHandler) APIHandlerOptFn {
 // NewAPIHandler constructs all api handlers beneath it and returns an APIHandler
 func NewAPIHandler(b *APIBackend, opts ...APIHandlerOptFn) *APIHandler {
 	h := &APIHandler{
-		Router: newBaseChiRouter(b.HTTPErrorHandler),
+		Router: NewBaseChiRouter(kithttp.NewAPI(kithttp.WithLog(b.Logger))),
 	}
 
 	noAuthUserResourceMappingService := b.UserResourceMappingService
@@ -163,11 +163,6 @@ func NewAPIHandler(b *APIBackend, opts ...APIHandlerOptFn) *APIHandler {
 	notificationRuleBackend.NotificationRuleStore = authorizer.NewNotificationRuleStore(b.NotificationRuleStore,
 		b.UserResourceMappingService, b.OrganizationService)
 	h.Mount(prefixNotificationRules, NewNotificationRuleHandler(b.Logger, notificationRuleBackend))
-
-	orgBackend := NewOrgBackend(b.Logger.With(zap.String("handler", "org")), b)
-	orgBackend.OrganizationService = authorizer.NewOrgService(b.OrganizationService)
-	orgBackend.SecretService = authorizer.NewSecretService(b.SecretService)
-	h.Mount(prefixOrganizations, NewOrgHandler(b.Logger, orgBackend))
 
 	scraperBackend := NewScraperBackend(b.Logger.With(zap.String("handler", "scraper")), b)
 	scraperBackend.ScraperStorageService = authorizer.NewScraperTargetStoreService(b.ScraperTargetStoreService,

@@ -2,10 +2,14 @@ package pkger
 
 import (
 	"context"
+	"net/url"
+	"path"
+	"strings"
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/metric"
 	"github.com/influxdata/influxdb/v2/kit/prom"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 type mwMetrics struct {
@@ -21,7 +25,7 @@ var _ SVC = (*mwMetrics)(nil)
 func MWMetrics(reg *prom.Registry) SVCMiddleware {
 	return func(svc SVC) SVC {
 		return &mwMetrics{
-			rec:  metric.New(reg, "pkger"),
+			rec:  metric.New(reg, "pkger", metric.WithVec(templateVec())),
 			next: svc,
 		}
 	}
@@ -56,14 +60,73 @@ func (s *mwMetrics) CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*
 	return pkg, rec(err)
 }
 
-func (s *mwMetrics) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (PkgImpactSummary, error) {
+func (s *mwMetrics) DryRun(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (PkgImpactSummary, error) {
 	rec := s.rec.Record("dry_run")
-	impact, err := s.next.DryRun(ctx, orgID, userID, pkg, opts...)
-	return impact, rec(err)
+	impact, err := s.next.DryRun(ctx, orgID, userID, opts...)
+	return impact, rec(err, metric.RecordAdditional(map[string]interface{}{
+		"sources": impact.Sources,
+	}))
 }
 
-func (s *mwMetrics) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (PkgImpactSummary, error) {
+func (s *mwMetrics) Apply(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (PkgImpactSummary, error) {
 	rec := s.rec.Record("apply")
-	impact, err := s.next.Apply(ctx, orgID, userID, pkg, opts...)
-	return impact, rec(err)
+	impact, err := s.next.Apply(ctx, orgID, userID, opts...)
+	return impact, rec(err, metric.RecordAdditional(map[string]interface{}{
+		"sources": impact.Sources,
+	}))
+}
+
+func templateVec() metric.VecOpts {
+	return metric.VecOpts{
+		Name:       "template_count",
+		Help:       "Number of installations per template",
+		LabelNames: []string{"method", "source"},
+		CounterFn: func(vec *prometheus.CounterVec, o metric.CollectFnOpts) {
+			if o.Err != nil {
+				return
+			}
+
+			// safe to ignore the failed type assertion, a zero value
+			// provides a nil slice, so no worries.
+			sources, _ := o.AdditionalProps["sources"].([]string)
+			for _, source := range normalizeRemoteSources(sources) {
+				vec.
+					With(prometheus.Labels{
+						"method": o.Method,
+						"source": source.String(),
+					}).
+					Inc()
+			}
+		},
+	}
+}
+
+func normalizeRemoteSources(sources []string) []url.URL {
+	var out []url.URL
+	for _, source := range sources {
+		u, err := url.Parse(source)
+		if err != nil {
+			continue
+		}
+		if !strings.HasPrefix(u.Scheme, "http") {
+			continue
+		}
+		if u.Host == githubRawContentHost {
+			u.Host = githubHost
+			u.Path = normalizeRawGithubPath(u.Path)
+		}
+		out = append(out, *u)
+	}
+	return out
+}
+
+func normalizeRawGithubPath(rawPath string) string {
+	parts := strings.Split(rawPath, "/")
+	if len(parts) < 4 {
+		return rawPath
+	}
+	// keep /account/repo as base, then append the blob to it
+	tail := append([]string{"blob"}, parts[3:]...)
+	parts = append(parts[:3], tail...)
+	return path.Join(parts...)
 }

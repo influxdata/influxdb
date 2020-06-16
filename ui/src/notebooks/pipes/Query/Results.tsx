@@ -7,7 +7,7 @@ import classnames from 'classnames'
 // Components
 import RawFluxDataTable from 'src/timeMachine/components/RawFluxDataTable'
 import {ROW_HEIGHT} from 'src/timeMachine/components/RawFluxDataGrid'
-import Resizer from 'src/notebooks/pipes/Query/Resizer'
+import Resizer from 'src/notebooks/shared/Resizer'
 
 // Types
 import {PipeData} from 'src/notebooks/index'
@@ -19,7 +19,7 @@ interface Props {
 }
 
 const Results: FC<Props> = ({results, onUpdate, data}) => {
-  const resultsExist = !!results.raw
+  const resultsExist = !!results.raw && !!results.parsed.table.length
 
   const rows = useMemo(() => (results.raw || '').split('\n'), [results.raw])
   const [startRow, setStartRow] = useState(0)
@@ -56,28 +56,33 @@ const Results: FC<Props> = ({results, onUpdate, data}) => {
 
   return (
     <>
-      <div className="notebook-raw-data">
-        <Resizer data={data} onUpdate={onUpdate} resizingEnabled={resultsExist}>
-          <AutoSizer>
-            {({width, height}) => {
-              if (!width || !height) {
-                return false
-              }
+      <Resizer
+        data={data}
+        onUpdate={onUpdate}
+        resizingEnabled={resultsExist}
+        emptyText="Run the Flow to see Results"
+        hiddenText="Results hidden"
+        toggleVisibilityEnabled={true}
+      >
+        <AutoSizer>
+          {({width, height}) => {
+            if (!width || !height) {
+              return false
+            }
 
-              const page = Math.floor(height / ROW_HEIGHT)
-              setPageSize(page)
+            const page = Math.floor(height / ROW_HEIGHT)
+            setPageSize(page)
 
-              return (
-                <RawFluxDataTable
-                  files={[rows.slice(startRow, startRow + page).join('\n')]}
-                  width={width}
-                  height={page * ROW_HEIGHT}
-                />
-              )
-            }}
-          </AutoSizer>
-        </Resizer>
-      </div>
+            return (
+              <RawFluxDataTable
+                files={[rows.slice(startRow, startRow + page).join('\n')]}
+                width={width}
+                height={page * ROW_HEIGHT}
+              />
+            )
+          }}
+        </AutoSizer>
+      </Resizer>
       {resultsExist && data.resultsVisibility === 'visible' && (
         <div>
           <div className={prevClass} onClick={prev}>

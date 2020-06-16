@@ -1,5 +1,5 @@
 // Libraries
-import React, {SFC} from 'react'
+import React, {FC} from 'react'
 
 // Components
 import DataExplorer from 'src/dataExplorer/components/DataExplorer'
@@ -12,13 +12,16 @@ import TimeZoneDropdown from 'src/shared/components/TimeZoneDropdown'
 import DeleteDataButton from 'src/dataExplorer/components/DeleteDataButton'
 import CloudUpgradeButton from 'src/shared/components/CloudUpgradeButton'
 
+// Utils
+import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
+import {useLoadTimeReporting} from 'src/cloud/utils/reporting'
+
 // Types
 import {ResourceType} from 'src/types'
 
-// Utils
-import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
+const DataExplorerPage: FC = ({children}) => {
+  useLoadTimeReporting('DataExplorerPage load start')
 
-const DataExplorerPage: SFC = ({children}) => {
   return (
     <Page titleTag={pageTitleSuffixer(['Data Explorer'])}>
       {children}

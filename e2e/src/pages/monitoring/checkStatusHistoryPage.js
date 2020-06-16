@@ -2,12 +2,12 @@ const influxPage = require(__srcdir + '/pages/influxPage.js');
 const { By } = require('selenium-webdriver');
 
 const alertHistoryTitle = '[data-testid=alert-history-title]';
-const filterInput = '//*[./*[@data-testid=\'input-field--default\']]//*[@data-testid=\'input-field\']';
+const filterInput = '//*[./*[@data-testid=\'check-status-input--default\']]//*[@data-testid=\'check-status-input\']';
 const eventRows = '.event-row';
 const eventRowCheckNameField = '//*[./*[@class=\'event-row\']][%INDEX%]//a';
 const eventRowsAtLevel = '//*[./*[@class=\'event-row\']]//*[contains(@class,\'level-table-field--%LEVEL%\')]';
 const eventMarkersDiv = '[data-testid=event-markers]';
-const eventFilterExamplesDropdown = '[data-testid=dropdown-menu]';
+const eventFilterExamplesDropdown = '[data-testid=check-status-dropdown--contents]';
 const eventMarkerByIndex = '[data-testid=event-markers] > div:nth-of-type(%INDEX%)';
 const eventMarkers  = '[data-testid=event-markers] > *';
 const eventMarkersByType = '[data-testid=event-markers] > [class*=\'event-marker--line__%TYPE%\'';
@@ -15,6 +15,12 @@ const eventMarkerToggleByType = '[data-testid=event-marker-vis-toggle-%TYPE%] > 
 
 const canvasGraphAxes = 'canvas.giraffe-axes';
 const canvasGraphContent = 'canvas.giraffe-layer-line';
+const graphToolTip = '[data-testid=giraffe-tooltip]';
+const graphToolTipColumnValue = '//*[@data-testid=\'giraffe-tooltip-table\']/*[.//*[text()=\'%COLUMN%\']]/*[2]';
+
+const eventMarkerTooltip = '[data-testid=app-wrapper]';
+const eventMarkerColumnValue = '//*[@data-testid=\'app-wrapper\']//*[./*[text()=\'%COLUMN%\']]/*[2]';
+
 
 const eventTable = '.event-table';
 
@@ -94,6 +100,22 @@ class checkStatusHistoryPage extends influxPage {
 
     async getEventMarkerToggleByType(type){
         return await this.driver.findElement(By.css(eventMarkerToggleByType.replace('%TYPE%', type.toLowerCase())));
+    }
+
+    async getEventMarkerTooltip(){
+        return await this.driver.findElement(By.css(eventMarkerTooltip));
+    }
+
+    async getGraphToolTip(){
+        return await this.driver.findElement(By.css(graphToolTip));
+    }
+
+    async graphToolTipColumnValue(column){
+        return await this.driver.findElement(By.xpath(graphToolTipColumnValue.replace('%COLUMN%', column)));
+    }
+
+    async eventMarkerColumnValue(column){
+        return await this.driver.findElement(By.xpath(eventMarkerColumnValue.replace('%COLUMN%', column)));
     }
 
 }

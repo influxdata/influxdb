@@ -24,6 +24,7 @@ type DashboardBackend struct {
 	UserResourceMappingService   influxdb.UserResourceMappingService
 	LabelService                 influxdb.LabelService
 	UserService                  influxdb.UserService
+	OrganizationService          influxdb.OrganizationService
 }
 
 // NewDashboardBackend creates a backend used by the dashboard handler.
@@ -37,6 +38,7 @@ func NewDashboardBackend(log *zap.Logger, b *APIBackend) *DashboardBackend {
 		UserResourceMappingService:   b.UserResourceMappingService,
 		LabelService:                 b.LabelService,
 		UserService:                  b.UserService,
+		OrganizationService:          b.OrganizationService,
 	}
 }
 
@@ -52,6 +54,7 @@ type DashboardHandler struct {
 	UserResourceMappingService   influxdb.UserResourceMappingService
 	LabelService                 influxdb.LabelService
 	UserService                  influxdb.UserService
+	OrganizationService          influxdb.OrganizationService
 }
 
 const (
@@ -61,7 +64,6 @@ const (
 	dashboardsIDCellsIDPath     = "/api/v2/dashboards/:id/cells/:cellID"
 	dashboardsIDCellsIDViewPath = "/api/v2/dashboards/:id/cells/:cellID/view"
 	dashboardsIDMembersPath     = "/api/v2/dashboards/:id/members"
-	dashboardsIDLogPath         = "/api/v2/dashboards/:id/logs"
 	dashboardsIDMembersIDPath   = "/api/v2/dashboards/:id/members/:userID"
 	dashboardsIDOwnersPath      = "/api/v2/dashboards/:id/owners"
 	dashboardsIDOwnersIDPath    = "/api/v2/dashboards/:id/owners/:userID"
@@ -81,12 +83,12 @@ func NewDashboardHandler(log *zap.Logger, b *DashboardBackend) *DashboardHandler
 		UserResourceMappingService:   b.UserResourceMappingService,
 		LabelService:                 b.LabelService,
 		UserService:                  b.UserService,
+		OrganizationService:          b.OrganizationService,
 	}
 
 	h.HandlerFunc("POST", prefixDashboards, h.handlePostDashboard)
 	h.HandlerFunc("GET", prefixDashboards, h.handleGetDashboards)
 	h.HandlerFunc("GET", dashboardsIDPath, h.handleGetDashboard)
-	h.HandlerFunc("GET", dashboardsIDLogPath, h.handleGetDashboardLog)
 	h.HandlerFunc("DELETE", dashboardsIDPath, h.handleDeleteDashboard)
 	h.HandlerFunc("PATCH", dashboardsIDPath, h.handlePatchDashboard)
 
@@ -140,7 +142,6 @@ type dashboardLinks struct {
 	Members      string `json:"members"`
 	Owners       string `json:"owners"`
 	Cells        string `json:"cells"`
-	Logs         string `json:"logs"`
 	Labels       string `json:"labels"`
 	Organization string `json:"org"`
 }
@@ -181,7 +182,6 @@ func newDashboardResponse(d *influxdb.Dashboard, labels []*influxdb.Label) dashb
 			Members:      fmt.Sprintf("/api/v2/dashboards/%s/members", d.ID),
 			Owners:       fmt.Sprintf("/api/v2/dashboards/%s/owners", d.ID),
 			Cells:        fmt.Sprintf("/api/v2/dashboards/%s/cells", d.ID),
-			Logs:         fmt.Sprintf("/api/v2/dashboards/%s/logs", d.ID),
 			Labels:       fmt.Sprintf("/api/v2/dashboards/%s/labels", d.ID),
 			Organization: fmt.Sprintf("/api/v2/orgs/%s", d.OrganizationID),
 		},
@@ -310,40 +310,6 @@ func newDashboardCellViewResponse(dashID, cellID influxdb.ID, v *influxdb.View) 
 	}
 }
 
-type operationLogResponse struct {
-	Links map[string]string            `json:"links"`
-	Logs  []*operationLogEntryResponse `json:"logs"`
-}
-
-func newDashboardLogResponse(id influxdb.ID, es []*influxdb.OperationLogEntry) *operationLogResponse {
-	logs := make([]*operationLogEntryResponse, 0, len(es))
-	for _, e := range es {
-		logs = append(logs, newOperationLogEntryResponse(e))
-	}
-	return &operationLogResponse{
-		Links: map[string]string{
-			"self": fmt.Sprintf("/api/v2/dashboards/%s/logs", id),
-		},
-		Logs: logs,
-	}
-}
-
-type operationLogEntryResponse struct {
-	Links map[string]string `json:"links"`
-	*influxdb.OperationLogEntry
-}
-
-func newOperationLogEntryResponse(e *influxdb.OperationLogEntry) *operationLogEntryResponse {
-	links := map[string]string{}
-	if e.UserID.Valid() {
-		links["user"] = fmt.Sprintf("/api/v2/users/%s", e.UserID)
-	}
-	return &operationLogEntryResponse{
-		Links:             links,
-		OperationLogEntry: e,
-	}
-}
-
 // handleGetDashboards returns all dashboards within the store.
 func (h *DashboardHandler) handleGetDashboards(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -375,7 +341,19 @@ func (h *DashboardHandler) handleGetDashboards(w http.ResponseWriter, r *http.Re
 		}
 	}
 
-	dashboards, _, err := h.DashboardService.FindDashboards(ctx, req.filter, req.opts)
+	dashboardFilter := req.filter
+
+	if dashboardFilter.Organization != nil {
+		orgNameFilter := influxdb.OrganizationFilter{Name: dashboardFilter.Organization}
+		o, err := h.OrganizationService.FindOrganization(ctx, orgNameFilter)
+		if err != nil {
+			h.HandleHTTPError(ctx, err, w)
+			return
+		}
+		dashboardFilter.OrganizationID = &o.ID
+	}
+
+	dashboards, _, err := h.DashboardService.FindDashboards(ctx, dashboardFilter, req.opts)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
@@ -545,60 +523,6 @@ func decodeGetDashboardRequest(ctx context.Context, r *http.Request) (*getDashbo
 
 	return &getDashboardRequest{
 		DashboardID: i,
-	}, nil
-}
-
-// hanldeGetDashboardLog retrieves a dashboard log by the dashboards ID.
-func (h *DashboardHandler) handleGetDashboardLog(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	req, err := decodeGetDashboardLogRequest(ctx, r)
-	if err != nil {
-		h.HandleHTTPError(ctx, err, w)
-		return
-	}
-
-	log, _, err := h.DashboardOperationLogService.GetDashboardOperationLog(ctx, req.DashboardID, req.opts)
-	if err != nil {
-		h.HandleHTTPError(ctx, err, w)
-		return
-	}
-
-	h.log.Debug("Dashboard log retrieved", zap.String("log", fmt.Sprint(log)))
-
-	if err := encodeResponse(ctx, w, http.StatusOK, newDashboardLogResponse(req.DashboardID, log)); err != nil {
-		logEncodingError(h.log, r, err)
-		return
-	}
-}
-
-type getDashboardLogRequest struct {
-	DashboardID influxdb.ID
-	opts        influxdb.FindOptions
-}
-
-func decodeGetDashboardLogRequest(ctx context.Context, r *http.Request) (*getDashboardLogRequest, error) {
-	params := httprouter.ParamsFromContext(ctx)
-	id := params.ByName("id")
-	if id == "" {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
-			Msg:  "url missing id",
-		}
-	}
-
-	var i influxdb.ID
-	if err := i.DecodeFromString(id); err != nil {
-		return nil, err
-	}
-
-	opts, err := influxdb.DecodeFindOptions(r)
-	if err != nil {
-		return nil, err
-	}
-
-	return &getDashboardLogRequest{
-		DashboardID: i,
-		opts:        *opts,
 	}, nil
 }
 

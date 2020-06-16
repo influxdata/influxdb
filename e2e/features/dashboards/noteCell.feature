@@ -33,7 +33,7 @@ Feature: Dashboards - Dashboard - Note Cell
     Then dismiss the popup
     Then popup is not loaded
     When click dashboard add note button
-    Then click popup cancel simple button
+    Then click note popup cancel
     Then popup is not loaded
 
   Scenario: Add Note with markdown
@@ -79,7 +79,7 @@ Feature: Dashboards - Dashboard - Note Cell
     When click cell content popover edit note
     Then main "Edit" note popup is loaded
     # TODO edit text and verify - need to push on to higher priority tests
-    When click popup cancel simple button
+    When click note popup cancel
 
   Scenario: Delete note
     When toggle context menu of dashboard cell named "Note"

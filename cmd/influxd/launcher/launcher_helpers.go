@@ -296,6 +296,21 @@ func (tl *TestLauncher) FluxQueryOrFail(tb testing.TB, org *platform.Organizatio
 	return string(b)
 }
 
+// QueryFlux returns the csv response from a flux query.
+// It also removes all the \r to make it easier to write tests.
+func (tl *TestLauncher) QueryFlux(tb testing.TB, org *platform.Organization, token, query string) string {
+	tb.Helper()
+
+	b, err := http.SimpleQuery(tl.URL(), query, org.Name, token)
+	if err != nil {
+		tb.Fatal(err)
+	}
+
+	// remove all \r as well as the extra terminating \n
+	b = bytes.ReplaceAll(b, []byte("\r"), nil)
+	return string(b[:len(b)-1])
+}
+
 // MustNewHTTPRequest returns a new nethttp.Request with base URL and auth attached. Fail on error.
 func (tl *TestLauncher) MustNewHTTPRequest(method, rawurl, body string) *nethttp.Request {
 	req, err := nethttp.NewRequest(method, tl.URL()+rawurl, strings.NewReader(body))

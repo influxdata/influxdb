@@ -1,6 +1,14 @@
 import {get} from 'lodash'
 import moment from 'moment'
-import {AppState, View, Check, ViewType, TimeRange, TimeZone} from 'src/types'
+import {
+  AppState,
+  Check,
+  Dashboard,
+  TimeRange,
+  TimeZone,
+  View,
+  ViewType,
+} from 'src/types'
 import {currentContext} from 'src/shared/selectors/currentContext'
 
 // Constants
@@ -27,6 +35,11 @@ export const getTimeRangeWithTimezone = (state: AppState): TimeRange => {
   }
   return newTimeRange
 }
+
+export const sortDashboardByName = (dashboards: Dashboard[]): Dashboard[] =>
+  dashboards.sort((a, b) =>
+    a.name.toLowerCase() > b.name.toLowerCase() ? 1 : -1
+  )
 
 // The purpose of this function is to set a user's custom time range selection
 // from the local time to the same time in UTC if UTC is selected from the

@@ -208,6 +208,14 @@ class tokensSteps extends baseSteps{
         }
     }
 
+    async clickTokensSorterButton(){
+        await this.clickAndWait(await this.tknTab.getTokenSorterButton());
+    }
+
+    async clickTokensSorterItem(item){
+        await this.clickAndWait(await this.tknTab.getTokenSorterItem(item));
+    }
+
     async clickTokensSortByName(){
         await this.clickAndWait(await this.tknTab.getTokensSortByDescription());
     }

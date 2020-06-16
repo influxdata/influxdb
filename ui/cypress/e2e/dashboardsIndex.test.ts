@@ -179,6 +179,42 @@ describe('Dashboards', () => {
       cy.getByTestID('dashboard-card').should('contain', newName)
     })
 
+    it('retains dashboard sort order after navigating away', () => {
+      const expectedDashboardOrder = ['test dashboard', 'Bee Happy']
+
+      cy.getByTestID('dashboard-card').should('have.length', 2)
+
+      // change sort order to 'Name (Z → A)'
+      cy.getByTestID('resource-sorter--button')
+        .click()
+        .then(() => {
+          cy.contains('Name (Z → A)').click()
+        })
+        .then(() => {
+          // assert dashboard order is correct
+          cy.get('span[data-testid*="dashboard-card--name"]').each(
+            (val, index) => {
+              cy.wrap(val).contains(expectedDashboardOrder[index])
+            }
+          )
+        })
+
+      // visit another page
+      cy.getByTestID('tree-nav').then(() => {
+        cy.contains('Settings').click()
+        cy.contains(
+          "Looks like there aren't any Variables, why not create one?"
+        )
+        //return to dashboards page
+        cy.contains('Boards').click()
+      })
+
+      //assert dashboard order remains the same
+      cy.get('span[data-testid*="dashboard-card--name"]').each((val, index) => {
+        cy.wrap(val).contains(expectedDashboardOrder[index])
+      })
+    })
+
     describe('Labeling', () => {
       it('can click to filter dashboard labels', () => {
         cy.getByTestID('dashboard-card').should('have.length', 2)
@@ -327,7 +363,7 @@ describe('Dashboards', () => {
         cy.getByTestID('search-widget').type(dashSearchName)
 
         cy.getByTestID('dashboard-card').should('have.length', 1)
-        cy.getByTestID('dashboard-card--name').contains('span', dashboardName)
+        cy.contains(dashboardName)
       })
     })
   })

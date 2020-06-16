@@ -1131,7 +1131,7 @@ func (r *stateRule) diffRule() DiffNotificationRule {
 	sum := DiffNotificationRule{
 		DiffIdentifier: DiffIdentifier{
 			ID:      SafeID(r.ID()),
-			Remove:  r.parserRule.shouldRemove,
+			Remove:  IsRemoval(r.stateStatus),
 			PkgName: r.parserRule.PkgName(),
 		},
 		New: DiffNotificationRuleValues{

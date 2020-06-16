@@ -1,4 +1,14 @@
-## v2.0.0-beta.12 [2020-06-11]
+## v2.0.0-beta.13 [unreleased]
+
+### Features
+
+1. [18387](https://github.com/influxdata/influxdb/pull/18387): Integrate query cancellation after queries have been submitted
+1. [18515](https://github.com/influxdata/influxdb/pull/18515): Extend templates with the source file|url|reader.
+1. [18539](https://github.com/influxdata/influxdb/pull/18539): Collect stats on installed influxdata community template usage.
+1. [18541](https://github.com/influxdata/influxdb/pull/18541): Pkger allow raw github.com host URLs for yaml|json|jsonnet URLs
+1. [18546](https://github.com/influxdata/influxdb/pull/18546): Influx allow for files to be remotes for all template commands
+
+## v2.0.0-beta.12 [2020-06-12]
 
 ### Features
 
@@ -9,6 +19,7 @@
 1. [18355](https://github.com/influxdata/influxdb/pull/18355): Integrate RedirectTo functionality so CLOUD users now get navigated back to the originally linked page after login
 1. [18392](https://github.com/influxdata/influxdb/pull/18392): Consolidate pkg influx commands under templates. This removes some nesting of the CLI commands as part of that.
 1. [18400](https://github.com/influxdata/influxdb/pull/18400): Dashboards maintain sort order after navigating away
+1. [18480](https://github.com/influxdata/influxdb/pull/18480): Allows tasks to open in new tabs
 
 ### Bug Fixes
 
@@ -17,6 +28,7 @@
 1. [18345](https://github.com/influxdata/influxdb/pull/18345): Have influx delete cmd respect the config
 1. [18385](https://github.com/influxdata/influxdb/pull/18385): Store initialization for pkger enforced on reads
 1. [18434](https://github.com/influxdata/influxdb/pull/18434): Backfill missing fillColumns field for histograms in pkger
+1. [18471](https://github.com/influxdata/influxdb/pull/18471): Notifies the user how to escape presentation mode when the feature is toggled
 
 ### UI Improvements
 

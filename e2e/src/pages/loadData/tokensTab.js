@@ -3,21 +3,23 @@ const settingsPage = require(__srcdir + '/pages/settings/settingsPage.js');
 
 const tokensFilter = '[data-testid=input-field--filter]';
 const genTokenButton = '[data-testid=dropdown-button--gen-token]';
-const tokenListing = '[data-testid=index-list]';
-const descHeader = '[data-testid=index-list--header-cell]:nth-of-type(1)';
-const statusHeader = '[data-testid=index-list--header-cell]:nth-of-type(2)';
+const tokenListing = '[data-testid=resource-list]';
+//const descHeader = '[data-testid=index-list--header-cell]:nth-of-type(1)';// header no longer present 10.6
+//const statusHeader = '[data-testid=index-list--header-cell]:nth-of-type(2)'; //header no longer present 10.6
 //const createVariableBody = '[data-testid=button-create-initial]';
-const tokenCellTemplate = '//*[@data-testid=\'table-cell\'][.//span[text()="%DESCR%"]]';
+const tokenCellTemplate = '//*[@data-testid=\'resource-card\'][.//span[text()="%DESCR%"]]';
 const generateTokenDropdownBtn = '[data-testid=dropdown-button--gen-token]';
 const generateTokenItem = '[data-testid=\'dropdown-item generate-token--%ITEM%\']';
-const tokenCardDisableToggle = '//*[td//span[text() = \'%DESCR%\']]//*[@data-testid=\'slide-toggle\']';
+const tokenCardDisableToggle = '//*[@data-testid = \'resource-card\'][.//span[text() = \'%DESCR%\']]//*[@data-testid=\'slide-toggle\']';
+const tokenSorterButton = '[data-testid=resource-sorter--button]';
+const tokenSorterItem = '[data-testid=resource-sorter--%ITEM%]';
 const tokensSortByDescription = '//*[@data-testid=\'index-list--header-cell\'][text()=\'Description\']';
-const tokenDescription = '//*[@data-testid=\'editable-name\'][.//span[text()=\'%DESCR%\']]';
-const tokenDescriptionEditBtn = '//*[@data-testid=\'editable-name\'][.//span[text()=\'%DESCR%\']]/div[@data-testid=\'editable-name--toggle\']';
-const tokenDescriptionEditInput = '//*[@data-testid=\'editable-name\'][.//span[text()=\'%DESCR%\']]//input';
-const tokenCardDeleteButton = '//*[@data-testid=\'table-row\'][.//span[text()="%DESCR%"]]//*[@data-testid=\'delete-token--button\']';
+const tokenDescription = '//*[@data-testid=\'resource-editable-name\'][.//span[text()=\'%DESCR%\']]';
+const tokenDescriptionEditBtn = '//*[./*[@data-testid=\'resource-editable-name\'][.//span[text()=\'%DESCR%\']]]//*[@data-testid=\'resource-editable-name--button\']';
+const tokenDescriptionEditInput = '//*[./*[@data-testid=\'resource-editable-name--input--default\']]/input';
+const tokenCardDeleteButton = '//*[@data-testid=\'resource-card\'][.//span[text()="%DESCR%"]]//*[@data-testid=\'context-menu\']';
 // next selector is deprecated - todo clean up
-const tokenCardDeleteConfirm = '//*[@data-testid=\'table-row\'][.//span[text()="%DESCR%"]]//*[text()=\'Confirm\']';
+const tokenCardDeleteConfirm = '//*[@data-testid=\'resource-card\'][.//span[text()="%DESCR%"]]//*[@data-testid=\'delete-token\']';
 const tokenCardPopoverDeletConfirm = '//*[@data-testid=\'delete-token--popover--dialog\']//*[text() = \'Confirm\']';
 
 // Generate Read/Write token popup
@@ -54,8 +56,7 @@ class tokensTab extends settingsPage{
                 {type: 'css', selector: tokensFilter},
                 {type: 'css', selector: genTokenButton},
                 {type: 'css', selector: tokenListing},
-                {type: 'css', selector: descHeader},
-                {type: 'css', selector: statusHeader},
+                {type: 'css', selector: tokenSorterButton}
             ]
         );
     }
@@ -139,7 +140,16 @@ class tokensTab extends settingsPage{
     }
 
     async getTokenCardDescriptions(){
-        return await this.driver.findElements(By.xpath('//*[@data-testid=\'editable-name\']//span'));
+        return await this.driver.findElements(By.xpath('//*[@data-testid=\'resource-editable-name\']'));
+    }
+
+    async getTokenSorterButton(){
+        return await this.driver.findElement(By.css(tokenSorterButton));
+    }
+
+    async getTokenSorterItem(item){
+        return await this.driver.findElement(By.css(tokenSorterItem.replace('%ITEM%',
+            item.toLowerCase().replace(' ','-'))));
     }
 
     async getTokensSortByDescription(){
@@ -155,7 +165,7 @@ class tokensTab extends settingsPage{
     }
 
     async getTokenDescriptionEditInput(descr){
-        return await this.driver.findElement(By.xpath(tokenDescriptionEditInput.replace('%DESCR%', descr)));
+        return await this.driver.findElement(By.xpath(tokenDescriptionEditInput));
     }
 
     async getTokenReviewTokenCode(){

@@ -2,19 +2,18 @@ import {register} from 'src/notebooks'
 import View from './view'
 import './style.scss'
 
-export type Visibility = 'visible' | 'hidden'
-
 register({
   type: 'query',
+  priority: 1,
   component: View,
-  button: 'Custom Script',
+  button: 'Flux Script',
   initial: {
-    resultsVisibility: 'visible',
-    resultsPanelHeight: 200,
+    panelVisibility: 'visible',
+    panelHeight: 200,
     activeQuery: 0,
     queries: [
       {
-        text: '',
+        text: '// Write Flux script here',
         editMode: 'advanced',
         builderConfig: {
           buckets: [],

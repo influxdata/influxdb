@@ -19,7 +19,7 @@ type UserMetrics struct {
 }
 
 // NewUserMetrics returns a metrics service middleware for the User Service.
-func NewUserMetrics(reg prometheus.Registerer, s influxdb.UserService, opts ...metric.MetricsOption) *UserMetrics {
+func NewUserMetrics(reg prometheus.Registerer, s influxdb.UserService, opts ...metric.ClientOptFn) *UserMetrics {
 	o := metric.ApplyMetricOpts(opts...)
 	return &UserMetrics{
 		rec:         metric.New(reg, o.ApplySuffix("user")),
@@ -71,7 +71,7 @@ type PasswordMetrics struct {
 }
 
 // NewPasswordMetrics returns a metrics service middleware for the Password Service.
-func NewPasswordMetrics(reg prometheus.Registerer, s influxdb.PasswordsService, opts ...metric.MetricsOption) *PasswordMetrics {
+func NewPasswordMetrics(reg prometheus.Registerer, s influxdb.PasswordsService, opts ...metric.ClientOptFn) *PasswordMetrics {
 	o := metric.ApplyMetricOpts(opts...)
 	return &PasswordMetrics{
 		rec:        metric.New(reg, o.ApplySuffix("password")),

@@ -96,6 +96,10 @@ When(/^click cell content popover add note$/, async () => {
     await dbdSteps.clickDashboardPopOverlayAddNote();
 });
 
+Then(/^click note popup cancel$/, async () => {
+    await dbdSteps.clickNotePopupCance();
+})
+
 When(/^click cell content popover edit note$/, async () => {
    await dbdSteps.clickDashboardPopOverlayEditNote();
 });

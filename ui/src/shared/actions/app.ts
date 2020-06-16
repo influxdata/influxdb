@@ -1,6 +1,9 @@
 import {PRESENTATION_MODE_ANIMATION_DELAY} from '../constants'
 
-import {notify} from 'src/shared/actions/notifications'
+import {
+  notify,
+  PublishNotificationAction,
+} from 'src/shared/actions/notifications'
 import {presentationMode} from 'src/shared/copy/notifications'
 
 import {Dispatch} from 'redux'
@@ -39,11 +42,13 @@ export const disablePresentationMode = () =>
   } as const)
 
 export const delayEnablePresentationMode = () => (
-  dispatch: Dispatch<ReturnType<typeof enablePresentationMode>>
+  dispatch: Dispatch<
+    ReturnType<typeof enablePresentationMode> | PublishNotificationAction
+  >
 ): NodeJS.Timer =>
   setTimeout(() => {
     dispatch(enablePresentationMode())
-    notify(presentationMode())
+    dispatch(notify(presentationMode()))
   }, PRESENTATION_MODE_ANIMATION_DELAY)
 
 // persistent state action creators

@@ -29,7 +29,7 @@ const initialState: AppState = {
     showTemplateControlBar: false,
     timeZone: 'Local',
     navBarState: 'collapsed',
-    notebookMiniMapState: 'expanded',
+    notebookMiniMapState: 'collapsed',
   },
 }
 

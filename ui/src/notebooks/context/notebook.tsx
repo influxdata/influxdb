@@ -107,8 +107,8 @@ export const NotebookProvider: FC = ({children}) => {
               {
                 ...pipe.queries[0],
                 text:
-                  '// tip: use the __PREVIOUS_RESULT__ variable to link your queries\n\n' +
-                  pipe.queries[0].text,
+                  pipe.queries[0].text +
+                  '\n\n// tip: use the __PREVIOUS_RESULT__ variable to use results from the previous cell',
               },
             ],
           }

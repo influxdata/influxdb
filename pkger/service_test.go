@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"net/url"
 	"regexp"
 	"sort"
 	"strconv"
@@ -95,7 +96,7 @@ func TestService(t *testing.T) {
 					}
 					svc := newTestService(WithBucketSVC(fakeBktSVC))
 
-					impact, err := svc.DryRun(context.TODO(), influxdb.ID(100), 0, pkg)
+					impact, err := svc.DryRun(context.TODO(), influxdb.ID(100), 0, ApplyWithPkg(pkg))
 					require.NoError(t, err)
 
 					require.Len(t, impact.Diff.Buckets, 2)
@@ -130,7 +131,7 @@ func TestService(t *testing.T) {
 					}
 					svc := newTestService(WithBucketSVC(fakeBktSVC))
 
-					impact, err := svc.DryRun(context.TODO(), influxdb.ID(100), 0, pkg)
+					impact, err := svc.DryRun(context.TODO(), influxdb.ID(100), 0, ApplyWithPkg(pkg))
 					require.NoError(t, err)
 
 					require.Len(t, impact.Diff.Buckets, 2)
@@ -171,7 +172,7 @@ func TestService(t *testing.T) {
 
 				svc := newTestService(WithCheckSVC(fakeCheckSVC))
 
-				impact, err := svc.DryRun(context.TODO(), influxdb.ID(100), 0, pkg)
+				impact, err := svc.DryRun(context.TODO(), influxdb.ID(100), 0, ApplyWithPkg(pkg))
 				require.NoError(t, err)
 
 				checks := impact.Diff.Checks
@@ -209,7 +210,7 @@ func TestService(t *testing.T) {
 					}
 					svc := newTestService(WithLabelSVC(fakeLabelSVC))
 
-					impact, err := svc.DryRun(context.TODO(), influxdb.ID(100), 0, pkg)
+					impact, err := svc.DryRun(context.TODO(), influxdb.ID(100), 0, ApplyWithPkg(pkg))
 					require.NoError(t, err)
 
 					require.Len(t, impact.Diff.Labels, 3)
@@ -250,7 +251,7 @@ func TestService(t *testing.T) {
 					}
 					svc := newTestService(WithLabelSVC(fakeLabelSVC))
 
-					impact, err := svc.DryRun(context.TODO(), influxdb.ID(100), 0, pkg)
+					impact, err := svc.DryRun(context.TODO(), influxdb.ID(100), 0, ApplyWithPkg(pkg))
 					require.NoError(t, err)
 
 					labels := impact.Diff.Labels
@@ -299,7 +300,7 @@ func TestService(t *testing.T) {
 
 				svc := newTestService(WithNotificationEndpointSVC(fakeEndpointSVC))
 
-				impact, err := svc.DryRun(context.TODO(), influxdb.ID(100), 0, pkg)
+				impact, err := svc.DryRun(context.TODO(), influxdb.ID(100), 0, ApplyWithPkg(pkg))
 				require.NoError(t, err)
 
 				require.Len(t, impact.Diff.NotificationEndpoints, 5)
@@ -367,7 +368,7 @@ func TestService(t *testing.T) {
 
 				svc := newTestService(WithNotificationEndpointSVC(fakeEndpointSVC))
 
-				impact, err := svc.DryRun(context.TODO(), influxdb.ID(100), 0, pkg)
+				impact, err := svc.DryRun(context.TODO(), influxdb.ID(100), 0, ApplyWithPkg(pkg))
 				require.NoError(t, err)
 
 				require.Len(t, impact.Diff.NotificationRules, 1)
@@ -403,7 +404,7 @@ func TestService(t *testing.T) {
 				}
 				svc := newTestService(WithSecretSVC(fakeSecretSVC))
 
-				impact, err := svc.DryRun(context.TODO(), influxdb.ID(100), 0, pkg)
+				impact, err := svc.DryRun(context.TODO(), influxdb.ID(100), 0, ApplyWithPkg(pkg))
 				require.NoError(t, err)
 
 				assert.Equal(t, []string{"routing-key"}, impact.Summary.MissingSecrets)
@@ -424,7 +425,7 @@ func TestService(t *testing.T) {
 				}
 				svc := newTestService(WithVariableSVC(fakeVarSVC))
 
-				impact, err := svc.DryRun(context.TODO(), influxdb.ID(100), 0, pkg)
+				impact, err := svc.DryRun(context.TODO(), influxdb.ID(100), 0, ApplyWithPkg(pkg))
 				require.NoError(t, err)
 
 				variables := impact.Diff.Variables
@@ -492,7 +493,7 @@ func TestService(t *testing.T) {
 
 					orgID := influxdb.ID(9000)
 
-					impact, err := svc.Apply(context.TODO(), orgID, 0, pkg)
+					impact, err := svc.Apply(context.TODO(), orgID, 0, ApplyWithPkg(pkg))
 					require.NoError(t, err)
 
 					sum := impact.Summary
@@ -544,7 +545,7 @@ func TestService(t *testing.T) {
 
 					svc := newTestService(WithBucketSVC(fakeBktSVC))
 
-					impact, err := svc.Apply(context.TODO(), orgID, 0, pkg)
+					impact, err := svc.Apply(context.TODO(), orgID, 0, ApplyWithPkg(pkg))
 					require.NoError(t, err)
 
 					sum := impact.Summary
@@ -584,7 +585,7 @@ func TestService(t *testing.T) {
 
 					orgID := influxdb.ID(9000)
 
-					_, err := svc.Apply(context.TODO(), orgID, 0, pkg)
+					_, err := svc.Apply(context.TODO(), orgID, 0, ApplyWithPkg(pkg))
 					require.Error(t, err)
 
 					assert.GreaterOrEqual(t, fakeBktSVC.DeleteBucketCalls.Count(), 1)
@@ -605,7 +606,7 @@ func TestService(t *testing.T) {
 
 					orgID := influxdb.ID(9000)
 
-					impact, err := svc.Apply(context.TODO(), orgID, 0, pkg)
+					impact, err := svc.Apply(context.TODO(), orgID, 0, ApplyWithPkg(pkg))
 					require.NoError(t, err)
 
 					sum := impact.Summary
@@ -647,7 +648,7 @@ func TestService(t *testing.T) {
 
 					orgID := influxdb.ID(9000)
 
-					_, err := svc.Apply(context.TODO(), orgID, 0, pkg)
+					_, err := svc.Apply(context.TODO(), orgID, 0, ApplyWithPkg(pkg))
 					require.Error(t, err)
 
 					assert.GreaterOrEqual(t, fakeCheckSVC.DeleteCheckCalls.Count(), 1)
@@ -672,7 +673,7 @@ func TestService(t *testing.T) {
 
 					orgID := influxdb.ID(9000)
 
-					impact, err := svc.Apply(context.TODO(), orgID, 0, pkg)
+					impact, err := svc.Apply(context.TODO(), orgID, 0, ApplyWithPkg(pkg))
 					require.NoError(t, err)
 
 					sum := impact.Summary
@@ -705,7 +706,7 @@ func TestService(t *testing.T) {
 
 					orgID := influxdb.ID(9000)
 
-					_, err := svc.Apply(context.TODO(), orgID, 0, pkg)
+					_, err := svc.Apply(context.TODO(), orgID, 0, ApplyWithPkg(pkg))
 					require.Error(t, err)
 
 					assert.GreaterOrEqual(t, fakeLabelSVC.DeleteLabelCalls.Count(), 1)
@@ -760,7 +761,7 @@ func TestService(t *testing.T) {
 
 					svc := newTestService(WithLabelSVC(fakeLabelSVC))
 
-					impact, err := svc.Apply(context.TODO(), orgID, 0, pkg)
+					impact, err := svc.Apply(context.TODO(), orgID, 0, ApplyWithPkg(pkg))
 					require.NoError(t, err)
 
 					sum := impact.Summary
@@ -797,7 +798,7 @@ func TestService(t *testing.T) {
 
 					orgID := influxdb.ID(9000)
 
-					impact, err := svc.Apply(context.TODO(), orgID, 0, pkg)
+					impact, err := svc.Apply(context.TODO(), orgID, 0, ApplyWithPkg(pkg))
 					require.NoError(t, err)
 
 					sum := impact.Summary
@@ -839,7 +840,7 @@ func TestService(t *testing.T) {
 
 					orgID := influxdb.ID(9000)
 
-					_, err := svc.Apply(context.TODO(), orgID, 0, pkg)
+					_, err := svc.Apply(context.TODO(), orgID, 0, ApplyWithPkg(pkg))
 					require.Error(t, err)
 
 					assert.True(t, deletedDashs[1])
@@ -874,7 +875,7 @@ func TestService(t *testing.T) {
 
 					orgID := influxdb.ID(9000)
 
-					_, err := svc.Apply(context.TODO(), orgID, 0, pkg)
+					_, err := svc.Apply(context.TODO(), orgID, 0, ApplyWithPkg(pkg))
 					require.NoError(t, err)
 
 					assert.Equal(t, numExpected, fakeLabelSVC.CreateLabelMappingCalls.Count())
@@ -910,7 +911,7 @@ func TestService(t *testing.T) {
 
 					orgID := influxdb.ID(9000)
 
-					_, err := svc.Apply(context.TODO(), orgID, 0, pkg)
+					_, err := svc.Apply(context.TODO(), orgID, 0, ApplyWithPkg(pkg))
 					require.Error(t, err)
 
 					assert.GreaterOrEqual(t, fakeLabelSVC.DeleteLabelMappingCalls.Count(), killCount)
@@ -1106,7 +1107,7 @@ func TestService(t *testing.T) {
 
 					orgID := influxdb.ID(9000)
 
-					impact, err := svc.Apply(context.TODO(), orgID, 0, pkg)
+					impact, err := svc.Apply(context.TODO(), orgID, 0, ApplyWithPkg(pkg))
 					require.NoError(t, err)
 
 					sum := impact.Summary
@@ -1155,7 +1156,7 @@ func TestService(t *testing.T) {
 
 					orgID := influxdb.ID(9000)
 
-					_, err := svc.Apply(context.TODO(), orgID, 0, pkg)
+					_, err := svc.Apply(context.TODO(), orgID, 0, ApplyWithPkg(pkg))
 					require.Error(t, err)
 
 					assert.GreaterOrEqual(t, fakeEndpointSVC.DeleteNotificationEndpointCalls.Count(), 3)
@@ -1184,7 +1185,7 @@ func TestService(t *testing.T) {
 
 					orgID := influxdb.ID(9000)
 
-					impact, err := svc.Apply(context.TODO(), orgID, 0, pkg)
+					impact, err := svc.Apply(context.TODO(), orgID, 0, ApplyWithPkg(pkg))
 					require.NoError(t, err)
 
 					sum := impact.Summary
@@ -1227,7 +1228,7 @@ func TestService(t *testing.T) {
 
 					orgID := influxdb.ID(9000)
 
-					_, err := svc.Apply(context.TODO(), orgID, 0, pkg)
+					_, err := svc.Apply(context.TODO(), orgID, 0, ApplyWithPkg(pkg))
 					require.Error(t, err)
 
 					assert.Equal(t, 1, fakeRuleStore.DeleteNotificationRuleCalls.Count())
@@ -1261,7 +1262,7 @@ func TestService(t *testing.T) {
 
 					svc := newTestService(WithTaskSVC(fakeTaskSVC))
 
-					impact, err := svc.Apply(context.TODO(), orgID, 0, pkg)
+					impact, err := svc.Apply(context.TODO(), orgID, 0, ApplyWithPkg(pkg))
 					require.NoError(t, err)
 
 					sum := impact.Summary
@@ -1294,7 +1295,7 @@ func TestService(t *testing.T) {
 
 					orgID := influxdb.ID(9000)
 
-					_, err := svc.Apply(context.TODO(), orgID, 0, pkg)
+					_, err := svc.Apply(context.TODO(), orgID, 0, ApplyWithPkg(pkg))
 					require.Error(t, err)
 
 					assert.Equal(t, 1, fakeTaskSVC.DeleteTaskCalls.Count())
@@ -1315,7 +1316,7 @@ func TestService(t *testing.T) {
 
 					svc := newTestService(WithTelegrafSVC(fakeTeleSVC))
 
-					impact, err := svc.Apply(context.TODO(), orgID, 0, pkg)
+					impact, err := svc.Apply(context.TODO(), orgID, 0, ApplyWithPkg(pkg))
 					require.NoError(t, err)
 
 					sum := impact.Summary
@@ -1348,7 +1349,7 @@ func TestService(t *testing.T) {
 
 					orgID := influxdb.ID(9000)
 
-					_, err := svc.Apply(context.TODO(), orgID, 0, pkg)
+					_, err := svc.Apply(context.TODO(), orgID, 0, ApplyWithPkg(pkg))
 					require.Error(t, err)
 
 					assert.Equal(t, 1, fakeTeleSVC.DeleteTelegrafConfigCalls.Count())
@@ -1369,7 +1370,7 @@ func TestService(t *testing.T) {
 
 					orgID := influxdb.ID(9000)
 
-					impact, err := svc.Apply(context.TODO(), orgID, 0, pkg)
+					impact, err := svc.Apply(context.TODO(), orgID, 0, ApplyWithPkg(pkg))
 					require.NoError(t, err)
 
 					sum := impact.Summary
@@ -1404,7 +1405,7 @@ func TestService(t *testing.T) {
 
 					orgID := influxdb.ID(9000)
 
-					_, err := svc.Apply(context.TODO(), orgID, 0, pkg)
+					_, err := svc.Apply(context.TODO(), orgID, 0, ApplyWithPkg(pkg))
 					require.Error(t, err)
 
 					assert.GreaterOrEqual(t, fakeVarSVC.DeleteVariableCalls.Count(), 1)
@@ -1445,7 +1446,7 @@ func TestService(t *testing.T) {
 
 					svc := newTestService(WithVariableSVC(fakeVarSVC))
 
-					impact, err := svc.Apply(context.TODO(), orgID, 0, pkg)
+					impact, err := svc.Apply(context.TODO(), orgID, 0, ApplyWithPkg(pkg))
 					require.NoError(t, err)
 
 					sum := impact.Summary
@@ -3215,6 +3216,60 @@ func TestService(t *testing.T) {
 	})
 }
 
+func Test_normalizeRemoteSources(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    []string
+		expected []url.URL
+	}{
+		{
+			name:     "no urls provided",
+			input:    []string{"byte stream", "string", ""},
+			expected: nil,
+		},
+		{
+			name:     "skips valid file url",
+			input:    []string{"file:///example.com"},
+			expected: nil,
+		},
+		{
+			name:     "valid http url provided",
+			input:    []string{"http://example.com"},
+			expected: []url.URL{parseURL(t, "http://example.com")},
+		},
+		{
+			name:     "valid https url provided",
+			input:    []string{"https://example.com"},
+			expected: []url.URL{parseURL(t, "https://example.com")},
+		},
+		{
+			name:  "converts raw github user url to base github",
+			input: []string{"https://raw.githubusercontent.com/influxdata/community-templates/master/github/github.yml"},
+			expected: []url.URL{
+				parseURL(t, "https://github.com/influxdata/community-templates/blob/master/github/github.yml"),
+			},
+		},
+		{
+			name:  "passes base github link unchanged",
+			input: []string{"https://github.com/influxdata/community-templates/blob/master/github/github.yml"},
+			expected: []url.URL{
+				parseURL(t, "https://github.com/influxdata/community-templates/blob/master/github/github.yml"),
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		fn := func(t *testing.T) {
+			actual := normalizeRemoteSources(tt.input)
+			require.Len(t, actual, len(tt.expected))
+			for i, expected := range tt.expected {
+				assert.Equal(t, expected.String(), actual[i].String())
+			}
+		}
+		t.Run(tt.name, fn)
+	}
+}
+
 func newTestIDPtr(i int) *influxdb.ID {
 	id := influxdb.ID(i)
 	return &id
@@ -3283,4 +3338,11 @@ func newTimeGen(t time.Time) fakeTimeGen {
 
 func (t fakeTimeGen) Now() time.Time {
 	return t()
+}
+
+func parseURL(t *testing.T, rawAddr string) url.URL {
+	t.Helper()
+	u, err := url.Parse(rawAddr)
+	require.NoError(t, err)
+	return *u
 }

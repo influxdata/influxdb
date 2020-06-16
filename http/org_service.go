@@ -61,7 +61,6 @@ type OrgHandler struct {
 const (
 	prefixOrganizations          = "/api/v2/orgs"
 	organizationsIDPath          = "/api/v2/orgs/:id"
-	organizationsIDLogPath       = "/api/v2/orgs/:id/logs"
 	organizationsIDMembersPath   = "/api/v2/orgs/:id/members"
 	organizationsIDMembersIDPath = "/api/v2/orgs/:id/members/:userID"
 	organizationsIDOwnersPath    = "/api/v2/orgs/:id/owners"
@@ -112,7 +111,6 @@ func NewOrgHandler(log *zap.Logger, b *OrgBackend) *OrgHandler {
 	h.HandlerFunc("POST", prefixOrganizations, h.handlePostOrg)
 	h.HandlerFunc("GET", prefixOrganizations, h.handleGetOrgs)
 	h.HandlerFunc("GET", organizationsIDPath, h.handleGetOrg)
-	h.HandlerFunc("GET", organizationsIDLogPath, h.handleGetOrgLog)
 	h.HandlerFunc("PATCH", organizationsIDPath, h.handlePatchOrg)
 	h.HandlerFunc("DELETE", organizationsIDPath, h.handleDeleteOrg)
 
@@ -400,43 +398,6 @@ func (h *OrgHandler) handleDeleteSecrets(w http.ResponseWriter, r *http.Request)
 	}
 
 	h.API.Respond(w, r, http.StatusNoContent, nil)
-}
-
-// hanldeGetOrganizationLog retrieves a organization log by the organizations ID.
-func (h *OrgHandler) handleGetOrgLog(w http.ResponseWriter, r *http.Request) {
-	orgID, err := decodeIDFromCtx(r.Context(), "id")
-	if err != nil {
-		h.API.Err(w, r, err)
-		return
-	}
-
-	opts, err := influxdb.DecodeFindOptions(r)
-	if err != nil {
-		h.API.Err(w, r, err)
-		return
-	}
-
-	log, _, err := h.OrganizationOperationLogService.GetOrganizationOperationLog(r.Context(), orgID, *opts)
-	if err != nil {
-		h.API.Err(w, r, err)
-		return
-	}
-	h.log.Debug("Org logs retrieved", zap.String("log", fmt.Sprint(log)))
-
-	h.API.Respond(w, r, http.StatusOK, newOrganizationLogResponse(orgID, log))
-}
-
-func newOrganizationLogResponse(id influxdb.ID, es []*influxdb.OperationLogEntry) *operationLogResponse {
-	logs := make([]*operationLogEntryResponse, 0, len(es))
-	for _, e := range es {
-		logs = append(logs, newOperationLogEntryResponse(e))
-	}
-	return &operationLogResponse{
-		Links: map[string]string{
-			"self": fmt.Sprintf("/api/v2/orgs/%s/logs", id),
-		},
-		Logs: logs,
-	}
 }
 
 // SecretService connects to Influx via HTTP using tokens to manage secrets.

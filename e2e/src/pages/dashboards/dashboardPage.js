@@ -8,7 +8,7 @@ const graphToolTips = '[data-testid=page-control-bar] [data-testid=graphtips-que
 //const addCellButtonHeader = '//*[@data-testid=\'page-header--right\']//*[@data-testid=\'button\'][.//*[text()=\'Add Cell\']]';
 const addCellButtonHeader = '//*[@data-testid=\'page-control-bar--left\']//*[@data-testid=\'button\'][.//*[text()=\'Add Cell\']]';
 //const addNoteButton = '//*[@data-testid=\'page-header--right\']//*[@data-testid=\'button\'][.//*[text()=\'Add Note\']]';
-const addNoteButton = '//*[@data-testid=\'page-control-bar--left\']//*[@data-testid=\'button\'][.//*[text()=\'Add Note\']]';
+const addNoteButton = '[data-testid=add-note--button]';
 //const variablesButton = '//*[@data-testid=\'page-header--right\']//*[@data-testid=\'button\'][.//*[text()=\'Variables\']]';
 const variablesButton = '//*[@data-testid=\'page-control-bar--left\']//*[@data-testid=\'button\'][.//*[text()=\'Variables\']]';
 //const timeLocaleDropdown = '//*[@data-testid=\'page-header--right\']//*[@data-testid=\'dropdown--button\'][.//*[contains(@class,\'annotate\')]]';
@@ -64,6 +64,8 @@ const notePopupEditorPreview = '[data-testid=overlay--body] .note-editor--previe
 const notePopupEditorPreviewTag = '[data-testid=overlay--body] .note-editor--preview %TAG%';
 const notePopupEditorPreviewText = '[data-testid=overlay--body] .note-editor--preview .markdown-format';
 const notePopupGuideLink = '[href*=\'markdownguide.org\']';
+const notePopupCancel = '[data-testid=overlay--footer] button[title=Cancel]';
+const notePopupSave = '[data-testid=overlay--footer] button[title=Save]';
 
 const notePopover = '[data-testid=popover--dialog]';
 const notePopoverContents = '[data-testid=popover--dialog] .markdown-format';
@@ -83,7 +85,7 @@ class dashboardPage extends influxPage {
         await super.isLoaded([{type: 'css', selector: pageTitle},
             {type: 'css', selector: graphToolTips},
             {type: 'xpath', selector: addCellButtonHeader},
-            {type: 'xpath', selector: addNoteButton},
+            {type: 'css', selector: addNoteButton},
             {type: 'xpath', selector: variablesButton},
             {type: 'xpath', selector: timeLocaleDropdown},
             {type: 'xpath', selector: autorefresh},
@@ -122,7 +124,7 @@ class dashboardPage extends influxPage {
     }
 
     async getAddNoteButton(){
-        return await this.driver.findElement(By.xpath(addNoteButton));
+        return await this.driver.findElement(By.css(addNoteButton));
     }
 
     async getVariablesButton(){
@@ -247,6 +249,14 @@ class dashboardPage extends influxPage {
 
     async getNotePopupGuideLink(){
         return await this.driver.findElement(By.css(notePopupGuideLink));
+    }
+
+    async getNotePopupCancel(){
+        return await this.driver.findElement(By.css(notePopupCancel));
+    }
+
+    async getNotePopupSave(){
+        return await this.driver.findElement(By.css(notePopupSave));
     }
 
     async getCellNoteByName(name){
