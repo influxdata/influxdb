@@ -278,6 +278,14 @@ func (h *CheckHandler) handleGetChecks(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
+	if filter.Org != nil {
+		o, err := h.OrganizationService.FindOrganization(ctx, influxdb.OrganizationFilter{Name: filter.Org})
+		if err != nil {
+			h.HandleHTTPError(ctx, err, w)
+			return
+		}
+		filter.OrgID = &o.ID
+	}
 	chks, _, err := h.CheckService.FindChecks(ctx, *filter, *opts)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -549,6 +557,12 @@ func (h *CheckHandler) handlePostCheck(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
+	}
+
+	if id := chk.CheckCreate.GetOrgID(); !id.Valid() {
+		if _, err := h.OrganizationService.FindOrganizationByID(ctx, id); err != nil {
+			h.HandleHTTPError(ctx, err, w)
+		}
 	}
 
 	if err := h.CheckService.CreateCheck(ctx, chk.CheckCreate, auth.GetUserID()); err != nil {

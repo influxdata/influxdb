@@ -97,14 +97,6 @@ func (s *Service) FindCheck(ctx context.Context, filter influxdb.CheckFilter) (i
 		return s.FindCheckByID(ctx, *filter.ID)
 	}
 
-	if filter.Org != nil {
-		o, err := s.FindOrganizationByName(ctx, *filter.Org)
-		if err != nil {
-			return nil, err
-		}
-		filter.OrgID = &o.ID
-	}
-
 	var c influxdb.Check
 	err := s.kv.View(ctx, func(tx Tx) error {
 		if filter.OrgID != nil && filter.Name != nil {
@@ -193,14 +185,6 @@ func (s *Service) FindChecks(ctx context.Context, filter influxdb.CheckFilter, o
 
 	var checks []influxdb.Check
 	err = s.kv.View(ctx, func(tx Tx) error {
-		if filter.Org != nil {
-			o, err := s.findOrganizationByName(ctx, tx, *filter.Org)
-			if err != nil {
-				return &influxdb.Error{Err: err}
-			}
-			filter.OrgID = &o.ID
-		}
-
 		var opt influxdb.FindOptions
 		if len(opts) > 0 {
 			opt = opts[0]
@@ -242,19 +226,6 @@ func (s *Service) CreateCheck(ctx context.Context, c influxdb.CheckCreate, userI
 
 	if err := c.Status.Valid(); err != nil {
 		return err
-	}
-
-	if c.GetOrgID().Valid() {
-		span, ctx := tracing.StartSpanFromContext(ctx)
-		defer span.Finish()
-
-		if _, err := s.FindOrganizationByID(ctx, c.GetOrgID()); err != nil {
-			return &influxdb.Error{
-				Code: influxdb.ENotFound,
-				Op:   influxdb.OpCreateCheck,
-				Err:  err,
-			}
-		}
 	}
 
 	return s.kv.Update(ctx, func(tx Tx) error {
