@@ -1146,17 +1146,13 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		case "1.0":
 			m.log.Warn("Setting the minimum version of TLS to 1.0 - this is discouraged. Please use 1.2 or 1.3")
 			tlsMinVersion = tls.VersionTLS10
-			break
 		case "1.1":
 			m.log.Warn("Setting the minimum version of TLS to 1.1 - this is discouraged. Please use 1.2 or 1.3")
 			tlsMinVersion = tls.VersionTLS11
-			break
 		case "1.2":
 			tlsMinVersion = tls.VersionTLS12
-			break
 		case "1.3":
 			tlsMinVersion = tls.VersionTLS13
-			break
 		}
 
 		strictCiphers := []uint16{
