@@ -17,13 +17,13 @@ import {checkResultsLength} from 'src/shared/utils/vis'
 // Types
 import {PipeProp} from 'src/notebooks'
 import {BothResults} from 'src/notebooks'
-import {ViewType} from 'src/types'
+import {ViewType, RemoteDataState} from 'src/types'
 
 import {AppSettingContext} from 'src/notebooks/context/app'
 
 import {updateVisualizationType} from 'src/notebooks/pipes/Visualization/view'
 
-const TestFlux: FC<PipeProp> = ({Context, data, onUpdate, loading}) => {
+const TestFlux: FC<PipeProp> = ({Context, data, onUpdate}) => {
   const {timeZone} = useContext(AppSettingContext)
   const uploadRef: React.RefObject<HTMLInputElement> = React.createRef()
   const startUpload = () => {
@@ -93,7 +93,7 @@ const TestFlux: FC<PipeProp> = ({Context, data, onUpdate, loading}) => {
         <div className="notebook-visualization">
           <div className="notebook-visualization--view">
             <EmptyQueryView
-              loading={loading}
+              loading={RemoteDataState.Done}
               errorMessage={results.error}
               errorFormat={ErrorFormat.Scroll}
               hasResults={checkResultsLength(results.parsed)}
