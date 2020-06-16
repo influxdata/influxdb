@@ -2,6 +2,8 @@
 
 ### Features
 
+1. [18387](https://github.com/influxdata/influxdb/pull/18387): Integrate query cancellation after queries have been submitted
+
 ## v2.0.0-beta.12 [2020-06-12]
 
 ### Features
