@@ -151,7 +151,7 @@ class dashboardSteps extends influxSteps {
                 }
                 __dataBuffer.rect[name] = rect;
                 //debug why resize not saved
-                //await influxUtils.signIn('admin');
+                //await influxUtils.signInAxios('admin');
                 //let dashboards = await influxUtils.getDashboards();
                 //console.log("DEBUG dashboards " + JSON.stringify(dashboards));
 
@@ -269,6 +269,10 @@ class dashboardSteps extends influxSteps {
         });
     }
 
+    async clickNotePopupCance(){
+        await this.clickAndWait(await this.dbdPage.getNotePopupCancel());
+    }
+
     async clickDashboardPopOverlayEditNote(){
         await this.clickAndWait(await this.dbdPage.getcellPopoverContentsEditNote(), async () => {
             await this.driver.sleep(1000);
@@ -301,8 +305,8 @@ class dashboardSteps extends influxSteps {
         await this.verifyElementContainsText(await this.dbdPage.getPopupTitle(), 'Edit Note');
         await this.assertVisible(await this.dbdPage.getNotePopupCodeMirror());
         await this.assertVisible(await this.dbdPage.getPopupDismiss());
-        await this.assertVisible(await this.dbdPage.getPopupCancelSimple());
-        await this.assertVisible(await this.dbdPage.getPopupSaveSimple());
+        await this.assertVisible(await this.dbdPage.getNotePopupCancel());
+        await this.assertVisible(await this.dbdPage.getNotePopupSave());
         await this.assertVisible(await this.dbdPage.getNotePopupNoDataToggle());
         await this.assertVisible(await this.dbdPage.getNotePopupEditorPreview());
     }
@@ -312,8 +316,8 @@ class dashboardSteps extends influxSteps {
         await this.verifyElementContainsText(await this.dbdPage.getPopupTitle(), `${state} Note`);
         await this.assertVisible(await this.dbdPage.getNotePopupCodeMirror());
         await this.assertVisible(await this.dbdPage.getPopupDismiss());
-        await this.assertVisible(await this.dbdPage.getPopupCancelSimple());
-        await this.assertVisible(await this.dbdPage.getPopupSaveSimple());
+        await this.assertVisible(await this.dbdPage.getNotePopupCancel());
+        await this.assertVisible(await this.dbdPage.getNotePopupSave());
         await this.assertVisible(await this.dbdPage.getNotePopupEditorPreview());
         await this.assertVisible(await this.dbdPage.getNotePopupGuideLink());
     }
@@ -449,7 +453,7 @@ class dashboardSteps extends influxSteps {
             await resizer.click();
 
             //debug why resize not saved
-            //await influxUtils.signIn('admin');
+            //await influxUtils.signInAxios('admin');
             //let dashboards = await influxUtils.getDashboards();
             //console.log("DEBUG dashboards " + JSON.stringify(dashboards));
 
@@ -463,7 +467,7 @@ class dashboardSteps extends influxSteps {
         await this.dbdPage.getCellByName(name).then(async cell => {
 
             //debug why resize not saved
-            //await influxUtils.signIn('admin');
+            //await influxUtils.signInAxios('admin');
             //let dashboards = await influxUtils.getDashboards();
             //console.log("DEBUG dashboards " + JSON.stringify(dashboards));
 

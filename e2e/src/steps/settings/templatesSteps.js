@@ -101,8 +101,8 @@ class templatesSteps extends baseSteps{
     }
 
     async verifyRESTTemplateDocumentExists(user,title){
-        let uzzer = await influxUtils.getUser(user);
-        let resp = await influxUtils.getDocTemplates(uzzer.orgid);
+        //let uzzer = await influxUtils.getUser(user);
+        let resp = await influxUtils.getDocTemplates(user);
         let match = resp.documents.filter( doc => doc.meta.name === title);
         expect(match.length).to.be.above(0);
     }

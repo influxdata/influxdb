@@ -450,7 +450,7 @@ Feature: Dashboards - Dashboard - Cell Edit
     Then the time machine preview canvas axes are not present
     Then the time machine empty graph error message is:
   """
-  type error 1:1-1:7: undefined identifier "Muffin"
+  error @1:1-1:7: undefined identifier Muffin
   """
     When click the cell edit save button
     Then the cell named "Kliky" contains a graph error
@@ -458,7 +458,7 @@ Feature: Dashboards - Dashboard - Cell Edit
     #When hover over the error icon of the cell "Kliky"
     Then the cell error message of the cell named "Kliky" is:
   """
-  type error 1:1-1:7: undefined identifier "Muffin"
+  error @1:1-1:7: undefined identifier Muffin
   """
 
 @tested

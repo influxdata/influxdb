@@ -22,16 +22,21 @@
     "babel-preset-env": "^1.7.0",
     "chai": "^4.2.0",
     "chai-match": "^1.1.1",
-    "chromedriver": "^80.0.0",
+    "chromedriver": "^83.0.0",
     "copy-paste": "^1.3.0",
     "csv": "^5.3.1",
     "cucumber": "^5.1.0",
     "cucumber-html-reporter": "^5.0.0",
     "cucumber-junit-convert": "^1.0.2",
     "cucumber-pretty": "^1.5.2",
-    "eslint": "^6.1.0",
+    "eslint": "^7.1.0",
     "geckodriver": "^1.16.2",
     "mkdirp": "^0.5.1",
     "selenium-webdriver": "^4.0.0-alpha.7"
+  },
+  "dependencies": {
+    "@influxdata/influxdb-client": "^1.3.0",
+    "@influxdata/influxdb-client-apis": "^1.3.0",
+    "expect.js": "^0.3.1"
   }
 }

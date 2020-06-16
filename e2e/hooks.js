@@ -85,6 +85,8 @@ After(async function (scenario /*,   callback */) {
   //      fs.mkdir(`./${__config.screenshot_dir}`, () => {})
   //  }
 
+    __reportedResetOnce = true;
+
     let uri = scenario.sourceLocation.uri
     let feature = uri.substring(uri.lastIndexOf("/") + 1).replace('.','-')
     let name = scenario.pickle.name.trim().replace(' ', '_');
@@ -133,6 +135,9 @@ After(async function (scenario /*,   callback */) {
 
 
 AfterAll(async function ( ) {
+
+    __reportedResetOnce = false;
+
     if(__liveDataGenRunning) {
         console.log("killing live generator");
         __killLiveDataGen = true;

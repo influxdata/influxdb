@@ -1,19 +1,14 @@
 {
   "active": "development",
-  "default_user": {
-    "username": "admin",
-    "password": "changeit",
-    "org": "qa",
-    "bucket": "qa"
-  },
   "development" : {
     "config_id" : "development",
-    "protocol": "http",
-    "host" : "localhost",
-    "port" : "9999",
+    "influx_url": "http://localhost:9999",
     "def_ctx": "/",
     "headless": false,
     "sel_docker": false,
+    "deployment": "nightly_docker",
+    "create_method": "REST",
+    "docker_name": "influx2_solo",
     "browser": "chrome",
     "screenshot_dir": "screenshots",
     "influxdb": {
@@ -22,16 +17,60 @@
     "window_size": {
       "width": "1024",
       "height": "933"
+    },
+    "default_user": {
+      "username": "admin",
+      "password": "changeit",
+      "org": "qa",
+      "bucket": "qa",
+      "token": "TEST_TOKEN"
     }
-   },
+  },
   "nightly" : {
     "config_id": "nightly",
-    "protocol": "http",
-    "host": "aws-somewhere",
-    "port": "9999",
+    "influx_url": "http://localhost:9999",
     "def_ctx": "/",
     "headless": true,
     "browser": "chrome",
-    "screenshot_dir": "screenshots"
+    "screenshot_dir": "screenshots",
+    "deployment": "local_build",
+    "create_method": "CLI_DOCKER",
+    "influx_path": "../bin/linux/influx",
+    "docker_name": "influx2_solo",
+    "default_user": {
+      "username": "hibou",
+      "password": "ENV",
+      "org": "qa",
+      "bucket": "qa",
+      "token": "ENV"
+    }
+  },
+  "cloud": {
+    "config_id" : "cloud",
+    "influx_url": "https://eu-central-1-1.aws.cloud2.influxdata.com",
+    "def_ctx": "/",
+    "headless": false,
+    "sel_docker": false,
+    "deployment": "cloud",
+    "create_method": "SKIP",
+    "browser": "chrome",
+    "screenshot_dir": "screenshots",
+    "influxdb": {
+      "version" : "2.0.0"
+    },
+    "window_size": {
+      "width": "1024",
+      "height": "933"
+    },
+    "default_user": {
+      "username": "qa1@bonitoo4influxdata.com",
+      "password": "ENV",
+      "org": "qa1@bonitoo4influxdata.com",
+      "bucket": "qa1A",
+      "orgid": "8864d10598fc08a7",
+      "bucketid": "7e0486a588f2f20a",
+      "token": "ENV"
+    }
+
   }
 }
