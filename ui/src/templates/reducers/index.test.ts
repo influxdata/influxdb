@@ -17,6 +17,7 @@ import {
 
 // Types
 import {
+  CommunityTemplate,
   RemoteDataState,
   TemplateSummaryEntities,
   TemplateSummary,
@@ -41,7 +42,10 @@ const templateSummary = {
 
 const exportTemplate = {status, item: null}
 
+const activeCommunityTemplate: CommunityTemplate = {}
+
 const initialState = () => ({
+  activeCommunityTemplate,
   status,
   byID: {
     ['1']: templateSummary,
@@ -88,7 +92,13 @@ describe('templates reducer', () => {
     const byID = {[templateSummary.id]: templateSummary}
 
     const state = initialState()
-    const expected = {status, byID, allIDs, exportTemplate}
+    const expected = {
+      status,
+      byID,
+      allIDs,
+      exportTemplate,
+      activeCommunityTemplate,
+    }
     const actual = reducer(state, removeTemplateSummary(state.allIDs[1]))
 
     expect(actual).toEqual(expected)
