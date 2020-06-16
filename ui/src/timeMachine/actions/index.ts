@@ -91,6 +91,7 @@ export type Action =
   | SetYDomainAction
   | SetXAxisLabelAction
   | SetShadeBelowAction
+  | SetHoverDimensionAction
   | ReturnType<typeof toggleVisOptions>
 
 type ExternalActions =
@@ -551,6 +552,18 @@ interface SetShadeBelowAction {
 export const setShadeBelow = (shadeBelow: boolean): SetShadeBelowAction => ({
   type: 'SET_SHADE_BELOW',
   payload: {shadeBelow},
+})
+
+interface SetHoverDimensionAction {
+  type: 'SET_HOVER_DIMENSION'
+  payload: {hoverDimension}
+}
+
+export const SetHoverDimension = (
+  hoverDimension: 'auto' | 'x' | 'y' | 'xy'
+): SetHoverDimensionAction => ({
+  type: 'SET_HOVER_DIMENSION',
+  payload: {hoverDimension},
 })
 
 interface SetBinSizeAction {

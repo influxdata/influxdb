@@ -29,6 +29,7 @@ import {
   setShadeBelow,
   setLinePosition,
   setTimeFormat,
+  SetHoverDimension,
 } from 'src/timeMachine/actions'
 
 // Utils
@@ -58,6 +59,7 @@ interface OwnProps {
   geom?: XYGeom
   colors: Color[]
   shadeBelow?: boolean
+  hoverDimension?: 'auto' | 'x' | 'y' | 'xy'
   position: LinePosition
 }
 
@@ -81,6 +83,7 @@ interface DispatchProps {
   onSetGeom: typeof setGeom
   onSetPosition: typeof setLinePosition
   onSetTimeFormat: typeof setTimeFormat
+  onSetHoverDimension: typeof SetHoverDimension
 }
 
 type Props = OwnProps & DispatchProps & StateProps
@@ -110,6 +113,8 @@ class LineOptions extends PureComponent<Props> {
       numericColumns,
       onSetTimeFormat,
       timeFormat,
+      hoverDimension,
+      onSetHoverDimension,
     } = this.props
 
     return (
@@ -148,6 +153,54 @@ class LineOptions extends PureComponent<Props> {
             checked={!!shadeBelow}
             onSetChecked={onSetShadeBelow}
           />
+        </Grid.Column>
+        <Grid.Column>
+          <br />
+          <Form.Element label="Hover Dimension">
+            <Dropdown
+              button={(active, onClick) => (
+                <Dropdown.Button active={active} onClick={onClick}>
+                  {hoverDimension}
+                </Dropdown.Button>
+              )}
+              menu={onCollapse => (
+                <Dropdown.Menu onCollapse={onCollapse}>
+                  <Dropdown.Item
+                    id="auto"
+                    value="auto"
+                    onClick={onSetHoverDimension}
+                    selected={hoverDimension === 'auto'}
+                  >
+                    Auto
+                  </Dropdown.Item>
+                  <Dropdown.Item
+                    id="x"
+                    value="x"
+                    onClick={onSetHoverDimension}
+                    selected={hoverDimension === 'x'}
+                  >
+                    X Axis
+                  </Dropdown.Item>
+                  <Dropdown.Item
+                    id="y"
+                    value="y"
+                    onClick={onSetHoverDimension}
+                    selected={hoverDimension === 'y'}
+                  >
+                    Y Axis
+                  </Dropdown.Item>
+                  <Dropdown.Item
+                    id="xy"
+                    value="xy"
+                    onClick={onSetHoverDimension}
+                    selected={hoverDimension === 'xy'}
+                  >
+                    X & Y Axis
+                  </Dropdown.Item>
+                </Dropdown.Menu>
+              )}
+            />
+          </Form.Element>
         </Grid.Column>
         <Grid.Column>
           <h5 className="view-options--header">Y Axis</h5>
@@ -245,6 +298,7 @@ const mdtp: DispatchProps = {
   onSetGeom: setGeom,
   onSetPosition: setLinePosition,
   onSetTimeFormat: setTimeFormat,
+  onSetHoverDimension: SetHoverDimension,
 }
 
 export default connect<StateProps, DispatchProps, OwnProps>(

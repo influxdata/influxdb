@@ -12,7 +12,9 @@
         "editMode": "builder",
         "name": "",
         "builderConfig": {
-          "buckets": ["defbuck"],
+          "buckets": [
+            "defbuck"
+          ],
           "tags": [
             {
               "key": "",
@@ -29,7 +31,10 @@
     ],
     "axes": {
       "x": {
-        "bounds": ["", ""],
+        "bounds": [
+          "",
+          ""
+        ],
         "label": "",
         "prefix": "",
         "suffix": "",
@@ -37,7 +42,10 @@
         "scale": "linear"
       },
       "y": {
-        "bounds": ["", ""],
+        "bounds": [
+          "",
+          ""
+        ],
         "label": "",
         "prefix": "",
         "suffix": "",
@@ -75,6 +83,7 @@
     "showNoteWhenEmpty": false,
     "xColumn": "",
     "yColumn": "",
-    "shadeBelow": false
+    "shadeBelow": false,
+    "hoverDimension": "auto"
   }
 }
