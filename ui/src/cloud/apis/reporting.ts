@@ -30,7 +30,6 @@ export const reportPoints = (points: Points) => {
       credentials: 'include',
     })
   } catch (e) {
-    console.error(e)
     // don't want reporting errors to effect user experience
   }
 }
