@@ -1959,7 +1959,7 @@ func TestPushDownBareAggregateRule(t *testing.T) {
 
 	testcases := []plantest.RuleTestCase{
 		{
-			// successful push down count()
+			// ReadRange -> count => ReadWindowAggregate
 			Context: haveCaps,
 			Name:    "push down count",
 			Rules:   []plan.Rule{influxdb.PushDownBareAggregateRule{}},
@@ -1979,7 +1979,7 @@ func TestPushDownBareAggregateRule(t *testing.T) {
 			},
 		},
 		{
-			// successful push down sum()
+			// ReadRange -> sum => ReadWindowAggregate
 			Context: haveCaps,
 			Name:    "push down sum",
 			Rules:   []plan.Rule{influxdb.PushDownBareAggregateRule{}},
@@ -1999,7 +1999,7 @@ func TestPushDownBareAggregateRule(t *testing.T) {
 			},
 		},
 		{
-			// successful push down first()
+			// ReadRange -> first => ReadWindowAggregate
 			Context: haveCaps,
 			Name:    "push down first",
 			Rules:   []plan.Rule{influxdb.PushDownBareAggregateRule{}},
@@ -2019,7 +2019,7 @@ func TestPushDownBareAggregateRule(t *testing.T) {
 			},
 		},
 		{
-			// successful push down last()
+			// ReadRange -> last => ReadWindowAggregate
 			Context: haveCaps,
 			Name:    "push down last",
 			Rules:   []plan.Rule{influxdb.PushDownBareAggregateRule{}},
