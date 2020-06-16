@@ -3261,8 +3261,10 @@ func Test_normalizeRemoteSources(t *testing.T) {
 	for _, tt := range tests {
 		fn := func(t *testing.T) {
 			actual := normalizeRemoteSources(tt.input)
-
-			assert.Equal(t, tt.expected, actual)
+			require.Len(t, actual, len(tt.expected))
+			for i, expected := range tt.expected {
+				assert.Equal(t, expected.String(), actual[i].String())
+			}
 		}
 		t.Run(tt.name, fn)
 	}
