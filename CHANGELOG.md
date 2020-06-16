@@ -20,6 +20,7 @@
 1. [18392](https://github.com/influxdata/influxdb/pull/18392): Consolidate pkg influx commands under templates. This removes some nesting of the CLI commands as part of that.
 1. [18400](https://github.com/influxdata/influxdb/pull/18400): Dashboards maintain sort order after navigating away
 1. [18480](https://github.com/influxdata/influxdb/pull/18480): Allows tasks to open in new tabs
+1. [18553](https://github.com/influxdata/influxdb/pull/18553): Update usage and soften comparisons for kind matching on 'influx export --resourceType' cmd
 
 ### Bug Fixes
 

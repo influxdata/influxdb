@@ -315,8 +315,6 @@ func (b *cmdPkgBuilder) pkgExportRunEFn(cmd *cobra.Command, args []string) error
 		return err
 	}
 
-	opts := []pkger.CreatePkgSetFn{}
-
 	resTypes := []struct {
 		kind   pkger.Kind
 		idStrs []string
@@ -331,6 +329,8 @@ func (b *cmdPkgBuilder) pkgExportRunEFn(cmd *cobra.Command, args []string) error
 		{kind: pkger.KindTelegraf, idStrs: strings.Split(b.exportOpts.telegrafs, ",")},
 		{kind: pkger.KindVariable, idStrs: strings.Split(b.exportOpts.variables, ",")},
 	}
+
+	var opts []pkger.CreatePkgSetFn
 	for _, rt := range resTypes {
 		newOpt, err := newResourcesToClone(rt.kind, rt.idStrs)
 		if err != nil {
@@ -343,9 +343,17 @@ func (b *cmdPkgBuilder) pkgExportRunEFn(cmd *cobra.Command, args []string) error
 		return b.exportPkg(cmd.OutOrStdout(), pkgSVC, b.file, opts...)
 	}
 
-	kind := pkger.Kind(b.exportOpts.resourceType)
-	if err := kind.OK(); err != nil {
-		return errors.New("resource type must be one of bucket|dashboard|label|variable; got: " + b.exportOpts.resourceType)
+	resType := strings.ToLower(b.exportOpts.resourceType)
+	resKind := pkger.KindUnknown
+	for _, k := range pkger.Kinds() {
+		if strings.ToLower(string(k)) == resType {
+			resKind = k
+			break
+		}
+	}
+
+	if err := resKind.OK(); err != nil {
+		return errors.New("resource type is invalid; got: " + b.exportOpts.resourceType)
 	}
 
 	if stdin, err := b.inStdIn(); err == nil {
@@ -355,7 +363,7 @@ func (b *cmdPkgBuilder) pkgExportRunEFn(cmd *cobra.Command, args []string) error
 		}
 	}
 
-	resTypeOpt, err := newResourcesToClone(kind, args)
+	resTypeOpt, err := newResourcesToClone(resKind, args)
 	if err != nil {
 		return err
 	}
