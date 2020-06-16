@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net/url"
 	"os"
 	"path"
 	"path/filepath"
@@ -142,7 +143,7 @@ func (b *cmdPkgBuilder) cmdPkgApply() *cobra.Command {
 			-f $PATH_TO_TEMPLATE/template_2.yml
 
 		# Apply a template from a url
-		influx apply -u https://raw.githubusercontent.com/influxdata/community-templates/master/docker/docker.yml
+		influx apply -f https://raw.githubusercontent.com/influxdata/community-templates/master/docker/docker.yml
 
 		# Apply a template from STDIN
 		cat $TEMPLATE.json | influx apply --encoding json
@@ -817,11 +818,12 @@ func (b *cmdPkgBuilder) registerPkgPrintOpts(cmd *cobra.Command) {
 }
 
 func (b *cmdPkgBuilder) registerPkgFileFlags(cmd *cobra.Command) {
-	cmd.Flags().StringSliceVarP(&b.files, "file", "f", nil, "Path to template file")
+	cmd.Flags().StringSliceVarP(&b.files, "file", "f", nil, "Path to template file; Supports HTTP(S) URLs or file paths.")
 	cmd.MarkFlagFilename("file", "yaml", "yml", "json", "jsonnet")
 	cmd.Flags().BoolVarP(&b.recurse, "recurse", "R", false, "Process the directory used in -f, --file recursively. Useful when you want to manage related templates organized within the same directory.")
 
 	cmd.Flags().StringSliceVarP(&b.urls, "template-url", "u", nil, "URL to template file")
+	cmd.Flags().MarkHidden("template-url")
 
 	cmd.Flags().StringVarP(&b.encoding, "encoding", "e", "", "Encoding for the input stream. If a file is provided will gather encoding type from file extension. If extension provided will override.")
 	cmd.MarkFlagFilename("encoding", "yaml", "yml", "json", "jsonnet")
@@ -892,12 +894,25 @@ func (b *cmdPkgBuilder) readRawPkgsFromURLs(urls []string) ([]*pkger.Pkg, error)
 }
 
 func (b *cmdPkgBuilder) readPkg() (*pkger.Pkg, bool, error) {
-	pkgs, err := b.readRawPkgsFromFiles(b.files, b.recurse)
+	var remotes, files []string
+	for _, rawURL := range append(b.files, b.urls...) {
+		u, err := url.Parse(rawURL)
+		if err != nil {
+			return nil, false, ierror.Wrap(err, fmt.Sprintf("failed to parse url[%s]", rawURL))
+		}
+		if strings.HasPrefix(u.Scheme, "http") {
+			remotes = append(remotes, u.String())
+		} else {
+			files = append(files, u.String())
+		}
+	}
+
+	pkgs, err := b.readRawPkgsFromFiles(files, b.recurse)
 	if err != nil {
 		return nil, false, err
 	}
 
-	urlPkgs, err := b.readRawPkgsFromURLs(b.urls)
+	urlPkgs, err := b.readRawPkgsFromURLs(remotes)
 	if err != nil {
 		return nil, false, err
 	}

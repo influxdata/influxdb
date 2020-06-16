@@ -6,6 +6,7 @@
 1. [18515](https://github.com/influxdata/influxdb/pull/18515): Extend templates with the source file|url|reader.
 1. [18539](https://github.com/influxdata/influxdb/pull/18539): Collect stats on installed influxdata community template usage.
 1. [18541](https://github.com/influxdata/influxdb/pull/18541): Pkger allow raw github.com host URLs for yaml|json|jsonnet URLs
+1. [18546](https://github.com/influxdata/influxdb/pull/18546): Influx allow for files to be remotes for all template commands
 
 ## v2.0.0-beta.12 [2020-06-12]
 
