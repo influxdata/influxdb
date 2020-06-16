@@ -34,13 +34,20 @@ func TestAuth_FindByID(t *testing.T) {
 		{
 			name: "authorized to access id by org id",
 			fields: fields{
-				service: &mock.DBRPMappingServiceV2{},
+				service: &mock.DBRPMappingServiceV2{
+					FindByIDFn: func(_ context.Context, _, _ influxdb.ID) (*influxdb.DBRPMappingV2, error) {
+						return &influxdb.DBRPMappingV2{
+							OrganizationID: influxdb.ID(1),
+							BucketID:       influxdb.ID(1),
+						}, nil
+					},
+				},
 			},
 			args: args{
 				permission: influxdb.Permission{
 					Action: "read",
 					Resource: influxdb.Resource{
-						Type:  influxdb.DBRPResourceType,
+						Type:  influxdb.BucketsResourceType,
 						OrgID: influxdbtesting.IDPtr(1),
 					},
 				},
@@ -54,13 +61,20 @@ func TestAuth_FindByID(t *testing.T) {
 		{
 			name: "authorized to access id by id",
 			fields: fields{
-				service: &mock.DBRPMappingServiceV2{},
+				service: &mock.DBRPMappingServiceV2{
+					FindByIDFn: func(_ context.Context, _, _ influxdb.ID) (*influxdb.DBRPMappingV2, error) {
+						return &influxdb.DBRPMappingV2{
+							OrganizationID: influxdb.ID(1),
+							BucketID:       influxdb.ID(1),
+						}, nil
+					},
+				},
 			},
 			args: args{
 				permission: influxdb.Permission{
 					Action: "read",
 					Resource: influxdb.Resource{
-						Type: influxdb.DBRPResourceType,
+						Type: influxdb.BucketsResourceType,
 						ID:   influxdbtesting.IDPtr(1),
 					},
 				},
@@ -74,13 +88,20 @@ func TestAuth_FindByID(t *testing.T) {
 		{
 			name: "unauthorized to access id by org id",
 			fields: fields{
-				service: &mock.DBRPMappingServiceV2{},
+				service: &mock.DBRPMappingServiceV2{
+					FindByIDFn: func(_ context.Context, _, _ influxdb.ID) (*influxdb.DBRPMappingV2, error) {
+						return &influxdb.DBRPMappingV2{
+							OrganizationID: influxdb.ID(2),
+							BucketID:       influxdb.ID(1),
+						}, nil
+					},
+				},
 			},
 			args: args{
 				permission: influxdb.Permission{
 					Action: "read",
 					Resource: influxdb.Resource{
-						Type:  influxdb.DBRPResourceType,
+						Type:  influxdb.BucketsResourceType,
 						OrgID: influxdbtesting.IDPtr(1),
 					},
 				},
@@ -89,7 +110,7 @@ func TestAuth_FindByID(t *testing.T) {
 			},
 			wants: wants{
 				err: &influxdb.Error{
-					Msg:  "read:orgs/0000000000000002/dbrp/0000000000000001 is unauthorized",
+					Msg:  "read:orgs/0000000000000002/buckets/0000000000000001 is unauthorized",
 					Code: influxdb.EUnauthorized,
 				},
 			},
@@ -97,7 +118,14 @@ func TestAuth_FindByID(t *testing.T) {
 		{
 			name: "unauthorized to access id by id",
 			fields: fields{
-				service: &mock.DBRPMappingServiceV2{},
+				service: &mock.DBRPMappingServiceV2{
+					FindByIDFn: func(_ context.Context, _, _ influxdb.ID) (*influxdb.DBRPMappingV2, error) {
+						return &influxdb.DBRPMappingV2{
+							OrganizationID: influxdb.ID(1),
+							BucketID:       influxdb.ID(1),
+						}, nil
+					},
+				},
 			},
 			args: args{
 				permission: influxdb.Permission{
@@ -112,7 +140,7 @@ func TestAuth_FindByID(t *testing.T) {
 			},
 			wants: wants{
 				err: &influxdb.Error{
-					Msg:  "read:orgs/0000000000000002/dbrp/0000000000000001 is unauthorized",
+					Msg:  "read:orgs/0000000000000002/buckets/0000000000000001 is unauthorized",
 					Code: influxdb.EUnauthorized,
 				},
 			},
@@ -230,7 +258,7 @@ func TestAuth_FindMany(t *testing.T) {
 				permissions: []influxdb.Permission{{
 					Action: "read",
 					Resource: influxdb.Resource{
-						Type:  influxdb.DBRPResourceType,
+						Type:  influxdb.BucketsResourceType,
 						OrgID: influxdbtesting.IDPtr(1),
 					},
 				}},
@@ -287,21 +315,21 @@ func TestAuth_FindMany(t *testing.T) {
 					{
 						Action: "read",
 						Resource: influxdb.Resource{
-							Type:  influxdb.DBRPResourceType,
+							Type:  influxdb.BucketsResourceType,
 							OrgID: influxdbtesting.IDPtr(1),
 						},
 					},
 					{
 						Action: "read",
 						Resource: influxdb.Resource{
-							Type:  influxdb.DBRPResourceType,
+							Type:  influxdb.BucketsResourceType,
 							OrgID: influxdbtesting.IDPtr(2),
 						},
 					},
 					{
 						Action: "read",
 						Resource: influxdb.Resource{
-							Type:  influxdb.DBRPResourceType,
+							Type:  influxdb.BucketsResourceType,
 							OrgID: influxdbtesting.IDPtr(3),
 						},
 					},
@@ -382,12 +410,14 @@ func TestAuth_Create(t *testing.T) {
 				m: influxdb.DBRPMappingV2{
 					ID:             1,
 					OrganizationID: 1,
+					BucketID:       2,
 				},
 				permission: influxdb.Permission{
 					Action: "write",
 					Resource: influxdb.Resource{
-						Type:  influxdb.DBRPResourceType,
+						Type:  influxdb.BucketsResourceType,
 						OrgID: influxdbtesting.IDPtr(1),
+						ID:    influxdbtesting.IDPtr(2),
 					},
 				},
 			},
@@ -404,18 +434,20 @@ func TestAuth_Create(t *testing.T) {
 				m: influxdb.DBRPMappingV2{
 					ID:             1,
 					OrganizationID: 1,
+					BucketID:       2,
 				},
 				permission: influxdb.Permission{
 					Action: "read",
 					Resource: influxdb.Resource{
-						Type:  influxdb.DBRPResourceType,
+						Type:  influxdb.BucketsResourceType,
 						OrgID: influxdbtesting.IDPtr(1),
+						ID:    influxdbtesting.IDPtr(2),
 					},
 				},
 			},
 			wants: wants{
 				err: &influxdb.Error{
-					Msg:  "write:orgs/0000000000000001/dbrp is unauthorized",
+					Msg:  "write:orgs/0000000000000001/buckets/0000000000000002 is unauthorized",
 					Code: influxdb.EUnauthorized,
 				},
 			},
@@ -463,7 +495,7 @@ func TestAuth_Update(t *testing.T) {
 				permission: influxdb.Permission{
 					Action: "write",
 					Resource: influxdb.Resource{
-						Type:  influxdb.DBRPResourceType,
+						Type:  influxdb.BucketsResourceType,
 						OrgID: influxdbtesting.IDPtr(1),
 					},
 				},
@@ -483,7 +515,7 @@ func TestAuth_Update(t *testing.T) {
 				permission: influxdb.Permission{
 					Action: "read",
 					Resource: influxdb.Resource{
-						Type:  influxdb.DBRPResourceType,
+						Type:  influxdb.BucketsResourceType,
 						OrgID: influxdbtesting.IDPtr(1),
 					},
 				},
@@ -492,7 +524,7 @@ func TestAuth_Update(t *testing.T) {
 			},
 			wants: wants{
 				err: &influxdb.Error{
-					Msg:  "write:orgs/0000000000000001/dbrp/0000000000000001 is unauthorized",
+					Msg:  "write:orgs/0000000000000001/buckets/0000000000000001 is unauthorized",
 					Code: influxdb.EUnauthorized,
 				},
 			},
@@ -535,13 +567,20 @@ func TestAuth_Delete(t *testing.T) {
 		{
 			name: "authorized",
 			fields: fields{
-				service: &mock.DBRPMappingServiceV2{},
+				service: &mock.DBRPMappingServiceV2{
+					FindByIDFn: func(_ context.Context, _, _ influxdb.ID) (*influxdb.DBRPMappingV2, error) {
+						return &influxdb.DBRPMappingV2{
+							OrganizationID: influxdb.ID(1),
+							BucketID:       influxdb.ID(1),
+						}, nil
+					},
+				},
 			},
 			args: args{
 				permission: influxdb.Permission{
 					Action: "write",
 					Resource: influxdb.Resource{
-						Type:  influxdb.DBRPResourceType,
+						Type:  influxdb.BucketsResourceType,
 						OrgID: influxdbtesting.IDPtr(1),
 					},
 				},
@@ -555,13 +594,20 @@ func TestAuth_Delete(t *testing.T) {
 		{
 			name: "unauthorized",
 			fields: fields{
-				service: &mock.DBRPMappingServiceV2{},
+				service: &mock.DBRPMappingServiceV2{
+					FindByIDFn: func(_ context.Context, _, _ influxdb.ID) (*influxdb.DBRPMappingV2, error) {
+						return &influxdb.DBRPMappingV2{
+							OrganizationID: influxdb.ID(1),
+							BucketID:       influxdb.ID(1),
+						}, nil
+					},
+				},
 			},
 			args: args{
 				permission: influxdb.Permission{
 					Action: "read",
 					Resource: influxdb.Resource{
-						Type:  influxdb.DBRPResourceType,
+						Type:  influxdb.BucketsResourceType,
 						OrgID: influxdbtesting.IDPtr(1),
 					},
 				},
@@ -570,7 +616,7 @@ func TestAuth_Delete(t *testing.T) {
 			},
 			wants: wants{
 				err: &influxdb.Error{
-					Msg:  "write:orgs/0000000000000001/dbrp/0000000000000001 is unauthorized",
+					Msg:  "write:orgs/0000000000000001/buckets/0000000000000001 is unauthorized",
 					Code: influxdb.EUnauthorized,
 				},
 			},
