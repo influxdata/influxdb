@@ -17,35 +17,35 @@ func New(reg prometheus.Registerer, service string, opts ...ClientOptFn) *REDCli
 	opt := metricOpts{
 		namespace: "service",
 		service:   service,
-		counterMetrics: map[string]newVecOpts{
+		counterMetrics: map[string]VecOpts{
 			"call_total": {
-				help:       "Number of calls",
-				labelNames: []string{"method"},
-				counterFn: func(vec *prometheus.CounterVec, o fnOpts) {
-					vec.With(prometheus.Labels{"method": o.method}).Inc()
+				Help:       "Number of calls",
+				LabelNames: []string{"method"},
+				CounterFn: func(vec *prometheus.CounterVec, o CollectFnOpts) {
+					vec.With(prometheus.Labels{"method": o.Method}).Inc()
 				},
 			},
 			"error_total": {
-				help:       "Number of errors encountered",
-				labelNames: []string{"method", "code"},
-				counterFn: func(vec *prometheus.CounterVec, o fnOpts) {
-					if o.err != nil {
+				Help:       "Number of errors encountered",
+				LabelNames: []string{"method", "code"},
+				CounterFn: func(vec *prometheus.CounterVec, o CollectFnOpts) {
+					if o.Err != nil {
 						vec.With(prometheus.Labels{
-							"method": o.method,
-							"code":   influxdb.ErrorCode(o.err),
+							"method": o.Method,
+							"code":   influxdb.ErrorCode(o.Err),
 						}).Inc()
 					}
 				},
 			},
 		},
-		histogramMetrics: map[string]newVecOpts{
+		histogramMetrics: map[string]VecOpts{
 			"duration": {
-				help:       "Duration of calls",
-				labelNames: []string{"method"},
-				histogramFn: func(vec *prometheus.HistogramVec, o fnOpts) {
+				Help:       "Duration of calls",
+				LabelNames: []string{"method"},
+				HistogramFn: func(vec *prometheus.HistogramVec, o CollectFnOpts) {
 					vec.
-						With(prometheus.Labels{"method": o.method}).
-						Observe(time.Since(o.start).Seconds())
+						With(prometheus.Labels{"method": o.Method}).
+						Observe(time.Since(o.Start).Seconds())
 				},
 			},
 		},
@@ -57,25 +57,25 @@ func New(reg prometheus.Registerer, service string, opts ...ClientOptFn) *REDCli
 	client := new(REDClient)
 	for metricName, vecOpts := range opt.counterMetrics {
 		client.metrics = append(client.metrics, &counter{
-			fn: vecOpts.counterFn,
+			fn: vecOpts.CounterFn,
 			CounterVec: prometheus.NewCounterVec(prometheus.CounterOpts{
 				Namespace: opt.namespace,
 				Subsystem: opt.serviceName(),
 				Name:      metricName,
-				Help:      vecOpts.help,
-			}, vecOpts.labelNames),
+				Help:      vecOpts.Help,
+			}, vecOpts.LabelNames),
 		})
 	}
 
 	for metricName, vecOpts := range opt.histogramMetrics {
 		client.metrics = append(client.metrics, &histogram{
-			fn: vecOpts.histogramFn,
+			fn: vecOpts.HistogramFn,
 			HistogramVec: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 				Namespace: opt.namespace,
 				Subsystem: opt.serviceName(),
 				Name:      metricName,
-				Help:      vecOpts.help,
-			}, vecOpts.labelNames),
+				Help:      vecOpts.Help,
+			}, vecOpts.LabelNames),
 		})
 	}
 
@@ -84,17 +84,32 @@ func New(reg prometheus.Registerer, service string, opts ...ClientOptFn) *REDCli
 	return client
 }
 
+type RecordFn func(err error, opts ...func(opts *CollectFnOpts)) error
+
+// RecordAdditional provides an extension to the base method, err data provided
+// to the metrics.
+func RecordAdditional(props map[string]interface{}) func(opts *CollectFnOpts) {
+	return func(opts *CollectFnOpts) {
+		opts.AdditionalProps = props
+	}
+}
+
 // Record returns a record fn that is called on any given return err. If an error is encountered
 // it will register the err metric. The err is never altered.
-func (c *REDClient) Record(method string) func(error) error {
+func (c *REDClient) Record(method string) RecordFn {
 	start := time.Now()
-	return func(err error) error {
+	return func(err error, opts ...func(opts *CollectFnOpts)) error {
+		opt := CollectFnOpts{
+			Method: method,
+			Start:  start,
+			Err:    err,
+		}
+		for _, o := range opts {
+			o(&opt)
+		}
+
 		for _, metric := range c.metrics {
-			metric.collect(fnOpts{
-				method: method,
-				start:  start,
-				err:    err,
-			})
+			metric.collect(opt)
 		}
 
 		return err
@@ -112,25 +127,25 @@ func (c *REDClient) collectors() []prometheus.Collector {
 type metricCollector interface {
 	prometheus.Collector
 
-	collect(o fnOpts)
+	collect(o CollectFnOpts)
 }
 
 type counter struct {
 	*prometheus.CounterVec
 
-	fn counterFn
+	fn CounterFn
 }
 
-func (c *counter) collect(o fnOpts) {
+func (c *counter) collect(o CollectFnOpts) {
 	c.fn(c.CounterVec, o)
 }
 
 type histogram struct {
 	*prometheus.HistogramVec
 
-	fn histogramFn
+	fn HistogramFn
 }
 
-func (h *histogram) collect(o fnOpts) {
+func (h *histogram) collect(o CollectFnOpts) {
 	h.fn(h.HistogramVec, o)
 }

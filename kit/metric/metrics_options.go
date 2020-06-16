@@ -8,23 +8,26 @@ import (
 )
 
 type (
-	// using for a struct here as it will be extended
-	fnOpts struct {
-		method string
-		start  time.Time
-		err    error
+	// CollectFnOpts provides arugments to the collect operation of a metric.
+	CollectFnOpts struct {
+		Method          string
+		Start           time.Time
+		Err             error
+		AdditionalProps map[string]interface{}
 	}
 
-	counterFn func(vec *prometheus.CounterVec, o fnOpts)
+	CounterFn func(vec *prometheus.CounterVec, o CollectFnOpts)
 
-	histogramFn func(vec *prometheus.HistogramVec, o fnOpts)
+	HistogramFn func(vec *prometheus.HistogramVec, o CollectFnOpts)
 
-	newVecOpts struct {
-		help       string
-		labelNames []string
+	// VecOpts expands on the
+	VecOpts struct {
+		Name       string
+		Help       string
+		LabelNames []string
 
-		counterFn   counterFn
-		histogramFn histogramFn
+		CounterFn   CounterFn
+		HistogramFn HistogramFn
 	}
 )
 
@@ -32,8 +35,8 @@ type metricOpts struct {
 	namespace        string
 	service          string
 	serviceSuffix    string
-	counterMetrics   map[string]newVecOpts
-	histogramMetrics map[string]newVecOpts
+	counterMetrics   map[string]VecOpts
+	histogramMetrics map[string]VecOpts
 }
 
 func (o metricOpts) serviceName() string {
@@ -45,6 +48,18 @@ func (o metricOpts) serviceName() string {
 
 // ClientOptFn is an option used by a metric middleware.
 type ClientOptFn func(*metricOpts)
+
+// WithVec sets a new counter vector to be collected.
+func WithVec(opts VecOpts) ClientOptFn {
+	return func(o *metricOpts) {
+		if opts.CounterFn != nil {
+			if o.counterMetrics == nil {
+				o.counterMetrics = make(map[string]VecOpts)
+			}
+			o.counterMetrics[opts.Name] = opts
+		}
+	}
+}
 
 // WithSuffix returns a metric option that applies a suffix to the service name of the metric.
 func WithSuffix(suffix string) ClientOptFn {

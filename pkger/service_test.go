@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"net/url"
 	"regexp"
 	"sort"
 	"strconv"
@@ -3215,6 +3216,58 @@ func TestService(t *testing.T) {
 	})
 }
 
+func Test_normalizeRemoteSources(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    []string
+		expected []url.URL
+	}{
+		{
+			name:     "no urls provided",
+			input:    []string{"byte stream", "string", ""},
+			expected: nil,
+		},
+		{
+			name:     "skips valid file url",
+			input:    []string{"file:///example.com"},
+			expected: nil,
+		},
+		{
+			name:     "valid http url provided",
+			input:    []string{"http://example.com"},
+			expected: []url.URL{parseURL(t, "http://example.com")},
+		},
+		{
+			name:     "valid https url provided",
+			input:    []string{"https://example.com"},
+			expected: []url.URL{parseURL(t, "https://example.com")},
+		},
+		{
+			name:  "converts raw github user url to base github",
+			input: []string{"https://raw.githubusercontent.com/influxdata/community-templates/master/github/github.yml"},
+			expected: []url.URL{
+				parseURL(t, "https://github.com/influxdata/community-templates/blob/master/github/github.yml"),
+			},
+		},
+		{
+			name:  "passes base github link unchanged",
+			input: []string{"https://github.com/influxdata/community-templates/blob/master/github/github.yml"},
+			expected: []url.URL{
+				parseURL(t, "https://github.com/influxdata/community-templates/blob/master/github/github.yml"),
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		fn := func(t *testing.T) {
+			actual := normalizeRemoteSources(tt.input)
+
+			assert.Equal(t, tt.expected, actual)
+		}
+		t.Run(tt.name, fn)
+	}
+}
+
 func newTestIDPtr(i int) *influxdb.ID {
 	id := influxdb.ID(i)
 	return &id
@@ -3283,4 +3336,11 @@ func newTimeGen(t time.Time) fakeTimeGen {
 
 func (t fakeTimeGen) Now() time.Time {
 	return t()
+}
+
+func parseURL(t *testing.T, rawAddr string) url.URL {
+	t.Helper()
+	u, err := url.Parse(rawAddr)
+	require.NoError(t, err)
+	return *u
 }

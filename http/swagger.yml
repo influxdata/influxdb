@@ -7650,7 +7650,7 @@ components:
           type: string
         stackID:
           type: string
-        package:
+        template:
           type: object
           properties:
             contentType:
@@ -7661,7 +7661,7 @@ components:
                 type: string
             package:
               $ref: "#/components/schemas/Pkg"
-        packages:
+        templates:
           type: array
           items:
             type: object
