@@ -46,6 +46,7 @@ import (
 	"github.com/influxdata/influxdb/v2/query/control"
 	"github.com/influxdata/influxdb/v2/query/fluxlang"
 	"github.com/influxdata/influxdb/v2/query/stdlib/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2/secret"
 	"github.com/influxdata/influxdb/v2/session"
 	"github.com/influxdata/influxdb/v2/snowflake"
 	"github.com/influxdata/influxdb/v2/source"
@@ -594,7 +595,6 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		orgLogSvc                 platform.OrganizationOperationLogService = m.kvService
 		scraperTargetSvc          platform.ScraperTargetStoreService       = m.kvService
 		telegrafSvc               platform.TelegrafConfigStore             = m.kvService
-		secretSvc                 platform.SecretService                   = m.kvService
 		lookupSvc                 platform.LookupService                   = m.kvService
 		notificationEndpointStore platform.NotificationEndpointService     = m.kvService
 	)
@@ -613,6 +613,14 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		bucketSvc       platform.BucketService              = tenant.NewBucketLogger(m.log.With(zap.String("store", "new")), tenant.NewBucketMetrics(m.reg, ts, metric.WithSuffix("new")))
 		passwdsSvc      platform.PasswordsService           = tenant.NewPasswordLogger(m.log.With(zap.String("store", "new")), tenant.NewPasswordMetrics(m.reg, ts, metric.WithSuffix("new")))
 	)
+
+	secretStore, err := secret.NewStore(m.kvStore)
+	if err != nil {
+		m.log.Error("Failed creating new meta store", zap.Error(err))
+		return err
+	}
+
+	var secretSvc platform.SecretService = secret.NewMetricService(m.reg, secret.NewLogger(m.log.With(zap.String("service", "secret")), secret.NewService(secretStore)))
 
 	switch m.secretStore {
 	case "bolt":
@@ -983,18 +991,17 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	}
 
 	// feature flagging for new labels service
-	var labelsHTTPServer *kithttp.FeatureHandler
+	var oldLabelHandler nethttp.Handler
+	var labelHandler *label.LabelHandler
 	{
 		b := m.apibackend
 		labelSvcWithOrg := authorizer.NewLabelServiceWithOrg(labelSvc, b.OrgLookupService)
-		oldHandler := http.NewLabelHandler(m.log.With(zap.String("handler", "labels")), labelSvcWithOrg, kithttp.ErrorHandler(0))
+		oldLabelHandler = http.NewLabelHandler(m.log.With(zap.String("handler", "labels")), labelSvcWithOrg, kithttp.ErrorHandler(0))
 
 		labelSvc = label.NewAuthedLabelService(labelSvc, b.OrgLookupService)
 		labelSvc = label.NewLabelLogger(m.log.With(zap.String("handler", "labels")), labelSvc)
 		labelSvc = label.NewLabelMetrics(m.reg, labelSvc)
-		newHandler := label.NewHTTPLabelHandler(m.log, labelSvc)
-
-		labelsHTTPServer = kithttp.NewFeatureHandler(feature.NewLabelPackage(), m.flagger, oldHandler, newHandler, newHandler.Prefix())
+		labelHandler = label.NewHTTPLabelHandler(m.log, labelSvc)
 	}
 
 	// feature flagging for new authorization service
@@ -1028,16 +1035,24 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		sessionHTTPServer = session.NewSessionHandler(m.log.With(zap.String("handler", "session")), sessionSvc, userSvc, passwdsSvc)
 	}
 
+	var orgHTTPServer *tenant.OrgHandler
+	{
+		secretHandler := secret.NewHandler(m.log, "id", secret.NewAuthedService(secretSvc))
+		urmHandler := tenant.NewURMHandler(m.log.With(zap.String("handler", "urm")), platform.OrgsResourceType, "id", userSvc, tenant.NewAuthedURMService(orgSvc, userResourceSvc))
+		orgHTTPServer = tenant.NewHTTPOrgHandler(m.log.With(zap.String("handler", "org")), orgSvc, urmHandler, labelHandler, secretHandler)
+	}
+
 	{
 		platformHandler := http.NewPlatformHandler(m.apibackend,
 			http.WithResourceHandler(pkgHTTPServer),
 			http.WithResourceHandler(onboardHTTPServer),
 			http.WithResourceHandler(authHTTPServer),
-			http.WithResourceHandler(labelsHTTPServer),
+			http.WithResourceHandler(kithttp.NewFeatureHandler(feature.NewLabelPackage(), m.flagger, oldLabelHandler, labelHandler, labelHandler.Prefix())),
 			http.WithResourceHandler(kithttp.NewFeatureHandler(feature.SessionService(), m.flagger, oldSessionHandler, sessionHTTPServer.SignInResourceHandler(), sessionHTTPServer.SignInResourceHandler().Prefix())),
 			http.WithResourceHandler(kithttp.NewFeatureHandler(feature.SessionService(), m.flagger, oldSessionHandler, sessionHTTPServer.SignOutResourceHandler(), sessionHTTPServer.SignOutResourceHandler().Prefix())),
 			http.WithResourceHandler(userHTTPServer.MeResourceHandler()),
 			http.WithResourceHandler(userHTTPServer.UserResourceHandler()),
+			http.WithResourceHandler(orgHTTPServer),
 		)
 
 		httpLogger := m.log.With(zap.String("service", "http"))
