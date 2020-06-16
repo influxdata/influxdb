@@ -150,7 +150,7 @@ export const executeQueries = () => async (dispatch, getState: GetState) => {
 
     pendingResults = queries.map(({text}) => {
       reportQueryPerformanceEvent({
-        timestamp: Date.now(),
+        timestamp: Date.now() * 1000000,
         fields: {},
         tags: {event: 'executeQueries queries', query: text},
       })

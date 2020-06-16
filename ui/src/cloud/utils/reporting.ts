@@ -14,6 +14,8 @@ let reportingPoints = []
 let isReportScheduled = false
 const reportingInterval = 5 // seconds
 
+const toNano = (ms: number) => ms * 1000000
+
 export const updateReportingContext = (key: string, value: string) => {
   reportingTags = {...reportingTags, [key]: value}
 }
@@ -57,14 +59,14 @@ export const reportQueryPerformanceEvent = ({
 
 export const reportSimpleQueryPerformanceEvent = (event: string) => {
   reportQueryPerformanceEvent({
-    timestamp: Date.now(),
+    timestamp: toNano(Date.now()),
     fields: {},
     tags: {event},
   })
 }
 
 export const useLoadTimeReporting = (event: string) => {
-  const [loadStartTime] = useState(Date.now())
+  const [loadStartTime] = useState(toNano(Date.now()))
   useEffect(() => {
     reportQueryPerformanceEvent({
       timestamp: loadStartTime,
