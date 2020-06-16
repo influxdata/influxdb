@@ -176,7 +176,9 @@ func (h *FluxHandler) handleQuery(w http.ResponseWriter, r *http.Request) {
 
 	// Transform the context into one with the request's authorization.
 	ctx = pcontext.SetAuthorizer(ctx, req.Request.Authorization)
-	ctx, _ = feature.Annotate(ctx, h.Flagger)
+	if h.Flagger != nil {
+		ctx, _ = feature.Annotate(ctx, h.Flagger)
+	}
 
 	hd, ok := req.Dialect.(HTTPDialect)
 	if !ok {
