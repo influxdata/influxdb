@@ -389,10 +389,10 @@ func (s *Service) findTasksByUserUrmFree(ctx context.Context, tx Tx, filter infl
 		return nil, 0, influxdb.ErrUnexpectedTaskBucketErr(err)
 	}
 
-	// free cursor resources
-	defer c.Close()
-
-	ps, _ := s.maxPermissions(ctx, tx, *filter.User)
+	ps, err := s.maxPermissions(ctx, tx, *filter.User)
+	if err != nil {
+		return nil, 0, err
+	}
 
 	matchFn := newTaskMatchFn(filter, nil)
 
@@ -419,12 +419,11 @@ func (s *Service) findTasksByUserUrmFree(ctx context.Context, tx Tx, filter infl
 			}
 		}
 	}
-
 	if err := c.Err(); err != nil {
 		return nil, 0, err
 	}
 
-	return ts, len(ts), err
+	return ts, len(ts), c.Close()
 }
 
 // findTasksByOrg is a subset of the find tasks function. Used for cleanliness
