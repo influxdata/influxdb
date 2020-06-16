@@ -27,7 +27,7 @@ use std::u64;
 /// # let data_len = buf.len();
 /// # let r = Cursor::new(buf);
 ///
-/// let reader = TSMReader::try_new(BufReader::new(r), 4_222_248).unwrap();
+/// let reader = TSMReader::try_new(BufReader::new(r), data_len).unwrap();
 ///
 /// // reader allows you to access each index entry, and each block for each
 /// // entry in order.
