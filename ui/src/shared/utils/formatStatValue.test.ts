@@ -189,26 +189,21 @@ describe('formatStatValue', () => {
     ).toEqual(`${prefix}${value}${suffix}`)
   })
 
-  test('keeps trailing zeroes for the required number of decimal places', () => {
+  test('keeps trailing zeroes for the required number of decimal places only when not a string', () => {
     value = '2.000'
     expect(
       formatStatValue(value, {decimalPlaces: {isEnforced: true, digits: 3}})
-    ).toEqual('2.000')
+    ).toEqual(value)
 
     value = '2.00000000000000000000000000'
     expect(
       formatStatValue(value, {decimalPlaces: {isEnforced: true, digits: 3}})
-    ).toEqual('2.000')
-
-    value = '2.0'
-    expect(
-      formatStatValue(value, {decimalPlaces: {isEnforced: true, digits: 3}})
-    ).toEqual('2.000')
+    ).toEqual(value)
 
     value = '2'
     expect(
       formatStatValue(value, {decimalPlaces: {isEnforced: true, digits: 3}})
-    ).toEqual('2.000')
+    ).toEqual(value)
 
     /* prettier-ignore */
     value = 2
