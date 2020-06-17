@@ -296,7 +296,7 @@ describe('Dashboards', () => {
         })
       })
 
-      it('typing a new label name and pressing ENTER starts label creation flow', () => {
+      it('typing a new label name and pressing ENTER starts label creation flow, closes popover', () => {
         const labelName = 'choco'
 
         cy.get('@org').then(() => {
@@ -304,10 +304,39 @@ describe('Dashboards', () => {
             .first()
             .click()
 
+          cy.getByTestID('inline-labels--popover--contents').should(
+            'be.visible'
+          )
           cy.getByTestID(`inline-labels--popover-field`)
             .type(labelName)
             .type('{enter}')
           cy.getByTestID('overlay--body').should('be.visible')
+          cy.getByTestID('inline-labels--popover--contents').should(
+            'not.be.visible'
+          )
+        })
+      })
+      it('typing a new label name and clicking name starts label creation flow, closes popover', () => {
+        // https://github.com/influxdata/influxdb/issues/17964
+        const labelName = 'the new new'
+
+        cy.get('@org').then(() => {
+          cy.getByTestID(`inline-labels--add`)
+            .first()
+            .click()
+
+          cy.getByTestID('inline-labels--popover--contents').should(
+            'be.visible'
+          )
+
+          cy.getByTestID(`inline-labels--popover-field`).type(labelName)
+
+          cy.getByTestID(`inline-labels--create-new`).click()
+
+          cy.getByTestID('overlay--body').should('be.visible')
+          cy.getByTestID('inline-labels--popover--contents').should(
+            'not.be.visible'
+          )
         })
       })
 
