@@ -16,7 +16,7 @@ import {notify} from 'src/shared/actions/notifications'
 import {setActiveTimeMachine} from 'src/timeMachine/actions'
 import {executeQueries} from 'src/timeMachine/actions/queries'
 import {setView, Action} from 'src/views/actions/creators'
-import {hashCode} from 'src/data/actions/thunks'
+import {hashCode} from 'src/data/actions'
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 import {setQueryResults} from 'src/timeMachine/actions/queries'
 
@@ -126,6 +126,25 @@ export const getViewForTimeMachine = (
   }
 }
 
+export const setQueryResultsByQueryID = (queryID: string) => async (
+  dispatch,
+  getState: GetState
+): Promise<void> => {
+  try {
+    const state = getState()
+    const files = state.data.queryResultsByQueryID[hashCode(queryID)]
+    if (files) {
+      dispatch(setQueryResults(RemoteDataState.Done, files, null, null))
+      return
+    }
+    dispatch(executeQueries())
+  } catch (error) {
+    // if the files don't exist in the cache, we want to execute the query
+    console.error(error)
+    dispatch(executeQueries())
+  }
+}
+
 export const setQueryResultsForCell = (
   dashboardID: string,
   cellID: string,
@@ -138,11 +157,7 @@ export const setQueryResultsForCell = (
     const queries = view.properties.queries.filter(({text}) => !!text.trim())
     const queryID = get(queries, '[0].text', '')
     if (queryID) {
-      const {files, timeInterval} = state.data.queryResultsByQueryID[
-        hashCode(queryID)
-      ]
-      console.log('timeInterval: ', timeInterval)
-      dispatch(setQueryResults(RemoteDataState.Done, files, null, null))
+      dispatch(setQueryResultsByQueryID(queryID))
       return
     }
     dispatch(executeQueries())

@@ -43,7 +43,7 @@ import {TIME_RANGE_START, TIME_RANGE_STOP} from 'src/variables/constants'
 
 // Actions
 import {notify as notifyAction} from 'src/shared/actions/notifications'
-import {setQueryResultsByQueryID} from 'src/data/actions/thunks'
+import {setQueryResultsByQueryID} from 'src/data/actions'
 
 // Types
 import {
