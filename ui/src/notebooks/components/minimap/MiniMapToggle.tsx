@@ -31,7 +31,7 @@ const MiniMapToggle: FC<Props> = ({
   const active = notebookMiniMapState === 'expanded'
 
   const handleChange = (): void => {
-    event('Toggled Mini Map', {state: !active})
+    event('Toggled Mini Map', {state: active ? 'collapsed' : 'expanded'})
 
     if (active) {
       handleSetNotebookMiniMapState('collapsed')

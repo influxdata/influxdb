@@ -15,7 +15,7 @@ const AutoRefreshDropdown: FC<TimeContextProps> = ({context, update}) => {
       interval === 0 ? AutoRefreshStatus.Paused : AutoRefreshStatus.Active
 
     event('Auto Refresh Updated', {
-      interval: interval,
+      interval: '' + interval,
     })
 
     update({

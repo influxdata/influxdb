@@ -20,7 +20,7 @@ const PanelVisibilityToggle: FC<Props> = ({index}) => {
 
   const handleClick = (): void => {
     event('Panel Visibility Toggled', {
-      state: !meta[index].visible,
+      state: !meta[index].visible ? 'true' : 'false',
     })
 
     updateMeta(index, {

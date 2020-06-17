@@ -20,7 +20,7 @@ const TimeZoneDropdown: FC = React.memo(() => {
   return (
     <StatelessTimeZoneDropdown
       timeZone={timeZone}
-      onSetTimeZone={onSetTimeZone}
+      onSetTimeZone={setTimeZone}
     />
   )
 })
