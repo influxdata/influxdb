@@ -38,20 +38,24 @@ func NewHTTPServer(log *zap.Logger, svc SVC) *HTTPServer {
 		svc:    svc,
 	}
 
+	exportAllowContentTypes := middleware.AllowContentType("text/yml", "application/x-yaml", "application/json")
+	setJSONContentType := middleware.SetHeader("Content-Type", "application/json; charset=utf-8")
+
 	r := chi.NewRouter()
 	{
-		r.With(middleware.AllowContentType("text/yml", "application/x-yaml", "application/json")).
-			Post("/", svr.createPkg)
-
-		r.With(middleware.SetHeader("Content-Type", "application/json; charset=utf-8")).
-			Post("/apply", svr.applyPkg)
+		r.With(exportAllowContentTypes).Post("/", svr.createPkg)
+		r.With(setJSONContentType).Post("/apply", svr.applyPkg)
 
 		r.Route("/stacks", func(r chi.Router) {
 			r.Post("/", svr.createStack)
 			r.Get("/", svr.listStacks)
-			r.Delete("/{stack_id}", svr.deleteStack)
-			r.With(middleware.AllowContentType("text/yml", "application/x-yaml", "application/json")).
-				Get("/{stack_id}/export", svr.exportStack)
+
+			r.Route("/{stack_id}", func(r chi.Router) {
+				r.Get("/", svr.readStack)
+				r.Delete("/", svr.deleteStack)
+				r.Patch("/", svr.updateStack)
+				r.With(exportAllowContentTypes).Get("/export", svr.exportStack)
+			})
 		})
 	}
 
@@ -64,9 +68,21 @@ func (s *HTTPServer) Prefix() string {
 	return RoutePrefix
 }
 
+// RespStack is the response body for a stack.
+type RespStack struct {
+	ID          string          `json:"id"`
+	OrgID       string          `json:"orgID"`
+	Name        string          `json:"name"`
+	Description string          `json:"description"`
+	Resources   []StackResource `json:"resources"`
+	Sources     []string        `json:"sources"`
+	URLs        []string        `json:"urls"`
+	influxdb.CRUDLog
+}
+
 // RespListStacks is the HTTP response for a stack list call.
 type RespListStacks struct {
-	Stacks []Stack `json:"stacks"`
+	Stacks []RespStack `json:"stacks"`
 }
 
 func (s *HTTPServer) listStacks(w http.ResponseWriter, r *http.Request) {
@@ -118,8 +134,13 @@ func (s *HTTPServer) listStacks(w http.ResponseWriter, r *http.Request) {
 		stacks = []Stack{}
 	}
 
+	out := make([]RespStack, 0, len(stacks))
+	for _, st := range stacks {
+		out = append(out, convertStackToRespStack(st))
+	}
+
 	s.api.Respond(w, r, http.StatusOK, RespListStacks{
-		Stacks: stacks,
+		Stacks: out,
 	})
 }
 
@@ -157,16 +178,6 @@ func (r *ReqCreateStack) orgID() influxdb.ID {
 	return *orgID
 }
 
-// RespCreateStack is the response body for the create stack call.
-type RespCreateStack struct {
-	ID          string   `json:"id"`
-	OrgID       string   `json:"orgID"`
-	Name        string   `json:"name"`
-	Description string   `json:"description"`
-	URLs        []string `json:"urls"`
-	influxdb.CRUDLog
-}
-
 func (s *HTTPServer) createStack(w http.ResponseWriter, r *http.Request) {
 	var reqBody ReqCreateStack
 	if err := s.api.DecodeJSON(r.Body, &reqBody); err != nil {
@@ -192,14 +203,7 @@ func (s *HTTPServer) createStack(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.api.Respond(w, r, http.StatusCreated, RespCreateStack{
-		ID:          stack.ID.String(),
-		OrgID:       stack.OrgID.String(),
-		Name:        stack.Name,
-		Description: stack.Description,
-		URLs:        stack.URLs,
-		CRUDLog:     stack.CRUDLog,
-	})
+	s.api.Respond(w, r, http.StatusCreated, convertStackToRespStack(stack))
 }
 
 func (s *HTTPServer) deleteStack(w http.ResponseWriter, r *http.Request) {
@@ -209,13 +213,9 @@ func (s *HTTPServer) deleteStack(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	stackID, err := influxdb.IDFromString(chi.URLParam(r, "stack_id"))
+	stackID, err := stackIDFromReq(r)
 	if err != nil {
-		s.api.Err(w, r, &influxdb.Error{
-			Code: influxdb.EInvalid,
-			Msg:  "the stack id provided in the path was invalid",
-			Err:  err,
-		})
+		s.api.Err(w, r, err)
 		return
 	}
 
@@ -229,7 +229,7 @@ func (s *HTTPServer) deleteStack(w http.ResponseWriter, r *http.Request) {
 	err = s.svc.DeleteStack(r.Context(), struct{ OrgID, UserID, StackID influxdb.ID }{
 		OrgID:   orgID,
 		UserID:  userID,
-		StackID: *stackID,
+		StackID: stackID,
 	})
 	if err != nil {
 		s.api.Err(w, r, err)
@@ -246,17 +246,13 @@ func (s *HTTPServer) exportStack(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	stackID, err := influxdb.IDFromString(chi.URLParam(r, "stack_id"))
+	stackID, err := stackIDFromReq(r)
 	if err != nil {
-		s.api.Err(w, r, &influxdb.Error{
-			Code: influxdb.EInvalid,
-			Msg:  "the stack id provided in the path was invalid",
-			Err:  err,
-		})
+		s.api.Err(w, r, err)
 		return
 	}
 
-	pkg, err := s.svc.ExportStack(r.Context(), orgID, *stackID)
+	pkg, err := s.svc.ExportStack(r.Context(), orgID, stackID)
 	if err != nil {
 		s.api.Err(w, r, err)
 		return
@@ -278,6 +274,68 @@ func (s *HTTPServer) exportStack(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.api.Write(w, http.StatusOK, b)
+}
+
+func (s *HTTPServer) readStack(w http.ResponseWriter, r *http.Request) {
+	stackID, err := stackIDFromReq(r)
+	if err != nil {
+		s.api.Err(w, r, err)
+		return
+	}
+
+	stack, err := s.svc.ReadStack(r.Context(), stackID)
+	if err != nil {
+		s.api.Err(w, r, err)
+		return
+	}
+
+	s.api.Respond(w, r, http.StatusOK, convertStackToRespStack(stack))
+}
+
+// ReqUpdateStack is the request body for updating a stack.
+type ReqUpdateStack struct {
+	Name        *string  `json:"name"`
+	Description *string  `json:"description"`
+	URLs        []string `json:"urls"`
+}
+
+func (s *HTTPServer) updateStack(w http.ResponseWriter, r *http.Request) {
+	var req ReqUpdateStack
+	if err := s.api.DecodeJSON(r.Body, &req); err != nil {
+		s.api.Err(w, r, err)
+		return
+	}
+
+	stackID, err := stackIDFromReq(r)
+	if err != nil {
+		s.api.Err(w, r, err)
+		return
+	}
+
+	stack, err := s.svc.UpdateStack(r.Context(), StackUpdate{
+		ID:          stackID,
+		Name:        req.Name,
+		Description: req.Description,
+		URLs:        req.URLs,
+	})
+	if err != nil {
+		s.api.Err(w, r, err)
+		return
+	}
+
+	s.api.Respond(w, r, http.StatusOK, convertStackToRespStack(stack))
+}
+
+func stackIDFromReq(r *http.Request) (influxdb.ID, error) {
+	stackID, err := influxdb.IDFromString(chi.URLParam(r, "stack_id"))
+	if err != nil {
+		return 0, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  "the stack id provided in the path was invalid",
+			Err:  err,
+		}
+	}
+	return *stackID, nil
 }
 
 func getRequiredOrgIDFromQuery(q url.Values) (influxdb.ID, error) {
@@ -670,5 +728,18 @@ func newDecodeErr(encoding string, err error) *influxdb.Error {
 		Msg:  fmt.Sprintf("unable to unmarshal %s", encoding),
 		Code: influxdb.EInvalid,
 		Err:  err,
+	}
+}
+
+func convertStackToRespStack(st Stack) RespStack {
+	return RespStack{
+		ID:          st.ID.String(),
+		OrgID:       st.OrgID.String(),
+		Name:        st.Name,
+		Description: st.Description,
+		Resources:   append([]StackResource{}, st.Resources...),
+		Sources:     append([]string{}, st.Sources...),
+		URLs:        append([]string{}, st.URLs...),
+		CRUDLog:     st.CRUDLog,
 	}
 }

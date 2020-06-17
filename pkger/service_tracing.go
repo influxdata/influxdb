@@ -53,6 +53,18 @@ func (s *traceMW) ListStacks(ctx context.Context, orgID influxdb.ID, f ListFilte
 	return stacks, err
 }
 
+func (s *traceMW) ReadStack(ctx context.Context, id influxdb.ID) (Stack, error) {
+	span, ctx := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+	return s.next.ReadStack(ctx, id)
+}
+
+func (s *traceMW) UpdateStack(ctx context.Context, upd StackUpdate) (Stack, error) {
+	span, ctx := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+	return s.next.UpdateStack(ctx, upd)
+}
+
 func (s *traceMW) CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (pkg *Pkg, err error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
