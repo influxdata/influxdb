@@ -11,8 +11,8 @@ import {
 
 let reportingTags = {}
 let reportingPoints = []
-let reportDecayTimeout = false
-let reportMaxTimeout = false
+let reportDecayTimeout = null
+let reportMaxTimeout = null
 
 const REPORT_DECAY = 500 // number of miliseconds to wait after last event before sending
 const REPORT_MAX_WAIT = 5000 // max number of miliseconds to wait between sends
@@ -36,15 +36,15 @@ export const reportEvent = ({timestamp, measurement, fields, tags}: Point) => {
     timestamp,
   })
 
-  if (reportDecayTimeout) {
+  if (!!reportDecayTimeout) {
     clearTimeout(reportDecayTimeout)
     reportDecayTimeout = null
   }
 
   if (reportingPoints.length >= REPORT_MAX_LENGTH) {
-    if (reportMaxTimeout) {
+    if (!!reportMaxTimeout) {
       clearTimeout(reportMaxTimeout)
-      remoteMaxTimeout = null
+      reportMaxTimeout = null
     }
 
     reportPointsAPI({
