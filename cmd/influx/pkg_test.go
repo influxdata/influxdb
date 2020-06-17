@@ -733,6 +733,14 @@ func (f *fakePkgSVC) ExportStack(ctx context.Context, orgID, stackID influxdb.ID
 	panic("not implemented")
 }
 
+func (f *fakePkgSVC) ReadStack(ctx context.Context, id influxdb.ID) (pkger.Stack, error) {
+	panic("not implemented")
+}
+
+func (f *fakePkgSVC) UpdateStack(ctx context.Context, upd pkger.StackUpdate) (pkger.Stack, error) {
+	panic("not implemented")
+}
+
 func (f *fakePkgSVC) CreatePkg(ctx context.Context, setters ...pkger.CreatePkgSetFn) (*pkger.Pkg, error) {
 	if f.createFn != nil {
 		return f.createFn(ctx, setters...)

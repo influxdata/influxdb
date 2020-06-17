@@ -218,6 +218,8 @@ type WindowAggregateCapability struct {
 	Mean  bool
 	Count bool
 	Sum   bool
+	First bool
+	Last  bool
 }
 
 func (w WindowAggregateCapability) HaveMin() bool   { return w.Min }
@@ -225,3 +227,5 @@ func (w WindowAggregateCapability) HaveMax() bool   { return w.Max }
 func (w WindowAggregateCapability) HaveMean() bool  { return w.Mean }
 func (w WindowAggregateCapability) HaveCount() bool { return w.Count }
 func (w WindowAggregateCapability) HaveSum() bool   { return w.Sum }
+func (w WindowAggregateCapability) HaveFirst() bool { return w.First }
+func (w WindowAggregateCapability) HaveLast() bool  { return w.Last }

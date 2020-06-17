@@ -30,7 +30,7 @@ import (
 )
 
 func TestLauncher_Write_Query_FieldKey(t *testing.T) {
-	be := launcher.RunTestLauncherOrFail(t, ctx)
+	be := launcher.RunTestLauncherOrFail(t, ctx, nil)
 	be.SetupOrFail(t)
 	defer be.ShutdownOrFail(t, ctx)
 
@@ -76,7 +76,7 @@ mem,server=b value=45.2`))
 // and checks that the queried results contain the expected number of tables
 // and expected number of columns.
 func TestLauncher_WriteV2_Query(t *testing.T) {
-	be := launcher.RunTestLauncherOrFail(t, ctx)
+	be := launcher.RunTestLauncherOrFail(t, ctx, nil)
 	be.SetupOrFail(t)
 	defer be.ShutdownOrFail(t, ctx)
 
@@ -295,7 +295,7 @@ func TestLauncher_QueryMemoryLimits(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			l := launcher.RunTestLauncherOrFail(t, ctx, tc.args...)
+			l := launcher.RunTestLauncherOrFail(t, ctx, nil, tc.args...)
 			l.SetupOrFail(t)
 			defer l.ShutdownOrFail(t, ctx)
 
@@ -333,7 +333,7 @@ func TestLauncher_QueryMemoryLimits(t *testing.T) {
 func TestLauncher_QueryMemoryManager_ExceedMemory(t *testing.T) {
 	t.Skip("this test is flaky, occasionally get error: \"memory allocation limit reached\" on OK query")
 
-	l := launcher.RunTestLauncherOrFail(t, ctx,
+	l := launcher.RunTestLauncherOrFail(t, ctx, nil,
 		"--log-level", "error",
 		"--query-concurrency", "1",
 		"--query-initial-memory-bytes", "100",
@@ -378,7 +378,7 @@ func TestLauncher_QueryMemoryManager_ExceedMemory(t *testing.T) {
 func TestLauncher_QueryMemoryManager_ContextCanceled(t *testing.T) {
 	t.Skip("this test is flaky, occasionally get error: \"memory allocation limit reached\"")
 
-	l := launcher.RunTestLauncherOrFail(t, ctx,
+	l := launcher.RunTestLauncherOrFail(t, ctx, nil,
 		"--log-level", "error",
 		"--query-concurrency", "1",
 		"--query-initial-memory-bytes", "100",
@@ -422,7 +422,7 @@ func TestLauncher_QueryMemoryManager_ContextCanceled(t *testing.T) {
 func TestLauncher_QueryMemoryManager_ConcurrentQueries(t *testing.T) {
 	t.Skip("this test is flaky, occasionally get error: \"dial tcp 127.0.0.1:59654: connect: connection reset by peer\"")
 
-	l := launcher.RunTestLauncherOrFail(t, ctx,
+	l := launcher.RunTestLauncherOrFail(t, ctx, nil,
 		"--log-level", "error",
 		"--query-queue-size", "1024",
 		"--query-concurrency", "1",
@@ -496,7 +496,7 @@ func TestLauncher_QueryMemoryManager_ConcurrentQueries(t *testing.T) {
 }
 
 func TestLauncher_Query_LoadSecret_Success(t *testing.T) {
-	l := launcher.RunTestLauncherOrFail(t, ctx)
+	l := launcher.RunTestLauncherOrFail(t, ctx, nil)
 	l.SetupOrFail(t)
 	defer l.ShutdownOrFail(t, ctx)
 
@@ -546,7 +546,7 @@ from(bucket: "%s")
 }
 
 func TestLauncher_Query_LoadSecret_Forbidden(t *testing.T) {
-	l := launcher.RunTestLauncherOrFail(t, ctx)
+	l := launcher.RunTestLauncherOrFail(t, ctx, nil)
 	l.SetupOrFail(t)
 	defer l.ShutdownOrFail(t, ctx)
 
@@ -605,7 +605,7 @@ from(bucket: "%s")
 // This will change once we make side effects drive execution and remove from/to concurrency in our e2e tests.
 // See https://github.com/influxdata/flux/issues/1799.
 func TestLauncher_DynamicQuery(t *testing.T) {
-	l := launcher.RunTestLauncherOrFail(t, ctx)
+	l := launcher.RunTestLauncherOrFail(t, ctx, nil)
 	l.SetupOrFail(t)
 	defer l.ShutdownOrFail(t, ctx)
 
@@ -680,7 +680,7 @@ stream2 |> filter(fn: (r) => contains(value: r._value, set: col)) |> group() |> 
 }
 
 func TestLauncher_Query_ExperimentalTo(t *testing.T) {
-	l := launcher.RunTestLauncherOrFail(t, ctx)
+	l := launcher.RunTestLauncherOrFail(t, ctx, nil)
 	l.SetupOrFail(t)
 	defer l.ShutdownOrFail(t, ctx)
 
@@ -749,7 +749,7 @@ from(bucket: "%s")
 }
 
 func TestLauncher_Query_PushDownWindowAggregateAndBareAggregate(t *testing.T) {
-	l := launcher.RunTestLauncherOrFail(t, ctx,
+	l := launcher.RunTestLauncherOrFail(t, ctx, nil,
 		"--feature-flags", "pushDownWindowAggregateCount=true,pushDownWindowAggregateSum=true")
 	l.SetupOrFail(t)
 	defer l.ShutdownOrFail(t, ctx)
@@ -773,13 +773,14 @@ m0,k=k0 f=9i 14000000000
 m0,k=k0 f=5i 15000000000
 `)
 
-	getReadRequestCount := func() uint64 {
+	getReadRequestCount := func(op string) uint64 {
 		const metricName = "query_influxdb_source_read_request_duration_seconds"
 		mf := l.Metrics(t)[metricName]
 		if mf != nil {
+			fmt.Printf("%v\n", mf)
 			for _, m := range mf.Metric {
 				for _, label := range m.Label {
-					if label.GetName() == "op" && label.GetValue() == "readWindowAggregate" {
+					if label.GetName() == "op" && label.GetValue() == op {
 						return m.Histogram.GetSampleCount()
 					}
 				}
@@ -791,6 +792,7 @@ m0,k=k0 f=5i 15000000000
 	for _, tt := range []struct {
 		name string
 		q    string
+		op   string
 		res  string
 	}{
 		{
@@ -801,6 +803,7 @@ from(bucket: v.bucket)
 	|> aggregateWindow(every: 5s, fn: count)
 	|> drop(columns: ["_start", "_stop"])
 `,
+			op: "readWindow(count)",
 			res: `
 #datatype,string,long,dateTime:RFC3339,long,string,string,string
 #group,false,false,false,false,true,true,true
@@ -819,6 +822,7 @@ from(bucket: v.bucket)
 	|> count()
 	|> drop(columns: ["_start", "_stop"])
 `,
+			op: "readWindow(count)",
 			res: `
 #group,false,false,false,true,true,true
 #datatype,string,long,long,string,string,string
@@ -835,6 +839,7 @@ from(bucket: v.bucket)
 	|> aggregateWindow(every: 5s, fn: sum)
 	|> drop(columns: ["_start", "_stop"])
 `,
+			op: "readWindow(sum)",
 			res: `
 #datatype,string,long,dateTime:RFC3339,long,string,string,string
 #group,false,false,false,false,true,true,true
@@ -853,6 +858,7 @@ from(bucket: v.bucket)
 	|> sum()
 	|> drop(columns: ["_start", "_stop"])
 `,
+			op: "readWindow(sum)",
 			res: `
 #group,false,false,false,true,true,true
 #datatype,string,long,long,string,string,string
@@ -863,7 +869,7 @@ from(bucket: v.bucket)
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			wantCount := getReadRequestCount() + 1
+			wantCount := getReadRequestCount(tt.op) + 1
 
 			prelude := fmt.Sprintf("v = {bucket: \"%s\", timeRangeStart: 1970-01-01T00:00:00Z, timeRangeStop: 1970-01-01T00:00:15Z}", l.Bucket.Name)
 			queryStr := prelude + "\n" + tt.q
@@ -883,7 +889,7 @@ from(bucket: v.bucket)
 				t.Fatal(err)
 			}
 
-			if want, got := wantCount, getReadRequestCount(); want != got {
+			if want, got := wantCount, getReadRequestCount(tt.op); want != got {
 				t.Fatalf("unexpected sample count -want/+got:\n\t- %d\n\t+ %d", want, got)
 			}
 		})
@@ -891,7 +897,7 @@ from(bucket: v.bucket)
 }
 
 func TestLauncher_Query_PushDownGroupAggregate(t *testing.T) {
-	l := launcher.RunTestLauncherOrFail(t, ctx,
+	l := launcher.RunTestLauncherOrFail(t, ctx, nil,
 		"--feature-flags",
 		"pushDownGroupAggregateCount=true",
 		"--feature-flags",

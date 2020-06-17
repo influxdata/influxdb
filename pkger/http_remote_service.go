@@ -23,7 +23,7 @@ func (s *HTTPRemoteService) InitStack(ctx context.Context, userID influxdb.ID, s
 		URLs:        stack.URLs,
 	}
 
-	var respBody RespCreateStack
+	var respBody RespStack
 	err := s.Client.
 		PostJSON(reqBody, RoutePrefix, "/stacks").
 		DecodeJSON(&respBody).
@@ -32,27 +32,7 @@ func (s *HTTPRemoteService) InitStack(ctx context.Context, userID influxdb.ID, s
 		return Stack{}, err
 	}
 
-	newStack := Stack{
-		Name:        respBody.Name,
-		Description: respBody.Description,
-		URLs:        respBody.URLs,
-		Resources:   make([]StackResource, 0),
-		CRUDLog:     respBody.CRUDLog,
-	}
-
-	id, err := influxdb.IDFromString(respBody.ID)
-	if err != nil {
-		return Stack{}, err
-	}
-	newStack.ID = *id
-
-	orgID, err := influxdb.IDFromString(respBody.OrgID)
-	if err != nil {
-		return Stack{}, err
-	}
-	newStack.OrgID = *orgID
-
-	return newStack, nil
+	return convertRespStackToStack(respBody)
 }
 
 func (s *HTTPRemoteService) DeleteStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) error {
@@ -104,7 +84,47 @@ func (s *HTTPRemoteService) ListStacks(ctx context.Context, orgID influxdb.ID, f
 	if err != nil {
 		return nil, err
 	}
-	return resp.Stacks, nil
+
+	out := make([]Stack, 0, len(resp.Stacks))
+	for _, st := range resp.Stacks {
+		stack, err := convertRespStackToStack(st)
+		if err != nil {
+			continue
+		}
+		out = append(out, stack)
+	}
+	return out, nil
+}
+
+func (s *HTTPRemoteService) ReadStack(ctx context.Context, id influxdb.ID) (Stack, error) {
+	var respBody RespStack
+	err := s.Client.
+		Get(RoutePrefix, "/stacks", id.String()).
+		DecodeJSON(&respBody).
+		Do(ctx)
+	if err != nil {
+		return Stack{}, err
+	}
+	return convertRespStackToStack(respBody)
+}
+
+func (s *HTTPRemoteService) UpdateStack(ctx context.Context, upd StackUpdate) (Stack, error) {
+	reqBody := ReqUpdateStack{
+		Name:        upd.Name,
+		Description: upd.Description,
+		URLs:        upd.URLs,
+	}
+
+	var respBody RespStack
+	err := s.Client.
+		PatchJSON(reqBody, RoutePrefix, "/stacks", upd.ID.String()).
+		DecodeJSON(&respBody).
+		Do(ctx)
+	if err != nil {
+		return Stack{}, err
+	}
+
+	return convertRespStackToStack(respBody)
 }
 
 // CreatePkg will produce a pkg from the parameters provided.
@@ -214,4 +234,29 @@ func (s *HTTPRemoteService) apply(ctx context.Context, orgID influxdb.ID, dryRun
 	}
 
 	return impact, NewParseError(resp.Errors...)
+}
+
+func convertRespStackToStack(respStack RespStack) (Stack, error) {
+	newStack := Stack{
+		Name:        respStack.Name,
+		Description: respStack.Description,
+		Sources:     respStack.Sources,
+		URLs:        respStack.URLs,
+		Resources:   respStack.Resources,
+		CRUDLog:     respStack.CRUDLog,
+	}
+
+	id, err := influxdb.IDFromString(respStack.ID)
+	if err != nil {
+		return Stack{}, err
+	}
+	newStack.ID = *id
+
+	orgID, err := influxdb.IDFromString(respStack.OrgID)
+	if err != nil {
+		return Stack{}, err
+	}
+	newStack.OrgID = *orgID
+
+	return newStack, nil
 }

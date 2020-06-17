@@ -3,7 +3,7 @@ import React, {PureComponent, CSSProperties} from 'react'
 import _ from 'lodash'
 import {Grid} from 'react-virtualized'
 
-const ROW_HEIGHT = 27
+export const ROW_HEIGHT = 27
 const MIN_COLUMN_WIDTH = 150
 const TIME_COLUMN_WIDTH = 300
 

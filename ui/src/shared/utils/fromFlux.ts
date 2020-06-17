@@ -57,7 +57,7 @@ function parseValue(
   }
 
   if (columnType === InternalTypes.time) {
-    return Date.parse(value)
+    return Date.parse(value.replace(/(\r\n|\n|\r)/gm, '')) // remove newlines from time strings
   }
 
   if (columnType === InternalTypes.number && value === '') {

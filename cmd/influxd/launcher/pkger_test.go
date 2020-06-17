@@ -27,7 +27,7 @@ import (
 var ctx = context.Background()
 
 func TestLauncher_Pkger(t *testing.T) {
-	l := RunTestLauncherOrFail(t, ctx, "--log-level", "error")
+	l := RunTestLauncherOrFail(t, ctx, nil, "--log-level", "error")
 	l.SetupOrFail(t)
 	defer l.ShutdownOrFail(t, ctx)
 	require.NoError(t, l.BucketService(t).DeleteBucket(ctx, l.Bucket.ID))
@@ -56,11 +56,15 @@ func TestLauncher_Pkger(t *testing.T) {
 		newStack, err := svc.InitStack(ctx, l.User.ID, stack)
 		require.NoError(t, err)
 
-		assert.NotZero(t, newStack.OrgID)
+		assert.Equal(t, l.Org.ID, newStack.OrgID)
 		assert.Equal(t, stack.Name, newStack.Name)
 		assert.Equal(t, stack.Description, newStack.Description)
-		assert.Equal(t, stack.URLs, newStack.URLs)
-		assert.NotNil(t, newStack.Resources)
+		assert.NotNil(t, newStack.Resources, "failed to match stack resorces")
+		expectedURLs := stack.URLs
+		if expectedURLs == nil {
+			expectedURLs = []string{}
+		}
+		assert.Equal(t, expectedURLs, newStack.URLs, "failed to match stack URLs")
 		assert.NotZero(t, newStack.CRUDLog)
 
 		return newStack, func() {
@@ -369,6 +373,65 @@ func TestLauncher_Pkger(t *testing.T) {
 				})
 				require.NoError(t, err)
 			})
+		})
+
+		t.Run("read a stack", func(t *testing.T) {
+			stacks, err := svc.ListStacks(ctx, l.Org.ID, pkger.ListFilter{})
+			require.NoError(t, err)
+			require.Empty(t, stacks)
+
+			newStack1, cleanup1 := newStackFn(t, pkger.Stack{
+				Name: "first stack",
+			})
+			defer cleanup1()
+
+			newStack2, cleanup2 := newStackFn(t, pkger.Stack{
+				Name: "second stack",
+			})
+			defer cleanup2()
+
+			actual, err := svc.ReadStack(ctx, newStack1.ID)
+			require.NoError(t, err)
+			assert.Equal(t, newStack1, actual)
+
+			actual, err = svc.ReadStack(ctx, newStack2.ID)
+			require.NoError(t, err)
+			assert.Equal(t, newStack2, actual)
+
+			_, err = svc.ReadStack(ctx, influxdb.ID(9000))
+			require.Equal(t, influxdb.ENotFound, influxdb.ErrorCode(err))
+		})
+
+		t.Run("updating a stack", func(t *testing.T) {
+			stack, cleanup := newStackFn(t, pkger.Stack{
+				OrgID:       l.Org.ID,
+				Name:        "first name",
+				Description: "first desc",
+				URLs:        []string{},
+			})
+			defer cleanup()
+
+			assertStack := func(t *testing.T, st pkger.Stack) {
+				t.Helper()
+				assert.Equal(t, stack.ID, st.ID)
+				assert.Equal(t, "2nd name", st.Name)
+				assert.Equal(t, "2nd desc", st.Description)
+				assert.Equal(t, []string{"http://example.com"}, st.URLs)
+				assert.True(t, st.UpdatedAt.After(stack.UpdatedAt))
+			}
+
+			updStack, err := svc.UpdateStack(ctx, pkger.StackUpdate{
+				ID:          stack.ID,
+				Name:        strPtr("2nd name"),
+				Description: strPtr("2nd desc"),
+				URLs:        []string{"http://example.com"},
+			})
+			require.NoError(t, err)
+			assertStack(t, updStack)
+
+			readStack, err := svc.ReadStack(ctx, stack.ID)
+			require.NoError(t, err)
+			assertStack(t, readStack)
 		})
 
 		t.Run("apply with only a stackID succeeds when stack has URLs", func(t *testing.T) {
@@ -3663,4 +3726,8 @@ func sortLabels(labels []pkger.SummaryLabel) {
 	sort.Slice(labels, func(i, j int) bool {
 		return labels[i].Name < labels[j].Name
 	})
+}
+
+func strPtr(s string) *string {
+	return &s
 }

@@ -1118,6 +1118,11 @@
   resolved "https://registry.yarnpkg.com/@types/json-schema/-/json-schema-7.0.3.tgz#bdfd69d61e464dcc81b25159c270d75a73c1a636"
   integrity sha512-Il2DtDVRGDcqjDtE+rF8iqg1CArehSK84HZJCT7AMITlyXRBpuPhqGLDQMowraqqu1coEaimg4ZOqggt6L6L+A==
 
+"@types/json-schema@^7.0.4":
+  version "7.0.5"
+  resolved "https://registry.yarnpkg.com/@types/json-schema/-/json-schema-7.0.5.tgz#dcce4430e64b443ba8945f0290fb564ad5bac6dd"
+  integrity sha512-7+2BITlgjgDhH0vvwZU/HZJVyk+2XUlvxXe8dFMedNX/aMkaOq++rMAFXc0tM7ij15QaWlbdQASBR9dihi+bDQ==
+
 "@types/lodash@^4.14.116":
   version "4.14.116"
   resolved "https://registry.yarnpkg.com/@types/lodash/-/lodash-4.14.116.tgz#5ccf215653e3e8c786a58390751033a9adca0eb9"
@@ -1653,6 +1658,16 @@ ajv@^6.10.0, ajv@^6.5.5:
   integrity sha512-TXtUUEYHuaTEbLZWIKUr5pmBuhDLy+8KYtPYdcV8qC+pOZL+NKqYwvWSRrVXHn+ZmRRAu8vJTAznH7Oag6RVRw==
   dependencies:
     fast-deep-equal "^2.0.1"
+    fast-json-stable-stringify "^2.0.0"
+    json-schema-traverse "^0.4.1"
+    uri-js "^4.2.2"
+
+ajv@^6.12.2:
+  version "6.12.2"
+  resolved "https://registry.yarnpkg.com/ajv/-/ajv-6.12.2.tgz#c629c5eced17baf314437918d2da88c99d5958cd"
+  integrity sha512-k+V+hzjm5q/Mr8ef/1Y9goCmlsK4I6Sm74teeyGvFk1XrOsbsKLjEdrvny42CZ+a8sXbk8KWpY/bDwS+FLL2UQ==
+  dependencies:
+    fast-deep-equal "^3.1.1"
     fast-json-stable-stringify "^2.0.0"
     json-schema-traverse "^0.4.1"
     uri-js "^4.2.2"
@@ -6950,6 +6965,13 @@ json5@^1.0.1:
   dependencies:
     minimist "^1.2.0"
 
+json5@^2.1.2:
+  version "2.1.3"
+  resolved "https://registry.yarnpkg.com/json5/-/json5-2.1.3.tgz#c9b0f7fa9233bfe5807fe66fcf3a5617ed597d43"
+  integrity sha512-KXPvOm8K9IJKFM0bmdn8QXh7udDh1g/giieX0NLCaMnb4hEiVFqnop2ImTXCc5e0/oHz3LTqmHGtExn5hfMkOA==
+  dependencies:
+    minimist "^1.2.5"
+
 jsonfile@^4.0.0:
   version "4.0.0"
   resolved "https://registry.yarnpkg.com/jsonfile/-/jsonfile-4.0.0.tgz#8771aae0799b64076b76640fca058f9c10e33ecb"
@@ -7162,6 +7184,15 @@ loader-utils@^1.2.3:
     big.js "^5.2.2"
     emojis-list "^3.0.0"
     json5 "^1.0.1"
+
+loader-utils@^2.0.0:
+  version "2.0.0"
+  resolved "https://registry.yarnpkg.com/loader-utils/-/loader-utils-2.0.0.tgz#e4cace5b816d425a166b5f097e10cd12b36064b0"
+  integrity sha512-rP4F0h2RaWSvPEkD7BLDFQnvSf+nK+wr3ESUjNTyAGobqrijmW92zc+SO6d4p4B1wh7+B/Jg1mkQe5NYUEHtHQ==
+  dependencies:
+    big.js "^5.2.2"
+    emojis-list "^3.0.0"
+    json5 "^2.1.2"
 
 locate-path@^3.0.0:
   version "3.0.0"
@@ -9307,6 +9338,14 @@ raw-body@2.4.0:
     iconv-lite "0.4.24"
     unpipe "1.0.0"
 
+raw-loader@^4.0.0:
+  version "4.0.1"
+  resolved "https://registry.yarnpkg.com/raw-loader/-/raw-loader-4.0.1.tgz#14e1f726a359b68437e183d5a5b7d33a3eba6933"
+  integrity sha512-baolhQBSi3iNh1cglJjA0mYzga+wePk7vdEX//1dTFd+v4TsQlQE0jitJSNF1OIP82rdYulH7otaVmdlDaJ64A==
+  dependencies:
+    loader-utils "^2.0.0"
+    schema-utils "^2.6.5"
+
 react-codemirror2@^4.2.1:
   version "4.3.0"
   resolved "https://registry.yarnpkg.com/react-codemirror2/-/react-codemirror2-4.3.0.tgz#e79aedca4da60d22402d2cd74f2885a3e5c009fd"
@@ -10154,6 +10193,15 @@ schema-utils@^2.5.0:
   integrity sha512-32ISrwW2scPXHUSusP8qMg5dLUawKkyV+/qIEV9JdXKx+rsM6mi8vZY8khg2M69Qom16rtroWXD3Ybtiws38gQ==
   dependencies:
     ajv "^6.10.2"
+    ajv-keywords "^3.4.1"
+
+schema-utils@^2.6.5:
+  version "2.7.0"
+  resolved "https://registry.yarnpkg.com/schema-utils/-/schema-utils-2.7.0.tgz#17151f76d8eae67fbbf77960c33c676ad9f4efc7"
+  integrity sha512-0ilKFI6QQF5nxDZLFn2dMjvc4hjg/Wkg7rHd3jK6/A4a1Hl9VFdQWvgB1UMGoU94pad1P/8N7fMcEnLnSiju8A==
+  dependencies:
+    "@types/json-schema" "^7.0.4"
+    ajv "^6.12.2"
     ajv-keywords "^3.4.1"
 
 seleccion@2.0.0:

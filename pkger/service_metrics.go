@@ -54,6 +54,18 @@ func (s *mwMetrics) ListStacks(ctx context.Context, orgID influxdb.ID, f ListFil
 	return stacks, rec(err)
 }
 
+func (s *mwMetrics) ReadStack(ctx context.Context, id influxdb.ID) (Stack, error) {
+	rec := s.rec.Record("read_stack")
+	stack, err := s.next.ReadStack(ctx, id)
+	return stack, rec(err)
+}
+
+func (s *mwMetrics) UpdateStack(ctx context.Context, upd StackUpdate) (Stack, error) {
+	rec := s.rec.Record("update_stack")
+	stack, err := s.next.UpdateStack(ctx, upd)
+	return stack, rec(err)
+}
+
 func (s *mwMetrics) CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*Pkg, error) {
 	rec := s.rec.Record("create_pkg")
 	pkg, err := s.next.CreatePkg(ctx, setters...)
