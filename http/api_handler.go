@@ -12,6 +12,7 @@ import (
 	"github.com/influxdata/influxdb/v2/kit/feature"
 	"github.com/influxdata/influxdb/v2/kit/prom"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
+	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/query"
 	"github.com/influxdata/influxdb/v2/storage"
 	"github.com/prometheus/client_golang/prometheus"
@@ -203,9 +204,11 @@ func NewAPIHandler(b *APIBackend, opts ...APIHandlerOptFn) *APIHandler {
 	writeBackend := NewWriteBackend(b.Logger.With(zap.String("handler", "write")), b)
 	h.Mount(prefixWrite, NewWriteHandler(b.Logger, writeBackend,
 		WithMaxBatchSizeBytes(b.MaxBatchSizeBytes),
-		WithParserMaxBytes(b.WriteParserMaxBytes),
-		WithParserMaxLines(b.WriteParserMaxLines),
-		WithParserMaxValues(b.WriteParserMaxValues),
+		WithParserOptions(
+			models.WithParserMaxBytes(b.WriteParserMaxBytes),
+			models.WithParserMaxLines(b.WriteParserMaxLines),
+			models.WithParserMaxValues(b.WriteParserMaxValues),
+		),
 	))
 
 	for _, o := range opts {
