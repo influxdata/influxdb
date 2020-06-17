@@ -4720,54 +4720,57 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    id:
-                      type: string
-                    orgID:
-                      type: string
-                    name:
-                      type: string
-                    description:
-                      type: string
-                    sources:
-                      type: array
-                      items:
-                        type: string
-                    urls:
-                      type: array
-                      items:
-                        type: string
-                    createdAt:
-                      type: string
-                      format: date-time
-                      readOnly: true
-                    updatedAt:
-                      type: string
-                      format: date-time
-                      readOnly: true
-                    resources:
+                type: object
+                properties:
+                  stacks:
+                    type: array
+                    items:
                       type: object
                       properties:
-                        apiVersion:
+                        id:
                           type: string
-                        resourceID:
+                        orgID:
                           type: string
-                        kind:
+                        name:
                           type: string
-                        pkgName:
+                        description:
                           type: string
-                        associations:
+                        sources:
                           type: array
                           items:
-                            type: object
-                            properties:
-                              kind:
-                                type: string
-                              pkgName:
-                                type: string
+                            type: string
+                        urls:
+                          type: array
+                          items:
+                            type: string
+                        createdAt:
+                          type: string
+                          format: date-time
+                          readOnly: true
+                        updatedAt:
+                          type: string
+                          format: date-time
+                          readOnly: true
+                        resources:
+                          type: object
+                          properties:
+                            apiVersion:
+                              type: string
+                            resourceID:
+                              type: string
+                            kind:
+                              type: string
+                            pkgName:
+                              type: string
+                            associations:
+                              type: array
+                              items:
+                                type: object
+                                properties:
+                                  kind:
+                                    type: string
+                                  pkgName:
+                                    type: string
         default:
           description: Unexpected error
           content:
