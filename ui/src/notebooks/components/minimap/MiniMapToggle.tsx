@@ -38,7 +38,7 @@ const MiniMapToggle: FC<Props> = ({
   return (
     <>
       <SlideToggle active={active} onChange={handleChange} />
-      <InputLabel>Minimap</InputLabel>
+      <InputLabel>Table of Contents</InputLabel>
     </>
   )
 }

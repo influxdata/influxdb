@@ -7,8 +7,6 @@ import {TimeProvider, TimeContext, TimeBlock} from 'src/notebooks/context/time'
 import AppSettingProvider from 'src/notebooks/context/app'
 
 // Components
-import TimeZoneDropdown from 'src/notebooks/components/header/TimeZoneDropdown'
-import TimeRangeDropdown from 'src/notebooks/components/header/TimeRangeDropdown'
 import AutoRefreshDropdown from 'src/notebooks/components/header/AutoRefreshDropdown'
 import Submit from 'src/notebooks/components/header/Submit'
 
@@ -37,8 +35,6 @@ const Buttons: FC = () => {
 
   return (
     <div className="notebook-header--buttons">
-      <TimeZoneDropdown />
-      <TimeRangeDropdown context={timeContext[id]} update={update} />
       <AutoRefreshDropdown context={timeContext[id]} update={update} />
       <Submit />
     </div>
