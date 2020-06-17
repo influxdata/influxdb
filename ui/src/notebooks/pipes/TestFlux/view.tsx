@@ -31,9 +31,9 @@ const TestFlux: FC<PipeProp> = ({Context, data, onUpdate}) => {
   }
   const parseCSV = evt => {
     Promise.all(
-      (Array.from(evt.target.files) as File[])
-        .filter(file => file.type === 'text/csv')
-        .map(file => {
+      Array.from(evt.target.files)
+        .filter((file: File) => file.type === 'text/csv')
+        .map((file: File) => {
           return new Promise((resolve, reject) => {
             const reader = new FileReader()
             reader.onload = () => {
