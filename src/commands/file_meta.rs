@@ -4,8 +4,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::convert::TryInto;
 
-use delorean_tsm::reader::{IndexEntry, InfluxID, TSMIndexReader};
-use delorean_tsm::TSMError;
+use delorean_tsm::reader::{IndexEntry, TSMIndexReader};
+use delorean_tsm::{InfluxID, TSMError};
 
 use delorean_parquet::metadata::print_parquet_metadata;
 use log::{debug, info};

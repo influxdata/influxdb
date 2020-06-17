@@ -1,7 +1,6 @@
 //! Types for reading and writing TSM files produced by InfluxDB >= 2.x
 pub mod encoders;
 
-// use crate::storage::block::*;
 use encoders::*;
 
 use integer_encoding::VarInt;
@@ -453,6 +452,149 @@ impl std::fmt::Display for InfluxID {
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct ParsedTSMKey {
+    pub measurement: String,
+    pub tagset: Vec<(String, String)>,
+    pub field_key: String,
+}
+
+/// parse_tsm_key parses from the series key the measurement, field key and tag
+/// set.
+///
+/// It does not provide access to the org and bucket ids on the key, these can
+/// be accessed via org_id() and bucket_id() respectively.
+///
+/// TODO: handle escapes in the series key for , = and \t
+///
+fn parse_tsm_key(mut key: Vec<u8>) -> Result<ParsedTSMKey, TSMError> {
+    // skip over org id, bucket id, comma, null byte (measurement) and =
+    // The next n-1 bytes are the measurement name, where the nᵗʰ byte is a `,`.
+    key = key.drain(8 + 8 + 1 + 1 + 1..).collect::<Vec<u8>>();
+    let mut i = 0;
+    // TODO(edd): can we make this work with take_while?
+    while i != key.len() {
+        if key[i] == b',' {
+            break;
+        }
+        i += 1;
+    }
+
+    let mut rem_key = key.drain(i..).collect::<Vec<u8>>();
+    let measurement = String::from_utf8(key).map_err(|e| TSMError {
+        description: e.to_string(),
+    })?;
+
+    let mut tagset = Vec::<(String, String)>::with_capacity(10);
+    let mut reading_key = true;
+    let mut key = String::with_capacity(100);
+    let mut value = String::with_capacity(100);
+
+    // skip the comma separating measurement tag
+    for byte in rem_key.drain(1..) {
+        match byte {
+            44 => {
+                // ,
+                reading_key = true;
+                tagset.push((key, value));
+                key = String::with_capacity(250);
+                value = String::with_capacity(250);
+            }
+            61 => {
+                // =
+                reading_key = false;
+            }
+            _ => {
+                if reading_key {
+                    key.push(byte as char);
+                } else {
+                    value.push(byte as char);
+                }
+            }
+        }
+    }
+
+    // fields are stored on the series keys in TSM indexes as follows:
+    //
+    // <field_key><4-byte delimiter><field_key>
+    //
+    // so we can trim the parsed value.
+    let field_trim_length = (value.len() - 4) / 2;
+    let (field, _) = value.split_at(field_trim_length);
+    Ok(ParsedTSMKey {
+        measurement,
+        tagset,
+        field_key: field.to_string(),
+    })
+}
+
+pub const F64_BLOCKTYPE_MARKER: u8 = 0;
+pub const I64_BLOCKTYPE_MARKER: u8 = 1;
+pub const BOOL_BLOCKTYPE_MARKER: u8 = 2;
+pub const STRING_BLOCKTYPE_MARKER: u8 = 3;
+pub const U64_BLOCKTYPE_MARKER: u8 = 4;
+
+/// `Block` holds information about location and time range of a block of data.
+#[derive(Debug, Copy, Clone)]
+#[allow(dead_code)]
+pub struct Block {
+    pub min_time: i64,
+    pub max_time: i64,
+    pub offset: u64,
+    pub size: u32,
+}
+
+// MAX_BLOCK_VALUES is the maximum number of values a TSM block can store.
+const MAX_BLOCK_VALUES: usize = 1000;
+
+/// `BlockData` describes the various types of block data that can be held within
+/// a TSM file.
+#[derive(Debug)]
+pub enum BlockData {
+    Float { ts: Vec<i64>, values: Vec<f64> },
+    Integer { ts: Vec<i64>, values: Vec<i64> },
+    Bool { ts: Vec<i64>, values: Vec<bool> },
+    Str { ts: Vec<i64>, values: Vec<String> },
+    Unsigned { ts: Vec<i64>, values: Vec<u64> },
+}
+
+impl BlockData {
+    pub fn is_empty(&self) -> bool {
+        match &self {
+            BlockData::Float { ts, values: _ } => ts.is_empty(),
+            BlockData::Integer { ts, values: _ } => ts.is_empty(),
+            BlockData::Bool { ts, values: _ } => ts.is_empty(),
+            BlockData::Str { ts, values: _ } => ts.is_empty(),
+            BlockData::Unsigned { ts, values: _ } => ts.is_empty(),
+        }
+    }
+}
+
+#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+/// `InfluxID` represents an InfluxDB ID used in InfluxDB 2.x to represent
+/// organization and bucket identifiers.
+pub struct InfluxID(u64);
+
+#[allow(dead_code)]
+impl InfluxID {
+    fn new_str(s: &str) -> Result<InfluxID, TSMError> {
+        let v = u64::from_str_radix(s, 16).map_err(|e| TSMError {
+            description: e.to_string(),
+        })?;
+        Ok(InfluxID(v))
+    }
+
+    fn from_be_bytes(bytes: [u8; 8]) -> InfluxID {
+        InfluxID(u64::from_be_bytes(bytes))
+    }
+}
+
+impl std::fmt::Display for InfluxID {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+        write!(f, "{:016x}", self.0)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct TSMError {
     pub description: String,
@@ -490,138 +632,6 @@ impl From<std::str::Utf8Error> for TSMError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use libflate::gzip;
-    use std::fs::File;
-    use std::i64;
-    use std::io::BufReader;
-    use std::io::Cursor;
-    use std::io::Read;
-
-    #[test]
-    fn read_tsm_index() {
-        let file = File::open("../tests/fixtures/000000000000005-000000002.tsm.gz");
-        let mut decoder = gzip::Decoder::new(file.unwrap()).unwrap();
-        let mut buf = Vec::new();
-        decoder.read_to_end(&mut buf).unwrap();
-
-        let reader = TSMIndexReader::try_new(BufReader::new(Cursor::new(buf)), 4_222_248).unwrap();
-
-        assert_eq!(reader.curr_offset, 3_893_272);
-        assert_eq!(reader.count(), 2159)
-    }
-
-    #[test]
-    fn read_tsm_block() {
-        let file = File::open("../tests/fixtures/000000000000005-000000002.tsm.gz");
-        let mut decoder = gzip::Decoder::new(file.unwrap()).unwrap();
-        let mut buf = Vec::new();
-        decoder.read_to_end(&mut buf).unwrap();
-
-        let reader = TSMIndexReader::try_new(BufReader::new(Cursor::new(buf)), 4_222_248).unwrap();
-
-        let mut got_blocks: u64 = 0;
-        let mut got_min_time = i64::MAX;
-        let mut got_max_time = i64::MIN;
-
-        // every block in the fixture file is for the 05c19117091a1000 org and
-        // 05c19117091a1001 bucket.
-        let org_id = InfluxID::new_str("05c19117091a1000").unwrap();
-        let bucket_id = InfluxID::new_str("05c19117091a1001").unwrap();
-
-        for index_entry in reader {
-            match index_entry {
-                Ok(entry) => {
-                    // TODO(edd): this is surely not the right way. I should be
-                    // returning mutable references from the iterator.
-                    let e = entry.clone();
-                    got_blocks += e.count as u64;
-
-                    if entry.block.min_time < got_min_time {
-                        got_min_time = e.block.min_time;
-                    }
-
-                    if entry.block.max_time > got_max_time {
-                        got_max_time = e.block.max_time;
-                    }
-
-                    assert_eq!(e.org_id(), org_id);
-                    assert_eq!(e.bucket_id(), bucket_id);
-
-                    assert!(
-                        e.parse_key().is_ok(),
-                        format!(
-                            "failed to parse key name for {:}",
-                            String::from_utf8_lossy(entry.key.as_slice())
-                        )
-                    );
-                }
-                Err(e) => panic!("{:?} {:?}", e, got_blocks),
-            }
-        }
-
-        assert_eq!(got_blocks, 2159); // 2,159 blocks in the file
-        assert_eq!(got_min_time, 1_590_585_404_546_128_000); // earliest time is 2020-05-27T13:16:44.546128Z
-        assert_eq!(got_max_time, 1_590_597_378_379_824_000); // latest time is 2020-05-27T16:36:18.379824Z
-    }
-
-    #[test]
-    fn decode_tsm_blocks() {
-        let file = File::open("../tests/fixtures/000000000000005-000000002.tsm.gz");
-        let mut decoder = gzip::Decoder::new(file.unwrap()).unwrap();
-        let mut buf = Vec::new();
-        decoder.read_to_end(&mut buf).unwrap();
-        let r = Cursor::new(buf);
-
-        let mut block_reader = TSMBlockReader::new(BufReader::new(r));
-
-        let block_defs = vec![
-            super::Block {
-                min_time: 1590585530000000000,
-                max_time: 1590590600000000000,
-                offset: 5339,
-                size: 153,
-            },
-            super::Block {
-                min_time: 1590585520000000000,
-                max_time: 1590590600000000000,
-                offset: 190770,
-                size: 30,
-            },
-        ];
-
-        let mut blocks = vec![];
-        for def in block_defs {
-            blocks.push(block_reader.decode_block(&def).unwrap());
-        }
-
-        for block in blocks {
-            // The first integer block in the value should have 509 values in it.
-            match block {
-                BlockData::Float { ts, values } => {
-                    assert_eq!(ts.len(), 507);
-                    assert_eq!(values.len(), 507);
-                }
-                BlockData::Integer { ts, values } => {
-                    assert_eq!(ts.len(), 509);
-                    assert_eq!(values.len(), 509);
-                }
-                BlockData::Bool { ts: _, values: _ } => {
-                    panic!("should not have decoded bool block")
-                }
-                BlockData::Str { ts: _, values: _ } => panic!("should not have decoded str block"),
-                BlockData::Unsigned { ts: _, values: _ } => {
-                    panic!("should not have decoded unsigned block")
-                }
-            }
-        }
-    }
-
-    #[test]
-    fn influx_id() {
-        let id = InfluxID::new_str("20aa9b0").unwrap();
-        assert_eq!(id, InfluxID(34_253_232));
-        assert_eq!(format!("{}", id), "00000000020aa9b0");
-    }
 
     #[test]
     fn parse_tsm_key() {
@@ -655,51 +665,10 @@ mod tests {
         assert_eq!(parsed_key.field_key, String::from("sum"));
     }
 
-    // This test scans over the entire tsm contents and
-    // ensures no errors are returned from the reader.
-    fn walk_index_and_check_for_errors(tsm_gz_path: &str) {
-        let file = File::open(tsm_gz_path);
-        let mut decoder = gzip::Decoder::new(file.unwrap()).unwrap();
-        let mut buf = Vec::new();
-        decoder.read_to_end(&mut buf).unwrap();
-        let data_len = buf.len();
-
-        let mut index_reader =
-            TSMIndexReader::try_new(BufReader::new(Cursor::new(&buf)), data_len).unwrap();
-        let mut blocks = Vec::new();
-
-        for res in &mut index_reader {
-            let entry = res.unwrap();
-            let key = entry.parse_key().unwrap();
-            assert!(!key.measurement.is_empty());
-
-            let block_type = entry.block_type;
-            if block_type == BOOL_BLOCKTYPE_MARKER {
-                eprintln!("Note: ignoring bool block, not implemented");
-            } else if block_type == STRING_BLOCKTYPE_MARKER {
-                eprintln!("Note: ignoring string block, not implemented");
-            } else if block_type == U64_BLOCKTYPE_MARKER {
-                eprintln!("Note: ignoring bool block, not implemented");
-            } else {
-                blocks.push(entry.block);
-            }
-        }
-
-        let mut block_reader = TSMBlockReader::new(Cursor::new(&buf));
-        for block in blocks {
-            block_reader
-                .decode_block(&block)
-                .expect("error decoding block data");
-        }
-    }
-
     #[test]
-    fn check_tsm_cpu_usage() {
-        walk_index_and_check_for_errors("../tests/fixtures/cpu_usage.tsm.gz");
-    }
-
-    #[test]
-    fn check_tsm_000000000000005_000000002() {
-        walk_index_and_check_for_errors("../tests/fixtures/000000000000005-000000002.tsm.gz");
+    fn influx_id() {
+        let id = InfluxID::new_str("20aa9b0").unwrap();
+        assert_eq!(id, InfluxID(34_253_232));
+        assert_eq!(format!("{}", id), "00000000020aa9b0");
     }
 }

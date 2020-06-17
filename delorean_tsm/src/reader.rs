@@ -1,7 +1,6 @@
 //! Types for reading and writing TSM files produced by InfluxDB >= 2.x
 
-use super::encoders::*;
-use super::TSMError;
+use super::*;
 use integer_encoding::VarInt;
 use std::io::{BufRead, Seek, SeekFrom};
 use std::u64;
@@ -223,88 +222,6 @@ impl IndexEntry {
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct ParsedTSMKey {
-    pub measurement: String,
-    pub tagset: Vec<(String, String)>,
-    pub field_key: String,
-}
-
-/// parse_tsm_key parses from the series key the measurement, field key and tag
-/// set.
-///
-/// It does not provide access to the org and bucket ids on the key, these can
-/// be accessed via org_id() and bucket_id() respectively.
-///
-/// TODO: handle escapes in the series key for , = and \t
-///
-fn parse_tsm_key(mut key: Vec<u8>) -> Result<ParsedTSMKey, TSMError> {
-    // skip over org id, bucket id, comma, null byte (measurement) and =
-    // The next n-1 bytes are the measurement name, where the nᵗʰ byte is a `,`.
-    key = key.drain(8 + 8 + 1 + 1 + 1..).collect::<Vec<u8>>();
-    let mut i = 0;
-    // TODO(edd): can we make this work with take_while?
-    while i != key.len() {
-        if key[i] == b',' {
-            break;
-        }
-        i += 1;
-    }
-
-    let mut rem_key = key.drain(i..).collect::<Vec<u8>>();
-    let measurement = String::from_utf8(key).map_err(|e| TSMError {
-        description: e.to_string(),
-    })?;
-
-    let mut tagset = Vec::<(String, String)>::with_capacity(10);
-    let mut reading_key = true;
-    let mut key = String::with_capacity(100);
-    let mut value = String::with_capacity(100);
-
-    // skip the comma separating measurement tag
-    for byte in rem_key.drain(1..) {
-        match byte {
-            44 => {
-                // ,
-                reading_key = true;
-                tagset.push((key, value));
-                key = String::with_capacity(250);
-                value = String::with_capacity(250);
-            }
-            61 => {
-                // =
-                reading_key = false;
-            }
-            _ => {
-                if reading_key {
-                    key.push(byte as char);
-                } else {
-                    value.push(byte as char);
-                }
-            }
-        }
-    }
-
-    // fields are stored on the series keys in TSM indexes as follows:
-    //
-    // <field_key><4-byte delimiter><field_key>
-    //
-    // so we can trim the parsed value.
-    let field_trim_length = (value.len() - 4) / 2;
-    let (field, _) = value.split_at(field_trim_length);
-    Ok(ParsedTSMKey {
-        measurement,
-        tagset,
-        field_key: field.to_string(),
-    })
-}
-
-pub const F64_BLOCKTYPE_MARKER: u8 = 0;
-pub const I64_BLOCKTYPE_MARKER: u8 = 1;
-pub const BOOL_BLOCKTYPE_MARKER: u8 = 2;
-pub const STRING_BLOCKTYPE_MARKER: u8 = 3;
-pub const U64_BLOCKTYPE_MARKER: u8 = 4;
-
 /// `TSMBlockReader` allows you to read and decode TSM blocks from within a TSM
 /// file.
 ///
@@ -346,8 +263,10 @@ where
         let mut ts: Vec<i64> = Vec::with_capacity(MAX_BLOCK_VALUES); // 1000 is the max block size
         let (len, n) = u64::decode_var(&data[idx..]); // size of timestamp block
         idx += n;
-        timestamp::decode(&data[idx..idx + (len as usize)], &mut ts).map_err(|e| TSMError {
-            description: e.to_string(),
+        encoders::timestamp::decode(&data[idx..idx + (len as usize)], &mut ts).map_err(|e| {
+            TSMError {
+                description: e.to_string(),
+            }
         })?;
         idx += len as usize;
 
@@ -355,8 +274,10 @@ where
             F64_BLOCKTYPE_MARKER => {
                 // values will be same length as time-stamps.
                 let mut values: Vec<f64> = Vec::with_capacity(ts.len());
-                float::decode_influxdb(&data[idx..], &mut values).map_err(|e| TSMError {
-                    description: e.to_string(),
+                encoders::float::decode_influxdb(&data[idx..], &mut values).map_err(|e| {
+                    TSMError {
+                        description: e.to_string(),
+                    }
                 })?;
 
                 Ok(BlockData::Float { ts, values })
@@ -364,7 +285,7 @@ where
             I64_BLOCKTYPE_MARKER => {
                 // values will be same length as time-stamps.
                 let mut values: Vec<i64> = Vec::with_capacity(ts.len());
-                integer::decode(&data[idx..], &mut values).map_err(|e| TSMError {
+                encoders::integer::decode(&data[idx..], &mut values).map_err(|e| TSMError {
                     description: e.to_string(),
                 })?;
 
@@ -383,67 +304,6 @@ where
                 description: format!("unsupported block type {:?}", block_type),
             }),
         }
-    }
-}
-
-/// `Block` holds information about location and time range of a block of data.
-#[derive(Debug, Copy, Clone)]
-#[allow(dead_code)]
-pub struct Block {
-    pub min_time: i64,
-    pub max_time: i64,
-    pub offset: u64,
-    pub size: u32,
-}
-
-// MAX_BLOCK_VALUES is the maximum number of values a TSM block can store.
-const MAX_BLOCK_VALUES: usize = 1000;
-
-/// `BlockData` describes the various types of block data that can be held within
-/// a TSM file.
-#[derive(Debug)]
-pub enum BlockData {
-    Float { ts: Vec<i64>, values: Vec<f64> },
-    Integer { ts: Vec<i64>, values: Vec<i64> },
-    Bool { ts: Vec<i64>, values: Vec<bool> },
-    Str { ts: Vec<i64>, values: Vec<String> },
-    Unsigned { ts: Vec<i64>, values: Vec<u64> },
-}
-
-impl BlockData {
-    pub fn is_empty(&self) -> bool {
-        match &self {
-            BlockData::Float { ts, values: _ } => ts.is_empty(),
-            BlockData::Integer { ts, values: _ } => ts.is_empty(),
-            BlockData::Bool { ts, values: _ } => ts.is_empty(),
-            BlockData::Str { ts, values: _ } => ts.is_empty(),
-            BlockData::Unsigned { ts, values: _ } => ts.is_empty(),
-        }
-    }
-}
-
-#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
-/// `InfluxID` represents an InfluxDB ID used in InfluxDB 2.x to represent
-/// organization and bucket identifiers.
-pub struct InfluxID(u64);
-
-#[allow(dead_code)]
-impl InfluxID {
-    fn new_str(s: &str) -> Result<InfluxID, TSMError> {
-        let v = u64::from_str_radix(s, 16).map_err(|e| TSMError {
-            description: e.to_string(),
-        })?;
-        Ok(InfluxID(v))
-    }
-
-    fn from_be_bytes(bytes: [u8; 8]) -> InfluxID {
-        InfluxID(u64::from_be_bytes(bytes))
-    }
-}
-
-impl std::fmt::Display for InfluxID {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
-        write!(f, "{:016x}", self.0)
     }
 }
 
@@ -574,45 +434,6 @@ mod tests {
                 }
             }
         }
-    }
-
-    #[test]
-    fn influx_id() {
-        let id = InfluxID::new_str("20aa9b0").unwrap();
-        assert_eq!(id, InfluxID(34_253_232));
-        assert_eq!(format!("{}", id), "00000000020aa9b0");
-    }
-
-    #[test]
-    fn parse_tsm_key() {
-        //<org_id bucket_id>,\x00=http_api_request_duration_seconds,handler=platform,method=POST,path=/api/v2/setup,status=2XX,user_agent=Firefox,\xff=sum#!~#sum
-        let buf = vec![
-            "05C19117091A100005C19117091A10012C003D68747470",
-            "5F6170695F726571756573745F6475726174696F6E5F73",
-            "65636F6E64732C68616E646C65723D706C6174666F726D",
-            "2C6D6574686F643D504F53542C706174683D2F6170692F",
-            "76322F73657475702C7374617475733D3258582C757365",
-            "725F6167656E743D46697265666F782CFF3D73756D2321",
-            "7E2373756D",
-        ]
-        .join("");
-        let tsm_key = hex::decode(buf).unwrap();
-
-        let parsed_key = super::parse_tsm_key(tsm_key).unwrap();
-        assert_eq!(
-            parsed_key.measurement,
-            String::from("http_api_request_duration_seconds")
-        );
-
-        let exp_tagset = vec![
-            (String::from("handler"), String::from("platform")),
-            (String::from("method"), String::from("POST")),
-            (String::from("path"), String::from("/api/v2/setup")),
-            (String::from("status"), String::from("2XX")),
-            (String::from("user_agent"), String::from("Firefox")),
-        ];
-        assert_eq!(parsed_key.tagset, exp_tagset);
-        assert_eq!(parsed_key.field_key, String::from("sum"));
     }
 
     // This test scans over the entire tsm contents and
