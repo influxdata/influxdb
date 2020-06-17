@@ -83,11 +83,7 @@ export const updateViewAndVariables = (
 
     const views = getViewsForDashboard(getState(), dashboardID)
 
-    views.splice(
-      views.findIndex(v => v.id === newView.id),
-      1,
-      newView
-    )
+    views.splice(views.findIndex(v => v.id === newView.id), 1, newView)
 
     const normView = normalize<View, ViewEntities, string>(newView, viewSchema)
 
@@ -104,6 +100,8 @@ export const getViewForTimeMachine = (
   cellID: string,
   timeMachineID: TimeMachineID
 ) => async (dispatch, getState: GetState): Promise<void> => {
+  // if it has data in some place
+  // otherwise do this
   try {
     const state = getState()
     let view = getByID<View>(state, ResourceType.Views, cellID) as QueryView
