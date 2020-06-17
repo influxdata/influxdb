@@ -1,4 +1,5 @@
 import {useState, useEffect} from 'react'
+import {isEmpty} from 'lodash'
 
 import {
   reportPoints as reportPointsAPI,
@@ -6,6 +7,7 @@ import {
   PointTags,
   PointFields,
 } from 'src/cloud/apis/reporting'
+import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 
 let reportingTags = {}
 let reportingPoints = []
@@ -23,10 +25,18 @@ export const updateReportingContext = (key: string, value: string) => {
 }
 
 export const reportEvent = ({timestamp, measurement, fields, tags}: Point) => {
+  if (!isFlagEnabled('appMetrics')) {
+    return
+  }
+
+  if (isEmpty(fields)) {
+    fields = {source: 'ui'}
+  }
+
   reportingPoints.push({
     measurement,
     tags: {...reportingTags, ...tags},
-    fields: {...fields, source: 'ui'},
+    fields,
     timestamp,
   })
 
