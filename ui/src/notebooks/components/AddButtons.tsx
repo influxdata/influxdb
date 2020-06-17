@@ -15,7 +15,10 @@ const AddButtons: FC = () => {
   const {addPipe} = useContext(NotebookContext)
 
   const pipes = Object.entries(PIPE_DEFINITIONS)
-    .filter(([_, def]) => !def.disabled && (!def.featureFlag || isFlagEnabled(def.featureFlag)))
+    .filter(
+      ([_, def]) =>
+        !def.disabled && (!def.featureFlag || isFlagEnabled(def.featureFlag))
+    )
     .sort((a, b) => {
       const aPriority = a[1].priority || 0
       const bPriority = b[1].priority || 0
