@@ -539,7 +539,7 @@ workflows:
   hourly-e2e:
     triggers:
       - schedule:
-          cron: "0 21 * * *"
+          cron: "0 * * * *"
           filters:
             branches:
               only:
