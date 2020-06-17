@@ -963,7 +963,9 @@ func (s *Service) dryRun(ctx context.Context, orgID influxdb.ID, pkg *Pkg, opt A
 		parseErr = err
 	}
 
-	state := newStateCoordinator(pkg)
+	state := newStateCoordinator(pkg, resourceActions{
+		skipResources: opt.ResourcesToSkip,
+	})
 
 	if opt.StackID > 0 {
 		if err := s.addStackState(ctx, opt.StackID, state); err != nil {
@@ -1364,16 +1366,26 @@ func (s *Service) addStackState(ctx context.Context, stackID influxdb.ID, state 
 	return nil
 }
 
-// ApplyOpt is an option for applying a package.
-type ApplyOpt struct {
-	Pkgs           []*Pkg
-	EnvRefs        map[string]string
-	MissingSecrets map[string]string
-	StackID        influxdb.ID
-}
+type (
+	// ApplyOpt is an option for applying a package.
+	ApplyOpt struct {
+		Pkgs            []*Pkg
+		EnvRefs         map[string]string
+		MissingSecrets  map[string]string
+		StackID         influxdb.ID
+		ResourcesToSkip map[ActionSkipResource]bool
+	}
 
-// ApplyOptFn updates the ApplyOpt per the functional option.
-type ApplyOptFn func(opt *ApplyOpt)
+	// ActionSkipResource provides an action from the consumer to use the pkg with
+	// modifications to the actual state that is applied.
+	ActionSkipResource struct {
+		Kind     Kind   `json:"kind"`
+		MetaName string `json:"resourceTemplateName"`
+	}
+
+	// ApplyOptFn updates the ApplyOpt per the functional option.
+	ApplyOptFn func(opt *ApplyOpt)
+)
 
 // ApplyWithEnvRefs provides env refs to saturate the missing reference fields in the pkg.
 func ApplyWithEnvRefs(envRefs map[string]string) ApplyOptFn {
@@ -1386,6 +1398,25 @@ func ApplyWithEnvRefs(envRefs map[string]string) ApplyOptFn {
 func ApplyWithPkg(pkg *Pkg) ApplyOptFn {
 	return func(opt *ApplyOpt) {
 		opt.Pkgs = append(opt.Pkgs, pkg)
+	}
+}
+
+// ApplyWithResourceSkip provides an action to the application of a template.
+func ApplyWithResourceSkip(action ActionSkipResource) ApplyOptFn {
+	return func(opt *ApplyOpt) {
+		if opt.ResourcesToSkip == nil {
+			opt.ResourcesToSkip = make(map[ActionSkipResource]bool)
+		}
+		switch action.Kind {
+		case KindCheckDeadman, KindCheckThreshold:
+			action.Kind = KindCheck
+		case KindNotificationEndpointHTTP,
+			KindNotificationEndpointPagerDuty,
+			KindNotificationEndpointSlack:
+			//normalize all endpoint types to base type
+			action.Kind = KindNotificationEndpoint
+		}
+		opt.ResourcesToSkip[action] = true
 	}
 }
 
