@@ -149,3 +149,28 @@ var FluxEndToEndSkipList = map[string]map[string]string{
 		"year":       "flakey test: https://github.com/influxdata/influxdb/issues/15667",
 	},
 }
+
+type PerTestFeatureFlagMap = map[string]map[string]map[string]string
+
+var FluxEndToEndFeatureFlags = PerTestFeatureFlagMap{
+	"planner": {
+		"window_count_push": {
+			"pushDownWindowAggregateCount": "true",
+		},
+		"window_sum_push": {
+			"pushDownWindowAggregateSum": "true",
+		},
+		"bare_count_push": {
+			"pushDownWindowAggregateCount": "true",
+		},
+		"bare_sum_push": {
+			"pushDownWindowAggregateSum": "true",
+		},
+		"group_count_push": {
+			"pushDownGroupAggregateCount": "true",
+		},
+		"group_sum_push": {
+			"pushDownGroupAggregateSum": "true",
+		},
+	},
+}

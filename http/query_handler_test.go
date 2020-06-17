@@ -30,6 +30,7 @@ import (
 	"github.com/influxdata/influxdb/v2/query"
 	"github.com/influxdata/influxdb/v2/query/fluxlang"
 	"github.com/influxdata/influxdb/v2/query/mock"
+	"github.com/influxdata/influxdb/v2/kit/feature"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -341,6 +342,7 @@ func TestFluxHandler_PostQuery_Errors(t *testing.T) {
 			},
 		},
 		FluxLanguageService: fluxlang.DefaultService,
+		Flagger: feature.DefaultFlagger(),
 	}
 	h := NewFluxHandler(zaptest.NewLogger(t), b)
 
@@ -501,6 +503,7 @@ func TestFluxService_Query_gzip(t *testing.T) {
 		OrganizationService: orgService,
 		ProxyQueryService:   queryService,
 		FluxLanguageService: fluxlang.DefaultService,
+		Flagger: feature.DefaultFlagger(),
 	}
 
 	fluxHandler := NewFluxHandler(zaptest.NewLogger(t), fluxBackend)
@@ -638,6 +641,7 @@ func benchmarkQuery(b *testing.B, disableCompression bool) {
 		OrganizationService: orgService,
 		ProxyQueryService:   queryService,
 		FluxLanguageService: fluxlang.DefaultService,
+		Flagger: feature.DefaultFlagger(),
 	}
 
 	fluxHandler := NewFluxHandler(zaptest.NewLogger(b), fluxBackend)

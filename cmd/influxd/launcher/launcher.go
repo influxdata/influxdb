@@ -858,16 +858,18 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		Addr: m.httpBindAddress,
 	}
 
-	m.flagger = feature.DefaultFlagger()
-	if len(m.featureFlags) > 0 {
-		f, err := overrideflagger.Make(m.featureFlags, feature.ByKey)
-		if err != nil {
-			m.log.Error("Failed to configure feature flag overrides",
-				zap.Error(err), zap.Any("overrides", m.featureFlags))
-			return err
+	if m.flagger == nil {
+		m.flagger = feature.DefaultFlagger()
+		if len(m.featureFlags) > 0 {
+			f, err := overrideflagger.Make(m.featureFlags, feature.ByKey)
+			if err != nil {
+				m.log.Error("Failed to configure feature flag overrides",
+					zap.Error(err), zap.Any("overrides", m.featureFlags))
+				return err
+			}
+			m.log.Info("Running with feature flag overrides", zap.Any("overrides", m.featureFlags))
+			m.flagger = f
 		}
-		m.log.Info("Running with feature flag overrides", zap.Any("overrides", m.featureFlags))
-		m.flagger = f
 	}
 
 	var sessionSvc platform.SessionService
