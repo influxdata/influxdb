@@ -38,6 +38,9 @@ func TestService(t *testing.T) {
 				createFn: func(ctx context.Context, stack Stack) error {
 					return nil
 				},
+				deleteFn: func(ctx context.Context, id influxdb.ID) error {
+					return nil
+				},
 				readFn: func(ctx context.Context, id influxdb.ID) (Stack, error) {
 					return Stack{ID: id}, nil
 				},
@@ -3655,6 +3658,7 @@ func levelPtr(l notification.CheckLevel) *notification.CheckLevel {
 
 type fakeStore struct {
 	createFn func(ctx context.Context, stack Stack) error
+	deleteFn func(ctx context.Context, id influxdb.ID) error
 	readFn   func(ctx context.Context, id influxdb.ID) (Stack, error)
 	updateFn func(ctx context.Context, stack Stack) error
 }
@@ -3687,6 +3691,9 @@ func (s *fakeStore) UpdateStack(ctx context.Context, stack Stack) error {
 }
 
 func (s *fakeStore) DeleteStack(ctx context.Context, id influxdb.ID) error {
+	if s.deleteFn != nil {
+		return s.deleteFn(ctx, id)
+	}
 	panic("not implemented")
 }
 

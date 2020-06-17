@@ -1959,6 +1959,10 @@ func TestLauncher_Pkger(t *testing.T) {
 	})
 
 	t.Run("errors incurred during application of package rolls back to state before package", func(t *testing.T) {
+		stacks, err := svc.ListStacks(ctx, l.Org.ID, pkger.ListFilter{})
+		require.NoError(t, err)
+		require.Empty(t, stacks)
+
 		svc := pkger.NewService(
 			pkger.WithBucketSVC(l.BucketService(t)),
 			pkger.WithDashboardSVC(l.DashboardService(t)),
@@ -1976,7 +1980,7 @@ func TestLauncher_Pkger(t *testing.T) {
 			pkger.WithVariableSVC(l.VariableService(t)),
 		)
 
-		_, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithPkg(newCompletePkg(t)))
+		_, err = svc.Apply(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithPkg(newCompletePkg(t)))
 		require.Error(t, err)
 
 		bkts, _, err := l.BucketService(t).FindBuckets(ctx, influxdb.BucketFilter{OrganizationID: &l.Org.ID})
@@ -2026,6 +2030,10 @@ func TestLauncher_Pkger(t *testing.T) {
 		vars, err := l.VariableService(t).FindVariables(ctx, influxdb.VariableFilter{OrganizationID: &l.Org.ID})
 		require.NoError(t, err)
 		assert.Empty(t, vars)
+
+		stacks, err = svc.ListStacks(ctx, l.Org.ID, pkger.ListFilter{})
+		require.NoError(t, err)
+		require.Empty(t, stacks)
 	})
 
 	hasLabelAssociations := func(t *testing.T, associations []pkger.SummaryLabel, numAss int, expectedNames ...string) {

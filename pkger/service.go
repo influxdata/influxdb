@@ -1480,6 +1480,11 @@ func (s *Service) Apply(ctx context.Context, orgID, userID influxdb.ID, opts ...
 		updateStackFn := s.updateStackAfterSuccess
 		if e != nil {
 			updateStackFn = s.updateStackAfterRollback
+			if opt.StackID == 0 {
+				if err := s.store.DeleteStack(ctx, stackID); err != nil {
+					s.log.Error("failed to delete created stack", zap.Error(err))
+				}
+			}
 		}
 
 		err := updateStackFn(ctx, stackID, state, pkg.Sources())
