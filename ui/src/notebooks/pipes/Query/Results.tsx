@@ -12,6 +12,9 @@ import ResultsPagination from 'src/notebooks/pipes/Query/ResultsPagination'
 // Types
 import {PipeData} from 'src/notebooks/index'
 
+// Utils
+import {event} from 'src/notebooks/shared/event'
+
 interface Props {
   data: PipeData
   results: BothResults
@@ -33,6 +36,8 @@ const Results: FC<Props> = ({results, onUpdate, data}) => {
   const nextDisabled = startRow + pageSize >= rows.length
 
   const prev = () => {
+    event('Query Pagination Previous Button Clicked')
+
     const index = startRow - pageSize
     if (index <= 0) {
       setStartRow(0)
@@ -42,6 +47,8 @@ const Results: FC<Props> = ({results, onUpdate, data}) => {
   }
 
   const next = () => {
+    event('Query Pagination Next Button Clicked')
+
     const index = startRow + pageSize
     const max = rows.length - pageSize
     if (index >= max) {

@@ -14,7 +14,7 @@ let reportingPoints = []
 let isReportScheduled = false
 const reportingInterval = 5 // seconds
 
-const toNano = (ms: number) => ms * 1000000
+export const toNano = (ms: number) => ms * 1000000
 
 export const updateReportingContext = (key: string, value: string) => {
   reportingTags = {...reportingTags, [key]: value}

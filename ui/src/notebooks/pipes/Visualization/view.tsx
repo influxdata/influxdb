@@ -12,6 +12,7 @@ import Resizer from 'src/notebooks/shared/Resizer'
 import {checkResultsLength} from 'src/shared/utils/vis'
 import {createView} from 'src/views/helpers'
 import ExportVisualizationButton from 'src/notebooks/pipes/Visualization/ExportVisualizationButton'
+import {event} from 'src/notebooks/shared/event'
 
 // Types
 import {PipeProp} from 'src/notebooks'
@@ -34,6 +35,10 @@ const Visualization: FC<PipeProp> = ({
   const {timeZone} = useContext(AppSettingContext)
 
   const updateType = (type: ViewType) => {
+    event('Notebook Visualization Type Changed', {
+      type: type as string,
+    })
+
     const newView = createView(type)
 
     // TODO: all of this needs to be removed by refactoring
