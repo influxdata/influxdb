@@ -1,6 +1,6 @@
 // Libraries
 import {normalize} from 'normalizr'
-
+import {get} from 'lodash'
 // APIs
 import {
   getView as getViewAJAX,
@@ -100,8 +100,6 @@ export const getViewForTimeMachine = (
   cellID: string,
   timeMachineID: TimeMachineID
 ) => async (dispatch, getState: GetState): Promise<void> => {
-  // if it has data in some place
-  // otherwise do this
   try {
     const state = getState()
     let view = getByID<View>(state, ResourceType.Views, cellID) as QueryView
