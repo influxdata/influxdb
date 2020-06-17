@@ -1588,7 +1588,8 @@ spec:
       width:  6
       height: 3
       decimalPlaces: 1
-      shade: true
+	  shade: true
+	  hoverDimension: y
       queries:
         - query: "from(bucket: v.bucket) |> range(start: v.timeRangeStart) |> filter(fn: (r) => r._measurement == \"processes\") |> filter(fn: (r) => r._field == \"running\" or r._field == \"blocked\") |> aggregateWindow(every: v.windowPeriod, fn: max) |> yield(name: \"max\")"
       colors:
@@ -1802,7 +1803,8 @@ spec:
       xPos:  1
       yPos:  2
       height: 3
-      shade: true
+	  shade: true
+	  hoverDimension: "y"
       position: overlaid
       queries:
         - query: >
@@ -2159,6 +2161,7 @@ spec:
 						require.True(t, ok)
 						assert.Equal(t, "xy", props.GetType())
 						assert.Equal(t, true, props.ShadeBelow)
+						assert.Equal(t, "auto", props.HoverDimension)
 						assert.Equal(t, "xy chart note", props.Note)
 						assert.True(t, props.ShowNoteWhenEmpty)
 						assert.Equal(t, "stacked", props.Position)

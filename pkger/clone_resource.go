@@ -607,6 +607,7 @@ func convertCellView(cell influxdb.Cell) chart {
 		setLegend(p.Legend)
 		ch.Axes = convertAxes(p.Axes)
 		ch.Shade = p.ShadeBelow
+		ch.HoverDimension = p.HoverDimension
 		ch.XCol = p.XColumn
 		ch.YCol = p.YColumn
 		ch.Position = p.Position
@@ -651,6 +652,7 @@ func convertCellView(cell influxdb.Cell) chart {
 		ch.Axes = convertAxes(p.Axes)
 		ch.Geom = p.Geom
 		ch.Shade = p.ShadeBelow
+		ch.HoverDimension = p.HoverDimension
 		ch.XCol = p.XColumn
 		ch.YCol = p.YColumn
 		ch.Position = p.Position
@@ -725,16 +727,17 @@ func convertChartToResource(ch chart) Resource {
 	})
 
 	assignNonZeroStrings(r, map[string]string{
-		fieldChartNote:       ch.Note,
-		fieldPrefix:          ch.Prefix,
-		fieldSuffix:          ch.Suffix,
-		fieldChartGeom:       ch.Geom,
-		fieldChartXCol:       ch.XCol,
-		fieldChartYCol:       ch.YCol,
-		fieldChartPosition:   ch.Position,
-		fieldChartTickPrefix: ch.TickPrefix,
-		fieldChartTickSuffix: ch.TickSuffix,
-		fieldChartTimeFormat: ch.TimeFormat,
+		fieldChartNote:           ch.Note,
+		fieldPrefix:              ch.Prefix,
+		fieldSuffix:              ch.Suffix,
+		fieldChartGeom:           ch.Geom,
+		fieldChartXCol:           ch.XCol,
+		fieldChartYCol:           ch.YCol,
+		fieldChartPosition:       ch.Position,
+		fieldChartTickPrefix:     ch.TickPrefix,
+		fieldChartTickSuffix:     ch.TickSuffix,
+		fieldChartTimeFormat:     ch.TimeFormat,
+		fieldChartHoverDimension: ch.HoverDimension,
 	})
 
 	assignNonZeroInts(r, map[string]int{

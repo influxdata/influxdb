@@ -24,6 +24,7 @@
           "height": 3,
           "decimalPlaces": 1,
           "shade": true,
+          "hoverDimension": "y",
           "xColumn": "_time",
           "yColumn": "_value",
           "queries": [
