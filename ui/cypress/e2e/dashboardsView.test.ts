@@ -49,33 +49,54 @@ describe('Dashboard', () => {
       })
     })
 
-    // View cell
+    // Create View cell
     cy.getByTestID('add-cell--button').click()
     cy.getByTestID('save-cell--button').click()
-    cy.getByTestID('cell--view-empty').should('have.length', 1)
+    cy.getByTestID('cell-context--toggle').click()
+    cy.getByTestID('cell-context--configure').click()
 
-    // toggle presentation mode
-    cy.getByTestID('presentation-mode-toggle').click()
-    // ensure a notification is sent when toggling to presentation mode
-    cy.getByTestID('notification-primary--children').should('exist')
-    // escape to toggle the presentation mode off
-    cy.get('body').trigger('keyup', {
-      keyCode: 27,
-      code: 'Escape',
-      key: 'Escape',
+    // Rename View cell
+    const xyCellName = 'Line Graph'
+    cy.getByTestID('overlay').within(() => {
+      cy.getByTestID('page-title').click()
+      cy.getByTestID('renamable-page-title--input')
+        .clear()
+        .type(xyCellName)
+      cy.getByTestID('save-cell--button').click()
     })
 
-    // Remove view cell
-    cy.getByTestID('cell-context--toggle').click()
-    cy.getByTestID('cell-context--delete').click()
-    cy.getByTestID('cell-context--delete-confirm').click()
+    const xyCell = `cell ${xyCellName}`
 
-    cy.getByTestID('empty-state').should('exist')
+    cy.getByTestID(xyCell).within(([$cell]) => {
+      const prevWidth = $cell.clientWidth
+      const prevHeight = $cell.clientHeight
+      cy.wrap(prevWidth).as('prevWidth')
+      cy.wrap(prevHeight).as('prevHeight')
+    })
 
+    // Resize Cell
+    cy.getByTestID(xyCell).within(() => {
+      cy.get('.react-resizable-handle')
+        .trigger('mousedown', {which: 1, force: true})
+        .trigger('mousemove', {
+          clientX: 800,
+          clientY: 800,
+          force: true,
+        })
+        .trigger('mouseup', {force: true})
+    })
+
+    cy.getByTestID(xyCell).within(([$cell]) => {
+      const currWidth = $cell.clientWidth
+      const currHeight = $cell.clientHeight
+      cy.get('@prevWidth').should('be.lessThan', currWidth)
+      cy.get('@prevHeight').should('be.lessThan', currHeight)
+    })
+
+    // Note cell
     const noteText = 'this is a note cell'
     const headerPrefix = '#'
 
-    // Note cell
     cy.getByTestID('add-note--button').click()
     cy.getByTestID('note-editor--overlay').within(() => {
       cy.get('.CodeMirror').type(`${headerPrefix} ${noteText}`)
@@ -91,41 +112,56 @@ describe('Dashboard', () => {
     cy.getByTestID('cancel-note--button').click()
     cy.getByTestID('note-editor--overlay').should('not.exist')
 
-    cy.getByTestID('add-note--button').click()
-    cy.getByTestID('note-editor--overlay').should('be.visible')
-    cy.get('.cf-overlay--dismiss').click()
-    cy.getByTestID('note-editor--overlay').should('not.exist')
-
     cy.getByTestID('cell--view-empty').contains(noteText)
     cy.getByTestID('cell--view-empty').should('not.contain', headerPrefix)
+    const noteCell = 'cell--view-empty markdown'
+    cy.getByTestID(noteCell).contains(noteText)
+    cy.getByTestID(noteCell).should('not.contain', headerPrefix)
 
-    cy.getByTestID('cell--view-empty').within(([$cell]) => {
-      const prevWidth = $cell.clientWidth
-      const prevHeight = $cell.clientHeight
-      cy.wrap(prevWidth).as('prevWidth')
-      cy.wrap(prevHeight).as('prevHeight')
-    })
-
-    // Resize Cell
-    cy.get('.react-resizable-handle')
+    // Drag and Drop Cell
+    cy.getByTestID('cell--draggable Note')
       .trigger('mousedown', {which: 1, force: true})
-      .trigger('mousemove', {
-        clientX: 800,
-        clientY: 800,
-      })
+      .trigger('mousemove', {clientX: -800, clientY: -800, force: true})
       .trigger('mouseup', {force: true})
 
-    cy.getByTestID('cell--view-empty').within(([$cell]) => {
-      const currWidth = $cell.clientWidth
-      const currHeight = $cell.clientHeight
-      cy.get('@prevWidth').should('be.lessThan', currWidth)
-      cy.get('@prevHeight').should('be.lessThan', currHeight)
+    cy.getByTestID(noteCell).within(([$cell]) => {
+      const noteTop = $cell.getBoundingClientRect().top
+      const noteBottom = $cell.getBoundingClientRect().bottom
+      cy.wrap(noteTop).as('noteTop')
+      cy.wrap(noteBottom).as('noteBottom')
     })
 
-    // Remove note cell
+    cy.getByTestID(xyCell).within(([$cell]) => {
+      const xyCellTop = $cell.getBoundingClientRect().top
+      const xyCellBottom = $cell.getBoundingClientRect().bottom
+      cy.get('@noteTop').should('be.lessThan', xyCellTop)
+      cy.get('@noteBottom').should('be.lessThan', xyCellBottom)
+    })
+
+    // toggle presentation mode
+    cy.getByTestID('presentation-mode-toggle').click()
+    // ensure a notification is sent when toggling to presentation mode
+    cy.getByTestID('notification-primary--children').should('exist')
+    // escape to toggle the presentation mode off
+    cy.get('body').trigger('keyup', {
+      keyCode: 27,
+      code: 'Escape',
+      key: 'Escape',
+    })
+
+    // Remove Note cell
+    cy.getByTestID('cell-context--toggle')
+      .first()
+      .click()
+    cy.getByTestID('cell-context--delete').click()
+    cy.getByTestID('cell-context--delete-confirm').click()
+
+    // Remove View cell
     cy.getByTestID('cell-context--toggle').click()
     cy.getByTestID('cell-context--delete').click()
     cy.getByTestID('cell-context--delete-confirm').click()
+
+    cy.getByTestID('empty-state').should('exist')
   })
 
   // fix for https://github.com/influxdata/influxdb/issues/15239

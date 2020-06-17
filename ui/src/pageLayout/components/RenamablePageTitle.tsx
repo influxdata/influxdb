@@ -73,7 +73,10 @@ const RenamablePageTitle: FC<Props> = ({
   if (isEditing) {
     return (
       <ClickOutside onClickOutside={handleStopEditing}>
-        <div className={renamablePageTitleClass}>
+        <div
+          className={renamablePageTitleClass}
+          data-testid="renamable-page-title"
+        >
           <Input
             maxLength={maxLength}
             autoFocus={true}
@@ -84,6 +87,7 @@ const RenamablePageTitle: FC<Props> = ({
             onKeyDown={handleKeyDown}
             className="renamable-page-title--input"
             value={workingName}
+            testID="renamable-page-title--input"
           />
         </div>
       </ClickOutside>
