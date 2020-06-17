@@ -175,7 +175,7 @@ func TestRetrieveTaskWithBadAuth(t *testing.T) {
 		t.Fatal("miss matching taskID's")
 	}
 
-	tasks, _, err := ts.Service.FindTasks(ctx, influxdb.TaskFilter{})
+	tasks, _, err := ts.Service.FindTasks(context.Background(), influxdb.TaskFilter{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -185,7 +185,7 @@ func TestRetrieveTaskWithBadAuth(t *testing.T) {
 
 	// test status filter
 	active := string(influxdb.TaskActive)
-	tasksWithActiveFilter, _, err := ts.Service.FindTasks(ctx, influxdb.TaskFilter{Status: &active})
+	tasksWithActiveFilter, _, err := ts.Service.FindTasks(context.Background(), influxdb.TaskFilter{Status: &active})
 	if err != nil {
 		t.Fatal("could not find tasks")
 	}

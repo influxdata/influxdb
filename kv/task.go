@@ -8,6 +8,7 @@ import (
 
 	"github.com/influxdata/influxdb/v2"
 	icontext "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/kit/feature"
 	"github.com/influxdata/influxdb/v2/resource"
 	"github.com/influxdata/influxdb/v2/task/options"
 	"go.uber.org/zap"
@@ -230,7 +231,6 @@ func (s *Service) FindTasks(ctx context.Context, filter influxdb.TaskFilter) ([]
 }
 
 func (s *Service) findTasks(ctx context.Context, tx Tx, filter influxdb.TaskFilter) ([]*influxdb.Task, int, error) {
-
 	var org *influxdb.Organization
 	var err error
 	if filter.OrganizationID != nil {
@@ -262,7 +262,9 @@ func (s *Service) findTasks(ctx context.Context, tx Tx, filter influxdb.TaskFilt
 		userAuth, err := icontext.GetAuthorizer(ctx)
 		if err == nil {
 			userID := userAuth.GetUserID()
-			filter.User = &userID
+			if userID.Valid() {
+				filter.User = &userID
+			}
 		}
 	}
 
@@ -278,6 +280,14 @@ func (s *Service) findTasks(ctx context.Context, tx Tx, filter influxdb.TaskFilt
 
 // findTasksByUser is a subset of the find tasks function. Used for cleanliness
 func (s *Service) findTasksByUser(ctx context.Context, tx Tx, filter influxdb.TaskFilter) ([]*influxdb.Task, int, error) {
+	if feature.UrmFreeTasks().Enabled(ctx) {
+		return s.findTasksByUserUrmFree(ctx, tx, filter)
+	}
+	return s.findTasksByUserWithURM(ctx, tx, filter)
+}
+
+// findTasksByUser is a subset of the find tasks function. Used for cleanliness
+func (s *Service) findTasksByUserWithURM(ctx context.Context, tx Tx, filter influxdb.TaskFilter) ([]*influxdb.Task, int, error) {
 	if filter.User == nil {
 		return nil, 0, influxdb.ErrTaskNotFound
 	}
@@ -350,6 +360,70 @@ func (s *Service) findTasksByUser(ctx context.Context, tx Tx, filter influxdb.Ta
 	}
 
 	return ts, len(ts), nil
+}
+
+func (s *Service) findTasksByUserUrmFree(ctx context.Context, tx Tx, filter influxdb.TaskFilter) ([]*influxdb.Task, int, error) {
+	var ts []*influxdb.Task
+
+	taskBucket, err := tx.Bucket(taskBucket)
+	if err != nil {
+		return nil, 0, influxdb.ErrUnexpectedTaskBucketErr(err)
+	}
+
+	var (
+		seek []byte
+		opts []CursorOption
+	)
+
+	if filter.After != nil {
+		seek, err = taskKey(*filter.After)
+		if err != nil {
+			return nil, 0, err
+		}
+
+		opts = append(opts, WithCursorSkipFirstItem())
+	}
+
+	c, err := taskBucket.ForwardCursor(seek, opts...)
+	if err != nil {
+		return nil, 0, influxdb.ErrUnexpectedTaskBucketErr(err)
+	}
+
+	ps, err := s.maxPermissions(ctx, tx, *filter.User)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	matchFn := newTaskMatchFn(filter, nil)
+
+	for k, v := c.Next(); k != nil; k, v = c.Next() {
+		kvTask := &kvTask{}
+		if err := json.Unmarshal(v, kvTask); err != nil {
+			return nil, 0, influxdb.ErrInternalTaskServiceError(err)
+		}
+
+		t := kvToInfluxTask(kvTask)
+		if matchFn == nil || matchFn(t) {
+			t.Authorization = &influxdb.Authorization{
+				Status:      influxdb.Active,
+				UserID:      t.OwnerID,
+				ID:          influxdb.ID(1),
+				OrgID:       t.OrganizationID,
+				Permissions: ps,
+			}
+
+			ts = append(ts, t)
+
+			if len(ts) >= filter.Limit {
+				break
+			}
+		}
+	}
+	if err := c.Err(); err != nil {
+		return nil, 0, err
+	}
+
+	return ts, len(ts), c.Close()
 }
 
 // findTasksByOrg is a subset of the find tasks function. Used for cleanliness
@@ -488,6 +562,14 @@ func newTaskMatchFn(f influxdb.TaskFilter, org *influxdb.Organization) func(t *i
 		}
 	}
 
+	if f.User != nil {
+		prevFn := fn
+		fn = func(t *influxdb.Task) bool {
+			res := prevFn == nil || prevFn(t)
+			return res && t.OwnerID == *f.User
+		}
+	}
+
 	return fn
 }
 
@@ -496,7 +578,6 @@ func newTaskMatchFn(f influxdb.TaskFilter, org *influxdb.Organization) func(t *i
 // Enforcing filters should be done in a validation layer.
 func (s *Service) findAllTasks(ctx context.Context, tx Tx, filter influxdb.TaskFilter) ([]*influxdb.Task, int, error) {
 	var ts []*influxdb.Task
-
 	taskBucket, err := tx.Bucket(taskBucket)
 	if err != nil {
 		return nil, 0, influxdb.ErrUnexpectedTaskBucketErr(err)
@@ -667,8 +748,10 @@ func (s *Service) createTask(ctx context.Context, tx Tx, tc influxdb.TaskCreate)
 		return nil, influxdb.ErrUnexpectedTaskBucketErr(err)
 	}
 
-	if err := s.createTaskURM(ctx, tx, task); err != nil {
-		s.log.Info("Error creating user resource mapping for task", zap.Stringer("taskID", task.ID), zap.Error(err))
+	if !feature.UrmFreeTasks().Enabled(ctx) {
+		if err := s.createTaskURM(ctx, tx, task); err != nil {
+			s.log.Info("Error creating user resource mapping for task", zap.Stringer("taskID", task.ID), zap.Error(err))
+		}
 	}
 
 	// populate permissions so the task can be used immediately
@@ -937,7 +1020,7 @@ func (s *Service) deleteTask(ctx context.Context, tx Tx, id influxdb.ID) error {
 	if err := s.deleteUserResourceMapping(ctx, tx, influxdb.UserResourceMappingFilter{
 		ResourceID: task.ID,
 	}); err != nil {
-		s.log.Info("Error deleting user resource mapping for task", zap.Stringer("taskID", task.ID), zap.Error(err))
+		s.log.Debug("Error deleting user resource mapping for task", zap.Stringer("taskID", task.ID), zap.Error(err))
 	}
 
 	uid, _ := icontext.GetUserID(ctx)
