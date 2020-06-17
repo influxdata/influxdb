@@ -29,12 +29,15 @@ const TO_COLUMN_TYPE: TypeTranslationMap = {
 type ParsedReturnTypes = string | undefined | null | number | boolean
 
 function parseValue(
-  value: string | undefined,
+  value: string,
   columnType: InternalTypes
 ): ParsedReturnTypes {
-  if (value === undefined) {
-    return undefined
+  if (!value) {
+    return value
   }
+
+  // remove newlines from the last column
+  value = value.replace(/(\r\n|\n|\r)/gm, '')
 
   if (value === 'null') {
     return null
