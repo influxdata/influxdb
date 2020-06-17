@@ -63,7 +63,4 @@ const mstp = (state: AppState): StateProps => {
   return {inPresentationMode, currentPage, theme}
 }
 
-export default connect<StateProps, {}>(
-  mstp,
-  null
-)(withRouter(App))
+export default connect<StateProps, {}>(mstp, null)(withRouter(App))

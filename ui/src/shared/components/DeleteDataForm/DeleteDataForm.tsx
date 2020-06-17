@@ -299,7 +299,4 @@ const mdtp: DispatchProps = {
   setTimeRange,
 }
 
-export default connect<StateProps, DispatchProps>(
-  mstp,
-  mdtp
-)(DeleteDataForm)
+export default connect<StateProps, DispatchProps>(mstp, mdtp)(DeleteDataForm)

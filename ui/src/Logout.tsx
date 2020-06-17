@@ -46,8 +46,5 @@ const mdtp = {
 }
 
 export default ErrorHandling(
-  connect<{}, DispatchProps>(
-    null,
-    mdtp
-  )(withRouter<WithRouterProps>(Logout))
+  connect<{}, DispatchProps>(null, mdtp)(withRouter<WithRouterProps>(Logout))
 )

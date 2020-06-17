@@ -83,7 +83,4 @@ const mstp = (state: AppState): StateProps => {
 }
 
 export {ClientGoOverlay}
-export default connect<StateProps, {}, Props>(
-  mstp,
-  null
-)(ClientGoOverlay)
+export default connect<StateProps, {}, Props>(mstp, null)(ClientGoOverlay)

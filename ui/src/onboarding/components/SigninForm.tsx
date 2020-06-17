@@ -157,7 +157,4 @@ const mdtp = {
   notify: notifyAction,
 }
 
-export default connect(
-  mstp,
-  mdtp
-)(withRouter(SigninForm))
+export default connect(mstp, mdtp)(withRouter(SigninForm))

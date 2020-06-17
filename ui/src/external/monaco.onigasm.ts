@@ -9,11 +9,11 @@ const grammarDefs = {}
 
 const DEFAULT_DEF = async () => ({
   format: 'json',
-  content: await import(/* webpackPrefetch: 0 */ 'src/external/plaintext.tmLanguage.json').then(
-    data => {
-      return JSON.stringify(data)
-    }
-  ),
+  content: await import(
+    /* webpackPrefetch: 0 */ 'src/external/plaintext.tmLanguage.json'
+  ).then(data => {
+    return JSON.stringify(data)
+  }),
 })
 
 // NOTE: this comes from the monaco-editor-textmate package

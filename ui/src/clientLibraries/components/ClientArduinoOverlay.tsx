@@ -95,7 +95,4 @@ const mstp = (state: AppState): StateProps => {
 }
 
 export {ClientArduinoOverlay}
-export default connect<StateProps, {}, Props>(
-  mstp,
-  null
-)(ClientArduinoOverlay)
+export default connect<StateProps, {}, Props>(mstp, null)(ClientArduinoOverlay)

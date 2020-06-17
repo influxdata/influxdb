@@ -72,9 +72,7 @@ class CollectorRow extends PureComponent<Props & WithRouterProps> {
             Bucket: {collector.metadata.buckets.join(', ')}
           </span>
           <Link
-            to={`/orgs/${org.id}/load-data/telegrafs/${
-              collector.id
-            }/instructions`}
+            to={`/orgs/${org.id}/load-data/telegrafs/${collector.id}/instructions`}
             data-testid="setup-instructions-link"
           >
             Setup Instructions

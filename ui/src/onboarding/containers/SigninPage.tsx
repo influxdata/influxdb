@@ -88,7 +88,4 @@ class SigninPage extends PureComponent<Props, State> {
 const mdtp: DispatchProps = {
   dismissAllNotifications,
 }
-export default connect(
-  null,
-  mdtp
-)(withRouter(SigninPage))
+export default connect(null, mdtp)(withRouter(SigninPage))

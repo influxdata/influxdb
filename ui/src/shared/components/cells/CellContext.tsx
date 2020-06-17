@@ -178,8 +178,5 @@ const mdtp: DispatchProps = {
 }
 
 export default withRouter<OwnProps>(
-  connect<{}, DispatchProps>(
-    null,
-    mdtp
-  )(CellContext)
+  connect<{}, DispatchProps>(null, mdtp)(CellContext)
 )

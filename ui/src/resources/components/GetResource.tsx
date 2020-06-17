@@ -88,7 +88,4 @@ const mdtp = {
   getDashboard: getDashboard,
 }
 
-export default connect<StateProps, DispatchProps, {}>(
-  mstp,
-  mdtp
-)(GetResource)
+export default connect<StateProps, DispatchProps, {}>(mstp, mdtp)(GetResource)

@@ -175,8 +175,5 @@ const mstp = (state: AppState): StateProps => {
 }
 
 export default withDragDropContext(
-  connect<StateProps, DispatchProps>(
-    mstp,
-    mdtp
-  )(VariablesControlBar)
+  connect<StateProps, DispatchProps>(mstp, mdtp)(VariablesControlBar)
 )

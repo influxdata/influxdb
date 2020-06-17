@@ -93,7 +93,4 @@ const mdtp: DispatchProps = {
   dismissNotification: dismissNotificationAction,
 }
 
-export default connect(
-  mapStateToProps,
-  mdtp
-)(Notifications)
+export default connect(mapStateToProps, mdtp)(Notifications)

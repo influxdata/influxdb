@@ -46,7 +46,4 @@ const mstp = (state: AppState): StateProps => {
 
 const mdtp = {onSetTimeZone: setTimeZone}
 
-export default connect<StateProps, DispatchProps>(
-  mstp,
-  mdtp
-)(TimeZoneDropdown)
+export default connect<StateProps, DispatchProps>(mstp, mdtp)(TimeZoneDropdown)
