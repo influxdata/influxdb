@@ -150,45 +150,141 @@ func TestService(t *testing.T) {
 					assert.Contains(t, impact.Diff.Buckets, expected)
 				})
 			})
+
+			t.Run("with actions applied", func(t *testing.T) {
+				testfileRunner(t, "testdata/bucket.yml", func(t *testing.T, pkg *Pkg) {
+					fakeBktSVC := mock.NewBucketService()
+					fakeBktSVC.FindBucketByNameFn = func(_ context.Context, orgID influxdb.ID, name string) (*influxdb.Bucket, error) {
+						if name != "rucket-11" {
+							return nil, errors.New("not found")
+						}
+						return &influxdb.Bucket{
+							ID:              influxdb.ID(1),
+							OrgID:           orgID,
+							Name:            name,
+							Description:     "old desc",
+							RetentionPeriod: 30 * time.Hour,
+						}, nil
+					}
+					svc := newTestService(WithBucketSVC(fakeBktSVC))
+
+					impact, err := svc.DryRun(context.TODO(), influxdb.ID(100), 0,
+						ApplyWithPkg(pkg),
+						ApplyWithResourceSkip(ActionSkipResource{
+							Kind:     KindBucket,
+							MetaName: "rucket-11",
+						}),
+					)
+					require.NoError(t, err)
+
+					require.Len(t, impact.Diff.Buckets, 1)
+					assert.Equal(t, "rucket-22", impact.Diff.Buckets[0].PkgName)
+
+					expected := DiffBucket{
+						DiffIdentifier: DiffIdentifier{
+							ID:          SafeID(1),
+							StateStatus: StateStatusExists,
+							PkgName:     "rucket-11",
+						},
+						Old: &DiffBucketValues{
+							Name:           "rucket-11",
+							Description:    "old desc",
+							RetentionRules: retentionRules{newRetentionRule(30 * time.Hour)},
+						},
+						New: DiffBucketValues{
+							Name:           "rucket-11",
+							Description:    "bucket 1 description",
+							RetentionRules: retentionRules{newRetentionRule(time.Hour)},
+						},
+					}
+					assert.NotContains(t, impact.Diff.Buckets, expected)
+				})
+			})
 		})
 
 		t.Run("checks", func(t *testing.T) {
-			testfileRunner(t, "testdata/checks.yml", func(t *testing.T, pkg *Pkg) {
-				fakeCheckSVC := mock.NewCheckService()
-				id := influxdb.ID(1)
-				existing := &icheck.Deadman{
-					Base: icheck.Base{
-						ID:          id,
-						Name:        "display name",
-						Description: "old desc",
-					},
-				}
-				fakeCheckSVC.FindCheckFn = func(ctx context.Context, f influxdb.CheckFilter) (influxdb.Check, error) {
-					if f.Name != nil && *f.Name == "display name" {
-						return existing, nil
+			t.Run("mixed update and creates", func(t *testing.T) {
+				testfileRunner(t, "testdata/checks.yml", func(t *testing.T, pkg *Pkg) {
+					fakeCheckSVC := mock.NewCheckService()
+					id := influxdb.ID(1)
+					existing := &icheck.Deadman{
+						Base: icheck.Base{
+							ID:          id,
+							Name:        "display name",
+							Description: "old desc",
+						},
 					}
-					return nil, errors.New("not found")
-				}
+					fakeCheckSVC.FindCheckFn = func(ctx context.Context, f influxdb.CheckFilter) (influxdb.Check, error) {
+						if f.Name != nil && *f.Name == "display name" {
+							return existing, nil
+						}
+						return nil, errors.New("not found")
+					}
 
-				svc := newTestService(WithCheckSVC(fakeCheckSVC))
+					svc := newTestService(WithCheckSVC(fakeCheckSVC))
 
-				impact, err := svc.DryRun(context.TODO(), influxdb.ID(100), 0, ApplyWithPkg(pkg))
-				require.NoError(t, err)
+					impact, err := svc.DryRun(context.TODO(), influxdb.ID(100), 0, ApplyWithPkg(pkg))
+					require.NoError(t, err)
 
-				checks := impact.Diff.Checks
-				require.Len(t, checks, 2)
-				check0 := checks[0]
-				assert.True(t, check0.IsNew())
-				assert.Equal(t, "check-0", check0.PkgName)
-				assert.Zero(t, check0.ID)
-				assert.Nil(t, check0.Old)
+					checks := impact.Diff.Checks
+					require.Len(t, checks, 2)
+					check0 := checks[0]
+					assert.True(t, check0.IsNew())
+					assert.Equal(t, "check-0", check0.PkgName)
+					assert.Zero(t, check0.ID)
+					assert.Nil(t, check0.Old)
 
-				check1 := checks[1]
-				assert.False(t, check1.IsNew())
-				assert.Equal(t, "check-1", check1.PkgName)
-				assert.Equal(t, "display name", check1.New.GetName())
-				assert.NotZero(t, check1.ID)
-				assert.Equal(t, existing, check1.Old.Check)
+					check1 := checks[1]
+					assert.False(t, check1.IsNew())
+					assert.Equal(t, "check-1", check1.PkgName)
+					assert.Equal(t, "display name", check1.New.GetName())
+					assert.NotZero(t, check1.ID)
+					assert.Equal(t, existing, check1.Old.Check)
+				})
+			})
+
+			t.Run("with actions applied", func(t *testing.T) {
+				testfileRunner(t, "testdata/checks.yml", func(t *testing.T, pkg *Pkg) {
+					svc := newTestService()
+
+					impact, err := svc.DryRun(context.TODO(), influxdb.ID(100), 0,
+						ApplyWithPkg(pkg),
+						ApplyWithResourceSkip(ActionSkipResource{
+							Kind:     KindCheck,
+							MetaName: "check-0",
+						}),
+						ApplyWithResourceSkip(ActionSkipResource{
+							Kind:     KindCheckDeadman,
+							MetaName: "check-1",
+						}),
+					)
+					require.NoError(t, err)
+
+					require.Empty(t, impact.Diff.Checks)
+				})
+			})
+		})
+
+		t.Run("dashboards", func(t *testing.T) {
+			t.Run("with actions applied", func(t *testing.T) {
+				testfileRunner(t, "testdata/dashboard.json", func(t *testing.T, pkg *Pkg) {
+					svc := newTestService()
+
+					impact, err := svc.DryRun(context.TODO(), influxdb.ID(100), 0,
+						ApplyWithPkg(pkg),
+						ApplyWithResourceSkip(ActionSkipResource{
+							Kind:     KindDashboard,
+							MetaName: "dash-1",
+						}),
+						ApplyWithResourceSkip(ActionSkipResource{
+							Kind:     KindDashboard,
+							MetaName: "dash-2",
+						}),
+					)
+					require.NoError(t, err)
+
+					require.Len(t, impact.Diff.Dashboards, 0)
+				})
 			})
 		})
 
@@ -277,122 +373,232 @@ func TestService(t *testing.T) {
 					assert.Contains(t, labels, expected)
 				})
 			})
+
+			t.Run("with actions applied", func(t *testing.T) {
+				testfileRunner(t, "testdata/label.json", func(t *testing.T, pkg *Pkg) {
+					fakeLabelSVC := mock.NewLabelService()
+					fakeLabelSVC.FindLabelsFn = func(_ context.Context, filter influxdb.LabelFilter) ([]*influxdb.Label, error) {
+						return []*influxdb.Label{
+							{
+								ID:   influxdb.ID(1),
+								Name: filter.Name,
+								Properties: map[string]string{
+									"color":       "old color",
+									"description": "old description",
+								},
+							},
+						}, nil
+					}
+					svc := newTestService(WithLabelSVC(fakeLabelSVC))
+
+					impact, err := svc.DryRun(context.TODO(), influxdb.ID(100), 0,
+						ApplyWithPkg(pkg),
+						ApplyWithResourceSkip(ActionSkipResource{
+							Kind:     KindLabel,
+							MetaName: "label-1",
+						}),
+					)
+					require.NoError(t, err)
+
+					require.Len(t, impact.Diff.Labels, 2)
+
+					expected := DiffLabel{
+						DiffIdentifier: DiffIdentifier{
+							ID:          SafeID(1),
+							StateStatus: StateStatusExists,
+							PkgName:     "label-1",
+						},
+						Old: &DiffLabelValues{
+							Name:        "label-1",
+							Color:       "old color",
+							Description: "old description",
+						},
+						New: DiffLabelValues{
+							Name:        "label-1",
+							Color:       "#FFFFFF",
+							Description: "label 1 description",
+						},
+					}
+					assert.NotContains(t, impact.Diff.Labels, expected)
+
+					expected.PkgName = "label-2"
+					expected.New.Name = "label-2"
+					expected.New.Color = "#000000"
+					expected.New.Description = "label 2 description"
+					expected.Old.Name = "label-2"
+					assert.Contains(t, impact.Diff.Labels, expected)
+				})
+			})
 		})
 
 		t.Run("notification endpoints", func(t *testing.T) {
-			testfileRunner(t, "testdata/notification_endpoint.yml", func(t *testing.T, pkg *Pkg) {
-				fakeEndpointSVC := mock.NewNotificationEndpointService()
-				id := influxdb.ID(1)
-				existing := &endpoint.HTTP{
-					Base: endpoint.Base{
-						ID:          &id,
-						Name:        "http-none-auth-notification-endpoint",
-						Description: "old desc",
-						Status:      influxdb.TaskStatusInactive,
-					},
-					Method:     "POST",
-					AuthMethod: "none",
-					URL:        "https://www.example.com/endpoint/old",
-				}
-				fakeEndpointSVC.FindNotificationEndpointsF = func(ctx context.Context, f influxdb.NotificationEndpointFilter, opt ...influxdb.FindOptions) ([]influxdb.NotificationEndpoint, int, error) {
-					return []influxdb.NotificationEndpoint{existing}, 1, nil
-				}
-
-				svc := newTestService(WithNotificationEndpointSVC(fakeEndpointSVC))
-
-				impact, err := svc.DryRun(context.TODO(), influxdb.ID(100), 0, ApplyWithPkg(pkg))
-				require.NoError(t, err)
-
-				require.Len(t, impact.Diff.NotificationEndpoints, 5)
-
-				var (
-					newEndpoints      []DiffNotificationEndpoint
-					existingEndpoints []DiffNotificationEndpoint
-				)
-				for _, e := range impact.Diff.NotificationEndpoints {
-					if e.Old != nil {
-						existingEndpoints = append(existingEndpoints, e)
-						continue
-					}
-					newEndpoints = append(newEndpoints, e)
-				}
-				require.Len(t, newEndpoints, 4)
-				require.Len(t, existingEndpoints, 1)
-
-				expected := DiffNotificationEndpoint{
-					DiffIdentifier: DiffIdentifier{
-						ID:          1,
-						PkgName:     "http-none-auth-notification-endpoint",
-						StateStatus: StateStatusExists,
-					},
-					Old: &DiffNotificationEndpointValues{
-						NotificationEndpoint: existing,
-					},
-					New: DiffNotificationEndpointValues{
-						NotificationEndpoint: &endpoint.HTTP{
-							Base: endpoint.Base{
-								ID:          &id,
-								Name:        "http-none-auth-notification-endpoint",
-								Description: "http none auth desc",
-								Status:      influxdb.TaskStatusActive,
-							},
-							AuthMethod: "none",
-							Method:     "GET",
-							URL:        "https://www.example.com/endpoint/noneauth",
+			t.Run("mixed update and created", func(t *testing.T) {
+				testfileRunner(t, "testdata/notification_endpoint.yml", func(t *testing.T, pkg *Pkg) {
+					fakeEndpointSVC := mock.NewNotificationEndpointService()
+					id := influxdb.ID(1)
+					existing := &endpoint.HTTP{
+						Base: endpoint.Base{
+							ID:          &id,
+							Name:        "http-none-auth-notification-endpoint",
+							Description: "old desc",
+							Status:      influxdb.TaskStatusInactive,
 						},
-					},
-				}
-				assert.Equal(t, expected, existingEndpoints[0])
+						Method:     "POST",
+						AuthMethod: "none",
+						URL:        "https://www.example.com/endpoint/old",
+					}
+					fakeEndpointSVC.FindNotificationEndpointsF = func(ctx context.Context, f influxdb.NotificationEndpointFilter, opt ...influxdb.FindOptions) ([]influxdb.NotificationEndpoint, int, error) {
+						return []influxdb.NotificationEndpoint{existing}, 1, nil
+					}
+
+					svc := newTestService(WithNotificationEndpointSVC(fakeEndpointSVC))
+
+					impact, err := svc.DryRun(context.TODO(), influxdb.ID(100), 0, ApplyWithPkg(pkg))
+					require.NoError(t, err)
+
+					require.Len(t, impact.Diff.NotificationEndpoints, 5)
+
+					var (
+						newEndpoints      []DiffNotificationEndpoint
+						existingEndpoints []DiffNotificationEndpoint
+					)
+					for _, e := range impact.Diff.NotificationEndpoints {
+						if e.Old != nil {
+							existingEndpoints = append(existingEndpoints, e)
+							continue
+						}
+						newEndpoints = append(newEndpoints, e)
+					}
+					require.Len(t, newEndpoints, 4)
+					require.Len(t, existingEndpoints, 1)
+
+					expected := DiffNotificationEndpoint{
+						DiffIdentifier: DiffIdentifier{
+							ID:          1,
+							PkgName:     "http-none-auth-notification-endpoint",
+							StateStatus: StateStatusExists,
+						},
+						Old: &DiffNotificationEndpointValues{
+							NotificationEndpoint: existing,
+						},
+						New: DiffNotificationEndpointValues{
+							NotificationEndpoint: &endpoint.HTTP{
+								Base: endpoint.Base{
+									ID:          &id,
+									Name:        "http-none-auth-notification-endpoint",
+									Description: "http none auth desc",
+									Status:      influxdb.TaskStatusActive,
+								},
+								AuthMethod: "none",
+								Method:     "GET",
+								URL:        "https://www.example.com/endpoint/noneauth",
+							},
+						},
+					}
+					assert.Equal(t, expected, existingEndpoints[0])
+				})
+			})
+
+			t.Run("with actions applied", func(t *testing.T) {
+				testfileRunner(t, "testdata/notification_endpoint.yml", func(t *testing.T, pkg *Pkg) {
+					svc := newTestService()
+
+					impact, err := svc.DryRun(context.TODO(), influxdb.ID(100), 0,
+						ApplyWithPkg(pkg),
+						ApplyWithResourceSkip(ActionSkipResource{
+							Kind:     KindNotificationEndpoint,
+							MetaName: "http-none-auth-notification-endpoint",
+						}),
+						ApplyWithResourceSkip(ActionSkipResource{
+							Kind:     KindNotificationEndpoint,
+							MetaName: "http-bearer-auth-notification-endpoint",
+						}),
+						ApplyWithResourceSkip(ActionSkipResource{
+							Kind:     KindNotificationEndpointHTTP,
+							MetaName: "http-basic-auth-notification-endpoint",
+						}),
+						ApplyWithResourceSkip(ActionSkipResource{
+							Kind:     KindNotificationEndpointSlack,
+							MetaName: "slack-notification-endpoint",
+						}),
+						ApplyWithResourceSkip(ActionSkipResource{
+							Kind:     KindNotificationEndpointPagerDuty,
+							MetaName: "pager-duty-notification-endpoint",
+						}),
+					)
+					require.NoError(t, err)
+
+					require.Empty(t, impact.Diff.NotificationEndpoints)
+				})
 			})
 		})
 
 		t.Run("notification rules", func(t *testing.T) {
-			testfileRunner(t, "testdata/notification_rule.yml", func(t *testing.T, pkg *Pkg) {
-				fakeEndpointSVC := mock.NewNotificationEndpointService()
-				id := influxdb.ID(1)
-				existing := &endpoint.HTTP{
-					Base: endpoint.Base{
-						ID: &id,
-						// This name here matches the endpoint identified in the pkg notification rule
-						Name:        "endpoint-0",
-						Description: "old desc",
-						Status:      influxdb.TaskStatusInactive,
-					},
-					Method:     "POST",
-					AuthMethod: "none",
-					URL:        "https://www.example.com/endpoint/old",
-				}
-				fakeEndpointSVC.FindNotificationEndpointsF = func(ctx context.Context, f influxdb.NotificationEndpointFilter, opt ...influxdb.FindOptions) ([]influxdb.NotificationEndpoint, int, error) {
-					return []influxdb.NotificationEndpoint{existing}, 1, nil
-				}
+			t.Run("mixed update and created", func(t *testing.T) {
+				testfileRunner(t, "testdata/notification_rule.yml", func(t *testing.T, pkg *Pkg) {
+					fakeEndpointSVC := mock.NewNotificationEndpointService()
+					id := influxdb.ID(1)
+					existing := &endpoint.HTTP{
+						Base: endpoint.Base{
+							ID: &id,
+							// This name here matches the endpoint identified in the pkg notification rule
+							Name:        "endpoint-0",
+							Description: "old desc",
+							Status:      influxdb.TaskStatusInactive,
+						},
+						Method:     "POST",
+						AuthMethod: "none",
+						URL:        "https://www.example.com/endpoint/old",
+					}
+					fakeEndpointSVC.FindNotificationEndpointsF = func(ctx context.Context, f influxdb.NotificationEndpointFilter, opt ...influxdb.FindOptions) ([]influxdb.NotificationEndpoint, int, error) {
+						return []influxdb.NotificationEndpoint{existing}, 1, nil
+					}
 
-				svc := newTestService(WithNotificationEndpointSVC(fakeEndpointSVC))
+					svc := newTestService(WithNotificationEndpointSVC(fakeEndpointSVC))
 
-				impact, err := svc.DryRun(context.TODO(), influxdb.ID(100), 0, ApplyWithPkg(pkg))
-				require.NoError(t, err)
+					impact, err := svc.DryRun(context.TODO(), influxdb.ID(100), 0, ApplyWithPkg(pkg))
+					require.NoError(t, err)
 
-				require.Len(t, impact.Diff.NotificationRules, 1)
+					require.Len(t, impact.Diff.NotificationRules, 1)
 
-				actual := impact.Diff.NotificationRules[0].New
-				assert.Equal(t, "rule_0", actual.Name)
-				assert.Equal(t, "desc_0", actual.Description)
-				assert.Equal(t, "slack", actual.EndpointType)
-				assert.Equal(t, existing.Name, actual.EndpointName)
-				assert.Equal(t, SafeID(*existing.ID), actual.EndpointID)
-				assert.Equal(t, (10 * time.Minute).String(), actual.Every)
-				assert.Equal(t, (30 * time.Second).String(), actual.Offset)
+					actual := impact.Diff.NotificationRules[0].New
+					assert.Equal(t, "rule_0", actual.Name)
+					assert.Equal(t, "desc_0", actual.Description)
+					assert.Equal(t, "slack", actual.EndpointType)
+					assert.Equal(t, existing.Name, actual.EndpointName)
+					assert.Equal(t, SafeID(*existing.ID), actual.EndpointID)
+					assert.Equal(t, (10 * time.Minute).String(), actual.Every)
+					assert.Equal(t, (30 * time.Second).String(), actual.Offset)
 
-				expectedStatusRules := []SummaryStatusRule{
-					{CurrentLevel: "CRIT", PreviousLevel: "OK"},
-					{CurrentLevel: "WARN"},
-				}
-				assert.Equal(t, expectedStatusRules, actual.StatusRules)
+					expectedStatusRules := []SummaryStatusRule{
+						{CurrentLevel: "CRIT", PreviousLevel: "OK"},
+						{CurrentLevel: "WARN"},
+					}
+					assert.Equal(t, expectedStatusRules, actual.StatusRules)
 
-				expectedTagRules := []SummaryTagRule{
-					{Key: "k1", Value: "v1", Operator: "equal"},
-					{Key: "k1", Value: "v2", Operator: "equal"},
-				}
-				assert.Equal(t, expectedTagRules, actual.TagRules)
+					expectedTagRules := []SummaryTagRule{
+						{Key: "k1", Value: "v1", Operator: "equal"},
+						{Key: "k1", Value: "v2", Operator: "equal"},
+					}
+					assert.Equal(t, expectedTagRules, actual.TagRules)
+				})
+			})
+
+			t.Run("with actions applied", func(t *testing.T) {
+				testfileRunner(t, "testdata/notification_rule.yml", func(t *testing.T, pkg *Pkg) {
+					svc := newTestService()
+
+					impact, err := svc.DryRun(context.TODO(), influxdb.ID(100), 0,
+						ApplyWithPkg(pkg),
+						ApplyWithResourceSkip(ActionSkipResource{
+							Kind:     KindNotificationRule,
+							MetaName: "rule-uuid",
+						}),
+					)
+					require.NoError(t, err)
+
+					require.Empty(t, impact.Diff.NotificationRules)
+				})
 			})
 		})
 
@@ -411,63 +617,140 @@ func TestService(t *testing.T) {
 			})
 		})
 
+		t.Run("tasks", func(t *testing.T) {
+			t.Run("with actions applied", func(t *testing.T) {
+				testfileRunner(t, "testdata/tasks.json", func(t *testing.T, pkg *Pkg) {
+					svc := newTestService()
+
+					impact, err := svc.DryRun(context.TODO(), influxdb.ID(100), 0,
+						ApplyWithPkg(pkg),
+						ApplyWithResourceSkip(ActionSkipResource{
+							Kind:     KindTask,
+							MetaName: "task-uuid",
+						}),
+						ApplyWithResourceSkip(ActionSkipResource{
+							Kind:     KindTask,
+							MetaName: "task-1",
+						}),
+					)
+					require.NoError(t, err)
+
+					require.Len(t, impact.Diff.Tasks, 0)
+				})
+			})
+		})
+
+		t.Run("telegraf configs", func(t *testing.T) {
+			t.Run("with actions applied", func(t *testing.T) {
+				testfileRunner(t, "testdata/telegraf.json", func(t *testing.T, pkg *Pkg) {
+					svc := newTestService()
+
+					impact, err := svc.DryRun(context.TODO(), influxdb.ID(100), 0,
+						ApplyWithPkg(pkg),
+						ApplyWithResourceSkip(ActionSkipResource{
+							Kind:     KindTelegraf,
+							MetaName: "first-tele-config",
+						}),
+						ApplyWithResourceSkip(ActionSkipResource{
+							Kind:     KindTelegraf,
+							MetaName: "tele-2",
+						}),
+					)
+					require.NoError(t, err)
+
+					require.Len(t, impact.Diff.Telegrafs, 0)
+				})
+			})
+		})
+
 		t.Run("variables", func(t *testing.T) {
-			testfileRunner(t, "testdata/variables.json", func(t *testing.T, pkg *Pkg) {
-				fakeVarSVC := mock.NewVariableService()
-				fakeVarSVC.FindVariablesF = func(_ context.Context, filter influxdb.VariableFilter, opts ...influxdb.FindOptions) ([]*influxdb.Variable, error) {
-					return []*influxdb.Variable{
-						{
-							ID:          influxdb.ID(1),
+			t.Run("mixed update and created", func(t *testing.T) {
+				testfileRunner(t, "testdata/variables.json", func(t *testing.T, pkg *Pkg) {
+					fakeVarSVC := mock.NewVariableService()
+					fakeVarSVC.FindVariablesF = func(_ context.Context, filter influxdb.VariableFilter, opts ...influxdb.FindOptions) ([]*influxdb.Variable, error) {
+						return []*influxdb.Variable{
+							{
+								ID:          influxdb.ID(1),
+								Name:        "var-const-3",
+								Description: "old desc",
+							},
+						}, nil
+					}
+					svc := newTestService(WithVariableSVC(fakeVarSVC))
+
+					impact, err := svc.DryRun(context.TODO(), influxdb.ID(100), 0, ApplyWithPkg(pkg))
+					require.NoError(t, err)
+
+					variables := impact.Diff.Variables
+					require.Len(t, variables, 4)
+
+					expected := DiffVariable{
+						DiffIdentifier: DiffIdentifier{
+							ID:          1,
+							PkgName:     "var-const-3",
+							StateStatus: StateStatusExists,
+						},
+						Old: &DiffVariableValues{
 							Name:        "var-const-3",
 							Description: "old desc",
 						},
-					}, nil
-				}
-				svc := newTestService(WithVariableSVC(fakeVarSVC))
-
-				impact, err := svc.DryRun(context.TODO(), influxdb.ID(100), 0, ApplyWithPkg(pkg))
-				require.NoError(t, err)
-
-				variables := impact.Diff.Variables
-				require.Len(t, variables, 4)
-
-				expected := DiffVariable{
-					DiffIdentifier: DiffIdentifier{
-						ID:          1,
-						PkgName:     "var-const-3",
-						StateStatus: StateStatusExists,
-					},
-					Old: &DiffVariableValues{
-						Name:        "var-const-3",
-						Description: "old desc",
-					},
-					New: DiffVariableValues{
-						Name:        "var-const-3",
-						Description: "var-const-3 desc",
-						Args: &influxdb.VariableArguments{
-							Type:   "constant",
-							Values: influxdb.VariableConstantValues{"first val"},
+						New: DiffVariableValues{
+							Name:        "var-const-3",
+							Description: "var-const-3 desc",
+							Args: &influxdb.VariableArguments{
+								Type:   "constant",
+								Values: influxdb.VariableConstantValues{"first val"},
+							},
 						},
-					},
-				}
-				assert.Equal(t, expected, variables[0])
+					}
+					assert.Equal(t, expected, variables[0])
 
-				expected = DiffVariable{
-					DiffIdentifier: DiffIdentifier{
-						// no ID here since this one would be new
-						PkgName:     "var-map-4",
-						StateStatus: StateStatusNew,
-					},
-					New: DiffVariableValues{
-						Name:        "var-map-4",
-						Description: "var-map-4 desc",
-						Args: &influxdb.VariableArguments{
-							Type:   "map",
-							Values: influxdb.VariableMapValues{"k1": "v1"},
+					expected = DiffVariable{
+						DiffIdentifier: DiffIdentifier{
+							// no ID here since this one would be new
+							PkgName:     "var-map-4",
+							StateStatus: StateStatusNew,
 						},
-					},
-				}
-				assert.Equal(t, expected, variables[1])
+						New: DiffVariableValues{
+							Name:        "var-map-4",
+							Description: "var-map-4 desc",
+							Args: &influxdb.VariableArguments{
+								Type:   "map",
+								Values: influxdb.VariableMapValues{"k1": "v1"},
+							},
+						},
+					}
+					assert.Equal(t, expected, variables[1])
+				})
+			})
+
+			t.Run("with actions applied", func(t *testing.T) {
+				testfileRunner(t, "testdata/variables.json", func(t *testing.T, pkg *Pkg) {
+					svc := newTestService()
+
+					impact, err := svc.DryRun(context.TODO(), influxdb.ID(100), 0,
+						ApplyWithPkg(pkg),
+						ApplyWithResourceSkip(ActionSkipResource{
+							Kind:     KindVariable,
+							MetaName: "var-query-1",
+						}),
+						ApplyWithResourceSkip(ActionSkipResource{
+							Kind:     KindVariable,
+							MetaName: "var-query-2",
+						}),
+						ApplyWithResourceSkip(ActionSkipResource{
+							Kind:     KindVariable,
+							MetaName: "var-const-3",
+						}),
+						ApplyWithResourceSkip(ActionSkipResource{
+							Kind:     KindVariable,
+							MetaName: "var-map-4",
+						}),
+					)
+					require.NoError(t, err)
+
+					require.Empty(t, impact.Diff.Variables)
+				})
 			})
 		})
 	})
