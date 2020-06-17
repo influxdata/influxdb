@@ -9,6 +9,7 @@
 1. [18546](https://github.com/influxdata/influxdb/pull/18546): Influx allow for files to be remotes for all template commands
 1. [18560](https://github.com/influxdata/influxdb/pull/18560): Extend stacks API with update capability
 1. [18568](https://github.com/influxdata/influxdb/pull/18568): Add support for config files to influxd and any cli.NewCommand use case
+1. [18573](https://github.com/influxdata/influxdb/pull/18573): Extend influx stacks cmd with new influx stacks update cmd
 
 ## v2.0.0-beta.12 [2020-06-12]
 

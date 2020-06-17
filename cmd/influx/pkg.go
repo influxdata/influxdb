@@ -557,9 +557,9 @@ func (b *cmdPkgBuilder) cmdPkgValidate() *cobra.Command {
 
 func (b *cmdPkgBuilder) cmdStacks() *cobra.Command {
 	cmd := b.newCmdStackList("stacks")
-	cmd.Short = "List stack(s) and associated templates. Sub commands are useful for managing stacks."
+	cmd.Short = "List stack(s) and associated templates. Subcommands manage stacks."
 	cmd.Long = `
-	List stack(s) and associated templates. Sub commands are useful for managing stacks.
+	List stack(s) and associated templates. Subcommands manage stacks.
 
 	Examples:
 		# list all known stacks
@@ -585,10 +585,12 @@ func (b *cmdPkgBuilder) cmdStacks() *cobra.Command {
 	cmd.AddCommand(
 		b.cmdStackInit(),
 		b.cmdStackRemove(),
+		b.cmdStackUpdate(),
 	)
 	return cmd
 }
 
+// TODO(jsteenb2): nuke the deprecated command here after OSS beta13 release.
 func (b *cmdPkgBuilder) cmdStackDeprecated() *cobra.Command {
 	cmd := b.newCmd("stack", nil, false)
 	cmd.Short = "Stack management commands"
@@ -618,9 +620,9 @@ func (b *cmdPkgBuilder) cmdStackInit() *cobra.Command {
 		influx stack init -n $STACK_NAME -u $PATH_TO_TEMPLATE
 
 	For information about how stacks work with InfluxDB templates, see
-	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/stack/
+	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/stacks/
 	and
-	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/stack/init/
+	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/stacks/init/
 `
 
 	cmd.Flags().StringVarP(&b.name, "stack-name", "n", "", "Name given to created stack")
@@ -655,26 +657,7 @@ func (b *cmdPkgBuilder) stackInitRunEFn(cmd *cobra.Command, args []string) error
 		return err
 	}
 
-	if b.json {
-		return b.writeJSON(stack)
-	}
-
-	tabW := b.newTabWriter()
-	defer tabW.Flush()
-
-	tabW.HideHeaders(b.hideHeaders)
-
-	tabW.WriteHeaders("ID", "OrgID", "Name", "Description", "URLs", "Created At")
-	tabW.Write(map[string]interface{}{
-		"ID":          stack.ID,
-		"OrgID":       stack.OrgID,
-		"Name":        stack.Name,
-		"Description": stack.Description,
-		"URLs":        stack.URLs,
-		"Created At":  stack.CreatedAt,
-	})
-
-	return nil
+	return b.writeStack(b.w, stack)
 }
 
 func (b *cmdPkgBuilder) cmdStackList() *cobra.Command {
@@ -751,9 +734,9 @@ func (b *cmdPkgBuilder) stackListRunEFn(cmd *cobra.Command, args []string) error
 }
 
 func (b *cmdPkgBuilder) cmdStackRemove() *cobra.Command {
-	cmd := b.newCmd("remove [--stack-id=ID1 --stack-id=ID2]", b.stackRemoveRunEFn, true)
+	cmd := b.newCmd("rm [--stack-id=ID1 --stack-id=ID2]", b.stackRemoveRunEFn, true)
 	cmd.Short = "Remove a stack(s) and all associated resources"
-	cmd.Aliases = []string{"rm", "uninstall"}
+	cmd.Aliases = []string{"remove", "uninstall"}
 
 	cmd.Flags().StringArrayVar(&b.stackIDs, "stack-id", nil, "Stack IDs to be removed")
 	cmd.MarkFlagRequired("stack-id")
@@ -839,6 +822,83 @@ func (b *cmdPkgBuilder) stackRemoveRunEFn(cmd *cobra.Command, args []string) err
 			return err
 		}
 	}
+
+	return nil
+}
+
+func (b *cmdPkgBuilder) cmdStackUpdate() *cobra.Command {
+	cmd := b.newCmd("update", b.stackUpdateRunEFn, true)
+	cmd.Short = "Update a stack"
+	cmd.Long = `
+	The stack update command updates a stack.
+
+	Examples:
+		# Update a stack with a name and description
+		influx stack update -i $STACK_ID -n $STACK_NAME -d $STACK_DESCRIPTION
+
+		# Update a stack with a name and urls to associate with stack.
+		influx stack update --stack-id $STACK_ID --stack-name $STACK_NAME --template-url $PATH_TO_TEMPLATE
+
+	For information about how stacks work with InfluxDB templates, see
+	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/stacks
+	and
+	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/stacks/update/
+`
+
+	cmd.Flags().StringVarP(&b.stackID, "stack-id", "i", "", "ID of stack")
+	cmd.MarkFlagRequired("stack-id")
+	cmd.Flags().StringVarP(&b.name, "stack-name", "n", "", "Name for stack")
+	cmd.Flags().StringVarP(&b.description, "stack-description", "d", "", "Description for stack")
+	cmd.Flags().StringArrayVarP(&b.urls, "template-url", "u", nil, "Template urls to associate with stack")
+	registerPrintOptions(cmd, &b.hideHeaders, &b.json)
+
+	return cmd
+}
+
+func (b *cmdPkgBuilder) stackUpdateRunEFn(cmd *cobra.Command, args []string) error {
+	pkgSVC, _, err := b.svcFn()
+	if err != nil {
+		return err
+	}
+
+	stackID, err := influxdb.IDFromString(b.stackID)
+	if err != nil {
+		return ierror.Wrap(err, "required stack id is invalid")
+	}
+
+	stack, err := pkgSVC.UpdateStack(context.Background(), pkger.StackUpdate{
+		ID:          *stackID,
+		Name:        &b.name,
+		Description: &b.description,
+		URLs:        b.urls,
+	})
+	if err != nil {
+		return err
+	}
+
+	return b.writeStack(b.w, stack)
+}
+
+func (b *cmdPkgBuilder) writeStack(w io.Writer, stack pkger.Stack) error {
+	if b.json {
+		return b.writeJSON(stack)
+	}
+
+	tabW := b.newTabWriter()
+	defer tabW.Flush()
+
+	tabW.HideHeaders(b.hideHeaders)
+
+	tabW.WriteHeaders("ID", "OrgID", "Name", "Description", "Sources", "URLs", "Created At")
+	tabW.Write(map[string]interface{}{
+		"ID":          stack.ID,
+		"OrgID":       stack.OrgID,
+		"Name":        stack.Name,
+		"Description": stack.Description,
+		"Sources":     stack.Sources,
+		"URLs":        stack.URLs,
+		"Created At":  stack.CreatedAt,
+	})
 
 	return nil
 }
