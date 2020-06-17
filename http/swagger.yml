@@ -7691,6 +7691,23 @@ components:
               contentType:
                 type: string
             required: ["url"]
+        actions:
+          type: array
+          items:
+            oneOf:
+              - type: object
+                properties:
+                  action:
+                    type: string
+                    enum: ["skipResource"]
+                  properties:
+                    type: object
+                    properties:
+                      kind:
+                        type: string
+                      resourceTemplateName:
+                        type: string
+                    required: ["kind", "resourceTemplateName"]
     PkgCreateKind:
       type: string
       enum:

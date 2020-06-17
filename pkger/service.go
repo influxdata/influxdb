@@ -295,7 +295,7 @@ func (s *Service) InitStack(ctx context.Context, userID influxdb.ID, stack Stack
 	if _, err := s.orgSVC.FindOrganizationByID(ctx, stack.OrgID); err != nil {
 		if influxdb.ErrorCode(err) == influxdb.ENotFound {
 			msg := fmt.Sprintf("organization dependency does not exist for id[%q]", stack.OrgID.String())
-			return Stack{}, toInfluxError(influxdb.EConflict, msg)
+			return Stack{}, influxErr(influxdb.EConflict, msg)
 		}
 		return Stack{}, internalErr(err)
 	}
@@ -1377,7 +1377,7 @@ type (
 	}
 
 	// ActionSkipResource provides an action from the consumer to use the pkg with
-	// modifications to the actual state that is applied.
+	// modifications to the resource kind and pkg name that will be applied.
 	ActionSkipResource struct {
 		Kind     Kind   `json:"kind"`
 		MetaName string `json:"resourceTemplateName"`
@@ -3519,7 +3519,7 @@ func validURLs(urls []string) error {
 	for _, u := range urls {
 		if _, err := url.Parse(u); err != nil {
 			msg := fmt.Sprintf("url invalid for entry %q", u)
-			return toInfluxError(influxdb.EInvalid, msg)
+			return influxErr(influxdb.EInvalid, msg)
 		}
 	}
 	return nil
@@ -3544,12 +3544,23 @@ func internalErr(err error) error {
 	if err == nil {
 		return nil
 	}
-	return toInfluxError(influxdb.EInternal, err.Error())
+	return influxErr(influxdb.EInternal, err)
 }
 
-func toInfluxError(code string, msg string) *influxdb.Error {
-	return &influxdb.Error{
+func influxErr(code string, errArg interface{}, rest ...interface{}) *influxdb.Error {
+	err := &influxdb.Error{
 		Code: code,
-		Msg:  msg,
 	}
+	for _, a := range append(rest, errArg) {
+		switch v := a.(type) {
+		case string:
+			err.Msg = v
+		case error:
+			err.Err = v
+		case nil:
+		case interface{ String() string }:
+			err.Msg = v.String()
+		}
+	}
+	return err
 }

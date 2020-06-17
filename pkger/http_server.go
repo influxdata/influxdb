@@ -470,6 +470,13 @@ func (p ReqRawPkg) Encoding() Encoding {
 	return convertEncoding(p.ContentType, source)
 }
 
+// ReqRawAction is a raw action consumers can provide to change the behavior
+// of the application of a template.
+type ReqRawAction struct {
+	Action     string          `json:"action"`
+	Properties json.RawMessage `json:"properties"`
+}
+
 // ReqApplyPkg is the request body for a json or yaml body for the apply pkg endpoint.
 type ReqApplyPkg struct {
 	DryRun  bool           `json:"dryRun" yaml:"dryRun"`
@@ -489,6 +496,8 @@ type ReqApplyPkg struct {
 
 	EnvRefs map[string]string `json:"envRefs"`
 	Secrets map[string]string `json:"secrets"`
+
+	RawActions []ReqRawAction `json:"actions"`
 }
 
 // Pkgs returns all pkgs associated with the request.
@@ -545,6 +554,40 @@ func (r ReqApplyPkg) Pkgs(encoding Encoding) (*Pkg, error) {
 	return Combine(rawPkgs, ValidWithoutResources(), ValidSkipParseError())
 }
 
+type actionType string
+
+const (
+	ActionTypeSkipResource actionType = "skipResource"
+)
+
+func (r ReqApplyPkg) validActions() (struct {
+	SkipResources []ActionSkipResource
+}, error) {
+	type actions struct {
+		SkipResources []ActionSkipResource
+	}
+
+	var out actions
+	for _, rawAct := range r.RawActions {
+		switch a := rawAct.Action; actionType(a) {
+		case ActionTypeSkipResource:
+			var asr ActionSkipResource
+			if err := json.Unmarshal(rawAct.Properties, &asr); err != nil {
+				return actions{}, influxErr(influxdb.EInvalid, err)
+			}
+			if err := asr.Kind.OK(); err != nil {
+				return actions{}, influxErr(influxdb.EInvalid, err)
+			}
+			out.SkipResources = append(out.SkipResources, asr)
+		default:
+			msg := fmt.Sprintf("invalid action type provided %q; Must be one of [%s]", a, ActionTypeSkipResource)
+			return actions{}, influxErr(influxdb.EInvalid, msg)
+		}
+	}
+
+	return out, nil
+}
+
 // RespApplyPkg is the response body for the apply pkg endpoint.
 type RespApplyPkg struct {
 	Sources []string `json:"sources" yaml:"sources"`
@@ -583,13 +626,6 @@ func (s *HTTPServer) applyPkg(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	auth, err := pctx.GetAuthorizer(r.Context())
-	if err != nil {
-		s.api.Err(w, r, err)
-		return
-	}
-	userID := auth.GetUserID()
-
 	parsedPkg, err := reqBody.Pkgs(encoding)
 	if err != nil {
 		s.api.Err(w, r, &influxdb.Error{
@@ -599,11 +635,27 @@ func (s *HTTPServer) applyPkg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	actions, err := reqBody.validActions()
+	if err != nil {
+		s.api.Err(w, r, err)
+		return
+	}
+
 	applyOpts := []ApplyOptFn{
 		ApplyWithEnvRefs(reqBody.EnvRefs),
 		ApplyWithPkg(parsedPkg),
 		ApplyWithStackID(stackID),
 	}
+	for _, a := range actions.SkipResources {
+		applyOpts = append(applyOpts, ApplyWithResourceSkip(a))
+	}
+
+	auth, err := pctx.GetAuthorizer(r.Context())
+	if err != nil {
+		s.api.Err(w, r, err)
+		return
+	}
+	userID := auth.GetUserID()
 
 	if reqBody.DryRun {
 		impact, err := s.svc.DryRun(r.Context(), *orgID, userID, applyOpts...)
