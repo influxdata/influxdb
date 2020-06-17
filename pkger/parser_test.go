@@ -1,6 +1,7 @@
 package pkger
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"net/url"
@@ -8,6 +9,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -4321,7 +4323,16 @@ func nextField(t *testing.T, field string) (string, int) {
 func validParsedPkgFromFile(t *testing.T, path string, encoding Encoding) *Pkg {
 	t.Helper()
 
-	pkg := newParsedPkg(t, FromFile(path), encoding)
+	var readFn ReaderFn
+	templateBytes, ok := availableTemplateFiles[path]
+	if ok {
+		readFn = FromReader(bytes.NewBuffer(templateBytes), "file://"+path)
+	} else {
+		readFn = FromFile(path)
+		atomic.AddInt64(&missedTemplateCacheCounter, 1)
+	}
+
+	pkg := newParsedPkg(t, readFn, encoding)
 	u := url.URL{
 		Scheme: "file",
 		Path:   path,
