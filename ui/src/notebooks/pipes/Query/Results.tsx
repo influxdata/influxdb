@@ -1,6 +1,6 @@
 // Libraries
 import React, {FC, useEffect, useState, useMemo} from 'react'
-import {BothResults} from 'src/notebooks/context/query'
+import {BothResults} from 'src/notebooks'
 import {AutoSizer} from 'react-virtualized'
 
 // Components

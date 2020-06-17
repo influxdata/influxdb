@@ -1,6 +1,13 @@
 import {FunctionComponent, ComponentClass, ReactNode} from 'react'
 import {RemoteDataState} from 'src/types'
-import {BothResults} from 'src/notebooks/context/query'
+import {FromFluxResult} from '@influxdata/giraffe'
+
+export interface BothResults {
+  source: string
+  parsed: FromFluxResult
+  raw: string
+  error?: string
+}
 
 export interface PipeContextProps {
   children?: ReactNode
