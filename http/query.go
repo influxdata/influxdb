@@ -330,6 +330,7 @@ func QueryRequestFromProxyRequest(req *query.ProxyRequest) (*QueryRequest, error
 		qr.Type = "flux"
 		qr.Query = c.Query
 		qr.Extern = c.Extern
+		qr.Now = c.Now
 	case lang.ASTCompiler:
 		qr.Type = "flux"
 		qr.AST = c.AST
