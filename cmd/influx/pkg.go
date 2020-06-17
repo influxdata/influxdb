@@ -38,7 +38,7 @@ func cmdExport(f *globalFlags, opts genericCLIOpts) *cobra.Command {
 }
 
 func cmdStack(f *globalFlags, opts genericCLIOpts) *cobra.Command {
-	return newCmdPkgBuilder(newPkgerSVC, opts).cmdStack()
+	return newCmdPkgBuilder(newPkgerSVC, opts).cmdStacks()
 }
 
 func cmdTemplate(f *globalFlags, opts genericCLIOpts) *cobra.Command {
@@ -555,9 +555,33 @@ func (b *cmdPkgBuilder) cmdPkgValidate() *cobra.Command {
 	return cmd
 }
 
-func (b *cmdPkgBuilder) cmdStack() *cobra.Command {
+func (b *cmdPkgBuilder) cmdStacks() *cobra.Command {
 	cmd := b.newCmdStackList("stacks")
 	cmd.Short = "List stack(s) and associated templates. Sub commands are useful for managing stacks."
+	cmd.Long = `
+	List stack(s) and associated templates. Sub commands are useful for managing stacks.
+
+	Examples:
+		# list all known stacks
+		influx stacks
+
+		# list stacks filtered by stack name
+		# output here are stacks that have match at least 1 name provided
+		influx stacks --stack-name=$STACK_NAME_1 --stack-name=$STACK_NAME_2
+
+		# list stacks filtered by stack id
+		# output here are stacks that have match at least 1 ids provided
+		influx stacks --stack-id=$STACK_ID_1 --stack-id=$STACK_ID_2
+		
+		# list stacks filtered by stack id or stack name
+		# output here are stacks that have match the id provided or
+		# matches of the name provided
+		influx stacks --stack-id=$STACK_ID --stack-name=$STACK_NAME
+
+	For information about Stacks and how they integrate with InfluxDB templates, see
+	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/stacks
+`
+
 	cmd.AddCommand(
 		b.cmdStackInit(),
 		b.cmdStackRemove(),
@@ -663,8 +687,8 @@ func (b *cmdPkgBuilder) cmdStackList() *cobra.Command {
 func (b *cmdPkgBuilder) newCmdStackList(cmdName string) *cobra.Command {
 	usage := fmt.Sprintf("%s [flags]", cmdName)
 	cmd := b.newCmd(usage, b.stackListRunEFn, true)
-	cmd.Flags().StringArrayVar(&b.stackIDs, "stack-id", nil, "Stack IDs to filter by")
-	cmd.Flags().StringArrayVar(&b.names, "stack-name", nil, "Stack names to filter by")
+	cmd.Flags().StringArrayVar(&b.stackIDs, "stack-id", nil, "Stack ID to filter by")
+	cmd.Flags().StringArrayVar(&b.names, "stack-name", nil, "Stack name to filter by")
 	registerPrintOptions(cmd, &b.hideHeaders, &b.json)
 
 	b.org.register(cmd, false)
