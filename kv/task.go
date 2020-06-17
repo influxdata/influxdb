@@ -1778,7 +1778,7 @@ func taskRunKey(taskID, runID influxdb.ID) ([]byte, error) {
 	return []byte(string(encodedID) + "/" + string(encodedRunID)), nil
 }
 
-func (s *Service) taskOwnerIDUpMigration(ctx context.Context, store Store) error {
+func (s *Service) TaskOwnerIDUpMigration(ctx context.Context, store Store) error {
 	var ownerlessTasks []*influxdb.Task
 	// loop through the tasks and collect a set of tasks that are missing the owner id.
 	err := store.View(ctx, func(tx Tx) error {

@@ -107,7 +107,7 @@ func NewService(log *zap.Logger, kv Store, configs ...ServiceConfig) *Service {
 
 		NewAnonymousMigration(
 			"migrate task owner id",
-			s.taskOwnerIDUpMigration,
+			s.TaskOwnerIDUpMigration,
 			func(context.Context, Store) error {
 				return nil
 			},
