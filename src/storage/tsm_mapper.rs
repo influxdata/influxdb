@@ -1,7 +1,7 @@
 ///! Types for mapping and converting series data from TSM indexes produced by
 ///! InfluxDB >= 2.x
-use crate::storage::tsm::{Block, BlockData, TSMReader};
-use crate::storage::StorageError;
+use super::reader::{Block, BlockData, TSMBlockReader, TSMIndexReader};
+use super::TSMError;
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::{Display, Formatter};
@@ -45,7 +45,7 @@ macro_rules! try_or_some {
 }
 
 impl<R: BufRead + Seek> Iterator for TSMMeasurementMapper<R> {
-    type Item = Result<MeasurementTable, StorageError>;
+    type Item = Result<MeasurementTable, TSMError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let entry = match self.iter.next() {
@@ -151,7 +151,7 @@ impl MeasurementTable {
         tagset: Vec<(String, String)>,
         field_key: String,
         block: Block,
-    ) -> Result<(), StorageError> {
+    ) -> Result<(), TSMError> {
         // tags will be used as the key to a map, where the value will be a
         // collection of all the field keys for that tagset and the associated
         // blocks.
@@ -167,6 +167,42 @@ impl MeasurementTable {
         Ok(())
     }
 }
+
+// impl<T: BlockDecoder> Iterator for MeasurementTable<T> {
+//     type Item = Result<TableData, TSMError>;
+
+//     fn next(&mut self) -> Option<Self::Item> {
+//         let next = self.tag_set_fields_blocks.iter_mut().next();
+//         match next {
+//             Some((key, field_blocks)) => {
+//                 // FIXME - remove this cloning.
+//                 let tag_keys: Vec<String> = self.tag_columns.iter().cloned().collect();
+//                 let field_keys: Vec<String> = self.field_columns.iter().cloned().collect();
+
+//                 // FIXME: get matching right.
+//                 let res = map_field_columns(self.block_decoder, field_blocks);
+//                 match res {
+//                     Ok((time_column, field_data_columns)) => {
+//                         let table = TableData::new(
+//                             tag_keys,
+//                             field_keys,
+//                             time_column,
+//                             key.clone(),
+//                             field_data_columns,
+//                         );
+//                         // TODO(edd): this is awful. Need something like the
+//                         // experimental pop_first function.
+//                         self.tag_set_fields_blocks.remove(key);
+
+//                         Some(Ok(table))
+//                     }
+//                     Err(e) => return Some(Err(e)),
+//                 }
+//             }
+//             None => None,
+//         }
+//     }
+// }
 
 impl Display for MeasurementTable {
     // This trait requires `fmt` with this exact signature.
@@ -235,14 +271,14 @@ impl ValuePair {
 // (timestamps and value vectors).
 
 trait BlockDecoder {
-    fn block_data(&mut self, block: &Block) -> Result<BlockData, StorageError>;
+    fn block_data(&mut self, block: &Block) -> Result<BlockData, TSMError>;
 }
 
 impl<R> BlockDecoder for &mut TSMReader<R>
 where
     R: BufRead + Seek,
 {
-    fn block_data(&mut self, block: &Block) -> Result<BlockData, StorageError> {
+    fn block_data(&mut self, block: &Block) -> Result<BlockData, TSMError> {
         self.decode_block(block)
     }
 }
@@ -297,7 +333,7 @@ where
 fn map_field_columns(
     mut decoder: impl BlockDecoder,
     field_blocks: &mut FieldKeyBlocks,
-) -> Result<(Vec<i64>, BTreeMap<String, ColumnData>), StorageError> {
+) -> Result<(Vec<i64>, BTreeMap<String, ColumnData>), TSMError> {
     // This function maintains two main buffers. The first holds the next
     // decoded block for each field in the input fields. `refill_block_buffer`
     // is responsible for determining if each value in the buffer (a decoded
@@ -462,7 +498,7 @@ fn refill_block_buffer(
     decoder: &mut impl BlockDecoder,
     field_blocks: &mut FieldKeyBlocks,
     dst: &mut BTreeMap<String, BlockData>,
-) -> Result<(), StorageError> {
+) -> Result<(), TSMError> {
     // Determine for each input block if the destination container needs
     // refilling.
     for (field, blocks) in field_blocks.iter_mut() {
@@ -564,7 +600,7 @@ mod tests {
     }
 
     impl super::BlockDecoder for MockDecoder {
-        fn block_data(&mut self, _: &Block) -> Result<BlockData, StorageError> {
+        fn block_data(&mut self, _: &Block) -> Result<BlockData, TSMError> {
             Ok(self.blocks.remove(0))
         }
     }

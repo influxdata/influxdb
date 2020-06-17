@@ -1,14 +1,8 @@
 //! Types for reading and writing TSM files produced by InfluxDB >= 2.x
-pub mod encoders;
 
-// use crate::storage::block::*;
-use encoders::*;
-
+use super::encoders::*;
+use super::TSMError;
 use integer_encoding::VarInt;
-use std::convert::TryFrom;
-use std::error;
-use std::fmt;
-use std::io;
 use std::io::{BufRead, Seek, SeekFrom};
 use std::u64;
 
@@ -19,7 +13,7 @@ use std::u64;
 /// Iterating over the TSM index.
 ///
 /// ```
-/// # use delorean_tsm::*;
+/// # use delorean_tsm::reader::*;
 /// # use libflate::gzip;
 /// # use std::fs::File;
 /// # use std::io::BufReader;
@@ -32,7 +26,7 @@ use std::u64;
 /// # let data_len = buf.len();
 /// # let r = Cursor::new(buf);
 ///
-/// let reader = TSMIndexReader::try_new(BufReader::new(r), data_len).unwrap();
+/// let reader = TSMIndexReader::try_new(BufReader::new(r), 4_222_248).unwrap();
 ///
 /// // reader allows you to access each index entry, and each block for each
 /// // entry in order.
@@ -69,7 +63,7 @@ impl<R> TSMIndexReader<R>
 where
     R: BufRead + Seek,
 {
-    pub fn try_new(mut r: R, len: usize) -> Result<Self, StorageError> {
+    pub fn try_new(mut r: R, len: usize) -> Result<Self, TSMError> {
         // determine offset to index, which is held in last 8 bytes of file.
         r.seek(SeekFrom::End(-8))?;
         let mut buf: [u8; 8] = [0; 8];
@@ -91,7 +85,7 @@ where
     /// index or will return an error. `next_index_entry` updates the offset on
     /// the Index, but it's the caller's responsibility to stop reading entries
     /// when the index has been exhausted.
-    fn next_index_entry(&mut self) -> Result<IndexEntry, StorageError> {
+    fn next_index_entry(&mut self) -> Result<IndexEntry, TSMError> {
         // read length of series key
         let mut buf: [u8; 2] = [0; 2];
         self.r.read_exact(&mut buf)?;
@@ -125,7 +119,7 @@ where
     /// next_block_entry will return the next block entry within an index entry.
     /// It is the caller's responsibility to stop reading block entries when
     /// they have all been read for an index entry.
-    fn next_block_entry(&mut self) -> Result<Block, StorageError> {
+    fn next_block_entry(&mut self) -> Result<Block, TSMError> {
         // read min time on block entry
         let mut buf: [u8; 8] = [0; 8];
         self.r.read_exact(&mut buf[..])?;
@@ -157,7 +151,7 @@ where
 }
 
 impl<R: BufRead + Seek> Iterator for TSMIndexReader<R> {
-    type Item = Result<IndexEntry, StorageError>;
+    type Item = Result<IndexEntry, TSMError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.curr_offset == self.end_offset {
@@ -224,7 +218,7 @@ impl IndexEntry {
         InfluxID::from_be_bytes(buf)
     }
 
-    pub fn parse_key(&self) -> Result<ParsedTSMKey, StorageError> {
+    pub fn parse_key(&self) -> Result<ParsedTSMKey, TSMError> {
         parse_tsm_key(self.key.to_vec())
     }
 }
@@ -244,7 +238,7 @@ pub struct ParsedTSMKey {
 ///
 /// TODO: handle escapes in the series key for , = and \t
 ///
-fn parse_tsm_key(mut key: Vec<u8>) -> Result<ParsedTSMKey, StorageError> {
+fn parse_tsm_key(mut key: Vec<u8>) -> Result<ParsedTSMKey, TSMError> {
     // skip over org id, bucket id, comma, null byte (measurement) and =
     // The next n-1 bytes are the measurement name, where the nᵗʰ byte is a `,`.
     key = key.drain(8 + 8 + 1 + 1 + 1..).collect::<Vec<u8>>();
@@ -258,7 +252,7 @@ fn parse_tsm_key(mut key: Vec<u8>) -> Result<ParsedTSMKey, StorageError> {
     }
 
     let mut rem_key = key.drain(i..).collect::<Vec<u8>>();
-    let measurement = String::from_utf8(key).map_err(|e| StorageError {
+    let measurement = String::from_utf8(key).map_err(|e| TSMError {
         description: e.to_string(),
     })?;
 
@@ -335,7 +329,7 @@ where
     ///
     /// The components of the returned `BlockData` are guaranteed to have
     /// identical lengths.
-    pub fn decode_block(&mut self, block: &Block) -> Result<BlockData, StorageError> {
+    pub fn decode_block(&mut self, block: &Block) -> Result<BlockData, TSMError> {
         self.r.seek(SeekFrom::Start(block.offset))?;
 
         let mut data: Vec<u8> = vec![0; block.size as usize];
@@ -352,7 +346,7 @@ where
         let mut ts: Vec<i64> = Vec::with_capacity(MAX_BLOCK_VALUES); // 1000 is the max block size
         let (len, n) = u64::decode_var(&data[idx..]); // size of timestamp block
         idx += n;
-        timestamp::decode(&data[idx..idx + (len as usize)], &mut ts).map_err(|e| StorageError {
+        timestamp::decode(&data[idx..idx + (len as usize)], &mut ts).map_err(|e| TSMError {
             description: e.to_string(),
         })?;
         idx += len as usize;
@@ -361,7 +355,7 @@ where
             F64_BLOCKTYPE_MARKER => {
                 // values will be same length as time-stamps.
                 let mut values: Vec<f64> = Vec::with_capacity(ts.len());
-                float::decode_influxdb(&data[idx..], &mut values).map_err(|e| StorageError {
+                float::decode_influxdb(&data[idx..], &mut values).map_err(|e| TSMError {
                     description: e.to_string(),
                 })?;
 
@@ -370,22 +364,22 @@ where
             I64_BLOCKTYPE_MARKER => {
                 // values will be same length as time-stamps.
                 let mut values: Vec<i64> = Vec::with_capacity(ts.len());
-                integer::decode(&data[idx..], &mut values).map_err(|e| StorageError {
+                integer::decode(&data[idx..], &mut values).map_err(|e| TSMError {
                     description: e.to_string(),
                 })?;
 
                 Ok(BlockData::Integer { ts, values })
             }
-            BOOL_BLOCKTYPE_MARKER => Err(StorageError {
+            BOOL_BLOCKTYPE_MARKER => Err(TSMError {
                 description: String::from("bool block type unsupported"),
             }),
-            STRING_BLOCKTYPE_MARKER => Err(StorageError {
+            STRING_BLOCKTYPE_MARKER => Err(TSMError {
                 description: String::from("string block type unsupported"),
             }),
-            U64_BLOCKTYPE_MARKER => Err(StorageError {
+            U64_BLOCKTYPE_MARKER => Err(TSMError {
                 description: String::from("unsigned integer block type unsupported"),
             }),
-            _ => Err(StorageError {
+            _ => Err(TSMError {
                 description: format!("unsupported block type {:?}", block_type),
             }),
         }
@@ -435,8 +429,8 @@ pub struct InfluxID(u64);
 
 #[allow(dead_code)]
 impl InfluxID {
-    fn new_str(s: &str) -> Result<InfluxID, StorageError> {
-        let v = u64::from_str_radix(s, 16).map_err(|e| StorageError {
+    fn new_str(s: &str) -> Result<InfluxID, TSMError> {
+        let v = u64::from_str_radix(s, 16).map_err(|e| TSMError {
             description: e.to_string(),
         })?;
         Ok(InfluxID(v))
@@ -450,40 +444,6 @@ impl InfluxID {
 impl std::fmt::Display for InfluxID {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
         write!(f, "{:016x}", self.0)
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct TSMError {
-    pub description: String,
-}
-
-impl fmt::Display for TSMError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.description)
-    }
-}
-
-impl error::Error for TSMError {
-    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
-        // Generic error, underlying cause isn't tracked.
-        None
-    }
-}
-
-impl From<io::Error> for TSMError {
-    fn from(e: io::Error) -> Self {
-        Self {
-            description: format!("TODO - io error: {} ({:?})", e, e),
-        }
-    }
-}
-
-impl From<std::str::Utf8Error> for TSMError {
-    fn from(e: std::str::Utf8Error) -> Self {
-        Self {
-            description: format!("TODO - utf8 error: {} ({:?})", e, e),
-        }
     }
 }
 

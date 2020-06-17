@@ -4,8 +4,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::convert::TryInto;
 
-use delorean::storage::tsm::{IndexEntry, InfluxID, TSMIndexReader};
-use delorean::storage::StorageError;
+use delorean_tsm::reader::{IndexEntry, InfluxID, TSMIndexReader};
+use delorean_tsm::TSMError;
 
 use delorean_parquet::metadata::print_parquet_metadata;
 use log::{debug, info};
@@ -128,7 +128,7 @@ impl TSMMetadataBuilder {
         Self::default()
     }
 
-    fn process_entry(&mut self, entry: &mut Result<IndexEntry, StorageError>) -> Result<()> {
+    fn process_entry(&mut self, entry: &mut Result<IndexEntry, TSMError>) -> Result<()> {
         match entry {
             Ok(index_entry) => {
                 self.num_entries += 1;

@@ -4,6 +4,7 @@ use delorean::storage::StorageError;
 use delorean_ingest::Error as IngestError;
 use delorean_parquet::error::Error as DeloreanParquetError;
 use delorean_parquet::writer::Error as ParquetWriterError;
+use delorean_tsm::TSMError;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -60,7 +61,7 @@ pub enum Error {
     UnableDumpToParquetMetadata { source: DeloreanParquetError },
 
     #[snafu(display(r#"Error reading TSM data: {}"#, source))]
-    TSM { source: StorageError },
+    TSM { source: TSMError },
 
     #[snafu(display(r#"Error parsing data: {}"#, source))]
     Parsing { source: delorean_line_parser::Error },
