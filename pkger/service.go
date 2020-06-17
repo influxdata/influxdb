@@ -56,6 +56,14 @@ type (
 		Kind    Kind   `json:"kind"`
 		PkgName string `json:"pkgName"`
 	}
+
+	// StackUpdate provides a means to update an existing stack.
+	StackUpdate struct {
+		ID          influxdb.ID
+		Name        *string
+		Description *string
+		URLs        []string
+	}
 )
 
 const ResourceTypeStack influxdb.ResourceType = "stack"
@@ -66,6 +74,8 @@ type SVC interface {
 	DeleteStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) error
 	ExportStack(ctx context.Context, orgID, stackID influxdb.ID) (*Pkg, error)
 	ListStacks(ctx context.Context, orgID influxdb.ID, filter ListFilter) ([]Stack, error)
+	ReadStack(ctx context.Context, id influxdb.ID) (Stack, error)
+	UpdateStack(ctx context.Context, upd StackUpdate) (Stack, error)
 
 	CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*Pkg, error)
 	DryRun(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (PkgImpactSummary, error)
@@ -524,6 +534,36 @@ type ListFilter struct {
 // ListStacks returns a list of stacks.
 func (s *Service) ListStacks(ctx context.Context, orgID influxdb.ID, f ListFilter) ([]Stack, error) {
 	return s.store.ListStacks(ctx, orgID, f)
+}
+
+// ReadStack returns a stack that matches the given id.
+func (s *Service) ReadStack(ctx context.Context, id influxdb.ID) (Stack, error) {
+	return s.store.ReadStackByID(ctx, id)
+}
+
+// UpdateStack updates the stack by the given parameters.
+func (s *Service) UpdateStack(ctx context.Context, upd StackUpdate) (Stack, error) {
+	existing, err := s.ReadStack(ctx, upd.ID)
+	if err != nil {
+		return Stack{}, err
+	}
+
+	if upd.Name != nil {
+		existing.Name = *upd.Name
+	}
+	if upd.Description != nil {
+		existing.Description = *upd.Description
+	}
+	if upd.URLs != nil {
+		existing.URLs = upd.URLs
+	}
+	existing.UpdatedAt = s.timeGen.Now()
+
+	if err := s.store.UpdateStack(ctx, existing); err != nil {
+		return Stack{}, err
+	}
+
+	return existing, nil
 }
 
 type (

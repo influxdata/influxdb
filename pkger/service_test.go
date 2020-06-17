@@ -3214,6 +3214,97 @@ func TestService(t *testing.T) {
 			}
 		})
 	})
+
+	t.Run("UpdateStack", func(t *testing.T) {
+		now := time.Time{}.Add(10 * 24 * time.Hour)
+
+		t.Run("when updating valid stack", func(t *testing.T) {
+			tests := []struct {
+				name     string
+				input    StackUpdate
+				expected Stack
+			}{
+				{
+					name:     "update nothing",
+					input:    StackUpdate{},
+					expected: Stack{},
+				},
+				{
+					name: "update name",
+					input: StackUpdate{
+						Name: strPtr("name"),
+					},
+					expected: Stack{
+						Name: "name",
+					},
+				},
+				{
+					name: "update desc",
+					input: StackUpdate{
+						Description: strPtr("desc"),
+					},
+					expected: Stack{
+						Description: "desc",
+					},
+				},
+				{
+					name: "update URLs",
+					input: StackUpdate{
+						URLs: []string{"http://example.com"},
+					},
+					expected: Stack{
+						URLs: []string{"http://example.com"},
+					},
+				},
+				{
+					name: "update all",
+					input: StackUpdate{
+						Name:        strPtr("name"),
+						Description: strPtr("desc"),
+						URLs:        []string{"http://example.com"},
+					},
+					expected: Stack{
+						Name:        "name",
+						Description: "desc",
+						URLs:        []string{"http://example.com"},
+					},
+				},
+			}
+
+			for _, tt := range tests {
+				fn := func(t *testing.T) {
+					svc := newTestService(
+						WithTimeGenerator(newTimeGen(now)),
+						WithStore(&fakeStore{
+							readFn: func(ctx context.Context, id influxdb.ID) (Stack, error) {
+								if id != 33 {
+									return Stack{}, errors.New("wrong id: " + id.String())
+								}
+								return Stack{ID: id, OrgID: 3}, nil
+							},
+							updateFn: func(ctx context.Context, stack Stack) error {
+								return nil
+							},
+						}),
+					)
+
+					tt.input.ID = 33
+					stack, err := svc.UpdateStack(context.Background(), tt.input)
+					require.NoError(t, err)
+
+					assert.Equal(t, influxdb.ID(33), stack.ID)
+					assert.Equal(t, influxdb.ID(3), stack.OrgID)
+					assert.Zero(t, stack.CreatedAt) // should always zero value in these tests
+					assert.Equal(t, tt.expected.Name, stack.Name)
+					assert.Equal(t, tt.expected.Description, stack.Description)
+					assert.Equal(t, tt.expected.URLs, stack.URLs)
+					assert.Equal(t, now, stack.UpdatedAt)
+				}
+
+				t.Run(tt.name, fn)
+			}
+		})
+	})
 }
 
 func Test_normalizeRemoteSources(t *testing.T) {

@@ -73,15 +73,43 @@ describe('Dashboard', () => {
     cy.getByTestID('empty-state').should('exist')
 
     const noteText = 'this is a note cell'
+    const headerPrefix = '#'
 
     // Note cell
     cy.getByTestID('add-note--button').click()
     cy.getByTestID('note-editor--overlay').within(() => {
-      cy.get('.CodeMirror').type(noteText)
+      cy.get('.CodeMirror').type(`${headerPrefix} ${noteText}`)
+      cy.getByTestID('note-editor--preview').contains(noteText)
+      cy.getByTestID('note-editor--preview').should('not.contain', headerPrefix)
+
       cy.getByTestID('save-note--button').click()
     })
 
     cy.getByTestID('cell--view-empty').contains(noteText)
+    cy.getByTestID('cell--view-empty').should('not.contain', headerPrefix)
+
+    cy.getByTestID('cell--view-empty').within(([$cell]) => {
+      const prevWidth = $cell.clientWidth
+      const prevHeight = $cell.clientHeight
+      cy.wrap(prevWidth).as('prevWidth')
+      cy.wrap(prevHeight).as('prevHeight')
+    })
+
+    // Resize Cell
+    cy.get('.react-resizable-handle')
+      .trigger('mousedown', {which: 1, force: true})
+      .trigger('mousemove', {
+        clientX: 800,
+        clientY: 800,
+      })
+      .trigger('mouseup', {force: true})
+
+    cy.getByTestID('cell--view-empty').within(([$cell]) => {
+      const currWidth = $cell.clientWidth
+      const currHeight = $cell.clientHeight
+      cy.get('@prevWidth').should('be.lessThan', currWidth)
+      cy.get('@prevHeight').should('be.lessThan', currHeight)
+    })
 
     // Remove note cell
     cy.getByTestID('cell-context--toggle').click()

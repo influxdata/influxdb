@@ -31,6 +31,15 @@ const (
 	KindVariable                      Kind = "Variable"
 )
 
+// Kinds is a list of known pkger kinds.
+func Kinds() []Kind {
+	var out []Kind
+	for k := range kinds {
+		out = append(out, k)
+	}
+	return out
+}
+
 var kinds = map[Kind]bool{
 	KindBucket:                        true,
 	KindCheck:                         true,
