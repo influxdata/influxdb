@@ -2,6 +2,7 @@ package pkger
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 
 	"github.com/influxdata/influxdb/v2"
@@ -212,6 +213,17 @@ func (s *HTTPRemoteService) apply(ctx context.Context, orgID influxdb.ID, dryRun
 	if opt.StackID != 0 {
 		stackID := opt.StackID.String()
 		reqBody.StackID = &stackID
+	}
+
+	for act := range opt.ResourcesToSkip {
+		b, err := json.Marshal(act)
+		if err != nil {
+			return PkgImpactSummary{}, influxErr(influxdb.EInvalid, err)
+		}
+		reqBody.RawActions = append(reqBody.RawActions, ReqRawAction{
+			Action:     string(ActionTypeSkipResource),
+			Properties: b,
+		})
 	}
 
 	var resp RespApplyPkg
