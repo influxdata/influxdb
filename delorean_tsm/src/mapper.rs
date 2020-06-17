@@ -1,7 +1,7 @@
 ///! Types for mapping and converting series data from TSM indexes produced by
 ///! InfluxDB >= 2.x
 use super::reader::{TSMBlockReader, TSMIndexReader};
-use super::*;
+use super::{Block, BlockData, TSMError};
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::{Display, Formatter};
@@ -22,14 +22,14 @@ pub struct TSMMeasurementMapper<R>
 where
     R: BufRead + Seek,
 {
-    iter: Peekable<TSMReader<R>>,
+    iter: Peekable<TSMIndexReader<R>>,
 }
 
 impl<R> TSMMeasurementMapper<R>
 where
     R: BufRead + Seek,
 {
-    pub fn new(iter: Peekable<TSMReader<R>>) -> TSMMeasurementMapper<R> {
+    pub fn new(iter: Peekable<TSMIndexReader<R>>) -> TSMMeasurementMapper<R> {
         TSMMeasurementMapper { iter }
     }
 }
@@ -350,7 +350,7 @@ trait BlockDecoder {
     fn block_data(&mut self, block: &Block) -> Result<BlockData, TSMError>;
 }
 
-impl<R> BlockDecoder for &mut TSMReader<R>
+impl<R> BlockDecoder for &mut TSMBlockReader<R>
 where
     R: BufRead + Seek,
 {
@@ -658,12 +658,12 @@ mod tests {
 
     #[test]
     fn map_tsm_index() {
-        let file = File::open("tests/fixtures/000000000000005-000000002.tsm.gz");
+        let file = File::open("../tests/fixtures/000000000000005-000000002.tsm.gz");
         let mut decoder = gzip::Decoder::new(file.unwrap()).unwrap();
         let mut buf = Vec::new();
         decoder.read_to_end(&mut buf).unwrap();
 
-        let reader = TSMReader::try_new(BufReader::new(Cursor::new(buf)), 4_222_248).unwrap();
+        let reader = TSMIndexReader::try_new(BufReader::new(Cursor::new(buf)), 4_222_248).unwrap();
         let mapper = TSMMeasurementMapper::new(reader.peekable());
 
         // Although there  are over 2,000 series keys in the TSM file, there are
@@ -683,19 +683,16 @@ mod tests {
 
     #[test]
     fn map_field_columns_file() {
-        let file = File::open("tests/fixtures/000000000000005-000000002.tsm.gz");
+        let file = File::open("../tests/fixtures/000000000000005-000000002.tsm.gz");
         let mut decoder = gzip::Decoder::new(file.unwrap()).unwrap();
         let mut buf = Vec::new();
         decoder.read_to_end(&mut buf).unwrap();
 
-        let reader = TSMReader::try_new(BufReader::new(Cursor::new(buf)), 4_222_248).unwrap();
-        let mut mapper = TSMMeasurementMapper::new(reader.peekable());
+        let index_reader =
+            TSMIndexReader::try_new(BufReader::new(Cursor::new(&buf)), 4_222_248).unwrap();
+        let mut mapper = TSMMeasurementMapper::new(index_reader.peekable());
 
-        let file2 = File::open("tests/fixtures/000000000000005-000000002.tsm.gz");
-        let mut decoder2 = gzip::Decoder::new(file2.unwrap()).unwrap();
-        let mut buf2 = Vec::new();
-        decoder2.read_to_end(&mut buf2).unwrap();
-        let mut reader2 = TSMReader::try_new(BufReader::new(Cursor::new(buf2)), 4_222_248).unwrap();
+        let mut block_reader = TSMBlockReader::new(BufReader::new(Cursor::new(&buf)));
 
         let mut cpu = mapper
             .find(|m| m.to_owned().unwrap().name == "cpu")
@@ -717,7 +714,8 @@ mod tests {
         ];
 
         for field_blocks in cpu.tag_set_fields_blocks.values_mut() {
-            let (_, field_cols) = super::map_field_columns(&mut reader2, field_blocks).unwrap();
+            let (_, field_cols) =
+                super::map_field_columns(&mut block_reader, field_blocks).unwrap();
             let keys: Vec<&String> = field_cols.keys().collect();
 
             // Every mapping between field blocks should result in columns
@@ -725,15 +723,81 @@ mod tests {
             assert_eq!(keys, exp_field_keys);
         }
     }
+    // #[test]
+    // fn gen_table_file() {
+    //     let file = File::open("../tests/fixtures/000000000000005-000000002.tsm.gz");
+    //     let mut decoder = gzip::Decoder::new(file.unwrap()).unwrap();
+    //     let mut buf = Vec::new();
+    //     decoder.read_to_end(&mut buf).unwrap();
+
+    //     let index_reader =
+    //         TSMIndexReader::try_new(BufReader::new(Cursor::new(&buf)), 4_222_248).unwrap();
+    //     let block_reader = TSMBlockReader::new(BufReader::new(Cursor::new(&buf)));
+
+    //     let mut index_mapper = TSMMeasurementMapper::new(index_reader.peekable());
+    //     let mut cpu = index_mapper
+    //         .find(|m| m.to_owned().unwrap().name == "cpu")
+    //         .unwrap()
+    //         .unwrap();
+
+    //     // Get the tag set and the field blocks for the first of the tagsets associated with this measurement.
+    //     let (tag_set, field_blocks) = cpu.tag_set_fields_blocks.iter_mut().next().unwrap();
+
+    //     let tag_keys: Vec<String> = cpu.tag_columns.iter().cloned().collect();
+    //     let field_keys: Vec<String> = cpu.field_columns.iter().cloned().collect();
+    //     let (time_column, field_data_columns) =
+    //         map_field_columns(block_reader, field_blocks).unwrap();
+
+    //     let table = super::TableData::new(
+    //         tag_keys,
+    //         field_keys,
+    //         time_column,
+    //         tag_set.clone(),
+    //         field_data_columns,
+    //     );
+
+    //     // println("{:?}", table.field_columns())
+    // }
+
+    // fn next(&mut self) -> Option<Self::Item> {
+    //         let next = self.tag_set_fields_blocks.iter_mut().next();
+    //         match next {
+    //             Some((key, field_blocks)) => {
+    //                 // FIXME - remove this cloning.
+    //                 let tag_keys: Vec<String> = self.tag_columns.iter().cloned().collect();
+    //                 let field_keys: Vec<String> = self.field_columns.iter().cloned().collect();
+
+    //                 // FIXME: get matching right.
+    //                 let res = map_field_columns(self.block_decoder, field_blocks);
+    //                 match res {
+    //                     Ok((time_column, field_data_columns)) => {
+    //                         let table = TableData::new(
+    //                             tag_keys,
+    //                             field_keys,
+    //                             time_column,
+    //                             key.clone(),
+    //                             field_data_columns,
+    //                         );
+    //                         // TODO(edd): this is awful. Need something like the
+    //                         // experimental pop_first function.
+    //                         self.tag_set_fields_blocks.remove(key);
+
+    //                         Some(Ok(table))
+    //                     }
+    //                     Err(e) => return Some(Err(e)),
+    //                 }
+    //             }
+    //             None => None,
+    //         }
 
     #[test]
     fn measurement_table_columns() {
-        let file = File::open("tests/fixtures/000000000000005-000000002.tsm.gz");
+        let file = File::open("../tests/fixtures/000000000000005-000000002.tsm.gz");
         let mut decoder = gzip::Decoder::new(file.unwrap()).unwrap();
         let mut buf = Vec::new();
         decoder.read_to_end(&mut buf).unwrap();
 
-        let reader = TSMReader::try_new(BufReader::new(Cursor::new(buf)), 4_222_248).unwrap();
+        let reader = TSMIndexReader::try_new(BufReader::new(Cursor::new(buf)), 4_222_248).unwrap();
         let mut mapper = TSMMeasurementMapper::new(reader.peekable());
 
         let cpu = mapper

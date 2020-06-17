@@ -10,7 +10,6 @@ pub mod partitioned_store;
 pub mod predicate;
 pub mod remote_partition;
 pub mod s3_partition;
-pub mod tsm_mapper;
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct ReadPoint<T: Clone> {

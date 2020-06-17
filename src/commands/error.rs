@@ -1,6 +1,5 @@
 use snafu::Snafu;
 
-use delorean::storage::StorageError;
 use delorean_ingest::Error as IngestError;
 use delorean_parquet::error::Error as DeloreanParquetError;
 use delorean_parquet::writer::Error as ParquetWriterError;
