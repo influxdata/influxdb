@@ -179,7 +179,7 @@ describe('Dashboard', () => {
     cy.getByTestID('save-cell--button').click()
     cy.getByTestID('cell--view-empty').should('be.visible')
 
-    cy.getByTestID('cell--view-empty')
+    cy.getByTestIDSubStr('cell--view-empty')
       .invoke('text')
       .then(cellContent => {
         // cellContent is yielded as a cutesy phrase from src/shared/copy/cell
@@ -497,7 +497,7 @@ describe('Dashboard', () => {
       .eq(1)
       .should('contain', 'Loading')
 
-    cy.getByTestID('cell--view-empty')
+    cy.getByTestIDSubStr('cell--view-empty')
 
     // But selecting a nonempty bucket should load some data
     cy.getByTestID('variable-dropdown--button')
@@ -529,7 +529,7 @@ describe('Dashboard', () => {
     })
   })
 
-  it("Should return empty table parameters when query hasn't been submitted", () => {
+  it("should return empty table parameters when query hasn't been submitted", () => {
     cy.get('@org').then(({id: orgID}: Organization) => {
       cy.createDashboard(orgID).then(({body}) => {
         cy.fixture('routes').then(({orgs}) => {
