@@ -12,7 +12,7 @@ import VEOHeader from 'src/dashboards/components/VEOHeader'
 // Actions
 import {setName} from 'src/timeMachine/actions'
 import {saveVEOView} from 'src/dashboards/actions/thunks'
-import {getViewForTimeMachine} from 'src/views/actions/thunks'
+import {setQueryResultsForCell} from 'src/views/actions/thunks'
 
 // Utils
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
@@ -23,40 +23,30 @@ import {AppState, RemoteDataState, QueryView, TimeMachineID} from 'src/types'
 interface DispatchProps {
   onSetName: typeof setName
   onSaveView: typeof saveVEOView
-  getViewForTimeMachine: typeof getViewForTimeMachine
+  setQueryResultsForCell: typeof setQueryResultsForCell
 }
 
 interface StateProps {
-  view: QueryView | null
   activeTimeMachineID: TimeMachineID
+  view: QueryView | null
 }
 
 type Props = DispatchProps & StateProps & WithRouterProps
 
 const EditViewVEO: FunctionComponent<Props> = ({
-  getViewForTimeMachine,
   activeTimeMachineID,
   onSaveView,
   onSetName,
   params: {orgID, cellID, dashboardID},
   router,
+  setQueryResultsForCell,
   view,
 }) => {
-  const getQueryResults = () => {
-    // try to get the results from the reducer
-    // if the results exist & are not expired, return them
-    // otherwise execute the getViewForTimeMachine
-    if (false) {
-      console.log('weirdness ')
-    } else {
-      getViewForTimeMachine(dashboardID, cellID, 'veo')
-    }
-  }
   useEffect(() => {
     // TODO split this up into "loadView" "setActiveTimeMachine"
     // and something to tell the component to pull from the context
     // of the dashboardID
-    getQueryResults()
+    setQueryResultsForCell(dashboardID, cellID, 'veo')
   }, [])
 
   const handleClose = () => {
@@ -102,7 +92,6 @@ const EditViewVEO: FunctionComponent<Props> = ({
 
 const mstp = (state: AppState): StateProps => {
   const {activeTimeMachineID} = state.timeMachines
-
   const {view} = getActiveTimeMachine(state)
 
   return {view, activeTimeMachineID}
@@ -111,7 +100,7 @@ const mstp = (state: AppState): StateProps => {
 const mdtp: DispatchProps = {
   onSetName: setName,
   onSaveView: saveVEOView,
-  getViewForTimeMachine: getViewForTimeMachine,
+  setQueryResultsForCell: setQueryResultsForCell,
 }
 
 export default connect<StateProps, DispatchProps, {}>(

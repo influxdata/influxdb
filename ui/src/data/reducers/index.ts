@@ -2,10 +2,7 @@
 import {produce} from 'immer'
 
 // Actions
-import {setQueryResultsByQueryID} from 'src/data/actions/thunks'
-// Types
-
-export type Action = ReturnType<typeof setQueryResultsByQueryID>
+import {Action} from 'src/data/actions/thunks'
 
 interface QueryResultsState {
   files: string[] | null
@@ -16,11 +13,14 @@ export interface DataState {
   queryResultsByQueryID: {[queryID: string]: QueryResultsState}
 }
 
-export const initialState = (): DataState => ({
+export const initialState: DataState = {
   queryResultsByQueryID: {},
-})
+}
 
-export const dataReducer = (state: DataState, action: Action): DataState => {
+export const dataReducer = (
+  state: DataState = initialState,
+  action: Action
+): DataState => {
   switch (action.type) {
     case 'SET_QUERY_RESULTS_BY_QUERY': {
       return produce(state, draftState => {

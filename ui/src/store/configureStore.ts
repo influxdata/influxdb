@@ -55,6 +55,7 @@ import alertBuilderReducer from 'src/alerting/reducers/alertBuilder'
 
 // Types
 import {AppState, LocalStorage} from 'src/types'
+import {dataReducer} from 'src/data/reducers'
 
 type ReducerState = Pick<AppState, Exclude<keyof AppState, 'timeRange'>>
 
@@ -73,6 +74,7 @@ export const rootReducer = combineReducers<ReducerState>({
   }),
   currentPage: currentPageReducer,
   currentDashboard: currentDashboardReducer,
+  data: dataReducer,
   dataLoading: dataLoadingReducer,
   me: meReducer,
   flags: flagReducer,

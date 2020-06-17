@@ -1,6 +1,6 @@
 // Libraries
 import {normalize} from 'normalizr'
-
+import {get} from 'lodash'
 // APIs
 import {
   getView as getViewAJAX,
@@ -16,8 +16,9 @@ import {notify} from 'src/shared/actions/notifications'
 import {setActiveTimeMachine} from 'src/timeMachine/actions'
 import {executeQueries} from 'src/timeMachine/actions/queries'
 import {setView, Action} from 'src/views/actions/creators'
-import {getQueryResultsByQueryID} from 'src/timeMachine/actions/queries'
+import {hashCode} from 'src/data/actions/thunks'
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
+import {setQueryResults} from 'src/timeMachine/actions/queries'
 
 // Selectors
 import {getViewsForDashboard} from 'src/views/selectors'
@@ -103,8 +104,6 @@ export const getViewForTimeMachine = (
   cellID: string,
   timeMachineID: TimeMachineID
 ) => async (dispatch, getState: GetState): Promise<void> => {
-  // if it has data in some place
-  // otherwise do this
   try {
     const state = getState()
     let view = getByID<View>(state, ResourceType.Views, cellID) as QueryView
@@ -120,19 +119,35 @@ export const getViewForTimeMachine = (
         view,
       })
     )
-    const activeTimeMachine = getActiveTimeMachine(getState())
-    const queries = activeTimeMachine.view.properties.queries.filter(
-      ({text}) => !!text.trim()
-    )
+  } catch (error) {
+    console.error(error)
+    dispatch(notify(copy.getViewFailed(error.message)))
+    dispatch(setView(cellID, RemoteDataState.Error))
+  }
+}
 
-    const queryID = queries[0].text
-    // TODO: pick up from here
-    // try this
-    dispatch(getQueryResultsByQueryID(queryID))
-    // else
+export const setQueryResultsForCell = (
+  dashboardID: string,
+  cellID: string,
+  timeMachineID: TimeMachineID
+) => async (dispatch, getState: GetState): Promise<void> => {
+  try {
+    dispatch(getViewForTimeMachine(dashboardID, cellID, timeMachineID))
+    const state = getState()
+    const {view} = getActiveTimeMachine(state)
+    const queries = view.properties.queries.filter(({text}) => !!text.trim())
+    const queryID = get(queries, '[0].text', '')
+    if (queryID) {
+      const {files, timeInterval} = state.data.queryResultsByQueryID[
+        hashCode(queryID)
+      ]
+      console.log('timeInterval: ', timeInterval)
+      dispatch(setQueryResults(RemoteDataState.Done, files, null, null))
+      return
+    }
     dispatch(executeQueries())
   } catch (error) {
-    console.error('error: ', error)
+    console.error(error)
     dispatch(notify(copy.getViewFailed(error.message)))
     dispatch(setView(cellID, RemoteDataState.Error))
   }
