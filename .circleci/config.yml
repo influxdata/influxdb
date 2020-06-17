@@ -577,17 +577,6 @@ workflows:
       - selenium_accept:
           requires:
             - deploy-nightly
-  bonitoo-check:
-    triggers:
-      - schedule:
-          cron: "01 8,20 * * *"
-          filters:
-            branches: 
-              only: 
-                - master
-                - /^e2e.*/
-    jobs: 
-      - selenium_accept    
   release:
     jobs:
       - gotest:
