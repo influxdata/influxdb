@@ -160,8 +160,8 @@
 //! ╚═════════════════════════════════════╝
 //! ```
 
-use crate::encoders::{float, integer, timestamp};
 use crate::storage::StorageError;
+use delorean_tsm::encoders::{float, integer, timestamp};
 
 use integer_encoding::*;
 use num::bigint::{BigInt, BigUint};

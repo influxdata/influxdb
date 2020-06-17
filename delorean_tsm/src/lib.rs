@@ -1,9 +1,14 @@
 //! Types for reading and writing TSM files produced by InfluxDB >= 2.x
-use crate::encoders::*;
-use crate::storage::block::*;
-use crate::storage::StorageError;
+pub mod encoders;
+
+// use crate::storage::block::*;
+use encoders::*;
 
 use integer_encoding::VarInt;
+use std::convert::TryFrom;
+use std::error;
+use std::fmt;
+use std::io;
 use std::io::{BufRead, Seek, SeekFrom};
 use std::u64;
 
@@ -14,13 +19,13 @@ use std::u64;
 /// Iterating over the TSM index.
 ///
 /// ```
-/// # use delorean::storage::tsm::*;
+/// # use delorean_tsm::*;
 /// # use libflate::gzip;
 /// # use std::fs::File;
 /// # use std::io::BufReader;
 /// # use std::io::Cursor;
 /// # use std::io::Read;
-/// # let file = File::open("tests/fixtures/000000000000005-000000002.tsm.gz");
+/// # let file = File::open("../tests/fixtures/000000000000005-000000002.tsm.gz");
 /// # let mut decoder = gzip::Decoder::new(file.unwrap()).unwrap();
 /// # let mut buf = Vec::new();
 /// # decoder.read_to_end(&mut buf).unwrap();
@@ -300,6 +305,12 @@ fn parse_tsm_key(mut key: Vec<u8>) -> Result<ParsedTSMKey, StorageError> {
     })
 }
 
+pub const F64_BLOCKTYPE_MARKER: u8 = 0;
+pub const I64_BLOCKTYPE_MARKER: u8 = 1;
+pub const BOOL_BLOCKTYPE_MARKER: u8 = 2;
+pub const STRING_BLOCKTYPE_MARKER: u8 = 3;
+pub const U64_BLOCKTYPE_MARKER: u8 = 4;
+
 /// `TSMBlockReader` allows you to read and decode TSM blocks from within a TSM
 /// file.
 ///
@@ -442,6 +453,40 @@ impl std::fmt::Display for InfluxID {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct StorageError {
+    pub description: String,
+}
+
+impl fmt::Display for StorageError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.description)
+    }
+}
+
+impl error::Error for StorageError {
+    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
+        // Generic error, underlying cause isn't tracked.
+        None
+    }
+}
+
+impl From<io::Error> for StorageError {
+    fn from(e: io::Error) -> Self {
+        Self {
+            description: format!("TODO - io error: {} ({:?})", e, e),
+        }
+    }
+}
+
+impl From<std::str::Utf8Error> for StorageError {
+    fn from(e: std::str::Utf8Error) -> Self {
+        Self {
+            description: format!("TODO - utf8 error: {} ({:?})", e, e),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -454,7 +499,7 @@ mod tests {
 
     #[test]
     fn read_tsm_index() {
-        let file = File::open("tests/fixtures/000000000000005-000000002.tsm.gz");
+        let file = File::open("../tests/fixtures/000000000000005-000000002.tsm.gz");
         let mut decoder = gzip::Decoder::new(file.unwrap()).unwrap();
         let mut buf = Vec::new();
         decoder.read_to_end(&mut buf).unwrap();
@@ -467,7 +512,7 @@ mod tests {
 
     #[test]
     fn read_tsm_block() {
-        let file = File::open("tests/fixtures/000000000000005-000000002.tsm.gz");
+        let file = File::open("../tests/fixtures/000000000000005-000000002.tsm.gz");
         let mut decoder = gzip::Decoder::new(file.unwrap()).unwrap();
         let mut buf = Vec::new();
         decoder.read_to_end(&mut buf).unwrap();
@@ -521,7 +566,7 @@ mod tests {
 
     #[test]
     fn decode_tsm_blocks() {
-        let file = File::open("tests/fixtures/000000000000005-000000002.tsm.gz");
+        let file = File::open("../tests/fixtures/000000000000005-000000002.tsm.gz");
         let mut decoder = gzip::Decoder::new(file.unwrap()).unwrap();
         let mut buf = Vec::new();
         decoder.read_to_end(&mut buf).unwrap();
@@ -650,11 +695,11 @@ mod tests {
 
     #[test]
     fn check_tsm_cpu_usage() {
-        walk_index_and_check_for_errors("tests/fixtures/cpu_usage.tsm.gz");
+        walk_index_and_check_for_errors("../tests/fixtures/cpu_usage.tsm.gz");
     }
 
     #[test]
     fn check_tsm_000000000000005_000000002() {
-        walk_index_and_check_for_errors("tests/fixtures/000000000000005-000000002.tsm.gz");
+        walk_index_and_check_for_errors("../tests/fixtures/000000000000005-000000002.tsm.gz");
     }
 }

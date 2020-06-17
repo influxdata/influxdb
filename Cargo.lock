@@ -634,6 +634,7 @@ dependencies = [
  "delorean_table",
  "delorean_table_schema",
  "delorean_test_helpers",
+ "delorean_tsm",
  "delorean_wal",
  "dirs 2.0.2",
  "dotenv",
@@ -753,6 +754,17 @@ dependencies = [
  "dotenv",
  "env_logger",
  "tempfile",
+]
+
+[[package]]
+name = "delorean_tsm"
+version = "0.1.0"
+dependencies = [
+ "delorean_test_helpers",
+ "hex",
+ "integer-encoding",
+ "libflate",
+ "rand 0.7.3",
 ]
 
 [[package]]
