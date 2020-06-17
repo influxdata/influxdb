@@ -42,11 +42,21 @@ const EditViewVEO: FunctionComponent<Props> = ({
   router,
   view,
 }) => {
+  const getQueryResults = () => {
+    // try to get the results from the reducer
+    // if the results exist & are not expired, return them
+    // otherwise execute the getViewForTimeMachine
+    if (false) {
+      console.log('weirdness ')
+    } else {
+      getViewForTimeMachine(dashboardID, cellID, 'veo')
+    }
+  }
   useEffect(() => {
     // TODO split this up into "loadView" "setActiveTimeMachine"
     // and something to tell the component to pull from the context
     // of the dashboardID
-    getViewForTimeMachine(dashboardID, cellID, 'veo')
+    getQueryResults()
   }, [])
 
   const handleClose = () => {

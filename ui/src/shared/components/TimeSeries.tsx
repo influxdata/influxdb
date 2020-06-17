@@ -43,6 +43,7 @@ import {TIME_RANGE_START, TIME_RANGE_STOP} from 'src/variables/constants'
 
 // Actions
 import {notify as notifyAction} from 'src/shared/actions/notifications'
+import {setQueryResultsByQueryID} from 'src/data/actions/thunks'
 
 // Types
 import {
@@ -87,6 +88,7 @@ interface OwnProps {
 
 interface DispatchProps {
   notify: typeof notifyAction
+  setQueryResults: typeof setQueryResultsByQueryID
 }
 
 type Props = StateProps & OwnProps & DispatchProps
@@ -181,7 +183,7 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
   }
 
   private reload = async () => {
-    const {variables, notify, check, buckets} = this.props
+    const {variables, setQueryResults, notify, check, buckets} = this.props
     const queries = this.props.queries.filter(({text}) => !!text.trim())
 
     if (!queries.length) {
@@ -270,6 +272,9 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
       }
 
       this.pendingReload = false
+      // set the results per the view
+      const queryText = queries[0].text
+      setQueryResults(queryText, files)
 
       this.setState({
         giraffeResult,
@@ -346,6 +351,7 @@ const mstp = (state: AppState, props: OwnProps): StateProps => {
 
 const mdtp: DispatchProps = {
   notify: notifyAction,
+  setQueryResults: setQueryResultsByQueryID,
 }
 
 export default connect<StateProps, {}, OwnProps>(

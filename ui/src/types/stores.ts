@@ -1,6 +1,3 @@
-import {Links} from 'src/types/links'
-import {Notification} from 'src/types'
-import {TimeRange} from 'src/types/queries'
 import {TimeMachinesState} from 'src/timeMachine/reducers'
 import {AppState as AppPresentationState} from 'src/shared/reducers/app'
 import {RouterState} from 'react-router-redux'
@@ -10,7 +7,14 @@ import {CurrentDashboardState} from 'src/shared/reducers/currentDashboard'
 import {NoteEditorState} from 'src/dashboards/reducers/notes'
 import {DataLoadingState} from 'src/dataLoaders/reducers'
 import {OnboardingState} from 'src/onboarding/reducers'
-import {PredicatesState, VariableEditorState} from 'src/types'
+import {
+  Links,
+  Notification,
+  PredicatesState,
+  ResourceState,
+  TimeRange,
+  VariableEditorState,
+} from 'src/types'
 import {
   TelegrafEditorPluginState,
   PluginResourceState,
@@ -26,8 +30,7 @@ import {AlertBuilderState} from 'src/alerting/reducers/alertBuilder'
 import {CurrentPage} from 'src/shared/reducers/currentPage'
 import {DemoDataState} from 'src/cloud/reducers/demodata'
 import {OrgSettingsState} from 'src/cloud/reducers/orgsettings'
-
-import {ResourceState} from 'src/types'
+import {DataState} from 'src/data/reducers'
 
 export interface AppState {
   alertBuilder: AlertBuilderState
@@ -40,6 +43,7 @@ export interface AppState {
   }
   currentPage: CurrentPage
   currentDashboard: CurrentDashboardState
+  data: DataState
   dataLoading: DataLoadingState
   links: Links
   me: MeState
