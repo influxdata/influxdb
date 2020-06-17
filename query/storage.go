@@ -42,6 +42,8 @@ type WindowAggregateCapability interface {
 	HaveMean() bool
 	HaveCount() bool
 	HaveSum() bool
+	HaveFirst() bool
+	HaveLast() bool
 }
 
 // WindowAggregateReader implements the WindowAggregate capability.

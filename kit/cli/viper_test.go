@@ -1,9 +1,15 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"os"
+	"path"
+	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 type customFlag bool
@@ -100,4 +106,94 @@ func ExampleNewCommand() {
 	// 1m0s
 	// [foo bar]
 	// on
+}
+
+func Test_NewProgram(t *testing.T) {
+	testFilePath, cleanup := newConfigFile(t, map[string]string{
+		"FOO": "bar",
+	})
+	defer cleanup()
+	defer setEnvVar("TEST_CONFIG_FILE", testFilePath)()
+
+	tests := []struct {
+		name      string
+		envVarVal string
+		args      []string
+		expected  string
+	}{
+		{
+			name:     "no vals reads from config",
+			expected: "bar",
+		},
+		{
+			name:      "reads from env var",
+			envVarVal: "foobar",
+			expected:  "foobar",
+		},
+		{
+			name:     "reads from flag",
+			args:     []string{"--foo=baz"},
+			expected: "baz",
+		},
+		{
+			name:      "flag has highest precedence",
+			envVarVal: "foobar",
+			args:      []string{"--foo=baz"},
+			expected:  "baz",
+		},
+	}
+
+	for _, tt := range tests {
+		fn := func(t *testing.T) {
+			if tt.envVarVal != "" {
+				defer setEnvVar("TEST_FOO", tt.envVarVal)()
+			}
+
+			var testVar string
+			program := &Program{
+				Name: "test",
+				Opts: []Opt{
+					{
+						DestP:    &testVar,
+						Flag:     "foo",
+						Required: true,
+					},
+				},
+				Run: func() error { return nil },
+			}
+
+			cmd := NewCommand(program)
+			cmd.SetArgs(append([]string{}, tt.args...))
+			require.NoError(t, cmd.Execute())
+
+			require.Equal(t, tt.expected, testVar)
+		}
+
+		t.Run(tt.name, fn)
+	}
+}
+
+func setEnvVar(key, val string) func() {
+	old := os.Getenv(key)
+	os.Setenv(key, val)
+	return func() {
+		os.Setenv(key, old)
+	}
+}
+
+func newConfigFile(t *testing.T, config interface{}) (string, func()) {
+	t.Helper()
+
+	testDir, err := ioutil.TempDir("", "")
+	require.NoError(t, err)
+
+	b, err := json.Marshal(config)
+	require.NoError(t, err)
+
+	testFile := path.Join(testDir, "config.json")
+	require.NoError(t, ioutil.WriteFile(testFile, b, os.ModePerm))
+
+	return testFile, func() {
+		os.RemoveAll(testDir)
+	}
 }

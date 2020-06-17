@@ -208,7 +208,7 @@ jobs:
       - checkout
       - restore_cache:
           keys:
-            - 'yarn-cached-packages-{{ checksum "yarn.lock" }}'
+            - 'yarn-cached-packages-{{ checksum "ui/yarn.lock" }}'
           name: "Restore Yarn Package Cache"
       - run:
           command: |
@@ -231,7 +231,7 @@ jobs:
           path: coverage
           destination: raw-test-output
       - save_cache:
-          key: 'yarn-cached-packages-{{ checksum "yarn.lock" }}'
+          key: 'yarn-cached-packages-{{ checksum "ui/yarn.lock" }}'
           name: "Save Yarn Package Cache"
           paths:
             - ~/.cache/yarn
@@ -244,7 +244,7 @@ jobs:
       - checkout
       - restore_cache:
           keys:
-            - 'yarn-cached-packages-{{ checksum "yarn.lock" }}'
+            - 'yarn-cached-packages-{{ checksum "ui/yarn.lock" }}'
           name: "Restore Yarn Package Cache"
       - run:
           command: |
@@ -261,7 +261,7 @@ jobs:
             TESTFILES=$(circleci tests glob "src/**/*.ts*" "cypress/**/*.ts*" | circleci tests split --split-by=filesize)
             yarn eslint:circleci $TESTFILES
       - save_cache:
-          key: 'yarn-cached-packages-{{ checksum "yarn.lock" }}'
+          key: 'yarn-cached-packages-{{ checksum "ui/yarn.lock" }}'
           name: "Save Yarn Package Cache"
           paths:
             - ~/.cache/yarn

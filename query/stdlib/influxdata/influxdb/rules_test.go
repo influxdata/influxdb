@@ -63,6 +63,8 @@ func (m mockWAC) HaveMax() bool   { return m.Have }
 func (m mockWAC) HaveMean() bool  { return m.Have }
 func (m mockWAC) HaveCount() bool { return m.Have }
 func (m mockWAC) HaveSum() bool   { return m.Have }
+func (m mockWAC) HaveFirst() bool { return m.Have }
+func (m mockWAC) HaveLast() bool  { return m.Have }
 
 func fluxTime(t int64) flux.Time {
 	return flux.Time{
@@ -1162,6 +1164,42 @@ func TestReadTagValuesRule(t *testing.T) {
 	}
 }
 
+func minProcedureSpec() *universe.MinProcedureSpec {
+	return &universe.MinProcedureSpec{
+		SelectorConfig: execute.SelectorConfig{Column: execute.DefaultValueColLabel},
+	}
+}
+func maxProcedureSpec() *universe.MaxProcedureSpec {
+	return &universe.MaxProcedureSpec{
+		SelectorConfig: execute.SelectorConfig{Column: execute.DefaultValueColLabel},
+	}
+}
+func countProcedureSpec() *universe.CountProcedureSpec {
+	return &universe.CountProcedureSpec{
+		AggregateConfig: execute.AggregateConfig{Columns: []string{execute.DefaultValueColLabel}},
+	}
+}
+func sumProcedureSpec() *universe.SumProcedureSpec {
+	return &universe.SumProcedureSpec{
+		AggregateConfig: execute.AggregateConfig{Columns: []string{execute.DefaultValueColLabel}},
+	}
+}
+func firstProcedureSpec() *universe.FirstProcedureSpec {
+	return &universe.FirstProcedureSpec{
+		SelectorConfig: execute.SelectorConfig{Column: execute.DefaultValueColLabel},
+	}
+}
+func lastProcedureSpec() *universe.LastProcedureSpec {
+	return &universe.LastProcedureSpec{
+		SelectorConfig: execute.SelectorConfig{Column: execute.DefaultValueColLabel},
+	}
+}
+func meanProcedureSpec() *universe.MeanProcedureSpec {
+	return &universe.MeanProcedureSpec{
+		AggregateConfig: execute.AggregateConfig{Columns: []string{execute.DefaultValueColLabel}},
+	}
+}
+
 //
 // Window Aggregate Testing
 //
@@ -1170,7 +1208,11 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 	flagger := mock.NewFlagger(map[feature.Flag]interface{}{
 		feature.PushDownWindowAggregateCount(): true,
 		feature.PushDownWindowAggregateSum():   true,
-		feature.PushDownWindowAggregateRest():  true,
+		feature.PushDownWindowAggregateMin():   true,
+		feature.PushDownWindowAggregateMax():   true,
+		feature.PushDownWindowAggregateMean():  true,
+		feature.PushDownWindowAggregateFirst(): true,
+		feature.PushDownWindowAggregateLast():  true,
 	})
 
 	withFlagger, _ := feature.Annotate(context.Background(), flagger)
@@ -1261,39 +1303,13 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 		return spec
 	}
 
-	minProcedureSpec := func() *universe.MinProcedureSpec {
-		return &universe.MinProcedureSpec{
-			SelectorConfig: execute.SelectorConfig{Column: "_value"},
-		}
-	}
-	maxProcedureSpec := func() *universe.MaxProcedureSpec {
-		return &universe.MaxProcedureSpec{
-			SelectorConfig: execute.SelectorConfig{Column: "_value"},
-		}
-	}
-	meanProcedureSpec := func() *universe.MeanProcedureSpec {
-		return &universe.MeanProcedureSpec{
-			AggregateConfig: execute.AggregateConfig{Columns: []string{"_value"}},
-		}
-	}
-	countProcedureSpec := func() *universe.CountProcedureSpec {
-		return &universe.CountProcedureSpec{
-			AggregateConfig: execute.AggregateConfig{Columns: []string{"_value"}},
-		}
-	}
-	sumProcedureSpec := func() *universe.SumProcedureSpec {
-		return &universe.SumProcedureSpec{
-			AggregateConfig: execute.AggregateConfig{Columns: []string{"_value"}},
-		}
-	}
-
 	// ReadRange -> window -> min => ReadWindowAggregate
 	tests = append(tests, plantest.RuleTestCase{
 		Context: haveCaps,
 		Name:    "SimplePassMin",
 		Rules:   []plan.Rule{influxdb.PushDownWindowAggregateRule{}},
-		Before:  simplePlanWithWindowAgg(window1m, "min", minProcedureSpec()),
-		After:   simpleResult("min", false),
+		Before:  simplePlanWithWindowAgg(window1m, universe.MinKind, minProcedureSpec()),
+		After:   simpleResult(universe.MinKind, false),
 	})
 
 	// ReadRange -> window -> max => ReadWindowAggregate
@@ -1301,8 +1317,8 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 		Context: haveCaps,
 		Name:    "SimplePassMax",
 		Rules:   []plan.Rule{influxdb.PushDownWindowAggregateRule{}},
-		Before:  simplePlanWithWindowAgg(window1m, "max", maxProcedureSpec()),
-		After:   simpleResult("max", false),
+		Before:  simplePlanWithWindowAgg(window1m, universe.MaxKind, maxProcedureSpec()),
+		After:   simpleResult(universe.MaxKind, false),
 	})
 
 	// ReadRange -> window -> mean => ReadWindowAggregate
@@ -1310,8 +1326,8 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 		Context: haveCaps,
 		Name:    "SimplePassMean",
 		Rules:   []plan.Rule{influxdb.PushDownWindowAggregateRule{}},
-		Before:  simplePlanWithWindowAgg(window1m, "mean", meanProcedureSpec()),
-		After:   simpleResult("mean", false),
+		Before:  simplePlanWithWindowAgg(window1m, universe.MeanKind, meanProcedureSpec()),
+		After:   simpleResult(universe.MeanKind, false),
 	})
 
 	// ReadRange -> window -> count => ReadWindowAggregate
@@ -1319,8 +1335,8 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 		Context: haveCaps,
 		Name:    "SimplePassCount",
 		Rules:   []plan.Rule{influxdb.PushDownWindowAggregateRule{}},
-		Before:  simplePlanWithWindowAgg(window1m, "count", countProcedureSpec()),
-		After:   simpleResult("count", false),
+		Before:  simplePlanWithWindowAgg(window1m, universe.CountKind, countProcedureSpec()),
+		After:   simpleResult(universe.CountKind, false),
 	})
 
 	// ReadRange -> window -> sum => ReadWindowAggregate
@@ -1328,8 +1344,26 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 		Context: haveCaps,
 		Name:    "SimplePassSum",
 		Rules:   []plan.Rule{influxdb.PushDownWindowAggregateRule{}},
-		Before:  simplePlanWithWindowAgg(window1m, "sum", sumProcedureSpec()),
-		After:   simpleResult("sum", false),
+		Before:  simplePlanWithWindowAgg(window1m, universe.SumKind, sumProcedureSpec()),
+		After:   simpleResult(universe.SumKind, false),
+	})
+
+	// ReadRange -> window -> first => ReadWindowAggregate
+	tests = append(tests, plantest.RuleTestCase{
+		Context: haveCaps,
+		Name:    "SimplePassFirst",
+		Rules:   []plan.Rule{influxdb.PushDownWindowAggregateRule{}},
+		Before:  simplePlanWithWindowAgg(window1m, universe.FirstKind, firstProcedureSpec()),
+		After:   simpleResult(universe.FirstKind, false),
+	})
+
+	// ReadRange -> window -> last => ReadWindowAggregate
+	tests = append(tests, plantest.RuleTestCase{
+		Context: haveCaps,
+		Name:    "SimplePassLast",
+		Rules:   []plan.Rule{influxdb.PushDownWindowAggregateRule{}},
+		Before:  simplePlanWithWindowAgg(window1m, universe.LastKind, lastProcedureSpec()),
+		After:   simpleResult(universe.LastKind, false),
 	})
 
 	// Rewrite with successors
@@ -1883,85 +1917,13 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 	}
 }
 
-func TestSwitchFillImplRule(t *testing.T) {
-	flagger := mock.NewFlagger(map[feature.Flag]interface{}{
-		feature.MemoryOptimizedFill(): true,
-	})
-	withFlagger, _ := feature.Annotate(context.Background(), flagger)
-	readRange := &influxdb.ReadRangePhysSpec{
-		Bucket: "my-bucket",
-		Bounds: flux.Bounds{
-			Start: fluxTime(5),
-			Stop:  fluxTime(10),
-		},
-	}
-	sourceSpec := &universe.DualImplProcedureSpec{
-		ProcedureSpec: &universe.FillProcedureSpec{
-			DefaultCost: plan.DefaultCost{},
-			Column:      "_value",
-			Value:       values.NewFloat(0),
-			UsePrevious: false,
-		},
-		UseDeprecated: false,
-	}
-	targetSpec := sourceSpec.Copy().(*universe.DualImplProcedureSpec)
-	universe.UseDeprecatedImpl(targetSpec)
-
-	testcases := []plantest.RuleTestCase{
-		{
-			Context: withFlagger,
-			Name:    "enable memory optimized fill",
-			Rules:   []plan.Rule{influxdb.SwitchFillImplRule{}},
-			Before: &plantest.PlanSpec{
-				Nodes: []plan.Node{
-					plan.CreatePhysicalNode("ReadRange", readRange),
-					plan.CreatePhysicalNode("fill", sourceSpec),
-				},
-				Edges: [][2]int{
-					{0, 1},
-				},
-			},
-			NoChange: true,
-		},
-		{
-			Context: context.Background(),
-			Name:    "disable memory optimized fill",
-			Rules:   []plan.Rule{influxdb.SwitchFillImplRule{}},
-			Before: &plantest.PlanSpec{
-				Nodes: []plan.Node{
-					plan.CreatePhysicalNode("ReadRange", readRange),
-					plan.CreatePhysicalNode("fill", sourceSpec),
-				},
-				Edges: [][2]int{
-					{0, 1},
-				},
-			},
-			After: &plantest.PlanSpec{
-				Nodes: []plan.Node{
-					plan.CreatePhysicalNode("ReadRange", readRange),
-					plan.CreatePhysicalNode("fill", targetSpec),
-				},
-				Edges: [][2]int{
-					{0, 1},
-				},
-			},
-		},
-	}
-
-	for _, tc := range testcases {
-		tc := tc
-		t.Run(tc.Name, func(t *testing.T) {
-			t.Parallel()
-			plantest.PhysicalRuleTestHelper(t, &tc)
-		})
-	}
-}
-
 func TestPushDownBareAggregateRule(t *testing.T) {
 	// Turn on support for window aggregate count
 	flagger := mock.NewFlagger(map[feature.Flag]interface{}{
 		feature.PushDownWindowAggregateCount(): true,
 		feature.PushDownWindowAggregateSum():   true,
+		feature.PushDownWindowAggregateFirst(): true,
+		feature.PushDownWindowAggregateLast():  true,
 	})
 
 	withFlagger, _ := feature.Annotate(context.Background(), flagger)
@@ -1995,25 +1957,9 @@ func TestPushDownBareAggregateRule(t *testing.T) {
 		}
 	}
 
-	minProcedureSpec := func() *universe.MinProcedureSpec {
-		return &universe.MinProcedureSpec{
-			SelectorConfig: execute.SelectorConfig{Column: "_value"},
-		}
-	}
-	countProcedureSpec := func() *universe.CountProcedureSpec {
-		return &universe.CountProcedureSpec{
-			AggregateConfig: execute.AggregateConfig{Columns: []string{"_value"}},
-		}
-	}
-	sumProcedureSpec := func() *universe.SumProcedureSpec {
-		return &universe.SumProcedureSpec{
-			AggregateConfig: execute.AggregateConfig{Columns: []string{"_value"}},
-		}
-	}
-
 	testcases := []plantest.RuleTestCase{
 		{
-			// successful push down
+			// ReadRange -> count => ReadWindowAggregate
 			Context: haveCaps,
 			Name:    "push down count",
 			Rules:   []plan.Rule{influxdb.PushDownBareAggregateRule{}},
@@ -2028,12 +1974,12 @@ func TestPushDownBareAggregateRule(t *testing.T) {
 			},
 			After: &plantest.PlanSpec{
 				Nodes: []plan.Node{
-					plan.CreatePhysicalNode("ReadWindowAggregate", readWindowAggregate("count")),
+					plan.CreatePhysicalNode("ReadWindowAggregate", readWindowAggregate(universe.CountKind)),
 				},
 			},
 		},
 		{
-			// successful push down
+			// ReadRange -> sum => ReadWindowAggregate
 			Context: haveCaps,
 			Name:    "push down sum",
 			Rules:   []plan.Rule{influxdb.PushDownBareAggregateRule{}},
@@ -2048,7 +1994,47 @@ func TestPushDownBareAggregateRule(t *testing.T) {
 			},
 			After: &plantest.PlanSpec{
 				Nodes: []plan.Node{
-					plan.CreatePhysicalNode("ReadWindowAggregate", readWindowAggregate("sum")),
+					plan.CreatePhysicalNode("ReadWindowAggregate", readWindowAggregate(universe.SumKind)),
+				},
+			},
+		},
+		{
+			// ReadRange -> first => ReadWindowAggregate
+			Context: haveCaps,
+			Name:    "push down first",
+			Rules:   []plan.Rule{influxdb.PushDownBareAggregateRule{}},
+			Before: &plantest.PlanSpec{
+				Nodes: []plan.Node{
+					plan.CreatePhysicalNode("ReadRange", readRange),
+					plan.CreatePhysicalNode("first", firstProcedureSpec()),
+				},
+				Edges: [][2]int{
+					{0, 1},
+				},
+			},
+			After: &plantest.PlanSpec{
+				Nodes: []plan.Node{
+					plan.CreatePhysicalNode("ReadWindowAggregate", readWindowAggregate(universe.FirstKind)),
+				},
+			},
+		},
+		{
+			// ReadRange -> last => ReadWindowAggregate
+			Context: haveCaps,
+			Name:    "push down last",
+			Rules:   []plan.Rule{influxdb.PushDownBareAggregateRule{}},
+			Before: &plantest.PlanSpec{
+				Nodes: []plan.Node{
+					plan.CreatePhysicalNode("ReadRange", readRange),
+					plan.CreatePhysicalNode("last", lastProcedureSpec()),
+				},
+				Edges: [][2]int{
+					{0, 1},
+				},
+			},
+			After: &plantest.PlanSpec{
+				Nodes: []plan.Node{
+					plan.CreatePhysicalNode("ReadWindowAggregate", readWindowAggregate(universe.LastKind)),
 				},
 			},
 		},
@@ -2423,6 +2409,80 @@ func TestPushDownGroupAggregateRule(t *testing.T) {
 	})
 
 	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.Name, func(t *testing.T) {
+			t.Parallel()
+			plantest.PhysicalRuleTestHelper(t, &tc)
+		})
+	}
+}
+
+func TestSwitchFillImplRule(t *testing.T) {
+	flagger := mock.NewFlagger(map[feature.Flag]interface{}{
+		feature.MemoryOptimizedFill(): true,
+	})
+	withFlagger, _ := feature.Annotate(context.Background(), flagger)
+	readRange := &influxdb.ReadRangePhysSpec{
+		Bucket: "my-bucket",
+		Bounds: flux.Bounds{
+			Start: fluxTime(5),
+			Stop:  fluxTime(10),
+		},
+	}
+	sourceSpec := &universe.DualImplProcedureSpec{
+		ProcedureSpec: &universe.FillProcedureSpec{
+			DefaultCost: plan.DefaultCost{},
+			Column:      "_value",
+			Value:       values.NewFloat(0),
+			UsePrevious: false,
+		},
+		UseDeprecated: false,
+	}
+	targetSpec := sourceSpec.Copy().(*universe.DualImplProcedureSpec)
+	universe.UseDeprecatedImpl(targetSpec)
+
+	testcases := []plantest.RuleTestCase{
+		{
+			Context: withFlagger,
+			Name:    "enable memory optimized fill",
+			Rules:   []plan.Rule{influxdb.SwitchFillImplRule{}},
+			Before: &plantest.PlanSpec{
+				Nodes: []plan.Node{
+					plan.CreatePhysicalNode("ReadRange", readRange),
+					plan.CreatePhysicalNode("fill", sourceSpec),
+				},
+				Edges: [][2]int{
+					{0, 1},
+				},
+			},
+			NoChange: true,
+		},
+		{
+			Context: context.Background(),
+			Name:    "disable memory optimized fill",
+			Rules:   []plan.Rule{influxdb.SwitchFillImplRule{}},
+			Before: &plantest.PlanSpec{
+				Nodes: []plan.Node{
+					plan.CreatePhysicalNode("ReadRange", readRange),
+					plan.CreatePhysicalNode("fill", sourceSpec),
+				},
+				Edges: [][2]int{
+					{0, 1},
+				},
+			},
+			After: &plantest.PlanSpec{
+				Nodes: []plan.Node{
+					plan.CreatePhysicalNode("ReadRange", readRange),
+					plan.CreatePhysicalNode("fill", targetSpec),
+				},
+				Edges: [][2]int{
+					{0, 1},
+				},
+			},
+		},
+	}
+
+	for _, tc := range testcases {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()

@@ -13,6 +13,7 @@ export const OSS_FLAGS = {
   notebooks: false,
   telegrafEditor: false,
   streamEvents: false,
+  'notebook-panel--spotify': false,
 }
 
 export const CLOUD_FLAGS = {
@@ -27,6 +28,7 @@ export const CLOUD_FLAGS = {
   notebooks: false,
   telegrafEditor: false,
   streamEvents: false,
+  'notebook-panel--spotify': false,
 }
 
 export const activeFlags = (state: AppState): FlagMap => {

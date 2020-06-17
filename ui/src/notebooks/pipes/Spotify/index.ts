@@ -6,7 +6,7 @@ import './style.scss'
 register({
   type: 'spotify',
   priority: -1,
-  disabled: true,
+  featureFlag: 'notebook-panel--spotify',
   button: 'Music',
   component: View,
   initial: {

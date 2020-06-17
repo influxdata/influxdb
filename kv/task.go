@@ -1777,3 +1777,145 @@ func taskRunKey(taskID, runID influxdb.ID) ([]byte, error) {
 
 	return []byte(string(encodedID) + "/" + string(encodedRunID)), nil
 }
+
+func (s *Service) TaskOwnerIDUpMigration(ctx context.Context, store Store) error {
+	var ownerlessTasks []*influxdb.Task
+	// loop through the tasks and collect a set of tasks that are missing the owner id.
+	err := store.View(ctx, func(tx Tx) error {
+		taskBucket, err := tx.Bucket(taskBucket)
+		if err != nil {
+			return influxdb.ErrUnexpectedTaskBucketErr(err)
+		}
+
+		c, err := taskBucket.ForwardCursor([]byte{})
+		if err != nil {
+			return influxdb.ErrUnexpectedTaskBucketErr(err)
+		}
+
+		for k, v := c.Next(); k != nil; k, v = c.Next() {
+			kvTask := &kvTask{}
+			if err := json.Unmarshal(v, kvTask); err != nil {
+				return influxdb.ErrInternalTaskServiceError(err)
+			}
+
+			t := kvToInfluxTask(kvTask)
+
+			if !t.OwnerID.Valid() {
+				ownerlessTasks = append(ownerlessTasks, t)
+			}
+		}
+		if err := c.Err(); err != nil {
+			return err
+		}
+
+		return c.Close()
+	})
+	if err != nil {
+		return err
+	}
+
+	// loop through tasks
+	for _, t := range ownerlessTasks {
+		// open transaction
+		err := store.Update(ctx, func(tx Tx) error {
+			taskKey, err := taskKey(t.ID)
+			if err != nil {
+				return err
+			}
+			b, err := tx.Bucket(taskBucket)
+			if err != nil {
+				return influxdb.ErrUnexpectedTaskBucketErr(err)
+			}
+
+			if !t.OwnerID.Valid() {
+				v, err := b.Get(taskKey)
+				if IsNotFound(err) {
+					return influxdb.ErrTaskNotFound
+				}
+				authType := struct {
+					AuthorizationID influxdb.ID `json:"authorizationID"`
+				}{}
+				if err := json.Unmarshal(v, &authType); err != nil {
+					return influxdb.ErrInternalTaskServiceError(err)
+				}
+
+				// try populating the owner from auth
+				encodedID, err := authType.AuthorizationID.Encode()
+				if err == nil {
+					authBucket, err := tx.Bucket([]byte("authorizationsv1"))
+					if err != nil {
+						return err
+					}
+
+					a, err := authBucket.Get(encodedID)
+					if err == nil {
+						auth := &influxdb.Authorization{}
+						if err := json.Unmarshal(a, auth); err != nil {
+							return err
+						}
+
+						t.OwnerID = auth.GetUserID()
+					}
+				}
+
+			}
+
+			// try populating owner from urm
+			if !t.OwnerID.Valid() {
+				b, err := tx.Bucket([]byte("userresourcemappingsv1"))
+				if err != nil {
+					return err
+				}
+
+				id, err := t.OrganizationID.Encode()
+				if err != nil {
+					return err
+				}
+
+				cur, err := b.ForwardCursor(id, WithCursorPrefix(id))
+				if err != nil {
+					return err
+				}
+
+				for k, v := cur.Next(); k != nil; k, v = cur.Next() {
+					m := &influxdb.UserResourceMapping{}
+					if err := json.Unmarshal(v, m); err != nil {
+						return err
+					}
+					if m.ResourceID == t.OrganizationID && m.ResourceType == influxdb.OrgsResourceType && m.UserType == influxdb.Owner {
+						t.OwnerID = m.UserID
+						break
+					}
+				}
+
+				if err := cur.Close(); err != nil {
+					return err
+				}
+			}
+
+			// if population fails return error
+			if !t.OwnerID.Valid() {
+				return &influxdb.Error{
+					Code: influxdb.EInternal,
+					Msg:  "could not populate owner ID for task",
+				}
+			}
+
+			// save task
+			taskBytes, err := json.Marshal(t)
+			if err != nil {
+				return influxdb.ErrInternalTaskServiceError(err)
+			}
+
+			err = b.Put(taskKey, taskBytes)
+			if err != nil {
+				return influxdb.ErrUnexpectedTaskBucketErr(err)
+			}
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}

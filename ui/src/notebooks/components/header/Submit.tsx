@@ -1,10 +1,8 @@
 // Libraries
 import React, {FC, useContext, useState, useEffect} from 'react'
 import {SubmitQueryButton} from 'src/timeMachine/components/SubmitQueryButton'
-import QueryProvider, {
-  QueryContext,
-  BothResults,
-} from 'src/notebooks/context/query'
+import {BothResults} from 'src/notebooks'
+import QueryProvider, {QueryContext} from 'src/notebooks/context/query'
 import {NotebookContext, PipeMeta} from 'src/notebooks/context/notebook'
 import {TimeContext} from 'src/notebooks/context/time'
 import {IconFont} from '@influxdata/clockface'
