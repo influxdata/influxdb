@@ -7,13 +7,22 @@ import (
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/inmem"
 	"github.com/influxdata/influxdb/v2/kv"
+	"github.com/influxdata/influxdb/v2/kv/migration/all"
 	_ "github.com/influxdata/influxdb/v2/query/builtin"
 	"github.com/influxdata/influxdb/v2/query/fluxlang"
 	"go.uber.org/zap/zaptest"
 )
 
 func NewKVTestStore(t *testing.T) (kv.Store, func()) {
-	return inmem.NewKVStore(), func() {}
+	t.Helper()
+
+	store := inmem.NewKVStore()
+
+	if err := all.Up(context.Background(), zaptest.NewLogger(t), store); err != nil {
+		t.Fatal(err)
+	}
+
+	return store, func() {}
 }
 
 func TestCheckService(t *testing.T) {
@@ -39,9 +48,6 @@ func initCheckService(f CheckFields, t *testing.T) (influxdb.CheckService, influ
 	}
 
 	ctx := context.Background()
-	if err := svc.Initialize(ctx); err != nil {
-		t.Fatalf("error initializing check service: %v", err)
-	}
 	for _, m := range f.UserResourceMappings {
 		if err := svc.CreateUserResourceMapping(ctx, m); err != nil {
 			t.Fatalf("failed to populate user resource mapping: %v", err)

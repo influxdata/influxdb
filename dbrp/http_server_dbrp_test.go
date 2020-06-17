@@ -14,7 +14,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/dbrp"
-	"github.com/influxdata/influxdb/v2/inmem"
 	"github.com/influxdata/influxdb/v2/mock"
 	influxdbtesting "github.com/influxdata/influxdb/v2/testing"
 	"go.uber.org/zap/zaptest"
@@ -36,14 +35,16 @@ func initHttpService(t *testing.T) (influxdb.DBRPMappingServiceV2, *httptest.Ser
 		},
 	}
 
-	s := inmem.NewKVStore()
-	svc, err := dbrp.NewService(ctx, bucketSvc, s)
+	s, closeS, err := NewTestBoltStore(t)
 	if err != nil {
 		t.Fatal(err)
 	}
 
+	svc := dbrp.NewService(ctx, bucketSvc, s)
+
 	server := httptest.NewServer(dbrp.NewHTTPHandler(zaptest.NewLogger(t), svc, orgSvc))
 	return svc, server, func() {
+		closeS()
 		server.Close()
 	}
 }

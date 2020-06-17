@@ -7,13 +7,20 @@ import (
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/inmem"
+	"github.com/influxdata/influxdb/v2/kv/migration/all"
 	"github.com/influxdata/influxdb/v2/pkger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap/zaptest"
 )
 
 func TestStoreKV(t *testing.T) {
 	inMemStore := inmem.NewKVStore()
+
+	// run all migrations against store
+	if err := all.Up(context.Background(), zaptest.NewLogger(t), inMemStore); err != nil {
+		t.Fatal(err)
+	}
 
 	stackStub := func(id, orgID influxdb.ID) pkger.Stack {
 		now := time.Time{}.Add(10 * 365 * 24 * time.Hour)

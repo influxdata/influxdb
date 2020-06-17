@@ -28,10 +28,7 @@ func initBoltUserService(f influxdbtesting.UserFields, t *testing.T) (influxdb.U
 }
 
 func initUserService(s kv.Store, f influxdbtesting.UserFields, t *testing.T) (influxdb.UserService, string, func()) {
-	storage, err := tenant.NewStore(s)
-	if err != nil {
-		t.Fatal(err)
-	}
+	storage := tenant.NewStore(s)
 	svc := tenant.NewService(storage)
 
 	for _, u := range f.Users {
@@ -67,10 +64,7 @@ func initBoltPasswordsService(f influxdbtesting.PasswordFields, t *testing.T) (i
 }
 
 func initPasswordsService(s kv.Store, f influxdbtesting.PasswordFields, t *testing.T) (influxdb.PasswordsService, func()) {
-	storage, err := tenant.NewStore(s)
-	if err != nil {
-		t.Fatal(err)
-	}
+	storage := tenant.NewStore(s)
 	svc := tenant.NewService(storage)
 
 	for _, u := range f.Users {

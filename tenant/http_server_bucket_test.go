@@ -20,12 +20,8 @@ func initBucketHttpService(f itesting.BucketFields, t *testing.T) (influxdb.Buck
 	if err != nil {
 		t.Fatal(err)
 	}
-	storage, err := tenant.NewStore(s)
-	if err != nil {
-		t.Fatal(err)
-	}
 
-	svc := tenant.NewService(storage)
+	svc := tenant.NewService(tenant.NewStore(s))
 
 	ctx := context.Background()
 	for _, o := range f.Organizations {

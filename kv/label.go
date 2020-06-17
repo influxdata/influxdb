@@ -16,22 +16,6 @@ var (
 	labelIndex         = []byte("labelindexv1")
 )
 
-func (s *Service) initializeLabels(ctx context.Context, tx Tx) error {
-	if _, err := tx.Bucket(labelBucket); err != nil {
-		return err
-	}
-
-	if _, err := tx.Bucket(labelMappingBucket); err != nil {
-		return err
-	}
-
-	if _, err := tx.Bucket(labelIndex); err != nil {
-		return err
-	}
-
-	return nil
-}
-
 // FindLabelByID finds a label by its ID
 func (s *Service) FindLabelByID(ctx context.Context, id influxdb.ID) (*influxdb.Label, error) {
 	var l *influxdb.Label

@@ -17,16 +17,6 @@ var (
 
 var _ influxdb.AuthorizationService = (*Service)(nil)
 
-func (s *Service) initializeAuths(ctx context.Context, tx Tx) error {
-	if _, err := tx.Bucket(authBucket); err != nil {
-		return err
-	}
-	if _, err := authIndexBucket(tx); err != nil {
-		return err
-	}
-	return nil
-}
-
 // FindAuthorizationByID retrieves a authorization by id.
 func (s *Service) FindAuthorizationByID(ctx context.Context, id influxdb.ID) (*influxdb.Authorization, error) {
 	var a *influxdb.Authorization

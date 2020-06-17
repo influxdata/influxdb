@@ -7,16 +7,11 @@ import (
 	"testing"
 
 	"github.com/influxdata/influxdb/v2"
-	"github.com/influxdata/influxdb/v2/inmem"
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/tenant"
 )
 
 func TestUser(t *testing.T) {
-	driver := func() kv.Store {
-		return inmem.NewKVStore()
-	}
-
 	simpleSetup := func(t *testing.T, store *tenant.Store, tx kv.Tx) {
 		for i := 1; i <= 10; i++ {
 			err := store.CreateUser(context.Background(), tx, &influxdb.User{
@@ -246,10 +241,13 @@ func TestUser(t *testing.T) {
 	}
 	for _, testScenario := range st {
 		t.Run(testScenario.name, func(t *testing.T) {
-			ts, err := tenant.NewStore(driver())
+			s, closeS, err := NewTestInmemStore(t)
 			if err != nil {
 				t.Fatal(err)
 			}
+			defer closeS()
+
+			ts := tenant.NewStore(s)
 
 			// setup
 			if testScenario.setup != nil {

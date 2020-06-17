@@ -38,6 +38,8 @@ import (
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"github.com/influxdata/influxdb/v2/kv"
+	"github.com/influxdata/influxdb/v2/kv/migration"
+	"github.com/influxdata/influxdb/v2/kv/migration/all"
 	"github.com/influxdata/influxdb/v2/label"
 	influxlogger "github.com/influxdata/influxdb/v2/logger"
 	"github.com/influxdata/influxdb/v2/nats"
@@ -391,7 +393,7 @@ type Launcher struct {
 	queueSize                       int
 
 	boltClient    *bolt.Client
-	kvStore       kv.Store
+	kvStore       kv.SchemaStore
 	kvService     *kv.Service
 	engine        Engine
 	StorageConfig storage.Config
@@ -617,8 +619,19 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		return err
 	}
 
-	if err := m.kvService.Initialize(ctx); err != nil {
-		m.log.Error("Failed to initialize kv service", zap.Error(err))
+	migrator, err := migration.NewMigrator(
+		m.log.With(zap.String("service", "migrations")),
+		m.kvStore,
+		all.Migrations[:]...,
+	)
+	if err != nil {
+		m.log.Error("Failed to initialize kv migrator", zap.Error(err))
+		return err
+	}
+
+	// apply migrations to metadata store
+	if err := migrator.Up(ctx); err != nil {
+		m.log.Error("Failed to apply migrations", zap.Error(err))
 		return err
 	}
 
@@ -644,12 +657,8 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		notificationEndpointStore platform.NotificationEndpointService     = m.kvService
 	)
 
-	store, err := tenant.NewStore(m.kvStore)
-	if err != nil {
-		m.log.Error("Failed creating new meta store", zap.Error(err))
-		return err
-	}
-	ts := tenant.NewService(store)
+	tenantStore := tenant.NewStore(m.kvStore)
+	ts := tenant.NewService(tenantStore)
 
 	var (
 		userSvc         platform.UserService                = tenant.NewUserLogger(m.log.With(zap.String("store", "new")), tenant.NewUserMetrics(m.reg, ts, metric.WithSuffix("new")))
@@ -806,11 +815,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		}
 	}
 
-	dbrpSvc, err := dbrp.NewService(ctx, authorizer.NewBucketService(bucketSvc, userResourceSvc), m.kvStore)
-	if err != nil {
-		return err
-	}
-
+	dbrpSvc := dbrp.NewService(ctx, authorizer.NewBucketService(bucketSvc, userResourceSvc), m.kvStore)
 	dbrpSvc = dbrp.NewAuthorizedService(dbrpSvc)
 
 	var checkSvc platform.CheckService
@@ -1032,7 +1037,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 
 	var onboardHTTPServer *tenant.OnboardHandler
 	{
-		onboardSvc := tenant.NewOnboardService(store, authSvc)                                            // basic service
+		onboardSvc := tenant.NewOnboardService(tenantStore, authSvc)                                      // basic service
 		onboardSvc = tenant.NewAuthedOnboardSvc(onboardSvc)                                               // with auth
 		onboardSvc = tenant.NewOnboardingMetrics(m.reg, onboardSvc, metric.WithSuffix("new"))             // with metrics
 		onboardSvc = tenant.NewOnboardingLogger(m.log.With(zap.String("handler", "onboard")), onboardSvc) // with logging
@@ -1057,7 +1062,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	// feature flagging for new authorization service
 	var authHTTPServer *kithttp.FeatureHandler
 	{
-		ts := tenant.NewService(store) // todo (al): remove when tenant is un-flagged
+		ts := tenant.NewService(tenantStore) // todo (al): remove when tenant is un-flagged
 		authLogger := m.log.With(zap.String("handler", "authorization"))
 
 		oldBackend := http.NewAuthorizationBackend(authLogger, m.apibackend)

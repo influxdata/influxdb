@@ -21,23 +21,6 @@ type IndexStore struct {
 	IndexStore *StoreBase
 }
 
-// Init creates the entity and index buckets.
-func (s *IndexStore) Init(ctx context.Context, tx Tx) error {
-	span, ctx := tracing.StartSpanFromContext(ctx)
-	defer span.Finish()
-
-	initFns := []func(context.Context, Tx) error{
-		s.EntStore.Init,
-		s.IndexStore.Init,
-	}
-	for _, fn := range initFns {
-		if err := fn(ctx, tx); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 // Delete deletes entities and associated indexes.
 func (s *IndexStore) Delete(ctx context.Context, tx Tx, opts DeleteOpts) error {
 	span, ctx := tracing.StartSpanFromContext(ctx)

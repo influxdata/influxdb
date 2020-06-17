@@ -129,21 +129,6 @@ func (s *StoreBase) EntKey(ctx context.Context, ent Entity) ([]byte, error) {
 	return s.encodeEnt(ctx, ent, s.EncodeEntKeyFn)
 }
 
-// Init creates the buckets.
-func (s *StoreBase) Init(ctx context.Context, tx Tx) error {
-	span, ctx := s.startSpan(ctx)
-	defer span.Finish()
-
-	if _, err := s.bucket(ctx, tx); err != nil {
-		return &influxdb.Error{
-			Code: influxdb.EInternal,
-			Msg:  fmt.Sprintf("failed to create bucket: %s", string(s.BktName)),
-			Err:  err,
-		}
-	}
-	return nil
-}
-
 type (
 	// DeleteOpts provides indicators to the store.Delete call for deleting a given
 	// entity. The FilterFn indicates the current value should be deleted when returning

@@ -10,6 +10,11 @@ import (
 
 var _ influxdb.CheckService = (*Service)(nil)
 
+var (
+	checkBucket      = []byte("checksv1")
+	checkIndexBucket = []byte("checkindexv1")
+)
+
 func newCheckStore() *IndexStore {
 	const resource = "check"
 
@@ -32,8 +37,8 @@ func newCheckStore() *IndexStore {
 
 	return &IndexStore{
 		Resource:   resource,
-		EntStore:   NewStoreBase(resource, []byte("checksv1"), EncIDKey, EncBodyJSON, decEndpointEntFn, decValToEntFn),
-		IndexStore: NewOrgNameKeyStore(resource, []byte("checkindexv1"), false),
+		EntStore:   NewStoreBase(resource, checkBucket, EncIDKey, EncBodyJSON, decEndpointEntFn, decValToEntFn),
+		IndexStore: NewOrgNameKeyStore(resource, checkIndexBucket, false),
 	}
 }
 

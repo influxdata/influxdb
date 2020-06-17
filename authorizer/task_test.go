@@ -11,6 +11,7 @@ import (
 	"github.com/influxdata/influxdb/v2/http"
 	"github.com/influxdata/influxdb/v2/inmem"
 	"github.com/influxdata/influxdb/v2/kv"
+	"github.com/influxdata/influxdb/v2/kv/migration/all"
 	"github.com/influxdata/influxdb/v2/mock"
 	_ "github.com/influxdata/influxdb/v2/query/builtin"
 	"github.com/pkg/errors"
@@ -574,9 +575,11 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`
 func newKVSVC(t *testing.T) *kv.Service {
 	t.Helper()
 
-	svc := kv.NewService(zaptest.NewLogger(t), inmem.NewKVStore())
-	if err := svc.Initialize(context.Background()); err != nil {
+	store := inmem.NewKVStore()
+
+	if err := all.Up(context.Background(), zaptest.NewLogger(t), store); err != nil {
 		t.Fatal(err)
 	}
-	return svc
+
+	return kv.NewService(zaptest.NewLogger(t), store)
 }

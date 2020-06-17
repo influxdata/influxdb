@@ -11,11 +11,8 @@ import (
 	"github.com/influxdata/influxdb/v2/kv"
 )
 
-// ensure *KVStore implement kv.Store interface
-var _ kv.Store = (*KVStore)(nil)
-
-// ensure *KVStore implements kv.AutoMigrationStore
-var _ kv.AutoMigrationStore = (*KVStore)(nil)
+// ensure *KVStore implement kv.SchemaStore interface
+var _ kv.SchemaStore = (*KVStore)(nil)
 
 // cursorBatchSize is the size of a batch sent by a forward cursors
 // tree iterator
@@ -60,13 +57,35 @@ func (s *KVStore) Update(ctx context.Context, fn func(kv.Tx) error) error {
 	})
 }
 
-func (s *KVStore) Backup(ctx context.Context, w io.Writer) error {
-	panic("not implemented")
+// CreateBucket creates a bucket with the provided name if one
+// does not exist.
+func (s *KVStore) CreateBucket(ctx context.Context, name []byte) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	_, ok := s.buckets[string(name)]
+	if !ok {
+		bkt := &Bucket{btree: btree.New(2)}
+		s.buckets[string(name)] = bkt
+		s.ro[string(name)] = &bucket{Bucket: bkt}
+	}
+
+	return nil
 }
 
-// AutoMigrate returns itlsef as *KVStore is safe to migrate automically on initialize.
-func (s *KVStore) AutoMigrate() kv.Store {
-	return s
+// DeleteBucket creates a bucket with the provided name if one
+// does not exist.
+func (s *KVStore) DeleteBucket(ctx context.Context, name []byte) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	delete(s.buckets, string(name))
+
+	return nil
+}
+
+func (s *KVStore) Backup(ctx context.Context, w io.Writer) error {
+	panic("not implemented")
 }
 
 // Flush removes all data from the buckets.  Used for testing.
@@ -108,28 +127,11 @@ func (t *Tx) WithContext(ctx context.Context) {
 	t.ctx = ctx
 }
 
-// createBucketIfNotExists creates a btree bucket at the provided key.
-func (t *Tx) createBucketIfNotExists(b []byte) (kv.Bucket, error) {
-	if t.writable {
-		bkt, ok := t.kv.buckets[string(b)]
-		if !ok {
-			bkt = &Bucket{btree: btree.New(2)}
-			t.kv.buckets[string(b)] = bkt
-			t.kv.ro[string(b)] = &bucket{Bucket: bkt}
-			return bkt, nil
-		}
-
-		return bkt, nil
-	}
-
-	return nil, kv.ErrTxNotWritable
-}
-
 // Bucket retrieves the bucket at the provided key.
 func (t *Tx) Bucket(b []byte) (kv.Bucket, error) {
 	bkt, ok := t.kv.buckets[string(b)]
 	if !ok {
-		return t.createBucketIfNotExists(b)
+		return nil, fmt.Errorf("bucket %q: %w", string(b), kv.ErrBucketNotFound)
 	}
 
 	if t.writable {

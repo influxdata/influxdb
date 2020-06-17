@@ -9,6 +9,8 @@ import (
 var (
 	// ErrKeyNotFound is the error returned when the key requested is not found.
 	ErrKeyNotFound = errors.New("key not found")
+	// ErrBucketNotFound is the error returned when the bucket cannot be found.
+	ErrBucketNotFound = errors.New("bucket not found")
 	// ErrTxNotWritable is the error returned when an mutable operation is called during
 	// a non-writable transaction.
 	ErrTxNotWritable = errors.New("transaction is not writable")
@@ -22,6 +24,16 @@ func IsNotFound(err error) bool {
 	return err == ErrKeyNotFound
 }
 
+// SchemaStore is a superset of Store along with store schema change
+// functionality like bucket creation and deletion.
+type SchemaStore interface {
+	Store
+	BucketCreator
+
+	// DeleteBucket deletes a bucket on the underlying store if it exists
+	DeleteBucket(ctx context.Context, bucket []byte) error
+}
+
 // Store is an interface for a generic key value store. It is modeled after
 // the boltdb database struct.
 type Store interface {
@@ -32,6 +44,12 @@ type Store interface {
 	Update(context.Context, func(Tx) error) error
 	// Backup copies all K:Vs to a writer, file format determined by implementation.
 	Backup(ctx context.Context, w io.Writer) error
+}
+
+// BucketCreator is a type which can create Buckets
+type BucketCreator interface {
+	// CreateBucket creates a bucket on the underlying store if it does not exist
+	CreateBucket(ctx context.Context, bucket []byte) error
 }
 
 // Tx is a transaction in the store.
