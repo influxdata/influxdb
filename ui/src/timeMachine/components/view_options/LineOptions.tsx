@@ -113,7 +113,7 @@ class LineOptions extends PureComponent<Props> {
       numericColumns,
       onSetTimeFormat,
       timeFormat,
-      hoverDimension,
+      hoverDimension = 'auto',
       onSetHoverDimension,
     } = this.props
 

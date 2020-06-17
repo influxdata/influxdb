@@ -5,18 +5,19 @@ metadata:
 spec:
   description: desc1
   charts:
-    - kind:   Single_Stat_Plus_Line
-      name:   single stat plus line
+    - kind: Single_Stat_Plus_Line
+      name: single stat plus line
       note: single stat plus line note
       noteOnEmpty: true
       decimalPlaces: 1
       prefix: sumtin
       suffix: days
-      xPos:  1
-      yPos:  2
-      width:  6
+      xPos: 1
+      yPos: 2
+      width: 6
       height: 3
       shade: true
+      hoverDimension: "y"
       position: overlaid
       legend:
         type: leg_type
@@ -34,7 +35,7 @@ spec:
           hex: "#F4CF31"
           value: 1
       axes:
-        - name : "x"
+        - name: "x"
           label: x_label
           prefix: x_prefix
           suffix: x_suffix

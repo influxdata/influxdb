@@ -84,6 +84,6 @@
     "xColumn": "",
     "yColumn": "",
     "shadeBelow": false,
-    "hoverDimension": "auto"
+    "hoverDimension": "y"
   }
 }

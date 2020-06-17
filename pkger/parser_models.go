@@ -495,31 +495,32 @@ func (d *dashboard) valid() []validationErr {
 }
 
 const (
-	fieldChartAxes          = "axes"
-	fieldChartBinCount      = "binCount"
-	fieldChartBinSize       = "binSize"
-	fieldChartColors        = "colors"
-	fieldChartDecimalPlaces = "decimalPlaces"
-	fieldChartDomain        = "domain"
-	fieldChartFillColumns   = "fillColumns"
-	fieldChartGeom          = "geom"
-	fieldChartHeight        = "height"
-	fieldChartLegend        = "legend"
-	fieldChartNote          = "note"
-	fieldChartNoteOnEmpty   = "noteOnEmpty"
-	fieldChartPosition      = "position"
-	fieldChartQueries       = "queries"
-	fieldChartShade         = "shade"
-	fieldChartFieldOptions  = "fieldOptions"
-	fieldChartTableOptions  = "tableOptions"
-	fieldChartTickPrefix    = "tickPrefix"
-	fieldChartTickSuffix    = "tickSuffix"
-	fieldChartTimeFormat    = "timeFormat"
-	fieldChartWidth         = "width"
-	fieldChartXCol          = "xCol"
-	fieldChartXPos          = "xPos"
-	fieldChartYCol          = "yCol"
-	fieldChartYPos          = "yPos"
+	fieldChartAxes           = "axes"
+	fieldChartBinCount       = "binCount"
+	fieldChartBinSize        = "binSize"
+	fieldChartColors         = "colors"
+	fieldChartDecimalPlaces  = "decimalPlaces"
+	fieldChartDomain         = "domain"
+	fieldChartFillColumns    = "fillColumns"
+	fieldChartGeom           = "geom"
+	fieldChartHeight         = "height"
+	fieldChartLegend         = "legend"
+	fieldChartNote           = "note"
+	fieldChartNoteOnEmpty    = "noteOnEmpty"
+	fieldChartPosition       = "position"
+	fieldChartQueries        = "queries"
+	fieldChartShade          = "shade"
+	fieldChartHoverDimension = "hoverDimension"
+	fieldChartFieldOptions   = "fieldOptions"
+	fieldChartTableOptions   = "tableOptions"
+	fieldChartTickPrefix     = "tickPrefix"
+	fieldChartTickSuffix     = "tickSuffix"
+	fieldChartTimeFormat     = "timeFormat"
+	fieldChartWidth          = "width"
+	fieldChartXCol           = "xCol"
+	fieldChartXPos           = "xPos"
+	fieldChartYCol           = "yCol"
+	fieldChartYPos           = "yPos"
 )
 
 type chart struct {
@@ -534,6 +535,7 @@ type chart struct {
 	DecimalPlaces   int
 	EnforceDecimals bool
 	Shade           bool
+	HoverDimension  string
 	Legend          legend
 	Colors          colors
 	Queries         queries
@@ -657,6 +659,7 @@ func (c chart) properties() influxdb.ViewProperties {
 			XColumn:           c.XCol,
 			YColumn:           c.YCol,
 			ShadeBelow:        c.Shade,
+			HoverDimension:    c.HoverDimension,
 			Legend:            c.Legend.influxLegend(),
 			Queries:           c.Queries.influxDashQueries(),
 			ViewColors:        c.Colors.influxViewColors(),
@@ -702,6 +705,7 @@ func (c chart) properties() influxdb.ViewProperties {
 			XColumn:           c.XCol,
 			YColumn:           c.YCol,
 			ShadeBelow:        c.Shade,
+			HoverDimension:    c.HoverDimension,
 			Legend:            c.Legend.influxLegend(),
 			Queries:           c.Queries.influxDashQueries(),
 			ViewColors:        c.Colors.influxViewColors(),

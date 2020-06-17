@@ -2871,7 +2871,7 @@ spec:
       suffix: days
       width:  6
       height: 3
-      shade: true
+	  shade: true
       queries:
         - query: >
             from(bucket: v.bucket) |> range(start: v.timeRangeStart) |> filter(fn: (r) => r._measurement == "system") |> filter(fn: (r) => r._field == "uptime") |> last() |> map(fn: (r) => ({r with _value: r._value / 86400})) |> yield(name: "last")

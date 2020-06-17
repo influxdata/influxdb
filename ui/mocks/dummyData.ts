@@ -1010,7 +1010,7 @@ export const viewProperties: ViewProperties = {
   xColumn: '_time',
   yColumn: '_value',
   shadeBelow: true,
-  hoverDimension: 'auto',
+  hoverDimension: 'y',
   position: 'overlaid',
 }
 
