@@ -116,7 +116,7 @@ export const reportSimpleQueryPerformanceDuration = (
 ) => {
   reportQueryPerformanceEvent({
     timestamp: toNano(startTime),
-    fields: {duration: toNano(duration)},
+    fields: {duration},
     tags: {event},
   })
 }
