@@ -1,7 +1,7 @@
 ///! Types for mapping and converting series data from TSM indexes produced by
 ///! InfluxDB >= 2.x
 use super::reader::{TSMBlockReader, TSMIndexReader};
-use super::{Block, BlockData, TSMError};
+use super::{Block, BlockData, BlockType, TSMError};
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::{Display, Formatter};
@@ -64,6 +64,7 @@ impl<R: BufRead + Seek> Iterator for TSMMeasurementMapper<R> {
         try_or_some!(measurement.add_series_data(
             parsed_key.tagset,
             parsed_key.field_key,
+            entry.block_type,
             entry.block
         ));
 
@@ -83,6 +84,7 @@ impl<R: BufRead + Seek> Iterator for TSMMeasurementMapper<R> {
                             try_or_some!(measurement.add_series_data(
                                 parsed_key.tagset,
                                 parsed_key.field_key,
+                                entry.block_type,
                                 entry.block
                             ));
                         }
@@ -122,9 +124,8 @@ pub struct MeasurementTable {
     // separate key on `tag_set_fields_blocks`.
     tag_set_fields_blocks: BTreeMap<Vec<(String, String)>, FieldKeyBlocks>,
 
-    // TODO(edd): not sure yet if we need separate sets for tags and fields.
     tag_columns: BTreeSet<String>,
-    field_columns: BTreeSet<String>,
+    field_columns: BTreeMap<String, BlockType>,
 }
 
 impl MeasurementTable {
@@ -133,7 +134,7 @@ impl MeasurementTable {
             name,
             tag_set_fields_blocks: BTreeMap::new(),
             tag_columns: BTreeSet::new(),
-            field_columns: BTreeSet::new(),
+            field_columns: BTreeMap::new(),
         }
     }
 
@@ -141,8 +142,8 @@ impl MeasurementTable {
         Vec::from_iter(self.tag_columns.iter())
     }
 
-    pub fn field_columns(&self) -> Vec<&String> {
-        Vec::from_iter(self.field_columns.iter())
+    pub fn field_columns(&self) -> &BTreeMap<String, BlockType> {
+        &self.field_columns
     }
 
     // updates the table with data from a single TSM index entry's block.
@@ -150,12 +151,13 @@ impl MeasurementTable {
         &mut self,
         tagset: Vec<(String, String)>,
         field_key: String,
+        block_type: BlockType,
         block: Block,
     ) -> Result<(), TSMError> {
         // tags will be used as the key to a map, where the value will be a
         // collection of all the field keys for that tagset and the associated
         // blocks.
-        self.field_columns.insert(field_key.clone());
+        self.field_columns.insert(field_key.clone(), block_type);
         for (k, _) in &tagset {
             self.tag_columns.insert(k.clone());
         }
@@ -807,7 +809,7 @@ mod tests {
 
         assert_eq!(cpu.tag_columns(), vec!["cpu", "host"]);
         assert_eq!(
-            cpu.field_columns(),
+            cpu.field_columns().keys().collect::<Vec<&String>>(),
             vec![
                 "usage_guest",
                 "usage_guest_nice",

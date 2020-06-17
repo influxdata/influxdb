@@ -2,6 +2,7 @@ pub mod encoders;
 pub mod mapper;
 pub mod reader;
 
+use std::convert::TryFrom;
 use std::error;
 use std::fmt;
 use std::io;
@@ -82,11 +83,31 @@ fn parse_tsm_key(mut key: Vec<u8>) -> Result<ParsedTSMKey, TSMError> {
     })
 }
 
-pub const F64_BLOCKTYPE_MARKER: u8 = 0;
-pub const I64_BLOCKTYPE_MARKER: u8 = 1;
-pub const BOOL_BLOCKTYPE_MARKER: u8 = 2;
-pub const STRING_BLOCKTYPE_MARKER: u8 = 3;
-pub const U64_BLOCKTYPE_MARKER: u8 = 4;
+#[derive(Clone, Debug, Copy)]
+pub enum BlockType {
+    Float,
+    Integer,
+    Bool,
+    Str,
+    Unsigned,
+}
+
+impl TryFrom<u8> for BlockType {
+    type Error = TSMError;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(Self::Float),
+            1 => Ok(Self::Integer),
+            2 => Ok(Self::Bool),
+            3 => Ok(Self::Str),
+            4 => Ok(Self::Unsigned),
+            _ => Err(TSMError {
+                description: format!("{:?} is invalid block type", value),
+            }),
+        }
+    }
+}
 
 /// `Block` holds information about location and time range of a block of data.
 #[derive(Debug, Copy, Clone)]

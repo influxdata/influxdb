@@ -99,7 +99,7 @@ where
         // read the block type
         self.r.read_exact(&mut buf[..1])?;
         self.curr_offset += 1;
-        let block_type = buf[0];
+        let b_type = buf[0];
 
         // read how many blocks there are for this entry.
         self.r.read_exact(&mut buf)?;
@@ -108,7 +108,7 @@ where
 
         Ok(IndexEntry {
             key: key_bytes,
-            block_type,
+            block_type: BlockType::try_from(b_type)?,
             count,
             curr_block: 1,
             block: self.next_block_entry()?,
@@ -194,7 +194,7 @@ impl<R: BufRead + Seek> Iterator for TSMIndexReader<R> {
 pub struct IndexEntry {
     key: Vec<u8>,
 
-    pub block_type: u8,
+    pub block_type: BlockType,
     pub count: u16,
     pub block: Block,
     curr_block: u16,
@@ -256,7 +256,7 @@ where
         let mut idx = 4;
 
         // determine the block type
-        let block_type = data[idx];
+        let block_type = BlockType::try_from(data[idx])?;
         idx += 1;
 
         // first decode the timestamp block.
@@ -271,7 +271,7 @@ where
         idx += len as usize;
 
         match block_type {
-            F64_BLOCKTYPE_MARKER => {
+            BlockType::Float => {
                 // values will be same length as time-stamps.
                 let mut values: Vec<f64> = Vec::with_capacity(ts.len());
                 encoders::float::decode_influxdb(&data[idx..], &mut values).map_err(|e| {
@@ -282,7 +282,7 @@ where
 
                 Ok(BlockData::Float { ts, values })
             }
-            I64_BLOCKTYPE_MARKER => {
+            BlockType::Integer => {
                 // values will be same length as time-stamps.
                 let mut values: Vec<i64> = Vec::with_capacity(ts.len());
                 encoders::integer::decode(&data[idx..], &mut values).map_err(|e| TSMError {
@@ -291,17 +291,14 @@ where
 
                 Ok(BlockData::Integer { ts, values })
             }
-            BOOL_BLOCKTYPE_MARKER => Err(TSMError {
+            BlockType::Bool => Err(TSMError {
                 description: String::from("bool block type unsupported"),
             }),
-            STRING_BLOCKTYPE_MARKER => Err(TSMError {
+            BlockType::Str => Err(TSMError {
                 description: String::from("string block type unsupported"),
             }),
-            U64_BLOCKTYPE_MARKER => Err(TSMError {
+            BlockType::Unsigned => Err(TSMError {
                 description: String::from("unsigned integer block type unsupported"),
-            }),
-            _ => Err(TSMError {
-                description: format!("unsupported block type {:?}", block_type),
             }),
         }
     }
@@ -454,15 +451,17 @@ mod tests {
             let key = entry.parse_key().unwrap();
             assert!(!key.measurement.is_empty());
 
-            let block_type = entry.block_type;
-            if block_type == BOOL_BLOCKTYPE_MARKER {
-                eprintln!("Note: ignoring bool block, not implemented");
-            } else if block_type == STRING_BLOCKTYPE_MARKER {
-                eprintln!("Note: ignoring string block, not implemented");
-            } else if block_type == U64_BLOCKTYPE_MARKER {
-                eprintln!("Note: ignoring bool block, not implemented");
-            } else {
-                blocks.push(entry.block);
+            match entry.block_type {
+                BlockType::Bool => {
+                    eprintln!("Note: ignoring bool block, not implemented");
+                }
+                BlockType::Str => {
+                    eprintln!("Note: ignoring Str block, not implemented");
+                }
+                BlockType::Unsigned => {
+                    eprintln!("Note: ignoring unsigned block, not implemented");
+                }
+                _ => blocks.push(entry.block),
             }
         }
 
