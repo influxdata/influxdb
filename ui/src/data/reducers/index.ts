@@ -2,15 +2,10 @@
 import {produce} from 'immer'
 
 // Actions
-import {Action} from 'src/data/actions/thunks'
-
-interface QueryResultsState {
-  files: string[] | null
-  timeInterval: string
-}
+import {Action} from 'src/data/actions'
 
 export interface DataState {
-  queryResultsByQueryID: {[queryID: string]: QueryResultsState}
+  queryResultsByQueryID: {[queryID: string]: string[]}
 }
 
 export const initialState: DataState = {
@@ -26,12 +21,13 @@ export const dataReducer = (
       return produce(state, draftState => {
         const {queryID, files} = action
         if (queryID && files.length) {
-          draftState.queryResultsByQueryID[queryID] = {
-            files,
-            timeInterval: 'now',
-          }
+          draftState.queryResultsByQueryID[queryID] = files
         }
       })
+    }
+
+    case 'RESET_CACHED_QUERY_RESULTS': {
+      return initialState
     }
   }
 
