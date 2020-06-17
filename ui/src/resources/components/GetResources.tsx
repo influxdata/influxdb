@@ -63,15 +63,15 @@ class GetResources extends PureComponent<Props, StateProps> {
   public componentDidMount() {
     const {resources} = this.props
     const promises = []
-    const timeStart = Date.now()
+    const startTime = Date.now()
     resources.forEach(resource => {
       promises.push(this.getResourceDetails(resource))
     })
     Promise.all(promises).then(() =>
       reportSimpleQueryPerformanceDuration(
         `GetResources ${resources.join(', ')}`,
-        timeStart,
-        Date.now() - timeStart
+        startTime,
+        Date.now() - startTime
       )
     )
   }
