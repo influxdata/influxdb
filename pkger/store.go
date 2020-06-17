@@ -54,7 +54,7 @@ var _ Store = (*StoreKV)(nil)
 // want to init it if you want to have this init donezo at startup. If not it'll lazy
 // load the buckets as they are used.
 func NewStoreKV(store kv.Store) *StoreKV {
-	const resource = "pkg stack"
+	const resource = "stack"
 
 	storeKV := &StoreKV{
 		kvStore: store,
