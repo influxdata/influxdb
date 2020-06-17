@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -110,7 +111,9 @@ func ExampleNewCommand() {
 
 func Test_NewProgram(t *testing.T) {
 	testFilePath, cleanup := newConfigFile(t, map[string]string{
-		"FOO": "bar",
+		// config values should be same as flags
+		"foo":      "bar",
+		"shoe-fly": "yadon",
 	})
 	defer cleanup()
 	defer setEnvVar("TEST_CONFIG_FILE", testFilePath)()
@@ -150,6 +153,7 @@ func Test_NewProgram(t *testing.T) {
 			}
 
 			var testVar string
+			var testFly string
 			program := &Program{
 				Name: "test",
 				Opts: []Opt{
@@ -157,6 +161,10 @@ func Test_NewProgram(t *testing.T) {
 						DestP:    &testVar,
 						Flag:     "foo",
 						Required: true,
+					},
+					{
+						DestP: &testFly,
+						Flag:  "shoe-fly",
 					},
 				},
 				Run: func() error { return nil },
@@ -167,6 +175,7 @@ func Test_NewProgram(t *testing.T) {
 			require.NoError(t, cmd.Execute())
 
 			require.Equal(t, tt.expected, testVar)
+			assert.Equal(t, "yadon", testFly)
 		}
 
 		t.Run(tt.name, fn)
