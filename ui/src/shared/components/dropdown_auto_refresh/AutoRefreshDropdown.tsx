@@ -48,7 +48,7 @@ export default class AutoRefreshDropdown extends Component<Props> {
 
   public render() {
     if (CLOUD) {
-      return false
+      return <div className={this.className}>{this.manualRefreshButton}</div>
     }
     return (
       <div className={this.className}>
