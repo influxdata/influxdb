@@ -21,6 +21,7 @@ log = "0.4.8"
 delorean_line_parser = { path = "../delorean_line_parser" }
 delorean_table = { path = "../delorean_table" }
 delorean_table_schema = { path = "../delorean_table_schema" }
+delorean_tsm = { path = "../delorean_tsm" }
 
 [dev-dependencies]
 delorean_test_helpers ={ path = "../delorean_test_helpers" }

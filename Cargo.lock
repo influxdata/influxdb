@@ -684,6 +684,7 @@ dependencies = [
  "delorean_table",
  "delorean_table_schema",
  "delorean_test_helpers",
+ "delorean_tsm",
  "env_logger",
  "log",
  "parquet",
@@ -744,6 +745,7 @@ dependencies = [
 name = "delorean_table_schema"
 version = "0.1.0"
 dependencies = [
+ "delorean_tsm",
  "log",
 ]
 
