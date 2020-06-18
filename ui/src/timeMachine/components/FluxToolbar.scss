@@ -1,24 +1,25 @@
 $flux-toolbar--search-height: $cf-form-sm-height + $cf-marg-c;
 $flux-toolbar--item-height: $cf-marg-d;
+$flux-toolbar--gap: $cf-marg-b;
 
 .flux-toolbar {
   display: flex;
-  flex-direction: column;
-  width: 100%;
+  flex-direction: row;
+  align-items: stretch;
   height: 100%;
-  flex: 1 0 0;
 }
 
 .flux-toolbar--tabs {
   width: 100%;
   display: flex;
+  flex-direction: column;
   align-items: stretch;
-  height: $cf-form-md-height;
+  width: $cf-form-md-height;
   flex: 0 0 $cf-form-md-height;
 }
 
 .flux-toolbar--tab {
-  border-radius: $cf-radius $cf-radius 0 0;
+  border-radius: $cf-radius;
   flex: 1 0 0;
   display: flex;
   justify-content: center;
@@ -26,18 +27,19 @@ $flux-toolbar--item-height: $cf-marg-d;
   font-size: $cf-form-sm-font;
   line-height: $cf-form-sm-font;
   font-weight: $cf-font-weight--medium;
-  background-color: transparent;
+  background-color: $g2-kevlar;
   color: $g8-storm;
-  margin-right: $cf-marg-a;
+  margin-bottom: $flux-toolbar--gap;
   transition: color 0.25s ease, background-color 0.25s ease;
+  overflow: hidden;
 
   &:last-child {
-    margin-right: 0;
+    margin-bottom: 0;
   }
 
   &:hover {
     cursor: pointer;
-    background-color: $g2-kevlar;
+    background-color: mix($g2-kevlar, $g3-castle, 50%);
     color: $g13-mist;
   }
 
@@ -47,12 +49,19 @@ $flux-toolbar--item-height: $cf-marg-d;
   }
 }
 
+.flux-toolbar--tab-label {
+  white-space: nowrap;
+  transform: rotate(90deg);
+}
+
 .flux-toolbar--tab-contents {
+  width: 300px;
   background-color: $g3-castle;
   flex: 1 0 0;
   position: relative;
-  border-radius: 0 0 $cf-radius $cf-radius;
+  border-radius: $cf-radius;
   overflow: hidden;
+  margin-right: $flux-toolbar--gap;
 }
 
 .flux-toolbar--search {
@@ -105,17 +114,18 @@ $flux-toolbar--item-height: $cf-marg-d;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    transition: background-color 0.25s ease, color 0.25s ease, text-shadow 0.25s ease;
+    transition: background-color 0.25s ease, color 0.25s ease,
+      text-shadow 0.25s ease;
   }
 
   .flux-toolbar--injector {
     opacity: 0;
     transition: opacity 0.25s ease, color 0.25s ease, box-shadow 0.25s ease;
   }
-  
+
   &:hover {
     background-color: $g4-onyx;
-    
+
     > code {
       background-color: $g2-kevlar;
     }

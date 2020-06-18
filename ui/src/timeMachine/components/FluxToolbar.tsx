@@ -15,7 +15,7 @@ interface Props {
   onInsertVariable: (variableName: string) => void
 }
 
-type FluxToolbarTabs = 'functions' | 'variables'
+type FluxToolbarTabs = 'functions' | 'variables' | 'none'
 
 const FluxToolbar: FC<Props> = ({
   activeQueryBuilderTab,
@@ -28,23 +28,31 @@ const FluxToolbar: FC<Props> = ({
     setActiveTab(id)
   }
 
-  let activeToolbar = (
-    <FluxFunctionsToolbar onInsertFluxFunction={onInsertFluxFunction} />
-  )
+  let activeToolbar
+
+  if (activeTab === 'functions') {
+    activeToolbar = (
+      <FluxFunctionsToolbar onInsertFluxFunction={onInsertFluxFunction} />
+    )
+  }
 
   if (activeTab === 'variables') {
     activeToolbar = <VariableToolbar onClickVariable={onInsertVariable} />
   }
 
+  const toolbarExpanded = activeTab === 'functions' || activeTab === 'variables'
+
   return (
     <div className="flux-toolbar">
+      {toolbarExpanded && (
+        <div className="flux-toolbar--tab-contents">{activeToolbar}</div>
+      )}
       <div className="flux-toolbar--tabs">
         <FluxToolbarTab
           id="functions"
           onClick={handleTabClick}
           name="Functions"
           active={activeTab === 'functions'}
-          testID="functions-toolbar-tab"
         />
         {activeQueryBuilderTab !== 'customCheckQuery' && (
           <FluxToolbarTab
@@ -55,7 +63,6 @@ const FluxToolbar: FC<Props> = ({
           />
         )}
       </div>
-      <div className="flux-toolbar--tab-contents">{activeToolbar}</div>
     </div>
   )
 }

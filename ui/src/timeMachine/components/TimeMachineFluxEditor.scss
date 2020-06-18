@@ -1,5 +1,3 @@
-$flux-editor--right-panel: 330px;
-
 .flux-editor {
   position: absolute;
   top: $cf-marg-b;
@@ -20,7 +18,6 @@ $flux-editor--right-panel: 330px;
 
 // Variables / Functions List
 .flux-editor--right-panel {
-  flex: 0 0 ($flux-editor--right-panel - $cf-marg-b);
   margin-left: $cf-marg-b;
   display: flex;
 }
