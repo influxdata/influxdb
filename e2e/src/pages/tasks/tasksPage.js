@@ -12,6 +12,9 @@ const lastCompletedSortButton = '[data-testid=resource-list--sorter]:nth-of-type
 // following is only present until first task is created, so not good candidate for isLoaded check
 const createTaskDropdownBody = '[data-testid=resource-list--body] [data-testid=add-resource-dropdown--button]';
 
+const taskCardByName = '//*[@data-testid=\'task-card\'][.//span[text() = \'%NAME%\']]';
+
+
 const urlCtx = 'tasks';
 
 class tasksPage extends influxPage{
@@ -62,6 +65,10 @@ class tasksPage extends influxPage{
 
     async getCreateTaskDropdownBody(){
         return await this.driver.findElement(By.css(createTaskDropdownBody));
+    }
+
+    async getTaskCardByName(name){
+        return await this.driver.findElement(By.xpath(taskCardByName.replace('%NAME%', name)));
     }
 
 }
