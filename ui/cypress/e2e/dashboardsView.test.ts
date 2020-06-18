@@ -40,7 +40,7 @@ describe('Dashboard', () => {
     cy.getByTestID('dashboard-card').should('contain', newName)
   })
 
-  it.only('can create and destroy cells & toggle in and out of presentation mode', () => {
+  it('can create and destroy cells & toggle in and out of presentation mode', () => {
     cy.get('@org').then(({id: orgID}: Organization) => {
       cy.createDashboard(orgID).then(({body}) => {
         cy.fixture('routes').then(({orgs}) => {
