@@ -23,7 +23,7 @@ type stateCoordinator struct {
 	labelMappingsToRemove []stateLabelMappingForRemoval
 }
 
-func newStateCoordinator(pkg *Pkg) *stateCoordinator {
+func newStateCoordinator(pkg *Pkg, acts resourceActions) *stateCoordinator {
 	state := stateCoordinator{
 		mBuckets:    make(map[string]*stateBucket),
 		mChecks:     make(map[string]*stateCheck),
@@ -37,54 +37,81 @@ func newStateCoordinator(pkg *Pkg) *stateCoordinator {
 	}
 
 	for _, pkgBkt := range pkg.buckets() {
+		if acts.skipResource(KindBucket, pkgBkt.PkgName()) {
+			continue
+		}
 		state.mBuckets[pkgBkt.PkgName()] = &stateBucket{
 			parserBkt:   pkgBkt,
 			stateStatus: StateStatusNew,
 		}
 	}
 	for _, pkgCheck := range pkg.checks() {
+		if acts.skipResource(KindCheck, pkgCheck.PkgName()) {
+			continue
+		}
 		state.mChecks[pkgCheck.PkgName()] = &stateCheck{
 			parserCheck: pkgCheck,
 			stateStatus: StateStatusNew,
 		}
 	}
 	for _, pkgDash := range pkg.dashboards() {
+		if acts.skipResource(KindDashboard, pkgDash.PkgName()) {
+			continue
+		}
 		state.mDashboards[pkgDash.PkgName()] = &stateDashboard{
 			parserDash:  pkgDash,
 			stateStatus: StateStatusNew,
 		}
 	}
 	for _, pkgEndpoint := range pkg.notificationEndpoints() {
+		if acts.skipResource(KindNotificationEndpoint, pkgEndpoint.PkgName()) {
+			continue
+		}
 		state.mEndpoints[pkgEndpoint.PkgName()] = &stateEndpoint{
 			parserEndpoint: pkgEndpoint,
 			stateStatus:    StateStatusNew,
 		}
 	}
 	for _, pkgLabel := range pkg.labels() {
+		if acts.skipResource(KindLabel, pkgLabel.PkgName()) {
+			continue
+		}
 		state.mLabels[pkgLabel.PkgName()] = &stateLabel{
 			parserLabel: pkgLabel,
 			stateStatus: StateStatusNew,
 		}
 	}
 	for _, pkgRule := range pkg.notificationRules() {
+		if acts.skipResource(KindNotificationRule, pkgRule.PkgName()) {
+			continue
+		}
 		state.mRules[pkgRule.PkgName()] = &stateRule{
 			parserRule:  pkgRule,
 			stateStatus: StateStatusNew,
 		}
 	}
 	for _, pkgTask := range pkg.tasks() {
+		if acts.skipResource(KindTask, pkgTask.PkgName()) {
+			continue
+		}
 		state.mTasks[pkgTask.PkgName()] = &stateTask{
 			parserTask:  pkgTask,
 			stateStatus: StateStatusNew,
 		}
 	}
 	for _, pkgTele := range pkg.telegrafs() {
+		if acts.skipResource(KindTelegraf, pkgTele.PkgName()) {
+			continue
+		}
 		state.mTelegrafs[pkgTele.PkgName()] = &stateTelegraf{
 			parserTelegraf: pkgTele,
 			stateStatus:    StateStatusNew,
 		}
 	}
 	for _, pkgVar := range pkg.variables() {
+		if acts.skipResource(KindVariable, pkgVar.PkgName()) {
+			continue
+		}
 		state.mVariables[pkgVar.PkgName()] = &stateVariable{
 			parserVar:   pkgVar,
 			stateStatus: StateStatusNew,
@@ -1131,7 +1158,7 @@ func (r *stateRule) diffRule() DiffNotificationRule {
 	sum := DiffNotificationRule{
 		DiffIdentifier: DiffIdentifier{
 			ID:      SafeID(r.ID()),
-			Remove:  r.parserRule.shouldRemove,
+			Remove:  IsRemoval(r.stateStatus),
 			PkgName: r.parserRule.PkgName(),
 		},
 		New: DiffNotificationRuleValues{
@@ -1479,4 +1506,17 @@ func IsExisting(status StateStatus) bool {
 // from the platform.
 func IsRemoval(status StateStatus) bool {
 	return status == StateStatusRemove
+}
+
+type resourceActions struct {
+	skipKinds     map[Kind]bool
+	skipResources map[ActionSkipResource]bool
+}
+
+func (r resourceActions) skipResource(k Kind, metaName string) bool {
+	key := ActionSkipResource{
+		Kind:     k,
+		MetaName: metaName,
+	}
+	return r.skipResources[key] || r.skipKinds[k]
 }

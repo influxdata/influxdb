@@ -24,6 +24,7 @@ type DashboardBackend struct {
 	UserResourceMappingService   influxdb.UserResourceMappingService
 	LabelService                 influxdb.LabelService
 	UserService                  influxdb.UserService
+	OrganizationService          influxdb.OrganizationService
 }
 
 // NewDashboardBackend creates a backend used by the dashboard handler.
@@ -37,6 +38,7 @@ func NewDashboardBackend(log *zap.Logger, b *APIBackend) *DashboardBackend {
 		UserResourceMappingService:   b.UserResourceMappingService,
 		LabelService:                 b.LabelService,
 		UserService:                  b.UserService,
+		OrganizationService:          b.OrganizationService,
 	}
 }
 
@@ -52,6 +54,7 @@ type DashboardHandler struct {
 	UserResourceMappingService   influxdb.UserResourceMappingService
 	LabelService                 influxdb.LabelService
 	UserService                  influxdb.UserService
+	OrganizationService          influxdb.OrganizationService
 }
 
 const (
@@ -80,6 +83,7 @@ func NewDashboardHandler(log *zap.Logger, b *DashboardBackend) *DashboardHandler
 		UserResourceMappingService:   b.UserResourceMappingService,
 		LabelService:                 b.LabelService,
 		UserService:                  b.UserService,
+		OrganizationService:          b.OrganizationService,
 	}
 
 	h.HandlerFunc("POST", prefixDashboards, h.handlePostDashboard)
@@ -337,7 +341,19 @@ func (h *DashboardHandler) handleGetDashboards(w http.ResponseWriter, r *http.Re
 		}
 	}
 
-	dashboards, _, err := h.DashboardService.FindDashboards(ctx, req.filter, req.opts)
+	dashboardFilter := req.filter
+
+	if dashboardFilter.Organization != nil {
+		orgNameFilter := influxdb.OrganizationFilter{Name: dashboardFilter.Organization}
+		o, err := h.OrganizationService.FindOrganization(ctx, orgNameFilter)
+		if err != nil {
+			h.HandleHTTPError(ctx, err, w)
+			return
+		}
+		dashboardFilter.OrganizationID = &o.ID
+	}
+
+	dashboards, _, err := h.DashboardService.FindDashboards(ctx, dashboardFilter, req.opts)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return

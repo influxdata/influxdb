@@ -57,7 +57,7 @@ function parseValue(
   }
 
   if (columnType === InternalTypes.time) {
-    return Date.parse(value)
+    return Date.parse(value.replace(/(\r\n|\n|\r)/gm, '')) // remove newlines from time strings
   }
 
   if (columnType === InternalTypes.number && value === '') {
@@ -125,7 +125,6 @@ export interface ParsedFluxColumn {
   name: string
   group: string
   type: InternalTypes
-  default: string
   data: ParsedReturnTypes[]
 }
 
@@ -196,7 +195,11 @@ export default function fromFlux(csv: string): ParsedFlux {
       csv.substring(
         chunks[currentChunkIndex].start,
         chunks[currentChunkIndex].stop
-      )
+      ),
+      {
+        delimiter: ',',
+        newline: '\n',
+      }
     ).data
 
     // trim whitespace from the beginning
@@ -281,7 +284,6 @@ export default function fromFlux(csv: string): ParsedFlux {
           name: columnName,
           group: annotations['#group'][columnName],
           type: TO_COLUMN_TYPE[columnType],
-          default: annotations['#default'][columnName],
           data: [],
         }
       }
@@ -295,8 +297,8 @@ export default function fromFlux(csv: string): ParsedFlux {
           runningTotal + currentLineIndex - headerLocation - 1
         ] = parseValue(
           parsed[currentLineIndex][currentColumnIndex] ||
-            output[columnKey].default,
-          output[columnKey].type
+            annotations['#default'][columnName],
+          TO_COLUMN_TYPE[columnType]
         )
       }
     }

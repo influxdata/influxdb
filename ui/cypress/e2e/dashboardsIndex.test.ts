@@ -179,6 +179,42 @@ describe('Dashboards', () => {
       cy.getByTestID('dashboard-card').should('contain', newName)
     })
 
+    it('retains dashboard sort order after navigating away', () => {
+      const expectedDashboardOrder = ['test dashboard', 'Bee Happy']
+
+      cy.getByTestID('dashboard-card').should('have.length', 2)
+
+      // change sort order to 'Name (Z → A)'
+      cy.getByTestID('resource-sorter--button')
+        .click()
+        .then(() => {
+          cy.contains('Name (Z → A)').click()
+        })
+        .then(() => {
+          // assert dashboard order is correct
+          cy.get('span[data-testid*="dashboard-card--name"]').each(
+            (val, index) => {
+              cy.wrap(val).contains(expectedDashboardOrder[index])
+            }
+          )
+        })
+
+      // visit another page
+      cy.getByTestID('tree-nav').then(() => {
+        cy.contains('Settings').click()
+        cy.contains(
+          "Looks like there aren't any Variables, why not create one?"
+        )
+        //return to dashboards page
+        cy.contains('Boards').click()
+      })
+
+      //assert dashboard order remains the same
+      cy.get('span[data-testid*="dashboard-card--name"]').each((val, index) => {
+        cy.wrap(val).contains(expectedDashboardOrder[index])
+      })
+    })
+
     describe('Labeling', () => {
       it('can click to filter dashboard labels', () => {
         cy.getByTestID('dashboard-card').should('have.length', 2)
@@ -260,7 +296,7 @@ describe('Dashboards', () => {
         })
       })
 
-      it('typing a new label name and pressing ENTER starts label creation flow', () => {
+      it('typing a new label name and pressing ENTER starts label creation flow, closes popover', () => {
         const labelName = 'choco'
 
         cy.get('@org').then(() => {
@@ -268,10 +304,39 @@ describe('Dashboards', () => {
             .first()
             .click()
 
+          cy.getByTestID('inline-labels--popover--contents').should(
+            'be.visible'
+          )
           cy.getByTestID(`inline-labels--popover-field`)
             .type(labelName)
             .type('{enter}')
           cy.getByTestID('overlay--body').should('be.visible')
+          cy.getByTestID('inline-labels--popover--contents').should(
+            'not.be.visible'
+          )
+        })
+      })
+      it('typing a new label name and clicking name starts label creation flow, closes popover', () => {
+        // https://github.com/influxdata/influxdb/issues/17964
+        const labelName = 'the new new'
+
+        cy.get('@org').then(() => {
+          cy.getByTestID(`inline-labels--add`)
+            .first()
+            .click()
+
+          cy.getByTestID('inline-labels--popover--contents').should(
+            'be.visible'
+          )
+
+          cy.getByTestID(`inline-labels--popover-field`).type(labelName)
+
+          cy.getByTestID(`inline-labels--create-new`).click()
+
+          cy.getByTestID('overlay--body').should('be.visible')
+          cy.getByTestID('inline-labels--popover--contents').should(
+            'not.be.visible'
+          )
         })
       })
 
@@ -327,7 +392,7 @@ describe('Dashboards', () => {
         cy.getByTestID('search-widget').type(dashSearchName)
 
         cy.getByTestID('dashboard-card').should('have.length', 1)
-        cy.getByTestID('dashboard-card--name').contains('span', dashboardName)
+        cy.contains(dashboardName)
       })
     })
   })

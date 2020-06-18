@@ -2,6 +2,7 @@ package pkger
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 
 	"github.com/influxdata/influxdb/v2"
@@ -23,7 +24,7 @@ func (s *HTTPRemoteService) InitStack(ctx context.Context, userID influxdb.ID, s
 		URLs:        stack.URLs,
 	}
 
-	var respBody RespCreateStack
+	var respBody RespStack
 	err := s.Client.
 		PostJSON(reqBody, RoutePrefix, "/stacks").
 		DecodeJSON(&respBody).
@@ -32,27 +33,7 @@ func (s *HTTPRemoteService) InitStack(ctx context.Context, userID influxdb.ID, s
 		return Stack{}, err
 	}
 
-	newStack := Stack{
-		Name:        respBody.Name,
-		Description: respBody.Description,
-		URLs:        respBody.URLs,
-		Resources:   make([]StackResource, 0),
-		CRUDLog:     respBody.CRUDLog,
-	}
-
-	id, err := influxdb.IDFromString(respBody.ID)
-	if err != nil {
-		return Stack{}, err
-	}
-	newStack.ID = *id
-
-	orgID, err := influxdb.IDFromString(respBody.OrgID)
-	if err != nil {
-		return Stack{}, err
-	}
-	newStack.OrgID = *orgID
-
-	return newStack, nil
+	return convertRespStackToStack(respBody)
 }
 
 func (s *HTTPRemoteService) DeleteStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) error {
@@ -68,7 +49,7 @@ func (s *HTTPRemoteService) ExportStack(ctx context.Context, orgID, stackID infl
 		Get(RoutePrefix, "stacks", stackID.String(), "export").
 		QueryParams([2]string{"orgID", orgID.String()}).
 		Decode(func(resp *http.Response) error {
-			decodedPkg, err := Parse(EncodingJSON, FromReader(resp.Body))
+			decodedPkg, err := Parse(EncodingJSON, FromReader(resp.Body, ""))
 			if err != nil {
 				return err
 			}
@@ -104,7 +85,47 @@ func (s *HTTPRemoteService) ListStacks(ctx context.Context, orgID influxdb.ID, f
 	if err != nil {
 		return nil, err
 	}
-	return resp.Stacks, nil
+
+	out := make([]Stack, 0, len(resp.Stacks))
+	for _, st := range resp.Stacks {
+		stack, err := convertRespStackToStack(st)
+		if err != nil {
+			continue
+		}
+		out = append(out, stack)
+	}
+	return out, nil
+}
+
+func (s *HTTPRemoteService) ReadStack(ctx context.Context, id influxdb.ID) (Stack, error) {
+	var respBody RespStack
+	err := s.Client.
+		Get(RoutePrefix, "/stacks", id.String()).
+		DecodeJSON(&respBody).
+		Do(ctx)
+	if err != nil {
+		return Stack{}, err
+	}
+	return convertRespStackToStack(respBody)
+}
+
+func (s *HTTPRemoteService) UpdateStack(ctx context.Context, upd StackUpdate) (Stack, error) {
+	reqBody := ReqUpdateStack{
+		Name:        upd.Name,
+		Description: upd.Description,
+		URLs:        upd.URLs,
+	}
+
+	var respBody RespStack
+	err := s.Client.
+		PatchJSON(reqBody, RoutePrefix, "/stacks", upd.ID.String()).
+		DecodeJSON(&respBody).
+		Do(ctx)
+	if err != nil {
+		return Stack{}, err
+	}
+
+	return convertRespStackToStack(respBody)
 }
 
 // CreatePkg will produce a pkg from the parameters provided.
@@ -139,7 +160,7 @@ func (s *HTTPRemoteService) CreatePkg(ctx context.Context, setters ...CreatePkgS
 	err := s.Client.
 		PostJSON(reqBody, RoutePrefix).
 		Decode(func(resp *http.Response) error {
-			pkg, err := Parse(EncodingJSON, FromReader(resp.Body))
+			pkg, err := Parse(EncodingJSON, FromReader(resp.Body, "export"))
 			newPkg = pkg
 			return err
 		}).
@@ -157,39 +178,52 @@ func (s *HTTPRemoteService) CreatePkg(ctx context.Context, setters ...CreatePkgS
 // DryRun provides a dry run of the pkg application. The pkg will be marked verified
 // for later calls to Apply. This func will be run on an Apply if it has not been run
 // already.
-func (s *HTTPRemoteService) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (PkgImpactSummary, error) {
-	return s.apply(ctx, orgID, pkg, true, opts...)
+func (s *HTTPRemoteService) DryRun(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (PkgImpactSummary, error) {
+	return s.apply(ctx, orgID, true, opts...)
 }
 
 // Apply will apply all the resources identified in the provided pkg. The entire pkg will be applied
 // in its entirety. If a failure happens midway then the entire pkg will be rolled back to the state
 // from before the pkg was applied.
-func (s *HTTPRemoteService) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (PkgImpactSummary, error) {
-	return s.apply(ctx, orgID, pkg, false, opts...)
+func (s *HTTPRemoteService) Apply(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (PkgImpactSummary, error) {
+	return s.apply(ctx, orgID, false, opts...)
 }
 
-func (s *HTTPRemoteService) apply(ctx context.Context, orgID influxdb.ID, pkg *Pkg, dryRun bool, opts ...ApplyOptFn) (PkgImpactSummary, error) {
+func (s *HTTPRemoteService) apply(ctx context.Context, orgID influxdb.ID, dryRun bool, opts ...ApplyOptFn) (PkgImpactSummary, error) {
 	opt := applyOptFromOptFns(opts...)
 
-	var rawPkg []byte
-	if pkg != nil {
+	var rawPkg ReqRawPkg
+	for _, pkg := range opt.Pkgs {
 		b, err := pkg.Encode(EncodingJSON)
 		if err != nil {
 			return PkgImpactSummary{}, err
 		}
-		rawPkg = b
+		rawPkg.Pkg = b
+		rawPkg.Sources = pkg.sources
+		rawPkg.ContentType = EncodingJSON.String()
 	}
 
 	reqBody := ReqApplyPkg{
-		OrgID:   orgID.String(),
-		DryRun:  dryRun,
-		EnvRefs: opt.EnvRefs,
-		Secrets: opt.MissingSecrets,
-		RawPkg:  rawPkg,
+		OrgID:       orgID.String(),
+		DryRun:      dryRun,
+		EnvRefs:     opt.EnvRefs,
+		Secrets:     opt.MissingSecrets,
+		RawTemplate: rawPkg,
 	}
 	if opt.StackID != 0 {
 		stackID := opt.StackID.String()
 		reqBody.StackID = &stackID
+	}
+
+	for act := range opt.ResourcesToSkip {
+		b, err := json.Marshal(act)
+		if err != nil {
+			return PkgImpactSummary{}, influxErr(influxdb.EInvalid, err)
+		}
+		reqBody.RawActions = append(reqBody.RawActions, ReqRawAction{
+			Action:     string(ActionTypeSkipResource),
+			Properties: b,
+		})
 	}
 
 	var resp RespApplyPkg
@@ -202,6 +236,7 @@ func (s *HTTPRemoteService) apply(ctx context.Context, orgID influxdb.ID, pkg *P
 	}
 
 	impact := PkgImpactSummary{
+		Sources: resp.Sources,
 		Diff:    resp.Diff,
 		Summary: resp.Summary,
 	}
@@ -211,4 +246,29 @@ func (s *HTTPRemoteService) apply(ctx context.Context, orgID influxdb.ID, pkg *P
 	}
 
 	return impact, NewParseError(resp.Errors...)
+}
+
+func convertRespStackToStack(respStack RespStack) (Stack, error) {
+	newStack := Stack{
+		Name:        respStack.Name,
+		Description: respStack.Description,
+		Sources:     respStack.Sources,
+		URLs:        respStack.URLs,
+		Resources:   respStack.Resources,
+		CRUDLog:     respStack.CRUDLog,
+	}
+
+	id, err := influxdb.IDFromString(respStack.ID)
+	if err != nil {
+		return Stack{}, err
+	}
+	newStack.ID = *id
+
+	orgID, err := influxdb.IDFromString(respStack.OrgID)
+	if err != nil {
+		return Stack{}, err
+	}
+	newStack.OrgID = *orgID
+
+	return newStack, nil
 }

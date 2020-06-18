@@ -659,11 +659,13 @@ func (PushDownWindowAggregateRule) Name() string {
 }
 
 var windowPushableAggs = []plan.ProcedureKind{
+	universe.CountKind,
+	universe.SumKind,
 	universe.MinKind,
 	universe.MaxKind,
 	universe.MeanKind,
-	universe.CountKind,
-	universe.SumKind,
+	universe.FirstKind,
+	universe.LastKind,
 }
 
 func (rule PushDownWindowAggregateRule) Pattern() plan.Pattern {
@@ -687,28 +689,25 @@ func canPushWindowedAggregate(ctx context.Context, fnNode plan.Node) bool {
 	// and check the feature flag associated with the aggregate function.
 	switch fnNode.Kind() {
 	case universe.MinKind:
-		if !feature.PushDownWindowAggregateRest().Enabled(ctx) || !caps.HaveMin() {
+		if !feature.PushDownWindowAggregateMin().Enabled(ctx) || !caps.HaveMin() {
 			return false
 		}
-
 		minSpec := fnNode.ProcedureSpec().(*universe.MinProcedureSpec)
 		if minSpec.Column != execute.DefaultValueColLabel {
 			return false
 		}
 	case universe.MaxKind:
-		if !feature.PushDownWindowAggregateRest().Enabled(ctx) || !caps.HaveMax() {
+		if !feature.PushDownWindowAggregateMax().Enabled(ctx) || !caps.HaveMax() {
 			return false
 		}
-
 		maxSpec := fnNode.ProcedureSpec().(*universe.MaxProcedureSpec)
 		if maxSpec.Column != execute.DefaultValueColLabel {
 			return false
 		}
 	case universe.MeanKind:
-		if !feature.PushDownWindowAggregateRest().Enabled(ctx) || !caps.HaveMean() {
+		if !feature.PushDownWindowAggregateMean().Enabled(ctx) || !caps.HaveMean() {
 			return false
 		}
-
 		meanSpec := fnNode.ProcedureSpec().(*universe.MeanProcedureSpec)
 		if len(meanSpec.Columns) != 1 || meanSpec.Columns[0] != execute.DefaultValueColLabel {
 			return false
@@ -717,7 +716,6 @@ func canPushWindowedAggregate(ctx context.Context, fnNode plan.Node) bool {
 		if !feature.PushDownWindowAggregateCount().Enabled(ctx) || !caps.HaveCount() {
 			return false
 		}
-
 		countSpec := fnNode.ProcedureSpec().(*universe.CountProcedureSpec)
 		if len(countSpec.Columns) != 1 || countSpec.Columns[0] != execute.DefaultValueColLabel {
 			return false
@@ -726,9 +724,16 @@ func canPushWindowedAggregate(ctx context.Context, fnNode plan.Node) bool {
 		if !feature.PushDownWindowAggregateSum().Enabled(ctx) || !caps.HaveSum() {
 			return false
 		}
-
 		sumSpec := fnNode.ProcedureSpec().(*universe.SumProcedureSpec)
 		if len(sumSpec.Columns) != 1 || sumSpec.Columns[0] != execute.DefaultValueColLabel {
+			return false
+		}
+	case universe.FirstKind:
+		if !feature.PushDownWindowAggregateFirst().Enabled(ctx) || !caps.HaveFirst() {
+			return false
+		}
+	case universe.LastKind:
+		if !feature.PushDownWindowAggregateLast().Enabled(ctx) || !caps.HaveLast() {
 			return false
 		}
 	}

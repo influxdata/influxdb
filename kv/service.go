@@ -104,6 +104,14 @@ func NewService(log *zap.Logger, kv Store, configs ...ServiceConfig) *Service {
 		),
 		// add index user resource mappings by user id
 		s.urmByUserIndex.Migration(),
+
+		NewAnonymousMigration(
+			"migrate task owner id",
+			s.TaskOwnerIDUpMigration,
+			func(context.Context, Store) error {
+				return nil
+			},
+		),
 		// and new migrations below here (and move this comment down):
 	)
 

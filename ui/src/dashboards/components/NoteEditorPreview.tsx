@@ -14,7 +14,7 @@ const cloudImageRenderer = (): any =>
 
 const NoteEditorPreview: SFC<Props> = props => {
   return (
-    <div className="note-editor--preview">
+    <div className="note-editor--preview" data-testid="note-editor--preview">
       <DapperScrollbars
         className="note-editor--preview-scroll"
         scrollTop={props.scrollTop}

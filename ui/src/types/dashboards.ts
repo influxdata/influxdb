@@ -38,6 +38,7 @@ export interface Cell extends GenCell {
   status: RemoteDataState
   minH?: number
   minW?: number
+  maxW?: number
 }
 
 export type NewCell = Omit<Cell, 'id' | 'links' | 'dashboardID'>

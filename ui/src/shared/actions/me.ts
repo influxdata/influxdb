@@ -3,6 +3,7 @@ import {client} from 'src/utils/api'
 import {CLOUD} from 'src/shared/constants'
 import HoneyBadger from 'honeybadger-js'
 import {fireUserDataReady} from 'src/shared/utils/analytics'
+import {updateReportingContext} from 'src/cloud/utils/reporting'
 
 export const SET_ME = 'SET_ME'
 
@@ -22,6 +23,7 @@ export const getMe = () => async dispatch => {
 
     if (CLOUD) {
       fireUserDataReady(user.id, user.name)
+      updateReportingContext('userID', user.id)
     }
 
     HoneyBadger.setContext({

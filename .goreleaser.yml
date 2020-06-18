@@ -45,7 +45,7 @@ archives:
     format_overrides:
       - goos: windows
         format: zip
-    name_template: 'influxdb_client_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}'
+    name_template: "influxdb_client_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
     files:
       - LICENSE
       - README.md
@@ -82,5 +82,5 @@ dockers:
 release:
   name_template: "v{{.Version}}"
   prerelease: auto # when we go to GA remove this line
-  draft: true # when we go to GA remove this line
+  draft: false # This needs to be false, or the container image will not be published
   disable: true # we keep the artifacts in S3 and link from the website
