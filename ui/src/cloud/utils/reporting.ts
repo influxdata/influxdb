@@ -1,7 +1,5 @@
 import {useState, useEffect} from 'react'
 
-import {isFlagEnabled} from 'src/shared/utils/featureFlag'
-
 import {
   reportPoints as reportPointsAPI,
   Point,
@@ -21,10 +19,6 @@ export const updateReportingContext = (key: string, value: string) => {
 }
 
 export const reportEvent = ({timestamp, measurement, fields, tags}: Point) => {
-  if (!isFlagEnabled('appMetrics')) {
-    return
-  }
-
   reportingPoints.push({
     measurement,
     tags: {...reportingTags, ...tags},
