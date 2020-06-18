@@ -1539,9 +1539,6 @@ func TestLauncher_Pkger(t *testing.T) {
 		})
 
 		t.Run("apply with actions", func(t *testing.T) {
-			stack, cleanup := newStackFn(t, pkger.Stack{})
-			defer cleanup()
-
 			var (
 				bucketPkgName   = "rucketeer-1"
 				checkPkgName    = "checkers"
@@ -1553,70 +1550,126 @@ func TestLauncher_Pkger(t *testing.T) {
 				telegrafPkgName = "teletype"
 				variablePkgName = "laces-out-dan"
 			)
-			pkg := newPkg(
-				newBucketObject(bucketPkgName, "", ""),
-				newCheckDeadmanObject(t, checkPkgName, "", time.Hour),
-				newDashObject(dashPkgName, "", ""),
-				newEndpointHTTP(endpointPkgName, "", ""),
-				newLabelObject(labelPkgName, "", "", ""),
-				newRuleObject(t, rulePkgName, "", endpointPkgName, ""),
-				newTaskObject(taskPkgName, "", ""),
-				newTelegrafObject(telegrafPkgName, "", ""),
-				newVariableObject(variablePkgName, "", ""),
-			)
 
-			impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID,
-				pkger.ApplyWithPkg(pkg),
-				pkger.ApplyWithStackID(stack.ID),
-				pkger.ApplyWithResourceSkip(pkger.ActionSkipResource{
-					Kind:     pkger.KindBucket,
-					MetaName: bucketPkgName,
-				}),
-				pkger.ApplyWithResourceSkip(pkger.ActionSkipResource{
-					Kind:     pkger.KindCheckDeadman,
-					MetaName: checkPkgName,
-				}),
-				pkger.ApplyWithResourceSkip(pkger.ActionSkipResource{
-					Kind:     pkger.KindDashboard,
-					MetaName: dashPkgName,
-				}),
-				pkger.ApplyWithResourceSkip(pkger.ActionSkipResource{
-					Kind:     pkger.KindNotificationEndpointHTTP,
-					MetaName: endpointPkgName,
-				}),
-				pkger.ApplyWithResourceSkip(pkger.ActionSkipResource{
-					Kind:     pkger.KindLabel,
-					MetaName: labelPkgName,
-				}),
-				pkger.ApplyWithResourceSkip(pkger.ActionSkipResource{
-					Kind:     pkger.KindNotificationRule,
-					MetaName: rulePkgName,
-				}),
-				pkger.ApplyWithResourceSkip(pkger.ActionSkipResource{
-					Kind:     pkger.KindTask,
-					MetaName: taskPkgName,
-				}),
-				pkger.ApplyWithResourceSkip(pkger.ActionSkipResource{
-					Kind:     pkger.KindTelegraf,
-					MetaName: telegrafPkgName,
-				}),
-				pkger.ApplyWithResourceSkip(pkger.ActionSkipResource{
-					Kind:     pkger.KindVariable,
-					MetaName: variablePkgName,
-				}),
-			)
-			require.NoError(t, err)
+			tests := []struct {
+				name      string
+				applyOpts []pkger.ApplyOptFn
+			}{
+				{
+					name: "skip resource",
+					applyOpts: []pkger.ApplyOptFn{
+						pkger.ApplyWithResourceSkip(pkger.ActionSkipResource{
+							Kind:     pkger.KindBucket,
+							MetaName: bucketPkgName,
+						}),
+						pkger.ApplyWithResourceSkip(pkger.ActionSkipResource{
+							Kind:     pkger.KindCheckDeadman,
+							MetaName: checkPkgName,
+						}),
+						pkger.ApplyWithResourceSkip(pkger.ActionSkipResource{
+							Kind:     pkger.KindDashboard,
+							MetaName: dashPkgName,
+						}),
+						pkger.ApplyWithResourceSkip(pkger.ActionSkipResource{
+							Kind:     pkger.KindNotificationEndpointHTTP,
+							MetaName: endpointPkgName,
+						}),
+						pkger.ApplyWithResourceSkip(pkger.ActionSkipResource{
+							Kind:     pkger.KindLabel,
+							MetaName: labelPkgName,
+						}),
+						pkger.ApplyWithResourceSkip(pkger.ActionSkipResource{
+							Kind:     pkger.KindNotificationRule,
+							MetaName: rulePkgName,
+						}),
+						pkger.ApplyWithResourceSkip(pkger.ActionSkipResource{
+							Kind:     pkger.KindTask,
+							MetaName: taskPkgName,
+						}),
+						pkger.ApplyWithResourceSkip(pkger.ActionSkipResource{
+							Kind:     pkger.KindTelegraf,
+							MetaName: telegrafPkgName,
+						}),
+						pkger.ApplyWithResourceSkip(pkger.ActionSkipResource{
+							Kind:     pkger.KindVariable,
+							MetaName: variablePkgName,
+						}),
+					},
+				},
+				{
+					name: "skip kind",
+					applyOpts: []pkger.ApplyOptFn{
+						pkger.ApplyWithKindSkip(pkger.ActionSkipKind{
+							Kind: pkger.KindBucket,
+						}),
+						pkger.ApplyWithKindSkip(pkger.ActionSkipKind{
+							Kind: pkger.KindCheckDeadman,
+						}),
+						pkger.ApplyWithKindSkip(pkger.ActionSkipKind{
+							Kind: pkger.KindDashboard,
+						}),
+						pkger.ApplyWithKindSkip(pkger.ActionSkipKind{
+							Kind: pkger.KindNotificationEndpointHTTP,
+						}),
+						pkger.ApplyWithKindSkip(pkger.ActionSkipKind{
+							Kind: pkger.KindLabel,
+						}),
+						pkger.ApplyWithKindSkip(pkger.ActionSkipKind{
+							Kind: pkger.KindNotificationRule,
+						}),
+						pkger.ApplyWithKindSkip(pkger.ActionSkipKind{
+							Kind: pkger.KindTask,
+						}),
+						pkger.ApplyWithKindSkip(pkger.ActionSkipKind{
+							Kind: pkger.KindTelegraf,
+						}),
+						pkger.ApplyWithKindSkip(pkger.ActionSkipKind{
+							Kind: pkger.KindVariable,
+						}),
+					},
+				},
+			}
 
-			summary := impact.Summary
-			assert.Empty(t, summary.Buckets)
-			assert.Empty(t, summary.Checks)
-			assert.Empty(t, summary.Dashboards)
-			assert.Empty(t, summary.NotificationEndpoints)
-			assert.Empty(t, summary.Labels)
-			assert.Empty(t, summary.NotificationRules, 0)
-			assert.Empty(t, summary.Tasks)
-			assert.Empty(t, summary.TelegrafConfigs)
-			assert.Empty(t, summary.Variables)
+			for _, tt := range tests {
+				fn := func(t *testing.T) {
+					stack, cleanup := newStackFn(t, pkger.Stack{})
+					defer cleanup()
+
+					pkg := newPkg(
+						newBucketObject(bucketPkgName, "", ""),
+						newCheckDeadmanObject(t, checkPkgName, "", time.Hour),
+						newDashObject(dashPkgName, "", ""),
+						newEndpointHTTP(endpointPkgName, "", ""),
+						newLabelObject(labelPkgName, "", "", ""),
+						newRuleObject(t, rulePkgName, "", endpointPkgName, ""),
+						newTaskObject(taskPkgName, "", ""),
+						newTelegrafObject(telegrafPkgName, "", ""),
+						newVariableObject(variablePkgName, "", ""),
+					)
+
+					impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID,
+						append(
+							tt.applyOpts,
+							pkger.ApplyWithPkg(pkg),
+							pkger.ApplyWithStackID(stack.ID),
+						)...,
+					)
+					require.NoError(t, err)
+
+					summary := impact.Summary
+					assert.Empty(t, summary.Buckets)
+					assert.Empty(t, summary.Checks)
+					assert.Empty(t, summary.Dashboards)
+					assert.Empty(t, summary.NotificationEndpoints)
+					assert.Empty(t, summary.Labels)
+					assert.Empty(t, summary.NotificationRules, 0)
+					assert.Empty(t, summary.Tasks)
+					assert.Empty(t, summary.TelegrafConfigs)
+					assert.Empty(t, summary.Variables)
+				}
+
+				t.Run(tt.name, fn)
+			}
 		})
 
 		t.Run("exporting the existing state of stack resources to a pkg", func(t *testing.T) {

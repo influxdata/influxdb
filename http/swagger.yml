@@ -7699,27 +7699,43 @@ components:
                 properties:
                   action:
                     type: string
+                    enum: ["skipKind"]
+                  properties:
+                    type: object
+                    properties:
+                      kind:
+                        $ref: "#/components/schemas/TemplateKind"
+                    required: ["kind"]
+              - type: object
+                properties:
+                  action:
+                    type: string
                     enum: ["skipResource"]
                   properties:
                     type: object
                     properties:
                       kind:
-                        type: string
+                        $ref: "#/components/schemas/TemplateKind"
                       resourceTemplateName:
                         type: string
                     required: ["kind", "resourceTemplateName"]
-    PkgCreateKind:
+    TemplateKind:
       type: string
       enum:
-        - bucket
-        - check
-        - dashboard
-        - label
-        - notification_endpoint
-        - notification_rule
-        - task
-        - telegraf
-        - variable
+        - Bucket
+        - Check
+        - CheckDeadman
+        - CheckThreshold
+        - Dashboard
+        - Label
+        - NotificationEndpoint
+        - NotificationEndpointHTTP
+        - NotificationEndpointPagerDuty
+        - NotificationEndpointSlack
+        - NotificationRule
+        - Task
+        - Telegraf
+        - Variable
     PkgCreate:
       type: object
       properties:
@@ -7740,14 +7756,14 @@ components:
                   byResourceKind:
                     type: array
                     items:
-                      $ref: "#/components/schemas/PkgCreateKind"
+                      $ref: "#/components/schemas/TemplateKind"
         resources:
           type: object
           properties:
             id:
               type: string
             kind:
-              $ref: "#/components/schemas/PkgCreateKind"
+              $ref: "#/components/schemas/TemplateKind"
             name:
               type: string
           required: [id, kind]
@@ -7759,20 +7775,7 @@ components:
           apiVersion:
             type: string
           kind:
-            type: string
-            enum:
-              - Bucket
-              - CheckDeadman
-              - CheckThreshold
-              - Dashboard
-              - Label
-              - NotificationEndpointHTTP
-              - NotificationEndpointPagerDuty
-              - NotificationEndpointSlack
-              - NotificationRule
-              - Task
-              - Telegraf
-              - Variable
+            $ref: "#/components/schemas/TemplateKind"
           meta:
             type: object
             properties:
@@ -8368,7 +8371,7 @@ components:
             type: object
             properties:
               kind:
-                type: string
+                $ref: "#/components/schemas/TemplateKind"
               reason:
                 type: string
               fields:
@@ -8437,7 +8440,7 @@ components:
               resourceID:
                 type: string
               kind:
-                type: string
+                $ref: "#/components/schemas/TemplateKind"
               pkgName:
                 type: string
               associations:
@@ -8446,7 +8449,7 @@ components:
                   type: object
                   properties:
                     kind:
-                      type: string
+                      $ref: "#/components/schemas/TemplateKind"
                     pkgName:
                       type: string
         urls:
