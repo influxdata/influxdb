@@ -1,4 +1,5 @@
 import {useState, useEffect} from 'react'
+import {isEmpty} from 'lodash'
 
 import {
   reportPoints as reportPointsAPI,
@@ -6,6 +7,7 @@ import {
   PointTags,
   PointFields,
 } from 'src/cloud/apis/reporting'
+import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 
 let reportingTags = {}
 let reportingPoints = []
@@ -16,17 +18,25 @@ const REPORT_DECAY = 500 // number of miliseconds to wait after last event befor
 const REPORT_MAX_WAIT = 5000 // max number of miliseconds to wait between sends
 const REPORT_MAX_LENGTH = 300 // max number of events to queue before sending
 
-export const toNano = (ms: number) => ms * 1000000
+export const toNano = (ms: number) => Math.round(ms * 1000000)
 
 export const updateReportingContext = (key: string, value: string) => {
   reportingTags = {...reportingTags, [key]: value}
 }
 
 export const reportEvent = ({timestamp, measurement, fields, tags}: Point) => {
+  if (!isFlagEnabled('appMetrics')) {
+    return
+  }
+
+  if (isEmpty(fields)) {
+    fields = {source: 'ui'}
+  }
+
   reportingPoints.push({
     measurement,
     tags: {...reportingTags, ...tags},
-    fields: {...fields, source: 'ui'},
+    fields,
     timestamp,
   })
 
@@ -95,6 +105,18 @@ export const reportSimpleQueryPerformanceEvent = (event: string) => {
   reportQueryPerformanceEvent({
     timestamp: toNano(Date.now()),
     fields: {},
+    tags: {event},
+  })
+}
+
+export const reportSimpleQueryPerformanceDuration = (
+  event: string,
+  startTime: number,
+  duration: number
+) => {
+  reportQueryPerformanceEvent({
+    timestamp: toNano(startTime),
+    fields: {duration},
     tags: {event},
   })
 }

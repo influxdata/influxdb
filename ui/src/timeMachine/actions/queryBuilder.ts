@@ -7,7 +7,7 @@ import {fetchDemoDataBuckets} from 'src/cloud/apis/demodata'
 // Utils
 import {getActiveQuery, getActiveTimeMachine} from 'src/timeMachine/selectors'
 import {getTimeRangeWithTimezone} from 'src/dashboards/selectors'
-import {reportSimpleQueryPerformanceEvent} from 'src/cloud/utils/reporting'
+import {reportSimpleQueryPerformanceDuration} from 'src/cloud/utils/reporting'
 
 // Types
 import {
@@ -151,7 +151,7 @@ export const loadBuckets = () => async (
   dispatch: Dispatch<Action | ReturnType<typeof selectBucket>>,
   getState: GetState
 ) => {
-  reportSimpleQueryPerformanceEvent('loadBuckets function start')
+  const startTime = Date.now()
   const orgID = getOrg(getState()).id
 
   dispatch(setBuilderBucketsStatus(RemoteDataState.Loading))
@@ -182,7 +182,11 @@ export const loadBuckets = () => async (
     } else {
       dispatch(selectBucket(buckets[0], true))
     }
-    reportSimpleQueryPerformanceEvent('loadBuckets function end')
+    reportSimpleQueryPerformanceDuration(
+      'loadBuckets function',
+      startTime,
+      Date.now() - startTime
+    )
   } catch (e) {
     if (e.name === 'CancellationError') {
       return
@@ -205,7 +209,7 @@ export const loadTagSelector = (index: number) => async (
   dispatch: Dispatch<Action | ReturnType<typeof loadTagSelectorValues>>,
   getState: GetState
 ) => {
-  reportSimpleQueryPerformanceEvent('loadTagSelector function start')
+  const startTime = Date.now()
 
   const {buckets, tags} = getActiveQuery(getState()).builderConfig
 
@@ -261,7 +265,11 @@ export const loadTagSelector = (index: number) => async (
 
     dispatch(setBuilderTagKeys(index, keys))
     dispatch(loadTagSelectorValues(index))
-    reportSimpleQueryPerformanceEvent('loadTagSelector function end')
+    reportSimpleQueryPerformanceDuration(
+      'loadTagSelector function',
+      startTime,
+      Date.now() - startTime
+    )
   } catch (e) {
     if (e.name === 'CancellationError') {
       return
@@ -276,7 +284,7 @@ const loadTagSelectorValues = (index: number) => async (
   dispatch: Dispatch<Action | ReturnType<typeof loadTagSelector>>,
   getState: GetState
 ) => {
-  reportSimpleQueryPerformanceEvent('loadTagSelectorValues function start')
+  const startTime = Date.now()
 
   const state = getState()
   const {buckets, tags} = getActiveQuery(state).builderConfig
@@ -323,7 +331,11 @@ const loadTagSelectorValues = (index: number) => async (
 
     dispatch(setBuilderTagValues(index, values))
     dispatch(loadTagSelector(index + 1))
-    reportSimpleQueryPerformanceEvent('loadTagSelectorValues function end')
+    reportSimpleQueryPerformanceDuration(
+      'loadTagSelectorValues function',
+      startTime,
+      Date.now() - startTime
+    )
   } catch (e) {
     if (e.name === 'CancellationError') {
       return
