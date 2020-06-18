@@ -14,7 +14,6 @@ import (
 )
 
 func TestCmdConfig(t *testing.T) {
-
 	t.Run("create", func(t *testing.T) {
 		tests := []struct {
 			name     string

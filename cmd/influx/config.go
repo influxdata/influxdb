@@ -38,7 +38,7 @@ type cmdConfigBuilder struct {
 func (b *cmdConfigBuilder) cmd() *cobra.Command {
 	cmd := b.newCmd("config [config name]", b.cmdSwitchActiveRunEFn, false)
 	cmd.Short = "Config management commands"
-	cmd.Args = cobra.ExactArgs(1)
+	cmd.Args = cobra.ArbitraryArgs
 
 	cmd.AddCommand(
 		b.cmdCreate(),
@@ -50,13 +50,35 @@ func (b *cmdConfigBuilder) cmd() *cobra.Command {
 }
 
 func (b *cmdConfigBuilder) cmdSwitchActiveRunEFn(cmd *cobra.Command, args []string) error {
-	cfg, err := b.svc.SwitchActive(args[0])
+	if len(args) > 0 {
+		cfg, err := b.svc.SwitchActive(args[0])
+		if err != nil {
+			return err
+		}
+
+		return b.printConfigs(configPrintOpts{
+			config: cfg,
+		})
+	}
+
+	configs, err := b.svc.ListConfigs()
 	if err != nil {
 		return err
 	}
 
+	var active config.Config
+	for _, cfg := range configs {
+		if cfg.Active {
+			active = cfg
+			break
+		}
+	}
+	if !active.Active {
+		return nil
+	}
+
 	return b.printConfigs(configPrintOpts{
-		config: cfg,
+		config: active,
 	})
 }
 
