@@ -279,7 +279,7 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
       }
 
       this.pendingReload = false
-      // set the results per the view
+
       const queryText = queries[0].text
       const queryID = hashCode(queryText)
       if (queryID && files.length) {
