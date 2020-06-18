@@ -24,6 +24,8 @@ fs.mkdirSync(__screenShotDir,  { recursive: true });
 var common = '--require "src/step_definitions/**/*.js" --require hooks.js --require-module babel-core/register ';
 
 let caps = new Capabilities();
+caps.set('enableVNC', true);
+caps.set('enableVideo', true);
 
 let chromeUserPreferences = { 'download.prompt_for_download': false, "download.default_directory": __basedir };
 let windowSize = { "width": 1024, "height": 768 };
