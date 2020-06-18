@@ -3,6 +3,7 @@ import {get} from 'lodash'
 
 // Types
 import {LocalStorage} from 'src/types'
+import {FlagState} from 'src/shared/reducers/flags'
 
 // Constants
 import {VERSION} from 'src/shared/constants'
@@ -39,7 +40,7 @@ export const normalizeSetLocalStorage = (state: LocalStorage): LocalStorage => {
     VERSION,
     autoRefresh,
     userSettings,
-    flags: { override: flags.override },
+    flags: {override: flags.override} as FlagState,
     app: normalizeApp(app),
     ranges: setLocalStateRanges(ranges),
     resources: normalizeResources(state),
