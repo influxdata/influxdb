@@ -19,7 +19,7 @@ use parquet::{
 use snafu::{ResultExt, Snafu};
 
 use crate::metadata::parquet_schema_as_string;
-use delorean_table::{packers::Packer, DeloreanTableWriter, Error as TableError};
+use delorean_table::{DeloreanTableWriter, Error as TableError, Packers};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -62,23 +62,24 @@ where
     /// # use delorean_table_schema;
     /// # use delorean_table_schema::DataType;
     /// # use delorean_table::DeloreanTableWriter;
-    /// # use delorean_table::packers::Packer;
+    /// # use delorean_table::packers::{Packer, Packers};
     /// # use delorean_parquet::writer::DeloreanParquetTableWriter;
+    /// # use parquet::data_type::ByteArray;
     ///
     /// let schema = delorean_table_schema::SchemaBuilder::new("measurement_name")
     ///      .tag("tag1")
     ///      .field("field1", delorean_table_schema::DataType::Integer)
     ///      .build();
     ///
-    /// let mut packers = vec![
-    ///     Packer::new(DataType::String),  // 0: tag1
-    ///     Packer::new(DataType::Integer), // 1: field1
-    ///     Packer::new(DataType::Integer), // 2: timestamp
+    /// let mut packers: Vec<Packers> = vec![
+    ///     Packers::String(Packer::new()),  // 0: tag1
+    ///     Packers::Integer(Packer::new()), // 1: field1
+    ///     Packers::Integer(Packer::new()), // 2: timestamp
     /// ];
     ///
-    /// packers[0].pack_str(Some("tag1")); // tag1 val
-    /// packers[1].pack_i64(Some(100));    // field1 val
-    /// packers[2].pack_none();            // no timestamp
+    /// packers[0].str_packer_mut().push(ByteArray::from("tag1")); // tag1 val
+    /// packers[1].i64_packer_mut().push(100);    // field1 val
+    /// packers[2].push_none();                         // no timestamp
     ///
     /// // Write to '/tmp/example.parquet'
     /// let mut output_file_name = std::env::temp_dir();
@@ -126,7 +127,7 @@ where
     /// column chunk
     ///
     /// TODO: better control of column chunks
-    fn write_batch(&mut self, packers: &[Packer]) -> Result<(), TableError> {
+    fn write_batch(&mut self, packers: &[Packers]) -> Result<(), TableError> {
         // now write out the data
         let mut row_group_writer =
             self.file_writer
@@ -154,15 +155,18 @@ where
                     });
                 }
             };
+            // TODO(edd) This seems super awkward and not the right way to do it...
+            // We know we have a direct mapping between a col_writer (ColumnWriter)
+            // type and a Packers variant. We also know that we do exactly the same
+            // work for each variant (we just dispatch to the writ_batch method)
+            // on the column write.
+            //
+            // I think this match could be so much shorter but not sure how yet.
             match col_writer {
                 BoolColumnWriter(ref mut w) => {
-                    let bool_packer = packer.as_bool_packer();
+                    let p = packer.bool_packer();
                     let n = w
-                        .write_batch(
-                            &bool_packer.values,
-                            Some(&bool_packer.def_levels),
-                            Some(&bool_packer.rep_levels),
-                        )
+                        .write_batch(p.values(), Some(p.def_levels()), Some(p.rep_levels()))
                         .context(ParquetLibraryError {
                             message: String::from("Can't write_batch with bool values"),
                         })?;
@@ -170,13 +174,9 @@ where
                 }
                 Int32ColumnWriter(_) => unreachable!("ParquetWriter does not support INT32 data"),
                 Int64ColumnWriter(ref mut w) => {
-                    let int_packer = packer.as_int_packer();
+                    let p = packer.i64_packer();
                     let n = w
-                        .write_batch(
-                            &int_packer.values,
-                            Some(&int_packer.def_levels),
-                            Some(&int_packer.rep_levels),
-                        )
+                        .write_batch(p.values(), Some(p.def_levels()), Some(p.rep_levels()))
                         .context(ParquetLibraryError {
                             message: String::from("Can't write_batch with int64 values"),
                         })?;
@@ -187,26 +187,18 @@ where
                     unreachable!("ParquetWriter does not support FLOAT (32-bit float) data")
                 }
                 DoubleColumnWriter(ref mut w) => {
-                    let float_packer = packer.as_float_packer();
+                    let p = packer.f64_packer();
                     let n = w
-                        .write_batch(
-                            &float_packer.values,
-                            Some(&float_packer.def_levels),
-                            Some(&float_packer.rep_levels),
-                        )
+                        .write_batch(p.values(), Some(p.def_levels()), Some(p.rep_levels()))
                         .context(ParquetLibraryError {
                             message: String::from("Can't write_batch with f64 values"),
                         })?;
                     debug!("Wrote {} rows of f64 data", n);
                 }
                 ByteArrayColumnWriter(ref mut w) => {
-                    let string_packer = packer.as_string_packer();
+                    let p = packer.str_packer();
                     let n = w
-                        .write_batch(
-                            &string_packer.values,
-                            Some(&string_packer.def_levels),
-                            Some(&string_packer.rep_levels),
-                        )
+                        .write_batch(p.values(), Some(p.def_levels()), Some(p.rep_levels()))
                         .context(ParquetLibraryError {
                             message: String::from("Can't write_batch with byte array values"),
                         })?;
