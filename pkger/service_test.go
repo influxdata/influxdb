@@ -81,6 +81,69 @@ func TestService(t *testing.T) {
 	}
 
 	t.Run("DryRun", func(t *testing.T) {
+		type dryRunTestFields struct {
+			path          string
+			kinds         []Kind
+			skipResources []ActionSkipResource
+			assertFn      func(*testing.T, PkgImpactSummary)
+		}
+
+		testDryRunActions := func(t *testing.T, fields dryRunTestFields) {
+			t.Helper()
+
+			var skipResOpts []ApplyOptFn
+			for _, asr := range fields.skipResources {
+				skipResOpts = append(skipResOpts, ApplyWithResourceSkip(asr))
+			}
+
+			testfileRunner(t, fields.path, func(t *testing.T, pkg *Pkg) {
+				t.Helper()
+
+				tests := []struct {
+					name      string
+					applyOpts []ApplyOptFn
+				}{
+					{
+						name:      "skip resources",
+						applyOpts: skipResOpts,
+					},
+				}
+
+				for _, k := range fields.kinds {
+					tests = append(tests, struct {
+						name      string
+						applyOpts []ApplyOptFn
+					}{
+						name: "skip kind " + k.String(),
+						applyOpts: []ApplyOptFn{
+							ApplyWithKindSkip(ActionSkipKind{
+								Kind: k,
+							}),
+						},
+					})
+				}
+
+				for _, tt := range tests {
+					fn := func(t *testing.T) {
+						t.Helper()
+
+						svc := newTestService()
+
+						impact, err := svc.DryRun(
+							context.TODO(),
+							influxdb.ID(100),
+							0,
+							append(tt.applyOpts, ApplyWithPkg(pkg))...,
+						)
+						require.NoError(t, err)
+
+						fields.assertFn(t, impact)
+					}
+					t.Run(tt.name, fn)
+				}
+			})
+		}
+
 		t.Run("buckets", func(t *testing.T) {
 			t.Run("single bucket updated", func(t *testing.T) {
 				testfileRunner(t, "testdata/bucket.yml", func(t *testing.T, pkg *Pkg) {
@@ -155,52 +218,22 @@ func TestService(t *testing.T) {
 			})
 
 			t.Run("with actions applied", func(t *testing.T) {
-				testfileRunner(t, "testdata/bucket.yml", func(t *testing.T, pkg *Pkg) {
-					fakeBktSVC := mock.NewBucketService()
-					fakeBktSVC.FindBucketByNameFn = func(_ context.Context, orgID influxdb.ID, name string) (*influxdb.Bucket, error) {
-						if name != "rucket-11" {
-							return nil, errors.New("not found")
-						}
-						return &influxdb.Bucket{
-							ID:              influxdb.ID(1),
-							OrgID:           orgID,
-							Name:            name,
-							Description:     "old desc",
-							RetentionPeriod: 30 * time.Hour,
-						}, nil
-					}
-					svc := newTestService(WithBucketSVC(fakeBktSVC))
-
-					impact, err := svc.DryRun(context.TODO(), influxdb.ID(100), 0,
-						ApplyWithPkg(pkg),
-						ApplyWithResourceSkip(ActionSkipResource{
+				testDryRunActions(t, dryRunTestFields{
+					path:  "testdata/bucket.yml",
+					kinds: []Kind{KindBucket},
+					skipResources: []ActionSkipResource{
+						{
+							Kind:     KindBucket,
+							MetaName: "rucket-22",
+						},
+						{
 							Kind:     KindBucket,
 							MetaName: "rucket-11",
-						}),
-					)
-					require.NoError(t, err)
-
-					require.Len(t, impact.Diff.Buckets, 1)
-					assert.Equal(t, "rucket-22", impact.Diff.Buckets[0].PkgName)
-
-					expected := DiffBucket{
-						DiffIdentifier: DiffIdentifier{
-							ID:          SafeID(1),
-							StateStatus: StateStatusExists,
-							PkgName:     "rucket-11",
 						},
-						Old: &DiffBucketValues{
-							Name:           "rucket-11",
-							Description:    "old desc",
-							RetentionRules: retentionRules{newRetentionRule(30 * time.Hour)},
-						},
-						New: DiffBucketValues{
-							Name:           "rucket-11",
-							Description:    "bucket 1 description",
-							RetentionRules: retentionRules{newRetentionRule(time.Hour)},
-						},
-					}
-					assert.NotContains(t, impact.Diff.Buckets, expected)
+					},
+					assertFn: func(t *testing.T, impact PkgImpactSummary) {
+						require.Empty(t, impact.Diff.Buckets)
+					},
 				})
 			})
 		})
@@ -247,46 +280,44 @@ func TestService(t *testing.T) {
 			})
 
 			t.Run("with actions applied", func(t *testing.T) {
-				testfileRunner(t, "testdata/checks.yml", func(t *testing.T, pkg *Pkg) {
-					svc := newTestService()
-
-					impact, err := svc.DryRun(context.TODO(), influxdb.ID(100), 0,
-						ApplyWithPkg(pkg),
-						ApplyWithResourceSkip(ActionSkipResource{
+				testDryRunActions(t, dryRunTestFields{
+					path:  "testdata/checks.yml",
+					kinds: []Kind{KindCheck, KindCheckDeadman, KindCheckThreshold},
+					skipResources: []ActionSkipResource{
+						{
 							Kind:     KindCheck,
 							MetaName: "check-0",
-						}),
-						ApplyWithResourceSkip(ActionSkipResource{
-							Kind:     KindCheckDeadman,
+						},
+						{
+							Kind:     KindCheck,
 							MetaName: "check-1",
-						}),
-					)
-					require.NoError(t, err)
-
-					require.Empty(t, impact.Diff.Checks)
+						},
+					},
+					assertFn: func(t *testing.T, impact PkgImpactSummary) {
+						require.Empty(t, impact.Diff.Checks)
+					},
 				})
 			})
 		})
 
 		t.Run("dashboards", func(t *testing.T) {
 			t.Run("with actions applied", func(t *testing.T) {
-				testfileRunner(t, "testdata/dashboard.json", func(t *testing.T, pkg *Pkg) {
-					svc := newTestService()
-
-					impact, err := svc.DryRun(context.TODO(), influxdb.ID(100), 0,
-						ApplyWithPkg(pkg),
-						ApplyWithResourceSkip(ActionSkipResource{
+				testDryRunActions(t, dryRunTestFields{
+					path:  "testdata/dashboard.yml",
+					kinds: []Kind{KindDashboard},
+					skipResources: []ActionSkipResource{
+						{
 							Kind:     KindDashboard,
 							MetaName: "dash-1",
-						}),
-						ApplyWithResourceSkip(ActionSkipResource{
+						},
+						{
 							Kind:     KindDashboard,
 							MetaName: "dash-2",
-						}),
-					)
-					require.NoError(t, err)
-
-					require.Len(t, impact.Diff.Dashboards, 0)
+						},
+					},
+					assertFn: func(t *testing.T, impact PkgImpactSummary) {
+						require.Empty(t, impact.Diff.Dashboards)
+					},
 				})
 			})
 		})
@@ -378,58 +409,26 @@ func TestService(t *testing.T) {
 			})
 
 			t.Run("with actions applied", func(t *testing.T) {
-				testfileRunner(t, "testdata/label.json", func(t *testing.T, pkg *Pkg) {
-					fakeLabelSVC := mock.NewLabelService()
-					fakeLabelSVC.FindLabelsFn = func(_ context.Context, filter influxdb.LabelFilter) ([]*influxdb.Label, error) {
-						return []*influxdb.Label{
-							{
-								ID:   influxdb.ID(1),
-								Name: filter.Name,
-								Properties: map[string]string{
-									"color":       "old color",
-									"description": "old description",
-								},
-							},
-						}, nil
-					}
-					svc := newTestService(WithLabelSVC(fakeLabelSVC))
-
-					impact, err := svc.DryRun(context.TODO(), influxdb.ID(100), 0,
-						ApplyWithPkg(pkg),
-						ApplyWithResourceSkip(ActionSkipResource{
+				testDryRunActions(t, dryRunTestFields{
+					path:  "testdata/label.yml",
+					kinds: []Kind{KindLabel},
+					skipResources: []ActionSkipResource{
+						{
 							Kind:     KindLabel,
 							MetaName: "label-1",
-						}),
-					)
-					require.NoError(t, err)
-
-					require.Len(t, impact.Diff.Labels, 2)
-
-					expected := DiffLabel{
-						DiffIdentifier: DiffIdentifier{
-							ID:          SafeID(1),
-							StateStatus: StateStatusExists,
-							PkgName:     "label-1",
 						},
-						Old: &DiffLabelValues{
-							Name:        "label-1",
-							Color:       "old color",
-							Description: "old description",
+						{
+							Kind:     KindLabel,
+							MetaName: "label-2",
 						},
-						New: DiffLabelValues{
-							Name:        "label-1",
-							Color:       "#FFFFFF",
-							Description: "label 1 description",
+						{
+							Kind:     KindLabel,
+							MetaName: "label-3",
 						},
-					}
-					assert.NotContains(t, impact.Diff.Labels, expected)
-
-					expected.PkgName = "label-2"
-					expected.New.Name = "label-2"
-					expected.New.Color = "#000000"
-					expected.New.Description = "label 2 description"
-					expected.Old.Name = "label-2"
-					assert.Contains(t, impact.Diff.Labels, expected)
+					},
+					assertFn: func(t *testing.T, impact PkgImpactSummary) {
+						require.Empty(t, impact.Diff.Labels)
+					},
 				})
 			})
 		})
@@ -503,35 +502,39 @@ func TestService(t *testing.T) {
 			})
 
 			t.Run("with actions applied", func(t *testing.T) {
-				testfileRunner(t, "testdata/notification_endpoint.yml", func(t *testing.T, pkg *Pkg) {
-					svc := newTestService()
-
-					impact, err := svc.DryRun(context.TODO(), influxdb.ID(100), 0,
-						ApplyWithPkg(pkg),
-						ApplyWithResourceSkip(ActionSkipResource{
+				testDryRunActions(t, dryRunTestFields{
+					path: "testdata/notification_endpoint.yml",
+					kinds: []Kind{
+						KindNotificationEndpoint,
+						KindNotificationEndpointHTTP,
+						KindNotificationEndpointPagerDuty,
+						KindNotificationEndpointSlack,
+					},
+					skipResources: []ActionSkipResource{
+						{
 							Kind:     KindNotificationEndpoint,
 							MetaName: "http-none-auth-notification-endpoint",
-						}),
-						ApplyWithResourceSkip(ActionSkipResource{
+						},
+						{
 							Kind:     KindNotificationEndpoint,
 							MetaName: "http-bearer-auth-notification-endpoint",
-						}),
-						ApplyWithResourceSkip(ActionSkipResource{
+						},
+						{
 							Kind:     KindNotificationEndpointHTTP,
 							MetaName: "http-basic-auth-notification-endpoint",
-						}),
-						ApplyWithResourceSkip(ActionSkipResource{
+						},
+						{
 							Kind:     KindNotificationEndpointSlack,
 							MetaName: "slack-notification-endpoint",
-						}),
-						ApplyWithResourceSkip(ActionSkipResource{
+						},
+						{
 							Kind:     KindNotificationEndpointPagerDuty,
 							MetaName: "pager-duty-notification-endpoint",
-						}),
-					)
-					require.NoError(t, err)
-
-					require.Empty(t, impact.Diff.NotificationEndpoints)
+						},
+					},
+					assertFn: func(t *testing.T, impact PkgImpactSummary) {
+						require.Empty(t, impact.Diff.NotificationEndpoints)
+					},
 				})
 			})
 		})
@@ -588,19 +591,18 @@ func TestService(t *testing.T) {
 			})
 
 			t.Run("with actions applied", func(t *testing.T) {
-				testfileRunner(t, "testdata/notification_rule.yml", func(t *testing.T, pkg *Pkg) {
-					svc := newTestService()
-
-					impact, err := svc.DryRun(context.TODO(), influxdb.ID(100), 0,
-						ApplyWithPkg(pkg),
-						ApplyWithResourceSkip(ActionSkipResource{
+				testDryRunActions(t, dryRunTestFields{
+					path:  "testdata/notification_rule.yml",
+					kinds: []Kind{KindNotificationRule},
+					skipResources: []ActionSkipResource{
+						{
 							Kind:     KindNotificationRule,
 							MetaName: "rule-uuid",
-						}),
-					)
-					require.NoError(t, err)
-
-					require.Empty(t, impact.Diff.NotificationRules)
+						},
+					},
+					assertFn: func(t *testing.T, impact PkgImpactSummary) {
+						require.Empty(t, impact.Diff.NotificationRules)
+					},
 				})
 			})
 		})
@@ -622,46 +624,44 @@ func TestService(t *testing.T) {
 
 		t.Run("tasks", func(t *testing.T) {
 			t.Run("with actions applied", func(t *testing.T) {
-				testfileRunner(t, "testdata/tasks.json", func(t *testing.T, pkg *Pkg) {
-					svc := newTestService()
-
-					impact, err := svc.DryRun(context.TODO(), influxdb.ID(100), 0,
-						ApplyWithPkg(pkg),
-						ApplyWithResourceSkip(ActionSkipResource{
+				testDryRunActions(t, dryRunTestFields{
+					path:  "testdata/tasks.yml",
+					kinds: []Kind{KindTask},
+					skipResources: []ActionSkipResource{
+						{
 							Kind:     KindTask,
 							MetaName: "task-uuid",
-						}),
-						ApplyWithResourceSkip(ActionSkipResource{
+						},
+						{
 							Kind:     KindTask,
 							MetaName: "task-1",
-						}),
-					)
-					require.NoError(t, err)
-
-					require.Len(t, impact.Diff.Tasks, 0)
+						},
+					},
+					assertFn: func(t *testing.T, impact PkgImpactSummary) {
+						require.Empty(t, impact.Diff.Tasks)
+					},
 				})
 			})
 		})
 
 		t.Run("telegraf configs", func(t *testing.T) {
 			t.Run("with actions applied", func(t *testing.T) {
-				testfileRunner(t, "testdata/telegraf.json", func(t *testing.T, pkg *Pkg) {
-					svc := newTestService()
-
-					impact, err := svc.DryRun(context.TODO(), influxdb.ID(100), 0,
-						ApplyWithPkg(pkg),
-						ApplyWithResourceSkip(ActionSkipResource{
+				testDryRunActions(t, dryRunTestFields{
+					path:  "testdata/telegraf.yml",
+					kinds: []Kind{KindTelegraf},
+					skipResources: []ActionSkipResource{
+						{
 							Kind:     KindTelegraf,
 							MetaName: "first-tele-config",
-						}),
-						ApplyWithResourceSkip(ActionSkipResource{
+						},
+						{
 							Kind:     KindTelegraf,
 							MetaName: "tele-2",
-						}),
-					)
-					require.NoError(t, err)
-
-					require.Len(t, impact.Diff.Telegrafs, 0)
+						},
+					},
+					assertFn: func(t *testing.T, impact PkgImpactSummary) {
+						require.Empty(t, impact.Diff.Telegrafs)
+					},
 				})
 			})
 		})
@@ -728,31 +728,30 @@ func TestService(t *testing.T) {
 			})
 
 			t.Run("with actions applied", func(t *testing.T) {
-				testfileRunner(t, "testdata/variables.json", func(t *testing.T, pkg *Pkg) {
-					svc := newTestService()
-
-					impact, err := svc.DryRun(context.TODO(), influxdb.ID(100), 0,
-						ApplyWithPkg(pkg),
-						ApplyWithResourceSkip(ActionSkipResource{
+				testDryRunActions(t, dryRunTestFields{
+					path:  "testdata/variables.yml",
+					kinds: []Kind{KindVariable},
+					skipResources: []ActionSkipResource{
+						{
 							Kind:     KindVariable,
 							MetaName: "var-query-1",
-						}),
-						ApplyWithResourceSkip(ActionSkipResource{
+						},
+						{
 							Kind:     KindVariable,
 							MetaName: "var-query-2",
-						}),
-						ApplyWithResourceSkip(ActionSkipResource{
+						},
+						{
 							Kind:     KindVariable,
 							MetaName: "var-const-3",
-						}),
-						ApplyWithResourceSkip(ActionSkipResource{
+						},
+						{
 							Kind:     KindVariable,
 							MetaName: "var-map-4",
-						}),
-					)
-					require.NoError(t, err)
-
-					require.Empty(t, impact.Diff.Variables)
+						},
+					},
+					assertFn: func(t *testing.T, impact PkgImpactSummary) {
+						require.Empty(t, impact.Diff.Variables)
+					},
 				})
 			})
 		})

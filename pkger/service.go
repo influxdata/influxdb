@@ -964,6 +964,7 @@ func (s *Service) dryRun(ctx context.Context, orgID influxdb.ID, pkg *Pkg, opt A
 	}
 
 	state := newStateCoordinator(pkg, resourceActions{
+		skipKinds:     opt.KindsToSkip,
 		skipResources: opt.ResourcesToSkip,
 	})
 
@@ -1374,6 +1375,7 @@ type (
 		MissingSecrets  map[string]string
 		StackID         influxdb.ID
 		ResourcesToSkip map[ActionSkipResource]bool
+		KindsToSkip     map[Kind]bool
 	}
 
 	// ActionSkipResource provides an action from the consumer to use the pkg with
@@ -1381,6 +1383,12 @@ type (
 	ActionSkipResource struct {
 		Kind     Kind   `json:"kind"`
 		MetaName string `json:"resourceTemplateName"`
+	}
+
+	// ActionSkipKind provides an action from the consumer to use the pkg with
+	// modifications to the resource kinds will be applied.
+	ActionSkipKind struct {
+		Kind Kind `json:"kind"`
 	}
 
 	// ApplyOptFn updates the ApplyOpt per the functional option.
@@ -1401,7 +1409,7 @@ func ApplyWithPkg(pkg *Pkg) ApplyOptFn {
 	}
 }
 
-// ApplyWithResourceSkip provides an action to the application of a template.
+// ApplyWithResourceSkip provides an action skip a resource in the application of a template.
 func ApplyWithResourceSkip(action ActionSkipResource) ApplyOptFn {
 	return func(opt *ApplyOpt) {
 		if opt.ResourcesToSkip == nil {
@@ -1413,10 +1421,27 @@ func ApplyWithResourceSkip(action ActionSkipResource) ApplyOptFn {
 		case KindNotificationEndpointHTTP,
 			KindNotificationEndpointPagerDuty,
 			KindNotificationEndpointSlack:
-			//normalize all endpoint types to base type
 			action.Kind = KindNotificationEndpoint
 		}
 		opt.ResourcesToSkip[action] = true
+	}
+}
+
+// ApplyWithKindSkip provides an action skip a kidn in the application of a template.
+func ApplyWithKindSkip(action ActionSkipKind) ApplyOptFn {
+	return func(opt *ApplyOpt) {
+		if opt.KindsToSkip == nil {
+			opt.KindsToSkip = make(map[Kind]bool)
+		}
+		switch action.Kind {
+		case KindCheckDeadman, KindCheckThreshold:
+			action.Kind = KindCheck
+		case KindNotificationEndpointHTTP,
+			KindNotificationEndpointPagerDuty,
+			KindNotificationEndpointSlack:
+			action.Kind = KindNotificationEndpoint
+		}
+		opt.KindsToSkip[action.Kind] = true
 	}
 }
 
