@@ -67,13 +67,15 @@ class GetResources extends PureComponent<Props, StateProps> {
     resources.forEach(resource => {
       promises.push(this.getResourceDetails(resource))
     })
-    Promise.all(promises).then(() =>
+
+    const gotResources = resources.join(', ')
+    Promise.all(promises).then(() => {
       reportSimpleQueryPerformanceDuration(
-        `GetResources ${resources.join(', ')}`,
+        `GetResources ${gotResources}`,
         startTime,
         Date.now() - startTime
       )
-    )
+    })
   }
 
   private getResourceDetails(resource: ResourceType) {
