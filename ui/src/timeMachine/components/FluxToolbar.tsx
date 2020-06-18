@@ -53,6 +53,7 @@ const FluxToolbar: FC<Props> = ({
           onClick={handleTabClick}
           name="Functions"
           active={activeTab === 'functions'}
+          testID="functions-toolbar-tab"
         />
         {activeQueryBuilderTab !== 'customCheckQuery' && (
           <FluxToolbarTab
