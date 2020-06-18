@@ -2158,7 +2158,7 @@ spec:
 						require.True(t, ok)
 						assert.Equal(t, "xy", props.GetType())
 						assert.Equal(t, true, props.ShadeBelow)
-						assert.Equal(t, "auto", props.HoverDimension)
+						assert.Equal(t, "y", props.HoverDimension)
 						assert.Equal(t, "xy chart note", props.Note)
 						assert.True(t, props.ShowNoteWhenEmpty)
 						assert.Equal(t, "stacked", props.Position)
