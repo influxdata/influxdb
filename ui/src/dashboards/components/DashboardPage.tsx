@@ -17,7 +17,7 @@ import RateLimitAlert from 'src/cloud/components/RateLimitAlert'
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
 
 // Selectors & Actions
-import {resetCachedQueryResults} from 'src/data/actions'
+import {resetCachedQueryResults} from 'src/queryCache/actions'
 import {getByID} from 'src/resources/selectors'
 
 // Types

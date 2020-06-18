@@ -2,32 +2,30 @@
 import {produce} from 'immer'
 
 // Actions
-import {Action} from 'src/data/actions'
+import {Action} from 'src/queryCache/actions'
 
-export interface DataState {
+export interface QueryCacheState {
   queryResultsByQueryID: {[queryID: string]: string[]}
 }
 
-export const initialState: DataState = {
+export const initialState: QueryCacheState = {
   queryResultsByQueryID: {},
 }
 
-export const dataReducer = (
-  state: DataState = initialState,
+export const queryCacheReducer = (
+  state: QueryCacheState = initialState,
   action: Action
-): DataState => {
+): QueryCacheState => {
   switch (action.type) {
     case 'SET_QUERY_RESULTS_BY_QUERY': {
       return produce(state, draftState => {
         const {queryID, files} = action
-        if (queryID && files.length) {
-          draftState.queryResultsByQueryID[queryID] = files
-        }
+        draftState.queryResultsByQueryID[queryID] = files
       })
     }
 
     case 'RESET_CACHED_QUERY_RESULTS': {
-      return initialState
+      return {queryResultsByQueryID: {}}
     }
   }
 

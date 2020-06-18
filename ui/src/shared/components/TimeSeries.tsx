@@ -32,6 +32,7 @@ import {
   isDemoDataAvailabilityError,
   demoDataError,
 } from 'src/cloud/utils/demoDataErrors'
+import {hashCode} from 'src/queryCache/actions'
 
 // Constants
 import {
@@ -43,7 +44,7 @@ import {TIME_RANGE_START, TIME_RANGE_STOP} from 'src/variables/constants'
 
 // Actions
 import {notify as notifyAction} from 'src/shared/actions/notifications'
-import {setQueryResultsByQueryID} from 'src/data/actions'
+import {setQueryResultsByQueryID} from 'src/queryCache/actions'
 
 // Types
 import {
@@ -88,7 +89,7 @@ interface OwnProps {
 
 interface DispatchProps {
   notify: typeof notifyAction
-  setQueryResults: typeof setQueryResultsByQueryID
+  onSetQueryResultsByQueryID: typeof setQueryResultsByQueryID
 }
 
 type Props = StateProps & OwnProps & DispatchProps
@@ -183,7 +184,13 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
   }
 
   private reload = async () => {
-    const {variables, setQueryResults, notify, check, buckets} = this.props
+    const {
+      buckets,
+      check,
+      notify,
+      onSetQueryResultsByQueryID,
+      variables,
+    } = this.props
     const queries = this.props.queries.filter(({text}) => !!text.trim())
 
     if (!queries.length) {
@@ -274,7 +281,10 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
       this.pendingReload = false
       // set the results per the view
       const queryText = queries[0].text
-      setQueryResults(queryText, files)
+      const queryID = hashCode(queryText)
+      if (queryID && files.length) {
+        onSetQueryResultsByQueryID(queryID, files)
+      }
 
       this.setState({
         giraffeResult,
@@ -351,7 +361,7 @@ const mstp = (state: AppState, props: OwnProps): StateProps => {
 
 const mdtp: DispatchProps = {
   notify: notifyAction,
-  setQueryResults: setQueryResultsByQueryID,
+  onSetQueryResultsByQueryID: setQueryResultsByQueryID,
 }
 
 export default connect<StateProps, {}, OwnProps>(

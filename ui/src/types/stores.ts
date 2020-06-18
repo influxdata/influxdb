@@ -30,7 +30,7 @@ import {AlertBuilderState} from 'src/alerting/reducers/alertBuilder'
 import {CurrentPage} from 'src/shared/reducers/currentPage'
 import {DemoDataState} from 'src/cloud/reducers/demodata'
 import {OrgSettingsState} from 'src/cloud/reducers/orgsettings'
-import {DataState} from 'src/data/reducers'
+import {QueryCacheState} from 'src/queryCache/reducers'
 
 export interface AppState {
   alertBuilder: AlertBuilderState
@@ -43,7 +43,7 @@ export interface AppState {
   }
   currentPage: CurrentPage
   currentDashboard: CurrentDashboardState
-  data: DataState
+  queryCache: QueryCacheState
   dataLoading: DataLoadingState
   links: Links
   me: MeState

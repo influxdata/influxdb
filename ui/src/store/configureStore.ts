@@ -55,7 +55,7 @@ import alertBuilderReducer from 'src/alerting/reducers/alertBuilder'
 
 // Types
 import {AppState, LocalStorage} from 'src/types'
-import {dataReducer} from 'src/data/reducers'
+import {queryCacheReducer} from 'src/queryCache/reducers'
 
 type ReducerState = Pick<AppState, Exclude<keyof AppState, 'timeRange'>>
 
@@ -74,7 +74,6 @@ export const rootReducer = combineReducers<ReducerState>({
   }),
   currentPage: currentPageReducer,
   currentDashboard: currentDashboardReducer,
-  data: dataReducer,
   dataLoading: dataLoadingReducer,
   me: meReducer,
   flags: flagReducer,
@@ -83,6 +82,7 @@ export const rootReducer = combineReducers<ReducerState>({
   overlays: overlaysReducer,
   plugins: pluginsResourceReducer,
   predicates: predicatesReducer,
+  queryCache: queryCacheReducer,
   ranges: rangesReducer,
   resources: combineReducers({
     buckets: bucketsReducer,

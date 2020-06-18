@@ -16,7 +16,7 @@ import {notify} from 'src/shared/actions/notifications'
 import {setActiveTimeMachine} from 'src/timeMachine/actions'
 import {executeQueries} from 'src/timeMachine/actions/queries'
 import {setView, Action} from 'src/views/actions/creators'
-import {hashCode} from 'src/data/actions'
+import {hashCode} from 'src/queryCache/actions'
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 import {setQueryResults} from 'src/timeMachine/actions/queries'
 
@@ -132,7 +132,7 @@ export const setQueryResultsByQueryID = (queryID: string) => (
 ): Promise<void> => {
   try {
     const state = getState()
-    const files = state.data.queryResultsByQueryID[hashCode(queryID)]
+    const files = state.queryCache.queryResultsByQueryID[hashCode(queryID)]
     if (files) {
       dispatch(setQueryResults(RemoteDataState.Done, files, null, null))
       return
@@ -140,7 +140,6 @@ export const setQueryResultsByQueryID = (queryID: string) => (
     dispatch(executeQueries())
   } catch (error) {
     // if the files don't exist in the cache, we want to execute the query
-    console.error(error)
     dispatch(executeQueries())
   }
 }
