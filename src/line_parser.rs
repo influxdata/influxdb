@@ -223,6 +223,7 @@ fn line_to_points(
         match field_value {
             FieldValue::I64(value) => PointType::new_i64(series, value, timestamp),
             FieldValue::F64(value) => PointType::new_f64(series, value, timestamp),
+            FieldValue::String(_) => unimplemented!("String support for points"),
         }
     }))
 }

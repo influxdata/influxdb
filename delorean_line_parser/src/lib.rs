@@ -14,14 +14,16 @@
     clippy::explicit_iter_loop
 )]
 
+use log::debug;
 use nom::{
     branch::alt,
     bytes::complete::{tag, take_while1},
     character::complete::digit1,
     combinator::{map, opt, recognize},
+    multi::many0,
     sequence::{preceded, separated_pair, terminated, tuple},
 };
-use smallvec::{smallvec, SmallVec};
+use smallvec::{smallvec, SmallVec, ToSmallVec};
 use snafu::{ResultExt, Snafu};
 use std::{
     borrow::Cow,
@@ -217,14 +219,16 @@ impl<'a> Series<'a> {
     }
 }
 
-pub type FieldSet<'a> = SmallVec<[(EscapedStr<'a>, FieldValue); 4]>;
+pub type FieldSet<'a> = SmallVec<[(EscapedStr<'a>, FieldValue<'a>); 4]>;
 pub type TagSet<'a> = SmallVec<[(EscapedStr<'a>, EscapedStr<'a>); 8]>;
 
-/// Allowed types of Fields in a `ParsedLine`
-#[derive(Debug, Copy, Clone, PartialEq)]
-pub enum FieldValue {
+/// Allowed types of Fields in a `ParsedLine`. One of the types described in
+/// https://docs.influxdata.com/influxdb/v1.8/write_protocols/line_protocol_tutorial/#data-types
+#[derive(Debug, Clone, PartialEq)]
+pub enum FieldValue<'a> {
     I64(i64),
     F64(f64),
+    String(EscapedStr<'a>),
 }
 
 /// Represents a sequence of effectively unescaped strings.
@@ -312,7 +316,7 @@ pub fn parse_lines(input: &str) -> impl Iterator<Item = Result<ParsedLine<'_>>> 
             return None;
         }
 
-        match parse_line(i) {
+        let res = match parse_line(i) {
             Ok((remaining, line)) => {
                 // should have parsed the whole input line, if any
                 // data remains it is a parse error for this line
@@ -328,7 +332,12 @@ pub fn parse_lines(input: &str) -> impl Iterator<Item = Result<ParsedLine<'_>>> 
             }
             Err(nom::Err::Error(e)) | Err(nom::Err::Failure(e)) => Some(Err(e)),
             Err(nom::Err::Incomplete(_)) => unreachable!("Cannot have incomplete data"), // Only streaming parsers have this
+        };
+
+        if let Some(Err(r)) = &res {
+            debug!("Error parsing line: '{}'. Error was {:?}", line, r);
         }
+        res
     })
 }
 
@@ -471,32 +480,33 @@ fn field_key(i: &str) -> IResult<&str, EscapedStr<'_>> {
     escaped_value(normal_char)(i)
 }
 
-fn field_value(i: &str) -> IResult<&str, FieldValue> {
-    let int = map(integer_value, FieldValue::I64);
-    let float = map(float_value, FieldValue::F64);
+fn field_value(i: &str) -> IResult<&str, FieldValue<'_>> {
+    let int = map(field_integer_value, FieldValue::I64);
+    let float = map(field_float_value, FieldValue::F64);
+    let string = map(field_string_value, FieldValue::String);
 
-    alt((int, float))(i)
+    alt((int, float, string))(i)
 }
 
-fn integer_value(i: &str) -> IResult<&str, i64> {
+fn field_integer_value(i: &str) -> IResult<&str, i64> {
     let tagged_value = terminated(integral_value_common, tag("i"));
     map_fail(tagged_value, |value| {
         value.parse().context(IntegerValueInvalid { value })
     })(i)
 }
 
-fn float_value(i: &str) -> IResult<&str, f64> {
-    let value = alt((float_value_with_decimal, float_value_no_decimal));
+fn field_float_value(i: &str) -> IResult<&str, f64> {
+    let value = alt((field_float_value_with_decimal, field_float_value_no_decimal));
     map_fail(value, |value| {
         value.parse().context(FloatValueInvalid { value })
     })(i)
 }
 
-fn float_value_with_decimal(i: &str) -> IResult<&str, &str> {
+fn field_float_value_with_decimal(i: &str) -> IResult<&str, &str> {
     recognize(separated_pair(integral_value_common, tag("."), digit1))(i)
 }
 
-fn float_value_no_decimal(i: &str) -> IResult<&str, &str> {
+fn field_float_value_no_decimal(i: &str) -> IResult<&str, &str> {
     integral_value_common(i)
 }
 
@@ -508,6 +518,28 @@ fn timestamp(i: &str) -> IResult<&str, i64> {
     map_fail(integral_value_common, |value| {
         value.parse().context(TimestampValueInvalid { value })
     })(i)
+}
+
+fn field_string_value(i: &str) -> IResult<&str, EscapedStr<'_>> {
+    // https://docs.influxdata.com/influxdb/v1.8/write_protocols/line_protocol_tutorial/#data-types
+    // For string field values, backslash is only used to escape itself(\) or double quotes.
+    let string_data = alt((
+        map(tag(r#"\""#), |_| r#"""#), // escaped double quote -> double quote
+        map(tag(r#"\\"#), |_| r#"\"#), // escaped backslash --> single backslash
+        tag(r#"\"#),                   // unescaped single backslash
+        take_while1(|c| c != '\\' && c != '"'), // anything else w/ no special handling
+    ));
+
+    // NB: many0 doesn't allow combinators that match the empty string so
+    // we need to special case a pair of double quotes.
+    let empty_str = map(tag(r#""""#), |_| Vec::new());
+
+    let quoted_str = alt((
+        preceded(tag("\""), terminated(many0(string_data), tag("\""))),
+        empty_str,
+    ));
+
+    map(quoted_str, |vec| EscapedStr(vec.to_smallvec()))(i)
 }
 
 /// Truncates the input slice to remove all whitespace from the
@@ -776,18 +808,25 @@ mod test {
     type Error = Box<dyn std::error::Error>;
     type Result<T = (), E = Error> = std::result::Result<T, E>;
 
-    impl FieldValue {
-        fn unwrap_i64(self) -> i64 {
+    impl FieldValue<'_> {
+        fn unwrap_i64(&self) -> i64 {
             match self {
-                Self::I64(v) => v,
+                Self::I64(v) => *v,
                 _ => panic!("field was not an i64"),
             }
         }
 
-        fn unwrap_f64(self) -> f64 {
+        fn unwrap_f64(&self) -> f64 {
             match self {
-                Self::F64(v) => v,
+                Self::F64(v) => *v,
                 _ => panic!("field was not an f64"),
+            }
+        }
+
+        fn unwrap_string(&self) -> String {
+            match self {
+                Self::String(v) => String::from(v),
+                _ => panic!("field was not a String"),
             }
         }
     }
@@ -968,6 +1007,53 @@ mod test {
     }
 
     #[test]
+    fn parse_single_field_string() -> Result {
+        let input = r#"foo asdf="the string value" 1234"#;
+        let vals = parse(input)?;
+
+        assert_eq!(vals[0].series.measurement, "foo");
+        assert_eq!(vals[0].timestamp, Some(1234));
+        assert_eq!(vals[0].field_set[0].0, "asdf");
+        assert_eq!(&vals[0].field_set[0].1.unwrap_string(), "the string value");
+
+        Ok(())
+    }
+
+    #[test]
+    fn parse_string_values() -> Result {
+        let test_data = vec![
+            (r#"foo asdf="""#, ""),
+            (r#"foo asdf="str val""#, "str val"),
+            (r#"foo asdf="The \"string\" val""#, r#"The "string" val"#),
+            (
+                r#"foo asdf="The \"string w/ single double quote""#,
+                r#"The "string w/ single double quote"#,
+            ),
+            // Examples from
+            // https://docs.influxdata.com/influxdb/v1.8/write_protocols/line_protocol_tutorial/#special-characters
+            (r#"foo asdf="too hot/cold""#, r#"too hot/cold"#),
+            (r#"foo asdf="too hot\cold""#, r#"too hot\cold"#),
+            (r#"foo asdf="too hot\\cold""#, r#"too hot\cold"#),
+            (r#"foo asdf="too hot\\\cold""#, r#"too hot\\cold"#),
+            (r#"foo asdf="too hot\\\\cold""#, r#"too hot\\cold"#),
+            (r#"foo asdf="too hot\\\\\cold""#, r#"too hot\\\cold"#),
+        ];
+
+        for (input, expected_parsed_string_value) in test_data {
+            let vals = parse(input)?;
+            assert_eq!(vals[0].series.tag_set, None);
+            assert_eq!(vals[0].field_set.len(), 1);
+            assert_eq!(vals[0].field_set[0].0, "asdf");
+            assert_eq!(
+                &vals[0].field_set[0].1.unwrap_string(),
+                expected_parsed_string_value
+            );
+        }
+
+        Ok(())
+    }
+
+    #[test]
     fn parse_two_fields_integer() -> Result {
         let input = "foo asdf=23i,bar=5i 1234";
         let vals = parse(input)?;
@@ -1008,8 +1094,8 @@ mod test {
     }
 
     #[test]
-    fn parse_mixed_float_and_integer() -> Result {
-        let input = "foo asdf=23.1,bar=5i 1234";
+    fn parse_mixed_field_types() -> Result {
+        let input = r#"foo asdf=23.1,bar=5i,baz="the string" 1234"#;
         let vals = parse(input)?;
 
         assert_eq!(vals[0].series.measurement, "foo");
@@ -1023,6 +1109,9 @@ mod test {
 
         assert_eq!(vals[0].field_set[1].0, "bar");
         assert_eq!(vals[0].field_set[1].1.unwrap_i64(), 5);
+
+        assert_eq!(vals[0].field_set[2].0, "baz");
+        assert_eq!(vals[0].field_set[2].1.unwrap_string(), "the string");
 
         Ok(())
     }
@@ -1171,6 +1260,7 @@ bar value2=2i 123"#;
 
 "#;
         let vals = parse(input)?;
+        assert_eq!(vals.len(), 1);
 
         assert_eq!(vals[0].series.measurement, "foo");
         assert_eq!(vals[0].timestamp, Some(123));
