@@ -7,7 +7,6 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::{Display, Formatter};
 use std::i64;
 use std::io::{BufRead, Seek};
-use std::iter::FromIterator;
 use std::iter::Peekable;
 
 /// `TSMMeasurementMapper` takes a TSM reader and produces an iterator that
@@ -201,82 +200,6 @@ impl Display for MeasurementTable {
             writeln!(f)?;
         }
         Ok(())
-    }
-}
-
-/// A table-oriented data from a MeasurementTable.
-///
-/// A single instance of `TableData` contains columns for tags, fields and time.
-///
-///   - Each tag key/value is guaranteed to be represented for the measurement.
-///   - Each tag column is guaranteed to have identical values for each row.
-///   - The size of the time column indicated the total number of rows.
-///   - Where fields do not have values for a particular row they store None
-///     as the value.
-///
-/// TODO(edd): improve space/perf with a bitset for null values rather than an
-/// an Option.
-#[derive(Debug)]
-pub struct TableData {
-    tag_keys: Vec<String>,
-    field_keys: Vec<String>,
-    time_column: Vec<i64>,
-    tag_columns: Vec<(String, String)>,
-    field_data_columns: BTreeMap<String, ColumnData>,
-}
-
-impl TableData {
-    fn new(
-        tag_keys: Vec<String>,
-        field_keys: Vec<String>,
-        time_column: Vec<i64>,
-        tag_columns: Vec<(String, String)>,
-        field_data_columns: BTreeMap<String, ColumnData>,
-    ) -> Self {
-        Self {
-            tag_keys,
-            field_keys,
-            time_column,
-            tag_columns,
-            field_data_columns,
-        }
-    }
-
-    pub fn time_column(&self) -> Vec<i64> {
-        self.time_column.clone() // Is this a deep or shallow clone?
-    }
-
-    /// returns all column values associated with tags.
-    ///
-    /// If the `TableData` does not contain any explicit values for a tag key
-    /// then `None` is returned for that key.
-    pub fn tag_columns(&self) -> Vec<(String, Option<String>)> {
-        // TODO(edd): excess allocation and cloning here.
-        let mut cols: Vec<(String, Option<String>)> = Vec::with_capacity(self.tag_keys.len());
-        for tag_key in &self.tag_keys {
-            // cardinality of tag_keys is likely small enough that this linear
-            // search isn't too prohibitive.
-            let col_def = self.tag_columns.iter().find_map(|(k, v)| {
-                if k == tag_key {
-                    return Some(v);
-                }
-                None
-            });
-            cols.push((tag_key.clone(), col_def.cloned()));
-        }
-        cols
-    }
-
-    pub fn field_columns(&self) -> Vec<(String, Option<ColumnData>)> {
-        // TODO(edd): excess allocation and cloning here.
-        let mut cols: Vec<(String, Option<ColumnData>)> = Vec::with_capacity(self.field_keys.len());
-        for field_key in &self.field_keys {
-            cols.push((
-                field_key.clone(),
-                self.field_data_columns.get(field_key).cloned(), // TODO(edd): cloning all block data?
-            ));
-        }
-        cols
     }
 }
 
@@ -695,72 +618,6 @@ mod tests {
             assert_eq!(keys, exp_field_keys);
         }
     }
-    // #[test]
-    // fn gen_table_file() {
-    //     let file = File::open("../tests/fixtures/000000000000005-000000002.tsm.gz");
-    //     let mut decoder = gzip::Decoder::new(file.unwrap()).unwrap();
-    //     let mut buf = Vec::new();
-    //     decoder.read_to_end(&mut buf).unwrap();
-
-    //     let index_reader =
-    //         TSMIndexReader::try_new(BufReader::new(Cursor::new(&buf)), 4_222_248).unwrap();
-    //     let block_reader = TSMBlockReader::new(BufReader::new(Cursor::new(&buf)));
-
-    //     let mut index_mapper = TSMMeasurementMapper::new(index_reader.peekable());
-    //     let mut cpu = index_mapper
-    //         .find(|m| m.to_owned().unwrap().name == "cpu")
-    //         .unwrap()
-    //         .unwrap();
-
-    //     // Get the tag set and the field blocks for the first of the tagsets associated with this measurement.
-    //     let (tag_set, field_blocks) = cpu.tag_set_fields_blocks.iter_mut().next().unwrap();
-
-    //     let tag_keys: Vec<String> = cpu.tag_columns.iter().cloned().collect();
-    //     let field_keys: Vec<String> = cpu.field_columns.iter().cloned().collect();
-    //     let (time_column, field_data_columns) =
-    //         map_field_columns(block_reader, field_blocks).unwrap();
-
-    //     let table = super::TableData::new(
-    //         tag_keys,
-    //         field_keys,
-    //         time_column,
-    //         tag_set.clone(),
-    //         field_data_columns,
-    //     );
-
-    //     // println("{:?}", table.field_columns())
-    // }
-
-    // fn next(&mut self) -> Option<Self::Item> {
-    //         let next = self.tag_set_fields_blocks.iter_mut().next();
-    //         match next {
-    //             Some((key, field_blocks)) => {
-    //                 // FIXME - remove this cloning.
-    //                 let tag_keys: Vec<String> = self.tag_columns.iter().cloned().collect();
-    //                 let field_keys: Vec<String> = self.field_columns.iter().cloned().collect();
-
-    //                 // FIXME: get matching right.
-    //                 let res = map_field_columns(self.block_decoder, field_blocks);
-    //                 match res {
-    //                     Ok((time_column, field_data_columns)) => {
-    //                         let table = TableData::new(
-    //                             tag_keys,
-    //                             field_keys,
-    //                             time_column,
-    //                             key.clone(),
-    //                             field_data_columns,
-    //                         );
-    //                         // TODO(edd): this is awful. Need something like the
-    //                         // experimental pop_first function.
-    //                         self.tag_set_fields_blocks.remove(key);
-
-    //                         Some(Ok(table))
-    //                     }
-    //                     Err(e) => return Some(Err(e)),
-    //                 }
-    //             }
-    //             None => None,
-    //         }
 
     #[test]
     fn measurement_table_columns() {
@@ -862,50 +719,4 @@ mod tests {
         super::refill_value_pair_buffer(&mut input, &mut dst);
         assert_eq!(dst, vec![None, None, None]);
     }
-
-    // #[test]
-    // fn create_field_columns() {
-    //     let mut input = BTreeMap::new();
-    //     input.insert(
-    //         "current".to_string(),
-    //         BlockData::Float {
-    //             ts: vec![2, 3, 5],
-    //             values: vec![0.332, 0.5, 0.6],
-    //         },
-    //     );
-
-    //     input.insert(
-    //         "temp".to_string(),
-    //         BlockData::Float {
-    //             ts: vec![1, 2, 3],
-    //             values: vec![10.2, 11.4, 10.2],
-    //         },
-    //     );
-
-    //     input.insert(
-    //         "voltage".to_string(),
-    //         BlockData::Float {
-    //             ts: vec![1, 2, 3],
-    //             values: vec![1.23, 1.24, 1.26],
-    //         },
-    //     );
-
-    //     let (ts, cols) = super::create_field_columns(input);
-    //     assert_eq!(ts, vec![1, 2, 3, 5]);
-
-    //     let mut exp: BTreeMap<String, ColumnData> = BTreeMap::new();
-    //     exp.insert(
-    //         "current".to_string(),
-    //         ColumnData::Float(vec![None, Some(0.332), Some(0.5), Some(0.6)]),
-    //     );
-    //     exp.insert(
-    //         "temp".to_string(),
-    //         ColumnData::Float(vec![Some(10.2), Some(11.4), Some(10.2), None]),
-    //     );
-    //     exp.insert(
-    //         "voltage".to_string(),
-    //         ColumnData::Float(vec![Some(1.23), Some(1.24), Some(1.26), None]),
-    //     );
-    //     assert_eq!(cols, exp);
-    // }
 }
