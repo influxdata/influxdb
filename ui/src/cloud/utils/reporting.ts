@@ -8,6 +8,8 @@ import {
   PointFields,
 } from 'src/cloud/apis/reporting'
 
+import {fireEvent} from 'src/shared/utils/analytics'
+
 export {Point, PointTags, PointFields} from 'src/cloud/apis/reporting'
 
 let reportingTags = {}
@@ -29,6 +31,8 @@ export const reportEvent = ({timestamp, measurement, fields, tags}: Point) => {
   if (isEmpty(fields)) {
     fields = {source: 'ui'}
   }
+
+  fireEvent(measurement,{...reportingTags, ...tags})
 
   reportingPoints.push({
     measurement,
