@@ -26,7 +26,11 @@ export const localState: LocalStorage = {
       notebookMiniMapState: 'expanded',
     },
   },
-  flags: {},
+  flags: {
+    status: RemoteDataState.Done,
+    original: {},
+    override: {},
+  },
   VERSION: '2.0.0',
   ranges: {
     '0349ecda531ea000': pastFifteenMinTimeRange,
