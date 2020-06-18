@@ -101,7 +101,7 @@ impl<R: BufRead + Seek> Iterator for TSMMeasurementMapper<R> {
 
 // FieldKeyBlocks is a mapping between a set of field keys and all of the blocks
 // for those keys.
-type FieldKeyBlocks = BTreeMap<String, Vec<Block>>;
+pub type FieldKeyBlocks = BTreeMap<String, Vec<Block>>;
 
 #[derive(Clone, Debug)]
 pub struct MeasurementTable {
@@ -138,8 +138,14 @@ impl MeasurementTable {
         }
     }
 
+    pub fn tag_set_fields_blocks(
+        &mut self,
+    ) -> &mut BTreeMap<Vec<(String, String)>, FieldKeyBlocks> {
+        &mut self.tag_set_fields_blocks
+    }
+
     pub fn tag_columns(&self) -> Vec<&String> {
-        Vec::from_iter(self.tag_columns.iter())
+        self.tag_columns.iter().collect()
     }
 
     pub fn field_columns(&self) -> &BTreeMap<String, BlockType> {
@@ -169,42 +175,6 @@ impl MeasurementTable {
         Ok(())
     }
 }
-
-// impl<T: BlockDecoder> Iterator for MeasurementTable<T> {
-//     type Item = Result<TableData, TSMError>;
-
-//     fn next(&mut self) -> Option<Self::Item> {
-//         let next = self.tag_set_fields_blocks.iter_mut().next();
-//         match next {
-//             Some((key, field_blocks)) => {
-//                 // FIXME - remove this cloning.
-//                 let tag_keys: Vec<String> = self.tag_columns.iter().cloned().collect();
-//                 let field_keys: Vec<String> = self.field_columns.iter().cloned().collect();
-
-//                 // FIXME: get matching right.
-//                 let res = map_field_columns(self.block_decoder, field_blocks);
-//                 match res {
-//                     Ok((time_column, field_data_columns)) => {
-//                         let table = TableData::new(
-//                             tag_keys,
-//                             field_keys,
-//                             time_column,
-//                             key.clone(),
-//                             field_data_columns,
-//                         );
-//                         // TODO(edd): this is awful. Need something like the
-//                         // experimental pop_first function.
-//                         self.tag_set_fields_blocks.remove(key);
-
-//                         Some(Ok(table))
-//                     }
-//                     Err(e) => return Some(Err(e)),
-//                 }
-//             }
-//             None => None,
-//         }
-//     }
-// }
 
 impl Display for MeasurementTable {
     // This trait requires `fmt` with this exact signature.
@@ -348,7 +318,7 @@ impl ValuePair {
 // A BlockDecoder is capable of decoding a block definition into block data
 // (timestamps and value vectors).
 
-trait BlockDecoder {
+pub trait BlockDecoder {
     fn block_data(&mut self, block: &Block) -> Result<BlockData, TSMError>;
 }
 
@@ -408,7 +378,7 @@ where
 // for a field we can decode and pull the next block for the field and continue
 // to build the output.
 //
-fn map_field_columns(
+pub fn map_field_columns(
     mut decoder: impl BlockDecoder,
     field_blocks: &mut FieldKeyBlocks,
 ) -> Result<(Vec<i64>, BTreeMap<String, ColumnData>), TSMError> {
