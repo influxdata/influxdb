@@ -170,20 +170,6 @@ func NewAuthPackage() BoolFlag {
 	return newAuth
 }
 
-var sessionService = MakeBoolFlag(
-	"Session Service",
-	"sessionService",
-	"Lyon Hill",
-	false,
-	Temporary,
-	true,
-)
-
-// SessionService - A temporary switching system for the new session system
-func SessionService() BoolFlag {
-	return sessionService
-}
-
 var pushDownGroupAggregateCount = MakeBoolFlag(
 	"Push Down Group Aggregate Count",
 	"pushDownGroupAggregateCount",
@@ -309,7 +295,6 @@ var all = []Flag{
 	pushDownWindowAggregateFirst,
 	pushDownWindowAggregateLast,
 	newAuth,
-	sessionService,
 	pushDownGroupAggregateCount,
 	pushDownGroupAggregateSum,
 	pushDownGroupAggregateFirst,
@@ -333,7 +318,6 @@ var byKey = map[string]Flag{
 	"pushDownWindowAggregateFirst": pushDownWindowAggregateFirst,
 	"pushDownWindowAggregateLast":  pushDownWindowAggregateLast,
 	"newAuth":                      newAuth,
-	"sessionService":               sessionService,
 	"pushDownGroupAggregateCount":  pushDownGroupAggregateCount,
 	"pushDownGroupAggregateSum":    pushDownGroupAggregateSum,
 	"pushDownGroupAggregateFirst":  pushDownGroupAggregateFirst,
