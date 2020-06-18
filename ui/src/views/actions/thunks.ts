@@ -132,7 +132,7 @@ export const setQueryResultsByQueryID = (queryID: string) => (
 ): Promise<void> => {
   try {
     const state = getState()
-    const files = state.queryCache.queryResultsByQueryID[hashCode(queryID)]
+    const files = state.queryCache.queryResultsByQueryID[queryID]
     if (files) {
       dispatch(setQueryResults(RemoteDataState.Done, files, null, null))
       return
@@ -154,7 +154,8 @@ export const setQueryResultsForCell = (
     const state = getState()
     const {view} = getActiveTimeMachine(state)
     const queries = view.properties.queries.filter(({text}) => !!text.trim())
-    const queryID = get(queries, '[0].text', '')
+    const queryText = get(queries, '[0].text', '')
+    const queryID = hashCode(queryText)
     if (queryID) {
       dispatch(setQueryResultsByQueryID(queryID))
       return
