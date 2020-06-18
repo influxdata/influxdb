@@ -278,14 +278,19 @@ fn convert_to_parquet_schema(
                 (PhysicalType::BYTE_ARRAY, Some(LogicalType::UTF8))
             }
             delorean_table_schema::DataType::Timestamp => {
-                // The underlying parquet library doesn't seem to have
-                // support for TIMESTAMP_NANOs yet. FIXME we need to
-                // fix this as otherwise any other application that
-                // uses the created parquet files will see the
-                // incorrect timestamps;
+                // At the time of writing, the underlying rust parquet
+                // library doesn't support nanosecond timestamp
+                // precisions yet
                 //
-                // TODO: file a clear bug in the parquet JIRA project (and perhaps fix it)
-                eprintln!("WARNING WARNING: writing parquet using MICROS not NANOS (no support for NANOs..)");
+                // Timestamp handling (including nanosecond support)
+                // was changed as part of Parquet version 2.6 according
+                // to
+                // https://github.com/apache/parquet-format/blob/master/CHANGES.md#version-260
+                //
+                // The rust implementation claims to only support parquet-version 2.4
+                // https://github.com/apache/arrow/tree/master/rust/parquet#supported-parquet-version
+                //
+                // Thus store timestampts using microsecond precision instead of nanosecond
                 (PhysicalType::INT64, Some(LogicalType::TIMESTAMP_MICROS))
             }
         };
