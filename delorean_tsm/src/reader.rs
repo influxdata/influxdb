@@ -427,13 +427,7 @@ mod tests {
                     assert_eq!(ts.len(), 509);
                     assert_eq!(values.len(), 509);
                 }
-                BlockData::Bool { ts: _, values: _ } => {
-                    panic!("should not have decoded bool block")
-                }
-                BlockData::Str { ts: _, values: _ } => panic!("should not have decoded str block"),
-                BlockData::Unsigned { ts: _, values: _ } => {
-                    panic!("should not have decoded unsigned block")
-                }
+                other => panic!("should not have decoded {:?}", other),
             }
         }
     }
