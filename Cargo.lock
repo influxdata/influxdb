@@ -694,7 +694,7 @@ version = "0.1.0"
 dependencies = [
  "delorean_test_helpers",
  "either",
- "log 0.4.8",
+ "log",
  "nom 5.1.1",
  "smallvec",
  "snafu",

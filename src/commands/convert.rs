@@ -4,6 +4,7 @@ use delorean_parquet::writer::DeloreanParquetTableWriter;
 use delorean_table::{DeloreanTableWriter, DeloreanTableWriterSource, Error as TableError};
 use delorean_table_schema::Schema;
 use log::{debug, info, warn};
+use std::convert::TryInto;
 use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -109,6 +110,9 @@ pub fn convert(input_filename: &str, output_name: &str) -> Result<()> {
             convert_line_protocol_to_parquet(input_filename, input_reader, output_name)
         }
         FileType::TSM => convert_tsm_to_parquet(input_filename, input_reader, output_name),
+        FileType::Parquet => Err(Error::NotImplemented {
+            operation_name: String::from("Parquet format conversion"),
+        }),
     }
 }
 
@@ -119,7 +123,12 @@ fn convert_line_protocol_to_parquet(
 ) -> Result<()> {
     // TODO: make a streaming parser that you can stream data through in blocks.
     // for now, just read the whole input at once into a string
-    let mut buf = String::with_capacity(input_reader.len());
+    let mut buf = String::with_capacity(
+        input_reader
+            .len()
+            .try_into()
+            .expect("Can not allocate buffer"),
+    );
     input_reader
         .read_to_string(&mut buf)
         .map_err(|e| Error::UnableToReadInput {
