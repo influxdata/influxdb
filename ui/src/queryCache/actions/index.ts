@@ -23,7 +23,7 @@ export const hashCode = (queryText: string): string => {
 export const setQueryResultsByQueryID = (queryID: string, files: string[]) =>
   ({
     type: 'SET_QUERY_RESULTS_BY_QUERY',
-    queryID: hashCode(queryID),
+    queryID,
     files,
   } as const)
 

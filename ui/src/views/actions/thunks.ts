@@ -1,6 +1,6 @@
 // Libraries
 import {normalize} from 'normalizr'
-import {get} from 'lodash'
+
 // APIs
 import {
   getView as getViewAJAX,
@@ -154,7 +154,7 @@ export const setQueryResultsForCell = (
     const state = getState()
     const {view} = getActiveTimeMachine(state)
     const queries = view.properties.queries.filter(({text}) => !!text.trim())
-    const queryText = get(queries, '[0].text', '')
+    const queryText = queries.map(({text}) => text).join('')
     const queryID = hashCode(queryText)
     if (queryID) {
       dispatch(setQueryResultsByQueryID(queryID))

@@ -280,7 +280,7 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
 
       this.pendingReload = false
 
-      const queryText = queries[0].text
+      const queryText = queries.map(({text}) => text).join('')
       const queryID = hashCode(queryText)
       if (queryID && files.length) {
         onSetQueryResultsByQueryID(queryID, files)
