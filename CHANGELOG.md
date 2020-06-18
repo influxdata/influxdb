@@ -40,6 +40,7 @@
 1. [18361](https://github.com/influxdata/influxdb/pull/18361): Tokens list is now consistent with the other resource lists
 1. [18346](https://github.com/influxdata/influxdb/pull/18346): Reduce the number of variables being hydrated when toggling variables
 1. [18447](https://github.com/influxdata/influxdb/pull/18447): Redesign dashboard cell loading indicator to be more obvious
+1. [18593](https://github.com/influxdata/influxdb/pull/18593): Add copyable User and Organization Ids to About page
 
 ## v2.0.0-beta.11 [2020-05-26]
 

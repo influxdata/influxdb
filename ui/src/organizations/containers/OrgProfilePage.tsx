@@ -6,7 +6,7 @@ import {connect} from 'react-redux'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import OrgTabbedPage from 'src/organizations/components/OrgTabbedPage'
 import OrgHeader from 'src/organizations/components/OrgHeader'
-import {Grid, Columns, Page} from '@influxdata/clockface'
+import {Grid, Page} from '@influxdata/clockface'
 
 // Utils
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
@@ -32,9 +32,7 @@ class OrgProfilePage extends Component<StateProps> {
           <OrgTabbedPage activeTab="about" orgID={org.id}>
             <Grid>
               <Grid.Row>
-                <Grid.Column widthXS={Columns.Twelve} widthSM={Columns.Six}>
-                  <OrgProfileTab />
-                </Grid.Column>
+                <OrgProfileTab />
               </Grid.Row>
             </Grid>
           </OrgTabbedPage>
