@@ -1509,6 +1509,7 @@ func IsRemoval(status StateStatus) bool {
 }
 
 type resourceActions struct {
+	skipKinds     map[Kind]bool
 	skipResources map[ActionSkipResource]bool
 }
 
@@ -1517,5 +1518,5 @@ func (r resourceActions) skipResource(k Kind, metaName string) bool {
 		Kind:     k,
 		MetaName: metaName,
 	}
-	return r.skipResources[key]
+	return r.skipResources[key] || r.skipKinds[k]
 }
