@@ -43,6 +43,36 @@ describe('DataExplorer', () => {
     })
   })
 
+  describe('data-explorer state', () => {
+
+    it('should persist and display last submitted script editor script ', () => {
+      const fluxCode = 'from(bucket: "_monitoring")'
+      cy.getByTestID('switch-to-script-editor').click()
+      cy.get('.flux-editor').within(() => {
+        cy.get('.view-lines').type(fluxCode)
+      })
+      cy.contains('Submit').click()
+      cy.getByTestID('nav-item-tasks').click()
+      cy.getByTestID('nav-item-data-explorer').click()
+
+      cy.get('.flux-editor').within(() => {
+        cy.get('.view-lines').contains(fluxCode).should('exist')
+      })
+    })
+
+    it('can navigate to data explorer from buckets list and override state', () => {
+      const fluxCode = 'from(bucket: "_monitoring")'
+      cy.getByTestID('switch-to-script-editor').click()
+      cy.get('.flux-editor').within(() => {
+        cy.get('.view-lines').type(fluxCode)
+      })
+      cy.contains('Submit').click()
+      cy.getByTestID('nav-item-load-data').click()
+      cy.getByTestID('bucket--card--name _tasks').click()
+      cy.getByTestID('query-builder').should('exist')
+    })
+  })
+
   describe('numeric input using custom bin sizes in Histograms', () => {
     beforeEach(() => {
       cy.getByTestID('view-type--dropdown').click()
