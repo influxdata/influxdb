@@ -179,7 +179,7 @@ func (b *cmdPkgBuilder) cmdPkgApply() *cobra.Command {
 	b.registerPkgFileFlags(cmd)
 	b.registerPkgPrintOpts(cmd)
 	cmd.Flags().BoolVarP(&b.quiet, "quiet", "q", false, "Disable output printing")
-	cmd.Flags().StringVar(&b.applyOpts.force, "force", "", `TTY input, if package will have destructive changes, proceed if set "true"`)
+	cmd.Flags().StringVar(&b.applyOpts.force, "force", "", `TTY input, if template will have destructive changes, proceed if set "true"`)
 	cmd.Flags().StringVar(&b.stackID, "stack-id", "", "Stack ID to associate pkg application")
 
 	b.applyOpts.secrets = []string{}
@@ -263,13 +263,13 @@ func (b *cmdPkgBuilder) pkgApplyRunEFn(cmd *cobra.Command, args []string) error 
 	if !isTTY && !isForced && b.applyOpts.force != "conflict" {
 		confirm := b.getInput("Confirm application of the above resources (y/n)", "n")
 		if strings.ToLower(confirm) != "y" {
-			fmt.Fprintln(b.w, "aborted application of package")
+			fmt.Fprintln(b.w, "aborted application of template")
 			return nil
 		}
 	}
 
 	if b.applyOpts.force != "conflict" && isTTY && dryRunImpact.Diff.HasConflicts() {
-		return errors.New("package has conflicts with existing resources and cannot safely apply")
+		return errors.New("template has conflicts with existing resources and cannot safely apply")
 	}
 
 	opts = append(opts, pkger.ApplyWithSecrets(providedSecrets))
@@ -321,7 +321,7 @@ func parseTemplateActions(args []string) ([]pkger.ApplyOptFn, error) {
 
 func (b *cmdPkgBuilder) cmdPkgExport() *cobra.Command {
 	cmd := b.newCmd("export", b.pkgExportRunEFn, true)
-	cmd.Short = "Export existing resources as a package"
+	cmd.Short = "Export existing resources as a template"
 	cmd.Long = `
 	The export command provides a mechanism to export existing resources to a
 	template. Each template resource kind is supported via flags.
@@ -426,7 +426,7 @@ func (b *cmdPkgBuilder) pkgExportRunEFn(cmd *cobra.Command, args []string) error
 
 func (b *cmdPkgBuilder) cmdPkgExportAll() *cobra.Command {
 	cmd := b.newCmd("all", b.pkgExportAllRunEFn, true)
-	cmd.Short = "Export all existing resources for an organization as a package"
+	cmd.Short = "Export all existing resources for an organization as a template"
 	cmd.Long = `
 	The export all command will export all resources for an organization. The
 	command also provides a mechanism to filter by label name or resource kind.
@@ -569,7 +569,7 @@ func (b *cmdPkgBuilder) cmdTemplate() *cobra.Command {
 
 func (b *cmdPkgBuilder) cmdTemplateSummary() *cobra.Command {
 	cmd := b.newTemplateCmd("summary")
-	cmd.Short = "Summarize the provided package"
+	cmd.Short = "Summarize the provided template"
 	return cmd
 }
 
