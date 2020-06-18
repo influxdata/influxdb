@@ -18,7 +18,7 @@ const REPORT_DECAY = 500 // number of miliseconds to wait after last event befor
 const REPORT_MAX_WAIT = 5000 // max number of miliseconds to wait between sends
 const REPORT_MAX_LENGTH = 300 // max number of events to queue before sending
 
-const toNano = (ms: number) => ms * 1000000
+export const toNano = (ms: number) => ms * 1000000
 
 export const updateReportingContext = (key: string, value: string) => {
   reportingTags = {...reportingTags, [key]: value}
