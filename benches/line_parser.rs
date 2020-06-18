@@ -4,7 +4,7 @@ use std::time::Duration;
 static LINES: &str = include_str!("line-protocol.txt");
 
 fn line_parser(c: &mut Criterion) {
-    let mut group = c.benchmark_group("line parser");
+    let mut group = c.benchmark_group("line_parser");
 
     // group.throughput(Throughput::Elements(LINES.lines().count() as u64));
     group.throughput(Throughput::Bytes(LINES.len() as u64));
