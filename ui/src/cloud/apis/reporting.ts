@@ -21,7 +21,7 @@ export interface Points {
 export const reportPoints = (points: Points) => {
   try {
     const url = '/api/v2/app-metrics'
-    fetch(url, {
+    return fetch(url, {
       method: 'POST',
       body: JSON.stringify(points),
       headers: {
