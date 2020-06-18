@@ -14,6 +14,7 @@ import (
 	"github.com/go-chi/chi/middleware"
 	"github.com/influxdata/influxdb/v2"
 	pctx "github.com/influxdata/influxdb/v2/context"
+	ierrors "github.com/influxdata/influxdb/v2/kit/errors"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"github.com/influxdata/influxdb/v2/pkg/jsonnet"
 	"go.uber.org/zap"
@@ -556,31 +557,57 @@ func (r ReqApplyPkg) Pkgs(encoding Encoding) (*Pkg, error) {
 
 type actionType string
 
+// various ActionTypes the transport API speaks
 const (
+	ActionTypeSkipKind     actionType = "skipKind"
 	ActionTypeSkipResource actionType = "skipResource"
 )
 
 func (r ReqApplyPkg) validActions() (struct {
+	SkipKinds     []ActionSkipKind
 	SkipResources []ActionSkipResource
 }, error) {
 	type actions struct {
+		SkipKinds     []ActionSkipKind
 		SkipResources []ActionSkipResource
 	}
 
+	unmarshalErrFn := func(err error, idx int, actionType string) error {
+		msg := fmt.Sprintf("failed to unmarshal properties for actions[%d] %q", idx, actionType)
+		return ierrors.Wrap(err, msg)
+	}
+
+	kindErrFn := func(err error, idx int, actionType string) error {
+		msg := fmt.Sprintf("invalid kind for actions[%d] %q", idx, actionType)
+		return ierrors.Wrap(err, msg)
+	}
+
 	var out actions
-	for _, rawAct := range r.RawActions {
+	for i, rawAct := range r.RawActions {
 		switch a := rawAct.Action; actionType(a) {
 		case ActionTypeSkipResource:
 			var asr ActionSkipResource
 			if err := json.Unmarshal(rawAct.Properties, &asr); err != nil {
-				return actions{}, influxErr(influxdb.EInvalid, err)
+				return actions{}, influxErr(influxdb.EInvalid, unmarshalErrFn(err, i, a))
 			}
 			if err := asr.Kind.OK(); err != nil {
-				return actions{}, influxErr(influxdb.EInvalid, err)
+				return actions{}, influxErr(influxdb.EInvalid, kindErrFn(err, i, a))
 			}
 			out.SkipResources = append(out.SkipResources, asr)
+		case ActionTypeSkipKind:
+			var ask ActionSkipKind
+			if err := json.Unmarshal(rawAct.Properties, &ask); err != nil {
+				return actions{}, influxErr(influxdb.EInvalid, unmarshalErrFn(err, i, a))
+			}
+			if err := ask.Kind.OK(); err != nil {
+				return actions{}, influxErr(influxdb.EInvalid, kindErrFn(err, i, a))
+			}
+			out.SkipKinds = append(out.SkipKinds, ask)
 		default:
-			msg := fmt.Sprintf("invalid action type provided %q; Must be one of [%s]", a, ActionTypeSkipResource)
+			msg := fmt.Sprintf(
+				"invalid action type %q provided for actions[%d] ; Must be one of [%s]",
+				a, i, ActionTypeSkipResource,
+			)
 			return actions{}, influxErr(influxdb.EInvalid, msg)
 		}
 	}
@@ -648,6 +675,9 @@ func (s *HTTPServer) applyPkg(w http.ResponseWriter, r *http.Request) {
 	}
 	for _, a := range actions.SkipResources {
 		applyOpts = append(applyOpts, ApplyWithResourceSkip(a))
+	}
+	for _, a := range actions.SkipKinds {
+		applyOpts = append(applyOpts, ApplyWithKindSkip(a))
 	}
 
 	auth, err := pctx.GetAuthorizer(r.Context())

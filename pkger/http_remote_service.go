@@ -225,6 +225,16 @@ func (s *HTTPRemoteService) apply(ctx context.Context, orgID influxdb.ID, dryRun
 			Properties: b,
 		})
 	}
+	for kind := range opt.KindsToSkip {
+		b, err := json.Marshal(ActionSkipKind{Kind: kind})
+		if err != nil {
+			return PkgImpactSummary{}, influxErr(influxdb.EInvalid, err)
+		}
+		reqBody.RawActions = append(reqBody.RawActions, ReqRawAction{
+			Action:     string(ActionTypeSkipKind),
+			Properties: b,
+		})
+	}
 
 	var resp RespApplyPkg
 	err := s.Client.
