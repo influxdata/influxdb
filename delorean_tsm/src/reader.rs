@@ -294,9 +294,13 @@ where
             BlockType::Bool => Err(TSMError {
                 description: String::from("bool block type unsupported"),
             }),
-            BlockType::Str => Err(TSMError {
-                description: String::from("string block type unsupported"),
-            }),
+            BlockType::Str => {
+                let len = ts.len();
+                Ok(BlockData::Str {
+                    ts,
+                    values: vec!["unsupported string!!".to_string(); len as usize],
+                })
+            }
             BlockType::Unsigned => Err(TSMError {
                 description: String::from("unsigned integer block type unsupported"),
             }),
