@@ -1585,8 +1585,8 @@ spec:
       width:  6
       height: 3
       decimalPlaces: 1
-	  shade: true
-	  hoverDimension: y
+      shade: true
+      hoverDimension: y
       queries:
         - query: "from(bucket: v.bucket) |> range(start: v.timeRangeStart) |> filter(fn: (r) => r._measurement == \"processes\") |> filter(fn: (r) => r._field == \"running\" or r._field == \"blocked\") |> aggregateWindow(every: v.windowPeriod, fn: max) |> yield(name: \"max\")"
       colors:
@@ -1800,8 +1800,8 @@ spec:
       xPos:  1
       yPos:  2
       height: 3
-	  shade: true
-	  hoverDimension: "y"
+      shade: true
+      hoverDimension: "y"
       position: overlaid
       queries:
         - query: >
