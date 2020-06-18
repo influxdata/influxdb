@@ -877,7 +877,6 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		sessionSvc = session.NewService(session.NewStorage(inmem.NewSessionStore()), userSvc, userResourceSvc, authSvc, time.Duration(m.sessionLength)*time.Minute)
 		sessionSvc = session.NewSessionMetrics(m.reg, sessionSvc)
 		sessionSvc = session.NewSessionLogger(m.log.With(zap.String("service", "session")), sessionSvc)
-		sessionSvc = session.NewServiceController(m.flagger, m.kvService, sessionSvc)
 	}
 
 	var labelSvc platform.LabelService
@@ -1030,10 +1029,8 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		authHTTPServer = kithttp.NewFeatureHandler(feature.NewAuthPackage(), m.flagger, oldHandler, newHandler, newHandler.Prefix())
 	}
 
-	var oldSessionHandler nethttp.Handler
 	var sessionHTTPServer *session.SessionHandler
 	{
-		oldSessionHandler = http.NewSessionHandler(m.log.With(zap.String("handler", "old_session")), http.NewSessionBackend(m.log, m.apibackend))
 		sessionHTTPServer = session.NewSessionHandler(m.log.With(zap.String("handler", "session")), sessionSvc, userSvc, passwdsSvc)
 	}
 
@@ -1050,8 +1047,8 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 			http.WithResourceHandler(onboardHTTPServer),
 			http.WithResourceHandler(authHTTPServer),
 			http.WithResourceHandler(kithttp.NewFeatureHandler(feature.NewLabelPackage(), m.flagger, oldLabelHandler, labelHandler, labelHandler.Prefix())),
-			http.WithResourceHandler(kithttp.NewFeatureHandler(feature.SessionService(), m.flagger, oldSessionHandler, sessionHTTPServer.SignInResourceHandler(), sessionHTTPServer.SignInResourceHandler().Prefix())),
-			http.WithResourceHandler(kithttp.NewFeatureHandler(feature.SessionService(), m.flagger, oldSessionHandler, sessionHTTPServer.SignOutResourceHandler(), sessionHTTPServer.SignOutResourceHandler().Prefix())),
+			http.WithResourceHandler(sessionHTTPServer.SignInResourceHandler()),
+			http.WithResourceHandler(sessionHTTPServer.SignOutResourceHandler()),
 			http.WithResourceHandler(userHTTPServer.MeResourceHandler()),
 			http.WithResourceHandler(userHTTPServer.UserResourceHandler()),
 			http.WithResourceHandler(orgHTTPServer),
