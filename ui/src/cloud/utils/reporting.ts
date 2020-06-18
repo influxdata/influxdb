@@ -32,7 +32,7 @@ export const reportEvent = ({timestamp, measurement, fields, tags}: Point) => {
     fields = {source: 'ui'}
   }
 
-  fireEvent(measurement,{...reportingTags, ...tags})
+  fireEvent(measurement, {...reportingTags, ...tags})
 
   reportingPoints.push({
     measurement,
