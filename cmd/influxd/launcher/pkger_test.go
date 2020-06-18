@@ -346,7 +346,8 @@ func TestLauncher_Pkger(t *testing.T) {
 			})
 
 			t.Run("that has already been deleted should be successful", func(t *testing.T) {
-				newStack, _ := newStackFn(t, pkger.Stack{})
+				newStack, cleanup := newStackFn(t, pkger.Stack{})
+				defer cleanup()
 
 				err := svc.DeleteStack(ctx, struct{ OrgID, UserID, StackID influxdb.ID }{
 					OrgID:   l.Org.ID,
@@ -1539,11 +1540,7 @@ func TestLauncher_Pkger(t *testing.T) {
 
 		t.Run("apply with actions", func(t *testing.T) {
 			stack, cleanup := newStackFn(t, pkger.Stack{})
-			defer func() {
-				if t.Failed() {
-					cleanup()
-				}
-			}()
+			defer cleanup()
 
 			var (
 				bucketPkgName   = "rucketeer-1"
