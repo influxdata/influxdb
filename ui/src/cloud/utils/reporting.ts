@@ -11,8 +11,12 @@ import {
 
 let reportingTags = {}
 let reportingPoints = []
-let isReportScheduled = false
-const reportingInterval = 5 // seconds
+let reportDecayTimeout = null
+let reportMaxTimeout = null
+
+const REPORT_DECAY = 500 // number of miliseconds to wait after last event before sending
+const REPORT_MAX_WAIT = 5000 // max number of miliseconds to wait between sends
+const REPORT_MAX_LENGTH = 300 // max number of events to queue before sending
 
 const toNano = (ms: number) => ms * 1000000
 
@@ -32,17 +36,53 @@ export const reportEvent = ({timestamp, measurement, fields, tags}: Point) => {
     timestamp,
   })
 
-  if (!isReportScheduled) {
-    isReportScheduled = true
-    setTimeout(() => {
-      const tempPoints = reportingPoints
-      reportingPoints = []
-      isReportScheduled = false
-      reportPointsAPI({
-        points: tempPoints,
-      })
-    }, reportingInterval * 1000)
+  if (!!reportDecayTimeout) {
+    clearTimeout(reportDecayTimeout)
+    reportDecayTimeout = null
   }
+
+  if (reportingPoints.length >= REPORT_MAX_LENGTH) {
+    if (!!reportMaxTimeout) {
+      clearTimeout(reportMaxTimeout)
+      reportMaxTimeout = null
+    }
+
+    reportPointsAPI({
+      points: reportingPoints.slice(),
+    })
+
+    reportingPoints = []
+
+    return
+  }
+
+  if (!reportMaxTimeout) {
+    reportMaxTimeout = setTimeout(() => {
+      reportMaxTimeout = null
+
+      // points already cleared
+      if (!reportingPoints.length) {
+        return
+      }
+
+      clearTimeout(reportDecayTimeout)
+      reportDecayTimeout = null
+
+      reportPointsAPI({
+        points: reportingPoints.slice(),
+      })
+
+      reportingPoints = []
+    }, REPORT_MAX_WAIT)
+  }
+
+  reportDecayTimeout = setTimeout(() => {
+    reportPointsAPI({
+      points: reportingPoints.slice(),
+    })
+
+    reportingPoints = []
+  }, REPORT_DECAY)
 }
 
 export const reportQueryPerformanceEvent = ({
