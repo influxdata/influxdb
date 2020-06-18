@@ -201,7 +201,7 @@ jobs:
     docker:
       - image: circleci/golang:1.13-node-browsers
     working_directory: /go/src/github.com/influxdata/influxdb
-    parallelism: 4
+    parallelism: 8
     steps:
       - checkout
       - restore_cache:
@@ -237,7 +237,7 @@ jobs:
     docker:
       - image: circleci/golang:1.13-node-browsers
     working_directory: /go/src/github.com/influxdata/influxdb
-    parallelism: 4 
+    parallelism: 8
     steps:
       - checkout
       - restore_cache:
@@ -271,7 +271,7 @@ jobs:
       GOFLAGS: "-mod=readonly -p=2" # Go on Circle thinks 32 CPUs are available, but there aren't.
       TEST_RESULTS: /tmp/test-results
     working_directory: /go/src/github.com/influxdata/influxdb
-    parallelism: 4 
+    parallelism: 8
     steps:
       - checkout
 
@@ -549,7 +549,7 @@ workflows:
   nightly:
     triggers:
       - schedule:
-          cron: "15 10 * * *"
+          cron: "0 5 * * *"
           filters:
             branches:
               only:
