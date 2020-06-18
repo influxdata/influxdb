@@ -8,3 +8,4 @@ edition = "2018"
 
 [dependencies]
 log = "0.4.8"
+delorean_tsm = { path = "../delorean_tsm" }

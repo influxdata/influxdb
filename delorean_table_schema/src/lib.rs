@@ -30,9 +30,11 @@
 //! assert_eq!(cols[3], ColumnDefinition::new("field2", 3, DataType::Boolean));
 //! assert_eq!(cols[4], ColumnDefinition::new("timestamp", 4, DataType::Timestamp));
 //! ```
-use std::collections::BTreeMap;
+use delorean_tsm::BlockType;
 
 use log::warn;
+use std::collections::BTreeMap;
+use std::convert::From;
 
 /// Represents a specific Line Protocol Tag name
 #[derive(Debug, PartialEq)]
@@ -66,6 +68,18 @@ pub enum DataType {
     /// 64 bit timestamp "UNIX timestamps" representing nanosecods
     /// since the UNIX epoch (00:00:00 UTC on 1 January 1970).
     Timestamp,
+}
+
+impl From<&BlockType> for DataType {
+    fn from(value: &BlockType) -> Self {
+        match value {
+            BlockType::Float => Self::Float,
+            BlockType::Integer => Self::Integer,
+            BlockType::Bool => Self::Boolean,
+            BlockType::Str => Self::String,
+            BlockType::Unsigned => Self::Integer,
+        }
+    }
 }
 
 /// Represents a specific Line Protocol Field name
