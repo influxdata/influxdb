@@ -13,6 +13,7 @@ import {loadLocalStorage} from 'src/localStorage'
 
 import {getRootNode} from 'src/utils/nodes'
 import {getBrowserBasepath} from 'src/utils/basepath'
+import {updateReportingContext} from 'src/cloud/utils/reporting'
 
 // Components
 import App from 'src/App'
@@ -158,6 +159,16 @@ import '@influxdata/clockface/dist/index.css'
 
 const rootNode = getRootNode()
 const basepath = getBrowserBasepath()
+
+const SESSION_KEY = 'session'
+
+const cookieSession = document.cookie.match(
+  new RegExp('(^| )' + SESSION_KEY + '=([^;]+)')
+)
+
+updateReportingContext({
+  session: cookieSession ? cookieSession[2] : '',
+})
 
 declare global {
   interface Window {

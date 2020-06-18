@@ -52,10 +52,11 @@ const SetOrg: FC<Props> = ({
     const foundOrg = orgs.find(o => o.id === orgID)
     if (foundOrg) {
       setOrg(foundOrg)
-      updateReportingContext('orgID', orgID)
+      updateReportingContext({orgID: orgID})
       setLoading(RemoteDataState.Done)
       return
     }
+    updateReportingContext({orgID: null})
 
     if (!orgs.length) {
       router.push(`/no-orgs`)

@@ -81,6 +81,7 @@ export class Signin extends PureComponent<Props, State> {
   private checkForLogin = async () => {
     try {
       await client.users.me()
+
       const redirectIsSet = !!getFromLocalStorage('redirectTo')
       if (redirectIsSet) {
         removeFromLocalStorage('redirectTo')

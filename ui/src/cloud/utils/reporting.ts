@@ -16,8 +16,12 @@ const reportingInterval = 5 // seconds
 
 const toNano = (ms: number) => ms * 1000000
 
-export const updateReportingContext = (key: string, value: string) => {
-  reportingTags = {...reportingTags, [key]: value}
+interface KeyValue {
+  [key: string]: string
+}
+
+export const updateReportingContext = (properties: KeyValue) => {
+  reportingTags = {...reportingTags, ...properties}
 }
 
 export const reportEvent = ({timestamp, measurement, fields, tags}: Point) => {

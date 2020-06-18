@@ -23,9 +23,11 @@ export const getMe = () => async dispatch => {
 
     if (CLOUD) {
       fireUserDataReady(user.id, user.name)
-      updateReportingContext('userID', user.id)
     }
 
+    updateReportingContext({
+      userID: user.id,
+    })
     HoneyBadger.setContext({
       user_id: user.id,
     })
