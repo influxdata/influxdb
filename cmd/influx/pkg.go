@@ -157,6 +157,17 @@ func (b *cmdPkgBuilder) cmdPkgApply() *cobra.Command {
 		# Applying directories from many sources, file and URL
 		influx apply -f $PATH_TO_TEMPLATE/template.yml -f $URL_TO_TEMPLATE
 
+		# Applying a template with actions to skip resources applied. The
+		# following example skips all buckets and the dashboard whose 
+		# metadata.name field matches the provided $DASHBOARD_TMPL_NAME.
+		# format for filters:
+		#	--filter=kind=Bucket
+		#	--filter=resource=Label:$Label_TMPL_NAME
+		influx apply \
+			-f $PATH_TO_TEMPLATE/template.yml \
+			--filter kind=Bucket \
+			--filter resource=Dashboard:$DASHBOARD_TMPL_NAME
+
 	For information about finding and using InfluxDB templates, see
 	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/apply/.
 
@@ -174,6 +185,7 @@ func (b *cmdPkgBuilder) cmdPkgApply() *cobra.Command {
 	b.applyOpts.secrets = []string{}
 	cmd.Flags().StringSliceVar(&b.applyOpts.secrets, "secret", nil, "Secrets to provide alongside the template; format should --secret=SECRET_KEY=SECRET_VALUE --secret=SECRET_KEY_2=SECRET_VALUE_2")
 	cmd.Flags().StringSliceVar(&b.applyOpts.envRefs, "env-ref", nil, "Environment references to provide alongside the template; format should --env-ref=REF_KEY=REF_VALUE --env-ref=REF_KEY_2=REF_VALUE_2")
+	cmd.Flags().StringSliceVar(&b.filters, "filter", nil, "Resources to skip when applying the template. Filter out by ‘kind’ or by ‘resource’")
 
 	return cmd
 }
@@ -220,6 +232,12 @@ func (b *cmdPkgBuilder) pkgApplyRunEFn(cmd *cobra.Command, args []string) error 
 		pkger.ApplyWithStackID(stackID),
 	}
 
+	actionOpts, err := parseTemplateActions(b.filters)
+	if err != nil {
+		return err
+	}
+	opts = append(opts, actionOpts...)
+
 	dryRunImpact, err := svc.DryRun(context.Background(), influxOrgID, 0, opts...)
 	if err != nil {
 		return err
@@ -264,6 +282,41 @@ func (b *cmdPkgBuilder) pkgApplyRunEFn(cmd *cobra.Command, args []string) error 
 	b.printPkgSummary(impact.StackID, impact.Summary)
 
 	return nil
+}
+
+func parseTemplateActions(args []string) ([]pkger.ApplyOptFn, error) {
+	var opts []pkger.ApplyOptFn
+	for _, rawAct := range args {
+		pair := strings.SplitN(rawAct, "=", 2)
+		if len(pair) < 2 {
+			continue
+		}
+		key, val := pair[0], pair[1]
+		switch strings.ToLower(key) {
+		case "kind":
+			opts = append(opts, pkger.ApplyWithKindSkip(pkger.ActionSkipKind{
+				Kind: pkger.Kind(val),
+			}))
+		case "resource":
+			pp := strings.SplitN(val, ":", 2)
+			if len(pair) != 2 {
+				return nil, fmt.Errorf(`invalid skipResource action provided: %q; 
+	Expected format --action=skipResource=Label:$LABEL_ID`, rawAct)
+			}
+			kind, metaName := pp[0], pp[1]
+			opts = append(opts, pkger.ApplyWithResourceSkip(pkger.ActionSkipResource{
+				Kind:     pkger.Kind(kind),
+				MetaName: metaName,
+			}))
+		default:
+			return nil, fmt.Errorf(`invalid action provided: %q; 
+	Expected format --action=skipResource=Label:$LABEL_ID
+	or
+	Expected format --action=skipKind=Bucket`, rawAct)
+		}
+	}
+
+	return opts, nil
 }
 
 func (b *cmdPkgBuilder) cmdPkgExport() *cobra.Command {
@@ -383,14 +436,14 @@ func (b *cmdPkgBuilder) cmdPkgExportAll() *cobra.Command {
 		influx pkg export all --org $ORG_NAME
 
 		# Export all bucket resources
-		influx export all --org $ORG_NAME --filter=resourceKind=Bucket
+		influx export all --org $ORG_NAME --filter=kind=Bucket
 
 		# Export all resources associated with label Foo
 		influx export all --org $ORG_NAME --filter=labelName=Foo
 
 		# Export all bucket resources and filter by label Foo
 		influx export all --org $ORG_NAME \
-			--filter=resourceKind=Bucket \
+			--filter=kind=Bucket \
 			--filter=labelName=Foo
 
 		# Export all bucket or dashboard resources and filter by label Foo.
@@ -398,8 +451,8 @@ func (b *cmdPkgBuilder) cmdPkgExportAll() *cobra.Command {
 		#		This example will export a resource if it is a dashboard or
 		#		bucket and has an associated label of Foo.
 		influx export all --org $ORG_NAME \
-			--filter=resourceKind=Bucket \
-			--filter=resourceKind=Dashboard \
+			--filter=kind=Bucket \
+			--filter=kind=Dashboard \
 			--filter=labelName=Foo
 
 	For information about exporting InfluxDB templates, see
@@ -439,7 +492,7 @@ func (b *cmdPkgBuilder) pkgExportAllRunEFn(cmd *cobra.Command, args []string) er
 		switch key, val := pair[0], pair[1]; key {
 		case "labelName":
 			labelNames = append(labelNames, val)
-		case "resourceKind":
+		case "kind", "resourceKind":
 			k := pkger.Kind(val)
 			if err := k.OK(); err != nil {
 				return err

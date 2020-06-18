@@ -11,6 +11,7 @@
 1. [18568](https://github.com/influxdata/influxdb/pull/18568): Add support for config files to influxd and any cli.NewCommand use case
 1. [18573](https://github.com/influxdata/influxdb/pull/18573): Extend influx stacks cmd with new influx stacks update cmd
 1. [18595](https://github.com/influxdata/influxdb/pull/18595): Add ability to skip resources in a template by kind or by metadata.name
+1. [18600](https://github.com/influxdata/influxdb/pull/18600): Extend influx apply with resource filter capabilities
 
 ## v2.0.0-beta.12 [2020-06-12]
 
