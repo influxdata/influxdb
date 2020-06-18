@@ -33,19 +33,21 @@ fn convert_bad_input_filename() {
     let mut cmd = Command::cargo_bin("delorean").unwrap();
     let assert = cmd
         .arg("convert")
-        .arg("non_existent_input")
+        .arg("non_existent_input.lp")
         .arg("non_existent_output")
         .assert();
 
     assert
         .failure()
         .code(1)
-        .stderr(predicate::str::contains("Error reading non_existent_input"))
+        .stderr(predicate::str::contains(
+            "Error reading non_existent_input.lp",
+        ))
         .stderr(predicate::str::contains("No such file or directory"));
 }
 
 #[test]
-fn convert_good_input_filename() {
+fn convert_line_protocol_good_input_filename() {
     let mut cmd = Command::cargo_bin("delorean").unwrap();
 
     let parquet_path = delorean_test_helpers::tempfile::Builder::new()
@@ -76,6 +78,51 @@ fn convert_good_input_filename() {
         .stderr(predicate::str::contains(expected_success_string));
 
     validate_parquet_file(&parquet_path);
+}
+
+#[test]
+fn convert_tsm_good_input_filename() {
+    let mut cmd = Command::cargo_bin("delorean").unwrap();
+
+    let parquet_path = delorean_test_helpers::tempfile::Builder::new()
+        .prefix("dstool_e2e_tsm")
+        .suffix(".parquet")
+        .tempfile()
+        .expect("error creating temp file")
+        .into_temp_path();
+    let parquet_filename_string = parquet_path.to_string_lossy().to_string();
+
+    let assert = cmd
+        .arg("convert")
+        .arg("tests/fixtures/000000000000005-000000002.tsm.gz")
+        .arg(&parquet_filename_string)
+        .assert();
+
+    // TODO this should succeed when TSM -> parquet conversion is implemented.
+    assert
+        .failure()
+        .code(1)
+        .stderr(predicate::str::contains("Conversion failed"))
+        .stderr(predicate::str::contains(
+            "Not implemented: TSM Conversion not supported yet",
+        ));
+
+    // TODO add better success expectations
+
+    // let expected_success_string = format!(
+    //     "Completing writing to {} successfully",
+    //     parquet_filename_string
+    // );
+
+    // assert
+    //     .success()
+    //     .stderr(predicate::str::contains("dstool convert starting"))
+    //     .stderr(predicate::str::contains(
+    //         "Writing output for measurement h2o_temperature",
+    //     ))
+    //     .stderr(predicate::str::contains(expected_success_string));
+
+    // validate_parquet_file(&parquet_path);
 }
 
 #[test]

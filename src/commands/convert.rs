@@ -5,9 +5,11 @@ use delorean_table::{DeloreanTableWriter, DeloreanTableWriterSource, Error as Ta
 use delorean_table_schema::Schema;
 use log::{debug, info, warn};
 use std::fs;
+use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use crate::commands::error::{Error, Result};
+use crate::commands::input::{FileType, InputReader};
 
 /// Creates  `DeloreanParquetTableWriter` suitable for writing to a single file
 #[derive(Debug)]
@@ -94,13 +96,36 @@ pub fn is_directory(p: impl AsRef<Path>) -> bool {
 pub fn convert(input_filename: &str, output_name: &str) -> Result<()> {
     info!("dstool convert starting");
     debug!("Reading from input file {}", input_filename);
+
+    let input_reader = InputReader::new(input_filename)?;
+    info!(
+        "Preparing to convert {} bytes from {}",
+        input_reader.len(),
+        input_filename
+    );
+
+    match input_reader.file_type() {
+        FileType::LineProtocol => {
+            convert_line_protocol_to_parquet(input_filename, input_reader, output_name)
+        }
+        FileType::TSM => convert_tsm_to_parquet(input_filename, input_reader, output_name),
+    }
+}
+
+fn convert_line_protocol_to_parquet(
+    input_filename: &str,
+    mut input_reader: InputReader,
+    output_name: &str,
+) -> Result<()> {
     // TODO: make a streaming parser that you can stream data through in blocks.
-    // for now, just read the whole input file into RAM...
-    let buf = fs::read_to_string(input_filename).map_err(|e| Error::UnableToReadInput {
-        name: String::from(input_filename),
-        source: e,
-    })?;
-    info!("Read {} bytes from {}", buf.len(), input_filename);
+    // for now, just read the whole input at once into a string
+    let mut buf = String::with_capacity(input_reader.len());
+    input_reader
+        .read_to_string(&mut buf)
+        .map_err(|e| Error::UnableToReadInput {
+            name: String::from(input_filename),
+            source: e,
+        })?;
 
     // FIXME: Design something sensible to do with lines that don't
     // parse rather than just dropping them on the floor
@@ -136,4 +161,14 @@ pub fn convert(input_filename: &str, output_name: &str) -> Result<()> {
         .map_err(|e| Error::UnableToCloseTableWriter { source: e })?;
     info!("Completing writing to {} successfully", output_name);
     Ok(())
+}
+
+fn convert_tsm_to_parquet(
+    _input_filename: &str,
+    mut _input_reader: InputReader,
+    _output_name: &str,
+) -> Result<()> {
+    Err(Error::NotImplemented {
+        operation_name: String::from("TSM Conversion not supported yet"),
+    })
 }
