@@ -11,6 +11,7 @@ use crate::commands::error::{Error, Result};
 pub enum FileType {
     LineProtocol,
     TSM,
+    Parquet,
 }
 
 // Interface for interacting with streams
@@ -24,7 +25,7 @@ pub enum InputReader {
 #[derive(Debug)]
 pub struct FileInputReader {
     file_type: FileType,
-    file_size: usize,
+    file_size: u64,
     reader: BufReader<std::fs::File>,
 }
 
@@ -32,7 +33,7 @@ pub struct FileInputReader {
 #[derive(Debug)]
 pub struct MemoryInputReader {
     file_type: FileType,
-    file_size: usize,
+    file_size: u64,
     cursor: Cursor<Vec<u8>>,
 }
 
@@ -53,7 +54,7 @@ impl FileInputReader {
 
         Ok(FileInputReader {
             file_type,
-            file_size: file_size as usize,
+            file_size,
             reader: BufReader::new(file),
         })
     }
@@ -64,7 +65,7 @@ impl MemoryInputReader {
         let len = buffer.len();
         MemoryInputReader {
             file_type,
-            file_size: len,
+            file_size: len as u64,
             cursor: Cursor::new(buffer),
         }
     }
@@ -119,7 +120,7 @@ impl InputReader {
         }
     }
 
-    pub fn len(&self) -> usize {
+    pub fn len(&self) -> u64 {
         match self {
             InputReader::FileInputType(file_input_reader) => file_input_reader.file_size,
             InputReader::MemoryInputType(memory_input_reader) => memory_input_reader.file_size,
@@ -153,6 +154,10 @@ impl InputReader {
             )?)),
             "lp" => Ok(InputReader::FileInputType(FileInputReader::new(
                 FileType::LineProtocol,
+                input_name,
+            )?)),
+            "parquet" => Ok(InputReader::FileInputType(FileInputReader::new(
+                FileType::Parquet,
                 input_name,
             )?)),
             "gz" => {
@@ -193,6 +198,10 @@ impl InputReader {
                     ))),
                     "lp" => Ok(InputReader::MemoryInputType(MemoryInputReader::new(
                         FileType::LineProtocol,
+                        buffer,
+                    ))),
+                    "parquet" => Ok(InputReader::MemoryInputType(MemoryInputReader::new(
+                        FileType::Parquet,
                         buffer,
                     ))),
                     _ => Err(Error::UnknownInputType {

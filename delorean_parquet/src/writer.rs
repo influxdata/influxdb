@@ -1,5 +1,10 @@
 //! This module contains the code to write delorean table data to parquet
-use delorean_table::{packers::Packer, DeloreanTableWriter, Error as TableError};
+use std::{
+    fmt,
+    io::{Seek, Write},
+    rc::Rc,
+};
+
 use log::debug;
 use parquet::{
     basic::{Compression, Encoding, LogicalType, Repetition, Type as PhysicalType},
@@ -9,17 +14,12 @@ use parquet::{
         reader::TryClone,
         writer::{FileWriter, SerializedFileWriter},
     },
-    schema::{
-        printer,
-        types::{ColumnPath, Type},
-    },
+    schema::types::{ColumnPath, Type},
 };
 use snafu::{ResultExt, Snafu};
-use std::{
-    fmt,
-    io::{Seek, Write},
-    rc::Rc,
-};
+
+use crate::metadata::parquet_schema_as_string;
+use delorean_table::{packers::Packer, DeloreanTableWriter, Error as TableError};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -251,12 +251,6 @@ where
             .field("file_writer", &"SerializedFileWriter")
             .finish()
     }
-}
-
-fn parquet_schema_as_string(parquet_schema: &parquet::schema::types::Type) -> String {
-    let mut parquet_schema_string = Vec::new();
-    printer::print_schema(&mut parquet_schema_string, parquet_schema);
-    String::from_utf8_lossy(&parquet_schema_string).to_string()
 }
 
 // Converts from line protocol `Schema` to the equivalent parquet schema `Type`.

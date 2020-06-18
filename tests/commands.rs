@@ -310,3 +310,38 @@ fn meta_cpu_usage_tsm_gz() {
 
     assert_meta_cpu_usage_tsm(assert);
 }
+
+/// Validates some of the metadata output content for this tsm file
+fn assert_meta_temperature_parquet(assert: Assert) {
+    assert
+        .success()
+        .stdout(predicate::str::contains("Parquet file metadata:"))
+        .stdout(predicate::str::contains(r#"created by: "Delorean""#))
+        .stdout(predicate::str::contains(
+            r#"Column Chunk [3]:
+    file_offset: 595
+    column_type: DOUBLE
+    column_path: bottom_degrees
+    num_values: 6
+    encodings: [PLAIN, RLE_DICTIONARY, RLE]
+    compression: GZIP
+    compressed_size: 125
+    uncompressed_size: 90
+    data_page_offset: 547
+    has_index_page: false
+    has_dictionary_page: true
+    dictionary_page_offset: 470
+    NO STATISTICS"#,
+        ));
+}
+
+#[test]
+fn meta_temperature_parquet() {
+    let mut cmd = Command::cargo_bin("delorean").unwrap();
+    let assert = cmd
+        .arg("meta")
+        .arg("tests/fixtures/parquet/temperature.parquet")
+        .assert();
+
+    assert_meta_temperature_parquet(assert);
+}
