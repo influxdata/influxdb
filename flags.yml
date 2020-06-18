@@ -85,6 +85,12 @@
   default: false
   contact: Query Team
 
+- name: Group Window Aggregate Transpose
+  description: Enables the GroupWindowAggregateTransposeRule for all enabled window aggregates
+  key: groupWindowAggregateTranspose
+  default: false
+  contact: Query Team
+
 - name: New Auth Package
   description: Enables the refactored authorization api
   key: newAuth
