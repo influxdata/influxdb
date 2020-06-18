@@ -39,7 +39,7 @@ export const normalizeSetLocalStorage = (state: LocalStorage): LocalStorage => {
     VERSION,
     autoRefresh,
     userSettings,
-    flags,
+    flags: { override: flags.override },
     app: normalizeApp(app),
     ranges: setLocalStateRanges(ranges),
     resources: normalizeResources(state),
