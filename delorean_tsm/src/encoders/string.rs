@@ -6,6 +6,8 @@ use std::{convert::TryInto, error::Error};
 const STRING_COMPRESSED_SNAPPY: u8 = 1;
 /// The header consists of one byte indicating the compression type.
 const HEADER_LEN: usize = 1;
+/// Store `i32::MAX` as a `usize` for comparing with lengths in assertions
+const MAX_I32: usize = i32::MAX as usize;
 
 /// Encodes a slice of string slices into a vector of bytes. Currently uses Snappy compression.
 pub fn encode<T: AsRef<str>>(src: &[T], dst: &mut Vec<u8>) -> Result<(), Box<dyn Error>> {
@@ -16,7 +18,14 @@ pub fn encode<T: AsRef<str>>(src: &[T], dst: &mut Vec<u8>) -> Result<(), Box<dyn
 
     // strings shouldn't be longer than 64kb
     let length_of_lengths = src.len() * super::MAX_VAR_INT_32;
-    let sum_of_lengths: usize = src.iter().map(|s| s.as_ref().len()).sum();
+    let sum_of_lengths: usize = src
+        .iter()
+        .map(|s| {
+            let len = s.as_ref().len();
+            assert!(len < MAX_I32);
+            len
+        })
+        .sum();
     let source_size = 2 + length_of_lengths + sum_of_lengths;
 
     // determine the maximum possible length needed for the buffer, which
