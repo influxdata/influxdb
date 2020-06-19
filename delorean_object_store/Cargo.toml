@@ -11,9 +11,9 @@ futures = "0.3.5"
 snafu = { version = "0.6.6", features = ["futures"] }
 
 # Amazon S3 integration
-rusoto_core = "0.43.0"
-rusoto_credential = "0.43.0"
-rusoto_s3 = "0.43.0"
+rusoto_core = "0.44.0"
+rusoto_credential = "0.44.0"
+rusoto_s3 = "0.44.0"
 
 # Google Cloud Storage integration
 cloud-storage = { version = "0.4.0" }
