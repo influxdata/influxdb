@@ -63,6 +63,15 @@ class signinSteps extends baseSteps {
         });
     }
 
+    async waitForSigninToLoad(timeout){
+        await this.driver.wait(until.elementIsVisible(this.driver.findElement(By.css(selector))));
+        await this.driver.wait(until.elementIsVisible(this.signinPage.getNameInput()), timeout,
+            `Waited ${timeout} milliseconds to locate signin name input`);
+        await this.driver.wait(until.elementIsVisible(this.signinPage.getPasswordInput()), timeout,
+            `Waited ${timeout} milliseconds to locate signin pasword input`);
+
+    }
+
     async signin(user){
         await this.enterUsername(user.username);
         await this.enterPassword(user.password);
