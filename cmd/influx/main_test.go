@@ -20,7 +20,7 @@ func Test_influx_cmd(t *testing.T) {
 	}{
 		{
 			name:    "all full length flags set",
-			args:    []string{"--token=TOKEN", "--host=HOST", "--local=true", "--skip-verify=true"},
+			args:    []string{"--token=TOKEN", "--host=HOST", "--skip-verify=true"},
 			envVars: envVarsZeroMap,
 			expected: globalFlags{
 				Config: config.Config{
@@ -28,12 +28,11 @@ func Test_influx_cmd(t *testing.T) {
 					Host:  "HOST",
 				},
 				skipVerify: true,
-				local:      true,
 			},
 		},
 		{
 			name:    "token p flag set",
-			args:    []string{"-t=TOKEN", "--host=HOST", "--local=true", "--skip-verify=true"},
+			args:    []string{"-t=TOKEN", "--host=HOST", "--skip-verify=true"},
 			envVars: envVarsZeroMap,
 			expected: globalFlags{
 				Config: config.Config{
@@ -41,12 +40,11 @@ func Test_influx_cmd(t *testing.T) {
 					Host:  "HOST",
 				},
 				skipVerify: true,
-				local:      true,
 			},
 		},
 		{
 			name: "env vars set",
-			args: []string{"--local=true", "--skip-verify=true"},
+			args: []string{"--skip-verify=true"},
 			envVars: map[string]string{
 				"INFLUX_TOKEN": "TOKEN",
 				"INFLUX_HOST":  "HOST",
@@ -57,12 +55,11 @@ func Test_influx_cmd(t *testing.T) {
 					Host:  "HOST",
 				},
 				skipVerify: true,
-				local:      true,
 			},
 		},
 		{
 			name: "env vars and flags set",
-			args: []string{"--local=true", "--token=flag-token", "--host=flag-host"},
+			args: []string{"--token=flag-token", "--host=flag-host"},
 			envVars: map[string]string{
 				"INFLUX_TOKEN": "TOKEN",
 				"INFLUX_HOST":  "HOST",
@@ -73,7 +70,6 @@ func Test_influx_cmd(t *testing.T) {
 					Host:  "flag-host",
 				},
 				skipVerify: false,
-				local:      true,
 			},
 		},
 	}
@@ -101,7 +97,6 @@ func Test_influx_cmd(t *testing.T) {
 
 			assert.Equal(t, tt.expected.Host, flagCapture.Host)
 			assert.Equal(t, tt.expected.Token, flagCapture.Token)
-			assert.Equal(t, tt.expected.local, flagCapture.local)
 			assert.Equal(t, tt.expected.skipVerify, flagCapture.skipVerify)
 		}
 

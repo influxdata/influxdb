@@ -13,10 +13,6 @@ import (
 
 func cmdPing(f *globalFlags, opts genericCLIOpts) *cobra.Command {
 	runE := func(cmd *cobra.Command, args []string) error {
-		if flags.local {
-			return fmt.Errorf("local flag not supported for ping command")
-		}
-
 		c := http.Client{
 			Timeout: 5 * time.Second,
 			Transport: &http.Transport{

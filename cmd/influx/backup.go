@@ -52,10 +52,6 @@ func newBackupService() (influxdb.BackupService, error) {
 func backupF(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
 
-	if flags.local {
-		return fmt.Errorf("local flag not supported for backup command")
-	}
-
 	if backupFlags.Path == "" {
 		return fmt.Errorf("must specify path")
 	}

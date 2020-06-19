@@ -65,10 +65,6 @@ func readFluxQuery(args []string, file string) (string, error) {
 }
 
 func fluxQueryF(cmd *cobra.Command, args []string) error {
-	if flags.local {
-		return fmt.Errorf("local flag not supported for query command")
-	}
-
 	if err := queryFlags.org.validOrgFlags(&flags); err != nil {
 		return err
 	}

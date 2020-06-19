@@ -17,6 +17,7 @@
 
 ### Bug Fixes
 1. [18602](https://github.com/influxdata/influxdb/pull/18602): Fix uint overflow during setup on 32bit systems
+1. [18623](https://github.com/influxdata/influxdb/pull/18623): Drop support for --local flag within influx CLI
 
 ## v2.0.0-beta.12 [2020-06-12]
 

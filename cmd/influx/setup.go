@@ -70,10 +70,6 @@ func cmdSetupUser(opt genericCLIOpts) *cobra.Command {
 }
 
 func setupUserF(cmd *cobra.Command, args []string) error {
-	if flags.local {
-		return fmt.Errorf("local flag not supported for setup command")
-	}
-
 	// check if setup is allowed
 	client, err := newHTTPClient()
 	if err != nil {
@@ -118,10 +114,6 @@ func setupUserF(cmd *cobra.Command, args []string) error {
 }
 
 func setupF(cmd *cobra.Command, args []string) error {
-	if flags.local {
-		return fmt.Errorf("local flag not supported for setup command")
-	}
-
 	// check if setup is allowed
 	client, err := newHTTPClient()
 	if err != nil {
