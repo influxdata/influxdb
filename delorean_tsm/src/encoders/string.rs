@@ -158,6 +158,15 @@ mod tests {
     }
 
     #[test]
+    fn encode_unicode() {
+        let src = vec!["☃".as_bytes()];
+        let mut dst = vec![];
+
+        encode(&src, &mut dst).expect("failed to encode src");
+        assert_eq!(dst, vec![16, 4, 12, 3, 226, 152, 131]);
+    }
+
+    #[test]
     fn decode_no_values() {
         let src: Vec<u8> = vec![];
         let mut dst = vec![];
@@ -200,5 +209,19 @@ mod tests {
             .collect();
         let expected: Vec<_> = (0..10).map(|i| format!("value {}", i)).collect();
         assert_eq!(dst_as_strings, expected);
+    }
+
+    #[test]
+    fn decode_unicode() {
+        let src = vec![16, 4, 12, 3, 226, 152, 131];
+        let mut dst = vec![];
+
+        decode(&src, &mut dst).expect("failed to decode src");
+
+        let dst_as_strings: Vec<_> = dst
+            .iter()
+            .map(|s| std::str::from_utf8(s).unwrap())
+            .collect();
+        assert_eq!(dst_as_strings, vec!["☃"]);
     }
 }
