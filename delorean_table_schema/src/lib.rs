@@ -51,7 +51,7 @@ impl Tag {
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
-/// Line Protocol Data Types as defined in [the InfluxData documentation](influx)
+/// Line Protocol Data Types as defined in [the InfluxData documentation][influx]
 ///
 /// [influx]: https://docs.influxdata.com/influxdb/v1.8/write_protocols/line_protocol_tutorial/#data-types
 pub enum DataType {

@@ -220,7 +220,7 @@ impl fmt::Debug for AmazonS3 {
 
 impl AmazonS3 {
     /// Configure a connection to Amazon S3 in the specified Amazon region and bucket. Uses
-    /// [`rusoto_credential::ChainProvider`](cp) to check for credentials in:
+    /// [`rusoto_credential::ChainProvider`][cp] to check for credentials in:
     ///
     /// 1. Environment variables: `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`
     /// 2. `credential_process` command in the AWS config file, usually located at `~/.aws/config`.
