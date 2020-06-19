@@ -129,7 +129,7 @@ pub enum BlockData {
     Float { ts: Vec<i64>, values: Vec<f64> },
     Integer { ts: Vec<i64>, values: Vec<i64> },
     Bool { ts: Vec<i64>, values: Vec<bool> },
-    Str { ts: Vec<i64>, values: Vec<String> },
+    Str { ts: Vec<i64>, values: Vec<Vec<u8>> },
     Unsigned { ts: Vec<i64>, values: Vec<u64> },
 }
 

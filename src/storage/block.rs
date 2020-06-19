@@ -240,7 +240,8 @@ impl Encoder for Vec<u64> {
 
 impl Encoder for Vec<&str> {
     fn encode(&self, dst: &mut Vec<u8>) -> Result<(), StorageError> {
-        string::encode(&self, dst).map_err(|e| StorageError {
+        let bytes: Vec<_> = self.iter().map(|s| s.as_bytes()).collect();
+        string::encode(&bytes, dst).map_err(|e| StorageError {
             description: e.to_string(),
         })
     }

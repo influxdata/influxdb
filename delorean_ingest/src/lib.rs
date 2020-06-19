@@ -597,7 +597,7 @@ impl TSMFileConverter {
                             })?;
 
                             // this will create a column of repeated None values.
-                            let col: Vec<Option<String>> = vec![None; col_len];
+                            let col: Vec<Option<Vec<u8>>> = vec![None; col_len];
                             packed_columns[*idx] = Packers::from(col);
                         }
 
@@ -650,7 +650,7 @@ impl TSMFileConverter {
                                     packed_columns[*idx] = Packers::from(col);
                                 }
                                 BlockType::Str => {
-                                    let col: Vec<Option<String>> = vec![None; col_len];
+                                    let col: Vec<Option<Vec<u8>>> = vec![None; col_len];
                                     packed_columns[*idx] = Packers::from(col);
                                 }
                                 BlockType::Unsigned => {

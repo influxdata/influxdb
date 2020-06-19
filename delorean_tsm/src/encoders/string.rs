@@ -9,8 +9,9 @@ const HEADER_LEN: usize = 1;
 /// Store `i32::MAX` as a `usize` for comparing with lengths in assertions
 const MAX_I32: usize = i32::MAX as usize;
 
-/// Encodes a slice of string slices into a vector of bytes. Currently uses Snappy compression.
-pub fn encode<T: AsRef<str>>(src: &[T], dst: &mut Vec<u8>) -> Result<(), Box<dyn Error>> {
+/// Encodes a slice of byte slices representing string data into a vector of bytes. Currently uses
+/// Snappy compression.
+pub fn encode(src: &[&[u8]], dst: &mut Vec<u8>) -> Result<(), Box<dyn Error>> {
     dst.truncate(0); // reset buffer
     if src.is_empty() {
         return Ok(());
@@ -21,7 +22,7 @@ pub fn encode<T: AsRef<str>>(src: &[T], dst: &mut Vec<u8>) -> Result<(), Box<dyn
     let sum_of_lengths: usize = src
         .iter()
         .map(|s| {
-            let len = s.as_ref().len();
+            let len = s.len();
             assert!(len < MAX_I32);
             len
         })
@@ -47,11 +48,10 @@ pub fn encode<T: AsRef<str>>(src: &[T], dst: &mut Vec<u8>) -> Result<(), Box<dyn
     let (compressed_data, data) = dst.split_at_mut(compressed_size);
     let mut n = 0;
     for s in src {
-        let s = s.as_ref();
         let len = s.len();
         let len_u64: u64 = len.try_into()?;
         n += len_u64.encode_var(&mut data[n..]);
-        data[n..n + len].copy_from_slice(s.as_bytes());
+        data[n..n + len].copy_from_slice(s);
         n += len;
     }
     let data = &data[..n];
@@ -69,8 +69,9 @@ pub fn encode<T: AsRef<str>>(src: &[T], dst: &mut Vec<u8>) -> Result<(), Box<dyn
     Ok(())
 }
 
-/// Decodes a slice of bytes representing Snappy-compressed data into a vector of `String`s.
-pub fn decode(src: &[u8], dst: &mut Vec<String>) -> Result<(), Box<dyn Error>> {
+/// Decodes a slice of bytes representing Snappy-compressed data into a vector of vectors of bytes
+/// representing string data, which may or may not be valid UTF-8.
+pub fn decode(src: &[u8], dst: &mut Vec<Vec<u8>>) -> Result<(), Box<dyn Error>> {
     if src.is_empty() {
         return Ok(());
     }
@@ -104,7 +105,7 @@ pub fn decode(src: &[u8], dst: &mut Vec<String>) -> Result<(), Box<dyn Error>> {
             return Err("short buffer".into());
         }
 
-        dst.push(std::str::from_utf8(&decoded_bytes[lower..upper])?.to_string());
+        dst.push(decoded_bytes[lower..upper].to_vec());
 
         // The length of this string plus the length of the variable byte encoded length
         i += length + num_bytes_read;
@@ -119,7 +120,7 @@ mod tests {
 
     #[test]
     fn encode_no_values() {
-        let src: Vec<&str> = vec![];
+        let src: Vec<&[u8]> = vec![];
         let mut dst = vec![];
 
         // check for error
@@ -131,7 +132,8 @@ mod tests {
 
     #[test]
     fn encode_single() {
-        let src = vec!["v1"];
+        let v1_bytes = b"v1";
+        let src = vec![&v1_bytes[..]];
         let mut dst = vec![];
 
         encode(&src, &mut dst).expect("failed to encode src");
@@ -140,7 +142,8 @@ mod tests {
 
     #[test]
     fn encode_multi_compressed() {
-        let src: Vec<_> = (0..10).map(|i| format!("value {}", i)).collect();
+        let src_strings: Vec<_> = (0..10).map(|i| format!("value {}", i)).collect();
+        let src: Vec<_> = src_strings.iter().map(|s| s.as_bytes()).collect();
         let mut dst = vec![];
 
         encode(&src, &mut dst).expect("failed to encode src");
@@ -172,7 +175,12 @@ mod tests {
         let mut dst = vec![];
 
         decode(&src, &mut dst).expect("failed to decode src");
-        assert_eq!(dst, vec!["v1"]);
+
+        let dst_as_strings: Vec<_> = dst
+            .iter()
+            .map(|s| std::str::from_utf8(s).unwrap())
+            .collect();
+        assert_eq!(dst_as_strings, vec!["v1"]);
     }
 
     #[test]
@@ -186,7 +194,11 @@ mod tests {
 
         decode(&src, &mut dst).expect("failed to decode src");
 
+        let dst_as_strings: Vec<_> = dst
+            .iter()
+            .map(|s| std::str::from_utf8(s).unwrap())
+            .collect();
         let expected: Vec<_> = (0..10).map(|i| format!("value {}", i)).collect();
-        assert_eq!(dst, expected);
+        assert_eq!(dst_as_strings, expected);
     }
 }

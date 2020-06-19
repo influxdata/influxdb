@@ -152,13 +152,13 @@ impl std::convert::From<delorean_table_schema::DataType> for Packers {
     }
 }
 
-impl std::convert::From<Vec<Option<String>>> for Packers {
-    fn from(values: Vec<Option<String>>) -> Self {
+impl std::convert::From<Vec<Option<Vec<u8>>>> for Packers {
+    fn from(values: Vec<Option<Vec<u8>>>) -> Self {
         // TODO(edd): convert this with an iterator?
         let mut as_byte_array: Vec<Option<ByteArray>> = Vec::with_capacity(values.len());
         for v in values {
             match v {
-                Some(v) => as_byte_array.push(Some(ByteArray::from(v.as_str()))),
+                Some(v) => as_byte_array.push(Some(ByteArray::from(v))),
                 None => as_byte_array.push(None),
             }
         }
