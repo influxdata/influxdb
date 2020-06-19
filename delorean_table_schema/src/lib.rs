@@ -196,7 +196,7 @@ impl SchemaBuilder {
         }
     }
 
-    pub fn get_measurement_name(&self) -> &String {
+    pub fn get_measurement_name(&self) -> &str {
         &self.measurement_name
     }
 

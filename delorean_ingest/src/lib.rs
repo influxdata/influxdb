@@ -277,7 +277,7 @@ impl<'a> MeasurementSampler<'a> {
 
         for line in &self.schema_sample {
             let series = &line.series;
-            if &series.measurement != builder.get_measurement_name() {
+            if series.measurement != builder.get_measurement_name() {
                 return Err(Error::OnlyOneMeasurementSupported {
                     message: format!(
                         "Saw new measurement {}, had been using measurement {}",
