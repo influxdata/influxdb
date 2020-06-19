@@ -51,7 +51,7 @@ fn convert_line_protocol_good_input_filename() {
     let mut cmd = Command::cargo_bin("delorean").unwrap();
 
     let parquet_path = delorean_test_helpers::tempfile::Builder::new()
-        .prefix("dstool_e2e")
+        .prefix("convert_e2e")
         .suffix(".parquet")
         .tempfile()
         .expect("error creating temp file")
@@ -71,7 +71,7 @@ fn convert_line_protocol_good_input_filename() {
 
     assert
         .success()
-        .stderr(predicate::str::contains("dstool convert starting"))
+        .stderr(predicate::str::contains("convert starting"))
         .stderr(predicate::str::contains(
             "Writing output for measurement h2o_temperature",
         ))
@@ -85,7 +85,7 @@ fn convert_tsm_good_input_filename() {
     let mut cmd = Command::cargo_bin("delorean").unwrap();
 
     let parquet_path = delorean_test_helpers::tempfile::Builder::new()
-        .prefix("dstool_e2e_tsm")
+        .prefix("convert_e2e_tsm")
         .suffix(".parquet")
         .tempfile()
         .expect("error creating temp file")
@@ -116,7 +116,7 @@ fn convert_tsm_good_input_filename() {
 
     // assert
     //     .success()
-    //     .stderr(predicate::str::contains("dstool convert starting"))
+    //     .stderr(predicate::str::contains("convert starting"))
     //     .stderr(predicate::str::contains(
     //         "Writing output for measurement h2o_temperature",
     //     ))
@@ -131,7 +131,7 @@ fn convert_multiple_measurements() {
 
     // Create a directory
     let parquet_output_path = delorean_test_helpers::tempfile::Builder::new()
-        .prefix("dstool_e2e")
+        .prefix("convert_multiple_e2e")
         .tempdir()
         .expect("error creating temp directory");
 
@@ -150,7 +150,7 @@ fn convert_multiple_measurements() {
 
     assert
         .success()
-        .stderr(predicate::str::contains("dstool convert starting"))
+        .stderr(predicate::str::contains("convert starting"))
         .stderr(predicate::str::contains("Writing to output directory"))
         .stderr(predicate::str::contains(
             "Writing output for measurement h2o_temperature",
@@ -228,7 +228,7 @@ fn uncompress_gz(
     let gz_file = File::open(input_path).expect("Error opening input");
 
     let output_path = delorean_test_helpers::tempfile::Builder::new()
-        .prefix("dstool_decompressed_e2e")
+        .prefix("decompressed_e2e")
         .suffix(output_extension)
         .tempfile()
         .expect("error creating temp file")

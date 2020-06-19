@@ -14,7 +14,7 @@ use crate::commands::error::{Error, Result};
 use crate::commands::input::{FileType, InputReader};
 
 pub fn dump_meta(input_filename: &str) -> Result<()> {
-    info!("dstool meta starting");
+    info!("meta starting");
     debug!("Reading from input file {}", input_filename);
 
     let input_reader = InputReader::new(input_filename)?;
