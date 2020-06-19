@@ -1,10 +1,4 @@
 //! This module contains the code to write delorean table data to parquet
-use std::{
-    fmt,
-    io::{Seek, Write},
-    rc::Rc,
-};
-
 use log::debug;
 use parquet::{
     basic::{Compression, Encoding, LogicalType, Repetition, Type as PhysicalType},
@@ -16,7 +10,12 @@ use parquet::{
     },
     schema::types::{ColumnPath, Type},
 };
-use snafu::{ResultExt, Snafu};
+use snafu::{OptionExt, ResultExt, Snafu};
+use std::{
+    fmt,
+    io::{Seek, Write},
+    rc::Rc,
+};
 
 use crate::metadata::parquet_schema_as_string;
 use delorean_table::{DeloreanTableWriter, Error as TableError, Packers};
@@ -28,8 +27,8 @@ pub enum Error {
         message: String,
         source: ParquetError,
     },
-    #[snafu(display(r#"{}"#, message))]
-    MismatchedColumns { message: String },
+    #[snafu(display(r#"Could not get packer for column {}"#, column_number))]
+    MismatchedColumns { column_number: usize },
 }
 
 impl From<Error> for TableError {
@@ -142,16 +141,11 @@ where
                     message: String::from("Can't create the next row_group_writer"),
                 })?
         {
-            let packer = match packers.get(column_number) {
-                Some(packer) => packer,
-                None => {
-                    return Err(TableError::Other {
-                        source: Box::new(Error::MismatchedColumns {
-                            message: format!("Could not get packer for column {}", column_number),
-                        }),
-                    });
-                }
-            };
+            let packer = packers
+                .get(column_number)
+                .context(MismatchedColumns { column_number })
+                .map_err(TableError::from_other)?;
+
             // TODO(edd) This seems super awkward and not the right way to do it...
             // We know we have a direct mapping between a col_writer (ColumnWriter)
             // type and a Packers variant. We also know that we do exactly the same
