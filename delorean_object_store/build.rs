@@ -1,8 +1,9 @@
 use std::env;
 
 fn main() {
-    dotenv::dotenv().ok();
-    println!("cargo:rerun-if-changed=.env");
+    if let Ok(file) = dotenv::dotenv() {
+        println!("cargo:rerun-if-changed={}", file.display());
+    }
 
     if env::var("GCS_BUCKET_NAME").is_ok() && env::var("SERVICE_ACCOUNT").is_ok() {
         println!("cargo:rustc-cfg=test_gcs");
