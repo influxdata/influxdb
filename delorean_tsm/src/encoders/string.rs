@@ -51,7 +51,7 @@ pub fn encode(src: &[&[u8]], dst: &mut Vec<u8>) -> Result<(), Box<dyn Error>> {
         let len = s.len();
         let len_u64: u64 = len.try_into()?;
         n += len_u64.encode_var(&mut data[n..]);
-        data[n..n + len].copy_from_slice(s);
+        data[n..][..len].copy_from_slice(s);
         n += len;
     }
     let data = &data[..n];
