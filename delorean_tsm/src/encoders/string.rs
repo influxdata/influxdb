@@ -167,6 +167,15 @@ mod tests {
     }
 
     #[test]
+    fn encode_invalid_utf8() {
+        let src = vec![&[b'\xC0'][..]];
+        let mut dst = vec![];
+
+        encode(&src, &mut dst).expect("failed to encode src");
+        assert_eq!(dst, vec![16, 2, 4, 1, 192]);
+    }
+
+    #[test]
     fn decode_no_values() {
         let src: Vec<u8> = vec![];
         let mut dst = vec![];
@@ -223,5 +232,14 @@ mod tests {
             .map(|s| std::str::from_utf8(s).unwrap())
             .collect();
         assert_eq!(dst_as_strings, vec!["☃"]);
+    }
+
+    #[test]
+    fn decode_invalid_utf8() {
+        let src = vec![16, 2, 4, 1, 192];
+        let mut dst = vec![];
+
+        decode(&src, &mut dst).expect("failed to decode src");
+        assert_eq!(dst, vec![&[b'\xC0'][..]]);
     }
 }
