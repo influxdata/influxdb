@@ -60,7 +60,6 @@ func NewHTTPOrgHandler(log *zap.Logger, orgService influxdb.OrganizationService,
 			mountableRouter.Mount("/secrets", secretHandler)
 		})
 	})
-
 	svr.Router = r
 	return svr
 }
@@ -72,6 +71,17 @@ type orgResponse struct {
 
 func newOrgResponse(o influxdb.Organization) orgResponse {
 	return orgResponse{
+		Links: map[string]string{
+			"self":       fmt.Sprintf("/api/v2/orgs/%s", o.ID),
+			"logs":       fmt.Sprintf("/api/v2/orgs/%s/logs", o.ID),
+			"members":    fmt.Sprintf("/api/v2/orgs/%s/members", o.ID),
+			"owners":     fmt.Sprintf("/api/v2/orgs/%s/owners", o.ID),
+			"secrets":    fmt.Sprintf("/api/v2/orgs/%s/secrets", o.ID),
+			"labels":     fmt.Sprintf("/api/v2/orgs/%s/labels", o.ID),
+			"buckets":    fmt.Sprintf("/api/v2/buckets?org=%s", o.Name),
+			"tasks":      fmt.Sprintf("/api/v2/tasks?org=%s", o.Name),
+			"dashboards": fmt.Sprintf("/api/v2/dashboards?org=%s", o.Name),
+		},
 		Organization: o,
 	}
 }
@@ -83,6 +93,9 @@ type orgsResponse struct {
 
 func newOrgsResponse(orgs []*influxdb.Organization) *orgsResponse {
 	res := orgsResponse{
+		Links: map[string]string{
+			"self": "/api/v2/orgs",
+		},
 		Organizations: []orgResponse{},
 	}
 	for _, org := range orgs {

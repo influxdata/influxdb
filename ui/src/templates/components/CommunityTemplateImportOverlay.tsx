@@ -3,7 +3,7 @@ import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
 
 // Components
-import {TemplateInstallerOverlay} from 'src/templates/components/TemplateInstallerOverlay'
+import {CommunityTemplateInstallerOverlay} from 'src/templates/components/CommunityTemplateInstallerOverlay'
 
 // Actions
 import {createTemplate as createTemplateAction} from 'src/templates/actions/thunks'
@@ -43,7 +43,7 @@ class UnconnectedTemplateImportOverlay extends PureComponent<Props> {
 
   public render() {
     return (
-      <TemplateInstallerOverlay
+      <CommunityTemplateInstallerOverlay
         onDismissOverlay={this.onDismiss}
         onSubmit={this.handleInstallTemplate}
         status={this.state.status}

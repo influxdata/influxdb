@@ -9,13 +9,8 @@ import {getVariables, asAssignment} from 'src/variables/selectors'
 import {getOrg} from 'src/organizations/selectors'
 import {NotebookContext} from 'src/notebooks/context/notebook'
 import {TimeContext} from 'src/notebooks/context/time'
-import {fromFlux as parse, FromFluxResult} from '@influxdata/giraffe'
-
-export interface BothResults {
-  parsed: FromFluxResult
-  raw: string
-  error?: string
-}
+import {fromFlux as parse} from '@influxdata/giraffe'
+import {BothResults} from 'src/notebooks'
 
 export interface QueryContextType {
   query: (text: string) => Promise<BothResults>
@@ -54,6 +49,7 @@ export const QueryProvider: FC<Props> = ({children, variables, org}) => {
       })
       .then(raw => {
         return {
+          source: text,
           raw: raw.csv,
           parsed: parse(raw.csv),
           error: null,

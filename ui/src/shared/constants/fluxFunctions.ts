@@ -4342,14 +4342,14 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'String',
       },
       {
-        name: 't',
+        name: 'prefix',
         desc: 'The prefix to search for.',
         type: 'String',
       },
     ],
     package: 'strings',
     desc: 'Indicates if a string begins with a specified prefix.',
-    example: 'strings.hasPrefix(v: "go gopher", t: "go")',
+    example: 'strings.hasPrefix(v: "go gopher", prefix: "go")',
     category: 'Tests',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/strings/hasprefix/',
@@ -4363,14 +4363,14 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'String',
       },
       {
-        name: 't',
+        name: 'suffix',
         desc: 'The suffix to search for.',
         type: 'String',
       },
     ],
     package: 'strings',
     desc: 'Indicates if a string ends with a specified suffix.',
-    example: 'strings.hasPrefix(v: "gopher go", t: "go")',
+    example: 'strings.hasSuffix(v: "gopher go", suffix: "go")',
     category: 'Tests',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/strings/hassuffix/',

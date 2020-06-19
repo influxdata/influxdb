@@ -6,14 +6,14 @@ register({
   type: 'query',
   priority: 1,
   component: View,
-  button: 'Custom Script',
+  button: 'Flux Script',
   initial: {
     panelVisibility: 'visible',
     panelHeight: 200,
     activeQuery: 0,
     queries: [
       {
-        text: '',
+        text: '// Write Flux script here',
         editMode: 'advanced',
         builderConfig: {
           buckets: [],

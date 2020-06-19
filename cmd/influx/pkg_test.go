@@ -708,8 +708,8 @@ func testPkgWritesToBuffer(newCmdFn func(w io.Writer) *cobra.Command, args pkgFi
 type fakePkgSVC struct {
 	initStackFn func(ctx context.Context, userID influxdb.ID, stack pkger.Stack) (pkger.Stack, error)
 	createFn    func(ctx context.Context, setters ...pkger.CreatePkgSetFn) (*pkger.Pkg, error)
-	dryRunFn    func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg) (pkger.PkgImpactSummary, error)
-	applyFn     func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.PkgImpactSummary, error)
+	dryRunFn    func(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.PkgImpactSummary, error)
+	applyFn     func(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.PkgImpactSummary, error)
 }
 
 var _ pkger.SVC = (*fakePkgSVC)(nil)
@@ -733,6 +733,14 @@ func (f *fakePkgSVC) ExportStack(ctx context.Context, orgID, stackID influxdb.ID
 	panic("not implemented")
 }
 
+func (f *fakePkgSVC) ReadStack(ctx context.Context, id influxdb.ID) (pkger.Stack, error) {
+	panic("not implemented")
+}
+
+func (f *fakePkgSVC) UpdateStack(ctx context.Context, upd pkger.StackUpdate) (pkger.Stack, error) {
+	panic("not implemented")
+}
+
 func (f *fakePkgSVC) CreatePkg(ctx context.Context, setters ...pkger.CreatePkgSetFn) (*pkger.Pkg, error) {
 	if f.createFn != nil {
 		return f.createFn(ctx, setters...)
@@ -740,16 +748,16 @@ func (f *fakePkgSVC) CreatePkg(ctx context.Context, setters ...pkger.CreatePkgSe
 	panic("not implemented")
 }
 
-func (f *fakePkgSVC) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.PkgImpactSummary, error) {
+func (f *fakePkgSVC) DryRun(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.PkgImpactSummary, error) {
 	if f.dryRunFn != nil {
-		return f.dryRunFn(ctx, orgID, userID, pkg)
+		return f.dryRunFn(ctx, orgID, userID, opts...)
 	}
 	panic("not implemented")
 }
 
-func (f *fakePkgSVC) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.PkgImpactSummary, error) {
+func (f *fakePkgSVC) Apply(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.PkgImpactSummary, error) {
 	if f.applyFn != nil {
-		return f.applyFn(ctx, orgID, userID, pkg, opts...)
+		return f.applyFn(ctx, orgID, userID, opts...)
 	}
 	panic("not implemented")
 }

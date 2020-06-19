@@ -69,8 +69,8 @@
   flex: 1 0 $notebook-header-height;
 }
 
-.notebook-panel--header-right {
-  transition: opacity 0.25s ease;
+.notebook-panel--header-right > * {
+  transition: all 0.25s ease;
   opacity: 0;
 }
 
@@ -110,7 +110,7 @@
 // Focus state
 .notebook-panel__focus,
 .notebook-panel:hover {
-  .notebook-panel--header-right {
+  .notebook-panel--header-right > * {
     opacity: 1;
   }
 }

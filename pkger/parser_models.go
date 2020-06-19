@@ -17,9 +17,8 @@ import (
 )
 
 type identity struct {
-	name         *references
-	displayName  *references
-	shouldRemove bool
+	name        *references
+	displayName *references
 }
 
 func (i *identity) Name() string {

@@ -15,7 +15,7 @@ $panel-resizer--drag-handle: 30px;
 }
 
 .panel-resizer--header {
-  color: $g8-storm;
+  color: $g15-platinum;
   width: $panel-resizer--header;
   flex: 0 0 $panel-resizer--header;
   display: flex;
@@ -87,7 +87,7 @@ $panel-resizer--drag-handle: 30px;
 }
 
 .panel-resizer--empty {
-  color: $g8-storm;
+  color: $g15-platinum;
   user-select: none;
   padding: $cf-marg-b 0;
   font-weight: $cf-font-weight--medium;
@@ -122,13 +122,13 @@ body.panel-resizer-dragging:hover {
 .panel-resizer--drag-icon {
   width: $panel-resizer--drag-handle / 2;
   height: $cf-border;
-  background-color: $g5-pepper;
+  background-color: $g11-sidewalk;
   transition: background-color 0.25s ease;
   margin: $cf-border 0;
 }
 
 .panel-resizer--drag-handle:hover .panel-resizer--drag-icon {
-  background-color: $g13-mist;
+  background-color: $g18-cloud;
 }
 
 .panel-resizer--drag-handle__dragging .panel-resizer--drag-icon {

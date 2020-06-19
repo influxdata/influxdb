@@ -4500,7 +4500,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   "/orgs/{orgID}/invites/{inviteID}/resend":
     post:
-      operationId: DeleteOrgsIDInviteID
+      operationId: PostOrgsIDInviteID
       tags:
         - Invites
         - Organizations
@@ -4720,50 +4720,12 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    id:
-                      type: string
-                    orgID:
-                      type: string
-                    name:
-                      type: string
-                    description:
-                      type: string
-                    urls:
-                      type: array
-                      items:
-                        type: string
-                    createdAt:
-                      type: string
-                      format: date-time
-                      readOnly: true
-                    updatedAt:
-                      type: string
-                      format: date-time
-                      readOnly: true
-                    resources:
-                      type: object
-                      properties:
-                        apiVersion:
-                          type: string
-                        resourceID:
-                          type: string
-                        kind:
-                          type: string
-                        pkgName:
-                          type: string
-                        associations:
-                          type: array
-                          items:
-                            type: object
-                            properties:
-                              kind:
-                                type: string
-                              pkgName:
-                                type: string
+                type: object
+                properties:
+                  stacks:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Stack"
         default:
           description: Unexpected error
           content:
@@ -4774,9 +4736,9 @@ paths:
       operationId: CreateStack
       tags:
         - InfluxPackages
-      summary: Create a new Influx package
+      summary: Create a new stack
       requestBody:
-        description: Influx package to create.
+        description: Influx stack to create.
         required: true
         content:
           application/json:
@@ -4799,28 +4761,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  id:
-                    type: string
-                  orgID:
-                    type: string
-                  name:
-                    type: string
-                  description:
-                    type: string
-                  urls:
-                    type: array
-                    items:
-                      type: string
-                  createdAt:
-                    type: string
-                    format: date-time
-                    readOnly: true
-                  updatedAt:
-                    type: string
-                    format: date-time
-                    readOnly: true
+                $ref: "#/components/schemas/Stack"
         default:
           description: Unexpected error
           content:
@@ -4828,6 +4769,72 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
   /packages/stacks/{stack_id}:
+    get:
+      operationId: ReadStack
+      tags:
+        - InfluxPackages
+      summary: Grab a stack by its ID
+      parameters:
+        - in: path
+          name: stack_id
+          required: true
+          schema:
+            type: string
+          description: The stack id
+      responses:
+        "200":
+          description: Read an influx stack by ID
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Stack"
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    patch:
+      operationId: UpdateStack
+      tags:
+        - InfluxPackages
+      summary: Update a an Influx Stack
+      parameters:
+        - in: path
+          name: stack_id
+          required: true
+          schema:
+            type: string
+          description: The stack id
+      requestBody:
+        description: Influx stack to update.
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                urls:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        "200":
+          description: Influx stack updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Stack"
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
     delete:
       operationId: DeleteStack
       tags:
@@ -4839,7 +4846,7 @@ paths:
           required: true
           schema:
             type: string
-          description: The stack id to be removed
+          description: The stack id
         - in: query
           name: orgID
           required: true
@@ -7646,12 +7653,30 @@ components:
           type: string
         stackID:
           type: string
-        package:
-          $ref: "#/components/schemas/Pkg"
-        packages:
+        template:
+          type: object
+          properties:
+            contentType:
+              type: string
+            sources:
+              type: array
+              items:
+                type: string
+            package:
+              $ref: "#/components/schemas/Pkg"
+        templates:
           type: array
           items:
-            $ref: "#/components/schemas/Pkg"
+            type: object
+            properties:
+              contentType:
+                type: string
+              sources:
+                type: array
+                items:
+                  type: string
+              package:
+                $ref: "#/components/schemas/Pkg"
         secrets:
           type: object
           additionalProperties:
@@ -7666,6 +7691,23 @@ components:
               contentType:
                 type: string
             required: ["url"]
+        actions:
+          type: array
+          items:
+            oneOf:
+              - type: object
+                properties:
+                  action:
+                    type: string
+                    enum: ["skipResource"]
+                  properties:
+                    type: object
+                    properties:
+                      kind:
+                        type: string
+                      resourceTemplateName:
+                        type: string
+                    required: ["kind", "resourceTemplateName"]
     PkgCreateKind:
       type: string
       enum:
@@ -7759,6 +7801,10 @@ components:
     PkgSummary:
       type: object
       properties:
+        sources:
+          type: array
+          items:
+            type: string
         stackID:
           type: string
         summary:
@@ -8366,6 +8412,55 @@ components:
           type: integer
         properties: # field name is properties
           $ref: "#/components/schemas/ViewProperties"
+    Stack:
+      type: object
+      properties:
+        id:
+          type: string
+        orgID:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        sources:
+          type: array
+          items:
+            type: string
+        resources:
+          type: array
+          items:
+            type: object
+            properties:
+              apiVersion:
+                type: string
+              resourceID:
+                type: string
+              kind:
+                type: string
+              pkgName:
+                type: string
+              associations:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    kind:
+                      type: string
+                    pkgName:
+                      type: string
+        urls:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          readOnly: true
     Runs:
       type: object
       properties:

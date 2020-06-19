@@ -42,6 +42,8 @@ type WindowAggregateCapability interface {
 	HaveMean() bool
 	HaveCount() bool
 	HaveSum() bool
+	HaveFirst() bool
+	HaveLast() bool
 }
 
 // WindowAggregateReader implements the WindowAggregate capability.
@@ -90,6 +92,14 @@ type ReadWindowAggregateSpec struct {
 	Aggregates  []plan.ProcedureKind
 	CreateEmpty bool
 	TimeColumn  string
+}
+
+func (spec *ReadWindowAggregateSpec) Name() string {
+	var agg string
+	if len(spec.Aggregates) > 0 {
+		agg = string(spec.Aggregates[0])
+	}
+	return fmt.Sprintf("readWindow(%s)", agg)
 }
 
 // TableIterator is a table iterator that also keeps track of cursor statistics from the storage engine.

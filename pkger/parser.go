@@ -8,6 +8,8 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"net/url"
+	"path"
 	"regexp"
 	"sort"
 	"strconv"
@@ -22,7 +24,7 @@ import (
 type (
 	// ReaderFn is used for functional inputs to abstract the individual
 	// entrypoints for the reader itself.
-	ReaderFn func() (io.Reader, error)
+	ReaderFn func() (r io.Reader, source string, err error)
 
 	// Encoder is an encodes a type.
 	Encoder interface {
@@ -65,76 +67,137 @@ var ErrInvalidEncoding = errors.New("invalid encoding provided")
 // Parse parses a pkg defined by the encoding and readerFns. As of writing this
 // we can parse both a YAML, JSON, and Jsonnet formats of the Pkg model.
 func Parse(encoding Encoding, readerFn ReaderFn, opts ...ValidateOptFn) (*Pkg, error) {
-	r, err := readerFn()
+	r, source, err := readerFn()
 	if err != nil {
 		return nil, err
 	}
 
+	var pkgFn func(io.Reader, ...ValidateOptFn) (*Pkg, error)
 	switch encoding {
 	case EncodingJSON:
-		return parseJSON(r, opts...)
+		pkgFn = parseJSON
 	case EncodingJsonnet:
-		return parseJsonnet(r, opts...)
+		pkgFn = parseJsonnet
 	case EncodingSource:
-		return parseSource(r, opts...)
+		pkgFn = parseSource
 	case EncodingYAML:
-		return parseYAML(r, opts...)
+		pkgFn = parseYAML
 	default:
 		return nil, ErrInvalidEncoding
 	}
+
+	pkg, err := pkgFn(r, opts...)
+	if err != nil {
+		return nil, err
+	}
+	pkg.sources = []string{source}
+
+	return pkg, nil
 }
 
 // FromFile reads a file from disk and provides a reader from it.
 func FromFile(filePath string) ReaderFn {
-	return func() (io.Reader, error) {
-		// not using os.Open to avoid having to deal with closing the file in here
-		b, err := ioutil.ReadFile(filePath)
+	return func() (io.Reader, string, error) {
+		u, err := url.Parse(filePath)
 		if err != nil {
-			return nil, err
+			return nil, filePath, &influxdb.Error{
+				Code: influxdb.EInvalid,
+				Msg:  "invalid filepath provided",
+				Err:  err,
+			}
 		}
-		return bytes.NewBuffer(b), nil
+		if u.Scheme == "" {
+			u.Scheme = "file"
+		}
+
+		// not using os.Open to avoid having to deal with closing the file in here
+		b, err := ioutil.ReadFile(u.Path)
+		if err != nil {
+			return nil, filePath, err
+		}
+
+		return bytes.NewBuffer(b), u.String(), nil
 	}
 }
 
 // FromReader simply passes the reader along. Useful when consuming
 // this from an HTTP request body. There are a number of other useful
 // places for this functional input.
-func FromReader(r io.Reader) ReaderFn {
-	return func() (io.Reader, error) {
-		return r, nil
+func FromReader(r io.Reader, sources ...string) ReaderFn {
+	return func() (io.Reader, string, error) {
+		source := "byte stream"
+		if len(sources) > 0 {
+			source = formatSources(sources)
+		}
+		return r, source, nil
 	}
 }
 
 // FromString parses a pkg from a raw string value. This is very useful
 // in tests.
 func FromString(s string) ReaderFn {
-	return func() (io.Reader, error) {
-		return strings.NewReader(s), nil
+	return func() (io.Reader, string, error) {
+		return strings.NewReader(s), "string", nil
 	}
+}
+
+var defaultHTTPClient = &http.Client{
+	Timeout: time.Minute,
 }
 
 // FromHTTPRequest parses a pkg from the request body of a HTTP request. This is
 // very useful when using packages that are hosted..
 func FromHTTPRequest(addr string) ReaderFn {
-	return func() (io.Reader, error) {
-		client := http.Client{Timeout: 5 * time.Minute}
-		resp, err := client.Get(addr)
+	return func() (io.Reader, string, error) {
+		resp, err := defaultHTTPClient.Get(normalizeGithubURLToContent(addr))
 		if err != nil {
-			return nil, err
+			return nil, addr, err
 		}
 		defer resp.Body.Close()
 
 		var buf bytes.Buffer
 		if _, err := io.Copy(&buf, resp.Body); err != nil {
-			return nil, err
+			return nil, addr, err
 		}
 
 		if resp.StatusCode/100 != 2 {
-			return nil, fmt.Errorf("bad response: status_code=%d body=%q", resp.StatusCode, strings.TrimSpace(buf.String()))
+			return nil, addr, fmt.Errorf(
+				"bad response: address=%s status_code=%d body=%q",
+				addr, resp.StatusCode, strings.TrimSpace(buf.String()),
+			)
 		}
 
-		return &buf, nil
+		return &buf, addr, nil
 	}
+}
+
+const (
+	githubRawContentHost = "raw.githubusercontent.com"
+	githubHost           = "github.com"
+)
+
+func normalizeGithubURLToContent(addr string) string {
+	u, err := url.Parse(addr)
+	if err != nil {
+		return addr
+	}
+
+	if u.Host == githubHost {
+		switch path.Ext(u.Path) {
+		case ".yaml", ".yml", ".json", ".jsonnet":
+		default:
+			return u.String()
+		}
+
+		parts := strings.Split(u.Path, "/")
+		if len(parts) < 4 {
+			return u.String()
+		}
+		u.Host = githubRawContentHost
+		u.Path = path.Join(append(parts[:3], parts[4:]...)...)
+	}
+
+	return u.String()
 }
 
 func parseJSON(r io.Reader, opts ...ValidateOptFn) (*Pkg, error) {
@@ -274,6 +337,7 @@ func (k Object) SetMetadataName(name string) {
 // to another power, the graphing of the package is handled within itself.
 type Pkg struct {
 	Objects []Object `json:"-" yaml:"-"`
+	sources []string
 
 	mLabels                map[string]*label
 	mBuckets               map[string]*bucket
@@ -323,6 +387,12 @@ func (p *Pkg) Encode(encoding Encoding) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+func (p *Pkg) Sources() []string {
+	// note: we prevent the internal field from being changed by enabling access
+	// 		 to the sources via the exported method here.
+	return p.sources
+}
+
 // Summary returns a package Summary that describes all the resources and
 // associations the pkg contains. It is very useful for informing users of
 // the changes that will take place when this pkg would be applied.
@@ -348,9 +418,6 @@ func (p *Pkg) Summary() Summary {
 	}
 
 	for _, c := range p.checks() {
-		if c.shouldRemove {
-			continue
-		}
 		sum.Checks = append(sum.Checks, c.summarize())
 	}
 
@@ -359,18 +426,12 @@ func (p *Pkg) Summary() Summary {
 	}
 
 	for _, l := range p.labels() {
-		if l.shouldRemove {
-			continue
-		}
 		sum.Labels = append(sum.Labels, l.summarize())
 	}
 
 	sum.LabelMappings = p.labelMappings()
 
 	for _, n := range p.notificationEndpoints() {
-		if n.shouldRemove {
-			continue
-		}
 		sum.NotificationEndpoints = append(sum.NotificationEndpoints, n.summarize())
 	}
 
@@ -387,9 +448,6 @@ func (p *Pkg) Summary() Summary {
 	}
 
 	for _, v := range p.variables() {
-		if v.shouldRemove {
-			continue
-		}
 		sum.Variables = append(sum.Variables, v.summarize())
 	}
 
@@ -458,6 +516,10 @@ func (p *Pkg) Contains(k Kind, pkgName string) bool {
 func Combine(pkgs []*Pkg, validationOpts ...ValidateOptFn) (*Pkg, error) {
 	newPkg := new(Pkg)
 	for _, p := range pkgs {
+		if len(p.Objects) == 0 {
+			continue
+		}
+		newPkg.sources = append(newPkg.sources, p.sources...)
 		newPkg.Objects = append(newPkg.Objects, p.Objects...)
 	}
 

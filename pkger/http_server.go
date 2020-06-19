@@ -38,20 +38,24 @@ func NewHTTPServer(log *zap.Logger, svc SVC) *HTTPServer {
 		svc:    svc,
 	}
 
+	exportAllowContentTypes := middleware.AllowContentType("text/yml", "application/x-yaml", "application/json")
+	setJSONContentType := middleware.SetHeader("Content-Type", "application/json; charset=utf-8")
+
 	r := chi.NewRouter()
 	{
-		r.With(middleware.AllowContentType("text/yml", "application/x-yaml", "application/json")).
-			Post("/", svr.createPkg)
-
-		r.With(middleware.SetHeader("Content-Type", "application/json; charset=utf-8")).
-			Post("/apply", svr.applyPkg)
+		r.With(exportAllowContentTypes).Post("/", svr.createPkg)
+		r.With(setJSONContentType).Post("/apply", svr.applyPkg)
 
 		r.Route("/stacks", func(r chi.Router) {
 			r.Post("/", svr.createStack)
 			r.Get("/", svr.listStacks)
-			r.Delete("/{stack_id}", svr.deleteStack)
-			r.With(middleware.AllowContentType("text/yml", "application/x-yaml", "application/json")).
-				Get("/{stack_id}/export", svr.exportStack)
+
+			r.Route("/{stack_id}", func(r chi.Router) {
+				r.Get("/", svr.readStack)
+				r.Delete("/", svr.deleteStack)
+				r.Patch("/", svr.updateStack)
+				r.With(exportAllowContentTypes).Get("/export", svr.exportStack)
+			})
 		})
 	}
 
@@ -64,9 +68,21 @@ func (s *HTTPServer) Prefix() string {
 	return RoutePrefix
 }
 
+// RespStack is the response body for a stack.
+type RespStack struct {
+	ID          string          `json:"id"`
+	OrgID       string          `json:"orgID"`
+	Name        string          `json:"name"`
+	Description string          `json:"description"`
+	Resources   []StackResource `json:"resources"`
+	Sources     []string        `json:"sources"`
+	URLs        []string        `json:"urls"`
+	influxdb.CRUDLog
+}
+
 // RespListStacks is the HTTP response for a stack list call.
 type RespListStacks struct {
-	Stacks []Stack `json:"stacks"`
+	Stacks []RespStack `json:"stacks"`
 }
 
 func (s *HTTPServer) listStacks(w http.ResponseWriter, r *http.Request) {
@@ -118,8 +134,13 @@ func (s *HTTPServer) listStacks(w http.ResponseWriter, r *http.Request) {
 		stacks = []Stack{}
 	}
 
+	out := make([]RespStack, 0, len(stacks))
+	for _, st := range stacks {
+		out = append(out, convertStackToRespStack(st))
+	}
+
 	s.api.Respond(w, r, http.StatusOK, RespListStacks{
-		Stacks: stacks,
+		Stacks: out,
 	})
 }
 
@@ -157,16 +178,6 @@ func (r *ReqCreateStack) orgID() influxdb.ID {
 	return *orgID
 }
 
-// RespCreateStack is the response body for the create stack call.
-type RespCreateStack struct {
-	ID          string   `json:"id"`
-	OrgID       string   `json:"orgID"`
-	Name        string   `json:"name"`
-	Description string   `json:"description"`
-	URLs        []string `json:"urls"`
-	influxdb.CRUDLog
-}
-
 func (s *HTTPServer) createStack(w http.ResponseWriter, r *http.Request) {
 	var reqBody ReqCreateStack
 	if err := s.api.DecodeJSON(r.Body, &reqBody); err != nil {
@@ -192,14 +203,7 @@ func (s *HTTPServer) createStack(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.api.Respond(w, r, http.StatusCreated, RespCreateStack{
-		ID:          stack.ID.String(),
-		OrgID:       stack.OrgID.String(),
-		Name:        stack.Name,
-		Description: stack.Description,
-		URLs:        stack.URLs,
-		CRUDLog:     stack.CRUDLog,
-	})
+	s.api.Respond(w, r, http.StatusCreated, convertStackToRespStack(stack))
 }
 
 func (s *HTTPServer) deleteStack(w http.ResponseWriter, r *http.Request) {
@@ -209,13 +213,9 @@ func (s *HTTPServer) deleteStack(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	stackID, err := influxdb.IDFromString(chi.URLParam(r, "stack_id"))
+	stackID, err := stackIDFromReq(r)
 	if err != nil {
-		s.api.Err(w, r, &influxdb.Error{
-			Code: influxdb.EInvalid,
-			Msg:  "the stack id provided in the path was invalid",
-			Err:  err,
-		})
+		s.api.Err(w, r, err)
 		return
 	}
 
@@ -229,7 +229,7 @@ func (s *HTTPServer) deleteStack(w http.ResponseWriter, r *http.Request) {
 	err = s.svc.DeleteStack(r.Context(), struct{ OrgID, UserID, StackID influxdb.ID }{
 		OrgID:   orgID,
 		UserID:  userID,
-		StackID: *stackID,
+		StackID: stackID,
 	})
 	if err != nil {
 		s.api.Err(w, r, err)
@@ -246,17 +246,13 @@ func (s *HTTPServer) exportStack(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	stackID, err := influxdb.IDFromString(chi.URLParam(r, "stack_id"))
+	stackID, err := stackIDFromReq(r)
 	if err != nil {
-		s.api.Err(w, r, &influxdb.Error{
-			Code: influxdb.EInvalid,
-			Msg:  "the stack id provided in the path was invalid",
-			Err:  err,
-		})
+		s.api.Err(w, r, err)
 		return
 	}
 
-	pkg, err := s.svc.ExportStack(r.Context(), orgID, *stackID)
+	pkg, err := s.svc.ExportStack(r.Context(), orgID, stackID)
 	if err != nil {
 		s.api.Err(w, r, err)
 		return
@@ -278,6 +274,68 @@ func (s *HTTPServer) exportStack(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.api.Write(w, http.StatusOK, b)
+}
+
+func (s *HTTPServer) readStack(w http.ResponseWriter, r *http.Request) {
+	stackID, err := stackIDFromReq(r)
+	if err != nil {
+		s.api.Err(w, r, err)
+		return
+	}
+
+	stack, err := s.svc.ReadStack(r.Context(), stackID)
+	if err != nil {
+		s.api.Err(w, r, err)
+		return
+	}
+
+	s.api.Respond(w, r, http.StatusOK, convertStackToRespStack(stack))
+}
+
+// ReqUpdateStack is the request body for updating a stack.
+type ReqUpdateStack struct {
+	Name        *string  `json:"name"`
+	Description *string  `json:"description"`
+	URLs        []string `json:"urls"`
+}
+
+func (s *HTTPServer) updateStack(w http.ResponseWriter, r *http.Request) {
+	var req ReqUpdateStack
+	if err := s.api.DecodeJSON(r.Body, &req); err != nil {
+		s.api.Err(w, r, err)
+		return
+	}
+
+	stackID, err := stackIDFromReq(r)
+	if err != nil {
+		s.api.Err(w, r, err)
+		return
+	}
+
+	stack, err := s.svc.UpdateStack(r.Context(), StackUpdate{
+		ID:          stackID,
+		Name:        req.Name,
+		Description: req.Description,
+		URLs:        req.URLs,
+	})
+	if err != nil {
+		s.api.Err(w, r, err)
+		return
+	}
+
+	s.api.Respond(w, r, http.StatusOK, convertStackToRespStack(stack))
+}
+
+func stackIDFromReq(r *http.Request) (influxdb.ID, error) {
+	stackID, err := influxdb.IDFromString(chi.URLParam(r, "stack_id"))
+	if err != nil {
+		return 0, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  "the stack id provided in the path was invalid",
+			Err:  err,
+		}
+	}
+	return *stackID, nil
 }
 
 func getRequiredOrgIDFromQuery(q url.Values) (influxdb.ID, error) {
@@ -385,40 +443,61 @@ func (s *HTTPServer) createPkg(w http.ResponseWriter, r *http.Request) {
 	s.encResp(w, r, enc, http.StatusOK, resp)
 }
 
-// PkgRemote provides a package via a remote (i.e. a gist). If content type is not
+// ReqPkgRemote provides a package via a remote (i.e. a gist). If content type is not
 // provided then the service will do its best to discern the content type of the
 // contents.
-type PkgRemote struct {
-	URL         string `json:"url"`
-	ContentType string `json:"contentType"`
+type ReqPkgRemote struct {
+	URL         string `json:"url" yaml:"url"`
+	ContentType string `json:"contentType" yaml:"contentType"`
 }
 
 // Encoding returns the encoding type that corresponds to the given content type.
-func (p PkgRemote) Encoding() Encoding {
-	ct := strings.ToLower(p.ContentType)
-	urlBase := path.Ext(p.URL)
-	switch {
-	case ct == "jsonnet" || urlBase == ".jsonnet":
-		return EncodingJsonnet
-	case ct == "json" || urlBase == ".json":
-		return EncodingJSON
-	case ct == "yml" || ct == "yaml" || urlBase == ".yml" || urlBase == ".yaml":
-		return EncodingYAML
-	default:
-		return EncodingSource
+func (p ReqPkgRemote) Encoding() Encoding {
+	return convertEncoding(p.ContentType, p.URL)
+}
+
+type ReqRawPkg struct {
+	ContentType string          `json:"contentType" yaml:"contentType"`
+	Sources     []string        `json:"sources" yaml:"sources"`
+	Pkg         json.RawMessage `json:"contents" yaml:"contents"`
+}
+
+func (p ReqRawPkg) Encoding() Encoding {
+	var source string
+	if len(p.Sources) > 0 {
+		source = p.Sources[0]
 	}
+	return convertEncoding(p.ContentType, source)
+}
+
+// ReqRawAction is a raw action consumers can provide to change the behavior
+// of the application of a template.
+type ReqRawAction struct {
+	Action     string          `json:"action"`
+	Properties json.RawMessage `json:"properties"`
 }
 
 // ReqApplyPkg is the request body for a json or yaml body for the apply pkg endpoint.
 type ReqApplyPkg struct {
-	DryRun  bool              `json:"dryRun" yaml:"dryRun"`
-	OrgID   string            `json:"orgID" yaml:"orgID"`
-	StackID *string           `json:"stackID" yaml:"stackID"` // optional: non nil value signals stack should be used
-	Remotes []PkgRemote       `json:"remotes" yaml:"remotes"`
+	DryRun  bool           `json:"dryRun" yaml:"dryRun"`
+	OrgID   string         `json:"orgID" yaml:"orgID"`
+	StackID *string        `json:"stackID" yaml:"stackID"` // optional: non nil value signals stack should be used
+	Remotes []ReqPkgRemote `json:"remotes" yaml:"remotes"`
+
+	// TODO(jsteenb2): pkg references will all be replaced by template references
+	// 	these 2 exist alongside the templates for backwards compatibility
+	// 	until beta13 rolls out the door. This code should get axed when the next
+	//	OSS release goes out.
 	RawPkgs []json.RawMessage `json:"packages" yaml:"packages"`
 	RawPkg  json.RawMessage   `json:"package" yaml:"package"`
+
+	RawTemplates []ReqRawPkg `json:"templates" yaml:"templates"`
+	RawTemplate  ReqRawPkg   `json:"template" yaml:"template"`
+
 	EnvRefs map[string]string `json:"envRefs"`
 	Secrets map[string]string `json:"secrets"`
+
+	RawActions []ReqRawAction `json:"actions"`
 }
 
 // Pkgs returns all pkgs associated with the request.
@@ -442,11 +521,31 @@ func (r ReqApplyPkg) Pkgs(encoding Encoding) (*Pkg, error) {
 		if rawPkg == nil {
 			continue
 		}
+
 		pkg, err := Parse(encoding, FromReader(bytes.NewReader(rawPkg)), ValidSkipParseError())
 		if err != nil {
 			return nil, &influxdb.Error{
 				Code: influxdb.EUnprocessableEntity,
-				Msg:  fmt.Sprintf("pkg [%d] had an issue: %s", i, err.Error()),
+				Msg:  fmt.Sprintf("pkg[%d] had an issue: %s", i, err.Error()),
+			}
+		}
+		rawPkgs = append(rawPkgs, pkg)
+	}
+
+	for i, rawTmpl := range append(r.RawTemplates, r.RawTemplate) {
+		if rawTmpl.Pkg == nil {
+			continue
+		}
+		enc := encoding
+		if sourceEncoding := rawTmpl.Encoding(); sourceEncoding != EncodingSource {
+			enc = sourceEncoding
+		}
+		pkg, err := Parse(enc, FromReader(bytes.NewReader(rawTmpl.Pkg), rawTmpl.Sources...), ValidSkipParseError())
+		if err != nil {
+			sources := formatSources(rawTmpl.Sources)
+			return nil, &influxdb.Error{
+				Code: influxdb.EUnprocessableEntity,
+				Msg:  fmt.Sprintf("pkg[%d] from source(s) %q had an issue: %s", i, sources, err.Error()),
 			}
 		}
 		rawPkgs = append(rawPkgs, pkg)
@@ -455,11 +554,46 @@ func (r ReqApplyPkg) Pkgs(encoding Encoding) (*Pkg, error) {
 	return Combine(rawPkgs, ValidWithoutResources(), ValidSkipParseError())
 }
 
+type actionType string
+
+const (
+	ActionTypeSkipResource actionType = "skipResource"
+)
+
+func (r ReqApplyPkg) validActions() (struct {
+	SkipResources []ActionSkipResource
+}, error) {
+	type actions struct {
+		SkipResources []ActionSkipResource
+	}
+
+	var out actions
+	for _, rawAct := range r.RawActions {
+		switch a := rawAct.Action; actionType(a) {
+		case ActionTypeSkipResource:
+			var asr ActionSkipResource
+			if err := json.Unmarshal(rawAct.Properties, &asr); err != nil {
+				return actions{}, influxErr(influxdb.EInvalid, err)
+			}
+			if err := asr.Kind.OK(); err != nil {
+				return actions{}, influxErr(influxdb.EInvalid, err)
+			}
+			out.SkipResources = append(out.SkipResources, asr)
+		default:
+			msg := fmt.Sprintf("invalid action type provided %q; Must be one of [%s]", a, ActionTypeSkipResource)
+			return actions{}, influxErr(influxdb.EInvalid, msg)
+		}
+	}
+
+	return out, nil
+}
+
 // RespApplyPkg is the response body for the apply pkg endpoint.
 type RespApplyPkg struct {
-	StackID string  `json:"stackID" yaml:"stackID"`
-	Diff    Diff    `json:"diff" yaml:"diff"`
-	Summary Summary `json:"summary" yaml:"summary"`
+	Sources []string `json:"sources" yaml:"sources"`
+	StackID string   `json:"stackID" yaml:"stackID"`
+	Diff    Diff     `json:"diff" yaml:"diff"`
+	Summary Summary  `json:"summary" yaml:"summary"`
 
 	Errors []ValidationErr `json:"errors,omitempty" yaml:"errors,omitempty"`
 }
@@ -492,13 +626,6 @@ func (s *HTTPServer) applyPkg(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	auth, err := pctx.GetAuthorizer(r.Context())
-	if err != nil {
-		s.api.Err(w, r, err)
-		return
-	}
-	userID := auth.GetUserID()
-
 	parsedPkg, err := reqBody.Pkgs(encoding)
 	if err != nil {
 		s.api.Err(w, r, &influxdb.Error{
@@ -508,15 +635,33 @@ func (s *HTTPServer) applyPkg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	applyOpts := []ApplyOptFn{
-		ApplyWithEnvRefs(reqBody.EnvRefs),
-		ApplyWithStackID(stackID),
+	actions, err := reqBody.validActions()
+	if err != nil {
+		s.api.Err(w, r, err)
+		return
 	}
 
+	applyOpts := []ApplyOptFn{
+		ApplyWithEnvRefs(reqBody.EnvRefs),
+		ApplyWithPkg(parsedPkg),
+		ApplyWithStackID(stackID),
+	}
+	for _, a := range actions.SkipResources {
+		applyOpts = append(applyOpts, ApplyWithResourceSkip(a))
+	}
+
+	auth, err := pctx.GetAuthorizer(r.Context())
+	if err != nil {
+		s.api.Err(w, r, err)
+		return
+	}
+	userID := auth.GetUserID()
+
 	if reqBody.DryRun {
-		impact, err := s.svc.DryRun(r.Context(), *orgID, userID, parsedPkg, applyOpts...)
+		impact, err := s.svc.DryRun(r.Context(), *orgID, userID, applyOpts...)
 		if IsParseErr(err) {
 			s.api.Respond(w, r, http.StatusUnprocessableEntity, RespApplyPkg{
+				Sources: append([]string{}, impact.Sources...), // guarantee non nil slice
 				StackID: impact.StackID.String(),
 				Diff:    impact.Diff,
 				Summary: impact.Summary,
@@ -530,6 +675,7 @@ func (s *HTTPServer) applyPkg(w http.ResponseWriter, r *http.Request) {
 		}
 
 		s.api.Respond(w, r, http.StatusOK, RespApplyPkg{
+			Sources: append([]string{}, impact.Sources...), // guarantee non nil slice
 			StackID: impact.StackID.String(),
 			Diff:    impact.Diff,
 			Summary: impact.Summary,
@@ -539,13 +685,14 @@ func (s *HTTPServer) applyPkg(w http.ResponseWriter, r *http.Request) {
 
 	applyOpts = append(applyOpts, ApplyWithSecrets(reqBody.Secrets))
 
-	impact, err := s.svc.Apply(r.Context(), *orgID, userID, parsedPkg, applyOpts...)
+	impact, err := s.svc.Apply(r.Context(), *orgID, userID, applyOpts...)
 	if err != nil && !IsParseErr(err) {
 		s.api.Err(w, r, err)
 		return
 	}
 
 	s.api.Respond(w, r, http.StatusCreated, RespApplyPkg{
+		Sources: append([]string{}, impact.Sources...), // guarantee non nil slice
 		StackID: impact.StackID.String(),
 		Diff:    impact.Diff,
 		Summary: impact.Summary,
@@ -555,6 +702,10 @@ func (s *HTTPServer) applyPkg(w http.ResponseWriter, r *http.Request) {
 
 type encoder interface {
 	Encode(interface{}) error
+}
+
+func formatSources(sources []string) string {
+	return strings.Join(sources, "; ")
 }
 
 func decodeWithEncoding(r *http.Request, v interface{}) (Encoding, error) {
@@ -581,6 +732,21 @@ func pkgEncoding(contentType string) Encoding {
 		return EncodingYAML
 	default:
 		return EncodingJSON
+	}
+}
+
+func convertEncoding(ct, rawURL string) Encoding {
+	ct = strings.ToLower(ct)
+	urlBase := path.Ext(rawURL)
+	switch {
+	case ct == "jsonnet" || urlBase == ".jsonnet":
+		return EncodingJsonnet
+	case ct == "json" || urlBase == ".json":
+		return EncodingJSON
+	case ct == "yml" || ct == "yaml" || urlBase == ".yml" || urlBase == ".yaml":
+		return EncodingYAML
+	default:
+		return EncodingSource
 	}
 }
 
@@ -614,5 +780,18 @@ func newDecodeErr(encoding string, err error) *influxdb.Error {
 		Msg:  fmt.Sprintf("unable to unmarshal %s", encoding),
 		Code: influxdb.EInvalid,
 		Err:  err,
+	}
+}
+
+func convertStackToRespStack(st Stack) RespStack {
+	return RespStack{
+		ID:          st.ID.String(),
+		OrgID:       st.OrgID.String(),
+		Name:        st.Name,
+		Description: st.Description,
+		Resources:   append([]StackResource{}, st.Resources...),
+		Sources:     append([]string{}, st.Sources...),
+		URLs:        append([]string{}, st.URLs...),
+		CRUDLog:     st.CRUDLog,
 	}
 }

@@ -18,7 +18,7 @@ type OrgMetrics struct {
 var _ influxdb.OrganizationService = (*OrgMetrics)(nil)
 
 // NewOrgMetrics returns a metrics service middleware for the Organization Service.
-func NewOrgMetrics(reg prometheus.Registerer, s influxdb.OrganizationService, opts ...metric.MetricsOption) *OrgMetrics {
+func NewOrgMetrics(reg prometheus.Registerer, s influxdb.OrganizationService, opts ...metric.ClientOptFn) *OrgMetrics {
 	o := metric.ApplyMetricOpts(opts...)
 	return &OrgMetrics{
 		rec:        metric.New(reg, o.ApplySuffix("org")),
