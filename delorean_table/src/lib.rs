@@ -44,6 +44,21 @@ pub enum Error {
     },
 }
 
+impl Error {
+    pub fn from_io(source: std::io::Error, message: impl Into<String>) -> Self {
+        Self::IO {
+            source,
+            message: message.into(),
+        }
+    }
+
+    pub fn from_other(source: impl std::error::Error + 'static) -> Self {
+        Self::Other {
+            source: Box::new(source),
+        }
+    }
+}
+
 /// Something that knows how to write a set of columns somewhere
 pub trait DeloreanTableWriter {
     /// Writes a batch of packed data to the underlying output
