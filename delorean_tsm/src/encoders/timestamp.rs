@@ -17,7 +17,7 @@ enum Encoding {
 /// encoded using RLE. If not, as long as the deltas are not bigger than simple8b::MAX_VALUE
 /// they can be encoded using simple8b.
 pub fn encode(src: &[i64], dst: &mut Vec<u8>) -> Result<(), Box<dyn Error>> {
-    dst.truncate(0); // reset buffer.
+    dst.clear(); // reset buffer.
     if src.is_empty() {
         return Ok(());
     }

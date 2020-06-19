@@ -12,7 +12,7 @@ const MAX_I32: usize = i32::MAX as usize;
 /// Encodes a slice of byte slices representing string data into a vector of bytes. Currently uses
 /// Snappy compression.
 pub fn encode(src: &[&[u8]], dst: &mut Vec<u8>) -> Result<(), Box<dyn Error>> {
-    dst.truncate(0); // reset buffer
+    dst.clear(); // reset buffer
     if src.is_empty() {
         return Ok(());
     }

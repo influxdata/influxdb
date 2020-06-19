@@ -21,7 +21,7 @@ fn is_sentinel_u64(v: u64, sentinel: u64) -> bool {
 /// representations based on those are stored.
 #[allow(clippy::many_single_char_names)]
 pub fn encode(src: &[f64], dst: &mut Vec<u8>) -> Result<(), Box<dyn Error>> {
-    dst.truncate(0); // reset buffer.
+    dst.clear(); // reset buffer.
     if src.is_empty() {
         return Ok(());
     }

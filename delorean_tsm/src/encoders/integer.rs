@@ -16,7 +16,7 @@ enum Encoding {
 /// further compressed if possible, either via bit-packing using simple8b or by
 /// run-length encoding the deltas if they're all the same.
 pub fn encode(src: &[i64], dst: &mut Vec<u8>) -> Result<(), Box<dyn Error>> {
-    dst.truncate(0); // reset buffer.
+    dst.clear(); // reset buffer.
     if src.is_empty() {
         return Ok(());
     }

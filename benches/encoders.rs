@@ -75,7 +75,7 @@ fn benchmark_decode<T>(
             |b, &decoded_len| {
                 let mut decoded_mut = Vec::with_capacity(decoded_len);
                 b.iter(|| {
-                    decoded_mut.truncate(0);
+                    decoded_mut.clear();
                     decode(&encoded, &mut decoded_mut).unwrap();
                 });
             },
