@@ -95,7 +95,7 @@ pub fn is_directory(p: impl AsRef<Path>) -> bool {
 }
 
 pub fn convert(input_filename: &str, output_name: &str) -> Result<()> {
-    info!("dstool convert starting");
+    info!("convert starting");
     debug!("Reading from input file {}", input_filename);
 
     let input_reader = InputReader::new(input_filename)?;

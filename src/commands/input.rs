@@ -1,4 +1,4 @@
-/// Module to handle input files (and maybe urls?) from dstool
+/// Module to handle input files (and maybe urls?)
 use libflate::gzip;
 use std::fs::File;
 use std::io;
