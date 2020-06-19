@@ -65,9 +65,9 @@ class signinSteps extends baseSteps {
     }
 
     async waitForSigninToLoad(timeout){
-        await this.driver.wait(until.elementIsVisible(this.signinPage.getNameInput()), timeout,
+        await this.driver.wait(until.elementIsVisible(await this.signinPage.getNameInput()), timeout,
             `Waited ${timeout} milliseconds to locate signin name input`);
-        await this.driver.wait(until.elementIsVisible(this.signinPage.getPasswordInput()), timeout,
+        await this.driver.wait(until.elementIsVisible(await this.signinPage.getPasswordInput()), timeout,
             `Waited ${timeout} milliseconds to locate signin pasword input`);
     }
 
