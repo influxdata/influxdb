@@ -1,11 +1,13 @@
 package launcher
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"math"
 	"net"
 	nethttp "net/http"
@@ -50,6 +52,7 @@ import (
 	"github.com/influxdata/influxdb/v2/session"
 	"github.com/influxdata/influxdb/v2/snowflake"
 	"github.com/influxdata/influxdb/v2/source"
+	"github.com/influxdata/influxdb/v2/starter"
 	"github.com/influxdata/influxdb/v2/storage"
 	storageflux "github.com/influxdata/influxdb/v2/storage/flux"
 	"github.com/influxdata/influxdb/v2/storage/readservice"
@@ -70,6 +73,7 @@ import (
 	jaegerconfig "github.com/uber/jaeger-client-go/config"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -169,6 +173,11 @@ func launcherOpts(l *Launcher) []cli.Opt {
 	}
 
 	return []cli.Opt{
+		{
+			DestP: &l.scriptFile,
+			Flag:  "script",
+			Desc:  "script file to run on event",
+		},
 		{
 			DestP:   &l.logLevel,
 			Flag:    "log-level",
@@ -357,6 +366,7 @@ type Launcher struct {
 	testing              bool
 	sessionLength        int // in minutes
 	sessionRenewDisabled bool
+	scriptFile           string
 
 	logLevel          string
 	tracingType       string
@@ -1006,14 +1016,25 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		pkgHTTPServer = pkger.NewHTTPServer(pkgServerLogger, pkgSVC)
 	}
 
+	scripts, err := readScripts(m.scriptFile)
+	if err != nil {
+		return err
+	}
+
+	starterSVC := starter.NewService(pkgSVC, scripts...)
+	go starterSVC.Start(ctx)
+
 	var userHTTPServer *tenant.UserHandler
 	{
 		userHTTPServer = tenant.NewHTTPUserHandler(m.log.With(zap.String("handler", "user")), tenant.NewAuthedUserService(userSvc), tenant.NewAuthedPasswordService(passwdsSvc))
 	}
 
+	tenOnboardSvc := tenant.NewOnboardService(store, authSvc, starterSVC.EventConsumer())
+	go tenOnboardSvc.Start(ctx)
+
 	var onboardHTTPServer *tenant.OnboardHandler
 	{
-		onboardSvc := tenant.NewOnboardService(store, authSvc)                                            // basic service
+		var onboardSvc platform.OnboardingService = tenOnboardSvc
 		onboardSvc = tenant.NewAuthedOnboardSvc(onboardSvc)                                               // with auth
 		onboardSvc = tenant.NewOnboardingMetrics(m.reg, onboardSvc, metric.WithSuffix("new"))             // with metrics
 		onboardSvc = tenant.NewOnboardingLogger(m.log.With(zap.String("handler", "onboard")), onboardSvc) // with logging
@@ -1209,4 +1230,23 @@ func (m *Launcher) TaskControlService() taskbackend.TaskControlService {
 // KeyValueService returns the internal key-value service.
 func (m *Launcher) KeyValueService() *kv.Service {
 	return m.kvService
+}
+
+func readScripts(scriptFiles ...string) ([]starter.ScriptTemplate, error) {
+	var scripts []starter.ScriptTemplate
+	for _, f := range scriptFiles {
+		b, err := ioutil.ReadFile(f)
+		if err != nil {
+			return nil, err
+		}
+
+		buf := bytes.NewBuffer(b)
+
+		var sc starter.ScriptTemplate
+		if err := yaml.NewDecoder(buf).Decode(&sc); err != nil {
+			return nil, err
+		}
+		scripts = append(scripts, sc)
+	}
+	return scripts, nil
 }

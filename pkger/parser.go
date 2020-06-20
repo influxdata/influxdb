@@ -95,6 +95,28 @@ func Parse(encoding Encoding, readerFn ReaderFn, opts ...ValidateOptFn) (*Pkg, e
 	return pkg, nil
 }
 
+func ParseFromURL(rawURL string) (*Pkg, error) {
+	enc := EncodingSource
+	switch path.Ext(rawURL) {
+	case ".jsonnet":
+		enc = EncodingJsonnet
+	case ".json":
+		enc = EncodingJSON
+	case ".yml", ".yaml":
+		enc = EncodingYAML
+	}
+
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return nil, err
+	}
+
+	if strings.HasPrefix(u.Scheme, "http") {
+		return Parse(enc, FromHTTPRequest(rawURL))
+	}
+	return Parse(enc, FromFile(rawURL))
+}
+
 // FromFile reads a file from disk and provides a reader from it.
 func FromFile(filePath string) ReaderFn {
 	return func() (io.Reader, string, error) {

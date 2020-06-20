@@ -12,12 +12,57 @@ import (
 type OnboardService struct {
 	store   *Store
 	authSvc influxdb.AuthorizationService
+
+	eventPublisher chan influxdb.Event
+	eventConsumers []chan<- influxdb.Event
 }
 
-func NewOnboardService(st *Store, as influxdb.AuthorizationService) influxdb.OnboardingService {
-	return &OnboardService{
+func NewOnboardService(st *Store, as influxdb.AuthorizationService, eventStreams ...chan<- influxdb.Event) *OnboardService {
+	svc := &OnboardService{
 		store:   st,
 		authSvc: as,
+	}
+	if len(eventStreams) > 0 {
+		svc.eventPublisher = make(chan influxdb.Event, 1)
+		svc.eventConsumers = eventStreams
+	}
+	return svc
+}
+
+func (s *OnboardService) Start(ctx context.Context) {
+	if s.eventPublisher != nil {
+		defer close(s.eventPublisher)
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case ev := <-s.eventPublisher:
+			for _, consumer := range s.eventConsumers {
+				select {
+				case <-ctx.Done():
+					return
+				case consumer <- ev:
+				}
+			}
+		}
+	}
+}
+
+func (s *OnboardService) sendEvent(ctx context.Context, eventType influxdb.EventType, a influxdb.Authorization) error {
+	if s.eventPublisher == nil {
+		return nil
+	}
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case s.eventPublisher <- influxdb.Event{
+		Type: eventType,
+		Auth: a,
+	}:
+		return nil
 	}
 }
 
@@ -36,18 +81,23 @@ func (s *OnboardService) IsOnboarding(ctx context.Context) (bool, error) {
 	return allowed, err
 }
 
-// OnboardInitialUser allows us to onboard a new user if is onboarding is allowd
+// OnboardInitialUser allows us to onboard a new user when onboarding is allowed.
 func (s *OnboardService) OnboardInitialUser(ctx context.Context, req *influxdb.OnboardingRequest) (*influxdb.OnboardingResults, error) {
 	allowed, err := s.IsOnboarding(ctx)
 	if err != nil {
 		return nil, err
 	}
-
 	if !allowed {
 		return nil, ErrOnboardingNotAllowed
 	}
 
-	return s.onboardUser(ctx, req, func(influxdb.ID) []influxdb.Permission { return influxdb.OperPermissions() })
+	res, err := s.onboardUser(ctx, req, func(influxdb.ID) []influxdb.Permission { return influxdb.OperPermissions() })
+	if err != nil {
+		return nil, err
+	}
+	s.sendEvent(ctx, influxdb.EventSetupComplete, *res.Auth)
+
+	return res, nil
 }
 
 // OnboardUser allows us to onboard a new user if is onboarding is allowed
@@ -58,10 +108,11 @@ func (s *OnboardService) OnboardUser(ctx context.Context, req *influxdb.Onboardi
 // onboardUser allows us to onboard new users.
 func (s *OnboardService) onboardUser(ctx context.Context, req *influxdb.OnboardingRequest, permFn func(orgID influxdb.ID) []influxdb.Permission) (*influxdb.OnboardingResults, error) {
 	if req == nil || req.User == "" || req.Password == "" || req.Org == "" || req.Bucket == "" {
+		// which values are missing for user? could be a more informative error message here
 		return nil, ErrOnboardInvalid
 	}
 
-	result := &influxdb.OnboardingResults{}
+	result := new(influxdb.OnboardingResults)
 
 	err := s.store.Update(ctx, func(tx kv.Tx) error {
 		// create a user
@@ -161,5 +212,9 @@ func (s *OnboardService) onboardUser(ctx context.Context, req *influxdb.Onboardi
 		OrgID:       result.Org.ID,
 	}
 
-	return result, s.authSvc.CreateAuthorization(ctx, result.Auth)
+	if err := s.authSvc.CreateAuthorization(ctx, result.Auth); err != nil {
+		return nil, err
+	}
+
+	return result, nil
 }

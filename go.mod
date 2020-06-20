@@ -101,6 +101,7 @@ require (
 	google.golang.org/api v0.17.0
 	google.golang.org/grpc v1.27.1
 	gopkg.in/vmihailenco/msgpack.v2 v2.9.1 // indirect
+	gopkg.in/yaml.v2 v2.3.0
 	gopkg.in/yaml.v3 v3.0.0-20200121175148-a6ecf24a6d71
 	honnef.co/go/tools v0.0.1-2019.2.3.0.20190904154718-afd67930eec2
 	istio.io/pkg v0.0.0-20200606170016-70c5172b9cdf
