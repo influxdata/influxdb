@@ -12,7 +12,7 @@ use parquet::data_type::ByteArray;
 use snafu::{ResultExt, Snafu};
 
 use delorean_line_parser::{FieldValue, ParsedLine};
-use delorean_table::packers::Packers;
+use delorean_table::packers::{Packer, Packers};
 use delorean_table::{DeloreanTableWriter, DeloreanTableWriterSource, Error as TableError};
 use delorean_table_schema::{DataType, Schema, SchemaBuilder};
 use delorean_tsm::mapper::{map_field_columns, ColumnData, TSMMeasurementMapper};
