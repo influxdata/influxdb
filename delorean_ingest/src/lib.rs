@@ -400,7 +400,7 @@ fn pack_lines<'a>(schema: &Schema, lines: &[ParsedLine<'a>]) -> Vec<Packers> {
                 if let Some(packer) = packer_map.get_mut(&tag_name_str) {
                     packer
                         .str_packer_mut()
-                        .push(ByteArray::from(tag_value.to_string().as_str()));
+                        .push(ByteArray::from(tag_value.to_string().into_bytes()));
                 } else {
                     panic!(
                         "tag {} seen in input that has no matching column in schema",
