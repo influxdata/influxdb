@@ -8,6 +8,7 @@
 //! - f64 (float blocks);
 //! - i64 (signed integer blocks);
 //! - String;
+//! - u64 (unsigned integer blocks);
 //!
 //! Other block types are ready to be supported when the appropriate encoders
 //! have been implemented.
@@ -162,7 +163,7 @@
 //! ```
 
 use crate::storage::StorageError;
-use delorean_tsm::encoders::{float, integer, string, timestamp};
+use delorean_tsm::encoders::{float, integer, string, timestamp, unsigned};
 
 use integer_encoding::*;
 use num::bigint::{BigInt, BigUint};
@@ -231,9 +232,9 @@ impl Encoder for Vec<i64> {
 }
 
 impl Encoder for Vec<u64> {
-    fn encode(&self, _: &mut Vec<u8>) -> Result<(), StorageError> {
-        Err(StorageError {
-            description: String::from("not yet implemented"),
+    fn encode(&self, dst: &mut Vec<u8>) -> Result<(), StorageError> {
+        unsigned::encode(&self, dst).map_err(|e| StorageError {
+            description: e.to_string(),
         })
     }
 }
