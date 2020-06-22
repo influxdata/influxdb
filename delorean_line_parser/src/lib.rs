@@ -229,6 +229,7 @@ pub enum FieldValue<'a> {
     I64(i64),
     F64(f64),
     String(EscapedStr<'a>),
+    Boolean(bool),
 }
 
 /// Represents a sequence of effectively unescaped strings.
@@ -484,8 +485,9 @@ fn field_value(i: &str) -> IResult<&str, FieldValue<'_>> {
     let int = map(field_integer_value, FieldValue::I64);
     let float = map(field_float_value, FieldValue::F64);
     let string = map(field_string_value, FieldValue::String);
+    let boolv = map(field_bool_value, FieldValue::Boolean);
 
-    alt((int, float, string))(i)
+    alt((int, float, string, boolv))(i)
 }
 
 fn field_integer_value(i: &str) -> IResult<&str, i64> {
@@ -540,6 +542,23 @@ fn field_string_value(i: &str) -> IResult<&str, EscapedStr<'_>> {
     ));
 
     map(quoted_str, |vec| EscapedStr(vec.to_smallvec()))(i)
+}
+
+fn field_bool_value(i: &str) -> IResult<&str, bool> {
+    // https://docs.influxdata.com/influxdb/v1.8/write_protocols/line_protocol_tutorial/#data-types
+    // "specify TRUE with t, T, true, True, or TRUE. Specify FALSE with f, F, false, False, or FALSE
+    alt((
+        map(tag("true"), |_| true),
+        map(tag("True"), |_| true),
+        map(tag("TRUE"), |_| true),
+        map(tag("t"), |_| true),
+        map(tag("T"), |_| true),
+        map(tag("false"), |_| false),
+        map(tag("False"), |_| false),
+        map(tag("FALSE"), |_| false),
+        map(tag("f"), |_| false),
+        map(tag("F"), |_| false),
+    ))(i)
 }
 
 /// Truncates the input slice to remove all whitespace from the
@@ -829,6 +848,13 @@ mod test {
                 _ => panic!("field was not a String"),
             }
         }
+
+        fn unwrap_bool(&self) -> bool {
+            match self {
+                Self::Boolean(v) => *v,
+                _ => panic!("field was not a Bool"),
+            }
+        }
     }
 
     #[test]
@@ -1020,6 +1046,19 @@ mod test {
     }
 
     #[test]
+    fn parse_single_field_bool() -> Result {
+        let input = r#"foo asdf=true 1234"#;
+        let vals = parse(input)?;
+
+        assert_eq!(vals[0].series.measurement, "foo");
+        assert_eq!(vals[0].timestamp, Some(1234));
+        assert_eq!(vals[0].field_set[0].0, "asdf");
+        assert_eq!(vals[0].field_set[0].1.unwrap_bool(), true);
+
+        Ok(())
+    }
+
+    #[test]
     fn parse_string_values() -> Result {
         let test_data = vec![
             (r#"foo asdf="""#, ""),
@@ -1047,6 +1086,35 @@ mod test {
             assert_eq!(
                 &vals[0].field_set[0].1.unwrap_string(),
                 expected_parsed_string_value
+            );
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn parse_bool_values() -> Result {
+        let test_data = vec![
+            (r#"foo asdf=t"#, true),
+            (r#"foo asdf=T"#, true),
+            (r#"foo asdf=true"#, true),
+            (r#"foo asdf=True"#, true),
+            (r#"foo asdf=TRUE"#, true),
+            (r#"foo asdf=f"#, false),
+            (r#"foo asdf=F"#, false),
+            (r#"foo asdf=false"#, false),
+            (r#"foo asdf=False"#, false),
+            (r#"foo asdf=FALSE"#, false),
+        ];
+
+        for (input, expected_parsed_bool_value) in test_data {
+            let vals = parse(input)?;
+            assert_eq!(vals[0].series.tag_set, None);
+            assert_eq!(vals[0].field_set.len(), 1);
+            assert_eq!(vals[0].field_set[0].0, "asdf");
+            assert_eq!(
+                vals[0].field_set[0].1.unwrap_bool(),
+                expected_parsed_bool_value
             );
         }
 
@@ -1095,7 +1163,7 @@ mod test {
 
     #[test]
     fn parse_mixed_field_types() -> Result {
-        let input = r#"foo asdf=23.1,bar=5i,baz="the string" 1234"#;
+        let input = r#"foo asdf=23.1,bar=5i,baz="the string",frab=false 1234"#;
         let vals = parse(input)?;
 
         assert_eq!(vals[0].series.measurement, "foo");
@@ -1112,6 +1180,9 @@ mod test {
 
         assert_eq!(vals[0].field_set[2].0, "baz");
         assert_eq!(vals[0].field_set[2].1.unwrap_string(), "the string");
+
+        assert_eq!(vals[0].field_set[3].0, "frab");
+        assert_eq!(vals[0].field_set[3].1.unwrap_bool(), false);
 
         Ok(())
     }
