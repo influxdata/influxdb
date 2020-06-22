@@ -25,7 +25,12 @@ export const updateReportingContext = (key: string, value: string) => {
   reportingTags = {...reportingTags, [key]: value}
 }
 
-export const reportEvent = ({timestamp, measurement, fields, tags}: Point) => {
+export const reportEvent = ({
+  timestamp = toNano(Date.now()),
+  measurement,
+  fields,
+  tags,
+}: Point) => {
   if (isEmpty(fields)) {
     fields = {source: 'ui'}
   }
