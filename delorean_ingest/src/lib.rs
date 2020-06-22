@@ -360,7 +360,9 @@ fn pack_lines<'a>(schema: &Schema, lines: &[ParsedLine<'a>]) -> Vec<Packers> {
 
             // Initialise a Packer<T> for the matching data type wrapped in a
             // Packers enum variant to allow it to live in a vector.
-            Packers::from(col_def.data_type)
+            let mut packer = Packers::from(col_def.data_type);
+            packer.reserve_exact(lines.len());
+            packer
         })
         .collect();
 

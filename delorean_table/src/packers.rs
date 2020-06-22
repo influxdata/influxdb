@@ -18,6 +18,17 @@ pub enum Packers {
 }
 
 impl Packers {
+    /// Reserves the minimum capacity for exactly additional more elements to
+    /// be inserted into the Packer<T>` without reallocation.
+    pub fn reserve_exact(&mut self, additional: usize) {
+        match self {
+            Self::Float(p) => p.reserve_exact(additional),
+            Self::Integer(p) => p.reserve_exact(additional),
+            Self::String(p) => p.reserve_exact(additional),
+            Self::Boolean(p) => p.reserve_exact(additional),
+        }
+    }
+
     pub fn is_empty(&self) -> bool {
         match self {
             Self::Float(p) => p.is_empty(),
@@ -168,6 +179,14 @@ impl<T: PackerDefault> Packer<T> {
             def_levels: Vec::with_capacity(capacity),
             rep_levels: Vec::with_capacity(capacity),
         }
+    }
+
+    /// Reserves the minimum capacity for exactly additional more elements to
+    /// be inserted to the `Packer<T>` without reallocation.
+    pub fn reserve_exact(&mut self, additional: usize) {
+        self.values.reserve_exact(additional);
+        self.def_levels.reserve_exact(additional);
+        self.rep_levels.reserve_exact(additional);
     }
 
     pub fn len(&self) -> usize {
