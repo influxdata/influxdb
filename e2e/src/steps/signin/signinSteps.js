@@ -1,5 +1,5 @@
 const expect = require('chai').expect;
-const {By, until} =  require('selenium-webdriver');
+const {By, until, StaleElementReferenceError} =  require('selenium-webdriver');
 const baseSteps = require(__srcdir + '/steps/baseSteps.js');
 const signinPage = require(__srcdir + '/pages/signin/signinPage.js');
 const influxPage = require(__srcdir + '/pages/influxPage.js');
@@ -45,36 +45,48 @@ class signinSteps extends baseSteps {
     }
 
     async enterUsername(name, timeout = 3000){
-        await this.driver.wait(until.elementIsVisible(await this.signinPage.getNameInput()), timeout,
-            `Waited ${timeout} milliseconds to locate signin name input`);
         await this.signinPage.getNameInput().then(async input => {
             await input.clear();
             await input.sendKeys(name);
         }).catch(async err => {
             console.error("ERROR on input user name: " + err);
+            if(e instanceof StaleElementReferenceError){ // try again
+                console.warn("WARNING retrying input username")
+                await this.signinPage.getNameInput().then(async input => {
+                    await input.clear();
+                    await input.sendKeys(name);
+                })
+            }
             throw err;
         });
     }
 
     async enterPassword(password, timeout = 3000){
-        await this.driver.wait(until.elementIsVisible(await this.signinPage.getPasswordInput()), timeout,
-            `Waited ${timeout} milliseconds to locate signin pasword input`);
         await this.signinPage.getPasswordInput().then(async input =>{
             await input.clear();
             await input.sendKeys(password);
         }).catch(async err => {
             console.log("ERROR on input user password: " + err);
+            if(e instanceof StaleElementReferenceError) { // try again
+                await this.signinPage.getPasswordInput().then(async input =>{
+                    await input.clear();
+                    await input.sendKeys(password);
+                })
+            }
             throw err;
         });
     }
 
     async clickSigninButton(timeout = 3000){
-        await this.driver.wait(until.elementIsVisible(await this.signinPage.getSigninButton()), timeout,
-            `Waited ${timeout} milliseconds to locate signin button`);
         await this.signinPage.getSigninButton().then(async btn =>{
             await btn.click();
         }).catch(async err => {
             console.error("ERROR on click signin button: " + err);
+            if(e instanceof StaleElementReferenceError) { //try again
+                await this.signinPage.getSigninButton().then(async btn =>{
+                    await btn.click();
+                })
+            }
             throw err;
         });
     }
