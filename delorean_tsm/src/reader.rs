@@ -65,7 +65,7 @@ where
     pub fn try_new(mut r: R, len: usize) -> Result<Self, TSMError> {
         // determine offset to index, which is held in last 8 bytes of file.
         r.seek(SeekFrom::End(-8))?;
-        let mut buf: [u8; 8] = [0; 8];
+        let mut buf = [0u8; 8];
         r.read_exact(&mut buf)?;
 
         let index_offset = u64::from_be_bytes(buf);
@@ -86,7 +86,7 @@ where
     /// when the index has been exhausted.
     fn next_index_entry(&mut self) -> Result<IndexEntry, TSMError> {
         // read length of series key
-        let mut buf: [u8; 2] = [0; 2];
+        let mut buf = [0u8; 2];
         self.r.read_exact(&mut buf)?;
         self.curr_offset += 2;
         let key_len = u16::from_be_bytes(buf);
@@ -120,7 +120,7 @@ where
     /// they have all been read for an index entry.
     fn next_block_entry(&mut self) -> Result<Block, TSMError> {
         // read min time on block entry
-        let mut buf: [u8; 8] = [0; 8];
+        let mut buf = [0u8; 8];
         self.r.read_exact(&mut buf[..])?;
         self.curr_offset += 8;
         let min_time = i64::from_be_bytes(buf);
@@ -212,7 +212,7 @@ impl IndexEntry {
     }
 
     fn extract_id_from_slice(data: &[u8]) -> InfluxID {
-        let mut buf: [u8; 8] = [0; 8];
+        let mut buf = [0u8; 8];
         buf.copy_from_slice(&data[..8]);
         InfluxID::from_be_bytes(buf)
     }
@@ -260,7 +260,7 @@ where
         idx += 1;
 
         // first decode the timestamp block.
-        let mut ts: Vec<i64> = Vec::with_capacity(MAX_BLOCK_VALUES); // 1000 is the max block size
+        let mut ts = Vec::with_capacity(MAX_BLOCK_VALUES); // 1000 is the max block size
         let (len, n) = u64::decode_var(&data[idx..]); // size of timestamp block
         idx += n;
         encoders::timestamp::decode(&data[idx..idx + (len as usize)], &mut ts).map_err(|e| {
@@ -273,7 +273,7 @@ where
         match block_type {
             BlockType::Float => {
                 // values will be same length as time-stamps.
-                let mut values: Vec<f64> = Vec::with_capacity(ts.len());
+                let mut values = Vec::with_capacity(ts.len());
                 encoders::float::decode_influxdb(&data[idx..], &mut values).map_err(|e| {
                     TSMError {
                         description: e.to_string(),
@@ -284,7 +284,7 @@ where
             }
             BlockType::Integer => {
                 // values will be same length as time-stamps.
-                let mut values: Vec<i64> = Vec::with_capacity(ts.len());
+                let mut values = Vec::with_capacity(ts.len());
                 encoders::integer::decode(&data[idx..], &mut values).map_err(|e| TSMError {
                     description: e.to_string(),
                 })?;
@@ -295,11 +295,12 @@ where
                 description: String::from("bool block type unsupported"),
             }),
             BlockType::Str => {
-                let len = ts.len();
-                Ok(BlockData::Str {
-                    ts,
-                    values: vec!["unsupported string!!".to_string(); len as usize],
-                })
+                // values will be same length as time-stamps.
+                let mut values = Vec::with_capacity(ts.len());
+                encoders::string::decode(&data[idx..], &mut values).map_err(|e| TSMError {
+                    description: e.to_string(),
+                })?;
+                Ok(BlockData::Str { ts, values })
             }
             BlockType::Unsigned => Err(TSMError {
                 description: String::from("unsigned integer block type unsupported"),
@@ -340,7 +341,7 @@ mod tests {
 
         let reader = TSMIndexReader::try_new(BufReader::new(Cursor::new(buf)), 4_222_248).unwrap();
 
-        let mut got_blocks: u64 = 0;
+        let mut got_blocks = 0;
         let mut got_min_time = i64::MAX;
         let mut got_max_time = i64::MIN;
 
@@ -426,13 +427,7 @@ mod tests {
                     assert_eq!(ts.len(), 509);
                     assert_eq!(values.len(), 509);
                 }
-                BlockData::Bool { ts: _, values: _ } => {
-                    panic!("should not have decoded bool block")
-                }
-                BlockData::Str { ts: _, values: _ } => panic!("should not have decoded str block"),
-                BlockData::Unsigned { ts: _, values: _ } => {
-                    panic!("should not have decoded unsigned block")
-                }
+                other => panic!("should not have decoded {:?}", other),
             }
         }
     }
@@ -458,9 +453,6 @@ mod tests {
             match entry.block_type {
                 BlockType::Bool => {
                     eprintln!("Note: ignoring bool block, not implemented");
-                }
-                BlockType::Str => {
-                    eprintln!("Note: ignoring Str block, not implemented");
                 }
                 BlockType::Unsigned => {
                     eprintln!("Note: ignoring unsigned block, not implemented");

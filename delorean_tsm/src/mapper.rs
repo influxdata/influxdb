@@ -15,7 +15,7 @@ use std::iter::Peekable;
 /// The main purpose of the `TSMMeasurementMapper` is to provide a
 /// transformation step that allows one to convert per-series/per-field data
 /// into measurement-oriented table data.
-///  
+///
 #[derive(Debug)]
 pub struct TSMMeasurementMapper<R>
 where
@@ -199,7 +199,7 @@ pub enum ColumnData {
     Float(Vec<Option<f64>>),
     Integer(Vec<Option<i64>>),
     Bool(Vec<Option<bool>>),
-    Str(Vec<Option<String>>),
+    Str(Vec<Option<Vec<u8>>>),
     Unsigned(Vec<Option<u64>>),
 }
 
@@ -209,7 +209,7 @@ enum ValuePair {
     F64((i64, f64)),
     I64((i64, i64)),
     Bool((i64, bool)),
-    Str((i64, String)),
+    Str((i64, Vec<u8>)),
     U64((i64, u64)),
 }
 

@@ -15,9 +15,8 @@ enum Encoding {
 /// deltas are then zig-zag encoded. The resulting zig-zag encoded deltas are
 /// further compressed if possible, either via bit-packing using simple8b or by
 /// run-length encoding the deltas if they're all the same.
-#[allow(dead_code)]
-pub fn encode<'a>(src: &[i64], dst: &'a mut Vec<u8>) -> Result<(), Box<dyn Error>> {
-    dst.truncate(0); // reset buffer.
+pub fn encode(src: &[i64], dst: &mut Vec<u8>) -> Result<(), Box<dyn Error>> {
+    dst.clear(); // reset buffer.
     if src.is_empty() {
         return Ok(());
     }
@@ -100,26 +99,25 @@ fn i64_to_u64_vector(src: &[i64]) -> Vec<u64> {
 // value in the sequence differs by, and count the number of times that the delta
 // is repeated.
 fn encode_rle(v: u64, delta: u64, count: u64, dst: &mut Vec<u8>) {
-    let max_var_int_size = 10; // max number of bytes needed to store var int
+    use super::MAX_VAR_INT_64;
     dst.push(0); // save a byte for encoding type
     dst.extend_from_slice(&v.to_be_bytes()); // write the first value in as a byte array.
     let mut n = 9;
 
-    if dst.len() - n <= max_var_int_size {
-        dst.resize(n + max_var_int_size, 0);
+    if dst.len() - n <= MAX_VAR_INT_64 {
+        dst.resize(n + MAX_VAR_INT_64, 0);
     }
     n += delta.encode_var(&mut dst[n..]); // encode delta between values
 
-    if dst.len() - n <= max_var_int_size {
-        dst.resize(n + max_var_int_size, 0);
+    if dst.len() - n <= MAX_VAR_INT_64 {
+        dst.resize(n + MAX_VAR_INT_64, 0);
     }
     n += count.encode_var(&mut dst[n..]); // encode count of values
     dst.truncate(n);
 }
 
 /// decode decodes a slice of bytes into a vector of signed integers.
-#[allow(dead_code)]
-pub fn decode<'a>(src: &[u8], dst: &'a mut Vec<i64>) -> Result<(), Box<dyn Error>> {
+pub fn decode(src: &[u8], dst: &mut Vec<i64>) -> Result<(), Box<dyn Error>> {
     if src.is_empty() {
         return Ok(());
     }

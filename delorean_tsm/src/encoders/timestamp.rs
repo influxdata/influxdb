@@ -16,9 +16,8 @@ enum Encoding {
 /// is potentially carried out. If all the deltas are the same the block can be
 /// encoded using RLE. If not, as long as the deltas are not bigger than simple8b::MAX_VALUE
 /// they can be encoded using simple8b.
-#[allow(dead_code)]
-pub fn encode<'a>(src: &[i64], dst: &'a mut Vec<u8>) -> Result<(), Box<dyn Error>> {
-    dst.truncate(0); // reset buffer.
+pub fn encode(src: &[i64], dst: &mut Vec<u8>) -> Result<(), Box<dyn Error>> {
+    dst.clear(); // reset buffer.
     if src.is_empty() {
         return Ok(());
     }
@@ -102,7 +101,7 @@ fn i64_to_u64_vector(src: &[i64]) -> Vec<u64> {
 // value in the sequence differs by, and count the total number of values in the
 // sequence.
 fn encode_rle(v: u64, delta: u64, count: u64, dst: &mut Vec<u8>) {
-    let max_var_int_size = 10; // max number of bytes needed to store var int
+    use super::MAX_VAR_INT_64;
 
     // Keep a byte back for the scaler.
     dst.push(0);
@@ -117,8 +116,8 @@ fn encode_rle(v: u64, delta: u64, count: u64, dst: &mut Vec<u8>) {
         div /= 10;
     }
 
-    if dst.len() <= n + max_var_int_size {
-        dst.resize(n + max_var_int_size, 0);
+    if dst.len() <= n + MAX_VAR_INT_64 {
+        dst.resize(n + MAX_VAR_INT_64, 0);
     }
 
     // 4 low bits are the log10 divisor.
@@ -134,8 +133,8 @@ fn encode_rle(v: u64, delta: u64, count: u64, dst: &mut Vec<u8>) {
         n += delta.encode_var(&mut dst[n..]);
     }
 
-    if dst.len() - n <= max_var_int_size {
-        dst.resize(n + max_var_int_size, 0);
+    if dst.len() - n <= MAX_VAR_INT_64 {
+        dst.resize(n + MAX_VAR_INT_64, 0);
     }
     // finally, encode the number of times the delta is repeated.
     n += count.encode_var(&mut dst[n..]);
@@ -144,8 +143,7 @@ fn encode_rle(v: u64, delta: u64, count: u64, dst: &mut Vec<u8>) {
 
 /// decode decodes a slice of bytes encoded using encode back into a
 /// vector of signed integers.
-#[allow(dead_code)]
-pub fn decode<'a>(src: &[u8], dst: &'a mut Vec<i64>) -> Result<(), Box<dyn Error>> {
+pub fn decode(src: &[u8], dst: &mut Vec<i64>) -> Result<(), Box<dyn Error>> {
     if src.is_empty() {
         return Ok(());
     }
