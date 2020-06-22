@@ -4,10 +4,12 @@ metadata:
   name:
     envRef:
       key: meta-name
+      default: meta
 spec:
   name:
     envRef:
       key: spec-name
+      default: spectacles
   every: 10m
   offset: 15s
   query:  >

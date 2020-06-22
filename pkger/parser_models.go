@@ -50,6 +50,7 @@ func summarizeCommonReferences(ident identity, labels sortedLabels) []SummaryRef
 const (
 	fieldAPIVersion   = "apiVersion"
 	fieldAssociations = "associations"
+	fieldDefault      = "default"
 	fieldDescription  = "description"
 	fieldEvery        = "every"
 	fieldKey          = "key"
@@ -1992,9 +1993,10 @@ const (
 )
 
 type references struct {
-	val    interface{}
-	EnvRef string
-	Secret string
+	val        interface{}
+	defaultVal string
+	EnvRef     string
+	Secret     string
 }
 
 func (r *references) hasValue() bool {
@@ -2019,6 +2021,9 @@ func (r *references) String() string {
 }
 
 func (r *references) defaultEnvValue() string {
+	if r.defaultVal != "" {
+		return r.defaultVal
+	}
 	return "env-" + r.EnvRef
 }
 

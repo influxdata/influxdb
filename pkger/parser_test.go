@@ -60,12 +60,12 @@ func TestParse(t *testing.T) {
 					{
 						Field:        "metadata.name",
 						EnvRefKey:    "meta-name",
-						DefaultValue: "env-meta-name",
+						DefaultValue: "meta",
 					},
 					{
 						Field:        "spec.name",
 						EnvRefKey:    "spec-name",
-						DefaultValue: "env-spec-name",
+						DefaultValue: "spectacles",
 					},
 					{
 						Field:        "spec.associations[0].name",
@@ -582,12 +582,12 @@ spec:
 					{
 						Field:        "metadata.name",
 						EnvRefKey:    "meta-name",
-						DefaultValue: "env-meta-name",
+						DefaultValue: "meta",
 					},
 					{
 						Field:        "spec.name",
 						EnvRefKey:    "spec-name",
-						DefaultValue: "env-spec-name",
+						DefaultValue: "spectacles",
 					},
 					{
 						Field:        "spec.associations[0].name",
@@ -2281,12 +2281,12 @@ spec:
 					{
 						Field:        "metadata.name",
 						EnvRefKey:    "meta-name",
-						DefaultValue: "env-meta-name",
+						DefaultValue: "meta",
 					},
 					{
 						Field:        "spec.name",
 						EnvRefKey:    "spec-name",
-						DefaultValue: "env-spec-name",
+						DefaultValue: "spectacles",
 					},
 					{
 						Field:        "spec.associations[0].name",
@@ -2528,12 +2528,12 @@ spec:
 					{
 						Field:        "metadata.name",
 						EnvRefKey:    "meta-name",
-						DefaultValue: "env-meta-name",
+						DefaultValue: "meta",
 					},
 					{
 						Field:        "spec.name",
 						EnvRefKey:    "spec-name",
-						DefaultValue: "env-spec-name",
+						DefaultValue: "spectacles",
 					},
 					{
 						Field:        "spec.associations[0].name",
@@ -2852,12 +2852,12 @@ spec:
 					{
 						Field:        "metadata.name",
 						EnvRefKey:    "meta-name",
-						DefaultValue: "env-meta-name",
+						DefaultValue: "meta",
 					},
 					{
 						Field:        "spec.name",
 						EnvRefKey:    "spec-name",
-						DefaultValue: "env-spec-name",
+						DefaultValue: "spectacles",
 					},
 					{
 						Field:        "spec.associations[0].name",
@@ -3189,12 +3189,12 @@ spec:
 					{
 						Field:        "metadata.name",
 						EnvRefKey:    "meta-name",
-						DefaultValue: "env-meta-name",
+						DefaultValue: "meta",
 					},
 					{
 						Field:        "spec.name",
 						EnvRefKey:    "spec-name",
-						DefaultValue: "env-spec-name",
+						DefaultValue: "spectacles",
 					},
 					{
 						Field:        "spec.associations[0].name",
@@ -3407,12 +3407,12 @@ spec:
 					{
 						Field:        "metadata.name",
 						EnvRefKey:    "meta-name",
-						DefaultValue: "env-meta-name",
+						DefaultValue: "meta",
 					},
 					{
 						Field:        "spec.name",
 						EnvRefKey:    "spec-name",
-						DefaultValue: "env-spec-name",
+						DefaultValue: "spectacles",
 					},
 					{
 						Field:        "spec.associations[0].name",
@@ -3527,12 +3527,12 @@ spec:
 					{
 						Field:        "metadata.name",
 						EnvRefKey:    "meta-name",
-						DefaultValue: "env-meta-name",
+						DefaultValue: "meta",
 					},
 					{
 						Field:        "spec.name",
 						EnvRefKey:    "spec-name",
-						DefaultValue: "env-spec-name",
+						DefaultValue: "spectacles",
 					},
 					{
 						Field:        "spec.associations[0].name",
