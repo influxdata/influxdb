@@ -17,6 +17,28 @@ pub enum Packers {
     Boolean(Packer<bool>),
 }
 
+macro_rules! typed_packer_accessors {
+    ($(($name:ident, $name_mut:ident, $type:ty, $variant:ident),)*) => {
+        $(
+            pub fn $name(&self) -> &Packer<$type> {
+                if let Self::$variant(p) = self {
+                    p
+                } else {
+                    panic!(concat!("packer is not a ", stringify!($variant)));
+                }
+            }
+
+            pub fn $name_mut(&mut self) -> &mut Packer<$type> {
+                if let Self::$variant(p) = self {
+                    p
+                } else {
+                    panic!(concat!("packer is not a ", stringify!($variant)));
+                }
+            }
+        )*
+    };
+}
+
 impl Packers {
     /// Reserves the minimum capacity for exactly additional more elements to
     /// be inserted into the Packer<T>` without reallocation.
@@ -68,68 +90,12 @@ impl Packers {
         }
     }
 
-    pub fn f64_packer_mut(&mut self) -> &mut Packer<f64> {
-        if let Self::Float(p) = self {
-            p
-        } else {
-            panic!("packer is not a Float");
-        }
-    }
-
-    pub fn f64_packer(&self) -> &Packer<f64> {
-        if let Self::Float(p) = self {
-            p
-        } else {
-            panic!("packer is not a Float");
-        }
-    }
-
-    pub fn i64_packer_mut(&mut self) -> &mut Packer<i64> {
-        if let Self::Integer(p) = self {
-            p
-        } else {
-            panic!("packer is not an Integer");
-        }
-    }
-
-    pub fn i64_packer(&self) -> &Packer<i64> {
-        if let Self::Integer(p) = self {
-            p
-        } else {
-            panic!("packer is not an Integer");
-        }
-    }
-
-    pub fn str_packer_mut(&mut self) -> &mut Packer<ByteArray> {
-        if let Self::String(p) = self {
-            p
-        } else {
-            panic!("packer is not a String");
-        }
-    }
-
-    pub fn str_packer(&self) -> &Packer<ByteArray> {
-        if let Self::String(p) = self {
-            p
-        } else {
-            panic!("packer is not a String");
-        }
-    }
-
-    pub fn bool_packer_mut(&mut self) -> &mut Packer<bool> {
-        if let Self::Boolean(p) = self {
-            p
-        } else {
-            panic!("packer is not a Boolean");
-        }
-    }
-
-    pub fn bool_packer(&self) -> &Packer<bool> {
-        if let Self::Boolean(p) = self {
-            p
-        } else {
-            panic!("packer is not a Boolean");
-        }
+    // Implementations of all the accessors for the variants of `Packers`.
+    typed_packer_accessors! {
+        (f64_packer, f64_packer_mut, f64, Float),
+        (i64_packer, i64_packer_mut, i64, Integer),
+        (str_packer, str_packer_mut, ByteArray, String),
+        (bool_packer, bool_packer_mut, bool, Boolean),
     }
 }
 
