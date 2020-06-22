@@ -303,8 +303,8 @@ struct ApplicationError {
 }
 
 impl ApplicationError {
-    fn new(status_code: StatusCode, message: impl Into<String>) -> ApplicationError {
-        ApplicationError {
+    fn new(status_code: StatusCode, message: impl Into<String>) -> Self {
+        Self {
             status_code,
             message: message.into(),
         }
@@ -324,13 +324,11 @@ impl fmt::Display for ApplicationError {
 }
 
 impl From<StatusCode> for ApplicationError {
-    fn from(other: StatusCode) -> ApplicationError {
+    fn from(other: StatusCode) -> Self {
         match other {
-            StatusCode::BAD_REQUEST => {
-                ApplicationError::new(StatusCode::BAD_REQUEST, "Bad request")
-            }
+            StatusCode::BAD_REQUEST => Self::new(StatusCode::BAD_REQUEST, "Bad request"),
             StatusCode::INTERNAL_SERVER_ERROR => {
-                ApplicationError::new(StatusCode::INTERNAL_SERVER_ERROR, "Internal server error")
+                Self::new(StatusCode::INTERNAL_SERVER_ERROR, "Internal server error")
             }
             _ => unimplemented!(),
         }

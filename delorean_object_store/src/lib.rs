@@ -3,7 +3,8 @@
     missing_copy_implementations,
     missing_debug_implementations,
     missing_docs,
-    clippy::explicit_iter_loop
+    clippy::explicit_iter_loop,
+    clippy::use_self
 )]
 
 //! # delorean_object_store
@@ -30,17 +31,17 @@ pub struct ObjectStore(ObjectStoreIntegration);
 impl ObjectStore {
     /// Configure a connection to Amazon S3.
     pub fn new_amazon_s3(s3: AmazonS3) -> Self {
-        ObjectStore(ObjectStoreIntegration::AmazonS3(s3))
+        Self(ObjectStoreIntegration::AmazonS3(s3))
     }
 
     /// Configure a connection to Google Cloud Storage.
     pub fn new_google_cloud_storage(gcs: GoogleCloudStorage) -> Self {
-        ObjectStore(ObjectStoreIntegration::GoogleCloudStorage(gcs))
+        Self(ObjectStoreIntegration::GoogleCloudStorage(gcs))
     }
 
     /// Configure in-memory storage.
     pub fn new_in_memory(in_mem: InMemory) -> Self {
-        ObjectStore(ObjectStoreIntegration::InMemory(in_mem))
+        Self(ObjectStoreIntegration::InMemory(in_mem))
     }
 
     /// Save the provided bytes to the specified location.
@@ -113,7 +114,7 @@ pub struct GoogleCloudStorage {
 impl GoogleCloudStorage {
     /// Configure a connection to Google Cloud Storage.
     pub fn new(bucket_name: impl Into<String>) -> Self {
-        GoogleCloudStorage {
+        Self {
             bucket_name: bucket_name.into(),
         }
     }
@@ -234,7 +235,7 @@ impl AmazonS3 {
         let http_client = rusoto_core::request::HttpClient::new()
             .expect("Current implementation of rusoto_core has no way for this to fail");
         let credentials_provider = ChainProvider::new();
-        AmazonS3 {
+        Self {
             client: rusoto_s3::S3Client::new_with(http_client, credentials_provider, region),
             bucket_name: bucket_name.into(),
         }

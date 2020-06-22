@@ -3,7 +3,8 @@
     missing_copy_implementations,
     missing_debug_implementations,
     missing_docs,
-    clippy::explicit_iter_loop
+    clippy::explicit_iter_loop,
+    clippy::use_self
 )]
 
 //! # delorean_wal
@@ -578,7 +579,7 @@ impl SideFile {
             })?;
         }
 
-        Ok(SideFile {
+        Ok(Self {
             final_destination,
             temporary_destination,
             temporary_file,

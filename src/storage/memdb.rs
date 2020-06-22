@@ -56,8 +56,8 @@ trait StoreInSeriesData {
 impl StoreInSeriesData for PointType {
     fn write(&self, series_data: &mut SeriesData) {
         match self {
-            PointType::I64(inner) => inner.write(series_data),
-            PointType::F64(inner) => inner.write(series_data),
+            Self::I64(inner) => inner.write(series_data),
+            Self::F64(inner) => inner.write(series_data),
         }
     }
 }
@@ -82,7 +82,7 @@ impl StoreInSeriesData for Point<i64> {
 impl StoreInSeriesData for Point<f64> {
     fn write(&self, series_data: &mut SeriesData) {
         let point: ReadPoint<_> = self.into();
-        series_data.current_size += std::mem::size_of::<Point<f64>>();
+        series_data.current_size += std::mem::size_of::<Self>();
 
         match series_data.f64_series.get_mut(&self.series_id.unwrap()) {
             Some(buff) => buff.values.push(point),
@@ -140,8 +140,7 @@ impl SeriesMap {
             .insert(self.last_id, (point.series().clone(), series_type));
 
         // update the estimated size of the map.
-        self.current_size +=
-            point.series().len() * SeriesMap::SERIES_KEY_COPIES + SeriesMap::SERIES_ID_BYTES;
+        self.current_size += point.series().len() * Self::SERIES_KEY_COPIES + Self::SERIES_ID_BYTES;
 
         for pair in point.index_pairs() {
             // insert this id into the posting list
@@ -182,7 +181,7 @@ fn list_key(key: &str, value: &str) -> Vec<u8> {
 
 impl MemDB {
     pub fn new(id: String) -> Self {
-        MemDB {
+        Self {
             id,
             ..Default::default()
         }

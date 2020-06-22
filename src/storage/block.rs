@@ -239,6 +239,8 @@ impl Encoder for Vec<u64> {
     }
 }
 
+// The type annotation for `bytes` isn't related to `Self` but clippy thinks it is
+#[allow(clippy::use_self)]
 impl Encoder for Vec<&str> {
     fn encode(&self, dst: &mut Vec<u8>) -> Result<(), StorageError> {
         let bytes: Vec<_> = self.iter().map(|s| s.as_bytes()).collect();
@@ -319,8 +321,8 @@ where
     T: BlockType + Clone,
     Vec<T>: Encoder,
 {
-    pub fn new(id: u32) -> Block<T> {
-        Block {
+    pub fn new(id: u32) -> Self {
+        Self {
             checksum: None,
             id,
             summary: None,
@@ -471,8 +473,8 @@ struct BlockData<T> {
 }
 
 impl<T> Default for BlockData<T> {
-    fn default() -> BlockData<T> {
-        BlockData {
+    fn default() -> Self {
+        Self {
             values: Vec::default(),
             sorted: true,
         }
@@ -567,9 +569,9 @@ pub struct FloatBlockSummary {
 }
 
 impl BlockSummary<f64> for FloatBlockSummary {
-    fn new(values: &[(i64, f64)]) -> Option<FloatBlockSummary> {
+    fn new(values: &[(i64, f64)]) -> Option<Self> {
         values.split_first().map(|(&value, values)| {
-            let mut header = FloatBlockSummary {
+            let mut header = Self {
                 count: 1,
                 sum: value.1,
                 first: value,
@@ -646,9 +648,9 @@ pub struct IntegerBlockSummary {
 }
 
 impl BlockSummary<i64> for IntegerBlockSummary {
-    fn new(values: &[(i64, i64)]) -> Option<IntegerBlockSummary> {
+    fn new(values: &[(i64, i64)]) -> Option<Self> {
         values.split_first().map(|(&value, values)| {
-            let mut header = IntegerBlockSummary {
+            let mut header = Self {
                 count: 1,
                 sum: value.1.into(),
                 first: value,
@@ -748,9 +750,9 @@ pub struct BoolBlockSummary {
 }
 
 impl BlockSummary<bool> for BoolBlockSummary {
-    fn new(values: &[(i64, bool)]) -> Option<BoolBlockSummary> {
+    fn new(values: &[(i64, bool)]) -> Option<Self> {
         values.split_first().map(|(&value, values)| {
-            let mut header = BoolBlockSummary {
+            let mut header = Self {
                 count: 1,
                 first: value,
                 last: value,
@@ -859,9 +861,9 @@ pub struct UnsignedBlockSummary {
 }
 
 impl BlockSummary<u64> for UnsignedBlockSummary {
-    fn new(values: &[(i64, u64)]) -> Option<UnsignedBlockSummary> {
+    fn new(values: &[(i64, u64)]) -> Option<Self> {
         values.split_first().map(|(&value, values)| {
-            let mut header = UnsignedBlockSummary {
+            let mut header = Self {
                 count: 1,
                 sum: value.1.into(),
                 first: value,

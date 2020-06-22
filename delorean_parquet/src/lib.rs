@@ -3,7 +3,8 @@
 #![warn(
     missing_copy_implementations,
     missing_debug_implementations,
-    clippy::explicit_iter_loop
+    clippy::explicit_iter_loop,
+    clippy::use_self
 )]
 
 // Export the parts of the parquet crate that are needed to interact with code in this crate

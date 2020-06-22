@@ -44,7 +44,7 @@ macro_rules! typed_packer_accessors {
 impl Packers {
     /// Create a String Packers with repeated values.
     pub fn from_elem_str(v: &str, n: usize) -> Self {
-        Packers::String(Packer::from(vec![ByteArray::from(v); n]))
+        Self::String(Packer::from(vec![ByteArray::from(v); n]))
     }
 
     /// Reserves the minimum capacity for exactly additional more elements to
@@ -100,48 +100,48 @@ impl Packers {
 
 impl std::convert::From<Vec<i64>> for Packers {
     fn from(v: Vec<i64>) -> Self {
-        Packers::Integer(Packer::from(v))
+        Self::Integer(Packer::from(v))
     }
 }
 
 impl std::convert::From<Vec<f64>> for Packers {
     fn from(v: Vec<f64>) -> Self {
-        Packers::Float(Packer::from(v))
+        Self::Float(Packer::from(v))
     }
 }
 
 impl std::convert::From<Vec<ByteArray>> for Packers {
     fn from(v: Vec<ByteArray>) -> Self {
-        Packers::String(Packer::from(v))
+        Self::String(Packer::from(v))
     }
 }
 
 impl std::convert::From<Vec<bool>> for Packers {
     fn from(v: Vec<bool>) -> Self {
-        Packers::Boolean(Packer::from(v))
+        Self::Boolean(Packer::from(v))
     }
 }
 
 impl std::convert::From<Vec<Option<i64>>> for Packers {
     fn from(v: Vec<Option<i64>>) -> Self {
-        Packers::Integer(Packer::from(v))
+        Self::Integer(Packer::from(v))
     }
 }
 
 impl std::convert::From<Vec<Option<f64>>> for Packers {
     fn from(v: Vec<Option<f64>>) -> Self {
-        Packers::Float(Packer::from(v))
+        Self::Float(Packer::from(v))
     }
 }
 
 impl std::convert::From<delorean_table_schema::DataType> for Packers {
     fn from(t: delorean_table_schema::DataType) -> Self {
         match t {
-            delorean_table_schema::DataType::Float => Packers::Float(Packer::<f64>::new()),
-            delorean_table_schema::DataType::Integer => Packers::Integer(Packer::<i64>::new()),
-            delorean_table_schema::DataType::String => Packers::String(Packer::<ByteArray>::new()),
-            delorean_table_schema::DataType::Boolean => Packers::Boolean(Packer::<bool>::new()),
-            delorean_table_schema::DataType::Timestamp => Packers::Integer(Packer::<i64>::new()),
+            delorean_table_schema::DataType::Float => Self::Float(Packer::<f64>::new()),
+            delorean_table_schema::DataType::Integer => Self::Integer(Packer::<i64>::new()),
+            delorean_table_schema::DataType::String => Self::String(Packer::<ByteArray>::new()),
+            delorean_table_schema::DataType::Boolean => Self::Boolean(Packer::<bool>::new()),
+            delorean_table_schema::DataType::Timestamp => Self::Integer(Packer::<i64>::new()),
         }
     }
 }
@@ -156,13 +156,13 @@ impl std::convert::From<Vec<Option<Vec<u8>>>> for Packers {
                 None => as_byte_array.push(None),
             }
         }
-        Packers::String(Packer::from(as_byte_array))
+        Self::String(Packer::from(as_byte_array))
     }
 }
 
 impl std::convert::From<Vec<Option<bool>>> for Packers {
     fn from(v: Vec<Option<bool>>) -> Self {
-        Packers::Boolean(Packer::from(v))
+        Self::Boolean(Packer::from(v))
     }
 }
 
@@ -176,7 +176,7 @@ impl std::convert::From<Vec<Option<u64>>> for Packers {
                 None => as_i64.push(None),
             }
         }
-        Packers::Integer(Packer::from(as_i64))
+        Self::Integer(Packer::from(as_i64))
     }
 }
 
@@ -296,7 +296,7 @@ impl<T: Default> std::convert::From<Vec<T>> for Packer<T> {
 // `Packer<T>` value, e.g., `Packer<f64>`.
 impl<T: Default> std::convert::From<Vec<Option<T>>> for Packer<T> {
     fn from(values: Vec<Option<T>>) -> Self {
-        let mut packer = Packer::new();
+        let mut packer = Self::new();
         for v in values {
             packer.push_option(v);
         }

@@ -39,7 +39,7 @@ pub struct MemoryInputReader {
 }
 
 impl FileInputReader {
-    fn new(file_type: FileType, input_name: &str) -> Result<FileInputReader> {
+    fn new(file_type: FileType, input_name: &str) -> Result<Self> {
         let file = File::open(input_name).map_err(|e| Error::UnableToReadInput {
             name: String::from(input_name),
             source: e,
@@ -53,7 +53,7 @@ impl FileInputReader {
             })?
             .len();
 
-        Ok(FileInputReader {
+        Ok(Self {
             file_type,
             file_size,
             reader: BufReader::new(file),
@@ -62,9 +62,9 @@ impl FileInputReader {
 }
 
 impl MemoryInputReader {
-    fn new(file_type: FileType, buffer: Vec<u8>) -> MemoryInputReader {
+    fn new(file_type: FileType, buffer: Vec<u8>) -> Self {
         let len = buffer.len();
-        MemoryInputReader {
+        Self {
             file_type,
             file_size: len as u64,
             cursor: Cursor::new(buffer),
@@ -75,10 +75,8 @@ impl MemoryInputReader {
 impl Seek for InputReader {
     fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
         match self {
-            InputReader::FileInputType(file_input_reader) => file_input_reader.reader.seek(pos),
-            InputReader::MemoryInputType(memory_input_reader) => {
-                memory_input_reader.cursor.seek(pos)
-            }
+            Self::FileInputType(file_input_reader) => file_input_reader.reader.seek(pos),
+            Self::MemoryInputType(memory_input_reader) => memory_input_reader.cursor.seek(pos),
         }
     }
 }
@@ -86,10 +84,8 @@ impl Seek for InputReader {
 impl Read for InputReader {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         match self {
-            InputReader::FileInputType(file_input_reader) => file_input_reader.reader.read(buf),
-            InputReader::MemoryInputType(memory_input_reader) => {
-                memory_input_reader.cursor.read(buf)
-            }
+            Self::FileInputType(file_input_reader) => file_input_reader.reader.read(buf),
+            Self::MemoryInputType(memory_input_reader) => memory_input_reader.cursor.read(buf),
         }
     }
 }
@@ -97,8 +93,8 @@ impl Read for InputReader {
 impl delorean_parquet::Length for InputReader {
     fn len(&self) -> u64 {
         match self {
-            InputReader::FileInputType(file_input_reader) => file_input_reader.file_size,
-            InputReader::MemoryInputType(memory_input_reader) => memory_input_reader.file_size,
+            Self::FileInputType(file_input_reader) => file_input_reader.file_size,
+            Self::MemoryInputType(memory_input_reader) => memory_input_reader.file_size,
         }
     }
 }
@@ -112,18 +108,14 @@ impl delorean_parquet::TryClone for InputReader {
 impl BufRead for InputReader {
     fn fill_buf(&mut self) -> io::Result<&[u8]> {
         match self {
-            InputReader::FileInputType(file_input_reader) => file_input_reader.reader.fill_buf(),
-            InputReader::MemoryInputType(memory_input_reader) => {
-                memory_input_reader.cursor.fill_buf()
-            }
+            Self::FileInputType(file_input_reader) => file_input_reader.reader.fill_buf(),
+            Self::MemoryInputType(memory_input_reader) => memory_input_reader.cursor.fill_buf(),
         }
     }
     fn consume(&mut self, amt: usize) {
         match self {
-            InputReader::FileInputType(file_input_reader) => file_input_reader.reader.consume(amt),
-            InputReader::MemoryInputType(memory_input_reader) => {
-                memory_input_reader.cursor.consume(amt)
-            }
+            Self::FileInputType(file_input_reader) => file_input_reader.reader.consume(amt),
+            Self::MemoryInputType(memory_input_reader) => memory_input_reader.cursor.consume(amt),
         }
     }
 }
@@ -131,22 +123,22 @@ impl BufRead for InputReader {
 impl InputReader {
     pub fn file_type(&self) -> &FileType {
         match self {
-            InputReader::FileInputType(file_input_reader) => &file_input_reader.file_type,
-            InputReader::MemoryInputType(memory_input_reader) => &memory_input_reader.file_type,
+            Self::FileInputType(file_input_reader) => &file_input_reader.file_type,
+            Self::MemoryInputType(memory_input_reader) => &memory_input_reader.file_type,
         }
     }
 
     pub fn len(&self) -> u64 {
         match self {
-            InputReader::FileInputType(file_input_reader) => file_input_reader.file_size,
-            InputReader::MemoryInputType(memory_input_reader) => memory_input_reader.file_size,
+            Self::FileInputType(file_input_reader) => file_input_reader.file_size,
+            Self::MemoryInputType(memory_input_reader) => memory_input_reader.file_size,
         }
     }
 
     // Create a new input reader suitable for reading from
     // `input_name` and figures out the file input type based on
     // heuristics (ahem, the filename extension)
-    pub fn new(input_name: &str) -> Result<InputReader> {
+    pub fn new(input_name: &str) -> Result<Self> {
         let path = Path::new(input_name);
 
         // Initially simply use the file name's extension to determine
@@ -164,15 +156,15 @@ impl InputReader {
             })?;
 
         match ext {
-            "tsm" => Ok(InputReader::FileInputType(FileInputReader::new(
+            "tsm" => Ok(Self::FileInputType(FileInputReader::new(
                 FileType::TSM,
                 input_name,
             )?)),
-            "lp" => Ok(InputReader::FileInputType(FileInputReader::new(
+            "lp" => Ok(Self::FileInputType(FileInputReader::new(
                 FileType::LineProtocol,
                 input_name,
             )?)),
-            "parquet" => Ok(InputReader::FileInputType(FileInputReader::new(
+            "parquet" => Ok(Self::FileInputType(FileInputReader::new(
                 FileType::Parquet,
                 input_name,
             )?)),
@@ -208,15 +200,15 @@ impl InputReader {
                     })?;
 
                 match stem_ext {
-                    "tsm" => Ok(InputReader::MemoryInputType(MemoryInputReader::new(
+                    "tsm" => Ok(Self::MemoryInputType(MemoryInputReader::new(
                         FileType::TSM,
                         buffer,
                     ))),
-                    "lp" => Ok(InputReader::MemoryInputType(MemoryInputReader::new(
+                    "lp" => Ok(Self::MemoryInputType(MemoryInputReader::new(
                         FileType::LineProtocol,
                         buffer,
                     ))),
-                    "parquet" => Ok(InputReader::MemoryInputType(MemoryInputReader::new(
+                    "parquet" => Ok(Self::MemoryInputType(MemoryInputReader::new(
                         FileType::Parquet,
                         buffer,
                     ))),

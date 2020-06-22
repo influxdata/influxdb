@@ -120,7 +120,7 @@ struct TSMMetadataBuilder {
 }
 
 impl TSMMetadataBuilder {
-    fn new() -> TSMMetadataBuilder {
+    fn new() -> Self {
         Self::default()
     }
 

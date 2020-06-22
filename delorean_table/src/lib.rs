@@ -2,7 +2,8 @@
 #![warn(
     missing_copy_implementations,
     missing_debug_implementations,
-    clippy::explicit_iter_loop
+    clippy::explicit_iter_loop,
+    clippy::use_self
 )]
 
 pub mod packers;

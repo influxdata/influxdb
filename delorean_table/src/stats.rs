@@ -46,12 +46,8 @@ pub struct ColumnStatsBuilder {
 }
 
 impl ColumnStatsBuilder {
-    pub fn new(
-        column_name: impl Into<String>,
-        column_index: usize,
-        data_type: DataType,
-    ) -> ColumnStatsBuilder {
-        ColumnStatsBuilder {
+    pub fn new(column_name: impl Into<String>, column_index: usize, data_type: DataType) -> Self {
+        Self {
             column_name: column_name.into(),
             column_index,
             compression_descriptions: BTreeSet::new(),
@@ -110,7 +106,7 @@ mod test {
 
     impl Default for ColumnStats {
         fn default() -> Self {
-            ColumnStats {
+            Self {
                 column_index: 0,
                 column_name: String::from(""),
                 compression_description: String::from("{}"),

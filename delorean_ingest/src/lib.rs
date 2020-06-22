@@ -5,7 +5,8 @@
 #![warn(
     missing_copy_implementations,
     missing_debug_implementations,
-    clippy::explicit_iter_loop
+    clippy::explicit_iter_loop,
+    clippy::use_self
 )]
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -37,7 +38,7 @@ impl ConversionSettings {}
 impl Default for ConversionSettings {
     /// Reasonable default settings
     fn default() -> Self {
-        ConversionSettings {
+        Self {
             sample_size: 5,
             measurement_write_buffer_size: 8000,
         }
@@ -725,7 +726,7 @@ mod delorean_ingest_tests {
     }
     impl WriterLog {
         fn new() -> Self {
-            WriterLog { events: Vec::new() }
+            Self { events: Vec::new() }
         }
     }
 
@@ -750,7 +751,7 @@ mod delorean_ingest_tests {
     }
     impl NoOpWriter {
         fn new(log: Arc<Mutex<WriterLog>>, measurement_name: String) -> Self {
-            NoOpWriter {
+            Self {
                 log,
                 measurement_name,
             }
@@ -805,7 +806,7 @@ mod delorean_ingest_tests {
 
     impl NoOpWriterSource {
         fn new(log: Arc<Mutex<WriterLog>>) -> Box<Self> {
-            Box::new(NoOpWriterSource { log })
+            Box::new(Self { log })
         }
     }
 
