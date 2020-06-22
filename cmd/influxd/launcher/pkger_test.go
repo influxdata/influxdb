@@ -1551,12 +1551,29 @@ func TestLauncher_Pkger(t *testing.T) {
 				variablePkgName = "laces-out-dan"
 			)
 
+			defaultPkgFn := func(*testing.T) *pkger.Pkg {
+				return newPkg(
+					newBucketObject(bucketPkgName, "", ""),
+					newCheckDeadmanObject(t, checkPkgName, "", time.Hour),
+					newDashObject(dashPkgName, "", ""),
+					newEndpointHTTP(endpointPkgName, "", ""),
+					newLabelObject(labelPkgName, "", "", ""),
+					newRuleObject(t, rulePkgName, "", endpointPkgName, ""),
+					newTaskObject(taskPkgName, "", ""),
+					newTelegrafObject(telegrafPkgName, "", ""),
+					newVariableObject(variablePkgName, "", ""),
+				)
+			}
+
 			tests := []struct {
 				name      string
+				pkgFn     func(t *testing.T) *pkger.Pkg
 				applyOpts []pkger.ApplyOptFn
+				assertFn  func(t *testing.T, impact pkger.PkgImpactSummary)
 			}{
 				{
-					name: "skip resource",
+					name:  "skip resource",
+					pkgFn: defaultPkgFn,
 					applyOpts: []pkger.ApplyOptFn{
 						pkger.ApplyWithResourceSkip(pkger.ActionSkipResource{
 							Kind:     pkger.KindBucket,
@@ -1595,9 +1612,22 @@ func TestLauncher_Pkger(t *testing.T) {
 							MetaName: variablePkgName,
 						}),
 					},
+					assertFn: func(t *testing.T, impact pkger.PkgImpactSummary) {
+						summary := impact.Summary
+						assert.Empty(t, summary.Buckets)
+						assert.Empty(t, summary.Checks)
+						assert.Empty(t, summary.Dashboards)
+						assert.Empty(t, summary.NotificationEndpoints)
+						assert.Empty(t, summary.Labels)
+						assert.Empty(t, summary.NotificationRules, 0)
+						assert.Empty(t, summary.Tasks)
+						assert.Empty(t, summary.TelegrafConfigs)
+						assert.Empty(t, summary.Variables)
+					},
 				},
 				{
-					name: "skip kind",
+					name:  "skip kind",
+					pkgFn: defaultPkgFn,
 					applyOpts: []pkger.ApplyOptFn{
 						pkger.ApplyWithKindSkip(pkger.ActionSkipKind{
 							Kind: pkger.KindBucket,
@@ -1627,6 +1657,70 @@ func TestLauncher_Pkger(t *testing.T) {
 							Kind: pkger.KindVariable,
 						}),
 					},
+					assertFn: func(t *testing.T, impact pkger.PkgImpactSummary) {
+						summary := impact.Summary
+						assert.Empty(t, summary.Buckets)
+						assert.Empty(t, summary.Checks)
+						assert.Empty(t, summary.Dashboards)
+						assert.Empty(t, summary.NotificationEndpoints)
+						assert.Empty(t, summary.Labels)
+						assert.Empty(t, summary.NotificationRules, 0)
+						assert.Empty(t, summary.Tasks)
+						assert.Empty(t, summary.TelegrafConfigs)
+						assert.Empty(t, summary.Variables)
+					},
+				},
+				{
+					name: "skip label and assoications should be dropped",
+					pkgFn: func(t *testing.T) *pkger.Pkg {
+						objs := []pkger.Object{
+							newBucketObject(bucketPkgName, "", ""),
+							newCheckDeadmanObject(t, checkPkgName, "", time.Hour),
+							newDashObject(dashPkgName, "", ""),
+							newEndpointHTTP(endpointPkgName, "", ""),
+							newRuleObject(t, rulePkgName, "", endpointPkgName, ""),
+							newTaskObject(taskPkgName, "", ""),
+							newTelegrafObject(telegrafPkgName, "", ""),
+							newVariableObject(variablePkgName, "", ""),
+						}
+						for _, obj := range objs {
+							obj.AddAssociations(pkger.ObjectAssociation{
+								Kind:    pkger.KindLabel,
+								PkgName: labelPkgName,
+							})
+						}
+
+						objs = append(objs, newLabelObject(labelPkgName, "", "", ""))
+
+						return newPkg(objs...)
+					},
+					applyOpts: []pkger.ApplyOptFn{
+						pkger.ApplyWithKindSkip(pkger.ActionSkipKind{
+							Kind: pkger.KindLabel,
+						}),
+					},
+					assertFn: func(t *testing.T, impact pkger.PkgImpactSummary) {
+						summary := impact.Summary
+						assert.Empty(t, summary.Labels, 0)
+						assert.Empty(t, summary.LabelMappings)
+
+						assert.Len(t, summary.Buckets, 1)
+						assert.Empty(t, summary.Buckets[0].LabelAssociations)
+						assert.Len(t, summary.Checks, 1)
+						assert.Empty(t, summary.Checks[0].LabelAssociations)
+						assert.Len(t, summary.Dashboards, 1)
+						assert.Empty(t, summary.Dashboards[0].LabelAssociations)
+						assert.Len(t, summary.NotificationEndpoints, 1)
+						assert.Empty(t, summary.NotificationEndpoints[0].LabelAssociations)
+						assert.Len(t, summary.NotificationRules, 1)
+						assert.Empty(t, summary.NotificationRules[0].LabelAssociations)
+						assert.Len(t, summary.Tasks, 1)
+						assert.Empty(t, summary.Tasks[0].LabelAssociations)
+						assert.Len(t, summary.TelegrafConfigs, 1)
+						assert.Empty(t, summary.TelegrafConfigs[0].LabelAssociations)
+						assert.Len(t, summary.Variables, 1)
+						assert.Empty(t, summary.Variables[0].LabelAssociations)
+					},
 				},
 			}
 
@@ -1635,37 +1729,16 @@ func TestLauncher_Pkger(t *testing.T) {
 					stack, cleanup := newStackFn(t, pkger.Stack{})
 					defer cleanup()
 
-					pkg := newPkg(
-						newBucketObject(bucketPkgName, "", ""),
-						newCheckDeadmanObject(t, checkPkgName, "", time.Hour),
-						newDashObject(dashPkgName, "", ""),
-						newEndpointHTTP(endpointPkgName, "", ""),
-						newLabelObject(labelPkgName, "", "", ""),
-						newRuleObject(t, rulePkgName, "", endpointPkgName, ""),
-						newTaskObject(taskPkgName, "", ""),
-						newTelegrafObject(telegrafPkgName, "", ""),
-						newVariableObject(variablePkgName, "", ""),
-					)
-
 					impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID,
 						append(
 							tt.applyOpts,
-							pkger.ApplyWithPkg(pkg),
+							pkger.ApplyWithPkg(tt.pkgFn(t)),
 							pkger.ApplyWithStackID(stack.ID),
 						)...,
 					)
 					require.NoError(t, err)
 
-					summary := impact.Summary
-					assert.Empty(t, summary.Buckets)
-					assert.Empty(t, summary.Checks)
-					assert.Empty(t, summary.Dashboards)
-					assert.Empty(t, summary.NotificationEndpoints)
-					assert.Empty(t, summary.Labels)
-					assert.Empty(t, summary.NotificationRules, 0)
-					assert.Empty(t, summary.Tasks)
-					assert.Empty(t, summary.TelegrafConfigs)
-					assert.Empty(t, summary.Variables)
+					tt.assertFn(t, impact)
 				}
 
 				t.Run(tt.name, fn)
