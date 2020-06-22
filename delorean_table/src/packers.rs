@@ -56,29 +56,18 @@ impl Packers {
         }
     }
 
-    pub fn is_null(&self, index: usize) -> bool {
+    /// Determines if the value for `row` is null is null.
+    ///
+    /// If there is no row then `is_null` returns `true`.
+    pub fn is_null(&self, row: usize) -> bool {
         match self {
-            Self::Float(p) => match p.def_levels.get(index) {
-                Some(x) => *x == 0,
-                None => true,
-            },
-            Self::Integer(p) => match p.def_levels.get(index) {
-                Some(x) => *x == 0,
-                None => true,
-            },
-            Self::String(p) => match p.def_levels.get(index) {
-                Some(x) => *x == 0,
-                None => true,
-            },
-            Self::Boolean(p) => match p.def_levels.get(index) {
-                Some(x) => *x == 0,
-                None => true,
-            },
+            Self::Float(p) => p.is_null(row),
+            Self::Integer(p) => p.is_null(row),
+            Self::String(p) => p.is_null(row),
+            Self::Boolean(p) => p.is_null(row),
         }
     }
 
-    // TODO(edd): YUK! Seem unable to avoid runtime checking of these packer
-    // types. Need to figure this out.
     pub fn f64_packer_mut(&mut self) -> &mut Packer<f64> {
         if let Self::Float(p) = self {
             p
@@ -237,13 +226,15 @@ impl<T: PackerDefault> Packer<T> {
     /// Return true if the row for index is null. Returns true if there is no
     /// row for index.
     pub fn is_null(&self, index: usize) -> bool {
-        match self.def_levels.get(index) {
-            Some(x) => *x == 0,
-            None => true,
-        }
+        self.def_levels.get(index).map_or(true, |&x| x == 0)
     }
 }
 
+/// Provides a `Default` implementation of compatible `Packer` types where the
+/// default values are compatible with the Parquet storage format.
+///
+/// TODO(edd): if we refactor out `ByteArray` as the string-based type the we
+/// could probably get rid of this trait and `Packer` could derive `Default`.
 pub trait PackerDefault {
     fn default() -> Self;
 }
