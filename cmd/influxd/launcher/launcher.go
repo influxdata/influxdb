@@ -1055,7 +1055,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		authService = authorization.NewAuthMetrics(m.reg, authService)
 		authService = authorization.NewAuthLogger(authLogger, authService)
 
-		newHandler := authorization.NewHTTPAuthHandler(m.log, authService, ts, lookupSvc)
+		newHandler := authorization.NewHTTPAuthHandler(m.log, authService, ts)
 		authHTTPServer = kithttp.NewFeatureHandler(feature.NewAuthPackage(), m.flagger, oldHandler, newHandler, newHandler.Prefix())
 	}
 
