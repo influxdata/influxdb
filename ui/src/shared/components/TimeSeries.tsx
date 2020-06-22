@@ -325,7 +325,9 @@ const mstp = (state: AppState, props: OwnProps): StateProps => {
   // component appends it automatically. That should be fixed
   // NOTE: limit the variables returned to those that are used,
   // as this prevents resending when other queries get sent
-  const queries = props.queries.map(q => q.text).filter(t => !!t.trim())
+  const queries = props.queries
+    ? props.queries.map(q => q.text).filter(t => !!t.trim())
+    : []
   const vars = getVariables(state).filter(v =>
     queries.some(t => isInQuery(t, v))
   )
