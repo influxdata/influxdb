@@ -110,7 +110,4 @@ const mstp = (state: AppState): StateProps => {
 }
 
 export {ClientCSharpOverlay}
-export default connect<StateProps, {}, Props>(
-  mstp,
-  null
-)(ClientCSharpOverlay)
+export default connect<StateProps, {}, Props>(mstp, null)(ClientCSharpOverlay)

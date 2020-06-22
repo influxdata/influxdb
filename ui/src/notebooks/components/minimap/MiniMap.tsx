@@ -64,7 +64,4 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-export default connect<StateProps, {}>(
-  mstp,
-  null
-)(MiniMap)
+export default connect<StateProps, {}>(mstp, null)(MiniMap)

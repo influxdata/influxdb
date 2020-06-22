@@ -80,7 +80,4 @@ const mstp = (state: AppState): StateProps => {
 }
 
 export {ClientKotlinOverlay}
-export default connect<StateProps, {}, Props>(
-  mstp,
-  null
-)(ClientKotlinOverlay)
+export default connect<StateProps, {}, Props>(mstp, null)(ClientKotlinOverlay)

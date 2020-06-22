@@ -39,10 +39,7 @@ const mstp_2 = (state: AppState): PluginStateProps => {
   }
 }
 
-const AllPluginList = connect<PluginStateProps, {}>(
-  mstp_2,
-  null
-)(PluginList)
+const AllPluginList = connect<PluginStateProps, {}>(mstp_2, null)(PluginList)
 
 interface StateProps {
   filter: string

@@ -51,9 +51,7 @@ class TelegrafEditorMonaco extends PureComponent<Props> {
       return
     }
 
-    const matches: Array<
-      monacoEditor.editor.FindMatch
-    > = this._editor
+    const matches: Array<monacoEditor.editor.FindMatch> = this._editor
       .getModel()
       .findMatches(PLUGIN_REGEX as any, false, true, false, null, true)
 
@@ -151,11 +149,6 @@ const mdtp: DispatchProps = {
   onSetText: setText,
 }
 
-export default connect<StateProps, DispatchProps>(
-  mstp,
-  mdtp,
-  null,
-  {
-    withRef: true,
-  }
-)(TelegrafEditorMonaco)
+export default connect<StateProps, DispatchProps>(mstp, mdtp, null, {
+  withRef: true,
+})(TelegrafEditorMonaco)

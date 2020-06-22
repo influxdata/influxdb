@@ -44,7 +44,7 @@ type Props = StateProps & OwnProps & DispatchProps
 @ErrorHandling
 class Cells extends Component<Props> {
   public render() {
-    const {cells, manualRefresh} = this.props
+    const {views, cells, manualRefresh} = this.props
 
     return (
       <Grid
@@ -60,7 +60,11 @@ class Cells extends Component<Props> {
         isResizable
       >
         {fastMap(cells, cell => (
-          <div key={cell.id} className="cell">
+          <div
+            key={cell.id}
+            className="cell"
+            data-testid={`cell ${views[cell.id]?.name}`}
+          >
             <CellComponent cell={cell} manualRefresh={manualRefresh} />
             <GradientBorder />
           </div>
@@ -144,7 +148,4 @@ const mdtp: DispatchProps = {
   updateCells: updateCells,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
-  mstp,
-  mdtp
-)(Cells)
+export default connect<StateProps, DispatchProps, OwnProps>(mstp, mdtp)(Cells)

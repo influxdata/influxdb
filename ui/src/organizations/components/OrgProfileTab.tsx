@@ -132,7 +132,4 @@ const mstp = (state: AppState) => {
   }
 }
 
-export default connect<StateProps>(
-  mstp,
-  null
-)(withRouter(OrgProfileTab))
+export default connect<StateProps>(mstp, null)(withRouter(OrgProfileTab))

@@ -136,7 +136,4 @@ const mdtp: DispatchProps = {
   notify: notifyAction,
 }
 
-export default connect<{}, DispatchProps, OwnProps>(
-  null,
-  mdtp
-)(EventTable)
+export default connect<{}, DispatchProps, OwnProps>(null, mdtp)(EventTable)

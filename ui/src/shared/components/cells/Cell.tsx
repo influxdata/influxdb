@@ -46,7 +46,10 @@ class CellComponent extends Component<Props, State> {
             onCSVDownload={this.handleCSVDownload}
           />
         </CellHeader>
-        <div className="cell--view" data-testid="cell--view-empty">
+        <div
+          className="cell--view"
+          data-testid={`cell--view-empty ${view?.properties?.type}`}
+        >
           {this.view}
         </div>
       </>
@@ -114,7 +117,4 @@ const mstp = (state: AppState, ownProps: OwnProps): StateProps => {
   return {view}
 }
 
-export default connect<StateProps, {}, OwnProps>(
-  mstp,
-  null
-)(CellComponent)
+export default connect<StateProps, {}, OwnProps>(mstp, null)(CellComponent)
