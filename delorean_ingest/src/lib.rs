@@ -5,12 +5,14 @@
 //! Currently supports converting LineProtocol
 //! TODO move this to delorean/src/ingest/line_protocol.rs?
 use log::debug;
+use parquet::data_type::ByteArray;
 use snafu::{ResultExt, Snafu};
 
 use std::collections::BTreeMap;
 
 use delorean_line_parser::{FieldValue, ParsedLine};
-use delorean_table::{DeloreanTableWriter, DeloreanTableWriterSource, Error as TableError, Packer};
+use delorean_table::packers::Packers;
+use delorean_table::{DeloreanTableWriter, DeloreanTableWriterSource, Error as TableError};
 use delorean_table_schema::{DataType, Schema, SchemaBuilder};
 
 #[derive(Debug, Clone)]
@@ -348,14 +350,19 @@ impl<'a> MeasurementWriter<'a> {
 ///
 /// TODO: improve performance by reusing the the Vec<Packer> rather
 /// than always making new ones
-fn pack_lines<'a>(schema: &Schema, lines: &[ParsedLine<'a>]) -> Vec<Packer> {
+fn pack_lines<'a>(schema: &Schema, lines: &[ParsedLine<'a>]) -> Vec<Packers> {
     let col_defs = schema.get_col_defs();
     let mut packers: Vec<_> = col_defs
         .iter()
         .enumerate()
         .map(|(idx, col_def)| {
             debug!("  Column definition [{}] = {:?}", idx, col_def);
-            Packer::with_capacity(col_def.data_type, lines.len())
+
+            // Initialise a Packer<T> for the matching data type wrapped in a
+            // Packers enum variant to allow it to live in a vector.
+            let mut packer = Packers::from(col_def.data_type);
+            packer.reserve_exact(lines.len());
+            packer
         })
         .collect();
 
@@ -393,7 +400,9 @@ fn pack_lines<'a>(schema: &Schema, lines: &[ParsedLine<'a>]) -> Vec<Packer> {
             for (tag_name, tag_value) in tag_set {
                 let tag_name_str = tag_name.to_string();
                 if let Some(packer) = packer_map.get_mut(&tag_name_str) {
-                    packer.pack_str(Some(&tag_value.to_string()));
+                    packer
+                        .str_packer_mut()
+                        .push(ByteArray::from(tag_value.to_string().into_bytes()));
                 } else {
                     panic!(
                         "tag {} seen in input that has no matching column in schema",
@@ -407,9 +416,17 @@ fn pack_lines<'a>(schema: &Schema, lines: &[ParsedLine<'a>]) -> Vec<Packer> {
             let field_name_str = field_name.to_string();
             if let Some(packer) = packer_map.get_mut(&field_name_str) {
                 match *field_value {
-                    FieldValue::F64(f) => packer.pack_f64(Some(f)),
-                    FieldValue::I64(i) => packer.pack_i64(Some(i)),
-                    FieldValue::String(ref s) => packer.pack_str(Some(&s.to_string())),
+                    FieldValue::F64(f) => {
+                        packer.f64_packer_mut().push(f);
+                    }
+                    FieldValue::I64(i) => {
+                        packer.i64_packer_mut().push(i);
+                    }
+                    FieldValue::String(ref s) => {
+                        packer
+                            .str_packer_mut()
+                            .push(ByteArray::from(s.to_string().into_bytes()));
+                    }
                 }
             } else {
                 panic!(
@@ -425,7 +442,8 @@ fn pack_lines<'a>(schema: &Schema, lines: &[ParsedLine<'a>]) -> Vec<Packer> {
             // to microseconds
             let timestamp_micros = line.timestamp.map(|timestamp_nanos| timestamp_nanos / 1000);
 
-            packer.pack_i64(timestamp_micros);
+            // TODO(edd) why would line _not_ have a timestamp??? We should always have them
+            packer.i64_packer_mut().push_option(timestamp_micros)
         } else {
             panic!("No {} field present in schema...", timestamp_col_name);
         }
@@ -434,7 +452,7 @@ fn pack_lines<'a>(schema: &Schema, lines: &[ParsedLine<'a>]) -> Vec<Packer> {
         for packer in packer_map.values_mut() {
             if packer.len() < starting_len + 1 {
                 assert_eq!(packer.len(), starting_len, "packer should be unchanged");
-                packer.pack_none();
+                packer.push_none();
             } else {
                 assert_eq!(
                     starting_len + 1,
@@ -446,7 +464,7 @@ fn pack_lines<'a>(schema: &Schema, lines: &[ParsedLine<'a>]) -> Vec<Packer> {
             }
         }
 
-        // Should have added one value to all packers. Asser that invariant here
+        // Should have added one value to all packers. Assert that invariant here
         assert!(
             packer_map.values().all(|x| x.len() == starting_len + 1),
             "Should have added 1 row to all packers"
@@ -461,6 +479,7 @@ mod delorean_ingest_tests {
     use delorean_table::{DeloreanTableWriter, DeloreanTableWriterSource, Error as TableError};
     use delorean_table_schema::ColumnDefinition;
     use delorean_test_helpers::approximately_equal;
+    use parquet::data_type::ByteArray;
 
     use std::sync::{Arc, Mutex};
 
@@ -505,7 +524,7 @@ mod delorean_ingest_tests {
     }
 
     impl DeloreanTableWriter for NoOpWriter {
-        fn write_batch(&mut self, packers: &[Packer]) -> Result<(), TableError> {
+        fn write_batch(&mut self, packers: &[Packers]) -> Result<(), TableError> {
             if packers.is_empty() {
                 log_event(
                     &self.log,
@@ -923,21 +942,6 @@ mod delorean_ingest_tests {
         Ok(())
     }
 
-    // gets the packer's value as a string.
-    fn get_string_val(packer: &Packer, idx: usize) -> &str {
-        packer.as_string_packer().values[idx].as_utf8().unwrap()
-    }
-
-    // gets the packer's value as an int
-    fn get_int_val(packer: &Packer, idx: usize) -> i64 {
-        packer.as_int_packer().values[idx]
-    }
-
-    // gets the packer's value as an int
-    fn get_float_val(packer: &Packer, idx: usize) -> f64 {
-        packer.as_float_packer().values[idx]
-    }
-
     #[test]
     fn pack_data_value() -> Result<(), Error> {
         let mut sampler = parse_data_into_sampler()?;
@@ -954,81 +958,80 @@ mod delorean_ingest_tests {
         }
 
         // Tag values
-        let tag_packer = &packers[0];
-        assert_eq!(get_string_val(tag_packer, 0), "A");
-        assert_eq!(get_string_val(tag_packer, 1), "B");
+        let tag_packer = packers[0].str_packer();
+        assert_eq!(tag_packer.get(0).unwrap(), &ByteArray::from("A"));
+        assert_eq!(tag_packer.get(1).unwrap(), &ByteArray::from("B"));
         assert!(packers[0].is_null(2));
-        assert_eq!(get_string_val(tag_packer, 3), "C");
-        assert_eq!(get_string_val(tag_packer, 4), "D");
-        assert_eq!(get_string_val(tag_packer, 5), "E");
-        assert_eq!(get_string_val(tag_packer, 6), "F");
-        assert_eq!(get_string_val(tag_packer, 7), "G");
+        assert_eq!(tag_packer.get(3).unwrap(), &ByteArray::from("C"));
+        assert_eq!(tag_packer.get(4).unwrap(), &ByteArray::from("D"));
+        assert_eq!(tag_packer.get(5).unwrap(), &ByteArray::from("E"));
+        assert_eq!(tag_packer.get(6).unwrap(), &ByteArray::from("F"));
+        assert_eq!(tag_packer.get(7).unwrap(), &ByteArray::from("G"));
 
         // int_field values
-        let int_field_packer = &packers[1];
-        assert_eq!(get_int_val(int_field_packer, 0), 64);
-        assert_eq!(get_int_val(int_field_packer, 1), 65);
-        assert_eq!(get_int_val(int_field_packer, 2), 66);
+        let int_field_packer = &packers[1].i64_packer();
+        assert_eq!(int_field_packer.get(0).unwrap(), &64);
+        assert_eq!(int_field_packer.get(1).unwrap(), &65);
+        assert_eq!(int_field_packer.get(2).unwrap(), &66);
         assert!(int_field_packer.is_null(3));
-        assert_eq!(get_int_val(int_field_packer, 4), 67);
-        assert_eq!(get_int_val(int_field_packer, 5), 68);
-        assert_eq!(get_int_val(int_field_packer, 6), 69);
-        assert_eq!(get_int_val(int_field_packer, 7), 70);
+        assert_eq!(int_field_packer.get(4).unwrap(), &67);
+        assert_eq!(int_field_packer.get(5).unwrap(), &68);
+        assert_eq!(int_field_packer.get(6).unwrap(), &69);
+        assert_eq!(int_field_packer.get(7).unwrap(), &70);
 
         // float_field values
-        let float_field_packer = &packers[2];
+        let float_field_packer = &packers[2].f64_packer();
         assert!(approximately_equal(
-            get_float_val(float_field_packer, 0),
+            *float_field_packer.get(0).unwrap(),
             100.0
         ));
         assert!(approximately_equal(
-            get_float_val(float_field_packer, 1),
+            *float_field_packer.get(1).unwrap(),
             101.0
         ));
         assert!(approximately_equal(
-            get_float_val(float_field_packer, 2),
+            *float_field_packer.get(2).unwrap(),
             102.0
         ));
         assert!(approximately_equal(
-            get_float_val(float_field_packer, 3),
+            *float_field_packer.get(3).unwrap(),
             103.0
         ));
         assert!(float_field_packer.is_null(4));
         assert!(approximately_equal(
-            get_float_val(float_field_packer, 5),
+            *float_field_packer.get(5).unwrap(),
             104.0
         ));
         assert!(approximately_equal(
-            get_float_val(float_field_packer, 6),
+            *float_field_packer.get(6).unwrap(),
             105.0
         ));
         assert!(approximately_equal(
-            get_float_val(float_field_packer, 7),
+            *float_field_packer.get(7).unwrap(),
             106.0
         ));
 
         // str_field values
-        let str_field_packer = &packers[3];
-        assert_eq!(get_string_val(str_field_packer, 0), "foo1");
-        assert_eq!(get_string_val(str_field_packer, 1), "foo2");
-        assert_eq!(get_string_val(str_field_packer, 2), "foo3");
-        assert_eq!(get_string_val(str_field_packer, 3), "foo4");
-        assert_eq!(get_string_val(str_field_packer, 4), "foo5");
+        let str_field_packer = &packers[3].str_packer();
+        assert_eq!(str_field_packer.get(0).unwrap(), &ByteArray::from("foo1"));
+        assert_eq!(str_field_packer.get(1).unwrap(), &ByteArray::from("foo2"));
+        assert_eq!(str_field_packer.get(2).unwrap(), &ByteArray::from("foo3"));
+        assert_eq!(str_field_packer.get(3).unwrap(), &ByteArray::from("foo4"));
+        assert_eq!(str_field_packer.get(4).unwrap(), &ByteArray::from("foo5"));
         assert!(str_field_packer.is_null(5));
-        assert_eq!(get_string_val(str_field_packer, 6), "foo6");
-        assert_eq!(get_string_val(str_field_packer, 7), "foo7");
+        assert_eq!(str_field_packer.get(6).unwrap(), &ByteArray::from("foo6"));
+        assert_eq!(str_field_packer.get(7).unwrap(), &ByteArray::from("foo7"));
 
-        // timestamp values (NB The timestamps are truncated to Microseconds)
-        let timestamp_packer = &packers[4];
-        assert_eq!(get_int_val(timestamp_packer, 0), 1_590_488_773_254_420);
-        assert_eq!(get_int_val(timestamp_packer, 1), 1_590_488_773_254_430);
-        assert_eq!(get_int_val(timestamp_packer, 2), 1_590_488_773_254_440);
-        assert_eq!(get_int_val(timestamp_packer, 3), 1_590_488_773_254_450);
-        assert_eq!(get_int_val(timestamp_packer, 4), 1_590_488_773_254_460);
-        assert_eq!(get_int_val(timestamp_packer, 5), 1_590_488_773_254_470);
+        // timestamp values
+        let timestamp_packer = &packers[4].i64_packer();
+        assert_eq!(timestamp_packer.get(0).unwrap(), &1_590_488_773_254_420);
+        assert_eq!(timestamp_packer.get(1).unwrap(), &1_590_488_773_254_430);
+        assert_eq!(timestamp_packer.get(2).unwrap(), &1_590_488_773_254_440);
+        assert_eq!(timestamp_packer.get(3).unwrap(), &1_590_488_773_254_450);
+        assert_eq!(timestamp_packer.get(4).unwrap(), &1_590_488_773_254_460);
+        assert_eq!(timestamp_packer.get(5).unwrap(), &1_590_488_773_254_470);
         assert!(timestamp_packer.is_null(6));
-        assert_eq!(get_int_val(timestamp_packer, 7), 1_590_488_773_254_480);
-
+        assert_eq!(timestamp_packer.get(7).unwrap(), &1_590_488_773_254_480);
         Ok(())
     }
 
