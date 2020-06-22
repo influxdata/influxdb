@@ -186,7 +186,7 @@ impl<T: PackerDefault> Packer<T> {
     // write the data into a parquet writer. We should have a method on Packer
     // that accepts some implementation of a trait that a parquet writer satisfies
     // and then pass the data through in here.
-    pub fn values(&self) -> &Vec<T> {
+    pub fn values(&self) -> &[T] {
         &self.values
     }
 
