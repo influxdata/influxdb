@@ -12,7 +12,7 @@ import VEOHeader from 'src/dashboards/components/VEOHeader'
 // Actions
 import {setName} from 'src/timeMachine/actions'
 import {saveVEOView} from 'src/dashboards/actions/thunks'
-import {setQueryResultsForCell} from 'src/views/actions/thunks'
+import {getViewAndResultsForVEO} from 'src/views/actions/thunks'
 
 // Utils
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
@@ -21,9 +21,9 @@ import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 import {AppState, RemoteDataState, QueryView, TimeMachineID} from 'src/types'
 
 interface DispatchProps {
+  getViewAndResultsForVEO: typeof getViewAndResultsForVEO
   onSetName: typeof setName
   onSaveView: typeof saveVEOView
-  setQueryResultsForCell: typeof setQueryResultsForCell
 }
 
 interface StateProps {
@@ -35,18 +35,18 @@ type Props = DispatchProps & StateProps & WithRouterProps
 
 const EditViewVEO: FunctionComponent<Props> = ({
   activeTimeMachineID,
+  getViewAndResultsForVEO,
   onSaveView,
   onSetName,
   params: {orgID, cellID, dashboardID},
   router,
-  setQueryResultsForCell,
   view,
 }) => {
   useEffect(() => {
     // TODO split this up into "loadView" "setActiveTimeMachine"
     // and something to tell the component to pull from the context
     // of the dashboardID
-    setQueryResultsForCell(dashboardID, cellID, 'veo')
+    getViewAndResultsForVEO(dashboardID, cellID, 'veo')
   }, [])
 
   const handleClose = () => {
@@ -98,9 +98,9 @@ const mstp = (state: AppState): StateProps => {
 }
 
 const mdtp: DispatchProps = {
+  getViewAndResultsForVEO: getViewAndResultsForVEO,
   onSetName: setName,
   onSaveView: saveVEOView,
-  setQueryResultsForCell: setQueryResultsForCell,
 }
 
 export default connect<StateProps, DispatchProps, {}>(

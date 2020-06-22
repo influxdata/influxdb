@@ -95,7 +95,7 @@ export const updateViewAndVariables = (
   }
 }
 
-export const getViewForTimeMachine = (
+export const getViewAndResultsForVEO = (
   dashboardID: string,
   cellID: string,
   timeMachineID: TimeMachineID
@@ -115,61 +115,21 @@ export const getViewForTimeMachine = (
         view,
       })
     )
-  } catch (error) {
-    console.error(error)
-    dispatch(notify(copy.getViewFailed(error.message)))
-    dispatch(setView(cellID, RemoteDataState.Error))
-  }
-}
-
-export const setQueryResultsByQueryID = (queryID: string) => (
-  dispatch,
-  getState: GetState
-): Promise<void> => {
-  try {
-    const state = getState()
-    const files = state.queryCache.queryResultsByQueryID[queryID]
+    const queries = view.properties.queries.filter(({text}) => !!text.trim())
+    if (!queries.length) {
+      dispatch(setQueryResults(RemoteDataState.Done, [], null))
+    }
+    const queryText = queries.map(({text}) => text).join('')
+    const queryID = hashCode(queryText)
+    const files = get(
+      state,
+      ['queryCache', 'queryResultsByQueryID', queryID],
+      undefined
+    )
     if (files) {
       dispatch(setQueryResults(RemoteDataState.Done, files, null, null))
       return
     }
-    dispatch(executeQueries())
-  } catch (error) {
-    // if the files don't exist in the cache, we want to execute the query
-    dispatch(executeQueries())
-  }
-}
-
-export const setQueryResultsForCell = (
-  dashboardID: string,
-  cellID: string,
-  timeMachineID: TimeMachineID
-) => async (dispatch, getState: GetState): Promise<void> => {
-  try {
-    const state = getState()
-
-    let view = getByID<View>(state, ResourceType.Views, cellID) as QueryView
-
-    if (!view) {
-      dispatch(setView(cellID, RemoteDataState.Loading))
-      view = (await getViewAJAX(dashboardID, cellID)) as QueryView
-    }
-
-    dispatch(
-      setActiveTimeMachine(timeMachineID, {
-        contextID: dashboardID,
-        view,
-      })
-    )
-    const {view} = getActiveTimeMachine(state)
-    const queries = view.properties.queries.filter(({text}) => !!text.trim())
-    const queryText = queries.map(({text}) => text).join('')
-    const queryID = hashCode(queryText)
-    if (queryID) {
-      dispatch(setQueryResultsByQueryID(queryID))
-      return
-    }
-    dispatch(executeQueries())
   } catch (error) {
     console.error(error)
     dispatch(notify(copy.getViewFailed(error.message)))
