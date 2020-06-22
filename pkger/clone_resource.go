@@ -951,6 +951,10 @@ func VariableToObject(name string, v influxdb.Variable) Object {
 
 	assignNonZeroStrings(o.Spec, map[string]string{fieldDescription: v.Description})
 
+	if len(v.Selected) > 0 {
+		o.Spec[fieldVariableSelected] = v.Selected
+	}
+
 	args := v.Arguments
 	if args == nil {
 		return o

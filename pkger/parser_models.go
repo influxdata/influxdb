@@ -1881,9 +1881,10 @@ func (t *telegraf) valid() []validationErr {
 }
 
 const (
-	fieldArgTypeConstant = "constant"
-	fieldArgTypeMap      = "map"
-	fieldArgTypeQuery    = "query"
+	fieldArgTypeConstant  = "constant"
+	fieldArgTypeMap       = "map"
+	fieldArgTypeQuery     = "query"
+	fieldVariableSelected = "selected"
 )
 
 type variable struct {
@@ -1895,6 +1896,7 @@ type variable struct {
 	Language    string
 	ConstValues []string
 	MapValues   map[string]string
+	selected    []*references
 
 	labels sortedLabels
 }
@@ -1907,14 +1909,35 @@ func (v *variable) ResourceType() influxdb.ResourceType {
 	return KindVariable.ResourceType()
 }
 
+func (v *variable) Selected() []string {
+	selected := make([]string, 0, len(v.selected))
+	for _, sel := range v.selected {
+		s := sel.String()
+		if s == "" {
+			continue
+		}
+		selected = append(selected, s)
+	}
+	return selected
+}
+
 func (v *variable) summarize() SummaryVariable {
+	envRefs := summarizeCommonReferences(v.identity, v.labels)
+	for i, sel := range v.selected {
+		if sel.hasEnvRef() {
+			field := fmt.Sprintf("spec.%s[%d]", fieldVariableSelected, i)
+			envRefs = append(envRefs, convertRefToRefSummary(field, sel))
+		}
+	}
+
 	return SummaryVariable{
 		PkgName:           v.PkgName(),
 		Name:              v.Name(),
 		Description:       v.Description,
+		Selected:          v.Selected(),
 		Arguments:         v.influxVarArgs(),
 		LabelAssociations: toSummaryLabels(v.labels...),
-		EnvReferences:     summarizeCommonReferences(v.identity, v.labels),
+		EnvReferences:     envRefs,
 	}
 }
 

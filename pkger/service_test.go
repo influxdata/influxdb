@@ -1661,13 +1661,16 @@ func TestService(t *testing.T) {
 					sum := impact.Summary
 					require.Len(t, sum.Variables, 4)
 
-					expected := sum.Variables[0]
-					assert.True(t, expected.ID > 0 && expected.ID < 5)
-					assert.Equal(t, SafeID(orgID), expected.OrgID)
-					assert.Equal(t, "var-const-3", expected.Name)
-					assert.Equal(t, "var-const-3 desc", expected.Description)
-					require.NotNil(t, expected.Arguments)
-					assert.Equal(t, influxdb.VariableConstantValues{"first val"}, expected.Arguments.Values)
+					actual := sum.Variables[0]
+					assert.True(t, actual.ID > 0 && actual.ID < 5)
+					assert.Equal(t, SafeID(orgID), actual.OrgID)
+					assert.Equal(t, "var-const-3", actual.Name)
+					assert.Equal(t, "var-const-3 desc", actual.Description)
+					require.NotNil(t, actual.Arguments)
+					assert.Equal(t, influxdb.VariableConstantValues{"first val"}, actual.Arguments.Values)
+
+					actual = sum.Variables[2]
+					assert.Equal(t, []string{"rucket"}, actual.Selected)
 
 					for _, actual := range sum.Variables {
 						assert.Containsf(t, []SafeID{1, 2, 3, 4}, actual.ID, "actual var: %+v", actual)
@@ -2975,6 +2978,7 @@ func TestService(t *testing.T) {
 							ID:          1,
 							Name:        "old name",
 							Description: "desc",
+							Selected:    []string{"val"},
 							Arguments: &influxdb.VariableArguments{
 								Type:   "constant",
 								Values: influxdb.VariableConstantValues{"val"},
@@ -2985,8 +2989,9 @@ func TestService(t *testing.T) {
 						name:    "with new name",
 						newName: "new name",
 						expectedVar: influxdb.Variable{
-							ID:   1,
-							Name: "old name",
+							ID:       1,
+							Name:     "old name",
+							Selected: []string{"val"},
 							Arguments: &influxdb.VariableArguments{
 								Type:   "constant",
 								Values: influxdb.VariableConstantValues{"val"},
@@ -2996,8 +3001,9 @@ func TestService(t *testing.T) {
 					{
 						name: "with map arg",
 						expectedVar: influxdb.Variable{
-							ID:   1,
-							Name: "old name",
+							ID:       1,
+							Name:     "old name",
+							Selected: []string{"v"},
 							Arguments: &influxdb.VariableArguments{
 								Type:   "map",
 								Values: influxdb.VariableMapValues{"k": "v"},
@@ -3007,12 +3013,13 @@ func TestService(t *testing.T) {
 					{
 						name: "with query arg",
 						expectedVar: influxdb.Variable{
-							ID:   1,
-							Name: "old name",
+							ID:       1,
+							Name:     "old name",
+							Selected: []string{"bucket-foo"},
 							Arguments: &influxdb.VariableArguments{
 								Type: "query",
 								Values: influxdb.VariableQueryValues{
-									Query:    "query",
+									Query:    "buckets()",
 									Language: "flux",
 								},
 							},
@@ -3052,6 +3059,7 @@ func TestService(t *testing.T) {
 						}
 						assert.Equal(t, expectedName, actual.Name)
 						assert.Equal(t, tt.expectedVar.Description, actual.Description)
+						assert.Equal(t, tt.expectedVar.Selected, actual.Selected)
 						assert.Equal(t, tt.expectedVar.Arguments, actual.Arguments)
 					}
 					t.Run(tt.name, fn)

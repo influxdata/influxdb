@@ -2383,6 +2383,7 @@ spec:
 		require.Len(t, vars, 1)
 		assert.NotZero(t, vars[0].ID)
 		assert.Equal(t, "query var", vars[0].Name)
+		assert.Equal(t, []string{"rucketeer"}, vars[0].Selected)
 		hasLabelAssociations(t, vars[0].LabelAssociations, 1, "label-1")
 		varArgs := vars[0].Arguments
 		require.NotNil(t, varArgs)
@@ -2391,6 +2392,8 @@ spec:
 			Query:    "buckets()  |> filter(fn: (r) => r.name !~ /^_/)  |> rename(columns: {name: \"_value\"})  |> keep(columns: [\"_value\"])",
 			Language: "flux",
 		}, varArgs.Values)
+		platformVar := resourceCheck.mustGetVariable(t, byID(influxdb.ID(vars[0].ID)))
+		assert.Equal(t, []string{"rucketeer"}, platformVar.Selected)
 
 		newSumMapping := func(id pkger.SafeID, pkgName, name string, rt influxdb.ResourceType) pkger.SummaryLabelMapping {
 			return pkger.SummaryLabelMapping{
@@ -3222,6 +3225,8 @@ spec:
   language: flux
   query: |
     buckets()  |> filter(fn: (r) => r.name !~ /^_/)  |> rename(columns: {name: "_value"})  |> keep(columns: ["_value"])
+  selected:
+    - rucketeer
   associations:
     - kind: Label
       name: label-1
