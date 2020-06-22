@@ -190,7 +190,7 @@ impl<T: PackerDefault> Packer<T> {
         &self.values
     }
 
-    pub fn def_levels(&self) -> &Vec<i16> {
+    pub fn def_levels(&self) -> &[i16] {
         &self.def_levels
     }
 
