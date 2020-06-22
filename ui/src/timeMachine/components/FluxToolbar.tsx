@@ -45,7 +45,12 @@ const FluxToolbar: FC<Props> = ({
   return (
     <div className="flux-toolbar">
       {toolbarExpanded && (
-        <div className="flux-toolbar--tab-contents">{activeToolbar}</div>
+        <div
+          className="flux-toolbar--tab-contents"
+          data-testid={`functions-toolbar-contents--${activeTab}`}
+        >
+          {activeToolbar}
+        </div>
       )}
       <div className="flux-toolbar--tabs">
         <FluxToolbarTab

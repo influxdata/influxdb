@@ -452,8 +452,7 @@ describe('DataExplorer', () => {
     })
 
     it('imports the appropriate packages to build a query', () => {
-      cy.getByTestID('functions-toolbar-tab').click()
-
+      cy.getByTestID('functions-toolbar-contents--functions').should('exist')
       cy.getByTestID('flux--from--inject').click()
       cy.getByTestID('flux--range--inject').click()
       cy.getByTestID('flux--math.abs--inject').click()
@@ -479,7 +478,7 @@ describe('DataExplorer', () => {
     })
 
     it('can use the function selector to build a query', () => {
-      cy.getByTestID('functions-toolbar-tab').click()
+      cy.getByTestID('functions-toolbar-contents--functions').should('exist')
 
       cy.getByTestID('flux--from--inject').click()
 
