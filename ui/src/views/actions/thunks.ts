@@ -144,10 +144,23 @@ export const setQueryResultsForCell = (
   dashboardID: string,
   cellID: string,
   timeMachineID: TimeMachineID
-) => (dispatch, getState: GetState): Promise<void> => {
+) => async (dispatch, getState: GetState): Promise<void> => {
   try {
-    dispatch(getViewForTimeMachine(dashboardID, cellID, timeMachineID))
     const state = getState()
+
+    let view = getByID<View>(state, ResourceType.Views, cellID) as QueryView
+
+    if (!view) {
+      dispatch(setView(cellID, RemoteDataState.Loading))
+      view = (await getViewAJAX(dashboardID, cellID)) as QueryView
+    }
+
+    dispatch(
+      setActiveTimeMachine(timeMachineID, {
+        contextID: dashboardID,
+        view,
+      })
+    )
     const {view} = getActiveTimeMachine(state)
     const queries = view.properties.queries.filter(({text}) => !!text.trim())
     const queryText = queries.map(({text}) => text).join('')
