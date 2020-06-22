@@ -1,8 +1,8 @@
 #![deny(rust_2018_idioms)]
 #![warn(missing_debug_implementations, clippy::explicit_iter_loop)]
-use log::{debug, error, warn};
 
 use clap::{crate_authors, crate_version, App, Arg, SubCommand};
+use log::{debug, error, warn};
 
 mod commands {
     pub mod convert;

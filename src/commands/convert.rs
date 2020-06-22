@@ -1,4 +1,4 @@
-use delorean_ingest::{ConversionSettings, LineProtocolConverter};
+use delorean_ingest::{ConversionSettings, LineProtocolConverter, TSMFileConverter};
 use delorean_line_parser::parse_lines;
 use delorean_parquet::writer::DeloreanParquetTableWriter;
 use delorean_table::{DeloreanTableWriter, DeloreanTableWriterSource, Error as TableError};
@@ -108,7 +108,13 @@ pub fn convert(input_filename: &str, output_name: &str) -> Result<()> {
         FileType::LineProtocol => {
             convert_line_protocol_to_parquet(input_filename, input_reader, output_name)
         }
-        FileType::TSM => convert_tsm_to_parquet(input_filename, input_reader, output_name),
+        FileType::TSM => {
+            // TODO(edd): we can remove this when I figure out the best way to share
+            // the reader between the TSM index reader and the Block decoder.
+            let input_block_reader = InputReader::new(input_filename)?;
+            let len = input_reader.len() as usize;
+            convert_tsm_to_parquet(input_reader, len, input_block_reader, output_name)
+        }
         FileType::Parquet => Err(Error::NotImplemented {
             operation_name: String::from("Parquet format conversion"),
         }),
@@ -172,11 +178,27 @@ fn convert_line_protocol_to_parquet(
 }
 
 fn convert_tsm_to_parquet(
-    _input_filename: &str,
-    mut _input_reader: InputReader,
-    _output_name: &str,
+    index_stream: InputReader,
+    index_stream_size: usize,
+    block_stream: InputReader,
+    output_name: &str,
 ) -> Result<()> {
-    Err(Error::NotImplemented {
-        operation_name: String::from("TSM Conversion not supported yet"),
-    })
+    // setup writing
+    let writer_source: Box<dyn DeloreanTableWriterSource> = if is_directory(&output_name) {
+        info!("Writing to output directory {:?}", output_name);
+        Box::new(ParquetDirectoryWriterSource {
+            output_dir_path: PathBuf::from(output_name),
+        })
+    } else {
+        info!("Writing to output file {}", output_name);
+        Box::new(ParquetFileWriterSource {
+            output_filename: String::from(output_name),
+            made_file: false,
+        })
+    };
+
+    let mut converter = TSMFileConverter::new(writer_source);
+    converter
+        .convert(index_stream, index_stream_size, block_stream)
+        .map_err(|e| Error::UnableToCloseTableWriter { source: e })
 }

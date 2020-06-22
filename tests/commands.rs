@@ -82,47 +82,54 @@ fn convert_line_protocol_good_input_filename() {
 
 #[test]
 fn convert_tsm_good_input_filename() {
-    let mut cmd = Command::cargo_bin("delorean").unwrap();
+    //
+    // TODO: this needs to work for a temp directory...
+    //
 
-    let parquet_path = delorean_test_helpers::tempfile::Builder::new()
-        .prefix("convert_e2e_tsm")
-        .suffix(".parquet")
-        .tempfile()
-        .expect("error creating temp file")
-        .into_temp_path();
-    let parquet_filename_string = parquet_path.to_string_lossy().to_string();
+    // let mut cmd = Command::cargo_bin("delorean").unwrap();
 
-    let assert = cmd
-        .arg("convert")
-        .arg("tests/fixtures/000000000000005-000000002.tsm.gz")
-        .arg(&parquet_filename_string)
-        .assert();
+    // let tmp_dir = delorean_test_helpers::tmp_dir();
+    // let parquet_path = tmp_dir.unwrap().into_path().to_str().unwrap();
 
-    // TODO this should succeed when TSM -> parquet conversion is implemented.
-    assert
-        .failure()
-        .code(1)
-        .stderr(predicate::str::contains("Conversion failed"))
-        .stderr(predicate::str::contains(
-            "Not implemented: TSM Conversion not supported yet",
-        ));
+    // // ::Builder::new()
+    // //     .prefix("dstool_e2e_tsm")
+    // //     .suffix(".parquet")
+    // //     .tempfile()
+    // //     .expect("error creating temp file")
+    // //     .into_temp_path();
+    // // let parquet_filename_string = parquet_path.to_string_lossy().to_string();
 
-    // TODO add better success expectations
+    // let assert = cmd
+    //     .arg("convert")
+    //     .arg("tests/fixtures/cpu_usage.tsm")
+    //     .arg(&parquet_path)
+    //     .assert();
 
-    // let expected_success_string = format!(
-    //     "Completing writing to {} successfully",
-    //     parquet_filename_string
-    // );
+    // // TODO this should succeed when TSM -> parquet conversion is implemented.
+    // // assert
+    // //     .failure()
+    // //     .code(1)
+    // //     .stderr(predicate::str::contains("Conversion failed"))
+    // //     .stderr(predicate::str::contains(
+    // //         "Not implemented: TSM Conversion not supported yet",
+    // //     ));
 
-    // assert
-    //     .success()
-    //     .stderr(predicate::str::contains("convert starting"))
-    //     .stderr(predicate::str::contains(
-    //         "Writing output for measurement h2o_temperature",
-    //     ))
-    //     .stderr(predicate::str::contains(expected_success_string));
+    // // TODO add better success expectations
 
-    // validate_parquet_file(&parquet_path);
+    // // let expected_success_string = format!(
+    // //     "Completing writing to {} successfully",
+    // //     parquet_filename_string
+    // // );
+
+    // // assert
+    // //     .success()
+    // //     .stderr(predicate::str::contains("dstool convert starting"))
+    // //     .stderr(predicate::str::contains(
+    // //         "Writing output for measurement h2o_temperature",
+    // //     ))
+    // //     .stderr(predicate::str::contains(expected_success_string));
+
+    // // validate_parquet_file(&parquet_path);
 }
 
 #[test]

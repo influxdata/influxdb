@@ -40,6 +40,11 @@ macro_rules! typed_packer_accessors {
 }
 
 impl Packers {
+    /// Create a String Packers with repeated values.
+    pub fn from_elem_str(v: &str, n: usize) -> Self {
+        Packers::String(Packer::from(vec![ByteArray::from(v); n]))
+    }
+
     /// Reserves the minimum capacity for exactly additional more elements to
     /// be inserted into the Packer<T>` without reallocation.
     pub fn reserve_exact(&mut self, additional: usize) {
@@ -99,6 +104,42 @@ impl Packers {
     }
 }
 
+impl std::convert::From<Vec<i64>> for Packers {
+    fn from(v: Vec<i64>) -> Self {
+        Packers::Integer(Packer::from(v))
+    }
+}
+
+impl std::convert::From<Vec<f64>> for Packers {
+    fn from(v: Vec<f64>) -> Self {
+        Packers::Float(Packer::from(v))
+    }
+}
+
+impl std::convert::From<Vec<ByteArray>> for Packers {
+    fn from(v: Vec<ByteArray>) -> Self {
+        Packers::String(Packer::from(v))
+    }
+}
+
+impl std::convert::From<Vec<bool>> for Packers {
+    fn from(v: Vec<bool>) -> Self {
+        Packers::Boolean(Packer::from(v))
+    }
+}
+
+impl std::convert::From<Vec<Option<i64>>> for Packers {
+    fn from(v: Vec<Option<i64>>) -> Self {
+        Packers::Integer(Packer::from(v))
+    }
+}
+
+impl std::convert::From<Vec<Option<f64>>> for Packers {
+    fn from(v: Vec<Option<f64>>) -> Self {
+        Packers::Float(Packer::from(v))
+    }
+}
+
 impl std::convert::From<delorean_table_schema::DataType> for Packers {
     fn from(t: delorean_table_schema::DataType) -> Self {
         match t {
@@ -108,6 +149,40 @@ impl std::convert::From<delorean_table_schema::DataType> for Packers {
             delorean_table_schema::DataType::Boolean => Packers::Boolean(Packer::<bool>::new()),
             delorean_table_schema::DataType::Timestamp => Packers::Integer(Packer::<i64>::new()),
         }
+    }
+}
+
+impl std::convert::From<Vec<Option<String>>> for Packers {
+    fn from(values: Vec<Option<String>>) -> Self {
+        // TODO(edd): convert this with an iterator?
+        let mut as_byte_array: Vec<Option<ByteArray>> = Vec::with_capacity(values.len());
+        for v in values {
+            match v {
+                Some(v) => as_byte_array.push(Some(ByteArray::from(v.as_str()))),
+                None => as_byte_array.push(None),
+            }
+        }
+        Packers::String(Packer::from(as_byte_array))
+    }
+}
+
+impl std::convert::From<Vec<Option<bool>>> for Packers {
+    fn from(v: Vec<Option<bool>>) -> Self {
+        Packers::Boolean(Packer::from(v))
+    }
+}
+
+impl std::convert::From<Vec<Option<u64>>> for Packers {
+    fn from(values: Vec<Option<u64>>) -> Self {
+        // TODO(edd): convert this with an iterator?
+        let mut as_i64: Vec<Option<i64>> = Vec::with_capacity(values.len());
+        for v in values {
+            match v {
+                Some(v) => as_i64.push(Some(v as i64)),
+                None => as_i64.push(None),
+            }
+        }
+        Packers::Integer(Packer::from(as_i64))
     }
 }
 
@@ -193,6 +268,30 @@ impl<T: PackerDefault> Packer<T> {
     /// row for index.
     pub fn is_null(&self, index: usize) -> bool {
         self.def_levels.get(index).map_or(true, |&x| x == 0)
+    }
+}
+
+// Convert `Vec<T>`, e.g., `Vec<f64>` into the appropriate `Packer<T>` value,
+// e.g., `Packer<f64>`.
+impl<T: PackerDefault> std::convert::From<Vec<T>> for Packer<T> {
+    fn from(v: Vec<T>) -> Self {
+        Self {
+            def_levels: vec![1; v.len()],
+            rep_levels: vec![1; v.len()],
+            values: v,
+        }
+    }
+}
+
+// Convert `Vec<Option<T>>`, e.g., `Vec<Option<f64>>` into the appropriate
+// `Packer<T>` value, e.g., `Packer<f64>`.
+impl<T: PackerDefault> std::convert::From<Vec<Option<T>>> for Packer<T> {
+    fn from(values: Vec<Option<T>>) -> Self {
+        let mut packer = Packer::new();
+        for v in values {
+            packer.push_option(v);
+        }
+        packer
     }
 }
 

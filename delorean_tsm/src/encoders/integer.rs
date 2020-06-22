@@ -195,8 +195,8 @@ fn decode_rle(src: &[u8], dst: &mut Vec<i64>) -> Result<(), Box<dyn Error>> {
 }
 
 fn decode_simple8b(src: &[u8], dst: &mut Vec<i64>) -> Result<(), Box<dyn Error>> {
-    if src.len() < 9 {
-        return Err(From::from("not enough data to decode packed timestamp"));
+    if src.len() < 8 {
+        return Err(From::from("not enough data to decode packed integer."));
     }
 
     // TODO(edd): pre-allocate res by counting bytes in encoded slice?
@@ -358,6 +358,26 @@ mod tests {
         // this is a compressed rle integer block representing 509 identical
         // 809201799168 values.
         let enc_influx = [32, 0, 0, 1, 120, 208, 95, 32, 0, 0, 252, 3];
+
+        // ensure that encoder produces same bytes as InfluxDB encoder.
+        assert_eq!(enc, enc_influx);
+
+        let mut dec = vec![];
+        decode(&enc, &mut dec).expect("failed to decode");
+
+        assert_eq!(dec.len(), values.len());
+        assert_eq!(dec, values);
+    }
+
+    #[test]
+    // This tests against a defect found when decoding a TSM block from InfluxDB.
+    fn simple8b_short_regression() {
+        let values = vec![346];
+        let mut enc = vec![];
+        encode(&values, &mut enc).expect("encoding failed");
+
+        // this is a compressed simple8b integer block representing the value 346.
+        let enc_influx = [16, 0, 0, 0, 0, 0, 0, 2, 180];
 
         // ensure that encoder produces same bytes as InfluxDB encoder.
         assert_eq!(enc, enc_influx);

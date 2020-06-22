@@ -7,6 +7,7 @@ default-run = "delorean"
 
 [workspace]
 members = [
+    "delorean_generated_types",
     "delorean_ingest",
     "delorean_line_parser",
     "delorean_object_store",
@@ -14,7 +15,7 @@ members = [
     "delorean_table",
     "delorean_table_schema",
     "delorean_test_helpers",
-    "delorean_generated_types",
+    "delorean_tsm",
     "delorean_utilities",
     "delorean_wal",
 ]
@@ -31,6 +32,7 @@ delorean_table = { path = "delorean_table" }
 delorean_table_schema = { path = "delorean_table_schema" }
 delorean_wal = { path = "delorean_wal" }
 delorean_object_store = { path = "delorean_object_store" }
+delorean_tsm = { path = "delorean_tsm" }
 
 bytes = "0.5.4"
 integer-encoding = "1.0.7"

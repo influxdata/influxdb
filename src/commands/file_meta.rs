@@ -4,8 +4,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::convert::TryInto;
 
-use delorean::storage::tsm::{IndexEntry, InfluxID, TSMReader};
-use delorean::storage::StorageError;
+use delorean_tsm::reader::{IndexEntry, TSMIndexReader};
+use delorean_tsm::{InfluxID, TSMError};
 
 use delorean_parquet::metadata::print_parquet_metadata;
 use log::{debug, info};
@@ -29,7 +29,7 @@ pub fn dump_meta(input_filename: &str) -> Result<()> {
                 .try_into()
                 .expect("File size more than usize");
             let reader =
-                TSMReader::try_new(input_reader, len).map_err(|e| Error::TSM { source: e })?;
+                TSMIndexReader::try_new(input_reader, len).map_err(|e| Error::TSM { source: e })?;
 
             let mut stats_builder = TSMMetadataBuilder::new();
 
@@ -128,7 +128,7 @@ impl TSMMetadataBuilder {
         Self::default()
     }
 
-    fn process_entry(&mut self, entry: &mut Result<IndexEntry, StorageError>) -> Result<()> {
+    fn process_entry(&mut self, entry: &mut Result<IndexEntry, TSMError>) -> Result<()> {
         match entry {
             Ok(index_entry) => {
                 self.num_entries += 1;

@@ -1,0 +1,16 @@
+[package]
+name = "delorean_tsm"
+version = "0.1.0"
+authors = ["Edd Robinson <me@edd.io>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+integer-encoding = "1.0.7"
+
+[dev-dependencies]
+hex = "0.4.2"
+libflate = "1.0.0"
+rand = "0.7.2"
+delorean_test_helpers = { path = "../delorean_test_helpers" }
