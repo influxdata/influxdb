@@ -112,8 +112,6 @@ describe('Dashboard', () => {
     cy.getByTestID('cancel-note--button').click()
     cy.getByTestID('note-editor--overlay').should('not.exist')
 
-    cy.getByTestID('cell--view-empty').contains(noteText)
-    cy.getByTestID('cell--view-empty').should('not.contain', headerPrefix)
     const noteCell = 'cell--view-empty markdown'
     cy.getByTestID(noteCell).contains(noteText)
     cy.getByTestID(noteCell).should('not.contain', headerPrefix)
@@ -177,7 +175,7 @@ describe('Dashboard', () => {
     // Add an empty cell
     cy.getByTestID('add-cell--button').click()
     cy.getByTestID('save-cell--button').click()
-    cy.getByTestID('cell--view-empty').should('be.visible')
+    cy.getByTestIDSubStr('cell--view-empty').should('be.visible')
 
     cy.getByTestIDSubStr('cell--view-empty')
       .invoke('text')
@@ -192,7 +190,7 @@ describe('Dashboard', () => {
         cy.getByTestID('cancel-cell-edit--button').click()
 
         // Cell content should remain
-        cy.getByTestID('cell--view-empty').contains(cellContent)
+        cy.getByTestIDSubStr('cell--view-empty').contains(cellContent)
       })
   })
 
