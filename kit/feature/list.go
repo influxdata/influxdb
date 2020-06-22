@@ -156,6 +156,20 @@ func PushDownWindowAggregateLast() BoolFlag {
 	return pushDownWindowAggregateLast
 }
 
+var groupWindowAggregateTranspose = MakeBoolFlag(
+	"Group Window Aggregate Transpose",
+	"groupWindowAggregateTranspose",
+	"Query Team",
+	false,
+	Temporary,
+	false,
+)
+
+// GroupWindowAggregateTranspose - Enables the GroupWindowAggregateTransposeRule for all enabled window aggregates
+func GroupWindowAggregateTranspose() BoolFlag {
+	return groupWindowAggregateTranspose
+}
+
 var newAuth = MakeBoolFlag(
 	"New Auth Package",
 	"newAuth",
@@ -168,20 +182,6 @@ var newAuth = MakeBoolFlag(
 // NewAuthPackage - Enables the refactored authorization api
 func NewAuthPackage() BoolFlag {
 	return newAuth
-}
-
-var sessionService = MakeBoolFlag(
-	"Session Service",
-	"sessionService",
-	"Lyon Hill",
-	false,
-	Temporary,
-	true,
-)
-
-// SessionService - A temporary switching system for the new session system
-func SessionService() BoolFlag {
-	return sessionService
 }
 
 var pushDownGroupAggregateCount = MakeBoolFlag(
@@ -308,8 +308,8 @@ var all = []Flag{
 	pushDownWindowAggregateMean,
 	pushDownWindowAggregateFirst,
 	pushDownWindowAggregateLast,
+	groupWindowAggregateTranspose,
 	newAuth,
-	sessionService,
 	pushDownGroupAggregateCount,
 	pushDownGroupAggregateSum,
 	pushDownGroupAggregateFirst,
@@ -321,25 +321,25 @@ var all = []Flag{
 }
 
 var byKey = map[string]Flag{
-	"appMetrics":                   appMetrics,
-	"backendExample":               backendExample,
-	"communityTemplates":           communityTemplates,
-	"frontendExample":              frontendExample,
-	"pushDownWindowAggregateCount": pushDownWindowAggregateCount,
-	"pushDownWindowAggregateSum":   pushDownWindowAggregateSum,
-	"pushDownWindowAggregateMin":   pushDownWindowAggregateMin,
-	"pushDownWindowAggregateMax":   pushDownWindowAggregateMax,
-	"pushDownWindowAggregateMean":  pushDownWindowAggregateMean,
-	"pushDownWindowAggregateFirst": pushDownWindowAggregateFirst,
-	"pushDownWindowAggregateLast":  pushDownWindowAggregateLast,
-	"newAuth":                      newAuth,
-	"sessionService":               sessionService,
-	"pushDownGroupAggregateCount":  pushDownGroupAggregateCount,
-	"pushDownGroupAggregateSum":    pushDownGroupAggregateSum,
-	"pushDownGroupAggregateFirst":  pushDownGroupAggregateFirst,
-	"pushDownGroupAggregateLast":   pushDownGroupAggregateLast,
-	"newLabels":                    newLabels,
-	"hydratevars":                  hydratevars,
-	"memoryOptimizedFill":          memoryOptimizedFill,
-	"urmFreeTasks":                 urmFreeTasks,
+	"appMetrics":                    appMetrics,
+	"backendExample":                backendExample,
+	"communityTemplates":            communityTemplates,
+	"frontendExample":               frontendExample,
+	"pushDownWindowAggregateCount":  pushDownWindowAggregateCount,
+	"pushDownWindowAggregateSum":    pushDownWindowAggregateSum,
+	"pushDownWindowAggregateMin":    pushDownWindowAggregateMin,
+	"pushDownWindowAggregateMax":    pushDownWindowAggregateMax,
+	"pushDownWindowAggregateMean":   pushDownWindowAggregateMean,
+	"pushDownWindowAggregateFirst":  pushDownWindowAggregateFirst,
+	"pushDownWindowAggregateLast":   pushDownWindowAggregateLast,
+	"groupWindowAggregateTranspose": groupWindowAggregateTranspose,
+	"newAuth":                       newAuth,
+	"pushDownGroupAggregateCount":   pushDownGroupAggregateCount,
+	"pushDownGroupAggregateSum":     pushDownGroupAggregateSum,
+	"pushDownGroupAggregateFirst":   pushDownGroupAggregateFirst,
+	"pushDownGroupAggregateLast":    pushDownGroupAggregateLast,
+	"newLabels":                     newLabels,
+	"hydratevars":                   hydratevars,
+	"memoryOptimizedFill":           memoryOptimizedFill,
+	"urmFreeTasks":                  urmFreeTasks,
 }

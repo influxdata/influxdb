@@ -8,6 +8,9 @@ import {SlideToggle, InputLabel} from '@influxdata/clockface'
 // Actions
 import {setNotebookMiniMapState} from 'src/shared/actions/app'
 
+// Utils
+import {event} from 'src/notebooks/shared/event'
+
 // Types
 import {AppState, NotebookMiniMapState} from 'src/types'
 
@@ -28,6 +31,8 @@ const MiniMapToggle: FC<Props> = ({
   const active = notebookMiniMapState === 'expanded'
 
   const handleChange = (): void => {
+    event('Toggled Mini Map', {state: active ? 'collapsed' : 'expanded'})
+
     if (active) {
       handleSetNotebookMiniMapState('collapsed')
     } else {

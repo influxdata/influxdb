@@ -646,10 +646,6 @@ func writeTokens(w io.Writer, printOpts tokenPrintOpt) error {
 }
 
 func newAuthorizationService() (platform.AuthorizationService, error) {
-	if flags.local {
-		return newLocalKVService()
-	}
-
 	httpClient, err := newHTTPClient()
 	if err != nil {
 		return nil, err

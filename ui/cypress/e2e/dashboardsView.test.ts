@@ -85,6 +85,17 @@ describe('Dashboard', () => {
       cy.getByTestID('save-note--button').click()
     })
 
+    //Note Cell controls
+    cy.getByTestID('add-note--button').click()
+    cy.getByTestID('note-editor--overlay').should('be.visible')
+    cy.getByTestID('cancel-note--button').click()
+    cy.getByTestID('note-editor--overlay').should('not.exist')
+
+    cy.getByTestID('add-note--button').click()
+    cy.getByTestID('note-editor--overlay').should('be.visible')
+    cy.get('.cf-overlay--dismiss').click()
+    cy.getByTestID('note-editor--overlay').should('not.exist')
+
     cy.getByTestID('cell--view-empty').contains(noteText)
     cy.getByTestID('cell--view-empty').should('not.contain', headerPrefix)
 

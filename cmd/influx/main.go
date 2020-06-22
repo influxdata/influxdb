@@ -14,17 +14,14 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/v2"
-	"github.com/influxdata/influxdb/v2/bolt"
 	"github.com/influxdata/influxdb/v2/cmd/influx/config"
 	"github.com/influxdata/influxdb/v2/cmd/influx/internal"
 	"github.com/influxdata/influxdb/v2/http"
 	"github.com/influxdata/influxdb/v2/internal/fs"
 	"github.com/influxdata/influxdb/v2/kit/cli"
-	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/pkg/httpc"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"go.uber.org/zap"
 )
 
 const maxTCPConnections = 10
@@ -149,7 +146,6 @@ func runEMiddlware(mw cobraRunEMiddleware) genericCLIOptFn {
 
 type globalFlags struct {
 	config.Config
-	local        bool
 	skipVerify   bool
 	traceDebugID string
 }
@@ -236,7 +232,6 @@ func (b *cmdInfluxBuilder) cmd(childCmdFns ...func(f *globalFlags, opt genericCL
 	}
 	flags.Config = cfg
 
-	cmd.PersistentFlags().BoolVar(&flags.local, "local", false, "Run commands locally against the filesystem")
 	cmd.PersistentFlags().BoolVar(&flags.skipVerify, "skip-verify", false, "SkipVerify controls whether a client verifies the server's certificate chain and host name.")
 
 	// Update help description for all commands in command tree
@@ -413,20 +408,6 @@ func walk(c *cobra.Command, f func(*cobra.Command)) {
 	}
 }
 
-func newLocalKVService() (*kv.Service, error) {
-	boltFile, err := fs.BoltFile()
-	if err != nil {
-		return nil, err
-	}
-
-	store := bolt.NewKVStore(zap.NewNop(), boltFile)
-	if err := store.Open(context.Background()); err != nil {
-		return nil, err
-	}
-
-	return kv.NewService(zap.NewNop(), store), nil
-}
-
 type organization struct {
 	id, name string
 }
@@ -545,10 +526,6 @@ func writeJSON(w io.Writer, v interface{}) error {
 }
 
 func newBucketService() (influxdb.BucketService, error) {
-	if flags.local {
-		return newLocalKVService()
-	}
-
 	client, err := newHTTPClient()
 	if err != nil {
 		return nil, err

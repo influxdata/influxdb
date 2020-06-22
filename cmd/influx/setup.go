@@ -70,10 +70,6 @@ func cmdSetupUser(opt genericCLIOpts) *cobra.Command {
 }
 
 func setupUserF(cmd *cobra.Command, args []string) error {
-	if flags.local {
-		return fmt.Errorf("local flag not supported for setup command")
-	}
-
 	// check if setup is allowed
 	client, err := newHTTPClient()
 	if err != nil {
@@ -118,10 +114,6 @@ func setupUserF(cmd *cobra.Command, args []string) error {
 }
 
 func setupF(cmd *cobra.Command, args []string) error {
-	if flags.local {
-		return fmt.Errorf("local flag not supported for setup command")
-	}
-
 	// check if setup is allowed
 	client, err := newHTTPClient()
 	if err != nil {
@@ -316,7 +308,7 @@ func getConfirm(ui *input.UI, or *influxdb.OnboardingRequest) bool {
 	for {
 		rp := "infinite"
 		if or.RetentionPeriod > 0 {
-			rp = fmt.Sprintf("%d hrs", or.RetentionPeriod/uint(time.Hour))
+			rp = fmt.Sprintf("%d hrs", time.Duration(or.RetentionPeriod)/time.Hour)
 		}
 		ui.Writer.Write(promptWithColor(fmt.Sprintf(`
 You have entered:

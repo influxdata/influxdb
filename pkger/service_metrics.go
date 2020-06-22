@@ -75,28 +75,35 @@ func (s *mwMetrics) CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*
 func (s *mwMetrics) DryRun(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (PkgImpactSummary, error) {
 	rec := s.rec.Record("dry_run")
 	impact, err := s.next.DryRun(ctx, orgID, userID, opts...)
-	return impact, rec(err, metric.RecordAdditional(map[string]interface{}{
-		"sources": impact.Sources,
-	}))
+	return impact, rec(err, applyMetricAdditions(orgID, userID, impact.Sources))
 }
 
 func (s *mwMetrics) Apply(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (PkgImpactSummary, error) {
 	rec := s.rec.Record("apply")
 	impact, err := s.next.Apply(ctx, orgID, userID, opts...)
-	return impact, rec(err, metric.RecordAdditional(map[string]interface{}{
-		"sources": impact.Sources,
-	}))
+	return impact, rec(err, applyMetricAdditions(orgID, userID, impact.Sources))
+}
+
+func applyMetricAdditions(orgID, userID influxdb.ID, sources []string) func(*metric.CollectFnOpts) {
+	return metric.RecordAdditional(map[string]interface{}{
+		"org_id":  orgID.String(),
+		"sources": sources,
+		"user_id": userID.String(),
+	})
 }
 
 func templateVec() metric.VecOpts {
 	return metric.VecOpts{
 		Name:       "template_count",
 		Help:       "Number of installations per template",
-		LabelNames: []string{"method", "source"},
+		LabelNames: []string{"method", "source", "user_id", "org_id"},
 		CounterFn: func(vec *prometheus.CounterVec, o metric.CollectFnOpts) {
 			if o.Err != nil {
 				return
 			}
+
+			orgID, _ := o.AdditionalProps["org_id"].(string)
+			userID, _ := o.AdditionalProps["user_id"].(string)
 
 			// safe to ignore the failed type assertion, a zero value
 			// provides a nil slice, so no worries.
@@ -104,8 +111,10 @@ func templateVec() metric.VecOpts {
 			for _, source := range normalizeRemoteSources(sources) {
 				vec.
 					With(prometheus.Labels{
-						"method": o.Method,
-						"source": source.String(),
+						"method":  o.Method,
+						"source":  source.String(),
+						"org_id":  orgID,
+						"user_id": userID,
 					}).
 					Inc()
 			}

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/influx/config"
 	"github.com/spf13/cobra"
 )
@@ -37,8 +38,32 @@ type cmdConfigBuilder struct {
 
 func (b *cmdConfigBuilder) cmd() *cobra.Command {
 	cmd := b.newCmd("config [config name]", b.cmdSwitchActiveRunEFn, false)
-	cmd.Short = "Config management commands"
 	cmd.Args = cobra.ArbitraryArgs
+	cmd.Short = "Config management commands"
+	cmd.Long = `
+	Providing no argument to the config command will print the active configuration. When
+	an argument is provided, the active config will be switched to the config with a name
+	matching that of the argument provided.
+
+	Examples:
+		# show active config
+		influx config
+
+		# set active config to previously active config
+		influx config -
+
+		# set active config
+		influx config $CONFIG_NAME
+
+	The influx config command displays the active InfluxDB connection configuration and
+	manages multiple connection configurations stored, by default, in ~/.influxdbv2/configs.
+	Each connection includes a URL, token, associated organization, and active setting.
+	InfluxDB reads the token from the active connection configuration, so you don't have
+	to manually enter a token to log into InfluxDB.
+
+	For information about the config command, see
+	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/config
+`
 
 	cmd.AddCommand(
 		b.cmdCreate(),
@@ -85,6 +110,21 @@ func (b *cmdConfigBuilder) cmdSwitchActiveRunEFn(cmd *cobra.Command, args []stri
 func (b *cmdConfigBuilder) cmdCreate() *cobra.Command {
 	cmd := b.newCmd("create", b.cmdCreateRunEFn, false)
 	cmd.Short = "Create config"
+	cmd.Long = `
+	The influx config create command creates a new InfluxDB connection configuration
+	and stores it in the configs file (by default, stored at ~/.influxdbv2/configs).
+
+	Examples:
+		# create a config and set it active
+		influx config create -a -n $CFG_NAME -u $HOST_URL -t $TOKEN -o $ORG_NAME
+
+		# create a config and without setting it active
+		influx config create -n $CFG_NAME -u $HOST_URL -t $TOKEN -o $ORG_NAME
+
+	For information about the config command, see
+	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/config
+	and
+	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/config/create`
 
 	b.registerPrintFlags(cmd)
 	cmd.Flags().StringVarP(&b.name, "name", "n", "", "The config name (required)")
@@ -117,25 +157,53 @@ func (b *cmdConfigBuilder) cmdCreateRunEFn(*cobra.Command, []string) error {
 }
 
 func (b *cmdConfigBuilder) cmdDelete() *cobra.Command {
-	cmd := b.newCmd("delete", b.cmdDeleteRunEFn, false)
+	cmd := b.newCmd("rm [cfg_name]", b.cmdDeleteRunEFn, false)
+	cmd.Aliases = []string{"delete", "remove"}
+	cmd.Args = cobra.ArbitraryArgs
 	cmd.Short = "Delete config"
+	cmd.Long = `
+	The influx config delete command deletes an InfluxDB connection configuration from
+	the configs file (by default, stored at ~/.influxdbv2/configs).
+
+	Examples:
+		# delete a config
+		influx config rm $CFG_NAME
+
+		# delete multiple configs
+		influx config rm $CFG_NAME_1 $CFG_NAME_2
+
+	For information about the config command, see
+	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/config
+	and
+	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/config/remove`
 
 	b.registerPrintFlags(cmd)
 	cmd.Flags().StringVarP(&b.name, "name", "n", "", "The config name (required)")
-	cmd.MarkFlagRequired("name")
+	cmd.Flags().MarkHidden("name")
 
 	return cmd
 }
 
 func (b *cmdConfigBuilder) cmdDeleteRunEFn(cmd *cobra.Command, args []string) error {
-	cfg, err := b.svc.DeleteConfig(b.name)
-	if err != nil {
-		return err
+	deletedConfigs := make(config.Configs)
+	for _, name := range append(args, b.name) {
+		if name == "" {
+			continue
+		}
+
+		cfg, err := b.svc.DeleteConfig(name)
+		if influxdb.ErrorCode(err) == influxdb.ENotFound {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		deletedConfigs[name] = cfg
 	}
 
 	return b.printConfigs(configPrintOpts{
-		delete: true,
-		config: cfg,
+		delete:  true,
+		configs: deletedConfigs,
 	})
 }
 
@@ -143,6 +211,21 @@ func (b *cmdConfigBuilder) cmdUpdate() *cobra.Command {
 	cmd := b.newCmd("set", b.cmdUpdateRunEFn, false)
 	cmd.Aliases = []string{"update"}
 	cmd.Short = "Update config"
+	cmd.Long = `
+	The influx config set command updates information in an InfluxDB connection
+	configuration in the configs file (by default, stored at ~/.influxdbv2/configs).
+
+	Examples:
+		# update a config and set active
+		influx config set -a -n $CFG_NAME -u $HOST_URL -t $TOKEN -o $ORG_NAME
+
+		# update a config and do not set to active
+		influx config set -n $CFG_NAME -u $HOST_URL -t $TOKEN -o $ORG_NAME
+
+	For information about the config command, see
+	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/config
+	and
+	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/config/set`
 
 	b.registerPrintFlags(cmd)
 	cmd.Flags().StringVarP(&b.name, "name", "n", "", "The config name (required)")
@@ -173,9 +256,26 @@ func (b *cmdConfigBuilder) cmdUpdateRunEFn(*cobra.Command, []string) error {
 }
 
 func (b *cmdConfigBuilder) cmdList() *cobra.Command {
-	cmd := b.newCmd("list", b.cmdListRunEFn, false)
-	cmd.Aliases = []string{"ls"}
+	cmd := b.newCmd("ls", b.cmdListRunEFn, false)
+	cmd.Aliases = []string{"list"}
 	cmd.Short = "List configs"
+	cmd.Long = `
+	The influx config ls command lists all InfluxDB connection configurations
+	in the configs file (by default, stored at ~/.influxdbv2/configs). Each
+	connection configuration includes a URL, authentication token, and active
+	setting. An asterisk (*) indicates the active configuration.
+
+	Examples:
+		# list configs
+		influx config ls
+
+		# list configs with long alias
+		influx config list
+
+	For information about the config command, see
+	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/config
+	and
+	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/config/list`
 	b.registerPrintFlags(cmd)
 	return cmd
 }

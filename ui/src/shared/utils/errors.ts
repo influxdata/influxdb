@@ -3,6 +3,7 @@ import HoneyBadger from 'honeybadger-js'
 import {CLOUD, GIT_SHA} from 'src/shared/constants'
 
 import {getUserFlags} from 'src/shared/utils/featureFlag'
+import {reportEvent, PointTags, PointFields} from 'src/cloud/utils/reporting'
 
 if (CLOUD) {
   HoneyBadger.configure({
@@ -10,6 +11,17 @@ if (CLOUD) {
     revision: GIT_SHA,
     environment: process.env.HONEYBADGER_ENV,
   })
+}
+
+export const reportSingleErrorMetric = (
+  tags: PointTags = {},
+  fields: PointFields = {},
+  measurement = 'ui_error'
+) => {
+  if (CLOUD) {
+    const point = {measurement, tags, fields: {errorCount: 1, ...fields}}
+    reportEvent(point)
+  }
 }
 
 // See https://docs.honeybadger.io/lib/javascript/guides/reporting-errors.html#additional-options
@@ -44,6 +56,15 @@ export const reportError = (
 
   if (CLOUD) {
     HoneyBadger.notify(error, {context, ...options})
+
+    let errorType = 'generic (untagged) error'
+    if (options.name) {
+      errorType = options.name
+    } else if (options.component) {
+      errorType = options.component
+    }
+
+    reportSingleErrorMetric({errorType})
   } else {
     const honeyBadgerContext = (HoneyBadger as any).context
     /* eslint-disable no-console */

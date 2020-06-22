@@ -84,59 +84,91 @@ const (
 	JaegerTracing = "jaeger"
 )
 
-// NewCommand creates the command to run influxdb.
-func NewCommand() *cobra.Command {
+func NewInfluxdCommand(ctx context.Context, subCommands ...*cobra.Command) *cobra.Command {
 	l := NewLauncher()
-	cmd := &cobra.Command{
-		Use:   "run",
-		Short: "Start the influxd server (default)",
-		Run: func(cmd *cobra.Command, args []string) {
-			// exit with SIGINT and SIGTERM
-			ctx := context.Background()
-			ctx = signals.WithStandardSignals(ctx)
 
-			if err := l.run(ctx); err != nil {
-				fmt.Fprintln(os.Stderr, err)
-				os.Exit(1)
-			} else if !l.Running() {
-				os.Exit(1)
-			}
-
-			var wg sync.WaitGroup
-			if !l.ReportingDisabled() {
-				reporter := telemetry.NewReporter(l.Log(), l.Registry())
-				reporter.Interval = 8 * time.Hour
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
-					reporter.Report(ctx)
-				}()
-			}
-
-			<-ctx.Done()
-
-			// Attempt clean shutdown.
-			ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
-			defer cancel()
-			l.Shutdown(ctx)
-			wg.Wait()
-		},
+	prog := cli.Program{
+		Name: "influxd",
+		Run:  cmdRunE(ctx, l),
 	}
 
-	buildLauncherCommand(l, cmd)
+	assignDescs := func(cmd *cobra.Command) {
+		cmd.Short = "Start the influxd server (default)"
+		cmd.Long = `
+	Start up the daemon configured with flags/env vars/config file.
+
+	The order of precedence for config options are as follows (1 highest, 3 lowest):
+		1. flags
+		2. env vars
+		3. config file
+
+	A config file can be provided via the INFLUXD_CONFIG_PATH env var. If a file is
+	not provided via an env var, influxd will look in the current directory for a
+	config.yaml file. If one does not exist, then it will continue unchanged.`
+	}
+
+	cmd := cli.NewCommand(&prog)
+	runCmd := &cobra.Command{
+		Use:  "run",
+		RunE: cmd.RunE,
+	}
+	for _, c := range []*cobra.Command{cmd, runCmd} {
+		assignDescs(c)
+		setLauncherCMDOpts(l, c)
+	}
+	cmd.AddCommand(append(subCommands, runCmd)...)
 
 	return cmd
 }
 
+func cmdRunE(ctx context.Context, l *Launcher) func() error {
+	return func() error {
+		// exit with SIGINT and SIGTERM
+		ctx = signals.WithStandardSignals(ctx)
+
+		if err := l.run(ctx); err != nil {
+			return err
+		} else if !l.Running() {
+			return errors.New("the daemon is already running")
+		}
+
+		var wg sync.WaitGroup
+		if !l.ReportingDisabled() {
+			reporter := telemetry.NewReporter(l.Log(), l.Registry())
+			reporter.Interval = 8 * time.Hour
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				reporter.Report(ctx)
+			}()
+		}
+
+		<-ctx.Done()
+
+		// Attempt clean shutdown.
+		ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		defer cancel()
+		l.Shutdown(ctx)
+		wg.Wait()
+
+		return nil
+	}
+}
+
 var vaultConfig vault.Config
 
-func buildLauncherCommand(l *Launcher, cmd *cobra.Command) {
+func setLauncherCMDOpts(l *Launcher, cmd *cobra.Command) {
+	cli.BindOptions(cmd, launcherOpts(l))
+	cmd.AddCommand(inspect.NewCommand())
+}
+
+func launcherOpts(l *Launcher) []cli.Opt {
 	dir, err := fs.InfluxDir()
 	if err != nil {
 		panic(fmt.Errorf("failed to determine influx directory: %v", err))
 	}
 
-	opts := []cli.Opt{
+	return []cli.Opt{
 		{
 			DestP:   &l.logLevel,
 			Flag:    "log-level",
@@ -312,8 +344,6 @@ func buildLauncherCommand(l *Launcher, cmd *cobra.Command) {
 			Desc:  "feature flag overrides",
 		},
 	}
-	cli.BindOptions(cmd, opts)
-	cmd.AddCommand(inspect.NewCommand())
 }
 
 // Launcher represents the main program execution.
@@ -479,7 +509,7 @@ func (m *Launcher) Run(ctx context.Context, args ...string) error {
 		},
 	}
 
-	buildLauncherCommand(m, cmd)
+	setLauncherCMDOpts(m, cmd)
 
 	cmd.SetArgs(args)
 	return cmd.Execute()
@@ -877,7 +907,6 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		sessionSvc = session.NewService(session.NewStorage(inmem.NewSessionStore()), userSvc, userResourceSvc, authSvc, time.Duration(m.sessionLength)*time.Minute)
 		sessionSvc = session.NewSessionMetrics(m.reg, sessionSvc)
 		sessionSvc = session.NewSessionLogger(m.log.With(zap.String("service", "session")), sessionSvc)
-		sessionSvc = session.NewServiceController(m.flagger, m.kvService, sessionSvc)
 	}
 
 	var labelSvc platform.LabelService
@@ -1030,10 +1059,8 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		authHTTPServer = kithttp.NewFeatureHandler(feature.NewAuthPackage(), m.flagger, oldHandler, newHandler, newHandler.Prefix())
 	}
 
-	var oldSessionHandler nethttp.Handler
 	var sessionHTTPServer *session.SessionHandler
 	{
-		oldSessionHandler = http.NewSessionHandler(m.log.With(zap.String("handler", "old_session")), http.NewSessionBackend(m.log, m.apibackend))
 		sessionHTTPServer = session.NewSessionHandler(m.log.With(zap.String("handler", "session")), sessionSvc, userSvc, passwdsSvc)
 	}
 
@@ -1050,8 +1077,8 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 			http.WithResourceHandler(onboardHTTPServer),
 			http.WithResourceHandler(authHTTPServer),
 			http.WithResourceHandler(kithttp.NewFeatureHandler(feature.NewLabelPackage(), m.flagger, oldLabelHandler, labelHandler, labelHandler.Prefix())),
-			http.WithResourceHandler(kithttp.NewFeatureHandler(feature.SessionService(), m.flagger, oldSessionHandler, sessionHTTPServer.SignInResourceHandler(), sessionHTTPServer.SignInResourceHandler().Prefix())),
-			http.WithResourceHandler(kithttp.NewFeatureHandler(feature.SessionService(), m.flagger, oldSessionHandler, sessionHTTPServer.SignOutResourceHandler(), sessionHTTPServer.SignOutResourceHandler().Prefix())),
+			http.WithResourceHandler(sessionHTTPServer.SignInResourceHandler()),
+			http.WithResourceHandler(sessionHTTPServer.SignOutResourceHandler()),
 			http.WithResourceHandler(userHTTPServer.MeResourceHandler()),
 			http.WithResourceHandler(userHTTPServer.UserResourceHandler()),
 			http.WithResourceHandler(orgHTTPServer),

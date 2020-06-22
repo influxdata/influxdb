@@ -344,10 +344,6 @@ type userPrintOpts struct {
 }
 
 func newUserService() (influxdb.UserService, error) {
-	if flags.local {
-		return newLocalKVService()
-	}
-
 	client, err := newHTTPClient()
 	if err != nil {
 		return nil, err

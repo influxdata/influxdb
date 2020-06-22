@@ -5,7 +5,7 @@ register({
   type: 'test',
   component: View,
   priority: -1,
-  disabled: true,
+  featureFlag: 'notebook-panel--test-flux',
   button: 'Flux Result Tester',
   initial: {
     panelVisibility: 'visible',

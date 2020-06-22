@@ -514,14 +514,6 @@ func (b *cmdOrgBuilder) registerPrintFlags(cmd *cobra.Command) {
 }
 
 func newOrgServices() (influxdb.OrganizationService, influxdb.UserResourceMappingService, influxdb.UserService, error) {
-	if flags.local {
-		svc, err := newLocalKVService()
-		if err != nil {
-			return nil, nil, nil, err
-		}
-		return svc, svc, svc, nil
-	}
-
 	client, err := newHTTPClient()
 	if err != nil {
 		return nil, nil, nil, err
@@ -535,10 +527,6 @@ func newOrgServices() (influxdb.OrganizationService, influxdb.UserResourceMappin
 }
 
 func newOrganizationService() (influxdb.OrganizationService, error) {
-	if flags.local {
-		return newLocalKVService()
-	}
-
 	client, err := newHTTPClient()
 	if err != nil {
 		return nil, err

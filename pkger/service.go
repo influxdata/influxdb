@@ -1686,7 +1686,7 @@ func (s *Service) applyBucket(ctx context.Context, b *stateBucket) (influxdb.Buc
 			if influxdb.ErrorCode(err) == influxdb.ENotFound {
 				return influxdb.Bucket{}, nil
 			}
-			return influxdb.Bucket{}, fmt.Errorf("failed to delete bucket[%q]: %w", b.ID(), err)
+			return influxdb.Bucket{}, applyFailErr("delete", b.stateIdentity(), err)
 		}
 		return *b.existing, nil
 	case IsExisting(b.stateStatus) && b.existing != nil:
@@ -1698,7 +1698,7 @@ func (s *Service) applyBucket(ctx context.Context, b *stateBucket) (influxdb.Buc
 			RetentionPeriod: &rp,
 		})
 		if err != nil {
-			return influxdb.Bucket{}, fmt.Errorf("failed to updated bucket[%q]: %w", b.ID(), err)
+			return influxdb.Bucket{}, applyFailErr("update", b.stateIdentity(), err)
 		}
 		return *influxBucket, nil
 	default:
@@ -1711,7 +1711,7 @@ func (s *Service) applyBucket(ctx context.Context, b *stateBucket) (influxdb.Buc
 		}
 		err := s.bucketSVC.CreateBucket(ctx, &influxBucket)
 		if err != nil {
-			return influxdb.Bucket{}, fmt.Errorf("failed to create bucket[%q]: %w", b.ID(), err)
+			return influxdb.Bucket{}, applyFailErr("create", b.stateIdentity(), err)
 		}
 		return influxBucket, nil
 	}
@@ -1807,7 +1807,7 @@ func (s *Service) applyCheck(ctx context.Context, c *stateCheck, userID influxdb
 			if influxdb.ErrorCode(err) == influxdb.ENotFound {
 				return &icheck.Threshold{Base: icheck.Base{ID: c.ID()}}, nil
 			}
-			return nil, fmt.Errorf("failed to delete check[%q]: %w", c.ID(), err)
+			return nil, applyFailErr("delete", c.stateIdentity(), err)
 		}
 		return c.existing, nil
 	case IsExisting(c.stateStatus) && c.existing != nil:
@@ -1816,7 +1816,7 @@ func (s *Service) applyCheck(ctx context.Context, c *stateCheck, userID influxdb
 			Status: c.parserCheck.Status(),
 		})
 		if err != nil {
-			return nil, err
+			return nil, applyFailErr("update", c.stateIdentity(), err)
 		}
 		return influxCheck, nil
 	default:
@@ -1826,7 +1826,7 @@ func (s *Service) applyCheck(ctx context.Context, c *stateCheck, userID influxdb
 		}
 		err := s.checkSVC.CreateCheck(ctx, checkStub, userID)
 		if err != nil {
-			return nil, err
+			return nil, applyFailErr("create", c.stateIdentity(), err)
 		}
 		return checkStub.Check, nil
 	}
@@ -1881,7 +1881,7 @@ func (s *Service) applyDashboard(ctx context.Context, d *stateDashboard) (influx
 			if influxdb.ErrorCode(err) == influxdb.ENotFound {
 				return influxdb.Dashboard{}, nil
 			}
-			return influxdb.Dashboard{}, fmt.Errorf("failed to delete dashboard[%q]: %w", d.ID(), err)
+			return influxdb.Dashboard{}, applyFailErr("delete", d.stateIdentity(), err)
 		}
 		return *d.existing, nil
 	case IsExisting(d.stateStatus) && d.existing != nil:
@@ -1893,7 +1893,7 @@ func (s *Service) applyDashboard(ctx context.Context, d *stateDashboard) (influx
 			Cells:       &cells,
 		})
 		if err != nil {
-			return influxdb.Dashboard{}, ierrors.Wrap(err, "failed to update dashboard")
+			return influxdb.Dashboard{}, applyFailErr("update", d.stateIdentity(), err)
 		}
 		return *dash, nil
 	default:
@@ -1906,7 +1906,7 @@ func (s *Service) applyDashboard(ctx context.Context, d *stateDashboard) (influx
 		}
 		err := s.dashSVC.CreateDashboard(ctx, &influxDashboard)
 		if err != nil {
-			return influxdb.Dashboard{}, ierrors.Wrap(err, "failed to create dashboard")
+			return influxdb.Dashboard{}, applyFailErr("create", d.stateIdentity(), err)
 		}
 		return influxDashboard, nil
 	}
@@ -2153,26 +2153,26 @@ func (s *Service) applyNotificationEndpoint(ctx context.Context, e *stateEndpoin
 	case IsRemoval(e.stateStatus):
 		_, _, err := s.endpointSVC.DeleteNotificationEndpoint(ctx, e.ID())
 		if err != nil && influxdb.ErrorCode(err) != influxdb.ENotFound {
-			return nil, err
+			return nil, applyFailErr("delete", e.stateIdentity(), err)
 		}
 		return e.existing, nil
 	case IsExisting(e.stateStatus) && e.existing != nil:
 		// stub out userID since we're always using hte http client which will fill it in for us with the token
 		// feels a bit broken that is required.
 		// TODO: look into this userID requirement
-		return s.endpointSVC.UpdateNotificationEndpoint(
+		end, err := s.endpointSVC.UpdateNotificationEndpoint(
 			ctx,
 			e.ID(),
 			e.summarize().NotificationEndpoint,
 			userID,
 		)
+		return end, applyFailErr("update", e.stateIdentity(), err)
 	default:
 		actual := e.summarize().NotificationEndpoint
 		err := s.endpointSVC.CreateNotificationEndpoint(ctx, actual, userID)
 		if err != nil {
-			return nil, err
+			return nil, applyFailErr("create", e.stateIdentity(), err)
 		}
-
 		return actual, nil
 	}
 }
@@ -2308,7 +2308,7 @@ func (s *Service) applyNotificationRule(ctx context.Context, r *stateRule, userI
 			if influxdb.ErrorCode(err) == influxdb.ENotFound {
 				return nil, nil
 			}
-			return nil, ierrors.Wrap(err, "failed to remove notification rule")
+			return nil, applyFailErr("delete", r.stateIdentity(), err)
 		}
 		return r.existing, nil
 	case IsExisting(r.stateStatus) && r.existing != nil:
@@ -2318,7 +2318,7 @@ func (s *Service) applyNotificationRule(ctx context.Context, r *stateRule, userI
 		}
 		influxRule, err := s.ruleSVC.UpdateNotificationRule(ctx, r.ID(), ruleCreate, userID)
 		if err != nil {
-			return nil, ierrors.Wrap(err, "failed to update notification rule")
+			return nil, applyFailErr("update", r.stateIdentity(), err)
 		}
 		return influxRule, nil
 	default:
@@ -2328,7 +2328,7 @@ func (s *Service) applyNotificationRule(ctx context.Context, r *stateRule, userI
 		}
 		err := s.ruleSVC.CreateNotificationRule(ctx, influxRule, userID)
 		if err != nil {
-			return nil, err
+			return nil, applyFailErr("create", r.stateIdentity(), err)
 		}
 		return influxRule.NotificationRule, nil
 	}
@@ -2493,7 +2493,7 @@ func (s *Service) applyTask(ctx context.Context, userID influxdb.ID, t *stateTas
 			if influxdb.ErrorCode(err) == influxdb.ENotFound {
 				return influxdb.Task{}, nil
 			}
-			return influxdb.Task{}, ierrors.Wrap(err, "failed to delete task")
+			return influxdb.Task{}, applyFailErr("delete", t.stateIdentity(), err)
 		}
 		return *t.existing, nil
 	case IsExisting(t.stateStatus) && t.existing != nil:
@@ -2520,7 +2520,7 @@ func (s *Service) applyTask(ctx context.Context, userID influxdb.ID, t *stateTas
 			Options:     opt,
 		})
 		if err != nil {
-			return influxdb.Task{}, ierrors.Wrap(err, "failed to update task")
+			return influxdb.Task{}, applyFailErr("update", t.stateIdentity(), err)
 		}
 		return *updatedTask, nil
 	default:
@@ -2533,7 +2533,7 @@ func (s *Service) applyTask(ctx context.Context, userID influxdb.ID, t *stateTas
 			OrganizationID: t.orgID,
 		})
 		if err != nil {
-			return influxdb.Task{}, ierrors.Wrap(err, "failed to create task")
+			return influxdb.Task{}, applyFailErr("create", t.stateIdentity(), err)
 		}
 		return *newTask, nil
 	}
@@ -2656,21 +2656,21 @@ func (s *Service) applyTelegrafConfig(ctx context.Context, userID influxdb.ID, t
 			if influxdb.ErrorCode(err) == influxdb.ENotFound {
 				return influxdb.TelegrafConfig{}, nil
 			}
-			return influxdb.TelegrafConfig{}, ierrors.Wrap(err, "failed to delete config")
+			return influxdb.TelegrafConfig{}, applyFailErr("delete", t.stateIdentity(), err)
 		}
 		return *t.existing, nil
 	case IsExisting(t.stateStatus) && t.existing != nil:
 		cfg := t.summarize().TelegrafConfig
 		updatedConfig, err := s.teleSVC.UpdateTelegrafConfig(ctx, t.ID(), &cfg, userID)
 		if err != nil {
-			return influxdb.TelegrafConfig{}, ierrors.Wrap(err, "failed to update config")
+			return influxdb.TelegrafConfig{}, applyFailErr("update", t.stateIdentity(), err)
 		}
 		return *updatedConfig, nil
 	default:
 		cfg := t.summarize().TelegrafConfig
 		err := s.teleSVC.CreateTelegrafConfig(ctx, &cfg, userID)
 		if err != nil {
-			return influxdb.TelegrafConfig{}, ierrors.Wrap(err, "failed to create telegraf config")
+			return influxdb.TelegrafConfig{}, applyFailErr("create", t.stateIdentity(), err)
 		}
 		return cfg, nil
 	}
@@ -2794,7 +2794,7 @@ func (s *Service) applyVariable(ctx context.Context, v *stateVariable) (influxdb
 	switch {
 	case IsRemoval(v.stateStatus):
 		if err := s.varSVC.DeleteVariable(ctx, v.id); err != nil && influxdb.ErrorCode(err) != influxdb.ENotFound {
-			return influxdb.Variable{}, ierrors.Wrap(err, "removing existing variable")
+			return influxdb.Variable{}, applyFailErr("delete", v.stateIdentity(), err)
 		}
 		if v.existing == nil {
 			return influxdb.Variable{}, nil
@@ -2807,7 +2807,7 @@ func (s *Service) applyVariable(ctx context.Context, v *stateVariable) (influxdb
 			Arguments:   v.parserVar.influxVarArgs(),
 		})
 		if err != nil {
-			return influxdb.Variable{}, ierrors.Wrap(err, "updating existing variable")
+			return influxdb.Variable{}, applyFailErr("update", v.stateIdentity(), err)
 		}
 		return *updatedVar, nil
 	default:
@@ -2821,7 +2821,7 @@ func (s *Service) applyVariable(ctx context.Context, v *stateVariable) (influxdb
 		}
 		err := s.varSVC.CreateVariable(ctx, &influxVar)
 		if err != nil {
-			return influxdb.Variable{}, ierrors.Wrap(err, "creating new variable")
+			return influxdb.Variable{}, applyFailErr("create", v.stateIdentity(), err)
 		}
 		return influxVar, nil
 	}
@@ -3331,6 +3331,15 @@ func stateLabelsToStackAssociations(stateLabels []*stateLabel) []StackResourceAs
 		})
 	}
 	return out
+}
+
+func applyFailErr(method string, ident stateIdentity, err error) error {
+	v := ident.id.String()
+	if v == "" {
+		v = ident.pkgName
+	}
+	msg := fmt.Sprintf("failed to %s %s[%q]", method, ident.resourceType, v)
+	return ierrors.Wrap(err, msg)
 }
 
 func getLabelIDMap(ctx context.Context, labelSVC influxdb.LabelService, labelNames []string) (map[influxdb.ID]bool, error) {

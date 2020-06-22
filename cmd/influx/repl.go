@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"crypto/tls"
-	"fmt"
 	"net/http"
 
 	"github.com/influxdata/flux"
@@ -32,10 +31,6 @@ func cmdREPL(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 }
 
 func replF(cmd *cobra.Command, args []string) error {
-	if flags.local {
-		return fmt.Errorf("local flag not supported for repl command")
-	}
-
 	if err := replFlags.org.validOrgFlags(&flags); err != nil {
 		return err
 	}

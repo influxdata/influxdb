@@ -15,10 +15,6 @@ import (
 
 func cmdTask(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	runE := func(cmd *cobra.Command, args []string) error {
-		if flags.local {
-			return fmt.Errorf("local flag not supported for task command")
-		}
-
 		seeHelp(cmd, args)
 		return nil
 	}
