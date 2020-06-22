@@ -1639,6 +1639,7 @@ func (r Resource) references(key string) *references {
 			switch f {
 			case fieldReferencesEnv:
 				ref.EnvRef = keyRes.stringShort(fieldKey)
+				ref.defaultVal = keyRes.stringShort(fieldDefault)
 			case fieldReferencesSecret:
 				ref.Secret = keyRes.stringShort(fieldKey)
 			}
