@@ -423,7 +423,7 @@ fn pack_lines<'a>(schema: &Schema, lines: &[ParsedLine<'a>]) -> Vec<Packers> {
                     FieldValue::String(ref s) => {
                         packer
                             .str_packer_mut()
-                            .push(ByteArray::from(s.to_string().as_str()));
+                            .push(ByteArray::from(s.to_string().into_bytes()));
                     }
                 }
             } else {
