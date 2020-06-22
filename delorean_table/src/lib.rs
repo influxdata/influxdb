@@ -1,4 +1,5 @@
 pub mod packers;
+pub mod stats;
 
 use snafu::Snafu;
 
@@ -8,7 +9,9 @@ pub use packers::Packer;
 #[derive(Snafu, Debug)]
 pub enum Error {
     #[snafu(display(r#"Data Error: {}"#, source))]
-    Data { source: Box<dyn std::error::Error> },
+    Data {
+        source: Box<dyn std::error::Error>,
+    },
 
     #[snafu(display(r#"IO Error: {} ({})"#, message, source,))]
     IO {
@@ -17,7 +20,19 @@ pub enum Error {
     },
 
     #[snafu(display(r#"Other Error: {}"#, source))]
-    Other { source: Box<dyn std::error::Error> },
+    Other {
+        source: Box<dyn std::error::Error>,
+    },
+
+    #[snafu(display(r#"Column {:?} had mixed datatypes: {}"#, column_name, details))]
+    ColumnWithMixedTypes {
+        column_name: Option<String>,
+        details: String,
+    },
+
+    ColumnStatsBuilderError {
+        details: String,
+    },
 }
 
 /// Something that knows how to write a set of columns somewhere

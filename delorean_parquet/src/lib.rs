@@ -10,6 +10,7 @@ use std::io::{Read, Seek, SeekFrom};
 
 pub mod error;
 pub mod metadata;
+pub mod stats;
 pub mod writer;
 
 /// Thing that adapts an object that implements Read+Seek to something

@@ -9,6 +9,7 @@ mod commands {
     mod error;
     pub mod file_meta;
     mod input;
+    pub mod stats;
 }
 mod rpc;
 mod server;
@@ -16,7 +17,8 @@ mod server;
 enum ReturnCode {
     ConversionFailed = 1,
     MetadataDumpFailed = 2,
-    ServerExitedAbnormally = 3,
+    StatsFailed = 3,
+    ServerExitedAbnormally = 4,
 }
 
 fn main() {
@@ -34,6 +36,9 @@ Examples:
 
     # Dumps metadata information about 000000000013.tsm to stdout
     delorean meta 000000000013.tsm
+
+    # Dumps storage statistics about out.parquet to stdout
+    delorean stats out.parquet
 "#;
 
     let matches = App::new(help)
@@ -60,6 +65,16 @@ Examples:
         .subcommand(
             SubCommand::with_name("meta")
                 .about("Print out metadata information about a storage file")
+                .arg(
+                    Arg::with_name("INPUT")
+                        .help("The input filename to read from")
+                        .required(true)
+                        .index(1),
+                ),
+        )
+        .subcommand(
+            SubCommand::with_name("stats")
+                .about("Print out storage statistics information about a file to stdout")
                 .arg(
                     Arg::with_name("INPUT")
                         .help("The input filename to read from")
@@ -102,6 +117,16 @@ Examples:
                 Err(e) => {
                     eprintln!("Metadata dump failed: {}", e);
                     std::process::exit(ReturnCode::MetadataDumpFailed as _)
+                }
+            }
+        }
+        ("stats", Some(sub_matches)) => {
+            let input_filename = sub_matches.value_of("INPUT").unwrap();
+            match commands::stats::stats(&input_filename) {
+                Ok(()) => debug!("Storage statistics dump completed successfully"),
+                Err(e) => {
+                    eprintln!("Stats dump failed: {}", e);
+                    std::process::exit(ReturnCode::StatsFailed as _)
                 }
             }
         }

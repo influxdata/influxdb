@@ -50,7 +50,7 @@ impl Tag {
     }
 }
 
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 /// Line Protocol Data Types as defined in [the InfluxData documentation][influx]
 ///
 /// [influx]: https://docs.influxdata.com/influxdb/v1.8/write_protocols/line_protocol_tutorial/#data-types

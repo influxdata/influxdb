@@ -11,7 +11,6 @@ use std::path::{Path, PathBuf};
 
 use crate::commands::error::{Error, Result};
 use crate::commands::input::{FileType, InputReader};
-
 /// Creates  `DeloreanParquetTableWriter` suitable for writing to a single file
 #[derive(Debug)]
 struct ParquetFileWriterSource {

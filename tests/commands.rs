@@ -345,3 +345,23 @@ fn meta_temperature_parquet() {
 
     assert_meta_temperature_parquet(assert);
 }
+
+#[test]
+fn stats_temperature_parquet() {
+    let mut cmd = Command::cargo_bin("delorean").unwrap();
+    let assert = cmd
+        .arg("stats")
+        .arg("tests/fixtures/parquet/temperature.parquet")
+        .assert();
+
+    assert
+        .success()
+        .stdout(predicate::str::contains("Storage statistics:"))
+        .stdout(predicate::str::contains(
+            r#"Column Stats 'state' [1]
+  Total rows: 6, DataType: String, Compression: {"Enc: Dictionary, Comp: GZIP"}
+  Compressed/Uncompressed Bytes: (      90/      52) 120.0000 bits per row"#))
+        .stdout(predicate::str::contains(
+            "temperature.parquet: total columns/rows/bytes: (       5/       6/    1128) 1504.0000 bits per row"
+        ));
+}
