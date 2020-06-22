@@ -15,7 +15,7 @@ fn test_write_parquet_data() {
         .build();
 
     assert_eq!(schema.get_col_defs().len(), 6);
-    let mut packers: Vec<Packers> = vec![
+    let mut packers = vec![
         Packers::String(Packer::new()),  // 0: tag1
         Packers::String(Packer::new()),  // 1: string_field
         Packers::Float(Packer::new()),   // 2: float_field
