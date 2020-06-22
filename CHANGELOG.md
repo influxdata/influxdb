@@ -21,6 +21,8 @@
 1. [18602](https://github.com/influxdata/influxdb/pull/18602): Fix uint overflow during setup on 32bit systems
 1. [18623](https://github.com/influxdata/influxdb/pull/18623): Drop support for --local flag within influx CLI
 1. [18632](https://github.com/influxdata/influxdb/pull/18632): Prevents undefined queries in cells from erroring out in dashboards
+1. [18649](https://github.com/influxdata/influxdb/pull/18649): Fixes bucket
+selection issue and query builder state
 
 ## v2.0.0-beta.12 [2020-06-12]
 
