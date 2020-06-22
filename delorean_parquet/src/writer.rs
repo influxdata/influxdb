@@ -78,8 +78,8 @@ where
     /// ];
     ///
     /// packers[0].str_packer_mut().push(ByteArray::from("tag1")); // tag1 val
-    /// packers[1].i64_packer_mut().push(100);    // field1 val
-    /// packers[2].push_none();                         // no timestamp
+    /// packers[1].i64_packer_mut().push(100);                     // field1 val
+    /// packers[2].push_none();                                    // no timestamp
     ///
     /// // Write to '/tmp/example.parquet'
     /// let mut output_file_name = std::env::temp_dir();
