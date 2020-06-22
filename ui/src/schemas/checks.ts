@@ -17,6 +17,15 @@ export const checkSchema = new schema.Entity(
   },
   {
     processStrategy: (check: GenCheck): Omit<Check, 'labels'> => {
+      if (!check.query.editMode){
+        return {
+          ...check,
+          query: generateBuilderConfig(check.query),
+          status: RemoteDataState.Done,
+          activeStatus: check.status,
+        }
+      }
+      
       return {
         ...check,
         status: RemoteDataState.Done,

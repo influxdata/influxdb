@@ -57,7 +57,7 @@ export const getWindowPeriod = (
   }
   try {
     const ast = parse(query)
-
+console.log(ast)
     const substitutedAST: Package = {
       package: '',
       type: 'Package',

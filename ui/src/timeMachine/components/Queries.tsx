@@ -119,7 +119,7 @@ class TimeMachineQueries extends PureComponent<Props> {
     } else if (activeQuery.editMode === 'advanced') {
       return <TimeMachineFluxEditor />
     } else {
-      return <TimeMachineQueryBuilder />
+      return null
     }
   }
 }
