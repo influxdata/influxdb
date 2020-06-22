@@ -2771,6 +2771,7 @@ func (s *Service) rollbackVariables(ctx context.Context, variables []*stateVaria
 			_, err = s.varSVC.UpdateVariable(ctx, v.ID(), &influxdb.VariableUpdate{
 				Name:        v.existing.Name,
 				Description: v.existing.Description,
+				Selected:    v.existing.Selected,
 				Arguments:   v.existing.Arguments,
 			})
 			err = ierrors.Wrap(err, "rolling back updated variable")
@@ -2807,6 +2808,7 @@ func (s *Service) applyVariable(ctx context.Context, v *stateVariable) (influxdb
 	case IsExisting(v.stateStatus) && v.existing != nil:
 		updatedVar, err := s.varSVC.UpdateVariable(ctx, v.ID(), &influxdb.VariableUpdate{
 			Name:        v.parserVar.Name(),
+			Selected:    v.parserVar.Selected(),
 			Description: v.parserVar.Description,
 			Arguments:   v.parserVar.influxVarArgs(),
 		})
@@ -2820,6 +2822,7 @@ func (s *Service) applyVariable(ctx context.Context, v *stateVariable) (influxdb
 		influxVar := influxdb.Variable{
 			OrganizationID: v.orgID,
 			Name:           v.parserVar.Name(),
+			Selected:       v.parserVar.Selected(),
 			Description:    v.parserVar.Description,
 			Arguments:      v.parserVar.influxVarArgs(),
 		}

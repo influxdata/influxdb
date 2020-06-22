@@ -15,6 +15,7 @@
 1. [18601](https://github.com/influxdata/influxdb/pull/18601): Provide active config running influx config without args
 1. [18606](https://github.com/influxdata/influxdb/pull/18606): Enable influxd binary to look for a config file on startup
 1. [18647](https://github.com/influxdata/influxdb/pull/18647): Add support for env ref default values to the template parser
+1. [18655](https://github.com/influxdata/influxdb/pull/18655): Add support for platfrom variable selected field to templates
 
 ### Bug Fixes
 

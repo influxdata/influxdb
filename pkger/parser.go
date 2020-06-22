@@ -1167,6 +1167,12 @@ func (p *Pkg) graphVariables() *parseErr {
 			MapValues:   o.Spec.mapStrStr(fieldValues),
 		}
 
+		if iSelected, ok := o.Spec[fieldVariableSelected].([]interface{}); ok {
+			for _, res := range iSelected {
+				newVar.selected = append(newVar.selected, ifaceToReference(res))
+			}
+		}
+
 		failures := p.parseNestedLabels(o.Spec, func(l *label) error {
 			newVar.labels = append(newVar.labels, l)
 			p.mLabels[l.PkgName()].setMapping(newVar, false)
@@ -1176,6 +1182,7 @@ func (p *Pkg) graphVariables() *parseErr {
 
 		p.mVariables[newVar.PkgName()] = newVar
 		p.setRefs(newVar.name, newVar.displayName)
+		p.setRefs(newVar.selected...)
 
 		return append(failures, newVar.valid()...)
 	})
@@ -1628,28 +1635,7 @@ func (r Resource) references(key string) *references {
 	if !ok {
 		return &references{}
 	}
-
-	var ref references
-	for _, f := range []string{fieldReferencesSecret, fieldReferencesEnv} {
-		resBody, ok := ifaceToResource(v)
-		if !ok {
-			continue
-		}
-		if keyRes, ok := ifaceToResource(resBody[f]); ok {
-			switch f {
-			case fieldReferencesEnv:
-				ref.EnvRef = keyRes.stringShort(fieldKey)
-				ref.defaultVal = keyRes.stringShort(fieldDefault)
-			case fieldReferencesSecret:
-				ref.Secret = keyRes.stringShort(fieldKey)
-			}
-		}
-	}
-	if ref.hasValue() {
-		return &ref
-	}
-
-	return &references{val: v}
+	return ifaceToReference(v)
 }
 
 func (r Resource) string(key string) (string, bool) {
@@ -1768,6 +1754,30 @@ func ifaceToResource(i interface{}) (Resource, bool) {
 		newRes[s] = v
 	}
 	return newRes, true
+}
+
+func ifaceToReference(i interface{}) *references {
+	var ref references
+	for _, f := range []string{fieldReferencesSecret, fieldReferencesEnv} {
+		resBody, ok := ifaceToResource(i)
+		if !ok {
+			continue
+		}
+		if keyRes, ok := ifaceToResource(resBody[f]); ok {
+			switch f {
+			case fieldReferencesEnv:
+				ref.EnvRef = keyRes.stringShort(fieldKey)
+				ref.defaultVal = keyRes.stringShort(fieldDefault)
+			case fieldReferencesSecret:
+				ref.Secret = keyRes.stringShort(fieldKey)
+			}
+		}
+	}
+	if ref.hasValue() {
+		return &ref
+	}
+
+	return &references{val: i}
 }
 
 func ifaceToStr(v interface{}) (string, bool) {
