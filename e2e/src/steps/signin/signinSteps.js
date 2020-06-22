@@ -44,7 +44,9 @@ class signinSteps extends baseSteps {
         //this.assertVisible(await this.signinPage.getCreditsLink());
     }
 
-    async enterUsername(name){
+    async enterUsername(name, timeout = 3000){
+        await this.driver.wait(until.elementIsVisible(await this.signinPage.getNameInput()), timeout,
+            `Waited ${timeout} milliseconds to locate signin name input`);
         await this.signinPage.getNameInput().then(async input => {
             await input.clear();
             await input.sendKeys(name);
@@ -54,7 +56,9 @@ class signinSteps extends baseSteps {
         });
     }
 
-    async enterPassword(password){
+    async enterPassword(password, timeout = 3000){
+        await this.driver.wait(until.elementIsVisible(await this.signinPage.getPasswordInput()), timeout,
+            `Waited ${timeout} milliseconds to locate signin pasword input`);
         await this.signinPage.getPasswordInput().then(async input =>{
             await input.clear();
             await input.sendKeys(password);
@@ -64,7 +68,9 @@ class signinSteps extends baseSteps {
         });
     }
 
-    async clickSigninButton(){
+    async clickSigninButton(timeout = 3000){
+        await this.driver.wait(until.elementIsVisible(await this.signinPage.getSigninButton()), timeout,
+            `Waited ${timeout} milliseconds to locate signin button`);
         await this.signinPage.getSigninButton().then(async btn =>{
             await btn.click();
         }).catch(async err => {
