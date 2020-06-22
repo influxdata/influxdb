@@ -17,7 +17,6 @@ import {setActiveTimeMachine} from 'src/timeMachine/actions'
 import {executeQueries} from 'src/timeMachine/actions/queries'
 import {setView, Action} from 'src/views/actions/creators'
 import {hashCode} from 'src/queryCache/actions'
-import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 import {setQueryResults} from 'src/timeMachine/actions/queries'
 
 // Selectors
@@ -130,6 +129,7 @@ export const getViewAndResultsForVEO = (
       dispatch(setQueryResults(RemoteDataState.Done, files, null, null))
       return
     }
+    dispatch(executeQueries())
   } catch (error) {
     console.error(error)
     dispatch(notify(copy.getViewFailed(error.message)))
