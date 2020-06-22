@@ -5,7 +5,6 @@ let sSteps = new signinSteps(__wdriver);
 
 When(/^open the signin page$/, async () => {
     await sSteps.openContext(sSteps.signinPage.urlCtx);
-    await sSteps.waitForSigninToLoad(5000);
 });
 
 Then(/^the sign in page is loaded$/, async () => {
