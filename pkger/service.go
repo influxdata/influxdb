@@ -1303,7 +1303,7 @@ func (s *Service) dryRunLabelMappings(ctx context.Context, state *stateCoordinat
 }
 
 func (s *Service) dryRunResourceLabelMapping(ctx context.Context, state *stateCoordinator, stateLabelsByResName map[string]*stateLabel, associatedResource interface {
-	labels() []*label
+	labels() []*stateLabel
 	stateIdentity() stateIdentity
 }) ([]stateLabelMapping, error) {
 
@@ -1316,7 +1316,7 @@ func (s *Service) dryRunResourceLabelMapping(ctx context.Context, state *stateCo
 			mappings = append(mappings, stateLabelMapping{
 				status:   StateStatusNew,
 				resource: associatedResource,
-				label:    state.getLabelByPkgName(l.PkgName()),
+				label:    l,
 			})
 		}
 		return mappings, nil
@@ -1347,10 +1347,14 @@ func (s *Service) dryRunResourceLabelMapping(ctx context.Context, state *stateCo
 
 	// now we add labels that do not exist
 	for _, l := range pkgLabels {
+		stLabel, found := state.getLabelByPkgName(l.PkgName())
+		if !found {
+			continue
+		}
 		mappings = append(mappings, stateLabelMapping{
 			status:   StateStatusNew,
 			resource: associatedResource,
-			label:    state.getLabelByPkgName(l.PkgName()),
+			label:    stLabel,
 		})
 	}
 
@@ -3032,52 +3036,48 @@ func (s *Service) updateStackAfterSuccess(ctx context.Context, stackID influxdb.
 		if IsRemoval(b.stateStatus) {
 			continue
 		}
-		associatedLabels := state.labelAssociations(KindBucket, b.parserBkt.PkgName())
 		stackResources = append(stackResources, StackResource{
 			APIVersion:   APIVersion,
 			ID:           b.ID(),
 			Kind:         KindBucket,
 			PkgName:      b.parserBkt.PkgName(),
-			Associations: stateLabelsToStackAssociations(associatedLabels),
+			Associations: stateLabelsToStackAssociations(b.labels()),
 		})
 	}
 	for _, c := range state.mChecks {
 		if IsRemoval(c.stateStatus) {
 			continue
 		}
-		associatedLabels := state.labelAssociations(KindCheck, c.parserCheck.PkgName())
 		stackResources = append(stackResources, StackResource{
 			APIVersion:   APIVersion,
 			ID:           c.ID(),
 			Kind:         KindCheck,
 			PkgName:      c.parserCheck.PkgName(),
-			Associations: stateLabelsToStackAssociations(associatedLabels),
+			Associations: stateLabelsToStackAssociations(c.labels()),
 		})
 	}
 	for _, d := range state.mDashboards {
 		if IsRemoval(d.stateStatus) {
 			continue
 		}
-		associatedLabels := state.labelAssociations(KindDashboard, d.parserDash.PkgName())
 		stackResources = append(stackResources, StackResource{
 			APIVersion:   APIVersion,
 			ID:           d.ID(),
 			Kind:         KindDashboard,
 			PkgName:      d.parserDash.PkgName(),
-			Associations: stateLabelsToStackAssociations(associatedLabels),
+			Associations: stateLabelsToStackAssociations(d.labels()),
 		})
 	}
 	for _, n := range state.mEndpoints {
 		if IsRemoval(n.stateStatus) {
 			continue
 		}
-		associatedLabels := state.labelAssociations(KindNotificationEndpoint, n.parserEndpoint.PkgName())
 		stackResources = append(stackResources, StackResource{
 			APIVersion:   APIVersion,
 			ID:           n.ID(),
 			Kind:         KindNotificationEndpoint,
 			PkgName:      n.parserEndpoint.PkgName(),
-			Associations: stateLabelsToStackAssociations(associatedLabels),
+			Associations: stateLabelsToStackAssociations(n.labels()),
 		})
 	}
 	for _, l := range state.mLabels {
@@ -3095,14 +3095,13 @@ func (s *Service) updateStackAfterSuccess(ctx context.Context, stackID influxdb.
 		if IsRemoval(r.stateStatus) {
 			continue
 		}
-		associatedLabels := state.labelAssociations(KindNotificationRule, r.parserRule.PkgName())
 		stackResources = append(stackResources, StackResource{
 			APIVersion: APIVersion,
 			ID:         r.ID(),
 			Kind:       KindNotificationRule,
 			PkgName:    r.parserRule.PkgName(),
 			Associations: append(
-				stateLabelsToStackAssociations(associatedLabels),
+				stateLabelsToStackAssociations(r.labels()),
 				r.endpointAssociation(),
 			),
 		})
@@ -3111,39 +3110,36 @@ func (s *Service) updateStackAfterSuccess(ctx context.Context, stackID influxdb.
 		if IsRemoval(t.stateStatus) {
 			continue
 		}
-		associatedLabels := state.labelAssociations(KindTask, t.parserTask.PkgName())
 		stackResources = append(stackResources, StackResource{
 			APIVersion:   APIVersion,
 			ID:           t.ID(),
 			Kind:         KindTask,
 			PkgName:      t.parserTask.PkgName(),
-			Associations: stateLabelsToStackAssociations(associatedLabels),
+			Associations: stateLabelsToStackAssociations(t.labels()),
 		})
 	}
 	for _, t := range state.mTelegrafs {
 		if IsRemoval(t.stateStatus) {
 			continue
 		}
-		associatedLabels := state.labelAssociations(KindTelegraf, t.parserTelegraf.PkgName())
 		stackResources = append(stackResources, StackResource{
 			APIVersion:   APIVersion,
 			ID:           t.ID(),
 			Kind:         KindTelegraf,
 			PkgName:      t.parserTelegraf.PkgName(),
-			Associations: stateLabelsToStackAssociations(associatedLabels),
+			Associations: stateLabelsToStackAssociations(t.labels()),
 		})
 	}
 	for _, v := range state.mVariables {
 		if IsRemoval(v.stateStatus) {
 			continue
 		}
-		associatedLabels := state.labelAssociations(KindVariable, v.parserVar.PkgName())
 		stackResources = append(stackResources, StackResource{
 			APIVersion:   APIVersion,
 			ID:           v.ID(),
 			Kind:         KindVariable,
 			PkgName:      v.parserVar.PkgName(),
-			Associations: stateLabelsToStackAssociations(associatedLabels),
+			Associations: stateLabelsToStackAssociations(v.labels()),
 		})
 	}
 	stack.Resources = stackResources
@@ -3436,7 +3432,7 @@ func (r *rollbackCoordinator) runTilEnd(ctx context.Context, orgID, userID influ
 
 				defer func() {
 					if recover() != nil {
-						r.logger.Panic(
+						r.logger.Error(
 							"panic applying "+resource,
 							zap.String("stack_trace", fmt.Sprintf("%+v", stack.Trace())),
 						)
@@ -3564,8 +3560,8 @@ func validURLs(urls []string) error {
 	return nil
 }
 
-func labelSlcToMap(labels []*label) map[string]*label {
-	m := make(map[string]*label)
+func labelSlcToMap(labels []*stateLabel) map[string]*stateLabel {
+	m := make(map[string]*stateLabel)
 	for i := range labels {
 		m[labels[i].Name()] = labels[i]
 	}

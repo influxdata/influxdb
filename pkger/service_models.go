@@ -36,42 +36,10 @@ func newStateCoordinator(pkg *Pkg, acts resourceActions) *stateCoordinator {
 		mVariables:  make(map[string]*stateVariable),
 	}
 
-	for _, pkgBkt := range pkg.buckets() {
-		if acts.skipResource(KindBucket, pkgBkt.PkgName()) {
-			continue
-		}
-		state.mBuckets[pkgBkt.PkgName()] = &stateBucket{
-			parserBkt:   pkgBkt,
-			stateStatus: StateStatusNew,
-		}
-	}
-	for _, pkgCheck := range pkg.checks() {
-		if acts.skipResource(KindCheck, pkgCheck.PkgName()) {
-			continue
-		}
-		state.mChecks[pkgCheck.PkgName()] = &stateCheck{
-			parserCheck: pkgCheck,
-			stateStatus: StateStatusNew,
-		}
-	}
-	for _, pkgDash := range pkg.dashboards() {
-		if acts.skipResource(KindDashboard, pkgDash.PkgName()) {
-			continue
-		}
-		state.mDashboards[pkgDash.PkgName()] = &stateDashboard{
-			parserDash:  pkgDash,
-			stateStatus: StateStatusNew,
-		}
-	}
-	for _, pkgEndpoint := range pkg.notificationEndpoints() {
-		if acts.skipResource(KindNotificationEndpoint, pkgEndpoint.PkgName()) {
-			continue
-		}
-		state.mEndpoints[pkgEndpoint.PkgName()] = &stateEndpoint{
-			parserEndpoint: pkgEndpoint,
-			stateStatus:    StateStatusNew,
-		}
-	}
+	// labels are done first to validate dependencies are accounted for.
+	// when a label is skipped by an action, this will still be accurate
+	// for hte individual labels, and cascades to the resources that are
+	// associated to a label.
 	for _, pkgLabel := range pkg.labels() {
 		if acts.skipResource(KindLabel, pkgLabel.PkgName()) {
 			continue
@@ -81,13 +49,54 @@ func newStateCoordinator(pkg *Pkg, acts resourceActions) *stateCoordinator {
 			stateStatus: StateStatusNew,
 		}
 	}
+	for _, pkgBkt := range pkg.buckets() {
+		if acts.skipResource(KindBucket, pkgBkt.PkgName()) {
+			continue
+		}
+		state.mBuckets[pkgBkt.PkgName()] = &stateBucket{
+			parserBkt:         pkgBkt,
+			stateStatus:       StateStatusNew,
+			labelAssociations: state.pkgToStateLabels(pkgBkt.labels),
+		}
+	}
+	for _, pkgCheck := range pkg.checks() {
+		if acts.skipResource(KindCheck, pkgCheck.PkgName()) {
+			continue
+		}
+		state.mChecks[pkgCheck.PkgName()] = &stateCheck{
+			parserCheck:       pkgCheck,
+			stateStatus:       StateStatusNew,
+			labelAssociations: state.pkgToStateLabels(pkgCheck.labels),
+		}
+	}
+	for _, pkgDash := range pkg.dashboards() {
+		if acts.skipResource(KindDashboard, pkgDash.PkgName()) {
+			continue
+		}
+		state.mDashboards[pkgDash.PkgName()] = &stateDashboard{
+			parserDash:        pkgDash,
+			stateStatus:       StateStatusNew,
+			labelAssociations: state.pkgToStateLabels(pkgDash.labels),
+		}
+	}
+	for _, pkgEndpoint := range pkg.notificationEndpoints() {
+		if acts.skipResource(KindNotificationEndpoint, pkgEndpoint.PkgName()) {
+			continue
+		}
+		state.mEndpoints[pkgEndpoint.PkgName()] = &stateEndpoint{
+			parserEndpoint:    pkgEndpoint,
+			stateStatus:       StateStatusNew,
+			labelAssociations: state.pkgToStateLabels(pkgEndpoint.labels),
+		}
+	}
 	for _, pkgRule := range pkg.notificationRules() {
 		if acts.skipResource(KindNotificationRule, pkgRule.PkgName()) {
 			continue
 		}
 		state.mRules[pkgRule.PkgName()] = &stateRule{
-			parserRule:  pkgRule,
-			stateStatus: StateStatusNew,
+			parserRule:        pkgRule,
+			stateStatus:       StateStatusNew,
+			labelAssociations: state.pkgToStateLabels(pkgRule.labels),
 		}
 	}
 	for _, pkgTask := range pkg.tasks() {
@@ -95,8 +104,9 @@ func newStateCoordinator(pkg *Pkg, acts resourceActions) *stateCoordinator {
 			continue
 		}
 		state.mTasks[pkgTask.PkgName()] = &stateTask{
-			parserTask:  pkgTask,
-			stateStatus: StateStatusNew,
+			parserTask:        pkgTask,
+			stateStatus:       StateStatusNew,
+			labelAssociations: state.pkgToStateLabels(pkgTask.labels),
 		}
 	}
 	for _, pkgTele := range pkg.telegrafs() {
@@ -104,8 +114,9 @@ func newStateCoordinator(pkg *Pkg, acts resourceActions) *stateCoordinator {
 			continue
 		}
 		state.mTelegrafs[pkgTele.PkgName()] = &stateTelegraf{
-			parserTelegraf: pkgTele,
-			stateStatus:    StateStatusNew,
+			parserTelegraf:    pkgTele,
+			stateStatus:       StateStatusNew,
+			labelAssociations: state.pkgToStateLabels(pkgTele.labels),
 		}
 	}
 	for _, pkgVar := range pkg.variables() {
@@ -113,8 +124,9 @@ func newStateCoordinator(pkg *Pkg, acts resourceActions) *stateCoordinator {
 			continue
 		}
 		state.mVariables[pkgVar.PkgName()] = &stateVariable{
-			parserVar:   pkgVar,
-			stateStatus: StateStatusNew,
+			parserVar:         pkgVar,
+			stateStatus:       StateStatusNew,
+			labelAssociations: state.pkgToStateLabels(pkgVar.labels),
 		}
 	}
 
@@ -394,8 +406,21 @@ func (s *stateCoordinator) summary() Summary {
 	return sum
 }
 
-func (s *stateCoordinator) getLabelByPkgName(pkgName string) *stateLabel {
-	return s.mLabels[pkgName]
+func (s *stateCoordinator) getLabelByPkgName(pkgName string) (*stateLabel, bool) {
+	l, ok := s.mLabels[pkgName]
+	return l, ok
+}
+
+func (s *stateCoordinator) pkgToStateLabels(labels []*label) []*stateLabel {
+	var out []*stateLabel
+	for _, l := range labels {
+		stLabel, found := s.getLabelByPkgName(l.PkgName())
+		if !found {
+			continue
+		}
+		out = append(out, stLabel)
+	}
+	return out
 }
 
 func (s *stateCoordinator) addStackState(stack Stack) {
@@ -516,21 +541,15 @@ func (s *stateCoordinator) get(k Kind, pkgName string) (interface{}, bool) {
 }
 
 func (s *stateCoordinator) labelAssociations(k Kind, pkgName string) []*stateLabel {
-	type labelAssociater interface {
-		labels() []*label
-	}
-
 	v, _ := s.get(k, pkgName)
-	labeler, ok := v.(labelAssociater)
+	labeler, ok := v.(interface {
+		labels() []*stateLabel
+	})
 	if !ok {
 		return nil
 	}
 
-	var out []*stateLabel
-	for _, l := range labeler.labels() {
-		out = append(out, s.mLabels[l.PkgName()])
-	}
-	return out
+	return labeler.labels()
 }
 
 func (s *stateCoordinator) Contains(k Kind, pkgName string) bool {
@@ -694,8 +713,9 @@ func (s stateIdentity) exists() bool {
 }
 
 type stateBucket struct {
-	id, orgID   influxdb.ID
-	stateStatus StateStatus
+	id, orgID         influxdb.ID
+	stateStatus       StateStatus
+	labelAssociations []*stateLabel
 
 	parserBkt *bucket
 	existing  *influxdb.Bucket
@@ -727,10 +747,19 @@ func (b *stateBucket) diffBucket() DiffBucket {
 	return diff
 }
 
+func stateToSummaryLabels(labels []*stateLabel) []SummaryLabel {
+	out := make([]SummaryLabel, 0, len(labels))
+	for _, l := range labels {
+		out = append(out, l.summarize())
+	}
+	return out
+}
+
 func (b *stateBucket) summarize() SummaryBucket {
 	sum := b.parserBkt.summarize()
 	sum.ID = SafeID(b.ID())
 	sum.OrgID = SafeID(b.orgID)
+	sum.LabelAssociations = stateToSummaryLabels(b.labelAssociations)
 	return sum
 }
 
@@ -745,8 +774,8 @@ func (b *stateBucket) resourceType() influxdb.ResourceType {
 	return KindBucket.ResourceType()
 }
 
-func (b *stateBucket) labels() []*label {
-	return b.parserBkt.labels
+func (b *stateBucket) labels() []*stateLabel {
+	return b.labelAssociations
 }
 
 func (b *stateBucket) stateIdentity() stateIdentity {
@@ -768,8 +797,9 @@ func (b *stateBucket) shouldApply() bool {
 }
 
 type stateCheck struct {
-	id, orgID   influxdb.ID
-	stateStatus StateStatus
+	id, orgID         influxdb.ID
+	stateStatus       StateStatus
+	labelAssociations []*stateLabel
 
 	parserCheck *check
 	existing    influxdb.Check
@@ -782,8 +812,8 @@ func (c *stateCheck) ID() influxdb.ID {
 	return c.id
 }
 
-func (c *stateCheck) labels() []*label {
-	return c.parserCheck.labels
+func (c *stateCheck) labels() []*stateLabel {
+	return c.labelAssociations
 }
 
 func (c *stateCheck) resourceType() influxdb.ResourceType {
@@ -827,12 +857,14 @@ func (c *stateCheck) summarize() SummaryCheck {
 	}
 	sum.Check.SetID(c.id)
 	sum.Check.SetOrgID(c.orgID)
+	sum.LabelAssociations = stateToSummaryLabels(c.labelAssociations)
 	return sum
 }
 
 type stateDashboard struct {
-	id, orgID   influxdb.ID
-	stateStatus StateStatus
+	id, orgID         influxdb.ID
+	stateStatus       StateStatus
+	labelAssociations []*stateLabel
 
 	parserDash *dashboard
 	existing   *influxdb.Dashboard
@@ -845,8 +877,8 @@ func (d *stateDashboard) ID() influxdb.ID {
 	return d.id
 }
 
-func (d *stateDashboard) labels() []*label {
-	return d.parserDash.labels
+func (d *stateDashboard) labels() []*stateLabel {
+	return d.labelAssociations
 }
 
 func (d *stateDashboard) resourceType() influxdb.ResourceType {
@@ -920,6 +952,7 @@ func (d *stateDashboard) summarize() SummaryDashboard {
 	sum := d.parserDash.summarize()
 	sum.ID = SafeID(d.ID())
 	sum.OrgID = SafeID(d.orgID)
+	sum.LabelAssociations = stateToSummaryLabels(d.labelAssociations)
 	return sum
 }
 
@@ -968,6 +1001,14 @@ func (l *stateLabel) ID() influxdb.ID {
 		return l.existing.ID
 	}
 	return l.id
+}
+
+func (l *stateLabel) Name() string {
+	return l.parserLabel.Name()
+}
+
+func (l *stateLabel) PkgName() string {
+	return l.parserLabel.PkgName()
 }
 
 func (l *stateLabel) shouldApply() bool {
@@ -1061,8 +1102,9 @@ func (m *stateLabelMappingForRemoval) diffLabelMapping() DiffLabelMapping {
 }
 
 type stateEndpoint struct {
-	id, orgID   influxdb.ID
-	stateStatus StateStatus
+	id, orgID         influxdb.ID
+	stateStatus       StateStatus
+	labelAssociations []*stateLabel
 
 	parserEndpoint *notificationEndpoint
 	existing       influxdb.NotificationEndpoint
@@ -1095,8 +1137,8 @@ func (e *stateEndpoint) diffEndpoint() DiffNotificationEndpoint {
 	return diff
 }
 
-func (e *stateEndpoint) labels() []*label {
-	return e.parserEndpoint.labels
+func (e *stateEndpoint) labels() []*stateLabel {
+	return e.labelAssociations
 }
 
 func (e *stateEndpoint) resourceType() influxdb.ResourceType {
@@ -1124,12 +1166,14 @@ func (e *stateEndpoint) summarize() SummaryNotificationEndpoint {
 	if e.orgID != 0 {
 		sum.NotificationEndpoint.SetOrgID(e.orgID)
 	}
+	sum.LabelAssociations = stateToSummaryLabels(e.labelAssociations)
 	return sum
 }
 
 type stateRule struct {
-	id, orgID   influxdb.ID
-	stateStatus StateStatus
+	id, orgID         influxdb.ID
+	stateStatus       StateStatus
+	labelAssociations []*stateLabel
 
 	associatedEndpoint *stateEndpoint
 
@@ -1245,8 +1289,8 @@ func (r *stateRule) endpointType() string {
 	return ""
 }
 
-func (r *stateRule) labels() []*label {
-	return r.parserRule.labels
+func (r *stateRule) labels() []*stateLabel {
+	return r.labelAssociations
 }
 
 func (r *stateRule) resourceType() influxdb.ResourceType {
@@ -1269,6 +1313,7 @@ func (r *stateRule) summarize() SummaryNotificationRule {
 	sum.EndpointID = SafeID(r.associatedEndpoint.ID())
 	sum.EndpointPkgName = r.associatedEndpoint.parserEndpoint.PkgName()
 	sum.EndpointType = r.associatedEndpoint.parserEndpoint.kind.String()
+	sum.LabelAssociations = stateToSummaryLabels(r.labelAssociations)
 	return sum
 }
 
@@ -1293,8 +1338,9 @@ func (r *stateRule) toInfluxRule() influxdb.NotificationRule {
 }
 
 type stateTask struct {
-	id, orgID   influxdb.ID
-	stateStatus StateStatus
+	id, orgID         influxdb.ID
+	stateStatus       StateStatus
+	labelAssociations []*stateLabel
 
 	parserTask *task
 	existing   *influxdb.Task
@@ -1342,8 +1388,8 @@ func (t *stateTask) diffTask() DiffTask {
 	return diff
 }
 
-func (t *stateTask) labels() []*label {
-	return t.parserTask.labels
+func (t *stateTask) labels() []*stateLabel {
+	return t.labelAssociations
 }
 
 func (t *stateTask) resourceType() influxdb.ResourceType {
@@ -1363,12 +1409,14 @@ func (t *stateTask) stateIdentity() stateIdentity {
 func (t *stateTask) summarize() SummaryTask {
 	sum := t.parserTask.summarize()
 	sum.ID = SafeID(t.id)
+	sum.LabelAssociations = stateToSummaryLabels(t.labelAssociations)
 	return sum
 }
 
 type stateTelegraf struct {
-	id, orgID   influxdb.ID
-	stateStatus StateStatus
+	id, orgID         influxdb.ID
+	stateStatus       StateStatus
+	labelAssociations []*stateLabel
 
 	parserTelegraf *telegraf
 	existing       *influxdb.TelegrafConfig
@@ -1393,8 +1441,8 @@ func (t *stateTelegraf) diffTelegraf() DiffTelegraf {
 	}
 }
 
-func (t *stateTelegraf) labels() []*label {
-	return t.parserTelegraf.labels
+func (t *stateTelegraf) labels() []*stateLabel {
+	return t.labelAssociations
 }
 
 func (t *stateTelegraf) resourceType() influxdb.ResourceType {
@@ -1415,12 +1463,14 @@ func (t *stateTelegraf) summarize() SummaryTelegraf {
 	sum := t.parserTelegraf.summarize()
 	sum.TelegrafConfig.ID = t.id
 	sum.TelegrafConfig.OrgID = t.orgID
+	sum.LabelAssociations = stateToSummaryLabels(t.labelAssociations)
 	return sum
 }
 
 type stateVariable struct {
-	id, orgID   influxdb.ID
-	stateStatus StateStatus
+	id, orgID         influxdb.ID
+	stateStatus       StateStatus
+	labelAssociations []*stateLabel
 
 	parserVar *variable
 	existing  *influxdb.Variable
@@ -1458,8 +1508,8 @@ func (v *stateVariable) diffVariable() DiffVariable {
 	return diff
 }
 
-func (v *stateVariable) labels() []*label {
-	return v.parserVar.labels
+func (v *stateVariable) labels() []*stateLabel {
+	return v.labelAssociations
 }
 
 func (v *stateVariable) resourceType() influxdb.ResourceType {
@@ -1488,6 +1538,7 @@ func (v *stateVariable) summarize() SummaryVariable {
 	sum := v.parserVar.summarize()
 	sum.ID = SafeID(v.ID())
 	sum.OrgID = SafeID(v.orgID)
+	sum.LabelAssociations = stateToSummaryLabels(v.labelAssociations)
 	return sum
 }
 
