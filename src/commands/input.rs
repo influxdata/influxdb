@@ -83,6 +83,17 @@ impl Seek for InputReader {
     }
 }
 
+impl Read for InputReader {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        match self {
+            InputReader::FileInputType(file_input_reader) => file_input_reader.reader.read(buf),
+            InputReader::MemoryInputType(memory_input_reader) => {
+                memory_input_reader.cursor.read(buf)
+            }
+        }
+    }
+}
+
 impl delorean_parquet::Length for InputReader {
     fn len(&self) -> u64 {
         match self {
@@ -112,17 +123,6 @@ impl BufRead for InputReader {
             InputReader::FileInputType(file_input_reader) => file_input_reader.reader.consume(amt),
             InputReader::MemoryInputType(memory_input_reader) => {
                 memory_input_reader.cursor.consume(amt)
-            }
-        }
-    }
-}
-
-impl Read for InputReader {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize, std::io::Error> {
-        match self {
-            InputReader::FileInputType(file_input_reader) => file_input_reader.reader.read(buf),
-            InputReader::MemoryInputType(memory_input_reader) => {
-                memory_input_reader.cursor.read(buf)
             }
         }
     }

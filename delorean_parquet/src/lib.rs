@@ -2,7 +2,7 @@
 #![deny(rust_2018_idioms)]
 #![warn(missing_debug_implementations, clippy::explicit_iter_loop)]
 
-// Export the parts of
+// Export the parts of the parquet crate that are needed to interact with code in this crate
 pub use parquet::{
     errors::ParquetError,
     file::reader::{Length, TryClone},
