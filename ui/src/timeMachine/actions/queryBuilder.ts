@@ -31,7 +31,6 @@ import {getAll} from 'src/resources/selectors'
 //Actions
 import {editActiveQueryWithBuilderSync} from 'src/timeMachine/actions'
 
-
 // Constants
 import {LIMIT} from 'src/resources/constants'
 
@@ -53,7 +52,7 @@ export type Action =
   | ReturnType<typeof setValuesSearchTerm>
   | ReturnType<typeof setKeysSearchTerm>
   | ReturnType<typeof setBuilderTagsStatus>
-  
+
 export const setBuilderAggregateFunctionType = (
   builderAggregateFunctionType: BuilderAggregateFunctionType,
   index: number
@@ -159,7 +158,7 @@ export const loadBuckets = () => async (
   const orgID = getOrg(getState()).id
 
   dispatch(setBuilderBucketsStatus(RemoteDataState.Loading))
-  
+
   try {
     const resp = await api.getBuckets({query: {orgID, limit: LIMIT}})
 
@@ -459,7 +458,9 @@ export const reloadTagSelectors = () => (dispatch: Dispatch<Action>) => {
 }
 
 export const setBuilderBucketIfExists = (bucketName: string) => (
-  dispatch: Dispatch<Action | ReturnType<typeof editActiveQueryWithBuilderSync>>,
+  dispatch: Dispatch<
+    Action | ReturnType<typeof editActiveQueryWithBuilderSync>
+  >,
   getState: GetState
 ) => {
   const buckets = getAll<Bucket>(getState(), ResourceType.Buckets)
