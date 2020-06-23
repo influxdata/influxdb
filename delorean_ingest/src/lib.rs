@@ -352,6 +352,38 @@ impl<'a> MeasurementWriter<'a> {
     }
 }
 
+/// Keeps track of if we have written a value to a particular
+struct PackersForRow<'a> {
+    packer: &'a mut Packers,
+    wrote_value_for_row: bool,
+}
+
+impl<'a> PackersForRow<'a> {
+    fn new(packer: &'a mut Packers) -> Self {
+        PackersForRow {
+            packer,
+            wrote_value_for_row: false,
+        }
+    }
+    /// Retrieve the packer and and note that we have written to this packer
+    fn packer(&mut self) -> &mut Packers {
+        assert!(
+            !self.wrote_value_for_row,
+            "Should only write one value to each column per row"
+        );
+        self.wrote_value_for_row = true;
+        self.packer
+    }
+    /// Finish writing a row and prepare for the next. If no value has
+    /// been written, write a NULL
+    fn finish_row(&mut self) {
+        if !self.wrote_value_for_row {
+            self.packer.push_none();
+        }
+        self.wrote_value_for_row = false;
+    }
+}
+
 /// Internal implementation: packs the `ParsedLine` structures for a
 /// single measurement into a format suitable for writing
 ///
@@ -380,26 +412,16 @@ fn pack_lines<'a>(schema: &Schema, lines: &[ParsedLine<'a>]) -> Vec<Packers> {
         })
         .collect();
 
-    // map col_name -> Packer;
-    // Use a String (rather than &String) so we can look up via str
+    // map col_name -> PackerForRow;
+    // Use a String as a key (rather than &String) so we can look up via str
     let mut packer_map: BTreeMap<_, _> = col_defs
         .iter()
         .map(|x| x.name.clone())
-        .zip(packers.iter_mut())
+        .zip(packers.iter_mut().map(|packer| PackersForRow::new(packer)))
         .collect();
 
     for line in lines {
         let timestamp_col_name = schema.timestamp();
-
-        // all packers should be the same size
-        let starting_len = packer_map
-            .get(timestamp_col_name)
-            .expect("should always have timestamp column")
-            .len();
-        assert!(
-            packer_map.values().all(|x| x.len() == starting_len),
-            "All packers should have started at the same size"
-        );
 
         let series = &line.series;
 
@@ -413,8 +435,9 @@ fn pack_lines<'a>(schema: &Schema, lines: &[ParsedLine<'a>]) -> Vec<Packers> {
 
         if let Some(tag_set) = &series.tag_set {
             for (tag_name, tag_value) in tag_set {
-                if let Some(packer) = packer_map.get_mut(tag_name.as_str()) {
-                    packer
+                if let Some(packer_for_row) = packer_map.get_mut(tag_name.as_str()) {
+                    packer_for_row
+                        .packer()
                         .str_packer_mut()
                         .push(ByteArray::from(tag_value.as_str()));
                 } else {
@@ -427,7 +450,8 @@ fn pack_lines<'a>(schema: &Schema, lines: &[ParsedLine<'a>]) -> Vec<Packers> {
         }
 
         for (field_name, field_value) in &line.field_set {
-            if let Some(packer) = packer_map.get_mut(field_name.as_str()) {
+            if let Some(packer_for_row) = packer_map.get_mut(field_name.as_str()) {
+                let packer = packer_for_row.packer();
                 match *field_value {
                     FieldValue::F64(f) => {
                         packer.f64_packer_mut().push(f);
@@ -450,39 +474,25 @@ fn pack_lines<'a>(schema: &Schema, lines: &[ParsedLine<'a>]) -> Vec<Packers> {
             }
         }
 
-        if let Some(packer) = packer_map.get_mut(timestamp_col_name) {
+        if let Some(packer_for_row) = packer_map.get_mut(timestamp_col_name) {
             // The Rust implementation of the parquet writer doesn't support
             // Nanosecond precision for timestamps yet, so we downconvert them here
             // to microseconds
             let timestamp_micros = line.timestamp.map(|timestamp_nanos| timestamp_nanos / 1000);
 
             // TODO(edd) why would line _not_ have a timestamp??? We should always have them
-            packer.i64_packer_mut().push_option(timestamp_micros)
+            packer_for_row
+                .packer()
+                .i64_packer_mut()
+                .push_option(timestamp_micros)
         } else {
             panic!("No {} field present in schema...", timestamp_col_name);
         }
 
         // Now, go over all packers and add missing values if needed
-        for packer in packer_map.values_mut() {
-            if packer.len() < starting_len + 1 {
-                assert_eq!(packer.len(), starting_len, "packer should be unchanged");
-                packer.push_none();
-            } else {
-                assert_eq!(
-                    starting_len + 1,
-                    packer.len(),
-                    "packer should have only one value packed for a total of {}, instead had {}",
-                    starting_len + 1,
-                    packer.len(),
-                )
-            }
+        for packer_for_row in packer_map.values_mut() {
+            packer_for_row.finish_row();
         }
-
-        // Should have added one value to all packers. Assert that invariant here
-        assert!(
-            packer_map.values().all(|x| x.len() == starting_len + 1),
-            "Should have added 1 row to all packers"
-        );
     }
     packers
 }
@@ -759,14 +769,16 @@ mod delorean_ingest_tests {
                 );
             }
 
-            let rows_written = packers.iter().fold(packers[0].len(), |cur_len, packer| {
-                assert_eq!(
-                    packer.len(),
-                    cur_len,
-                    "Some packer had a different number of rows"
-                );
-                cur_len
-            });
+            let rows_written = packers
+                .iter()
+                .fold(packers[0].num_rows(), |cur_len, packer| {
+                    assert_eq!(
+                        packer.num_rows(),
+                        cur_len,
+                        "Some packer had a different number of rows"
+                    );
+                    cur_len
+                });
 
             log_event(
                 &self.log,
@@ -1182,7 +1194,7 @@ mod delorean_ingest_tests {
 
         // all packers should have packed all lines
         for p in &packers {
-            assert_eq!(p.len(), EXPECTED_NUM_LINES);
+            assert_eq!(p.num_rows(), EXPECTED_NUM_LINES);
         }
 
         // Tag values
