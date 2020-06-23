@@ -552,7 +552,10 @@ func rawDurationToTimeDuration(raw string) (time.Duration, error) {
 		return 0, err
 	}
 
-	const day = 24 * time.Hour
+	const (
+		day  = 24 * time.Hour
+		week = 7 * day
+	)
 
 	var dur time.Duration
 	for _, d := range retention.Values {
@@ -561,8 +564,10 @@ func rawDurationToTimeDuration(raw string) (time.Duration, error) {
 		}
 		mag := time.Duration(d.Magnitude)
 		switch d.Unit {
+		case "w":
+			dur += mag * week
 		case "d":
-			dur += mag * (day)
+			dur += mag * day
 		case "m":
 			dur += mag * time.Minute
 		case "s":
