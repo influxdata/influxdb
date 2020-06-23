@@ -52,6 +52,7 @@ class signinSteps extends baseSteps {
             console.error("ERROR on input user name: " + err);
             if(err instanceof error.StaleElementReferenceError){ // try again
                 console.warn("WARNING retrying input username")
+                await this.driver.sleep(1000); //
                 await this.signinPage.getNameInput().then(async input => {
                     await input.clear();
                     await input.sendKeys(name);
@@ -68,6 +69,8 @@ class signinSteps extends baseSteps {
         }).catch(async err => {
             console.log("ERROR on input user password: " + err);
             if(err instanceof error.StaleElementReferenceError) { // try again
+                console.warn("WARNING retrying input password");
+                await this.driver.sleep(1000); //
                 await this.signinPage.getPasswordInput().then(async input =>{
                     await input.clear();
                     await input.sendKeys(password);
@@ -83,6 +86,8 @@ class signinSteps extends baseSteps {
         }).catch(async err => {
             console.error("ERROR on click signin button: " + err);
             if(err instanceof error.StaleElementReferenceError) { //try again
+                console.warn("WARNING retrying click signin");
+                await this.driver.sleep(1000); //
                 await this.signinPage.getSigninButton().then(async btn =>{
                     await btn.click();
                 })
