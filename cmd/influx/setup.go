@@ -25,7 +25,7 @@ var setupFlags struct {
 	name        string
 	org         string
 	password    string
-	retention   time.Duration
+	retention   string
 	token       string
 	username    string
 }
@@ -41,7 +41,7 @@ func cmdSetup(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd.Flags().StringVarP(&setupFlags.org, "org", "o", "", "primary organization name")
 	cmd.Flags().StringVarP(&setupFlags.bucket, "bucket", "b", "", "primary bucket name")
 	cmd.Flags().StringVarP(&setupFlags.name, "name", "n", "", "config name, only required if you already have existing configs")
-	cmd.Flags().DurationVarP(&setupFlags.retention, "retention", "r", -1, "Duration bucket will retain data. 0 is infinite. Default is 0.")
+	cmd.Flags().StringVarP(&setupFlags.retention, "retention", "r", "", "Duration bucket will retain data. 0 is infinite. Default is 0.")
 	cmd.Flags().BoolVarP(&setupFlags.force, "force", "f", false, "skip confirmation prompt")
 	registerPrintOptions(cmd, &setupFlags.hideHeaders, &setupFlags.json)
 
@@ -62,7 +62,7 @@ func cmdSetupUser(opt genericCLIOpts) *cobra.Command {
 	cmd.Flags().StringVarP(&setupFlags.org, "org", "o", "", "primary organization name")
 	cmd.Flags().StringVarP(&setupFlags.bucket, "bucket", "b", "", "primary bucket name")
 	cmd.Flags().StringVarP(&setupFlags.name, "name", "n", "", "config name, only required if you already have existing configs")
-	cmd.Flags().DurationVarP(&setupFlags.retention, "retention", "r", -1, "Duration bucket will retain data. 0 is infinite. Default is 0.")
+	cmd.Flags().StringVarP(&setupFlags.retention, "retention", "r", "", "Duration bucket will retain data. 0 is infinite. Default is 0.")
 	cmd.Flags().BoolVarP(&setupFlags.force, "force", "f", false, "skip confirmation prompt")
 	registerPrintOptions(cmd, &setupFlags.hideHeaders, &setupFlags.json)
 
@@ -220,18 +220,20 @@ func onboardingRequest() (*influxdb.OnboardingRequest, error) {
 
 func nonInteractive() (*influxdb.OnboardingRequest, error) {
 	req := &influxdb.OnboardingRequest{
-		User:     setupFlags.username,
-		Password: setupFlags.password,
-		Token:    setupFlags.token,
-		Org:      setupFlags.org,
-		Bucket:   setupFlags.bucket,
-		// TODO: this manipulation is required by the API, something that
-		// 	we should fixup to be a duration instead
-		RetentionPeriod: uint(setupFlags.retention / time.Hour),
+		User:            setupFlags.username,
+		Password:        setupFlags.password,
+		Token:           setupFlags.token,
+		Org:             setupFlags.org,
+		Bucket:          setupFlags.bucket,
+		RetentionPeriod: influxdb.InfiniteRetention,
 	}
 
-	if setupFlags.retention < 0 {
-		req.RetentionPeriod = influxdb.InfiniteRetention
+	dur, err := rawDurationToTimeDuration(setupFlags.retention)
+	if err != nil {
+		return nil, err
+	}
+	if dur > 0 {
+		req.RetentionPeriod = uint(dur / time.Hour)
 	}
 	return req, nil
 }
@@ -267,8 +269,14 @@ func interactive() (req *influxdb.OnboardingRequest, err error) {
 	} else {
 		req.Bucket = getInput(ui, "Please type your primary bucket name", "")
 	}
-	if setupFlags.retention >= 0 {
-		req.RetentionPeriod = uint(setupFlags.retention)
+
+	dur, err := rawDurationToTimeDuration(setupFlags.retention)
+	if err != nil {
+		return nil, err
+	}
+
+	if dur > 0 {
+		req.RetentionPeriod = uint(dur / time.Hour)
 	} else {
 		for {
 			rpStr := getInput(ui, "Please type your retention period in hours.\r\nOr press ENTER for infinite.", strconv.Itoa(influxdb.InfiniteRetention))

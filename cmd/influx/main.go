@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -20,6 +21,7 @@ import (
 	"github.com/influxdata/influxdb/v2/internal/fs"
 	"github.com/influxdata/influxdb/v2/kit/cli"
 	"github.com/influxdata/influxdb/v2/pkg/httpc"
+	"github.com/influxdata/influxdb/v2/task/options"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -534,4 +536,46 @@ func newBucketService() (influxdb.BucketService, error) {
 	return &http.BucketService{
 		Client: client,
 	}, nil
+}
+
+func rawDurationToTimeDuration(raw string) (time.Duration, error) {
+	if raw == "" {
+		return 0, nil
+	}
+
+	if dur, err := time.ParseDuration(raw); err == nil {
+		return dur, nil
+	}
+
+	retention, err := options.ParseSignedDuration(raw)
+	if err != nil {
+		return 0, err
+	}
+
+	const day = 24 * time.Hour
+
+	var dur time.Duration
+	for _, d := range retention.Values {
+		if d.Magnitude < 0 {
+			return 0, errors.New("must be greater than 0")
+		}
+		mag := time.Duration(d.Magnitude)
+		switch d.Unit {
+		case "d":
+			dur += mag * (day)
+		case "m":
+			dur += mag * time.Minute
+		case "s":
+			dur += mag * time.Second
+		case "ms":
+			dur += mag * time.Minute
+		case "us":
+			dur += mag * time.Microsecond
+		case "ns":
+			dur += mag * time.Nanosecond
+		default:
+			return 0, errors.New("duration must be day(d), hour(h), min(m), sec(s), millisec(ms), microsec(us), or nanosec(ns)")
+		}
+	}
+	return dur, nil
 }

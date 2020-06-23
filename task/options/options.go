@@ -79,7 +79,7 @@ func (a *Duration) UnmarshalText(text []byte) error {
 	return nil
 }
 
-// UnmarshalText marshals text into a Duration.
+// MarshalText marshals text into a Duration.
 func (a Duration) MarshalText() ([]byte, error) {
 	return []byte(a.String()), nil
 }
