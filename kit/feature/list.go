@@ -296,6 +296,20 @@ func UrmFreeTasks() BoolFlag {
 	return urmFreeTasks
 }
 
+var simpleTaskOptionsExtraction = MakeBoolFlag(
+	"Simple Task Options Extraction",
+	"simpleTaskOptionsExtraction",
+	"Brett Buddin",
+	false,
+	Temporary,
+	false,
+)
+
+// SimpleTaskOptionsExtraction - Simplified task options extraction to avoid undefined functions when saving tasks
+func SimpleTaskOptionsExtraction() BoolFlag {
+	return simpleTaskOptionsExtraction
+}
+
 var all = []Flag{
 	appMetrics,
 	backendExample,
@@ -318,6 +332,7 @@ var all = []Flag{
 	hydratevars,
 	memoryOptimizedFill,
 	urmFreeTasks,
+	simpleTaskOptionsExtraction,
 }
 
 var byKey = map[string]Flag{
@@ -342,4 +357,5 @@ var byKey = map[string]Flag{
 	"hydratevars":                   hydratevars,
 	"memoryOptimizedFill":           memoryOptimizedFill,
 	"urmFreeTasks":                  urmFreeTasks,
+	"simpleTaskOptionsExtraction":   simpleTaskOptionsExtraction,
 }
