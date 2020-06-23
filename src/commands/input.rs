@@ -6,6 +6,7 @@ use std::io::{BufRead, BufReader, Cursor, Read, Seek, SeekFrom};
 use std::path::Path;
 
 use crate::commands::error::{Error, Result};
+use delorean_parquet::ParquetError;
 
 #[derive(Debug)]
 pub enum FileType {
@@ -82,14 +83,18 @@ impl Seek for InputReader {
     }
 }
 
-impl Read for InputReader {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+impl delorean_parquet::Length for InputReader {
+    fn len(&self) -> u64 {
         match self {
-            InputReader::FileInputType(file_input_reader) => file_input_reader.reader.read(buf),
-            InputReader::MemoryInputType(memory_input_reader) => {
-                memory_input_reader.cursor.read(buf)
-            }
+            InputReader::FileInputType(file_input_reader) => file_input_reader.file_size,
+            InputReader::MemoryInputType(memory_input_reader) => memory_input_reader.file_size,
         }
+    }
+}
+
+impl delorean_parquet::TryClone for InputReader {
+    fn try_clone(&self) -> std::result::Result<Self, ParquetError> {
+        Err(ParquetError::NYI(String::from("TryClone for input reader")))
     }
 }
 
@@ -107,6 +112,17 @@ impl BufRead for InputReader {
             InputReader::FileInputType(file_input_reader) => file_input_reader.reader.consume(amt),
             InputReader::MemoryInputType(memory_input_reader) => {
                 memory_input_reader.cursor.consume(amt)
+            }
+        }
+    }
+}
+
+impl Read for InputReader {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize, std::io::Error> {
+        match self {
+            InputReader::FileInputType(file_input_reader) => file_input_reader.reader.read(buf),
+            InputReader::MemoryInputType(memory_input_reader) => {
+                memory_input_reader.cursor.read(buf)
             }
         }
     }

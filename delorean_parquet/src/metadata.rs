@@ -10,7 +10,7 @@ use delorean_table_schema::DataType;
 
 use crate::{
     error::{Error, Result},
-    InputReaderAdapter,
+    Length, TryClone,
 };
 
 pub fn parquet_schema_as_string(parquet_schema: &schema::types::Type) -> String {
@@ -36,23 +36,22 @@ pub fn data_type_from_parquet_type(parquet_type: parquet::basic::Type) -> DataTy
 
 /// Print parquet metadata that can be read from `input`, with a total
 /// size of `input_size` byes
-pub fn print_parquet_metadata<R: 'static>(input: R, input_size: u64) -> Result<()>
+pub fn print_parquet_metadata<R: 'static>(input: R) -> Result<()>
 where
-    R: Read + Seek,
+    R: Read + Seek + TryClone + Length,
 {
-    let input_adapter = InputReaderAdapter::new(input, input_size);
+    let input_len = input.len();
 
-    let reader =
-        SerializedFileReader::new(input_adapter).map_err(|e| Error::ParquetLibraryError {
-            message: String::from("Creating parquet reader"),
-            source: e,
-        })?;
+    let reader = SerializedFileReader::new(input).map_err(|e| Error::ParquetLibraryError {
+        message: String::from("Creating parquet reader"),
+        source: e,
+    })?;
 
     let parquet_metadata = reader.metadata();
     let file_metadata = parquet_metadata.file_metadata();
     let num_columns = file_metadata.schema_descr().num_columns();
 
-    println!("Parquet file size: {} bytes", input_size);
+    println!("Parquet file size: {} bytes", input_len);
     println!(
         "Parquet file Schema: {}",
         parquet_schema_as_string(file_metadata.schema()).trim_end()
