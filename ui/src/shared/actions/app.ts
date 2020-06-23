@@ -14,6 +14,8 @@ export enum ActionTypes {
   DisablePresentationMode = 'DISABLE_PRESENTATION_MODE',
   EnableVEOMode = 'ENABLE_VEO_MODE',
   DisableVEOMode = 'DISABLE_VEO_MODE',
+  EnableUpdatedTimeRangeInVEO = 'ENABLE_UPDATED_TIMERANGE_IN_VEO',
+  DisableUpdatedTimeRangeInVEO = 'DISABLE_UPDATED_TIMERANGE_IN_VEO',
   SetNavBarState = 'SET_NAV_BAR_STATE',
   SetNotebookMiniMapState = 'SET_NOTEBOOK_MINI_MAP_STATE',
   SetAutoRefresh = 'SET_AUTOREFRESH',
@@ -27,6 +29,8 @@ export type Action =
   | ReturnType<typeof disablePresentationMode>
   | ReturnType<typeof enableVEOMode>
   | ReturnType<typeof disableVEOMode>
+  | ReturnType<typeof enableUpdatedTimeRangeInVEO>
+  | ReturnType<typeof disableUpdatedTimeRangeInVEO>
   | ReturnType<typeof setNavBarState>
   | ReturnType<typeof setNotebookMiniMapState>
   | ReturnType<typeof setAutoRefresh>
@@ -53,6 +57,16 @@ export const enableVEOMode = () =>
 export const disableVEOMode = () =>
   ({
     type: ActionTypes.DisableVEOMode,
+  } as const)
+
+export const enableUpdatedTimeRangeInVEO = () =>
+  ({
+    type: ActionTypes.EnableUpdatedTimeRangeInVEO,
+  } as const)
+
+export const disableUpdatedTimeRangeInVEO = () =>
+  ({
+    type: ActionTypes.DisableUpdatedTimeRangeInVEO,
   } as const)
 
 export const delayEnablePresentationMode = () => (

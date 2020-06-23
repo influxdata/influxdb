@@ -9,6 +9,7 @@ export interface AppState {
   ephemeral: {
     inPresentationMode: boolean
     inVEOMode: boolean
+    hasUpdatedTimeRangeInVEO: boolean
   }
   persisted: {
     autoRefresh: number
@@ -24,6 +25,7 @@ const initialState: AppState = {
   ephemeral: {
     inPresentationMode: false,
     inVEOMode: false,
+    hasUpdatedTimeRangeInVEO: false,
   },
   persisted: {
     theme: 'dark',
@@ -70,6 +72,20 @@ const appEphemeralReducer = (
       return {
         ...state,
         inVEOMode: false,
+      }
+    }
+
+    case ActionTypes.EnableUpdatedTimeRangeInVEO: {
+      return {
+        ...state,
+        hasUpdatedTimeRangeInVEO: true,
+      }
+    }
+
+    case ActionTypes.DisableUpdatedTimeRangeInVEO: {
+      return {
+        ...state,
+        hasUpdatedTimeRangeInVEO: false,
       }
     }
 

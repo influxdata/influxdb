@@ -22,7 +22,7 @@ import {
 
 // Actions
 import {setAutoRefresh} from 'src/timeMachine/actions'
-import {setTimeRange} from 'src/timeMachine/actions'
+import {setTimeRange, setTimeRangeFromVEO} from 'src/timeMachine/actions'
 
 // Utils
 import {
@@ -31,6 +31,7 @@ import {
   getActiveQuery,
 } from 'src/timeMachine/selectors'
 import {getTimeRange} from 'src/dashboards/selectors'
+import {isInVEOMode} from 'src/shared/selectors/app'
 
 // Types
 import {AppState, TimeRange, AutoRefreshStatus} from 'src/types'
@@ -74,9 +75,19 @@ class TimeMachineQueries extends PureComponent<Props> {
   }
 
   private handleSetTimeRange = (timeRange: TimeRange) => {
-    const {autoRefresh, onSetAutoRefresh, onSetTimeRange} = this.props
+    const {
+      autoRefresh,
+      inVEOMode,
+      onSetAutoRefresh,
+      onSetTimeRange,
+      onSetTimeRangeFromVEO,
+    } = this.props
 
-    onSetTimeRange(timeRange)
+    if (inVEOMode) {
+      onSetTimeRangeFromVEO(timeRange)
+    } else {
+      onSetTimeRange(timeRange)
+    }
 
     if (timeRange.type === 'custom') {
       onSetAutoRefresh({...autoRefresh, status: AutoRefreshStatus.Disabled})
@@ -117,11 +128,13 @@ const mstp = (state: AppState) => {
     activeQuery,
     autoRefresh,
     isInCheckOverlay: getIsInCheckOverlay(state),
+    inVEOMode: isInVEOMode(state),
   }
 }
 
 const mdtp = {
   onSetTimeRange: setTimeRange,
+  onSetTimeRangeFromVEO: setTimeRangeFromVEO,
   onSetAutoRefresh: setAutoRefresh,
 }
 

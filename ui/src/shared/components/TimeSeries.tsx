@@ -45,7 +45,7 @@ import {TIME_RANGE_START, TIME_RANGE_STOP} from 'src/variables/constants'
 // Actions & Selectors
 import {notify as notifyAction} from 'src/shared/actions/notifications'
 import {setQueryResultsByQueryID} from 'src/queryCache/actions'
-import {isInVEOMode} from 'src/shared/selectors/app'
+import {hasUpdatedTimeRangeInVEO} from 'src/shared/selectors/app'
 
 // Types
 import {
@@ -304,11 +304,14 @@ class TimeSeries extends Component<Props, State> {
   }
 
   private shouldReload(prevProps: Props) {
-    if (this.props.isInVEOMode) {
+    if (this.props.hasUpdatedTimeRangeInVEO) {
       return false
     }
 
-    if (prevProps.isInVEOMode && !this.props.isInVEOMode) {
+    if (
+      prevProps.hasUpdatedTimeRangeInVEO &&
+      !this.props.hasUpdatedTimeRangeInVEO
+    ) {
       return true
     }
 
@@ -352,7 +355,7 @@ const mstp = (state: AppState, props: OwnProps) => {
   ]
 
   return {
-    isInVEOMode: isInVEOMode(state),
+    hasUpdatedTimeRangeInVEO: hasUpdatedTimeRangeInVEO(state),
     queryLink: state.links.query.self,
     buckets: getAll<Bucket>(state, ResourceType.Buckets),
     variables,
