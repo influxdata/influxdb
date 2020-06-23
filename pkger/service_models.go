@@ -1520,6 +1520,7 @@ func (v *stateVariable) shouldApply() bool {
 	return IsRemoval(v.stateStatus) ||
 		v.existing == nil ||
 		v.existing.Description != v.parserVar.Description ||
+		!reflect.DeepEqual(v.existing.Selected, v.parserVar.Selected()) ||
 		v.existing.Arguments == nil ||
 		!reflect.DeepEqual(v.existing.Arguments, v.parserVar.influxVarArgs())
 }

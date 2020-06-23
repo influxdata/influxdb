@@ -183,10 +183,11 @@ func TestLauncher_Pkger(t *testing.T) {
 		return obj
 	}
 
-	newVariableObject := func(pkgName, name, description string) pkger.Object {
+	newVariableObject := func(pkgName, name, description string, selected ...string) pkger.Object {
 		obj := pkger.VariableToObject("", influxdb.Variable{
 			Name:        name,
 			Description: description,
+			Selected:    selected,
 			Arguments: &influxdb.VariableArguments{
 				Type:   "constant",
 				Values: influxdb.VariableConstantValues{"a", "b"},
@@ -1536,6 +1537,33 @@ func TestLauncher_Pkger(t *testing.T) {
 					})
 				})
 			})
+		})
+
+		t.Run("applying updates to existing variable should be successful", func(t *testing.T) {
+			stack, cleanup := newStackFn(t, pkger.Stack{})
+			defer cleanup()
+
+			impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID,
+				pkger.ApplyWithStackID(stack.ID),
+				pkger.ApplyWithPkg(newPkg(newVariableObject("var", "", ""))),
+			)
+			require.NoError(t, err)
+
+			vars := impact.Summary.Variables
+			require.Len(t, vars, 1)
+			v := resourceCheck.mustGetVariable(t, byID(influxdb.ID(vars[0].ID)))
+			assert.Empty(t, v.Selected)
+
+			impact, err = svc.Apply(ctx, l.Org.ID, l.User.ID,
+				pkger.ApplyWithStackID(stack.ID),
+				pkger.ApplyWithPkg(newPkg(newVariableObject("var", "", "", "selected"))),
+			)
+			require.NoError(t, err)
+
+			vars = impact.Summary.Variables
+			require.Len(t, vars, 1)
+			v = resourceCheck.mustGetVariable(t, byID(influxdb.ID(vars[0].ID)))
+			assert.Equal(t, []string{"selected"}, v.Selected)
 		})
 
 		t.Run("apply with actions", func(t *testing.T) {

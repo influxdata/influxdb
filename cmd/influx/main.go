@@ -579,7 +579,7 @@ func rawDurationToTimeDuration(raw string) (time.Duration, error) {
 		case "ns":
 			dur += mag * time.Nanosecond
 		default:
-			return 0, errors.New("duration must be day(d), hour(h), min(m), sec(s), millisec(ms), microsec(us), or nanosec(ns)")
+			return 0, errors.New("duration must be week(w), day(d), hour(h), min(m), sec(s), millisec(ms), microsec(us), or nanosec(ns)")
 		}
 	}
 	return dur, nil

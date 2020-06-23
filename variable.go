@@ -169,7 +169,7 @@ func (a *VariableArguments) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
-	// Decode the polymorphic VariableArguments.Values field into the approriate struct
+	// Decode the polymorphic VariableArguments.Values field into the appropriate struct
 	switch aux.Type {
 	case "constant":
 		values, ok := aux.Values.([]interface{})
