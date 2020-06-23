@@ -23,6 +23,7 @@
 1. [18623](https://github.com/influxdata/influxdb/pull/18623): Drop support for --local flag within influx CLI
 1. [18632](https://github.com/influxdata/influxdb/pull/18632): Prevents undefined queries in cells from erroring out in dashboards
 1. [18658](https://github.com/influxdata/influxdb/pull/18658): Add support for 'd' day time identifier in the CLI for bucket and setup commands
+1. [18581](https://github.com/influxdata/influxdb/pull/18581): Cache dashboard cell query results to use as a reference for cell configurations
 
 ## v2.0.0-beta.12 [2020-06-12]
 

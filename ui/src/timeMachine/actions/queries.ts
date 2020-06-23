@@ -67,7 +67,7 @@ interface SetQueryResults {
   }
 }
 
-const setQueryResults = (
+export const setQueryResults = (
   status: RemoteDataState,
   files?: string[],
   fetchDuration?: number,
@@ -125,9 +125,6 @@ export const executeQueries = (abortController?: AbortController) => async (
   const queries = activeTimeMachine.view.properties.queries.filter(
     ({text}) => !!text.trim()
   )
-  const {
-    alertBuilder: {id: checkID},
-  } = state
 
   if (!queries.length) {
     dispatch(setQueryResults(RemoteDataState.Done, [], null))
@@ -177,6 +174,10 @@ export const executeQueries = (abortController?: AbortController) => async (
     )
 
     let statuses = [[]] as StatusRow[][]
+    const {
+      alertBuilder: {id: checkID},
+    } = state
+
     if (checkID) {
       const extern = buildVarsOption(variableAssignments)
       pendingCheckStatuses = runStatusesQuery(getOrg(state).id, checkID, extern)
