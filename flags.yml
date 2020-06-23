@@ -153,3 +153,10 @@
   default: false
   contact: Lyon Hill
   lifetime: temporary
+
+- name: Simple Task Options Extraction
+  description: Simplified task options extraction to avoid undefined functions when saving tasks
+  key: simpleTaskOptionsExtraction
+  default: false
+  contact: Brett Buddin
+  lifetime: temporary
