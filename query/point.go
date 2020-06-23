@@ -156,6 +156,26 @@ func (t *Tags) Subset(keys []string) Tags {
 	return NewTags(m)
 }
 
+// CompareKeys returns an integer comparing the keys and values of the two Tags
+// lexicographically.
+func (t *Tags) CompareKeys(keys []string, other *Tags) int {
+	if len(keys) == 0 {
+		return 0
+	}
+
+	for _, k := range keys {
+		a, b := t.m[k], other.m[k]
+		if a == b {
+			continue
+		}
+		if a < b {
+			return -1
+		}
+		return 1
+	}
+	return 0
+}
+
 // Equals returns true if t equals other.
 func (t *Tags) Equals(other *Tags) bool {
 	if t == nil && other == nil {
