@@ -13,7 +13,61 @@
 }
 
 .community-templates-installer {
-  grid-row-gap: $ix-marg-a;
-  grid-column-gap: $ix-marg-a;
-  margin: $ix-marg-b 0
+  margin-top: $ix-marg-c;
+}
+
+.community-templates--item-description {
+  color: $g13-mist;
+  margin: $cf-marg-a 0;
+  line-height: 1.125em;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.community-templates--item-description__blank {
+  color: $g8-storm;
+  font-style: italic;
+}
+
+.community-templates--list-header {
+  display: flex;
+  align-items: center;
+  padding: $cf-marg-a 0;
+  transition: color 0.25s ease;
+  color: $g11-sidewalk;
+
+  &:hover,
+  .community-templates--list-group__expanded & {
+    cursor: pointer;
+    color: $g18-cloud;
+  }
+}
+
+.community-templates--list-counter {
+  margin-left: $cf-marg-b;
+  opacity: 0.6;
+}
+
+.community-templates--list-group-items {
+  padding-left: $cf-marg-d;
+}
+
+.community-templates--list-toggle {
+  width: $cf-marg-d;
+  height: $cf-marg-d;
+  position: relative;
+
+  > .cf-icon {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transition: transform 0.25s ease;
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+
+  .community-templates--list-group__expanded & > .cf-icon {
+    transform: translate(-50%, -50%) rotate(90deg);
+  }
 }
