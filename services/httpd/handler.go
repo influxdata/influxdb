@@ -414,6 +414,8 @@ func (h *Handler) AddRoutes(routes ...Route) {
 		if r.Gzipped {
 			handler = gzipFilter(handler)
 		}
+
+		handler = h.SetHeadersHandler(handler)
 		handler = cors(handler)
 		handler = requestID(handler)
 		if h.Config.LogEnabled && r.LoggingEnabled {
@@ -1871,6 +1873,24 @@ func requestID(inner http.Handler) http.Handler {
 
 		inner.ServeHTTP(w, r)
 	})
+}
+
+func (h *Handler) SetHeadersHandler(handler http.Handler) http.Handler {
+	return http.HandlerFunc(h.SetHeadersWrapper(handler.ServeHTTP))
+}
+
+// wrapper that adds user supplied headers to the response.
+func (h *Handler) SetHeadersWrapper(f func(http.ResponseWriter, *http.Request)) func(http.ResponseWriter, *http.Request) {
+	if len(h.Config.HTTPHeaders) == 0 {
+		return f
+	}
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		for header, value := range h.Config.HTTPHeaders {
+			w.Header().Add(header, value)
+		}
+		f(w, r)
+	}
 }
 
 func (h *Handler) logging(inner http.Handler, name string) http.Handler {

@@ -2076,6 +2076,12 @@ func WithNoLog() configOption {
 	}
 }
 
+func WithHeaders(h map[string]string) configOption {
+	return func(c *httpd.Config) {
+		c.HTTPHeaders = h
+	}
+}
+
 // NewHandlerConfig returns a new instance of httpd.Config with
 // authentication configured.
 func NewHandlerConfig(opts ...configOption) httpd.Config {
@@ -2208,4 +2214,54 @@ func MustJWTToken(username, secret string, expired bool) (*jwt.Token, string) {
 		panic(err)
 	}
 	return token, signed
+}
+
+// Ensure that user supplied headers are applied to responses.
+func TestHandler_UserSuppliedHeaders(t *testing.T) {
+
+	endpoints := []struct {
+		method string
+		path   string
+	}{
+		{method: "GET", path: "/ping"},
+		{method: "POST", path: "/api/v2/query"},
+		{method: "GET", path: "/query?db=foo&q=SELECT+*+FROM+bar"},
+	}
+
+	for _, endpoint := range endpoints {
+		t.Run(endpoint.method+endpoint.path, func(t *testing.T) {
+			headers := map[string]string{
+				"X-Best-Operating-System": "FreeBSD",
+				"X-Nana-Nana-Nana-Nana":   "Batheader",
+				"X-Powered-By":            "hamster in a wheel",
+				"X-Trek":                  "Live long and prosper",
+			}
+			// build a new handler with our headers as part of its configuration
+			h := NewHandlerWithConfig(NewHandlerConfig(WithHeaders(headers)))
+
+			w := httptest.NewRecorder()
+
+			// generate request request
+			req, err := http.NewRequest(endpoint.method, endpoint.path, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			// serve the request
+			h.ServeHTTP(w, req)
+
+			response := w.Result()
+			// ensure we received the headers we supplied
+			for k, v := range headers {
+				val, found := response.Header[k]
+				if !found {
+					t.Fatalf("Could not find header field %q in response", k)
+					continue
+				}
+				if v != val[0] {
+					t.Fatalf("value for header %q in http response is %q; expected %q", k, val, v)
+				}
+			}
+		})
+	}
 }

@@ -341,6 +341,12 @@
   # Setting this to 0 or setting max-concurrent-write-limit to 0 disables the limit.
   # enqueued-write-timeout = 0
 
+	# User supplied HTTP response headers
+	#
+	# [http.headers]
+	#   X-Header-1 = "Header Value 1"
+	#   X-Header-2 = "Header Value 2"
+
 ###
 ### [logging]
 ###
