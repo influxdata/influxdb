@@ -1461,6 +1461,9 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
 		appendValues := func(id pkger.SafeID, pkgName string, v pkger.DiffTaskValues) []string {
 			timing := v.Cron
 			if v.Cron == "" {
+				if v.Offset == "" {
+					v.Offset = time.Duration(0).String()
+				}
 				timing = fmt.Sprintf("every: %s offset: %s", v.Every, v.Offset)
 			}
 			return []string{pkgName, id.String(), v.Name, v.Description, timing}
