@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/http"
@@ -30,7 +29,7 @@ type cmdBucketBuilder struct {
 	name        string
 	description string
 	org         organization
-	retention   time.Duration
+	retention   string
 }
 
 func newCmdBucketBuilder(svcsFn bucketSVCsFn, opts genericCLIOpts) *cmdBucketBuilder {
@@ -72,7 +71,7 @@ func (b *cmdBucketBuilder) cmdCreate() *cobra.Command {
 	opts.mustRegister(cmd)
 
 	cmd.Flags().StringVarP(&b.description, "description", "d", "", "Description of bucket that will be created")
-	cmd.Flags().DurationVarP(&b.retention, "retention", "r", 0, "Duration bucket will retain data. 0 is infinite. Default is 0.")
+	cmd.Flags().StringVarP(&b.retention, "retention", "r", "", "Duration bucket will retain data. 0 is infinite. Default is 0.")
 	b.org.register(cmd, false)
 	b.registerPrintFlags(cmd)
 
@@ -89,10 +88,15 @@ func (b *cmdBucketBuilder) cmdCreateRunEFn(*cobra.Command, []string) error {
 		return err
 	}
 
+	dur, err := rawDurationToTimeDuration(b.retention)
+	if err != nil {
+		return err
+	}
+
 	bkt := &influxdb.Bucket{
 		Name:            b.name,
 		Description:     b.description,
-		RetentionPeriod: b.retention,
+		RetentionPeriod: dur,
 	}
 	bkt.OrgID, err = b.org.getID(orgSVC)
 	if err != nil {
@@ -245,7 +249,7 @@ func (b *cmdBucketBuilder) cmdUpdate() *cobra.Command {
 	cmd.Flags().StringVarP(&b.id, "id", "i", "", "The bucket ID (required)")
 	cmd.Flags().StringVarP(&b.description, "description", "d", "", "Description of bucket that will be created")
 	cmd.MarkFlagRequired("id")
-	cmd.Flags().DurationVarP(&b.retention, "retention", "r", 0, "Duration bucket will retain data. 0 is infinite. Default is 0.")
+	cmd.Flags().StringVarP(&b.retention, "retention", "r", "", "Duration bucket will retain data. 0 is infinite. Default is 0.")
 
 	return cmd
 }
@@ -268,8 +272,13 @@ func (b *cmdBucketBuilder) cmdUpdateRunEFn(cmd *cobra.Command, args []string) er
 	if b.description != "" {
 		update.Description = &b.description
 	}
-	if b.retention != 0 {
-		update.RetentionPeriod = &b.retention
+
+	dur, err := rawDurationToTimeDuration(b.retention)
+	if err != nil {
+		return err
+	}
+	if dur != 0 {
+		update.RetentionPeriod = &dur
 	}
 
 	bkt, err := bktSVC.UpdateBucket(context.Background(), id, update)
