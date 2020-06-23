@@ -5,6 +5,7 @@ use snafu::Snafu;
 
 use delorean_table_schema::Schema;
 pub use packers::{Packer, Packers};
+pub use parquet::data_type::ByteArray;
 
 #[derive(Snafu, Debug)]
 pub enum Error {
