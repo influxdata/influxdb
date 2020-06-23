@@ -100,7 +100,7 @@ Feature: Data explorer
     When click the graph time range dropdown
     When select the graph time range "6h"
     Then the graph has changed
-
+    When click the filter functions input
     When click the view raw data toggle
     Then the raw data table is visible
 
