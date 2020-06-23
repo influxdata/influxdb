@@ -156,7 +156,6 @@ export const loadBuckets = () => async (
 ) => {
   const startTime = Date.now()
   const orgID = getOrg(getState()).id
-
   dispatch(setBuilderBucketsStatus(RemoteDataState.Loading))
 
   try {
