@@ -179,7 +179,7 @@ func (b *cmdConfigBuilder) cmdDelete() *cobra.Command {
 
 	b.registerPrintFlags(cmd)
 	cmd.Flags().StringVarP(&b.name, "name", "n", "", "The config name (required)")
-	cmd.Flags().MarkHidden("name")
+	cmd.Flags().MarkDeprecated("name", "provide the name as an arg; example: influx config rm $CFG_NAME")
 
 	return cmd
 }
