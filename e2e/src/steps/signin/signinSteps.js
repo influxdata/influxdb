@@ -1,5 +1,5 @@
 const expect = require('chai').expect;
-const {By, until, StaleElementReferenceError} =  require('selenium-webdriver');
+const {By, until, error} =  require('selenium-webdriver');
 const baseSteps = require(__srcdir + '/steps/baseSteps.js');
 const signinPage = require(__srcdir + '/pages/signin/signinPage.js');
 const influxPage = require(__srcdir + '/pages/influxPage.js');
@@ -50,7 +50,7 @@ class signinSteps extends baseSteps {
             await input.sendKeys(name);
         }).catch(async err => {
             console.error("ERROR on input user name: " + err);
-            if(err instanceof StaleElementReferenceError){ // try again
+            if(err instanceof error.StaleElementReferenceError){ // try again
                 console.warn("WARNING retrying input username")
                 await this.signinPage.getNameInput().then(async input => {
                     await input.clear();
@@ -67,7 +67,7 @@ class signinSteps extends baseSteps {
             await input.sendKeys(password);
         }).catch(async err => {
             console.log("ERROR on input user password: " + err);
-            if(err instanceof StaleElementReferenceError) { // try again
+            if(err instanceof error.StaleElementReferenceError) { // try again
                 await this.signinPage.getPasswordInput().then(async input =>{
                     await input.clear();
                     await input.sendKeys(password);
@@ -82,7 +82,7 @@ class signinSteps extends baseSteps {
             await btn.click();
         }).catch(async err => {
             console.error("ERROR on click signin button: " + err);
-            if(err instanceof StaleElementReferenceError) { //try again
+            if(err instanceof error.StaleElementReferenceError) { //try again
                 await this.signinPage.getSigninButton().then(async btn =>{
                     await btn.click();
                 })
