@@ -83,7 +83,11 @@ export const updateViewAndVariables = (
 
     const views = getViewsForDashboard(getState(), dashboardID)
 
-    views.splice(views.findIndex(v => v.id === newView.id), 1, newView)
+    views.splice(
+      views.findIndex(v => v.id === newView.id),
+      1,
+      newView
+    )
 
     const normView = normalize<View, ViewEntities, string>(newView, viewSchema)
 

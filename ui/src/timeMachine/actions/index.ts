@@ -39,7 +39,6 @@ import {
 } from 'src/types'
 import {Color} from 'src/types/colors'
 import {HistogramPosition, LinePosition} from '@influxdata/giraffe'
-import {enableUpdatedTimeRangeInVEO} from 'src/shared/actions/app'
 
 export type Action =
   | QueryBuilderAction
@@ -144,17 +143,6 @@ export const setName = (name: string): SetNameAction => ({
 export const setTimeRange = (timeRange: TimeRange) => (dispatch, getState) => {
   const contextID = currentContext(getState())
 
-  dispatch(setDashboardTimeRange(contextID, timeRange))
-  dispatch(saveAndExecuteQueries())
-  dispatch(reloadTagSelectors())
-}
-
-export const setTimeRangeFromVEO = (timeRange: TimeRange) => (
-  dispatch,
-  getState
-) => {
-  const contextID = currentContext(getState())
-  dispatch(enableUpdatedTimeRangeInVEO())
   dispatch(setDashboardTimeRange(contextID, timeRange))
   dispatch(saveAndExecuteQueries())
   dispatch(reloadTagSelectors())
