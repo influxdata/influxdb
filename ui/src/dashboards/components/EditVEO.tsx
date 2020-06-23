@@ -10,6 +10,7 @@ import TimeMachine from 'src/timeMachine/components/TimeMachine'
 import VEOHeader from 'src/dashboards/components/VEOHeader'
 
 // Actions
+import {disableVEOMode} from 'src/shared/actions/app'
 import {setName} from 'src/timeMachine/actions'
 import {saveVEOView} from 'src/dashboards/actions/thunks'
 import {getViewAndResultsForVEO} from 'src/views/actions/thunks'
@@ -26,6 +27,8 @@ type Props = ReduxProps &
 
 const EditViewVEO: FunctionComponent<Props> = ({
   activeTimeMachineID,
+  getViewAndResultsForVEO,
+  onDisableVEOMode,
   onSaveView,
   onSetName,
   match: {
@@ -44,6 +47,7 @@ const EditViewVEO: FunctionComponent<Props> = ({
 
   const handleClose = () => {
     history.push(`/orgs/${orgID}/dashboards/${dashboardID}`)
+    onDisableVEOMode()
   }
 
   const handleSave = () => {
@@ -91,6 +95,8 @@ const mstp = (state: AppState) => {
 }
 
 const mdtp = {
+  getViewAndResultsForVEO: getViewAndResultsForVEO,
+  onDisableVEOMode: disableVEOMode,
   onSetName: setName,
   onSaveView: saveVEOView,
 }

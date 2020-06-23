@@ -18,6 +18,7 @@ import {executeQueries} from 'src/timeMachine/actions/queries'
 import {setView, Action} from 'src/views/actions/creators'
 import {hashCode} from 'src/queryCache/actions'
 import {setQueryResults} from 'src/timeMachine/actions/queries'
+import {enableVEOMode} from 'src/shared/actions/app'
 
 // Selectors
 import {getViewsForDashboard} from 'src/views/selectors'
@@ -82,11 +83,7 @@ export const updateViewAndVariables = (
 
     const views = getViewsForDashboard(getState(), dashboardID)
 
-    views.splice(
-      views.findIndex(v => v.id === newView.id),
-      1,
-      newView
-    )
+    views.splice(views.findIndex(v => v.id === newView.id), 1, newView)
 
     const normView = normalize<View, ViewEntities, string>(newView, viewSchema)
 
@@ -104,6 +101,7 @@ export const getViewAndResultsForVEO = (
   timeMachineID: TimeMachineID
 ) => async (dispatch, getState: GetState): Promise<void> => {
   try {
+    dispatch(enableVEOMode())
     const state = getState()
     let view = getByID<View>(state, ResourceType.Views, cellID) as QueryView
 

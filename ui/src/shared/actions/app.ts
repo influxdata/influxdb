@@ -12,6 +12,8 @@ import {TimeZone, Theme, NavBarState, NotebookMiniMapState} from 'src/types'
 export enum ActionTypes {
   EnablePresentationMode = 'ENABLE_PRESENTATION_MODE',
   DisablePresentationMode = 'DISABLE_PRESENTATION_MODE',
+  EnableVEOMode = 'ENABLE_VEO_MODE',
+  DisableVEOMode = 'DISABLE_VEO_MODE',
   SetNavBarState = 'SET_NAV_BAR_STATE',
   SetNotebookMiniMapState = 'SET_NOTEBOOK_MINI_MAP_STATE',
   SetAutoRefresh = 'SET_AUTOREFRESH',
@@ -23,6 +25,8 @@ export enum ActionTypes {
 export type Action =
   | ReturnType<typeof enablePresentationMode>
   | ReturnType<typeof disablePresentationMode>
+  | ReturnType<typeof enableVEOMode>
+  | ReturnType<typeof disableVEOMode>
   | ReturnType<typeof setNavBarState>
   | ReturnType<typeof setNotebookMiniMapState>
   | ReturnType<typeof setAutoRefresh>
@@ -39,6 +43,16 @@ export const enablePresentationMode = () =>
 export const disablePresentationMode = () =>
   ({
     type: ActionTypes.DisablePresentationMode,
+  } as const)
+
+export const enableVEOMode = () =>
+  ({
+    type: ActionTypes.EnableVEOMode,
+  } as const)
+
+export const disableVEOMode = () =>
+  ({
+    type: ActionTypes.DisableVEOMode,
   } as const)
 
 export const delayEnablePresentationMode = () => (
