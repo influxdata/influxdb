@@ -4,7 +4,6 @@ import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import {Alignment, Orientation, Overlay, Tabs} from '@influxdata/clockface'
-
 import CommunityTemplateName from 'src/templates/components/CommunityTemplateName'
 import {CommunityTemplateReadme} from 'src/templates/components/CommunityTemplateReadme'
 import {CommunityTemplateContents} from 'src/templates/components/CommunityTemplateContents'
