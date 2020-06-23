@@ -36,7 +36,9 @@ import {
   reportSimpleQueryPerformanceDuration,
   reportQueryPerformanceEvent,
   toNano,
+  reportSimpleQueryPerformanceEvent,
 } from 'src/cloud/utils/reporting'
+import {fireQueryEvent} from 'src/shared/utils/analytics'
 
 // Types
 import {CancelBox} from 'src/types/promises'
@@ -52,7 +54,6 @@ import {
 // Selectors
 import {getOrg} from 'src/organizations/selectors'
 import {getAll} from 'src/resources/selectors/index'
-import {fireQueryEvent} from 'src/shared/utils/analytics'
 
 export type Action = SaveDraftQueriesAction | SetQueryResults
 
@@ -161,6 +162,7 @@ export const executeQueries = (abortController?: AbortController) => async (
 
       const extern = buildVarsOption(variableAssignments)
 
+      reportSimpleQueryPerformanceEvent('runQuery', {context: 'timeMachine'})
       return runQuery(orgID, text, extern, abortController)
     })
     const results = await Promise.all(pendingResults.map(r => r.promise))

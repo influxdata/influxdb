@@ -107,11 +107,14 @@ export const reportQueryPerformanceEvent = ({
   reportEvent({timestamp, measurement: 'UIQueryPerformance', fields, tags})
 }
 
-export const reportSimpleQueryPerformanceEvent = (event: string) => {
+export const reportSimpleQueryPerformanceEvent = (
+  event: string,
+  additionalTags: object = {}
+) => {
   reportQueryPerformanceEvent({
     timestamp: toNano(Date.now()),
     fields: {},
-    tags: {event},
+    tags: {event, ...additionalTags},
   })
 }
 
