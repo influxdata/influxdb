@@ -16,6 +16,30 @@
   margin-top: $ix-marg-c;
 }
 
+.community-templates--template-image {
+  width: 54px;
+  height: 54px;
+  background-color: #000;
+}
+
+.community-templates--template-name {
+  color: $g20-white;
+}
+
+.community-templates--template-description {
+  user-select: none;
+  color: $c-neutrino;
+  font-weight: $cf-font-weight--medium;
+  margin: 0;
+  margin-top: $cf-marg-b;
+  line-height: 1.125em;
+
+  strong {
+    color: $g20-white;
+    font-weight: $cf-font-weight--bold;
+  }
+}
+
 .community-templates--item-description {
   color: $g13-mist;
   margin: $cf-marg-a 0;

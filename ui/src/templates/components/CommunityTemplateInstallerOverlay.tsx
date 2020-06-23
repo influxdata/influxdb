@@ -3,17 +3,9 @@ import React, {PureComponent} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
-import {
-  Alignment,
-  Gradients,
-  Heading,
-  HeadingElement,
-  Orientation,
-  Overlay,
-  Panel,
-  Tabs,
-} from '@influxdata/clockface'
+import {Alignment, Orientation, Overlay, Tabs} from '@influxdata/clockface'
 
+import CommunityTemplateName from 'src/templates/components/CommunityTemplateName'
 import {CommunityTemplateReadme} from 'src/templates/components/CommunityTemplateReadme'
 import {CommunityTemplateContents} from 'src/templates/components/CommunityTemplateContents'
 
@@ -57,7 +49,7 @@ class CommunityTemplateInstallerOverlayUnconnected extends PureComponent<
   public render() {
     const {isVisible, templateName} = this.props
 
-    const resourceCount = 'some'
+    const resourceCount = 5
 
     return (
       <Overlay visible={isVisible}>
@@ -67,15 +59,11 @@ class CommunityTemplateInstallerOverlayUnconnected extends PureComponent<
             onDismiss={this.onDismiss}
           />
           <Overlay.Body>
-            <Panel border={true} gradient={Gradients.RebelAlliance}>
-              <Panel.Header>
-                <Heading element={HeadingElement.H3}>{templateName}</Heading>
-              </Panel.Header>
-              <Panel.Body>
-                Installing this template will create {resourceCount} resources
-                in your system
-              </Panel.Body>
-            </Panel>
+            <CommunityTemplateName
+              templateName={templateName}
+              resourceCount={resourceCount}
+              // onClickInstall={() => {}}
+            />
             <Tabs.Container orientation={Orientation.Horizontal}>
               <Tabs.Tabs alignment={Alignment.Center}>
                 <Tabs.Tab
