@@ -24,6 +24,7 @@ import {runQuery} from 'src/shared/apis/query'
 import {parseResponse as parse} from 'src/shared/parsing/flux/response'
 import {getOrg} from 'src/organizations/selectors'
 import {fetchAllBuckets} from 'src/buckets/actions/thunks'
+import {reportSimpleQueryPerformanceEvent} from 'src/cloud/utils/reporting'
 
 import {store} from 'src/index'
 
@@ -68,6 +69,7 @@ const queryMeasurements = async (orgID, bucket) => {
   const query = `import "influxdata/influxdb/v1"
       v1.measurements(bucket:"${bucket}")`
 
+  reportSimpleQueryPerformanceEvent('runQuery', {context: 'monaco'})
   const raw = await runQuery(orgID, query).promise
   if (raw.type !== 'SUCCESS') {
     throw new Error('failed to get measurements')
@@ -84,6 +86,7 @@ const queryTagKeys = async (orgID, bucket) => {
   const query = `import "influxdata/influxdb/v1"
       v1.tagKeys(bucket:"${bucket}")`
 
+  reportSimpleQueryPerformanceEvent('runQuery', {context: 'monaco'})
   const raw = await runQuery(orgID, query).promise
   if (raw.type !== 'SUCCESS') {
     throw new Error('failed to get tagKeys')
@@ -100,6 +103,7 @@ const queryTagValues = async (orgID, bucket, tag) => {
   const query = `import "influxdata/influxdb/v1"
       v1.tagValues(bucket:"${bucket}", tag: "${tag}")`
 
+  reportSimpleQueryPerformanceEvent('runQuery', {context: 'monaco'})
   const raw = await runQuery(orgID, query).promise
   if (raw.type !== 'SUCCESS') {
     throw new Error('failed to get tagKeys')

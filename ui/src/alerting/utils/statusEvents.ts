@@ -1,6 +1,7 @@
 // Utils
 import {runQuery} from 'src/shared/apis/query'
 import {fromFlux} from '@influxdata/giraffe'
+import {reportSimpleQueryPerformanceEvent} from 'src/cloud/utils/reporting'
 
 // Constants
 import {MONITORING_BUCKET} from 'src/alerting/constants'
@@ -30,6 +31,8 @@ from(bucket: "${MONITORING_BUCKET}")
                       "_check_name": "checkName",
                       "_level": "level"})
 `
+
+  reportSimpleQueryPerformanceEvent('runQuery', {context: 'checkStatuses'})
   return processStatusesResponse(runQuery(orgID, query, extern)) as CancelBox<
     StatusRow[][]
   >
