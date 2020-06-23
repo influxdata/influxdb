@@ -108,8 +108,8 @@ The Apache Parquet file format has several [available encodings](https://github.
 | Line Protocol Component | Line Protocol Type | Disk/Parquet Logical Type  | Encoding
 | ----------------------- | ------------------ | -------------------------- | -----------------------|
 | Tag Value               | `String`           |`STRING`                    | Dictionary (`RLE_DICTIONARY=8`)         |
-| Field Value (float)     | `float`            | `DOUBLE`                   | TBD (RLE?, Byte Stream Split: (`BYTE_STREAM_SPLIT = 9`)       |
-| Field Value (integer)   | `integer`          | `INT(bitWidth=64, isSigned=true)` | Run Length / Bit-packing hybrid (`RLE=3`)|
+| Field Value (float)     | `float`            | `DOUBLE`                   | Plain (`PLAIN = 0`) --> Byte stream split: (`BYTE_STREAM_SPLIT = 9`) if supported     |
+| Field Value (integer)   | `integer`          | `INT(bitWidth=64, isSigned=true)` | Delta binary packed (`DELTA_BINARY_PACKED = 5`)|
 | Field Value (strings)   | UTF-8 `String`     | `STRING`                   | Delta-length byte array: (`DELTA_LENGTH_BYTE_ARRAY = 6`)      |
 | Field Value (Boolean)   | `Boolean`          | `BOOLEAN`                  | Run Length / Bit-packing hybrid (`RLE=3`) |
 | Timestamp               | 64-bit Unix Timestamp | `TIMESTAMP(isAdjustedToUTC=true, precision=NANOS)`  | Delta Encoding (`DELTA_BINARY_PACKED=5`) |
