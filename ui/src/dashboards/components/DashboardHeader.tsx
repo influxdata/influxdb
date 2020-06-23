@@ -165,6 +165,7 @@ const DashboardHeader: FC<Props> = ({
           <Button
             icon={IconFont.Cube}
             text="Variables"
+            testID="variables--button"
             onClick={toggleShowVariablesControls}
             color={
               showVariablesControls
