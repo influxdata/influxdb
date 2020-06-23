@@ -23,12 +23,14 @@ use nom::{
     multi::many0,
     sequence::{preceded, separated_pair, terminated, tuple},
 };
-use smallvec::{smallvec, SmallVec, ToSmallVec};
+use smallvec::SmallVec;
 use snafu::{ResultExt, Snafu};
+use std::cmp::Ordering;
 use std::{
     borrow::Cow,
     collections::{btree_map::Entry, BTreeMap},
     fmt,
+    ops::Deref,
 };
 
 #[derive(Debug, Snafu)]
@@ -182,7 +184,10 @@ impl<'a> Series<'a> {
                 }
                 Entry::Occupied(e) => {
                     let (tag_key, _) = e.remove_entry();
-                    return DuplicateTag { tag_key }.fail();
+                    return DuplicateTag {
+                        tag_key: tag_key.to_string(),
+                    }
+                    .fail();
                 }
             }
         }
@@ -232,80 +237,103 @@ pub enum FieldValue<'a> {
     Boolean(bool),
 }
 
-/// Represents a sequence of effectively unescaped strings.
+/// Represents single logical string in the input.
 ///
-/// If we had the input string `"a\nb"`, the `EscapedStr` will hold ["a", "b"].
-/// If we had `"Foo\\aBar"`, the `EscapedStr` will hold ["Foo", "\\", "a", "Bar"].
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
-pub struct EscapedStr<'a>(SmallVec<[&'a str; 1]>);
+/// We do not use `&str` directly here because the actual input may be
+/// escaped, in which case the data in the input buffer is not
+/// contiguous. This enum provides an interface to access all such
+/// strings as contiguous string slices for compatibility with other
+/// code, and is optimized for the common case where the
+/// input was all in a contiguous string slice.
+///
+/// For example the 8 character string `Foo\\Bar` (note the double
+/// `\\`) is parsed into the logical 7 character string `Foo\Bar`
+/// (note the single `\`)
+///
+#[derive(Debug, Clone, Eq)]
+pub enum EscapedStr<'a> {
+    SingleSlice(&'a str),
+    CopiedValue(String),
+}
 
 impl fmt::Display for EscapedStr<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for p in &self.0 {
-            p.fmt(f)?;
+        match self {
+            EscapedStr::SingleSlice(s) => s.fmt(f)?,
+            EscapedStr::CopiedValue(s) => s.fmt(f)?,
         }
         Ok(())
     }
 }
 
 impl<'a> EscapedStr<'a> {
+    fn from_slices(v: &[&'a str]) -> EscapedStr<'a> {
+        match v.len() {
+            0 => EscapedStr::SingleSlice(""),
+            1 => EscapedStr::SingleSlice(v[0]),
+            _ => EscapedStr::CopiedValue(v.join("")),
+        }
+    }
+
     fn is_escaped(&self) -> bool {
-        self.0.len() > 1
+        match self {
+            EscapedStr::SingleSlice(_) => false,
+            EscapedStr::CopiedValue(_) => true,
+        }
     }
 
-    fn ends_with(&self, needle: &str) -> bool {
-        self.0.last().map_or(false, |s| s.ends_with(needle))
+    /// Return the logical representation for the EscapedStr as a
+    /// single slice. The slice may not point into the original
+    /// buffer.
+    pub fn as_str(&self) -> &str {
+        &*self
     }
 }
 
-impl From<EscapedStr<'_>> for String {
-    fn from(other: EscapedStr<'_>) -> Self {
-        other.to_string()
+impl<'a> Deref for EscapedStr<'a> {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        match &self {
+            EscapedStr::SingleSlice(s) => s,
+            EscapedStr::CopiedValue(s) => s,
+        }
     }
 }
 
-impl From<&EscapedStr<'_>> for String {
-    fn from(other: &EscapedStr<'_>) -> Self {
-        other.to_string()
+impl<'a> PartialEq for EscapedStr<'a> {
+    fn eq(&self, other: &Self) -> bool {
+        self.as_str() == other.as_str()
+    }
+}
+
+impl<'a> PartialOrd for EscapedStr<'a> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl<'a> Ord for EscapedStr<'a> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.as_str().cmp(other.as_str())
     }
 }
 
 impl<'a> From<&'a str> for EscapedStr<'a> {
     fn from(other: &'a str) -> Self {
-        Self(smallvec![other])
-    }
-}
-
-impl PartialEq<String> for EscapedStr<'_> {
-    fn eq(&self, other: &String) -> bool {
-        let s: &str = other;
-        *self == s
-    }
-}
-
-impl PartialEq<EscapedStr<'_>> for String {
-    fn eq(&self, other: &EscapedStr<'_>) -> bool {
-        other == self
+        EscapedStr::SingleSlice(other)
     }
 }
 
 impl PartialEq<&str> for EscapedStr<'_> {
     fn eq(&self, other: &&str) -> bool {
-        let mut head = *other;
-        for p in &self.0 {
-            if head.starts_with(p) {
-                head = &head[p.len()..];
-            } else {
-                return false;
-            }
-        }
-        head.is_empty()
+        self.as_str() == *other
     }
 }
 
-impl PartialEq<EscapedStr<'_>> for &str {
-    fn eq(&self, other: &EscapedStr<'_>) -> bool {
-        other == self
+impl PartialEq<String> for EscapedStr<'_> {
+    fn eq(&self, other: &String) -> bool {
+        self.as_str() == other
     }
 }
 
@@ -541,7 +569,7 @@ fn field_string_value(i: &str) -> IResult<&str, EscapedStr<'_>> {
         empty_str,
     ));
 
-    map(quoted_str, |vec| EscapedStr(vec.to_smallvec()))(i)
+    map(quoted_str, |vec| EscapedStr::from_slices(&vec))(i)
 }
 
 fn field_bool_value(i: &str) -> IResult<&str, bool> {
@@ -616,7 +644,7 @@ fn escape_or_fallback<'a>(
     move |i| {
         let (remaining, s) = escape_or_fallback_inner(normal, escape_char, escaped)(i)?;
 
-        if s.ends_with("\\") {
+        if s.ends_with('\\') {
             EndsWithBackslash.fail().map_err(nom::Err::Failure)
         } else {
             Ok((remaining, s))
@@ -633,7 +661,7 @@ where
     Error: nom::error::ParseError<&'a str>,
 {
     move |i| {
-        let mut result = SmallVec::new();
+        let mut result = SmallVec::<[&str; 4]>::new();
         let mut head = i;
 
         loop {
@@ -663,7 +691,7 @@ where
                                         result.push(escaped);
                                         head = remaining;
                                     }
-                                    None => return Ok((head, EscapedStr(result))),
+                                    None => return Ok((head, EscapedStr::from_slices(&result))),
                                 }
                             }
                             Err(e) => return Err(e),
@@ -676,7 +704,7 @@ where
                                 nom::error::ErrorKind::EscapedTransform,
                             )));
                         } else {
-                            return Ok((head, EscapedStr(result)));
+                            return Ok((head, EscapedStr::from_slices(&result)));
                         }
                     }
                 }
@@ -844,7 +872,7 @@ mod test {
 
         fn unwrap_string(&self) -> String {
             match self {
-                Self::String(v) => String::from(v),
+                Self::String(v) => v.to_string(),
                 _ => panic!("field was not a String"),
             }
         }
@@ -863,10 +891,10 @@ mod test {
         let es = EscapedStr::from("Foo");
         assert_eq!(es, "Foo");
         assert!(!es.is_escaped(), "There are no escaped values");
-        assert!(!es.ends_with("F"));
-        assert!(!es.ends_with("z"));
+        assert!(!es.ends_with('F'));
+        assert!(!es.ends_with('z'));
         assert!(!es.ends_with("zz"));
-        assert!(es.ends_with("o"));
+        assert!(es.ends_with('o'));
         assert!(es.ends_with("oo"));
         assert!(es.ends_with("Foo"));
         Ok(())
@@ -878,7 +906,7 @@ mod test {
         // measurement name with a non-whitespace escape character
         let (remaining, es) = measurement("Foo\\aBar")?;
         assert!(remaining.is_empty());
-        assert_eq!(es, EscapedStr(smallvec!["Foo", "\\", "a", "Bar"]));
+        assert_eq!(es, EscapedStr::from_slices(&["Foo", "\\", "a", "Bar"]));
         assert!(es.is_escaped());
 
         // Test ends with across boundaries
@@ -961,7 +989,7 @@ mod test {
     fn escaped_str_multi_to_string() -> Result {
         let (_, es) = measurement("Foo\\aBar")?;
         // test the From<> implementation
-        assert_eq!(String::from(es), "Foo\\aBar");
+        assert_eq!(es, "Foo\\aBar");
         Ok(())
     }
 
@@ -1707,22 +1735,5 @@ her"#,
         ));
 
         Ok(())
-    }
-
-    #[test]
-    #[allow(clippy::op_ref)]
-    // Clippy disabled because it wascomplaining about uselessly
-    // taking references on both sides of the eq op but that actually
-    // invokes a different implementation of partial eq which I wanted
-    // to test.
-    fn string_comparison() {
-        let es = EscapedStr::from("foobar");
-        let s = String::from("foobar");
-
-        assert!(es == s);
-        assert!(s == es);
-
-        assert!(&es == &s);
-        assert!(&s == &es);
     }
 }

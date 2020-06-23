@@ -2,7 +2,7 @@
 #![deny(rust_2018_idioms)]
 #![warn(missing_debug_implementations, clippy::explicit_iter_loop)]
 
-use parquet::{
+pub use parquet::{
     errors::ParquetError,
     file::reader::{Length, TryClone},
 };
@@ -13,9 +13,10 @@ pub mod metadata;
 pub mod stats;
 pub mod writer;
 
-/// Thing that adapts an object that implements Read+Seek to something
-/// that also implements the parquet TryClone interface, required by
-/// the parquet reader
+/// Adapts an object that implements Read+Seek to something that also
+/// implements the parquet TryClone interface, required by the parquet
+/// reader. This is provided so users of this crate do not have to
+/// implement a parquet specific trait
 struct InputReaderAdapter<R>
 where
     R: Read + Seek,

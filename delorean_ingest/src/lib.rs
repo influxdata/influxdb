@@ -47,7 +47,9 @@ pub struct LineProtocolConverter<'a> {
 
     // The converters for each measurement.
     // Key: measurement_name
-    converters: BTreeMap<delorean_line_parser::EscapedStr<'a>, MeasurementConverter<'a>>,
+    //
+    // NB Use owned strings as key so we can look up by str
+    converters: BTreeMap<String, MeasurementConverter<'a>>,
 
     table_writer_source: Box<dyn DeloreanTableWriterSource>,
 }
@@ -195,16 +197,22 @@ impl<'a> LineProtocolConverter<'a> {
         for line in lines {
             let series = &line.series;
 
-            // TODO remove the to_string conversion
-            //let measurement_string = series.measurement.to_string();
             let settings = &self.settings;
-            let series_measurement = series.measurement.clone();
-            let mut converter = self
-                .converters
-                .entry(series_measurement)
-                .or_insert_with(|| {
-                    MeasurementConverter::UnknownSchema(MeasurementSampler::new(settings.clone()))
-                });
+            let series_measurement = series.measurement.as_str();
+
+            // do not use entry API to avoid copying the key unless it is not present
+            let mut converter = match self.converters.get_mut(series_measurement) {
+                Some(converter) => converter,
+                None => {
+                    self.converters.insert(
+                        series_measurement.into(),
+                        MeasurementConverter::UnknownSchema(MeasurementSampler::new(
+                            settings.clone(),
+                        )),
+                    );
+                    self.converters.get_mut(series_measurement).unwrap()
+                }
+            };
 
             // This currently dispatches row by row. It might help
             // group `ParsedLines` by measurement first.
@@ -263,7 +271,7 @@ impl<'a> MeasurementSampler<'a> {
             return Err(Error::NeedsAtLeastOneLine {});
         }
 
-        let mut builder = SchemaBuilder::new(&self.schema_sample[0].series.measurement);
+        let mut builder = SchemaBuilder::new(self.schema_sample[0].series.measurement.as_str());
 
         for line in &self.schema_sample {
             let series = &line.series;
@@ -278,8 +286,7 @@ impl<'a> MeasurementSampler<'a> {
             }
             if let Some(tag_set) = &series.tag_set {
                 for (tag_name, _) in tag_set {
-                    // FIXME avoid the copy / creation of a string!
-                    builder = builder.tag(&tag_name.to_string());
+                    builder = builder.tag(tag_name.as_str());
                 }
             }
             for (field_name, field_value) in &line.field_set {
@@ -289,8 +296,7 @@ impl<'a> MeasurementSampler<'a> {
                     FieldValue::String(_) => DataType::String,
                     FieldValue::Boolean(_) => DataType::Boolean,
                 };
-                // FIXME: avoid the copy!
-                builder = builder.field(&field_name.to_string(), field_type);
+                builder = builder.field(field_name.as_str(), field_type);
             }
         }
 
@@ -375,9 +381,10 @@ fn pack_lines<'a>(schema: &Schema, lines: &[ParsedLine<'a>]) -> Vec<Packers> {
         .collect();
 
     // map col_name -> Packer;
+    // Use a String (rather than &String) so we can look up via str
     let mut packer_map: BTreeMap<_, _> = col_defs
         .iter()
-        .map(|x| &x.name)
+        .map(|x| x.name.clone())
         .zip(packers.iter_mut())
         .collect();
 
@@ -406,11 +413,10 @@ fn pack_lines<'a>(schema: &Schema, lines: &[ParsedLine<'a>]) -> Vec<Packers> {
 
         if let Some(tag_set) = &series.tag_set {
             for (tag_name, tag_value) in tag_set {
-                let tag_name_str = tag_name.to_string();
-                if let Some(packer) = packer_map.get_mut(&tag_name_str) {
+                if let Some(packer) = packer_map.get_mut(tag_name.as_str()) {
                     packer
                         .str_packer_mut()
-                        .push(ByteArray::from(tag_value.to_string().into_bytes()));
+                        .push(ByteArray::from(tag_value.as_str()));
                 } else {
                     panic!(
                         "tag {} seen in input that has no matching column in schema",
@@ -421,8 +427,7 @@ fn pack_lines<'a>(schema: &Schema, lines: &[ParsedLine<'a>]) -> Vec<Packers> {
         }
 
         for (field_name, field_value) in &line.field_set {
-            let field_name_str = field_name.to_string();
-            if let Some(packer) = packer_map.get_mut(&field_name_str) {
+            if let Some(packer) = packer_map.get_mut(field_name.as_str()) {
                 match *field_value {
                     FieldValue::F64(f) => {
                         packer.f64_packer_mut().push(f);
@@ -431,9 +436,7 @@ fn pack_lines<'a>(schema: &Schema, lines: &[ParsedLine<'a>]) -> Vec<Packers> {
                         packer.i64_packer_mut().push(i);
                     }
                     FieldValue::String(ref s) => {
-                        packer
-                            .str_packer_mut()
-                            .push(ByteArray::from(s.to_string().into_bytes()));
+                        packer.str_packer_mut().push(ByteArray::from(s.as_str()));
                     }
                     FieldValue::Boolean(b) => {
                         packer.bool_packer_mut().push(b);
@@ -799,14 +802,14 @@ mod delorean_ingest_tests {
             &mut self,
             schema: &Schema,
         ) -> Result<Box<dyn DeloreanTableWriter>, TableError> {
-            let measurement_name = schema.measurement().to_string();
+            let measurement_name = schema.measurement();
             log_event(
                 &self.log,
                 format!("Created writer for measurement {}", measurement_name),
             );
             Ok(Box::new(NoOpWriter::new(
                 self.log.clone(),
-                measurement_name,
+                measurement_name.to_string(),
             )))
         }
     }

@@ -5,7 +5,7 @@ use std::{
     rc::Rc,
 };
 
-use log::debug;
+use log::{debug, warn};
 use parquet::{
     basic::{Compression, Encoding, LogicalType, Repetition, Type as PhysicalType},
     errors::ParquetError,
@@ -365,7 +365,7 @@ fn create_writer_props(schema: &delorean_table_schema::Schema) -> Rc<WriterPrope
     // Even though the 'set_statistics_enabled()' method is called here, the resulting
     // parquet file does not appear to have statistics enabled.
     // TODO: file a clear bug in the parquet JIRA project
-    eprintln!("WARNING WARNING -- statistics generation does not appear to be working");
+    warn!("WARNING WARNING -- statistics generation does not appear to be working");
     let props = builder
         .set_statistics_enabled(true)
         .set_created_by("Delorean".to_string())
