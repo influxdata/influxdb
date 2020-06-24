@@ -293,8 +293,8 @@ func (k Object) Name() string {
 // ObjectAssociation is an association for an object. The supported types
 // at this time are KindLabel.
 type ObjectAssociation struct {
-	Kind    Kind
-	PkgName string
+	Kind     Kind
+	MetaName string
 }
 
 // AddAssociations adds an association to the object.
@@ -307,7 +307,7 @@ func (k Object) AddAssociations(associations ...ObjectAssociation) {
 	for _, ass := range associations {
 		existingAss = append(existingAss, Resource{
 			fieldKind: ass.Kind,
-			fieldName: ass.PkgName,
+			fieldName: ass.MetaName,
 		})
 	}
 	sort.Slice(existingAss, func(i, j int) bool {
@@ -477,7 +477,7 @@ func (p *Pkg) applySecrets(secrets map[string]string) {
 }
 
 // Contains identifies if a pkg contains a given object identified
-// by its kind and metadata.Name (PkgName) field.
+// by its kind and metadata.Name (MetaName) field.
 func (p *Pkg) Contains(k Kind, pkgName string) bool {
 	switch k {
 	case KindBucket:

@@ -309,7 +309,7 @@ func convertStackToEnt(stack Stack) (kv.Entity, error) {
 			APIVersion:   res.APIVersion,
 			ID:           res.ID.String(),
 			Kind:         res.Kind.String(),
-			Name:         res.PkgName,
+			Name:         res.MetaName,
 			Associations: associations,
 		})
 	}
@@ -344,7 +344,7 @@ func convertStackEntToStack(ent *entStack) (Stack, error) {
 		stackRes := StackResource{
 			APIVersion: res.APIVersion,
 			Kind:       Kind(res.Kind),
-			PkgName:    res.Name,
+			MetaName:   res.Name,
 		}
 		if err := stackRes.ID.DecodeFromString(res.ID); err != nil {
 			return Stack{}, nil
