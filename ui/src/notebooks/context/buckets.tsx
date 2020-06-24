@@ -38,15 +38,16 @@ export const BucketContext = React.createContext<BucketContextType>(
 
 let GLOBAL_LOADING = false
 
+const lockAndLoad = async () => {
+  GLOBAL_LOADING = true
+  await getBuckets()
+  GLOBAL_LOADING = false
+}
+
 export const BucketProvider: FC<Props> = React.memo(
   ({loading, getBuckets, buckets, children}) => {
     if (!GLOBAL_LOADING && loading === RemoteDataState.NotStarted) {
-      new Promise(async resolve => {
-        GLOBAL_LOADING = true
-        await getBuckets()
-        GLOBAL_LOADING = false
-        resolve()
-      })
+      lockAndLoad()
     }
 
     return (
