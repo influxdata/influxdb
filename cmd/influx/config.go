@@ -235,9 +235,13 @@ func (b *cmdConfigBuilder) cmdUpdate() *cobra.Command {
 }
 
 func (b *cmdConfigBuilder) cmdUpdateRunEFn(*cobra.Command, []string) error {
-	host, err := b.getValidHostURL()
-	if err != nil {
-		return err
+	var host string
+	if b.url != "" {
+		h, err := b.getValidHostURL()
+		if err != nil {
+			return err
+		}
+		host = h
 	}
 
 	cfg, err := b.svc.UpdateConfig(config.Config{
