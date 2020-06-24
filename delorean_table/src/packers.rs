@@ -6,6 +6,7 @@
 // from the copy pasta factory) but the plan is to replace it
 // soon... We'll see how long that actually takes...
 use parquet::data_type::ByteArray;
+use std::default::Default;
 
 // NOTE: See https://blog.twitter.com/engineering/en_us/a/2013/dremel-made-simple-with-parquet.html
 // for an explanation of nesting levels
@@ -56,21 +57,13 @@ impl Packers {
         }
     }
 
-    pub fn is_empty(&self) -> bool {
+    /// See description on `Packer::num_rows`
+    pub fn num_rows(&self) -> usize {
         match self {
-            Self::Float(p) => p.is_empty(),
-            Self::Integer(p) => p.is_empty(),
-            Self::String(p) => p.is_empty(),
-            Self::Boolean(p) => p.is_empty(),
-        }
-    }
-
-    pub fn len(&self) -> usize {
-        match self {
-            Self::Float(p) => p.len(),
-            Self::Integer(p) => p.len(),
-            Self::String(p) => p.len(),
-            Self::Boolean(p) => p.len(),
+            Self::Float(p) => p.num_rows(),
+            Self::Integer(p) => p.num_rows(),
+            Self::String(p) => p.num_rows(),
+            Self::Boolean(p) => p.num_rows(),
         }
     }
 
@@ -187,13 +180,13 @@ impl std::convert::From<Vec<Option<u64>>> for Packers {
 }
 
 #[derive(Debug, Default)]
-pub struct Packer<T: PackerDefault> {
+pub struct Packer<T: Default> {
     values: Vec<T>,
     def_levels: Vec<i16>,
     rep_levels: Vec<i16>,
 }
 
-impl<T: PackerDefault> Packer<T> {
+impl<T: Default> Packer<T> {
     pub fn new() -> Self {
         Self {
             values: Vec::new(),
@@ -219,16 +212,31 @@ impl<T: PackerDefault> Packer<T> {
         self.rep_levels.reserve_exact(additional);
     }
 
-    pub fn len(&self) -> usize {
-        self.values.len()
+    /// Returns the number of logical rows represented in this
+    /// packer. This will be different than self.values.len() when
+    /// NULLs are present because there are no values in self.values
+    /// stored for NULL
+    pub fn num_rows(&self) -> usize {
+        self.def_levels.len()
     }
 
-    pub fn is_empty(&self) -> bool {
-        self.values.is_empty()
-    }
-
+    /// Get the value of logical row at `index`. This may be different
+    /// than the index in self.values.len() when NULLs are present
+    /// because there are no values in self.values stored for NULL
     pub fn get(&self, index: usize) -> Option<&T> {
-        self.values.get(index)
+        if self.def_levels[index] == 0 {
+            None
+        } else {
+            let mut values_idx: usize = 0;
+            for i in 0..index {
+                let def_level = self.def_levels[i];
+                if def_level != 0 && def_level != 1 {
+                    panic!("unexpected def level. Expected 0 or 1, found {}", i);
+                }
+                values_idx += def_level as usize;
+            }
+            Some(&self.values[values_idx])
+        }
     }
 
     // TODO(edd): I don't like these getters. They're only needed so we can
@@ -251,7 +259,7 @@ impl<T: PackerDefault> Packer<T> {
         match value {
             Some(v) => self.push(v),
             None => {
-                self.values.push(T::default()); // doesn't matter as def level == 0
+                // NB: No value stored at def level == 0
                 self.def_levels.push(0);
                 self.rep_levels.push(1);
             }
@@ -273,7 +281,7 @@ impl<T: PackerDefault> Packer<T> {
 
 // Convert `Vec<T>`, e.g., `Vec<f64>` into the appropriate `Packer<T>` value,
 // e.g., `Packer<f64>`.
-impl<T: PackerDefault> std::convert::From<Vec<T>> for Packer<T> {
+impl<T: Default> std::convert::From<Vec<T>> for Packer<T> {
     fn from(v: Vec<T>) -> Self {
         Self {
             def_levels: vec![1; v.len()],
@@ -285,46 +293,13 @@ impl<T: PackerDefault> std::convert::From<Vec<T>> for Packer<T> {
 
 // Convert `Vec<Option<T>>`, e.g., `Vec<Option<f64>>` into the appropriate
 // `Packer<T>` value, e.g., `Packer<f64>`.
-impl<T: PackerDefault> std::convert::From<Vec<Option<T>>> for Packer<T> {
+impl<T: Default> std::convert::From<Vec<Option<T>>> for Packer<T> {
     fn from(values: Vec<Option<T>>) -> Self {
         let mut packer = Packer::new();
         for v in values {
             packer.push_option(v);
         }
         packer
-    }
-}
-
-/// Provides a `Default` implementation of compatible `Packer` types where the
-/// default values are compatible with the Parquet storage format.
-///
-/// TODO(edd): if we refactor out `ByteArray` as the string-based type the we
-/// could probably get rid of this trait and `Packer` could derive `Default`.
-pub trait PackerDefault {
-    fn default() -> Self;
-}
-
-impl PackerDefault for f64 {
-    fn default() -> Self {
-        0.0
-    }
-}
-
-impl PackerDefault for i64 {
-    fn default() -> Self {
-        0
-    }
-}
-
-impl PackerDefault for ByteArray {
-    fn default() -> Self {
-        ByteArray::from("")
-    }
-}
-
-impl PackerDefault for bool {
-    fn default() -> Self {
-        false
     }
 }
 
@@ -356,12 +331,29 @@ mod test {
     }
 
     #[test]
-    fn packers() {
+    fn packers_create() {
         let mut packers: Vec<Packers> = Vec::new();
         packers.push(Packers::Float(Packer::new()));
         packers.push(Packers::Integer(Packer::new()));
         packers.push(Packers::Boolean(Packer::new()));
 
         packers.get_mut(0).unwrap().f64_packer_mut().push(22.033);
+    }
+
+    #[test]
+    fn packers_null_encoding() {
+        let mut packer: Packer<ByteArray> = Packer::new();
+        packer.push(ByteArray::from("foo"));
+        packer.push_option(None);
+        packer.push(ByteArray::from("bar"));
+
+        assert_eq!(packer.num_rows(), 3);
+        // Note there are only two values, even though there are 3 rows
+        assert_eq!(
+            packer.values,
+            vec![ByteArray::from("foo"), ByteArray::from("bar")]
+        );
+        assert_eq!(packer.def_levels, vec![1, 0, 1]);
+        assert_eq!(packer.rep_levels, vec![1, 1, 1]);
     }
 }
