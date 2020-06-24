@@ -11,10 +11,7 @@ import (
 	input "github.com/tcnksm/go-input"
 )
 
-type userSVCsFn func() (
-	cmdUserDeps,
-	error,
-)
+type userSVCsFn func() (cmdUserDeps, error)
 
 type cmdUserDeps struct {
 	userSVC   influxdb.UserService
@@ -25,8 +22,7 @@ type cmdUserDeps struct {
 }
 
 func cmdUser(f *globalFlags, opt genericCLIOpts) *cobra.Command {
-	builder := newCmdUserBuilder(newUserSVC, opt)
-	builder.globalFlags = f
+	builder := newCmdUserBuilder(newUserSVC, f, opt)
 	return builder.cmd()
 }
 
@@ -44,15 +40,16 @@ type cmdUserBuilder struct {
 	org         organization
 }
 
-func newCmdUserBuilder(svcsFn userSVCsFn, opt genericCLIOpts) *cmdUserBuilder {
+func newCmdUserBuilder(svcsFn userSVCsFn, f *globalFlags, opt genericCLIOpts) *cmdUserBuilder {
 	return &cmdUserBuilder{
 		genericCLIOpts: opt,
+		globalFlags:    f,
 		svcFn:          svcsFn,
 	}
 }
 
 func (b *cmdUserBuilder) cmd() *cobra.Command {
-	cmd := b.newCmd("user", nil, false)
+	cmd := b.genericCLIOpts.newCmd("user", nil, false)
 	cmd.Short = "User management commands"
 	cmd.Run = seeHelp
 	cmd.AddCommand(
@@ -67,7 +64,7 @@ func (b *cmdUserBuilder) cmd() *cobra.Command {
 }
 
 func (b *cmdUserBuilder) cmdPassword() *cobra.Command {
-	cmd := b.newCmd("password", b.cmdPasswordRunEFn, true)
+	cmd := b.newCmd("password", b.cmdPasswordRunEFn)
 	cmd.Short = "Update user password"
 
 	cmd.Flags().StringVarP(&b.id, "id", "i", "", "The user ID")
@@ -112,7 +109,7 @@ func (b *cmdUserBuilder) cmdPasswordRunEFn(cmd *cobra.Command, args []string) er
 }
 
 func (b *cmdUserBuilder) cmdUpdate() *cobra.Command {
-	cmd := b.newCmd("update", b.cmdUpdateRunEFn, true)
+	cmd := b.newCmd("update", b.cmdUpdateRunEFn)
 	cmd.Short = "Update user"
 
 	b.registerPrintFlags(cmd)
@@ -148,7 +145,7 @@ func (b *cmdUserBuilder) cmdUpdateRunEFn(cmd *cobra.Command, args []string) erro
 }
 
 func (b *cmdUserBuilder) cmdCreate() *cobra.Command {
-	cmd := b.newCmd("create", b.cmdCreateRunEFn, true)
+	cmd := b.newCmd("create", b.cmdCreateRunEFn)
 	cmd.Short = "Create user"
 
 	opts := flagOpts{
@@ -220,7 +217,7 @@ func (b *cmdUserBuilder) cmdCreateRunEFn(*cobra.Command, []string) error {
 }
 
 func (b *cmdUserBuilder) cmdFind() *cobra.Command {
-	cmd := b.newCmd("list", b.cmdFindRunEFn, true)
+	cmd := b.newCmd("list", b.cmdFindRunEFn)
 	cmd.Short = "List users"
 	cmd.Aliases = []string{"find", "ls"}
 
@@ -258,7 +255,7 @@ func (b *cmdUserBuilder) cmdFindRunEFn(*cobra.Command, []string) error {
 }
 
 func (b *cmdUserBuilder) cmdDelete() *cobra.Command {
-	cmd := b.newCmd("delete", b.cmdDeleteRunEFn, true)
+	cmd := b.newCmd("delete", b.cmdDeleteRunEFn)
 	cmd.Short = "Delete user"
 
 	b.registerPrintFlags(cmd)
@@ -293,6 +290,12 @@ func (b *cmdUserBuilder) cmdDeleteRunEFn(cmd *cobra.Command, args []string) erro
 		deleted: true,
 		user:    u,
 	})
+}
+
+func (b *cmdUserBuilder) newCmd(use string, runE func(*cobra.Command, []string) error) *cobra.Command {
+	cmd := b.genericCLIOpts.newCmd(use, runE, true)
+	b.globalFlags.registerFlags(cmd)
+	return cmd
 }
 
 func (b *cmdUserBuilder) registerPrintFlags(cmd *cobra.Command) {

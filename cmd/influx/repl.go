@@ -25,6 +25,7 @@ func cmdREPL(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd.Short = "Interactive Flux REPL (read-eval-print-loop)"
 	cmd.Args = cobra.NoArgs
 
+	f.registerFlags(cmd)
 	replFlags.org.register(cmd, false)
 
 	return cmd

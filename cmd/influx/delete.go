@@ -25,7 +25,7 @@ type cmdDeleteBuilder struct {
 }
 
 func (b *cmdDeleteBuilder) cmd() *cobra.Command {
-	cmd := b.newCmd("delete", b.fluxDeleteF, true)
+	cmd := b.newCmd("delete", b.fluxDeleteF)
 	cmd.Short = "Delete points from influxDB"
 	cmd.Long = `Delete points from influxDB, by specify start, end time
 	and a sql like predicate string.`
@@ -96,4 +96,10 @@ func (b *cmdDeleteBuilder) fluxDeleteF(cmd *cobra.Command, args []string) error 
 	}
 
 	return nil
+}
+
+func (b *cmdDeleteBuilder) newCmd(use string, runE func(*cobra.Command, []string) error) *cobra.Command {
+	cmd := b.genericCLIOpts.newCmd(use, runE, true)
+	b.globalFlags.registerFlags(cmd)
+	return cmd
 }

@@ -16,16 +16,13 @@ func cmdConfig(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	}
 	builder := cmdConfigBuilder{
 		genericCLIOpts: opt,
-		globalFlags:    f,
 		svc:            config.NewLocalConfigSVC(path, dir),
 	}
-	builder.globalFlags = f
 	return builder.cmd()
 }
 
 type cmdConfigBuilder struct {
 	genericCLIOpts
-	*globalFlags
 
 	name   string
 	url    string
