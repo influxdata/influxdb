@@ -302,9 +302,14 @@ where
                 })?;
                 Ok(BlockData::Str { ts, values })
             }
-            BlockType::Unsigned => Err(TSMError {
-                description: String::from("unsigned integer block type unsupported"),
-            }),
+            BlockType::Unsigned => {
+                // values will be same length as time-stamps.
+                let mut values = Vec::with_capacity(ts.len());
+                encoders::unsigned::decode(&data[idx..], &mut values).map_err(|e| TSMError {
+                    description: e.to_string(),
+                })?;
+                Ok(BlockData::Unsigned { ts, values })
+            }
         }
     }
 }
@@ -453,9 +458,6 @@ mod tests {
             match entry.block_type {
                 BlockType::Bool => {
                     eprintln!("Note: ignoring bool block, not implemented");
-                }
-                BlockType::Unsigned => {
-                    eprintln!("Note: ignoring unsigned block, not implemented");
                 }
                 _ => blocks.push(entry.block),
             }
