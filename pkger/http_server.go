@@ -71,14 +71,30 @@ func (s *HTTPServer) Prefix() string {
 
 // RespStack is the response body for a stack.
 type RespStack struct {
-	ID          string          `json:"id"`
-	OrgID       string          `json:"orgID"`
-	Name        string          `json:"name"`
-	Description string          `json:"description"`
-	Resources   []StackResource `json:"resources"`
-	Sources     []string        `json:"sources"`
-	URLs        []string        `json:"urls"`
+	ID          string              `json:"id"`
+	OrgID       string              `json:"orgID"`
+	Name        string              `json:"name"`
+	Description string              `json:"description"`
+	Resources   []RespStackResource `json:"resources"`
+	Sources     []string            `json:"sources"`
+	URLs        []string            `json:"urls"`
 	influxdb.CRUDLog
+}
+
+// RespStackResource is the response for a stack resource. This type exists
+// to decouple the internal service implementation from the deprecates usage
+// of pkgs in the API. We could add a custom UnmarshalJSON method, but
+// I would rather keep it obvious and explicit with a separate field.
+type RespStackResource struct {
+	APIVersion   string                     `json:"apiVersion"`
+	ID           string                     `json:"resourceID"`
+	Kind         Kind                       `json:"kind"`
+	MetaName     string                     `json:"templateMetaName"`
+	Associations []StackResourceAssociation `json:"associations"`
+
+	// PkgName is deprecated moving forward, will support until it is
+	// ripped out.
+	PkgName *string `json:"pkgName,omitempty"`
 }
 
 // RespListStacks is the HTTP response for a stack list call.
@@ -814,12 +830,23 @@ func newDecodeErr(encoding string, err error) *influxdb.Error {
 }
 
 func convertStackToRespStack(st Stack) RespStack {
+	resources := make([]RespStackResource, 0, len(st.Resources))
+	for _, r := range st.Resources {
+		resources = append(resources, RespStackResource{
+			APIVersion:   r.APIVersion,
+			ID:           r.ID.String(),
+			Kind:         r.Kind,
+			MetaName:     r.MetaName,
+			Associations: append([]StackResourceAssociation{}, r.Associations...),
+		})
+	}
+
 	return RespStack{
 		ID:          st.ID.String(),
 		OrgID:       st.OrgID.String(),
 		Name:        st.Name,
 		Description: st.Description,
-		Resources:   append([]StackResource{}, st.Resources...),
+		Resources:   resources,
 		Sources:     append([]string{}, st.Sources...),
 		URLs:        append([]string{}, st.URLs...),
 		CRUDLog:     st.CRUDLog,

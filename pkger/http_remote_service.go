@@ -264,8 +264,27 @@ func convertRespStackToStack(respStack RespStack) (Stack, error) {
 		Description: respStack.Description,
 		Sources:     respStack.Sources,
 		URLs:        respStack.URLs,
-		Resources:   respStack.Resources,
+		Resources:   make([]StackResource, 0, len(respStack.Resources)),
 		CRUDLog:     respStack.CRUDLog,
+	}
+	for _, r := range respStack.Resources {
+		sr := StackResource{
+			APIVersion:   r.APIVersion,
+			MetaName:     r.MetaName,
+			Kind:         r.Kind,
+			Associations: r.Associations,
+		}
+
+		resID, err := influxdb.IDFromString(r.ID)
+		if err != nil {
+			return Stack{}, influxErr(influxdb.EInternal, err)
+		}
+		sr.ID = *resID
+
+		if sr.MetaName == "" && r.PkgName != nil {
+			sr.MetaName = *r.PkgName
+		}
+		newStack.Resources = append(newStack.Resources, sr)
 	}
 
 	id, err := influxdb.IDFromString(respStack.ID)

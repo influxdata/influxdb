@@ -59,7 +59,7 @@ func TestLauncher_Pkger(t *testing.T) {
 		assert.Equal(t, l.Org.ID, newStack.OrgID)
 		assert.Equal(t, stack.Name, newStack.Name)
 		assert.Equal(t, stack.Description, newStack.Description)
-		assert.NotNil(t, newStack.Resources, "failed to match stack resorces")
+		assert.NotNil(t, newStack.Resources, "failed to match stack resources")
 		expectedURLs := stack.URLs
 		if expectedURLs == nil {
 			expectedURLs = []string{}
@@ -600,8 +600,8 @@ func TestLauncher_Pkger(t *testing.T) {
 				pkgObjects := newObjectsFn()
 				for _, obj := range pkgObjects {
 					obj.AddAssociations(pkger.ObjectAssociation{
-						Kind:    pkger.KindLabel,
-						PkgName: labelObj.Name(),
+						Kind:     pkger.KindLabel,
+						MetaName: labelObj.Name(),
 					})
 				}
 				pkgObjects = append(pkgObjects, labelObj)
@@ -1713,8 +1713,8 @@ func TestLauncher_Pkger(t *testing.T) {
 						}
 						for _, obj := range objs {
 							obj.AddAssociations(pkger.ObjectAssociation{
-								Kind:    pkger.KindLabel,
-								PkgName: labelPkgName,
+								Kind:     pkger.KindLabel,
+								MetaName: labelPkgName,
 							})
 						}
 
@@ -1799,8 +1799,8 @@ func TestLauncher_Pkger(t *testing.T) {
 				labelObj := newLabelObject(initialLabelPkgName, "label 1", "init desc", "#222eee")
 				setAssociation := func(o pkger.Object) pkger.Object {
 					o.AddAssociations(pkger.ObjectAssociation{
-						Kind:    pkger.KindLabel,
-						PkgName: labelObj.Name(),
+						Kind:     pkger.KindLabel,
+						MetaName: labelObj.Name(),
 					})
 					return o
 				}
@@ -2035,8 +2035,8 @@ func TestLauncher_Pkger(t *testing.T) {
 					labelObj := newLabelObject("test-label", "", "", "")
 					bktObj := newBucketObject("test-bucket", "", "")
 					bktObj.AddAssociations(pkger.ObjectAssociation{
-						Kind:    pkger.KindLabel,
-						PkgName: labelObj.Name(),
+						Kind:     pkger.KindLabel,
+						MetaName: labelObj.Name(),
 					})
 					pkg := newPkg(bktObj, labelObj)
 
@@ -2074,7 +2074,7 @@ func TestLauncher_Pkger(t *testing.T) {
 					require.Empty(t, exportedSum.Buckets[0].LabelAssociations, "received unexpected label associations")
 				})
 
-				t.Run("should not export associations platform resources not associated with stack", func(t *testing.T) {
+				t.Run("should export associations platform resources not associated with stack", func(t *testing.T) {
 					stack, initialSummary, cleanup := newLabelAssociationTestFn(t)
 					defer cleanup()
 
@@ -2100,10 +2100,13 @@ func TestLauncher_Pkger(t *testing.T) {
 					require.NoError(t, err)
 
 					exportedSum := exportedPkg.Summary()
-					require.Len(t, exportedSum.Labels, 1)
+					assert.Len(t, exportedSum.Labels, 2)
 					require.Len(t, exportedSum.Buckets, 1)
-					require.Len(t, exportedSum.Buckets[0].LabelAssociations, 1)
-					assert.Equal(t, initialSummary.Labels[0].PkgName, exportedSum.Buckets[0].LabelAssociations[0].PkgName)
+					require.Len(t, exportedSum.Buckets[0].LabelAssociations, 2)
+
+					expectedAssociation := initialSummary.Labels[0]
+					expectedAssociation.ID, expectedAssociation.OrgID = 0, 0
+					assert.Contains(t, exportedSum.Buckets[0].LabelAssociations, expectedAssociation)
 				})
 			})
 		})
@@ -2987,7 +2990,7 @@ spec:
 
 		require.Len(t, stacks, 1)
 		require.Len(t, stacks[0].Resources, 1)
-		assert.Equal(t, stacks[0].Resources[0].PkgName, "room")
+		assert.Equal(t, stacks[0].Resources[0].MetaName, "room")
 		assert.Equal(t, influxdb.ID(impact.Summary.Buckets[0].ID), stacks[0].Resources[0].ID)
 	})
 

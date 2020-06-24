@@ -8441,7 +8441,7 @@ components:
                 type: string
               kind:
                 $ref: "#/components/schemas/TemplateKind"
-              pkgName:
+              templateMetaName:
                 type: string
               associations:
                 type: array
