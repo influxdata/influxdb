@@ -930,7 +930,11 @@ func (e *Engine) Backup(w io.Writer, basePath string, since time.Time) error {
 		e.logger.Warn("Snapshotter busy: Backup proceeding without snapshot contents.")
 	}
 	// Remove the temporary snapshot dir
-	defer os.RemoveAll(path)
+	defer func() {
+		if err := os.RemoveAll(path); err != nil {
+			e.logger.Warn("backup could not remove temporary snapshot directory", zap.String("path", path), zap.Error(err))
+		}
+	}()
 
 	return intar.Stream(w, path, basePath, intar.SinceFilterTarFile(since))
 }
@@ -996,7 +1000,11 @@ func (e *Engine) Export(w io.Writer, basePath string, start time.Time, end time.
 		return err
 	}
 	// Remove the temporary snapshot dir
-	defer os.RemoveAll(path)
+	defer func() {
+		if err := os.RemoveAll(path); err != nil {
+			e.logger.Warn("export could not remove temporary snapshot directory", zap.String("path", path), zap.Error(err))
+		}
+	}()
 
 	return intar.Stream(w, path, basePath, e.timeStampFilterTarFile(start, end))
 }
