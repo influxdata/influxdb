@@ -11,7 +11,7 @@ import {NotebookContext} from 'src/notebooks/context/notebook'
 import {TimeContext} from 'src/notebooks/context/time'
 import {fromFlux as parse} from '@influxdata/giraffe'
 import {BothResults} from 'src/notebooks'
-import {reportSimpleQueryPerformanceEvent} from 'src/cloud/utils/reporting'
+import {event} from 'src/cloud/utils/reporting'
 
 export interface QueryContextType {
   query: (text: string) => Promise<BothResults>
@@ -40,7 +40,7 @@ export const QueryProvider: FC<Props> = ({children, variables, org}) => {
     const windowVars = getWindowVars(text, vars)
     const extern = buildVarsOption([...vars, ...windowVars])
 
-    reportSimpleQueryPerformanceEvent('runQuery', {context: 'notebooks'})
+    event('runQuery', {context: 'notebooks'})
     return runQuery(org.id, text, extern)
       .promise.then(raw => {
         if (raw.type !== 'SUCCESS') {

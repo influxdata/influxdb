@@ -6,7 +6,7 @@ import {resolveSelectedKey} from 'src/variables/utils/resolveSelectedValue'
 import {formatVarsOption} from 'src/variables/utils/formatVarsOption'
 import {parseResponse} from 'src/shared/parsing/flux/response'
 import {buildVarsOption} from 'src/variables/utils/buildVarsOption'
-import {reportSimpleQueryPerformanceEvent} from 'src/cloud/utils/reporting'
+import {event} from 'src/cloud/utils/reporting'
 
 // Types
 import {VariableAssignment, VariableValues, FluxColumnType} from 'src/types'
@@ -103,7 +103,7 @@ export class DefaultValueFetcher implements ValueFetcher {
 
     const extern = buildVarsOption(variables)
     const request = runQuery(orgID, query, extern)
-    reportSimpleQueryPerformanceEvent('runQuery', {context: 'variables'})
+    event('runQuery', {context: 'variables'})
 
     const promise = request.promise.then(result => {
       if (result.type !== 'SUCCESS') {
