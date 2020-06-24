@@ -249,7 +249,6 @@ func TestCmdConfig(t *testing.T) {
 		t.Run("with valid args should be successful", func(t *testing.T) {
 			tests := []struct {
 				name     string
-				original config.Configs
 				expected config.Config
 				flags    []string
 			}{
@@ -262,20 +261,58 @@ func TestCmdConfig(t *testing.T) {
 						"--token", "tok1",
 						"--active",
 					},
-					original: config.Configs{
-						"default": {
-							Org:    "org2",
-							Active: false,
-							Token:  "tok2",
-							Host:   "http://localhost:8888",
-						},
-					},
 					expected: config.Config{
 						Name:   "default",
 						Org:    "org1",
 						Active: true,
 						Token:  "tok1",
 						Host:   "http://localhost:9999",
+					},
+				},
+				{
+					name: "only org",
+					flags: []string{
+						"--config-name", "default",
+						"--org", "org1",
+					},
+					expected: config.Config{
+						Name: "default",
+						Org:  "org1",
+					},
+				},
+				{
+					name: "only host",
+					flags: []string{
+						"--config-name", "default",
+						"--host-url", "http://example.com",
+					},
+					expected: config.Config{
+						Name: "default",
+						Host: "http://example.com",
+					},
+				},
+				{
+					name: "only token",
+					flags: []string{
+						"--config-name", "default",
+						"--token", "footoken",
+					},
+					expected: config.Config{
+						Name:  "default",
+						Token: "footoken",
+					},
+				},
+				{
+					name: "only token and org",
+					flags: []string{
+						"--config-name", "default",
+						"--token", "footoken",
+						"--org", "org",
+					},
+					expected: config.Config{
+						Name:  "default",
+						Org:   "org",
+						Token: "footoken",
 					},
 				},
 				{
@@ -287,14 +324,6 @@ func TestCmdConfig(t *testing.T) {
 						"-t", "tok1",
 						"-a",
 					},
-					original: config.Configs{
-						"default": {
-							Org:    "org2",
-							Active: false,
-							Token:  "tok2",
-							Host:   "http://localhost:8888",
-						},
-					},
 					expected: config.Config{
 						Name:   "default",
 						Org:    "org1",
@@ -304,7 +333,7 @@ func TestCmdConfig(t *testing.T) {
 					},
 				},
 			}
-			cmdFn := func(original config.Configs, expected config.Config) func(*globalFlags, genericCLIOpts) *cobra.Command {
+			cmdFn := func(expected config.Config) func(*globalFlags, genericCLIOpts) *cobra.Command {
 				svc := &mockConfigService{
 					UpdateConfigFn: func(cfg config.Config) (config.Config, error) {
 						if diff := cmp.Diff(expected, cfg); diff != "" {
@@ -331,7 +360,7 @@ func TestCmdConfig(t *testing.T) {
 						in(new(bytes.Buffer)),
 						out(ioutil.Discard),
 					)
-					cmd := builder.cmd(cmdFn(tt.original, tt.expected))
+					cmd := builder.cmd(cmdFn(tt.expected))
 					cmd.SetArgs(append([]string{"config", "set"}, tt.flags...))
 					require.NoError(t, cmd.Execute())
 				}
