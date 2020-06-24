@@ -30,7 +30,7 @@ pub fn stats(input_filename: &str) -> Result<()> {
             let input_len = input_reader.len();
             (
                 input_len,
-                col_stats(input_reader, input_len)
+                col_stats(input_reader)
                     .map_err(|e| Error::UnableDumpToParquetMetadata { source: e })?,
             )
         }

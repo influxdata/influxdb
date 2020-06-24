@@ -8,12 +8,13 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::io::{BufRead, Seek};
 
 use log::debug;
-use parquet::data_type::ByteArray;
 use snafu::{ResultExt, Snafu};
 
 use delorean_line_parser::{FieldValue, ParsedLine};
-use delorean_table::packers::{Packer, Packers};
-use delorean_table::{DeloreanTableWriter, DeloreanTableWriterSource, Error as TableError};
+use delorean_table::{
+    packers::{Packer, Packers},
+    ByteArray, DeloreanTableWriter, DeloreanTableWriterSource, Error as TableError,
+};
 use delorean_table_schema::{DataType, Schema, SchemaBuilder};
 use delorean_tsm::mapper::{map_field_columns, ColumnData, TSMMeasurementMapper};
 use delorean_tsm::reader::{TSMBlockReader, TSMIndexReader};
@@ -703,7 +704,6 @@ mod delorean_ingest_tests {
     use delorean_table::{DeloreanTableWriter, DeloreanTableWriterSource, Error as TableError};
     use delorean_table_schema::ColumnDefinition;
     use delorean_test_helpers::approximately_equal;
-    use parquet::data_type::ByteArray;
 
     use std::sync::{Arc, Mutex};
 

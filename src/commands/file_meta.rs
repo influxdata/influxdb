@@ -40,8 +40,7 @@ pub fn dump_meta(input_filename: &str) -> Result<()> {
             Ok(())
         }
         FileType::Parquet => {
-            let input_len = input_reader.len();
-            print_parquet_metadata(input_reader, input_len)
+            print_parquet_metadata(input_reader)
                 .map_err(|e| Error::UnableDumpToParquetMetadata { source: e })?;
             Ok(())
         }
