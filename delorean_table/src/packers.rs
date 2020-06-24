@@ -331,12 +331,29 @@ mod test {
     }
 
     #[test]
-    fn packers() {
+    fn packers_create() {
         let mut packers: Vec<Packers> = Vec::new();
         packers.push(Packers::Float(Packer::new()));
         packers.push(Packers::Integer(Packer::new()));
         packers.push(Packers::Boolean(Packer::new()));
 
         packers.get_mut(0).unwrap().f64_packer_mut().push(22.033);
+    }
+
+    #[test]
+    fn packers_null_encoding() {
+        let mut packer: Packer<ByteArray> = Packer::new();
+        packer.push(ByteArray::from("foo"));
+        packer.push_option(None);
+        packer.push(ByteArray::from("bar"));
+
+        assert_eq!(packer.num_rows(), 3);
+        // Note there are only two values, even though there are 3 rows
+        assert_eq!(
+            packer.values,
+            vec![ByteArray::from("foo"), ByteArray::from("bar")]
+        );
+        assert_eq!(packer.def_levels, vec![1, 0, 1]);
+        assert_eq!(packer.rep_levels, vec![1, 1, 1]);
     }
 }
