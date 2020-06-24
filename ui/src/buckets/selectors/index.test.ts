@@ -6,7 +6,7 @@ import {
 } from 'src/buckets/selectors/index'
 
 // Types
-import {Bucket} from 'src/types'
+import {AppState, Bucket} from 'src/types'
 
 describe('Bucket Selector', () => {
   it('should return true when a default bucket is passed', () => {
@@ -164,7 +164,17 @@ describe('Bucket Selector', () => {
       },
     ]
 
-    const results = getSortedBuckets(buckets).map(bucket => bucket.name)
+    const results = getSortedBuckets({
+      resources: {
+        buckets: {
+          status: 'Done',
+          byID: buckets.reduce((prev, curr) => {
+            prev[curr.id] = curr
+          }, {}),
+          allIDs: buckets.map(bucket => bucket.id),
+        },
+      },
+    } as AppState).map(bucket => bucket.name)
     const expectedResult = [
       'alpha',
       'buck2',

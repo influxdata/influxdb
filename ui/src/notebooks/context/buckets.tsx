@@ -36,10 +36,15 @@ export const BucketContext = React.createContext<BucketContextType>(
   DEFAULT_CONTEXT
 )
 
+let GLOBAL_LOADING = false
+
 export const BucketProvider: FC<Props> = React.memo(
   ({loading, getBuckets, buckets, children}) => {
-    if (loading === RemoteDataState.NotStarted) {
-      getBuckets()
+    if (!GLOBAL_LOADING && loading === RemoteDataState.NotStarted) {
+      GLOBAL_LOADING = true
+      getBuckets().then(() => {
+        GLOBAL_LOADING = false
+      })
     }
 
     return (
