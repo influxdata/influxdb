@@ -8,7 +8,7 @@ export interface Point {
 }
 
 export interface PointTags {
-  [key: string]: string
+  [key: string]: number | string
 }
 
 export interface PointFields {

@@ -17,7 +17,7 @@ import {notify} from 'src/shared/actions/notifications'
 
 // Utils
 import {getActiveTimeMachine, getActiveQuery} from 'src/timeMachine/selectors'
-import {reportSimpleQueryPerformanceEvent} from 'src/cloud/utils/reporting'
+import {event} from 'src/cloud/utils/reporting'
 import {queryCancelRequest} from 'src/shared/copy/notifications'
 
 // Types
@@ -110,7 +110,7 @@ class SubmitQueryButton extends PureComponent<Props> {
   private handleClick = (): void => {
     // Optimistic UI, set the state to loading when the event
     // happens rather than when the event trickles down to execution
-    reportSimpleQueryPerformanceEvent('SubmitQueryButton click')
+    event('SubmitQueryButton click')
     // We need to instantiate a new AbortController per request
     // In order to allow for requests after cancellations:
     // https://stackoverflow.com/a/56548348/7963795

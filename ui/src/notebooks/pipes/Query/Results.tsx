@@ -13,7 +13,7 @@ import ResultsPagination from 'src/notebooks/pipes/Query/ResultsPagination'
 import {PipeData} from 'src/notebooks/index'
 
 // Utils
-import {event} from 'src/notebooks/shared/event'
+import {event} from 'src/cloud/utils/reporting'
 
 interface Props {
   data: PipeData

@@ -5,7 +5,7 @@ import React, {FC} from 'react'
 import {SquareButton, IconFont} from '@influxdata/clockface'
 
 // Utils
-import {event} from 'src/notebooks/shared/event'
+import {event} from 'src/cloud/utils/reporting'
 
 interface Props {
   onRemove?: () => void

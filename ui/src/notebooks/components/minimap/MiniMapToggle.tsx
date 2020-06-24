@@ -9,7 +9,7 @@ import {Icon, IconFont} from '@influxdata/clockface'
 import {setNotebookMiniMapState} from 'src/shared/actions/app'
 
 // Utils
-import {event} from 'src/notebooks/shared/event'
+import {event} from 'src/cloud/utils/reporting'
 
 // Types
 import {AppState} from 'src/types'

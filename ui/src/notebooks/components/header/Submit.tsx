@@ -9,7 +9,7 @@ import {IconFont} from '@influxdata/clockface'
 import {notify} from 'src/shared/actions/notifications'
 
 // Utils
-import {event} from 'src/notebooks/shared/event'
+import {event} from 'src/cloud/utils/reporting'
 
 // Types
 import {RemoteDataState} from 'src/types'

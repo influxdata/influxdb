@@ -8,7 +8,7 @@ import {Button, ComponentColor} from '@influxdata/clockface'
 import {NotebookContext} from 'src/notebooks/context/notebook'
 import {PIPE_DEFINITIONS} from 'src/notebooks'
 
-import {event} from 'src/notebooks/shared/event'
+import {event} from 'src/cloud/utils/reporting'
 import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 
 interface Props {

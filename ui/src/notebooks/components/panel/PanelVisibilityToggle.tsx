@@ -6,7 +6,7 @@ import {SquareButton, IconFont} from '@influxdata/clockface'
 import {NotebookContext, PipeMeta} from 'src/notebooks/context/notebook'
 
 // Utils
-import {event} from 'src/notebooks/shared/event'
+import {event} from 'src/cloud/utils/reporting'
 
 export interface Props {
   index: number

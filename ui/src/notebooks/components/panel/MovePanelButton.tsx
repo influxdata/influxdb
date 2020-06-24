@@ -5,7 +5,7 @@ import React, {FC, MouseEvent} from 'react'
 import {SquareButton, IconFont, ComponentStatus} from '@influxdata/clockface'
 
 // Utils
-import {event} from 'src/notebooks/shared/event'
+import {event} from 'src/cloud/utils/reporting'
 
 interface Props {
   onClick?: () => void
