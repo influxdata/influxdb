@@ -127,15 +127,7 @@ func (b *cmdConfigBuilder) cmdCreate() *cobra.Command {
 	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/config/create`
 
 	b.registerPrintFlags(cmd)
-	cmd.Flags().StringVarP(&b.name, "name", "n", "", "The config name (required)")
-	cmd.MarkFlagRequired("name")
-	cmd.Flags().StringVarP(&b.token, "token", "t", "", "The config token (required)")
-	cmd.MarkFlagRequired("token")
-	cmd.Flags().StringVarP(&b.url, "url", "u", "", "The config url (required)")
-	cmd.MarkFlagRequired("url")
-
-	cmd.Flags().BoolVarP(&b.active, "active", "a", false, "Set it to be the active config")
-	cmd.Flags().StringVarP(&b.org, "org", "o", "", "The optional organization name")
+	b.registerConfigSettingFlags(cmd)
 	return cmd
 }
 
@@ -228,13 +220,7 @@ func (b *cmdConfigBuilder) cmdUpdate() *cobra.Command {
 	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/config/set`
 
 	b.registerPrintFlags(cmd)
-	cmd.Flags().StringVarP(&b.name, "name", "n", "", "The config name (required)")
-	cmd.MarkFlagRequired("name")
-
-	cmd.Flags().StringVarP(&b.token, "token", "t", "", "The config token (required)")
-	cmd.Flags().StringVarP(&b.url, "url", "u", "", "The config url (required)")
-	cmd.Flags().BoolVarP(&b.active, "active", "a", false, "Set it to be the active config")
-	cmd.Flags().StringVarP(&b.org, "org", "o", "", "The optional organization name")
+	b.registerConfigSettingFlags(cmd)
 	return cmd
 }
 
@@ -287,6 +273,27 @@ func (b *cmdConfigBuilder) cmdListRunEFn(*cobra.Command, []string) error {
 	}
 
 	return b.printConfigs(configPrintOpts{configs: cfgs})
+}
+
+func (b *cmdConfigBuilder) registerConfigSettingFlags(cmd *cobra.Command) {
+	cmd.Flags().BoolVarP(&b.active, "active", "a", false, "Set as active config")
+	cmd.Flags().StringVarP(&b.org, "org", "o", "", "The optional organization name")
+
+	cmd.Flags().StringVarP(&b.name, "config-name", "n", "", "The config name (required)")
+	cmd.MarkFlagRequired("config-name")
+
+	cmd.Flags().StringVarP(&b.token, "token", "t", "", "The token for host (required)")
+	cmd.MarkFlagRequired("token")
+
+	cmd.Flags().StringVarP(&b.url, "host-url", "u", "", "The host url (required)")
+	cmd.MarkFlagRequired("host-url")
+
+	// deprecated moving forward, not explicit enough based on feedback
+	// the short flags will still be respected but their long form is different.
+	cmd.Flags().StringVar(&b.name, "name", "", "The config name (required)")
+	cmd.Flags().MarkDeprecated("name", "use the --config-name flag")
+	cmd.Flags().StringVar(&b.url, "url", "", "The host url (required)")
+	cmd.Flags().MarkDeprecated("url", "use the --host-url flag")
 }
 
 func (b *cmdConfigBuilder) registerPrintFlags(cmd *cobra.Command) {
