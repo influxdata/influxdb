@@ -57,7 +57,7 @@ const BucketSelector: FC<Props> = ({onUpdate, data, buckets}) => {
     )
   }
 
-  return <p style={{color: '#ff0054'}}>No Buckets</p>
+  return <p>No Buckets</p>
 }
 
 const mstp = (state: AppState) => {
@@ -66,7 +66,4 @@ const mstp = (state: AppState) => {
   return {buckets}
 }
 
-export default connect<StateProps, {}, OwnProps>(
-  mstp,
-  null
-)(BucketSelector)
+export default connect<StateProps, {}, OwnProps>(mstp, null)(BucketSelector)
