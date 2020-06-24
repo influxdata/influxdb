@@ -585,31 +585,20 @@ func (p *Partition) DropMeasurement(name []byte) error {
 	}
 	defer fs.Release()
 
+	entries := make([]LogEntry, 0, 100)
 	// Delete all keys and values.
 	if kitr := fs.TagKeyIterator(name); kitr != nil {
 		for k := kitr.Next(); k != nil; k = kitr.Next() {
 			// Delete key if not already deleted.
 			if !k.Deleted() {
-				if err := func() error {
-					p.mu.RLock()
-					defer p.mu.RUnlock()
-					return p.activeLogFile.DeleteTagKey(name, k.Key())
-				}(); err != nil {
-					return err
-				}
+				entries = append(entries, LogEntry{Flag: LogEntryTagKeyTombstoneFlag, Name: name, Key: k.Key()})
 			}
 
 			// Delete each value in key.
 			if vitr := k.TagValueIterator(); vitr != nil {
 				for v := vitr.Next(); v != nil; v = vitr.Next() {
 					if !v.Deleted() {
-						if err := func() error {
-							p.mu.RLock()
-							defer p.mu.RUnlock()
-							return p.activeLogFile.DeleteTagValue(name, k.Key(), v.Value())
-						}(); err != nil {
-							return err
-						}
+						entries = append(entries, LogEntry{Flag: LogEntryTagValueTombstoneFlag, Name: name, Key: k.Key(), Value: v.Value()})
 					}
 				}
 			}
@@ -626,13 +615,7 @@ func (p *Partition) DropMeasurement(name []byte) error {
 			} else if elem.SeriesID == 0 {
 				break
 			}
-			if err := func() error {
-				p.mu.RLock()
-				defer p.mu.RUnlock()
-				return p.activeLogFile.DeleteSeriesID(elem.SeriesID)
-			}(); err != nil {
-				return err
-			}
+			entries = append(entries, LogEntry{Flag: LogEntrySeriesTombstoneFlag, SeriesID: elem.SeriesID})
 		}
 		if err = itr.Close(); err != nil {
 			return err
@@ -640,13 +623,14 @@ func (p *Partition) DropMeasurement(name []byte) error {
 	}
 
 	// Mark measurement as deleted.
-	if err := func() error {
-		p.mu.RLock()
-		defer p.mu.RUnlock()
-		return p.activeLogFile.DeleteMeasurement(name)
-	}(); err != nil {
+	entries = append(entries, LogEntry{Flag: LogEntryMeasurementTombstoneFlag, Name: name})
+
+	p.mu.RLock()
+	if err := p.activeLogFile.Writes(entries); err != nil {
+		p.mu.RUnlock()
 		return err
 	}
+	p.mu.RUnlock()
 
 	// Check if the log file needs to be swapped.
 	if err := p.CheckLogFile(); err != nil {
@@ -700,6 +684,28 @@ func (p *Partition) DropSeries(seriesID uint64) error {
 	}
 
 	p.seriesIDSet.Remove(seriesID)
+
+	// Swap log file, if necessary.
+	return p.CheckLogFile()
+}
+
+func (p *Partition) DropSeriesList(seriesIDs []uint64) error {
+	if len(seriesIDs) == 0 {
+		return nil
+	}
+
+	// Delete series from index.
+	if err := func() error {
+		p.mu.RLock()
+		defer p.mu.RUnlock()
+		return p.activeLogFile.DeleteSeriesIDList(seriesIDs)
+	}(); err != nil {
+		return err
+	}
+
+	for _, seriesID := range seriesIDs {
+		p.seriesIDSet.Remove(seriesID)
+	}
 
 	// Swap log file, if necessary.
 	return p.CheckLogFile()
