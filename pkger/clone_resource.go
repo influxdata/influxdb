@@ -633,6 +633,9 @@ func convertCellView(cell influxdb.Cell) chart {
 		ch.Position = p.Position
 	}
 
+	sort.Slice(ch.Axes, func(i, j int) bool {
+		return ch.Axes[i].Name < ch.Axes[j].Name
+	})
 	return ch
 }
 
