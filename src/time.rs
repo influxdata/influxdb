@@ -6,7 +6,7 @@ use std::time::{Duration, UNIX_EPOCH};
 // TODO: because we're using SystemTime as our base time object, we only support times after
 //       unix epoch. We should fix this so we can represent a wider range of dates & times.
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub struct RelativeDuration {
     pub subtract: bool,
     pub duration: Duration,

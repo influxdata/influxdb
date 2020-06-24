@@ -1,3 +1,10 @@
+#![deny(rust_2018_idioms)]
+#![warn(
+    missing_copy_implementations,
+    missing_debug_implementations,
+    clippy::explicit_iter_loop
+)]
+
 pub mod encoders;
 pub mod mapper;
 pub mod reader;

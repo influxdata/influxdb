@@ -556,7 +556,7 @@ where
 /// - smallest and largest values written to the block.
 
 // TODO(edd) need to support big float representation...
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct FloatBlockSummary {
     count: u16, // max number of values in block 65,535
     sum: f64,
@@ -737,7 +737,7 @@ impl BlockSummary<i64> for IntegerBlockSummary {
 
 /// `BoolBlockSummary` provides a summary of a bool block, tracking the count of
 /// values in the block.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct BoolBlockSummary {
     count: u16, // max number of values in block 65,535
 

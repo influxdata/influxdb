@@ -11,6 +11,7 @@ use std::default::Default;
 // NOTE: See https://blog.twitter.com/engineering/en_us/a/2013/dremel-made-simple-with-parquet.html
 // for an explanation of nesting levels
 
+#[derive(Debug)]
 pub enum Packers {
     Float(Packer<f64>),
     Integer(Packer<i64>),

@@ -1,5 +1,6 @@
 #![deny(rust_2018_idioms)]
 #![warn(
+    missing_copy_implementations,
     missing_debug_implementations,
     missing_docs,
     clippy::explicit_iter_loop

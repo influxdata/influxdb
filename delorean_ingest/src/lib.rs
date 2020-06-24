@@ -2,7 +2,11 @@
 //! Currently supports converting LineProtocol
 //! TODO move this to delorean/src/ingest/line_protocol.rs?
 #![deny(rust_2018_idioms)]
-#![warn(missing_debug_implementations, clippy::explicit_iter_loop)]
+#![warn(
+    missing_copy_implementations,
+    missing_debug_implementations,
+    clippy::explicit_iter_loop
+)]
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::{BufRead, Seek};
@@ -20,7 +24,7 @@ use delorean_tsm::mapper::{map_field_columns, ColumnData, TSMMeasurementMapper};
 use delorean_tsm::reader::{TSMBlockReader, TSMIndexReader};
 use delorean_tsm::{BlockType, TSMError};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct ConversionSettings {
     /// How many `ParsedLine` structures to buffer before determining the schema
     sample_size: usize,
@@ -153,8 +157,7 @@ impl<'a> MeasurementConverter<'a> {
                         .next_writer(&schema)
                         .context(WriterCreation)?;
 
-                    let mut writer =
-                        MeasurementWriter::new(sampler.settings.clone(), schema, table_writer);
+                    let mut writer = MeasurementWriter::new(sampler.settings, schema, table_writer);
 
                     debug!("Completed change to writing mode");
                     for line in sampler.schema_sample.drain(..) {
@@ -198,7 +201,6 @@ impl<'a> LineProtocolConverter<'a> {
         for line in lines {
             let series = &line.series;
 
-            let settings = &self.settings;
             let series_measurement = series.measurement.as_str();
 
             // do not use entry API to avoid copying the key unless it is not present
@@ -207,9 +209,7 @@ impl<'a> LineProtocolConverter<'a> {
                 None => {
                     self.converters.insert(
                         series_measurement.into(),
-                        MeasurementConverter::UnknownSchema(MeasurementSampler::new(
-                            settings.clone(),
-                        )),
+                        MeasurementConverter::UnknownSchema(MeasurementSampler::new(self.settings)),
                     );
                     self.converters.get_mut(series_measurement).unwrap()
                 }

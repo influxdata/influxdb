@@ -1,5 +1,9 @@
 #![deny(rust_2018_idioms)]
-#![warn(missing_debug_implementations, clippy::explicit_iter_loop)]
+#![warn(
+    missing_copy_implementations,
+    missing_debug_implementations,
+    clippy::explicit_iter_loop
+)]
 
 //! This module is used to represent the abstract "schema" of a set of line
 //! protocol data records, as defined in the
