@@ -841,13 +841,14 @@ func (b *cmdPkgBuilder) stackRemoveRunEFn(cmd *cobra.Command, args []string) err
 
 		tabW.HideHeaders(b.hideHeaders)
 
-		tabW.WriteHeaders("ID", "OrgID", "Name", "Description", "Num Resources", "URLs", "Created At")
+		tabW.WriteHeaders("ID", "OrgID", "Name", "Description", "Num Resources", "Sources", "URLs", "Created At")
 		tabW.Write(map[string]interface{}{
 			"ID":            stack.ID,
 			"OrgID":         stack.OrgID,
 			"Name":          stack.Name,
 			"Description":   stack.Description,
 			"Num Resources": len(stack.Resources),
+			"Sources":       stack.Sources,
 			"URLs":          stack.URLs,
 			"Created At":    stack.CreatedAt,
 		})
