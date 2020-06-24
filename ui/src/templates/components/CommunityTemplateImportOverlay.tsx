@@ -9,6 +9,8 @@ import {CommunityTemplateInstallerOverlay} from 'src/templates/components/Commun
 import {createTemplate as createTemplateAction} from 'src/templates/actions/thunks'
 import {notify as notifyAction} from 'src/shared/actions/notifications'
 
+import {FlagMap} from 'src/shared/reducers/flags'
+
 // Types
 import {AppState, Organization, ResourceType} from 'src/types'
 import {ComponentStatus} from '@influxdata/clockface'
@@ -26,6 +28,7 @@ interface DispatchProps {
 }
 
 interface StateProps {
+  flags: FlagMap
   org: Organization
   templateName: string
 }
@@ -42,6 +45,10 @@ class UnconnectedTemplateImportOverlay extends PureComponent<Props> {
   }
 
   public render() {
+    if (!this.props.flags.communityTemplates) {
+      return null
+    }
+
     return (
       <CommunityTemplateInstallerOverlay
         onDismissOverlay={this.onDismiss}
@@ -74,7 +81,11 @@ const mstp = (state: AppState, props: Props): StateProps => {
     props.params.orgID
   )
 
-  return {org, templateName: props.params.templateName}
+  return {
+    org,
+    templateName: props.params.templateName,
+    flags: state.flags.original,
+  }
 }
 
 const mdtp: DispatchProps = {

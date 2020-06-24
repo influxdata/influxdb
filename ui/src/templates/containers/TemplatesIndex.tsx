@@ -10,14 +10,18 @@ import SettingsHeader from 'src/settings/components/SettingsHeader'
 import TemplatesPage from 'src/templates/components/TemplatesPage'
 import GetResources from 'src/resources/components/GetResources'
 
+import {CommunityTemplatesIndex} from 'src/templates/containers/CommunityTemplatesIndex'
+
 // Utils
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
 import {getOrg} from 'src/organizations/selectors'
 
 // Types
 import {AppState, Organization, ResourceType} from 'src/types'
+import {FlagMap} from 'src/shared/reducers/flags'
 
 interface StateProps {
+  flags: FlagMap
   org: Organization
 }
 
@@ -26,7 +30,10 @@ type Props = WithRouterProps & StateProps
 @ErrorHandling
 class TemplatesIndex extends Component<Props> {
   public render() {
-    const {org, children} = this.props
+    const {org, children, flags} = this.props
+    if (flags.communityTemplates) {
+      return <CommunityTemplatesIndex>{children}</CommunityTemplatesIndex>
+    }
     return (
       <>
         <Page titleTag={pageTitleSuffixer(['Templates', 'Settings'])}>
@@ -51,6 +58,7 @@ class TemplatesIndex extends Component<Props> {
 const mstp = (state: AppState): StateProps => {
   return {
     org: getOrg(state),
+    flags: state.flags.original,
   }
 }
 
