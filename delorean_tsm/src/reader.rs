@@ -291,9 +291,15 @@ where
 
                 Ok(BlockData::Integer { ts, values })
             }
-            BlockType::Bool => Err(TSMError {
-                description: String::from("bool block type unsupported"),
-            }),
+            BlockType::Bool => {
+                // values will be same length as time-stamps.
+                let mut values = Vec::with_capacity(ts.len());
+                encoders::boolean::decode(&data[idx..], &mut values).map_err(|e| TSMError {
+                    description: e.to_string(),
+                })?;
+
+                Ok(BlockData::Bool { ts, values })
+            }
             BlockType::Str => {
                 // values will be same length as time-stamps.
                 let mut values = Vec::with_capacity(ts.len());
@@ -455,12 +461,7 @@ mod tests {
             let key = entry.parse_key().unwrap();
             assert!(!key.measurement.is_empty());
 
-            match entry.block_type {
-                BlockType::Bool => {
-                    eprintln!("Note: ignoring bool block, not implemented");
-                }
-                _ => blocks.push(entry.block),
-            }
+            blocks.push(entry.block);
         }
 
         let mut block_reader = TSMBlockReader::new(Cursor::new(&buf));
