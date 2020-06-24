@@ -1,7 +1,7 @@
 // Funcs
 import {
   isSystemBucket,
-  getSortedBucketNames,
+  getSortedBuckets,
   SYSTEM,
 } from 'src/buckets/selectors/index'
 
@@ -164,7 +164,7 @@ describe('Bucket Selector', () => {
       },
     ]
 
-    const results = getSortedBucketNames(buckets)
+    const results = getSortedBuckets(buckets).map(bucket => bucket.name)
     const expectedResult = [
       'alpha',
       'buck2',
