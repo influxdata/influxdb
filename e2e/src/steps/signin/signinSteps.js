@@ -107,6 +107,7 @@ class signinSteps extends baseSteps {
     }
 
     async signin(user){
+        await this.driver.sleep(5000); //work around for stale element when signin page refreshes
         await this.enterUsername(user.username);
         await this.enterPassword(user.password);
         await this.clickSigninButton();
