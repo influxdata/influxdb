@@ -60,7 +60,6 @@ export const Submit: FC = () => {
             const {bucketName, timeStart, timeStop} = pipe
 
             const text = `from(bucket: "${bucketName}")|>range(start: ${timeStart}, stop: ${timeStop})`
-            console.log(text)
 
             stages.push({
               text,
