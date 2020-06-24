@@ -576,15 +576,15 @@ describe('Dashboard', () => {
         .click()
       cy.get(`#cool`).click()
     })
+  })
 
-    it('can create a view through the API', () => {
-      cy.get('@org').then(({id: orgID}: Organization) => {
-        cy.createDashWithViewAndVar(orgID).then(() => {
-          cy.fixture('routes').then(({orgs}) => {
-            cy.visit(`${orgs}/${orgID}/dashboards`)
-            cy.getByTestID('dashboard-card--name').click()
-            cy.get('.cell--view').should('have.length', 1)
-          })
+  it('can create a view through the API', () => {
+    cy.get('@org').then(({id: orgID}: Organization) => {
+      cy.createDashWithViewAndVar(orgID).then(() => {
+        cy.fixture('routes').then(({orgs}) => {
+          cy.visit(`${orgs}/${orgID}/dashboards`)
+          cy.getByTestID('dashboard-card--name').click()
+          cy.get('.cell--view').should('have.length', 1)
         })
       })
     })
