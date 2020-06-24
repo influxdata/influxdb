@@ -352,7 +352,7 @@ impl<'a> MeasurementWriter<'a> {
     }
 }
 
-/// Keeps track of if we have written a value to a particular
+/// Keeps track of if we have written a value to a particular row
 struct PackersForRow<'a> {
     packer: &'a mut Packers,
     wrote_value_for_row: bool,
@@ -365,7 +365,7 @@ impl<'a> PackersForRow<'a> {
             wrote_value_for_row: false,
         }
     }
-    /// Retrieve the packer and and note that we have written to this packer
+    /// Retrieve the packer and note that we have written to this packer
     fn packer(&mut self) -> &mut Packers {
         assert!(
             !self.wrote_value_for_row,
