@@ -1,6 +1,9 @@
 package main
 
 import (
+	"errors"
+	"net/url"
+
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/influx/config"
 	"github.com/spf13/cobra"
@@ -128,13 +131,20 @@ func (b *cmdConfigBuilder) cmdCreate() *cobra.Command {
 
 	b.registerPrintFlags(cmd)
 	b.registerConfigSettingFlags(cmd)
+	cmd.MarkFlagRequired("token")
+	cmd.MarkFlagRequired("host-url")
 	return cmd
 }
 
 func (b *cmdConfigBuilder) cmdCreateRunEFn(*cobra.Command, []string) error {
+	host, err := b.getValidHostURL()
+	if err != nil {
+		return err
+	}
+
 	cfg, err := b.svc.CreateConfig(config.Config{
 		Name:   b.name,
-		Host:   b.url,
+		Host:   host,
 		Token:  b.token,
 		Org:    b.org,
 		Active: b.active,
@@ -225,9 +235,14 @@ func (b *cmdConfigBuilder) cmdUpdate() *cobra.Command {
 }
 
 func (b *cmdConfigBuilder) cmdUpdateRunEFn(*cobra.Command, []string) error {
+	host, err := b.getValidHostURL()
+	if err != nil {
+		return err
+	}
+
 	cfg, err := b.svc.UpdateConfig(config.Config{
 		Name:   b.name,
-		Host:   b.url,
+		Host:   host,
 		Token:  b.token,
 		Org:    b.org,
 		Active: b.active,
@@ -276,17 +291,14 @@ func (b *cmdConfigBuilder) cmdListRunEFn(*cobra.Command, []string) error {
 }
 
 func (b *cmdConfigBuilder) registerConfigSettingFlags(cmd *cobra.Command) {
-	cmd.Flags().BoolVarP(&b.active, "active", "a", false, "Set as active config")
-	cmd.Flags().StringVarP(&b.org, "org", "o", "", "The optional organization name")
-
 	cmd.Flags().StringVarP(&b.name, "config-name", "n", "", "The config name (required)")
+	// name is required everywhere
 	cmd.MarkFlagRequired("config-name")
 
-	cmd.Flags().StringVarP(&b.token, "token", "t", "", "The token for host (required)")
-	cmd.MarkFlagRequired("token")
-
+	cmd.Flags().BoolVarP(&b.active, "active", "a", false, "Set as active config")
 	cmd.Flags().StringVarP(&b.url, "host-url", "u", "", "The host url (required)")
-	cmd.MarkFlagRequired("host-url")
+	cmd.Flags().StringVarP(&b.org, "org", "o", "", "The optional organization name")
+	cmd.Flags().StringVarP(&b.token, "token", "t", "", "The token for host (required)")
 
 	// deprecated moving forward, not explicit enough based on feedback
 	// the short flags will still be respected but their long form is different.
@@ -344,6 +356,17 @@ func (b *cmdConfigBuilder) printConfigs(opts configPrintOpts) error {
 	}
 
 	return nil
+}
+
+func (b *cmdConfigBuilder) getValidHostURL() (string, error) {
+	u, err := url.Parse(b.url)
+	if err != nil {
+		return "", err
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return "", errors.New("a scheme of HTTP(S) must be provided for host url")
+	}
+	return u.String(), nil
 }
 
 type configPrintOpts struct {
