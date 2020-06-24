@@ -29,8 +29,7 @@ pub fn encode(src: &[bool], dst: &mut Vec<u8>) -> Result<(), Box<dyn Error>> {
 
     // Encode the number of booleans written.
     let len_u64: u64 = src.len().try_into()?;
-    let index: usize = (n >> 3).try_into()?;
-    let i = len_u64.encode_var(&mut dst[index..]);
+    let i = len_u64.encode_var(&mut dst[1..]);
     let step: u64 = (i * 8).try_into()?;
     n += step;
 
