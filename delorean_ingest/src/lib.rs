@@ -21,9 +21,7 @@ use delorean_table::{
     ByteArray, DeloreanTableWriter, DeloreanTableWriterSource, Error as TableError,
 };
 use delorean_table_schema::{DataType, Schema, SchemaBuilder};
-use delorean_tsm::mapper::{
-    map_field_columns, BlockDecoder, ColumnData, MeasurementTable, TSMMeasurementMapper,
-};
+use delorean_tsm::mapper::{map_field_columns, ColumnData, MeasurementTable, TSMMeasurementMapper};
 use delorean_tsm::reader::{TSMBlockReader, TSMIndexReader};
 use delorean_tsm::{BlockType, TSMError};
 
@@ -1456,6 +1454,50 @@ mod delorean_ingest_tests {
                 "[h2o_temperature] Wrote batch of 4 cols, 2 rows",
                 "[h2o_temperature] Closed",
             ]
+        );
+
+        Ok(())
+    }
+
+    // ----- Tests for TSM Data -----
+
+    // TODO(edd): create a smaller TSM file for this test...
+    #[test]
+    fn conversion_tsm_files() -> Result<(), Error> {
+        let file = File::open("../tests/fixtures/000000000000462-000000002.tsm.gz");
+        let mut decoder = gzip::Decoder::new(file.unwrap()).unwrap();
+        let mut buf = Vec::new();
+        decoder.read_to_end(&mut buf).unwrap();
+
+        let log = Arc::new(Mutex::new(WriterLog::new()));
+        let mut converter = TSMFileConverter::new(NoOpWriterSource::new(log.clone()));
+        let index_steam = BufReader::new(Cursor::new(&buf));
+        let block_stream = BufReader::new(Cursor::new(&buf));
+        converter
+            .convert(index_steam, 236_029, block_stream)
+            .unwrap();
+
+        // CPU columns: - tags: cpu, host. (2)
+        //                fields: usage_guest, usage_guest_nice
+        //                        usage_idle, usage_iowait, usage_irq,
+        //                        usage_nice, usage_softirq, usage_steal,
+        //                        usage_system, usage_user (10)
+        //                timestamp (1)
+        //
+        // disk columns: - tags: device, fstype, host, mode, path (5)
+        //                 fields: free, inodes_free, inodes_total, inodes_used,
+        //                         total, used, used_percent (7)
+        //                 timestamp (1)
+        assert_eq!(
+            get_events(&log),
+            vec![
+                "Created writer for measurement cpu",
+                "[cpu] Wrote batch of 13 cols, 8568 rows",
+                "[cpu] Closed",
+                "Created writer for measurement disk",
+                "[disk] Wrote batch of 13 cols, 3535 rows",
+                "[disk] Closed"
+            ],
         );
 
         Ok(())
