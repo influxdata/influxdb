@@ -15,107 +15,125 @@ import (
 
 func TestCmdConfig(t *testing.T) {
 	t.Run("create", func(t *testing.T) {
-		tests := []struct {
-			name     string
-			original config.Configs
-			expected config.Config
-			flags    []string
-		}{
-			{
-				name: "basic",
-				flags: []string{
-					"--name", "default",
-					"--org", "org1",
-					"--url", "http://localhost:9999",
-					"--token", "tok1",
-					"--active",
-				},
-				original: make(config.Configs),
-				expected: config.Config{
-					Name:   "default",
-					Org:    "org1",
-					Active: true,
-					Token:  "tok1",
-					Host:   "http://localhost:9999",
-				},
-			},
-			{
-				name: "short",
-				flags: []string{
-					"-n", "default",
-					"-o", "org1",
-					"-u", "http://localhost:9999",
-					"-t", "tok1",
-					"-a",
-				},
-				original: make(config.Configs),
-				expected: config.Config{
-					Name:   "default",
-					Org:    "org1",
-					Active: true,
-					Token:  "tok1",
-					Host:   "http://localhost:9999",
-				},
-			},
-			{
-				name: "short new with existing",
-				flags: []string{
-					"-n", "default",
-					"-o", "org1",
-					"-u", "http://localhost:9999",
-					"-t", "tok1",
-					"-a",
-				},
-				original: config.Configs{
-					"config1": {
+		t.Run("with valid args should be successful", func(t *testing.T) {
+			tests := []struct {
+				name     string
+				original config.Configs
+				expected config.Config
+				flags    []string
+			}{
+				{
+					name: "basic",
+					flags: []string{
+						"--config-name", "default",
+						"--org", "org1",
+						"--host-url", "http://localhost:9999",
+						"--token", "tok1",
+						"--active",
+					},
+					original: make(config.Configs),
+					expected: config.Config{
+						Name:   "default",
 						Org:    "org1",
 						Active: true,
 						Token:  "tok1",
-						Host:   "host1",
+						Host:   "http://localhost:9999",
 					},
 				},
-				expected: config.Config{
-					Name:   "default",
-					Org:    "org1",
-					Active: true,
-					Token:  "tok1",
-					Host:   "http://localhost:9999",
+				{
+					name: "short",
+					flags: []string{
+						"-n", "default",
+						"-o", "org1",
+						"-u", "http://localhost:9999",
+						"-t", "tok1",
+						"-a",
+					},
+					original: make(config.Configs),
+					expected: config.Config{
+						Name:   "default",
+						Org:    "org1",
+						Active: true,
+						Token:  "tok1",
+						Host:   "http://localhost:9999",
+					},
 				},
-			},
-		}
-		cmdFn := func(original config.Configs, expected config.Config) func(*globalFlags, genericCLIOpts) *cobra.Command {
-			svc := &mockConfigService{
-				CreateConfigFn: func(cfg config.Config) (config.Config, error) {
-					if diff := cmp.Diff(expected, cfg); diff != "" {
-						return config.Config{}, &influxdb.Error{
-							Msg: fmt.Sprintf("create config failed, diff %s", diff),
-						}
-					}
-					return expected, nil
+				{
+					name: "short new with existing",
+					flags: []string{
+						"-n", "default",
+						"-o", "org1",
+						"-u", "http://localhost:9999",
+						"-t", "tok1",
+						"-a",
+					},
+					original: config.Configs{
+						"config1": {
+							Org:    "org1",
+							Active: true,
+							Token:  "tok1",
+							Host:   "host1",
+						},
+					},
+					expected: config.Config{
+						Name:   "default",
+						Org:    "org1",
+						Active: true,
+						Token:  "tok1",
+						Host:   "http://localhost:9999",
+					},
 				},
 			}
+			cmdFn := func(original config.Configs, expected config.Config) func(*globalFlags, genericCLIOpts) *cobra.Command {
+				svc := &mockConfigService{
+					CreateConfigFn: func(cfg config.Config) (config.Config, error) {
+						if diff := cmp.Diff(expected, cfg); diff != "" {
+							return config.Config{}, &influxdb.Error{
+								Msg: fmt.Sprintf("create config failed, diff %s", diff),
+							}
+						}
+						return expected, nil
+					},
+				}
 
-			return func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
+				return func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
+					builder := cmdConfigBuilder{
+						genericCLIOpts: opt,
+						globalFlags:    g,
+						svc:            svc,
+					}
+					return builder.cmd()
+				}
+			}
+			for _, tt := range tests {
+				fn := func(t *testing.T) {
+					builder := newInfluxCmdBuilder(
+						in(new(bytes.Buffer)),
+						out(ioutil.Discard),
+					)
+					cmd := builder.cmd(cmdFn(tt.original, tt.expected))
+					cmd.SetArgs(append([]string{"config", "create"}, tt.flags...))
+					require.NoError(t, cmd.Execute())
+				}
+				t.Run(tt.name, fn)
+			}
+		})
+
+		t.Run("rejects a config option with an invalid host url", func(t *testing.T) {
+			cmdFn := func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
 				builder := cmdConfigBuilder{
 					genericCLIOpts: opt,
 					globalFlags:    g,
-					svc:            svc,
+					svc: &mockConfigService{
+						CreateConfigFn: func(cfg config.Config) (config.Config, error) {
+							return cfg, nil
+						},
+					},
 				}
 				return builder.cmd()
 			}
-		}
-		for _, tt := range tests {
-			fn := func(t *testing.T) {
-				builder := newInfluxCmdBuilder(
-					in(new(bytes.Buffer)),
-					out(ioutil.Discard),
-				)
-				cmd := builder.cmd(cmdFn(tt.original, tt.expected))
-				cmd.SetArgs(append([]string{"config", "create"}, tt.flags...))
-				require.NoError(t, cmd.Execute())
-			}
-			t.Run(tt.name, fn)
-		}
+			testConfigInvalidURLs(t, "create", cmdFn)
+		})
 	})
 
 	t.Run("switch", func(t *testing.T) {
@@ -228,96 +246,115 @@ func TestCmdConfig(t *testing.T) {
 	})
 
 	t.Run("set", func(t *testing.T) {
-		tests := []struct {
-			name     string
-			original config.Configs
-			expected config.Config
-			flags    []string
-		}{
-			{
-				name: "basic",
-				flags: []string{
-					"--name", "default",
-					"--org", "org1",
-					"--url", "http://localhost:9999",
-					"--token", "tok1",
-					"--active",
-				},
-				original: config.Configs{
-					"default": {
-						Org:    "org2",
-						Active: false,
-						Token:  "tok2",
-						Host:   "http://localhost:8888",
+		t.Run("with valid args should be successful", func(t *testing.T) {
+			tests := []struct {
+				name     string
+				original config.Configs
+				expected config.Config
+				flags    []string
+			}{
+				{
+					name: "basic",
+					flags: []string{
+						"--config-name", "default",
+						"--org", "org1",
+						"--host-url", "http://localhost:9999",
+						"--token", "tok1",
+						"--active",
+					},
+					original: config.Configs{
+						"default": {
+							Org:    "org2",
+							Active: false,
+							Token:  "tok2",
+							Host:   "http://localhost:8888",
+						},
+					},
+					expected: config.Config{
+						Name:   "default",
+						Org:    "org1",
+						Active: true,
+						Token:  "tok1",
+						Host:   "http://localhost:9999",
 					},
 				},
-				expected: config.Config{
-					Name:   "default",
-					Org:    "org1",
-					Active: true,
-					Token:  "tok1",
-					Host:   "http://localhost:9999",
-				},
-			},
-			{
-				name: "short",
-				flags: []string{
-					"-n", "default",
-					"-o", "org1",
-					"-u", "http://localhost:9999",
-					"-t", "tok1",
-					"-a",
-				},
-				original: config.Configs{
-					"default": {
-						Org:    "org2",
-						Active: false,
-						Token:  "tok2",
-						Host:   "http://localhost:8888",
+				{
+					name: "short",
+					flags: []string{
+						"-n", "default",
+						"-o", "org1",
+						"-u", "http://localhost:9999",
+						"-t", "tok1",
+						"-a",
 					},
-				},
-				expected: config.Config{
-					Name:   "default",
-					Org:    "org1",
-					Active: true,
-					Token:  "tok1",
-					Host:   "http://localhost:9999",
-				},
-			},
-		}
-		cmdFn := func(original config.Configs, expected config.Config) func(*globalFlags, genericCLIOpts) *cobra.Command {
-			svc := &mockConfigService{
-				UpdateConfigFn: func(cfg config.Config) (config.Config, error) {
-					if diff := cmp.Diff(expected, cfg); diff != "" {
-						return config.Config{}, &influxdb.Error{
-							Msg: fmt.Sprintf("update config failed, diff %s", diff),
-						}
-					}
-					return expected, nil
+					original: config.Configs{
+						"default": {
+							Org:    "org2",
+							Active: false,
+							Token:  "tok2",
+							Host:   "http://localhost:8888",
+						},
+					},
+					expected: config.Config{
+						Name:   "default",
+						Org:    "org1",
+						Active: true,
+						Token:  "tok1",
+						Host:   "http://localhost:9999",
+					},
 				},
 			}
+			cmdFn := func(original config.Configs, expected config.Config) func(*globalFlags, genericCLIOpts) *cobra.Command {
+				svc := &mockConfigService{
+					UpdateConfigFn: func(cfg config.Config) (config.Config, error) {
+						if diff := cmp.Diff(expected, cfg); diff != "" {
+							return config.Config{}, &influxdb.Error{
+								Msg: fmt.Sprintf("update config failed, diff %s", diff),
+							}
+						}
+						return expected, nil
+					},
+				}
 
-			return func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
+				return func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
+					builder := cmdConfigBuilder{
+						genericCLIOpts: opt,
+						globalFlags:    g,
+						svc:            svc,
+					}
+					return builder.cmd()
+				}
+			}
+			for _, tt := range tests {
+				fn := func(t *testing.T) {
+					builder := newInfluxCmdBuilder(
+						in(new(bytes.Buffer)),
+						out(ioutil.Discard),
+					)
+					cmd := builder.cmd(cmdFn(tt.original, tt.expected))
+					cmd.SetArgs(append([]string{"config", "set"}, tt.flags...))
+					require.NoError(t, cmd.Execute())
+				}
+				t.Run(tt.name, fn)
+			}
+		})
+
+		t.Run("rejects a config option with an invalid host url", func(t *testing.T) {
+			cmdFn := func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
 				builder := cmdConfigBuilder{
 					genericCLIOpts: opt,
 					globalFlags:    g,
-					svc:            svc,
+					svc: &mockConfigService{
+						CreateConfigFn: func(cfg config.Config) (config.Config, error) {
+							return cfg, nil
+						},
+					},
 				}
 				return builder.cmd()
 			}
-		}
-		for _, tt := range tests {
-			fn := func(t *testing.T) {
-				builder := newInfluxCmdBuilder(
-					in(new(bytes.Buffer)),
-					out(ioutil.Discard),
-				)
-				cmd := builder.cmd(cmdFn(tt.original, tt.expected))
-				cmd.SetArgs(append([]string{"config", "set"}, tt.flags...))
-				require.NoError(t, cmd.Execute())
-			}
-			t.Run(tt.name, fn)
-		}
+
+			testConfigInvalidURLs(t, "set", cmdFn)
+		})
 	})
 
 	t.Run("delete", func(t *testing.T) {
@@ -466,6 +503,45 @@ func TestCmdConfig(t *testing.T) {
 			t.Run(tt.name, fn)
 		}
 	})
+}
+
+func testConfigInvalidURLs(t *testing.T, cmdName string, cmdFn func(*globalFlags, genericCLIOpts) *cobra.Command) {
+	tests := []struct {
+		name  string
+		flags []string
+	}{
+		{
+			name: "missing scheme",
+			flags: []string{
+				"--config-name", "default",
+				"--org", "org1",
+				"--host-url", "localhost:9999",
+				"--token", "tok1",
+			},
+		},
+		{
+			name: "invalid url",
+			flags: []string{
+				"--config-name", "default",
+				"--org", "org1",
+				"--host-url", "rando@@ s_ threeve",
+				"--token", "tok1",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		fn := func(t *testing.T) {
+			builder := newInfluxCmdBuilder(
+				in(new(bytes.Buffer)),
+				out(ioutil.Discard),
+			)
+			cmd := builder.cmd(cmdFn)
+			cmd.SetArgs(append([]string{"config", cmdName}, tt.flags...))
+			require.Error(t, cmd.Execute(), "cmd name: influx config "+cmdName)
+		}
+		t.Run(tt.name, fn)
+	}
 }
 
 // mockConfigService mocks the ConfigService.
