@@ -65,7 +65,17 @@ export const templatesReducer = (
       case SET_ACTIVE_COMMUNITY_TEMPLATE: {
         const {template} = action
 
-        draftState.activeCommunityTemplate = template
+        const activeCommunityTemplate: CommunityTemplate = {}
+        activeCommunityTemplate.dashboards = template.dashboards || []
+        activeCommunityTemplate.telegrafConfigs = template.telegrafConfigs || []
+        activeCommunityTemplate.buckets = template.buckets || []
+        activeCommunityTemplate.checks = template.checks || []
+        activeCommunityTemplate.variables = template.variables || []
+        activeCommunityTemplate.notificationRules =
+          template.notificationRules || []
+        activeCommunityTemplate.labels = template.labels || []
+
+        draftState.activeCommunityTemplate = activeCommunityTemplate
         return
       }
 

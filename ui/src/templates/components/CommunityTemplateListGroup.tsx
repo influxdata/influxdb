@@ -16,7 +16,7 @@ import {
 
 interface Props {
   title: string
-  count?: string
+  count: number
   children?: ReactNode
 }
 
@@ -44,13 +44,11 @@ const CommunityTemplateListGroup: FC<Props> = ({title, count, children}) => {
           <Icon glyph={IconFont.CaretRight} />
         </div>
         <Heading element={HeadingElement.H5}>{title}</Heading>
-        {count && (
-          <Heading
-            element={HeadingElement.Div}
-            appearance={HeadingElement.H6}
-            className="community-templates--list-counter"
-          >{`(${count})`}</Heading>
-        )}
+        <Heading
+          element={HeadingElement.Div}
+          appearance={HeadingElement.H6}
+          className="community-templates--list-counter"
+        >{`(${count})`}</Heading>
       </div>
       {mode === 'expanded' && (
         <FlexBox
