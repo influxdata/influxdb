@@ -18,3 +18,4 @@ delorean_tsm = { path = "../delorean_tsm" }
 
 [dev-dependencies]
 delorean_test_helpers ={ path = "../delorean_test_helpers" }
+libflate = "1.0.0"

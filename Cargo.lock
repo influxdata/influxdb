@@ -686,6 +686,7 @@ dependencies = [
  "delorean_test_helpers",
  "delorean_tsm",
  "env_logger",
+ "libflate",
  "log",
  "snafu",
 ]
