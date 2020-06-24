@@ -100,7 +100,6 @@ import NewEndpointOverlay from 'src/notifications/endpoints/components/NewEndpoi
 import EditEndpointOverlay from 'src/notifications/endpoints/components/EditEndpointOverlay'
 import NoOrgsPage from 'src/organizations/containers/NoOrgsPage'
 
-import {CommunityTemplatesIndex} from 'src/templates/containers/CommunityTemplatesIndex'
 import {CommunityTemplateImportOverlay} from 'src/templates/components/CommunityTemplateImportOverlay'
 
 // Utilities
@@ -442,51 +441,31 @@ class Root extends PureComponent {
                                   component={UpdateVariableOverlay}
                                 />
                               </Route>
-                              {isFlagEnabled('communityTemplates') ? (
+                              <Route
+                                path="templates"
+                                component={TemplatesIndex}
+                              >
                                 <Route
-                                  path="templates"
-                                  component={CommunityTemplatesIndex}
-                                >
-                                  <Route
-                                    path="import/:templateName"
-                                    component={CommunityTemplateImportOverlay}
-                                  />
-                                  <Route
-                                    path=":id/export"
-                                    component={TemplateExportOverlay}
-                                  />
-                                  <Route
-                                    path=":id/view"
-                                    component={TemplateViewOverlay}
-                                  />
-                                  <Route
-                                    path=":id/static/view"
-                                    component={StaticTemplateViewOverlay}
-                                  />
-                                </Route>
-                              ) : (
+                                  path="import"
+                                  component={TemplateImportOverlay}
+                                />
                                 <Route
-                                  path="templates"
-                                  component={TemplatesIndex}
-                                >
-                                  <Route
-                                    path="import"
-                                    component={TemplateImportOverlay}
-                                  />
-                                  <Route
-                                    path=":id/export"
-                                    component={TemplateExportOverlay}
-                                  />
-                                  <Route
-                                    path=":id/view"
-                                    component={TemplateViewOverlay}
-                                  />
-                                  <Route
-                                    path=":id/static/view"
-                                    component={StaticTemplateViewOverlay}
-                                  />
-                                </Route>
-                              )}
+                                  path="import/:templateName"
+                                  component={CommunityTemplateImportOverlay}
+                                />
+                                <Route
+                                  path=":id/export"
+                                  component={TemplateExportOverlay}
+                                />
+                                <Route
+                                  path=":id/view"
+                                  component={TemplateViewOverlay}
+                                />
+                                <Route
+                                  path=":id/static/view"
+                                  component={StaticTemplateViewOverlay}
+                                />
+                              </Route>
                               <Route path="labels" component={LabelsIndex} />
                               <Route path="about" component={OrgProfilePage}>
                                 <Route
