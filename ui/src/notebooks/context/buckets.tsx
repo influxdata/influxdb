@@ -41,9 +41,11 @@ let GLOBAL_LOADING = false
 export const BucketProvider: FC<Props> = React.memo(
   ({loading, getBuckets, buckets, children}) => {
     if (!GLOBAL_LOADING && loading === RemoteDataState.NotStarted) {
-      GLOBAL_LOADING = true
-      getBuckets().then(() => {
+      new Promise(async resolve => {
+        GLOBAL_LOADING = true
+        await getBuckets()
         GLOBAL_LOADING = false
+        resolve()
       })
     }
 

@@ -170,6 +170,7 @@ describe('Bucket Selector', () => {
           status: 'Done',
           byID: buckets.reduce((prev, curr) => {
             prev[curr.id] = curr
+            return prev
           }, {}),
           allIDs: buckets.map(bucket => bucket.id),
         },
