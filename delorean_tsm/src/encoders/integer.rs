@@ -3,7 +3,8 @@ use integer_encoding::*;
 use std::error::Error;
 
 /// Encoding describes the type of encoding used by an encoded integer block.
-enum Encoding {
+#[derive(Debug)]
+pub enum Encoding {
     Uncompressed = 0,
     Simple8b = 1,
     Rle = 2,
@@ -86,11 +87,11 @@ fn zig_zag_decode(v: u64) -> i64 {
     ((v >> 1) ^ ((((v & 1) as i64) << 63) >> 63) as u64) as i64
 }
 
-// i64_to_u64_vector converts a Vec<i64> to Vec<u64>.
+// Converts a slice of `i64` values to a `Vec<u64>`.
 // TODO(edd): this is expensive as it copies. There are cheap
 // but unsafe alternatives to look into such as std::mem::transmute
 fn i64_to_u64_vector(src: &[i64]) -> Vec<u64> {
-    src.iter().map(|x| *x as u64).collect::<Vec<u64>>()
+    src.iter().map(|&x| x as u64).collect()
 }
 
 // encode_rle encodes the value v, delta and count into dst.

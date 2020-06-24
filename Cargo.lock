@@ -687,7 +687,6 @@ dependencies = [
  "delorean_tsm",
  "env_logger",
  "log",
- "parquet",
  "snafu",
 ]
 

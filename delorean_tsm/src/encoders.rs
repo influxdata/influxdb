@@ -3,6 +3,7 @@ pub mod integer;
 mod simple8b;
 pub mod string;
 pub mod timestamp;
+pub mod unsigned;
 
 /// Max number of bytes needed to store a varint-encoded 32-bit integer.
 const MAX_VAR_INT_32: usize = 5;
