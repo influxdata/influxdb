@@ -99,7 +99,6 @@ func TestCmdConfig(t *testing.T) {
 				return func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
 					builder := cmdConfigBuilder{
 						genericCLIOpts: opt,
-						globalFlags:    g,
 						svc:            svc,
 					}
 					return builder.cmd()
@@ -123,7 +122,6 @@ func TestCmdConfig(t *testing.T) {
 			cmdFn := func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
 				builder := cmdConfigBuilder{
 					genericCLIOpts: opt,
-					globalFlags:    g,
 					svc: &mockConfigService{
 						CreateConfigFn: func(cfg config.Config) (config.Config, error) {
 							return cfg, nil
@@ -225,7 +223,6 @@ func TestCmdConfig(t *testing.T) {
 			return func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
 				builder := cmdConfigBuilder{
 					genericCLIOpts: opt,
-					globalFlags:    g,
 					svc:            svc,
 				}
 				return builder.cmd()
@@ -348,7 +345,6 @@ func TestCmdConfig(t *testing.T) {
 				return func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
 					builder := cmdConfigBuilder{
 						genericCLIOpts: opt,
-						globalFlags:    g,
 						svc:            svc,
 					}
 					return builder.cmd()
@@ -372,7 +368,6 @@ func TestCmdConfig(t *testing.T) {
 			cmdFn := func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
 				builder := cmdConfigBuilder{
 					genericCLIOpts: opt,
-					globalFlags:    g,
 					svc: &mockConfigService{
 						CreateConfigFn: func(cfg config.Config) (config.Config, error) {
 							return cfg, nil
@@ -460,7 +455,6 @@ func TestCmdConfig(t *testing.T) {
 			return func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
 				builder := cmdConfigBuilder{
 					genericCLIOpts: opt,
-					globalFlags:    g,
 					svc:            svc,
 				}
 				return builder.cmd()
@@ -513,7 +507,6 @@ func TestCmdConfig(t *testing.T) {
 			return func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
 				builder := cmdConfigBuilder{
 					genericCLIOpts: opt,
-					globalFlags:    g,
 					svc:            svc,
 				}
 				return builder.cmd()

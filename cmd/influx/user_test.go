@@ -129,7 +129,7 @@ func TestCmdUser(t *testing.T) {
 			}
 
 			return func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
-				builder := newCmdUserBuilder(fakeSVCFn(newCMDUserDeps(svc, passSVC, nil)), opt)
+				builder := newCmdUserBuilder(fakeSVCFn(newCMDUserDeps(svc, passSVC, nil)), g, opt)
 				return builder.cmd()
 			}
 
@@ -184,7 +184,7 @@ func TestCmdUser(t *testing.T) {
 			}
 
 			return func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
-				builder := newCmdUserBuilder(fakeSVCFn(newCMDUserDeps(svc, nil, nil)), opt)
+				builder := newCmdUserBuilder(fakeSVCFn(newCMDUserDeps(svc, nil, nil)), g, opt)
 				return builder.cmd()
 			}
 		}
@@ -277,7 +277,7 @@ func TestCmdUser(t *testing.T) {
 			}
 
 			return func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
-				builder := newCmdUserBuilder(fakeSVCFn(newCMDUserDeps(svc, nil, nil)), opt)
+				builder := newCmdUserBuilder(fakeSVCFn(newCMDUserDeps(svc, nil, nil)), g, opt)
 				return builder.cmd()
 			}, calls
 		}
@@ -356,7 +356,7 @@ func TestCmdUser(t *testing.T) {
 			}
 
 			return func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
-				builder := newCmdUserBuilder(fakeSVCFn(newCMDUserDeps(svc, nil, nil)), opt)
+				builder := newCmdUserBuilder(fakeSVCFn(newCMDUserDeps(svc, nil, nil)), g, opt)
 				return builder.cmd()
 			}
 		}
@@ -425,7 +425,7 @@ func TestCmdUser(t *testing.T) {
 			}
 
 			return func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
-				builder := newCmdUserBuilder(fakeSVCFn(newCMDUserDeps(svc, passSVC, getPassFn)), opt)
+				builder := newCmdUserBuilder(fakeSVCFn(newCMDUserDeps(svc, passSVC, getPassFn)), g, opt)
 				return builder.cmd()
 			}
 		}

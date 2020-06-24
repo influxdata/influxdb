@@ -25,6 +25,7 @@
 1. [18658](https://github.com/influxdata/influxdb/pull/18658): Add support for 'd' day and 'w' week time identifiers in the CLI for bucket and setup commands
 1. [18581](https://github.com/influxdata/influxdb/pull/18581): Cache dashboard cell query results to use as a reference for cell configurations
 1. [18707](https://github.com/influxdata/influxdb/pull/18707): Validate host-url for influx config create/set commands
+1. [18713](https://github.com/influxdata/influxdb/pull/18713): Fix influx CLI flags to accurately depict flags for all commands
 
 ## v2.0.0-beta.12 [2020-06-12]
 

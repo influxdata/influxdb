@@ -183,7 +183,7 @@ func TestCmdPkg(t *testing.T) {
 			},
 		}
 
-		cmdFn := func(_ *globalFlags, opt genericCLIOpts) *cobra.Command {
+		cmdFn := func(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 			pkgSVC := &fakePkgSVC{
 				createFn: func(_ context.Context, opts ...pkger.CreatePkgSetFn) (*pkger.Pkg, error) {
 					opt := pkger.CreateOpt{}
@@ -228,7 +228,7 @@ func TestCmdPkg(t *testing.T) {
 					return &pkg, nil
 				},
 			}
-			return newCmdPkgBuilder(fakeSVCFn(pkgSVC), opt).cmdApply()
+			return newCmdPkgBuilder(fakeSVCFn(pkgSVC), f, opt).cmdApply()
 		}
 
 		for _, tt := range tests {
@@ -320,7 +320,7 @@ func TestCmdPkg(t *testing.T) {
 			},
 		}
 
-		cmdFn := func(_ *globalFlags, opt genericCLIOpts) *cobra.Command {
+		cmdFn := func(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 			pkgSVC := &fakePkgSVC{
 				createFn: func(_ context.Context, opts ...pkger.CreatePkgSetFn) (*pkger.Pkg, error) {
 					var opt pkger.CreateOpt
@@ -347,7 +347,7 @@ func TestCmdPkg(t *testing.T) {
 				},
 			}
 
-			builder := newCmdPkgBuilder(fakeSVCFn(pkgSVC), opt)
+			builder := newCmdPkgBuilder(fakeSVCFn(pkgSVC), f, opt)
 			return builder.cmdApply()
 		}
 		for _, tt := range tests {
@@ -421,7 +421,7 @@ func TestCmdPkg(t *testing.T) {
 				out(ioutil.Discard),
 			)
 			cmd := builder.cmd(func(f *globalFlags, opt genericCLIOpts) *cobra.Command {
-				return newCmdPkgBuilder(fakeSVCFn(new(fakePkgSVC)), opt).cmdApply()
+				return newCmdPkgBuilder(fakeSVCFn(new(fakePkgSVC)), f, opt).cmdApply()
 			})
 
 			cmd.SetArgs([]string{
@@ -444,7 +444,7 @@ func TestCmdPkg(t *testing.T) {
 				out(ioutil.Discard),
 			)
 			cmd := builder.cmd(func(f *globalFlags, opt genericCLIOpts) *cobra.Command {
-				return newCmdPkgBuilder(fakeSVCFn(new(fakePkgSVC)), opt).cmdApply()
+				return newCmdPkgBuilder(fakeSVCFn(new(fakePkgSVC)), f, opt).cmdApply()
 			})
 			cmd.SetArgs([]string{"pkg", "validate"})
 
@@ -542,7 +542,7 @@ func TestCmdPkg(t *testing.T) {
 								return stack, nil
 							},
 						}
-						return newCmdPkgBuilder(fakeSVCFn(echoSVC), opt).cmdApply()
+						return newCmdPkgBuilder(fakeSVCFn(echoSVC), f, opt).cmdApply()
 					})
 
 					baseArgs := []string{"pkg", "stack", "init", "--json"}
