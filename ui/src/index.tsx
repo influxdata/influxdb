@@ -167,7 +167,7 @@ const cookieSession = document.cookie.match(
 )
 
 updateReportingContext({
-  session: cookieSession ? cookieSession[2] : '',
+  session: cookieSession ? cookieSession[2].slice(5) : '',
 })
 
 declare global {
