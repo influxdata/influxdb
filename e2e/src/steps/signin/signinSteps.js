@@ -53,7 +53,7 @@ class signinSteps extends baseSteps {
             if(err instanceof error.StaleElementReferenceError){ // try again
                 console.warn("WARNING retrying input username")
 //                await this.driver.sleep(3000); //
-                await this.driver.wait(until.elementIsVisible(this.signinPage.getNameInput()));
+                await this.driver.wait(until.elementIsVisible(await this.signinPage.getNameInput()));
                 await this.signinPage.getNameInput().then(async input => {
                     await input.clear();
                     await input.sendKeys(name);
@@ -72,7 +72,7 @@ class signinSteps extends baseSteps {
             if(err instanceof error.StaleElementReferenceError) { // try again
                 console.warn("WARNING retrying input password");
 //                await this.driver.sleep(3000); //
-                await this.driver.wait(until.elementIsVisible(this.signinPage.getPasswordInput()));
+                await this.driver.wait(until.elementIsVisible(await this.signinPage.getPasswordInput()));
                 await this.signinPage.getPasswordInput().then(async input =>{
                     await input.clear();
                     await input.sendKeys(password);
@@ -90,7 +90,7 @@ class signinSteps extends baseSteps {
             if(err instanceof error.StaleElementReferenceError) { //try again
                 console.warn("WARNING retrying click signin");
 //                await this.driver.sleep(3000); //
-                await this.driver.wait(until.elementIsVisible(this.signinPage.getSigninButton()));
+                await this.driver.wait(until.elementIsVisible(await this.signinPage.getSigninButton()));
                 await this.signinPage.getSigninButton().then(async btn =>{
                     await btn.click();
                 })
