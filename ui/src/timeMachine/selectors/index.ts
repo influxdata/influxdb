@@ -238,6 +238,8 @@ export const getSaveableView = (state: AppState): QueryView & {id?: string} => {
     },
   }
 
+  // TODO: remove all of these conditionals
+
   if (saveableView.properties.type === 'histogram') {
     saveableView = {
       ...saveableView,

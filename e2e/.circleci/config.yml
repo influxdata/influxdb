@@ -23,8 +23,6 @@ jobs:
           command: |
             set +e
             npm install
-            mkdir bak
-            cp ./node_modules/chromedriver/lib/chromedriver/chromedriver bak/
             [ -f "/usr/local/bin/chromedriver" ] && cp /usr/local/bin/chromedriver node_modules/chromedriver/lib/chromedriver/chromedriver
             ./node_modules/chromedriver/bin/chromedriver --version
             npm test; TEST_RESULT=$?

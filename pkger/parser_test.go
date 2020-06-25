@@ -1,12 +1,15 @@
 package pkger
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"net/url"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -3978,6 +3981,70 @@ spec:
 	})
 }
 
+func Test_normalizeGithubURLToContent(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "raw url passes untouched",
+			input:    "https://raw.githubusercontent.com/influxdata/community-templates/master/github/github.yml",
+			expected: "https://raw.githubusercontent.com/influxdata/community-templates/master/github/github.yml",
+		},
+		{
+			name:     "URL that is to short is unchanged",
+			input:    "https://github.com/influxdata/community-templates",
+			expected: "https://github.com/influxdata/community-templates",
+		},
+		{
+			name:     "URL that does not end in required extention is unchanged",
+			input:    "https://github.com/influxdata/community-templates/master/github",
+			expected: "https://github.com/influxdata/community-templates/master/github",
+		},
+		{
+			name:     "converts base url with ext yaml to raw content url",
+			input:    "https://github.com/influxdata/community-templates/blob/master/github/github.yaml",
+			expected: "https://raw.githubusercontent.com/influxdata/community-templates/master/github/github.yaml",
+		},
+		{
+			name:     "converts base url with ext yml to raw content url",
+			input:    "https://github.com/influxdata/community-templates/blob/master/github/github.yml",
+			expected: "https://raw.githubusercontent.com/influxdata/community-templates/master/github/github.yml",
+		},
+		{
+			name:     "converts base url with ext json to raw content url",
+			input:    "https://github.com/influxdata/community-templates/blob/master/github/github.json",
+			expected: "https://raw.githubusercontent.com/influxdata/community-templates/master/github/github.json",
+		},
+		{
+			name:     "converts base url with ext jsonnet to raw content url",
+			input:    "https://github.com/influxdata/community-templates/blob/master/github/github.jsonnet",
+			expected: "https://raw.githubusercontent.com/influxdata/community-templates/master/github/github.jsonnet",
+		},
+		{
+			name:     "url with unexpected content type is unchanged 1",
+			input:    "https://github.com/influxdata/community-templates/blob/master/github/github.jason",
+			expected: "https://github.com/influxdata/community-templates/blob/master/github/github.jason",
+		},
+		{
+			name:     "url with unexpected content type is unchanged 2",
+			input:    "https://github.com/influxdata/community-templates/blob/master/github/github.rando",
+			expected: "https://github.com/influxdata/community-templates/blob/master/github/github.rando",
+		},
+	}
+
+	for _, tt := range tests {
+		fn := func(t *testing.T) {
+			actual := normalizeGithubURLToContent(tt.input)
+
+			assert.Equal(t, tt.expected, actual)
+		}
+
+		t.Run(tt.name, fn)
+	}
+}
+
 func Test_IsParseError(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -4255,7 +4322,23 @@ func nextField(t *testing.T, field string) (string, int) {
 
 func validParsedPkgFromFile(t *testing.T, path string, encoding Encoding) *Pkg {
 	t.Helper()
-	return newParsedPkg(t, FromFile(path), encoding)
+
+	var readFn ReaderFn
+	templateBytes, ok := availableTemplateFiles[path]
+	if ok {
+		readFn = FromReader(bytes.NewBuffer(templateBytes), "file://"+path)
+	} else {
+		readFn = FromFile(path)
+		atomic.AddInt64(&missedTemplateCacheCounter, 1)
+	}
+
+	pkg := newParsedPkg(t, readFn, encoding)
+	u := url.URL{
+		Scheme: "file",
+		Path:   path,
+	}
+	require.Equal(t, []string{u.String()}, pkg.Sources())
+	return pkg
 }
 
 func newParsedPkg(t *testing.T, fn ReaderFn, encoding Encoding, opts ...ValidateOptFn) *Pkg {

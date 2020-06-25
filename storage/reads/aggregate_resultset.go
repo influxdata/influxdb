@@ -32,11 +32,16 @@ func NewWindowAggregateResultSet(ctx context.Context, req *datatypes.ReadWindowA
 		return nil, errors.Errorf(errors.InternalError, "attempt to create a windowAggregateResultSet with %v aggregate functions", nAggs)
 	}
 
+	ascending := true
+	if len(req.Aggregate) > 0 && req.Aggregate[0].Type == datatypes.AggregateTypeLast {
+		ascending = false
+	}
+
 	results := &windowAggregateResultSet{
 		ctx:          ctx,
 		req:          req,
 		cursor:       cursor,
-		arrayCursors: newArrayCursors(ctx, req.Range.Start, req.Range.End, true),
+		arrayCursors: newArrayCursors(ctx, req.Range.Start, req.Range.End, ascending),
 	}
 	return results, nil
 }

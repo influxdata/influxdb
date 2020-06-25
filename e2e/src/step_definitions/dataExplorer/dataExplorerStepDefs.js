@@ -143,5 +143,62 @@ When(/^select the function "(.*)"$/, async (funct) => {
     await deSteps.selectFunctionFromList(funct);
 });
 
+When(/^click on the Save as button$/, async () => {
+    await deSteps.clickSaveAsButton();
+});
+
+Then(/^the Save as overlay is visible$/, async () => {
+    await deSteps.verifySaveAsOverlayVisible();
+});
+
+When(/^click the Target Dashboard dropdown$/, async () => {
+    await deSteps.clickTargetDashboardDropdown();
+});
+
+When(/^select Create a New Dashboard from the Target Dashboard dropdown$/, async () => {
+    await deSteps.selectTargetDashboardDropdownItem();
+});
+
+When(/^input the New Dashboard Name "(.*)"$/, async (name) => {
+    await deSteps.setNewDashboardName(name);
+});
+
+When(/^input the Cell Name "(.*)"$/, async (name) => {
+    await deSteps.setCellName(name);
+});
+
+When(/^click on the Save as Dashboard Cell button$/, async () => {
+    await deSteps.clickSaveAsDashboardCellButton();
+});
+
+When(/^click on tab "(.*?)" in the Save As popup$/, async(tab) => {
+    await deSteps.clickSaveAsPopupTab(tab);
+});
+
+When(/^input the Task Name "(.*)"$/, async (name) => {
+    await deSteps.setTaskName(name);
+});
+
+When(/^input the Task Interval "(.*)"$/, async (interval) => {
+    await deSteps.setTaskInterval(interval);
+});
+
+When(/^input the Task Offset "(.*)"$/, async (offset) => {
+    await deSteps.setTaskOffset(offset);
+});
+
+When(/^click on the Save as Task button$/, async () => {
+    await deSteps.clickSaveAsTaskButton();
+});
+
+When(/^input the variable name "(.*)"$/, async (name) => {
+    await deSteps.setVariableName(name);
+});
+
+When(/^click on the Save as Variable button$/, async () => {
+    await deSteps.clickSaveAsVariableButton();
+});
+
+
 
 

@@ -111,7 +111,7 @@ When(/^API end session$/, async() => {
     await influxUtils.endSession();
 });
 
-When(/^UI sign in user "(.*?)"$/, {timeout: 10000},  async username => {
+When(/^UI sign in user "(.*?)"$/, {timeout: 15000},  async username => {
     let user = influxUtils.getUser((username === 'DEFAULT') ? __defaultUser.username : username);
     await sSteps.signin(user);
     //await sSteps.driver.sleep(1500)

@@ -18,6 +18,7 @@ type (
 
 		Name        string             `json:"name"`
 		Description string             `json:"description"`
+		Sources     []string           `json:"sources,omitempty"`
 		URLs        []string           `json:"urls,omitempty"`
 		Resources   []entStackResource `json:"resources,omitempty"`
 
@@ -53,7 +54,7 @@ var _ Store = (*StoreKV)(nil)
 // want to init it if you want to have this init donezo at startup. If not it'll lazy
 // load the buckets as they are used.
 func NewStoreKV(store kv.Store) *StoreKV {
-	const resource = "pkg stack"
+	const resource = "stack"
 
 	storeKV := &StoreKV{
 		kvStore: store,
@@ -292,6 +293,7 @@ func convertStackToEnt(stack Stack) (kv.Entity, error) {
 		Description: stack.Description,
 		CreatedAt:   stack.CreatedAt,
 		UpdatedAt:   stack.UpdatedAt,
+		Sources:     stack.Sources,
 		URLs:        stack.URLs,
 	}
 
@@ -323,6 +325,7 @@ func convertStackEntToStack(ent *entStack) (Stack, error) {
 	stack := Stack{
 		Name:        ent.Name,
 		Description: ent.Description,
+		Sources:     ent.Sources,
 		URLs:        ent.URLs,
 		CRUDLog: influxdb.CRUDLog{
 			CreatedAt: ent.CreatedAt,

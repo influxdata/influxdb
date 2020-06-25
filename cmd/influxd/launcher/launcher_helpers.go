@@ -51,11 +51,12 @@ type TestLauncher struct {
 }
 
 // NewTestLauncher returns a new instance of TestLauncher.
-func NewTestLauncher() *TestLauncher {
+func NewTestLauncher(flagger feature.Flagger) *TestLauncher {
 	l := &TestLauncher{Launcher: NewLauncher()}
 	l.Launcher.Stdin = &l.Stdin
 	l.Launcher.Stdout = &l.Stdout
 	l.Launcher.Stderr = &l.Stderr
+	l.Launcher.flagger = flagger
 	if testing.Verbose() {
 		l.Launcher.Stdout = io.MultiWriter(l.Launcher.Stdout, os.Stdout)
 		l.Launcher.Stderr = io.MultiWriter(l.Launcher.Stderr, os.Stderr)
@@ -70,9 +71,9 @@ func NewTestLauncher() *TestLauncher {
 }
 
 // RunTestLauncherOrFail initializes and starts the server.
-func RunTestLauncherOrFail(tb testing.TB, ctx context.Context, args ...string) *TestLauncher {
+func RunTestLauncherOrFail(tb testing.TB, ctx context.Context, flagger feature.Flagger, args ...string) *TestLauncher {
 	tb.Helper()
-	l := NewTestLauncher()
+	l := NewTestLauncher(flagger)
 
 	if err := l.Run(ctx, args...); err != nil {
 		tb.Fatal(err)
@@ -294,6 +295,21 @@ func (tl *TestLauncher) FluxQueryOrFail(tb testing.TB, org *platform.Organizatio
 	}
 
 	return string(b)
+}
+
+// QueryFlux returns the csv response from a flux query.
+// It also removes all the \r to make it easier to write tests.
+func (tl *TestLauncher) QueryFlux(tb testing.TB, org *platform.Organization, token, query string) string {
+	tb.Helper()
+
+	b, err := http.SimpleQuery(tl.URL(), query, org.Name, token)
+	if err != nil {
+		tb.Fatal(err)
+	}
+
+	// remove all \r as well as the extra terminating \n
+	b = bytes.ReplaceAll(b, []byte("\r"), nil)
+	return string(b[:len(b)-1])
 }
 
 // MustNewHTTPRequest returns a new nethttp.Request with base URL and auth attached. Fail on error.

@@ -241,14 +241,6 @@ func (s *Service) findDashboards(ctx context.Context, tx Tx, filter influxdb.Das
 		return s.findOrganizationDashboards(ctx, tx, *filter.OrganizationID)
 	}
 
-	if filter.Organization != nil {
-		o, err := s.findOrganizationByName(ctx, tx, *filter.Organization)
-		if err != nil {
-			return nil, err
-		}
-		return s.findOrganizationDashboards(ctx, tx, o.ID)
-	}
-
 	var offset, limit, count int
 	var descending bool
 	if len(opts) > 0 {

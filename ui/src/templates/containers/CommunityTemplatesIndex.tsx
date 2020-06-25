@@ -20,13 +20,17 @@ import {
 import SettingsTabbedPage from 'src/settings/components/SettingsTabbedPage'
 import SettingsHeader from 'src/settings/components/SettingsHeader'
 
+import {setActiveCommunityTemplate} from 'src/templates/actions/creators'
+import {getOrg} from 'src/organizations/selectors'
+
 // Utils
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
-import {getOrg} from 'src/organizations/selectors'
 import {
   getGithubUrlFromTemplateName,
   getTemplateNameFromGithubUrl,
 } from 'src/templates/utils'
+
+import {Error as PkgError, PkgSummary, postPackagesApply} from 'src/client'
 
 // Types
 import {AppState, Organization} from 'src/types'
@@ -42,7 +46,19 @@ interface OwnProps extends WithRouterProps {
   params: {templateName: string}
 }
 
-type Props = OwnProps & StateProps
+interface DispatchProps {
+  setActiveCommunityTemplate: typeof setActiveCommunityTemplate
+}
+
+type Props = DispatchProps & OwnProps & StateProps
+
+// works specifically for csgo, the greatest community template ever conceived
+// https://github.com/influxdata/community-templates/tree/master/csgo
+const getRawYamlFromGithub = repoUrl => {
+  return repoUrl
+    .replace('github.com', 'raw.githubusercontent.com')
+    .replace('tree/', '')
+}
 
 @ErrorHandling
 class UnconnectedTemplatesIndex extends Component<Props> {
@@ -52,10 +68,15 @@ class UnconnectedTemplatesIndex extends Component<Props> {
 
   public componentDidMount() {
     if (this.props.params.templateName) {
-      this.setState({
-        currentTemplate: getGithubUrlFromTemplateName(
-          this.props.params.templateName
-        ),
+      const currentTemplate = getGithubUrlFromTemplateName(
+        this.props.params.templateName
+      )
+
+      this.setState({currentTemplate}, () => {
+        this.applyPackages(
+          this.props.org.id,
+          getTemplateNameFromGithubUrl(currentTemplate)
+        )
       })
     }
   }
@@ -123,6 +144,31 @@ class UnconnectedTemplatesIndex extends Component<Props> {
     )
   }
 
+  private applyPackages = async (orgID, templateName) => {
+    const yamlLocation =
+      getRawYamlFromGithub(this.state.currentTemplate) + `/${templateName}.yml`
+
+    const params = {
+      data: {
+        dryRun: true,
+        orgID,
+        remotes: [{url: yamlLocation}],
+      },
+    }
+    try {
+      const resp = await postPackagesApply(params)
+      if (resp.status >= 300) {
+        throw new Error((resp.data as PkgError).message)
+      }
+
+      const summary = (resp.data as PkgSummary).summary
+      this.props.setActiveCommunityTemplate(summary)
+      return summary
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
   private startTemplateInstall = () => {
     if (!this.state.currentTemplate) {
       console.error('undefined')
@@ -131,10 +177,12 @@ class UnconnectedTemplatesIndex extends Component<Props> {
 
     const name = getTemplateNameFromGithubUrl(this.state.currentTemplate)
     this.showInstallerOverlay(name)
+    this.applyPackages(this.props.org.id, name)
   }
 
   private showInstallerOverlay = templateName => {
     const {router, org} = this.props
+
     router.push(`/orgs/${org.id}/settings/templates/import/${templateName}`)
   }
 
@@ -149,7 +197,11 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
+const mdtp = {
+  setActiveCommunityTemplate,
+}
+
 export const CommunityTemplatesIndex = connect<StateProps, {}, {}>(
   mstp,
-  null
+  mdtp
 )(withRouter<{}>(UnconnectedTemplatesIndex))

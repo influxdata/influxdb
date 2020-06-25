@@ -18,7 +18,7 @@ type OnboardingMetrics struct {
 }
 
 // NewOnboardingMetrics returns a metrics service middleware for the User Service.
-func NewOnboardingMetrics(reg prometheus.Registerer, s influxdb.OnboardingService, opts ...metric.MetricsOption) *OnboardingMetrics {
+func NewOnboardingMetrics(reg prometheus.Registerer, s influxdb.OnboardingService, opts ...metric.ClientOptFn) *OnboardingMetrics {
 	o := metric.ApplyMetricOpts(opts...)
 	return &OnboardingMetrics{
 		rec:               metric.New(reg, o.ApplySuffix("onboard")),

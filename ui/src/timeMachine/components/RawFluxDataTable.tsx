@@ -11,6 +11,7 @@ interface Props {
   files: string[]
   width: number
   height: number
+  disableVerticalScrolling?: boolean
 }
 
 interface State {
@@ -24,7 +25,7 @@ class RawFluxDataTable extends PureComponent<Props, State> {
   private parseFiles = memoizeOne(parseFiles)
 
   public render() {
-    const {width, height, files} = this.props
+    const {width, height, files, disableVerticalScrolling} = this.props
     const {scrollTop, scrollLeft} = this.state
     const {data, maxColumnCount} = this.parseFiles(files)
 
@@ -44,6 +45,7 @@ class RawFluxDataTable extends PureComponent<Props, State> {
           scrollLeft={scrollLeft}
           testID="rawdata-table--scrollbar"
           onScroll={this.onScrollbarsScroll}
+          noScrollY={disableVerticalScrolling}
         >
           <RawFluxDataGrid
             scrollTop={scrollTop}

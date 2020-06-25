@@ -2,7 +2,7 @@ const influxPage = require(__srcdir + '/pages/influxPage.js');
 const { By } = require('selenium-webdriver');
 
 const pageTitle = '[data-testid=page-title]';
-const nameInput = '[data-testid=page-header] [data-testid=input-field]';
+const nameInput = '[data-testid=renamable-page-title--input]';
 //const graphToolTips = '[data-testid=page-header--right] [data-testid=graphtips-question-mark]';
 const graphToolTips = '[data-testid=page-control-bar] [data-testid=graphtips-question-mark]';
 //const addCellButtonHeader = '//*[@data-testid=\'page-header--right\']//*[@data-testid=\'button\'][.//*[text()=\'Add Cell\']]';
@@ -70,7 +70,7 @@ const notePopupSave = '[data-testid=overlay--footer] button[title=Save]';
 const notePopover = '[data-testid=popover--dialog]';
 const notePopoverContents = '[data-testid=popover--dialog] .markdown-format';
 
-const noteCellMarkdownTag = '[data-testid=cell--view-empty]  .markdown-format %TAG%';
+const noteCellMarkdownTag = '[data-testid=\'cell--view-empty markdown\' ]  .markdown-format %TAG%';
 const noteCellContextEdit = '[data-testid=cell-context--note]';
 
 const urlCtx = 'dashboards';

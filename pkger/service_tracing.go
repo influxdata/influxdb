@@ -53,22 +53,34 @@ func (s *traceMW) ListStacks(ctx context.Context, orgID influxdb.ID, f ListFilte
 	return stacks, err
 }
 
+func (s *traceMW) ReadStack(ctx context.Context, id influxdb.ID) (Stack, error) {
+	span, ctx := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+	return s.next.ReadStack(ctx, id)
+}
+
+func (s *traceMW) UpdateStack(ctx context.Context, upd StackUpdate) (Stack, error) {
+	span, ctx := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+	return s.next.UpdateStack(ctx, upd)
+}
+
 func (s *traceMW) CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (pkg *Pkg, err error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 	return s.next.CreatePkg(ctx, setters...)
 }
 
-func (s *traceMW) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (PkgImpactSummary, error) {
+func (s *traceMW) DryRun(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (PkgImpactSummary, error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	span.LogKV("orgID", orgID.String(), "userID", userID.String())
 	defer span.Finish()
-	return s.next.DryRun(ctx, orgID, userID, pkg, opts...)
+	return s.next.DryRun(ctx, orgID, userID, opts...)
 }
 
-func (s *traceMW) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (PkgImpactSummary, error) {
+func (s *traceMW) Apply(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (PkgImpactSummary, error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	span.LogKV("orgID", orgID.String(), "userID", userID.String())
 	defer span.Finish()
-	return s.next.Apply(ctx, orgID, userID, pkg, opts...)
+	return s.next.Apply(ctx, orgID, userID, opts...)
 }

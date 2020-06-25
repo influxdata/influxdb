@@ -17,6 +17,10 @@ func TestStoreKV(t *testing.T) {
 
 	stackStub := func(id, orgID influxdb.ID) pkger.Stack {
 		now := time.Time{}.Add(10 * 365 * 24 * time.Hour)
+		urls := []string{
+			"http://example.com",
+			"http://abc.gov",
+		}
 		return pkger.Stack{
 			ID:          id,
 			OrgID:       orgID,
@@ -26,10 +30,8 @@ func TestStoreKV(t *testing.T) {
 				CreatedAt: now,
 				UpdatedAt: now.Add(time.Hour),
 			},
-			URLs: []string{
-				"http://example.com",
-				"http://abc.gov",
-			},
+			Sources: urls,
+			URLs:    urls,
 			Resources: []pkger.StackResource{
 				{
 					APIVersion: pkger.APIVersion,

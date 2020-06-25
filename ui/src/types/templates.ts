@@ -22,8 +22,11 @@ export interface TemplateSummary extends Omit<GenTemplateSummary, 'labels'> {
   status: RemoteDataState
 }
 
+export type CommunityTemplate = any
+
 export interface TemplatesState extends NormalizedState<TemplateSummary> {
   exportTemplate: {status: RemoteDataState; item: DocumentCreate}
+  activeCommunityTemplate: CommunityTemplate
 }
 
 interface KeyValuePairs {

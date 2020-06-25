@@ -23,6 +23,11 @@ class dashboardsSteps extends influxSteps {
         //this.assertVisible(await this.tasksPage.getLastCompetedSortButton());
         await this.assertVisible(await this.tasksPage.getCreateTaskDropdownBody());
     }
+
+    async verifyTaskCardVisible(name){
+        await this.assertVisible(await this.tasksPage.getTaskCardByName(name));
+    }
+
 }
 
 module.exports = dashboardsSteps;

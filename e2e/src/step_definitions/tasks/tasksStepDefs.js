@@ -8,3 +8,7 @@ Then(/^the Tasks page is loaded$/, {timeout: 2 * 5000}, async() => {
     await tSteps.verifyIsLoaded();
     await tSteps.verifyHeaderContains('Tasks');
 });
+
+Then(/^there is a task named "(.*)"$/, async name =>{
+    await tSteps.verifyTaskCardVisible(name);
+});
