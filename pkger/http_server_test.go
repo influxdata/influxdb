@@ -1174,10 +1174,6 @@ func (f *fakeSVC) DeleteStack(ctx context.Context, identifiers struct{ OrgID, Us
 	panic("not implemented yet")
 }
 
-func (f *fakeSVC) ExportStack(ctx context.Context, orgID, stackID influxdb.ID) (*pkger.Pkg, error) {
-	panic("not implemented")
-}
-
 func (f *fakeSVC) ListStacks(ctx context.Context, orgID influxdb.ID, filter pkger.ListFilter) ([]pkger.Stack, error) {
 	if f.listStacksFn == nil {
 		panic("not implemented")
@@ -1199,7 +1195,7 @@ func (f *fakeSVC) UpdateStack(ctx context.Context, upd pkger.StackUpdate) (pkger
 	panic("not implemented")
 }
 
-func (f *fakeSVC) CreatePkg(ctx context.Context, setters ...pkger.CreatePkgSetFn) (*pkger.Pkg, error) {
+func (f *fakeSVC) Export(ctx context.Context, setters ...pkger.ExportOptFn) (*pkger.Pkg, error) {
 	panic("not implemented")
 }
 

@@ -42,12 +42,6 @@ func (s *mwMetrics) DeleteStack(ctx context.Context, identifiers struct{ OrgID, 
 	return rec(s.next.DeleteStack(ctx, identifiers))
 }
 
-func (s *mwMetrics) ExportStack(ctx context.Context, orgID, stackID influxdb.ID) (*Pkg, error) {
-	rec := s.rec.Record("export_stack")
-	pkg, err := s.next.ExportStack(ctx, orgID, stackID)
-	return pkg, rec(err)
-}
-
 func (s *mwMetrics) ListStacks(ctx context.Context, orgID influxdb.ID, f ListFilter) ([]Stack, error) {
 	rec := s.rec.Record("list_stacks")
 	stacks, err := s.next.ListStacks(ctx, orgID, f)
@@ -66,9 +60,9 @@ func (s *mwMetrics) UpdateStack(ctx context.Context, upd StackUpdate) (Stack, er
 	return stack, rec(err)
 }
 
-func (s *mwMetrics) CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*Pkg, error) {
+func (s *mwMetrics) Export(ctx context.Context, opts ...ExportOptFn) (*Pkg, error) {
 	rec := s.rec.Record("create_pkg")
-	pkg, err := s.next.CreatePkg(ctx, setters...)
+	pkg, err := s.next.Export(ctx, opts...)
 	return pkg, rec(err)
 }
 

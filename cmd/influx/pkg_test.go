@@ -185,8 +185,8 @@ func TestCmdPkg(t *testing.T) {
 
 		cmdFn := func(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 			pkgSVC := &fakePkgSVC{
-				createFn: func(_ context.Context, opts ...pkger.CreatePkgSetFn) (*pkger.Pkg, error) {
-					opt := pkger.CreateOpt{}
+				exportFn: func(_ context.Context, opts ...pkger.ExportOptFn) (*pkger.Pkg, error) {
+					opt := pkger.ExportOpt{}
 					for _, o := range opts {
 						if err := o(&opt); err != nil {
 							return nil, err
@@ -322,8 +322,8 @@ func TestCmdPkg(t *testing.T) {
 
 		cmdFn := func(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 			pkgSVC := &fakePkgSVC{
-				createFn: func(_ context.Context, opts ...pkger.CreatePkgSetFn) (*pkger.Pkg, error) {
-					var opt pkger.CreateOpt
+				exportFn: func(_ context.Context, opts ...pkger.ExportOptFn) (*pkger.Pkg, error) {
+					var opt pkger.ExportOpt
 					for _, o := range opts {
 						if err := o(&opt); err != nil {
 							return nil, err
@@ -707,7 +707,7 @@ func testPkgWritesToBuffer(newCmdFn func(w io.Writer) *cobra.Command, args pkgFi
 
 type fakePkgSVC struct {
 	initStackFn func(ctx context.Context, userID influxdb.ID, stack pkger.Stack) (pkger.Stack, error)
-	createFn    func(ctx context.Context, setters ...pkger.CreatePkgSetFn) (*pkger.Pkg, error)
+	exportFn    func(ctx context.Context, setters ...pkger.ExportOptFn) (*pkger.Pkg, error)
 	dryRunFn    func(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.PkgImpactSummary, error)
 	applyFn     func(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.PkgImpactSummary, error)
 }
@@ -741,9 +741,9 @@ func (f *fakePkgSVC) UpdateStack(ctx context.Context, upd pkger.StackUpdate) (pk
 	panic("not implemented")
 }
 
-func (f *fakePkgSVC) CreatePkg(ctx context.Context, setters ...pkger.CreatePkgSetFn) (*pkger.Pkg, error) {
-	if f.createFn != nil {
-		return f.createFn(ctx, setters...)
+func (f *fakePkgSVC) Export(ctx context.Context, setters ...pkger.ExportOptFn) (*pkger.Pkg, error) {
+	if f.exportFn != nil {
+		return f.exportFn(ctx, setters...)
 	}
 	panic("not implemented")
 }

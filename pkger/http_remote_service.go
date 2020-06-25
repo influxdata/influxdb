@@ -43,30 +43,6 @@ func (s *HTTPRemoteService) DeleteStack(ctx context.Context, identifiers struct{
 		Do(ctx)
 }
 
-func (s *HTTPRemoteService) ExportStack(ctx context.Context, orgID, stackID influxdb.ID) (*Pkg, error) {
-	pkg := new(Pkg)
-	err := s.Client.
-		Get(RoutePrefix, "stacks", stackID.String(), "export").
-		QueryParams([2]string{"orgID", orgID.String()}).
-		Decode(func(resp *http.Response) error {
-			decodedPkg, err := Parse(EncodingJSON, FromReader(resp.Body, ""))
-			if err != nil {
-				return err
-			}
-			pkg = decodedPkg
-			return nil
-		}).
-		Do(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := pkg.Validate(ValidWithoutResources()); err != nil {
-		return nil, err
-	}
-	return pkg, nil
-}
-
 func (s *HTTPRemoteService) ListStacks(ctx context.Context, orgID influxdb.ID, f ListFilter) ([]Stack, error) {
 	queryParams := [][2]string{{"orgID", orgID.String()}}
 	for _, name := range f.Names {
@@ -128,13 +104,11 @@ func (s *HTTPRemoteService) UpdateStack(ctx context.Context, upd StackUpdate) (S
 	return convertRespStackToStack(respBody)
 }
 
-// CreatePkg will produce a pkg from the parameters provided.
-func (s *HTTPRemoteService) CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*Pkg, error) {
-	var opt CreateOpt
-	for _, setter := range setters {
-		if err := setter(&opt); err != nil {
-			return nil, err
-		}
+// Export will produce a pkg from the parameters provided.
+func (s *HTTPRemoteService) Export(ctx context.Context, opts ...ExportOptFn) (*Pkg, error) {
+	opt, err := exportOptFromOptFns(opts)
+	if err != nil {
+		return nil, err
 	}
 
 	var orgIDs []ReqCreateOrgIDOpt
@@ -152,12 +126,13 @@ func (s *HTTPRemoteService) CreatePkg(ctx context.Context, setters ...CreatePkgS
 	}
 
 	reqBody := ReqCreatePkg{
+		StackID:   opt.StackID.String(),
 		OrgIDs:    orgIDs,
 		Resources: opt.Resources,
 	}
 
 	var newPkg *Pkg
-	err := s.Client.
+	err = s.Client.
 		PostJSON(reqBody, RoutePrefix).
 		Decode(func(resp *http.Response) error {
 			pkg, err := Parse(EncodingJSON, FromReader(resp.Body, "export"))
