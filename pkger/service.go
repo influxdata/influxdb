@@ -72,12 +72,11 @@ const ResourceTypeStack influxdb.ResourceType = "stack"
 type SVC interface {
 	InitStack(ctx context.Context, userID influxdb.ID, stack Stack) (Stack, error)
 	DeleteStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) error
-	ExportStack(ctx context.Context, orgID, stackID influxdb.ID) (*Pkg, error)
 	ListStacks(ctx context.Context, orgID influxdb.ID, filter ListFilter) ([]Stack, error)
 	ReadStack(ctx context.Context, id influxdb.ID) (Stack, error)
 	UpdateStack(ctx context.Context, upd StackUpdate) (Stack, error)
 
-	CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*Pkg, error)
+	Export(ctx context.Context, opts ...ExportOptFn) (*Pkg, error)
 	DryRun(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (PkgImpactSummary, error)
 	Apply(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (PkgImpactSummary, error)
 }
@@ -347,29 +346,6 @@ func (s *Service) DeleteStack(ctx context.Context, identifiers struct{ OrgID, Us
 	return s.store.DeleteStack(ctx, identifiers.StackID)
 }
 
-func (s *Service) ExportStack(ctx context.Context, orgID, stackID influxdb.ID) (*Pkg, error) {
-	stack, err := s.store.ReadStackByID(ctx, stackID)
-	if err != nil {
-		return nil, err
-	}
-
-	var opts []CreatePkgSetFn
-	for _, r := range stack.Resources {
-		opts = append(opts, CreateWithExistingResources(ResourceToClone{
-			Kind:     r.Kind,
-			ID:       r.ID,
-			MetaName: r.MetaName,
-		}))
-	}
-
-	pkg, err := s.CreatePkg(ctx, opts...)
-	if err != nil {
-		return nil, ierrors.Wrap(err, "failed to export stack")
-	}
-
-	return pkg, nil
-}
-
 // ListFilter are filter options for filtering stacks from being returned.
 type ListFilter struct {
 	StackIDs []influxdb.ID
@@ -412,27 +388,28 @@ func (s *Service) UpdateStack(ctx context.Context, upd StackUpdate) (Stack, erro
 }
 
 type (
-	// CreatePkgSetFn is a functional input for setting the pkg fields.
-	CreatePkgSetFn func(opt *CreateOpt) error
+	// ExportOptFn is a functional input for setting the pkg fields.
+	ExportOptFn func(opt *ExportOpt) error
 
-	// CreateOpt are the options for creating a new package.
-	CreateOpt struct {
-		OrgIDs    []CreateByOrgIDOpt
+	// ExportOpt are the options for creating a new package.
+	ExportOpt struct {
+		StackID   influxdb.ID
+		OrgIDs    []ExportByOrgIDOpt
 		Resources []ResourceToClone
 	}
 
-	// CreateByOrgIDOpt identifies an org to export resources for and provides
+	// ExportByOrgIDOpt identifies an org to export resources for and provides
 	// multiple filtering options.
-	CreateByOrgIDOpt struct {
+	ExportByOrgIDOpt struct {
 		OrgID         influxdb.ID
 		LabelNames    []string
 		ResourceKinds []Kind
 	}
 )
 
-// CreateWithExistingResources allows the create method to clone existing resources.
-func CreateWithExistingResources(resources ...ResourceToClone) CreatePkgSetFn {
-	return func(opt *CreateOpt) error {
+// ExportWithExistingResources allows the create method to clone existing resources.
+func ExportWithExistingResources(resources ...ResourceToClone) ExportOptFn {
+	return func(opt *ExportOpt) error {
 		for _, r := range resources {
 			if err := r.OK(); err != nil {
 				return err
@@ -443,10 +420,10 @@ func CreateWithExistingResources(resources ...ResourceToClone) CreatePkgSetFn {
 	}
 }
 
-// CreateWithAllOrgResources allows the create method to clone all existing resources
+// ExportWithAllOrgResources allows the create method to clone all existing resources
 // for the given organization.
-func CreateWithAllOrgResources(orgIDOpt CreateByOrgIDOpt) CreatePkgSetFn {
-	return func(opt *CreateOpt) error {
+func ExportWithAllOrgResources(orgIDOpt ExportByOrgIDOpt) ExportOptFn {
+	return func(opt *ExportOpt) error {
 		if orgIDOpt.OrgID == 0 {
 			return errors.New("orgID provided must not be zero")
 		}
@@ -460,11 +437,39 @@ func CreateWithAllOrgResources(orgIDOpt CreateByOrgIDOpt) CreatePkgSetFn {
 	}
 }
 
-// CreatePkg will produce a pkg from the parameters provided.
-func (s *Service) CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*Pkg, error) {
-	opt := new(CreateOpt)
-	for _, setter := range setters {
-		if err := setter(opt); err != nil {
+// ExportWithStackID provides an export for the given stack ID.
+func ExportWithStackID(stackID influxdb.ID) ExportOptFn {
+	return func(opt *ExportOpt) error {
+		opt.StackID = stackID
+		return nil
+	}
+}
+
+func exportOptFromOptFns(opts []ExportOptFn) (ExportOpt, error) {
+	var opt ExportOpt
+	for _, setter := range opts {
+		if err := setter(&opt); err != nil {
+			return ExportOpt{}, err
+		}
+	}
+	return opt, nil
+}
+
+// Export will produce a templates from the parameters provided.
+func (s *Service) Export(ctx context.Context, setters ...ExportOptFn) (*Pkg, error) {
+	opt, err := exportOptFromOptFns(setters)
+	if err != nil {
+		return nil, err
+	}
+
+	if opt.StackID != 0 {
+		opts, err := s.exportStackResources(ctx, opt.StackID)
+		if err != nil {
+			return nil, err
+		}
+
+		opt, err = exportOptFromOptFns(append(setters, opts...))
+		if err != nil {
 			return nil, err
 		}
 	}
@@ -492,6 +497,23 @@ func (s *Service) CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*Pk
 	}
 
 	return pkg, nil
+}
+
+func (s *Service) exportStackResources(ctx context.Context, stackID influxdb.ID) ([]ExportOptFn, error) {
+	stack, err := s.store.ReadStackByID(ctx, stackID)
+	if err != nil {
+		return nil, err
+	}
+
+	var opts []ExportOptFn
+	for _, r := range stack.Resources {
+		opts = append(opts, ExportWithExistingResources(ResourceToClone{
+			Kind:     r.Kind,
+			ID:       r.ID,
+			MetaName: r.MetaName,
+		}))
+	}
+	return opts, nil
 }
 
 func (s *Service) cloneOrgResources(ctx context.Context, orgID influxdb.ID, resourceKinds []Kind) ([]ResourceToClone, error) {

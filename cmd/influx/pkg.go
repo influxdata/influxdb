@@ -385,7 +385,7 @@ func (b *cmdPkgBuilder) pkgExportRunEFn(cmd *cobra.Command, args []string) error
 		{kind: pkger.KindVariable, idStrs: strings.Split(b.exportOpts.variables, ",")},
 	}
 
-	var opts []pkger.CreatePkgSetFn
+	var opts []pkger.ExportOptFn
 	for _, rt := range resTypes {
 		newOpt, err := newResourcesToClone(rt.kind, rt.idStrs)
 		if err != nil {
@@ -505,7 +505,7 @@ func (b *cmdPkgBuilder) pkgExportAllRunEFn(cmd *cobra.Command, args []string) er
 		}
 	}
 
-	orgOpt := pkger.CreateWithAllOrgResources(pkger.CreateByOrgIDOpt{
+	orgOpt := pkger.ExportWithAllOrgResources(pkger.ExportByOrgIDOpt{
 		OrgID:         orgID,
 		LabelNames:    labelNames,
 		ResourceKinds: resourceKinds,
@@ -539,7 +539,7 @@ func (b *cmdPkgBuilder) cmdPkgExportStack() *cobra.Command {
 }
 
 func (b *cmdPkgBuilder) pkgExportStackRunEFn(cmd *cobra.Command, args []string) error {
-	pkgSVC, orgSVC, err := b.svcFn()
+	pkgSVC, _, err := b.svcFn()
 	if err != nil {
 		return err
 	}
@@ -549,12 +549,7 @@ func (b *cmdPkgBuilder) pkgExportStackRunEFn(cmd *cobra.Command, args []string) 
 		return err
 	}
 
-	orgID, err := b.org.getID(orgSVC)
-	if err != nil {
-		return err
-	}
-
-	pkg, err := pkgSVC.ExportStack(context.Background(), orgID, *stackID)
+	pkg, err := pkgSVC.Export(context.Background(), pkger.ExportWithStackID(*stackID))
 	if err != nil {
 		return err
 	}
@@ -983,8 +978,8 @@ func (b *cmdPkgBuilder) registerPkgFileFlags(cmd *cobra.Command) {
 	cmd.MarkFlagFilename("encoding", "yaml", "yml", "json", "jsonnet")
 }
 
-func (b *cmdPkgBuilder) exportPkg(w io.Writer, pkgSVC pkger.SVC, outPath string, opts ...pkger.CreatePkgSetFn) error {
-	pkg, err := pkgSVC.CreatePkg(context.Background(), opts...)
+func (b *cmdPkgBuilder) exportPkg(w io.Writer, pkgSVC pkger.SVC, outPath string, opts ...pkger.ExportOptFn) error {
+	pkg, err := pkgSVC.Export(context.Background(), opts...)
 	if err != nil {
 		return err
 	}
@@ -1171,7 +1166,7 @@ func (b *cmdPkgBuilder) convertEncoding() pkger.Encoding {
 	}
 }
 
-func newResourcesToClone(kind pkger.Kind, idStrs []string) (pkger.CreatePkgSetFn, error) {
+func newResourcesToClone(kind pkger.Kind, idStrs []string) (pkger.ExportOptFn, error) {
 	ids, err := toInfluxIDs(idStrs)
 	if err != nil {
 		return nil, err
@@ -1184,7 +1179,7 @@ func newResourcesToClone(kind pkger.Kind, idStrs []string) (pkger.CreatePkgSetFn
 			ID:   id,
 		})
 	}
-	return pkger.CreateWithExistingResources(resources...), nil
+	return pkger.ExportWithExistingResources(resources...), nil
 }
 
 func toInfluxIDs(args []string) ([]influxdb.ID, error) {
