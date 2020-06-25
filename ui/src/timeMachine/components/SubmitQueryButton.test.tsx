@@ -163,7 +163,7 @@ describe('TimeMachine.Components.SubmitQueryButton', () => {
     }))
 
     fireEvent.click(getByTitle('Submit'))
-    expect(getByTitle('Cancel')).toBeTruthy()
+    expect(getByTitle('Submit')).toBeTruthy()
     await window.flushAllPromises()
 
     expect(mocked(fetch)).toHaveBeenCalledWith(
@@ -178,7 +178,7 @@ describe('TimeMachine.Components.SubmitQueryButton', () => {
       return new Promise((resolve, _reject) => {
         setTimeout(() => {
           resolve('')
-        }, 3000)
+        }, 4000)
       })
     })
 
