@@ -272,48 +272,6 @@ describe('Dashboard', () => {
               .within(() => {
                 cy.get('.cf-button').click()
               })
-          cy.getByTestID('save-cell--button').click()
-
-          // TESTING CSV VARIABLE
-          // selected value in dashboard is 1st value
-          cy.getByTestID('variable-dropdown')
-            .eq(0)
-            .should('contain', 'c1')
-          cy.window()
-            .pipe(getSelectedVariable(dashboard.id, 0))
-            .should('equal', 'c1')
-
-          //testing variable controls
-          cy.getByTestID('variable-dropdown')
-            .eq(0)
-            .should('contain', 'c1')
-          cy.getByTestID('variables--button').click()
-          cy.getByTestID('variable-dropdown').should('not.exist')
-          cy.getByTestID('variables--button').click()
-          cy.getByTestID('variable-dropdown').should('exist')
-
-          // sanity check on the url before beginning
-          cy.location('search').should('eq', '?lower=now%28%29%20-%201h')
-
-          // select 3rd value in dashboard
-          cy.getByTestID('variable-dropdown--button')
-            .eq(0)
-            .click()
-          cy.get(`#c3`).click()
-
-          // selected value in dashboard is 3rd value
-          cy.getByTestID('variable-dropdown')
-            .eq(0)
-            .should('contain', 'c3')
-          cy.window()
-            .pipe(getSelectedVariable(dashboard.id, 0))
-            .should('equal', 'c3')
-
-          // and that it updates the variable in the URL
-          cy.location('search').should(
-            'eq',
-            '?lower=now%28%29%20-%201h&vars%5BCSVVariable%5D=c3'
-          )
 
             cy.getByTestID('flux-editor')
               .should('be.visible')
@@ -335,6 +293,15 @@ describe('Dashboard', () => {
             cy.window()
               .pipe(getSelectedVariable(dashboard.id, 0))
               .should('equal', bucketOne)
+
+            //testing variable controls
+            cy.getByTestID('variable-dropdown')
+              .eq(0)
+              .should('contain', bucketOne)
+            cy.getByTestID('variables--button').click()
+            cy.getByTestID('variable-dropdown').should('not.exist')
+            cy.getByTestID('variables--button').click()
+            cy.getByTestID('variable-dropdown').should('exist')
 
             // sanity check on the url before beginning
             cy.location('search').should('eq', '?lower=now%28%29%20-%201h')
@@ -511,7 +478,6 @@ describe('Dashboard', () => {
     /*\
     built to approximate an instance with docker metrics,
     operating with the variables:
-
         depbuck:
             from(bucket: v.buckets)
                 |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
@@ -520,29 +486,24 @@ describe('Dashboard', () => {
                 |> rename(columns: {"container_name": "_value"})
                 |> last()
                 |> group()
-
         buckets:
             buckets()
                 |> filter(fn: (r) => r.name !~ /^_/)
                 |> rename(columns: {name: "_value"})
                 |> keep(columns: ["_value"])
-
     and a dashboard built of :
         cell one:
             from(bucket: v.buckets)
                 |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
                 |> filter(fn: (r) => r["_measurement"] == "docker_container_cpu")
                 |> filter(fn: (r) => r["_field"] == "usage_percent")
-
         cell two:
             from(bucket: v.buckets)
                 |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
                 |> filter(fn: (r) => r["_measurement"] == "docker_container_cpu")
                 |> filter(fn: (r) => r["_field"] == "usage_percent")
                 |> filter(fn: (r) => r["container_name"] == v.depbuck)
-
     with only 4 api queries being sent to fulfill it all
-
   \*/
     it('can load dependent queries without much fuss', () => {
       cy.get('@org').then(({id: orgID}: Organization) => {
