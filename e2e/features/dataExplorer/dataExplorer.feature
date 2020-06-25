@@ -150,6 +150,7 @@ Feature: Data explorer
   Scenario: Save query as a variable
     When click nav menu item "Explorer"
     When click the submit button
+    When close all notifications
     When click on the Save as button
     When click on tab "Variable" in the Save As popup
     When input the variable name "Variable Test"
