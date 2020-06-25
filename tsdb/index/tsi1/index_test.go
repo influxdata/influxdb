@@ -466,6 +466,69 @@ func TestIndex_TagValueSeriesIDIterator(t *testing.T) {
 	})
 }
 
+func TestIndex_DropSeriesList(t *testing.T) {
+	idx := MustOpenDefaultIndex() // Uses the single series creation method CreateSeriesIfNotExists
+	defer idx.Close()
+
+	// Add some series.
+	data := []struct {
+		Key  string
+		Name string
+		Tags map[string]string
+	}{
+		{"cpu,region=west,server=a", "cpu", map[string]string{"region": "west", "server": "a"}},
+		{"cpu,region=west,server=b", "cpu", map[string]string{"region": "west", "server": "b"}},
+		{"cpu,region=west,server=c", "cpu", map[string]string{"region": "west", "server": "c"}},
+		{"cpu,region=east,server=a", "cpu", map[string]string{"region": "east", "server": "a"}},
+		{"cpu,region=east,server=c", "cpu", map[string]string{"region": "east", "server": "c"}},
+		{"cpu,region=east,server=d", "cpu", map[string]string{"region": "east", "server": "d"}},
+		{"cpu,region=north,server=b", "cpu", map[string]string{"region": "north", "server": "b"}},
+		{"cpu,region=north,server=c", "cpu", map[string]string{"region": "north", "server": "c"}},
+		{"cpu,region=north,server=d", "cpu", map[string]string{"region": "north", "server": "d"}},
+		{"cpu,region=south,server=a", "cpu", map[string]string{"region": "south", "server": "a"}},
+		{"cpu,region=south,server=d", "cpu", map[string]string{"region": "south", "server": "d"}},
+	}
+
+	keys := make([][]byte, 0, 15)
+	seriesIDs := make([]uint64, 0, 15)
+	for _, pt := range data {
+		if err := idx.CreateSeriesIfNotExists([]byte(pt.Key), []byte(pt.Name), models.NewTags(pt.Tags)); err != nil {
+			t.Fatal(err)
+		}
+
+		keys = append(keys, []byte(pt.Key))
+		seriesIDs = append(seriesIDs, idx.Index.SeriesFile().SeriesID([]byte(pt.Name), models.NewTags(pt.Tags), nil))
+	}
+
+	// Drop series list
+	if err := idx.DropSeriesList(seriesIDs[0:len(seriesIDs)-2], keys[0:len(keys)-2], false); err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify series still exists.
+	idx.Run(t, func(t *testing.T) {
+		if v, err := idx.MeasurementHasSeries([]byte("cpu")); err != nil {
+			t.Fatal(err)
+		} else if !v {
+			t.Fatal("expected series to still exist")
+		}
+	})
+
+	// Drop series list lefted
+	if err := idx.DropSeriesList(seriesIDs[len(seriesIDs)-2:], keys[len(keys)-2:], false); err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify series is now deleted.
+	idx.Run(t, func(t *testing.T) {
+		if v, err := idx.MeasurementHasSeries([]byte("cpu")); err != nil {
+			t.Fatal(err)
+		} else if v {
+			t.Fatal("expected series to be deleted")
+		}
+	})
+}
+
 // Index is a test wrapper for tsi1.Index.
 type Index struct {
 	*tsi1.Index
