@@ -7,6 +7,7 @@ import {runQuery, RunQueryResult} from 'src/shared/apis/query'
 import {parseSearchInput, searchExprToFlux} from 'src/eventViewer/utils/search'
 import {findNodes} from 'src/shared/utils/ast'
 import {readQueryParams} from 'src/shared/utils/queryParams'
+import {reportSimpleQueryPerformanceEvent} from 'src/cloud/utils/reporting'
 
 // Constants
 import {
@@ -55,6 +56,7 @@ from(bucket: "${MONITORING_BUCKET}")
   |> limit(n: ${limit}, offset: ${offset})
 `
 
+  reportSimpleQueryPerformanceEvent('runQuery', {context: 'alertHistory'})
   return processResponse(runQuery(orgID, query)) as CancelBox<StatusRow[]>
 }
 
@@ -93,7 +95,7 @@ from(bucket: "${MONITORING_BUCKET}")
   |> sort(columns: ["time"], desc: true)
   |> limit(n: ${limit}, offset: ${offset})
 `
-
+  reportSimpleQueryPerformanceEvent('runQuery', {context: 'alertHistory'})
   return processResponse(runQuery(orgID, query)) as CancelBox<NotificationRow[]>
 }
 

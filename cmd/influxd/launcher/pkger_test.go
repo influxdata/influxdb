@@ -59,7 +59,7 @@ func TestLauncher_Pkger(t *testing.T) {
 		assert.Equal(t, l.Org.ID, newStack.OrgID)
 		assert.Equal(t, stack.Name, newStack.Name)
 		assert.Equal(t, stack.Description, newStack.Description)
-		assert.NotNil(t, newStack.Resources, "failed to match stack resorces")
+		assert.NotNil(t, newStack.Resources, "failed to match stack resources")
 		expectedURLs := stack.URLs
 		if expectedURLs == nil {
 			expectedURLs = []string{}
@@ -470,7 +470,7 @@ func TestLauncher_Pkger(t *testing.T) {
 			})
 			defer cleanup()
 
-			sumEquals := func(t *testing.T, impact pkger.PkgImpactSummary) {
+			sumEquals := func(t *testing.T, impact pkger.ImpactSummary) {
 				t.Helper()
 
 				assert.Equal(t, expectedURLs, impact.Sources)
@@ -600,8 +600,8 @@ func TestLauncher_Pkger(t *testing.T) {
 				pkgObjects := newObjectsFn()
 				for _, obj := range pkgObjects {
 					obj.AddAssociations(pkger.ObjectAssociation{
-						Kind:    pkger.KindLabel,
-						PkgName: labelObj.Name(),
+						Kind:     pkger.KindLabel,
+						MetaName: labelObj.Name(),
 					})
 				}
 				pkgObjects = append(pkgObjects, labelObj)
@@ -1597,7 +1597,7 @@ func TestLauncher_Pkger(t *testing.T) {
 				name      string
 				pkgFn     func(t *testing.T) *pkger.Pkg
 				applyOpts []pkger.ApplyOptFn
-				assertFn  func(t *testing.T, impact pkger.PkgImpactSummary)
+				assertFn  func(t *testing.T, impact pkger.ImpactSummary)
 			}{
 				{
 					name:  "skip resource",
@@ -1640,7 +1640,7 @@ func TestLauncher_Pkger(t *testing.T) {
 							MetaName: variablePkgName,
 						}),
 					},
-					assertFn: func(t *testing.T, impact pkger.PkgImpactSummary) {
+					assertFn: func(t *testing.T, impact pkger.ImpactSummary) {
 						summary := impact.Summary
 						assert.Empty(t, summary.Buckets)
 						assert.Empty(t, summary.Checks)
@@ -1685,7 +1685,7 @@ func TestLauncher_Pkger(t *testing.T) {
 							Kind: pkger.KindVariable,
 						}),
 					},
-					assertFn: func(t *testing.T, impact pkger.PkgImpactSummary) {
+					assertFn: func(t *testing.T, impact pkger.ImpactSummary) {
 						summary := impact.Summary
 						assert.Empty(t, summary.Buckets)
 						assert.Empty(t, summary.Checks)
@@ -1713,8 +1713,8 @@ func TestLauncher_Pkger(t *testing.T) {
 						}
 						for _, obj := range objs {
 							obj.AddAssociations(pkger.ObjectAssociation{
-								Kind:    pkger.KindLabel,
-								PkgName: labelPkgName,
+								Kind:     pkger.KindLabel,
+								MetaName: labelPkgName,
 							})
 						}
 
@@ -1727,7 +1727,7 @@ func TestLauncher_Pkger(t *testing.T) {
 							Kind: pkger.KindLabel,
 						}),
 					},
-					assertFn: func(t *testing.T, impact pkger.PkgImpactSummary) {
+					assertFn: func(t *testing.T, impact pkger.ImpactSummary) {
 						summary := impact.Summary
 						assert.Empty(t, summary.Labels, 0)
 						assert.Empty(t, summary.LabelMappings)
@@ -1799,8 +1799,8 @@ func TestLauncher_Pkger(t *testing.T) {
 				labelObj := newLabelObject(initialLabelPkgName, "label 1", "init desc", "#222eee")
 				setAssociation := func(o pkger.Object) pkger.Object {
 					o.AddAssociations(pkger.ObjectAssociation{
-						Kind:    pkger.KindLabel,
-						PkgName: labelObj.Name(),
+						Kind:     pkger.KindLabel,
+						MetaName: labelObj.Name(),
 					})
 					return o
 				}
@@ -1920,7 +1920,7 @@ func TestLauncher_Pkger(t *testing.T) {
 				initialSum, stack, cleanup := testStackApplyFn(t)
 				defer cleanup()
 
-				exportedPkg, err := svc.ExportStack(ctx, l.Org.ID, stack.ID)
+				exportedTemplate, err := svc.Export(ctx, pkger.ExportWithStackID(stack.ID))
 				require.NoError(t, err)
 
 				hasAssociation := func(t *testing.T, actual []pkger.SummaryLabel) {
@@ -1932,7 +1932,7 @@ func TestLauncher_Pkger(t *testing.T) {
 					assert.Equal(t, actual[0].PkgName, initialSum.Labels[0].PkgName)
 				}
 
-				sum := exportedPkg.Summary()
+				sum := exportedTemplate.Summary()
 
 				require.Len(t, sum.Buckets, 1, "missing required buckets")
 				assert.Equal(t, initialSum.Buckets[0].PkgName, sum.Buckets[0].PkgName)
@@ -2008,10 +2008,10 @@ func TestLauncher_Pkger(t *testing.T) {
 
 				require.Len(t, impact.Summary.Dashboards, 1)
 
-				exportedPkg, err := svc.ExportStack(ctx, l.Org.ID, impact.StackID)
+				exportedTemplate, err := svc.Export(ctx, pkger.ExportWithStackID(impact.StackID))
 				require.NoError(t, err)
 
-				summary := exportedPkg.Summary()
+				summary := exportedTemplate.Summary()
 				require.Len(t, summary.Dashboards, 1)
 
 				exportedDash := summary.Dashboards[0]
@@ -2035,8 +2035,8 @@ func TestLauncher_Pkger(t *testing.T) {
 					labelObj := newLabelObject("test-label", "", "", "")
 					bktObj := newBucketObject("test-bucket", "", "")
 					bktObj.AddAssociations(pkger.ObjectAssociation{
-						Kind:    pkger.KindLabel,
-						PkgName: labelObj.Name(),
+						Kind:     pkger.KindLabel,
+						MetaName: labelObj.Name(),
 					})
 					pkg := newPkg(bktObj, labelObj)
 
@@ -2065,16 +2065,16 @@ func TestLauncher_Pkger(t *testing.T) {
 					})
 					require.NoError(t, err)
 
-					exportedPkg, err := svc.ExportStack(ctx, l.Org.ID, stack.ID)
+					exportedTemplate, err := svc.Export(ctx, pkger.ExportWithStackID(stack.ID))
 					require.NoError(t, err)
 
-					exportedSum := exportedPkg.Summary()
+					exportedSum := exportedTemplate.Summary()
 					require.Len(t, exportedSum.Labels, 1)
 					require.Len(t, exportedSum.Buckets, 1)
 					require.Empty(t, exportedSum.Buckets[0].LabelAssociations, "received unexpected label associations")
 				})
 
-				t.Run("should not export associations platform resources not associated with stack", func(t *testing.T) {
+				t.Run("should export associations platform resources not associated with stack", func(t *testing.T) {
 					stack, initialSummary, cleanup := newLabelAssociationTestFn(t)
 					defer cleanup()
 
@@ -2096,14 +2096,17 @@ func TestLauncher_Pkger(t *testing.T) {
 					})
 					require.NoError(t, err)
 
-					exportedPkg, err := svc.ExportStack(ctx, l.Org.ID, stack.ID)
+					exportedTemplate, err := svc.Export(ctx, pkger.ExportWithStackID(stack.ID))
 					require.NoError(t, err)
 
-					exportedSum := exportedPkg.Summary()
-					require.Len(t, exportedSum.Labels, 1)
+					exportedSum := exportedTemplate.Summary()
+					assert.Len(t, exportedSum.Labels, 2)
 					require.Len(t, exportedSum.Buckets, 1)
-					require.Len(t, exportedSum.Buckets[0].LabelAssociations, 1)
-					assert.Equal(t, initialSummary.Labels[0].PkgName, exportedSum.Buckets[0].LabelAssociations[0].PkgName)
+					require.Len(t, exportedSum.Buckets[0].LabelAssociations, 2)
+
+					expectedAssociation := initialSummary.Labels[0]
+					expectedAssociation.ID, expectedAssociation.OrgID = 0, 0
+					assert.Contains(t, exportedSum.Buckets[0].LabelAssociations, expectedAssociation)
 				})
 			})
 		})
@@ -2468,8 +2471,8 @@ spec:
 
 		t.Run("exporting all resources for an org", func(t *testing.T) {
 			t.Run("getting everything", func(t *testing.T) {
-				newPkg, err := svc.CreatePkg(ctx, pkger.CreateWithAllOrgResources(
-					pkger.CreateByOrgIDOpt{
+				newPkg, err := svc.Export(ctx, pkger.ExportWithAllOrgResources(
+					pkger.ExportByOrgIDOpt{
 						OrgID: l.Org.ID,
 					},
 				))
@@ -2576,8 +2579,8 @@ spec:
 			})
 
 			t.Run("filtered by resource types", func(t *testing.T) {
-				newPkg, err := svc.CreatePkg(ctx, pkger.CreateWithAllOrgResources(
-					pkger.CreateByOrgIDOpt{
+				newPkg, err := svc.Export(ctx, pkger.ExportWithAllOrgResources(
+					pkger.ExportByOrgIDOpt{
 						OrgID:         l.Org.ID,
 						ResourceKinds: []pkger.Kind{pkger.KindCheck, pkger.KindTask},
 					},
@@ -2597,8 +2600,8 @@ spec:
 			})
 
 			t.Run("filtered by label resource type", func(t *testing.T) {
-				newPkg, err := svc.CreatePkg(ctx, pkger.CreateWithAllOrgResources(
-					pkger.CreateByOrgIDOpt{
+				newPkg, err := svc.Export(ctx, pkger.ExportWithAllOrgResources(
+					pkger.ExportByOrgIDOpt{
 						OrgID:         l.Org.ID,
 						ResourceKinds: []pkger.Kind{pkger.KindLabel},
 					},
@@ -2618,8 +2621,8 @@ spec:
 			})
 
 			t.Run("filtered by label name", func(t *testing.T) {
-				newPkg, err := svc.CreatePkg(ctx, pkger.CreateWithAllOrgResources(
-					pkger.CreateByOrgIDOpt{
+				newPkg, err := svc.Export(ctx, pkger.ExportWithAllOrgResources(
+					pkger.ExportByOrgIDOpt{
 						OrgID:      l.Org.ID,
 						LabelNames: []string{"the 2nd label"},
 					},
@@ -2638,8 +2641,8 @@ spec:
 			})
 
 			t.Run("filtered by label name and resource type", func(t *testing.T) {
-				newPkg, err := svc.CreatePkg(ctx, pkger.CreateWithAllOrgResources(
-					pkger.CreateByOrgIDOpt{
+				newPkg, err := svc.Export(ctx, pkger.ExportWithAllOrgResources(
+					pkger.ExportByOrgIDOpt{
 						OrgID:         l.Org.ID,
 						LabelNames:    []string{"the 2nd label"},
 						ResourceKinds: []pkger.Kind{pkger.KindDashboard},
@@ -2779,8 +2782,8 @@ spec:
 				},
 			}
 
-			newPkg, err := svc.CreatePkg(ctx,
-				pkger.CreateWithExistingResources(append(resToClone, resWithNewName...)...),
+			newPkg, err := svc.Export(ctx,
+				pkger.ExportWithExistingResources(append(resToClone, resWithNewName...)...),
 			)
 			require.NoError(t, err)
 
@@ -2987,7 +2990,7 @@ spec:
 
 		require.Len(t, stacks, 1)
 		require.Len(t, stacks[0].Resources, 1)
-		assert.Equal(t, stacks[0].Resources[0].PkgName, "room")
+		assert.Equal(t, stacks[0].Resources[0].MetaName, "room")
 		assert.Equal(t, influxdb.ID(impact.Summary.Buckets[0].ID), stacks[0].Resources[0].ID)
 	})
 

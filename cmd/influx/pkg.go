@@ -30,23 +30,24 @@ import (
 type pkgSVCsFn func() (pkger.SVC, influxdb.OrganizationService, error)
 
 func cmdApply(f *globalFlags, opts genericCLIOpts) *cobra.Command {
-	return newCmdPkgBuilder(newPkgerSVC, opts).cmdApply()
+	return newCmdPkgBuilder(newPkgerSVC, f, opts).cmdApply()
 }
 
 func cmdExport(f *globalFlags, opts genericCLIOpts) *cobra.Command {
-	return newCmdPkgBuilder(newPkgerSVC, opts).cmdPkgExport()
+	return newCmdPkgBuilder(newPkgerSVC, f, opts).cmdPkgExport()
 }
 
 func cmdStack(f *globalFlags, opts genericCLIOpts) *cobra.Command {
-	return newCmdPkgBuilder(newPkgerSVC, opts).cmdStacks()
+	return newCmdPkgBuilder(newPkgerSVC, f, opts).cmdStacks()
 }
 
 func cmdTemplate(f *globalFlags, opts genericCLIOpts) *cobra.Command {
-	return newCmdPkgBuilder(newPkgerSVC, opts).cmdTemplate()
+	return newCmdPkgBuilder(newPkgerSVC, f, opts).cmdTemplate()
 }
 
 type cmdPkgBuilder struct {
 	genericCLIOpts
+	*globalFlags
 
 	svcFn pkgSVCsFn
 
@@ -88,9 +89,10 @@ type cmdPkgBuilder struct {
 	}
 }
 
-func newCmdPkgBuilder(svcFn pkgSVCsFn, opts genericCLIOpts) *cmdPkgBuilder {
+func newCmdPkgBuilder(svcFn pkgSVCsFn, f *globalFlags, opts genericCLIOpts) *cmdPkgBuilder {
 	return &cmdPkgBuilder{
 		genericCLIOpts: opts,
+		globalFlags:    f,
 		svcFn:          svcFn,
 	}
 }
@@ -116,7 +118,7 @@ func (b *cmdPkgBuilder) cmdApply() *cobra.Command {
 }
 
 func (b *cmdPkgBuilder) cmdPkgApply() *cobra.Command {
-	cmd := b.newCmd("apply", b.pkgApplyRunEFn, true)
+	cmd := b.newCmd("apply", b.pkgApplyRunEFn)
 	cmd.Aliases = []string{"pkg"}
 	cmd.Short = "Apply a template to manage resources"
 	cmd.Long = `
@@ -320,7 +322,7 @@ func parseTemplateActions(args []string) ([]pkger.ApplyOptFn, error) {
 }
 
 func (b *cmdPkgBuilder) cmdPkgExport() *cobra.Command {
-	cmd := b.newCmd("export", b.pkgExportRunEFn, true)
+	cmd := b.newCmd("export", b.pkgExportRunEFn)
 	cmd.Short = "Export existing resources as a template"
 	cmd.Long = `
 	The export command provides a mechanism to export existing resources to a
@@ -383,7 +385,7 @@ func (b *cmdPkgBuilder) pkgExportRunEFn(cmd *cobra.Command, args []string) error
 		{kind: pkger.KindVariable, idStrs: strings.Split(b.exportOpts.variables, ",")},
 	}
 
-	var opts []pkger.CreatePkgSetFn
+	var opts []pkger.ExportOptFn
 	for _, rt := range resTypes {
 		newOpt, err := newResourcesToClone(rt.kind, rt.idStrs)
 		if err != nil {
@@ -425,7 +427,7 @@ func (b *cmdPkgBuilder) pkgExportRunEFn(cmd *cobra.Command, args []string) error
 }
 
 func (b *cmdPkgBuilder) cmdPkgExportAll() *cobra.Command {
-	cmd := b.newCmd("all", b.pkgExportAllRunEFn, true)
+	cmd := b.newCmd("all", b.pkgExportAllRunEFn)
 	cmd.Short = "Export all existing resources for an organization as a template"
 	cmd.Long = `
 	The export all command will export all resources for an organization. The
@@ -503,7 +505,7 @@ func (b *cmdPkgBuilder) pkgExportAllRunEFn(cmd *cobra.Command, args []string) er
 		}
 	}
 
-	orgOpt := pkger.CreateWithAllOrgResources(pkger.CreateByOrgIDOpt{
+	orgOpt := pkger.ExportWithAllOrgResources(pkger.ExportByOrgIDOpt{
 		OrgID:         orgID,
 		LabelNames:    labelNames,
 		ResourceKinds: resourceKinds,
@@ -512,7 +514,7 @@ func (b *cmdPkgBuilder) pkgExportAllRunEFn(cmd *cobra.Command, args []string) er
 }
 
 func (b *cmdPkgBuilder) cmdPkgExportStack() *cobra.Command {
-	cmd := b.newCmd("stack $STACK_ID", b.pkgExportStackRunEFn, true)
+	cmd := b.newCmd("stack $STACK_ID", b.pkgExportStackRunEFn)
 	cmd.Short = "Export all existing resources for associated with a stack as a template"
 	cmd.Long = `
 	The export stack command exports the resources associated with a stack as
@@ -537,7 +539,7 @@ func (b *cmdPkgBuilder) cmdPkgExportStack() *cobra.Command {
 }
 
 func (b *cmdPkgBuilder) pkgExportStackRunEFn(cmd *cobra.Command, args []string) error {
-	pkgSVC, orgSVC, err := b.svcFn()
+	pkgSVC, _, err := b.svcFn()
 	if err != nil {
 		return err
 	}
@@ -547,12 +549,7 @@ func (b *cmdPkgBuilder) pkgExportStackRunEFn(cmd *cobra.Command, args []string) 
 		return err
 	}
 
-	orgID, err := b.org.getID(orgSVC)
-	if err != nil {
-		return err
-	}
-
-	pkg, err := pkgSVC.ExportStack(context.Background(), orgID, *stackID)
+	pkg, err := pkgSVC.Export(context.Background(), pkger.ExportWithStackID(*stackID))
 	if err != nil {
 		return err
 	}
@@ -583,7 +580,7 @@ func (b *cmdPkgBuilder) newTemplateCmd(usage string) *cobra.Command {
 		return b.printPkgSummary(0, pkg.Summary())
 	}
 
-	cmd := b.newCmd(usage, runE, false)
+	cmd := b.genericCLIOpts.newCmd(usage, runE, false)
 
 	b.registerPkgFileFlags(cmd)
 	b.registerPkgPrintOpts(cmd)
@@ -600,7 +597,7 @@ func (b *cmdPkgBuilder) cmdPkgValidate() *cobra.Command {
 		return pkg.Validate()
 	}
 
-	cmd := b.newCmd("validate", runE, false)
+	cmd := b.genericCLIOpts.newCmd("validate", runE, false)
 	cmd.Short = "Validate the provided template"
 
 	b.registerPkgFileFlags(cmd)
@@ -645,7 +642,7 @@ func (b *cmdPkgBuilder) cmdStacks() *cobra.Command {
 
 // TODO(jsteenb2): nuke the deprecated command here after OSS beta13 release.
 func (b *cmdPkgBuilder) cmdStackDeprecated() *cobra.Command {
-	cmd := b.newCmd("stack", nil, false)
+	cmd := b.genericCLIOpts.newCmd("stack", nil, false)
 	cmd.Short = "Stack management commands"
 	cmd.AddCommand(
 		b.cmdStackInit(),
@@ -656,7 +653,7 @@ func (b *cmdPkgBuilder) cmdStackDeprecated() *cobra.Command {
 }
 
 func (b *cmdPkgBuilder) cmdStackInit() *cobra.Command {
-	cmd := b.newCmd("init", b.stackInitRunEFn, true)
+	cmd := b.newCmd("init", b.stackInitRunEFn)
 	cmd.Short = "Initialize a stack"
 	cmd.Long = `
 	The stack init command creates a new stack to associated templates with. A
@@ -722,7 +719,7 @@ func (b *cmdPkgBuilder) cmdStackList() *cobra.Command {
 
 func (b *cmdPkgBuilder) newCmdStackList(cmdName string) *cobra.Command {
 	usage := fmt.Sprintf("%s [flags]", cmdName)
-	cmd := b.newCmd(usage, b.stackListRunEFn, true)
+	cmd := b.newCmd(usage, b.stackListRunEFn)
 	cmd.Flags().StringArrayVar(&b.stackIDs, "stack-id", nil, "Stack ID to filter by")
 	cmd.Flags().StringArrayVar(&b.names, "stack-name", nil, "Stack name to filter by")
 	registerPrintOptions(cmd, &b.hideHeaders, &b.json)
@@ -787,7 +784,7 @@ func (b *cmdPkgBuilder) stackListRunEFn(cmd *cobra.Command, args []string) error
 }
 
 func (b *cmdPkgBuilder) cmdStackRemove() *cobra.Command {
-	cmd := b.newCmd("rm [--stack-id=ID1 --stack-id=ID2]", b.stackRemoveRunEFn, true)
+	cmd := b.newCmd("rm [--stack-id=ID1 --stack-id=ID2]", b.stackRemoveRunEFn)
 	cmd.Short = "Remove a stack(s) and all associated resources"
 	cmd.Aliases = []string{"remove", "uninstall"}
 
@@ -841,13 +838,14 @@ func (b *cmdPkgBuilder) stackRemoveRunEFn(cmd *cobra.Command, args []string) err
 
 		tabW.HideHeaders(b.hideHeaders)
 
-		tabW.WriteHeaders("ID", "OrgID", "Name", "Description", "Num Resources", "URLs", "Created At")
+		tabW.WriteHeaders("ID", "OrgID", "Name", "Description", "Num Resources", "Sources", "URLs", "Created At")
 		tabW.Write(map[string]interface{}{
 			"ID":            stack.ID,
 			"OrgID":         stack.OrgID,
 			"Name":          stack.Name,
 			"Description":   stack.Description,
 			"Num Resources": len(stack.Resources),
+			"Sources":       stack.Sources,
 			"URLs":          stack.URLs,
 			"Created At":    stack.CreatedAt,
 		})
@@ -880,7 +878,7 @@ func (b *cmdPkgBuilder) stackRemoveRunEFn(cmd *cobra.Command, args []string) err
 }
 
 func (b *cmdPkgBuilder) cmdStackUpdate() *cobra.Command {
-	cmd := b.newCmd("update", b.stackUpdateRunEFn, true)
+	cmd := b.newCmd("update", b.stackUpdateRunEFn)
 	cmd.Short = "Update a stack"
 	cmd.Long = `
 	The stack update command updates a stack.
@@ -956,6 +954,12 @@ func (b *cmdPkgBuilder) writeStack(w io.Writer, stack pkger.Stack) error {
 	return nil
 }
 
+func (b *cmdPkgBuilder) newCmd(use string, runE func(*cobra.Command, []string) error) *cobra.Command {
+	cmd := b.genericCLIOpts.newCmd(use, runE, true)
+	b.globalFlags.registerFlags(cmd)
+	return cmd
+}
+
 func (b *cmdPkgBuilder) registerPkgPrintOpts(cmd *cobra.Command) {
 	cmd.Flags().BoolVarP(&b.disableColor, "disable-color", "c", false, "Disable color in output")
 	cmd.Flags().BoolVar(&b.disableTableBorders, "disable-table-borders", false, "Disable table borders")
@@ -974,8 +978,8 @@ func (b *cmdPkgBuilder) registerPkgFileFlags(cmd *cobra.Command) {
 	cmd.MarkFlagFilename("encoding", "yaml", "yml", "json", "jsonnet")
 }
 
-func (b *cmdPkgBuilder) exportPkg(w io.Writer, pkgSVC pkger.SVC, outPath string, opts ...pkger.CreatePkgSetFn) error {
-	pkg, err := pkgSVC.CreatePkg(context.Background(), opts...)
+func (b *cmdPkgBuilder) exportPkg(w io.Writer, pkgSVC pkger.SVC, outPath string, opts ...pkger.ExportOptFn) error {
+	pkg, err := pkgSVC.Export(context.Background(), opts...)
 	if err != nil {
 		return err
 	}
@@ -1162,7 +1166,7 @@ func (b *cmdPkgBuilder) convertEncoding() pkger.Encoding {
 	}
 }
 
-func newResourcesToClone(kind pkger.Kind, idStrs []string) (pkger.CreatePkgSetFn, error) {
+func newResourcesToClone(kind pkger.Kind, idStrs []string) (pkger.ExportOptFn, error) {
 	ids, err := toInfluxIDs(idStrs)
 	if err != nil {
 		return nil, err
@@ -1175,7 +1179,7 @@ func newResourcesToClone(kind pkger.Kind, idStrs []string) (pkger.CreatePkgSetFn
 			ID:   id,
 		})
 	}
-	return pkger.CreateWithExistingResources(resources...), nil
+	return pkger.ExportWithExistingResources(resources...), nil
 }
 
 func toInfluxIDs(args []string) ([]influxdb.ID, error) {

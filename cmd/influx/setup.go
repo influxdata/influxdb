@@ -35,6 +35,7 @@ func cmdSetup(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd.RunE = setupF
 	cmd.Short = "Setup instance with initial user, org, bucket"
 
+	f.registerFlags(cmd, "token")
 	cmd.Flags().StringVarP(&setupFlags.username, "username", "u", "", "primary username")
 	cmd.Flags().StringVarP(&setupFlags.password, "password", "p", "", "password for username")
 	cmd.Flags().StringVarP(&setupFlags.token, "token", "t", "", "token for username, else auto-generated")
@@ -46,16 +47,17 @@ func cmdSetup(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	registerPrintOptions(cmd, &setupFlags.hideHeaders, &setupFlags.json)
 
 	cmd.AddCommand(
-		cmdSetupUser(opt),
+		cmdSetupUser(f, opt),
 	)
 	return cmd
 }
 
-func cmdSetupUser(opt genericCLIOpts) *cobra.Command {
+func cmdSetupUser(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd := opt.newCmd("user", nil, true)
 	cmd.RunE = setupUserF
 	cmd.Short = "Setup instance with user, org, bucket"
 
+	f.registerFlags(cmd, "token")
 	cmd.Flags().StringVarP(&setupFlags.username, "username", "u", "", "primary username")
 	cmd.Flags().StringVarP(&setupFlags.password, "password", "p", "", "password for username")
 	cmd.Flags().StringVarP(&setupFlags.token, "token", "t", "", "token for username, else auto-generated")

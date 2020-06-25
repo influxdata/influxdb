@@ -6,22 +6,23 @@ spec:
   name: display name
   description: desc1
   charts:
-    - kind:   Single_Stat
-      name:   single stat
+    - kind: Single_Stat
+      name: single stat
       prefix: sumtin
       tickPrefix: "true"
       suffix: days
       tickSuffix: "true"
-      note:   single stat note
+      note: single stat note
       noteOnEmpty: true
       xPos: 1
       yPos: 2
-      width:  6
+      width: 6
       height: 3
       decimalPlaces: 1
       shade: true
+      hoverDimension: "y"
       queries:
-        - query: "from(bucket: v.bucket) |> range(start: v.timeRangeStart) |> filter(fn: (r) => r._measurement == \"processes\") |> filter(fn: (r) => r._field == \"running\" or r._field == \"blocked\") |> aggregateWindow(every: v.windowPeriod, fn: max) |> yield(name: \"max\")"
+        - query: 'from(bucket: v.bucket) |> range(start: v.timeRangeStart) |> filter(fn: (r) => r._measurement == "processes") |> filter(fn: (r) => r._field == "running" or r._field == "blocked") |> aggregateWindow(every: v.windowPeriod, fn: max) |> yield(name: "max")'
       colors:
         - name: laser
           type: text

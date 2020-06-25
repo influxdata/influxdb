@@ -303,6 +303,18 @@ func launcherOpts(l *Launcher) []cli.Opt {
 			Desc:    "TLS key for HTTPs",
 		},
 		{
+			DestP:   &l.httpTLSMinVersion,
+			Flag:    "tls-min-version",
+			Default: "1.2",
+			Desc:    "Minimum accepted TLS version",
+		},
+		{
+			DestP:   &l.httpTLSStrictCiphers,
+			Flag:    "tls-strict-ciphers",
+			Default: false,
+			Desc:    "Restrict accept ciphers to: ECDHE_RSA_WITH_AES_256_GCM_SHA384, ECDHE_RSA_WITH_AES_256_CBC_SHA, RSA_WITH_AES_256_GCM_SHA384, RSA_WITH_AES_256_CBC_SHA",
+		},
+		{
 			DestP:   &l.noTasks,
 			Flag:    "no-tasks",
 			Default: false,
@@ -385,10 +397,12 @@ type Launcher struct {
 
 	queryController *control.Controller
 
-	httpPort    int
-	httpServer  *nethttp.Server
-	httpTLSCert string
-	httpTLSKey  string
+	httpPort             int
+	httpServer           *nethttp.Server
+	httpTLSCert          string
+	httpTLSKey           string
+	httpTLSMinVersion    string
+	httpTLSStrictCiphers bool
 
 	natsServer *nats.Server
 	natsPort   int
@@ -920,6 +934,9 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		labelSvc = label.NewLabelController(m.flagger, m.kvService, ls)
 	}
 
+	bucketSvc = storage.NewBucketService(bucketSvc, m.engine)
+	bucketSvc = dbrp.NewBucketService(m.log, bucketSvc, dbrpSvc)
+
 	m.apibackend = &http.APIBackend{
 		AssetsPath:           m.assetsPath,
 		HTTPErrorHandler:     kithttp.ErrorHandler(0),
@@ -934,7 +951,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		AuthorizationService: authSvc,
 		AlgoWProxy:           &http.NoopProxyHandler{},
 		// Wrap the BucketService in a storage backed one that will ensure deleted buckets are removed from the storage engine.
-		BucketService:                   storage.NewBucketService(bucketSvc, m.engine),
+		BucketService:                   bucketSvc,
 		SessionService:                  sessionSvc,
 		UserService:                     userSvc,
 		DBRPService:                     dbrpSvc,
@@ -1122,7 +1139,43 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		}
 		transport = "https"
 
-		m.httpServer.TLSConfig = &tls.Config{}
+		// Sensible default
+		var tlsMinVersion uint16 = tls.VersionTLS12
+
+		switch m.httpTLSMinVersion {
+		case "1.0":
+			m.log.Warn("Setting the minimum version of TLS to 1.0 - this is discouraged. Please use 1.2 or 1.3")
+			tlsMinVersion = tls.VersionTLS10
+		case "1.1":
+			m.log.Warn("Setting the minimum version of TLS to 1.1 - this is discouraged. Please use 1.2 or 1.3")
+			tlsMinVersion = tls.VersionTLS11
+		case "1.2":
+			tlsMinVersion = tls.VersionTLS12
+		case "1.3":
+			tlsMinVersion = tls.VersionTLS13
+		}
+
+		strictCiphers := []uint16{
+			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+			tls.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
+			tls.TLS_RSA_WITH_AES_256_GCM_SHA384,
+			tls.TLS_RSA_WITH_AES_256_CBC_SHA,
+		}
+
+		// nil uses the default cipher suite
+		var cipherConfig []uint16 = nil
+
+		// TLS 1.3 does not support configuring the Cipher suites
+		if tlsMinVersion != tls.VersionTLS13 && m.httpTLSStrictCiphers {
+			cipherConfig = strictCiphers
+		}
+
+		m.httpServer.TLSConfig = &tls.Config{
+			CurvePreferences:         []tls.CurveID{tls.CurveP521, tls.CurveP384, tls.CurveP256},
+			PreferServerCipherSuites: true,
+			MinVersion:               tlsMinVersion,
+			CipherSuites:             cipherConfig,
+		}
 	}
 
 	if addr, ok := ln.Addr().(*net.TCPAddr); ok {

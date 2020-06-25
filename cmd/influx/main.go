@@ -134,22 +134,55 @@ func out(w io.Writer) genericCLIOptFn {
 	}
 }
 
-func err(w io.Writer) genericCLIOptFn {
-	return func(o *genericCLIOpts) {
-		o.errW = w
-	}
-}
-
-func runEMiddlware(mw cobraRunEMiddleware) genericCLIOptFn {
-	return func(o *genericCLIOpts) {
-		o.runEWrapFn = mw
-	}
-}
-
 type globalFlags struct {
 	config.Config
 	skipVerify   bool
 	traceDebugID string
+}
+
+func (g *globalFlags) registerFlags(cmd *cobra.Command, skipFlags ...string) {
+	if g == nil {
+		panic("global flags are not set: <nil>")
+	}
+
+	skips := make(map[string]bool)
+	for _, flag := range skipFlags {
+		skips[flag] = true
+	}
+
+	fOpts := flagOpts{
+		{
+			DestP: &g.Token,
+			Flag:  "token",
+			Short: 't',
+			Desc:  "Authentication token",
+		},
+		{
+			DestP: &g.Host,
+			Flag:  "host",
+			Desc:  "HTTP address of InfluxDB",
+		},
+		{
+			DestP:  &g.traceDebugID,
+			Flag:   "trace-debug-id",
+			Hidden: true,
+		},
+	}
+
+	var filtered flagOpts
+	for _, o := range fOpts {
+		if skips[o.Flag] {
+			continue
+		}
+		filtered = append(filtered, o)
+	}
+
+	filtered.mustRegister(cmd)
+
+	if skips["skip-verify"] {
+		return
+	}
+	cmd.Flags().BoolVar(&g.skipVerify, "skip-verify", false, "Skip TLS certificate chain and host name verification.")
 }
 
 var flags globalFlags
@@ -191,29 +224,6 @@ func (b *cmdInfluxBuilder) cmd(childCmdFns ...func(f *globalFlags, opt genericCL
 		cmd.AddCommand(childCmd(&flags, b.genericCLIOpts))
 	}
 
-	fOpts := flagOpts{
-		{
-			DestP:      &flags.Token,
-			Flag:       "token",
-			Short:      't',
-			Desc:       "API token to be used throughout client calls",
-			Persistent: true,
-		},
-		{
-			DestP:      &flags.Host,
-			Flag:       "host",
-			Desc:       "HTTP address of Influx",
-			Persistent: true,
-		},
-		{
-			DestP:      &flags.traceDebugID,
-			Flag:       "trace-debug-id",
-			Hidden:     true,
-			Persistent: true,
-		},
-	}
-	fOpts.mustRegister(cmd)
-
 	// migration credential token
 	migrateOldCredential()
 
@@ -233,8 +243,6 @@ func (b *cmdInfluxBuilder) cmd(childCmdFns ...func(f *globalFlags, opt genericCL
 		cfg.Host = flags.Host
 	}
 	flags.Config = cfg
-
-	cmd.PersistentFlags().BoolVar(&flags.skipVerify, "skip-verify", false, "SkipVerify controls whether a client verifies the server's certificate chain and host name.")
 
 	// Update help description for all commands in command tree
 	walk(cmd, func(c *cobra.Command) {
@@ -477,6 +485,10 @@ func (o *organization) validOrgFlags(f *globalFlags) error {
 type flagOpts []cli.Opt
 
 func (f flagOpts) mustRegister(cmd *cobra.Command) {
+	if len(f) == 0 {
+		return
+	}
+
 	for i := range f {
 		envVar := f[i].Flag
 		if e := f[i].EnvVar; e != "" {

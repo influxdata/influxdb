@@ -28,6 +28,9 @@ import {
 import {getOrg} from 'src/organizations/selectors'
 import {getAll} from 'src/resources/selectors'
 
+//Actions
+import {editActiveQueryWithBuilderSync} from 'src/timeMachine/actions'
+
 // Constants
 import {LIMIT} from 'src/resources/constants'
 
@@ -153,7 +156,6 @@ export const loadBuckets = () => async (
 ) => {
   const startTime = Date.now()
   const orgID = getOrg(getState()).id
-
   dispatch(setBuilderBucketsStatus(RemoteDataState.Loading))
 
   try {
@@ -455,11 +457,14 @@ export const reloadTagSelectors = () => (dispatch: Dispatch<Action>) => {
 }
 
 export const setBuilderBucketIfExists = (bucketName: string) => (
-  dispatch: Dispatch<Action>,
+  dispatch: Dispatch<
+    Action | ReturnType<typeof editActiveQueryWithBuilderSync>
+  >,
   getState: GetState
 ) => {
   const buckets = getAll<Bucket>(getState(), ResourceType.Buckets)
   if (buckets.find(b => b.name === bucketName)) {
+    dispatch(editActiveQueryWithBuilderSync())
     dispatch(setBuilderBucket(bucketName, true))
   }
 }

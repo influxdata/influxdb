@@ -44,14 +44,6 @@ func (s *authMW) DeleteStack(ctx context.Context, identifiers struct{ OrgID, Use
 	return s.next.DeleteStack(ctx, identifiers)
 }
 
-func (s *authMW) ExportStack(ctx context.Context, orgID, stackID influxdb.ID) (*Pkg, error) {
-	err := s.authAgent.OrgPermissions(ctx, orgID, influxdb.ReadAction)
-	if err != nil {
-		return nil, err
-	}
-	return s.next.ExportStack(ctx, orgID, stackID)
-}
-
 func (s *authMW) ListStacks(ctx context.Context, orgID influxdb.ID, f ListFilter) ([]Stack, error) {
 	err := s.authAgent.OrgPermissions(ctx, orgID, influxdb.ReadAction)
 	if err != nil {
@@ -86,14 +78,23 @@ func (s *authMW) UpdateStack(ctx context.Context, upd StackUpdate) (Stack, error
 	return s.next.UpdateStack(ctx, upd)
 }
 
-func (s *authMW) CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*Pkg, error) {
-	return s.next.CreatePkg(ctx, setters...)
+func (s *authMW) Export(ctx context.Context, opts ...ExportOptFn) (*Pkg, error) {
+	opt, err := exportOptFromOptFns(opts)
+	if err != nil {
+		return nil, err
+	}
+	if opt.StackID != 0 {
+		if _, err := s.ReadStack(ctx, opt.StackID); err != nil {
+			return nil, err
+		}
+	}
+	return s.next.Export(ctx, opts...)
 }
 
-func (s *authMW) DryRun(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (PkgImpactSummary, error) {
+func (s *authMW) DryRun(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (ImpactSummary, error) {
 	return s.next.DryRun(ctx, orgID, userID, opts...)
 }
 
-func (s *authMW) Apply(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (PkgImpactSummary, error) {
+func (s *authMW) Apply(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (ImpactSummary, error) {
 	return s.next.Apply(ctx, orgID, userID, opts...)
 }

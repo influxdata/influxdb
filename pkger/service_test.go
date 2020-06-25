@@ -85,7 +85,7 @@ func TestService(t *testing.T) {
 			path          string
 			kinds         []Kind
 			skipResources []ActionSkipResource
-			assertFn      func(*testing.T, PkgImpactSummary)
+			assertFn      func(*testing.T, ImpactSummary)
 		}
 
 		testDryRunActions := func(t *testing.T, fields dryRunTestFields) {
@@ -231,7 +231,7 @@ func TestService(t *testing.T) {
 							MetaName: "rucket-11",
 						},
 					},
-					assertFn: func(t *testing.T, impact PkgImpactSummary) {
+					assertFn: func(t *testing.T, impact ImpactSummary) {
 						require.Empty(t, impact.Diff.Buckets)
 					},
 				})
@@ -293,7 +293,7 @@ func TestService(t *testing.T) {
 							MetaName: "check-1",
 						},
 					},
-					assertFn: func(t *testing.T, impact PkgImpactSummary) {
+					assertFn: func(t *testing.T, impact ImpactSummary) {
 						require.Empty(t, impact.Diff.Checks)
 					},
 				})
@@ -315,7 +315,7 @@ func TestService(t *testing.T) {
 							MetaName: "dash-2",
 						},
 					},
-					assertFn: func(t *testing.T, impact PkgImpactSummary) {
+					assertFn: func(t *testing.T, impact ImpactSummary) {
 						require.Empty(t, impact.Diff.Dashboards)
 					},
 				})
@@ -426,7 +426,7 @@ func TestService(t *testing.T) {
 							MetaName: "label-3",
 						},
 					},
-					assertFn: func(t *testing.T, impact PkgImpactSummary) {
+					assertFn: func(t *testing.T, impact ImpactSummary) {
 						require.Empty(t, impact.Diff.Labels)
 					},
 				})
@@ -532,7 +532,7 @@ func TestService(t *testing.T) {
 							MetaName: "pager-duty-notification-endpoint",
 						},
 					},
-					assertFn: func(t *testing.T, impact PkgImpactSummary) {
+					assertFn: func(t *testing.T, impact ImpactSummary) {
 						require.Empty(t, impact.Diff.NotificationEndpoints)
 					},
 				})
@@ -600,7 +600,7 @@ func TestService(t *testing.T) {
 							MetaName: "rule-uuid",
 						},
 					},
-					assertFn: func(t *testing.T, impact PkgImpactSummary) {
+					assertFn: func(t *testing.T, impact ImpactSummary) {
 						require.Empty(t, impact.Diff.NotificationRules)
 					},
 				})
@@ -637,7 +637,7 @@ func TestService(t *testing.T) {
 							MetaName: "task-1",
 						},
 					},
-					assertFn: func(t *testing.T, impact PkgImpactSummary) {
+					assertFn: func(t *testing.T, impact ImpactSummary) {
 						require.Empty(t, impact.Diff.Tasks)
 					},
 				})
@@ -659,7 +659,7 @@ func TestService(t *testing.T) {
 							MetaName: "tele-2",
 						},
 					},
-					assertFn: func(t *testing.T, impact PkgImpactSummary) {
+					assertFn: func(t *testing.T, impact ImpactSummary) {
 						require.Empty(t, impact.Diff.Telegrafs)
 					},
 				})
@@ -749,7 +749,7 @@ func TestService(t *testing.T) {
 							MetaName: "var-map-4",
 						},
 					},
-					assertFn: func(t *testing.T, impact PkgImpactSummary) {
+					assertFn: func(t *testing.T, impact ImpactSummary) {
 						require.Empty(t, impact.Diff.Variables)
 					},
 				})
@@ -1749,7 +1749,7 @@ func TestService(t *testing.T) {
 		})
 	})
 
-	t.Run("CreatePkg", func(t *testing.T) {
+	t.Run("Export", func(t *testing.T) {
 		newThresholdBase := func(i int) icheck.Base {
 			return icheck.Base{
 				ID:          influxdb.ID(i),
@@ -1826,7 +1826,7 @@ func TestService(t *testing.T) {
 							ID:   expected.ID,
 							Name: tt.newName,
 						}
-						pkg, err := svc.CreatePkg(context.TODO(), CreateWithExistingResources(resToClone))
+						pkg, err := svc.Export(context.TODO(), ExportWithExistingResources(resToClone))
 						require.NoError(t, err)
 
 						newPkg := encodeAndDecode(t, pkg)
@@ -1926,7 +1926,7 @@ func TestService(t *testing.T) {
 							ID:   tt.expected.GetID(),
 							Name: tt.newName,
 						}
-						pkg, err := svc.CreatePkg(context.TODO(), CreateWithExistingResources(resToClone))
+						pkg, err := svc.Export(context.TODO(), ExportWithExistingResources(resToClone))
 						require.NoError(t, err)
 
 						newPkg := encodeAndDecode(t, pkg)
@@ -2152,6 +2152,7 @@ func TestService(t *testing.T) {
 									Suffix:            "suf",
 									Queries:           []influxdb.DashboardQuery{newQuery()},
 									ShadeBelow:        true,
+									HoverDimension:    "y",
 									ShowNoteWhenEmpty: true,
 									ViewColors:        []influxdb.ViewColor{{Type: "text", Hex: "red"}},
 									XColumn:           "x",
@@ -2175,6 +2176,7 @@ func TestService(t *testing.T) {
 									Note:              "a note",
 									Queries:           []influxdb.DashboardQuery{newQuery()},
 									ShadeBelow:        true,
+									HoverDimension:    "y",
 									ShowNoteWhenEmpty: true,
 									ViewColors:        []influxdb.ViewColor{{Type: "text", Hex: "red"}},
 									XColumn:           "x",
@@ -2311,7 +2313,7 @@ func TestService(t *testing.T) {
 								ID:   expected.ID,
 								Name: tt.newName,
 							}
-							pkg, err := svc.CreatePkg(context.TODO(), CreateWithExistingResources(resToClone))
+							pkg, err := svc.Export(context.TODO(), ExportWithExistingResources(resToClone))
 							require.NoError(t, err)
 
 							newPkg := encodeAndDecode(t, pkg)
@@ -2361,7 +2363,7 @@ func TestService(t *testing.T) {
 							ID:   2,
 						},
 					}
-					pkg, err := svc.CreatePkg(context.TODO(), CreateWithExistingResources(resourcesToClone...))
+					pkg, err := svc.Export(context.TODO(), ExportWithExistingResources(resourcesToClone...))
 					require.NoError(t, err)
 
 					newPkg := encodeAndDecode(t, pkg)
@@ -2417,7 +2419,7 @@ func TestService(t *testing.T) {
 							ID:   expectedLabel.ID,
 							Name: tt.newName,
 						}
-						pkg, err := svc.CreatePkg(context.TODO(), CreateWithExistingResources(resToClone))
+						pkg, err := svc.Export(context.TODO(), ExportWithExistingResources(resToClone))
 						require.NoError(t, err)
 
 						newPkg := encodeAndDecode(t, pkg)
@@ -2545,7 +2547,7 @@ func TestService(t *testing.T) {
 							ID:   tt.expected.GetID(),
 							Name: tt.newName,
 						}
-						pkg, err := svc.CreatePkg(context.TODO(), CreateWithExistingResources(resToClone))
+						pkg, err := svc.Export(context.TODO(), ExportWithExistingResources(resToClone))
 						require.NoError(t, err)
 
 						newPkg := encodeAndDecode(t, pkg)
@@ -2672,7 +2674,7 @@ func TestService(t *testing.T) {
 								ID:   tt.rule.GetID(),
 								Name: tt.newName,
 							}
-							pkg, err := svc.CreatePkg(context.TODO(), CreateWithExistingResources(resToClone))
+							pkg, err := svc.Export(context.TODO(), ExportWithExistingResources(resToClone))
 							require.NoError(t, err)
 
 							newPkg := encodeAndDecode(t, pkg)
@@ -2773,7 +2775,7 @@ func TestService(t *testing.T) {
 							ID:   2,
 						},
 					}
-					pkg, err := svc.CreatePkg(context.TODO(), CreateWithExistingResources(resourcesToClone...))
+					pkg, err := svc.Export(context.TODO(), ExportWithExistingResources(resourcesToClone...))
 					require.NoError(t, err)
 
 					newPkg := encodeAndDecode(t, pkg)
@@ -2845,7 +2847,7 @@ func TestService(t *testing.T) {
 								ID:   tt.task.ID,
 								Name: tt.newName,
 							}
-							pkg, err := svc.CreatePkg(context.TODO(), CreateWithExistingResources(resToClone))
+							pkg, err := svc.Export(context.TODO(), ExportWithExistingResources(resToClone))
 							require.NoError(t, err)
 
 							newPkg := encodeAndDecode(t, pkg)
@@ -2899,7 +2901,7 @@ func TestService(t *testing.T) {
 							ID:   2,
 						},
 					}
-					pkg, err := svc.CreatePkg(context.TODO(), CreateWithExistingResources(resourcesToClone...))
+					pkg, err := svc.Export(context.TODO(), ExportWithExistingResources(resourcesToClone...))
 					require.NoError(t, err)
 
 					newPkg := encodeAndDecode(t, pkg)
@@ -2944,7 +2946,7 @@ func TestService(t *testing.T) {
 							ID:   2,
 						},
 					}
-					pkg, err := svc.CreatePkg(context.TODO(), CreateWithExistingResources(resourcesToClone...))
+					pkg, err := svc.Export(context.TODO(), ExportWithExistingResources(resourcesToClone...))
 					require.NoError(t, err)
 
 					newPkg := encodeAndDecode(t, pkg)
@@ -3044,7 +3046,7 @@ func TestService(t *testing.T) {
 							ID:   tt.expectedVar.ID,
 							Name: tt.newName,
 						}
-						pkg, err := svc.CreatePkg(context.TODO(), CreateWithExistingResources(resToClone))
+						pkg, err := svc.Export(context.TODO(), ExportWithExistingResources(resToClone))
 						require.NoError(t, err)
 
 						newPkg := encodeAndDecode(t, pkg)
@@ -3099,7 +3101,7 @@ func TestService(t *testing.T) {
 						Kind: KindBucket,
 						ID:   expected.ID,
 					}
-					pkg, err := svc.CreatePkg(context.TODO(), CreateWithExistingResources(resToClone))
+					pkg, err := svc.Export(context.TODO(), ExportWithExistingResources(resToClone))
 					require.NoError(t, err)
 
 					newPkg := encodeAndDecode(t, pkg)
@@ -3147,7 +3149,7 @@ func TestService(t *testing.T) {
 							ID:   20,
 						},
 					}
-					pkg, err := svc.CreatePkg(context.TODO(), CreateWithExistingResources(resourcesToClone...))
+					pkg, err := svc.Export(context.TODO(), ExportWithExistingResources(resourcesToClone...))
 					require.NoError(t, err)
 
 					newPkg := encodeAndDecode(t, pkg)
@@ -3189,7 +3191,7 @@ func TestService(t *testing.T) {
 						Kind: KindLabel,
 						ID:   1,
 					}
-					pkg, err := svc.CreatePkg(context.TODO(), CreateWithExistingResources(resToClone))
+					pkg, err := svc.Export(context.TODO(), ExportWithExistingResources(resToClone))
 					require.NoError(t, err)
 
 					newPkg := encodeAndDecode(t, pkg)
@@ -3370,9 +3372,9 @@ func TestService(t *testing.T) {
 				WithVariableSVC(varSVC),
 			)
 
-			pkg, err := svc.CreatePkg(
+			pkg, err := svc.Export(
 				context.TODO(),
-				CreateWithAllOrgResources(CreateByOrgIDOpt{
+				ExportWithAllOrgResources(ExportByOrgIDOpt{
 					OrgID: orgID,
 				}),
 			)

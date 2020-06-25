@@ -101,13 +101,13 @@ have the ability to do so using the following:
 	}
 
 	svc := NewService(serviceOpts...)
-	newPkg, err := svc.CreatePkg(ctx,
+	newPkg, err := svc.Export(ctx,
 		CreateWithMetadata(Metadata{
 			Name: 		 "pkg name",
 			Description: "stand up desc",
 			Version: 	 "v1.0.0",
 		}),
-		CreateWithExistingResources(resourcesToClone...),
+		ExportWithExistingResources(resourcesToClone...),
 	)
 	if err != nil {
 		panic(err) // handle error as you see fit

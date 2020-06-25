@@ -59,6 +59,7 @@ import {
   AppState,
   CancelBox,
 } from 'src/types'
+import {reportSimpleQueryPerformanceEvent} from 'src/cloud/utils/reporting'
 
 interface QueriesState {
   files: string[] | null
@@ -229,6 +230,7 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
         const windowVars = getWindowVars(text, vars)
         const extern = buildVarsOption([...vars, ...windowVars])
 
+        reportSimpleQueryPerformanceEvent('runQuery', {context: 'TimeSeries'})
         return runQuery(orgID, text, extern)
       })
 

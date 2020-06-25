@@ -1,5 +1,6 @@
 import {Organization} from '../../src/types'
 import {VIS_TYPES} from '../../src/timeMachine/constants'
+import {lines} from '../support/commands'
 import {
   FROM,
   RANGE,
@@ -40,6 +41,32 @@ describe('DataExplorer', () => {
       cy.get<Organization>('@org').then(({id}) => {
         cy.visit(`${orgs}/${id}${explorer}`)
       })
+    })
+  })
+
+  describe('data-explorer state', () => {
+    it('should persist and display last submitted script editor script ', () => {
+      const fluxCode = 'from(bucket: "_monitoring")'
+      cy.getByTestID('switch-to-script-editor').click()
+      cy.get('.flux-editor').within(() => {
+        cy.get('.view-lines').type(fluxCode)
+      })
+      cy.contains('Submit').click()
+      cy.getByTestID('nav-item-tasks').click()
+      cy.getByTestID('nav-item-data-explorer').click()
+      cy.contains(fluxCode)
+    })
+
+    it('can navigate to data explorer from buckets list and override state', () => {
+      const fluxCode = 'from(bucket: "_monitoring")'
+      cy.getByTestID('switch-to-script-editor').click()
+      cy.get('.flux-editor').within(() => {
+        cy.get('.view-lines').type(fluxCode)
+      })
+      cy.contains('Submit').click()
+      cy.getByTestID('nav-item-load-data').click()
+      cy.getByTestID('bucket--card--name _tasks').click()
+      cy.getByTestID('query-builder').should('exist')
     })
   })
 
@@ -896,23 +923,3 @@ describe('DataExplorer', () => {
     })
   })
 })
-
-const lines = (numLines = 3) => {
-  // each line is 10 seconds before the previous line
-  const offset_ms = 10_000
-  const now = Date.now()
-  const nanos_per_ms = '000000'
-
-  const decendingValues = Array(numLines)
-    .fill(0)
-    .map((_, i) => i)
-    .reverse()
-
-  const incrementingTimes = decendingValues.map(val => {
-    return now - offset_ms * val
-  })
-
-  return incrementingTimes.map((tm, i) => {
-    return `m,tk1=tv1 v=${i + 1} ${tm}${nanos_per_ms}`
-  })
-}

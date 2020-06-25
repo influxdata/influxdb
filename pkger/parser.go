@@ -293,8 +293,8 @@ func (k Object) Name() string {
 // ObjectAssociation is an association for an object. The supported types
 // at this time are KindLabel.
 type ObjectAssociation struct {
-	Kind    Kind
-	PkgName string
+	Kind     Kind
+	MetaName string
 }
 
 // AddAssociations adds an association to the object.
@@ -307,7 +307,7 @@ func (k Object) AddAssociations(associations ...ObjectAssociation) {
 	for _, ass := range associations {
 		existingAss = append(existingAss, Resource{
 			fieldKind: ass.Kind,
-			fieldName: ass.PkgName,
+			fieldName: ass.MetaName,
 		})
 	}
 	sort.Slice(existingAss, func(i, j int) bool {
@@ -477,7 +477,7 @@ func (p *Pkg) applySecrets(secrets map[string]string) {
 }
 
 // Contains identifies if a pkg contains a given object identified
-// by its kind and metadata.Name (PkgName) field.
+// by its kind and metadata.Name (MetaName) field.
 func (p *Pkg) Contains(k Kind, pkgName string) bool {
 	switch k {
 	case KindBucket:
@@ -1389,27 +1389,28 @@ func parseChart(r Resource) (chart, []validationErr) {
 	}
 
 	c := chart{
-		Kind:        ck,
-		Name:        r.Name(),
-		BinSize:     r.intShort(fieldChartBinSize),
-		BinCount:    r.intShort(fieldChartBinCount),
-		Geom:        r.stringShort(fieldChartGeom),
-		Height:      r.intShort(fieldChartHeight),
-		Note:        r.stringShort(fieldChartNote),
-		NoteOnEmpty: r.boolShort(fieldChartNoteOnEmpty),
-		Position:    r.stringShort(fieldChartPosition),
-		Prefix:      r.stringShort(fieldPrefix),
-		Shade:       r.boolShort(fieldChartShade),
-		Suffix:      r.stringShort(fieldSuffix),
-		TickPrefix:  r.stringShort(fieldChartTickPrefix),
-		TickSuffix:  r.stringShort(fieldChartTickSuffix),
-		TimeFormat:  r.stringShort(fieldChartTimeFormat),
-		Width:       r.intShort(fieldChartWidth),
-		XCol:        r.stringShort(fieldChartXCol),
-		YCol:        r.stringShort(fieldChartYCol),
-		XPos:        r.intShort(fieldChartXPos),
-		YPos:        r.intShort(fieldChartYPos),
-		FillColumns: r.slcStr(fieldChartFillColumns),
+		Kind:           ck,
+		Name:           r.Name(),
+		BinSize:        r.intShort(fieldChartBinSize),
+		BinCount:       r.intShort(fieldChartBinCount),
+		Geom:           r.stringShort(fieldChartGeom),
+		Height:         r.intShort(fieldChartHeight),
+		Note:           r.stringShort(fieldChartNote),
+		NoteOnEmpty:    r.boolShort(fieldChartNoteOnEmpty),
+		Position:       r.stringShort(fieldChartPosition),
+		Prefix:         r.stringShort(fieldPrefix),
+		Shade:          r.boolShort(fieldChartShade),
+		HoverDimension: r.stringShort(fieldChartHoverDimension),
+		Suffix:         r.stringShort(fieldSuffix),
+		TickPrefix:     r.stringShort(fieldChartTickPrefix),
+		TickSuffix:     r.stringShort(fieldChartTickSuffix),
+		TimeFormat:     r.stringShort(fieldChartTimeFormat),
+		Width:          r.intShort(fieldChartWidth),
+		XCol:           r.stringShort(fieldChartXCol),
+		YCol:           r.stringShort(fieldChartYCol),
+		XPos:           r.intShort(fieldChartXPos),
+		YPos:           r.intShort(fieldChartYPos),
+		FillColumns:    r.slcStr(fieldChartFillColumns),
 	}
 
 	if presLeg, ok := r[fieldChartLegend].(legend); ok {

@@ -21,6 +21,7 @@
           "decimalPlaces": 1,
           "position": "stacked",
           "shade": true,
+          "hoverDimension": "y",
           "xColumn": "_time",
           "yColumn": "_value",
           "legend": {},
@@ -37,7 +38,7 @@
               "value": 3
             }
           ],
-          "axes":[
+          "axes": [
             {
               "name": "x",
               "label": "x_label",

@@ -48,6 +48,7 @@ func cmdWrite(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd.Short = "Write points to InfluxDB"
 	cmd.Long = `Write data to InfluxDB via stdin, or add an entire file specified with the -f flag`
 
+	f.registerFlags(cmd)
 	writeFlags.org.register(cmd, true)
 	opts := flagOpts{
 		{
@@ -90,6 +91,7 @@ func cmdWrite(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmdDryRun.Args = cobra.MaximumNArgs(1)
 	cmdDryRun.Short = "Write to stdout instead of InfluxDB"
 	cmdDryRun.Long = `Write protocol lines to stdout instead of InfluxDB. Troubleshoot conversion from CSV to line protocol.`
+	f.registerFlags(cmdDryRun)
 	cmd.AddCommand(cmdDryRun)
 	return cmd
 }

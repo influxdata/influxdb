@@ -4862,41 +4862,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-  /packages/stacks/{stack_id}/export:
-    delete:
-      operationId: ExportStack
-      tags:
-        - InfluxPackages
-      summary: Export a stack's resources in the form of a package
-      parameters:
-        - in: path
-          name: stack_id
-          required: true
-          schema:
-            type: string
-          description: The stack id to be removed
-        - in: query
-          name: orgID
-          required: true
-          schema:
-            type: string
-          description: The organization id of the user
-      responses:
-        "200":
-          description: Stack and all its associated resources are deleted
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Pkg"
-            application/x-yaml:
-              schema:
-                $ref: "#/components/schemas/Pkg"
-        default:
-          description: Unexpected error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
   /tasks:
     get:
       operationId: GetTasks
@@ -7739,6 +7704,8 @@ components:
     PkgCreate:
       type: object
       properties:
+        stackID:
+          type: string
         orgIDs:
           type: array
           items:
@@ -8441,7 +8408,7 @@ components:
                 type: string
               kind:
                 $ref: "#/components/schemas/TemplateKind"
-              pkgName:
+              templateMetaName:
                 type: string
               associations:
                 type: array
@@ -9187,6 +9154,9 @@ components:
           type: string
         shadeBelow:
           type: boolean
+        hoverDimension:
+          type: string
+          enum: [auto, x, y, xy]
         position:
           type: string
           enum: [overlaid, stacked]
@@ -9243,6 +9213,9 @@ components:
           type: string
         shadeBelow:
           type: boolean
+        hoverDimension:
+          type: string
+          enum: [auto, x, y, xy]
         position:
           type: string
           enum: [overlaid, stacked]

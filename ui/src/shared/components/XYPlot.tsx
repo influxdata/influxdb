@@ -56,6 +56,7 @@ const XYPlot: FunctionComponent<Props> = ({
     xColumn: storedXColumn,
     yColumn: storedYColumn,
     shadeBelow,
+    hoverDimension,
     axes: {
       x: {
         label: xAxisLabel,
@@ -179,6 +180,7 @@ const XYPlot: FunctionComponent<Props> = ({
         colors: colorHexes,
         shadeBelow: !!shadeBelow,
         shadeBelowOpacity: 0.08,
+        hoverDimension,
       },
     ],
   }

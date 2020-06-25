@@ -557,6 +557,12 @@ export const timeMachineReducer = (
       return setViewProperties(state, {shadeBelow})
     }
 
+    case 'SET_HOVER_DIMENSION': {
+      const {hoverDimension} = action.payload
+
+      return setViewProperties(state, {hoverDimension})
+    }
+
     case 'SET_BACKGROUND_THRESHOLD_COLORING': {
       const viewColors = state.view.properties.colors as Color[]
 
