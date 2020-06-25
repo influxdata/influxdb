@@ -1,31 +1,23 @@
 // Libraries
-import React, {FC, useEffect} from 'react'
-import {connect} from 'react-redux'
+import React, {FC, useEffect, useContext} from 'react'
 
 // Components
 import {DapperScrollbars} from '@influxdata/clockface'
 import SelectorListItem from 'src/notebooks/pipes/Data/SelectorListItem'
+import {BucketContext} from 'src/notebooks/context/buckets'
 
 // Types
 import {PipeData} from 'src/notebooks'
-import {AppState, Bucket, ResourceType} from 'src/types'
+import {Bucket} from 'src/types'
 
-// Utils
-import {getAll} from 'src/resources/selectors'
-
-interface OwnProps {
+interface Props {
   onUpdate: (data: any) => void
   data: PipeData
 }
 
-interface StateProps {
-  buckets: Bucket[]
-}
-
-type Props = OwnProps & StateProps
-
-const BucketSelector: FC<Props> = ({onUpdate, data, buckets}) => {
+const BucketSelector: FC<Props> = ({onUpdate, data}) => {
   const bucketName = data.bucketName
+  const {buckets} = useContext(BucketContext)
 
   const updateBucket = (updatedBucket: Bucket): void => {
     if (updatedBucket) {
@@ -60,10 +52,4 @@ const BucketSelector: FC<Props> = ({onUpdate, data, buckets}) => {
   return <p>No Buckets</p>
 }
 
-const mstp = (state: AppState) => {
-  const buckets = getAll<Bucket>(state, ResourceType.Buckets)
-
-  return {buckets}
-}
-
-export default connect<StateProps, {}, OwnProps>(mstp, null)(BucketSelector)
+export default BucketSelector
