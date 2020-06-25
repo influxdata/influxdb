@@ -190,7 +190,7 @@ describe('TimeMachine.Components.SubmitQueryButton', () => {
     fireEvent.click(SubmitBtn)
     setTimeout(() => {
       const CancelBtn = getByTitle('Cancel')
-    fireEvent.click(CancelBtn)
+      fireEvent.click(CancelBtn)
     }, 4000)
     await window.flushAllPromises()
 
