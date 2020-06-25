@@ -18,19 +18,19 @@ const NotebookPage: FC = () => {
   return (
     <NotebookProvider>
       <ScrollProvider>
-          <Page titleTag="Flows">
-            <Header />
-            <Page.Contents
-              fullWidth={true}
-              scrollable={false}
-              className="notebook-page"
-            >
-              <div className="notebook">
-                <MiniMap />
-                <PipeList />
-              </div>
-            </Page.Contents>
-          </Page>
+        <Page titleTag="Flows">
+          <Header />
+          <Page.Contents
+            fullWidth={true}
+            scrollable={false}
+            className="notebook-page"
+          >
+            <div className="notebook">
+              <MiniMap />
+              <PipeList />
+            </div>
+          </Page.Contents>
+        </Page>
       </ScrollProvider>
     </NotebookProvider>
   )
