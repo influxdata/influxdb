@@ -3,7 +3,7 @@ const signinSteps = require(__srcdir + '/steps/signin/signinSteps.js');
 
 let sSteps = new signinSteps(__wdriver);
 
-When(/^open the signin page$/, async () => {
+When(/^open the signin page$/, {timeout: 15000}, async () => {
     await sSteps.openContext(sSteps.signinPage.urlCtx);
 });
 
