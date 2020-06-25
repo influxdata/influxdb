@@ -18,6 +18,8 @@ class FakeTextDecoder {
   }
 }
 
+const DELAYTIME = 3000
+
 window.TextDecoder = FakeTextDecoder
 
 jest.mock('src/external/parser', () => {
@@ -178,7 +180,7 @@ describe('TimeMachine.Components.SubmitQueryButton', () => {
       return new Promise((resolve, _reject) => {
         setTimeout(() => {
           resolve('')
-        }, 4000)
+        }, DELAYTIME)
       })
     })
 
@@ -191,7 +193,7 @@ describe('TimeMachine.Components.SubmitQueryButton', () => {
     setTimeout(() => {
       const CancelBtn = getByTitle('Cancel')
       fireEvent.click(CancelBtn)
-    }, 4000)
+    }, DELAYTIME)
     await window.flushAllPromises()
 
     const {type, value: error} = mocked(fetch).mock.results[0] as any
