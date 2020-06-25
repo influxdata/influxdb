@@ -118,6 +118,46 @@ Feature: Data explorer
     When click on "remove" in the query tab menu
     Then there are "1" time machine query tabs
 
+  Scenario: Save query as a dashboard cell
+    When click on the Save as button
+    Then the Save as overlay is visible
+    When click the Target Dashboard dropdown
+    When select Create a New Dashboard from the Target Dashboard dropdown
+    When input the New Dashboard Name "Dashboard Cell Test"
+    When input the Cell Name "DC Test Name"
+    When click on the Save as Dashboard Cell button
+    Then the success notification contains "Created dashboard successfully"
+    When click nav menu item "dashboards"
+    Then there is a dashboard card named "Dashboard Cell Test"
+    When click the dashboard name "Dashboard Cell Test"
+    Then the cell named "DC Test Name" is visible in the dashboard
+
+  Scenario: Save query as a task
+    When click nav menu item "Explorer"
+    When click the submit button
+    When click on the Save as button
+    When click on tab "Task" in the Save As popup
+    When input the Task Name "Task Test"
+    When input the Task Interval "4h"
+    When input the Task Offset "10"
+    When click on the Save as Task button
+    Then the error notification contains "Failed to create new task:"
+    When input the Task Offset "10m"
+    When click on the Save as Task button
+    Then the success notification contains "New task created successfully"
+    Then there is a task named "Task Test"
+
+  Scenario: Save query as a variable
+    When click nav menu item "Explorer"
+    When click the submit button
+    When click on the Save as button
+    When click on tab "Variable" in the Save As popup
+    When input the variable name "Variable Test"
+    When click on the Save as Variable button
+    Then the success notification contains "Successfully created new variable:"
+    When click nav menu item "Settings"
+    When there is a variable card for "Variable Test"
+
 
 
 
