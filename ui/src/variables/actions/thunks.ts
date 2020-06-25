@@ -126,13 +126,7 @@ export const hydrateVariables = (skipCache?: boolean) => async (
 ) => {
   const state = getState()
   const org = getOrg(state)
-  const vars = getVariablesFromState(state).filter(
-    v => v.status && v.status !== RemoteDataState.Done
-  )
-
-  if (!vars.length) {
-    return
-  }
+  const vars = getVariablesFromState(state)
 
   const hydration = hydrateVars(vars, getAllVariablesFromState(state), {
     orgID: org.id,
