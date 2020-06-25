@@ -395,6 +395,26 @@ export const flush = () => {
   })
 }
 
+export const lines = (numLines = 3) => {
+  // each line is 10 seconds before the previous line
+  const offset_ms = 10_000
+  const now = Date.now()
+  const nanos_per_ms = '000000'
+
+  const decendingValues = Array(numLines)
+    .fill(0)
+    .map((_, i) => i)
+    .reverse()
+
+  const incrementingTimes = decendingValues.map(val => {
+    return now - offset_ms * val
+  })
+
+  return incrementingTimes.map((tm, i) => {
+    return `m,tk1=tv1 v=${i + 1} ${tm}${nanos_per_ms}`
+  })
+}
+
 export const writeData = (
   lines: string[]
 ): Cypress.Chainable<Cypress.Response> => {
