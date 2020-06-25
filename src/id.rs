@@ -24,12 +24,12 @@ impl TryFrom<u64> for Id {
     type Error = &'static str;
 
     fn try_from(value: u64) -> Result<Self, Self::Error> {
-        Ok(Id(NonZeroU64::new(value).ok_or("ID cannot be zero")?))
+        Ok(Self(NonZeroU64::new(value).ok_or("ID cannot be zero")?))
     }
 }
 
 impl From<Id> for u64 {
-    fn from(value: Id) -> u64 {
+    fn from(value: Id) -> Self {
         value.0.get()
     }
 }
@@ -62,7 +62,7 @@ impl FromStr for Id {
     type Err = &'static str;
 
     fn from_str(hex: &str) -> Result<Self, Self::Err> {
-        Id::try_from(hex)
+        Self::try_from(hex)
     }
 }
 

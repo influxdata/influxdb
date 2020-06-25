@@ -1,6 +1,3 @@
-#![deny(rust_2018_idioms)]
-#![warn(missing_debug_implementations, clippy::explicit_iter_loop)]
-
 use std::collections::{BTreeMap, BTreeSet};
 use std::convert::TryInto;
 
@@ -123,7 +120,7 @@ struct TSMMetadataBuilder {
 }
 
 impl TSMMetadataBuilder {
-    fn new() -> TSMMetadataBuilder {
+    fn new() -> Self {
         Self::default()
     }
 

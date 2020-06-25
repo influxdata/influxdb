@@ -28,8 +28,8 @@ impl<R> TSMMeasurementMapper<R>
 where
     R: BufRead + Seek,
 {
-    pub fn new(iter: Peekable<TSMIndexReader<R>>) -> TSMMeasurementMapper<R> {
-        TSMMeasurementMapper { iter }
+    pub fn new(iter: Peekable<TSMIndexReader<R>>) -> Self {
+        Self { iter }
     }
 }
 
@@ -217,11 +217,11 @@ impl ValuePair {
     // returns the timestamp associated with the value pair.
     fn timestamp(&self) -> i64 {
         match *self {
-            ValuePair::F64((ts, _)) => ts,
-            ValuePair::I64((ts, _)) => ts,
-            ValuePair::Bool((ts, _)) => ts,
-            ValuePair::Str((ts, _)) => ts,
-            ValuePair::U64((ts, _)) => ts,
+            Self::F64((ts, _)) => ts,
+            Self::I64((ts, _)) => ts,
+            Self::Bool((ts, _)) => ts,
+            Self::Str((ts, _)) => ts,
+            Self::U64((ts, _)) => ts,
         }
     }
 }

@@ -3,7 +3,7 @@ use integer_encoding::*;
 use std::error::Error;
 
 /// Encoding describes the type of encoding used by an encoded integer block.
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum Encoding {
     Uncompressed = 0,
     Simple8b = 1,

@@ -68,8 +68,8 @@ impl WalDetails {
 }
 
 impl Partition {
-    pub fn new_without_wal(store: PartitionStore) -> Partition {
-        Partition {
+    pub fn new_without_wal(store: PartitionStore) -> Self {
+        Self {
             store,
             wal_details: None,
         }
@@ -78,12 +78,12 @@ impl Partition {
     pub async fn new_with_wal(
         store: PartitionStore,
         wal_dir: PathBuf,
-    ) -> Result<Partition, StorageError> {
+    ) -> Result<Self, StorageError> {
         let wal_builder = WalBuilder::new(wal_dir);
         let wal_details = start_wal_sync_task(wal_builder).await?;
         wal_details.write_metadata().await?;
 
-        Ok(Partition {
+        Ok(Self {
             store,
             wal_details: Some(wal_details),
         })
@@ -92,7 +92,7 @@ impl Partition {
     pub async fn restore_memdb_from_wal(
         bucket_name: &str,
         bucket_dir: PathBuf,
-    ) -> Result<Partition, StorageError> {
+    ) -> Result<Self, StorageError> {
         let partition_id = bucket_name.to_string();
         let mut db = MemDB::new(partition_id);
         let wal_builder = WalBuilder::new(bucket_dir);
@@ -131,7 +131,7 @@ impl Partition {
         let store = PartitionStore::MemDB(Box::new(db));
         wal_details.write_metadata().await?;
 
-        Ok(Partition {
+        Ok(Self {
             store,
             wal_details: Some(wal_details),
         })
@@ -323,7 +323,7 @@ pub struct WalMetadata {
 
 impl Default for WalMetadata {
     fn default() -> Self {
-        WalMetadata {
+        Self {
             format: WalFormat::FlatBuffers,
         }
     }
@@ -426,14 +426,14 @@ impl From<wal::Point<'_>> for PointType {
                     .value_as_i64value()
                     .expect("Value should match value type")
                     .value();
-                PointType::new_i64(key, value, time)
+                Self::new_i64(key, value, time)
             }
             wal::PointValue::F64Value => {
                 let value = other
                     .value_as_f64value()
                     .expect("Value should match value type")
                     .value();
-                PointType::new_f64(key, value, time)
+                Self::new_f64(key, value, time)
             }
             _ => unimplemented!(),
         }
@@ -685,8 +685,8 @@ pub enum ReadValues {
 impl ReadValues {
     pub fn is_empty(&self) -> bool {
         match self {
-            ReadValues::I64(vals) => vals.is_empty(),
-            ReadValues::F64(vals) => vals.is_empty(),
+            Self::I64(vals) => vals.is_empty(),
+            Self::F64(vals) => vals.is_empty(),
         }
     }
 }
@@ -719,7 +719,7 @@ impl ReadBatch {
 
     // append_below_time will append all values from other that have a time < than the one passed in.
     // it returns true if other has been cleared of all values
-    fn append_below_time(&mut self, other: &mut ReadBatch, t: i64) -> bool {
+    fn append_below_time(&mut self, other: &mut Self, t: i64) -> bool {
         match (&mut self.values, &mut other.values) {
             (ReadValues::I64(vals), ReadValues::I64(other_vals)) => {
                 let pos = other_vals.iter().position(|val| val.time > t);
@@ -774,7 +774,7 @@ pub struct PartitionKeyValues {
 
 impl PartitionKeyValues {
     pub fn new(group_keys: &[String], batch: &ReadBatch) -> Self {
-        PartitionKeyValues {
+        Self {
             values: group_keys
                 .iter()
                 .map(|group_key| batch.tag_with_key(group_key).map(String::from))

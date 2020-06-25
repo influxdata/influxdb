@@ -2,7 +2,12 @@
 //! Currently supports converting LineProtocol
 //! TODO move this to delorean/src/ingest/line_protocol.rs?
 #![deny(rust_2018_idioms)]
-#![warn(missing_debug_implementations, clippy::explicit_iter_loop)]
+#![warn(
+    missing_copy_implementations,
+    missing_debug_implementations,
+    clippy::explicit_iter_loop,
+    clippy::use_self
+)]
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::{BufRead, Seek};
@@ -20,7 +25,7 @@ use delorean_tsm::mapper::{map_field_columns, ColumnData, TSMMeasurementMapper};
 use delorean_tsm::reader::{TSMBlockReader, TSMIndexReader};
 use delorean_tsm::{BlockType, TSMError};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct ConversionSettings {
     /// How many `ParsedLine` structures to buffer before determining the schema
     sample_size: usize,
@@ -33,7 +38,7 @@ impl ConversionSettings {}
 impl Default for ConversionSettings {
     /// Reasonable default settings
     fn default() -> Self {
-        ConversionSettings {
+        Self {
             sample_size: 5,
             measurement_write_buffer_size: 8000,
         }
@@ -153,8 +158,7 @@ impl<'a> MeasurementConverter<'a> {
                         .next_writer(&schema)
                         .context(WriterCreation)?;
 
-                    let mut writer =
-                        MeasurementWriter::new(sampler.settings.clone(), schema, table_writer);
+                    let mut writer = MeasurementWriter::new(sampler.settings, schema, table_writer);
 
                     debug!("Completed change to writing mode");
                     for line in sampler.schema_sample.drain(..) {
@@ -198,7 +202,6 @@ impl<'a> LineProtocolConverter<'a> {
         for line in lines {
             let series = &line.series;
 
-            let settings = &self.settings;
             let series_measurement = series.measurement.as_str();
 
             // do not use entry API to avoid copying the key unless it is not present
@@ -207,9 +210,7 @@ impl<'a> LineProtocolConverter<'a> {
                 None => {
                     self.converters.insert(
                         series_measurement.into(),
-                        MeasurementConverter::UnknownSchema(MeasurementSampler::new(
-                            settings.clone(),
-                        )),
+                        MeasurementConverter::UnknownSchema(MeasurementSampler::new(self.settings)),
                     );
                     self.converters.get_mut(series_measurement).unwrap()
                 }
@@ -725,7 +726,7 @@ mod delorean_ingest_tests {
     }
     impl WriterLog {
         fn new() -> Self {
-            WriterLog { events: Vec::new() }
+            Self { events: Vec::new() }
         }
     }
 
@@ -750,7 +751,7 @@ mod delorean_ingest_tests {
     }
     impl NoOpWriter {
         fn new(log: Arc<Mutex<WriterLog>>, measurement_name: String) -> Self {
-            NoOpWriter {
+            Self {
                 log,
                 measurement_name,
             }
@@ -805,7 +806,7 @@ mod delorean_ingest_tests {
 
     impl NoOpWriterSource {
         fn new(log: Arc<Mutex<WriterLog>>) -> Box<Self> {
-            Box::new(NoOpWriterSource { log })
+            Box::new(Self { log })
         }
     }
 

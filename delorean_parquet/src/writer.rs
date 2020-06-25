@@ -34,7 +34,7 @@ pub enum Error {
 
 impl From<Error> for TableError {
     fn from(other: Error) -> Self {
-        TableError::Data {
+        Self::Data {
             source: Box::new(other),
         }
     }
@@ -96,10 +96,7 @@ where
     ///
     /// # std::fs::remove_file(output_file_name);
     /// ```
-    pub fn new(
-        schema: &delorean_table_schema::Schema,
-        writer: W,
-    ) -> Result<DeloreanParquetTableWriter<W>, Error> {
+    pub fn new(schema: &delorean_table_schema::Schema, writer: W) -> Result<Self, Error> {
         let writer_props = create_writer_props(&schema);
         let parquet_schema = convert_to_parquet_schema(&schema)?;
 
@@ -108,7 +105,7 @@ where
             message: String::from("Error trying to create a SerializedFileWriter"),
         })?;
 
-        let parquet_writer = DeloreanParquetTableWriter {
+        let parquet_writer = Self {
             parquet_schema,
             file_writer,
         };

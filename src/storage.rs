@@ -42,7 +42,7 @@ pub enum SeriesDataType {
 
 impl From<SeriesDataType> for u8 {
     fn from(other: SeriesDataType) -> Self {
-        other as u8
+        other as Self
     }
 }
 

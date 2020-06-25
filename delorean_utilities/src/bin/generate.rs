@@ -1,5 +1,10 @@
 #![deny(rust_2018_idioms)]
-#![warn(missing_debug_implementations, clippy::explicit_iter_loop)]
+#![warn(
+    missing_copy_implementations,
+    missing_debug_implementations,
+    clippy::explicit_iter_loop,
+    clippy::use_self
+)]
 
 //! Utility to generate data to ingest for development and testing purposes.
 //!
@@ -54,7 +59,7 @@ impl Point {
         rng: &mut impl Rng,
         max_tags_per_point: usize,
         field_definitions: &[Field],
-    ) -> Point {
+    ) -> Self {
         let num_tags = rng.gen_range(0, max_tags_per_point);
         let tags = (0..num_tags).map(|num| Tag::generate(rng, num)).collect();
 
@@ -70,7 +75,7 @@ impl Point {
             .expect("Time went backwards");
         let now_ns = i64::try_from(since_the_epoch.as_nanos()).expect("Time does not fit");
 
-        Point {
+        Self {
             measurement_name: "m0".into(),
             tags,
             fields,
@@ -121,8 +126,8 @@ struct Tag {
 }
 
 impl Tag {
-    fn generate(rng: &mut impl Rng, num: usize) -> Tag {
-        Tag {
+    fn generate(rng: &mut impl Rng, num: usize) -> Self {
+        Self {
             key: format!("tag{}", num),
             value: format!("value{}", rng.gen_range(0, 10)),
         }
@@ -142,15 +147,15 @@ struct Field {
 }
 
 impl Field {
-    fn generate(rng: &mut impl Rng, num: usize) -> Field {
-        Field {
+    fn generate(rng: &mut impl Rng, num: usize) -> Self {
+        Self {
             key: format!("field{}", num),
             value: FieldValue::generate(rng),
         }
     }
 
-    fn generate_similar(&self, rng: &mut impl Rng) -> Field {
-        Field {
+    fn generate_similar(&self, rng: &mut impl Rng) -> Self {
+        Self {
             key: self.key.clone(),
             value: self.value.generate_similar(rng),
         }
@@ -173,22 +178,22 @@ enum FieldValue {
 }
 
 impl FieldValue {
-    fn generate(rng: &mut impl Rng) -> FieldValue {
+    fn generate(rng: &mut impl Rng) -> Self {
         // Randomly select a variant
         let number_of_variants = 2;
         let which_variant = rng.gen_range(0, number_of_variants);
 
         match which_variant {
-            0 => FieldValue::Float(rng.gen()),
-            1 => FieldValue::Integer(rng.gen()),
+            0 => Self::Float(rng.gen()),
+            1 => Self::Integer(rng.gen()),
             other => unreachable!("Not sure which FieldValue variant to build from {}", other),
         }
     }
 
-    fn generate_similar(&self, rng: &mut impl Rng) -> FieldValue {
+    fn generate_similar(&self, rng: &mut impl Rng) -> Self {
         match self {
-            FieldValue::Float(_) => FieldValue::Float(rng.gen()),
-            FieldValue::Integer(_) => FieldValue::Integer(rng.gen()),
+            Self::Float(_) => Self::Float(rng.gen()),
+            Self::Integer(_) => Self::Integer(rng.gen()),
         }
     }
 }
@@ -196,8 +201,8 @@ impl FieldValue {
 impl fmt::Display for FieldValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            FieldValue::Float(value) => write!(f, "{}", value),
-            FieldValue::Integer(value) => write!(f, "{}i", value),
+            Self::Float(value) => write!(f, "{}", value),
+            Self::Integer(value) => write!(f, "{}i", value),
         }
     }
 }

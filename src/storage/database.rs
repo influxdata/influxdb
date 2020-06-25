@@ -48,15 +48,15 @@ impl Organization {
         }
     }
 
-    fn new(id: Id) -> Organization {
-        Organization {
+    fn new(id: Id) -> Self {
+        Self {
             id,
             bucket_data: HashMap::default(),
             bucket_name_to_id: HashMap::default(),
         }
     }
 
-    async fn restore_from_wal(org_dir: &PathBuf) -> Result<Organization, StorageError> {
+    async fn restore_from_wal(org_dir: &PathBuf) -> Result<Self, StorageError> {
         let org_id: Id = org_dir
             .file_name()
             .expect("Path should not end in ..")
@@ -64,7 +64,7 @@ impl Organization {
             .expect("Organization WAL dir should have been UTF-8")
             .parse()
             .expect("Should have been able to parse Organization WAL dir into Organization Id");
-        let mut org = Organization::new(org_id);
+        let mut org = Self::new(org_id);
 
         for bucket_dir in fs::read_dir(org_dir)? {
             let bucket_dir = bucket_dir?.path();
@@ -109,7 +109,7 @@ struct BucketData {
 impl BucketData {
     const BATCH_SIZE: usize = 100_000;
 
-    async fn new(bucket: Bucket, wal_dir: Option<PathBuf>) -> Result<BucketData, StorageError> {
+    async fn new(bucket: Bucket, wal_dir: Option<PathBuf>) -> Result<Self, StorageError> {
         let partition_id = bucket.name.clone();
         let store = PartitionStore::MemDB(Box::new(MemDB::new(partition_id)));
         let partition = match wal_dir {
@@ -117,19 +117,16 @@ impl BucketData {
             None => Partition::new_without_wal(store),
         };
 
-        Ok(BucketData {
+        Ok(Self {
             config: bucket,
             partition: RwLock::new(partition),
         })
     }
 
-    async fn restore_from_wal(
-        bucket: Bucket,
-        bucket_dir: PathBuf,
-    ) -> Result<BucketData, StorageError> {
+    async fn restore_from_wal(bucket: Bucket, bucket_dir: PathBuf) -> Result<Self, StorageError> {
         let partition = Partition::restore_memdb_from_wal(&bucket.name, bucket_dir).await?;
 
-        Ok(BucketData {
+        Ok(Self {
             config: bucket,
             partition: RwLock::new(partition),
         })
@@ -145,9 +142,7 @@ impl BucketData {
         range: &TimestampRange,
     ) -> Result<Vec<ReadBatch>, StorageError> {
         let p = self.partition.read().await;
-        let stream = p
-            .read_points(BucketData::BATCH_SIZE, predicate, range)
-            .await?;
+        let stream = p.read_points(Self::BATCH_SIZE, predicate, range).await?;
         Ok(stream.collect().await)
     }
 
@@ -230,16 +225,16 @@ pub struct Database {
 
 impl Database {
     /// Create a new database with a WAL for every bucket in the provided directory.
-    pub fn new(dir: impl Into<PathBuf>) -> Database {
-        Database {
+    pub fn new(dir: impl Into<PathBuf>) -> Self {
+        Self {
             dir: Some(dir.into()),
             organizations: RwLock::new(HashMap::new()),
         }
     }
 
     /// Create a new database without a WAL for any bucket.
-    pub fn new_without_wal() -> Database {
-        Database {
+    pub fn new_without_wal() -> Self {
+        Self {
             dir: None,
             organizations: RwLock::new(HashMap::new()),
         }

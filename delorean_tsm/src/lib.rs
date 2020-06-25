@@ -1,3 +1,11 @@
+#![deny(rust_2018_idioms)]
+#![warn(
+    missing_copy_implementations,
+    missing_debug_implementations,
+    clippy::explicit_iter_loop,
+    clippy::use_self
+)]
+
 pub mod encoders;
 pub mod mapper;
 pub mod reader;
@@ -136,11 +144,11 @@ pub enum BlockData {
 impl BlockData {
     pub fn is_empty(&self) -> bool {
         match &self {
-            BlockData::Float { ts, values: _ } => ts.is_empty(),
-            BlockData::Integer { ts, values: _ } => ts.is_empty(),
-            BlockData::Bool { ts, values: _ } => ts.is_empty(),
-            BlockData::Str { ts, values: _ } => ts.is_empty(),
-            BlockData::Unsigned { ts, values: _ } => ts.is_empty(),
+            Self::Float { ts, values: _ } => ts.is_empty(),
+            Self::Integer { ts, values: _ } => ts.is_empty(),
+            Self::Bool { ts, values: _ } => ts.is_empty(),
+            Self::Str { ts, values: _ } => ts.is_empty(),
+            Self::Unsigned { ts, values: _ } => ts.is_empty(),
         }
     }
 }
@@ -152,15 +160,15 @@ pub struct InfluxID(u64);
 
 #[allow(dead_code)]
 impl InfluxID {
-    fn new_str(s: &str) -> Result<InfluxID, TSMError> {
+    fn new_str(s: &str) -> Result<Self, TSMError> {
         let v = u64::from_str_radix(s, 16).map_err(|e| TSMError {
             description: e.to_string(),
         })?;
-        Ok(InfluxID(v))
+        Ok(Self(v))
     }
 
-    fn from_be_bytes(bytes: [u8; 8]) -> InfluxID {
-        InfluxID(u64::from_be_bytes(bytes))
+    fn from_be_bytes(bytes: [u8; 8]) -> Self {
+        Self(u64::from_be_bytes(bytes))
     }
 }
 

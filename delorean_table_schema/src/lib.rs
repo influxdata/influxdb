@@ -1,5 +1,10 @@
 #![deny(rust_2018_idioms)]
-#![warn(missing_debug_implementations, clippy::explicit_iter_loop)]
+#![warn(
+    missing_copy_implementations,
+    missing_debug_implementations,
+    clippy::explicit_iter_loop,
+    clippy::use_self
+)]
 
 //! This module is used to represent the abstract "schema" of a set of line
 //! protocol data records, as defined in the
@@ -44,8 +49,8 @@ pub struct Tag {
 }
 
 impl Tag {
-    pub fn new(name: impl Into<String>, index: u32) -> Tag {
-        Tag {
+    pub fn new(name: impl Into<String>, index: u32) -> Self {
+        Self {
             name: name.into(),
             index,
         }
@@ -91,8 +96,8 @@ pub struct Field {
 }
 
 impl Field {
-    pub fn new(name: impl Into<String>, data_type: DataType, index: u32) -> Field {
-        Field {
+    pub fn new(name: impl Into<String>, data_type: DataType, index: u32) -> Self {
+        Self {
             name: name.into(),
             data_type,
             index,
@@ -110,8 +115,8 @@ pub struct ColumnDefinition {
 }
 
 impl ColumnDefinition {
-    pub fn new(name: impl Into<String>, index: u32, data_type: DataType) -> ColumnDefinition {
-        ColumnDefinition {
+    pub fn new(name: impl Into<String>, index: u32, data_type: DataType) -> Self {
+        Self {
             name: name.into(),
             index,
             data_type,
@@ -183,8 +188,8 @@ pub struct SchemaBuilder {
 
 impl SchemaBuilder {
     /// Begin building the schema for a named measurement
-    pub fn new(measurement_name: impl Into<String>) -> SchemaBuilder {
-        SchemaBuilder {
+    pub fn new(measurement_name: impl Into<String>) -> Self {
+        Self {
             measurement_name: measurement_name.into(),
             tag_names: Vec::new(),
             field_defs: Vec::new(),

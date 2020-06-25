@@ -203,12 +203,12 @@ pub struct IndexEntry {
 impl IndexEntry {
     /// Get the organization ID that this entry belongs to.
     pub fn org_id(&self) -> InfluxID {
-        IndexEntry::extract_id_from_slice(&self.key[..8])
+        Self::extract_id_from_slice(&self.key[..8])
     }
 
     /// Get the bucket ID that this entry belongs to.
     pub fn bucket_id(&self) -> InfluxID {
-        IndexEntry::extract_id_from_slice(&self.key[8..16])
+        Self::extract_id_from_slice(&self.key[8..16])
     }
 
     fn extract_id_from_slice(data: &[u8]) -> InfluxID {

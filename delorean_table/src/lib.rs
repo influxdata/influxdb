@@ -1,3 +1,11 @@
+#![deny(rust_2018_idioms)]
+#![warn(
+    missing_copy_implementations,
+    missing_debug_implementations,
+    clippy::explicit_iter_loop,
+    clippy::use_self
+)]
+
 pub mod packers;
 pub mod stats;
 

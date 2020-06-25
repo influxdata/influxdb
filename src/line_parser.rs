@@ -58,8 +58,8 @@ pub enum PointType {
 }
 
 impl PointType {
-    pub fn new_i64(series: String, value: i64, time: i64) -> PointType {
-        PointType::I64(Point {
+    pub fn new_i64(series: String, value: i64, time: i64) -> Self {
+        Self::I64(Point {
             series,
             series_id: None,
             value,
@@ -67,8 +67,8 @@ impl PointType {
         })
     }
 
-    pub fn new_f64(series: String, value: f64, time: i64) -> PointType {
-        PointType::F64(Point {
+    pub fn new_f64(series: String, value: f64, time: i64) -> Self {
+        Self::F64(Point {
             series,
             series_id: None,
             value,
@@ -78,57 +78,57 @@ impl PointType {
 
     pub fn series(&self) -> &String {
         match self {
-            PointType::I64(p) => &p.series,
-            PointType::F64(p) => &p.series,
+            Self::I64(p) => &p.series,
+            Self::F64(p) => &p.series,
         }
     }
 
     pub fn time(&self) -> i64 {
         match self {
-            PointType::I64(p) => p.time,
-            PointType::F64(p) => p.time,
+            Self::I64(p) => p.time,
+            Self::F64(p) => p.time,
         }
     }
 
     pub fn set_time(&mut self, t: i64) {
         match self {
-            PointType::I64(p) => p.time = t,
-            PointType::F64(p) => p.time = t,
+            Self::I64(p) => p.time = t,
+            Self::F64(p) => p.time = t,
         }
     }
 
     pub fn series_id(&self) -> Option<u64> {
         match self {
-            PointType::I64(p) => p.series_id,
-            PointType::F64(p) => p.series_id,
+            Self::I64(p) => p.series_id,
+            Self::F64(p) => p.series_id,
         }
     }
 
     pub fn set_series_id(&mut self, id: u64) {
         match self {
-            PointType::I64(p) => p.series_id = Some(id),
-            PointType::F64(p) => p.series_id = Some(id),
+            Self::I64(p) => p.series_id = Some(id),
+            Self::F64(p) => p.series_id = Some(id),
         }
     }
 
     pub fn i64_value(&self) -> Option<i64> {
         match self {
-            PointType::I64(p) => Some(p.value),
+            Self::I64(p) => Some(p.value),
             _ => None,
         }
     }
 
     pub fn f64_value(&self) -> Option<f64> {
         match self {
-            PointType::F64(p) => Some(p.value),
+            Self::F64(p) => Some(p.value),
             _ => None,
         }
     }
 
     pub fn index_pairs(&self) -> Vec<Pair> {
         match self {
-            PointType::I64(p) => p.index_pairs(),
-            PointType::F64(p) => p.index_pairs(),
+            Self::I64(p) => p.index_pairs(),
+            Self::F64(p) => p.index_pairs(),
         }
     }
 }
