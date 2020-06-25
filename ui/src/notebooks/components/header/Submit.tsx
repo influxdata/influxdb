@@ -33,7 +33,6 @@ export const Submit: FC = () => {
 
   const submit = async () => {
     event('Notebook Submit Button Clicked')
-
     setLoading(RemoteDataState.Loading)
     Promise.all(
       pipes
@@ -101,6 +100,7 @@ export const Submit: FC = () => {
             })
         })
     )
+
       .then(() => {
         event('Notebook Submit Resolved')
 
