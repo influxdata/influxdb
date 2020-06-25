@@ -2,7 +2,11 @@
 import React, {FC, useEffect, useContext} from 'react'
 
 // Components
-import {DapperScrollbars} from '@influxdata/clockface'
+import {
+  DapperScrollbars,
+  TechnoSpinner,
+  ComponentSize,
+} from '@influxdata/clockface'
 import SelectorListItem from 'src/notebooks/pipes/Data/SelectorListItem'
 import {BucketContext} from 'src/notebooks/context/buckets'
 
@@ -20,36 +24,43 @@ const BucketSelector: FC<Props> = ({onUpdate, data}) => {
   const {buckets} = useContext(BucketContext)
 
   const updateBucket = (updatedBucket: Bucket): void => {
-    if (updatedBucket) {
-      const bucketName = updatedBucket.name
-      onUpdate({bucketName})
-    }
+    onUpdate({bucketName: updatedBucket.name})
   }
 
   useEffect(() => {
-    updateBucket(buckets[0])
-  }, [])
+    if (!!buckets.length && !bucketName) {
+      updateBucket(buckets[0])
+    }
+  }, [buckets])
 
-  if (bucketName) {
-    return (
-      <div className="data-source--block">
-        <div className="data-source--block-title">Bucket</div>
-        <DapperScrollbars className="data-source--list">
-          {buckets.map(bucket => (
-            <SelectorListItem
-              key={bucket.name}
-              value={bucket}
-              onClick={updateBucket}
-              selected={bucket.name === bucketName}
-              text={bucket.name}
-            />
-          ))}
-        </DapperScrollbars>
-      </div>
+  let body = (
+    <div className="data-source--list__empty">
+      <TechnoSpinner strokeWidth={ComponentSize.Small} diameterPixels={32} />
+    </div>
+  )
+
+  if (buckets.length && bucketName) {
+    body = (
+      <DapperScrollbars className="data-source--list">
+        {buckets.map(bucket => (
+          <SelectorListItem
+            key={bucket.name}
+            value={bucket}
+            onClick={updateBucket}
+            selected={bucket.name === bucketName}
+            text={bucket.name}
+          />
+        ))}
+      </DapperScrollbars>
     )
   }
 
-  return <p>No Buckets</p>
+  return (
+    <div className="data-source--block">
+      <div className="data-source--block-title">Bucket</div>
+      {body}
+    </div>
+  )
 }
 
 export default BucketSelector

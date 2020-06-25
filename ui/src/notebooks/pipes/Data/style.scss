@@ -25,10 +25,19 @@
   border-bottom: $cf-border solid $g3-castle;
 }
 
-.data-source--list {
+.data-source--list,
+.data-source--list__empty {
   background-color: $g1-raven;
   border-radius: $cf-radius;
   flex: 1 0 0;
+}
+
+.data-source--list__empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  color: $g8-storm;
 }
 
 .data-source--list-item {
