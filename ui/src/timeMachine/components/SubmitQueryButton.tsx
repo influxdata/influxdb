@@ -42,19 +42,22 @@ class SubmitQueryButton extends PureComponent<Props> {
   }
 
   public state = {
-    timer: false
+    timer: false,
   }
 
   private timer
 
   public componentDidUpdate(prevProps) {
-    if (this.props.queryStatus !== prevProps.queryStatus && prevProps.queryStatus === RemoteDataState.Loading) {
-      if(this.timer){
+    if (
+      this.props.queryStatus !== prevProps.queryStatus &&
+      prevProps.queryStatus === RemoteDataState.Loading
+    ) {
+      if (this.timer) {
         clearTimeout(this.timer)
         delete this.timer
       }
 
-      this.setState({timer :false})
+      this.setState({timer: false})
     }
   }
 
@@ -64,15 +67,15 @@ class SubmitQueryButton extends PureComponent<Props> {
     if (queryStatus === RemoteDataState.Loading && this.state.timer === true) {
       return (
         <Button
-        text="Cancel"
-        icon={icon}
-        size={ComponentSize.Small}
-        status={ComponentStatus.Default}
-        onClick={this.handleCancelClick}
-        color={ComponentColor.Danger}
-        testID={testID}
-        style={{width:'100px'}}
-      />
+          text="Cancel"
+          icon={icon}
+          size={ComponentSize.Small}
+          status={ComponentStatus.Default}
+          onClick={this.handleCancelClick}
+          color={ComponentColor.Danger}
+          testID={testID}
+          style={{width: '100px'}}
+        />
       )
     }
     return (
@@ -84,7 +87,7 @@ class SubmitQueryButton extends PureComponent<Props> {
         onClick={this.handleClick}
         color={ComponentColor.Primary}
         testID={testID}
-        style={{width:'100px'}}
+        style={{width: '100px'}}
       />
     )
   }
@@ -115,7 +118,7 @@ class SubmitQueryButton extends PureComponent<Props> {
 
     this.timer = setTimeout(() =>{
       this.setState({timer: true})
-    }, DELAYTIME);
+    }, DELAYTIME)
     this.abortController = new AbortController()
     this.props.onSubmit(this.abortController)
   }
