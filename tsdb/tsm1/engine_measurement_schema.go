@@ -22,17 +22,33 @@ import (
 //
 // If the context is canceled before MeasurementNames has finished processing, a non-nil
 // error will be returned along with statistics for the already scanned data.
-func (e *Engine) MeasurementNames(ctx context.Context, orgID, bucketID influxdb.ID, start, end int64) (cursors.StringIterator, error) {
+func (e *Engine) MeasurementNames(ctx context.Context, orgID, bucketID influxdb.ID, start, end int64, predicate influxql.Expr) (cursors.StringIterator, error) {
 	orgBucket := tsdb.EncodeName(orgID, bucketID)
 	// TODO(edd): we need to clean up how we're encoding the prefix so that we
 	// don't have to remember to get it right everywhere we need to touch TSM data.
 	prefix := models.EscapeMeasurement(orgBucket[:])
 
 	var (
-		tsmValues = make(map[string]struct{})
+		names     = make(map[string]struct{})
+		discarded = make(map[string]struct{})
+		tags      models.Tags
 		stats     cursors.CursorStats
 		canceled  bool
 	)
+
+	// This is used when we fail to match a TSM entry against a predicate.
+	//
+	// Check to see if we've matched an entry for this measurement and included
+	// it in our result set before this. If we find one, remove it and add it to
+	// the discard list so it is prohibited from being re-added to the result
+	// set in the future. This maintains parity with the 1.x TSDB measurement
+	// name lookup behavior.
+	maybeDiscard := func(name string) {
+		if _, ok := names[name]; ok {
+			delete(names, name)
+			discarded[name] = struct{}{}
+		}
+	}
 
 	e.FileStore.ForEachFile(func(f TSMFile) bool {
 		// Check the context before accessing each tsm file
@@ -52,18 +68,30 @@ func (e *Engine) MeasurementNames(ctx context.Context, orgID, bucketID influxdb.
 				}
 
 				key, _ := SeriesAndFieldFromCompositeKey(sfkey)
-				name, err := models.ParseMeasurement(key)
+				nameBytes, err := models.ParseMeasurement(key)
 				if err != nil {
 					e.logger.Error("Invalid series key in TSM index", zap.Error(err), zap.Binary("key", key))
 					continue
 				}
 
-				if _, ok := tsmValues[string(name)]; ok {
-					continue
+				name := string(nameBytes)
+				if predicate != nil {
+					tags = models.ParseTagsWithTags(key, tags[:0])
+					valuer := influxql.ValuerEval{Valuer: tagsValuer(tags)}
+					if !valuer.EvalBool(predicate) {
+						maybeDiscard(name)
+						continue
+					}
 				}
 
+				if _, ok := discarded[name]; ok {
+					continue
+				}
+				if _, ok := names[name]; ok {
+					continue
+				}
 				if iter.HasData() {
-					tsmValues[string(name)] = struct{}{}
+					names[name] = struct{}{}
 				}
 			}
 			stats.Add(iter.Stats())
@@ -87,13 +115,26 @@ func (e *Engine) MeasurementNames(ctx context.Context, orgID, bucketID influxdb.
 
 		// TODO(edd): consider the []byte() conversion here.
 		key, _ := SeriesAndFieldFromCompositeKey([]byte(sfkey))
-		name, err := models.ParseMeasurement(key)
+		nameBytes, err := models.ParseMeasurement(key)
 		if err != nil {
 			e.logger.Error("Invalid series key in cache", zap.Error(err), zap.Binary("key", key))
 			return nil
 		}
 
-		if _, ok := tsmValues[string(name)]; ok {
+		name := string(nameBytes)
+		if predicate != nil {
+			tags = models.ParseTagsWithTags(key, tags[:0])
+			valuer := influxql.ValuerEval{Valuer: tagsValuer(tags)}
+			if !valuer.EvalBool(predicate) {
+				maybeDiscard(name)
+				return nil
+			}
+		}
+
+		if _, ok := discarded[name]; ok {
+			return nil
+		}
+		if _, ok := names[name]; ok {
 			return nil
 		}
 
@@ -108,13 +149,13 @@ func (e *Engine) MeasurementNames(ctx context.Context, orgID, bucketID influxdb.
 		stats.ScannedBytes += ts.Len() * 8 // sizeof timestamp
 
 		if ts.Contains(start, end) {
-			tsmValues[string(name)] = struct{}{}
+			names[name] = struct{}{}
 		}
 		return nil
 	})
 
-	vals := make([]string, 0, len(tsmValues))
-	for val := range tsmValues {
+	vals := make([]string, 0, len(names))
+	for val := range names {
 		vals = append(vals, val)
 	}
 	sort.Strings(vals)
@@ -442,3 +483,21 @@ func statsFromTimeRangeMaxTimeIters(stats cursors.CursorStats, iters []*TimeRang
 	}
 	return stats
 }
+
+type tagsValuer models.Tags
+
+func (t tagsValuer) Value(key string) (interface{}, bool) {
+	for i := range t {
+		v := &t[i]
+		vkey := string(v.Key)
+		if vkey == models.MeasurementTagKey && key == "_name" {
+			return string(v.Value), true
+		}
+		if vkey == key {
+			return string(v.Value), true
+		}
+	}
+	return "", false
+}
+
+var _ influxql.Valuer = tagsValuer{}

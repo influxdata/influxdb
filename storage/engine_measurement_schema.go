@@ -15,14 +15,14 @@ import (
 //
 // If the context is canceled before MeasurementNames has finished processing, a non-nil
 // error will be returned along with statistics for the already scanned data.
-func (e *Engine) MeasurementNames(ctx context.Context, orgID, bucketID influxdb.ID, start, end int64) (cursors.StringIterator, error) {
+func (e *Engine) MeasurementNames(ctx context.Context, orgID, bucketID influxdb.ID, start, end int64, predicate influxql.Expr) (cursors.StringIterator, error) {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 	if e.closing == nil {
 		return cursors.EmptyStringIterator, nil
 	}
 
-	return e.engine.MeasurementNames(ctx, orgID, bucketID, start, end)
+	return e.engine.MeasurementNames(ctx, orgID, bucketID, start, end, predicate)
 }
 
 // MeasurementTagValues returns an iterator which enumerates the tag values for the given

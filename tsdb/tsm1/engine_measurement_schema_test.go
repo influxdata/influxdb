@@ -55,7 +55,7 @@ memB,host=EB,os=macOS value=1.3 201`)
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 
-		iter, err := e.MeasurementNames(ctx, org, bucket, 0, math.MaxInt64)
+		iter, err := e.MeasurementNames(ctx, org, bucket, 0, math.MaxInt64, nil)
 		if err == nil {
 			t.Fatal("MeasurementNames: expected error but got nothing")
 		} else if err.Error() != "context canceled" {
@@ -233,7 +233,7 @@ mem,mem1=v,mem2=v        f=1 201`)
 		t.Run(fmt.Sprintf("org%d/%s", tc.args.org, tc.name), func(t *testing.T) {
 			a := tc.args
 
-			iter, err := e.MeasurementNames(context.Background(), orgs[a.org].org, orgs[a.org].bucket, a.min, a.max)
+			iter, err := e.MeasurementNames(context.Background(), orgs[a.org].org, orgs[a.org].bucket, a.min, a.max, nil)
 			if err != nil {
 				t.Fatalf("MeasurementNames: error %v", err)
 			}

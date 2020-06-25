@@ -197,6 +197,7 @@ message StringValuesResponse {
 message MeasurementNamesRequest {
   google.protobuf.Any source = 1;
   TimestampRange range = 2 [(gogoproto.nullable) = false];
+  Predicate predicate = 3;
 }
 
 // MeasurementTagKeysRequest is the request message for Storage.MeasurementTagKeys.
