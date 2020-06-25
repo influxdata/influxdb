@@ -39,7 +39,7 @@ func initBucketHttpService(f itesting.BucketFields, t *testing.T) (influxdb.Buck
 		}
 	}
 
-	handler := tenant.NewHTTPBucketHandler(zaptest.NewLogger(t), svc, nil, nil)
+	handler := tenant.NewHTTPBucketHandler(zaptest.NewLogger(t), svc, nil, nil, nil)
 	r := chi.NewRouter()
 	r.Mount(handler.Prefix(), handler)
 	server := httptest.NewServer(r)

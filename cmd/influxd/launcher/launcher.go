@@ -1103,6 +1103,13 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		orgHTTPServer = tenant.NewHTTPOrgHandler(m.log.With(zap.String("handler", "org")), tenant.NewAuthedOrgService(orgSvc), urmHandler, labelHandler, secretHandler)
 	}
 
+	var bucketHTTPServer *tenant.BucketHandler
+	{
+		urmHandler := tenant.NewURMHandler(m.log.With(zap.String("handler", "urm")), platform.OrgsResourceType, "id", userSvc, tenant.NewAuthedURMService(orgSvc, userResourceSvc))
+		labelHandler := label.NewHTTPEmbeddedHandler(m.log.With(zap.String("handler", "label")), platform.BucketsResourceType, labelSvc)
+		bucketHTTPServer = tenant.NewHTTPBucketHandler(m.log.With(zap.String("handler", "bucket")), tenant.NewAuthedBucketService(bucketSvc), labelSvc, urmHandler, labelHandler)
+	}
+
 	{
 		platformHandler := http.NewPlatformHandler(m.apibackend,
 			http.WithResourceHandler(pkgHTTPServerDeprecated),
@@ -1116,6 +1123,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 			http.WithResourceHandler(userHTTPServer.MeResourceHandler()),
 			http.WithResourceHandler(userHTTPServer.UserResourceHandler()),
 			http.WithResourceHandler(orgHTTPServer),
+			http.WithResourceHandler(bucketHTTPServer),
 		)
 
 		httpLogger := m.log.With(zap.String("service", "http"))
