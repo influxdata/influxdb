@@ -1135,6 +1135,30 @@ func (idx *ShardIndex) DropSeries(seriesID uint64, key []byte, _ bool) error {
 	return nil
 }
 
+// DropSeriesList removes the provided series ids from the local bitset that tracks
+// series in this shard only.
+func (idx *ShardIndex) DropSeriesList(seriesIDs []uint64, keys [][]byte, _ bool) error {
+	// All slices must be of equal length.
+	if len(seriesIDs) != len(keys) {
+		return errors.New("seriesIDs/keys length mismatch in index")
+	}
+	idx.seriesIDSet.Lock()
+	for i, seriesID := range seriesIDs {
+		if idx.seriesIDSet.ContainsNoLock(seriesID) {
+			idx.seriesIDSet.RemoveNoLock(seriesID)
+
+			name := models.ParseName(keys[i])
+			if curr := idx.measurements[string(name)]; curr <= 1 {
+				delete(idx.measurements, string(name))
+			} else {
+				idx.measurements[string(name)] = curr - 1
+			}
+		}
+	}
+	idx.seriesIDSet.Unlock()
+	return nil
+}
+
 // DropMeasurementIfSeriesNotExist drops a measurement only if there are no more
 // series for the measurment.
 func (idx *ShardIndex) DropMeasurementIfSeriesNotExist(name []byte) (bool, error) {
