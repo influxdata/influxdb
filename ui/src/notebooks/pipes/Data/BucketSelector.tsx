@@ -6,6 +6,7 @@ import {
   DapperScrollbars,
   TechnoSpinner,
   ComponentSize,
+  RemoteDataState,
 } from '@influxdata/clockface'
 import SelectorListItem from 'src/notebooks/pipes/Data/SelectorListItem'
 import {BucketContext} from 'src/notebooks/context/buckets'
@@ -21,25 +22,39 @@ interface Props {
 
 const BucketSelector: FC<Props> = ({onUpdate, data}) => {
   const bucketName = data.bucketName
-  const {buckets} = useContext(BucketContext)
+  const {buckets, loading} = useContext(BucketContext)
 
   const updateBucket = (updatedBucket: Bucket): void => {
     onUpdate({bucketName: updatedBucket.name})
   }
 
   useEffect(() => {
+    // bucketName will only evaluate false on the initial render
+    // because there is no default value
     if (!!buckets.length && !bucketName) {
       updateBucket(buckets[0])
     }
   }, [buckets])
 
-  let body = (
-    <div className="data-source--list__empty">
-      <TechnoSpinner strokeWidth={ComponentSize.Small} diameterPixels={32} />
-    </div>
-  )
+  let body
 
-  if (buckets.length && bucketName) {
+  if (loading === RemoteDataState.Loading) {
+    body = (
+      <div className="data-source--list__empty">
+        <TechnoSpinner strokeWidth={ComponentSize.Small} diameterPixels={32} />
+      </div>
+    )
+  }
+
+  if (loading === RemoteDataState.Error) {
+    body = (
+      <div className="data-source--list__empty">
+        <p>Could not fetch Buckets</p>
+      </div>
+    )
+  }
+
+  if (loading === RemoteDataState.Done && bucketName) {
     body = (
       <DapperScrollbars className="data-source--list">
         {buckets.map(bucket => (
