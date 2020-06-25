@@ -1085,7 +1085,8 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	{
 		secretHandler := secret.NewHandler(m.log, "id", secret.NewAuthedService(secretSvc))
 		urmHandler := tenant.NewURMHandler(m.log.With(zap.String("handler", "urm")), platform.OrgsResourceType, "id", userSvc, tenant.NewAuthedURMService(orgSvc, userResourceSvc))
-		orgHTTPServer = tenant.NewHTTPOrgHandler(m.log.With(zap.String("handler", "org")), orgSvc, urmHandler, labelHandler, secretHandler)
+		labelHandler := label.NewHTTPEmbeddedHandler(m.log.With(zap.String("handler", "label")), platform.OrgsResourceType, labelSvc)
+		orgHTTPServer = tenant.NewHTTPOrgHandler(m.log.With(zap.String("handler", "org")), tenant.NewAuthedOrgService(orgSvc), urmHandler, labelHandler, secretHandler)
 	}
 
 	{
