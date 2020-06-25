@@ -4,11 +4,10 @@ import {connect} from 'react-redux'
 import {SelectDropdown} from '@influxdata/clockface'
 
 // Types
-import {AppState, Bucket, ResourceType} from 'src/types'
+import {AppState} from 'src/types'
 
 // Selectors
-import {getSortedBucketNames} from 'src/buckets/selectors'
-import {getAll} from 'src/resources/selectors'
+import {getSortedBuckets} from 'src/buckets/selectors'
 
 interface StateProps {
   bucketNames: string[]
@@ -37,12 +36,10 @@ const BucketsDropdown: FunctionComponent<Props> = ({
 
 const mstp = (state: AppState): StateProps => {
   // map names and sort via a selector
-  const buckets = getSortedBucketNames(
-    getAll<Bucket>(state, ResourceType.Buckets)
-  )
+  const buckets = getSortedBuckets(state)
 
   return {
-    bucketNames: buckets,
+    bucketNames: buckets.map(bucket => bucket.name),
   }
 }
 
