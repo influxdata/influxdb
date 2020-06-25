@@ -77,8 +77,8 @@ type SVC interface {
 	UpdateStack(ctx context.Context, upd StackUpdate) (Stack, error)
 
 	Export(ctx context.Context, opts ...ExportOptFn) (*Pkg, error)
-	DryRun(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (PkgImpactSummary, error)
-	Apply(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (PkgImpactSummary, error)
+	DryRun(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (ImpactSummary, error)
+	Apply(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (ImpactSummary, error)
 }
 
 // SVCMiddleware is a service middleware func.
@@ -779,8 +779,8 @@ func (s *Service) filterOrgResourceKinds(resourceKindFilters []Kind) []struct {
 	return resourceTypeGens
 }
 
-// PkgImpactSummary represents the impact the application of a pkg will have on the system.
-type PkgImpactSummary struct {
+// ImpactSummary represents the impact the application of a pkg will have on the system.
+type ImpactSummary struct {
 	Sources []string
 	StackID influxdb.ID
 	Diff    Diff
@@ -790,19 +790,19 @@ type PkgImpactSummary struct {
 // DryRun provides a dry run of the pkg application. The pkg will be marked verified
 // for later calls to Apply. This func will be run on an Apply if it has not been run
 // already.
-func (s *Service) DryRun(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (PkgImpactSummary, error) {
+func (s *Service) DryRun(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (ImpactSummary, error) {
 	opt := applyOptFromOptFns(opts...)
 	pkg, err := s.pkgFromApplyOpts(ctx, opt)
 	if err != nil {
-		return PkgImpactSummary{}, err
+		return ImpactSummary{}, err
 	}
 
 	state, err := s.dryRun(ctx, orgID, pkg, opt)
 	if err != nil {
-		return PkgImpactSummary{}, err
+		return ImpactSummary{}, err
 	}
 
-	return PkgImpactSummary{
+	return ImpactSummary{
 		Sources: pkg.sources,
 		StackID: opt.StackID,
 		Diff:    state.diff(),
@@ -1341,25 +1341,25 @@ func applyOptFromOptFns(opts ...ApplyOptFn) ApplyOpt {
 // Apply will apply all the resources identified in the provided pkg. The entire pkg will be applied
 // in its entirety. If a failure happens midway then the entire pkg will be rolled back to the state
 // from before the pkg were applied.
-func (s *Service) Apply(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (impact PkgImpactSummary, e error) {
+func (s *Service) Apply(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (impact ImpactSummary, e error) {
 	opt := applyOptFromOptFns(opts...)
 
 	pkg, err := s.pkgFromApplyOpts(ctx, opt)
 	if err != nil {
-		return PkgImpactSummary{}, err
+		return ImpactSummary{}, err
 	}
 
 	if err := pkg.Validate(ValidWithoutResources()); err != nil {
-		return PkgImpactSummary{}, failedValidationErr(err)
+		return ImpactSummary{}, failedValidationErr(err)
 	}
 
 	if err := pkg.applyEnvRefs(opt.EnvRefs); err != nil {
-		return PkgImpactSummary{}, failedValidationErr(err)
+		return ImpactSummary{}, failedValidationErr(err)
 	}
 
 	state, err := s.dryRun(ctx, orgID, pkg, opt)
 	if err != nil {
-		return PkgImpactSummary{}, err
+		return ImpactSummary{}, err
 	}
 
 	stackID := opt.StackID
@@ -1367,7 +1367,7 @@ func (s *Service) Apply(ctx context.Context, orgID, userID influxdb.ID, opts ...
 	if stackID == 0 {
 		newStack, err := s.InitStack(ctx, userID, Stack{OrgID: orgID})
 		if err != nil {
-			return PkgImpactSummary{}, err
+			return ImpactSummary{}, err
 		}
 		stackID = newStack.ID
 	}
@@ -1394,12 +1394,12 @@ func (s *Service) Apply(ctx context.Context, orgID, userID influxdb.ID, opts ...
 
 	err = s.applyState(ctx, coordinator, orgID, userID, state, opt.MissingSecrets)
 	if err != nil {
-		return PkgImpactSummary{}, err
+		return ImpactSummary{}, err
 	}
 
 	pkg.applySecrets(opt.MissingSecrets)
 
-	return PkgImpactSummary{
+	return ImpactSummary{
 		Sources: pkg.sources,
 		StackID: stackID,
 		Diff:    state.diff(),
