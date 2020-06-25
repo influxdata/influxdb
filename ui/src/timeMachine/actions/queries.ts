@@ -36,7 +36,9 @@ import {
   reportSimpleQueryPerformanceDuration,
   reportQueryPerformanceEvent,
   toNano,
+  reportSimpleQueryPerformanceEvent,
 } from 'src/cloud/utils/reporting'
+import {fireQueryEvent} from 'src/shared/utils/analytics'
 
 // Types
 import {CancelBox} from 'src/types/promises'
@@ -52,7 +54,6 @@ import {
 // Selectors
 import {getOrg} from 'src/organizations/selectors'
 import {getAll} from 'src/resources/selectors/index'
-import {fireQueryEvent} from 'src/shared/utils/analytics'
 
 export type Action = SaveDraftQueriesAction | SetQueryResults
 
@@ -67,7 +68,7 @@ interface SetQueryResults {
   }
 }
 
-const setQueryResults = (
+export const setQueryResults = (
   status: RemoteDataState,
   files?: string[],
   fetchDuration?: number,
@@ -125,9 +126,6 @@ export const executeQueries = (abortController?: AbortController) => async (
   const queries = activeTimeMachine.view.properties.queries.filter(
     ({text}) => !!text.trim()
   )
-  const {
-    alertBuilder: {id: checkID},
-  } = state
 
   if (!queries.length) {
     dispatch(setQueryResults(RemoteDataState.Done, [], null))
@@ -164,6 +162,7 @@ export const executeQueries = (abortController?: AbortController) => async (
 
       const extern = buildVarsOption(variableAssignments)
 
+      reportSimpleQueryPerformanceEvent('runQuery', {context: 'timeMachine'})
       return runQuery(orgID, text, extern, abortController)
     })
     const results = await Promise.all(pendingResults.map(r => r.promise))
@@ -177,6 +176,10 @@ export const executeQueries = (abortController?: AbortController) => async (
     )
 
     let statuses = [[]] as StatusRow[][]
+    const {
+      alertBuilder: {id: checkID},
+    } = state
+
     if (checkID) {
       const extern = buildVarsOption(variableAssignments)
       pendingCheckStatuses = runStatusesQuery(getOrg(state).id, checkID, extern)

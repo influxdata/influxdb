@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/url"
 	"path"
+	"strconv"
 	"strings"
 
 	"github.com/influxdata/influxdb/v2"
@@ -25,7 +26,7 @@ var _ SVC = (*mwMetrics)(nil)
 func MWMetrics(reg *prom.Registry) SVCMiddleware {
 	return func(svc SVC) SVC {
 		return &mwMetrics{
-			rec:  metric.New(reg, "pkger", metric.WithVec(templateVec())),
+			rec:  metric.New(reg, "pkger", metric.WithVec(templateVec()), metric.WithVec(exportVec())),
 			next: svc,
 		}
 	}
@@ -40,12 +41,6 @@ func (s *mwMetrics) InitStack(ctx context.Context, userID influxdb.ID, newStack 
 func (s *mwMetrics) DeleteStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) error {
 	rec := s.rec.Record("delete_stack")
 	return rec(s.next.DeleteStack(ctx, identifiers))
-}
-
-func (s *mwMetrics) ExportStack(ctx context.Context, orgID, stackID influxdb.ID) (*Pkg, error) {
-	rec := s.rec.Record("export_stack")
-	pkg, err := s.next.ExportStack(ctx, orgID, stackID)
-	return pkg, rec(err)
 }
 
 func (s *mwMetrics) ListStacks(ctx context.Context, orgID influxdb.ID, f ListFilter) ([]Stack, error) {
@@ -66,19 +61,32 @@ func (s *mwMetrics) UpdateStack(ctx context.Context, upd StackUpdate) (Stack, er
 	return stack, rec(err)
 }
 
-func (s *mwMetrics) CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*Pkg, error) {
+func (s *mwMetrics) Export(ctx context.Context, opts ...ExportOptFn) (*Pkg, error) {
 	rec := s.rec.Record("create_pkg")
-	pkg, err := s.next.CreatePkg(ctx, setters...)
-	return pkg, rec(err)
+	opt, err := exportOptFromOptFns(opts)
+	if err != nil {
+		return nil, rec(err)
+	}
+
+	pkg, err := s.next.Export(ctx, opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	return pkg, rec(err, metric.RecordAdditional(map[string]interface{}{
+		"num_org_ids": len(opt.OrgIDs),
+		"summary":     pkg.Summary(),
+		"by_stack":    opt.StackID != 0,
+	}))
 }
 
-func (s *mwMetrics) DryRun(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (PkgImpactSummary, error) {
+func (s *mwMetrics) DryRun(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (ImpactSummary, error) {
 	rec := s.rec.Record("dry_run")
 	impact, err := s.next.DryRun(ctx, orgID, userID, opts...)
 	return impact, rec(err, applyMetricAdditions(orgID, userID, impact.Sources))
 }
 
-func (s *mwMetrics) Apply(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (PkgImpactSummary, error) {
+func (s *mwMetrics) Apply(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (ImpactSummary, error) {
 	rec := s.rec.Record("apply")
 	impact, err := s.next.Apply(ctx, orgID, userID, opts...)
 	return impact, rec(err, applyMetricAdditions(orgID, userID, impact.Sources))
@@ -90,6 +98,70 @@ func applyMetricAdditions(orgID, userID influxdb.ID, sources []string) func(*met
 		"sources": sources,
 		"user_id": userID.String(),
 	})
+}
+
+func exportVec() metric.VecOpts {
+	const (
+		byStack         = "by_stack"
+		numOrgIDs       = "num_org_ids"
+		bkts            = "buckets"
+		checks          = "checks"
+		dashes          = "dashboards"
+		endpoints       = "endpoints"
+		labels          = "labels"
+		labelMappings   = "label_mappings"
+		rules           = "rules"
+		tasks           = "tasks"
+		telegrafConfigs = "telegraf_configs"
+		variables       = "variables"
+	)
+	return metric.VecOpts{
+		Name: "template_export",
+		Help: "Metrics for resources being exported",
+		LabelNames: []string{
+			"method",
+			byStack,
+			numOrgIDs,
+			bkts,
+			checks,
+			dashes,
+			endpoints,
+			labels,
+			labelMappings,
+			rules,
+			tasks,
+			telegrafConfigs,
+			variables,
+		},
+		CounterFn: func(vec *prometheus.CounterVec, o metric.CollectFnOpts) {
+			if o.Err != nil {
+				return
+			}
+
+			orgID, _ := o.AdditionalProps[numOrgIDs].(int)
+			sum, _ := o.AdditionalProps["sum"].(Summary)
+			st, _ := o.AdditionalProps[byStack].(bool)
+
+			vec.
+				With(prometheus.Labels{
+					"method":        o.Method,
+					byStack:         strconv.FormatBool(st),
+					numOrgIDs:       strconv.Itoa(orgID),
+					bkts:            strconv.Itoa(len(sum.Buckets)),
+					checks:          strconv.Itoa(len(sum.Checks)),
+					dashes:          strconv.Itoa(len(sum.Dashboards)),
+					endpoints:       strconv.Itoa(len(sum.NotificationEndpoints)),
+					labels:          strconv.Itoa(len(sum.Labels)),
+					labelMappings:   strconv.Itoa(len(sum.LabelMappings)),
+					rules:           strconv.Itoa(len(sum.NotificationRules)),
+					tasks:           strconv.Itoa(len(sum.Tasks)),
+					telegrafConfigs: strconv.Itoa(len(sum.TelegrafConfigs)),
+					variables:       strconv.Itoa(len(sum.TelegrafConfigs)),
+				}).
+				Inc()
+		},
+		HistogramFn: nil,
+	}
 }
 
 func templateVec() metric.VecOpts {

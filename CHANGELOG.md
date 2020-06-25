@@ -15,14 +15,18 @@
 1. [18601](https://github.com/influxdata/influxdb/pull/18601): Provide active config running influx config without args
 1. [18606](https://github.com/influxdata/influxdb/pull/18606): Enable influxd binary to look for a config file on startup
 1. [18647](https://github.com/influxdata/influxdb/pull/18647): Add support for env ref default values to the template parser
+1. [18655](https://github.com/influxdata/influxdb/pull/18655): Add support for platform variable selected field to templates
 
 ### Bug Fixes
 
 1. [18602](https://github.com/influxdata/influxdb/pull/18602): Fix uint overflow during setup on 32bit systems
 1. [18623](https://github.com/influxdata/influxdb/pull/18623): Drop support for --local flag within influx CLI
 1. [18632](https://github.com/influxdata/influxdb/pull/18632): Prevents undefined queries in cells from erroring out in dashboards
-1. [18649](https://github.com/influxdata/influxdb/pull/18649): Fixes bucket
-selection issue and query builder state
+1. [18649](https://github.com/influxdata/influxdb/pull/18649): Fixes bucket selection issue and query builder state
+1. [18658](https://github.com/influxdata/influxdb/pull/18658): Add support for 'd' day and 'w' week time identifiers in the CLI for bucket and setup commands
+1. [18581](https://github.com/influxdata/influxdb/pull/18581): Cache dashboard cell query results to use as a reference for cell configurations
+1. [18707](https://github.com/influxdata/influxdb/pull/18707): Validate host-url for influx config create/set commands
+1. [18713](https://github.com/influxdata/influxdb/pull/18713): Fix influx CLI flags to accurately depict flags for all commands
 
 ## v2.0.0-beta.12 [2020-06-12]
 

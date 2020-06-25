@@ -23,6 +23,8 @@ The target directory, and any parent directories, are created automatically.
 Data file have extension .tsm; meta data is written to %s in the same directory.`,
 		bolt.DefaultFilename)
 
+	f.registerFlags(cmd)
+
 	opts := flagOpts{
 		{
 			DestP:    &backupFlags.Path,

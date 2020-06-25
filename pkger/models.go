@@ -672,6 +672,7 @@ type SummaryVariable struct {
 	OrgID       SafeID                      `json:"orgID,omitempty"`
 	Name        string                      `json:"name"`
 	Description string                      `json:"description"`
+	Selected    []string                    `json:"variables"`
 	Arguments   *influxdb.VariableArguments `json:"arguments"`
 
 	EnvReferences     []SummaryReference `json:"envReferences"`

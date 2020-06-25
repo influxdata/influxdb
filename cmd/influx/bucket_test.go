@@ -102,7 +102,7 @@ func TestCmdBucket(t *testing.T) {
 			}
 
 			return func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
-				return newCmdBucketBuilder(fakeSVCFn(svc), opt).cmd()
+				return newCmdBucketBuilder(fakeSVCFn(svc), g, opt).cmd()
 			}
 		}
 
@@ -179,7 +179,7 @@ func TestCmdBucket(t *testing.T) {
 			}
 
 			return func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
-				return newCmdBucketBuilder(fakeSVCFn(svc), opt).cmd()
+				return newCmdBucketBuilder(fakeSVCFn(svc), g, opt).cmd()
 			}
 		}
 
@@ -319,7 +319,7 @@ func TestCmdBucket(t *testing.T) {
 			}
 
 			return func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
-				return newCmdBucketBuilder(fakeSVCFn(svc), opt).cmd()
+				return newCmdBucketBuilder(fakeSVCFn(svc), g, opt).cmd()
 			}, calls
 		}
 
@@ -423,7 +423,7 @@ func TestCmdBucket(t *testing.T) {
 			}
 
 			return func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
-				return newCmdBucketBuilder(fakeSVCFn(svc), opt).cmd()
+				return newCmdBucketBuilder(fakeSVCFn(svc), g, opt).cmd()
 			}
 		}
 

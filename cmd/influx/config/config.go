@@ -221,6 +221,14 @@ func (svc localConfigsSVC) DeleteConfig(name string) (Config, error) {
 	}
 	delete(cfgs, name)
 
+	if p.Active && len(cfgs) > 0 {
+		for name, cfg := range cfgs {
+			cfg.Active = true
+			cfgs[name] = cfg
+			break
+		}
+	}
+
 	return p, svc.writeConfigs(cfgs)
 }
 

@@ -154,18 +154,18 @@ func TestPkgerHTTPServer(t *testing.T) {
 			for _, tt := range tests {
 				fn := func(t *testing.T) {
 					svc := &fakeSVC{
-						dryRunFn: func(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.PkgImpactSummary, error) {
+						dryRunFn: func(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.ImpactSummary, error) {
 							var opt pkger.ApplyOpt
 							for _, o := range opts {
 								o(&opt)
 							}
 							pkg, err := pkger.Combine(opt.Pkgs)
 							if err != nil {
-								return pkger.PkgImpactSummary{}, err
+								return pkger.ImpactSummary{}, err
 							}
 
 							if err := pkg.Validate(); err != nil {
-								return pkger.PkgImpactSummary{}, err
+								return pkger.ImpactSummary{}, err
 							}
 							sum := pkg.Summary()
 							var diff pkger.Diff
@@ -176,7 +176,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 									},
 								})
 							}
-							return pkger.PkgImpactSummary{
+							return pkger.ImpactSummary{
 								Summary: sum,
 								Diff:    diff,
 							}, nil
@@ -222,18 +222,18 @@ func TestPkgerHTTPServer(t *testing.T) {
 			for _, tt := range tests {
 				fn := func(t *testing.T) {
 					svc := &fakeSVC{
-						dryRunFn: func(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.PkgImpactSummary, error) {
+						dryRunFn: func(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.ImpactSummary, error) {
 							var opt pkger.ApplyOpt
 							for _, o := range opts {
 								o(&opt)
 							}
 							pkg, err := pkger.Combine(opt.Pkgs)
 							if err != nil {
-								return pkger.PkgImpactSummary{}, err
+								return pkger.ImpactSummary{}, err
 							}
 
 							if err := pkg.Validate(); err != nil {
-								return pkger.PkgImpactSummary{}, err
+								return pkger.ImpactSummary{}, err
 							}
 							sum := pkg.Summary()
 							var diff pkger.Diff
@@ -244,7 +244,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 									},
 								})
 							}
-							return pkger.PkgImpactSummary{
+							return pkger.ImpactSummary{
 								Diff:    diff,
 								Summary: sum,
 							}, nil
@@ -342,18 +342,18 @@ func TestPkgerHTTPServer(t *testing.T) {
 			for _, tt := range tests {
 				fn := func(t *testing.T) {
 					svc := &fakeSVC{
-						dryRunFn: func(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.PkgImpactSummary, error) {
+						dryRunFn: func(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.ImpactSummary, error) {
 							var opt pkger.ApplyOpt
 							for _, o := range opts {
 								o(&opt)
 							}
 							pkg, err := pkger.Combine(opt.Pkgs)
 							if err != nil {
-								return pkger.PkgImpactSummary{}, err
+								return pkger.ImpactSummary{}, err
 							}
 
 							if err := pkg.Validate(); err != nil {
-								return pkger.PkgImpactSummary{}, err
+								return pkger.ImpactSummary{}, err
 							}
 							sum := pkg.Summary()
 							var diff pkger.Diff
@@ -365,7 +365,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 								})
 							}
 
-							return pkger.PkgImpactSummary{
+							return pkger.ImpactSummary{
 								Diff:    diff,
 								Summary: sum,
 							}, nil
@@ -427,16 +427,16 @@ func TestPkgerHTTPServer(t *testing.T) {
 			for _, tt := range tests {
 				fn := func(t *testing.T) {
 					svc := &fakeSVC{
-						dryRunFn: func(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.PkgImpactSummary, error) {
+						dryRunFn: func(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.ImpactSummary, error) {
 							var opt pkger.ApplyOpt
 							for _, o := range opts {
 								o(&opt)
 							}
 							pkg, err := pkger.Combine(opt.Pkgs)
 							if err != nil {
-								return pkger.PkgImpactSummary{}, err
+								return pkger.ImpactSummary{}, err
 							}
-							return pkger.PkgImpactSummary{
+							return pkger.ImpactSummary{
 								Summary: pkg.Summary(),
 							}, nil
 						},
@@ -459,7 +459,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 
 	t.Run("apply a pkg", func(t *testing.T) {
 		svc := &fakeSVC{
-			applyFn: func(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.PkgImpactSummary, error) {
+			applyFn: func(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.ImpactSummary, error) {
 				var opt pkger.ApplyOpt
 				for _, o := range opts {
 					o(&opt)
@@ -467,7 +467,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 
 				pkg, err := pkger.Combine(opt.Pkgs)
 				if err != nil {
-					return pkger.PkgImpactSummary{}, err
+					return pkger.ImpactSummary{}, err
 				}
 
 				sum := pkg.Summary()
@@ -484,7 +484,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 					sum.MissingSecrets = append(sum.MissingSecrets, key)
 				}
 
-				return pkger.PkgImpactSummary{
+				return pkger.ImpactSummary{
 					Diff:    diff,
 					Summary: sum,
 				}, nil
@@ -677,7 +677,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 						ID:        influxdb.ID(1).String(),
 						OrgID:     expectedOrgID.String(),
 						Name:      "stack_1",
-						Resources: []pkger.StackResource{},
+						Resources: []pkger.RespStackResource{},
 						Sources:   []string{},
 						URLs:      []string{},
 					}},
@@ -695,7 +695,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 							ID:        influxdb.ID(1).String(),
 							OrgID:     expectedOrgID.String(),
 							Name:      "name_stack",
-							Resources: []pkger.StackResource{},
+							Resources: []pkger.RespStackResource{},
 							Sources:   []string{},
 							URLs:      []string{},
 						},
@@ -703,7 +703,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 							ID:        influxdb.ID(2).String(),
 							OrgID:     expectedOrgID.String(),
 							Name:      "threeve",
-							Resources: []pkger.StackResource{},
+							Resources: []pkger.RespStackResource{},
 							Sources:   []string{},
 							URLs:      []string{},
 						},
@@ -716,14 +716,14 @@ func TestPkgerHTTPServer(t *testing.T) {
 						{
 							ID:        influxdb.ID(1).String(),
 							OrgID:     expectedOrgID.String(),
-							Resources: []pkger.StackResource{},
+							Resources: []pkger.RespStackResource{},
 							Sources:   []string{},
 							URLs:      []string{},
 						},
 						{
 							ID:        influxdb.ID(2).String(),
 							OrgID:     expectedOrgID.String(),
-							Resources: []pkger.StackResource{},
+							Resources: []pkger.RespStackResource{},
 							Sources:   []string{},
 							URLs:      []string{},
 						},
@@ -774,7 +774,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 								APIVersion: pkger.APIVersion,
 								ID:         3,
 								Kind:       pkger.KindBucket,
-								PkgName:    "rucketeer",
+								MetaName:   "rucketeer",
 							},
 						},
 					},
@@ -785,12 +785,13 @@ func TestPkgerHTTPServer(t *testing.T) {
 						Description: "desc",
 						Sources:     []string{"threeve"},
 						URLs:        []string{"http://example.com"},
-						Resources: []pkger.StackResource{
+						Resources: []pkger.RespStackResource{
 							{
-								APIVersion: pkger.APIVersion,
-								ID:         3,
-								Kind:       pkger.KindBucket,
-								PkgName:    "rucketeer",
+								APIVersion:   pkger.APIVersion,
+								ID:           influxdb.ID(3).String(),
+								Kind:         pkger.KindBucket,
+								MetaName:     "rucketeer",
+								Associations: []pkger.StackResourceAssociation{},
 							},
 						},
 					},
@@ -810,7 +811,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 						Description: "desc",
 						Sources:     []string{},
 						URLs:        []string{},
-						Resources:   []pkger.StackResource{},
+						Resources:   []pkger.RespStackResource{},
 					},
 				},
 				{
@@ -824,7 +825,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 						OrgID:     expectedOrgID.String(),
 						Sources:   []string{},
 						URLs:      []string{},
-						Resources: []pkger.StackResource{},
+						Resources: []pkger.RespStackResource{},
 					},
 				},
 			}
@@ -925,7 +926,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 						Name:      "name",
 						Sources:   []string{},
 						URLs:      []string{},
-						Resources: []pkger.StackResource{},
+						Resources: []pkger.RespStackResource{},
 					},
 				},
 				{
@@ -939,7 +940,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 						Description: "desc",
 						Sources:     []string{},
 						URLs:        []string{},
-						Resources:   []pkger.StackResource{},
+						Resources:   []pkger.RespStackResource{},
 					},
 				},
 				{
@@ -952,7 +953,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 						OrgID:     expectedOrgID.String(),
 						Sources:   []string{},
 						URLs:      []string{"http://example.com"},
-						Resources: []pkger.StackResource{},
+						Resources: []pkger.RespStackResource{},
 					},
 				},
 				{
@@ -969,7 +970,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 						Description: "desc",
 						Sources:     []string{},
 						URLs:        []string{"http://example.com"},
-						Resources:   []pkger.StackResource{},
+						Resources:   []pkger.RespStackResource{},
 					},
 				},
 			}
@@ -1156,8 +1157,8 @@ type fakeSVC struct {
 	listStacksFn  func(ctx context.Context, orgID influxdb.ID, filter pkger.ListFilter) ([]pkger.Stack, error)
 	readStackFn   func(ctx context.Context, id influxdb.ID) (pkger.Stack, error)
 	updateStackFn func(ctx context.Context, upd pkger.StackUpdate) (pkger.Stack, error)
-	dryRunFn      func(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.PkgImpactSummary, error)
-	applyFn       func(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.PkgImpactSummary, error)
+	dryRunFn      func(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.ImpactSummary, error)
+	applyFn       func(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.ImpactSummary, error)
 }
 
 var _ pkger.SVC = (*fakeSVC)(nil)
@@ -1171,10 +1172,6 @@ func (f *fakeSVC) InitStack(ctx context.Context, userID influxdb.ID, stack pkger
 
 func (f *fakeSVC) DeleteStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) error {
 	panic("not implemented yet")
-}
-
-func (f *fakeSVC) ExportStack(ctx context.Context, orgID, stackID influxdb.ID) (*pkger.Pkg, error) {
-	panic("not implemented")
 }
 
 func (f *fakeSVC) ListStacks(ctx context.Context, orgID influxdb.ID, filter pkger.ListFilter) ([]pkger.Stack, error) {
@@ -1198,11 +1195,11 @@ func (f *fakeSVC) UpdateStack(ctx context.Context, upd pkger.StackUpdate) (pkger
 	panic("not implemented")
 }
 
-func (f *fakeSVC) CreatePkg(ctx context.Context, setters ...pkger.CreatePkgSetFn) (*pkger.Pkg, error) {
+func (f *fakeSVC) Export(ctx context.Context, setters ...pkger.ExportOptFn) (*pkger.Pkg, error) {
 	panic("not implemented")
 }
 
-func (f *fakeSVC) DryRun(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.PkgImpactSummary, error) {
+func (f *fakeSVC) DryRun(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.ImpactSummary, error) {
 	if f.dryRunFn == nil {
 		panic("not implemented")
 	}
@@ -1210,7 +1207,7 @@ func (f *fakeSVC) DryRun(ctx context.Context, orgID, userID influxdb.ID, opts ..
 	return f.dryRunFn(ctx, orgID, userID, opts...)
 }
 
-func (f *fakeSVC) Apply(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.PkgImpactSummary, error) {
+func (f *fakeSVC) Apply(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.ImpactSummary, error) {
 	if f.applyFn == nil {
 		panic("not implemented")
 	}

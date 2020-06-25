@@ -9,6 +9,7 @@ import {parseResponse} from 'src/shared/parsing/flux/response'
 import {getTimeRangeVars} from 'src/variables/utils/getTimeRangeVars'
 import {formatExpression} from 'src/variables/utils/formatExpression'
 import {tagToFlux} from 'src/timeMachine/utils/queryBuilder'
+import {reportSimpleQueryPerformanceEvent} from 'src/cloud/utils/reporting'
 
 // Types
 import {TimeRange, BuilderConfig} from 'src/types'
@@ -28,6 +29,9 @@ export function findBuckets({orgID}: FindBucketsOptions): CancelBox<string[]> {
   |> sort(columns: ["name"])
   |> limit(n: ${DEFAULT_LIMIT})`
 
+  reportSimpleQueryPerformanceEvent('runQuery', {
+    context: 'queryBuilder-findBuckets',
+  })
   return extractBoxedCol(runQuery(orgID, query), 'name')
 }
 
@@ -66,6 +70,10 @@ export function findKeys({
   |> sort()
   |> limit(n: ${limit})`
 
+  reportSimpleQueryPerformanceEvent('runQuery', {
+    context: 'queryBuilder-findKeys',
+  })
+
   return extractBoxedCol(runQuery(orgID, query), '_value')
 }
 
@@ -103,6 +111,10 @@ export function findValues({
   |> distinct(column: "${key}")${searchFilter}
   |> limit(n: ${limit})
   |> sort()`
+
+  reportSimpleQueryPerformanceEvent('runQuery', {
+    context: 'queryBuilder-findValues',
+  })
 
   return extractBoxedCol(runQuery(orgID, query), '_value')
 }

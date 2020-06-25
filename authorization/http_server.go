@@ -21,6 +21,7 @@ type TenantService interface {
 	FindOrganization(ctx context.Context, filter influxdb.OrganizationFilter) (*influxdb.Organization, error)
 	FindUserByID(ctx context.Context, id influxdb.ID) (*influxdb.User, error)
 	FindUser(ctx context.Context, filter influxdb.UserFilter) (*influxdb.User, error)
+	FindBucketByID(ctx context.Context, id influxdb.ID) (*influxdb.Bucket, error)
 }
 
 type AuthHandler struct {
@@ -28,18 +29,16 @@ type AuthHandler struct {
 	api           *kithttp.API
 	log           *zap.Logger
 	authSvc       influxdb.AuthorizationService
-	lookupService influxdb.LookupService
 	tenantService TenantService
 }
 
 // NewHTTPAuthHandler constructs a new http server.
-func NewHTTPAuthHandler(log *zap.Logger, authService influxdb.AuthorizationService, tenantService TenantService, lookupService influxdb.LookupService) *AuthHandler {
+func NewHTTPAuthHandler(log *zap.Logger, authService influxdb.AuthorizationService, tenantService TenantService) *AuthHandler {
 	h := &AuthHandler{
 		api:           kithttp.NewAPI(kithttp.WithLog(log)),
 		log:           log,
 		authSvc:       authService,
 		tenantService: tenantService,
-		lookupService: lookupService,
 	}
 
 	r := chi.NewRouter()
@@ -97,7 +96,7 @@ func (h *AuthHandler) handlePostAuthorization(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	perms, err := newPermissionsResponse(ctx, auth.Permissions, h.lookupService)
+	perms, err := h.newPermissionsResponse(ctx, auth.Permissions)
 	if err != nil {
 		h.api.Err(w, r, err)
 		return
@@ -296,7 +295,7 @@ type resourceResponse struct {
 	Organization string `json:"org,omitempty"`
 }
 
-func newPermissionsResponse(ctx context.Context, ps []influxdb.Permission, svc influxdb.LookupService) ([]permissionResponse, error) {
+func (h *AuthHandler) newPermissionsResponse(ctx context.Context, ps []influxdb.Permission) ([]permissionResponse, error) {
 	res := make([]permissionResponse, len(ps))
 	for i, p := range ps {
 		res[i] = permissionResponse{
@@ -307,7 +306,7 @@ func newPermissionsResponse(ctx context.Context, ps []influxdb.Permission, svc i
 		}
 
 		if p.Resource.ID != nil {
-			name, err := svc.Name(ctx, p.Resource.Type, *p.Resource.ID)
+			name, err := h.getNameForResource(ctx, p.Resource.Type, *p.Resource.ID)
 			if influxdb.ErrorCode(err) == influxdb.ENotFound {
 				continue
 			}
@@ -318,7 +317,7 @@ func newPermissionsResponse(ctx context.Context, ps []influxdb.Permission, svc i
 		}
 
 		if p.Resource.OrgID != nil {
-			name, err := svc.Name(ctx, influxdb.OrgsResourceType, *p.Resource.OrgID)
+			name, err := h.getNameForResource(ctx, influxdb.OrgsResourceType, *p.Resource.OrgID)
 			if influxdb.ErrorCode(err) == influxdb.ENotFound {
 				continue
 			}
@@ -329,6 +328,39 @@ func newPermissionsResponse(ctx context.Context, ps []influxdb.Permission, svc i
 		}
 	}
 	return res, nil
+}
+
+func (h *AuthHandler) getNameForResource(ctx context.Context, resource influxdb.ResourceType, id influxdb.ID) (string, error) {
+	if err := resource.Valid(); err != nil {
+		return "", err
+	}
+
+	if ok := id.Valid(); !ok {
+		return "", influxdb.ErrInvalidID
+	}
+
+	switch resource {
+	case influxdb.BucketsResourceType:
+		r, err := h.tenantService.FindBucketByID(ctx, id)
+		if err != nil {
+			return "", err
+		}
+		return r.Name, nil
+	case influxdb.OrgsResourceType:
+		r, err := h.tenantService.FindOrganizationByID(ctx, id)
+		if err != nil {
+			return "", err
+		}
+		return r.Name, nil
+	case influxdb.UsersResourceType:
+		r, err := h.tenantService.FindUserByID(ctx, id)
+		if err != nil {
+			return "", err
+		}
+		return r.Name, nil
+	}
+
+	return "", nil
 }
 
 func decodePostAuthorizationRequest(ctx context.Context, r *http.Request) (*postAuthorizationRequest, error) {
@@ -386,7 +418,7 @@ func (h *AuthHandler) handleGetAuthorizations(w http.ResponseWriter, r *http.Req
 
 	auths := make([]*authResponse, 0, len(as))
 	for _, a := range as {
-		ps, err := newPermissionsResponse(ctx, a.Permissions, h.lookupService)
+		ps, err := h.newPermissionsResponse(ctx, a.Permissions)
 		if err != nil {
 			h.api.Err(w, r, err)
 			return
@@ -471,7 +503,7 @@ func (h *AuthHandler) handleGetAuthorization(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	ps, err := newPermissionsResponse(ctx, a.Permissions, h.lookupService)
+	ps, err := h.newPermissionsResponse(ctx, a.Permissions)
 	if err != nil {
 		h.api.Err(w, r, err)
 		return
@@ -510,7 +542,7 @@ func (h *AuthHandler) handleUpdateAuthorization(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	ps, err := newPermissionsResponse(ctx, a.Permissions, h.lookupService)
+	ps, err := h.newPermissionsResponse(ctx, a.Permissions)
 	if err != nil {
 		h.api.Err(w, r, err)
 		return

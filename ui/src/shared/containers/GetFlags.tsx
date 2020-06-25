@@ -7,9 +7,14 @@ import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
 
 // Types
 import {RemoteDataState, AppState} from 'src/types'
+import {FlagMap} from 'src/shared/reducers/flags'
 
 // Actions
 import {getFlags as getFlagsAction} from 'src/shared/actions/flags'
+
+// Utils
+import {activeFlags} from 'src/shared/selectors/flags'
+import {updateReportingContext} from 'src/cloud/utils/reporting'
 
 interface PassedInProps {
   children: React.ReactElement<any>
@@ -21,16 +26,31 @@ interface DispatchProps {
 
 interface StateProps {
   status: RemoteDataState
+  flags: FlagMap
 }
 
 type Props = StateProps & DispatchProps & PassedInProps
 
-const GetFlags: FunctionComponent<Props> = ({status, getFlags, children}) => {
+const GetFlags: FunctionComponent<Props> = ({
+  status,
+  getFlags,
+  flags,
+  children,
+}) => {
   useEffect(() => {
     if (status === RemoteDataState.NotStarted) {
       getFlags()
     }
   }, [])
+  useEffect(() => {
+    updateReportingContext(
+      Object.entries(flags).reduce((prev, [key, val]) => {
+        prev[`flag (${key})`] = val
+
+        return prev
+      }, {})
+    )
+  }, [flags])
 
   return (
     <SpinnerContainer loading={status} spinnerComponent={<TechnoSpinner />}>
@@ -44,6 +64,7 @@ const mdtp = {
 }
 
 const mstp = (state: AppState): StateProps => ({
+  flags: activeFlags(state),
   status: state.flags.status || RemoteDataState.NotStarted,
 })
 

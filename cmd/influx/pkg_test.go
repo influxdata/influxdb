@@ -183,10 +183,10 @@ func TestCmdPkg(t *testing.T) {
 			},
 		}
 
-		cmdFn := func(_ *globalFlags, opt genericCLIOpts) *cobra.Command {
+		cmdFn := func(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 			pkgSVC := &fakePkgSVC{
-				createFn: func(_ context.Context, opts ...pkger.CreatePkgSetFn) (*pkger.Pkg, error) {
-					opt := pkger.CreateOpt{}
+				exportFn: func(_ context.Context, opts ...pkger.ExportOptFn) (*pkger.Pkg, error) {
+					opt := pkger.ExportOpt{}
 					for _, o := range opts {
 						if err := o(&opt); err != nil {
 							return nil, err
@@ -228,7 +228,7 @@ func TestCmdPkg(t *testing.T) {
 					return &pkg, nil
 				},
 			}
-			return newCmdPkgBuilder(fakeSVCFn(pkgSVC), opt).cmdApply()
+			return newCmdPkgBuilder(fakeSVCFn(pkgSVC), f, opt).cmdApply()
 		}
 
 		for _, tt := range tests {
@@ -320,10 +320,10 @@ func TestCmdPkg(t *testing.T) {
 			},
 		}
 
-		cmdFn := func(_ *globalFlags, opt genericCLIOpts) *cobra.Command {
+		cmdFn := func(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 			pkgSVC := &fakePkgSVC{
-				createFn: func(_ context.Context, opts ...pkger.CreatePkgSetFn) (*pkger.Pkg, error) {
-					var opt pkger.CreateOpt
+				exportFn: func(_ context.Context, opts ...pkger.ExportOptFn) (*pkger.Pkg, error) {
+					var opt pkger.ExportOpt
 					for _, o := range opts {
 						if err := o(&opt); err != nil {
 							return nil, err
@@ -347,7 +347,7 @@ func TestCmdPkg(t *testing.T) {
 				},
 			}
 
-			builder := newCmdPkgBuilder(fakeSVCFn(pkgSVC), opt)
+			builder := newCmdPkgBuilder(fakeSVCFn(pkgSVC), f, opt)
 			return builder.cmdApply()
 		}
 		for _, tt := range tests {
@@ -421,7 +421,7 @@ func TestCmdPkg(t *testing.T) {
 				out(ioutil.Discard),
 			)
 			cmd := builder.cmd(func(f *globalFlags, opt genericCLIOpts) *cobra.Command {
-				return newCmdPkgBuilder(fakeSVCFn(new(fakePkgSVC)), opt).cmdApply()
+				return newCmdPkgBuilder(fakeSVCFn(new(fakePkgSVC)), f, opt).cmdApply()
 			})
 
 			cmd.SetArgs([]string{
@@ -444,7 +444,7 @@ func TestCmdPkg(t *testing.T) {
 				out(ioutil.Discard),
 			)
 			cmd := builder.cmd(func(f *globalFlags, opt genericCLIOpts) *cobra.Command {
-				return newCmdPkgBuilder(fakeSVCFn(new(fakePkgSVC)), opt).cmdApply()
+				return newCmdPkgBuilder(fakeSVCFn(new(fakePkgSVC)), f, opt).cmdApply()
 			})
 			cmd.SetArgs([]string{"pkg", "validate"})
 
@@ -542,7 +542,7 @@ func TestCmdPkg(t *testing.T) {
 								return stack, nil
 							},
 						}
-						return newCmdPkgBuilder(fakeSVCFn(echoSVC), opt).cmdApply()
+						return newCmdPkgBuilder(fakeSVCFn(echoSVC), f, opt).cmdApply()
 					})
 
 					baseArgs := []string{"pkg", "stack", "init", "--json"}
@@ -707,9 +707,9 @@ func testPkgWritesToBuffer(newCmdFn func(w io.Writer) *cobra.Command, args pkgFi
 
 type fakePkgSVC struct {
 	initStackFn func(ctx context.Context, userID influxdb.ID, stack pkger.Stack) (pkger.Stack, error)
-	createFn    func(ctx context.Context, setters ...pkger.CreatePkgSetFn) (*pkger.Pkg, error)
-	dryRunFn    func(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.PkgImpactSummary, error)
-	applyFn     func(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.PkgImpactSummary, error)
+	exportFn    func(ctx context.Context, setters ...pkger.ExportOptFn) (*pkger.Pkg, error)
+	dryRunFn    func(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.ImpactSummary, error)
+	applyFn     func(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.ImpactSummary, error)
 }
 
 var _ pkger.SVC = (*fakePkgSVC)(nil)
@@ -741,21 +741,21 @@ func (f *fakePkgSVC) UpdateStack(ctx context.Context, upd pkger.StackUpdate) (pk
 	panic("not implemented")
 }
 
-func (f *fakePkgSVC) CreatePkg(ctx context.Context, setters ...pkger.CreatePkgSetFn) (*pkger.Pkg, error) {
-	if f.createFn != nil {
-		return f.createFn(ctx, setters...)
+func (f *fakePkgSVC) Export(ctx context.Context, setters ...pkger.ExportOptFn) (*pkger.Pkg, error) {
+	if f.exportFn != nil {
+		return f.exportFn(ctx, setters...)
 	}
 	panic("not implemented")
 }
 
-func (f *fakePkgSVC) DryRun(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.PkgImpactSummary, error) {
+func (f *fakePkgSVC) DryRun(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.ImpactSummary, error) {
 	if f.dryRunFn != nil {
 		return f.dryRunFn(ctx, orgID, userID, opts...)
 	}
 	panic("not implemented")
 }
 
-func (f *fakePkgSVC) Apply(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.PkgImpactSummary, error) {
+func (f *fakePkgSVC) Apply(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.ImpactSummary, error) {
 	if f.applyFn != nil {
 		return f.applyFn(ctx, orgID, userID, opts...)
 	}

@@ -55,7 +55,13 @@ func NewHTTPServer(log *zap.Logger, svc SVC) *HTTPServer {
 				r.Get("/", svr.readStack)
 				r.Delete("/", svr.deleteStack)
 				r.Patch("/", svr.updateStack)
-				r.With(exportAllowContentTypes).Get("/export", svr.exportStack)
+				r.With(
+					exportAllowContentTypes,
+					// sunsetting, will not appear as part of the swagger doc and will be dropped
+					// in the near term. The sunset header follows the following IETF RFC:
+					//	https://tools.ietf.org/html/rfc8594
+					middleware.SetHeader("Sunset", "Thurs, 30 July 2020 17:00:00 UTC"),
+				).Get("/export", svr.exportStack)
 			})
 		})
 	}
@@ -71,14 +77,30 @@ func (s *HTTPServer) Prefix() string {
 
 // RespStack is the response body for a stack.
 type RespStack struct {
-	ID          string          `json:"id"`
-	OrgID       string          `json:"orgID"`
-	Name        string          `json:"name"`
-	Description string          `json:"description"`
-	Resources   []StackResource `json:"resources"`
-	Sources     []string        `json:"sources"`
-	URLs        []string        `json:"urls"`
+	ID          string              `json:"id"`
+	OrgID       string              `json:"orgID"`
+	Name        string              `json:"name"`
+	Description string              `json:"description"`
+	Resources   []RespStackResource `json:"resources"`
+	Sources     []string            `json:"sources"`
+	URLs        []string            `json:"urls"`
 	influxdb.CRUDLog
+}
+
+// RespStackResource is the response for a stack resource. This type exists
+// to decouple the internal service implementation from the deprecates usage
+// of pkgs in the API. We could add a custom UnmarshalJSON method, but
+// I would rather keep it obvious and explicit with a separate field.
+type RespStackResource struct {
+	APIVersion   string                     `json:"apiVersion"`
+	ID           string                     `json:"resourceID"`
+	Kind         Kind                       `json:"kind"`
+	MetaName     string                     `json:"templateMetaName"`
+	Associations []StackResourceAssociation `json:"associations"`
+
+	// PkgName is deprecated moving forward, will support until it is
+	// ripped out.
+	PkgName *string `json:"pkgName,omitempty"`
 }
 
 // RespListStacks is the HTTP response for a stack list call.
@@ -241,19 +263,13 @@ func (s *HTTPServer) deleteStack(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *HTTPServer) exportStack(w http.ResponseWriter, r *http.Request) {
-	orgID, err := getRequiredOrgIDFromQuery(r.URL.Query())
-	if err != nil {
-		s.api.Err(w, r, err)
-		return
-	}
-
 	stackID, err := stackIDFromReq(r)
 	if err != nil {
 		s.api.Err(w, r, err)
 		return
 	}
 
-	pkg, err := s.svc.ExportStack(r.Context(), orgID, stackID)
+	pkg, err := s.svc.Export(r.Context(), ExportWithStackID(stackID))
 	if err != nil {
 		s.api.Err(w, r, err)
 		return
@@ -370,16 +386,17 @@ type ReqCreateOrgIDOpt struct {
 
 // ReqCreatePkg is a request body for the create pkg endpoint.
 type ReqCreatePkg struct {
+	StackID   string              `json:"stackID"`
 	OrgIDs    []ReqCreateOrgIDOpt `json:"orgIDs"`
 	Resources []ResourceToClone   `json:"resources"`
 }
 
 // OK validates a create request.
 func (r *ReqCreatePkg) OK() error {
-	if len(r.Resources) == 0 && len(r.OrgIDs) == 0 {
+	if len(r.Resources) == 0 && len(r.OrgIDs) == 0 && r.StackID == "" {
 		return &influxdb.Error{
 			Code: influxdb.EUnprocessableEntity,
-			Msg:  "at least 1 resource or 1 org id must be provided",
+			Msg:  "at least 1 resource, 1 org id, or stack id must be provided",
 		}
 	}
 
@@ -390,6 +407,11 @@ func (r *ReqCreatePkg) OK() error {
 				Msg:  fmt.Sprintf("provided org id is invalid: %q", org.OrgID),
 			}
 		}
+	}
+
+	if r.StackID != "" {
+		_, err := influxdb.IDFromString(r.StackID)
+		return err
 	}
 	return nil
 }
@@ -405,22 +427,34 @@ func (s *HTTPServer) createPkg(w http.ResponseWriter, r *http.Request) {
 	}
 	defer r.Body.Close()
 
-	opts := []CreatePkgSetFn{
-		CreateWithExistingResources(reqBody.Resources...),
+	opts := []ExportOptFn{
+		ExportWithExistingResources(reqBody.Resources...),
 	}
 	for _, orgIDStr := range reqBody.OrgIDs {
 		orgID, err := influxdb.IDFromString(orgIDStr.OrgID)
 		if err != nil {
 			continue
 		}
-		opts = append(opts, CreateWithAllOrgResources(CreateByOrgIDOpt{
+		opts = append(opts, ExportWithAllOrgResources(ExportByOrgIDOpt{
 			OrgID:         *orgID,
 			LabelNames:    orgIDStr.Filters.ByLabel,
 			ResourceKinds: orgIDStr.Filters.ByResourceKind,
 		}))
 	}
 
-	newPkg, err := s.svc.CreatePkg(r.Context(), opts...)
+	if reqBody.StackID != "" {
+		stackID, err := influxdb.IDFromString(reqBody.StackID)
+		if err != nil {
+			s.api.Err(w, r, &influxdb.Error{
+				Code: influxdb.EInvalid,
+				Msg:  fmt.Sprintf("invalid stack ID provided: %q", reqBody.StackID),
+			})
+			return
+		}
+		opts = append(opts, ExportWithStackID(*stackID))
+	}
+
+	newPkg, err := s.svc.Export(r.Context(), opts...)
 	if err != nil {
 		s.api.Err(w, r, err)
 		return
@@ -814,12 +848,23 @@ func newDecodeErr(encoding string, err error) *influxdb.Error {
 }
 
 func convertStackToRespStack(st Stack) RespStack {
+	resources := make([]RespStackResource, 0, len(st.Resources))
+	for _, r := range st.Resources {
+		resources = append(resources, RespStackResource{
+			APIVersion:   r.APIVersion,
+			ID:           r.ID.String(),
+			Kind:         r.Kind,
+			MetaName:     r.MetaName,
+			Associations: append([]StackResourceAssociation{}, r.Associations...),
+		})
+	}
+
 	return RespStack{
 		ID:          st.ID.String(),
 		OrgID:       st.OrgID.String(),
 		Name:        st.Name,
 		Description: st.Description,
-		Resources:   append([]StackResource{}, st.Resources...),
+		Resources:   resources,
 		Sources:     append([]string{}, st.Sources...),
 		URLs:        append([]string{}, st.URLs...),
 		CRUDLog:     st.CRUDLog,

@@ -43,30 +43,6 @@ func (s *HTTPRemoteService) DeleteStack(ctx context.Context, identifiers struct{
 		Do(ctx)
 }
 
-func (s *HTTPRemoteService) ExportStack(ctx context.Context, orgID, stackID influxdb.ID) (*Pkg, error) {
-	pkg := new(Pkg)
-	err := s.Client.
-		Get(RoutePrefix, "stacks", stackID.String(), "export").
-		QueryParams([2]string{"orgID", orgID.String()}).
-		Decode(func(resp *http.Response) error {
-			decodedPkg, err := Parse(EncodingJSON, FromReader(resp.Body, ""))
-			if err != nil {
-				return err
-			}
-			pkg = decodedPkg
-			return nil
-		}).
-		Do(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := pkg.Validate(ValidWithoutResources()); err != nil {
-		return nil, err
-	}
-	return pkg, nil
-}
-
 func (s *HTTPRemoteService) ListStacks(ctx context.Context, orgID influxdb.ID, f ListFilter) ([]Stack, error) {
 	queryParams := [][2]string{{"orgID", orgID.String()}}
 	for _, name := range f.Names {
@@ -128,13 +104,11 @@ func (s *HTTPRemoteService) UpdateStack(ctx context.Context, upd StackUpdate) (S
 	return convertRespStackToStack(respBody)
 }
 
-// CreatePkg will produce a pkg from the parameters provided.
-func (s *HTTPRemoteService) CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*Pkg, error) {
-	var opt CreateOpt
-	for _, setter := range setters {
-		if err := setter(&opt); err != nil {
-			return nil, err
-		}
+// Export will produce a pkg from the parameters provided.
+func (s *HTTPRemoteService) Export(ctx context.Context, opts ...ExportOptFn) (*Pkg, error) {
+	opt, err := exportOptFromOptFns(opts)
+	if err != nil {
+		return nil, err
 	}
 
 	var orgIDs []ReqCreateOrgIDOpt
@@ -152,12 +126,13 @@ func (s *HTTPRemoteService) CreatePkg(ctx context.Context, setters ...CreatePkgS
 	}
 
 	reqBody := ReqCreatePkg{
+		StackID:   opt.StackID.String(),
 		OrgIDs:    orgIDs,
 		Resources: opt.Resources,
 	}
 
 	var newPkg *Pkg
-	err := s.Client.
+	err = s.Client.
 		PostJSON(reqBody, RoutePrefix).
 		Decode(func(resp *http.Response) error {
 			pkg, err := Parse(EncodingJSON, FromReader(resp.Body, "export"))
@@ -178,25 +153,25 @@ func (s *HTTPRemoteService) CreatePkg(ctx context.Context, setters ...CreatePkgS
 // DryRun provides a dry run of the pkg application. The pkg will be marked verified
 // for later calls to Apply. This func will be run on an Apply if it has not been run
 // already.
-func (s *HTTPRemoteService) DryRun(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (PkgImpactSummary, error) {
+func (s *HTTPRemoteService) DryRun(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (ImpactSummary, error) {
 	return s.apply(ctx, orgID, true, opts...)
 }
 
 // Apply will apply all the resources identified in the provided pkg. The entire pkg will be applied
 // in its entirety. If a failure happens midway then the entire pkg will be rolled back to the state
 // from before the pkg was applied.
-func (s *HTTPRemoteService) Apply(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (PkgImpactSummary, error) {
+func (s *HTTPRemoteService) Apply(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (ImpactSummary, error) {
 	return s.apply(ctx, orgID, false, opts...)
 }
 
-func (s *HTTPRemoteService) apply(ctx context.Context, orgID influxdb.ID, dryRun bool, opts ...ApplyOptFn) (PkgImpactSummary, error) {
+func (s *HTTPRemoteService) apply(ctx context.Context, orgID influxdb.ID, dryRun bool, opts ...ApplyOptFn) (ImpactSummary, error) {
 	opt := applyOptFromOptFns(opts...)
 
 	var rawPkg ReqRawPkg
 	for _, pkg := range opt.Pkgs {
 		b, err := pkg.Encode(EncodingJSON)
 		if err != nil {
-			return PkgImpactSummary{}, err
+			return ImpactSummary{}, err
 		}
 		rawPkg.Pkg = b
 		rawPkg.Sources = pkg.sources
@@ -218,7 +193,7 @@ func (s *HTTPRemoteService) apply(ctx context.Context, orgID influxdb.ID, dryRun
 	for act := range opt.ResourcesToSkip {
 		b, err := json.Marshal(act)
 		if err != nil {
-			return PkgImpactSummary{}, influxErr(influxdb.EInvalid, err)
+			return ImpactSummary{}, influxErr(influxdb.EInvalid, err)
 		}
 		reqBody.RawActions = append(reqBody.RawActions, ReqRawAction{
 			Action:     string(ActionTypeSkipResource),
@@ -228,7 +203,7 @@ func (s *HTTPRemoteService) apply(ctx context.Context, orgID influxdb.ID, dryRun
 	for kind := range opt.KindsToSkip {
 		b, err := json.Marshal(ActionSkipKind{Kind: kind})
 		if err != nil {
-			return PkgImpactSummary{}, influxErr(influxdb.EInvalid, err)
+			return ImpactSummary{}, influxErr(influxdb.EInvalid, err)
 		}
 		reqBody.RawActions = append(reqBody.RawActions, ReqRawAction{
 			Action:     string(ActionTypeSkipKind),
@@ -242,10 +217,10 @@ func (s *HTTPRemoteService) apply(ctx context.Context, orgID influxdb.ID, dryRun
 		DecodeJSON(&resp).
 		Do(ctx)
 	if err != nil {
-		return PkgImpactSummary{}, err
+		return ImpactSummary{}, err
 	}
 
-	impact := PkgImpactSummary{
+	impact := ImpactSummary{
 		Sources: resp.Sources,
 		Diff:    resp.Diff,
 		Summary: resp.Summary,
@@ -264,8 +239,27 @@ func convertRespStackToStack(respStack RespStack) (Stack, error) {
 		Description: respStack.Description,
 		Sources:     respStack.Sources,
 		URLs:        respStack.URLs,
-		Resources:   respStack.Resources,
+		Resources:   make([]StackResource, 0, len(respStack.Resources)),
 		CRUDLog:     respStack.CRUDLog,
+	}
+	for _, r := range respStack.Resources {
+		sr := StackResource{
+			APIVersion:   r.APIVersion,
+			MetaName:     r.MetaName,
+			Kind:         r.Kind,
+			Associations: r.Associations,
+		}
+
+		resID, err := influxdb.IDFromString(r.ID)
+		if err != nil {
+			return Stack{}, influxErr(influxdb.EInternal, err)
+		}
+		sr.ID = *resID
+
+		if sr.MetaName == "" && r.PkgName != nil {
+			sr.MetaName = *r.PkgName
+		}
+		newStack.Resources = append(newStack.Resources, sr)
 	}
 
 	id, err := influxdb.IDFromString(respStack.ID)

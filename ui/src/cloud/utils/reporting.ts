@@ -23,8 +23,12 @@ const REPORT_MAX_LENGTH = 300 // max number of events to queue before sending
 
 export const toNano = (ms: number) => Math.round(ms * 1000000)
 
-export const updateReportingContext = (key: string, value: string) => {
-  reportingTags = {...reportingTags, [key]: value}
+interface KeyValue {
+  [key: string]: string
+}
+
+export const updateReportingContext = (properties: KeyValue) => {
+  reportingTags = {...reportingTags, ...properties}
 }
 
 export const reportEvent = ({
@@ -107,11 +111,14 @@ export const reportQueryPerformanceEvent = ({
   reportEvent({timestamp, measurement: 'UIQueryPerformance', fields, tags})
 }
 
-export const reportSimpleQueryPerformanceEvent = (event: string) => {
+export const reportSimpleQueryPerformanceEvent = (
+  event: string,
+  additionalTags: object = {}
+) => {
   reportQueryPerformanceEvent({
     timestamp: toNano(Date.now()),
     fields: {},
-    tags: {event},
+    tags: {event, ...additionalTags},
   })
 }
 

@@ -920,6 +920,9 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		labelSvc = label.NewLabelController(m.flagger, m.kvService, ls)
 	}
 
+	bucketSvc = storage.NewBucketService(bucketSvc, m.engine)
+	bucketSvc = dbrp.NewBucketService(m.log, bucketSvc, dbrpSvc)
+
 	m.apibackend = &http.APIBackend{
 		AssetsPath:           m.assetsPath,
 		HTTPErrorHandler:     kithttp.ErrorHandler(0),
@@ -934,7 +937,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		AuthorizationService: authSvc,
 		AlgoWProxy:           &http.NoopProxyHandler{},
 		// Wrap the BucketService in a storage backed one that will ensure deleted buckets are removed from the storage engine.
-		BucketService:                   storage.NewBucketService(bucketSvc, m.engine),
+		BucketService:                   bucketSvc,
 		SessionService:                  sessionSvc,
 		UserService:                     userSvc,
 		DBRPService:                     dbrpSvc,
@@ -1055,7 +1058,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		authService = authorization.NewAuthMetrics(m.reg, authService)
 		authService = authorization.NewAuthLogger(authLogger, authService)
 
-		newHandler := authorization.NewHTTPAuthHandler(m.log, authService, ts, lookupSvc)
+		newHandler := authorization.NewHTTPAuthHandler(m.log, authService, ts)
 		authHTTPServer = kithttp.NewFeatureHandler(feature.NewAuthPackage(), m.flagger, oldHandler, newHandler, newHandler.Prefix())
 	}
 

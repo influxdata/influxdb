@@ -436,11 +436,11 @@ func (s *stateCoordinator) addStackState(stack Stack) {
 
 func (s *stateCoordinator) reconcileStackResources(stackResources []StackResource) {
 	for _, r := range stackResources {
-		if !s.Contains(r.Kind, r.PkgName) {
-			s.addObjectForRemoval(r.Kind, r.PkgName, r.ID)
+		if !s.Contains(r.Kind, r.MetaName) {
+			s.addObjectForRemoval(r.Kind, r.MetaName, r.ID)
 			continue
 		}
-		s.setObjectID(r.Kind, r.PkgName, r.ID)
+		s.setObjectID(r.Kind, r.MetaName, r.ID)
 	}
 }
 
@@ -448,12 +448,12 @@ func (s *stateCoordinator) reconcileLabelMappings(stackResources []StackResource
 	mLabelPkgNameToID := make(map[string]influxdb.ID)
 	for _, r := range stackResources {
 		if r.Kind.is(KindLabel) {
-			mLabelPkgNameToID[r.PkgName] = r.ID
+			mLabelPkgNameToID[r.MetaName] = r.ID
 		}
 	}
 
 	for _, r := range stackResources {
-		labels := s.labelAssociations(r.Kind, r.PkgName)
+		labels := s.labelAssociations(r.Kind, r.MetaName)
 		if len(r.Associations) == 0 {
 			continue
 		}
@@ -483,7 +483,7 @@ func (s *stateCoordinator) reconcileLabelMappings(stackResources []StackResource
 				LabelPkgName:    assForRemoval.PkgName,
 				LabelID:         mLabelPkgNameToID[assForRemoval.PkgName],
 				ResourceID:      r.ID,
-				ResourcePkgName: r.PkgName,
+				ResourcePkgName: r.MetaName,
 				ResourceType:    r.Kind.ResourceType(),
 			})
 		}
@@ -495,7 +495,7 @@ func (s *stateCoordinator) reconcileNotificationDependencies(stackResources []St
 		if r.Kind.is(KindNotificationRule) {
 			for _, ass := range r.Associations {
 				if ass.Kind.is(KindNotificationEndpoint) {
-					s.mRules[r.PkgName].associatedEndpoint = s.mEndpoints[ass.PkgName]
+					s.mRules[r.MetaName].associatedEndpoint = s.mEndpoints[ass.PkgName]
 					break
 				}
 			}
@@ -1520,6 +1520,7 @@ func (v *stateVariable) shouldApply() bool {
 	return IsRemoval(v.stateStatus) ||
 		v.existing == nil ||
 		v.existing.Description != v.parserVar.Description ||
+		!reflect.DeepEqual(v.existing.Selected, v.parserVar.Selected()) ||
 		v.existing.Arguments == nil ||
 		!reflect.DeepEqual(v.existing.Arguments, v.parserVar.influxVarArgs())
 }
