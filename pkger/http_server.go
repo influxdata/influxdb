@@ -44,8 +44,8 @@ func NewHTTPServer(log *zap.Logger, svc SVC) *HTTPServer {
 
 	r := chi.NewRouter()
 	{
-		r.With(exportAllowContentTypes).Post("/", svr.createPkg)
-		r.With(setJSONContentType).Post("/apply", svr.applyPkg)
+		r.With(exportAllowContentTypes).Post("/", svr.export)
+		r.With(setJSONContentType).Post("/apply", svr.apply)
 
 		r.Route("/stacks", func(r chi.Router) {
 			r.Post("/", svr.createStack)
@@ -375,8 +375,8 @@ func getRequiredOrgIDFromQuery(q url.Values) (influxdb.ID, error) {
 	return *orgID, nil
 }
 
-// ReqCreateOrgIDOpt provides options to export resources by organization id.
-type ReqCreateOrgIDOpt struct {
+// ReqExportOrgIDOpt provides options to export resources by organization id.
+type ReqExportOrgIDOpt struct {
 	OrgID   string `json:"orgID"`
 	Filters struct {
 		ByLabel        []string `json:"byLabel"`
@@ -384,15 +384,15 @@ type ReqCreateOrgIDOpt struct {
 	} `json:"resourceFilters"`
 }
 
-// ReqCreatePkg is a request body for the create pkg endpoint.
-type ReqCreatePkg struct {
+// ReqExport is a request body for the export endpoint.
+type ReqExport struct {
 	StackID   string              `json:"stackID"`
-	OrgIDs    []ReqCreateOrgIDOpt `json:"orgIDs"`
+	OrgIDs    []ReqExportOrgIDOpt `json:"orgIDs"`
 	Resources []ResourceToClone   `json:"resources"`
 }
 
 // OK validates a create request.
-func (r *ReqCreatePkg) OK() error {
+func (r *ReqExport) OK() error {
 	if len(r.Resources) == 0 && len(r.OrgIDs) == 0 && r.StackID == "" {
 		return &influxdb.Error{
 			Code: influxdb.EUnprocessableEntity,
@@ -416,11 +416,11 @@ func (r *ReqCreatePkg) OK() error {
 	return nil
 }
 
-// RespCreatePkg is a response body for the create pkg endpoint.
-type RespCreatePkg []Object
+// RespExport is a response body for the create pkg endpoint.
+type RespExport []Object
 
-func (s *HTTPServer) createPkg(w http.ResponseWriter, r *http.Request) {
-	var reqBody ReqCreatePkg
+func (s *HTTPServer) export(w http.ResponseWriter, r *http.Request) {
+	var reqBody ReqExport
 	if err := s.api.DecodeJSON(r.Body, &reqBody); err != nil {
 		s.api.Err(w, r, err)
 		return
@@ -460,7 +460,7 @@ func (s *HTTPServer) createPkg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := RespCreatePkg(newPkg.Objects)
+	resp := RespExport(newPkg.Objects)
 	if resp == nil {
 		resp = []Object{}
 	}
@@ -478,26 +478,26 @@ func (s *HTTPServer) createPkg(w http.ResponseWriter, r *http.Request) {
 	s.encResp(w, r, enc, http.StatusOK, resp)
 }
 
-// ReqPkgRemote provides a package via a remote (i.e. a gist). If content type is not
+// ReqTemplateRemote provides a package via a remote (i.e. a gist). If content type is not
 // provided then the service will do its best to discern the content type of the
 // contents.
-type ReqPkgRemote struct {
+type ReqTemplateRemote struct {
 	URL         string `json:"url" yaml:"url"`
 	ContentType string `json:"contentType" yaml:"contentType"`
 }
 
 // Encoding returns the encoding type that corresponds to the given content type.
-func (p ReqPkgRemote) Encoding() Encoding {
+func (p ReqTemplateRemote) Encoding() Encoding {
 	return convertEncoding(p.ContentType, p.URL)
 }
 
-type ReqRawPkg struct {
+type ReqRawTemplate struct {
 	ContentType string          `json:"contentType" yaml:"contentType"`
 	Sources     []string        `json:"sources" yaml:"sources"`
 	Pkg         json.RawMessage `json:"contents" yaml:"contents"`
 }
 
-func (p ReqRawPkg) Encoding() Encoding {
+func (p ReqRawTemplate) Encoding() Encoding {
 	var source string
 	if len(p.Sources) > 0 {
 		source = p.Sources[0]
@@ -512,12 +512,12 @@ type ReqRawAction struct {
 	Properties json.RawMessage `json:"properties"`
 }
 
-// ReqApplyPkg is the request body for a json or yaml body for the apply pkg endpoint.
-type ReqApplyPkg struct {
-	DryRun  bool           `json:"dryRun" yaml:"dryRun"`
-	OrgID   string         `json:"orgID" yaml:"orgID"`
-	StackID *string        `json:"stackID" yaml:"stackID"` // optional: non nil value signals stack should be used
-	Remotes []ReqPkgRemote `json:"remotes" yaml:"remotes"`
+// ReqApply is the request body for a json or yaml body for the apply pkg endpoint.
+type ReqApply struct {
+	DryRun  bool                `json:"dryRun" yaml:"dryRun"`
+	OrgID   string              `json:"orgID" yaml:"orgID"`
+	StackID *string             `json:"stackID" yaml:"stackID"` // optional: non nil value signals stack should be used
+	Remotes []ReqTemplateRemote `json:"remotes" yaml:"remotes"`
 
 	// TODO(jsteenb2): pkg references will all be replaced by template references
 	// 	these 2 exist alongside the templates for backwards compatibility
@@ -526,8 +526,8 @@ type ReqApplyPkg struct {
 	RawPkgs []json.RawMessage `json:"packages" yaml:"packages"`
 	RawPkg  json.RawMessage   `json:"package" yaml:"package"`
 
-	RawTemplates []ReqRawPkg `json:"templates" yaml:"templates"`
-	RawTemplate  ReqRawPkg   `json:"template" yaml:"template"`
+	RawTemplates []ReqRawTemplate `json:"templates" yaml:"templates"`
+	RawTemplate  ReqRawTemplate   `json:"template" yaml:"template"`
 
 	EnvRefs map[string]string `json:"envRefs"`
 	Secrets map[string]string `json:"secrets"`
@@ -536,7 +536,7 @@ type ReqApplyPkg struct {
 }
 
 // Pkgs returns all pkgs associated with the request.
-func (r ReqApplyPkg) Pkgs(encoding Encoding) (*Pkg, error) {
+func (r ReqApply) Pkgs(encoding Encoding) (*Pkg, error) {
 	var rawPkgs []*Pkg
 	for _, rem := range r.Remotes {
 		if rem.URL == "" {
@@ -597,7 +597,7 @@ const (
 	ActionTypeSkipResource actionType = "skipResource"
 )
 
-func (r ReqApplyPkg) validActions() (struct {
+func (r ReqApply) validActions() (struct {
 	SkipKinds     []ActionSkipKind
 	SkipResources []ActionSkipResource
 }, error) {
@@ -649,8 +649,8 @@ func (r ReqApplyPkg) validActions() (struct {
 	return out, nil
 }
 
-// RespApplyPkg is the response body for the apply pkg endpoint.
-type RespApplyPkg struct {
+// RespApply is the response body for the apply pkg endpoint.
+type RespApply struct {
 	Sources []string `json:"sources" yaml:"sources"`
 	StackID string   `json:"stackID" yaml:"stackID"`
 	Diff    Diff     `json:"diff" yaml:"diff"`
@@ -659,8 +659,8 @@ type RespApplyPkg struct {
 	Errors []ValidationErr `json:"errors,omitempty" yaml:"errors,omitempty"`
 }
 
-func (s *HTTPServer) applyPkg(w http.ResponseWriter, r *http.Request) {
-	var reqBody ReqApplyPkg
+func (s *HTTPServer) apply(w http.ResponseWriter, r *http.Request) {
+	var reqBody ReqApply
 	encoding, err := decodeWithEncoding(r, &reqBody)
 	if err != nil {
 		s.api.Err(w, r, newDecodeErr(encoding.String(), err))
@@ -724,7 +724,7 @@ func (s *HTTPServer) applyPkg(w http.ResponseWriter, r *http.Request) {
 	if reqBody.DryRun {
 		impact, err := s.svc.DryRun(r.Context(), *orgID, userID, applyOpts...)
 		if IsParseErr(err) {
-			s.api.Respond(w, r, http.StatusUnprocessableEntity, RespApplyPkg{
+			s.api.Respond(w, r, http.StatusUnprocessableEntity, RespApply{
 				Sources: append([]string{}, impact.Sources...), // guarantee non nil slice
 				StackID: impact.StackID.String(),
 				Diff:    impact.Diff,
@@ -738,7 +738,7 @@ func (s *HTTPServer) applyPkg(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		s.api.Respond(w, r, http.StatusOK, RespApplyPkg{
+		s.api.Respond(w, r, http.StatusOK, RespApply{
 			Sources: append([]string{}, impact.Sources...), // guarantee non nil slice
 			StackID: impact.StackID.String(),
 			Diff:    impact.Diff,
@@ -755,7 +755,7 @@ func (s *HTTPServer) applyPkg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.api.Respond(w, r, http.StatusCreated, RespApplyPkg{
+	s.api.Respond(w, r, http.StatusCreated, RespApply{
 		Sources: append([]string{}, impact.Sources...), // guarantee non nil slice
 		StackID: impact.StackID.String(),
 		Diff:    impact.Diff,

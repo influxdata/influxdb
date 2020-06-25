@@ -68,7 +68,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 			svr := newMountedHandler(pkgHandler, 1)
 
 			testttp.
-				PostJSON(t, "/api/v2/packages", pkger.ReqCreatePkg{
+				PostJSON(t, "/api/v2/packages", pkger.ReqExport{
 					Resources: []pkger.ResourceToClone{
 						{
 							Kind: pkger.KindLabel,
@@ -98,7 +98,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 			svr := newMountedHandler(pkgHandler, 1)
 
 			testttp.
-				PostJSON(t, "/api/v2/packages", pkger.ReqCreatePkg{}).
+				PostJSON(t, "/api/v2/packages", pkger.ReqExport{}).
 				Headers("Content-Type", "application/json").
 				Do(svr).
 				ExpectStatus(http.StatusUnprocessableEntity)
@@ -111,12 +111,12 @@ func TestPkgerHTTPServer(t *testing.T) {
 			tests := []struct {
 				name        string
 				contentType string
-				reqBody     pkger.ReqApplyPkg
+				reqBody     pkger.ReqApply
 			}{
 				{
 					name:        "app json",
 					contentType: "application/json",
-					reqBody: pkger.ReqApplyPkg{
+					reqBody: pkger.ReqApply{
 						DryRun:      true,
 						OrgID:       influxdb.ID(9000).String(),
 						RawTemplate: bucketPkgKinds(t, pkger.EncodingJSON),
@@ -124,7 +124,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 				},
 				{
 					name: "defaults json when no content type",
-					reqBody: pkger.ReqApplyPkg{
+					reqBody: pkger.ReqApply{
 						DryRun:      true,
 						OrgID:       influxdb.ID(9000).String(),
 						RawTemplate: bucketPkgKinds(t, pkger.EncodingJSON),
@@ -132,10 +132,10 @@ func TestPkgerHTTPServer(t *testing.T) {
 				},
 				{
 					name: "retrieves package from a URL",
-					reqBody: pkger.ReqApplyPkg{
+					reqBody: pkger.ReqApply{
 						DryRun: true,
 						OrgID:  influxdb.ID(9000).String(),
-						Remotes: []pkger.ReqPkgRemote{{
+						Remotes: []pkger.ReqTemplateRemote{{
 							URL: newPkgURL(t, filesvr.URL, "testdata/remote_bucket.json"),
 						}},
 					},
@@ -143,7 +143,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 				{
 					name:        "app jsonnet",
 					contentType: "application/x-jsonnet",
-					reqBody: pkger.ReqApplyPkg{
+					reqBody: pkger.ReqApply{
 						DryRun:      true,
 						OrgID:       influxdb.ID(9000).String(),
 						RawTemplate: bucketPkgKinds(t, pkger.EncodingJsonnet),
@@ -192,7 +192,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 						Do(svr).
 						ExpectStatus(http.StatusOK).
 						ExpectBody(func(buf *bytes.Buffer) {
-							var resp pkger.RespApplyPkg
+							var resp pkger.RespApply
 							decodeBody(t, buf, &resp)
 
 							assert.Len(t, resp.Summary.Buckets, 1)
@@ -262,7 +262,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 						Do(svr).
 						ExpectStatus(http.StatusOK).
 						ExpectBody(func(buf *bytes.Buffer) {
-							var resp pkger.RespApplyPkg
+							var resp pkger.RespApply
 							decodeBody(t, buf, &resp)
 
 							assert.Len(t, resp.Summary.Buckets, 1)
@@ -275,7 +275,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 		})
 
 		t.Run("with multiple pkgs", func(t *testing.T) {
-			newBktPkg := func(t *testing.T, bktName string) pkger.ReqRawPkg {
+			newBktPkg := func(t *testing.T, bktName string) pkger.ReqRawTemplate {
 				t.Helper()
 
 				pkgStr := fmt.Sprintf(`[
@@ -294,7 +294,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 
 				pkgBytes, err := pkg.Encode(pkger.EncodingJSON)
 				require.NoError(t, err)
-				return pkger.ReqRawPkg{
+				return pkger.ReqRawTemplate{
 					ContentType: pkger.EncodingJSON.String(),
 					Sources:     pkg.Sources(),
 					Pkg:         pkgBytes,
@@ -303,19 +303,19 @@ func TestPkgerHTTPServer(t *testing.T) {
 
 			tests := []struct {
 				name         string
-				reqBody      pkger.ReqApplyPkg
+				reqBody      pkger.ReqApply
 				expectedBkts []string
 			}{
 				{
 					name: "retrieves package from a URL and raw pkgs",
-					reqBody: pkger.ReqApplyPkg{
+					reqBody: pkger.ReqApply{
 						DryRun: true,
 						OrgID:  influxdb.ID(9000).String(),
-						Remotes: []pkger.ReqPkgRemote{{
+						Remotes: []pkger.ReqTemplateRemote{{
 							ContentType: "json",
 							URL:         newPkgURL(t, filesvr.URL, "testdata/remote_bucket.json"),
 						}},
-						RawTemplates: []pkger.ReqRawPkg{
+						RawTemplates: []pkger.ReqRawTemplate{
 							newBktPkg(t, "bkt1"),
 							newBktPkg(t, "bkt2"),
 							newBktPkg(t, "bkt3"),
@@ -325,11 +325,11 @@ func TestPkgerHTTPServer(t *testing.T) {
 				},
 				{
 					name: "retrieves packages from raw single and list",
-					reqBody: pkger.ReqApplyPkg{
+					reqBody: pkger.ReqApply{
 						DryRun:      true,
 						OrgID:       influxdb.ID(9000).String(),
 						RawTemplate: newBktPkg(t, "bkt4"),
-						RawTemplates: []pkger.ReqRawPkg{
+						RawTemplates: []pkger.ReqRawTemplate{
 							newBktPkg(t, "bkt1"),
 							newBktPkg(t, "bkt2"),
 							newBktPkg(t, "bkt3"),
@@ -380,7 +380,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 						Do(svr).
 						ExpectStatus(http.StatusOK).
 						ExpectBody(func(buf *bytes.Buffer) {
-							var resp pkger.RespApplyPkg
+							var resp pkger.RespApply
 							decodeBody(t, buf, &resp)
 
 							require.Len(t, resp.Summary.Buckets, len(tt.expectedBkts))
@@ -398,13 +398,13 @@ func TestPkgerHTTPServer(t *testing.T) {
 			tests := []struct {
 				name               string
 				contentType        string
-				reqBody            pkger.ReqApplyPkg
+				reqBody            pkger.ReqApply
 				expectedStatusCode int
 			}{
 				{
 					name:        "invalid org id",
 					contentType: "application/json",
-					reqBody: pkger.ReqApplyPkg{
+					reqBody: pkger.ReqApply{
 						DryRun:      true,
 						OrgID:       "bad org id",
 						RawTemplate: bucketPkgKinds(t, pkger.EncodingJSON),
@@ -414,7 +414,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 				{
 					name:        "invalid stack id",
 					contentType: "application/json",
-					reqBody: pkger.ReqApplyPkg{
+					reqBody: pkger.ReqApply{
 						DryRun:      true,
 						OrgID:       influxdb.ID(9000).String(),
 						StackID:     strPtr("invalid stack id"),
@@ -495,7 +495,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 		svr := newMountedHandler(pkgHandler, 1)
 
 		testttp.
-			PostJSON(t, "/api/v2/packages/apply", pkger.ReqApplyPkg{
+			PostJSON(t, "/api/v2/packages/apply", pkger.ReqApply{
 				OrgID:       influxdb.ID(9000).String(),
 				Secrets:     map[string]string{"secret1": "val1"},
 				RawTemplate: bucketPkgKinds(t, pkger.EncodingJSON),
@@ -503,7 +503,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 			Do(svr).
 			ExpectStatus(http.StatusCreated).
 			ExpectBody(func(buf *bytes.Buffer) {
-				var resp pkger.RespApplyPkg
+				var resp pkger.RespApply
 				decodeBody(t, buf, &resp)
 
 				assert.Len(t, resp.Summary.Buckets, 1)
@@ -1071,7 +1071,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 	})
 }
 
-func bucketPkgKinds(t *testing.T, encoding pkger.Encoding) pkger.ReqRawPkg {
+func bucketPkgKinds(t *testing.T, encoding pkger.Encoding) pkger.ReqRawTemplate {
 	t.Helper()
 
 	var pkgStr string
@@ -1124,7 +1124,7 @@ spec:
 
 	b, err := pkg.Encode(encoding)
 	require.NoError(t, err)
-	return pkger.ReqRawPkg{
+	return pkger.ReqRawTemplate{
 		ContentType: encoding.String(),
 		Sources:     pkg.Sources(),
 		Pkg:         b,
@@ -1135,7 +1135,7 @@ func newReqApplyYMLBody(t *testing.T, orgID influxdb.ID, dryRun bool) *bytes.Buf
 	t.Helper()
 
 	var buf bytes.Buffer
-	err := yaml.NewEncoder(&buf).Encode(pkger.ReqApplyPkg{
+	err := yaml.NewEncoder(&buf).Encode(pkger.ReqApply{
 		DryRun:      dryRun,
 		OrgID:       orgID.String(),
 		RawTemplate: bucketPkgKinds(t, pkger.EncodingYAML),

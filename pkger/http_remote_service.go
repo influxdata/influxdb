@@ -111,9 +111,9 @@ func (s *HTTPRemoteService) Export(ctx context.Context, opts ...ExportOptFn) (*P
 		return nil, err
 	}
 
-	var orgIDs []ReqCreateOrgIDOpt
+	var orgIDs []ReqExportOrgIDOpt
 	for _, org := range opt.OrgIDs {
-		orgIDs = append(orgIDs, ReqCreateOrgIDOpt{
+		orgIDs = append(orgIDs, ReqExportOrgIDOpt{
 			OrgID: org.OrgID.String(),
 			Filters: struct {
 				ByLabel        []string `json:"byLabel"`
@@ -125,7 +125,7 @@ func (s *HTTPRemoteService) Export(ctx context.Context, opts ...ExportOptFn) (*P
 		})
 	}
 
-	reqBody := ReqCreatePkg{
+	reqBody := ReqExport{
 		StackID:   opt.StackID.String(),
 		OrgIDs:    orgIDs,
 		Resources: opt.Resources,
@@ -167,7 +167,7 @@ func (s *HTTPRemoteService) Apply(ctx context.Context, orgID, userID influxdb.ID
 func (s *HTTPRemoteService) apply(ctx context.Context, orgID influxdb.ID, dryRun bool, opts ...ApplyOptFn) (ImpactSummary, error) {
 	opt := applyOptFromOptFns(opts...)
 
-	var rawPkg ReqRawPkg
+	var rawPkg ReqRawTemplate
 	for _, pkg := range opt.Pkgs {
 		b, err := pkg.Encode(EncodingJSON)
 		if err != nil {
@@ -178,7 +178,7 @@ func (s *HTTPRemoteService) apply(ctx context.Context, orgID influxdb.ID, dryRun
 		rawPkg.ContentType = EncodingJSON.String()
 	}
 
-	reqBody := ReqApplyPkg{
+	reqBody := ReqApply{
 		OrgID:       orgID.String(),
 		DryRun:      dryRun,
 		EnvRefs:     opt.EnvRefs,
@@ -211,7 +211,7 @@ func (s *HTTPRemoteService) apply(ctx context.Context, orgID influxdb.ID, dryRun
 		})
 	}
 
-	var resp RespApplyPkg
+	var resp RespApply
 	err := s.Client.
 		PostJSON(reqBody, RoutePrefix, "/apply").
 		DecodeJSON(&resp).

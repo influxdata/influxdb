@@ -34,7 +34,7 @@ func cmdApply(f *globalFlags, opts genericCLIOpts) *cobra.Command {
 }
 
 func cmdExport(f *globalFlags, opts genericCLIOpts) *cobra.Command {
-	return newCmdPkgBuilder(newPkgerSVC, f, opts).cmdPkgExport()
+	return newCmdPkgBuilder(newPkgerSVC, f, opts).cmdExport()
 }
 
 func cmdStack(f *globalFlags, opts genericCLIOpts) *cobra.Command {
@@ -103,10 +103,10 @@ func (b *cmdPkgBuilder) cmdApply() *cobra.Command {
 	// all these commands are deprecated under the old pkg cmds.
 	// these are moving to root commands.
 	deprecatedCmds := []*cobra.Command{
-		b.cmdPkgExport(),
+		b.cmdExport(),
 		b.cmdTemplateSummary(),
 		b.cmdStackDeprecated(),
-		b.cmdPkgValidate(),
+		b.cmdTemplateValidate(),
 	}
 	for i := range deprecatedCmds {
 		deprecatedCmds[i].Hidden = true
@@ -118,7 +118,7 @@ func (b *cmdPkgBuilder) cmdApply() *cobra.Command {
 }
 
 func (b *cmdPkgBuilder) cmdPkgApply() *cobra.Command {
-	cmd := b.newCmd("apply", b.pkgApplyRunEFn)
+	cmd := b.newCmd("apply", b.applyRunEFn)
 	cmd.Aliases = []string{"pkg"}
 	cmd.Short = "Apply a template to manage resources"
 	cmd.Long = `
@@ -192,7 +192,7 @@ func (b *cmdPkgBuilder) cmdPkgApply() *cobra.Command {
 	return cmd
 }
 
-func (b *cmdPkgBuilder) pkgApplyRunEFn(cmd *cobra.Command, args []string) error {
+func (b *cmdPkgBuilder) applyRunEFn(cmd *cobra.Command, args []string) error {
 	if err := b.org.validOrgFlags(&flags); err != nil {
 		return err
 	}
@@ -321,8 +321,8 @@ func parseTemplateActions(args []string) ([]pkger.ApplyOptFn, error) {
 	return opts, nil
 }
 
-func (b *cmdPkgBuilder) cmdPkgExport() *cobra.Command {
-	cmd := b.newCmd("export", b.pkgExportRunEFn)
+func (b *cmdPkgBuilder) cmdExport() *cobra.Command {
+	cmd := b.newCmd("export", b.exportRunEFn)
 	cmd.Short = "Export existing resources as a template"
 	cmd.Long = `
 	The export command provides a mechanism to export existing resources to a
@@ -338,6 +338,12 @@ func (b *cmdPkgBuilder) cmdPkgExport() *cobra.Command {
 			--labels=$LID1,$LID2,$LID3 \
 			--dashboards=$DID1,$DID2,$DID3
 
+		# export all resources for a stack
+		influx export --stack-id $STACK_ID
+
+		# export a stack with resources not associated with the stack
+		influx export --stack-id $STACK_ID --buckets $BUCKET_ID
+
 	All of the resources are supported via the examples provided above. Provide the
 	resource flag and then provide the IDs.
 
@@ -345,12 +351,13 @@ func (b *cmdPkgBuilder) cmdPkgExport() *cobra.Command {
 	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/export/
 `
 	cmd.AddCommand(
-		b.cmdPkgExportAll(),
-		b.cmdPkgExportStack(),
+		b.cmdExportAll(),
+		b.cmdExportStack(),
 	)
 
-	cmd.Flags().StringVarP(&b.file, "file", "f", "", "output file for created template; defaults to std out if no file provided; the extension of provided file (.yml/.json) will dictate encoding")
-	cmd.Flags().StringVar(&b.exportOpts.resourceType, "resource-type", "", "The resource type provided will be associated with all IDs via stdin.")
+	cmd.Flags().StringVarP(&b.file, "file", "f", "", "Output file for created template; defaults to std out if no file provided; the extension of provided file (.yml/.json) will dictate encoding")
+	cmd.Flags().StringVar(&b.stackID, "stack-id", "", "ID for stack to include in export")
+	cmd.Flags().StringVar(&b.exportOpts.resourceType, "resource-type", "", "Resource type provided will be associated with all IDs via stdin.")
 	cmd.Flags().StringVar(&b.exportOpts.buckets, "buckets", "", "List of bucket ids comma separated")
 	cmd.Flags().StringVar(&b.exportOpts.checks, "checks", "", "List of check ids comma separated")
 	cmd.Flags().StringVar(&b.exportOpts.dashboards, "dashboards", "", "List of dashboard ids comma separated")
@@ -364,7 +371,7 @@ func (b *cmdPkgBuilder) cmdPkgExport() *cobra.Command {
 	return cmd
 }
 
-func (b *cmdPkgBuilder) pkgExportRunEFn(cmd *cobra.Command, args []string) error {
+func (b *cmdPkgBuilder) exportRunEFn(cmd *cobra.Command, args []string) error {
 	pkgSVC, _, err := b.svcFn()
 	if err != nil {
 		return err
@@ -392,6 +399,14 @@ func (b *cmdPkgBuilder) pkgExportRunEFn(cmd *cobra.Command, args []string) error
 			return ierror.Wrap(err, rt.kind.String())
 		}
 		opts = append(opts, newOpt)
+	}
+
+	if b.stackID != "" {
+		stackID, err := influxdb.IDFromString(b.stackID)
+		if err != nil {
+			return ierror.Wrap(err, "invalid stack ID provided")
+		}
+		opts = append(opts, pkger.ExportWithStackID(*stackID))
 	}
 
 	if b.exportOpts.resourceType == "" {
@@ -422,12 +437,13 @@ func (b *cmdPkgBuilder) pkgExportRunEFn(cmd *cobra.Command, args []string) error
 	if err != nil {
 		return err
 	}
+	opts = append(opts, resTypeOpt)
 
-	return b.exportPkg(cmd.OutOrStdout(), pkgSVC, b.file, append(opts, resTypeOpt)...)
+	return b.exportPkg(cmd.OutOrStdout(), pkgSVC, b.file, opts...)
 }
 
-func (b *cmdPkgBuilder) cmdPkgExportAll() *cobra.Command {
-	cmd := b.newCmd("all", b.pkgExportAllRunEFn)
+func (b *cmdPkgBuilder) cmdExportAll() *cobra.Command {
+	cmd := b.newCmd("all", b.exportAllRunEFn)
 	cmd.Short = "Export all existing resources for an organization as a template"
 	cmd.Long = `
 	The export all command will export all resources for an organization. The
@@ -471,7 +487,7 @@ func (b *cmdPkgBuilder) cmdPkgExportAll() *cobra.Command {
 	return cmd
 }
 
-func (b *cmdPkgBuilder) pkgExportAllRunEFn(cmd *cobra.Command, args []string) error {
+func (b *cmdPkgBuilder) exportAllRunEFn(cmd *cobra.Command, args []string) error {
 	pkgSVC, orgSVC, err := b.svcFn()
 	if err != nil {
 		return err
@@ -513,8 +529,8 @@ func (b *cmdPkgBuilder) pkgExportAllRunEFn(cmd *cobra.Command, args []string) er
 	return b.exportPkg(cmd.OutOrStdout(), pkgSVC, b.file, orgOpt)
 }
 
-func (b *cmdPkgBuilder) cmdPkgExportStack() *cobra.Command {
-	cmd := b.newCmd("stack $STACK_ID", b.pkgExportStackRunEFn)
+func (b *cmdPkgBuilder) cmdExportStack() *cobra.Command {
+	cmd := b.newCmd("stack $STACK_ID", b.exportStackRunEFn)
 	cmd.Short = "Export all existing resources for associated with a stack as a template"
 	cmd.Long = `
 	The export stack command exports the resources associated with a stack as
@@ -538,7 +554,7 @@ func (b *cmdPkgBuilder) cmdPkgExportStack() *cobra.Command {
 	return cmd
 }
 
-func (b *cmdPkgBuilder) pkgExportStackRunEFn(cmd *cobra.Command, args []string) error {
+func (b *cmdPkgBuilder) exportStackRunEFn(cmd *cobra.Command, args []string) error {
 	pkgSVC, _, err := b.svcFn()
 	if err != nil {
 		return err
@@ -560,7 +576,7 @@ func (b *cmdPkgBuilder) pkgExportStackRunEFn(cmd *cobra.Command, args []string) 
 func (b *cmdPkgBuilder) cmdTemplate() *cobra.Command {
 	cmd := b.newTemplateCmd("template")
 	cmd.Short = "Summarize the provided template"
-	cmd.AddCommand(b.cmdPkgValidate())
+	cmd.AddCommand(b.cmdTemplateValidate())
 	return cmd
 }
 
@@ -588,7 +604,7 @@ func (b *cmdPkgBuilder) newTemplateCmd(usage string) *cobra.Command {
 	return cmd
 }
 
-func (b *cmdPkgBuilder) cmdPkgValidate() *cobra.Command {
+func (b *cmdPkgBuilder) cmdTemplateValidate() *cobra.Command {
 	runE := func(cmd *cobra.Command, args []string) error {
 		pkg, _, err := b.readPkg()
 		if err != nil {
