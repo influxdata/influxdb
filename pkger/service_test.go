@@ -85,7 +85,7 @@ func TestService(t *testing.T) {
 			path          string
 			kinds         []Kind
 			skipResources []ActionSkipResource
-			assertFn      func(*testing.T, PkgImpactSummary)
+			assertFn      func(*testing.T, ImpactSummary)
 		}
 
 		testDryRunActions := func(t *testing.T, fields dryRunTestFields) {
@@ -231,7 +231,7 @@ func TestService(t *testing.T) {
 							MetaName: "rucket-11",
 						},
 					},
-					assertFn: func(t *testing.T, impact PkgImpactSummary) {
+					assertFn: func(t *testing.T, impact ImpactSummary) {
 						require.Empty(t, impact.Diff.Buckets)
 					},
 				})
@@ -293,7 +293,7 @@ func TestService(t *testing.T) {
 							MetaName: "check-1",
 						},
 					},
-					assertFn: func(t *testing.T, impact PkgImpactSummary) {
+					assertFn: func(t *testing.T, impact ImpactSummary) {
 						require.Empty(t, impact.Diff.Checks)
 					},
 				})
@@ -315,7 +315,7 @@ func TestService(t *testing.T) {
 							MetaName: "dash-2",
 						},
 					},
-					assertFn: func(t *testing.T, impact PkgImpactSummary) {
+					assertFn: func(t *testing.T, impact ImpactSummary) {
 						require.Empty(t, impact.Diff.Dashboards)
 					},
 				})
@@ -426,7 +426,7 @@ func TestService(t *testing.T) {
 							MetaName: "label-3",
 						},
 					},
-					assertFn: func(t *testing.T, impact PkgImpactSummary) {
+					assertFn: func(t *testing.T, impact ImpactSummary) {
 						require.Empty(t, impact.Diff.Labels)
 					},
 				})
@@ -532,7 +532,7 @@ func TestService(t *testing.T) {
 							MetaName: "pager-duty-notification-endpoint",
 						},
 					},
-					assertFn: func(t *testing.T, impact PkgImpactSummary) {
+					assertFn: func(t *testing.T, impact ImpactSummary) {
 						require.Empty(t, impact.Diff.NotificationEndpoints)
 					},
 				})
@@ -600,7 +600,7 @@ func TestService(t *testing.T) {
 							MetaName: "rule-uuid",
 						},
 					},
-					assertFn: func(t *testing.T, impact PkgImpactSummary) {
+					assertFn: func(t *testing.T, impact ImpactSummary) {
 						require.Empty(t, impact.Diff.NotificationRules)
 					},
 				})
@@ -637,7 +637,7 @@ func TestService(t *testing.T) {
 							MetaName: "task-1",
 						},
 					},
-					assertFn: func(t *testing.T, impact PkgImpactSummary) {
+					assertFn: func(t *testing.T, impact ImpactSummary) {
 						require.Empty(t, impact.Diff.Tasks)
 					},
 				})
@@ -659,7 +659,7 @@ func TestService(t *testing.T) {
 							MetaName: "tele-2",
 						},
 					},
-					assertFn: func(t *testing.T, impact PkgImpactSummary) {
+					assertFn: func(t *testing.T, impact ImpactSummary) {
 						require.Empty(t, impact.Diff.Telegrafs)
 					},
 				})
@@ -749,7 +749,7 @@ func TestService(t *testing.T) {
 							MetaName: "var-map-4",
 						},
 					},
-					assertFn: func(t *testing.T, impact PkgImpactSummary) {
+					assertFn: func(t *testing.T, impact ImpactSummary) {
 						require.Empty(t, impact.Diff.Variables)
 					},
 				})

@@ -66,13 +66,13 @@ func (s *mwMetrics) Export(ctx context.Context, opts ...ExportOptFn) (*Pkg, erro
 	return pkg, rec(err)
 }
 
-func (s *mwMetrics) DryRun(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (PkgImpactSummary, error) {
+func (s *mwMetrics) DryRun(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (ImpactSummary, error) {
 	rec := s.rec.Record("dry_run")
 	impact, err := s.next.DryRun(ctx, orgID, userID, opts...)
 	return impact, rec(err, applyMetricAdditions(orgID, userID, impact.Sources))
 }
 
-func (s *mwMetrics) Apply(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (PkgImpactSummary, error) {
+func (s *mwMetrics) Apply(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (ImpactSummary, error) {
 	rec := s.rec.Record("apply")
 	impact, err := s.next.Apply(ctx, orgID, userID, opts...)
 	return impact, rec(err, applyMetricAdditions(orgID, userID, impact.Sources))

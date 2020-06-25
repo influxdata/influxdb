@@ -470,7 +470,7 @@ func TestLauncher_Pkger(t *testing.T) {
 			})
 			defer cleanup()
 
-			sumEquals := func(t *testing.T, impact pkger.PkgImpactSummary) {
+			sumEquals := func(t *testing.T, impact pkger.ImpactSummary) {
 				t.Helper()
 
 				assert.Equal(t, expectedURLs, impact.Sources)
@@ -1597,7 +1597,7 @@ func TestLauncher_Pkger(t *testing.T) {
 				name      string
 				pkgFn     func(t *testing.T) *pkger.Pkg
 				applyOpts []pkger.ApplyOptFn
-				assertFn  func(t *testing.T, impact pkger.PkgImpactSummary)
+				assertFn  func(t *testing.T, impact pkger.ImpactSummary)
 			}{
 				{
 					name:  "skip resource",
@@ -1640,7 +1640,7 @@ func TestLauncher_Pkger(t *testing.T) {
 							MetaName: variablePkgName,
 						}),
 					},
-					assertFn: func(t *testing.T, impact pkger.PkgImpactSummary) {
+					assertFn: func(t *testing.T, impact pkger.ImpactSummary) {
 						summary := impact.Summary
 						assert.Empty(t, summary.Buckets)
 						assert.Empty(t, summary.Checks)
@@ -1685,7 +1685,7 @@ func TestLauncher_Pkger(t *testing.T) {
 							Kind: pkger.KindVariable,
 						}),
 					},
-					assertFn: func(t *testing.T, impact pkger.PkgImpactSummary) {
+					assertFn: func(t *testing.T, impact pkger.ImpactSummary) {
 						summary := impact.Summary
 						assert.Empty(t, summary.Buckets)
 						assert.Empty(t, summary.Checks)
@@ -1727,7 +1727,7 @@ func TestLauncher_Pkger(t *testing.T) {
 							Kind: pkger.KindLabel,
 						}),
 					},
-					assertFn: func(t *testing.T, impact pkger.PkgImpactSummary) {
+					assertFn: func(t *testing.T, impact pkger.ImpactSummary) {
 						summary := impact.Summary
 						assert.Empty(t, summary.Labels, 0)
 						assert.Empty(t, summary.LabelMappings)

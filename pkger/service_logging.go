@@ -135,7 +135,7 @@ func (s *loggingMW) Export(ctx context.Context, opts ...ExportOptFn) (pkg *Pkg, 
 	return s.next.Export(ctx, opts...)
 }
 
-func (s *loggingMW) DryRun(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (impact PkgImpactSummary, err error) {
+func (s *loggingMW) DryRun(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (impact ImpactSummary, err error) {
 	defer func(start time.Time) {
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {
@@ -163,7 +163,7 @@ func (s *loggingMW) DryRun(ctx context.Context, orgID, userID influxdb.ID, opts 
 	return s.next.DryRun(ctx, orgID, userID, opts...)
 }
 
-func (s *loggingMW) Apply(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (impact PkgImpactSummary, err error) {
+func (s *loggingMW) Apply(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (impact ImpactSummary, err error) {
 	defer func(start time.Time) {
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {

@@ -153,25 +153,25 @@ func (s *HTTPRemoteService) Export(ctx context.Context, opts ...ExportOptFn) (*P
 // DryRun provides a dry run of the pkg application. The pkg will be marked verified
 // for later calls to Apply. This func will be run on an Apply if it has not been run
 // already.
-func (s *HTTPRemoteService) DryRun(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (PkgImpactSummary, error) {
+func (s *HTTPRemoteService) DryRun(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (ImpactSummary, error) {
 	return s.apply(ctx, orgID, true, opts...)
 }
 
 // Apply will apply all the resources identified in the provided pkg. The entire pkg will be applied
 // in its entirety. If a failure happens midway then the entire pkg will be rolled back to the state
 // from before the pkg was applied.
-func (s *HTTPRemoteService) Apply(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (PkgImpactSummary, error) {
+func (s *HTTPRemoteService) Apply(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (ImpactSummary, error) {
 	return s.apply(ctx, orgID, false, opts...)
 }
 
-func (s *HTTPRemoteService) apply(ctx context.Context, orgID influxdb.ID, dryRun bool, opts ...ApplyOptFn) (PkgImpactSummary, error) {
+func (s *HTTPRemoteService) apply(ctx context.Context, orgID influxdb.ID, dryRun bool, opts ...ApplyOptFn) (ImpactSummary, error) {
 	opt := applyOptFromOptFns(opts...)
 
 	var rawPkg ReqRawPkg
 	for _, pkg := range opt.Pkgs {
 		b, err := pkg.Encode(EncodingJSON)
 		if err != nil {
-			return PkgImpactSummary{}, err
+			return ImpactSummary{}, err
 		}
 		rawPkg.Pkg = b
 		rawPkg.Sources = pkg.sources
@@ -193,7 +193,7 @@ func (s *HTTPRemoteService) apply(ctx context.Context, orgID influxdb.ID, dryRun
 	for act := range opt.ResourcesToSkip {
 		b, err := json.Marshal(act)
 		if err != nil {
-			return PkgImpactSummary{}, influxErr(influxdb.EInvalid, err)
+			return ImpactSummary{}, influxErr(influxdb.EInvalid, err)
 		}
 		reqBody.RawActions = append(reqBody.RawActions, ReqRawAction{
 			Action:     string(ActionTypeSkipResource),
@@ -203,7 +203,7 @@ func (s *HTTPRemoteService) apply(ctx context.Context, orgID influxdb.ID, dryRun
 	for kind := range opt.KindsToSkip {
 		b, err := json.Marshal(ActionSkipKind{Kind: kind})
 		if err != nil {
-			return PkgImpactSummary{}, influxErr(influxdb.EInvalid, err)
+			return ImpactSummary{}, influxErr(influxdb.EInvalid, err)
 		}
 		reqBody.RawActions = append(reqBody.RawActions, ReqRawAction{
 			Action:     string(ActionTypeSkipKind),
@@ -217,10 +217,10 @@ func (s *HTTPRemoteService) apply(ctx context.Context, orgID influxdb.ID, dryRun
 		DecodeJSON(&resp).
 		Do(ctx)
 	if err != nil {
-		return PkgImpactSummary{}, err
+		return ImpactSummary{}, err
 	}
 
-	impact := PkgImpactSummary{
+	impact := ImpactSummary{
 		Sources: resp.Sources,
 		Diff:    resp.Diff,
 		Summary: resp.Summary,

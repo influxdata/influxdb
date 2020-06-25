@@ -91,10 +91,10 @@ func (s *authMW) Export(ctx context.Context, opts ...ExportOptFn) (*Pkg, error) 
 	return s.next.Export(ctx, opts...)
 }
 
-func (s *authMW) DryRun(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (PkgImpactSummary, error) {
+func (s *authMW) DryRun(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (ImpactSummary, error) {
 	return s.next.DryRun(ctx, orgID, userID, opts...)
 }
 
-func (s *authMW) Apply(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (PkgImpactSummary, error) {
+func (s *authMW) Apply(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (ImpactSummary, error) {
 	return s.next.Apply(ctx, orgID, userID, opts...)
 }
