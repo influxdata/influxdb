@@ -57,12 +57,17 @@ func NewGroupResultSet(ctx context.Context, req *datatypes.ReadGroupRequest, new
 		o(g)
 	}
 
-	ascending := true
-	if req.Aggregate != nil {
-		ascending = req.Aggregate.Type != datatypes.AggregateTypeLast
-	}
-
-	g.arrayCursors = newArrayCursors(ctx, req.Range.Start, req.Range.End, ascending)
+	g.arrayCursors = newArrayCursors(
+		ctx,
+		req.Range.Start,
+		req.Range.End,
+		// The following is an optimization where the selector `last`
+		// is implemented as a descending array cursor followed by a
+		// limit array cursor that selects only the first point, i.e
+		// the point with the largest timestamp, from the descending
+		// array cursor.
+		req.Aggregate == nil || req.Aggregate.Type != datatypes.AggregateTypeLast,
+	)
 
 	for i, k := range req.GroupKeys {
 		g.keys[i] = []byte(k)

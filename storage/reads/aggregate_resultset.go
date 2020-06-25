@@ -33,7 +33,13 @@ func NewWindowAggregateResultSet(ctx context.Context, req *datatypes.ReadWindowA
 	}
 
 	ascending := true
-	if len(req.Aggregate) > 0 && req.Aggregate[0].Type == datatypes.AggregateTypeLast {
+
+	// The following is an optimization where in the case of a single window,
+	// the selector `last` is implemented as a descending array cursor followed
+	// by a limit array cursor that selects only the first point, i.e the point
+	// with the largest timestamp, from the descending array cursor.
+	//
+	if req.Aggregate[0].Type == datatypes.AggregateTypeLast && (req.WindowEvery == 0 || req.WindowEvery == math.MaxInt64) {
 		ascending = false
 	}
 
