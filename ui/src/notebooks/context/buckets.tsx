@@ -1,4 +1,4 @@
-import React, {FC} from 'react'
+import React, {FC, useEffect} from 'react'
 import {connect} from 'react-redux'
 
 // Actions
@@ -38,17 +38,25 @@ export const BucketContext = React.createContext<BucketContextType>(
 
 let GLOBAL_LOADING = false
 
-const lockAndLoad = async () => {
+const lockAndLoad = async grabber => {
   GLOBAL_LOADING = true
-  await getBuckets()
+  await grabber()
   GLOBAL_LOADING = false
 }
 
 export const BucketProvider: FC<Props> = React.memo(
   ({loading, getBuckets, buckets, children}) => {
-    if (!GLOBAL_LOADING && loading === RemoteDataState.NotStarted) {
-      lockAndLoad()
-    }
+    useEffect(() => {
+      if (loading !== RemoteDataState.NotStarted) {
+        return
+      }
+
+      if (GLOBAL_LOADING) {
+        return
+      }
+
+      lockAndLoad(getBuckets)
+    }, [loading])
 
     return (
       <BucketContext.Provider
