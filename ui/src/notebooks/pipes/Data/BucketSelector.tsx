@@ -21,7 +21,7 @@ interface Props {
 }
 
 const BucketSelector: FC<Props> = ({onUpdate, data}) => {
-  const bucketName = data.bucketName
+  const selectedBucketName = data.bucketName
   const {buckets, loading} = useContext(BucketContext)
 
   const updateBucket = (updatedBucket: Bucket): void => {
@@ -29,9 +29,9 @@ const BucketSelector: FC<Props> = ({onUpdate, data}) => {
   }
 
   useEffect(() => {
-    // bucketName will only evaluate false on the initial render
+    // selectedBucketName will only evaluate false on the initial render
     // because there is no default value
-    if (!!buckets.length && !bucketName) {
+    if (!!buckets.length && !selectedBucketName) {
       updateBucket(buckets[0])
     }
   }, [buckets])
@@ -54,7 +54,7 @@ const BucketSelector: FC<Props> = ({onUpdate, data}) => {
     )
   }
 
-  if (loading === RemoteDataState.Done && bucketName) {
+  if (loading === RemoteDataState.Done && selectedBucketName) {
     body = (
       <DapperScrollbars className="data-source--list">
         {buckets.map(bucket => (
@@ -62,7 +62,7 @@ const BucketSelector: FC<Props> = ({onUpdate, data}) => {
             key={bucket.name}
             value={bucket}
             onClick={updateBucket}
-            selected={bucket.name === bucketName}
+            selected={bucket.name === selectedBucketName}
             text={bucket.name}
           />
         ))}
