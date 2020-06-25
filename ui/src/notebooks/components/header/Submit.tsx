@@ -56,6 +56,16 @@ export const Submit: FC = () => {
               instances: [index],
               requirements,
             })
+          } else if (pipe.type === 'data') {
+            const {bucketName, timeStart, timeStop} = pipe
+
+            const text = `from(bucket: "${bucketName}")|>range(start: ${timeStart}, stop: ${timeStop})`
+
+            stages.push({
+              text,
+              instances: [index],
+              requirements: {},
+            })
           } else if (stages.length) {
             stages[stages.length - 1].instances.push(index)
           }
