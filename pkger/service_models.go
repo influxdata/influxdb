@@ -725,7 +725,6 @@ func (b *stateBucket) diffBucket() DiffBucket {
 	diff := DiffBucket{
 		DiffIdentifier: DiffIdentifier{
 			ID:          SafeID(b.ID()),
-			Remove:      IsRemoval(b.stateStatus),
 			StateStatus: b.stateStatus,
 			PkgName:     b.parserBkt.PkgName(),
 		},
@@ -834,7 +833,6 @@ func (c *stateCheck) diffCheck() DiffCheck {
 	diff := DiffCheck{
 		DiffIdentifier: DiffIdentifier{
 			ID:          SafeID(c.ID()),
-			Remove:      IsRemoval(c.stateStatus),
 			StateStatus: c.stateStatus,
 			PkgName:     c.parserCheck.PkgName(),
 		},
@@ -899,7 +897,6 @@ func (d *stateDashboard) diffDashboard() DiffDashboard {
 	diff := DiffDashboard{
 		DiffIdentifier: DiffIdentifier{
 			ID:          SafeID(d.ID()),
-			Remove:      IsRemoval(d.stateStatus),
 			StateStatus: d.stateStatus,
 			PkgName:     d.parserDash.PkgName(),
 		},
@@ -967,9 +964,7 @@ type stateLabel struct {
 func (l *stateLabel) diffLabel() DiffLabel {
 	diff := DiffLabel{
 		DiffIdentifier: DiffIdentifier{
-			ID: SafeID(l.ID()),
-			// TODO: axe Remove field when StateStatus is adopted
-			Remove:      IsRemoval(l.stateStatus),
+			ID:          SafeID(l.ID()),
 			StateStatus: l.stateStatus,
 			PkgName:     l.parserLabel.PkgName(),
 		},
@@ -1121,7 +1116,6 @@ func (e *stateEndpoint) diffEndpoint() DiffNotificationEndpoint {
 	diff := DiffNotificationEndpoint{
 		DiffIdentifier: DiffIdentifier{
 			ID:          SafeID(e.ID()),
-			Remove:      IsRemoval(e.stateStatus),
 			StateStatus: e.stateStatus,
 			PkgName:     e.parserEndpoint.PkgName(),
 		},
@@ -1201,9 +1195,9 @@ func (r *stateRule) endpointAssociation() StackResourceAssociation {
 func (r *stateRule) diffRule() DiffNotificationRule {
 	sum := DiffNotificationRule{
 		DiffIdentifier: DiffIdentifier{
-			ID:      SafeID(r.ID()),
-			Remove:  IsRemoval(r.stateStatus),
-			PkgName: r.parserRule.PkgName(),
+			ID:          SafeID(r.ID()),
+			StateStatus: r.stateStatus,
+			PkgName:     r.parserRule.PkgName(),
 		},
 		New: DiffNotificationRuleValues{
 			Name:            r.parserRule.Name(),
@@ -1356,9 +1350,9 @@ func (t *stateTask) ID() influxdb.ID {
 func (t *stateTask) diffTask() DiffTask {
 	diff := DiffTask{
 		DiffIdentifier: DiffIdentifier{
-			ID:      SafeID(t.ID()),
-			Remove:  IsRemoval(t.stateStatus),
-			PkgName: t.parserTask.PkgName(),
+			ID:          SafeID(t.ID()),
+			StateStatus: t.stateStatus,
+			PkgName:     t.parserTask.PkgName(),
 		},
 		New: DiffTaskValues{
 			Name:        t.parserTask.Name(),
@@ -1432,9 +1426,9 @@ func (t *stateTelegraf) ID() influxdb.ID {
 func (t *stateTelegraf) diffTelegraf() DiffTelegraf {
 	return DiffTelegraf{
 		DiffIdentifier: DiffIdentifier{
-			ID:      SafeID(t.ID()),
-			Remove:  IsRemoval(t.stateStatus),
-			PkgName: t.parserTelegraf.PkgName(),
+			ID:          SafeID(t.ID()),
+			StateStatus: t.stateStatus,
+			PkgName:     t.parserTelegraf.PkgName(),
 		},
 		New: t.parserTelegraf.config,
 		Old: t.existing,
@@ -1487,7 +1481,6 @@ func (v *stateVariable) diffVariable() DiffVariable {
 	diff := DiffVariable{
 		DiffIdentifier: DiffIdentifier{
 			ID:          SafeID(v.ID()),
-			Remove:      IsRemoval(v.stateStatus),
 			StateStatus: v.stateStatus,
 			PkgName:     v.parserVar.PkgName(),
 		},

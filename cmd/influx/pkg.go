@@ -1286,9 +1286,9 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
 
 			newRow := appendValues(l.ID, l.PkgName, l.New)
 			switch {
-			case l.IsNew():
+			case pkger.IsNew(l.StateStatus):
 				printer.AppendDiff(nil, newRow)
-			case l.Remove:
+			case pkger.IsRemoval(l.StateStatus):
 				printer.AppendDiff(oldRow, nil)
 			default:
 				printer.AppendDiff(oldRow, newRow)
@@ -1312,9 +1312,9 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
 
 			newRow := appendValues(b.ID, b.PkgName, b.New)
 			switch {
-			case b.IsNew():
+			case pkger.IsNew(b.StateStatus):
 				printer.AppendDiff(nil, newRow)
-			case b.Remove:
+			case pkger.IsRemoval(b.StateStatus):
 				printer.AppendDiff(oldRow, nil)
 			default:
 				printer.AppendDiff(oldRow, newRow)
@@ -1342,9 +1342,9 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
 
 			newRow := appendValues(c.ID, c.PkgName, c.New)
 			switch {
-			case c.IsNew():
+			case pkger.IsNew(c.StateStatus):
 				printer.AppendDiff(nil, newRow)
-			case c.Remove:
+			case pkger.IsRemoval(c.StateStatus):
 				printer.AppendDiff(oldRow, nil)
 			default:
 				printer.AppendDiff(oldRow, newRow)
@@ -1368,9 +1368,9 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
 
 			newRow := appendValues(d.ID, d.PkgName, d.New)
 			switch {
-			case d.IsNew():
+			case pkger.IsNew(d.StateStatus):
 				printer.AppendDiff(nil, newRow)
-			case d.Remove:
+			case pkger.IsRemoval(d.StateStatus):
 				printer.AppendDiff(oldRow, nil)
 			default:
 				printer.AppendDiff(oldRow, newRow)
@@ -1398,9 +1398,9 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
 
 			newRow := appendValues(e.ID, e.PkgName, e.New)
 			switch {
-			case e.IsNew():
+			case pkger.IsNew(e.StateStatus):
 				printer.AppendDiff(nil, newRow)
-			case e.Remove:
+			case pkger.IsRemoval(e.StateStatus):
 				printer.AppendDiff(oldRow, nil)
 			default:
 				printer.AppendDiff(oldRow, newRow)
@@ -1440,9 +1440,9 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
 
 			newRow := appendValues(e.ID, e.PkgName, e.New)
 			switch {
-			case e.IsNew():
+			case pkger.IsNew(e.StateStatus):
 				printer.AppendDiff(nil, newRow)
-			case e.Remove:
+			case pkger.IsRemoval(e.StateStatus):
 				printer.AppendDiff(oldRow, nil)
 			default:
 				printer.AppendDiff(oldRow, newRow)
@@ -1465,9 +1465,9 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
 
 			newRow := appendValues(e.ID, e.PkgName, e.New)
 			switch {
-			case e.IsNew():
+			case pkger.IsNew(e.StateStatus):
 				printer.AppendDiff(nil, newRow)
-			case e.Remove:
+			case pkger.IsRemoval(e.StateStatus):
 				printer.AppendDiff(oldRow, nil)
 			default:
 				printer.AppendDiff(oldRow, newRow)
@@ -1497,9 +1497,9 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
 
 			newRow := appendValues(e.ID, e.PkgName, e.New)
 			switch {
-			case e.IsNew():
+			case pkger.IsNew(e.StateStatus):
 				printer.AppendDiff(nil, newRow)
-			case e.Remove:
+			case pkger.IsRemoval(e.StateStatus):
 				printer.AppendDiff(oldRow, nil)
 			default:
 				printer.AppendDiff(oldRow, newRow)
@@ -1527,9 +1527,9 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
 
 			newRow := appendValues(v.ID, v.PkgName, v.New)
 			switch {
-			case v.IsNew():
+			case pkger.IsNew(v.StateStatus):
 				printer.AppendDiff(nil, newRow)
-			case v.Remove:
+			case pkger.IsRemoval(v.StateStatus):
 				printer.AppendDiff(oldRow, nil)
 			default:
 				printer.AppendDiff(oldRow, newRow)
