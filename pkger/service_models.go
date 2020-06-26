@@ -471,8 +471,8 @@ func (s *stateCoordinator) reconcileLabelMappings(stackResources []StackResource
 		for _, l := range labels {
 			// we want to keep associations that are from previous application and are not changing
 			delete(mStackAss, StackResourceAssociation{
-				Kind:    KindLabel,
-				PkgName: l.parserLabel.PkgName(),
+				Kind:     KindLabel,
+				MetaName: l.parserLabel.PkgName(),
 			})
 		}
 
@@ -480,8 +480,8 @@ func (s *stateCoordinator) reconcileLabelMappings(stackResources []StackResource
 		// state fall into here and are marked for removal.
 		for assForRemoval := range mStackAss {
 			s.labelMappingsToRemove = append(s.labelMappingsToRemove, stateLabelMappingForRemoval{
-				LabelPkgName:    assForRemoval.PkgName,
-				LabelID:         mLabelPkgNameToID[assForRemoval.PkgName],
+				LabelPkgName:    assForRemoval.MetaName,
+				LabelID:         mLabelPkgNameToID[assForRemoval.MetaName],
 				ResourceID:      r.ID,
 				ResourcePkgName: r.MetaName,
 				ResourceType:    r.Kind.ResourceType(),
@@ -495,7 +495,7 @@ func (s *stateCoordinator) reconcileNotificationDependencies(stackResources []St
 		if r.Kind.is(KindNotificationRule) {
 			for _, ass := range r.Associations {
 				if ass.Kind.is(KindNotificationEndpoint) {
-					s.mRules[r.MetaName].associatedEndpoint = s.mEndpoints[ass.PkgName]
+					s.mRules[r.MetaName].associatedEndpoint = s.mEndpoints[ass.MetaName]
 					break
 				}
 			}
@@ -1193,8 +1193,8 @@ func (r *stateRule) endpointAssociation() StackResourceAssociation {
 		return StackResourceAssociation{}
 	}
 	return StackResourceAssociation{
-		Kind:    KindNotificationEndpoint,
-		PkgName: r.endpointPkgName(),
+		Kind:     KindNotificationEndpoint,
+		MetaName: r.endpointPkgName(),
 	}
 }
 

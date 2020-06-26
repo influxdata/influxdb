@@ -39,8 +39,8 @@ func TestStoreKV(t *testing.T) {
 					Kind:       pkger.KindBucket,
 					MetaName:   "buzz lightyear",
 					Associations: []pkger.StackResourceAssociation{{
-						Kind:    pkger.KindLabel,
-						PkgName: "foo_label",
+						Kind:     pkger.KindLabel,
+						MetaName: "foo_label",
 					}},
 				},
 				{

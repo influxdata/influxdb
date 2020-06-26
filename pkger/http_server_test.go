@@ -791,7 +791,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 								ID:           influxdb.ID(3).String(),
 								Kind:         pkger.KindBucket,
 								MetaName:     "rucketeer",
-								Associations: []pkger.StackResourceAssociation{},
+								Associations: []pkger.RespStackResourceAssoc{},
 							},
 						},
 					},

@@ -126,9 +126,10 @@ func (s *HTTPRemoteService) Export(ctx context.Context, opts ...ExportOptFn) (*P
 	}
 
 	reqBody := ReqExport{
-		StackID:   opt.StackID.String(),
-		OrgIDs:    orgIDs,
-		Resources: opt.Resources,
+		UpdateStack: opt.UpdateStack,
+		StackID:     opt.StackID.String(),
+		OrgIDs:      orgIDs,
+		Resources:   opt.Resources,
 	}
 
 	var newPkg *Pkg
@@ -244,10 +245,19 @@ func convertRespStackToStack(respStack RespStack) (Stack, error) {
 	}
 	for _, r := range respStack.Resources {
 		sr := StackResource{
-			APIVersion:   r.APIVersion,
-			MetaName:     r.MetaName,
-			Kind:         r.Kind,
-			Associations: r.Associations,
+			APIVersion: r.APIVersion,
+			MetaName:   r.MetaName,
+			Kind:       r.Kind,
+		}
+		for _, a := range r.Associations {
+			sra := StackResourceAssociation{
+				Kind:     a.Kind,
+				MetaName: a.MetaName,
+			}
+			if sra.MetaName == "" && a.PkgName != nil {
+				sra.MetaName = *a.PkgName
+			}
+			sr.Associations = append(sr.Associations, sra)
 		}
 
 		resID, err := influxdb.IDFromString(r.ID)
