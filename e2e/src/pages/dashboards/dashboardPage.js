@@ -10,7 +10,7 @@ const addCellButtonHeader = '//*[@data-testid=\'page-control-bar--left\']//*[@da
 //const addNoteButton = '//*[@data-testid=\'page-header--right\']//*[@data-testid=\'button\'][.//*[text()=\'Add Note\']]';
 const addNoteButton = '[data-testid=add-note--button]';
 //const variablesButton = '//*[@data-testid=\'page-header--right\']//*[@data-testid=\'button\'][.//*[text()=\'Variables\']]';
-const variablesButton = '//*[@data-testid=\'page-control-bar--left\']//*[@data-testid=\'button\'][.//*[text()=\'Variables\']]';
+const variablesButton = '[data-testid=variables--button]';
 //const timeLocaleDropdown = '//*[@data-testid=\'page-header--right\']//*[@data-testid=\'dropdown--button\'][.//*[contains(@class,\'annotate\')]]';
 const timeLocaleDropdown = '//*[@data-testid=\'page-control-bar--right\']//*[@data-testid=\'dropdown--button\'][.//*[contains(@class,\'annotate\')]]';
 //const autorefresh = '//*[@data-testid=\'page-header--right\']/*[contains(@class,\'autorefresh-dropdown\')]';
@@ -86,7 +86,7 @@ class dashboardPage extends influxPage {
             {type: 'css', selector: graphToolTips},
             {type: 'xpath', selector: addCellButtonHeader},
             {type: 'css', selector: addNoteButton},
-            {type: 'xpath', selector: variablesButton},
+            {type: 'css', selector: variablesButton},
             {type: 'xpath', selector: timeLocaleDropdown},
             {type: 'xpath', selector: autorefresh},
             {type: 'xpath', selector: timeRangeDropdown},
@@ -128,7 +128,7 @@ class dashboardPage extends influxPage {
     }
 
     async getVariablesButton(){
-        return await this.driver.findElement(By.xpath(variablesButton));
+        return await this.driver.findElement(By.css(variablesButton));
     }
 
     async getTimeLocaleDropdown(){

@@ -150,6 +150,7 @@ Feature: Data explorer
   Scenario: Save query as a variable
     When click nav menu item "Explorer"
     When click the submit button
+    When close all notifications
     When click on the Save as button
     When click on tab "Variable" in the Save As popup
     When input the variable name "Variable Test"
@@ -157,6 +158,15 @@ Feature: Data explorer
     Then the success notification contains "Successfully created new variable:"
     When click nav menu item "Settings"
     When there is a variable card for "Variable Test"
+
+  Scenario: Delete Test Variable
+    When hover over variable card named "Variable Test"
+    When click delete menu of variable card named "Variable Test"
+    When click delete confirm of variable card named "Variable Test"
+    Then the success notification contains "Successfully deleted the variable"
+    Then the variable card "Variable Test" is not present
+    When close all notifications
+
 
 
 
