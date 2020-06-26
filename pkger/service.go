@@ -16,6 +16,7 @@ import (
 	ierrors "github.com/influxdata/influxdb/v2/kit/errors"
 	icheck "github.com/influxdata/influxdb/v2/notification/check"
 	"github.com/influxdata/influxdb/v2/notification/rule"
+	"github.com/influxdata/influxdb/v2/pkger/internal/wordplay"
 	"github.com/influxdata/influxdb/v2/snowflake"
 	"github.com/influxdata/influxdb/v2/task/options"
 	"go.uber.org/zap"
@@ -59,10 +60,18 @@ type (
 
 	// StackUpdate provides a means to update an existing stack.
 	StackUpdate struct {
-		ID          influxdb.ID
-		Name        *string
-		Description *string
-		URLs        []string
+		ID                  influxdb.ID
+		Name                *string
+		Description         *string
+		URLs                []string
+		AdditionalResources []StackAdditionalResource
+	}
+
+	StackAdditionalResource struct {
+		APIVersion string
+		ID         influxdb.ID
+		Kind       Kind
+		MetaName   string
 	}
 )
 
@@ -89,6 +98,7 @@ type serviceOpt struct {
 
 	applyReqLimit int
 	idGen         influxdb.IDGenerator
+	nameGen       NameGenerator
 	timeGen       influxdb.TimeGenerator
 	store         Store
 
@@ -157,6 +167,19 @@ func WithDashboardSVC(dashSVC influxdb.DashboardService) ServiceSetterFn {
 	}
 }
 
+// WithLabelSVC sets the label service.
+func WithLabelSVC(labelSVC influxdb.LabelService) ServiceSetterFn {
+	return func(opt *serviceOpt) {
+		opt.labelSVC = labelSVC
+	}
+}
+
+func withNameGen(nameGen NameGenerator) ServiceSetterFn {
+	return func(opt *serviceOpt) {
+		opt.nameGen = nameGen
+	}
+}
+
 // WithNotificationEndpointSVC sets the endpoint notification service.
 func WithNotificationEndpointSVC(endpointSVC influxdb.NotificationEndpointService) ServiceSetterFn {
 	return func(opt *serviceOpt) {
@@ -175,13 +198,6 @@ func WithNotificationRuleSVC(ruleSVC influxdb.NotificationRuleStore) ServiceSett
 func WithOrganizationService(orgSVC influxdb.OrganizationService) ServiceSetterFn {
 	return func(opt *serviceOpt) {
 		opt.orgSVC = orgSVC
-	}
-}
-
-// WithLabelSVC sets the label service.
-func WithLabelSVC(labelSVC influxdb.LabelService) ServiceSetterFn {
-	return func(opt *serviceOpt) {
-		opt.labelSVC = labelSVC
 	}
 }
 
@@ -230,6 +246,7 @@ type Service struct {
 	// internal dependencies
 	applyReqLimit int
 	idGen         influxdb.IDGenerator
+	nameGen       NameGenerator
 	store         Store
 	timeGen       influxdb.TimeGenerator
 
@@ -255,6 +272,7 @@ func NewService(opts ...ServiceSetterFn) *Service {
 		logger:        zap.NewNop(),
 		applyReqLimit: 5,
 		idGen:         snowflake.NewDefaultIDGenerator(),
+		nameGen:       wordplay.GetRandomName,
 		timeGen:       influxdb.RealTimeGenerator{},
 	}
 	for _, o := range opts {
@@ -266,6 +284,7 @@ func NewService(opts ...ServiceSetterFn) *Service {
 
 		applyReqLimit: opt.applyReqLimit,
 		idGen:         opt.idGen,
+		nameGen:       opt.nameGen,
 		store:         opt.store,
 		timeGen:       opt.timeGen,
 
@@ -369,6 +388,15 @@ func (s *Service) UpdateStack(ctx context.Context, upd StackUpdate) (Stack, erro
 		return Stack{}, err
 	}
 
+	updatedStack := s.applyStackUpdate(existing, upd)
+	if err := s.store.UpdateStack(ctx, updatedStack); err != nil {
+		return Stack{}, err
+	}
+
+	return updatedStack, nil
+}
+
+func (s *Service) applyStackUpdate(existing Stack, upd StackUpdate) Stack {
 	if upd.Name != nil {
 		existing.Name = *upd.Name
 	}
@@ -380,11 +408,38 @@ func (s *Service) UpdateStack(ctx context.Context, upd StackUpdate) (Stack, erro
 	}
 	existing.UpdatedAt = s.timeGen.Now()
 
-	if err := s.store.UpdateStack(ctx, existing); err != nil {
-		return Stack{}, err
+	type key struct {
+		k  Kind
+		id influxdb.ID
 	}
+	mExistingResources := make(map[key]bool)
+	mExistingNames := make(map[string]bool)
+	for _, r := range existing.Resources {
+		k := key{k: r.Kind, id: r.ID}
+		mExistingResources[k] = true
+		mExistingNames[r.MetaName] = true
+	}
+	for _, r := range upd.AdditionalResources {
+		k := key{k: r.Kind, id: r.ID}
+		if mExistingResources[k] {
+			continue
+		}
 
-	return existing, nil
+		sr := StackResource{
+			APIVersion: r.APIVersion,
+			ID:         r.ID,
+			Kind:       r.Kind,
+		}
+
+		metaName := r.MetaName
+		if metaName == "" || mExistingNames[metaName] {
+			metaName = uniqMetaName(s.nameGen, mExistingNames)
+		}
+		mExistingNames[metaName] = true
+		sr.MetaName = metaName
+		existing.Resources = append(existing.Resources, sr)
+	}
+	return existing
 }
 
 type (

@@ -87,9 +87,16 @@ func (s *HTTPRemoteService) ReadStack(ctx context.Context, id influxdb.ID) (Stac
 
 func (s *HTTPRemoteService) UpdateStack(ctx context.Context, upd StackUpdate) (Stack, error) {
 	reqBody := ReqUpdateStack{
-		Name:        upd.Name,
-		Description: upd.Description,
-		URLs:        upd.URLs,
+		Name:         upd.Name,
+		Description:  upd.Description,
+		TemplateURLs: upd.URLs,
+	}
+	for _, r := range upd.AdditionalResources {
+		reqBody.AdditionalResources = append(reqBody.AdditionalResources, ReqUpdateStackResource{
+			ID:       r.ID.String(),
+			MetaName: r.MetaName,
+			Kind:     r.Kind,
+		})
 	}
 
 	var respBody RespStack

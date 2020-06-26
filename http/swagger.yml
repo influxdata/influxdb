@@ -4818,10 +4818,22 @@ paths:
                   type: string
                 description:
                   type: string
-                urls:
+                templateURLs:
                   type: array
                   items:
                     type: string
+                additionalResources:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      resourceID:
+                        type: string
+                      kind:
+                        type: string
+                      templateMetaName:
+                        type: string
+                    required: ["kind","resourceID"]
       responses:
         "200":
           description: Influx stack updated

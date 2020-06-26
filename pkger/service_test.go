@@ -3552,7 +3552,7 @@ func TestService(t *testing.T) {
 					},
 				},
 				{
-					name: "update all",
+					name: "update first 3",
 					input: StackUpdate{
 						Name:        strPtr("name"),
 						Description: strPtr("desc"),
@@ -3564,10 +3564,86 @@ func TestService(t *testing.T) {
 						URLs:        []string{"http://example.com"},
 					},
 				},
+				{
+					name: "update with metaname collisions",
+					input: StackUpdate{
+						Name:        strPtr("name"),
+						Description: strPtr("desc"),
+						URLs:        []string{"http://example.com"},
+						AdditionalResources: []StackAdditionalResource{
+							{
+								APIVersion: APIVersion,
+								ID:         1,
+								Kind:       KindLabel,
+								MetaName:   "meta-label",
+							},
+							{
+								APIVersion: APIVersion,
+								ID:         2,
+								Kind:       KindLabel,
+								MetaName:   "meta-label",
+							},
+						},
+					},
+					expected: Stack{
+						Name:        "name",
+						Description: "desc",
+						URLs:        []string{"http://example.com"},
+						Resources: []StackResource{
+							{
+								APIVersion: APIVersion,
+								ID:         1,
+								Kind:       KindLabel,
+								MetaName:   "meta-label",
+							},
+							{
+								APIVersion: APIVersion,
+								ID:         1,
+								Kind:       KindLabel,
+								MetaName:   "collision-1",
+							},
+						},
+					},
+				},
+				{
+					name: "update all",
+					input: StackUpdate{
+						Name:        strPtr("name"),
+						Description: strPtr("desc"),
+						URLs:        []string{"http://example.com"},
+						AdditionalResources: []StackAdditionalResource{
+							{
+								APIVersion: APIVersion,
+								ID:         1,
+								Kind:       KindLabel,
+								MetaName:   "meta-label",
+							},
+						},
+					},
+					expected: Stack{
+						Name:        "name",
+						Description: "desc",
+						URLs:        []string{"http://example.com"},
+						Resources: []StackResource{
+							{
+								APIVersion: APIVersion,
+								ID:         1,
+								Kind:       KindLabel,
+								MetaName:   "meta-label",
+							},
+						},
+					},
+				},
 			}
 
 			for _, tt := range tests {
 				fn := func(t *testing.T) {
+					var collisions int
+					nameGenFn := func() string {
+						collisions++
+						return "collision-" + strconv.Itoa(collisions)
+					}
+
 					svc := newTestService(
 						WithTimeGenerator(newTimeGen(now)),
 						WithStore(&fakeStore{
@@ -3581,6 +3657,7 @@ func TestService(t *testing.T) {
 								return nil
 							},
 						}),
+						withNameGen(nameGenFn),
 					)
 
 					tt.input.ID = 33

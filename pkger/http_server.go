@@ -320,12 +320,25 @@ func (s *HTTPServer) readStack(w http.ResponseWriter, r *http.Request) {
 	s.api.Respond(w, r, http.StatusOK, convertStackToRespStack(stack))
 }
 
-// ReqUpdateStack is the request body for updating a stack.
-type ReqUpdateStack struct {
-	Name        *string  `json:"name"`
-	Description *string  `json:"description"`
-	URLs        []string `json:"urls"`
-}
+type (
+	// ReqUpdateStack is the request body for updating a stack.
+	ReqUpdateStack struct {
+		Name                *string                  `json:"name"`
+		Description         *string                  `json:"description"`
+		TemplateURLs        []string                 `json:"templateURLs"`
+		AdditionalResources []ReqUpdateStackResource `json:"additionalResources"`
+
+		// Deprecating the urls field and replacing with templateURLs field.
+		// This is remaining here for backwards compatibility.
+		URLs []string `json:"urls"`
+	}
+
+	ReqUpdateStackResource struct {
+		ID       string `json:"resourceID"`
+		Kind     Kind   `json:"kind"`
+		MetaName string `json:"templateMetaName"`
+	}
+)
 
 func (s *HTTPServer) updateStack(w http.ResponseWriter, r *http.Request) {
 	var req ReqUpdateStack
@@ -340,12 +353,27 @@ func (s *HTTPServer) updateStack(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	stack, err := s.svc.UpdateStack(r.Context(), StackUpdate{
+	update := StackUpdate{
 		ID:          stackID,
 		Name:        req.Name,
 		Description: req.Description,
-		URLs:        req.URLs,
-	})
+		URLs:        append(req.TemplateURLs, req.URLs...),
+	}
+	for _, res := range req.AdditionalResources {
+		id, err := influxdb.IDFromString(res.ID)
+		if err != nil {
+			s.api.Err(w, r, influxErr(influxdb.EInvalid, err, fmt.Sprintf("stack resource id %q", res.ID)))
+			return
+		}
+		update.AdditionalResources = append(update.AdditionalResources, StackAdditionalResource{
+			APIVersion: APIVersion,
+			ID:         *id,
+			Kind:       res.Kind,
+			MetaName:   res.MetaName,
+		})
+	}
+
+	stack, err := s.svc.UpdateStack(r.Context(), update)
 	if err != nil {
 		s.api.Err(w, r, err)
 		return

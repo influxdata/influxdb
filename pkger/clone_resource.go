@@ -394,15 +394,19 @@ func (ex *resourceExporter) getEndpointRule(ctx context.Context, id influxdb.ID)
 }
 
 func (ex *resourceExporter) uniqName() string {
+	return uniqMetaName(ex.nameGen, ex.mPkgNames)
+}
+
+func uniqMetaName(nameGen NameGenerator, existingNames map[string]bool) string {
 	uuid := strings.ToLower(idGenerator.ID().String())
+	name := uuid
 	for i := 1; i < 250; i++ {
-		name := fmt.Sprintf("%s-%s", ex.nameGen(), uuid[10:])
-		if !ex.mPkgNames[name] {
+		name = fmt.Sprintf("%s-%s", nameGen(), uuid[10:])
+		if !existingNames[name] {
 			return name
 		}
 	}
-	// if all else fails, generate a UUID for the name
-	return uuid
+	return name
 }
 
 func findDashboardByIDFull(ctx context.Context, dashSVC influxdb.DashboardService, id influxdb.ID) (*influxdb.Dashboard, error) {
