@@ -419,6 +419,15 @@ func TestLauncher_Pkger(t *testing.T) {
 				assert.Equal(t, "2nd name", st.Name)
 				assert.Equal(t, "2nd desc", st.Description)
 				assert.Equal(t, []string{"http://example.com"}, st.URLs)
+				resources := []pkger.StackResource{
+					{
+						APIVersion: pkger.APIVersion,
+						ID:         1,
+						Kind:       pkger.KindBucket,
+						MetaName:   "bucket-meta",
+					},
+				}
+				assert.Equal(t, resources, st.Resources)
 				assert.True(t, st.UpdatedAt.After(stack.UpdatedAt))
 			}
 
@@ -427,6 +436,14 @@ func TestLauncher_Pkger(t *testing.T) {
 				Name:        strPtr("2nd name"),
 				Description: strPtr("2nd desc"),
 				URLs:        []string{"http://example.com"},
+				AdditionalResources: []pkger.StackAdditionalResource{
+					{
+						APIVersion: pkger.APIVersion,
+						ID:         1,
+						Kind:       pkger.KindBucket,
+						MetaName:   "bucket-meta",
+					},
+				},
 			})
 			require.NoError(t, err)
 			assertStack(t, updStack)

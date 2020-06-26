@@ -946,7 +946,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 				{
 					name: "update urls field",
 					input: pkger.ReqUpdateStack{
-						URLs: []string{"http://example.com"},
+						TemplateURLs: []string{"http://example.com"},
 					},
 					expectedStack: pkger.RespStack{
 						ID:        influxdb.ID(1).String(),
@@ -959,9 +959,9 @@ func TestPkgerHTTPServer(t *testing.T) {
 				{
 					name: "update all fields",
 					input: pkger.ReqUpdateStack{
-						Name:        strPtr("name"),
-						Description: strPtr("desc"),
-						URLs:        []string{"http://example.com"},
+						Name:         strPtr("name"),
+						Description:  strPtr("desc"),
+						TemplateURLs: []string{"http://example.com"},
 					},
 					expectedStack: pkger.RespStack{
 						ID:          influxdb.ID(1).String(),
