@@ -21,7 +21,7 @@ use delorean_table::{
     ByteArray, DeloreanTableWriter, DeloreanTableWriterSource, Error as TableError,
 };
 use delorean_table_schema::{DataType, Schema, SchemaBuilder};
-use delorean_tsm::mapper::{map_field_columns, ColumnData, TSMMeasurementMapper};
+use delorean_tsm::mapper::{map_field_columns, ColumnData, MeasurementTable, TSMMeasurementMapper};
 use delorean_tsm::reader::{TSMBlockReader, TSMIndexReader};
 use delorean_tsm::{BlockType, TSMError};
 
@@ -530,155 +530,8 @@ impl TSMFileConverter {
         for measurement in mapper {
             match measurement {
                 Ok(mut m) => {
-                    let mut builder = SchemaBuilder::new(&m.name);
-                    let mut packed_columns: Vec<Packers> = Vec::new();
-
-                    let mut tks = Vec::new();
-                    for tag in m.tag_columns() {
-                        builder = builder.tag(tag);
-                        tks.push(tag.clone());
-                        packed_columns.push(Packers::String(Packer::new()));
-                    }
-
-                    let mut fks = Vec::new();
-                    for (field_key, block_type) in m.field_columns().to_owned() {
-                        builder = builder.field(&field_key, DataType::from(&block_type));
-                        fks.push((field_key.clone(), block_type));
-                        packed_columns.push(Packers::String(Packer::new())); // FIXME - will change
-                    }
-
-                    // Account for timestamp
-                    packed_columns.push(Packers::Integer(Packer::new()));
-
-                    let schema = builder.build();
-
-                    // get mapping between named columns and packer indexes.
-                    let name_packer = schema
-                        .get_col_defs()
-                        .iter()
-                        .map(|c| (c.name.clone(), c.index as usize))
-                        .collect::<BTreeMap<String, usize>>();
-
-                    // For each tagset combination in the measurement I need
-                    // to build out the table. Then for each column in the
-                    // table I need to convert to a Packer<T> and append it
-                    // to the packer_column.
-
-                    for (tag_set_pair, blocks) in m.tag_set_fields_blocks() {
-                        let (ts, field_cols) = map_field_columns(&mut block_reader, blocks)
-                            .map_err(|e| Error::TSMProcessing { source: e })?;
-
-                        // Start with the timestamp column.
-                        let col_len = ts.len();
-                        let ts_idx =
-                            name_packer
-                                .get(schema.timestamp())
-                                .ok_or(Error::TSMProcessing {
-                                    // TODO clean this error up
-                                    source: TSMError {
-                                        description: "could not find ts column".to_string(),
-                                    },
-                                })?;
-
-                        packed_columns[*ts_idx] = Packers::from(ts);
-
-                        // Next let's pad out all of the tag columns we know have
-                        // repeated values.
-                        for (tag_key, tag_value) in tag_set_pair {
-                            let idx = name_packer.get(tag_key).ok_or(Error::TSMProcessing {
-                                // TODO clean this error up
-                                source: TSMError {
-                                    description: "could not find column".to_string(),
-                                },
-                            })?;
-
-                            // this will create a column of repeated values.
-                            packed_columns[*idx] = Packers::from_elem_str(tag_value, col_len);
-                        }
-
-                        // Next let's write out NULL values for any tag columns
-                        // on the measurement that we don't have values for
-                        // because they're not part of this tagset.
-                        let tag_keys = tag_set_pair
-                            .iter()
-                            .map(|pair| pair.0.clone())
-                            .collect::<BTreeSet<String>>();
-                        for key in &tks {
-                            if tag_keys.contains(key) {
-                                continue;
-                            }
-
-                            let idx = name_packer.get(key).ok_or(Error::TSMProcessing {
-                                // TODO clean this error up
-                                source: TSMError {
-                                    description: "could not find column".to_string(),
-                                },
-                            })?;
-
-                            // this will create a column of repeated None values.
-                            let col: Vec<Option<Vec<u8>>> = vec![None; col_len];
-                            packed_columns[*idx] = Packers::from(col);
-                        }
-
-                        // Next let's write out all of the field column data.
-                        let mut got_field_cols = Vec::new();
-                        for (field_key, field_values) in field_cols {
-                            let idx = name_packer.get(&field_key).ok_or(Error::TSMProcessing {
-                                // TODO clean this error up
-                                source: TSMError {
-                                    description: "could not find column".to_string(),
-                                },
-                            })?;
-
-                            match field_values {
-                                ColumnData::Float(v) => packed_columns[*idx] = Packers::from(v),
-                                ColumnData::Integer(v) => packed_columns[*idx] = Packers::from(v),
-                                ColumnData::Str(v) => packed_columns[*idx] = Packers::from(v),
-                                ColumnData::Bool(v) => packed_columns[*idx] = Packers::from(v),
-                                ColumnData::Unsigned(v) => packed_columns[*idx] = Packers::from(v),
-                            }
-                            got_field_cols.push(field_key);
-                        }
-
-                        // Finally let's write out all of the field columns that
-                        // we don't have values for here.
-                        for (key, field_type) in &fks {
-                            if got_field_cols.contains(key) {
-                                continue;
-                            }
-
-                            let idx = name_packer.get(key).ok_or(Error::TSMProcessing {
-                                // TODO clean this error up
-                                source: TSMError {
-                                    description: "could not find column".to_string(),
-                                },
-                            })?;
-
-                            // this will create a column of repeated None values.
-                            match field_type {
-                                BlockType::Float => {
-                                    let col: Vec<Option<f64>> = vec![None; col_len];
-                                    packed_columns[*idx] = Packers::from(col);
-                                }
-                                BlockType::Integer => {
-                                    let col: Vec<Option<i64>> = vec![None; col_len];
-                                    packed_columns[*idx] = Packers::from(col);
-                                }
-                                BlockType::Bool => {
-                                    let col: Vec<Option<bool>> = vec![None; col_len];
-                                    packed_columns[*idx] = Packers::from(col);
-                                }
-                                BlockType::Str => {
-                                    let col: Vec<Option<Vec<u8>>> = vec![None; col_len];
-                                    packed_columns[*idx] = Packers::from(col);
-                                }
-                                BlockType::Unsigned => {
-                                    let col: Vec<Option<u64>> = vec![None; col_len];
-                                    packed_columns[*idx] = Packers::from(col);
-                                }
-                            }
-                        }
-                    }
+                    let (schema, packed_columns) =
+                        Self::process_measurement_table(&mut block_reader, &mut m)?;
 
                     let mut table_writer = self
                         .table_writer_source
@@ -697,13 +550,250 @@ impl TSMFileConverter {
         }
         Ok(())
     }
+
+    // Given a measurement table `process_measurement_table` produces an
+    // appropriate schema and set of Packers.
+    fn process_measurement_table<R: BufRead + Seek>(
+        mut block_reader: &mut TSMBlockReader<R>,
+        m: &mut MeasurementTable,
+    ) -> Result<(Schema, Vec<Packers>), Error> {
+        let mut builder = SchemaBuilder::new(&m.name);
+        let mut packed_columns: Vec<Packers> = Vec::new();
+
+        let mut tks = Vec::new();
+        for tag in m.tag_columns() {
+            builder = builder.tag(tag);
+            tks.push(tag.clone());
+            packed_columns.push(Packers::String(Packer::new()));
+        }
+
+        let mut fks = Vec::new();
+        for (field_key, block_type) in m.field_columns().to_owned() {
+            builder = builder.field(&field_key, DataType::from(&block_type));
+            fks.push((field_key.clone(), block_type));
+            packed_columns.push(Packers::from(block_type));
+        }
+
+        // Account for timestamp
+        packed_columns.push(Packers::Integer(Packer::new()));
+
+        let schema = builder.build();
+
+        // get mapping between named columns and packer indexes.
+        let name_packer = schema
+            .get_col_defs()
+            .iter()
+            .map(|c| (c.name.clone(), c.index as usize))
+            .collect::<BTreeMap<String, usize>>();
+
+        // For each tagset combination in the measurement I need
+        // to build out the table. Then for each column in the
+        // table I need to convert to a Packer<T> and append it
+        // to the packer_column.
+
+        for (i, (tag_set_pair, blocks)) in m.tag_set_fields_blocks().iter_mut().enumerate() {
+            let (ts, field_cols) = map_field_columns(&mut block_reader, blocks)
+                .map_err(|e| Error::TSMProcessing { source: e })?;
+
+            // Start with the timestamp column.
+            let col_len = ts.len();
+            let ts_idx = name_packer
+                .get(schema.timestamp())
+                .ok_or(Error::TSMProcessing {
+                    // TODO clean this error up
+                    source: TSMError {
+                        description: "could not find ts column".to_string(),
+                    },
+                })?;
+
+            if i == 0 {
+                packed_columns[*ts_idx] = Packers::from(ts);
+            } else {
+                packed_columns[*ts_idx]
+                    .i64_packer_mut()
+                    .extend_from_slice(&ts);
+            }
+
+            // Next let's pad out all of the tag columns we know have
+            // repeated values.
+            for (tag_key, tag_value) in tag_set_pair {
+                let idx = name_packer.get(tag_key).ok_or(Error::TSMProcessing {
+                    // TODO clean this error up
+                    source: TSMError {
+                        description: "could not find column".to_string(),
+                    },
+                })?;
+
+                // this will create a column of repeated values.
+                if i == 0 {
+                    packed_columns[*idx] = Packers::from_elem_str(tag_value, col_len);
+                } else {
+                    packed_columns[*idx]
+                        .str_packer_mut()
+                        .extend_from_slice(&vec![ByteArray::from(tag_value.as_ref()); col_len]);
+                }
+            }
+
+            // Next let's write out NULL values for any tag columns
+            // on the measurement that we don't have values for
+            // because they're not part of this tagset.
+            let tag_keys = tag_set_pair
+                .iter()
+                .map(|pair| pair.0.clone())
+                .collect::<BTreeSet<String>>();
+            for key in &tks {
+                if tag_keys.contains(key) {
+                    continue;
+                }
+
+                let idx = name_packer.get(key).ok_or(Error::TSMProcessing {
+                    // TODO clean this error up
+                    source: TSMError {
+                        description: "could not find column".to_string(),
+                    },
+                })?;
+
+                if i == 0 {
+                    // creates a column of repeated None values.
+                    let col: Vec<Option<Vec<u8>>> = vec![None; col_len];
+                    packed_columns[*idx] = Packers::from(col);
+                } else {
+                    // pad out column with None values because we don't have a
+                    // value for it.
+                    packed_columns[*idx]
+                        .str_packer_mut()
+                        .fill_with_null(col_len);
+                }
+            }
+
+            // Next let's write out all of the field column data.
+            let mut got_field_cols = Vec::new();
+            for (field_key, field_values) in field_cols {
+                let idx = name_packer.get(&field_key).ok_or(Error::TSMProcessing {
+                    // TODO clean this error up
+                    source: TSMError {
+                        description: "could not find column".to_string(),
+                    },
+                })?;
+
+                if i == 0 {
+                    match field_values {
+                        ColumnData::Float(v) => packed_columns[*idx] = Packers::from(v),
+                        ColumnData::Integer(v) => packed_columns[*idx] = Packers::from(v),
+                        ColumnData::Str(v) => packed_columns[*idx] = Packers::from(v),
+                        ColumnData::Bool(v) => packed_columns[*idx] = Packers::from(v),
+                        ColumnData::Unsigned(v) => packed_columns[*idx] = Packers::from(v),
+                    }
+                } else {
+                    match field_values {
+                        ColumnData::Float(v) => packed_columns[*idx]
+                            .f64_packer_mut()
+                            .extend_from_option_slice(&v),
+                        ColumnData::Integer(v) => packed_columns[*idx]
+                            .i64_packer_mut()
+                            .extend_from_option_slice(&v),
+                        ColumnData::Str(values) => {
+                            let col = packed_columns[*idx].str_packer_mut();
+                            for value in values {
+                                match value {
+                                    Some(v) => col.push(ByteArray::from(v)),
+                                    None => col.push_option(None),
+                                }
+                            }
+                        }
+                        ColumnData::Bool(v) => packed_columns[*idx]
+                            .bool_packer_mut()
+                            .extend_from_option_slice(&v),
+                        ColumnData::Unsigned(values) => {
+                            let col = packed_columns[*idx].i64_packer_mut();
+                            for value in values {
+                                match value {
+                                    Some(v) => col.push(v as i64),
+                                    None => col.push_option(None),
+                                }
+                            }
+                        }
+                    }
+                }
+                got_field_cols.push(field_key);
+            }
+
+            // Finally let's write out all of the field columns that
+            // we don't have values for here.
+            for (key, field_type) in &fks {
+                if got_field_cols.contains(key) {
+                    continue;
+                }
+
+                let idx = name_packer.get(key).ok_or(Error::TSMProcessing {
+                    // TODO clean this error up
+                    source: TSMError {
+                        description: "could not find column".to_string(),
+                    },
+                })?;
+
+                // this will create a column of repeated None values.
+                if i == 0 {
+                    match field_type {
+                        BlockType::Float => {
+                            let col: Vec<Option<f64>> = vec![None; col_len];
+                            packed_columns[*idx] = Packers::from(col);
+                        }
+                        BlockType::Integer => {
+                            let col: Vec<Option<i64>> = vec![None; col_len];
+                            packed_columns[*idx] = Packers::from(col);
+                        }
+                        BlockType::Bool => {
+                            let col: Vec<Option<bool>> = vec![None; col_len];
+                            packed_columns[*idx] = Packers::from(col);
+                        }
+                        BlockType::Str => {
+                            let col: Vec<Option<Vec<u8>>> = vec![None; col_len];
+                            packed_columns[*idx] = Packers::from(col);
+                        }
+                        BlockType::Unsigned => {
+                            let col: Vec<Option<u64>> = vec![None; col_len];
+                            packed_columns[*idx] = Packers::from(col);
+                        }
+                    }
+                } else {
+                    match field_type {
+                        BlockType::Float => {
+                            packed_columns[*idx]
+                                .f64_packer_mut()
+                                .fill_with_null(col_len);
+                        }
+                        BlockType::Integer => {
+                            packed_columns[*idx]
+                                .i64_packer_mut()
+                                .fill_with_null(col_len);
+                        }
+                        BlockType::Bool => {
+                            packed_columns[*idx]
+                                .bool_packer_mut()
+                                .fill_with_null(col_len);
+                        }
+                        BlockType::Str => {
+                            packed_columns[*idx]
+                                .str_packer_mut()
+                                .fill_with_null(col_len);
+                        }
+                        BlockType::Unsigned => {
+                            packed_columns[*idx]
+                                .i64_packer_mut()
+                                .fill_with_null(col_len);
+                        }
+                    }
+                }
+            }
+        }
+        Ok((schema, packed_columns))
+    }
 }
 
 impl std::fmt::Debug for TSMFileConverter {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("TSMFileConverter")
-            // .field("settings", &self.settings)
-            // .field("converters", &self.converters)
             .field("table_writer_source", &"DYNAMIC")
             .finish()
     }
@@ -716,6 +806,12 @@ mod delorean_ingest_tests {
     use delorean_table_schema::ColumnDefinition;
     use delorean_test_helpers::approximately_equal;
 
+    use libflate::gzip;
+    use std::fs::File;
+    use std::io::BufReader;
+    use std::io::Cursor;
+    use std::io::Read;
+
     use std::sync::{Arc, Mutex};
 
     /// Record what happens when the writer is created so we can
@@ -724,6 +820,7 @@ mod delorean_ingest_tests {
     struct WriterLog {
         events: Vec<String>,
     }
+
     impl WriterLog {
         fn new() -> Self {
             Self { events: Vec::new() }
@@ -1369,33 +1466,45 @@ mod delorean_ingest_tests {
 
     // ----- Tests for TSM Data -----
 
-    // #[test]
-    // fn conversion_tsm_files() -> Result<(), Error> {
-    //     let log = Arc::new(Mutex::new(WriterLog::new()));
+    // TODO(edd): create a smaller TSM file for this test...
+    #[test]
+    fn conversion_tsm_files() -> Result<(), Error> {
+        let file = File::open("../tests/fixtures/000000000000462-000000002.tsm.gz");
+        let mut decoder = gzip::Decoder::new(file.unwrap()).unwrap();
+        let mut buf = Vec::new();
+        decoder.read_to_end(&mut buf).unwrap();
 
-    //     // let mut converter =
-    //     //     LineProtocolConverter::new(settings, NoOpWriterSource::new(log.clone()));
+        let log = Arc::new(Mutex::new(WriterLog::new()));
+        let mut converter = TSMFileConverter::new(NoOpWriterSource::new(log.clone()));
+        let index_steam = BufReader::new(Cursor::new(&buf));
+        let block_stream = BufReader::new(Cursor::new(&buf));
+        converter
+            .convert(index_steam, 236_029, block_stream)
+            .unwrap();
 
-    //     // converter
-    //     // .convert(parsed_lines)
-    //     // .expect("conversion ok")
-    //     // .finalize()
-    //     // .expect("finalize");
+        // CPU columns: - tags: cpu, host. (2)
+        //                fields: usage_guest, usage_guest_nice
+        //                        usage_idle, usage_iowait, usage_irq,
+        //                        usage_nice, usage_softirq, usage_steal,
+        //                        usage_system, usage_user (10)
+        //                timestamp (1)
+        //
+        // disk columns: - tags: device, fstype, host, mode, path (5)
+        //                 fields: free, inodes_free, inodes_total, inodes_used,
+        //                         total, used, used_percent (7)
+        //                 timestamp (1)
+        assert_eq!(
+            get_events(&log),
+            vec![
+                "Created writer for measurement cpu",
+                "[cpu] Wrote batch of 13 cols, 8568 rows",
+                "[cpu] Closed",
+                "Created writer for measurement disk",
+                "[disk] Wrote batch of 13 cols, 3535 rows",
+                "[disk] Closed"
+            ],
+        );
 
-    //     assert_eq!(
-    //         get_events(&log),
-    //         vec![
-    //             "Created writer for measurement h2o_temperature",
-    //             "Created writer for measurement air_temperature",
-    //             "[air_temperature] Wrote batch of 4 cols, 3 rows",
-    //             "[h2o_temperature] Wrote batch of 4 cols, 3 rows",
-    //             "[air_temperature] Wrote batch of 4 cols, 1 rows",
-    //             "[air_temperature] Closed",
-    //             "[h2o_temperature] Wrote batch of 4 cols, 2 rows",
-    //             "[h2o_temperature] Closed",
-    //         ]
-    //     );
-
-    //     Ok(())
-    // }
+        Ok(())
+    }
 }

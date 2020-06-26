@@ -242,6 +242,15 @@ where
     }
 }
 
+impl<R> BlockDecoder for &mut &mut TSMBlockReader<R>
+where
+    R: BufRead + Seek,
+{
+    fn block_data(&mut self, block: &Block) -> Result<BlockData, TSMError> {
+        self.decode_block(block)
+    }
+}
+
 // Maps multiple columnar field blocks to a single tablular representation.
 //
 // Given a set of field keys and a set of blocks for each key,

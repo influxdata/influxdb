@@ -5,6 +5,8 @@
 // Note the maintainability of this code is not likely high (it came
 // from the copy pasta factory) but the plan is to replace it
 // soon... We'll see how long that actually takes...
+use std::iter;
+
 use parquet::data_type::ByteArray;
 use std::default::Default;
 
@@ -58,6 +60,15 @@ impl Packers {
         }
     }
 
+    pub fn push_none(&mut self) {
+        match self {
+            Self::Float(p) => p.push_option(None),
+            Self::Integer(p) => p.push_option(None),
+            Self::String(p) => p.push_option(None),
+            Self::Boolean(p) => p.push_option(None),
+        }
+    }
+
     /// See description on `Packer::num_rows`
     pub fn num_rows(&self) -> usize {
         match self {
@@ -65,15 +76,6 @@ impl Packers {
             Self::Integer(p) => p.num_rows(),
             Self::String(p) => p.num_rows(),
             Self::Boolean(p) => p.num_rows(),
-        }
-    }
-
-    pub fn push_none(&mut self) {
-        match self {
-            Self::Float(p) => p.push_option(None),
-            Self::Integer(p) => p.push_option(None),
-            Self::String(p) => p.push_option(None),
-            Self::Boolean(p) => p.push_option(None),
         }
     }
 
@@ -134,32 +136,6 @@ impl std::convert::From<Vec<Option<f64>>> for Packers {
     }
 }
 
-impl std::convert::From<delorean_table_schema::DataType> for Packers {
-    fn from(t: delorean_table_schema::DataType) -> Self {
-        match t {
-            delorean_table_schema::DataType::Float => Self::Float(Packer::<f64>::new()),
-            delorean_table_schema::DataType::Integer => Self::Integer(Packer::<i64>::new()),
-            delorean_table_schema::DataType::String => Self::String(Packer::<ByteArray>::new()),
-            delorean_table_schema::DataType::Boolean => Self::Boolean(Packer::<bool>::new()),
-            delorean_table_schema::DataType::Timestamp => Self::Integer(Packer::<i64>::new()),
-        }
-    }
-}
-
-impl std::convert::From<Vec<Option<Vec<u8>>>> for Packers {
-    fn from(values: Vec<Option<Vec<u8>>>) -> Self {
-        // TODO(edd): convert this with an iterator?
-        let mut as_byte_array: Vec<Option<ByteArray>> = Vec::with_capacity(values.len());
-        for v in values {
-            match v {
-                Some(v) => as_byte_array.push(Some(ByteArray::from(v))),
-                None => as_byte_array.push(None),
-            }
-        }
-        Self::String(Packer::from(as_byte_array))
-    }
-}
-
 impl std::convert::From<Vec<Option<bool>>> for Packers {
     fn from(v: Vec<Option<bool>>) -> Self {
         Self::Boolean(Packer::from(v))
@@ -180,14 +156,58 @@ impl std::convert::From<Vec<Option<u64>>> for Packers {
     }
 }
 
+impl std::convert::From<delorean_table_schema::DataType> for Packers {
+    fn from(t: delorean_table_schema::DataType) -> Self {
+        match t {
+            delorean_table_schema::DataType::Float => Self::Float(Packer::<f64>::new()),
+            delorean_table_schema::DataType::Integer => Self::Integer(Packer::<i64>::new()),
+            delorean_table_schema::DataType::String => Self::String(Packer::<ByteArray>::new()),
+            delorean_table_schema::DataType::Boolean => Self::Boolean(Packer::<bool>::new()),
+            delorean_table_schema::DataType::Timestamp => Self::Integer(Packer::<i64>::new()),
+        }
+    }
+}
+
+impl std::convert::From<delorean_tsm::BlockType> for Packers {
+    fn from(t: delorean_tsm::BlockType) -> Self {
+        match t {
+            delorean_tsm::BlockType::Float => Self::Float(Packer::<f64>::new()),
+            delorean_tsm::BlockType::Integer => Self::Integer(Packer::<i64>::new()),
+            delorean_tsm::BlockType::Str => Self::String(Packer::<ByteArray>::new()),
+            delorean_tsm::BlockType::Bool => Self::Boolean(Packer::<bool>::new()),
+            delorean_tsm::BlockType::Unsigned => Self::Integer(Packer::<i64>::new()),
+        }
+    }
+}
+
+impl std::convert::From<Vec<Option<Vec<u8>>>> for Packers {
+    fn from(values: Vec<Option<Vec<u8>>>) -> Self {
+        // TODO(edd): convert this with an iterator?
+        let mut as_byte_array: Vec<Option<ByteArray>> = Vec::with_capacity(values.len());
+        for v in values {
+            match v {
+                Some(v) => as_byte_array.push(Some(ByteArray::from(v))),
+                None => as_byte_array.push(None),
+            }
+        }
+        Self::String(Packer::from(as_byte_array))
+    }
+}
+
 #[derive(Debug, Default)]
-pub struct Packer<T: Default> {
+pub struct Packer<T>
+where
+    T: Default + Clone,
+{
     values: Vec<T>,
     def_levels: Vec<i16>,
     rep_levels: Vec<i16>,
 }
 
-impl<T: Default> Packer<T> {
+impl<T> Packer<T>
+where
+    T: Default + Clone,
+{
     pub fn new() -> Self {
         Self {
             values: Vec::new(),
@@ -273,6 +293,36 @@ impl<T: Default> Packer<T> {
         self.rep_levels.push(1);
     }
 
+    pub fn extend_from_packer(&mut self, other: &Self) {
+        self.values.extend_from_slice(&other.values);
+        self.def_levels.extend_from_slice(&other.def_levels);
+        self.rep_levels.extend_from_slice(&other.rep_levels);
+    }
+
+    pub fn extend_from_slice(&mut self, other: &[T]) {
+        self.values.extend_from_slice(other);
+        self.def_levels.extend(iter::repeat(1).take(other.len()));
+        self.rep_levels.extend(iter::repeat(1).take(other.len()));
+    }
+
+    pub fn extend_from_option_slice(&mut self, other: &[Option<T>]) {
+        for v in other {
+            self.push_option(v.clone()); // TODO(edd): perf here.
+        }
+    }
+
+    pub fn fill_with(&mut self, value: T, additional: usize) {
+        self.values.extend(iter::repeat(value).take(additional));
+        self.def_levels.extend(iter::repeat(1).take(additional));
+        self.rep_levels.extend(iter::repeat(1).take(additional));
+    }
+
+    pub fn fill_with_null(&mut self, additional: usize) {
+        // N.B., No value stored at def level == 0
+        self.def_levels.extend(iter::repeat(0).take(additional));
+        self.rep_levels.extend(iter::repeat(1).take(additional));
+    }
+
     /// Return true if the row for index is null. Returns true if there is no
     /// row for index.
     pub fn is_null(&self, index: usize) -> bool {
@@ -282,7 +332,10 @@ impl<T: Default> Packer<T> {
 
 // Convert `Vec<T>`, e.g., `Vec<f64>` into the appropriate `Packer<T>` value,
 // e.g., `Packer<f64>`.
-impl<T: Default> std::convert::From<Vec<T>> for Packer<T> {
+impl<T> std::convert::From<Vec<T>> for Packer<T>
+where
+    T: Default + Clone,
+{
     fn from(v: Vec<T>) -> Self {
         Self {
             def_levels: vec![1; v.len()],
@@ -294,7 +347,10 @@ impl<T: Default> std::convert::From<Vec<T>> for Packer<T> {
 
 // Convert `Vec<Option<T>>`, e.g., `Vec<Option<f64>>` into the appropriate
 // `Packer<T>` value, e.g., `Packer<f64>`.
-impl<T: Default> std::convert::From<Vec<Option<T>>> for Packer<T> {
+impl<T> std::convert::From<Vec<Option<T>>> for Packer<T>
+where
+    T: Default + Clone,
+{
     fn from(values: Vec<Option<T>>) -> Self {
         let mut packer = Self::new();
         for v in values {
@@ -314,6 +370,47 @@ mod test {
         assert_eq!(packer.values.capacity(), 42);
         assert_eq!(packer.def_levels.capacity(), 42);
         assert_eq!(packer.rep_levels.capacity(), 42);
+    }
+
+    #[test]
+    fn extend_from_slice() {
+        let mut packer: Packer<i64> = Packer::new();
+        packer.push(100);
+        packer.push(22);
+
+        packer.extend_from_slice(&[2, 3, 4]);
+
+        assert_eq!(packer.values, &[100, 22, 2, 3, 4]);
+        assert_eq!(packer.def_levels, &[1; 5]);
+        assert_eq!(packer.rep_levels, &[1; 5]);
+    }
+
+    #[test]
+    fn extend_from_packer() {
+        let mut packer_a: Packer<i64> = Packer::new();
+        packer_a.push(100);
+        packer_a.push(22);
+
+        let mut packer_b = Packer::new();
+        packer_b.push(3);
+
+        packer_a.extend_from_packer(&packer_b);
+        assert_eq!(packer_a.values, &[100, 22, 3]);
+        assert_eq!(packer_a.def_levels, &[1; 3]);
+        assert_eq!(packer_a.rep_levels, &[1; 3]);
+    }
+
+    #[test]
+    fn pad_with_null() {
+        let mut packer: Packer<i64> = Packer::new();
+        packer.push(100);
+        packer.push(22);
+
+        packer.fill_with_null(3);
+
+        assert_eq!(packer.values, &[100, 22]);
+        assert_eq!(packer.def_levels, &[1, 1, 0, 0, 0]);
+        assert_eq!(packer.rep_levels, &[1; 5]);
     }
 
     #[test]
