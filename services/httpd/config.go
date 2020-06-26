@@ -44,6 +44,7 @@ type Config struct {
 	PprofAuthEnabled        bool           `toml:"pprof-auth-enabled"`
 	DebugPprofEnabled       bool           `toml:"debug-pprof-enabled"`
 	PingAuthEnabled         bool           `toml:"ping-auth-enabled"`
+	PromReadAuthEnabled     bool           `toml:"prom-read-auth-enabled"`
 	HTTPSEnabled            bool           `toml:"https-enabled"`
 	HTTPSCertificate        string         `toml:"https-certificate"`
 	HTTPSPrivateKey         string         `toml:"https-private-key"`
@@ -76,6 +77,7 @@ func NewConfig() Config {
 		PprofAuthEnabled:      false,
 		DebugPprofEnabled:     false,
 		PingAuthEnabled:       false,
+		PromReadAuthEnabled:   false,
 		HTTPSEnabled:          false,
 		HTTPSCertificate:      "/etc/ssl/influxdb.pem",
 		MaxRowLimit:           0,

@@ -43,6 +43,7 @@ type Index interface {
 	CreateSeriesIfNotExists(key, name []byte, tags models.Tags) error
 	CreateSeriesListIfNotExists(keys, names [][]byte, tags []models.Tags) error
 	DropSeries(seriesID uint64, key []byte, cascade bool) error
+	DropSeriesList(seriesID []uint64, key [][]byte, cascade bool) error
 	DropMeasurementIfSeriesNotExist(name []byte) (bool, error)
 
 	// Used to clean up series in inmem index that were dropped with a shard.

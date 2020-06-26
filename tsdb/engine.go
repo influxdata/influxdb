@@ -159,7 +159,6 @@ func NewEngine(id uint64, i Index, path string, walPath string, sfile *SeriesFil
 type EngineOptions struct {
 	EngineVersion string
 	IndexVersion  string
-	ShardID       uint64
 	InmemIndex    interface{} // shared in-memory index
 
 	// Limits the concurrent number of TSM files that can be loaded at once.

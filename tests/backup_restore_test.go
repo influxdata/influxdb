@@ -1,19 +1,18 @@
 package tests
 
 import (
+	"fmt"
 	"io/ioutil"
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
-
-	"fmt"
 
 	"github.com/influxdata/influxdb/cmd/influxd/backup"
 	"github.com/influxdata/influxdb/cmd/influxd/restore"
 	"github.com/influxdata/influxdb/toml"
-	"strings"
 )
 
 func TestServer_BackupAndRestore(t *testing.T) {
