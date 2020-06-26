@@ -20,6 +20,7 @@ import (
 	"github.com/influxdata/influxdb/v2/authorization"
 	"github.com/influxdata/influxdb/v2/authorizer"
 	"github.com/influxdata/influxdb/v2/bolt"
+	"github.com/influxdata/influxdb/v2/checks"
 	"github.com/influxdata/influxdb/v2/chronograf/server"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/inspect"
 	"github.com/influxdata/influxdb/v2/dbrp"
@@ -815,7 +816,8 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	var checkSvc platform.CheckService
 	{
 		coordinator := coordinator.NewCoordinator(m.log, m.scheduler, m.executor)
-		checkSvc = middleware.NewCheckService(m.kvService, m.kvService, coordinator)
+		checkSvc = checks.NewService(m.log.With(zap.String("svc", "checks")), m.kvStore, m.kvService, m.kvService)
+		checkSvc = middleware.NewCheckService(checkSvc, m.kvService, coordinator)
 	}
 
 	var notificationRuleSvc platform.NotificationRuleStore
