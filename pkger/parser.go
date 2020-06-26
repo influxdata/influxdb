@@ -299,6 +299,10 @@ type ObjectAssociation struct {
 
 // AddAssociations adds an association to the object.
 func (k Object) AddAssociations(associations ...ObjectAssociation) {
+	if len(associations) == 0 {
+		return
+	}
+
 	if k.Spec == nil {
 		k.Spec = make(Resource)
 	}

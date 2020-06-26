@@ -92,24 +92,26 @@ type resourceExporter struct {
 	teleSVC     influxdb.TelegrafConfigStore
 	varSVC      influxdb.VariableService
 
-	mObjects  map[exportKey]Object
-	mPkgNames map[string]bool
+	mObjects        map[exportKey]Object
+	mPkgNames       map[string]bool
+	mStackResources map[exportKey]StackResource
 }
 
 func newResourceExporter(svc *Service) *resourceExporter {
 	return &resourceExporter{
-		nameGen:     wordplay.GetRandomName,
-		bucketSVC:   svc.bucketSVC,
-		checkSVC:    svc.checkSVC,
-		dashSVC:     svc.dashSVC,
-		labelSVC:    svc.labelSVC,
-		endpointSVC: svc.endpointSVC,
-		ruleSVC:     svc.ruleSVC,
-		taskSVC:     svc.taskSVC,
-		teleSVC:     svc.teleSVC,
-		varSVC:      svc.varSVC,
-		mObjects:    make(map[exportKey]Object),
-		mPkgNames:   make(map[string]bool),
+		nameGen:         wordplay.GetRandomName,
+		bucketSVC:       svc.bucketSVC,
+		checkSVC:        svc.checkSVC,
+		dashSVC:         svc.dashSVC,
+		labelSVC:        svc.labelSVC,
+		endpointSVC:     svc.endpointSVC,
+		ruleSVC:         svc.ruleSVC,
+		taskSVC:         svc.taskSVC,
+		teleSVC:         svc.teleSVC,
+		varSVC:          svc.varSVC,
+		mObjects:        make(map[exportKey]Object),
+		mPkgNames:       make(map[string]bool),
+		mStackResources: make(map[exportKey]StackResource),
 	}
 }
 
@@ -161,6 +163,14 @@ func (ex *resourceExporter) Objects() []Object {
 	return sortObjects(objects)
 }
 
+func (ex *resourceExporter) StackResources() []StackResource {
+	resources := make([]StackResource, 0, len(ex.mStackResources))
+	for _, res := range ex.mStackResources {
+		resources = append(resources, res)
+	}
+	return resources
+}
+
 func (ex *resourceExporter) uniqByNameResID() influxdb.ID {
 	// we only need an id when we have resources that are not unique by name via the
 	// metastore. resoureces that are unique by name will be provided a default stamp
@@ -192,11 +202,22 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 		if r.MetaName == "" {
 			metaName = ex.uniqName()
 		}
+
+		stackResource := StackResource{
+			APIVersion: APIVersion,
+			ID:         r.ID,
+			MetaName:   metaName,
+			Kind:       r.Kind,
+		}
+		for _, a := range ass {
+			stackResource.Associations = append(stackResource.Associations, StackResourceAssociation(a))
+		}
+
 		object.SetMetadataName(metaName)
 		object.AddAssociations(ass...)
-
 		key := newExportKey(orgID, uniqResID, k, object.Spec.stringShort(fieldName))
 		ex.mObjects[key] = object
+		ex.mStackResources[key] = stackResource
 	}
 
 	uniqByNameResID := ex.uniqByNameResID()

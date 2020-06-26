@@ -30,13 +30,13 @@ type (
 	// platform. This stack is updated only after side effects of applying a pkg.
 	// If the pkg is applied, and no changes are had, then the stack is not updated.
 	Stack struct {
-		ID          influxdb.ID     `json:"id"`
-		OrgID       influxdb.ID     `json:"orgID"`
-		Name        string          `json:"name"`
-		Description string          `json:"description"`
-		Sources     []string        `json:"sources"`
-		URLs        []string        `json:"urls"`
-		Resources   []StackResource `json:"resources"`
+		ID          influxdb.ID
+		OrgID       influxdb.ID
+		Name        string
+		Description string
+		Sources     []string
+		URLs        []string
+		Resources   []StackResource
 
 		influxdb.CRUDLog
 	}
@@ -44,17 +44,17 @@ type (
 	// StackResource is a record for an individual resource side effect genereated from
 	// applying a pkg.
 	StackResource struct {
-		APIVersion   string                     `json:"apiVersion"`
-		ID           influxdb.ID                `json:"resourceID"`
-		Kind         Kind                       `json:"kind"`
-		MetaName     string                     `json:"templateMetaName"`
-		Associations []StackResourceAssociation `json:"associations"`
+		APIVersion   string
+		ID           influxdb.ID
+		Kind         Kind
+		MetaName     string
+		Associations []StackResourceAssociation
 	}
 
 	// StackResourceAssociation associates a stack resource with another stack resource.
 	StackResourceAssociation struct {
-		Kind    Kind   `json:"kind"`
-		PkgName string `json:"pkgName"`
+		Kind     Kind
+		MetaName string
 	}
 
 	// StackUpdate provides a means to update an existing stack.
@@ -393,9 +393,10 @@ type (
 
 	// ExportOpt are the options for creating a new package.
 	ExportOpt struct {
-		StackID   influxdb.ID
-		OrgIDs    []ExportByOrgIDOpt
-		Resources []ResourceToClone
+		UpdateStack bool
+		StackID     influxdb.ID
+		OrgIDs      []ExportByOrgIDOpt
+		Resources   []ResourceToClone
 	}
 
 	// ExportByOrgIDOpt identifies an org to export resources for and provides
@@ -445,6 +446,15 @@ func ExportWithStackID(stackID influxdb.ID) ExportOptFn {
 	}
 }
 
+// ExportWithStackUpdate will update the stack with all resources exported as a template.
+// This is a destructive operation.
+func ExportWithStackUpdate() ExportOptFn {
+	return func(opt *ExportOpt) error {
+		opt.UpdateStack = true
+		return nil
+	}
+}
+
 func exportOptFromOptFns(opts []ExportOptFn) (ExportOpt, error) {
 	var opt ExportOpt
 	for _, setter := range opts {
@@ -462,10 +472,20 @@ func (s *Service) Export(ctx context.Context, setters ...ExportOptFn) (*Pkg, err
 		return nil, err
 	}
 
+	var stack Stack
 	if opt.StackID != 0 {
-		opts, err := s.exportStackResources(ctx, opt.StackID)
+		stack, err = s.store.ReadStackByID(ctx, opt.StackID)
 		if err != nil {
 			return nil, err
+		}
+
+		var opts []ExportOptFn
+		for _, r := range stack.Resources {
+			opts = append(opts, ExportWithExistingResources(ResourceToClone{
+				Kind:     r.Kind,
+				ID:       r.ID,
+				MetaName: r.MetaName,
+			}))
 		}
 
 		opt, err = exportOptFromOptFns(append(setters, opts...))
@@ -496,24 +516,14 @@ func (s *Service) Export(ctx context.Context, setters ...ExportOptFn) (*Pkg, err
 		return nil, failedValidationErr(err)
 	}
 
+	if opt.UpdateStack && opt.StackID != 0 {
+		stack.Resources = exporter.StackResources()
+		if err := s.store.UpdateStack(ctx, stack); err != nil {
+			return nil, err
+		}
+	}
+
 	return pkg, nil
-}
-
-func (s *Service) exportStackResources(ctx context.Context, stackID influxdb.ID) ([]ExportOptFn, error) {
-	stack, err := s.store.ReadStackByID(ctx, stackID)
-	if err != nil {
-		return nil, err
-	}
-
-	var opts []ExportOptFn
-	for _, r := range stack.Resources {
-		opts = append(opts, ExportWithExistingResources(ResourceToClone{
-			Kind:     r.Kind,
-			ID:       r.ID,
-			MetaName: r.MetaName,
-		}))
-	}
-	return opts, nil
 }
 
 func (s *Service) cloneOrgResources(ctx context.Context, orgID influxdb.ID, resourceKinds []Kind) ([]ResourceToClone, error) {
@@ -3192,8 +3202,8 @@ func stateLabelsToStackAssociations(stateLabels []*stateLabel) []StackResourceAs
 	var out []StackResourceAssociation
 	for _, l := range stateLabels {
 		out = append(out, StackResourceAssociation{
-			Kind:    KindLabel,
-			PkgName: l.parserLabel.PkgName(),
+			Kind:     KindLabel,
+			MetaName: l.parserLabel.PkgName(),
 		})
 	}
 	return out

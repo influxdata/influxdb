@@ -7704,6 +7704,8 @@ components:
     PkgCreate:
       type: object
       properties:
+        shouldUpdateStack:
+          type: boolean
         stackID:
           type: string
         orgIDs:
@@ -8417,7 +8419,7 @@ components:
                   properties:
                     kind:
                       $ref: "#/components/schemas/TemplateKind"
-                    pkgName:
+                    metaName:
                       type: string
         urls:
           type: array

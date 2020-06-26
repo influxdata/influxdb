@@ -75,33 +75,44 @@ func (s *HTTPServer) Prefix() string {
 	return RoutePrefix
 }
 
-// RespStack is the response body for a stack.
-type RespStack struct {
-	ID          string              `json:"id"`
-	OrgID       string              `json:"orgID"`
-	Name        string              `json:"name"`
-	Description string              `json:"description"`
-	Resources   []RespStackResource `json:"resources"`
-	Sources     []string            `json:"sources"`
-	URLs        []string            `json:"urls"`
-	influxdb.CRUDLog
-}
+type (
+	// RespStack is the response body for a stack.
+	RespStack struct {
+		ID          string              `json:"id"`
+		OrgID       string              `json:"orgID"`
+		Name        string              `json:"name"`
+		Description string              `json:"description"`
+		Resources   []RespStackResource `json:"resources"`
+		Sources     []string            `json:"sources"`
+		URLs        []string            `json:"urls"`
+		influxdb.CRUDLog
+	}
 
-// RespStackResource is the response for a stack resource. This type exists
-// to decouple the internal service implementation from the deprecates usage
-// of pkgs in the API. We could add a custom UnmarshalJSON method, but
-// I would rather keep it obvious and explicit with a separate field.
-type RespStackResource struct {
-	APIVersion   string                     `json:"apiVersion"`
-	ID           string                     `json:"resourceID"`
-	Kind         Kind                       `json:"kind"`
-	MetaName     string                     `json:"templateMetaName"`
-	Associations []StackResourceAssociation `json:"associations"`
+	// RespStackResource is the response for a stack resource. This type exists
+	// to decouple the internal service implementation from the deprecates usage
+	// of pkgs in the API. We could add a custom UnmarshalJSON method, but
+	// I would rather keep it obvious and explicit with a separate field.
+	RespStackResource struct {
+		APIVersion   string                   `json:"apiVersion"`
+		ID           string                   `json:"resourceID"`
+		Kind         Kind                     `json:"kind"`
+		MetaName     string                   `json:"templateMetaName"`
+		Associations []RespStackResourceAssoc `json:"associations"`
 
-	// PkgName is deprecated moving forward, will support until it is
-	// ripped out.
-	PkgName *string `json:"pkgName,omitempty"`
-}
+		// PkgName is deprecated moving forward, will support until it is
+		// ripped out.
+		PkgName *string `json:"pkgName,omitempty"`
+	}
+
+	// RespStackResourceAssoc is the response for a stack resource's associations.
+	RespStackResourceAssoc struct {
+		Kind     Kind   `json:"kind"`
+		MetaName string `json:"metaName"`
+
+		//PkgName is to be deprecated moving forward
+		PkgName *string `json:"pkgName,omitempty"`
+	}
+)
 
 // RespListStacks is the HTTP response for a stack list call.
 type RespListStacks struct {
@@ -386,9 +397,10 @@ type ReqExportOrgIDOpt struct {
 
 // ReqExport is a request body for the export endpoint.
 type ReqExport struct {
-	StackID   string              `json:"stackID"`
-	OrgIDs    []ReqExportOrgIDOpt `json:"orgIDs"`
-	Resources []ResourceToClone   `json:"resources"`
+	UpdateStack bool                `json:"shouldUpdateStack"`
+	StackID     string              `json:"stackID"`
+	OrgIDs      []ReqExportOrgIDOpt `json:"orgIDs"`
+	Resources   []ResourceToClone   `json:"resources"`
 }
 
 // OK validates a create request.
@@ -429,6 +441,9 @@ func (s *HTTPServer) export(w http.ResponseWriter, r *http.Request) {
 
 	opts := []ExportOptFn{
 		ExportWithExistingResources(reqBody.Resources...),
+	}
+	if reqBody.UpdateStack {
+		opts = append(opts, ExportWithStackUpdate())
 	}
 	for _, orgIDStr := range reqBody.OrgIDs {
 		orgID, err := influxdb.IDFromString(orgIDStr.OrgID)
@@ -850,12 +865,19 @@ func newDecodeErr(encoding string, err error) *influxdb.Error {
 func convertStackToRespStack(st Stack) RespStack {
 	resources := make([]RespStackResource, 0, len(st.Resources))
 	for _, r := range st.Resources {
+		asses := make([]RespStackResourceAssoc, 0, len(r.Associations))
+		for _, a := range r.Associations {
+			asses = append(asses, RespStackResourceAssoc{
+				Kind:     a.Kind,
+				MetaName: a.MetaName,
+			})
+		}
 		resources = append(resources, RespStackResource{
 			APIVersion:   r.APIVersion,
 			ID:           r.ID.String(),
 			Kind:         r.Kind,
 			MetaName:     r.MetaName,
-			Associations: append([]StackResourceAssociation{}, r.Associations...),
+			Associations: asses,
 		})
 	}
 
