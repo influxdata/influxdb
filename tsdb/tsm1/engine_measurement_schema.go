@@ -29,26 +29,11 @@ func (e *Engine) MeasurementNames(ctx context.Context, orgID, bucketID influxdb.
 	prefix := models.EscapeMeasurement(orgBucket[:])
 
 	var (
-		names     = make(map[string]struct{})
-		discarded = make(map[string]struct{})
-		tags      models.Tags
-		stats     cursors.CursorStats
-		canceled  bool
+		names    = make(map[string]struct{})
+		tags     models.Tags
+		stats    cursors.CursorStats
+		canceled bool
 	)
-
-	// This is used when we fail to match a TSM entry against a predicate.
-	//
-	// Check to see if we've matched an entry for this measurement and included
-	// it in our result set before this. If we find one, remove it and add it to
-	// the discard list so it is prohibited from being re-added to the result
-	// set in the future. This maintains parity with the 1.x TSDB measurement
-	// name lookup behavior.
-	maybeDiscard := func(name string) {
-		if _, ok := names[name]; ok {
-			delete(names, name)
-			discarded[name] = struct{}{}
-		}
-	}
 
 	e.FileStore.ForEachFile(func(f TSMFile) bool {
 		// Check the context before accessing each tsm file
@@ -68,30 +53,25 @@ func (e *Engine) MeasurementNames(ctx context.Context, orgID, bucketID influxdb.
 				}
 
 				key, _ := SeriesAndFieldFromCompositeKey(sfkey)
-				nameBytes, err := models.ParseMeasurement(key)
+				name, err := models.ParseMeasurement(key)
 				if err != nil {
 					e.logger.Error("Invalid series key in TSM index", zap.Error(err), zap.Binary("key", key))
 					continue
 				}
 
-				name := string(nameBytes)
 				if predicate != nil {
 					tags = models.ParseTagsWithTags(key, tags[:0])
 					valuer := influxql.ValuerEval{Valuer: tagsValuer(tags)}
 					if !valuer.EvalBool(predicate) {
-						maybeDiscard(name)
 						continue
 					}
 				}
 
-				if _, ok := discarded[name]; ok {
-					continue
-				}
-				if _, ok := names[name]; ok {
+				if _, ok := names[string(name)]; ok {
 					continue
 				}
 				if iter.HasData() {
-					names[name] = struct{}{}
+					names[string(name)] = struct{}{}
 				}
 			}
 			stats.Add(iter.Stats())
@@ -115,26 +95,21 @@ func (e *Engine) MeasurementNames(ctx context.Context, orgID, bucketID influxdb.
 
 		// TODO(edd): consider the []byte() conversion here.
 		key, _ := SeriesAndFieldFromCompositeKey([]byte(sfkey))
-		nameBytes, err := models.ParseMeasurement(key)
+		name, err := models.ParseMeasurement(key)
 		if err != nil {
 			e.logger.Error("Invalid series key in cache", zap.Error(err), zap.Binary("key", key))
 			return nil
 		}
 
-		name := string(nameBytes)
 		if predicate != nil {
 			tags = models.ParseTagsWithTags(key, tags[:0])
 			valuer := influxql.ValuerEval{Valuer: tagsValuer(tags)}
 			if !valuer.EvalBool(predicate) {
-				maybeDiscard(name)
 				return nil
 			}
 		}
 
-		if _, ok := discarded[name]; ok {
-			return nil
-		}
-		if _, ok := names[name]; ok {
+		if _, ok := names[string(name)]; ok {
 			return nil
 		}
 
@@ -149,7 +124,7 @@ func (e *Engine) MeasurementNames(ctx context.Context, orgID, bucketID influxdb.
 		stats.ScannedBytes += ts.Len() * 8 // sizeof timestamp
 
 		if ts.Contains(start, end) {
-			names[name] = struct{}{}
+			names[string(name)] = struct{}{}
 		}
 		return nil
 	})
