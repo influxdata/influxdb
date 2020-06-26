@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/influxdata/influxdb/v2"
-	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/mock"
 )
 
@@ -14,7 +13,7 @@ func TestPaging_DecodeFindOptions(t *testing.T) {
 		queryParams map[string]string
 	}
 	type wants struct {
-		opts platform.FindOptions
+		opts influxdb.FindOptions
 	}
 
 	tests := []struct {
@@ -33,7 +32,7 @@ func TestPaging_DecodeFindOptions(t *testing.T) {
 				},
 			},
 			wants: wants{
-				opts: platform.FindOptions{
+				opts: influxdb.FindOptions{
 					Offset:     10,
 					Limit:      10,
 					SortBy:     "updateTime",
@@ -49,7 +48,7 @@ func TestPaging_DecodeFindOptions(t *testing.T) {
 				},
 			},
 			wants: wants{
-				opts: platform.FindOptions{
+				opts: influxdb.FindOptions{
 					Offset:     0,
 					Limit:      10,
 					SortBy:     "",
@@ -93,11 +92,11 @@ func TestPaging_NewPagingLinks(t *testing.T) {
 	type args struct {
 		basePath string
 		num      int
-		opts     platform.FindOptions
+		opts     influxdb.FindOptions
 		filter   mock.PagingFilter
 	}
 	type wants struct {
-		links platform.PagingLinks
+		links influxdb.PagingLinks
 	}
 
 	tests := []struct {
@@ -110,7 +109,7 @@ func TestPaging_NewPagingLinks(t *testing.T) {
 			args: args{
 				basePath: "/api/v2/buckets",
 				num:      50,
-				opts: platform.FindOptions{
+				opts: influxdb.FindOptions{
 					Offset:     10,
 					Limit:      10,
 					Descending: true,
@@ -121,7 +120,7 @@ func TestPaging_NewPagingLinks(t *testing.T) {
 				},
 			},
 			wants: wants{
-				links: platform.PagingLinks{
+				links: influxdb.PagingLinks{
 					Prev: "/api/v2/buckets?descending=true&limit=10&name=name&offset=0&type=type1&type=type2",
 					Self: "/api/v2/buckets?descending=true&limit=10&name=name&offset=10&type=type1&type=type2",
 					Next: "/api/v2/buckets?descending=true&limit=10&name=name&offset=20&type=type1&type=type2",
@@ -133,7 +132,7 @@ func TestPaging_NewPagingLinks(t *testing.T) {
 			args: args{
 				basePath: "/api/v2/buckets",
 				num:      50,
-				opts: platform.FindOptions{
+				opts: influxdb.FindOptions{
 					Offset:     0,
 					Limit:      10,
 					Descending: true,
@@ -144,7 +143,7 @@ func TestPaging_NewPagingLinks(t *testing.T) {
 				},
 			},
 			wants: wants{
-				links: platform.PagingLinks{
+				links: influxdb.PagingLinks{
 					Prev: "",
 					Self: "/api/v2/buckets?descending=true&limit=10&name=name&offset=0&type=type1&type=type2",
 					Next: "/api/v2/buckets?descending=true&limit=10&name=name&offset=10&type=type1&type=type2",
@@ -156,7 +155,7 @@ func TestPaging_NewPagingLinks(t *testing.T) {
 			args: args{
 				basePath: "/api/v2/buckets",
 				num:      5,
-				opts: platform.FindOptions{
+				opts: influxdb.FindOptions{
 					Offset:     10,
 					Limit:      10,
 					Descending: true,
@@ -167,7 +166,7 @@ func TestPaging_NewPagingLinks(t *testing.T) {
 				},
 			},
 			wants: wants{
-				links: platform.PagingLinks{
+				links: influxdb.PagingLinks{
 					Prev: "/api/v2/buckets?descending=true&limit=10&name=name&offset=0&type=type1&type=type2",
 					Self: "/api/v2/buckets?descending=true&limit=10&name=name&offset=10&type=type1&type=type2",
 					Next: "",

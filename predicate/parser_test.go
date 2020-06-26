@@ -1,7 +1,6 @@
 package predicate
 
 import (
-	"fmt"
 	"strings"
 	"testing"
 
@@ -68,14 +67,14 @@ func TestParseNode(t *testing.T) {
 			str: ` (t1="v1" and t2="v2") and (`,
 			err: &influxdb.Error{
 				Code: influxdb.EInvalid,
-				Msg:  fmt.Sprintf("extra ( seen"),
+				Msg:  "extra ( seen",
 			},
 		},
 		{
 			str: ` (t1="v1" and t2="v2"))`,
 			err: &influxdb.Error{
 				Code: influxdb.EInvalid,
-				Msg:  fmt.Sprintf("extra ) seen"),
+				Msg:  "extra ) seen",
 			},
 		},
 	}

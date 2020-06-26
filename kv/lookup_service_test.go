@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/influxdata/influxdb/v2"
-	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/mock"
 	influxdbtesting "github.com/influxdata/influxdb/v2/testing"
@@ -13,9 +12,9 @@ import (
 )
 
 var (
-	existingBucketID = platform.ID(mock.FirstMockID + 3)
-	firstMockID      = platform.ID(mock.FirstMockID)
-	nonexistantID    = platform.ID(10001)
+	existingBucketID = influxdb.ID(mock.FirstMockID + 3)
+	firstMockID      = influxdb.ID(mock.FirstMockID)
+	nonexistantID    = influxdb.ID(10001)
 )
 
 type StoreFn func(*testing.T) (kv.Store, func(), error)

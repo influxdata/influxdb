@@ -4,17 +4,16 @@ import (
 	"testing"
 
 	"github.com/influxdata/influxdb/v2"
-	platform "github.com/influxdata/influxdb/v2"
-	platformtesting "github.com/influxdata/influxdb/v2/testing"
+	influxdbtesting "github.com/influxdata/influxdb/v2/testing"
 	"github.com/stretchr/testify/require"
 )
 
 func TestOwnerMappingValidate(t *testing.T) {
 	type fields struct {
-		ResourceID   platform.ID
-		ResourceType platform.ResourceType
-		UserID       platform.ID
-		UserType     platform.UserType
+		ResourceID   influxdb.ID
+		ResourceType influxdb.ResourceType
+		UserID       influxdb.ID
+		UserType     influxdb.UserType
 	}
 	tests := []struct {
 		name    string
@@ -24,64 +23,64 @@ func TestOwnerMappingValidate(t *testing.T) {
 		{
 			name: "valid mapping",
 			fields: fields{
-				UserID:       platformtesting.MustIDBase16("debac1e0deadbeef"),
-				UserType:     platform.Owner,
-				ResourceType: platform.DashboardsResourceType,
-				ResourceID:   platformtesting.MustIDBase16("020f755c3c082000"),
+				UserID:       influxdbtesting.MustIDBase16("debac1e0deadbeef"),
+				UserType:     influxdb.Owner,
+				ResourceType: influxdb.DashboardsResourceType,
+				ResourceID:   influxdbtesting.MustIDBase16("020f755c3c082000"),
 			},
 		},
 		{
 			name: "mapping requires a resourceid",
 			fields: fields{
-				UserID:       platformtesting.MustIDBase16("debac1e0deadbeef"),
-				UserType:     platform.Owner,
-				ResourceType: platform.DashboardsResourceType,
+				UserID:       influxdbtesting.MustIDBase16("debac1e0deadbeef"),
+				UserType:     influxdb.Owner,
+				ResourceType: influxdb.DashboardsResourceType,
 			},
 			wantErr: true,
 		},
 		{
 			name: "mapping requires a userid",
 			fields: fields{
-				ResourceID:   platformtesting.MustIDBase16("020f755c3c082000"),
-				UserType:     platform.Owner,
-				ResourceType: platform.DashboardsResourceType,
+				ResourceID:   influxdbtesting.MustIDBase16("020f755c3c082000"),
+				UserType:     influxdb.Owner,
+				ResourceType: influxdb.DashboardsResourceType,
 			},
 			wantErr: true,
 		},
 		{
 			name: "mapping requires a usertype",
 			fields: fields{
-				ResourceID:   platformtesting.MustIDBase16("020f755c3c082000"),
-				UserID:       platformtesting.MustIDBase16("debac1e0deadbeef"),
-				ResourceType: platform.DashboardsResourceType,
+				ResourceID:   influxdbtesting.MustIDBase16("020f755c3c082000"),
+				UserID:       influxdbtesting.MustIDBase16("debac1e0deadbeef"),
+				ResourceType: influxdb.DashboardsResourceType,
 			},
 			wantErr: true,
 		},
 		{
 			name: "mapping requires a resourcetype",
 			fields: fields{
-				ResourceID: platformtesting.MustIDBase16("020f755c3c082000"),
-				UserID:     platformtesting.MustIDBase16("debac1e0deadbeef"),
-				UserType:   platform.Owner,
+				ResourceID: influxdbtesting.MustIDBase16("020f755c3c082000"),
+				UserID:     influxdbtesting.MustIDBase16("debac1e0deadbeef"),
+				UserType:   influxdb.Owner,
 			},
 			wantErr: true,
 		},
 		{
 			name: "the usertype provided must be valid",
 			fields: fields{
-				ResourceID:   platformtesting.MustIDBase16("020f755c3c082000"),
-				UserID:       platformtesting.MustIDBase16("debac1e0deadbeef"),
+				ResourceID:   influxdbtesting.MustIDBase16("020f755c3c082000"),
+				UserID:       influxdbtesting.MustIDBase16("debac1e0deadbeef"),
 				UserType:     "foo",
-				ResourceType: platform.DashboardsResourceType,
+				ResourceType: influxdb.DashboardsResourceType,
 			},
 			wantErr: true,
 		},
 		{
 			name: "the resourcetype provided must be valid",
 			fields: fields{
-				ResourceID:   platformtesting.MustIDBase16("020f755c3c082000"),
-				UserID:       platformtesting.MustIDBase16("debac1e0deadbeef"),
-				UserType:     platform.Owner,
+				ResourceID:   influxdbtesting.MustIDBase16("020f755c3c082000"),
+				UserID:       influxdbtesting.MustIDBase16("debac1e0deadbeef"),
+				UserType:     influxdb.Owner,
 				ResourceType: "foo",
 			},
 			wantErr: true,
@@ -89,7 +88,7 @@ func TestOwnerMappingValidate(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := platform.UserResourceMapping{
+			m := influxdb.UserResourceMapping{
 				ResourceID:   tt.fields.ResourceID,
 				ResourceType: tt.fields.ResourceType,
 				UserID:       tt.fields.UserID,
@@ -104,24 +103,24 @@ func TestOwnerMappingValidate(t *testing.T) {
 
 func TestOwnerMappingToPermissions(t *testing.T) {
 	type wants struct {
-		perms platform.Permission
+		perms influxdb.Permission
 		err   bool
 	}
 
-	ResourceID, _ := platform.IDFromString("020f755c3c082000")
+	ResourceID, _ := influxdb.IDFromString("020f755c3c082000")
 
 	tests := []struct {
 		name  string
-		urm   platform.UserResourceMapping
+		urm   influxdb.UserResourceMapping
 		wants wants
 	}{
 		{
 			name: "Org Member Has Permission To Read Org",
-			urm: platform.UserResourceMapping{
-				UserID:       platformtesting.MustIDBase16("debac1e0deadbeef"),
-				UserType:     platform.Member,
-				ResourceType: platform.OrgsResourceType,
-				ResourceID:   platformtesting.MustIDBase16("020f755c3c082000"),
+			urm: influxdb.UserResourceMapping{
+				UserID:       influxdbtesting.MustIDBase16("debac1e0deadbeef"),
+				UserType:     influxdb.Member,
+				ResourceType: influxdb.OrgsResourceType,
+				ResourceID:   influxdbtesting.MustIDBase16("020f755c3c082000"),
 			},
 			wants: wants{
 				err:   false,
@@ -129,11 +128,11 @@ func TestOwnerMappingToPermissions(t *testing.T) {
 		},
 		{
 			name: "Org Owner Has Permission To Write Org",
-			urm: platform.UserResourceMapping{
-				UserID:       platformtesting.MustIDBase16("debac1e0deadbeef"),
-				UserType:     platform.Owner,
-				ResourceType: platform.OrgsResourceType,
-				ResourceID:   platformtesting.MustIDBase16("020f755c3c082000"),
+			urm: influxdb.UserResourceMapping{
+				UserID:       influxdbtesting.MustIDBase16("debac1e0deadbeef"),
+				UserType:     influxdb.Owner,
+				ResourceType: influxdb.OrgsResourceType,
+				ResourceID:   influxdbtesting.MustIDBase16("020f755c3c082000"),
 			},
 			wants: wants{
 				err:   false,
@@ -141,11 +140,11 @@ func TestOwnerMappingToPermissions(t *testing.T) {
 		},
 		{
 			name: "Org Owner Has Permission To Read Org",
-			urm: platform.UserResourceMapping{
-				UserID:       platformtesting.MustIDBase16("debac1e0deadbeef"),
-				UserType:     platform.Owner,
-				ResourceType: platform.OrgsResourceType,
-				ResourceID:   platformtesting.MustIDBase16("020f755c3c082000"),
+			urm: influxdb.UserResourceMapping{
+				UserID:       influxdbtesting.MustIDBase16("debac1e0deadbeef"),
+				UserType:     influxdb.Owner,
+				ResourceType: influxdb.OrgsResourceType,
+				ResourceID:   influxdbtesting.MustIDBase16("020f755c3c082000"),
 			},
 			wants: wants{
 				err:   false,
@@ -153,11 +152,11 @@ func TestOwnerMappingToPermissions(t *testing.T) {
 		},
 		{
 			name: "Bucket Member User Has Permission To Read Bucket",
-			urm: platform.UserResourceMapping{
-				UserID:       platformtesting.MustIDBase16("debac1e0deadbeef"),
-				UserType:     platform.Member,
-				ResourceType: platform.BucketsResourceType,
-				ResourceID:   platformtesting.MustIDBase16("020f755c3c082000"),
+			urm: influxdb.UserResourceMapping{
+				UserID:       influxdbtesting.MustIDBase16("debac1e0deadbeef"),
+				UserType:     influxdb.Member,
+				ResourceType: influxdb.BucketsResourceType,
+				ResourceID:   influxdbtesting.MustIDBase16("020f755c3c082000"),
 			},
 			wants: wants{
 				err:   false,

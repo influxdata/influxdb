@@ -10,7 +10,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/influxdata/influxdb/v2"
-	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/mock"
 )
 
@@ -26,34 +25,34 @@ func sessionCompareOptions(ignore ...string) cmp.Options {
 		cmp.Comparer(func(x, y []byte) bool {
 			return bytes.Equal(x, y)
 		}),
-		cmp.Transformer("Sort", func(in []*platform.Session) []*platform.Session {
-			out := append([]*platform.Session(nil), in...) // Copy input to avoid mutating it
+		cmp.Transformer("Sort", func(in []*influxdb.Session) []*influxdb.Session {
+			out := append([]*influxdb.Session(nil), in...) // Copy input to avoid mutating it
 			sort.Slice(out, func(i, j int) bool {
 				return out[i].ID.String() > out[j].ID.String()
 			})
 			return out
 		}),
-		cmpopts.IgnoreFields(platform.Session{}, ignore...),
+		cmpopts.IgnoreFields(influxdb.Session{}, ignore...),
 		cmpopts.EquateEmpty(),
 	}
 }
 
 // SessionFields will include the IDGenerator, TokenGenerator, Sessions, and Users
 type SessionFields struct {
-	IDGenerator    platform.IDGenerator
-	TokenGenerator platform.TokenGenerator
-	Sessions       []*platform.Session
-	Users          []*platform.User
+	IDGenerator    influxdb.IDGenerator
+	TokenGenerator influxdb.TokenGenerator
+	Sessions       []*influxdb.Session
+	Users          []*influxdb.User
 }
 
 type sessionServiceFunc func(
-	init func(SessionFields, *testing.T) (platform.SessionService, string, func()),
+	init func(SessionFields, *testing.T) (influxdb.SessionService, string, func()),
 	t *testing.T,
 )
 
 // SessionService tests all the service functions.
 func SessionService(
-	init func(SessionFields, *testing.T) (platform.SessionService, string, func()), t *testing.T,
+	init func(SessionFields, *testing.T) (influxdb.SessionService, string, func()), t *testing.T,
 ) {
 	tests := []struct {
 		name string
@@ -85,7 +84,7 @@ func SessionService(
 
 // CreateSession testing
 func CreateSession(
-	init func(SessionFields, *testing.T) (platform.SessionService, string, func()),
+	init func(SessionFields, *testing.T) (influxdb.SessionService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
@@ -93,7 +92,7 @@ func CreateSession(
 	}
 	type wants struct {
 		err     error
-		session *platform.Session
+		session *influxdb.Session
 	}
 
 	tests := []struct {
@@ -107,7 +106,7 @@ func CreateSession(
 			fields: SessionFields{
 				IDGenerator:    mock.NewIDGenerator(sessionTwoID, t),
 				TokenGenerator: mock.NewTokenGenerator("abc123xyz", nil),
-				Users: []*platform.User{
+				Users: []*influxdb.User{
 					{
 						ID:   MustIDBase16(sessionOneID),
 						Name: "user1",
@@ -118,7 +117,7 @@ func CreateSession(
 				user: "user1",
 			},
 			wants: wants{
-				session: &platform.Session{
+				session: &influxdb.Session{
 					ID:     MustIDBase16(sessionTwoID),
 					UserID: MustIDBase16(sessionOneID),
 					Key:    "abc123xyz",
@@ -144,7 +143,7 @@ func CreateSession(
 
 // FindSession testing
 func FindSession(
-	init func(SessionFields, *testing.T) (platform.SessionService, string, func()),
+	init func(SessionFields, *testing.T) (influxdb.SessionService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
@@ -152,7 +151,7 @@ func FindSession(
 	}
 	type wants struct {
 		err     error
-		session *platform.Session
+		session *influxdb.Session
 	}
 
 	tests := []struct {
@@ -166,7 +165,7 @@ func FindSession(
 			fields: SessionFields{
 				IDGenerator:    mock.NewIDGenerator(sessionTwoID, t),
 				TokenGenerator: mock.NewTokenGenerator("abc123xyz", nil),
-				Sessions: []*platform.Session{
+				Sessions: []*influxdb.Session{
 					{
 						ID:        MustIDBase16(sessionOneID),
 						UserID:    MustIDBase16(sessionTwoID),
@@ -179,7 +178,7 @@ func FindSession(
 				key: "abc123xyz",
 			},
 			wants: wants{
-				session: &platform.Session{
+				session: &influxdb.Session{
 					ID:        MustIDBase16(sessionOneID),
 					UserID:    MustIDBase16(sessionTwoID),
 					Key:       "abc123xyz",
@@ -193,10 +192,10 @@ func FindSession(
 				key: "abc123xyz",
 			},
 			wants: wants{
-				err: &platform.Error{
-					Code: platform.ENotFound,
-					Op:   platform.OpFindSession,
-					Msg:  platform.ErrSessionNotFound,
+				err: &influxdb.Error{
+					Code: influxdb.ENotFound,
+					Op:   influxdb.OpFindSession,
+					Msg:  influxdb.ErrSessionNotFound,
 				},
 			},
 		},
@@ -220,7 +219,7 @@ func FindSession(
 
 // ExpireSession testing
 func ExpireSession(
-	init func(SessionFields, *testing.T) (platform.SessionService, string, func()),
+	init func(SessionFields, *testing.T) (influxdb.SessionService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
@@ -228,7 +227,7 @@ func ExpireSession(
 	}
 	type wants struct {
 		err     error
-		session *platform.Session
+		session *influxdb.Session
 	}
 
 	tests := []struct {
@@ -242,7 +241,7 @@ func ExpireSession(
 			fields: SessionFields{
 				IDGenerator:    mock.NewIDGenerator(sessionTwoID, t),
 				TokenGenerator: mock.NewTokenGenerator("abc123xyz", nil),
-				Sessions: []*platform.Session{
+				Sessions: []*influxdb.Session{
 					{
 						ID:        MustIDBase16(sessionOneID),
 						UserID:    MustIDBase16(sessionTwoID),
@@ -255,7 +254,7 @@ func ExpireSession(
 				key: "abc123xyz",
 			},
 			wants: wants{
-				session: &platform.Session{
+				session: &influxdb.Session{
 					ID:        MustIDBase16(sessionOneID),
 					UserID:    MustIDBase16(sessionTwoID),
 					Key:       "abc123xyz",
@@ -288,18 +287,18 @@ func ExpireSession(
 
 // RenewSession testing
 func RenewSession(
-	init func(SessionFields, *testing.T) (platform.SessionService, string, func()),
+	init func(SessionFields, *testing.T) (influxdb.SessionService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
-		session  *platform.Session
+		session  *influxdb.Session
 		key      string
 		expireAt time.Time
 	}
 
 	type wants struct {
 		err     error
-		session *platform.Session
+		session *influxdb.Session
 	}
 
 	tests := []struct {
@@ -313,7 +312,7 @@ func RenewSession(
 			fields: SessionFields{
 				IDGenerator:    mock.NewIDGenerator(sessionTwoID, t),
 				TokenGenerator: mock.NewTokenGenerator("abc123xyz", nil),
-				Sessions: []*platform.Session{
+				Sessions: []*influxdb.Session{
 					{
 						ID:        MustIDBase16(sessionOneID),
 						UserID:    MustIDBase16(sessionTwoID),
@@ -323,7 +322,7 @@ func RenewSession(
 				},
 			},
 			args: args{
-				session: &platform.Session{
+				session: &influxdb.Session{
 					ID:        MustIDBase16(sessionOneID),
 					UserID:    MustIDBase16(sessionTwoID),
 					Key:       "abc123xyz",
@@ -333,7 +332,7 @@ func RenewSession(
 				expireAt: time.Date(2031, 9, 26, 0, 0, 10, 0, time.UTC),
 			},
 			wants: wants{
-				session: &platform.Session{
+				session: &influxdb.Session{
 					ID:        MustIDBase16(sessionOneID),
 					UserID:    MustIDBase16(sessionTwoID),
 					Key:       "abc123xyz",
@@ -346,7 +345,7 @@ func RenewSession(
 			fields: SessionFields{
 				IDGenerator:    mock.NewIDGenerator(sessionTwoID, t),
 				TokenGenerator: mock.NewTokenGenerator("abc123xyz", nil),
-				Sessions: []*platform.Session{
+				Sessions: []*influxdb.Session{
 					{
 						ID:        MustIDBase16(sessionOneID),
 						UserID:    MustIDBase16(sessionTwoID),
@@ -356,7 +355,7 @@ func RenewSession(
 				},
 			},
 			args: args{
-				session: &platform.Session{
+				session: &influxdb.Session{
 					ID:        MustIDBase16(sessionOneID),
 					UserID:    MustIDBase16(sessionTwoID),
 					Key:       "abc123xyz",
@@ -366,7 +365,7 @@ func RenewSession(
 				expireAt: time.Date(2030, 9, 26, 0, 0, 0, 0, time.UTC),
 			},
 			wants: wants{
-				session: &platform.Session{
+				session: &influxdb.Session{
 					ID:        MustIDBase16(sessionOneID),
 					UserID:    MustIDBase16(sessionTwoID),
 					Key:       "abc123xyz",
@@ -379,7 +378,7 @@ func RenewSession(
 			fields: SessionFields{
 				IDGenerator:    mock.NewIDGenerator(sessionTwoID, t),
 				TokenGenerator: mock.NewTokenGenerator("abc123xyz", nil),
-				Sessions: []*platform.Session{
+				Sessions: []*influxdb.Session{
 					{
 						ID:        MustIDBase16(sessionOneID),
 						UserID:    MustIDBase16(sessionTwoID),
@@ -393,12 +392,12 @@ func RenewSession(
 				expireAt: time.Date(2031, 9, 26, 0, 0, 10, 0, time.UTC),
 			},
 			wants: wants{
-				err: &platform.Error{
-					Code: platform.EInternal,
+				err: &influxdb.Error{
+					Code: influxdb.EInternal,
 					Msg:  "session is nil",
-					Op:   platform.OpRenewSession,
+					Op:   influxdb.OpRenewSession,
 				},
-				session: &platform.Session{
+				session: &influxdb.Session{
 					ID:        MustIDBase16(sessionOneID),
 					UserID:    MustIDBase16(sessionTwoID),
 					Key:       "abc123xyz",

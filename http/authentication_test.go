@@ -9,8 +9,7 @@ import (
 	"testing"
 	"time"
 
-	influxdb "github.com/influxdata/influxdb/v2"
-	platform "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2"
 	platformhttp "github.com/influxdata/influxdb/v2/http"
 	"github.com/influxdata/influxdb/v2/jsonweb"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
@@ -24,9 +23,9 @@ var one = influxdb.ID(1)
 
 func TestAuthenticationHandler(t *testing.T) {
 	type fields struct {
-		AuthorizationService platform.AuthorizationService
-		SessionService       platform.SessionService
-		UserService          platform.UserService
+		AuthorizationService influxdb.AuthorizationService
+		SessionService       influxdb.SessionService
+		UserService          influxdb.UserService
 		TokenParser          *jsonweb.TokenParser
 	}
 	type args struct {
@@ -48,10 +47,10 @@ func TestAuthenticationHandler(t *testing.T) {
 			fields: fields{
 				AuthorizationService: mock.NewAuthorizationService(),
 				SessionService: &mock.SessionService{
-					FindSessionFn: func(ctx context.Context, key string) (*platform.Session, error) {
-						return &platform.Session{}, nil
+					FindSessionFn: func(ctx context.Context, key string) (*influxdb.Session, error) {
+						return &influxdb.Session{}, nil
 					},
-					RenewSessionFn: func(ctx context.Context, session *platform.Session, expiredAt time.Time) error {
+					RenewSessionFn: func(ctx context.Context, session *influxdb.Session, expiredAt time.Time) error {
 						return nil
 					},
 				},
@@ -68,7 +67,7 @@ func TestAuthenticationHandler(t *testing.T) {
 			fields: fields{
 				AuthorizationService: mock.NewAuthorizationService(),
 				SessionService: &mock.SessionService{
-					FindSessionFn: func(ctx context.Context, key string) (*platform.Session, error) {
+					FindSessionFn: func(ctx context.Context, key string) (*influxdb.Session, error) {
 						return nil, fmt.Errorf("session not found")
 					},
 				},
@@ -84,8 +83,8 @@ func TestAuthenticationHandler(t *testing.T) {
 			name: "token provided",
 			fields: fields{
 				AuthorizationService: &mock.AuthorizationService{
-					FindAuthorizationByTokenFn: func(ctx context.Context, token string) (*platform.Authorization, error) {
-						return &platform.Authorization{}, nil
+					FindAuthorizationByTokenFn: func(ctx context.Context, token string) (*influxdb.Authorization, error) {
+						return &influxdb.Authorization{}, nil
 					},
 				},
 				SessionService: mock.NewSessionService(),
@@ -101,7 +100,7 @@ func TestAuthenticationHandler(t *testing.T) {
 			name: "token does not exist",
 			fields: fields{
 				AuthorizationService: &mock.AuthorizationService{
-					FindAuthorizationByTokenFn: func(ctx context.Context, token string) (*platform.Authorization, error) {
+					FindAuthorizationByTokenFn: func(ctx context.Context, token string) (*influxdb.Authorization, error) {
 						return nil, fmt.Errorf("authorization not found")
 					},
 				},
@@ -118,18 +117,18 @@ func TestAuthenticationHandler(t *testing.T) {
 			name: "associated user is inactive",
 			fields: fields{
 				AuthorizationService: &mock.AuthorizationService{
-					FindAuthorizationByTokenFn: func(ctx context.Context, token string) (*platform.Authorization, error) {
-						return &platform.Authorization{UserID: one}, nil
+					FindAuthorizationByTokenFn: func(ctx context.Context, token string) (*influxdb.Authorization, error) {
+						return &influxdb.Authorization{UserID: one}, nil
 					},
 				},
 				SessionService: mock.NewSessionService(),
 				UserService: &mock.UserService{
-					FindUserByIDFn: func(ctx context.Context, id platform.ID) (*platform.User, error) {
+					FindUserByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.User, error) {
 						if !id.Valid() {
 							panic("user service should only be called with valid user ID")
 						}
 
-						return &platform.User{Status: "inactive"}, nil
+						return &influxdb.User{Status: "inactive"}, nil
 					},
 				},
 			},
@@ -155,13 +154,13 @@ func TestAuthenticationHandler(t *testing.T) {
 			name: "jwt provided",
 			fields: fields{
 				AuthorizationService: &mock.AuthorizationService{
-					FindAuthorizationByTokenFn: func(ctx context.Context, token string) (*platform.Authorization, error) {
+					FindAuthorizationByTokenFn: func(ctx context.Context, token string) (*influxdb.Authorization, error) {
 						return nil, fmt.Errorf("authorization not found")
 					},
 				},
 				SessionService: mock.NewSessionService(),
 				UserService: &mock.UserService{
-					FindUserByIDFn: func(ctx context.Context, id platform.ID) (*platform.User, error) {
+					FindUserByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.User, error) {
 						// ensure that this is not reached as jwt token authorizer produces
 						// invalid user id
 						if !id.Valid() {
@@ -186,7 +185,7 @@ func TestAuthenticationHandler(t *testing.T) {
 			name: "jwt provided - bad signature",
 			fields: fields{
 				AuthorizationService: &mock.AuthorizationService{
-					FindAuthorizationByTokenFn: func(ctx context.Context, token string) (*platform.Authorization, error) {
+					FindAuthorizationByTokenFn: func(ctx context.Context, token string) (*influxdb.Authorization, error) {
 						panic("token lookup attempted")
 					},
 				},
@@ -214,8 +213,8 @@ func TestAuthenticationHandler(t *testing.T) {
 			h.AuthorizationService = tt.fields.AuthorizationService
 			h.SessionService = tt.fields.SessionService
 			h.UserService = &mock.UserService{
-				FindUserByIDFn: func(ctx context.Context, id platform.ID) (*platform.User, error) {
-					return &platform.User{}, nil
+				FindUserByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.User, error) {
+					return &influxdb.User{}, nil
 				},
 			}
 
