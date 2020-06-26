@@ -126,10 +126,9 @@ func (s *HTTPRemoteService) Export(ctx context.Context, opts ...ExportOptFn) (*P
 	}
 
 	reqBody := ReqExport{
-		UpdateStack: opt.UpdateStack,
-		StackID:     opt.StackID.String(),
-		OrgIDs:      orgIDs,
-		Resources:   opt.Resources,
+		StackID:   opt.StackID.String(),
+		OrgIDs:    orgIDs,
+		Resources: opt.Resources,
 	}
 
 	var newPkg *Pkg

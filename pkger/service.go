@@ -393,10 +393,9 @@ type (
 
 	// ExportOpt are the options for creating a new package.
 	ExportOpt struct {
-		UpdateStack bool
-		StackID     influxdb.ID
-		OrgIDs      []ExportByOrgIDOpt
-		Resources   []ResourceToClone
+		StackID   influxdb.ID
+		OrgIDs    []ExportByOrgIDOpt
+		Resources []ResourceToClone
 	}
 
 	// ExportByOrgIDOpt identifies an org to export resources for and provides
@@ -442,15 +441,6 @@ func ExportWithAllOrgResources(orgIDOpt ExportByOrgIDOpt) ExportOptFn {
 func ExportWithStackID(stackID influxdb.ID) ExportOptFn {
 	return func(opt *ExportOpt) error {
 		opt.StackID = stackID
-		return nil
-	}
-}
-
-// ExportWithStackUpdate will update the stack with all resources exported as a template.
-// This is a destructive operation.
-func ExportWithStackUpdate() ExportOptFn {
-	return func(opt *ExportOpt) error {
-		opt.UpdateStack = true
 		return nil
 	}
 }
@@ -514,13 +504,6 @@ func (s *Service) Export(ctx context.Context, setters ...ExportOptFn) (*Pkg, err
 	pkg := &Pkg{Objects: exporter.Objects()}
 	if err := pkg.Validate(ValidWithoutResources()); err != nil {
 		return nil, failedValidationErr(err)
-	}
-
-	if opt.UpdateStack && opt.StackID != 0 {
-		stack.Resources = exporter.StackResources()
-		if err := s.store.UpdateStack(ctx, stack); err != nil {
-			return nil, err
-		}
 	}
 
 	return pkg, nil

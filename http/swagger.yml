@@ -7704,8 +7704,6 @@ components:
     PkgCreate:
       type: object
       properties:
-        shouldUpdateStack:
-          type: boolean
         stackID:
           type: string
         orgIDs:
