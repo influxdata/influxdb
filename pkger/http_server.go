@@ -397,10 +397,9 @@ type ReqExportOrgIDOpt struct {
 
 // ReqExport is a request body for the export endpoint.
 type ReqExport struct {
-	UpdateStack bool                `json:"shouldUpdateStack"`
-	StackID     string              `json:"stackID"`
-	OrgIDs      []ReqExportOrgIDOpt `json:"orgIDs"`
-	Resources   []ResourceToClone   `json:"resources"`
+	StackID   string              `json:"stackID"`
+	OrgIDs    []ReqExportOrgIDOpt `json:"orgIDs"`
+	Resources []ResourceToClone   `json:"resources"`
 }
 
 // OK validates a create request.
@@ -441,9 +440,6 @@ func (s *HTTPServer) export(w http.ResponseWriter, r *http.Request) {
 
 	opts := []ExportOptFn{
 		ExportWithExistingResources(reqBody.Resources...),
-	}
-	if reqBody.UpdateStack {
-		opts = append(opts, ExportWithStackUpdate())
 	}
 	for _, orgIDStr := range reqBody.OrgIDs {
 		orgID, err := influxdb.IDFromString(orgIDStr.OrgID)
