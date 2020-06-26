@@ -1,6 +1,9 @@
 ## v2.0.0-beta.14 [unreleased]
 
 ### Features
+
+1. [18746](https://github.com/influxdata/influxdb/pull/18746): Extend templates with ability to export by stack and associate new resources to stack
+
 ### Bug Fixes
 
 ## v2.0.0-beta.13 [2020-06-25]

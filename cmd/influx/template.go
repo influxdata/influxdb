@@ -86,6 +86,7 @@ type cmdPkgBuilder struct {
 		tasks        string
 		telegrafs    string
 		variables    string
+		updateStack  bool
 	}
 }
 
@@ -344,6 +345,10 @@ func (b *cmdPkgBuilder) cmdExport() *cobra.Command {
 		# export a stack with resources not associated with the stack
 		influx export --stack-id $STACK_ID --buckets $BUCKET_ID
 
+		# export a stack with resources not associated with the stack
+		# and update the stack resources with all exported resources 
+		influx export --update-stack --stack-id $STACK_ID --buckets $BUCKET_ID
+
 	All of the resources are supported via the examples provided above. Provide the
 	resource flag and then provide the IDs.
 
@@ -357,6 +362,7 @@ func (b *cmdPkgBuilder) cmdExport() *cobra.Command {
 
 	cmd.Flags().StringVarP(&b.file, "file", "f", "", "Output file for created template; defaults to std out if no file provided; the extension of provided file (.yml/.json) will dictate encoding")
 	cmd.Flags().StringVar(&b.stackID, "stack-id", "", "ID for stack to include in export")
+	cmd.Flags().BoolVar(&b.exportOpts.updateStack, "update-stack", false, "Associate all exported resources to provided stack")
 	cmd.Flags().StringVar(&b.exportOpts.resourceType, "resource-type", "", "Resource type provided will be associated with all IDs via stdin.")
 	cmd.Flags().StringVar(&b.exportOpts.buckets, "buckets", "", "List of bucket ids comma separated")
 	cmd.Flags().StringVar(&b.exportOpts.checks, "checks", "", "List of check ids comma separated")
@@ -399,6 +405,10 @@ func (b *cmdPkgBuilder) exportRunEFn(cmd *cobra.Command, args []string) error {
 			return ierror.Wrap(err, rt.kind.String())
 		}
 		opts = append(opts, newOpt)
+	}
+
+	if b.exportOpts.updateStack {
+		opts = append(opts, pkger.ExportWithStackUpdate())
 	}
 
 	if b.stackID != "" {
