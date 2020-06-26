@@ -778,7 +778,7 @@ READ:
 }
 
 func isAggregateCount(kind plan.ProcedureKind) bool {
-	return kind == universe.CountKind
+	return kind == CountKind
 }
 
 type tagKeysIterator struct {
