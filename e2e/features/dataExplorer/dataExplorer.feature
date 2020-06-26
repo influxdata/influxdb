@@ -159,6 +159,15 @@ Feature: Data explorer
     When click nav menu item "Settings"
     When there is a variable card for "Variable Test"
 
+  Scenario: Delete Test Variable
+    When hover over variable card named "Variable Test"
+    When click delete menu of variable card named "Variable Test"
+    When click delete confirm of variable card named "Variable Test"
+    Then the success notification contains "Successfully deleted the variable"
+    Then the variable card "Variable Test" is not present
+    When close all notifications
+
+
 
 
 
