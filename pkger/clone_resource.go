@@ -823,7 +823,7 @@ func DashboardToObject(name string, dash influxdb.Dashboard) Object {
 
 	charts := make([]Resource, 0, len(dash.Cells))
 	for _, cell := range dash.Cells {
-		if cell.ID == influxdb.ID(0) {
+		if cell.View == nil {
 			continue
 		}
 		ch := convertCellView(*cell)
