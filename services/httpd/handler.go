@@ -194,6 +194,10 @@ func NewHandler(c Config) *Handler {
 			"write", // Data-ingest route.
 			"POST", "/api/v2/write", true, writeLogEnabled, h.serveWriteV2,
 		},
+		Route{ // Enable CORS
+			"write-options",
+			"OPTIONS", "/api/v2/write", false, true, h.serveOptions,
+		},
 		Route{
 			"prometheus-write", // Prometheus remote write
 			"POST", "/api/v1/prom/write", false, true, h.servePromWrite,
@@ -217,6 +221,14 @@ func NewHandler(c Config) *Handler {
 		Route{ // Ping w/ status
 			"status-head",
 			"HEAD", "/status", false, true, authWrapper(h.serveStatus),
+		},
+		Route{ // Health
+			"health",
+			"GET", "/health", false, true, authWrapper(h.serveHealth),
+		},
+		Route{ // Enable CORS
+			"health-options",
+			"OPTIONS", "/health", false, true, h.serveOptions,
 		},
 		Route{
 			"prometheus-metrics",
@@ -269,6 +281,10 @@ func NewHandler(c Config) *Handler {
 		"flux-read",
 		"POST", "/api/v2/query", true, true, nil,
 	}
+	fluxRouteCors := Route{
+		"flux-read-options",
+		"OPTIONS", "/api/v2/query", false, true, h.serveOptions,
+	}
 
 	if !c.FluxEnabled {
 		fluxRoute.HandlerFunc = func(w http.ResponseWriter, r *http.Request) {
@@ -277,7 +293,7 @@ func NewHandler(c Config) *Handler {
 	} else {
 		fluxRoute.HandlerFunc = h.serveFluxQuery
 	}
-	h.AddRoutes(fluxRoute)
+	h.AddRoutes(fluxRoute, fluxRouteCors)
 
 	return h
 }
@@ -997,6 +1013,24 @@ func (h *Handler) servePing(w http.ResponseWriter, r *http.Request) {
 		w.Write(b)
 	} else {
 		h.writeHeader(w, http.StatusNoContent)
+	}
+}
+
+// serveHealth maps v2 health endpoint to ping endpoint
+func (h *Handler) serveHealth(w http.ResponseWriter, r *http.Request) {
+	resp := map[string]interface{}{
+		"name":    "influxdb",
+		"message": "ready for queries and writes",
+		"status":  "pass",
+		"checks":  []string{},
+		"version": h.Version,
+	}
+	b, _ := json.Marshal(resp)
+	h.writeHeader(w, http.StatusOK)
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	if _, err := w.Write(b); err != nil {
+		h.httpError(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 }
 
@@ -1836,6 +1870,7 @@ func cors(inner http.Handler) http.Handler {
 				`Authorization`,
 				`Content-Length`,
 				`Content-Type`,
+				`User-Agent`,
 				`X-CSRF-Token`,
 				`X-HTTP-Method-Override`,
 			}, ", "))

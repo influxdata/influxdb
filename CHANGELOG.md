@@ -6,6 +6,7 @@ v1.8.1 [unreleased]
 ### Bugfixes
 
 -	[#17638](https://github.com/influxdata/influxdb/pull/17638): Verify precision in write requests.
+-	[#18410](https://github.com/influxdata/influxdb/pull/18410): Enable CORS in InfluxDB 2.0 compatibility APIs.
 -	[#18429](https://github.com/influxdata/influxdb/pull/18429): Add option to authenticate prometheus remote read
 
 v1.8.0 [unreleased]
