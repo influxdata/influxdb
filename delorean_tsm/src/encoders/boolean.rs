@@ -62,6 +62,7 @@ pub fn decode(src: &[u8], dst: &mut Vec<bool>) -> Result<(), Box<dyn Error>> {
 
     // First byte stores the encoding type, only have the bit packed format
     // currently so ignore for now.
+    assert_eq!(src[0], BOOLEAN_COMPRESSED_BIT_PACKED << 4);
     let src = &src[HEADER_LEN..];
 
     let (count, num_bytes_read) = u64::decode_var(src);
