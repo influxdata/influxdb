@@ -17,7 +17,6 @@ import (
 	"github.com/influxdata/flux/execute/executetest"
 	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/flux/plan"
-	"github.com/influxdata/flux/stdlib/universe"
 	"github.com/influxdata/flux/values"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/generate"
@@ -318,7 +317,7 @@ func TestStorageReader_ReadWindowAggregate(t *testing.T) {
 		},
 		WindowEvery: int64(30 * time.Second),
 		Aggregates: []plan.ProcedureKind{
-			universe.CountKind,
+			storageflux.CountKind,
 		},
 	}, mem)
 	if err != nil {
@@ -431,7 +430,7 @@ func TestStorageReader_ReadWindowAggregate_ByStopTime(t *testing.T) {
 		TimeColumn:  execute.DefaultStopColLabel,
 		WindowEvery: int64(30 * time.Second),
 		Aggregates: []plan.ProcedureKind{
-			universe.CountKind,
+			storageflux.CountKind,
 		},
 	}, mem)
 	if err != nil {
@@ -543,7 +542,7 @@ func TestStorageReader_ReadWindowAggregate_ByStartTime(t *testing.T) {
 		TimeColumn:  execute.DefaultStartColLabel,
 		WindowEvery: int64(30 * time.Second),
 		Aggregates: []plan.ProcedureKind{
-			universe.CountKind,
+			storageflux.CountKind,
 		},
 	}, mem)
 	if err != nil {
@@ -654,7 +653,7 @@ func TestStorageReader_ReadWindowAggregate_CreateEmpty(t *testing.T) {
 		},
 		WindowEvery: int64(10 * time.Second),
 		Aggregates: []plan.ProcedureKind{
-			universe.CountKind,
+			storageflux.CountKind,
 		},
 		CreateEmpty: true,
 	}, mem)
@@ -772,7 +771,7 @@ func TestStorageReader_ReadWindowAggregate_CreateEmptyByStopTime(t *testing.T) {
 		TimeColumn:  execute.DefaultStopColLabel,
 		WindowEvery: int64(10 * time.Second),
 		Aggregates: []plan.ProcedureKind{
-			universe.CountKind,
+			storageflux.CountKind,
 		},
 		CreateEmpty: true,
 	}, mem)
@@ -893,7 +892,7 @@ func TestStorageReader_ReadWindowAggregate_CreateEmptyByStartTime(t *testing.T) 
 		TimeColumn:  execute.DefaultStartColLabel,
 		WindowEvery: int64(10 * time.Second),
 		Aggregates: []plan.ProcedureKind{
-			universe.CountKind,
+			storageflux.CountKind,
 		},
 		CreateEmpty: true,
 	}, mem)
@@ -1016,7 +1015,7 @@ func TestStorageReader_ReadWindowAggregate_TruncatedBounds(t *testing.T) {
 		},
 		WindowEvery: int64(10 * time.Second),
 		Aggregates: []plan.ProcedureKind{
-			universe.CountKind,
+			storageflux.CountKind,
 		},
 	}, mem)
 	if err != nil {
@@ -1131,7 +1130,7 @@ func TestStorageReader_ReadWindowAggregate_TruncatedBoundsCreateEmpty(t *testing
 		},
 		WindowEvery: int64(10 * time.Second),
 		Aggregates: []plan.ProcedureKind{
-			universe.CountKind,
+			storageflux.CountKind,
 		},
 		CreateEmpty: true,
 	}, mem)
@@ -1247,7 +1246,7 @@ func TestStorageReader_ReadWindowFirst(t *testing.T) {
 		},
 		WindowEvery: int64(10 * time.Second),
 		Aggregates: []plan.ProcedureKind{
-			universe.FirstKind,
+			storageflux.FirstKind,
 		},
 	}, mem)
 	if err != nil {
@@ -1357,7 +1356,7 @@ func TestStorageReader_ReadWindowFirstCreateEmpty(t *testing.T) {
 		},
 		WindowEvery: int64(10 * time.Second),
 		Aggregates: []plan.ProcedureKind{
-			universe.FirstKind,
+			storageflux.FirstKind,
 		},
 		CreateEmpty: true,
 	}, mem)
@@ -1496,7 +1495,7 @@ func TestStorageReader_ReadWindowFirstTimeColumn(t *testing.T) {
 		},
 		WindowEvery: int64(10 * time.Second),
 		Aggregates: []plan.ProcedureKind{
-			universe.FirstKind,
+			storageflux.FirstKind,
 		},
 		CreateEmpty: true,
 		TimeColumn:  execute.DefaultStopColLabel,
