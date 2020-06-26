@@ -1,4 +1,4 @@
-use delorean_parquet::writer::DeloreanParquetTableWriter;
+use delorean_parquet::writer::{CompressionLevel, DeloreanParquetTableWriter};
 use delorean_table::{packers::Packer, DeloreanTableWriter, Packers};
 
 use parquet::data_type::ByteArray;
@@ -68,7 +68,8 @@ fn test_write_parquet_data() {
     let output_file = fs::File::create(&output_path).expect("can't open temp file for writing");
 
     let mut parquet_writer =
-        DeloreanParquetTableWriter::new(&schema, output_file).expect("can't create parquet writer");
+        DeloreanParquetTableWriter::new(&schema, CompressionLevel::COMPATIBILITY, output_file)
+            .expect("can't create parquet writer");
     parquet_writer
         .write_batch(&packers)
         .expect("can't write batch");

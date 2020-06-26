@@ -47,6 +47,29 @@ fn convert_bad_input_filename() {
 }
 
 #[test]
+fn convert_bad_compression_level() {
+    let mut cmd = Command::cargo_bin("delorean").unwrap();
+    let assert = cmd
+        .arg("convert")
+        .arg("--compression-level")
+        .arg("maxxx")
+        .arg("tests/fixtures/lineproto/temperature.lp")
+        .arg("/tmp")
+        .assert();
+
+    assert
+        .failure()
+        .code(1)
+        .stderr(predicate::str::contains(
+            "Conversion failed: Error creating a parquet table writer"
+        ))
+        .stderr(predicate::str::contains(
+            r#"Unknown compression level 'maxxx'. Valid options 'max' or 'compatibility'"#)
+        );
+}
+
+
+#[test]
 fn convert_line_protocol_good_input_filename() {
     let mut cmd = Command::cargo_bin("delorean").unwrap();
 
@@ -60,6 +83,8 @@ fn convert_line_protocol_good_input_filename() {
 
     let assert = cmd
         .arg("convert")
+        .arg("--compression-level")
+        .arg("compatibility")
         .arg("tests/fixtures/lineproto/temperature.lp")
         .arg(&parquet_filename_string)
         .assert();
