@@ -676,8 +676,12 @@ READ:
 		switch typedCur := cur.(type) {
 		case cursors.IntegerArrayCursor:
 			if !selector {
+				var fillValue *int64
+				if isAggregateCount(wai.spec.Aggregates[0]) {
+					fillValue = func(v int64) *int64 { return &v }(0)
+				}
 				cols, defs := determineTableColsForWindowAggregate(rs.Tags(), flux.TInt, hasTimeCol)
-				table = newIntegerWindowTable(done, typedCur, bnds, windowEvery, createEmpty, timeColumn, key, cols, rs.Tags(), defs, wai.cache, wai.alloc)
+				table = newIntegerWindowTable(done, typedCur, bnds, windowEvery, createEmpty, timeColumn, fillValue, key, cols, rs.Tags(), defs, wai.cache, wai.alloc)
 			} else if createEmpty && !hasTimeCol {
 				cols, defs := determineTableColsForSeries(rs.Tags(), flux.TInt)
 				table = newIntegerEmptyWindowSelectorTable(done, typedCur, bnds, windowEvery, timeColumn, key, cols, rs.Tags(), defs, wai.cache, wai.alloc)
@@ -771,6 +775,10 @@ READ:
 		table = nil
 	}
 	return rs.Err()
+}
+
+func isAggregateCount(kind plan.ProcedureKind) bool {
+	return kind == universe.CountKind
 }
 
 type tagKeysIterator struct {

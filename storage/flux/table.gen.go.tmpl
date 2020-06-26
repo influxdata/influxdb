@@ -102,6 +102,7 @@ type {{.name}}WindowTable struct {
 	idxInArr    int
 	createEmpty bool
 	timeColumn  string
+	{{if eq .Name "Integer"}}fillValue *{{.Type}}{{end}}
 }
 
 func new{{.Name}}WindowTable(
@@ -111,6 +112,7 @@ func new{{.Name}}WindowTable(
 	every int64,
 	createEmpty bool,
 	timeColumn string,
+	{{if eq .Name "Integer"}}fillValue *{{.Type}},{{end}}
 	key flux.GroupKey,
 	cols []flux.ColMeta,
 	tags models.Tags,
@@ -126,6 +128,7 @@ func new{{.Name}}WindowTable(
 		windowEvery: every,
 		createEmpty: createEmpty,
 		timeColumn:  timeColumn,
+		{{if eq .Name "Integer"}}fillValue: fillValue,{{end}}
 	}
 	if t.createEmpty {
 		start := int64(bounds.Start)
