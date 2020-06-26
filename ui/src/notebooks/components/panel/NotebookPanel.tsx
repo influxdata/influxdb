@@ -19,6 +19,7 @@ import {
   ClickOutside,
 } from '@influxdata/clockface'
 import RemovePanelButton from 'src/notebooks/components/panel/RemovePanelButton'
+import InsertCellButton from 'src/notebooks/components/panel/InsertCellButton'
 import PanelVisibilityToggle from 'src/notebooks/components/panel/PanelVisibilityToggle'
 import MovePanelButton from 'src/notebooks/components/panel/MovePanelButton'
 import NotebookPanelTitle from 'src/notebooks/components/panel/NotebookPanelTitle'
@@ -113,12 +114,15 @@ const NotebookPanel: FC<Props> = ({index, children, controls}) => {
   }
 
   return (
-    <ClickOutside onClickOutside={handleClickOutside}>
-      <div className={panelClassName} onClick={handleClick} ref={panelRef}>
-        <NotebookPanelHeader index={index} controls={controls} />
-        <div className="notebook-panel--body">{children}</div>
-      </div>
-    </ClickOutside>
+    <>
+      <ClickOutside onClickOutside={handleClickOutside}>
+        <div className={panelClassName} onClick={handleClick} ref={panelRef}>
+          <NotebookPanelHeader index={index} controls={controls} />
+          <div className="notebook-panel--body">{children}</div>
+        </div>
+      </ClickOutside>
+      <InsertCellButton index={index} />
+    </>
   )
 }
 
