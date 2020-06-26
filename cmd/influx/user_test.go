@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/influxdata/influxdb/v2"
-	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
@@ -43,7 +42,7 @@ func TestCmdUser(t *testing.T) {
 			},
 			passSVC: passSVC,
 			urmSVC: &mock.UserResourceMappingService{
-				CreateMappingFn: func(context.Context, *platform.UserResourceMapping) error {
+				CreateMappingFn: func(context.Context, *influxdb.UserResourceMapping) error {
 					return nil
 				},
 			},

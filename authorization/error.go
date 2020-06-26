@@ -36,7 +36,7 @@ var (
 	// with a token that already exists
 	ErrTokenAlreadyExistsError = &influxdb.Error{
 		Code: influxdb.EConflict,
-		Msg:  fmt.Sprintf("token already exists"),
+		Msg:  "token already exists",
 	}
 )
 

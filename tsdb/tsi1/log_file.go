@@ -1054,6 +1054,7 @@ func (f *LogFile) writeMeasurementBlockTo(w io.Writer, names []string, info *log
 		mm := f.mms[name]
 		mmInfo := info.mms[name]
 		assert(mmInfo != nil, "measurement info not found")
+		//lint:ignore SA5011 mmInfo is flagged as being possibly nil because of the assertion
 		mw.Add(mm.name, mm.deleted, mmInfo.offset, mmInfo.size, mm.seriesIDs())
 	}
 

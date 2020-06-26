@@ -10,7 +10,6 @@ import (
 	"github.com/golang/gddo/httputil"
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb/v2"
-	platform "github.com/influxdata/influxdb/v2"
 	pctx "github.com/influxdata/influxdb/v2/context"
 	"github.com/influxdata/influxdb/v2/pkg/httpc"
 	"github.com/influxdata/influxdb/v2/telegraf/plugins"
@@ -20,14 +19,14 @@ import (
 // TelegrafBackend is all services and associated parameters required to construct
 // the TelegrafHandler.
 type TelegrafBackend struct {
-	platform.HTTPErrorHandler
+	influxdb.HTTPErrorHandler
 	log *zap.Logger
 
-	TelegrafService            platform.TelegrafConfigStore
-	UserResourceMappingService platform.UserResourceMappingService
-	LabelService               platform.LabelService
-	UserService                platform.UserService
-	OrganizationService        platform.OrganizationService
+	TelegrafService            influxdb.TelegrafConfigStore
+	UserResourceMappingService influxdb.UserResourceMappingService
+	LabelService               influxdb.LabelService
+	UserService                influxdb.UserService
+	OrganizationService        influxdb.OrganizationService
 }
 
 // NewTelegrafBackend returns a new instance of TelegrafBackend.
@@ -47,14 +46,14 @@ func NewTelegrafBackend(log *zap.Logger, b *APIBackend) *TelegrafBackend {
 // TelegrafHandler is the handler for the telegraf service
 type TelegrafHandler struct {
 	*httprouter.Router
-	platform.HTTPErrorHandler
+	influxdb.HTTPErrorHandler
 	log *zap.Logger
 
-	TelegrafService            platform.TelegrafConfigStore
-	UserResourceMappingService platform.UserResourceMappingService
-	LabelService               platform.LabelService
-	UserService                platform.UserService
-	OrganizationService        platform.OrganizationService
+	TelegrafService            influxdb.TelegrafConfigStore
+	UserResourceMappingService influxdb.UserResourceMappingService
+	LabelService               influxdb.LabelService
+	UserService                influxdb.UserService
+	OrganizationService        influxdb.OrganizationService
 }
 
 const (
@@ -95,8 +94,8 @@ func NewTelegrafHandler(log *zap.Logger, b *TelegrafBackend) *TelegrafHandler {
 	memberBackend := MemberBackend{
 		HTTPErrorHandler:           b.HTTPErrorHandler,
 		log:                        b.log.With(zap.String("handler", "member")),
-		ResourceType:               platform.TelegrafsResourceType,
-		UserType:                   platform.Member,
+		ResourceType:               influxdb.TelegrafsResourceType,
+		UserType:                   influxdb.Member,
 		UserResourceMappingService: b.UserResourceMappingService,
 		UserService:                b.UserService,
 	}
@@ -107,8 +106,8 @@ func NewTelegrafHandler(log *zap.Logger, b *TelegrafBackend) *TelegrafHandler {
 	ownerBackend := MemberBackend{
 		HTTPErrorHandler:           b.HTTPErrorHandler,
 		log:                        b.log.With(zap.String("handler", "member")),
-		ResourceType:               platform.TelegrafsResourceType,
-		UserType:                   platform.Owner,
+		ResourceType:               influxdb.TelegrafsResourceType,
+		UserType:                   influxdb.Owner,
 		UserResourceMappingService: b.UserResourceMappingService,
 		UserService:                b.UserService,
 	}
@@ -120,7 +119,7 @@ func NewTelegrafHandler(log *zap.Logger, b *TelegrafBackend) *TelegrafHandler {
 		HTTPErrorHandler: b.HTTPErrorHandler,
 		log:              b.log.With(zap.String("handler", "label")),
 		LabelService:     b.LabelService,
-		ResourceType:     platform.TelegrafsResourceType,
+		ResourceType:     influxdb.TelegrafsResourceType,
 	}
 	h.HandlerFunc("GET", telegrafsIDLabelsPath, newGetLabelsHandler(labelBackend))
 	h.HandlerFunc("POST", telegrafsIDLabelsPath, newPostLabelHandler(labelBackend))
@@ -137,8 +136,8 @@ type telegrafLinks struct {
 }
 
 type telegrafResponse struct {
-	*platform.TelegrafConfig
-	Labels []platform.Label `json:"labels"`
+	*influxdb.TelegrafConfig
+	Labels []influxdb.Label `json:"labels"`
 	Links  telegrafLinks    `json:"links"`
 }
 
@@ -169,7 +168,7 @@ func (h *TelegrafHandler) handleGetTelegrafPlugins(w http.ResponseWriter, r *htt
 	}
 }
 
-func newTelegrafResponse(tc *platform.TelegrafConfig, labels []*platform.Label) *telegrafResponse {
+func newTelegrafResponse(tc *influxdb.TelegrafConfig, labels []*influxdb.Label) *telegrafResponse {
 	res := &telegrafResponse{
 		TelegrafConfig: tc,
 		Links: telegrafLinks{
@@ -178,7 +177,7 @@ func newTelegrafResponse(tc *platform.TelegrafConfig, labels []*platform.Label) 
 			Members: fmt.Sprintf("/api/v2/telegrafs/%s/members", tc.ID),
 			Owners:  fmt.Sprintf("/api/v2/telegrafs/%s/owners", tc.ID),
 		},
-		Labels: []platform.Label{},
+		Labels: []influxdb.Label{},
 	}
 
 	for _, l := range labels {
@@ -188,23 +187,23 @@ func newTelegrafResponse(tc *platform.TelegrafConfig, labels []*platform.Label) 
 	return res
 }
 
-func newTelegrafResponses(ctx context.Context, tcs []*platform.TelegrafConfig, labelService platform.LabelService) *telegrafResponses {
+func newTelegrafResponses(ctx context.Context, tcs []*influxdb.TelegrafConfig, labelService influxdb.LabelService) *telegrafResponses {
 	resp := &telegrafResponses{
 		TelegrafConfigs: make([]*telegrafResponse, len(tcs)),
 	}
 	for i, c := range tcs {
-		labels, _ := labelService.FindResourceLabels(ctx, platform.LabelMappingFilter{ResourceID: c.ID, ResourceType: influxdb.TelegrafsResourceType})
+		labels, _ := labelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: c.ID, ResourceType: influxdb.TelegrafsResourceType})
 		resp.TelegrafConfigs[i] = newTelegrafResponse(c, labels)
 	}
 	return resp
 }
 
-func decodeGetTelegrafRequest(ctx context.Context) (i platform.ID, err error) {
+func decodeGetTelegrafRequest(ctx context.Context) (i influxdb.ID, err error) {
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return i, &platform.Error{
-			Code: platform.EInvalid,
+		return i, &influxdb.Error{
+			Code: influxdb.EInvalid,
 			Msg:  "url missing id",
 		}
 	}
@@ -260,7 +259,7 @@ func (h *TelegrafHandler) handleGetTelegraf(w http.ResponseWriter, r *http.Reque
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(tc.Config))
 	case "application/json":
-		labels, err := h.LabelService.FindResourceLabels(ctx, platform.LabelMappingFilter{ResourceID: tc.ID, ResourceType: influxdb.TelegrafsResourceType})
+		labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: tc.ID, ResourceType: influxdb.TelegrafsResourceType})
 		if err != nil {
 			h.HandleHTTPError(ctx, err, w)
 			return
@@ -277,19 +276,19 @@ func (h *TelegrafHandler) handleGetTelegraf(w http.ResponseWriter, r *http.Reque
 	}
 }
 
-func decodeTelegrafConfigFilter(ctx context.Context, r *http.Request) (*platform.TelegrafConfigFilter, error) {
-	f := &platform.TelegrafConfigFilter{}
-	urm, err := decodeUserResourceMappingFilter(ctx, r, platform.TelegrafsResourceType)
+func decodeTelegrafConfigFilter(ctx context.Context, r *http.Request) (*influxdb.TelegrafConfigFilter, error) {
+	f := &influxdb.TelegrafConfigFilter{}
+	urm, err := decodeUserResourceMappingFilter(ctx, r, influxdb.TelegrafsResourceType)
 	if err == nil {
 		f.UserResourceMappingFilter = *urm
 	}
 
 	q := r.URL.Query()
 	if orgIDStr := q.Get("orgID"); orgIDStr != "" {
-		orgID, err := platform.IDFromString(orgIDStr)
+		orgID, err := influxdb.IDFromString(orgIDStr)
 		if err != nil {
-			return f, &platform.Error{
-				Code: platform.EInvalid,
+			return f, &influxdb.Error{
+				Code: influxdb.EInvalid,
 				Msg:  "orgID is invalid",
 				Err:  err,
 			}
@@ -301,20 +300,20 @@ func decodeTelegrafConfigFilter(ctx context.Context, r *http.Request) (*platform
 	return f, err
 }
 
-func decodePutTelegrafRequest(ctx context.Context, r *http.Request) (*platform.TelegrafConfig, error) {
-	tc := new(platform.TelegrafConfig)
+func decodePutTelegrafRequest(ctx context.Context, r *http.Request) (*influxdb.TelegrafConfig, error) {
+	tc := new(influxdb.TelegrafConfig)
 	if err := json.NewDecoder(r.Body).Decode(tc); err != nil {
 		return nil, err
 	}
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, &platform.Error{
-			Code: platform.EInvalid,
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
 			Msg:  "url missing id",
 		}
 	}
-	i := new(platform.ID)
+	i := new(influxdb.ID)
 	if err := i.DecodeFromString(id); err != nil {
 		return nil, err
 	}
@@ -326,7 +325,7 @@ func decodePutTelegrafRequest(ctx context.Context, r *http.Request) (*platform.T
 func (h *TelegrafHandler) handlePostTelegraf(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	tc := new(platform.TelegrafConfig)
+	tc := new(influxdb.TelegrafConfig)
 	if err := json.NewDecoder(r.Body).Decode(tc); err != nil {
 		h.log.Debug("Failed to decode request", zap.Error(err))
 		h.HandleHTTPError(ctx, err, w)
@@ -345,7 +344,7 @@ func (h *TelegrafHandler) handlePostTelegraf(w http.ResponseWriter, r *http.Requ
 	}
 	h.log.Debug("Telegraf created", zap.String("telegraf", fmt.Sprint(tc)))
 
-	if err := encodeResponse(ctx, w, http.StatusCreated, newTelegrafResponse(tc, []*platform.Label{})); err != nil {
+	if err := encodeResponse(ctx, w, http.StatusCreated, newTelegrafResponse(tc, []*influxdb.Label{})); err != nil {
 		logEncodingError(h.log, r, err)
 		return
 	}
@@ -374,7 +373,7 @@ func (h *TelegrafHandler) handlePutTelegraf(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	labels, err := h.LabelService.FindResourceLabels(ctx, platform.LabelMappingFilter{ResourceID: tc.ID, ResourceType: influxdb.TelegrafsResourceType})
+	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: tc.ID, ResourceType: influxdb.TelegrafsResourceType})
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
@@ -420,11 +419,11 @@ func NewTelegrafService(httpClient *httpc.Client) *TelegrafService {
 	}
 }
 
-var _ platform.TelegrafConfigStore = (*TelegrafService)(nil)
+var _ influxdb.TelegrafConfigStore = (*TelegrafService)(nil)
 
 // FindTelegrafConfigByID returns a single telegraf config by ID.
-func (s *TelegrafService) FindTelegrafConfigByID(ctx context.Context, id platform.ID) (*platform.TelegrafConfig, error) {
-	var cfg platform.TelegrafConfig
+func (s *TelegrafService) FindTelegrafConfigByID(ctx context.Context, id influxdb.ID) (*influxdb.TelegrafConfig, error) {
+	var cfg influxdb.TelegrafConfig
 	err := s.client.
 		Get(prefixTelegraf, id.String()).
 		Header("Accept", "application/json").
@@ -438,7 +437,7 @@ func (s *TelegrafService) FindTelegrafConfigByID(ctx context.Context, id platfor
 
 // FindTelegrafConfigs returns a list of telegraf configs that match filter and the total count of matching telegraf configs.
 // Additional options provide pagination & sorting.
-func (s *TelegrafService) FindTelegrafConfigs(ctx context.Context, f platform.TelegrafConfigFilter, opt ...platform.FindOptions) ([]*platform.TelegrafConfig, int, error) {
+func (s *TelegrafService) FindTelegrafConfigs(ctx context.Context, f influxdb.TelegrafConfigFilter, opt ...influxdb.FindOptions) ([]*influxdb.TelegrafConfig, int, error) {
 	params := influxdb.FindOptionParams(opt...)
 	if f.OrgID != nil {
 		params = append(params, [2]string{"orgID", f.OrgID.String()})
@@ -454,7 +453,7 @@ func (s *TelegrafService) FindTelegrafConfigs(ctx context.Context, f platform.Te
 	}
 
 	var resp struct {
-		Configs []*platform.TelegrafConfig `json:"configurations"`
+		Configs []*influxdb.TelegrafConfig `json:"configurations"`
 	}
 	err := s.client.
 		Get(prefixTelegraf).
@@ -469,8 +468,8 @@ func (s *TelegrafService) FindTelegrafConfigs(ctx context.Context, f platform.Te
 }
 
 // CreateTelegrafConfig creates a new telegraf config and sets b.ID with the new identifier.
-func (s *TelegrafService) CreateTelegrafConfig(ctx context.Context, tc *platform.TelegrafConfig, userID platform.ID) error {
-	var teleResp platform.TelegrafConfig
+func (s *TelegrafService) CreateTelegrafConfig(ctx context.Context, tc *influxdb.TelegrafConfig, userID influxdb.ID) error {
+	var teleResp influxdb.TelegrafConfig
 	err := s.client.
 		PostJSON(tc, prefixTelegraf).
 		DecodeJSON(&teleResp).
@@ -484,8 +483,8 @@ func (s *TelegrafService) CreateTelegrafConfig(ctx context.Context, tc *platform
 
 // UpdateTelegrafConfig updates a single telegraf config.
 // Returns the new telegraf config after update.
-func (s *TelegrafService) UpdateTelegrafConfig(ctx context.Context, id platform.ID, tc *platform.TelegrafConfig, userID platform.ID) (*platform.TelegrafConfig, error) {
-	var teleResp platform.TelegrafConfig
+func (s *TelegrafService) UpdateTelegrafConfig(ctx context.Context, id influxdb.ID, tc *influxdb.TelegrafConfig, userID influxdb.ID) (*influxdb.TelegrafConfig, error) {
+	var teleResp influxdb.TelegrafConfig
 	err := s.client.
 		PutJSON(tc, prefixTelegraf, id.String()).
 		DecodeJSON(&teleResp).
@@ -497,7 +496,7 @@ func (s *TelegrafService) UpdateTelegrafConfig(ctx context.Context, id platform.
 }
 
 // DeleteTelegrafConfig removes a telegraf config by ID.
-func (s *TelegrafService) DeleteTelegrafConfig(ctx context.Context, id platform.ID) error {
+func (s *TelegrafService) DeleteTelegrafConfig(ctx context.Context, id influxdb.ID) error {
 	return s.client.
 		Delete(prefixTelegraf, id.String()).
 		Do(ctx)

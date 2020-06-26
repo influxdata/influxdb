@@ -17,6 +17,7 @@ func TestBoltTenantService(t *testing.T) {
 	itesting.TenantService(t, initBoltTenantService)
 }
 
+//lint:ignore U1000 erroneously flagged by staticcheck since it is used in skipped tests
 func initBoltTenantService(t *testing.T, f itesting.TenantFields) (influxdb.TenantService, func()) {
 	s, closeStore, err := NewTestBoltStore(t)
 	if err != nil {
