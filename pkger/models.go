@@ -140,7 +140,6 @@ func (s SafeID) String() string {
 // dictates if the resource is new, to be removed, or will remain.
 type DiffIdentifier struct {
 	ID          SafeID      `json:"id"`
-	Remove      bool        `json:"bool"`
 	StateStatus StateStatus `json:"stateStatus"`
 	PkgName     string      `json:"pkgName"`
 }
