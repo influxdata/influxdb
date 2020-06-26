@@ -61,13 +61,12 @@ fn convert_bad_compression_level() {
         .failure()
         .code(1)
         .stderr(predicate::str::contains(
-            "Conversion failed: Error creating a parquet table writer"
+            "Conversion failed: Error creating a parquet table writer",
         ))
         .stderr(predicate::str::contains(
-            r#"Unknown compression level 'maxxx'. Valid options 'max' or 'compatibility'"#)
-        );
+            r#"Unknown compression level 'maxxx'. Valid options 'max' or 'compatibility'"#,
+        ));
 }
-
 
 #[test]
 fn convert_line_protocol_good_input_filename() {

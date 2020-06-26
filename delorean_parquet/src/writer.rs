@@ -61,10 +61,10 @@ pub enum CompressionLevel {
 }
 
 impl CompressionLevel {
-    pub fn from(s: &str) -> Result<CompressionLevel> {
+    pub fn from(s: &str) -> Result<Self> {
         match s {
-            "max" => Ok(CompressionLevel::MAXIMUM),
-            "compatibility" => Ok(CompressionLevel::COMPATIBILITY),
+            "max" => Ok(Self::MAXIMUM),
+            "compatibility" => Ok(Self::COMPATIBILITY),
             _ => UnknownCompressionLevel {
                 compression_level: String::from(s),
             }
@@ -637,8 +637,14 @@ mod tests {
 
     #[test]
     fn compression_level() {
-        assert_eq!(CompressionLevel::from("max").ok().unwrap(), CompressionLevel::MAXIMUM);
-        assert_eq!(CompressionLevel::from("compatibility").ok().unwrap(), CompressionLevel::COMPATIBILITY);
+        assert_eq!(
+            CompressionLevel::from("max").ok().unwrap(),
+            CompressionLevel::MAXIMUM
+        );
+        assert_eq!(
+            CompressionLevel::from("compatibility").ok().unwrap(),
+            CompressionLevel::COMPATIBILITY
+        );
 
         let bad = CompressionLevel::from("madxxxx");
         assert!(bad.is_err());
