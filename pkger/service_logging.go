@@ -36,7 +36,7 @@ func (s *loggingMW) InitStack(ctx context.Context, userID influxdb.ID, newStack 
 			zap.Error(err),
 			zap.Stringer("orgID", newStack.OrgID),
 			zap.Stringer("userID", userID),
-			zap.Strings("urls", newStack.URLs),
+			zap.Strings("urls", newStack.TemplateURLs),
 			zap.Duration("took", time.Since(start)),
 		)
 	}(time.Now())
@@ -112,7 +112,7 @@ func (s *loggingMW) UpdateStack(ctx context.Context, upd StackUpdate) (_ Stack, 
 				fields = append(fields, zap.String("desc", *upd.Description))
 			}
 			fields = append(fields,
-				zap.Strings("urls", upd.URLs),
+				zap.Strings("urls", upd.TemplateURLs),
 				zap.Duration("took", time.Since(start)),
 			)
 

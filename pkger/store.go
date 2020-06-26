@@ -294,7 +294,7 @@ func convertStackToEnt(stack Stack) (kv.Entity, error) {
 		CreatedAt:   stack.CreatedAt,
 		UpdatedAt:   stack.UpdatedAt,
 		Sources:     stack.Sources,
-		URLs:        stack.URLs,
+		URLs:        stack.TemplateURLs,
 	}
 
 	for _, res := range stack.Resources {
@@ -323,10 +323,10 @@ func convertStackToEnt(stack Stack) (kv.Entity, error) {
 
 func convertStackEntToStack(ent *entStack) (Stack, error) {
 	stack := Stack{
-		Name:        ent.Name,
-		Description: ent.Description,
-		Sources:     ent.Sources,
-		URLs:        ent.URLs,
+		Name:         ent.Name,
+		Description:  ent.Description,
+		Sources:      ent.Sources,
+		TemplateURLs: ent.URLs,
 		CRUDLog: influxdb.CRUDLog{
 			CreatedAt: ent.CreatedAt,
 			UpdatedAt: ent.UpdatedAt,

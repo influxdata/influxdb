@@ -227,10 +227,10 @@ func (s *HTTPServer) createStack(w http.ResponseWriter, r *http.Request) {
 	}
 
 	stack, err := s.svc.InitStack(r.Context(), auth.GetUserID(), Stack{
-		OrgID:       reqBody.orgID(),
-		Name:        reqBody.Name,
-		Description: reqBody.Description,
-		URLs:        reqBody.URLs,
+		OrgID:        reqBody.orgID(),
+		Name:         reqBody.Name,
+		Description:  reqBody.Description,
+		TemplateURLs: reqBody.URLs,
 	})
 	if err != nil {
 		s.api.Err(w, r, err)
@@ -354,10 +354,10 @@ func (s *HTTPServer) updateStack(w http.ResponseWriter, r *http.Request) {
 	}
 
 	update := StackUpdate{
-		ID:          stackID,
-		Name:        req.Name,
-		Description: req.Description,
-		URLs:        append(req.TemplateURLs, req.URLs...),
+		ID:           stackID,
+		Name:         req.Name,
+		Description:  req.Description,
+		TemplateURLs: append(req.TemplateURLs, req.URLs...),
 	}
 	for _, res := range req.AdditionalResources {
 		id, err := influxdb.IDFromString(res.ID)
@@ -912,7 +912,7 @@ func convertStackToRespStack(st Stack) RespStack {
 		Description: st.Description,
 		Resources:   resources,
 		Sources:     append([]string{}, st.Sources...),
-		URLs:        append([]string{}, st.URLs...),
+		URLs:        append([]string{}, st.TemplateURLs...),
 		CRUDLog:     st.CRUDLog,
 	}
 }

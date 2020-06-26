@@ -21,7 +21,7 @@ func (s *HTTPRemoteService) InitStack(ctx context.Context, userID influxdb.ID, s
 		OrgID:       stack.OrgID.String(),
 		Name:        stack.Name,
 		Description: stack.Description,
-		URLs:        stack.URLs,
+		URLs:        stack.TemplateURLs,
 	}
 
 	var respBody RespStack
@@ -89,7 +89,7 @@ func (s *HTTPRemoteService) UpdateStack(ctx context.Context, upd StackUpdate) (S
 	reqBody := ReqUpdateStack{
 		Name:         upd.Name,
 		Description:  upd.Description,
-		TemplateURLs: upd.URLs,
+		TemplateURLs: upd.TemplateURLs,
 	}
 	for _, r := range upd.AdditionalResources {
 		reqBody.AdditionalResources = append(reqBody.AdditionalResources, ReqUpdateStackResource{
@@ -242,12 +242,12 @@ func (s *HTTPRemoteService) apply(ctx context.Context, orgID influxdb.ID, dryRun
 
 func convertRespStackToStack(respStack RespStack) (Stack, error) {
 	newStack := Stack{
-		Name:        respStack.Name,
-		Description: respStack.Description,
-		Sources:     respStack.Sources,
-		URLs:        respStack.URLs,
-		Resources:   make([]StackResource, 0, len(respStack.Resources)),
-		CRUDLog:     respStack.CRUDLog,
+		Name:         respStack.Name,
+		Description:  respStack.Description,
+		Sources:      respStack.Sources,
+		TemplateURLs: respStack.URLs,
+		Resources:    make([]StackResource, 0, len(respStack.Resources)),
+		CRUDLog:      respStack.CRUDLog,
 	}
 	for _, r := range respStack.Resources {
 		sr := StackResource{

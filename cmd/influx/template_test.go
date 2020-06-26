@@ -538,7 +538,7 @@ func Test_Template_Commands(t *testing.T) {
 						OrgID:       1,
 						Name:        "foo",
 						Description: "desc",
-						URLs: []string{
+						TemplateURLs: []string{
 							"http://example.com/1",
 							"http://example.com/2",
 						},
@@ -557,7 +557,7 @@ func Test_Template_Commands(t *testing.T) {
 						OrgID:       1,
 						Name:        "foo",
 						Description: "desc",
-						URLs: []string{
+						TemplateURLs: []string{
 							"http://example.com/1",
 							"http://example.com/2",
 						},

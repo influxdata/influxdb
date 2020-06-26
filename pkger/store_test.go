@@ -30,8 +30,8 @@ func TestStoreKV(t *testing.T) {
 				CreatedAt: now,
 				UpdatedAt: now.Add(time.Hour),
 			},
-			Sources: urls,
-			URLs:    urls,
+			Sources:      urls,
+			TemplateURLs: urls,
 			Resources: []pkger.StackResource{
 				{
 					APIVersion: pkger.APIVersion,
