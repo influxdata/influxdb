@@ -20,7 +20,7 @@ pub enum Error {
     },
 
     #[snafu(display(
-        "Can not write multiple measurements to a single file. Saw new measurement named {}",
+        "Cannot write multiple measurements to a single file. Saw new measurement named {}",
         new_measurement_name
     ))]
     MultipleMeasurementsToSingleFile { new_measurement_name: String },

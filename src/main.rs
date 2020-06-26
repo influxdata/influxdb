@@ -11,7 +11,6 @@ use log::{debug, error, warn};
 
 mod commands {
     pub mod convert;
-    mod error;
     pub mod file_meta;
     mod input;
     pub mod stats;

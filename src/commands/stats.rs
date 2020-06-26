@@ -1,37 +1,37 @@
 //! This module contains code to report compression statistics for storage files
 
+use delorean_parquet::{error::Error as DeloreanParquetError, stats::col_stats};
 use log::info;
+use snafu::{ResultExt, Snafu};
 
-use crate::{
-    commands::error::{Error, Result},
-    commands::input::{FileType, InputReader},
-};
+use crate::commands::input::{FileType, InputReader};
 
-use delorean_parquet::stats::col_stats;
+pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Print statistics about the file name in input_filename to stdout
 pub fn stats(input_filename: &str) -> Result<()> {
     info!("stats starting");
 
-    let input_reader = InputReader::new(input_filename)?;
+    let input_reader = InputReader::new(input_filename).context(OpenInput)?;
 
     let (input_len, col_stats) = match input_reader.file_type() {
         FileType::LineProtocol => {
-            return Err(Error::NotImplemented {
-                operation_name: String::from("Line protocol storage statistics"),
-            });
+            return NotImplemented {
+                operation_name: "Line protocol storage statistics",
+            }
+            .fail()
         }
         FileType::TSM => {
-            return Err(Error::NotImplemented {
-                operation_name: String::from("TSM storage statistics"),
-            })
+            return NotImplemented {
+                operation_name: "TSM storage statistics",
+            }
+            .fail()
         }
         FileType::Parquet => {
             let input_len = input_reader.len();
             (
                 input_len,
-                col_stats(input_reader)
-                    .map_err(|e| Error::UnableDumpToParquetMetadata { source: e })?,
+                col_stats(input_reader).context(UnableDumpToParquetMetadata)?,
             )
         }
     };
@@ -75,4 +75,16 @@ pub fn stats(input_filename: &str) -> Result<()> {
     );
 
     Ok(())
+}
+
+#[derive(Debug, Snafu)]
+pub enum Error {
+    #[snafu(display("Not implemented: {}", operation_name))]
+    NotImplemented { operation_name: String },
+
+    #[snafu(display("Error opening input {}", source))]
+    OpenInput { source: super::input::Error },
+
+    #[snafu(display("Unable to dump parquet file metadata: {}", source))]
+    UnableDumpToParquetMetadata { source: DeloreanParquetError },
 }

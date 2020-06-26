@@ -1,16 +1,24 @@
-use delorean_ingest::{ConversionSettings, LineProtocolConverter, TSMFileConverter};
+use delorean_ingest::{
+    ConversionSettings, Error as IngestError, LineProtocolConverter, TSMFileConverter,
+};
 use delorean_line_parser::parse_lines;
 use delorean_parquet::writer::DeloreanParquetTableWriter;
+use delorean_parquet::writer::Error as ParquetWriterError;
 use delorean_table::{DeloreanTableWriter, DeloreanTableWriterSource, Error as TableError};
 use delorean_table_schema::Schema;
 use log::{debug, info, warn};
-use std::convert::TryInto;
-use std::fs;
-use std::io::Read;
-use std::path::{Path, PathBuf};
+use snafu::{ResultExt, Snafu};
+use std::{
+    convert::TryInto,
+    fs,
+    io::Read,
+    path::{Path, PathBuf},
+};
 
-use crate::commands::error::{Error, Result};
 use crate::commands::input::{FileType, InputReader};
+
+pub type Result<T, E = Error> = std::result::Result<T, E>;
+
 /// Creates  `DeloreanParquetTableWriter` suitable for writing to a single file
 #[derive(Debug)]
 struct ParquetFileWriterSource {
@@ -24,16 +32,18 @@ impl DeloreanTableWriterSource for ParquetFileWriterSource {
     // Returns a `DeloreanTableWriter suitable for writing data from packers.
     fn next_writer(&mut self, schema: &Schema) -> Result<Box<dyn DeloreanTableWriter>, TableError> {
         if self.made_file {
-            return Err(TableError::Other {
-                source: Box::new(Error::MultipleMeasurementsToSingleFile {
-                    new_measurement_name: String::from(schema.measurement()),
-                }),
-            });
+            return MultipleMeasurementsToSingleFile {
+                new_measurement_name: schema.measurement(),
+            }
+            .fail()
+            .map_err(TableError::from_other);
         }
 
-        let output_file = fs::File::create(&self.output_filename).map_err(|e| TableError::IO {
-            message: format!("Error creating output file {}", self.output_filename),
-            source: e,
+        let output_file = fs::File::create(&self.output_filename).map_err(|e| {
+            TableError::from_io(
+                e,
+                format!("Error creating output file {}", self.output_filename),
+            )
         })?;
         info!(
             "Writing output for measurement {} to {} ...",
@@ -41,11 +51,9 @@ impl DeloreanTableWriterSource for ParquetFileWriterSource {
             self.output_filename
         );
 
-        let writer = DeloreanParquetTableWriter::new(schema, output_file).map_err(|e| {
-            TableError::Other {
-                source: Box::new(Error::UnableToCreateParquetTableWriter { source: e }),
-            }
-        })?;
+        let writer = DeloreanParquetTableWriter::new(schema, output_file)
+            .context(UnableToCreateParquetTableWriter)
+            .map_err(TableError::from_other)?;
         self.made_file = true;
         Ok(Box::new(writer))
     }
@@ -68,9 +76,11 @@ impl DeloreanTableWriterSource for ParquetDirectoryWriterSource {
         output_file_path.push(schema.measurement());
         output_file_path.set_extension("parquet");
 
-        let output_file = fs::File::create(&output_file_path).map_err(|e| TableError::IO {
-            message: format!("Error creating output file {:?}", output_file_path),
-            source: e,
+        let output_file = fs::File::create(&output_file_path).map_err(|e| {
+            TableError::from_io(
+                e,
+                format!("Error creating output file {:?}", output_file_path),
+            )
         })?;
         info!(
             "Writing output for measurement {} to {:?} ...",
@@ -78,11 +88,9 @@ impl DeloreanTableWriterSource for ParquetDirectoryWriterSource {
             output_file_path
         );
 
-        let writer = DeloreanParquetTableWriter::new(schema, output_file).map_err(|e| {
-            TableError::Other {
-                source: Box::new(Error::UnableToCreateParquetTableWriter { source: e }),
-            }
-        })?;
+        let writer = DeloreanParquetTableWriter::new(schema, output_file)
+            .context(UnableToCreateParquetTableWriter)
+            .map_err(TableError::from_other)?;
         Ok(Box::new(writer))
     }
 }
@@ -97,7 +105,7 @@ pub fn convert(input_filename: &str, output_name: &str) -> Result<()> {
     info!("convert starting");
     debug!("Reading from input file {}", input_filename);
 
-    let input_reader = InputReader::new(input_filename)?;
+    let input_reader = InputReader::new(input_filename).context(OpenInput)?;
     info!(
         "Preparing to convert {} bytes from {}",
         input_reader.len(),
@@ -111,13 +119,14 @@ pub fn convert(input_filename: &str, output_name: &str) -> Result<()> {
         FileType::TSM => {
             // TODO(edd): we can remove this when I figure out the best way to share
             // the reader between the TSM index reader and the Block decoder.
-            let input_block_reader = InputReader::new(input_filename)?;
+            let input_block_reader = InputReader::new(input_filename).context(OpenInput)?;
             let len = input_reader.len() as usize;
             convert_tsm_to_parquet(input_reader, len, input_block_reader, output_name)
         }
-        FileType::Parquet => Err(Error::NotImplemented {
-            operation_name: String::from("Parquet format conversion"),
-        }),
+        FileType::Parquet => NotImplemented {
+            operation_name: "Parquet format conversion",
+        }
+        .fail(),
     }
 }
 
@@ -132,13 +141,12 @@ fn convert_line_protocol_to_parquet(
         input_reader
             .len()
             .try_into()
-            .expect("Can not allocate buffer"),
+            .expect("Cannot allocate buffer"),
     );
     input_reader
         .read_to_string(&mut buf)
-        .map_err(|e| Error::UnableToReadInput {
-            name: String::from(input_filename),
-            source: e,
+        .context(UnableToReadInput {
+            name: input_filename,
         })?;
 
     // FIXME: Design something sensible to do with lines that don't
@@ -169,10 +177,8 @@ fn convert_line_protocol_to_parquet(
     let mut converter = LineProtocolConverter::new(settings, writer_source);
     converter
         .convert(only_good_lines)
-        .map_err(|e| Error::UnableToWriteGoodLines { source: e })?;
-    converter
-        .finalize()
-        .map_err(|e| Error::UnableToCloseTableWriter { source: e })?;
+        .context(UnableToWriteGoodLines)?;
+    converter.finalize().context(UnableToCloseTableWriter)?;
     info!("Completing writing to {} successfully", output_name);
     Ok(())
 }
@@ -200,5 +206,35 @@ fn convert_tsm_to_parquet(
     let mut converter = TSMFileConverter::new(writer_source);
     converter
         .convert(index_stream, index_stream_size, block_stream)
-        .map_err(|e| Error::UnableToCloseTableWriter { source: e })
+        .context(UnableToCloseTableWriter)
+}
+
+#[derive(Debug, Snafu)]
+pub enum Error {
+    #[snafu(display("Error reading {} ({})", name.display(), source))]
+    UnableToReadInput {
+        name: PathBuf,
+        source: std::io::Error,
+    },
+
+    #[snafu(display(
+        "Cannot write multiple measurements to a single file. Saw new measurement named {}",
+        new_measurement_name
+    ))]
+    MultipleMeasurementsToSingleFile { new_measurement_name: String },
+
+    #[snafu(display("Error creating a parquet table writer {}", source))]
+    UnableToCreateParquetTableWriter { source: ParquetWriterError },
+
+    #[snafu(display("Not implemented: {}", operation_name))]
+    NotImplemented { operation_name: String },
+
+    #[snafu(display("Error writing remaining lines {}", source))]
+    UnableToWriteGoodLines { source: IngestError },
+
+    #[snafu(display("Error opening input {}", source))]
+    OpenInput { source: super::input::Error },
+
+    #[snafu(display("Error while closing the table writer {}", source))]
+    UnableToCloseTableWriter { source: IngestError },
 }

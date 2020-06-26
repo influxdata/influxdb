@@ -1,45 +1,45 @@
-use std::collections::{BTreeMap, BTreeSet};
-use std::convert::TryInto;
-
-use delorean_tsm::reader::{IndexEntry, TSMIndexReader};
-use delorean_tsm::{InfluxID, TSMError};
-
-use delorean_parquet::metadata::print_parquet_metadata;
+use delorean_parquet::{error::Error as DeloreanParquetError, metadata::print_parquet_metadata};
+use delorean_tsm::{reader::IndexEntry, reader::TSMIndexReader, InfluxID, TSMError};
 use log::{debug, info};
+use snafu::{ResultExt, Snafu};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    convert::TryInto,
+};
 
-use crate::commands::error::{Error, Result};
 use crate::commands::input::{FileType, InputReader};
+
+pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 pub fn dump_meta(input_filename: &str) -> Result<()> {
     info!("meta starting");
     debug!("Reading from input file {}", input_filename);
 
-    let input_reader = InputReader::new(input_filename)?;
+    let input_reader = InputReader::new(input_filename).context(OpenInput)?;
 
     match input_reader.file_type() {
-        FileType::LineProtocol => Err(Error::NotImplemented {
-            operation_name: String::from("Line protocol metadata dump"),
-        }),
+        FileType::LineProtocol => NotImplemented {
+            operation_name: "Line protocol metadata dump",
+        }
+        .fail(),
         FileType::TSM => {
             let len = input_reader
                 .len()
                 .try_into()
                 .expect("File size more than usize");
-            let reader =
-                TSMIndexReader::try_new(input_reader, len).map_err(|e| Error::TSM { source: e })?;
+            let reader = TSMIndexReader::try_new(input_reader, len).context(TSM)?;
 
             let mut stats_builder = TSMMetadataBuilder::new();
 
-            for mut entry in reader {
-                stats_builder.process_entry(&mut entry)?;
+            for entry in reader {
+                let entry = entry.context(TSM)?;
+                stats_builder.process_entry(entry)?;
             }
             stats_builder.print_report();
             Ok(())
         }
         FileType::Parquet => {
-            print_parquet_metadata(input_reader)
-                .map_err(|e| Error::UnableDumpToParquetMetadata { source: e })?;
-            Ok(())
+            print_parquet_metadata(input_reader).context(UnableDumpToParquetMetadata)
         }
     }
 }
@@ -54,9 +54,7 @@ struct MeasurementMetadata {
 
 impl MeasurementMetadata {
     fn update_for_entry(&mut self, index_entry: &mut IndexEntry) -> Result<()> {
-        let key = index_entry
-            .parse_key()
-            .map_err(|e| Error::TSM { source: e })?;
+        let key = index_entry.parse_key().context(TSM)?;
 
         for (tag_name, tag_value) in key.tagset {
             let tag_entry = self.tags.entry(tag_name).or_default();
@@ -93,9 +91,7 @@ impl BucketMetadata {
     fn update_for_entry(&mut self, index_entry: &mut IndexEntry) -> Result<()> {
         self.count += 1;
         self.total_records += u64::from(index_entry.count);
-        let key = index_entry
-            .parse_key()
-            .map_err(|e| Error::TSM { source: e })?;
+        let key = index_entry.parse_key().context(TSM)?;
 
         let meta = self.measurements.entry(key.measurement).or_default();
         meta.update_for_entry(index_entry)?;
@@ -124,17 +120,12 @@ impl TSMMetadataBuilder {
         Self::default()
     }
 
-    fn process_entry(&mut self, entry: &mut Result<IndexEntry, TSMError>) -> Result<()> {
-        match entry {
-            Ok(index_entry) => {
-                self.num_entries += 1;
-                let key = (index_entry.org_id(), index_entry.bucket_id());
-                let stats = self.bucket_stats.entry(key).or_default();
-                stats.update_for_entry(index_entry)?;
-                Ok(())
-            }
-            Err(e) => Err(Error::TSM { source: e.clone() }),
-        }
+    fn process_entry(&mut self, mut index_entry: IndexEntry) -> Result<()> {
+        self.num_entries += 1;
+        let key = (index_entry.org_id(), index_entry.bucket_id());
+        let stats = self.bucket_stats.entry(key).or_default();
+        stats.update_for_entry(&mut index_entry)?;
+        Ok(())
     }
 
     fn print_report(&self) {
@@ -151,4 +142,19 @@ impl TSMMetadataBuilder {
             stats.print_report("      ");
         }
     }
+}
+
+#[derive(Debug, Snafu)]
+pub enum Error {
+    #[snafu(display("Error opening input {}", source))]
+    OpenInput { source: super::input::Error },
+
+    #[snafu(display("Not implemented: {}", operation_name))]
+    NotImplemented { operation_name: String },
+
+    #[snafu(display("Unable to dump parquet file metadata: {}", source))]
+    UnableDumpToParquetMetadata { source: DeloreanParquetError },
+
+    #[snafu(display(r#"Error reading TSM data: {}"#, source))]
+    TSM { source: TSMError },
 }
