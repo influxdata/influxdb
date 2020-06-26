@@ -15,6 +15,8 @@ import {Columns, ComponentSize, ComponentStatus} from '@influxdata/clockface'
 interface Props {
   label: string
   dateTime: string
+  maxDate?: string
+  minDate?: string
   onSelectDate: (date: string) => void
 }
 
@@ -56,7 +58,7 @@ export default class DatePicker extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {dateTime, label} = this.props
+    const {dateTime, label, maxDate, minDate} = this.props
 
     const date = new Date(dateTime)
 
@@ -72,6 +74,7 @@ export default class DatePicker extends PureComponent<Props, State> {
                 value={this.inputValue}
                 onChange={this.handleChangeInput}
                 status={this.inputStatus}
+                testID="timerange--input"
               />
             </Form.Element>
             <div className="range-picker--popper-container">
@@ -89,6 +92,8 @@ export default class DatePicker extends PureComponent<Props, State> {
                 dayClassName={this.dayClassName}
                 timeIntervals={60}
                 fixedHeight={true}
+                minDate={new Date(minDate)}
+                maxDate={new Date(maxDate)}
               />
             </div>
           </Grid.Column>

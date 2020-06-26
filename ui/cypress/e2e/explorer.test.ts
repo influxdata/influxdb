@@ -242,7 +242,7 @@ describe('DataExplorer', () => {
   })
 
   describe('select time range to query', () => {
-    it('can select different time ranges', () => {
+    it('can set a custom time range and restricts start & stop selections relative to start & stop dates', () => {
       // find initial value
       cy.get('.cf-dropdown--selected')
         .contains('Past 1')
@@ -261,6 +261,33 @@ describe('DataExplorer', () => {
 
       cy.getByTestID('dropdown-item-customtimerange').click()
       cy.getByTestID('timerange-popover--dialog').should('have.length', 1)
+
+      cy.getByTestID('timerange--input')
+        .first()
+        .clear()
+        .type('2019-10-29 08:00:00.000')
+
+      // Set the stop date to Oct 29, 2019
+      cy.getByTestID('timerange--input')
+        .last()
+        .clear()
+        .type('2019-10-29 09:00:00.000')
+
+      // click button and see if time range has been selected
+      cy.getByTestID('daterange--apply-btn').click()
+
+      cy.getByTestID('timerange-dropdown').click()
+      cy.getByTestID('dropdown-item-customtimerange').click()
+
+      // Select the 30th in the Start timerange
+      cy.get('.react-datepicker__day--030')
+        .first()
+        .should('be', 'disabled')
+
+      // Select the 28th in the Stop timerange
+      cy.get('.react-datepicker__day--028')
+        .last()
+        .should('be', 'disabled')
     })
 
     describe('should allow for custom time range selection', () => {
@@ -284,10 +311,7 @@ describe('DataExplorer', () => {
           .type('2019-10-29')
 
         // click button and see if time range has been selected
-        cy.get('.cf-button--label')
-          .contains('Apply Time Range')
-          .should('have.length', 1)
-          .click()
+        cy.getByTestID('daterange--apply-btn').click()
 
         // TODO: complete test once functionality is fleshed out
 
@@ -327,39 +351,13 @@ describe('DataExplorer', () => {
         cy.getByTestID('input-error').should('have.length', 1)
 
         // try submitting invalid date
-        cy.get('.cf-button--label')
-          .contains('Apply Time Range')
-          .should('have.length', 1)
-          .click()
+        cy.getByTestID('daterange--apply-btn').click()
 
         // TODO: complete test once functionality is fleshed out
 
         // cy.get('.cf-dropdown--selected')
         //   .contains('2019-10-01 00:00 - 2019-10-31 00:00')
         //   .should('have.length', 1)
-      })
-
-      it('can set a custom time range', () => {
-        // set the start and stop dates
-        cy.get('input[title="Start"]')
-          .should('have.length', 1)
-          .clear()
-          .type('2019-10-01')
-
-        cy.get('input[title="Stop"]')
-          .should('have.length', 1)
-          .clear()
-          .type('2019-10-31')
-
-        // click button and see if time range has been selected
-        cy.get('.cf-button--label')
-          .contains('Apply Time Range')
-          .should('have.length', 1)
-          .click()
-
-        cy.get('.cf-dropdown--selected')
-          .contains('2019-10-01 00:00 - 2019-10-31 00:00')
-          .should('have.length', 1)
       })
     })
   })
