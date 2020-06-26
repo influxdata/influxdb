@@ -69,6 +69,7 @@ class DateRangePicker extends PureComponent<Props, State> {
             size={ComponentSize.Small}
             onClick={this.handleSetTimeRange}
             text="Apply Time Range"
+            testID="daterange--apply-btn"
           />
         </div>
       </ClickOutside>

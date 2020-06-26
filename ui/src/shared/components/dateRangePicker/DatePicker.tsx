@@ -74,6 +74,7 @@ export default class DatePicker extends PureComponent<Props, State> {
                 value={this.inputValue}
                 onChange={this.handleChangeInput}
                 status={this.inputStatus}
+                testID="timerange--input"
               />
             </Form.Element>
             <div className="range-picker--popper-container">
