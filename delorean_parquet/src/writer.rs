@@ -446,7 +446,7 @@ mod tests {
             OPTIONAL DOUBLE float_field;
             OPTIONAL INT64 int_field (UINT_64);
             OPTIONAL BOOLEAN bool_field;
-            OPTIONAL INT64 timestamp (TIMESTAMP_MICROS);
+            OPTIONAL INT64 time (TIMESTAMP_MICROS);
 }"#,
         );
 
@@ -522,7 +522,7 @@ mod tests {
         assert_eq!(writer_props.dictionary_enabled(&bool_field_colpath), false);
         assert_eq!(writer_props.statistics_enabled(&bool_field_colpath), true);
 
-        let timestamp_field_colpath = ColumnPath::from("timestamp");
+        let timestamp_field_colpath = ColumnPath::from("time");
         assert_eq!(
             writer_props.encoding(&timestamp_field_colpath),
             Some(Encoding::DELTA_BINARY_PACKED)

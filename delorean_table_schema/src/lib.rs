@@ -33,7 +33,7 @@
 //! assert_eq!(cols[1], ColumnDefinition::new("tag2", 1, DataType::String));
 //! assert_eq!(cols[2], ColumnDefinition::new("field1", 2, DataType::Float));
 //! assert_eq!(cols[3], ColumnDefinition::new("field2", 3, DataType::Boolean));
-//! assert_eq!(cols[4], ColumnDefinition::new("timestamp", 4, DataType::Timestamp));
+//! assert_eq!(cols[4], ColumnDefinition::new("time", 4, DataType::Timestamp));
 //! ```
 use delorean_tsm::BlockType;
 
@@ -259,7 +259,7 @@ impl SchemaBuilder {
                 })
                 .collect(),
             timestamp_index: indexer.next().unwrap(),
-            timestamp_name: String::from("timestamp"),
+            timestamp_name: String::from("time"),
         }
     }
 }
@@ -311,7 +311,7 @@ mod test {
         assert_eq!(cols[0], ColumnDefinition::new("tag1", 0, DataType::String));
         assert_eq!(
             cols[1],
-            ColumnDefinition::new("timestamp", 1, DataType::Timestamp)
+            ColumnDefinition::new("time", 1, DataType::Timestamp)
         );
     }
 
@@ -327,7 +327,7 @@ mod test {
         assert_eq!(cols[0], ColumnDefinition::new("field1", 0, DataType::Float));
         assert_eq!(
             cols[1],
-            ColumnDefinition::new("timestamp", 1, DataType::Timestamp)
+            ColumnDefinition::new("time", 1, DataType::Timestamp)
         );
     }
 
@@ -343,7 +343,7 @@ mod test {
         assert_eq!(cols[0], ColumnDefinition::new("field1", 0, DataType::Float));
         assert_eq!(
             cols[1],
-            ColumnDefinition::new("timestamp", 1, DataType::Timestamp)
+            ColumnDefinition::new("time", 1, DataType::Timestamp)
         );
     }
 
@@ -367,7 +367,7 @@ mod test {
         );
         assert_eq!(
             cols[4],
-            ColumnDefinition::new("timestamp", 4, DataType::Timestamp)
+            ColumnDefinition::new("time", 4, DataType::Timestamp)
         );
     }
 
@@ -379,7 +379,7 @@ mod test {
         assert_eq!(cols.len(), 1);
         assert_eq!(
             cols[0],
-            ColumnDefinition::new("timestamp", 0, DataType::Timestamp)
+            ColumnDefinition::new("time", 0, DataType::Timestamp)
         );
     }
 
@@ -397,7 +397,7 @@ mod test {
         assert_eq!(cols[1], ColumnDefinition::new("field1", 1, DataType::Float));
         assert_eq!(
             cols[2],
-            ColumnDefinition::new("timestamp", 2, DataType::Timestamp)
+            ColumnDefinition::new("time", 2, DataType::Timestamp)
         );
 
         // Now, if we somehow have changed how the indexes are
@@ -409,7 +409,7 @@ mod test {
         assert_eq!(cols.len(), 3);
         assert_eq!(
             cols[0],
-            ColumnDefinition::new("timestamp", 0, DataType::Timestamp)
+            ColumnDefinition::new("time", 0, DataType::Timestamp)
         );
         assert_eq!(cols[1], ColumnDefinition::new("field1", 1, DataType::Float));
         assert_eq!(cols[2], ColumnDefinition::new("tag1", 2, DataType::String));
