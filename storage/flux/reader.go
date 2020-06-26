@@ -10,7 +10,6 @@ import (
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/flux/plan"
-	"github.com/influxdata/flux/stdlib/universe"
 	"github.com/influxdata/flux/values"
 	"github.com/influxdata/influxdb/v2/kit/errors"
 	"github.com/influxdata/influxdb/v2/models"
@@ -618,9 +617,17 @@ func (wai *windowAggregateIterator) Do(f func(flux.Table) error) error {
 	return wai.handleRead(f, rs)
 }
 
+const (
+	CountKind = "count"
+	FirstKind = "first"
+	LastKind  = "last"
+	MinKind   = "min"
+	MaxKind   = "max"
+)
+
 // isSelector returns true if given a procedure kind that represents a selector operator.
 func isSelector(kind plan.ProcedureKind) bool {
-	return kind == universe.FirstKind || kind == universe.LastKind || kind == universe.MinKind || kind == universe.MaxKind
+	return kind == FirstKind || kind == LastKind || kind == MinKind || kind == MaxKind
 }
 
 func (wai *windowAggregateIterator) handleRead(f func(flux.Table) error, rs storage.ResultSet) error {
