@@ -326,6 +326,21 @@ impl<'a> From<&'a str> for EscapedStr<'a> {
     }
 }
 
+impl From<EscapedStr<'_>> for String {
+    fn from(other: EscapedStr<'_>) -> Self {
+        match other {
+            EscapedStr::SingleSlice(s) => s.into(),
+            EscapedStr::CopiedValue(s) => s,
+        }
+    }
+}
+
+impl From<&EscapedStr<'_>> for String {
+    fn from(other: &EscapedStr<'_>) -> Self {
+        other.to_string()
+    }
+}
+
 impl PartialEq<&str> for EscapedStr<'_> {
     fn eq(&self, other: &&str) -> bool {
         self.as_str() == *other

@@ -1,19 +1,18 @@
 //! Provide storage statistics for parquet files
-use std::collections::BTreeMap;
-use std::convert::TryInto;
-use std::io::{Read, Seek};
-
-use log::debug;
-use parquet::basic::{Compression, Encoding};
-use parquet::file::reader::{FileReader, SerializedFileReader};
-
 use delorean_table::stats::{ColumnStats, ColumnStatsBuilder};
-
-use crate::{
-    error::{Error, Result},
-    metadata::data_type_from_parquet_type,
-    Length, TryClone,
+use log::debug;
+use parquet::{
+    basic::{Compression, Encoding},
+    file::reader::{FileReader, SerializedFileReader},
 };
+use snafu::ResultExt;
+use std::{
+    collections::BTreeMap,
+    convert::TryInto,
+    io::{Read, Seek},
+};
+
+use crate::{error::Result, metadata::data_type_from_parquet_type, Length, TryClone};
 
 /// Calculate storage statistics for a particular parquet file that can
 /// be read from `input`, with a total size of `input_size` byes
@@ -23,9 +22,8 @@ pub fn col_stats<R: 'static>(input: R) -> Result<Vec<ColumnStats>>
 where
     R: Read + Seek + TryClone + Length,
 {
-    let reader = SerializedFileReader::new(input).map_err(|e| Error::ParquetLibraryError {
-        message: String::from("Creating parquet reader"),
-        source: e,
+    let reader = SerializedFileReader::new(input).context(crate::error::ParquetLibraryError {
+        message: "Creating parquet reader",
     })?;
 
     let mut stats_builders = BTreeMap::new();

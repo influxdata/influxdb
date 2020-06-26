@@ -1,17 +1,13 @@
 //! Provide storage statistics for parquet files
-use std::io::{Read, Seek};
-
+use delorean_table_schema::DataType;
 use parquet::{
     file::reader::{FileReader, SerializedFileReader},
     schema,
 };
+use snafu::ResultExt;
+use std::io::{Read, Seek};
 
-use delorean_table_schema::DataType;
-
-use crate::{
-    error::{Error, Result},
-    Length, TryClone,
-};
+use crate::{error::Result, Length, TryClone};
 
 pub fn parquet_schema_as_string(parquet_schema: &schema::types::Type) -> String {
     let mut parquet_schema_string = Vec::new();
@@ -42,9 +38,8 @@ where
 {
     let input_len = input.len();
 
-    let reader = SerializedFileReader::new(input).map_err(|e| Error::ParquetLibraryError {
-        message: String::from("Creating parquet reader"),
-        source: e,
+    let reader = SerializedFileReader::new(input).context(crate::error::ParquetLibraryError {
+        message: "Creating parquet reader",
     })?;
 
     let parquet_metadata = reader.metadata();
