@@ -763,12 +763,12 @@ func TestPkgerHTTPServer(t *testing.T) {
 				{
 					name: "for stack that has all fields available",
 					stub: pkger.Stack{
-						ID:          1,
-						OrgID:       expectedOrgID,
-						Name:        "name",
-						Description: "desc",
-						Sources:     []string{"threeve"},
-						URLs:        []string{"http://example.com"},
+						ID:           1,
+						OrgID:        expectedOrgID,
+						Name:         "name",
+						Description:  "desc",
+						Sources:      []string{"threeve"},
+						TemplateURLs: []string{"http://example.com"},
 						Resources: []pkger.StackResource{
 							{
 								APIVersion: pkger.APIVersion,
@@ -995,8 +995,8 @@ func TestPkgerHTTPServer(t *testing.T) {
 							if upd.Description != nil {
 								st.Description = *upd.Description
 							}
-							if upd.URLs != nil {
-								st.URLs = upd.URLs
+							if upd.TemplateURLs != nil {
+								st.TemplateURLs = upd.TemplateURLs
 							}
 							return st, nil
 						},

@@ -87,6 +87,10 @@ type cmdPkgBuilder struct {
 		telegrafs    string
 		variables    string
 	}
+
+	updateStackOpts struct {
+		addResources []string
+	}
 }
 
 func newCmdPkgBuilder(svcFn pkgSVCsFn, f *globalFlags, opts genericCLIOpts) *cmdPkgBuilder {
@@ -410,17 +414,10 @@ func (b *cmdPkgBuilder) exportRunEFn(cmd *cobra.Command, args []string) error {
 	}
 
 	if b.exportOpts.resourceType == "" {
-		return b.exportPkg(cmd.OutOrStdout(), pkgSVC, b.file, opts...)
+		return b.exportTemplate(cmd.OutOrStdout(), pkgSVC, b.file, opts...)
 	}
 
-	resType := strings.ToLower(b.exportOpts.resourceType)
-	resKind := pkger.KindUnknown
-	for _, k := range pkger.Kinds() {
-		if strings.ToLower(string(k)) == resType {
-			resKind = k
-			break
-		}
-	}
+	resKind := templateKindFold(b.exportOpts.resourceType)
 
 	if err := resKind.OK(); err != nil {
 		return errors.New("resource type is invalid; got: " + b.exportOpts.resourceType)
@@ -439,7 +436,7 @@ func (b *cmdPkgBuilder) exportRunEFn(cmd *cobra.Command, args []string) error {
 	}
 	opts = append(opts, resTypeOpt)
 
-	return b.exportPkg(cmd.OutOrStdout(), pkgSVC, b.file, opts...)
+	return b.exportTemplate(cmd.OutOrStdout(), pkgSVC, b.file, opts...)
 }
 
 func (b *cmdPkgBuilder) cmdExportAll() *cobra.Command {
@@ -526,7 +523,7 @@ func (b *cmdPkgBuilder) exportAllRunEFn(cmd *cobra.Command, args []string) error
 		LabelNames:    labelNames,
 		ResourceKinds: resourceKinds,
 	})
-	return b.exportPkg(cmd.OutOrStdout(), pkgSVC, b.file, orgOpt)
+	return b.exportTemplate(cmd.OutOrStdout(), pkgSVC, b.file, orgOpt)
 }
 
 func (b *cmdPkgBuilder) cmdExportStack() *cobra.Command {
@@ -680,10 +677,10 @@ func (b *cmdPkgBuilder) cmdStackInit() *cobra.Command {
 
 	Examples:
 		# Initialize a stack with a name and description
-		influx stack init -n $STACK_NAME -d $STACK_DESCRIPTION
+		influx stacks init -n $STACK_NAME -d $STACK_DESCRIPTION
 
 		# Initialize a stack with a name and urls to associate with stack.
-		influx stack init -n $STACK_NAME -u $PATH_TO_TEMPLATE
+		influx stacks init -n $STACK_NAME -u $PATH_TO_TEMPLATE
 
 	For information about how stacks work with InfluxDB templates, see
 	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/stacks/
@@ -714,10 +711,10 @@ func (b *cmdPkgBuilder) stackInitRunEFn(cmd *cobra.Command, args []string) error
 
 	const fakeUserID = 0 // is 0 because user is pulled from token...
 	stack, err := pkgSVC.InitStack(context.Background(), fakeUserID, pkger.Stack{
-		OrgID:       orgID,
-		Name:        b.name,
-		Description: b.description,
-		URLs:        b.urls,
+		OrgID:        orgID,
+		Name:         b.name,
+		Description:  b.description,
+		TemplateURLs: b.urls,
 	})
 	if err != nil {
 		return err
@@ -791,7 +788,7 @@ func (b *cmdPkgBuilder) stackListRunEFn(cmd *cobra.Command, args []string) error
 			"Description":   stack.Description,
 			"Num Resources": len(stack.Resources),
 			"Sources":       stack.Sources,
-			"URLs":          stack.URLs,
+			"URLs":          stack.TemplateURLs,
 			"Created At":    stack.CreatedAt,
 		})
 	}
@@ -862,7 +859,7 @@ func (b *cmdPkgBuilder) stackRemoveRunEFn(cmd *cobra.Command, args []string) err
 			"Description":   stack.Description,
 			"Num Resources": len(stack.Resources),
 			"Sources":       stack.Sources,
-			"URLs":          stack.URLs,
+			"URLs":          stack.TemplateURLs,
 			"Created At":    stack.CreatedAt,
 		})
 
@@ -901,10 +898,23 @@ func (b *cmdPkgBuilder) cmdStackUpdate() *cobra.Command {
 
 	Examples:
 		# Update a stack with a name and description
-		influx stack update -i $STACK_ID -n $STACK_NAME -d $STACK_DESCRIPTION
+		influx stacks update -i $STACK_ID -n $STACK_NAME -d $STACK_DESCRIPTION
 
 		# Update a stack with a name and urls to associate with stack.
-		influx stack update --stack-id $STACK_ID --stack-name $STACK_NAME --template-url $PATH_TO_TEMPLATE
+		influx stacks update --stack-id $STACK_ID --stack-name $STACK_NAME --template-url $PATH_TO_TEMPLATE
+
+		# Update stack with new resources to manage
+		influx stacks update \
+			--stack-id $STACK_ID \
+			--addResource=Bucket=$BUCKET_ID \
+			--addResource=Dashboard=$DASH_ID
+
+		# Update stack with new resources to manage and export stack
+		# as a template
+		influx stacks update \
+			--stack-id $STACK_ID \
+			--addResource=Bucket=$BUCKET_ID \
+			--export-file /path/to/file.yml
 
 	For information about how stacks work with InfluxDB templates, see
 	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/stacks
@@ -917,6 +927,8 @@ func (b *cmdPkgBuilder) cmdStackUpdate() *cobra.Command {
 	cmd.Flags().StringVarP(&b.name, "stack-name", "n", "", "Name for stack")
 	cmd.Flags().StringVarP(&b.description, "stack-description", "d", "", "Description for stack")
 	cmd.Flags().StringArrayVarP(&b.urls, "template-url", "u", nil, "Template urls to associate with stack")
+	cmd.Flags().StringArrayVar(&b.updateStackOpts.addResources, "addResource", nil, "Additional resources to associate with stack")
+	cmd.Flags().StringVarP(&b.file, "export-file", "f", "", "Destination for exported template")
 	registerPrintOptions(cmd, &b.hideHeaders, &b.json)
 
 	return cmd
@@ -933,17 +945,62 @@ func (b *cmdPkgBuilder) stackUpdateRunEFn(cmd *cobra.Command, args []string) err
 		return ierror.Wrap(err, "required stack id is invalid")
 	}
 
-	stack, err := pkgSVC.UpdateStack(context.Background(), pkger.StackUpdate{
-		ID:          *stackID,
-		Name:        &b.name,
-		Description: &b.description,
-		URLs:        b.urls,
-	})
+	update := pkger.StackUpdate{
+		ID:           *stackID,
+		Name:         &b.name,
+		Description:  &b.description,
+		TemplateURLs: b.urls,
+	}
+
+	for _, res := range b.updateStackOpts.addResources {
+		parts := strings.SplitN(res, "=", 2)
+		if len(parts) < 2 {
+			continue
+		}
+
+		kind, idRaw := templateKindFold(parts[0]), parts[1]
+		if err := kind.OK(); err != nil {
+			return errors.New("resource type is invalid; got: " + b.exportOpts.resourceType)
+		}
+
+		id, err := influxdb.IDFromString(idRaw)
+		if err != nil {
+			return ierror.Wrap(err, fmt.Sprintf("%s resource id %q is invalid", kind, idRaw))
+		}
+		update.AdditionalResources = append(update.AdditionalResources, pkger.StackAdditionalResource{
+			APIVersion: pkger.APIVersion,
+			ID:         *id,
+			Kind:       kind,
+		})
+	}
+
+	stack, err := pkgSVC.UpdateStack(context.Background(), update)
 	if err != nil {
 		return err
 	}
 
-	return b.writeStack(b.w, stack)
+	if err := b.writeStack(b.w, stack); err != nil {
+		return err
+	}
+
+	if len(update.AdditionalResources) == 0 {
+		return nil
+	}
+
+	if b.file == "" {
+		const msg = `
+Your stack now differs from your template. Applying an outdated template will revert
+these updates. Export a new template with these updates to prevent accidental changes? (y/n)`
+		for range make([]struct{}, 3) {
+			if in := b.getInput(msg, "n"); in == "y" {
+				break
+			} else if in == "n" {
+				return nil
+			}
+		}
+	}
+
+	return b.exportTemplate(cmd.OutOrStdout(), pkgSVC, b.file, pkger.ExportWithStackID(*stackID))
 }
 
 func (b *cmdPkgBuilder) writeStack(w io.Writer, stack pkger.Stack) error {
@@ -956,15 +1013,16 @@ func (b *cmdPkgBuilder) writeStack(w io.Writer, stack pkger.Stack) error {
 
 	tabW.HideHeaders(b.hideHeaders)
 
-	tabW.WriteHeaders("ID", "OrgID", "Name", "Description", "Sources", "URLs", "Created At")
+	tabW.WriteHeaders("ID", "OrgID", "Name", "Description", "Num Resources", "Sources", "URLs", "Created At")
 	tabW.Write(map[string]interface{}{
-		"ID":          stack.ID,
-		"OrgID":       stack.OrgID,
-		"Name":        stack.Name,
-		"Description": stack.Description,
-		"Sources":     stack.Sources,
-		"URLs":        stack.URLs,
-		"Created At":  stack.CreatedAt,
+		"ID":            stack.ID,
+		"OrgID":         stack.OrgID,
+		"Name":          stack.Name,
+		"Description":   stack.Description,
+		"Num Resources": len(stack.Resources),
+		"Sources":       stack.Sources,
+		"URLs":          stack.TemplateURLs,
+		"Created At":    stack.CreatedAt,
 	})
 
 	return nil
@@ -994,7 +1052,7 @@ func (b *cmdPkgBuilder) registerPkgFileFlags(cmd *cobra.Command) {
 	cmd.MarkFlagFilename("encoding", "yaml", "yml", "json", "jsonnet")
 }
 
-func (b *cmdPkgBuilder) exportPkg(w io.Writer, pkgSVC pkger.SVC, outPath string, opts ...pkger.ExportOptFn) error {
+func (b *cmdPkgBuilder) exportTemplate(w io.Writer, pkgSVC pkger.SVC, outPath string, opts ...pkger.ExportOptFn) error {
 	pkg, err := pkgSVC.Export(context.Background(), opts...)
 	if err != nil {
 		return err
@@ -2087,6 +2145,17 @@ func missingValKeys(m map[string]string) []string {
 		return out[i] < out[j]
 	})
 	return out
+}
+
+func templateKindFold(resType string) pkger.Kind {
+	resKind := pkger.KindUnknown
+	for _, k := range pkger.Kinds() {
+		if strings.EqualFold(string(k), resType) {
+			resKind = k
+			break
+		}
+	}
+	return resKind
 }
 
 func find(needle string, haystack []string) int {

@@ -3545,31 +3545,31 @@ func TestService(t *testing.T) {
 				{
 					name: "update URLs",
 					input: StackUpdate{
-						URLs: []string{"http://example.com"},
+						TemplateURLs: []string{"http://example.com"},
 					},
 					expected: Stack{
-						URLs: []string{"http://example.com"},
+						TemplateURLs: []string{"http://example.com"},
 					},
 				},
 				{
 					name: "update first 3",
 					input: StackUpdate{
-						Name:        strPtr("name"),
-						Description: strPtr("desc"),
-						URLs:        []string{"http://example.com"},
+						Name:         strPtr("name"),
+						Description:  strPtr("desc"),
+						TemplateURLs: []string{"http://example.com"},
 					},
 					expected: Stack{
-						Name:        "name",
-						Description: "desc",
-						URLs:        []string{"http://example.com"},
+						Name:         "name",
+						Description:  "desc",
+						TemplateURLs: []string{"http://example.com"},
 					},
 				},
 				{
 					name: "update with metaname collisions",
 					input: StackUpdate{
-						Name:        strPtr("name"),
-						Description: strPtr("desc"),
-						URLs:        []string{"http://example.com"},
+						Name:         strPtr("name"),
+						Description:  strPtr("desc"),
+						TemplateURLs: []string{"http://example.com"},
 						AdditionalResources: []StackAdditionalResource{
 							{
 								APIVersion: APIVersion,
@@ -3586,9 +3586,9 @@ func TestService(t *testing.T) {
 						},
 					},
 					expected: Stack{
-						Name:        "name",
-						Description: "desc",
-						URLs:        []string{"http://example.com"},
+						Name:         "name",
+						Description:  "desc",
+						TemplateURLs: []string{"http://example.com"},
 						Resources: []StackResource{
 							{
 								APIVersion: APIVersion,
@@ -3608,9 +3608,9 @@ func TestService(t *testing.T) {
 				{
 					name: "update all",
 					input: StackUpdate{
-						Name:        strPtr("name"),
-						Description: strPtr("desc"),
-						URLs:        []string{"http://example.com"},
+						Name:         strPtr("name"),
+						Description:  strPtr("desc"),
+						TemplateURLs: []string{"http://example.com"},
 						AdditionalResources: []StackAdditionalResource{
 							{
 								APIVersion: APIVersion,
@@ -3621,9 +3621,9 @@ func TestService(t *testing.T) {
 						},
 					},
 					expected: Stack{
-						Name:        "name",
-						Description: "desc",
-						URLs:        []string{"http://example.com"},
+						Name:         "name",
+						Description:  "desc",
+						TemplateURLs: []string{"http://example.com"},
 						Resources: []StackResource{
 							{
 								APIVersion: APIVersion,
@@ -3669,7 +3669,7 @@ func TestService(t *testing.T) {
 					assert.Zero(t, stack.CreatedAt) // should always zero value in these tests
 					assert.Equal(t, tt.expected.Name, stack.Name)
 					assert.Equal(t, tt.expected.Description, stack.Description)
-					assert.Equal(t, tt.expected.URLs, stack.URLs)
+					assert.Equal(t, tt.expected.TemplateURLs, stack.TemplateURLs)
 					assert.Equal(t, now, stack.UpdatedAt)
 				}
 

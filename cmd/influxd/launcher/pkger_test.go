@@ -60,11 +60,11 @@ func TestLauncher_Pkger(t *testing.T) {
 		assert.Equal(t, stack.Name, newStack.Name)
 		assert.Equal(t, stack.Description, newStack.Description)
 		assert.NotNil(t, newStack.Resources, "failed to match stack resources")
-		expectedURLs := stack.URLs
+		expectedURLs := stack.TemplateURLs
 		if expectedURLs == nil {
 			expectedURLs = []string{}
 		}
-		assert.Equal(t, expectedURLs, newStack.URLs, "failed to match stack URLs")
+		assert.Equal(t, expectedURLs, newStack.TemplateURLs, "failed to match stack URLs")
 		assert.NotZero(t, newStack.CRUDLog)
 
 		return newStack, func() {
@@ -252,10 +252,10 @@ func TestLauncher_Pkger(t *testing.T) {
 
 		t.Run("creating a stack", func(t *testing.T) {
 			_, cleanup := newStackFn(t, pkger.Stack{
-				OrgID:       l.Org.ID,
-				Name:        "first stack",
-				Description: "desc",
-				URLs:        []string{"http://example.com"},
+				OrgID:        l.Org.ID,
+				Name:         "first stack",
+				Description:  "desc",
+				TemplateURLs: []string{"http://example.com"},
 			})
 			cleanup()
 		})
@@ -406,10 +406,10 @@ func TestLauncher_Pkger(t *testing.T) {
 
 		t.Run("updating a stack", func(t *testing.T) {
 			stack, cleanup := newStackFn(t, pkger.Stack{
-				OrgID:       l.Org.ID,
-				Name:        "first name",
-				Description: "first desc",
-				URLs:        []string{},
+				OrgID:        l.Org.ID,
+				Name:         "first name",
+				Description:  "first desc",
+				TemplateURLs: []string{},
 			})
 			defer cleanup()
 
@@ -418,7 +418,7 @@ func TestLauncher_Pkger(t *testing.T) {
 				assert.Equal(t, stack.ID, st.ID)
 				assert.Equal(t, "2nd name", st.Name)
 				assert.Equal(t, "2nd desc", st.Description)
-				assert.Equal(t, []string{"http://example.com"}, st.URLs)
+				assert.Equal(t, []string{"http://example.com"}, st.TemplateURLs)
 				resources := []pkger.StackResource{
 					{
 						APIVersion: pkger.APIVersion,
@@ -432,10 +432,10 @@ func TestLauncher_Pkger(t *testing.T) {
 			}
 
 			updStack, err := svc.UpdateStack(ctx, pkger.StackUpdate{
-				ID:          stack.ID,
-				Name:        strPtr("2nd name"),
-				Description: strPtr("2nd desc"),
-				URLs:        []string{"http://example.com"},
+				ID:           stack.ID,
+				Name:         strPtr("2nd name"),
+				Description:  strPtr("2nd desc"),
+				TemplateURLs: []string{"http://example.com"},
 				AdditionalResources: []pkger.StackAdditionalResource{
 					{
 						APIVersion: pkger.APIVersion,
@@ -483,7 +483,7 @@ func TestLauncher_Pkger(t *testing.T) {
 			}
 
 			newStack, cleanup := newStackFn(t, pkger.Stack{
-				URLs: expectedURLs,
+				TemplateURLs: expectedURLs,
 			})
 			defer cleanup()
 

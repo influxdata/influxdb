@@ -1,6 +1,9 @@
 ## v2.0.0-beta.14 [unreleased]
 
 ### Features
+
+1. [18758](https://github.com/influxdata/influxdb/pull/18758): Extend influx stacks update cmd with ability to add resources without apply template
+
 ### Bug Fixes
 
 ## v2.0.0-beta.13 [2020-06-25]

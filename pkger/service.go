@@ -31,13 +31,13 @@ type (
 	// platform. This stack is updated only after side effects of applying a pkg.
 	// If the pkg is applied, and no changes are had, then the stack is not updated.
 	Stack struct {
-		ID          influxdb.ID
-		OrgID       influxdb.ID
-		Name        string
-		Description string
-		Sources     []string
-		URLs        []string
-		Resources   []StackResource
+		ID           influxdb.ID
+		OrgID        influxdb.ID
+		Name         string
+		Description  string
+		Sources      []string
+		TemplateURLs []string
+		Resources    []StackResource
 
 		influxdb.CRUDLog
 	}
@@ -63,7 +63,7 @@ type (
 		ID                  influxdb.ID
 		Name                *string
 		Description         *string
-		URLs                []string
+		TemplateURLs        []string
 		AdditionalResources []StackAdditionalResource
 	}
 
@@ -306,7 +306,7 @@ func NewService(opts ...ServiceSetterFn) *Service {
 // with urls that point to the location of packages that are included as part of the stack when
 // it is applied.
 func (s *Service) InitStack(ctx context.Context, userID influxdb.ID, stack Stack) (Stack, error) {
-	if err := validURLs(stack.URLs); err != nil {
+	if err := validURLs(stack.TemplateURLs); err != nil {
 		return Stack{}, err
 	}
 
@@ -403,8 +403,8 @@ func (s *Service) applyStackUpdate(existing Stack, upd StackUpdate) Stack {
 	if upd.Description != nil {
 		existing.Description = *upd.Description
 	}
-	if upd.URLs != nil {
-		existing.URLs = upd.URLs
+	if upd.TemplateURLs != nil {
+		existing.TemplateURLs = upd.TemplateURLs
 	}
 	existing.UpdatedAt = s.timeGen.Now()
 
@@ -1563,7 +1563,7 @@ func (s *Service) applyBuckets(ctx context.Context, buckets []*stateBucket) appl
 
 func (s *Service) rollbackBuckets(ctx context.Context, buckets []*stateBucket) error {
 	rollbackFn := func(b *stateBucket) error {
-		if !IsNew(b.stateStatus) && b.existing == nil {
+		if !IsNew(b.stateStatus) && b.existing == nil || isSystemBucket(b.existing) {
 			return nil
 		}
 
@@ -1599,6 +1599,9 @@ func (s *Service) rollbackBuckets(ctx context.Context, buckets []*stateBucket) e
 }
 
 func (s *Service) applyBucket(ctx context.Context, b *stateBucket) (influxdb.Bucket, error) {
+	if isSystemBucket(b.existing) {
+		return *b.existing, nil
+	}
 	switch {
 	case IsRemoval(b.stateStatus):
 		if err := s.bucketSVC.DeleteBucket(ctx, b.ID()); err != nil {
@@ -2406,6 +2409,9 @@ func (s *Service) applyTasks(ctx context.Context, tasks []*stateTask) applier {
 }
 
 func (s *Service) applyTask(ctx context.Context, userID influxdb.ID, t *stateTask) (influxdb.Task, error) {
+	if isRestrictedTask(t.existing) {
+		return *t.existing, nil
+	}
 	switch {
 	case IsRemoval(t.stateStatus):
 		if err := s.taskSVC.DeleteTask(ctx, t.ID()); err != nil {
@@ -2460,7 +2466,7 @@ func (s *Service) applyTask(ctx context.Context, userID influxdb.ID, t *stateTas
 
 func (s *Service) rollbackTasks(ctx context.Context, tasks []*stateTask) error {
 	rollbackFn := func(t *stateTask) error {
-		if !IsNew(t.stateStatus) && t.existing == nil {
+		if !IsNew(t.stateStatus) && t.existing == nil || isRestrictedTask(t.existing) {
 			return nil
 		}
 
@@ -2909,7 +2915,7 @@ func (s *Service) getStackRemotePackages(ctx context.Context, stackID influxdb.I
 	}
 
 	var remotePkgs []*Pkg
-	for _, rawURL := range stack.URLs {
+	for _, rawURL := range stack.TemplateURLs {
 		u, err := url.Parse(rawURL)
 		if err != nil {
 			return nil, &influxdb.Error{
@@ -2951,7 +2957,7 @@ func (s *Service) updateStackAfterSuccess(ctx context.Context, stackID influxdb.
 
 	var stackResources []StackResource
 	for _, b := range state.mBuckets {
-		if IsRemoval(b.stateStatus) {
+		if IsRemoval(b.stateStatus) || isSystemBucket(b.existing) {
 			continue
 		}
 		stackResources = append(stackResources, StackResource{
@@ -3025,7 +3031,7 @@ func (s *Service) updateStackAfterSuccess(ctx context.Context, stackID influxdb.
 		})
 	}
 	for _, t := range state.mTasks {
-		if IsRemoval(t.stateStatus) {
+		if IsRemoval(t.stateStatus) || isRestrictedTask(t.existing) {
 			continue
 		}
 		stackResources = append(stackResources, StackResource{
@@ -3476,6 +3482,14 @@ func validURLs(urls []string) error {
 		}
 	}
 	return nil
+}
+
+func isRestrictedTask(t *influxdb.Task) bool {
+	return t != nil && t.Type != influxdb.TaskSystemType
+}
+
+func isSystemBucket(b *influxdb.Bucket) bool {
+	return b != nil && b.Type == influxdb.BucketTypeSystem
 }
 
 func labelSlcToMap(labels []*stateLabel) map[string]*stateLabel {
