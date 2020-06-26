@@ -260,6 +260,19 @@ type (
 // the SummaryChart is reused here.
 type DiffChart SummaryChart
 
+func (d *DiffChart) MarshalJSON() ([]byte, error) {
+	return json.Marshal((*SummaryChart)(d))
+}
+
+func (d *DiffChart) UnmarshalJSON(b []byte) error {
+	var sumChart SummaryChart
+	if err := json.Unmarshal(b, &sumChart); err != nil {
+		return err
+	}
+	*d = DiffChart(sumChart)
+	return nil
+}
+
 type (
 	// DiffLabel is a diff of an individual label.
 	DiffLabel struct {
@@ -519,7 +532,7 @@ func (s *SummaryChart) MarshalJSON() ([]byte, error) {
 	return json.Marshal(out)
 }
 
-// UnmarshalJSON unmarshals a view properities and other data.
+// UnmarshalJSON unmarshals a view properties and other data.
 func (s *SummaryChart) UnmarshalJSON(b []byte) error {
 	type alias SummaryChart
 	a := (*alias)(s)

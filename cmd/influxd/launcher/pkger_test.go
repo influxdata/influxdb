@@ -74,7 +74,7 @@ func TestLauncher_Pkger(t *testing.T) {
 		}
 	}
 
-	newPkg := func(objects ...pkger.Object) *pkger.Pkg {
+	newTemplate := func(objects ...pkger.Object) *pkger.Pkg {
 		return &pkger.Pkg{Objects: objects}
 	}
 
@@ -266,7 +266,7 @@ func TestLauncher_Pkger(t *testing.T) {
 				defer cleanup()
 
 				newEndpointPkgName := "non-existent-endpoint"
-				allResourcesPkg := newPkg(
+				allResourcesPkg := newTemplate(
 					newBucketObject("non-existent-bucket", "", ""),
 					newCheckDeadmanObject(t, "non-existent-check", "", time.Minute),
 					newDashObject("non-existent-dash", "", ""),
@@ -438,7 +438,7 @@ func TestLauncher_Pkger(t *testing.T) {
 
 		t.Run("apply with only a stackID succeeds when stack has URLs", func(t *testing.T) {
 			svr := httptest.NewServer(nethttp.HandlerFunc(func(w nethttp.ResponseWriter, r *nethttp.Request) {
-				pkg := newPkg(newBucketObject("bucket-0", "", ""))
+				pkg := newTemplate(newBucketObject("bucket-0", "", ""))
 				b, err := pkg.Encode(pkger.EncodingJSON)
 				if err != nil {
 					w.WriteHeader(nethttp.StatusInternalServerError)
@@ -452,7 +452,7 @@ func TestLauncher_Pkger(t *testing.T) {
 			require.NoError(t, err)
 			defer f.Close()
 
-			pkg := newPkg(newBucketObject("bucket-1", "", ""))
+			pkg := newTemplate(newBucketObject("bucket-1", "", ""))
 			b, err := pkg.Encode(pkger.EncodingYAML)
 			require.NoError(t, err)
 			f.Write(b)
@@ -606,7 +606,7 @@ func TestLauncher_Pkger(t *testing.T) {
 				}
 				pkgObjects = append(pkgObjects, labelObj)
 
-				pkg := newPkg(pkgObjects...)
+				pkg := newTemplate(pkgObjects...)
 
 				sum := testLabelMappingFn(t, stack.ID, pkg, func(sum pkger.Summary, mappedLabels []*influxdb.Label, resType influxdb.ResourceType) {
 					require.Len(t, mappedLabels, 1, "resource_type="+resType)
@@ -647,7 +647,7 @@ func TestLauncher_Pkger(t *testing.T) {
 				)
 				svc = pkger.MWLogging(logger)(svc)
 
-				pkg := newPkg(append(newObjectsFn(), labelObj)...)
+				pkg := newTemplate(append(newObjectsFn(), labelObj)...)
 				_, err := svc.Apply(ctx, l.Org.ID, l.User.ID,
 					pkger.ApplyWithPkg(pkg),
 					pkger.ApplyWithStackID(stack.ID),
@@ -685,7 +685,7 @@ func TestLauncher_Pkger(t *testing.T) {
 				defer cleanup()
 
 				objects := newObjectsFn()
-				pkg := newPkg(append(objects, labelObj)...)
+				pkg := newTemplate(append(objects, labelObj)...)
 
 				testLabelMappingFn(t, stack.ID, pkg, func(sum pkger.Summary, mappedLabels []*influxdb.Label, resType influxdb.ResourceType) {
 					assert.Empty(t, mappedLabels, "res_type="+resType)
@@ -715,7 +715,7 @@ func TestLauncher_Pkger(t *testing.T) {
 					initialTelegrafPkgName = "teletype"
 					initialVariablePkgName = "laces-out-dan"
 				)
-				initialPkg := newPkg(
+				initialPkg := newTemplate(
 					newBucketObject(initialBucketPkgName, "display name", "init desc"),
 					newCheckDeadmanObject(t, initialCheckPkgName, "check_0", time.Minute),
 					newDashObject(initialDashPkgName, "dash_0", "init desc"),
@@ -832,7 +832,7 @@ func TestLauncher_Pkger(t *testing.T) {
 					updateTelegrafName = "new telegraf"
 					updateVariableName = "new variable"
 				)
-				updatedPkg := newPkg(
+				updatedPkg := newTemplate(
 					newBucketObject(initialSum.Buckets[0].PkgName, updateBucketName, ""),
 					newCheckDeadmanObject(t, initialSum.Checks[0].PkgName, updateCheckName, time.Hour),
 					newDashObject(initialSum.Dashboards[0].PkgName, updateDashName, ""),
@@ -952,7 +952,7 @@ func TestLauncher_Pkger(t *testing.T) {
 
 				endpointPkgName := "z-endpoint-rolls-back"
 
-				pkgWithDelete := newPkg(
+				pkgWithDelete := newTemplate(
 					newBucketObject("z-roll-me-back", "", ""),
 					newBucketObject("z-rolls-back-too", "", ""),
 					newDashObject("z-rolls-dash", "", ""),
@@ -1039,7 +1039,7 @@ func TestLauncher_Pkger(t *testing.T) {
 				defer cleanup()
 
 				newEndpointPkgName := "non-existent-endpoint"
-				allNewResourcesPkg := newPkg(
+				allNewResourcesPkg := newTemplate(
 					newBucketObject("non-existent-bucket", "", ""),
 					newCheckDeadmanObject(t, "non-existent-check", "", time.Minute),
 					newDashObject("non-existent-dash", "", ""),
@@ -1185,7 +1185,6 @@ func TestLauncher_Pkger(t *testing.T) {
 					ctx,
 					l.Org.ID,
 					l.User.ID,
-					//newPkg( /* empty stack to remove prev resource */ ),
 					pkger.ApplyWithStackID(stackID),
 				)
 				require.NoError(t, err)
@@ -1196,7 +1195,7 @@ func TestLauncher_Pkger(t *testing.T) {
 					t.Helper()
 
 					obj := newVariableObject("var-1", "", "")
-					stackID, cleanup, initialSum := initializeStackPkg(t, newPkg(obj))
+					stackID, cleanup, initialSum := initializeStackPkg(t, newTemplate(obj))
 					defer cleanup()
 
 					require.Len(t, initialSum.Variables, 1)
@@ -1208,7 +1207,7 @@ func TestLauncher_Pkger(t *testing.T) {
 
 				t.Run("should create new resource when attempting to update", func(t *testing.T) {
 					testUserDeletedVariable(t, func(t *testing.T, stackID influxdb.ID, initialVarObj pkger.Object, initialSum pkger.Summary) {
-						pkg := newPkg(initialVarObj)
+						pkg := newTemplate(initialVarObj)
 						impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithPkg(pkg), pkger.ApplyWithStackID(stackID))
 						require.NoError(t, err)
 
@@ -1234,7 +1233,7 @@ func TestLauncher_Pkger(t *testing.T) {
 					t.Helper()
 
 					obj := newBucketObject("bucket-1", "", "")
-					stackID, cleanup, initialSum := initializeStackPkg(t, newPkg(obj))
+					stackID, cleanup, initialSum := initializeStackPkg(t, newTemplate(obj))
 					defer cleanup()
 
 					require.Len(t, initialSum.Buckets, 1)
@@ -1246,7 +1245,7 @@ func TestLauncher_Pkger(t *testing.T) {
 
 				t.Run("should create new resource when attempting to update", func(t *testing.T) {
 					testUserDeletedBucket(t, func(t *testing.T, stackID influxdb.ID, initialObj pkger.Object, initialSum pkger.Summary) {
-						pkg := newPkg(initialObj)
+						pkg := newTemplate(initialObj)
 						impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithPkg(pkg), pkger.ApplyWithStackID(stackID))
 						require.NoError(t, err)
 
@@ -1272,7 +1271,7 @@ func TestLauncher_Pkger(t *testing.T) {
 					t.Helper()
 
 					obj := newCheckDeadmanObject(t, "check-1", "", time.Hour)
-					stackID, cleanup, initialSum := initializeStackPkg(t, newPkg(obj))
+					stackID, cleanup, initialSum := initializeStackPkg(t, newTemplate(obj))
 					defer cleanup()
 
 					require.Len(t, initialSum.Checks, 1)
@@ -1284,7 +1283,7 @@ func TestLauncher_Pkger(t *testing.T) {
 
 				t.Run("should create new resource when attempting to update", func(t *testing.T) {
 					testUserDeletedCheck(t, func(t *testing.T, stackID influxdb.ID, initialObj pkger.Object, initialSum pkger.Summary) {
-						pkg := newPkg(initialObj)
+						pkg := newTemplate(initialObj)
 						impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithPkg(pkg), pkger.ApplyWithStackID(stackID))
 						require.NoError(t, err)
 
@@ -1311,7 +1310,7 @@ func TestLauncher_Pkger(t *testing.T) {
 					t.Helper()
 
 					obj := newDashObject("dash-1", "", "")
-					stackID, cleanup, initialSum := initializeStackPkg(t, newPkg(obj))
+					stackID, cleanup, initialSum := initializeStackPkg(t, newTemplate(obj))
 					defer cleanup()
 
 					require.Len(t, initialSum.Dashboards, 1)
@@ -1323,7 +1322,7 @@ func TestLauncher_Pkger(t *testing.T) {
 
 				t.Run("should create new resource when attempting to update", func(t *testing.T) {
 					testUserDeletedDashboard(t, func(t *testing.T, stackID influxdb.ID, initialObj pkger.Object, initialSum pkger.Summary) {
-						pkg := newPkg(initialObj)
+						pkg := newTemplate(initialObj)
 						impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithPkg(pkg), pkger.ApplyWithStackID(stackID))
 						require.NoError(t, err)
 
@@ -1349,7 +1348,7 @@ func TestLauncher_Pkger(t *testing.T) {
 					t.Helper()
 
 					obj := newLabelObject("label-1", "", "", "")
-					stackID, cleanup, initialSum := initializeStackPkg(t, newPkg(obj))
+					stackID, cleanup, initialSum := initializeStackPkg(t, newTemplate(obj))
 					defer cleanup()
 
 					require.Len(t, initialSum.Labels, 1)
@@ -1361,7 +1360,7 @@ func TestLauncher_Pkger(t *testing.T) {
 
 				t.Run("should create new resource when attempting to update", func(t *testing.T) {
 					testUserDeletedLabel(t, func(t *testing.T, stackID influxdb.ID, initialObj pkger.Object, initialSum pkger.Summary) {
-						pkg := newPkg(initialObj)
+						pkg := newTemplate(initialObj)
 						impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithPkg(pkg), pkger.ApplyWithStackID(stackID))
 						require.NoError(t, err)
 
@@ -1387,7 +1386,7 @@ func TestLauncher_Pkger(t *testing.T) {
 					t.Helper()
 
 					obj := newEndpointHTTP("endpoint-1", "", "")
-					stackID, cleanup, initialSum := initializeStackPkg(t, newPkg(obj))
+					stackID, cleanup, initialSum := initializeStackPkg(t, newTemplate(obj))
 					defer cleanup()
 
 					require.Len(t, initialSum.NotificationEndpoints, 1)
@@ -1399,7 +1398,7 @@ func TestLauncher_Pkger(t *testing.T) {
 
 				t.Run("should create new resource when attempting to update", func(t *testing.T) {
 					testUserDeletedEndpoint(t, func(t *testing.T, stackID influxdb.ID, initialObj pkger.Object, initialSum pkger.Summary) {
-						pkg := newPkg(initialObj)
+						pkg := newTemplate(initialObj)
 						impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithPkg(pkg), pkger.ApplyWithStackID(stackID))
 						require.NoError(t, err)
 
@@ -1427,7 +1426,7 @@ func TestLauncher_Pkger(t *testing.T) {
 
 					endpointObj := newEndpointHTTP("endpoint-1", "", "")
 					ruleObj := newRuleObject(t, "rule-0", "", endpointObj.Name(), "")
-					stackID, cleanup, initialSum := initializeStackPkg(t, newPkg(endpointObj, ruleObj))
+					stackID, cleanup, initialSum := initializeStackPkg(t, newTemplate(endpointObj, ruleObj))
 					defer cleanup()
 
 					require.Len(t, initialSum.NotificationEndpoints, 1)
@@ -1441,7 +1440,7 @@ func TestLauncher_Pkger(t *testing.T) {
 
 				t.Run("should create new resource when attempting to update", func(t *testing.T) {
 					testUserDeletedRule(t, func(t *testing.T, stackID influxdb.ID, initialObjects []pkger.Object, initialSum pkger.Summary) {
-						pkg := newPkg(initialObjects...)
+						pkg := newTemplate(initialObjects...)
 						impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithPkg(pkg), pkger.ApplyWithStackID(stackID))
 						require.NoError(t, err)
 
@@ -1467,7 +1466,7 @@ func TestLauncher_Pkger(t *testing.T) {
 					t.Helper()
 
 					obj := newTaskObject("task-1", "", "")
-					stackID, cleanup, initialSum := initializeStackPkg(t, newPkg(obj))
+					stackID, cleanup, initialSum := initializeStackPkg(t, newTemplate(obj))
 					defer cleanup()
 
 					require.Len(t, initialSum.Tasks, 1)
@@ -1479,7 +1478,7 @@ func TestLauncher_Pkger(t *testing.T) {
 
 				t.Run("should create new resource when attempting to update", func(t *testing.T) {
 					testUserDeletedTask(t, func(t *testing.T, stackID influxdb.ID, initialObj pkger.Object, initialSum pkger.Summary) {
-						pkg := newPkg(initialObj)
+						pkg := newTemplate(initialObj)
 						impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithPkg(pkg), pkger.ApplyWithStackID(stackID))
 						require.NoError(t, err)
 
@@ -1505,7 +1504,7 @@ func TestLauncher_Pkger(t *testing.T) {
 					t.Helper()
 
 					obj := newTelegrafObject("tele-1", "", "")
-					stackID, cleanup, initialSum := initializeStackPkg(t, newPkg(obj))
+					stackID, cleanup, initialSum := initializeStackPkg(t, newTemplate(obj))
 					defer cleanup()
 
 					require.Len(t, initialSum.TelegrafConfigs, 1)
@@ -1517,7 +1516,7 @@ func TestLauncher_Pkger(t *testing.T) {
 
 				t.Run("should create new resource when attempting to update", func(t *testing.T) {
 					testUserDeletedTelegraf(t, func(t *testing.T, stackID influxdb.ID, initialObj pkger.Object, initialSum pkger.Summary) {
-						pkg := newPkg(initialObj)
+						pkg := newTemplate(initialObj)
 						impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithPkg(pkg), pkger.ApplyWithStackID(stackID))
 						require.NoError(t, err)
 
@@ -1545,7 +1544,7 @@ func TestLauncher_Pkger(t *testing.T) {
 
 			impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID,
 				pkger.ApplyWithStackID(stack.ID),
-				pkger.ApplyWithPkg(newPkg(newVariableObject("var", "", ""))),
+				pkger.ApplyWithPkg(newTemplate(newVariableObject("var", "", ""))),
 			)
 			require.NoError(t, err)
 
@@ -1556,7 +1555,7 @@ func TestLauncher_Pkger(t *testing.T) {
 
 			impact, err = svc.Apply(ctx, l.Org.ID, l.User.ID,
 				pkger.ApplyWithStackID(stack.ID),
-				pkger.ApplyWithPkg(newPkg(newVariableObject("var", "", "", "selected"))),
+				pkger.ApplyWithPkg(newTemplate(newVariableObject("var", "", "", "selected"))),
 			)
 			require.NoError(t, err)
 
@@ -1580,7 +1579,7 @@ func TestLauncher_Pkger(t *testing.T) {
 			)
 
 			defaultPkgFn := func(*testing.T) *pkger.Pkg {
-				return newPkg(
+				return newTemplate(
 					newBucketObject(bucketPkgName, "", ""),
 					newCheckDeadmanObject(t, checkPkgName, "", time.Hour),
 					newDashObject(dashPkgName, "", ""),
@@ -1720,7 +1719,7 @@ func TestLauncher_Pkger(t *testing.T) {
 
 						objs = append(objs, newLabelObject(labelPkgName, "", "", ""))
 
-						return newPkg(objs...)
+						return newTemplate(objs...)
 					},
 					applyOpts: []pkger.ApplyOptFn{
 						pkger.ApplyWithKindSkip(pkger.ActionSkipKind{
@@ -1805,7 +1804,7 @@ func TestLauncher_Pkger(t *testing.T) {
 					return o
 				}
 
-				initialPkg := newPkg(
+				initialPkg := newTemplate(
 					setAssociation(newBucketObject(initialBucketPkgName, "display name", "init desc")),
 					setAssociation(newCheckDeadmanObject(t, initialCheckPkgName, "check_0", time.Minute)),
 					setAssociation(newDashObject(initialDashPkgName, "dash_0", "init desc")),
@@ -1999,7 +1998,7 @@ func TestLauncher_Pkger(t *testing.T) {
 					},
 				}
 
-				pkg := newPkg(pkger.DashboardToObject("", dash))
+				pkg := newTemplate(pkger.DashboardToObject("", dash))
 
 				impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithPkg(pkg))
 				require.NoError(t, err)
@@ -2038,7 +2037,7 @@ func TestLauncher_Pkger(t *testing.T) {
 						Kind:     pkger.KindLabel,
 						MetaName: labelObj.Name(),
 					})
-					pkg := newPkg(bktObj, labelObj)
+					pkg := newTemplate(bktObj, labelObj)
 
 					impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithPkg(pkg), pkger.ApplyWithStackID(stack.ID))
 					require.NoError(t, err)
@@ -2134,7 +2133,7 @@ func TestLauncher_Pkger(t *testing.T) {
 					MetaName: labelObj.Name(),
 				})
 
-				initialPkg := newPkg(bktObj, labelObj)
+				initialPkg := newTemplate(bktObj, labelObj)
 
 				impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID,
 					pkger.ApplyWithPkg(initialPkg),
@@ -2471,10 +2470,273 @@ spec:
 		assert.Equal(t, "new-label-name", sum.Labels[0].Name)
 	})
 
+	t.Run("dry run dashboards", func(t *testing.T) {
+		newQuery := func() influxdb.DashboardQuery {
+			q := influxdb.DashboardQuery{
+				BuilderConfig: influxdb.BuilderConfig{
+					Buckets: []string{},
+					Tags:    nil,
+					Functions: []struct {
+						Name string `json:"name"`
+					}{},
+					AggregateWindow: struct {
+						Period string `json:"period"`
+					}{},
+				},
+				Text:     "from(v.bucket) |> count()",
+				EditMode: "advanced",
+			}
+			// TODO: remove this when issue that forced the builder tag to be here to render in UI.
+			q.BuilderConfig.Tags = append(q.BuilderConfig.Tags, influxdb.NewBuilderTag("_measurement", "filter", ""))
+			return q
+		}
+
+		newAxes := func() map[string]influxdb.Axis {
+			return map[string]influxdb.Axis{
+				"x": {
+					Bounds: []string{},
+					Label:  "labx",
+					Prefix: "pre",
+					Suffix: "suf",
+					Base:   "base",
+					Scale:  "linear",
+				},
+				"y": {
+					Bounds: []string{},
+					Label:  "laby",
+					Prefix: "pre",
+					Suffix: "suf",
+					Base:   "base",
+					Scale:  "linear",
+				},
+			}
+		}
+
+		newColors := func(types ...string) []influxdb.ViewColor {
+			var out []influxdb.ViewColor
+			for _, t := range types {
+				out = append(out, influxdb.ViewColor{
+					Type:  t,
+					Hex:   time.Now().Format(time.RFC3339),
+					Name:  time.Now().Format(time.RFC3339),
+					Value: float64(time.Now().Unix()),
+				})
+			}
+			return out
+		}
+
+		tests := []struct {
+			name  string
+			props influxdb.ViewProperties
+		}{
+			{
+				name: "gauge",
+				props: influxdb.GaugeViewProperties{
+					Type:              influxdb.ViewPropertyTypeGauge,
+					DecimalPlaces:     influxdb.DecimalPlaces{IsEnforced: true, Digits: 1},
+					Note:              "a note",
+					Prefix:            "pre",
+					TickPrefix:        "true",
+					Suffix:            "suf",
+					TickSuffix:        "false",
+					Queries:           []influxdb.DashboardQuery{newQuery()},
+					ShowNoteWhenEmpty: true,
+					ViewColors:        newColors("min", "max", "threshold"),
+				},
+			},
+			{
+				name: "heatmap",
+				props: influxdb.HeatmapViewProperties{
+					Type:              influxdb.ViewPropertyTypeHeatMap,
+					Note:              "a note",
+					Queries:           []influxdb.DashboardQuery{newQuery()},
+					ShowNoteWhenEmpty: true,
+					ViewColors:        []string{"#8F8AF4", "#8F8AF4", "#8F8AF4"},
+					XColumn:           "x",
+					YColumn:           "y",
+					XDomain:           []float64{0, 10},
+					YDomain:           []float64{0, 100},
+					XAxisLabel:        "x_label",
+					XPrefix:           "x_prefix",
+					XSuffix:           "x_suffix",
+					YAxisLabel:        "y_label",
+					YPrefix:           "y_prefix",
+					YSuffix:           "y_suffix",
+					BinSize:           10,
+					TimeFormat:        "",
+				},
+			},
+			{
+				name: "histogram",
+				props: influxdb.HistogramViewProperties{
+					Type:              influxdb.ViewPropertyTypeHistogram,
+					Note:              "a note",
+					Queries:           []influxdb.DashboardQuery{newQuery()},
+					ShowNoteWhenEmpty: true,
+					ViewColors:        []influxdb.ViewColor{{Type: "scale", Hex: "#8F8AF4", Value: 0}, {Type: "scale", Hex: "#8F8AF4", Value: 0}, {Type: "scale", Hex: "#8F8AF4", Value: 0}},
+					FillColumns:       []string{"a", "b"},
+					XColumn:           "_value",
+					XDomain:           []float64{0, 10},
+					XAxisLabel:        "x_label",
+					BinCount:          30,
+					Position:          "stacked",
+				},
+			},
+			{
+				name: "markdown",
+				props: influxdb.MarkdownViewProperties{
+					Type: influxdb.ViewPropertyTypeMarkdown,
+					Note: "the note is here with **markdown**",
+				},
+			},
+			{
+				name: "scatter",
+				props: influxdb.ScatterViewProperties{
+					Type:              influxdb.ViewPropertyTypeScatter,
+					Note:              "a note",
+					Queries:           []influxdb.DashboardQuery{newQuery()},
+					ShowNoteWhenEmpty: true,
+					ViewColors:        []string{"#8F8AF4", "#8F8AF4", "#8F8AF4"},
+					XColumn:           "x",
+					YColumn:           "y",
+					XDomain:           []float64{0, 10},
+					YDomain:           []float64{0, 100},
+					XAxisLabel:        "x_label",
+					XPrefix:           "x_prefix",
+					XSuffix:           "x_suffix",
+					YAxisLabel:        "y_label",
+					YPrefix:           "y_prefix",
+					YSuffix:           "y_suffix",
+					TimeFormat:        "",
+				},
+			},
+			{
+				name: "single stat",
+				props: influxdb.SingleStatViewProperties{
+					Type:              influxdb.ViewPropertyTypeSingleStat,
+					DecimalPlaces:     influxdb.DecimalPlaces{IsEnforced: true, Digits: 1},
+					Note:              "a note",
+					Queries:           []influxdb.DashboardQuery{newQuery()},
+					Prefix:            "pre",
+					TickPrefix:        "false",
+					ShowNoteWhenEmpty: true,
+					Suffix:            "suf",
+					TickSuffix:        "true",
+					ViewColors:        []influxdb.ViewColor{{Type: "text", Hex: "red"}},
+				},
+			},
+			{
+				name: "single stat plus line",
+				props: influxdb.LinePlusSingleStatProperties{
+					Type:              influxdb.ViewPropertyTypeSingleStatPlusLine,
+					Axes:              newAxes(),
+					DecimalPlaces:     influxdb.DecimalPlaces{IsEnforced: true, Digits: 1},
+					Legend:            influxdb.Legend{Type: "type", Orientation: "horizontal"},
+					Note:              "a note",
+					Prefix:            "pre",
+					Suffix:            "suf",
+					Queries:           []influxdb.DashboardQuery{newQuery()},
+					ShadeBelow:        true,
+					HoverDimension:    "y",
+					ShowNoteWhenEmpty: true,
+					ViewColors:        []influxdb.ViewColor{{Type: "text", Hex: "red"}},
+					XColumn:           "x",
+					YColumn:           "y",
+					Position:          "stacked",
+				},
+			},
+			{
+				name: "table",
+				props: influxdb.TableViewProperties{
+					Type:              influxdb.ViewPropertyTypeTable,
+					Note:              "a note",
+					ShowNoteWhenEmpty: true,
+					Queries:           []influxdb.DashboardQuery{newQuery()},
+					ViewColors:        []influxdb.ViewColor{{Type: "scale", Hex: "#8F8AF4", Value: 0}, {Type: "scale", Hex: "#8F8AF4", Value: 0}, {Type: "scale", Hex: "#8F8AF4", Value: 0}},
+					TableOptions: influxdb.TableOptions{
+						VerticalTimeAxis: true,
+						SortBy: influxdb.RenamableField{
+							InternalName: "_time",
+						},
+						Wrapping:       "truncate",
+						FixFirstColumn: true,
+					},
+					FieldOptions: []influxdb.RenamableField{
+						{
+							InternalName: "_time",
+							DisplayName:  "time (ms)",
+							Visible:      true,
+						},
+					},
+					TimeFormat: "YYYY:MM:DD",
+					DecimalPlaces: influxdb.DecimalPlaces{
+						IsEnforced: true,
+						Digits:     1,
+					},
+				},
+			},
+			{
+				name: "xy",
+				props: influxdb.XYViewProperties{
+					Type:              influxdb.ViewPropertyTypeXY,
+					Axes:              newAxes(),
+					Geom:              "step",
+					Legend:            influxdb.Legend{Type: "type", Orientation: "horizontal"},
+					Note:              "a note",
+					Queries:           []influxdb.DashboardQuery{newQuery()},
+					ShadeBelow:        true,
+					HoverDimension:    "y",
+					ShowNoteWhenEmpty: true,
+					ViewColors:        []influxdb.ViewColor{{Type: "text", Hex: "red"}},
+					XColumn:           "x",
+					YColumn:           "y",
+					Position:          "overlaid",
+					TimeFormat:        "",
+				},
+			},
+		}
+
+		for _, tt := range tests {
+			fn := func(t *testing.T) {
+				obj := pkger.DashboardToObject("", influxdb.Dashboard{
+					OrganizationID: l.Org.ID,
+					Name:           tt.name,
+					Cells: []*influxdb.Cell{
+						{
+							CellProperty: influxdb.CellProperty{
+								X: 2, Y: 2,
+								H: 5, W: 5,
+							},
+							View: &influxdb.View{Properties: tt.props},
+						},
+					},
+				})
+				template := newTemplate(obj)
+
+				impact, err := svc.DryRun(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithPkg(template))
+				require.NoError(t, err)
+
+				diff := impact.Diff.Dashboards
+				require.Len(t, diff, 1)
+
+				actual := diff[0]
+				assert.Equal(t, tt.name, actual.New.Name)
+
+				charts := actual.New.Charts
+				require.Len(t, charts, 1)
+				require.NotNil(t, charts[0].Properties)
+				assert.Equal(t, tt.props, charts[0].Properties)
+			}
+
+			t.Run(tt.name, fn)
+		}
+	})
+
 	t.Run("apply a package of all new resources", func(t *testing.T) {
 		// this initial test is also setup for the sub tests
 		impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithPkg(newCompletePkg(t)))
 		require.NoError(t, err)
+		defer deleteStackFn(t, impact.StackID)
 
 		assert.NotZero(t, impact.StackID)
 
@@ -3105,7 +3367,7 @@ spec:
 	})
 
 	t.Run("applying a pkg without a stack will have a stack created for it", func(t *testing.T) {
-		pkg := newPkg(newBucketObject("room", "for", "more"))
+		pkg := newTemplate(newBucketObject("room", "for", "more"))
 
 		impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithPkg(pkg))
 		require.NoError(t, err)
