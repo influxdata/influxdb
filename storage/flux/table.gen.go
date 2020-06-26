@@ -117,6 +117,7 @@ func newFloatWindowTable(
 	every int64,
 	createEmpty bool,
 	timeColumn string,
+
 	key flux.GroupKey,
 	cols []flux.ColMeta,
 	tags models.Tags,
@@ -852,6 +853,7 @@ type integerWindowTable struct {
 	idxInArr    int
 	createEmpty bool
 	timeColumn  string
+	fillValue   *int64
 }
 
 func newIntegerWindowTable(
@@ -861,6 +863,7 @@ func newIntegerWindowTable(
 	every int64,
 	createEmpty bool,
 	timeColumn string,
+	fillValue *int64,
 	key flux.GroupKey,
 	cols []flux.ColMeta,
 	tags models.Tags,
@@ -876,6 +879,7 @@ func newIntegerWindowTable(
 		windowEvery: every,
 		createEmpty: createEmpty,
 		timeColumn:  timeColumn,
+		fillValue:   fillValue,
 	}
 	if t.createEmpty {
 		start := int64(bounds.Start)
@@ -1605,6 +1609,7 @@ func newUnsignedWindowTable(
 	every int64,
 	createEmpty bool,
 	timeColumn string,
+
 	key flux.GroupKey,
 	cols []flux.ColMeta,
 	tags models.Tags,
@@ -2349,6 +2354,7 @@ func newStringWindowTable(
 	every int64,
 	createEmpty bool,
 	timeColumn string,
+
 	key flux.GroupKey,
 	cols []flux.ColMeta,
 	tags models.Tags,
@@ -3093,6 +3099,7 @@ func newBooleanWindowTable(
 	every int64,
 	createEmpty bool,
 	timeColumn string,
+
 	key flux.GroupKey,
 	cols []flux.ColMeta,
 	tags models.Tags,

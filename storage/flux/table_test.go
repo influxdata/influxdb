@@ -663,12 +663,9 @@ func TestStorageReader_ReadWindowAggregate_CreateEmpty(t *testing.T) {
 	}
 
 	windowEvery := values.ConvertDuration(10 * time.Second)
-	makeWindowTable := func(t0 string, start execute.Time, value interface{}, isNull bool) *executetest.Table {
+	makeWindowTable := func(t0 string, start execute.Time, value interface{}) *executetest.Table {
 		valueType := flux.ColumnType(values.New(value).Type())
 		stop := start.Add(windowEvery)
-		if isNull {
-			value = nil
-		}
 		return &executetest.Table{
 			KeyCols: []string{"_start", "_stop", "_field", "_measurement", "t0"},
 			ColMeta: []flux.ColMeta{
@@ -690,8 +687,11 @@ func TestStorageReader_ReadWindowAggregate_CreateEmpty(t *testing.T) {
 		for i := 0; i < 12; i++ {
 			offset := windowEvery.Mul(i)
 			start := reader.Bounds.Start.Add(offset)
-			isNull := (i+1)%3 == 0
-			want = append(want, makeWindowTable(t0, start, int64(1), isNull))
+			value := int64(1)
+			if (i+1)%3 == 0 {
+				value = int64(0)
+			}
+			want = append(want, makeWindowTable(t0, start, value))
 		}
 	}
 	executetest.NormalizeTables(want)
@@ -796,16 +796,16 @@ func TestStorageReader_ReadWindowAggregate_CreateEmptyByStopTime(t *testing.T) {
 			Data: [][]interface{}{
 				{start, stop, Time("2019-11-25T00:00:10Z"), int64(1), "f0", "m0", t0},
 				{start, stop, Time("2019-11-25T00:00:20Z"), int64(1), "f0", "m0", t0},
-				{start, stop, Time("2019-11-25T00:00:30Z"), nil, "f0", "m0", t0},
+				{start, stop, Time("2019-11-25T00:00:30Z"), int64(0), "f0", "m0", t0},
 				{start, stop, Time("2019-11-25T00:00:40Z"), int64(1), "f0", "m0", t0},
 				{start, stop, Time("2019-11-25T00:00:50Z"), int64(1), "f0", "m0", t0},
-				{start, stop, Time("2019-11-25T00:01:00Z"), nil, "f0", "m0", t0},
+				{start, stop, Time("2019-11-25T00:01:00Z"), int64(0), "f0", "m0", t0},
 				{start, stop, Time("2019-11-25T00:01:10Z"), int64(1), "f0", "m0", t0},
 				{start, stop, Time("2019-11-25T00:01:20Z"), int64(1), "f0", "m0", t0},
-				{start, stop, Time("2019-11-25T00:01:30Z"), nil, "f0", "m0", t0},
+				{start, stop, Time("2019-11-25T00:01:30Z"), int64(0), "f0", "m0", t0},
 				{start, stop, Time("2019-11-25T00:01:40Z"), int64(1), "f0", "m0", t0},
 				{start, stop, Time("2019-11-25T00:01:50Z"), int64(1), "f0", "m0", t0},
-				{start, stop, Time("2019-11-25T00:02:00Z"), nil, "f0", "m0", t0},
+				{start, stop, Time("2019-11-25T00:02:00Z"), int64(0), "f0", "m0", t0},
 			},
 		}
 	}
@@ -917,16 +917,16 @@ func TestStorageReader_ReadWindowAggregate_CreateEmptyByStartTime(t *testing.T) 
 			Data: [][]interface{}{
 				{start, stop, Time("2019-11-25T00:00:00Z"), int64(1), "f0", "m0", t0},
 				{start, stop, Time("2019-11-25T00:00:10Z"), int64(1), "f0", "m0", t0},
-				{start, stop, Time("2019-11-25T00:00:20Z"), nil, "f0", "m0", t0},
+				{start, stop, Time("2019-11-25T00:00:20Z"), int64(0), "f0", "m0", t0},
 				{start, stop, Time("2019-11-25T00:00:30Z"), int64(1), "f0", "m0", t0},
 				{start, stop, Time("2019-11-25T00:00:40Z"), int64(1), "f0", "m0", t0},
-				{start, stop, Time("2019-11-25T00:00:50Z"), nil, "f0", "m0", t0},
+				{start, stop, Time("2019-11-25T00:00:50Z"), int64(0), "f0", "m0", t0},
 				{start, stop, Time("2019-11-25T00:01:00Z"), int64(1), "f0", "m0", t0},
 				{start, stop, Time("2019-11-25T00:01:10Z"), int64(1), "f0", "m0", t0},
-				{start, stop, Time("2019-11-25T00:01:20Z"), nil, "f0", "m0", t0},
+				{start, stop, Time("2019-11-25T00:01:20Z"), int64(0), "f0", "m0", t0},
 				{start, stop, Time("2019-11-25T00:01:30Z"), int64(1), "f0", "m0", t0},
 				{start, stop, Time("2019-11-25T00:01:40Z"), int64(1), "f0", "m0", t0},
-				{start, stop, Time("2019-11-25T00:01:50Z"), nil, "f0", "m0", t0},
+				{start, stop, Time("2019-11-25T00:01:50Z"), int64(0), "f0", "m0", t0},
 			},
 		}
 	}
@@ -1139,13 +1139,10 @@ func TestStorageReader_ReadWindowAggregate_TruncatedBoundsCreateEmpty(t *testing
 		t.Fatal(err)
 	}
 
-	makeWindowTable := func(t0 string, start, stop time.Duration, value interface{}, isNull bool) *executetest.Table {
+	makeWindowTable := func(t0 string, start, stop time.Duration, value interface{}) *executetest.Table {
 		startT := reader.Bounds.Start.Add(values.ConvertDuration(start))
 		stopT := reader.Bounds.Start.Add(values.ConvertDuration(stop))
 		valueType := flux.ColumnType(values.New(value).Type())
-		if isNull {
-			value = nil
-		}
 		return &executetest.Table{
 			KeyCols: []string{"_start", "_stop", "_field", "_measurement", "t0"},
 			ColMeta: []flux.ColMeta{
@@ -1165,9 +1162,9 @@ func TestStorageReader_ReadWindowAggregate_TruncatedBoundsCreateEmpty(t *testing
 	var want []*executetest.Table
 	for _, t0 := range []string{"a-0", "a-1", "a-2"} {
 		want = append(want,
-			makeWindowTable(t0, 5*time.Second, 10*time.Second, int64(0), true),
-			makeWindowTable(t0, 10*time.Second, 20*time.Second, int64(1), false),
-			makeWindowTable(t0, 20*time.Second, 25*time.Second, int64(0), true),
+			makeWindowTable(t0, 5*time.Second, 10*time.Second, int64(0)),
+			makeWindowTable(t0, 10*time.Second, 20*time.Second, int64(1)),
+			makeWindowTable(t0, 20*time.Second, 25*time.Second, int64(0)),
 		)
 	}
 	executetest.NormalizeTables(want)

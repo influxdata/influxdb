@@ -265,7 +265,11 @@ func (t *integerGroupTable) toArrowBuffer(vs []int64) *array.Int64 {
 func (t *integerWindowTable) mergeValues(intervals []int64) *array.Int64 {
 	b := arrow.NewIntBuilder(t.alloc)
 	b.Resize(len(intervals))
-	t.appendValues(intervals, b.Append, b.AppendNull)
+	appendNull := b.AppendNull
+	if t.fillValue != nil {
+		appendNull = func() { b.Append(*t.fillValue) }
+	}
+	t.appendValues(intervals, b.Append, appendNull)
 	return b.NewInt64Array()
 }
 func (t *integerEmptyWindowSelectorTable) arrowBuilder() *array.Int64Builder {

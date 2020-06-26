@@ -978,6 +978,38 @@ from(bucket: v.bucket)
 `,
 		},
 		{
+			name: "count with nulls",
+			data: []string{
+				"m0,k=k0 f=0i 0",
+				"m0,k=k0 f=1i 1000000000",
+				"m0,k=k0 f=2i 2000000000",
+				"m0,k=k0 f=3i 3000000000",
+				"m0,k=k0 f=4i 4000000000",
+				"m0,k=k0 f=6i 10000000000",
+				"m0,k=k0 f=7i 11000000000",
+				"m0,k=k0 f=5i 12000000000",
+				"m0,k=k0 f=8i 13000000000",
+				"m0,k=k0 f=9i 14000000000",
+				"m0,k=k0 f=5i 15000000000",
+			},
+			query: `
+from(bucket: v.bucket)
+	|> range(start: 1970-01-01T00:00:00Z, stop: 1970-01-01T00:00:15Z)
+	|> aggregateWindow(every: 5s, fn: count)
+	|> drop(columns: ["_start", "_stop"])
+`,
+			op: "readWindow(count)",
+			want: `
+#datatype,string,long,dateTime:RFC3339,long,string,string,string
+#group,false,false,false,false,true,true,true
+#default,_result,,,,,,
+,result,table,_time,_value,_field,_measurement,k
+,,0,1970-01-01T00:00:05Z,5,f,m0,k0
+,,0,1970-01-01T00:00:10Z,0,f,m0,k0
+,,0,1970-01-01T00:00:15Z,5,f,m0,k0
+`,
+		},
+		{
 			name: "bare count",
 			data: []string{
 				"m0,k=k0 f=0i 0",
@@ -1046,6 +1078,38 @@ from(bucket: v.bucket)
 ,result,table,_time,_value,_field,_measurement,k
 ,,0,1970-01-01T00:00:05Z,10,f,m0,k0
 ,,0,1970-01-01T00:00:10Z,22,f,m0,k0
+,,0,1970-01-01T00:00:15Z,35,f,m0,k0
+`,
+		},
+		{
+			name: "sum with nulls",
+			data: []string{
+				"m0,k=k0 f=0i 0",
+				"m0,k=k0 f=1i 1000000000",
+				"m0,k=k0 f=2i 2000000000",
+				"m0,k=k0 f=3i 3000000000",
+				"m0,k=k0 f=4i 4000000000",
+				"m0,k=k0 f=6i 10000000000",
+				"m0,k=k0 f=7i 11000000000",
+				"m0,k=k0 f=5i 12000000000",
+				"m0,k=k0 f=8i 13000000000",
+				"m0,k=k0 f=9i 14000000000",
+				"m0,k=k0 f=5i 15000000000",
+			},
+			query: `
+from(bucket: v.bucket)
+	|> range(start: 1970-01-01T00:00:00Z, stop: 1970-01-01T00:00:15Z)
+	|> aggregateWindow(every: 5s, fn: sum)
+	|> drop(columns: ["_start", "_stop"])
+`,
+			op: "readWindow(sum)",
+			want: `
+#datatype,string,long,dateTime:RFC3339,long,string,string,string
+#group,false,false,false,false,true,true,true
+#default,_result,,,,,,
+,result,table,_time,_value,_field,_measurement,k
+,,0,1970-01-01T00:00:05Z,10,f,m0,k0
+,,0,1970-01-01T00:00:10Z,,f,m0,k0
 ,,0,1970-01-01T00:00:15Z,35,f,m0,k0
 `,
 		},
