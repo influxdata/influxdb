@@ -589,6 +589,7 @@ func ValidateTagPredicate(expr influxql.Expr) (err error) {
 			switch r := n.LHS.(type) {
 			case *influxql.VarRef:
 			case *influxql.BinaryExpr:
+			case *influxql.ParenExpr:
 			default:
 				err = fmt.Errorf("binary expression: LHS must be tag key reference, got: %T", r)
 			}
