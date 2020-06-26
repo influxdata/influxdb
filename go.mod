@@ -16,7 +16,7 @@ require (
 	github.com/buger/jsonparser v0.0.0-20191004114745-ee4c978eae7e
 	github.com/cespare/xxhash v1.1.0
 	github.com/codahale/hdrhistogram v0.0.0-20161010025455-3a0bb77429bd // indirect
-	github.com/coreos/bbolt v1.3.2
+	github.com/coreos/bbolt v1.3.3
 	github.com/davecgh/go-spew v1.1.1
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/dgryski/go-bitstream v0.0.0-20180413035011-3522498ce2c8
@@ -69,9 +69,9 @@ require (
 	github.com/opentracing/opentracing-go v1.1.0
 	github.com/philhofer/fwd v1.0.0 // indirect
 	github.com/pkg/errors v0.9.1
-	github.com/prometheus/client_golang v1.0.0
-	github.com/prometheus/client_model v0.0.0-20190812154241-14fe0d1b01d4
-	github.com/prometheus/common v0.6.0
+	github.com/prometheus/client_golang v1.5.1
+	github.com/prometheus/client_model v0.2.0
+	github.com/prometheus/common v0.9.1
 	github.com/satori/go.uuid v1.2.1-0.20181028125025-b2ce2384e17b
 	github.com/spf13/cast v1.3.0
 	github.com/spf13/cobra v1.0.0
@@ -89,8 +89,8 @@ require (
 	github.com/yudai/gojsondiff v1.0.0
 	github.com/yudai/golcs v0.0.0-20170316035057-ecda9a501e82 // indirect
 	github.com/yudai/pp v2.0.1+incompatible // indirect
-	go.uber.org/multierr v1.4.0
-	go.uber.org/zap v1.10.0
+	go.uber.org/multierr v1.5.0
+	go.uber.org/zap v1.14.1
 	golang.org/x/crypto v0.0.0-20200323165209-0ec3e9974c59
 	golang.org/x/net v0.0.0-20200202094626-16171245cfb2
 	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d
