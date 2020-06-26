@@ -1,5 +1,5 @@
 use integer_encoding::VarInt;
-use std::{convert::TryInto, error::Error};
+use std::{cmp, convert::TryInto, error::Error};
 
 /// The header consists of one byte indicating the compression type.
 const HEADER_LEN: usize = 1;
@@ -74,10 +74,9 @@ pub fn decode(src: &[u8], dst: &mut Vec<bool>) -> Result<(), Box<dyn Error>> {
     let src = &src[num_bytes_read..];
 
     let min = src.len() * 8;
-    if min < count {
-        // Shouldn't happen - TSM file was truncated/corrupted. This is what the Go code does
-        count = min;
-    }
+
+    // Shouldn't happen - TSM file was truncated/corrupted. This is what the Go code does
+    count = cmp::min(min, count);
 
     if dst.capacity() < count {
         dst.reserve_exact(count - dst.capacity());
