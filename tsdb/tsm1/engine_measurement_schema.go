@@ -23,16 +23,22 @@ import (
 // If the context is canceled before MeasurementNames has finished processing, a non-nil
 // error will be returned along with statistics for the already scanned data.
 func (e *Engine) MeasurementNames(ctx context.Context, orgID, bucketID influxdb.ID, start, end int64, predicate influxql.Expr) (cursors.StringIterator, error) {
+	if predicate == nil {
+		return e.measurementNamesNoPredicate(ctx, orgID, bucketID, start, end)
+	}
+	return e.measurementNamesPredicate(ctx, orgID, bucketID, start, end, predicate)
+}
+
+func (e *Engine) measurementNamesNoPredicate(ctx context.Context, orgID, bucketID influxdb.ID, start, end int64) (cursors.StringIterator, error) {
 	orgBucket := tsdb.EncodeName(orgID, bucketID)
 	// TODO(edd): we need to clean up how we're encoding the prefix so that we
 	// don't have to remember to get it right everywhere we need to touch TSM data.
 	prefix := models.EscapeMeasurement(orgBucket[:])
 
 	var (
-		names    = make(map[string]struct{})
-		tags     models.Tags
-		stats    cursors.CursorStats
-		canceled bool
+		tsmValues = make(map[string]struct{})
+		stats     cursors.CursorStats
+		canceled  bool
 	)
 
 	e.FileStore.ForEachFile(func(f TSMFile) bool {
@@ -59,19 +65,12 @@ func (e *Engine) MeasurementNames(ctx context.Context, orgID, bucketID influxdb.
 					continue
 				}
 
-				if predicate != nil {
-					tags = models.ParseTagsWithTags(key, tags[:0])
-					valuer := influxql.ValuerEval{Valuer: tagsValuer(tags)}
-					if !valuer.EvalBool(predicate) {
-						continue
-					}
-				}
-
-				if _, ok := names[string(name)]; ok {
+				if _, ok := tsmValues[string(name)]; ok {
 					continue
 				}
+
 				if iter.HasData() {
-					names[string(name)] = struct{}{}
+					tsmValues[string(name)] = struct{}{}
 				}
 			}
 			stats.Add(iter.Stats())
@@ -101,15 +100,7 @@ func (e *Engine) MeasurementNames(ctx context.Context, orgID, bucketID influxdb.
 			return nil
 		}
 
-		if predicate != nil {
-			tags = models.ParseTagsWithTags(key, tags[:0])
-			valuer := influxql.ValuerEval{Valuer: tagsValuer(tags)}
-			if !valuer.EvalBool(predicate) {
-				return nil
-			}
-		}
-
-		if _, ok := names[string(name)]; ok {
+		if _, ok := tsmValues[string(name)]; ok {
 			return nil
 		}
 
@@ -124,18 +115,147 @@ func (e *Engine) MeasurementNames(ctx context.Context, orgID, bucketID influxdb.
 		stats.ScannedBytes += ts.Len() * 8 // sizeof timestamp
 
 		if ts.Contains(start, end) {
-			names[string(name)] = struct{}{}
+			tsmValues[string(name)] = struct{}{}
 		}
 		return nil
 	})
 
-	vals := make([]string, 0, len(names))
-	for val := range names {
+	vals := make([]string, 0, len(tsmValues))
+	for val := range tsmValues {
 		vals = append(vals, val)
 	}
 	sort.Strings(vals)
 
 	return cursors.NewStringSliceIteratorWithStats(vals, stats), nil
+}
+
+func (e *Engine) measurementNamesPredicate(ctx context.Context, orgID, bucketID influxdb.ID, start, end int64, predicate influxql.Expr) (cursors.StringIterator, error) {
+	if err := ValidateTagPredicate(predicate); err != nil {
+		return nil, err
+	}
+
+	orgBucket := tsdb.EncodeName(orgID, bucketID)
+
+	keys, err := e.findCandidateKeys(ctx, orgBucket[:], predicate)
+	if err != nil {
+		return cursors.EmptyStringIterator, err
+	}
+
+	if len(keys) == 0 {
+		return cursors.EmptyStringIterator, nil
+	}
+
+	var files []TSMFile
+	defer func() {
+		for _, f := range files {
+			f.Unref()
+		}
+	}()
+	var iters []*TimeRangeIterator
+
+	// TODO(edd): we need to clean up how we're encoding the prefix so that we
+	// don't have to remember to get it right everywhere we need to touch TSM data.
+	tsmKeyPrefix := models.EscapeMeasurement(orgBucket[:])
+
+	var canceled bool
+
+	e.FileStore.ForEachFile(func(f TSMFile) bool {
+		// Check the context before accessing each tsm file
+		select {
+		case <-ctx.Done():
+			canceled = true
+			return false
+		default:
+		}
+		if f.OverlapsTimeRange(start, end) && f.OverlapsKeyPrefixRange(tsmKeyPrefix, tsmKeyPrefix) {
+			f.Ref()
+			files = append(files, f)
+			iters = append(iters, f.TimeRangeIterator(tsmKeyPrefix, start, end))
+		}
+		return true
+	})
+
+	var stats cursors.CursorStats
+
+	if canceled {
+		stats = statsFromIters(stats, iters)
+		return cursors.NewStringSliceIteratorWithStats(nil, stats), ctx.Err()
+	}
+
+	tsmValues := make(map[string]struct{})
+
+	// reusable buffers
+	var (
+		tags   models.Tags
+		keybuf []byte
+		sfkey  []byte
+		ts     cursors.TimestampArray
+	)
+
+	for i := range keys {
+		// to keep cache scans fast, check context every 'cancelCheckInterval' iteratons
+		if i%cancelCheckInterval == 0 {
+			select {
+			case <-ctx.Done():
+				stats = statsFromIters(stats, iters)
+				return cursors.NewStringSliceIteratorWithStats(nil, stats), ctx.Err()
+			default:
+			}
+		}
+
+		_, tags = seriesfile.ParseSeriesKeyInto(keys[i], tags[:0])
+
+		// orgBucketEsc is already escaped, so no need to use models.AppendMakeKey, which
+		// unescapes and escapes the value again. The degenerate case is if the orgBucketEsc
+		// has escaped values, causing two allocations per key
+		keybuf = append(keybuf[:0], tsmKeyPrefix...)
+		keybuf = tags.AppendHashKey(keybuf)
+		sfkey = AppendSeriesFieldKeyBytes(sfkey[:0], keybuf, tags.Get(models.FieldKeyTagKeyBytes))
+
+		key, _ := SeriesAndFieldFromCompositeKey(sfkey)
+		name, err := models.ParseMeasurement(key)
+		if err != nil {
+			e.logger.Error("Invalid series key in TSM index", zap.Error(err), zap.Binary("key", key))
+			continue
+		}
+
+		if _, ok := tsmValues[string(name)]; ok {
+			continue
+		}
+
+		ts.Timestamps = e.Cache.AppendTimestamps(sfkey, ts.Timestamps[:0])
+		if ts.Len() > 0 {
+			sort.Sort(&ts)
+
+			stats.ScannedValues += ts.Len()
+			stats.ScannedBytes += ts.Len() * 8 // sizeof timestamp
+
+			if ts.Contains(start, end) {
+				tsmValues[string(name)] = struct{}{}
+			}
+			continue
+		}
+
+		for _, iter := range iters {
+			if exact, _ := iter.Seek(sfkey); !exact {
+				continue
+			}
+
+			if iter.HasData() {
+				tsmValues[string(name)] = struct{}{}
+				break
+			}
+		}
+	}
+
+	vals := make([]string, 0, len(tsmValues))
+	for val := range tsmValues {
+		vals = append(vals, val)
+	}
+	sort.Strings(vals)
+
+	stats = statsFromIters(stats, iters)
+	return cursors.NewStringSliceIteratorWithStats(vals, stats), err
 }
 
 // MeasurementTagValues returns an iterator which enumerates the tag values for the given
@@ -458,21 +578,3 @@ func statsFromTimeRangeMaxTimeIters(stats cursors.CursorStats, iters []*TimeRang
 	}
 	return stats
 }
-
-type tagsValuer models.Tags
-
-func (t tagsValuer) Value(key string) (interface{}, bool) {
-	for i := range t {
-		v := &t[i]
-		vkey := string(v.Key)
-		if vkey == models.MeasurementTagKey && key == "_name" {
-			return string(v.Value), true
-		}
-		if vkey == key {
-			return string(v.Value), true
-		}
-	}
-	return "", false
-}
-
-var _ influxql.Valuer = tagsValuer{}
