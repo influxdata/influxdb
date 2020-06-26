@@ -270,6 +270,39 @@ describe('DataExplorer', () => {
         cy.getByTestID('timerange-popover--dialog').should('have.length', 1)
       })
 
+      it('should not allow users to start dates after the stop date & stop dates before the start date', () => {
+        // Set the start date to Oct 29, 2019
+        cy.get('input[title="Start"]')
+          .should('have.length', 1)
+          .clear()
+          .type('2019-10-29 08:00:00.000')
+
+        // Set the stop date to Oct 29, 2019
+        cy.get('input[title="Stop"]')
+          .should('have.length', 1)
+          .clear()
+          .type('2019-10-29 09:00:00.000')
+
+        // click button and see if time range has been selected
+        cy.get('.cf-button--label')
+          .contains('Apply Time Range')
+          .should('have.length', 1)
+          .click()
+
+        cy.getByTestID('timerange-dropdown').click()
+        cy.getByTestID('dropdown-item-customtimerange').click()
+
+        // Select the 30th in the Start timerange
+        cy.get('.react-datepicker__day--030')
+          .first()
+          .should('be', 'disabled')
+
+        // Select the 28th in the Stop timerange
+        cy.get('.react-datepicker__day--028')
+          .last()
+          .should('be', 'disabled')
+      })
+
       it.skip('should error when submitting stop dates that are before start dates', () => {
         // TODO: complete with issue #15632
         // https://github.com/influxdata/influxdb/issues/15632
