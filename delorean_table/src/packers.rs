@@ -136,32 +136,6 @@ impl std::convert::From<Vec<Option<f64>>> for Packers {
     }
 }
 
-impl std::convert::From<delorean_table_schema::DataType> for Packers {
-    fn from(t: delorean_table_schema::DataType) -> Self {
-        match t {
-            delorean_table_schema::DataType::Float => Self::Float(Packer::<f64>::new()),
-            delorean_table_schema::DataType::Integer => Self::Integer(Packer::<i64>::new()),
-            delorean_table_schema::DataType::String => Self::String(Packer::<ByteArray>::new()),
-            delorean_table_schema::DataType::Boolean => Self::Boolean(Packer::<bool>::new()),
-            delorean_table_schema::DataType::Timestamp => Self::Integer(Packer::<i64>::new()),
-        }
-    }
-}
-
-impl std::convert::From<Vec<Option<Vec<u8>>>> for Packers {
-    fn from(values: Vec<Option<Vec<u8>>>) -> Self {
-        // TODO(edd): convert this with an iterator?
-        let mut as_byte_array: Vec<Option<ByteArray>> = Vec::with_capacity(values.len());
-        for v in values {
-            match v {
-                Some(v) => as_byte_array.push(Some(ByteArray::from(v))),
-                None => as_byte_array.push(None),
-            }
-        }
-        Self::String(Packer::from(as_byte_array))
-    }
-}
-
 impl std::convert::From<Vec<Option<bool>>> for Packers {
     fn from(v: Vec<Option<bool>>) -> Self {
         Self::Boolean(Packer::from(v))
@@ -179,6 +153,44 @@ impl std::convert::From<Vec<Option<u64>>> for Packers {
             }
         }
         Self::Integer(Packer::from(as_i64))
+    }
+}
+
+impl std::convert::From<delorean_table_schema::DataType> for Packers {
+    fn from(t: delorean_table_schema::DataType) -> Self {
+        match t {
+            delorean_table_schema::DataType::Float => Self::Float(Packer::<f64>::new()),
+            delorean_table_schema::DataType::Integer => Self::Integer(Packer::<i64>::new()),
+            delorean_table_schema::DataType::String => Self::String(Packer::<ByteArray>::new()),
+            delorean_table_schema::DataType::Boolean => Self::Boolean(Packer::<bool>::new()),
+            delorean_table_schema::DataType::Timestamp => Self::Integer(Packer::<i64>::new()),
+        }
+    }
+}
+
+impl std::convert::From<delorean_tsm::BlockType> for Packers {
+    fn from(t: delorean_tsm::BlockType) -> Self {
+        match t {
+            delorean_tsm::BlockType::Float => Self::Float(Packer::<f64>::new()),
+            delorean_tsm::BlockType::Integer => Self::Integer(Packer::<i64>::new()),
+            delorean_tsm::BlockType::Str => Self::String(Packer::<ByteArray>::new()),
+            delorean_tsm::BlockType::Bool => Self::Boolean(Packer::<bool>::new()),
+            delorean_tsm::BlockType::Unsigned => Self::Integer(Packer::<i64>::new()),
+        }
+    }
+}
+
+impl std::convert::From<Vec<Option<Vec<u8>>>> for Packers {
+    fn from(values: Vec<Option<Vec<u8>>>) -> Self {
+        // TODO(edd): convert this with an iterator?
+        let mut as_byte_array: Vec<Option<ByteArray>> = Vec::with_capacity(values.len());
+        for v in values {
+            match v {
+                Some(v) => as_byte_array.push(Some(ByteArray::from(v))),
+                None => as_byte_array.push(None),
+            }
+        }
+        Self::String(Packer::from(as_byte_array))
     }
 }
 
@@ -281,7 +293,7 @@ where
         self.rep_levels.push(1);
     }
 
-    pub fn extend_from_packer(&mut self, other: &Packer<T>) {
+    pub fn extend_from_packer(&mut self, other: &Self) {
         self.values.extend_from_slice(&other.values);
         self.def_levels.extend_from_slice(&other.def_levels);
         self.rep_levels.extend_from_slice(&other.rep_levels);
@@ -305,9 +317,8 @@ where
         self.rep_levels.extend(iter::repeat(1).take(additional));
     }
 
-    pub fn pad_with_null(&mut self, additional: usize) {
-        self.values
-            .extend(iter::repeat(T::default()).take(additional));
+    pub fn fill_with_null(&mut self, additional: usize) {
+        // N.B., No value stored at def level == 0
         self.def_levels.extend(iter::repeat(0).take(additional));
         self.rep_levels.extend(iter::repeat(1).take(additional));
     }
@@ -395,12 +406,9 @@ mod test {
         packer.push(100);
         packer.push(22);
 
-        packer.pad_with_null(3);
+        packer.fill_with_null(3);
 
-        assert_eq!(
-            packer.values,
-            &[100, 22, i64::default(), i64::default(), i64::default()]
-        );
+        assert_eq!(packer.values, &[100, 22]);
         assert_eq!(packer.def_levels, &[1, 1, 0, 0, 0]);
         assert_eq!(packer.rep_levels, &[1; 5]);
     }

@@ -736,6 +736,7 @@ version = "0.1.0"
 dependencies = [
  "delorean_table_schema",
  "delorean_test_helpers",
+ "delorean_tsm",
  "log",
  "parquet",
  "snafu",

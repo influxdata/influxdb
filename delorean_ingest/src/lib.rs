@@ -554,7 +554,6 @@ impl TSMFileConverter {
     // Given a measurement table `process_measurement_table` produces an
     // appropriate schema and set of Packers.
     fn process_measurement_table<R: BufRead + Seek>(
-        // block_reader: impl BlockDecoder,
         mut block_reader: &mut TSMBlockReader<R>,
         m: &mut MeasurementTable,
     ) -> Result<(Schema, Vec<Packers>), Error> {
@@ -572,7 +571,7 @@ impl TSMFileConverter {
         for (field_key, block_type) in m.field_columns().to_owned() {
             builder = builder.field(&field_key, DataType::from(&block_type));
             fks.push((field_key.clone(), block_type));
-            packed_columns.push(Packers::String(Packer::new())); // FIXME - will change
+            packed_columns.push(Packers::from(block_type));
         }
 
         // Account for timestamp
@@ -661,7 +660,9 @@ impl TSMFileConverter {
                 } else {
                     // pad out column with None values because we don't have a
                     // value for it.
-                    packed_columns[*idx].str_packer_mut().pad_with_null(col_len);
+                    packed_columns[*idx]
+                        .str_packer_mut()
+                        .fill_with_null(col_len);
                 }
             }
 
@@ -692,7 +693,6 @@ impl TSMFileConverter {
                             .i64_packer_mut()
                             .extend_from_option_slice(&v),
                         ColumnData::Str(values) => {
-                            // TODO fix this up....
                             let col = packed_columns[*idx].str_packer_mut();
                             for value in values {
                                 match value {
@@ -705,7 +705,6 @@ impl TSMFileConverter {
                             .bool_packer_mut()
                             .extend_from_option_slice(&v),
                         ColumnData::Unsigned(values) => {
-                            // TODO fix this up....
                             let col = packed_columns[*idx].i64_packer_mut();
                             for value in values {
                                 match value {
@@ -760,21 +759,29 @@ impl TSMFileConverter {
                 } else {
                     match field_type {
                         BlockType::Float => {
-                            packed_columns[*idx].f64_packer_mut().pad_with_null(col_len);
+                            packed_columns[*idx]
+                                .f64_packer_mut()
+                                .fill_with_null(col_len);
                         }
                         BlockType::Integer => {
-                            packed_columns[*idx].i64_packer_mut().pad_with_null(col_len);
+                            packed_columns[*idx]
+                                .i64_packer_mut()
+                                .fill_with_null(col_len);
                         }
                         BlockType::Bool => {
                             packed_columns[*idx]
                                 .bool_packer_mut()
-                                .pad_with_null(col_len);
+                                .fill_with_null(col_len);
                         }
                         BlockType::Str => {
-                            packed_columns[*idx].str_packer_mut().pad_with_null(col_len);
+                            packed_columns[*idx]
+                                .str_packer_mut()
+                                .fill_with_null(col_len);
                         }
                         BlockType::Unsigned => {
-                            packed_columns[*idx].i64_packer_mut().pad_with_null(col_len);
+                            packed_columns[*idx]
+                                .i64_packer_mut()
+                                .fill_with_null(col_len);
                         }
                     }
                 }
@@ -787,8 +794,6 @@ impl TSMFileConverter {
 impl std::fmt::Debug for TSMFileConverter {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("TSMFileConverter")
-            // .field("settings", &self.settings)
-            // .field("converters", &self.converters)
             .field("table_writer_source", &"DYNAMIC")
             .finish()
     }
