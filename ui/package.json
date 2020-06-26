@@ -98,6 +98,7 @@
     "eslint-config-prettier": "^6.5.0",
     "eslint-plugin-jest": "^23.0.2",
     "eslint-plugin-react": "^7.16.0",
+    "eslint-plugin-react-hooks": "^4.0.4",
     "express": "^4.14.0",
     "file-loader": "^4.1.0",
     "fork-ts-checker-webpack-plugin": "^1.4.3",
