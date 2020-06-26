@@ -9,6 +9,7 @@
 //! - i64 (signed integer blocks);
 //! - String;
 //! - u64 (unsigned integer blocks);
+//! - bool (boolean blocks);
 //!
 //! Other block types are ready to be supported when the appropriate encoders
 //! have been implemented.
@@ -163,7 +164,7 @@
 //! ```
 
 use crate::storage::StorageError;
-use delorean_tsm::encoders::{float, integer, string, timestamp, unsigned};
+use delorean_tsm::encoders::{boolean, float, integer, string, timestamp, unsigned};
 
 use integer_encoding::*;
 use num::bigint::{BigInt, BigUint};
@@ -251,9 +252,9 @@ impl Encoder for Vec<&str> {
 }
 
 impl Encoder for Vec<bool> {
-    fn encode(&self, _: &mut Vec<u8>) -> Result<(), StorageError> {
-        Err(StorageError {
-            description: String::from("not yet implemented"),
+    fn encode(&self, dst: &mut Vec<u8>) -> Result<(), StorageError> {
+        boolean::encode(&self, dst).map_err(|e| StorageError {
+            description: e.to_string(),
         })
     }
 }
