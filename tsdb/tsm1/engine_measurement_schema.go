@@ -130,7 +130,7 @@ func (e *Engine) measurementNamesNoPredicate(ctx context.Context, orgID, bucketI
 }
 
 func (e *Engine) measurementNamesPredicate(ctx context.Context, orgID, bucketID influxdb.ID, start, end int64, predicate influxql.Expr) (cursors.StringIterator, error) {
-	if err := ValidateTagPredicate(predicate); err != nil {
+	if err := ValidateMeasurementNamesTagPredicate(predicate); err != nil {
 		return nil, err
 	}
 
