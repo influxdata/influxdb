@@ -12,8 +12,6 @@ import {TimeZone, Theme, NavBarState, NotebookMiniMapState} from 'src/types'
 export enum ActionTypes {
   EnablePresentationMode = 'ENABLE_PRESENTATION_MODE',
   DisablePresentationMode = 'DISABLE_PRESENTATION_MODE',
-  EnableVEOMode = 'ENABLE_VEO_MODE',
-  DisableVEOMode = 'DISABLE_VEO_MODE',
   EnableUpdatedTimeRangeInVEO = 'ENABLE_UPDATED_TIMERANGE_IN_VEO',
   DisableUpdatedTimeRangeInVEO = 'DISABLE_UPDATED_TIMERANGE_IN_VEO',
   SetNavBarState = 'SET_NAV_BAR_STATE',
@@ -27,8 +25,6 @@ export enum ActionTypes {
 export type Action =
   | ReturnType<typeof enablePresentationMode>
   | ReturnType<typeof disablePresentationMode>
-  | ReturnType<typeof enableVEOMode>
-  | ReturnType<typeof disableVEOMode>
   | ReturnType<typeof enableUpdatedTimeRangeInVEO>
   | ReturnType<typeof disableUpdatedTimeRangeInVEO>
   | ReturnType<typeof setNavBarState>
@@ -47,16 +43,6 @@ export const enablePresentationMode = () =>
 export const disablePresentationMode = () =>
   ({
     type: ActionTypes.DisablePresentationMode,
-  } as const)
-
-export const enableVEOMode = () =>
-  ({
-    type: ActionTypes.EnableVEOMode,
-  } as const)
-
-export const disableVEOMode = () =>
-  ({
-    type: ActionTypes.DisableVEOMode,
   } as const)
 
 export const enableUpdatedTimeRangeInVEO = () =>

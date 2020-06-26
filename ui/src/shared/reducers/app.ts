@@ -8,7 +8,6 @@ import {TimeZone, NavBarState, Theme, NotebookMiniMapState} from 'src/types'
 export interface AppState {
   ephemeral: {
     inPresentationMode: boolean
-    inVEOMode: boolean
     hasUpdatedTimeRangeInVEO: boolean
   }
   persisted: {
@@ -24,7 +23,6 @@ export interface AppState {
 const initialState: AppState = {
   ephemeral: {
     inPresentationMode: false,
-    inVEOMode: false,
     hasUpdatedTimeRangeInVEO: false,
   },
   persisted: {
@@ -58,20 +56,6 @@ const appEphemeralReducer = (
       return {
         ...state,
         inPresentationMode: false,
-      }
-    }
-
-    case ActionTypes.EnableVEOMode: {
-      return {
-        ...state,
-        inVEOMode: true,
-      }
-    }
-
-    case ActionTypes.DisableVEOMode: {
-      return {
-        ...state,
-        inVEOMode: false,
       }
     }
 

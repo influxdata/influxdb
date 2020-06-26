@@ -10,10 +10,7 @@ import TimeMachine from 'src/timeMachine/components/TimeMachine'
 import VEOHeader from 'src/dashboards/components/VEOHeader'
 
 // Actions
-import {
-  disableVEOMode,
-  disableUpdatedTimeRangeInVEO,
-} from 'src/shared/actions/app'
+import {disableUpdatedTimeRangeInVEO} from 'src/shared/actions/app'
 import {setName} from 'src/timeMachine/actions'
 import {saveVEOView} from 'src/dashboards/actions/thunks'
 import {getViewAndResultsForVEO} from 'src/views/actions/thunks'
@@ -31,7 +28,6 @@ type Props = ReduxProps &
 const EditViewVEO: FunctionComponent<Props> = ({
   activeTimeMachineID,
   getViewAndResultsForVEO,
-  onDisableVEOMode,
   onDisableUpdatedTimeRangeInVEO,
   onSaveView,
   onSetName,
@@ -51,7 +47,6 @@ const EditViewVEO: FunctionComponent<Props> = ({
 
   const handleClose = () => {
     history.push(`/orgs/${orgID}/dashboards/${dashboardID}`)
-    onDisableVEOMode()
     onDisableUpdatedTimeRangeInVEO()
   }
 
@@ -101,7 +96,6 @@ const mstp = (state: AppState) => {
 
 const mdtp = {
   getViewAndResultsForVEO: getViewAndResultsForVEO,
-  onDisableVEOMode: disableVEOMode,
   onDisableUpdatedTimeRangeInVEO: disableUpdatedTimeRangeInVEO,
   onSetName: setName,
   onSaveView: saveVEOView,
