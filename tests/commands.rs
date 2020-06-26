@@ -195,7 +195,7 @@ fn meta_bad_input_filename() {
         .code(2)
         .stderr(predicate::str::contains("Metadata dump failed"))
         .stderr(predicate::str::contains(
-            "Metadata dump failed: Error opening input Unknown input type: non_existent_input has no extension",
+            "Metadata dump failed: Error opening input Unknown input type: non_existent_input has an unknown input extension",
         ));
 }
 
@@ -223,7 +223,7 @@ fn meta_bad_input_filename_gz() {
         .code(2)
         .stderr(predicate::str::contains("Metadata dump failed"))
         .stderr(predicate::str::contains(
-            "Metadata dump failed: Error opening input Unknown input type: non_existent_input.gz has no extension before .gz",
+            "Metadata dump failed: Error opening input Unknown input type: non_existent_input.gz has an unknown input extension before .gz",
         ));
 }
 
