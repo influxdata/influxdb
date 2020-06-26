@@ -1008,7 +1008,7 @@ mod delorean_ingest_tests {
         );
         assert_eq!(
             cols[3],
-            ColumnDefinition::new("timestamp", 3, DataType::Timestamp)
+            ColumnDefinition::new("time", 3, DataType::Timestamp)
         );
     }
 
@@ -1039,7 +1039,7 @@ mod delorean_ingest_tests {
         );
         assert_eq!(
             cols[3],
-            ColumnDefinition::new("timestamp", 3, DataType::Timestamp)
+            ColumnDefinition::new("time", 3, DataType::Timestamp)
         );
     }
 
@@ -1077,7 +1077,7 @@ mod delorean_ingest_tests {
         );
         assert_eq!(
             cols[4],
-            ColumnDefinition::new("timestamp", 4, DataType::Timestamp)
+            ColumnDefinition::new("time", 4, DataType::Timestamp)
         );
     }
 
@@ -1111,7 +1111,7 @@ mod delorean_ingest_tests {
         );
         assert_eq!(
             cols[3],
-            ColumnDefinition::new("timestamp", 3, DataType::Timestamp)
+            ColumnDefinition::new("time", 3, DataType::Timestamp)
         );
     }
 
@@ -1141,7 +1141,7 @@ mod delorean_ingest_tests {
         );
         assert_eq!(
             cols[2],
-            ColumnDefinition::new("timestamp", 2, DataType::Timestamp)
+            ColumnDefinition::new("time", 2, DataType::Timestamp)
         );
     }
 
