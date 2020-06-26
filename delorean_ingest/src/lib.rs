@@ -9,21 +9,23 @@
     clippy::use_self
 )]
 
-use std::collections::{BTreeMap, BTreeSet};
-use std::io::{BufRead, Seek};
-
-use log::debug;
-use snafu::{ResultExt, Snafu};
-
 use delorean_line_parser::{FieldValue, ParsedLine};
 use delorean_table::{
     packers::{Packer, Packers},
     ByteArray, DeloreanTableWriter, DeloreanTableWriterSource, Error as TableError,
 };
 use delorean_table_schema::{DataType, Schema, SchemaBuilder};
-use delorean_tsm::mapper::{map_field_columns, ColumnData, MeasurementTable, TSMMeasurementMapper};
-use delorean_tsm::reader::{TSMBlockReader, TSMIndexReader};
-use delorean_tsm::{BlockType, TSMError};
+use delorean_tsm::{
+    mapper::{map_field_columns, ColumnData, MeasurementTable, TSMMeasurementMapper},
+    reader::{TSMBlockReader, TSMIndexReader},
+    BlockType, TSMError,
+};
+use log::debug;
+use snafu::{ensure, OptionExt, ResultExt, Snafu};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    io::{BufRead, Seek},
+};
 
 #[derive(Debug, Clone, Copy)]
 pub struct ConversionSettings {
@@ -66,8 +68,8 @@ pub enum Error {
     NeedsAtLeastOneLine,
 
     // Only a single line protocol measurement field is currently supported
-    #[snafu(display(r#"More than one measurement not yet supported: {}"#, message))]
-    OnlyOneMeasurementSupported { message: String },
+    #[snafu(display(r#"More than one measurement not yet supported: Saw new measurement {}, had been using measurement {}"#, actual, expected))]
+    OnlyOneMeasurementSupported { expected: String, actual: String },
 
     #[snafu(display(r#"Error writing to TableWriter: {}"#, source))]
     Writing { source: TableError },
@@ -77,6 +79,14 @@ pub enum Error {
 
     #[snafu(display(r#"Error processing TSM File: {}"#, source))]
     TSMProcessing { source: TSMError },
+
+    // TODO clean this error up
+    #[snafu(display(r#"could not find ts column"#))]
+    CouldNotFindTsColumn,
+
+    // TODO clean this error up
+    #[snafu(display(r#"could not find column"#))]
+    CouldNotFindColumn,
 }
 
 /// Handles buffering `ParsedLine` objects and deducing a schema from that sample
@@ -269,23 +279,22 @@ impl<'a> MeasurementSampler<'a> {
     /// Use the contents of self.schema_sample to deduce the Schema of
     /// `ParsedLine`s and return the deduced schema
     fn deduce_schema_from_sample(&mut self) -> Result<Schema, Error> {
-        if self.schema_sample.is_empty() {
-            return Err(Error::NeedsAtLeastOneLine {});
-        }
+        ensure!(!self.schema_sample.is_empty(), NeedsAtLeastOneLine);
 
         let mut builder = SchemaBuilder::new(self.schema_sample[0].series.measurement.as_str());
 
         for line in &self.schema_sample {
             let series = &line.series;
-            if series.measurement != builder.get_measurement_name() {
-                return Err(Error::OnlyOneMeasurementSupported {
-                    message: format!(
-                        "Saw new measurement {}, had been using measurement {}",
-                        builder.get_measurement_name(),
-                        series.measurement
-                    ),
-                });
-            }
+
+            let measurement_name = builder.get_measurement_name();
+            ensure!(
+                series.measurement == measurement_name,
+                OnlyOneMeasurementSupported {
+                    actual: measurement_name,
+                    expected: &series.measurement,
+                }
+            );
+
             if let Some(tag_set) = &series.tag_set {
                 for (tag_name, _) in tag_set {
                     builder = builder.tag(tag_name.as_str());
@@ -521,32 +530,26 @@ impl TSMFileConverter {
         index_stream_size: usize,
         block_stream: impl BufRead + Seek,
     ) -> Result<(), Error> {
-        let index_reader = TSMIndexReader::try_new(index_stream, index_stream_size)
-            .map_err(|e| Error::TSMProcessing { source: e })?;
+        let index_reader =
+            TSMIndexReader::try_new(index_stream, index_stream_size).context(TSMProcessing)?;
         let mut block_reader = TSMBlockReader::new(block_stream);
 
         let mapper = TSMMeasurementMapper::new(index_reader.peekable());
 
         for measurement in mapper {
-            match measurement {
-                Ok(mut m) => {
-                    let (schema, packed_columns) =
-                        Self::process_measurement_table(&mut block_reader, &mut m)?;
+            let mut m = measurement.context(TSMProcessing)?;
+            let (schema, packed_columns) =
+                Self::process_measurement_table(&mut block_reader, &mut m)?;
 
-                    let mut table_writer = self
-                        .table_writer_source
-                        .next_writer(&schema)
-                        .context(WriterCreation)?;
+            let mut table_writer = self
+                .table_writer_source
+                .next_writer(&schema)
+                .context(WriterCreation)?;
 
-                    table_writer
-                        .write_batch(&packed_columns)
-                        .map_err(|e| Error::WriterCreation { source: e })?;
-                    table_writer
-                        .close()
-                        .map_err(|e| Error::WriterCreation { source: e })?;
-                }
-                Err(e) => return Err(Error::TSMProcessing { source: e }),
-            }
+            table_writer
+                .write_batch(&packed_columns)
+                .context(WriterCreation)?;
+            table_writer.close().context(WriterCreation)?;
         }
         Ok(())
     }
@@ -592,19 +595,14 @@ impl TSMFileConverter {
         // to the packer_column.
 
         for (i, (tag_set_pair, blocks)) in m.tag_set_fields_blocks().iter_mut().enumerate() {
-            let (ts, field_cols) = map_field_columns(&mut block_reader, blocks)
-                .map_err(|e| Error::TSMProcessing { source: e })?;
+            let (ts, field_cols) =
+                map_field_columns(&mut block_reader, blocks).context(TSMProcessing)?;
 
             // Start with the timestamp column.
             let col_len = ts.len();
             let ts_idx = name_packer
                 .get(schema.timestamp())
-                .ok_or(Error::TSMProcessing {
-                    // TODO clean this error up
-                    source: TSMError {
-                        description: "could not find ts column".to_string(),
-                    },
-                })?;
+                .context(CouldNotFindTsColumn)?;
 
             if i == 0 {
                 packed_columns[*ts_idx] = Packers::from(ts);
@@ -617,12 +615,7 @@ impl TSMFileConverter {
             // Next let's pad out all of the tag columns we know have
             // repeated values.
             for (tag_key, tag_value) in tag_set_pair {
-                let idx = name_packer.get(tag_key).ok_or(Error::TSMProcessing {
-                    // TODO clean this error up
-                    source: TSMError {
-                        description: "could not find column".to_string(),
-                    },
-                })?;
+                let idx = name_packer.get(tag_key).context(CouldNotFindColumn)?;
 
                 // this will create a column of repeated values.
                 if i == 0 {
@@ -646,12 +639,7 @@ impl TSMFileConverter {
                     continue;
                 }
 
-                let idx = name_packer.get(key).ok_or(Error::TSMProcessing {
-                    // TODO clean this error up
-                    source: TSMError {
-                        description: "could not find column".to_string(),
-                    },
-                })?;
+                let idx = name_packer.get(key).context(CouldNotFindColumn)?;
 
                 if i == 0 {
                     // creates a column of repeated None values.
@@ -669,12 +657,7 @@ impl TSMFileConverter {
             // Next let's write out all of the field column data.
             let mut got_field_cols = Vec::new();
             for (field_key, field_values) in field_cols {
-                let idx = name_packer.get(&field_key).ok_or(Error::TSMProcessing {
-                    // TODO clean this error up
-                    source: TSMError {
-                        description: "could not find column".to_string(),
-                    },
-                })?;
+                let idx = name_packer.get(&field_key).context(CouldNotFindColumn)?;
 
                 if i == 0 {
                     match field_values {
@@ -725,12 +708,7 @@ impl TSMFileConverter {
                     continue;
                 }
 
-                let idx = name_packer.get(key).ok_or(Error::TSMProcessing {
-                    // TODO clean this error up
-                    source: TSMError {
-                        description: "could not find column".to_string(),
-                    },
-                })?;
+                let idx = name_packer.get(key).context(CouldNotFindColumn)?;
 
                 // this will create a column of repeated None values.
                 if i == 0 {
@@ -1160,7 +1138,7 @@ mod delorean_ingest_tests {
         // Then the converter does not support it
         assert!(matches!(
             schema_result,
-            Err(Error::OnlyOneMeasurementSupported { message: _ })
+            Err(Error::OnlyOneMeasurementSupported { .. })
         ));
     }
 
