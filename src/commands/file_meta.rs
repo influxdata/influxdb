@@ -1,4 +1,4 @@
-use delorean_parquet::{error::Error as DeloreanParquetError, metadata::print_parquet_metadata};
+use delorean_parquet::metadata::print_parquet_metadata;
 use delorean_tsm::{reader::IndexEntry, reader::TSMIndexReader, InfluxID, TSMError};
 use log::{debug, info};
 use snafu::{ResultExt, Snafu};
@@ -18,21 +18,18 @@ pub fn dump_meta(input_filename: &str) -> Result<()> {
     let input_reader = InputReader::new(input_filename).context(OpenInput)?;
 
     match input_reader.file_type() {
-        FileType::LineProtocol => NotImplemented {
-            operation_name: "Line protocol metadata dump",
-        }
-        .fail(),
+        FileType::LineProtocol => LineProtocolNotImplemented.fail(),
         FileType::TSM => {
             let len = input_reader
                 .len()
                 .try_into()
                 .expect("File size more than usize");
-            let reader = TSMIndexReader::try_new(input_reader, len).context(TSM)?;
+            let reader = TSMIndexReader::try_new(input_reader, len).context(CreateTsm)?;
 
             let mut stats_builder = TSMMetadataBuilder::new();
 
             for entry in reader {
-                let entry = entry.context(TSM)?;
+                let entry = entry.context(UnableToReadTsmEntry)?;
                 stats_builder.process_entry(entry)?;
             }
             stats_builder.print_report();
@@ -54,7 +51,7 @@ struct MeasurementMetadata {
 
 impl MeasurementMetadata {
     fn update_for_entry(&mut self, index_entry: &mut IndexEntry) -> Result<()> {
-        let key = index_entry.parse_key().context(TSM)?;
+        let key = index_entry.parse_key().context(UnableToParseTsmKey)?;
 
         for (tag_name, tag_value) in key.tagset {
             let tag_entry = self.tags.entry(tag_name).or_default();
@@ -91,7 +88,7 @@ impl BucketMetadata {
     fn update_for_entry(&mut self, index_entry: &mut IndexEntry) -> Result<()> {
         self.count += 1;
         self.total_records += u64::from(index_entry.count);
-        let key = index_entry.parse_key().context(TSM)?;
+        let key = index_entry.parse_key().context(UnableToParseTsmKey)?;
 
         let meta = self.measurements.entry(key.measurement).or_default();
         meta.update_for_entry(index_entry)?;
@@ -149,12 +146,20 @@ pub enum Error {
     #[snafu(display("Error opening input {}", source))]
     OpenInput { source: super::input::Error },
 
-    #[snafu(display("Not implemented: {}", operation_name))]
-    NotImplemented { operation_name: String },
+    #[snafu(display("Line protocol metadata dump is not implemented"))]
+    LineProtocolNotImplemented,
 
     #[snafu(display("Unable to dump parquet file metadata: {}", source))]
-    UnableDumpToParquetMetadata { source: DeloreanParquetError },
+    UnableDumpToParquetMetadata {
+        source: delorean_parquet::error::Error,
+    },
 
-    #[snafu(display(r#"Error reading TSM data: {}"#, source))]
-    TSM { source: TSMError },
+    #[snafu(display(r#"Unable to create TSM reader: {}"#, source))]
+    CreateTsm { source: TSMError },
+
+    #[snafu(display(r#"Unable to parse TSM key: {}"#, source))]
+    UnableToParseTsmKey { source: TSMError },
+
+    #[snafu(display(r#"Unable to read TSM entry: {}"#, source))]
+    UnableToReadTsmEntry { source: TSMError },
 }

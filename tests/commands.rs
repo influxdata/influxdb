@@ -41,7 +41,7 @@ fn convert_bad_input_filename() {
         .failure()
         .code(1)
         .stderr(predicate::str::contains(
-            "Error reading non_existent_input.lp",
+            "Error opening non_existent_input.lp",
         ))
         .stderr(predicate::str::contains("No such file or directory"));
 }
@@ -195,7 +195,7 @@ fn meta_bad_input_filename() {
         .code(2)
         .stderr(predicate::str::contains("Metadata dump failed"))
         .stderr(predicate::str::contains(
-            "Metadata dump failed: Error opening input Unknown input type: No extension for non_existent_input",
+            "Metadata dump failed: Error opening input Unknown input type: non_existent_input has an unknown input extension",
         ));
 }
 
@@ -209,7 +209,7 @@ fn meta_non_existent_input_filename() {
         .code(2)
         .stderr(predicate::str::contains("Metadata dump failed"))
         .stderr(predicate::str::contains(
-            "Metadata dump failed: Error opening input Error reading non_existent_input.tsm",
+            "Metadata dump failed: Error opening input Error opening non_existent_input.tsm",
         ));
 }
 
@@ -223,7 +223,7 @@ fn meta_bad_input_filename_gz() {
         .code(2)
         .stderr(predicate::str::contains("Metadata dump failed"))
         .stderr(predicate::str::contains(
-            "Metadata dump failed: Error opening input Unknown input type: No extension before .gz for non_existent_input.gz",
+            "Metadata dump failed: Error opening input Unknown input type: non_existent_input.gz has an unknown input extension before .gz",
         ));
 }
 

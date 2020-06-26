@@ -1,7 +1,7 @@
 use delorean_parquet::ParquetError;
 /// Module to handle input files (and maybe urls?)
 use libflate::gzip;
-use snafu::{OptionExt, ResultExt, Snafu};
+use snafu::{ResultExt, Snafu};
 use std::{
     fs::File,
     io,
@@ -43,11 +43,11 @@ pub struct MemoryInputReader {
 
 impl FileInputReader {
     fn new(file_type: FileType, input_name: &str) -> Result<Self> {
-        let file = File::open(input_name).context(UnableToReadInput { input_name })?;
+        let file = File::open(input_name).context(UnableToOpenInput { input_name })?;
 
         let file_size = file
             .metadata()
-            .context(UnableToReadInput { input_name })?
+            .context(UnableToCalculateSize { input_name })?
             .len();
 
         Ok(Self {
@@ -141,95 +141,84 @@ impl InputReader {
         // Initially simply use the file name's extension to determine
         // the type; Maybe in the future we can be more clever and
         // inspect contents.
-        let ext = path
-            .extension()
-            .context(UnknownInputType {
-                details: String::from("No extension"),
-                input_name: path.display().to_string(),
-            })?
-            .to_str()
-            .context(FileNameDecode { input_name: path })?;
+        let ext = path.extension().and_then(|p| p.to_str());
 
         match ext {
-            "tsm" => Ok(Self::FileInputType(FileInputReader::new(
+            Some("tsm") => Ok(Self::FileInputType(FileInputReader::new(
                 FileType::TSM,
                 input_name,
             )?)),
-            "lp" => Ok(Self::FileInputType(FileInputReader::new(
+            Some("lp") => Ok(Self::FileInputType(FileInputReader::new(
                 FileType::LineProtocol,
                 input_name,
             )?)),
-            "parquet" => Ok(Self::FileInputType(FileInputReader::new(
+            Some("parquet") => Ok(Self::FileInputType(FileInputReader::new(
                 FileType::Parquet,
                 input_name,
             )?)),
-            "gz" => {
+            Some("gz") => {
+                let buffer = || {
+                    let file = File::open(input_name).context(UnableToOpenInput { input_name })?;
+                    let mut decoder = gzip::Decoder::new(file)
+                        .context(UnableToCreateDecompressor { input_name })?;
+                    let mut buffer = Vec::new();
+                    decoder
+                        .read_to_end(&mut buffer)
+                        .context(ReadingGzip { input_name })?;
+                    Ok(buffer)
+                };
+
                 let stem = Path::new(path.file_stem().unwrap());
-
-                let stem_ext = stem
-                    .extension()
-                    .context(UnknownInputType {
-                        details: String::from("No extension before .gz"),
-                        input_name: path,
-                    })?
-                    .to_str()
-                    .context(FileNameDecode { input_name: path })?;
-
-                let file = File::open(input_name).context(UnableToReadInput { input_name })?;
-                let mut decoder =
-                    gzip::Decoder::new(file).context(UnableToReadInput { input_name })?;
-                let mut buffer = Vec::new();
-                decoder
-                    .read_to_end(&mut buffer)
-                    .context(ReadingGzip { input_name })?;
+                let stem_ext = stem.extension().and_then(|p| p.to_str());
 
                 match stem_ext {
-                    "tsm" => Ok(Self::MemoryInputType(MemoryInputReader::new(
+                    Some("tsm") => Ok(Self::MemoryInputType(MemoryInputReader::new(
                         FileType::TSM,
-                        buffer,
+                        buffer()?,
                     ))),
-                    "lp" => Ok(Self::MemoryInputType(MemoryInputReader::new(
+                    Some("lp") => Ok(Self::MemoryInputType(MemoryInputReader::new(
                         FileType::LineProtocol,
-                        buffer,
+                        buffer()?,
                     ))),
-                    "parquet" => Ok(Self::MemoryInputType(MemoryInputReader::new(
+                    Some("parquet") => Ok(Self::MemoryInputType(MemoryInputReader::new(
                         FileType::Parquet,
-                        buffer,
+                        buffer()?,
                     ))),
-                    _ => UnknownInputType {
-                        details: "Unknown input extension before .gz",
-                        input_name,
-                    }
-                    .fail(),
+                    _ => UnknownInputTypeGzip { input_name }.fail(),
                 }
             }
-            _ => UnknownInputType {
-                details: "Unknown input extension",
-                input_name,
-            }
-            .fail(),
+            _ => UnknownInputType { input_name }.fail(),
         }
     }
 }
 
 #[derive(Debug, Snafu)]
 pub enum Error {
-    #[snafu(display("Error reading {} ({})", input_name.display(), source))]
-    UnableToReadInput {
+    #[snafu(display("Error opening {} ({})", input_name.display(), source))]
+    UnableToOpenInput {
         input_name: PathBuf,
         source: std::io::Error,
     },
 
-    #[snafu(display("Unknown input type: {} for {}", details, input_name.display()))]
-    UnknownInputType {
-        details: String,
+    #[snafu(display("Error calculating the size of {} ({})", input_name.display(), source))]
+    UnableToCalculateSize {
         input_name: PathBuf,
+        source: std::io::Error,
     },
 
-    #[snafu(display("Can't convert filename to utf-8, : {}", input_name.display()))]
-    FileNameDecode { input_name: PathBuf },
+    #[snafu(display("Error creating decompressor for {} ({})", input_name.display(), source))]
+    UnableToCreateDecompressor {
+        input_name: PathBuf,
+        source: std::io::Error,
+    },
 
-    #[snafu(display("Can't read gzip data : {}", input_name.display()))]
+    #[snafu(display("Unknown input type: {} has an unknown input extension before .gz", input_name.display()))]
+    UnknownInputTypeGzip { input_name: PathBuf },
+
+    #[snafu(display("Unknown input type: {} has an unknown input extension", input_name.display()))]
+    UnknownInputType { input_name: PathBuf },
+
+    #[snafu(display("Can't read GZip data: {}", input_name.display()))]
     ReadingGzip {
         input_name: PathBuf,
         source: std::io::Error,

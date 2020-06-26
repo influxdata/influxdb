@@ -123,10 +123,7 @@ pub fn convert(input_filename: &str, output_name: &str) -> Result<()> {
             let len = input_reader.len() as usize;
             convert_tsm_to_parquet(input_reader, len, input_block_reader, output_name)
         }
-        FileType::Parquet => NotImplemented {
-            operation_name: "Parquet format conversion",
-        }
-        .fail(),
+        FileType::Parquet => ParquetNotImplemented.fail(),
     }
 }
 
@@ -226,8 +223,8 @@ pub enum Error {
     #[snafu(display("Error creating a parquet table writer {}", source))]
     UnableToCreateParquetTableWriter { source: ParquetWriterError },
 
-    #[snafu(display("Not implemented: {}", operation_name))]
-    NotImplemented { operation_name: String },
+    #[snafu(display("Conversion from Parquet format is not implemented"))]
+    ParquetNotImplemented,
 
     #[snafu(display("Error writing remaining lines {}", source))]
     UnableToWriteGoodLines { source: IngestError },
