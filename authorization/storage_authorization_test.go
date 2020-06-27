@@ -92,6 +92,7 @@ func TestAuth(t *testing.T) {
 					t.Fatalf("expected identical authorizations: \n%+v\n%+v", auths, expected)
 				}
 
+				// should not be able to create two authorizations with identical tokens
 				err = store.CreateAuthorization(context.Background(), tx, &influxdb.Authorization{
 					ID:     influxdb.ID(1),
 					Token:  fmt.Sprintf("randomtoken%d", 1),
