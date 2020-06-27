@@ -49,12 +49,11 @@ impl ObjectStore {
     where
         S: Stream<Item = std::io::Result<Bytes>> + Send + Sync + 'static,
     {
+        use ObjectStoreIntegration::*;
         match &self.0 {
-            ObjectStoreIntegration::AmazonS3(s3) => s3.put(location, bytes, length).await?,
-            ObjectStoreIntegration::GoogleCloudStorage(gcs) => {
-                gcs.put(location, bytes, length).await?
-            }
-            ObjectStoreIntegration::InMemory(in_mem) => in_mem.put(location, bytes, length).await?,
+            AmazonS3(s3) => s3.put(location, bytes, length).await?,
+            GoogleCloudStorage(gcs) => gcs.put(location, bytes, length).await?,
+            InMemory(in_mem) => in_mem.put(location, bytes, length).await?,
         }
 
         Ok(())
@@ -62,19 +61,21 @@ impl ObjectStore {
 
     /// Return the bytes that are stored at the specified location.
     pub async fn get(&self, location: &str) -> Result<impl Stream<Item = Result<Bytes>>> {
+        use ObjectStoreIntegration::*;
         Ok(match &self.0 {
-            ObjectStoreIntegration::AmazonS3(s3) => s3.get(location).await?.boxed(),
-            ObjectStoreIntegration::GoogleCloudStorage(gcs) => gcs.get(location).await?.boxed(),
-            ObjectStoreIntegration::InMemory(in_mem) => in_mem.get(location).await?.boxed(),
+            AmazonS3(s3) => s3.get(location).await?.boxed(),
+            GoogleCloudStorage(gcs) => gcs.get(location).await?.boxed(),
+            InMemory(in_mem) => in_mem.get(location).await?.boxed(),
         })
     }
 
     /// Delete the object at the specified location.
     pub async fn delete(&self, location: &str) -> Result<()> {
+        use ObjectStoreIntegration::*;
         match &self.0 {
-            ObjectStoreIntegration::AmazonS3(s3) => s3.delete(location).await?,
-            ObjectStoreIntegration::GoogleCloudStorage(gcs) => gcs.delete(location).await?,
-            ObjectStoreIntegration::InMemory(in_mem) => in_mem.delete(location).await?,
+            AmazonS3(s3) => s3.delete(location).await?,
+            GoogleCloudStorage(gcs) => gcs.delete(location).await?,
+            InMemory(in_mem) => in_mem.delete(location).await?,
         }
 
         Ok(())
@@ -85,14 +86,11 @@ impl ObjectStore {
         &'a self,
         prefix: Option<&'a str>,
     ) -> Result<impl Stream<Item = Result<Vec<String>>> + 'a> {
+        use ObjectStoreIntegration::*;
         Ok(match &self.0 {
-            ObjectStoreIntegration::AmazonS3(s3) => s3.list(prefix).await?.err_into().boxed(),
-            ObjectStoreIntegration::GoogleCloudStorage(gcs) => {
-                gcs.list(prefix).await?.err_into().boxed()
-            }
-            ObjectStoreIntegration::InMemory(in_mem) => {
-                in_mem.list(prefix).await?.err_into().boxed()
-            }
+            AmazonS3(s3) => s3.list(prefix).await?.err_into().boxed(),
+            GoogleCloudStorage(gcs) => gcs.list(prefix).await?.err_into().boxed(),
+            InMemory(in_mem) => in_mem.list(prefix).await?.err_into().boxed(),
         })
     }
 }
