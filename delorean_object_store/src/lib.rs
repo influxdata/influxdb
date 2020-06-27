@@ -20,9 +20,8 @@ use rusoto_core::ByteStream;
 use rusoto_credential::ChainProvider;
 use rusoto_s3::S3;
 use snafu::{ensure, futures::TryStreamExt as _, OptionExt, ResultExt, Snafu};
+use std::{collections::BTreeMap, fmt, io};
 use tokio::sync::RwLock;
-
-use std::{collections::BTreeMap, fmt};
 
 /// Universal interface to multiple object store services.
 #[derive(Debug)]
@@ -47,7 +46,7 @@ impl ObjectStore {
     /// Save the provided bytes to the specified location.
     pub async fn put<S>(&self, location: &str, bytes: S, length: usize) -> Result<()>
     where
-        S: Stream<Item = std::io::Result<Bytes>> + Send + Sync + 'static,
+        S: Stream<Item = io::Result<Bytes>> + Send + Sync + 'static,
     {
         use ObjectStoreIntegration::*;
         match &self.0 {
@@ -120,7 +119,7 @@ impl GoogleCloudStorage {
     /// Save the provided bytes to the specified location.
     async fn put<S>(&self, location: &str, bytes: S, length: usize) -> InternalResult<()>
     where
-        S: Stream<Item = std::io::Result<Bytes>> + Send + Sync + 'static,
+        S: Stream<Item = io::Result<Bytes>> + Send + Sync + 'static,
     {
         let temporary_non_streaming = bytes
             .map_ok(|b| bytes::BytesMut::from(&b[..]))
@@ -242,7 +241,7 @@ impl AmazonS3 {
     /// Save the provided bytes to the specified location.
     async fn put<S>(&self, location: &str, bytes: S, length: usize) -> InternalResult<()>
     where
-        S: Stream<Item = std::io::Result<Bytes>> + Send + Sync + 'static,
+        S: Stream<Item = io::Result<Bytes>> + Send + Sync + 'static,
     {
         let bytes = ByteStream::new_with_size(bytes, length);
 
@@ -355,7 +354,7 @@ impl InMemory {
     /// Save the provided bytes to the specified location.
     async fn put<S>(&self, location: &str, bytes: S, length: usize) -> InternalResult<()>
     where
-        S: Stream<Item = std::io::Result<Bytes>> + Send + Sync + 'static,
+        S: Stream<Item = io::Result<Bytes>> + Send + Sync + 'static,
     {
         let content = bytes
             .map_ok(|b| bytes::BytesMut::from(&b[..]))
