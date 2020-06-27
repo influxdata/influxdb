@@ -31,7 +31,7 @@ func TestAuth(t *testing.T) {
 	}
 
 	setupForUpdateTest := func(t *testing.T, store *authorization.Store, tx kv.Tx) {
-		err := store.CreateAuthorization(context.Background(), tx, &influxdb.Authorization{ //shud match with expecteddummyAuth
+		err := store.CreateAuthorization(context.Background(), tx, &influxdb.Authorization{
 			ID:     influxdb.ID(1),
 			Token:  fmt.Sprintf("randomtoken%d", 1),
 			Status: influxdb.Active,
@@ -76,7 +76,7 @@ func TestAuth(t *testing.T) {
 					t.Fatalf("expected 10 authorizations, got: %d", len(auths))
 				}
 
-				expected := []*influxdb.Authorization{} //dummy
+				expected := []*influxdb.Authorization{}
 				for i := 1; i <= 10; i++ {
 					expected = append(expected, &influxdb.Authorization{
 						ID:     influxdb.ID(i),
