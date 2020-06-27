@@ -36,8 +36,7 @@ func TestAuth(t *testing.T) {
 		err := store.CreateAuthorization(context.Background(), tx, &influxdb.Authorization{ //shud match with expecteddummyAuth
 			ID:     influxdb.ID(1),
 			Token:  fmt.Sprintf("randomtoken%d", 1),
-			Status: influxdb.Active,  //when updated should change to inactive
-			//Description: "Testing1",
+			Status: influxdb.Active,
 			OrgID:  influxdb.ID(1),
 			UserID: influxdb.ID(1),
 		})
@@ -59,10 +58,6 @@ func TestAuth(t *testing.T) {
 		}
 	}
 
-
-
-
-
 	tt := []struct {
 		name    string
 		setup   func(*testing.T, *authorization.Store, kv.Tx)
@@ -76,10 +71,10 @@ func TestAuth(t *testing.T) {
 			results: func(t *testing.T, store *authorization.Store, tx kv.Tx) {
 				auths, err := store.ListAuthorizations(context.Background(), tx, influxdb.AuthorizationFilter{})
 				if err != nil {
-					t.Fatal(err) //the setup created 10 auths. This is listing them out
+					t.Fatal(err)
 				}
 
-				if len(auths) != 10 { //making sure those auths are of count 10
+				if len(auths) != 10 {
 					t.Fatalf("expected 10 authorizations, got: %d", len(auths))
 				}
 
@@ -93,11 +88,10 @@ func TestAuth(t *testing.T) {
 						Status: "active",
 					})
 				}
-				if !reflect.DeepEqual(auths, expected) { //checking that setup and expected gave same stuff
+				if !reflect.DeepEqual(auths, expected) {
 					t.Fatalf("expected identical authorizations: \n%+v\n%+v", auths, expected)
 				}
 
-				// should not be able to create two authorizations with identical tokens
 				err = store.CreateAuthorization(context.Background(), tx, &influxdb.Authorization{
 					ID:     influxdb.ID(1),
 					Token:  fmt.Sprintf("randomtoken%d", 1),
@@ -113,29 +107,6 @@ func TestAuth(t *testing.T) {
 			name:  "read",
 			setup: setup,
 			results: func(t *testing.T, store *authorization.Store, tx kv.Tx) {
-				/*auths, err := store.ListAuthorizations(context.Background(), tx, influxdb.AuthorizationFilter{})
-				if err != nil {
-					t.Fatal(err)
-				}
-
-				if len(auths) != 10 {
-					t.Fatalf("expected 10 authorizations, got: %d", len(auths))
-				}
-
-				expected := []*influxdb.Authorization{}
-				for i := 1; i <= 10; i++ {
-					expected = append(expected, &influxdb.Authorization{
-						ID:     influxdb.ID(i),
-						Token:  fmt.Sprintf("randomtoken%d", i),
-						OrgID:  influxdb.ID(i),
-						UserID: influxdb.ID(i),
-						Status: "active",
-					})
-				}
-				if !reflect.DeepEqual(auths, expected) {
-					t.Fatalf("expected identical authorizations: \n%+v\n%+v", auths, expected)
-				}*/
-
 				expectedAuth := influxdb.Authorization{
 					ID:     influxdb.ID(1),
 					Token:  fmt.Sprintf("randomtoken%d", 1),
@@ -167,32 +138,6 @@ func TestAuth(t *testing.T) {
 			name:  "update",
 			setup: setupForUpdateTest,
 			results: func(t *testing.T, store *authorization.Store, tx kv.Tx) {
-				/*auths, err := store.ListAuthorizations(context.Background(), tx, influxdb.AuthorizationFilter{})
-				if err != nil {
-					t.Fatal(err)
-				}
-
-				if len(auths) != 10 {
-					t.Fatalf("expected 10 authorizations, got: %d", len(auths))
-				}
-
-				expected := []*influxdb.Authorization{}
-				for i := 1; i <= 10; i++ {
-					expected = append(expected, &influxdb.Authorization{
-						ID:     influxdb.ID(i),
-						Token:  fmt.Sprintf("randomtoken%d", i),
-						OrgID:  influxdb.ID(i),
-						UserID: influxdb.ID(i),
-						Status: "active",
-					})
-				}
-				if !reflect.DeepEqual(auths, expected) {
-					t.Fatalf("expected identical authorizations: \n%+v\n%+v", auths, expected)
-				} */
-
-				//Process: 1) setup: an auth is created, get, and then update. 2) Here in results, I get that auth and check if
-				//it's the same as what I expect it to be. I can mainly check by the 'status'
-
 				authFromSetupUpdated, err := store.GetAuthorizationByID(context.Background(), tx, influxdb.ID(1))
 
 				if err != nil {
@@ -206,8 +151,6 @@ func TestAuth(t *testing.T) {
 					UserID: influxdb.ID(1),
 					Status: influxdb.Inactive,
 				}
-
-				//Did not use reflect.DeepEqual() because can't be sure description will be the same ~
 
 				if expectedUpdatedAuth.Status != authFromSetupUpdated.Status {
 					t.Fatalf("Status did not update properly - Expected: %s , Got: %s", expectedUpdatedAuth.Status, authFromSetupUpdated.Status)
