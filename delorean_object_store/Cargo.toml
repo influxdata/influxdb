@@ -19,8 +19,11 @@ rusoto_s3 = "0.44.0"
 cloud-storage = { version = "0.4.0" }
 tokio = { version = "0.2", features = ["full"] }
 
+# Filesystem integration
+tokio-util = "0.3.1"
+
 [dev-dependencies]
-tokio = { version = "0.2", features = ["full"] }
+tempfile = "3.1.0"
 
 [build-dependencies]
 dotenv = "0.15.0"

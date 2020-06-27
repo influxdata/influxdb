@@ -20,8 +20,9 @@ use rusoto_core::ByteStream;
 use rusoto_credential::ChainProvider;
 use rusoto_s3::S3;
 use snafu::{ensure, futures::TryStreamExt as _, OptionExt, ResultExt, Snafu};
-use std::{collections::BTreeMap, fmt, io};
-use tokio::sync::RwLock;
+use std::{collections::BTreeMap, fmt, io, path::PathBuf};
+use tokio::{fs, sync::RwLock};
+use tokio_util::codec::{BytesCodec, FramedRead};
 
 /// Universal interface to multiple object store services.
 #[derive(Debug)]
@@ -43,6 +44,11 @@ impl ObjectStore {
         Self(ObjectStoreIntegration::InMemory(in_mem))
     }
 
+    /// Configure local file storage.
+    pub fn new_file(file: File) -> Self {
+        Self(ObjectStoreIntegration::File(file))
+    }
+
     /// Save the provided bytes to the specified location.
     pub async fn put<S>(&self, location: &str, bytes: S, length: usize) -> Result<()>
     where
@@ -53,6 +59,7 @@ impl ObjectStore {
             AmazonS3(s3) => s3.put(location, bytes, length).await?,
             GoogleCloudStorage(gcs) => gcs.put(location, bytes, length).await?,
             InMemory(in_mem) => in_mem.put(location, bytes, length).await?,
+            File(file) => file.put(location, bytes, length).await?,
         }
 
         Ok(())
@@ -65,6 +72,7 @@ impl ObjectStore {
             AmazonS3(s3) => s3.get(location).await?.boxed(),
             GoogleCloudStorage(gcs) => gcs.get(location).await?.boxed(),
             InMemory(in_mem) => in_mem.get(location).await?.boxed(),
+            File(file) => file.get(location).await?.boxed(),
         }
         .err_into())
     }
@@ -76,6 +84,7 @@ impl ObjectStore {
             AmazonS3(s3) => s3.delete(location).await?,
             GoogleCloudStorage(gcs) => gcs.delete(location).await?,
             InMemory(in_mem) => in_mem.delete(location).await?,
+            File(file) => file.delete(location).await?,
         }
 
         Ok(())
@@ -103,6 +112,7 @@ enum ObjectStoreIntegration {
     GoogleCloudStorage(GoogleCloudStorage),
     AmazonS3(AmazonS3),
     InMemory(InMemory),
+    File(File),
 }
 
 /// Configuration for connecting to [Google Cloud Storage](https://cloud.google.com/storage/).
@@ -431,6 +441,106 @@ impl InMemory {
     }
 }
 
+/// Local filesystem storage suitable for testing or for opting out of using a cloud storage provider.
+#[derive(Debug)]
+pub struct File {
+    root: PathBuf,
+}
+
+impl File {
+    /// Create new filesystem storage.
+    pub fn new(root: impl Into<PathBuf>) -> Self {
+        Self { root: root.into() }
+    }
+
+    fn path(&self, location: &str) -> PathBuf {
+        self.root.join(location)
+    }
+
+    /// Save the provided bytes to the specified location.
+    async fn put<S>(&self, location: &str, bytes: S, length: usize) -> InternalResult<()>
+    where
+        S: Stream<Item = io::Result<Bytes>> + Send + Sync + 'static,
+    {
+        let content = bytes
+            .map_ok(|b| bytes::BytesMut::from(&b[..]))
+            .try_concat()
+            .await
+            .context(UnableToPutDataInMemory)?;
+
+        ensure!(
+            content.len() == length,
+            DataDoesNotMatchLength {
+                actual: content.len(),
+                expected: length,
+            }
+        );
+
+        let path = self.path(location);
+        let mut file = fs::File::create(&path)
+            .await
+            .context(UnableToCreateFile { path })?;
+        tokio::io::copy(&mut &content[..], &mut file)
+            .await
+            .context(UnableToCopyDataToFile)?;
+
+        Ok(())
+    }
+
+    /// Return the bytes that are stored at the specified location.
+    async fn get(
+        &self,
+        location: &str,
+    ) -> InternalResult<impl Stream<Item = InternalResult<Bytes>>> {
+        let path = self.path(location);
+
+        let file = fs::File::open(&path)
+            .await
+            .context(UnableToOpenFile { path: &path })?;
+
+        let s = FramedRead::new(file, BytesCodec::new())
+            .map_ok(|b| b.freeze())
+            .context(UnableToReadBytes { path });
+        Ok(s)
+    }
+
+    /// Delete the object at the specified location.
+    async fn delete(&self, location: &str) -> InternalResult<()> {
+        let path = self.path(location);
+        fs::remove_file(&path)
+            .await
+            .context(UnableToDeleteFile { path })?;
+        Ok(())
+    }
+
+    /// List all the objects with the given prefix.
+    async fn list<'a>(
+        &'a self,
+        prefix: Option<&'a str>,
+    ) -> InternalResult<impl Stream<Item = InternalResult<Vec<String>>> + 'a> {
+        let dirs = fs::read_dir(&self.root)
+            .await
+            .context(UnableToListDirectory { path: &self.root })?;
+
+        let s = dirs
+            .context(UnableToProcessEntry)
+            .and_then(|entry| {
+                let name = entry
+                    .file_name()
+                    .into_string()
+                    .ok()
+                    .context(UnableToGetFileName);
+                async move { name }
+            })
+            .try_filter(move |name| {
+                let matches = prefix.map_or(true, |p| name.starts_with(p));
+                async move { matches }
+            })
+            .map_ok(|name| vec![name]);
+        Ok(s)
+    }
+}
+
 /// A specialized `Result` for object store-related errors
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 type InternalResult<T, E = InternalError> = std::result::Result<T, E>;
@@ -522,6 +632,42 @@ enum InternalError {
         source: std::io::Error,
     },
     NoDataInMemory,
+
+    #[snafu(display("Unable to create file {}: {}", path.display(), source))]
+    UnableToCreateFile {
+        source: io::Error,
+        path: PathBuf,
+    },
+    #[snafu(display("Unable to open file {}: {}", path.display(), source))]
+    UnableToOpenFile {
+        source: io::Error,
+        path: PathBuf,
+    },
+    #[snafu(display("Unable to read data from file {}: {}", path.display(), source))]
+    UnableToReadBytes {
+        source: io::Error,
+        path: PathBuf,
+    },
+    #[snafu(display("Unable to delete file {}: {}", path.display(), source))]
+    UnableToDeleteFile {
+        source: io::Error,
+        path: PathBuf,
+    },
+    #[snafu(display("Unable to list directory {}: {}", path.display(), source))]
+    UnableToListDirectory {
+        source: io::Error,
+        path: PathBuf,
+    },
+    #[snafu(display("Unable to process directory entry: {}", source))]
+    UnableToProcessEntry {
+        source: io::Error,
+    },
+    #[snafu(display("Unable to copy data to file: {}", source))]
+    UnableToCopyDataToFile {
+        source: io::Error,
+    },
+    #[snafu(display("Unable to retrieve filename"))]
+    UnableToGetFileName,
 }
 
 #[cfg(test)]
@@ -683,6 +829,40 @@ mod tests {
         #[tokio::test]
         async fn length_mismatch_is_an_error() -> Result<()> {
             let integration = ObjectStore::new_in_memory(InMemory::new());
+
+            let bytes = stream::once(async { Ok(Bytes::from("hello world")) });
+            let res = integration.put("junk", bytes, 0).await;
+
+            assert_error!(
+                res,
+                InternalError::DataDoesNotMatchLength {
+                    expected: 0,
+                    actual: 11,
+                },
+            );
+
+            Ok(())
+        }
+    }
+
+    mod file {
+        use tempfile::TempDir;
+
+        use super::*;
+
+        #[tokio::test]
+        async fn file_test() -> Result<()> {
+            let root = TempDir::new()?;
+            let integration = ObjectStore::new_file(File::new(root.path()));
+
+            put_get_delete_list(&integration).await?;
+            Ok(())
+        }
+
+        #[tokio::test]
+        async fn length_mismatch_is_an_error() -> Result<()> {
+            let root = TempDir::new()?;
+            let integration = ObjectStore::new_file(File::new(root.path()));
 
             let bytes = stream::once(async { Ok(Bytes::from("hello world")) });
             let res = integration.put("junk", bytes, 0).await;
