@@ -65,7 +65,8 @@ impl ObjectStore {
             AmazonS3(s3) => s3.get(location).await?.boxed(),
             GoogleCloudStorage(gcs) => gcs.get(location).await?.boxed(),
             InMemory(in_mem) => in_mem.get(location).await?.boxed(),
-        })
+        }
+        .err_into())
     }
 
     /// Delete the object at the specified location.
@@ -87,10 +88,12 @@ impl ObjectStore {
     ) -> Result<impl Stream<Item = Result<Vec<String>>> + 'a> {
         use ObjectStoreIntegration::*;
         Ok(match &self.0 {
-            AmazonS3(s3) => s3.list(prefix).await?.err_into().boxed(),
-            GoogleCloudStorage(gcs) => gcs.list(prefix).await?.err_into().boxed(),
-            InMemory(in_mem) => in_mem.list(prefix).await?.err_into().boxed(),
-        })
+            AmazonS3(s3) => s3.list(prefix).await?.boxed(),
+            GoogleCloudStorage(gcs) => gcs.list(prefix).await?.boxed(),
+            InMemory(in_mem) => in_mem.list(prefix).await?.boxed(),
+            File(file) => file.list(prefix).await?.boxed(),
+        }
+        .err_into())
     }
 }
 
@@ -153,7 +156,10 @@ impl GoogleCloudStorage {
         Ok(())
     }
 
-    async fn get(&self, location: &str) -> InternalResult<impl Stream<Item = Result<Bytes>>> {
+    async fn get(
+        &self,
+        location: &str,
+    ) -> InternalResult<impl Stream<Item = InternalResult<Bytes>>> {
         let location = location.to_string();
         let bucket_name = self.bucket_name.clone();
 
@@ -257,7 +263,10 @@ impl AmazonS3 {
     }
 
     /// Return the bytes that are stored at the specified location.
-    async fn get(&self, location: &str) -> InternalResult<impl Stream<Item = Result<Bytes>>> {
+    async fn get(
+        &self,
+        location: &str,
+    ) -> InternalResult<impl Stream<Item = InternalResult<Bytes>>> {
         let get_request = rusoto_s3::GetObjectRequest {
             bucket: self.bucket_name.clone(),
             key: location.to_string(),
@@ -380,7 +389,10 @@ impl InMemory {
     }
 
     /// Return the bytes that are stored at the specified location.
-    async fn get(&self, location: &str) -> InternalResult<impl Stream<Item = Result<Bytes>>> {
+    async fn get(
+        &self,
+        location: &str,
+    ) -> InternalResult<impl Stream<Item = InternalResult<Bytes>>> {
         let data = self
             .storage
             .read()
