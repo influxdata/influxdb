@@ -120,7 +120,7 @@ describe('Collectors', () => {
         cy.get('[data-testid="resource-list--body"]', {timeout: PAGE_LOAD_SLA})
       })
 
-      it('can update configuration name and delete a configuration', () => {
+      it('can update configuration name', () => {
         const newConfigName = 'This is new name'
 
         cy.getByTestID('collector-card--name')
@@ -135,14 +135,6 @@ describe('Collectors', () => {
         cy.getByTestID('collector-card--name').should('contain', newConfigName)
 
         cy.getByTestID('resource-card').should('have.length', 1)
-
-        cy.getByTestID('context-menu')
-          .last()
-          .click()
-        cy.getByTestID('context-menu-item')
-          .last()
-          .click()
-        cy.getByTestID('empty-state').should('exist')
       })
 
       it('can view setup instructions for a config', () => {
@@ -157,6 +149,26 @@ describe('Collectors', () => {
           .click()
 
         cy.getByTestID('setup-instructions').should('not.exist')
+      })
+
+      it('can delete a label from config', () => {
+        cy.getByTestID('resource-card').should('have.length', 1)
+
+        cy.getByTestID('inline-labels--add').click()
+        cy.getByTestID('inline-labels--popover-field').type('zoe')
+        cy.getByTestID('inline-labels--create-new').click()
+        cy.getByTestID('overlay--container').should('exist')
+        cy.getByTestID('create-label-form--submit').click()
+        cy.getByTestID('label--pill zoe').should('exist')
+        cy.getByTestID('label--pill--delete zoe').click({force: true})
+        cy.getByTestID('label--pill zoe').should('not.exist')
+      })
+
+      it('can delete a config', () => {
+        cy.getByTestID('resource-card').should('have.length', 1)
+        cy.getByTestID('telegraf-delete-menu').click({force: true})
+        cy.getByTestID('telegraf-delete-button').click()
+        cy.getByTestID('empty-state').should('exist')
       })
     })
 
@@ -396,7 +408,7 @@ describe('Collectors', () => {
         cy.getByTestID('overlay--container').should('exist')
         cy.getByTestID('create-label-form--submit').click()
         cy.getByTestID('label--pill zoe').should('exist')
-        //can search by label
+        // search by label
         cy.getByTestID('search-widget')
           .should('be.visible')
           .clear()
@@ -405,8 +417,6 @@ describe('Collectors', () => {
         cy.getByTestID('resource-card').should('have.length', 1)
         cy.getByTestID('resource-card').should('contain', 'newteleg')
       })
-
-      it('can search by label', () => {})
     })
   })
 })

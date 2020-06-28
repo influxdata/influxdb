@@ -86,8 +86,16 @@ class CollectorRow extends PureComponent<Props & WithRouterProps> {
   private get contextMenu(): JSX.Element {
     return (
       <Context>
-        <Context.Menu icon={IconFont.Trash} color={ComponentColor.Danger}>
-          <Context.Item label="Delete" action={this.handleDeleteConfig} />
+        <Context.Menu
+          testID="telegraf-delete-menu"
+          icon={IconFont.Trash}
+          color={ComponentColor.Danger}
+        >
+          <Context.Item
+            testID="telegraf-delete-button"
+            label="Delete"
+            action={this.handleDeleteConfig}
+          />
         </Context.Menu>
       </Context>
     )
