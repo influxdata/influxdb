@@ -1019,10 +1019,10 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		pkgSVC = pkger.MWAuth(authAgent)(pkgSVC)
 	}
 
-	var pkgHTTPServer *pkger.HTTPServer
+	var pkgHTTPServer *pkger.HTTPServerPackages
 	{
 		pkgServerLogger := m.log.With(zap.String("handler", "pkger"))
-		pkgHTTPServer = pkger.NewHTTPServer(pkgServerLogger, pkgSVC)
+		pkgHTTPServer = pkger.NewHTTPServerPackages(pkgServerLogger, pkgSVC)
 	}
 
 	var userHTTPServer *tenant.UserHandler
