@@ -170,6 +170,20 @@ export const checkResultsLength = (giraffeResult: FromFluxResult): boolean => {
   return get(giraffeResult, 'table.length', 0) > 0
 }
 
+export const getNumericColumns = (table: Table): string[] => {
+  const timeColumns = table.columnKeys.filter(k => {
+    if (k === 'result' || k === 'table') {
+      return false
+    }
+
+    const columnType = table.getColumnType(k)
+
+    return columnType === 'time' || columnType === 'number'
+  })
+
+  return timeColumns
+}
+
 export const getTimeColumns = (table: Table): string[] => {
   const timeColumns = table.columnKeys.filter(k => {
     if (k === 'result' || k === 'table') {
