@@ -23,7 +23,7 @@ func (e CsvLineError) Error() string {
 	return fmt.Sprintf("%v", e.Err)
 }
 
-// CreateRowColumnError creates adds row number and column name to the error supplied
+// CreateRowColumnError wraps an existing error to add line and column coordinates
 func CreateRowColumnError(line int, columnLabel string, err error) CsvLineError {
 	return CsvLineError{
 		Line: line,
