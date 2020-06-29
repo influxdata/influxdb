@@ -147,6 +147,13 @@
   contact: Query Team
   lifetime: temporary
 
+- name: Memory Optimized Schema Mutation
+  description: Enable the memory optimized schema mutation functions
+  key: memoryOptimizedSchemaMutation
+  default: false
+  contact: Query Team
+  lifetime: temporary
+
 - name: Urm Free Tasks
   description: allow task system to operate without creating additional urms
   key: urmFreeTasks
