@@ -8,6 +8,7 @@ import (
 	nethttp "net/http"
 	"net/http/httptest"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -2224,7 +2225,7 @@ func TestLauncher_Pkger(t *testing.T) {
 		}
 	}
 
-	t.Run("dry run a package with no existing resources", func(t *testing.T) {
+	t.Run("dry run a template with no existing resources", func(t *testing.T) {
 		impact, err := svc.DryRun(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithPkg(newCompletePkg(t)))
 		require.NoError(t, err)
 
@@ -2309,7 +2310,7 @@ func TestLauncher_Pkger(t *testing.T) {
 		}, varArgs.Values)
 	})
 
-	t.Run("dry run package with env ref", func(t *testing.T) {
+	t.Run("dry run template with env ref", func(t *testing.T) {
 		pkgStr := fmt.Sprintf(`
 apiVersion: %[1]s
 kind: Label
@@ -2616,7 +2617,7 @@ spec:
 		}
 	})
 
-	t.Run("apply a package of all new resources", func(t *testing.T) {
+	t.Run("apply a template of all new resources", func(t *testing.T) {
 		// this initial test is also setup for the sub tests
 		impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithPkg(newCompletePkg(t)))
 		require.NoError(t, err)
@@ -3194,7 +3195,7 @@ spec:
 		})
 	})
 
-	t.Run("apply a task pkg with a complex query", func(t *testing.T) {
+	t.Run("apply a task template with a complex query", func(t *testing.T) {
 		// validates bug: https://github.com/influxdata/influxdb/issues/17069
 
 		pkgStr := fmt.Sprintf(`
@@ -3248,6 +3249,27 @@ spec:
 		assert.NotZero(t, impact.StackID)
 
 		require.Len(t, impact.Summary.Tasks, 1)
+	})
+
+	t.Run("applying a template with an invalid template returns parser errors", func(t *testing.T) {
+		stack, cleanup := newStackFn(t, pkger.Stack{})
+		defer cleanup()
+
+		template := newTemplate(newTelegrafObject("with_underscore-is-bad", "", ""))
+
+		_, err := svc.Apply(ctx, l.Org.ID, l.User.ID,
+			pkger.ApplyWithPkg(template),
+			pkger.ApplyWithStackID(stack.ID),
+		)
+		require.Error(t, err)
+		require.True(t, pkger.IsParseErr(err))
+
+		vErrs := err.(pkger.ParseError).ValidationErrs()
+		require.Len(t, vErrs, 1)
+
+		// this check is to make sure we aren't creating duplicate error messages like
+		// was witnessed from CLI recently.
+		require.Equal(t, 1, strings.Count(err.Error(), "DNS-1123"))
 	})
 
 	t.Run("applying a pkg without a stack will have a stack created for it", func(t *testing.T) {

@@ -1849,8 +1849,16 @@ type (
 
 // Error implements the error interface.
 func (e *parseErr) Error() string {
-	var errMsg []string
+	var (
+		errMsg   []string
+		seenErrs = make(map[string]bool)
+	)
 	for _, ve := range append(e.ValidationErrs(), e.rawErrs...) {
+		msg := ve.Error()
+		if seenErrs[msg] {
+			continue
+		}
+		seenErrs[msg] = true
 		errMsg = append(errMsg, ve.Error())
 	}
 
