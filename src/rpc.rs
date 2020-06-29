@@ -4,6 +4,8 @@
 // warning about complex types
 #![allow(clippy::type_complexity)]
 
+use tracing::error;
+
 use delorean::generated_types::{
     delorean_server::Delorean,
     measurement_fields_response::MessageField,
@@ -299,10 +301,12 @@ impl Storage for GrpcServer {
                 .get_tag_keys(org_id, bucket_id, predicate.as_ref(), range.as_ref())
                 .await
             {
-                Err(_) => tx
-                    .send(Err(Status::internal("could not query for tag keys")))
-                    .await
-                    .unwrap(),
+                Err(e) => {
+                    error!("Error retrieving tag keys: {:?}", e);
+                    tx.send(Err(Status::internal("could not query for tag keys")))
+                        .await
+                        .unwrap()
+                }
                 Ok(tag_keys) => {
                     // TODO: Should these be batched? If so, how?
                     let tag_keys: Vec<_> = tag_keys
@@ -376,14 +380,18 @@ impl Storage for GrpcServer {
         Ok(tonic::Response::new(rx))
     }
 
-    // Something in instrument is causing lint warnings about unused braces
-    #[allow(unused_braces)]
     #[tracing::instrument(level = "debug")]
     async fn capabilities(
         &self,
         req: tonic::Request<()>,
     ) -> Result<tonic::Response<CapabilitiesResponse>, Status> {
-        Err(Status::unimplemented("Not yet implemented"))
+        // Full list of go capabilities in idpe/storage/read/capabilities.go (aka window aggregate / pushdown)
+        //
+        // For now, do not claim to support any capabilities
+        let caps = CapabilitiesResponse {
+            caps: std::collections::HashMap::new(),
+        };
+        Ok(tonic::Response::new(caps))
     }
 
     type MeasurementNamesStream = mpsc::Receiver<Result<StringValuesResponse, Status>>;
