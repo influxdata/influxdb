@@ -69,7 +69,9 @@ Examples:
                     Arg::with_name("compression_level")
                         .short("c")
                         .long("compression-level")
-                        .help("Compression level: max or compatibility (default).")
+                        .help("How much to compress the output data. 'max' compresses the most; 'compatibility' compresses in a manner more likely to be readable by other tools.")
+                        .takes_value(true)
+                        .possible_values(&["max", "compatibility"])
                         .default_value("compatibility"),
                 ),
         )
