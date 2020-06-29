@@ -83,16 +83,16 @@ func escapeString(val string) string {
 	return val
 }
 
-// normalizeNumberString normalizes the supplied value according to DataForm of the supplied column.
+// normalizeNumberString normalizes the supplied value according to the supplied format.
 // This normalization is intended to convert number strings of different locales to a strconv-parseable value.
 //
 // The format's first character is a fraction delimiter character.  Next characters in the format
 // are simply removed, they are typically used to visually separate groups in large numbers.
 // The removeFraction parameter controls whether the returned value can contain also the fraction part.
+// An empty format means ". \n\t\r_"
 //
 // For example, to get a strconv-parseable float from a Spanish value '3.494.826.157,123', use format ",." .
-func normalizeNumberString(value string, column *CsvTableColumn, removeFraction bool, lineNumber int) string {
-	format := column.DataFormat
+func normalizeNumberString(value string, format string, removeFraction bool) (normalized string, truncated bool) {
 	if format == "" {
 		format = ". \n\t\r_"
 	}
@@ -112,11 +112,7 @@ func normalizeNumberString(value string, column *CsvTableColumn, removeFraction 
 			}
 			if c == fractionRune {
 				if removeFraction {
-					// warn about lost precision
-					truncatedValue := retVal.String()
-					warning := fmt.Errorf("'%s' truncated to '%s' to fit into '%s' data type", value, truncatedValue, column.DataType)
-					log.Printf("WARNING: %v\n", CreateRowColumnError(lineNumber, column.Label, warning))
-					return truncatedValue
+					return retVal.String(), true
 				}
 				retVal.WriteByte('.')
 				continue
@@ -124,16 +120,16 @@ func normalizeNumberString(value string, column *CsvTableColumn, removeFraction 
 			retVal.WriteRune(c)
 		}
 
-		return retVal.String()
+		return retVal.String(), false
 	}
-	return value
+	return value, false
 }
 
 func toTypedValue(val string, column *CsvTableColumn, lineNumber int) (interface{}, error) {
 	dataType := column.DataType
 	dataFormat := column.DataFormat
 	if column.ParseF != nil {
-		return column.ParseF(val, lineNumber)
+		return column.ParseF(val)
 	}
 	switch dataType {
 	case stringDatatype:
@@ -165,7 +161,8 @@ func toTypedValue(val string, column *CsvTableColumn, lineNumber int) (interface
 	case durationDatatype:
 		return time.ParseDuration(val)
 	case doubleDatatype:
-		return strconv.ParseFloat(normalizeNumberString(val, column, false, lineNumber), 64)
+		normalized, _ := normalizeNumberString(val, dataFormat, false)
+		return strconv.ParseFloat(normalized, 64)
 	case boolDatatype:
 		switch {
 		case len(val) == 0:
@@ -178,9 +175,21 @@ func toTypedValue(val string, column *CsvTableColumn, lineNumber int) (interface
 			return nil, errors.New("Unsupported boolean value '" + val + "' , first character is expected to be 't','f','0','1','y','n'")
 		}
 	case longDatatype:
-		return strconv.ParseInt(normalizeNumberString(val, column, true, lineNumber), 10, 64)
+		normalized, truncated := normalizeNumberString(val, dataFormat, true)
+		if truncated {
+			error := CreateRowColumnError(lineNumber, column.Label,
+				fmt.Errorf("'%s' truncated to '%s' to fit into long data type", val, normalized))
+			log.Printf("WARNING: %v\n", error)
+		}
+		return strconv.ParseInt(normalized, 10, 64)
 	case uLongDatatype:
-		return strconv.ParseUint(normalizeNumberString(val, column, true, lineNumber), 10, 64)
+		normalized, truncated := normalizeNumberString(val, dataFormat, true)
+		if truncated {
+			error := CreateRowColumnError(lineNumber, column.Label,
+				fmt.Errorf("'%s' truncated to '%s' to fit into unsignedLong data type", val, normalized))
+			log.Printf("WARNING: %v\n", error)
+		}
+		return strconv.ParseUint(normalized, 10, 64)
 	case base64BinaryDataType:
 		return base64.StdEncoding.DecodeString(val)
 	default:
@@ -267,7 +276,7 @@ func CreateDecoder(encoding string) (func(io.Reader) io.Reader, error) {
 }
 
 // createBoolParseFn returns a function that converts a string value to boolean according to format "true,yes,1:false,no,0"
-func createBoolParseFn(format string) func(string, int) (interface{}, error) {
+func createBoolParseFn(format string) func(string) (interface{}, error) {
 	var err error = nil
 	truthy := []string{}
 	falsy := []string{}
@@ -284,7 +293,7 @@ func createBoolParseFn(format string) func(string, int) (interface{}, error) {
 			falsy = strings.Split(f, ",")
 		}
 	}
-	return func(val string, _lineNumber int) (interface{}, error) {
+	return func(val string) (interface{}, error) {
 		if err != nil {
 			return nil, err
 		}
@@ -306,5 +315,27 @@ func createBoolParseFn(format string) func(string, int) (interface{}, error) {
 		}
 
 		return nil, fmt.Errorf("unsupported boolean value: %s must one of %v or one of %v", val, truthy, falsy)
+	}
+}
+
+// createStrictLongParseFn returns a function that converts a string value to long and fails also when a fraction digit is detected
+func createStrictLongParseFn(dataFormat string) func(string) (interface{}, error) {
+	return func(val string) (interface{}, error) {
+		normalized, truncated := normalizeNumberString(val, dataFormat, true)
+		if truncated {
+			return 0, fmt.Errorf("'%s' cannot fit into long data type", val)
+		}
+		return strconv.ParseInt(normalized, 10, 64)
+	}
+}
+
+// createStrictUnsignedLongParseFn returns a function that converts a string value to unsigned long and fails when a fraction digit is detected
+func createStrictUnsignedLongParseFn(dataFormat string) func(string) (interface{}, error) {
+	return func(val string) (interface{}, error) {
+		normalized, truncated := normalizeNumberString(val, dataFormat, true)
+		if truncated {
+			return 0, fmt.Errorf("'%s' cannot fit into unsignedLong data type", val)
+		}
+		return strconv.ParseUint(normalized, 10, 64)
 	}
 }

@@ -247,14 +247,14 @@ func Test_NormalizeNumberString(t *testing.T) {
 		format         string
 		removeFraction bool
 		expect         string
-		warning        string
+		truncated      bool
 	}{
-		{"123", "", true, "123", ""},
-		{"123", ".", true, "123", ""},
-		{"123.456", ".", true, "123", "::PREFIX::WARNING: line 1: column 'test': '123.456' truncated to '123' to fit into 'tst' data type\n"},
-		{"123.456", ".", false, "123.456", ""},
-		{"1 2.3,456", ",. ", false, "123.456", ""},
-		{" 1 2\t3.456 \r\n", "", false, "123.456", ""},
+		{"123", "", true, "123", false},
+		{"123", ".", true, "123", false},
+		{"123.456", ".", true, "123", true},
+		{"123.456", ".", false, "123.456", false},
+		{"1 2.3,456", ",. ", false, "123.456", false},
+		{" 1 2\t3.456 \r\n", "", false, "123.456", false},
 	}
 
 	for i, test := range tests {
@@ -272,11 +272,9 @@ func Test_NormalizeNumberString(t *testing.T) {
 				log.SetFlags(oldFlags)
 				log.SetPrefix(oldPrefix)
 			}()
-
-			require.Equal(t, test.expect,
-				normalizeNumberString(test.value,
-					&CsvTableColumn{Label: "test", DataType: "tst", DataFormat: test.format}, test.removeFraction, 1))
-			require.Equal(t, test.warning, buf.String())
+			normalized, truncated := normalizeNumberString(test.value, test.format, test.removeFraction)
+			require.Equal(t, test.expect, normalized)
+			require.Equal(t, test.truncated, truncated)
 		})
 	}
 }
@@ -336,7 +334,7 @@ func Test_CreateBoolParseFn(t *testing.T) {
 		fn := createBoolParseFn(test.format)
 		for j, pair := range test.pair {
 			t.Run(fmt.Sprint(i)+"_"+fmt.Sprint(j), func(t *testing.T) {
-				result, err := fn(pair.value, 1)
+				result, err := fn(pair.value)
 				switch pair.expect {
 				case "true":
 					require.Equal(t, true, result)

@@ -46,7 +46,7 @@ type CsvTableColumn struct {
 	// TimeZone of dateTime column, applied when parsing dateTime DataType
 	TimeZone *time.Location
 	// ParseF is an optional function used to convert column's string value to interface{}
-	ParseF func(value string, lineNumber int) (interface{}, error)
+	ParseF func(value string) (interface{}, error)
 
 	// escapedLabel contains escaped label that can be directly used in line protocol
 	escapedLabel string
@@ -126,9 +126,18 @@ func (c *CsvTableColumn) setupDataType(columnValue string) {
 	// setup column data type
 	c.DataType = columnValue
 
-	// setup custom parsing of bool data type
+	// setup custom parsing
 	if c.DataType == boolDatatype && c.DataFormat != "" {
 		c.ParseF = createBoolParseFn(c.DataFormat)
+		return
+	}
+	if c.DataType == longDatatype && strings.HasPrefix(c.DataFormat, "strict") {
+		c.ParseF = createStrictLongParseFn(c.DataFormat[6:])
+		return
+	}
+	if c.DataType == uLongDatatype && strings.HasPrefix(c.DataFormat, "strict") {
+		c.ParseF = createStrictUnsignedLongParseFn(c.DataFormat[6:])
+		return
 	}
 }
 

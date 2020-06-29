@@ -338,40 +338,56 @@ func Test_DataTypeInColumnName(t *testing.T) {
 		csv                        string
 		line                       string
 		ignoreDataTypeInColumnName bool
+		error                      string
 	}{
 		{
-			"m|measurement,b|boolean:x:,c|boolean:x:|x\n" +
+			csv: "m|measurement,b|boolean:x:,c|boolean:x:|x\n" +
 				"cpu,,",
-			`cpu c=true`,
-			false,
+			line: `cpu c=true`,
 		},
 		{
-			"m|measurement,a|boolean,b|boolean:0:1,c|boolean:x:,d|boolean:x:\n" +
+			csv: "m|measurement,a|boolean,b|boolean:0:1,c|boolean:x:,d|boolean:x:\n" +
 				"cpu,1,1,x,y",
-			`cpu a=true,b=false,c=true,d=false`,
-			false,
+			line: `cpu a=true,b=false,c=true,d=false`,
 		},
 		{
-			"#constant measurement,cpu\n" +
+			csv: "#constant measurement,cpu\n" +
 				"a|long,b|string\n" +
 				"1,1",
-			`cpu a=1i,b="1"`,
-			false,
+			line: `cpu a=1i,b="1"`,
 		},
 		{
-			"#constant measurement,cpu\n" +
+			csv: "#constant measurement,cpu\n" +
 				"a|long,b|string\n" +
 				"1,1",
-			`cpu a|long=1,b|string=1`,
-			true,
+			line:                       `cpu a|long=1,b|string=1`,
+			ignoreDataTypeInColumnName: true,
 		},
 		{
-			"#constant measurement,cpu\n" +
+			csv: "#constant measurement,cpu\n" +
 				"#datatype long,string\n" +
 				"a|long,b|string\n" +
 				"1,1",
-			`cpu a|long=1i,b|string="1"`,
-			true,
+			line:                       `cpu a|long=1i,b|string="1"`,
+			ignoreDataTypeInColumnName: true,
+		},
+		{
+			csv: "#constant measurement,cpu\n" +
+				"a|long:strict: ,b|unsignedLong:strict: \n" +
+				"1 2,1 2",
+			line: `cpu a=12i,b=12u`,
+		},
+		{
+			csv: "#constant measurement,cpu\n" +
+				"a|long:strict\n" +
+				"1.1,1",
+			error: "column 'a': '1.1' cannot fit into long data type",
+		},
+		{
+			csv: "#constant measurement,cpu\n" +
+				"a|unsignedLong:strict\n" +
+				"1.1,1",
+			error: "column 'a': '1.1' cannot fit into unsignedLong data type",
 		},
 	}
 
@@ -385,8 +401,12 @@ func Test_DataTypeInColumnName(t *testing.T) {
 				rowProcessed := table.AddRow(row)
 				if rowProcessed {
 					line, err := table.CreateLine(row)
-					if err != nil && test.line != "" {
-						require.Nil(t, err.Error())
+					if err != nil {
+						if test.error == "" {
+							require.Nil(t, err.Error())
+						} else {
+							require.Equal(t, test.error, err.Error())
+						}
 					}
 					lines = append(lines, line)
 				}
