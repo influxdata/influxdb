@@ -17,7 +17,7 @@ export interface NotebookContextType {
   pipes: PipeData[]
   meta: PipeMeta[] // data only used for the view layer for Notebooks
   results: BothResults[]
-  addPipe: (pipe: PipeData) => void
+  addPipe: (pipe: PipeData, insertAtIndex?: number) => void
   updatePipe: (idx: number, pipe: PipeData) => void
   updateMeta: (idx: number, pipe: PipeMeta) => void
   updateResult: (idx: number, result: BothResults) => void
@@ -84,11 +84,20 @@ export const NotebookProvider: FC = ({children}) => {
   const _setResults = useCallback(setResults, [id])
 
   const addPipe = useCallback(
-    (pipe: PipeData) => {
-      const add = data => {
+    (pipe: PipeData, insertAtIndex?: number) => {
+      let add = data => {
         return pipes => {
           pipes.push(data)
           return pipes.slice()
+        }
+      }
+
+      if (insertAtIndex !== undefined) {
+        add = data => {
+          return pipes => {
+            pipes.splice(insertAtIndex + 1, 0, data)
+            return pipes.slice()
+          }
         }
       }
 
@@ -123,9 +132,6 @@ export const NotebookProvider: FC = ({children}) => {
             queries: [
               {
                 ...pipe.queries[0],
-                text:
-                  pipe.queries[0].text +
-                  '\n\n// tip: use the __PREVIOUS_RESULT__ variable to use results from the previous cell',
               },
             ],
           }

@@ -11,7 +11,13 @@ import {PIPE_DEFINITIONS} from 'src/notebooks'
 import {event} from 'src/notebooks/shared/event'
 import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 
-const AddButtons: FC = () => {
+interface Props {
+  index?: number
+  onInsert?: () => void
+  eventName: string
+}
+
+const AddButtons: FC<Props> = ({index, onInsert, eventName}) => {
   const {addPipe} = useContext(NotebookContext)
 
   const pipes = Object.entries(PIPE_DEFINITIONS)
@@ -40,14 +46,19 @@ const AddButtons: FC = () => {
               data = data()
             }
 
-            event('Notebook Add Button Clicked', {
+            onInsert && onInsert()
+
+            event(eventName, {
               type: def.type,
             })
 
-            addPipe({
-              ...data,
-              type,
-            })
+            addPipe(
+              {
+                ...data,
+                type,
+              },
+              index
+            )
           }}
           color={ComponentColor.Secondary}
         />
