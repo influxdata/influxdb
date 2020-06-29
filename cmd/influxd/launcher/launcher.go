@@ -1019,10 +1019,22 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		pkgSVC = pkger.MWAuth(authAgent)(pkgSVC)
 	}
 
-	var pkgHTTPServer *pkger.HTTPServerPackages
+	var pkgHTTPServerDeprecated *pkger.HTTPServerPackages
 	{
 		pkgServerLogger := m.log.With(zap.String("handler", "pkger"))
-		pkgHTTPServer = pkger.NewHTTPServerPackages(pkgServerLogger, pkgSVC)
+		pkgHTTPServerDeprecated = pkger.NewHTTPServerPackages(pkgServerLogger, pkgSVC)
+	}
+
+	var stacksHTTPServer *pkger.HTTPServerStacks
+	{
+		tLogger := m.log.With(zap.String("handler", "stacks"))
+		stacksHTTPServer = pkger.NewHTTPServerStacks(tLogger, pkgSVC)
+	}
+
+	var templatesHTTPServer *pkger.HTTPServerTemplates
+	{
+		tLogger := m.log.With(zap.String("handler", "templates"))
+		templatesHTTPServer = pkger.NewHTTPServerTemplates(tLogger, pkgSVC)
 	}
 
 	var userHTTPServer *tenant.UserHandler
@@ -1093,7 +1105,9 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 
 	{
 		platformHandler := http.NewPlatformHandler(m.apibackend,
-			http.WithResourceHandler(pkgHTTPServer),
+			http.WithResourceHandler(pkgHTTPServerDeprecated),
+			http.WithResourceHandler(stacksHTTPServer),
+			http.WithResourceHandler(templatesHTTPServer),
 			http.WithResourceHandler(onboardHTTPServer),
 			http.WithResourceHandler(authHTTPServer),
 			http.WithResourceHandler(kithttp.NewFeatureHandler(feature.NewLabelPackage(), m.flagger, oldLabelHandler, labelHandler, labelHandler.Prefix())),

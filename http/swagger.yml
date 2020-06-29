@@ -4621,8 +4621,6 @@ paths:
   /packages:
     post:
       operationId: CreatePkg
-      tags:
-        - InfluxPackages
       summary: Create a new Influx package
       requestBody:
         description: Influx package to create.
@@ -4650,8 +4648,6 @@ paths:
   /packages/apply:
     post:
       operationId: ApplyPkg
-      tags:
-        - InfluxPackages
       summary: Apply or dry-run an Influx package
       requestBody:
         required: true
@@ -4694,8 +4690,6 @@ paths:
   /packages/stacks:
     get:
       operationId: ListStacks
-      tags:
-        - InfluxPackages
       summary: Grab a list of installed Influx packages
       parameters:
         - in: query
@@ -4734,8 +4728,6 @@ paths:
                 $ref: "#/components/schemas/Error"
     post:
       operationId: CreateStack
-      tags:
-        - InfluxPackages
       summary: Create a new stack
       requestBody:
         description: Influx stack to create.
@@ -4771,8 +4763,6 @@ paths:
   /packages/stacks/{stack_id}:
     get:
       operationId: ReadStack
-      tags:
-        - InfluxPackages
       summary: Grab a stack by its ID
       parameters:
         - in: path
@@ -4796,8 +4786,6 @@ paths:
                 $ref: "#/components/schemas/Error"
     patch:
       operationId: UpdateStack
-      tags:
-        - InfluxPackages
       summary: Update a an Influx Stack
       parameters:
         - in: path
@@ -4849,8 +4837,6 @@ paths:
                 $ref: "#/components/schemas/Error"
     delete:
       operationId: DeleteStack
-      tags:
-        - InfluxPackages
       summary: Delete a stack and remove all its associated resources
       parameters:
         - in: path
@@ -4868,6 +4854,262 @@ paths:
       responses:
         "204":
           description: Stack and all its associated resources are deleted
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /stacks:
+    get:
+      operationId: ListStacks
+      tags:
+        - InfluxDB Templates
+      summary: Grab a list of installed InfluxDB Templates
+      parameters:
+        - in: query
+          name: orgID
+          required: true
+          schema:
+            type: string
+          description: The organization id of the stacks
+        - in: query
+          name: name
+          schema:
+            type: string
+          description: A collection of names to filter the list by.
+        - in: query
+          name: stackID
+          schema:
+            type: string
+          description: A collection of stackIDs to filter the list by.
+      responses:
+        "200":
+          description: Influx stacks found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  stacks:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Stack"
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      operationId: CreateStack
+      tags:
+        - InfluxDB Templates
+      summary: Create a new stack
+      requestBody:
+        description: Stack to create.
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                orgID:
+                  type: string
+                name:
+                  type: string
+                description:
+                  type: string
+                urls:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        "201":
+          description: InfluxDB Stack created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Stack"
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /stacks/{stack_id}:
+    get:
+      operationId: ReadStack
+      tags:
+        - InfluxDB Templates
+      summary: Grab a stack by its ID
+      parameters:
+        - in: path
+          name: stack_id
+          required: true
+          schema:
+            type: string
+          description: The stack id
+      responses:
+        "200":
+          description: Read an influx stack by ID
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Stack"
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    patch:
+      operationId: UpdateStack
+      tags:
+        - InfluxDB Templates
+      summary: Update a an InfluxDB Stack
+      parameters:
+        - in: path
+          name: stack_id
+          required: true
+          schema:
+            type: string
+          description: The stack id
+      requestBody:
+        description: Influx stack to update.
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                templateURLs:
+                  type: array
+                  items:
+                    type: string
+                additionalResources:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      resourceID:
+                        type: string
+                      kind:
+                        type: string
+                      templateMetaName:
+                        type: string
+                    required: ["kind","resourceID"]
+      responses:
+        "200":
+          description: Influx stack updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Stack"
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    delete:
+      operationId: DeleteStack
+      tags:
+        - InfluxDB Templates
+      summary: Delete a stack and remove all its associated resources
+      parameters:
+        - in: path
+          name: stack_id
+          required: true
+          schema:
+            type: string
+          description: The stack id
+        - in: query
+          name: orgID
+          required: true
+          schema:
+            type: string
+          description: The organization id of the user
+      responses:
+        "204":
+          description: Stack and all its associated resources are deleted
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /templates/apply:
+    post:
+      operationId: ApplyTemplate
+      tags:
+        - InfluxDB Templates
+      summary: Apply or dry-run an InfluxDB Template
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PkgApply"
+          application/x-jsonnet:
+            schema:
+              $ref: "#/components/schemas/PkgApply"
+          text/yml:
+            schema:
+              $ref: "#/components/schemas/PkgApply"
+      responses:
+        "200":
+          description: >
+            Influx package dry-run successful, no new resources created.
+            The provided diff and summary will not have IDs for resources
+            that do not exist at the time of the dry run.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PkgSummary"
+        "201":
+          description: >
+            Influx package applied successfully. Newly created resources created
+            available in summary. The diff compares the state of the world before
+            the package is applied with the changes the application will impose.
+            This corresponds to `"dryRun": true`
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PkgSummary"
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /templates/export:
+    post:
+      operationId: ExportTemplate
+      tags:
+        - InfluxDB Templates
+      summary: Export a new Influx Template
+      requestBody:
+        description: Export resources as an InfluxDB template.
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PkgCreate"
+      responses:
+        "200":
+          description: InfluxDB template created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pkg"
+            application/x-yaml:
+              schema:
+                $ref: "#/components/schemas/Pkg"
         default:
           description: Unexpected error
           content:
