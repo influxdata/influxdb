@@ -43,7 +43,6 @@ func (m InitialMigration) Up(ctx context.Context, store SchemaStore) error {
 		userpasswordBucket,
 		scrapersBucket,
 		secretBucket,
-		sessionBucket,
 		telegrafBucket,
 		telegrafPluginsBucket,
 		urmBucket,
@@ -62,6 +61,8 @@ func (m InitialMigration) Up(ctx context.Context, store SchemaStore) error {
 		variableBucket,
 		variableIndexBucket,
 		variableOrgsIndex,
+		// deprecated: removed in later migration
+		[]byte("sessionsv1"),
 	} {
 		if err := store.CreateBucket(ctx, bucket); err != nil {
 			return err
