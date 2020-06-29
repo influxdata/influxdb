@@ -143,18 +143,18 @@ Examples:
     }
 }
 
-/// Defauly debug level is debug for everything except
+/// Default debug level is debug for everything except
 /// some especially noisy low level libraries
 const DEFAULT_DEBUG_LOG_LEVEL: &str = "debug,h2=info";
 
 // Default log level is info level for all components
 const DEFAULT_LOG_LEVEL: &str = "info";
 
-/// Configures logging in the following precidence:
+/// Configures logging in the following precedence:
 ///
 /// 1. If RUST_LOG environment variable is set, use that value
 /// 2. if `verbose_requested`, use DEFAULT_DEBUG_LOG_LEVEL
-/// 3. otherwise, use DEFAULT_LOGL_LEVEL
+/// 3. otherwise, use DEFAULT_LOG_LEVEL
 fn setup_logging(verbose_requested: bool) {
     let rust_log_env = std::env::var("RUST_LOG");
 
