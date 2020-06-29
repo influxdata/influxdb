@@ -282,6 +282,20 @@ func MemoryOptimizedFill() BoolFlag {
 	return memoryOptimizedFill
 }
 
+var memoryOptimizedSchemaMutation = MakeBoolFlag(
+	"Memory Optimized Schema Mutation",
+	"memoryOptimizedSchemaMutation",
+	"Query Team",
+	false,
+	Temporary,
+	false,
+)
+
+// MemoryOptimizedSchemaMutation - Enable the memory optimized schema mutation functions
+func MemoryOptimizedSchemaMutation() BoolFlag {
+	return memoryOptimizedSchemaMutation
+}
+
 var urmFreeTasks = MakeBoolFlag(
 	"Urm Free Tasks",
 	"urmFreeTasks",
@@ -331,6 +345,7 @@ var all = []Flag{
 	newLabels,
 	hydratevars,
 	memoryOptimizedFill,
+	memoryOptimizedSchemaMutation,
 	urmFreeTasks,
 	simpleTaskOptionsExtraction,
 }
@@ -356,6 +371,7 @@ var byKey = map[string]Flag{
 	"newLabels":                     newLabels,
 	"hydratevars":                   hydratevars,
 	"memoryOptimizedFill":           memoryOptimizedFill,
+	"memoryOptimizedSchemaMutation": memoryOptimizedSchemaMutation,
 	"urmFreeTasks":                  urmFreeTasks,
 	"simpleTaskOptionsExtraction":   simpleTaskOptionsExtraction,
 }
