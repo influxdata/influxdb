@@ -45,7 +45,7 @@ impl DeloreanTableWriterSource for IgnoringParquetDirectoryWriterSource {
     fn next_writer(&mut self, schema: &Schema) -> Result<Box<dyn DeloreanTableWriter>, TableError> {
         let dev_null = IgnoringWriteStream {};
         let writer =
-            DeloreanParquetTableWriter::new(schema, CompressionLevel::COMPATIBILITY, dev_null)
+            DeloreanParquetTableWriter::new(schema, CompressionLevel::Compatibility, dev_null)
                 .expect("Creating table writer");
         Ok(Box::new(writer))
     }
