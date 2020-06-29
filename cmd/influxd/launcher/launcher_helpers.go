@@ -447,6 +447,22 @@ func (tl *TestLauncher) Metrics(tb testing.TB) (metrics map[string]*dto.MetricFa
 	return metrics
 }
 
+func (tl *TestLauncher) NumReads(tb testing.TB, op string) uint64 {
+	const metricName = "query_influxdb_source_read_request_duration_seconds"
+	mf := tl.Metrics(tb)[metricName]
+	if mf != nil {
+		fmt.Printf("%v\n", mf)
+		for _, m := range mf.Metric {
+			for _, label := range m.Label {
+				if label.GetName() == "op" && label.GetValue() == op {
+					return m.Histogram.GetSampleCount()
+				}
+			}
+		}
+	}
+	return 0
+}
+
 // QueryResult wraps a single flux.Result with some helper methods.
 type QueryResult struct {
 	t *testing.T

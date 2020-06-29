@@ -13,8 +13,7 @@ import (
 type orgSVCFn func() (influxdb.OrganizationService, influxdb.UserResourceMappingService, influxdb.UserService, error)
 
 func cmdOrganization(f *globalFlags, opts genericCLIOpts) *cobra.Command {
-	builder := newCmdOrgBuilder(newOrgServices, opts)
-	builder.globalFlags = f
+	builder := newCmdOrgBuilder(newOrgServices, f, opts)
 	return builder.cmd()
 }
 
@@ -32,15 +31,16 @@ type cmdOrgBuilder struct {
 	name        string
 }
 
-func newCmdOrgBuilder(svcFn orgSVCFn, opts genericCLIOpts) *cmdOrgBuilder {
+func newCmdOrgBuilder(svcFn orgSVCFn, f *globalFlags, opts genericCLIOpts) *cmdOrgBuilder {
 	return &cmdOrgBuilder{
 		genericCLIOpts: opts,
+		globalFlags:    f,
 		svcFn:          svcFn,
 	}
 }
 
 func (b *cmdOrgBuilder) cmd() *cobra.Command {
-	cmd := b.newCmd("org", nil, false)
+	cmd := b.genericCLIOpts.newCmd("org", nil, false)
 	cmd.Aliases = []string{"organization"}
 	cmd.Short = "Organization management commands"
 	cmd.Run = seeHelp
@@ -57,7 +57,7 @@ func (b *cmdOrgBuilder) cmd() *cobra.Command {
 }
 
 func (b *cmdOrgBuilder) cmdCreate() *cobra.Command {
-	cmd := b.newCmd("create", b.createRunEFn, true)
+	cmd := b.newCmd("create", b.createRunEFn)
 	cmd.Short = "Create organization"
 
 	b.registerPrintFlags(cmd)
@@ -87,7 +87,7 @@ func (b *cmdOrgBuilder) createRunEFn(cmd *cobra.Command, args []string) error {
 }
 
 func (b *cmdOrgBuilder) cmdDelete() *cobra.Command {
-	cmd := b.newCmd("delete", b.deleteRunEFn, true)
+	cmd := b.newCmd("delete", b.deleteRunEFn)
 	cmd.Short = "Delete organization"
 
 	opts := flagOpts{
@@ -133,7 +133,7 @@ func (b *cmdOrgBuilder) deleteRunEFn(cmd *cobra.Command, args []string) error {
 }
 
 func (b *cmdOrgBuilder) cmdFind() *cobra.Command {
-	cmd := b.newCmd("list", b.findRunEFn, true)
+	cmd := b.newCmd("list", b.findRunEFn)
 	cmd.Short = "List organizations"
 	cmd.Aliases = []string{"find", "ls"}
 
@@ -187,7 +187,7 @@ func (b *cmdOrgBuilder) findRunEFn(cmd *cobra.Command, args []string) error {
 }
 
 func (b *cmdOrgBuilder) cmdUpdate() *cobra.Command {
-	cmd := b.newCmd("update", b.updateRunEFn, true)
+	cmd := b.newCmd("update", b.updateRunEFn)
 	cmd.Short = "Update organization"
 
 	opts := flagOpts{
@@ -286,7 +286,7 @@ func (b *cmdOrgBuilder) printOrg(opts orgPrintOpt) error {
 }
 
 func (b *cmdOrgBuilder) cmdMember() *cobra.Command {
-	cmd := b.newCmd("members", nil, false)
+	cmd := b.genericCLIOpts.newCmd("members", nil, false)
 	cmd.Short = "Organization membership commands"
 	cmd.Run = seeHelp
 
@@ -300,7 +300,7 @@ func (b *cmdOrgBuilder) cmdMember() *cobra.Command {
 }
 
 func (b *cmdOrgBuilder) cmdMemberList() *cobra.Command {
-	cmd := b.newCmd("list", b.memberListRunEFn, true)
+	cmd := b.newCmd("list", b.memberListRunEFn)
 	cmd.Short = "List organization members"
 	cmd.Aliases = []string{"find", "ls"}
 
@@ -363,7 +363,7 @@ func (b *cmdOrgBuilder) memberListRunEFn(cmd *cobra.Command, args []string) erro
 }
 
 func (b *cmdOrgBuilder) cmdMemberAdd() *cobra.Command {
-	cmd := b.newCmd("add", b.memberAddRunEFn, true)
+	cmd := b.newCmd("add", b.memberAddRunEFn)
 	cmd.Short = "Add organization member"
 
 	cmd.Flags().StringVarP(&b.memberID, "member", "m", "", "The member ID")
@@ -439,7 +439,7 @@ func (b *cmdOrgBuilder) memberAddRunEFn(cmd *cobra.Command, args []string) error
 }
 
 func (b *cmdOrgBuilder) cmdMemberRemove() *cobra.Command {
-	cmd := b.newCmd("remove", b.membersRemoveRunEFn, true)
+	cmd := b.newCmd("remove", b.membersRemoveRunEFn)
 	cmd.Short = "Remove organization member"
 
 	opts := flagOpts{
@@ -509,19 +509,17 @@ func (b *cmdOrgBuilder) membersRemoveRunEFn(cmd *cobra.Command, args []string) e
 	return removeMember(ctx, b.w, urmSVC, organization.ID, memberID)
 }
 
+func (b *cmdOrgBuilder) newCmd(use string, runE func(*cobra.Command, []string) error) *cobra.Command {
+	cmd := b.genericCLIOpts.newCmd(use, runE, true)
+	b.globalFlags.registerFlags(cmd)
+	return cmd
+}
+
 func (b *cmdOrgBuilder) registerPrintFlags(cmd *cobra.Command) {
 	registerPrintOptions(cmd, &b.hideHeaders, &b.json)
 }
 
 func newOrgServices() (influxdb.OrganizationService, influxdb.UserResourceMappingService, influxdb.UserService, error) {
-	if flags.local {
-		svc, err := newLocalKVService()
-		if err != nil {
-			return nil, nil, nil, err
-		}
-		return svc, svc, svc, nil
-	}
-
 	client, err := newHTTPClient()
 	if err != nil {
 		return nil, nil, nil, err
@@ -535,10 +533,6 @@ func newOrgServices() (influxdb.OrganizationService, influxdb.UserResourceMappin
 }
 
 func newOrganizationService() (influxdb.OrganizationService, error) {
-	if flags.local {
-		return newLocalKVService()
-	}
-
 	client, err := newHTTPClient()
 	if err != nil {
 		return nil, err

@@ -68,7 +68,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 			svr := newMountedHandler(pkgHandler, 1)
 
 			testttp.
-				PostJSON(t, "/api/v2/packages", pkger.ReqCreatePkg{
+				PostJSON(t, "/api/v2/packages", pkger.ReqExport{
 					Resources: []pkger.ResourceToClone{
 						{
 							Kind: pkger.KindLabel,
@@ -98,7 +98,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 			svr := newMountedHandler(pkgHandler, 1)
 
 			testttp.
-				PostJSON(t, "/api/v2/packages", pkger.ReqCreatePkg{}).
+				PostJSON(t, "/api/v2/packages", pkger.ReqExport{}).
 				Headers("Content-Type", "application/json").
 				Do(svr).
 				ExpectStatus(http.StatusUnprocessableEntity)
@@ -111,12 +111,12 @@ func TestPkgerHTTPServer(t *testing.T) {
 			tests := []struct {
 				name        string
 				contentType string
-				reqBody     pkger.ReqApplyPkg
+				reqBody     pkger.ReqApply
 			}{
 				{
 					name:        "app json",
 					contentType: "application/json",
-					reqBody: pkger.ReqApplyPkg{
+					reqBody: pkger.ReqApply{
 						DryRun:      true,
 						OrgID:       influxdb.ID(9000).String(),
 						RawTemplate: bucketPkgKinds(t, pkger.EncodingJSON),
@@ -124,7 +124,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 				},
 				{
 					name: "defaults json when no content type",
-					reqBody: pkger.ReqApplyPkg{
+					reqBody: pkger.ReqApply{
 						DryRun:      true,
 						OrgID:       influxdb.ID(9000).String(),
 						RawTemplate: bucketPkgKinds(t, pkger.EncodingJSON),
@@ -132,10 +132,10 @@ func TestPkgerHTTPServer(t *testing.T) {
 				},
 				{
 					name: "retrieves package from a URL",
-					reqBody: pkger.ReqApplyPkg{
+					reqBody: pkger.ReqApply{
 						DryRun: true,
 						OrgID:  influxdb.ID(9000).String(),
-						Remotes: []pkger.ReqPkgRemote{{
+						Remotes: []pkger.ReqTemplateRemote{{
 							URL: newPkgURL(t, filesvr.URL, "testdata/remote_bucket.json"),
 						}},
 					},
@@ -143,7 +143,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 				{
 					name:        "app jsonnet",
 					contentType: "application/x-jsonnet",
-					reqBody: pkger.ReqApplyPkg{
+					reqBody: pkger.ReqApply{
 						DryRun:      true,
 						OrgID:       influxdb.ID(9000).String(),
 						RawTemplate: bucketPkgKinds(t, pkger.EncodingJsonnet),
@@ -154,18 +154,18 @@ func TestPkgerHTTPServer(t *testing.T) {
 			for _, tt := range tests {
 				fn := func(t *testing.T) {
 					svc := &fakeSVC{
-						dryRunFn: func(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.PkgImpactSummary, error) {
+						dryRunFn: func(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.ImpactSummary, error) {
 							var opt pkger.ApplyOpt
 							for _, o := range opts {
 								o(&opt)
 							}
 							pkg, err := pkger.Combine(opt.Pkgs)
 							if err != nil {
-								return pkger.PkgImpactSummary{}, err
+								return pkger.ImpactSummary{}, err
 							}
 
 							if err := pkg.Validate(); err != nil {
-								return pkger.PkgImpactSummary{}, err
+								return pkger.ImpactSummary{}, err
 							}
 							sum := pkg.Summary()
 							var diff pkger.Diff
@@ -176,7 +176,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 									},
 								})
 							}
-							return pkger.PkgImpactSummary{
+							return pkger.ImpactSummary{
 								Summary: sum,
 								Diff:    diff,
 							}, nil
@@ -192,7 +192,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 						Do(svr).
 						ExpectStatus(http.StatusOK).
 						ExpectBody(func(buf *bytes.Buffer) {
-							var resp pkger.RespApplyPkg
+							var resp pkger.RespApply
 							decodeBody(t, buf, &resp)
 
 							assert.Len(t, resp.Summary.Buckets, 1)
@@ -222,18 +222,18 @@ func TestPkgerHTTPServer(t *testing.T) {
 			for _, tt := range tests {
 				fn := func(t *testing.T) {
 					svc := &fakeSVC{
-						dryRunFn: func(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.PkgImpactSummary, error) {
+						dryRunFn: func(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.ImpactSummary, error) {
 							var opt pkger.ApplyOpt
 							for _, o := range opts {
 								o(&opt)
 							}
 							pkg, err := pkger.Combine(opt.Pkgs)
 							if err != nil {
-								return pkger.PkgImpactSummary{}, err
+								return pkger.ImpactSummary{}, err
 							}
 
 							if err := pkg.Validate(); err != nil {
-								return pkger.PkgImpactSummary{}, err
+								return pkger.ImpactSummary{}, err
 							}
 							sum := pkg.Summary()
 							var diff pkger.Diff
@@ -244,7 +244,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 									},
 								})
 							}
-							return pkger.PkgImpactSummary{
+							return pkger.ImpactSummary{
 								Diff:    diff,
 								Summary: sum,
 							}, nil
@@ -262,7 +262,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 						Do(svr).
 						ExpectStatus(http.StatusOK).
 						ExpectBody(func(buf *bytes.Buffer) {
-							var resp pkger.RespApplyPkg
+							var resp pkger.RespApply
 							decodeBody(t, buf, &resp)
 
 							assert.Len(t, resp.Summary.Buckets, 1)
@@ -275,7 +275,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 		})
 
 		t.Run("with multiple pkgs", func(t *testing.T) {
-			newBktPkg := func(t *testing.T, bktName string) pkger.ReqRawPkg {
+			newBktPkg := func(t *testing.T, bktName string) pkger.ReqRawTemplate {
 				t.Helper()
 
 				pkgStr := fmt.Sprintf(`[
@@ -294,7 +294,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 
 				pkgBytes, err := pkg.Encode(pkger.EncodingJSON)
 				require.NoError(t, err)
-				return pkger.ReqRawPkg{
+				return pkger.ReqRawTemplate{
 					ContentType: pkger.EncodingJSON.String(),
 					Sources:     pkg.Sources(),
 					Pkg:         pkgBytes,
@@ -303,19 +303,19 @@ func TestPkgerHTTPServer(t *testing.T) {
 
 			tests := []struct {
 				name         string
-				reqBody      pkger.ReqApplyPkg
+				reqBody      pkger.ReqApply
 				expectedBkts []string
 			}{
 				{
 					name: "retrieves package from a URL and raw pkgs",
-					reqBody: pkger.ReqApplyPkg{
+					reqBody: pkger.ReqApply{
 						DryRun: true,
 						OrgID:  influxdb.ID(9000).String(),
-						Remotes: []pkger.ReqPkgRemote{{
+						Remotes: []pkger.ReqTemplateRemote{{
 							ContentType: "json",
 							URL:         newPkgURL(t, filesvr.URL, "testdata/remote_bucket.json"),
 						}},
-						RawTemplates: []pkger.ReqRawPkg{
+						RawTemplates: []pkger.ReqRawTemplate{
 							newBktPkg(t, "bkt1"),
 							newBktPkg(t, "bkt2"),
 							newBktPkg(t, "bkt3"),
@@ -325,11 +325,11 @@ func TestPkgerHTTPServer(t *testing.T) {
 				},
 				{
 					name: "retrieves packages from raw single and list",
-					reqBody: pkger.ReqApplyPkg{
+					reqBody: pkger.ReqApply{
 						DryRun:      true,
 						OrgID:       influxdb.ID(9000).String(),
 						RawTemplate: newBktPkg(t, "bkt4"),
-						RawTemplates: []pkger.ReqRawPkg{
+						RawTemplates: []pkger.ReqRawTemplate{
 							newBktPkg(t, "bkt1"),
 							newBktPkg(t, "bkt2"),
 							newBktPkg(t, "bkt3"),
@@ -342,18 +342,18 @@ func TestPkgerHTTPServer(t *testing.T) {
 			for _, tt := range tests {
 				fn := func(t *testing.T) {
 					svc := &fakeSVC{
-						dryRunFn: func(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.PkgImpactSummary, error) {
+						dryRunFn: func(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.ImpactSummary, error) {
 							var opt pkger.ApplyOpt
 							for _, o := range opts {
 								o(&opt)
 							}
 							pkg, err := pkger.Combine(opt.Pkgs)
 							if err != nil {
-								return pkger.PkgImpactSummary{}, err
+								return pkger.ImpactSummary{}, err
 							}
 
 							if err := pkg.Validate(); err != nil {
-								return pkger.PkgImpactSummary{}, err
+								return pkger.ImpactSummary{}, err
 							}
 							sum := pkg.Summary()
 							var diff pkger.Diff
@@ -365,7 +365,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 								})
 							}
 
-							return pkger.PkgImpactSummary{
+							return pkger.ImpactSummary{
 								Diff:    diff,
 								Summary: sum,
 							}, nil
@@ -380,7 +380,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 						Do(svr).
 						ExpectStatus(http.StatusOK).
 						ExpectBody(func(buf *bytes.Buffer) {
-							var resp pkger.RespApplyPkg
+							var resp pkger.RespApply
 							decodeBody(t, buf, &resp)
 
 							require.Len(t, resp.Summary.Buckets, len(tt.expectedBkts))
@@ -398,13 +398,13 @@ func TestPkgerHTTPServer(t *testing.T) {
 			tests := []struct {
 				name               string
 				contentType        string
-				reqBody            pkger.ReqApplyPkg
+				reqBody            pkger.ReqApply
 				expectedStatusCode int
 			}{
 				{
 					name:        "invalid org id",
 					contentType: "application/json",
-					reqBody: pkger.ReqApplyPkg{
+					reqBody: pkger.ReqApply{
 						DryRun:      true,
 						OrgID:       "bad org id",
 						RawTemplate: bucketPkgKinds(t, pkger.EncodingJSON),
@@ -414,7 +414,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 				{
 					name:        "invalid stack id",
 					contentType: "application/json",
-					reqBody: pkger.ReqApplyPkg{
+					reqBody: pkger.ReqApply{
 						DryRun:      true,
 						OrgID:       influxdb.ID(9000).String(),
 						StackID:     strPtr("invalid stack id"),
@@ -427,16 +427,16 @@ func TestPkgerHTTPServer(t *testing.T) {
 			for _, tt := range tests {
 				fn := func(t *testing.T) {
 					svc := &fakeSVC{
-						dryRunFn: func(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.PkgImpactSummary, error) {
+						dryRunFn: func(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.ImpactSummary, error) {
 							var opt pkger.ApplyOpt
 							for _, o := range opts {
 								o(&opt)
 							}
 							pkg, err := pkger.Combine(opt.Pkgs)
 							if err != nil {
-								return pkger.PkgImpactSummary{}, err
+								return pkger.ImpactSummary{}, err
 							}
-							return pkger.PkgImpactSummary{
+							return pkger.ImpactSummary{
 								Summary: pkg.Summary(),
 							}, nil
 						},
@@ -459,7 +459,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 
 	t.Run("apply a pkg", func(t *testing.T) {
 		svc := &fakeSVC{
-			applyFn: func(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.PkgImpactSummary, error) {
+			applyFn: func(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.ImpactSummary, error) {
 				var opt pkger.ApplyOpt
 				for _, o := range opts {
 					o(&opt)
@@ -467,7 +467,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 
 				pkg, err := pkger.Combine(opt.Pkgs)
 				if err != nil {
-					return pkger.PkgImpactSummary{}, err
+					return pkger.ImpactSummary{}, err
 				}
 
 				sum := pkg.Summary()
@@ -484,7 +484,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 					sum.MissingSecrets = append(sum.MissingSecrets, key)
 				}
 
-				return pkger.PkgImpactSummary{
+				return pkger.ImpactSummary{
 					Diff:    diff,
 					Summary: sum,
 				}, nil
@@ -495,7 +495,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 		svr := newMountedHandler(pkgHandler, 1)
 
 		testttp.
-			PostJSON(t, "/api/v2/packages/apply", pkger.ReqApplyPkg{
+			PostJSON(t, "/api/v2/packages/apply", pkger.ReqApply{
 				OrgID:       influxdb.ID(9000).String(),
 				Secrets:     map[string]string{"secret1": "val1"},
 				RawTemplate: bucketPkgKinds(t, pkger.EncodingJSON),
@@ -503,7 +503,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 			Do(svr).
 			ExpectStatus(http.StatusCreated).
 			ExpectBody(func(buf *bytes.Buffer) {
-				var resp pkger.RespApplyPkg
+				var resp pkger.RespApply
 				decodeBody(t, buf, &resp)
 
 				assert.Len(t, resp.Summary.Buckets, 1)
@@ -677,7 +677,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 						ID:        influxdb.ID(1).String(),
 						OrgID:     expectedOrgID.String(),
 						Name:      "stack_1",
-						Resources: []pkger.StackResource{},
+						Resources: []pkger.RespStackResource{},
 						Sources:   []string{},
 						URLs:      []string{},
 					}},
@@ -695,7 +695,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 							ID:        influxdb.ID(1).String(),
 							OrgID:     expectedOrgID.String(),
 							Name:      "name_stack",
-							Resources: []pkger.StackResource{},
+							Resources: []pkger.RespStackResource{},
 							Sources:   []string{},
 							URLs:      []string{},
 						},
@@ -703,7 +703,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 							ID:        influxdb.ID(2).String(),
 							OrgID:     expectedOrgID.String(),
 							Name:      "threeve",
-							Resources: []pkger.StackResource{},
+							Resources: []pkger.RespStackResource{},
 							Sources:   []string{},
 							URLs:      []string{},
 						},
@@ -716,14 +716,14 @@ func TestPkgerHTTPServer(t *testing.T) {
 						{
 							ID:        influxdb.ID(1).String(),
 							OrgID:     expectedOrgID.String(),
-							Resources: []pkger.StackResource{},
+							Resources: []pkger.RespStackResource{},
 							Sources:   []string{},
 							URLs:      []string{},
 						},
 						{
 							ID:        influxdb.ID(2).String(),
 							OrgID:     expectedOrgID.String(),
-							Resources: []pkger.StackResource{},
+							Resources: []pkger.RespStackResource{},
 							Sources:   []string{},
 							URLs:      []string{},
 						},
@@ -774,7 +774,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 								APIVersion: pkger.APIVersion,
 								ID:         3,
 								Kind:       pkger.KindBucket,
-								PkgName:    "rucketeer",
+								MetaName:   "rucketeer",
 							},
 						},
 					},
@@ -785,12 +785,13 @@ func TestPkgerHTTPServer(t *testing.T) {
 						Description: "desc",
 						Sources:     []string{"threeve"},
 						URLs:        []string{"http://example.com"},
-						Resources: []pkger.StackResource{
+						Resources: []pkger.RespStackResource{
 							{
-								APIVersion: pkger.APIVersion,
-								ID:         3,
-								Kind:       pkger.KindBucket,
-								PkgName:    "rucketeer",
+								APIVersion:   pkger.APIVersion,
+								ID:           influxdb.ID(3).String(),
+								Kind:         pkger.KindBucket,
+								MetaName:     "rucketeer",
+								Associations: []pkger.RespStackResourceAssoc{},
 							},
 						},
 					},
@@ -810,7 +811,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 						Description: "desc",
 						Sources:     []string{},
 						URLs:        []string{},
-						Resources:   []pkger.StackResource{},
+						Resources:   []pkger.RespStackResource{},
 					},
 				},
 				{
@@ -824,7 +825,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 						OrgID:     expectedOrgID.String(),
 						Sources:   []string{},
 						URLs:      []string{},
-						Resources: []pkger.StackResource{},
+						Resources: []pkger.RespStackResource{},
 					},
 				},
 			}
@@ -925,7 +926,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 						Name:      "name",
 						Sources:   []string{},
 						URLs:      []string{},
-						Resources: []pkger.StackResource{},
+						Resources: []pkger.RespStackResource{},
 					},
 				},
 				{
@@ -939,28 +940,28 @@ func TestPkgerHTTPServer(t *testing.T) {
 						Description: "desc",
 						Sources:     []string{},
 						URLs:        []string{},
-						Resources:   []pkger.StackResource{},
+						Resources:   []pkger.RespStackResource{},
 					},
 				},
 				{
 					name: "update urls field",
 					input: pkger.ReqUpdateStack{
-						URLs: []string{"http://example.com"},
+						TemplateURLs: []string{"http://example.com"},
 					},
 					expectedStack: pkger.RespStack{
 						ID:        influxdb.ID(1).String(),
 						OrgID:     expectedOrgID.String(),
 						Sources:   []string{},
 						URLs:      []string{"http://example.com"},
-						Resources: []pkger.StackResource{},
+						Resources: []pkger.RespStackResource{},
 					},
 				},
 				{
 					name: "update all fields",
 					input: pkger.ReqUpdateStack{
-						Name:        strPtr("name"),
-						Description: strPtr("desc"),
-						URLs:        []string{"http://example.com"},
+						Name:         strPtr("name"),
+						Description:  strPtr("desc"),
+						TemplateURLs: []string{"http://example.com"},
 					},
 					expectedStack: pkger.RespStack{
 						ID:          influxdb.ID(1).String(),
@@ -969,7 +970,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 						Description: "desc",
 						Sources:     []string{},
 						URLs:        []string{"http://example.com"},
-						Resources:   []pkger.StackResource{},
+						Resources:   []pkger.RespStackResource{},
 					},
 				},
 			}
@@ -1070,7 +1071,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 	})
 }
 
-func bucketPkgKinds(t *testing.T, encoding pkger.Encoding) pkger.ReqRawPkg {
+func bucketPkgKinds(t *testing.T, encoding pkger.Encoding) pkger.ReqRawTemplate {
 	t.Helper()
 
 	var pkgStr string
@@ -1123,7 +1124,7 @@ spec:
 
 	b, err := pkg.Encode(encoding)
 	require.NoError(t, err)
-	return pkger.ReqRawPkg{
+	return pkger.ReqRawTemplate{
 		ContentType: encoding.String(),
 		Sources:     pkg.Sources(),
 		Pkg:         b,
@@ -1134,7 +1135,7 @@ func newReqApplyYMLBody(t *testing.T, orgID influxdb.ID, dryRun bool) *bytes.Buf
 	t.Helper()
 
 	var buf bytes.Buffer
-	err := yaml.NewEncoder(&buf).Encode(pkger.ReqApplyPkg{
+	err := yaml.NewEncoder(&buf).Encode(pkger.ReqApply{
 		DryRun:      dryRun,
 		OrgID:       orgID.String(),
 		RawTemplate: bucketPkgKinds(t, pkger.EncodingYAML),
@@ -1156,8 +1157,8 @@ type fakeSVC struct {
 	listStacksFn  func(ctx context.Context, orgID influxdb.ID, filter pkger.ListFilter) ([]pkger.Stack, error)
 	readStackFn   func(ctx context.Context, id influxdb.ID) (pkger.Stack, error)
 	updateStackFn func(ctx context.Context, upd pkger.StackUpdate) (pkger.Stack, error)
-	dryRunFn      func(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.PkgImpactSummary, error)
-	applyFn       func(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.PkgImpactSummary, error)
+	dryRunFn      func(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.ImpactSummary, error)
+	applyFn       func(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.ImpactSummary, error)
 }
 
 var _ pkger.SVC = (*fakeSVC)(nil)
@@ -1171,10 +1172,6 @@ func (f *fakeSVC) InitStack(ctx context.Context, userID influxdb.ID, stack pkger
 
 func (f *fakeSVC) DeleteStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) error {
 	panic("not implemented yet")
-}
-
-func (f *fakeSVC) ExportStack(ctx context.Context, orgID, stackID influxdb.ID) (*pkger.Pkg, error) {
-	panic("not implemented")
 }
 
 func (f *fakeSVC) ListStacks(ctx context.Context, orgID influxdb.ID, filter pkger.ListFilter) ([]pkger.Stack, error) {
@@ -1198,11 +1195,11 @@ func (f *fakeSVC) UpdateStack(ctx context.Context, upd pkger.StackUpdate) (pkger
 	panic("not implemented")
 }
 
-func (f *fakeSVC) CreatePkg(ctx context.Context, setters ...pkger.CreatePkgSetFn) (*pkger.Pkg, error) {
+func (f *fakeSVC) Export(ctx context.Context, setters ...pkger.ExportOptFn) (*pkger.Pkg, error) {
 	panic("not implemented")
 }
 
-func (f *fakeSVC) DryRun(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.PkgImpactSummary, error) {
+func (f *fakeSVC) DryRun(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.ImpactSummary, error) {
 	if f.dryRunFn == nil {
 		panic("not implemented")
 	}
@@ -1210,7 +1207,7 @@ func (f *fakeSVC) DryRun(ctx context.Context, orgID, userID influxdb.ID, opts ..
 	return f.dryRunFn(ctx, orgID, userID, opts...)
 }
 
-func (f *fakeSVC) Apply(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.PkgImpactSummary, error) {
+func (f *fakeSVC) Apply(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.ImpactSummary, error) {
 	if f.applyFn == nil {
 		panic("not implemented")
 	}

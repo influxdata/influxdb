@@ -34,6 +34,7 @@ import {
 } from '@influxdata/clockface'
 import {Notification, NotificationStyle} from 'src/types'
 import {getOrg} from 'src/organizations/selectors'
+import {event} from 'src/notebooks/shared/event'
 
 // Actions
 import {notify as notifyAction} from 'src/shared/actions/notifications'
@@ -144,7 +145,10 @@ const DashboardList: FC<Props> = ({
   const saveStatus = selectedDashboard
     ? ComponentStatus.Default
     : ComponentStatus.Disabled
+
   const save = () => {
+    event('Save Visulization to Dashboard')
+
     const view = {
       name: 'From Flow', // TODO: move meta.name to pipe.name so that we can route the name through
       properties: {
@@ -168,6 +172,11 @@ const DashboardList: FC<Props> = ({
 
     onClose()
   }
+  const cancel = () => {
+    event('Save Visulization to Dashboard Canceled')
+
+    onClose()
+  }
 
   return (
     <div className="notebook-visualization--dashboard-list">
@@ -186,7 +195,7 @@ const DashboardList: FC<Props> = ({
       >
         <SquareButton
           icon={IconFont.Remove}
-          onClick={onClose}
+          onClick={cancel}
           titleText="Cancel"
         />
         <SquareButton

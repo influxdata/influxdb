@@ -156,9 +156,7 @@ export class LineWriter {
     line: string,
     precision: Precision = Precision.s
   ) => {
-    const url = `${this.url}/api/v2/write?org=${this.orgID}&bucket=${
-      this.bucketName
-    }&precision=${precision}`
+    const url = `${this.url}/api/v2/write?org=${this.orgID}&bucket=${this.bucketName}&precision=${precision}`
     try {
       return await fetch(url, {
         method: 'POST',

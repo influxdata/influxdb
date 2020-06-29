@@ -217,7 +217,4 @@ const mdtp: DispatchProps = {
   checkBucketLimits: checkBucketLimitsAction,
 }
 
-export default connect<StateProps, DispatchProps, {}>(
-  mstp,
-  mdtp
-)(BucketsTab)
+export default connect<StateProps, DispatchProps, {}>(mstp, mdtp)(BucketsTab)

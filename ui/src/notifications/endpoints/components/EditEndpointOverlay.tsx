@@ -91,8 +91,5 @@ const mstp = (state: AppState, {params}: Props): StateProps => {
 }
 
 export default withRouter<Props>(
-  connect<StateProps, DispatchProps, Props>(
-    mstp,
-    mdtp
-  )(EditEndpointOverlay)
+  connect<StateProps, DispatchProps, Props>(mstp, mdtp)(EditEndpointOverlay)
 )

@@ -12,6 +12,7 @@ type tenantService struct {
 	FindUserFn            func(context.Context, influxdb.UserFilter) (*influxdb.User, error)
 	FindOrganizationByIDF func(ctx context.Context, id influxdb.ID) (*influxdb.Organization, error)
 	FindOrganizationF     func(ctx context.Context, filter influxdb.OrganizationFilter) (*influxdb.Organization, error)
+	FindBucketByIDFn      func(context.Context, influxdb.ID) (*influxdb.Bucket, error)
 }
 
 // FindUserByID returns a single User by ID.
@@ -32,4 +33,8 @@ func (s *tenantService) FindOrganizationByID(ctx context.Context, id influxdb.ID
 //FindOrganization calls FindOrganizationF.
 func (s *tenantService) FindOrganization(ctx context.Context, filter influxdb.OrganizationFilter) (*influxdb.Organization, error) {
 	return s.FindOrganizationF(ctx, filter)
+}
+
+func (s *tenantService) FindBucketByID(ctx context.Context, id influxdb.ID) (*influxdb.Bucket, error) {
+	return s.FindBucketByIDFn(ctx, id)
 }

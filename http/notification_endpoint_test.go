@@ -21,7 +21,6 @@ import (
 	"github.com/influxdata/influxdb/v2/notification/endpoint"
 	"github.com/influxdata/influxdb/v2/pkg/testttp"
 	influxTesting "github.com/influxdata/influxdb/v2/testing"
-	platformtesting "github.com/influxdata/influxdb/v2/testing"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -1062,7 +1061,7 @@ func TestService_handlePostNotificationEndpointOwner(t *testing.T) {
 	}
 }
 
-func initNotificationEndpointService(f platformtesting.NotificationEndpointFields, t *testing.T) (influxdb.NotificationEndpointService, influxdb.SecretService, func()) {
+func initNotificationEndpointService(f influxTesting.NotificationEndpointFields, t *testing.T) (influxdb.NotificationEndpointService, influxdb.SecretService, func()) {
 	svc := kv.NewService(zaptest.NewLogger(t), inmem.NewKVStore())
 	svc.IDGenerator = f.IDGenerator
 	svc.TimeGenerator = f.TimeGenerator
@@ -1115,11 +1114,11 @@ func TestNotificationEndpointService(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		testFn func(init func(platformtesting.NotificationEndpointFields, *testing.T) (influxdb.NotificationEndpointService, influxdb.SecretService, func()), t *testing.T)
+		testFn func(init func(influxTesting.NotificationEndpointFields, *testing.T) (influxdb.NotificationEndpointService, influxdb.SecretService, func()), t *testing.T)
 	}{
 		{
 			name:   "CreateNotificationEndpoint",
-			testFn: platformtesting.CreateNotificationEndpoint,
+			testFn: influxTesting.CreateNotificationEndpoint,
 		},
 	}
 

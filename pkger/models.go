@@ -140,7 +140,6 @@ func (s SafeID) String() string {
 // dictates if the resource is new, to be removed, or will remain.
 type DiffIdentifier struct {
 	ID          SafeID      `json:"id"`
-	Remove      bool        `json:"bool"`
 	StateStatus StateStatus `json:"stateStatus"`
 	PkgName     string      `json:"pkgName"`
 }
@@ -260,6 +259,19 @@ type (
 // DiffChart is a diff of oa chart. Since all charts are new right now.
 // the SummaryChart is reused here.
 type DiffChart SummaryChart
+
+func (d *DiffChart) MarshalJSON() ([]byte, error) {
+	return json.Marshal((*SummaryChart)(d))
+}
+
+func (d *DiffChart) UnmarshalJSON(b []byte) error {
+	var sumChart SummaryChart
+	if err := json.Unmarshal(b, &sumChart); err != nil {
+		return err
+	}
+	*d = DiffChart(sumChart)
+	return nil
+}
 
 type (
 	// DiffLabel is a diff of an individual label.
@@ -520,7 +532,7 @@ func (s *SummaryChart) MarshalJSON() ([]byte, error) {
 	return json.Marshal(out)
 }
 
-// UnmarshalJSON unmarshals a view properities and other data.
+// UnmarshalJSON unmarshals a view properties and other data.
 func (s *SummaryChart) UnmarshalJSON(b []byte) error {
 	type alias SummaryChart
 	a := (*alias)(s)
@@ -672,6 +684,7 @@ type SummaryVariable struct {
 	OrgID       SafeID                      `json:"orgID,omitempty"`
 	Name        string                      `json:"name"`
 	Description string                      `json:"description"`
+	Selected    []string                    `json:"variables"`
 	Arguments   *influxdb.VariableArguments `json:"arguments"`
 
 	EnvReferences     []SummaryReference `json:"envReferences"`

@@ -3,6 +3,7 @@ package kv
 import (
 	"context"
 	"encoding/json"
+	"regexp"
 	"strings"
 	"time"
 
@@ -674,7 +675,7 @@ func (s *Service) createTask(ctx context.Context, tx Tx, tc influxdb.TaskCreate)
 	// 	return nil, influxdb.ErrInvalidOwnerID
 	// }
 
-	opt, err := options.FromScript(s.FluxLanguageService, tc.Flux)
+	opts, err := ExtractTaskOptions(ctx, s.FluxLanguageService, tc.Flux)
 	if err != nil {
 		return nil, influxdb.ErrTaskOptionParse(err)
 	}
@@ -691,19 +692,19 @@ func (s *Service) createTask(ctx context.Context, tx Tx, tc influxdb.TaskCreate)
 		Organization:    org.Name,
 		OwnerID:         tc.OwnerID,
 		Metadata:        tc.Metadata,
-		Name:            opt.Name,
+		Name:            opts.Name,
 		Description:     tc.Description,
 		Status:          tc.Status,
 		Flux:            tc.Flux,
-		Every:           opt.Every.String(),
-		Cron:            opt.Cron,
+		Every:           opts.Every.String(),
+		Cron:            opts.Cron,
 		CreatedAt:       createdAt,
 		LatestCompleted: createdAt,
 		LatestScheduled: createdAt,
 	}
 
-	if opt.Offset != nil {
-		off, err := time.ParseDuration(opt.Offset.String())
+	if opts.Offset != nil {
+		off, err := time.ParseDuration(opts.Offset.String())
 		if err != nil {
 			return nil, influxdb.ErrTaskTimeParse(err)
 		}
@@ -830,17 +831,17 @@ func (s *Service) updateTask(ctx context.Context, tx Tx, id influxdb.ID, upd inf
 		}
 		task.Flux = *upd.Flux
 
-		options, err := options.FromScript(s.FluxLanguageService, *upd.Flux)
+		opts, err := ExtractTaskOptions(ctx, s.FluxLanguageService, *upd.Flux)
 		if err != nil {
 			return nil, influxdb.ErrTaskOptionParse(err)
 		}
-		task.Name = options.Name
-		task.Every = options.Every.String()
-		task.Cron = options.Cron
+		task.Name = opts.Name
+		task.Every = opts.Every.String()
+		task.Cron = opts.Cron
 
 		var off time.Duration
-		if options.Offset != nil {
-			off, err = time.ParseDuration(options.Offset.String())
+		if opts.Offset != nil {
+			off, err = time.ParseDuration(opts.Offset.String())
 			if err != nil {
 				return nil, influxdb.ErrTaskTimeParse(err)
 			}
@@ -1918,4 +1919,37 @@ func (s *Service) TaskOwnerIDUpMigration(ctx context.Context, store Store) error
 		}
 	}
 	return nil
+}
+
+var taskOptionsPattern = regexp.MustCompile(`option\s+task\s*=\s*{.*}`)
+
+// ExtractTaskOptions is a feature-flag driven switch between normal options
+// parsing and a more simplified variant.
+//
+// The simplified variant extracts the options assignment and passes only that
+// content through the parser. This allows us to allow scenarios like [1] to
+// pass through options validation. One clear drawback of this is that it
+// requires constant values for the parameter assignments. However, most people
+// are doing that anyway.
+//
+// [1]: https://github.com/influxdata/influxdb/issues/17666
+func ExtractTaskOptions(ctx context.Context, lang influxdb.FluxLanguageService, flux string) (options.Options, error) {
+	if !feature.SimpleTaskOptionsExtraction().Enabled(ctx) {
+		return options.FromScript(lang, flux)
+	}
+
+	matches := taskOptionsPattern.FindAllString(flux, -1)
+	if len(matches) == 0 {
+		return options.Options{}, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  "no task options defined",
+		}
+	}
+	if len(matches) > 1 {
+		return options.Options{}, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  "multiple task options defined",
+		}
+	}
+	return options.FromScript(lang, matches[0])
 }

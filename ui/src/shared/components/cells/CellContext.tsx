@@ -5,6 +5,9 @@ import {connect} from 'react-redux'
 import {get} from 'lodash'
 import classnames from 'classnames'
 
+// Utils
+import {reportSimpleQueryPerformanceEvent} from 'src/cloud/utils/reporting'
+
 // Components
 import {
   Popover,
@@ -22,6 +25,7 @@ import {deleteCell, createCellWithView} from 'src/cells/actions/thunks'
 
 // Types
 import {Cell, View} from 'src/types'
+
 interface DispatchProps {
   onDeleteCell: typeof deleteCell
   onCloneCell: typeof createCellWithView
@@ -72,6 +76,7 @@ const CellContext: FC<Props> = ({
   }
 
   const handleEditCell = (): void => {
+    reportSimpleQueryPerformanceEvent('editCell button Click')
     router.push(`${location.pathname}/cells/${cell.id}/edit`)
   }
 
@@ -173,8 +178,5 @@ const mdtp: DispatchProps = {
 }
 
 export default withRouter<OwnProps>(
-  connect<{}, DispatchProps>(
-    null,
-    mdtp
-  )(CellContext)
+  connect<{}, DispatchProps>(null, mdtp)(CellContext)
 )

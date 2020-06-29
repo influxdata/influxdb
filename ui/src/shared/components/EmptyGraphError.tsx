@@ -30,7 +30,7 @@ const EmptyGraphError: FunctionComponent<Props> = ({message, testID}) => {
 
   return (
     <div className="cell--view-empty" data-testid={testID}>
-      <div className="empty-graph-error">
+      <div className="empty-graph-error" data-testid="empty-graph-error">
         <CopyToClipboard text={message}>
           <Button
             size={ComponentSize.ExtraSmall}

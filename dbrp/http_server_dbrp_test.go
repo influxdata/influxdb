@@ -148,6 +148,9 @@ func Test_handlePostDBRP(t *testing.T) {
 				t.Fatalf("expected orgid %s got %s", tt.ExpectedDBRP.OrganizationID, dbrp.OrganizationID)
 			}
 
+			if !dbrp.Default {
+				t.Fatalf("expected dbrp to be marked as default")
+			}
 		})
 	}
 }

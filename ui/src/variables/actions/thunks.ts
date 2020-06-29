@@ -127,11 +127,13 @@ export const hydrateVariables = (skipCache?: boolean) => async (
   const state = getState()
   const org = getOrg(state)
   const vars = getVariablesFromState(state)
+
   const hydration = hydrateVars(vars, getAllVariablesFromState(state), {
     orgID: org.id,
     url: state.links.query.self,
     skipCache,
   })
+
   hydration.on('status', (variable, status) => {
     if (status === RemoteDataState.Loading) {
       dispatch(setVariable(variable.id, status))

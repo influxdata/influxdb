@@ -70,8 +70,8 @@ export const getActiveWindowPeriod = (state: AppState) => {
   return getWindowPeriod(text, variables)
 }
 
-const getTablesMemoized = memoizeOne(
-  (files: string[]): FluxTable[] => (files ? flatMap(files, parseResponse) : [])
+const getTablesMemoized = memoizeOne((files: string[]): FluxTable[] =>
+  files ? flatMap(files, parseResponse) : []
 )
 
 export const getTables = (state: AppState): FluxTable[] =>

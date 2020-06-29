@@ -17,7 +17,6 @@ import (
 	"github.com/influxdata/flux/execute/executetest"
 	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/flux/plan"
-	"github.com/influxdata/flux/stdlib/universe"
 	"github.com/influxdata/flux/values"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/generate"
@@ -318,7 +317,7 @@ func TestStorageReader_ReadWindowAggregate(t *testing.T) {
 		},
 		WindowEvery: int64(30 * time.Second),
 		Aggregates: []plan.ProcedureKind{
-			universe.CountKind,
+			storageflux.CountKind,
 		},
 	}, mem)
 	if err != nil {
@@ -431,7 +430,7 @@ func TestStorageReader_ReadWindowAggregate_ByStopTime(t *testing.T) {
 		TimeColumn:  execute.DefaultStopColLabel,
 		WindowEvery: int64(30 * time.Second),
 		Aggregates: []plan.ProcedureKind{
-			universe.CountKind,
+			storageflux.CountKind,
 		},
 	}, mem)
 	if err != nil {
@@ -543,7 +542,7 @@ func TestStorageReader_ReadWindowAggregate_ByStartTime(t *testing.T) {
 		TimeColumn:  execute.DefaultStartColLabel,
 		WindowEvery: int64(30 * time.Second),
 		Aggregates: []plan.ProcedureKind{
-			universe.CountKind,
+			storageflux.CountKind,
 		},
 	}, mem)
 	if err != nil {
@@ -654,7 +653,7 @@ func TestStorageReader_ReadWindowAggregate_CreateEmpty(t *testing.T) {
 		},
 		WindowEvery: int64(10 * time.Second),
 		Aggregates: []plan.ProcedureKind{
-			universe.CountKind,
+			storageflux.CountKind,
 		},
 		CreateEmpty: true,
 	}, mem)
@@ -663,12 +662,9 @@ func TestStorageReader_ReadWindowAggregate_CreateEmpty(t *testing.T) {
 	}
 
 	windowEvery := values.ConvertDuration(10 * time.Second)
-	makeWindowTable := func(t0 string, start execute.Time, value interface{}, isNull bool) *executetest.Table {
+	makeWindowTable := func(t0 string, start execute.Time, value interface{}) *executetest.Table {
 		valueType := flux.ColumnType(values.New(value).Type())
 		stop := start.Add(windowEvery)
-		if isNull {
-			value = nil
-		}
 		return &executetest.Table{
 			KeyCols: []string{"_start", "_stop", "_field", "_measurement", "t0"},
 			ColMeta: []flux.ColMeta{
@@ -690,8 +686,11 @@ func TestStorageReader_ReadWindowAggregate_CreateEmpty(t *testing.T) {
 		for i := 0; i < 12; i++ {
 			offset := windowEvery.Mul(i)
 			start := reader.Bounds.Start.Add(offset)
-			isNull := (i+1)%3 == 0
-			want = append(want, makeWindowTable(t0, start, int64(1), isNull))
+			value := int64(1)
+			if (i+1)%3 == 0 {
+				value = int64(0)
+			}
+			want = append(want, makeWindowTable(t0, start, value))
 		}
 	}
 	executetest.NormalizeTables(want)
@@ -772,7 +771,7 @@ func TestStorageReader_ReadWindowAggregate_CreateEmptyByStopTime(t *testing.T) {
 		TimeColumn:  execute.DefaultStopColLabel,
 		WindowEvery: int64(10 * time.Second),
 		Aggregates: []plan.ProcedureKind{
-			universe.CountKind,
+			storageflux.CountKind,
 		},
 		CreateEmpty: true,
 	}, mem)
@@ -796,16 +795,16 @@ func TestStorageReader_ReadWindowAggregate_CreateEmptyByStopTime(t *testing.T) {
 			Data: [][]interface{}{
 				{start, stop, Time("2019-11-25T00:00:10Z"), int64(1), "f0", "m0", t0},
 				{start, stop, Time("2019-11-25T00:00:20Z"), int64(1), "f0", "m0", t0},
-				{start, stop, Time("2019-11-25T00:00:30Z"), nil, "f0", "m0", t0},
+				{start, stop, Time("2019-11-25T00:00:30Z"), int64(0), "f0", "m0", t0},
 				{start, stop, Time("2019-11-25T00:00:40Z"), int64(1), "f0", "m0", t0},
 				{start, stop, Time("2019-11-25T00:00:50Z"), int64(1), "f0", "m0", t0},
-				{start, stop, Time("2019-11-25T00:01:00Z"), nil, "f0", "m0", t0},
+				{start, stop, Time("2019-11-25T00:01:00Z"), int64(0), "f0", "m0", t0},
 				{start, stop, Time("2019-11-25T00:01:10Z"), int64(1), "f0", "m0", t0},
 				{start, stop, Time("2019-11-25T00:01:20Z"), int64(1), "f0", "m0", t0},
-				{start, stop, Time("2019-11-25T00:01:30Z"), nil, "f0", "m0", t0},
+				{start, stop, Time("2019-11-25T00:01:30Z"), int64(0), "f0", "m0", t0},
 				{start, stop, Time("2019-11-25T00:01:40Z"), int64(1), "f0", "m0", t0},
 				{start, stop, Time("2019-11-25T00:01:50Z"), int64(1), "f0", "m0", t0},
-				{start, stop, Time("2019-11-25T00:02:00Z"), nil, "f0", "m0", t0},
+				{start, stop, Time("2019-11-25T00:02:00Z"), int64(0), "f0", "m0", t0},
 			},
 		}
 	}
@@ -893,7 +892,7 @@ func TestStorageReader_ReadWindowAggregate_CreateEmptyByStartTime(t *testing.T) 
 		TimeColumn:  execute.DefaultStartColLabel,
 		WindowEvery: int64(10 * time.Second),
 		Aggregates: []plan.ProcedureKind{
-			universe.CountKind,
+			storageflux.CountKind,
 		},
 		CreateEmpty: true,
 	}, mem)
@@ -917,16 +916,16 @@ func TestStorageReader_ReadWindowAggregate_CreateEmptyByStartTime(t *testing.T) 
 			Data: [][]interface{}{
 				{start, stop, Time("2019-11-25T00:00:00Z"), int64(1), "f0", "m0", t0},
 				{start, stop, Time("2019-11-25T00:00:10Z"), int64(1), "f0", "m0", t0},
-				{start, stop, Time("2019-11-25T00:00:20Z"), nil, "f0", "m0", t0},
+				{start, stop, Time("2019-11-25T00:00:20Z"), int64(0), "f0", "m0", t0},
 				{start, stop, Time("2019-11-25T00:00:30Z"), int64(1), "f0", "m0", t0},
 				{start, stop, Time("2019-11-25T00:00:40Z"), int64(1), "f0", "m0", t0},
-				{start, stop, Time("2019-11-25T00:00:50Z"), nil, "f0", "m0", t0},
+				{start, stop, Time("2019-11-25T00:00:50Z"), int64(0), "f0", "m0", t0},
 				{start, stop, Time("2019-11-25T00:01:00Z"), int64(1), "f0", "m0", t0},
 				{start, stop, Time("2019-11-25T00:01:10Z"), int64(1), "f0", "m0", t0},
-				{start, stop, Time("2019-11-25T00:01:20Z"), nil, "f0", "m0", t0},
+				{start, stop, Time("2019-11-25T00:01:20Z"), int64(0), "f0", "m0", t0},
 				{start, stop, Time("2019-11-25T00:01:30Z"), int64(1), "f0", "m0", t0},
 				{start, stop, Time("2019-11-25T00:01:40Z"), int64(1), "f0", "m0", t0},
-				{start, stop, Time("2019-11-25T00:01:50Z"), nil, "f0", "m0", t0},
+				{start, stop, Time("2019-11-25T00:01:50Z"), int64(0), "f0", "m0", t0},
 			},
 		}
 	}
@@ -1016,7 +1015,7 @@ func TestStorageReader_ReadWindowAggregate_TruncatedBounds(t *testing.T) {
 		},
 		WindowEvery: int64(10 * time.Second),
 		Aggregates: []plan.ProcedureKind{
-			universe.CountKind,
+			storageflux.CountKind,
 		},
 	}, mem)
 	if err != nil {
@@ -1131,7 +1130,7 @@ func TestStorageReader_ReadWindowAggregate_TruncatedBoundsCreateEmpty(t *testing
 		},
 		WindowEvery: int64(10 * time.Second),
 		Aggregates: []plan.ProcedureKind{
-			universe.CountKind,
+			storageflux.CountKind,
 		},
 		CreateEmpty: true,
 	}, mem)
@@ -1139,13 +1138,10 @@ func TestStorageReader_ReadWindowAggregate_TruncatedBoundsCreateEmpty(t *testing
 		t.Fatal(err)
 	}
 
-	makeWindowTable := func(t0 string, start, stop time.Duration, value interface{}, isNull bool) *executetest.Table {
+	makeWindowTable := func(t0 string, start, stop time.Duration, value interface{}) *executetest.Table {
 		startT := reader.Bounds.Start.Add(values.ConvertDuration(start))
 		stopT := reader.Bounds.Start.Add(values.ConvertDuration(stop))
 		valueType := flux.ColumnType(values.New(value).Type())
-		if isNull {
-			value = nil
-		}
 		return &executetest.Table{
 			KeyCols: []string{"_start", "_stop", "_field", "_measurement", "t0"},
 			ColMeta: []flux.ColMeta{
@@ -1165,11 +1161,366 @@ func TestStorageReader_ReadWindowAggregate_TruncatedBoundsCreateEmpty(t *testing
 	var want []*executetest.Table
 	for _, t0 := range []string{"a-0", "a-1", "a-2"} {
 		want = append(want,
-			makeWindowTable(t0, 5*time.Second, 10*time.Second, int64(0), true),
-			makeWindowTable(t0, 10*time.Second, 20*time.Second, int64(1), false),
-			makeWindowTable(t0, 20*time.Second, 25*time.Second, int64(0), true),
+			makeWindowTable(t0, 5*time.Second, 10*time.Second, int64(0)),
+			makeWindowTable(t0, 10*time.Second, 20*time.Second, int64(1)),
+			makeWindowTable(t0, 20*time.Second, 25*time.Second, int64(0)),
 		)
 	}
+	executetest.NormalizeTables(want)
+	sort.Sort(executetest.SortedTables(want))
+
+	var got []*executetest.Table
+	if err := ti.Do(func(table flux.Table) error {
+		t, err := executetest.ConvertTable(table)
+		if err != nil {
+			return err
+		}
+		got = append(got, t)
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	executetest.NormalizeTables(got)
+	sort.Sort(executetest.SortedTables(got))
+
+	// compare these two
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("unexpected results -want/+got:\n%s", diff)
+	}
+}
+
+func TestStorageReader_ReadWindowFirst(t *testing.T) {
+	reader := NewStorageReader(t, func(org, bucket influxdb.ID) (gen.SeriesGenerator, gen.TimeRange) {
+		tagsSpec := &gen.TagsSpec{
+			Tags: []*gen.TagValuesSpec{
+				{
+					TagKey: "t0",
+					Values: func() gen.CountableSequence {
+						return gen.NewCounterByteSequence("a%s", 0, 1)
+					},
+				},
+			},
+		}
+		spec := gen.Spec{
+			OrgID:    org,
+			BucketID: bucket,
+			Measurements: []gen.MeasurementSpec{
+				{
+					Name:     "m0",
+					TagsSpec: tagsSpec,
+					FieldValuesSpec: &gen.FieldValuesSpec{
+						Name: "f0",
+						TimeSequenceSpec: gen.TimeSequenceSpec{
+							Count: math.MaxInt32,
+							Delta: 5 * time.Second,
+						},
+						DataType: models.Integer,
+						Values: func(spec gen.TimeSequenceSpec) gen.TimeValuesSequence {
+							return gen.NewTimeIntegerValuesSequence(
+								spec.Count,
+								gen.NewTimestampSequenceFromSpec(spec),
+								gen.NewIntegerArrayValuesSequence([]int64{1, 2, 3, 4}),
+							)
+						},
+					},
+				},
+			},
+		}
+		tr := gen.TimeRange{
+			Start: mustParseTime("2019-11-25T00:00:00Z"),
+			End:   mustParseTime("2019-11-25T00:01:00Z"),
+		}
+		return gen.NewSeriesGeneratorFromSpec(&spec, tr), tr
+	})
+	defer reader.Close()
+
+	mem := &memory.Allocator{}
+	ti, err := reader.ReadWindowAggregate(context.Background(), query.ReadWindowAggregateSpec{
+		ReadFilterSpec: query.ReadFilterSpec{
+			OrganizationID: reader.Org,
+			BucketID:       reader.Bucket,
+			Bounds:         reader.Bounds,
+		},
+		WindowEvery: int64(10 * time.Second),
+		Aggregates: []plan.ProcedureKind{
+			storageflux.FirstKind,
+		},
+	}, mem)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	makeWindowTable := func(start, stop, time values.Time, v int64) *executetest.Table {
+		return &executetest.Table{
+			KeyCols: []string{"_start", "_stop", "_field", "_measurement", "t0"},
+			ColMeta: []flux.ColMeta{
+				{Label: "_start", Type: flux.TTime},
+				{Label: "_stop", Type: flux.TTime},
+				{Label: "_time", Type: flux.TTime},
+				{Label: "_value", Type: flux.TInt},
+				{Label: "_field", Type: flux.TString},
+				{Label: "_measurement", Type: flux.TString},
+				{Label: "t0", Type: flux.TString},
+			},
+			Data: [][]interface{}{
+				{start, stop, time, v, "f0", "m0", "a0"},
+			},
+		}
+	}
+	want := []*executetest.Table{
+		makeWindowTable(Time("2019-11-25T00:00:00Z"), Time("2019-11-25T00:00:10Z"), Time("2019-11-25T00:00:00Z"), 1),
+		makeWindowTable(Time("2019-11-25T00:00:10Z"), Time("2019-11-25T00:00:20Z"), Time("2019-11-25T00:00:10Z"), 3),
+		makeWindowTable(Time("2019-11-25T00:00:20Z"), Time("2019-11-25T00:00:30Z"), Time("2019-11-25T00:00:20Z"), 1),
+		makeWindowTable(Time("2019-11-25T00:00:30Z"), Time("2019-11-25T00:00:40Z"), Time("2019-11-25T00:00:30Z"), 3),
+		makeWindowTable(Time("2019-11-25T00:00:40Z"), Time("2019-11-25T00:00:50Z"), Time("2019-11-25T00:00:40Z"), 1),
+		makeWindowTable(Time("2019-11-25T00:00:50Z"), Time("2019-11-25T00:01:00Z"), Time("2019-11-25T00:00:50Z"), 3),
+	}
+
+	executetest.NormalizeTables(want)
+	sort.Sort(executetest.SortedTables(want))
+
+	var got []*executetest.Table
+	if err := ti.Do(func(table flux.Table) error {
+		t, err := executetest.ConvertTable(table)
+		if err != nil {
+			return err
+		}
+		got = append(got, t)
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	executetest.NormalizeTables(got)
+	sort.Sort(executetest.SortedTables(got))
+
+	// compare these two
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("unexpected results -want/+got:\n%s", diff)
+	}
+}
+
+func TestStorageReader_ReadWindowFirstCreateEmpty(t *testing.T) {
+	reader := NewStorageReader(t, func(org, bucket influxdb.ID) (gen.SeriesGenerator, gen.TimeRange) {
+		tagsSpec := &gen.TagsSpec{
+			Tags: []*gen.TagValuesSpec{
+				{
+					TagKey: "t0",
+					Values: func() gen.CountableSequence {
+						return gen.NewCounterByteSequence("a%s", 0, 1)
+					},
+				},
+			},
+		}
+		spec := gen.Spec{
+			OrgID:    org,
+			BucketID: bucket,
+			Measurements: []gen.MeasurementSpec{
+				{
+					Name:     "m0",
+					TagsSpec: tagsSpec,
+					FieldValuesSpec: &gen.FieldValuesSpec{
+						Name: "f0",
+						TimeSequenceSpec: gen.TimeSequenceSpec{
+							Count: math.MaxInt32,
+							Delta: 20 * time.Second,
+						},
+						DataType: models.Integer,
+						Values: func(spec gen.TimeSequenceSpec) gen.TimeValuesSequence {
+							return gen.NewTimeIntegerValuesSequence(
+								spec.Count,
+								gen.NewTimestampSequenceFromSpec(spec),
+								gen.NewIntegerArrayValuesSequence([]int64{1, 2}),
+							)
+						},
+					},
+				},
+			},
+		}
+		tr := gen.TimeRange{
+			Start: mustParseTime("2019-11-25T00:00:00Z"),
+			End:   mustParseTime("2019-11-25T00:01:00Z"),
+		}
+		return gen.NewSeriesGeneratorFromSpec(&spec, tr), tr
+	})
+	defer reader.Close()
+
+	mem := &memory.Allocator{}
+	ti, err := reader.ReadWindowAggregate(context.Background(), query.ReadWindowAggregateSpec{
+		ReadFilterSpec: query.ReadFilterSpec{
+			OrganizationID: reader.Org,
+			BucketID:       reader.Bucket,
+			Bounds:         reader.Bounds,
+		},
+		WindowEvery: int64(10 * time.Second),
+		Aggregates: []plan.ProcedureKind{
+			storageflux.FirstKind,
+		},
+		CreateEmpty: true,
+	}, mem)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	makeEmptyTable := func(start, stop values.Time) *executetest.Table {
+		return &executetest.Table{
+			KeyCols:   []string{"_start", "_stop", "_field", "_measurement", "t0"},
+			KeyValues: []interface{}{start, stop, "f0", "m0", "a0"},
+			ColMeta: []flux.ColMeta{
+				{Label: "_start", Type: flux.TTime},
+				{Label: "_stop", Type: flux.TTime},
+				{Label: "_time", Type: flux.TTime},
+				{Label: "_value", Type: flux.TInt},
+				{Label: "_field", Type: flux.TString},
+				{Label: "_measurement", Type: flux.TString},
+				{Label: "t0", Type: flux.TString},
+			},
+			Data: nil,
+		}
+	}
+	makeWindowTable := func(start, stop, time values.Time, v int64) *executetest.Table {
+		return &executetest.Table{
+			KeyCols: []string{"_start", "_stop", "_field", "_measurement", "t0"},
+			ColMeta: []flux.ColMeta{
+				{Label: "_start", Type: flux.TTime},
+				{Label: "_stop", Type: flux.TTime},
+				{Label: "_time", Type: flux.TTime},
+				{Label: "_value", Type: flux.TInt},
+				{Label: "_field", Type: flux.TString},
+				{Label: "_measurement", Type: flux.TString},
+				{Label: "t0", Type: flux.TString},
+			},
+			Data: [][]interface{}{
+				{start, stop, time, v, "f0", "m0", "a0"},
+			},
+		}
+	}
+	want := []*executetest.Table{
+		makeWindowTable(
+			Time("2019-11-25T00:00:00Z"), Time("2019-11-25T00:00:10Z"), Time("2019-11-25T00:00:00Z"), 1,
+		),
+		makeEmptyTable(
+			Time("2019-11-25T00:00:10Z"), Time("2019-11-25T00:00:20Z"),
+		),
+		makeWindowTable(
+			Time("2019-11-25T00:00:20Z"), Time("2019-11-25T00:00:30Z"), Time("2019-11-25T00:00:20Z"), 2,
+		),
+		makeEmptyTable(
+			Time("2019-11-25T00:00:30Z"), Time("2019-11-25T00:00:40Z"),
+		),
+		makeWindowTable(
+			Time("2019-11-25T00:00:40Z"), Time("2019-11-25T00:00:50Z"), Time("2019-11-25T00:00:40Z"), 1,
+		),
+		makeEmptyTable(
+			Time("2019-11-25T00:00:50Z"), Time("2019-11-25T00:01:00Z"),
+		),
+	}
+
+	executetest.NormalizeTables(want)
+	sort.Sort(executetest.SortedTables(want))
+
+	var got []*executetest.Table
+	if err := ti.Do(func(table flux.Table) error {
+		t, err := executetest.ConvertTable(table)
+		if err != nil {
+			return err
+		}
+		got = append(got, t)
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	executetest.NormalizeTables(got)
+	sort.Sort(executetest.SortedTables(got))
+
+	// compare these two
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("unexpected results -want/+got:\n%s", diff)
+	}
+}
+
+func TestStorageReader_ReadWindowFirstTimeColumn(t *testing.T) {
+	reader := NewStorageReader(t, func(org, bucket influxdb.ID) (gen.SeriesGenerator, gen.TimeRange) {
+		tagsSpec := &gen.TagsSpec{
+			Tags: []*gen.TagValuesSpec{
+				{
+					TagKey: "t0",
+					Values: func() gen.CountableSequence {
+						return gen.NewCounterByteSequence("a%s", 0, 1)
+					},
+				},
+			},
+		}
+		spec := gen.Spec{
+			OrgID:    org,
+			BucketID: bucket,
+			Measurements: []gen.MeasurementSpec{
+				{
+					Name:     "m0",
+					TagsSpec: tagsSpec,
+					FieldValuesSpec: &gen.FieldValuesSpec{
+						Name: "f0",
+						TimeSequenceSpec: gen.TimeSequenceSpec{
+							Count: math.MaxInt32,
+							Delta: 20 * time.Second,
+						},
+						DataType: models.Integer,
+						Values: func(spec gen.TimeSequenceSpec) gen.TimeValuesSequence {
+							return gen.NewTimeIntegerValuesSequence(
+								spec.Count,
+								gen.NewTimestampSequenceFromSpec(spec),
+								gen.NewIntegerArrayValuesSequence([]int64{1, 2}),
+							)
+						},
+					},
+				},
+			},
+		}
+		tr := gen.TimeRange{
+			Start: mustParseTime("2019-11-25T00:00:00Z"),
+			End:   mustParseTime("2019-11-25T00:01:00Z"),
+		}
+		return gen.NewSeriesGeneratorFromSpec(&spec, tr), tr
+	})
+	defer reader.Close()
+
+	mem := &memory.Allocator{}
+	ti, err := reader.ReadWindowAggregate(context.Background(), query.ReadWindowAggregateSpec{
+		ReadFilterSpec: query.ReadFilterSpec{
+			OrganizationID: reader.Org,
+			BucketID:       reader.Bucket,
+			Bounds:         reader.Bounds,
+		},
+		WindowEvery: int64(10 * time.Second),
+		Aggregates: []plan.ProcedureKind{
+			storageflux.FirstKind,
+		},
+		CreateEmpty: true,
+		TimeColumn:  execute.DefaultStopColLabel,
+	}, mem)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want := []*executetest.Table{
+		&executetest.Table{
+			KeyCols: []string{"_start", "_stop", "_field", "_measurement", "t0"},
+			ColMeta: []flux.ColMeta{
+				{Label: "_start", Type: flux.TTime},
+				{Label: "_stop", Type: flux.TTime},
+				{Label: "_time", Type: flux.TTime},
+				{Label: "_value", Type: flux.TInt},
+				{Label: "_field", Type: flux.TString},
+				{Label: "_measurement", Type: flux.TString},
+				{Label: "t0", Type: flux.TString},
+			},
+			Data: [][]interface{}{
+				{Time("2019-11-25T00:00:00Z"), Time("2019-11-25T00:01:00Z"), Time("2019-11-25T00:00:10Z"), int64(1), "f0", "m0", "a0"},
+				{Time("2019-11-25T00:00:00Z"), Time("2019-11-25T00:01:00Z"), Time("2019-11-25T00:00:30Z"), int64(2), "f0", "m0", "a0"},
+				{Time("2019-11-25T00:00:00Z"), Time("2019-11-25T00:01:00Z"), Time("2019-11-25T00:00:50Z"), int64(1), "f0", "m0", "a0"},
+			},
+		},
+	}
+
 	executetest.NormalizeTables(want)
 	sort.Sort(executetest.SortedTables(want))
 

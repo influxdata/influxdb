@@ -4818,10 +4818,22 @@ paths:
                   type: string
                 description:
                   type: string
-                urls:
+                templateURLs:
                   type: array
                   items:
                     type: string
+                additionalResources:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      resourceID:
+                        type: string
+                      kind:
+                        type: string
+                      templateMetaName:
+                        type: string
+                    required: ["kind","resourceID"]
       responses:
         "200":
           description: Influx stack updated
@@ -4856,41 +4868,6 @@ paths:
       responses:
         "204":
           description: Stack and all its associated resources are deleted
-        default:
-          description: Unexpected error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-  /packages/stacks/{stack_id}/export:
-    delete:
-      operationId: ExportStack
-      tags:
-        - InfluxPackages
-      summary: Export a stack's resources in the form of a package
-      parameters:
-        - in: path
-          name: stack_id
-          required: true
-          schema:
-            type: string
-          description: The stack id to be removed
-        - in: query
-          name: orgID
-          required: true
-          schema:
-            type: string
-          description: The organization id of the user
-      responses:
-        "200":
-          description: Stack and all its associated resources are deleted
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Pkg"
-            application/x-yaml:
-              schema:
-                $ref: "#/components/schemas/Pkg"
         default:
           description: Unexpected error
           content:
@@ -7699,30 +7676,48 @@ components:
                 properties:
                   action:
                     type: string
+                    enum: ["skipKind"]
+                  properties:
+                    type: object
+                    properties:
+                      kind:
+                        $ref: "#/components/schemas/TemplateKind"
+                    required: ["kind"]
+              - type: object
+                properties:
+                  action:
+                    type: string
                     enum: ["skipResource"]
                   properties:
                     type: object
                     properties:
                       kind:
-                        type: string
+                        $ref: "#/components/schemas/TemplateKind"
                       resourceTemplateName:
                         type: string
                     required: ["kind", "resourceTemplateName"]
-    PkgCreateKind:
+    TemplateKind:
       type: string
       enum:
-        - bucket
-        - check
-        - dashboard
-        - label
-        - notification_endpoint
-        - notification_rule
-        - task
-        - telegraf
-        - variable
+        - Bucket
+        - Check
+        - CheckDeadman
+        - CheckThreshold
+        - Dashboard
+        - Label
+        - NotificationEndpoint
+        - NotificationEndpointHTTP
+        - NotificationEndpointPagerDuty
+        - NotificationEndpointSlack
+        - NotificationRule
+        - Task
+        - Telegraf
+        - Variable
     PkgCreate:
       type: object
       properties:
+        stackID:
+          type: string
         orgIDs:
           type: array
           items:
@@ -7740,14 +7735,14 @@ components:
                   byResourceKind:
                     type: array
                     items:
-                      $ref: "#/components/schemas/PkgCreateKind"
+                      $ref: "#/components/schemas/TemplateKind"
         resources:
           type: object
           properties:
             id:
               type: string
             kind:
-              $ref: "#/components/schemas/PkgCreateKind"
+              $ref: "#/components/schemas/TemplateKind"
             name:
               type: string
           required: [id, kind]
@@ -7759,20 +7754,7 @@ components:
           apiVersion:
             type: string
           kind:
-            type: string
-            enum:
-              - Bucket
-              - CheckDeadman
-              - CheckThreshold
-              - Dashboard
-              - Label
-              - NotificationEndpointHTTP
-              - NotificationEndpointPagerDuty
-              - NotificationEndpointSlack
-              - NotificationRule
-              - Task
-              - Telegraf
-              - Variable
+            $ref: "#/components/schemas/TemplateKind"
           meta:
             type: object
             properties:
@@ -8368,7 +8350,7 @@ components:
             type: object
             properties:
               kind:
-                type: string
+                $ref: "#/components/schemas/TemplateKind"
               reason:
                 type: string
               fields:
@@ -8437,8 +8419,8 @@ components:
               resourceID:
                 type: string
               kind:
-                type: string
-              pkgName:
+                $ref: "#/components/schemas/TemplateKind"
+              templateMetaName:
                 type: string
               associations:
                 type: array
@@ -8446,8 +8428,8 @@ components:
                   type: object
                   properties:
                     kind:
-                      type: string
-                    pkgName:
+                      $ref: "#/components/schemas/TemplateKind"
+                    metaName:
                       type: string
         urls:
           type: array
@@ -9184,6 +9166,9 @@ components:
           type: string
         shadeBelow:
           type: boolean
+        hoverDimension:
+          type: string
+          enum: [auto, x, y, xy]
         position:
           type: string
           enum: [overlaid, stacked]
@@ -9240,6 +9225,9 @@ components:
           type: string
         shadeBelow:
           type: boolean
+        hoverDimension:
+          type: string
+          enum: [auto, x, y, xy]
         position:
           type: string
           enum: [overlaid, stacked]

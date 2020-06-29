@@ -9,7 +9,6 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2"
-	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/mock"
 )
 
@@ -129,7 +128,7 @@ func CreateOrganization(
 				organizations: []*influxdb.Organization{
 					{
 						Name:        "name1",
-						ID:          platform.ID(mock.FirstMockID),
+						ID:          influxdb.ID(mock.FirstMockID),
 						Description: "desc1",
 						CRUDLog: influxdb.CRUDLog{
 							CreatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
@@ -165,7 +164,7 @@ func CreateOrganization(
 						Name: "organization1",
 					},
 					{
-						ID:   platform.ID(mock.FirstMockID),
+						ID:   influxdb.ID(mock.FirstMockID),
 						Name: "organization2",
 						CRUDLog: influxdb.CRUDLog{
 							CreatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
@@ -290,7 +289,7 @@ func CreateOrganization(
 						Name: "organization1",
 					},
 					{
-						ID:   platform.ID(mock.FirstMockID),
+						ID:   influxdb.ID(mock.FirstMockID),
 						Name: "organization2",
 						CRUDLog: influxdb.CRUDLog{
 							CreatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),

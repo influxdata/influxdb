@@ -610,3 +610,59 @@ func Test_decodeProxyQueryRequest(t *testing.T) {
 		})
 	}
 }
+
+func TestProxyRequestToQueryRequest_Compilers(t *testing.T) {
+	tests := []struct {
+		name   string
+		pr     query.ProxyRequest
+		want   QueryRequest
+	}{
+		{
+			name: "flux compiler copied",
+			pr: query.ProxyRequest{
+				Dialect: &query.NoContentDialect{},
+				Request: query.Request{
+					Compiler: lang.FluxCompiler{
+						Query: `howdy`,
+						Now:   time.Unix(45, 45),
+					},
+				},
+			},
+			want: QueryRequest{
+				Type: "flux",
+				Query: `howdy`,
+				PreferNoContent: true,
+				Now: time.Unix(45, 45),
+			},
+		},
+		{
+			name: "AST compiler copied",
+			pr: query.ProxyRequest{
+				Dialect: &query.NoContentDialect{},
+				Request: query.Request{
+					Compiler: lang.ASTCompiler{
+						Now:   time.Unix(45, 45),
+						AST:  mustMarshal(&ast.Package{}),
+					},
+				},
+			},
+			want: QueryRequest{
+				Type: "flux",
+				PreferNoContent: true,
+				AST:  mustMarshal(&ast.Package{}),
+				Now: time.Unix(45, 45),
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+
+			got, err := QueryRequestFromProxyRequest( &tt.pr )
+			if err != nil {
+				t.Error(err)
+			} else if !reflect.DeepEqual(*got, tt.want) {
+				t.Errorf("QueryRequestFromProxyRequest = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

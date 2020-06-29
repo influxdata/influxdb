@@ -16,12 +16,17 @@ import RateLimitAlert from 'src/cloud/components/RateLimitAlert'
 // Utils
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
 
-// Selectors
+// Selectors & Actions
+import {resetCachedQueryResults} from 'src/queryCache/actions'
 import {getByID} from 'src/resources/selectors'
 
 // Types
 import {AppState, AutoRefresh, ResourceType, Dashboard} from 'src/types'
 import {ManualRefreshProps} from 'src/shared/components/ManualRefresh'
+
+interface DispatchProps {
+  resetCachedQueryResults: typeof resetCachedQueryResults
+}
 
 interface StateProps {
   dashboard: Dashboard
@@ -31,10 +36,14 @@ interface OwnProps {
   autoRefresh: AutoRefresh
 }
 
-type Props = OwnProps & StateProps & ManualRefreshProps
+type Props = OwnProps & StateProps & ManualRefreshProps & DispatchProps
 
 @ErrorHandling
 class DashboardPage extends Component<Props> {
+  public componentWillUnmount() {
+    this.props.resetCachedQueryResults()
+  }
+
   public render() {
     const {autoRefresh, manualRefresh, onManualRefresh, children} = this.props
 
@@ -76,7 +85,11 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-export default connect<StateProps, {}>(
+const mdtp = {
+  resetCachedQueryResults: resetCachedQueryResults,
+}
+
+export default connect<StateProps, DispatchProps>(
   mstp,
-  null
+  mdtp
 )(ManualRefresh<OwnProps>(DashboardPage))

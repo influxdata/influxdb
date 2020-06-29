@@ -32,7 +32,6 @@ func TestService_handlePostAuthorization(t *testing.T) {
 	type fields struct {
 		AuthorizationService influxdb.AuthorizationService
 		TenantService        TenantService
-		LookupService        influxdb.LookupService
 	}
 	type args struct {
 		session       *influxdb.Authorization
@@ -72,16 +71,11 @@ func TestService_handlePostAuthorization(t *testing.T) {
 							Name: "o1",
 						}, nil
 					},
-				},
-				LookupService: &mock.LookupService{
-					NameFn: func(ctx context.Context, resource influxdb.ResourceType, id influxdb.ID) (string, error) {
-						switch resource {
-						case influxdb.BucketsResourceType:
-							return "b1", nil
-						case influxdb.OrgsResourceType:
-							return "o1", nil
-						}
-						return "", fmt.Errorf("bad resource type %s", resource)
+					FindBucketByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Bucket, error) {
+						return &influxdb.Bucket{
+							ID:   id,
+							Name: "b1",
+						}, nil
 					},
 				},
 			},
@@ -168,7 +162,7 @@ func TestService_handlePostAuthorization(t *testing.T) {
 
 			svc := NewService(storage, tt.fields.TenantService)
 
-			handler := NewHTTPAuthHandler(zaptest.NewLogger(t), svc, tt.fields.TenantService, mock.NewLookupService())
+			handler := NewHTTPAuthHandler(zaptest.NewLogger(t), svc, tt.fields.TenantService)
 			router := chi.NewRouter()
 			router.Mount(handler.Prefix(), handler)
 
@@ -223,7 +217,6 @@ func TestService_handleGetAuthorization(t *testing.T) {
 	type fields struct {
 		AuthorizationService influxdb.AuthorizationService
 		TenantService        TenantService
-		LookupService        influxdb.LookupService
 	}
 	type args struct {
 		id string
@@ -283,16 +276,11 @@ func TestService_handleGetAuthorization(t *testing.T) {
 							Name: "o1",
 						}, nil
 					},
-				},
-				LookupService: &mock.LookupService{
-					NameFn: func(ctx context.Context, resource influxdb.ResourceType, id influxdb.ID) (string, error) {
-						switch resource {
-						case influxdb.BucketsResourceType:
-							return "b1", nil
-						case influxdb.OrgsResourceType:
-							return "o1", nil
-						}
-						return "", fmt.Errorf("bad resource type %s", resource)
+					FindBucketByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Bucket, error) {
+						return &influxdb.Bucket{
+							ID:   id,
+							Name: "b1",
+						}, nil
 					},
 				},
 			},
@@ -361,7 +349,7 @@ func TestService_handleGetAuthorization(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Helper()
 
-			handler := NewHTTPAuthHandler(zaptest.NewLogger(t), tt.fields.AuthorizationService, tt.fields.TenantService, mock.NewLookupService())
+			handler := NewHTTPAuthHandler(zaptest.NewLogger(t), tt.fields.AuthorizationService, tt.fields.TenantService)
 			router := chi.NewRouter()
 			router.Mount(handler.Prefix(), handler)
 
@@ -700,7 +688,7 @@ func TestService_handleGetAuthorizations(t *testing.T) {
 
 			svc := NewService(storage, tt.fields.TenantService)
 
-			handler := NewHTTPAuthHandler(zaptest.NewLogger(t), svc, tt.fields.TenantService, mock.NewLookupService())
+			handler := NewHTTPAuthHandler(zaptest.NewLogger(t), svc, tt.fields.TenantService)
 			router := chi.NewRouter()
 			router.Mount(handler.Prefix(), handler)
 
@@ -806,7 +794,7 @@ func TestService_handleDeleteAuthorization(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Helper()
 
-			handler := NewHTTPAuthHandler(zaptest.NewLogger(t), tt.fields.AuthorizationService, tt.fields.TenantService, mock.NewLookupService())
+			handler := NewHTTPAuthHandler(zaptest.NewLogger(t), tt.fields.AuthorizationService, tt.fields.TenantService)
 			router := chi.NewRouter()
 			router.Mount(handler.Prefix(), handler)
 

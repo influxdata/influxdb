@@ -29,6 +29,10 @@ type ResourceToClone struct {
 	Kind Kind        `json:"kind"`
 	ID   influxdb.ID `json:"id"`
 	Name string      `json:"name"`
+	// note(jsteenb2): For time being we'll allow this internally, but not externally. A lot of
+	// issues to account for when exposing this to the outside world. Not something I'm keen
+	// to accommodate at this time.
+	MetaName string `json:"-"`
 }
 
 // OK validates a resource clone is viable.
@@ -88,29 +92,39 @@ type resourceExporter struct {
 	teleSVC     influxdb.TelegrafConfigStore
 	varSVC      influxdb.VariableService
 
-	mObjects  map[exportKey]Object
-	mPkgNames map[string]bool
+	mObjects        map[exportKey]Object
+	mPkgNames       map[string]bool
+	mStackResources map[exportKey]StackResource
 }
 
 func newResourceExporter(svc *Service) *resourceExporter {
 	return &resourceExporter{
-		nameGen:     wordplay.GetRandomName,
-		bucketSVC:   svc.bucketSVC,
-		checkSVC:    svc.checkSVC,
-		dashSVC:     svc.dashSVC,
-		labelSVC:    svc.labelSVC,
-		endpointSVC: svc.endpointSVC,
-		ruleSVC:     svc.ruleSVC,
-		taskSVC:     svc.taskSVC,
-		teleSVC:     svc.teleSVC,
-		varSVC:      svc.varSVC,
-		mObjects:    make(map[exportKey]Object),
-		mPkgNames:   make(map[string]bool),
+		nameGen:         wordplay.GetRandomName,
+		bucketSVC:       svc.bucketSVC,
+		checkSVC:        svc.checkSVC,
+		dashSVC:         svc.dashSVC,
+		labelSVC:        svc.labelSVC,
+		endpointSVC:     svc.endpointSVC,
+		ruleSVC:         svc.ruleSVC,
+		taskSVC:         svc.taskSVC,
+		teleSVC:         svc.teleSVC,
+		varSVC:          svc.varSVC,
+		mObjects:        make(map[exportKey]Object),
+		mPkgNames:       make(map[string]bool),
+		mStackResources: make(map[exportKey]StackResource),
 	}
 }
 
 func (ex *resourceExporter) Export(ctx context.Context, resourcesToClone []ResourceToClone, labelNames ...string) error {
-	cloneAssFn, err := ex.resourceCloneAssociationsGen(ctx, labelNames...)
+	mLabelIDsToMetaName := make(map[influxdb.ID]string)
+	for _, r := range resourcesToClone {
+		if !r.Kind.is(KindLabel) || r.MetaName == "" {
+			continue
+		}
+		mLabelIDsToMetaName[r.ID] = r.MetaName
+	}
+
+	cloneAssFn, err := ex.resourceCloneAssociationsGen(ctx, mLabelIDsToMetaName, labelNames...)
 	if err != nil {
 		return err
 	}
@@ -149,6 +163,14 @@ func (ex *resourceExporter) Objects() []Object {
 	return sortObjects(objects)
 }
 
+func (ex *resourceExporter) StackResources() []StackResource {
+	resources := make([]StackResource, 0, len(ex.mStackResources))
+	for _, res := range ex.mStackResources {
+		resources = append(resources, res)
+	}
+	return resources
+}
+
 func (ex *resourceExporter) uniqByNameResID() influxdb.ID {
 	// we only need an id when we have resources that are not unique by name via the
 	// metastore. resoureces that are unique by name will be provided a default stamp
@@ -157,7 +179,7 @@ func (ex *resourceExporter) uniqByNameResID() influxdb.ID {
 	return uniqByNameResID
 }
 
-type cloneAssociationsFn func(context.Context, ResourceToClone) (associations []Resource, skipResource bool, err error)
+type cloneAssociationsFn func(context.Context, ResourceToClone) (associations []ObjectAssociation, skipResource bool, err error)
 
 func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceToClone, cFn cloneAssociationsFn) (e error) {
 	defer func() {
@@ -176,13 +198,26 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 
 	mapResource := func(orgID, uniqResID influxdb.ID, k Kind, object Object) {
 		// overwrite the default metadata.name field with export generated one here
-		object.Metadata[fieldName] = ex.uniqName()
-
-		if len(ass) > 0 {
-			object.Spec[fieldAssociations] = ass
+		metaName := r.MetaName
+		if r.MetaName == "" {
+			metaName = ex.uniqName()
 		}
+
+		stackResource := StackResource{
+			APIVersion: APIVersion,
+			ID:         r.ID,
+			MetaName:   metaName,
+			Kind:       r.Kind,
+		}
+		for _, a := range ass {
+			stackResource.Associations = append(stackResource.Associations, StackResourceAssociation(a))
+		}
+
+		object.SetMetadataName(metaName)
+		object.AddAssociations(ass...)
 		key := newExportKey(orgID, uniqResID, k, object.Spec.stringShort(fieldName))
 		ex.mObjects[key] = object
+		ex.mStackResources[key] = stackResource
 	}
 
 	uniqByNameResID := ex.uniqByNameResID()
@@ -263,7 +298,7 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 	return nil
 }
 
-func (ex *resourceExporter) resourceCloneAssociationsGen(ctx context.Context, labelNames ...string) (cloneAssociationsFn, error) {
+func (ex *resourceExporter) resourceCloneAssociationsGen(ctx context.Context, labelIDsToMetaName map[influxdb.ID]string, labelNames ...string) (cloneAssociationsFn, error) {
 	mLabelNames := make(map[string]bool)
 	for _, labelName := range labelNames {
 		mLabelNames[labelName] = true
@@ -274,7 +309,7 @@ func (ex *resourceExporter) resourceCloneAssociationsGen(ctx context.Context, la
 		return nil, err
 	}
 
-	cloneFn := func(ctx context.Context, r ResourceToClone) ([]Resource, bool, error) {
+	cloneFn := func(ctx context.Context, r ResourceToClone) ([]ObjectAssociation, bool, error) {
 		if r.Kind.is(KindUnknown) {
 			return nil, true, nil
 		}
@@ -305,7 +340,7 @@ func (ex *resourceExporter) resourceCloneAssociationsGen(ctx context.Context, la
 			}
 		}
 
-		var associations []Resource
+		var associations []ObjectAssociation
 		for _, l := range labels {
 			if len(mLabelNames) > 0 {
 				if _, ok := mLabelNames[l.Name]; !ok {
@@ -314,23 +349,30 @@ func (ex *resourceExporter) resourceCloneAssociationsGen(ctx context.Context, la
 			}
 
 			labelObject := LabelToObject("", *l)
-			labelObject.Metadata[fieldName] = ex.uniqName()
+			metaName := labelIDsToMetaName[l.ID]
+			if metaName == "" {
+				metaName = ex.uniqName()
+			}
+			labelObject.Metadata[fieldName] = metaName
 
 			k := newExportKey(l.OrgID, ex.uniqByNameResID(), KindLabel, l.Name)
 			existing, ok := ex.mObjects[k]
 			if ok {
-				associations = append(associations, Resource{
-					fieldKind: KindLabel.String(),
-					fieldName: existing.Name(),
+				associations = append(associations, ObjectAssociation{
+					Kind:     KindLabel,
+					MetaName: existing.Name(),
 				})
 				continue
 			}
-			associations = append(associations, Resource{
-				fieldKind: KindLabel.String(),
-				fieldName: labelObject.Name(),
+			associations = append(associations, ObjectAssociation{
+				Kind:     KindLabel,
+				MetaName: labelObject.Name(),
 			})
 			ex.mObjects[k] = labelObject
 		}
+		sort.Slice(associations, func(i, j int) bool {
+			return associations[i].MetaName < associations[j].MetaName
+		})
 		return associations, false, nil
 	}
 
@@ -352,15 +394,19 @@ func (ex *resourceExporter) getEndpointRule(ctx context.Context, id influxdb.ID)
 }
 
 func (ex *resourceExporter) uniqName() string {
+	return uniqMetaName(ex.nameGen, ex.mPkgNames)
+}
+
+func uniqMetaName(nameGen NameGenerator, existingNames map[string]bool) string {
 	uuid := strings.ToLower(idGenerator.ID().String())
+	name := uuid
 	for i := 1; i < 250; i++ {
-		name := fmt.Sprintf("%s-%s", ex.nameGen(), uuid[10:])
-		if !ex.mPkgNames[name] {
+		name = fmt.Sprintf("%s-%s", nameGen(), uuid[10:])
+		if !existingNames[name] {
 			return name
 		}
 	}
-	// if all else fails, generate a UUID for the name
-	return uuid
+	return name
 }
 
 func findDashboardByIDFull(ctx context.Context, dashSVC influxdb.DashboardService, id influxdb.ID) (*influxdb.Dashboard, error) {
@@ -388,10 +434,12 @@ func uniqResourcesToClone(resources []ResourceToClone) []ResourceToClone {
 	for i := range resources {
 		r := resources[i]
 		rKey := key{kind: r.Kind, id: r.ID}
+
 		kr, ok := m[rKey]
 		switch {
-		case ok && kr.Name == r.Name:
-		case ok && kr.Name != "" && r.Name == "":
+		case ok && kr.Name == r.Name && kr.MetaName == r.MetaName:
+		case ok && kr.MetaName != "" && r.MetaName == "":
+		case ok && kr.MetaName == "" && kr.Name != "" && r.Name == "":
 		default:
 			m[rKey] = r
 		}
@@ -584,6 +632,7 @@ func convertCellView(cell influxdb.Cell) chart {
 		setLegend(p.Legend)
 		ch.Axes = convertAxes(p.Axes)
 		ch.Shade = p.ShadeBelow
+		ch.HoverDimension = p.HoverDimension
 		ch.XCol = p.XColumn
 		ch.YCol = p.YColumn
 		ch.Position = p.Position
@@ -628,11 +677,15 @@ func convertCellView(cell influxdb.Cell) chart {
 		ch.Axes = convertAxes(p.Axes)
 		ch.Geom = p.Geom
 		ch.Shade = p.ShadeBelow
+		ch.HoverDimension = p.HoverDimension
 		ch.XCol = p.XColumn
 		ch.YCol = p.YColumn
 		ch.Position = p.Position
 	}
 
+	sort.Slice(ch.Axes, func(i, j int) bool {
+		return ch.Axes[i].Name < ch.Axes[j].Name
+	})
 	return ch
 }
 
@@ -699,16 +752,17 @@ func convertChartToResource(ch chart) Resource {
 	})
 
 	assignNonZeroStrings(r, map[string]string{
-		fieldChartNote:       ch.Note,
-		fieldPrefix:          ch.Prefix,
-		fieldSuffix:          ch.Suffix,
-		fieldChartGeom:       ch.Geom,
-		fieldChartXCol:       ch.XCol,
-		fieldChartYCol:       ch.YCol,
-		fieldChartPosition:   ch.Position,
-		fieldChartTickPrefix: ch.TickPrefix,
-		fieldChartTickSuffix: ch.TickSuffix,
-		fieldChartTimeFormat: ch.TimeFormat,
+		fieldChartNote:           ch.Note,
+		fieldPrefix:              ch.Prefix,
+		fieldSuffix:              ch.Suffix,
+		fieldChartGeom:           ch.Geom,
+		fieldChartXCol:           ch.XCol,
+		fieldChartYCol:           ch.YCol,
+		fieldChartPosition:       ch.Position,
+		fieldChartTickPrefix:     ch.TickPrefix,
+		fieldChartTickSuffix:     ch.TickSuffix,
+		fieldChartTimeFormat:     ch.TimeFormat,
+		fieldChartHoverDimension: ch.HoverDimension,
 	})
 
 	assignNonZeroInts(r, map[string]int{
@@ -773,7 +827,7 @@ func DashboardToObject(name string, dash influxdb.Dashboard) Object {
 
 	charts := make([]Resource, 0, len(dash.Cells))
 	for _, cell := range dash.Cells {
-		if cell.ID == influxdb.ID(0) {
+		if cell.View == nil {
 			continue
 		}
 		ch := convertCellView(*cell)
@@ -950,6 +1004,10 @@ func VariableToObject(name string, v influxdb.Variable) Object {
 	o := newObject(KindVariable, name)
 
 	assignNonZeroStrings(o.Spec, map[string]string{fieldDescription: v.Description})
+
+	if len(v.Selected) > 0 {
+		o.Spec[fieldVariableSelected] = v.Selected
+	}
 
 	args := v.Arguments
 	if args == nil {

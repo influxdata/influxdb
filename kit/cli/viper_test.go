@@ -116,7 +116,7 @@ func Test_NewProgram(t *testing.T) {
 		"shoe-fly": "yadon",
 	})
 	defer cleanup()
-	defer setEnvVar("TEST_CONFIG_FILE", testFilePath)()
+	defer setEnvVar("TEST_CONFIG_PATH", testFilePath)()
 
 	tests := []struct {
 		name      string

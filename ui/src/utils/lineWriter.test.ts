@@ -346,9 +346,7 @@ describe('batched writes', () => {
     const [url, requestParams] = mocked(window.fetch).mock.calls[0]
 
     expect(url).toBe(
-      `http://example.com/api/v2/write?org=orgid&bucket=bucket&precision=${
-        Precision.s
-      }`
+      `http://example.com/api/v2/write?org=orgid&bucket=bucket&precision=${Precision.s}`
     )
     expect(requestParams).toEqual({
       method: 'POST',
@@ -383,9 +381,7 @@ describe('batched writes', () => {
     const [url, requestParams] = mocked(window.fetch).mock.calls[0]
 
     expect(url).toBe(
-      `http://example.com/api/v2/write?org=orgid&bucket=bucket&precision=${
-        Precision.s
-      }`
+      `http://example.com/api/v2/write?org=orgid&bucket=bucket&precision=${Precision.s}`
     )
     expect(requestParams).toEqual({
       method: 'POST',

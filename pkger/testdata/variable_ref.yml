@@ -4,13 +4,23 @@ metadata:
   name:
     envRef:
       key: meta-name
+      default: meta
 spec:
   name:
     envRef:
       key: spec-name
+      default: spectacles
   type: constant
   values:
     - first val
+    - second val
+    - third val
+  selected:
+    - envRef:
+        key: the-selected
+        default: second val
+    - envRef:
+        key: the-2nd
   associations:
     - kind: Label
       name:

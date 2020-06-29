@@ -440,9 +440,7 @@ export const generateTelegrafToken = (configID: string) => async (
     const token = {
       name: `${telegraf.name} token`,
       orgID,
-      description: `WRITE ${bucketName} bucket / READ ${
-        telegraf.name
-      } telegraf config`,
+      description: `WRITE ${bucketName} bucket / READ ${telegraf.name} telegraf config`,
       permissions,
     }
 

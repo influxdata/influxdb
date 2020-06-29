@@ -7,6 +7,8 @@ spec:
   description: query var desc
   type: query
   language: flux
+  selected:
+    - rucket
   query: |
     buckets()  |> filter(fn: (r) => r.name !~ /^_/)  |> rename(columns: {name: "_value"})  |> keep(columns: ["_value"])
 ---

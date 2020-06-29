@@ -4522,7 +4522,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     package: 'strings',
     desc:
       'Returns the index of the last instance of a substring in a string. If the substring is not present, the function returns -1.',
-    example: 'strings.lastIndex(v: "go gopher", t: "go")',
+    example: 'strings.lastIndex(v: "go gopher", substr: "go")',
     category: 'Transformations',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/strings/lastindex/',

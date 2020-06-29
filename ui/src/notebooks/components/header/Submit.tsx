@@ -7,6 +7,9 @@ import {NotebookContext, PipeMeta} from 'src/notebooks/context/notebook'
 import {TimeContext} from 'src/notebooks/context/time'
 import {IconFont} from '@influxdata/clockface'
 
+// Utils
+import {event} from 'src/notebooks/shared/event'
+
 // Types
 import {RemoteDataState} from 'src/types'
 
@@ -25,6 +28,8 @@ export const Submit: FC = () => {
   }, [!!time && time.range])
 
   const submit = () => {
+    event('Notebook Submit Button Clicked')
+
     setLoading(RemoteDataState.Loading)
     Promise.all(
       pipes
@@ -50,6 +55,16 @@ export const Submit: FC = () => {
               text,
               instances: [index],
               requirements,
+            })
+          } else if (pipe.type === 'data') {
+            const {bucketName, timeStart, timeStop} = pipe
+
+            const text = `from(bucket: "${bucketName}")|>range(start: ${timeStart}, stop: ${timeStop})`
+
+            stages.push({
+              text,
+              instances: [index],
+              requirements: {},
             })
           } else if (stages.length) {
             stages[stages.length - 1].instances.push(index)
@@ -81,9 +96,13 @@ export const Submit: FC = () => {
         })
     )
       .then(() => {
+        event('Notebook Submit Resolved')
+
         setLoading(RemoteDataState.Done)
       })
       .catch(e => {
+        event('Notebook Submit Resolved')
+
         // NOTE: this shouldn't fire, but lets wrap it for completeness
         setLoading(RemoteDataState.Error)
         throw e

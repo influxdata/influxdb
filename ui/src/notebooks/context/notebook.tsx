@@ -56,6 +56,23 @@ export const NotebookContext = React.createContext<NotebookContextType>(
 
 let GENERATOR_INDEX = 0
 
+const getHumanReadableName = (type: string): string => {
+  ++GENERATOR_INDEX
+
+  switch (type) {
+    case 'data':
+      return `Data Source ${GENERATOR_INDEX}`
+    case 'visualization':
+      return `Visualization ${GENERATOR_INDEX}`
+    case 'markdown':
+      return `Markdown ${GENERATOR_INDEX}`
+    case 'query':
+      return `Flux Script ${GENERATOR_INDEX}`
+    default:
+      return `Cell ${GENERATOR_INDEX}`
+  }
+}
+
 export const NotebookProvider: FC = ({children}) => {
   const [id] = useState(DEFAULT_CONTEXT.id)
   const [pipes, setPipes] = useState(DEFAULT_CONTEXT.pipes)
@@ -79,7 +96,7 @@ export const NotebookProvider: FC = ({children}) => {
         _setResults(add({...results[results.length - 1]}))
         _setMeta(
           add({
-            title: `Cell_${++GENERATOR_INDEX}`,
+            title: getHumanReadableName(pipe.type),
             visible: true,
             loading: meta[meta.length - 1].loading,
             focus: false,
@@ -89,7 +106,7 @@ export const NotebookProvider: FC = ({children}) => {
         _setResults(add({}))
         _setMeta(
           add({
-            title: `Cell_${++GENERATOR_INDEX}`,
+            title: getHumanReadableName(pipe.type),
             visible: true,
             loading: RemoteDataState.NotStarted,
             focus: false,

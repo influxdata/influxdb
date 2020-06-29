@@ -51,7 +51,4 @@ const mdtp: DispatchProps = {
   onSetBuilderBucketIfExists: setBuilderBucketIfExists,
 }
 
-export default connect<{}, DispatchProps, {}>(
-  null,
-  mdtp
-)(DataExplorer)
+export default connect<{}, DispatchProps, {}>(null, mdtp)(DataExplorer)

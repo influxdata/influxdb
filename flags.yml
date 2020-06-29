@@ -85,19 +85,18 @@
   default: false
   contact: Query Team
 
+- name: Group Window Aggregate Transpose
+  description: Enables the GroupWindowAggregateTransposeRule for all enabled window aggregates
+  key: groupWindowAggregateTranspose
+  default: false
+  contact: Query Team
+
 - name: New Auth Package
   description: Enables the refactored authorization api
   key: newAuth
   default: false
   contact: Alirie Gray
   lifetime: temporary
-
-- name: Session Service
-  description: A temporary switching system for the new session system
-  key: sessionService
-  default: false
-  contact: Lyon Hill
-  expose: true
 
 - name: Push Down Group Aggregate Count
   description: Enable the count variant of PushDownGroupAggregate planner rule
@@ -153,4 +152,11 @@
   key: urmFreeTasks
   default: false
   contact: Lyon Hill
+  lifetime: temporary
+
+- name: Simple Task Options Extraction
+  description: Simplified task options extraction to avoid undefined functions when saving tasks
+  key: simpleTaskOptionsExtraction
+  default: false
+  contact: Brett Buddin
   lifetime: temporary

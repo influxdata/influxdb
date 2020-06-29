@@ -128,7 +128,4 @@ const mdtp = {
   onNotify: notify,
 }
 
-export default connect<StateProps, DispatchProps>(
-  mstp,
-  mdtp
-)(SubmitQueryButton)
+export default connect<StateProps, DispatchProps>(mstp, mdtp)(SubmitQueryButton)

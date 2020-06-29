@@ -44,7 +44,4 @@ class TokensIndex extends Component<StateProps> {
 
 const mstp = (state: AppState) => ({org: getOrg(state)})
 
-export default connect<StateProps, {}, {}>(
-  mstp,
-  null
-)(TokensIndex)
+export default connect<StateProps, {}, {}>(mstp, null)(TokensIndex)

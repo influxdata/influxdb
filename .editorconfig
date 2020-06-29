@@ -4,6 +4,8 @@
 # This is the terminal .editorconfig in this repository.
 root = true
 
+# You can't change this to * without the `checkfmt` make target failing due to many
+# files that don't adhere to this.
 [*.yml]
 insert_final_newline = true
 trim_trailing_whitespace = true

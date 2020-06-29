@@ -26,8 +26,7 @@ func ParseSignedDuration(text string) (*ast.DurationLiteral, error) {
 	// TODO(jsternberg): This is copied from an internal package in flux to break a dependency
 	// on the parser package where this method is exposed.
 	// Consider exposing this properly in flux.
-	r, s := utf8.DecodeRuneInString(text)
-	if r == '-' {
+	if r, s := utf8.DecodeRuneInString(text); r == '-' {
 		d, err := parseDuration(text[s:])
 		if err != nil {
 			return nil, err

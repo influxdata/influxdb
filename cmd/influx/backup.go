@@ -23,6 +23,8 @@ The target directory, and any parent directories, are created automatically.
 Data file have extension .tsm; meta data is written to %s in the same directory.`,
 		bolt.DefaultFilename)
 
+	f.registerFlags(cmd)
+
 	opts := flagOpts{
 		{
 			DestP:    &backupFlags.Path,
@@ -51,10 +53,6 @@ func newBackupService() (influxdb.BackupService, error) {
 
 func backupF(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
-
-	if flags.local {
-		return fmt.Errorf("local flag not supported for backup command")
-	}
 
 	if backupFlags.Path == "" {
 		return fmt.Errorf("must specify path")
