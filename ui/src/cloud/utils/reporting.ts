@@ -31,6 +31,27 @@ export const updateReportingContext = (properties: KeyValue) => {
   reportingTags = {...reportingTags, ...properties}
 }
 
+// NOTE: typescript can't follow the API results for flags,
+// so we need to convert them to strings here
+const cleanTags = (data: Point): Point => {
+  data.tags = Object.entries(data.tags).reduce((acc, [key, val]) => {
+    if (typeof val === 'boolean') {
+      acc[key] = val ? 'true' : 'false'
+      return acc
+    }
+
+    if (!isNaN(parseFloat(val))) {
+      acc[key] = '' + val
+      return acc
+    }
+
+    acc[key] = val
+    return acc
+  }, {})
+
+  return data
+}
+
 export const reportEvent = ({
   timestamp = toNano(Date.now()),
   measurement,
@@ -43,12 +64,14 @@ export const reportEvent = ({
 
   fireEvent(measurement, {...reportingTags, ...tags})
 
-  reportingPoints.push({
-    measurement,
-    tags: {...reportingTags, ...tags},
-    fields,
-    timestamp,
-  })
+  reportingPoints.push(
+    cleanTags({
+      measurement,
+      tags: {...reportingTags, ...tags},
+      fields,
+      timestamp,
+    })
+  )
 
   if (!!reportDecayTimeout) {
     clearTimeout(reportDecayTimeout)
