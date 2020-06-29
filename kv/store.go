@@ -26,10 +26,17 @@ func IsNotFound(err error) bool {
 
 // SchemaStore is a superset of Store along with store schema change
 // functionality like bucket creation and deletion.
+//
+// This type is made available via the `kv/migration` package.
+// It should be consumed via this package to create and delete buckets using a migration.
+// Checkout the internal tool `cmd/internal/kvmigrate` for building a new migration Go file into
+// the correct location (in kv/migration/all.go).
+// Configuring your bucket here will ensure it is created properly on initialization of InfluxDB.
 type SchemaStore interface {
 	Store
-	BucketCreator
 
+	// CreateBucket creates a bucket on the underlying store if it does not exist
+	CreateBucket(ctx context.Context, bucket []byte) error
 	// DeleteBucket deletes a bucket on the underlying store if it exists
 	DeleteBucket(ctx context.Context, bucket []byte) error
 }
@@ -44,12 +51,6 @@ type Store interface {
 	Update(context.Context, func(Tx) error) error
 	// Backup copies all K:Vs to a writer, file format determined by implementation.
 	Backup(ctx context.Context, w io.Writer) error
-}
-
-// BucketCreator is a type which can create Buckets
-type BucketCreator interface {
-	// CreateBucket creates a bucket on the underlying store if it does not exist
-	CreateBucket(ctx context.Context, bucket []byte) error
 }
 
 // Tx is a transaction in the store.
