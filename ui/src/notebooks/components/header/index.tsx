@@ -3,7 +3,6 @@ import React, {FC} from 'react'
 import {Page} from '@influxdata/clockface'
 import AddButtons from 'src/notebooks/components/AddButtons'
 import Buttons from 'src/notebooks/components/header/Buttons'
-import MiniMapToggle from 'src/notebooks/components/minimap/MiniMapToggle'
 
 const FULL_WIDTH = true
 
@@ -18,7 +17,6 @@ const Header: FC = () => (
         <AddButtons eventName="Notebook Add Button Clicked" />
       </Page.ControlBarLeft>
       <Page.ControlBarRight>
-        <MiniMapToggle />
         <Buttons />
       </Page.ControlBarRight>
     </Page.ControlBar>
