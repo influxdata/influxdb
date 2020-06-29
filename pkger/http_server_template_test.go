@@ -164,7 +164,7 @@ func TestPkgerHTTPServerTemplate(t *testing.T) {
 							for _, b := range sum.Buckets {
 								diff.Buckets = append(diff.Buckets, pkger.DiffBucket{
 									DiffIdentifier: pkger.DiffIdentifier{
-										PkgName: b.Name,
+										MetaName: b.Name,
 									},
 								})
 							}
@@ -232,7 +232,7 @@ func TestPkgerHTTPServerTemplate(t *testing.T) {
 							for _, b := range sum.Buckets {
 								diff.Buckets = append(diff.Buckets, pkger.DiffBucket{
 									DiffIdentifier: pkger.DiffIdentifier{
-										PkgName: b.Name,
+										MetaName: b.Name,
 									},
 								})
 							}
@@ -352,7 +352,7 @@ func TestPkgerHTTPServerTemplate(t *testing.T) {
 							for _, b := range sum.Buckets {
 								diff.Buckets = append(diff.Buckets, pkger.DiffBucket{
 									DiffIdentifier: pkger.DiffIdentifier{
-										PkgName: b.Name,
+										MetaName: b.Name,
 									},
 								})
 							}
@@ -468,7 +468,7 @@ func TestPkgerHTTPServerTemplate(t *testing.T) {
 				for _, b := range sum.Buckets {
 					diff.Buckets = append(diff.Buckets, pkger.DiffBucket{
 						DiffIdentifier: pkger.DiffIdentifier{
-							PkgName: b.Name,
+							MetaName: b.Name,
 						},
 					})
 				}

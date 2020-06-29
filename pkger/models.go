@@ -141,7 +141,7 @@ func (s SafeID) String() string {
 type DiffIdentifier struct {
 	ID          SafeID      `json:"id"`
 	StateStatus StateStatus `json:"stateStatus"`
-	PkgName     string      `json:"pkgName"`
+	MetaName    string      `json:"templateMetaName"`
 }
 
 // IsNew indicates the resource is new to the platform.
@@ -309,14 +309,14 @@ const (
 type DiffLabelMapping struct {
 	StateStatus StateStatus `json:"stateStatus"`
 
-	ResType    influxdb.ResourceType `json:"resourceType"`
-	ResID      SafeID                `json:"resourceID"`
-	ResName    string                `json:"resourceName"`
-	ResPkgName string                `json:"resourcePkgName"`
+	ResType     influxdb.ResourceType `json:"resourceType"`
+	ResID       SafeID                `json:"resourceID"`
+	ResName     string                `json:"resourceName"`
+	ResMetaName string                `json:"resourceTemplateMetaName"`
 
-	LabelID      SafeID `json:"labelID"`
-	LabelName    string `json:"labelName"`
-	LabelPkgName string `json:"labelPkgName"`
+	LabelID       SafeID `json:"labelID"`
+	LabelName     string `json:"labelName"`
+	LabelMetaName string `json:"labelTemplateMetaName"`
 }
 
 //func (d DiffLabelMapping) IsNew() bool {
@@ -452,7 +452,7 @@ type SummaryBucket struct {
 	ID          SafeID `json:"id,omitempty"`
 	OrgID       SafeID `json:"orgID,omitempty"`
 	Name        string `json:"name"`
-	PkgName     string `json:"pkgName"`
+	MetaName    string `json:"templateMetaName"`
 	Description string `json:"description"`
 	// TODO: return retention rules?
 	RetentionPeriod time.Duration `json:"retentionPeriod"`
@@ -463,9 +463,9 @@ type SummaryBucket struct {
 
 // SummaryCheck provides a summary of a pkg check.
 type SummaryCheck struct {
-	PkgName string          `json:"pkgName"`
-	Check   influxdb.Check  `json:"check"`
-	Status  influxdb.Status `json:"status"`
+	MetaName string          `json:"templateMetaName"`
+	Check    influxdb.Check  `json:"check"`
+	Status   influxdb.Status `json:"status"`
 
 	EnvReferences     []SummaryReference `json:"envReferences"`
 	LabelAssociations []SummaryLabel     `json:"labelAssociations"`
@@ -473,7 +473,7 @@ type SummaryCheck struct {
 
 func (s *SummaryCheck) UnmarshalJSON(b []byte) error {
 	var out struct {
-		PkgName           string          `json:"pkgName"`
+		MetaName          string          `json:"templateMetaName"`
 		Status            string          `json:"status"`
 		LabelAssociations []SummaryLabel  `json:"labelAssociations"`
 		Check             json.RawMessage `json:"check"`
@@ -481,7 +481,7 @@ func (s *SummaryCheck) UnmarshalJSON(b []byte) error {
 	if err := json.Unmarshal(b, &out); err != nil {
 		return err
 	}
-	s.PkgName = out.PkgName
+	s.MetaName = out.MetaName
 	s.Status = influxdb.Status(out.Status)
 	s.LabelAssociations = out.LabelAssociations
 
@@ -494,7 +494,7 @@ func (s *SummaryCheck) UnmarshalJSON(b []byte) error {
 type SummaryDashboard struct {
 	ID          SafeID         `json:"id"`
 	OrgID       SafeID         `json:"orgID"`
-	PkgName     string         `json:"pkgName"`
+	MetaName    string         `json:"templateMetaName"`
 	Name        string         `json:"name"`
 	Description string         `json:"description"`
 	Charts      []SummaryChart `json:"charts"`
@@ -554,7 +554,7 @@ func (s *SummaryChart) UnmarshalJSON(b []byte) error {
 
 // SummaryNotificationEndpoint provides a summary of a pkg notification endpoint.
 type SummaryNotificationEndpoint struct {
-	PkgName              string                        `json:"pkgName"`
+	MetaName             string                        `json:"templateMetaName"`
 	NotificationEndpoint influxdb.NotificationEndpoint `json:"notificationEndpoint"`
 
 	EnvReferences     []SummaryReference `json:"envReferences"`
@@ -565,14 +565,14 @@ type SummaryNotificationEndpoint struct {
 // the notification endpoint does not have a means ot unmarshal itself.
 func (s *SummaryNotificationEndpoint) UnmarshalJSON(b []byte) error {
 	var a struct {
-		PkgName              string          `json:"pkgName"`
+		PkgName              string          `json:"templateMetaName"`
 		NotificationEndpoint json.RawMessage `json:"notificationEndpoint"`
 		LabelAssociations    []SummaryLabel  `json:"labelAssociations"`
 	}
 	if err := json.Unmarshal(b, &a); err != nil {
 		return err
 	}
-	s.PkgName = a.PkgName
+	s.MetaName = a.PkgName
 	s.LabelAssociations = a.LabelAssociations
 
 	e, err := endpoint.UnmarshalJSON(a.NotificationEndpoint)
@@ -584,13 +584,13 @@ func (s *SummaryNotificationEndpoint) UnmarshalJSON(b []byte) error {
 type (
 	SummaryNotificationRule struct {
 		ID          SafeID `json:"id"`
-		PkgName     string `json:"pkgName"`
+		MetaName    string `json:"templateMetaName"`
 		Name        string `json:"name"`
 		Description string `json:"description"`
 
 		// These fields represent the relationship of the rule to the endpoint.
 		EndpointID      SafeID `json:"endpointID"`
-		EndpointPkgName string `json:"endpointPkgName"`
+		EndpointPkgName string `json:"endpointTemplateMetaName"`
 		EndpointType    string `json:"endpointType"`
 
 		Every           string              `json:"every"`
@@ -620,7 +620,7 @@ type (
 type SummaryLabel struct {
 	ID         SafeID `json:"id"`
 	OrgID      SafeID `json:"orgID"`
-	PkgName    string `json:"pkgName"`
+	MetaName   string `json:"templateMetaName"`
 	Name       string `json:"name"`
 	Properties struct {
 		Color       string `json:"color"`
@@ -635,10 +635,10 @@ type SummaryLabelMapping struct {
 	exists          bool
 	Status          StateStatus           `json:"status,omitempty"`
 	ResourceID      SafeID                `json:"resourceID"`
-	ResourcePkgName string                `json:"resourcePkgName"`
+	ResourcePkgName string                `json:"resourceTemplateMetaName"`
 	ResourceName    string                `json:"resourceName"`
 	ResourceType    influxdb.ResourceType `json:"resourceType"`
-	LabelPkgName    string                `json:"labelPkgName"`
+	LabelPkgName    string                `json:"labelTemplateMetaName"`
 	LabelName       string                `json:"labelName"`
 	LabelID         SafeID                `json:"labelID"`
 }
@@ -655,7 +655,7 @@ type SummaryReference struct {
 // SummaryTask provides a summary of a task.
 type SummaryTask struct {
 	ID          SafeID          `json:"id"`
-	PkgName     string          `json:"pkgName"`
+	MetaName    string          `json:"templateMetaName"`
 	Name        string          `json:"name"`
 	Cron        string          `json:"cron"`
 	Description string          `json:"description"`
@@ -670,7 +670,7 @@ type SummaryTask struct {
 
 // SummaryTelegraf provides a summary of a pkg telegraf config.
 type SummaryTelegraf struct {
-	PkgName        string                  `json:"pkgName"`
+	MetaName       string                  `json:"templateMetaName"`
 	TelegrafConfig influxdb.TelegrafConfig `json:"telegrafConfig"`
 
 	EnvReferences     []SummaryReference `json:"envReferences"`
@@ -680,7 +680,7 @@ type SummaryTelegraf struct {
 // SummaryVariable provides a summary of a pkg variable.
 type SummaryVariable struct {
 	ID          SafeID                      `json:"id,omitempty"`
-	PkgName     string                      `json:"pkgName"`
+	MetaName    string                      `json:"templateMetaName"`
 	OrgID       SafeID                      `json:"orgID,omitempty"`
 	Name        string                      `json:"name"`
 	Description string                      `json:"description"`

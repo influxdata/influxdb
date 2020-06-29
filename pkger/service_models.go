@@ -211,63 +211,63 @@ func (s *stateCoordinator) diff() Diff {
 		diff.Buckets = append(diff.Buckets, b.diffBucket())
 	}
 	sort.Slice(diff.Buckets, func(i, j int) bool {
-		return diff.Buckets[i].PkgName < diff.Buckets[j].PkgName
+		return diff.Buckets[i].MetaName < diff.Buckets[j].MetaName
 	})
 
 	for _, c := range s.mChecks {
 		diff.Checks = append(diff.Checks, c.diffCheck())
 	}
 	sort.Slice(diff.Checks, func(i, j int) bool {
-		return diff.Checks[i].PkgName < diff.Checks[j].PkgName
+		return diff.Checks[i].MetaName < diff.Checks[j].MetaName
 	})
 
 	for _, d := range s.mDashboards {
 		diff.Dashboards = append(diff.Dashboards, d.diffDashboard())
 	}
 	sort.Slice(diff.Dashboards, func(i, j int) bool {
-		return diff.Dashboards[i].PkgName < diff.Dashboards[j].PkgName
+		return diff.Dashboards[i].MetaName < diff.Dashboards[j].MetaName
 	})
 
 	for _, e := range s.mEndpoints {
 		diff.NotificationEndpoints = append(diff.NotificationEndpoints, e.diffEndpoint())
 	}
 	sort.Slice(diff.NotificationEndpoints, func(i, j int) bool {
-		return diff.NotificationEndpoints[i].PkgName < diff.NotificationEndpoints[j].PkgName
+		return diff.NotificationEndpoints[i].MetaName < diff.NotificationEndpoints[j].MetaName
 	})
 
 	for _, l := range s.mLabels {
 		diff.Labels = append(diff.Labels, l.diffLabel())
 	}
 	sort.Slice(diff.Labels, func(i, j int) bool {
-		return diff.Labels[i].PkgName < diff.Labels[j].PkgName
+		return diff.Labels[i].MetaName < diff.Labels[j].MetaName
 	})
 
 	for _, r := range s.mRules {
 		diff.NotificationRules = append(diff.NotificationRules, r.diffRule())
 	}
 	sort.Slice(diff.NotificationRules, func(i, j int) bool {
-		return diff.NotificationRules[i].PkgName < diff.NotificationRules[j].PkgName
+		return diff.NotificationRules[i].MetaName < diff.NotificationRules[j].MetaName
 	})
 
 	for _, t := range s.mTasks {
 		diff.Tasks = append(diff.Tasks, t.diffTask())
 	}
 	sort.Slice(diff.Tasks, func(i, j int) bool {
-		return diff.Tasks[i].PkgName < diff.Tasks[j].PkgName
+		return diff.Tasks[i].MetaName < diff.Tasks[j].MetaName
 	})
 
 	for _, t := range s.mTelegrafs {
 		diff.Telegrafs = append(diff.Telegrafs, t.diffTelegraf())
 	}
 	sort.Slice(diff.Telegrafs, func(i, j int) bool {
-		return diff.Telegrafs[i].PkgName < diff.Telegrafs[j].PkgName
+		return diff.Telegrafs[i].MetaName < diff.Telegrafs[j].MetaName
 	})
 
 	for _, v := range s.mVariables {
 		diff.Variables = append(diff.Variables, v.diffVariable())
 	}
 	sort.Slice(diff.Variables, func(i, j int) bool {
-		return diff.Variables[i].PkgName < diff.Variables[j].PkgName
+		return diff.Variables[i].MetaName < diff.Variables[j].MetaName
 	})
 
 	for _, m := range s.labelMappings {
@@ -285,10 +285,10 @@ func (s *stateCoordinator) diff() Diff {
 		if n.ResType > m.ResType {
 			return false
 		}
-		if n.ResPkgName < m.ResPkgName {
+		if n.ResMetaName < m.ResMetaName {
 			return true
 		}
-		if n.ResPkgName > m.ResPkgName {
+		if n.ResMetaName > m.ResMetaName {
 			return false
 		}
 		return n.LabelName < m.LabelName
@@ -306,7 +306,7 @@ func (s *stateCoordinator) summary() Summary {
 		sum.Buckets = append(sum.Buckets, v.summarize())
 	}
 	sort.Slice(sum.Buckets, func(i, j int) bool {
-		return sum.Buckets[i].PkgName < sum.Buckets[j].PkgName
+		return sum.Buckets[i].MetaName < sum.Buckets[j].MetaName
 	})
 
 	for _, c := range s.mChecks {
@@ -316,7 +316,7 @@ func (s *stateCoordinator) summary() Summary {
 		sum.Checks = append(sum.Checks, c.summarize())
 	}
 	sort.Slice(sum.Checks, func(i, j int) bool {
-		return sum.Checks[i].PkgName < sum.Checks[j].PkgName
+		return sum.Checks[i].MetaName < sum.Checks[j].MetaName
 	})
 
 	for _, d := range s.mDashboards {
@@ -326,7 +326,7 @@ func (s *stateCoordinator) summary() Summary {
 		sum.Dashboards = append(sum.Dashboards, d.summarize())
 	}
 	sort.Slice(sum.Dashboards, func(i, j int) bool {
-		return sum.Dashboards[i].PkgName < sum.Dashboards[j].PkgName
+		return sum.Dashboards[i].MetaName < sum.Dashboards[j].MetaName
 	})
 
 	for _, e := range s.mEndpoints {
@@ -336,7 +336,7 @@ func (s *stateCoordinator) summary() Summary {
 		sum.NotificationEndpoints = append(sum.NotificationEndpoints, e.summarize())
 	}
 	sort.Slice(sum.NotificationEndpoints, func(i, j int) bool {
-		return sum.NotificationEndpoints[i].PkgName < sum.NotificationEndpoints[j].PkgName
+		return sum.NotificationEndpoints[i].MetaName < sum.NotificationEndpoints[j].MetaName
 	})
 
 	for _, v := range s.mLabels {
@@ -346,7 +346,7 @@ func (s *stateCoordinator) summary() Summary {
 		sum.Labels = append(sum.Labels, v.summarize())
 	}
 	sort.Slice(sum.Labels, func(i, j int) bool {
-		return sum.Labels[i].PkgName < sum.Labels[j].PkgName
+		return sum.Labels[i].MetaName < sum.Labels[j].MetaName
 	})
 
 	for _, v := range s.mRules {
@@ -356,7 +356,7 @@ func (s *stateCoordinator) summary() Summary {
 		sum.NotificationRules = append(sum.NotificationRules, v.summarize())
 	}
 	sort.Slice(sum.NotificationRules, func(i, j int) bool {
-		return sum.NotificationRules[i].PkgName < sum.NotificationRules[j].PkgName
+		return sum.NotificationRules[i].MetaName < sum.NotificationRules[j].MetaName
 	})
 
 	for _, t := range s.mTasks {
@@ -366,7 +366,7 @@ func (s *stateCoordinator) summary() Summary {
 		sum.Tasks = append(sum.Tasks, t.summarize())
 	}
 	sort.Slice(sum.Tasks, func(i, j int) bool {
-		return sum.Tasks[i].PkgName < sum.Tasks[j].PkgName
+		return sum.Tasks[i].MetaName < sum.Tasks[j].MetaName
 	})
 
 	for _, t := range s.mTelegrafs {
@@ -376,7 +376,7 @@ func (s *stateCoordinator) summary() Summary {
 		sum.TelegrafConfigs = append(sum.TelegrafConfigs, t.summarize())
 	}
 	sort.Slice(sum.TelegrafConfigs, func(i, j int) bool {
-		return sum.TelegrafConfigs[i].PkgName < sum.TelegrafConfigs[j].PkgName
+		return sum.TelegrafConfigs[i].MetaName < sum.TelegrafConfigs[j].MetaName
 	})
 
 	for _, v := range s.mVariables {
@@ -386,7 +386,7 @@ func (s *stateCoordinator) summary() Summary {
 		sum.Variables = append(sum.Variables, v.summarize())
 	}
 	sort.Slice(sum.Variables, func(i, j int) bool {
-		return sum.Variables[i].PkgName < sum.Variables[j].PkgName
+		return sum.Variables[i].MetaName < sum.Variables[j].MetaName
 	})
 
 	for _, v := range s.labelMappings {
@@ -726,7 +726,7 @@ func (b *stateBucket) diffBucket() DiffBucket {
 		DiffIdentifier: DiffIdentifier{
 			ID:          SafeID(b.ID()),
 			StateStatus: b.stateStatus,
-			PkgName:     b.parserBkt.PkgName(),
+			MetaName:    b.parserBkt.PkgName(),
 		},
 		New: DiffBucketValues{
 			Name:           b.parserBkt.Name(),
@@ -834,7 +834,7 @@ func (c *stateCheck) diffCheck() DiffCheck {
 		DiffIdentifier: DiffIdentifier{
 			ID:          SafeID(c.ID()),
 			StateStatus: c.stateStatus,
-			PkgName:     c.parserCheck.PkgName(),
+			MetaName:    c.parserCheck.PkgName(),
 		},
 	}
 	if newCheck := c.summarize(); newCheck.Check != nil {
@@ -898,7 +898,7 @@ func (d *stateDashboard) diffDashboard() DiffDashboard {
 		DiffIdentifier: DiffIdentifier{
 			ID:          SafeID(d.ID()),
 			StateStatus: d.stateStatus,
-			PkgName:     d.parserDash.PkgName(),
+			MetaName:    d.parserDash.PkgName(),
 		},
 		New: DiffDashboardValues{
 			Name:   d.parserDash.Name(),
@@ -966,7 +966,7 @@ func (l *stateLabel) diffLabel() DiffLabel {
 		DiffIdentifier: DiffIdentifier{
 			ID:          SafeID(l.ID()),
 			StateStatus: l.stateStatus,
-			PkgName:     l.parserLabel.PkgName(),
+			MetaName:    l.parserLabel.PkgName(),
 		},
 		New: DiffLabelValues{
 			Name:        l.parserLabel.Name(),
@@ -1043,14 +1043,14 @@ type stateLabelMapping struct {
 func (lm stateLabelMapping) diffLabelMapping() DiffLabelMapping {
 	ident := lm.resource.stateIdentity()
 	return DiffLabelMapping{
-		StateStatus:  lm.status,
-		ResType:      ident.resourceType,
-		ResID:        SafeID(ident.id),
-		ResPkgName:   ident.pkgName,
-		ResName:      ident.name,
-		LabelID:      SafeID(lm.label.ID()),
-		LabelPkgName: lm.label.parserLabel.PkgName(),
-		LabelName:    lm.label.parserLabel.Name(),
+		StateStatus:   lm.status,
+		ResType:       ident.resourceType,
+		ResID:         SafeID(ident.id),
+		ResMetaName:   ident.pkgName,
+		ResName:       ident.name,
+		LabelID:       SafeID(lm.label.ID()),
+		LabelMetaName: lm.label.parserLabel.PkgName(),
+		LabelName:     lm.label.parserLabel.Name(),
 	}
 }
 
@@ -1087,12 +1087,12 @@ type stateLabelMappingForRemoval struct {
 
 func (m *stateLabelMappingForRemoval) diffLabelMapping() DiffLabelMapping {
 	return DiffLabelMapping{
-		StateStatus:  StateStatusRemove,
-		ResType:      m.ResourceType,
-		ResID:        SafeID(m.ResourceID),
-		ResPkgName:   m.ResourcePkgName,
-		LabelID:      SafeID(m.LabelID),
-		LabelPkgName: m.LabelPkgName,
+		StateStatus:   StateStatusRemove,
+		ResType:       m.ResourceType,
+		ResID:         SafeID(m.ResourceID),
+		ResMetaName:   m.ResourcePkgName,
+		LabelID:       SafeID(m.LabelID),
+		LabelMetaName: m.LabelPkgName,
 	}
 }
 
@@ -1117,7 +1117,7 @@ func (e *stateEndpoint) diffEndpoint() DiffNotificationEndpoint {
 		DiffIdentifier: DiffIdentifier{
 			ID:          SafeID(e.ID()),
 			StateStatus: e.stateStatus,
-			PkgName:     e.parserEndpoint.PkgName(),
+			MetaName:    e.parserEndpoint.PkgName(),
 		},
 	}
 	if sum := e.summarize(); sum.NotificationEndpoint != nil {
@@ -1197,7 +1197,7 @@ func (r *stateRule) diffRule() DiffNotificationRule {
 		DiffIdentifier: DiffIdentifier{
 			ID:          SafeID(r.ID()),
 			StateStatus: r.stateStatus,
-			PkgName:     r.parserRule.PkgName(),
+			MetaName:    r.parserRule.PkgName(),
 		},
 		New: DiffNotificationRuleValues{
 			Name:            r.parserRule.Name(),
@@ -1352,7 +1352,7 @@ func (t *stateTask) diffTask() DiffTask {
 		DiffIdentifier: DiffIdentifier{
 			ID:          SafeID(t.ID()),
 			StateStatus: t.stateStatus,
-			PkgName:     t.parserTask.PkgName(),
+			MetaName:    t.parserTask.PkgName(),
 		},
 		New: DiffTaskValues{
 			Name:        t.parserTask.Name(),
@@ -1428,7 +1428,7 @@ func (t *stateTelegraf) diffTelegraf() DiffTelegraf {
 		DiffIdentifier: DiffIdentifier{
 			ID:          SafeID(t.ID()),
 			StateStatus: t.stateStatus,
-			PkgName:     t.parserTelegraf.PkgName(),
+			MetaName:    t.parserTelegraf.PkgName(),
 		},
 		New: t.parserTelegraf.config,
 		Old: t.existing,
@@ -1482,7 +1482,7 @@ func (v *stateVariable) diffVariable() DiffVariable {
 		DiffIdentifier: DiffIdentifier{
 			ID:          SafeID(v.ID()),
 			StateStatus: v.stateStatus,
-			PkgName:     v.parserVar.PkgName(),
+			MetaName:    v.parserVar.PkgName(),
 		},
 		New: DiffVariableValues{
 			Name:        v.parserVar.Name(),

@@ -90,7 +90,7 @@ type bucket struct {
 func (b *bucket) summarize() SummaryBucket {
 	return SummaryBucket{
 		Name:              b.Name(),
-		PkgName:           b.PkgName(),
+		MetaName:          b.PkgName(),
 		Description:       b.Description,
 		RetentionPeriod:   b.RetentionRules.RP(),
 		LabelAssociations: toSummaryLabels(b.labels...),
@@ -248,7 +248,7 @@ func (c *check) summarize() SummaryCheck {
 	}
 
 	sum := SummaryCheck{
-		PkgName:           c.PkgName(),
+		MetaName:          c.PkgName(),
 		Status:            c.Status(),
 		LabelAssociations: toSummaryLabels(c.labels...),
 		EnvReferences:     summarizeCommonReferences(c.identity, c.labels),
@@ -463,7 +463,7 @@ func (d *dashboard) ResourceType() influxdb.ResourceType {
 
 func (d *dashboard) summarize() SummaryDashboard {
 	iDash := SummaryDashboard{
-		PkgName:           d.PkgName(),
+		MetaName:          d.PkgName(),
 		Name:              d.Name(),
 		Description:       d.Description,
 		LabelAssociations: toSummaryLabels(d.labels...),
@@ -1131,8 +1131,8 @@ type label struct {
 
 func (l *label) summarize() SummaryLabel {
 	return SummaryLabel{
-		PkgName: l.PkgName(),
-		Name:    l.Name(),
+		MetaName: l.PkgName(),
+		Name:     l.Name(),
 		Properties: struct {
 			Color       string `json:"color"`
 			Description string `json:"description"`
@@ -1284,7 +1284,7 @@ func (n *notificationEndpoint) base() endpoint.Base {
 func (n *notificationEndpoint) summarize() SummaryNotificationEndpoint {
 	base := n.base()
 	sum := SummaryNotificationEndpoint{
-		PkgName:           n.PkgName(),
+		MetaName:          n.PkgName(),
 		LabelAssociations: toSummaryLabels(n.labels...),
 		EnvReferences:     summarizeCommonReferences(n.identity, n.labels),
 	}
@@ -1487,7 +1487,7 @@ func (r *notificationRule) summarize() SummaryNotificationRule {
 	}
 
 	return SummaryNotificationRule{
-		PkgName:           r.PkgName(),
+		MetaName:          r.PkgName(),
 		Name:              r.Name(),
 		EndpointPkgName:   endpointPkgName,
 		EndpointType:      endpointType,
@@ -1721,7 +1721,7 @@ func (t *task) flux() string {
 
 func (t *task) summarize() SummaryTask {
 	return SummaryTask{
-		PkgName:     t.PkgName(),
+		MetaName:    t.PkgName(),
 		Name:        t.Name(),
 		Cron:        t.cron,
 		Description: t.description,
@@ -1856,7 +1856,7 @@ func (t *telegraf) summarize() SummaryTelegraf {
 	cfg := t.config
 	cfg.Name = t.Name()
 	return SummaryTelegraf{
-		PkgName:           t.PkgName(),
+		MetaName:          t.PkgName(),
 		TelegrafConfig:    cfg,
 		LabelAssociations: toSummaryLabels(t.labels...),
 		EnvReferences:     summarizeCommonReferences(t.identity, t.labels),
@@ -1935,7 +1935,7 @@ func (v *variable) summarize() SummaryVariable {
 	}
 
 	return SummaryVariable{
-		PkgName:           v.PkgName(),
+		MetaName:          v.PkgName(),
 		Name:              v.Name(),
 		Description:       v.Description,
 		Selected:          v.Selected(),

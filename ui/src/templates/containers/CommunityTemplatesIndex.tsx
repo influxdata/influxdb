@@ -30,7 +30,11 @@ import {
   getTemplateNameFromGithubUrl,
 } from 'src/templates/utils'
 
-import {Error as PkgError, PkgSummary, postPackagesApply} from 'src/client'
+import {
+  Error as PkgError,
+  TemplateSummary,
+  postTemplatesApply,
+} from 'src/client'
 
 // Types
 import {AppState, Organization} from 'src/types'
@@ -156,12 +160,12 @@ class UnconnectedTemplatesIndex extends Component<Props> {
       },
     }
     try {
-      const resp = await postPackagesApply(params)
+      const resp = await postTemplatesApply(params)
       if (resp.status >= 300) {
         throw new Error((resp.data as PkgError).message)
       }
 
-      const summary = (resp.data as PkgSummary).summary
+      const summary = (resp.data as TemplateSummary).summary
       this.props.setActiveCommunityTemplate(summary)
       return summary
     } catch (err) {
