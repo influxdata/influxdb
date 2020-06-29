@@ -17,7 +17,7 @@ const ID_LENGTH: usize = 16;
 /// Id is a unique identifier.
 ///
 /// Its zero value is not a valid ID.
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+#[derive(PartialEq, Eq, Hash, Clone, Copy)]
 pub struct Id(NonZeroU64);
 
 impl TryFrom<u64> for Id {
@@ -67,6 +67,12 @@ impl FromStr for Id {
 }
 
 impl fmt::Display for Id {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:016x}", self.0)
+    }
+}
+
+impl fmt::Debug for Id {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{:016x}", self.0)
     }

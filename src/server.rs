@@ -36,12 +36,13 @@ pub struct App {
 
 const MAX_SIZE: usize = 1_048_576; // max write request size of 1MB
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 struct WriteInfo {
     org: Id,
     bucket: Id,
 }
 
+#[tracing::instrument]
 async fn write(req: hyper::Request<Body>, app: Arc<App>) -> Result<Option<Body>, ApplicationError> {
     let query = req.uri().query().ok_or(StatusCode::BAD_REQUEST)?;
     let write_info: WriteInfo =
@@ -123,6 +124,7 @@ fn duration_to_nanos_or_default(
 }
 
 // TODO: figure out how to stream read results out rather than rendering the whole thing in mem
+#[tracing::instrument]
 async fn read(req: hyper::Request<Body>, app: Arc<App>) -> Result<Option<Body>, ApplicationError> {
     let query = req
         .uri()
@@ -233,6 +235,7 @@ struct CreateBucketInfo {
     bucket: Id,
 }
 
+#[tracing::instrument]
 async fn create_bucket(
     req: hyper::Request<Body>,
     app: Arc<App>,
@@ -275,7 +278,7 @@ async fn service(req: hyper::Request<Body>, app: Arc<App>) -> http::Result<hyper
         (&Method::POST, "/api/v2/create_bucket") => create_bucket(req, app).await,
         _ => Err(ApplicationError::new(
             StatusCode::NOT_FOUND,
-            "route not found",
+            format!("route not found: {}", req.uri()),
         )),
     };
 
