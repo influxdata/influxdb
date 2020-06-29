@@ -17,7 +17,21 @@ type CsvLineError struct {
 }
 
 func (e CsvLineError) Error() string {
-	return fmt.Sprintf("line %d: %v", e.Line, e.Err)
+	if e.Line > 0 {
+		return fmt.Sprintf("line %d: %v", e.Line, e.Err)
+	}
+	return fmt.Sprintf("%v", e.Err)
+}
+
+// CreateRowColumnError creates adds row number and column name to the error supplied
+func CreateRowColumnError(line int, columnLabel string, err error) CsvLineError {
+	return CsvLineError{
+		Line: line,
+		Err: CsvColumnError{
+			Column: columnLabel,
+			Err:    err,
+		},
+	}
 }
 
 // CsvToLineReader represents state of transformation from csv data to lien protocol reader
@@ -98,7 +112,7 @@ func (state *CsvToLineReader) Read(p []byte) (n int, err error) {
 		if state.Table.AddRow(row) {
 			var err error
 			state.lineBuffer = state.lineBuffer[:0] // reuse line buffer
-			state.lineBuffer, err = state.Table.AppendLine(state.lineBuffer, row)
+			state.lineBuffer, err = state.Table.AppendLine(state.lineBuffer, row, state.LineNumber)
 			if !state.dataRowAdded && state.logTableDataColumns {
 				log.Println(state.Table.DataColumnsInfo())
 			}

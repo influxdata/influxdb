@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"math"
 	"strconv"
 	"strings"
@@ -82,16 +83,17 @@ func escapeString(val string) string {
 	return val
 }
 
-// normalizeNumberString normalizes the  supplied value with the help of the format supplied.
+// normalizeNumberString normalizes the supplied value according to DataForm of the supplied column.
 // This normalization is intended to convert number strings of different locales to a strconv-parseable value.
 //
 // The format's first character is a fraction delimiter character.  Next characters in the format
 // are simply removed, they are typically used to visually separate groups in large numbers.
-// The removeFaction parameter controls whether the returned value can contain also the fraction part.
+// The removeFraction parameter controls whether the returned value can contain also the fraction part.
 //
 // For example, to get a strconv-parseable float from a Spanish value '3.494.826.157,123', use format ",." .
-func normalizeNumberString(value string, format string, removeFraction bool) string {
-	if len(format) == 0 {
+func normalizeNumberString(value string, column *CsvTableColumn, removeFraction bool, lineNumber int) string {
+	format := column.DataFormat
+	if format == "" {
 		format = ". \n\t\r_"
 	}
 	if strings.ContainsAny(value, format) {
@@ -110,12 +112,16 @@ func normalizeNumberString(value string, format string, removeFraction bool) str
 			}
 			if c == fractionRune {
 				if removeFraction {
-					break ForAllCharacters
+					// warn about lost precision
+					truncatedValue := retVal.String()
+					warning := fmt.Errorf("'%s' truncated to '%s' to fit into '%s' data type", value, truncatedValue, column.DataType)
+					log.Printf("WARNING: %v\n", CreateRowColumnError(lineNumber, column.Label, warning))
+					return truncatedValue
 				}
 				retVal.WriteByte('.')
-			} else {
-				retVal.WriteRune(c)
+				continue
 			}
+			retVal.WriteRune(c)
 		}
 
 		return retVal.String()
@@ -123,7 +129,7 @@ func normalizeNumberString(value string, format string, removeFraction bool) str
 	return value
 }
 
-func toTypedValue(val string, column *CsvTableColumn) (interface{}, error) {
+func toTypedValue(val string, column *CsvTableColumn, lineNumber int) (interface{}, error) {
 	dataType := column.DataType
 	dataFormat := column.DataFormat
 	if column.ParseF != nil {
@@ -159,7 +165,7 @@ func toTypedValue(val string, column *CsvTableColumn) (interface{}, error) {
 	case durationDatatype:
 		return time.ParseDuration(val)
 	case doubleDatatype:
-		return strconv.ParseFloat(normalizeNumberString(val, dataFormat, false), 64)
+		return strconv.ParseFloat(normalizeNumberString(val, column, false, lineNumber), 64)
 	case boolDatatype:
 		switch {
 		case len(val) == 0:
@@ -172,9 +178,9 @@ func toTypedValue(val string, column *CsvTableColumn) (interface{}, error) {
 			return nil, errors.New("Unsupported boolean value '" + val + "' , first character is expected to be 't','f','0','1','y','n'")
 		}
 	case longDatatype:
-		return strconv.ParseInt(normalizeNumberString(val, dataFormat, true), 10, 64)
+		return strconv.ParseInt(normalizeNumberString(val, column, true, lineNumber), 10, 64)
 	case uLongDatatype:
-		return strconv.ParseUint(normalizeNumberString(val, dataFormat, true), 10, 64)
+		return strconv.ParseUint(normalizeNumberString(val, column, true, lineNumber), 10, 64)
 	case base64BinaryDataType:
 		return base64.StdEncoding.DecodeString(val)
 	default:
@@ -230,11 +236,11 @@ func appendProtocolValue(buffer []byte, value interface{}) ([]byte, error) {
 	}
 }
 
-func appendConverted(buffer []byte, val string, column *CsvTableColumn) ([]byte, error) {
+func appendConverted(buffer []byte, val string, column *CsvTableColumn, lineNumber int) ([]byte, error) {
 	if len(column.DataType) == 0 { // keep the value as it is
 		return append(buffer, val...), nil
 	}
-	typedVal, err := toTypedValue(val, column)
+	typedVal, err := toTypedValue(val, column, lineNumber)
 	if err != nil {
 		return buffer, err
 	}

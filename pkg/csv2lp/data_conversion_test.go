@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"log"
 	"math"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -112,9 +113,9 @@ func Test_ToTypedValue(t *testing.T) {
 
 	for i, test := range tests {
 		t.Run(fmt.Sprint(i)+" "+test.value, func(t *testing.T) {
-			column := &CsvTableColumn{}
+			column := &CsvTableColumn{Label: "test"}
 			column.setupDataType(test.dataType)
-			val, err := toTypedValue(test.value, column)
+			val, err := toTypedValue(test.value, column, 1)
 			if err != nil && test.expect != nil {
 				require.Nil(t, err.Error())
 			}
@@ -143,7 +144,7 @@ func Test_ToTypedValue_dateTimeCustomTimeZone(t *testing.T) {
 			column := &CsvTableColumn{}
 			column.TimeZone = tz
 			column.setupDataType(test.dataType)
-			val, err := toTypedValue(test.value, column)
+			val, err := toTypedValue(test.value, column, 1)
 			if err != nil && test.expect != nil {
 				require.Nil(t, err.Error())
 			}
@@ -210,9 +211,9 @@ func Test_AppendConverted(t *testing.T) {
 
 	for i, test := range tests {
 		t.Run(fmt.Sprint(i), func(t *testing.T) {
-			column := &CsvTableColumn{}
+			column := &CsvTableColumn{Label: "test"}
 			column.setupDataType(test.dataType)
-			val, err := appendConverted(nil, test.value, column)
+			val, err := appendConverted(nil, test.value, column, 1)
 			if err != nil && test.expect != "" {
 				require.Nil(t, err.Error())
 			}
@@ -246,18 +247,36 @@ func Test_NormalizeNumberString(t *testing.T) {
 		format         string
 		removeFraction bool
 		expect         string
+		warning        string
 	}{
-		{"123", "", true, "123"},
-		{"123", ".", true, "123"},
-		{"123.456", ".", true, "123"},
-		{"123.456", ".", false, "123.456"},
-		{"1 2.3,456", ",. ", false, "123.456"},
-		{" 1 2\t3.456 \r\n", "", false, "123.456"},
+		{"123", "", true, "123", ""},
+		{"123", ".", true, "123", ""},
+		{"123.456", ".", true, "123", "::PREFIX::WARNING: line 1: column 'test': '123.456' truncated to '123' to fit into 'tst' data type\n"},
+		{"123.456", ".", false, "123.456", ""},
+		{"1 2.3,456", ",. ", false, "123.456", ""},
+		{" 1 2\t3.456 \r\n", "", false, "123.456", ""},
 	}
 
 	for i, test := range tests {
 		t.Run(fmt.Sprint(i), func(t *testing.T) {
-			require.Equal(t, test.expect, normalizeNumberString(test.value, test.format, test.removeFraction))
+			// customize logging to check warnings
+			var buf bytes.Buffer
+			log.SetOutput(&buf)
+			oldFlags := log.Flags()
+			log.SetFlags(0)
+			oldPrefix := log.Prefix()
+			prefix := "::PREFIX::"
+			log.SetPrefix(prefix)
+			defer func() {
+				log.SetOutput(os.Stderr)
+				log.SetFlags(oldFlags)
+				log.SetPrefix(oldPrefix)
+			}()
+
+			require.Equal(t, test.expect,
+				normalizeNumberString(test.value,
+					&CsvTableColumn{Label: "test", DataType: "tst", DataFormat: test.format}, test.removeFraction, 1))
+			require.Equal(t, test.warning, buf.String())
 		})
 	}
 }

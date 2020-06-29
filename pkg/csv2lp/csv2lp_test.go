@@ -218,6 +218,10 @@ func Test_CsvLineError(t *testing.T) {
 			CsvLineError{Line: 2, Err: CsvColumnError{"a", errors.New("cause")}},
 			"line 2: column 'a': cause",
 		},
+		{
+			CsvLineError{Line: -1, Err: CsvColumnError{"a", errors.New("cause")}},
+			"column 'a': cause",
+		},
 	}
 	for _, test := range tests {
 		require.Equal(t, test.value, test.err.Error())
