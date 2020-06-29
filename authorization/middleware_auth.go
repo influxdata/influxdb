@@ -44,9 +44,6 @@ func (s *AuthedAuthorizationService) FindAuthorizationByToken(ctx context.Contex
 	if _, _, err := authorizer.AuthorizeRead(ctx, influxdb.AuthorizationsResourceType, a.ID, a.OrgID); err != nil {
 		return nil, err
 	}
-	if _, _, err := authorizer.AuthorizeReadResource(ctx, influxdb.UsersResourceType, a.UserID); err != nil {
-		return nil, err
-	}
 	return a, nil
 }
 
@@ -56,9 +53,6 @@ func (s *AuthedAuthorizationService) FindAuthorizationByID(ctx context.Context, 
 		return nil, err
 	}
 	if _, _, err := authorizer.AuthorizeRead(ctx, influxdb.AuthorizationsResourceType, a.ID, a.OrgID); err != nil {
-		return nil, err
-	}
-	if _, _, err := authorizer.AuthorizeReadResource(ctx, influxdb.UsersResourceType, a.UserID); err != nil {
 		return nil, err
 	}
 	return a, nil

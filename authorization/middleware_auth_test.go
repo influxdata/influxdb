@@ -75,6 +75,29 @@ func TestAuthorizationService_ReadAuthorization(t *testing.T) {
 			},
 		},
 		{
+			name: "authorized to access id - no user",
+			args: args{
+				permissions: []influxdb.Permission{
+					{
+						Action: influxdb.ReadAction,
+						Resource: influxdb.Resource{
+							Type:  influxdb.AuthorizationsResourceType,
+							OrgID: influxdbtesting.IDPtr(1),
+						},
+					},
+				},
+			},
+			wants: wants{
+				authorizations: []*influxdb.Authorization{
+					{
+						ID:     10,
+						UserID: 1,
+						OrgID:  1,
+					},
+				},
+			},
+		},
+		{
 			name: "unauthorized to access id - wrong org",
 			args: args{
 				permissions: []influxdb.Permission{
@@ -97,34 +120,6 @@ func TestAuthorizationService_ReadAuthorization(t *testing.T) {
 			wants: wants{
 				err: &influxdb.Error{
 					Msg:  "read:orgs/0000000000000001/authorizations/000000000000000a is unauthorized",
-					Code: influxdb.EUnauthorized,
-				},
-				authorizations: []*influxdb.Authorization{},
-			},
-		},
-		{
-			name: "unauthorized to access id - wrong user",
-			args: args{
-				permissions: []influxdb.Permission{
-					{
-						Action: influxdb.ReadAction,
-						Resource: influxdb.Resource{
-							Type:  influxdb.AuthorizationsResourceType,
-							OrgID: influxdbtesting.IDPtr(1),
-						},
-					},
-					{
-						Action: influxdb.ReadAction,
-						Resource: influxdb.Resource{
-							Type: influxdb.UsersResourceType,
-							ID:   influxdbtesting.IDPtr(2),
-						},
-					},
-				},
-			},
-			wants: wants{
-				err: &influxdb.Error{
-					Msg:  "read:users/0000000000000001 is unauthorized",
 					Code: influxdb.EUnauthorized,
 				},
 				authorizations: []*influxdb.Authorization{},

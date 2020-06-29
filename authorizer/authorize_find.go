@@ -37,13 +37,6 @@ func AuthorizeFindAuthorizations(ctx context.Context, rs []*influxdb.Authorizati
 		if influxdb.ErrorCode(err) == influxdb.EUnauthorized {
 			continue
 		}
-		_, _, err = AuthorizeReadResource(ctx, influxdb.UsersResourceType, r.UserID)
-		if err != nil && influxdb.ErrorCode(err) != influxdb.EUnauthorized {
-			return nil, 0, err
-		}
-		if influxdb.ErrorCode(err) == influxdb.EUnauthorized {
-			continue
-		}
 		rrs = append(rrs, r)
 	}
 	return rrs, len(rrs), nil
