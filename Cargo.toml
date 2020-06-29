@@ -57,6 +57,9 @@ num_cpus = "1.11.1"
 tonic = "0.2.0"
 prost = "0.6.1"
 prost-types = "0.6.1"
+tracing = "0.1"
+tracing-futures="0.2.4"
+
 
 crc32fast = "1.2.0"
 num = "0.2.1"

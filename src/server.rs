@@ -1,6 +1,6 @@
 #![deny(rust_2018_idioms)]
 
-use log::{debug, info, warn};
+use tracing::{debug, info, warn};
 
 use delorean::generated_types::{
     delorean_server::DeloreanServer, storage_server::StorageServer, Bucket, TimestampRange,
@@ -29,6 +29,7 @@ use serde::Deserialize;
 
 use crate::rpc::GrpcServer;
 
+#[derive(Debug)]
 pub struct App {
     pub db: Database,
 }

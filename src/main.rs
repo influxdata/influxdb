@@ -35,6 +35,9 @@ Examples:
     # Run the Delorean server with extra verbose logging
     delorean -v
 
+    # Run delorean with full debug logging specified with RUST_LOG
+    RUST_LOG=debug delorean
+
     # converts line protocol formatted data in temperature.lp to out.parquet
     delorean convert temperature.lp out.parquet
 
@@ -87,20 +90,13 @@ Examples:
                 ),
         )
         .subcommand(SubCommand::with_name("server").about("Runs in server mode (default)"))
-        .arg(
-            Arg::with_name("verbose")
-                .short("v")
-                .long("verbose")
-                .help("Enables verbose output"),
-        )
+        .arg(Arg::with_name("verbose").short("v").long("verbose").help(
+            "Enables verbose logging. You can also set log level via \
+                       the environment variable RUST_LOG=<value>",
+        ))
         .get_matches();
 
-    if matches.is_present("verbose") {
-        std::env::set_var("RUST_LOG", "delorean=debug,hyper=info");
-    } else {
-        std::env::set_var("RUST_LOG", "delorean=info,hyper=info");
-    }
-    env_logger::init();
+    setup_logging(matches.is_present("verbose"));
 
     match matches.subcommand() {
         ("convert", Some(sub_matches)) => {
@@ -145,4 +141,39 @@ Examples:
             }
         }
     }
+}
+
+/// Defauly debug level is debug for everything except
+/// some especially noisy low level libraries
+const DEFAULT_DEBUG_LOG_LEVEL: &str = "debug,h2=info";
+
+// Default log level is info level for all components
+const DEFAULT_LOG_LEVEL: &str = "info";
+
+/// Configures logging in the following precidence:
+///
+/// 1. If RUST_LOG environment variable is set, use that value
+/// 2. if `verbose_requested`, use DEFAULT_DEBUG_LOG_LEVEL
+/// 3. otherwise, use DEFAULT_LOGL_LEVEL
+fn setup_logging(verbose_requested: bool) {
+    let rust_log_env = std::env::var("RUST_LOG");
+
+    if verbose_requested {
+        match rust_log_env {
+            Ok(lvl) => {
+                eprintln!(
+                    "WARNING: Using RUST_LOG='{}' environment, ignoring request for -v",
+                    lvl
+                );
+            }
+            Err(_) => std::env::set_var("RUST_LOG", DEFAULT_DEBUG_LOG_LEVEL),
+        }
+    } else {
+        match rust_log_env {
+            Ok(_) => {}
+            Err(_) => std::env::set_var("RUST_LOG", DEFAULT_LOG_LEVEL),
+        }
+    }
+
+    env_logger::init();
 }

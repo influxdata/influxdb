@@ -662,6 +662,8 @@ dependencies = [
  "tempfile",
  "tokio",
  "tonic 0.2.1",
+ "tracing",
+ "tracing-futures",
 ]
 
 [[package]]
