@@ -21,19 +21,20 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const RoutePrefix = "/api/v2/packages"
+const RoutePrefixPackages = "/api/v2/packages"
 
-// HTTPServer is a server that manages the packages HTTP transport.
-type HTTPServer struct {
+// HTTPServerPackages is a server that manages the packages HTTP transport. These
+// endpoints are to be sunset and replaced by the templates and stacks endpoints.
+type HTTPServerPackages struct {
 	chi.Router
 	api    *kithttp.API
 	logger *zap.Logger
 	svc    SVC
 }
 
-// NewHTTPServer constructs a new http server.
-func NewHTTPServer(log *zap.Logger, svc SVC) *HTTPServer {
-	svr := &HTTPServer{
+// NewHTTPServerPackages constructs a new http server.
+func NewHTTPServerPackages(log *zap.Logger, svc SVC) *HTTPServerPackages {
+	svr := &HTTPServerPackages{
 		api:    kithttp.NewAPI(kithttp.WithLog(log)),
 		logger: log,
 		svc:    svc,
@@ -71,8 +72,8 @@ func NewHTTPServer(log *zap.Logger, svc SVC) *HTTPServer {
 }
 
 // Prefix provides the prefix to this route tree.
-func (s *HTTPServer) Prefix() string {
-	return RoutePrefix
+func (s *HTTPServerPackages) Prefix() string {
+	return RoutePrefixPackages
 }
 
 type (
@@ -119,7 +120,7 @@ type RespListStacks struct {
 	Stacks []RespStack `json:"stacks"`
 }
 
-func (s *HTTPServer) listStacks(w http.ResponseWriter, r *http.Request) {
+func (s *HTTPServerPackages) listStacks(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 
 	rawOrgID := q.Get("orgID")
@@ -212,7 +213,7 @@ func (r *ReqCreateStack) orgID() influxdb.ID {
 	return *orgID
 }
 
-func (s *HTTPServer) createStack(w http.ResponseWriter, r *http.Request) {
+func (s *HTTPServerPackages) createStack(w http.ResponseWriter, r *http.Request) {
 	var reqBody ReqCreateStack
 	if err := s.api.DecodeJSON(r.Body, &reqBody); err != nil {
 		s.api.Err(w, r, err)
@@ -240,7 +241,7 @@ func (s *HTTPServer) createStack(w http.ResponseWriter, r *http.Request) {
 	s.api.Respond(w, r, http.StatusCreated, convertStackToRespStack(stack))
 }
 
-func (s *HTTPServer) deleteStack(w http.ResponseWriter, r *http.Request) {
+func (s *HTTPServerPackages) deleteStack(w http.ResponseWriter, r *http.Request) {
 	orgID, err := getRequiredOrgIDFromQuery(r.URL.Query())
 	if err != nil {
 		s.api.Err(w, r, err)
@@ -273,7 +274,7 @@ func (s *HTTPServer) deleteStack(w http.ResponseWriter, r *http.Request) {
 	s.api.Respond(w, r, http.StatusNoContent, nil)
 }
 
-func (s *HTTPServer) exportStack(w http.ResponseWriter, r *http.Request) {
+func (s *HTTPServerPackages) exportStack(w http.ResponseWriter, r *http.Request) {
 	stackID, err := stackIDFromReq(r)
 	if err != nil {
 		s.api.Err(w, r, err)
@@ -304,7 +305,7 @@ func (s *HTTPServer) exportStack(w http.ResponseWriter, r *http.Request) {
 	s.api.Write(w, http.StatusOK, b)
 }
 
-func (s *HTTPServer) readStack(w http.ResponseWriter, r *http.Request) {
+func (s *HTTPServerPackages) readStack(w http.ResponseWriter, r *http.Request) {
 	stackID, err := stackIDFromReq(r)
 	if err != nil {
 		s.api.Err(w, r, err)
@@ -340,7 +341,7 @@ type (
 	}
 )
 
-func (s *HTTPServer) updateStack(w http.ResponseWriter, r *http.Request) {
+func (s *HTTPServerPackages) updateStack(w http.ResponseWriter, r *http.Request) {
 	var req ReqUpdateStack
 	if err := s.api.DecodeJSON(r.Body, &req); err != nil {
 		s.api.Err(w, r, err)
@@ -458,7 +459,7 @@ func (r *ReqExport) OK() error {
 // RespExport is a response body for the create pkg endpoint.
 type RespExport []Object
 
-func (s *HTTPServer) export(w http.ResponseWriter, r *http.Request) {
+func (s *HTTPServerPackages) export(w http.ResponseWriter, r *http.Request) {
 	var reqBody ReqExport
 	if err := s.api.DecodeJSON(r.Body, &reqBody); err != nil {
 		s.api.Err(w, r, err)
@@ -698,7 +699,7 @@ type RespApply struct {
 	Errors []ValidationErr `json:"errors,omitempty" yaml:"errors,omitempty"`
 }
 
-func (s *HTTPServer) apply(w http.ResponseWriter, r *http.Request) {
+func (s *HTTPServerPackages) apply(w http.ResponseWriter, r *http.Request) {
 	var reqBody ReqApply
 	encoding, err := decodeWithEncoding(r, &reqBody)
 	if err != nil {
@@ -859,7 +860,7 @@ func newJSONEnc(w io.Writer) encoder {
 	return enc
 }
 
-func (s *HTTPServer) encResp(w http.ResponseWriter, r *http.Request, enc encoder, code int, res interface{}) {
+func (s *HTTPServerPackages) encResp(w http.ResponseWriter, r *http.Request, enc encoder, code int, res interface{}) {
 	w.WriteHeader(code)
 	if err := enc.Encode(res); err != nil {
 		s.api.Err(w, r, &influxdb.Error{

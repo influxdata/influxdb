@@ -64,7 +64,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 				}, nil
 			}
 			svc := pkger.NewService(pkger.WithLabelSVC(fakeLabelSVC))
-			pkgHandler := pkger.NewHTTPServer(zap.NewNop(), svc)
+			pkgHandler := pkger.NewHTTPServerPackages(zap.NewNop(), svc)
 			svr := newMountedHandler(pkgHandler, 1)
 
 			testttp.
@@ -94,7 +94,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 		})
 
 		t.Run("should be invalid if not org ids or resources provided", func(t *testing.T) {
-			pkgHandler := pkger.NewHTTPServer(zap.NewNop(), nil)
+			pkgHandler := pkger.NewHTTPServerPackages(zap.NewNop(), nil)
 			svr := newMountedHandler(pkgHandler, 1)
 
 			testttp.
@@ -183,7 +183,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 						},
 					}
 
-					pkgHandler := pkger.NewHTTPServer(zap.NewNop(), svc)
+					pkgHandler := pkger.NewHTTPServerPackages(zap.NewNop(), svc)
 					svr := newMountedHandler(pkgHandler, 1)
 
 					testttp.
@@ -251,7 +251,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 						},
 					}
 
-					pkgHandler := pkger.NewHTTPServer(zap.NewNop(), svc)
+					pkgHandler := pkger.NewHTTPServerPackages(zap.NewNop(), svc)
 					svr := newMountedHandler(pkgHandler, 1)
 
 					body := newReqApplyYMLBody(t, influxdb.ID(9000), true)
@@ -372,7 +372,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 						},
 					}
 
-					pkgHandler := pkger.NewHTTPServer(zap.NewNop(), svc)
+					pkgHandler := pkger.NewHTTPServerPackages(zap.NewNop(), svc)
 					svr := newMountedHandler(pkgHandler, 1)
 
 					testttp.
@@ -442,7 +442,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 						},
 					}
 
-					pkgHandler := pkger.NewHTTPServer(zap.NewNop(), svc)
+					pkgHandler := pkger.NewHTTPServerPackages(zap.NewNop(), svc)
 					svr := newMountedHandler(pkgHandler, 1)
 
 					testttp.
@@ -491,7 +491,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 			},
 		}
 
-		pkgHandler := pkger.NewHTTPServer(zap.NewNop(), svc)
+		pkgHandler := pkger.NewHTTPServerPackages(zap.NewNop(), svc)
 		svr := newMountedHandler(pkgHandler, 1)
 
 		testttp.
@@ -523,7 +523,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 					return stack, nil
 				},
 			}
-			pkgHandler := pkger.NewHTTPServer(zap.NewNop(), svc)
+			pkgHandler := pkger.NewHTTPServerPackages(zap.NewNop(), svc)
 			svr := newMountedHandler(pkgHandler, 1)
 
 			reqBody := pkger.ReqCreateStack{
@@ -607,7 +607,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 						}
 					}
 
-					pkgHandler := pkger.NewHTTPServer(zap.NewNop(), svc)
+					pkgHandler := pkger.NewHTTPServerPackages(zap.NewNop(), svc)
 					svr := newMountedHandler(pkgHandler, 1)
 
 					testttp.
@@ -662,7 +662,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 					}}, nil
 				},
 			}
-			pkgHandler := pkger.NewHTTPServer(zap.NewNop(), svc)
+			pkgHandler := pkger.NewHTTPServerPackages(zap.NewNop(), svc)
 			svr := newMountedHandler(pkgHandler, 1)
 
 			tests := []struct {
@@ -837,7 +837,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 							return tt.stub, nil
 						},
 					}
-					pkgHandler := pkger.NewHTTPServer(zap.NewNop(), svc)
+					pkgHandler := pkger.NewHTTPServerPackages(zap.NewNop(), svc)
 					svr := newMountedHandler(pkgHandler, 1)
 
 					testttp.
@@ -891,7 +891,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 						}
 					}
 
-					pkgHandler := pkger.NewHTTPServer(zap.NewNop(), svc)
+					pkgHandler := pkger.NewHTTPServerPackages(zap.NewNop(), svc)
 					svr := newMountedHandler(pkgHandler, 1)
 
 					testttp.
@@ -1001,7 +1001,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 							return st, nil
 						},
 					}
-					pkgHandler := pkger.NewHTTPServer(zap.NewNop(), svc)
+					pkgHandler := pkger.NewHTTPServerPackages(zap.NewNop(), svc)
 					svr := newMountedHandler(pkgHandler, 1)
 
 					testttp.
@@ -1055,7 +1055,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 						}
 					}
 
-					pkgHandler := pkger.NewHTTPServer(zap.NewNop(), svc)
+					pkgHandler := pkger.NewHTTPServerPackages(zap.NewNop(), svc)
 					svr := newMountedHandler(pkgHandler, 1)
 
 					testttp.
