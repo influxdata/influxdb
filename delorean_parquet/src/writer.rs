@@ -66,7 +66,7 @@ impl CompressionLevel {
             "max" => Ok(Self::MAXIMUM),
             "compatibility" => Ok(Self::COMPATIBILITY),
             _ => UnknownCompressionLevel {
-                compression_level: String::from(s),
+                compression_level: s,
             }
             .fail(),
         }
