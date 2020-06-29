@@ -26,7 +26,7 @@ func (s *HTTPRemoteService) InitStack(ctx context.Context, userID influxdb.ID, s
 
 	var respBody RespStack
 	err := s.Client.
-		PostJSON(reqBody, RoutePrefixPackages, "/stacks").
+		PostJSON(reqBody, RoutePrefixStacks).
 		DecodeJSON(&respBody).
 		Do(ctx)
 	if err != nil {
@@ -38,7 +38,7 @@ func (s *HTTPRemoteService) InitStack(ctx context.Context, userID influxdb.ID, s
 
 func (s *HTTPRemoteService) DeleteStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) error {
 	return s.Client.
-		Delete(RoutePrefixPackages, "stacks", identifiers.StackID.String()).
+		Delete(RoutePrefixStacks, identifiers.StackID.String()).
 		QueryParams([2]string{"orgID", identifiers.OrgID.String()}).
 		Do(ctx)
 }
@@ -54,7 +54,7 @@ func (s *HTTPRemoteService) ListStacks(ctx context.Context, orgID influxdb.ID, f
 
 	var resp RespListStacks
 	err := s.Client.
-		Get(RoutePrefixPackages, "/stacks").
+		Get(RoutePrefixStacks).
 		QueryParams(queryParams...).
 		DecodeJSON(&resp).
 		Do(ctx)
@@ -76,7 +76,7 @@ func (s *HTTPRemoteService) ListStacks(ctx context.Context, orgID influxdb.ID, f
 func (s *HTTPRemoteService) ReadStack(ctx context.Context, id influxdb.ID) (Stack, error) {
 	var respBody RespStack
 	err := s.Client.
-		Get(RoutePrefixPackages, "/stacks", id.String()).
+		Get(RoutePrefixStacks, id.String()).
 		DecodeJSON(&respBody).
 		Do(ctx)
 	if err != nil {
@@ -101,7 +101,7 @@ func (s *HTTPRemoteService) UpdateStack(ctx context.Context, upd StackUpdate) (S
 
 	var respBody RespStack
 	err := s.Client.
-		PatchJSON(reqBody, RoutePrefixPackages, "/stacks", upd.ID.String()).
+		PatchJSON(reqBody, RoutePrefixStacks, upd.ID.String()).
 		DecodeJSON(&respBody).
 		Do(ctx)
 	if err != nil {
@@ -140,7 +140,7 @@ func (s *HTTPRemoteService) Export(ctx context.Context, opts ...ExportOptFn) (*P
 
 	var newPkg *Pkg
 	err = s.Client.
-		PostJSON(reqBody, RoutePrefixPackages).
+		PostJSON(reqBody, RoutePrefixTemplates, "/export").
 		Decode(func(resp *http.Response) error {
 			pkg, err := Parse(EncodingJSON, FromReader(resp.Body, "export"))
 			newPkg = pkg
@@ -220,7 +220,7 @@ func (s *HTTPRemoteService) apply(ctx context.Context, orgID influxdb.ID, dryRun
 
 	var resp RespApply
 	err := s.Client.
-		PostJSON(reqBody, RoutePrefixPackages, "/apply").
+		PostJSON(reqBody, RoutePrefixTemplates, "/apply").
 		DecodeJSON(&resp).
 		Do(ctx)
 	if err != nil {
