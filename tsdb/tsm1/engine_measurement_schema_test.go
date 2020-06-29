@@ -55,7 +55,7 @@ memB,host=EB,os=macOS value=1.3 201`)
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 
-		iter, err := e.MeasurementNames(ctx, org, bucket, 0, math.MaxInt64)
+		iter, err := e.MeasurementNames(ctx, org, bucket, 0, math.MaxInt64, nil)
 		if err == nil {
 			t.Fatal("MeasurementNames: expected error but got nothing")
 		} else if err.Error() != "context canceled" {
@@ -97,15 +97,15 @@ cpu,cpu0=v,cpu1=v,cpu2=v f=1 101
 cpu,cpu1=v               f=1 103
 cpu,cpu2=v               f=1 105
 cpu,cpu0=v,cpu2=v        f=1 107
-cpu,cpu2=v,cpu3=v        f=1 109
-mem,mem0=v,mem1=v        f=1 101`)
+cpu,cpu2=v,cpu3=v,other=c        f=1 109
+mem,mem0=v,mem1=v,other=m        f=1 101`)
 	e.MustWritePointsString(orgs[1].org, orgs[1].bucket, `
 cpu,cpu0=v,cpu1=v,cpu2=v f=1 101
 cpu,cpu1=v               f=1 103
 cpu,cpu2=v               f=1 105
 cpu,cpu0=v,cpu2=v        f=1 107
-cpu,cpu2=v,cpu3=v        f=1 109
-mem,mem0=v,mem1=v        f=1 101`)
+cpu,cpu2=v,cpu3=v,other=c        f=1 109
+mem,mem0=v,mem1=v,other=m        f=1 101`)
 
 	// send some points to TSM data
 	e.MustWriteSnapshot()
@@ -119,19 +119,20 @@ cpu,cpu3=v,cpu4=v,cpu5=v f=1 201
 cpu,cpu4=v               f=1 203
 cpu,cpu3=v               f=1 205
 cpu,cpu3=v,cpu4=v        f=1 207
-cpu,cpu4=v,cpu5=v        f=1 209
-mem,mem1=v,mem2=v        f=1 201`)
+cpu,cpu4=v,cpu5=v,other=c        f=1 209
+mem,mem1=v,mem2=v,other=m        f=1 201`)
 	e.MustWritePointsString(orgs[1].org, orgs[1].bucket, `
 cpu,cpu3=v,cpu4=v,cpu5=v f=1 201
 cpu,cpu4=v               f=1 203
 cpu,cpu3=v               f=1 205
 cpu,cpu3=v,cpu4=v        f=1 207
-cpu,cpu4=v,cpu5=v        f=1 209
-mem,mem1=v,mem2=v        f=1 201`)
+cpu,cpu4=v,cpu5=v,other=c        f=1 209
+mem,mem1=v,mem2=v,other=m        f=1 201`)
 
 	type args struct {
 		org      int
 		min, max int64
+		expr     string
 	}
 
 	var tests = []struct {
@@ -215,6 +216,30 @@ mem,mem1=v,mem2=v        f=1 201`)
 			expStats: cursors.CursorStats{ScannedValues: 6, ScannedBytes: 48},
 		},
 
+		// queries with predicates
+		{
+			name: "predicate/equal",
+			args: args{
+				org:  0,
+				min:  0,
+				max:  300,
+				expr: `cpu4 = 'v'`,
+			},
+			exp:      []string{"cpu"},
+			expStats: cursors.CursorStats{ScannedValues: 1, ScannedBytes: 8},
+		},
+		{
+			name: "predicate/regexp",
+			args: args{
+				org:  0,
+				min:  0,
+				max:  300,
+				expr: `other =~ /c|m/`,
+			},
+			exp:      []string{"cpu", "mem"},
+			expStats: cursors.CursorStats{ScannedValues: 1, ScannedBytes: 8},
+		},
+
 		// ***********************
 		// * queries for the second org, which has no deleted data
 		// ***********************
@@ -232,8 +257,12 @@ mem,mem1=v,mem2=v        f=1 201`)
 	for _, tc := range tests {
 		t.Run(fmt.Sprintf("org%d/%s", tc.args.org, tc.name), func(t *testing.T) {
 			a := tc.args
+			var expr influxql.Expr
+			if len(a.expr) > 0 {
+				expr = influxql.MustParseExpr(a.expr)
+			}
 
-			iter, err := e.MeasurementNames(context.Background(), orgs[a.org].org, orgs[a.org].bucket, a.min, a.max)
+			iter, err := e.MeasurementNames(context.Background(), orgs[a.org].org, orgs[a.org].bucket, a.min, a.max, expr)
 			if err != nil {
 				t.Fatalf("MeasurementNames: error %v", err)
 			}
