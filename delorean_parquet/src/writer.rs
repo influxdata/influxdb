@@ -4,7 +4,7 @@ use parquet::{
     basic::{Compression, Encoding, LogicalType, Repetition, Type as PhysicalType},
     errors::ParquetError,
     file::{
-        properties::WriterProperties,
+        properties::{WriterProperties, WriterPropertiesBuilder},
         reader::TryClone,
         writer::{FileWriter, SerializedFileWriter},
     },
@@ -15,6 +15,7 @@ use std::{
     fmt,
     io::{Seek, Write},
     rc::Rc,
+    str::FromStr,
 };
 
 use crate::metadata::parquet_schema_as_string;
@@ -27,14 +28,47 @@ pub enum Error {
         message: String,
         source: ParquetError,
     },
+
     #[snafu(display(r#"Could not get packer for column {}"#, column_number))]
     MismatchedColumns { column_number: usize },
+
+    #[snafu(display(
+        r#"Unknown compression level '{}'. Valid options 'max' or 'compatibility'"#,
+        compression_level
+    ))]
+    UnknownCompressionLevel { compression_level: String },
 }
+
+pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 impl From<Error> for TableError {
     fn from(other: Error) -> Self {
         Self::Data {
             source: Box::new(other),
+        }
+    }
+}
+
+/// Specify the desired compression level when writing parquet files
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum CompressionLevel {
+    /// Minimize the size of the written parquet file
+    MAXIMUM,
+
+    // Attempt to maximize interoperability with other ecosystem tools.
+    //
+    // See https://github.com/influxdata/delorean/issues/184
+    COMPATIBILITY,
+}
+
+impl FromStr for CompressionLevel {
+    type Err = Error;
+
+    fn from_str(compression_level: &str) -> Result<Self, Self::Err> {
+        match compression_level {
+            "max" => Ok(Self::MAXIMUM),
+            "compatibility" => Ok(Self::COMPATIBILITY),
+            _ => UnknownCompressionLevel { compression_level }.fail(),
         }
     }
 }
@@ -62,7 +96,7 @@ where
     /// # use delorean_table_schema::DataType;
     /// # use delorean_table::DeloreanTableWriter;
     /// # use delorean_table::packers::{Packer, Packers};
-    /// # use delorean_parquet::writer::DeloreanParquetTableWriter;
+    /// # use delorean_parquet::writer::{DeloreanParquetTableWriter, CompressionLevel};
     /// # use parquet::data_type::ByteArray;
     ///
     /// let schema = delorean_table_schema::SchemaBuilder::new("measurement_name")
@@ -85,7 +119,11 @@ where
     /// output_file_name.push("example.parquet");
     /// let output_file = fs::File::create(output_file_name.as_path()).unwrap();
     ///
-    /// let mut parquet_writer = DeloreanParquetTableWriter::new(&schema, output_file).unwrap();
+    /// let compression_level = CompressionLevel::COMPATIBILITY;
+    ///
+    /// let mut parquet_writer = DeloreanParquetTableWriter::new(
+    ///     &schema, compression_level, output_file)
+    ///     .unwrap();
     ///
     /// // write the actual data to parquet
     /// parquet_writer.write_batch(&packers).unwrap();
@@ -95,8 +133,12 @@ where
     ///
     /// # std::fs::remove_file(output_file_name);
     /// ```
-    pub fn new(schema: &delorean_table_schema::Schema, writer: W) -> Result<Self, Error> {
-        let writer_props = create_writer_props(&schema);
+    pub fn new(
+        schema: &delorean_table_schema::Schema,
+        compression_level: CompressionLevel,
+        writer: W,
+    ) -> Result<Self, Error> {
+        let writer_props = create_writer_props(&schema, compression_level);
         let parquet_schema = convert_to_parquet_schema(&schema)?;
 
         let file_writer = SerializedFileWriter::new(writer, parquet_schema.clone(), writer_props)
@@ -304,9 +346,40 @@ fn convert_to_parquet_schema(
     Ok(Rc::new(parquet_schema))
 }
 
+fn set_integer_encoding(
+    data_type: delorean_table_schema::DataType,
+    compression_level: CompressionLevel,
+    col_path: ColumnPath,
+    builder: WriterPropertiesBuilder,
+) -> WriterPropertiesBuilder {
+    match compression_level {
+        CompressionLevel::MAXIMUM => {
+            debug!(
+                "Setting encoding of {:?} col {} to DELTA_BINARY_PACKED (MAXIMUM)",
+                data_type, col_path
+            );
+            builder
+                .set_column_encoding(col_path.clone(), Encoding::DELTA_BINARY_PACKED)
+                .set_column_dictionary_enabled(col_path, false)
+        }
+        CompressionLevel::COMPATIBILITY => {
+            debug!(
+                "Setting encoding of {:?} col {} to PLAIN/RLE (COMPATIBILITY)",
+                data_type, col_path
+            );
+            builder
+                .set_column_encoding(col_path.clone(), Encoding::PLAIN)
+                .set_column_dictionary_enabled(col_path, true)
+        }
+    }
+}
+
 /// Create the parquet writer properties (which defines the encoding
 /// and compression for each column) for a given schema.
-fn create_writer_props(schema: &delorean_table_schema::Schema) -> Rc<WriterProperties> {
+fn create_writer_props(
+    schema: &delorean_table_schema::Schema,
+    compression_level: CompressionLevel,
+) -> Rc<WriterProperties> {
     let mut builder = WriterProperties::builder();
 
     // TODO: Maybe tweak more of these settings for maximum performance.
@@ -338,13 +411,7 @@ fn create_writer_props(schema: &delorean_table_schema::Schema) -> Rc<WriterPrope
                     .set_column_dictionary_enabled(col_path, false);
             }
             data_type @ delorean_table_schema::DataType::Integer => {
-                debug!(
-                    "Setting encoding of {:?} col {} to DELTA_ENCODING",
-                    data_type, col_path
-                );
-                builder = builder
-                    .set_column_encoding(col_path.clone(), Encoding::DELTA_BINARY_PACKED)
-                    .set_column_dictionary_enabled(col_path, false);
+                builder = set_integer_encoding(data_type, compression_level, col_path, builder)
             }
             data_type @ delorean_table_schema::DataType::Float => {
                 debug!(
@@ -373,13 +440,7 @@ fn create_writer_props(schema: &delorean_table_schema::Schema) -> Rc<WriterPrope
                     .set_column_dictionary_enabled(col_path, false);
             }
             data_type @ delorean_table_schema::DataType::Timestamp => {
-                debug!(
-                    "Setting encoding of {:?} col {} to DELTA_BINARY_PACKED",
-                    data_type, col_path
-                );
-                builder = builder
-                    .set_column_encoding(col_path.clone(), Encoding::DELTA_BINARY_PACKED)
-                    .set_column_dictionary_enabled(col_path, false);
+                builder = set_integer_encoding(data_type, compression_level, col_path, builder)
             }
         };
     }
@@ -447,17 +508,29 @@ mod tests {
         assert_eq!(parquet_schema_string, expected_schema_string);
     }
 
-    #[test]
-    fn test_create_writer_props() {
-        let schema = delorean_table_schema::SchemaBuilder::new("measurement_name")
+    fn make_test_schema() -> delorean_table_schema::Schema {
+        delorean_table_schema::SchemaBuilder::new("measurement_name")
             .tag("tag1")
             .field("string_field", delorean_table_schema::DataType::String)
             .field("float_field", delorean_table_schema::DataType::Float)
             .field("int_field", delorean_table_schema::DataType::Integer)
             .field("bool_field", delorean_table_schema::DataType::Boolean)
-            .build();
+            .build()
+    }
 
-        let writer_props = create_writer_props(&schema);
+    #[test]
+    fn test_create_writer_props_maximum() {
+        do_test_create_writer_props(CompressionLevel::MAXIMUM);
+    }
+
+    #[test]
+    fn test_create_writer_props_compatibility() {
+        do_test_create_writer_props(CompressionLevel::COMPATIBILITY);
+    }
+
+    fn do_test_create_writer_props(compression_level: CompressionLevel) {
+        let schema = make_test_schema();
+        let writer_props = create_writer_props(&schema, compression_level);
 
         let tag1_colpath = ColumnPath::from("tag1");
         assert_eq!(writer_props.encoding(&tag1_colpath), None);
@@ -493,15 +566,26 @@ mod tests {
         assert_eq!(writer_props.statistics_enabled(&float_field_colpath), true);
 
         let int_field_colpath = ColumnPath::from("int_field");
-        assert_eq!(
-            writer_props.encoding(&int_field_colpath),
-            Some(Encoding::DELTA_BINARY_PACKED)
-        );
+        match compression_level {
+            CompressionLevel::MAXIMUM => {
+                assert_eq!(
+                    writer_props.encoding(&int_field_colpath),
+                    Some(Encoding::DELTA_BINARY_PACKED)
+                );
+                assert_eq!(writer_props.dictionary_enabled(&int_field_colpath), false);
+            }
+            CompressionLevel::COMPATIBILITY => {
+                assert_eq!(
+                    writer_props.encoding(&int_field_colpath),
+                    Some(Encoding::PLAIN)
+                );
+                assert_eq!(writer_props.dictionary_enabled(&int_field_colpath), true);
+            }
+        }
         assert_eq!(
             writer_props.compression(&int_field_colpath),
             Compression::GZIP
         );
-        assert_eq!(writer_props.dictionary_enabled(&int_field_colpath), false);
         assert_eq!(writer_props.statistics_enabled(&int_field_colpath), true);
 
         let bool_field_colpath = ColumnPath::from("bool_field");
@@ -517,21 +601,52 @@ mod tests {
         assert_eq!(writer_props.statistics_enabled(&bool_field_colpath), true);
 
         let timestamp_field_colpath = ColumnPath::from("time");
-        assert_eq!(
-            writer_props.encoding(&timestamp_field_colpath),
-            Some(Encoding::DELTA_BINARY_PACKED)
-        );
+        match compression_level {
+            CompressionLevel::MAXIMUM => {
+                assert_eq!(
+                    writer_props.encoding(&timestamp_field_colpath),
+                    Some(Encoding::DELTA_BINARY_PACKED)
+                );
+                assert_eq!(
+                    writer_props.dictionary_enabled(&timestamp_field_colpath),
+                    false
+                );
+            }
+            CompressionLevel::COMPATIBILITY => {
+                assert_eq!(
+                    writer_props.encoding(&timestamp_field_colpath),
+                    Some(Encoding::PLAIN)
+                );
+                assert_eq!(
+                    writer_props.dictionary_enabled(&timestamp_field_colpath),
+                    true
+                );
+            }
+        }
+
         assert_eq!(
             writer_props.compression(&timestamp_field_colpath),
             Compression::GZIP
         );
-        assert_eq!(
-            writer_props.dictionary_enabled(&timestamp_field_colpath),
-            false
-        );
+
         assert_eq!(
             writer_props.statistics_enabled(&timestamp_field_colpath),
             true
         );
+    }
+
+    #[test]
+    fn compression_level() {
+        assert_eq!(
+            CompressionLevel::from_str("max").ok().unwrap(),
+            CompressionLevel::MAXIMUM
+        );
+        assert_eq!(
+            CompressionLevel::from_str("compatibility").ok().unwrap(),
+            CompressionLevel::COMPATIBILITY
+        );
+
+        let bad = CompressionLevel::from_str("madxxxx");
+        assert!(bad.is_err());
     }
 }

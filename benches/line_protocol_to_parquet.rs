@@ -1,7 +1,10 @@
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
 use delorean_ingest::{ConversionSettings, LineProtocolConverter};
 use delorean_line_parser::parse_lines;
-use delorean_parquet::{writer::DeloreanParquetTableWriter, ParquetError, TryClone};
+use delorean_parquet::{
+    writer::{CompressionLevel, DeloreanParquetTableWriter},
+    ParquetError, TryClone,
+};
 use delorean_table::{DeloreanTableWriter, DeloreanTableWriterSource, Error as TableError};
 use delorean_table_schema::Schema;
 use std::time::Duration;
@@ -42,7 +45,8 @@ impl DeloreanTableWriterSource for IgnoringParquetDirectoryWriterSource {
     fn next_writer(&mut self, schema: &Schema) -> Result<Box<dyn DeloreanTableWriter>, TableError> {
         let dev_null = IgnoringWriteStream {};
         let writer =
-            DeloreanParquetTableWriter::new(schema, dev_null).expect("Creating table writer");
+            DeloreanParquetTableWriter::new(schema, CompressionLevel::COMPATIBILITY, dev_null)
+                .expect("Creating table writer");
         Ok(Box::new(writer))
     }
 }
