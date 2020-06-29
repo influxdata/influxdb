@@ -17,7 +17,7 @@ use delorean_table::{
 use delorean_table_schema::{DataType, Schema, SchemaBuilder};
 use delorean_tsm::{
     mapper::{map_field_columns, ColumnData, MeasurementTable, TSMMeasurementMapper},
-    reader::{TSMBlockReader, TSMIndexReader},
+    reader::{BlockDecoder, TSMBlockReader, TSMIndexReader},
     BlockType, TSMError,
 };
 use log::debug;
@@ -556,8 +556,8 @@ impl TSMFileConverter {
 
     // Given a measurement table `process_measurement_table` produces an
     // appropriate schema and set of Packers.
-    fn process_measurement_table<R: BufRead + Seek>(
-        mut block_reader: &mut TSMBlockReader<R>,
+    fn process_measurement_table(
+        mut block_reader: impl BlockDecoder,
         m: &mut MeasurementTable,
     ) -> Result<(Schema, Vec<Packers>), Error> {
         let mut builder = SchemaBuilder::new(&m.name);
