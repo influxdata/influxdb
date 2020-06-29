@@ -1,7 +1,7 @@
 const chrome = require('selenium-webdriver/chrome');
 const ffox = require('selenium-webdriver/firefox');
 const fs = require('fs');
-const {Builder, Capabilities, By, Key, logging, PageLoadStrategy, promise, until} = require('selenium-webdriver');
+const {Builder, Capabilities, By, Key, LocalFileDetector, logging, PageLoadStrategy, promise, until} = require('selenium-webdriver');
 //following provides cleaner paths in require statements
 global.__basedir = __dirname;
 global.__srcdir = __dirname + "/src";
@@ -25,7 +25,7 @@ var common = '--require "src/step_definitions/**/*.js" --require hooks.js --requ
 
 let caps = new Capabilities();
 caps.set('enableVNC', true);
-caps.set('enableVideo', true);
+//caps.set('enableVideo', true);
 caps.set('pageLoadStrategy', 'normal');
 
 let chromeUserPreferences = { 'download.prompt_for_download': false, "download.default_directory": __basedir };
@@ -95,6 +95,7 @@ if(__config.headless) {
 }
 
 __wdriver.manage().setTimeouts({implicit: 3000});
+__wdriver.setFileDetector(LocalFileDetector);
 __wdriver.executor_.w3c = true;
 console.log("DEBUG __wdriver: " + JSON.stringify(__wdriver));
 
