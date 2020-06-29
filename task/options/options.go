@@ -79,7 +79,7 @@ func (a *Duration) UnmarshalText(text []byte) error {
 	return nil
 }
 
-// UnmarshalText marshals text into a Duration.
+// MarshalText marshals text into a Duration.
 func (a Duration) MarshalText() ([]byte, error) {
 	return []byte(a.String()), nil
 }
@@ -173,8 +173,10 @@ func grabTaskOptionAST(p *ast.Package, keys ...string) map[string]ast.Expression
 			}
 			for k := range ae.Properties {
 				prop := ae.Properties[k]
-				if key := prop.Key.Key(); prop != nil && contains(keys, key) {
-					res[key] = prop.Value
+				if prop != nil {
+					if key := prop.Key.Key(); contains(keys, key) {
+						res[key] = prop.Value
+					}
 				}
 			}
 			return res

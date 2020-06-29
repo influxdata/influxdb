@@ -15,7 +15,7 @@ type buffer [3]struct {
 	lit string         // last read literal
 }
 
-// parser of the predicate will connvert
+// parser of the predicate will convert
 // such a statement `(a = "a" or b!="b") and c ! =~/efg/`
 // to the predicate node
 type parser struct {
@@ -122,7 +122,7 @@ func (p *parser) parseLogicalNode() (Node, error) {
 			if p.openParen != currParen-1 {
 				return *n, &influxdb.Error{
 					Code: influxdb.EInvalid,
-					Msg:  fmt.Sprintf("extra ( seen"),
+					Msg:  "extra ( seen",
 				}
 			}
 			if n.Children[0] == nil {
@@ -137,7 +137,7 @@ func (p *parser) parseLogicalNode() (Node, error) {
 			if p.openParen < 0 {
 				return *n, &influxdb.Error{
 					Code: influxdb.EInvalid,
-					Msg:  fmt.Sprintf("extra ) seen"),
+					Msg:  "extra ) seen",
 				}
 			}
 			if n.Children[1] == nil {

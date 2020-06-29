@@ -26,11 +26,11 @@ func cmdAuth(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd.Run = seeHelp
 
 	cmd.AddCommand(
-		authActiveCmd(),
-		authCreateCmd(),
-		authDeleteCmd(),
-		authFindCmd(),
-		authInactiveCmd(),
+		authActiveCmd(f),
+		authCreateCmd(f),
+		authDeleteCmd(f),
+		authFindCmd(f),
+		authInactiveCmd(f),
 	)
 
 	return cmd
@@ -80,12 +80,14 @@ var authCreateFlags struct {
 	readDBRPPermission  bool
 }
 
-func authCreateCmd() *cobra.Command {
+func authCreateCmd(f *globalFlags) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "create",
 		Short: "Create authorization",
 		RunE:  checkSetupRunEMiddleware(&flags)(authorizationCreateF),
 	}
+
+	f.registerFlags(cmd)
 	authCreateFlags.org.register(cmd, false)
 
 	cmd.Flags().StringVarP(&authCreateFlags.user, "user", "u", "", "The user name")
@@ -301,7 +303,7 @@ var authorizationFindFlags struct {
 	userID string
 }
 
-func authFindCmd() *cobra.Command {
+func authFindCmd(f *globalFlags) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "list",
 		Short:   "List authorizations",
@@ -309,6 +311,7 @@ func authFindCmd() *cobra.Command {
 		RunE:    checkSetupRunEMiddleware(&flags)(authorizationFindF),
 	}
 
+	f.registerFlags(cmd)
 	authorizationFindFlags.org.register(cmd, false)
 	registerPrintOptions(cmd, &authCRUDFlags.hideHeaders, &authCRUDFlags.json)
 	cmd.Flags().StringVarP(&authorizationFindFlags.user, "user", "u", "", "The user")
@@ -393,13 +396,14 @@ func authorizationFindF(cmd *cobra.Command, args []string) error {
 	})
 }
 
-func authDeleteCmd() *cobra.Command {
+func authDeleteCmd(f *globalFlags) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "delete",
 		Short: "Delete authorization",
 		RunE:  checkSetupRunEMiddleware(&flags)(authorizationDeleteF),
 	}
 
+	f.registerFlags(cmd)
 	registerPrintOptions(cmd, &authCRUDFlags.hideHeaders, &authCRUDFlags.json)
 	cmd.Flags().StringVarP(&authCRUDFlags.id, "id", "i", "", "The authorization ID (required)")
 	cmd.MarkFlagRequired("id")
@@ -458,12 +462,13 @@ func authorizationDeleteF(cmd *cobra.Command, args []string) error {
 	})
 }
 
-func authActiveCmd() *cobra.Command {
+func authActiveCmd(f *globalFlags) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "active",
 		Short: "Active authorization",
 		RunE:  checkSetupRunEMiddleware(&flags)(authorizationActiveF),
 	}
+	f.registerFlags(cmd)
 
 	registerPrintOptions(cmd, &authCRUDFlags.hideHeaders, &authCRUDFlags.json)
 	cmd.Flags().StringVarP(&authCRUDFlags.id, "id", "i", "", "The authorization ID (required)")
@@ -524,13 +529,14 @@ func authorizationActiveF(cmd *cobra.Command, args []string) error {
 	})
 }
 
-func authInactiveCmd() *cobra.Command {
+func authInactiveCmd(f *globalFlags) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "inactive",
 		Short: "Inactive authorization",
 		RunE:  checkSetupRunEMiddleware(&flags)(authorizationInactiveF),
 	}
 
+	f.registerFlags(cmd)
 	registerPrintOptions(cmd, &authCRUDFlags.hideHeaders, &authCRUDFlags.json)
 	cmd.Flags().StringVarP(&authCRUDFlags.id, "id", "i", "", "The authorization ID (required)")
 	cmd.MarkFlagRequired("id")
@@ -646,10 +652,6 @@ func writeTokens(w io.Writer, printOpts tokenPrintOpt) error {
 }
 
 func newAuthorizationService() (platform.AuthorizationService, error) {
-	if flags.local {
-		return newLocalKVService()
-	}
-
 	httpClient, err := newHTTPClient()
 	if err != nil {
 		return nil, err

@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"testing"
 
-	proto "github.com/golang/protobuf/proto"
+	"github.com/golang/protobuf/proto"
 	pr "github.com/influxdata/influxdb/v2/prometheus"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"

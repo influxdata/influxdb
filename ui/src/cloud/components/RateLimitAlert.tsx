@@ -72,9 +72,7 @@ class RateLimitAlert extends PureComponent<Props> {
   }
 
   private get message(): string {
-    return `Hey there, it looks like you have exceeded your plan's ${
-      this.resourceName
-    } limits.${this.additionalMessage}`
+    return `Hey there, it looks like you have exceeded your plan's ${this.resourceName} limits.${this.additionalMessage}`
   }
 
   private get additionalMessage(): string {
@@ -114,7 +112,4 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-export default connect<StateProps, {}>(
-  mstp,
-  null
-)(RateLimitAlert)
+export default connect<StateProps, {}>(mstp, null)(RateLimitAlert)

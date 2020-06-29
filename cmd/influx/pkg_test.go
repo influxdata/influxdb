@@ -23,7 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestCmdPkg(t *testing.T) {
+func Test_Template_Commands(t *testing.T) {
 	fakeSVCFn := func(svc pkger.SVC) pkgSVCsFn {
 		return func() (pkger.SVC, influxdb.OrganizationService, error) {
 			return svc, &mock.OrganizationService{
@@ -46,11 +46,11 @@ func TestCmdPkg(t *testing.T) {
 		expectedOrgID := influxdb.ID(9000)
 
 		tests := []struct {
-			pkgFileArgs
+			templateFileArgs
 			assertFn func(t *testing.T, pkg *pkger.Pkg)
 		}{
 			{
-				pkgFileArgs: pkgFileArgs{
+				templateFileArgs: templateFileArgs{
 					name:     "yaml out with org id",
 					encoding: pkger.EncodingYAML,
 					filename: "pkg_0.yml",
@@ -58,7 +58,7 @@ func TestCmdPkg(t *testing.T) {
 				},
 			},
 			{
-				pkgFileArgs: pkgFileArgs{
+				templateFileArgs: templateFileArgs{
 					name:     "yaml out with org name",
 					encoding: pkger.EncodingYAML,
 					filename: "pkg_0.yml",
@@ -66,7 +66,7 @@ func TestCmdPkg(t *testing.T) {
 				},
 			},
 			{
-				pkgFileArgs: pkgFileArgs{
+				templateFileArgs: templateFileArgs{
 					name:     "yaml out with org name env var",
 					encoding: pkger.EncodingYAML,
 					filename: "pkg_0.yml",
@@ -74,7 +74,7 @@ func TestCmdPkg(t *testing.T) {
 				},
 			},
 			{
-				pkgFileArgs: pkgFileArgs{
+				templateFileArgs: templateFileArgs{
 					name:     "yaml out with org id env var",
 					encoding: pkger.EncodingYAML,
 					filename: "pkg_0.yml",
@@ -82,7 +82,7 @@ func TestCmdPkg(t *testing.T) {
 				},
 			},
 			{
-				pkgFileArgs: pkgFileArgs{
+				templateFileArgs: templateFileArgs{
 					name:     "with labelName filter",
 					encoding: pkger.EncodingYAML,
 					filename: "pkg_0.yml",
@@ -101,7 +101,7 @@ func TestCmdPkg(t *testing.T) {
 				},
 			},
 			{
-				pkgFileArgs: pkgFileArgs{
+				templateFileArgs: templateFileArgs{
 					name:     "with multiple labelName filters",
 					encoding: pkger.EncodingYAML,
 					filename: "pkg_0.yml",
@@ -122,7 +122,7 @@ func TestCmdPkg(t *testing.T) {
 				},
 			},
 			{
-				pkgFileArgs: pkgFileArgs{
+				templateFileArgs: templateFileArgs{
 					name:     "with resourceKind filter",
 					encoding: pkger.EncodingYAML,
 					filename: "pkg_0.yml",
@@ -139,7 +139,7 @@ func TestCmdPkg(t *testing.T) {
 				},
 			},
 			{
-				pkgFileArgs: pkgFileArgs{
+				templateFileArgs: templateFileArgs{
 					name:     "with multiple resourceKind filter",
 					encoding: pkger.EncodingYAML,
 					filename: "pkg_0.yml",
@@ -159,7 +159,7 @@ func TestCmdPkg(t *testing.T) {
 				},
 			},
 			{
-				pkgFileArgs: pkgFileArgs{
+				templateFileArgs: templateFileArgs{
 					name:     "with mixed resourceKind and labelName filters",
 					encoding: pkger.EncodingYAML,
 					filename: "pkg_0.yml",
@@ -183,10 +183,10 @@ func TestCmdPkg(t *testing.T) {
 			},
 		}
 
-		cmdFn := func(_ *globalFlags, opt genericCLIOpts) *cobra.Command {
+		cmdFn := func(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 			pkgSVC := &fakePkgSVC{
-				createFn: func(_ context.Context, opts ...pkger.CreatePkgSetFn) (*pkger.Pkg, error) {
-					opt := pkger.CreateOpt{}
+				exportFn: func(_ context.Context, opts ...pkger.ExportOptFn) (*pkger.Pkg, error) {
+					opt := pkger.ExportOpt{}
 					for _, o := range opts {
 						if err := o(&opt); err != nil {
 							return nil, err
@@ -228,204 +228,250 @@ func TestCmdPkg(t *testing.T) {
 					return &pkg, nil
 				},
 			}
-			return newCmdPkgBuilder(fakeSVCFn(pkgSVC), opt).cmdApply()
+			return newCmdPkgBuilder(fakeSVCFn(pkgSVC), f, opt).cmdExport()
 		}
 
 		for _, tt := range tests {
-			tt.pkgFileArgs.args = append([]string{"pkg", "export", "all"}, tt.pkgFileArgs.args...)
+			tt.templateFileArgs.args = append([]string{"export", "all"}, tt.templateFileArgs.args...)
 			assertFn := defaultAssertFn
 			if tt.assertFn != nil {
 				assertFn = tt.assertFn
 			}
-			testPkgWrites(t, cmdFn, tt.pkgFileArgs, assertFn)
+			testPkgWrites(t, cmdFn, tt.templateFileArgs, assertFn)
 		}
 	})
 
 	t.Run("export resources", func(t *testing.T) {
-		tests := []struct {
-			name string
-			pkgFileArgs
-			bucketIDs   []influxdb.ID
-			dashIDs     []influxdb.ID
-			endpointIDs []influxdb.ID
-			labelIDs    []influxdb.ID
-			ruleIDs     []influxdb.ID
-			taskIDs     []influxdb.ID
-			telegrafIDs []influxdb.ID
-			varIDs      []influxdb.ID
-		}{
-			{
-				pkgFileArgs: pkgFileArgs{
-					name:     "buckets",
-					encoding: pkger.EncodingYAML,
-					filename: "pkg_0.yml",
+		t.Run("by resource", func(t *testing.T) {
+			tests := []struct {
+				name string
+				templateFileArgs
+				bucketIDs   []influxdb.ID
+				dashIDs     []influxdb.ID
+				endpointIDs []influxdb.ID
+				labelIDs    []influxdb.ID
+				ruleIDs     []influxdb.ID
+				taskIDs     []influxdb.ID
+				telegrafIDs []influxdb.ID
+				varIDs      []influxdb.ID
+				stackID     influxdb.ID
+			}{
+				{
+					templateFileArgs: templateFileArgs{
+						name:     "buckets",
+						encoding: pkger.EncodingYAML,
+						filename: "pkg_0.yml",
+					},
+					bucketIDs: []influxdb.ID{1, 2},
 				},
-				bucketIDs: []influxdb.ID{1, 2},
-			},
-			{
-				pkgFileArgs: pkgFileArgs{
-					name:     "dashboards",
-					encoding: pkger.EncodingYAML,
-					filename: "pkg_0.yml",
+				{
+					templateFileArgs: templateFileArgs{
+						name:     "dashboards",
+						encoding: pkger.EncodingYAML,
+						filename: "pkg_0.yml",
+					},
+					dashIDs: []influxdb.ID{1, 2},
 				},
-				dashIDs: []influxdb.ID{1, 2},
-			},
-			{
-				pkgFileArgs: pkgFileArgs{
-					name:     "endpoints",
-					encoding: pkger.EncodingYAML,
-					filename: "pkg_0.yml",
+				{
+					templateFileArgs: templateFileArgs{
+						name:     "endpoints",
+						encoding: pkger.EncodingYAML,
+						filename: "pkg_0.yml",
+					},
+					endpointIDs: []influxdb.ID{1, 2},
 				},
-				endpointIDs: []influxdb.ID{1, 2},
-			},
-			{
-				pkgFileArgs: pkgFileArgs{
-					name:     "labels",
-					encoding: pkger.EncodingYAML,
-					filename: "pkg_0.yml",
+				{
+					templateFileArgs: templateFileArgs{
+						name:     "labels",
+						encoding: pkger.EncodingYAML,
+						filename: "pkg_0.yml",
+					},
+					labelIDs: []influxdb.ID{1, 2},
 				},
-				labelIDs: []influxdb.ID{1, 2},
-			},
-			{
-				pkgFileArgs: pkgFileArgs{
-					name:     "rules",
-					encoding: pkger.EncodingYAML,
-					filename: "pkg_0.yml",
+				{
+					templateFileArgs: templateFileArgs{
+						name:     "rules",
+						encoding: pkger.EncodingYAML,
+						filename: "pkg_0.yml",
+					},
+					ruleIDs: []influxdb.ID{1, 2},
 				},
-				ruleIDs: []influxdb.ID{1, 2},
-			},
-			{
-				pkgFileArgs: pkgFileArgs{
-					name:     "tasks",
-					encoding: pkger.EncodingYAML,
-					filename: "pkg_0.yml",
+				{
+					templateFileArgs: templateFileArgs{
+						name:     "tasks",
+						encoding: pkger.EncodingYAML,
+						filename: "pkg_0.yml",
+					},
+					taskIDs: []influxdb.ID{1, 2},
 				},
-				taskIDs: []influxdb.ID{1, 2},
-			},
-			{
-				pkgFileArgs: pkgFileArgs{
-					name:     "telegrafs",
-					encoding: pkger.EncodingYAML,
-					filename: "pkg_0.yml",
+				{
+					templateFileArgs: templateFileArgs{
+						name:     "telegrafs",
+						encoding: pkger.EncodingYAML,
+						filename: "pkg_0.yml",
+					},
+					telegrafIDs: []influxdb.ID{1, 2},
 				},
-				telegrafIDs: []influxdb.ID{1, 2},
-			},
-			{
-				pkgFileArgs: pkgFileArgs{
-					name:     "variables",
-					encoding: pkger.EncodingYAML,
-					filename: "pkg_0.yml",
-				},
-				varIDs: []influxdb.ID{1, 2},
-			},
-		}
-
-		cmdFn := func(_ *globalFlags, opt genericCLIOpts) *cobra.Command {
-			pkgSVC := &fakePkgSVC{
-				createFn: func(_ context.Context, opts ...pkger.CreatePkgSetFn) (*pkger.Pkg, error) {
-					var opt pkger.CreateOpt
-					for _, o := range opts {
-						if err := o(&opt); err != nil {
-							return nil, err
-						}
-					}
-
-					var pkg pkger.Pkg
-					for _, rc := range opt.Resources {
-						if rc.Kind == pkger.KindNotificationEndpoint {
-							rc.Kind = pkger.KindNotificationEndpointHTTP
-						}
-						name := strings.ToLower(rc.Kind.String()) + strconv.Itoa(int(rc.ID))
-						pkg.Objects = append(pkg.Objects, pkger.Object{
-							APIVersion: pkger.APIVersion,
-							Kind:       rc.Kind,
-							Metadata:   pkger.Resource{"name": name},
-						})
-					}
-
-					return &pkg, nil
+				{
+					templateFileArgs: templateFileArgs{
+						name:     "variables",
+						encoding: pkger.EncodingYAML,
+						filename: "pkg_0.yml",
+					},
+					varIDs: []influxdb.ID{1, 2},
 				},
 			}
 
-			builder := newCmdPkgBuilder(fakeSVCFn(pkgSVC), opt)
-			return builder.cmdApply()
-		}
-		for _, tt := range tests {
-			tt.args = append(tt.args,
-				"pkg", "export",
-				"--buckets="+idsStr(tt.bucketIDs...),
-				"--endpoints="+idsStr(tt.endpointIDs...),
-				"--dashboards="+idsStr(tt.dashIDs...),
-				"--labels="+idsStr(tt.labelIDs...),
-				"--rules="+idsStr(tt.ruleIDs...),
-				"--tasks="+idsStr(tt.taskIDs...),
-				"--telegraf-configs="+idsStr(tt.telegrafIDs...),
-				"--variables="+idsStr(tt.varIDs...),
-			)
+			cmdFn := func(f *globalFlags, opt genericCLIOpts) *cobra.Command {
+				pkgSVC := &fakePkgSVC{
+					exportFn: func(_ context.Context, opts ...pkger.ExportOptFn) (*pkger.Pkg, error) {
+						var opt pkger.ExportOpt
+						for _, o := range opts {
+							if err := o(&opt); err != nil {
+								return nil, err
+							}
+						}
 
-			testPkgWrites(t, cmdFn, tt.pkgFileArgs, func(t *testing.T, pkg *pkger.Pkg) {
+						var pkg pkger.Pkg
+						for _, rc := range opt.Resources {
+							if rc.Kind == pkger.KindNotificationEndpoint {
+								rc.Kind = pkger.KindNotificationEndpointHTTP
+							}
+							name := strings.ToLower(rc.Kind.String()) + strconv.Itoa(int(rc.ID))
+							pkg.Objects = append(pkg.Objects, pkger.Object{
+								APIVersion: pkger.APIVersion,
+								Kind:       rc.Kind,
+								Metadata:   pkger.Resource{"name": name},
+							})
+						}
+
+						return &pkg, nil
+					},
+				}
+
+				builder := newCmdPkgBuilder(fakeSVCFn(pkgSVC), f, opt)
+				return builder.cmdExport()
+			}
+			for _, tt := range tests {
+				tt.args = append(tt.args,
+					"export",
+					"--buckets="+idsStr(tt.bucketIDs...),
+					"--endpoints="+idsStr(tt.endpointIDs...),
+					"--dashboards="+idsStr(tt.dashIDs...),
+					"--labels="+idsStr(tt.labelIDs...),
+					"--rules="+idsStr(tt.ruleIDs...),
+					"--tasks="+idsStr(tt.taskIDs...),
+					"--telegraf-configs="+idsStr(tt.telegrafIDs...),
+					"--variables="+idsStr(tt.varIDs...),
+				)
+
+				testPkgWrites(t, cmdFn, tt.templateFileArgs, func(t *testing.T, pkg *pkger.Pkg) {
+					sum := pkg.Summary()
+
+					kindToName := func(k pkger.Kind, id influxdb.ID) string {
+						return strings.ToLower(k.String()) + strconv.Itoa(int(id))
+					}
+
+					require.Len(t, sum.Buckets, len(tt.bucketIDs))
+					for i, id := range tt.bucketIDs {
+						actual := sum.Buckets[i]
+						assert.Equal(t, kindToName(pkger.KindBucket, id), actual.Name)
+					}
+					require.Len(t, sum.Dashboards, len(tt.dashIDs))
+					for i, id := range tt.dashIDs {
+						actual := sum.Dashboards[i]
+						assert.Equal(t, kindToName(pkger.KindDashboard, id), actual.Name)
+					}
+					require.Len(t, sum.NotificationEndpoints, len(tt.endpointIDs))
+					for i, id := range tt.endpointIDs {
+						actual := sum.NotificationEndpoints[i]
+						assert.Equal(t, kindToName(pkger.KindNotificationEndpointHTTP, id), actual.NotificationEndpoint.GetName())
+					}
+					require.Len(t, sum.Labels, len(tt.labelIDs))
+					for i, id := range tt.labelIDs {
+						actual := sum.Labels[i]
+						assert.Equal(t, kindToName(pkger.KindLabel, id), actual.Name)
+					}
+					require.Len(t, sum.NotificationRules, len(tt.ruleIDs))
+					for i, id := range tt.ruleIDs {
+						actual := sum.NotificationRules[i]
+						assert.Equal(t, kindToName(pkger.KindNotificationRule, id), actual.Name)
+					}
+					require.Len(t, sum.Tasks, len(tt.taskIDs))
+					for i, id := range tt.taskIDs {
+						actual := sum.Tasks[i]
+						assert.Equal(t, kindToName(pkger.KindTask, id), actual.Name)
+					}
+					require.Len(t, sum.TelegrafConfigs, len(tt.telegrafIDs))
+					for i, id := range tt.telegrafIDs {
+						actual := sum.TelegrafConfigs[i]
+						assert.Equal(t, kindToName(pkger.KindTelegraf, id), actual.TelegrafConfig.Name)
+					}
+					require.Len(t, sum.Variables, len(tt.varIDs))
+					for i, id := range tt.varIDs {
+						actual := sum.Variables[i]
+						assert.Equal(t, kindToName(pkger.KindVariable, id), actual.Name)
+					}
+				})
+			}
+		})
+
+		t.Run("by stack", func(t *testing.T) {
+			cmdFn := func(f *globalFlags, opt genericCLIOpts) *cobra.Command {
+				pkgSVC := &fakePkgSVC{
+					exportFn: func(_ context.Context, opts ...pkger.ExportOptFn) (*pkger.Pkg, error) {
+						var opt pkger.ExportOpt
+						for _, o := range opts {
+							if err := o(&opt); err != nil {
+								return nil, err
+							}
+						}
+
+						if opt.StackID != 1 {
+							return nil, errors.New("wrong stack ID, got: " + opt.StackID.String())
+						}
+						return &pkger.Pkg{
+							Objects: []pkger.Object{
+								pkger.LabelToObject("", influxdb.Label{
+									Name: "label-1",
+								}),
+							},
+						}, nil
+					},
+				}
+
+				builder := newCmdPkgBuilder(fakeSVCFn(pkgSVC), f, opt)
+				return builder.cmdExport()
+			}
+
+			tmplFileArgs := templateFileArgs{
+				name:     "stack",
+				encoding: pkger.EncodingYAML,
+				filename: "pkg_0.yml",
+				args:     []string{"export", "--stack-id=" + influxdb.ID(1).String()},
+			}
+
+			testPkgWrites(t, cmdFn, tmplFileArgs, func(t *testing.T, pkg *pkger.Pkg) {
 				sum := pkg.Summary()
 
-				kindToName := func(k pkger.Kind, id influxdb.ID) string {
-					return strings.ToLower(k.String()) + strconv.Itoa(int(id))
-				}
-
-				require.Len(t, sum.Buckets, len(tt.bucketIDs))
-				for i, id := range tt.bucketIDs {
-					actual := sum.Buckets[i]
-					assert.Equal(t, kindToName(pkger.KindBucket, id), actual.Name)
-				}
-				require.Len(t, sum.Dashboards, len(tt.dashIDs))
-				for i, id := range tt.dashIDs {
-					actual := sum.Dashboards[i]
-					assert.Equal(t, kindToName(pkger.KindDashboard, id), actual.Name)
-				}
-				require.Len(t, sum.NotificationEndpoints, len(tt.endpointIDs))
-				for i, id := range tt.endpointIDs {
-					actual := sum.NotificationEndpoints[i]
-					assert.Equal(t, kindToName(pkger.KindNotificationEndpointHTTP, id), actual.NotificationEndpoint.GetName())
-				}
-				require.Len(t, sum.Labels, len(tt.labelIDs))
-				for i, id := range tt.labelIDs {
-					actual := sum.Labels[i]
-					assert.Equal(t, kindToName(pkger.KindLabel, id), actual.Name)
-				}
-				require.Len(t, sum.NotificationRules, len(tt.ruleIDs))
-				for i, id := range tt.ruleIDs {
-					actual := sum.NotificationRules[i]
-					assert.Equal(t, kindToName(pkger.KindNotificationRule, id), actual.Name)
-				}
-				require.Len(t, sum.Tasks, len(tt.taskIDs))
-				for i, id := range tt.taskIDs {
-					actual := sum.Tasks[i]
-					assert.Equal(t, kindToName(pkger.KindTask, id), actual.Name)
-				}
-				require.Len(t, sum.TelegrafConfigs, len(tt.telegrafIDs))
-				for i, id := range tt.telegrafIDs {
-					actual := sum.TelegrafConfigs[i]
-					assert.Equal(t, kindToName(pkger.KindTelegraf, id), actual.TelegrafConfig.Name)
-				}
-				require.Len(t, sum.Variables, len(tt.varIDs))
-				for i, id := range tt.varIDs {
-					actual := sum.Variables[i]
-					assert.Equal(t, kindToName(pkger.KindVariable, id), actual.Name)
-				}
+				require.Len(t, sum.Labels, 1)
+				assert.Equal(t, "label-1", sum.Labels[0].Name)
 			})
-		}
+		})
 	})
 
 	t.Run("validate", func(t *testing.T) {
-		t.Run("pkg is valid returns no error", func(t *testing.T) {
+		t.Run("template is valid returns no error", func(t *testing.T) {
 			builder := newInfluxCmdBuilder(
 				in(new(bytes.Buffer)),
 				out(ioutil.Discard),
 			)
 			cmd := builder.cmd(func(f *globalFlags, opt genericCLIOpts) *cobra.Command {
-				return newCmdPkgBuilder(fakeSVCFn(new(fakePkgSVC)), opt).cmdApply()
+				return newCmdPkgBuilder(fakeSVCFn(new(fakePkgSVC)), f, opt).cmdTemplate()
 			})
 
 			cmd.SetArgs([]string{
-				"pkg",
+				"template",
 				"validate",
 				"--file=../../pkger/testdata/bucket.yml",
 				"-f=../../pkger/testdata/label.yml",
@@ -433,7 +479,7 @@ func TestCmdPkg(t *testing.T) {
 			require.NoError(t, cmd.Execute())
 		})
 
-		t.Run("pkg is invalid returns error", func(t *testing.T) {
+		t.Run("template is invalid returns error", func(t *testing.T) {
 			// pkgYml is invalid because it is missing a name and wrong apiVersion
 			const pkgYml = `apiVersion: 0.1.0
 	kind: Bucket
@@ -444,9 +490,9 @@ func TestCmdPkg(t *testing.T) {
 				out(ioutil.Discard),
 			)
 			cmd := builder.cmd(func(f *globalFlags, opt genericCLIOpts) *cobra.Command {
-				return newCmdPkgBuilder(fakeSVCFn(new(fakePkgSVC)), opt).cmdApply()
+				return newCmdPkgBuilder(fakeSVCFn(new(fakePkgSVC)), f, opt).cmdTemplate()
 			})
-			cmd.SetArgs([]string{"pkg", "validate"})
+			cmd.SetArgs([]string{"template", "validate"})
 
 			require.Error(t, cmd.Execute())
 		})
@@ -542,10 +588,10 @@ func TestCmdPkg(t *testing.T) {
 								return stack, nil
 							},
 						}
-						return newCmdPkgBuilder(fakeSVCFn(echoSVC), opt).cmdApply()
+						return newCmdPkgBuilder(fakeSVCFn(echoSVC), f, opt).cmdStacks()
 					})
 
-					baseArgs := []string{"pkg", "stack", "init", "--json"}
+					baseArgs := []string{"stacks", "init", "--json"}
 
 					rootCmd.SetArgs(append(baseArgs, tt.args...))
 
@@ -640,7 +686,7 @@ func Test_readFilesFromPath(t *testing.T) {
 	})
 }
 
-type pkgFileArgs struct {
+type templateFileArgs struct {
 	name     string
 	filename string
 	encoding pkger.Encoding
@@ -648,7 +694,7 @@ type pkgFileArgs struct {
 	envVars  map[string]string
 }
 
-func testPkgWrites(t *testing.T, newCmdFn func(*globalFlags, genericCLIOpts) *cobra.Command, args pkgFileArgs, assertFn func(t *testing.T, pkg *pkger.Pkg)) {
+func testPkgWrites(t *testing.T, newCmdFn func(*globalFlags, genericCLIOpts) *cobra.Command, args templateFileArgs, assertFn func(t *testing.T, pkg *pkger.Pkg)) {
 	t.Helper()
 
 	defer addEnvVars(t, args.envVars)()
@@ -667,7 +713,7 @@ func testPkgWrites(t *testing.T, newCmdFn func(*globalFlags, genericCLIOpts) *co
 	t.Run(path.Join(args.name, "buffer"), testPkgWritesToBuffer(wrappedCmdFn, args, assertFn))
 }
 
-func testPkgWritesFile(newCmdFn func(w io.Writer) *cobra.Command, args pkgFileArgs, assertFn func(t *testing.T, pkg *pkger.Pkg)) func(t *testing.T) {
+func testPkgWritesFile(newCmdFn func(w io.Writer) *cobra.Command, args templateFileArgs, assertFn func(t *testing.T, pkg *pkger.Pkg)) func(t *testing.T) {
 	return func(t *testing.T) {
 		t.Helper()
 
@@ -688,7 +734,7 @@ func testPkgWritesFile(newCmdFn func(w io.Writer) *cobra.Command, args pkgFileAr
 	}
 }
 
-func testPkgWritesToBuffer(newCmdFn func(w io.Writer) *cobra.Command, args pkgFileArgs, assertFn func(t *testing.T, pkg *pkger.Pkg)) func(t *testing.T) {
+func testPkgWritesToBuffer(newCmdFn func(w io.Writer) *cobra.Command, args templateFileArgs, assertFn func(t *testing.T, pkg *pkger.Pkg)) func(t *testing.T) {
 	return func(t *testing.T) {
 		t.Helper()
 
@@ -707,9 +753,9 @@ func testPkgWritesToBuffer(newCmdFn func(w io.Writer) *cobra.Command, args pkgFi
 
 type fakePkgSVC struct {
 	initStackFn func(ctx context.Context, userID influxdb.ID, stack pkger.Stack) (pkger.Stack, error)
-	createFn    func(ctx context.Context, setters ...pkger.CreatePkgSetFn) (*pkger.Pkg, error)
-	dryRunFn    func(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.PkgImpactSummary, error)
-	applyFn     func(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.PkgImpactSummary, error)
+	exportFn    func(ctx context.Context, setters ...pkger.ExportOptFn) (*pkger.Pkg, error)
+	dryRunFn    func(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.ImpactSummary, error)
+	applyFn     func(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.ImpactSummary, error)
 }
 
 var _ pkger.SVC = (*fakePkgSVC)(nil)
@@ -741,21 +787,21 @@ func (f *fakePkgSVC) UpdateStack(ctx context.Context, upd pkger.StackUpdate) (pk
 	panic("not implemented")
 }
 
-func (f *fakePkgSVC) CreatePkg(ctx context.Context, setters ...pkger.CreatePkgSetFn) (*pkger.Pkg, error) {
-	if f.createFn != nil {
-		return f.createFn(ctx, setters...)
+func (f *fakePkgSVC) Export(ctx context.Context, setters ...pkger.ExportOptFn) (*pkger.Pkg, error) {
+	if f.exportFn != nil {
+		return f.exportFn(ctx, setters...)
 	}
 	panic("not implemented")
 }
 
-func (f *fakePkgSVC) DryRun(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.PkgImpactSummary, error) {
+func (f *fakePkgSVC) DryRun(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.ImpactSummary, error) {
 	if f.dryRunFn != nil {
 		return f.dryRunFn(ctx, orgID, userID, opts...)
 	}
 	panic("not implemented")
 }
 
-func (f *fakePkgSVC) Apply(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.PkgImpactSummary, error) {
+func (f *fakePkgSVC) Apply(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.ImpactSummary, error) {
 	if f.applyFn != nil {
 		return f.applyFn(ctx, orgID, userID, opts...)
 	}

@@ -87,7 +87,4 @@ const mdtp: DispatchProps = {
   onGenerateTelegrafToken: generateTelegrafToken,
 }
 
-export default connect<{}, DispatchProps>(
-  null,
-  mdtp
-)(TokenCodeSnippet)
+export default connect<{}, DispatchProps>(null, mdtp)(TokenCodeSnippet)

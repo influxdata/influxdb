@@ -18,7 +18,9 @@ const TelegrafEditor = Loadable({
 })
 const CollectorsStepSwitcher = Loadable({
   loader: () =>
-    import('src/dataLoaders/components/collectorsWizard/CollectorsStepSwitcher'),
+    import(
+      'src/dataLoaders/components/collectorsWizard/CollectorsStepSwitcher'
+    ),
   loading() {
     return spinner
   },

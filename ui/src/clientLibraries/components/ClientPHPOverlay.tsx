@@ -97,7 +97,4 @@ const mstp = (state: AppState): StateProps => {
 }
 
 export {ClientPHPOverlay}
-export default connect<StateProps, {}, Props>(
-  mstp,
-  null
-)(ClientPHPOverlay)
+export default connect<StateProps, {}, Props>(mstp, null)(ClientPHPOverlay)

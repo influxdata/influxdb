@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"os"
+	"path"
 	"strings"
 	"time"
 
@@ -66,13 +67,19 @@ func NewCommand(p *Program) *cobra.Command {
 	// This normalizes "-" to an underscore in env names.
 	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 
-	configFile := viper.GetString("CONFIG_FILE")
-	if configFile == "" {
+	if configPath := viper.GetString("CONFIG_PATH"); configPath != "" {
+		switch path.Ext(configPath) {
+		case ".json", ".toml", ".yaml", "yml":
+			viper.SetConfigFile(configPath)
+		case "":
+			viper.AddConfigPath(configPath)
+		}
+	} else {
 		// defaults to looking in same directory as program running for
-		// a file `config.yaml`
-		configFile = "config.yaml"
+		// a file with base `config` and extensions .json|.toml|.yaml|.yml
+		viper.SetConfigName("config")
+		viper.AddConfigPath(".")
 	}
-	viper.SetConfigFile(configFile)
 
 	// done before we bind flags to viper keys.
 	// order of precedence (1 highest -> 3 lowest):
@@ -80,7 +87,7 @@ func NewCommand(p *Program) *cobra.Command {
 	//  2. env vars
 	//	3. config file
 	if err := initializeConfig(); err != nil {
-		panic(fmt.Sprintf("invalid config file[%s] caused panic: %s", configFile, err))
+		panic("invalid config file caused panic: " + err.Error())
 	}
 	BindOptions(cmd, p.Opts)
 

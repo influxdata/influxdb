@@ -83,7 +83,4 @@ const mdtp = {
   hydrateVariables: hydrateVariables,
 }
 
-export default connect<StateProps, DispatchProps>(
-  mstp,
-  mdtp
-)(VariableToolbar)
+export default connect<StateProps, DispatchProps>(mstp, mdtp)(VariableToolbar)

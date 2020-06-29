@@ -20,6 +20,7 @@ import (
 	"github.com/influxdata/influxdb/v2/authorization"
 	"github.com/influxdata/influxdb/v2/authorizer"
 	"github.com/influxdata/influxdb/v2/bolt"
+	"github.com/influxdata/influxdb/v2/checks"
 	"github.com/influxdata/influxdb/v2/chronograf/server"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/inspect"
 	"github.com/influxdata/influxdb/v2/dbrp"
@@ -84,59 +85,91 @@ const (
 	JaegerTracing = "jaeger"
 )
 
-// NewCommand creates the command to run influxdb.
-func NewCommand() *cobra.Command {
+func NewInfluxdCommand(ctx context.Context, subCommands ...*cobra.Command) *cobra.Command {
 	l := NewLauncher()
-	cmd := &cobra.Command{
-		Use:   "run",
-		Short: "Start the influxd server (default)",
-		Run: func(cmd *cobra.Command, args []string) {
-			// exit with SIGINT and SIGTERM
-			ctx := context.Background()
-			ctx = signals.WithStandardSignals(ctx)
 
-			if err := l.run(ctx); err != nil {
-				fmt.Fprintln(os.Stderr, err)
-				os.Exit(1)
-			} else if !l.Running() {
-				os.Exit(1)
-			}
-
-			var wg sync.WaitGroup
-			if !l.ReportingDisabled() {
-				reporter := telemetry.NewReporter(l.Log(), l.Registry())
-				reporter.Interval = 8 * time.Hour
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
-					reporter.Report(ctx)
-				}()
-			}
-
-			<-ctx.Done()
-
-			// Attempt clean shutdown.
-			ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
-			defer cancel()
-			l.Shutdown(ctx)
-			wg.Wait()
-		},
+	prog := cli.Program{
+		Name: "influxd",
+		Run:  cmdRunE(ctx, l),
 	}
 
-	buildLauncherCommand(l, cmd)
+	assignDescs := func(cmd *cobra.Command) {
+		cmd.Short = "Start the influxd server (default)"
+		cmd.Long = `
+	Start up the daemon configured with flags/env vars/config file.
+
+	The order of precedence for config options are as follows (1 highest, 3 lowest):
+		1. flags
+		2. env vars
+		3. config file
+
+	A config file can be provided via the INFLUXD_CONFIG_PATH env var. If a file is
+	not provided via an env var, influxd will look in the current directory for a
+	config.yaml file. If one does not exist, then it will continue unchanged.`
+	}
+
+	cmd := cli.NewCommand(&prog)
+	runCmd := &cobra.Command{
+		Use:  "run",
+		RunE: cmd.RunE,
+	}
+	for _, c := range []*cobra.Command{cmd, runCmd} {
+		assignDescs(c)
+		setLauncherCMDOpts(l, c)
+	}
+	cmd.AddCommand(append(subCommands, runCmd)...)
 
 	return cmd
 }
 
+func cmdRunE(ctx context.Context, l *Launcher) func() error {
+	return func() error {
+		// exit with SIGINT and SIGTERM
+		ctx = signals.WithStandardSignals(ctx)
+
+		if err := l.run(ctx); err != nil {
+			return err
+		} else if !l.Running() {
+			return errors.New("the daemon is already running")
+		}
+
+		var wg sync.WaitGroup
+		if !l.ReportingDisabled() {
+			reporter := telemetry.NewReporter(l.Log(), l.Registry())
+			reporter.Interval = 8 * time.Hour
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				reporter.Report(ctx)
+			}()
+		}
+
+		<-ctx.Done()
+
+		// Attempt clean shutdown.
+		ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		defer cancel()
+		l.Shutdown(ctx)
+		wg.Wait()
+
+		return nil
+	}
+}
+
 var vaultConfig vault.Config
 
-func buildLauncherCommand(l *Launcher, cmd *cobra.Command) {
+func setLauncherCMDOpts(l *Launcher, cmd *cobra.Command) {
+	cli.BindOptions(cmd, launcherOpts(l))
+	cmd.AddCommand(inspect.NewCommand())
+}
+
+func launcherOpts(l *Launcher) []cli.Opt {
 	dir, err := fs.InfluxDir()
 	if err != nil {
 		panic(fmt.Errorf("failed to determine influx directory: %v", err))
 	}
 
-	opts := []cli.Opt{
+	return []cli.Opt{
 		{
 			DestP:   &l.logLevel,
 			Flag:    "log-level",
@@ -271,6 +304,18 @@ func buildLauncherCommand(l *Launcher, cmd *cobra.Command) {
 			Desc:    "TLS key for HTTPs",
 		},
 		{
+			DestP:   &l.httpTLSMinVersion,
+			Flag:    "tls-min-version",
+			Default: "1.2",
+			Desc:    "Minimum accepted TLS version",
+		},
+		{
+			DestP:   &l.httpTLSStrictCiphers,
+			Flag:    "tls-strict-ciphers",
+			Default: false,
+			Desc:    "Restrict accept ciphers to: ECDHE_RSA_WITH_AES_256_GCM_SHA384, ECDHE_RSA_WITH_AES_256_CBC_SHA, RSA_WITH_AES_256_GCM_SHA384, RSA_WITH_AES_256_CBC_SHA",
+		},
+		{
 			DestP:   &l.noTasks,
 			Flag:    "no-tasks",
 			Default: false,
@@ -312,8 +357,6 @@ func buildLauncherCommand(l *Launcher, cmd *cobra.Command) {
 			Desc:  "feature flag overrides",
 		},
 	}
-	cli.BindOptions(cmd, opts)
-	cmd.AddCommand(inspect.NewCommand())
 }
 
 // Launcher represents the main program execution.
@@ -355,10 +398,12 @@ type Launcher struct {
 
 	queryController *control.Controller
 
-	httpPort    int
-	httpServer  *nethttp.Server
-	httpTLSCert string
-	httpTLSKey  string
+	httpPort             int
+	httpServer           *nethttp.Server
+	httpTLSCert          string
+	httpTLSKey           string
+	httpTLSMinVersion    string
+	httpTLSStrictCiphers bool
 
 	natsServer *nats.Server
 	natsPort   int
@@ -479,7 +524,7 @@ func (m *Launcher) Run(ctx context.Context, args ...string) error {
 		},
 	}
 
-	buildLauncherCommand(m, cmd)
+	setLauncherCMDOpts(m, cmd)
 
 	cmd.SetArgs(args)
 	return cmd.Execute()
@@ -771,7 +816,8 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	var checkSvc platform.CheckService
 	{
 		coordinator := coordinator.NewCoordinator(m.log, m.scheduler, m.executor)
-		checkSvc = middleware.NewCheckService(m.kvService, m.kvService, coordinator)
+		checkSvc = checks.NewService(m.log.With(zap.String("svc", "checks")), m.kvStore, m.kvService, m.kvService)
+		checkSvc = middleware.NewCheckService(checkSvc, m.kvService, coordinator)
 	}
 
 	var notificationRuleSvc platform.NotificationRuleStore
@@ -877,7 +923,6 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		sessionSvc = session.NewService(session.NewStorage(inmem.NewSessionStore()), userSvc, userResourceSvc, authSvc, time.Duration(m.sessionLength)*time.Minute)
 		sessionSvc = session.NewSessionMetrics(m.reg, sessionSvc)
 		sessionSvc = session.NewSessionLogger(m.log.With(zap.String("service", "session")), sessionSvc)
-		sessionSvc = session.NewServiceController(m.flagger, m.kvService, sessionSvc)
 	}
 
 	var labelSvc platform.LabelService
@@ -890,6 +935,9 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		ls := label.NewService(labelsStore)
 		labelSvc = label.NewLabelController(m.flagger, m.kvService, ls)
 	}
+
+	bucketSvc = storage.NewBucketService(bucketSvc, m.engine)
+	bucketSvc = dbrp.NewBucketService(m.log, bucketSvc, dbrpSvc)
 
 	m.apibackend = &http.APIBackend{
 		AssetsPath:           m.assetsPath,
@@ -905,7 +953,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		AuthorizationService: authSvc,
 		AlgoWProxy:           &http.NoopProxyHandler{},
 		// Wrap the BucketService in a storage backed one that will ensure deleted buckets are removed from the storage engine.
-		BucketService:                   storage.NewBucketService(bucketSvc, m.engine),
+		BucketService:                   bucketSvc,
 		SessionService:                  sessionSvc,
 		UserService:                     userSvc,
 		DBRPService:                     dbrpSvc,
@@ -1026,14 +1074,12 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		authService = authorization.NewAuthMetrics(m.reg, authService)
 		authService = authorization.NewAuthLogger(authLogger, authService)
 
-		newHandler := authorization.NewHTTPAuthHandler(m.log, authService, ts, lookupSvc)
+		newHandler := authorization.NewHTTPAuthHandler(m.log, authService, ts)
 		authHTTPServer = kithttp.NewFeatureHandler(feature.NewAuthPackage(), m.flagger, oldHandler, newHandler, newHandler.Prefix())
 	}
 
-	var oldSessionHandler nethttp.Handler
 	var sessionHTTPServer *session.SessionHandler
 	{
-		oldSessionHandler = http.NewSessionHandler(m.log.With(zap.String("handler", "old_session")), http.NewSessionBackend(m.log, m.apibackend))
 		sessionHTTPServer = session.NewSessionHandler(m.log.With(zap.String("handler", "session")), sessionSvc, userSvc, passwdsSvc)
 	}
 
@@ -1041,7 +1087,8 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	{
 		secretHandler := secret.NewHandler(m.log, "id", secret.NewAuthedService(secretSvc))
 		urmHandler := tenant.NewURMHandler(m.log.With(zap.String("handler", "urm")), platform.OrgsResourceType, "id", userSvc, tenant.NewAuthedURMService(orgSvc, userResourceSvc))
-		orgHTTPServer = tenant.NewHTTPOrgHandler(m.log.With(zap.String("handler", "org")), orgSvc, urmHandler, labelHandler, secretHandler)
+		labelHandler := label.NewHTTPEmbeddedHandler(m.log.With(zap.String("handler", "label")), platform.OrgsResourceType, labelSvc)
+		orgHTTPServer = tenant.NewHTTPOrgHandler(m.log.With(zap.String("handler", "org")), tenant.NewAuthedOrgService(orgSvc), urmHandler, labelHandler, secretHandler)
 	}
 
 	{
@@ -1050,8 +1097,8 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 			http.WithResourceHandler(onboardHTTPServer),
 			http.WithResourceHandler(authHTTPServer),
 			http.WithResourceHandler(kithttp.NewFeatureHandler(feature.NewLabelPackage(), m.flagger, oldLabelHandler, labelHandler, labelHandler.Prefix())),
-			http.WithResourceHandler(kithttp.NewFeatureHandler(feature.SessionService(), m.flagger, oldSessionHandler, sessionHTTPServer.SignInResourceHandler(), sessionHTTPServer.SignInResourceHandler().Prefix())),
-			http.WithResourceHandler(kithttp.NewFeatureHandler(feature.SessionService(), m.flagger, oldSessionHandler, sessionHTTPServer.SignOutResourceHandler(), sessionHTTPServer.SignOutResourceHandler().Prefix())),
+			http.WithResourceHandler(sessionHTTPServer.SignInResourceHandler()),
+			http.WithResourceHandler(sessionHTTPServer.SignOutResourceHandler()),
 			http.WithResourceHandler(userHTTPServer.MeResourceHandler()),
 			http.WithResourceHandler(userHTTPServer.UserResourceHandler()),
 			http.WithResourceHandler(orgHTTPServer),
@@ -1095,7 +1142,43 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		}
 		transport = "https"
 
-		m.httpServer.TLSConfig = &tls.Config{}
+		// Sensible default
+		var tlsMinVersion uint16 = tls.VersionTLS12
+
+		switch m.httpTLSMinVersion {
+		case "1.0":
+			m.log.Warn("Setting the minimum version of TLS to 1.0 - this is discouraged. Please use 1.2 or 1.3")
+			tlsMinVersion = tls.VersionTLS10
+		case "1.1":
+			m.log.Warn("Setting the minimum version of TLS to 1.1 - this is discouraged. Please use 1.2 or 1.3")
+			tlsMinVersion = tls.VersionTLS11
+		case "1.2":
+			tlsMinVersion = tls.VersionTLS12
+		case "1.3":
+			tlsMinVersion = tls.VersionTLS13
+		}
+
+		strictCiphers := []uint16{
+			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+			tls.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
+			tls.TLS_RSA_WITH_AES_256_GCM_SHA384,
+			tls.TLS_RSA_WITH_AES_256_CBC_SHA,
+		}
+
+		// nil uses the default cipher suite
+		var cipherConfig []uint16 = nil
+
+		// TLS 1.3 does not support configuring the Cipher suites
+		if tlsMinVersion != tls.VersionTLS13 && m.httpTLSStrictCiphers {
+			cipherConfig = strictCiphers
+		}
+
+		m.httpServer.TLSConfig = &tls.Config{
+			CurvePreferences:         []tls.CurveID{tls.CurveP521, tls.CurveP384, tls.CurveP256},
+			PreferServerCipherSuites: true,
+			MinVersion:               tlsMinVersion,
+			CipherSuites:             cipherConfig,
+		}
 	}
 
 	if addr, ok := ln.Addr().(*net.TCPAddr); ok {

@@ -82,11 +82,7 @@ func (tc *TelegrafConfig) CountPlugins() map[string]float64 {
 		if len(v) < 2 {
 			continue
 		}
-		if _, ok := plugins[v[1]]; ok {
-			plugins[v[1]]++
-		} else {
-			plugins[v[1]] = 1
-		}
+		plugins[v[1]]++
 	}
 
 	return plugins

@@ -8,7 +8,7 @@ import {Button, ComponentColor} from '@influxdata/clockface'
 import {NotebookContext} from 'src/notebooks/context/notebook'
 import {PIPE_DEFINITIONS} from 'src/notebooks'
 
-// Utils
+import {event} from 'src/notebooks/shared/event'
 import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 
 const AddButtons: FC = () => {
@@ -39,6 +39,11 @@ const AddButtons: FC = () => {
             if (typeof data === 'function') {
               data = data()
             }
+
+            event('Notebook Add Button Clicked', {
+              type: def.type,
+            })
+
             addPipe({
               ...data,
               type,

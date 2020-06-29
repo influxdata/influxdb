@@ -37,17 +37,17 @@ func TestStoreKV(t *testing.T) {
 					APIVersion: pkger.APIVersion,
 					ID:         9000,
 					Kind:       pkger.KindBucket,
-					PkgName:    "buzz lightyear",
+					MetaName:   "buzz lightyear",
 					Associations: []pkger.StackResourceAssociation{{
-						Kind:    pkger.KindLabel,
-						PkgName: "foo_label",
+						Kind:     pkger.KindLabel,
+						MetaName: "foo_label",
 					}},
 				},
 				{
 					APIVersion: pkger.APIVersion,
 					ID:         333,
 					Kind:       pkger.KindBucket,
-					PkgName:    "beyond",
+					MetaName:   "beyond",
 				},
 			},
 		}
@@ -263,7 +263,7 @@ func TestStoreKV(t *testing.T) {
 				APIVersion: pkger.APIVersion,
 				ID:         333,
 				Kind:       pkger.KindBucket,
-				PkgName:    "beyond",
+				MetaName:   "beyond",
 			})
 
 			err := storeKV.UpdateStack(context.Background(), updateStack)

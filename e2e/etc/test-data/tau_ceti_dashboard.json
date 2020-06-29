@@ -1,280 +1,282 @@
 {
- "meta": {
-  "version": "1",
-  "type": "dashboard",
-  "name": "Tau Ceti-Template",
-  "description": "template created from dashboard: Tau Ceti"
- },
- "content": {
-  "data": {
-   "type": "dashboard",
-   "attributes": {
-    "name": "Tau Ceti",
-    "description": ""
-   },
-   "relationships": {
-    "label": {
-     "data": []
+    "meta": {
+        "version": "1",
+        "type": "dashboard",
+        "name": "Tau Ceti-Template",
+        "description": "template created from dashboard: Tau Ceti"
     },
-    "cell": {
-     "data": [
-      {
-       "type": "cell",
-       "id": "04ce423aabd9e000"
-      },
-      {
-       "type": "cell",
-       "id": "04ce4313b159e000"
-      },
-      {
-       "type": "cell",
-       "id": "04ce43c11ad9e000"
-      }
-     ]
+    "content": {
+        "data": {
+            "type": "dashboard",
+            "attributes": {
+                "name": "Tau Ceti",
+                "description": ""
+            },
+            "relationships": {
+                "label": {
+                    "data": []
+                },
+                "cell": {
+                    "data": [
+                        {
+                            "type": "cell",
+                            "id": "04ce423aabd9e000"
+                        },
+                        {
+                            "type": "cell",
+                            "id": "04ce4313b159e000"
+                        },
+                        {
+                            "type": "cell",
+                            "id": "04ce43c11ad9e000"
+                        }
+                    ]
+                },
+                "variable": {
+                    "data": []
+                }
+            }
+        },
+        "included": [
+            {
+                "id": "04ce423aabd9e000",
+                "type": "cell",
+                "attributes": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 12,
+                    "h": 4
+                },
+                "relationships": {
+                    "view": {
+                        "data": {
+                            "type": "view",
+                            "id": "04ce423aabd9e000"
+                        }
+                    }
+                }
+            },
+            {
+                "id": "04ce4313b159e000",
+                "type": "cell",
+                "attributes": {
+                    "x": 0,
+                    "y": 4,
+                    "w": 7,
+                    "h": 2
+                },
+                "relationships": {
+                    "view": {
+                        "data": {
+                            "type": "view",
+                            "id": "04ce4313b159e000"
+                        }
+                    }
+                }
+            },
+            {
+                "id": "04ce43c11ad9e000",
+                "type": "cell",
+                "attributes": {
+                    "x": 7,
+                    "y": 4,
+                    "w": 5,
+                    "h": 2
+                },
+                "relationships": {
+                    "view": {
+                        "data": {
+                            "type": "view",
+                            "id": "04ce43c11ad9e000"
+                        }
+                    }
+                }
+            },
+            {
+                "type": "view",
+                "id": "04ce423aabd9e000",
+                "attributes": {
+                    "name": "Hydro derivative",
+                    "properties": {
+                        "shape": "chronograf-v2",
+                        "queries": [
+                            {
+                                "text": "from(bucket: \"qa\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"hydro\")\n  |> filter(fn: (r) => r._field == \"level\")\n  |> derivative(unit: v.windowPeriod, nonNegative: false)\n  |> yield(name: \"derivative\")",
+                                "editMode": "advanced",
+                                "name": "",
+                                "builderConfig": {
+                                    "buckets": [],
+                                    "tags": [
+                                        {
+                                            "key": "_measurement",
+                                            "values": []
+                                        }
+                                    ],
+                                    "functions": [],
+                                    "aggregateWindow": {
+                                        "period": "auto"
+                                    }
+                                }
+                            }
+                        ],
+                        "axes": {
+                            "x": {
+                                "bounds": [
+                                    "",
+                                    ""
+                                ],
+                                "label": "",
+                                "prefix": "",
+                                "suffix": "",
+                                "base": "10",
+                                "scale": "linear"
+                            },
+                            "y": {
+                                "bounds": [
+                                    "",
+                                    ""
+                                ],
+                                "label": "",
+                                "prefix": "",
+                                "suffix": "",
+                                "base": "10",
+                                "scale": "linear"
+                            }
+                        },
+                        "type": "xy",
+                        "legend": {},
+                        "geom": "line",
+                        "colors": [
+                            {
+                                "id": "6b3be0c4-ed87-4df3-b849-94ab15e9a254",
+                                "type": "scale",
+                                "hex": "#31C0F6",
+                                "name": "Nineteen Eighty Four",
+                                "value": 0
+                            },
+                            {
+                                "id": "1b30d357-e796-493b-a423-38aa3c850980",
+                                "type": "scale",
+                                "hex": "#A500A5",
+                                "name": "Nineteen Eighty Four",
+                                "value": 0
+                            },
+                            {
+                                "id": "871f9ba2-5042-4643-a0a0-355b76f5990b",
+                                "type": "scale",
+                                "hex": "#FF7E27",
+                                "name": "Nineteen Eighty Four",
+                                "value": 0
+                            }
+                        ],
+                        "note": "",
+                        "showNoteWhenEmpty": false,
+                        "xColumn": "_time",
+                        "yColumn": "_value",
+                        "shadeBelow": false,
+                        "hoverDimension": "y"
+                    }
+                }
+            },
+            {
+                "type": "view",
+                "id": "04ce4313b159e000",
+                "attributes": {
+                    "name": "Sinusoid sum - missed points",
+                    "properties": {
+                        "shape": "chronograf-v2",
+                        "queries": [
+                            {
+                                "text": "from(bucket: \"qa\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"sine\")\n  |> filter(fn: (r) => r._field == \"beat\")\n  |> aggregateWindow(every: 1h, fn: sum)\n  |> yield(name: \"sum\")",
+                                "editMode": "advanced",
+                                "name": "",
+                                "builderConfig": {
+                                    "buckets": [],
+                                    "tags": [
+                                        {
+                                            "key": "_measurement",
+                                            "values": []
+                                        }
+                                    ],
+                                    "functions": [],
+                                    "aggregateWindow": {
+                                        "period": "auto"
+                                    }
+                                }
+                            }
+                        ],
+                        "axes": {
+                            "x": {
+                                "bounds": [
+                                    "",
+                                    ""
+                                ],
+                                "label": "",
+                                "prefix": "",
+                                "suffix": "",
+                                "base": "10",
+                                "scale": "linear"
+                            },
+                            "y": {
+                                "bounds": [
+                                    "",
+                                    ""
+                                ],
+                                "label": "",
+                                "prefix": "",
+                                "suffix": "",
+                                "base": "10",
+                                "scale": "linear"
+                            }
+                        },
+                        "type": "xy",
+                        "legend": {},
+                        "geom": "line",
+                        "colors": [
+                            {
+                                "id": "6b3be0c4-ed87-4df3-b849-94ab15e9a254",
+                                "type": "scale",
+                                "hex": "#31C0F6",
+                                "name": "Nineteen Eighty Four",
+                                "value": 0
+                            },
+                            {
+                                "id": "1b30d357-e796-493b-a423-38aa3c850980",
+                                "type": "scale",
+                                "hex": "#A500A5",
+                                "name": "Nineteen Eighty Four",
+                                "value": 0
+                            },
+                            {
+                                "id": "871f9ba2-5042-4643-a0a0-355b76f5990b",
+                                "type": "scale",
+                                "hex": "#FF7E27",
+                                "name": "Nineteen Eighty Four",
+                                "value": 0
+                            }
+                        ],
+                        "note": "",
+                        "showNoteWhenEmpty": false,
+                        "xColumn": "_time",
+                        "yColumn": "_value",
+                        "shadeBelow": false,
+                        "hoverDimension": "y"
+                    }
+                }
+            },
+            {
+                "type": "view",
+                "id": "04ce43c11ad9e000",
+                "attributes": {
+                    "name": "Name this Cell",
+                    "properties": {
+                        "shape": "chronograf-v2",
+                        "type": "markdown",
+                        "note": "This is just a test dashboard.  Ceci n'est qu'un tableau d'essai.  Tohle jsou jen zkusebni deska.  "
+                    }
+                }
+            }
+        ]
     },
-    "variable": {
-     "data": []
-    }
-   }
-  },
-  "included": [
-   {
-    "id": "04ce423aabd9e000",
-    "type": "cell",
-    "attributes": {
-     "x": 0,
-     "y": 0,
-     "w": 12,
-     "h": 4
-    },
-    "relationships": {
-     "view": {
-      "data": {
-       "type": "view",
-       "id": "04ce423aabd9e000"
-      }
-     }
-    }
-   },
-   {
-    "id": "04ce4313b159e000",
-    "type": "cell",
-    "attributes": {
-     "x": 0,
-     "y": 4,
-     "w": 7,
-     "h": 2
-    },
-    "relationships": {
-     "view": {
-      "data": {
-       "type": "view",
-       "id": "04ce4313b159e000"
-      }
-     }
-    }
-   },
-   {
-    "id": "04ce43c11ad9e000",
-    "type": "cell",
-    "attributes": {
-     "x": 7,
-     "y": 4,
-     "w": 5,
-     "h": 2
-    },
-    "relationships": {
-     "view": {
-      "data": {
-       "type": "view",
-       "id": "04ce43c11ad9e000"
-      }
-     }
-    }
-   },
-   {
-    "type": "view",
-    "id": "04ce423aabd9e000",
-    "attributes": {
-     "name": "Hydro derivative",
-     "properties": {
-      "shape": "chronograf-v2",
-      "queries": [
-       {
-        "text": "from(bucket: \"qa\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"hydro\")\n  |> filter(fn: (r) => r._field == \"level\")\n  |> derivative(unit: v.windowPeriod, nonNegative: false)\n  |> yield(name: \"derivative\")",
-        "editMode": "advanced",
-        "name": "",
-        "builderConfig": {
-         "buckets": [],
-         "tags": [
-          {
-           "key": "_measurement",
-           "values": []
-          }
-         ],
-         "functions": [],
-         "aggregateWindow": {
-          "period": "auto"
-         }
-        }
-       }
-      ],
-      "axes": {
-       "x": {
-        "bounds": [
-         "",
-         ""
-        ],
-        "label": "",
-        "prefix": "",
-        "suffix": "",
-        "base": "10",
-        "scale": "linear"
-       },
-       "y": {
-        "bounds": [
-         "",
-         ""
-        ],
-        "label": "",
-        "prefix": "",
-        "suffix": "",
-        "base": "10",
-        "scale": "linear"
-       }
-      },
-      "type": "xy",
-      "legend": {},
-      "geom": "line",
-      "colors": [
-       {
-        "id": "6b3be0c4-ed87-4df3-b849-94ab15e9a254",
-        "type": "scale",
-        "hex": "#31C0F6",
-        "name": "Nineteen Eighty Four",
-        "value": 0
-       },
-       {
-        "id": "1b30d357-e796-493b-a423-38aa3c850980",
-        "type": "scale",
-        "hex": "#A500A5",
-        "name": "Nineteen Eighty Four",
-        "value": 0
-       },
-       {
-        "id": "871f9ba2-5042-4643-a0a0-355b76f5990b",
-        "type": "scale",
-        "hex": "#FF7E27",
-        "name": "Nineteen Eighty Four",
-        "value": 0
-       }
-      ],
-      "note": "",
-      "showNoteWhenEmpty": false,
-      "xColumn": "_time",
-      "yColumn": "_value",
-      "shadeBelow": false
-     }
-    }
-   },
-   {
-    "type": "view",
-    "id": "04ce4313b159e000",
-    "attributes": {
-     "name": "Sinusoid sum - missed points",
-     "properties": {
-      "shape": "chronograf-v2",
-      "queries": [
-       {
-        "text": "from(bucket: \"qa\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"sine\")\n  |> filter(fn: (r) => r._field == \"beat\")\n  |> aggregateWindow(every: 1h, fn: sum)\n  |> yield(name: \"sum\")",
-        "editMode": "advanced",
-        "name": "",
-        "builderConfig": {
-         "buckets": [],
-         "tags": [
-          {
-           "key": "_measurement",
-           "values": []
-          }
-         ],
-         "functions": [],
-         "aggregateWindow": {
-          "period": "auto"
-         }
-        }
-       }
-      ],
-      "axes": {
-       "x": {
-        "bounds": [
-         "",
-         ""
-        ],
-        "label": "",
-        "prefix": "",
-        "suffix": "",
-        "base": "10",
-        "scale": "linear"
-       },
-       "y": {
-        "bounds": [
-         "",
-         ""
-        ],
-        "label": "",
-        "prefix": "",
-        "suffix": "",
-        "base": "10",
-        "scale": "linear"
-       }
-      },
-      "type": "xy",
-      "legend": {},
-      "geom": "line",
-      "colors": [
-       {
-        "id": "6b3be0c4-ed87-4df3-b849-94ab15e9a254",
-        "type": "scale",
-        "hex": "#31C0F6",
-        "name": "Nineteen Eighty Four",
-        "value": 0
-       },
-       {
-        "id": "1b30d357-e796-493b-a423-38aa3c850980",
-        "type": "scale",
-        "hex": "#A500A5",
-        "name": "Nineteen Eighty Four",
-        "value": 0
-       },
-       {
-        "id": "871f9ba2-5042-4643-a0a0-355b76f5990b",
-        "type": "scale",
-        "hex": "#FF7E27",
-        "name": "Nineteen Eighty Four",
-        "value": 0
-       }
-      ],
-      "note": "",
-      "showNoteWhenEmpty": false,
-      "xColumn": "_time",
-      "yColumn": "_value",
-      "shadeBelow": false
-     }
-    }
-   },
-   {
-    "type": "view",
-    "id": "04ce43c11ad9e000",
-    "attributes": {
-     "name": "Name this Cell",
-     "properties": {
-      "shape": "chronograf-v2",
-      "type": "markdown",
-      "note": "This is just a test dashboard.  Ceci n'est qu'un tableau d'essai.  Tohle jsou jen zkusebni deska.  "
-     }
-    }
-   }
-  ]
- },
- "labels": []
+    "labels": []
 }

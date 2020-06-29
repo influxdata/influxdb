@@ -2163,6 +2163,7 @@ func influxErrsEqual(t *testing.T, expected *influxdb.Error, actual error) {
 
 	if expected == nil {
 		require.NoError(t, actual)
+		return
 	}
 	iErr, ok := actual.(*influxdb.Error)
 	require.True(t, ok)

@@ -51,8 +51,9 @@ func TestView_MarshalJSON(t *testing.T) {
     "xColumn": "",
     "yColumn": "",
     "shadeBelow": false,
-		"position": "",
-		"timeFormat": ""
+	"position": "",
+	"timeFormat": "",
+	"hoverDimension": ""
   }
 }
 `,

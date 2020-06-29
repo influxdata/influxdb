@@ -3230,3 +3230,11 @@ func BenchmarkParsePointsWithOptions(b *testing.B) {
 		})
 	}
 }
+
+func BenchmarkValidToken(b *testing.B) {
+	token := []byte("Hello世界")
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		models.ValidToken(token)
+	}
+}

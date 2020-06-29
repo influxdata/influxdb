@@ -18,7 +18,7 @@ interface StateProps {
 }
 
 interface DispatchProps {
-  onSetTimeZone: typeof setTimeZone
+  onSetTimeZone: typeof setTimeZone | ((timeZone: TimeZone) => void)
 }
 
 type Props = StateProps & DispatchProps
@@ -46,7 +46,4 @@ const mstp = (state: AppState): StateProps => {
 
 const mdtp = {onSetTimeZone: setTimeZone}
 
-export default connect<StateProps, DispatchProps>(
-  mstp,
-  mdtp
-)(TimeZoneDropdown)
+export default connect<StateProps, DispatchProps>(mstp, mdtp)(TimeZoneDropdown)

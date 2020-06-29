@@ -30,23 +30,24 @@ import (
 type pkgSVCsFn func() (pkger.SVC, influxdb.OrganizationService, error)
 
 func cmdApply(f *globalFlags, opts genericCLIOpts) *cobra.Command {
-	return newCmdPkgBuilder(newPkgerSVC, opts).cmdApply()
+	return newCmdPkgBuilder(newPkgerSVC, f, opts).cmdApply()
 }
 
 func cmdExport(f *globalFlags, opts genericCLIOpts) *cobra.Command {
-	return newCmdPkgBuilder(newPkgerSVC, opts).cmdPkgExport()
+	return newCmdPkgBuilder(newPkgerSVC, f, opts).cmdExport()
 }
 
 func cmdStack(f *globalFlags, opts genericCLIOpts) *cobra.Command {
-	return newCmdPkgBuilder(newPkgerSVC, opts).cmdStacks()
+	return newCmdPkgBuilder(newPkgerSVC, f, opts).cmdStacks()
 }
 
 func cmdTemplate(f *globalFlags, opts genericCLIOpts) *cobra.Command {
-	return newCmdPkgBuilder(newPkgerSVC, opts).cmdTemplate()
+	return newCmdPkgBuilder(newPkgerSVC, f, opts).cmdTemplate()
 }
 
 type cmdPkgBuilder struct {
 	genericCLIOpts
+	*globalFlags
 
 	svcFn pkgSVCsFn
 
@@ -88,9 +89,10 @@ type cmdPkgBuilder struct {
 	}
 }
 
-func newCmdPkgBuilder(svcFn pkgSVCsFn, opts genericCLIOpts) *cmdPkgBuilder {
+func newCmdPkgBuilder(svcFn pkgSVCsFn, f *globalFlags, opts genericCLIOpts) *cmdPkgBuilder {
 	return &cmdPkgBuilder{
 		genericCLIOpts: opts,
+		globalFlags:    f,
 		svcFn:          svcFn,
 	}
 }
@@ -101,10 +103,10 @@ func (b *cmdPkgBuilder) cmdApply() *cobra.Command {
 	// all these commands are deprecated under the old pkg cmds.
 	// these are moving to root commands.
 	deprecatedCmds := []*cobra.Command{
-		b.cmdPkgExport(),
+		b.cmdExport(),
 		b.cmdTemplateSummary(),
 		b.cmdStackDeprecated(),
-		b.cmdPkgValidate(),
+		b.cmdTemplateValidate(),
 	}
 	for i := range deprecatedCmds {
 		deprecatedCmds[i].Hidden = true
@@ -116,7 +118,7 @@ func (b *cmdPkgBuilder) cmdApply() *cobra.Command {
 }
 
 func (b *cmdPkgBuilder) cmdPkgApply() *cobra.Command {
-	cmd := b.newCmd("apply", b.pkgApplyRunEFn, true)
+	cmd := b.newCmd("apply", b.applyRunEFn)
 	cmd.Aliases = []string{"pkg"}
 	cmd.Short = "Apply a template to manage resources"
 	cmd.Long = `
@@ -157,6 +159,17 @@ func (b *cmdPkgBuilder) cmdPkgApply() *cobra.Command {
 		# Applying directories from many sources, file and URL
 		influx apply -f $PATH_TO_TEMPLATE/template.yml -f $URL_TO_TEMPLATE
 
+		# Applying a template with actions to skip resources applied. The
+		# following example skips all buckets and the dashboard whose 
+		# metadata.name field matches the provided $DASHBOARD_TMPL_NAME.
+		# format for filters:
+		#	--filter=kind=Bucket
+		#	--filter=resource=Label:$Label_TMPL_NAME
+		influx apply \
+			-f $PATH_TO_TEMPLATE/template.yml \
+			--filter kind=Bucket \
+			--filter resource=Dashboard:$DASHBOARD_TMPL_NAME
+
 	For information about finding and using InfluxDB templates, see
 	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/apply/.
 
@@ -168,17 +181,18 @@ func (b *cmdPkgBuilder) cmdPkgApply() *cobra.Command {
 	b.registerPkgFileFlags(cmd)
 	b.registerPkgPrintOpts(cmd)
 	cmd.Flags().BoolVarP(&b.quiet, "quiet", "q", false, "Disable output printing")
-	cmd.Flags().StringVar(&b.applyOpts.force, "force", "", `TTY input, if package will have destructive changes, proceed if set "true"`)
+	cmd.Flags().StringVar(&b.applyOpts.force, "force", "", `TTY input, if template will have destructive changes, proceed if set "true"`)
 	cmd.Flags().StringVar(&b.stackID, "stack-id", "", "Stack ID to associate pkg application")
 
 	b.applyOpts.secrets = []string{}
 	cmd.Flags().StringSliceVar(&b.applyOpts.secrets, "secret", nil, "Secrets to provide alongside the template; format should --secret=SECRET_KEY=SECRET_VALUE --secret=SECRET_KEY_2=SECRET_VALUE_2")
 	cmd.Flags().StringSliceVar(&b.applyOpts.envRefs, "env-ref", nil, "Environment references to provide alongside the template; format should --env-ref=REF_KEY=REF_VALUE --env-ref=REF_KEY_2=REF_VALUE_2")
+	cmd.Flags().StringSliceVar(&b.filters, "filter", nil, "Resources to skip when applying the template. Filter out by ‘kind’ or by ‘resource’")
 
 	return cmd
 }
 
-func (b *cmdPkgBuilder) pkgApplyRunEFn(cmd *cobra.Command, args []string) error {
+func (b *cmdPkgBuilder) applyRunEFn(cmd *cobra.Command, args []string) error {
 	if err := b.org.validOrgFlags(&flags); err != nil {
 		return err
 	}
@@ -220,6 +234,12 @@ func (b *cmdPkgBuilder) pkgApplyRunEFn(cmd *cobra.Command, args []string) error 
 		pkger.ApplyWithStackID(stackID),
 	}
 
+	actionOpts, err := parseTemplateActions(b.filters)
+	if err != nil {
+		return err
+	}
+	opts = append(opts, actionOpts...)
+
 	dryRunImpact, err := svc.DryRun(context.Background(), influxOrgID, 0, opts...)
 	if err != nil {
 		return err
@@ -245,13 +265,13 @@ func (b *cmdPkgBuilder) pkgApplyRunEFn(cmd *cobra.Command, args []string) error 
 	if !isTTY && !isForced && b.applyOpts.force != "conflict" {
 		confirm := b.getInput("Confirm application of the above resources (y/n)", "n")
 		if strings.ToLower(confirm) != "y" {
-			fmt.Fprintln(b.w, "aborted application of package")
+			fmt.Fprintln(b.w, "aborted application of template")
 			return nil
 		}
 	}
 
 	if b.applyOpts.force != "conflict" && isTTY && dryRunImpact.Diff.HasConflicts() {
-		return errors.New("package has conflicts with existing resources and cannot safely apply")
+		return errors.New("template has conflicts with existing resources and cannot safely apply")
 	}
 
 	opts = append(opts, pkger.ApplyWithSecrets(providedSecrets))
@@ -266,9 +286,44 @@ func (b *cmdPkgBuilder) pkgApplyRunEFn(cmd *cobra.Command, args []string) error 
 	return nil
 }
 
-func (b *cmdPkgBuilder) cmdPkgExport() *cobra.Command {
-	cmd := b.newCmd("export", b.pkgExportRunEFn, true)
-	cmd.Short = "Export existing resources as a package"
+func parseTemplateActions(args []string) ([]pkger.ApplyOptFn, error) {
+	var opts []pkger.ApplyOptFn
+	for _, rawAct := range args {
+		pair := strings.SplitN(rawAct, "=", 2)
+		if len(pair) < 2 {
+			continue
+		}
+		key, val := pair[0], pair[1]
+		switch strings.ToLower(key) {
+		case "kind":
+			opts = append(opts, pkger.ApplyWithKindSkip(pkger.ActionSkipKind{
+				Kind: pkger.Kind(val),
+			}))
+		case "resource":
+			pp := strings.SplitN(val, ":", 2)
+			if len(pair) != 2 {
+				return nil, fmt.Errorf(`invalid skipResource action provided: %q; 
+	Expected format --action=skipResource=Label:$LABEL_ID`, rawAct)
+			}
+			kind, metaName := pp[0], pp[1]
+			opts = append(opts, pkger.ApplyWithResourceSkip(pkger.ActionSkipResource{
+				Kind:     pkger.Kind(kind),
+				MetaName: metaName,
+			}))
+		default:
+			return nil, fmt.Errorf(`invalid action provided: %q; 
+	Expected format --action=skipResource=Label:$LABEL_ID
+	or
+	Expected format --action=skipKind=Bucket`, rawAct)
+		}
+	}
+
+	return opts, nil
+}
+
+func (b *cmdPkgBuilder) cmdExport() *cobra.Command {
+	cmd := b.newCmd("export", b.exportRunEFn)
+	cmd.Short = "Export existing resources as a template"
 	cmd.Long = `
 	The export command provides a mechanism to export existing resources to a
 	template. Each template resource kind is supported via flags.
@@ -283,6 +338,12 @@ func (b *cmdPkgBuilder) cmdPkgExport() *cobra.Command {
 			--labels=$LID1,$LID2,$LID3 \
 			--dashboards=$DID1,$DID2,$DID3
 
+		# export all resources for a stack
+		influx export --stack-id $STACK_ID
+
+		# export a stack with resources not associated with the stack
+		influx export --stack-id $STACK_ID --buckets $BUCKET_ID
+
 	All of the resources are supported via the examples provided above. Provide the
 	resource flag and then provide the IDs.
 
@@ -290,12 +351,13 @@ func (b *cmdPkgBuilder) cmdPkgExport() *cobra.Command {
 	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/export/
 `
 	cmd.AddCommand(
-		b.cmdPkgExportAll(),
-		b.cmdPkgExportStack(),
+		b.cmdExportAll(),
+		b.cmdExportStack(),
 	)
 
-	cmd.Flags().StringVarP(&b.file, "file", "f", "", "output file for created template; defaults to std out if no file provided; the extension of provided file (.yml/.json) will dictate encoding")
-	cmd.Flags().StringVar(&b.exportOpts.resourceType, "resource-type", "", "The resource type provided will be associated with all IDs via stdin.")
+	cmd.Flags().StringVarP(&b.file, "file", "f", "", "Output file for created template; defaults to std out if no file provided; the extension of provided file (.yml/.json) will dictate encoding")
+	cmd.Flags().StringVar(&b.stackID, "stack-id", "", "ID for stack to include in export")
+	cmd.Flags().StringVar(&b.exportOpts.resourceType, "resource-type", "", "Resource type provided will be associated with all IDs via stdin.")
 	cmd.Flags().StringVar(&b.exportOpts.buckets, "buckets", "", "List of bucket ids comma separated")
 	cmd.Flags().StringVar(&b.exportOpts.checks, "checks", "", "List of check ids comma separated")
 	cmd.Flags().StringVar(&b.exportOpts.dashboards, "dashboards", "", "List of dashboard ids comma separated")
@@ -309,7 +371,7 @@ func (b *cmdPkgBuilder) cmdPkgExport() *cobra.Command {
 	return cmd
 }
 
-func (b *cmdPkgBuilder) pkgExportRunEFn(cmd *cobra.Command, args []string) error {
+func (b *cmdPkgBuilder) exportRunEFn(cmd *cobra.Command, args []string) error {
 	pkgSVC, _, err := b.svcFn()
 	if err != nil {
 		return err
@@ -330,13 +392,21 @@ func (b *cmdPkgBuilder) pkgExportRunEFn(cmd *cobra.Command, args []string) error
 		{kind: pkger.KindVariable, idStrs: strings.Split(b.exportOpts.variables, ",")},
 	}
 
-	var opts []pkger.CreatePkgSetFn
+	var opts []pkger.ExportOptFn
 	for _, rt := range resTypes {
 		newOpt, err := newResourcesToClone(rt.kind, rt.idStrs)
 		if err != nil {
 			return ierror.Wrap(err, rt.kind.String())
 		}
 		opts = append(opts, newOpt)
+	}
+
+	if b.stackID != "" {
+		stackID, err := influxdb.IDFromString(b.stackID)
+		if err != nil {
+			return ierror.Wrap(err, "invalid stack ID provided")
+		}
+		opts = append(opts, pkger.ExportWithStackID(*stackID))
 	}
 
 	if b.exportOpts.resourceType == "" {
@@ -367,13 +437,14 @@ func (b *cmdPkgBuilder) pkgExportRunEFn(cmd *cobra.Command, args []string) error
 	if err != nil {
 		return err
 	}
+	opts = append(opts, resTypeOpt)
 
-	return b.exportPkg(cmd.OutOrStdout(), pkgSVC, b.file, append(opts, resTypeOpt)...)
+	return b.exportPkg(cmd.OutOrStdout(), pkgSVC, b.file, opts...)
 }
 
-func (b *cmdPkgBuilder) cmdPkgExportAll() *cobra.Command {
-	cmd := b.newCmd("all", b.pkgExportAllRunEFn, true)
-	cmd.Short = "Export all existing resources for an organization as a package"
+func (b *cmdPkgBuilder) cmdExportAll() *cobra.Command {
+	cmd := b.newCmd("all", b.exportAllRunEFn)
+	cmd.Short = "Export all existing resources for an organization as a template"
 	cmd.Long = `
 	The export all command will export all resources for an organization. The
 	command also provides a mechanism to filter by label name or resource kind.
@@ -383,14 +454,14 @@ func (b *cmdPkgBuilder) cmdPkgExportAll() *cobra.Command {
 		influx pkg export all --org $ORG_NAME
 
 		# Export all bucket resources
-		influx export all --org $ORG_NAME --filter=resourceKind=Bucket
+		influx export all --org $ORG_NAME --filter=kind=Bucket
 
 		# Export all resources associated with label Foo
 		influx export all --org $ORG_NAME --filter=labelName=Foo
 
 		# Export all bucket resources and filter by label Foo
 		influx export all --org $ORG_NAME \
-			--filter=resourceKind=Bucket \
+			--filter=kind=Bucket \
 			--filter=labelName=Foo
 
 		# Export all bucket or dashboard resources and filter by label Foo.
@@ -398,8 +469,8 @@ func (b *cmdPkgBuilder) cmdPkgExportAll() *cobra.Command {
 		#		This example will export a resource if it is a dashboard or
 		#		bucket and has an associated label of Foo.
 		influx export all --org $ORG_NAME \
-			--filter=resourceKind=Bucket \
-			--filter=resourceKind=Dashboard \
+			--filter=kind=Bucket \
+			--filter=kind=Dashboard \
 			--filter=labelName=Foo
 
 	For information about exporting InfluxDB templates, see
@@ -416,7 +487,7 @@ func (b *cmdPkgBuilder) cmdPkgExportAll() *cobra.Command {
 	return cmd
 }
 
-func (b *cmdPkgBuilder) pkgExportAllRunEFn(cmd *cobra.Command, args []string) error {
+func (b *cmdPkgBuilder) exportAllRunEFn(cmd *cobra.Command, args []string) error {
 	pkgSVC, orgSVC, err := b.svcFn()
 	if err != nil {
 		return err
@@ -439,7 +510,7 @@ func (b *cmdPkgBuilder) pkgExportAllRunEFn(cmd *cobra.Command, args []string) er
 		switch key, val := pair[0], pair[1]; key {
 		case "labelName":
 			labelNames = append(labelNames, val)
-		case "resourceKind":
+		case "kind", "resourceKind":
 			k := pkger.Kind(val)
 			if err := k.OK(); err != nil {
 				return err
@@ -450,7 +521,7 @@ func (b *cmdPkgBuilder) pkgExportAllRunEFn(cmd *cobra.Command, args []string) er
 		}
 	}
 
-	orgOpt := pkger.CreateWithAllOrgResources(pkger.CreateByOrgIDOpt{
+	orgOpt := pkger.ExportWithAllOrgResources(pkger.ExportByOrgIDOpt{
 		OrgID:         orgID,
 		LabelNames:    labelNames,
 		ResourceKinds: resourceKinds,
@@ -458,8 +529,8 @@ func (b *cmdPkgBuilder) pkgExportAllRunEFn(cmd *cobra.Command, args []string) er
 	return b.exportPkg(cmd.OutOrStdout(), pkgSVC, b.file, orgOpt)
 }
 
-func (b *cmdPkgBuilder) cmdPkgExportStack() *cobra.Command {
-	cmd := b.newCmd("stack $STACK_ID", b.pkgExportStackRunEFn, true)
+func (b *cmdPkgBuilder) cmdExportStack() *cobra.Command {
+	cmd := b.newCmd("stack $STACK_ID", b.exportStackRunEFn)
 	cmd.Short = "Export all existing resources for associated with a stack as a template"
 	cmd.Long = `
 	The export stack command exports the resources associated with a stack as
@@ -483,8 +554,8 @@ func (b *cmdPkgBuilder) cmdPkgExportStack() *cobra.Command {
 	return cmd
 }
 
-func (b *cmdPkgBuilder) pkgExportStackRunEFn(cmd *cobra.Command, args []string) error {
-	pkgSVC, orgSVC, err := b.svcFn()
+func (b *cmdPkgBuilder) exportStackRunEFn(cmd *cobra.Command, args []string) error {
+	pkgSVC, _, err := b.svcFn()
 	if err != nil {
 		return err
 	}
@@ -494,12 +565,7 @@ func (b *cmdPkgBuilder) pkgExportStackRunEFn(cmd *cobra.Command, args []string) 
 		return err
 	}
 
-	orgID, err := b.org.getID(orgSVC)
-	if err != nil {
-		return err
-	}
-
-	pkg, err := pkgSVC.ExportStack(context.Background(), orgID, *stackID)
+	pkg, err := pkgSVC.Export(context.Background(), pkger.ExportWithStackID(*stackID))
 	if err != nil {
 		return err
 	}
@@ -510,13 +576,13 @@ func (b *cmdPkgBuilder) pkgExportStackRunEFn(cmd *cobra.Command, args []string) 
 func (b *cmdPkgBuilder) cmdTemplate() *cobra.Command {
 	cmd := b.newTemplateCmd("template")
 	cmd.Short = "Summarize the provided template"
-	cmd.AddCommand(b.cmdPkgValidate())
+	cmd.AddCommand(b.cmdTemplateValidate())
 	return cmd
 }
 
 func (b *cmdPkgBuilder) cmdTemplateSummary() *cobra.Command {
 	cmd := b.newTemplateCmd("summary")
-	cmd.Short = "Summarize the provided package"
+	cmd.Short = "Summarize the provided template"
 	return cmd
 }
 
@@ -530,7 +596,7 @@ func (b *cmdPkgBuilder) newTemplateCmd(usage string) *cobra.Command {
 		return b.printPkgSummary(0, pkg.Summary())
 	}
 
-	cmd := b.newCmd(usage, runE, false)
+	cmd := b.genericCLIOpts.newCmd(usage, runE, false)
 
 	b.registerPkgFileFlags(cmd)
 	b.registerPkgPrintOpts(cmd)
@@ -538,7 +604,7 @@ func (b *cmdPkgBuilder) newTemplateCmd(usage string) *cobra.Command {
 	return cmd
 }
 
-func (b *cmdPkgBuilder) cmdPkgValidate() *cobra.Command {
+func (b *cmdPkgBuilder) cmdTemplateValidate() *cobra.Command {
 	runE := func(cmd *cobra.Command, args []string) error {
 		pkg, _, err := b.readPkg()
 		if err != nil {
@@ -547,7 +613,7 @@ func (b *cmdPkgBuilder) cmdPkgValidate() *cobra.Command {
 		return pkg.Validate()
 	}
 
-	cmd := b.newCmd("validate", runE, false)
+	cmd := b.genericCLIOpts.newCmd("validate", runE, false)
 	cmd.Short = "Validate the provided template"
 
 	b.registerPkgFileFlags(cmd)
@@ -592,7 +658,7 @@ func (b *cmdPkgBuilder) cmdStacks() *cobra.Command {
 
 // TODO(jsteenb2): nuke the deprecated command here after OSS beta13 release.
 func (b *cmdPkgBuilder) cmdStackDeprecated() *cobra.Command {
-	cmd := b.newCmd("stack", nil, false)
+	cmd := b.genericCLIOpts.newCmd("stack", nil, false)
 	cmd.Short = "Stack management commands"
 	cmd.AddCommand(
 		b.cmdStackInit(),
@@ -603,7 +669,7 @@ func (b *cmdPkgBuilder) cmdStackDeprecated() *cobra.Command {
 }
 
 func (b *cmdPkgBuilder) cmdStackInit() *cobra.Command {
-	cmd := b.newCmd("init", b.stackInitRunEFn, true)
+	cmd := b.newCmd("init", b.stackInitRunEFn)
 	cmd.Short = "Initialize a stack"
 	cmd.Long = `
 	The stack init command creates a new stack to associated templates with. A
@@ -669,7 +735,7 @@ func (b *cmdPkgBuilder) cmdStackList() *cobra.Command {
 
 func (b *cmdPkgBuilder) newCmdStackList(cmdName string) *cobra.Command {
 	usage := fmt.Sprintf("%s [flags]", cmdName)
-	cmd := b.newCmd(usage, b.stackListRunEFn, true)
+	cmd := b.newCmd(usage, b.stackListRunEFn)
 	cmd.Flags().StringArrayVar(&b.stackIDs, "stack-id", nil, "Stack ID to filter by")
 	cmd.Flags().StringArrayVar(&b.names, "stack-name", nil, "Stack name to filter by")
 	registerPrintOptions(cmd, &b.hideHeaders, &b.json)
@@ -734,7 +800,7 @@ func (b *cmdPkgBuilder) stackListRunEFn(cmd *cobra.Command, args []string) error
 }
 
 func (b *cmdPkgBuilder) cmdStackRemove() *cobra.Command {
-	cmd := b.newCmd("rm [--stack-id=ID1 --stack-id=ID2]", b.stackRemoveRunEFn, true)
+	cmd := b.newCmd("rm [--stack-id=ID1 --stack-id=ID2]", b.stackRemoveRunEFn)
 	cmd.Short = "Remove a stack(s) and all associated resources"
 	cmd.Aliases = []string{"remove", "uninstall"}
 
@@ -788,13 +854,14 @@ func (b *cmdPkgBuilder) stackRemoveRunEFn(cmd *cobra.Command, args []string) err
 
 		tabW.HideHeaders(b.hideHeaders)
 
-		tabW.WriteHeaders("ID", "OrgID", "Name", "Description", "Num Resources", "URLs", "Created At")
+		tabW.WriteHeaders("ID", "OrgID", "Name", "Description", "Num Resources", "Sources", "URLs", "Created At")
 		tabW.Write(map[string]interface{}{
 			"ID":            stack.ID,
 			"OrgID":         stack.OrgID,
 			"Name":          stack.Name,
 			"Description":   stack.Description,
 			"Num Resources": len(stack.Resources),
+			"Sources":       stack.Sources,
 			"URLs":          stack.URLs,
 			"Created At":    stack.CreatedAt,
 		})
@@ -827,7 +894,7 @@ func (b *cmdPkgBuilder) stackRemoveRunEFn(cmd *cobra.Command, args []string) err
 }
 
 func (b *cmdPkgBuilder) cmdStackUpdate() *cobra.Command {
-	cmd := b.newCmd("update", b.stackUpdateRunEFn, true)
+	cmd := b.newCmd("update", b.stackUpdateRunEFn)
 	cmd.Short = "Update a stack"
 	cmd.Long = `
 	The stack update command updates a stack.
@@ -903,6 +970,12 @@ func (b *cmdPkgBuilder) writeStack(w io.Writer, stack pkger.Stack) error {
 	return nil
 }
 
+func (b *cmdPkgBuilder) newCmd(use string, runE func(*cobra.Command, []string) error) *cobra.Command {
+	cmd := b.genericCLIOpts.newCmd(use, runE, true)
+	b.globalFlags.registerFlags(cmd)
+	return cmd
+}
+
 func (b *cmdPkgBuilder) registerPkgPrintOpts(cmd *cobra.Command) {
 	cmd.Flags().BoolVarP(&b.disableColor, "disable-color", "c", false, "Disable color in output")
 	cmd.Flags().BoolVar(&b.disableTableBorders, "disable-table-borders", false, "Disable table borders")
@@ -915,14 +988,14 @@ func (b *cmdPkgBuilder) registerPkgFileFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolVarP(&b.recurse, "recurse", "R", false, "Process the directory used in -f, --file recursively. Useful when you want to manage related templates organized within the same directory.")
 
 	cmd.Flags().StringSliceVarP(&b.urls, "template-url", "u", nil, "URL to template file")
-	cmd.Flags().MarkHidden("template-url")
+	cmd.Flags().MarkDeprecated("template-url", "use the --file flag; example: influx apply --file $URL_TO_TEMPLATE")
 
 	cmd.Flags().StringVarP(&b.encoding, "encoding", "e", "", "Encoding for the input stream. If a file is provided will gather encoding type from file extension. If extension provided will override.")
 	cmd.MarkFlagFilename("encoding", "yaml", "yml", "json", "jsonnet")
 }
 
-func (b *cmdPkgBuilder) exportPkg(w io.Writer, pkgSVC pkger.SVC, outPath string, opts ...pkger.CreatePkgSetFn) error {
-	pkg, err := pkgSVC.CreatePkg(context.Background(), opts...)
+func (b *cmdPkgBuilder) exportPkg(w io.Writer, pkgSVC pkger.SVC, outPath string, opts ...pkger.ExportOptFn) error {
+	pkg, err := pkgSVC.Export(context.Background(), opts...)
 	if err != nil {
 		return err
 	}
@@ -1109,7 +1182,7 @@ func (b *cmdPkgBuilder) convertEncoding() pkger.Encoding {
 	}
 }
 
-func newResourcesToClone(kind pkger.Kind, idStrs []string) (pkger.CreatePkgSetFn, error) {
+func newResourcesToClone(kind pkger.Kind, idStrs []string) (pkger.ExportOptFn, error) {
 	ids, err := toInfluxIDs(idStrs)
 	if err != nil {
 		return nil, err
@@ -1122,7 +1195,7 @@ func newResourcesToClone(kind pkger.Kind, idStrs []string) (pkger.CreatePkgSetFn
 			ID:   id,
 		})
 	}
-	return pkger.CreateWithExistingResources(resources...), nil
+	return pkger.ExportWithExistingResources(resources...), nil
 }
 
 func toInfluxIDs(args []string) ([]influxdb.ID, error) {
@@ -1213,9 +1286,9 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
 
 			newRow := appendValues(l.ID, l.PkgName, l.New)
 			switch {
-			case l.IsNew():
+			case pkger.IsNew(l.StateStatus):
 				printer.AppendDiff(nil, newRow)
-			case l.Remove:
+			case pkger.IsRemoval(l.StateStatus):
 				printer.AppendDiff(oldRow, nil)
 			default:
 				printer.AppendDiff(oldRow, newRow)
@@ -1239,9 +1312,9 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
 
 			newRow := appendValues(b.ID, b.PkgName, b.New)
 			switch {
-			case b.IsNew():
+			case pkger.IsNew(b.StateStatus):
 				printer.AppendDiff(nil, newRow)
-			case b.Remove:
+			case pkger.IsRemoval(b.StateStatus):
 				printer.AppendDiff(oldRow, nil)
 			default:
 				printer.AppendDiff(oldRow, newRow)
@@ -1269,9 +1342,9 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
 
 			newRow := appendValues(c.ID, c.PkgName, c.New)
 			switch {
-			case c.IsNew():
+			case pkger.IsNew(c.StateStatus):
 				printer.AppendDiff(nil, newRow)
-			case c.Remove:
+			case pkger.IsRemoval(c.StateStatus):
 				printer.AppendDiff(oldRow, nil)
 			default:
 				printer.AppendDiff(oldRow, newRow)
@@ -1295,9 +1368,9 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
 
 			newRow := appendValues(d.ID, d.PkgName, d.New)
 			switch {
-			case d.IsNew():
+			case pkger.IsNew(d.StateStatus):
 				printer.AppendDiff(nil, newRow)
-			case d.Remove:
+			case pkger.IsRemoval(d.StateStatus):
 				printer.AppendDiff(oldRow, nil)
 			default:
 				printer.AppendDiff(oldRow, newRow)
@@ -1325,9 +1398,9 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
 
 			newRow := appendValues(e.ID, e.PkgName, e.New)
 			switch {
-			case e.IsNew():
+			case pkger.IsNew(e.StateStatus):
 				printer.AppendDiff(nil, newRow)
-			case e.Remove:
+			case pkger.IsRemoval(e.StateStatus):
 				printer.AppendDiff(oldRow, nil)
 			default:
 				printer.AppendDiff(oldRow, newRow)
@@ -1367,9 +1440,9 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
 
 			newRow := appendValues(e.ID, e.PkgName, e.New)
 			switch {
-			case e.IsNew():
+			case pkger.IsNew(e.StateStatus):
 				printer.AppendDiff(nil, newRow)
-			case e.Remove:
+			case pkger.IsRemoval(e.StateStatus):
 				printer.AppendDiff(oldRow, nil)
 			default:
 				printer.AppendDiff(oldRow, newRow)
@@ -1392,9 +1465,9 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
 
 			newRow := appendValues(e.ID, e.PkgName, e.New)
 			switch {
-			case e.IsNew():
+			case pkger.IsNew(e.StateStatus):
 				printer.AppendDiff(nil, newRow)
-			case e.Remove:
+			case pkger.IsRemoval(e.StateStatus):
 				printer.AppendDiff(oldRow, nil)
 			default:
 				printer.AppendDiff(oldRow, newRow)
@@ -1408,6 +1481,9 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
 		appendValues := func(id pkger.SafeID, pkgName string, v pkger.DiffTaskValues) []string {
 			timing := v.Cron
 			if v.Cron == "" {
+				if v.Offset == "" {
+					v.Offset = time.Duration(0).String()
+				}
 				timing = fmt.Sprintf("every: %s offset: %s", v.Every, v.Offset)
 			}
 			return []string{pkgName, id.String(), v.Name, v.Description, timing}
@@ -1421,9 +1497,9 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
 
 			newRow := appendValues(e.ID, e.PkgName, e.New)
 			switch {
-			case e.IsNew():
+			case pkger.IsNew(e.StateStatus):
 				printer.AppendDiff(nil, newRow)
-			case e.Remove:
+			case pkger.IsRemoval(e.StateStatus):
 				printer.AppendDiff(oldRow, nil)
 			default:
 				printer.AppendDiff(oldRow, newRow)
@@ -1451,9 +1527,9 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
 
 			newRow := appendValues(v.ID, v.PkgName, v.New)
 			switch {
-			case v.IsNew():
+			case pkger.IsNew(v.StateStatus):
 				printer.AppendDiff(nil, newRow)
-			case v.Remove:
+			case pkger.IsRemoval(v.StateStatus):
 				printer.AppendDiff(oldRow, nil)
 			default:
 				printer.AppendDiff(oldRow, newRow)

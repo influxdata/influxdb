@@ -22,7 +22,11 @@ const ToolbarTab: FC<Props> = ({
   })
 
   const handleClick = (): void => {
-    onClick(id)
+    if (active) {
+      onClick('none')
+    } else {
+      onClick(id)
+    }
   }
 
   return (
@@ -32,7 +36,7 @@ const ToolbarTab: FC<Props> = ({
       title={name}
       data-testid={testID}
     >
-      {name}
+      <div className="flux-toolbar--tab-label">{name}</div>
     </div>
   )
 }

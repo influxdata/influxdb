@@ -370,17 +370,10 @@ func (s *Service) Create(ctx context.Context, dbrp *influxdb.DBRPMappingV2) erro
 	if err != nil {
 		return ErrInvalidDBRPID
 	}
-	b, err := json.Marshal(dbrp)
-	if err != nil {
-		return ErrInternalService(err)
-	}
 
 	return s.store.Update(ctx, func(tx kv.Tx) error {
 		bucket, err := tx.Bucket(bucket)
 		if err != nil {
-			return ErrInternalService(err)
-		}
-		if err := bucket.Put(encodedID, b); err != nil {
 			return ErrInternalService(err)
 		}
 		compKey := indexForeignKey(*dbrp)
@@ -394,6 +387,15 @@ func (s *Service) Create(ctx context.Context, dbrp *influxdb.DBRPMappingV2) erro
 		if !defSet {
 			dbrp.Default = true
 		}
+
+		b, err := json.Marshal(dbrp)
+		if err != nil {
+			return ErrInternalService(err)
+		}
+		if err := bucket.Put(encodedID, b); err != nil {
+			return ErrInternalService(err)
+		}
+
 		if dbrp.Default {
 			if err := s.setAsDefault(tx, compKey, encodedID); err != nil {
 				return err

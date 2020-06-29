@@ -33,9 +33,12 @@ import {
   demoDataError,
 } from 'src/cloud/utils/demoDataErrors'
 import {
-  reportSimpleQueryPerformanceEvent,
+  reportSimpleQueryPerformanceDuration,
   reportQueryPerformanceEvent,
+  toNano,
+  reportSimpleQueryPerformanceEvent,
 } from 'src/cloud/utils/reporting'
+import {fireQueryEvent} from 'src/shared/utils/analytics'
 
 // Types
 import {CancelBox} from 'src/types/promises'
@@ -51,7 +54,6 @@ import {
 // Selectors
 import {getOrg} from 'src/organizations/selectors'
 import {getAll} from 'src/resources/selectors/index'
-import {fireQueryEvent} from 'src/shared/utils/analytics'
 
 export type Action = SaveDraftQueriesAction | SetQueryResults
 
@@ -66,7 +68,7 @@ interface SetQueryResults {
   }
 }
 
-const setQueryResults = (
+export const setQueryResults = (
   status: RemoteDataState,
   files?: string[],
   fetchDuration?: number,
@@ -114,7 +116,7 @@ export const executeQueries = (abortController?: AbortController) => async (
   dispatch,
   getState: GetState
 ) => {
-  reportSimpleQueryPerformanceEvent('executeQueries function start')
+  const executeQueriesStartTime = Date.now()
 
   const state = getState()
 
@@ -124,9 +126,6 @@ export const executeQueries = (abortController?: AbortController) => async (
   const queries = activeTimeMachine.view.properties.queries.filter(
     ({text}) => !!text.trim()
   )
-  const {
-    alertBuilder: {id: checkID},
-  } = state
 
   if (!queries.length) {
     dispatch(setQueryResults(RemoteDataState.Done, [], null))
@@ -147,15 +146,15 @@ export const executeQueries = (abortController?: AbortController) => async (
     // https://github.com/influxdata/idpe/issues/6240
 
     const startTime = window.performance.now()
+    const startDate = Date.now()
 
     pendingResults.forEach(({cancel}) => cancel())
-    reportSimpleQueryPerformanceEvent('executeQueries queries start')
 
     pendingResults = queries.map(({text}) => {
       reportQueryPerformanceEvent({
-        timestamp: Date.now() * 1000000,
-        fields: {},
-        tags: {event: 'executeQueries queries', query: text},
+        timestamp: toNano(Date.now()),
+        fields: {query: text},
+        tags: {event: 'executeQueries query'},
       })
       const orgID = getOrgIDFromBuckets(text, allBuckets) || getOrg(state).id
 
@@ -163,14 +162,24 @@ export const executeQueries = (abortController?: AbortController) => async (
 
       const extern = buildVarsOption(variableAssignments)
 
+      reportSimpleQueryPerformanceEvent('runQuery', {context: 'timeMachine'})
       return runQuery(orgID, text, extern, abortController)
     })
     const results = await Promise.all(pendingResults.map(r => r.promise))
-    reportSimpleQueryPerformanceEvent('executeQueries queries end')
 
     const duration = window.performance.now() - startTime
 
+    reportSimpleQueryPerformanceDuration(
+      'executeQueries querying',
+      startDate,
+      duration
+    )
+
     let statuses = [[]] as StatusRow[][]
+    const {
+      alertBuilder: {id: checkID},
+    } = state
+
     if (checkID) {
       const extern = buildVarsOption(variableAssignments)
       pendingCheckStatuses = runStatusesQuery(getOrg(state).id, checkID, extern)
@@ -210,7 +219,13 @@ export const executeQueries = (abortController?: AbortController) => async (
     dispatch(
       setQueryResults(RemoteDataState.Done, files, duration, null, statuses)
     )
-    reportSimpleQueryPerformanceEvent('executeQueries function start')
+
+    reportSimpleQueryPerformanceDuration(
+      'executeQueries function',
+      executeQueriesStartTime,
+      Date.now() - executeQueriesStartTime
+    )
+
     return results
   } catch (error) {
     if (error.name === 'CancellationError' || error.name === 'AbortError') {

@@ -1,5 +1,5 @@
 // Libraries
-import React, {FunctionComponent, useMemo} from 'react'
+import React, {FC, useMemo} from 'react'
 import {
   Config,
   Table,
@@ -44,7 +44,7 @@ interface Props {
   theme: Theme
 }
 
-const XYPlot: FunctionComponent<Props> = ({
+const XYPlot: FC<Props> = ({
   children,
   fluxGroupKeyUnion,
   timeRange,
@@ -56,6 +56,7 @@ const XYPlot: FunctionComponent<Props> = ({
     xColumn: storedXColumn,
     yColumn: storedYColumn,
     shadeBelow,
+    hoverDimension,
     axes: {
       x: {
         label: xAxisLabel,
@@ -90,10 +91,6 @@ const XYPlot: FunctionComponent<Props> = ({
     yColumn &&
     columnKeys.includes(yColumn)
 
-  if (!isValidView) {
-    return <EmptyGraphMessage message={INVALID_DATA_COPY} />
-  }
-
   const colorHexes =
     colors && colors.length
       ? colors.map(c => c.hex)
@@ -122,7 +119,7 @@ const XYPlot: FunctionComponent<Props> = ({
       return getDomainDataFromLines(lineData, DomainLabel.Y)
     }
     return table.getColumn(yColumn, 'number')
-  }, [table, yColumn, position])
+  }, [table, yColumn, xColumn, position, colorHexes, groupKey])
 
   const [yDomain, onSetYDomain, onResetYDomain] = useVisYDomainSettings(
     storedYDomain,
@@ -179,8 +176,13 @@ const XYPlot: FunctionComponent<Props> = ({
         colors: colorHexes,
         shadeBelow: !!shadeBelow,
         shadeBelowOpacity: 0.08,
+        hoverDimension,
       },
     ],
+  }
+
+  if (!isValidView) {
+    return <EmptyGraphMessage message={INVALID_DATA_COPY} />
   }
 
   return children(config)

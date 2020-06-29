@@ -35,6 +35,10 @@ var opts = []cmp.Option{
 	cmpopts.IgnoreUnexported(query.Request{}),
 }
 
+type contextKey string
+
+const loggingCtxKey contextKey = "do-logging"
+
 func TestLoggingProxyQueryService(t *testing.T) {
 	// Set a Jaeger in-memory tracer to get span information in the query log.
 	oldTracer := opentracing.GlobalTracer()
@@ -118,9 +122,8 @@ func TestLoggingProxyQueryService(t *testing.T) {
 			logs = nil
 		}()
 
-		loggingKey := "do-logging"
 		condLog := query.ConditionalLogging(func(ctx context.Context) bool {
-			return ctx.Value(loggingKey) != nil
+			return ctx.Value(loggingCtxKey) != nil
 		})
 
 		lpqs := query.NewLoggingProxyQueryService(zap.NewNop(), logger, pqs, condLog)
@@ -133,7 +136,7 @@ func TestLoggingProxyQueryService(t *testing.T) {
 			t.Fatal("expected query service not to log")
 		}
 
-		ctx := context.WithValue(context.Background(), loggingKey, true)
+		ctx := context.WithValue(context.Background(), loggingCtxKey, true)
 		_, err = lpqs.Query(ctx, ioutil.Discard, req)
 		if err != nil {
 			t.Fatal(err)

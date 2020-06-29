@@ -32,10 +32,11 @@ require (
 	github.com/go-stack/stack v1.8.0
 	github.com/gogo/protobuf v1.3.1
 	github.com/golang/gddo v0.0.0-20181116215533-9bd4a3295021
+	github.com/golang/mock v1.3.1
 	github.com/golang/protobuf v1.3.3
 	github.com/golang/snappy v0.0.1
 	github.com/google/btree v1.0.0
-	github.com/google/go-cmp v0.4.0
+	github.com/google/go-cmp v0.5.0
 	github.com/google/go-github v17.0.0+incompatible
 	github.com/google/go-jsonnet v0.14.0
 	github.com/goreleaser/goreleaser v0.135.0
@@ -102,7 +103,7 @@ require (
 	google.golang.org/grpc v1.27.1
 	gopkg.in/vmihailenco/msgpack.v2 v2.9.1 // indirect
 	gopkg.in/yaml.v3 v3.0.0-20200121175148-a6ecf24a6d71
-	honnef.co/go/tools v0.0.1-2019.2.3.0.20190904154718-afd67930eec2
+	honnef.co/go/tools v0.0.1-2020.1.4
 	istio.io/pkg v0.0.0-20200606170016-70c5172b9cdf
 	labix.org/v2/mgo v0.0.0-20140701140051-000000000287 // indirect
 	launchpad.net/gocheck v0.0.0-20140225173054-000000000087 // indirect

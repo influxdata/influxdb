@@ -78,7 +78,7 @@ type labelsResponse struct {
 func newLabelsResponse(ls []*influxdb.Label) *labelsResponse {
 	return &labelsResponse{
 		Links: map[string]string{
-			"self": fmt.Sprintf("/api/v2/labels"),
+			"self": "/api/v2/labels",
 		},
 		Labels: ls,
 	}

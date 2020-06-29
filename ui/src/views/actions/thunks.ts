@@ -1,6 +1,6 @@
 // Libraries
 import {normalize} from 'normalizr'
-
+import {get} from 'lodash'
 // APIs
 import {
   getView as getViewAJAX,
@@ -16,6 +16,8 @@ import {notify} from 'src/shared/actions/notifications'
 import {setActiveTimeMachine} from 'src/timeMachine/actions'
 import {executeQueries} from 'src/timeMachine/actions/queries'
 import {setView, Action} from 'src/views/actions/creators'
+import {hashCode} from 'src/queryCache/actions'
+import {setQueryResults} from 'src/timeMachine/actions/queries'
 
 // Selectors
 import {getViewsForDashboard} from 'src/views/selectors'
@@ -80,7 +82,11 @@ export const updateViewAndVariables = (
 
     const views = getViewsForDashboard(getState(), dashboardID)
 
-    views.splice(views.findIndex(v => v.id === newView.id), 1, newView)
+    views.splice(
+      views.findIndex(v => v.id === newView.id),
+      1,
+      newView
+    )
 
     const normView = normalize<View, ViewEntities, string>(newView, viewSchema)
 
@@ -92,7 +98,7 @@ export const updateViewAndVariables = (
   }
 }
 
-export const getViewForTimeMachine = (
+export const getViewAndResultsForVEO = (
   dashboardID: string,
   cellID: string,
   timeMachineID: TimeMachineID
@@ -112,8 +118,24 @@ export const getViewForTimeMachine = (
         view,
       })
     )
+    const queries = view.properties.queries.filter(({text}) => !!text.trim())
+    if (!queries.length) {
+      dispatch(setQueryResults(RemoteDataState.Done, [], null))
+    }
+    const queryText = queries.map(({text}) => text).join('')
+    const queryID = hashCode(queryText)
+    const files = get(
+      state,
+      ['queryCache', 'queryResultsByQueryID', queryID],
+      undefined
+    )
+    if (files) {
+      dispatch(setQueryResults(RemoteDataState.Done, files, null, null))
+      return
+    }
     dispatch(executeQueries())
   } catch (error) {
+    console.error(error)
     dispatch(notify(copy.getViewFailed(error.message)))
     dispatch(setView(cellID, RemoteDataState.Error))
   }

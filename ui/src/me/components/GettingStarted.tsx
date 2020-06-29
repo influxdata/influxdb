@@ -134,9 +134,4 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-export default withRouter<{}>(
-  connect(
-    mstp,
-    null
-  )(GettingStarted)
-)
+export default withRouter<{}>(connect(mstp, null)(GettingStarted))

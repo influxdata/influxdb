@@ -358,6 +358,9 @@ func (e *Engine) tagKeysNoPredicate(ctx context.Context, orgID, bucketID influxd
 	var stats cursors.CursorStats
 	var canceled bool
 
+	var files unrefs
+	defer func() { files.Unref() }()
+
 	e.FileStore.ForEachFile(func(f TSMFile) bool {
 		// Check the context before touching each tsm file
 		select {
@@ -366,6 +369,8 @@ func (e *Engine) tagKeysNoPredicate(ctx context.Context, orgID, bucketID influxd
 			return false
 		default:
 		}
+
+		var hasRef bool
 		if f.OverlapsTimeRange(start, end) && f.OverlapsKeyPrefixRange(tsmKeyPrefix, tsmKeyPrefix) {
 			// TODO(sgc): create f.TimeRangeIterator(minKey, maxKey, start, end)
 			iter := f.TimeRangeIterator(tsmKeyPrefix, start, end)
@@ -384,6 +389,12 @@ func (e *Engine) tagKeysNoPredicate(ctx context.Context, orgID, bucketID influxd
 
 				if iter.HasData() {
 					keyset.UnionKeys(tags)
+
+					// Add reference to ensure tags are valid for the outer function.
+					if !hasRef {
+						f.Ref()
+						files, hasRef = append(files, f), true
+					}
 				}
 			}
 			stats.Add(iter.Stats())

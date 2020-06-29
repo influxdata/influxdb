@@ -3,6 +3,7 @@
 
 import {getFlags} from 'src/client'
 import {reportError} from 'src/shared/utils/errors'
+import {reportPoints} from 'src/cloud/apis/reporting'
 
 export interface Tags {
   [key: string]: string
@@ -107,13 +108,6 @@ export const writeNavigationTimingMetrics = async function writeNavigationTiming
 
     const points = {points: [{measurement, tags, fields}]}
 
-    fetch('/api/v2/app-metrics', {
-      method: 'POST',
-      body: JSON.stringify(points),
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      credentials: 'include',
-    })
+    reportPoints(points)
   }
 }

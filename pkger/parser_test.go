@@ -60,12 +60,12 @@ func TestParse(t *testing.T) {
 					{
 						Field:        "metadata.name",
 						EnvRefKey:    "meta-name",
-						DefaultValue: "env-meta-name",
+						DefaultValue: "meta",
 					},
 					{
 						Field:        "spec.name",
 						EnvRefKey:    "spec-name",
-						DefaultValue: "env-spec-name",
+						DefaultValue: "spectacles",
 					},
 					{
 						Field:        "spec.associations[0].name",
@@ -582,12 +582,12 @@ spec:
 					{
 						Field:        "metadata.name",
 						EnvRefKey:    "meta-name",
-						DefaultValue: "env-meta-name",
+						DefaultValue: "meta",
 					},
 					{
 						Field:        "spec.name",
 						EnvRefKey:    "spec-name",
-						DefaultValue: "env-spec-name",
+						DefaultValue: "spectacles",
 					},
 					{
 						Field:        "spec.associations[0].name",
@@ -1589,6 +1589,7 @@ spec:
       height: 3
       decimalPlaces: 1
       shade: true
+      hoverDimension: y
       queries:
         - query: "from(bucket: v.bucket) |> range(start: v.timeRangeStart) |> filter(fn: (r) => r._measurement == \"processes\") |> filter(fn: (r) => r._field == \"running\" or r._field == \"blocked\") |> aggregateWindow(every: v.windowPeriod, fn: max) |> yield(name: \"max\")"
       colors:
@@ -1803,6 +1804,7 @@ spec:
       yPos:  2
       height: 3
       shade: true
+      hoverDimension: "y"
       position: overlaid
       queries:
         - query: >
@@ -2159,6 +2161,7 @@ spec:
 						require.True(t, ok)
 						assert.Equal(t, "xy", props.GetType())
 						assert.Equal(t, true, props.ShadeBelow)
+						assert.Equal(t, "y", props.HoverDimension)
 						assert.Equal(t, "xy chart note", props.Note)
 						assert.True(t, props.ShowNoteWhenEmpty)
 						assert.Equal(t, "stacked", props.Position)
@@ -2281,12 +2284,12 @@ spec:
 					{
 						Field:        "metadata.name",
 						EnvRefKey:    "meta-name",
-						DefaultValue: "env-meta-name",
+						DefaultValue: "meta",
 					},
 					{
 						Field:        "spec.name",
 						EnvRefKey:    "spec-name",
-						DefaultValue: "env-spec-name",
+						DefaultValue: "spectacles",
 					},
 					{
 						Field:        "spec.associations[0].name",
@@ -2528,12 +2531,12 @@ spec:
 					{
 						Field:        "metadata.name",
 						EnvRefKey:    "meta-name",
-						DefaultValue: "env-meta-name",
+						DefaultValue: "meta",
 					},
 					{
 						Field:        "spec.name",
 						EnvRefKey:    "spec-name",
-						DefaultValue: "env-spec-name",
+						DefaultValue: "spectacles",
 					},
 					{
 						Field:        "spec.associations[0].name",
@@ -2852,12 +2855,12 @@ spec:
 					{
 						Field:        "metadata.name",
 						EnvRefKey:    "meta-name",
-						DefaultValue: "env-meta-name",
+						DefaultValue: "meta",
 					},
 					{
 						Field:        "spec.name",
 						EnvRefKey:    "spec-name",
-						DefaultValue: "env-spec-name",
+						DefaultValue: "spectacles",
 					},
 					{
 						Field:        "spec.associations[0].name",
@@ -3189,12 +3192,12 @@ spec:
 					{
 						Field:        "metadata.name",
 						EnvRefKey:    "meta-name",
-						DefaultValue: "env-meta-name",
+						DefaultValue: "meta",
 					},
 					{
 						Field:        "spec.name",
 						EnvRefKey:    "spec-name",
-						DefaultValue: "env-spec-name",
+						DefaultValue: "spectacles",
 					},
 					{
 						Field:        "spec.associations[0].name",
@@ -3407,12 +3410,12 @@ spec:
 					{
 						Field:        "metadata.name",
 						EnvRefKey:    "meta-name",
-						DefaultValue: "env-meta-name",
+						DefaultValue: "meta",
 					},
 					{
 						Field:        "spec.name",
 						EnvRefKey:    "spec-name",
-						DefaultValue: "env-spec-name",
+						DefaultValue: "spectacles",
 					},
 					{
 						Field:        "spec.associations[0].name",
@@ -3471,11 +3474,15 @@ spec:
 
 				require.Len(t, sum.Variables, 4)
 
-				varEquals := func(t *testing.T, name, vType string, vals interface{}, v SummaryVariable) {
+				varEquals := func(t *testing.T, name, vType string, vals interface{}, selected []string, v SummaryVariable) {
 					t.Helper()
 
 					assert.Equal(t, name, v.Name)
 					assert.Equal(t, name+" desc", v.Description)
+					if selected == nil {
+						selected = []string{}
+					}
+					assert.Equal(t, selected, v.Selected)
 					require.NotNil(t, v.Arguments)
 					assert.Equal(t, vType, v.Arguments.Type)
 					assert.Equal(t, vals, v.Arguments.Values)
@@ -3486,6 +3493,7 @@ spec:
 					"var-const-3",
 					"constant",
 					influxdb.VariableConstantValues([]string{"first val"}),
+					nil,
 					sum.Variables[0],
 				)
 
@@ -3493,6 +3501,7 @@ spec:
 					"var-map-4",
 					"map",
 					influxdb.VariableMapValues{"k1": "v1"},
+					nil,
 					sum.Variables[1],
 				)
 
@@ -3503,6 +3512,7 @@ spec:
 						Query:    `buckets()  |> filter(fn: (r) => r.name !~ /^_/)  |> rename(columns: {name: "_value"})  |> keep(columns: ["_value"])`,
 						Language: "flux",
 					},
+					[]string{"rucket"},
 					sum.Variables[2],
 				)
 
@@ -3513,6 +3523,7 @@ spec:
 						Query:    "an influxql query of sorts",
 						Language: "influxql",
 					},
+					nil,
 					sum.Variables[3],
 				)
 			})
@@ -3527,17 +3538,27 @@ spec:
 					{
 						Field:        "metadata.name",
 						EnvRefKey:    "meta-name",
-						DefaultValue: "env-meta-name",
+						DefaultValue: "meta",
 					},
 					{
 						Field:        "spec.name",
 						EnvRefKey:    "spec-name",
-						DefaultValue: "env-spec-name",
+						DefaultValue: "spectacles",
 					},
 					{
 						Field:        "spec.associations[0].name",
 						EnvRefKey:    "label-meta-name",
 						DefaultValue: "env-label-meta-name",
+					},
+					{
+						Field:        "spec.selected[0]",
+						EnvRefKey:    "the-selected",
+						DefaultValue: "second val",
+					},
+					{
+						Field:        "spec.selected[1]",
+						EnvRefKey:    "the-2nd",
+						DefaultValue: "env-the-2nd",
 					},
 				}
 				assert.Equal(t, expectedEnvRefs, actual[0].EnvReferences)

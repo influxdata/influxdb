@@ -32,9 +32,11 @@ const sortFunc = (a: Bucket, b: Bucket) => {
   return 0
 }
 
-export const getSortedBucketNames = (buckets: Bucket[]) => {
+export const getSortedBuckets = (state: AppState) => {
   const systemBuckets = []
   const otherBuckets = []
+  const buckets = getAll<Bucket>(state, ResourceType.Buckets)
+
   buckets.forEach(bucket => {
     // separate system buckets from the rest
     if (isSystemBucket(bucket.type)) {
@@ -47,6 +49,6 @@ export const getSortedBucketNames = (buckets: Bucket[]) => {
   systemBuckets.sort(sortFunc)
   // alphabetize other buckets
   otherBuckets.sort(sortFunc)
-  // concat the system buckets to the end of the other buckets and map results
-  return otherBuckets.concat(systemBuckets).map(bucket => bucket.name)
+  // concat the system buckets to the end of the other buckets
+  return otherBuckets.concat(systemBuckets)
 }

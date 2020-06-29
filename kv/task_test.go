@@ -12,10 +12,15 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2"
 	icontext "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/kit/feature"
 	"github.com/influxdata/influxdb/v2/kv"
+	"github.com/influxdata/influxdb/v2/mock"
 	_ "github.com/influxdata/influxdb/v2/query/builtin"
 	"github.com/influxdata/influxdb/v2/query/fluxlang"
+	"github.com/influxdata/influxdb/v2/task/options"
 	"github.com/influxdata/influxdb/v2/task/servicetest"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -385,5 +390,105 @@ func TestTaskMigrate(t *testing.T) {
 	}
 	if task.OwnerID != ts.User.ID {
 		t.Fatal("failed to fill in ownerID")
+	}
+}
+
+type taskOptions struct {
+	name        string
+	every       string
+	cron        string
+	offset      string
+	concurrency int64
+	retry       int64
+}
+
+func TestExtractTaskOptions(t *testing.T) {
+	tcs := []struct {
+		name     string
+		flux     string
+		expected taskOptions
+		errMsg   string
+	}{
+		{
+			name: "all parameters",
+			flux: `option task = {name: "whatever", every: 1s, offset: 0s, concurrency: 2, retry: 2}`,
+			expected: taskOptions{
+				name:        "whatever",
+				every:       "1s",
+				offset:      "0s",
+				concurrency: 2,
+				retry:       2,
+			},
+		},
+		{
+			name: "some extra whitespace and bad content around it",
+			flux: `howdy()
+			option     task    =     { name:"whatever",  cron:  "* * * * *"  }
+			hello()
+			`,
+			expected: taskOptions{
+				name:        "whatever",
+				cron:        "* * * * *",
+				concurrency: 1,
+				retry:       1,
+			},
+		},
+		{
+			name:   "bad options",
+			flux:   `option task = {name: "whatever", every: 1s, cron: "* * * * *"}`,
+			errMsg: "cannot use both cron and every in task options",
+		},
+		{
+			name:   "no options",
+			flux:   `doesntexist()`,
+			errMsg: "no task options defined",
+		},
+		{
+			name: "multiple assignments",
+			flux: `
+			option task = {name: "whatever", every: 1s, offset: 0s, concurrency: 2, retry: 2}
+			option task = {name: "whatever", every: 1s, offset: 0s, concurrency: 2, retry: 2}
+			`,
+			errMsg: "multiple task options defined",
+		},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			flagger := mock.NewFlagger(map[feature.Flag]interface{}{
+				feature.SimpleTaskOptionsExtraction(): true,
+			})
+			ctx, _ := feature.Annotate(context.Background(), flagger)
+			opts, err := kv.ExtractTaskOptions(ctx, fluxlang.DefaultService, tc.flux)
+			if tc.errMsg != "" {
+				require.Error(t, err)
+				assert.Equal(t, tc.errMsg, err.Error())
+				return
+			}
+
+			require.NoError(t, err)
+
+			var offset options.Duration
+			if opts.Offset != nil {
+				offset = *opts.Offset
+			}
+
+			var concur int64
+			if opts.Concurrency != nil {
+				concur = *opts.Concurrency
+			}
+
+			var retry int64
+			if opts.Retry != nil {
+				retry = *opts.Retry
+			}
+
+			assert.Equal(t, tc.expected.name, opts.Name)
+			assert.Equal(t, tc.expected.cron, opts.Cron)
+			assert.Equal(t, tc.expected.every, opts.Every.String())
+			assert.Equal(t, tc.expected.offset, offset.String())
+			assert.Equal(t, tc.expected.concurrency, concur)
+			assert.Equal(t, tc.expected.retry, retry)
+		})
 	}
 }

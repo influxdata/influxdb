@@ -581,9 +581,21 @@ func NewASTCompiler(_ context.Context, query string, now time.Time) (flux.Compil
 }
 
 // NewFluxCompiler wraps a Flux query string in a raw-query representation.
-func NewFluxCompiler(_ context.Context, query string, now time.Time) (flux.Compiler, error) {
+func NewFluxCompiler(_ context.Context, query string, _ time.Time) (flux.Compiler, error) {
 	return lang.FluxCompiler{
 		Query: query,
-		Now:   now,
+		// TODO(brett): This mitigates an immediate problem where
+		// Checks/Notifications breaks when sending Now, and system Tasks do not
+		// break when sending Now. We are currently sending C+N through using
+		// Flux Compiler and Tasks as AST Compiler until we come to the root
+		// cause.
+		//
+		// Removing Now here will keep the system humming along normally until
+		// we are able to locate the root cause and use Flux Compiler for all
+		// Task types.
+		//
+		// This should be removed once we diagnose the problem.
+		//
+		// Now: now,
 	}, nil
 }

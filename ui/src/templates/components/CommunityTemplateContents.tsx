@@ -2,9 +2,20 @@
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 
+// Types
 import {AppState, CommunityTemplate} from 'src/types'
 
-import {Heading, HeadingElement, Page, Panel} from '@influxdata/clockface'
+// Components
+import {
+  Panel,
+  FlexBox,
+  ComponentSize,
+  FlexDirection,
+  AlignItems,
+  Label,
+} from '@influxdata/clockface'
+import CommunityTemplateListItem from 'src/templates/components/CommunityTemplateListItem'
+import CommunityTemplateListGroup from 'src/templates/components/CommunityTemplateListGroup'
 
 interface StateProps {
   activeCommunityTemplate: CommunityTemplate
@@ -15,136 +26,132 @@ class CommunityTemplateContentsUnconnected extends PureComponent<StateProps> {
     const {activeCommunityTemplate} = this.props
     if (!Object.keys(activeCommunityTemplate).length) {
       return (
-        <Page>
-          <Panel>
-            <Panel.Header>Calculating template resource needs...</Panel.Header>
-          </Panel>
-        </Page>
+        <Panel>
+          <Panel.Header>Calculating template resource needs...</Panel.Header>
+        </Panel>
       )
     }
 
     return (
-      <Page className="community-templates-installer">
-        {Array.isArray(activeCommunityTemplate.dashboards) &&
-          activeCommunityTemplate.dashboards.map(dashboard => {
-            return (
-              <Panel key={dashboard.pkgName}>
-                <Panel.Header>
-                  <Heading element={HeadingElement.H4}>Dashboard</Heading>
-                </Panel.Header>
-                <Panel.Body>
-                  Name: {dashboard.name}
-                  <br />
-                  {dashboard.description}
-                  <br />
+      <FlexBox
+        margin={ComponentSize.Small}
+        direction={FlexDirection.Column}
+        alignItems={AlignItems.Stretch}
+        className="community-templates-installer"
+      >
+        <CommunityTemplateListGroup
+          title="Dashboards"
+          count={activeCommunityTemplate.dashboards.length}
+        >
+          {Array.isArray(activeCommunityTemplate.dashboards) &&
+            activeCommunityTemplate.dashboards.map(dashboard => {
+              return (
+                <CommunityTemplateListItem
+                  key={dashboard.pkgName}
+                  title={dashboard.name}
+                  description={dashboard.description}
+                >
                   Charts: {dashboard.charts.length}
-                </Panel.Body>
-              </Panel>
-            )
-          })}
-        {Array.isArray(activeCommunityTemplate.telegrafConfigs) &&
-          activeCommunityTemplate.telegrafConfigs.map(telegrafConfig => {
-            return (
-              <Panel.Panel key={telegrafConfig.pkgName}>
-                <Panel.Header>
-                  <Heading element={HeadingElement.H4}>
-                    Telegraf Configuration
-                  </Heading>
-                </Panel.Header>
-                <Panel.Body>
-                  Name: {telegrafConfig.pkgName}
-                  <br />
-                  {telegrafConfig.description}
-                </Panel.Body>
-              </Panel.Panel>
-            )
-          })}
-        {Array.isArray(activeCommunityTemplate.buckets) &&
-          activeCommunityTemplate.buckets.map(bucket => {
-            return (
-              <Panel.Panel key={bucket.pkgName}>
-                <Panel.Header>
-                  <Heading element={HeadingElement.H4}>Bucket</Heading>
-                </Panel.Header>
-                <Panel.Body>
-                  Name: {bucket.name}
-                  <br />
-                  {bucket.description}
-                </Panel.Body>
-              </Panel.Panel>
-            )
-          })}
-        {Array.isArray(activeCommunityTemplate.checks) &&
-          activeCommunityTemplate.checks.map(check => {
-            return (
-              <Panel.Panel key={check.pkgName}>
-                <Panel.Header>
-                  <Heading element={HeadingElement.H4}>Check</Heading>
-                </Panel.Header>
-                <Panel.Body>
-                  Name: {check.check.name}
-                  <br />
-                  {check.description}
-                </Panel.Body>
-              </Panel.Panel>
-            )
-          })}
-        {Array.isArray(activeCommunityTemplate.variables) &&
-          activeCommunityTemplate.variables.map(variable => {
-            return (
-              <Panel.Panel key={variable.pkgName}>
-                <Panel.Header>
-                  <Heading element={HeadingElement.H4}>Variable</Heading>
-                </Panel.Header>
-                <Panel.Body>
-                  Name: {variable.name}
-                  <br />
+                </CommunityTemplateListItem>
+              )
+            })}
+        </CommunityTemplateListGroup>
+        <CommunityTemplateListGroup
+          title="Telegraf Configurations"
+          count={activeCommunityTemplate.telegrafConfigs.length}
+        >
+          {Array.isArray(activeCommunityTemplate.telegrafConfigs) &&
+            activeCommunityTemplate.telegrafConfigs.map(telegrafConfig => {
+              return (
+                <CommunityTemplateListItem
+                  key={telegrafConfig.pkgName}
+                  title={telegrafConfig.pkgName}
+                  description={telegrafConfig.description}
+                />
+              )
+            })}
+        </CommunityTemplateListGroup>
+        <CommunityTemplateListGroup
+          title="Buckets"
+          count={activeCommunityTemplate.buckets.length}
+        >
+          {Array.isArray(activeCommunityTemplate.buckets) &&
+            activeCommunityTemplate.buckets.map(bucket => {
+              return (
+                <CommunityTemplateListItem
+                  key={bucket.pkgName}
+                  title={bucket.name}
+                  description={bucket.description}
+                />
+              )
+            })}
+        </CommunityTemplateListGroup>
+        <CommunityTemplateListGroup
+          title="Checks"
+          count={activeCommunityTemplate.checks.length}
+        >
+          {Array.isArray(activeCommunityTemplate.checks) &&
+            activeCommunityTemplate.checks.map(check => {
+              return (
+                <CommunityTemplateListItem
+                  key={check.pkgName}
+                  title={check.check.name}
+                  description={check.description}
+                />
+              )
+            })}
+        </CommunityTemplateListGroup>
+        <CommunityTemplateListGroup
+          title="Variables"
+          count={activeCommunityTemplate.variables.length}
+        >
+          {Array.isArray(activeCommunityTemplate.variables) &&
+            activeCommunityTemplate.variables.map(variable => {
+              return (
+                <CommunityTemplateListItem
+                  key={variable.pkgName}
+                  title={variable.name}
+                  description={variable.description}
+                >
                   Type: {variable.arguments.type}
-                  <br />
-                  {variable.description}
-                </Panel.Body>
-              </Panel.Panel>
-            )
-          })}
-        {Array.isArray(activeCommunityTemplate.notificationRules) &&
-          activeCommunityTemplate.notificationRules.map(notificationRule => {
-            return (
-              <Panel.Panel key={notificationRule.pkgName}>
-                <Panel.Header>
-                  <Heading element={HeadingElement.H4}>
-                    Notification Rule
-                  </Heading>
-                </Panel.Header>
-                <Panel.Body>
-                  Name: {notificationRule.name}
-                  <br />
-                  {notificationRule.description}
-                </Panel.Body>
-              </Panel.Panel>
-            )
-          })}
-        {Array.isArray(activeCommunityTemplate.labels) &&
-          activeCommunityTemplate.labels.map(label => {
-            return (
-              <Panel.Panel key={label.pkgName}>
-                <Panel.Header>
-                  <Heading element={HeadingElement.H4}>Label</Heading>
-                </Panel.Header>
-                <Panel.Body>
-                  Name: {label.name}
-                  <br />
-                  {Object.keys(label.properties).map(property => {
-                    return (
-                      <aside key={property}>
-                        {property}: {label.properties[property]}
-                      </aside>
-                    )
-                  })}
-                </Panel.Body>
-              </Panel.Panel>
-            )
-          })}
-      </Page>
+                </CommunityTemplateListItem>
+              )
+            })}
+        </CommunityTemplateListGroup>
+        <CommunityTemplateListGroup
+          title="Notification Rules"
+          count={activeCommunityTemplate.notificationRules.length}
+        >
+          {Array.isArray(activeCommunityTemplate.notificationRules) &&
+            activeCommunityTemplate.notificationRules.map(notificationRule => {
+              return (
+                <CommunityTemplateListItem
+                  key={notificationRule.pkgName}
+                  title={notificationRule.name}
+                  description={notificationRule.description}
+                />
+              )
+            })}
+        </CommunityTemplateListGroup>
+        <CommunityTemplateListGroup
+          title="Labels"
+          count={activeCommunityTemplate.labels.length}
+        >
+          {Array.isArray(activeCommunityTemplate.labels) &&
+            activeCommunityTemplate.labels.map(label => {
+              return (
+                <CommunityTemplateListItem key={label.pkgName}>
+                  <Label
+                    description={label.properties.description}
+                    name={label.name}
+                    id={label.name}
+                    color={label.properties.color}
+                  />
+                </CommunityTemplateListItem>
+              )
+            })}
+        </CommunityTemplateListGroup>
+      </FlexBox>
     )
   }
 }

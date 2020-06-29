@@ -81,6 +81,7 @@ export class Signin extends PureComponent<Props, State> {
   private checkForLogin = async () => {
     try {
       await client.users.me()
+
       const redirectIsSet = !!getFromLocalStorage('redirectTo')
       if (redirectIsSet) {
         removeFromLocalStorage('redirectTo')
@@ -94,9 +95,7 @@ export class Signin extends PureComponent<Props, State> {
 
       if (CLOUD) {
         const url = new URL(
-          `${window.location.origin}${CLOUD_SIGNIN_PATHNAME}?redirectTo=${
-            window.location.href
-          }`
+          `${window.location.origin}${CLOUD_SIGNIN_PATHNAME}?redirectTo=${window.location.href}`
         )
         setToLocalStorage('redirectTo', window.location.href)
         window.location.href = url.href
@@ -123,7 +122,4 @@ const mdtp: DispatchProps = {
   notify: notifyAction,
 }
 
-export default connect(
-  null,
-  mdtp
-)(withRouter(Signin))
+export default connect(null, mdtp)(withRouter(Signin))

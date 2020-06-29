@@ -266,7 +266,7 @@ func BenchmarkSeriesIDSet_Add(b *testing.B) {
 	lookup := NewSeriesID(300032)
 
 	// Add the same value over and over.
-	b.Run(fmt.Sprint("cardinality_1000000_add"), func(b *testing.B) {
+	b.Run("cardinality_1000000_add", func(b *testing.B) {
 		b.Run("same", func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				set.Add(lookup)
@@ -299,7 +299,7 @@ func BenchmarkSeriesIDSet_Add(b *testing.B) {
 	})
 
 	// Add the same value over and over with no lock
-	b.Run(fmt.Sprint("cardinality_1000000_check_add"), func(b *testing.B) {
+	b.Run("cardinality_1000000_check_add", func(b *testing.B) {
 		b.Run("same no lock", func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				if !set.ContainsNoLock(lookup) {
@@ -586,7 +586,7 @@ func BenchmarkSeriesIDSet_Remove(b *testing.B) {
 	lookup := uint64(300032)
 
 	// Remove the same value over and over.
-	b.Run(fmt.Sprint("cardinality_1000000_remove_same"), func(b *testing.B) {
+	b.Run("cardinality_1000000_remove_same", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			set.Remove(NewSeriesID(lookup))
 		}
@@ -594,7 +594,7 @@ func BenchmarkSeriesIDSet_Remove(b *testing.B) {
 
 	// Check if the value exists before adding it. Subsequent repeats of the code
 	// will result in contains checks.
-	b.Run(fmt.Sprint("cardinality_1000000_check_remove_global_lock"), func(b *testing.B) {
+	b.Run("cardinality_1000000_check_remove_global_lock", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			set.Lock()
 			if set.ContainsNoLock(NewSeriesID(lookup)) {
@@ -605,7 +605,7 @@ func BenchmarkSeriesIDSet_Remove(b *testing.B) {
 	})
 
 	// Check if the value exists before adding it under two locks.
-	b.Run(fmt.Sprint("cardinality_1000000_check_remove_multi_lock"), func(b *testing.B) {
+	b.Run("cardinality_1000000_check_remove_multi_lock", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			if set.Contains(NewSeriesID(lookup)) {
 				set.Remove(NewSeriesID(lookup))
@@ -624,7 +624,7 @@ func BenchmarkSeriesIDSet_MassRemove(b *testing.B) {
 	}
 
 	// Remove one at a time
-	b.Run(fmt.Sprint("cardinality_1000000_remove_each"), func(b *testing.B) {
+	b.Run("cardinality_1000000_remove_each", func(b *testing.B) {
 		clone := set.Clone()
 		for i := 0; i < b.N; i++ {
 			for j := uint64(0); j < size/2; j++ {
@@ -638,7 +638,7 @@ func BenchmarkSeriesIDSet_MassRemove(b *testing.B) {
 	})
 
 	// This is the case where a target series id set exists.
-	b.Run(fmt.Sprint("cardinality_1000000_remove_set_exists"), func(b *testing.B) {
+	b.Run("cardinality_1000000_remove_set_exists", func(b *testing.B) {
 		clone := set.Clone()
 		other := NewSeriesIDSet()
 		for j := uint64(0); j < size/2; j++ {
@@ -654,7 +654,7 @@ func BenchmarkSeriesIDSet_MassRemove(b *testing.B) {
 	})
 
 	// Make a target series id set and negate it
-	b.Run(fmt.Sprint("cardinality_1000000_remove_set"), func(b *testing.B) {
+	b.Run("cardinality_1000000_remove_set", func(b *testing.B) {
 		clone := set.Clone()
 		for i := 0; i < b.N; i++ {
 			other := NewSeriesIDSet()
@@ -670,7 +670,7 @@ func BenchmarkSeriesIDSet_MassRemove(b *testing.B) {
 	})
 
 	// This is the case where a new result set is created.
-	b.Run(fmt.Sprint("cardinality_1000000_remove_set_new"), func(b *testing.B) {
+	b.Run("cardinality_1000000_remove_set_new", func(b *testing.B) {
 		clone := set.Clone()
 		other := NewSeriesIDSet()
 		for j := uint64(0); j < size/2; j++ {

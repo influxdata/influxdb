@@ -12,7 +12,7 @@ interface Props {
 const CellHeader: FunctionComponent<Props> = ({name, note, children}) => {
   return (
     <div className="cell--header">
-      <div className="cell--draggable">
+      <div className="cell--draggable" data-testid={`cell--draggable ${name}`}>
         <div className="cell--dot-grid" />
         <div className="cell--dot-grid" />
         <div className="cell--dot-grid" />

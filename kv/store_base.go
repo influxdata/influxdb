@@ -388,7 +388,7 @@ func (s *StoreBase) bucketCursor(ctx context.Context, tx Tx) (Cursor, error) {
 	if err != nil {
 		return nil, &influxdb.Error{
 			Code: influxdb.EInternal,
-			Msg:  fmt.Sprintf("failed to retrieve cursor"),
+			Msg:  "failed to retrieve cursor",
 			Err:  err,
 		}
 	}

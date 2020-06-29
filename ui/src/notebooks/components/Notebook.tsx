@@ -1,5 +1,7 @@
+// Libraries
 import React, {FC} from 'react'
 
+// Components
 import {Page} from '@influxdata/clockface'
 import {NotebookProvider} from 'src/notebooks/context/notebook'
 import {ScrollProvider} from 'src/notebooks/context/scroll'

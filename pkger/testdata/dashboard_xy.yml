@@ -5,15 +5,16 @@ metadata:
 spec:
   description: desc1
   charts:
-    - kind:   XY
-      name:   xy chart
+    - kind: XY
+      name: xy chart
       note: xy chart note
       noteOnEmpty: true
-      xPos:  1
-      yPos:  2
-      width:  6
+      xPos: 1
+      yPos: 2
+      width: 6
       height: 3
       shade: true
+      hoverDimension: "y"
       geom: line
       position: stacked
       legend:
@@ -26,7 +27,7 @@ spec:
           hex: "#8F8AF4"
           value: 3
       axes:
-        - name : "x"
+        - name: "x"
           label: x_label
           prefix: x_prefix
           suffix: x_suffix

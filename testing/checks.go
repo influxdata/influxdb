@@ -3,7 +3,6 @@ package testing
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"sort"
 	"testing"
 	"time"
@@ -566,7 +565,7 @@ func CreateCheck(
 				err: &influxdb.Error{
 					Code: influxdb.EConflict,
 					Op:   influxdb.OpCreateCheck,
-					Msg:  fmt.Sprintf("check is not unique"),
+					Msg:  "check is not unique",
 				},
 			},
 		},

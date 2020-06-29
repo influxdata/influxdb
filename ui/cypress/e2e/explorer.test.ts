@@ -1,5 +1,6 @@
 import {Organization} from '../../src/types'
 import {VIS_TYPES} from '../../src/timeMachine/constants'
+import {lines} from '../support/commands'
 import {
   FROM,
   RANGE,
@@ -40,6 +41,32 @@ describe('DataExplorer', () => {
       cy.get<Organization>('@org').then(({id}) => {
         cy.visit(`${orgs}/${id}${explorer}`)
       })
+    })
+  })
+
+  describe('data-explorer state', () => {
+    it('should persist and display last submitted script editor script ', () => {
+      const fluxCode = 'from(bucket: "_monitoring")'
+      cy.getByTestID('switch-to-script-editor').click()
+      cy.get('.flux-editor').within(() => {
+        cy.get('.view-lines').type(fluxCode)
+      })
+      cy.contains('Submit').click()
+      cy.getByTestID('nav-item-tasks').click()
+      cy.getByTestID('nav-item-data-explorer').click()
+      cy.contains(fluxCode)
+    })
+
+    it('can navigate to data explorer from buckets list and override state', () => {
+      const fluxCode = 'from(bucket: "_monitoring")'
+      cy.getByTestID('switch-to-script-editor').click()
+      cy.get('.flux-editor').within(() => {
+        cy.get('.view-lines').type(fluxCode)
+      })
+      cy.contains('Submit').click()
+      cy.getByTestID('nav-item-load-data').click()
+      cy.getByTestID('bucket--card--name _tasks').click()
+      cy.getByTestID('query-builder').should('exist')
     })
   })
 
@@ -215,7 +242,7 @@ describe('DataExplorer', () => {
   })
 
   describe('select time range to query', () => {
-    it('can select different time ranges', () => {
+    it('can set a custom time range and restricts start & stop selections relative to start & stop dates', () => {
       // find initial value
       cy.get('.cf-dropdown--selected')
         .contains('Past 1')
@@ -234,6 +261,33 @@ describe('DataExplorer', () => {
 
       cy.getByTestID('dropdown-item-customtimerange').click()
       cy.getByTestID('timerange-popover--dialog').should('have.length', 1)
+
+      cy.getByTestID('timerange--input')
+        .first()
+        .clear()
+        .type('2019-10-29 08:00:00.000')
+
+      // Set the stop date to Oct 29, 2019
+      cy.getByTestID('timerange--input')
+        .last()
+        .clear()
+        .type('2019-10-29 09:00:00.000')
+
+      // click button and see if time range has been selected
+      cy.getByTestID('daterange--apply-btn').click()
+
+      cy.getByTestID('timerange-dropdown').click()
+      cy.getByTestID('dropdown-item-customtimerange').click()
+
+      // Select the 30th in the Start timerange
+      cy.get('.react-datepicker__day--030')
+        .first()
+        .should('be', 'disabled')
+
+      // Select the 28th in the Stop timerange
+      cy.get('.react-datepicker__day--028')
+        .last()
+        .should('be', 'disabled')
     })
 
     describe('should allow for custom time range selection', () => {
@@ -257,10 +311,7 @@ describe('DataExplorer', () => {
           .type('2019-10-29')
 
         // click button and see if time range has been selected
-        cy.get('.cf-button--label')
-          .contains('Apply Time Range')
-          .should('have.length', 1)
-          .click()
+        cy.getByTestID('daterange--apply-btn').click()
 
         // TODO: complete test once functionality is fleshed out
 
@@ -300,39 +351,13 @@ describe('DataExplorer', () => {
         cy.getByTestID('input-error').should('have.length', 1)
 
         // try submitting invalid date
-        cy.get('.cf-button--label')
-          .contains('Apply Time Range')
-          .should('have.length', 1)
-          .click()
+        cy.getByTestID('daterange--apply-btn').click()
 
         // TODO: complete test once functionality is fleshed out
 
         // cy.get('.cf-dropdown--selected')
         //   .contains('2019-10-01 00:00 - 2019-10-31 00:00')
         //   .should('have.length', 1)
-      })
-
-      it('can set a custom time range', () => {
-        // set the start and stop dates
-        cy.get('input[title="Start"]')
-          .should('have.length', 1)
-          .clear()
-          .type('2019-10-01')
-
-        cy.get('input[title="Stop"]')
-          .should('have.length', 1)
-          .clear()
-          .type('2019-10-31')
-
-        // click button and see if time range has been selected
-        cy.get('.cf-button--label')
-          .contains('Apply Time Range')
-          .should('have.length', 1)
-          .click()
-
-        cy.get('.cf-dropdown--selected')
-          .contains('2019-10-01 00:00 - 2019-10-31 00:00')
-          .should('have.length', 1)
       })
     })
   })
@@ -452,8 +477,7 @@ describe('DataExplorer', () => {
     })
 
     it('imports the appropriate packages to build a query', () => {
-      cy.getByTestID('functions-toolbar-tab').click()
-
+      cy.getByTestID('functions-toolbar-contents--functions').should('exist')
       cy.getByTestID('flux--from--inject').click()
       cy.getByTestID('flux--range--inject').click()
       cy.getByTestID('flux--math.abs--inject').click()
@@ -479,7 +503,7 @@ describe('DataExplorer', () => {
     })
 
     it('can use the function selector to build a query', () => {
-      cy.getByTestID('functions-toolbar-tab').click()
+      cy.getByTestID('functions-toolbar-contents--functions').should('exist')
 
       cy.getByTestID('flux--from--inject').click()
 
@@ -897,23 +921,3 @@ describe('DataExplorer', () => {
     })
   })
 })
-
-const lines = (numLines = 3) => {
-  // each line is 10 seconds before the previous line
-  const offset_ms = 10_000
-  const now = Date.now()
-  const nanos_per_ms = '000000'
-
-  const decendingValues = Array(numLines)
-    .fill(0)
-    .map((_, i) => i)
-    .reverse()
-
-  const incrementingTimes = decendingValues.map(val => {
-    return now - offset_ms * val
-  })
-
-  return incrementingTimes.map((tm, i) => {
-    return `m,tk1=tv1 v=${i + 1} ${tm}${nanos_per_ms}`
-  })
-}

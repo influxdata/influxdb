@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/http"
@@ -13,8 +12,7 @@ import (
 type bucketSVCsFn func() (influxdb.BucketService, influxdb.OrganizationService, error)
 
 func cmdBucket(f *globalFlags, opt genericCLIOpts) *cobra.Command {
-	builder := newCmdBucketBuilder(newBucketSVCs, opt)
-	builder.globalFlags = f
+	builder := newCmdBucketBuilder(newBucketSVCs, f, opt)
 	return builder.cmd()
 }
 
@@ -30,18 +28,19 @@ type cmdBucketBuilder struct {
 	name        string
 	description string
 	org         organization
-	retention   time.Duration
+	retention   string
 }
 
-func newCmdBucketBuilder(svcsFn bucketSVCsFn, opts genericCLIOpts) *cmdBucketBuilder {
+func newCmdBucketBuilder(svcsFn bucketSVCsFn, f *globalFlags, opts genericCLIOpts) *cmdBucketBuilder {
 	return &cmdBucketBuilder{
+		globalFlags:    f,
 		genericCLIOpts: opts,
 		svcFn:          svcsFn,
 	}
 }
 
 func (b *cmdBucketBuilder) cmd() *cobra.Command {
-	cmd := b.newCmd("bucket", nil, false)
+	cmd := b.newCmd("bucket", nil)
 	cmd.Short = "Bucket management commands"
 	cmd.TraverseChildren = true
 	cmd.Run = seeHelp
@@ -56,7 +55,7 @@ func (b *cmdBucketBuilder) cmd() *cobra.Command {
 }
 
 func (b *cmdBucketBuilder) cmdCreate() *cobra.Command {
-	cmd := b.newCmd("create", b.cmdCreateRunEFn, true)
+	cmd := b.newCmd("create", b.cmdCreateRunEFn)
 	cmd.Short = "Create bucket"
 
 	opts := flagOpts{
@@ -72,7 +71,7 @@ func (b *cmdBucketBuilder) cmdCreate() *cobra.Command {
 	opts.mustRegister(cmd)
 
 	cmd.Flags().StringVarP(&b.description, "description", "d", "", "Description of bucket that will be created")
-	cmd.Flags().DurationVarP(&b.retention, "retention", "r", 0, "Duration bucket will retain data. 0 is infinite. Default is 0.")
+	cmd.Flags().StringVarP(&b.retention, "retention", "r", "", "Duration bucket will retain data. 0 is infinite. Default is 0.")
 	b.org.register(cmd, false)
 	b.registerPrintFlags(cmd)
 
@@ -89,10 +88,15 @@ func (b *cmdBucketBuilder) cmdCreateRunEFn(*cobra.Command, []string) error {
 		return err
 	}
 
+	dur, err := rawDurationToTimeDuration(b.retention)
+	if err != nil {
+		return err
+	}
+
 	bkt := &influxdb.Bucket{
 		Name:            b.name,
 		Description:     b.description,
-		RetentionPeriod: b.retention,
+		RetentionPeriod: dur,
 	}
 	bkt.OrgID, err = b.org.getID(orgSVC)
 	if err != nil {
@@ -107,7 +111,7 @@ func (b *cmdBucketBuilder) cmdCreateRunEFn(*cobra.Command, []string) error {
 }
 
 func (b *cmdBucketBuilder) cmdDelete() *cobra.Command {
-	cmd := b.newCmd("delete", b.cmdDeleteRunEFn, true)
+	cmd := b.newCmd("delete", b.cmdDeleteRunEFn)
 	cmd.Short = "Delete bucket"
 
 	cmd.Flags().StringVarP(&b.id, "id", "i", "", "The bucket ID, required if name isn't provided")
@@ -162,7 +166,7 @@ func (b *cmdBucketBuilder) cmdDeleteRunEFn(cmd *cobra.Command, args []string) er
 }
 
 func (b *cmdBucketBuilder) cmdList() *cobra.Command {
-	cmd := b.newCmd("list", b.cmdListRunEFn, true)
+	cmd := b.newCmd("list", b.cmdListRunEFn)
 	cmd.Short = "List buckets"
 	cmd.Aliases = []string{"find", "ls"}
 
@@ -227,7 +231,7 @@ func (b *cmdBucketBuilder) cmdListRunEFn(cmd *cobra.Command, args []string) erro
 }
 
 func (b *cmdBucketBuilder) cmdUpdate() *cobra.Command {
-	cmd := b.newCmd("update", b.cmdUpdateRunEFn, true)
+	cmd := b.newCmd("update", b.cmdUpdateRunEFn)
 	cmd.Short = "Update bucket"
 
 	opts := flagOpts{
@@ -245,7 +249,7 @@ func (b *cmdBucketBuilder) cmdUpdate() *cobra.Command {
 	cmd.Flags().StringVarP(&b.id, "id", "i", "", "The bucket ID (required)")
 	cmd.Flags().StringVarP(&b.description, "description", "d", "", "Description of bucket that will be created")
 	cmd.MarkFlagRequired("id")
-	cmd.Flags().DurationVarP(&b.retention, "retention", "r", 0, "Duration bucket will retain data. 0 is infinite. Default is 0.")
+	cmd.Flags().StringVarP(&b.retention, "retention", "r", "", "Duration bucket will retain data. 0 is infinite. Default is 0.")
 
 	return cmd
 }
@@ -268,8 +272,13 @@ func (b *cmdBucketBuilder) cmdUpdateRunEFn(cmd *cobra.Command, args []string) er
 	if b.description != "" {
 		update.Description = &b.description
 	}
-	if b.retention != 0 {
-		update.RetentionPeriod = &b.retention
+
+	dur, err := rawDurationToTimeDuration(b.retention)
+	if err != nil {
+		return err
+	}
+	if dur != 0 {
+		update.RetentionPeriod = &dur
 	}
 
 	bkt, err := bktSVC.UpdateBucket(context.Background(), id, update)
@@ -278,6 +287,12 @@ func (b *cmdBucketBuilder) cmdUpdateRunEFn(cmd *cobra.Command, args []string) er
 	}
 
 	return b.printBuckets(bucketPrintOpt{bucket: bkt})
+}
+
+func (b *cmdBucketBuilder) newCmd(use string, runE func(*cobra.Command, []string) error) *cobra.Command {
+	cmd := b.genericCLIOpts.newCmd(use, runE, true)
+	b.globalFlags.registerFlags(cmd)
+	return cmd
 }
 
 func (b *cmdBucketBuilder) registerPrintFlags(cmd *cobra.Command) {

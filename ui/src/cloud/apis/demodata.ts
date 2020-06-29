@@ -110,9 +110,7 @@ export const getNormalizedDemoDataBucket = async (
 
   if (resp.status !== 200) {
     throw new Error(
-      `Request for demo data bucket membership did not succeed: ${
-        resp.data.message
-      }`
+      `Request for demo data bucket membership did not succeed: ${resp.data.message}`
     )
   }
 
