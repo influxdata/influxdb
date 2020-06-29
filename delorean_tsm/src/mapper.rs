@@ -142,7 +142,7 @@ impl MeasurementTable {
     }
 
     // updates the table with data from a single TSM index entry's block.
-    fn add_series_data(
+    pub fn add_series_data(
         &mut self,
         tagset: Vec<(String, String)>,
         field_key: String,

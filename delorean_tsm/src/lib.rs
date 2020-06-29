@@ -133,7 +133,7 @@ const MAX_BLOCK_VALUES: usize = 1000;
 
 /// `BlockData` describes the various types of block data that can be held within
 /// a TSM file.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum BlockData {
     Float { ts: Vec<i64>, values: Vec<f64> },
     Integer { ts: Vec<i64>, values: Vec<i64> },

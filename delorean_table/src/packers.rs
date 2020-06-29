@@ -13,7 +13,7 @@ use std::default::Default;
 // NOTE: See https://blog.twitter.com/engineering/en_us/a/2013/dremel-made-simple-with-parquet.html
 // for an explanation of nesting levels
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Packers {
     Float(Packer<f64>),
     Integer(Packer<i64>),
@@ -194,7 +194,7 @@ impl std::convert::From<Vec<Option<Vec<u8>>>> for Packers {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, PartialEq)]
 pub struct Packer<T>
 where
     T: Default + Clone,
