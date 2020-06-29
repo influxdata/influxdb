@@ -53,6 +53,7 @@ func (e *Engine) tagValuesNoPredicate(ctx context.Context, orgID, bucketID influ
 		// append the measurement tag key to the prefix
 		mt := models.Tags{models.NewTag(models.MeasurementTagKeyBytes, measurement)}
 		tsmKeyPrefix = mt.AppendHashKey(tsmKeyPrefix)
+		tsmKeyPrefix = append(tsmKeyPrefix, ',')
 	}
 
 	// TODO(sgc): extend prefix when filtering by \x00 == <measurement>
@@ -181,6 +182,7 @@ func (e *Engine) tagValuesPredicate(ctx context.Context, orgID, bucketID influxd
 		// append the measurement tag key to the prefix
 		mt := models.Tags{models.NewTag(models.MeasurementTagKeyBytes, measurement)}
 		tsmKeyPrefix = mt.AppendHashKey(tsmKeyPrefix)
+		tsmKeyPrefix = append(tsmKeyPrefix, ',')
 	}
 
 	var canceled bool
@@ -349,6 +351,7 @@ func (e *Engine) tagKeysNoPredicate(ctx context.Context, orgID, bucketID influxd
 		// append the measurement tag key to the prefix
 		mt := models.Tags{models.NewTag(models.MeasurementTagKeyBytes, measurement)}
 		tsmKeyPrefix = mt.AppendHashKey(tsmKeyPrefix)
+		tsmKeyPrefix = append(tsmKeyPrefix, ',')
 	}
 
 	var keyset models.TagKeysSet
@@ -474,6 +477,7 @@ func (e *Engine) tagKeysPredicate(ctx context.Context, orgID, bucketID influxdb.
 		// append the measurement tag key to the prefix
 		mt := models.Tags{models.NewTag(models.MeasurementTagKeyBytes, measurement)}
 		tsmKeyPrefix = mt.AppendHashKey(tsmKeyPrefix)
+		tsmKeyPrefix = append(tsmKeyPrefix, ',')
 	}
 
 	var canceled bool
