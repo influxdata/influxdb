@@ -158,6 +158,9 @@ All data types can include the format that is used to parse column data. It is t
    - note that you have to quote column delimiters whenever they appear in a CSV column value, for example:
       - `#constant,"double:,.",myColumn,"1.234,011"`
 - `long:format` and `unsignedLong:format` support the same format as `double`, but everything after and including a fraction character is ignored
+   - the format can be prepended with `strict` to fail when a fraction digit is present, for example:
+      - `1000.000` is `1000` when parsed as `long`, but fails when parsed as `long:strict`
+      - `1_000,000` is `1000` when parsed as `long:,_`, but fails when parsed as `long:strict,_`
 - `boolean:truthy:falsy`
    - `truthy` and `falsy` are comma-separated lists of values, they can be empty to assume all values as truthy/falsy; for example `boolean:sí,yes,ja,oui,ano,да:no,nein,non,ne,нет` 
    - a  `boolean` data type (without the format) parses column values that start with any of _tTyY1_ as `true` values, _fFnN0_ as `false` values and fails on other values
