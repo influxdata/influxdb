@@ -715,7 +715,9 @@ dependencies = [
  "rusoto_credential",
  "rusoto_s3",
  "snafu",
+ "tempfile",
  "tokio",
+ "tokio-util 0.3.1",
 ]
 
 [[package]]
