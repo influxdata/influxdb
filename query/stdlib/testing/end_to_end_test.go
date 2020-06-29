@@ -19,12 +19,12 @@ import (
 	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/launcher"
 	influxdbcontext "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/kit/feature"
+	"github.com/influxdata/influxdb/v2/kit/feature/override"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/query"
 	_ "github.com/influxdata/influxdb/v2/query/stdlib"
 	itesting "github.com/influxdata/influxdb/v2/query/stdlib/testing" // Import the stdlib
-	"github.com/influxdata/influxdb/v2/kit/feature"
-	"github.com/influxdata/influxdb/v2/kit/feature/override"
 )
 
 // Flagger for end-to-end test cases. This flagger contains a pointer to a
@@ -40,10 +40,10 @@ type Flagger struct {
 }
 
 type FlaggerState struct {
-	Path             string
-	Name             string
-	FeatureFlags     itesting.PerTestFeatureFlagMap
-	DefaultFlagger   feature.Flagger
+	Path           string
+	Name           string
+	FeatureFlags   itesting.PerTestFeatureFlagMap
+	DefaultFlagger feature.Flagger
 }
 
 func newFlagger(featureFlagMap itesting.PerTestFeatureFlagMap) Flagger {
@@ -63,7 +63,7 @@ func (f Flagger) Flags(ctx context.Context, _f ...feature.Flag) (map[string]inte
 	// and use it's computed flags.
 	overrides := f.flaggerState.FeatureFlags[f.flaggerState.Path][f.flaggerState.Name]
 	if overrides != nil {
-		f, err := override.Make( overrides, nil )
+		f, err := override.Make(overrides, nil)
 		if err != nil {
 			panic("failed to construct override flagger, probably an invalid flag in FluxEndToEndFeatureFlags")
 		}
@@ -71,9 +71,8 @@ func (f Flagger) Flags(ctx context.Context, _f ...feature.Flag) (map[string]inte
 	}
 
 	// Otherwise use flags from a default flagger.
-	return f.flaggerState.DefaultFlagger.Flags( ctx )
+	return f.flaggerState.DefaultFlagger.Flags(ctx)
 }
-
 
 // Default context.
 var ctx = influxdbcontext.SetAuthorizer(context.Background(), mock.NewMockAuthorizer(true, nil))
