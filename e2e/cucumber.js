@@ -95,7 +95,7 @@ if(__config.headless) {
 }
 
 __wdriver.manage().setTimeouts({implicit: 3000});
-__wdriver.setFileDetector(LocalFileDetector);
+//__wdriver.setFileDetector(LocalFileDetector);
 __wdriver.executor_.w3c = true;
 console.log("DEBUG __wdriver: " + JSON.stringify(__wdriver));
 
