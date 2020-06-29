@@ -6,10 +6,14 @@ import {
   Popover,
   Appearance,
   ComponentColor,
+  ComponentSize,
   SquareButton,
   IconFont,
+  FlexBox,
+  FlexDirection,
+  AlignItems,
 } from '@influxdata/clockface'
-import InsertCellMenu from 'src/notebooks/components/panel/InsertCellMenu'
+import AddButtons from 'src/notebooks/components/AddButtons'
 
 // Styles
 import 'src/notebooks/components/panel/InsertCellButton.scss'
@@ -91,9 +95,23 @@ const InsertCellButton: FC<Props> = ({index}) => {
         appearance={Appearance.Outline}
         color={ComponentColor.Secondary}
         triggerRef={buttonRef}
-        contents={onHide => <InsertCellMenu index={index} onInsert={onHide} />}
         onShow={handlePopoverShow}
         onHide={handlePopoverHide}
+        contents={onHide => (
+          <FlexBox
+            direction={FlexDirection.Column}
+            alignItems={AlignItems.Stretch}
+            margin={ComponentSize.Small}
+            className="insert-cell-menu"
+          >
+            <p className="insert-cell-menu--title">Insert Cell Here</p>
+            <AddButtons
+              index={index}
+              onInsert={onHide}
+              eventName="Notebook Insert Cell Inline"
+            />
+          </FlexBox>
+        )}
       />
     </div>
   )
