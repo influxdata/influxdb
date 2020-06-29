@@ -57,15 +57,9 @@ fn convert_bad_compression_level() {
         .arg("/tmp")
         .assert();
 
-    assert
-        .failure()
-        .code(1)
-        .stderr(predicate::str::contains(
-            "Conversion failed: Error creating a parquet table writer",
-        ))
-        .stderr(predicate::str::contains(
-            r#"Unknown compression level 'maxxx'. Valid options 'max' or 'compatibility'"#,
-        ));
+    assert.failure().code(1).stderr(predicate::str::contains(
+        "error: 'maxxx' isn't a valid value for '--compression-level <compression_level>",
+    ));
 }
 
 #[test]

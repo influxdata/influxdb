@@ -6,7 +6,8 @@
     clippy::use_self
 )]
 
-use clap::{crate_authors, crate_version, App, Arg, SubCommand};
+use clap::{crate_authors, crate_version, value_t, App, Arg, SubCommand};
+use delorean_parquet::writer::CompressionLevel;
 use log::{debug, error, warn};
 
 mod commands {
@@ -69,7 +70,9 @@ Examples:
                     Arg::with_name("compression_level")
                         .short("c")
                         .long("compression-level")
-                        .help("Compression level: max or compatibility (default).")
+                        .help("How much to compress the output data. 'max' compresses the most; 'compatibility' compresses in a manner more likely to be readable by other tools.")
+                        .takes_value(true)
+                        .possible_values(&["max", "compatibility"])
                         .default_value("compatibility"),
                 ),
         )
@@ -113,9 +116,9 @@ Examples:
         ("convert", Some(sub_matches)) => {
             let input_filename = sub_matches.value_of("INPUT").unwrap();
             let output_filename = sub_matches.value_of("OUTPUT").unwrap();
-            let compression_level = sub_matches.value_of("compression_level").unwrap();
-            match commands::convert::convert(&input_filename, &output_filename, &compression_level)
-            {
+            let compression_level =
+                value_t!(sub_matches, "compression_level", CompressionLevel).unwrap();
+            match commands::convert::convert(&input_filename, &output_filename, compression_level) {
                 Ok(()) => debug!("Conversion completed successfully"),
                 Err(e) => {
                     eprintln!("Conversion failed: {}", e);

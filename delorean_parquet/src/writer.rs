@@ -53,12 +53,12 @@ impl From<Error> for TableError {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum CompressionLevel {
     /// Minimize the size of the written parquet file
-    MAXIMUM,
+    Maximum,
 
     // Attempt to maximize interoperability with other ecosystem tools.
     //
     // See https://github.com/influxdata/delorean/issues/184
-    COMPATIBILITY,
+    Compatibility,
 }
 
 impl FromStr for CompressionLevel {
@@ -66,8 +66,8 @@ impl FromStr for CompressionLevel {
 
     fn from_str(compression_level: &str) -> Result<Self, Self::Err> {
         match compression_level {
-            "max" => Ok(Self::MAXIMUM),
-            "compatibility" => Ok(Self::COMPATIBILITY),
+            "max" => Ok(Self::Maximum),
+            "compatibility" => Ok(Self::Compatibility),
             _ => UnknownCompressionLevel { compression_level }.fail(),
         }
     }
@@ -119,7 +119,7 @@ where
     /// output_file_name.push("example.parquet");
     /// let output_file = fs::File::create(output_file_name.as_path()).unwrap();
     ///
-    /// let compression_level = CompressionLevel::COMPATIBILITY;
+    /// let compression_level = CompressionLevel::Compatibility;
     ///
     /// let mut parquet_writer = DeloreanParquetTableWriter::new(
     ///     &schema, compression_level, output_file)
@@ -353,18 +353,18 @@ fn set_integer_encoding(
     builder: WriterPropertiesBuilder,
 ) -> WriterPropertiesBuilder {
     match compression_level {
-        CompressionLevel::MAXIMUM => {
+        CompressionLevel::Maximum => {
             debug!(
-                "Setting encoding of {:?} col {} to DELTA_BINARY_PACKED (MAXIMUM)",
+                "Setting encoding of {:?} col {} to DELTA_BINARY_PACKED (Maximum)",
                 data_type, col_path
             );
             builder
                 .set_column_encoding(col_path.clone(), Encoding::DELTA_BINARY_PACKED)
                 .set_column_dictionary_enabled(col_path, false)
         }
-        CompressionLevel::COMPATIBILITY => {
+        CompressionLevel::Compatibility => {
             debug!(
-                "Setting encoding of {:?} col {} to PLAIN/RLE (COMPATIBILITY)",
+                "Setting encoding of {:?} col {} to PLAIN/RLE (Compatibility)",
                 data_type, col_path
             );
             builder
@@ -520,12 +520,12 @@ mod tests {
 
     #[test]
     fn test_create_writer_props_maximum() {
-        do_test_create_writer_props(CompressionLevel::MAXIMUM);
+        do_test_create_writer_props(CompressionLevel::Maximum);
     }
 
     #[test]
     fn test_create_writer_props_compatibility() {
-        do_test_create_writer_props(CompressionLevel::COMPATIBILITY);
+        do_test_create_writer_props(CompressionLevel::Compatibility);
     }
 
     fn do_test_create_writer_props(compression_level: CompressionLevel) {
@@ -567,14 +567,14 @@ mod tests {
 
         let int_field_colpath = ColumnPath::from("int_field");
         match compression_level {
-            CompressionLevel::MAXIMUM => {
+            CompressionLevel::Maximum => {
                 assert_eq!(
                     writer_props.encoding(&int_field_colpath),
                     Some(Encoding::DELTA_BINARY_PACKED)
                 );
                 assert_eq!(writer_props.dictionary_enabled(&int_field_colpath), false);
             }
-            CompressionLevel::COMPATIBILITY => {
+            CompressionLevel::Compatibility => {
                 assert_eq!(
                     writer_props.encoding(&int_field_colpath),
                     Some(Encoding::PLAIN)
@@ -602,7 +602,7 @@ mod tests {
 
         let timestamp_field_colpath = ColumnPath::from("time");
         match compression_level {
-            CompressionLevel::MAXIMUM => {
+            CompressionLevel::Maximum => {
                 assert_eq!(
                     writer_props.encoding(&timestamp_field_colpath),
                     Some(Encoding::DELTA_BINARY_PACKED)
@@ -612,7 +612,7 @@ mod tests {
                     false
                 );
             }
-            CompressionLevel::COMPATIBILITY => {
+            CompressionLevel::Compatibility => {
                 assert_eq!(
                     writer_props.encoding(&timestamp_field_colpath),
                     Some(Encoding::PLAIN)
@@ -639,11 +639,11 @@ mod tests {
     fn compression_level() {
         assert_eq!(
             CompressionLevel::from_str("max").ok().unwrap(),
-            CompressionLevel::MAXIMUM
+            CompressionLevel::Maximum
         );
         assert_eq!(
             CompressionLevel::from_str("compatibility").ok().unwrap(),
-            CompressionLevel::COMPATIBILITY
+            CompressionLevel::Compatibility
         );
 
         let bad = CompressionLevel::from_str("madxxxx");

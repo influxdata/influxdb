@@ -68,7 +68,7 @@ fn test_write_parquet_data() {
     let output_file = fs::File::create(&output_path).expect("can't open temp file for writing");
 
     let mut parquet_writer =
-        DeloreanParquetTableWriter::new(&schema, CompressionLevel::COMPATIBILITY, output_file)
+        DeloreanParquetTableWriter::new(&schema, CompressionLevel::Compatibility, output_file)
             .expect("can't create parquet writer");
     parquet_writer
         .write_batch(&packers)

@@ -13,7 +13,6 @@ use std::{
     fs,
     io::Read,
     path::{Path, PathBuf},
-    str::FromStr,
 };
 
 use crate::commands::input::{FileType, InputReader};
@@ -107,7 +106,7 @@ pub fn is_directory(p: impl AsRef<Path>) -> bool {
 pub fn convert(
     input_filename: &str,
     output_name: &str,
-    compression_level_request: &str,
+    compression_level: CompressionLevel,
 ) -> Result<()> {
     info!("convert starting");
     debug!("Reading from input file {}", input_filename);
@@ -118,10 +117,6 @@ pub fn convert(
         input_reader.len(),
         input_filename
     );
-
-    // setup writing
-    let compression_level = CompressionLevel::from_str(compression_level_request)
-        .context(UnableToCreateParquetTableWriter)?;
 
     match input_reader.file_type() {
         FileType::LineProtocol => convert_line_protocol_to_parquet(
