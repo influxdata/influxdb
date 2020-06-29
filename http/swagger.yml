@@ -4628,17 +4628,17 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/PkgCreate"
+              $ref: "#/components/schemas/TemplateExport"
       responses:
         "200":
           description: Influx package created
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Pkg"
+                $ref: "#/components/schemas/Template"
             application/x-yaml:
               schema:
-                $ref: "#/components/schemas/Pkg"
+                $ref: "#/components/schemas/Template"
         default:
           description: Unexpected error
           content:
@@ -4654,13 +4654,13 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/PkgApply"
+              $ref: "#/components/schemas/TemplateApply"
           application/x-jsonnet:
             schema:
-              $ref: "#/components/schemas/PkgApply"
+              $ref: "#/components/schemas/TemplateApply"
           text/yml:
             schema:
-              $ref: "#/components/schemas/PkgApply"
+              $ref: "#/components/schemas/TemplateApply"
       responses:
         "200":
           description: >
@@ -4670,7 +4670,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/PkgSummary"
+                $ref: "#/components/schemas/TemplateSummary"
         "201":
           description: >
             Influx package applied successfully. Newly created resources created
@@ -4680,7 +4680,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/PkgSummary"
+                $ref: "#/components/schemas/TemplateSummary"
         default:
           description: Unexpected error
           content:
@@ -5054,13 +5054,13 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/PkgApply"
+              $ref: "#/components/schemas/TemplateApply"
           application/x-jsonnet:
             schema:
-              $ref: "#/components/schemas/PkgApply"
+              $ref: "#/components/schemas/TemplateApply"
           text/yml:
             schema:
-              $ref: "#/components/schemas/PkgApply"
+              $ref: "#/components/schemas/TemplateApply"
       responses:
         "200":
           description: >
@@ -5070,7 +5070,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/PkgSummary"
+                $ref: "#/components/schemas/TemplateSummary"
         "201":
           description: >
             Influx package applied successfully. Newly created resources created
@@ -5080,7 +5080,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/PkgSummary"
+                $ref: "#/components/schemas/TemplateSummary"
         default:
           description: Unexpected error
           content:
@@ -5099,17 +5099,17 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/PkgCreate"
+              $ref: "#/components/schemas/TemplateExport"
       responses:
         "200":
           description: InfluxDB template created
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Pkg"
+                $ref: "#/components/schemas/Template"
             application/x-yaml:
               schema:
-                $ref: "#/components/schemas/Pkg"
+                $ref: "#/components/schemas/Template"
         default:
           description: Unexpected error
           content:
@@ -7863,7 +7863,7 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Organization"
-    PkgApply:
+    TemplateApply:
       type: object
       properties:
         dryRun:
@@ -7882,7 +7882,7 @@ components:
               items:
                 type: string
             package:
-              $ref: "#/components/schemas/Pkg"
+              $ref: "#/components/schemas/Template"
         templates:
           type: array
           items:
@@ -7895,7 +7895,7 @@ components:
                 items:
                   type: string
               package:
-                $ref: "#/components/schemas/Pkg"
+                $ref: "#/components/schemas/Template"
         secrets:
           type: object
           additionalProperties:
@@ -7955,7 +7955,7 @@ components:
         - Task
         - Telegraf
         - Variable
-    PkgCreate:
+    TemplateExport:
       type: object
       properties:
         stackID:
@@ -7988,7 +7988,7 @@ components:
             name:
               type: string
           required: [id, kind]
-    Pkg:
+    Template:
       type: array
       items:
         type: object
@@ -8004,7 +8004,7 @@ components:
                 type: string
           spec:
             type: object
-    PkgEnvReferences:
+    TemplateEnvReferences:
       type: array
       items:
         type: object
@@ -8022,7 +8022,7 @@ components:
             type: string
             description: Default value that will be provided for the reference when no value is provided
         required: [resourceField, envRefKey, defaultValue]
-    PkgSummary:
+    TemplateSummary:
       type: object
       properties:
         sources:
@@ -8043,7 +8043,7 @@ components:
                     type: string
                   orgID:
                     type: string
-                  pkgName:
+                  templateMetaName:
                     type: string
                   name:
                     type: string
@@ -8054,9 +8054,9 @@ components:
                   labelAssociations:
                     type: array
                     items:
-                      $ref: "#/components/schemas/PkgSummaryLabel"
+                      $ref: "#/components/schemas/TemplateSummaryLabel"
                   envReferences:
-                    $ref: "#/components/schemas/PkgEnvReferences"
+                    $ref: "#/components/schemas/TemplateEnvReferences"
             checks:
               type: array
               items:
@@ -8064,18 +8064,18 @@ components:
                   - $ref: "#/components/schemas/CheckDiscriminator"
                   - type: object
                     properties:
-                      pkgName:
+                      templateMetaName:
                         type: string
                       labelAssociations:
                         type: array
                         items:
-                          $ref: "#/components/schemas/PkgSummaryLabel"
+                          $ref: "#/components/schemas/TemplateSummaryLabel"
                       envReferences:
-                        $ref: "#/components/schemas/PkgEnvReferences"
+                        $ref: "#/components/schemas/TemplateEnvReferences"
             labels:
               type: array
               items:
-                $ref: "#/components/schemas/PkgSummaryLabel"
+                $ref: "#/components/schemas/TemplateSummaryLabel"
             dashboards:
               type: array
               items:
@@ -8085,7 +8085,7 @@ components:
                     type: "string"
                   orgID:
                     type: "string"
-                  pkgName:
+                  templateMetaName:
                     type: string
                   name:
                     type: "string"
@@ -8094,13 +8094,13 @@ components:
                   labelAssociations:
                     type: array
                     items:
-                      $ref: "#/components/schemas/PkgSummaryLabel"
+                      $ref: "#/components/schemas/TemplateSummaryLabel"
                   charts:
                     type: array
                     items:
-                      $ref: "#/components/schemas/PkgChart"
+                      $ref: "#/components/schemas/TemplateChart"
                   envReferences:
-                    $ref: "#/components/schemas/PkgEnvReferences"
+                    $ref: "#/components/schemas/TemplateEnvReferences"
             labelMappings:
               type: array
               items:
@@ -8108,7 +8108,7 @@ components:
                 properties:
                   status:
                     type: string
-                  resourcePkgName:
+                  resourceTemplateMetaName:
                     type: string
                   resourceName:
                     type: string
@@ -8116,7 +8116,7 @@ components:
                     type: string
                   resourceType:
                     type: string
-                  labelPkgName:
+                  labelTemplateMetaName:
                     type: string
                   labelName:
                     type: string
@@ -8137,26 +8137,26 @@ components:
                   - $ref: "#/components/schemas/NotificationEndpointDiscrimator"
                   - type: object
                     properties:
-                      pkgName:
+                      templateMetaName:
                         type: string
                       labelAssociations:
                         type: array
                         items:
-                          $ref: "#/components/schemas/PkgSummaryLabel"
+                          $ref: "#/components/schemas/TemplateSummaryLabel"
                       envReferences:
-                        $ref: "#/components/schemas/PkgEnvReferences"
+                        $ref: "#/components/schemas/TemplateEnvReferences"
             notificationRules:
               type: array
               items:
                 type: object
                 properties:
-                  pkgName:
+                  templateMetaName:
                     type: string
                   name:
                     type: string
                   description:
                     type: string
-                  endpointPkgName:
+                  endpointTemplateMetaName:
                     type: string
                   endpointID:
                     type: string
@@ -8193,15 +8193,15 @@ components:
                   labelAssociations:
                     type: array
                     items:
-                      $ref: "#/components/schemas/PkgSummaryLabel"
+                      $ref: "#/components/schemas/TemplateSummaryLabel"
                   envReferences:
-                    $ref: "#/components/schemas/PkgEnvReferences"
+                    $ref: "#/components/schemas/TemplateEnvReferences"
             tasks:
               type: array
               items:
                 type: object
                 properties:
-                  pkgName:
+                  templateMetaName:
                     type: string
                   id:
                     type: string
@@ -8220,7 +8220,7 @@ components:
                   status:
                     type: string
                   envReferences:
-                    $ref: "#/components/schemas/PkgEnvReferences"
+                    $ref: "#/components/schemas/TemplateEnvReferences"
             telegrafConfigs:
               type: array
               items:
@@ -8228,20 +8228,20 @@ components:
                   - $ref: "#/components/schemas/TelegrafRequest"
                   - type: object
                     properties:
-                      pkgName:
+                      templateMetaName:
                         type: string
                       labelAssociations:
                         type: array
                         items:
-                          $ref: "#/components/schemas/PkgSummaryLabel"
+                          $ref: "#/components/schemas/TemplateSummaryLabel"
                       envReferences:
-                        $ref: "#/components/schemas/PkgEnvReferences"
+                        $ref: "#/components/schemas/TemplateEnvReferences"
             variables:
               type: array
               items:
                 type: object
                 properties:
-                  pkgName:
+                  templateMetaName:
                     type: string
                   id:
                     type: string
@@ -8256,9 +8256,9 @@ components:
                   labelAssociations:
                     type: array
                     items:
-                      $ref: "#/components/schemas/PkgSummaryLabel"
+                      $ref: "#/components/schemas/TemplateSummaryLabel"
                   envReferences:
-                    $ref: "#/components/schemas/PkgEnvReferences"
+                    $ref: "#/components/schemas/TemplateEnvReferences"
         diff:
           type: object
           properties:
@@ -8271,7 +8271,7 @@ components:
                     type: string
                   id:
                     type: string
-                  pkgName:
+                  templateMetaName:
                     type: string
                   new:
                     type: object
@@ -8300,7 +8300,7 @@ components:
                     type: string
                   id:
                     type: string
-                  pkgName:
+                  templateMetaName:
                     type: string
                   new:
                     $ref: "#/components/schemas/CheckDiscriminator"
@@ -8315,7 +8315,7 @@ components:
                     type: string
                   id:
                     type: string
-                  pkgName:
+                  templateMetaName:
                     type: string
                   new:
                     type: object
@@ -8327,7 +8327,7 @@ components:
                       charts:
                         type: array
                         items:
-                          $ref: "#/components/schemas/PkgChart"
+                          $ref: "#/components/schemas/TemplateChart"
                   old:
                     type: object
                     properties:
@@ -8338,7 +8338,7 @@ components:
                       charts:
                         type: array
                         items:
-                          $ref: "#/components/schemas/PkgChart"
+                          $ref: "#/components/schemas/TemplateChart"
             labels:
               type: array
               items:
@@ -8348,7 +8348,7 @@ components:
                     type: string
                   id:
                     type: string
-                  pkgName:
+                  templateMetaName:
                     type: string
                   new:
                     type: object
@@ -8379,13 +8379,13 @@ components:
                     type: string
                   resourceID:
                     type: string
-                  resourcePkgName:
+                  resourceTemplateMetaName:
                     type: string
                   resourceName:
                     type: string
                   labelID:
                     type: string
-                  labelPkgName:
+                  labelTemplateMetaName:
                     type: string
                   labelName:
                     type: string
@@ -8398,7 +8398,7 @@ components:
                     type: string
                   id:
                     type: string
-                  pkgName:
+                  templateMetaName:
                     type: string
                   new:
                     $ref: "#/components/schemas/NotificationEndpointDiscrimator"
@@ -8413,7 +8413,7 @@ components:
                     type: string
                   id:
                     type: string
-                  pkgName:
+                  templateMetaName:
                     type: string
                   new:
                     type: object
@@ -8506,7 +8506,7 @@ components:
                     type: string
                   id:
                     type: string
-                  pkgName:
+                  templateMetaName:
                     type: string
                   new:
                     type: object
@@ -8551,7 +8551,7 @@ components:
                     type: string
                   id:
                     type: string
-                  pkgName:
+                  templateMetaName:
                     type: string
                   new:
                     $ref: "#/components/schemas/TelegrafRequest"
@@ -8566,7 +8566,7 @@ components:
                     type: string
                   id:
                     type: string
-                  pkgName:
+                  templateMetaName:
                     type: string
                   new:
                     type: object
@@ -8603,14 +8603,14 @@ components:
                 type: array
                 items:
                   type: integer
-    PkgSummaryLabel:
+    TemplateSummaryLabel:
       type: object
       properties:
         id:
           type: string
         orgID:
           type: string
-        pkgName:
+        templateMetaName:
           type: string
         name:
           type: string
@@ -8622,8 +8622,8 @@ components:
             description:
               type: string
         envReferences:
-          $ref: "#/components/schemas/PkgEnvReferences"
-    PkgChart:
+          $ref: "#/components/schemas/TemplateEnvReferences"
+    TemplateChart:
       type: object
       properties:
         xPos:

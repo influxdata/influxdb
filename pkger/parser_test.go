@@ -30,7 +30,7 @@ func TestParse(t *testing.T) {
 
 				actual := buckets[0]
 				expectedBucket := SummaryBucket{
-					PkgName:           "rucket-11",
+					MetaName:          "rucket-11",
 					Name:              "rucket-11",
 					Description:       "bucket 1 description",
 					RetentionPeriod:   time.Hour,
@@ -41,7 +41,7 @@ func TestParse(t *testing.T) {
 
 				actual = buckets[1]
 				expectedBucket = SummaryBucket{
-					PkgName:           "rucket-22",
+					MetaName:          "rucket-22",
 					Name:              "display name",
 					Description:       "bucket 2 description",
 					LabelAssociations: []SummaryLabel{},
@@ -1525,7 +1525,7 @@ spec:
 						require.Len(t, sum.Dashboards, 2)
 
 						actual := sum.Dashboards[0]
-						assert.Equal(t, "dash-1", actual.PkgName)
+						assert.Equal(t, "dash-1", actual.MetaName)
 						assert.Equal(t, "display name", actual.Name)
 						assert.Equal(t, "desc1", actual.Description)
 
@@ -1562,7 +1562,7 @@ spec:
 						assert.Equal(t, 3.0, c.Value)
 
 						actual2 := sum.Dashboards[1]
-						assert.Equal(t, "dash-2", actual2.PkgName)
+						assert.Equal(t, "dash-2", actual2.MetaName)
 						assert.Equal(t, "dash-2", actual2.Name)
 						assert.Equal(t, "desc", actual2.Description)
 					})
@@ -2432,7 +2432,7 @@ spec:
 			testfileRunner(t, "testdata/notification_endpoint", func(t *testing.T, pkg *Pkg) {
 				expectedEndpoints := []SummaryNotificationEndpoint{
 					{
-						PkgName: "http-basic-auth-notification-endpoint",
+						MetaName: "http-basic-auth-notification-endpoint",
 						NotificationEndpoint: &endpoint.HTTP{
 							Base: endpoint.Base{
 								Name:        "basic endpoint name",
@@ -2447,7 +2447,7 @@ spec:
 						},
 					},
 					{
-						PkgName: "http-bearer-auth-notification-endpoint",
+						MetaName: "http-bearer-auth-notification-endpoint",
 						NotificationEndpoint: &endpoint.HTTP{
 							Base: endpoint.Base{
 								Name:        "http-bearer-auth-notification-endpoint",
@@ -2461,7 +2461,7 @@ spec:
 						},
 					},
 					{
-						PkgName: "http-none-auth-notification-endpoint",
+						MetaName: "http-none-auth-notification-endpoint",
 						NotificationEndpoint: &endpoint.HTTP{
 							Base: endpoint.Base{
 								Name:        "http-none-auth-notification-endpoint",
@@ -2474,7 +2474,7 @@ spec:
 						},
 					},
 					{
-						PkgName: "pager-duty-notification-endpoint",
+						MetaName: "pager-duty-notification-endpoint",
 						NotificationEndpoint: &endpoint.PagerDuty{
 							Base: endpoint.Base{
 								Name:        "pager duty name",
@@ -2486,7 +2486,7 @@ spec:
 						},
 					},
 					{
-						PkgName: "slack-notification-endpoint",
+						MetaName: "slack-notification-endpoint",
 						NotificationEndpoint: &endpoint.Slack{
 							Base: endpoint.Base{
 								Name:        "slack name",
@@ -2513,7 +2513,7 @@ spec:
 					assert.Contains(t, sum.LabelMappings, SummaryLabelMapping{
 						Status:          StateStatusNew,
 						ResourceType:    influxdb.NotificationEndpointResourceType,
-						ResourcePkgName: expected.PkgName,
+						ResourcePkgName: expected.MetaName,
 						ResourceName:    expected.NotificationEndpoint.GetName(),
 						LabelPkgName:    "label-1",
 						LabelName:       "label-1",
@@ -2841,8 +2841,8 @@ spec:
 
 				require.Len(t, sum.Labels, 2)
 				require.Len(t, rule.LabelAssociations, 2)
-				assert.Equal(t, "label-1", rule.LabelAssociations[0].PkgName)
-				assert.Equal(t, "label-2", rule.LabelAssociations[1].PkgName)
+				assert.Equal(t, "label-1", rule.LabelAssociations[0].MetaName)
+				assert.Equal(t, "label-2", rule.LabelAssociations[1].MetaName)
 			})
 		})
 
@@ -3153,7 +3153,7 @@ spec:
 				tasks := sum.Tasks
 				require.Len(t, tasks, 2)
 				sort.Slice(tasks, func(i, j int) bool {
-					return tasks[i].PkgName < tasks[j].PkgName
+					return tasks[i].MetaName < tasks[j].MetaName
 				})
 
 				baseEqual := func(t *testing.T, i int, status influxdb.Status, actual SummaryTask) {
@@ -3869,7 +3869,7 @@ spec:
 
 		bkts := []SummaryBucket{
 			{
-				PkgName:           "rucket-1",
+				MetaName:          "rucket-1",
 				Name:              "rucket-1",
 				Description:       "desc_1",
 				RetentionPeriod:   10000 * time.Second,
@@ -3877,7 +3877,7 @@ spec:
 				EnvReferences:     []SummaryReference{},
 			},
 			{
-				PkgName:           "rucket-2",
+				MetaName:          "rucket-2",
 				Name:              "rucket-2",
 				Description:       "desc-2",
 				RetentionPeriod:   20000 * time.Second,
@@ -3885,7 +3885,7 @@ spec:
 				EnvReferences:     []SummaryReference{},
 			},
 			{
-				PkgName:           "rucket-3",
+				MetaName:          "rucket-3",
 				Name:              "rucket-3",
 				Description:       "desc_3",
 				RetentionPeriod:   30000 * time.Second,
@@ -4424,8 +4424,8 @@ func sumLabelGen(pkgName, name, color, desc string, envRefs ...SummaryReference)
 		envRefs = make([]SummaryReference, 0)
 	}
 	return SummaryLabel{
-		PkgName: pkgName,
-		Name:    name,
+		MetaName: pkgName,
+		Name:     name,
 		Properties: struct {
 			Color       string `json:"color"`
 			Description string `json:"description"`

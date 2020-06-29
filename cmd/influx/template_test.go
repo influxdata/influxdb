@@ -24,7 +24,7 @@ import (
 )
 
 func Test_Template_Commands(t *testing.T) {
-	fakeSVCFn := func(svc pkger.SVC) pkgSVCsFn {
+	fakeSVCFn := func(svc pkger.SVC) templateSVCsFn {
 		return func() (pkger.SVC, influxdb.OrganizationService, error) {
 			return svc, &mock.OrganizationService{
 				FindOrganizationF: func(ctx context.Context, filter influxdb.OrganizationFilter) (*influxdb.Organization, error) {
@@ -228,7 +228,7 @@ func Test_Template_Commands(t *testing.T) {
 					return &pkg, nil
 				},
 			}
-			return newCmdPkgBuilder(fakeSVCFn(pkgSVC), f, opt).cmdExport()
+			return newCmdPkgerBuilder(fakeSVCFn(pkgSVC), f, opt).cmdExport()
 		}
 
 		for _, tt := range tests {
@@ -349,7 +349,7 @@ func Test_Template_Commands(t *testing.T) {
 					},
 				}
 
-				builder := newCmdPkgBuilder(fakeSVCFn(pkgSVC), f, opt)
+				builder := newCmdPkgerBuilder(fakeSVCFn(pkgSVC), f, opt)
 				return builder.cmdExport()
 			}
 			for _, tt := range tests {
@@ -440,7 +440,7 @@ func Test_Template_Commands(t *testing.T) {
 					},
 				}
 
-				builder := newCmdPkgBuilder(fakeSVCFn(pkgSVC), f, opt)
+				builder := newCmdPkgerBuilder(fakeSVCFn(pkgSVC), f, opt)
 				return builder.cmdExport()
 			}
 
@@ -467,7 +467,7 @@ func Test_Template_Commands(t *testing.T) {
 				out(ioutil.Discard),
 			)
 			cmd := builder.cmd(func(f *globalFlags, opt genericCLIOpts) *cobra.Command {
-				return newCmdPkgBuilder(fakeSVCFn(new(fakePkgSVC)), f, opt).cmdTemplate()
+				return newCmdPkgerBuilder(fakeSVCFn(new(fakePkgSVC)), f, opt).cmdTemplate()
 			})
 
 			cmd.SetArgs([]string{
@@ -490,7 +490,7 @@ func Test_Template_Commands(t *testing.T) {
 				out(ioutil.Discard),
 			)
 			cmd := builder.cmd(func(f *globalFlags, opt genericCLIOpts) *cobra.Command {
-				return newCmdPkgBuilder(fakeSVCFn(new(fakePkgSVC)), f, opt).cmdTemplate()
+				return newCmdPkgerBuilder(fakeSVCFn(new(fakePkgSVC)), f, opt).cmdTemplate()
 			})
 			cmd.SetArgs([]string{"template", "validate"})
 
@@ -588,7 +588,7 @@ func Test_Template_Commands(t *testing.T) {
 								return stack, nil
 							},
 						}
-						return newCmdPkgBuilder(fakeSVCFn(echoSVC), f, opt).cmdStacks()
+						return newCmdPkgerBuilder(fakeSVCFn(echoSVC), f, opt).cmdStacks()
 					})
 
 					baseArgs := []string{"stacks", "init", "--json"}

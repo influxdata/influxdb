@@ -171,7 +171,7 @@ func TestService(t *testing.T) {
 						DiffIdentifier: DiffIdentifier{
 							ID:          SafeID(1),
 							StateStatus: StateStatusExists,
-							PkgName:     "rucket-11",
+							MetaName:    "rucket-11",
 						},
 
 						Old: &DiffBucketValues{
@@ -204,7 +204,7 @@ func TestService(t *testing.T) {
 
 					expected := DiffBucket{
 						DiffIdentifier: DiffIdentifier{
-							PkgName:     "rucket-11",
+							MetaName:    "rucket-11",
 							StateStatus: StateStatusNew,
 						},
 						New: DiffBucketValues{
@@ -266,13 +266,13 @@ func TestService(t *testing.T) {
 					require.Len(t, checks, 2)
 					check0 := checks[0]
 					assert.True(t, check0.IsNew())
-					assert.Equal(t, "check-0", check0.PkgName)
+					assert.Equal(t, "check-0", check0.MetaName)
 					assert.Zero(t, check0.ID)
 					assert.Nil(t, check0.Old)
 
 					check1 := checks[1]
 					assert.False(t, check1.IsNew())
-					assert.Equal(t, "check-1", check1.PkgName)
+					assert.Equal(t, "check-1", check1.MetaName)
 					assert.Equal(t, "display name", check1.New.GetName())
 					assert.NotZero(t, check1.ID)
 					assert.Equal(t, existing, check1.Old.Check)
@@ -349,7 +349,7 @@ func TestService(t *testing.T) {
 						DiffIdentifier: DiffIdentifier{
 							ID:          SafeID(1),
 							StateStatus: StateStatusExists,
-							PkgName:     "label-1",
+							MetaName:    "label-1",
 						},
 						Old: &DiffLabelValues{
 							Name:        "label-1",
@@ -364,7 +364,7 @@ func TestService(t *testing.T) {
 					}
 					assert.Contains(t, impact.Diff.Labels, expected)
 
-					expected.PkgName = "label-2"
+					expected.MetaName = "label-2"
 					expected.New.Name = "label-2"
 					expected.New.Color = "#000000"
 					expected.New.Description = "label 2 description"
@@ -389,7 +389,7 @@ func TestService(t *testing.T) {
 
 					expected := DiffLabel{
 						DiffIdentifier: DiffIdentifier{
-							PkgName:     "label-1",
+							MetaName:    "label-1",
 							StateStatus: StateStatusNew,
 						},
 						New: DiffLabelValues{
@@ -400,7 +400,7 @@ func TestService(t *testing.T) {
 					}
 					assert.Contains(t, labels, expected)
 
-					expected.PkgName = "label-2"
+					expected.MetaName = "label-2"
 					expected.New.Name = "label-2"
 					expected.New.Color = "#000000"
 					expected.New.Description = "label 2 description"
@@ -477,7 +477,7 @@ func TestService(t *testing.T) {
 					expected := DiffNotificationEndpoint{
 						DiffIdentifier: DiffIdentifier{
 							ID:          1,
-							PkgName:     "http-none-auth-notification-endpoint",
+							MetaName:    "http-none-auth-notification-endpoint",
 							StateStatus: StateStatusExists,
 						},
 						Old: &DiffNotificationEndpointValues{
@@ -690,7 +690,7 @@ func TestService(t *testing.T) {
 					expected := DiffVariable{
 						DiffIdentifier: DiffIdentifier{
 							ID:          1,
-							PkgName:     "var-const-3",
+							MetaName:    "var-const-3",
 							StateStatus: StateStatusExists,
 						},
 						Old: &DiffVariableValues{
@@ -711,7 +711,7 @@ func TestService(t *testing.T) {
 					expected = DiffVariable{
 						DiffIdentifier: DiffIdentifier{
 							// no ID here since this one would be new
-							PkgName:     "var-map-4",
+							MetaName:    "var-map-4",
 							StateStatus: StateStatusNew,
 						},
 						New: DiffVariableValues{
@@ -787,7 +787,7 @@ func TestService(t *testing.T) {
 					expected := SummaryBucket{
 						ID:                SafeID(time.Hour),
 						OrgID:             SafeID(orgID),
-						PkgName:           "rucket-11",
+						MetaName:          "rucket-11",
 						Name:              "rucket-11",
 						Description:       "bucket 1 description",
 						RetentionPeriod:   time.Hour,
@@ -839,7 +839,7 @@ func TestService(t *testing.T) {
 					expected := SummaryBucket{
 						ID:                SafeID(3),
 						OrgID:             SafeID(orgID),
-						PkgName:           "rucket-11",
+						MetaName:          "rucket-11",
 						Name:              "rucket-11",
 						Description:       "bucket 1 description",
 						RetentionPeriod:   time.Hour,
@@ -1092,13 +1092,13 @@ func TestService(t *testing.T) {
 					dash1 := sum.Dashboards[0]
 					assert.NotZero(t, dash1.ID)
 					assert.NotZero(t, dash1.OrgID)
-					assert.Equal(t, "dash-1", dash1.PkgName)
+					assert.Equal(t, "dash-1", dash1.MetaName)
 					assert.Equal(t, "display name", dash1.Name)
 					require.Len(t, dash1.Charts, 1)
 
 					dash2 := sum.Dashboards[1]
 					assert.NotZero(t, dash2.ID)
-					assert.Equal(t, "dash-2", dash2.PkgName)
+					assert.Equal(t, "dash-2", dash2.MetaName)
 					assert.Equal(t, "dash-2", dash2.Name)
 					require.Empty(t, dash2.Charts)
 				})
@@ -1475,7 +1475,7 @@ func TestService(t *testing.T) {
 
 					sum := impact.Summary
 					require.Len(t, sum.NotificationRules, 1)
-					assert.Equal(t, "rule-uuid", sum.NotificationRules[0].PkgName)
+					assert.Equal(t, "rule-uuid", sum.NotificationRules[0].MetaName)
 					assert.Equal(t, "rule_0", sum.NotificationRules[0].Name)
 					assert.Equal(t, "desc_0", sum.NotificationRules[0].Description)
 					assert.Equal(t, SafeID(1), sum.NotificationRules[0].EndpointID)
@@ -1553,12 +1553,12 @@ func TestService(t *testing.T) {
 					sum := impact.Summary
 					require.Len(t, sum.Tasks, 2)
 					assert.NotZero(t, sum.Tasks[0].ID)
-					assert.Equal(t, "task-1", sum.Tasks[0].PkgName)
+					assert.Equal(t, "task-1", sum.Tasks[0].MetaName)
 					assert.Equal(t, "task-1", sum.Tasks[0].Name)
 					assert.Equal(t, "desc_1", sum.Tasks[0].Description)
 
 					assert.NotZero(t, sum.Tasks[1].ID)
-					assert.Equal(t, "task-uuid", sum.Tasks[1].PkgName)
+					assert.Equal(t, "task-uuid", sum.Tasks[1].MetaName)
 					assert.Equal(t, "task-0", sum.Tasks[1].Name)
 					assert.Equal(t, "desc_0", sum.Tasks[1].Description)
 				})

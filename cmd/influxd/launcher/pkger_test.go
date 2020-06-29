@@ -494,9 +494,9 @@ func TestLauncher_Pkger(t *testing.T) {
 
 				sum := impact.Summary
 				require.Len(t, sum.Buckets, 2)
-				assert.Equal(t, "bucket-0", sum.Buckets[0].PkgName)
+				assert.Equal(t, "bucket-0", sum.Buckets[0].MetaName)
 				assert.Equal(t, "bucket-0", sum.Buckets[0].Name)
-				assert.Equal(t, "bucket-1", sum.Buckets[1].PkgName)
+				assert.Equal(t, "bucket-1", sum.Buckets[1].MetaName)
 				assert.Equal(t, "bucket-1", sum.Buckets[1].Name)
 			}
 
@@ -850,21 +850,21 @@ func TestLauncher_Pkger(t *testing.T) {
 					updateVariableName = "new variable"
 				)
 				updatedPkg := newTemplate(
-					newBucketObject(initialSum.Buckets[0].PkgName, updateBucketName, ""),
-					newCheckDeadmanObject(t, initialSum.Checks[0].PkgName, updateCheckName, time.Hour),
-					newDashObject(initialSum.Dashboards[0].PkgName, updateDashName, ""),
-					newEndpointHTTP(initialSum.NotificationEndpoints[0].PkgName, updateEndpointName, ""),
-					newLabelObject(initialSum.Labels[0].PkgName, updateLabelName, "", ""),
+					newBucketObject(initialSum.Buckets[0].MetaName, updateBucketName, ""),
+					newCheckDeadmanObject(t, initialSum.Checks[0].MetaName, updateCheckName, time.Hour),
+					newDashObject(initialSum.Dashboards[0].MetaName, updateDashName, ""),
+					newEndpointHTTP(initialSum.NotificationEndpoints[0].MetaName, updateEndpointName, ""),
+					newLabelObject(initialSum.Labels[0].MetaName, updateLabelName, "", ""),
 					newRuleObject(
 						t,
-						initialSum.NotificationRules[0].PkgName,
+						initialSum.NotificationRules[0].MetaName,
 						updateRuleName,
-						initialSum.NotificationEndpoints[0].PkgName,
+						initialSum.NotificationEndpoints[0].MetaName,
 						"",
 					),
-					newTaskObject(initialSum.Tasks[0].PkgName, updateTaskName, ""),
-					newTelegrafObject(initialSum.TelegrafConfigs[0].PkgName, updateTelegrafName, ""),
-					newVariableObject(initialSum.Variables[0].PkgName, updateVariableName, ""),
+					newTaskObject(initialSum.Tasks[0].MetaName, updateTaskName, ""),
+					newTelegrafObject(initialSum.TelegrafConfigs[0].MetaName, updateTelegrafName, ""),
+					newVariableObject(initialSum.Variables[0].MetaName, updateVariableName, ""),
 				)
 				impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID,
 					pkger.ApplyWithPkg(updatedPkg),
@@ -1844,7 +1844,7 @@ func TestLauncher_Pkger(t *testing.T) {
 				hasAssociation := func(t *testing.T, actual []pkger.SummaryLabel) {
 					t.Helper()
 					require.Len(t, actual, 1, "unexpected number of label mappings")
-					assert.Equal(t, actual[0].PkgName, labelObj.Name())
+					assert.Equal(t, actual[0].MetaName, labelObj.Name())
 				}
 
 				require.Len(t, summary.Buckets, 1)
@@ -1945,49 +1945,49 @@ func TestLauncher_Pkger(t *testing.T) {
 					if len(actual) != 1 {
 						return
 					}
-					assert.Equal(t, actual[0].PkgName, initialSum.Labels[0].PkgName)
+					assert.Equal(t, actual[0].MetaName, initialSum.Labels[0].MetaName)
 				}
 
 				sum := exportedTemplate.Summary()
 
 				require.Len(t, sum.Buckets, 1, "missing required buckets")
-				assert.Equal(t, initialSum.Buckets[0].PkgName, sum.Buckets[0].PkgName)
+				assert.Equal(t, initialSum.Buckets[0].MetaName, sum.Buckets[0].MetaName)
 				assert.Equal(t, initialSum.Buckets[0].Name, sum.Buckets[0].Name)
 				hasAssociation(t, sum.Buckets[0].LabelAssociations)
 
 				require.Len(t, sum.Checks, 1, "missing required checks")
-				assert.Equal(t, initialSum.Checks[0].PkgName, sum.Checks[0].PkgName)
+				assert.Equal(t, initialSum.Checks[0].MetaName, sum.Checks[0].MetaName)
 				assert.Equal(t, initialSum.Checks[0].Check.GetName(), sum.Checks[0].Check.GetName())
 				hasAssociation(t, sum.Checks[0].LabelAssociations)
 
 				require.Len(t, sum.Dashboards, 1, "missing required dashboards")
-				assert.Equal(t, initialSum.Dashboards[0].PkgName, sum.Dashboards[0].PkgName)
+				assert.Equal(t, initialSum.Dashboards[0].MetaName, sum.Dashboards[0].MetaName)
 				assert.Equal(t, initialSum.Dashboards[0].Name, sum.Dashboards[0].Name)
 				hasAssociation(t, sum.Dashboards[0].LabelAssociations)
 
 				require.Len(t, sum.Labels, 1, "missing required labels")
-				assert.Equal(t, initialSum.Labels[0].PkgName, sum.Labels[0].PkgName)
+				assert.Equal(t, initialSum.Labels[0].MetaName, sum.Labels[0].MetaName)
 				assert.Equal(t, initialSum.Labels[0].Name, sum.Labels[0].Name)
 
 				require.Len(t, sum.NotificationRules, 1, "missing required rules")
-				assert.Equal(t, initialSum.NotificationRules[0].PkgName, sum.NotificationRules[0].PkgName)
+				assert.Equal(t, initialSum.NotificationRules[0].MetaName, sum.NotificationRules[0].MetaName)
 				assert.Equal(t, initialSum.NotificationRules[0].Name, sum.NotificationRules[0].Name)
 				assert.Equal(t, initialSum.NotificationRules[0].EndpointPkgName, sum.NotificationRules[0].EndpointPkgName)
 				assert.Equal(t, initialSum.NotificationRules[0].EndpointType, sum.NotificationRules[0].EndpointType)
 				hasAssociation(t, sum.NotificationRules[0].LabelAssociations)
 
 				require.Len(t, sum.Tasks, 1, "missing required tasks")
-				assert.Equal(t, initialSum.Tasks[0].PkgName, sum.Tasks[0].PkgName)
+				assert.Equal(t, initialSum.Tasks[0].MetaName, sum.Tasks[0].MetaName)
 				assert.Equal(t, initialSum.Tasks[0].Name, sum.Tasks[0].Name)
 				hasAssociation(t, sum.Tasks[0].LabelAssociations)
 
 				require.Len(t, sum.TelegrafConfigs, 1, "missing required telegraf configs")
-				assert.Equal(t, initialSum.TelegrafConfigs[0].PkgName, sum.TelegrafConfigs[0].PkgName)
+				assert.Equal(t, initialSum.TelegrafConfigs[0].MetaName, sum.TelegrafConfigs[0].MetaName)
 				assert.Equal(t, initialSum.TelegrafConfigs[0].TelegrafConfig.Name, sum.TelegrafConfigs[0].TelegrafConfig.Name)
 				hasAssociation(t, sum.TelegrafConfigs[0].LabelAssociations)
 
 				require.Len(t, sum.Variables, 1, "missing required variables")
-				assert.Equal(t, initialSum.Variables[0].PkgName, sum.Variables[0].PkgName)
+				assert.Equal(t, initialSum.Variables[0].MetaName, sum.Variables[0].MetaName)
 				assert.Equal(t, initialSum.Variables[0].Name, sum.Variables[0].Name)
 				hasAssociation(t, sum.Variables[0].LabelAssociations)
 			})
@@ -2635,7 +2635,7 @@ spec:
 		bkts := sum1.Buckets
 		require.Len(t, bkts, 1)
 		assert.NotZero(t, bkts[0].ID)
-		assert.NotEmpty(t, bkts[0].PkgName)
+		assert.NotEmpty(t, bkts[0].MetaName)
 		assert.Equal(t, "rucketeer", bkts[0].Name)
 		hasLabelAssociations(t, bkts[0].LabelAssociations, 2, "label-1", "the 2nd label")
 
@@ -2712,7 +2712,7 @@ spec:
 				ResourceType:    rt,
 				ResourcePkgName: pkgName,
 				ResourceName:    name,
-				LabelPkgName:    labels[0].PkgName,
+				LabelPkgName:    labels[0].MetaName,
 				LabelName:       labels[0].Name,
 				LabelID:         labels[0].ID,
 			}
@@ -2726,14 +2726,14 @@ spec:
 		}
 
 		require.Len(t, mappings, 11)
-		mappingsContain(t, bkts[0].ID, bkts[0].PkgName, bkts[0].Name, influxdb.BucketsResourceType)
-		mappingsContain(t, pkger.SafeID(checks[0].Check.GetID()), checks[0].PkgName, checks[0].Check.GetName(), influxdb.ChecksResourceType)
-		mappingsContain(t, dashs[0].ID, dashs[0].PkgName, dashs[0].Name, influxdb.DashboardsResourceType)
-		mappingsContain(t, pkger.SafeID(endpoints[0].NotificationEndpoint.GetID()), endpoints[0].PkgName, endpoints[0].NotificationEndpoint.GetName(), influxdb.NotificationEndpointResourceType)
-		mappingsContain(t, rule.ID, rule.PkgName, rule.Name, influxdb.NotificationRuleResourceType)
-		mappingsContain(t, task.ID, task.PkgName, task.Name, influxdb.TasksResourceType)
-		mappingsContain(t, pkger.SafeID(teles[0].TelegrafConfig.ID), teles[0].PkgName, teles[0].TelegrafConfig.Name, influxdb.TelegrafsResourceType)
-		mappingsContain(t, vars[0].ID, vars[0].PkgName, vars[0].Name, influxdb.VariablesResourceType)
+		mappingsContain(t, bkts[0].ID, bkts[0].MetaName, bkts[0].Name, influxdb.BucketsResourceType)
+		mappingsContain(t, pkger.SafeID(checks[0].Check.GetID()), checks[0].MetaName, checks[0].Check.GetName(), influxdb.ChecksResourceType)
+		mappingsContain(t, dashs[0].ID, dashs[0].MetaName, dashs[0].Name, influxdb.DashboardsResourceType)
+		mappingsContain(t, pkger.SafeID(endpoints[0].NotificationEndpoint.GetID()), endpoints[0].MetaName, endpoints[0].NotificationEndpoint.GetName(), influxdb.NotificationEndpointResourceType)
+		mappingsContain(t, rule.ID, rule.MetaName, rule.Name, influxdb.NotificationRuleResourceType)
+		mappingsContain(t, task.ID, task.MetaName, task.Name, influxdb.TasksResourceType)
+		mappingsContain(t, pkger.SafeID(teles[0].TelegrafConfig.ID), teles[0].MetaName, teles[0].TelegrafConfig.Name, influxdb.TelegrafsResourceType)
+		mappingsContain(t, vars[0].ID, vars[0].MetaName, vars[0].Name, influxdb.VariablesResourceType)
 
 		var (
 			// used in dependent subtests
@@ -2767,7 +2767,7 @@ spec:
 
 				bkts := sum.Buckets
 				require.Len(t, bkts, 1)
-				assert.NotEmpty(t, bkts[0].PkgName)
+				assert.NotEmpty(t, bkts[0].MetaName)
 				assert.Equal(t, "rucketeer", bkts[0].Name)
 				hasLabelAssociations(t, bkts[0].LabelAssociations, 2, "label-1", "the 2nd label")
 
@@ -2831,7 +2831,7 @@ spec:
 						ResourceType:    rt,
 						ResourcePkgName: pkgName,
 						ResourceName:    name,
-						LabelPkgName:    labels[0].PkgName,
+						LabelPkgName:    labels[0].MetaName,
 						LabelName:       labels[0].Name,
 						LabelID:         labels[0].ID,
 					}
@@ -2839,22 +2839,22 @@ spec:
 
 				mappings := sum.LabelMappings
 				require.Len(t, mappings, 11)
-				assert.Contains(t, mappings, newSumMapping(bkts[0].ID, bkts[0].PkgName, bkts[0].Name, influxdb.BucketsResourceType))
+				assert.Contains(t, mappings, newSumMapping(bkts[0].ID, bkts[0].MetaName, bkts[0].Name, influxdb.BucketsResourceType))
 
 				ch0 := checks[0]
-				assert.Contains(t, mappings, newSumMapping(pkger.SafeID(ch0.Check.GetID()), ch0.PkgName, ch0.Check.GetName(), influxdb.ChecksResourceType))
+				assert.Contains(t, mappings, newSumMapping(pkger.SafeID(ch0.Check.GetID()), ch0.MetaName, ch0.Check.GetName(), influxdb.ChecksResourceType))
 
 				ch1 := checks[0]
-				assert.Contains(t, mappings, newSumMapping(pkger.SafeID(ch1.Check.GetID()), ch1.PkgName, ch1.Check.GetName(), influxdb.ChecksResourceType))
+				assert.Contains(t, mappings, newSumMapping(pkger.SafeID(ch1.Check.GetID()), ch1.MetaName, ch1.Check.GetName(), influxdb.ChecksResourceType))
 
 				ne := endpoints[0]
-				assert.Contains(t, mappings, newSumMapping(pkger.SafeID(ne.NotificationEndpoint.GetID()), ne.PkgName, ne.NotificationEndpoint.GetName(), influxdb.NotificationEndpointResourceType))
+				assert.Contains(t, mappings, newSumMapping(pkger.SafeID(ne.NotificationEndpoint.GetID()), ne.MetaName, ne.NotificationEndpoint.GetName(), influxdb.NotificationEndpointResourceType))
 
-				assert.Contains(t, mappings, newSumMapping(dashs[0].ID, dashs[0].PkgName, dashs[0].Name, influxdb.DashboardsResourceType))
-				assert.Contains(t, mappings, newSumMapping(rule.ID, rule.PkgName, rule.Name, influxdb.NotificationRuleResourceType))
-				assert.Contains(t, mappings, newSumMapping(task.ID, task.PkgName, task.Name, influxdb.TasksResourceType))
-				assert.Contains(t, mappings, newSumMapping(pkger.SafeID(teles[0].TelegrafConfig.ID), teles[0].PkgName, teles[0].TelegrafConfig.Name, influxdb.TelegrafsResourceType))
-				assert.Contains(t, mappings, newSumMapping(vars[0].ID, vars[0].PkgName, vars[0].Name, influxdb.VariablesResourceType))
+				assert.Contains(t, mappings, newSumMapping(dashs[0].ID, dashs[0].MetaName, dashs[0].Name, influxdb.DashboardsResourceType))
+				assert.Contains(t, mappings, newSumMapping(rule.ID, rule.MetaName, rule.Name, influxdb.NotificationRuleResourceType))
+				assert.Contains(t, mappings, newSumMapping(task.ID, task.MetaName, task.Name, influxdb.TasksResourceType))
+				assert.Contains(t, mappings, newSumMapping(pkger.SafeID(teles[0].TelegrafConfig.ID), teles[0].MetaName, teles[0].TelegrafConfig.Name, influxdb.TelegrafsResourceType))
+				assert.Contains(t, mappings, newSumMapping(vars[0].ID, vars[0].MetaName, vars[0].Name, influxdb.VariablesResourceType))
 			})
 
 			t.Run("filtered by resource types", func(t *testing.T) {
