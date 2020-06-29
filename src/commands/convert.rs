@@ -13,6 +13,7 @@ use std::{
     fs,
     io::Read,
     path::{Path, PathBuf},
+    str::FromStr,
 };
 
 use crate::commands::input::{FileType, InputReader};
@@ -119,7 +120,7 @@ pub fn convert(
     );
 
     // setup writing
-    let compression_level = CompressionLevel::from(compression_level_request)
+    let compression_level = CompressionLevel::from_str(compression_level_request)
         .context(UnableToCreateParquetTableWriter)?;
 
     match input_reader.file_type() {

@@ -15,6 +15,7 @@ use std::{
     fmt,
     io::{Seek, Write},
     rc::Rc,
+    str::FromStr,
 };
 
 use crate::metadata::parquet_schema_as_string;
@@ -60,15 +61,14 @@ pub enum CompressionLevel {
     COMPATIBILITY,
 }
 
-impl CompressionLevel {
-    pub fn from(s: &str) -> Result<Self> {
-        match s {
+impl FromStr for CompressionLevel {
+    type Err = Error;
+
+    fn from_str(compression_level: &str) -> Result<Self, Self::Err> {
+        match compression_level {
             "max" => Ok(Self::MAXIMUM),
             "compatibility" => Ok(Self::COMPATIBILITY),
-            _ => UnknownCompressionLevel {
-                compression_level: s,
-            }
-            .fail(),
+            _ => UnknownCompressionLevel { compression_level }.fail(),
         }
     }
 }

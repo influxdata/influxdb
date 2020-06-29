@@ -67,6 +67,7 @@ Examples:
                 )
                 .arg(
                     Arg::with_name("compression_level")
+                        .short("c")
                         .long("compression-level")
                         .help("Compression level: max or compatibility (default).")
                         .default_value("compatibility"),
