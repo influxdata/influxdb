@@ -133,7 +133,7 @@ func toTypedValue(val string, column *CsvTableColumn, lineNumber int) (interface
 	dataType := column.DataType
 	dataFormat := column.DataFormat
 	if column.ParseF != nil {
-		return column.ParseF(val)
+		return column.ParseF(val, lineNumber)
 	}
 	switch dataType {
 	case stringDatatype:
@@ -267,7 +267,7 @@ func CreateDecoder(encoding string) (func(io.Reader) io.Reader, error) {
 }
 
 // createBoolParseFn returns a function that converts a string value to boolean according to format "true,yes,1:false,no,0"
-func createBoolParseFn(format string) func(string) (interface{}, error) {
+func createBoolParseFn(format string) func(string, int) (interface{}, error) {
 	var err error = nil
 	truthy := []string{}
 	falsy := []string{}
@@ -284,7 +284,7 @@ func createBoolParseFn(format string) func(string) (interface{}, error) {
 			falsy = strings.Split(f, ",")
 		}
 	}
-	return func(val string) (interface{}, error) {
+	return func(val string, _lineNumber int) (interface{}, error) {
 		if err != nil {
 			return nil, err
 		}

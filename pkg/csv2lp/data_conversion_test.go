@@ -336,7 +336,7 @@ func Test_CreateBoolParseFn(t *testing.T) {
 		fn := createBoolParseFn(test.format)
 		for j, pair := range test.pair {
 			t.Run(fmt.Sprint(i)+"_"+fmt.Sprint(j), func(t *testing.T) {
-				result, err := fn(pair.value)
+				result, err := fn(pair.value, 1)
 				switch pair.expect {
 				case "true":
 					require.Equal(t, true, result)

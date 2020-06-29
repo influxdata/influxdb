@@ -46,7 +46,7 @@ type CsvTableColumn struct {
 	// TimeZone of dateTime column, applied when parsing dateTime DataType
 	TimeZone *time.Location
 	// ParseF is an optional function used to convert column's string value to interface{}
-	ParseF func(string) (interface{}, error)
+	ParseF func(value string, lineNumber int) (interface{}, error)
 
 	// escapedLabel contains escaped label that can be directly used in line protocol
 	escapedLabel string
