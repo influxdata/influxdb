@@ -1,0 +1,15 @@
+FROM rust:slim-buster
+
+RUN groupadd -g 1500 rust \
+  && useradd -u 1500 -g rust -s /bin/bash -m rust
+
+USER rust
+
+RUN mkdir ~/.delorean
+RUN ls -la ~/.delorean
+
+COPY target/release/delorean /usr/bin/delorean
+
+EXPOSE 8080 8082
+
+CMD ["delorean"]
