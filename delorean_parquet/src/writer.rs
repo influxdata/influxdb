@@ -638,15 +638,15 @@ mod tests {
     #[test]
     fn compression_level() {
         assert_eq!(
-            CompressionLevel::from("max").ok().unwrap(),
+            CompressionLevel::from_str("max").ok().unwrap(),
             CompressionLevel::MAXIMUM
         );
         assert_eq!(
-            CompressionLevel::from("compatibility").ok().unwrap(),
+            CompressionLevel::from_str("compatibility").ok().unwrap(),
             CompressionLevel::COMPATIBILITY
         );
 
-        let bad = CompressionLevel::from("madxxxx");
+        let bad = CompressionLevel::from_str("madxxxx");
         assert!(bad.is_err());
     }
 }
