@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/influxdata/influxdb/v2"
+	ihttp "github.com/influxdata/influxdb/v2/http"
 	"github.com/influxdata/influxdb/v2/pkg/httpc"
 )
 
@@ -222,6 +223,15 @@ func (s *HTTPRemoteService) apply(ctx context.Context, orgID influxdb.ID, dryRun
 	err := s.Client.
 		PostJSON(reqBody, RoutePrefixTemplates, "/apply").
 		DecodeJSON(&resp).
+		StatusFn(func(resp *http.Response) error {
+			// valid response code when the template itself has parser errors.
+			// we short circuit on that and allow that response to pass through
+			// but consume the initial implementation if that does not hold.
+			if resp.StatusCode == http.StatusUnprocessableEntity {
+				return nil
+			}
+			return ihttp.CheckError(resp)
+		}).
 		Do(ctx)
 	if err != nil {
 		return ImpactSummary{}, err
