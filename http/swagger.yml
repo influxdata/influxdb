@@ -8041,6 +8041,8 @@ components:
               items:
                 type: object
                 properties:
+                  kind:
+                    $ref: "#/components/schemas/TemplateKind"
                   stateStatus:
                     type: string
                   id:
@@ -8070,6 +8072,8 @@ components:
               items:
                 type: object
                 properties:
+                  kind:
+                    $ref: "#/components/schemas/TemplateKind"
                   stateStatus:
                     type: string
                   id:
@@ -8089,6 +8093,8 @@ components:
                     type: string
                   id:
                     type: string
+                  kind:
+                    $ref: "#/components/schemas/TemplateKind"
                   templateMetaName:
                     type: string
                   new:
@@ -8120,6 +8126,8 @@ components:
                 properties:
                   stateStatus:
                     type: string
+                  kind:
+                    $ref: "#/components/schemas/TemplateKind"
                   id:
                     type: string
                   templateMetaName:
@@ -8168,6 +8176,8 @@ components:
               items:
                 type: object
                 properties:
+                  kind:
+                    $ref: "#/components/schemas/TemplateKind"
                   stateStatus:
                     type: string
                   id:
@@ -8183,6 +8193,8 @@ components:
               items:
                 type: object
                 properties:
+                  kind:
+                    $ref: "#/components/schemas/TemplateKind"
                   stateStatus:
                     type: string
                   id:
@@ -8276,6 +8288,8 @@ components:
               items:
                 type: object
                 properties:
+                  kind:
+                    $ref: "#/components/schemas/TemplateKind"
                   stateStatus:
                     type: string
                   id:
@@ -8321,6 +8335,8 @@ components:
               items:
                 type: object
                 properties:
+                  kind:
+                    $ref: "#/components/schemas/TemplateKind"
                   stateStatus:
                     type: string
                   id:
@@ -8336,6 +8352,8 @@ components:
               items:
                 type: object
                 properties:
+                  kind:
+                    $ref: "#/components/schemas/TemplateKind"
                   stateStatus:
                     type: string
                   id:

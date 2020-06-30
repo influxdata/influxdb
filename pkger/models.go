@@ -142,6 +142,7 @@ type DiffIdentifier struct {
 	ID          SafeID      `json:"id"`
 	StateStatus StateStatus `json:"stateStatus"`
 	MetaName    string      `json:"templateMetaName"`
+	Kind        Kind        `json:"kind"`
 }
 
 // IsNew indicates the resource is new to the platform.

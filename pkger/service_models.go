@@ -724,6 +724,7 @@ type stateBucket struct {
 func (b *stateBucket) diffBucket() DiffBucket {
 	diff := DiffBucket{
 		DiffIdentifier: DiffIdentifier{
+			Kind:        KindBucket,
 			ID:          SafeID(b.ID()),
 			StateStatus: b.stateStatus,
 			MetaName:    b.parserBkt.MetaName(),
@@ -837,7 +838,9 @@ func (c *stateCheck) diffCheck() DiffCheck {
 			MetaName:    c.parserCheck.MetaName(),
 		},
 	}
-	if newCheck := c.summarize(); newCheck.Check != nil {
+	newCheck := c.summarize()
+	diff.Kind = newCheck.Kind
+	if newCheck.Check != nil {
 		diff.New.Check = newCheck.Check
 	}
 	if c.existing != nil {
@@ -896,6 +899,7 @@ func (d *stateDashboard) stateIdentity() stateIdentity {
 func (d *stateDashboard) diffDashboard() DiffDashboard {
 	diff := DiffDashboard{
 		DiffIdentifier: DiffIdentifier{
+			Kind:        KindDashboard,
 			ID:          SafeID(d.ID()),
 			StateStatus: d.stateStatus,
 			MetaName:    d.parserDash.MetaName(),
@@ -964,6 +968,7 @@ type stateLabel struct {
 func (l *stateLabel) diffLabel() DiffLabel {
 	diff := DiffLabel{
 		DiffIdentifier: DiffIdentifier{
+			Kind:        KindLabel,
 			ID:          SafeID(l.ID()),
 			StateStatus: l.stateStatus,
 			MetaName:    l.parserLabel.MetaName(),
@@ -1120,7 +1125,9 @@ func (e *stateEndpoint) diffEndpoint() DiffNotificationEndpoint {
 			MetaName:    e.parserEndpoint.MetaName(),
 		},
 	}
-	if sum := e.summarize(); sum.NotificationEndpoint != nil {
+	sum := e.summarize()
+	diff.Kind = sum.Kind
+	if sum.NotificationEndpoint != nil {
 		diff.New.NotificationEndpoint = sum.NotificationEndpoint
 	}
 	if e.existing != nil {
@@ -1195,6 +1202,7 @@ func (r *stateRule) endpointAssociation() StackResourceAssociation {
 func (r *stateRule) diffRule() DiffNotificationRule {
 	sum := DiffNotificationRule{
 		DiffIdentifier: DiffIdentifier{
+			Kind:        KindNotificationRule,
 			ID:          SafeID(r.ID()),
 			StateStatus: r.stateStatus,
 			MetaName:    r.parserRule.MetaName(),
@@ -1350,6 +1358,7 @@ func (t *stateTask) ID() influxdb.ID {
 func (t *stateTask) diffTask() DiffTask {
 	diff := DiffTask{
 		DiffIdentifier: DiffIdentifier{
+			Kind:        KindTask,
 			ID:          SafeID(t.ID()),
 			StateStatus: t.stateStatus,
 			MetaName:    t.parserTask.MetaName(),
@@ -1426,6 +1435,7 @@ func (t *stateTelegraf) ID() influxdb.ID {
 func (t *stateTelegraf) diffTelegraf() DiffTelegraf {
 	return DiffTelegraf{
 		DiffIdentifier: DiffIdentifier{
+			Kind:        KindTelegraf,
 			ID:          SafeID(t.ID()),
 			StateStatus: t.stateStatus,
 			MetaName:    t.parserTelegraf.MetaName(),
@@ -1480,6 +1490,7 @@ func (v *stateVariable) ID() influxdb.ID {
 func (v *stateVariable) diffVariable() DiffVariable {
 	diff := DiffVariable{
 		DiffIdentifier: DiffIdentifier{
+			Kind:        KindVariable,
 			ID:          SafeID(v.ID()),
 			StateStatus: v.stateStatus,
 			MetaName:    v.parserVar.MetaName(),

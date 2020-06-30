@@ -172,6 +172,7 @@ func TestService(t *testing.T) {
 							ID:          SafeID(1),
 							StateStatus: StateStatusExists,
 							MetaName:    "rucket-11",
+							Kind:        KindBucket,
 						},
 
 						Old: &DiffBucketValues{
@@ -206,6 +207,7 @@ func TestService(t *testing.T) {
 						DiffIdentifier: DiffIdentifier{
 							MetaName:    "rucket-11",
 							StateStatus: StateStatusNew,
+							Kind:        KindBucket,
 						},
 						New: DiffBucketValues{
 							Name:           "rucket-11",
@@ -350,6 +352,7 @@ func TestService(t *testing.T) {
 							ID:          SafeID(1),
 							StateStatus: StateStatusExists,
 							MetaName:    "label-1",
+							Kind:        KindLabel,
 						},
 						Old: &DiffLabelValues{
 							Name:        "label-1",
@@ -391,6 +394,7 @@ func TestService(t *testing.T) {
 						DiffIdentifier: DiffIdentifier{
 							MetaName:    "label-1",
 							StateStatus: StateStatusNew,
+							Kind:        KindLabel,
 						},
 						New: DiffLabelValues{
 							Name:        "label-1",
@@ -479,6 +483,7 @@ func TestService(t *testing.T) {
 							ID:          1,
 							MetaName:    "http-none-auth-notification-endpoint",
 							StateStatus: StateStatusExists,
+							Kind:        KindNotificationEndpointHTTP,
 						},
 						Old: &DiffNotificationEndpointValues{
 							NotificationEndpoint: existing,
@@ -692,6 +697,7 @@ func TestService(t *testing.T) {
 							ID:          1,
 							MetaName:    "var-const-3",
 							StateStatus: StateStatusExists,
+							Kind:        KindVariable,
 						},
 						Old: &DiffVariableValues{
 							Name:        "var-const-3",
@@ -713,6 +719,7 @@ func TestService(t *testing.T) {
 							// no ID here since this one would be new
 							MetaName:    "var-map-4",
 							StateStatus: StateStatusNew,
+							Kind:        KindVariable,
 						},
 						New: DiffVariableValues{
 							Name:        "var-map-4",
