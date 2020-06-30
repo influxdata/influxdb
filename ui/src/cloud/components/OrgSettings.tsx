@@ -46,8 +46,8 @@ const OrgSettings: FunctionComponent<Props> = ({
 
   useEffect(() => {
     updateReportingContext(
-      Object.entries(settings).reduce((prev, [key, val]) => {
-        prev[`org (${key})`] = val
+      settings.reduce((prev, curr) => {
+        prev[`org (${curr.key})`] = curr.value
         return prev
       }, {})
     )
