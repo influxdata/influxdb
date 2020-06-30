@@ -930,7 +930,11 @@ func (e *Engine) Backup(w io.Writer, basePath string, since time.Time) error {
 		e.logger.Warn("Snapshotter busy: Backup proceeding without snapshot contents.")
 	}
 	// Remove the temporary snapshot dir
-	defer os.RemoveAll(path)
+	defer func() {
+		if err := os.RemoveAll(path); err != nil {
+			e.logger.Warn("backup could not remove temporary snapshot directory", zap.String("path", path), zap.Error(err))
+		}
+	}()
 
 	return intar.Stream(w, path, basePath, intar.SinceFilterTarFile(since))
 }
@@ -996,7 +1000,11 @@ func (e *Engine) Export(w io.Writer, basePath string, start time.Time, end time.
 		return err
 	}
 	// Remove the temporary snapshot dir
-	defer os.RemoveAll(path)
+	defer func() {
+		if err := os.RemoveAll(path); err != nil {
+			e.logger.Warn("export could not remove temporary snapshot directory", zap.String("path", path), zap.Error(err))
+		}
+	}()
 
 	return intar.Stream(w, path, basePath, e.timeStampFilterTarFile(start, end))
 }
@@ -1673,6 +1681,9 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 		ids := tsdb.NewSeriesIDSet()
 		measurements := make(map[string]struct{}, 1)
 
+		deleteIDList := make([]uint64, 0, 10000)
+		deleteKeyList := make([][]byte, 0, 10000)
+
 		for _, k := range seriesKeys {
 			if len(k) == 0 {
 				continue // This key was wiped because it shouldn't be removed from index.
@@ -1702,14 +1713,17 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 				continue
 			}
 
+			// Insert deleting series info into queue
 			measurements[string(name)] = struct{}{}
-			// Remove the series from the local index.
-			if err := e.index.DropSeries(sid, k, false); err != nil {
-				return err
-			}
+			deleteIDList = append(deleteIDList, sid)
+			deleteKeyList = append(deleteKeyList, k)
 
 			// Add the id to the set of delete ids.
 			ids.Add(sid)
+		}
+		// Remove the series from the local index.
+		if err := e.index.DropSeriesList(deleteIDList, deleteKeyList, false); err != nil {
+			return err
 		}
 
 		fielsetChanged := false

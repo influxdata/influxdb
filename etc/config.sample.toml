@@ -301,6 +301,10 @@
   # endpoints. This setting has no effect if auth-enabled is set to false.
   # ping-auth-enabled = false
 
+  # Enables authentication on prometheus remote read api. This setting has no
+  # effect if auth-enabled is set to false.
+  # prom-read-auth-enabled = false
+
   # Determines whether HTTPS is enabled.
   # https-enabled = false
 

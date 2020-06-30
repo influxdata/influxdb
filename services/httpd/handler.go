@@ -194,6 +194,10 @@ func NewHandler(c Config) *Handler {
 			"write", // Data-ingest route.
 			"POST", "/api/v2/write", true, writeLogEnabled, h.serveWriteV2,
 		},
+		Route{ // Enable CORS
+			"write-options",
+			"OPTIONS", "/api/v2/write", false, true, h.serveOptions,
+		},
 		Route{
 			"prometheus-write", // Prometheus remote write
 			"POST", "/api/v1/prom/write", false, true, h.servePromWrite,
@@ -217,6 +221,14 @@ func NewHandler(c Config) *Handler {
 		Route{ // Ping w/ status
 			"status-head",
 			"HEAD", "/status", false, true, authWrapper(h.serveStatus),
+		},
+		Route{ // Health
+			"health",
+			"GET", "/health", false, true, authWrapper(h.serveHealth),
+		},
+		Route{ // Enable CORS
+			"health-options",
+			"OPTIONS", "/health", false, true, h.serveOptions,
 		},
 		Route{
 			"prometheus-metrics",
@@ -269,6 +281,10 @@ func NewHandler(c Config) *Handler {
 		"flux-read",
 		"POST", "/api/v2/query", true, true, nil,
 	}
+	fluxRouteCors := Route{
+		"flux-read-options",
+		"OPTIONS", "/api/v2/query", false, true, h.serveOptions,
+	}
 
 	if !c.FluxEnabled {
 		fluxRoute.HandlerFunc = func(w http.ResponseWriter, r *http.Request) {
@@ -277,7 +293,7 @@ func NewHandler(c Config) *Handler {
 	} else {
 		fluxRoute.HandlerFunc = h.serveFluxQuery
 	}
-	h.AddRoutes(fluxRoute)
+	h.AddRoutes(fluxRoute, fluxRouteCors)
 
 	return h
 }
@@ -1002,6 +1018,24 @@ func (h *Handler) servePing(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// serveHealth maps v2 health endpoint to ping endpoint
+func (h *Handler) serveHealth(w http.ResponseWriter, r *http.Request) {
+	resp := map[string]interface{}{
+		"name":    "influxdb",
+		"message": "ready for queries and writes",
+		"status":  "pass",
+		"checks":  []string{},
+		"version": h.Version,
+	}
+	b, _ := json.Marshal(resp)
+	h.writeHeader(w, http.StatusOK)
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	if _, err := w.Write(b); err != nil {
+		h.httpError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+
 // serveStatus has been deprecated.
 func (h *Handler) serveStatus(w http.ResponseWriter, r *http.Request) {
 	h.Logger.Info("WARNING: /status has been deprecated.  Use /ping instead.")
@@ -1171,6 +1205,8 @@ func (h *Handler) servePromWrite(w http.ResponseWriter, r *http.Request, user me
 // servePromRead will convert a Prometheus remote read request into a storage
 // query and returns data in Prometheus remote read protobuf format.
 func (h *Handler) servePromRead(w http.ResponseWriter, r *http.Request, user meta.User) {
+	atomic.AddInt64(&h.stats.PromReadRequests, 1)
+	h.requestTracker.Add(r, user)
 	compressed, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		h.httpError(w, err.Error(), http.StatusInternalServerError)
@@ -1192,6 +1228,17 @@ func (h *Handler) servePromRead(w http.ResponseWriter, r *http.Request, user met
 	// Query the DB and create a ReadResponse for Prometheus
 	db := r.FormValue("db")
 	rp := r.FormValue("rp")
+
+	if h.Config.AuthEnabled && h.Config.PromReadAuthEnabled {
+		if user == nil {
+			h.httpError(w, fmt.Sprintf("user is required to read from database %q", db), http.StatusForbidden)
+			return
+		}
+		if !user.AuthorizeDatabase(influxql.ReadPrivilege, db) {
+			h.httpError(w, fmt.Sprintf("user %q is not authorized to read from database %q", user.ID(), db), http.StatusForbidden)
+			return
+		}
+	}
 
 	readRequest, err := prometheus.ReadRequestToInfluxStorageRequest(&req, db, rp)
 	if err != nil {
@@ -1825,6 +1872,7 @@ func cors(inner http.Handler) http.Handler {
 				`Authorization`,
 				`Content-Length`,
 				`Content-Type`,
+				`User-Agent`,
 				`X-CSRF-Token`,
 				`X-HTTP-Method-Override`,
 			}, ", "))

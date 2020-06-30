@@ -78,6 +78,7 @@ func NewConfig() Config {
 		PprofAuthEnabled:      false,
 		DebugPprofEnabled:     false,
 		PingAuthEnabled:       false,
+		PromReadAuthEnabled:   false,
 		HTTPSEnabled:          false,
 		HTTPSCertificate:      "/etc/ssl/influxdb.pem",
 		MaxRowLimit:           0,
