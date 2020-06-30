@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
-import {InjectedRouter} from 'react-router'
+import {InjectedRouter} from 'react-router-dom'
 import {connect} from 'react-redux'
 
 // Components

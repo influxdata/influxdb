@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {withRouter, WithRouterProps} from 'react-router'
+import {withRouter, WithRouterProps} from 'react-router-dom'
 
 // Components
 import {Alignment, Orientation, Overlay, Tabs} from '@influxdata/clockface'

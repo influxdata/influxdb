@@ -1,7 +1,7 @@
 // Libraries
 import {PureComponent} from 'react'
 import {connect} from 'react-redux'
-import {WithRouterProps} from 'react-router'
+import {WithRouterProps} from 'react-router-dom'
 
 // Types
 import {AppState, Organization, ResourceType} from 'src/types'

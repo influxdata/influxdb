@@ -1,6 +1,6 @@
 // Libraries
 import React, {SFC} from 'react'
-import {Link} from 'react-router'
+import {Link} from 'react-router-dom'
 
 // Components
 import {Button, ComponentSize} from '@influxdata/clockface'

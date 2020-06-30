@@ -2,7 +2,7 @@
 import React, {PureComponent} from 'react'
 import Loadable from 'react-loadable'
 import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router'
+import {withRouter, WithRouterProps} from 'react-router-dom'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'

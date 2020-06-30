@@ -1,7 +1,7 @@
 // Libraries
 import React, {FC} from 'react'
 import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router'
+import {withRouter, WithRouterProps} from 'react-router-dom'
 
 // Constants
 import {getEndpointFailed} from 'src/shared/copy/notifications'

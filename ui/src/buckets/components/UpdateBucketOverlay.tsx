@@ -6,7 +6,7 @@ import React, {
   ChangeEvent,
   FormEvent,
 } from 'react'
-import {withRouter, WithRouterProps} from 'react-router'
+import {withRouter, WithRouterProps} from 'react-router-dom'
 import {connect} from 'react-redux'
 import {get} from 'lodash'
 

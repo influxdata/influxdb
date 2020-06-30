@@ -1,7 +1,7 @@
 import React, {PureComponent} from 'react'
 import qs from 'qs'
 import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router'
+import {withRouter, WithRouterProps} from 'react-router-dom'
 import {setDashboard} from 'src/shared/actions/currentDashboard'
 import {getVariables} from 'src/variables/selectors'
 import {selectValue} from 'src/variables/actions/thunks'

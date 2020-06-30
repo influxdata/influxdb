@@ -1,7 +1,7 @@
 // Libraries
 import React, {FC} from 'react'
 import {FunnelPage, Button, ComponentColor} from '@influxdata/clockface'
-import {withRouter, WithRouterProps} from 'react-router'
+import {withRouter, WithRouterProps} from 'react-router-dom'
 import {connect} from 'react-redux'
 
 // Types

@@ -1,6 +1,6 @@
 // Libraries
 import React, {Component, ComponentClass} from 'react'
-import {withRouter, WithRouterProps, InjectedRouter} from 'react-router'
+import {withRouter, WithRouterProps, InjectedRouter} from 'react-router-dom'
 import {connect} from 'react-redux'
 import {OverlayID} from 'src/overlays/reducers/overlays'
 

@@ -1,6 +1,6 @@
 // Libraries
 import qs from 'qs'
-import {replace, RouterAction} from 'react-router-redux'
+import {replace, RouterAction} from 'connected-react-router'
 import {Dispatch} from 'redux'
 import {get, pickBy} from 'lodash'
 

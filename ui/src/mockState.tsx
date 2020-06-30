@@ -1,6 +1,6 @@
 import React from 'react'
 import {Provider} from 'react-redux'
-import {Router, createMemoryHistory} from 'react-router'
+import {Router, createMemoryHistory} from 'react-router-dom'
 
 import {render} from '@testing-library/react'
 import {initialState as initialVariablesState} from 'src/variables/reducers'

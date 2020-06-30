@@ -1,6 +1,6 @@
 // Libraries
 import React, {FC} from 'react'
-import {withRouter, WithRouterProps} from 'react-router'
+import {withRouter, WithRouterProps} from 'react-router-dom'
 import CopyToClipboard from 'react-copy-to-clipboard'
 import {connect} from 'react-redux'
 

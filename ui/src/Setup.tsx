@@ -1,6 +1,6 @@
 // Libraries
 import React, {ReactElement, PureComponent} from 'react'
-import {InjectedRouter} from 'react-router'
+import {InjectedRouter} from 'react-router-dom'
 
 // APIs
 import {client} from 'src/utils/api'

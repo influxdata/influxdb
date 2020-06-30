@@ -37,7 +37,7 @@ import {
 
 // Types
 import {AppState, Task, RemoteDataState, ResourceType} from 'src/types'
-import {InjectedRouter, WithRouterProps} from 'react-router'
+import {InjectedRouter, WithRouterProps} from 'react-router-dom'
 import {Sort} from '@influxdata/clockface'
 import {SortTypes} from 'src/shared/utils/sort'
 import {extractTaskLimits} from 'src/cloud/utils/limits'

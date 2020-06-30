@@ -12,7 +12,7 @@ import {setOrg as setOrgAction} from 'src/organizations/actions/creators'
 import {updateReportingContext} from 'src/cloud/utils/reporting'
 
 // Decorators
-import {InjectedRouter} from 'react-router'
+import {InjectedRouter} from 'react-router-dom'
 import {
   RemoteDataState,
   SpinnerContainer,

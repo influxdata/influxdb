@@ -1,6 +1,6 @@
 // Libraries
 import React, {FC, Dispatch} from 'react'
-import {withRouter, WithRouterProps} from 'react-router'
+import {withRouter, WithRouterProps} from 'react-router-dom'
 import {connect} from 'react-redux'
 
 // Actions

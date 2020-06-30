@@ -1,7 +1,7 @@
 // Libraries
 import React, {ReactElement, PureComponent} from 'react'
 import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router'
+import {withRouter, WithRouterProps} from 'react-router-dom'
 
 // APIs
 import {client} from 'src/utils/api'

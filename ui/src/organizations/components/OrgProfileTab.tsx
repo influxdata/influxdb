@@ -1,7 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
-import {WithRouterProps, withRouter} from 'react-router'
+import {WithRouterProps, withRouter} from 'react-router-dom'
 
 import _ from 'lodash'
 

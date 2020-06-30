@@ -1,4 +1,4 @@
-import {browserHistory} from 'react-router'
+import {browserHistory} from 'react-router-dom'
 import qs from 'qs'
 import {pickBy} from 'lodash'
 

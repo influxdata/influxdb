@@ -4,11 +4,11 @@ import 'abortcontroller-polyfill/dist/polyfill-patch-fetch'
 import React, {PureComponent} from 'react'
 import {render} from 'react-dom'
 import {Provider} from 'react-redux'
-import {Router, Route, useRouterHistory, IndexRoute} from 'react-router'
-import {createHistory, History} from 'history'
+import {Route} from 'react-router-dom'
+import {ConnectedRouter} from 'connected-react-router'
 
-import {CLOUD} from 'src/shared/constants'
-import configureStore from 'src/store/configureStore'
+// import {CLOUD} from 'src/shared/constants'
+import configureStore, {history} from 'src/store/configureStore'
 import {loadLocalStorage} from 'src/localStorage'
 
 import {getRootNode} from 'src/utils/nodes'
@@ -17,137 +17,137 @@ import {updateReportingContext} from 'src/cloud/utils/reporting'
 
 // Components
 import App from 'src/App'
-import GetOrganizations from 'src/shared/containers/GetOrganizations'
-import Setup from 'src/Setup'
-import Signin from 'src/Signin'
-import SigninPage from 'src/onboarding/containers/SigninPage'
-import {LoginPage} from 'src/onboarding/containers/LoginPage'
-import Logout from 'src/Logout'
-import TaskPage from 'src/tasks/containers/TaskPage'
-import TasksPage from 'src/tasks/containers/TasksPage'
-import TaskRunsPage from 'src/tasks/components/TaskRunsPage'
-import TaskEditPage from 'src/tasks/containers/TaskEditPage'
-import DashboardContainer from 'src/dashboards/components/DashboardContainer'
-import DashboardsIndex from 'src/dashboards/components/dashboard_index/DashboardsIndex'
-import DashboardExportOverlay from 'src/dashboards/components/DashboardExportOverlay'
-import DashboardImportOverlay from 'src/dashboards/components/DashboardImportOverlay'
-import CreateFromTemplateOverlay from 'src/templates/components/createFromTemplateOverlay/CreateFromTemplateOverlay'
-import CreateVariableOverlay from 'src/variables/components/CreateVariableOverlay'
-import DataExplorerPage from 'src/dataExplorer/components/DataExplorerPage'
-import SaveAsOverlay from 'src/dataExplorer/components/SaveAsOverlay'
-import {MePage} from 'src/me'
-import NotebookPage from 'src/notebooks/components/Notebook'
+// import GetOrganizations from 'src/shared/containers/GetOrganizations'
+// import Setup from 'src/Setup'
+// import Signin from 'src/Signin'
+// import SigninPage from 'src/onboarding/containers/SigninPage'
+// import {LoginPage} from 'src/onboarding/containers/LoginPage'
+// import Logout from 'src/Logout'
+// import TaskPage from 'src/tasks/containers/TaskPage'
+// import TasksPage from 'src/tasks/containers/TasksPage'
+// import TaskRunsPage from 'src/tasks/components/TaskRunsPage'
+// import TaskEditPage from 'src/tasks/containers/TaskEditPage'
+// import DashboardContainer from 'src/dashboards/components/DashboardContainer'
+// import DashboardsIndex from 'src/dashboards/components/dashboard_index/DashboardsIndex'
+// import DashboardExportOverlay from 'src/dashboards/components/DashboardExportOverlay'
+// import DashboardImportOverlay from 'src/dashboards/components/DashboardImportOverlay'
+// import CreateFromTemplateOverlay from 'src/templates/components/createFromTemplateOverlay/CreateFromTemplateOverlay'
+// import CreateVariableOverlay from 'src/variables/components/CreateVariableOverlay'
+// import DataExplorerPage from 'src/dataExplorer/components/DataExplorerPage'
+// import SaveAsOverlay from 'src/dataExplorer/components/SaveAsOverlay'
+// import {MePage} from 'src/me'
+// import NotebookPage from 'src/notebooks/components/Notebook'
 import NotFound from 'src/shared/components/NotFound'
 import GetLinks from 'src/shared/containers/GetLinks'
-import GetMe from 'src/shared/containers/GetMe'
-import GetFlags from 'src/shared/containers/GetFlags'
-import UnauthenticatedApp from 'src/shared/containers/UnauthenticatedApp'
-import TaskExportOverlay from 'src/tasks/components/TaskExportOverlay'
-import TaskImportOverlay from 'src/tasks/components/TaskImportOverlay'
-import EditVEO from 'src/dashboards/components/EditVEO'
-import NewVEO from 'src/dashboards/components/NewVEO'
-import OnboardingWizardPage from 'src/onboarding/containers/OnboardingWizardPage'
-import BucketsIndex from 'src/buckets/containers/BucketsIndex'
-import TemplatesIndex from 'src/templates/containers/TemplatesIndex'
-import TelegrafsPage from 'src/telegrafs/containers/TelegrafsPage'
-import ClientLibrariesPage from 'src/clientLibraries/containers/ClientLibrariesPage'
-import ClientArduinoOverlay from 'src/clientLibraries/components/ClientArduinoOverlay'
-import ClientCSharpOverlay from 'src/clientLibraries/components/ClientCSharpOverlay'
-import ClientGoOverlay from 'src/clientLibraries/components/ClientGoOverlay'
-import ClientJavaOverlay from 'src/clientLibraries/components/ClientJavaOverlay'
-import ClientJSOverlay from 'src/clientLibraries/components/ClientJSOverlay'
-import ClientKotlinOverlay from 'src/clientLibraries/components/ClientKotlinOverlay'
-import ClientPHPOverlay from 'src/clientLibraries/components/ClientPHPOverlay'
-import ClientPythonOverlay from 'src/clientLibraries/components/ClientPythonOverlay'
-import ClientRubyOverlay from 'src/clientLibraries/components/ClientRubyOverlay'
-import ClientScalaOverlay from 'src/clientLibraries/components/ClientScalaOverlay'
-import TemplateImportOverlay from 'src/templates/components/TemplateImportOverlay'
-import TemplateExportOverlay from 'src/templates/components/TemplateExportOverlay'
-import VariablesIndex from 'src/variables/containers/VariablesIndex'
-import ScrapersIndex from 'src/scrapers/containers/ScrapersIndex'
-import VariableImportOverlay from 'src/variables/components/VariableImportOverlay'
-import VariableExportOverlay from 'src/variables/components/VariableExportOverlay'
-import SetOrg from 'src/shared/containers/SetOrg'
-import RouteToOrg from 'src/shared/containers/RouteToOrg'
-import CreateOrgOverlay from 'src/organizations/components/CreateOrgOverlay'
-import CreateScraperOverlay from 'src/scrapers/components/CreateScraperOverlay'
-import TokensIndex from 'src/authorizations/containers/TokensIndex'
-import MembersIndex from 'src/members/containers/MembersIndex'
-import LabelsIndex from 'src/labels/containers/LabelsIndex'
-import TemplateViewOverlay from 'src/templates/components/TemplateViewOverlay'
-import LineProtocolWizard from 'src/dataLoaders/components/lineProtocolWizard/LineProtocolWizard'
-import CollectorsWizard from 'src/dataLoaders/components/collectorsWizard/CollectorsWizard'
-import TelegrafInstructionsOverlay from 'src/telegrafs/components/TelegrafInstructionsOverlay'
-import OrgProfilePage from 'src/organizations/containers/OrgProfilePage'
-import RenameOrgOverlay from 'src/organizations/components/RenameOrgOverlay'
-import UpdateBucketOverlay from 'src/buckets/components/UpdateBucketOverlay'
-import RenameBucketOverlay from 'src/buckets/components/RenameBucketOverlay'
-import RenameVariableOverlay from 'src/variables/components/RenameVariableOverlay'
-import UpdateVariableOverlay from 'src/variables/components/UpdateVariableOverlay'
-import TaskImportFromTemplateOverlay from 'src/tasks/components/TaskImportFromTemplateOverlay'
-import StaticTemplateViewOverlay from 'src/templates/components/StaticTemplateViewOverlay'
-import CheckHistory from 'src/checks/components/CheckHistory'
-import AlertingIndex from 'src/alerting/components/AlertingIndex'
-import AlertHistoryIndex from 'src/alerting/components/AlertHistoryIndex'
-import BucketsDeleteDataOverlay from 'src/shared/components/DeleteDataOverlay'
-import DEDeleteDataOverlay from 'src/dataExplorer/components/DeleteDataOverlay'
-import NewThresholdCheckEO from 'src/checks/components/NewThresholdCheckEO'
-import NewDeadmanCheckEO from 'src/checks/components/NewDeadmanCheckEO'
-import EditCheckEO from 'src/checks/components/EditCheckEO'
-import NewRuleOverlay from 'src/notifications/rules/components/NewRuleOverlay'
-import EditRuleOverlay from 'src/notifications/rules/components/EditRuleOverlay'
-import NewEndpointOverlay from 'src/notifications/endpoints/components/NewEndpointOverlay'
-import EditEndpointOverlay from 'src/notifications/endpoints/components/EditEndpointOverlay'
-import NoOrgsPage from 'src/organizations/containers/NoOrgsPage'
+// import GetMe from 'src/shared/containers/GetMe'
+// import GetFlags from 'src/shared/containers/GetFlags'
+// import UnauthenticatedApp from 'src/shared/containers/UnauthenticatedApp'
+// import TaskExportOverlay from 'src/tasks/components/TaskExportOverlay'
+// import TaskImportOverlay from 'src/tasks/components/TaskImportOverlay'
+// import EditVEO from 'src/dashboards/components/EditVEO'
+// import NewVEO from 'src/dashboards/components/NewVEO'
+// import OnboardingWizardPage from 'src/onboarding/containers/OnboardingWizardPage'
+// import BucketsIndex from 'src/buckets/containers/BucketsIndex'
+// import TemplatesIndex from 'src/templates/containers/TemplatesIndex'
+// import TelegrafsPage from 'src/telegrafs/containers/TelegrafsPage'
+// import ClientLibrariesPage from 'src/clientLibraries/containers/ClientLibrariesPage'
+// import ClientArduinoOverlay from 'src/clientLibraries/components/ClientArduinoOverlay'
+// import ClientCSharpOverlay from 'src/clientLibraries/components/ClientCSharpOverlay'
+// import ClientGoOverlay from 'src/clientLibraries/components/ClientGoOverlay'
+// import ClientJavaOverlay from 'src/clientLibraries/components/ClientJavaOverlay'
+// import ClientJSOverlay from 'src/clientLibraries/components/ClientJSOverlay'
+// import ClientKotlinOverlay from 'src/clientLibraries/components/ClientKotlinOverlay'
+// import ClientPHPOverlay from 'src/clientLibraries/components/ClientPHPOverlay'
+// import ClientPythonOverlay from 'src/clientLibraries/components/ClientPythonOverlay'
+// import ClientRubyOverlay from 'src/clientLibraries/components/ClientRubyOverlay'
+// import ClientScalaOverlay from 'src/clientLibraries/components/ClientScalaOverlay'
+// import TemplateImportOverlay from 'src/templates/components/TemplateImportOverlay'
+// import TemplateExportOverlay from 'src/templates/components/TemplateExportOverlay'
+// import VariablesIndex from 'src/variables/containers/VariablesIndex'
+// import ScrapersIndex from 'src/scrapers/containers/ScrapersIndex'
+// import VariableImportOverlay from 'src/variables/components/VariableImportOverlay'
+// import VariableExportOverlay from 'src/variables/components/VariableExportOverlay'
+// import SetOrg from 'src/shared/containers/SetOrg'
+// import RouteToOrg from 'src/shared/containers/RouteToOrg'
+// import CreateOrgOverlay from 'src/organizations/components/CreateOrgOverlay'
+// import CreateScraperOverlay from 'src/scrapers/components/CreateScraperOverlay'
+// import TokensIndex from 'src/authorizations/containers/TokensIndex'
+// import MembersIndex from 'src/members/containers/MembersIndex'
+// import LabelsIndex from 'src/labels/containers/LabelsIndex'
+// import TemplateViewOverlay from 'src/templates/components/TemplateViewOverlay'
+// import LineProtocolWizard from 'src/dataLoaders/components/lineProtocolWizard/LineProtocolWizard'
+// import CollectorsWizard from 'src/dataLoaders/components/collectorsWizard/CollectorsWizard'
+// import TelegrafInstructionsOverlay from 'src/telegrafs/components/TelegrafInstructionsOverlay'
+// import OrgProfilePage from 'src/organizations/containers/OrgProfilePage'
+// import RenameOrgOverlay from 'src/organizations/components/RenameOrgOverlay'
+// import UpdateBucketOverlay from 'src/buckets/components/UpdateBucketOverlay'
+// import RenameBucketOverlay from 'src/buckets/components/RenameBucketOverlay'
+// import RenameVariableOverlay from 'src/variables/components/RenameVariableOverlay'
+// import UpdateVariableOverlay from 'src/variables/components/UpdateVariableOverlay'
+// import TaskImportFromTemplateOverlay from 'src/tasks/components/TaskImportFromTemplateOverlay'
+// import StaticTemplateViewOverlay from 'src/templates/components/StaticTemplateViewOverlay'
+// import CheckHistory from 'src/checks/components/CheckHistory'
+// import AlertingIndex from 'src/alerting/components/AlertingIndex'
+// import AlertHistoryIndex from 'src/alerting/components/AlertHistoryIndex'
+// import BucketsDeleteDataOverlay from 'src/shared/components/DeleteDataOverlay'
+// import DEDeleteDataOverlay from 'src/dataExplorer/components/DeleteDataOverlay'
+// import NewThresholdCheckEO from 'src/checks/components/NewThresholdCheckEO'
+// import NewDeadmanCheckEO from 'src/checks/components/NewDeadmanCheckEO'
+// import EditCheckEO from 'src/checks/components/EditCheckEO'
+// import NewRuleOverlay from 'src/notifications/rules/components/NewRuleOverlay'
+// import EditRuleOverlay from 'src/notifications/rules/components/EditRuleOverlay'
+// import NewEndpointOverlay from 'src/notifications/endpoints/components/NewEndpointOverlay'
+// import EditEndpointOverlay from 'src/notifications/endpoints/components/EditEndpointOverlay'
+// import NoOrgsPage from 'src/organizations/containers/NoOrgsPage'
 
-import {CommunityTemplateImportOverlay} from 'src/templates/components/CommunityTemplateImportOverlay'
+// import {CommunityTemplateImportOverlay} from 'src/templates/components/CommunityTemplateImportOverlay'
 
 // Utilities
-import {isFlagEnabled} from 'src/shared/utils/featureFlag'
+// import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 import {writeNavigationTimingMetrics} from 'src/cloud/utils/rum'
 
-// Overlays
-import OverlayHandler, {
-  RouteOverlay,
-} from 'src/overlays/components/RouteOverlay'
-const AddNoteOverlay = RouteOverlay(OverlayHandler, 'add-note', router => {
-  router.push(
-    `/orgs/${router.params.orgID}/dashboards/${router.params.dashboardID}`
-  )
-})
-const EditNoteOverlay = RouteOverlay(OverlayHandler, 'edit-note', router => {
-  router.push(
-    `/orgs/${router.params.orgID}/dashboards/${router.params.dashboardID}`
-  )
-})
-const AllAccessTokenOverlay = RouteOverlay(
-  OverlayHandler,
-  'add-master-token',
-  router => {
-    router.push(`/orgs/${router.params.orgID}/load-data/tokens`)
-  }
-)
-const BucketsTokenOverlay = RouteOverlay(
-  OverlayHandler,
-  'add-token',
-  router => {
-    router.push(`/orgs/${router.params.orgID}/load-data/tokens`)
-  }
-)
-const TelegrafConfigOverlay = RouteOverlay(
-  OverlayHandler,
-  'telegraf-config',
-  router => {
-    router.push(`/orgs/${router.params.orgID}/load-data/telegrafs`)
-  }
-)
-const TelegrafOutputOverlay = RouteOverlay(
-  OverlayHandler,
-  'telegraf-output',
-  router => {
-    router.push(`/orgs/${router.params.orgID}/load-data/telegrafs`)
-  }
-)
+// // Overlays
+// import OverlayHandler, {
+//   RouteOverlay,
+// } from 'src/overlays/components/RouteOverlay'
+// const AddNoteOverlay = RouteOverlay(OverlayHandler, 'add-note', router => {
+//   router.push(
+//     `/orgs/${router.params.orgID}/dashboards/${router.params.dashboardID}`
+//   )
+// })
+// const EditNoteOverlay = RouteOverlay(OverlayHandler, 'edit-note', router => {
+//   router.push(
+//     `/orgs/${router.params.orgID}/dashboards/${router.params.dashboardID}`
+//   )
+// })
+// const AllAccessTokenOverlay = RouteOverlay(
+//   OverlayHandler,
+//   'add-master-token',
+//   router => {
+//     router.push(`/orgs/${router.params.orgID}/load-data/tokens`)
+//   }
+// )
+// const BucketsTokenOverlay = RouteOverlay(
+//   OverlayHandler,
+//   'add-token',
+//   router => {
+//     router.push(`/orgs/${router.params.orgID}/load-data/tokens`)
+//   }
+// )
+// const TelegrafConfigOverlay = RouteOverlay(
+//   OverlayHandler,
+//   'telegraf-config',
+//   router => {
+//     router.push(`/orgs/${router.params.orgID}/load-data/telegrafs`)
+//   }
+// )
+// const TelegrafOutputOverlay = RouteOverlay(
+//   OverlayHandler,
+//   'telegraf-output',
+//   router => {
+//     router.push(`/orgs/${router.params.orgID}/load-data/telegrafs`)
+//   }
+// )
 
 // Actions
 import {disablePresentationMode} from 'src/shared/actions/app'
@@ -179,11 +179,7 @@ declare global {
 // Older method used for pre-IE 11 compatibility
 window.basepath = basepath
 
-const history: History = useRouterHistory(createHistory)({
-  basename: basepath, // this is written in when available by the URL prefixer middleware
-})
-
-export const store = configureStore(loadLocalStorage(), history)
+export const store = configureStore(loadLocalStorage())
 const {dispatch} = store
 
 if (window['Cypress']) {
@@ -206,9 +202,9 @@ class Root extends PureComponent {
   public render() {
     return (
       <Provider store={store}>
-        <Router history={history}>
+        <ConnectedRouter history={history}>
           <Route component={GetLinks}>
-            <Route component={Setup}>
+            {/*<Route component={Setup}>
               <Route path="/onboarding">
                 <Route path=":stepID" component={OnboardingWizardPage} />
                 <Route
@@ -523,10 +519,10 @@ class Root extends PureComponent {
                   </Route>
                 </Route>
               </Route>
-            </Route>
+                            </Route> */}
           </Route>
           <Route path="*" component={NotFound} />
-        </Router>
+        </ConnectedRouter>
       </Provider>
     )
   }

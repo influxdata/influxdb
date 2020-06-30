@@ -1,7 +1,7 @@
 // Libraries
 import React, {FC, useEffect} from 'react'
 import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router'
+import {withRouter, WithRouterProps} from 'react-router-dom'
 import {getTimeRange} from 'src/dashboards/selectors'
 
 // Actions

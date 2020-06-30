@@ -1,7 +1,7 @@
 // Libraries
 import React, {PureComponent, MouseEvent} from 'react'
 import {connect} from 'react-redux'
-import {withRouter, WithRouterProps, Link} from 'react-router'
+import {withRouter, WithRouterProps, Link} from 'react-router-dom'
 
 // Components
 import {Context} from 'src/clockface'

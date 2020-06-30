@@ -1,6 +1,6 @@
 // Libraries
 import React, {Component, ReactElement, ReactNode} from 'react'
-import {withRouter, WithRouterProps} from 'react-router'
+import {withRouter, WithRouterProps} from 'react-router-dom'
 
 // Components
 import TabbedPageSection from 'src/shared/components/tabbed_page/TabbedPageSection'

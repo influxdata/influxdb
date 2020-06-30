@@ -1,7 +1,7 @@
 import {createStore, applyMiddleware, compose} from 'redux'
-import {History} from 'history'
+import {History, createBrowserHistory} from 'history'
 import {combineReducers, Store} from 'redux'
-import {routerReducer, routerMiddleware} from 'react-router-redux'
+import {connectRouter, routerMiddleware} from 'connected-react-router'
 import thunkMiddleware from 'redux-thunk'
 
 import {resizeLayout} from 'src/shared/middleware/resizeLayout'
@@ -59,58 +59,61 @@ import {queryCacheReducer} from 'src/queryCache/reducers'
 
 type ReducerState = Pick<AppState, Exclude<keyof AppState, 'timeRange'>>
 
-export const rootReducer = combineReducers<ReducerState>({
-  ...sharedReducers,
-  autoRefresh: autoRefreshReducer,
-  alertBuilder: alertBuilderReducer,
-  cloud: combineReducers<{
-    limits: LimitsState
-    demoData: DemoDataState
-    orgSettings: OrgSettingsState
-  }>({
-    limits: limitsReducer,
-    demoData: demoDataReducer,
-    orgSettings: orgSettingsReducer,
-  }),
-  currentPage: currentPageReducer,
-  currentDashboard: currentDashboardReducer,
-  dataLoading: dataLoadingReducer,
-  me: meReducer,
-  flags: flagReducer,
-  noteEditor: noteEditorReducer,
-  onboarding: onboardingReducer,
-  overlays: overlaysReducer,
-  plugins: pluginsResourceReducer,
-  predicates: predicatesReducer,
-  queryCache: queryCacheReducer,
-  ranges: rangesReducer,
-  resources: combineReducers({
-    buckets: bucketsReducer,
-    cells: cellsReducer,
-    checks: checksReducer,
-    dashboards: dashboardsReducer,
-    endpoints: endpointsReducer,
-    labels: labelsReducer,
-    members: membersReducer,
-    orgs: orgsReducer,
-    rules: rulesReducer,
-    scrapers: scrapersReducer,
-    tasks: tasksReducer,
-    telegrafs: telegrafsReducer,
-    templates: templatesReducer,
-    tokens: authsReducer,
-    variables: variablesReducer,
-    views: viewsReducer,
-  }),
-  routing: routerReducer,
-  telegrafEditor: editorReducer,
-  telegrafEditorActivePlugins: activePluginsReducer,
-  telegrafEditorPlugins: pluginsReducer,
-  timeMachines: timeMachinesReducer,
-  userSettings: userSettingsReducer,
-  variableEditor: variableEditorReducer,
-  VERSION: () => '',
-})
+export const history = createBrowserHistory()
+
+export const rootReducer = (history: History) =>
+  combineReducers<ReducerState>({
+    router: connectRouter(history),
+    ...sharedReducers,
+    autoRefresh: autoRefreshReducer,
+    alertBuilder: alertBuilderReducer,
+    cloud: combineReducers<{
+      limits: LimitsState
+      demoData: DemoDataState
+      orgSettings: OrgSettingsState
+    }>({
+      limits: limitsReducer,
+      demoData: demoDataReducer,
+      orgSettings: orgSettingsReducer,
+    }),
+    currentPage: currentPageReducer,
+    currentDashboard: currentDashboardReducer,
+    dataLoading: dataLoadingReducer,
+    me: meReducer,
+    flags: flagReducer,
+    noteEditor: noteEditorReducer,
+    onboarding: onboardingReducer,
+    overlays: overlaysReducer,
+    plugins: pluginsResourceReducer,
+    predicates: predicatesReducer,
+    queryCache: queryCacheReducer,
+    ranges: rangesReducer,
+    resources: combineReducers({
+      buckets: bucketsReducer,
+      cells: cellsReducer,
+      checks: checksReducer,
+      dashboards: dashboardsReducer,
+      endpoints: endpointsReducer,
+      labels: labelsReducer,
+      members: membersReducer,
+      orgs: orgsReducer,
+      rules: rulesReducer,
+      scrapers: scrapersReducer,
+      tasks: tasksReducer,
+      telegrafs: telegrafsReducer,
+      templates: templatesReducer,
+      tokens: authsReducer,
+      variables: variablesReducer,
+      views: viewsReducer,
+    }),
+    telegrafEditor: editorReducer,
+    telegrafEditorActivePlugins: activePluginsReducer,
+    telegrafEditorPlugins: pluginsReducer,
+    timeMachines: timeMachinesReducer,
+    userSettings: userSettingsReducer,
+    variableEditor: variableEditorReducer,
+    VERSION: () => '',
+  })
 
 const composeEnhancers =
   (window as any).__REDUX_DEVTOOLS_EXTENSION_COMPOSE__ || compose
@@ -123,8 +126,7 @@ export function clearStore() {
 }
 
 export default function configureStore(
-  initialState?: LocalStorage,
-  history?: History
+  initialState?: LocalStorage
 ): Store<AppState & LocalStorage> {
   // NOTE: memoizing helps keep singular instances of the store
   // after initialization, or else actions start failing for reasons
@@ -146,6 +148,6 @@ export default function configureStore(
   // https://github.com/elgerlambert/redux-localstorage/issues/42
   // createPersistentStore should ONLY take reducer and initialState
   // any store enhancers must be added to the compose() function.
-  _store = createPersistentStore(rootReducer, initialState)
+  _store = createPersistentStore(rootReducer(history), initialState)
   return _store
 }

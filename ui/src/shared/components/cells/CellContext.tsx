@@ -1,6 +1,6 @@
 // Libraries
 import React, {FC, useRef, RefObject, useState} from 'react'
-import {withRouter, WithRouterProps} from 'react-router'
+import {withRouter, WithRouterProps} from 'react-router-dom'
 import {connect} from 'react-redux'
 import {get} from 'lodash'
 import classnames from 'classnames'

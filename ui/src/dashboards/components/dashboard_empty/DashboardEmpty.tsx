@@ -1,7 +1,7 @@
 // Libraries
 import React, {Component} from 'react'
 import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router'
+import {withRouter, WithRouterProps} from 'react-router-dom'
 
 // Components
 import {Button, EmptyState} from '@influxdata/clockface'

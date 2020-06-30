@@ -1,7 +1,7 @@
 // Libraries
 import React, {FC} from 'react'
 import classnames from 'classnames'
-import {WithRouterProps, withRouter} from 'react-router'
+import {WithRouterProps, withRouter} from 'react-router-dom'
 
 // Components
 import {IconFont, Icon} from '@influxdata/clockface'

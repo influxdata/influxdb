@@ -9,7 +9,7 @@ import {
   Label,
 } from 'src/types'
 import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
-import {WithRouterProps} from 'react-router'
+import {WithRouterProps} from 'react-router-dom'
 import {NumericColumnData} from '@influxdata/giraffe'
 import {
   Source,

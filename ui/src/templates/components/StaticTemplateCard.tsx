@@ -2,7 +2,7 @@
 import React, {PureComponent, MouseEvent} from 'react'
 import {get, capitalize} from 'lodash'
 import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router'
+import {withRouter, WithRouterProps} from 'react-router-dom'
 import {
   Button,
   ComponentSize,
