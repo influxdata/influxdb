@@ -40,93 +40,93 @@ func newStateCoordinator(pkg *Pkg, acts resourceActions) *stateCoordinator {
 	// when a label is skipped by an action, this will still be accurate
 	// for hte individual labels, and cascades to the resources that are
 	// associated to a label.
-	for _, pkgLabel := range pkg.labels() {
-		if acts.skipResource(KindLabel, pkgLabel.PkgName()) {
+	for _, l := range pkg.labels() {
+		if acts.skipResource(KindLabel, l.PkgName()) {
 			continue
 		}
-		state.mLabels[pkgLabel.PkgName()] = &stateLabel{
-			parserLabel: pkgLabel,
+		state.mLabels[l.PkgName()] = &stateLabel{
+			parserLabel: l,
 			stateStatus: StateStatusNew,
 		}
 	}
-	for _, pkgBkt := range pkg.buckets() {
-		if acts.skipResource(KindBucket, pkgBkt.PkgName()) {
+	for _, b := range pkg.buckets() {
+		if acts.skipResource(KindBucket, b.PkgName()) {
 			continue
 		}
-		state.mBuckets[pkgBkt.PkgName()] = &stateBucket{
-			parserBkt:         pkgBkt,
+		state.mBuckets[b.PkgName()] = &stateBucket{
+			parserBkt:         b,
 			stateStatus:       StateStatusNew,
-			labelAssociations: state.pkgToStateLabels(pkgBkt.labels),
+			labelAssociations: state.pkgToStateLabels(b.labels),
 		}
 	}
-	for _, pkgCheck := range pkg.checks() {
-		if acts.skipResource(KindCheck, pkgCheck.PkgName()) {
+	for _, c := range pkg.checks() {
+		if acts.skipResource(KindCheck, c.PkgName()) {
 			continue
 		}
-		state.mChecks[pkgCheck.PkgName()] = &stateCheck{
-			parserCheck:       pkgCheck,
+		state.mChecks[c.PkgName()] = &stateCheck{
+			parserCheck:       c,
 			stateStatus:       StateStatusNew,
-			labelAssociations: state.pkgToStateLabels(pkgCheck.labels),
+			labelAssociations: state.pkgToStateLabels(c.labels),
 		}
 	}
-	for _, pkgDash := range pkg.dashboards() {
-		if acts.skipResource(KindDashboard, pkgDash.PkgName()) {
+	for _, d := range pkg.dashboards() {
+		if acts.skipResource(KindDashboard, d.PkgName()) {
 			continue
 		}
-		state.mDashboards[pkgDash.PkgName()] = &stateDashboard{
-			parserDash:        pkgDash,
+		state.mDashboards[d.PkgName()] = &stateDashboard{
+			parserDash:        d,
 			stateStatus:       StateStatusNew,
-			labelAssociations: state.pkgToStateLabels(pkgDash.labels),
+			labelAssociations: state.pkgToStateLabels(d.labels),
 		}
 	}
-	for _, pkgEndpoint := range pkg.notificationEndpoints() {
-		if acts.skipResource(KindNotificationEndpoint, pkgEndpoint.PkgName()) {
+	for _, e := range pkg.notificationEndpoints() {
+		if acts.skipResource(KindNotificationEndpoint, e.PkgName()) {
 			continue
 		}
-		state.mEndpoints[pkgEndpoint.PkgName()] = &stateEndpoint{
-			parserEndpoint:    pkgEndpoint,
+		state.mEndpoints[e.PkgName()] = &stateEndpoint{
+			parserEndpoint:    e,
 			stateStatus:       StateStatusNew,
-			labelAssociations: state.pkgToStateLabels(pkgEndpoint.labels),
+			labelAssociations: state.pkgToStateLabels(e.labels),
 		}
 	}
-	for _, pkgRule := range pkg.notificationRules() {
-		if acts.skipResource(KindNotificationRule, pkgRule.PkgName()) {
+	for _, r := range pkg.notificationRules() {
+		if acts.skipResource(KindNotificationRule, r.PkgName()) {
 			continue
 		}
-		state.mRules[pkgRule.PkgName()] = &stateRule{
-			parserRule:        pkgRule,
+		state.mRules[r.PkgName()] = &stateRule{
+			parserRule:        r,
 			stateStatus:       StateStatusNew,
-			labelAssociations: state.pkgToStateLabels(pkgRule.labels),
+			labelAssociations: state.pkgToStateLabels(r.labels),
 		}
 	}
-	for _, pkgTask := range pkg.tasks() {
-		if acts.skipResource(KindTask, pkgTask.PkgName()) {
+	for _, task := range pkg.tasks() {
+		if acts.skipResource(KindTask, task.PkgName()) {
 			continue
 		}
-		state.mTasks[pkgTask.PkgName()] = &stateTask{
-			parserTask:        pkgTask,
+		state.mTasks[task.PkgName()] = &stateTask{
+			parserTask:        task,
 			stateStatus:       StateStatusNew,
-			labelAssociations: state.pkgToStateLabels(pkgTask.labels),
+			labelAssociations: state.pkgToStateLabels(task.labels),
 		}
 	}
-	for _, pkgTele := range pkg.telegrafs() {
-		if acts.skipResource(KindTelegraf, pkgTele.PkgName()) {
+	for _, tele := range pkg.telegrafs() {
+		if acts.skipResource(KindTelegraf, tele.PkgName()) {
 			continue
 		}
-		state.mTelegrafs[pkgTele.PkgName()] = &stateTelegraf{
-			parserTelegraf:    pkgTele,
+		state.mTelegrafs[tele.PkgName()] = &stateTelegraf{
+			parserTelegraf:    tele,
 			stateStatus:       StateStatusNew,
-			labelAssociations: state.pkgToStateLabels(pkgTele.labels),
+			labelAssociations: state.pkgToStateLabels(tele.labels),
 		}
 	}
-	for _, pkgVar := range pkg.variables() {
-		if acts.skipResource(KindVariable, pkgVar.PkgName()) {
+	for _, v := range pkg.variables() {
+		if acts.skipResource(KindVariable, v.PkgName()) {
 			continue
 		}
-		state.mVariables[pkgVar.PkgName()] = &stateVariable{
-			parserVar:         pkgVar,
+		state.mVariables[v.PkgName()] = &stateVariable{
+			parserVar:         v,
 			stateStatus:       StateStatusNew,
-			labelAssociations: state.pkgToStateLabels(pkgVar.labels),
+			labelAssociations: state.pkgToStateLabels(v.labels),
 		}
 	}
 
@@ -406,8 +406,8 @@ func (s *stateCoordinator) summary() Summary {
 	return sum
 }
 
-func (s *stateCoordinator) getLabelByPkgName(pkgName string) (*stateLabel, bool) {
-	l, ok := s.mLabels[pkgName]
+func (s *stateCoordinator) getLabelByPkgName(metaName string) (*stateLabel, bool) {
+	l, ok := s.mLabels[metaName]
 	return l, ok
 }
 
@@ -503,45 +503,45 @@ func (s *stateCoordinator) reconcileNotificationDependencies(stackResources []St
 	}
 }
 
-func (s *stateCoordinator) get(k Kind, pkgName string) (interface{}, bool) {
+func (s *stateCoordinator) get(k Kind, metaName string) (interface{}, bool) {
 	switch k {
 	case KindBucket:
-		v, ok := s.mBuckets[pkgName]
+		v, ok := s.mBuckets[metaName]
 		return v, ok
 	case KindCheck, KindCheckDeadman, KindCheckThreshold:
-		v, ok := s.mChecks[pkgName]
+		v, ok := s.mChecks[metaName]
 		return v, ok
 	case KindDashboard:
-		v, ok := s.mDashboards[pkgName]
+		v, ok := s.mDashboards[metaName]
 		return v, ok
 	case KindLabel:
-		v, ok := s.mLabels[pkgName]
+		v, ok := s.mLabels[metaName]
 		return v, ok
 	case KindNotificationEndpoint,
 		KindNotificationEndpointHTTP,
 		KindNotificationEndpointPagerDuty,
 		KindNotificationEndpointSlack:
-		v, ok := s.mEndpoints[pkgName]
+		v, ok := s.mEndpoints[metaName]
 		return v, ok
 	case KindNotificationRule:
-		v, ok := s.mRules[pkgName]
+		v, ok := s.mRules[metaName]
 		return v, ok
 	case KindTask:
-		v, ok := s.mTasks[pkgName]
+		v, ok := s.mTasks[metaName]
 		return v, ok
 	case KindTelegraf:
-		v, ok := s.mTelegrafs[pkgName]
+		v, ok := s.mTelegrafs[metaName]
 		return v, ok
 	case KindVariable:
-		v, ok := s.mVariables[pkgName]
+		v, ok := s.mVariables[metaName]
 		return v, ok
 	default:
 		return nil, false
 	}
 }
 
-func (s *stateCoordinator) labelAssociations(k Kind, pkgName string) []*stateLabel {
-	v, _ := s.get(k, pkgName)
+func (s *stateCoordinator) labelAssociations(k Kind, metaName string) []*stateLabel {
+	v, _ := s.get(k, metaName)
 	labeler, ok := v.(interface {
 		labels() []*stateLabel
 	})
@@ -552,14 +552,14 @@ func (s *stateCoordinator) labelAssociations(k Kind, pkgName string) []*stateLab
 	return labeler.labels()
 }
 
-func (s *stateCoordinator) Contains(k Kind, pkgName string) bool {
-	_, ok := s.get(k, pkgName)
+func (s *stateCoordinator) Contains(k Kind, metaName string) bool {
+	_, ok := s.get(k, metaName)
 	return ok
 }
 
 // setObjectID sets the id for the resource graphed from the object the key identifies.
-func (s *stateCoordinator) setObjectID(k Kind, pkgName string, id influxdb.ID) {
-	idSetFn, ok := s.getObjectIDSetter(k, pkgName)
+func (s *stateCoordinator) setObjectID(k Kind, metaName string, id influxdb.ID) {
+	idSetFn, ok := s.getObjectIDSetter(k, metaName)
 	if !ok {
 		return
 	}
@@ -567,35 +567,35 @@ func (s *stateCoordinator) setObjectID(k Kind, pkgName string, id influxdb.ID) {
 }
 
 // addObjectForRemoval sets the id for the resource graphed from the object the key identifies.
-// The pkgName and kind are used as the unique identifier, when calling this it will
+// The metaName and kind are used as the unique identifier, when calling this it will
 // overwrite any existing value if one exists. If desired, check for the value by using
 // the Contains method.
-func (s *stateCoordinator) addObjectForRemoval(k Kind, pkgName string, id influxdb.ID) {
+func (s *stateCoordinator) addObjectForRemoval(k Kind, metaName string, id influxdb.ID) {
 	newIdentity := identity{
-		name: &references{val: pkgName},
+		name: &references{val: metaName},
 	}
 
 	switch k {
 	case KindBucket:
-		s.mBuckets[pkgName] = &stateBucket{
+		s.mBuckets[metaName] = &stateBucket{
 			id:          id,
 			parserBkt:   &bucket{identity: newIdentity},
 			stateStatus: StateStatusRemove,
 		}
 	case KindCheck, KindCheckDeadman, KindCheckThreshold:
-		s.mChecks[pkgName] = &stateCheck{
+		s.mChecks[metaName] = &stateCheck{
 			id:          id,
 			parserCheck: &check{identity: newIdentity},
 			stateStatus: StateStatusRemove,
 		}
 	case KindDashboard:
-		s.mDashboards[pkgName] = &stateDashboard{
+		s.mDashboards[metaName] = &stateDashboard{
 			id:          id,
 			parserDash:  &dashboard{identity: newIdentity},
 			stateStatus: StateStatusRemove,
 		}
 	case KindLabel:
-		s.mLabels[pkgName] = &stateLabel{
+		s.mLabels[metaName] = &stateLabel{
 			id:          id,
 			parserLabel: &label{identity: newIdentity},
 			stateStatus: StateStatusRemove,
@@ -604,31 +604,31 @@ func (s *stateCoordinator) addObjectForRemoval(k Kind, pkgName string, id influx
 		KindNotificationEndpointHTTP,
 		KindNotificationEndpointPagerDuty,
 		KindNotificationEndpointSlack:
-		s.mEndpoints[pkgName] = &stateEndpoint{
+		s.mEndpoints[metaName] = &stateEndpoint{
 			id:             id,
 			parserEndpoint: &notificationEndpoint{identity: newIdentity},
 			stateStatus:    StateStatusRemove,
 		}
 	case KindNotificationRule:
-		s.mRules[pkgName] = &stateRule{
+		s.mRules[metaName] = &stateRule{
 			id:          id,
 			parserRule:  &notificationRule{identity: newIdentity},
 			stateStatus: StateStatusRemove,
 		}
 	case KindTask:
-		s.mTasks[pkgName] = &stateTask{
+		s.mTasks[metaName] = &stateTask{
 			id:          id,
 			parserTask:  &task{identity: newIdentity},
 			stateStatus: StateStatusRemove,
 		}
 	case KindTelegraf:
-		s.mTelegrafs[pkgName] = &stateTelegraf{
+		s.mTelegrafs[metaName] = &stateTelegraf{
 			id:             id,
 			parserTelegraf: &telegraf{identity: newIdentity},
 			stateStatus:    StateStatusRemove,
 		}
 	case KindVariable:
-		s.mVariables[pkgName] = &stateVariable{
+		s.mVariables[metaName] = &stateVariable{
 			id:          id,
 			parserVar:   &variable{identity: newIdentity},
 			stateStatus: StateStatusRemove,
@@ -636,28 +636,28 @@ func (s *stateCoordinator) addObjectForRemoval(k Kind, pkgName string, id influx
 	}
 }
 
-func (s *stateCoordinator) getObjectIDSetter(k Kind, pkgName string) (func(influxdb.ID), bool) {
+func (s *stateCoordinator) getObjectIDSetter(k Kind, metaName string) (func(influxdb.ID), bool) {
 	switch k {
 	case KindBucket:
-		r, ok := s.mBuckets[pkgName]
+		r, ok := s.mBuckets[metaName]
 		return func(id influxdb.ID) {
 			r.id = id
 			r.stateStatus = StateStatusExists
 		}, ok
 	case KindCheck, KindCheckDeadman, KindCheckThreshold:
-		r, ok := s.mChecks[pkgName]
+		r, ok := s.mChecks[metaName]
 		return func(id influxdb.ID) {
 			r.id = id
 			r.stateStatus = StateStatusExists
 		}, ok
 	case KindDashboard:
-		r, ok := s.mDashboards[pkgName]
+		r, ok := s.mDashboards[metaName]
 		return func(id influxdb.ID) {
 			r.id = id
 			r.stateStatus = StateStatusExists
 		}, ok
 	case KindLabel:
-		r, ok := s.mLabels[pkgName]
+		r, ok := s.mLabels[metaName]
 		return func(id influxdb.ID) {
 			r.id = id
 			r.stateStatus = StateStatusExists
@@ -666,31 +666,31 @@ func (s *stateCoordinator) getObjectIDSetter(k Kind, pkgName string) (func(influ
 		KindNotificationEndpointHTTP,
 		KindNotificationEndpointPagerDuty,
 		KindNotificationEndpointSlack:
-		r, ok := s.mEndpoints[pkgName]
+		r, ok := s.mEndpoints[metaName]
 		return func(id influxdb.ID) {
 			r.id = id
 			r.stateStatus = StateStatusExists
 		}, ok
 	case KindNotificationRule:
-		r, ok := s.mRules[pkgName]
+		r, ok := s.mRules[metaName]
 		return func(id influxdb.ID) {
 			r.id = id
 			r.stateStatus = StateStatusExists
 		}, ok
 	case KindTask:
-		r, ok := s.mTasks[pkgName]
+		r, ok := s.mTasks[metaName]
 		return func(id influxdb.ID) {
 			r.id = id
 			r.stateStatus = StateStatusExists
 		}, ok
 	case KindTelegraf:
-		r, ok := s.mTelegrafs[pkgName]
+		r, ok := s.mTelegrafs[metaName]
 		return func(id influxdb.ID) {
 			r.id = id
 			r.stateStatus = StateStatusExists
 		}, ok
 	case KindVariable:
-		r, ok := s.mVariables[pkgName]
+		r, ok := s.mVariables[metaName]
 		return func(id influxdb.ID) {
 			r.id = id
 			r.stateStatus = StateStatusExists
@@ -703,7 +703,7 @@ func (s *stateCoordinator) getObjectIDSetter(k Kind, pkgName string) (func(influ
 type stateIdentity struct {
 	id           influxdb.ID
 	name         string
-	pkgName      string
+	metaName     string
 	resourceType influxdb.ResourceType
 	stateStatus  StateStatus
 }
@@ -781,7 +781,7 @@ func (b *stateBucket) stateIdentity() stateIdentity {
 	return stateIdentity{
 		id:           b.ID(),
 		name:         b.parserBkt.Name(),
-		pkgName:      b.parserBkt.PkgName(),
+		metaName:     b.parserBkt.PkgName(),
 		resourceType: b.resourceType(),
 		stateStatus:  b.stateStatus,
 	}
@@ -823,7 +823,7 @@ func (c *stateCheck) stateIdentity() stateIdentity {
 	return stateIdentity{
 		id:           c.ID(),
 		name:         c.parserCheck.Name(),
-		pkgName:      c.parserCheck.PkgName(),
+		metaName:     c.parserCheck.PkgName(),
 		resourceType: c.resourceType(),
 		stateStatus:  c.stateStatus,
 	}
@@ -887,7 +887,7 @@ func (d *stateDashboard) stateIdentity() stateIdentity {
 	return stateIdentity{
 		id:           d.ID(),
 		name:         d.parserDash.Name(),
-		pkgName:      d.parserDash.PkgName(),
+		metaName:     d.parserDash.PkgName(),
 		resourceType: d.resourceType(),
 		stateStatus:  d.stateStatus,
 	}
@@ -1046,7 +1046,7 @@ func (lm stateLabelMapping) diffLabelMapping() DiffLabelMapping {
 		StateStatus:   lm.status,
 		ResType:       ident.resourceType,
 		ResID:         SafeID(ident.id),
-		ResMetaName:   ident.pkgName,
+		ResMetaName:   ident.metaName,
 		ResName:       ident.name,
 		LabelID:       SafeID(lm.label.ID()),
 		LabelMetaName: lm.label.parserLabel.PkgName(),
@@ -1059,7 +1059,7 @@ func (lm stateLabelMapping) summarize() SummaryLabelMapping {
 	return SummaryLabelMapping{
 		Status:          lm.status,
 		ResourceID:      SafeID(ident.id),
-		ResourcePkgName: ident.pkgName,
+		ResourcePkgName: ident.metaName,
 		ResourceName:    ident.name,
 		ResourceType:    ident.resourceType,
 		LabelPkgName:    lm.label.parserLabel.PkgName(),
@@ -1143,7 +1143,7 @@ func (e *stateEndpoint) stateIdentity() stateIdentity {
 	return stateIdentity{
 		id:           e.ID(),
 		name:         e.parserEndpoint.Name(),
-		pkgName:      e.parserEndpoint.PkgName(),
+		metaName:     e.parserEndpoint.PkgName(),
 		resourceType: e.resourceType(),
 		stateStatus:  e.stateStatus,
 	}
@@ -1295,7 +1295,7 @@ func (r *stateRule) stateIdentity() stateIdentity {
 	return stateIdentity{
 		id:           r.ID(),
 		name:         r.parserRule.Name(),
-		pkgName:      r.parserRule.PkgName(),
+		metaName:     r.parserRule.PkgName(),
 		resourceType: r.resourceType(),
 		stateStatus:  r.stateStatus,
 	}
@@ -1394,7 +1394,7 @@ func (t *stateTask) stateIdentity() stateIdentity {
 	return stateIdentity{
 		id:           t.ID(),
 		name:         t.parserTask.Name(),
-		pkgName:      t.parserTask.PkgName(),
+		metaName:     t.parserTask.PkgName(),
 		resourceType: t.resourceType(),
 		stateStatus:  t.stateStatus,
 	}
@@ -1447,7 +1447,7 @@ func (t *stateTelegraf) stateIdentity() stateIdentity {
 	return stateIdentity{
 		id:           t.ID(),
 		name:         t.parserTelegraf.Name(),
-		pkgName:      t.parserTelegraf.PkgName(),
+		metaName:     t.parserTelegraf.PkgName(),
 		resourceType: t.resourceType(),
 		stateStatus:  t.stateStatus,
 	}
@@ -1522,7 +1522,7 @@ func (v *stateVariable) stateIdentity() stateIdentity {
 	return stateIdentity{
 		id:           v.ID(),
 		name:         v.parserVar.Name(),
-		pkgName:      v.parserVar.PkgName(),
+		metaName:     v.parserVar.PkgName(),
 		resourceType: v.resourceType(),
 		stateStatus:  v.stateStatus,
 	}

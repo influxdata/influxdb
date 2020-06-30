@@ -3256,7 +3256,7 @@ func stateLabelsToStackAssociations(stateLabels []*stateLabel) []StackResourceAs
 func applyFailErr(method string, ident stateIdentity, err error) error {
 	v := ident.id.String()
 	if v == "" {
-		v = ident.pkgName
+		v = ident.metaName
 	}
 	msg := fmt.Sprintf("failed to %s %s[%q]", method, ident.resourceType, v)
 	return ierrors.Wrap(err, msg)

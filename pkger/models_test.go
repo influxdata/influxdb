@@ -17,11 +17,11 @@ func TestPkg(t *testing.T) {
 				mBuckets: map[string]*bucket{
 					"buck_2": {
 						Description:    "desc2",
-						identity:       identity{name: &references{val: "pkgName2"}, displayName: &references{val: "name2"}},
+						identity:       identity{name: &references{val: "metaName2"}, displayName: &references{val: "name2"}},
 						RetentionRules: retentionRules{newRetentionRule(2 * time.Hour)},
 					},
 					"buck_1": {
-						identity:       identity{name: &references{val: "pkgName1"}, displayName: &references{val: "name1"}},
+						identity:       identity{name: &references{val: "metaName1"}, displayName: &references{val: "name1"}},
 						Description:    "desc1",
 						RetentionRules: retentionRules{newRetentionRule(time.Hour)},
 					},
@@ -35,7 +35,7 @@ func TestPkg(t *testing.T) {
 				assert.Zero(t, buck.ID)
 				assert.Zero(t, buck.OrgID)
 				assert.Equal(t, "desc"+strconv.Itoa(i), buck.Description)
-				assert.Equal(t, "pkgName"+strconv.Itoa(i), buck.MetaName)
+				assert.Equal(t, "metaName"+strconv.Itoa(i), buck.MetaName)
 				assert.Equal(t, "name"+strconv.Itoa(i), buck.Name)
 				assert.Equal(t, time.Duration(i)*time.Hour, buck.RetentionPeriod)
 			}
