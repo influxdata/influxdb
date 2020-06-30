@@ -26,7 +26,7 @@ const DataExplorerPage: FC = ({children}) => {
     <Page titleTag={pageTitleSuffixer(['Data Explorer'])}>
       {children}
       <GetResources resources={[ResourceType.Variables]}>
-        <Page.Header fullWidth={true}>
+        <Page.Header fullWidth={true} testID="data-explorer--header">
           <Page.Title title="Data Explorer" />
           <CloudUpgradeButton />
         </Page.Header>

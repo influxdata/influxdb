@@ -8,7 +8,7 @@ class SettingsHeader extends Component {
   public render() {
     return (
       <Page.Header fullWidth={false}>
-        <Page.Title title="Settings" />
+        <Page.Title title="Settings" testID="settings-page--header" />
         <CloudUpgradeButton />
       </Page.Header>
     )

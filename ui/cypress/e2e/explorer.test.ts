@@ -629,7 +629,7 @@ describe('DataExplorer', () => {
 
       // Fire a click outside of the right click menu to dismiss it because
       // it is obscuring the + button
-      cy.getByTestID('page-header').click()
+      cy.getByTestID('data-explorer--header').click()
 
       cy.get('.time-machine-queries--new').click()
       cy.get('.query-tab').should('have.length', 2)

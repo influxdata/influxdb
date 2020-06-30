@@ -28,7 +28,11 @@ type Props = ComponentProps & StateProps
 const OrgSwitcherOverlay: FC<Props> = ({orgs, onClose, currentOrg}) => {
   return (
     <Overlay.Container maxWidth={500}>
-      <Overlay.Header title="Switch Organizations" onDismiss={onClose} />
+      <Overlay.Header
+        title="Switch Organizations"
+        onDismiss={onClose}
+        testID="switch-overlay--header"
+      />
       <Overlay.Body>
         <p className="org-switcher--prompt">Choose an organization</p>
         <SortingHat list={orgs} sortKey="name" direction={Sort.Ascending}>

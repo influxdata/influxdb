@@ -65,6 +65,7 @@ class CreateOrgOverlay extends PureComponent<Props, State> {
           <Overlay.Header
             title="Create Organization"
             onDismiss={this.closeModal}
+            testID="create-org-overlay--header"
           />
           <Form onSubmit={this.handleCreateOrg}>
             <Overlay.Body>
