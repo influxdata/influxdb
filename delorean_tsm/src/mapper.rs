@@ -3,6 +3,8 @@
 use super::reader::{TSMBlockReader, TSMIndexReader};
 use super::{Block, BlockData, BlockType, TSMError};
 
+use log::warn;
+
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::{Display, Formatter};
 use std::i64;
@@ -147,6 +149,16 @@ impl MeasurementTable {
         block_type: BlockType,
         block: Block,
     ) -> Result<(), TSMError> {
+        // Invariant: our data model does not support a field column for a
+        // measurement table having multiple data types, even though this is
+        // supported in InfluxDB.
+        if let Some(fk) = self.field_columns.get(&field_key) {
+            if *fk != block_type {
+                warn!("Rejected field {:?} with type {:?} for measurement {:?}. Field exists with type: {:?}",&field_key,block_type, self.name,                 *fk);
+                return Ok(());
+            }
+        }
+
         // tags will be used as the key to a map, where the value will be a
         // collection of all the field keys for that tagset and the associated
         // blocks.
@@ -642,6 +654,44 @@ mod tests {
                 "usage_user"
             ]
         );
+    }
+
+    #[test]
+    fn conflicting_field_types() -> Result<(), TSMError> {
+        let mut table = MeasurementTable::new("cpu".to_string());
+        table.add_series_data(
+            vec![("region".to_string(), "west".to_string())],
+            "value".to_string(),
+            BlockType::Float,
+            Block {
+                max_time: 0,
+                min_time: 0,
+                offset: 0,
+                size: 0,
+                typ: BlockType::Float,
+            },
+        )?;
+
+        table.add_series_data(
+            vec![],
+            "value".to_string(),
+            BlockType::Integer,
+            Block {
+                max_time: 0,
+                min_time: 0,
+                offset: 0,
+                size: 0,
+                typ: BlockType::Integer,
+            },
+        )?;
+
+        // The block type for the value field should be Float becuase the
+        // conflicting integer field should be ignored.
+        assert_eq!(
+            *table.field_columns().get("value").unwrap(),
+            BlockType::Float,
+        );
+        Ok(())
     }
 
     #[test]

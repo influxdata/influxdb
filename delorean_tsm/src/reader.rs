@@ -106,19 +106,20 @@ where
         self.curr_offset += 2;
         let count = u16::from_be_bytes(buf);
 
+        let typ = BlockType::try_from(b_type)?;
         Ok(IndexEntry {
             key: key_bytes,
-            block_type: BlockType::try_from(b_type)?,
+            block_type: typ,
             count,
             curr_block: 1,
-            block: self.next_block_entry()?,
+            block: self.next_block_entry(typ)?,
         })
     }
 
     /// next_block_entry will return the next block entry within an index entry.
     /// It is the caller's responsibility to stop reading block entries when
     /// they have all been read for an index entry.
-    fn next_block_entry(&mut self) -> Result<Block, TSMError> {
+    fn next_block_entry(&mut self, typ: BlockType) -> Result<Block, TSMError> {
         // read min time on block entry
         let mut buf = [0u8; 8];
         self.r.read_exact(&mut buf[..])?;
@@ -144,6 +145,7 @@ where
             min_time,
             max_time,
             offset,
+            typ,
             size,
         })
     }
@@ -164,7 +166,7 @@ impl<R: BufRead + Seek> Iterator for TSMIndexReader<R> {
                     // there are more block entries for this index entry. Read
                     // the next block entry.
                     let mut next = curr.clone();
-                    match self.next_block_entry() {
+                    match self.next_block_entry(next.block_type) {
                         Ok(block) => next.block = block,
                         Err(e) => return Some(Err(e)),
                     }
@@ -413,12 +415,14 @@ mod tests {
                 max_time: 1590590600000000000,
                 offset: 5339,
                 size: 153,
+                typ: BlockType::Float,
             },
             super::Block {
                 min_time: 1590585520000000000,
                 max_time: 1590590600000000000,
                 offset: 190770,
                 size: 30,
+                typ: BlockType::Integer,
             },
         ];
 

@@ -9,6 +9,7 @@ edition = "2018"
 [dependencies]
 integer-encoding = "1.0.7"
 snap = "1.0.0"
+log = "0.4.8"
 
 [dev-dependencies]
 hex = "0.4.2"
