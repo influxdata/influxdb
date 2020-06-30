@@ -74,7 +74,7 @@ impl fmt::Display for Id {
 
 impl fmt::Debug for Id {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:016x}", self.0)
+        fmt::Display::fmt(&self, f)
     }
 }
 
