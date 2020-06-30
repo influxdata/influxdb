@@ -2629,12 +2629,14 @@ spec:
 
 		labels := sum1.Labels
 		require.Len(t, labels, 2)
+		assert.Equal(t, pkger.KindLabel, labels[0].Kind)
 		assert.NotZero(t, labels[0].ID)
 		assert.Equal(t, "label-1", labels[0].Name)
 		assert.Equal(t, "the 2nd label", labels[1].Name)
 
 		bkts := sum1.Buckets
 		require.Len(t, bkts, 1)
+		assert.Equal(t, pkger.KindBucket, bkts[0].Kind)
 		assert.NotZero(t, bkts[0].ID)
 		assert.NotEmpty(t, bkts[0].MetaName)
 		assert.Equal(t, "rucketeer", bkts[0].Name)
@@ -2643,8 +2645,10 @@ spec:
 		checks := sum1.Checks
 		require.Len(t, checks, 2)
 		assert.Equal(t, "check 0 name", checks[0].Check.GetName())
+		assert.Equal(t, pkger.KindCheckThreshold, checks[0].Kind)
 		hasLabelAssociations(t, checks[0].LabelAssociations, 1, "label-1")
 		assert.Equal(t, "check-1", checks[1].Check.GetName())
+		assert.Equal(t, pkger.KindCheckDeadman, checks[1].Kind)
 		hasLabelAssociations(t, checks[1].LabelAssociations, 1, "label-1")
 		for _, ch := range checks {
 			assert.NotZero(t, ch.Check.GetID())
@@ -2652,6 +2656,7 @@ spec:
 
 		dashs := sum1.Dashboards
 		require.Len(t, dashs, 1)
+		assert.Equal(t, pkger.KindDashboard, dashs[0].Kind)
 		assert.NotZero(t, dashs[0].ID)
 		assert.NotEmpty(t, dashs[0].Name)
 		assert.Equal(t, "dash_1", dashs[0].Name)
@@ -2662,6 +2667,7 @@ spec:
 
 		endpoints := sum1.NotificationEndpoints
 		require.Len(t, endpoints, 1)
+		assert.Equal(t, pkger.KindNotificationEndpointHTTP, endpoints[0].Kind)
 		assert.NotZero(t, endpoints[0].NotificationEndpoint.GetID())
 		assert.Equal(t, "no auth endpoint", endpoints[0].NotificationEndpoint.GetName())
 		assert.Equal(t, "http none auth desc", endpoints[0].NotificationEndpoint.GetDescription())
@@ -2670,6 +2676,7 @@ spec:
 
 		require.Len(t, sum1.NotificationRules, 1)
 		rule := sum1.NotificationRules[0]
+		assert.Equal(t, pkger.KindNotificationRule, rule.Kind)
 		assert.NotZero(t, rule.ID)
 		assert.Equal(t, "rule_0", rule.Name)
 		assert.Equal(t, pkger.SafeID(endpoints[0].NotificationEndpoint.GetID()), rule.EndpointID)
@@ -2678,12 +2685,14 @@ spec:
 
 		require.Len(t, sum1.Tasks, 1)
 		task := sum1.Tasks[0]
+		assert.Equal(t, pkger.KindTask, task.Kind)
 		assert.NotZero(t, task.ID)
 		assert.Equal(t, "task_1", task.Name)
 		assert.Equal(t, "desc_1", task.Description)
 
 		teles := sum1.TelegrafConfigs
 		require.Len(t, teles, 1)
+		assert.Equal(t, pkger.KindTelegraf, teles[0].Kind)
 		assert.NotZero(t, teles[0].TelegrafConfig.ID)
 		assert.Equal(t, l.Org.ID, teles[0].TelegrafConfig.OrgID)
 		assert.Equal(t, "first tele config", teles[0].TelegrafConfig.Name)
@@ -2692,6 +2701,7 @@ spec:
 
 		vars := sum1.Variables
 		require.Len(t, vars, 1)
+		assert.Equal(t, pkger.KindVariable, vars[0].Kind)
 		assert.NotZero(t, vars[0].ID)
 		assert.Equal(t, "query var", vars[0].Name)
 		assert.Equal(t, []string{"rucketeer"}, vars[0].Selected)

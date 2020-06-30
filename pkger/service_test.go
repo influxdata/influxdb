@@ -785,14 +785,17 @@ func TestService(t *testing.T) {
 					require.Len(t, sum.Buckets, 2)
 
 					expected := SummaryBucket{
+						SummaryIdentifier: SummaryIdentifier{
+							Kind:          KindBucket,
+							MetaName:      "rucket-11",
+							EnvReferences: []SummaryReference{},
+						},
 						ID:                SafeID(time.Hour),
 						OrgID:             SafeID(orgID),
-						MetaName:          "rucket-11",
 						Name:              "rucket-11",
 						Description:       "bucket 1 description",
 						RetentionPeriod:   time.Hour,
 						LabelAssociations: []SummaryLabel{},
-						EnvReferences:     []SummaryReference{},
 					}
 					assert.Contains(t, sum.Buckets, expected)
 				})
@@ -837,14 +840,17 @@ func TestService(t *testing.T) {
 					require.Len(t, sum.Buckets, 2)
 
 					expected := SummaryBucket{
+						SummaryIdentifier: SummaryIdentifier{
+							Kind:          KindBucket,
+							MetaName:      "rucket-11",
+							EnvReferences: []SummaryReference{},
+						},
 						ID:                SafeID(3),
 						OrgID:             SafeID(orgID),
-						MetaName:          "rucket-11",
 						Name:              "rucket-11",
 						Description:       "bucket 1 description",
 						RetentionPeriod:   time.Hour,
 						LabelAssociations: []SummaryLabel{},
-						EnvReferences:     []SummaryReference{},
 					}
 					assert.Contains(t, sum.Buckets, expected)
 					assert.Zero(t, fakeBktSVC.CreateBucketCalls.Count())
