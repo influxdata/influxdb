@@ -39,7 +39,7 @@ export class MePage extends PureComponent<StateProps> {
     return (
       <Page titleTag={pageTitleSuffixer(['Home'])}>
         <Page.Header fullWidth={false}>
-          <Page.Title title="Getting Started" />
+          <Page.Title title="Getting Started" testID="home-page--header" />
           <CloudUpgradeButton />
         </Page.Header>
         <Page.Contents fullWidth={false} scrollable={true}>

@@ -46,7 +46,7 @@ const AlertingIndex: FunctionComponent<StateProps> = ({
   return (
     <>
       <Page titleTag={pageTitleSuffixer(['Alerts'])}>
-        <Page.Header fullWidth={true}>
+        <Page.Header fullWidth={true} testID="alerts-page--header">
           <Page.Title title="Alerts" />
           <CloudUpgradeButton />
         </Page.Header>

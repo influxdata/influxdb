@@ -68,7 +68,11 @@ class SigninPage extends PureComponent<Props, State> {
         loading={this.state.status}
         spinnerComponent={<TechnoSpinner />}
       >
-        <FunnelPage className="signin-page" enableGraphic={true}>
+        <FunnelPage
+          className="signin-page"
+          enableGraphic={true}
+          testID="signin-page"
+        >
           <Panel className="signin-page--panel">
             <Panel.Body alignItems={AlignItems.Center}>
               <div className="signin-page--cubo" />
