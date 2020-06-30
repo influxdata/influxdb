@@ -88,22 +88,46 @@ func TestLauncher_Pkger(t *testing.T) {
 		return obj
 	}
 
-	newCheckDeadmanObject := func(t *testing.T, pkgName, name string, every time.Duration) pkger.Object {
+	newCheckBase := func(t *testing.T, name string, every time.Duration) check.Base {
 		t.Helper()
 
 		d, err := notification.FromTimeDuration(every)
 		require.NoError(t, err)
 
-		obj := pkger.CheckToObject("", &check.Deadman{
-			Base: check.Base{
-				Name:  name,
-				Every: &d,
-				Query: influxdb.DashboardQuery{
-					Text: `from(bucket: "rucket_1") |> range(start: -1d)`,
-				},
-				StatusMessageTemplate: "Check: ${ r._check_name } is: ${ r._level }",
+		return check.Base{
+			Name:  name,
+			Every: &d,
+			Query: influxdb.DashboardQuery{
+				Text: `from(bucket: "rucket_1") |> range(start: -1d)`,
 			},
+			StatusMessageTemplate: "Check: ${ r._check_name } is: ${ r._level }",
+		}
+	}
+
+	newCheckDeadmanObject := func(t *testing.T, pkgName, name string, every time.Duration) pkger.Object {
+		t.Helper()
+
+		obj := pkger.CheckToObject("", &check.Deadman{
+			Base:  newCheckBase(t, name, every),
 			Level: notification.Critical,
+		})
+		obj.SetMetadataName(pkgName)
+		return obj
+	}
+
+	newCheckThresholdObject := func(t *testing.T, pkgName, name string, every time.Duration) pkger.Object {
+		t.Helper()
+
+		obj := pkger.CheckToObject("", &check.Threshold{
+			Base: newCheckBase(t, name, every),
+			Thresholds: []check.ThresholdConfig{
+				check.Lesser{
+					ThresholdConfigBase: check.ThresholdConfigBase{
+						Level: notification.Critical,
+					},
+					Value: 0.5,
+				},
+			},
 		})
 		obj.SetMetadataName(pkgName)
 		return obj
@@ -118,16 +142,42 @@ func TestLauncher_Pkger(t *testing.T) {
 		return obj
 	}
 
+	newEndpointBase := func(name, desc string) endpoint.Base {
+		return endpoint.Base{
+			Name:        name,
+			Description: desc,
+			Status:      influxdb.Inactive,
+		}
+	}
+
 	newEndpointHTTP := func(pkgName, name, description string) pkger.Object {
 		obj := pkger.NotificationEndpointToObject("", &endpoint.HTTP{
-			Base: endpoint.Base{
-				Name:        name,
-				Description: description,
-				Status:      influxdb.Inactive,
-			},
+			Base:       newEndpointBase(name, description),
 			AuthMethod: "none",
 			URL:        "http://example.com",
 			Method:     "GET",
+		})
+		obj.SetMetadataName(pkgName)
+		return obj
+	}
+
+	newEndpointPagerDuty := func(pkgName, name, description string) pkger.Object {
+		obj := pkger.NotificationEndpointToObject("", &endpoint.PagerDuty{
+			Base:      newEndpointBase(name, description),
+			ClientURL: "http://example.com",
+			RoutingKey: influxdb.SecretField{
+				Key:   "routing-key",
+				Value: strPtr("threeve"),
+			},
+		})
+		obj.SetMetadataName(pkgName)
+		return obj
+	}
+
+	newEndpointSlack := func(pkgName, name, description string) pkger.Object {
+		obj := pkger.NotificationEndpointToObject("", &endpoint.Slack{
+			Base: newEndpointBase(name, description),
+			URL:  "http://influxslack.com",
 		})
 		obj.SetMetadataName(pkgName)
 		return obj
@@ -2225,93 +2275,94 @@ func TestLauncher_Pkger(t *testing.T) {
 		}
 	}
 
-	t.Run("dry run a template with no existing resources", func(t *testing.T) {
-		impact, err := svc.DryRun(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithTemplate(newCompletePkg(t)))
-		require.NoError(t, err)
+	t.Run("dry run", func(t *testing.T) {
+		t.Run("template with no existing resources", func(t *testing.T) {
+			impact, err := svc.DryRun(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithTemplate(newCompletePkg(t)))
+			require.NoError(t, err)
 
-		sum, diff := impact.Summary, impact.Diff
+			sum, diff := impact.Summary, impact.Diff
 
-		require.Len(t, diff.Buckets, 1)
-		assert.True(t, diff.Buckets[0].IsNew())
+			require.Len(t, diff.Buckets, 1)
+			assert.True(t, diff.Buckets[0].IsNew())
 
-		require.Len(t, diff.Checks, 2)
-		for _, ch := range diff.Checks {
-			assert.True(t, ch.IsNew())
-		}
+			require.Len(t, diff.Checks, 2)
+			for _, ch := range diff.Checks {
+				assert.True(t, ch.IsNew())
+			}
 
-		require.Len(t, diff.Labels, 2)
-		assert.True(t, diff.Labels[0].IsNew())
-		assert.True(t, diff.Labels[1].IsNew())
+			require.Len(t, diff.Labels, 2)
+			assert.True(t, diff.Labels[0].IsNew())
+			assert.True(t, diff.Labels[1].IsNew())
 
-		require.Len(t, diff.Variables, 1)
-		assert.True(t, diff.Variables[0].IsNew())
+			require.Len(t, diff.Variables, 1)
+			assert.True(t, diff.Variables[0].IsNew())
 
-		require.Len(t, diff.NotificationRules, 1)
-		// the pkg being run here has a relationship with the rule and the endpoint within the pkg.
-		assert.Equal(t, "http", diff.NotificationRules[0].New.EndpointType)
+			require.Len(t, diff.NotificationRules, 1)
+			// the pkg being run here has a relationship with the rule and the endpoint within the pkg.
+			assert.Equal(t, "http", diff.NotificationRules[0].New.EndpointType)
 
-		require.Len(t, diff.Dashboards, 1)
-		require.Len(t, diff.NotificationEndpoints, 1)
-		require.Len(t, diff.Tasks, 1)
-		require.Len(t, diff.Telegrafs, 1)
+			require.Len(t, diff.Dashboards, 1)
+			require.Len(t, diff.NotificationEndpoints, 1)
+			require.Len(t, diff.Tasks, 1)
+			require.Len(t, diff.Telegrafs, 1)
 
-		labels := sum.Labels
-		require.Len(t, labels, 2)
-		assert.Equal(t, "label-1", labels[0].Name)
-		assert.Equal(t, "the 2nd label", labels[1].Name)
+			labels := sum.Labels
+			require.Len(t, labels, 2)
+			assert.Equal(t, "label-1", labels[0].Name)
+			assert.Equal(t, "the 2nd label", labels[1].Name)
 
-		bkts := sum.Buckets
-		require.Len(t, bkts, 1)
-		assert.Equal(t, "rucketeer", bkts[0].Name)
-		hasLabelAssociations(t, bkts[0].LabelAssociations, 2, "label-1", "the 2nd label")
+			bkts := sum.Buckets
+			require.Len(t, bkts, 1)
+			assert.Equal(t, "rucketeer", bkts[0].Name)
+			hasLabelAssociations(t, bkts[0].LabelAssociations, 2, "label-1", "the 2nd label")
 
-		checks := sum.Checks
-		require.Len(t, checks, 2)
-		assert.Equal(t, "check 0 name", checks[0].Check.GetName())
-		hasLabelAssociations(t, checks[0].LabelAssociations, 1, "label-1")
-		assert.Equal(t, "check-1", checks[1].Check.GetName())
-		hasLabelAssociations(t, checks[1].LabelAssociations, 1, "label-1")
+			checks := sum.Checks
+			require.Len(t, checks, 2)
+			assert.Equal(t, "check 0 name", checks[0].Check.GetName())
+			hasLabelAssociations(t, checks[0].LabelAssociations, 1, "label-1")
+			assert.Equal(t, "check-1", checks[1].Check.GetName())
+			hasLabelAssociations(t, checks[1].LabelAssociations, 1, "label-1")
 
-		dashs := sum.Dashboards
-		require.Len(t, dashs, 1)
-		assert.Equal(t, "dash_1", dashs[0].Name)
-		assert.Equal(t, "desc1", dashs[0].Description)
-		hasLabelAssociations(t, dashs[0].LabelAssociations, 2, "label-1", "the 2nd label")
+			dashs := sum.Dashboards
+			require.Len(t, dashs, 1)
+			assert.Equal(t, "dash_1", dashs[0].Name)
+			assert.Equal(t, "desc1", dashs[0].Description)
+			hasLabelAssociations(t, dashs[0].LabelAssociations, 2, "label-1", "the 2nd label")
 
-		endpoints := sum.NotificationEndpoints
-		require.Len(t, endpoints, 1)
-		assert.Equal(t, "no auth endpoint", endpoints[0].NotificationEndpoint.GetName())
-		assert.Equal(t, "http none auth desc", endpoints[0].NotificationEndpoint.GetDescription())
-		hasLabelAssociations(t, endpoints[0].LabelAssociations, 1, "label-1")
+			endpoints := sum.NotificationEndpoints
+			require.Len(t, endpoints, 1)
+			assert.Equal(t, "no auth endpoint", endpoints[0].NotificationEndpoint.GetName())
+			assert.Equal(t, "http none auth desc", endpoints[0].NotificationEndpoint.GetDescription())
+			hasLabelAssociations(t, endpoints[0].LabelAssociations, 1, "label-1")
 
-		require.Len(t, sum.Tasks, 1)
-		task := sum.Tasks[0]
-		assert.Equal(t, "task_1", task.Name)
-		assert.Equal(t, "desc_1", task.Description)
-		assert.Equal(t, "15 * * * *", task.Cron)
-		hasLabelAssociations(t, task.LabelAssociations, 1, "label-1")
+			require.Len(t, sum.Tasks, 1)
+			task := sum.Tasks[0]
+			assert.Equal(t, "task_1", task.Name)
+			assert.Equal(t, "desc_1", task.Description)
+			assert.Equal(t, "15 * * * *", task.Cron)
+			hasLabelAssociations(t, task.LabelAssociations, 1, "label-1")
 
-		teles := sum.TelegrafConfigs
-		require.Len(t, teles, 1)
-		assert.Equal(t, "first tele config", teles[0].TelegrafConfig.Name)
-		assert.Equal(t, "desc", teles[0].TelegrafConfig.Description)
-		hasLabelAssociations(t, teles[0].LabelAssociations, 1, "label-1")
+			teles := sum.TelegrafConfigs
+			require.Len(t, teles, 1)
+			assert.Equal(t, "first tele config", teles[0].TelegrafConfig.Name)
+			assert.Equal(t, "desc", teles[0].TelegrafConfig.Description)
+			hasLabelAssociations(t, teles[0].LabelAssociations, 1, "label-1")
 
-		vars := sum.Variables
-		require.Len(t, vars, 1)
-		assert.Equal(t, "query var", vars[0].Name)
-		hasLabelAssociations(t, vars[0].LabelAssociations, 1, "label-1")
-		varArgs := vars[0].Arguments
-		require.NotNil(t, varArgs)
-		assert.Equal(t, "query", varArgs.Type)
-		assert.Equal(t, influxdb.VariableQueryValues{
-			Query:    "buckets()  |> filter(fn: (r) => r.name !~ /^_/)  |> rename(columns: {name: \"_value\"})  |> keep(columns: [\"_value\"])",
-			Language: "flux",
-		}, varArgs.Values)
-	})
+			vars := sum.Variables
+			require.Len(t, vars, 1)
+			assert.Equal(t, "query var", vars[0].Name)
+			hasLabelAssociations(t, vars[0].LabelAssociations, 1, "label-1")
+			varArgs := vars[0].Arguments
+			require.NotNil(t, varArgs)
+			assert.Equal(t, "query", varArgs.Type)
+			assert.Equal(t, influxdb.VariableQueryValues{
+				Query:    "buckets()  |> filter(fn: (r) => r.name !~ /^_/)  |> rename(columns: {name: \"_value\"})  |> keep(columns: [\"_value\"])",
+				Language: "flux",
+			}, varArgs.Values)
+		})
 
-	t.Run("dry run template with env ref", func(t *testing.T) {
-		pkgStr := fmt.Sprintf(`
+		t.Run("template with env ref", func(t *testing.T) {
+			pkgStr := fmt.Sprintf(`
 apiVersion: %[1]s
 kind: Label
 metadata:
@@ -2334,287 +2385,392 @@ spec:
           key: label-1-name-ref
 `, pkger.APIVersion)
 
-		pkg, err := pkger.Parse(pkger.EncodingYAML, pkger.FromString(pkgStr))
-		require.NoError(t, err)
+			pkg, err := pkger.Parse(pkger.EncodingYAML, pkger.FromString(pkgStr))
+			require.NoError(t, err)
 
-		impact, err := svc.DryRun(ctx, l.Org.ID, l.User.ID,
-			pkger.ApplyWithTemplate(pkg),
-			pkger.ApplyWithEnvRefs(map[string]string{
-				"bkt-1-name-ref":   "new-bkt-name",
-				"label-1-name-ref": "new-label-name",
-			}),
-		)
-		require.NoError(t, err)
+			impact, err := svc.DryRun(ctx, l.Org.ID, l.User.ID,
+				pkger.ApplyWithTemplate(pkg),
+				pkger.ApplyWithEnvRefs(map[string]string{
+					"bkt-1-name-ref":   "new-bkt-name",
+					"label-1-name-ref": "new-label-name",
+				}),
+			)
+			require.NoError(t, err)
 
-		sum := impact.Summary
+			sum := impact.Summary
 
-		require.Len(t, sum.Buckets, 1)
-		assert.Equal(t, "new-bkt-name", sum.Buckets[0].Name)
+			require.Len(t, sum.Buckets, 1)
+			assert.Equal(t, "new-bkt-name", sum.Buckets[0].Name)
 
-		require.Len(t, sum.Labels, 1)
-		assert.Equal(t, "new-label-name", sum.Labels[0].Name)
-	})
+			require.Len(t, sum.Labels, 1)
+			assert.Equal(t, "new-label-name", sum.Labels[0].Name)
+		})
 
-	t.Run("dry run dashboards", func(t *testing.T) {
-		newQuery := func() influxdb.DashboardQuery {
-			q := influxdb.DashboardQuery{
-				BuilderConfig: influxdb.BuilderConfig{
-					Buckets: []string{},
-					Tags:    nil,
-					Functions: []struct {
-						Name string `json:"name"`
-					}{},
-					AggregateWindow: struct {
-						Period string `json:"period"`
-					}{},
-				},
-				Text:     "from(v.bucket) |> count()",
-				EditMode: "advanced",
-			}
-			// TODO: remove this when issue that forced the builder tag to be here to render in UI.
-			q.BuilderConfig.Tags = append(q.BuilderConfig.Tags, influxdb.NewBuilderTag("_measurement", "filter", ""))
-			return q
-		}
+		t.Run("bucket", func(t *testing.T) {
+			template := newTemplate(
+				newBucketObject("foo", "", ""),
+			)
 
-		newAxes := func() map[string]influxdb.Axis {
-			return map[string]influxdb.Axis{
-				"x": {
-					Bounds: []string{},
-					Label:  "labx",
-					Prefix: "pre",
-					Suffix: "suf",
-					Base:   "base",
-					Scale:  "linear",
-				},
-				"y": {
-					Bounds: []string{},
-					Label:  "laby",
-					Prefix: "pre",
-					Suffix: "suf",
-					Base:   "base",
-					Scale:  "linear",
-				},
-			}
-		}
+			impact, err := svc.DryRun(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithTemplate(template))
+			require.NoError(t, err)
 
-		newColors := func(types ...string) []influxdb.ViewColor {
-			var out []influxdb.ViewColor
-			for _, t := range types {
-				out = append(out, influxdb.ViewColor{
-					Type:  t,
-					Hex:   time.Now().Format(time.RFC3339),
-					Name:  time.Now().Format(time.RFC3339),
-					Value: float64(time.Now().Unix()),
-				})
-			}
-			return out
-		}
+			require.Len(t, impact.Diff.Buckets, 1)
+			assert.Equal(t, pkger.KindBucket, impact.Diff.Buckets[0].Kind)
+		})
 
-		tests := []struct {
-			name  string
-			props influxdb.ViewProperties
-		}{
-			{
-				name: "gauge",
-				props: influxdb.GaugeViewProperties{
-					Type:              influxdb.ViewPropertyTypeGauge,
-					DecimalPlaces:     influxdb.DecimalPlaces{IsEnforced: true, Digits: 1},
-					Note:              "a note",
-					Prefix:            "pre",
-					TickPrefix:        "true",
-					Suffix:            "suf",
-					TickSuffix:        "false",
-					Queries:           []influxdb.DashboardQuery{newQuery()},
-					ShowNoteWhenEmpty: true,
-					ViewColors:        newColors("min", "max", "threshold"),
-				},
-			},
-			{
-				name: "heatmap",
-				props: influxdb.HeatmapViewProperties{
-					Type:              influxdb.ViewPropertyTypeHeatMap,
-					Note:              "a note",
-					Queries:           []influxdb.DashboardQuery{newQuery()},
-					ShowNoteWhenEmpty: true,
-					ViewColors:        []string{"#8F8AF4", "#8F8AF4", "#8F8AF4"},
-					XColumn:           "x",
-					YColumn:           "y",
-					XDomain:           []float64{0, 10},
-					YDomain:           []float64{0, 100},
-					XAxisLabel:        "x_label",
-					XPrefix:           "x_prefix",
-					XSuffix:           "x_suffix",
-					YAxisLabel:        "y_label",
-					YPrefix:           "y_prefix",
-					YSuffix:           "y_suffix",
-					BinSize:           10,
-					TimeFormat:        "",
-				},
-			},
-			{
-				name: "histogram",
-				props: influxdb.HistogramViewProperties{
-					Type:              influxdb.ViewPropertyTypeHistogram,
-					Note:              "a note",
-					Queries:           []influxdb.DashboardQuery{newQuery()},
-					ShowNoteWhenEmpty: true,
-					ViewColors:        []influxdb.ViewColor{{Type: "scale", Hex: "#8F8AF4", Value: 0}, {Type: "scale", Hex: "#8F8AF4", Value: 0}, {Type: "scale", Hex: "#8F8AF4", Value: 0}},
-					FillColumns:       []string{"a", "b"},
-					XColumn:           "_value",
-					XDomain:           []float64{0, 10},
-					XAxisLabel:        "x_label",
-					BinCount:          30,
-					Position:          "stacked",
-				},
-			},
-			{
-				name: "markdown",
-				props: influxdb.MarkdownViewProperties{
-					Type: influxdb.ViewPropertyTypeMarkdown,
-					Note: "the note is here with **markdown**",
-				},
-			},
-			{
-				name: "scatter",
-				props: influxdb.ScatterViewProperties{
-					Type:              influxdb.ViewPropertyTypeScatter,
-					Note:              "a note",
-					Queries:           []influxdb.DashboardQuery{newQuery()},
-					ShowNoteWhenEmpty: true,
-					ViewColors:        []string{"#8F8AF4", "#8F8AF4", "#8F8AF4"},
-					XColumn:           "x",
-					YColumn:           "y",
-					XDomain:           []float64{0, 10},
-					YDomain:           []float64{0, 100},
-					XAxisLabel:        "x_label",
-					XPrefix:           "x_prefix",
-					XSuffix:           "x_suffix",
-					YAxisLabel:        "y_label",
-					YPrefix:           "y_prefix",
-					YSuffix:           "y_suffix",
-					TimeFormat:        "",
-				},
-			},
-			{
-				name: "single stat",
-				props: influxdb.SingleStatViewProperties{
-					Type:              influxdb.ViewPropertyTypeSingleStat,
-					DecimalPlaces:     influxdb.DecimalPlaces{IsEnforced: true, Digits: 1},
-					Note:              "a note",
-					Queries:           []influxdb.DashboardQuery{newQuery()},
-					Prefix:            "pre",
-					TickPrefix:        "false",
-					ShowNoteWhenEmpty: true,
-					Suffix:            "suf",
-					TickSuffix:        "true",
-					ViewColors:        []influxdb.ViewColor{{Type: "text", Hex: "red"}},
-				},
-			},
-			{
-				name: "single stat plus line",
-				props: influxdb.LinePlusSingleStatProperties{
-					Type:              influxdb.ViewPropertyTypeSingleStatPlusLine,
-					Axes:              newAxes(),
-					DecimalPlaces:     influxdb.DecimalPlaces{IsEnforced: true, Digits: 1},
-					Legend:            influxdb.Legend{Type: "type", Orientation: "horizontal"},
-					Note:              "a note",
-					Prefix:            "pre",
-					Suffix:            "suf",
-					Queries:           []influxdb.DashboardQuery{newQuery()},
-					ShadeBelow:        true,
-					HoverDimension:    "y",
-					ShowNoteWhenEmpty: true,
-					ViewColors:        []influxdb.ViewColor{{Type: "text", Hex: "red"}},
-					XColumn:           "x",
-					YColumn:           "y",
-					Position:          "stacked",
-				},
-			},
-			{
-				name: "table",
-				props: influxdb.TableViewProperties{
-					Type:              influxdb.ViewPropertyTypeTable,
-					Note:              "a note",
-					ShowNoteWhenEmpty: true,
-					Queries:           []influxdb.DashboardQuery{newQuery()},
-					ViewColors:        []influxdb.ViewColor{{Type: "scale", Hex: "#8F8AF4", Value: 0}, {Type: "scale", Hex: "#8F8AF4", Value: 0}, {Type: "scale", Hex: "#8F8AF4", Value: 0}},
-					TableOptions: influxdb.TableOptions{
-						VerticalTimeAxis: true,
-						SortBy: influxdb.RenamableField{
-							InternalName: "_time",
-						},
-						Wrapping:       "truncate",
-						FixFirstColumn: true,
+		t.Run("check", func(t *testing.T) {
+			template := newTemplate(
+				newCheckDeadmanObject(t, "check1", "", time.Hour),
+				newCheckThresholdObject(t, "check2", "", time.Hour),
+			)
+
+			impact, err := svc.DryRun(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithTemplate(template))
+			require.NoError(t, err)
+
+			require.Len(t, impact.Diff.Checks, 2)
+			assert.Equal(t, pkger.KindCheckDeadman, impact.Diff.Checks[0].Kind)
+			assert.Equal(t, pkger.KindCheckThreshold, impact.Diff.Checks[1].Kind)
+		})
+
+		t.Run("dashboards", func(t *testing.T) {
+			newQuery := func() influxdb.DashboardQuery {
+				q := influxdb.DashboardQuery{
+					BuilderConfig: influxdb.BuilderConfig{
+						Buckets: []string{},
+						Tags:    nil,
+						Functions: []struct {
+							Name string `json:"name"`
+						}{},
+						AggregateWindow: struct {
+							Period string `json:"period"`
+						}{},
 					},
-					FieldOptions: []influxdb.RenamableField{
-						{
-							InternalName: "_time",
-							DisplayName:  "time (ms)",
-							Visible:      true,
-						},
+					Text:     "from(v.bucket) |> count()",
+					EditMode: "advanced",
+				}
+				// TODO: remove this when issue that forced the builder tag to be here to render in UI.
+				q.BuilderConfig.Tags = append(q.BuilderConfig.Tags, influxdb.NewBuilderTag("_measurement", "filter", ""))
+				return q
+			}
+
+			newAxes := func() map[string]influxdb.Axis {
+				return map[string]influxdb.Axis{
+					"x": {
+						Bounds: []string{},
+						Label:  "labx",
+						Prefix: "pre",
+						Suffix: "suf",
+						Base:   "base",
+						Scale:  "linear",
 					},
-					TimeFormat: "YYYY:MM:DD",
-					DecimalPlaces: influxdb.DecimalPlaces{
-						IsEnforced: true,
-						Digits:     1,
+					"y": {
+						Bounds: []string{},
+						Label:  "laby",
+						Prefix: "pre",
+						Suffix: "suf",
+						Base:   "base",
+						Scale:  "linear",
+					},
+				}
+			}
+
+			newColors := func(types ...string) []influxdb.ViewColor {
+				var out []influxdb.ViewColor
+				for _, t := range types {
+					out = append(out, influxdb.ViewColor{
+						Type:  t,
+						Hex:   time.Now().Format(time.RFC3339),
+						Name:  time.Now().Format(time.RFC3339),
+						Value: float64(time.Now().Unix()),
+					})
+				}
+				return out
+			}
+
+			tests := []struct {
+				name  string
+				props influxdb.ViewProperties
+			}{
+				{
+					name: "gauge",
+					props: influxdb.GaugeViewProperties{
+						Type:              influxdb.ViewPropertyTypeGauge,
+						DecimalPlaces:     influxdb.DecimalPlaces{IsEnforced: true, Digits: 1},
+						Note:              "a note",
+						Prefix:            "pre",
+						TickPrefix:        "true",
+						Suffix:            "suf",
+						TickSuffix:        "false",
+						Queries:           []influxdb.DashboardQuery{newQuery()},
+						ShowNoteWhenEmpty: true,
+						ViewColors:        newColors("min", "max", "threshold"),
 					},
 				},
-			},
-			{
-				name: "xy",
-				props: influxdb.XYViewProperties{
-					Type:              influxdb.ViewPropertyTypeXY,
-					Axes:              newAxes(),
-					Geom:              "step",
-					Legend:            influxdb.Legend{Type: "type", Orientation: "horizontal"},
-					Note:              "a note",
-					Queries:           []influxdb.DashboardQuery{newQuery()},
-					ShadeBelow:        true,
-					HoverDimension:    "y",
-					ShowNoteWhenEmpty: true,
-					ViewColors:        []influxdb.ViewColor{{Type: "text", Hex: "red"}},
-					XColumn:           "x",
-					YColumn:           "y",
-					Position:          "overlaid",
-					TimeFormat:        "",
+				{
+					name: "heatmap",
+					props: influxdb.HeatmapViewProperties{
+						Type:              influxdb.ViewPropertyTypeHeatMap,
+						Note:              "a note",
+						Queries:           []influxdb.DashboardQuery{newQuery()},
+						ShowNoteWhenEmpty: true,
+						ViewColors:        []string{"#8F8AF4", "#8F8AF4", "#8F8AF4"},
+						XColumn:           "x",
+						YColumn:           "y",
+						XDomain:           []float64{0, 10},
+						YDomain:           []float64{0, 100},
+						XAxisLabel:        "x_label",
+						XPrefix:           "x_prefix",
+						XSuffix:           "x_suffix",
+						YAxisLabel:        "y_label",
+						YPrefix:           "y_prefix",
+						YSuffix:           "y_suffix",
+						BinSize:           10,
+						TimeFormat:        "",
+					},
 				},
-			},
-		}
-
-		for _, tt := range tests {
-			fn := func(t *testing.T) {
-				obj := pkger.DashboardToObject("", influxdb.Dashboard{
-					OrganizationID: l.Org.ID,
-					Name:           tt.name,
-					Cells: []*influxdb.Cell{
-						{
-							CellProperty: influxdb.CellProperty{
-								X: 2, Y: 2,
-								H: 5, W: 5,
+				{
+					name: "histogram",
+					props: influxdb.HistogramViewProperties{
+						Type:              influxdb.ViewPropertyTypeHistogram,
+						Note:              "a note",
+						Queries:           []influxdb.DashboardQuery{newQuery()},
+						ShowNoteWhenEmpty: true,
+						ViewColors:        []influxdb.ViewColor{{Type: "scale", Hex: "#8F8AF4", Value: 0}, {Type: "scale", Hex: "#8F8AF4", Value: 0}, {Type: "scale", Hex: "#8F8AF4", Value: 0}},
+						FillColumns:       []string{"a", "b"},
+						XColumn:           "_value",
+						XDomain:           []float64{0, 10},
+						XAxisLabel:        "x_label",
+						BinCount:          30,
+						Position:          "stacked",
+					},
+				},
+				{
+					name: "markdown",
+					props: influxdb.MarkdownViewProperties{
+						Type: influxdb.ViewPropertyTypeMarkdown,
+						Note: "the note is here with **markdown**",
+					},
+				},
+				{
+					name: "scatter",
+					props: influxdb.ScatterViewProperties{
+						Type:              influxdb.ViewPropertyTypeScatter,
+						Note:              "a note",
+						Queries:           []influxdb.DashboardQuery{newQuery()},
+						ShowNoteWhenEmpty: true,
+						ViewColors:        []string{"#8F8AF4", "#8F8AF4", "#8F8AF4"},
+						XColumn:           "x",
+						YColumn:           "y",
+						XDomain:           []float64{0, 10},
+						YDomain:           []float64{0, 100},
+						XAxisLabel:        "x_label",
+						XPrefix:           "x_prefix",
+						XSuffix:           "x_suffix",
+						YAxisLabel:        "y_label",
+						YPrefix:           "y_prefix",
+						YSuffix:           "y_suffix",
+						TimeFormat:        "",
+					},
+				},
+				{
+					name: "single stat",
+					props: influxdb.SingleStatViewProperties{
+						Type:              influxdb.ViewPropertyTypeSingleStat,
+						DecimalPlaces:     influxdb.DecimalPlaces{IsEnforced: true, Digits: 1},
+						Note:              "a note",
+						Queries:           []influxdb.DashboardQuery{newQuery()},
+						Prefix:            "pre",
+						TickPrefix:        "false",
+						ShowNoteWhenEmpty: true,
+						Suffix:            "suf",
+						TickSuffix:        "true",
+						ViewColors:        []influxdb.ViewColor{{Type: "text", Hex: "red"}},
+					},
+				},
+				{
+					name: "single stat plus line",
+					props: influxdb.LinePlusSingleStatProperties{
+						Type:              influxdb.ViewPropertyTypeSingleStatPlusLine,
+						Axes:              newAxes(),
+						DecimalPlaces:     influxdb.DecimalPlaces{IsEnforced: true, Digits: 1},
+						Legend:            influxdb.Legend{Type: "type", Orientation: "horizontal"},
+						Note:              "a note",
+						Prefix:            "pre",
+						Suffix:            "suf",
+						Queries:           []influxdb.DashboardQuery{newQuery()},
+						ShadeBelow:        true,
+						HoverDimension:    "y",
+						ShowNoteWhenEmpty: true,
+						ViewColors:        []influxdb.ViewColor{{Type: "text", Hex: "red"}},
+						XColumn:           "x",
+						YColumn:           "y",
+						Position:          "stacked",
+					},
+				},
+				{
+					name: "table",
+					props: influxdb.TableViewProperties{
+						Type:              influxdb.ViewPropertyTypeTable,
+						Note:              "a note",
+						ShowNoteWhenEmpty: true,
+						Queries:           []influxdb.DashboardQuery{newQuery()},
+						ViewColors:        []influxdb.ViewColor{{Type: "scale", Hex: "#8F8AF4", Value: 0}, {Type: "scale", Hex: "#8F8AF4", Value: 0}, {Type: "scale", Hex: "#8F8AF4", Value: 0}},
+						TableOptions: influxdb.TableOptions{
+							VerticalTimeAxis: true,
+							SortBy: influxdb.RenamableField{
+								InternalName: "_time",
 							},
-							View: &influxdb.View{Properties: tt.props},
+							Wrapping:       "truncate",
+							FixFirstColumn: true,
+						},
+						FieldOptions: []influxdb.RenamableField{
+							{
+								InternalName: "_time",
+								DisplayName:  "time (ms)",
+								Visible:      true,
+							},
+						},
+						TimeFormat: "YYYY:MM:DD",
+						DecimalPlaces: influxdb.DecimalPlaces{
+							IsEnforced: true,
+							Digits:     1,
 						},
 					},
-				})
-				template := newTemplate(obj)
-
-				impact, err := svc.DryRun(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithTemplate(template))
-				require.NoError(t, err)
-
-				diff := impact.Diff.Dashboards
-				require.Len(t, diff, 1)
-
-				actual := diff[0]
-				assert.Equal(t, tt.name, actual.New.Name)
-
-				charts := actual.New.Charts
-				require.Len(t, charts, 1)
-				require.NotNil(t, charts[0].Properties)
-				assert.Equal(t, tt.props, charts[0].Properties)
+				},
+				{
+					name: "xy",
+					props: influxdb.XYViewProperties{
+						Type:              influxdb.ViewPropertyTypeXY,
+						Axes:              newAxes(),
+						Geom:              "step",
+						Legend:            influxdb.Legend{Type: "type", Orientation: "horizontal"},
+						Note:              "a note",
+						Queries:           []influxdb.DashboardQuery{newQuery()},
+						ShadeBelow:        true,
+						HoverDimension:    "y",
+						ShowNoteWhenEmpty: true,
+						ViewColors:        []influxdb.ViewColor{{Type: "text", Hex: "red"}},
+						XColumn:           "x",
+						YColumn:           "y",
+						Position:          "overlaid",
+						TimeFormat:        "",
+					},
+				},
 			}
 
-			t.Run(tt.name, fn)
-		}
+			for _, tt := range tests {
+				fn := func(t *testing.T) {
+					obj := pkger.DashboardToObject("", influxdb.Dashboard{
+						OrganizationID: l.Org.ID,
+						Name:           tt.name,
+						Cells: []*influxdb.Cell{
+							{
+								CellProperty: influxdb.CellProperty{
+									X: 2, Y: 2,
+									H: 5, W: 5,
+								},
+								View: &influxdb.View{Properties: tt.props},
+							},
+						},
+					})
+					template := newTemplate(obj)
+
+					impact, err := svc.DryRun(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithTemplate(template))
+					require.NoError(t, err)
+
+					diff := impact.Diff.Dashboards
+					require.Len(t, diff, 1)
+
+					actual := diff[0]
+					assert.Equal(t, pkger.KindDashboard, actual.Kind)
+					assert.Equal(t, tt.name, actual.New.Name)
+
+					charts := actual.New.Charts
+					require.Len(t, charts, 1)
+					require.NotNil(t, charts[0].Properties)
+					assert.Equal(t, tt.props, charts[0].Properties)
+				}
+
+				t.Run(tt.name, fn)
+			}
+		})
+
+		t.Run("labels", func(t *testing.T) {
+			template := newTemplate(
+				newLabelObject("label", "", "", ""),
+			)
+
+			impact, err := svc.DryRun(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithTemplate(template))
+			require.NoError(t, err)
+
+			require.Len(t, impact.Diff.Labels, 1)
+			assert.Equal(t, pkger.KindLabel, impact.Diff.Labels[0].Kind)
+		})
+
+		t.Run("endpoints", func(t *testing.T) {
+			template := newTemplate(
+				newEndpointHTTP("http", "", ""),
+				newEndpointPagerDuty("pager", "", ""),
+				newEndpointSlack("slack", "", ""),
+			)
+
+			impact, err := svc.DryRun(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithTemplate(template))
+			require.NoError(t, err)
+
+			require.Len(t, impact.Diff.NotificationEndpoints, 3)
+			assert.Equal(t, pkger.KindNotificationEndpointHTTP, impact.Diff.NotificationEndpoints[0].Kind)
+			assert.Equal(t, pkger.KindNotificationEndpointPagerDuty, impact.Diff.NotificationEndpoints[1].Kind)
+			assert.Equal(t, pkger.KindNotificationEndpointSlack, impact.Diff.NotificationEndpoints[2].Kind)
+		})
+
+		t.Run("rules", func(t *testing.T) {
+			template := newTemplate(
+				newEndpointHTTP("http", "", ""),
+				newRuleObject(t, "rule", "", "http", ""),
+			)
+
+			impact, err := svc.DryRun(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithTemplate(template))
+			require.NoError(t, err)
+
+			require.Len(t, impact.Diff.NotificationRules, 1)
+			assert.Equal(t, pkger.KindNotificationRule, impact.Diff.NotificationRules[0].Kind)
+		})
+
+		t.Run("tasks", func(t *testing.T) {
+			template := newTemplate(
+				newTaskObject("task", "", ""),
+			)
+
+			impact, err := svc.DryRun(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithTemplate(template))
+			require.NoError(t, err)
+
+			require.Len(t, impact.Diff.Tasks, 1)
+			assert.Equal(t, pkger.KindTask, impact.Diff.Tasks[0].Kind)
+		})
+
+		t.Run("telegraf configs", func(t *testing.T) {
+			template := newTemplate(
+				newTelegrafObject("tele", "", ""),
+			)
+
+			impact, err := svc.DryRun(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithTemplate(template))
+			require.NoError(t, err)
+
+			require.Len(t, impact.Diff.Telegrafs, 1)
+			assert.Equal(t, pkger.KindTelegraf, impact.Diff.Telegrafs[0].Kind)
+		})
+
+		t.Run("variables", func(t *testing.T) {
+			template := newTemplate(
+				newVariableObject("var", "", ""),
+			)
+
+			impact, err := svc.DryRun(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithTemplate(template))
+			require.NoError(t, err)
+
+			require.Len(t, impact.Diff.Variables, 1)
+			assert.Equal(t, pkger.KindVariable, impact.Diff.Variables[0].Kind)
+		})
 	})
 
 	t.Run("apply a template of all new resources", func(t *testing.T) {
