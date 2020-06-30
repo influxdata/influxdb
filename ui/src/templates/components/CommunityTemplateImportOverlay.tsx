@@ -9,6 +9,8 @@ import {CommunityTemplateInstallerOverlay} from 'src/templates/components/Commun
 import {createTemplate as createTemplateAction} from 'src/templates/actions/thunks'
 import {notify as notifyAction} from 'src/shared/actions/notifications'
 
+import {getTotalResourceCount} from 'src/templates/selectors'
+
 import {FlagMap} from 'src/shared/reducers/flags'
 
 // Types
@@ -31,6 +33,7 @@ interface StateProps {
   flags: FlagMap
   org: Organization
   templateName: string
+  resourceCount: number
 }
 
 interface OwnProps extends WithRouterProps {
@@ -53,6 +56,7 @@ class UnconnectedTemplateImportOverlay extends PureComponent<Props> {
       <CommunityTemplateInstallerOverlay
         onDismissOverlay={this.onDismiss}
         onSubmit={this.handleInstallTemplate}
+        resourceCount={this.props.resourceCount}
         status={this.state.status}
         templateName={this.props.templateName}
         updateStatus={this.updateOverlayStatus}
@@ -85,6 +89,7 @@ const mstp = (state: AppState, props: Props): StateProps => {
     org,
     templateName: props.params.templateName,
     flags: state.flags.original,
+    resourceCount: getTotalResourceCount(state),
   }
 }
 

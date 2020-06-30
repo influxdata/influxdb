@@ -15,6 +15,7 @@ interface OwnProps {
   isVisible?: boolean
   onDismissOverlay: () => void
   onSubmit: (importString: string, orgID: string) => void
+  resourceCount: number
   status?: ComponentStatus
   templateName: string
   updateStatus?: (status: ComponentStatus) => void
@@ -46,9 +47,7 @@ class CommunityTemplateInstallerOverlayUnconnected extends PureComponent<
   }
 
   public render() {
-    const {isVisible, templateName} = this.props
-
-    const resourceCount = 5
+    const {isVisible, resourceCount, templateName} = this.props
 
     return (
       <Overlay visible={isVisible}>
