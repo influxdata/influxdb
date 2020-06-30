@@ -29,6 +29,7 @@ use delorean_generated_types::{
 };
 use delorean_test_helpers::*;
 use futures::prelude::*;
+use http::StatusCode;
 use prost::Message;
 use std::convert::TryInto;
 use std::process::{Child, Command, Stdio};
@@ -575,6 +576,30 @@ swap,server01,disk0,out,{},4
     assert_eq!(field.key, "value");
     assert_eq!(field.r#type, DataType::Float as i32);
     assert_eq!(field.timestamp, ns_since_epoch + 4);
+
+    test_http_error_messages().await?;
+
+    Ok(())
+}
+
+// Don't make a separate #test function so that we can reuse the same
+// server process
+async fn test_http_error_messages() -> Result<()> {
+    let client = reqwest::Client::new();
+    let url = format!("{}/write", URL_BASE);
+
+    // send malformed request (bucket id is invlald and
+    let response = client
+        .post(&url)
+        .query(&[("bucket", "Foo"), ("org", "Bar")])
+        .send()
+        .await?;
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+    let response_body = response.text().await?;
+
+    let expected_error = r#"{"error":"Invalid query string 'bucket=Foo&org=Bar': ID must have a length of 16 bytes"}"#;
+    assert_eq!(response_body, expected_error);
 
     Ok(())
 }

@@ -1,6 +1,6 @@
 #![deny(rust_2018_idioms)]
 
-use tracing::debug;
+use tracing::{debug, error, info};
 
 use delorean::generated_types::{Bucket, TimestampRange};
 use delorean::id::Id;
@@ -12,15 +12,146 @@ use delorean::time::{parse_duration, time_as_i64_nanos};
 
 use std::sync::Arc;
 use std::time::Duration;
-use std::{fmt, str};
 
 use bytes::BytesMut;
 use csv::Writer;
 use futures::{self, StreamExt};
 use hyper::{Body, Method, StatusCode};
 use serde::Deserialize;
+use snafu::{ResultExt, Snafu};
+use std::str;
 
 use crate::server::App;
+use delorean::storage::StorageError;
+
+#[derive(Debug, Snafu)]
+pub enum ApplicationError {
+    // Internal (unexpected) errors
+    #[snafu(display(
+        "Internal error accessing org {}, bucket {}:  {}",
+        org,
+        bucket_name,
+        source
+    ))]
+    BucketByName {
+        org: String,
+        bucket_name: String,
+        source: StorageError,
+    },
+
+    #[snafu(display(
+        "Internal error writing points into org {}, bucket {}:  {}",
+        org,
+        bucket_name,
+        source
+    ))]
+    WritingPoints {
+        org: String,
+        bucket_name: String,
+        source: StorageError,
+    },
+
+    #[snafu(display(
+        "Internal error reading points from org {}, bucket {}:  {}",
+        org,
+        bucket_name,
+        source
+    ))]
+    ReadingPoints {
+        org: String,
+        bucket_name: String,
+        source: StorageError,
+    },
+
+    #[snafu(display(
+        "Internal error creating csv from org {}, bucket {}:  {}",
+        org,
+        bucket_name,
+        source
+    ))]
+    ConvertingToCSV {
+        org: String,
+        bucket_name: String,
+        source: Box<dyn std::error::Error>,
+    },
+
+    #[snafu(display(
+        "Internal error creating org {}, bucket {}:  {}",
+        org,
+        bucket_name,
+        source
+    ))]
+    CreatingBucket {
+        org: String,
+        bucket_name: String,
+        source: StorageError,
+    },
+
+    // Application level errors
+    #[snafu(display("Bucket {} not found in org {}", bucket_name, org))]
+    BucketNotFound { org: String, bucket_name: String },
+
+    #[snafu(display("Body exceeds limit of {} bytes", max_body_size))]
+    RequestSizeExceeded { max_body_size: usize },
+
+    #[snafu(display("Expected query string in request, but none was provided"))]
+    ExpectedQueryString {},
+
+    #[snafu(display("Invalid query string '{}': {}", query_string, source))]
+    InvalidQueryString {
+        query_string: String,
+        source: Box<dyn std::error::Error>,
+    },
+
+    #[snafu(display("Invalid request body '{}': {}", request_body, source))]
+    InvalidRequestBody {
+        request_body: String,
+        source: Box<dyn std::error::Error>,
+    },
+
+    #[snafu(display("Invalid duration '{}': {}", duration, source))]
+    InvalidDuration {
+        duration: String,
+        source: Box<dyn std::error::Error>,
+    },
+
+    #[snafu(display("Could not parse predicate '{}':  {}", predicate, source))]
+    InvalidPredicate {
+        predicate: String,
+        source: StorageError,
+    },
+
+    #[snafu(display("Error reading request body: {}", source))]
+    ReadingBody { source: hyper::error::Error },
+
+    #[snafu(display("Error reading request body as utf8: {}", source))]
+    ReadingBodyAsUtf8 { source: std::str::Utf8Error },
+
+    #[snafu(display("No handler for {:?} {}", method, path))]
+    RouteNotFound { method: Method, path: String },
+}
+
+impl ApplicationError {
+    pub fn status_code(&self) -> StatusCode {
+        match self {
+            Self::BucketByName { .. } => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::WritingPoints { .. } => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::ReadingPoints { .. } => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::ConvertingToCSV { .. } => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::CreatingBucket { .. } => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::BucketNotFound { .. } => StatusCode::NOT_FOUND,
+            Self::RequestSizeExceeded { .. } => StatusCode::BAD_REQUEST,
+            Self::ExpectedQueryString { .. } => StatusCode::BAD_REQUEST,
+            Self::InvalidQueryString { .. } => StatusCode::BAD_REQUEST,
+            Self::InvalidRequestBody { .. } => StatusCode::BAD_REQUEST,
+            Self::InvalidDuration { .. } => StatusCode::BAD_REQUEST,
+            Self::InvalidPredicate { .. } => StatusCode::BAD_REQUEST,
+            Self::ReadingBody { .. } => StatusCode::BAD_REQUEST,
+            Self::ReadingBodyAsUtf8 { .. } => StatusCode::BAD_REQUEST,
+            Self::RouteNotFound { .. } => StatusCode::NOT_FOUND,
+        }
+    }
+}
 
 const MAX_SIZE: usize = 1_048_576; // max write request size of 1MB
 
@@ -30,11 +161,18 @@ struct WriteInfo {
     bucket: Id,
 }
 
-#[tracing::instrument]
+#[tracing::instrument(level = "debug")]
 async fn write(req: hyper::Request<Body>, app: Arc<App>) -> Result<Option<Body>, ApplicationError> {
-    let query = req.uri().query().ok_or(StatusCode::BAD_REQUEST)?;
+    let query = req
+        .uri()
+        .query()
+        .ok_or(ApplicationError::ExpectedQueryString {})?;
+
     let write_info: WriteInfo =
-        serde_urlencoded::from_str(query).map_err(|_| StatusCode::BAD_REQUEST)?;
+        serde_urlencoded::from_str(query).map_err(|e| ApplicationError::InvalidQueryString {
+            query_string: query.into(),
+            source: Box::new(e),
+        })?;
 
     // Even though tools like `inch` and `storectl query` pass bucket IDs, treat them as
     // `bucket_name` in delorean because MemDB sets auto-incrementing IDs for buckets.
@@ -44,15 +182,13 @@ async fn write(req: hyper::Request<Body>, app: Arc<App>) -> Result<Option<Body>,
         .db
         .get_bucket_id_by_name(write_info.org, &bucket_name)
         .await
-        .map_err(|e| {
-            debug!("Error getting bucket id: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
+        .context(BucketByName {
+            org: write_info.org.to_string(),
+            bucket_name: write_info.bucket.to_string(),
         })?
-        .ok_or_else(|| {
-            ApplicationError::new(
-                StatusCode::NOT_FOUND,
-                &format!("bucket {} not found", bucket_name),
-            )
+        .ok_or_else(|| ApplicationError::BucketNotFound {
+            org: write_info.org.to_string(),
+            bucket_name: write_info.bucket.to_string(),
         })?;
 
     let mut payload = req.into_body();
@@ -62,10 +198,9 @@ async fn write(req: hyper::Request<Body>, app: Arc<App>) -> Result<Option<Body>,
         let chunk = chunk.expect("Should have been able to read the next chunk");
         // limit max size of in-memory payload
         if (body.len() + chunk.len()) > MAX_SIZE {
-            return Err(ApplicationError::new(
-                StatusCode::BAD_REQUEST,
-                "Body exceeds limit of 1MB",
-            ));
+            return Err(ApplicationError::RequestSizeExceeded {
+                max_body_size: MAX_SIZE,
+            });
         }
         body.extend_from_slice(&chunk);
     }
@@ -78,9 +213,9 @@ async fn write(req: hyper::Request<Body>, app: Arc<App>) -> Result<Option<Body>,
     app.db
         .write_points(write_info.org, bucket_id, &mut points)
         .await
-        .map_err(|e| {
-            debug!("Error writing points: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
+        .context(WritingPoints {
+            org: write_info.org.to_string(),
+            bucket_name: bucket_id.to_string(),
         })?;
 
     Ok(None)
@@ -100,32 +235,45 @@ fn duration_to_nanos_or_default(
     duration_param: Option<&str>,
     now: std::time::SystemTime,
     default: std::time::SystemTime,
-) -> Result<i64, delorean::Error> {
+) -> Result<i64, ApplicationError> {
     let time = match duration_param {
-        Some(duration) => {
-            let d = parse_duration(duration)?;
-            d.from_time(now)?
-        }
+        Some(duration) => parse_duration(duration)
+            .map_err(|e| ApplicationError::InvalidDuration {
+                duration: duration.into(),
+                source: Box::new(e),
+            })?
+            .from_time(now)
+            .map_err(|e| ApplicationError::InvalidDuration {
+                duration: duration.into(),
+                source: Box::new(e),
+            })?,
         None => default,
     };
     Ok(time_as_i64_nanos(&time))
 }
 
 // TODO: figure out how to stream read results out rather than rendering the whole thing in mem
-#[tracing::instrument]
+#[tracing::instrument(level = "debug")]
 async fn read(req: hyper::Request<Body>, app: Arc<App>) -> Result<Option<Body>, ApplicationError> {
     let query = req
         .uri()
         .query()
-        .expect("Should have been query parameters");
+        .ok_or(ApplicationError::ExpectedQueryString {})?;
+
     let read_info: ReadInfo =
-        serde_urlencoded::from_str(query).map_err(|_| StatusCode::BAD_REQUEST)?;
+        serde_urlencoded::from_str(query).map_err(|e| ApplicationError::InvalidQueryString {
+            query_string: query.into(),
+            source: Box::new(e),
+        })?;
 
     // Even though tools like `inch` and `storectl query` pass bucket IDs, treat them as
     // `bucket_name` in delorean because MemDB sets auto-incrementing IDs for buckets.
+    let org_name = read_info.org.to_string();
     let bucket_name = read_info.bucket.to_string();
 
-    let predicate = parse_predicate(&read_info.predicate).map_err(|_| StatusCode::BAD_REQUEST)?;
+    let predicate = parse_predicate(&read_info.predicate).context(InvalidPredicate {
+        predicate: String::from(&read_info.predicate),
+    })?;
 
     let now = std::time::SystemTime::now();
 
@@ -133,11 +281,9 @@ async fn read(req: hyper::Request<Body>, app: Arc<App>) -> Result<Option<Body>, 
         read_info.start.as_deref(),
         now,
         now.checked_sub(Duration::from_secs(10)).unwrap(),
-    )
-    .map_err(|_| StatusCode::BAD_REQUEST)?;
+    )?;
 
-    let end = duration_to_nanos_or_default(read_info.stop.as_deref(), now, now)
-        .map_err(|_| StatusCode::BAD_REQUEST)?;
+    let end = duration_to_nanos_or_default(read_info.stop.as_deref(), now, now)?;
 
     let range = TimestampRange { start, end };
 
@@ -145,19 +291,23 @@ async fn read(req: hyper::Request<Body>, app: Arc<App>) -> Result<Option<Body>, 
         .db
         .get_bucket_id_by_name(read_info.org, &bucket_name)
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-        .ok_or_else(|| {
-            ApplicationError::new(
-                StatusCode::NOT_FOUND,
-                &format!("bucket {} not found", bucket_name),
-            )
+        .context(BucketByName {
+            org: org_name.clone(),
+            bucket_name: bucket_name.to_string(),
+        })?
+        .ok_or_else(|| ApplicationError::BucketNotFound {
+            org: org_name.clone(),
+            bucket_name: bucket_name.to_string(),
         })?;
 
     let batches = app
         .db
         .read_points(read_info.org, bucket_id, &predicate, &range)
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .context(ReadingPoints {
+            org: read_info.org.to_string(),
+            bucket_name: bucket_id.to_string(),
+        })?;
 
     let mut response_body = vec![];
 
@@ -208,7 +358,11 @@ async fn read(req: hyper::Request<Body>, app: Arc<App>) -> Result<Option<Body>, 
 
         let mut data = wtr
             .into_inner()
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            .map_err(|e| ApplicationError::ConvertingToCSV {
+                org: read_info.org.to_string(),
+                bucket_name: bucket_id.to_string(),
+                source: Box::new(e),
+            })?;
 
         response_body.append(&mut data);
         response_body.append(&mut b"\n".to_vec());
@@ -218,7 +372,7 @@ async fn read(req: hyper::Request<Body>, app: Arc<App>) -> Result<Option<Body>, 
 }
 
 // Route to test that the server is alive
-#[tracing::instrument]
+#[tracing::instrument(level = "debug")]
 async fn ping(req: hyper::Request<Body>) -> Result<Option<Body>, ApplicationError> {
     let response_body = "PONG";
     Ok(Some(response_body.into()))
@@ -230,18 +384,21 @@ struct CreateBucketInfo {
     bucket: Id,
 }
 
-#[tracing::instrument]
+#[tracing::instrument(level = "debug")]
 async fn create_bucket(
     req: hyper::Request<Body>,
     app: Arc<App>,
 ) -> Result<Option<Body>, ApplicationError> {
-    let body = hyper::body::to_bytes(req)
-        .await
-        .map_err(|_| StatusCode::BAD_REQUEST)?;
-    let body = str::from_utf8(&body).unwrap();
+    let body = hyper::body::to_bytes(req).await.context(ReadingBody)?;
+
+    let body = str::from_utf8(&body).context(ReadingBodyAsUtf8)?;
 
     let create_bucket_info: CreateBucketInfo =
-        serde_urlencoded::from_str(body).map_err(|_| StatusCode::BAD_REQUEST)?;
+        serde_urlencoded::from_str(body).map_err(|e| ApplicationError::InvalidRequestBody {
+            request_body: body.to_string(),
+            source: Box::new(e),
+        })?;
+
     let bucket_name = create_bucket_info.bucket.to_string();
 
     let bucket = Bucket {
@@ -256,11 +413,9 @@ async fn create_bucket(
     app.db
         .create_bucket_if_not_exists(create_bucket_info.org, bucket)
         .await
-        .map_err(|err| {
-            ApplicationError::new(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                format!("error creating bucket: {}", err),
-            )
+        .context(CreatingBucket {
+            org: create_bucket_info.org.to_string(),
+            bucket_name: create_bucket_info.bucket.to_string(),
         })?;
 
     Ok(None)
@@ -270,18 +425,21 @@ pub async fn service(
     req: hyper::Request<Body>,
     app: Arc<App>,
 ) -> http::Result<hyper::Response<Body>> {
+    let method = req.method().clone();
+    let uri = req.uri().clone();
+
     let response = match (req.method(), req.uri().path()) {
         (&Method::POST, "/api/v2/write") => write(req, app).await,
         (&Method::GET, "/ping") => ping(req).await,
         (&Method::GET, "/api/v2/read") => read(req, app).await,
         (&Method::POST, "/api/v2/create_bucket") => create_bucket(req, app).await,
-        _ => Err(ApplicationError::new(
-            StatusCode::NOT_FOUND,
-            format!("route not found: {}", req.uri()),
-        )),
+        _ => Err(ApplicationError::RouteNotFound {
+            method: method.clone(),
+            path: uri.to_string(),
+        }),
     };
 
-    match response {
+    let result = match response {
         Ok(Some(body)) => Ok(hyper::Response::builder()
             .body(body)
             .expect("Should have been able to construct a response")),
@@ -290,50 +448,21 @@ pub async fn service(
             .body(Body::empty())
             .expect("Should have been able to construct a response")),
         Err(e) => {
+            error!(error = ?e, method = ?method, uri = ?uri, "Error while handing request");
             let json = serde_json::json!({"error": e.to_string()}).to_string();
             Ok(hyper::Response::builder()
                 .status(e.status_code())
                 .body(json.into())
                 .expect("Should have been able to construct a response"))
         }
-    }
-}
+    };
 
-#[derive(Debug)]
-struct ApplicationError {
-    status_code: StatusCode,
-    message: String,
-}
-
-impl ApplicationError {
-    fn new(status_code: StatusCode, message: impl Into<String>) -> Self {
-        Self {
-            status_code,
-            message: message.into(),
+    match &result {
+        Ok(response) => {
+            info!(method = ?method, uri = ?uri, status = ?response.status(), "Handled request");
         }
-    }
+        Err(e) => error!(error=?e, "Error creating result"),
+    };
 
-    fn status_code(&self) -> StatusCode {
-        self.status_code
-    }
-}
-
-impl std::error::Error for ApplicationError {}
-
-impl fmt::Display for ApplicationError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.message)
-    }
-}
-
-impl From<StatusCode> for ApplicationError {
-    fn from(other: StatusCode) -> Self {
-        match other {
-            StatusCode::BAD_REQUEST => Self::new(StatusCode::BAD_REQUEST, "Bad request"),
-            StatusCode::INTERNAL_SERVER_ERROR => {
-                Self::new(StatusCode::INTERNAL_SERVER_ERROR, "Internal server error")
-            }
-            _ => unimplemented!(),
-        }
-    }
+    result
 }
