@@ -7801,6 +7801,8 @@ components:
                     type: string
                   orgID:
                     type: string
+                  kind:
+                    $ref: "#/components/schemas/TemplateKind"
                   templateMetaName:
                     type: string
                   name:
@@ -7822,6 +7824,8 @@ components:
                   - $ref: "#/components/schemas/CheckDiscriminator"
                   - type: object
                     properties:
+                      kind:
+                        $ref: "#/components/schemas/TemplateKind"
                       templateMetaName:
                         type: string
                       labelAssociations:
@@ -7830,10 +7834,6 @@ components:
                           $ref: "#/components/schemas/TemplateSummaryLabel"
                       envReferences:
                         $ref: "#/components/schemas/TemplateEnvReferences"
-            labels:
-              type: array
-              items:
-                $ref: "#/components/schemas/TemplateSummaryLabel"
             dashboards:
               type: array
               items:
@@ -7843,6 +7843,8 @@ components:
                     type: "string"
                   orgID:
                     type: "string"
+                  kind:
+                    $ref: "#/components/schemas/TemplateKind"
                   templateMetaName:
                     type: string
                   name:
@@ -7859,6 +7861,10 @@ components:
                       $ref: "#/components/schemas/TemplateChart"
                   envReferences:
                     $ref: "#/components/schemas/TemplateEnvReferences"
+            labels:
+              type: array
+              items:
+                $ref: "#/components/schemas/TemplateSummaryLabel"
             labelMappings:
               type: array
               items:
@@ -7895,6 +7901,8 @@ components:
                   - $ref: "#/components/schemas/NotificationEndpointDiscrimator"
                   - type: object
                     properties:
+                      kind:
+                        $ref: "#/components/schemas/TemplateKind"
                       templateMetaName:
                         type: string
                       labelAssociations:
@@ -7908,6 +7916,8 @@ components:
               items:
                 type: object
                 properties:
+                  kind:
+                    $ref: "#/components/schemas/TemplateKind"
                   templateMetaName:
                     type: string
                   name:
@@ -7959,6 +7969,8 @@ components:
               items:
                 type: object
                 properties:
+                  kind:
+                    $ref: "#/components/schemas/TemplateKind"
                   templateMetaName:
                     type: string
                   id:
@@ -7986,6 +7998,8 @@ components:
                   - $ref: "#/components/schemas/TelegrafRequest"
                   - type: object
                     properties:
+                      kind:
+                        $ref: "#/components/schemas/TemplateKind"
                       templateMetaName:
                         type: string
                       labelAssociations:
@@ -7999,6 +8013,8 @@ components:
               items:
                 type: object
                 properties:
+                  kind:
+                    $ref: "#/components/schemas/TemplateKind"
                   templateMetaName:
                     type: string
                   id:
@@ -8368,6 +8384,8 @@ components:
           type: string
         orgID:
           type: string
+        kind:
+          $ref: "#/components/schemas/TemplateKind"
         templateMetaName:
           type: string
         name:

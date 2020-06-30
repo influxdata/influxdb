@@ -89,12 +89,15 @@ type bucket struct {
 
 func (b *bucket) summarize() SummaryBucket {
 	return SummaryBucket{
+		SummaryIdentifier: SummaryIdentifier{
+			Kind:          KindBucket,
+			MetaName:      b.MetaName(),
+			EnvReferences: summarizeCommonReferences(b.identity, b.labels),
+		},
 		Name:              b.Name(),
-		MetaName:          b.MetaName(),
 		Description:       b.Description,
 		RetentionPeriod:   b.RetentionRules.RP(),
 		LabelAssociations: toSummaryLabels(b.labels...),
-		EnvReferences:     summarizeCommonReferences(b.identity, b.labels),
 	}
 }
 
@@ -248,18 +251,22 @@ func (c *check) summarize() SummaryCheck {
 	}
 
 	sum := SummaryCheck{
-		MetaName:          c.MetaName(),
+		SummaryIdentifier: SummaryIdentifier{
+			MetaName:      c.MetaName(),
+			EnvReferences: summarizeCommonReferences(c.identity, c.labels),
+		},
 		Status:            c.Status(),
 		LabelAssociations: toSummaryLabels(c.labels...),
-		EnvReferences:     summarizeCommonReferences(c.identity, c.labels),
 	}
 	switch c.kind {
 	case checkKindThreshold:
+		sum.Kind = KindCheckThreshold
 		sum.Check = &icheck.Threshold{
 			Base:       base,
 			Thresholds: toInfluxThresholds(c.thresholds...),
 		}
 	case checkKindDeadman:
+		sum.Kind = KindCheckDeadman
 		sum.Check = &icheck.Deadman{
 			Base:       base,
 			Level:      notification.ParseCheckLevel(strings.ToUpper(c.level)),
@@ -463,11 +470,14 @@ func (d *dashboard) ResourceType() influxdb.ResourceType {
 
 func (d *dashboard) summarize() SummaryDashboard {
 	iDash := SummaryDashboard{
-		MetaName:          d.MetaName(),
+		SummaryIdentifier: SummaryIdentifier{
+			Kind:          KindDashboard,
+			MetaName:      d.MetaName(),
+			EnvReferences: summarizeCommonReferences(d.identity, d.labels),
+		},
 		Name:              d.Name(),
 		Description:       d.Description,
 		LabelAssociations: toSummaryLabels(d.labels...),
-		EnvReferences:     summarizeCommonReferences(d.identity, d.labels),
 	}
 	for _, c := range d.Charts {
 		iDash.Charts = append(iDash.Charts, SummaryChart{
@@ -1131,8 +1141,12 @@ type label struct {
 
 func (l *label) summarize() SummaryLabel {
 	return SummaryLabel{
-		MetaName: l.MetaName(),
-		Name:     l.Name(),
+		SummaryIdentifier: SummaryIdentifier{
+			Kind:          KindLabel,
+			MetaName:      l.MetaName(),
+			EnvReferences: l.identity.summarizeReferences(),
+		},
+		Name: l.Name(),
 		Properties: struct {
 			Color       string `json:"color"`
 			Description string `json:"description"`
@@ -1140,7 +1154,6 @@ func (l *label) summarize() SummaryLabel {
 			Color:       l.Color,
 			Description: l.Description,
 		},
-		EnvReferences: l.identity.summarizeReferences(),
 	}
 }
 
@@ -1284,13 +1297,16 @@ func (n *notificationEndpoint) base() endpoint.Base {
 func (n *notificationEndpoint) summarize() SummaryNotificationEndpoint {
 	base := n.base()
 	sum := SummaryNotificationEndpoint{
-		MetaName:          n.MetaName(),
+		SummaryIdentifier: SummaryIdentifier{
+			MetaName:      n.MetaName(),
+			EnvReferences: summarizeCommonReferences(n.identity, n.labels),
+		},
 		LabelAssociations: toSummaryLabels(n.labels...),
-		EnvReferences:     summarizeCommonReferences(n.identity, n.labels),
 	}
 
 	switch n.kind {
 	case notificationKindHTTP:
+		sum.Kind = KindNotificationEndpointHTTP
 		e := &endpoint.HTTP{
 			Base:   base,
 			URL:    n.url,
@@ -1309,12 +1325,14 @@ func (n *notificationEndpoint) summarize() SummaryNotificationEndpoint {
 		}
 		sum.NotificationEndpoint = e
 	case notificationKindPagerDuty:
+		sum.Kind = KindNotificationEndpointPagerDuty
 		sum.NotificationEndpoint = &endpoint.PagerDuty{
 			Base:       base,
 			ClientURL:  n.url,
 			RoutingKey: n.routingKey.SecretField(),
 		}
 	case notificationKindSlack:
+		sum.Kind = KindNotificationEndpointSlack
 		sum.NotificationEndpoint = &endpoint.Slack{
 			Base:  base,
 			URL:   n.url,
@@ -1487,14 +1505,17 @@ func (r *notificationRule) summarize() SummaryNotificationRule {
 	}
 
 	return SummaryNotificationRule{
-		MetaName:          r.MetaName(),
+		SummaryIdentifier: SummaryIdentifier{
+			Kind:          KindNotificationRule,
+			MetaName:      r.MetaName(),
+			EnvReferences: envRefs,
+		},
 		Name:              r.Name(),
 		EndpointMetaName:  endpointPkgName,
 		EndpointType:      endpointType,
 		Description:       r.description,
 		Every:             r.every.String(),
 		LabelAssociations: toSummaryLabels(r.labels...),
-		EnvReferences:     envRefs,
 		Offset:            r.offset.String(),
 		MessageTemplate:   r.msgTemplate,
 		Status:            r.Status(),
@@ -1721,7 +1742,11 @@ func (t *task) flux() string {
 
 func (t *task) summarize() SummaryTask {
 	return SummaryTask{
-		MetaName:    t.MetaName(),
+		SummaryIdentifier: SummaryIdentifier{
+			Kind:          KindTask,
+			MetaName:      t.MetaName(),
+			EnvReferences: summarizeCommonReferences(t.identity, t.labels),
+		},
 		Name:        t.Name(),
 		Cron:        t.cron,
 		Description: t.description,
@@ -1730,7 +1755,6 @@ func (t *task) summarize() SummaryTask {
 		Query:       t.query,
 		Status:      t.Status(),
 
-		EnvReferences:     summarizeCommonReferences(t.identity, t.labels),
 		LabelAssociations: toSummaryLabels(t.labels...),
 	}
 }
@@ -1856,10 +1880,13 @@ func (t *telegraf) summarize() SummaryTelegraf {
 	cfg := t.config
 	cfg.Name = t.Name()
 	return SummaryTelegraf{
-		MetaName:          t.MetaName(),
+		SummaryIdentifier: SummaryIdentifier{
+			Kind:          KindTelegraf,
+			MetaName:      t.MetaName(),
+			EnvReferences: summarizeCommonReferences(t.identity, t.labels),
+		},
 		TelegrafConfig:    cfg,
 		LabelAssociations: toSummaryLabels(t.labels...),
-		EnvReferences:     summarizeCommonReferences(t.identity, t.labels),
 	}
 }
 
@@ -1935,13 +1962,16 @@ func (v *variable) summarize() SummaryVariable {
 	}
 
 	return SummaryVariable{
-		MetaName:          v.MetaName(),
+		SummaryIdentifier: SummaryIdentifier{
+			Kind:          KindVariable,
+			MetaName:      v.MetaName(),
+			EnvReferences: envRefs,
+		},
 		Name:              v.Name(),
 		Description:       v.Description,
 		Selected:          v.Selected(),
 		Arguments:         v.influxVarArgs(),
 		LabelAssociations: toSummaryLabels(v.labels...),
-		EnvReferences:     envRefs,
 	}
 }
 

@@ -30,22 +30,28 @@ func TestParse(t *testing.T) {
 
 				actual := buckets[0]
 				expectedBucket := SummaryBucket{
-					MetaName:          "rucket-11",
+					SummaryIdentifier: SummaryIdentifier{
+						Kind:          KindBucket,
+						MetaName:      "rucket-11",
+						EnvReferences: []SummaryReference{},
+					},
 					Name:              "rucket-11",
 					Description:       "bucket 1 description",
 					RetentionPeriod:   time.Hour,
 					LabelAssociations: []SummaryLabel{},
-					EnvReferences:     []SummaryReference{},
 				}
 				assert.Equal(t, expectedBucket, actual)
 
 				actual = buckets[1]
 				expectedBucket = SummaryBucket{
-					MetaName:          "rucket-22",
+					SummaryIdentifier: SummaryIdentifier{
+						Kind:          KindBucket,
+						MetaName:      "rucket-22",
+						EnvReferences: []SummaryReference{},
+					},
 					Name:              "display name",
 					Description:       "bucket 2 description",
 					LabelAssociations: []SummaryLabel{},
-					EnvReferences:     []SummaryReference{},
 				}
 				assert.Equal(t, expectedBucket, actual)
 			})
@@ -483,6 +489,7 @@ spec:
 				require.Len(t, sum.Checks, 2)
 
 				check1 := sum.Checks[0]
+				assert.Equal(t, KindCheckThreshold, check1.Kind)
 				thresholdCheck, ok := check1.Check.(*icheck.Threshold)
 				require.Truef(t, ok, "got: %#v", check1)
 
@@ -529,6 +536,7 @@ spec:
 				assert.Len(t, check1.LabelAssociations, 1)
 
 				check2 := sum.Checks[1]
+				assert.Equal(t, KindCheckDeadman, check2.Kind)
 				deadmanCheck, ok := check2.Check.(*icheck.Deadman)
 				require.Truef(t, ok, "got: %#v", check2)
 
@@ -951,6 +959,7 @@ spec:
 						require.Len(t, sum.Dashboards, 1)
 
 						actual := sum.Dashboards[0]
+						assert.Equal(t, KindDashboard, actual.Kind)
 						assert.Equal(t, "dash-1", actual.Name)
 						assert.Equal(t, "desc1", actual.Description)
 
@@ -1035,6 +1044,7 @@ spec:
 						require.Len(t, sum.Dashboards, 1)
 
 						actual := sum.Dashboards[0]
+						assert.Equal(t, KindDashboard, actual.Kind)
 						assert.Equal(t, "dash-0", actual.Name)
 						assert.Equal(t, "a dashboard w/ heatmap chart", actual.Description)
 
@@ -1153,6 +1163,7 @@ spec:
 						require.Len(t, sum.Dashboards, 1)
 
 						actual := sum.Dashboards[0]
+						assert.Equal(t, KindDashboard, actual.Kind)
 						assert.Equal(t, "dash-0", actual.Name)
 						assert.Equal(t, "a dashboard w/ single histogram chart", actual.Description)
 
@@ -1227,6 +1238,7 @@ spec:
 						require.Len(t, sum.Dashboards, 1)
 
 						actual := sum.Dashboards[0]
+						assert.Equal(t, KindDashboard, actual.Kind)
 						assert.Equal(t, "dash-0", actual.Name)
 						assert.Equal(t, "a dashboard w/ single markdown chart", actual.Description)
 
@@ -1248,6 +1260,7 @@ spec:
 						require.Len(t, sum.Dashboards, 1)
 
 						actual := sum.Dashboards[0]
+						assert.Equal(t, KindDashboard, actual.Kind)
 						assert.Equal(t, "dash-0", actual.Name)
 						assert.Equal(t, "a dashboard w/ single scatter chart", actual.Description)
 
@@ -1525,6 +1538,7 @@ spec:
 						require.Len(t, sum.Dashboards, 2)
 
 						actual := sum.Dashboards[0]
+						assert.Equal(t, KindDashboard, actual.Kind)
 						assert.Equal(t, "dash-1", actual.MetaName)
 						assert.Equal(t, "display name", actual.Name)
 						assert.Equal(t, "desc1", actual.Description)
@@ -1692,6 +1706,7 @@ spec:
 						require.Len(t, sum.Dashboards, 1)
 
 						actual := sum.Dashboards[0]
+						assert.Equal(t, KindDashboard, actual.Kind)
 						assert.Equal(t, "dash-1", actual.Name)
 						assert.Equal(t, "desc1", actual.Description)
 
@@ -1970,6 +1985,7 @@ spec:
 						require.Len(t, sum.Dashboards, 1)
 
 						actual := sum.Dashboards[0]
+						assert.Equal(t, KindDashboard, actual.Kind)
 						assert.Equal(t, "dash-1", actual.Name)
 						assert.Equal(t, "desc1", actual.Description)
 
@@ -2147,6 +2163,7 @@ spec:
 						require.Len(t, sum.Dashboards, 1)
 
 						actual := sum.Dashboards[0]
+						assert.Equal(t, KindDashboard, actual.Kind)
 						assert.Equal(t, "dash-1", actual.Name)
 						assert.Equal(t, "desc1", actual.Description)
 
@@ -2432,7 +2449,10 @@ spec:
 			testfileRunner(t, "testdata/notification_endpoint", func(t *testing.T, template *Template) {
 				expectedEndpoints := []SummaryNotificationEndpoint{
 					{
-						MetaName: "http-basic-auth-notification-endpoint",
+						SummaryIdentifier: SummaryIdentifier{
+							Kind:     KindNotificationEndpointHTTP,
+							MetaName: "http-basic-auth-notification-endpoint",
+						},
 						NotificationEndpoint: &endpoint.HTTP{
 							Base: endpoint.Base{
 								Name:        "basic endpoint name",
@@ -2447,7 +2467,10 @@ spec:
 						},
 					},
 					{
-						MetaName: "http-bearer-auth-notification-endpoint",
+						SummaryIdentifier: SummaryIdentifier{
+							Kind:     KindNotificationEndpointHTTP,
+							MetaName: "http-bearer-auth-notification-endpoint",
+						},
 						NotificationEndpoint: &endpoint.HTTP{
 							Base: endpoint.Base{
 								Name:        "http-bearer-auth-notification-endpoint",
@@ -2461,7 +2484,10 @@ spec:
 						},
 					},
 					{
-						MetaName: "http-none-auth-notification-endpoint",
+						SummaryIdentifier: SummaryIdentifier{
+							Kind:     KindNotificationEndpointHTTP,
+							MetaName: "http-none-auth-notification-endpoint",
+						},
 						NotificationEndpoint: &endpoint.HTTP{
 							Base: endpoint.Base{
 								Name:        "http-none-auth-notification-endpoint",
@@ -2474,7 +2500,10 @@ spec:
 						},
 					},
 					{
-						MetaName: "pager-duty-notification-endpoint",
+						SummaryIdentifier: SummaryIdentifier{
+							Kind:     KindNotificationEndpointPagerDuty,
+							MetaName: "pager-duty-notification-endpoint",
+						},
 						NotificationEndpoint: &endpoint.PagerDuty{
 							Base: endpoint.Base{
 								Name:        "pager duty name",
@@ -2486,7 +2515,10 @@ spec:
 						},
 					},
 					{
-						MetaName: "slack-notification-endpoint",
+						SummaryIdentifier: SummaryIdentifier{
+							Kind:     KindNotificationEndpointHTTP,
+							MetaName: "slack-notification-endpoint",
+						},
 						NotificationEndpoint: &endpoint.Slack{
 							Base: endpoint.Base{
 								Name:        "slack name",
@@ -2818,6 +2850,7 @@ spec:
 				require.Len(t, rules, 1)
 
 				rule := rules[0]
+				assert.Equal(t, KindNotificationRule, rule.Kind)
 				assert.Equal(t, "rule_0", rule.Name)
 				assert.Equal(t, "endpoint-0", rule.EndpointMetaName)
 				assert.Equal(t, "desc_0", rule.Description)
@@ -3152,6 +3185,11 @@ spec:
 				sum := template.Summary()
 				tasks := sum.Tasks
 				require.Len(t, tasks, 2)
+
+				for _, ta := range tasks {
+					assert.Equal(t, KindTask, ta.Kind)
+				}
+
 				sort.Slice(tasks, func(i, j int) bool {
 					return tasks[i].MetaName < tasks[j].MetaName
 				})
@@ -3374,6 +3412,7 @@ spec:
 				require.Len(t, sum.TelegrafConfigs, 2)
 
 				actual := sum.TelegrafConfigs[0]
+				assert.Equal(t, KindTelegraf, actual.Kind)
 				assert.Equal(t, "display name", actual.TelegrafConfig.Name)
 				assert.Equal(t, "desc", actual.TelegrafConfig.Description)
 
@@ -3473,6 +3512,9 @@ spec:
 				sum := template.Summary()
 
 				require.Len(t, sum.Variables, 4)
+				for _, v := range sum.Variables {
+					assert.Equal(t, KindVariable, v.Kind)
+				}
 
 				varEquals := func(t *testing.T, name, vType string, vals interface{}, selected []string, v SummaryVariable) {
 					t.Helper()
@@ -3869,28 +3911,37 @@ spec:
 
 		bkts := []SummaryBucket{
 			{
-				MetaName:          "rucket-1",
+				SummaryIdentifier: SummaryIdentifier{
+					Kind:          KindBucket,
+					MetaName:      "rucket-1",
+					EnvReferences: []SummaryReference{},
+				},
 				Name:              "rucket-1",
 				Description:       "desc_1",
 				RetentionPeriod:   10000 * time.Second,
 				LabelAssociations: labels,
-				EnvReferences:     []SummaryReference{},
 			},
 			{
-				MetaName:          "rucket-2",
+				SummaryIdentifier: SummaryIdentifier{
+					Kind:          KindBucket,
+					MetaName:      "rucket-2",
+					EnvReferences: []SummaryReference{},
+				},
 				Name:              "rucket-2",
 				Description:       "desc-2",
 				RetentionPeriod:   20000 * time.Second,
 				LabelAssociations: labels,
-				EnvReferences:     []SummaryReference{},
 			},
 			{
-				MetaName:          "rucket-3",
+				SummaryIdentifier: SummaryIdentifier{
+					Kind:          KindBucket,
+					MetaName:      "rucket-3",
+					EnvReferences: []SummaryReference{},
+				},
 				Name:              "rucket-3",
 				Description:       "desc_3",
 				RetentionPeriod:   30000 * time.Second,
 				LabelAssociations: labels,
-				EnvReferences:     []SummaryReference{},
 			},
 		}
 		assert.Equal(t, bkts, sum.Buckets)
@@ -4424,8 +4475,12 @@ func sumLabelGen(metaName, name, color, desc string, envRefs ...SummaryReference
 		envRefs = make([]SummaryReference, 0)
 	}
 	return SummaryLabel{
-		MetaName: metaName,
-		Name:     name,
+		SummaryIdentifier: SummaryIdentifier{
+			Kind:          KindLabel,
+			MetaName:      metaName,
+			EnvReferences: envRefs,
+		},
+		Name: name,
 		Properties: struct {
 			Color       string `json:"color"`
 			Description string `json:"description"`
@@ -4433,7 +4488,6 @@ func sumLabelGen(metaName, name, color, desc string, envRefs ...SummaryReference
 			Color:       color,
 			Description: desc,
 		},
-		EnvReferences: envRefs,
 	}
 }
 
