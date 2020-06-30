@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/csv"
 	"fmt"
 	"io"
 	"log"
@@ -38,6 +39,7 @@ type writeFlagsType struct {
 	SkipHeader                 int
 	IgnoreDataTypeInColumnName bool
 	Encoding                   string
+	ErrorsFile                 string
 }
 
 var writeFlags writeFlagsType
@@ -86,6 +88,7 @@ func cmdWrite(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd.PersistentFlags().BoolVar(&writeFlags.IgnoreDataTypeInColumnName, "xIgnoreDataTypeInColumnName", false, "Ignores dataType which could be specified after ':' in column name")
 	cmd.PersistentFlags().MarkHidden("xIgnoreDataTypeInColumnName") // should be used only upon explicit advice
 	cmd.PersistentFlags().StringVar(&writeFlags.Encoding, "encoding", "UTF-8", "Character encoding of input files or stdin")
+	cmd.PersistentFlags().StringVar(&writeFlags.ErrorsFile, "errors-file", "", "The path to the file to write rejected rows")
 
 	cmdDryRun := opt.newCmd("dryrun", fluxWriteDryrunF, false)
 	cmdDryRun.Args = cobra.MaximumNArgs(1)
@@ -204,6 +207,27 @@ func (writeFlags *writeFlagsType) createLineReader(ctx context.Context, cmd *cob
 		}
 	}
 
+	// create writer for errors-file, if supplied
+	var errorsFile *csv.Writer
+	var rowSkippedListener func(*csv2lp.CsvToLineReader, error, []string)
+	if writeFlags.ErrorsFile != "" {
+		writer, err := os.Create(writeFlags.ErrorsFile)
+		if err != nil {
+			return nil, csv2lp.MultiCloser(closers...), fmt.Errorf("failed to create %q: %v", writeFlags.ErrorsFile, err)
+		}
+		closers = append(closers, writer)
+		errorsFile = csv.NewWriter(writer)
+		rowSkippedListener = func(source *csv2lp.CsvToLineReader, lineError error, row []string) {
+			log.Println(lineError)
+			errorsFile.Comma = source.Comma()
+			errorsFile.Write([]string{fmt.Sprintf("# error : %v", lineError)})
+			if err := errorsFile.Write(row); err != nil {
+				log.Printf("Unable to write to error-file: %v\n", err)
+			}
+			errorsFile.Flush() // flush is required
+		}
+	}
+
 	// concatenate readers
 	r := io.MultiReader(readers...)
 	if writeFlags.Format == inputFormatCsv {
@@ -213,6 +237,7 @@ func (writeFlags *writeFlagsType) createLineReader(ctx context.Context, cmd *cob
 		csvReader.Table.IgnoreDataTypeInColumnName(writeFlags.IgnoreDataTypeInColumnName)
 		// change LineNumber to report file/stdin line numbers properly
 		csvReader.LineNumber = writeFlags.SkipHeader - len(writeFlags.Headers)
+		csvReader.RowSkipped = rowSkippedListener
 		r = csvReader
 	}
 	return r, csv2lp.MultiCloser(closers...), nil
