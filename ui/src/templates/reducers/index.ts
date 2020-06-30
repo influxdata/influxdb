@@ -8,6 +8,7 @@ import {
   SET_EXPORT_TEMPLATE,
   SET_TEMPLATE_SUMMARY,
   SET_TEMPLATES_STATUS,
+  TOGGLE_TEMPLATE_RESOURCE_INSTALL,
 } from 'src/templates/actions/creators'
 import {
   CommunityTemplate,
@@ -66,14 +67,65 @@ export const templatesReducer = (
         const {template} = action
 
         const activeCommunityTemplate: CommunityTemplate = {}
-        activeCommunityTemplate.dashboards = template.dashboards || []
-        activeCommunityTemplate.telegrafConfigs = template.telegrafConfigs || []
-        activeCommunityTemplate.buckets = template.buckets || []
-        activeCommunityTemplate.checks = template.checks || []
-        activeCommunityTemplate.variables = template.variables || []
-        activeCommunityTemplate.notificationRules =
+
+        activeCommunityTemplate.dashboards = (template.dashboards || []).map(
+          dashboard => {
+            if (!dashboard.hasOwnProperty('shouldInstall')) {
+              dashboard.shouldInstall = true
+            }
+            return dashboard
+          }
+        )
+
+        activeCommunityTemplate.telegrafConfigs = (
+          template.telegrafConfigs || []
+        ).map(telegrafConfig => {
+          if (!telegrafConfig.hasOwnProperty('shouldInstall')) {
+            telegrafConfig.shouldInstall = true
+          }
+          return telegrafConfig
+        })
+
+        activeCommunityTemplate.buckets = (template.buckets || []).map(
+          bucket => {
+            if (!bucket.hasOwnProperty('shouldInstall')) {
+              bucket.shouldInstall = true
+            }
+            return bucket
+          }
+        )
+
+        activeCommunityTemplate.checks = (template.checks || []).map(check => {
+          if (!check.hasOwnProperty('shouldInstall')) {
+            check.shouldInstall = true
+          }
+          return check
+        })
+
+        activeCommunityTemplate.variables = (template.variables || []).map(
+          variable => {
+            if (!variable.hasOwnProperty('shouldInstall')) {
+              variable.shouldInstall = true
+            }
+            return variable
+          }
+        )
+
+        activeCommunityTemplate.notificationRules = (
           template.notificationRules || []
-        activeCommunityTemplate.labels = template.labels || []
+        ).map(noritifcationRule => {
+          if (!noritifcationRule.hasOwnProperty('shouldInstall')) {
+            noritifcationRule.shouldInstall = true
+          }
+          return noritifcationRule
+        })
+
+        activeCommunityTemplate.labels = (template.labels || []).map(label => {
+          if (!label.hasOwnProperty('shouldInstall')) {
+            label.shouldInstall = true
+          }
+          return label
+        })
 
         draftState.activeCommunityTemplate = activeCommunityTemplate
         return
@@ -101,6 +153,20 @@ export const templatesReducer = (
         addResource<TemplateSummary>(draftState, action, ResourceType.Templates)
 
         return
+      }
+
+      case TOGGLE_TEMPLATE_RESOURCE_INSTALL: {
+        const {resourceType, shouldInstall, templateMetaName} = action
+
+        const activeCommTempl = {...draftState.activeCommunityTemplate}
+
+        activeCommTempl[resourceType].forEach(resource => {
+          if (resource.templateMetaName === templateMetaName) {
+            resource.shouldInstall = shouldInstall
+          }
+        })
+
+        draftState.activeCommunityTemplate = activeCommTempl
       }
     }
   })

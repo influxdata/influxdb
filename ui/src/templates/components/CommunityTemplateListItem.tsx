@@ -9,18 +9,24 @@ import {
   Panel,
   ComponentSize,
   AlignItems,
+  InputToggleType,
+  Toggle,
 } from '@influxdata/clockface'
 
 interface Props {
   title?: string
   description?: string
   children?: ReactNode
+  handleToggle: () => void
+  shouldInstall: boolean
 }
 
 const CommunityTemplateListItem: FC<Props> = ({
   title,
   children,
   description,
+  handleToggle,
+  shouldInstall = true,
 }) => {
   const descriptionClassName = classnames(
     'community-templates--item-description',
@@ -38,6 +44,13 @@ const CommunityTemplateListItem: FC<Props> = ({
         <p className={descriptionClassName}>
           {description || 'No description'}
         </p>
+        <Toggle
+          id={`community-templates-install--${title}`}
+          type={InputToggleType.Checkbox}
+          onChange={handleToggle}
+          size={ComponentSize.ExtraSmall}
+          checked={shouldInstall}
+        />
         {children}
       </Panel.Body>
     </Panel>

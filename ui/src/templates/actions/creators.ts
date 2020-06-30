@@ -15,6 +15,8 @@ export const SET_ACTIVE_COMMUNITY_TEMPLATE = 'SET_ACTIVE_COMMUNITY_TEMPLATE'
 export const SET_EXPORT_TEMPLATE = 'SET_EXPORT_TEMPLATE'
 export const SET_TEMPLATE_SUMMARY = 'SET_TEMPLATE_SUMMARY'
 export const SET_TEMPLATES_STATUS = 'SET_TEMPLATES_STATUS'
+export const TOGGLE_TEMPLATE_RESOURCE_INSTALL =
+  'TOGGLE_TEMPLATE_RESOURCE_INSTALL'
 
 export type Action =
   | ReturnType<typeof addTemplateSummary>
@@ -24,6 +26,7 @@ export type Action =
   | ReturnType<typeof setTemplatesStatus>
   | ReturnType<typeof setTemplateSummary>
   | ReturnType<typeof setActiveCommunityTemplate>
+  | ReturnType<typeof toggleTemplateResourceInstall>
 
 type TemplateSummarySchema<R extends string | string[]> = NormalizedSchema<
   TemplateSummaryEntities,
@@ -84,4 +87,16 @@ export const setActiveCommunityTemplate = (template: CommunityTemplate) =>
   ({
     type: SET_ACTIVE_COMMUNITY_TEMPLATE,
     template,
+  } as const)
+
+export const toggleTemplateResourceInstall = (
+  resourceType: string,
+  templateMetaName: string,
+  shouldInstall: boolean
+) =>
+  ({
+    type: TOGGLE_TEMPLATE_RESOURCE_INSTALL,
+    resourceType,
+    templateMetaName,
+    shouldInstall,
   } as const)
