@@ -37,6 +37,8 @@ use std::time::{Duration, SystemTime};
 use std::u32;
 use tempfile::TempDir;
 
+use tokio::time::Instant;
+
 const URL_BASE: &str = "http://localhost:8080/api/v2";
 const GRPC_URL_BASE: &str = "http://localhost:8082/";
 
@@ -622,8 +624,53 @@ impl TestServer {
     }
 
     async fn wait_until_ready(&self) {
-        // TODO: poll the server to see if it's ready instead of sleeping
-        tokio::time::delay_for(Duration::from_secs(3)).await;
+        // Poll the RPC and HTTP servers separately as they listen on
+        // different ports but both need to be up for the test to run
+        async fn try_grpc_connect() {
+            let mut interval = tokio::time::interval(Duration::from_millis(500));
+            loop {
+                match StorageClient::connect(GRPC_URL_BASE).await {
+                    Ok(storage_client) => {
+                        println!(
+                            "Successfully connected storage_client: {:?}",
+                            storage_client
+                        );
+                        return;
+                    }
+                    Err(e) => {
+                        println!("Waiting for gRPM server to be up: {}", e);
+                    }
+                }
+                interval.tick().await;
+            }
+        }
+
+        async fn try_http_connect() {
+            let client = reqwest::Client::new();
+            let url = format!("{}/ping", URL_BASE);
+            let mut interval = tokio::time::interval(Duration::from_millis(500));
+            loop {
+                match client.get(&url).send().await {
+                    Ok(resp) => {
+                        println!("Successfully got a response from http: {:?}", resp);
+                        return;
+                    }
+                    Err(e) => {
+                        println!("Waiting for HTTP server to be up: {}", e);
+                    }
+                }
+                interval.tick().await;
+            }
+        }
+
+        let pair = futures::future::join(try_http_connect(), try_grpc_connect());
+
+        let capped_check = tokio::time::timeout_at(Instant::now() + Duration::from_secs(3), pair);
+
+        match capped_check.await {
+            Ok(_) => println!("Server is up correctly"),
+            Err(e) => println!("WARNING: server was not ready: {}", e),
+        }
     }
 }
 
