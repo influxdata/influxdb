@@ -159,7 +159,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 							for _, o := range opts {
 								o(&opt)
 							}
-							pkg, err := pkger.Combine(opt.Pkgs)
+							pkg, err := pkger.Combine(opt.Templates)
 							if err != nil {
 								return pkger.ImpactSummary{}, err
 							}
@@ -227,7 +227,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 							for _, o := range opts {
 								o(&opt)
 							}
-							pkg, err := pkger.Combine(opt.Pkgs)
+							pkg, err := pkger.Combine(opt.Templates)
 							if err != nil {
 								return pkger.ImpactSummary{}, err
 							}
@@ -297,7 +297,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 				return pkger.ReqRawTemplate{
 					ContentType: pkger.EncodingJSON.String(),
 					Sources:     pkg.Sources(),
-					Pkg:         pkgBytes,
+					Template:    pkgBytes,
 				}
 			}
 
@@ -347,7 +347,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 							for _, o := range opts {
 								o(&opt)
 							}
-							pkg, err := pkger.Combine(opt.Pkgs)
+							pkg, err := pkger.Combine(opt.Templates)
 							if err != nil {
 								return pkger.ImpactSummary{}, err
 							}
@@ -432,7 +432,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 							for _, o := range opts {
 								o(&opt)
 							}
-							pkg, err := pkger.Combine(opt.Pkgs)
+							pkg, err := pkger.Combine(opt.Templates)
 							if err != nil {
 								return pkger.ImpactSummary{}, err
 							}
@@ -465,7 +465,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 					o(&opt)
 				}
 
-				pkg, err := pkger.Combine(opt.Pkgs)
+				pkg, err := pkger.Combine(opt.Templates)
 				if err != nil {
 					return pkger.ImpactSummary{}, err
 				}
@@ -1127,7 +1127,7 @@ spec:
 	return pkger.ReqRawTemplate{
 		ContentType: encoding.String(),
 		Sources:     pkg.Sources(),
-		Pkg:         b,
+		Template:    b,
 	}
 }
 
@@ -1195,7 +1195,7 @@ func (f *fakeSVC) UpdateStack(ctx context.Context, upd pkger.StackUpdate) (pkger
 	panic("not implemented")
 }
 
-func (f *fakeSVC) Export(ctx context.Context, setters ...pkger.ExportOptFn) (*pkger.Pkg, error) {
+func (f *fakeSVC) Export(ctx context.Context, setters ...pkger.ExportOptFn) (*pkger.Template, error) {
 	panic("not implemented")
 }
 

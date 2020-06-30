@@ -66,7 +66,7 @@ type (
 
 	// RespStackResource is the response for a stack resource. This type exists
 	// to decouple the internal service implementation from the deprecates usage
-	// of pkgs in the API. We could add a custom UnmarshalJSON method, but
+	// of templates in the API. We could add a custom UnmarshalJSON method, but
 	// I would rather keep it obvious and explicit with a separate field.
 	RespStackResource struct {
 		APIVersion   string                   `json:"apiVersion"`

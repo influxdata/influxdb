@@ -13,15 +13,15 @@ import (
 func TestPkg(t *testing.T) {
 	t.Run("Summary", func(t *testing.T) {
 		t.Run("buckets returned in asc order by name", func(t *testing.T) {
-			pkg := Pkg{
+			pkg := Template{
 				mBuckets: map[string]*bucket{
 					"buck_2": {
 						Description:    "desc2",
-						identity:       identity{name: &references{val: "pkgName2"}, displayName: &references{val: "name2"}},
+						identity:       identity{name: &references{val: "metaName2"}, displayName: &references{val: "name2"}},
 						RetentionRules: retentionRules{newRetentionRule(2 * time.Hour)},
 					},
 					"buck_1": {
-						identity:       identity{name: &references{val: "pkgName1"}, displayName: &references{val: "name1"}},
+						identity:       identity{name: &references{val: "metaName1"}, displayName: &references{val: "name1"}},
 						Description:    "desc1",
 						RetentionRules: retentionRules{newRetentionRule(time.Hour)},
 					},
@@ -35,14 +35,14 @@ func TestPkg(t *testing.T) {
 				assert.Zero(t, buck.ID)
 				assert.Zero(t, buck.OrgID)
 				assert.Equal(t, "desc"+strconv.Itoa(i), buck.Description)
-				assert.Equal(t, "pkgName"+strconv.Itoa(i), buck.MetaName)
+				assert.Equal(t, "metaName"+strconv.Itoa(i), buck.MetaName)
 				assert.Equal(t, "name"+strconv.Itoa(i), buck.Name)
 				assert.Equal(t, time.Duration(i)*time.Hour, buck.RetentionPeriod)
 			}
 		})
 
 		t.Run("labels returned in asc order by name", func(t *testing.T) {
-			pkg := Pkg{
+			pkg := Template{
 				mLabels: map[string]*label{
 					"2": {
 						identity:    identity{name: &references{val: "pkgName2"}, displayName: &references{val: "name2"}},
@@ -94,19 +94,19 @@ func TestPkg(t *testing.T) {
 			}
 			bucket1.labels = append(bucket1.labels, label1)
 
-			pkg := Pkg{
-				mBuckets: map[string]*bucket{bucket1.PkgName(): bucket1},
-				mLabels:  map[string]*label{label1.PkgName(): label1},
+			pkg := Template{
+				mBuckets: map[string]*bucket{bucket1.MetaName(): bucket1},
+				mLabels:  map[string]*label{label1.MetaName(): label1},
 			}
 
 			summary := pkg.Summary()
 
 			require.Len(t, summary.LabelMappings, 1)
 			mapping1 := summary.LabelMappings[0]
-			assert.Equal(t, bucket1.PkgName(), mapping1.ResourcePkgName)
+			assert.Equal(t, bucket1.MetaName(), mapping1.ResourceMetaName)
 			assert.Equal(t, bucket1.Name(), mapping1.ResourceName)
 			assert.Equal(t, influxdb.BucketsResourceType, mapping1.ResourceType)
-			assert.Equal(t, label1.PkgName(), mapping1.LabelPkgName)
+			assert.Equal(t, label1.MetaName(), mapping1.LabelMetaName)
 			assert.Equal(t, label1.Name(), mapping1.LabelName)
 		})
 	})
@@ -490,7 +490,7 @@ func TestPkg(t *testing.T) {
 
 		for _, tt := range tests {
 			fn := func(t *testing.T) {
-				testfileRunner(t, tt.pkgFile, func(t *testing.T, pkg *Pkg) {
+				testfileRunner(t, tt.pkgFile, func(t *testing.T, pkg *Template) {
 					contained := pkg.Contains(tt.kind, tt.validName)
 					assert.True(t, contained)
 

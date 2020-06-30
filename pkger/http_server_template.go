@@ -97,7 +97,7 @@ func (r *ReqExport) OK() error {
 	return nil
 }
 
-// RespExport is a response body for the create pkg endpoint.
+// RespExport is a response body for the create template endpoint.
 type RespExport []Object
 
 func (s *HTTPServerTemplates) export(w http.ResponseWriter, r *http.Request) {
@@ -135,19 +135,19 @@ func (s *HTTPServerTemplates) export(w http.ResponseWriter, r *http.Request) {
 		opts = append(opts, ExportWithStackID(*stackID))
 	}
 
-	newPkg, err := s.svc.Export(r.Context(), opts...)
+	newTemplate, err := s.svc.Export(r.Context(), opts...)
 	if err != nil {
 		s.api.Err(w, r, err)
 		return
 	}
 
-	resp := RespExport(newPkg.Objects)
+	resp := RespExport(newTemplate.Objects)
 	if resp == nil {
 		resp = []Object{}
 	}
 
 	var enc encoder
-	switch pkgEncoding(r.Header.Get("Accept")) {
+	switch templateEncoding(r.Header.Get("Accept")) {
 	case EncodingYAML:
 		enc = yaml.NewEncoder(w)
 		w.Header().Set("Content-Type", "application/x-yaml")
@@ -175,7 +175,7 @@ func (p ReqTemplateRemote) Encoding() Encoding {
 type ReqRawTemplate struct {
 	ContentType string          `json:"contentType" yaml:"contentType"`
 	Sources     []string        `json:"sources" yaml:"sources"`
-	Pkg         json.RawMessage `json:"contents" yaml:"contents"`
+	Template    json.RawMessage `json:"contents" yaml:"contents"`
 }
 
 func (p ReqRawTemplate) Encoding() Encoding {
@@ -193,7 +193,7 @@ type ReqRawAction struct {
 	Properties json.RawMessage `json:"properties"`
 }
 
-// ReqApply is the request body for a json or yaml body for the apply pkg endpoint.
+// ReqApply is the request body for a json or yaml body for the apply template endpoint.
 type ReqApply struct {
 	DryRun  bool                `json:"dryRun" yaml:"dryRun"`
 	OrgID   string              `json:"orgID" yaml:"orgID"`
@@ -216,58 +216,52 @@ type ReqApply struct {
 	RawActions []ReqRawAction `json:"actions"`
 }
 
-// Pkgs returns all pkgs associated with the request.
-func (r ReqApply) Pkgs(encoding Encoding) (*Pkg, error) {
-	var rawPkgs []*Pkg
+// Templates returns all templates associated with the request.
+func (r ReqApply) Templates(encoding Encoding) (*Template, error) {
+	var rawTemplates []*Template
 	for _, rem := range r.Remotes {
 		if rem.URL == "" {
 			continue
 		}
-		pkg, err := Parse(rem.Encoding(), FromHTTPRequest(rem.URL), ValidSkipParseError())
+		template, err := Parse(rem.Encoding(), FromHTTPRequest(rem.URL), ValidSkipParseError())
 		if err != nil {
-			return nil, &influxdb.Error{
-				Code: influxdb.EUnprocessableEntity,
-				Msg:  fmt.Sprintf("pkg from url[%s] had an issue: %s", rem.URL, err.Error()),
-			}
+			msg := fmt.Sprintf("template from url[%s] had an issue: %s", rem.URL, err.Error())
+			return nil, influxErr(influxdb.EUnprocessableEntity, msg)
 		}
-		rawPkgs = append(rawPkgs, pkg)
+		rawTemplates = append(rawTemplates, template)
 	}
 
-	for i, rawPkg := range append(r.RawPkgs, r.RawPkg) {
-		if rawPkg == nil {
+	for i, rawTemplate := range append(r.RawPkgs, r.RawPkg) {
+		if rawTemplate == nil {
 			continue
 		}
 
-		pkg, err := Parse(encoding, FromReader(bytes.NewReader(rawPkg)), ValidSkipParseError())
+		template, err := Parse(encoding, FromReader(bytes.NewReader(rawTemplate)), ValidSkipParseError())
 		if err != nil {
-			return nil, &influxdb.Error{
-				Code: influxdb.EUnprocessableEntity,
-				Msg:  fmt.Sprintf("pkg[%d] had an issue: %s", i, err.Error()),
-			}
+			msg := fmt.Sprintf("template[%d] had an issue: %s", i, err.Error())
+			return nil, influxErr(influxdb.EUnprocessableEntity, msg)
 		}
-		rawPkgs = append(rawPkgs, pkg)
+		rawTemplates = append(rawTemplates, template)
 	}
 
 	for i, rawTmpl := range append(r.RawTemplates, r.RawTemplate) {
-		if rawTmpl.Pkg == nil {
+		if rawTmpl.Template == nil {
 			continue
 		}
 		enc := encoding
 		if sourceEncoding := rawTmpl.Encoding(); sourceEncoding != EncodingSource {
 			enc = sourceEncoding
 		}
-		pkg, err := Parse(enc, FromReader(bytes.NewReader(rawTmpl.Pkg), rawTmpl.Sources...), ValidSkipParseError())
+		template, err := Parse(enc, FromReader(bytes.NewReader(rawTmpl.Template), rawTmpl.Sources...), ValidSkipParseError())
 		if err != nil {
 			sources := formatSources(rawTmpl.Sources)
-			return nil, &influxdb.Error{
-				Code: influxdb.EUnprocessableEntity,
-				Msg:  fmt.Sprintf("pkg[%d] from source(s) %q had an issue: %s", i, sources, err.Error()),
-			}
+			msg := fmt.Sprintf("template[%d] from source(s) %q had an issue: %s", i, sources, err.Error())
+			return nil, influxErr(influxdb.EUnprocessableEntity, msg)
 		}
-		rawPkgs = append(rawPkgs, pkg)
+		rawTemplates = append(rawTemplates, template)
 	}
 
-	return Combine(rawPkgs, ValidWithoutResources(), ValidSkipParseError())
+	return Combine(rawTemplates, ValidWithoutResources(), ValidSkipParseError())
 }
 
 type actionType string
@@ -330,7 +324,7 @@ func (r ReqApply) validActions() (struct {
 	return out, nil
 }
 
-// RespApply is the response body for the apply pkg endpoint.
+// RespApply is the response body for the apply template endpoint.
 type RespApply struct {
 	Sources []string `json:"sources" yaml:"sources"`
 	StackID string   `json:"stackID" yaml:"stackID"`
@@ -368,7 +362,7 @@ func (s *HTTPServerTemplates) apply(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	parsedPkg, err := reqBody.Pkgs(encoding)
+	parsedTemplate, err := reqBody.Templates(encoding)
 	if err != nil {
 		s.api.Err(w, r, &influxdb.Error{
 			Code: influxdb.EUnprocessableEntity,
@@ -385,7 +379,7 @@ func (s *HTTPServerTemplates) apply(w http.ResponseWriter, r *http.Request) {
 
 	applyOpts := []ApplyOptFn{
 		ApplyWithEnvRefs(reqBody.EnvRefs),
-		ApplyWithPkg(parsedPkg),
+		ApplyWithTemplate(parsedTemplate),
 		ApplyWithStackID(stackID),
 	}
 	for _, a := range actions.SkipResources {
@@ -465,7 +459,7 @@ func formatSources(sources []string) string {
 }
 
 func decodeWithEncoding(r *http.Request, v interface{}) (Encoding, error) {
-	encoding := pkgEncoding(r.Header.Get("Content-Type"))
+	encoding := templateEncoding(r.Header.Get("Content-Type"))
 
 	var dec interface{ Decode(interface{}) error }
 	switch encoding {
@@ -480,7 +474,7 @@ func decodeWithEncoding(r *http.Request, v interface{}) (Encoding, error) {
 	return encoding, dec.Decode(v)
 }
 
-func pkgEncoding(contentType string) Encoding {
+func templateEncoding(contentType string) Encoding {
 	switch contentType {
 	case "application/x-jsonnet":
 		return EncodingJsonnet

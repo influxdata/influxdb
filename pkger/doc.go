@@ -21,7 +21,7 @@ file and see a summary of its contents:
 The parser will validate all contents of the package and provide any
 and all fields/entries that failed validation.
 
-If you wish to use the Pkg type in your transport layer and let the
+If you wish to use the Template type in your transport layer and let the
 the transport layer manage the decoding, then you can run the following
 to validate the package after the raw decoding is done:
 

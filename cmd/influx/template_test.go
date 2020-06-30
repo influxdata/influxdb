@@ -35,7 +35,7 @@ func Test_Template_Commands(t *testing.T) {
 	}
 
 	t.Run("export all", func(t *testing.T) {
-		defaultAssertFn := func(t *testing.T, pkg *pkger.Pkg) {
+		defaultAssertFn := func(t *testing.T, pkg *pkger.Template) {
 			t.Helper()
 			sum := pkg.Summary()
 
@@ -47,7 +47,7 @@ func Test_Template_Commands(t *testing.T) {
 
 		tests := []struct {
 			templateFileArgs
-			assertFn func(t *testing.T, pkg *pkger.Pkg)
+			assertFn func(t *testing.T, pkg *pkger.Template)
 		}{
 			{
 				templateFileArgs: templateFileArgs{
@@ -91,7 +91,7 @@ func Test_Template_Commands(t *testing.T) {
 						"--filter=labelName=foo",
 					},
 				},
-				assertFn: func(t *testing.T, pkg *pkger.Pkg) {
+				assertFn: func(t *testing.T, pkg *pkger.Template) {
 					defaultAssertFn(t, pkg)
 
 					sum := pkg.Summary()
@@ -111,7 +111,7 @@ func Test_Template_Commands(t *testing.T) {
 						"--filter=labelName=bar",
 					},
 				},
-				assertFn: func(t *testing.T, pkg *pkger.Pkg) {
+				assertFn: func(t *testing.T, pkg *pkger.Template) {
 					defaultAssertFn(t, pkg)
 
 					sum := pkg.Summary()
@@ -131,7 +131,7 @@ func Test_Template_Commands(t *testing.T) {
 						"--filter=resourceKind=Dashboard",
 					},
 				},
-				assertFn: func(t *testing.T, pkg *pkger.Pkg) {
+				assertFn: func(t *testing.T, pkg *pkger.Template) {
 					sum := pkg.Summary()
 
 					require.Len(t, sum.Dashboards, 1)
@@ -149,7 +149,7 @@ func Test_Template_Commands(t *testing.T) {
 						"--filter=resourceKind=Bucket",
 					},
 				},
-				assertFn: func(t *testing.T, pkg *pkger.Pkg) {
+				assertFn: func(t *testing.T, pkg *pkger.Template) {
 					sum := pkg.Summary()
 
 					require.Len(t, sum.Buckets, 1)
@@ -170,7 +170,7 @@ func Test_Template_Commands(t *testing.T) {
 						"--filter=resourceKind=Bucket",
 					},
 				},
-				assertFn: func(t *testing.T, pkg *pkger.Pkg) {
+				assertFn: func(t *testing.T, pkg *pkger.Template) {
 					sum := pkg.Summary()
 
 					require.Len(t, sum.Labels, 1)
@@ -185,7 +185,7 @@ func Test_Template_Commands(t *testing.T) {
 
 		cmdFn := func(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 			pkgSVC := &fakePkgSVC{
-				exportFn: func(_ context.Context, opts ...pkger.ExportOptFn) (*pkger.Pkg, error) {
+				exportFn: func(_ context.Context, opts ...pkger.ExportOptFn) (*pkger.Template, error) {
 					opt := pkger.ExportOpt{}
 					for _, o := range opts {
 						if err := o(&opt); err != nil {
@@ -198,7 +198,7 @@ func Test_Template_Commands(t *testing.T) {
 						return nil, errors.New("did not provide expected orgID")
 					}
 
-					var pkg pkger.Pkg
+					var pkg pkger.Template
 					for _, labelName := range orgIDOpt.LabelNames {
 						pkg.Objects = append(pkg.Objects, pkger.Object{
 							APIVersion: pkger.APIVersion,
@@ -324,7 +324,7 @@ func Test_Template_Commands(t *testing.T) {
 
 			cmdFn := func(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 				pkgSVC := &fakePkgSVC{
-					exportFn: func(_ context.Context, opts ...pkger.ExportOptFn) (*pkger.Pkg, error) {
+					exportFn: func(_ context.Context, opts ...pkger.ExportOptFn) (*pkger.Template, error) {
 						var opt pkger.ExportOpt
 						for _, o := range opts {
 							if err := o(&opt); err != nil {
@@ -332,7 +332,7 @@ func Test_Template_Commands(t *testing.T) {
 							}
 						}
 
-						var pkg pkger.Pkg
+						var pkg pkger.Template
 						for _, rc := range opt.Resources {
 							if rc.Kind == pkger.KindNotificationEndpoint {
 								rc.Kind = pkger.KindNotificationEndpointHTTP
@@ -365,7 +365,7 @@ func Test_Template_Commands(t *testing.T) {
 					"--variables="+idsStr(tt.varIDs...),
 				)
 
-				testPkgWrites(t, cmdFn, tt.templateFileArgs, func(t *testing.T, pkg *pkger.Pkg) {
+				testPkgWrites(t, cmdFn, tt.templateFileArgs, func(t *testing.T, pkg *pkger.Template) {
 					sum := pkg.Summary()
 
 					kindToName := func(k pkger.Kind, id influxdb.ID) string {
@@ -419,7 +419,7 @@ func Test_Template_Commands(t *testing.T) {
 		t.Run("by stack", func(t *testing.T) {
 			cmdFn := func(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 				pkgSVC := &fakePkgSVC{
-					exportFn: func(_ context.Context, opts ...pkger.ExportOptFn) (*pkger.Pkg, error) {
+					exportFn: func(_ context.Context, opts ...pkger.ExportOptFn) (*pkger.Template, error) {
 						var opt pkger.ExportOpt
 						for _, o := range opts {
 							if err := o(&opt); err != nil {
@@ -430,7 +430,7 @@ func Test_Template_Commands(t *testing.T) {
 						if opt.StackID != 1 {
 							return nil, errors.New("wrong stack ID, got: " + opt.StackID.String())
 						}
-						return &pkger.Pkg{
+						return &pkger.Template{
 							Objects: []pkger.Object{
 								pkger.LabelToObject("", influxdb.Label{
 									Name: "label-1",
@@ -451,7 +451,7 @@ func Test_Template_Commands(t *testing.T) {
 				args:     []string{"export", "--stack-id=" + influxdb.ID(1).String()},
 			}
 
-			testPkgWrites(t, cmdFn, tmplFileArgs, func(t *testing.T, pkg *pkger.Pkg) {
+			testPkgWrites(t, cmdFn, tmplFileArgs, func(t *testing.T, pkg *pkger.Template) {
 				sum := pkg.Summary()
 
 				require.Len(t, sum.Labels, 1)
@@ -694,7 +694,7 @@ type templateFileArgs struct {
 	envVars  map[string]string
 }
 
-func testPkgWrites(t *testing.T, newCmdFn func(*globalFlags, genericCLIOpts) *cobra.Command, args templateFileArgs, assertFn func(t *testing.T, pkg *pkger.Pkg)) {
+func testPkgWrites(t *testing.T, newCmdFn func(*globalFlags, genericCLIOpts) *cobra.Command, args templateFileArgs, assertFn func(t *testing.T, pkg *pkger.Template)) {
 	t.Helper()
 
 	defer addEnvVars(t, args.envVars)()
@@ -713,7 +713,7 @@ func testPkgWrites(t *testing.T, newCmdFn func(*globalFlags, genericCLIOpts) *co
 	t.Run(path.Join(args.name, "buffer"), testPkgWritesToBuffer(wrappedCmdFn, args, assertFn))
 }
 
-func testPkgWritesFile(newCmdFn func(w io.Writer) *cobra.Command, args templateFileArgs, assertFn func(t *testing.T, pkg *pkger.Pkg)) func(t *testing.T) {
+func testPkgWritesFile(newCmdFn func(w io.Writer) *cobra.Command, args templateFileArgs, assertFn func(t *testing.T, pkg *pkger.Template)) func(t *testing.T) {
 	return func(t *testing.T) {
 		t.Helper()
 
@@ -734,7 +734,7 @@ func testPkgWritesFile(newCmdFn func(w io.Writer) *cobra.Command, args templateF
 	}
 }
 
-func testPkgWritesToBuffer(newCmdFn func(w io.Writer) *cobra.Command, args templateFileArgs, assertFn func(t *testing.T, pkg *pkger.Pkg)) func(t *testing.T) {
+func testPkgWritesToBuffer(newCmdFn func(w io.Writer) *cobra.Command, args templateFileArgs, assertFn func(t *testing.T, pkg *pkger.Template)) func(t *testing.T) {
 	return func(t *testing.T) {
 		t.Helper()
 
@@ -753,7 +753,7 @@ func testPkgWritesToBuffer(newCmdFn func(w io.Writer) *cobra.Command, args templ
 
 type fakePkgSVC struct {
 	initStackFn func(ctx context.Context, userID influxdb.ID, stack pkger.Stack) (pkger.Stack, error)
-	exportFn    func(ctx context.Context, setters ...pkger.ExportOptFn) (*pkger.Pkg, error)
+	exportFn    func(ctx context.Context, setters ...pkger.ExportOptFn) (*pkger.Template, error)
 	dryRunFn    func(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.ImpactSummary, error)
 	applyFn     func(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.ImpactSummary, error)
 }
@@ -775,7 +775,7 @@ func (f *fakePkgSVC) DeleteStack(ctx context.Context, identifiers struct{ OrgID,
 	panic("not implemented")
 }
 
-func (f *fakePkgSVC) ExportStack(ctx context.Context, orgID, stackID influxdb.ID) (*pkger.Pkg, error) {
+func (f *fakePkgSVC) ExportStack(ctx context.Context, orgID, stackID influxdb.ID) (*pkger.Template, error) {
 	panic("not implemented")
 }
 
@@ -787,7 +787,7 @@ func (f *fakePkgSVC) UpdateStack(ctx context.Context, upd pkger.StackUpdate) (pk
 	panic("not implemented")
 }
 
-func (f *fakePkgSVC) Export(ctx context.Context, setters ...pkger.ExportOptFn) (*pkger.Pkg, error) {
+func (f *fakePkgSVC) Export(ctx context.Context, setters ...pkger.ExportOptFn) (*pkger.Template, error) {
 	if f.exportFn != nil {
 		return f.exportFn(ctx, setters...)
 	}

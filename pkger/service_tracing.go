@@ -57,7 +57,7 @@ func (s *traceMW) UpdateStack(ctx context.Context, upd StackUpdate) (Stack, erro
 	return s.next.UpdateStack(ctx, upd)
 }
 
-func (s *traceMW) Export(ctx context.Context, opts ...ExportOptFn) (pkg *Pkg, err error) {
+func (s *traceMW) Export(ctx context.Context, opts ...ExportOptFn) (template *Template, err error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 	return s.next.Export(ctx, opts...)

@@ -78,7 +78,7 @@ func (s *authMW) UpdateStack(ctx context.Context, upd StackUpdate) (Stack, error
 	return s.next.UpdateStack(ctx, upd)
 }
 
-func (s *authMW) Export(ctx context.Context, opts ...ExportOptFn) (*Pkg, error) {
+func (s *authMW) Export(ctx context.Context, opts ...ExportOptFn) (*Template, error) {
 	opt, err := exportOptFromOptFns(opts)
 	if err != nil {
 		return nil, err
