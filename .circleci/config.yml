@@ -7,7 +7,7 @@ commands:
     steps:
       - run:
           name: Install clang
-          command: sudo apt-get install -y --no-install-recommends clang
+          command: sudo apt-get install -y --no-install-recommends clang musl-tools
       - run:
           name: Install rust compiler
           command: |
@@ -42,7 +42,8 @@ commands:
       - run:
           name: Install additional rust targets
           command: |
-            rustup target add aarch64-unknown-linux-gnu \
+            rustup target add x86_64-unknown-linux-musl \
+                              aarch64-unknown-linux-gnu \
                               arm-unknown-linux-gnueabihf \
                               armv7-unknown-linux-gnueabihf \
                               x86_64-apple-darwin
