@@ -204,6 +204,40 @@ func Test_CsvToLineProtocol_SkipRowOnError(t *testing.T) {
 	require.Equal(t, messages, 2)
 }
 
+// Test_CsvToLineProtocol_RowSkipped tests that error rows are reported to configured RowSkippedListener
+func Test_CsvToLineProtocol_RowSkipped(t *testing.T) {
+	var buf bytes.Buffer
+	log.SetOutput(&buf)
+	oldFlags := log.Flags()
+	log.SetFlags(0)
+	oldPrefix := log.Prefix()
+	prefix := "::PREFIX::"
+	log.SetPrefix(prefix)
+	defer func() {
+		log.SetOutput(os.Stderr)
+		log.SetFlags(oldFlags)
+		log.SetPrefix(oldPrefix)
+	}()
+
+	csv := "sep=;\n_measurement;a|long:strict\n;1\ncpu;2.1\ncpu;3a\n"
+
+	reader := CsvToLineProtocol(strings.NewReader(csv)).SkipRowOnError(true)
+	reader.RowSkipped = func(src *CsvToLineReader, err error, _row []string) {
+		log.Println(err, string(src.Comma()))
+	}
+	// read all the data
+	ioutil.ReadAll(reader)
+
+	out := buf.String()
+	// fmt.Println(out, string(';'))
+	// ::PREFIX::line 3: column '_measurement': no measurement supplied
+	// ::PREFIX::line 4: column 'a': '2.1' cannot fit into long data type
+	// ::PREFIX::line 5: column 'a': strconv.ParseInt: parsing "3a": invalid syntax
+	messages := strings.Count(out, prefix)
+	require.Equal(t, 3, messages)
+	require.Equal(t, 3, strings.Count(out, ";"))
+}
+
 // Test_CsvLineError tests CsvLineError error format
 func Test_CsvLineError(t *testing.T) {
 	var tests = []struct {

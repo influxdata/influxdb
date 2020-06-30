@@ -48,6 +48,8 @@ type CsvToLineReader struct {
 	dataRowAdded bool
 	// log CSV data errors to sterr and continue with CSV processing
 	skipRowOnError bool
+	// RowSkipped is called when a row is skipped because of data parsing error
+	RowSkipped func(source *CsvToLineReader, lineError error, row []string)
 
 	// reader results
 	buffer     []byte
@@ -66,6 +68,11 @@ func (state *CsvToLineReader) LogTableColumns(val bool) *CsvToLineReader {
 func (state *CsvToLineReader) SkipRowOnError(val bool) *CsvToLineReader {
 	state.skipRowOnError = val
 	return state
+}
+
+// Comma returns a field delimiter used in an input CSV file
+func (state *CsvToLineReader) Comma() rune {
+	return state.csv.Comma
 }
 
 // Read implements io.Reader that returns protocol lines
@@ -119,6 +126,10 @@ func (state *CsvToLineReader) Read(p []byte) (n int, err error) {
 			state.dataRowAdded = true
 			if err != nil {
 				lineError := CsvLineError{state.LineNumber, err}
+				if state.RowSkipped != nil {
+					state.RowSkipped(state, lineError, row)
+					continue
+				}
 				if state.skipRowOnError {
 					log.Println(lineError)
 					continue
