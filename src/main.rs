@@ -10,14 +10,15 @@ use clap::{crate_authors, crate_version, value_t, App, Arg, SubCommand};
 use delorean_parquet::writer::CompressionLevel;
 use log::{debug, error, warn};
 
+pub mod server;
+
 mod commands {
     pub mod convert;
     pub mod file_meta;
     mod input;
+    pub mod server;
     pub mod stats;
 }
-mod rpc;
-mod server;
 
 enum ReturnCode {
     ConversionFailed = 1,
@@ -144,7 +145,7 @@ Examples:
         }
         ("server", Some(_)) | (_, _) => {
             println!("Staring delorean server...");
-            match server::main() {
+            match commands::server::main() {
                 Ok(()) => eprintln!("Shutdown OK"),
                 Err(e) => {
                     error!("Server shutdown with error: {:?}", e);
