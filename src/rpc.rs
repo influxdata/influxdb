@@ -1,3 +1,9 @@
+//! This module contains gRPC service implementatations
+
+// Something about how `tracing::instrument` works triggers a clippy
+// warning about complex types
+#![allow(clippy::type_complexity)]
+
 use delorean::generated_types::{
     delorean_server::Delorean,
     measurement_fields_response::MessageField,
@@ -26,12 +32,14 @@ use tonic::Status;
 
 use crate::server::App;
 
+#[derive(Debug)]
 pub struct GrpcServer {
     pub app: Arc<App>,
 }
 
 #[tonic::async_trait]
 impl Delorean for GrpcServer {
+    #[tracing::instrument(level = "debug")]
     async fn create_bucket(
         &self,
         req: tonic::Request<CreateBucketRequest>,
@@ -55,6 +63,9 @@ impl Delorean for GrpcServer {
         Ok(tonic::Response::new(CreateBucketResponse {}))
     }
 
+    // Something in instrument is causing lint warnings about unused braces
+    #[allow(unused_braces)]
+    #[tracing::instrument(level = "debug")]
     async fn delete_bucket(
         &self,
         _req: tonic::Request<DeleteBucketRequest>,
@@ -62,6 +73,7 @@ impl Delorean for GrpcServer {
         Ok(tonic::Response::new(DeleteBucketResponse {}))
     }
 
+    #[tracing::instrument(level = "debug")]
     async fn get_buckets(
         &self,
         req: tonic::Request<Organization>,
@@ -174,6 +186,7 @@ impl GrpcInputs for MeasurementFieldsRequest {
 impl Storage for GrpcServer {
     type ReadFilterStream = mpsc::Receiver<Result<ReadResponse, Status>>;
 
+    #[tracing::instrument(level = "debug")]
     async fn read_filter(
         &self,
         req: tonic::Request<ReadFilterRequest>,
@@ -210,6 +223,7 @@ impl Storage for GrpcServer {
 
     type ReadGroupStream = mpsc::Receiver<Result<ReadResponse, Status>>;
 
+    #[tracing::instrument(level = "debug")]
     async fn read_group(
         &self,
         req: tonic::Request<ReadGroupRequest>,
@@ -256,6 +270,7 @@ impl Storage for GrpcServer {
 
     type TagKeysStream = mpsc::Receiver<Result<StringValuesResponse, Status>>;
 
+    #[tracing::instrument(level = "debug")]
     async fn tag_keys(
         &self,
         req: tonic::Request<TagKeysRequest>,
@@ -306,6 +321,7 @@ impl Storage for GrpcServer {
 
     type TagValuesStream = mpsc::Receiver<Result<StringValuesResponse, Status>>;
 
+    #[tracing::instrument(level = "debug")]
     async fn tag_values(
         &self,
         req: tonic::Request<TagValuesRequest>,
@@ -360,15 +376,19 @@ impl Storage for GrpcServer {
         Ok(tonic::Response::new(rx))
     }
 
+    // Something in instrument is causing lint warnings about unused braces
+    #[allow(unused_braces)]
+    #[tracing::instrument(level = "debug")]
     async fn capabilities(
         &self,
-        _: tonic::Request<()>,
+        req: tonic::Request<()>,
     ) -> Result<tonic::Response<CapabilitiesResponse>, Status> {
         Err(Status::unimplemented("Not yet implemented"))
     }
 
     type MeasurementNamesStream = mpsc::Receiver<Result<StringValuesResponse, Status>>;
 
+    #[tracing::instrument(level = "debug")]
     async fn measurement_names(
         &self,
         req: tonic::Request<MeasurementNamesRequest>,
@@ -422,6 +442,7 @@ impl Storage for GrpcServer {
 
     type MeasurementTagKeysStream = mpsc::Receiver<Result<StringValuesResponse, Status>>;
 
+    #[tracing::instrument(level = "debug")]
     async fn measurement_tag_keys(
         &self,
         req: tonic::Request<MeasurementTagKeysRequest>,
@@ -483,6 +504,7 @@ impl Storage for GrpcServer {
 
     type MeasurementTagValuesStream = mpsc::Receiver<Result<StringValuesResponse, Status>>;
 
+    #[tracing::instrument(level = "debug")]
     async fn measurement_tag_values(
         &self,
         req: tonic::Request<MeasurementTagValuesRequest>,
@@ -546,6 +568,7 @@ impl Storage for GrpcServer {
 
     type MeasurementFieldsStream = mpsc::Receiver<Result<MeasurementFieldsResponse, Status>>;
 
+    #[tracing::instrument(level = "debug")]
     async fn measurement_fields(
         &self,
         req: tonic::Request<MeasurementFieldsRequest>,
@@ -617,6 +640,7 @@ impl Storage for GrpcServer {
     }
 }
 
+#[tracing::instrument(level = "debug")]
 async fn send_series_filters(
     mut tx: mpsc::Sender<Result<ReadResponse, Status>>,
     app: Arc<App>,
@@ -681,6 +705,7 @@ async fn send_series_filters(
     Ok(())
 }
 
+#[tracing::instrument(level = "debug")]
 async fn send_groups(
     mut tx: mpsc::Sender<Result<ReadResponse, Status>>,
     app: Arc<App>,
