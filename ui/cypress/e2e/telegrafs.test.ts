@@ -161,7 +161,8 @@ describe('Collectors', () => {
         cy.getByTestID('create-label-form--submit').click()
         cy.getByTestID('label--pill zoe').should('exist')
         cy.getByTestID('label--pill--delete zoe').click({force: true})
-        cy.getByTestID('label--pill zoe').should('not.exist')
+
+        cy.getByTestID('inline-labels--empty').should('exist')
       })
 
       it('can delete a config', () => {
