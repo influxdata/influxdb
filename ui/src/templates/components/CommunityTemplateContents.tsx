@@ -47,7 +47,7 @@ class CommunityTemplateContentsUnconnected extends PureComponent<StateProps> {
             activeCommunityTemplate.dashboards.map(dashboard => {
               return (
                 <CommunityTemplateListItem
-                  key={dashboard.pkgName}
+                  key={dashboard.templateMetaName}
                   title={dashboard.name}
                   description={dashboard.description}
                 >
@@ -64,8 +64,8 @@ class CommunityTemplateContentsUnconnected extends PureComponent<StateProps> {
             activeCommunityTemplate.telegrafConfigs.map(telegrafConfig => {
               return (
                 <CommunityTemplateListItem
-                  key={telegrafConfig.pkgName}
-                  title={telegrafConfig.pkgName}
+                  key={telegrafConfig.templateMetaName}
+                  title={telegrafConfig.templateMetaName}
                   description={telegrafConfig.description}
                 />
               )
@@ -79,7 +79,7 @@ class CommunityTemplateContentsUnconnected extends PureComponent<StateProps> {
             activeCommunityTemplate.buckets.map(bucket => {
               return (
                 <CommunityTemplateListItem
-                  key={bucket.pkgName}
+                  key={bucket.templateMetaName}
                   title={bucket.name}
                   description={bucket.description}
                 />
@@ -94,7 +94,7 @@ class CommunityTemplateContentsUnconnected extends PureComponent<StateProps> {
             activeCommunityTemplate.checks.map(check => {
               return (
                 <CommunityTemplateListItem
-                  key={check.pkgName}
+                  key={check.templateMetaName}
                   title={check.check.name}
                   description={check.description}
                 />
@@ -109,7 +109,7 @@ class CommunityTemplateContentsUnconnected extends PureComponent<StateProps> {
             activeCommunityTemplate.variables.map(variable => {
               return (
                 <CommunityTemplateListItem
-                  key={variable.pkgName}
+                  key={variable.templateMetaName}
                   title={variable.name}
                   description={variable.description}
                 >
@@ -126,7 +126,7 @@ class CommunityTemplateContentsUnconnected extends PureComponent<StateProps> {
             activeCommunityTemplate.notificationRules.map(notificationRule => {
               return (
                 <CommunityTemplateListItem
-                  key={notificationRule.pkgName}
+                  key={notificationRule.templateMetaName}
                   title={notificationRule.name}
                   description={notificationRule.description}
                 />
@@ -140,7 +140,7 @@ class CommunityTemplateContentsUnconnected extends PureComponent<StateProps> {
           {Array.isArray(activeCommunityTemplate.labels) &&
             activeCommunityTemplate.labels.map(label => {
               return (
-                <CommunityTemplateListItem key={label.pkgName}>
+                <CommunityTemplateListItem key={label.templateMetaName}>
                   <Label
                     description={label.properties.description}
                     name={label.name}
