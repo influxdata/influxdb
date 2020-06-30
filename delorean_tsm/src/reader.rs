@@ -224,8 +224,8 @@ impl IndexEntry {
     }
 }
 
-// A BlockDecoder is capable of decoding a block definition into block data
-// (timestamps and value vectors).
+/// A BlockDecoder is capable of decoding a block definition into block data
+/// (timestamps and value vectors).
 
 pub trait BlockDecoder {
     fn decode(&mut self, block: &Block) -> Result<BlockData, TSMError>;

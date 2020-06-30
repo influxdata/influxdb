@@ -1474,7 +1474,7 @@ mod delorean_ingest_tests {
         // cpu,region=east temp=1.2 0
         // cpu,region=east voltage=10.2 0
         //
-        // cpu,region=east temp=1.2 1
+        // cpu,region=east temp=1.2 1000
         // cpu,region=east voltage=10.2 1000
         //
         // cpu,region=east temp=1.4 2000
@@ -1519,7 +1519,7 @@ mod delorean_ingest_tests {
             )
             .map_err(|e| Error::TSMProcessing { source: e })?;
 
-        // cpu region=east,server=a temp=<all the block data for this key>
+        // cpu region=east voltage=<all the block data for this key>
         table
             .add_series_data(
                 vec![("region".to_string(), "east".to_string())],
@@ -1552,7 +1552,7 @@ mod delorean_ingest_tests {
             )
             .map_err(|e| Error::TSMProcessing { source: e })?;
 
-        // cpu az=b voltage=<all the block data for this key>
+        // cpu az=b watts=<all the block data for this key>
         table
             .add_series_data(
                 vec![("az".to_string(), "b".to_string())],
