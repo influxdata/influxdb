@@ -18,8 +18,6 @@ import {updateReportingContext} from 'src/cloud/utils/reporting'
 // Components
 import App from 'src/App'
 // import GetOrganizations from 'src/shared/containers/GetOrganizations'
-// import Setup from 'src/Setup'
-// import Signin from 'src/Signin'
 // import SigninPage from 'src/onboarding/containers/SigninPage'
 // import {LoginPage} from 'src/onboarding/containers/LoginPage'
 // import Logout from 'src/Logout'
@@ -41,7 +39,7 @@ import NotFound from 'src/shared/components/NotFound'
 import GetLinks from 'src/shared/containers/GetLinks'
 // import GetMe from 'src/shared/containers/GetMe'
 // import GetFlags from 'src/shared/containers/GetFlags'
-// import UnauthenticatedApp from 'src/shared/containers/UnauthenticatedApp'
+import UnauthenticatedApp from 'src/shared/containers/UnauthenticatedApp'
 // import TaskExportOverlay from 'src/tasks/components/TaskExportOverlay'
 // import TaskImportOverlay from 'src/tasks/components/TaskImportOverlay'
 // import EditVEO from 'src/dashboards/components/EditVEO'
@@ -203,18 +201,15 @@ class Root extends PureComponent {
     return (
       <Provider store={store}>
         <ConnectedRouter history={history}>
-          <Route component={GetLinks}>
-            {/*<Route component={Setup}>
+          <Route component={GetLinks} />
+          <Route component={UnauthenticatedApp} />
+          {/*<Route component={Setup}>
               <Route path="/onboarding">
                 <Route path=":stepID" component={OnboardingWizardPage} />
                 <Route
                   path=":stepID/:substepID"
                   component={OnboardingWizardPage}
                 />
-                <Route component={UnauthenticatedApp}>
-                  <Route path="/login" component={LoginPage} />
-                  <Route path="/signin" component={SigninPage} />
-                  <Route path="/logout" component={Logout} />
                 </Route>
               </Route>
               <Route component={Signin}>
@@ -520,7 +515,6 @@ class Root extends PureComponent {
                 </Route>
               </Route>
                             </Route> */}
-          </Route>
           <Route path="*" component={NotFound} />
         </ConnectedRouter>
       </Provider>

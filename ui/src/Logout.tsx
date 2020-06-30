@@ -1,7 +1,7 @@
 // Libraries
 import {FC, useEffect} from 'react'
 import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // APIs
 import {postSignout} from 'src/client'
@@ -10,15 +10,15 @@ import {postSignout} from 'src/client'
 import {CLOUD, CLOUD_URL, CLOUD_LOGOUT_PATH} from 'src/shared/constants'
 
 // Components
-import {ErrorHandling} from 'src/shared/decorators/errors'
 import {reset} from 'src/shared/actions/flags'
 
 interface DispatchProps {
   resetFeatureFlags: typeof reset
 }
 
-type Props = DispatchProps & WithRouterProps
-const Logout: FC<Props> = ({router, resetFeatureFlags}) => {
+type Props = DispatchProps & RouteComponentProps
+
+const Logout: FC<Props> = ({history, resetFeatureFlags}) => {
   const handleSignOut = async () => {
     if (CLOUD) {
       window.location.href = `${CLOUD_URL}${CLOUD_LOGOUT_PATH}`
@@ -30,7 +30,7 @@ const Logout: FC<Props> = ({router, resetFeatureFlags}) => {
         throw new Error(resp.data.message)
       }
 
-      router.push(`/signin`)
+      history.push(`/signin`)
     }
   }
 
@@ -45,6 +45,4 @@ const mdtp = {
   resetFeatureFlags: reset,
 }
 
-export default ErrorHandling(
-  connect<{}, DispatchProps>(null, mdtp)(withRouter<WithRouterProps>(Logout))
-)
+export default connect<{}, DispatchProps>(null, mdtp)(withRouter(Logout))
