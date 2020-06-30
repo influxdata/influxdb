@@ -151,7 +151,7 @@ func TestPkgerHTTPServerTemplate(t *testing.T) {
 							for _, o := range opts {
 								o(&opt)
 							}
-							pkg, err := pkger.Combine(opt.Pkgs)
+							pkg, err := pkger.Combine(opt.Templates)
 							if err != nil {
 								return pkger.ImpactSummary{}, err
 							}
@@ -219,7 +219,7 @@ func TestPkgerHTTPServerTemplate(t *testing.T) {
 							for _, o := range opts {
 								o(&opt)
 							}
-							pkg, err := pkger.Combine(opt.Pkgs)
+							pkg, err := pkger.Combine(opt.Templates)
 							if err != nil {
 								return pkger.ImpactSummary{}, err
 							}
@@ -289,7 +289,7 @@ func TestPkgerHTTPServerTemplate(t *testing.T) {
 				return pkger.ReqRawTemplate{
 					ContentType: pkger.EncodingJSON.String(),
 					Sources:     pkg.Sources(),
-					Pkg:         pkgBytes,
+					Template:    pkgBytes,
 				}
 			}
 
@@ -339,7 +339,7 @@ func TestPkgerHTTPServerTemplate(t *testing.T) {
 							for _, o := range opts {
 								o(&opt)
 							}
-							pkg, err := pkger.Combine(opt.Pkgs)
+							pkg, err := pkger.Combine(opt.Templates)
 							if err != nil {
 								return pkger.ImpactSummary{}, err
 							}
@@ -424,7 +424,7 @@ func TestPkgerHTTPServerTemplate(t *testing.T) {
 							for _, o := range opts {
 								o(&opt)
 							}
-							pkg, err := pkger.Combine(opt.Pkgs)
+							pkg, err := pkger.Combine(opt.Templates)
 							if err != nil {
 								return pkger.ImpactSummary{}, err
 							}
@@ -457,7 +457,7 @@ func TestPkgerHTTPServerTemplate(t *testing.T) {
 					o(&opt)
 				}
 
-				pkg, err := pkger.Combine(opt.Pkgs)
+				pkg, err := pkger.Combine(opt.Templates)
 				if err != nil {
 					return pkger.ImpactSummary{}, err
 				}

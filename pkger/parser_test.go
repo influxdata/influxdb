@@ -22,10 +22,10 @@ import (
 )
 
 func TestParse(t *testing.T) {
-	t.Run("pkg with a bucket", func(t *testing.T) {
-		t.Run("with valid bucket pkg should be valid", func(t *testing.T) {
-			testfileRunner(t, "testdata/bucket", func(t *testing.T, pkg *Pkg) {
-				buckets := pkg.Summary().Buckets
+	t.Run("template with a bucket", func(t *testing.T) {
+		t.Run("with valid bucket template should be valid", func(t *testing.T) {
+			testfileRunner(t, "testdata/bucket", func(t *testing.T, template *Template) {
+				buckets := template.Summary().Buckets
 				require.Len(t, buckets, 2)
 
 				actual := buckets[0]
@@ -52,8 +52,8 @@ func TestParse(t *testing.T) {
 		})
 
 		t.Run("with env refs should be valid", func(t *testing.T) {
-			testfileRunner(t, "testdata/bucket_ref.yml", func(t *testing.T, pkg *Pkg) {
-				actual := pkg.Summary().Buckets
+			testfileRunner(t, "testdata/bucket_ref.yml", func(t *testing.T, template *Template) {
+				actual := template.Summary().Buckets
 				require.Len(t, actual, 1)
 
 				expectedEnvRefs := []SummaryReference{
@@ -78,12 +78,12 @@ func TestParse(t *testing.T) {
 		})
 
 		t.Run("should handle bad config", func(t *testing.T) {
-			tests := []testPkgResourceError{
+			tests := []testTemplateResourceError{
 				{
 					name:           "missing name",
 					validationErrs: 1,
 					valFields:      []string{fieldMetadata, fieldName},
-					pkgStr: `apiVersion: influxdata.com/v2alpha1
+					templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: Bucket
 metadata:
 spec:
@@ -93,7 +93,7 @@ spec:
 					name:           "mixed valid and missing name",
 					validationErrs: 1,
 					valFields:      []string{fieldMetadata, fieldName},
-					pkgStr: `apiVersion: influxdata.com/v2alpha1
+					templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: Bucket
 metadata:
   name:  rucket-11
@@ -109,7 +109,7 @@ spec:
 					resourceErrs:   2,
 					validationErrs: 1,
 					valFields:      []string{fieldMetadata, fieldName},
-					pkgStr: `apiVersion: influxdata.com/v2alpha1
+					templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: Bucket
 metadata:
   name:  rucket-11
@@ -130,7 +130,7 @@ spec:
 					resourceErrs:   1,
 					validationErrs: 1,
 					valFields:      []string{fieldMetadata, fieldName},
-					pkgStr: `apiVersion: influxdata.com/v2alpha1
+					templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: Bucket
 metadata:
   name:  valid-name
@@ -146,7 +146,7 @@ metadata:
 					resourceErrs:   1,
 					validationErrs: 1,
 					valFields:      []string{fieldSpec, fieldName},
-					pkgStr: `apiVersion: influxdata.com/v2alpha1
+					templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: Bucket
 metadata:
   name:  rucket-1
@@ -164,7 +164,7 @@ spec:
 					resourceErrs:   1,
 					validationErrs: 1,
 					valFields:      []string{fieldSpec, fieldName},
-					pkgStr: `apiVersion: influxdata.com/v2alpha1
+					templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: Bucket
 metadata:
   name:  rucket-1
@@ -180,15 +180,15 @@ spec:
 			}
 
 			for _, tt := range tests {
-				testPkgErrors(t, KindBucket, tt)
+				testTemplateErrors(t, KindBucket, tt)
 			}
 		})
 	})
 
-	t.Run("pkg with a label", func(t *testing.T) {
-		t.Run("with valid label pkg should be valid", func(t *testing.T) {
-			testfileRunner(t, "testdata/label", func(t *testing.T, pkg *Pkg) {
-				labels := pkg.Summary().Labels
+	t.Run("template with a label", func(t *testing.T) {
+		t.Run("with valid label template should be valid", func(t *testing.T) {
+			testfileRunner(t, "testdata/label", func(t *testing.T, template *Template) {
+				labels := template.Summary().Labels
 				require.Len(t, labels, 3)
 
 				expectedLabel := sumLabelGen("label-1", "label-1", "#FFFFFF", "label 1 description")
@@ -203,8 +203,8 @@ spec:
 		})
 
 		t.Run("with env refs should be valid", func(t *testing.T) {
-			testfileRunner(t, "testdata/label_ref.yml", func(t *testing.T, pkg *Pkg) {
-				actual := pkg.Summary().Labels
+			testfileRunner(t, "testdata/label_ref.yml", func(t *testing.T, template *Template) {
+				actual := template.Summary().Labels
 				require.Len(t, actual, 1)
 
 				expected := sumLabelGen("env-meta-name", "env-spec-name", "", "",
@@ -224,12 +224,12 @@ spec:
 		})
 
 		t.Run("with missing label name should error", func(t *testing.T) {
-			tests := []testPkgResourceError{
+			tests := []testTemplateResourceError{
 				{
 					name:           "missing name",
 					validationErrs: 1,
 					valFields:      []string{fieldMetadata, fieldName},
-					pkgStr: `apiVersion: influxdata.com/v2alpha1
+					templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: Label
 metadata:
 spec:
@@ -239,7 +239,7 @@ spec:
 					name:           "mixed valid and missing name",
 					validationErrs: 1,
 					valFields:      []string{fieldMetadata, fieldName},
-					pkgStr: `apiVersion: influxdata.com/v2alpha1
+					templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: Label
 metadata:
   name: valid-name
@@ -255,7 +255,7 @@ spec:
 					name:           "duplicate names",
 					validationErrs: 1,
 					valFields:      []string{fieldMetadata, fieldName},
-					pkgStr: `apiVersion: influxdata.com/v2alpha1
+					templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: Label
 metadata:
   name: valid-name
@@ -273,7 +273,7 @@ spec:
 					resourceErrs:   2,
 					validationErrs: 1,
 					valFields:      []string{fieldMetadata, fieldName},
-					pkgStr: `apiVersion: influxdata.com/v2alpha1
+					templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: Label
 ---
 apiVersion: influxdata.com/v2alpha1
@@ -284,7 +284,7 @@ kind: Label
 					name:           "duplicate meta name and spec name",
 					validationErrs: 1,
 					valFields:      []string{fieldSpec, fieldName},
-					pkgStr: `apiVersion: influxdata.com/v2alpha1
+					templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: Label
 metadata:
   name: valid-name
@@ -302,7 +302,7 @@ spec:
 					name:           "spec name to short",
 					validationErrs: 1,
 					valFields:      []string{fieldSpec, fieldName},
-					pkgStr: `apiVersion: influxdata.com/v2alpha1
+					templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: Label
 metadata:
   name: valid-name
@@ -319,15 +319,15 @@ spec:
 			}
 
 			for _, tt := range tests {
-				testPkgErrors(t, KindLabel, tt)
+				testTemplateErrors(t, KindLabel, tt)
 			}
 		})
 	})
 
-	t.Run("pkg with buckets and labels associated", func(t *testing.T) {
+	t.Run("template with buckets and labels associated", func(t *testing.T) {
 		t.Run("happy path", func(t *testing.T) {
-			testfileRunner(t, "testdata/bucket_associates_label", func(t *testing.T, pkg *Pkg) {
-				sum := pkg.Summary()
+			testfileRunner(t, "testdata/bucket_associates_label", func(t *testing.T, template *Template) {
+				sum := template.Summary()
 				require.Len(t, sum.Labels, 2)
 
 				bkts := sum.Buckets
@@ -361,28 +361,28 @@ spec:
 
 				expectedMappings := []SummaryLabelMapping{
 					{
-						ResourcePkgName: "rucket-1",
-						ResourceName:    "rucket-1",
-						LabelPkgName:    "label-1",
-						LabelName:       "label-1",
+						ResourceMetaName: "rucket-1",
+						ResourceName:     "rucket-1",
+						LabelMetaName:    "label-1",
+						LabelName:        "label-1",
 					},
 					{
-						ResourcePkgName: "rucket-2",
-						ResourceName:    "rucket-2",
-						LabelPkgName:    "label-2",
-						LabelName:       "label-2",
+						ResourceMetaName: "rucket-2",
+						ResourceName:     "rucket-2",
+						LabelMetaName:    "label-2",
+						LabelName:        "label-2",
 					},
 					{
-						ResourcePkgName: "rucket-3",
-						ResourceName:    "rucket-3",
-						LabelPkgName:    "label-1",
-						LabelName:       "label-1",
+						ResourceMetaName: "rucket-3",
+						ResourceName:     "rucket-3",
+						LabelMetaName:    "label-1",
+						LabelName:        "label-1",
 					},
 					{
-						ResourcePkgName: "rucket-3",
-						ResourceName:    "rucket-3",
-						LabelPkgName:    "label-2",
-						LabelName:       "label-2",
+						ResourceMetaName: "rucket-3",
+						ResourceName:     "rucket-3",
+						LabelMetaName:    "label-2",
+						LabelName:        "label-2",
 					},
 				}
 
@@ -395,12 +395,12 @@ spec:
 		})
 
 		t.Run("association doesn't exist then provides an error", func(t *testing.T) {
-			tests := []testPkgResourceError{
+			tests := []testTemplateResourceError{
 				{
 					name:    "no labels provided",
 					assErrs: 1,
 					assIdxs: []int{0},
-					pkgStr: `apiVersion: influxdata.com/v2alpha1
+					templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: Bucket
 metadata:
   name: rucket-1
@@ -414,7 +414,7 @@ spec:
 					name:    "mixed found and not found",
 					assErrs: 1,
 					assIdxs: []int{1},
-					pkgStr: `apiVersion: influxdata.com/v2alpha1
+					templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: Label
 metadata:
   name: label-1
@@ -435,7 +435,7 @@ spec:
 					name:    "multiple not found",
 					assErrs: 1,
 					assIdxs: []int{0, 1},
-					pkgStr: `apiVersion: influxdata.com/v2alpha1
+					templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: Bucket
 metadata:
   name: rucket-3
@@ -451,7 +451,7 @@ spec:
 					name:    "duplicate valid nested labels",
 					assErrs: 1,
 					assIdxs: []int{1},
-					pkgStr: `apiVersion: influxdata.com/v2alpha1
+					templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: Label
 metadata:
   name: label-1
@@ -471,15 +471,15 @@ spec:
 			}
 
 			for _, tt := range tests {
-				testPkgErrors(t, KindBucket, tt)
+				testTemplateErrors(t, KindBucket, tt)
 			}
 		})
 	})
 
-	t.Run("pkg with checks", func(t *testing.T) {
+	t.Run("template with checks", func(t *testing.T) {
 		t.Run("happy path", func(t *testing.T) {
-			testfileRunner(t, "testdata/checks", func(t *testing.T, pkg *Pkg) {
-				sum := pkg.Summary()
+			testfileRunner(t, "testdata/checks", func(t *testing.T, template *Template) {
+				sum := template.Summary()
 				require.Len(t, sum.Checks, 2)
 
 				check1 := sum.Checks[0]
@@ -553,16 +553,16 @@ spec:
 
 				expectedMappings := []SummaryLabelMapping{
 					{
-						LabelPkgName:    "label-1",
-						LabelName:       "label-1",
-						ResourcePkgName: "check-0",
-						ResourceName:    "check-0",
+						LabelMetaName:    "label-1",
+						LabelName:        "label-1",
+						ResourceMetaName: "check-0",
+						ResourceName:     "check-0",
 					},
 					{
-						LabelPkgName:    "label-1",
-						LabelName:       "label-1",
-						ResourcePkgName: "check-1",
-						ResourceName:    "display name",
+						LabelMetaName:    "label-1",
+						LabelName:        "label-1",
+						ResourceMetaName: "check-1",
+						ResourceName:     "display name",
 					},
 				}
 				for _, expected := range expectedMappings {
@@ -574,8 +574,8 @@ spec:
 		})
 
 		t.Run("with env refs should be successful", func(t *testing.T) {
-			testfileRunner(t, "testdata/checks_ref.yml", func(t *testing.T, pkg *Pkg) {
-				actual := pkg.Summary().Checks
+			testfileRunner(t, "testdata/checks_ref.yml", func(t *testing.T, template *Template) {
+				actual := template.Summary().Checks
 				require.Len(t, actual, 1)
 
 				expectedEnvRefs := []SummaryReference{
@@ -602,15 +602,15 @@ spec:
 		t.Run("handles bad config", func(t *testing.T) {
 			tests := []struct {
 				kind   Kind
-				resErr testPkgResourceError
+				resErr testTemplateResourceError
 			}{
 				{
 					kind: KindCheckDeadman,
-					resErr: testPkgResourceError{
+					resErr: testTemplateResourceError{
 						name:           "duplicate name",
 						validationErrs: 1,
 						valFields:      []string{fieldMetadata, fieldName},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
+						templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: CheckDeadman
 metadata:
   name: check-1
@@ -636,11 +636,11 @@ spec:
 				},
 				{
 					kind: KindCheckThreshold,
-					resErr: testPkgResourceError{
+					resErr: testTemplateResourceError{
 						name:           "missing every duration",
 						validationErrs: 1,
 						valFields:      []string{fieldSpec, fieldEvery},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
+						templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: CheckThreshold
 metadata:
   name: check-0
@@ -659,11 +659,11 @@ spec:
 				},
 				{
 					kind: KindCheckThreshold,
-					resErr: testPkgResourceError{
+					resErr: testTemplateResourceError{
 						name:           "invalid threshold value provided",
 						validationErrs: 1,
 						valFields:      []string{fieldSpec, fieldLevel},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
+						templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: CheckThreshold
 metadata:
   name: check-0
@@ -681,11 +681,11 @@ spec:
 				},
 				{
 					kind: KindCheckThreshold,
-					resErr: testPkgResourceError{
+					resErr: testTemplateResourceError{
 						name:           "invalid threshold type provided",
 						validationErrs: 1,
 						valFields:      []string{fieldSpec, fieldType},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
+						templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: CheckThreshold
 metadata:
   name: check-0
@@ -703,11 +703,11 @@ spec:
 				},
 				{
 					kind: KindCheckThreshold,
-					resErr: testPkgResourceError{
+					resErr: testTemplateResourceError{
 						name:           "invalid min for inside range",
 						validationErrs: 1,
 						valFields:      []string{fieldSpec, fieldMin},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
+						templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: CheckThreshold
 metadata:
   name: check-0
@@ -726,11 +726,11 @@ spec:
 				},
 				{
 					kind: KindCheckThreshold,
-					resErr: testPkgResourceError{
+					resErr: testTemplateResourceError{
 						name:           "no threshold values provided",
 						validationErrs: 1,
 						valFields:      []string{fieldSpec, fieldCheckThresholds},
-						pkgStr: `---
+						templateStr: `---
 apiVersion: influxdata.com/v2alpha1
 kind: CheckThreshold
 metadata:
@@ -746,11 +746,11 @@ spec:
 				},
 				{
 					kind: KindCheckThreshold,
-					resErr: testPkgResourceError{
+					resErr: testTemplateResourceError{
 						name:           "threshold missing query",
 						validationErrs: 1,
 						valFields:      []string{fieldSpec, fieldQuery},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
+						templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: CheckThreshold
 metadata:
   name: check-0
@@ -766,11 +766,11 @@ spec:
 				},
 				{
 					kind: KindCheckThreshold,
-					resErr: testPkgResourceError{
+					resErr: testTemplateResourceError{
 						name:           "invalid status provided",
 						validationErrs: 1,
 						valFields:      []string{fieldSpec, fieldStatus},
-						pkgStr: `---
+						templateStr: `---
 apiVersion: influxdata.com/v2alpha1
 kind: CheckThreshold
 metadata:
@@ -791,11 +791,11 @@ spec:
 				},
 				{
 					kind: KindCheckThreshold,
-					resErr: testPkgResourceError{
+					resErr: testTemplateResourceError{
 						name:           "missing status message template",
 						validationErrs: 1,
 						valFields:      []string{fieldSpec, fieldCheckStatusMessageTemplate},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
+						templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: CheckThreshold
 metadata:
   name: check-0
@@ -812,11 +812,11 @@ spec:
 				},
 				{
 					kind: KindCheckDeadman,
-					resErr: testPkgResourceError{
+					resErr: testTemplateResourceError{
 						name:           "missing every",
 						validationErrs: 1,
 						valFields:      []string{fieldSpec, fieldEvery},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
+						templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: CheckDeadman
 metadata:
   name: check-1
@@ -831,11 +831,11 @@ spec:
 				},
 				{
 					kind: KindCheckDeadman,
-					resErr: testPkgResourceError{
+					resErr: testTemplateResourceError{
 						name:           "deadman missing every",
 						validationErrs: 1,
 						valFields:      []string{fieldSpec, fieldQuery},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
+						templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: CheckDeadman
 metadata:
   name: check-1
@@ -849,11 +849,11 @@ spec:
 				},
 				{
 					kind: KindCheckDeadman,
-					resErr: testPkgResourceError{
+					resErr: testTemplateResourceError{
 						name:           "missing association label",
 						validationErrs: 1,
 						valFields:      []string{fieldSpec, fieldAssociations},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
+						templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: CheckDeadman
 metadata:
   name: check-1
@@ -872,11 +872,11 @@ spec:
 				},
 				{
 					kind: KindCheckDeadman,
-					resErr: testPkgResourceError{
+					resErr: testTemplateResourceError{
 						name:           "duplicate association labels",
 						validationErrs: 1,
 						valFields:      []string{fieldSpec, fieldAssociations},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
+						templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: Label
 metadata:
   name: label-1
@@ -902,11 +902,11 @@ spec:
 				},
 				{
 					kind: KindCheckDeadman,
-					resErr: testPkgResourceError{
+					resErr: testTemplateResourceError{
 						name:           "duplicate meta name and spec name",
 						validationErrs: 1,
 						valFields:      []string{fieldSpec, fieldAssociations},
-						pkgStr: `
+						templateStr: `
 apiVersion: influxdata.com/v2alpha1
 kind: CheckDeadman
 metadata:
@@ -937,17 +937,17 @@ spec:
 			}
 
 			for _, tt := range tests {
-				testPkgErrors(t, tt.kind, tt.resErr)
+				testTemplateErrors(t, tt.kind, tt.resErr)
 			}
 		})
 	})
 
-	t.Run("pkg with dashboard", func(t *testing.T) {
+	t.Run("template with dashboard", func(t *testing.T) {
 		t.Run("single chart should be successful", func(t *testing.T) {
 			t.Run("gauge chart", func(t *testing.T) {
 				t.Run("happy path", func(t *testing.T) {
-					testfileRunner(t, "testdata/dashboard_gauge", func(t *testing.T, pkg *Pkg) {
-						sum := pkg.Summary()
+					testfileRunner(t, "testdata/dashboard_gauge", func(t *testing.T, template *Template) {
+						sum := template.Summary()
 						require.Len(t, sum.Dashboards, 1)
 
 						actual := sum.Dashboards[0]
@@ -983,12 +983,12 @@ spec:
 				})
 
 				t.Run("handles invalid config", func(t *testing.T) {
-					tests := []testPkgResourceError{
+					tests := []testTemplateResourceError{
 						{
 							name:           "color mixing a hex value",
 							validationErrs: 1,
 							valFields:      []string{fieldSpec, "charts[0].colors[0].hex"},
-							pkgStr: `apiVersion: influxdata.com/v2alpha1
+							templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
   name: dash-1
@@ -1023,15 +1023,15 @@ spec:
 					}
 
 					for _, tt := range tests {
-						testPkgErrors(t, KindDashboard, tt)
+						testTemplateErrors(t, KindDashboard, tt)
 					}
 				})
 			})
 
 			t.Run("heatmap chart", func(t *testing.T) {
 				t.Run("happy path", func(t *testing.T) {
-					testfileRunner(t, "testdata/dashboard_heatmap", func(t *testing.T, pkg *Pkg) {
-						sum := pkg.Summary()
+					testfileRunner(t, "testdata/dashboard_heatmap", func(t *testing.T, template *Template) {
+						sum := template.Summary()
 						require.Len(t, sum.Dashboards, 1)
 
 						actual := sum.Dashboards[0]
@@ -1068,12 +1068,12 @@ spec:
 				})
 
 				t.Run("handles invalid config", func(t *testing.T) {
-					tests := []testPkgResourceError{
+					tests := []testTemplateResourceError{
 						{
 							name:           "a color is missing a hex value",
 							validationErrs: 1,
 							valFields:      []string{fieldSpec, "charts[0].colors[2].hex"},
-							pkgStr: `apiVersion: influxdata.com/v2alpha1
+							templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
   name: dash-0
@@ -1116,7 +1116,7 @@ spec:
 							name:           "missing axes",
 							validationErrs: 1,
 							valFields:      []string{fieldSpec, "charts[0].axes"},
-							pkgStr: `apiVersion: influxdata.com/v2alpha1
+							templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
   name: dash-0
@@ -1141,15 +1141,15 @@ spec:
 					}
 
 					for _, tt := range tests {
-						testPkgErrors(t, KindDashboard, tt)
+						testTemplateErrors(t, KindDashboard, tt)
 					}
 				})
 			})
 
 			t.Run("histogram chart", func(t *testing.T) {
 				t.Run("happy path", func(t *testing.T) {
-					testfileRunner(t, "testdata/dashboard_histogram", func(t *testing.T, pkg *Pkg) {
-						sum := pkg.Summary()
+					testfileRunner(t, "testdata/dashboard_histogram", func(t *testing.T, template *Template) {
+						sum := template.Summary()
 						require.Len(t, sum.Dashboards, 1)
 
 						actual := sum.Dashboards[0]
@@ -1183,12 +1183,12 @@ spec:
 				})
 
 				t.Run("handles invalid config", func(t *testing.T) {
-					tests := []testPkgResourceError{
+					tests := []testTemplateResourceError{
 						{
 							name:           "missing x-axis",
 							validationErrs: 1,
 							valFields:      []string{fieldSpec, "charts[0].axes"},
-							pkgStr: `apiVersion: influxdata.com/v2alpha1
+							templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
   name: dash-0
@@ -1215,15 +1215,15 @@ spec:
 					}
 
 					for _, tt := range tests {
-						testPkgErrors(t, KindDashboard, tt)
+						testTemplateErrors(t, KindDashboard, tt)
 					}
 				})
 			})
 
 			t.Run("markdown chart", func(t *testing.T) {
 				t.Run("happy path", func(t *testing.T) {
-					testfileRunner(t, "testdata/dashboard_markdown", func(t *testing.T, pkg *Pkg) {
-						sum := pkg.Summary()
+					testfileRunner(t, "testdata/dashboard_markdown", func(t *testing.T, template *Template) {
+						sum := template.Summary()
 						require.Len(t, sum.Dashboards, 1)
 
 						actual := sum.Dashboards[0]
@@ -1243,8 +1243,8 @@ spec:
 
 			t.Run("scatter chart", func(t *testing.T) {
 				t.Run("happy path", func(t *testing.T) {
-					testfileRunner(t, "testdata/dashboard_scatter", func(t *testing.T, pkg *Pkg) {
-						sum := pkg.Summary()
+					testfileRunner(t, "testdata/dashboard_scatter", func(t *testing.T, template *Template) {
+						sum := template.Summary()
 						require.Len(t, sum.Dashboards, 1)
 
 						actual := sum.Dashboards[0]
@@ -1281,12 +1281,12 @@ spec:
 				})
 
 				t.Run("handles invalid config", func(t *testing.T) {
-					tests := []testPkgResourceError{
+					tests := []testTemplateResourceError{
 						{
 							name:           "missing axes",
 							validationErrs: 1,
 							valFields:      []string{fieldSpec, "charts[0].axes"},
-							pkgStr: `apiVersion: influxdata.com/v2alpha1
+							templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
   name:  dash-0
@@ -1313,7 +1313,7 @@ spec:
 							name:           "no width provided",
 							validationErrs: 1,
 							valFields:      []string{fieldSpec, "charts[0].width"},
-							pkgStr: `apiVersion: influxdata.com/v2alpha1
+							templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
   name:  dash-0
@@ -1355,7 +1355,7 @@ spec:
 							name:           "no height provided",
 							validationErrs: 1,
 							valFields:      []string{fieldSpec, "charts[0].height"},
-							pkgStr: `apiVersion: influxdata.com/v2alpha1
+							templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
   name:  dash-0
@@ -1397,7 +1397,7 @@ spec:
 							name:           "missing hex color",
 							validationErrs: 1,
 							valFields:      []string{fieldSpec, "charts[0].colors[0].hex"},
-							pkgStr: `apiVersion: influxdata.com/v2alpha1
+							templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
   name:  dash-0
@@ -1442,7 +1442,7 @@ spec:
 							name:           "missing x axis",
 							validationErrs: 1,
 							valFields:      []string{fieldSpec, "charts[0].axes"},
-							pkgStr: `apiVersion: influxdata.com/v2alpha1
+							templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
   name:  dash-0
@@ -1478,7 +1478,7 @@ spec:
 							name:           "missing y axis",
 							validationErrs: 1,
 							valFields:      []string{fieldSpec, "charts[0].axes"},
-							pkgStr: `apiVersion: influxdata.com/v2alpha1
+							templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
   name:  dash-0
@@ -1513,15 +1513,15 @@ spec:
 					}
 
 					for _, tt := range tests {
-						testPkgErrors(t, KindDashboard, tt)
+						testTemplateErrors(t, KindDashboard, tt)
 					}
 				})
 			})
 
 			t.Run("single stat chart", func(t *testing.T) {
 				t.Run("happy path", func(t *testing.T) {
-					testfileRunner(t, "testdata/dashboard", func(t *testing.T, pkg *Pkg) {
-						sum := pkg.Summary()
+					testfileRunner(t, "testdata/dashboard", func(t *testing.T, template *Template) {
+						sum := template.Summary()
 						require.Len(t, sum.Dashboards, 2)
 
 						actual := sum.Dashboards[0]
@@ -1569,12 +1569,12 @@ spec:
 				})
 
 				t.Run("handles invalid config", func(t *testing.T) {
-					tests := []testPkgResourceError{
+					tests := []testTemplateResourceError{
 						{
 							name:           "color missing hex value",
 							validationErrs: 1,
 							valFields:      []string{fieldSpec, "charts[0].colors[0].hex"},
-							pkgStr: `apiVersion: influxdata.com/v2alpha1
+							templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
   name: dash-1
@@ -1602,7 +1602,7 @@ spec:
 							name:           "no width provided",
 							validationErrs: 1,
 							valFields:      []string{fieldSpec, "charts[0].width"},
-							pkgStr: `apiVersion: influxdata.com/v2alpha1
+							templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
   name: dash-1
@@ -1626,7 +1626,7 @@ spec:
 							name:           "no height provided",
 							validationErrs: 1,
 							valFields:      []string{fieldSpec, "charts[0].height"},
-							pkgStr: `apiVersion: influxdata.com/v2alpha1
+							templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
   name: dash-1
@@ -1650,7 +1650,7 @@ spec:
 							name:           "duplicate metadata names",
 							validationErrs: 1,
 							valFields:      []string{fieldMetadata, fieldName},
-							pkgStr: `
+							templateStr: `
 apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
@@ -1668,7 +1668,7 @@ spec:
 							name:           "spec name too short",
 							validationErrs: 1,
 							valFields:      []string{fieldSpec, fieldName},
-							pkgStr: `
+							templateStr: `
 apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
@@ -1680,15 +1680,15 @@ spec:
 					}
 
 					for _, tt := range tests {
-						testPkgErrors(t, KindDashboard, tt)
+						testTemplateErrors(t, KindDashboard, tt)
 					}
 				})
 			})
 
 			t.Run("single stat plus line chart", func(t *testing.T) {
 				t.Run("happy path", func(t *testing.T) {
-					testfileRunner(t, "testdata/dashboard_single_stat_plus_line", func(t *testing.T, pkg *Pkg) {
-						sum := pkg.Summary()
+					testfileRunner(t, "testdata/dashboard_single_stat_plus_line", func(t *testing.T, template *Template) {
+						sum := template.Summary()
 						require.Len(t, sum.Dashboards, 1)
 
 						actual := sum.Dashboards[0]
@@ -1746,12 +1746,12 @@ spec:
 				})
 
 				t.Run("handles invalid config", func(t *testing.T) {
-					tests := []testPkgResourceError{
+					tests := []testTemplateResourceError{
 						{
 							name:           "color missing hex value",
 							validationErrs: 1,
 							valFields:      []string{fieldSpec, "charts[0].colors[0].hex"},
-							pkgStr: `apiVersion: influxdata.com/v2alpha1
+							templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
   name: dash-1
@@ -1791,7 +1791,7 @@ spec:
 							name:           "no width provided",
 							validationErrs: 1,
 							valFields:      []string{fieldSpec, "charts[0].width"},
-							pkgStr: `apiVersion: influxdata.com/v2alpha1
+							templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
   name: dash-1
@@ -1837,7 +1837,7 @@ spec:
 							name:           "no height provided",
 							validationErrs: 1,
 							valFields:      []string{fieldSpec, "charts[0].height"},
-							pkgStr: `apiVersion: influxdata.com/v2alpha1
+							templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
   name: dash-1
@@ -1881,7 +1881,7 @@ spec:
 							name:           "missing x axis",
 							validationErrs: 1,
 							valFields:      []string{fieldSpec, "charts[0].axes"},
-							pkgStr: `apiVersion: influxdata.com/v2alpha1
+							templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
   name: dash-1
@@ -1920,7 +1920,7 @@ spec:
 							name:           "missing y axis",
 							validationErrs: 1,
 							valFields:      []string{fieldSpec, "charts[0].axes"},
-							pkgStr: `apiVersion: influxdata.com/v2alpha1
+							templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
   name: dash-1
@@ -1958,15 +1958,15 @@ spec:
 					}
 
 					for _, tt := range tests {
-						testPkgErrors(t, KindDashboard, tt)
+						testTemplateErrors(t, KindDashboard, tt)
 					}
 				})
 			})
 
 			t.Run("table chart", func(t *testing.T) {
 				t.Run("happy path", func(t *testing.T) {
-					testfileRunner(t, "testdata/dashboard_table", func(t *testing.T, pkg *Pkg) {
-						sum := pkg.Summary()
+					testfileRunner(t, "testdata/dashboard_table", func(t *testing.T, template *Template) {
+						sum := template.Summary()
 						require.Len(t, sum.Dashboards, 1)
 
 						actual := sum.Dashboards[0]
@@ -2021,12 +2021,12 @@ spec:
 				})
 
 				t.Run("handles invalid config", func(t *testing.T) {
-					tests := []testPkgResourceError{
+					tests := []testTemplateResourceError{
 						{
 							name:           "color missing hex value",
 							validationErrs: 1,
 							valFields:      []string{fieldSpec, "charts[0].colors[0].hex"},
-							pkgStr: `
+							templateStr: `
 apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
@@ -2053,7 +2053,7 @@ spec:
 							name:           "no width provided",
 							validationErrs: 1,
 							valFields:      []string{fieldSpec, "charts[0].width"},
-							pkgStr: `
+							templateStr: `
 apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
@@ -2079,7 +2079,7 @@ spec:
 							name:           "no height provided",
 							validationErrs: 1,
 							valFields:      []string{fieldSpec, "charts[0].height"},
-							pkgStr: `
+							templateStr: `
 apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
@@ -2105,7 +2105,7 @@ spec:
 							name:           "invalid wrapping table option",
 							validationErrs: 1,
 							valFields:      []string{fieldSpec, "charts[0].tableOptions.wrapping"},
-							pkgStr: `
+							templateStr: `
 apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
@@ -2135,15 +2135,15 @@ spec:
 					}
 
 					for _, tt := range tests {
-						testPkgErrors(t, KindDashboard, tt)
+						testTemplateErrors(t, KindDashboard, tt)
 					}
 				})
 			})
 
 			t.Run("xy chart", func(t *testing.T) {
 				t.Run("happy path", func(t *testing.T) {
-					testfileRunner(t, "testdata/dashboard_xy", func(t *testing.T, pkg *Pkg) {
-						sum := pkg.Summary()
+					testfileRunner(t, "testdata/dashboard_xy", func(t *testing.T, template *Template) {
+						sum := template.Summary()
 						require.Len(t, sum.Dashboards, 1)
 
 						actual := sum.Dashboards[0]
@@ -2182,12 +2182,12 @@ spec:
 				})
 
 				t.Run("handles invalid config", func(t *testing.T) {
-					tests := []testPkgResourceError{
+					tests := []testTemplateResourceError{
 						{
 							name:           "color missing hex value",
 							validationErrs: 1,
 							valFields:      []string{fieldSpec, "charts[0].colors[0].hex"},
-							pkgStr: `apiVersion: influxdata.com/v2alpha1
+							templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
   name: dash-1
@@ -2228,7 +2228,7 @@ spec:
 							name:           "invalid geom flag",
 							validationErrs: 1,
 							valFields:      []string{fieldSpec, fieldDashCharts, fieldChartGeom},
-							pkgStr: `apiVersion: influxdata.com/v2alpha1
+							templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
   name: dash-1
@@ -2269,15 +2269,15 @@ spec:
 					}
 
 					for _, tt := range tests {
-						testPkgErrors(t, KindDashboard, tt)
+						testTemplateErrors(t, KindDashboard, tt)
 					}
 				})
 			})
 		})
 
 		t.Run("with env refs should be valid", func(t *testing.T) {
-			testfileRunner(t, "testdata/dashboard_ref.yml", func(t *testing.T, pkg *Pkg) {
-				actual := pkg.Summary().Dashboards
+			testfileRunner(t, "testdata/dashboard_ref.yml", func(t *testing.T, template *Template) {
+				actual := template.Summary().Dashboards
 				require.Len(t, actual, 1)
 
 				expected := []SummaryReference{
@@ -2301,10 +2301,10 @@ spec:
 			})
 		})
 
-		t.Run("and labels associated should be sucessful", func(t *testing.T) {
+		t.Run("and labels associated should be successful", func(t *testing.T) {
 			t.Run("happy path", func(t *testing.T) {
-				testfileRunner(t, "testdata/dashboard_associates_label", func(t *testing.T, pkg *Pkg) {
-					sum := pkg.Summary()
+				testfileRunner(t, "testdata/dashboard_associates_label", func(t *testing.T, template *Template) {
+					sum := template.Summary()
 					require.Len(t, sum.Dashboards, 1)
 
 					actual := sum.Dashboards[0]
@@ -2316,20 +2316,20 @@ spec:
 
 					expectedMappings := []SummaryLabelMapping{
 						{
-							Status:          StateStatusNew,
-							ResourceType:    influxdb.DashboardsResourceType,
-							ResourcePkgName: "dash-1",
-							ResourceName:    "dash-1",
-							LabelPkgName:    "label-1",
-							LabelName:       "label-1",
+							Status:           StateStatusNew,
+							ResourceType:     influxdb.DashboardsResourceType,
+							ResourceMetaName: "dash-1",
+							ResourceName:     "dash-1",
+							LabelMetaName:    "label-1",
+							LabelName:        "label-1",
 						},
 						{
-							Status:          StateStatusNew,
-							ResourceType:    influxdb.DashboardsResourceType,
-							ResourcePkgName: "dash-1",
-							ResourceName:    "dash-1",
-							LabelPkgName:    "label-2",
-							LabelName:       "label-2",
+							Status:           StateStatusNew,
+							ResourceType:     influxdb.DashboardsResourceType,
+							ResourceMetaName: "dash-1",
+							ResourceName:     "dash-1",
+							LabelMetaName:    "label-2",
+							LabelName:        "label-2",
 						},
 					}
 
@@ -2340,12 +2340,12 @@ spec:
 			})
 
 			t.Run("association doesn't exist then provides an error", func(t *testing.T) {
-				tests := []testPkgResourceError{
+				tests := []testTemplateResourceError{
 					{
 						name:    "no labels provided",
 						assErrs: 1,
 						assIdxs: []int{0},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
+						templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
   name: dash-1
@@ -2359,7 +2359,7 @@ spec:
 						name:    "mixed found and not found",
 						assErrs: 1,
 						assIdxs: []int{1},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
+						templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: Label
 metadata:
   name: label-1
@@ -2380,7 +2380,7 @@ spec:
 						name:    "multiple not found",
 						assErrs: 1,
 						assIdxs: []int{0, 1},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
+						templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: Label
 metadata:
   name: label-1
@@ -2401,7 +2401,7 @@ spec:
 						name:    "duplicate valid nested labels",
 						assErrs: 1,
 						assIdxs: []int{1},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
+						templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: Label
 metadata:
   name: label-1
@@ -2421,15 +2421,15 @@ spec:
 				}
 
 				for _, tt := range tests {
-					testPkgErrors(t, KindDashboard, tt)
+					testTemplateErrors(t, KindDashboard, tt)
 				}
 			})
 		})
 	})
 
-	t.Run("pkg with notification endpoints", func(t *testing.T) {
+	t.Run("template with notification endpoints", func(t *testing.T) {
 		t.Run("and labels associated should be successful", func(t *testing.T) {
-			testfileRunner(t, "testdata/notification_endpoint", func(t *testing.T, pkg *Pkg) {
+			testfileRunner(t, "testdata/notification_endpoint", func(t *testing.T, template *Template) {
 				expectedEndpoints := []SummaryNotificationEndpoint{
 					{
 						MetaName: "http-basic-auth-notification-endpoint",
@@ -2499,7 +2499,7 @@ spec:
 					},
 				}
 
-				sum := pkg.Summary()
+				sum := template.Summary()
 				endpoints := sum.NotificationEndpoints
 				require.Len(t, endpoints, len(expectedEndpoints))
 				require.Len(t, sum.LabelMappings, len(expectedEndpoints))
@@ -2511,20 +2511,20 @@ spec:
 					assert.Equal(t, "label-1", actual.LabelAssociations[0].Name)
 
 					assert.Contains(t, sum.LabelMappings, SummaryLabelMapping{
-						Status:          StateStatusNew,
-						ResourceType:    influxdb.NotificationEndpointResourceType,
-						ResourcePkgName: expected.MetaName,
-						ResourceName:    expected.NotificationEndpoint.GetName(),
-						LabelPkgName:    "label-1",
-						LabelName:       "label-1",
+						Status:           StateStatusNew,
+						ResourceType:     influxdb.NotificationEndpointResourceType,
+						ResourceMetaName: expected.MetaName,
+						ResourceName:     expected.NotificationEndpoint.GetName(),
+						LabelMetaName:    "label-1",
+						LabelName:        "label-1",
 					})
 				}
 			})
 		})
 
 		t.Run("with env refs should be valid", func(t *testing.T) {
-			testfileRunner(t, "testdata/notification_endpoint_ref.yml", func(t *testing.T, pkg *Pkg) {
-				actual := pkg.Summary().NotificationEndpoints
+			testfileRunner(t, "testdata/notification_endpoint_ref.yml", func(t *testing.T, template *Template) {
+				actual := template.Summary().NotificationEndpoints
 				require.Len(t, actual, 1)
 
 				expectedEnvRefs := []SummaryReference{
@@ -2551,15 +2551,15 @@ spec:
 		t.Run("handles bad config", func(t *testing.T) {
 			tests := []struct {
 				kind   Kind
-				resErr testPkgResourceError
+				resErr testTemplateResourceError
 			}{
 				{
 					kind: KindNotificationEndpointSlack,
-					resErr: testPkgResourceError{
+					resErr: testTemplateResourceError{
 						name:           "missing slack url",
 						validationErrs: 1,
 						valFields:      []string{fieldSpec, fieldNotificationEndpointURL},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
+						templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: NotificationEndpointSlack
 metadata:
   name: slack-notification-endpoint
@@ -2569,11 +2569,11 @@ spec:
 				},
 				{
 					kind: KindNotificationEndpointPagerDuty,
-					resErr: testPkgResourceError{
+					resErr: testTemplateResourceError{
 						name:           "missing pager duty url",
 						validationErrs: 1,
 						valFields:      []string{fieldSpec, fieldNotificationEndpointURL},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
+						templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: NotificationEndpointPagerDuty
 metadata:
   name: pager-duty-notification-endpoint
@@ -2583,11 +2583,11 @@ spec:
 				},
 				{
 					kind: KindNotificationEndpointHTTP,
-					resErr: testPkgResourceError{
+					resErr: testTemplateResourceError{
 						name:           "missing http url",
 						validationErrs: 1,
 						valFields:      []string{fieldSpec, fieldNotificationEndpointURL},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
+						templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: NotificationEndpointHTTP
 metadata:
   name: http-none-auth-notification-endpoint
@@ -2599,11 +2599,11 @@ spec:
 				},
 				{
 					kind: KindNotificationEndpointHTTP,
-					resErr: testPkgResourceError{
+					resErr: testTemplateResourceError{
 						name:           "bad url",
 						validationErrs: 1,
 						valFields:      []string{fieldSpec, fieldNotificationEndpointURL},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
+						templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: NotificationEndpointHTTP
 metadata:
   name: http-none-auth-notification-endpoint
@@ -2616,11 +2616,11 @@ spec:
 				},
 				{
 					kind: KindNotificationEndpointHTTP,
-					resErr: testPkgResourceError{
+					resErr: testTemplateResourceError{
 						name:           "missing http method",
 						validationErrs: 1,
 						valFields:      []string{fieldSpec, fieldNotificationEndpointHTTPMethod},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
+						templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: NotificationEndpointHTTP
 metadata:
   name: http-none-auth-notification-endpoint
@@ -2632,11 +2632,11 @@ spec:
 				},
 				{
 					kind: KindNotificationEndpointHTTP,
-					resErr: testPkgResourceError{
+					resErr: testTemplateResourceError{
 						name:           "invalid http method",
 						validationErrs: 1,
 						valFields:      []string{fieldSpec, fieldNotificationEndpointHTTPMethod},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
+						templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: NotificationEndpointHTTP
 metadata:
   name: http-basic-auth-notification-endpoint
@@ -2650,11 +2650,11 @@ spec:
 				},
 				{
 					kind: KindNotificationEndpointHTTP,
-					resErr: testPkgResourceError{
+					resErr: testTemplateResourceError{
 						name:           "missing basic username",
 						validationErrs: 1,
 						valFields:      []string{fieldSpec, fieldNotificationEndpointUsername},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
+						templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: NotificationEndpointHTTP
 metadata:
   name: http-basic-auth-notification-endpoint
@@ -2668,11 +2668,11 @@ spec:
 				},
 				{
 					kind: KindNotificationEndpointHTTP,
-					resErr: testPkgResourceError{
+					resErr: testTemplateResourceError{
 						name:           "missing basic password",
 						validationErrs: 1,
 						valFields:      []string{fieldSpec, fieldNotificationEndpointPassword},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
+						templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: NotificationEndpointHTTP
 metadata:
   name: http-basic-auth-notification-endpoint
@@ -2686,11 +2686,11 @@ spec:
 				},
 				{
 					kind: KindNotificationEndpointHTTP,
-					resErr: testPkgResourceError{
+					resErr: testTemplateResourceError{
 						name:           "missing basic password and username",
 						validationErrs: 1,
 						valFields:      []string{fieldSpec, fieldNotificationEndpointPassword, fieldNotificationEndpointUsername},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
+						templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: NotificationEndpointHTTP
 metadata:
   name: http-basic-auth-notification-endpoint
@@ -2704,11 +2704,11 @@ spec:
 				},
 				{
 					kind: KindNotificationEndpointHTTP,
-					resErr: testPkgResourceError{
+					resErr: testTemplateResourceError{
 						name:           "missing bearer token",
 						validationErrs: 1,
 						valFields:      []string{fieldSpec, fieldNotificationEndpointToken},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
+						templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: NotificationEndpointHTTP
 metadata:
   name: http-bearer-auth-notification-endpoint
@@ -2722,11 +2722,11 @@ spec:
 				},
 				{
 					kind: KindNotificationEndpointHTTP,
-					resErr: testPkgResourceError{
+					resErr: testTemplateResourceError{
 						name:           "invalid http type",
 						validationErrs: 1,
 						valFields:      []string{fieldSpec, fieldType},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
+						templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: NotificationEndpointHTTP
 metadata:
   name: http-basic-auth-notification-endpoint
@@ -2740,11 +2740,11 @@ spec:
 				},
 				{
 					kind: KindNotificationEndpointSlack,
-					resErr: testPkgResourceError{
+					resErr: testTemplateResourceError{
 						name:           "duplicate endpoints",
 						validationErrs: 1,
 						valFields:      []string{fieldMetadata, fieldName},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
+						templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: NotificationEndpointSlack
 metadata:
   name: slack-notification-endpoint
@@ -2762,11 +2762,11 @@ spec:
 				},
 				{
 					kind: KindNotificationEndpointSlack,
-					resErr: testPkgResourceError{
+					resErr: testTemplateResourceError{
 						name:           "invalid status",
 						validationErrs: 1,
 						valFields:      []string{fieldSpec, fieldStatus},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
+						templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: NotificationEndpointSlack
 metadata:
   name: slack-notification-endpoint
@@ -2779,11 +2779,11 @@ spec:
 				},
 				{
 					kind: KindNotificationEndpointSlack,
-					resErr: testPkgResourceError{
+					resErr: testTemplateResourceError{
 						name:           "duplicate meta name and spec name",
 						validationErrs: 1,
 						valFields:      []string{fieldSpec, fieldName},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
+						templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: NotificationEndpointSlack
 metadata:
   name: slack
@@ -2805,21 +2805,21 @@ spec:
 			}
 
 			for _, tt := range tests {
-				testPkgErrors(t, tt.kind, tt.resErr)
+				testTemplateErrors(t, tt.kind, tt.resErr)
 			}
 		})
 	})
 
-	t.Run("pkg with notification rules", func(t *testing.T) {
+	t.Run("template with notification rules", func(t *testing.T) {
 		t.Run("happy path", func(t *testing.T) {
-			testfileRunner(t, "testdata/notification_rule", func(t *testing.T, pkg *Pkg) {
-				sum := pkg.Summary()
+			testfileRunner(t, "testdata/notification_rule", func(t *testing.T, template *Template) {
+				sum := template.Summary()
 				rules := sum.NotificationRules
 				require.Len(t, rules, 1)
 
 				rule := rules[0]
 				assert.Equal(t, "rule_0", rule.Name)
-				assert.Equal(t, "endpoint-0", rule.EndpointPkgName)
+				assert.Equal(t, "endpoint-0", rule.EndpointMetaName)
 				assert.Equal(t, "desc_0", rule.Description)
 				assert.Equal(t, (10 * time.Minute).String(), rule.Every)
 				assert.Equal(t, (30 * time.Second).String(), rule.Offset)
@@ -2847,8 +2847,8 @@ spec:
 		})
 
 		t.Run("with env refs should be valid", func(t *testing.T) {
-			testfileRunner(t, "testdata/notification_rule_ref.yml", func(t *testing.T, pkg *Pkg) {
-				actual := pkg.Summary().NotificationRules
+			testfileRunner(t, "testdata/notification_rule_ref.yml", func(t *testing.T, template *Template) {
+				actual := template.Summary().NotificationRules
 				require.Len(t, actual, 1)
 
 				expectedEnvRefs := []SummaryReference{
@@ -2878,7 +2878,7 @@ spec:
 		})
 
 		t.Run("handles bad config", func(t *testing.T) {
-			pkgWithValidEndpint := func(resource string) string {
+			templateWithValidEndpint := func(resource string) string {
 				return fmt.Sprintf(`
 apiVersion: influxdata.com/v2alpha1
 kind: NotificationEndpointSlack
@@ -2893,14 +2893,14 @@ spec:
 
 			tests := []struct {
 				kind   Kind
-				resErr testPkgResourceError
+				resErr testTemplateResourceError
 			}{
 				{
 					kind: KindNotificationRule,
-					resErr: testPkgResourceError{
+					resErr: testTemplateResourceError{
 						name:      "missing name",
 						valFields: []string{fieldMetadata, fieldName},
-						pkgStr: pkgWithValidEndpint(`apiVersion: influxdata.com/v2alpha1
+						templateStr: templateWithValidEndpint(`apiVersion: influxdata.com/v2alpha1
 kind: NotificationRule
 metadata:
 spec:
@@ -2914,10 +2914,10 @@ spec:
 				},
 				{
 					kind: KindNotificationRule,
-					resErr: testPkgResourceError{
+					resErr: testTemplateResourceError{
 						name:      "missing endpoint name",
 						valFields: []string{fieldSpec, fieldNotificationRuleEndpointName},
-						pkgStr: pkgWithValidEndpint(`apiVersion: influxdata.com/v2alpha1
+						templateStr: templateWithValidEndpint(`apiVersion: influxdata.com/v2alpha1
 kind: NotificationRule
 metadata:
   name: rule-0
@@ -2931,10 +2931,10 @@ spec:
 				},
 				{
 					kind: KindNotificationRule,
-					resErr: testPkgResourceError{
+					resErr: testTemplateResourceError{
 						name:      "missing every",
 						valFields: []string{fieldSpec, fieldEvery},
-						pkgStr: pkgWithValidEndpint(`apiVersion: influxdata.com/v2alpha1
+						templateStr: templateWithValidEndpint(`apiVersion: influxdata.com/v2alpha1
 kind: NotificationRule
 metadata:
   name: rule-0
@@ -2948,10 +2948,10 @@ spec:
 				},
 				{
 					kind: KindNotificationRule,
-					resErr: testPkgResourceError{
+					resErr: testTemplateResourceError{
 						name:      "missing status rules",
 						valFields: []string{fieldSpec, fieldNotificationRuleStatusRules},
-						pkgStr: pkgWithValidEndpint(`apiVersion: influxdata.com/v2alpha1
+						templateStr: templateWithValidEndpint(`apiVersion: influxdata.com/v2alpha1
 kind: NotificationRule
 metadata:
   name: rule-0
@@ -2964,10 +2964,10 @@ spec:
 				},
 				{
 					kind: KindNotificationRule,
-					resErr: testPkgResourceError{
+					resErr: testTemplateResourceError{
 						name:      "bad current status rule level",
 						valFields: []string{fieldSpec, fieldNotificationRuleStatusRules},
-						pkgStr: pkgWithValidEndpint(`apiVersion: influxdata.com/v2alpha1
+						templateStr: templateWithValidEndpint(`apiVersion: influxdata.com/v2alpha1
 kind: NotificationRule
 metadata:
   name: rule-0
@@ -2982,10 +2982,10 @@ spec:
 				},
 				{
 					kind: KindNotificationRule,
-					resErr: testPkgResourceError{
+					resErr: testTemplateResourceError{
 						name:      "bad previous status rule level",
 						valFields: []string{fieldSpec, fieldNotificationRuleStatusRules},
-						pkgStr: pkgWithValidEndpint(`apiVersion: influxdata.com/v2alpha1
+						templateStr: templateWithValidEndpint(`apiVersion: influxdata.com/v2alpha1
 kind: NotificationRule
 metadata:
   name: rule-0
@@ -3001,10 +3001,10 @@ spec:
 				},
 				{
 					kind: KindNotificationRule,
-					resErr: testPkgResourceError{
+					resErr: testTemplateResourceError{
 						name:      "bad tag rule operator",
 						valFields: []string{fieldSpec, fieldNotificationRuleTagRules},
-						pkgStr: pkgWithValidEndpint(`apiVersion: influxdata.com/v2alpha1
+						templateStr: templateWithValidEndpint(`apiVersion: influxdata.com/v2alpha1
 kind: NotificationRule
 metadata:
   name: rule-0
@@ -3023,10 +3023,10 @@ spec:
 				},
 				{
 					kind: KindNotificationRule,
-					resErr: testPkgResourceError{
+					resErr: testTemplateResourceError{
 						name:      "bad status provided",
 						valFields: []string{fieldSpec, fieldStatus},
-						pkgStr: pkgWithValidEndpint(`apiVersion: influxdata.com/v2alpha1
+						templateStr: templateWithValidEndpint(`apiVersion: influxdata.com/v2alpha1
 kind: NotificationRule
 metadata:
   name: rule-0
@@ -3042,10 +3042,10 @@ spec:
 				},
 				{
 					kind: KindNotificationRule,
-					resErr: testPkgResourceError{
+					resErr: testTemplateResourceError{
 						name:      "label association does not exist",
 						valFields: []string{fieldSpec, fieldAssociations},
-						pkgStr: pkgWithValidEndpint(`apiVersion: influxdata.com/v2alpha1
+						templateStr: templateWithValidEndpint(`apiVersion: influxdata.com/v2alpha1
 kind: NotificationRule
 metadata:
   name: rule-0
@@ -3063,10 +3063,10 @@ spec:
 				},
 				{
 					kind: KindNotificationRule,
-					resErr: testPkgResourceError{
+					resErr: testTemplateResourceError{
 						name:      "label association dupe",
 						valFields: []string{fieldSpec, fieldAssociations},
-						pkgStr: pkgWithValidEndpint(`apiVersion: influxdata.com/v2alpha1
+						templateStr: templateWithValidEndpint(`apiVersion: influxdata.com/v2alpha1
 kind: Label
 metadata:
   name: label-1
@@ -3091,10 +3091,10 @@ spec:
 				},
 				{
 					kind: KindNotificationRule,
-					resErr: testPkgResourceError{
+					resErr: testTemplateResourceError{
 						name:      "duplicate meta names",
 						valFields: []string{fieldMetadata, fieldName},
-						pkgStr: pkgWithValidEndpint(`
+						templateStr: templateWithValidEndpint(`
 apiVersion: influxdata.com/v2alpha1
 kind: NotificationRule
 metadata:
@@ -3121,10 +3121,10 @@ spec:
 				},
 				{
 					kind: KindNotificationRule,
-					resErr: testPkgResourceError{
-						name:      "missing endpoint association in pkg",
+					resErr: testTemplateResourceError{
+						name:      "missing endpoint association in template",
 						valFields: []string{fieldSpec, fieldNotificationRuleEndpointName},
-						pkgStr: `
+						templateStr: `
 apiVersion: influxdata.com/v2alpha1
 kind: NotificationRule
 metadata:
@@ -3141,15 +3141,15 @@ spec:
 			}
 
 			for _, tt := range tests {
-				testPkgErrors(t, tt.kind, tt.resErr)
+				testTemplateErrors(t, tt.kind, tt.resErr)
 			}
 		})
 	})
 
-	t.Run("pkg with tasks", func(t *testing.T) {
+	t.Run("template with tasks", func(t *testing.T) {
 		t.Run("happy path", func(t *testing.T) {
-			testfileRunner(t, "testdata/tasks", func(t *testing.T, pkg *Pkg) {
-				sum := pkg.Summary()
+			testfileRunner(t, "testdata/tasks", func(t *testing.T, template *Template) {
+				sum := template.Summary()
 				tasks := sum.Tasks
 				require.Len(t, tasks, 2)
 				sort.Slice(tasks, func(i, j int) bool {
@@ -3184,8 +3184,8 @@ spec:
 		})
 
 		t.Run("with env refs should be valid", func(t *testing.T) {
-			testfileRunner(t, "testdata/task_ref.yml", func(t *testing.T, pkg *Pkg) {
-				actual := pkg.Summary().Tasks
+			testfileRunner(t, "testdata/task_ref.yml", func(t *testing.T, template *Template) {
+				actual := template.Summary().Tasks
 				require.Len(t, actual, 1)
 
 				expectedEnvRefs := []SummaryReference{
@@ -3212,15 +3212,15 @@ spec:
 		t.Run("handles bad config", func(t *testing.T) {
 			tests := []struct {
 				kind   Kind
-				resErr testPkgResourceError
+				resErr testTemplateResourceError
 			}{
 				{
 					kind: KindTask,
-					resErr: testPkgResourceError{
+					resErr: testTemplateResourceError{
 						name:           "missing name",
 						validationErrs: 1,
 						valFields:      []string{fieldMetadata, fieldName},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
+						templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: Task
 metadata:
 spec:
@@ -3233,11 +3233,11 @@ spec:
 				},
 				{
 					kind: KindTask,
-					resErr: testPkgResourceError{
+					resErr: testTemplateResourceError{
 						name:           "invalid status",
 						validationErrs: 1,
 						valFields:      []string{fieldSpec, fieldStatus},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
+						templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: Task
 metadata:
   name: task-0
@@ -3251,11 +3251,11 @@ spec:
 				},
 				{
 					kind: KindTask,
-					resErr: testPkgResourceError{
+					resErr: testTemplateResourceError{
 						name:           "missing query",
 						validationErrs: 1,
 						valFields:      []string{fieldSpec, fieldQuery},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
+						templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: Task
 metadata:
   name: task-0
@@ -3268,11 +3268,11 @@ spec:
 				},
 				{
 					kind: KindTask,
-					resErr: testPkgResourceError{
+					resErr: testTemplateResourceError{
 						name:           "missing every and cron fields",
 						validationErrs: 1,
 						valFields:      []string{fieldSpec, fieldEvery, fieldTaskCron},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
+						templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: Task
 metadata:
   name: task-0
@@ -3284,11 +3284,11 @@ spec:
 				},
 				{
 					kind: KindTask,
-					resErr: testPkgResourceError{
+					resErr: testTemplateResourceError{
 						name:           "invalid association",
 						validationErrs: 1,
 						valFields:      []string{fieldSpec, fieldAssociations},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
+						templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: Task
 metadata:
   name: task-1
@@ -3304,11 +3304,11 @@ spec:
 				},
 				{
 					kind: KindTask,
-					resErr: testPkgResourceError{
+					resErr: testTemplateResourceError{
 						name:           "duplicate association",
 						validationErrs: 1,
 						valFields:      []string{fieldSpec, fieldAssociations},
-						pkgStr: `---
+						templateStr: `---
 apiVersion: influxdata.com/v2alpha1
 kind: Label
 metadata:
@@ -3334,11 +3334,11 @@ spec:
 				},
 				{
 					kind: KindTask,
-					resErr: testPkgResourceError{
+					resErr: testTemplateResourceError{
 						name:           "duplicate meta names",
 						validationErrs: 1,
 						valFields:      []string{fieldMetadata, fieldName},
-						pkgStr: `
+						templateStr: `
 apiVersion: influxdata.com/v2alpha1
 kind: Task
 metadata:
@@ -3362,15 +3362,15 @@ spec:
 			}
 
 			for _, tt := range tests {
-				testPkgErrors(t, tt.kind, tt.resErr)
+				testTemplateErrors(t, tt.kind, tt.resErr)
 			}
 		})
 	})
 
-	t.Run("pkg with telegraf config", func(t *testing.T) {
+	t.Run("template with telegraf config", func(t *testing.T) {
 		t.Run("and associated labels should be successful", func(t *testing.T) {
-			testfileRunner(t, "testdata/telegraf", func(t *testing.T, pkg *Pkg) {
-				sum := pkg.Summary()
+			testfileRunner(t, "testdata/telegraf", func(t *testing.T, template *Template) {
+				sum := template.Summary()
 				require.Len(t, sum.TelegrafConfigs, 2)
 
 				actual := sum.TelegrafConfigs[0]
@@ -3387,23 +3387,23 @@ spec:
 
 				require.Len(t, sum.LabelMappings, 2)
 				expectedMapping := SummaryLabelMapping{
-					Status:          StateStatusNew,
-					ResourcePkgName: "first-tele-config",
-					ResourceName:    "display name",
-					LabelPkgName:    "label-1",
-					LabelName:       "label-1",
-					ResourceType:    influxdb.TelegrafsResourceType,
+					Status:           StateStatusNew,
+					ResourceMetaName: "first-tele-config",
+					ResourceName:     "display name",
+					LabelMetaName:    "label-1",
+					LabelName:        "label-1",
+					ResourceType:     influxdb.TelegrafsResourceType,
 				}
 				assert.Equal(t, expectedMapping, sum.LabelMappings[0])
-				expectedMapping.LabelPkgName = "label-2"
+				expectedMapping.LabelMetaName = "label-2"
 				expectedMapping.LabelName = "label-2"
 				assert.Equal(t, expectedMapping, sum.LabelMappings[1])
 			})
 		})
 
 		t.Run("with env refs should be valid", func(t *testing.T) {
-			testfileRunner(t, "testdata/telegraf_ref.yml", func(t *testing.T, pkg *Pkg) {
-				actual := pkg.Summary().TelegrafConfigs
+			testfileRunner(t, "testdata/telegraf_ref.yml", func(t *testing.T, template *Template) {
+				actual := template.Summary().TelegrafConfigs
 				require.Len(t, actual, 1)
 
 				expectedEnvRefs := []SummaryReference{
@@ -3428,12 +3428,12 @@ spec:
 		})
 
 		t.Run("handles bad config", func(t *testing.T) {
-			tests := []testPkgResourceError{
+			tests := []testTemplateResourceError{
 				{
 					name:           "config missing",
 					validationErrs: 1,
 					valFields:      []string{fieldSpec, fieldTelegrafConfig},
-					pkgStr: `apiVersion: influxdata.com/v2alpha1
+					templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: Telegraf
 metadata:
   name: first-tele-config
@@ -3444,7 +3444,7 @@ spec:
 					name:           "duplicate metadata names",
 					validationErrs: 1,
 					valFields:      []string{fieldMetadata, fieldName},
-					pkgStr: `apiVersion: influxdata.com/v2alpha1
+					templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: Telegraf
 metadata:
   name: tele-0
@@ -3462,15 +3462,15 @@ spec:
 			}
 
 			for _, tt := range tests {
-				testPkgErrors(t, KindTelegraf, tt)
+				testTemplateErrors(t, KindTelegraf, tt)
 			}
 		})
 	})
 
-	t.Run("pkg with a variable", func(t *testing.T) {
+	t.Run("template with a variable", func(t *testing.T) {
 		t.Run("with valid fields should produce summary", func(t *testing.T) {
-			testfileRunner(t, "testdata/variables", func(t *testing.T, pkg *Pkg) {
-				sum := pkg.Summary()
+			testfileRunner(t, "testdata/variables", func(t *testing.T, template *Template) {
+				sum := template.Summary()
 
 				require.Len(t, sum.Variables, 4)
 
@@ -3530,8 +3530,8 @@ spec:
 		})
 
 		t.Run("with env refs should be valid", func(t *testing.T) {
-			testfileRunner(t, "testdata/variable_ref.yml", func(t *testing.T, pkg *Pkg) {
-				actual := pkg.Summary().Variables
+			testfileRunner(t, "testdata/variable_ref.yml", func(t *testing.T, template *Template) {
+				actual := template.Summary().Variables
 				require.Len(t, actual, 1)
 
 				expectedEnvRefs := []SummaryReference{
@@ -3566,8 +3566,8 @@ spec:
 		})
 
 		t.Run("and labels associated", func(t *testing.T) {
-			testfileRunner(t, "testdata/variable_associates_label.yml", func(t *testing.T, pkg *Pkg) {
-				sum := pkg.Summary()
+			testfileRunner(t, "testdata/variable_associates_label.yml", func(t *testing.T, template *Template) {
+				sum := template.Summary()
 				require.Len(t, sum.Labels, 1)
 
 				vars := sum.Variables
@@ -3593,11 +3593,11 @@ spec:
 
 				expectedMappings := []SummaryLabelMapping{
 					{
-						Status:          StateStatusNew,
-						ResourcePkgName: "var-1",
-						ResourceName:    "var-1",
-						LabelPkgName:    "label-1",
-						LabelName:       "label-1",
+						Status:           StateStatusNew,
+						ResourceMetaName: "var-1",
+						ResourceName:     "var-1",
+						LabelMetaName:    "label-1",
+						LabelName:        "label-1",
 					},
 				}
 
@@ -3610,12 +3610,12 @@ spec:
 		})
 
 		t.Run("handles bad config", func(t *testing.T) {
-			tests := []testPkgResourceError{
+			tests := []testTemplateResourceError{
 				{
 					name:           "name missing",
 					validationErrs: 1,
 					valFields:      []string{fieldMetadata, fieldName},
-					pkgStr: `apiVersion: influxdata.com/v2alpha1
+					templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: Variable
 metadata:
 spec:
@@ -3629,7 +3629,7 @@ spec:
 					name:           "map var missing values",
 					validationErrs: 1,
 					valFields:      []string{fieldSpec, fieldValues},
-					pkgStr: `apiVersion: influxdata.com/v2alpha1
+					templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: Variable
 metadata:
   name:  var-map-4
@@ -3642,7 +3642,7 @@ spec:
 					name:           "const var missing values",
 					validationErrs: 1,
 					valFields:      []string{fieldSpec, fieldValues},
-					pkgStr: `apiVersion: influxdata.com/v2alpha1
+					templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: Variable
 metadata:
   name:  var-const-3
@@ -3655,7 +3655,7 @@ spec:
 					name:           "query var missing query",
 					validationErrs: 1,
 					valFields:      []string{fieldSpec, fieldQuery},
-					pkgStr: `apiVersion: influxdata.com/v2alpha1
+					templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: Variable
 metadata:
   name:  var-query-2
@@ -3669,7 +3669,7 @@ spec:
 					name:           "query var missing query language",
 					validationErrs: 1,
 					valFields:      []string{fieldSpec, fieldLanguage},
-					pkgStr: `apiVersion: influxdata.com/v2alpha1
+					templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: Variable
 metadata:
   name:  var-query-2
@@ -3683,7 +3683,7 @@ spec:
 					name:           "query var provides incorrect query language",
 					validationErrs: 1,
 					valFields:      []string{fieldSpec, fieldLanguage},
-					pkgStr: `apiVersion: influxdata.com/v2alpha1
+					templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: Variable
 metadata:
   name:  var-query-2
@@ -3698,7 +3698,7 @@ spec:
 					name:           "duplicate var names",
 					validationErrs: 1,
 					valFields:      []string{fieldMetadata, fieldName},
-					pkgStr: `apiVersion: influxdata.com/v2alpha1
+					templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: Variable
 metadata:
   name:  var-query-2
@@ -3723,7 +3723,7 @@ spec:
 					name:           "duplicate meta name and spec name",
 					validationErrs: 1,
 					valFields:      []string{fieldSpec, fieldName},
-					pkgStr: `apiVersion: influxdata.com/v2alpha1
+					templateStr: `apiVersion: influxdata.com/v2alpha1
 kind: Variable
 metadata:
   name:  var-query-2
@@ -3748,7 +3748,7 @@ spec:
 			}
 
 			for _, tt := range tests {
-				testPkgErrors(t, KindVariable, tt)
+				testTemplateErrors(t, KindVariable, tt)
 			}
 		})
 	})
@@ -3761,8 +3761,8 @@ spec:
 			assert.False(t, b)
 		}
 
-		testfileRunner(t, "testdata/notification_endpoint_secrets.yml", func(t *testing.T, pkg *Pkg) {
-			sum := pkg.Summary()
+		testfileRunner(t, "testdata/notification_endpoint_secrets.yml", func(t *testing.T, template *Template) {
+			sum := template.Summary()
 
 			endpoints := sum.NotificationEndpoints
 			require.Len(t, endpoints, 1)
@@ -3781,7 +3781,7 @@ spec:
 			require.Nil(t, actual.RoutingKey.Value)
 			assert.Equal(t, "routing-key", actual.RoutingKey.Key)
 
-			hasSecret(t, pkg.mSecrets, "routing-key")
+			hasSecret(t, template.mSecrets, "routing-key")
 		})
 	})
 
@@ -3792,75 +3792,75 @@ spec:
 			assert.True(t, ok)
 		}
 
-		testfileRunner(t, "testdata/env_refs.yml", func(t *testing.T, pkg *Pkg) {
-			sum := pkg.Summary()
+		testfileRunner(t, "testdata/env_refs.yml", func(t *testing.T, template *Template) {
+			sum := template.Summary()
 
 			require.Len(t, sum.Buckets, 1)
 			assert.Equal(t, "env-bkt-1-name-ref", sum.Buckets[0].Name)
 			assert.Len(t, sum.Buckets[0].LabelAssociations, 1)
-			hasEnv(t, pkg.mEnv, "bkt-1-name-ref")
+			hasEnv(t, template.mEnv, "bkt-1-name-ref")
 
 			require.Len(t, sum.Checks, 1)
 			assert.Equal(t, "env-check-1-name-ref", sum.Checks[0].Check.GetName())
 			assert.Len(t, sum.Checks[0].LabelAssociations, 1)
-			hasEnv(t, pkg.mEnv, "check-1-name-ref")
+			hasEnv(t, template.mEnv, "check-1-name-ref")
 
 			require.Len(t, sum.Dashboards, 1)
 			assert.Equal(t, "env-dash-1-name-ref", sum.Dashboards[0].Name)
 			assert.Len(t, sum.Dashboards[0].LabelAssociations, 1)
-			hasEnv(t, pkg.mEnv, "dash-1-name-ref")
+			hasEnv(t, template.mEnv, "dash-1-name-ref")
 
 			require.Len(t, sum.NotificationEndpoints, 1)
 			assert.Equal(t, "env-endpoint-1-name-ref", sum.NotificationEndpoints[0].NotificationEndpoint.GetName())
-			hasEnv(t, pkg.mEnv, "endpoint-1-name-ref")
+			hasEnv(t, template.mEnv, "endpoint-1-name-ref")
 
 			require.Len(t, sum.Labels, 1)
 			assert.Equal(t, "env-label-1-name-ref", sum.Labels[0].Name)
-			hasEnv(t, pkg.mEnv, "label-1-name-ref")
+			hasEnv(t, template.mEnv, "label-1-name-ref")
 
 			require.Len(t, sum.NotificationRules, 1)
 			assert.Equal(t, "env-rule-1-name-ref", sum.NotificationRules[0].Name)
-			assert.Equal(t, "env-endpoint-1-name-ref", sum.NotificationRules[0].EndpointPkgName)
-			hasEnv(t, pkg.mEnv, "rule-1-name-ref")
+			assert.Equal(t, "env-endpoint-1-name-ref", sum.NotificationRules[0].EndpointMetaName)
+			hasEnv(t, template.mEnv, "rule-1-name-ref")
 
 			require.Len(t, sum.Tasks, 1)
 			assert.Equal(t, "env-task-1-name-ref", sum.Tasks[0].Name)
-			hasEnv(t, pkg.mEnv, "task-1-name-ref")
+			hasEnv(t, template.mEnv, "task-1-name-ref")
 
 			require.Len(t, sum.TelegrafConfigs, 1)
 			assert.Equal(t, "env-telegraf-1-name-ref", sum.TelegrafConfigs[0].TelegrafConfig.Name)
-			hasEnv(t, pkg.mEnv, "telegraf-1-name-ref")
+			hasEnv(t, template.mEnv, "telegraf-1-name-ref")
 
 			require.Len(t, sum.Variables, 1)
 			assert.Equal(t, "env-var-1-name-ref", sum.Variables[0].Name)
-			hasEnv(t, pkg.mEnv, "var-1-name-ref")
+			hasEnv(t, template.mEnv, "var-1-name-ref")
 
 			t.Log("applying env vars should populate env fields")
 			{
-				err := pkg.applyEnvRefs(map[string]string{
+				err := template.applyEnvRefs(map[string]string{
 					"bkt-1-name-ref":   "bucket-1",
 					"label-1-name-ref": "label-1",
 				})
 				require.NoError(t, err)
 
-				sum := pkg.Summary()
+				sum := template.Summary()
 
 				require.Len(t, sum.Buckets, 1)
 				assert.Equal(t, "bucket-1", sum.Buckets[0].Name)
 				assert.Len(t, sum.Buckets[0].LabelAssociations, 1)
-				hasEnv(t, pkg.mEnv, "bkt-1-name-ref")
+				hasEnv(t, template.mEnv, "bkt-1-name-ref")
 
 				require.Len(t, sum.Labels, 1)
 				assert.Equal(t, "label-1", sum.Labels[0].Name)
-				hasEnv(t, pkg.mEnv, "label-1-name-ref")
+				hasEnv(t, template.mEnv, "label-1-name-ref")
 			}
 		})
 	})
 
 	t.Run("jsonnet support", func(t *testing.T) {
-		pkg := validParsedPkgFromFile(t, "testdata/bucket_associates_labels.jsonnet", EncodingJsonnet)
+		template := validParsedTemplateFromFile(t, "testdata/bucket_associates_labels.jsonnet", EncodingJsonnet)
 
-		sum := pkg.Summary()
+		sum := template.Summary()
 
 		labels := []SummaryLabel{
 			sumLabelGen("label-1", "label-1", "#eee888", "desc_1"),
@@ -3898,9 +3898,9 @@ spec:
 }
 
 func TestCombine(t *testing.T) {
-	newPkgFromYmlStr := func(t *testing.T, pkgStr string) *Pkg {
+	newTemplateFromYmlStr := func(t *testing.T, templateStr string) *Template {
 		t.Helper()
-		return newParsedPkg(t, FromString(pkgStr), EncodingYAML, ValidSkipParseError())
+		return newParsedTemplate(t, FromString(templateStr), EncodingYAML, ValidSkipParseError())
 	}
 
 	associationsEqual := func(t *testing.T, summaryLabels []SummaryLabel, names ...string) {
@@ -3929,20 +3929,20 @@ func TestCombine(t *testing.T) {
 		}
 	}
 
-	t.Run("multiple pkgs with associations across files", func(t *testing.T) {
-		var pkgs []*Pkg
+	t.Run("multiple templates with associations across files", func(t *testing.T) {
+		var templates []*Template
 		numLabels := 5
 		for i := 0; i < numLabels; i++ {
-			pkg := newPkgFromYmlStr(t, fmt.Sprintf(`
+			template := newTemplateFromYmlStr(t, fmt.Sprintf(`
 apiVersion: %[1]s
 kind: Label
 metadata:
   name: label-%d
 `, APIVersion, i))
-			pkgs = append(pkgs, pkg)
+			templates = append(templates, template)
 		}
 
-		pkgs = append(pkgs, newPkgFromYmlStr(t, fmt.Sprintf(`
+		templates = append(templates, newTemplateFromYmlStr(t, fmt.Sprintf(`
 apiVersion: %[1]s
 kind: Bucket
 metadata:
@@ -3953,7 +3953,7 @@ spec:
       name: label-1
 `, APIVersion)))
 
-		pkgs = append(pkgs, newPkgFromYmlStr(t, fmt.Sprintf(`
+		templates = append(templates, newTemplateFromYmlStr(t, fmt.Sprintf(`
 apiVersion: %[1]s
 kind: Bucket
 metadata:
@@ -3964,7 +3964,7 @@ spec:
       name: label-2
 `, APIVersion)))
 
-		pkgs = append(pkgs, newPkgFromYmlStr(t, fmt.Sprintf(`
+		templates = append(templates, newTemplateFromYmlStr(t, fmt.Sprintf(`
 apiVersion: %[1]s
 kind: Bucket
 metadata:
@@ -3977,10 +3977,10 @@ spec:
       name: label-2
 `, APIVersion)))
 
-		combinedPkg, err := Combine(pkgs)
+		combinedTemplate, err := Combine(templates)
 		require.NoError(t, err)
 
-		sum := combinedPkg.Summary()
+		sum := combinedTemplate.Summary()
 
 		require.Len(t, sum.Labels, numLabels)
 		for i := 0; i < numLabels; i++ {
@@ -4120,7 +4120,7 @@ func Test_IsParseError(t *testing.T) {
 	}
 }
 
-func Test_PkgValidationErr(t *testing.T) {
+func Test_TemplateValidationErr(t *testing.T) {
 	iPtr := func(i int) *int {
 		return &i
 	}
@@ -4223,10 +4223,10 @@ func Test_validGeometry(t *testing.T) {
 	}
 }
 
-type testPkgResourceError struct {
+type testTemplateResourceError struct {
 	name           string
 	encoding       Encoding
-	pkgStr         string
+	templateStr    string
 	resourceErrs   int
 	validationErrs int
 	valFields      []string
@@ -4236,7 +4236,7 @@ type testPkgResourceError struct {
 
 // defaults to yaml encoding if encoding not provided
 // defaults num resources to 1 if resource errs not provided.
-func testPkgErrors(t *testing.T, k Kind, tt testPkgResourceError) {
+func testTemplateErrors(t *testing.T, k Kind, tt testTemplateResourceError) {
 	t.Helper()
 	encoding := EncodingYAML
 	if tt.encoding != EncodingUnknown {
@@ -4251,7 +4251,7 @@ func testPkgErrors(t *testing.T, k Kind, tt testPkgResourceError) {
 	fn := func(t *testing.T) {
 		t.Helper()
 
-		_, err := Parse(encoding, FromString(tt.pkgStr))
+		_, err := Parse(encoding, FromString(tt.templateStr))
 		require.Error(t, err)
 
 		require.True(t, IsParseErr(err), err)
@@ -4341,7 +4341,7 @@ func nextField(t *testing.T, field string) (string, int) {
 	return "", -1
 }
 
-func validParsedPkgFromFile(t *testing.T, path string, encoding Encoding) *Pkg {
+func validParsedTemplateFromFile(t *testing.T, path string, encoding Encoding) *Template {
 	t.Helper()
 
 	var readFn ReaderFn
@@ -4353,30 +4353,30 @@ func validParsedPkgFromFile(t *testing.T, path string, encoding Encoding) *Pkg {
 		atomic.AddInt64(&missedTemplateCacheCounter, 1)
 	}
 
-	pkg := newParsedPkg(t, readFn, encoding)
+	template := newParsedTemplate(t, readFn, encoding)
 	u := url.URL{
 		Scheme: "file",
 		Path:   path,
 	}
-	require.Equal(t, []string{u.String()}, pkg.Sources())
-	return pkg
+	require.Equal(t, []string{u.String()}, template.Sources())
+	return template
 }
 
-func newParsedPkg(t *testing.T, fn ReaderFn, encoding Encoding, opts ...ValidateOptFn) *Pkg {
+func newParsedTemplate(t *testing.T, fn ReaderFn, encoding Encoding, opts ...ValidateOptFn) *Template {
 	t.Helper()
 
-	pkg, err := Parse(encoding, fn, opts...)
+	template, err := Parse(encoding, fn, opts...)
 	require.NoError(t, err)
 
-	for _, k := range pkg.Objects {
+	for _, k := range template.Objects {
 		require.Equal(t, APIVersion, k.APIVersion)
 	}
 
-	require.True(t, pkg.isParsed)
-	return pkg
+	require.True(t, template.isParsed)
+	return template
 }
 
-func testfileRunner(t *testing.T, path string, testFn func(t *testing.T, pkg *Pkg)) {
+func testfileRunner(t *testing.T, path string, testFn func(t *testing.T, template *Template)) {
 	t.Helper()
 
 	tests := []struct {
@@ -4410,21 +4410,21 @@ func testfileRunner(t *testing.T, path string, testFn func(t *testing.T, pkg *Pk
 		fn := func(t *testing.T) {
 			t.Helper()
 
-			pkg := validParsedPkgFromFile(t, path+tt.extension, tt.encoding)
+			template := validParsedTemplateFromFile(t, path+tt.extension, tt.encoding)
 			if testFn != nil {
-				testFn(t, pkg)
+				testFn(t, template)
 			}
 		}
 		t.Run(tt.name, fn)
 	}
 }
 
-func sumLabelGen(pkgName, name, color, desc string, envRefs ...SummaryReference) SummaryLabel {
+func sumLabelGen(metaName, name, color, desc string, envRefs ...SummaryReference) SummaryLabel {
 	if envRefs == nil {
 		envRefs = make([]SummaryReference, 0)
 	}
 	return SummaryLabel{
-		MetaName: pkgName,
+		MetaName: metaName,
 		Name:     name,
 		Properties: struct {
 			Color       string `json:"color"`

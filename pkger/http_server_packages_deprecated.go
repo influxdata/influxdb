@@ -198,7 +198,7 @@ func (s *HTTPServerPackages) exportStack(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	encoding := pkgEncoding(r.Header.Get("Accept"))
+	encoding := templateEncoding(r.Header.Get("Accept"))
 
 	b, err := pkg.Encode(encoding)
 	if err != nil {
@@ -321,7 +321,7 @@ func (s *HTTPServerPackages) export(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var enc encoder
-	switch pkgEncoding(r.Header.Get("Accept")) {
+	switch templateEncoding(r.Header.Get("Accept")) {
 	case EncodingYAML:
 		enc = yaml.NewEncoder(w)
 		w.Header().Set("Content-Type", "application/x-yaml")
@@ -361,7 +361,7 @@ func (s *HTTPServerPackages) apply(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	parsedPkg, err := reqBody.Pkgs(encoding)
+	parsedPkg, err := reqBody.Templates(encoding)
 	if err != nil {
 		s.api.Err(w, r, &influxdb.Error{
 			Code: influxdb.EUnprocessableEntity,
@@ -378,7 +378,7 @@ func (s *HTTPServerPackages) apply(w http.ResponseWriter, r *http.Request) {
 
 	applyOpts := []ApplyOptFn{
 		ApplyWithEnvRefs(reqBody.EnvRefs),
-		ApplyWithPkg(parsedPkg),
+		ApplyWithTemplate(parsedPkg),
 		ApplyWithStackID(stackID),
 	}
 	for _, a := range actions.SkipResources {

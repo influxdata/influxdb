@@ -65,14 +65,14 @@ func (e Encoding) String() string {
 var ErrInvalidEncoding = errors.New("invalid encoding provided")
 
 // Parse parses a pkg defined by the encoding and readerFns. As of writing this
-// we can parse both a YAML, JSON, and Jsonnet formats of the Pkg model.
-func Parse(encoding Encoding, readerFn ReaderFn, opts ...ValidateOptFn) (*Pkg, error) {
+// we can parse both a YAML, JSON, and Jsonnet formats of the Template model.
+func Parse(encoding Encoding, readerFn ReaderFn, opts ...ValidateOptFn) (*Template, error) {
 	r, source, err := readerFn()
 	if err != nil {
 		return nil, err
 	}
 
-	var pkgFn func(io.Reader, ...ValidateOptFn) (*Pkg, error)
+	var pkgFn func(io.Reader, ...ValidateOptFn) (*Template, error)
 	switch encoding {
 	case EncodingJSON:
 		pkgFn = parseJSON
@@ -200,15 +200,15 @@ func normalizeGithubURLToContent(addr string) string {
 	return u.String()
 }
 
-func parseJSON(r io.Reader, opts ...ValidateOptFn) (*Pkg, error) {
+func parseJSON(r io.Reader, opts ...ValidateOptFn) (*Template, error) {
 	return parse(json.NewDecoder(r), opts...)
 }
 
-func parseJsonnet(r io.Reader, opts ...ValidateOptFn) (*Pkg, error) {
+func parseJsonnet(r io.Reader, opts ...ValidateOptFn) (*Template, error) {
 	return parse(jsonnet.NewDecoder(r), opts...)
 }
 
-func parseSource(r io.Reader, opts ...ValidateOptFn) (*Pkg, error) {
+func parseSource(r io.Reader, opts ...ValidateOptFn) (*Template, error) {
 	var b []byte
 	if byter, ok := r.(interface{ Bytes() []byte }); ok {
 		b = byter.Bytes()
@@ -235,10 +235,10 @@ func parseSource(r io.Reader, opts ...ValidateOptFn) (*Pkg, error) {
 	}
 }
 
-func parseYAML(r io.Reader, opts ...ValidateOptFn) (*Pkg, error) {
+func parseYAML(r io.Reader, opts ...ValidateOptFn) (*Template, error) {
 	dec := yaml.NewDecoder(r)
 
-	var pkg Pkg
+	var pkg Template
 	for {
 		// forced to use this for loop b/c the yaml dependency does not
 		// decode multi documents.
@@ -264,8 +264,8 @@ type decoder interface {
 	Decode(interface{}) error
 }
 
-func parse(dec decoder, opts ...ValidateOptFn) (*Pkg, error) {
-	var pkg Pkg
+func parse(dec decoder, opts ...ValidateOptFn) (*Template, error) {
+	var pkg Template
 	if err := dec.Decode(&pkg.Objects); err != nil {
 		return nil, err
 	}
@@ -333,13 +333,13 @@ func (k Object) SetMetadataName(name string) {
 	k.Metadata[fieldName] = name
 }
 
-// Pkg is the model for a package. The resources are more generic that one might
+// Template is the model for a package. The resources are more generic that one might
 // expect at first glance. This was done on purpose. The way json/yaml/toml or
 // w/e scripting you want to use, can have very different ways of parsing. The
 // different parsers are limited for the parsers that do not come from the std
 // lib (looking at you yaml/v2). This allows us to parse it and leave the matching
 // to another power, the graphing of the package is handled within itself.
-type Pkg struct {
+type Template struct {
 	Objects []Object `json:"-" yaml:"-"`
 	sources []string
 
@@ -361,9 +361,9 @@ type Pkg struct {
 }
 
 // Encode is a helper for encoding the pkg correctly.
-func (p *Pkg) Encode(encoding Encoding) ([]byte, error) {
+func (p *Template) Encode(encoding Encoding) ([]byte, error) {
 	if p == nil {
-		panic("attempted to encode a nil Pkg")
+		panic("attempted to encode a nil Template")
 	}
 
 	var (
@@ -391,7 +391,7 @@ func (p *Pkg) Encode(encoding Encoding) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func (p *Pkg) Sources() []string {
+func (p *Template) Sources() []string {
 	// note: we prevent the internal field from being changed by enabling access
 	// 		 to the sources via the exported method here.
 	return p.sources
@@ -400,7 +400,7 @@ func (p *Pkg) Sources() []string {
 // Summary returns a package Summary that describes all the resources and
 // associations the pkg contains. It is very useful for informing users of
 // the changes that will take place when this pkg would be applied.
-func (p *Pkg) Summary() Summary {
+func (p *Template) Summary() Summary {
 	// ensure zero values for arrays aren't returned, but instead
 	// we always returning an initialized slice.
 	sum := Summary{
@@ -458,7 +458,7 @@ func (p *Pkg) Summary() Summary {
 	return sum
 }
 
-func (p *Pkg) applyEnvRefs(envRefs map[string]string) error {
+func (p *Template) applyEnvRefs(envRefs map[string]string) error {
 	if len(envRefs) == 0 {
 		return nil
 	}
@@ -474,7 +474,7 @@ func (p *Pkg) applyEnvRefs(envRefs map[string]string) error {
 	return p.Validate()
 }
 
-func (p *Pkg) applySecrets(secrets map[string]string) {
+func (p *Template) applySecrets(secrets map[string]string) {
 	for k := range secrets {
 		p.mSecrets[k] = true
 	}
@@ -482,7 +482,7 @@ func (p *Pkg) applySecrets(secrets map[string]string) {
 
 // Contains identifies if a pkg contains a given object identified
 // by its kind and metadata.Name (MetaName) field.
-func (p *Pkg) Contains(k Kind, pkgName string) bool {
+func (p *Template) Contains(k Kind, pkgName string) bool {
 	switch k {
 	case KindBucket:
 		_, ok := p.mBuckets[pkgName]
@@ -517,8 +517,8 @@ func (p *Pkg) Contains(k Kind, pkgName string) bool {
 
 // Combine combines pkgs together. Is useful when you want to take multiple disparate pkgs
 // and compile them into one to take advantage of the parser and service guarantees.
-func Combine(pkgs []*Pkg, validationOpts ...ValidateOptFn) (*Pkg, error) {
-	newPkg := new(Pkg)
+func Combine(pkgs []*Template, validationOpts ...ValidateOptFn) (*Template, error) {
+	newPkg := new(Template)
 	for _, p := range pkgs {
 		if len(p.Objects) == 0 {
 			continue
@@ -559,7 +559,7 @@ func ValidSkipParseError() ValidateOptFn {
 }
 
 // Validate will graph all resources and validate every thing is in a useful form.
-func (p *Pkg) Validate(opts ...ValidateOptFn) error {
+func (p *Template) Validate(opts ...ValidateOptFn) error {
 	opt := &validateOpt{minResources: true}
 	for _, o := range opts {
 		o(opt)
@@ -590,29 +590,29 @@ func (p *Pkg) Validate(opts ...ValidateOptFn) error {
 	return nil
 }
 
-func (p *Pkg) buckets() []*bucket {
+func (p *Template) buckets() []*bucket {
 	buckets := make([]*bucket, 0, len(p.mBuckets))
 	for _, b := range p.mBuckets {
 		buckets = append(buckets, b)
 	}
 
-	sort.Slice(buckets, func(i, j int) bool { return buckets[i].PkgName() < buckets[j].PkgName() })
+	sort.Slice(buckets, func(i, j int) bool { return buckets[i].MetaName() < buckets[j].MetaName() })
 
 	return buckets
 }
 
-func (p *Pkg) checks() []*check {
+func (p *Template) checks() []*check {
 	checks := make([]*check, 0, len(p.mChecks))
 	for _, c := range p.mChecks {
 		checks = append(checks, c)
 	}
 
-	sort.Slice(checks, func(i, j int) bool { return checks[i].PkgName() < checks[j].PkgName() })
+	sort.Slice(checks, func(i, j int) bool { return checks[i].MetaName() < checks[j].MetaName() })
 
 	return checks
 }
 
-func (p *Pkg) labels() []*label {
+func (p *Template) labels() []*label {
 	labels := make(sortedLabels, 0, len(p.mLabels))
 	for _, l := range p.mLabels {
 		labels = append(labels, l)
@@ -623,16 +623,16 @@ func (p *Pkg) labels() []*label {
 	return labels
 }
 
-func (p *Pkg) dashboards() []*dashboard {
+func (p *Template) dashboards() []*dashboard {
 	dashes := make([]*dashboard, 0, len(p.mDashboards))
 	for _, d := range p.mDashboards {
 		dashes = append(dashes, d)
 	}
-	sort.Slice(dashes, func(i, j int) bool { return dashes[i].PkgName() < dashes[j].PkgName() })
+	sort.Slice(dashes, func(i, j int) bool { return dashes[i].MetaName() < dashes[j].MetaName() })
 	return dashes
 }
 
-func (p *Pkg) notificationEndpoints() []*notificationEndpoint {
+func (p *Template) notificationEndpoints() []*notificationEndpoint {
 	endpoints := make([]*notificationEndpoint, 0, len(p.mNotificationEndpoints))
 	for _, e := range p.mNotificationEndpoints {
 		endpoints = append(endpoints, e)
@@ -640,23 +640,23 @@ func (p *Pkg) notificationEndpoints() []*notificationEndpoint {
 	sort.Slice(endpoints, func(i, j int) bool {
 		ei, ej := endpoints[i], endpoints[j]
 		if ei.kind == ej.kind {
-			return ei.PkgName() < ej.PkgName()
+			return ei.MetaName() < ej.MetaName()
 		}
 		return ei.kind < ej.kind
 	})
 	return endpoints
 }
 
-func (p *Pkg) notificationRules() []*notificationRule {
+func (p *Template) notificationRules() []*notificationRule {
 	rules := make([]*notificationRule, 0, len(p.mNotificationRules))
 	for _, r := range p.mNotificationRules {
 		rules = append(rules, r)
 	}
-	sort.Slice(rules, func(i, j int) bool { return rules[i].PkgName() < rules[j].PkgName() })
+	sort.Slice(rules, func(i, j int) bool { return rules[i].MetaName() < rules[j].MetaName() })
 	return rules
 }
 
-func (p *Pkg) missingEnvRefs() []string {
+func (p *Template) missingEnvRefs() []string {
 	envRefs := make([]string, 0)
 	for envRef, matching := range p.mEnv {
 		if !matching {
@@ -667,7 +667,7 @@ func (p *Pkg) missingEnvRefs() []string {
 	return envRefs
 }
 
-func (p *Pkg) missingSecrets() []string {
+func (p *Template) missingSecrets() []string {
 	secrets := make([]string, 0, len(p.mSecrets))
 	for secret, foundInPlatform := range p.mSecrets {
 		if foundInPlatform {
@@ -678,36 +678,36 @@ func (p *Pkg) missingSecrets() []string {
 	return secrets
 }
 
-func (p *Pkg) tasks() []*task {
+func (p *Template) tasks() []*task {
 	tasks := make([]*task, 0, len(p.mTasks))
 	for _, t := range p.mTasks {
 		tasks = append(tasks, t)
 	}
 
-	sort.Slice(tasks, func(i, j int) bool { return tasks[i].PkgName() < tasks[j].PkgName() })
+	sort.Slice(tasks, func(i, j int) bool { return tasks[i].MetaName() < tasks[j].MetaName() })
 
 	return tasks
 }
 
-func (p *Pkg) telegrafs() []*telegraf {
+func (p *Template) telegrafs() []*telegraf {
 	teles := make([]*telegraf, 0, len(p.mTelegrafs))
 	for _, t := range p.mTelegrafs {
 		t.config.Name = t.Name()
 		teles = append(teles, t)
 	}
 
-	sort.Slice(teles, func(i, j int) bool { return teles[i].PkgName() < teles[j].PkgName() })
+	sort.Slice(teles, func(i, j int) bool { return teles[i].MetaName() < teles[j].MetaName() })
 
 	return teles
 }
 
-func (p *Pkg) variables() []*variable {
+func (p *Template) variables() []*variable {
 	vars := make([]*variable, 0, len(p.mVariables))
 	for _, v := range p.mVariables {
 		vars = append(vars, v)
 	}
 
-	sort.Slice(vars, func(i, j int) bool { return vars[i].PkgName() < vars[j].PkgName() })
+	sort.Slice(vars, func(i, j int) bool { return vars[i].MetaName() < vars[j].MetaName() })
 
 	return vars
 }
@@ -716,7 +716,7 @@ func (p *Pkg) variables() []*variable {
 // valid pairs of labels and resources of which all have IDs.
 // If a resource does not exist yet, a label mapping will not
 // be returned for it.
-func (p *Pkg) labelMappings() []SummaryLabelMapping {
+func (p *Template) labelMappings() []SummaryLabelMapping {
 	labels := p.mLabels
 	mappings := make([]SummaryLabelMapping, 0, len(labels))
 	for _, l := range labels {
@@ -744,7 +744,7 @@ func (p *Pkg) labelMappings() []SummaryLabelMapping {
 	return mappings
 }
 
-func (p *Pkg) validResources() error {
+func (p *Template) validResources() error {
 	if len(p.Objects) > 0 {
 		return nil
 	}
@@ -761,7 +761,7 @@ func (p *Pkg) validResources() error {
 	return &err
 }
 
-func (p *Pkg) graphResources() error {
+func (p *Template) graphResources() error {
 	p.mEnv = make(map[string]bool)
 	p.mSecrets = make(map[string]bool)
 
@@ -796,7 +796,7 @@ func (p *Pkg) graphResources() error {
 	return nil
 }
 
-func (p *Pkg) graphBuckets() *parseErr {
+func (p *Template) graphBuckets() *parseErr {
 	p.mBuckets = make(map[string]*bucket)
 	tracker := p.trackNames(true)
 	return p.eachResource(KindBucket, func(o Object) []validationErr {
@@ -823,18 +823,18 @@ func (p *Pkg) graphBuckets() *parseErr {
 
 		failures := p.parseNestedLabels(o.Spec, func(l *label) error {
 			bkt.labels = append(bkt.labels, l)
-			p.mLabels[l.PkgName()].setMapping(bkt, false)
+			p.mLabels[l.MetaName()].setMapping(bkt, false)
 			return nil
 		})
 		sort.Sort(bkt.labels)
 
-		p.mBuckets[bkt.PkgName()] = bkt
+		p.mBuckets[bkt.MetaName()] = bkt
 
 		return append(failures, bkt.valid()...)
 	})
 }
 
-func (p *Pkg) graphLabels() *parseErr {
+func (p *Template) graphLabels() *parseErr {
 	p.mLabels = make(map[string]*label)
 	tracker := p.trackNames(true)
 	return p.eachResource(KindLabel, func(o Object) []validationErr {
@@ -848,14 +848,14 @@ func (p *Pkg) graphLabels() *parseErr {
 			Color:       o.Spec.stringShort(fieldLabelColor),
 			Description: o.Spec.stringShort(fieldDescription),
 		}
-		p.mLabels[l.PkgName()] = l
+		p.mLabels[l.MetaName()] = l
 		p.setRefs(l.name, l.displayName)
 
 		return l.valid()
 	})
 }
 
-func (p *Pkg) graphChecks() *parseErr {
+func (p *Template) graphChecks() *parseErr {
 	p.mChecks = make(map[string]*check)
 	tracker := p.trackNames(true)
 
@@ -907,12 +907,12 @@ func (p *Pkg) graphChecks() *parseErr {
 
 			failures := p.parseNestedLabels(o.Spec, func(l *label) error {
 				ch.labels = append(ch.labels, l)
-				p.mLabels[l.PkgName()].setMapping(ch, false)
+				p.mLabels[l.MetaName()].setMapping(ch, false)
 				return nil
 			})
 			sort.Sort(ch.labels)
 
-			p.mChecks[ch.PkgName()] = ch
+			p.mChecks[ch.MetaName()] = ch
 			p.setRefs(ch.name, ch.displayName)
 			return append(failures, ch.valid()...)
 		})
@@ -926,7 +926,7 @@ func (p *Pkg) graphChecks() *parseErr {
 	return nil
 }
 
-func (p *Pkg) graphDashboards() *parseErr {
+func (p *Template) graphDashboards() *parseErr {
 	p.mDashboards = make(map[string]*dashboard)
 	tracker := p.trackNames(false)
 	return p.eachResource(KindDashboard, func(o Object) []validationErr {
@@ -942,7 +942,7 @@ func (p *Pkg) graphDashboards() *parseErr {
 
 		failures := p.parseNestedLabels(o.Spec, func(l *label) error {
 			dash.labels = append(dash.labels, l)
-			p.mLabels[l.PkgName()].setMapping(dash, false)
+			p.mLabels[l.MetaName()].setMapping(dash, false)
 			return nil
 		})
 		sort.Sort(dash.labels)
@@ -962,14 +962,14 @@ func (p *Pkg) graphDashboards() *parseErr {
 			dash.Charts = append(dash.Charts, ch)
 		}
 
-		p.mDashboards[dash.PkgName()] = dash
+		p.mDashboards[dash.MetaName()] = dash
 		p.setRefs(dash.name, dash.displayName)
 
 		return append(failures, dash.valid()...)
 	})
 }
 
-func (p *Pkg) graphNotificationEndpoints() *parseErr {
+func (p *Template) graphNotificationEndpoints() *parseErr {
 	p.mNotificationEndpoints = make(map[string]*notificationEndpoint)
 	tracker := p.trackNames(true)
 
@@ -1014,7 +1014,7 @@ func (p *Pkg) graphNotificationEndpoints() *parseErr {
 			}
 			failures := p.parseNestedLabels(o.Spec, func(l *label) error {
 				endpoint.labels = append(endpoint.labels, l)
-				p.mLabels[l.PkgName()].setMapping(endpoint, false)
+				p.mLabels[l.MetaName()].setMapping(endpoint, false)
 				return nil
 			})
 			sort.Sort(endpoint.labels)
@@ -1028,7 +1028,7 @@ func (p *Pkg) graphNotificationEndpoints() *parseErr {
 				endpoint.username,
 			)
 
-			p.mNotificationEndpoints[endpoint.PkgName()] = endpoint
+			p.mNotificationEndpoints[endpoint.MetaName()] = endpoint
 			return append(failures, endpoint.valid()...)
 		})
 		if err != nil {
@@ -1041,7 +1041,7 @@ func (p *Pkg) graphNotificationEndpoints() *parseErr {
 	return nil
 }
 
-func (p *Pkg) graphNotificationRules() *parseErr {
+func (p *Template) graphNotificationRules() *parseErr {
 	p.mNotificationRules = make(map[string]*notificationRule)
 	tracker := p.trackNames(false)
 	return p.eachResource(KindNotificationRule, func(o Object) []validationErr {
@@ -1080,18 +1080,18 @@ func (p *Pkg) graphNotificationRules() *parseErr {
 
 		failures := p.parseNestedLabels(o.Spec, func(l *label) error {
 			rule.labels = append(rule.labels, l)
-			p.mLabels[l.PkgName()].setMapping(rule, false)
+			p.mLabels[l.MetaName()].setMapping(rule, false)
 			return nil
 		})
 		sort.Sort(rule.labels)
 
-		p.mNotificationRules[rule.PkgName()] = rule
+		p.mNotificationRules[rule.MetaName()] = rule
 		p.setRefs(rule.name, rule.displayName, rule.endpointName)
 		return append(failures, rule.valid()...)
 	})
 }
 
-func (p *Pkg) graphTasks() *parseErr {
+func (p *Template) graphTasks() *parseErr {
 	p.mTasks = make(map[string]*task)
 	tracker := p.trackNames(false)
 	return p.eachResource(KindTask, func(o Object) []validationErr {
@@ -1112,18 +1112,18 @@ func (p *Pkg) graphTasks() *parseErr {
 
 		failures := p.parseNestedLabels(o.Spec, func(l *label) error {
 			t.labels = append(t.labels, l)
-			p.mLabels[l.PkgName()].setMapping(t, false)
+			p.mLabels[l.MetaName()].setMapping(t, false)
 			return nil
 		})
 		sort.Sort(t.labels)
 
-		p.mTasks[t.PkgName()] = t
+		p.mTasks[t.MetaName()] = t
 		p.setRefs(t.name, t.displayName)
 		return append(failures, t.valid()...)
 	})
 }
 
-func (p *Pkg) graphTelegrafs() *parseErr {
+func (p *Template) graphTelegrafs() *parseErr {
 	p.mTelegrafs = make(map[string]*telegraf)
 	tracker := p.trackNames(false)
 	return p.eachResource(KindTelegraf, func(o Object) []validationErr {
@@ -1140,19 +1140,19 @@ func (p *Pkg) graphTelegrafs() *parseErr {
 
 		failures := p.parseNestedLabels(o.Spec, func(l *label) error {
 			tele.labels = append(tele.labels, l)
-			p.mLabels[l.PkgName()].setMapping(tele, false)
+			p.mLabels[l.MetaName()].setMapping(tele, false)
 			return nil
 		})
 		sort.Sort(tele.labels)
 
-		p.mTelegrafs[tele.PkgName()] = tele
+		p.mTelegrafs[tele.MetaName()] = tele
 		p.setRefs(tele.name, tele.displayName)
 
 		return append(failures, tele.valid()...)
 	})
 }
 
-func (p *Pkg) graphVariables() *parseErr {
+func (p *Template) graphVariables() *parseErr {
 	p.mVariables = make(map[string]*variable)
 	tracker := p.trackNames(true)
 	return p.eachResource(KindVariable, func(o Object) []validationErr {
@@ -1179,12 +1179,12 @@ func (p *Pkg) graphVariables() *parseErr {
 
 		failures := p.parseNestedLabels(o.Spec, func(l *label) error {
 			newVar.labels = append(newVar.labels, l)
-			p.mLabels[l.PkgName()].setMapping(newVar, false)
+			p.mLabels[l.MetaName()].setMapping(newVar, false)
 			return nil
 		})
 		sort.Sort(newVar.labels)
 
-		p.mVariables[newVar.PkgName()] = newVar
+		p.mVariables[newVar.MetaName()] = newVar
 		p.setRefs(newVar.name, newVar.displayName)
 		p.setRefs(newVar.selected...)
 
@@ -1192,7 +1192,7 @@ func (p *Pkg) graphVariables() *parseErr {
 	})
 }
 
-func (p *Pkg) eachResource(resourceKind Kind, fn func(o Object) []validationErr) *parseErr {
+func (p *Template) eachResource(resourceKind Kind, fn func(o Object) []validationErr) *parseErr {
 	var pErr parseErr
 	for i, k := range p.Objects {
 		if err := k.Kind.OK(); err != nil {
@@ -1268,7 +1268,7 @@ func (p *Pkg) eachResource(resourceKind Kind, fn func(o Object) []validationErr)
 	return nil
 }
 
-func (p *Pkg) parseNestedLabels(r Resource, fn func(lb *label) error) []validationErr {
+func (p *Template) parseNestedLabels(r Resource, fn func(lb *label) error) []validationErr {
 	nestedLabels := make(map[string]*label)
 
 	var failures []validationErr
@@ -1290,7 +1290,7 @@ func (p *Pkg) parseNestedLabels(r Resource, fn func(lb *label) error) []validati
 	return failures
 }
 
-func (p *Pkg) parseNestedLabel(nr Resource, fn func(lb *label) error) *validationErr {
+func (p *Template) parseNestedLabel(nr Resource, fn func(lb *label) error) *validationErr {
 	k, err := nr.kind()
 	if err != nil {
 		return &validationErr{
@@ -1325,7 +1325,7 @@ func (p *Pkg) parseNestedLabel(nr Resource, fn func(lb *label) error) *validatio
 	return nil
 }
 
-func (p *Pkg) trackNames(resourceUniqueByName bool) func(Object) (identity, []validationErr) {
+func (p *Template) trackNames(resourceUniqueByName bool) func(Object) (identity, []validationErr) {
 	mPkgNames := make(map[string]bool)
 	uniqNames := make(map[string]bool)
 	return func(o Object) (identity, []validationErr) {
@@ -1364,7 +1364,7 @@ func (p *Pkg) trackNames(resourceUniqueByName bool) func(Object) (identity, []va
 	}
 }
 
-func (p *Pkg) getRefWithKnownEnvs(r Resource, field string) *references {
+func (p *Template) getRefWithKnownEnvs(r Resource, field string) *references {
 	nameRef := r.references(field)
 	if v, ok := p.mEnvVals[nameRef.EnvRef]; ok {
 		nameRef.val = v
@@ -1372,7 +1372,7 @@ func (p *Pkg) getRefWithKnownEnvs(r Resource, field string) *references {
 	return nameRef
 }
 
-func (p *Pkg) setRefs(refs ...*references) {
+func (p *Template) setRefs(refs ...*references) {
 	for _, ref := range refs {
 		if ref.Secret != "" {
 			p.mSecrets[ref.Secret] = false

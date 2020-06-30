@@ -589,9 +589,9 @@ type (
 		Description string `json:"description"`
 
 		// These fields represent the relationship of the rule to the endpoint.
-		EndpointID      SafeID `json:"endpointID"`
-		EndpointPkgName string `json:"endpointTemplateMetaName"`
-		EndpointType    string `json:"endpointType"`
+		EndpointID       SafeID `json:"endpointID"`
+		EndpointMetaName string `json:"endpointTemplateMetaName"`
+		EndpointType     string `json:"endpointType"`
 
 		Every           string              `json:"every"`
 		Offset          string              `json:"offset"`
@@ -632,15 +632,15 @@ type SummaryLabel struct {
 
 // SummaryLabelMapping provides a summary of a label mapped with a single resource.
 type SummaryLabelMapping struct {
-	exists          bool
-	Status          StateStatus           `json:"status,omitempty"`
-	ResourceID      SafeID                `json:"resourceID"`
-	ResourcePkgName string                `json:"resourceTemplateMetaName"`
-	ResourceName    string                `json:"resourceName"`
-	ResourceType    influxdb.ResourceType `json:"resourceType"`
-	LabelPkgName    string                `json:"labelTemplateMetaName"`
-	LabelName       string                `json:"labelName"`
-	LabelID         SafeID                `json:"labelID"`
+	exists           bool
+	Status           StateStatus           `json:"status,omitempty"`
+	ResourceID       SafeID                `json:"resourceID"`
+	ResourceMetaName string                `json:"resourceTemplateMetaName"`
+	ResourceName     string                `json:"resourceName"`
+	ResourceType     influxdb.ResourceType `json:"resourceType"`
+	LabelMetaName    string                `json:"labelTemplateMetaName"`
+	LabelName        string                `json:"labelName"`
+	LabelID          SafeID                `json:"labelID"`
 }
 
 // SummaryReference informs the consumer of required references for

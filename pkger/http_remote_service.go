@@ -10,7 +10,7 @@ import (
 	"github.com/influxdata/influxdb/v2/pkg/httpc"
 )
 
-// HTTPRemoteService provides an http client that is fluent in all things pkger.
+// HTTPRemoteService provides an http client that is fluent in all things template.
 type HTTPRemoteService struct {
 	Client *httpc.Client
 }
@@ -112,8 +112,8 @@ func (s *HTTPRemoteService) UpdateStack(ctx context.Context, upd StackUpdate) (S
 	return convertRespStackToStack(respBody)
 }
 
-// Export will produce a pkg from the parameters provided.
-func (s *HTTPRemoteService) Export(ctx context.Context, opts ...ExportOptFn) (*Pkg, error) {
+// Export will produce a template from the parameters provided.
+func (s *HTTPRemoteService) Export(ctx context.Context, opts ...ExportOptFn) (*Template, error) {
 	opt, err := exportOptFromOptFns(opts)
 	if err != nil {
 		return nil, err
@@ -139,12 +139,12 @@ func (s *HTTPRemoteService) Export(ctx context.Context, opts ...ExportOptFn) (*P
 		Resources: opt.Resources,
 	}
 
-	var newPkg *Pkg
+	var newTemplate *Template
 	err = s.Client.
 		PostJSON(reqBody, RoutePrefixTemplates, "/export").
 		Decode(func(resp *http.Response) error {
-			pkg, err := Parse(EncodingJSON, FromReader(resp.Body, "export"))
-			newPkg = pkg
+			t, err := Parse(EncodingJSON, FromReader(resp.Body, "export"))
+			newTemplate = t
 			return err
 		}).
 		Do(ctx)
@@ -152,22 +152,22 @@ func (s *HTTPRemoteService) Export(ctx context.Context, opts ...ExportOptFn) (*P
 		return nil, err
 	}
 
-	if err := newPkg.Validate(ValidWithoutResources()); err != nil {
+	if err := newTemplate.Validate(ValidWithoutResources()); err != nil {
 		return nil, err
 	}
-	return newPkg, nil
+	return newTemplate, nil
 }
 
-// DryRun provides a dry run of the pkg application. The pkg will be marked verified
+// DryRun provides a dry run of the template application. The template will be marked verified
 // for later calls to Apply. This func will be run on an Apply if it has not been run
 // already.
 func (s *HTTPRemoteService) DryRun(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (ImpactSummary, error) {
 	return s.apply(ctx, orgID, true, opts...)
 }
 
-// Apply will apply all the resources identified in the provided pkg. The entire pkg will be applied
-// in its entirety. If a failure happens midway then the entire pkg will be rolled back to the state
-// from before the pkg was applied.
+// Apply will apply all the resources identified in the provided template. The entire template will be applied
+// in its entirety. If a failure happens midway then the entire template will be rolled back to the state
+// from before the template was applied.
 func (s *HTTPRemoteService) Apply(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (ImpactSummary, error) {
 	return s.apply(ctx, orgID, false, opts...)
 }
@@ -175,15 +175,15 @@ func (s *HTTPRemoteService) Apply(ctx context.Context, orgID, userID influxdb.ID
 func (s *HTTPRemoteService) apply(ctx context.Context, orgID influxdb.ID, dryRun bool, opts ...ApplyOptFn) (ImpactSummary, error) {
 	opt := applyOptFromOptFns(opts...)
 
-	var rawPkg ReqRawTemplate
-	for _, pkg := range opt.Pkgs {
-		b, err := pkg.Encode(EncodingJSON)
+	var rawTemplate ReqRawTemplate
+	for _, t := range opt.Templates {
+		b, err := t.Encode(EncodingJSON)
 		if err != nil {
 			return ImpactSummary{}, err
 		}
-		rawPkg.Pkg = b
-		rawPkg.Sources = pkg.sources
-		rawPkg.ContentType = EncodingJSON.String()
+		rawTemplate.Template = b
+		rawTemplate.Sources = t.sources
+		rawTemplate.ContentType = EncodingJSON.String()
 	}
 
 	reqBody := ReqApply{
@@ -191,7 +191,7 @@ func (s *HTTPRemoteService) apply(ctx context.Context, orgID influxdb.ID, dryRun
 		DryRun:      dryRun,
 		EnvRefs:     opt.EnvRefs,
 		Secrets:     opt.MissingSecrets,
-		RawTemplate: rawPkg,
+		RawTemplate: rawTemplate,
 	}
 	if opt.StackID != 0 {
 		stackID := opt.StackID.String()

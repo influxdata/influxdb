@@ -231,7 +231,7 @@ func (b *cmdTemplateBuilder) applyRunEFn(cmd *cobra.Command, args []string) erro
 	}
 
 	opts := []pkger.ApplyOptFn{
-		pkger.ApplyWithPkg(template),
+		pkger.ApplyWithTemplate(template),
 		pkger.ApplyWithEnvRefs(providedEnvRefs),
 		pkger.ApplyWithStackID(stackID),
 	}
@@ -1059,7 +1059,7 @@ func (b *cmdTemplateBuilder) exportTemplate(w io.Writer, templateSVC pkger.SVC, 
 	return b.writeTemplate(w, outPath, template)
 }
 
-func (b *cmdTemplateBuilder) writeTemplate(w io.Writer, outPath string, template *pkger.Pkg) error {
+func (b *cmdTemplateBuilder) writeTemplate(w io.Writer, outPath string, template *pkger.Template) error {
 	buf, err := createTemplateBuf(template, outPath)
 	if err != nil {
 		return err
@@ -1073,7 +1073,7 @@ func (b *cmdTemplateBuilder) writeTemplate(w io.Writer, outPath string, template
 	return ioutil.WriteFile(outPath, buf.Bytes(), os.ModePerm)
 }
 
-func (b *cmdTemplateBuilder) readRawTemplatesFromFiles(filePaths []string, recurse bool) ([]*pkger.Pkg, error) {
+func (b *cmdTemplateBuilder) readRawTemplatesFromFiles(filePaths []string, recurse bool) ([]*pkger.Template, error) {
 	mFiles := make(map[string]struct{})
 	for _, f := range filePaths {
 		files, err := readFilesFromPath(f, recurse)
@@ -1085,7 +1085,7 @@ func (b *cmdTemplateBuilder) readRawTemplatesFromFiles(filePaths []string, recur
 		}
 	}
 
-	var rawTemplates []*pkger.Pkg
+	var rawTemplates []*pkger.Template
 	for f := range mFiles {
 		template, err := pkger.Parse(b.convertFileEncoding(f), pkger.FromFile(f), pkger.ValidSkipParseError())
 		if err != nil {
@@ -1097,13 +1097,13 @@ func (b *cmdTemplateBuilder) readRawTemplatesFromFiles(filePaths []string, recur
 	return rawTemplates, nil
 }
 
-func (b *cmdTemplateBuilder) readRawTemplatesFromURLs(urls []string) ([]*pkger.Pkg, error) {
+func (b *cmdTemplateBuilder) readRawTemplatesFromURLs(urls []string) ([]*pkger.Template, error) {
 	mURLs := make(map[string]struct{})
 	for _, f := range urls {
 		mURLs[f] = struct{}{}
 	}
 
-	var rawTemplates []*pkger.Pkg
+	var rawTemplates []*pkger.Template
 	for u := range mURLs {
 		template, err := pkger.Parse(b.convertURLEncoding(u), pkger.FromHTTPRequest(u), pkger.ValidSkipParseError())
 		if err != nil {
@@ -1114,7 +1114,7 @@ func (b *cmdTemplateBuilder) readRawTemplatesFromURLs(urls []string) ([]*pkger.P
 	return rawTemplates, nil
 }
 
-func (b *cmdTemplateBuilder) readTemplate() (*pkger.Pkg, bool, error) {
+func (b *cmdTemplateBuilder) readTemplate() (*pkger.Template, bool, error) {
 	var remotes, files []string
 	for _, rawURL := range append(b.files, b.urls...) {
 		u, err := url.Parse(rawURL)
@@ -1280,7 +1280,7 @@ func toInfluxIDs(args []string) ([]influxdb.ID, error) {
 	return ids, nil
 }
 
-func createTemplateBuf(template *pkger.Pkg, outPath string) (*bytes.Buffer, error) {
+func createTemplateBuf(template *pkger.Template, outPath string) (*bytes.Buffer, error) {
 	var encoding pkger.Encoding
 	switch ext := filepath.Ext(outPath); ext {
 	case ".json":
@@ -1601,7 +1601,7 @@ func (b *cmdTemplateBuilder) printTemplateDiff(diff pkger.Diff) error {
 			Title("Label Associations").
 			SetHeaders(
 				"Resource Type",
-				"Resource Package Name", "Resource Name", "Resource ID",
+				"Resource Meta Name", "Resource Name", "Resource ID",
 				"Label Package Name", "Label Name", "Label ID",
 			)
 
@@ -1718,7 +1718,7 @@ func (b *cmdTemplateBuilder) printTemplateSummary(stackID influxdb.ID, sum pkger
 				v.Description,
 				v.Every,
 				v.Offset,
-				v.EndpointPkgName,
+				v.EndpointMetaName,
 				v.EndpointID.String(),
 				v.EndpointType,
 			}
