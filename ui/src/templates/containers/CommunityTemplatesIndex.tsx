@@ -77,7 +77,7 @@ class UnconnectedTemplatesIndex extends Component<Props> {
       )
 
       this.setState({currentTemplate}, () => {
-        this.applyPackages(
+        this.applyTemplates(
           this.props.org.id,
           getTemplateNameFromGithubUrl(currentTemplate)
         )
@@ -148,7 +148,7 @@ class UnconnectedTemplatesIndex extends Component<Props> {
     )
   }
 
-  private applyPackages = async (orgID, templateName) => {
+  private applyTemplates = async (orgID, templateName) => {
     const yamlLocation =
       getRawYamlFromGithub(this.state.currentTemplate) + `/${templateName}.yml`
 
@@ -181,7 +181,7 @@ class UnconnectedTemplatesIndex extends Component<Props> {
 
     const name = getTemplateNameFromGithubUrl(this.state.currentTemplate)
     this.showInstallerOverlay(name)
-    this.applyPackages(this.props.org.id, name)
+    this.applyTemplates(this.props.org.id, name)
   }
 
   private showInstallerOverlay = templateName => {
