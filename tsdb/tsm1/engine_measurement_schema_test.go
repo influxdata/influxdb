@@ -532,6 +532,29 @@ memB,host=EB,os=macOS value=1.3 201`)
 			exp:      nil,
 			expStats: cursors.CursorStats{ScannedValues: 0, ScannedBytes: 0},
 		},
+		{
+			name: "prefix substring without predicate",
+			args: args{
+				org: 1,
+				m:   "cpu",
+				key: "host",
+				min: 0,
+				max: 1000,
+			},
+			expStats: cursors.CursorStats{},
+		},
+		{
+			name: "prefix substring with predicate",
+			args: args{
+				org:  1,
+				m:    "cpu",
+				key:  "host",
+				min:  0,
+				max:  1000,
+				expr: `os = 'linux'`,
+			},
+			expStats: cursors.CursorStats{},
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -792,6 +815,27 @@ mem,mem1=v,mem2=v        f=1 201`)
 			},
 			exp:      nil,
 			expStats: cursors.CursorStats{ScannedValues: 0, ScannedBytes: 0},
+		},
+		{
+			name: "prefix substring without predicate",
+			args: args{
+				org: 0,
+				m:   "cp",
+				min: 0,
+				max: 1000,
+			},
+			expStats: cursors.CursorStats{},
+		},
+		{
+			name: "prefix substring with predicate",
+			args: args{
+				org:  0,
+				m:    "cp",
+				min:  0,
+				max:  1000,
+				expr: `cpu = 'v'`,
+			},
+			expStats: cursors.CursorStats{},
 		},
 	}
 	for _, tc := range tests {
@@ -1062,6 +1106,29 @@ m10,foo=v barS="60" 501
 				min:  0,
 				max:  1000,
 				expr: `foo = 'nonexistent'`,
+			},
+			exp:      nil,
+			expStats: makeStats(0),
+		},
+		{
+			name: "prefix substring without predicate",
+			args: args{
+				org: 0,
+				m:   "m0",
+				min: 0,
+				max: 1000,
+			},
+			exp:      nil,
+			expStats: makeStats(0),
+		},
+		{
+			name: "prefix substring with predicate",
+			args: args{
+				org:  0,
+				m:    "m0",
+				min:  0,
+				max:  1000,
+				expr: `tag10 = 'v10'`,
 			},
 			exp:      nil,
 			expStats: makeStats(0),
