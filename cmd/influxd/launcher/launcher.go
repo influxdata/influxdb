@@ -951,7 +951,11 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		SessionRenewDisabled: m.sessionRenewDisabled,
 		NewBucketService:     source.NewBucketService,
 		NewQueryService:      source.NewQueryService,
-		PointsWriter:         pointsWriter,
+		PointsWriter: &storage.LoggingPointsWriter{
+			Underlying:    pointsWriter,
+			BucketService: bucketSvc,
+			LogBucketName: platform.MonitoringSystemBucketName,
+		},
 		DeleteService:        deleteService,
 		BackupService:        backupService,
 		KVBackupService:      m.kvService,
