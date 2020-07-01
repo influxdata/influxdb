@@ -154,7 +154,12 @@ impl MeasurementTable {
         // supported in InfluxDB.
         if let Some(fk) = self.field_columns.get(&field_key) {
             if *fk != block_type {
-                warn!("Rejected field {:?} with type {:?} for measurement {:?}. Field exists with type: {:?}",&field_key,block_type, self.name,                 *fk);
+                warn!(
+                    "Rejected block for field {:?} with type {:?}. \
+                    Tagset: {:?}, measurement {:?}. \
+                    Field exists with type: {:?}",
+                    &field_key, block_type, tagset, self.name, *fk
+                );
                 return Ok(());
             }
         }
