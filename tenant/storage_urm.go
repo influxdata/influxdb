@@ -8,10 +8,7 @@ import (
 	"github.com/influxdata/influxdb/v2/kv"
 )
 
-var (
-	urmBucket            = []byte("userresourcemappingsv1")
-	urmByUserIndexBucket = []byte("userresourcemappingsbyuserindexv1")
-)
+var urmBucket = []byte("userresourcemappingsv1")
 
 // NOTE(affo): On URM creation, we check that the user exists.
 // We do not check that the resource it is pointing to exists.

@@ -28,17 +28,13 @@ func initBoltNotificationEndpointService(f influxdbtesting.NotificationEndpointF
 	}
 }
 
-func initNotificationEndpointService(s kv.Store, f influxdbtesting.NotificationEndpointFields, t *testing.T) (influxdb.NotificationEndpointService, influxdb.SecretService, func()) {
+func initNotificationEndpointService(s kv.SchemaStore, f influxdbtesting.NotificationEndpointFields, t *testing.T) (influxdb.NotificationEndpointService, influxdb.SecretService, func()) {
+	ctx := context.Background()
 	svc := kv.NewService(zaptest.NewLogger(t), s)
 	svc.IDGenerator = f.IDGenerator
 	svc.TimeGenerator = f.TimeGenerator
 	if f.TimeGenerator == nil {
 		svc.TimeGenerator = influxdb.RealTimeGenerator{}
-	}
-
-	ctx := context.Background()
-	if err := svc.Initialize(ctx); err != nil {
-		t.Fatalf("error initializing user service: %v", err)
 	}
 
 	for _, edp := range f.NotificationEndpoints {

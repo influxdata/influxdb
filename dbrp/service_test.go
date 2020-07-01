@@ -12,21 +12,30 @@ import (
 	"github.com/influxdata/influxdb/v2/bolt"
 	"github.com/influxdata/influxdb/v2/dbrp"
 	"github.com/influxdata/influxdb/v2/kv"
+	"github.com/influxdata/influxdb/v2/kv/migration/all"
 	"github.com/influxdata/influxdb/v2/mock"
 	itesting "github.com/influxdata/influxdb/v2/testing"
 	"go.uber.org/zap/zaptest"
 )
 
 func NewTestBoltStore(t *testing.T) (kv.Store, func(), error) {
+	t.Helper()
+
 	f, err := ioutil.TempFile("", "influxdata-bolt-")
 	if err != nil {
 		return nil, nil, errors.New("unable to open temporary boltdb file")
 	}
 	f.Close()
 
+	ctx := context.Background()
+	logger := zaptest.NewLogger(t)
 	path := f.Name()
-	s := bolt.NewKVStore(zaptest.NewLogger(t), path)
+	s := bolt.NewKVStore(logger, path)
 	if err := s.Open(context.Background()); err != nil {
+		return nil, nil, err
+	}
+
+	if err := all.Up(ctx, logger, s); err != nil {
 		return nil, nil, err
 	}
 
@@ -44,10 +53,6 @@ func initDBRPMappingService(f itesting.DBRPMappingFieldsV2, t *testing.T) (influ
 		t.Fatalf("failed to create new bolt kv store: %v", err)
 	}
 
-	ks := kv.NewService(zaptest.NewLogger(t), s)
-	if err := ks.Initialize(context.Background()); err != nil {
-		t.Fatal(err)
-	}
 	if f.BucketSvc == nil {
 		f.BucketSvc = &mock.BucketService{
 			FindBucketByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Bucket, error) {
@@ -59,10 +64,9 @@ func initDBRPMappingService(f itesting.DBRPMappingFieldsV2, t *testing.T) (influ
 			},
 		}
 	}
-	svc, err := dbrp.NewService(context.Background(), f.BucketSvc, s)
-	if err != nil {
-		t.Fatal(err)
-	}
+
+	svc := dbrp.NewService(context.Background(), f.BucketSvc, s)
+
 	if err := f.Populate(context.Background(), svc); err != nil {
 		t.Fatal(err)
 	}

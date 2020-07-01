@@ -20,11 +20,8 @@ func initHttpUserService(f platformtesting.UserFields, t *testing.T) (platform.U
 	if err != nil {
 		t.Fatal(err)
 	}
-	storage, err := tenant.NewStore(s)
-	if err != nil {
-		t.Fatal(err)
-	}
 
+	storage := tenant.NewStore(s)
 	svc := tenant.NewService(storage)
 
 	ctx := context.Background()

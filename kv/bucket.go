@@ -20,16 +20,6 @@ var (
 var _ influxdb.BucketService = (*Service)(nil)
 var _ influxdb.BucketOperationLogService = (*Service)(nil)
 
-func (s *Service) initializeBuckets(ctx context.Context, tx Tx) error {
-	if _, err := s.bucketsBucket(tx); err != nil {
-		return err
-	}
-	if _, err := s.bucketsIndexBucket(tx); err != nil {
-		return err
-	}
-	return nil
-}
-
 func (s *Service) bucketsBucket(tx Tx) (Bucket, error) {
 	b, err := tx.Bucket(bucketBucket)
 	if err != nil {

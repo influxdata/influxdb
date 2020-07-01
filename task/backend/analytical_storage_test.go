@@ -12,6 +12,7 @@ import (
 	icontext "github.com/influxdata/influxdb/v2/context"
 	"github.com/influxdata/influxdb/v2/inmem"
 	"github.com/influxdata/influxdb/v2/kv"
+	"github.com/influxdata/influxdb/v2/kv/migration/all"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/query"
 	_ "github.com/influxdata/influxdb/v2/query/builtin"
@@ -32,16 +33,18 @@ func TestAnalyticalStore(t *testing.T) {
 		t,
 		func(t *testing.T) (*servicetest.System, context.CancelFunc) {
 			ctx, cancelFunc := context.WithCancel(context.Background())
-			svc := kv.NewService(zaptest.NewLogger(t), inmem.NewKVStore(), kv.ServiceConfig{
+			logger := zaptest.NewLogger(t)
+			store := inmem.NewKVStore()
+			if err := all.Up(ctx, logger, store); err != nil {
+				t.Fatal(err)
+			}
+
+			svc := kv.NewService(logger, store, kv.ServiceConfig{
 				FluxLanguageService: fluxlang.DefaultService,
 			})
-			if err := svc.Initialize(ctx); err != nil {
-				t.Fatalf("error initializing urm service: %v", err)
-			}
 
 			var (
 				ab       = newAnalyticalBackend(t, svc, svc)
-				logger   = zaptest.NewLogger(t)
 				rr       = backend.NewStoragePointsWriterRecorder(logger, ab.PointsWriter())
 				svcStack = backend.NewAnalyticalRunStorage(logger, svc, svc, svc, rr, ab.QueryService())
 			)
@@ -66,10 +69,13 @@ func TestAnalyticalStore(t *testing.T) {
 }
 
 func TestDeduplicateRuns(t *testing.T) {
-	svc := kv.NewService(zaptest.NewLogger(t), inmem.NewKVStore())
-	if err := svc.Initialize(context.Background()); err != nil {
-		t.Fatalf("error initializing kv service: %v", err)
+	logger := zaptest.NewLogger(t)
+	store := inmem.NewKVStore()
+	if err := all.Up(context.Background(), logger, store); err != nil {
+		t.Fatal(err)
 	}
+
+	svc := kv.NewService(logger, store)
 
 	ab := newAnalyticalBackend(t, svc, svc)
 	defer ab.Close(t)

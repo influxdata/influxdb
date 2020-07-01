@@ -13,7 +13,6 @@ import (
 	"github.com/influxdata/httprouter"
 	platform "github.com/influxdata/influxdb/v2"
 	pcontext "github.com/influxdata/influxdb/v2/context"
-	"github.com/influxdata/influxdb/v2/inmem"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/mock"
@@ -869,7 +868,8 @@ func initAuthorizationService(f platformtesting.AuthorizationFields, t *testing.
 		t.Skip("HTTP authorization service does not required a user id on the authentication struct.  We get the user from the session token.")
 	}
 
-	svc := kv.NewService(zaptest.NewLogger(t), inmem.NewKVStore())
+	store := NewTestInmemStore(t)
+	svc := kv.NewService(zaptest.NewLogger(t), store)
 	svc.IDGenerator = f.IDGenerator
 	svc.TokenGenerator = f.TokenGenerator
 	svc.TimeGenerator = f.TimeGenerator

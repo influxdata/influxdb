@@ -14,7 +14,6 @@ import (
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb/v2"
 	pcontext "github.com/influxdata/influxdb/v2/context"
-	"github.com/influxdata/influxdb/v2/inmem"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/mock"
@@ -1062,14 +1061,12 @@ func TestService_handlePostNotificationEndpointOwner(t *testing.T) {
 }
 
 func initNotificationEndpointService(f influxTesting.NotificationEndpointFields, t *testing.T) (influxdb.NotificationEndpointService, influxdb.SecretService, func()) {
-	svc := kv.NewService(zaptest.NewLogger(t), inmem.NewKVStore())
+	ctx := context.Background()
+	store := NewTestInmemStore(t)
+	logger := zaptest.NewLogger(t)
+	svc := kv.NewService(logger, store)
 	svc.IDGenerator = f.IDGenerator
 	svc.TimeGenerator = f.TimeGenerator
-
-	ctx := context.Background()
-	if err := svc.Initialize(ctx); err != nil {
-		t.Fatal(err)
-	}
 
 	for _, v := range f.Orgs {
 		if err := svc.PutOrganization(ctx, v); err != nil {

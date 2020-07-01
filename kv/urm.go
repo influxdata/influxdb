@@ -12,8 +12,7 @@ import (
 )
 
 var (
-	urmBucket            = []byte("userresourcemappingsv1")
-	urmByUserIndexBucket = []byte("userresourcemappingsbyuserindexv1")
+	urmBucket = []byte("userresourcemappingsv1")
 
 	// ErrInvalidURMID is used when the service was provided
 	// an invalid ID format.
@@ -27,6 +26,22 @@ var (
 		Msg:  "user to resource mapping not found",
 		Code: influxdb.ENotFound,
 	}
+
+	// URMByUserIndeMappingx is the mapping description of an index
+	// between a user and a URM
+	URMByUserIndexMapping = NewIndexMapping(
+		urmBucket,
+		[]byte("userresourcemappingsbyuserindexv1"),
+		func(v []byte) ([]byte, error) {
+			var urm influxdb.UserResourceMapping
+			if err := json.Unmarshal(v, &urm); err != nil {
+				return nil, err
+			}
+
+			id, _ := urm.UserID.Encode()
+			return id, nil
+		},
+	)
 )
 
 // UnavailableURMServiceError is used if we aren't able to interact with the
@@ -64,13 +79,6 @@ func NonUniqueMappingError(userID influxdb.ID) error {
 		Code: influxdb.EInternal,
 		Msg:  fmt.Sprintf("Unexpected error when assigning user to a resource: mapping for user %s already exists", userID.String()),
 	}
-}
-
-func (s *Service) initializeURMs(ctx context.Context, tx Tx) error {
-	if _, err := tx.Bucket(urmBucket); err != nil {
-		return UnavailableURMServiceError(err)
-	}
-	return nil
 }
 
 func filterMappingsFn(filter influxdb.UserResourceMappingFilter) func(m *influxdb.UserResourceMapping) bool {

@@ -27,14 +27,10 @@ func initBoltTelegrafService(f influxdbtesting.TelegrafConfigFields, t *testing.
 	}
 }
 
-func initTelegrafService(s kv.Store, f influxdbtesting.TelegrafConfigFields, t *testing.T) (influxdb.TelegrafConfigStore, func()) {
+func initTelegrafService(s kv.SchemaStore, f influxdbtesting.TelegrafConfigFields, t *testing.T) (influxdb.TelegrafConfigStore, func()) {
+	ctx := context.Background()
 	svc := kv.NewService(zaptest.NewLogger(t), s)
 	svc.IDGenerator = f.IDGenerator
-
-	ctx := context.Background()
-	if err := svc.Initialize(ctx); err != nil {
-		t.Fatalf("error initializing user service: %v", err)
-	}
 
 	for _, tc := range f.TelegrafConfigs {
 		if err := svc.PutTelegrafConfig(ctx, tc); err != nil {

@@ -28,7 +28,8 @@ func initBoltCheckService(f influxdbtesting.CheckFields, t *testing.T) (influxdb
 	}
 }
 
-func initCheckService(s kv.Store, f influxdbtesting.CheckFields, t *testing.T) (*kv.Service, string, func()) {
+func initCheckService(s kv.SchemaStore, f influxdbtesting.CheckFields, t *testing.T) (*kv.Service, string, func()) {
+	ctx := context.Background()
 	svc := kv.NewService(zaptest.NewLogger(t), s, kv.ServiceConfig{
 		FluxLanguageService: fluxlang.DefaultService,
 	})
@@ -38,10 +39,6 @@ func initCheckService(s kv.Store, f influxdbtesting.CheckFields, t *testing.T) (
 		svc.TimeGenerator = influxdb.RealTimeGenerator{}
 	}
 
-	ctx := context.Background()
-	if err := svc.Initialize(ctx); err != nil {
-		t.Fatalf("error initializing check service: %v", err)
-	}
 	for _, m := range f.UserResourceMappings {
 		if err := svc.CreateUserResourceMapping(ctx, m); err != nil {
 			t.Fatalf("failed to populate user resource mapping: %v", err)

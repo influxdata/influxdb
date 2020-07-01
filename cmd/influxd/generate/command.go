@@ -10,6 +10,8 @@ import (
 	"github.com/influxdata/influxdb/v2/cmd/influxd/internal/profile"
 	"github.com/influxdata/influxdb/v2/internal/fs"
 	"github.com/influxdata/influxdb/v2/kv"
+	"github.com/influxdata/influxdb/v2/kv/migration"
+	"github.com/influxdata/influxdb/v2/kv/migration/all"
 	"github.com/influxdata/influxdb/v2/pkg/data/gen"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
@@ -91,7 +93,18 @@ func assignOrgBucket(spec *gen.Spec) error {
 	}
 
 	s := kv.NewService(zap.NewNop(), store)
-	if err = s.Initialize(context.Background()); err != nil {
+
+	migrator, err := migration.NewMigrator(
+		zap.NewNop(),
+		store,
+		all.Migrations[:]...,
+	)
+	if err != nil {
+		return err
+	}
+
+	// apply migrations to metadata store
+	if err := migrator.Up(context.Background()); err != nil {
 		return err
 	}
 

@@ -10,13 +10,11 @@ import (
 	"github.com/influxdata/influxdb/v2/authorization"
 	"github.com/influxdata/influxdb/v2/inmem"
 	"github.com/influxdata/influxdb/v2/kv"
+	"github.com/influxdata/influxdb/v2/kv/migration/all"
+	"go.uber.org/zap/zaptest"
 )
 
 func TestAuth(t *testing.T) {
-	s := func() kv.Store {
-		return inmem.NewKVStore()
-	}
-
 	setup := func(t *testing.T, store *authorization.Store, tx kv.Tx) {
 		for i := 1; i <= 10; i++ {
 			err := store.CreateAuthorization(context.Background(), tx, &influxdb.Authorization{
@@ -81,7 +79,12 @@ func TestAuth(t *testing.T) {
 
 	for _, testScenario := range tt {
 		t.Run(testScenario.name, func(t *testing.T) {
-			ts, err := authorization.NewStore(s())
+			store := inmem.NewKVStore()
+			if err := all.Up(context.Background(), zaptest.NewLogger(t), store); err != nil {
+				t.Fatal(err)
+			}
+
+			ts, err := authorization.NewStore(store)
 			if err != nil {
 				t.Fatal(err)
 			}

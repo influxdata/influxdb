@@ -17,24 +17,22 @@ import (
 )
 
 // NewDocumentIntegrationTest will test the documents related funcs.
-func NewDocumentIntegrationTest(store kv.Store) func(t *testing.T) {
+func NewDocumentIntegrationTest(store kv.SchemaStore) func(t *testing.T) {
 	return func(t *testing.T) {
 		ctx := context.Background()
+
 		kvsvc := kv.NewService(zaptest.NewLogger(t), store)
 		mockTimeGen := new(mock.TimeGenerator)
-		if err := kvsvc.Initialize(ctx); err != nil {
-			t.Fatalf("failed to initialize service: %v", err)
-		}
 
 		kvsvc.TimeGenerator = mockTimeGen
 		svc := authorizer.NewDocumentService(kvsvc)
 
-		s, err := svc.CreateDocumentStore(ctx, "testing")
+		s, err := svc.CreateDocumentStore(ctx, "templates")
 		if err != nil {
 			t.Fatalf("failed to create document store: %v", err)
 		}
 
-		ss, err := svc.FindDocumentStore(ctx, "testing")
+		ss, err := svc.FindDocumentStore(ctx, "templates")
 		if err != nil {
 			t.Fatalf("failed to find document store: %v", err)
 		}

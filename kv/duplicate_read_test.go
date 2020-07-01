@@ -15,10 +15,7 @@ func initBoltDuplicateReadBucketService(f influxdbtesting.BucketFields, t *testi
 		t.Fatalf("failed to create new kv store: %v", err)
 	}
 	svc, op, closeSvc := initBucketService(s, f, t)
-	ro, err := tenant.NewReadOnlyStore(s)
-	if err != nil {
-		t.Fatal(err)
-	}
+	ro := tenant.NewReadOnlyStore(s)
 	newSvc := tenant.NewService(ro)
 	svc = tenant.NewDuplicateReadBucketService(zaptest.NewLogger(t), svc, newSvc)
 	return svc, op, func() {
@@ -37,10 +34,7 @@ func initBoltDuplicateReadOrganizationService(f influxdbtesting.OrganizationFiel
 		t.Fatalf("failed to create new kv store: %v", err)
 	}
 	svc, op, closeSvc := initOrganizationService(s, f, t)
-	ro, err := tenant.NewReadOnlyStore(s)
-	if err != nil {
-		t.Fatal(err)
-	}
+	ro := tenant.NewReadOnlyStore(s)
 	newSvc := tenant.NewService(ro)
 	svc = tenant.NewDuplicateReadOrganizationService(zaptest.NewLogger(t), svc, newSvc)
 	return svc, op, func() {
@@ -59,10 +53,7 @@ func initBoltDuplicateReadUserResourceMappingService(f influxdbtesting.UserResou
 		t.Fatalf("failed to create new kv store: %v", err)
 	}
 	svc, closeSvc := initUserResourceMappingService(s, f, t)
-	ro, err := tenant.NewReadOnlyStore(s)
-	if err != nil {
-		t.Fatal(err)
-	}
+	ro := tenant.NewReadOnlyStore(s)
 	newSvc := tenant.NewService(ro)
 	svc = tenant.NewDuplicateReadUserResourceMappingService(zaptest.NewLogger(t), svc, newSvc)
 	return svc, func() {
@@ -81,10 +72,7 @@ func initBoltDuplicateReadUserService(f influxdbtesting.UserFields, t *testing.T
 		t.Fatalf("failed to create new kv store: %v", err)
 	}
 	svc, op, closeSvc := initUserService(s, f, t)
-	ro, err := tenant.NewReadOnlyStore(s)
-	if err != nil {
-		t.Fatal(err)
-	}
+	ro := tenant.NewReadOnlyStore(s)
 	newSvc := tenant.NewService(ro)
 	svc = tenant.NewDuplicateReadUserService(zaptest.NewLogger(t), svc, newSvc)
 	return svc, op, func() {
@@ -103,10 +91,7 @@ func initBoltDuplicateReadPasswordsService(f influxdbtesting.PasswordFields, t *
 		t.Fatalf("failed to create new kv store: %v", err)
 	}
 	svc, closeSvc := initPasswordsService(s, f, t)
-	ro, err := tenant.NewReadOnlyStore(s)
-	if err != nil {
-		t.Fatal(err)
-	}
+	ro := tenant.NewReadOnlyStore(s)
 	newSvc := tenant.NewService(ro)
 	svc = tenant.NewDuplicateReadPasswordsService(zaptest.NewLogger(t), svc, newSvc)
 	return svc, func() {

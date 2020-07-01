@@ -48,7 +48,7 @@ type tenantService struct {
 }
 
 // NewReadOnlyStore returns a Store that cannot update the underlying kv.Store.
-func NewReadOnlyStore(store kv.Store) (*Store, error) {
+func NewReadOnlyStore(store kv.Store) *Store {
 	return NewStore(readOnlyStore{Store: store})
 }
 

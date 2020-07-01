@@ -7,6 +7,7 @@ import (
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/inmem"
 	"github.com/influxdata/influxdb/v2/kv"
+	"github.com/influxdata/influxdb/v2/kv/migration/all"
 	"github.com/influxdata/influxdb/v2/storage"
 	"go.uber.org/zap/zaptest"
 )
@@ -67,9 +68,11 @@ func (m *MockDeleter) DeleteBucket(_ context.Context, orgID, bucketID influxdb.I
 func newInMemKVSVC(t *testing.T) *kv.Service {
 	t.Helper()
 
-	svc := kv.NewService(zaptest.NewLogger(t), inmem.NewKVStore())
-	if err := svc.Initialize(context.Background()); err != nil {
+	logger := zaptest.NewLogger(t)
+	store := inmem.NewKVStore()
+	if err := all.Up(context.Background(), logger, store); err != nil {
 		t.Fatal(err)
 	}
-	return svc
+
+	return kv.NewService(logger, store)
 }

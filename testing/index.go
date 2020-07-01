@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/influxdata/influxdb/v2/kv"
+	"github.com/influxdata/influxdb/v2/kv/migration"
 )
 
 const (
@@ -36,7 +37,22 @@ type someResourceStore struct {
 	ownerIDIndex *kv.Index
 }
 
-func newSomeResourceStore(ctx context.Context, store kv.Store) *someResourceStore {
+type tester interface {
+	Helper()
+	Fatal(...interface{})
+}
+
+func newSomeResourceStore(t tester, ctx context.Context, store kv.SchemaStore) *someResourceStore {
+	t.Helper()
+
+	if err := migration.CreateBuckets("create the aresource bucket", []byte(someResourceBucket)).Up(ctx, store); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := kv.NewIndexMigration(mapping).Up(ctx, store); err != nil {
+		t.Fatal(err)
+	}
+
 	return &someResourceStore{
 		store:        store,
 		ownerIDIndex: kv.NewIndex(mapping),
@@ -99,7 +115,7 @@ func newNResourcesWithUserCount(n, userCount int) (resources []someResource) {
 	return
 }
 
-func TestIndex(t *testing.T, store kv.Store) {
+func TestIndex(t *testing.T, store kv.SchemaStore) {
 	t.Run("Test_PopulateAndVerify", func(t *testing.T) {
 		testPopulateAndVerify(t, store)
 	})
@@ -109,11 +125,11 @@ func TestIndex(t *testing.T, store kv.Store) {
 	})
 }
 
-func testPopulateAndVerify(t *testing.T, store kv.Store) {
+func testPopulateAndVerify(t *testing.T, store kv.SchemaStore) {
 	var (
 		ctx           = context.TODO()
 		resources     = newNResources(20)
-		resourceStore = newSomeResourceStore(ctx, store)
+		resourceStore = newSomeResourceStore(t, ctx, store)
 	)
 
 	// insert 20 resources, but only index the first half
@@ -181,14 +197,9 @@ func testPopulateAndVerify(t *testing.T, store kv.Store) {
 	}
 
 	// populate the missing indexes
-	count, err = resourceStore.ownerIDIndex.Populate(ctx, store)
-	if err != nil {
-		t.Errorf("unexpected err %v", err)
-	}
 
-	// ensure only 10 items were reported as being indexed
-	if count != 10 {
-		t.Errorf("expected to index 20 items, instead indexed %d items", count)
+	if err = kv.NewIndexMigration(mapping).Up(ctx, store); err != nil {
+		t.Errorf("unexpected err %v", err)
 	}
 
 	// check the contents of the index
@@ -264,12 +275,12 @@ func testPopulateAndVerify(t *testing.T, store kv.Store) {
 	}
 }
 
-func testWalk(t *testing.T, store kv.Store) {
+func testWalk(t *testing.T, store kv.SchemaStore) {
 	var (
 		ctx       = context.TODO()
 		resources = newNResources(20)
 		// configure resource store with read disabled
-		resourceStore = newSomeResourceStore(ctx, store)
+		resourceStore = newSomeResourceStore(t, ctx, store)
 
 		cases = []struct {
 			owner     string
@@ -381,10 +392,10 @@ func allKVs(tx kv.Tx, bucket []byte) (kvs [][2][]byte, err error) {
 	return kvs, cursor.Err()
 }
 
-func BenchmarkIndexWalk(b *testing.B, store kv.Store, resourceCount, fetchCount int) {
+func BenchmarkIndexWalk(b *testing.B, store kv.SchemaStore, resourceCount, fetchCount int) {
 	var (
 		ctx           = context.TODO()
-		resourceStore = newSomeResourceStore(ctx, store)
+		resourceStore = newSomeResourceStore(b, ctx, store)
 		userCount     = resourceCount / fetchCount
 		resources     = newNResourcesWithUserCount(resourceCount, userCount)
 	)

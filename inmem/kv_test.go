@@ -3,6 +3,7 @@ package inmem_test
 import (
 	"bufio"
 	"context"
+	"fmt"
 	"math"
 	"os"
 	"reflect"
@@ -12,11 +13,14 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2/inmem"
 	"github.com/influxdata/influxdb/v2/kv"
+	"github.com/influxdata/influxdb/v2/kv/migration"
 	platformtesting "github.com/influxdata/influxdb/v2/testing"
 )
 
 func initKVStore(f platformtesting.KVStoreFields, t *testing.T) (kv.Store, func()) {
 	s := inmem.NewKVStore()
+
+	mustCreateBucket(t, s, f.Bucket)
 
 	err := s.Update(context.Background(), func(tx kv.Tx) error {
 		b, err := tx.Bucket(f.Bucket)
@@ -62,17 +66,10 @@ func TestKVStore_Buckets(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := inmem.NewKVStore()
-			err := s.Update(context.Background(), func(tx kv.Tx) error {
-				for _, b := range tt.buckets {
-					if _, err := tx.Bucket([]byte(b)); err != nil {
-						return err
-					}
-				}
-				return nil
-			})
-			if err != nil {
-				t.Fatalf("unable to setup store with buckets: %v", err)
+			for _, b := range tt.buckets {
+				mustCreateBucket(t, s, []byte(b))
 			}
+
 			got := s.Buckets(context.Background())
 			sort.Slice(got, func(i, j int) bool {
 				return string(got[i]) < string(got[j])
@@ -86,8 +83,9 @@ func TestKVStore_Buckets(t *testing.T) {
 
 func TestKVStore_Bucket_CursorHintPredicate(t *testing.T) {
 	s := inmem.NewKVStore()
-
 	bucket := "urm"
+	mustCreateBucket(t, s, []byte(bucket))
+
 	fillBucket(t, s, bucket, 10)
 
 	t.Run("filter by key", func(t *testing.T) {
@@ -176,6 +174,7 @@ func BenchmarkKVStore_Bucket_Cursor(b *testing.B) {
 	b.Run("16000 keys", func(b *testing.B) {
 		s := inmem.NewKVStore()
 		bucket := "urm"
+		mustCreateBucket(b, s, []byte(bucket))
 		fillBucket(b, s, bucket, 0)
 
 		b.Run("without hint", func(b *testing.B) {
@@ -234,5 +233,15 @@ func fillBucket(t testing.TB, s *inmem.KVStore, bucket string, lines int64) {
 
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func mustCreateBucket(t testing.TB, store kv.SchemaStore, bucket []byte) {
+	t.Helper()
+
+	migrationName := fmt.Sprintf("create bucket %q", string(bucket))
+
+	if err := migration.CreateBuckets(migrationName, bucket).Up(context.Background(), store); err != nil {
+		t.Fatal(err)
 	}
 }

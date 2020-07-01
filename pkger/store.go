@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"sync"
 	"time"
 
 	"github.com/influxdata/influxdb/v2"
@@ -44,8 +43,6 @@ type (
 type StoreKV struct {
 	kvStore   kv.Store
 	indexBase *kv.IndexStore
-
-	once sync.Once
 }
 
 var _ Store = (*StoreKV)(nil)
@@ -65,14 +62,6 @@ func NewStoreKV(store kv.Store) *StoreKV {
 		IndexStore: storeKV.indexStoreBase(resource),
 	}
 	return storeKV
-}
-
-// Init will initialize the all required buckets for the kv store. If not called, will be
-// called implicitly on first read/write operation.
-func (s *StoreKV) Init(ctx context.Context) error {
-	return s.kvStore.Update(ctx, func(tx kv.Tx) error {
-		return s.indexBase.Init(ctx, tx)
-	})
 }
 
 // CreateStack will create a new stack. If collisions are found will fail.
@@ -261,18 +250,7 @@ func (s *StoreKV) indexStoreBase(resource string) *kv.StoreBase {
 }
 
 func (s *StoreKV) view(ctx context.Context, fn func(tx kv.Tx) error) error {
-	if err := s.lazyInit(ctx); err != nil {
-		return err
-	}
 	return s.kvStore.View(ctx, fn)
-}
-
-func (s *StoreKV) lazyInit(ctx context.Context) error {
-	var err error
-	s.once.Do(func() {
-		err = s.Init(ctx)
-	})
-	return err
 }
 
 func convertStackToEnt(stack Stack) (kv.Entity, error) {

@@ -14,6 +14,7 @@ import (
 	"github.com/influxdata/influxdb/v2"
 	influxdbhttp "github.com/influxdata/influxdb/v2/http"
 	"github.com/influxdata/influxdb/v2/inmem"
+	"github.com/influxdata/influxdb/v2/kv/migration/all"
 	"github.com/influxdata/influxdb/v2/mock"
 	influxdbtesting "github.com/influxdata/influxdb/v2/testing"
 	"go.uber.org/zap/zaptest"
@@ -22,6 +23,11 @@ import (
 func initSecretService(f influxdbtesting.SecretServiceFields, t *testing.T) (influxdb.SecretService, func()) {
 	t.Helper()
 	s := inmem.NewKVStore()
+
+	ctx := context.Background()
+	if err := all.Up(ctx, zaptest.NewLogger(t), s); err != nil {
+		t.Fatal(err)
+	}
 
 	storage, err := NewStore(s)
 	if err != nil {
@@ -34,8 +40,6 @@ func initSecretService(f influxdbtesting.SecretServiceFields, t *testing.T) (inf
 			t.Fatalf("failed to populate users")
 		}
 	}
-
-	ctx := context.Background()
 
 	for _, ss := range f.Secrets {
 		if err := svc.PutSecrets(ctx, ss.OrganizationID, ss.Env); err != nil {

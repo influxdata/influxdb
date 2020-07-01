@@ -11,6 +11,7 @@ import (
 	"github.com/influxdata/influxdb/v2/authorization"
 	"github.com/influxdata/influxdb/v2/bolt"
 	"github.com/influxdata/influxdb/v2/kv"
+	"github.com/influxdata/influxdb/v2/kv/migration/all"
 	"github.com/influxdata/influxdb/v2/tenant"
 	influxdbtesting "github.com/influxdata/influxdb/v2/testing"
 	"go.uber.org/zap/zaptest"
@@ -30,10 +31,7 @@ func initBoltAuthService(f influxdbtesting.AuthorizationFields, t *testing.T) (i
 }
 
 func initAuthService(s kv.Store, f influxdbtesting.AuthorizationFields, t *testing.T) (influxdb.AuthorizationService, func()) {
-	st, err := tenant.NewStore(s)
-	if err != nil {
-		t.Fatal(err)
-	}
+	st := tenant.NewStore(s)
 	ts := tenant.NewService(st)
 	storage, err := authorization.NewStore(s)
 	if err != nil {
@@ -76,8 +74,16 @@ func NewTestBoltStore(t *testing.T) (kv.Store, func(), error) {
 	f.Close()
 
 	path := f.Name()
-	s := bolt.NewKVStore(zaptest.NewLogger(t), path)
-	if err := s.Open(context.Background()); err != nil {
+	ctx := context.Background()
+	logger := zaptest.NewLogger(t)
+
+	s := bolt.NewKVStore(logger, path)
+
+	if err := s.Open(ctx); err != nil {
+		return nil, nil, err
+	}
+
+	if err := all.Up(ctx, logger, s); err != nil {
 		return nil, nil, err
 	}
 

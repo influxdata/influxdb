@@ -9,6 +9,7 @@ import (
 
 	influxdb "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kv"
+	"github.com/influxdata/influxdb/v2/kv/migration"
 	"go.uber.org/zap"
 )
 
@@ -18,7 +19,7 @@ type NowFunc func() time.Time
 // Migrator tests a migrator against a provided store.
 // The migrator is constructed via a provided constructor function which takes
 // a logger and a now function used to derive time.
-func Migrator(t *testing.T, store kv.Store, newMigrator func(*zap.Logger, NowFunc) *kv.Migrator) {
+func Migrator(t *testing.T, store kv.SchemaStore, newMigrator func(*testing.T, *zap.Logger, kv.SchemaStore, NowFunc) *migration.Migrator) {
 	var (
 		ctx            = context.TODO()
 		logger         = zap.NewNop()
@@ -40,7 +41,7 @@ func Migrator(t *testing.T, store kv.Store, newMigrator func(*zap.Logger, NowFun
 			return &t
 		}
 
-		migrator = newMigrator(logger, now)
+		migrator = newMigrator(t, logger, store, now)
 	)
 
 	migrator.AddMigrations(
@@ -50,31 +51,27 @@ func Migrator(t *testing.T, store kv.Store, newMigrator func(*zap.Logger, NowFun
 		migrationThree,
 	)
 
-	if err := migrator.Initialize(ctx, store); err != nil {
-		t.Fatal(err)
-	}
-
 	t.Run("List() shows all migrations in down state", func(t *testing.T) {
-		migrations, err := migrator.List(ctx, store)
+		migrations, err := migrator.List(ctx)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		if expected := []kv.Migration{
+		if expected := []migration.Migration{
 			{
 				ID:    influxdb.ID(1),
 				Name:  "migration one",
-				State: kv.DownMigrationState,
+				State: migration.DownMigrationState,
 			},
 			{
 				ID:    influxdb.ID(2),
 				Name:  "migration two",
-				State: kv.DownMigrationState,
+				State: migration.DownMigrationState,
 			},
 			{
 				ID:    influxdb.ID(3),
 				Name:  "migration three",
-				State: kv.DownMigrationState,
+				State: migration.DownMigrationState,
 			},
 		}; !reflect.DeepEqual(expected, migrations) {
 			t.Errorf("expected %#v, found %#v", expected, migrations)
@@ -83,35 +80,35 @@ func Migrator(t *testing.T, store kv.Store, newMigrator func(*zap.Logger, NowFun
 
 	t.Run("Up() runs each migration in turn", func(t *testing.T) {
 		// apply all migrations
-		if err := migrator.Up(ctx, store); err != nil {
+		if err := migrator.Up(ctx); err != nil {
 			t.Fatal(err)
 		}
 
 		// list migration again
-		migrations, err := migrator.List(ctx, store)
+		migrations, err := migrator.List(ctx)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		if expected := []kv.Migration{
+		if expected := []migration.Migration{
 			{
 				ID:         influxdb.ID(1),
 				Name:       "migration one",
-				State:      kv.UpMigrationState,
+				State:      migration.UpMigrationState,
 				StartedAt:  ts(1),
 				FinishedAt: ts(2),
 			},
 			{
 				ID:         influxdb.ID(2),
 				Name:       "migration two",
-				State:      kv.UpMigrationState,
+				State:      migration.UpMigrationState,
 				StartedAt:  ts(3),
 				FinishedAt: ts(4),
 			},
 			{
 				ID:         influxdb.ID(3),
 				Name:       "migration three",
-				State:      kv.UpMigrationState,
+				State:      migration.UpMigrationState,
 				StartedAt:  ts(5),
 				FinishedAt: ts(6),
 			},
@@ -129,37 +126,37 @@ func Migrator(t *testing.T, store kv.Store, newMigrator func(*zap.Logger, NowFun
 		migrator.AddMigrations(migrationFour)
 
 		// list migration again
-		migrations, err := migrator.List(ctx, store)
+		migrations, err := migrator.List(ctx)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		if expected := []kv.Migration{
+		if expected := []migration.Migration{
 			{
 				ID:         influxdb.ID(1),
 				Name:       "migration one",
-				State:      kv.UpMigrationState,
+				State:      migration.UpMigrationState,
 				StartedAt:  ts(1),
 				FinishedAt: ts(2),
 			},
 			{
 				ID:         influxdb.ID(2),
 				Name:       "migration two",
-				State:      kv.UpMigrationState,
+				State:      migration.UpMigrationState,
 				StartedAt:  ts(3),
 				FinishedAt: ts(4),
 			},
 			{
 				ID:         influxdb.ID(3),
 				Name:       "migration three",
-				State:      kv.UpMigrationState,
+				State:      migration.UpMigrationState,
 				StartedAt:  ts(5),
 				FinishedAt: ts(6),
 			},
 			{
 				ID:    influxdb.ID(4),
 				Name:  "migration four",
-				State: kv.DownMigrationState,
+				State: migration.DownMigrationState,
 			},
 		}; !reflect.DeepEqual(expected, migrations) {
 			t.Errorf("expected %#v, found %#v", expected, migrations)
@@ -168,42 +165,42 @@ func Migrator(t *testing.T, store kv.Store, newMigrator func(*zap.Logger, NowFun
 
 	t.Run("Up() only applies the single down migration", func(t *testing.T) {
 		// apply all migrations
-		if err := migrator.Up(ctx, store); err != nil {
+		if err := migrator.Up(ctx); err != nil {
 			t.Fatal(err)
 		}
 
 		// list migration again
-		migrations, err := migrator.List(ctx, store)
+		migrations, err := migrator.List(ctx)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		if expected := []kv.Migration{
+		if expected := []migration.Migration{
 			{
 				ID:         influxdb.ID(1),
 				Name:       "migration one",
-				State:      kv.UpMigrationState,
+				State:      migration.UpMigrationState,
 				StartedAt:  ts(1),
 				FinishedAt: ts(2),
 			},
 			{
 				ID:         influxdb.ID(2),
 				Name:       "migration two",
-				State:      kv.UpMigrationState,
+				State:      migration.UpMigrationState,
 				StartedAt:  ts(3),
 				FinishedAt: ts(4),
 			},
 			{
 				ID:         influxdb.ID(3),
 				Name:       "migration three",
-				State:      kv.UpMigrationState,
+				State:      migration.UpMigrationState,
 				StartedAt:  ts(5),
 				FinishedAt: ts(6),
 			},
 			{
 				ID:         influxdb.ID(4),
 				Name:       "migration four",
-				State:      kv.UpMigrationState,
+				State:      migration.UpMigrationState,
 				StartedAt:  ts(7),
 				FinishedAt: ts(8),
 			},
@@ -220,36 +217,36 @@ func Migrator(t *testing.T, store kv.Store, newMigrator func(*zap.Logger, NowFun
 
 	t.Run("Down() calls down for each migration", func(t *testing.T) {
 		// apply all migrations
-		if err := migrator.Down(ctx, store); err != nil {
+		if err := migrator.Down(ctx); err != nil {
 			t.Fatal(err)
 		}
 
 		// list migration again
-		migrations, err := migrator.List(ctx, store)
+		migrations, err := migrator.List(ctx)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		if expected := []kv.Migration{
+		if expected := []migration.Migration{
 			{
 				ID:    influxdb.ID(1),
 				Name:  "migration one",
-				State: kv.DownMigrationState,
+				State: migration.DownMigrationState,
 			},
 			{
 				ID:    influxdb.ID(2),
 				Name:  "migration two",
-				State: kv.DownMigrationState,
+				State: migration.DownMigrationState,
 			},
 			{
 				ID:    influxdb.ID(3),
 				Name:  "migration three",
-				State: kv.DownMigrationState,
+				State: migration.DownMigrationState,
 			},
 			{
 				ID:    influxdb.ID(4),
 				Name:  "migration four",
-				State: kv.DownMigrationState,
+				State: migration.DownMigrationState,
 			},
 		}; !reflect.DeepEqual(expected, migrations) {
 			t.Errorf("expected %#v, found %#v", expected, migrations)
@@ -264,42 +261,42 @@ func Migrator(t *testing.T, store kv.Store, newMigrator func(*zap.Logger, NowFun
 
 	t.Run("Up() re-applies all migrations", func(t *testing.T) {
 		// apply all migrations
-		if err := migrator.Up(ctx, store); err != nil {
+		if err := migrator.Up(ctx); err != nil {
 			t.Fatal(err)
 		}
 
 		// list migration again
-		migrations, err := migrator.List(ctx, store)
+		migrations, err := migrator.List(ctx)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		if expected := []kv.Migration{
+		if expected := []migration.Migration{
 			{
 				ID:         influxdb.ID(1),
 				Name:       "migration one",
-				State:      kv.UpMigrationState,
+				State:      migration.UpMigrationState,
 				StartedAt:  ts(9),
 				FinishedAt: ts(10),
 			},
 			{
 				ID:         influxdb.ID(2),
 				Name:       "migration two",
-				State:      kv.UpMigrationState,
+				State:      migration.UpMigrationState,
 				StartedAt:  ts(11),
 				FinishedAt: ts(12),
 			},
 			{
 				ID:         influxdb.ID(3),
 				Name:       "migration three",
-				State:      kv.UpMigrationState,
+				State:      migration.UpMigrationState,
 				StartedAt:  ts(13),
 				FinishedAt: ts(14),
 			},
 			{
 				ID:         influxdb.ID(4),
 				Name:       "migration four",
-				State:      kv.UpMigrationState,
+				State:      migration.UpMigrationState,
 				StartedAt:  ts(15),
 				FinishedAt: ts(16),
 			},
@@ -316,10 +313,10 @@ func Migrator(t *testing.T, store kv.Store, newMigrator func(*zap.Logger, NowFun
 
 	t.Run("List() missing migration spec errors as expected", func(t *testing.T) {
 		// remove last specification from migration list
-		migrator.MigrationSpecs = migrator.MigrationSpecs[:len(migrator.MigrationSpecs)-1]
+		migrator.Specs = migrator.Specs[:len(migrator.Specs)-1]
 		// list migration again
-		_, err := migrator.List(ctx, store)
-		if !errors.Is(err, kv.ErrMigrationSpecNotFound) {
+		_, err := migrator.List(ctx)
+		if !errors.Is(err, migration.ErrMigrationSpecNotFound) {
 			t.Errorf("expected migration spec error, found %v", err)
 		}
 	})
@@ -346,7 +343,7 @@ func (s *spyMigrationSpec) assertUpCalled(t *testing.T, times int) {
 	}
 }
 
-func (s *spyMigrationSpec) Up(ctx context.Context, store kv.Store) error {
+func (s *spyMigrationSpec) Up(ctx context.Context, _ migration.Store) error {
 	s.upCalled++
 	return nil
 }
@@ -358,7 +355,7 @@ func (s *spyMigrationSpec) assertDownCalled(t *testing.T, times int) {
 	}
 }
 
-func (s *spyMigrationSpec) Down(ctx context.Context, store kv.Store) error {
+func (s *spyMigrationSpec) Down(ctx context.Context, _ migration.Store) error {
 	s.downCalled++
 	return nil
 }

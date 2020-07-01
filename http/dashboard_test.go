@@ -14,7 +14,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/httprouter"
 	platform "github.com/influxdata/influxdb/v2"
-	"github.com/influxdata/influxdb/v2/inmem"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/mock"
@@ -1915,9 +1914,5 @@ func jsonEqual(s1, s2 string) (eq bool, diff string, err error) {
 func newInMemKVSVC(t *testing.T) *kv.Service {
 	t.Helper()
 
-	svc := kv.NewService(zaptest.NewLogger(t), inmem.NewKVStore())
-	if err := svc.Initialize(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	return svc
+	return kv.NewService(zaptest.NewLogger(t), NewTestInmemStore(t))
 }

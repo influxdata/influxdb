@@ -27,15 +27,11 @@ func initBoltSessionService(f influxdbtesting.SessionFields, t *testing.T) (infl
 	}
 }
 
-func initSessionService(s kv.Store, f influxdbtesting.SessionFields, t *testing.T) (influxdb.SessionService, string, func()) {
+func initSessionService(s kv.SchemaStore, f influxdbtesting.SessionFields, t *testing.T) (influxdb.SessionService, string, func()) {
+	ctx := context.Background()
 	svc := kv.NewService(zaptest.NewLogger(t), s)
 	svc.IDGenerator = f.IDGenerator
 	svc.TokenGenerator = f.TokenGenerator
-
-	ctx := context.Background()
-	if err := svc.Initialize(ctx); err != nil {
-		t.Fatalf("error initializing session service: %v", err)
-	}
 
 	for _, u := range f.Users {
 		if err := svc.PutUser(ctx, u); err != nil {
