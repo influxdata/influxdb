@@ -664,7 +664,7 @@ impl TestServer {
 
         let pair = futures::future::join(try_http_connect(), try_grpc_connect());
 
-        let capped_check = tokio::time::timeout_at(Instant::now() + Duration::from_secs(3), pair);
+        let capped_check = time::timeout(Duration::from_secs(3), pair);
 
         match capped_check.await {
             Ok(_) => println!("Server is up correctly"),
