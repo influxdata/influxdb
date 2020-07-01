@@ -1,3 +1,5 @@
+use tracing::{debug, info};
+
 use crate::generated_types::{Bucket, Predicate, TimestampRange};
 use crate::id::Id;
 use crate::line_parser::PointType;
@@ -68,6 +70,7 @@ impl Organization {
 
         for bucket_dir in fs::read_dir(org_dir)? {
             let bucket_dir = bucket_dir?.path();
+            info!("Restoring bucket from WAL path: {:?}", bucket_dir);
 
             let bucket_name = bucket_dir
                 .file_name()
@@ -87,6 +90,7 @@ impl Organization {
                 posting_list_rollover: 10_000,
                 index_levels: vec![],
             };
+            debug!("Restored bucket from WAL: {:?}", bucket);
 
             let bucket_data = BucketData::restore_from_wal(bucket, bucket_dir).await?;
 

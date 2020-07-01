@@ -26,6 +26,7 @@ use std::{
     time::Duration,
 };
 use tokio::task;
+use tracing::debug;
 
 #[derive(Debug, Clone)]
 pub enum PartitionStore {
@@ -97,6 +98,7 @@ impl Partition {
         let mut db = MemDB::new(partition_id);
         let wal_builder = WalBuilder::new(bucket_dir);
         let wal_details = start_wal_sync_task(wal_builder.clone()).await?;
+        debug!("Wal details {:?}", wal_details);
 
         match wal_details.metadata.format {
             WalFormat::Unknown => {
@@ -124,6 +126,11 @@ impl Partition {
                     }
                 }
 
+                debug!(
+                    "Restored {:?} points for bucket {:?}",
+                    points.len(),
+                    bucket_name
+                );
                 db.write_points(&mut points)?;
             }
         }
