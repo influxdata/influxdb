@@ -25,7 +25,7 @@ interface DispatchProps {
   createOrgWithBucket: typeof createOrgWithBucket
 }
 
-type Props = OwnProps & DispatchProps & RouteComponentProps<{orgID: string}>
+type Props = OwnProps & DispatchProps & RouteComponentProps
 
 interface State {
   org: Organization

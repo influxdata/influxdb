@@ -1,5 +1,5 @@
 // Libraries
-import React, {useEffect, FunctionComponent} from 'react'
+import React, {useEffect, FC} from 'react'
 import {connect} from 'react-redux'
 import {Switch, Route} from 'react-router-dom'
 import GetOrganizations from 'src/shared/containers/GetOrganizations'
@@ -18,10 +18,6 @@ import {getFlags as getFlagsAction} from 'src/shared/actions/flags'
 import {activeFlags} from 'src/shared/selectors/flags'
 import {updateReportingContext} from 'src/cloud/utils/reporting'
 
-interface PassedInProps {
-  children: React.ReactElement<any>
-}
-
 interface DispatchProps {
   getFlags: typeof getFlagsAction
 }
@@ -31,19 +27,14 @@ interface StateProps {
   flags: FlagMap
 }
 
-type Props = StateProps & DispatchProps & PassedInProps
+type Props = StateProps & DispatchProps
 
-const GetFlags: FunctionComponent<Props> = ({
-  status,
-  getFlags,
-  flags,
-  auth,
-}) => {
+const GetFlags: FC<Props> = ({status, getFlags, flags}) => {
   useEffect(() => {
-    if (status === RemoteDataState.NotStarted && auth) {
+    if (status === RemoteDataState.NotStarted) {
       getFlags()
     }
-  }, [auth])
+  }, [])
 
   useEffect(() => {
     updateReportingContext(
@@ -73,7 +64,4 @@ const mstp = (state: AppState): StateProps => ({
   status: state.flags.status || RemoteDataState.NotStarted,
 })
 
-export default connect<StateProps, DispatchProps, PassedInProps>(
-  mstp,
-  mdtp
-)(GetFlags)
+export default connect<StateProps, DispatchProps>(mstp, mdtp)(GetFlags)

@@ -1,6 +1,11 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {withRouter, RouteComponentProps, Link} from 'react-router-dom'
+import {
+  matchPath,
+  withRouter,
+  RouteComponentProps,
+  Link,
+} from 'react-router-dom'
 import {connect} from 'react-redux'
 import {get} from 'lodash'
 
@@ -43,18 +48,19 @@ type Props = StateProps & DispatchProps & RouteComponentProps<{orgID: string}>
 @ErrorHandling
 class TreeSidebar extends PureComponent<Props> {
   public render() {
-    const {
-      isHidden,
-      match: {
-        params: {orgID},
-      },
-      navBarState,
-      handleSetNavBarState,
-    } = this.props
+    const {isHidden, history, navBarState, handleSetNavBarState} = this.props
 
     if (isHidden) {
       return null
     }
+
+    const match = matchPath<{orgID: string}>(history.location.pathname, {
+      path: '/orgs/:orgID',
+      exact: false,
+      strict: false,
+    })
+
+    const orgID = match.params.orgID
 
     const isExpanded = navBarState === 'expanded'
 

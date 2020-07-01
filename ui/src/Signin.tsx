@@ -73,13 +73,13 @@ export class Signin extends PureComponent<Props, State> {
   public render() {
     const {loading, auth} = this.state
 
-    console.log('signin page')
-
     return (
       <SpinnerContainer loading={loading} spinnerComponent={<TechnoSpinner />}>
-        <Switch>
-          <Route render={props => <GetMe auth={auth} {...props} />} />
-        </Switch>
+        {auth && (
+          <Switch>
+            <Route render={props => <GetMe {...props} />} />
+          </Switch>
+        )}
       </SpinnerContainer>
     )
   }

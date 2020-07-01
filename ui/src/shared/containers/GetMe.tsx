@@ -16,10 +16,6 @@ import {getMe} from 'src/shared/actions/me'
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-interface PassedInProps {
-  children: React.ReactElement<any>
-}
-
 interface ConnectDispatchProps {
   getMe: typeof getMe
 }
@@ -28,7 +24,7 @@ interface State {
   loading: RemoteDataState
 }
 
-type Props = ConnectDispatchProps & PassedInProps
+type Props = ConnectDispatchProps
 
 @ErrorHandling
 class GetMe extends PureComponent<Props, State> {
@@ -42,21 +38,18 @@ class GetMe extends PureComponent<Props, State> {
 
   public render() {
     const {loading} = this.state
-    const {auth} = this.props
 
     return (
       <SpinnerContainer loading={loading} spinnerComponent={<TechnoSpinner />}>
         <Switch>
-          <Route render={props => <GetFlags {...props} auth={auth} />} />
+          <Route render={props => <GetFlags {...props} />} />
         </Switch>
       </SpinnerContainer>
     )
   }
 
   public componentDidMount() {
-    if (this.props.auth) {
-      this.props.getMe()
-    }
+    this.props.getMe()
     this.setState({loading: RemoteDataState.Done})
   }
 }
@@ -65,7 +58,4 @@ const mdtp = {
   getMe,
 }
 
-export default connect<{}, ConnectDispatchProps, PassedInProps>(
-  null,
-  mdtp
-)(GetMe)
+export default connect<{}, ConnectDispatchProps>(null, mdtp)(GetMe)
