@@ -33,8 +33,7 @@ const CommunityTemplateListGroup: FC<Props> = ({title, count, children}) => {
   const handleToggleMode = () => {
     if (mode === 'expanded') {
       setMode('collapsed')
-      // don't allow expansion if there is nothing to expand
-    } else if (count) {
+    } else {
       setMode('expanded')
     }
   }
