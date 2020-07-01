@@ -1,6 +1,6 @@
 // Libraries
 import React, {FunctionComponent, useState} from 'react'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 import {connect} from 'react-redux'
 
 // Components
@@ -26,12 +26,12 @@ interface StateProps {
   orgID: string
 }
 
-type Props = WithRouterProps & StateProps
+type Props = RouteComponentProps & StateProps
 
-const GettingStarted: FunctionComponent<Props> = ({orgID, router}) => {
+const GettingStarted: FunctionComponent<Props> = ({orgID, history}) => {
   const [loadDataAnimating, setLoadDataAnimation] = useState<boolean>(false)
   const handleLoadDataClick = (): void => {
-    router.push(`/orgs/${orgID}/load-data/telegrafs`)
+    history.push(`/orgs/${orgID}/load-data/telegrafs`)
   }
   const handleLoadDataMouseOver = (): void => {
     setLoadDataAnimation(true)
@@ -44,7 +44,7 @@ const GettingStarted: FunctionComponent<Props> = ({orgID, router}) => {
     false
   )
   const handleDashboardsClick = (): void => {
-    router.push(`/orgs/${orgID}/dashboards`)
+    history.push(`/orgs/${orgID}/dashboards`)
   }
   const handleDashboardsMouseOver = (): void => {
     setDashboardingAnimation(true)
@@ -55,7 +55,7 @@ const GettingStarted: FunctionComponent<Props> = ({orgID, router}) => {
 
   const [alertsAnimating, setAlertsAnimation] = useState<boolean>(false)
   const handleAlertsClick = (): void => {
-    router.push(`/orgs/${orgID}/alerting`)
+    history.push(`/orgs/${orgID}/alerting`)
   }
   const handleAlertsMouseOver = (): void => {
     setAlertsAnimation(true)
@@ -134,4 +134,4 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-export default withRouter<{}>(connect(mstp, null)(GettingStarted))
+export default withRouter(connect<StateProps>(mstp, null)(GettingStarted))

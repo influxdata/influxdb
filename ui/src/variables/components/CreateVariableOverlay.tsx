@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Components
 import {Overlay} from '@influxdata/clockface'
@@ -10,7 +10,7 @@ import GetResources from 'src/resources/components/GetResources'
 // Types
 import {ResourceType} from 'src/types'
 
-type Props = WithRouterProps
+type Props = RouteComponentProps<{orgID: string}>
 
 class CreateVariableOverlay extends PureComponent<Props> {
   public render() {
@@ -33,13 +33,15 @@ class CreateVariableOverlay extends PureComponent<Props> {
 
   private handleHideOverlay = () => {
     const {
-      router,
-      params: {orgID},
+      history,
+      match: {
+        params: {orgID},
+      },
     } = this.props
 
-    router.push(`/orgs/${orgID}/settings/variables`)
+    history.push(`/orgs/${orgID}/settings/variables`)
   }
 }
 
 export {CreateVariableOverlay}
-export default withRouter<{}>(CreateVariableOverlay)
+export default withRouter(CreateVariableOverlay)

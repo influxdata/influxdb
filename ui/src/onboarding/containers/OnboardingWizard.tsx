@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 import {connect} from 'react-redux'
 import _ from 'lodash'
 
@@ -69,7 +69,7 @@ interface StateProps {
   bucketID: string
 }
 
-type Props = OwnProps & StateProps & DispatchProps & WithRouterProps
+type Props = OwnProps & StateProps & DispatchProps & RouteComponentProps
 
 @ErrorHandling
 class OnboardingWizard extends PureComponent<Props> {
@@ -136,9 +136,9 @@ class OnboardingWizard extends PureComponent<Props> {
   }
 
   private handleExit = () => {
-    const {router, onCompleteSetup} = this.props
+    const {history, onCompleteSetup} = this.props
     onCompleteSetup()
-    router.push(`/`)
+    history.push(`/`)
   }
 
   private get onboardingStepProps(): OnboardingStepProps {

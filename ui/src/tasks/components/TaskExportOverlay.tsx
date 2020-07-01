@@ -1,5 +1,5 @@
 import React, {PureComponent} from 'react'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 import {connect} from 'react-redux'
 
 // Components
@@ -14,10 +14,6 @@ import {AppState} from 'src/types'
 import {DocumentCreate} from '@influxdata/influx'
 import {RemoteDataState} from 'src/types'
 
-interface OwnProps {
-  params: {id: string}
-}
-
 interface DispatchProps {
   convertToTemplate: typeof convertToTemplateAction
   clearExportTemplate: typeof clearExportTemplateAction
@@ -28,12 +24,16 @@ interface StateProps {
   status: RemoteDataState
 }
 
-type Props = OwnProps & StateProps & DispatchProps & WithRouterProps
+type Props = StateProps &
+  DispatchProps &
+  RouteComponentProps<{orgID: string; id: string}>
 
 class TaskExportOverlay extends PureComponent<Props> {
   public componentDidMount() {
     const {
-      params: {id},
+      match: {
+        params: {id},
+      },
       convertToTemplate,
     } = this.props
 
@@ -54,9 +54,9 @@ class TaskExportOverlay extends PureComponent<Props> {
   }
 
   private onDismiss = () => {
-    const {router, clearExportTemplate} = this.props
+    const {history, clearExportTemplate} = this.props
 
-    router.goBack()
+    history.goBack()
     clearExportTemplate()
   }
 }
@@ -71,7 +71,7 @@ const mdtp: DispatchProps = {
   clearExportTemplate: clearExportTemplateAction,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
+export default connect<StateProps, DispatchProps>(
   mstp,
   mdtp
-)(withRouter<Props>(TaskExportOverlay))
+)(withRouter(TaskExportOverlay))

@@ -1,6 +1,6 @@
 // Libraries
 import React, {FC, useRef, RefObject, useState} from 'react'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 import {connect} from 'react-redux'
 import {get} from 'lodash'
 import classnames from 'classnames'
@@ -37,11 +37,11 @@ interface OwnProps {
   onCSVDownload: () => void
 }
 
-type Props = OwnProps & DispatchProps & WithRouterProps
+type Props = OwnProps & DispatchProps & RouteComponentProps<{orgID: string}>
 
 const CellContext: FC<Props> = ({
   view,
-  router,
+  history,
   location,
   cell,
   onCloneCell,
@@ -69,15 +69,15 @@ const CellContext: FC<Props> = ({
 
   const handleEditNote = () => {
     if (view.id) {
-      router.push(`${location.pathname}/notes/${view.id}/edit`)
+      history.push(`${location.pathname}/notes/${view.id}/edit`)
     } else {
-      router.push(`${location.pathname}/notes/new`)
+      history.push(`${location.pathname}/notes/new`)
     }
   }
 
   const handleEditCell = (): void => {
     reportSimpleQueryPerformanceEvent('editCell button Click')
-    router.push(`${location.pathname}/cells/${cell.id}/edit`)
+    history.push(`${location.pathname}/cells/${cell.id}/edit`)
   }
 
   const popoverContents = (onHide): JSX.Element => {
@@ -177,6 +177,4 @@ const mdtp: DispatchProps = {
   onCloneCell: createCellWithView,
 }
 
-export default withRouter<OwnProps>(
-  connect<{}, DispatchProps>(null, mdtp)(CellContext)
-)
+export default withRouter(connect<{}, DispatchProps>(null, mdtp)(CellContext))

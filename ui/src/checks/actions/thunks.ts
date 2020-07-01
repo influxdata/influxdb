@@ -1,6 +1,6 @@
 // Libraries
 import {Dispatch} from 'react'
-import {push} from 'react-router-redux'
+import {push, RouterAction} from 'connected-react-router'
 import {normalize} from 'normalizr'
 
 // Constants
@@ -99,7 +99,7 @@ export const getChecks = () => async (
 
 export const getCheckForTimeMachine = (checkID: string) => async (
   dispatch: Dispatch<
-    TimeMachineAction | NotificationAction | AlertBuilderAction
+    TimeMachineAction | NotificationAction | AlertBuilderAction | RouterAction
   >,
   getState: GetState
 ) => {
@@ -149,7 +149,7 @@ type SendToTimeMachineAction =
   | NotificationAction
 
 export const createCheckFromTimeMachine = () => async (
-  dispatch: Dispatch<Action | SendToTimeMachineAction>,
+  dispatch: Dispatch<Action | SendToTimeMachineAction | RouterAction>,
   getState: GetState
 ): Promise<void> => {
   const rename = 'Please rename the check before saving'
@@ -188,7 +188,7 @@ export const createCheckFromTimeMachine = () => async (
 }
 
 export const updateCheckFromTimeMachine = () => async (
-  dispatch: Dispatch<Action | SendToTimeMachineAction>,
+  dispatch: Dispatch<Action | SendToTimeMachineAction | RouterAction>,
   getState: GetState
 ) => {
   const state = getState()

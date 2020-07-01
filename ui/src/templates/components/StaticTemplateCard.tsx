@@ -2,7 +2,7 @@
 import React, {PureComponent, MouseEvent} from 'react'
 import {get, capitalize} from 'lodash'
 import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 import {
   Button,
   ComponentSize,
@@ -41,7 +41,9 @@ interface StateProps {
 
 type Props = DispatchProps & OwnProps & StateProps
 
-class StaticTemplateCard extends PureComponent<Props & WithRouterProps> {
+class StaticTemplateCard extends PureComponent<
+  Props & RouteComponentProps<{orgID: string}>
+> {
   public render() {
     const {template} = this.props
 
@@ -98,9 +100,9 @@ class StaticTemplateCard extends PureComponent<Props & WithRouterProps> {
   }
 
   private handleViewTemplate = () => {
-    const {router, org, name} = this.props
+    const {history, org, name} = this.props
 
-    router.push(`/orgs/${org.id}/settings/templates/${name}/static/view`)
+    history.push(`/orgs/${org.id}/settings/templates/${name}/static/view`)
   }
 }
 
@@ -117,4 +119,4 @@ const mdtp: DispatchProps = {
 export default connect<StateProps, DispatchProps, OwnProps>(
   mstp,
   mdtp
-)(withRouter<Props>(StaticTemplateCard))
+)(withRouter(StaticTemplateCard))

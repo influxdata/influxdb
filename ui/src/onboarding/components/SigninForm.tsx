@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 import {connect} from 'react-redux'
 import _, {get} from 'lodash'
 
@@ -40,7 +40,7 @@ interface State {
   password: string
 }
 
-type Props = OwnProps & WithRouterProps
+type Props = OwnProps & RouteComponentProps
 
 @ErrorHandling
 class SigninForm extends PureComponent<Props, State> {
@@ -138,13 +138,14 @@ class SigninForm extends PureComponent<Props, State> {
   }
 
   private handleRedirect() {
-    const {router} = this.props
-    const {query} = this.props.location
+    const {history, location} = this.props
+    const params = new URLSearchParams(location.search)
+    const returnTo = params.get('returnTo')
 
-    if (query && query.returnTo) {
-      router.replace(query.returnTo)
+    if (returnTo) {
+      history.replace(returnTo)
     } else {
-      router.push('/')
+      history.push('/')
     }
   }
 }

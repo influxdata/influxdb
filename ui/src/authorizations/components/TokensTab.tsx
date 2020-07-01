@@ -1,7 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 import {isEmpty} from 'lodash'
 
 // Components
@@ -39,7 +39,7 @@ interface StateProps {
 
 type SortKey = keyof Authorization
 
-type Props = StateProps & WithRouterProps
+type Props = StateProps & RouteComponentProps<{orgID: string}>
 
 const FilterAuthorizations = FilterList<Authorization>()
 

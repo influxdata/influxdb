@@ -1,6 +1,6 @@
 // Libraries
 import React, {ReactElement, PureComponent} from 'react'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 import {connect} from 'react-redux'
 
 import {client} from 'src/utils/api'
@@ -38,7 +38,7 @@ interface DispatchProps {
   notify: typeof notifyAction
 }
 
-type Props = OwnProps & WithRouterProps & DispatchProps
+type Props = OwnProps & RouteComponentProps & DispatchProps
 
 const FETCH_WAIT = 60000
 
@@ -113,7 +113,7 @@ export class Signin extends PureComponent<Props, State> {
         this.props.notify(sessionTimedOut())
       }
 
-      this.props.router.replace(`/signin${returnTo}`)
+      this.props.history.replace(`/signin${returnTo}`)
     }
   }
 }

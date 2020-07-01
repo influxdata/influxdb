@@ -1,7 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Components
 import {ResourceCard} from '@influxdata/clockface'
@@ -31,7 +31,9 @@ interface DispatchProps {
 
 type Props = OwnProps & DispatchProps
 
-class VariableCard extends PureComponent<Props & WithRouterProps> {
+class VariableCard extends PureComponent<
+  Props & RouteComponentProps<{orgID: string}>
+> {
   public render() {
     const {variable, onDeleteVariable} = this.props
 
@@ -61,13 +63,11 @@ class VariableCard extends PureComponent<Props & WithRouterProps> {
   }
 
   private handleNameClick = (): void => {
-    const {
-      variable,
-      params: {orgID},
-      router,
-    } = this.props
+    const {variable, match, history} = this.props
 
-    router.push(`/orgs/${orgID}/settings/variables/${variable.id}/edit`)
+    history.push(
+      `/orgs/${match.params.orgID}/settings/variables/${variable.id}/edit`
+    )
   }
 
   private get labels(): JSX.Element {
@@ -96,22 +96,19 @@ class VariableCard extends PureComponent<Props & WithRouterProps> {
   }
 
   private handleExport = () => {
-    const {
-      router,
-      variable,
-      params: {orgID},
-    } = this.props
-    router.push(`/orgs/${orgID}/settings/variables/${variable.id}/export`)
+    const {history, variable, match} = this.props
+
+    history.push(
+      `/orgs/${match.params.orgID}/settings/variables/${variable.id}/export`
+    )
   }
 
   private handleRenameVariable = () => {
-    const {
-      router,
-      variable,
-      params: {orgID},
-    } = this.props
+    const {history, variable, match} = this.props
 
-    router.push(`/orgs/${orgID}/settings/variables/${variable.id}/rename`)
+    history.push(
+      `/orgs/${match.params.orgID}/settings/variables/${variable.id}/rename`
+    )
   }
 }
 
@@ -123,4 +120,4 @@ const mdtp: DispatchProps = {
 export default connect<{}, DispatchProps, OwnProps>(
   null,
   mdtp
-)(withRouter<OwnProps>(VariableCard))
+)(withRouter(VariableCard))

@@ -1,7 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Components
 import {Page, IconFont, Sort} from '@influxdata/clockface'
@@ -26,10 +26,6 @@ import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
 // Types
 import {SortTypes} from 'src/shared/utils/sort'
 
-interface OwnProps {
-  params: {id: string}
-}
-
 interface DispatchProps {
   getRuns: typeof getRuns
   onRunTask: typeof runTask
@@ -41,7 +37,9 @@ interface StateProps {
   currentTask: Task
 }
 
-type Props = OwnProps & DispatchProps & StateProps
+type Props = DispatchProps &
+  StateProps &
+  RouteComponentProps<{id: string; orgID: string}>
 
 interface State {
   sortKey: SortKey
@@ -51,7 +49,7 @@ interface State {
 
 type SortKey = keyof Run
 
-class TaskRunsPage extends PureComponent<Props & WithRouterProps, State> {
+class TaskRunsPage extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
     this.state = {
@@ -62,7 +60,7 @@ class TaskRunsPage extends PureComponent<Props & WithRouterProps, State> {
   }
 
   public render() {
-    const {params, runs} = this.props
+    const {match, runs} = this.props
     const {sortKey, sortDirection, sortType} = this.state
 
     return (
@@ -93,7 +91,7 @@ class TaskRunsPage extends PureComponent<Props & WithRouterProps, State> {
           </Page.ControlBar>
           <Page.Contents fullWidth={false} scrollable={true}>
             <TaskRunsList
-              taskID={params.id}
+              taskID={match.params.id}
               runs={runs}
               sortKey={sortKey}
               sortDirection={sortDirection}
@@ -107,7 +105,7 @@ class TaskRunsPage extends PureComponent<Props & WithRouterProps, State> {
   }
 
   public componentDidMount() {
-    this.props.getRuns(this.props.params.id)
+    this.props.getRuns(this.props.match.params.id)
   }
 
   private handleClickColumn = (nextSort: Sort, sortKey: SortKey) => {
@@ -130,19 +128,21 @@ class TaskRunsPage extends PureComponent<Props & WithRouterProps, State> {
   }
 
   private handleRunTask = () => {
-    const {onRunTask, params, getRuns} = this.props
-    onRunTask(params.id)
-    getRuns(params.id)
+    const {onRunTask, match, getRuns} = this.props
+    onRunTask(match.params.id)
+    getRuns(match.params.id)
   }
 
   private handleEditTask = () => {
     const {
-      router,
+      history,
       currentTask,
-      params: {orgID},
+      match: {
+        params: {orgID},
+      },
     } = this.props
 
-    router.push(`/orgs/${orgID}/tasks/${currentTask.id}`)
+    history.push(`/orgs/${orgID}/tasks/${currentTask.id}`)
   }
 }
 
@@ -161,7 +161,7 @@ const mdtp: DispatchProps = {
   onRunTask: runTask,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
+export default connect<StateProps, DispatchProps>(
   mstp,
   mdtp
-)(withRouter<OwnProps>(TaskRunsPage))
+)(withRouter(TaskRunsPage))

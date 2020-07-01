@@ -1,16 +1,16 @@
 // Libraries
 import React, {FunctionComponent} from 'react'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Components
 import {Button} from '@influxdata/clockface'
 import {FeatureFlag} from 'src/shared/utils/featureFlag'
 
-const DeleteDataButton: FunctionComponent<WithRouterProps> = ({
+const DeleteDataButton: FunctionComponent<RouteComponentProps> = ({
   location: {pathname},
-  router,
+  history,
 }) => {
-  const onClick = () => router.push(`${pathname}/delete-data`)
+  const onClick = () => history.push(`${pathname}/delete-data`)
 
   return (
     <FeatureFlag name="deleteWithPredicate">
@@ -24,4 +24,4 @@ const DeleteDataButton: FunctionComponent<WithRouterProps> = ({
   )
 }
 
-export default withRouter<{}>(DeleteDataButton)
+export default withRouter(DeleteDataButton)

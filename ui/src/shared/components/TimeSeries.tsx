@@ -2,7 +2,7 @@
 import React, {Component, RefObject, CSSProperties} from 'react'
 import {isEqual} from 'lodash'
 import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 import {
   default as fromFlux,
   FromFluxResult,
@@ -78,14 +78,14 @@ interface StateProps {
 }
 
 interface OwnProps {
-  className: string
-  style: CSSProperties
-  queries: DashboardQuery[]
+  className?: string
+  style?: CSSProperties
   variables?: VariableAssignment[]
+  queries: DashboardQuery[]
   submitToken: number
   implicitSubmit?: boolean
   children: (r: QueriesState) => JSX.Element
-  check: Partial<Check>
+  check?: Partial<Check>
 }
 
 interface DispatchProps {
@@ -93,7 +93,10 @@ interface DispatchProps {
   onSetQueryResultsByQueryID: typeof setQueryResultsByQueryID
 }
 
-type Props = StateProps & OwnProps & DispatchProps
+type Props = StateProps &
+  OwnProps &
+  DispatchProps &
+  RouteComponentProps<{orgID: string}>
 
 interface State {
   loading: RemoteDataState
@@ -115,7 +118,7 @@ const defaultState = (): State => ({
   statuses: [[]],
 })
 
-class TimeSeries extends Component<Props & WithRouterProps, State> {
+class TimeSeries extends Component<Props, State> {
   public static defaultProps = {
     implicitSubmit: true,
     className: 'time-series-container',
@@ -225,7 +228,7 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
       // Issue new queries
       this.pendingResults = queries.map(({text}) => {
         const orgID =
-          getOrgIDFromBuckets(text, buckets) || this.props.params.orgID
+          getOrgIDFromBuckets(text, buckets) || this.props.match.params.orgID
 
         const windowVars = getWindowVars(text, vars)
         const extern = buildVarsOption([...vars, ...windowVars])
@@ -241,7 +244,7 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
       if (check) {
         const extern = buildVarsOption(vars)
         this.pendingCheckStatuses = runStatusesQuery(
-          this.props.params.orgID,
+          this.props.match.params.orgID,
           check.id,
           extern
         )
@@ -253,7 +256,9 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
       for (const result of results) {
         if (result.type === 'UNKNOWN_ERROR') {
           if (isDemoDataAvailabilityError(result.code, result.message)) {
-            notify(demoDataAvailability(demoDataError(this.props.params.orgID)))
+            notify(
+              demoDataAvailability(demoDataError(this.props.match.params.orgID))
+            )
           }
           errorMessage = result.message
           throw new Error(result.message)
@@ -365,7 +370,7 @@ const mdtp: DispatchProps = {
   onSetQueryResultsByQueryID: setQueryResultsByQueryID,
 }
 
-export default connect<StateProps, {}, OwnProps>(
+export default connect<StateProps, DispatchProps, OwnProps>(
   mstp,
   mdtp
 )(withRouter(TimeSeries))

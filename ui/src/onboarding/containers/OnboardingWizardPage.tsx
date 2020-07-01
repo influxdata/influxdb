@@ -1,7 +1,7 @@
 // Libraries
 import React, {ReactElement, PureComponent} from 'react'
 import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // APIs
 import {client} from 'src/utils/api'
@@ -31,16 +31,15 @@ interface State {
 
 interface PassedProps {
   children: ReactElement<any>
-  params: {
-    stepID: string
-  }
 }
 
 interface ConnectedStateProps {
   links: Links
 }
 
-type Props = PassedProps & WithRouterProps & ConnectedStateProps
+type Props = PassedProps &
+  RouteComponentProps<{stepID: string; substepID: string}> &
+  ConnectedStateProps
 
 @ErrorHandling
 export class OnboardingWizardPage extends PureComponent<Props, State> {
@@ -68,7 +67,7 @@ export class OnboardingWizardPage extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {params} = this.props
+    const {match} = this.props
     const {isSetupComplete} = this.state
 
     if (isSetupComplete) {
@@ -110,7 +109,7 @@ export class OnboardingWizardPage extends PureComponent<Props, State> {
             onIncrementCurrentStepIndex={this.handleIncrementStepIndex}
             onSetCurrentStepIndex={this.setStepIndex}
             onSetSubstepIndex={this.setSubstepIndex}
-            currentStepIndex={+params.stepID}
+            currentStepIndex={+match.params.stepID}
             onCompleteSetup={this.handleCompleteSetup}
           />
         </SpinnerContainer>
@@ -123,12 +122,14 @@ export class OnboardingWizardPage extends PureComponent<Props, State> {
   }
 
   private redirectToHome = () => {
-    this.props.router.push('/')
+    this.props.history.push('/')
   }
 
   private handleDecrementStepIndex = () => {
     const {
-      params: {stepID},
+      match: {
+        params: {stepID},
+      },
     } = this.props
 
     this.setStepIndex(+stepID - 1)
@@ -136,22 +137,24 @@ export class OnboardingWizardPage extends PureComponent<Props, State> {
 
   private handleIncrementStepIndex = () => {
     const {
-      params: {stepID},
+      match: {
+        params: {stepID},
+      },
     } = this.props
 
     this.setStepIndex(+stepID + 1)
   }
 
   private setStepIndex = (index: number) => {
-    const {router} = this.props
+    const {history} = this.props
 
-    router.push(`/onboarding/${index}`)
+    history.push(`/onboarding/${index}`)
   }
 
   private setSubstepIndex = (index: number, subStep: number | 'streaming') => {
-    const {router} = this.props
+    const {history} = this.props
 
-    router.push(`/onboarding/${index}/${subStep}`)
+    history.push(`/onboarding/${index}/${subStep}`)
   }
 }
 
@@ -160,4 +163,4 @@ const mstp = ({links}: AppState) => ({links})
 export default connect<ConnectedStateProps, null, PassedProps>(
   mstp,
   null
-)(withRouter<Props>(OnboardingWizardPage))
+)(withRouter(OnboardingWizardPage))

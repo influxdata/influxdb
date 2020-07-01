@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 import _ from 'lodash'
 
@@ -12,7 +12,9 @@ import RenameVariableForm from 'src/variables/components/RenameVariableForm'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 @ErrorHandling
-class RenameVariableOverlay extends PureComponent<WithRouterProps> {
+class RenameVariableOverlay extends PureComponent<
+  RouteComponentProps<{orgID: string}>
+> {
   public render() {
     return (
       <DangerConfirmationOverlay
@@ -36,12 +38,9 @@ class RenameVariableOverlay extends PureComponent<WithRouterProps> {
   }
 
   private handleClose = () => {
-    const {
-      router,
-      params: {orgID},
-    } = this.props
+    const {history, match} = this.props
 
-    router.push(`/orgs/${orgID}/settings/variables`)
+    history.push(`/orgs/${match.params.orgID}/settings/variables`)
   }
 }
 

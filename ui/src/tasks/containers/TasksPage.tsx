@@ -37,7 +37,7 @@ import {
 
 // Types
 import {AppState, Task, RemoteDataState, ResourceType} from 'src/types'
-import {InjectedRouter, WithRouterProps} from 'react-router-dom'
+import {RouteComponentProps} from 'react-router-dom'
 import {Sort} from '@influxdata/clockface'
 import {SortTypes} from 'src/shared/utils/sort'
 import {extractTaskLimits} from 'src/cloud/utils/limits'
@@ -45,10 +45,6 @@ import {TaskSortKey} from 'src/shared/components/resource_sort_dropdown/generate
 
 // Selectors
 import {getAll} from 'src/resources/selectors'
-
-interface PassedInProps {
-  router: InjectedRouter
-}
 
 interface ConnectedDispatchProps {
   updateTaskStatus: typeof updateTaskStatus
@@ -71,9 +67,8 @@ interface ConnectedStateProps {
 }
 
 type Props = ConnectedDispatchProps &
-  PassedInProps &
   ConnectedStateProps &
-  WithRouterProps
+  RouteComponentProps<{orgID: string}>
 
 interface State {
   isImporting: boolean
@@ -204,29 +199,35 @@ class TasksPage extends PureComponent<Props, State> {
 
   private handleCreateTask = () => {
     const {
-      router,
-      params: {orgID},
+      history,
+      match: {
+        params: {orgID},
+      },
     } = this.props
 
-    router.push(`/orgs/${orgID}/tasks/new`)
+    history.push(`/orgs/${orgID}/tasks/new`)
   }
 
   private summonImportFromTemplateOverlay = () => {
     const {
-      router,
-      params: {orgID},
+      history,
+      match: {
+        params: {orgID},
+      },
     } = this.props
 
-    router.push(`/orgs/${orgID}/tasks/import/template`)
+    history.push(`/orgs/${orgID}/tasks/import/template`)
   }
 
   private summonImportOverlay = (): void => {
     const {
-      router,
-      params: {orgID},
+      history,
+      match: {
+        params: {orgID},
+      },
     } = this.props
 
-    router.push(`/orgs/${orgID}/tasks/import`)
+    history.push(`/orgs/${orgID}/tasks/import`)
   }
 
   private get filteredTasks(): Task[] {
@@ -297,11 +298,7 @@ const mdtp: ConnectedDispatchProps = {
   checkTaskLimits: checkTasksLimitsAction,
 }
 
-export default connect<
-  ConnectedStateProps,
-  ConnectedDispatchProps,
-  PassedInProps
->(
+export default connect<ConnectedStateProps, ConnectedDispatchProps>(
   mstp,
   mdtp
 )(TasksPage)

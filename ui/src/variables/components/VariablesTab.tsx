@@ -2,7 +2,7 @@
 import React, {PureComponent} from 'react'
 import _ from 'lodash'
 import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Utils
 import {deleteVariable} from 'src/variables/actions/thunks'
@@ -33,7 +33,7 @@ interface DispatchProps {
   onDeleteVariable: typeof deleteVariable
 }
 
-type Props = StateProps & DispatchProps & WithRouterProps
+type Props = StateProps & DispatchProps & RouteComponentProps<{orgID: string}>
 
 interface State {
   searchTerm: string
@@ -154,21 +154,15 @@ class VariablesTab extends PureComponent<Props, State> {
   }
 
   private handleOpenImportOverlay = (): void => {
-    const {
-      router,
-      params: {orgID},
-    } = this.props
+    const {history, match} = this.props
 
-    router.push(`/orgs/${orgID}/settings/variables/import`)
+    history.push(`/orgs/${match.params.orgID}/settings/variables/import`)
   }
 
   private handleOpenCreateOverlay = (): void => {
-    const {
-      router,
-      params: {orgID},
-    } = this.props
+    const {history, match} = this.props
 
-    router.push(`/orgs/${orgID}/settings/variables/new`)
+    history.push(`/orgs/${match.params.orgID}/settings/variables/new`)
   }
 
   private handleDeleteVariable = (variable: Variable): void => {
@@ -190,4 +184,4 @@ const mdtp: DispatchProps = {
 export default connect<StateProps, DispatchProps, {}>(
   mstp,
   mdtp
-)(withRouter<{}>(VariablesTab))
+)(withRouter(VariablesTab))

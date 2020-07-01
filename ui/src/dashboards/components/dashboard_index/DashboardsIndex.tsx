@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {InjectedRouter} from 'react-router-dom'
+import {RouteComponentProps} from 'react-router-dom'
 import {connect} from 'react-redux'
 
 // Decorators
@@ -41,12 +41,7 @@ interface StateProps {
   sortOptions: DashboardSortParams
 }
 
-interface OwnProps {
-  router: InjectedRouter
-  params: {orgID: string}
-}
-
-type Props = DispatchProps & StateProps & OwnProps
+type Props = DispatchProps & StateProps & RouteComponentProps<{orgID: string}>
 
 interface State {
   searchTerm: string
@@ -140,18 +135,22 @@ class DashboardIndex extends PureComponent<Props, State> {
 
   private summonImportOverlay = (): void => {
     const {
-      router,
-      params: {orgID},
+      history,
+      match: {
+        params: {orgID},
+      },
     } = this.props
-    router.push(`/orgs/${orgID}/dashboards/import`)
+    history.push(`/orgs/${orgID}/dashboards/import`)
   }
 
   private summonImportFromTemplateOverlay = (): void => {
     const {
-      router,
-      params: {orgID},
+      history,
+      match: {
+        params: {orgID},
+      },
     } = this.props
-    router.push(`/orgs/${orgID}/dashboards/import/template`)
+    history.push(`/orgs/${orgID}/dashboards/import/template`)
   }
 
   private get addResourceStatus(): ComponentStatus {
@@ -180,7 +179,4 @@ const mdtp: DispatchProps = {
   setDashboardSort,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
-  mstp,
-  mdtp
-)(DashboardIndex)
+export default connect<StateProps, DispatchProps>(mstp, mdtp)(DashboardIndex)

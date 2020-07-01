@@ -1,7 +1,7 @@
 // Libraries
 import {PureComponent} from 'react'
 import {connect} from 'react-redux'
-import {WithRouterProps} from 'react-router-dom'
+import {RouteComponentProps} from 'react-router-dom'
 
 // Types
 import {AppState, Organization, ResourceType} from 'src/types'
@@ -15,25 +15,25 @@ interface StateProps {
   org: {id?: string}
 }
 
-type Props = StateProps & WithRouterProps
+type Props = StateProps & RouteComponentProps
 
 class RouteToOrg extends PureComponent<Props> {
   public componentDidMount() {
-    const {orgs, router, org} = this.props
+    const {orgs, history, org} = this.props
 
     if (!orgs || !orgs.length) {
-      router.push(`/no-orgs`)
+      history.push(`/no-orgs`)
       return
     }
 
     // org from local storage
     if (org && org.id) {
-      router.push(`/orgs/${org.id}`)
+      history.push(`/orgs/${org.id}`)
       return
     }
 
     // else default to first org
-    router.push(`/orgs/${orgs[0].id}`)
+    history.push(`/orgs/${orgs[0].id}`)
   }
 
   render() {

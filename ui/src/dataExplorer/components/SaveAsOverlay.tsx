@@ -1,5 +1,5 @@
 import React, {PureComponent} from 'react'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Components
 import SaveAsCellForm from 'src/dataExplorer/components/SaveAsCellForm'
@@ -23,7 +23,7 @@ interface State {
   saveAsOption: SaveAsOption
 }
 
-class SaveAsOverlay extends PureComponent<WithRouterProps, State> {
+class SaveAsOverlay extends PureComponent<RouteComponentProps, State> {
   public state: State = {
     saveAsOption: SaveAsOption.Dashboard,
   }
@@ -85,7 +85,7 @@ class SaveAsOverlay extends PureComponent<WithRouterProps, State> {
   }
 
   private handleHideOverlay = () => {
-    this.props.router.goBack()
+    this.props.history.goBack()
   }
 
   private handleSetSaveAsOption = (saveAsOption: SaveAsOption) => {
@@ -93,4 +93,4 @@ class SaveAsOverlay extends PureComponent<WithRouterProps, State> {
   }
 }
 
-export default withRouter<{}, {}>(SaveAsOverlay)
+export default withRouter(SaveAsOverlay)

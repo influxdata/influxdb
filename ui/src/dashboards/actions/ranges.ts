@@ -104,7 +104,7 @@ export const updateQueryVars = varsObj => {
 }
 
 export const updateTimeRangeFromQueryParams = (dashboardID: string) => (
-  dispatch: Dispatch<Action | NotifyAction>,
+  dispatch: Dispatch<Action | NotifyAction | RouterAction>,
   getState
 ): void => {
   const {ranges} = getState()

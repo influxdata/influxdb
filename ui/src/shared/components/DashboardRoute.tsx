@@ -1,7 +1,7 @@
 import React, {PureComponent} from 'react'
 import qs from 'qs'
 import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 import {setDashboard} from 'src/shared/actions/currentDashboard'
 import {getVariables} from 'src/variables/selectors'
 import {selectValue} from 'src/variables/actions/thunks'
@@ -17,7 +17,9 @@ interface DispatchProps {
   selectValue: typeof selectValue
 }
 
-type Props = StateProps & DispatchProps & WithRouterProps
+type Props = StateProps &
+  DispatchProps &
+  RouteComponentProps<{orgID: string; dashboardID: string}>
 
 class DashboardRoute extends PureComponent<Props> {
   pendingVars: [{[key: string]: any}]
@@ -48,7 +50,7 @@ class DashboardRoute extends PureComponent<Props> {
 
   componentDidMount() {
     const {dashboard, updateDashboard, variables} = this.props
-    const dashboardID = this.props.params.dashboardID
+    const dashboardID = this.props.match.params.dashboardID
     const urlVars = qs.parse(this.props.location.search, {
       ignoreQueryPrefix: true,
     })
@@ -123,4 +125,4 @@ const mdtp: DispatchProps = {
 export default connect<StateProps, DispatchProps>(
   mstp,
   mdtp
-)(withRouter<{}>(DashboardRoute))
+)(withRouter(DashboardRoute))

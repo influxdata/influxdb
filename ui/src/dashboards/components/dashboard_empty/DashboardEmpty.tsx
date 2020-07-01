@@ -1,7 +1,7 @@
 // Libraries
 import React, {Component} from 'react'
 import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Components
 import {Button, EmptyState} from '@influxdata/clockface'
@@ -21,7 +21,7 @@ interface StateProps {
   dashboard: string
 }
 
-type Props = WithRouterProps & StateProps
+type Props = RouteComponentProps & StateProps
 
 @ErrorHandling
 class DashboardEmpty extends Component<Props> {
@@ -49,8 +49,8 @@ class DashboardEmpty extends Component<Props> {
   }
 
   private handleAdd = () => {
-    const {router, org, dashboard} = this.props
-    router.push(`/orgs/${org}/dashboards/${dashboard}/cells/new`)
+    const {history, org, dashboard} = this.props
+    history.push(`/orgs/${org}/dashboards/${dashboard}/cells/new`)
   }
 }
 
@@ -64,4 +64,4 @@ const mstp = (state: AppState): StateProps => {
 export default connect<StateProps, {}, {}>(
   mstp,
   null
-)(withRouter<{}>(DashboardEmpty))
+)(withRouter(DashboardEmpty))

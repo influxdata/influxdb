@@ -1,7 +1,7 @@
 // Libraries
 import React, {FunctionComponent, useEffect} from 'react'
 import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 import {get} from 'lodash'
 
 // Components
@@ -34,11 +34,13 @@ interface DispatchProps {
   setBucketAndKeys: typeof setBucketAndKeys
 }
 
-type Props = StateProps & WithRouterProps & DispatchProps
+type Props = StateProps & RouteComponentProps<{orgID: string}> & DispatchProps
 
 const DeleteDataOverlay: FunctionComponent<Props> = ({
-  router,
-  params: {orgID},
+  history,
+  match: {
+    params: {orgID},
+  },
   bucketNameFromDE,
   timeRangeFromDE,
   resetPredicateState,
@@ -59,7 +61,7 @@ const DeleteDataOverlay: FunctionComponent<Props> = ({
 
   const handleDismiss = () => {
     resetPredicateState()
-    router.push(`/orgs/${orgID}/data-explorer`)
+    history.push(`/orgs/${orgID}/data-explorer`)
   }
 
   return (
@@ -97,4 +99,4 @@ const mdtp: DispatchProps = {
 export default connect<StateProps, DispatchProps>(
   mstp,
   mdtp
-)(withRouter<Props>(DeleteDataOverlay))
+)(withRouter(DeleteDataOverlay))

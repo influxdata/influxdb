@@ -2,7 +2,7 @@
 import React, {PureComponent} from 'react'
 import Loadable from 'react-loadable'
 import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -90,7 +90,7 @@ interface StateProps {
 }
 
 type Props = StateProps & DispatchProps
-type AllProps = Props & WithRouterProps
+type AllProps = Props & RouteComponentProps<{orgID: string}>
 
 @ErrorHandling
 class CollectorsWizard extends PureComponent<AllProps> {
@@ -133,7 +133,7 @@ class CollectorsWizard extends PureComponent<AllProps> {
   }
 
   private handleDismiss = () => {
-    const {router, org} = this.props
+    const {history, org} = this.props
 
     if (isFlagEnabled('telegrafEditor')) {
       const {onClearTelegrafEditor} = this.props
@@ -143,7 +143,7 @@ class CollectorsWizard extends PureComponent<AllProps> {
       onClearDataLoaders()
       onClearSteps()
     }
-    router.push(`/orgs/${org.id}/load-data/telegrafs`)
+    history.push(`/orgs/${org.id}/load-data/telegrafs`)
   }
 
   private get stepProps(): CollectorsStepProps {
@@ -212,4 +212,4 @@ const mdtp: DispatchProps = {
 export default connect<StateProps, DispatchProps, {}>(
   mstp,
   mdtp
-)(withRouter<Props>(CollectorsWizard))
+)(withRouter(CollectorsWizard))

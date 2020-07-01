@@ -1,6 +1,6 @@
 // Libraries
 import React, {SFC, ReactChildren} from 'react'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 import {connect} from 'react-redux'
 import classnames from 'classnames'
 
@@ -24,7 +24,7 @@ interface OwnProps {
   children: ReactChildren
 }
 
-type Props = OwnProps & StateProps & WithRouterProps
+type Props = OwnProps & StateProps & RouteComponentProps
 
 const App: SFC<Props> = ({
   children,

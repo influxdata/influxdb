@@ -1,5 +1,5 @@
 import React, {Component} from 'react'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 import {connect} from 'react-redux'
 
 // Components
@@ -21,7 +21,7 @@ interface StateProps {
   org: Organization
 }
 
-type Props = WithRouterProps & StateProps
+type Props = RouteComponentProps<{orgID: string}> & StateProps
 
 @ErrorHandling
 class MembersIndex extends Component<Props> {
@@ -52,7 +52,7 @@ const mstp = (state: AppState, props: Props) => {
   const org = getByID<Organization>(
     state,
     ResourceType.Orgs,
-    props.params.orgID
+    props.match.params.orgID
   )
 
   return {
@@ -60,4 +60,4 @@ const mstp = (state: AppState, props: Props) => {
   }
 }
 
-export default connect<StateProps>(mstp, null)(withRouter<{}>(MembersIndex))
+export default connect<StateProps>(mstp, null)(withRouter(MembersIndex))

@@ -2,7 +2,7 @@
 import React, {PureComponent, MouseEvent} from 'react'
 import {connect} from 'react-redux'
 import {get, capitalize} from 'lodash'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 import {
   Button,
   ComponentSize,
@@ -56,7 +56,9 @@ interface StateProps {
 
 type Props = DispatchProps & OwnProps & StateProps
 
-class TemplateCard extends PureComponent<Props & WithRouterProps> {
+class TemplateCard extends PureComponent<
+  Props & RouteComponentProps<{orgID: string}>
+> {
   public render() {
     const {template, onFilterChange} = this.props
 
@@ -179,8 +181,8 @@ class TemplateCard extends PureComponent<Props & WithRouterProps> {
   }
 
   private handleViewTemplate = () => {
-    const {router, template, org} = this.props
-    router.push(`/orgs/${org.id}/settings/templates/${template.id}/view`)
+    const {history, template, org} = this.props
+    history.push(`/orgs/${org.id}/settings/templates/${template.id}/view`)
   }
 
   private handleAddLabel = (label: Label): void => {
@@ -214,4 +216,4 @@ const mdtp: DispatchProps = {
 export default connect<StateProps, DispatchProps, OwnProps>(
   mstp,
   mdtp
-)(withRouter<Props>(TemplateCard))
+)(withRouter(TemplateCard))

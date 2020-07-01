@@ -1,7 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Components
 import {IconFont, ComponentColor, ResourceCard} from '@influxdata/clockface'
@@ -45,7 +45,7 @@ interface DispatchProps {
   onResetViews: typeof resetViews
 }
 
-type Props = OwnProps & DispatchProps & WithRouterProps
+type Props = OwnProps & DispatchProps & RouteComponentProps<{orgID: string}>
 
 class DashboardCard extends PureComponent<Props> {
   public render() {
@@ -142,15 +142,17 @@ class DashboardCard extends PureComponent<Props> {
   private handleClickDashboard = e => {
     const {
       onResetViews,
-      router,
+      history,
       id,
-      params: {orgID},
+      match: {
+        params: {orgID},
+      },
     } = this.props
 
     if (e.metaKey) {
       window.open(`/orgs/${orgID}/dashboards/${id}`, '_blank')
     } else {
-      router.push(`/orgs/${orgID}/dashboards/${id}`)
+      history.push(`/orgs/${orgID}/dashboards/${id}`)
     }
 
     onResetViews()
@@ -176,12 +178,14 @@ class DashboardCard extends PureComponent<Props> {
 
   private handleExport = () => {
     const {
-      router,
-      params: {orgID},
+      history,
+      match: {
+        params: {orgID},
+      },
       id,
     } = this.props
 
-    router.push(`/orgs/${orgID}/dashboards/${id}/export`)
+    history.push(`/orgs/${orgID}/dashboards/${id}/export`)
   }
 }
 

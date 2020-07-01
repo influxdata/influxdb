@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 import memoizeOne from 'memoize-one'
 
 // Components
@@ -29,7 +29,9 @@ interface Props {
   sortType: SortTypes
 }
 
-class BucketList extends PureComponent<Props & WithRouterProps> {
+class BucketList extends PureComponent<
+  Props & RouteComponentProps<{orgID: string}>
+> {
   private memGetSortedResources = memoizeOne<typeof getSortedResources>(
     getSortedResources
   )
@@ -79,12 +81,12 @@ class BucketList extends PureComponent<Props & WithRouterProps> {
   }
 
   private handleStartDeleteData = (bucket: OwnBucket) => {
-    const {orgID} = this.props.params
+    const {orgID} = this.props.match.params
 
-    this.props.router.push(
+    this.props.history.push(
       `/orgs/${orgID}/load-data/buckets/${bucket.id}/delete-data`
     )
   }
 }
 
-export default withRouter<Props>(BucketList)
+export default withRouter(BucketList)

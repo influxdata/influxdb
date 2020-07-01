@@ -1,7 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Components
 import {Overlay} from '@influxdata/clockface'
@@ -60,7 +60,9 @@ interface StateProps {
 type Props = OwnProps & StateProps & DispatchProps
 
 @ErrorHandling
-class LineProtocolWizard extends PureComponent<Props & WithRouterProps> {
+class LineProtocolWizard extends PureComponent<
+  Props & RouteComponentProps<{orgID: string}>
+> {
   public componentDidMount() {
     this.handleSetBucketInfo()
     this.handleSetStartingValues()
@@ -105,11 +107,11 @@ class LineProtocolWizard extends PureComponent<Props & WithRouterProps> {
   }
 
   private handleDismiss = () => {
-    const {router, onClearDataLoaders, onClearSteps} = this.props
+    const {history, onClearDataLoaders, onClearSteps} = this.props
 
     onClearDataLoaders()
     onClearSteps()
-    router.goBack()
+    history.goBack()
   }
 
   private get stepProps(): LineProtocolStepProps {
@@ -161,4 +163,4 @@ const mdtp: DispatchProps = {
 export default connect<StateProps, DispatchProps, OwnProps>(
   mstp,
   mdtp
-)(withRouter<Props>(LineProtocolWizard))
+)(withRouter(LineProtocolWizard))

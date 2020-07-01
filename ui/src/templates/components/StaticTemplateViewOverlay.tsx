@@ -1,5 +1,5 @@
 import React, {PureComponent} from 'react'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 import _ from 'lodash'
 
 // Components
@@ -13,10 +13,10 @@ import {staticTemplates} from 'src/templates/constants/defaultTemplates'
 import {DashboardTemplate} from 'src/types'
 
 interface OwnProps {
-  params: {id: string}
+  match: {id: string}
 }
 
-type Props = OwnProps & WithRouterProps
+type Props = OwnProps & RouteComponentProps<{orgID: string; id: string}>
 
 @ErrorHandling
 class TemplateExportOverlay extends PureComponent<Props> {
@@ -33,7 +33,9 @@ class TemplateExportOverlay extends PureComponent<Props> {
 
   private get template(): DashboardTemplate {
     const {
-      params: {id},
+      match: {
+        params: {id},
+      },
     } = this.props
 
     return staticTemplates[id]
@@ -44,10 +46,10 @@ class TemplateExportOverlay extends PureComponent<Props> {
   }
 
   private onDismiss = () => {
-    const {router} = this.props
+    const {history} = this.props
 
-    router.goBack()
+    history.goBack()
   }
 }
 
-export default withRouter<Props>(TemplateExportOverlay)
+export default withRouter(TemplateExportOverlay)

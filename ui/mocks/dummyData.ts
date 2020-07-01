@@ -9,7 +9,7 @@ import {
   Label,
 } from 'src/types'
 import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
-import {WithRouterProps} from 'react-router-dom'
+import {RouteComponentProps} from 'react-router-dom'
 import {NumericColumnData} from '@influxdata/giraffe'
 import {
   Source,
@@ -297,11 +297,11 @@ export const defaultOnboardingStepProps: OnboardingStepProps = {
   onSetSubstepIndex: jest.fn(),
 }
 
-export const withRouterProps: WithRouterProps = {
-  params: {},
+export const withRouterProps: RouteComponentProps = {
+  match: {},
   location: null,
   routes: null,
-  router: null,
+  history: null,
 }
 
 export const token =

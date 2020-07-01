@@ -1,7 +1,7 @@
 // Libraries
 import {normalize} from 'normalizr'
 import {Dispatch} from 'react'
-import {push} from 'react-router-redux'
+import {push} from 'connected-react-router'
 
 // APIs
 import * as dashAPI from 'src/dashboards/apis'

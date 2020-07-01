@@ -1,7 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {withRouter, WithRouterProps} from 'react-router-dom'
-import _ from 'lodash'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Apis
 import {runQuery} from 'src/shared/apis/query'
@@ -33,13 +32,7 @@ const FETCH_WAIT = 5000
 const SECONDS = 60
 const TIMER_WAIT = 1000
 
-interface ExtendedRouterProps extends WithRouterProps {
-  params: {
-    orgID: string
-  }
-}
-
-type Props = ExtendedRouterProps & OwnProps
+type Props = RouteComponentProps<{orgID: string}> & OwnProps
 
 @ErrorHandling
 class DataListening extends PureComponent<Props, State> {
@@ -120,7 +113,9 @@ class DataListening extends PureComponent<Props, State> {
   private checkForData = async (): Promise<void> => {
     const {
       bucket,
-      params: {orgID},
+      match: {
+        params: {orgID},
+      },
     } = this.props
     const {secondsLeft} = this.state
     const script = `from(bucket: "${bucket}")

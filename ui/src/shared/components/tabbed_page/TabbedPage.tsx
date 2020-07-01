@@ -1,6 +1,6 @@
 // Libraries
 import React, {Component, ReactElement, ReactNode} from 'react'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Components
 import TabbedPageSection from 'src/shared/components/tabbed_page/TabbedPageSection'
@@ -18,7 +18,7 @@ interface OwnProps {
   parentUrl: string
 }
 
-type Props = OwnProps & WithRouterProps
+type Props = OwnProps & RouteComponentProps<{orgID: string}>
 
 @ErrorHandling
 class TabbedPage extends Component<Props> {
@@ -83,8 +83,8 @@ class TabbedPage extends Component<Props> {
   }
 
   public handleTabClick = (url: string) => (): void => {
-    const {router, parentUrl} = this.props
-    router.push(`${parentUrl}/${url}/`)
+    const {history, parentUrl} = this.props
+    history.push(`${parentUrl}/${url}/`)
   }
 
   private validateChildTypes = (): void => {
@@ -100,4 +100,4 @@ class TabbedPage extends Component<Props> {
   }
 }
 
-export default withRouter<OwnProps>(TabbedPage)
+export default withRouter(TabbedPage)

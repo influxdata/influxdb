@@ -2,7 +2,7 @@
 import React, {PureComponent, ChangeEvent, FormEvent} from 'react'
 import {get} from 'lodash'
 import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Components
 import {Overlay} from '@influxdata/clockface'
@@ -30,7 +30,10 @@ interface DispatchProps {
   onCreateScraper: typeof createScraper
 }
 
-type Props = OwnProps & StateProps & DispatchProps & WithRouterProps
+type Props = OwnProps &
+  StateProps &
+  DispatchProps &
+  RouteComponentProps<{orgID: string; bucketID: string}>
 
 interface State {
   scraper: ScraperTargetRequest
@@ -41,7 +44,9 @@ class CreateScraperOverlay extends PureComponent<Props, State> {
     super(props)
 
     const {
-      params: {bucketID, orgID},
+      match: {
+        params: {bucketID, orgID},
+      },
       buckets,
     } = this.props
 
@@ -118,7 +123,7 @@ class CreateScraperOverlay extends PureComponent<Props, State> {
   }
 
   private onDismiss = (): void => {
-    this.props.router.goBack()
+    this.props.history.goBack()
   }
 }
 
@@ -133,4 +138,4 @@ const mdtp: DispatchProps = {
 export default connect<StateProps, DispatchProps, OwnProps>(
   mstp,
   mdtp
-)(withRouter<StateProps & DispatchProps & OwnProps>(CreateScraperOverlay))
+)(withRouter(CreateScraperOverlay))

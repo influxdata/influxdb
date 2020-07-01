@@ -1,7 +1,7 @@
 // Libraries
 import React, {FunctionComponent, useEffect} from 'react'
 import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Components
 import {Overlay, SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
@@ -36,13 +36,15 @@ interface StateProps {
   status: RemoteDataState
 }
 
-type Props = DispatchProps & StateProps & WithRouterProps
+type Props = DispatchProps & StateProps & RouteComponentProps<{orgID: string}>
 
 const NewCheckOverlay: FunctionComponent<Props> = ({
-  params: {orgID},
+  match: {
+    params: {orgID},
+  },
   status,
   checkName,
-  router,
+  history,
   onSaveCheckFromTimeMachine,
   onSetActiveTimeMachine,
   onResetAlertBuilder,
@@ -58,7 +60,7 @@ const NewCheckOverlay: FunctionComponent<Props> = ({
   }, [])
 
   const handleClose = () => {
-    router.push(`/orgs/${orgID}/alerting`)
+    history.push(`/orgs/${orgID}/alerting`)
     onResetAlertBuilder()
   }
 

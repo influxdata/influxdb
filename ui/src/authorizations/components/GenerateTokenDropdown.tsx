@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Components
 import {Dropdown} from '@influxdata/clockface'
@@ -8,7 +8,7 @@ import {Dropdown} from '@influxdata/clockface'
 // Types
 import {IconFont, ComponentColor} from '@influxdata/clockface'
 
-type Props = WithRouterProps
+type Props = RouteComponentProps<{orgID: string}>
 
 class GenerateTokenDropdown extends PureComponent<Props> {
   public render() {
@@ -77,21 +77,25 @@ class GenerateTokenDropdown extends PureComponent<Props> {
 
   private handleAllAccess = () => {
     const {
-      router,
-      params: {orgID},
+      history,
+      match: {
+        params: {orgID},
+      },
     } = this.props
 
-    router.push(`/orgs/${orgID}/load-data/tokens/generate/all-access`)
+    history.push(`/orgs/${orgID}/load-data/tokens/generate/all-access`)
   }
 
   private handleReadWrite = () => {
     const {
-      router,
-      params: {orgID},
+      history,
+      match: {
+        params: {orgID},
+      },
     } = this.props
 
-    router.push(`/orgs/${orgID}/load-data/tokens/generate/buckets`)
+    history.push(`/orgs/${orgID}/load-data/tokens/generate/buckets`)
   }
 }
 
-export default withRouter<{}>(GenerateTokenDropdown)
+export default withRouter(GenerateTokenDropdown)

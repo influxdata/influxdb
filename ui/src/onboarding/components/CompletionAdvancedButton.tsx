@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 import {connect} from 'react-redux'
 
 // Components
@@ -18,7 +18,7 @@ interface StateProps {
   orgID: string | null
 }
 
-type Props = OwnProps & StateProps & WithRouterProps
+type Props = OwnProps & StateProps & RouteComponentProps<{orgID: string}>
 
 @ErrorHandling
 class CompletionAdvancedButton extends PureComponent<Props> {
@@ -35,10 +35,10 @@ class CompletionAdvancedButton extends PureComponent<Props> {
   }
 
   private handleAdvanced = (): void => {
-    const {router, orgID, onExit} = this.props
+    const {history, orgID, onExit} = this.props
 
     if (orgID) {
-      router.push(`/orgs/${orgID}/load-data/buckets`)
+      history.push(`/orgs/${orgID}/load-data/buckets`)
     } else {
       onExit()
     }
@@ -51,5 +51,5 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 export default connect<StateProps, {}>(mstp)(
-  withRouter<OwnProps>(CompletionAdvancedButton)
+  withRouter(CompletionAdvancedButton)
 )

@@ -1,7 +1,7 @@
 // Libraries
 import React, {FC} from 'react'
 import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Components
 import {Button, IconFont, ComponentColor} from '@influxdata/clockface'
@@ -16,12 +16,12 @@ interface StateProps {
   endpoints: NotificationEndpoint[]
 }
 type OwnProps = {}
-type Props = OwnProps & WithRouterProps & StateProps
+type Props = OwnProps & RouteComponentProps<{orgID: string}> & StateProps
 
-const EndpointsColumn: FC<Props> = ({router, params, endpoints}) => {
+const EndpointsColumn: FC<Props> = ({history, match, endpoints}) => {
   const handleOpenOverlay = () => {
-    const newRuleRoute = `/orgs/${params.orgID}/alerting/endpoints/new`
-    router.push(newRuleRoute)
+    const newRuleRoute = `/orgs/${match.params.orgID}/alerting/endpoints/new`
+    history.push(newRuleRoute)
   }
 
   const tooltipContents = (
@@ -75,4 +75,4 @@ const mstp = (state: AppState) => {
   return {endpoints}
 }
 
-export default connect<StateProps>(mstp)(withRouter<OwnProps>(EndpointsColumn))
+export default connect<StateProps>(mstp)(withRouter(EndpointsColumn))

@@ -1,5 +1,5 @@
 import React, {PureComponent} from 'react'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 import {connect} from 'react-redux'
 
 // Components
@@ -36,11 +36,9 @@ interface StateProps {
   resourceCount: number
 }
 
-interface OwnProps extends WithRouterProps {
-  params: {orgID: string; templateName: string}
-}
-
-type Props = DispatchProps & OwnProps & StateProps
+type Props = DispatchProps &
+  RouteComponentProps<{orgID: string; templateName: string}> &
+  StateProps
 
 class UnconnectedTemplateImportOverlay extends PureComponent<Props> {
   public state: State = {
@@ -65,9 +63,9 @@ class UnconnectedTemplateImportOverlay extends PureComponent<Props> {
   }
 
   private onDismiss = () => {
-    const {router} = this.props
+    const {history} = this.props
 
-    router.goBack()
+    history.goBack()
   }
 
   private updateOverlayStatus = (status: ComponentStatus) =>
@@ -82,12 +80,12 @@ const mstp = (state: AppState, props: Props): StateProps => {
   const org = getByID<Organization>(
     state,
     ResourceType.Orgs,
-    props.params.orgID
+    props.match.params.orgID
   )
 
   return {
     org,
-    templateName: props.params.templateName,
+    templateName: props.match.params.templateName,
     flags: state.flags.original,
     resourceCount: getTotalResourceCount(state),
   }

@@ -2,7 +2,7 @@
 import _ from 'lodash'
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Components
 import {
@@ -58,7 +58,7 @@ interface DispatchProps {
   onDeleteTelegraf: typeof deleteTelegraf
 }
 
-type Props = DispatchProps & StateProps & WithRouterProps
+type Props = DispatchProps & StateProps & RouteComponentProps<{orgID: string}>
 
 interface State {
   dataLoaderOverlay: OverlayState
@@ -206,20 +206,24 @@ class Collectors extends PureComponent<Props, State> {
 
   private handleAddCollector = () => {
     const {
-      router,
-      params: {orgID},
+      history,
+      match: {
+        params: {orgID},
+      },
     } = this.props
 
-    router.push(`/orgs/${orgID}/load-data/telegrafs/new`)
+    history.push(`/orgs/${orgID}/load-data/telegrafs/new`)
   }
 
   private handleJustTheOutput = () => {
     const {
-      router,
-      params: {orgID},
+      history,
+      match: {
+        params: {orgID},
+      },
     } = this.props
 
-    router.push(`/orgs/${orgID}/load-data/telegrafs/output`)
+    history.push(`/orgs/${orgID}/load-data/telegrafs/output`)
   }
 
   private get emptyState(): JSX.Element {
@@ -286,4 +290,4 @@ const mdtp: DispatchProps = {
 export default connect<StateProps, DispatchProps>(
   mstp,
   mdtp
-)(withRouter<StateProps & DispatchProps>(Collectors))
+)(withRouter(Collectors))

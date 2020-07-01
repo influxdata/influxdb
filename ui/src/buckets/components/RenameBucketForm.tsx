@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 import {connect} from 'react-redux'
 
 // Components
@@ -39,7 +39,9 @@ interface DispatchProps {
   onRenameBucket: typeof renameBucket
 }
 
-type Props = StateProps & DispatchProps & WithRouterProps
+type Props = StateProps &
+  DispatchProps &
+  RouteComponentProps<{bucketID: string; orgID: string}>
 
 class RenameBucketForm extends PureComponent<Props, State> {
   public state = {bucket: this.props.startBucket}
@@ -133,19 +135,14 @@ class RenameBucketForm extends PureComponent<Props, State> {
   }
 
   private handleClose = () => {
-    const {
-      router,
-      params: {orgID},
-    } = this.props
+    const {history, match} = this.props
 
-    router.push(`/orgs/${orgID}/load-data/buckets`)
+    history.push(`/orgs/${match.params.orgID}/load-data/buckets`)
   }
 }
 
 const mstp = (state: AppState, props: Props): StateProps => {
-  const {
-    params: {bucketID},
-  } = props
+  const {bucketID} = props.match.params
 
   const startBucket = getByID<OwnBucket>(state, ResourceType.Buckets, bucketID)
   const buckets = getAll<Bucket>(state, ResourceType.Buckets).filter(

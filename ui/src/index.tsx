@@ -16,7 +16,8 @@ import {getBrowserBasepath} from 'src/utils/basepath'
 import {updateReportingContext} from 'src/cloud/utils/reporting'
 
 // Components
-import App from 'src/App'
+import Setup from 'src/Setup'
+// import App from 'src/App'
 // import GetOrganizations from 'src/shared/containers/GetOrganizations'
 // import SigninPage from 'src/onboarding/containers/SigninPage'
 // import {LoginPage} from 'src/onboarding/containers/LoginPage'
@@ -39,7 +40,6 @@ import NotFound from 'src/shared/components/NotFound'
 import GetLinks from 'src/shared/containers/GetLinks'
 // import GetMe from 'src/shared/containers/GetMe'
 // import GetFlags from 'src/shared/containers/GetFlags'
-import UnauthenticatedApp from 'src/shared/containers/UnauthenticatedApp'
 // import TaskExportOverlay from 'src/tasks/components/TaskExportOverlay'
 // import TaskImportOverlay from 'src/tasks/components/TaskImportOverlay'
 // import EditVEO from 'src/dashboards/components/EditVEO'
@@ -104,46 +104,50 @@ import UnauthenticatedApp from 'src/shared/containers/UnauthenticatedApp'
 // import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 import {writeNavigationTimingMetrics} from 'src/cloud/utils/rum'
 
-// // Overlays
+// Overlays
 // import OverlayHandler, {
 //   RouteOverlay,
 // } from 'src/overlays/components/RouteOverlay'
-// const AddNoteOverlay = RouteOverlay(OverlayHandler, 'add-note', router => {
-//   router.push(
-//     `/orgs/${router.params.orgID}/dashboards/${router.params.dashboardID}`
-//   )
-// })
-// const EditNoteOverlay = RouteOverlay(OverlayHandler, 'edit-note', router => {
-//   router.push(
-//     `/orgs/${router.params.orgID}/dashboards/${router.params.dashboardID}`
-//   )
-// })
+// const AddNoteOverlay = RouteOverlay(
+//   OverlayHandler,
+//   'add-note',
+//   (history, params) => {
+//     history.push(`/orgs/${params.orgID}/dashboards/${params.dashboardID}`)
+//   }
+// )
+// const EditNoteOverlay = RouteOverlay(
+//   OverlayHandler,
+//   'edit-note',
+//   (history, params) => {
+//     history.push(`/orgs/${params.orgID}/dashboards/${params.dashboardID}`)
+//   }
+// )
 // const AllAccessTokenOverlay = RouteOverlay(
 //   OverlayHandler,
 //   'add-master-token',
-//   router => {
-//     router.push(`/orgs/${router.params.orgID}/load-data/tokens`)
+//   (history, params) => {
+//     history.push(`/orgs/${params.orgID}/load-data/tokens`)
 //   }
 // )
 // const BucketsTokenOverlay = RouteOverlay(
 //   OverlayHandler,
 //   'add-token',
-//   router => {
-//     router.push(`/orgs/${router.params.orgID}/load-data/tokens`)
+//   (history, params) => {
+//     history.push(`/orgs/${params.orgID}/load-data/tokens`)
 //   }
 // )
 // const TelegrafConfigOverlay = RouteOverlay(
 //   OverlayHandler,
 //   'telegraf-config',
-//   router => {
-//     router.push(`/orgs/${router.params.orgID}/load-data/telegrafs`)
+//   (history, params) => {
+//     history.push(`/orgs/${params.orgID}/load-data/telegrafs`)
 //   }
 // )
 // const TelegrafOutputOverlay = RouteOverlay(
 //   OverlayHandler,
 //   'telegraf-output',
-//   router => {
-//     router.push(`/orgs/${router.params.orgID}/load-data/telegrafs`)
+//   (history, params) => {
+//     history.push(`/orgs/${params.orgID}/load-data/telegrafs`)
 //   }
 // )
 
@@ -202,7 +206,7 @@ class Root extends PureComponent {
       <Provider store={store}>
         <ConnectedRouter history={history}>
           <Route component={GetLinks} />
-          <Route component={UnauthenticatedApp} />
+          <Route component={Setup} />
           {/*<Route component={Setup}>
               <Route path="/onboarding">
                 <Route path=":stepID" component={OnboardingWizardPage} />
@@ -515,7 +519,7 @@ class Root extends PureComponent {
                 </Route>
               </Route>
                             </Route> */}
-          <Route path="*" component={NotFound} />
+          <Route component={NotFound} />
         </ConnectedRouter>
       </Provider>
     )

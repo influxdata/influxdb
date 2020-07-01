@@ -1,6 +1,6 @@
 // Libraries
 import React, {ReactElement, PureComponent} from 'react'
-import {InjectedRouter} from 'react-router-dom'
+import {Route, RouteComponentProps} from 'react-router-dom'
 
 // APIs
 import {client} from 'src/utils/api'
@@ -8,6 +8,8 @@ import {client} from 'src/utils/api'
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
+import OnboardingWizardPage from 'src/onboarding/containers/OnboardingWizardPage'
+import UnauthenticatedApp from 'src/shared/containers/UnauthenticatedApp'
 
 // Utils
 import {isOnboardingURL} from 'src/onboarding/utils'
@@ -20,10 +22,11 @@ interface State {
   isSetupComplete: boolean
 }
 
-interface Props {
-  router: InjectedRouter
+interface OwnProps {
   children: ReactElement<any>
 }
+
+type Props = RouteComponentProps & OwnProps
 
 @ErrorHandling
 export class Setup extends PureComponent<Props, State> {
@@ -37,7 +40,7 @@ export class Setup extends PureComponent<Props, State> {
   }
 
   public async componentDidMount() {
-    const {router} = this.props
+    const {history} = this.props
 
     if (isOnboardingURL()) {
       this.setState({
@@ -55,7 +58,7 @@ export class Setup extends PureComponent<Props, State> {
       return
     }
 
-    router.push('/onboarding/0')
+    history.push('/onboarding/0')
   }
 
   public render() {
@@ -63,7 +66,12 @@ export class Setup extends PureComponent<Props, State> {
 
     return (
       <SpinnerContainer loading={loading} spinnerComponent={<TechnoSpinner />}>
-        {this.props.children && React.cloneElement(this.props.children)}
+        <Route path="/onboarding/:stepID" component={OnboardingWizardPage} />
+        <Route
+          path="/onboarding/:stepID/:substepID"
+          component={OnboardingWizardPage}
+        />
+        <Route component={UnauthenticatedApp} />
       </SpinnerContainer>
     )
   }

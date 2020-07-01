@@ -1,11 +1,11 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Components
 import {IconFont, Button, ComponentColor} from '@influxdata/clockface'
 
-class SaveAsButton extends PureComponent<WithRouterProps, {}> {
+class SaveAsButton extends PureComponent<RouteComponentProps, {}> {
   public render() {
     return (
       <>
@@ -26,8 +26,8 @@ class SaveAsButton extends PureComponent<WithRouterProps, {}> {
       location: {pathname},
     } = this.props
 
-    this.props.router.push(`${pathname}/save`)
+    this.props.history.push(`${pathname}/save`)
   }
 }
 
-export default withRouter<{}, {}>(SaveAsButton)
+export default withRouter(SaveAsButton)

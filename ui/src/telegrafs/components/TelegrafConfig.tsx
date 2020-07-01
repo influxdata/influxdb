@@ -1,7 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -26,10 +26,14 @@ interface StateProps {
 type Props = StateProps & DispatchProps
 
 @ErrorHandling
-export class TelegrafConfig extends PureComponent<Props & WithRouterProps> {
+export class TelegrafConfig extends PureComponent<
+  Props & RouteComponentProps<{orgID: string; id: string}>
+> {
   public componentDidMount() {
     const {
-      params: {id},
+      match: {
+        params: {id},
+      },
       getTelegrafConfigToml,
     } = this.props
     getTelegrafConfigToml(id)
@@ -57,4 +61,4 @@ const mdtp: DispatchProps = {
 export default connect<StateProps, DispatchProps, {}>(
   mstp,
   mdtp
-)(withRouter<Props>(TelegrafConfig))
+)(withRouter(TelegrafConfig))

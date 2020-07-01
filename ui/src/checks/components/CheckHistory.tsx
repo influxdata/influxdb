@@ -27,10 +27,7 @@ import {getTimeZone} from 'src/dashboards/selectors'
 import {ResourceIDs} from 'src/checks/reducers'
 import {AppState, Check, TimeZone, ResourceType} from 'src/types'
 import {getByID} from 'src/resources/selectors'
-
-interface OwnProps {
-  params: {orgID: string; checkID: string}
-}
+import {RouteComponentProps} from 'react-router-dom'
 
 interface StateProps {
   check: Check
@@ -38,10 +35,12 @@ interface StateProps {
   resourceIDs: ResourceIDs
 }
 
-type Props = OwnProps & StateProps
+type Props = RouteComponentProps<{orgID: string; checkID: string}> & StateProps
 
 const CheckHistory: FC<Props> = ({
-  params: {orgID},
+  match: {
+    params: {orgID},
+  },
   check,
   timeZone,
   resourceIDs,
@@ -101,10 +100,14 @@ const CheckHistory: FC<Props> = ({
   )
 }
 
-const mstp = (state: AppState, props: OwnProps) => {
+const mstp = (state: AppState, props: Props) => {
   const timeZone = getTimeZone(state)
   const checkIDs = getCheckIDs(state)
-  const check = getByID<Check>(state, ResourceType.Checks, props.params.checkID)
+  const check = getByID<Check>(
+    state,
+    ResourceType.Checks,
+    props.match.params.checkID
+  )
 
   const resourceIDs = {
     checkIDs,

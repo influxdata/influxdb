@@ -1,6 +1,6 @@
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Components
 import ExportOverlay from 'src/shared/components/ExportOverlay'
@@ -20,7 +20,7 @@ import {
 } from 'src/shared/copy/notifications'
 
 interface OwnProps {
-  params: {dashboardID: string}
+  match: {dashboardID: string}
 }
 
 interface DispatchProps {
@@ -33,12 +33,15 @@ interface StateProps {
   status: RemoteDataState
 }
 
-type Props = OwnProps & StateProps & DispatchProps & WithRouterProps
+type Props = OwnProps &
+  StateProps &
+  DispatchProps &
+  RouteComponentProps<{orgID: string}>
 
 class DashboardExportOverlay extends PureComponent<Props> {
   public componentDidMount() {
     const {
-      params: {dashboardID},
+      match: {dashboardID},
       convertToTemplate,
     } = this.props
 
@@ -68,9 +71,9 @@ class DashboardExportOverlay extends PureComponent<Props> {
   }
 
   private onDismiss = () => {
-    const {router, clearExportTemplate} = this.props
+    const {history, clearExportTemplate} = this.props
 
-    router.goBack()
+    history.goBack()
     clearExportTemplate()
   }
 }
@@ -88,4 +91,4 @@ const mdtp: DispatchProps = {
 export default connect<StateProps, DispatchProps, OwnProps>(
   mstp,
   mdtp
-)(withRouter<Props>(DashboardExportOverlay))
+)(withRouter(DashboardExportOverlay))

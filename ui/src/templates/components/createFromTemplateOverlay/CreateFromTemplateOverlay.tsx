@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 import {connect} from 'react-redux'
 import {sortBy} from 'lodash'
 
@@ -56,7 +56,7 @@ interface State {
 type Props = DispatchProps & StateProps
 
 class DashboardImportFromTemplateOverlay extends PureComponent<
-  Props & WithRouterProps,
+  Props & RouteComponentProps<{orgID: string}>,
   State
 > {
   constructor(props) {
@@ -176,8 +176,8 @@ class DashboardImportFromTemplateOverlay extends PureComponent<
   }
 
   private onDismiss = () => {
-    const {router} = this.props
-    router.goBack()
+    const {history} = this.props
+    history.goBack()
   }
 
   private onSubmit = () => {

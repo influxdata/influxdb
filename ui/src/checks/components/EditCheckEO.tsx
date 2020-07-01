@@ -1,6 +1,6 @@
 // Libraries
 import React, {FunctionComponent, useEffect} from 'react'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 import {connect} from 'react-redux'
 import {get} from 'lodash'
 
@@ -39,7 +39,9 @@ interface StateProps {
   checkName: string
 }
 
-type Props = WithRouterProps & DispatchProps & StateProps
+type Props = RouteComponentProps<{orgID: string; checkID: string}> &
+  DispatchProps &
+  StateProps
 
 const EditCheckEditorOverlay: FunctionComponent<Props> = ({
   onUpdateAlertBuilderName,
@@ -49,8 +51,10 @@ const EditCheckEditorOverlay: FunctionComponent<Props> = ({
   onGetCheckForTimeMachine,
   activeTimeMachineID,
   status,
-  router,
-  params: {checkID, orgID},
+  history,
+  match: {
+    params: {checkID, orgID},
+  },
   checkName,
   loadedCheckID,
   view,
@@ -64,7 +68,7 @@ const EditCheckEditorOverlay: FunctionComponent<Props> = ({
   }, [get(view, 'properties.queries[0]', null)])
 
   const handleClose = () => {
-    router.push(`/orgs/${orgID}/alerting`)
+    history.push(`/orgs/${orgID}/alerting`)
     onResetAlertBuilder()
   }
 

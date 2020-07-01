@@ -3,7 +3,7 @@ import React, {PureComponent} from 'react'
 // Libraries
 import {isEmpty} from 'lodash'
 import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Components
 import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'
@@ -44,7 +44,10 @@ type SortKey = keyof Member
 
 const FilterMembers = FilterList<Member>()
 
-class Members extends PureComponent<Props & WithRouterProps, State> {
+class Members extends PureComponent<
+  Props & RouteComponentProps<{orgID: string}>,
+  State
+> {
   constructor(props) {
     super(props)
     this.state = {
@@ -136,4 +139,4 @@ const mdtp: DispatchProps = {
 export default connect<StateProps, DispatchProps, {}>(
   mstp,
   mdtp
-)(withRouter<Props>(Members))
+)(withRouter(Members))

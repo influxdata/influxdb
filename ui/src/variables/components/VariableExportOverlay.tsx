@@ -1,5 +1,5 @@
 import React, {PureComponent} from 'react'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 import {connect} from 'react-redux'
 
 // Components
@@ -15,7 +15,7 @@ import {DocumentCreate} from '@influxdata/influx'
 import {RemoteDataState} from 'src/types'
 
 interface OwnProps {
-  params: {id: string}
+  match: {id: string}
 }
 
 interface DispatchProps {
@@ -28,12 +28,17 @@ interface StateProps {
   status: RemoteDataState
 }
 
-type Props = OwnProps & StateProps & DispatchProps & WithRouterProps
+type Props = OwnProps &
+  StateProps &
+  DispatchProps &
+  RouteComponentProps<{orgID: string; id: string}>
 
 class VariableExportOverlay extends PureComponent<Props> {
   public componentDidMount() {
     const {
-      params: {id},
+      match: {
+        params: {id},
+      },
       convertToTemplate,
     } = this.props
 
@@ -54,9 +59,9 @@ class VariableExportOverlay extends PureComponent<Props> {
   }
 
   private onDismiss = () => {
-    const {router, clearExportTemplate} = this.props
+    const {history, clearExportTemplate} = this.props
 
-    router.goBack()
+    history.goBack()
     clearExportTemplate()
   }
 }
@@ -74,4 +79,4 @@ const mdtp: DispatchProps = {
 export default connect<StateProps, DispatchProps, OwnProps>(
   mstp,
   mdtp
-)(withRouter<Props>(VariableExportOverlay))
+)(withRouter(VariableExportOverlay))

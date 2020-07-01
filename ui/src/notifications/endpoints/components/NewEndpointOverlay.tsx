@@ -1,7 +1,7 @@
 // Libraries
 import React, {FC, useMemo} from 'react'
 import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Actions
 import {createEndpoint} from 'src/notifications/endpoints/actions/thunks'
@@ -19,12 +19,13 @@ interface DispatchProps {
   onCreateEndpoint: typeof createEndpoint
 }
 
-type Props = WithRouterProps & DispatchProps
+type Props = RouteComponentProps<{orgID: string}> & DispatchProps
 
-const NewRuleOverlay: FC<Props> = ({params, router, onCreateEndpoint}) => {
-  const {orgID} = params
+const NewRuleOverlay: FC<Props> = ({match, history, onCreateEndpoint}) => {
+  const {orgID} = match.params
+
   const handleDismiss = () => {
-    router.push(`/orgs/${params.orgID}/alerting`)
+    history.push(`/orgs/${orgID}/alerting`)
   }
 
   const handleCreateEndpoint = (endpoint: NotificationEndpoint) => {
@@ -60,4 +61,4 @@ const mdtp = {
 export default connect<null, DispatchProps>(
   null,
   mdtp
-)(withRouter<Props>(NewRuleOverlay))
+)(withRouter(NewRuleOverlay))

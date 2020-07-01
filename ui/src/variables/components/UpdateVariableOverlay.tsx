@@ -2,7 +2,7 @@
 import React, {PureComponent, FormEvent} from 'react'
 import _ from 'lodash'
 import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Components
 import {
@@ -48,7 +48,9 @@ interface DispatchProps {
   onUpdateVariable: typeof updateVariable
 }
 
-type Props = StateProps & DispatchProps & WithRouterProps
+type Props = StateProps &
+  DispatchProps &
+  RouteComponentProps<{orgID: string; id: string}>
 
 class UpdateVariableOverlay extends PureComponent<Props, State> {
   public state: State = {
@@ -250,18 +252,15 @@ class UpdateVariableOverlay extends PureComponent<Props, State> {
   }
 
   private handleClose = () => {
-    const {
-      router,
-      params: {orgID},
-    } = this.props
+    const {history, match} = this.props
 
-    router.push(`/orgs/${orgID}/settings/variables`)
+    history.push(`/orgs/${match.params.orgID}/settings/variables`)
   }
 }
 
-const mstp = (state: AppState, {params: {id}}: Props): StateProps => {
+const mstp = (state: AppState, {match}: Props): StateProps => {
   const variables = getVariables(state)
-  const startVariable = variables.find(v => v.id === id)
+  const startVariable = variables.find(v => v.id === match.params.id)
 
   return {variables, startVariable}
 }

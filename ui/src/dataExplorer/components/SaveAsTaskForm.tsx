@@ -1,7 +1,7 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
 import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Components
 import TaskForm from 'src/tasks/components/TaskForm'
@@ -54,7 +54,9 @@ interface StateProps {
 
 type Props = StateProps & OwnProps & DispatchProps
 
-class SaveAsTaskForm extends PureComponent<Props & WithRouterProps> {
+class SaveAsTaskForm extends PureComponent<
+  Props & RouteComponentProps<{orgID: string}>
+> {
   public componentDidMount() {
     const {setTaskOption, setNewScript} = this.props
 

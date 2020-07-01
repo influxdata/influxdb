@@ -1,6 +1,6 @@
 // Libraries
 import React, {FunctionComponent} from 'react'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 import {connect} from 'react-redux'
 
 // Selectors
@@ -29,21 +29,23 @@ interface StateProps {
   endpoints: NotificationEndpoint[]
 }
 
-type Props = StateProps & WithRouterProps
+type Props = StateProps & RouteComponentProps<{orgID: string}>
 
 const ChecksColumn: FunctionComponent<Props> = ({
   checks,
-  router,
-  params: {orgID},
+  history,
+  match: {
+    params: {orgID},
+  },
   rules,
   endpoints,
 }) => {
   const handleCreateThreshold = () => {
-    router.push(`/orgs/${orgID}/alerting/checks/new-threshold`)
+    history.push(`/orgs/${orgID}/alerting/checks/new-threshold`)
   }
 
   const handleCreateDeadman = () => {
-    router.push(`/orgs/${orgID}/alerting/checks/new-deadman`)
+    history.push(`/orgs/${orgID}/alerting/checks/new-deadman`)
   }
 
   const tooltipContents = (

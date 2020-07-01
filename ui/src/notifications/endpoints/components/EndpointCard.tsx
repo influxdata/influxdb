@@ -1,6 +1,6 @@
 // Libraries
-import React, {FC, Dispatch} from 'react'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import React, {FC} from 'react'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 import {connect} from 'react-redux'
 
 // Actions
@@ -32,7 +32,6 @@ import {
 
 // Types
 import {NotificationEndpoint, Label, AlertHistoryType} from 'src/types'
-import {Action} from 'src/notifications/endpoints/actions/creators'
 
 // Utilities
 import {relativeTimestampFormatter} from 'src/shared/utils/relativeTimestampFormatter'
@@ -49,15 +48,13 @@ interface OwnProps {
   endpoint: NotificationEndpoint
 }
 
-interface DispatchProp {
-  dispatch: Dispatch<Action>
-}
-
-type Props = OwnProps & WithRouterProps & DispatchProps & DispatchProp
+type Props = OwnProps & RouteComponentProps<{orgID: string}> & DispatchProps
 
 const EndpointCard: FC<Props> = ({
-  router,
-  params: {orgID},
+  history,
+  match: {
+    params: {orgID},
+  },
   endpoint,
   onUpdateEndpointProperties,
   onCloneEndpoint,
@@ -72,7 +69,7 @@ const EndpointCard: FC<Props> = ({
   }
 
   const handleClick = () => {
-    router.push(`orgs/${orgID}/alerting/endpoints/${id}/edit`)
+    history.push(`orgs/${orgID}/alerting/endpoints/${id}/edit`)
   }
 
   const handleToggle = () => {
@@ -88,7 +85,7 @@ const EndpointCard: FC<Props> = ({
       [SEARCH_QUERY_PARAM]: `"notificationEndpointID" == "${id}"`,
     })
 
-    router.push(`/orgs/${orgID}/alert-history?${queryParams}`)
+    history.push(`/orgs/${orgID}/alert-history?${queryParams}`)
   }
   const handleDelete = () => {
     onDeleteEndpoint(id)
@@ -175,4 +172,4 @@ const mdtp: DispatchProps = {
 export default connect<{}, DispatchProps, {}>(
   null,
   mdtp
-)(withRouter<OwnProps>(EndpointCard))
+)(withRouter(EndpointCard))

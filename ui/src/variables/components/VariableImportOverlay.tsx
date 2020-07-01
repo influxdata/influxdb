@@ -1,5 +1,5 @@
 import React, {PureComponent} from 'react'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 import {connect} from 'react-redux'
 
 // Components
@@ -31,7 +31,7 @@ interface DispatchProps {
   notify: typeof notifyAction
 }
 
-type Props = DispatchProps & WithRouterProps
+type Props = DispatchProps & RouteComponentProps<{orgID: string}>
 
 class VariableImportOverlay extends PureComponent<Props> {
   public state: State = {
@@ -51,9 +51,9 @@ class VariableImportOverlay extends PureComponent<Props> {
   }
 
   private onDismiss = () => {
-    const {router} = this.props
+    const {history} = this.props
 
-    router.goBack()
+    history.goBack()
   }
 
   private updateOverlayStatus = (status: ComponentStatus) =>

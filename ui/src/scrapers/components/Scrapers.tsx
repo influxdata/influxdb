@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 import {connect} from 'react-redux'
 import {isEmpty} from 'lodash'
 
@@ -45,7 +45,7 @@ interface DispatchProps {
   onDeleteScraper: typeof deleteScraper
 }
 
-type Props = StateProps & DispatchProps & WithRouterProps
+type Props = StateProps & DispatchProps & RouteComponentProps<{orgID: string}>
 
 interface State {
   searchTerm: string
@@ -194,13 +194,13 @@ class Scrapers extends PureComponent<Props, State> {
   }
 
   private handleShowOverlay = () => {
-    const {router, org} = this.props
+    const {history, org} = this.props
 
     if (this.hasNoBuckets) {
       return
     }
 
-    router.push(`/orgs/${org.id}/load-data/scrapers/new`)
+    history.push(`/orgs/${org.id}/load-data/scrapers/new`)
   }
 
   private handleFilterChange = (searchTerm: string) => {

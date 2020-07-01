@@ -1,6 +1,7 @@
 import React from 'react'
 import {Provider} from 'react-redux'
-import {Router, createMemoryHistory} from 'react-router-dom'
+import {Router} from 'react-router-dom'
+import {createMemoryHistory} from 'history'
 
 import {render} from '@testing-library/react'
 import {initialState as initialVariablesState} from 'src/variables/reducers'
@@ -53,14 +54,12 @@ export const localState: LocalStorage = {
   },
 }
 
-const history = createMemoryHistory({entries: ['/']})
-
 export function renderWithRedux(ui, initialState = s => s) {
   clearStore()
-  const seedStore = configureStore(localState, history)
+  const seedStore = configureStore(localState)
   const seedState = seedStore.getState()
   clearStore()
-  const store = configureStore(initialState(seedState), history)
+  const store = configureStore(initialState(seedState))
 
   return {
     ...render(<Provider store={store}>{ui}</Provider>),
@@ -68,16 +67,13 @@ export function renderWithRedux(ui, initialState = s => s) {
   }
 }
 
-export function renderWithReduxAndRouter(
-  ui,
-  initialState = s => s,
-  {route = '/', history = createMemoryHistory({entries: [route]})} = {}
-) {
+export function renderWithReduxAndRouter(ui, initialState = s => s) {
   clearStore()
-  const seedStore = configureStore(localState, history)
+  const history = createMemoryHistory({initialEntries: ['/']})
+  const seedStore = configureStore(localState)
   const seedState = seedStore.getState()
   clearStore()
-  const store = configureStore(initialState(seedState), history)
+  const store = configureStore(initialState(seedState))
 
   return {
     ...render(
@@ -91,7 +87,7 @@ export function renderWithReduxAndRouter(
 
 export function renderWithRouter(
   ui,
-  {route = '/', history = createMemoryHistory({entries: [route]})} = {}
+  {route = '/', history = createMemoryHistory({initialEntries: [route]})} = {}
 ) {
   return {
     ...render(<Router history={history}>{ui}</Router>),

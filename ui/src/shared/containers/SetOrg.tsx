@@ -12,7 +12,7 @@ import {setOrg as setOrgAction} from 'src/organizations/actions/creators'
 import {updateReportingContext} from 'src/cloud/utils/reporting'
 
 // Decorators
-import {InjectedRouter} from 'react-router-dom'
+import {RouteComponentProps} from 'react-router-dom'
 import {
   RemoteDataState,
   SpinnerContainer,
@@ -24,8 +24,6 @@ import {getAll} from 'src/resources/selectors'
 
 interface PassedInProps {
   children: React.ReactElement<any>
-  router: InjectedRouter
-  params: {orgID: string}
 }
 
 interface DispatchProps {
@@ -36,12 +34,17 @@ interface StateProps {
   orgs: Organization[]
 }
 
-type Props = StateProps & DispatchProps & PassedInProps
+type Props = StateProps &
+  DispatchProps &
+  PassedInProps &
+  RouteComponentProps<{orgID: string}>
 
 const SetOrg: FC<Props> = ({
-  params: {orgID},
+  match: {
+    params: {orgID},
+  },
   orgs,
-  router,
+  history,
   setOrg,
   children,
 }) => {
@@ -59,12 +62,12 @@ const SetOrg: FC<Props> = ({
     updateReportingContext({orgID: null})
 
     if (!orgs.length) {
-      router.push(`/no-orgs`)
+      history.push(`/no-orgs`)
       return
     }
 
     // else default to first org
-    router.push(`/orgs/${orgs[0].id}`)
+    history.push(`/orgs/${orgs[0].id}`)
   }, [orgID])
 
   return (

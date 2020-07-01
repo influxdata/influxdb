@@ -1,6 +1,6 @@
 // Libraries
 import React, {FC} from 'react'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 import {connect} from 'react-redux'
 
 // Constants
@@ -30,21 +30,23 @@ interface DispatchProps {
   onUpdateRule: typeof updateRule
 }
 
-type Props = WithRouterProps & StateProps & DispatchProps
+type Props = RouteComponentProps<{orgID: string; ruleID: string}> &
+  StateProps &
+  DispatchProps
 
 const EditRuleOverlay: FC<Props> = ({
-  params,
-  router,
+  match,
+  history,
   stateRule,
   onUpdateRule,
   onNotify,
 }) => {
   const handleDismiss = () => {
-    router.push(`/orgs/${params.orgID}/alerting`)
+    history.push(`/orgs/${match.params.orgID}/alerting`)
   }
 
   if (!stateRule) {
-    onNotify(getNotificationRuleFailed(params.ruleID))
+    onNotify(getNotificationRuleFailed(match.params.ruleID))
     handleDismiss()
     return null
   }
@@ -76,8 +78,8 @@ const EditRuleOverlay: FC<Props> = ({
   )
 }
 
-const mstp = (state: AppState, {params}: Props): StateProps => {
-  const {ruleID} = params
+const mstp = (state: AppState, {match}: Props): StateProps => {
+  const {ruleID} = match.params
 
   const stateRule = getByID<NotificationRuleDraft>(
     state,
@@ -98,4 +100,4 @@ const mdtp = {
 export default connect<StateProps, DispatchProps>(
   mstp,
   mdtp
-)(withRouter<Props>(EditRuleOverlay))
+)(withRouter(EditRuleOverlay))

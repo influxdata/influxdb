@@ -1,6 +1,6 @@
 // Libraries
 import React, {FunctionComponent, useEffect} from 'react'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 import {connect} from 'react-redux'
 import {get} from 'lodash'
 
@@ -31,15 +31,19 @@ interface StateProps {
   view: View
 }
 
-type Props = DispatchProps & StateProps & WithRouterProps
+type Props = DispatchProps &
+  StateProps &
+  RouteComponentProps<{orgID: string; dashboardID: string}>
 
 const NewViewVEO: FunctionComponent<Props> = ({
   activeTimeMachineID,
   onLoadNewVEO,
   onSaveView,
   onSetName,
-  params: {orgID, dashboardID},
-  router,
+  match: {
+    params: {orgID, dashboardID},
+  },
+  history,
   view,
 }) => {
   useEffect(() => {
@@ -47,7 +51,7 @@ const NewViewVEO: FunctionComponent<Props> = ({
   }, [dashboardID])
 
   const handleClose = () => {
-    router.push(`/orgs/${orgID}/dashboards/${dashboardID}`)
+    history.push(`/orgs/${orgID}/dashboards/${dashboardID}`)
   }
 
   const handleSave = () => {

@@ -1,6 +1,6 @@
 // Libraries
 import React, {FC} from 'react'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 import {connect} from 'react-redux'
 import _ from 'lodash'
 
@@ -39,7 +39,9 @@ interface Props {
   onFilterChange: (searchTerm: string) => void
 }
 
-const BucketCardActions: FC<Props & WithRouterProps & DispatchProps> = ({
+const BucketCardActions: FC<Props &
+  RouteComponentProps<{orgID: string}> &
+  DispatchProps> = ({
   bucket,
   bucketType,
   orgID,
@@ -47,7 +49,7 @@ const BucketCardActions: FC<Props & WithRouterProps & DispatchProps> = ({
   onAddBucketLabel,
   onDeleteBucketLabel,
   onDeleteData,
-  router,
+  history,
   onSetDataLoadersBucket,
   onSetDataLoadersType,
 }) => {
@@ -64,21 +66,21 @@ const BucketCardActions: FC<Props & WithRouterProps & DispatchProps> = ({
   }
 
   const handleClickSettings = () => {
-    router.push(`/orgs/${orgID}/load-data/buckets/${bucket.id}/edit`)
+    history.push(`/orgs/${orgID}/load-data/buckets/${bucket.id}/edit`)
   }
 
   const handleAddCollector = () => {
     onSetDataLoadersBucket(orgID, bucket.name, bucket.id)
 
     onSetDataLoadersType(DataLoaderType.Streaming)
-    router.push(`/orgs/${orgID}/load-data/buckets/${bucket.id}/telegrafs/new`)
+    history.push(`/orgs/${orgID}/load-data/buckets/${bucket.id}/telegrafs/new`)
   }
 
   const handleAddLineProtocol = () => {
     onSetDataLoadersBucket(orgID, bucket.name, bucket.id)
 
     onSetDataLoadersType(DataLoaderType.LineProtocol)
-    router.push(
+    history.push(
       `/orgs/${orgID}/load-data/buckets/${bucket.id}/line-protocols/new`
     )
   }
@@ -87,14 +89,14 @@ const BucketCardActions: FC<Props & WithRouterProps & DispatchProps> = ({
     onSetDataLoadersBucket(orgID, bucket.name, bucket.id)
     onSetDataLoadersType(DataLoaderType.ClientLibrary)
 
-    router.push(`/orgs/${orgID}/load-data/client-libraries`)
+    history.push(`/orgs/${orgID}/load-data/client-libraries`)
   }
 
   const handleAddScraper = () => {
     onSetDataLoadersBucket(orgID, bucket.name, bucket.id)
 
     onSetDataLoadersType(DataLoaderType.Scraping)
-    router.push(`/orgs/${orgID}/load-data/buckets/${bucket.id}/scrapers/new`)
+    history.push(`/orgs/${orgID}/load-data/buckets/${bucket.id}/scrapers/new`)
   }
 
   return (
@@ -143,4 +145,4 @@ const mdtp: DispatchProps = {
 export default connect<{}, DispatchProps>(
   null,
   mdtp
-)(withRouter<Props>(BucketCardActions))
+)(withRouter(BucketCardActions))

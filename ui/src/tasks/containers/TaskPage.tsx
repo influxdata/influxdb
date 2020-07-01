@@ -1,6 +1,5 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
-import {InjectedRouter} from 'react-router-dom'
 import {connect} from 'react-redux'
 
 // Components
@@ -28,10 +27,6 @@ import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
 // Types
 import {AppState, TaskOptions, TaskOptionKeys, TaskSchedule} from 'src/types'
 
-interface OwnProps {
-  router: InjectedRouter
-}
-
 interface StateProps {
   taskOptions: TaskOptions
   newScript: string
@@ -45,7 +40,7 @@ interface DispatchProps {
   cancel: typeof cancel
 }
 
-type Props = OwnProps & StateProps & DispatchProps
+type Props = StateProps & DispatchProps
 
 class TaskPage extends PureComponent<Props> {
   constructor(props) {

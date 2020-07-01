@@ -1,7 +1,7 @@
 // Libraries
 import React, {FunctionComponent, useEffect} from 'react'
 import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 import {Overlay, SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
 
 // Components
@@ -26,12 +26,16 @@ interface DispatchProps {
   setBucketAndKeys: typeof setBucketAndKeys
 }
 
-type Props = WithRouterProps & DispatchProps & StateProps
+type Props = RouteComponentProps<{orgID: string; bucketID: string}> &
+  DispatchProps &
+  StateProps
 
 const DeleteDataOverlay: FunctionComponent<Props> = ({
   buckets,
-  router,
-  params: {orgID, bucketID},
+  history,
+  match: {
+    params: {orgID, bucketID},
+  },
   resetPredicateState,
   setBucketAndKeys,
 }) => {
@@ -45,7 +49,7 @@ const DeleteDataOverlay: FunctionComponent<Props> = ({
 
   const handleDismiss = () => {
     resetPredicateState()
-    router.push(`/orgs/${orgID}/load-data/buckets/`)
+    history.push(`/orgs/${orgID}/load-data/buckets/`)
   }
 
   return (
@@ -79,4 +83,4 @@ const mdtp: DispatchProps = {
 export default connect<StateProps, DispatchProps>(
   mstp,
   mdtp
-)(withRouter<Props>(DeleteDataOverlay))
+)(withRouter(DeleteDataOverlay))

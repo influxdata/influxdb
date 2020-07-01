@@ -1,7 +1,7 @@
 // Libraries
 import React, {FunctionComponent} from 'react'
 import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Types
 import {
@@ -29,17 +29,17 @@ interface StateProps {
   endpoints: NotificationEndpoint[]
 }
 
-type Props = StateProps & WithRouterProps
+type Props = StateProps & RouteComponentProps<{orgID: string}>
 
 const NotificationRulesColumn: FunctionComponent<Props> = ({
   rules,
-  router,
-  params,
+  history,
+  match,
   endpoints,
 }) => {
   const handleOpenOverlay = () => {
-    const newRuleRoute = `/orgs/${params.orgID}/alerting/rules/new`
-    router.push(newRuleRoute)
+    const newRuleRoute = `/orgs/${match.params.orgID}/alerting/rules/new`
+    history.push(newRuleRoute)
   }
 
   const tooltipContents = (

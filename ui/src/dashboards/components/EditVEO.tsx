@@ -1,6 +1,6 @@
 // Libraries
 import React, {FunctionComponent, useEffect} from 'react'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 import {connect} from 'react-redux'
 import {get} from 'lodash'
 
@@ -31,15 +31,19 @@ interface StateProps {
   view: QueryView | null
 }
 
-type Props = DispatchProps & StateProps & WithRouterProps
+type Props = DispatchProps &
+  StateProps &
+  RouteComponentProps<{orgID: string; cellID: string; dashboardID: string}>
 
 const EditViewVEO: FunctionComponent<Props> = ({
   activeTimeMachineID,
   getViewAndResultsForVEO,
   onSaveView,
   onSetName,
-  params: {orgID, cellID, dashboardID},
-  router,
+  match: {
+    params: {orgID, cellID, dashboardID},
+  },
+  history,
   view,
 }) => {
   useEffect(() => {
@@ -50,7 +54,7 @@ const EditViewVEO: FunctionComponent<Props> = ({
   }, [])
 
   const handleClose = () => {
-    router.push(`/orgs/${orgID}/dashboards/${dashboardID}`)
+    history.push(`/orgs/${orgID}/dashboards/${dashboardID}`)
   }
 
   const handleSave = () => {
@@ -106,4 +110,4 @@ const mdtp: DispatchProps = {
 export default connect<StateProps, DispatchProps, {}>(
   mstp,
   mdtp
-)(withRouter<StateProps & DispatchProps>(EditViewVEO))
+)(withRouter(EditViewVEO))

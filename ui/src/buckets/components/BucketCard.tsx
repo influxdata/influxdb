@@ -1,6 +1,6 @@
 // Libraries
 import React, {FC} from 'react'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 import _ from 'lodash'
 
 // Components
@@ -23,16 +23,18 @@ interface Props {
   onFilterChange: (searchTerm: string) => void
 }
 
-const BucketCard: FC<Props & WithRouterProps> = ({
+const BucketCard: FC<Props & RouteComponentProps<{orgID: string}>> = ({
   bucket,
   onDeleteBucket,
   onFilterChange,
   onDeleteData,
-  router,
-  params: {orgID},
+  history,
+  match: {
+    params: {orgID},
+  },
 }) => {
   const handleNameClick = () => {
-    router.push(`/orgs/${orgID}/data-explorer?bucket=${bucket.name}`)
+    history.push(`/orgs/${orgID}/data-explorer?bucket=${bucket.name}`)
   }
 
   return (
@@ -61,4 +63,4 @@ const BucketCard: FC<Props & WithRouterProps> = ({
   )
 }
 
-export default withRouter<Props>(BucketCard)
+export default withRouter(BucketCard)

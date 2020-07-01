@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 import {connect} from 'react-redux'
 
 // Components
@@ -21,7 +21,7 @@ interface StateProps {
   org: Organization
 }
 
-type Props = StateProps & WithRouterProps
+type Props = StateProps & RouteComponentProps<{orgID: string}>
 
 class TemplateBrowserEmpty extends PureComponent<Props> {
   public render() {
@@ -44,9 +44,9 @@ class TemplateBrowserEmpty extends PureComponent<Props> {
   }
 
   private handleButtonClick = (): void => {
-    const {router, org} = this.props
+    const {history, org} = this.props
 
-    router.push(`/orgs/${org.id}/settings/templates`)
+    history.push(`/orgs/${org.id}/settings/templates`)
   }
 }
 

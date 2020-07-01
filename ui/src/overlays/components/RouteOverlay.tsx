@@ -1,19 +1,19 @@
 // Libraries
 import React, {Component, ComponentClass} from 'react'
-import {withRouter, WithRouterProps, InjectedRouter} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 import {connect} from 'react-redux'
 import {OverlayID} from 'src/overlays/reducers/overlays'
 
 // Actions
 import {showOverlay, dismissOverlay} from 'src/overlays/actions/overlays'
 
-// NOTE: i dont know what is wrong with the type definition of react-router
+// NOTE(alex b): I don't know what is wrong with the type definition of react-router
 // but it doesn't include params on an injected router upon route resolution
-interface RealInjectedRouter extends InjectedRouter {
-  params: WithRouterProps['params']
-}
 
-export type OverlayDismissalWithRoute = (router: RealInjectedRouter) => void
+export type OverlayDismissalWithRoute = (
+  history: RouteComponentProps['history'],
+  params: {[x: string]: string}
+) => void
 
 interface OwnProps {
   overlayID: OverlayID
@@ -25,7 +25,7 @@ interface DispatchProps {
   onDismissOverlay: typeof dismissOverlay
 }
 
-type OverlayHandlerProps = OwnProps & DispatchProps & WithRouterProps
+type OverlayHandlerProps = OwnProps & DispatchProps & RouteComponentProps
 
 class OverlayHandler extends Component<OverlayHandlerProps> {
   public componentWillUnmount() {
@@ -33,11 +33,11 @@ class OverlayHandler extends Component<OverlayHandlerProps> {
   }
 
   public render() {
+    const {overlayID, onShowOverlay, onClose, match, history} = this.props
     const closer = () => {
-      this.props.onClose(this.props.router as RealInjectedRouter)
+      onClose(history, match.params)
     }
-    const {overlayID, params, onShowOverlay} = this.props
-    onShowOverlay(overlayID, params, closer)
+    onShowOverlay(overlayID, match.params, closer)
     return null
   }
 }
@@ -50,7 +50,7 @@ const mdtp: DispatchProps = {
 export default connect<{}, DispatchProps, OwnProps>(
   null,
   mdtp
-)(withRouter<OwnProps>(OverlayHandler))
+)(withRouter(OverlayHandler))
 
 interface RouteOverlayProps {
   overlayID: string

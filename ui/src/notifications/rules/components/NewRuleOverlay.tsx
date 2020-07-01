@@ -1,6 +1,6 @@
 // Libraries
 import React, {useMemo, FC} from 'react'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 import {connect} from 'react-redux'
 
 // Actions
@@ -21,11 +21,17 @@ interface DispatchProps {
   onCreateRule: (rule: Partial<NotificationRuleDraft>) => Promise<void>
 }
 
-type Props = WithRouterProps & DispatchProps
+type Props = RouteComponentProps<{orgID: string}> & DispatchProps
 
-const NewRuleOverlay: FC<Props> = ({params: {orgID}, router, onCreateRule}) => {
+const NewRuleOverlay: FC<Props> = ({
+  match: {
+    params: {orgID},
+  },
+  history,
+  onCreateRule,
+}) => {
   const handleDismiss = () => {
-    router.push(`/orgs/${orgID}/alerting`)
+    history.push(`/orgs/${orgID}/alerting`)
   }
 
   const handleCreateRule = async (rule: NotificationRuleDraft) => {
@@ -64,4 +70,4 @@ const mdtp = {
 export default connect<{}, DispatchProps>(
   null,
   mdtp
-)(withRouter<Props>(NewRuleOverlay))
+)(withRouter(NewRuleOverlay))

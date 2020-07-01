@@ -6,7 +6,7 @@ import React, {
   ChangeEvent,
   FormEvent,
 } from 'react'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 import {connect} from 'react-redux'
 import {get} from 'lodash'
 
@@ -38,14 +38,16 @@ interface DispatchProps {
   onNotify: typeof notify
 }
 
-type Props = DispatchProps & WithRouterProps
+type Props = DispatchProps &
+  RouteComponentProps<{bucketID: string; orgID: string}>
 
 const UpdateBucketOverlay: FunctionComponent<Props> = ({
   onUpdateBucket,
   onNotify,
-  params: {bucketID, orgID},
-  router,
+  match,
+  history,
 }) => {
+  const {orgID, bucketID} = match.params
   const [bucketDraft, setBucketDraft] = useState<OwnBucket>(null)
 
   const [loadingStatus, setLoadingStatus] = useState(RemoteDataState.Loading)
@@ -111,11 +113,11 @@ const UpdateBucketOverlay: FunctionComponent<Props> = ({
   }
 
   const handleClose = () => {
-    router.push(`/orgs/${orgID}/load-data/buckets`)
+    history.push(`/orgs/${orgID}/load-data/buckets`)
   }
 
   const handleClickRename = () => {
-    router.push(`/orgs/${orgID}/load-data/buckets/${bucketID}/rename`)
+    history.push(`/orgs/${orgID}/load-data/buckets/${bucketID}/rename`)
   }
 
   const rules = get(bucketDraft, 'retentionRules', [])

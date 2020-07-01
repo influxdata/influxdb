@@ -1,7 +1,7 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
-import {InjectedRouter} from 'react-router-dom'
 import {connect} from 'react-redux'
+import {RouteComponentProps} from 'react-router-dom'
 
 // Components
 import TaskForm from 'src/tasks/components/TaskForm'
@@ -35,11 +35,6 @@ import {
   TaskSchedule,
 } from 'src/types'
 
-interface OwnProps {
-  router: InjectedRouter
-  params: {id: string}
-}
-
 interface StateProps {
   taskOptions: TaskOptions
   currentTask: Task
@@ -56,7 +51,7 @@ interface DispatchProps {
   setAllTaskOptionsByID: typeof setAllTaskOptionsByID
 }
 
-type Props = OwnProps & StateProps & DispatchProps
+type Props = StateProps & DispatchProps & RouteComponentProps<{id: string}>
 
 class TaskEditPage extends PureComponent<Props> {
   constructor(props) {
@@ -65,7 +60,9 @@ class TaskEditPage extends PureComponent<Props> {
 
   public componentDidMount() {
     const {
-      params: {id},
+      match: {
+        params: {id},
+      },
     } = this.props
     this.props.selectTaskByID(id)
     this.props.setAllTaskOptionsByID(id)

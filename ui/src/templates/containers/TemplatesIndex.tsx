@@ -1,5 +1,5 @@
 import React, {Component} from 'react'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 import {connect} from 'react-redux'
 
 // Components
@@ -25,7 +25,7 @@ interface StateProps {
   org: Organization
 }
 
-type Props = WithRouterProps & StateProps
+type Props = RouteComponentProps & StateProps
 
 @ErrorHandling
 class TemplatesIndex extends Component<Props> {
@@ -50,8 +50,8 @@ class TemplatesIndex extends Component<Props> {
   }
 
   private handleImport = () => {
-    const {router, org} = this.props
-    router.push(`/orgs/${org.id}/settings/templates/import`)
+    const {history, org} = this.props
+    history.push(`/orgs/${org.id}/settings/templates/import`)
   }
 }
 
@@ -65,4 +65,4 @@ const mstp = (state: AppState): StateProps => {
 export default connect<StateProps, {}, {}>(
   mstp,
   null
-)(withRouter<{}>(TemplatesIndex))
+)(withRouter(TemplatesIndex))

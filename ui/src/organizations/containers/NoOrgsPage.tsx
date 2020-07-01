@@ -1,7 +1,7 @@
 // Libraries
 import React, {FC} from 'react'
 import {FunnelPage, Button, ComponentColor} from '@influxdata/clockface'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 import {connect} from 'react-redux'
 
 // Types
@@ -11,11 +11,11 @@ interface DispatchProps {
   me: AppState['me']
 }
 
-type Props = DispatchProps & WithRouterProps
+type Props = DispatchProps & RouteComponentProps
 
-const NoOrgsPage: FC<Props> = ({router, me}) => {
+const NoOrgsPage: FC<Props> = ({history, me}) => {
   const handleClick = () => {
-    router.push('/signin')
+    history.push('/signin')
   }
 
   return (

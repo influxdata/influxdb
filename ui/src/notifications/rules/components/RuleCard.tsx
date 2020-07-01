@@ -1,7 +1,7 @@
 // Libraries
 import React, {FC} from 'react'
 import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Components
 import {
@@ -51,7 +51,7 @@ interface OwnProps {
   rule: NotificationRuleDraft
 }
 
-type Props = OwnProps & WithRouterProps & DispatchProps
+type Props = OwnProps & RouteComponentProps<{orgID: string}> & DispatchProps
 
 const RuleCard: FC<Props> = ({
   rule,
@@ -60,8 +60,10 @@ const RuleCard: FC<Props> = ({
   onCloneRule,
   onAddRuleLabel,
   onRemoveRuleLabel,
-  params: {orgID},
-  router,
+  match: {
+    params: {orgID},
+  },
+  history,
 }) => {
   const {
     id,
@@ -96,7 +98,7 @@ const RuleCard: FC<Props> = ({
   }
 
   const onRuleClick = () => {
-    router.push(`/orgs/${orgID}/alerting/rules/${id}/edit`)
+    history.push(`/orgs/${orgID}/alerting/rules/${id}/edit`)
   }
 
   const onView = () => {
@@ -107,7 +109,7 @@ const RuleCard: FC<Props> = ({
       [SEARCH_QUERY_PARAM]: `"notificationRuleID" == "${id}"`,
     })
 
-    router.push(`/orgs/${orgID}/alert-history?${queryParams}`)
+    history.push(`/orgs/${orgID}/alert-history?${queryParams}`)
   }
 
   const handleAddRuleLabel = (label: Label) => {

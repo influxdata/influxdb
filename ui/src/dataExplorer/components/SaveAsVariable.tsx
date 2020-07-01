@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 import {connect} from 'react-redux'
 
 // Components
@@ -20,7 +20,9 @@ interface StateProps {
 
 type Props = StateProps & OwnProps
 
-class SaveAsVariable extends PureComponent<Props & WithRouterProps> {
+class SaveAsVariable extends PureComponent<
+  Props & RouteComponentProps<{orgID: string}>
+> {
   render() {
     const {initialScript, onHideOverlay} = this.props
 
@@ -45,4 +47,4 @@ const mstp = (state: AppState): StateProps => {
 export default connect<StateProps, {}, OwnProps>(
   mstp,
   null
-)(withRouter<Props>(SaveAsVariable))
+)(withRouter(SaveAsVariable))

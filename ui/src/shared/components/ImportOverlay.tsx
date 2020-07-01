@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Components
 import {
@@ -38,7 +38,7 @@ interface State {
   importContent: string
 }
 
-type Props = OwnProps & WithRouterProps
+type Props = OwnProps & RouteComponentProps<{orgID: string}>
 
 class ImportOverlay extends PureComponent<Props, State> {
   public static defaultProps: {isVisible: boolean} = {
@@ -156,7 +156,9 @@ class ImportOverlay extends PureComponent<Props, State> {
     const {importContent} = this.state
     const {
       onSubmit,
-      params: {orgID},
+      match: {
+        params: {orgID},
+      },
     } = this.props
 
     onSubmit(importContent, orgID)
@@ -186,4 +188,4 @@ class ImportOverlay extends PureComponent<Props, State> {
   }
 }
 
-export default withRouter<OwnProps>(ImportOverlay)
+export default withRouter(ImportOverlay)

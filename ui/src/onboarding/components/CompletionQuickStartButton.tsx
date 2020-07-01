@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 import _ from 'lodash'
 
 // Components
@@ -15,7 +15,7 @@ interface OwnProps {
   onExit: () => void
 }
 
-type Props = OwnProps & WithRouterProps
+type Props = OwnProps & RouteComponentProps
 
 @ErrorHandling
 class CompletionQuickStartButton extends PureComponent<Props> {
@@ -32,14 +32,14 @@ class CompletionQuickStartButton extends PureComponent<Props> {
   }
 
   private handleAdvanced = (): void => {
-    const {router, dashboards, onExit} = this.props
+    const {history, dashboards, onExit} = this.props
     const id = _.get(dashboards, '[0].id', null)
     if (id) {
-      router.push(`/dashboards/${id}`)
+      history.push(`/dashboards/${id}`)
     } else {
       onExit()
     }
   }
 }
 
-export default withRouter<OwnProps>(CompletionQuickStartButton)
+export default withRouter(CompletionQuickStartButton)

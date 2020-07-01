@@ -1,7 +1,7 @@
 // Libraries
 import _ from 'lodash'
 import React, {FunctionComponent, createElement} from 'react'
-import {withRouter, WithRouterProps, Link} from 'react-router-dom'
+import {withRouter, RouteComponentProps, Link} from 'react-router-dom'
 
 // Components
 import {
@@ -19,9 +19,9 @@ interface OwnProps {
   orgID: string
 }
 
-type Props = OwnProps & WithRouterProps
+type Props = OwnProps & RouteComponentProps<{orgID: string}>
 
-const ClientLibraries: FunctionComponent<Props> = ({orgID, router}) => {
+const ClientLibraries: FunctionComponent<Props> = ({orgID, history}) => {
   return (
     <Grid>
       <Grid.Row>
@@ -40,7 +40,7 @@ const ClientLibraries: FunctionComponent<Props> = ({orgID, router}) => {
           <SquareGrid cardSize="200px" gutter={ComponentSize.Small}>
             {clientLibraries.map(cl => {
               const handleClick = (): void => {
-                router.push(
+                history.push(
                   `/orgs/${orgID}/load-data/client-libraries/${cl.id}`
                 )
               }
@@ -67,4 +67,4 @@ const ClientLibraries: FunctionComponent<Props> = ({orgID, router}) => {
   )
 }
 
-export default withRouter<OwnProps>(ClientLibraries)
+export default withRouter(ClientLibraries)

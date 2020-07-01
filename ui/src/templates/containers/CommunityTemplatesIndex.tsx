@@ -1,5 +1,5 @@
 import React, {Component} from 'react'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 import {connect} from 'react-redux'
 
 // Components
@@ -46,15 +46,13 @@ interface StateProps {
   org: Organization
 }
 
-interface OwnProps extends WithRouterProps {
-  params: {templateName: string}
-}
-
 interface DispatchProps {
   setActiveCommunityTemplate: typeof setActiveCommunityTemplate
 }
 
-type Props = DispatchProps & OwnProps & StateProps
+type Props = DispatchProps &
+  StateProps &
+  RouteComponentProps<{templateName: string}>
 
 // works specifically for csgo, the greatest community template ever conceived
 // https://github.com/influxdata/community-templates/tree/master/csgo
@@ -71,10 +69,9 @@ class UnconnectedTemplatesIndex extends Component<Props> {
   }
 
   public componentDidMount() {
-    if (this.props.params.templateName) {
-      const currentTemplate = getGithubUrlFromTemplateName(
-        this.props.params.templateName
-      )
+    const {templateName} = this.props.match.params
+    if (templateName) {
+      const currentTemplate = getGithubUrlFromTemplateName(templateName)
 
       this.setState({currentTemplate}, () => {
         this.applyTemplates(
@@ -185,9 +182,9 @@ class UnconnectedTemplatesIndex extends Component<Props> {
   }
 
   private showInstallerOverlay = templateName => {
-    const {router, org} = this.props
+    const {history, org} = this.props
 
-    router.push(`/orgs/${org.id}/settings/templates/import/${templateName}`)
+    history.push(`/orgs/${org.id}/settings/templates/import/${templateName}`)
   }
 
   private handleTemplateChange = event => {
@@ -205,7 +202,7 @@ const mdtp = {
   setActiveCommunityTemplate,
 }
 
-export const CommunityTemplatesIndex = connect<StateProps, {}, {}>(
+export const CommunityTemplatesIndex = connect<StateProps, DispatchProps, {}>(
   mstp,
   mdtp
-)(withRouter<{}>(UnconnectedTemplatesIndex))
+)(withRouter(UnconnectedTemplatesIndex))

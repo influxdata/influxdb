@@ -1,7 +1,7 @@
 // Libraries
 import React, {FC, useEffect} from 'react'
 import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Components
 import AutoRefreshDropdown from 'src/shared/components/dropdown_auto_refresh/AutoRefreshDropdown'
@@ -71,7 +71,10 @@ interface DispatchProps {
   setAutoRefreshInterval: typeof setAutoRefreshIntervalAction
 }
 
-type Props = OwnProps & StateProps & DispatchProps & WithRouterProps
+type Props = OwnProps &
+  StateProps &
+  DispatchProps &
+  RouteComponentProps<{orgID: string}>
 
 const DashboardHeader: FC<Props> = ({
   dashboard,
@@ -85,7 +88,7 @@ const DashboardHeader: FC<Props> = ({
   updateDashboard,
   updateQueryParams,
   setDashboardTimeRange,
-  router,
+  history,
   org,
 }) => {
   useEffect(() => {
@@ -93,11 +96,11 @@ const DashboardHeader: FC<Props> = ({
   }, [dashboard.id])
 
   const handleAddNote = () => {
-    router.push(`/orgs/${org.id}/dashboards/${dashboard.id}/notes/new`)
+    history.push(`/orgs/${org.id}/dashboards/${dashboard.id}/notes/new`)
   }
 
   const handleAddCell = () => {
-    router.push(`/orgs/${org.id}/dashboards/${dashboard.id}/cells/new`)
+    history.push(`/orgs/${org.id}/dashboards/${dashboard.id}/cells/new`)
   }
 
   const handleRenameDashboard = (name: string) => {
@@ -225,4 +228,4 @@ const mdtp: DispatchProps = {
 export default connect<StateProps, DispatchProps, OwnProps>(
   mstp,
   mdtp
-)(withRouter<OwnProps>(DashboardHeader))
+)(withRouter(DashboardHeader))

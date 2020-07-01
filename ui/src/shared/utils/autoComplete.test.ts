@@ -1,9 +1,9 @@
 import {getSuggestionsHelper} from 'src/shared/utils/autoComplete'
 
 const ALL_SUGGESTIONS = [
-  {name: 'filter', params: {foo: 'function', bux: 'string'}},
-  {name: 'first', params: {baz: 'invalid'}},
-  {name: 'baz', params: {bar: 'array'}},
+  {name: 'filter', match: {foo: 'function', bux: 'string'}},
+  {name: 'first', match: {baz: 'invalid'}},
+  {name: 'baz', match: {bar: 'array'}},
 ]
 
 describe('Flux.helpers.autoComplete', () => {

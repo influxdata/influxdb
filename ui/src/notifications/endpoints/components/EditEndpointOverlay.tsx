@@ -1,7 +1,7 @@
 // Libraries
 import React, {FC} from 'react'
 import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Constants
 import {getEndpointFailed} from 'src/shared/copy/notifications'
@@ -30,21 +30,23 @@ interface StateProps {
   endpoint: NotificationEndpoint
 }
 
-type Props = WithRouterProps & DispatchProps & StateProps
+type Props = RouteComponentProps<{orgID: string; endpointID: string}> &
+  DispatchProps &
+  StateProps
 
 const EditEndpointOverlay: FC<Props> = ({
-  params,
-  router,
+  match,
+  history,
   onUpdateEndpoint,
   onNotify,
   endpoint,
 }) => {
   const handleDismiss = () => {
-    router.push(`/orgs/${params.orgID}/alerting`)
+    history.push(`/orgs/${match.params.orgID}/alerting`)
   }
 
   if (!endpoint) {
-    onNotify(getEndpointFailed(params.endpointID))
+    onNotify(getEndpointFailed(match.params.endpointID))
     handleDismiss()
     return null
   }
@@ -80,16 +82,16 @@ const mdtp = {
   onNotify: notify,
 }
 
-const mstp = (state: AppState, {params}: Props): StateProps => {
+const mstp = (state: AppState, {match}: Props): StateProps => {
   const endpoint = getByID<NotificationEndpoint>(
     state,
     ResourceType.NotificationEndpoints,
-    params.endpointID
+    match.params.endpointID
   )
 
   return {endpoint}
 }
 
-export default withRouter<Props>(
+export default withRouter(
   connect<StateProps, DispatchProps, Props>(mstp, mdtp)(EditEndpointOverlay)
 )

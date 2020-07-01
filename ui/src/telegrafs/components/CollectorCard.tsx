@@ -1,7 +1,7 @@
 // Libraries
 import React, {PureComponent, MouseEvent} from 'react'
 import {connect} from 'react-redux'
-import {withRouter, WithRouterProps, Link} from 'react-router-dom'
+import {withRouter, RouteComponentProps, Link} from 'react-router-dom'
 
 // Components
 import {Context} from 'src/clockface'
@@ -42,7 +42,9 @@ interface DispatchProps {
 
 type Props = OwnProps & StateProps & DispatchProps
 
-class CollectorRow extends PureComponent<Props & WithRouterProps> {
+class CollectorRow extends PureComponent<
+  Props & RouteComponentProps<{orgID: string}>
+> {
   public render() {
     const {collector, org} = this.props
 
@@ -145,8 +147,8 @@ class CollectorRow extends PureComponent<Props & WithRouterProps> {
   }
 
   private handleOpenConfig = (): void => {
-    const {collector, router, org} = this.props
-    router.push(`/orgs/${org.id}/load-data/telegrafs/${collector.id}/view`)
+    const {collector, history, org} = this.props
+    history.push(`/orgs/${org.id}/load-data/telegrafs/${collector.id}/view`)
   }
 
   private handleDeleteConfig = (): void => {
@@ -168,4 +170,4 @@ const mdtp: DispatchProps = {
 export default connect<StateProps, DispatchProps, OwnProps>(
   mstp,
   mdtp
-)(withRouter<Props>(CollectorRow))
+)(withRouter(CollectorRow))

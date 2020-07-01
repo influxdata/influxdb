@@ -1,7 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 import _ from 'lodash'
 
 // Components
@@ -40,7 +40,10 @@ interface DispatchProps {
   getLabels: typeof getLabels
 }
 
-type Props = OwnProps & StateProps & DispatchProps & WithRouterProps
+type Props = OwnProps &
+  StateProps &
+  DispatchProps &
+  RouteComponentProps<{orgID: string}>
 
 class DashboardsTable extends PureComponent<Props> {
   public componentDidMount() {
@@ -84,18 +87,22 @@ class DashboardsTable extends PureComponent<Props> {
 
   private summonImportOverlay = (): void => {
     const {
-      router,
-      params: {orgID},
+      history,
+      match: {
+        params: {orgID},
+      },
     } = this.props
-    router.push(`/orgs/${orgID}/dashboards/import`)
+    history.push(`/orgs/${orgID}/dashboards/import`)
   }
 
   private summonImportFromTemplateOverlay = (): void => {
     const {
-      router,
-      params: {orgID},
+      history,
+      match: {
+        params: {orgID},
+      },
     } = this.props
-    router.push(`/orgs/${orgID}/dashboards/import/template`)
+    history.push(`/orgs/${orgID}/dashboards/import/template`)
   }
 }
 
@@ -116,4 +123,4 @@ const mdtp: DispatchProps = {
 export default connect<StateProps, DispatchProps, OwnProps>(
   mstp,
   mdtp
-)(withRouter<OwnProps>(DashboardsTable))
+)(withRouter(DashboardsTable))

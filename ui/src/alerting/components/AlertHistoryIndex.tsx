@@ -31,20 +31,22 @@ import {getRuleIDs} from 'src/notifications/rules/selectors'
 // Types
 import {ResourceIDs} from 'src/checks/reducers'
 import {ResourceType, AlertHistoryType, AppState} from 'src/types'
+import {RouteComponentProps} from 'react-router-dom'
 
 export const ResourceIDsContext = createContext<ResourceIDs>(null)
-
-interface OwnProps {
-  params: {orgID: string}
-}
 
 interface StateProps {
   resourceIDs: ResourceIDs
 }
 
-type Props = OwnProps & StateProps
+type Props = RouteComponentProps<{orgID: string}> & StateProps
 
-const AlertHistoryIndex: FC<Props> = ({params: {orgID}, resourceIDs}) => {
+const AlertHistoryIndex: FC<Props> = ({
+  match: {
+    params: {orgID},
+  },
+  resourceIDs,
+}) => {
   const [historyType, setHistoryType] = useState<AlertHistoryType>(
     getInitialHistoryType()
   )

@@ -1,7 +1,7 @@
 // Libraries
 import React, {FC} from 'react'
 import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Components
 import {
@@ -51,7 +51,7 @@ interface OwnProps {
   check: Check
 }
 
-type Props = OwnProps & DispatchProps & WithRouterProps
+type Props = OwnProps & DispatchProps & RouteComponentProps<{orgID: string}>
 
 const CheckCard: FC<Props> = ({
   onRemoveCheckLabel,
@@ -61,8 +61,10 @@ const CheckCard: FC<Props> = ({
   check,
   onUpdateCheckDisplayProperties,
   deleteCheck,
-  params: {orgID},
-  router,
+  match: {
+    params: {orgID},
+  },
+  history,
 }) => {
   const {id, activeStatus, name, description} = check
 
@@ -101,7 +103,7 @@ const CheckCard: FC<Props> = ({
   }
 
   const onCheckClick = () => {
-    router.push(`/orgs/${orgID}/alerting/checks/${id}/edit`)
+    history.push(`/orgs/${orgID}/alerting/checks/${id}/edit`)
   }
 
   const onView = () => {
@@ -109,7 +111,7 @@ const CheckCard: FC<Props> = ({
       [SEARCH_QUERY_PARAM]: `"checkID" == "${id}"`,
     })
 
-    router.push(`/orgs/${orgID}/checks/${id}/?${queryParams}`)
+    history.push(`/orgs/${orgID}/checks/${id}/?${queryParams}`)
   }
 
   const handleAddCheckLabel = (label: Label) => {

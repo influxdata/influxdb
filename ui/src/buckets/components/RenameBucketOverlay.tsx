@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 import _ from 'lodash'
 
@@ -12,7 +12,9 @@ import RenameBucketForm from 'src/buckets/components/RenameBucketForm'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 @ErrorHandling
-class RenameBucketOverlay extends PureComponent<WithRouterProps> {
+class RenameBucketOverlay extends PureComponent<
+  RouteComponentProps<{orgID: string}>
+> {
   public render() {
     return (
       <DangerConfirmationOverlay
@@ -42,12 +44,9 @@ class RenameBucketOverlay extends PureComponent<WithRouterProps> {
   }
 
   private handleClose = () => {
-    const {
-      router,
-      params: {orgID},
-    } = this.props
+    const {history, match} = this.props
 
-    router.push(`/orgs/${orgID}/load-data/buckets`)
+    history.push(`/orgs/${match.params.orgID}/load-data/buckets`)
   }
 }
 

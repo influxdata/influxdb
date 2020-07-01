@@ -1,6 +1,6 @@
-import {browserHistory} from 'react-router-dom'
 import qs from 'qs'
 import {pickBy} from 'lodash'
+import {RouteComponentProps} from 'react-router-dom'
 
 export const readQueryParams = (): {[key: string]: any} => {
   return qs.parse(window.location.search, {ignoreQueryPrefix: true})
@@ -11,7 +11,10 @@ export const readQueryParams = (): {[key: string]: any} => {
   query parameters in the URL to match. If the supplied object has a null value
   for a key, that query parameter will be removed from the URL altogether.
 */
-export const updateQueryParams = (updatedQueryParams: object): void => {
+export const updateQueryParams = (
+  updatedQueryParams: object,
+  history: RouteComponentProps['history']
+): void => {
   const currentQueryString = window.location.search
   const newQueryParams = pickBy(
     {
@@ -23,5 +26,5 @@ export const updateQueryParams = (updatedQueryParams: object): void => {
 
   const newQueryString = qs.stringify(newQueryParams)
 
-  browserHistory.replace(`${window.location.pathname}?${newQueryString}`)
+  history.replace(`${window.location.pathname}?${newQueryString}`)
 }

@@ -1,6 +1,6 @@
 // Libraries
 import React, {FC} from 'react'
-import {withRouter, WithRouterProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 import CopyToClipboard from 'react-copy-to-clipboard'
 import {connect} from 'react-redux'
 
@@ -41,15 +41,19 @@ interface Props {
   bucket: DemoBucket
 }
 
-const DemoDataBucketCard: FC<Props & WithRouterProps & DispatchProps> = ({
+const DemoDataBucketCard: FC<Props &
+  RouteComponentProps<{orgID: string}> &
+  DispatchProps> = ({
   bucket,
-  router,
-  params: {orgID},
+  history,
+  match: {
+    params: {orgID},
+  },
   removeBucket,
   notify,
 }) => {
   const handleNameClick = () => {
-    router.push(`/orgs/${orgID}/data-explorer?bucket=${bucket.name}`)
+    history.push(`/orgs/${orgID}/data-explorer?bucket=${bucket.name}`)
   }
 
   const handleCopyAttempt = (
@@ -141,4 +145,4 @@ const mdtp: DispatchProps = {
 export default connect<{}, DispatchProps, {}>(
   null,
   mdtp
-)(withRouter<Props>(DemoDataBucketCard))
+)(withRouter(DemoDataBucketCard))

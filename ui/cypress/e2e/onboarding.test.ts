@@ -5,7 +5,7 @@ interface TestUser {
   bucket: string
 }
 
-describe('Onboarding Redirect', () => {
+describe.only('Onboarding Redirect', () => {
   beforeEach(() => {
     cy.flush()
     cy.visit('/')
