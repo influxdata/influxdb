@@ -63,10 +63,24 @@ global.__users = { 'init': undefined };
 global.__killLiveDataGen = false;
 global.__liveDataGenRunning = false;
 global.__reportedResetOnce = false;
+global.__dockerRun = false;
+
+if(typeof __config.download_dir === 'undefined'){
+    __config.download_dir = __basedir;
+}
 
 console.log(config.headless ? 'running headless' : 'running headed');
 console.log(config.sel_docker ? 'running for selenium in docker' : 'running for selenium standard');
+console.log("DEBUG envars:" + process.env);
+for(var envar in process.env){
+    console.log("   " + envar + "=" + process.env[envar]);
+}
 console.log(`active configuration ${JSON.stringify(config)}`);
+if(typeof process.env['HOSTNAME'] !== 'undefined' && process.env['HOSTNAME'].match(/^[a-f0-9]{12}/)){
+    console.log("MATCHED docker style hostname");
+    __dockerRun = true;
+    __config.download_dir = __config.download_dir + '/etc/';
+}
 
 //redefine any config fields based on ENV Properties of the form E2E_<ACTIVE_CONF>_<FIELD_KEY>
 /*
@@ -796,9 +810,9 @@ const removeFileIfExists = async function(filepath){
     }
 };
 
-const removeFilesByRegex = async function(regex){
+const removeDownloadFilesByRegex = async function(regex){
   let re = new RegExp(regex)
-  await fs.readdir('.', (err, files) => {
+  await fs.readdir(__config.download_dir, (err, files) => {
         for(var i = 0; i < files.length; i++){
             var match = files[i].match(re);
             if(match !== null){
@@ -812,9 +826,24 @@ const fileExists = async function(filePath){
     return fs.existsSync(filePath);
 };
 
-const verifyFileMatchingRegexFilesExist = async function(regex, callback){
+const dumpDownloadDir = async function(){
+    console.log("DEBUG __config.download_dir: " + __config.download_dir )
+    let files = fs.readdirSync(__config.download_dir);
+    for(var file of files){
+        console.log("   " + file );
+    }
+    console.log("DEBUG __config.download_dir/..: " + __config.download_dir )
+    files = fs.readdirSync(__config.download_dir + '/..');
+    for(var file of files){
+        console.log("   " + file );
+    }
+
+
+}
+
+const verifyDownloadFileMatchingRegexFilesExist = async function(regex, callback){
     let re = new RegExp(regex);
-    let files = fs.readdirSync('.');
+    let files = fs.readdirSync(__config.download_dir);
 
     for(var i = 0; i < files.length; i++){
         var match = files[i].match(re);
@@ -917,6 +946,7 @@ module.exports = { flush,
     writeData,
     createDashboard,
     createVariable,
+    dumpDownloadDir,
     getDashboards,
     query,
     createBucket,
@@ -935,12 +965,12 @@ module.exports = { flush,
     getAuthorizations,
     removeConfInDocker,
     removeFileIfExists,
-    removeFilesByRegex,
+    removeDownloadFilesByRegex,
     setupNewUser,
     startLiveDataGen,
     stopLiveDataGen,
     fileExists,
-    verifyFileMatchingRegexFilesExist,
+    verifyDownloadFileMatchingRegexFilesExist,
     waitForFileToExist
 };
 

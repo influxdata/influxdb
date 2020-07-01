@@ -605,6 +605,9 @@ class baseSteps{
     }
 
     async setFileUpload(filePath){
+        await fs.readdir('etc/test-data', function(err, items){
+            console.log("DEBUG etc/test-data: \n" + items);
+        });
         await this.basePage.getPopupFileUpload().then(async elem => {
             await elem.sendKeys(process.cwd() + '/' + filePath).then(async () => {
                 await this.delay(200); //debug wait - todo better wait
@@ -649,8 +652,8 @@ class baseSteps{
         await expect(await influxUtils.fileExists(filePath)).to.be.true;
     }
 
-    async verifyFileMatchingRegexExists(regex){
-        let res = await influxUtils.verifyFileMatchingRegexFilesExist(regex);
+    async verifyDownloadFileMatchingRegexExists(regex){
+        let res = await influxUtils.verifyDownloadFileMatchingRegexFilesExist(regex);
         await expect(res).to.be.true;
     }
 

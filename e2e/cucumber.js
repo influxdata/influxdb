@@ -28,8 +28,10 @@ caps.set('enableVNC', true);
 //caps.set('enableVideo', true);
 caps.set('pageLoadStrategy', 'normal');
 
-let chromeUserPreferences = { 'download.prompt_for_download': false, "download.default_directory": __basedir };
+let chromeUserPreferences = { 'download.prompt_for_download': false, "download.default_directory": __config.download_dir };
 let windowSize = { "width": 1024, "height": 768 };
+
+console.log("DEBUG chromeUserPreferences " + JSON.stringify(chromeUserPreferences));
 
 if(__config.window_size){
     windowSize.width = parseInt(__config.window_size.width);
