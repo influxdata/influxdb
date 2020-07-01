@@ -625,7 +625,8 @@ impl TestServer {
     async fn wait_until_ready(&self) {
         // Poll the RPC and HTTP servers separately as they listen on
         // different ports but both need to be up for the test to run
-        let try_grpc_connect = async {
+        async fn try_grpc_connect() {
+            let mut interval = tokio::time::interval(Duration::from_millis(500));
             loop {
                 match StorageClient::connect(GRPC_URL_BASE).await {
                     Ok(storage_client) => {
