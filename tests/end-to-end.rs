@@ -36,7 +36,6 @@ use std::str;
 use std::time::{Duration, SystemTime};
 use std::u32;
 use tempfile::TempDir;
-
 use tokio::time::Instant;
 
 const URL_BASE: &str = "http://localhost:8080/api/v2";
@@ -626,8 +625,7 @@ impl TestServer {
     async fn wait_until_ready(&self) {
         // Poll the RPC and HTTP servers separately as they listen on
         // different ports but both need to be up for the test to run
-        async fn try_grpc_connect() {
-            let mut interval = tokio::time::interval(Duration::from_millis(500));
+        let try_grpc_connect = async {
             loop {
                 match StorageClient::connect(GRPC_URL_BASE).await {
                     Ok(storage_client) => {
@@ -638,7 +636,7 @@ impl TestServer {
                         return;
                     }
                     Err(e) => {
-                        println!("Waiting for gRPM server to be up: {}", e);
+                        println!("Waiting for gRPC server to be up: {}", e);
                     }
                 }
                 interval.tick().await;
