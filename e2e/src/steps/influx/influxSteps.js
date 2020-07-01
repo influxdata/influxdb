@@ -145,8 +145,8 @@ class influxSteps extends baseSteps {
         }
     }
 
-    async verifyHeaderContains(text){
-        await this.influxPage.getPageHeader().then(async elem => {
+    async verifyHeaderContains(text, page){
+        await this.influxPage.getPageHeader(page).then(async elem => {  
             await elem.getText().then(async elTxt => {
                 expect(elTxt).to.include(text);
             });

@@ -21,7 +21,7 @@ const navMenuXpath = '//*[@data-testid = \'nav-menu\']';
 const userMenuItemXpath = '//*[@data-testid = \'user-nav\']';
 const userMenuItem = '[data-testid^=\'user-nav-item-%ITEM%\']';
 
-const pageHeader = '[data-testid=page-title]';
+const pageHeader = '[data-testid=page-header]';
 
 const urlCtx = 'orgs';
 
@@ -35,7 +35,10 @@ class influxPage extends basePage {
         return await this.driver.findElement(By.css(navMenu));
     }
 
-    async getPageHeader(){
+    async getPageHeader(page = ''){
+        if(page !== ''){
+            return await this.driver.findElement(By.css(    `[data-testid=${page.toLowerCase()}--header]`))
+        }
         return await this.driver.findElement(By.css(pageHeader));
     }
 

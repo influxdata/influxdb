@@ -6,7 +6,7 @@ let tSteps = new tasksSteps(__wdriver);
 Then(/^the Tasks page is loaded$/, {timeout: 2 * 5000}, async() => {
     await tSteps.isLoaded();
     await tSteps.verifyIsLoaded();
-    await tSteps.verifyHeaderContains('Tasks');
+    await tSteps.verifyHeaderContains('Tasks', 'tasks-page');
 });
 
 Then(/^there is a task named "(.*)"$/, async name =>{
