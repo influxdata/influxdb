@@ -244,6 +244,11 @@ swap,server01,disk0,out,{},4
 
     let mut storage_client = StorageClient::connect(GRPC_URL_BASE).await?;
 
+    // Validate that capabilities rpc endpoint is hooked up
+    let capabilities_response = storage_client.capabilities(()).await?;
+    let capabilities_response = capabilities_response.into_inner();
+    assert_eq!(capabilities_response.caps, std::collections::HashMap::new());
+
     let partition_id = u64::from(u32::MAX);
     let read_source = ReadSource {
         org_id,
