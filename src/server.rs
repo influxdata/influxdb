@@ -229,6 +229,13 @@ async fn read(req: hyper::Request<Body>, app: Arc<App>) -> Result<Option<Body>, 
     Ok(Some(response_body.into()))
 }
 
+// Route to test that the server is alive
+#[tracing::instrument]
+async fn ping(req: hyper::Request<Body>) -> Result<Option<Body>, ApplicationError> {
+    let response_body = "PONG";
+    Ok(Some(response_body.into()))
+}
+
 #[derive(Deserialize, Debug)]
 struct CreateBucketInfo {
     org: Id,
@@ -274,6 +281,7 @@ async fn create_bucket(
 async fn service(req: hyper::Request<Body>, app: Arc<App>) -> http::Result<hyper::Response<Body>> {
     let response = match (req.method(), req.uri().path()) {
         (&Method::POST, "/api/v2/write") => write(req, app).await,
+        (&Method::GET, "/ping") => ping(req).await,
         (&Method::GET, "/api/v2/read") => read(req, app).await,
         (&Method::POST, "/api/v2/create_bucket") => create_bucket(req, app).await,
         _ => Err(ApplicationError::new(
