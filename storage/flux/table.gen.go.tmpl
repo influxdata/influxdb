@@ -271,6 +271,9 @@ func (t *{{.name}}WindowTable) appendValues(intervals []int64, appendValue func(
 }
 
 func (t *{{.name}}WindowTable) advance() bool {
+	if !t.nextBuffer() {
+		return false
+	}
 	// Create the timestamps for the next window.
 	start, stop, ok := t.createNextBufferTimes()
 	if !ok {

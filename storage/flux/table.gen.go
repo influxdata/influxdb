@@ -275,6 +275,9 @@ func (t *floatWindowTable) appendValues(intervals []int64, appendValue func(v fl
 }
 
 func (t *floatWindowTable) advance() bool {
+	if !t.nextBuffer() {
+		return false
+	}
 	// Create the timestamps for the next window.
 	start, stop, ok := t.createNextBufferTimes()
 	if !ok {
@@ -1022,6 +1025,9 @@ func (t *integerWindowTable) appendValues(intervals []int64, appendValue func(v 
 }
 
 func (t *integerWindowTable) advance() bool {
+	if !t.nextBuffer() {
+		return false
+	}
 	// Create the timestamps for the next window.
 	start, stop, ok := t.createNextBufferTimes()
 	if !ok {
@@ -1767,6 +1773,9 @@ func (t *unsignedWindowTable) appendValues(intervals []int64, appendValue func(v
 }
 
 func (t *unsignedWindowTable) advance() bool {
+	if !t.nextBuffer() {
+		return false
+	}
 	// Create the timestamps for the next window.
 	start, stop, ok := t.createNextBufferTimes()
 	if !ok {
@@ -2512,6 +2521,9 @@ func (t *stringWindowTable) appendValues(intervals []int64, appendValue func(v s
 }
 
 func (t *stringWindowTable) advance() bool {
+	if !t.nextBuffer() {
+		return false
+	}
 	// Create the timestamps for the next window.
 	start, stop, ok := t.createNextBufferTimes()
 	if !ok {
@@ -3257,6 +3269,9 @@ func (t *booleanWindowTable) appendValues(intervals []int64, appendValue func(v 
 }
 
 func (t *booleanWindowTable) advance() bool {
+	if !t.nextBuffer() {
+		return false
+	}
 	// Create the timestamps for the next window.
 	start, stop, ok := t.createNextBufferTimes()
 	if !ok {
