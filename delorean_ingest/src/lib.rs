@@ -1466,7 +1466,7 @@ mod delorean_ingest_tests {
     }
 
     #[test]
-    fn process_measurement_table() -> Result<(), Error> {
+    fn process_measurement_table() -> Result<(), Box<dyn std::error::Error>> {
         use delorean_tsm::{Block, BlockData};
 
         // Input data - in line protocol format
@@ -1505,66 +1505,63 @@ mod delorean_ingest_tests {
 
         let mut table = MeasurementTable::new("cpu".to_string());
         // cpu region=east temp=<all the block data for this key>
-        table
-            .add_series_data(
-                vec![("region".to_string(), "east".to_string())],
-                "temp".to_string(),
-                BlockType::Float,
-                Block {
-                    min_time: 0,
-                    max_time: 0,
-                    offset: 0,
-                    size: 0,
-                },
-            )?;
+        table.add_series_data(
+            vec![("region".to_string(), "east".to_string())],
+            "temp".to_string(),
+            BlockType::Float,
+            Block {
+                min_time: 0,
+                max_time: 0,
+                offset: 0,
+                size: 0,
+                typ: BlockType::Float,
+            },
+        )?;
 
         // cpu region=east voltage=<all the block data for this key>
-        table
-            .add_series_data(
-                vec![("region".to_string(), "east".to_string())],
-                "voltage".to_string(),
-                BlockType::Float,
-                Block {
-                    min_time: 1,
-                    max_time: 0,
-                    offset: 0,
-                    size: 0,
-                },
-            )
-            .map_err(|e| Error::TSMProcessing { source: e })?;
+        table.add_series_data(
+            vec![("region".to_string(), "east".to_string())],
+            "voltage".to_string(),
+            BlockType::Float,
+            Block {
+                min_time: 1,
+                max_time: 0,
+                offset: 0,
+                size: 0,
+                typ: BlockType::Float,
+            },
+        )?;
 
         // cpu region=west,server=a temp=<all the block data for this key>
-        table
-            .add_series_data(
-                vec![
-                    ("region".to_string(), "west".to_string()),
-                    ("server".to_string(), "a".to_string()),
-                ],
-                "temp".to_string(),
-                BlockType::Float,
-                Block {
-                    min_time: 2,
-                    max_time: 0,
-                    offset: 0,
-                    size: 0,
-                },
-            )
-            .map_err(|e| Error::TSMProcessing { source: e })?;
+        table.add_series_data(
+            vec![
+                ("region".to_string(), "west".to_string()),
+                ("server".to_string(), "a".to_string()),
+            ],
+            "temp".to_string(),
+            BlockType::Float,
+            Block {
+                min_time: 2,
+                max_time: 0,
+                offset: 0,
+                size: 0,
+                typ: BlockType::Float,
+            },
+        )?;
 
         // cpu az=b watts=<all the block data for this key>
-        table
-            .add_series_data(
-                vec![("az".to_string(), "b".to_string())],
-                "watts".to_string(),
-                BlockType::Unsigned,
-                Block {
-                    min_time: 3,
-                    max_time: 0,
-                    offset: 0,
-                    size: 0,
-                },
-            )
-            .map_err(|e| Error::TSMProcessing { source: e })?;
+        table.add_series_data(
+            vec![("az".to_string(), "b".to_string())],
+            "watts".to_string(),
+            BlockType::Unsigned,
+            Block {
+                min_time: 3,
+                max_time: 0,
+                offset: 0,
+                size: 0,
+                typ: BlockType::Float,
+            },
+        )?;
 
         let mut block_map = BTreeMap::new();
         block_map.insert(
@@ -1598,8 +1595,7 @@ mod delorean_ingest_tests {
 
         let decoder = MockBlockDecoder { blocks: block_map };
 
-        let (schema, packers) =
-            super::TSMFileConverter::process_measurement_table(decoder, &mut table)?;
+        let (schema, packers) = TSMFileConverter::process_measurement_table(decoder, &mut table)?;
 
         let expected_defs = vec![
             ColumnDefinition::new("az", 0, DataType::String),
