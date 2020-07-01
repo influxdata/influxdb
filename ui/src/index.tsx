@@ -207,6 +207,7 @@ class Root extends PureComponent {
         <ConnectedRouter history={history}>
           <Route component={GetLinks} />
           <Route component={Setup} />
+          <Route component={NotFound} />
           {/*<Route component={Setup}>
               <Route path="/onboarding">
                 <Route path=":stepID" component={OnboardingWizardPage} />
@@ -519,7 +520,6 @@ class Root extends PureComponent {
                 </Route>
               </Route>
                             </Route> */}
-          <Route component={NotFound} />
         </ConnectedRouter>
       </Provider>
     )
