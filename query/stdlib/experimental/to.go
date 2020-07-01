@@ -197,7 +197,6 @@ func NewToTransformation(ctx context.Context, d execute.Dataset, cache execute.T
 	var err error
 
 	var orgID platform.ID
-	var org string
 	// Get organization name and ID
 	if spec.Spec.Org != "" {
 		oID, ok := deps.OrganizationLookup.Lookup(ctx, spec.Spec.Org)
@@ -205,7 +204,6 @@ func NewToTransformation(ctx context.Context, d execute.Dataset, cache execute.T
 			return nil, fmt.Errorf("failed to look up organization %q", spec.Spec.Org)
 		}
 		orgID = oID
-		org = spec.Spec.Org
 	} else if spec.Spec.OrgID != "" {
 		if oid, err := platform.IDFromString(spec.Spec.OrgID); err != nil {
 			return nil, err
@@ -220,15 +218,8 @@ func NewToTransformation(ctx context.Context, d execute.Dataset, cache execute.T
 		}
 		orgID = req.OrganizationID
 	}
-	if org == "" {
-		org = deps.OrganizationLookup.LookupName(ctx, orgID)
-		if org == "" {
-			return nil, fmt.Errorf("failed to look up organization name for ID %q", orgID.String())
-		}
-	}
 
 	var bucketID *platform.ID
-	var bucket string
 	// Get bucket name and ID
 	// User will have specified exactly one in the ToOpSpec.
 	if spec.Spec.Bucket != "" {
@@ -237,21 +228,14 @@ func NewToTransformation(ctx context.Context, d execute.Dataset, cache execute.T
 			return nil, fmt.Errorf("failed to look up bucket %q in org %q", spec.Spec.Bucket, spec.Spec.Org)
 		}
 		bucketID = &bID
-		bucket = spec.Spec.Bucket
 	} else {
 		if bucketID, err = platform.IDFromString(spec.Spec.BucketID); err != nil {
 			return nil, err
 		}
-		bucket = deps.BucketLookup.LookupName(ctx, orgID, *bucketID)
-		if bucket == "" {
-			return nil, fmt.Errorf("failed to look up bucket with ID %q in org %q", bucketID, org)
-		}
 	}
 	return &ToTransformation{
 		ctx:      ctx,
-		bucket:   bucket,
 		bucketID: *bucketID,
-		org:      org,
 		orgID:    orgID,
 		d:        d,
 		cache:    cache,
