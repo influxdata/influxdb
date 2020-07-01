@@ -52,7 +52,7 @@ const CommunityTemplateListGroup: FC<Props> = ({title, count, children}) => {
           element={HeadingElement.Div}
           appearance={HeadingElement.H6}
           className="community-templates--list-counter"
-        >{`(${count})`}</Heading>
+        >{`(${count} selected)`}</Heading>
       </div>
       {mode === 'expanded' && (
         <FlexBox
