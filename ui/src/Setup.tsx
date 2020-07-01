@@ -72,19 +72,9 @@ export class Setup extends PureComponent<Props, State> {
       <SpinnerContainer loading={loading} spinnerComponent={<TechnoSpinner />}>
         <Switch>
           <Route path="/onboarding/:stepID" component={OnboardingWizardPage} />
-          <Route
-            path="/onboarding/:stepID/:substepID"
-            component={OnboardingWizardPage}
-          />
+          <Route component={Signin} />
           <Route component={UnauthenticatedApp} />
         </Switch>
-        <Signin>
-          <GetMe>
-            <GetFlags>
-              <GetOrganizations />
-            </GetFlags>
-          </GetMe>
-        </Signin>
       </SpinnerContainer>
     )
   }

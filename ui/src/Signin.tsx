@@ -1,6 +1,6 @@
 // Libraries
 import React, {ReactElement, PureComponent} from 'react'
-import {withRouter, RouteComponentProps} from 'react-router-dom'
+import {Switch, Route, RouteComponentProps} from 'react-router-dom'
 import {connect} from 'react-redux'
 
 import {client} from 'src/utils/api'
@@ -8,6 +8,7 @@ import {client} from 'src/utils/api'
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
+import GetMe from 'src/shared/containers/GetMe'
 
 // Utils
 import {
@@ -70,13 +71,15 @@ export class Signin extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {loading} = this.state
+    const {loading, auth} = this.state
+
+    console.log('signin page')
 
     return (
       <SpinnerContainer loading={loading} spinnerComponent={<TechnoSpinner />}>
-        {this.state.auth &&
-          this.props.children &&
-          React.cloneElement(this.props.children)}
+        <Switch>
+          <Route render={props => <GetMe auth={auth} {...props} />} />
+        </Switch>
       </SpinnerContainer>
     )
   }
@@ -127,4 +130,4 @@ const mdtp: DispatchProps = {
   notify: notifyAction,
 }
 
-export default connect(null, mdtp)(withRouter(Signin))
+export default connect(null, mdtp)(Signin)

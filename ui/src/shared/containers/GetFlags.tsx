@@ -1,6 +1,8 @@
 // Libraries
 import React, {useEffect, FunctionComponent} from 'react'
 import {connect} from 'react-redux'
+import {Switch, Route} from 'react-router-dom'
+import GetOrganizations from 'src/shared/containers/GetOrganizations'
 
 // Components
 import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
@@ -35,13 +37,14 @@ const GetFlags: FunctionComponent<Props> = ({
   status,
   getFlags,
   flags,
-  children,
+  auth,
 }) => {
   useEffect(() => {
-    if (status === RemoteDataState.NotStarted) {
+    if (status === RemoteDataState.NotStarted && auth) {
       getFlags()
     }
-  }, [])
+  }, [auth])
+
   useEffect(() => {
     updateReportingContext(
       Object.entries(flags).reduce((prev, [key, val]) => {
@@ -54,7 +57,9 @@ const GetFlags: FunctionComponent<Props> = ({
 
   return (
     <SpinnerContainer loading={status} spinnerComponent={<TechnoSpinner />}>
-      {children && React.cloneElement(children)}
+      <Switch>
+        <Route component={GetOrganizations} />
+      </Switch>
     </SpinnerContainer>
   )
 }

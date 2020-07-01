@@ -2,7 +2,6 @@
 import React, {PureComponent} from 'react'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
 import {connect} from 'react-redux'
-import _ from 'lodash'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -32,7 +31,6 @@ export interface OnboardingStepProps {
   onIncrementCurrentStepIndex: () => void
   onDecrementCurrentStepIndex: () => void
   onSetStepStatus: (index: number, status: StepStatus) => void
-  onSetSubstepIndex: (index: number, subStep: number | 'streaming') => void
   stepStatuses: StepStatus[]
   stepTitles: string[]
   stepTestIds: string[]
@@ -138,7 +136,7 @@ class OnboardingWizard extends PureComponent<Props> {
   private handleExit = () => {
     const {history, onCompleteSetup} = this.props
     onCompleteSetup()
-    history.push(`/`)
+    history.push('/')
   }
 
   private get onboardingStepProps(): OnboardingStepProps {
@@ -152,7 +150,6 @@ class OnboardingWizard extends PureComponent<Props> {
       onSetStepStatus,
       onSetSetupParams,
       onSetCurrentStepIndex,
-      onSetSubstepIndex,
       onDecrementCurrentStepIndex,
       onIncrementCurrentStepIndex,
     } = this.props
@@ -163,7 +160,6 @@ class OnboardingWizard extends PureComponent<Props> {
       stepTestIds: this.stepTestIds,
       currentStepIndex,
       onSetCurrentStepIndex,
-      onSetSubstepIndex,
       onIncrementCurrentStepIndex,
       onDecrementCurrentStepIndex,
       onSetStepStatus,

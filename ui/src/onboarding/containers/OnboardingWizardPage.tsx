@@ -38,7 +38,7 @@ interface ConnectedStateProps {
 }
 
 type Props = PassedProps &
-  RouteComponentProps<{stepID: string; substepID: string}> &
+  RouteComponentProps<{stepID: string}> &
   ConnectedStateProps
 
 @ErrorHandling
@@ -108,7 +108,6 @@ export class OnboardingWizardPage extends PureComponent<Props, State> {
             onDecrementCurrentStepIndex={this.handleDecrementStepIndex}
             onIncrementCurrentStepIndex={this.handleIncrementStepIndex}
             onSetCurrentStepIndex={this.setStepIndex}
-            onSetSubstepIndex={this.setSubstepIndex}
             currentStepIndex={+match.params.stepID}
             onCompleteSetup={this.handleCompleteSetup}
           />
@@ -149,12 +148,6 @@ export class OnboardingWizardPage extends PureComponent<Props, State> {
     const {history} = this.props
 
     history.push(`/onboarding/${index}`)
-  }
-
-  private setSubstepIndex = (index: number, subStep: number | 'streaming') => {
-    const {history} = this.props
-
-    history.push(`/onboarding/${index}/${subStep}`)
   }
 }
 

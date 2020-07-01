@@ -1,9 +1,11 @@
 // Libraries
 import React, {PureComponent} from 'react'
+import {Switch, Route} from 'react-router-dom'
 import {connect} from 'react-redux'
 
 // Components
 import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
+import GetFlags from 'src/shared/containers/GetFlags'
 
 // Types
 import {RemoteDataState} from 'src/types'
@@ -40,16 +42,21 @@ class GetMe extends PureComponent<Props, State> {
 
   public render() {
     const {loading} = this.state
+    const {auth} = this.props
 
     return (
       <SpinnerContainer loading={loading} spinnerComponent={<TechnoSpinner />}>
-        {this.props.children && React.cloneElement(this.props.children)}
+        <Switch>
+          <Route render={props => <GetFlags {...props} auth={auth} />} />
+        </Switch>
       </SpinnerContainer>
     )
   }
 
   public componentDidMount() {
-    this.props.getMe()
+    if (this.props.auth) {
+      this.props.getMe()
+    }
     this.setState({loading: RemoteDataState.Done})
   }
 }
