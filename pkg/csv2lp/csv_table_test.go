@@ -104,6 +104,7 @@ func Test_CsvTable_FluxQueryResult(t *testing.T) {
 				require.Equal(t, table.Tags()[0].Label, "cpu")
 				require.Equal(t, table.Tags()[1].Label, "host")
 				require.Equal(t, len(table.Fields()), 0)
+				require.Contains(t, table.ColumnLabels(), "_measurement")
 			}
 		}
 	}
@@ -332,6 +333,52 @@ func Test_ConstantAnnotations(t *testing.T) {
 	}
 }
 
+// Test_ConcatAnnotations tests processing of concat annotations
+func Test_ConcatAnnotations(t *testing.T) {
+	var tests = []struct {
+		name string
+		csv  string
+		line string
+	}{
+		{
+			"measurement_1",
+			"#concat measurement,cpu\n" +
+				"a,b\n" +
+				"1,1",
+			"cpu a=1,b=1",
+		},
+		{
+			"measurement_2",
+			"#concat,measurement,${a}${b}\n" +
+				"#constant,tag,cpu,cpu1\n" +
+				"#constant,long,of,0\n" +
+				"#constant,dateTime,,2\n" +
+				"a,b\n" +
+				"1,1",
+			"11,cpu=cpu1 a=1,b=1,of=0i 2",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			rows := readCsv(t, test.csv)
+			table := CsvTable{}
+			var lines []string
+			for _, row := range rows {
+				rowProcessed := table.AddRow(row)
+				if rowProcessed {
+					line, err := table.CreateLine(row)
+					if err != nil && test.line != "" {
+						require.Nil(t, err.Error())
+					}
+					lines = append(lines, line)
+				}
+			}
+			require.Equal(t, []string{test.line}, lines)
+		})
+	}
+}
+
 // Test_DataTypeInColumnName tests specification of column data type in the header row
 func Test_DataTypeInColumnName(t *testing.T) {
 	var tests = []struct {
@@ -453,6 +500,10 @@ func Test_CsvTable_dataErrors(t *testing.T) {
 		{
 			"error_no_measurement_data",
 			"_measurement,col1\n,2",
+		},
+		{
+			"error_derived_column_missing reference",
+			"#concat string,d,${col1}${col2}\n_measurement,col1\nm,2",
 		},
 	}
 

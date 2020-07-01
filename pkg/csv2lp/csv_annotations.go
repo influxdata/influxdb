@@ -2,6 +2,7 @@ package csv2lp
 
 import (
 	"fmt"
+	"log"
 	"regexp"
 	"strconv"
 	"strings"
@@ -33,9 +34,8 @@ func (a annotationComment) matches(comment string) bool {
 	return strings.HasPrefix(strings.ToLower(comment), a.prefix)
 }
 
-// constantSetupTable setups the supplied CSV table from #constant annotation
-func constantSetupTable(table *CsvTable, row []string) error {
-	// adds a virtual column with contsant value to all data rows
+func createConstantOrConcatColumn(table *CsvTable, row []string) CsvTableColumn {
+	// adds a virtual column with constant value to all data rows
 	// supported types of constant annotation rows are:
 	//  1. "#constant,datatype,label,defaultValue"
 	//  2. "#constant,measurement,value"
@@ -79,7 +79,57 @@ func constantSetupTable(table *CsvTable, row []string) error {
 		}
 	}
 	// add a virtual column to the table
+	return col
+}
+
+// constantSetupTable setups the supplied CSV table from #constant annotation
+func constantSetupTable(table *CsvTable, row []string) error {
+	col := createConstantOrConcatColumn(table, row)
+	// add a virtual column to the table
 	table.extraColumns = append(table.extraColumns, &col)
+	return nil
+}
+
+// computedReplacer is used to replace value in computed columns
+var computedReplacer *regexp.Regexp = regexp.MustCompile(`\$\{[^}]+\}`)
+
+// concatSetupTable setups the supplied CSV table from #concat annotation
+func concatSetupTable(table *CsvTable, row []string) error {
+	col := createConstantOrConcatColumn(table, row)
+	template := col.DefaultValue
+	col.ComputeValue = func(row []string) string {
+		return computedReplacer.ReplaceAllStringFunc(template, func(text string) string {
+			columnLabel := text[2 : len(text)-1] // ${columnLabel}
+			if columnLabel == "$" {
+				return "$" // ${$} is a way to print $, if it would require escaping
+			}
+			if placeholderColumn := table.Column(columnLabel); placeholderColumn != nil {
+				return placeholderColumn.Value(row)
+			}
+			log.Printf("WARNING: column %s: column '%s' cannot be replaced, no such column available", col.Label, columnLabel)
+			return ""
+		})
+	}
+	// add a virtual column to the table
+	table.extraColumns = append(table.extraColumns, &col)
+	// add validator to report error when no placeholder column is not available
+	table.validators = append(table.validators, func(table *CsvTable) error {
+		placeholders := computedReplacer.FindAllString(template, len(template))
+		for _, placeholder := range placeholders {
+			columnLabel := placeholder[2 : len(placeholder)-1] // ${columnLabel}
+			if columnLabel == "$" {
+				return nil // ${$} is a way to print $
+			}
+			if placeholderColumn := table.Column(columnLabel); placeholderColumn == nil {
+				return CsvColumnError{
+					Column: col.Label,
+					Err: fmt.Errorf("'%s' references an uknown column '%s', available columns are: %v",
+						template, columnLabel, strings.Join(table.ColumnLabels(), ",")),
+				}
+			}
+		}
+		return nil
+	})
 	return nil
 }
 
@@ -130,6 +180,10 @@ var supportedAnnotations = []annotationComment{
 			table.timeZone = tz
 			return nil
 		},
+	},
+	{
+		prefix:     "#concat",
+		setupTable: concatSetupTable,
 	},
 }
 

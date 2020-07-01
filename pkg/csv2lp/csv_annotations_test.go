@@ -1,7 +1,10 @@
 package csv2lp
 
 import (
+	"bytes"
 	"fmt"
+	"log"
+	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -138,6 +141,93 @@ func Test_ConstantAnnotation(t *testing.T) {
 			require.Equal(t, test.expectDefault, col.DefaultValue)
 		})
 	}
+}
+
+// Test_ConcatAnnotation tests #concat annotation
+func Test_ConcatAnnotation(t *testing.T) {
+	subject := annotation("#concat")
+	require.True(t, subject.matches("#Concat"))
+	require.True(t, subject.isTableAnnotation())
+	var tests = []struct {
+		value          []string
+		expectLabel    string
+		expectValue    string
+		expectLinePart int
+	}{
+		// all possible specifications
+		{[]string{"#concat "}, "", "", 0}, // means literally nothing
+		{[]string{"#concat measurement", "a"}, "_", "a", linePartMeasurement},
+		{[]string{"#concat measurement", "a", "b"}, "_", "b", linePartMeasurement},
+		{[]string{"#concat measurement", "a", ""}, "_", "a", linePartMeasurement},
+		{[]string{"#concat tag", "tgName", "tgValue"}, "tgName", "tgValue", linePartTag},
+		{[]string{"#concat", "tag", "tgName", "tgValue"}, "tgName", "tgValue", linePartTag},
+		{[]string{"#concat field", "fName", "fVal"}, "fName", "fVal", linePartField},
+		{[]string{"#concat", "field", "fName", "fVal"}, "fName", "fVal", linePartField},
+		{[]string{"dateTime", "1"}, "_", "1", linePartTime},
+		{[]string{"dateTime", "1", "2"}, "_", "2", linePartTime},
+		{[]string{"dateTime", "", "2"}, "_", "2", linePartTime},
+		{[]string{"dateTime", "3", ""}, "_", "3", linePartTime},
+		{[]string{"long", "fN", "fV"}, "fN", "fV", 0},
+		// concat values
+		{[]string{"string", "fN", "${$}-${b}-${a}"}, "fN", "$-2-1", 0},
+	}
+	exampleRow := []string{"1", "2"}
+	for i, test := range tests {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			table := &CsvTable{columns: []*CsvTableColumn{
+				{Label: "a", Index: 0},
+				{Label: "b", Index: 1},
+			}}
+			subject.setupTable(table, test.value)
+			// validator
+			require.Equal(t, 1, len(table.validators))
+			require.Equal(t, table.validators[0](table), nil)
+			// columns
+			require.Equal(t, 1, len(table.extraColumns))
+			col := table.extraColumns[0]
+			require.Equal(t, test.expectLinePart, col.LinePart)
+			require.Greater(t, 0, col.Index)
+			if test.expectLabel != "_" {
+				require.Equal(t, test.expectLabel, col.Label)
+			} else {
+				require.NotEqual(t, "", col.Label)
+			}
+			require.Equal(t, test.expectValue, col.Value(exampleRow))
+		})
+	}
+	t.Run("concat template references unknown column", func(t *testing.T) {
+		var buf bytes.Buffer
+		log.SetOutput(&buf)
+		oldFlags := log.Flags()
+		log.SetFlags(0)
+		oldPrefix := log.Prefix()
+		prefix := "::PREFIX::"
+		log.SetPrefix(prefix)
+		defer func() {
+			log.SetOutput(os.Stderr)
+			log.SetFlags(oldFlags)
+			log.SetPrefix(oldPrefix)
+		}()
+
+		table := &CsvTable{columns: []*CsvTableColumn{
+			{Label: "x", Index: 0},
+		}}
+		subject.setupTable(table, []string{"string", "fN", "a${y}-${x}z"})
+		require.Equal(t, 1, len(table.validators))
+		require.NotNil(t, table.validators[0](table))
+		require.Equal(t,
+			"column 'fN': 'a${y}-${x}z' references an uknown column 'y', available columns are: x",
+			table.validators[0](table).Error())
+		// columns
+		require.Equal(t, 1, len(table.extraColumns))
+		col := table.extraColumns[0]
+		require.Greater(t, 0, col.Index)
+		require.Equal(t, "a-1z", col.Value(exampleRow))
+		// a warning is printed to console
+		require.Equal(t,
+			"::PREFIX::WARNING: column fN: column 'y' cannot be replaced, no such column available",
+			strings.TrimSpace(buf.String()))
+	})
 }
 
 // Test_TimeZoneAnnotation tests #timezone annotation

@@ -47,6 +47,8 @@ type CsvTableColumn struct {
 	TimeZone *time.Location
 	// ParseF is an optional function used to convert column's string value to interface{}
 	ParseF func(value string) (interface{}, error)
+	// ComputeValue is an optional function used to compute column value out of row data
+	ComputeValue func(row []string) string
 
 	// escapedLabel contains escaped label that can be directly used in line protocol
 	escapedLabel string
@@ -63,6 +65,9 @@ func (c *CsvTableColumn) LineLabel() string {
 // Value returns the value of the column for the supplied row
 func (c *CsvTableColumn) Value(row []string) string {
 	if c.Index < 0 || c.Index >= len(row) {
+		if c.ComputeValue != nil {
+			return c.ComputeValue(row)
+		}
 		return c.DefaultValue
 	}
 	val := row[c.Index]
@@ -172,6 +177,8 @@ type CsvTable struct {
 	ignoreDataTypeInColumnName bool
 	// timeZone of dateTime column(s), applied when parsing dateTime value without a time zone specified
 	timeZone *time.Location
+	// validators validate table structure right before processing data rows
+	validators []func(*CsvTable) error
 
 	/* cached columns are initialized before reading the data rows using the computeLineProtocolColumns fn */
 	// cachedMeasurement is a required column that read (line protocol) measurement
@@ -202,6 +209,7 @@ func (t *CsvTable) DataColumnsInfo() string {
 		return "<nil>"
 	}
 	var builder = strings.Builder{}
+	t.computeLineProtocolColumns() // censure that ached columns are initialized
 	builder.WriteString(fmt.Sprintf("CsvTable{ dataColumns: %d constantColumns: %d\n", len(t.columns), len(t.extraColumns)))
 	builder.WriteString(fmt.Sprintf(" measurement: %+v\n", t.cachedMeasurement))
 	for _, col := range t.cachedTags {
@@ -425,6 +433,11 @@ func (t *CsvTable) AppendLine(buffer []byte, row []string, lineNumber int) ([]by
 				}
 			}
 		}
+		for _, v := range t.validators {
+			if err := v(t); err != nil {
+				return buffer, err
+			}
+		}
 	}
 
 	if t.cachedMeasurement == nil {
@@ -525,6 +538,15 @@ func (t *CsvTable) Column(label string) *CsvTableColumn {
 // Columns returns available columns
 func (t *CsvTable) Columns() []*CsvTableColumn {
 	return t.columns
+}
+
+// ColumnLabels returns available columns labels
+func (t *CsvTable) ColumnLabels() []string {
+	labels := make([]string, len(t.columns))
+	for i, col := range t.columns {
+		labels[i] = col.Label
+	}
+	return labels
 }
 
 // Measurement returns measurement column or nil
