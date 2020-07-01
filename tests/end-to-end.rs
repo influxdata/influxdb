@@ -650,7 +650,7 @@ impl TestServer {
             loop {
                 match client.get(&url).send().await {
                     Ok(resp) => {
-                        println!("Successfully got a response from http: {:?}", resp);
+                        println!("Successfully got a response from HTTP: {:?}", resp);
                         return;
                     }
                     Err(e) => {
