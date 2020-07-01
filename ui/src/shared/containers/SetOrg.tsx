@@ -5,6 +5,8 @@ import {Route, Switch} from 'react-router-dom'
 
 // Components
 import {MePage} from 'src/me'
+import TasksPage from 'src/tasks/containers/TasksPage'
+import TaskPage from 'src/tasks/containers/TaskPage'
 
 // Types
 import {AppState, Organization, ResourceType} from 'src/types'
@@ -76,6 +78,8 @@ const SetOrg: FC<Props> = ({
   return (
     <SpinnerContainer loading={loading} spinnerComponent={<TechnoSpinner />}>
       <Switch>
+        <Route path="/orgs/:orgID/tasks/new" component={TaskPage} />
+        <Route path="/orgs/:orgID/tasks" component={TasksPage} />
         <Route exact path="/orgs/:orgID" component={MePage} />
       </Switch>
     </SpinnerContainer>

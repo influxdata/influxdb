@@ -1,6 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
+import {Switch, Route} from 'react-router-dom'
 
 // Components
 import TasksHeader from 'src/tasks/components/TasksHeader'
@@ -11,6 +12,9 @@ import FilterList from 'src/shared/components/FilterList'
 import GetResources from 'src/resources/components/GetResources'
 import GetAssetLimits from 'src/cloud/components/GetAssetLimits'
 import AssetLimitAlert from 'src/cloud/components/AssetLimitAlert'
+import TaskExportOverlay from 'src/tasks/components/TaskExportOverlay'
+import TaskImportOverlay from 'src/tasks/components/TaskImportOverlay'
+import TaskImportFromTemplateOverlay from 'src/tasks/components/TaskImportFromTemplateOverlay'
 
 // Utils
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
@@ -111,7 +115,6 @@ class TasksPage extends PureComponent<Props, State> {
       onRunTask,
       checkTaskLimits,
       limitStatus,
-      children,
     } = this.props
 
     return (
@@ -172,7 +175,20 @@ class TasksPage extends PureComponent<Props, State> {
             </GetResources>
           </Page.Contents>
         </Page>
-        {children}
+        <Switch>
+          <Route
+            path="/orgs/:orgID/tasks/:id/export"
+            component={TaskExportOverlay}
+          />
+          <Route
+            path="/orgs/:orgID/tasks/import"
+            component={TaskImportOverlay}
+          />
+          <Route
+            path="/orgs/:orgID/tasks/import/template"
+            component={TaskImportFromTemplateOverlay}
+          />
+        </Switch>
       </>
     )
   }
