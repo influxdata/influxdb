@@ -1097,6 +1097,29 @@ from(bucket: v.bucket)
 `,
 		},
 		{
+			name: "window count removes empty series",
+			data: []string{
+				"m,tag=a f=0i 1500000000",
+				"m,tag=b f=1i 2500000000",
+				"m,tag=c f=2i 3500000000",
+			},
+			query: `
+from(bucket: v.bucket)
+	|> range(start: 1970-01-01T00:00:01Z, stop: 1970-01-01T00:00:02Z)
+	|> window(every: 500ms, createEmpty: true)
+	|> count()
+`,
+			op: "readWindow(count)",
+			want: `
+#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,long,string,string,string
+#group,false,false,true,true,false,true,true,true
+#default,_result,,,,,,,
+,result,table,_start,_stop,_value,_field,_measurement,tag
+,_result,0,1970-01-01T00:00:01Z,1970-01-01T00:00:01.5Z,0,f,m,a
+,_result,1,1970-01-01T00:00:01.5Z,1970-01-01T00:00:02Z,1,f,m,a
+`,
+		},
+		{
 			name: "count",
 			data: []string{
 				"m0,k=k0 f=0i 0",
@@ -1198,6 +1221,30 @@ from(bucket: v.bucket)
 #default,_result,,,,,
 ,result,table,_value,_field,_measurement,k
 ,,0,15,f,m0,k0
+`,
+		},
+		{
+			name: "window sum removes empty series",
+			data: []string{
+				"m,tag=a f=1i 1500000000",
+				"m,tag=a f=2i 1600000000",
+				"m,tag=b f=3i 2500000000",
+				"m,tag=c f=4i 3500000000",
+			},
+			query: `
+from(bucket: v.bucket)
+	|> range(start: 1970-01-01T00:00:01Z, stop: 1970-01-01T00:00:02Z)
+	|> window(every: 500ms, createEmpty: true)
+	|> sum()
+`,
+			op: "readWindow(sum)",
+			want: `
+#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,long,string,string,string
+#group,false,false,true,true,false,true,true,true
+#default,_result,,,,,,,
+,result,table,_start,_stop,_value,_field,_measurement,tag
+,_result,0,1970-01-01T00:00:01Z,1970-01-01T00:00:01.5Z,,f,m,a
+,_result,1,1970-01-01T00:00:01.5Z,1970-01-01T00:00:02Z,3,f,m,a
 `,
 		},
 		{
