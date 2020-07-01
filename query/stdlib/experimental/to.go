@@ -176,9 +176,7 @@ func createToTransformation(id execute.DatasetID, mode execute.AccumulationMode,
 // ToTransformation is the transformation for the `to` flux function.
 type ToTransformation struct {
 	ctx      context.Context
-	bucket   string
 	bucketID platform.ID
-	org      string
 	orgID    platform.ID
 	d        execute.Dataset
 	cache    execute.TableBuilderCache
