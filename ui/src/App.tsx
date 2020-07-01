@@ -1,8 +1,9 @@
 // Libraries
-import React, {SFC, ReactChildren} from 'react'
+import React, {SFC} from 'react'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
 import {connect} from 'react-redux'
 import classnames from 'classnames'
+import {Switch, Route} from 'react-router-dom'
 
 // Components
 import {AppWrapper} from '@influxdata/clockface'
@@ -11,27 +12,20 @@ import TooltipPortal from 'src/portals/TooltipPortal'
 import NotesPortal from 'src/portals/NotesPortal'
 import Notifications from 'src/shared/components/notifications/Notifications'
 import OverlayController from 'src/overlays/components/OverlayController'
+import SetOrg from 'src/shared/containers/SetOrg'
 
 // Types
 import {AppState, CurrentPage, Theme} from 'src/types'
+import CreateOrgOverlay from './organizations/components/CreateOrgOverlay'
 
 interface StateProps {
   inPresentationMode: boolean
   currentPage: CurrentPage
   theme: Theme
 }
-interface OwnProps {
-  children: ReactChildren
-}
+type Props = StateProps & RouteComponentProps
 
-type Props = OwnProps & StateProps & RouteComponentProps
-
-const App: SFC<Props> = ({
-  children,
-  inPresentationMode,
-  currentPage,
-  theme,
-}) => {
+const App: SFC<Props> = ({inPresentationMode, currentPage, theme}) => {
   const appWrapperClass = classnames('', {
     'dashboard-light-mode': currentPage === 'dashboard' && theme === 'light',
   })
@@ -46,7 +40,10 @@ const App: SFC<Props> = ({
       <NotesPortal />
       <OverlayController />
       <TreeNav />
-      {children}
+      <Switch>
+        <Route path="/orgs/new" component={CreateOrgOverlay} />
+        <Route path="/orgs/:orgID" component={SetOrg} />
+      </Switch>
     </AppWrapper>
   )
 }

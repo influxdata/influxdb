@@ -1,6 +1,6 @@
 // Libraries
 import React, {ReactElement, PureComponent} from 'react'
-import {Route, RouteComponentProps} from 'react-router-dom'
+import {Switch, Route, RouteComponentProps} from 'react-router-dom'
 
 // APIs
 import {client} from 'src/utils/api'
@@ -10,6 +10,10 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
 import OnboardingWizardPage from 'src/onboarding/containers/OnboardingWizardPage'
 import UnauthenticatedApp from 'src/shared/containers/UnauthenticatedApp'
+import Signin from 'src/Signin'
+import GetMe from 'src/shared/containers/GetMe'
+import GetFlags from 'src/shared/containers/GetFlags'
+import GetOrganizations from 'src/shared/containers/GetOrganizations'
 
 // Utils
 import {isOnboardingURL} from 'src/onboarding/utils'
@@ -66,12 +70,21 @@ export class Setup extends PureComponent<Props, State> {
 
     return (
       <SpinnerContainer loading={loading} spinnerComponent={<TechnoSpinner />}>
-        <Route path="/onboarding/:stepID" component={OnboardingWizardPage} />
-        <Route
-          path="/onboarding/:stepID/:substepID"
-          component={OnboardingWizardPage}
-        />
-        <Route component={UnauthenticatedApp} />
+        <Switch>
+          <Route path="/onboarding/:stepID" component={OnboardingWizardPage} />
+          <Route
+            path="/onboarding/:stepID/:substepID"
+            component={OnboardingWizardPage}
+          />
+          <Route component={UnauthenticatedApp} />
+        </Switch>
+        <Signin>
+          <GetMe>
+            <GetFlags>
+              <GetOrganizations />
+            </GetFlags>
+          </GetMe>
+        </Signin>
       </SpinnerContainer>
     )
   }

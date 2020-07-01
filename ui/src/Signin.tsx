@@ -28,6 +28,7 @@ import {RemoteDataState} from 'src/types'
 
 interface State {
   loading: RemoteDataState
+  auth: boolean
 }
 
 interface OwnProps {
@@ -44,7 +45,7 @@ const FETCH_WAIT = 60000
 
 @ErrorHandling
 export class Signin extends PureComponent<Props, State> {
-  public state: State = {loading: RemoteDataState.NotStarted}
+  public state: State = {loading: RemoteDataState.NotStarted, auth: false}
 
   private hasMounted = false
   private intervalID: NodeJS.Timer
@@ -73,7 +74,9 @@ export class Signin extends PureComponent<Props, State> {
 
     return (
       <SpinnerContainer loading={loading} spinnerComponent={<TechnoSpinner />}>
-        {this.props.children && React.cloneElement(this.props.children)}
+        {this.state.auth &&
+          this.props.children &&
+          React.cloneElement(this.props.children)}
       </SpinnerContainer>
     )
   }
@@ -82,11 +85,13 @@ export class Signin extends PureComponent<Props, State> {
     try {
       await client.users.me()
 
+      this.setState({auth: true})
       const redirectIsSet = !!getFromLocalStorage('redirectTo')
       if (redirectIsSet) {
         removeFromLocalStorage('redirectTo')
       }
     } catch (error) {
+      this.setState({auth: false})
       const {
         location: {pathname},
       } = this.props

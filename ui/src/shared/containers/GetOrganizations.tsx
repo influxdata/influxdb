@@ -1,19 +1,19 @@
 // Libraries
 import React, {useEffect, FunctionComponent} from 'react'
 import {connect} from 'react-redux'
+import {Route, Switch} from 'react-router-dom'
 
 // Components
 import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
+import NoOrgsPage from 'src/organizations/containers/NoOrgsPage'
+import App from 'src/App'
 
 // Types
 import {RemoteDataState, AppState} from 'src/types'
 
 // Actions
 import {getOrganizations as getOrganizationsAction} from 'src/organizations/actions/thunks'
-
-interface PassedInProps {
-  children: React.ReactElement<any>
-}
+import RouteToOrg from './RouteToOrg'
 
 interface DispatchProps {
   getOrganizations: typeof getOrganizationsAction
@@ -23,12 +23,11 @@ interface StateProps {
   status: RemoteDataState
 }
 
-type Props = StateProps & DispatchProps & PassedInProps
+type Props = StateProps & DispatchProps
 
 const GetOrganizations: FunctionComponent<Props> = ({
   status,
   getOrganizations,
-  children,
 }) => {
   useEffect(() => {
     if (status === RemoteDataState.NotStarted) {
@@ -38,7 +37,11 @@ const GetOrganizations: FunctionComponent<Props> = ({
 
   return (
     <SpinnerContainer loading={status} spinnerComponent={<TechnoSpinner />}>
-      {children && React.cloneElement(children)}
+      <Switch>
+        <Route path="/no-orgs" component={NoOrgsPage} />
+        <Route path="/orgs" component={App} />
+        <Route exact path="/" component={RouteToOrg} />
+      </Switch>
     </SpinnerContainer>
   )
 }
@@ -51,7 +54,4 @@ const mstp = ({resources}: AppState): StateProps => ({
   status: resources.orgs.status,
 })
 
-export default connect<StateProps, DispatchProps, PassedInProps>(
-  mstp,
-  mdtp
-)(GetOrganizations)
+export default connect<StateProps, DispatchProps>(mstp, mdtp)(GetOrganizations)

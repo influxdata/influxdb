@@ -1,6 +1,10 @@
 // Libraries
 import React, {useEffect, useState, FC} from 'react'
 import {connect} from 'react-redux'
+import {Route, Switch} from 'react-router-dom'
+
+// Components
+import {MePage} from 'src/me'
 
 // Types
 import {AppState, Organization, ResourceType} from 'src/types'
@@ -46,7 +50,6 @@ const SetOrg: FC<Props> = ({
   orgs,
   history,
   setOrg,
-  children,
 }) => {
   const [loading, setLoading] = useState(RemoteDataState.Loading)
 
@@ -68,11 +71,13 @@ const SetOrg: FC<Props> = ({
 
     // else default to first org
     history.push(`/orgs/${orgs[0].id}`)
-  }, [orgID])
+  }, [orgID, orgs.length])
 
   return (
     <SpinnerContainer loading={loading} spinnerComponent={<TechnoSpinner />}>
-      {children}
+      <Switch>
+        <Route exact path="/orgs/:orgID" component={MePage} />
+      </Switch>
     </SpinnerContainer>
   )
 }

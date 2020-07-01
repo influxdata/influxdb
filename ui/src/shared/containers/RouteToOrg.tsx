@@ -48,4 +48,4 @@ const mstp = (state: AppState): StateProps => {
   return {orgs, org}
 }
 
-export default connect<StateProps, {}, {}>(mstp)(RouteToOrg)
+export default connect<StateProps>(mstp)(RouteToOrg)
