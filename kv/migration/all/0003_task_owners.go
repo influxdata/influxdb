@@ -13,7 +13,7 @@ var taskBucket = []byte("tasksv1")
 
 // Migration0003_TaskOwnerIDUpMigration adds missing owner IDs to some legacy tasks
 var Migration0003_TaskOwnerIDUpMigration = UpOnlyMigration(
-	"migration task owner id",
+	"migrate task owner id",
 	func(ctx context.Context, store kv.SchemaStore) error {
 		var ownerlessTasks []*influxdb.Task
 		// loop through the tasks and collect a set of tasks that are missing the owner id.
