@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/mock"
@@ -14,6 +15,122 @@ import (
 	"github.com/influxdata/influxdb/v2/storage"
 	"github.com/influxdata/influxdb/v2/tsdb"
 )
+
+func TestLoggingPointsWriter(t *testing.T) {
+	// Ensure a successful write will not be logged.
+	t.Run("OK", func(t *testing.T) {
+		var n int
+		lpw := &storage.LoggingPointsWriter{
+			Underlying: &mock.PointsWriter{
+				WritePointsFn: func(ctx context.Context, p []models.Point) error {
+					switch n++; n {
+					case 1:
+						return nil
+					default:
+						t.Fatal("too many calls to WritePoints()")
+						return nil
+					}
+				},
+			},
+		}
+
+		if err := lpw.WritePoints(context.Background(), []models.Point{models.MustNewPoint(
+			tsdb.EncodeNameString(1, 2),
+			models.NewTags(map[string]string{"t": "v"}),
+			models.Fields{"f": float64(100)},
+			time.Now(),
+		)}); err != nil {
+			t.Fatal(err)
+		} else if got, want := n, 1; got != want {
+			t.Fatalf("n=%d, want %d", got, want)
+		}
+	})
+
+	// Ensure an errored write will be logged afterward.
+	t.Run("ErroredWrite", func(t *testing.T) {
+		var n int
+		var pw mock.PointsWriter
+		pw.WritePointsFn = func(ctx context.Context, p []models.Point) error {
+			orgID, bucketID := tsdb.DecodeNameSlice(p[0].Name())
+			switch n++; n {
+			case 1:
+				if got, want := orgID, influxdb.ID(1); got != want {
+					t.Fatalf("orgID=%d, want %d", got, want)
+				} else if got, want := bucketID, influxdb.ID(2); got != want { // original bucket
+					t.Fatalf("orgID=%d, want %d", got, want)
+				}
+				return errors.New("marker")
+			case 2:
+				if got, want := orgID, influxdb.ID(1); got != want {
+					t.Fatalf("orgID=%d, want %d", got, want)
+				} else if got, want := bucketID, influxdb.ID(10); got != want { // log bucket
+					t.Fatalf("orgID=%d, want %d", got, want)
+				}
+				return nil
+			default:
+				t.Fatal("too many calls to WritePoints()")
+				return nil
+			}
+		}
+
+		var bs mock.BucketService
+		bs.FindBucketByNameFn = func(ctx context.Context, orgID influxdb.ID, name string) (*influxdb.Bucket, error) {
+			if got, want := orgID, influxdb.ID(1); got != want {
+				t.Fatalf("orgID=%d, want %d", got, want)
+			} else if got, want := name, "logbkt"; got != want {
+				t.Fatalf("name=%q, want %q", got, want)
+			}
+			return &influxdb.Bucket{ID: 10}, nil
+		}
+
+		lpw := &storage.LoggingPointsWriter{
+			Underlying:    &pw,
+			BucketService: &bs,
+			LogBucketName: "logbkt",
+		}
+
+		if err := lpw.WritePoints(context.Background(), []models.Point{models.MustNewPoint(
+			tsdb.EncodeNameString(1, 2),
+			models.NewTags(map[string]string{"t": "v"}),
+			models.Fields{"f": float64(100)},
+			time.Now(),
+		)}); err == nil || err.Error() != `marker` {
+			t.Fatalf("unexpected error: %#v", err)
+		}
+
+		// Expect two writes--the original and the logged.
+		if got, want := n, 2; got != want {
+			t.Fatalf("n=%d, want %d", got, want)
+		}
+	})
+
+	// Ensure an error is returned if logging bucket cannot be found.
+	t.Run("BucketError", func(t *testing.T) {
+		var bs mock.BucketService
+		bs.FindBucketByNameFn = func(ctx context.Context, orgID influxdb.ID, name string) (*influxdb.Bucket, error) {
+			return nil, errors.New("bucket error")
+		}
+
+		lpw := &storage.LoggingPointsWriter{
+			Underlying: &mock.PointsWriter{
+				WritePointsFn: func(ctx context.Context, p []models.Point) error {
+					return errors.New("point error")
+				},
+			},
+			BucketService: &bs,
+			LogBucketName: "logbkt",
+		}
+
+		if err := lpw.WritePoints(context.Background(), []models.Point{models.MustNewPoint(
+			tsdb.EncodeNameString(1, 2),
+			models.NewTags(map[string]string{"t": "v"}),
+			models.Fields{"f": float64(100)},
+			time.Now(),
+		)}); err == nil || err.Error() != `bucket error` {
+			t.Fatalf("unexpected error: %#v", err)
+		}
+	})
+}
 
 func TestBufferedPointsWriter(t *testing.T) {
 	t.Run("large empty write on empty buffer", func(t *testing.T) {
