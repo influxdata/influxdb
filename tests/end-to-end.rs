@@ -624,7 +624,7 @@ impl TestServer {
     async fn wait_until_ready(&self) {
         // Poll the RPC and HTTP servers separately as they listen on
         // different ports but both need to be up for the test to run
-        async fn try_grpc_connect() {
+        let try_grpc_connect = async {
             let mut interval = tokio::time::interval(Duration::from_millis(500));
             loop {
                 match StorageClient::connect(GRPC_URL_BASE).await {
@@ -641,9 +641,9 @@ impl TestServer {
                 }
                 interval.tick().await;
             }
-        }
+        };
 
-        async fn try_http_connect() {
+        let try_http_connect = async {
             let client = reqwest::Client::new();
             let url = format!("{}/ping", URL_BASE);
             let mut interval = tokio::time::interval(Duration::from_millis(500));
@@ -659,9 +659,9 @@ impl TestServer {
                 }
                 interval.tick().await;
             }
-        }
+        };
 
-        let pair = futures::future::join(try_http_connect(), try_grpc_connect());
+        let pair = future::join(try_http_connect, try_grpc_connect);
 
         let capped_check = tokio::time::timeout(Duration::from_secs(3), pair);
 
