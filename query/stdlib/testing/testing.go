@@ -166,11 +166,5 @@ var FluxEndToEndFeatureFlags = PerTestFeatureFlagMap{
 		"bare_sum_push": {
 			"pushDownWindowAggregateSum": "true",
 		},
-		"group_count_push": {
-			"pushDownGroupAggregateCount": "true",
-		},
-		"group_sum_push": {
-			"pushDownGroupAggregateSum": "true",
-		},
 	},
 }
