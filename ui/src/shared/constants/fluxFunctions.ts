@@ -526,7 +526,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       {
         name: 't',
         desc: 'The time to operate on.',
-        type: 'Time | Duration',
+        type: 'Time | Duration | Integer',
       },
     ],
     package: 'date',
@@ -542,7 +542,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       {
         name: 't',
         desc: 'The time to operate on.',
-        type: 'Time | Duration',
+        type: 'Time | Duration | Integer',
       },
     ],
     package: 'date',
@@ -559,7 +559,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       {
         name: 't',
         desc: 'The time to operate on.',
-        type: 'Time | Duration',
+        type: 'Time | Duration | Integer',
       },
     ],
     package: 'date',
@@ -576,7 +576,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       {
         name: 't',
         desc: 'The time to operate on.',
-        type: 'Time | Duration',
+        type: 'Time | Duration | Integer',
       },
     ],
     package: 'date',
@@ -593,7 +593,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       {
         name: 't',
         desc: 'The time to operate on.',
-        type: 'Time | Duration',
+        type: 'Time | Duration | Integer',
       },
     ],
     package: 'date',
@@ -609,7 +609,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       {
         name: 't',
         desc: 'The time to operate on.',
-        type: 'Time | Duration',
+        type: 'Time | Duration | Integer',
       },
     ],
     package: 'date',
@@ -626,7 +626,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       {
         name: 't',
         desc: 'The time to operate on.',
-        type: 'Time | Duration',
+        type: 'Time | Duration | Integer',
       },
     ],
     package: 'date',
@@ -643,7 +643,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       {
         name: 't',
         desc: 'The time to operate on.',
-        type: 'Time | Duration',
+        type: 'Time | Duration | Integer',
       },
     ],
     package: 'date',
@@ -660,7 +660,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       {
         name: 't',
         desc: 'The time to operate on.',
-        type: 'Time | Duration',
+        type: 'Time | Duration | Integer',
       },
     ],
     package: 'date',
@@ -677,7 +677,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       {
         name: 't',
         desc: 'The time to operate on.',
-        type: 'Time | Duration',
+        type: 'Time | Duration | Integer',
       },
       {
         name: 'unit',
@@ -700,7 +700,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       {
         name: 't',
         desc: 'The time to operate on.',
-        type: 'Time | Duration',
+        type: 'Time | Duration | Integer',
       },
     ],
     package: 'date',
@@ -717,7 +717,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       {
         name: 't',
         desc: 'The time to operate on.',
-        type: 'Time | Duration',
+        type: 'Time | Duration | Integer',
       },
     ],
     package: 'date',
@@ -734,7 +734,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       {
         name: 't',
         desc: 'The time to operate on.',
-        type: 'Time | Duration',
+        type: 'Time | Duration | Integer',
       },
     ],
     package: 'date',
@@ -750,7 +750,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       {
         name: 't',
         desc: 'The time to operate on.',
-        type: 'Time | Duration',
+        type: 'Time | Duration | Integer',
       },
     ],
     package: 'date',
@@ -1856,6 +1856,23 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     category: 'Miscellaneous',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/experimental/http/get/',
+  },
+  {
+    name: 'http.pathEscape',
+    args: [
+      {
+        name: 'inputString',
+        desc: 'The string to escape.',
+        type: 'String',
+      },
+    ],
+    package: 'http',
+    desc:
+      'Escapes special characters in a string and replaces non-ASCII characters with hexadecimal representations (%XX).',
+    example: 'http.pathEscape(inputString: "/this/is/an/example-path.html")',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/http/pathescape/',
   },
   {
     name: 'http.post',
