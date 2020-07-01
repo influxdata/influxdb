@@ -241,7 +241,7 @@ func (rule PushDownReadTagKeysRule) Rewrite(ctx context.Context, pn plan.Node) (
 	// Retrieve the nodes and specs for all of the predecessors.
 	distinctSpec := pn.ProcedureSpec().(*universe.DistinctProcedureSpec)
 	keepNode := pn.Predecessors()[0]
-	keepSpec := keepNode.ProcedureSpec().(*universe.SchemaMutationProcedureSpec)
+	keepSpec := asSchemaMutationProcedureSpec(keepNode.ProcedureSpec())
 	keysNode := keepNode.Predecessors()[0]
 	keysSpec := keysNode.ProcedureSpec().(*universe.KeysProcedureSpec)
 	fromNode := keysNode.Predecessors()[0]
@@ -306,7 +306,7 @@ func (rule PushDownReadTagValuesRule) Rewrite(ctx context.Context, pn plan.Node)
 	groupNode := distinctNode.Predecessors()[0]
 	groupSpec := groupNode.ProcedureSpec().(*universe.GroupProcedureSpec)
 	keepNode := groupNode.Predecessors()[0]
-	keepSpec := keepNode.ProcedureSpec().(*universe.SchemaMutationProcedureSpec)
+	keepSpec := asSchemaMutationProcedureSpec(keepNode.ProcedureSpec())
 	fromNode := keepNode.Predecessors()[0]
 	fromSpec := fromNode.ProcedureSpec().(*ReadRangePhysSpec)
 
@@ -818,7 +818,7 @@ func (PushDownWindowAggregateByTimeRule) Rewrite(ctx context.Context, pn plan.No
 
 	duplicateNode := windowNode.Predecessors()[0]
 	duplicateSpec, duplicateSpecOk := func() (*universe.DuplicateOpSpec, bool) {
-		s := duplicateNode.ProcedureSpec().(*universe.SchemaMutationProcedureSpec)
+		s := asSchemaMutationProcedureSpec(duplicateNode.ProcedureSpec())
 		if len(s.Mutations) != 1 {
 			return nil, false
 		}
@@ -1169,4 +1169,11 @@ func (r SwitchSchemaMutationImplRule) Rewrite(ctx context.Context, pn plan.Node)
 
 	spec.UseDeprecated = !feature.MemoryOptimizedSchemaMutation().Enabled(ctx)
 	return pn, spec.UseDeprecated, nil
+}
+
+func asSchemaMutationProcedureSpec(spec plan.ProcedureSpec) *universe.SchemaMutationProcedureSpec {
+	if s, ok := spec.(*universe.DualImplProcedureSpec); ok {
+		spec = s.ProcedureSpec
+	}
+	return spec.(*universe.SchemaMutationProcedureSpec)
 }
