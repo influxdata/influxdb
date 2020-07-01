@@ -2602,12 +2602,7 @@ func TestPushDownBareAggregateRule(t *testing.T) {
 //
 func TestPushDownGroupAggregateRule(t *testing.T) {
 	// Turn on all flags
-	ctx, _ := feature.Annotate(context.Background(), mock.NewFlagger(map[feature.Flag]interface{}{
-		feature.PushDownGroupAggregateCount(): true,
-		feature.PushDownGroupAggregateSum():   true,
-		feature.PushDownGroupAggregateFirst(): true,
-		feature.PushDownGroupAggregateLast():  true,
-	}))
+	ctx, _ := feature.Annotate(context.Background(), mock.NewFlagger(map[feature.Flag]interface{}{}))
 
 	caps := func(c query.GroupCapability) context.Context {
 		deps := influxdb.StorageDependencies{

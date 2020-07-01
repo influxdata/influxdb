@@ -25,7 +25,9 @@ import (
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/launcher"
 	phttp "github.com/influxdata/influxdb/v2/http"
+	"github.com/influxdata/influxdb/v2/kit/feature"
 	"github.com/influxdata/influxdb/v2/kit/prom"
+	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/query"
 )
 
@@ -1596,24 +1598,12 @@ from(bucket: v.bucket)
 	for _, tc := range testcases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			l := launcher.RunTestLauncherOrFail(t, ctx, nil,
-				"--feature-flags",
-				"pushDownWindowAggregateCount=true",
-				"--feature-flags",
-				"pushDownWindowAggregateSum=true",
-				"--feature-flags",
-				"pushDownWindowAggregateFirst=true",
-				"--feature-flags",
-				"pushDownWindowAggregateLast=true",
-				"--feature-flags",
-				"pushDownGroupAggregateCount=true",
-				"--feature-flags",
-				"pushDownGroupAggregateSum=true",
-				"--feature-flags",
-				"pushDownGroupAggregateFirst=true",
-				"--feature-flags",
-				"pushDownGroupAggregateLast=true",
-			)
+			l := launcher.RunTestLauncherOrFail(t, ctx, mock.NewFlagger(map[feature.Flag]interface{}{
+				feature.PushDownWindowAggregateCount(): true,
+				feature.PushDownWindowAggregateSum():   true,
+				feature.PushDownWindowAggregateFirst(): true,
+				feature.PushDownWindowAggregateLast():  true,
+			}))
 
 			l.SetupOrFail(t)
 			defer l.ShutdownOrFail(t, ctx)

@@ -1106,26 +1106,16 @@ func canPushGroupedAggregate(ctx context.Context, pn plan.Node) bool {
 	switch pn.Kind() {
 	case universe.CountKind:
 		agg := pn.ProcedureSpec().(*universe.CountProcedureSpec)
-		return caps.HaveCount() &&
-			feature.PushDownGroupAggregateCount().Enabled(ctx) &&
-			len(agg.Columns) == 1 &&
-			agg.Columns[0] == execute.DefaultValueColLabel
+		return caps.HaveCount() && len(agg.Columns) == 1 && agg.Columns[0] == execute.DefaultValueColLabel
 	case universe.SumKind:
 		agg := pn.ProcedureSpec().(*universe.SumProcedureSpec)
-		return caps.HaveSum() &&
-			feature.PushDownGroupAggregateSum().Enabled(ctx) &&
-			len(agg.Columns) == 1 &&
-			agg.Columns[0] == execute.DefaultValueColLabel
+		return caps.HaveSum() && len(agg.Columns) == 1 && agg.Columns[0] == execute.DefaultValueColLabel
 	case universe.FirstKind:
 		agg := pn.ProcedureSpec().(*universe.FirstProcedureSpec)
-		return caps.HaveFirst() &&
-			feature.PushDownGroupAggregateFirst().Enabled(ctx) &&
-			agg.Column == execute.DefaultValueColLabel
+		return caps.HaveFirst() && agg.Column == execute.DefaultValueColLabel
 	case universe.LastKind:
 		agg := pn.ProcedureSpec().(*universe.LastProcedureSpec)
-		return caps.HaveLast() &&
-			feature.PushDownGroupAggregateLast().Enabled(ctx) &&
-			agg.Column == execute.DefaultValueColLabel
+		return caps.HaveLast() && agg.Column == execute.DefaultValueColLabel
 	}
 	return false
 }

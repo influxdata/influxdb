@@ -184,62 +184,6 @@ func NewAuthPackage() BoolFlag {
 	return newAuth
 }
 
-var pushDownGroupAggregateCount = MakeBoolFlag(
-	"Push Down Group Aggregate Count",
-	"pushDownGroupAggregateCount",
-	"Query Team",
-	false,
-	Temporary,
-	false,
-)
-
-// PushDownGroupAggregateCount - Enable the count variant of PushDownGroupAggregate planner rule
-func PushDownGroupAggregateCount() BoolFlag {
-	return pushDownGroupAggregateCount
-}
-
-var pushDownGroupAggregateSum = MakeBoolFlag(
-	"Push Down Group Aggregate Sum",
-	"pushDownGroupAggregateSum",
-	"Query Team",
-	false,
-	Temporary,
-	false,
-)
-
-// PushDownGroupAggregateSum - Enable the sum variant of PushDownGroupAggregate planner rule
-func PushDownGroupAggregateSum() BoolFlag {
-	return pushDownGroupAggregateSum
-}
-
-var pushDownGroupAggregateFirst = MakeBoolFlag(
-	"Push Down Group Aggregate First",
-	"pushDownGroupAggregateFirst",
-	"Query Team",
-	false,
-	Temporary,
-	false,
-)
-
-// PushDownGroupAggregateFirst - Enable the first variant of PushDownGroupAggregate planner rule
-func PushDownGroupAggregateFirst() BoolFlag {
-	return pushDownGroupAggregateFirst
-}
-
-var pushDownGroupAggregateLast = MakeBoolFlag(
-	"Push Down Group Aggregate Last",
-	"pushDownGroupAggregateLast",
-	"Query Team",
-	false,
-	Temporary,
-	false,
-)
-
-// PushDownGroupAggregateLast - Enable the last variant of PushDownGroupAggregate planner rule
-func PushDownGroupAggregateLast() BoolFlag {
-	return pushDownGroupAggregateLast
-}
-
 var newLabels = MakeBoolFlag(
 	"New Label Package",
 	"newLabels",
@@ -338,10 +282,6 @@ var all = []Flag{
 	pushDownWindowAggregateLast,
 	groupWindowAggregateTranspose,
 	newAuth,
-	pushDownGroupAggregateCount,
-	pushDownGroupAggregateSum,
-	pushDownGroupAggregateFirst,
-	pushDownGroupAggregateLast,
 	newLabels,
 	hydratevars,
 	memoryOptimizedFill,
@@ -364,10 +304,6 @@ var byKey = map[string]Flag{
 	"pushDownWindowAggregateLast":   pushDownWindowAggregateLast,
 	"groupWindowAggregateTranspose": groupWindowAggregateTranspose,
 	"newAuth":                       newAuth,
-	"pushDownGroupAggregateCount":   pushDownGroupAggregateCount,
-	"pushDownGroupAggregateSum":     pushDownGroupAggregateSum,
-	"pushDownGroupAggregateFirst":   pushDownGroupAggregateFirst,
-	"pushDownGroupAggregateLast":    pushDownGroupAggregateLast,
 	"newLabels":                     newLabels,
 	"hydratevars":                   hydratevars,
 	"memoryOptimizedFill":           memoryOptimizedFill,
