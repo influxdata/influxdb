@@ -91,7 +91,7 @@ fn parse_tsm_key(mut key: Vec<u8>) -> Result<ParsedTSMKey, TSMError> {
     })
 }
 
-#[derive(Clone, Debug, Copy)]
+#[derive(Clone, Debug, Copy, PartialEq)]
 pub enum BlockType {
     Float,
     Integer,
@@ -125,6 +125,7 @@ pub struct Block {
     pub max_time: i64,
     pub offset: u64,
     pub size: u32,
+    pub typ: BlockType,
 }
 
 // MAX_BLOCK_VALUES is the maximum number of values a TSM block can store.

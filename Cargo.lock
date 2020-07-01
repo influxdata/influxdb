@@ -771,6 +771,7 @@ dependencies = [
  "hex",
  "integer-encoding",
  "libflate",
+ "log",
  "rand 0.7.3",
  "snap",
 ]
