@@ -90,7 +90,7 @@ impl Organization {
                 posting_list_rollover: 10_000,
                 index_levels: vec![],
             };
-            debug!("Restorred bucket from WAL: {:?}", bucket);
+            debug!("Restored bucket from WAL: {:?}", bucket);
 
             let bucket_data = BucketData::restore_from_wal(bucket, bucket_dir).await?;
 

@@ -98,7 +98,7 @@ impl Partition {
         let mut db = MemDB::new(partition_id);
         let wal_builder = WalBuilder::new(bucket_dir);
         let wal_details = start_wal_sync_task(wal_builder.clone()).await?;
-        debug!(" wal details  {:?}", wal_details);
+        debug!("Wal details {:?}", wal_details);
 
         match wal_details.metadata.format {
             WalFormat::Unknown => {
