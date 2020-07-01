@@ -224,6 +224,22 @@ impl IndexEntry {
     }
 }
 
+/// A BlockDecoder is capable of decoding a block definition into block data
+/// (timestamps and value vectors).
+
+pub trait BlockDecoder {
+    fn decode(&mut self, block: &Block) -> Result<BlockData, TSMError>;
+}
+
+impl<T> BlockDecoder for &mut T
+where
+    T: BlockDecoder,
+{
+    fn decode(&mut self, block: &Block) -> Result<BlockData, TSMError> {
+        (&mut **self).decode(block)
+    }
+}
+
 /// `TSMBlockReader` allows you to read and decode TSM blocks from within a TSM
 /// file.
 ///
@@ -242,13 +258,18 @@ where
     pub fn new(r: R) -> Self {
         Self { r }
     }
+}
 
-    /// decode_block decodes a block whose location is described by the provided
+impl<R> BlockDecoder for TSMBlockReader<R>
+where
+    R: BufRead + Seek,
+{
+    /// decode a block whose location is described by the provided
     /// `Block`.
     ///
     /// The components of the returned `BlockData` are guaranteed to have
     /// identical lengths.
-    pub fn decode_block(&mut self, block: &Block) -> Result<BlockData, TSMError> {
+    fn decode(&mut self, block: &Block) -> Result<BlockData, TSMError> {
         self.r.seek(SeekFrom::Start(block.offset))?;
 
         let mut data: Vec<u8> = vec![0; block.size as usize];
@@ -428,7 +449,7 @@ mod tests {
 
         let mut blocks = vec![];
         for def in block_defs {
-            blocks.push(block_reader.decode_block(&def).unwrap());
+            blocks.push(block_reader.decode(&def).unwrap());
         }
 
         for block in blocks {
@@ -471,7 +492,7 @@ mod tests {
         let mut block_reader = TSMBlockReader::new(Cursor::new(&buf));
         for block in blocks {
             block_reader
-                .decode_block(&block)
+                .decode(&block)
                 .expect("error decoding block data");
         }
     }

@@ -17,7 +17,7 @@ use delorean_table::{
 use delorean_table_schema::{DataType, Schema, SchemaBuilder};
 use delorean_tsm::{
     mapper::{map_field_columns, ColumnData, MeasurementTable, TSMMeasurementMapper},
-    reader::{TSMBlockReader, TSMIndexReader},
+    reader::{BlockDecoder, TSMBlockReader, TSMIndexReader},
     BlockType, TSMError,
 };
 use log::debug;
@@ -556,8 +556,8 @@ impl TSMFileConverter {
 
     // Given a measurement table `process_measurement_table` produces an
     // appropriate schema and set of Packers.
-    fn process_measurement_table<R: BufRead + Seek>(
-        mut block_reader: &mut TSMBlockReader<R>,
+    fn process_measurement_table(
+        mut block_reader: impl BlockDecoder,
         m: &mut MeasurementTable,
     ) -> Result<(Schema, Vec<Packers>), Error> {
         let mut builder = SchemaBuilder::new(&m.name);
@@ -589,11 +589,9 @@ impl TSMFileConverter {
             .map(|c| (c.name.clone(), c.index as usize))
             .collect::<BTreeMap<String, usize>>();
 
-        // For each tagset combination in the measurement I need
-        // to build out the table. Then for each column in the
-        // table I need to convert to a Packer<T> and append it
-        // to the packer_column.
-
+        // For each tagset combination in the measurement build out a table.
+        // Then, for each column in that table convert it to a Packer<T> and
+        // append it to the relevant packer_column.
         for (i, (tag_set_pair, blocks)) in m.tag_set_fields_blocks().iter_mut().enumerate() {
             let (ts, field_cols) =
                 map_field_columns(&mut block_reader, blocks).context(TSMProcessing)?;
@@ -780,7 +778,9 @@ impl std::fmt::Debug for TSMFileConverter {
 #[cfg(test)]
 mod delorean_ingest_tests {
     use super::*;
-    use delorean_table::{DeloreanTableWriter, DeloreanTableWriterSource, Error as TableError};
+    use delorean_table::{
+        DeloreanTableWriter, DeloreanTableWriterSource, Error as TableError, Packers,
+    };
     use delorean_table_schema::ColumnDefinition;
     use delorean_test_helpers::approximately_equal;
 
@@ -1444,7 +1444,279 @@ mod delorean_ingest_tests {
 
     // ----- Tests for TSM Data -----
 
-    // TODO(edd): create a smaller TSM file for this test...
+    // MockBlockDecoder implements the BlockDecoder trait. It uses the `min_time`
+    // value in a provided `Block` definition as a key to a map of block data,
+    // which should be provided on initialisation.
+    struct MockBlockDecoder {
+        blocks: BTreeMap<i64, delorean_tsm::BlockData>,
+    }
+
+    impl BlockDecoder for MockBlockDecoder {
+        fn decode(
+            &mut self,
+            block: &delorean_tsm::Block,
+        ) -> std::result::Result<delorean_tsm::BlockData, delorean_tsm::TSMError> {
+            self.blocks
+                .get(&block.min_time)
+                .cloned()
+                .ok_or(delorean_tsm::TSMError {
+                    description: "block not found".to_string(),
+                })
+        }
+    }
+
+    #[test]
+    fn process_measurement_table() -> Result<(), Box<dyn std::error::Error>> {
+        use delorean_tsm::{Block, BlockData};
+
+        // Input data - in line protocol format
+        //
+        // cpu,region=east temp=1.2 0
+        // cpu,region=east voltage=10.2 0
+        //
+        // cpu,region=east temp=1.2 1000
+        // cpu,region=east voltage=10.2 1000
+        //
+        // cpu,region=east temp=1.4 2000
+        // cpu,region=east voltage=10.4 2000
+        // cpu,region=west,server=a temp=100.2 2000
+        //
+        // cpu,az=b watts=1000 3000
+        // cpu,region=west,server=a temp=99.5 3000
+        //
+        // cpu,az=b watts=2000 4000
+        // cpu,region=west,server=a temp=100.3 4000
+        //
+        // cpu,az=b watts=3000 5000
+
+        // Expected output table
+        //
+        // |  az  | region | server |  temp | voltage |  watts  | time |
+        // |------|--------|--------|-------|---------|---------|------|
+        // | b    |  NULL  |  NULL  | NULL  |  NULL   |   1000  | 3000 |
+        // | b    |  NULL  |  NULL  | NULL  |  NULL   |   2000  | 4000 |
+        // | b    |  NULL  |  NULL  | NULL  |  NULL   |   3000  | 5000 |
+        // | NULL |  east  |  NULL  | 1.2   |  10.2   |   NULL  | 0000 |  <-- notice series joined on ts column
+        // | NULL |  east  |  NULL  | 1.2   |  10.2   |   NULL  | 1000 |  <-- notice series joined on ts column
+        // | NULL |  east  |  NULL  | 1.4   |  10.4   |   NULL  | 2000 |  <-- notice series joined on ts column
+        // | NULL |  west  |    a   | 100.2 |  NULL   |   NULL  | 2000 |
+        // | NULL |  west  |    a   | 99.5  |  NULL   |   NULL  | 3000 |
+        // | NULL |  west  |    a   | 100.3 |  NULL   |   NULL  | 4000 |
+
+        let mut table = MeasurementTable::new("cpu".to_string());
+        // cpu region=east temp=<all the block data for this key>
+        table.add_series_data(
+            vec![("region".to_string(), "east".to_string())],
+            "temp".to_string(),
+            BlockType::Float,
+            Block {
+                min_time: 0,
+                max_time: 0,
+                offset: 0,
+                size: 0,
+                typ: BlockType::Float,
+            },
+        )?;
+
+        // cpu region=east voltage=<all the block data for this key>
+        table.add_series_data(
+            vec![("region".to_string(), "east".to_string())],
+            "voltage".to_string(),
+            BlockType::Float,
+            Block {
+                min_time: 1,
+                max_time: 0,
+                offset: 0,
+                size: 0,
+                typ: BlockType::Float,
+            },
+        )?;
+
+        // cpu region=west,server=a temp=<all the block data for this key>
+        table.add_series_data(
+            vec![
+                ("region".to_string(), "west".to_string()),
+                ("server".to_string(), "a".to_string()),
+            ],
+            "temp".to_string(),
+            BlockType::Float,
+            Block {
+                min_time: 2,
+                max_time: 0,
+                offset: 0,
+                size: 0,
+                typ: BlockType::Float,
+            },
+        )?;
+
+        // cpu az=b watts=<all the block data for this key>
+        table.add_series_data(
+            vec![("az".to_string(), "b".to_string())],
+            "watts".to_string(),
+            BlockType::Unsigned,
+            Block {
+                min_time: 3,
+                max_time: 0,
+                offset: 0,
+                size: 0,
+                typ: BlockType::Float,
+            },
+        )?;
+
+        let mut block_map = BTreeMap::new();
+        block_map.insert(
+            0,
+            BlockData::Float {
+                ts: vec![0, 1000, 2000],
+                values: vec![1.2, 1.2, 1.4],
+            },
+        );
+        block_map.insert(
+            1,
+            BlockData::Float {
+                ts: vec![0, 1000, 2000],
+                values: vec![10.2, 10.2, 10.4],
+            },
+        );
+        block_map.insert(
+            2,
+            BlockData::Float {
+                ts: vec![2000, 3000, 4000],
+                values: vec![100.2, 99.5, 100.3],
+            },
+        );
+        block_map.insert(
+            3,
+            BlockData::Unsigned {
+                ts: vec![3000, 4000, 5000],
+                values: vec![1000, 2000, 3000],
+            },
+        );
+
+        let decoder = MockBlockDecoder { blocks: block_map };
+
+        let (schema, packers) = TSMFileConverter::process_measurement_table(decoder, &mut table)?;
+
+        let expected_defs = vec![
+            ColumnDefinition::new("az", 0, DataType::String),
+            ColumnDefinition::new("region", 1, DataType::String),
+            ColumnDefinition::new("server", 2, DataType::String),
+            ColumnDefinition::new("temp", 3, DataType::Float),
+            ColumnDefinition::new("voltage", 4, DataType::Float),
+            ColumnDefinition::new("watts", 5, DataType::Integer),
+            ColumnDefinition::new("time", 6, DataType::Timestamp),
+        ];
+
+        assert_eq!(schema.get_col_defs(), expected_defs);
+        // az column
+        assert_eq!(
+            packers[0],
+            Packers::String(Packer::from(vec![
+                Some(ByteArray::from("b")),
+                Some(ByteArray::from("b")),
+                Some(ByteArray::from("b")),
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            ]))
+        );
+        // region column
+        assert_eq!(
+            packers[1],
+            Packers::String(Packer::from(vec![
+                None,
+                None,
+                None,
+                Some(ByteArray::from("east")),
+                Some(ByteArray::from("east")),
+                Some(ByteArray::from("east")),
+                Some(ByteArray::from("west")),
+                Some(ByteArray::from("west")),
+                Some(ByteArray::from("west")),
+            ]))
+        );
+        // server column
+        assert_eq!(
+            packers[2],
+            Packers::String(Packer::from(vec![
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                Some(ByteArray::from("a")),
+                Some(ByteArray::from("a")),
+                Some(ByteArray::from("a")),
+            ]))
+        );
+        // temp column
+        assert_eq!(
+            packers[3],
+            Packers::Float(Packer::from(vec![
+                None,
+                None,
+                None,
+                Some(1.2),
+                Some(1.2),
+                Some(1.4),
+                Some(100.2),
+                Some(99.5),
+                Some(100.3),
+            ]))
+        );
+        // voltage column
+        assert_eq!(
+            packers[4],
+            Packers::Float(Packer::from(vec![
+                None,
+                None,
+                None,
+                Some(10.2),
+                Some(10.2),
+                Some(10.4),
+                None,
+                None,
+                None,
+            ]))
+        );
+        // watts column
+        assert_eq!(
+            packers[5],
+            Packers::Integer(Packer::from(vec![
+                Some(1000),
+                Some(2000),
+                Some(3000),
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            ]))
+        );
+        // timestamp column
+        assert_eq!(
+            packers[6],
+            Packers::Integer(Packer::from(vec![
+                Some(3),
+                Some(4),
+                Some(5),
+                Some(0),
+                Some(1),
+                Some(2),
+                Some(2),
+                Some(3),
+                Some(4),
+            ]))
+        );
+
+        Ok(())
+    }
+
     #[test]
     fn conversion_tsm_files() -> Result<(), Error> {
         let file = File::open("../tests/fixtures/000000000000462-000000002.tsm.gz");

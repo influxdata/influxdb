@@ -1,7 +1,7 @@
 ///! Types for mapping and converting series data from TSM indexes produced by
 ///! InfluxDB >= 2.x
-use super::reader::{TSMBlockReader, TSMIndexReader};
-use super::{Block, BlockData, BlockType, TSMError};
+use crate::reader::{BlockDecoder, TSMIndexReader};
+use crate::{Block, BlockData, BlockType, TSMError};
 
 use log::warn;
 
@@ -142,7 +142,7 @@ impl MeasurementTable {
     }
 
     // updates the table with data from a single TSM index entry's block.
-    fn add_series_data(
+    pub fn add_series_data(
         &mut self,
         tagset: Vec<(String, String)>,
         field_key: String,
@@ -240,31 +240,6 @@ impl ValuePair {
             Self::Str((ts, _)) => ts,
             Self::U64((ts, _)) => ts,
         }
-    }
-}
-
-// A BlockDecoder is capable of decoding a block definition into block data
-// (timestamps and value vectors).
-
-pub trait BlockDecoder {
-    fn block_data(&mut self, block: &Block) -> Result<BlockData, TSMError>;
-}
-
-impl<R> BlockDecoder for &mut TSMBlockReader<R>
-where
-    R: BufRead + Seek,
-{
-    fn block_data(&mut self, block: &Block) -> Result<BlockData, TSMError> {
-        self.decode_block(block)
-    }
-}
-
-impl<R> BlockDecoder for &mut &mut TSMBlockReader<R>
-where
-    R: BufRead + Seek,
-{
-    fn block_data(&mut self, block: &Block) -> Result<BlockData, TSMError> {
-        self.decode_block(block)
     }
 }
 
@@ -503,7 +478,7 @@ fn refill_block_buffer(
         //
         // Pop the next input block for this field key, decode it and refill dst
         // with it.
-        let decoded_block = decoder.block_data(&blocks.remove(0))?;
+        let decoded_block = decoder.decode(&blocks.remove(0))?;
         dst.insert(field.clone(), decoded_block);
     }
     Ok(())
@@ -560,7 +535,10 @@ fn refill_value_pair_buffer(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::reader::*;
+
     use libflate::gzip;
+
     use std::fs::File;
     use std::io::BufReader;
     use std::io::Cursor;
