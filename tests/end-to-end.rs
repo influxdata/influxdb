@@ -36,7 +36,6 @@ use std::str;
 use std::time::{Duration, SystemTime};
 use std::u32;
 use tempfile::TempDir;
-use tokio::time::Instant;
 
 const URL_BASE: &str = "http://localhost:8080/api/v2";
 const GRPC_URL_BASE: &str = "http://localhost:8082/";
@@ -664,7 +663,7 @@ impl TestServer {
 
         let pair = futures::future::join(try_http_connect(), try_grpc_connect());
 
-        let capped_check = time::timeout(Duration::from_secs(3), pair);
+        let capped_check = tokio::time::timeout(Duration::from_secs(3), pair);
 
         match capped_check.await {
             Ok(_) => println!("Server is up correctly"),
