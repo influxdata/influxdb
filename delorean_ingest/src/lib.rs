@@ -1516,8 +1516,7 @@ mod delorean_ingest_tests {
                     offset: 0,
                     size: 0,
                 },
-            )
-            .map_err(|e| Error::TSMProcessing { source: e })?;
+            )?;
 
         // cpu region=east voltage=<all the block data for this key>
         table
