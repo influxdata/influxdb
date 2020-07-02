@@ -81,67 +81,6 @@ class Root extends PureComponent {
           <Route component={Setup} />
           <Route component={NotFound} />
           {/*<Route component={Setup}>
-                           </Route>
-                            <Route path="settings">
-                              <IndexRoute component={VariablesIndex} />
-                              <Route
-                                path="variables"
-                                component={VariablesIndex}
-                              >
-                                <Route
-                                  path="import"
-                                  component={VariableImportOverlay}
-                                />
-                                <Route
-                                  path=":id/export"
-                                  component={VariableExportOverlay}
-                                />
-                                <Route
-                                  path="new"
-                                  component={CreateVariableOverlay}
-                                />
-                                <Route
-                                  path=":id/rename"
-                                  component={RenameVariableOverlay}
-                                />
-                                <Route
-                                  path=":id/edit"
-                                  component={UpdateVariableOverlay}
-                                />
-                              </Route>
-                              <Route
-                                path="templates"
-                                component={TemplatesIndex}
-                              >
-                                <Route
-                                  path="import"
-                                  component={TemplateImportOverlay}
-                                />
-                                <Route
-                                  path="import/:templateName"
-                                  component={CommunityTemplateImportOverlay}
-                                />
-                                <Route
-                                  path=":id/export"
-                                  component={TemplateExportOverlay}
-                                />
-                                <Route
-                                  path=":id/view"
-                                  component={TemplateViewOverlay}
-                                />
-                                <Route
-                                  path=":id/static/view"
-                                  component={StaticTemplateViewOverlay}
-                                />
-                              </Route>
-                              <Route path="labels" component={LabelsIndex} />
-                              <Route path="about" component={OrgProfilePage}>
-                                <Route
-                                  path="rename"
-                                  component={RenameOrgOverlay}
-                                />
-                              </Route>
-                            </Route>
                             <Route path="alerting" component={AlertingIndex}>
                               <Route
                                 path="checks/new-threshold"
@@ -180,7 +119,6 @@ class Root extends PureComponent {
                               path="checks/:checkID"
                               component={CheckHistory}
                             />
-                            <Route path="about" component={OrgProfilePage} />
                             {!CLOUD && (
                               <Route path="members" component={MembersIndex} />
                             )}

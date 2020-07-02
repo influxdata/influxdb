@@ -69,7 +69,7 @@ const EndpointCard: FC<Props> = ({
   }
 
   const handleClick = () => {
-    history.push(`orgs/${orgID}/alerting/endpoints/${id}/edit`)
+    history.push(`/orgs/${orgID}/alerting/endpoints/${id}/edit`)
   }
 
   const handleToggle = () => {

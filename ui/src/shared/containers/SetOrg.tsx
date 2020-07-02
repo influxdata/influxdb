@@ -22,6 +22,9 @@ import VariablesIndex from 'src/variables/containers/VariablesIndex'
 import TemplatesIndex from 'src/templates/containers/TemplatesIndex'
 import LabelsIndex from 'src/labels/containers/LabelsIndex'
 import OrgProfilePage from 'src/organizations/containers/OrgProfilePage'
+import AlertingIndex from 'src/alerting/components/AlertingIndex'
+import AlertHistoryIndex from 'src/alerting/components/AlertHistoryIndex'
+import CheckHistory from 'src/checks/components/CheckHistory'
 
 // Types
 import {AppState, Organization, ResourceType} from 'src/types'
@@ -96,6 +99,14 @@ const SetOrg: FC<Props> = ({
   return (
     <SpinnerContainer loading={loading} spinnerComponent={<TechnoSpinner />}>
       <Switch>
+        {/* Alerting */}
+        <Route path={`${orgPath}/alerting`} component={AlertingIndex} />
+        <Route
+          path={`${orgPath}/alert-history`}
+          component={AlertHistoryIndex}
+        />
+        <Route path={`${orgPath}/checks/:checkID`} component={CheckHistory} />
+
         {/* Tasks */}
         <Route path={`${orgPath}/tasks/:id/runs`} component={TaskRunsPage} />
         <Route path={`${orgPath}/tasks/:id/edit`} component={TaskEditPage} />
