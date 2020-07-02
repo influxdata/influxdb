@@ -959,7 +959,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		NewQueryService:      source.NewQueryService,
 		PointsWriter: &storage.LoggingPointsWriter{
 			Underlying:    pointsWriter,
-			BucketService: bucketSvc,
+			BucketFinder:  bucketSvc,
 			LogBucketName: platform.MonitoringSystemBucketName,
 		},
 		DeleteService:        deleteService,
