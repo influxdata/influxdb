@@ -5,6 +5,8 @@ export const SIGNIN = '/signin'
 export const BUCKETS = 'buckets'
 export const BUCKET_ID = ':bucketID'
 
+export const CLIENT_LIBS = 'client-libraries'
+
 export const DASHBOARDS = 'dashboards'
 export const DASHBOARD_ID = ':dashboardID'
 
