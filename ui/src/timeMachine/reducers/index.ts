@@ -85,34 +85,36 @@ export interface TimeMachinesState {
   }
 }
 
-export const initialStateHelper = (): TimeMachineState => ({
-  timeRange: pastHourTimeRange,
-  autoRefresh: AUTOREFRESH_DEFAULT,
-  view: createView(),
-  draftQueries: [{...defaultViewQuery(), hidden: false}],
-  isViewingRawData: false,
-  isViewingVisOptions: false,
-  activeTab: 'queries',
-  activeQueryIndex: 0,
-  queryResults: initialQueryResultsState(),
-  queryBuilder: {
-    buckets: [],
-    bucketsStatus: RemoteDataState.NotStarted,
-    aggregateWindow: {period: 'auto'},
-    functions: [],
-    tags: [
-      {
-        aggregateFunctionType: 'filter',
-        keys: [],
-        keysSearchTerm: '',
-        keysStatus: RemoteDataState.NotStarted,
-        values: [],
-        valuesSearchTerm: '',
-        valuesStatus: RemoteDataState.NotStarted,
-      },
-    ],
-  },
-})
+export const initialStateHelper = (): TimeMachineState => {
+  return {
+    timeRange: pastHourTimeRange,
+    autoRefresh: AUTOREFRESH_DEFAULT,
+    view: createView(),
+    draftQueries: [{...defaultViewQuery(), hidden: false}],
+    isViewingRawData: false,
+    isViewingVisOptions: false,
+    activeTab: 'queries',
+    activeQueryIndex: 0,
+    queryResults: initialQueryResultsState(),
+    queryBuilder: {
+      buckets: [],
+      bucketsStatus: RemoteDataState.NotStarted,
+      aggregateWindow: {period: 'auto'},
+      functions: [[{name: 'mean'}]],
+      tags: [
+        {
+          aggregateFunctionType: 'filter',
+          keys: [],
+          keysSearchTerm: '',
+          keysStatus: RemoteDataState.NotStarted,
+          values: [],
+          valuesSearchTerm: '',
+          valuesStatus: RemoteDataState.NotStarted,
+        },
+      ],
+    },
+  }
+}
 
 export const initialState = (): TimeMachinesState => ({
   activeTimeMachineID: 'de',
@@ -1033,14 +1035,15 @@ const convertView = (
 const initialQueryBuilderState = (
   builderConfig: BuilderConfig
 ): QueryBuilderState => {
+  const defaultFunctions = initialStateHelper().queryBuilder.functions
+  const [defaultTag] = initialStateHelper().queryBuilder.tags
   return {
     buckets: builderConfig.buckets,
     bucketsStatus: RemoteDataState.NotStarted,
-    functions: [],
+    functions: [...defaultFunctions],
     aggregateWindow: {period: 'auto'},
     tags: builderConfig.tags.map(() => {
-      const [defaultTag] = initialStateHelper().queryBuilder.tags
-      return defaultTag
+      return {...defaultTag}
     }),
   }
 }

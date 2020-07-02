@@ -53,7 +53,7 @@ export function defaultBuilderConfig(): BuilderConfig {
   return {
     buckets: [],
     tags: [{key: '_measurement', values: [], aggregateFunctionType: 'filter'}],
-    functions: [],
+    functions: [{name: 'mean'}],
     aggregateWindow: {period: 'auto'},
   }
 }

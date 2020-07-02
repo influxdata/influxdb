@@ -428,6 +428,10 @@ export const selectBuilderFunction = (name: string) => (
   let newFunctions: BuilderFunctionsType[]
 
   if (functions.find(f => f.name === name)) {
+    if (functions.length == 1) {
+      // at least one function must be selected
+      return
+    }
     newFunctions = functions.filter(f => f.name !== name)
   } else if (activeTimeMachineID === 'alerting') {
     newFunctions = [{name}]
