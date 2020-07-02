@@ -16,6 +16,7 @@ import NotebookPage from 'src/notebooks/components/Notebook'
 import BucketsIndex from 'src/buckets/containers/BucketsIndex'
 import TokensIndex from 'src/authorizations/containers/TokensIndex'
 import TelegrafsPage from 'src/telegrafs/containers/TelegrafsPage'
+import ScrapersIndex from 'src/scrapers/containers/ScrapersIndex'
 
 // Types
 import {AppState, Organization, ResourceType} from 'src/types'
@@ -112,6 +113,10 @@ const SetOrg: FC<Props> = ({
         )}
 
         {/* Settings */}
+        <Route
+          path={`${orgPath}/load-data/scrapers`}
+          component={ScrapersIndex}
+        />
         <Route
           path={`${orgPath}/load-data/telegrafs`}
           component={TelegrafsPage}
