@@ -28,13 +28,8 @@ import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
 import {
   getGithubUrlFromTemplateName,
   getTemplateNameFromGithubUrl,
+  reviewTemplate,
 } from 'src/templates/utils'
-
-import {
-  Error as PkgError,
-  TemplateSummary,
-  postTemplatesApply,
-} from 'src/client'
 
 // Types
 import {AppState, Organization} from 'src/types'
@@ -77,7 +72,7 @@ class UnconnectedTemplatesIndex extends Component<Props> {
       )
 
       this.setState({currentTemplate}, () => {
-        this.applyTemplates(
+        this.reviewTemplateResources(
           this.props.org.id,
           getTemplateNameFromGithubUrl(currentTemplate)
         )
@@ -148,24 +143,13 @@ class UnconnectedTemplatesIndex extends Component<Props> {
     )
   }
 
-  private applyTemplates = async (orgID, templateName) => {
+  private reviewTemplateResources = async (orgID, templateName) => {
     const yamlLocation =
       getRawYamlFromGithub(this.state.currentTemplate) + `/${templateName}.yml`
 
-    const params = {
-      data: {
-        dryRun: true,
-        orgID,
-        remotes: [{url: yamlLocation}],
-      },
-    }
     try {
-      const resp = await postTemplatesApply(params)
-      if (resp.status >= 300) {
-        throw new Error((resp.data as PkgError).message)
-      }
+      const summary = await reviewTemplate(orgID, yamlLocation)
 
-      const summary = (resp.data as TemplateSummary).summary
       this.props.setActiveCommunityTemplate(summary)
       return summary
     } catch (err) {
@@ -181,7 +165,7 @@ class UnconnectedTemplatesIndex extends Component<Props> {
 
     const name = getTemplateNameFromGithubUrl(this.state.currentTemplate)
     this.showInstallerOverlay(name)
-    this.applyTemplates(this.props.org.id, name)
+    this.reviewTemplateResources(this.props.org.id, name)
   }
 
   private showInstallerOverlay = templateName => {
