@@ -20,6 +20,7 @@ import ScrapersIndex from 'src/scrapers/containers/ScrapersIndex'
 import ClientLibrariesPage from 'src/clientLibraries/containers/ClientLibrariesPage'
 import VariablesIndex from 'src/variables/containers/VariablesIndex'
 import TemplatesIndex from 'src/templates/containers/TemplatesIndex'
+import LabelsIndex from 'src/labels/containers/LabelsIndex'
 
 // Types
 import {AppState, Organization, ResourceType} from 'src/types'
@@ -133,7 +134,6 @@ const SetOrg: FC<Props> = ({
         <Route exact path={`${orgPath}/load-data`} component={BucketsIndex} />
 
         {/* Settings */}
-        <Route exact path={`${orgPath}/settings`} component={VariablesIndex} />
         <Route
           path={`${orgPath}/settings/variables`}
           component={VariablesIndex}
@@ -142,6 +142,12 @@ const SetOrg: FC<Props> = ({
           path={`${orgPath}/settings/templates`}
           component={TemplatesIndex}
         />
+        <Route
+          exact
+          path={`${orgPath}/settings/labels`}
+          component={LabelsIndex}
+        />
+        <Route exact path={`${orgPath}/settings`} component={VariablesIndex} />
 
         <Route exact path="/orgs/:orgID" component={MePage} />
       </Switch>
