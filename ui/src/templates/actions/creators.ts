@@ -11,7 +11,8 @@ export const ADD_TEMPLATE_SUMMARY = 'ADD_TEMPLATE_SUMMARY'
 export const GET_TEMPLATE_SUMMARIES_FOR_ORG = 'GET_TEMPLATE_SUMMARIES_FOR_ORG'
 export const POPULATE_TEMPLATE_SUMMARIES = 'POPULATE_TEMPLATE_SUMMARIES'
 export const REMOVE_TEMPLATE_SUMMARY = 'REMOVE_TEMPLATE_SUMMARY'
-export const SET_ACTIVE_COMMUNITY_TEMPLATE = 'SET_ACTIVE_COMMUNITY_TEMPLATE'
+export const SET_COMMUNITY_TEMPLATE_TO_INSTALL =
+  'SET_COMMUNITY_TEMPLATE_TO_INSTALL'
 export const SET_EXPORT_TEMPLATE = 'SET_EXPORT_TEMPLATE'
 export const SET_TEMPLATE_SUMMARY = 'SET_TEMPLATE_SUMMARY'
 export const SET_TEMPLATES_STATUS = 'SET_TEMPLATES_STATUS'
@@ -25,7 +26,7 @@ export type Action =
   | ReturnType<typeof setExportTemplate>
   | ReturnType<typeof setTemplatesStatus>
   | ReturnType<typeof setTemplateSummary>
-  | ReturnType<typeof setActiveCommunityTemplate>
+  | ReturnType<typeof setCommunityTemplateToInstall>
   | ReturnType<typeof toggleTemplateResourceInstall>
 
 type TemplateSummarySchema<R extends string | string[]> = NormalizedSchema<
@@ -83,9 +84,9 @@ export const setTemplateSummary = (
     schema,
   } as const)
 
-export const setActiveCommunityTemplate = (template: CommunityTemplate) =>
+export const setCommunityTemplateToInstall = (template: CommunityTemplate) =>
   ({
-    type: SET_ACTIVE_COMMUNITY_TEMPLATE,
+    type: SET_COMMUNITY_TEMPLATE_TO_INSTALL,
     template,
   } as const)
 

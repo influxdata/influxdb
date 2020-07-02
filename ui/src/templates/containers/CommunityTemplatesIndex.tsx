@@ -20,7 +20,7 @@ import {
 import SettingsTabbedPage from 'src/settings/components/SettingsTabbedPage'
 import SettingsHeader from 'src/settings/components/SettingsHeader'
 
-import {setActiveCommunityTemplate} from 'src/templates/actions/creators'
+import {setCommunityTemplateToInstall} from 'src/templates/actions/creators'
 import {getOrg} from 'src/organizations/selectors'
 
 // Utils
@@ -46,7 +46,7 @@ interface OwnProps extends WithRouterProps {
 }
 
 interface DispatchProps {
-  setActiveCommunityTemplate: typeof setActiveCommunityTemplate
+  setCommunityTemplateToInstall: typeof setCommunityTemplateToInstall
 }
 
 type Props = DispatchProps & OwnProps & StateProps
@@ -150,7 +150,7 @@ class UnconnectedTemplatesIndex extends Component<Props> {
     try {
       const summary = await reviewTemplate(orgID, yamlLocation)
 
-      this.props.setActiveCommunityTemplate(summary)
+      this.props.setCommunityTemplateToInstall(summary)
       return summary
     } catch (err) {
       console.error(err)
@@ -186,7 +186,7 @@ const mstp = (state: AppState): StateProps => {
 }
 
 const mdtp = {
-  setActiveCommunityTemplate,
+  setCommunityTemplateToInstall,
 }
 
 export const CommunityTemplatesIndex = connect<StateProps, {}, {}>(
