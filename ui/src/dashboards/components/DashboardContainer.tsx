@@ -39,6 +39,7 @@ import {GlobalAutoRefresher} from 'src/utils/AutoRefresher'
 
 // Constants
 import {AUTOREFRESH_DEFAULT} from 'src/shared/constants'
+import {ORGS, ORG_ID, DASHBOARDS, DASHBOARD_ID} from 'src/shared/constants/routes'
 
 // Types
 import {AppState, ResourceType, AutoRefresh, AutoRefreshStatus} from 'src/types'
@@ -56,7 +57,7 @@ interface DispatchProps {
 
 type Props = StateProps & DispatchProps
 
-const dashRoute = '/orgs/:orgID/dashboards/:dashboardID'
+const dashRoute = `/${ORGS}/${ORG_ID}/${DASHBOARDS}/${DASHBOARD_ID}`
 
 const DashboardContainer: FC<Props> = ({
   autoRefresh,

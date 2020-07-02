@@ -17,7 +17,7 @@ import CollectorsWizard from 'src/dataLoaders/components/collectorsWizard/Collec
 import UpdateBucketOverlay from 'src/buckets/components/UpdateBucketOverlay'
 import RenameBucketOverlay from 'src/buckets/components/RenameBucketOverlay'
 import CreateScraperOverlay from 'src/scrapers/components/CreateScraperOverlay'
-import BucketsDeleteDataOverlay from 'src/shared/components/DeleteDataOverlay'
+import DeleteDataOverlay from 'src/shared/components/DeleteDataOverlay'
 import {
   FlexBox,
   FlexDirection,
@@ -30,6 +30,9 @@ import {extractRateLimitResources} from 'src/cloud/utils/limits'
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
 import {getOrg} from 'src/organizations/selectors'
 
+// Constants
+import {ORGS, ORG_ID, BUCKETS, BUCKET_ID} from 'src/shared/constants/routes'
+
 // Types
 import {AppState, Organization, ResourceType} from 'src/types'
 
@@ -37,6 +40,8 @@ interface StateProps {
   org: Organization
   limitedResources: string[]
 }
+
+const bucketsPath = `/${ORGS}/${ORG_ID}/load-data/${BUCKETS}/${BUCKET_ID}`
 
 @ErrorHandling
 class BucketsIndex extends Component<StateProps> {
@@ -73,27 +78,24 @@ class BucketsIndex extends Component<StateProps> {
         </Page>
         <Switch>
           <Route
-            path="/orgs/:orgID/load-data/buckets/:bucketID/line-protocols/new"
+            path={`${bucketsPath}/line-protocols/new`}
             component={LineProtocolWizard}
           />
           <Route
-            path="/orgs/:orgID/load-data/buckets/:bucketID/telegrafs/new"
+            path={`${bucketsPath}/telegrafs/new`}
             component={CollectorsWizard}
           />
           <Route
-            path="/orgs/:orgID/load-data/buckets/:bucketID/scrapers/new"
+            path={`${bucketsPath}/scrapers/new`}
             component={CreateScraperOverlay}
           />
+          <Route path={`${bucketsPath}/edit`} component={UpdateBucketOverlay} />
           <Route
-            path="/orgs/:orgID/load-data/buckets/:bucketID/edit"
-            component={UpdateBucketOverlay}
+            path={`${bucketsPath}/delete-data`}
+            component={DeleteDataOverlay}
           />
           <Route
-            path="/orgs/:orgID/load-data/buckets/:bucketID/delete-data"
-            component={BucketsDeleteDataOverlay}
-          />
-          <Route
-            path="/orgs/:orgID/load-data/buckets/:bucketID/rename"
+            path={`${bucketsPath}/rename`}
             component={RenameBucketOverlay}
           />
         </Switch>

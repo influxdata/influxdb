@@ -44,7 +44,16 @@ class TemplatesIndex extends Component<Props> {
             </GetResources>
           </SettingsTabbedPage>
         </Page>
-        {children}
+        <Switch>
+          <Route path="import" component={TemplateImportOverlay} />
+          <Route
+            path="import/:templateName"
+            component={CommunityTemplateImportOverlay}
+          />
+          <Route path=":id/export" component={TemplateExportOverlay} />
+          <Route path=":id/view" component={TemplateViewOverlay} />
+          <Route path=":id/static/view" component={StaticTemplateViewOverlay} />
+        </Switch>
       </>
     )
   }
