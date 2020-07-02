@@ -10,6 +10,7 @@ import {
   InfluxDBCloudLogo,
   Typeface,
 } from '@influxdata/clockface'
+import Notifications from 'src/shared/components/notifications/Notifications'
 
 // Components
 import ErrorBoundary from 'src/shared/components/ErrorBoundary'
@@ -18,6 +19,7 @@ import LoginPageContents from 'src/onboarding/containers/LoginPageContents'
 export const LoginPage: FC = () => (
   <ErrorBoundary>
     <AppWrapper>
+      <Notifications />
       <FunnelPage
         accentColorA={InfluxColors.Magenta}
         accentColorB={InfluxColors.Amethyst}
