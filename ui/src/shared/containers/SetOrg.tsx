@@ -21,6 +21,7 @@ import ClientLibrariesPage from 'src/clientLibraries/containers/ClientLibrariesP
 import VariablesIndex from 'src/variables/containers/VariablesIndex'
 import TemplatesIndex from 'src/templates/containers/TemplatesIndex'
 import LabelsIndex from 'src/labels/containers/LabelsIndex'
+import OrgProfilePage from 'src/organizations/containers/OrgProfilePage'
 
 // Types
 import {AppState, Organization, ResourceType} from 'src/types'
@@ -149,6 +150,10 @@ const SetOrg: FC<Props> = ({
         />
         <Route exact path={`${orgPath}/settings`} component={VariablesIndex} />
 
+        {/* About */}
+        <Route path={`${orgPath}/about`} component={OrgProfilePage} />
+
+        {/* Getting Started */}
         <Route exact path="/orgs/:orgID" component={MePage} />
       </Switch>
     </SpinnerContainer>
