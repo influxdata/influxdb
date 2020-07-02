@@ -24,23 +24,53 @@ type Service struct {
 	disableAuthorizationsForMaxPermissions func(context.Context) bool
 }
 
-// NewService creates a new session service
-func NewService(store *Storage, userService influxdb.UserService, urmService influxdb.UserResourceMappingService, authSvc influxdb.AuthorizationService, sessionLength time.Duration) *Service {
-	if sessionLength <= 0 {
-		sessionLength = time.Hour
+// ServiceOption is a functional option for configuring a *Service
+type ServiceOption func(*Service)
+
+// WithSessionLength configures the length of the session with the provided
+// duration when the resulting option is called on a *Service.
+func WithSessionLength(length time.Duration) ServiceOption {
+	return func(s *Service) {
+		s.sessionLength = length
 	}
-	return &Service{
+}
+
+// WithIDGenerator overrides the default ID generator with the one
+// provided to this function when called on a *Service
+func WithIDGenerator(gen influxdb.IDGenerator) ServiceOption {
+	return func(s *Service) {
+		s.idGen = gen
+	}
+}
+
+// WithTokenGenerator overrides the default token generator with the one
+// provided to this function when called on a *Service
+func WithTokenGenerator(gen influxdb.TokenGenerator) ServiceOption {
+	return func(s *Service) {
+		s.tokenGen = gen
+	}
+}
+
+// NewService creates a new session service
+func NewService(store *Storage, userService influxdb.UserService, urmService influxdb.UserResourceMappingService, authSvc influxdb.AuthorizationService, opts ...ServiceOption) *Service {
+	service := &Service{
 		store:         store,
 		userService:   userService,
 		urmService:    urmService,
 		authService:   authSvc,
-		sessionLength: sessionLength,
+		sessionLength: time.Hour,
 		idGen:         snowflake.NewIDGenerator(),
 		tokenGen:      rand.NewTokenGenerator(64),
 		disableAuthorizationsForMaxPermissions: func(context.Context) bool {
 			return false
 		},
 	}
+
+	for _, opt := range opts {
+		opt(service)
+	}
+
+	return service
 }
 
 // WithMaxPermissionFunc sets the useAuthorizationsForMaxPermissions function

@@ -34,14 +34,14 @@ func initSessionService(f influxdbtesting.SessionFields, t *testing.T) (influxdb
 		FindAuthorizationsFn: func(context.Context, influxdb.AuthorizationFilter, ...influxdb.FindOptions) ([]*influxdb.Authorization, int, error) {
 			return []*influxdb.Authorization{}, 0, nil
 		},
-	}, time.Minute)
+	}, WithSessionLength(time.Minute))
 
 	if f.IDGenerator != nil {
-		svc.idGen = f.IDGenerator
+		WithIDGenerator(f.IDGenerator)(svc)
 	}
 
 	if f.TokenGenerator != nil {
-		svc.tokenGen = f.TokenGenerator
+		WithTokenGenerator(f.TokenGenerator)(svc)
 	}
 
 	for _, u := range f.Users {
