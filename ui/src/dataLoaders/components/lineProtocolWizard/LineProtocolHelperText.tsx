@@ -6,7 +6,7 @@ const LineProtocolHelperText: FC<{}> = () => {
     <p>
       Need help writing InfluxDB Line Protocol?{' '}
       <a
-        href="https://v2.docs.influxdata.com/v2.0/write-data/#write-data-in-the-influxdb-ui"
+        href="https://v2.docs.influxdata.com/v2.0/reference/syntax/line-protocol/"
         target="_blank"
       >
         See Documentation

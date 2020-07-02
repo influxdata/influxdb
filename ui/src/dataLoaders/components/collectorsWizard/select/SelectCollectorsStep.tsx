@@ -79,7 +79,7 @@ export class SelectCollectorsStep extends PureComponent<Props> {
             </a>
             &nbsp; and how to &nbsp;
             <a
-              href="https://v2.docs.influxdata.com/v2.0/write-data/use-telegraf/manual-config/"
+              href="https://v2.docs.influxdata.com/v2.0/write-data/no-code/use-telegraf/manual-config/"
               target="_blank"
             >
               Configure these Plugins
