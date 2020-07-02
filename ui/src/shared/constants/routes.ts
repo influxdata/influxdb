@@ -15,6 +15,10 @@ export const ORG_ID = ':orgID'
 
 export const SCRAPERS = 'scrapers'
 
+export const SETTINGS = 'settings'
+
 export const TELEGRAFS = 'telegrafs'
 
 export const TOKENS = 'tokens'
+
+export const VARIABLES = 'variables'

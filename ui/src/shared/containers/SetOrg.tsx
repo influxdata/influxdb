@@ -18,6 +18,8 @@ import TokensIndex from 'src/authorizations/containers/TokensIndex'
 import TelegrafsPage from 'src/telegrafs/containers/TelegrafsPage'
 import ScrapersIndex from 'src/scrapers/containers/ScrapersIndex'
 import ClientLibrariesPage from 'src/clientLibraries/containers/ClientLibrariesPage'
+import VariablesIndex from 'src/variables/containers/VariablesIndex'
+import TemplatesIndex from 'src/templates/containers/TemplatesIndex'
 
 // Types
 import {AppState, Organization, ResourceType} from 'src/types'
@@ -113,7 +115,7 @@ const SetOrg: FC<Props> = ({
           <Route path={`${orgPath}/notebooks`} component={NotebookPage} />
         )}
 
-        {/* Settings */}
+        {/* Load Data */}
         <Route
           path={`${orgPath}/load-data/client-libraries`}
           component={ClientLibrariesPage}
@@ -128,6 +130,19 @@ const SetOrg: FC<Props> = ({
         />
         <Route path={`${orgPath}/load-data/tokens`} component={TokensIndex} />
         <Route path={`${orgPath}/load-data/buckets`} component={BucketsIndex} />
+        <Route exact path={`${orgPath}/load-data`} component={BucketsIndex} />
+
+        {/* Settings */}
+        <Route exact path={`${orgPath}/settings`} component={VariablesIndex} />
+        <Route
+          path={`${orgPath}/settings/variables`}
+          component={VariablesIndex}
+        />
+        <Route
+          path={`${orgPath}/settings/templates`}
+          component={TemplatesIndex}
+        />
+
         <Route exact path="/orgs/:orgID" component={MePage} />
       </Switch>
     </SpinnerContainer>

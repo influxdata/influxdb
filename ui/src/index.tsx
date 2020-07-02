@@ -82,49 +82,6 @@ class Root extends PureComponent {
           <Route component={NotFound} />
           {/*<Route component={Setup}>
                            </Route>
-                              <Route
-                                path="client-libraries"
-                                component={ClientLibrariesPage}
-                              >
-                                <Route
-                                  path="arduino"
-                                  component={ClientArduinoOverlay}
-                                />
-                                <Route
-                                  path="csharp"
-                                  component={ClientCSharpOverlay}
-                                />
-                                <Route path="go" component={ClientGoOverlay} />
-                                <Route
-                                  path="java"
-                                  component={ClientJavaOverlay}
-                                />
-                                <Route
-                                  path="javascript-node"
-                                  component={ClientJSOverlay}
-                                />
-                                <Route
-                                  path="kotlin"
-                                  component={ClientKotlinOverlay}
-                                />
-                                <Route
-                                  path="php"
-                                  component={ClientPHPOverlay}
-                                />
-                                <Route
-                                  path="python"
-                                  component={ClientPythonOverlay}
-                                />
-                                <Route
-                                  path="ruby"
-                                  component={ClientRubyOverlay}
-                                />
-                                <Route
-                                  path="scala"
-                                  component={ClientScalaOverlay}
-                                />
-                              </Route>
-                            </Route>
                             <Route path="settings">
                               <IndexRoute component={VariablesIndex} />
                               <Route
