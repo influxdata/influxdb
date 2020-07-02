@@ -13,10 +13,14 @@
 
 1. [19043](https://github.com/influxdata/influxdb/pull/19043): Enforce all influx CLI flag args are valid
 
+### Features
+
+1. [18841](https://github.com/influxdata/influxdb/pull/18841): Limit query response sizes for queries built in QueryBuilder by requiring an aggregate window
 
 ## v2.0.0-beta.15 [2020-07-23]
 
 ### Breaking
+
 1. [19004](https://github.com/influxdata/influxdb/pull/19004): Removed the `migrate` command from the `influxd` binary.
 1. [18921](https://github.com/influxdata/influxdb/pull/18921): Restricted UI variable names to not clash with Flux reserved words
 
@@ -40,7 +44,6 @@
 1. [19039](https://github.com/influxdata/influxdb/pull/19039): Fix an issue where switching orgs was not redirecting correctly
 1. [18989](https://github.com/influxdata/influxdb/pull/18989): Stopped fetching tags in the advanced builder
 1. [19044](https://github.com/influxdata/influxdb/pull/19044): Graph customization: X and Y axis properly accept values
-
 
 ## v2.0.0-beta.14 [2020-07-08]
 
