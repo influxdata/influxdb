@@ -1,3 +1,4 @@
+import {match} from 'react-router'
 import {ViewProperties} from 'src/client'
 import {
   Cell,
@@ -294,13 +295,20 @@ export const defaultOnboardingStepProps: OnboardingStepProps = {
   notify: jest.fn(),
   onCompleteSetup: jest.fn(),
   onExit: jest.fn(),
-  onSetSubstepIndex: jest.fn(),
 }
 
-export const withRouterProps: RouteComponentProps = {
-  match: {},
+const match: match<{orgID: string}> = {
+  isExact: false,
+  path: '',
+  url: '',
+  params: {
+    orgID: '1',
+  },
+}
+
+export const withRouterProps: RouteComponentProps<{orgID: string}> = {
+  match,
   location: null,
-  routes: null,
   history: null,
 }
 
