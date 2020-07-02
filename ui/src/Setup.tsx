@@ -10,9 +10,6 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
 import UnauthenticatedApp from 'src/shared/containers/UnauthenticatedApp'
 import Signin from 'src/Signin'
-import GetMe from 'src/shared/containers/GetMe'
-import GetFlags from 'src/shared/containers/GetFlags'
-import GetOrganizations from 'src/shared/containers/GetOrganizations'
 import OnboardingWizardPage from 'src/onboarding/containers/OnboardingWizardPage'
 
 // Utils
@@ -23,7 +20,7 @@ import {RemoteDataState} from 'src/types'
 
 interface State {
   loading: RemoteDataState
-  isSetupComplete: boolean
+  allowed: boolean
 }
 
 interface OwnProps {
@@ -39,7 +36,7 @@ export class Setup extends PureComponent<Props, State> {
 
     this.state = {
       loading: RemoteDataState.NotStarted,
-      isSetupComplete: false,
+      allowed: false,
     }
   }
 
@@ -81,7 +78,6 @@ export class Setup extends PureComponent<Props, State> {
               component={OnboardingWizardPage}
             />
             <Route component={Signin} />
-            <Route component={UnauthenticatedApp} />
           </Switch>
         )}
       </SpinnerContainer>
