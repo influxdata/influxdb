@@ -10,6 +10,7 @@ import TaskPage from 'src/tasks/containers/TaskPage'
 import TaskRunsPage from 'src/tasks/components/TaskRunsPage'
 import TaskEditPage from 'src/tasks/containers/TaskEditPage'
 import DataExplorerPage from 'src/dataExplorer/components/DataExplorerPage'
+import DashboardsIndex from 'src/dashboards/components/dashboard_index/DashboardsIndex'
 
 // Types
 import {AppState, Organization, ResourceType} from 'src/types'
@@ -91,6 +92,7 @@ const SetOrg: FC<Props> = ({
           path={`${orgRoute}/data-explorer`}
           component={DataExplorerPage}
         />
+        <Route path={`${orgRoute}/dashboards`} component={DashboardsIndex} />
         <Route exact path="/orgs/:orgID" component={MePage} />
       </Switch>
     </SpinnerContainer>

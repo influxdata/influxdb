@@ -4,7 +4,7 @@ import 'abortcontroller-polyfill/dist/polyfill-patch-fetch'
 import React, {PureComponent} from 'react'
 import {render} from 'react-dom'
 import {Provider} from 'react-redux'
-import {Route, Switch} from 'react-router-dom'
+import {Route} from 'react-router-dom'
 import {ConnectedRouter} from 'connected-react-router'
 
 // import {CLOUD} from 'src/shared/constants'
@@ -209,55 +209,6 @@ class Root extends PureComponent {
           <Route component={Setup} />
           <Route component={NotFound} />
           {/*<Route component={Setup}>
-              <Route path="/onboarding">
-                <Route path=":stepID" component={OnboardingWizardPage} />
-                <Route
-                  path=":stepID/:substepID"
-                  component={OnboardingWizardPage}
-                />
-                </Route>
-              </Route>
-              <Route component={Signin}>
-                <Route component={GetMe}>
-                  <Route component={GetFlags}>
-                    <Route component={GetOrganizations}>
-                      <Route path="/">
-                        <Route path="no-orgs" component={NoOrgsPage} />
-                        <IndexRoute component={RouteToOrg} />
-                        <Route path="orgs" component={App}>
-                          <Route path="new" component={CreateOrgOverlay} />
-                          <Route path=":orgID" component={SetOrg}>
-                            <IndexRoute component={MePage} />
-                            <Route path="tasks" component={TasksPage}>
-                              <Route
-                                path=":id/export"
-                                component={TaskExportOverlay}
-                              />
-                              <Route
-                                path="import"
-                                component={TaskImportOverlay}
-                              />
-                              <Route
-                                path="import/template"
-                                component={TaskImportFromTemplateOverlay}
-                              />
-                            </Route>
-                            <Route
-                              path="tasks/:id/runs"
-                              component={TaskRunsPage}
-                            />
-                            <Route path="tasks/new" component={TaskPage} />
-                            <Route path="tasks/:id" component={TaskEditPage} />
-                            <Route
-                              path="data-explorer"
-                              component={DataExplorerPage}
-                            >
-                              <Route path="save" component={SaveAsOverlay} />
-                              <Route
-                                path="delete-data"
-                                component={DEDeleteDataOverlay}
-                              />
-                            </Route>
                             <Route
                               path="dashboards"
                               component={DashboardsIndex}

@@ -2,6 +2,7 @@
 import React, {PureComponent} from 'react'
 import {RouteComponentProps} from 'react-router-dom'
 import {connect} from 'react-redux'
+import {Switch, Route} from 'react-router-dom'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -15,6 +16,9 @@ import GetAssetLimits from 'src/cloud/components/GetAssetLimits'
 import AssetLimitAlert from 'src/cloud/components/AssetLimitAlert'
 import ResourceSortDropdown from 'src/shared/components/resource_sort_dropdown/ResourceSortDropdown'
 import CloudUpgradeButton from 'src/shared/components/CloudUpgradeButton'
+import DashboardExportOverlay from 'src/dashboards/components/DashboardExportOverlay'
+import DashboardImportOverlay from 'src/dashboards/components/DashboardImportOverlay'
+import CreateFromTemplateOverlay from 'src/templates/components/createFromTemplateOverlay/CreateFromTemplateOverlay'
 
 // Utils
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
@@ -116,7 +120,20 @@ class DashboardIndex extends PureComponent<Props, State> {
             </GetAssetLimits>
           </Page.Contents>
         </Page>
-        {this.props.children}
+        <Switch>
+          <Route
+            path="/orgs/:orgID/dashboards/import/template"
+            component={CreateFromTemplateOverlay}
+          />
+          <Route
+            path="/orgs/:orgID/dashboards/import"
+            component={DashboardImportOverlay}
+          />
+          <Route
+            path="/orgs/:orgID/dashboards/:dashboardID/export"
+            component={DashboardExportOverlay}
+          />
+        </Switch>
       </>
     )
   }
