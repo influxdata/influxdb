@@ -71,17 +71,16 @@ if(typeof __config.download_dir === 'undefined'){
 
 console.log(config.headless ? 'running headless' : 'running headed');
 console.log(config.sel_docker ? 'running for selenium in docker' : 'running for selenium standard');
-console.log("DEBUG envars:" + process.env);
-for(var envar in process.env){
-    console.log("   " + envar + "=" + process.env[envar]);
-}
 console.log(`active configuration ${JSON.stringify(config)}`);
+
+__config.download_dir = __config.download_dir + '/etc/';
+/*
 if(typeof process.env['HOSTNAME'] !== 'undefined' && process.env['HOSTNAME'].match(/^[a-f0-9]{12}/)){
     console.log("MATCHED docker style hostname");
     __dockerRun = true;
     __config.download_dir = __config.download_dir + '/etc/';
 }
-
+*/
 //redefine any config fields based on ENV Properties of the form E2E_<ACTIVE_CONF>_<FIELD_KEY>
 /*
 Object.keys(__config).forEach(k => {
@@ -93,7 +92,6 @@ Object.keys(__config).forEach(k => {
     }
 });
 */
-
 
 const resetConfigFieldsToEnvar = (base, o) => {
 //    console.log(`DEBUG o ${JSON.stringify(o)}`);
@@ -816,14 +814,14 @@ const removeDownloadFilesByRegex = async function(regex){
         for(var i = 0; i < files.length; i++){
             var match = files[i].match(re);
             if(match !== null){
-                fs.unlinkSync(match[0]);
+                fs.unlinkSync(__config.download_dir + '/' +match[0]);
             }
         }
     });
 };
 
 const fileExists = async function(filePath){
-    return fs.existsSync(filePath);
+    return fs.existsSync(__config.download_dir + '/' + filePath);
 };
 
 const dumpDownloadDir = async function(){
@@ -845,6 +843,8 @@ const verifyDownloadFileMatchingRegexFilesExist = async function(regex, callback
     let re = new RegExp(regex);
     let files = fs.readdirSync(__config.download_dir);
 
+    console.log("DEBUG files to be matched: \n" + files);
+
     for(var i = 0; i < files.length; i++){
         var match = files[i].match(re);
         if(match !== null){
@@ -858,15 +858,19 @@ const verifyDownloadFileMatchingRegexFilesExist = async function(regex, callback
 const waitForFileToExist = async function(filePath, timeout = 60000){
     let sleepTime = 3000;
     let totalSleep = 0;
+    console.log("DEBUG wait for file to exist: " + __config.download_dir + "/" + filePath);
     while (totalSleep < timeout){
-        if(fs.existsSync(filePath)){
+        if(fs.existsSync(__config.download_dir + '/' + filePath)){
+            console.log("DEBUG: Matchced File");
             return true;
         }
         await __wdriver.sleep(sleepTime);
         totalSleep += sleepTime;
     }
 
-    throw `Timed out ${timeout}ms waiting for file ${filePath}`;
+    console.error(`Timed out ${timeout}ms waiting for file ${__config.download_dir}/${filePath}`);
+
+    throw `Timed out ${timeout}ms waiting for file ${__config.download_dir}/${filePath}`;
 
 };
 
