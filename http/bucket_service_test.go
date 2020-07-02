@@ -457,6 +457,34 @@ func TestService_handlePostBucket(t *testing.T) {
 				statusCode: http.StatusUnprocessableEntity,
 			},
 		},
+		{
+			name: "create a new bucket without orgId",
+			fields: fields{
+				BucketService: &mock.BucketService{
+					CreateBucketFn: func(ctx context.Context, c *influxdb.Bucket) error {
+						c.ID = platformtesting.MustIDBase16("020f755c3c082000")
+						return nil
+					},
+				},
+				OrganizationService: &mock.OrganizationService{
+					FindOrganizationF: func(ctx context.Context, f influxdb.OrganizationFilter) (*influxdb.Organization, error) {
+						return &influxdb.Organization{ID: platformtesting.MustIDBase16("6f626f7274697320")}, nil
+					},
+				},
+			},
+			args: args{
+				bucket: &influxdb.Bucket{
+					Name: "hello",
+				},
+			},
+			wants: wants{
+				statusCode: http.StatusBadRequest,
+				body: `{
+	"code": "invalid",
+	"message": "organization id must be provided"
+}`,
+			},
+		},
 	}
 
 	for _, tt := range tests {
