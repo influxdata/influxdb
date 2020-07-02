@@ -7430,7 +7430,7 @@ components:
           type: string
         retentionRules:
           $ref: "#/components/schemas/RetentionRules"
-      required: [name, retentionRules]
+      required: [orgID, name, retentionRules]
     Bucket:
       properties:
         links:
