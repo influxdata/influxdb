@@ -15,6 +15,7 @@ import DashboardContainer from 'src/dashboards/components/DashboardContainer'
 import NotebookPage from 'src/notebooks/components/Notebook'
 import BucketsIndex from 'src/buckets/containers/BucketsIndex'
 import TokensIndex from 'src/authorizations/containers/TokensIndex'
+import TelegrafsPage from 'src/telegrafs/containers/TelegrafsPage'
 
 // Types
 import {AppState, Organization, ResourceType} from 'src/types'
@@ -111,6 +112,10 @@ const SetOrg: FC<Props> = ({
         )}
 
         {/* Settings */}
+        <Route
+          path={`${orgPath}/load-data/telegrafs`}
+          component={TelegrafsPage}
+        />
         <Route path={`${orgPath}/load-data/tokens`} component={TokensIndex} />
         <Route path={`${orgPath}/load-data/buckets`} component={BucketsIndex} />
         <Route exact path="/orgs/:orgID" component={MePage} />

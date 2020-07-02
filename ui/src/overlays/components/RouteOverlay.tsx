@@ -1,5 +1,5 @@
 // Libraries
-import React, {Component, ComponentClass} from 'react'
+import React, {FC, Component, ComponentClass, useEffect} from 'react'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
 import {connect} from 'react-redux'
 import {OverlayID} from 'src/overlays/reducers/overlays'
@@ -27,19 +27,27 @@ interface DispatchProps {
 
 type OverlayHandlerProps = OwnProps & DispatchProps & RouteComponentProps
 
-class OverlayHandler extends Component<OverlayHandlerProps> {
-  public componentWillUnmount() {
-    this.props.onDismissOverlay()
-  }
+const OverlayHandler: FC<OverlayHandlerProps> = props => {
+  const {
+    overlayID,
+    onShowOverlay,
+    onClose,
+    match,
+    history,
+    onDismissOverlay,
+  } = props
 
-  public render() {
-    const {overlayID, onShowOverlay, onClose, match, history} = this.props
+  useEffect(() => {
     const closer = () => {
       onClose(history, match.params)
     }
+
     onShowOverlay(overlayID, match.params, closer)
-    return null
-  }
+
+    return () => onDismissOverlay()
+  }, [overlayID])
+
+  return null
 }
 
 const mdtp: DispatchProps = {
