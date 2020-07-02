@@ -11,25 +11,7 @@ import GetTimeRange from 'src/dashboards/components/GetTimeRange'
 import DashboardRoute from 'src/shared/components/DashboardRoute'
 import EditVEO from 'src/dashboards/components/EditVEO'
 import NewVEO from 'src/dashboards/components/NewVEO'
-
-// // Overlays
-// import OverlayHandler, {
-//   RouteOverlay,
-// } from 'src/overlays/components/RouteOverlay'
-// const AddNoteOverlay = RouteOverlay(
-//   OverlayHandler,
-//   'add-note',
-//   (history, params) => {
-//     history.push(`/orgs/${params.orgID}/dashboards/${params.dashboardID}`)
-//   }
-// )
-// const EditNoteOverlay = RouteOverlay(
-//   OverlayHandler,
-//   'edit-note',
-//   (history, params) => {
-//     history.push(`/orgs/${params.orgID}/dashboards/${params.dashboardID}`)
-//   }
-// )
+import {AddNoteOverlay, EditNoteOverlay} from 'src/overlays/components'
 
 // Actions
 import {setCurrentPage} from 'src/shared/reducers/currentPage'
@@ -39,7 +21,12 @@ import {GlobalAutoRefresher} from 'src/utils/AutoRefresher'
 
 // Constants
 import {AUTOREFRESH_DEFAULT} from 'src/shared/constants'
-import {ORGS, ORG_ID, DASHBOARDS, DASHBOARD_ID} from 'src/shared/constants/routes'
+import {
+  ORGS,
+  ORG_ID,
+  DASHBOARDS,
+  DASHBOARD_ID,
+} from 'src/shared/constants/routes'
 
 // Types
 import {AppState, ResourceType, AutoRefresh, AutoRefreshStatus} from 'src/types'
@@ -91,21 +78,16 @@ const DashboardContainer: FC<Props> = ({
           <GetTimeRange />
           <DashboardPage autoRefresh={autoRefresh} />
           <Switch>
-            <Route path={`${dashRoute}/cells`}>
-              <Route path={`${dashRoute}/cells/new`} component={NewVEO} />
-              <Route
-                path={`${dashRoute}/cells/:cellID/edit`}
-                component={EditVEO}
-              />
-              {/*<Route
-                path={`${dashRoute}/notes/new`}
-                component={AddNoteOverlay}
-              />
-              <Route
-                path={`${dashRoute}/notes/:cellID/edit`}
-                component={EditNoteOverlay}
-              />*/}
-            </Route>
+            <Route path={`${dashRoute}/cells/new`} component={NewVEO} />
+            <Route
+              path={`${dashRoute}/cells/:cellID/edit`}
+              component={EditVEO}
+            />
+            <Route path={`${dashRoute}/notes/new`} component={AddNoteOverlay} />
+            <Route
+              path={`${dashRoute}/notes/:cellID/edit`}
+              component={EditNoteOverlay}
+            />
           </Switch>
         </GetResources>
       </GetResource>

@@ -81,6 +81,22 @@ class Root extends PureComponent {
           <Route component={Setup} />
           <Route component={NotFound} />
           {/*<Route component={Setup}>
+                           <Route path="new" component={AddNoteOverlay} />
+                           <Route
+                             path=":cellID/edit"
+                             component={EditNoteOverlay}
+                           />
+                           </Route>
+                           <Route path="generate">
+                             <Route
+                               path="all-access"
+                               component={AllAccessTokenOverlay}
+                             />
+                             <Route
+                               path="buckets"
+                               component={BucketsTokenOverlay}
+                             />
+                           </Route>
                               <Route path="scrapers" component={ScrapersIndex}>
                                 <Route
                                   path="new"
@@ -232,22 +248,6 @@ class Root extends PureComponent {
                             {!CLOUD && (
                               <Route path="members" component={MembersIndex} />
                             )}
-                           <Route path="new" component={AddNoteOverlay} />
-                           <Route
-                             path=":cellID/edit"
-                             component={EditNoteOverlay}
-                           />
-                           </Route>
-                           <Route path="generate">
-                             <Route
-                               path="all-access"
-                               component={AllAccessTokenOverlay}
-                             />
-                             <Route
-                               path="buckets"
-                               component={BucketsTokenOverlay}
-                             />
-                           </Route>
                           </Route>
                         </Route>
                       </Route>
