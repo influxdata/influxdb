@@ -1,7 +1,7 @@
 use crate::generated_types::{Node, Predicate, TimestampRange};
 use crate::line_parser::{self, index_pairs, Point, PointType};
 use crate::storage::partitioned_store::{ReadBatch, ReadValues};
-use crate::storage::predicate::{Evaluate, EvaluateVisitor};
+use crate::storage::predicate::{Error as PredicateError, Evaluate, EvaluateVisitor};
 use crate::storage::{ReadPoint, SeriesDataType, StorageError};
 
 use croaring::Treemap;
@@ -405,11 +405,11 @@ impl MemDB {
     }
 }
 
-fn evaluate_node(series_map: &SeriesMap, n: &Node) -> Result<Treemap, StorageError> {
+fn evaluate_node(series_map: &SeriesMap, n: &Node) -> Result<Treemap, PredicateError> {
     struct Visitor<'a>(&'a SeriesMap);
 
     impl EvaluateVisitor for Visitor<'_> {
-        fn equal(&mut self, left: &str, right: &str) -> Result<Treemap, StorageError> {
+        fn equal(&mut self, left: &str, right: &str) -> Result<Treemap, PredicateError> {
             Ok(self.0.posting_list_for_key_value(left, right))
         }
     }
