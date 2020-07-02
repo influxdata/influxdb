@@ -69,7 +69,7 @@ second to sign our CLA, which can be found
 
 Installing Go
 -------------
-InfluxDB requires Go 1.12.
+InfluxDB requires Go 1.13
 
 At InfluxDB we find gvm, a Go version manager, useful for installing Go. For instructions
 on how to install it see [the gvm page on github](https://github.com/moovweb/gvm).
@@ -77,14 +77,8 @@ on how to install it see [the gvm page on github](https://github.com/moovweb/gvm
 After installing gvm you can install and set the default go version by
 running the following:
 
-    gvm install go1.12
-    gvm use go1.12 --default
-
-Installing Dep
--------------
-InfluxDB uses [dep](https://github.com/golang/dep) to manage dependencies.  Install it by running the following:
-
-    go get github.com/golang/dep/cmd/dep
+    gvm install go1.13
+    gvm use go1.13 --default
 
 Revision Control Systems
 -------------
@@ -122,13 +116,7 @@ Retaining the directory structure `$GOPATH/src/github.com/influxdata` is necessa
 Build and Test
 -----
 
-Make sure you have Go installed and the project structure as shown above. To then get the dependencies for the project, execute the following commands:
-
-```bash
-cd $GOPATH/src/github.com/influxdata/influxdb
-dep ensure
-```
-
+Make sure you have Go installed and the project structure as shown above.
 To then build and install the binaries, run the following command.
 ```bash
 go clean ./...
