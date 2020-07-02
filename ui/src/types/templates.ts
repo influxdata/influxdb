@@ -26,7 +26,7 @@ export type CommunityTemplate = any
 
 export interface TemplatesState extends NormalizedState<TemplateSummary> {
   exportTemplate: {status: RemoteDataState; item: DocumentCreate}
-  activeCommunityTemplate: CommunityTemplate
+  communityTemplateToInstall: CommunityTemplate
 }
 
 interface KeyValuePairs {

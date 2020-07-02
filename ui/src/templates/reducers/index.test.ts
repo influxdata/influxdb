@@ -42,10 +42,10 @@ const templateSummary = {
 
 const exportTemplate = {status, item: null}
 
-const activeCommunityTemplate: CommunityTemplate = {}
+const communityTemplateToInstall: CommunityTemplate = {}
 
 const initialState = () => ({
-  activeCommunityTemplate,
+  communityTemplateToInstall,
   status,
   byID: {
     ['1']: templateSummary,
@@ -97,7 +97,7 @@ describe('templates reducer', () => {
       byID,
       allIDs,
       exportTemplate,
-      activeCommunityTemplate,
+      communityTemplateToInstall,
     }
     const actual = reducer(state, removeTemplateSummary(state.allIDs[1]))
 

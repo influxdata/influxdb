@@ -21,7 +21,7 @@ import {toggleTemplateResourceInstall} from 'src/templates/actions/creators'
 import {getResourceInstallCount} from 'src/templates/selectors'
 
 interface StateProps {
-  activeCommunityTemplate: CommunityTemplate
+  summary: CommunityTemplate
 }
 
 interface DispatchProps {
@@ -32,8 +32,8 @@ type Props = StateProps & DispatchProps
 
 class CommunityTemplateContentsUnconnected extends PureComponent<Props> {
   render() {
-    const {activeCommunityTemplate} = this.props
-    if (!Object.keys(activeCommunityTemplate).length) {
+    const {summary} = this.props
+    if (!Object.keys(summary).length) {
       return (
         <Panel>
           <Panel.Header>Calculating template resource needs...</Panel.Header>
@@ -50,10 +50,10 @@ class CommunityTemplateContentsUnconnected extends PureComponent<Props> {
       >
         <CommunityTemplateListGroup
           title="Dashboards"
-          count={getResourceInstallCount(activeCommunityTemplate.dashboards)}
+          count={getResourceInstallCount(summary.dashboards)}
         >
-          {Array.isArray(activeCommunityTemplate.dashboards) &&
-            activeCommunityTemplate.dashboards.map(dashboard => {
+          {Array.isArray(summary.dashboards) &&
+            summary.dashboards.map(dashboard => {
               return (
                 <CommunityTemplateListItem
                   shouldInstall={dashboard.shouldInstall}
@@ -75,12 +75,10 @@ class CommunityTemplateContentsUnconnected extends PureComponent<Props> {
         </CommunityTemplateListGroup>
         <CommunityTemplateListGroup
           title="Telegraf Configurations"
-          count={getResourceInstallCount(
-            activeCommunityTemplate.telegrafConfigs
-          )}
+          count={getResourceInstallCount(summary.telegrafConfigs)}
         >
-          {Array.isArray(activeCommunityTemplate.telegrafConfigs) &&
-            activeCommunityTemplate.telegrafConfigs.map(telegrafConfig => {
+          {Array.isArray(summary.telegrafConfigs) &&
+            summary.telegrafConfigs.map(telegrafConfig => {
               return (
                 <CommunityTemplateListItem
                   shouldInstall={telegrafConfig.shouldInstall}
@@ -100,10 +98,10 @@ class CommunityTemplateContentsUnconnected extends PureComponent<Props> {
         </CommunityTemplateListGroup>
         <CommunityTemplateListGroup
           title="Buckets"
-          count={getResourceInstallCount(activeCommunityTemplate.buckets)}
+          count={getResourceInstallCount(summary.buckets)}
         >
-          {Array.isArray(activeCommunityTemplate.buckets) &&
-            activeCommunityTemplate.buckets.map(bucket => {
+          {Array.isArray(summary.buckets) &&
+            summary.buckets.map(bucket => {
               return (
                 <CommunityTemplateListItem
                   shouldInstall={bucket.shouldInstall}
@@ -123,10 +121,10 @@ class CommunityTemplateContentsUnconnected extends PureComponent<Props> {
         </CommunityTemplateListGroup>
         <CommunityTemplateListGroup
           title="Checks"
-          count={getResourceInstallCount(activeCommunityTemplate.checks)}
+          count={getResourceInstallCount(summary.checks)}
         >
-          {Array.isArray(activeCommunityTemplate.checks) &&
-            activeCommunityTemplate.checks.map(check => {
+          {Array.isArray(summary.checks) &&
+            summary.checks.map(check => {
               return (
                 <CommunityTemplateListItem
                   shouldInstall={check.shouldInstall}
@@ -146,10 +144,10 @@ class CommunityTemplateContentsUnconnected extends PureComponent<Props> {
         </CommunityTemplateListGroup>
         <CommunityTemplateListGroup
           title="Variables"
-          count={getResourceInstallCount(activeCommunityTemplate.variables)}
+          count={getResourceInstallCount(summary.variables)}
         >
-          {Array.isArray(activeCommunityTemplate.variables) &&
-            activeCommunityTemplate.variables.map(variable => {
+          {Array.isArray(summary.variables) &&
+            summary.variables.map(variable => {
               return (
                 <CommunityTemplateListItem
                   shouldInstall={variable.shouldInstall}
@@ -171,12 +169,10 @@ class CommunityTemplateContentsUnconnected extends PureComponent<Props> {
         </CommunityTemplateListGroup>
         <CommunityTemplateListGroup
           title="Notification Rules"
-          count={getResourceInstallCount(
-            activeCommunityTemplate.notificationRules
-          )}
+          count={getResourceInstallCount(summary.notificationRules)}
         >
-          {Array.isArray(activeCommunityTemplate.notificationRules) &&
-            activeCommunityTemplate.notificationRules.map(notificationRule => {
+          {Array.isArray(summary.notificationRules) &&
+            summary.notificationRules.map(notificationRule => {
               return (
                 <CommunityTemplateListItem
                   shouldInstall={notificationRule.shouldInstall}
@@ -196,10 +192,10 @@ class CommunityTemplateContentsUnconnected extends PureComponent<Props> {
         </CommunityTemplateListGroup>
         <CommunityTemplateListGroup
           title="Labels"
-          count={getResourceInstallCount(activeCommunityTemplate.labels)}
+          count={getResourceInstallCount(summary.labels)}
         >
-          {Array.isArray(activeCommunityTemplate.labels) &&
-            activeCommunityTemplate.labels.map(label => {
+          {Array.isArray(summary.labels) &&
+            summary.labels.map(label => {
               return (
                 <CommunityTemplateListItem
                   shouldInstall={label.shouldInstall}
@@ -228,9 +224,7 @@ class CommunityTemplateContentsUnconnected extends PureComponent<Props> {
 }
 
 const mstp = (state: AppState): StateProps => {
-  const {activeCommunityTemplate} = state.resources.templates
-
-  return {activeCommunityTemplate}
+  return {summary: state.resources.templates.communityTemplateToInstall.summary}
 }
 
 const mdtp = {

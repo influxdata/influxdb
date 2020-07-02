@@ -97,13 +97,13 @@ export const getGithubUrlFromTemplateName = (templateName: string): string => {
   return `https://github.com/influxdata/community-templates/tree/master/${templateName}`
 }
 
-const applyTemplates = async (params) => {
+const applyTemplates = async params => {
   const resp = await postTemplatesApply(params)
   if (resp.status >= 300) {
     throw new Error((resp.data as PkgError).message)
   }
 
-  const summary = (resp.data as TemplateSummary).summary
+  const summary = resp.data as TemplateSummary
   return summary
 }
 

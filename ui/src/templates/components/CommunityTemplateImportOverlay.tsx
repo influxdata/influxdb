@@ -89,7 +89,9 @@ const mstp = (state: AppState, props: Props): StateProps => {
     org,
     templateName: props.params.templateName,
     flags: state.flags.original,
-    resourceCount: getTotalResourceCount(state),
+    resourceCount: getTotalResourceCount(
+      state.resources.templates.communityTemplateToInstall.summary
+    ),
   }
 }
 
