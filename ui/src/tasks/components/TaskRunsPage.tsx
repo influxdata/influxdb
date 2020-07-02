@@ -142,7 +142,7 @@ class TaskRunsPage extends PureComponent<Props, State> {
       },
     } = this.props
 
-    history.push(`/orgs/${orgID}/tasks/${currentTask.id}`)
+    history.push(`/orgs/${orgID}/tasks/${currentTask.id}/edit`)
   }
 }
 

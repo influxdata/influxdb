@@ -144,7 +144,8 @@ export class TaskCard extends PureComponent<
       history,
       task,
     } = this.props
-    const url = `/orgs/${orgID}/tasks/${task.id}`
+    const url = `/orgs/${orgID}/tasks/${task.id}/edit`
+
     if (event.metaKey) {
       window.open(url, '_blank')
     } else {

@@ -7,6 +7,9 @@ import {Route, Switch} from 'react-router-dom'
 import {MePage} from 'src/me'
 import TasksPage from 'src/tasks/containers/TasksPage'
 import TaskPage from 'src/tasks/containers/TaskPage'
+import TaskRunsPage from 'src/tasks/components/TaskRunsPage'
+import TaskEditPage from 'src/tasks/containers/TaskEditPage'
+import DataExplorerPage from 'src/dataExplorer/components/DataExplorerPage'
 
 // Types
 import {AppState, Organization, ResourceType} from 'src/types'
@@ -75,11 +78,19 @@ const SetOrg: FC<Props> = ({
     history.push(`/orgs/${orgs[0].id}`)
   }, [orgID, orgs.length])
 
+  const orgRoute = '/orgs/:orgID'
+
   return (
     <SpinnerContainer loading={loading} spinnerComponent={<TechnoSpinner />}>
       <Switch>
-        <Route path="/orgs/:orgID/tasks/new" component={TaskPage} />
-        <Route path="/orgs/:orgID/tasks" component={TasksPage} />
+        <Route path={`${orgRoute}/tasks/:id/runs`} component={TaskRunsPage} />
+        <Route path={`${orgRoute}/tasks/:id/edit`} component={TaskEditPage} />
+        <Route path={`${orgRoute}/tasks/new`} component={TaskPage} />
+        <Route path={`${orgRoute}/tasks`} component={TasksPage} />
+        <Route
+          path={`${orgRoute}/data-explorer`}
+          component={DataExplorerPage}
+        />
         <Route exact path="/orgs/:orgID" component={MePage} />
       </Switch>
     </SpinnerContainer>
