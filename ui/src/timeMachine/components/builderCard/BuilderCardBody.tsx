@@ -1,5 +1,6 @@
 // Libraries
-import React, {PureComponent, ReactNode} from 'react'
+import React, {PureComponent, ReactNode, CSSProperties} from 'react'
+import classnames from 'classnames'
 
 // Components
 import {DapperScrollbars} from '@influxdata/clockface'
@@ -9,6 +10,8 @@ interface Props {
   addPadding: boolean
   testID: string
   autoHideScrollbars: boolean
+  style?: CSSProperties
+  className?: string
 }
 
 export default class BuilderCardBody extends PureComponent<Props> {
@@ -20,13 +23,21 @@ export default class BuilderCardBody extends PureComponent<Props> {
   }
 
   public render() {
-    const {scrollable, testID, autoHideScrollbars} = this.props
+    const {
+      scrollable,
+      testID,
+      autoHideScrollbars,
+      style,
+      className,
+    } = this.props
 
     if (scrollable) {
+      const scrollbarStyles = {maxWidth: '100%', maxHeight: '100%', ...style}
+
       return (
         <DapperScrollbars
           className="builder-card--body"
-          style={{maxWidth: '100%', maxHeight: '100%'}}
+          style={scrollbarStyles}
           testID={testID}
           autoHide={autoHideScrollbars}
         >
@@ -35,8 +46,12 @@ export default class BuilderCardBody extends PureComponent<Props> {
       )
     }
 
+    const classname = classnames('builder-card--body', {
+      [`${className}`]: className,
+    })
+
     return (
-      <div className="builder-card--body" data-testid={testID}>
+      <div className={classname} data-testid={testID} style={style}>
         {this.children}
       </div>
     )

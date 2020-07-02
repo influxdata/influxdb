@@ -2,11 +2,11 @@
 import React, {useState, useEffect, FC} from 'react'
 import {
   Input,
-  ComponentStatus,
   DropdownMenu,
   DropdownDivider,
   DropdownItem,
   ClickOutside,
+  ComponentStatus,
 } from '@influxdata/clockface'
 import {isDurationParseable} from 'src/shared/utils/duration'
 
@@ -21,6 +21,7 @@ type Props = {
   showDivider?: boolean
   testID?: string
   validFunction?: (input: string) => boolean
+  status?: ComponentStatus
 }
 
 const DurationInput: FC<Props> = ({
@@ -28,6 +29,7 @@ const DurationInput: FC<Props> = ({
   onSubmit,
   value,
   placeholder,
+  status: controlledStatus,
   submitInvalid = true,
   showDivider = true,
   testID = 'duration-input',
@@ -38,10 +40,8 @@ const DurationInput: FC<Props> = ({
   const [inputValue, setInputValue] = useState(value)
 
   useEffect(() => {
-    if (value != inputValue) {
-      setInputValue(value)
-    }
-  }, [value, inputValue])
+    setInputValue(value)
+  }, [value, setInputValue])
 
   const handleClickSuggestion = (suggestion: string) => {
     setInputValue(suggestion)
@@ -63,9 +63,13 @@ const DurationInput: FC<Props> = ({
   const isValid = (i: string): boolean =>
     isDurationParseable(i) || validFunction(i)
 
-  const inputStatus = isValid(inputValue)
-    ? ComponentStatus.Default
-    : ComponentStatus.Error
+  let inputStatus = controlledStatus || ComponentStatus.Default
+
+  if (inputStatus === ComponentStatus.Default) {
+    inputStatus = isValid(inputValue)
+      ? ComponentStatus.Default
+      : ComponentStatus.Error
+  }
 
   const onChange = (i: string) => {
     setInputValue(i)
@@ -75,7 +79,7 @@ const DurationInput: FC<Props> = ({
   }
 
   return (
-    <div className="status-search-bar">
+    <div className="duration-input">
       <ClickOutside onClickOutside={handleClickOutside}>
         <Input
           placeholder={placeholder}
@@ -87,10 +91,7 @@ const DurationInput: FC<Props> = ({
         />
       </ClickOutside>
       {isFocused && (
-        <DropdownMenu
-          className="status-search-bar--suggestions"
-          noScrollX={true}
-        >
+        <DropdownMenu className="duration-input--menu" noScrollX={true}>
           {showDivider && <DropdownDivider text="Examples" />}
           {suggestions.map(s => (
             <DropdownItem

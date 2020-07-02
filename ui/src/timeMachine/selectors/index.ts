@@ -1,30 +1,35 @@
 // Libraries
 import memoizeOne from 'memoize-one'
 import moment from 'moment'
-import {get, flatMap} from 'lodash'
+import {get} from 'lodash'
 import {fromFlux, Table} from '@influxdata/giraffe'
 
 // Utils
-import {parseResponse} from 'src/shared/parsing/flux/response'
 import {
   defaultXColumn,
   defaultYColumn,
   getNumericColumns as getNumericColumnsUtil,
   getGroupableColumns as getGroupableColumnsUtil,
 } from 'src/shared/utils/vis'
-import {getAllVariables, asAssignment} from 'src/variables/selectors'
-import {getWindowPeriod} from 'src/variables/utils/getWindowVars'
+import {
+  getWindowPeriod,
+  calcWindowPeriodForDuration,
+} from 'src/variables/utils/getWindowVars'
 import {
   timeRangeToDuration,
   parseDuration,
   durationToMilliseconds,
+  millisecondsToDuration,
 } from 'src/shared/utils/duration'
+
+//Selectors
+import {getAllVariables, asAssignment} from 'src/variables/selectors'
+import {getTimeRange} from 'src/dashboards/selectors'
 
 // Types
 import {
   QueryView,
   DashboardQuery,
-  FluxTable,
   AppState,
   DashboardDraftQuery,
   TimeRange,
@@ -68,12 +73,22 @@ export const getActiveWindowPeriod = (state: AppState) => {
   return getWindowPeriod(text, variables)
 }
 
-const getTablesMemoized = memoizeOne((files: string[]): FluxTable[] =>
-  files ? flatMap(files, parseResponse) : []
-)
+export const getWindowPeriodFromTimeRange = (state: AppState): string => {
+  const timeRange = getTimeRange(state)
+  if (timeRange.type === 'selectable-duration') {
+    return millisecondsToDuration(timeRange.windowPeriod)
+  }
 
-export const getTables = (state: AppState): FluxTable[] =>
-  getTablesMemoized(getActiveTimeMachine(state).queryResults.files)
+  if (timeRange.type === 'custom') {
+    const upper = Date.parse(timeRange.upper)
+    const lower = Date.parse(timeRange.lower)
+    return millisecondsToDuration(calcWindowPeriodForDuration(upper - lower))
+  }
+
+  throw new Error(
+    'Unknown timeRange type provided to getWindowPeriodFromTimeRange'
+  )
+}
 
 const getVisTableMemoized = memoizeOne(fromFlux)
 

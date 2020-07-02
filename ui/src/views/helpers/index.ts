@@ -8,6 +8,10 @@ import {
   DEFAULT_THRESHOLDS_TABLE_COLORS,
 } from 'src/shared/constants/thresholds'
 import {DEFAULT_CHECK_EVERY} from 'src/alerting/constants'
+import {
+  DEFAULT_FILLVALUES,
+  AGG_WINDOW_AUTO,
+} from 'src/timeMachine/constants/queryBuilder'
 
 // Types
 import {
@@ -53,8 +57,8 @@ export function defaultBuilderConfig(): BuilderConfig {
   return {
     buckets: [],
     tags: [{key: '_measurement', values: [], aggregateFunctionType: 'filter'}],
-    functions: [],
-    aggregateWindow: {period: 'auto'},
+    functions: [{name: 'mean'}],
+    aggregateWindow: {period: AGG_WINDOW_AUTO, fillValues: DEFAULT_FILLVALUES},
   }
 }
 

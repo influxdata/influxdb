@@ -59,13 +59,13 @@ describe('buildQuery', () => {
     const expected = `from(bucket: "b0")
   |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
   |> filter(fn: (r) => r["_measurement"] == "m0")
-  |> aggregateWindow(every: v.windowPeriod, fn: mean)
+  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: true)
   |> yield(name: "mean")
 
 from(bucket: "b0")
   |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
   |> filter(fn: (r) => r["_measurement"] == "m0")
-  |> aggregateWindow(every: v.windowPeriod, fn: median)
+  |> aggregateWindow(every: v.windowPeriod, fn: median, createEmpty: true)
   |> yield(name: "median")`
 
     const actual = buildQuery(config)
