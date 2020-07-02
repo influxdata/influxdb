@@ -1,6 +1,7 @@
 // Libraries
 import React, {FC, useEffect} from 'react'
 import {connect} from 'react-redux'
+import {Switch, Route} from 'react-router-dom'
 
 // Components
 import GetResource from 'src/resources/components/GetResource'
@@ -8,6 +9,27 @@ import GetResources from 'src/resources/components/GetResources'
 import DashboardPage from 'src/dashboards/components/DashboardPage'
 import GetTimeRange from 'src/dashboards/components/GetTimeRange'
 import DashboardRoute from 'src/shared/components/DashboardRoute'
+import EditVEO from 'src/dashboards/components/EditVEO'
+import NewVEO from 'src/dashboards/components/NewVEO'
+
+// // Overlays
+// import OverlayHandler, {
+//   RouteOverlay,
+// } from 'src/overlays/components/RouteOverlay'
+// const AddNoteOverlay = RouteOverlay(
+//   OverlayHandler,
+//   'add-note',
+//   (history, params) => {
+//     history.push(`/orgs/${params.orgID}/dashboards/${params.dashboardID}`)
+//   }
+// )
+// const EditNoteOverlay = RouteOverlay(
+//   OverlayHandler,
+//   'edit-note',
+//   (history, params) => {
+//     history.push(`/orgs/${params.orgID}/dashboards/${params.dashboardID}`)
+//   }
+// )
 
 // Actions
 import {setCurrentPage} from 'src/shared/reducers/currentPage'
@@ -34,10 +56,11 @@ interface DispatchProps {
 
 type Props = StateProps & DispatchProps
 
+const dashRoute = '/orgs/:orgID/dashboards/:dashboardID'
+
 const DashboardContainer: FC<Props> = ({
   autoRefresh,
   dashboard,
-  children,
   onSetCurrentPage,
 }) => {
   useEffect(() => {
@@ -66,7 +89,23 @@ const DashboardContainer: FC<Props> = ({
         <GetResources resources={[ResourceType.Buckets]}>
           <GetTimeRange />
           <DashboardPage autoRefresh={autoRefresh} />
-          {children}
+          <Switch>
+            <Route path={`${dashRoute}/cells`}>
+              <Route path={`${dashRoute}/cells/new`} component={NewVEO} />
+              <Route
+                path={`${dashRoute}/cells/:cellID/edit`}
+                component={EditVEO}
+              />
+              {/*<Route
+                path={`${dashRoute}/notes/new`}
+                component={AddNoteOverlay}
+              />
+              <Route
+                path={`${dashRoute}/notes/:cellID/edit`}
+                component={EditNoteOverlay}
+              />*/}
+            </Route>
+          </Switch>
         </GetResources>
       </GetResource>
     </DashboardRoute>
