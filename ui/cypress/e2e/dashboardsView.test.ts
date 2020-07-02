@@ -1,6 +1,5 @@
 import {Organization, AppState, Dashboard} from '../../src/types'
 import {lines} from '../support/commands'
-import {getByID} from "../../src/resources/selectors";
 
 describe('Dashboard', () => {
   beforeEach(() => {
