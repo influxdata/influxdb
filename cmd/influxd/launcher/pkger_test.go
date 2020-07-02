@@ -2177,6 +2177,166 @@ func TestLauncher_Pkger(t *testing.T) {
 				})
 			})
 		})
+
+		t.Run("stack ownership", func(t *testing.T) {
+			t.Run("labels", func(t *testing.T) {
+				newLabelTemplate := func(name, desc, color string) *pkger.Template {
+					return newTemplate(newLabelObject("label-1", name, desc, color))
+				}
+
+				getLabenFn := func(t *testing.T, id pkger.SafeID) influxdb.Label {
+					t.Helper()
+					return resourceCheck.mustGetLabel(t, bySafeID(id))
+				}
+
+				isEmptyLabel := func(t *testing.T, label influxdb.Label) {
+					t.Helper()
+
+					assert.Equal(t, "foo", label.Name)
+					assert.Empty(t, label.Properties["description"])
+					assert.Empty(t, label.Properties["color"])
+				}
+
+				createInitial := func(t *testing.T) (pkger.ImpactSummary, func()) {
+					t.Helper()
+
+					impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID,
+						pkger.ApplyWithTemplate(newLabelTemplate("foo", "", "")),
+					)
+					require.NoError(t, err)
+					defer func() {
+						if t.Failed() {
+							deleteStackFn(t, impact.StackID)
+						}
+					}()
+
+					summary := impact.Summary
+
+					require.Len(t, summary.Labels, 1)
+					require.NotZero(t, summary.Labels[0].ID)
+
+					label := getLabenFn(t, summary.Labels[0].ID)
+					isEmptyLabel(t, label)
+					stackAnno := label.Annotations.Stacks()
+					assert.Equal(t, impact.StackID, stackAnno.Owner)
+
+					return impact, func() {
+						deleteStackFn(t, impact.StackID)
+					}
+				}
+
+				t.Run("when resource newly created stack assumes ownership", func(t *testing.T) {
+					_, cleanup := createInitial(t)
+					cleanup()
+				})
+
+				t.Run("when stack attempts to apply template with a label", func(t *testing.T) {
+					t.Run("by the stack owner", func(t *testing.T) {
+						initialImpact, cleanup := createInitial(t)
+						defer cleanup()
+
+						updateImpact, err := svc.Apply(ctx, l.Org.ID, l.User.ID,
+							pkger.ApplyWithTemplate(newLabelTemplate("foo", "new desc", "peru")),
+							pkger.ApplyWithStackID(initialImpact.StackID),
+						)
+						require.NoError(t, err)
+
+						require.Len(t, updateImpact.Summary.Labels, 1)
+						require.Equal(t, initialImpact.Summary.Labels[0].ID, updateImpact.Summary.Labels[0].ID)
+
+						label := getLabenFn(t, initialImpact.Summary.Labels[0].ID)
+						assert.Equal(t, influxdb.ID(initialImpact.Summary.Labels[0].ID), label.ID)
+						assert.Equal(t, "foo", label.Name)
+						assert.Equal(t, "peru", label.Properties["color"])
+						assert.Equal(t, "new desc", label.Properties["description"])
+
+						stackAnno := label.Annotations.Stacks()
+						assert.Equal(t, initialImpact.StackID, stackAnno.Owner)
+						assert.Empty(t, stackAnno.References)
+					})
+
+					t.Run("owned by another stack it should add a ref annotation but not update the label", func(t *testing.T) {
+						initialImpact, cleanup := createInitial(t)
+						defer cleanup()
+
+						updateImpact, err := svc.Apply(ctx, l.Org.ID, l.User.ID,
+							pkger.ApplyWithTemplate(newLabelTemplate("foo", "new desc", "peru")),
+						)
+						require.NoError(t, err)
+						defer deleteStackFn(t, updateImpact.StackID)
+
+						require.Len(t, updateImpact.Summary.Labels, 1)
+						require.Equal(t, initialImpact.Summary.Labels[0].ID, updateImpact.Summary.Labels[0].ID)
+
+						require.Len(t, updateImpact.Summary.Labels, 1)
+						label := getLabenFn(t, updateImpact.Summary.Labels[0].ID)
+						assert.Equal(t, initialImpact.Summary.Labels[0].ID, updateImpact.Summary.Labels[0].ID)
+						isEmptyLabel(t, label)
+
+						stackAnno := label.Annotations.Stacks()
+						assert.Equal(t, initialImpact.StackID, stackAnno.Owner)
+						assert.Equal(t, []influxdb.ID{updateImpact.StackID}, stackAnno.References)
+					})
+
+					t.Run("owned by another stack and applied multiple times should only update reference once", func(t *testing.T) {
+						initialImpact, cleanup := createInitial(t)
+						defer cleanup()
+
+						updateImpact, err := svc.Apply(ctx, l.Org.ID, l.User.ID,
+							pkger.ApplyWithTemplate(newLabelTemplate("foo", "new desc", "peru")),
+						)
+						require.NoError(t, err)
+						defer deleteStackFn(t, updateImpact.StackID)
+
+						expectedLabel := func(t *testing.T, updImpact pkger.ImpactSummary) {
+							t.Helper()
+
+							require.Len(t, updImpact.Summary.Labels, 1)
+							require.Equal(t, initialImpact.Summary.Labels[0].ID, updImpact.Summary.Labels[0].ID)
+							label := getLabenFn(t, updImpact.Summary.Labels[0].ID)
+							isEmptyLabel(t, label)
+							stackAnno := label.Annotations.Stacks()
+							assert.Equal(t, initialImpact.StackID, stackAnno.Owner)
+							assert.Equal(t, []influxdb.ID{updImpact.StackID}, stackAnno.References)
+						}
+						expectedLabel(t, updateImpact)
+
+						updateImpact, err = svc.Apply(ctx, l.Org.ID, l.User.ID,
+							pkger.ApplyWithTemplate(newLabelTemplate("foo", "new desc", "peru")),
+							pkger.ApplyWithStackID(updateImpact.StackID),
+						)
+						require.NoError(t, err)
+						expectedLabel(t, updateImpact)
+					})
+
+					t.Run("owned by another stack and deleting stack removes reference", func(t *testing.T) {
+						initialImpact, cleanup := createInitial(t)
+						defer cleanup()
+
+						updateImpact, err := svc.Apply(ctx, l.Org.ID, l.User.ID,
+							pkger.ApplyWithTemplate(newLabelTemplate("foo", "new desc", "peru")),
+						)
+						require.NoError(t, err)
+						defer deleteStackFn(t, updateImpact.StackID)
+
+						expectedLabel := func(t *testing.T, updImpact pkger.ImpactSummary, refs ...influxdb.ID) {
+							t.Helper()
+
+							require.Len(t, updImpact.Summary.Labels, 1)
+							require.Equal(t, initialImpact.Summary.Labels[0].ID, updImpact.Summary.Labels[0].ID)
+							label := getLabenFn(t, updImpact.Summary.Labels[0].ID)
+							isEmptyLabel(t, label)
+							stackAnno := label.Annotations.Stacks()
+							assert.Equal(t, initialImpact.StackID, stackAnno.Owner)
+							assert.Equal(t, refs, stackAnno.References)
+						}
+						expectedLabel(t, updateImpact, updateImpact.StackID)
+						deleteStackFn(t, updateImpact.StackID)
+						expectedLabel(t, updateImpact) // no refs
+					})
+				})
+			})
+		})
 	})
 
 	t.Run("errors incurred during application of package rolls back to state before package", func(t *testing.T) {
@@ -4003,6 +4163,12 @@ type (
 func byID(id influxdb.ID) getResourceOptFn {
 	return func() getResourceOpt {
 		return getResourceOpt{id: id}
+	}
+}
+
+func bySafeID(id pkger.SafeID) getResourceOptFn {
+	return func() getResourceOpt {
+		return getResourceOpt{id: influxdb.ID(id)}
 	}
 }
 

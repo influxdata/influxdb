@@ -9,6 +9,8 @@ import (
 )
 
 type stateCoordinator struct {
+	stackID influxdb.ID
+
 	mBuckets    map[string]*stateBucket
 	mChecks     map[string]*stateCheck
 	mDashboards map[string]*stateDashboard
@@ -23,8 +25,9 @@ type stateCoordinator struct {
 	labelMappingsToRemove []stateLabelMappingForRemoval
 }
 
-func newStateCoordinator(template *Template, acts resourceActions) *stateCoordinator {
+func newStateCoordinator(stackID influxdb.ID, template *Template, acts resourceActions) *stateCoordinator {
 	state := stateCoordinator{
+		stackID:     stackID,
 		mBuckets:    make(map[string]*stateBucket),
 		mChecks:     make(map[string]*stateCheck),
 		mDashboards: make(map[string]*stateDashboard),
@@ -1019,6 +1022,10 @@ func (l *stateLabel) shouldApply() bool {
 		l.parserLabel.Color != l.existing.Properties["color"]
 }
 
+func (l *stateLabel) isOwnedByStackID(templateStackID influxdb.ID) bool {
+	return l.existing == nil || isOwner(templateStackID, l.existing.Annotations.Stacks().Owner)
+}
+
 func (l *stateLabel) toInfluxLabel() influxdb.Label {
 	return influxdb.Label{
 		ID:         l.ID(),
@@ -1575,4 +1582,8 @@ func (r resourceActions) skipResource(k Kind, metaName string) bool {
 		MetaName: metaName,
 	}
 	return r.skipResources[key] || r.skipKinds[k]
+}
+
+func isOwner(templateStackID, stackOwnerID influxdb.ID) bool {
+	return stackOwnerID == 0 || templateStackID == stackOwnerID
 }

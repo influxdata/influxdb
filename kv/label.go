@@ -408,6 +408,10 @@ func (s *Service) updateLabel(ctx context.Context, tx Tx, id influxdb.ID, upd in
 		label.Properties = make(map[string]string)
 	}
 
+	if upd.Annotations != nil {
+		label.Annotations = *upd.Annotations
+	}
+
 	for k, v := range upd.Properties {
 		if v == "" {
 			delete(label.Properties, k)
