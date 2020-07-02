@@ -68,6 +68,18 @@ export class Setup extends PureComponent<Props, State> {
     history.push('/onboarding/0')
   }
 
+  async componentDidUpdate(prevProps: Props, prevState: State) {
+    if (!prevState.allowed) {
+      return
+    }
+
+    if (prevProps.location.pathname.includes('/onboarding/2')) {
+      this.setState({loading: RemoteDataState.Loading})
+      const {allowed} = await client.setup.status()
+      this.setState({allowed, loading: RemoteDataState.Done})
+    }
+  }
+
   public render() {
     const {loading, allowed} = this.state
 
