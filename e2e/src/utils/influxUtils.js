@@ -858,17 +858,14 @@ const verifyDownloadFileMatchingRegexFilesExist = async function(regex, callback
 const waitForFileToExist = async function(filePath, timeout = 60000){
     let sleepTime = 3000;
     let totalSleep = 0;
-    console.log("DEBUG wait for file to exist: " + __config.download_dir + "/" + filePath);
     while (totalSleep < timeout){
         if(fs.existsSync(__config.download_dir + '/' + filePath)){
-            console.log("DEBUG: Matchced File");
             return true;
         }
         await __wdriver.sleep(sleepTime);
         totalSleep += sleepTime;
     }
 
-    console.error(`Timed out ${timeout}ms waiting for file ${__config.download_dir}/${filePath}`);
 
     throw `Timed out ${timeout}ms waiting for file ${__config.download_dir}/${filePath}`;
 
