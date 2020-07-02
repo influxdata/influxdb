@@ -1,5 +1,5 @@
 import {createStore, applyMiddleware, compose} from 'redux'
-import {History, createBrowserHistory} from 'history'
+import {History} from 'history'
 import {combineReducers, Store} from 'redux'
 import {connectRouter, routerMiddleware} from 'connected-react-router'
 import thunkMiddleware from 'redux-thunk'
@@ -59,7 +59,7 @@ import {queryCacheReducer} from 'src/queryCache/reducers'
 
 type ReducerState = Pick<AppState, Exclude<keyof AppState, 'timeRange'>>
 
-export const history = createBrowserHistory()
+import {history} from 'src/store/history'
 
 export const rootReducer = (history: History) =>
   combineReducers<ReducerState>({

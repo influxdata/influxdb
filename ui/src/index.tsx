@@ -1,19 +1,17 @@
 import 'babel-polyfill'
 import 'abortcontroller-polyfill/dist/polyfill-patch-fetch'
 
+// Libraries
 import React, {PureComponent} from 'react'
 import {render} from 'react-dom'
 import {Provider} from 'react-redux'
 import {Route, Switch} from 'react-router-dom'
 import {ConnectedRouter} from 'connected-react-router'
 
-// import {CLOUD} from 'src/shared/constants'
-import configureStore, {history} from 'src/store/configureStore'
+// Stores
+import configureStore from 'src/store/configureStore'
 import {loadLocalStorage} from 'src/localStorage'
-
-import {getRootNode} from 'src/utils/nodes'
-import {getBrowserBasepath} from 'src/utils/basepath'
-import {updateReportingContext} from 'src/cloud/utils/reporting'
+import {history} from 'src/store/history'
 
 // Components
 import Setup from 'src/Setup'
@@ -22,6 +20,8 @@ import GetLinks from 'src/shared/containers/GetLinks'
 
 // Utilities
 import {writeNavigationTimingMetrics} from 'src/cloud/utils/rum'
+import {getRootNode} from 'src/utils/nodes'
+import {updateReportingContext} from 'src/cloud/utils/reporting'
 
 // Actions
 import {disablePresentationMode} from 'src/shared/actions/app'
@@ -31,7 +31,6 @@ import 'src/style/chronograf.scss'
 import '@influxdata/clockface/dist/index.css'
 
 const rootNode = getRootNode()
-const basepath = getBrowserBasepath()
 
 const SESSION_KEY = 'session'
 
@@ -43,16 +42,6 @@ updateReportingContext({
   session: cookieSession ? cookieSession[2].slice(5) : '',
 })
 
-declare global {
-  interface Window {
-    basepath: string
-    dataLayer: any[]
-  }
-}
-
-// Older method used for pre-IE 11 compatibility
-window.basepath = basepath
-
 export const store = configureStore(loadLocalStorage())
 const {dispatch} = store
 
@@ -63,6 +52,13 @@ if (window['Cypress']) {
 history.listen(() => {
   dispatch(disablePresentationMode())
 })
+
+declare global {
+  interface Window {
+    basepath: string
+    dataLayer: any[]
+  }
+}
 
 window.addEventListener('keyup', event => {
   const escapeKeyCode = 27

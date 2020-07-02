@@ -49,7 +49,6 @@ interface OwnProps {
   onIncrementCurrentStepIndex: () => void
   onDecrementCurrentStepIndex: () => void
   onSetCurrentStepIndex: (stepNumber: number) => void
-  onSetSubstepIndex: (stepNumber: number, substep: number | 'streaming') => void
 }
 
 interface DispatchProps {

@@ -60,7 +60,7 @@ class TreeSidebar extends PureComponent<Props> {
       strict: false,
     })
 
-    const orgID = match.params.orgID
+    const orgID = match?.params?.orgID
 
     const isExpanded = navBarState === 'expanded'
 
