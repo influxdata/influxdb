@@ -12,6 +12,7 @@ import TaskEditPage from 'src/tasks/containers/TaskEditPage'
 import DataExplorerPage from 'src/dataExplorer/components/DataExplorerPage'
 import DashboardsIndex from 'src/dashboards/components/dashboard_index/DashboardsIndex'
 import DashboardContainer from 'src/dashboards/components/DashboardContainer'
+import NotebookPage from 'src/notebooks/components/Notebook'
 
 // Types
 import {AppState, Organization, ResourceType} from 'src/types'
@@ -21,6 +22,7 @@ import {setOrg as setOrgAction} from 'src/organizations/actions/creators'
 
 // Utils
 import {updateReportingContext} from 'src/cloud/utils/reporting'
+import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 
 // Decorators
 import {RouteComponentProps} from 'react-router-dom'
@@ -98,6 +100,9 @@ const SetOrg: FC<Props> = ({
           component={DashboardContainer}
         />
         <Route path={`${orgRoute}/dashboards`} component={DashboardsIndex} />
+        {isFlagEnabled('notebooks') && (
+          <Route path={`${orgRoute}/notebooks`} component={NotebookPage} />
+        )}
         <Route exact path="/orgs/:orgID" component={MePage} />
       </Switch>
     </SpinnerContainer>

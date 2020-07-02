@@ -209,34 +209,6 @@ class Root extends PureComponent {
           <Route component={Setup} />
           <Route component={NotFound} />
           {/*<Route component={Setup}>
-                            <Route
-                              path="dashboards"
-                              component={DashboardsIndex}
-                            >
-                              <Route
-                                path="import"
-                                component={DashboardImportOverlay}
-                              />
-                              <Route
-                                path="import/template"
-                                component={CreateFromTemplateOverlay}
-                              />
-                              <Route
-                                path=":dashboardID/export"
-                                component={DashboardExportOverlay}
-                              />
-                            </Route>
-                            <Route
-                              path="dashboards/:dashboardID"
-                              component={DashboardContainer}
-                            >
-                              <Route path="cells">
-                                <Route path="new" component={NewVEO} />
-                                <Route
-                                  path=":cellID/edit"
-                                  component={EditVEO}
-                                />
-                              </Route>
                               <Route path="notes">
                                 <Route path="new" component={AddNoteOverlay} />
                                 <Route
@@ -245,7 +217,6 @@ class Root extends PureComponent {
                                 />
                               </Route>
                             </Route>
-                            <Route path="me" component={MePage} />
                             {isFlagEnabled('notebooks') && (
                               <Route
                                 path="notebooks"
