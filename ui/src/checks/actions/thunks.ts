@@ -115,9 +115,15 @@ export const getCheckForTimeMachine = (checkID: string) => async (
 
     const check = resp.data
 
-    const view = createView<CheckViewProperties>(check.type)
+    const normCheck = normalize<Check, CheckEntities, string>(
+      resp.data,
+      checkSchema
+    )
+    const builderCheck = normCheck.entities.checks[normCheck.result]
 
-    view.properties.queries = [check.query]
+    const view = createView<CheckViewProperties>(builderCheck.type)
+
+    view.properties.queries = [builderCheck.query]
 
     dispatch(
       setActiveTimeMachine('alerting', {
@@ -125,13 +131,6 @@ export const getCheckForTimeMachine = (checkID: string) => async (
         activeTab: check.type === 'custom' ? 'customCheckQuery' : 'alerting',
       })
     )
-
-    const normCheck = normalize<Check, CheckEntities, string>(
-      resp.data,
-      checkSchema
-    )
-
-    const builderCheck = normCheck.entities.checks[normCheck.result]
 
     dispatch(setAlertBuilderCheck(builderCheck))
   } catch (error) {

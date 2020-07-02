@@ -112,7 +112,6 @@ class TimeMachineQueries extends PureComponent<Props> {
 
   private get queryEditor(): JSX.Element {
     const {activeQuery} = this.props
-    console.log(activeQuery)
 
     if (activeQuery.editMode === 'builder') {
       return <TimeMachineQueryBuilder />

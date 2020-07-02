@@ -252,7 +252,6 @@ export const timeMachineReducer = (
     case 'SET_ACTIVE_QUERY_TEXT': {
       const {text} = action.payload
       const draftQueries = [...state.draftQueries]
-
       draftQueries[state.activeQueryIndex] = {
         ...draftQueries[state.activeQueryIndex],
         text,

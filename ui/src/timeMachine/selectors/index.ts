@@ -55,7 +55,6 @@ export const getActiveQuery = (state: AppState): DashboardDraftQuery => {
   }
 
   const {draftQueries, activeQueryIndex} = tm
-
   return draftQueries[activeQueryIndex]
 }
 
@@ -66,8 +65,6 @@ export const getActiveQuery = (state: AppState): DashboardDraftQuery => {
 export const getActiveWindowPeriod = (state: AppState) => {
   const {text} = getActiveQuery(state)
   const variables = getAllVariables(state).map(v => asAssignment(v))
-console.log(text)
-
   return getWindowPeriod(text, variables)
 }
 

@@ -49,6 +49,8 @@ import {
   Node,
   ResourceType,
   Bucket,
+  QueryEditMode,
+  BuilderTagsType,
 } from 'src/types'
 
 // Selectors
@@ -96,12 +98,60 @@ export const getOrgIDFromBuckets = (
   const bucketsInQuery: string[] = findNodes(ast, isFromBucket).map(node =>
     get(node, 'arguments.0.properties.0.value.value', '')
   )
-  console.log(bucketsInQuery)
 
   // if there are buckets from multiple orgs in a query, query will error, and user will receive error from query
   const bucketMatch = allBuckets.find(a => bucketsInQuery.includes(a.name))
 
   return get(bucketMatch, 'orgID', null)
+}
+
+//We only need a minimum of one bucket, function, and tag,
+export const getQueryFromFlux = (text: string) => {
+  const ast = parse(text)
+
+  const aggregateWindowQuery: string[] = findNodes(ast, isFromFunction).map(
+    node => get(node, 'arguments.0.properties.0.value.values.0.magnitude', '')
+  )
+
+  const bucketsInQuery: string[] = findNodes(ast, isFromBucket).map(node =>
+    get(node, 'arguments.0.properties.0.value.value', '')
+  )
+
+  const functionsInQuery: string[] = findNodes(ast, isFromFunction).map(node =>
+    get(node, 'arguments.0.properties.1.value.name', '')
+  )
+
+  const tagsKeysInQuery: string[] = findNodes(ast, isFromTag).map(node =>
+    get(node, 'arguments.0.properties.0.value.body.left.property.value', '')
+  )
+
+  const tagsValuesInQuery: string[] = findNodes(ast, isFromTag).map(node =>
+    get(node, 'arguments.0.properties.0.value.body.right.value', '')
+  )
+
+  const functionName = functionsInQuery.join()
+  const aggregateWindowName = aggregateWindowQuery.join()
+  const firstTagKey = tagsKeysInQuery.pop()
+  const firstValueKey = tagsValuesInQuery.pop()
+
+  // we need [bucket], functions=[{1}], tags = [{aggregateFunctionType: "filter",key: "_measurement",values:["cpu", "disk"]}]
+  return {
+    builderConfig: {
+      buckets: bucketsInQuery,
+      functions: [{name: functionName}],
+      tags: [
+        {
+          aggregateFunctionType: 'filter',
+          key: firstTagKey,
+          values: [firstValueKey],
+        } as BuilderTagsType,
+      ],
+      aggregateWindow: {period: aggregateWindowName},
+    },
+    editMode: 'builder' as QueryEditMode,
+    name: '',
+    text: text,
+  }
 }
 
 const isFromBucket = (node: Node) => {
@@ -110,6 +160,22 @@ const isFromBucket = (node: Node) => {
     get(node, 'callee.type') === 'Identifier' &&
     get(node, 'callee.name') === 'from' &&
     get(node, 'arguments.0.properties.0.key.name') === 'bucket'
+  )
+}
+
+const isFromFunction = (node: Node) => {
+  return (
+    get(node, 'callee.type') === 'Identifier' &&
+    get(node, 'callee.name') === 'aggregateWindow' &&
+    get(node, 'arguments.0.properties.1.key.name') === 'fn'
+  )
+}
+
+const isFromTag = (node: Node) => {
+  return (
+    get(node, 'callee.type') === 'Identifier' &&
+    get(node, 'callee.name') === 'filter' &&
+    get(node, 'arguments.0.properties.0.value.type') === 'FunctionExpression'
   )
 }
 

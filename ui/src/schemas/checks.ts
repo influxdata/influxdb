@@ -7,6 +7,9 @@ import {RemoteDataState, ResourceType, GenCheck, Check} from 'src/types'
 // Schemas
 import {arrayOfLabels} from './labels'
 
+// Utils
+import {getQueryFromFlux} from 'src/timeMachine/actions/queries'
+
 /* Checks */
 
 // Defines the schema for the "checks" resource
@@ -17,15 +20,14 @@ export const checkSchema = new schema.Entity(
   },
   {
     processStrategy: (check: GenCheck): Omit<Check, 'labels'> => {
-      if (!check.query.editMode){
+      if (!check.query.editMode) {
         return {
           ...check,
-          query: generateBuilderConfig(check.query),
+          query: getQueryFromFlux(check.query.text),
           status: RemoteDataState.Done,
           activeStatus: check.status,
         }
       }
-      
       return {
         ...check,
         status: RemoteDataState.Done,
