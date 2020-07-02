@@ -121,11 +121,11 @@ const SetOrg: FC<Props> = ({
         <Route path={`${orgPath}/data-explorer`} component={DataExplorerPage} />
 
         {/* Dashboards */}
+        <Route path={`${orgPath}/dashboards`} component={DashboardsIndex} />
         <Route
           path={`${orgPath}/dashboards/:dashboardID`}
           component={DashboardContainer}
         />
-        <Route path={`${orgPath}/dashboards`} component={DashboardsIndex} />
 
         {/* Flows */}
         {isFlagEnabled('notebooks') && (
