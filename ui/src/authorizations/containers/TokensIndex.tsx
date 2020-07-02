@@ -10,25 +10,10 @@ import LoadDataTabbedPage from 'src/settings/components/LoadDataTabbedPage'
 import LoadDataHeader from 'src/settings/components/LoadDataHeader'
 import GetResources from 'src/resources/components/GetResources'
 import TokensTab from 'src/authorizations/components/TokensTab'
-import OverlayHandler, {
-  RouteOverlay,
-} from 'src/overlays/components/RouteOverlay'
-
-// Overlays
-const AllAccessTokenOverlay = RouteOverlay(
-  OverlayHandler,
-  'add-master-token',
-  (history, params) => {
-    history.push(`/orgs/${params.orgID}/load-data/tokens`)
-  }
-)
-const BucketsTokenOverlay = RouteOverlay(
-  OverlayHandler,
-  'add-token',
-  (history, params) => {
-    history.push(`/orgs/${params.orgID}/load-data/tokens`)
-  }
-)
+import {
+  AllAccessTokenOverlay,
+  BucketsTokenOverlay,
+} from 'src/overlays/components'
 
 // Utils
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
