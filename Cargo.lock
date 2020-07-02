@@ -773,6 +773,7 @@ dependencies = [
  "libflate",
  "log",
  "rand 0.7.3",
+ "snafu",
  "snap",
 ]
 
