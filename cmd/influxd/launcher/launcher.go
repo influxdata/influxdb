@@ -925,7 +925,13 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 
 	var sessionSvc platform.SessionService
 	{
-		sessionSvc = session.NewService(session.NewStorage(inmem.NewSessionStore()), userSvc, userResourceSvc, authSvc, time.Duration(m.sessionLength)*time.Minute)
+		sessionSvc = session.NewService(
+			session.NewStorage(inmem.NewSessionStore()),
+			userSvc,
+			userResourceSvc,
+			authSvc,
+			session.WithSessionLength(time.Duration(m.sessionLength)*time.Minute),
+		)
 		sessionSvc = session.NewSessionMetrics(m.reg, sessionSvc)
 		sessionSvc = session.NewSessionLogger(m.log.With(zap.String("service", "session")), sessionSvc)
 	}

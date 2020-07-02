@@ -17,5 +17,7 @@ var Migrations = [...]migration.Spec{
 	Migration0004_AddDbrpBuckets,
 	// add pkger buckets
 	Migration0005_AddPkgerBuckets,
+	// delete bucket sessionsv1
+	Migration0006_DeleteBucketSessionsv1,
 	// {{ do_not_edit . }}
 }
