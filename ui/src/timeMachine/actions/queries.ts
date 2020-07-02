@@ -109,8 +109,11 @@ export const getOrgIDFromBuckets = (
 export const getQueryFromFlux = (text: string) => {
   const ast = parse(text)
 
-  const aggregateWindowQuery: string[] = findNodes(ast, isFromFunction).map(
-    node => get(node, 'arguments.0.properties.0.value.values.0.magnitude', '')
+  const aggregateWindowQuery: string[] = findNodes(
+    ast,
+    isFromFunction
+  ).map(node =>
+    get(node, 'arguments.0.properties.0.value.values.0.magnitude', '')
   )
 
   const bucketsInQuery: string[] = findNodes(ast, isFromBucket).map(node =>
