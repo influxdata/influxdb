@@ -1040,6 +1040,24 @@ func (f *FileStore) locations(key []byte, t int64, ascending bool) []*location {
 	return locations
 }
 
+// MakeSnapshotLinks creates hardlinks from the supplied TSMFiles to
+// corresponding files under a supplied directory.
+func (f *FileStore) MakeSnapshotLinks(destPath string, files []TSMFile) error {
+	for _, tsmf := range files {
+		newpath := filepath.Join(destPath, filepath.Base(tsmf.Path()))
+		if err := os.Link(tsmf.Path(), newpath); err != nil {
+			return fmt.Errorf("error creating tsm hard link: %q", err)
+		}
+		for _, tf := range tsmf.TombstoneFiles() {
+			newpath := filepath.Join(destPath, filepath.Base(tf.Path))
+			if err := os.Link(tf.Path, newpath); err != nil {
+				return fmt.Errorf("error creating tombstone hard link: %q", err)
+			}
+		}
+	}
+	return nil
+}
+
 // CreateSnapshot creates hardlinks for all tsm and tombstone files
 // in the path provided.
 func (f *FileStore) CreateSnapshot() (string, error) {
@@ -1059,29 +1077,24 @@ func (f *FileStore) CreateSnapshot() (string, error) {
 	// increment and keep track of the current temp dir for when we drop the lock.
 	// this ensures we are the only writer to the directory.
 	f.currentTempDirID += 1
-	tmpPath := fmt.Sprintf("%d.%s", f.currentTempDirID, TmpTSMFileExtension)
-	tmpPath = filepath.Join(f.dir, tmpPath)
+	tmpPath := filepath.Join(f.dir, fmt.Sprintf("%d.%s", f.currentTempDirID, TmpTSMFileExtension))
 	f.mu.Unlock()
 
-	// create the tmp directory and add the hard links. there is no longer any shared
-	// mutable state.
-	err := os.Mkdir(tmpPath, 0777)
-	if err != nil {
+	// create the tmp directory and add the hard links. there is no longer any
+	// shared mutable state.
+	if err := os.Mkdir(tmpPath, 0777); err != nil {
 		return "", err
 	}
-	for _, tsmf := range files {
-		newpath := filepath.Join(tmpPath, filepath.Base(tsmf.Path()))
-		if err := os.Link(tsmf.Path(), newpath); err != nil {
-			return "", fmt.Errorf("error creating tsm hard link: %q", err)
-		}
-		for _, tf := range tsmf.TombstoneFiles() {
-			newpath := filepath.Join(tmpPath, filepath.Base(tf.Path))
-			if err := os.Link(tf.Path, newpath); err != nil {
-				return "", fmt.Errorf("error creating tombstone hard link: %q", err)
-			}
-		}
-	}
 
+	if err := f.MakeSnapshotLinks(tmpPath, files); err != nil {
+		// remove temporary directory since we couldn't create our hard links.
+		if err := os.RemoveAll(tmpPath); err != nil {
+			// report if, for some reason, we couldn't remove our temporary
+			// directory.
+			return "", fmt.Errorf("CreateSnapshot() failed to create links and failed to remove temporary direcotry %v: %w", tmpPath, err)
+		}
+		return "", err
+	}
 	return tmpPath, nil
 }
 
