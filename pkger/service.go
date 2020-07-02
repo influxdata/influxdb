@@ -878,7 +878,7 @@ func (s *Service) dryRun(ctx context.Context, orgID influxdb.ID, template *Templ
 		parseErr = err
 	}
 
-	state := newStateCoordinator(template, resourceActions{
+	state := newStateCoordinator(opt.StackID, template, resourceActions{
 		skipKinds:     opt.KindsToSkip,
 		skipResources: opt.ResourcesToSkip,
 	})
@@ -896,7 +896,7 @@ func (s *Service) dryRun(ctx context.Context, orgID influxdb.ID, template *Templ
 	s.dryRunBuckets(ctx, orgID, state.mBuckets)
 	s.dryRunChecks(ctx, orgID, state.mChecks)
 	s.dryRunDashboards(ctx, orgID, state.mDashboards)
-	s.dryRunLabels(ctx, orgID, state.mLabels)
+	s.dryRunLabels(ctx, orgID, state.stackID, state.mLabels)
 	s.dryRunTasks(ctx, orgID, state.mTasks)
 	s.dryRunTelegrafConfigs(ctx, orgID, state.mTelegrafs)
 	s.dryRunVariables(ctx, orgID, state.mVariables)
@@ -971,7 +971,7 @@ func (s *Service) dryRunDashboards(ctx context.Context, orgID influxdb.ID, dashs
 	}
 }
 
-func (s *Service) dryRunLabels(ctx context.Context, orgID influxdb.ID, labels map[string]*stateLabel) {
+func (s *Service) dryRunLabels(ctx context.Context, orgID, stackID influxdb.ID, labels map[string]*stateLabel) {
 	for _, l := range labels {
 		l.orgID = orgID
 		existingLabel, _ := s.findLabel(ctx, orgID, l)
@@ -1410,20 +1410,21 @@ func (s *Service) Apply(ctx context.Context, orgID, userID influxdb.ID, opts ...
 		return ImpactSummary{}, err
 	}
 
-	stackID := opt.StackID
 	// if stackID is not provided, a stack will be provided for the application.
-	if stackID == 0 {
+	if state.stackID == 0 {
 		newStack, err := s.InitStack(ctx, userID, Stack{OrgID: orgID})
 		if err != nil {
 			return ImpactSummary{}, err
 		}
-		stackID = newStack.ID
+		state.stackID = newStack.ID
 	}
 
 	defer func(stackID influxdb.ID) {
 		updateStackFn := s.updateStackAfterSuccess
 		if e != nil {
 			updateStackFn = s.updateStackAfterRollback
+			// if stack was created in this application then we remove it
+			// after encountering an error.
 			if opt.StackID == 0 {
 				if err := s.store.DeleteStack(ctx, stackID); err != nil {
 					s.log.Error("failed to delete created stack", zap.Error(err))
@@ -1435,7 +1436,7 @@ func (s *Service) Apply(ctx context.Context, orgID, userID influxdb.ID, opts ...
 		if err != nil {
 			s.log.Error("failed to update stack", zap.Error(err))
 		}
-	}(stackID)
+	}(state.stackID)
 
 	coordinator := newRollbackCoordinator(s.log, s.applyReqLimit)
 	defer coordinator.rollback(s.log, &e, orgID)
@@ -1449,7 +1450,7 @@ func (s *Service) Apply(ctx context.Context, orgID, userID influxdb.ID, opts ...
 
 	return ImpactSummary{
 		Sources: template.sources,
-		StackID: stackID,
+		StackID: state.stackID,
 		Diff:    state.diff(),
 		Summary: newSummaryFromStateTemplate(state, template),
 	}, nil
@@ -1478,7 +1479,7 @@ func (s *Service) applyState(ctx context.Context, coordinator *rollbackCoordinat
 		},
 		{
 			// deps for primary resources
-			s.applyLabels(ctx, state.labels()),
+			s.applyLabels(ctx, state.stackID, state.labels()),
 		},
 		{
 			// primary resources, can have relationships to labels
@@ -1892,7 +1893,7 @@ func convertChartsToCells(ch []chart) []*influxdb.Cell {
 	return icells
 }
 
-func (s *Service) applyLabels(ctx context.Context, labels []*stateLabel) applier {
+func (s *Service) applyLabels(ctx context.Context, stackID influxdb.ID, labels []*stateLabel) applier {
 	const resource = "label"
 
 	mutex := new(doMutex)
@@ -1904,14 +1905,23 @@ func (s *Service) applyLabels(ctx context.Context, labels []*stateLabel) applier
 			labels[i].orgID = orgID
 			l = labels[i]
 		})
-		if !l.shouldApply() {
+
+		isOwned := l.isOwnedByStackID(stackID)
+
+		var applyFn func(context.Context, influxdb.LabelService, influxdb.ID, *stateLabel) (influxdb.Label, error)
+		switch {
+		case l.shouldApply() && isOwned:
+			applyFn = applyStateLabel
+		case l.shouldApply() && !isOwned:
+			applyFn = updateStateAnnotations
+		default:
 			return nil
 		}
 
-		influxLabel, err := s.applyLabel(ctx, l)
+		influxLabel, err := applyFn(ctx, s.labelSVC, stackID, l)
 		if err != nil {
 			return &applyErrBody{
-				name: l.parserLabel.MetaName(),
+				name: l.MetaName(),
 				msg:  err.Error(),
 			}
 		}
@@ -1971,24 +1981,28 @@ func (s *Service) rollbackLabels(ctx context.Context, labels []*stateLabel) erro
 	return nil
 }
 
-func (s *Service) applyLabel(ctx context.Context, l *stateLabel) (influxdb.Label, error) {
+func applyStateLabel(ctx context.Context, labelSVC influxdb.LabelService, stackID influxdb.ID, l *stateLabel) (influxdb.Label, error) {
 	var (
 		influxLabel *influxdb.Label
 		err         error
 	)
 	switch {
 	case IsRemoval(l.stateStatus):
-		influxLabel, err = l.existing, s.labelSVC.DeleteLabel(ctx, l.ID())
+		influxLabel, err = l.existing, labelSVC.DeleteLabel(ctx, l.ID())
 	case IsExisting(l.stateStatus) && l.existing != nil:
-		influxLabel, err = s.labelSVC.UpdateLabel(ctx, l.ID(), influxdb.LabelUpdate{
-			Name:       l.parserLabel.Name(),
-			Properties: l.properties(),
+		existing := l.existing
+		existing.Annotations.Set(influxdb.AnnotationSetStack(stackID))
+		influxLabel, err = labelSVC.UpdateLabel(ctx, l.ID(), influxdb.LabelUpdate{
+			Name:        l.parserLabel.Name(),
+			Properties:  l.properties(),
+			Annotations: &existing.Annotations,
 		})
 		err = ierrors.Wrap(err, "updating")
 	default:
 		creatLabel := l.toInfluxLabel()
+		creatLabel.Annotations.Set(influxdb.AnnotationSetStack(stackID))
 		influxLabel = &creatLabel
-		err = ierrors.Wrap(s.labelSVC.CreateLabel(ctx, &creatLabel), "creating")
+		err = ierrors.Wrap(labelSVC.CreateLabel(ctx, &creatLabel), "creating")
 	}
 	if influxdb.ErrorCode(err) == influxdb.ENotFound {
 		return influxdb.Label{}, nil
@@ -1997,6 +2011,30 @@ func (s *Service) applyLabel(ctx context.Context, l *stateLabel) (influxdb.Label
 		return influxdb.Label{}, err
 	}
 
+	return *influxLabel, nil
+}
+
+func updateStateAnnotations(ctx context.Context, labelSVC influxdb.LabelService, stackID influxdb.ID, l *stateLabel) (influxdb.Label, error) {
+	anno := l.existing.Annotations.Clone()
+	existing := anno.Stacks()
+	if IsRemoval(l.stateStatus) {
+		anno = influxdb.Annotations{}
+		anno.Set(influxdb.AnnotationSetStackOwner(existing.Owner))
+		for _, ref := range existing.References {
+			if ref != stackID {
+				anno.Set(influxdb.AnnotationSetStackReference(ref))
+			}
+		}
+	} else {
+		anno.Set(influxdb.AnnotationSetStackReference(stackID))
+	}
+
+	influxLabel, err := labelSVC.UpdateLabel(ctx, l.ID(), influxdb.LabelUpdate{
+		Annotations: &anno,
+	})
+	if err != nil {
+		return influxdb.Label{}, ierrors.Wrap(err, "updating")
+	}
 	return *influxLabel, nil
 }
 

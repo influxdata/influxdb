@@ -63,10 +63,11 @@ type LabelService interface {
 
 // Label is a tag set on a resource, typically used for filtering on a UI.
 type Label struct {
-	ID         ID                `json:"id,omitempty"`
-	OrgID      ID                `json:"orgID,omitempty"`
-	Name       string            `json:"name"`
-	Properties map[string]string `json:"properties,omitempty"`
+	ID          ID                `json:"id,omitempty"`
+	OrgID       ID                `json:"orgID,omitempty"`
+	Name        string            `json:"name"`
+	Properties  map[string]string `json:"properties,omitempty"`
+	Annotations Annotations       `json:"annotations"`
 }
 
 // Validate returns an error if the label is invalid.
@@ -123,8 +124,9 @@ func (l *LabelMapping) Validate() error {
 // LabelUpdate represents a changeset for a label.
 // Only the properties specified are updated.
 type LabelUpdate struct {
-	Name       string            `json:"name,omitempty"`
-	Properties map[string]string `json:"properties,omitempty"`
+	Name        string            `json:"name,omitempty"`
+	Properties  map[string]string `json:"properties,omitempty"`
+	Annotations *Annotations      `json:"annotations,omitempty"`
 }
 
 // LabelFilter represents a set of filters that restrict the returned results.

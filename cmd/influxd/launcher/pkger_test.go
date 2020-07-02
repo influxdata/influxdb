@@ -2177,6 +2177,82 @@ func TestLauncher_Pkger(t *testing.T) {
 				})
 			})
 		})
+
+		t.Run("stack ownership", func(t *testing.T) {
+			t.Run("labels", func(t *testing.T) {
+				newLabelTemplate := func(name, desc, color string) *pkger.Template {
+					return newTemplate(newLabelObject("label-1", name, desc, color))
+				}
+
+				impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID,
+					pkger.ApplyWithTemplate(newLabelTemplate("foo", "", "")),
+				)
+				require.NoError(t, err)
+				defer deleteStackFn(t, impact.StackID)
+
+				require.Len(t, impact.Summary.Labels, 1)
+				require.NotZero(t, impact.Summary.Labels[0].ID)
+
+				getLabenFn := func(t *testing.T) influxdb.Label {
+					t.Helper()
+					return resourceCheck.mustGetLabel(t, bySafeID(impact.Summary.Labels[0].ID))
+				}
+
+				label := getLabenFn(t)
+				stackAnno := label.Annotations.Stacks()
+				assert.Equal(t, impact.StackID, stackAnno.Owner)
+
+				unchangedImpact, err := svc.Apply(ctx, l.Org.ID, l.User.ID,
+					pkger.ApplyWithTemplate(newLabelTemplate("foo", "new desc", "peru")),
+				)
+				require.NoError(t, err)
+				defer deleteStackFn(t, unchangedImpact.StackID)
+
+				label = getLabenFn(t)
+				assert.Equal(t, impact.Summary.Labels[0].ID, unchangedImpact.Summary.Labels[0].ID)
+				assert.Equal(t, "foo", label.Name)
+				assert.Zero(t, label.Properties["color"])
+				assert.Zero(t, label.Properties["description"])
+				stackAnno = label.Annotations.Stacks()
+				assert.Equal(t, impact.StackID, stackAnno.Owner)
+				assert.Equal(t, []influxdb.ID{unchangedImpact.StackID}, stackAnno.References)
+
+				labelIsUpdated := func(t *testing.T, stackRefIDs ...influxdb.ID) {
+					t.Helper()
+					label := getLabenFn(t)
+					assert.Equal(t, influxdb.ID(impact.Summary.Labels[0].ID), label.ID)
+					assert.Equal(t, "foo", label.Name)
+					assert.Equal(t, "peru", label.Properties["color"])
+					assert.Equal(t, "new desc", label.Properties["description"])
+					stackAnno = label.Annotations.Stacks()
+					assert.Equal(t, impact.StackID, stackAnno.Owner)
+					assert.Equal(t, stackRefIDs, stackAnno.References)
+				}
+
+				_, err = svc.Apply(ctx, l.Org.ID, l.User.ID,
+					pkger.ApplyWithTemplate(newLabelTemplate("foo", "new desc", "peru")),
+					pkger.ApplyWithStackID(impact.StackID),
+				)
+				require.NoError(t, err)
+				labelIsUpdated(t, unchangedImpact.StackID)
+
+				nukedImpact, err := svc.Apply(ctx, l.Org.ID, l.User.ID,
+					pkger.ApplyWithTemplate(newLabelTemplate("foo", "", "")),
+				)
+				require.NoError(t, err)
+				labelIsUpdated(t, unchangedImpact.StackID, nukedImpact.StackID)
+
+				nukedImpact, err = svc.Apply(ctx, l.Org.ID, l.User.ID,
+					pkger.ApplyWithTemplate(newLabelTemplate("foo", "", "")),
+					pkger.ApplyWithStackID(nukedImpact.StackID),
+				)
+				require.NoError(t, err)
+				labelIsUpdated(t, unchangedImpact.StackID, nukedImpact.StackID)
+
+				deleteStackFn(t, nukedImpact.StackID)
+				labelIsUpdated(t, unchangedImpact.StackID)
+			})
+		})
 	})
 
 	t.Run("errors incurred during application of package rolls back to state before package", func(t *testing.T) {
@@ -4003,6 +4079,12 @@ type (
 func byID(id influxdb.ID) getResourceOptFn {
 	return func() getResourceOpt {
 		return getResourceOpt{id: id}
+	}
+}
+
+func bySafeID(id pkger.SafeID) getResourceOptFn {
+	return func() getResourceOpt {
+		return getResourceOpt{id: influxdb.ID(id)}
 	}
 }
 
