@@ -2,6 +2,7 @@
 
 use super::*;
 use integer_encoding::VarInt;
+use std::collections::BTreeMap;
 use std::io::{BufRead, Seek, SeekFrom};
 use std::u64;
 
@@ -237,6 +238,28 @@ where
 {
     fn decode(&mut self, block: &Block) -> Result<BlockData, TSMError> {
         (&mut **self).decode(block)
+    }
+}
+
+/// MockBlockDecoder implements the BlockDecoder trait. It uses the `min_time`
+/// value in a provided `Block` definition as a key to a map of block data,
+/// which should be provided on initialisation.
+#[derive(Debug, Clone)]
+pub struct MockBlockDecoder {
+    blocks: BTreeMap<i64, BlockData>,
+}
+
+impl MockBlockDecoder {
+    pub fn new(blocks: BTreeMap<i64, BlockData>) -> Self {
+        Self { blocks }
+    }
+}
+
+impl BlockDecoder for MockBlockDecoder {
+    fn decode(&mut self, block: &Block) -> std::result::Result<BlockData, TSMError> {
+        self.blocks.get(&block.min_time).cloned().ok_or(TSMError {
+            description: "block not found".to_string(),
+        })
     }
 }
 

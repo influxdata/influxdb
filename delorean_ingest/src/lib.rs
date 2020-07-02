@@ -1444,27 +1444,6 @@ mod delorean_ingest_tests {
 
     // ----- Tests for TSM Data -----
 
-    // MockBlockDecoder implements the BlockDecoder trait. It uses the `min_time`
-    // value in a provided `Block` definition as a key to a map of block data,
-    // which should be provided on initialisation.
-    struct MockBlockDecoder {
-        blocks: BTreeMap<i64, delorean_tsm::BlockData>,
-    }
-
-    impl BlockDecoder for MockBlockDecoder {
-        fn decode(
-            &mut self,
-            block: &delorean_tsm::Block,
-        ) -> std::result::Result<delorean_tsm::BlockData, delorean_tsm::TSMError> {
-            self.blocks
-                .get(&block.min_time)
-                .cloned()
-                .ok_or(delorean_tsm::TSMError {
-                    description: "block not found".to_string(),
-                })
-        }
-    }
-
     #[test]
     fn process_measurement_table() -> Result<(), Box<dyn std::error::Error>> {
         use delorean_tsm::{Block, BlockData};
@@ -1593,7 +1572,7 @@ mod delorean_ingest_tests {
             },
         );
 
-        let decoder = MockBlockDecoder { blocks: block_map };
+        let decoder = delorean_tsm::reader::MockBlockDecoder::new(block_map);
 
         let (schema, packers) = TSMFileConverter::process_measurement_table(decoder, &mut table)?;
 
