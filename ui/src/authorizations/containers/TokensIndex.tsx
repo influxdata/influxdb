@@ -27,7 +27,7 @@ interface StateProps {
 }
 import {ORGS, ORG_ID, TOKENS} from 'src/shared/constants/routes'
 
-const tokensPath = `/${ORGS}/${ORG_ID}/${TOKENS}/generate`
+const tokensPath = `/${ORGS}/${ORG_ID}/load-data/${TOKENS}/generate`
 
 @ErrorHandling
 class TokensIndex extends Component<StateProps> {
