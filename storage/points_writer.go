@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/influxdata/influxdb/v2"
@@ -21,7 +22,7 @@ type LoggingPointsWriter struct {
 	Underlying PointsWriter
 
 	// Service used to look up logging bucket.
-	BucketService influxdb.BucketService
+	BucketFinder BucketFinder
 
 	// Name of the bucket to log to.
 	LogBucketName string
@@ -43,13 +44,18 @@ func (w *LoggingPointsWriter) WritePoints(ctx context.Context, p []models.Point)
 	orgID, _ := tsdb.DecodeNameSlice(p[0].Name())
 
 	// Attempt to lookup log bucket.
-	bkt, e := w.BucketService.FindBucketByName(ctx, orgID, w.LogBucketName)
+	bkts, n, e := w.BucketFinder.FindBuckets(ctx, influxdb.BucketFilter{
+		OrganizationID: &orgID,
+		Name:           &w.LogBucketName,
+	})
 	if e != nil {
 		return e
+	} else if n == 0 {
+		return fmt.Errorf("logging bucket not found: %q", w.LogBucketName)
 	}
 
 	// Log error to bucket.
-	name := tsdb.EncodeName(orgID, bkt.ID)
+	name := tsdb.EncodeName(orgID, bkts[0].ID)
 	pt, e := models.NewPoint(
 		string(name[:]),
 		models.NewTags(map[string]string{
