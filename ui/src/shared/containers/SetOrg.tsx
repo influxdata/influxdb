@@ -25,9 +25,13 @@ import OrgProfilePage from 'src/organizations/containers/OrgProfilePage'
 import AlertingIndex from 'src/alerting/components/AlertingIndex'
 import AlertHistoryIndex from 'src/alerting/components/AlertHistoryIndex'
 import CheckHistory from 'src/checks/components/CheckHistory'
+import MembersIndex from 'src/members/containers/MembersIndex'
 
 // Types
 import {AppState, Organization, ResourceType} from 'src/types'
+
+// Constants
+import {CLOUD} from 'src/shared/constants'
 
 // Actions
 import {setOrg as setOrgAction} from 'src/organizations/actions/creators'
@@ -160,6 +164,11 @@ const SetOrg: FC<Props> = ({
           component={LabelsIndex}
         />
         <Route exact path={`${orgPath}/settings`} component={VariablesIndex} />
+
+        {/* Members */}
+        {!CLOUD && (
+          <Route path={`${orgPath}/members`} component={MembersIndex} />
+        )}
 
         {/* About */}
         <Route path={`${orgPath}/about`} component={OrgProfilePage} />
