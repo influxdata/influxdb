@@ -139,6 +139,11 @@ Existing [data types](https://v2.docs.influxdata.com/v2.0/reference/syntax/annot
 - `#constant` annotation adds a constant column to the data, so you can set measurement, time, field or tag of every row you import 
    - the format of a constant annotation row is `#constant,datatype,name,value`', it contains supported datatype, a column name, and a constant value
    - _column name_ can be omitted for _dateTime_ or _measurement_ columns, so the annotation can be simply `#constant,measurement,cpu`
+- `#concat` annotation adds a new column that is concatenated from existing columns according to a template
+   - the format of a concat annotation row is `#concat,datatype,name,template`', it contains supported datatype, a column name, and a template value
+   - the `template` is a string with `${columnName}` placeholders, in which the placeholders are replaced by values of existing columns
+      - for example: `#concat,string,fullName,${firstName} ${lastName}`
+   - _column name_ can be omitted for _dateTime_ or _measurement_ columns
 - `#timezone` annotation specifies the time zone of the data using an offset, which is either `+hhmm` or `-hhmm` or `Local` to use the local/computer time zone. Examples:  _#timezone,+0100_  _#timezone -0500_ _#timezone Local_
 
 #### Data type with data format
