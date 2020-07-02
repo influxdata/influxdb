@@ -217,14 +217,7 @@ class Root extends PureComponent {
                                 />
                               </Route>
                             </Route>
-                            {isFlagEnabled('notebooks') && (
-                              <Route
-                                path="notebooks"
-                                component={NotebookPage}
-                              />
-                            )}
                             <Route path="load-data">
-                              <IndexRoute component={BucketsIndex} />
                               <Route path="tokens" component={TokensIndex}>
                                 <Route path="generate">
                                   <Route
@@ -234,34 +227,6 @@ class Root extends PureComponent {
                                   <Route
                                     path="buckets"
                                     component={BucketsTokenOverlay}
-                                  />
-                                </Route>
-                              </Route>
-                              <Route path="buckets" component={BucketsIndex}>
-                                <Route path=":bucketID">
-                                  <Route
-                                    path="line-protocols/new"
-                                    component={LineProtocolWizard}
-                                  />
-                                  <Route
-                                    path="telegrafs/new"
-                                    component={CollectorsWizard}
-                                  />
-                                  <Route
-                                    path="scrapers/new"
-                                    component={CreateScraperOverlay}
-                                  />
-                                  <Route
-                                    path="edit"
-                                    component={UpdateBucketOverlay}
-                                  />
-                                  <Route
-                                    path="delete-data"
-                                    component={BucketsDeleteDataOverlay}
-                                  />
-                                  <Route
-                                    path="rename"
-                                    component={RenameBucketOverlay}
                                   />
                                 </Route>
                               </Route>

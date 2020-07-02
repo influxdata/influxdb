@@ -13,6 +13,8 @@ import DataExplorerPage from 'src/dataExplorer/components/DataExplorerPage'
 import DashboardsIndex from 'src/dashboards/components/dashboard_index/DashboardsIndex'
 import DashboardContainer from 'src/dashboards/components/DashboardContainer'
 import NotebookPage from 'src/notebooks/components/Notebook'
+import BucketsIndex from 'src/buckets/containers/BucketsIndex'
+import TokensIndex from 'src/authorizations/containers/TokensIndex'
 
 // Types
 import {AppState, Organization, ResourceType} from 'src/types'
@@ -82,27 +84,35 @@ const SetOrg: FC<Props> = ({
     history.push(`/orgs/${orgs[0].id}`)
   }, [orgID, orgs.length])
 
-  const orgRoute = '/orgs/:orgID'
+  const orgPath = '/orgs/:orgID'
 
   return (
     <SpinnerContainer loading={loading} spinnerComponent={<TechnoSpinner />}>
       <Switch>
-        <Route path={`${orgRoute}/tasks/:id/runs`} component={TaskRunsPage} />
-        <Route path={`${orgRoute}/tasks/:id/edit`} component={TaskEditPage} />
-        <Route path={`${orgRoute}/tasks/new`} component={TaskPage} />
-        <Route path={`${orgRoute}/tasks`} component={TasksPage} />
+        {/* Tasks */}
+        <Route path={`${orgPath}/tasks/:id/runs`} component={TaskRunsPage} />
+        <Route path={`${orgPath}/tasks/:id/edit`} component={TaskEditPage} />
+        <Route path={`${orgPath}/tasks/new`} component={TaskPage} />
+        <Route path={`${orgPath}/tasks`} component={TasksPage} />
+
+        {/* Data Explorer */}
+        <Route path={`${orgPath}/data-explorer`} component={DataExplorerPage} />
+
+        {/* Dashboards */}
         <Route
-          path={`${orgRoute}/data-explorer`}
-          component={DataExplorerPage}
-        />
-        <Route
-          path={`${orgRoute}/dashboards/:dashboardID`}
+          path={`${orgPath}/dashboards/:dashboardID`}
           component={DashboardContainer}
         />
-        <Route path={`${orgRoute}/dashboards`} component={DashboardsIndex} />
+        <Route path={`${orgPath}/dashboards`} component={DashboardsIndex} />
+
+        {/* Flows */}
         {isFlagEnabled('notebooks') && (
-          <Route path={`${orgRoute}/notebooks`} component={NotebookPage} />
+          <Route path={`${orgPath}/notebooks`} component={NotebookPage} />
         )}
+
+        {/* Settings */}
+        <Route path={`${orgPath}/load-data/tokens`} component={TokensIndex} />
+        <Route path={`${orgPath}/load-data/buckets`} component={BucketsIndex} />
         <Route exact path="/orgs/:orgID" component={MePage} />
       </Switch>
     </SpinnerContainer>
