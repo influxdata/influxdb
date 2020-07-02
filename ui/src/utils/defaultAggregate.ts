@@ -1,10 +1,17 @@
 // Constants
 import {defaultBuilderConfig} from 'src/views/helpers'
 
-// Types
-import {QueryView} from 'src/types'
+interface ViewWithQuery {
+  properties: {
+    queries: Array<{
+      editMode?: 'advanced' | 'builder'
+      builderConfig?: {functions?: Array<{name?: string}>}
+      text?: string
+    }>
+  }
+}
 
-export const applyQueryBuilderRequirements = (view: QueryView): QueryView => {
+function applyQueryBuilderRequirements<T extends ViewWithQuery>(view: T): T {
   const correctedQueries = view.properties.queries.map(q => {
     if (
       q.editMode === 'builder' &&
@@ -21,3 +28,5 @@ export const applyQueryBuilderRequirements = (view: QueryView): QueryView => {
   })
   return {...view, properties: {...view.properties, queries: correctedQueries}}
 }
+
+export default applyQueryBuilderRequirements

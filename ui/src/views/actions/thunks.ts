@@ -12,7 +12,7 @@ import * as copy from 'src/shared/copy/notifications'
 import {viewSchema} from 'src/schemas'
 
 // Utils
-import {applyQueryBuilderRequirements} from 'src/utils/defaultAggregate'
+import applyQueryBuilderRequirements from 'src/utils/defaultAggregate'
 
 // Actions
 import {notify} from 'src/shared/actions/notifications'
@@ -115,16 +115,18 @@ export const getViewAndResultsForVEO = (
       view = (await getViewAJAX(dashboardID, cellID)) as QueryView
     }
 
-    view = applyQueryBuilderRequirements(view)
+    const updatedView = applyQueryBuilderRequirements(view)
 
     dispatch(
       setActiveTimeMachine(timeMachineID, {
         contextID: dashboardID,
-        view,
+        view: updatedView,
       })
     )
 
-    const queries = view.properties.queries.filter(({text}) => !!text.trim())
+    const queries = updatedView.properties.queries.filter(
+      ({text}) => !!text.trim()
+    )
 
     if (!queries.length) {
       dispatch(setQueryResults(RemoteDataState.Done, [], null))
