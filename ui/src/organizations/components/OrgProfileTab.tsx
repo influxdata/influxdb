@@ -3,8 +3,6 @@ import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 import {RouteComponentProps, withRouter} from 'react-router-dom'
 
-import _ from 'lodash'
-
 // Components
 import {
   Form,
@@ -73,6 +71,7 @@ class OrgProfileTab extends PureComponent<Props> {
                         </p>
                       </div>
                       <Button
+                        testID="rename-org--button"
                         text="Rename"
                         icon={IconFont.Pencil}
                         type={ButtonType.Submit}
@@ -115,7 +114,7 @@ class OrgProfileTab extends PureComponent<Props> {
       history,
     } = this.props
 
-    history.push(`/orgs/${orgID}/settings/about/rename`)
+    history.push(`/orgs/${orgID}/about/rename`)
   }
 
   private generateCopyText = title => (text, copySucceeded) => {

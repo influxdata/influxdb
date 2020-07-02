@@ -51,7 +51,7 @@ class RenameOrgOverlay extends PureComponent<
       },
     } = this.props
 
-    history.push(`/orgs/${orgID}/settings/about`)
+    history.push(`/orgs/${orgID}/about`)
   }
 }
 
