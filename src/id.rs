@@ -78,6 +78,12 @@ impl fmt::Debug for Id {
     }
 }
 
+impl From<Id> for String {
+    fn from(value: Id) -> Self {
+        value.to_string()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

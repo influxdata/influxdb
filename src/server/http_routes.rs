@@ -172,18 +172,19 @@ async fn write(req: hyper::Request<Body>, app: Arc<App>) -> Result<Option<Body>,
     // Even though tools like `inch` and `storectl query` pass bucket IDs, treat them as
     // `bucket_name` in delorean because MemDB sets auto-incrementing IDs for buckets.
     let bucket_name = write_info.bucket.to_string();
+    let org = write_info.org;
 
     let bucket_id = app
         .db
-        .get_bucket_id_by_name(write_info.org, &bucket_name)
+        .get_bucket_id_by_name(org, &bucket_name)
         .await
         .context(BucketByName {
-            org: write_info.org.to_string(),
-            bucket_name: write_info.bucket.to_string(),
+            org,
+            bucket_name: bucket_name.clone(),
         })?
         .context(BucketNotFound {
-            org: write_info.org.to_string(),
-            bucket_name: write_info.bucket.to_string(),
+            org,
+            bucket_name: bucket_name.clone(),
         })?;
 
     let mut payload = req.into_body();
@@ -208,10 +209,7 @@ async fn write(req: hyper::Request<Body>, app: Arc<App>) -> Result<Option<Body>,
     app.db
         .write_points(write_info.org, bucket_id, &mut points)
         .await
-        .context(WritingPoints {
-            org: write_info.org.to_string(),
-            bucket_name: bucket_id.to_string(),
-        })?;
+        .context(WritingPoints { org, bucket_name })?;
 
     Ok(None)
 }
