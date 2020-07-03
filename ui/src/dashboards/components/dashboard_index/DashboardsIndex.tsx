@@ -122,17 +122,17 @@ class DashboardIndex extends PureComponent<Props, State> {
         </Page>
         <Switch>
           <Route
-            path="/orgs/:orgID/dashboards/import/template"
+            path="/orgs/:orgID/dashboards-list/import/template"
             component={CreateFromTemplateOverlay}
           />
           <Route
-            path="/orgs/:orgID/dashboards/import"
+            path="/orgs/:orgID/dashboards-list/import"
             component={DashboardImportOverlay}
           />
-          <Route
+          {/*<Route
             path="/orgs/:orgID/dashboards/:dashboardID/export"
             component={DashboardExportOverlay}
-          />
+          />*/}
         </Switch>
       </>
     )
@@ -157,7 +157,7 @@ class DashboardIndex extends PureComponent<Props, State> {
         params: {orgID},
       },
     } = this.props
-    history.push(`/orgs/${orgID}/dashboards/import`)
+    history.push(`/orgs/${orgID}/dashboards-list/import`)
   }
 
   private summonImportFromTemplateOverlay = (): void => {
@@ -167,7 +167,7 @@ class DashboardIndex extends PureComponent<Props, State> {
         params: {orgID},
       },
     } = this.props
-    history.push(`/orgs/${orgID}/dashboards/import/template`)
+    history.push(`/orgs/${orgID}/dashboards-list/import/template`)
   }
 
   private get addResourceStatus(): ComponentStatus {

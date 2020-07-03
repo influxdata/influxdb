@@ -11,7 +11,7 @@ describe('Dashboard', () => {
 
     cy.fixture('routes').then(({orgs}) => {
       cy.get('@org').then(({id: orgID}: Organization) => {
-        cy.visit(`${orgs}/${orgID}/dashboards`)
+        cy.visit(`${orgs}/${orgID}/dashboards-list`)
       })
     })
   })
@@ -34,7 +34,7 @@ describe('Dashboard', () => {
 
     cy.fixture('routes').then(({orgs}) => {
       cy.get('@org').then(({id: orgID}: Organization) => {
-        cy.visit(`${orgs}/${orgID}/dashboards`)
+        cy.visit(`${orgs}/${orgID}/dashboards-list`)
       })
     })
 
@@ -679,7 +679,7 @@ from(bucket: v.static)
     cy.get('@org').then(({id: orgID}: Organization) => {
       cy.createDashWithViewAndVar(orgID).then(() => {
         cy.fixture('routes').then(({orgs}) => {
-          cy.visit(`${orgs}/${orgID}/dashboards`)
+          cy.visit(`${orgs}/${orgID}/dashboards-list`)
           cy.getByTestID('dashboard-card--name').click()
           cy.get('.cell--view').should('have.length', 1)
         })

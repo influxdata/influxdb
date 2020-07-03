@@ -92,7 +92,7 @@ class DashboardsTable extends PureComponent<Props> {
         params: {orgID},
       },
     } = this.props
-    history.push(`/orgs/${orgID}/dashboards/import`)
+    history.push(`/orgs/${orgID}/dashboards-list/import`)
   }
 
   private summonImportFromTemplateOverlay = (): void => {
@@ -102,7 +102,7 @@ class DashboardsTable extends PureComponent<Props> {
         params: {orgID},
       },
     } = this.props
-    history.push(`/orgs/${orgID}/dashboards/import/template`)
+    history.push(`/orgs/${orgID}/dashboards-list/import/template`)
   }
 }
 

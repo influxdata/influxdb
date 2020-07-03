@@ -26,6 +26,7 @@ import AlertingIndex from 'src/alerting/components/AlertingIndex'
 import AlertHistoryIndex from 'src/alerting/components/AlertHistoryIndex'
 import CheckHistory from 'src/checks/components/CheckHistory'
 import MembersIndex from 'src/members/containers/MembersIndex'
+import RouteToDashboardList from 'src/dashboards/components/RouteToDashboardList'
 
 // Types
 import {AppState, Organization, ResourceType} from 'src/types'
@@ -121,10 +122,18 @@ const SetOrg: FC<Props> = ({
         <Route path={`${orgPath}/data-explorer`} component={DataExplorerPage} />
 
         {/* Dashboards */}
-        <Route path={`${orgPath}/dashboards`} component={DashboardsIndex} />
+        <Route
+          path={`${orgPath}/dashboards-list`}
+          component={DashboardsIndex}
+        />
         <Route
           path={`${orgPath}/dashboards/:dashboardID`}
           component={DashboardContainer}
+        />
+        <Route
+          exact
+          path={`${orgPath}/dashboards`}
+          component={RouteToDashboardList}
         />
 
         {/* Flows */}

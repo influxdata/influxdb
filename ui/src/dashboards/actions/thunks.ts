@@ -364,7 +364,7 @@ export const getDashboard = (dashboardID: string) => async (
     dispatch(updateTimeRangeFromQueryParams(dashboardID))
   } catch (error) {
     const org = getOrg(getState())
-    dispatch(push(`/orgs/${org.id}/dashboards`))
+    dispatch(push(`/orgs/${org.id}/dashboards-list`))
     dispatch(notify(copy.dashboardGetFailed(dashboardID, error.message)))
     return
   }

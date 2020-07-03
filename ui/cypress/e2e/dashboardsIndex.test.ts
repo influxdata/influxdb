@@ -14,7 +14,7 @@ describe('Dashboards', () => {
 
     cy.fixture('routes').then(({orgs}) => {
       cy.get('@org').then(({id}: Organization) => {
-        cy.visit(`${orgs}/${id}/dashboards`)
+        cy.visit(`${orgs}/${id}/dashboards-list`)
       })
     })
   })
@@ -46,7 +46,7 @@ describe('Dashboards', () => {
       .then(() => {
         cy.fixture('routes').then(({orgs}) => {
           cy.get('@org').then(({id}: Organization) => {
-            cy.visit(`${orgs}/${id}/dashboards`)
+            cy.visit(`${orgs}/${id}/dashboards-list`)
           })
         })
 
@@ -61,7 +61,7 @@ describe('Dashboards', () => {
 
     cy.fixture('routes').then(({orgs}) => {
       cy.get('@org').then(({id}: Organization) => {
-        cy.visit(`${orgs}/${id}/dashboards`)
+        cy.visit(`${orgs}/${id}/dashboards-list`)
       })
     })
 
@@ -123,7 +123,7 @@ describe('Dashboards', () => {
 
       cy.fixture('routes').then(({orgs}) => {
         cy.get('@org').then(({id}: Organization) => {
-          cy.visit(`${orgs}/${id}/dashboards`)
+          cy.visit(`${orgs}/${id}/dashboards-list`)
         })
       })
     })
@@ -152,7 +152,7 @@ describe('Dashboards', () => {
 
       cy.fixture('routes').then(({orgs}) => {
         cy.get('@org').then(({id}: Organization) => {
-          cy.visit(`${orgs}/${id}/dashboards`)
+          cy.visit(`${orgs}/${id}/dashboards-list`)
         })
       })
 
@@ -397,7 +397,7 @@ describe('Dashboards', () => {
     })
   })
 
-  describe('When a dashboard does not exist', () => {
+  describe.only('When a dashboard does not exist', () => {
     it('should route the user to the dashboard index page', () => {
       const nonexistentID = '/0499992503cd3700'
 
@@ -407,7 +407,7 @@ describe('Dashboards', () => {
           cy.visit(`${orgs}/${id}${dashboards}${nonexistentID}`)
           cy.url().should(
             'eq',
-            `${Cypress.config().baseUrl}${orgs}/${id}${dashboards}`
+            `${Cypress.config().baseUrl}${orgs}/${id}/dashboard-list`
           )
         })
       })
