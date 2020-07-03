@@ -287,7 +287,7 @@ async fn read(req: hyper::Request<Body>, app: Arc<App>) -> Result<Option<Body>, 
         .read_points(read_info.org, bucket_id, &predicate, &range)
         .await
         .context(ReadingPoints {
-            org: org,
+            org,
             bucket_name: bucket_name.clone(),
         })?;
 
