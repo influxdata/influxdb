@@ -397,7 +397,7 @@ describe('Dashboards', () => {
     })
   })
 
-  describe.only('When a dashboard does not exist', () => {
+  describe('When a dashboard does not exist', () => {
     it('should route the user to the dashboard index page', () => {
       const nonexistentID = '/0499992503cd3700'
 
@@ -407,7 +407,7 @@ describe('Dashboards', () => {
           cy.visit(`${orgs}/${id}${dashboards}${nonexistentID}`)
           cy.url().should(
             'eq',
-            `${Cypress.config().baseUrl}${orgs}/${id}/dashboard-list`
+            `${Cypress.config().baseUrl}${orgs}/${id}/dashboards-list`
           )
         })
       })
