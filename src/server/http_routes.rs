@@ -18,7 +18,7 @@ use csv::Writer;
 use futures::{self, StreamExt};
 use hyper::{Body, Method, StatusCode};
 use serde::Deserialize;
-use snafu::{ResultExt, Snafu};
+use snafu::{OptionExt, ResultExt, Snafu};
 use std::str;
 
 use crate::server::App;
@@ -100,7 +100,7 @@ pub enum ApplicationError {
     #[snafu(display("Invalid query string '{}': {}", query_string, source))]
     InvalidQueryString {
         query_string: String,
-        source: Box<dyn std::error::Error>,
+        source: serde_urlencoded::de::Error,
     },
 
     #[snafu(display("Invalid request body '{}': {}", request_body, source))]
@@ -163,16 +163,11 @@ struct WriteInfo {
 
 #[tracing::instrument(level = "debug")]
 async fn write(req: hyper::Request<Body>, app: Arc<App>) -> Result<Option<Body>, ApplicationError> {
-    let query = req
-        .uri()
-        .query()
-        .ok_or(ApplicationError::ExpectedQueryString {})?;
+    let query = req.uri().query().context(ExpectedQueryString)?;
 
-    let write_info: WriteInfo =
-        serde_urlencoded::from_str(query).map_err(|e| ApplicationError::InvalidQueryString {
-            query_string: query.into(),
-            source: Box::new(e),
-        })?;
+    let write_info: WriteInfo = serde_urlencoded::from_str(query).context(InvalidQueryString {
+        query_string: String::from(query),
+    })?;
 
     // Even though tools like `inch` and `storectl query` pass bucket IDs, treat them as
     // `bucket_name` in delorean because MemDB sets auto-incrementing IDs for buckets.
@@ -186,7 +181,7 @@ async fn write(req: hyper::Request<Body>, app: Arc<App>) -> Result<Option<Body>,
             org: write_info.org.to_string(),
             bucket_name: write_info.bucket.to_string(),
         })?
-        .ok_or_else(|| ApplicationError::BucketNotFound {
+        .context(BucketNotFound {
             org: write_info.org.to_string(),
             bucket_name: write_info.bucket.to_string(),
         })?;
@@ -260,11 +255,9 @@ async fn read(req: hyper::Request<Body>, app: Arc<App>) -> Result<Option<Body>, 
         .query()
         .ok_or(ApplicationError::ExpectedQueryString {})?;
 
-    let read_info: ReadInfo =
-        serde_urlencoded::from_str(query).map_err(|e| ApplicationError::InvalidQueryString {
-            query_string: query.into(),
-            source: Box::new(e),
-        })?;
+    let read_info: ReadInfo = serde_urlencoded::from_str(query).context(InvalidQueryString {
+        query_string: String::from(query),
+    })?;
 
     // Even though tools like `inch` and `storectl query` pass bucket IDs, treat them as
     // `bucket_name` in delorean because MemDB sets auto-incrementing IDs for buckets.
