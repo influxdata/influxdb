@@ -468,10 +468,10 @@ fn refill_value_pair_buffer(
     blocks: &mut BTreeMap<String, BlockData>,
     dst: &mut Vec<Option<ValuePair>>,
 ) {
-    for (i, block) in blocks.values_mut().enumerate() {
-        if dst[i].is_none() {
+    for (block, dst) in blocks.values_mut().zip(dst) {
+        if dst.is_none() {
             // (ts, value) pair has been used - fetch next pair (if any).
-            dst[i] = block.next_pair();
+            *dst = block.next_pair();
         }
     }
 }
