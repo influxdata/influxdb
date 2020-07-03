@@ -4,7 +4,7 @@ APP_ROOT="$(dirname "$(dirname "$(readlink -fm "$0")")")"
 TEST_CONTAINER=experim
 INFLUX2_CONTAINER=influx2_solo
 E2E_MAP_DIR=/tmp/e2e
-INFLUX2_HOST=$(docker inspect -f "{{ .NetworkSettings.IPAddress }}" ${INFLUX2_CONTAINER})
+INFLUX2_HOST=$(sudo docker inspect -f "{{ .NetworkSettings.IPAddress }}" ${INFLUX2_CONTAINER})
 TAGS="@influx-influx"
 
 echo "------ Targeting influx container ${INFLUX2_CONTAINER} at ${INFLUX2_HOST} ------"
@@ -80,4 +80,6 @@ sudo docker exec ${TEST_CONTAINER} npm test -- --tags "$TAGS"
 sudo docker exec ${TEST_CONTAINER} npm run report:html
 sudo docker exec ${TEST_CONTAINER} npm run report:junit
 
+sudo docker stop ${TEST_CONTAINER}
+sudo docker stop selenoid
 

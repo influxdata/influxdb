@@ -11,7 +11,7 @@ sudo docker run -d --name selenoid -p 4444:4444 -v /var/run/docker.sock:/var/run
 
 sleep 10
 
-export SELENOID_HOST=$(docker inspect -f "{{ .NetworkSettings.IPAddress }}" selenoid)
+export SELENOID_HOST=$(sudo docker inspect -f "{{ .NetworkSettings.IPAddress }}" selenoid)
 echo SELENOID_HOST ${SELENOID_HOST}
 
 sudo docker pull selenoid/vnc:chrome_83.0
