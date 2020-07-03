@@ -100,7 +100,7 @@ pub type FieldKeyBlocks = BTreeMap<String, Vec<Block>>;
 ///
 /// A MeasurementTable can be combined with another `MeasurementTable` as long
 /// as `other` refers to the same measurement name.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct MeasurementTable {
     pub name: String,
     // Tagset for key --> map of fields with that tagset to their blocks.
@@ -204,6 +204,72 @@ impl MeasurementTable {
                 tag_cols: tag_set_pair.clone(),
             };
             apply_fn(col_set)?;
+        }
+        Ok(())
+    }
+
+    /// Merge another `MeasurementTable` into this one.
+    ///
+    /// `other` must be associated with the same measurement, otherwise an error
+    /// will be returned. If any blocks for the same field key and tagset overlap
+    /// then `merge` will return an error.
+    ///
+    /// TODO(edd): Add support for block merging.
+    ///
+    pub fn merge(&mut self, other: &mut Self) -> Result<(), TSMError> {
+        if self.name != other.name {
+            return Err(TSMError {
+                description: format!(
+                    "cannot merge measurement {:?} into {:?}",
+                    self.name, other.name
+                ),
+            });
+        }
+        self.tag_columns.append(&mut other.tag_columns);
+        self.field_columns.append(&mut other.field_columns);
+
+        for (other_tagset, other_field_key_blocks) in &other.tag_set_fields_blocks {
+            let field_key_blocks = self
+                .tag_set_fields_blocks
+                .entry(other_tagset.clone())
+                .or_default();
+
+            for (other_field_key, other_blocks) in other_field_key_blocks {
+                match field_key_blocks.get_mut(other_field_key) {
+                    Some(blocks) => {
+                        assert!(
+                            !other_blocks.is_empty(),
+                            "tried to merge field with no blocks"
+                        );
+
+                        assert!(
+                            !blocks.is_empty(),
+                            "MeasurementTable has field with no blocks"
+                        );
+
+                        // Invariant: blocks are already sorted by time range
+                        // and each argument set of blocks (self's and other's)
+                        // do not overlap.
+
+                        // happy path - all other blocks after ours
+                        if other_blocks[0].min_time > blocks[blocks.len() - 1].max_time {
+                            blocks.extend_from_slice(other_blocks);
+                            break;
+                        }
+
+                        // less happy path
+                        blocks.extend_from_slice(other_blocks);
+                        blocks.sort_by(|a, b| {
+                            let overlapping = a.min_time <= b.max_time && b.min_time <= a.max_time;
+                            assert!(!overlapping, "Block {:?} overlapping with block {:?}", a, b);
+                            a.min_time.cmp(&b.min_time)
+                        })
+                    }
+                    None => {
+                        field_key_blocks.insert(other_field_key.clone(), other_blocks.clone());
+                    }
+                }
+            }
         }
         Ok(())
     }
@@ -672,12 +738,111 @@ mod tests {
             },
         )?;
 
-        // The block type for the value field should be Float becuase the
+        // The block type for the value field should be Float because the
         // conflicting integer field should be ignored.
         assert_eq!(
             *table.field_columns().get("value").unwrap(),
             BlockType::Float,
         );
+        Ok(())
+    }
+
+    #[test]
+    fn merge_measurement_table() -> Result<(), TSMError> {
+        let mut table1 = MeasurementTable::new("cpu".to_string());
+        table1.add_series_data(
+            vec![("region".to_string(), "west".to_string())],
+            "value".to_string(),
+            BlockType::Float,
+            Block {
+                min_time: 101,
+                max_time: 150,
+                offset: 0,
+                size: 0,
+                typ: BlockType::Float,
+            },
+        )?;
+
+        let mut table2 = MeasurementTable::new("cpu".to_string());
+        table2.add_series_data(
+            vec![("region".to_string(), "west".to_string())],
+            "value".to_string(),
+            BlockType::Float,
+            Block {
+                min_time: 0,
+                max_time: 100,
+                offset: 0,
+                size: 0,
+                typ: BlockType::Float,
+            },
+        )?;
+        table2.add_series_data(
+            vec![("server".to_string(), "a".to_string())],
+            "temp".to_string(),
+            BlockType::Str,
+            Block {
+                min_time: 0,
+                max_time: 50,
+                offset: 0,
+                size: 0,
+                typ: BlockType::Str,
+            },
+        )?;
+
+        table1.merge(&mut table2).unwrap();
+        assert_eq!(table1.name, "cpu");
+        assert_eq!(table1.tag_columns(), vec!["region", "server"]);
+
+        let mut exp_fields: BTreeMap<String, BlockType> = BTreeMap::new();
+        exp_fields.insert("temp".to_string(), BlockType::Str);
+        exp_fields.insert("value".to_string(), BlockType::Float);
+        assert_eq!(table1.field_columns(), &exp_fields);
+
+        let mut field_blocks_value: BTreeMap<String, Vec<Block>> = BTreeMap::new();
+        field_blocks_value.insert(
+            "value".to_string(),
+            vec![
+                Block {
+                    min_time: 0,
+                    max_time: 100,
+                    offset: 0,
+                    size: 0,
+                    typ: BlockType::Float,
+                },
+                Block {
+                    min_time: 101,
+                    max_time: 150,
+                    offset: 0,
+                    size: 0,
+                    typ: BlockType::Float,
+                },
+            ],
+        );
+
+        let mut field_blocks_temp: BTreeMap<String, Vec<Block>> = BTreeMap::new();
+        field_blocks_temp.insert(
+            "temp".to_string(),
+            vec![Block {
+                min_time: 0,
+                max_time: 50,
+                offset: 0,
+                size: 0,
+                typ: BlockType::Str,
+            }],
+        );
+
+        let mut exp_tag_set_field_blocks: BTreeMap<Vec<(String, String)>, FieldKeyBlocks> =
+            BTreeMap::new();
+        exp_tag_set_field_blocks.insert(
+            vec![("region".to_string(), "west".to_string())],
+            field_blocks_value,
+        );
+        exp_tag_set_field_blocks.insert(
+            vec![("server".to_string(), "a".to_string())],
+            field_blocks_temp,
+        );
+        assert_eq!(table1.tag_set_fields_blocks, exp_tag_set_field_blocks);
+
         Ok(())
     }
 

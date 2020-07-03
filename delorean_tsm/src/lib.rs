@@ -45,7 +45,7 @@ impl TryFrom<u8> for BlockType {
 }
 
 /// `Block` holds information about location and time range of a block of data.
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 #[allow(dead_code)]
 pub struct Block {
     pub min_time: i64,
