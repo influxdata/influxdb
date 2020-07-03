@@ -2,13 +2,33 @@ use crate::generated_types::{
     node::{self, Comparison, Logical, Value},
     Node, Predicate,
 };
-use crate::storage::StorageError;
 
+use crate::storage::StorageError;
 use croaring::Treemap;
+use snafu::Snafu;
 use std::iter::Peekable;
 use std::str::Chars;
 
-pub fn parse_predicate(val: &str) -> Result<Predicate, StorageError> {
+#[derive(Debug, Snafu)]
+pub enum Error {
+    #[snafu(display("Predicate parse error: {}", description))]
+    Parse { description: String },
+
+    #[snafu(display("Predicate evaluation error: {}", description))]
+    Evaluation { description: String },
+}
+
+impl From<Error> for StorageError {
+    fn from(e: Error) -> Self {
+        Self {
+            description: e.to_string(),
+        }
+    }
+}
+
+pub type Result<T, E = Error> = std::result::Result<T, E>;
+
+pub fn parse_predicate(val: &str) -> Result<Predicate> {
     let mut chars = val.chars().peekable();
 
     let mut predicate = Predicate { root: None };
@@ -19,7 +39,7 @@ pub fn parse_predicate(val: &str) -> Result<Predicate, StorageError> {
     Ok(predicate)
 }
 
-fn parse_node(chars: &mut Peekable<Chars<'_>>) -> Result<Node, StorageError> {
+fn parse_node(chars: &mut Peekable<Chars<'_>>) -> Result<Node> {
     eat_whitespace(chars);
 
     let left = parse_key(chars)?;
@@ -53,7 +73,7 @@ fn parse_node(chars: &mut Peekable<Chars<'_>>) -> Result<Node, StorageError> {
     Ok(node)
 }
 
-fn parse_key(chars: &mut Peekable<Chars<'_>>) -> Result<String, StorageError> {
+fn parse_key(chars: &mut Peekable<Chars<'_>>) -> Result<String> {
     let mut key = String::new();
 
     loop {
@@ -69,13 +89,12 @@ fn parse_key(chars: &mut Peekable<Chars<'_>>) -> Result<String, StorageError> {
             return Ok(key);
         }
     }
-
-    Err(StorageError {
-        description: "reached end of predicate without a comparison operator".to_string(),
+    Err(Error::Parse {
+        description: "reached end of predicate without a comparison operator".into(),
     })
 }
 
-fn parse_comparison(chars: &mut Peekable<Chars<'_>>) -> Result<Comparison, StorageError> {
+fn parse_comparison(chars: &mut Peekable<Chars<'_>>) -> Result<Comparison> {
     if let Some(ch) = chars.next() {
         let comp = match ch {
             '>' => match chars.peek() {
@@ -96,33 +115,36 @@ fn parse_comparison(chars: &mut Peekable<Chars<'_>>) -> Result<Comparison, Stora
             '!' => match chars.next() {
                 Some('=') => Comparison::NotEqual,
                 Some(ch) => {
-                    return Err(StorageError {
+                    return Parse {
                         description: format!("unhandled comparator !{}", ch),
-                    })
+                    }
+                    .fail();
                 }
                 None => {
-                    return Err(StorageError {
+                    return Parse {
                         description:
-                            "reached end of string without finishing not equals comparator"
-                                .to_string(),
-                    })
+                            "reached end of string without finishing not equals comparator",
+                    }
+                    .fail();
                 }
             },
             _ => {
-                return Err(StorageError {
+                return Parse {
                     description: format!("unhandled comparator {}", ch),
-                })
+                }
+                .fail()
             }
         };
 
         return Ok(comp);
     }
-    Err(StorageError {
+    Parse {
         description: "reached end of string without finding a comparison operator".to_string(),
-    })
+    }
+    .fail()
 }
 
-fn parse_value(chars: &mut Peekable<Chars<'_>>) -> Result<Value, StorageError> {
+fn parse_value(chars: &mut Peekable<Chars<'_>>) -> Result<Value> {
     eat_whitespace(chars);
     let mut val = String::new();
 
@@ -136,20 +158,20 @@ fn parse_value(chars: &mut Peekable<Chars<'_>>) -> Result<Value, StorageError> {
             }
         }
         Some(ch) => {
-            return Err(StorageError {
+            return Parse {
                 description: format!("unable to parse non-string values like '{}'", ch),
-            })
+            }
+            .fail()
         }
         None => (),
     }
 
-    Err(StorageError {
-        description: "reached end of predicate without a closing quote for the string value"
-            .to_string(),
+    Err(Error::Parse {
+        description: "reached end of predicate without a closing quote for the string value".into(),
     })
 }
 
-fn parse_logical(chars: &mut Peekable<Chars<'_>>) -> Result<Option<node::Logical>, StorageError> {
+fn parse_logical(chars: &mut Peekable<Chars<'_>>) -> Result<Option<node::Logical>> {
     eat_whitespace(chars);
 
     if let Some(ch) = chars.next() {
@@ -158,27 +180,31 @@ fn parse_logical(chars: &mut Peekable<Chars<'_>>) -> Result<Option<node::Logical
                 match chars.next() {
                     Some('n') | Some('N') => (),
                     Some(ch) => {
-                        return Err(StorageError {
+                        return Parse {
                             description: format!(r#"expected "and" but found a{}"#, ch),
-                        })
+                        }
+                        .fail()
                     }
                     _ => {
-                        return Err(StorageError {
+                        return Parse {
                             description: "unexpectedly reached end of string".to_string(),
-                        })
+                        }
+                        .fail()
                     }
                 }
                 match chars.next() {
                     Some('d') | Some('D') => (),
                     Some(ch) => {
-                        return Err(StorageError {
+                        return Parse {
                             description: format!(r#"expected "and" but found an{}"#, ch),
-                        })
+                        }
+                        .fail()
                     }
                     _ => {
-                        return Err(StorageError {
+                        return Parse {
                             description: "unexpectedly reached end of string".to_string(),
-                        })
+                        }
+                        .fail()
                     }
                 }
                 return Ok(Some(node::Logical::And));
@@ -186,23 +212,26 @@ fn parse_logical(chars: &mut Peekable<Chars<'_>>) -> Result<Option<node::Logical
             'o' | 'O' => match chars.next() {
                 Some('r') | Some('R') => return Ok(Some(node::Logical::Or)),
                 Some(ch) => {
-                    return Err(StorageError {
+                    return Parse {
                         description: format!(r#"expected "or" but found o{}"#, ch),
-                    })
+                    }
+                    .fail()
                 }
                 _ => {
-                    return Err(StorageError {
+                    return Parse {
                         description: "unexpectedly reached end of string".to_string(),
-                    })
+                    }
+                    .fail()
                 }
             },
             _ => {
-                return Err(StorageError {
+                return Parse {
                     description: format!(
                         "unexpected character {} trying parse logical expression",
                         ch
                     ),
-                })
+                }
+                .fail()
             }
         }
     }
@@ -221,25 +250,26 @@ fn eat_whitespace(chars: &mut Peekable<Chars<'_>>) {
 }
 
 pub trait EvaluateVisitor {
-    fn equal(&mut self, left: &str, right: &str) -> Result<Treemap, StorageError>;
+    fn equal(&mut self, left: &str, right: &str) -> Result<Treemap>;
 }
 
 #[derive(Debug)]
 pub struct Evaluate<V: EvaluateVisitor>(V);
 
 impl<V: EvaluateVisitor> Evaluate<V> {
-    pub fn evaluate(visitor: V, node: &Node) -> Result<Treemap, StorageError> {
+    pub fn evaluate(visitor: V, node: &Node) -> Result<Treemap> {
         Self(visitor).node(node)
     }
 
-    fn node(&mut self, n: &Node) -> Result<Treemap, StorageError> {
+    fn node(&mut self, n: &Node) -> Result<Treemap> {
         if n.children.len() != 2 {
-            return Err(StorageError {
+            return Evaluation {
                 description: format!(
                     "expected only two children of node but found {}",
                     n.children.len()
                 ),
-            });
+            }
+            .fail();
         }
 
         match &n.value {
@@ -252,17 +282,19 @@ impl<V: EvaluateVisitor> Evaluate<V> {
                     let c = Comparison::from_i32(*c).unwrap();
                     self.comparison(&n.children[0], &n.children[1], c)
                 }
-                val => Err(StorageError {
+                val => Evaluation {
                     description: format!("Evaluate::node called on wrong type {:?}", val),
-                }),
+                }
+                .fail(),
             },
-            None => Err(StorageError {
+            None => Evaluation {
                 description: "emtpy node value".to_string(),
-            }),
+            }
+            .fail(),
         }
     }
 
-    fn logical(&mut self, left: &Node, right: &Node, op: Logical) -> Result<Treemap, StorageError> {
+    fn logical(&mut self, left: &Node, right: &Node, op: Logical) -> Result<Treemap> {
         let mut left_result = self.node(left)?;
         let right_result = self.node(right)?;
 
@@ -274,36 +306,34 @@ impl<V: EvaluateVisitor> Evaluate<V> {
         Ok(left_result)
     }
 
-    fn comparison(
-        &mut self,
-        left: &Node,
-        right: &Node,
-        op: Comparison,
-    ) -> Result<Treemap, StorageError> {
+    fn comparison(&mut self, left: &Node, right: &Node, op: Comparison) -> Result<Treemap> {
         let left = match &left.value {
             Some(Value::TagRefValue(s)) => s,
             _ => {
-                return Err(StorageError {
+                return Evaluation {
                     description: "expected left operand to be a TagRefValue".to_string(),
-                })
+                }
+                .fail()
             }
         };
 
         let right = match &right.value {
             Some(Value::StringValue(s)) => s,
             _ => {
-                return Err(StorageError {
+                return Evaluation {
                     description: "unable to run comparison against anything other than a string"
                         .to_string(),
-                })
+                }
+                .fail()
             }
         };
 
         match op {
             Comparison::Equal => self.0.equal(left, right),
-            comp => Err(StorageError {
+            comp => Evaluation {
                 description: format!("unable to handle comparison {:?}", comp),
-            }),
+            }
+            .fail(),
         }
     }
 }
