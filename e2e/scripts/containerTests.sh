@@ -5,7 +5,24 @@ TEST_CONTAINER=experim
 INFLUX2_CONTAINER=influx2_solo
 E2E_MAP_DIR=/tmp/e2e
 INFLUX2_HOST=$(docker inspect -f "{{ .NetworkSettings.IPAddress }}" ${INFLUX2_CONTAINER})
+TAGS="@influx-influx"
+
 echo "------ Targeting influx container ${INFLUX2_CONTAINER} at ${INFLUX2_HOST} ------"
+
+POSITIONAL=()
+while [[ $# -gt 0 ]]
+do
+key="$1"
+
+case $key in
+   -t| --tags)
+   TAGS="$2"
+   shift; # past argument
+   shift; # past val
+esac
+done
+
+echo "TAGS $TAGS"
 
 # Tear down running test container
 echo "----- Tearing down test container ${TEST_CONTAINER} ------"
@@ -31,15 +48,12 @@ fi
 echo "----- Ensuring linked dir for volumes is current ------"
 if [ -L ${E2E_MAP_DIR}/etc ]; then
      echo ${E2E_MAP_DIR}/etc is linked
-     ls -al ${E2E_MAP_DIR}/etc/
      echo removing ${E2E_MAP_DIR}
      sudo rm -r ${E2E_MAP_DIR}
 fi
 sudo mkdir -p ${E2E_MAP_DIR}
 echo linking ${APP_ROOT}/etc
 sudo ln -s  ${APP_ROOT}/etc ${E2E_MAP_DIR}/etc
-ls -al ${E2E_MAP_DIR}/etc/
-#    rm ${E2E_MAP_DIR}/etc
 
 echo "------ (Re)start Selenoid ------"
 source ${APP_ROOT}/scripts/selenoid.sh
@@ -61,5 +75,8 @@ sudo docker run -it -v `pwd`/report:/home/e2e/report -v `pwd`/screenshots:/home/
      --name ${TEST_CONTAINER} e2e-${TEST_CONTAINER}:latest
 
 
-sudo docker exec experim npm test -- features/influx/influx.feature
+sudo docker exec ${TEST_CONTAINER} npm test -- --tags "$TAGS"
+
+sudo docker exec ${TEST_CONTAINER} npm run report:html
+
 

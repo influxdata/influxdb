@@ -25,3 +25,11 @@ test: docker-test docker-report
 clean:
 	docker rm -f test-influxdb
 	rm -rf /tmp/report
+
+bonitoo-prep:
+	npm run influx:setup
+
+bonitoo-docker:
+	./scripts/containerTests.sh
+
+bonitoo-test: bonitoo-prep bonitoo-docker
