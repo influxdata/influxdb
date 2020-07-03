@@ -16,7 +16,6 @@ import GetAssetLimits from 'src/cloud/components/GetAssetLimits'
 import AssetLimitAlert from 'src/cloud/components/AssetLimitAlert'
 import ResourceSortDropdown from 'src/shared/components/resource_sort_dropdown/ResourceSortDropdown'
 import CloudUpgradeButton from 'src/shared/components/CloudUpgradeButton'
-import DashboardExportOverlay from 'src/dashboards/components/DashboardExportOverlay'
 import DashboardImportOverlay from 'src/dashboards/components/DashboardImportOverlay'
 import CreateFromTemplateOverlay from 'src/templates/components/createFromTemplateOverlay/CreateFromTemplateOverlay'
 
@@ -129,10 +128,6 @@ class DashboardIndex extends PureComponent<Props, State> {
             path="/orgs/:orgID/dashboards-list/import"
             component={DashboardImportOverlay}
           />
-          {/*<Route
-            path="/orgs/:orgID/dashboards/:dashboardID/export"
-            component={DashboardExportOverlay}
-          />*/}
         </Switch>
       </>
     )

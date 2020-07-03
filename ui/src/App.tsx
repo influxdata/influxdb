@@ -13,10 +13,10 @@ import NotesPortal from 'src/portals/NotesPortal'
 import Notifications from 'src/shared/components/notifications/Notifications'
 import OverlayController from 'src/overlays/components/OverlayController'
 import SetOrg from 'src/shared/containers/SetOrg'
+import CreateOrgOverlay from './organizations/components/CreateOrgOverlay'
 
 // Types
 import {AppState, CurrentPage, Theme} from 'src/types'
-import CreateOrgOverlay from './organizations/components/CreateOrgOverlay'
 
 interface StateProps {
   inPresentationMode: boolean
