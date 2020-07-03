@@ -588,7 +588,7 @@ async fn test_http_error_messages() -> Result<()> {
     let client = reqwest::Client::new();
     let url = format!("{}/write", URL_BASE);
 
-    // send malformed request (bucket id is invlald and
+    // send malformed request (bucket id is invalid)
     let response = client
         .post(&url)
         .query(&[("bucket", "Foo"), ("org", "Bar")])
