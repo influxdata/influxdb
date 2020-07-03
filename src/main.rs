@@ -144,7 +144,7 @@ Examples:
             }
         }
         ("server", Some(_)) | (_, _) => {
-            println!("Staring delorean server...");
+            println!("Starting delorean server...");
             match commands::server::main() {
                 Ok(()) => eprintln!("Shutdown OK"),
                 Err(e) => {
