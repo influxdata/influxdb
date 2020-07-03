@@ -106,7 +106,7 @@ pub enum ApplicationError {
     #[snafu(display("Invalid request body '{}': {}", request_body, source))]
     InvalidRequestBody {
         request_body: String,
-        source: Box<dyn std::error::Error>,
+        source: serde_urlencoded::de::Error,
     },
 
     #[snafu(display("Invalid duration '{}': {}", duration, source))]
@@ -373,20 +373,18 @@ async fn create_bucket(
 ) -> Result<Option<Body>, ApplicationError> {
     let body = hyper::body::to_bytes(req).await.context(ReadingBody)?;
 
-    let body = str::from_utf8(&body).context(ReadingBodyAsUtf8)?;
+    let request_body = str::from_utf8(&body).context(ReadingBodyAsUtf8)?;
 
     let create_bucket_info: CreateBucketInfo =
-        serde_urlencoded::from_str(body).map_err(|e| ApplicationError::InvalidRequestBody {
-            request_body: body.to_string(),
-            source: Box::new(e),
-        })?;
+        serde_urlencoded::from_str(request_body).context(InvalidRequestBody { request_body })?;
 
+    let org = create_bucket_info.org;
     let bucket_name = create_bucket_info.bucket.to_string();
 
     let bucket = Bucket {
-        org_id: create_bucket_info.org.into(),
+        org_id: org.into(),
         id: 0,
-        name: bucket_name,
+        name: bucket_name.clone(),
         retention: "0".to_string(),
         posting_list_rollover: 10_000,
         index_levels: vec![],
@@ -395,10 +393,7 @@ async fn create_bucket(
     app.db
         .create_bucket_if_not_exists(create_bucket_info.org, bucket)
         .await
-        .context(CreatingBucket {
-            org: create_bucket_info.org.to_string(),
-            bucket_name: create_bucket_info.bucket.to_string(),
-        })?;
+        .context(CreatingBucket { org, bucket_name })?;
 
     Ok(None)
 }
@@ -422,29 +417,22 @@ pub async fn service(
     };
 
     let result = match response {
-        Ok(Some(body)) => Ok(hyper::Response::builder()
+        Ok(Some(body)) => hyper::Response::builder()
             .body(body)
-            .expect("Should have been able to construct a response")),
-        Ok(None) => Ok(hyper::Response::builder()
+            .expect("Should have been able to construct a response"),
+        Ok(None) => hyper::Response::builder()
             .status(StatusCode::NO_CONTENT)
             .body(Body::empty())
-            .expect("Should have been able to construct a response")),
+            .expect("Should have been able to construct a response"),
         Err(e) => {
             error!(error = ?e, method = ?method, uri = ?uri, "Error while handing request");
             let json = serde_json::json!({"error": e.to_string()}).to_string();
-            Ok(hyper::Response::builder()
+            hyper::Response::builder()
                 .status(e.status_code())
                 .body(json.into())
-                .expect("Should have been able to construct a response"))
+                .expect("Should have been able to construct a response")
         }
     };
-
-    match &result {
-        Ok(response) => {
-            info!(method = ?method, uri = ?uri, status = ?response.status(), "Handled request");
-        }
-        Err(e) => error!(error=?e, "Error creating result"),
-    };
-
-    result
+    info!(method = ?method, uri = ?uri, status = ?result.status(), "Handled request");
+    Ok(result)
 }
