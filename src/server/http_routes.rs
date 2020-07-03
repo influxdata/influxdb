@@ -6,8 +6,7 @@ use delorean::generated_types::{Bucket, TimestampRange};
 use delorean::id::Id;
 use delorean::line_parser;
 use delorean::line_parser::index_pairs;
-use delorean::storage::partitioned_store::ReadValues;
-use delorean::storage::predicate::parse_predicate;
+use delorean::storage::{partitioned_store::ReadValues, predicate, StorageError};
 use delorean::time::{parse_duration, time_as_i64_nanos};
 
 use std::sync::Arc;
@@ -22,7 +21,6 @@ use snafu::{OptionExt, ResultExt, Snafu};
 use std::str;
 
 use crate::server::App;
-use delorean::storage::StorageError;
 
 #[derive(Debug, Snafu)]
 pub enum ApplicationError {
@@ -118,7 +116,7 @@ pub enum ApplicationError {
     #[snafu(display("Could not parse predicate '{}':  {}", predicate, source))]
     InvalidPredicate {
         predicate: String,
-        source: StorageError,
+        source: predicate::Error,
     },
 
     #[snafu(display("Error reading request body: {}", source))]
@@ -253,7 +251,7 @@ async fn read(req: hyper::Request<Body>, app: Arc<App>) -> Result<Option<Body>, 
     let org = read_info.org;
     let bucket_name = read_info.bucket.to_string();
 
-    let predicate = parse_predicate(&read_info.predicate).context(InvalidPredicate {
+    let predicate = predicate::parse_predicate(&read_info.predicate).context(InvalidPredicate {
         predicate: &read_info.predicate,
     })?;
 
