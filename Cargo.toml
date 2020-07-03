@@ -96,5 +96,9 @@ name = "line_parser"
 harness = false
 
 [[bench]]
+name = "mapper"
+harness = false
+
+[[bench]]
 name = "line_protocol_to_parquet"
 harness = false

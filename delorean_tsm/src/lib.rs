@@ -131,29 +131,6 @@ pub struct Block {
 // MAX_BLOCK_VALUES is the maximum number of values a TSM block can store.
 const MAX_BLOCK_VALUES: usize = 1000;
 
-/// `BlockData` describes the various types of block data that can be held within
-/// a TSM file.
-#[derive(Debug, Clone)]
-pub enum BlockData {
-    Float { ts: Vec<i64>, values: Vec<f64> },
-    Integer { ts: Vec<i64>, values: Vec<i64> },
-    Bool { ts: Vec<i64>, values: Vec<bool> },
-    Str { ts: Vec<i64>, values: Vec<Vec<u8>> },
-    Unsigned { ts: Vec<i64>, values: Vec<u64> },
-}
-
-impl BlockData {
-    pub fn is_empty(&self) -> bool {
-        match &self {
-            Self::Float { ts, values: _ } => ts.is_empty(),
-            Self::Integer { ts, values: _ } => ts.is_empty(),
-            Self::Bool { ts, values: _ } => ts.is_empty(),
-            Self::Str { ts, values: _ } => ts.is_empty(),
-            Self::Unsigned { ts, values: _ } => ts.is_empty(),
-        }
-    }
-}
-
 #[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 /// `InfluxID` represents an InfluxDB ID used in InfluxDB 2.x to represent
 /// organization and bucket identifiers.

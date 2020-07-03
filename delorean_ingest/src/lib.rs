@@ -1444,30 +1444,12 @@ mod delorean_ingest_tests {
 
     // ----- Tests for TSM Data -----
 
-    // MockBlockDecoder implements the BlockDecoder trait. It uses the `min_time`
-    // value in a provided `Block` definition as a key to a map of block data,
-    // which should be provided on initialisation.
-    struct MockBlockDecoder {
-        blocks: BTreeMap<i64, delorean_tsm::BlockData>,
-    }
-
-    impl BlockDecoder for MockBlockDecoder {
-        fn decode(
-            &mut self,
-            block: &delorean_tsm::Block,
-        ) -> std::result::Result<delorean_tsm::BlockData, delorean_tsm::TSMError> {
-            self.blocks
-                .get(&block.min_time)
-                .cloned()
-                .ok_or(delorean_tsm::TSMError {
-                    description: "block not found".to_string(),
-                })
-        }
-    }
-
     #[test]
     fn process_measurement_table() -> Result<(), Box<dyn std::error::Error>> {
-        use delorean_tsm::{Block, BlockData};
+        use delorean_tsm::{
+            reader::{BlockData, MockBlockDecoder},
+            Block,
+        };
 
         // Input data - in line protocol format
         //
@@ -1567,6 +1549,7 @@ mod delorean_ingest_tests {
         block_map.insert(
             0,
             BlockData::Float {
+                i: 0,
                 ts: vec![0, 1000, 2000],
                 values: vec![1.2, 1.2, 1.4],
             },
@@ -1574,6 +1557,7 @@ mod delorean_ingest_tests {
         block_map.insert(
             1,
             BlockData::Float {
+                i: 0,
                 ts: vec![0, 1000, 2000],
                 values: vec![10.2, 10.2, 10.4],
             },
@@ -1581,6 +1565,7 @@ mod delorean_ingest_tests {
         block_map.insert(
             2,
             BlockData::Float {
+                i: 0,
                 ts: vec![2000, 3000, 4000],
                 values: vec![100.2, 99.5, 100.3],
             },
@@ -1588,13 +1573,13 @@ mod delorean_ingest_tests {
         block_map.insert(
             3,
             BlockData::Unsigned {
+                i: 0,
                 ts: vec![3000, 4000, 5000],
                 values: vec![1000, 2000, 3000],
             },
         );
 
-        let decoder = MockBlockDecoder { blocks: block_map };
-
+        let decoder = MockBlockDecoder::new(block_map);
         let (schema, packers) = TSMFileConverter::process_measurement_table(decoder, &mut table)?;
 
         let expected_defs = vec![
