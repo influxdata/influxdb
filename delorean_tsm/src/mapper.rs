@@ -88,10 +88,18 @@ impl<R: BufRead + Seek> Iterator for TSMMeasurementMapper<R> {
     }
 }
 
-// FieldKeyBlocks is a mapping between a set of field keys and all of the blocks
-// for those keys.
+/// FieldKeyBlocks is a mapping between a set of field keys and all of the blocks
+/// for those keys.
 pub type FieldKeyBlocks = BTreeMap<String, Vec<Block>>;
 
+/// A collection of related blocks, fields and tag-sets for a single measurement.
+///
+/// A `MeasurementTable` should be derived from a single TSM index (file).
+/// Given a single series key, an invariant is that none of the blocks for that
+/// key have overlapping timestamps.
+///
+/// A MeasurementTable can be combined with another `MeasurementTable` as long
+/// as `other` refers to the same measurement name.
 #[derive(Clone, Debug)]
 pub struct MeasurementTable {
     pub name: String,
@@ -127,9 +135,7 @@ impl MeasurementTable {
         }
     }
 
-    pub fn tag_set_fields_blocks(
-        &mut self,
-    ) -> &mut BTreeMap<Vec<(String, String)>, FieldKeyBlocks> {
+    fn tag_set_fields_blocks(&mut self) -> &mut BTreeMap<Vec<(String, String)>, FieldKeyBlocks> {
         &mut self.tag_set_fields_blocks
     }
 
@@ -178,6 +184,29 @@ impl MeasurementTable {
 
         Ok(())
     }
+
+    // Process the MeasurementTable in sections.
+    pub fn process<F>(
+        &mut self,
+        mut block_reader: impl BlockDecoder,
+        mut apply_fn: F,
+    ) -> Result<(), TSMError>
+    where
+        F: FnMut(TableSection) -> Result<(), TSMError>,
+    {
+        for (i, (tag_set_pair, blocks)) in self.tag_set_fields_blocks().iter_mut().enumerate() {
+            let (ts, field_cols) = map_field_columns(&mut block_reader, blocks)?;
+
+            let col_set = TableSection {
+                i,
+                ts,
+                field_cols,
+                tag_cols: tag_set_pair.clone(),
+            };
+            apply_fn(col_set)?;
+        }
+        Ok(())
+    }
 }
 
 impl Display for MeasurementTable {
@@ -205,6 +234,37 @@ impl Display for MeasurementTable {
             writeln!(f)?;
         }
         Ok(())
+    }
+}
+
+/// A partial collection of columns belonging to the same table.
+///
+/// A TableSection always contains a column of timestamps, which indicates how many
+/// rows each column has. Each field column is the same length as the timestamp
+/// column, but may contain values or NULL for each entry.
+///
+/// Tag columns all have the same value in their column within this column set.
+/// It is up to the caller to materialise these column vectors when required.
+#[derive(Debug)]
+pub struct TableSection {
+    i: usize, // indicates previous number of column sets for measurement table.
+    pub ts: Vec<i64>,
+    pub tag_cols: Vec<(String, String)>,
+    pub field_cols: BTreeMap<String, ColumnData>,
+}
+
+impl TableSection {
+    pub fn len(&self) -> usize {
+        self.ts.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    // Determines if this is the first column set for a table.
+    pub fn is_first(&self) -> bool {
+        self.i == 0
     }
 }
 
@@ -267,7 +327,7 @@ pub enum ColumnData {
 // for a field we can decode and pull the next block for the field and continue
 // to build the output.
 //
-pub fn map_field_columns(
+fn map_field_columns(
     mut decoder: impl BlockDecoder,
     field_blocks: &mut FieldKeyBlocks,
 ) -> Result<(Vec<i64>, BTreeMap<String, ColumnData>), TSMError> {

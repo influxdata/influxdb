@@ -16,7 +16,7 @@ use delorean_table::{
 };
 use delorean_table_schema::{DataType, Schema, SchemaBuilder};
 use delorean_tsm::{
-    mapper::{map_field_columns, ColumnData, MeasurementTable, TSMMeasurementMapper},
+    mapper::{ColumnData, MeasurementTable, TSMMeasurementMapper},
     reader::{BlockDecoder, TSMBlockReader, TSMIndexReader},
     BlockType, TSMError,
 };
@@ -589,180 +589,236 @@ impl TSMFileConverter {
             .map(|c| (c.name.clone(), c.index as usize))
             .collect::<BTreeMap<String, usize>>();
 
-        // For each tagset combination in the measurement build out a table.
-        // Then, for each column in that table convert it to a Packer<T> and
-        // append it to the relevant packer_column.
-        for (i, (tag_set_pair, blocks)) in m.tag_set_fields_blocks().iter_mut().enumerate() {
-            let (ts, field_cols) =
-                map_field_columns(&mut block_reader, blocks).context(TSMProcessing)?;
+        // Process the measurement to build out a table.
+        // The MeasurementTable emits `TableSection`s, which are partial sections
+        // of the final table. Each section contains the data for all columns
+        // in the table, though not all of that data will necessarily be
+        // materialised.
+        //
+        // `process` expects a closure that processes each table section as it's
+        // emitted from the `MeasurementTable`.
+        //
+        // As sections are emitted we do the following:
+        //  - Append the timestamp column to the packer timestamp column
+        //  - Materialise the same tag value for any tag key columns where the
+        //    emitted section has a none-null value for that column.
+        //  - Materialise NULL values for any tag key columns that we don't have
+        //    data for in the emitted section.
+        //  - Append the field columns to the packer field columns. The emitted
+        //    section will already have fully materialised the data for these
+        //    columns, including any NULL entries.
+        //  - Materialise NULL values for any field columns that the emitted
+        //    section does not have any data for.
+        //
+        m.process(
+            &mut block_reader,
+            |section: delorean_tsm::mapper::TableSection| -> Result<(), TSMError> {
+                // number of rows in each column in this table section.
+                let col_len = section.len();
 
-            // Start with the timestamp column.
-            let col_len = ts.len();
-            let ts_idx = name_packer
-                .get(schema.timestamp())
-                .context(CouldNotFindTsColumn)?;
+                // if this is the first section of the table then we can avoid
+                // extending slices and just move the slice over to the packer
+                // vector.
+                //
+                // TODO(edd): will the compiler just figure this out for us w.r.t
+                // `extend_from_slice`??
+                let first_table_section = section.is_first();
 
-            if i == 0 {
-                packed_columns[*ts_idx] = Packers::from(ts);
-            } else {
-                packed_columns[*ts_idx]
-                    .i64_packer_mut()
-                    .extend_from_slice(&ts);
-            }
+                // Process the timestamp column.
+                let ts_idx = name_packer
+                    .get(schema.timestamp())
+                    .context(CouldNotFindTsColumn)
+                    .map_err(|e| TSMError {
+                        description: e.to_string(),
+                    })?;
 
-            // Next let's pad out all of the tag columns we know have
-            // repeated values.
-            for (tag_key, tag_value) in tag_set_pair {
-                let idx = name_packer.get(tag_key).context(CouldNotFindColumn)?;
-
-                // this will create a column of repeated values.
-                if i == 0 {
-                    packed_columns[*idx] = Packers::from_elem_str(tag_value, col_len);
+                if section.is_first() {
+                    packed_columns[*ts_idx] = Packers::from(section.ts);
                 } else {
-                    packed_columns[*idx]
-                        .str_packer_mut()
-                        .extend_from_slice(&vec![ByteArray::from(tag_value.as_ref()); col_len]);
-                }
-            }
-
-            // Next let's write out NULL values for any tag columns
-            // on the measurement that we don't have values for
-            // because they're not part of this tagset.
-            let tag_keys = tag_set_pair
-                .iter()
-                .map(|pair| pair.0.clone())
-                .collect::<BTreeSet<String>>();
-            for key in &tks {
-                if tag_keys.contains(key) {
-                    continue;
+                    packed_columns[*ts_idx]
+                        .i64_packer_mut()
+                        .extend_from_slice(&section.ts);
                 }
 
-                let idx = name_packer.get(key).context(CouldNotFindColumn)?;
+                // Process any tag columns that this section has values for.
+                // We have to materialise the values for the column, which are
+                // guaranteed to be the same.
+                for (tag_key, tag_value) in &section.tag_cols {
+                    let idx = name_packer
+                        .get(tag_key)
+                        .context(CouldNotFindColumn)
+                        .map_err(|e| TSMError {
+                            description: e.to_string(),
+                        })?;
 
-                if i == 0 {
-                    // creates a column of repeated None values.
-                    let col: Vec<Option<Vec<u8>>> = vec![None; col_len];
-                    packed_columns[*idx] = Packers::from(col);
-                } else {
-                    // pad out column with None values because we don't have a
-                    // value for it.
-                    packed_columns[*idx]
-                        .str_packer_mut()
-                        .fill_with_null(col_len);
-                }
-            }
-
-            // Next let's write out all of the field column data.
-            let mut got_field_cols = Vec::new();
-            for (field_key, field_values) in field_cols {
-                let idx = name_packer.get(&field_key).context(CouldNotFindColumn)?;
-
-                if i == 0 {
-                    match field_values {
-                        ColumnData::Float(v) => packed_columns[*idx] = Packers::from(v),
-                        ColumnData::Integer(v) => packed_columns[*idx] = Packers::from(v),
-                        ColumnData::Str(v) => packed_columns[*idx] = Packers::from(v),
-                        ColumnData::Bool(v) => packed_columns[*idx] = Packers::from(v),
-                        ColumnData::Unsigned(v) => packed_columns[*idx] = Packers::from(v),
-                    }
-                } else {
-                    match field_values {
-                        ColumnData::Float(v) => packed_columns[*idx]
-                            .f64_packer_mut()
-                            .extend_from_option_slice(&v),
-                        ColumnData::Integer(v) => packed_columns[*idx]
-                            .i64_packer_mut()
-                            .extend_from_option_slice(&v),
-                        ColumnData::Str(values) => {
-                            let col = packed_columns[*idx].str_packer_mut();
-                            for value in values {
-                                match value {
-                                    Some(v) => col.push(ByteArray::from(v)),
-                                    None => col.push_option(None),
-                                }
-                            }
-                        }
-                        ColumnData::Bool(v) => packed_columns[*idx]
-                            .bool_packer_mut()
-                            .extend_from_option_slice(&v),
-                        ColumnData::Unsigned(values) => {
-                            let col = packed_columns[*idx].i64_packer_mut();
-                            for value in values {
-                                match value {
-                                    Some(v) => col.push(v as i64),
-                                    None => col.push_option(None),
-                                }
-                            }
-                        }
+                    // this will create a column of repeated values.
+                    if first_table_section {
+                        packed_columns[*idx] = Packers::from_elem_str(tag_value, col_len);
+                    } else {
+                        packed_columns[*idx]
+                            .str_packer_mut()
+                            .extend_from_slice(&vec![ByteArray::from(tag_value.as_ref()); col_len]);
                     }
                 }
-                got_field_cols.push(field_key);
-            }
 
-            // Finally let's write out all of the field columns that
-            // we don't have values for here.
-            for (key, field_type) in &fks {
-                if got_field_cols.contains(key) {
-                    continue;
+                // Not all tag columns may be present in the section. For those
+                // that are not present we need to materialise NULL values for
+                // every row.
+                let tag_keys = section
+                    .tag_cols
+                    .iter()
+                    .map(|pair| pair.0.clone())
+                    .collect::<BTreeSet<String>>();
+                for key in &tks {
+                    if tag_keys.contains(key) {
+                        continue;
+                    }
+
+                    let idx = name_packer
+                        .get(key)
+                        .context(CouldNotFindColumn)
+                        .map_err(|e| TSMError {
+                            description: e.to_string(),
+                        })?;
+
+                    if first_table_section {
+                        // creates a column of repeated None values.
+                        let col: Vec<Option<Vec<u8>>> = vec![None; col_len];
+                        packed_columns[*idx] = Packers::from(col);
+                    } else {
+                        // pad out column with None values because we don't have a
+                        // value for it.
+                        packed_columns[*idx]
+                            .str_packer_mut()
+                            .fill_with_null(col_len);
+                    }
                 }
 
-                let idx = name_packer.get(key).context(CouldNotFindColumn)?;
+                // Next we will write out all of the field columns for this
+                // section.
+                let mut got_field_cols = Vec::new();
+                for (field_key, field_values) in section.field_cols {
+                    let idx = name_packer
+                        .get(&field_key)
+                        .context(CouldNotFindColumn)
+                        .map_err(|e| TSMError {
+                            description: e.to_string(),
+                        })?;
 
-                // this will create a column of repeated None values.
-                if i == 0 {
-                    match field_type {
-                        BlockType::Float => {
-                            let col: Vec<Option<f64>> = vec![None; col_len];
-                            packed_columns[*idx] = Packers::from(col);
+                    if first_table_section {
+                        match field_values {
+                            ColumnData::Float(v) => packed_columns[*idx] = Packers::from(v),
+                            ColumnData::Integer(v) => packed_columns[*idx] = Packers::from(v),
+                            ColumnData::Str(v) => packed_columns[*idx] = Packers::from(v),
+                            ColumnData::Bool(v) => packed_columns[*idx] = Packers::from(v),
+                            ColumnData::Unsigned(v) => packed_columns[*idx] = Packers::from(v),
                         }
-                        BlockType::Integer => {
-                            let col: Vec<Option<i64>> = vec![None; col_len];
-                            packed_columns[*idx] = Packers::from(col);
-                        }
-                        BlockType::Bool => {
-                            let col: Vec<Option<bool>> = vec![None; col_len];
-                            packed_columns[*idx] = Packers::from(col);
-                        }
-                        BlockType::Str => {
-                            let col: Vec<Option<Vec<u8>>> = vec![None; col_len];
-                            packed_columns[*idx] = Packers::from(col);
-                        }
-                        BlockType::Unsigned => {
-                            let col: Vec<Option<u64>> = vec![None; col_len];
-                            packed_columns[*idx] = Packers::from(col);
-                        }
-                    }
-                } else {
-                    match field_type {
-                        BlockType::Float => {
-                            packed_columns[*idx]
+                    } else {
+                        match field_values {
+                            ColumnData::Float(v) => packed_columns[*idx]
                                 .f64_packer_mut()
-                                .fill_with_null(col_len);
-                        }
-                        BlockType::Integer => {
-                            packed_columns[*idx]
+                                .extend_from_option_slice(&v),
+                            ColumnData::Integer(v) => packed_columns[*idx]
                                 .i64_packer_mut()
-                                .fill_with_null(col_len);
-                        }
-                        BlockType::Bool => {
-                            packed_columns[*idx]
+                                .extend_from_option_slice(&v),
+                            ColumnData::Str(values) => {
+                                let col = packed_columns[*idx].str_packer_mut();
+                                for value in values {
+                                    match value {
+                                        Some(v) => col.push(ByteArray::from(v)),
+                                        None => col.push_option(None),
+                                    }
+                                }
+                            }
+                            ColumnData::Bool(v) => packed_columns[*idx]
                                 .bool_packer_mut()
-                                .fill_with_null(col_len);
+                                .extend_from_option_slice(&v),
+                            ColumnData::Unsigned(values) => {
+                                let col = packed_columns[*idx].i64_packer_mut();
+                                for value in values {
+                                    match value {
+                                        Some(v) => col.push(v as i64),
+                                        None => col.push_option(None),
+                                    }
+                                }
+                            }
                         }
-                        BlockType::Str => {
-                            packed_columns[*idx]
-                                .str_packer_mut()
-                                .fill_with_null(col_len);
+                    }
+                    got_field_cols.push(field_key);
+                }
+
+                // Finally, materialise NULL values for all of the field columns
+                // that this section does not have any values for
+                for (key, field_type) in &fks {
+                    if got_field_cols.contains(key) {
+                        continue;
+                    }
+
+                    let idx = name_packer
+                        .get(key)
+                        .context(CouldNotFindColumn)
+                        .map_err(|e| TSMError {
+                            description: e.to_string(),
+                        })?;
+
+                    // this will create a column of repeated None values.
+                    if first_table_section {
+                        match field_type {
+                            BlockType::Float => {
+                                let col: Vec<Option<f64>> = vec![None; col_len];
+                                packed_columns[*idx] = Packers::from(col);
+                            }
+                            BlockType::Integer => {
+                                let col: Vec<Option<i64>> = vec![None; col_len];
+                                packed_columns[*idx] = Packers::from(col);
+                            }
+                            BlockType::Bool => {
+                                let col: Vec<Option<bool>> = vec![None; col_len];
+                                packed_columns[*idx] = Packers::from(col);
+                            }
+                            BlockType::Str => {
+                                let col: Vec<Option<Vec<u8>>> = vec![None; col_len];
+                                packed_columns[*idx] = Packers::from(col);
+                            }
+                            BlockType::Unsigned => {
+                                let col: Vec<Option<u64>> = vec![None; col_len];
+                                packed_columns[*idx] = Packers::from(col);
+                            }
                         }
-                        BlockType::Unsigned => {
-                            packed_columns[*idx]
-                                .i64_packer_mut()
-                                .fill_with_null(col_len);
+                    } else {
+                        match field_type {
+                            BlockType::Float => {
+                                packed_columns[*idx]
+                                    .f64_packer_mut()
+                                    .fill_with_null(col_len);
+                            }
+                            BlockType::Integer => {
+                                packed_columns[*idx]
+                                    .i64_packer_mut()
+                                    .fill_with_null(col_len);
+                            }
+                            BlockType::Bool => {
+                                packed_columns[*idx]
+                                    .bool_packer_mut()
+                                    .fill_with_null(col_len);
+                            }
+                            BlockType::Str => {
+                                packed_columns[*idx]
+                                    .str_packer_mut()
+                                    .fill_with_null(col_len);
+                            }
+                            BlockType::Unsigned => {
+                                packed_columns[*idx]
+                                    .i64_packer_mut()
+                                    .fill_with_null(col_len);
+                            }
                         }
                     }
                 }
-            }
-        }
+                Ok(())
+            },
+        )
+        .context(TSMProcessing)?;
         Ok((schema, packed_columns))
     }
 }
