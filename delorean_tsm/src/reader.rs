@@ -263,6 +263,106 @@ impl BlockDecoder for MockBlockDecoder {
     }
 }
 
+/// `BlockData` describes the various types of block data that can be held within
+/// a TSM file.
+#[derive(Debug, Clone)]
+pub enum BlockData {
+    Float {
+        i: usize,
+        ts: Vec<i64>,
+        values: Vec<f64>,
+    },
+    Integer {
+        i: usize,
+        ts: Vec<i64>,
+        values: Vec<i64>,
+    },
+    Bool {
+        i: usize,
+        ts: Vec<i64>,
+        values: Vec<bool>,
+    },
+    Str {
+        i: usize,
+        ts: Vec<i64>,
+        values: Vec<Vec<u8>>,
+    },
+    Unsigned {
+        i: usize,
+        ts: Vec<i64>,
+        values: Vec<u64>,
+    },
+}
+
+impl BlockData {
+    pub fn next_pair(&mut self) -> Option<ValuePair> {
+        if self.is_empty() {
+            return None;
+        }
+
+        match self {
+            Self::Float { i, ts, values } => {
+                let idx = *i;
+                *i += 1;
+                Some(ValuePair::F64((ts[idx], values[idx])))
+            }
+            Self::Integer { i, ts, values } => {
+                let idx = *i;
+                *i += 1;
+                Some(ValuePair::I64((ts[idx], values[idx])))
+            }
+            Self::Bool { i, ts, values } => {
+                let idx = *i;
+                *i += 1;
+                Some(ValuePair::Bool((ts[idx], values[idx])))
+            }
+            Self::Str { i, ts, values } => {
+                let idx = *i;
+                *i += 1;
+                Some(ValuePair::Str((ts[idx], values[idx].clone()))) // TODO - figure out
+            }
+            Self::Unsigned { i, ts, values } => {
+                let idx = *i;
+                *i += 1;
+                Some(ValuePair::U64((ts[idx], values[idx])))
+            }
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        match &self {
+            Self::Float { i, ts, values: _ } => *i == ts.len(),
+            Self::Integer { i, ts, values: _ } => *i == ts.len(),
+            Self::Bool { i, ts, values: _ } => *i == ts.len(),
+            Self::Str { i, ts, values: _ } => *i == ts.len(),
+            Self::Unsigned { i, ts, values: _ } => *i == ts.len(),
+        }
+    }
+}
+
+// ValuePair represents a single timestamp-value pair from a TSM block.
+#[derive(Debug, PartialEq)]
+pub enum ValuePair {
+    F64((i64, f64)),
+    I64((i64, i64)),
+    Bool((i64, bool)),
+    Str((i64, Vec<u8>)),
+    U64((i64, u64)),
+}
+
+impl ValuePair {
+    // returns the timestamp associated with the value pair.
+    pub fn timestamp(&self) -> i64 {
+        match *self {
+            Self::F64((ts, _)) => ts,
+            Self::I64((ts, _)) => ts,
+            Self::Bool((ts, _)) => ts,
+            Self::Str((ts, _)) => ts,
+            Self::U64((ts, _)) => ts,
+        }
+    }
+}
+
 /// `TSMBlockReader` allows you to read and decode TSM blocks from within a TSM
 /// file.
 ///
@@ -326,7 +426,7 @@ where
                     }
                 })?;
 
-                Ok(BlockData::Float { ts, values })
+                Ok(BlockData::Float { i: 0, ts, values })
             }
             BlockType::Integer => {
                 // values will be same length as time-stamps.
@@ -335,7 +435,7 @@ where
                     description: e.to_string(),
                 })?;
 
-                Ok(BlockData::Integer { ts, values })
+                Ok(BlockData::Integer { i: 0, ts, values })
             }
             BlockType::Bool => {
                 // values will be same length as time-stamps.
@@ -344,7 +444,7 @@ where
                     description: e.to_string(),
                 })?;
 
-                Ok(BlockData::Bool { ts, values })
+                Ok(BlockData::Bool { i: 0, ts, values })
             }
             BlockType::Str => {
                 // values will be same length as time-stamps.
@@ -352,7 +452,7 @@ where
                 encoders::string::decode(&data[idx..], &mut values).map_err(|e| TSMError {
                     description: e.to_string(),
                 })?;
-                Ok(BlockData::Str { ts, values })
+                Ok(BlockData::Str { i: 0, ts, values })
             }
             BlockType::Unsigned => {
                 // values will be same length as time-stamps.
@@ -360,7 +460,7 @@ where
                 encoders::unsigned::decode(&data[idx..], &mut values).map_err(|e| TSMError {
                     description: e.to_string(),
                 })?;
-                Ok(BlockData::Unsigned { ts, values })
+                Ok(BlockData::Unsigned { i: 0, ts, values })
             }
         }
     }
@@ -478,11 +578,11 @@ mod tests {
         for block in blocks {
             // The first integer block in the value should have 509 values in it.
             match block {
-                BlockData::Float { ts, values } => {
+                BlockData::Float { i: _, ts, values } => {
                     assert_eq!(ts.len(), 507);
                     assert_eq!(values.len(), 507);
                 }
-                BlockData::Integer { ts, values } => {
+                BlockData::Integer { i: _, ts, values } => {
                     assert_eq!(ts.len(), 509);
                     assert_eq!(values.len(), 509);
                 }

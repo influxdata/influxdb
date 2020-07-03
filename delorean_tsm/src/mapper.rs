@@ -1,7 +1,7 @@
 ///! Types for mapping and converting series data from TSM indexes produced by
 ///! InfluxDB >= 2.x
-use crate::reader::{BlockDecoder, TSMIndexReader};
-use crate::{Block, BlockData, BlockType, TSMError};
+use crate::reader::{BlockData, BlockDecoder, TSMIndexReader, ValuePair};
+use crate::{Block, BlockType, TSMError};
 
 use log::warn;
 
@@ -218,29 +218,6 @@ pub enum ColumnData {
     Bool(Vec<Option<bool>>),
     Str(Vec<Option<Vec<u8>>>),
     Unsigned(Vec<Option<u64>>),
-}
-
-// ValuePair represents a single timestamp-value pair from a TSM block.
-#[derive(Debug, PartialEq)]
-enum ValuePair {
-    F64((i64, f64)),
-    I64((i64, i64)),
-    Bool((i64, bool)),
-    Str((i64, Vec<u8>)),
-    U64((i64, u64)),
-}
-
-impl ValuePair {
-    // returns the timestamp associated with the value pair.
-    fn timestamp(&self) -> i64 {
-        match *self {
-            Self::F64((ts, _)) => ts,
-            Self::I64((ts, _)) => ts,
-            Self::Bool((ts, _)) => ts,
-            Self::Str((ts, _)) => ts,
-            Self::U64((ts, _)) => ts,
-        }
-    }
 }
 
 // Maps multiple columnar field blocks to a single tablular representation.
@@ -464,20 +441,21 @@ fn refill_block_buffer(
     // refilling.
     for (field, blocks) in field_blocks.iter_mut() {
         if blocks.is_empty() {
-            continue; // drained input block
+            continue; // finished with all blocks for this field
         }
 
+        // peek at any decoded block data for current block for field
         if let Some(dst_block) = dst.get(field) {
             if !dst_block.is_empty() {
-                continue; // not ready to be refilled.
+                continue; // not ready to be replaced with next block yet
             }
         };
 
-        // Either no block data for field in dst, or the block data that is
-        // present has been drained.
+        // either no block data for field in dst, or the block data that is
+        // present has been drained - ready for the next block for field
         //
-        // Pop the next input block for this field key, decode it and refill dst
-        // with it.
+        // pop the next input block for this field key, decode it and refill dst
+        // with it
         let decoded_block = decoder.decode(&blocks.remove(0))?;
         dst.insert(field.clone(), decoded_block);
     }
@@ -491,43 +469,9 @@ fn refill_value_pair_buffer(
     dst: &mut Vec<Option<ValuePair>>,
 ) {
     for (i, block) in blocks.values_mut().enumerate() {
-        // TODO(edd): seems like this could be DRY'd up a bit??
-        // TODO(edd): PERF - removing from vector will shift elements. Better off
-        // tracking an index that's been read up to?
-        match dst[i] {
-            Some(_) => {}
-            None => match block {
-                BlockData::Float { ts, values } => {
-                    if ts.is_empty() {
-                        continue;
-                    }
-                    dst[i] = Some(ValuePair::F64((ts.remove(0), values.remove(0))))
-                }
-                BlockData::Integer { ts, values } => {
-                    if ts.is_empty() {
-                        continue;
-                    }
-                    dst[i] = Some(ValuePair::I64((ts.remove(0), values.remove(0))))
-                }
-                BlockData::Bool { ts, values } => {
-                    if ts.is_empty() {
-                        continue;
-                    }
-                    dst[i] = Some(ValuePair::Bool((ts.remove(0), values.remove(0))))
-                }
-                BlockData::Str { ts, values } => {
-                    if ts.is_empty() {
-                        continue;
-                    }
-                    dst[i] = Some(ValuePair::Str((ts.remove(0), values.remove(0))))
-                }
-                BlockData::Unsigned { ts, values } => {
-                    if ts.is_empty() {
-                        continue;
-                    }
-                    dst[i] = Some(ValuePair::U64((ts.remove(0), values.remove(0))))
-                }
-            },
+        if dst[i].is_none() {
+            // (ts, value) pair has been used - fetch next pair (if any).
+            dst[i] = block.next_pair();
         }
     }
 }
@@ -691,6 +635,7 @@ mod tests {
         input.insert(
             "a".to_string(),
             BlockData::Integer {
+                i: 0,
                 ts: vec![1, 2],
                 values: vec![1, 2],
             },
@@ -699,6 +644,7 @@ mod tests {
         input.insert(
             "b".to_string(),
             BlockData::Integer {
+                i: 0,
                 ts: vec![1, 2, 3],
                 values: vec![10, 20, 30],
             },
@@ -707,6 +653,7 @@ mod tests {
         input.insert(
             "c".to_string(),
             BlockData::Integer {
+                i: 0,
                 ts: vec![1, 2, 3],
                 values: vec![100, 200, 300],
             },

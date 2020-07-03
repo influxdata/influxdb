@@ -1,4 +1,5 @@
 use criterion::{criterion_group, criterion_main, Criterion};
+use delorean_tsm::reader::*;
 use delorean_tsm::*;
 use std::collections::BTreeMap;
 
@@ -38,16 +39,19 @@ fn map_field_columns(c: &mut Criterion) {
     );
 
     let block0 = BlockData::Float {
+        i: 0,
         values: vec![100.0; 1000],
         ts: (0..1000).collect(),
     };
 
     let block1 = BlockData::Float {
+        i: 0,
         values: vec![200.0; 500],
         ts: (1000..1500).collect(),
     };
 
     let block2 = BlockData::Integer {
+        i: 0,
         values: vec![22; 800],
         ts: (1000..1800).collect(),
     };

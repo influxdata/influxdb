@@ -1446,7 +1446,10 @@ mod delorean_ingest_tests {
 
     #[test]
     fn process_measurement_table() -> Result<(), Box<dyn std::error::Error>> {
-        use delorean_tsm::{Block, BlockData};
+        use delorean_tsm::{
+            reader::{BlockData, MockBlockDecoder},
+            Block,
+        };
 
         // Input data - in line protocol format
         //
@@ -1546,6 +1549,7 @@ mod delorean_ingest_tests {
         block_map.insert(
             0,
             BlockData::Float {
+                i: 0,
                 ts: vec![0, 1000, 2000],
                 values: vec![1.2, 1.2, 1.4],
             },
@@ -1553,6 +1557,7 @@ mod delorean_ingest_tests {
         block_map.insert(
             1,
             BlockData::Float {
+                i: 0,
                 ts: vec![0, 1000, 2000],
                 values: vec![10.2, 10.2, 10.4],
             },
@@ -1560,6 +1565,7 @@ mod delorean_ingest_tests {
         block_map.insert(
             2,
             BlockData::Float {
+                i: 0,
                 ts: vec![2000, 3000, 4000],
                 values: vec![100.2, 99.5, 100.3],
             },
@@ -1567,13 +1573,13 @@ mod delorean_ingest_tests {
         block_map.insert(
             3,
             BlockData::Unsigned {
+                i: 0,
                 ts: vec![3000, 4000, 5000],
                 values: vec![1000, 2000, 3000],
             },
         );
 
-        let decoder = delorean_tsm::reader::MockBlockDecoder::new(block_map);
-
+        let decoder = MockBlockDecoder::new(block_map);
         let (schema, packers) = TSMFileConverter::process_measurement_table(decoder, &mut table)?;
 
         let expected_defs = vec![
