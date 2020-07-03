@@ -112,7 +112,7 @@ pub enum ApplicationError {
     #[snafu(display("Invalid duration '{}': {}", duration, source))]
     InvalidDuration {
         duration: String,
-        source: Box<dyn std::error::Error>,
+        source: delorean::Error,
     },
 
     #[snafu(display("Could not parse predicate '{}':  {}", predicate, source))]
@@ -231,15 +231,9 @@ fn duration_to_nanos_or_default(
 ) -> Result<i64, ApplicationError> {
     let time = match duration_param {
         Some(duration) => parse_duration(duration)
-            .map_err(|e| ApplicationError::InvalidDuration {
-                duration: duration.into(),
-                source: Box::new(e),
-            })?
+            .context(InvalidDuration { duration })?
             .from_time(now)
-            .map_err(|e| ApplicationError::InvalidDuration {
-                duration: duration.into(),
-                source: Box::new(e),
-            })?,
+            .context(InvalidDuration { duration })?,
         None => default,
     };
     Ok(time_as_i64_nanos(&time))
@@ -248,22 +242,19 @@ fn duration_to_nanos_or_default(
 // TODO: figure out how to stream read results out rather than rendering the whole thing in mem
 #[tracing::instrument(level = "debug")]
 async fn read(req: hyper::Request<Body>, app: Arc<App>) -> Result<Option<Body>, ApplicationError> {
-    let query = req
-        .uri()
-        .query()
-        .ok_or(ApplicationError::ExpectedQueryString {})?;
+    let query = req.uri().query().context(ExpectedQueryString {})?;
 
     let read_info: ReadInfo = serde_urlencoded::from_str(query).context(InvalidQueryString {
-        query_string: String::from(query),
+        query_string: query,
     })?;
 
     // Even though tools like `inch` and `storectl query` pass bucket IDs, treat them as
     // `bucket_name` in delorean because MemDB sets auto-incrementing IDs for buckets.
-    let org_name = read_info.org.to_string();
+    let org = read_info.org;
     let bucket_name = read_info.bucket.to_string();
 
     let predicate = parse_predicate(&read_info.predicate).context(InvalidPredicate {
-        predicate: String::from(&read_info.predicate),
+        predicate: &read_info.predicate,
     })?;
 
     let now = std::time::SystemTime::now();
@@ -280,15 +271,15 @@ async fn read(req: hyper::Request<Body>, app: Arc<App>) -> Result<Option<Body>, 
 
     let bucket_id = app
         .db
-        .get_bucket_id_by_name(read_info.org, &bucket_name)
+        .get_bucket_id_by_name(org, &bucket_name)
         .await
         .context(BucketByName {
-            org: org_name.clone(),
-            bucket_name: bucket_name.to_string(),
+            org,
+            bucket_name: bucket_name.clone(),
         })?
-        .ok_or_else(|| ApplicationError::BucketNotFound {
-            org: org_name.clone(),
-            bucket_name: bucket_name.to_string(),
+        .context(BucketNotFound {
+            org,
+            bucket_name: bucket_name.clone(),
         })?;
 
     let batches = app
@@ -296,8 +287,8 @@ async fn read(req: hyper::Request<Body>, app: Arc<App>) -> Result<Option<Body>, 
         .read_points(read_info.org, bucket_id, &predicate, &range)
         .await
         .context(ReadingPoints {
-            org: read_info.org.to_string(),
-            bucket_name: bucket_id.to_string(),
+            org: org,
+            bucket_name: bucket_name.clone(),
         })?;
 
     let mut response_body = vec![];
@@ -350,8 +341,8 @@ async fn read(req: hyper::Request<Body>, app: Arc<App>) -> Result<Option<Body>, 
         let mut data = wtr
             .into_inner()
             .map_err(|e| ApplicationError::ConvertingToCSV {
-                org: read_info.org.to_string(),
-                bucket_name: bucket_id.to_string(),
+                org: org.into(),
+                bucket_name: bucket_name.clone(),
                 source: Box::new(e),
             })?;
 
