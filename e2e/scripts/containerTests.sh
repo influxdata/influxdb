@@ -78,5 +78,6 @@ sudo docker run -it -v `pwd`/report:/home/e2e/report -v `pwd`/screenshots:/home/
 sudo docker exec ${TEST_CONTAINER} npm test -- --tags "$TAGS"
 
 sudo docker exec ${TEST_CONTAINER} npm run report:html
+sudo docker exec ${TEST_CONTAINER} npm run report:junit
 
 
