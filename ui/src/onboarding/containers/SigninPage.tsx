@@ -18,10 +18,11 @@ import {
   Panel,
   AlignItems,
   InfluxDBCloudLogo,
+  FunnelPage,
+  AppWrapper,
 } from '@influxdata/clockface'
 import {RemoteDataState} from 'src/types'
 import VersionInfo from 'src/shared/components/VersionInfo'
-import {AppWrapper} from '@influxdata/clockface'
 import Notifications from 'src/shared/components/notifications/Notifications'
 
 // Constants
@@ -68,18 +69,23 @@ class SigninPage extends PureComponent<Props, State> {
         loading={this.state.status}
         spinnerComponent={<TechnoSpinner />}
       >
-        <AppWrapper type="funnel" className="signin-page" testID="signin-page">
-          <Notifications />
-          <Panel className="signin-page--panel">
-            <Panel.Body alignItems={AlignItems.Center}>
-              <div className="signin-page--cubo" />
-              <InfluxDBCloudLogo cloud={false} className="signin-page--logo" />
-              <SigninForm />
-            </Panel.Body>
-            <Panel.Footer>
-              <VersionInfo />
-            </Panel.Footer>
-          </Panel>
+        <Notifications />
+        <AppWrapper>
+          <FunnelPage className="signin-page" testID="signin-page">
+            <Panel className="signin-page--panel">
+              <Panel.Body alignItems={AlignItems.Center}>
+                <div className="signin-page--cubo" />
+                <InfluxDBCloudLogo
+                  cloud={false}
+                  className="signin-page--logo"
+                />
+                <SigninForm />
+              </Panel.Body>
+              <Panel.Footer>
+                <VersionInfo />
+              </Panel.Footer>
+            </Panel>
+          </FunnelPage>
         </AppWrapper>
       </SpinnerContainer>
     )
