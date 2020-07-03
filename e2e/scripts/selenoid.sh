@@ -9,6 +9,8 @@ sudo docker run -d --name selenoid -p 4444:4444 -v /var/run/docker.sock:/var/run
      -v ${APP_ROOT}/etc/selenoid/config/:/etc/selenoid/:ro aerokube/selenoid:latest-release \
      -enable-file-upload -video-output-dir ${APP_ROOT}/etc/selenoid/video -timeout 5m0s
 
+sleep 10
+
 export SELENOID_HOST=$(docker inspect -f "{{ .NetworkSettings.IPAddress }}" selenoid)
 echo SELENOID_HOST ${SELENOID_HOST}
 
