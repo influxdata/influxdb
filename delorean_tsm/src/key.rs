@@ -115,9 +115,10 @@ fn parse_tsm_field_key(value: &str) -> Result<String> {
     const DELIM: &str = "#!~#";
 
     if value.len() < 6 {
-        return Err(Error::ParsingTSMFieldKey {
-            description: "field key too short".into(),
-        });
+        return ParsingTSMFieldKey {
+            description: "field key too short",
+        }
+        .fail();
     }
 
     let field_trim_length = (value.len() - 4) / 2;
@@ -128,12 +129,13 @@ fn parse_tsm_field_key(value: &str) -> Result<String> {
         || value[field.len()..].find(DELIM) != Some(0)
         || value[field.len() + DELIM.len()..].find(field) != Some(0)
     {
-        return Err(Error::ParsingTSMFieldKey {
+        return ParsingTSMFieldKey {
             description: format!(
                 "Invalid field key format '{}', expected '{}{}{}'",
                 value, field, DELIM, field
             ),
-        });
+        }
+        .fail();
     }
 
     Ok(field.into())
@@ -187,14 +189,16 @@ where
                 }
                 b'=' => return Ok(KeyType::Tag(key)),
                 b',' => {
-                    return Err(Error::ParsingTSMKey {
-                        description: "unescaped comma".into(),
-                    })
+                    return ParsingTSMKey {
+                        description: "unescaped comma",
+                    }
+                    .fail();
                 }
                 b' ' => {
-                    return Err(Error::ParsingTSMKey {
-                        description: "unescaped space".into(),
-                    })
+                    return ParsingTSMKey {
+                        description: "unescaped space",
+                    }
+                    .fail();
                 }
                 b'\\' => state = State::Escape,
                 _ => key.push(byte as char),
@@ -204,9 +208,10 @@ where
                     return Ok(KeyType::Measurement);
                 }
                 _ => {
-                    return Err(Error::ParsingTSMKey {
-                        description: "extra data after special 0x00".into(),
-                    })
+                    return ParsingTSMKey {
+                        description: "extra data after special 0x00",
+                    }
+                    .fail();
                 }
             },
             State::Field => match byte {
@@ -214,9 +219,10 @@ where
                     return Ok(KeyType::Field);
                 }
                 _ => {
-                    return Err(Error::ParsingTSMKey {
-                        description: "extra data after special 0xff".into(),
-                    })
+                    return ParsingTSMKey {
+                        description: "extra data after special 0xff",
+                    }
+                    .fail();
                 }
             },
             State::Escape => {
@@ -226,9 +232,10 @@ where
         }
     }
 
-    Err(Error::ParsingTSMKey {
-        description: "unexpected end of data".into(),
-    })
+    ParsingTSMKey {
+        description: "unexpected end of data",
+    }
+    .fail()
 }
 
 /// Parses bytes from the `rem_key` input stream until the end of a
@@ -263,20 +270,23 @@ where
                     // An unescaped equals sign is an invalid tag value.
                     // cpu,tag={'=', 'fo=o'}
                     b'=' => {
-                        return Err(Error::ParsingTSMKey {
-                            description: "invalid unescaped '='".into(),
-                        })
+                        return ParsingTSMKey {
+                            description: "invalid unescaped '='",
+                        }
+                        .fail()
                     }
                     // An unescaped space is an invalid tag value.
                     b' ' => {
-                        return Err(Error::ParsingTSMKey {
-                            description: "invalid unescaped ' '".into(),
-                        })
+                        return ParsingTSMKey {
+                            description: "invalid unescaped ' '",
+                        }
+                        .fail()
                     }
                     b',' => {
-                        return Err(Error::ParsingTSMKey {
-                            description: "missing tag value".into(),
-                        })
+                        return ParsingTSMKey {
+                            description: "missing tag value",
+                        }
+                        .fail()
                     }
                     b'\\' => state = State::Escaped,
                     _ => {
@@ -290,15 +300,17 @@ where
                     // An unescaped equals sign is an invalid tag value.
                     // cpu,tag={'=', 'fo=o'}
                     b'=' => {
-                        return Err(Error::ParsingTSMKey {
-                            description: "invalid unescaped '='".into(),
-                        })
+                        return ParsingTSMKey {
+                            description: "invalid unescaped '='",
+                        }
+                        .fail()
                     }
                     // An unescaped space is an invalid tag value.
                     b' ' => {
-                        return Err(Error::ParsingTSMKey {
-                            description: "invalid unescaped ' '".into(),
-                        })
+                        return ParsingTSMKey {
+                            description: "invalid unescaped ' '",
+                        }
+                        .fail()
                     }
                     // cpu,tag=foo,
                     b',' => return Ok((true, tag_value)),
@@ -318,12 +330,14 @@ where
 
     // Tag value cannot be empty.
     match state {
-        State::Start => Err(Error::ParsingTSMKey {
-            description: "missing tag value".into(),
-        }),
-        State::Escaped => Err(Error::ParsingTSMKey {
-            description: "tag value ends in escape".into(),
-        }),
+        State::Start => ParsingTSMKey {
+            description: "missing tag value",
+        }
+        .fail(),
+        State::Escaped => ParsingTSMKey {
+            description: "tag value ends in escape",
+        }
+        .fail(),
         _ => Ok((false, tag_value)),
     }
 }
