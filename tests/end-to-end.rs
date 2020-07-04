@@ -38,7 +38,8 @@ use std::time::{Duration, SystemTime};
 use std::u32;
 use tempfile::TempDir;
 
-const URL_BASE: &str = "http://localhost:8080/api/v2";
+const HTTP_BASE: &str = "http://localhost:8080";
+const API_BASE: &str = "http://localhost:8080/api/v2";
 const GRPC_URL_BASE: &str = "http://localhost:8082/";
 
 type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
@@ -70,7 +71,7 @@ async fn read_data(
     predicate: &str,
     seconds_ago: u64,
 ) -> Result<String> {
-    let url = format!("{}{}", URL_BASE, path);
+    let url = format!("{}{}", API_BASE, path);
     Ok(client
         .get(&url)
         .query(&[
@@ -93,7 +94,7 @@ async fn write_data(
     bucket_id: &str,
     body: String,
 ) -> Result<()> {
-    let url = format!("{}{}", URL_BASE, path);
+    let url = format!("{}{}", API_BASE, path);
     client
         .post(&url)
         .query(&[("bucket", bucket_id), ("org", org_id)])
@@ -586,7 +587,7 @@ swap,server01,disk0,out,{},4
 // server process
 async fn test_http_error_messages() -> Result<()> {
     let client = reqwest::Client::new();
-    let url = format!("{}/write", URL_BASE);
+    let url = format!("{}/write", API_BASE);
 
     // send malformed request (bucket id is invalid)
     let response = client
@@ -675,7 +676,7 @@ impl TestServer {
 
         let try_http_connect = async {
             let client = reqwest::Client::new();
-            let url = format!("{}/ping", URL_BASE);
+            let url = format!("{}/ping", HTTP_BASE);
             let mut interval = tokio::time::interval(Duration::from_millis(500));
             loop {
                 match client.get(&url).send().await {
