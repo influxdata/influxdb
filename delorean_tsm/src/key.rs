@@ -40,9 +40,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 pub fn parse_tsm_key(key: &[u8]) -> Result<ParsedTSMKey, TSMError> {
     // skip over org id, bucket id, comma
     // The next n-1 bytes are the measurement name, where the nᵗʰ byte is a `,`.
-    let mut rem_key = key.into_iter()
-        .copied()
-        .skip(8 + 8 + 1);
+    let mut rem_key = key.into_iter().copied().skip(8 + 8 + 1);
 
     let mut tagset = Vec::with_capacity(10);
     let mut measurement = None;
@@ -61,7 +59,7 @@ pub fn parse_tsm_key(key: &[u8]) -> Result<ParsedTSMKey, TSMError> {
             KeyType::Tag(tag_key) => {
                 tagset.push((tag_key, tag_value));
             }
-            // Measurement names are stored as the value of the special tag name '\x00'
+
             KeyType::Measurement => match measurement {
                 Some(measurement) => {
                     return Err(TSMError {
@@ -73,7 +71,7 @@ pub fn parse_tsm_key(key: &[u8]) -> Result<ParsedTSMKey, TSMError> {
                 }
                 None => measurement = Some(tag_value),
             },
-            // Field names are stored as the value of the special tag name '\xff'
+
             KeyType::Field => match field_key {
                 Some(field_key) => {
                     return Err(TSMError {
@@ -144,13 +142,23 @@ fn parse_tsm_field_key(value: &str) -> Result<String> {
 }
 
 #[derive(Debug, PartialEq)]
+
+/// Represents the 'type' of the tag.
+///
+/// This is used to represent the
+/// the way the 'measurement name' and the `field name` are stored in
+/// TSM OSS 2.0 files, which is different than where line protocol has the
+/// measurement and field names.
+///
+/// Specifically, the measurement name and field names are stored as
+/// 'tag's with the special keys \x00 and \xff, respectively.
 enum KeyType {
     Tag(String),
     /// the measurement name is encoded in the tsm key as the value of a
     /// special tag key '\x00'.
     ///
     /// For example,the tsm key
-    /// "\x00=foo has the measurement name foo
+    /// "\x00=foo" has the measurement name "foo"
     Measurement,
     /// the field name is encoded in the tsm key as the value of a
     /// special tag key '\xff'.
