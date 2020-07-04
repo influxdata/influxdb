@@ -40,7 +40,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 pub fn parse_tsm_key(key: &[u8]) -> Result<ParsedTSMKey, TSMError> {
     // skip over org id, bucket id, comma
     // The next n-1 bytes are the measurement name, where the nᵗʰ byte is a `,`.
-    let mut rem_key = key.into_iter().copied().skip(8 + 8 + 1);
+    let mut rem_key = key.iter().copied().skip(8 + 8 + 1);
 
     let mut tagset = Vec::with_capacity(10);
     let mut measurement = None;
@@ -128,8 +128,7 @@ fn parse_tsm_field_key(value: &str) -> Result<String> {
     let (b, c) = b.split_at(DELIM.len());
 
     // Expect exactly <field><delim><field>
-    if !a.starts_with(field) || !b.starts_with(field) || !c.starts_with(field)
-    {
+    if !a.starts_with(field) || !b.starts_with(DELIM) || !c.starts_with(field) {
         return ParsingTSMFieldKey {
             description: format!(
                 "Invalid field key format '{}', expected '{}{}{}'",
@@ -172,10 +171,7 @@ enum KeyType {
 
 /// Parses bytes from the `rem_key` input stream until the end of the
 /// next key value (=). Consumes the '='
-fn parse_tsm_tag_key<T>(rem_key: &mut T) -> Result<KeyType>
-where
-    T: Iterator<Item = u8>,
-{
+fn parse_tsm_tag_key(rem_key: impl Iterator<Item = u8>) -> Result<KeyType> {
     enum State {
         Data,
         Measurement,
@@ -258,10 +254,7 @@ where
 ///
 /// "val1,tag2=val --> Ok((true, "val1")));
 /// "val1" --> Ok((False, "val1")));
-fn parse_tsm_tag_value<T>(rem_key: &mut T) -> Result<(bool, String)>
-where
-    T: Iterator<Item = u8>,
-{
+fn parse_tsm_tag_value(rem_key: impl Iterator<Item = u8>) -> Result<(bool, String)> {
     #[derive(Debug)]
     enum State {
         Start,
@@ -500,32 +493,26 @@ mod tests {
     //<org_id bucket_id>,\x00=<measurement>,<tag_keys_str>
     fn make_tsm_key_prefix(measurement: &str, tag_keys_str: &str) -> Vec<u8> {
         let mut key = Vec::new();
-        //Vec<u8> = hex::decode("05C19117091A100005C19117091A10012C003D").expect("decoded");
 
-        const ORG: &str = "12345678";
-        const BUCKET: &str = "87654321";
+        let org = b"12345678";
+        let bucket = b"87654321";
 
         // 8 bytes of ORG
-        for b in ORG.as_bytes() {
-            key.push(*b)
-        }
+        key.extend_from_slice(org);
+
         // 8 bytes of BUCKET
-        for b in BUCKET.as_bytes() {
-            key.push(*b)
-        }
+        key.extend_from_slice(bucket);
+
         key.push(b',');
+
         // 2 bytes: special measurement tag key \x00=
         key.push(b'\x00');
         key.push(b'=');
+        key.extend_from_slice(measurement.as_bytes());
 
-        // measurement
-        for b in measurement.as_bytes() {
-            key.push(*b);
-        }
         key.push(b',');
-        for b in tag_keys_str.as_bytes() {
-            key.push(*b)
-        }
+        key.extend_from_slice(tag_keys_str.as_bytes());
+
         key
     }
 
@@ -534,15 +521,9 @@ mod tests {
         key.push(b',');
         key.push(b'\xff');
         key.push(b'=');
-        for b in field_key_str.as_bytes() {
-            key.push(*b)
-        }
-        for b in b"#!~#" {
-            key.push(*b)
-        }
-        for b in field_key_str.as_bytes() {
-            key.push(*b)
-        }
+        key.extend_from_slice(field_key_str.as_bytes());
+        key.extend_from_slice(b"#!~#");
+        key.extend_from_slice(field_key_str.as_bytes());
         key
     }
 
@@ -597,16 +578,13 @@ mod tests {
     #[test]
     fn parse_tsm_key() {
         //<org_id bucket_id>,\x00=http_api_request_duration_seconds,handler=platform,method=POST,path=/api/v2/setup,status=2XX,user_agent=Firefox,\xff=sum#!~#sum
-        let buf = vec![
-            "05C19117091A100005C19117091A10012C003D68747470",
-            "5F6170695F726571756573745F6475726174696F6E5F73",
-            "65636F6E64732C68616E646C65723D706C6174666F726D",
-            "2C6D6574686F643D504F53542C706174683D2F6170692F",
-            "76322F73657475702C7374617475733D3258582C757365",
-            "725F6167656E743D46697265666F782CFF3D73756D2321",
-            "7E2373756D",
-        ]
-        .join("");
+        let buf = "05C19117091A100005C19117091A10012C003D68747470\
+             5F6170695F726571756573745F6475726174696F6E5F73\
+             65636F6E64732C68616E646C65723D706C6174666F726D\
+             2C6D6574686F643D504F53542C706174683D2F6170692F\
+             76322F73657475702C7374617475733D3258582C757365\
+             725F6167656E743D46697265666F782CFF3D73756D2321\
+             7E2373756D";
         let tsm_key = hex::decode(buf).unwrap();
 
         let parsed_key = super::parse_tsm_key(&tsm_key).unwrap();
@@ -629,27 +607,24 @@ mod tests {
     #[test]
     fn parse_tsm_key_escaped() {
         //<org_id bucket_id>,\x00=query_log,env=prod01-eu-central-1,error=memory\ allocation\ limit\ reached:\ limit\ 740000000\ bytes\,\ allocated:\ 739849088\,\ wanted:\ 6946816;\ memory\ allocation\ limit\ reached:\ limit\ 740000000\ bytes\,\ allocated:\ 739849088\,\ wanted:\ 6946816,errorCode=invalid,errorType=user,host=queryd-algow-rw-76d68d5968-fzgwr,hostname=queryd-algow-rw-76d68d5968-fzgwr,nodename=ip-10-153-10-221.eu-central-1.compute.internal,orgID=0b6e852e272ffdd9,ot_trace_sampled=false,role=queryd-algow-rw,source=hackney,\xff=responseSize#!~#responseSize
-        let buf = vec![
-            "844910ECE80BE8BC3C0BD4C89186CA892C",
-            "003D71756572795F6C6F672C656E763D70726F6430312D65752D63656E747261",
-            "6C2D312C6572726F723D6D656D6F72795C20616C6C6F636174696F6E5C206C69",
-            "6D69745C20726561636865643A5C206C696D69745C203734303030303030305C",
-            "2062797465735C2C5C20616C6C6F63617465643A5C203733393834393038385C2",
-            "C5C2077616E7465643A5C20363934363831363B5C206D656D6F72795C20616C6C",
-            "6F636174696F6E5C206C696D69745C20726561636865643A5C206C696D69745C2",
-            "03734303030303030305C2062797465735C2C5C20616C6C6F63617465643A5C20",
-            "3733393834393038385C2C5C2077616E7465643A5C20363934363831362C65727",
-            "26F72436F64653D696E76616C69642C6572726F72547970653D757365722C686F",
-            "73743D7175657279642D616C676F772D72772D373664363864353936382D667A6",
-            "777722C686F73746E616D653D7175657279642D616C676F772D72772D37366436",
-            "3864353936382D667A6777722C6E6F64656E616D653D69702D31302D3135332D3",
-            "1302D3232312E65752D63656E7472616C2D312E636F6D707574652E696E746572",
-            "6E616C2C6F726749443D306236653835326532373266666464392C6F745F74726",
-            "163655F73616D706C65643D66616C73652C726F6C653D7175657279642D616C67",
-            "6F772D72772C736F757263653D6861636B6E65792CFF3D726573706F6E7365536",
-            "97A6523217E23726573706F6E736553697A65",
-        ]
-        .join("");
+        let buf = "844910ECE80BE8BC3C0BD4C89186CA892C\
+             003D71756572795F6C6F672C656E763D70726F6430312D65752D63656E747261\
+             6C2D312C6572726F723D6D656D6F72795C20616C6C6F636174696F6E5C206C69\
+             6D69745C20726561636865643A5C206C696D69745C203734303030303030305C\
+             2062797465735C2C5C20616C6C6F63617465643A5C203733393834393038385C2\
+             C5C2077616E7465643A5C20363934363831363B5C206D656D6F72795C20616C6C\
+             6F636174696F6E5C206C696D69745C20726561636865643A5C206C696D69745C2\
+             03734303030303030305C2062797465735C2C5C20616C6C6F63617465643A5C20\
+             3733393834393038385C2C5C2077616E7465643A5C20363934363831362C65727\
+             26F72436F64653D696E76616C69642C6572726F72547970653D757365722C686F\
+             73743D7175657279642D616C676F772D72772D373664363864353936382D667A6\
+             777722C686F73746E616D653D7175657279642D616C676F772D72772D37366436\
+             3864353936382D667A6777722C6E6F64656E616D653D69702D31302D3135332D3\
+             1302D3232312E65752D63656E7472616C2D312E636F6D707574652E696E746572\
+             6E616C2C6F726749443D306236653835326532373266666464392C6F745F74726\
+             163655F73616D706C65643D66616C73652C726F6C653D7175657279642D616C67\
+             6F772D72772C736F757263653D6861636B6E65792CFF3D726573706F6E7365536\
+             97A6523217E23726573706F6E736553697A65";
         let tsm_key = hex::decode(buf).unwrap();
 
         let parsed_key = super::parse_tsm_key(&tsm_key).unwrap();
@@ -678,7 +653,6 @@ mod tests {
         expected_remaining_input: &str,
         expected_result: Result<KeyType>,
     ) {
-        let input = String::from(input);
         let mut iter = input.bytes();
 
         let result = parse_tsm_tag_key(&mut iter);
@@ -690,15 +664,13 @@ mod tests {
                 Ok(expected_tag_key) => {
                     assert_eq!(tag_key, expected_tag_key, "while parsing input '{}'", input)
                 }
-                Err(expected_err) => assert!(
-                    false,
+                Err(expected_err) => panic!(
                     "Got parsed key {:?}, expected failure {} while parsing input '{}'",
                     tag_key, expected_err, input
                 ),
             },
             Err(err) => match expected_result {
-                Ok(expected_tag_key) => assert!(
-                    false,
+                Ok(expected_tag_key) => panic!(
                     "Got error '{}', expected parsed tag key: '{:?}' while parsing '{}'",
                     err, expected_tag_key, input
                 ),
@@ -719,7 +691,6 @@ mod tests {
         expected_remaining_input: &str,
         expected_result: Result<(bool, String)>,
     ) {
-        let input = String::from(input);
         let mut iter = input.bytes();
 
         let result = parse_tsm_tag_value(&mut iter);
@@ -733,15 +704,13 @@ mod tests {
                     "while parsing input '{}'",
                     input
                 ),
-                Err(expected_err) => assert!(
-                    false,
+                Err(expected_err) => panic!(
                     "Got parsed tag_value {:?}, expected failure {} while parsing input '{}'",
                     tag_value, expected_err, input
                 ),
             },
             Err(err) => match expected_result {
-                Ok(expected_tag_value) => assert!(
-                    false,
+                Ok(expected_tag_value) => panic!(
                     "Got error '{}', expected parsed tag_value: '{:?}' while parsing input '{}",
                     err, expected_tag_value, input
                 ),
