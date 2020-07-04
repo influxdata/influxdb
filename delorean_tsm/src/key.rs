@@ -37,14 +37,16 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 ///    measurement = "http_api_request"
 ///    tags = [("status", "2XX")]
 ///    field = "sum"
-pub fn parse_tsm_key(key: Vec<u8>) -> Result<ParsedTSMKey, TSMError> {
+pub fn parse_tsm_key(key: &[u8]) -> Result<ParsedTSMKey, TSMError> {
     // skip over org id, bucket id, comma
     // The next n-1 bytes are the measurement name, where the nᵗʰ byte is a `,`.
-    let mut rem_key = key.into_iter().skip(8 + 8 + 1);
+    let mut rem_key = key.into_iter()
+        .copied()
+        .skip(8 + 8 + 1);
 
-    let mut tagset = Vec::<(String, String)>::with_capacity(10);
-    let mut measurement: Option<String> = None;
-    let mut field_key: Option<String> = None;
+    let mut tagset = Vec::with_capacity(10);
+    let mut measurement = None;
+    let mut field_key = None;
 
     loop {
         let key = parse_tsm_tag_key(&mut rem_key).map_err(|e| TSMError {
@@ -541,7 +543,7 @@ mod tests {
         let mut key = make_tsm_key_prefix("m", "tag1=val1,tag2=val2");
         key = add_field_key(key, "f");
 
-        let parsed_key = super::parse_tsm_key(key).unwrap();
+        let parsed_key = super::parse_tsm_key(&key).unwrap();
         assert_eq!(parsed_key.measurement, String::from("m"));
         let exp_tagset = vec![
             (String::from("tag1"), String::from("val1")),
@@ -557,7 +559,7 @@ mod tests {
         let key = make_tsm_key_prefix("m", "tag1=val1,tag2=val2");
 
         assert_eq!(
-            super::parse_tsm_key(key)
+            super::parse_tsm_key(&key)
                 .err()
                 .expect("expect parsing error"),
             TSMError {
@@ -574,7 +576,7 @@ mod tests {
         key = add_field_key(key, "f2");
 
         assert_eq!(
-            super::parse_tsm_key(key)
+            super::parse_tsm_key(&key)
                 .err()
                 .expect("expect parsing error"),
             TSMError {
@@ -598,7 +600,7 @@ mod tests {
         .join("");
         let tsm_key = hex::decode(buf).unwrap();
 
-        let parsed_key = super::parse_tsm_key(tsm_key).unwrap();
+        let parsed_key = super::parse_tsm_key(&tsm_key).unwrap();
         assert_eq!(
             parsed_key.measurement,
             String::from("http_api_request_duration_seconds")
@@ -641,7 +643,7 @@ mod tests {
         .join("");
         let tsm_key = hex::decode(buf).unwrap();
 
-        let parsed_key = super::parse_tsm_key(tsm_key).unwrap();
+        let parsed_key = super::parse_tsm_key(&tsm_key).unwrap();
         assert_eq!(parsed_key.measurement, String::from("query_log"));
 
         let exp_tagset = vec![
