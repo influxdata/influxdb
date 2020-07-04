@@ -124,10 +124,11 @@ fn parse_tsm_field_key(value: &str) -> Result<String> {
     let field_trim_length = (value.len() - 4) / 2;
     let (field, _) = value.split_at(field_trim_length);
 
+    let (a, b) = value.split_at(field.len());
+    let (b, c) = b.split_at(DELIM.len());
+
     // Expect exactly <field><delim><field>
-    if value.find(field) != Some(0)
-        || value[field.len()..].find(DELIM) != Some(0)
-        || value[field.len() + DELIM.len()..].find(field) != Some(0)
+    if !a.starts_with(field) || !b.starts_with(field) || !c.starts_with(field)
     {
         return ParsingTSMFieldKey {
             description: format!(
