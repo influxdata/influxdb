@@ -89,9 +89,10 @@ fn parse_key(chars: &mut Peekable<Chars<'_>>) -> Result<String> {
             return Ok(key);
         }
     }
-    Err(Error::Parse {
-        description: "reached end of predicate without a comparison operator".into(),
-    })
+    Parse {
+        description: "reached end of predicate without a comparison operator",
+    }
+    .fail()
 }
 
 fn parse_comparison(chars: &mut Peekable<Chars<'_>>) -> Result<Comparison> {
@@ -166,9 +167,10 @@ fn parse_value(chars: &mut Peekable<Chars<'_>>) -> Result<Value> {
         None => (),
     }
 
-    Err(Error::Parse {
-        description: "reached end of predicate without a closing quote for the string value".into(),
-    })
+    Parse {
+        description: "reached end of predicate without a closing quote for the string value",
+    }
+    .fail()
 }
 
 fn parse_logical(chars: &mut Peekable<Chars<'_>>) -> Result<Option<node::Logical>> {
