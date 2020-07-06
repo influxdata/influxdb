@@ -398,13 +398,7 @@ func (s *HTTPServerPackages) apply(w http.ResponseWriter, r *http.Request) {
 	if reqBody.DryRun {
 		impact, err := s.svc.DryRun(r.Context(), *orgID, userID, applyOpts...)
 		if IsParseErr(err) {
-			s.api.Respond(w, r, http.StatusUnprocessableEntity, RespApply{
-				Sources: append([]string{}, impact.Sources...), // guarantee non nil slice
-				StackID: impact.StackID.String(),
-				Diff:    impact.Diff,
-				Summary: impact.Summary,
-				Errors:  convertParseErr(err),
-			})
+			s.api.Respond(w, r, http.StatusUnprocessableEntity, impactToRespApply(impact, err))
 			return
 		}
 		if err != nil {
@@ -412,12 +406,7 @@ func (s *HTTPServerPackages) apply(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		s.api.Respond(w, r, http.StatusOK, RespApply{
-			Sources: append([]string{}, impact.Sources...), // guarantee non nil slice
-			StackID: impact.StackID.String(),
-			Diff:    impact.Diff,
-			Summary: impact.Summary,
-		})
+		s.api.Respond(w, r, http.StatusOK, impactToRespApply(impact, nil))
 		return
 	}
 
@@ -429,13 +418,7 @@ func (s *HTTPServerPackages) apply(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.api.Respond(w, r, http.StatusCreated, RespApply{
-		Sources: append([]string{}, impact.Sources...), // guarantee non nil slice
-		StackID: impact.StackID.String(),
-		Diff:    impact.Diff,
-		Summary: impact.Summary,
-		Errors:  convertParseErr(err),
-	})
+	s.api.Respond(w, r, http.StatusCreated, impactToRespApply(impact, err))
 }
 
 func (s *HTTPServerPackages) encResp(w http.ResponseWriter, r *http.Request, enc encoder, code int, res interface{}) {
