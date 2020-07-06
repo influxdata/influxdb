@@ -1,5 +1,5 @@
 // Libraries
-import {push, goBack} from 'react-router-redux'
+import {push, goBack, RouterAction} from 'connected-react-router'
 import {Dispatch} from 'react'
 import {normalize} from 'normalizr'
 
@@ -283,7 +283,7 @@ export const setAllTaskOptionsByID = (taskID: string) => async (
 }
 
 export const goToTasks = () => (
-  dispatch: Dispatch<Action>,
+  dispatch: Dispatch<Action | RouterAction>,
   getState: GetState
 ) => {
   const org = getOrg(getState())
@@ -291,7 +291,7 @@ export const goToTasks = () => (
   dispatch(push(`/orgs/${org.id}/tasks`))
 }
 
-export const cancel = () => (dispatch: Dispatch<Action>) => {
+export const cancel = () => (dispatch: Dispatch<Action | RouterAction>) => {
   dispatch(clearCurrentTask())
   dispatch(goBack())
 }

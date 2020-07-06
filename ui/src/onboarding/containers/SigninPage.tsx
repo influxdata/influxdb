@@ -1,8 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {withRouter, WithRouterProps} from 'react-router'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 import {connect} from 'react-redux'
-import _ from 'lodash'
 
 // APIs
 import {client} from 'src/utils/api'
@@ -18,11 +17,13 @@ import {
   TechnoSpinner,
   Panel,
   AlignItems,
-  FunnelPage,
   InfluxDBCloudLogo,
+  FunnelPage,
+  AppWrapper,
 } from '@influxdata/clockface'
 import {RemoteDataState} from 'src/types'
 import VersionInfo from 'src/shared/components/VersionInfo'
+import Notifications from 'src/shared/components/notifications/Notifications'
 
 // Constants
 import {CLOUD, CLOUD_SIGNIN_PATHNAME} from 'src/shared/constants'
@@ -35,7 +36,7 @@ interface DispatchProps {
   dismissAllNotifications: typeof dismissAllNotifications
 }
 
-type Props = WithRouterProps & DispatchProps
+type Props = RouteComponentProps & DispatchProps
 @ErrorHandling
 class SigninPage extends PureComponent<Props, State> {
   constructor(props) {
@@ -49,7 +50,7 @@ class SigninPage extends PureComponent<Props, State> {
     const {allowed} = await client.setup.status()
 
     if (allowed) {
-      this.props.router.push('/onboarding/0')
+      this.props.history.push('/onboarding/0')
     } else if (CLOUD) {
       window.location.pathname = CLOUD_SIGNIN_PATHNAME
       return
@@ -68,22 +69,24 @@ class SigninPage extends PureComponent<Props, State> {
         loading={this.state.status}
         spinnerComponent={<TechnoSpinner />}
       >
-        <FunnelPage
-          className="signin-page"
-          enableGraphic={true}
-          testID="signin-page"
-        >
-          <Panel className="signin-page--panel">
-            <Panel.Body alignItems={AlignItems.Center}>
-              <div className="signin-page--cubo" />
-              <InfluxDBCloudLogo cloud={false} className="signin-page--logo" />
-              <SigninForm />
-            </Panel.Body>
-            <Panel.Footer>
-              <VersionInfo />
-            </Panel.Footer>
-          </Panel>
-        </FunnelPage>
+        <Notifications />
+        <AppWrapper>
+          <FunnelPage className="signin-page" testID="signin-page">
+            <Panel className="signin-page--panel">
+              <Panel.Body alignItems={AlignItems.Center}>
+                <div className="signin-page--cubo" />
+                <InfluxDBCloudLogo
+                  cloud={false}
+                  className="signin-page--logo"
+                />
+                <SigninForm />
+              </Panel.Body>
+              <Panel.Footer>
+                <VersionInfo />
+              </Panel.Footer>
+            </Panel>
+          </FunnelPage>
+        </AppWrapper>
       </SpinnerContainer>
     )
   }

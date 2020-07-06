@@ -1,6 +1,7 @@
 // Libraries
 import React, {FunctionComponent, useState} from 'react'
 import {connect} from 'react-redux'
+import {Switch, Route} from 'react-router-dom'
 
 //Components
 import {Page, SelectGroup, ButtonShape} from '@influxdata/clockface'
@@ -11,6 +12,13 @@ import GetAssetLimits from 'src/cloud/components/GetAssetLimits'
 import AssetLimitAlert from 'src/cloud/components/AssetLimitAlert'
 import GetResources from 'src/resources/components/GetResources'
 import CloudUpgradeButton from 'src/shared/components/CloudUpgradeButton'
+import NewThresholdCheckEO from 'src/checks/components/NewThresholdCheckEO'
+import NewDeadmanCheckEO from 'src/checks/components/NewDeadmanCheckEO'
+import EditCheckEO from 'src/checks/components/EditCheckEO'
+import NewRuleOverlay from 'src/notifications/rules/components/NewRuleOverlay'
+import EditRuleOverlay from 'src/notifications/rules/components/EditRuleOverlay'
+import NewEndpointOverlay from 'src/notifications/endpoints/components/NewEndpointOverlay'
+import EditEndpointOverlay from 'src/notifications/endpoints/components/EditEndpointOverlay'
 
 // Utils
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
@@ -23,6 +31,8 @@ import {
 import {AppState, ResourceType} from 'src/types'
 import {LimitStatus} from 'src/cloud/actions/limits'
 
+const alertsPath = '/orgs/:orgID/alerting'
+
 interface StateProps {
   limitStatus: LimitStatus
   limitedResources: string
@@ -31,7 +41,6 @@ interface StateProps {
 type ActiveColumn = 'checks' | 'endpoints' | 'rules'
 
 const AlertingIndex: FunctionComponent<StateProps> = ({
-  children,
   limitStatus,
   limitedResources,
 }) => {
@@ -112,7 +121,33 @@ const AlertingIndex: FunctionComponent<StateProps> = ({
           </GetResources>
         </Page.Contents>
       </Page>
-      {children}
+      <Switch>
+        <Route
+          path={`${alertsPath}/checks/new-threshold`}
+          component={NewThresholdCheckEO}
+        />
+        <Route
+          path={`${alertsPath}/checks/new-deadman`}
+          component={NewDeadmanCheckEO}
+        />
+        <Route
+          path={`${alertsPath}/checks/:checkID/edit`}
+          component={EditCheckEO}
+        />
+        <Route path={`${alertsPath}/rules/new`} component={NewRuleOverlay} />
+        <Route
+          path={`${alertsPath}/rules/:ruleID/edit`}
+          component={EditRuleOverlay}
+        />
+        <Route
+          path={`${alertsPath}/endpoints/new`}
+          component={NewEndpointOverlay}
+        />
+        <Route
+          path={`${alertsPath}/endpoints/:endpointID/edit`}
+          component={EditEndpointOverlay}
+        />
+      </Switch>
     </>
   )
 }

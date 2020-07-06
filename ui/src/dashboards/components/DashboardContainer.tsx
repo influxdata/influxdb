@@ -37,7 +37,6 @@ type Props = StateProps & DispatchProps
 const DashboardContainer: FC<Props> = ({
   autoRefresh,
   dashboard,
-  children,
   onSetCurrentPage,
 }) => {
   useEffect(() => {
@@ -66,7 +65,6 @@ const DashboardContainer: FC<Props> = ({
         <GetResources resources={[ResourceType.Buckets]}>
           <GetTimeRange />
           <DashboardPage autoRefresh={autoRefresh} />
-          {children}
         </GetResources>
       </GetResource>
     </DashboardRoute>

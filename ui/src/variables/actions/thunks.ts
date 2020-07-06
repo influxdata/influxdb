@@ -55,6 +55,7 @@ import {
   Action as VariableAction,
   EditorAction,
 } from 'src/variables/actions/creators'
+import {RouterAction} from 'connected-react-router'
 
 type Action = VariableAction | EditorAction | NotifyAction
 
@@ -422,7 +423,9 @@ export const removeVariableLabelAsync = (
 }
 
 export const selectValue = (variableID: string, selected: string) => async (
-  dispatch: Dispatch<Action | ReturnType<typeof hydrateVariables>>,
+  dispatch: Dispatch<
+    Action | ReturnType<typeof hydrateVariables> | RouterAction
+  >,
   getState: GetState
 ) => {
   const state = getState()

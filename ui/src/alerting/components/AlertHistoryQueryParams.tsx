@@ -1,5 +1,6 @@
 // Libraries
 import {useEffect, FC} from 'react'
+import {RouteComponentProps, withRouter} from 'react-router-dom'
 
 // Utils
 import {updateQueryParams} from 'src/shared/utils/queryParams'
@@ -18,15 +19,22 @@ interface Props {
   historyType: AlertHistoryType
 }
 
-const AlertHistoryQueryParams: FC<Props> = ({searchInput, historyType}) => {
+const AlertHistoryQueryParams: FC<Props & RouteComponentProps> = ({
+  searchInput,
+  historyType,
+  history,
+}) => {
   useEffect(() => {
-    updateQueryParams({
-      [SEARCH_QUERY_PARAM]: searchInput || null,
-      [HISTORY_TYPE_QUERY_PARAM]: historyType || null,
-    })
+    updateQueryParams(
+      {
+        [SEARCH_QUERY_PARAM]: searchInput || null,
+        [HISTORY_TYPE_QUERY_PARAM]: historyType || null,
+      },
+      history
+    )
   }, [searchInput, historyType])
 
   return null
 }
 
-export default AlertHistoryQueryParams
+export default withRouter(AlertHistoryQueryParams)

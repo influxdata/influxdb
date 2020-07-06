@@ -1,8 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {withRouter, WithRouterProps} from 'react-router'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 import {connect} from 'react-redux'
-import _ from 'lodash'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -32,7 +31,6 @@ export interface OnboardingStepProps {
   onIncrementCurrentStepIndex: () => void
   onDecrementCurrentStepIndex: () => void
   onSetStepStatus: (index: number, status: StepStatus) => void
-  onSetSubstepIndex: (index: number, subStep: number | 'streaming') => void
   stepStatuses: StepStatus[]
   stepTitles: string[]
   stepTestIds: string[]
@@ -51,7 +49,6 @@ interface OwnProps {
   onIncrementCurrentStepIndex: () => void
   onDecrementCurrentStepIndex: () => void
   onSetCurrentStepIndex: (stepNumber: number) => void
-  onSetSubstepIndex: (stepNumber: number, substep: number | 'streaming') => void
 }
 
 interface DispatchProps {
@@ -69,7 +66,7 @@ interface StateProps {
   bucketID: string
 }
 
-type Props = OwnProps & StateProps & DispatchProps & WithRouterProps
+type Props = OwnProps & StateProps & DispatchProps & RouteComponentProps
 
 @ErrorHandling
 class OnboardingWizard extends PureComponent<Props> {
@@ -136,9 +133,9 @@ class OnboardingWizard extends PureComponent<Props> {
   }
 
   private handleExit = () => {
-    const {router, onCompleteSetup} = this.props
+    const {history, onCompleteSetup} = this.props
     onCompleteSetup()
-    router.push(`/`)
+    history.push('/')
   }
 
   private get onboardingStepProps(): OnboardingStepProps {
@@ -152,7 +149,6 @@ class OnboardingWizard extends PureComponent<Props> {
       onSetStepStatus,
       onSetSetupParams,
       onSetCurrentStepIndex,
-      onSetSubstepIndex,
       onDecrementCurrentStepIndex,
       onIncrementCurrentStepIndex,
     } = this.props
@@ -163,7 +159,6 @@ class OnboardingWizard extends PureComponent<Props> {
       stepTestIds: this.stepTestIds,
       currentStepIndex,
       onSetCurrentStepIndex,
-      onSetSubstepIndex,
       onIncrementCurrentStepIndex,
       onDecrementCurrentStepIndex,
       onSetStepStatus,

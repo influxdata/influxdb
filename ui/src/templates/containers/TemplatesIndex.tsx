@@ -1,6 +1,7 @@
 import React, {Component} from 'react'
-import {withRouter, WithRouterProps} from 'react-router'
+import {RouteComponentProps} from 'react-router-dom'
 import {connect} from 'react-redux'
+import {Switch, Route} from 'react-router-dom'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -9,6 +10,11 @@ import SettingsTabbedPage from 'src/settings/components/SettingsTabbedPage'
 import SettingsHeader from 'src/settings/components/SettingsHeader'
 import TemplatesPage from 'src/templates/components/TemplatesPage'
 import GetResources from 'src/resources/components/GetResources'
+import TemplateImportOverlay from 'src/templates/components/TemplateImportOverlay'
+import TemplateExportOverlay from 'src/templates/components/TemplateExportOverlay'
+import {CommunityTemplateImportOverlay} from 'src/templates/components/CommunityTemplateImportOverlay'
+import TemplateViewOverlay from 'src/templates/components/TemplateViewOverlay'
+import StaticTemplateViewOverlay from 'src/templates/components/StaticTemplateViewOverlay'
 
 import {CommunityTemplatesIndex} from 'src/templates/containers/CommunityTemplatesIndex'
 
@@ -25,15 +31,27 @@ interface StateProps {
   org: Organization
 }
 
-type Props = WithRouterProps & StateProps
+type Props = RouteComponentProps & StateProps
+
+const templatesPath = '/orgs/:orgID/settings/templates'
 
 @ErrorHandling
 class TemplatesIndex extends Component<Props> {
   public render() {
-    const {org, children, flags} = this.props
+    const {org, flags} = this.props
     if (flags.communityTemplates) {
-      return <CommunityTemplatesIndex>{children}</CommunityTemplatesIndex>
+      return (
+        <CommunityTemplatesIndex>
+          <Switch>
+            <Route
+              path={`${templatesPath}/import/:templateName`}
+              component={CommunityTemplateImportOverlay}
+            />
+          </Switch>
+        </CommunityTemplatesIndex>
+      )
     }
+
     return (
       <>
         <Page titleTag={pageTitleSuffixer(['Templates', 'Settings'])}>
@@ -44,14 +62,35 @@ class TemplatesIndex extends Component<Props> {
             </GetResources>
           </SettingsTabbedPage>
         </Page>
-        {children}
+        <Switch>
+          <Route
+            path={`${templatesPath}/import`}
+            component={TemplateImportOverlay}
+          />
+          <Route
+            path={`${templatesPath}/import/:templateName`}
+            component={CommunityTemplateImportOverlay}
+          />
+          <Route
+            path={`${templatesPath}/:id/export`}
+            component={TemplateExportOverlay}
+          />
+          <Route
+            path={`${templatesPath}/:id/view`}
+            component={TemplateViewOverlay}
+          />
+          <Route
+            path={`${templatesPath}/:id/static/view`}
+            component={StaticTemplateViewOverlay}
+          />
+        </Switch>
       </>
     )
   }
 
   private handleImport = () => {
-    const {router, org} = this.props
-    router.push(`/orgs/${org.id}/settings/templates/import`)
+    const {history, org} = this.props
+    history.push(`/orgs/${org.id}/settings/templates/import`)
   }
 }
 
@@ -62,7 +101,4 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-export default connect<StateProps, {}, {}>(
-  mstp,
-  null
-)(withRouter<{}>(TemplatesIndex))
+export default connect<StateProps, {}, {}>(mstp, null)(TemplatesIndex)

@@ -1,9 +1,11 @@
 // Libraries
 import React, {PureComponent} from 'react'
+import {Switch, Route} from 'react-router-dom'
 import {connect} from 'react-redux'
 
 // Components
 import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
+import GetFlags from 'src/shared/containers/GetFlags'
 
 // Types
 import {RemoteDataState} from 'src/types'
@@ -14,10 +16,6 @@ import {getMe} from 'src/shared/actions/me'
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-interface PassedInProps {
-  children: React.ReactElement<any>
-}
-
 interface ConnectDispatchProps {
   getMe: typeof getMe
 }
@@ -26,7 +24,7 @@ interface State {
   loading: RemoteDataState
 }
 
-type Props = ConnectDispatchProps & PassedInProps
+type Props = ConnectDispatchProps
 
 @ErrorHandling
 class GetMe extends PureComponent<Props, State> {
@@ -43,7 +41,9 @@ class GetMe extends PureComponent<Props, State> {
 
     return (
       <SpinnerContainer loading={loading} spinnerComponent={<TechnoSpinner />}>
-        {this.props.children && React.cloneElement(this.props.children)}
+        <Switch>
+          <Route render={props => <GetFlags {...props} />} />
+        </Switch>
       </SpinnerContainer>
     )
   }
@@ -58,7 +58,4 @@ const mdtp = {
   getMe,
 }
 
-export default connect<{}, ConnectDispatchProps, PassedInProps>(
-  null,
-  mdtp
-)(GetMe)
+export default connect<{}, ConnectDispatchProps>(null, mdtp)(GetMe)

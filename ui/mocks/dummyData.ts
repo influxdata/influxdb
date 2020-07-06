@@ -1,3 +1,4 @@
+import {match} from 'react-router'
 import {ViewProperties} from 'src/client'
 import {
   Cell,
@@ -9,7 +10,7 @@ import {
   Label,
 } from 'src/types'
 import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
-import {WithRouterProps} from 'react-router'
+import {RouteComponentProps} from 'react-router-dom'
 import {NumericColumnData} from '@influxdata/giraffe'
 import {
   Source,
@@ -294,14 +295,21 @@ export const defaultOnboardingStepProps: OnboardingStepProps = {
   notify: jest.fn(),
   onCompleteSetup: jest.fn(),
   onExit: jest.fn(),
-  onSetSubstepIndex: jest.fn(),
 }
 
-export const withRouterProps: WithRouterProps = {
-  params: {},
+const match: match<{orgID: string}> = {
+  isExact: false,
+  path: '',
+  url: '',
+  params: {
+    orgID: '1',
+  },
+}
+
+export const withRouterProps: RouteComponentProps<{orgID: string}> = {
+  match,
   location: null,
-  routes: null,
-  router: null,
+  history: null,
 }
 
 export const token =

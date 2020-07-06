@@ -1,6 +1,6 @@
+import {RouterState} from 'connected-react-router'
 import {TimeMachinesState} from 'src/timeMachine/reducers'
 import {AppState as AppPresentationState} from 'src/shared/reducers/app'
-import {RouterState} from 'react-router-redux'
 import {MeState} from 'src/shared/reducers/me'
 import {FlagState} from 'src/shared/reducers/flags'
 import {CurrentDashboardState} from 'src/shared/reducers/currentDashboard'
@@ -33,6 +33,7 @@ import {OrgSettingsState} from 'src/cloud/reducers/orgsettings'
 import {QueryCacheState} from 'src/queryCache/reducers'
 
 export interface AppState {
+  router: RouterState
   alertBuilder: AlertBuilderState
   app: AppPresentationState
   autoRefresh: AutoRefreshState
@@ -55,7 +56,6 @@ export interface AppState {
   predicates: PredicatesState
   ranges: RangeState
   resources: ResourceState
-  routing: RouterState
   telegrafEditorPlugins: TelegrafEditorPluginState
   telegrafEditorActivePlugins: TelegrafEditorActivePluginState
   plugins: PluginResourceState

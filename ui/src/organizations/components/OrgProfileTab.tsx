@@ -1,9 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
-import {WithRouterProps, withRouter} from 'react-router'
-
-import _ from 'lodash'
+import {RouteComponentProps, withRouter} from 'react-router-dom'
 
 // Components
 import {
@@ -40,7 +38,7 @@ interface StateProps {
   org: Organization
 }
 
-type Props = StateProps & WithRouterProps
+type Props = StateProps & RouteComponentProps<{orgID: string}>
 
 @ErrorHandling
 class OrgProfileTab extends PureComponent<Props> {
@@ -73,6 +71,7 @@ class OrgProfileTab extends PureComponent<Props> {
                         </p>
                       </div>
                       <Button
+                        testID="rename-org--button"
                         text="Rename"
                         icon={IconFont.Pencil}
                         type={ButtonType.Submit}
@@ -109,11 +108,13 @@ class OrgProfileTab extends PureComponent<Props> {
 
   private handleShowEditOverlay = () => {
     const {
-      params: {orgID},
-      router,
+      match: {
+        params: {orgID},
+      },
+      history,
     } = this.props
 
-    router.push(`/orgs/${orgID}/settings/about/rename`)
+    history.push(`/orgs/${orgID}/about/rename`)
   }
 
   private generateCopyText = title => (text, copySucceeded) => {

@@ -1,6 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
+import {Switch, Route} from 'react-router-dom'
 
 // Components
 import TasksHeader from 'src/tasks/components/TasksHeader'
@@ -11,6 +12,9 @@ import FilterList from 'src/shared/components/FilterList'
 import GetResources from 'src/resources/components/GetResources'
 import GetAssetLimits from 'src/cloud/components/GetAssetLimits'
 import AssetLimitAlert from 'src/cloud/components/AssetLimitAlert'
+import TaskExportOverlay from 'src/tasks/components/TaskExportOverlay'
+import TaskImportOverlay from 'src/tasks/components/TaskImportOverlay'
+import TaskImportFromTemplateOverlay from 'src/tasks/components/TaskImportFromTemplateOverlay'
 
 // Utils
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
@@ -37,7 +41,7 @@ import {
 
 // Types
 import {AppState, Task, RemoteDataState, ResourceType} from 'src/types'
-import {InjectedRouter, WithRouterProps} from 'react-router'
+import {RouteComponentProps} from 'react-router-dom'
 import {Sort} from '@influxdata/clockface'
 import {SortTypes} from 'src/shared/utils/sort'
 import {extractTaskLimits} from 'src/cloud/utils/limits'
@@ -45,10 +49,6 @@ import {TaskSortKey} from 'src/shared/components/resource_sort_dropdown/generate
 
 // Selectors
 import {getAll} from 'src/resources/selectors'
-
-interface PassedInProps {
-  router: InjectedRouter
-}
 
 interface ConnectedDispatchProps {
   updateTaskStatus: typeof updateTaskStatus
@@ -71,9 +71,8 @@ interface ConnectedStateProps {
 }
 
 type Props = ConnectedDispatchProps &
-  PassedInProps &
   ConnectedStateProps &
-  WithRouterProps
+  RouteComponentProps<{orgID: string}>
 
 interface State {
   isImporting: boolean
@@ -116,7 +115,6 @@ class TasksPage extends PureComponent<Props, State> {
       onRunTask,
       checkTaskLimits,
       limitStatus,
-      children,
     } = this.props
 
     return (
@@ -177,7 +175,20 @@ class TasksPage extends PureComponent<Props, State> {
             </GetResources>
           </Page.Contents>
         </Page>
-        {children}
+        <Switch>
+          <Route
+            path="/orgs/:orgID/tasks/:id/export"
+            component={TaskExportOverlay}
+          />
+          <Route
+            path="/orgs/:orgID/tasks/import"
+            component={TaskImportOverlay}
+          />
+          <Route
+            path="/orgs/:orgID/tasks/import/template"
+            component={TaskImportFromTemplateOverlay}
+          />
+        </Switch>
       </>
     )
   }
@@ -204,29 +215,35 @@ class TasksPage extends PureComponent<Props, State> {
 
   private handleCreateTask = () => {
     const {
-      router,
-      params: {orgID},
+      history,
+      match: {
+        params: {orgID},
+      },
     } = this.props
 
-    router.push(`/orgs/${orgID}/tasks/new`)
+    history.push(`/orgs/${orgID}/tasks/new`)
   }
 
   private summonImportFromTemplateOverlay = () => {
     const {
-      router,
-      params: {orgID},
+      history,
+      match: {
+        params: {orgID},
+      },
     } = this.props
 
-    router.push(`/orgs/${orgID}/tasks/import/template`)
+    history.push(`/orgs/${orgID}/tasks/import/template`)
   }
 
   private summonImportOverlay = (): void => {
     const {
-      router,
-      params: {orgID},
+      history,
+      match: {
+        params: {orgID},
+      },
     } = this.props
 
-    router.push(`/orgs/${orgID}/tasks/import`)
+    history.push(`/orgs/${orgID}/tasks/import`)
   }
 
   private get filteredTasks(): Task[] {
@@ -297,11 +314,7 @@ const mdtp: ConnectedDispatchProps = {
   checkTaskLimits: checkTasksLimitsAction,
 }
 
-export default connect<
-  ConnectedStateProps,
-  ConnectedDispatchProps,
-  PassedInProps
->(
+export default connect<ConnectedStateProps, ConnectedDispatchProps>(
   mstp,
   mdtp
 )(TasksPage)

@@ -1,7 +1,7 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
 import {connect} from 'react-redux'
-import {WithRouterProps, withRouter} from 'react-router'
+import {RouteComponentProps, withRouter} from 'react-router-dom'
 
 import {sample, startCase} from 'lodash'
 
@@ -25,7 +25,7 @@ interface DispatchProps {
   createOrgWithBucket: typeof createOrgWithBucket
 }
 
-type Props = OwnProps & DispatchProps & WithRouterProps
+type Props = OwnProps & DispatchProps & RouteComponentProps
 
 interface State {
   org: Organization
@@ -132,7 +132,7 @@ class CreateOrgOverlay extends PureComponent<Props, State> {
   }
 
   private closeModal = () => {
-    this.props.router.goBack()
+    this.props.history.goBack()
   }
 
   private handleChangeOrgInput = (e: ChangeEvent<HTMLInputElement>) => {
@@ -196,4 +196,4 @@ const mdtp = {
 export default connect<{}, DispatchProps, OwnProps>(
   null,
   mdtp
-)(withRouter<OwnProps & DispatchProps>(CreateOrgOverlay))
+)(withRouter(CreateOrgOverlay))

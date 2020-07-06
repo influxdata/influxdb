@@ -1,6 +1,6 @@
 // Libraries
 import React, {FC, useState, ChangeEvent} from 'react'
-import {Link} from 'react-router'
+import {Link} from 'react-router-dom'
 import {connect} from 'react-redux'
 import {sortBy} from 'lodash'
 
