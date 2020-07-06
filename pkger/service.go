@@ -689,7 +689,7 @@ func (s *Service) cloneOrgNotificationRules(ctx context.Context, orgID influxdb.
 }
 
 func (s *Service) cloneOrgTasks(ctx context.Context, orgID influxdb.ID) ([]ResourceToClone, error) {
-	tasks, _, err := s.taskSVC.FindTasks(ctx, influxdb.TaskFilter{OrganizationID: &orgID})
+	tasks, err := s.getAllTasks(ctx, orgID)
 	if err != nil {
 		return nil, err
 	}
@@ -698,16 +698,12 @@ func (s *Service) cloneOrgTasks(ctx context.Context, orgID influxdb.ID) ([]Resou
 		return nil, nil
 	}
 
-	checks, _, err := s.checkSVC.FindChecks(ctx, influxdb.CheckFilter{
-		OrgID: &orgID,
-	})
+	checks, err := s.getAllChecks(ctx, orgID)
 	if err != nil {
 		return nil, err
 	}
 
-	rules, _, err := s.ruleSVC.FindNotificationRules(ctx, influxdb.NotificationRuleFilter{
-		OrgID: &orgID,
-	})
+	rules, err := s.getNotificationRules(ctx, orgID)
 	if err != nil {
 		return nil, err
 	}
@@ -3233,6 +3229,80 @@ func (s *Service) getAllPlatformVariables(ctx context.Context, orgID influxdb.ID
 		offset += len(vars)
 	}
 	return existingVars, nil
+}
+
+func (s *Service) getAllChecks(ctx context.Context, orgID influxdb.ID) ([]influxdb.Check, error) {
+	filter := influxdb.CheckFilter{OrgID: &orgID}
+	const limit = 100
+
+	var (
+		out    []influxdb.Check
+		offset int
+	)
+	for {
+		checks, _, err := s.checkSVC.FindChecks(ctx, filter, influxdb.FindOptions{
+			Limit:  limit,
+			Offset: offset,
+		})
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, checks...)
+		if len(checks) < limit {
+			break
+		}
+		offset += limit
+	}
+	return out, nil
+}
+
+func (s *Service) getNotificationRules(ctx context.Context, orgID influxdb.ID) ([]influxdb.NotificationRule, error) {
+	filter := influxdb.NotificationRuleFilter{OrgID: &orgID}
+	const limit = 100
+
+	var (
+		out    []influxdb.NotificationRule
+		offset int
+	)
+	for {
+		rules, _, err := s.ruleSVC.FindNotificationRules(ctx, filter)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, rules...)
+		if len(rules) < limit {
+			break
+		}
+		offset += limit
+	}
+	return out, nil
+
+}
+
+func (s *Service) getAllTasks(ctx context.Context, orgID influxdb.ID) ([]*influxdb.Task, error) {
+	var (
+		out     []*influxdb.Task
+		afterID *influxdb.ID
+	)
+	for {
+		f := influxdb.TaskFilter{
+			OrganizationID: &orgID,
+			Limit:          100,
+		}
+		if afterID != nil {
+			f.After = afterID
+		}
+		tasks, _, err := s.taskSVC.FindTasks(ctx, f)
+		if err != nil {
+			return nil, err
+		}
+		if len(tasks) == 0 {
+			break
+		}
+		out = append(out, tasks...)
+		afterID = &tasks[len(tasks)-1].ID
+	}
+	return out, nil
 }
 
 func newSummaryFromStateTemplate(state *stateCoordinator, template *Template) Summary {

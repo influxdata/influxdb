@@ -3339,6 +3339,9 @@ func TestService(t *testing.T) {
 
 			taskSVC := mock.NewTaskService()
 			taskSVC.FindTasksFn = func(ctx context.Context, f influxdb.TaskFilter) ([]*influxdb.Task, int, error) {
+				if f.After != nil {
+					return nil, 0, nil
+				}
 				return []*influxdb.Task{
 					{ID: 31, Type: influxdb.TaskSystemType},
 					{ID: expectedCheck.TaskID, Type: influxdb.TaskSystemType}, // this one should be ignored in the return
