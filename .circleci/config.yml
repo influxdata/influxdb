@@ -84,6 +84,27 @@ jobs:
           docker tag quay.io/influxdb/rust:$COMMIT_SHA quay.io/influxdb/rust:ci
           docker push quay.io/influxdb/rust:$COMMIT_SHA
           docker push quay.io/influxdb/rust:ci
+  perf_image:
+    docker:
+      - image: quay.io/influxdb/rust:ci
+    steps:
+      - checkout
+      - cache_restore
+      - rust_nightly
+      - run:
+          name: Cargo release build
+          command: cargo build --release
+      - setup_remote_docker:
+          docker_layer_caching: true
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y docker.io
+      - run: |
+          echo "$QUAY_PASS" | docker login quay.io --username $QUAY_USER --password-stdin
+      - run: |
+          BRANCH=$(git rev-parse --abbrev-ref HEAD | tr '/' '.')
+          docker build -t quay.io/influxdb/rust:$BRANCH -f Dockerfile.perf .
+          docker push quay.io/influxdb/rust:$BRANCH
 
 workflows:
   version: 2
@@ -93,6 +114,15 @@ workflows:
       - lint
       - test
       - build
+      - perf_image:
+          requires: # Only do a release build if all tests have passed
+            - fmt
+            - lint
+            - test
+            - build
+          filters:
+            branches:
+              only: /.*\/perf$/ # Only do a release build if the branch name ends in `/perf`
   ci_image:
     triggers:
       - schedule:
