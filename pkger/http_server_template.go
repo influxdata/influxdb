@@ -399,13 +399,7 @@ func (s *HTTPServerTemplates) apply(w http.ResponseWriter, r *http.Request) {
 	if reqBody.DryRun {
 		impact, err := s.svc.DryRun(r.Context(), *orgID, userID, applyOpts...)
 		if IsParseErr(err) {
-			s.api.Respond(w, r, http.StatusUnprocessableEntity, RespApply{
-				Sources: append([]string{}, impact.Sources...), // guarantee non nil slice
-				StackID: impact.StackID.String(),
-				Diff:    impact.Diff,
-				Summary: impact.Summary,
-				Errors:  convertParseErr(err),
-			})
+			s.api.Respond(w, r, http.StatusUnprocessableEntity, impactToRespApply(impact, err))
 			return
 		}
 		if err != nil {
@@ -413,12 +407,7 @@ func (s *HTTPServerTemplates) apply(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		s.api.Respond(w, r, http.StatusOK, RespApply{
-			Sources: append([]string{}, impact.Sources...), // guarantee non nil slice
-			StackID: impact.StackID.String(),
-			Diff:    impact.Diff,
-			Summary: impact.Summary,
-		})
+		s.api.Respond(w, r, http.StatusOK, impactToRespApply(impact, nil))
 		return
 	}
 
@@ -430,13 +419,7 @@ func (s *HTTPServerTemplates) apply(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.api.Respond(w, r, http.StatusCreated, RespApply{
-		Sources: append([]string{}, impact.Sources...), // guarantee non nil slice
-		StackID: impact.StackID.String(),
-		Diff:    impact.Diff,
-		Summary: impact.Summary,
-		Errors:  convertParseErr(err),
-	})
+	s.api.Respond(w, r, http.StatusCreated, impactToRespApply(impact, err))
 }
 
 func (s *HTTPServerTemplates) encResp(w http.ResponseWriter, r *http.Request, enc encoder, code int, res interface{}) {
@@ -450,8 +433,85 @@ func (s *HTTPServerTemplates) encResp(w http.ResponseWriter, r *http.Request, en
 	}
 }
 
-type encoder interface {
-	Encode(interface{}) error
+func impactToRespApply(impact ImpactSummary, err error) RespApply {
+	out := RespApply{
+		Sources: append([]string{}, impact.Sources...), // guarantee non nil slice
+		StackID: impact.StackID.String(),
+		Diff:    impact.Diff,
+		Summary: impact.Summary,
+	}
+	if err != nil {
+		out.Errors = convertParseErr(err)
+	}
+	if out.Diff.Buckets == nil {
+		out.Diff.Buckets = []DiffBucket{}
+	}
+	if out.Diff.Checks == nil {
+		out.Diff.Checks = []DiffCheck{}
+	}
+	if out.Diff.Dashboards == nil {
+		out.Diff.Dashboards = []DiffDashboard{}
+	}
+	if out.Diff.Labels == nil {
+		out.Diff.Labels = []DiffLabel{}
+	}
+	if out.Diff.LabelMappings == nil {
+		out.Diff.LabelMappings = []DiffLabelMapping{}
+	}
+	if out.Diff.NotificationEndpoints == nil {
+		out.Diff.NotificationEndpoints = []DiffNotificationEndpoint{}
+	}
+	if out.Diff.NotificationRules == nil {
+		out.Diff.NotificationRules = []DiffNotificationRule{}
+	}
+	if out.Diff.NotificationRules == nil {
+		out.Diff.NotificationRules = []DiffNotificationRule{}
+	}
+	if out.Diff.Tasks == nil {
+		out.Diff.Tasks = []DiffTask{}
+	}
+	if out.Diff.Telegrafs == nil {
+		out.Diff.Telegrafs = []DiffTelegraf{}
+	}
+	if out.Diff.Variables == nil {
+		out.Diff.Variables = []DiffVariable{}
+	}
+
+	if out.Summary.Buckets == nil {
+		out.Summary.Buckets = []SummaryBucket{}
+	}
+	if out.Summary.Checks == nil {
+		out.Summary.Checks = []SummaryCheck{}
+	}
+	if out.Summary.Dashboards == nil {
+		out.Summary.Dashboards = []SummaryDashboard{}
+	}
+	if out.Summary.Labels == nil {
+		out.Summary.Labels = []SummaryLabel{}
+	}
+	if out.Summary.LabelMappings == nil {
+		out.Summary.LabelMappings = []SummaryLabelMapping{}
+	}
+	if out.Summary.NotificationEndpoints == nil {
+		out.Summary.NotificationEndpoints = []SummaryNotificationEndpoint{}
+	}
+	if out.Summary.NotificationRules == nil {
+		out.Summary.NotificationRules = []SummaryNotificationRule{}
+	}
+	if out.Summary.NotificationRules == nil {
+		out.Summary.NotificationRules = []SummaryNotificationRule{}
+	}
+	if out.Summary.Tasks == nil {
+		out.Summary.Tasks = []SummaryTask{}
+	}
+	if out.Summary.TelegrafConfigs == nil {
+		out.Summary.TelegrafConfigs = []SummaryTelegraf{}
+	}
+	if out.Summary.Variables == nil {
+		out.Summary.Variables = []SummaryVariable{}
+	}
+
+	return out
 }
 
 func formatSources(sources []string) string {
@@ -498,6 +558,10 @@ func convertEncoding(ct, rawURL string) Encoding {
 	default:
 		return EncodingSource
 	}
+}
+
+type encoder interface {
+	Encode(interface{}) error
 }
 
 func newJSONEnc(w io.Writer) encoder {

@@ -266,6 +266,33 @@ func TestPkgerHTTPServerTemplate(t *testing.T) {
 			}
 		})
 
+		t.Run("all diff and summary resource collections are non null", func(t *testing.T) {
+			svc := &fakeSVC{
+				dryRunFn: func(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.ImpactSummary, error) {
+					// return zero value pkg
+					return pkger.ImpactSummary{}, nil
+				},
+			}
+
+			pkgHandler := pkger.NewHTTPServerTemplates(zap.NewNop(), svc)
+			svr := newMountedHandler(pkgHandler, 1)
+
+			testttp.
+				PostJSON(t, "/api/v2/templates/apply", pkger.ReqApply{
+					DryRun:      true,
+					OrgID:       influxdb.ID(1).String(),
+					RawTemplate: bucketPkgKinds(t, pkger.EncodingJSON),
+				}).
+				Headers("Content-Type", "application/json").
+				Do(svr).
+				ExpectStatus(http.StatusOK).
+				ExpectBody(func(buf *bytes.Buffer) {
+					var resp pkger.RespApply
+					decodeBody(t, buf, &resp)
+					assertNonZeroApplyResp(t, resp)
+				})
+		})
+
 		t.Run("with multiple pkgs", func(t *testing.T) {
 			newBktPkg := func(t *testing.T, bktName string) pkger.ReqRawTemplate {
 				t.Helper()
@@ -450,58 +477,114 @@ func TestPkgerHTTPServerTemplate(t *testing.T) {
 	})
 
 	t.Run("apply a pkg", func(t *testing.T) {
-		svc := &fakeSVC{
-			applyFn: func(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.ImpactSummary, error) {
-				var opt pkger.ApplyOpt
-				for _, o := range opts {
-					o(&opt)
-				}
+		t.Run("happy path", func(t *testing.T) {
+			svc := &fakeSVC{
+				applyFn: func(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.ImpactSummary, error) {
+					var opt pkger.ApplyOpt
+					for _, o := range opts {
+						o(&opt)
+					}
 
-				pkg, err := pkger.Combine(opt.Templates)
-				if err != nil {
-					return pkger.ImpactSummary{}, err
-				}
+					pkg, err := pkger.Combine(opt.Templates)
+					if err != nil {
+						return pkger.ImpactSummary{}, err
+					}
 
-				sum := pkg.Summary()
+					sum := pkg.Summary()
 
-				var diff pkger.Diff
-				for _, b := range sum.Buckets {
-					diff.Buckets = append(diff.Buckets, pkger.DiffBucket{
-						DiffIdentifier: pkger.DiffIdentifier{
-							MetaName: b.Name,
-						},
-					})
-				}
-				for key := range opt.MissingSecrets {
-					sum.MissingSecrets = append(sum.MissingSecrets, key)
-				}
+					var diff pkger.Diff
+					for _, b := range sum.Buckets {
+						diff.Buckets = append(diff.Buckets, pkger.DiffBucket{
+							DiffIdentifier: pkger.DiffIdentifier{
+								MetaName: b.Name,
+							},
+						})
+					}
+					for key := range opt.MissingSecrets {
+						sum.MissingSecrets = append(sum.MissingSecrets, key)
+					}
 
-				return pkger.ImpactSummary{
-					Diff:    diff,
-					Summary: sum,
-				}, nil
-			},
-		}
+					return pkger.ImpactSummary{
+						Diff:    diff,
+						Summary: sum,
+					}, nil
+				},
+			}
 
-		pkgHandler := pkger.NewHTTPServerTemplates(zap.NewNop(), svc)
-		svr := newMountedHandler(pkgHandler, 1)
+			pkgHandler := pkger.NewHTTPServerTemplates(zap.NewNop(), svc)
+			svr := newMountedHandler(pkgHandler, 1)
 
-		testttp.
-			PostJSON(t, "/api/v2/templates/apply", pkger.ReqApply{
-				OrgID:       influxdb.ID(9000).String(),
-				Secrets:     map[string]string{"secret1": "val1"},
-				RawTemplate: bucketPkgKinds(t, pkger.EncodingJSON),
-			}).
-			Do(svr).
-			ExpectStatus(http.StatusCreated).
-			ExpectBody(func(buf *bytes.Buffer) {
-				var resp pkger.RespApply
-				decodeBody(t, buf, &resp)
+			testttp.
+				PostJSON(t, "/api/v2/templates/apply", pkger.ReqApply{
+					OrgID:       influxdb.ID(9000).String(),
+					Secrets:     map[string]string{"secret1": "val1"},
+					RawTemplate: bucketPkgKinds(t, pkger.EncodingJSON),
+				}).
+				Do(svr).
+				ExpectStatus(http.StatusCreated).
+				ExpectBody(func(buf *bytes.Buffer) {
+					var resp pkger.RespApply
+					decodeBody(t, buf, &resp)
 
-				assert.Len(t, resp.Summary.Buckets, 1)
-				assert.Len(t, resp.Diff.Buckets, 1)
-				assert.Equal(t, []string{"secret1"}, resp.Summary.MissingSecrets)
-				assert.Nil(t, resp.Errors)
-			})
+					assert.Len(t, resp.Summary.Buckets, 1)
+					assert.Len(t, resp.Diff.Buckets, 1)
+					assert.Equal(t, []string{"secret1"}, resp.Summary.MissingSecrets)
+					assert.Nil(t, resp.Errors)
+				})
+		})
+
+		t.Run("all diff and summary resource collections are non null", func(t *testing.T) {
+			svc := &fakeSVC{
+				applyFn: func(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.ImpactSummary, error) {
+					// return zero value pkg
+					return pkger.ImpactSummary{}, nil
+				},
+			}
+
+			pkgHandler := pkger.NewHTTPServerTemplates(zap.NewNop(), svc)
+			svr := newMountedHandler(pkgHandler, 1)
+
+			testttp.
+				PostJSON(t, "/api/v2/templates/apply", pkger.ReqApply{
+					OrgID:       influxdb.ID(1).String(),
+					RawTemplate: bucketPkgKinds(t, pkger.EncodingJSON),
+				}).
+				Headers("Content-Type", "application/json").
+				Do(svr).
+				ExpectStatus(http.StatusCreated).
+				ExpectBody(func(buf *bytes.Buffer) {
+					var resp pkger.RespApply
+					decodeBody(t, buf, &resp)
+					assertNonZeroApplyResp(t, resp)
+				})
+		})
 	})
+}
+
+func assertNonZeroApplyResp(t *testing.T, resp pkger.RespApply) {
+	t.Helper()
+
+	assert.NotNil(t, resp.Sources)
+
+	assert.NotNil(t, resp.Diff.Buckets)
+	assert.NotNil(t, resp.Diff.Checks)
+	assert.NotNil(t, resp.Diff.Dashboards)
+	assert.NotNil(t, resp.Diff.Labels)
+	assert.NotNil(t, resp.Diff.LabelMappings)
+	assert.NotNil(t, resp.Diff.NotificationEndpoints)
+	assert.NotNil(t, resp.Diff.NotificationRules)
+	assert.NotNil(t, resp.Diff.Tasks)
+	assert.NotNil(t, resp.Diff.Telegrafs)
+	assert.NotNil(t, resp.Diff.Variables)
+
+	assert.NotNil(t, resp.Summary.Buckets)
+	assert.NotNil(t, resp.Summary.Checks)
+	assert.NotNil(t, resp.Summary.Dashboards)
+	assert.NotNil(t, resp.Summary.Labels)
+	assert.NotNil(t, resp.Summary.LabelMappings)
+	assert.NotNil(t, resp.Summary.NotificationEndpoints)
+	assert.NotNil(t, resp.Summary.NotificationRules)
+	assert.NotNil(t, resp.Summary.Tasks)
+	assert.NotNil(t, resp.Summary.TelegrafConfigs)
+	assert.NotNil(t, resp.Summary.Variables)
 }
