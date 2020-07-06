@@ -1,5 +1,5 @@
 import React, {Component} from 'react'
-import {withRouter, RouteComponentProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps, matchPath} from 'react-router-dom'
 import {connect} from 'react-redux'
 
 // Components
@@ -20,7 +20,8 @@ import {
 import SettingsTabbedPage from 'src/settings/components/SettingsTabbedPage'
 import SettingsHeader from 'src/settings/components/SettingsHeader'
 
-import {setCommunityTemplateToInstall} from 'src/templates/actions/creators'
+import {communityTemplatesImportPath} from 'src/templates/containers/TemplatesIndex'
+
 import {getOrg} from 'src/organizations/selectors'
 
 // Utils
@@ -28,7 +29,6 @@ import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
 import {
   getGithubUrlFromTemplateName,
   getTemplateNameFromGithubUrl,
-  reviewTemplate,
 } from 'src/templates/utils'
 
 // Types
@@ -41,38 +41,27 @@ interface StateProps {
   org: Organization
 }
 
-interface DispatchProps {
-  setCommunityTemplateToInstall: typeof setCommunityTemplateToInstall
-}
+type Params = {params: {templateName: string}}
 
-type Props = DispatchProps &
-  StateProps &
-  RouteComponentProps<{templateName: string}>
-
-// works specifically for csgo, the greatest community template ever conceived
-// https://github.com/influxdata/community-templates/tree/master/csgo
-const getRawYamlFromGithub = repoUrl => {
-  return repoUrl
-    .replace('github.com', 'raw.githubusercontent.com')
-    .replace('tree/', '')
-}
+type Props = StateProps & RouteComponentProps<{templateName: string}>
 
 @ErrorHandling
 class UnconnectedTemplatesIndex extends Component<Props> {
   state = {
-    currentTemplate: '',
+    templateUrl: '',
   }
 
   public componentDidMount() {
-    const {templateName} = this.props.match.params
-    if (templateName) {
-      const currentTemplate = getGithubUrlFromTemplateName(templateName)
+    // if this component mounts, and the install template is on the screen
+    // (i.e. the user reloaded the page with the install template active)
+    // grab the template name, and fill in the text input
+    const match = matchPath(this.props.location.pathname, {
+      path: communityTemplatesImportPath,
+    }) as Params
 
-      this.setState({currentTemplate}, () => {
-        this.reviewTemplateResources(
-          this.props.org.id,
-          getTemplateNameFromGithubUrl(currentTemplate)
-        )
+    if (match?.params?.templateName) {
+      this.setState({
+        templateUrl: getGithubUrlFromTemplateName(match.params.templateName),
       })
     }
   }
@@ -122,7 +111,7 @@ class UnconnectedTemplatesIndex extends Component<Props> {
                       onChange={this.handleTemplateChange}
                       placeholder="Enter the URL of an InfluxDB Template..."
                       style={{width: '80%'}}
-                      value={this.state.currentTemplate}
+                      value={this.state.templateUrl}
                     />
                     <Button
                       onClick={this.startTemplateInstall}
@@ -140,29 +129,14 @@ class UnconnectedTemplatesIndex extends Component<Props> {
     )
   }
 
-  private reviewTemplateResources = async (orgID, templateName) => {
-    const yamlLocation =
-      getRawYamlFromGithub(this.state.currentTemplate) + `/${templateName}.yml`
-
-    try {
-      const summary = await reviewTemplate(orgID, yamlLocation)
-
-      this.props.setCommunityTemplateToInstall(summary)
-      return summary
-    } catch (err) {
-      console.error(err)
-    }
-  }
-
   private startTemplateInstall = () => {
-    if (!this.state.currentTemplate) {
+    if (!this.state.templateUrl) {
       console.error('undefined')
       return false
     }
 
-    const name = getTemplateNameFromGithubUrl(this.state.currentTemplate)
+    const name = getTemplateNameFromGithubUrl(this.state.templateUrl)
     this.showInstallerOverlay(name)
-    this.reviewTemplateResources(this.props.org.id, name)
   }
 
   private showInstallerOverlay = templateName => {
@@ -172,7 +146,7 @@ class UnconnectedTemplatesIndex extends Component<Props> {
   }
 
   private handleTemplateChange = event => {
-    this.setState({currentTemplate: event.target.value})
+    this.setState({templateUrl: event.target.value})
   }
 }
 
@@ -182,11 +156,6 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-const mdtp = {
-  setCommunityTemplateToInstall,
-}
-
-export const CommunityTemplatesIndex = connect<StateProps, DispatchProps, {}>(
-  mstp,
-  mdtp
-)(withRouter(UnconnectedTemplatesIndex))
+export const CommunityTemplatesIndex = connect<StateProps>(mstp)(
+  withRouter(UnconnectedTemplatesIndex)
+)

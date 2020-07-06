@@ -6,6 +6,7 @@ import {connect} from 'react-redux'
 import {CommunityTemplateInstallerOverlay} from 'src/templates/components/CommunityTemplateInstallerOverlay'
 
 // Actions
+import {setCommunityTemplateToInstall} from 'src/templates/actions/creators'
 import {createTemplate as createTemplateAction} from 'src/templates/actions/thunks'
 import {notify as notifyAction} from 'src/shared/actions/notifications'
 
@@ -19,6 +20,11 @@ import {ComponentStatus} from '@influxdata/clockface'
 
 // Utils
 import {getByID} from 'src/resources/selectors'
+import {
+  getGithubUrlFromTemplateName,
+  getRawUrlFromGithub,
+  reviewTemplate,
+} from 'src/templates/utils'
 
 interface State {
   status: ComponentStatus
@@ -27,6 +33,7 @@ interface State {
 interface DispatchProps {
   createTemplate: typeof createTemplateAction
   notify: typeof notifyAction
+  setCommunityTemplateToInstall: typeof setCommunityTemplateToInstall
 }
 
 interface StateProps {
@@ -45,6 +52,12 @@ class UnconnectedTemplateImportOverlay extends PureComponent<Props> {
     status: ComponentStatus.Default,
   }
 
+  public componentDidMount() {
+    const {org, templateName} = this.props
+
+    this.reviewTemplateResources(org.id, templateName)
+  }
+
   public render() {
     if (!this.props.flags.communityTemplates) {
       return null
@@ -60,6 +73,21 @@ class UnconnectedTemplateImportOverlay extends PureComponent<Props> {
         updateStatus={this.updateOverlayStatus}
       />
     )
+  }
+
+  private reviewTemplateResources = async (orgID, templateName) => {
+    const yamlLocation = `${getRawUrlFromGithub(
+      getGithubUrlFromTemplateName(templateName)
+    )}/${templateName}.yml`
+
+    try {
+      const summary = await reviewTemplate(orgID, yamlLocation)
+
+      this.props.setCommunityTemplateToInstall(summary)
+      return summary
+    } catch (err) {
+      console.error(err)
+    }
   }
 
   private onDismiss = () => {
@@ -96,6 +124,7 @@ const mstp = (state: AppState, props: Props): StateProps => {
 const mdtp: DispatchProps = {
   createTemplate: createTemplateAction,
   notify: notifyAction,
+  setCommunityTemplateToInstall,
 }
 
 export const CommunityTemplateImportOverlay = connect<
