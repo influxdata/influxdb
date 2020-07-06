@@ -34,6 +34,7 @@ interface StateProps {
 type Props = RouteComponentProps & StateProps
 
 const templatesPath = '/orgs/:orgID/settings/templates'
+export const communityTemplatesImportPath = `${templatesPath}/import/:templateName`
 
 @ErrorHandling
 class TemplatesIndex extends Component<Props> {
@@ -44,7 +45,7 @@ class TemplatesIndex extends Component<Props> {
         <CommunityTemplatesIndex>
           <Switch>
             <Route
-              path={`${templatesPath}/import/:templateName`}
+              path={communityTemplatesImportPath}
               component={CommunityTemplateImportOverlay}
             />
           </Switch>

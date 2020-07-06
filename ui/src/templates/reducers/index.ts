@@ -24,11 +24,17 @@ import {
   setResourceAtID,
 } from 'src/resources/reducers/helpers'
 
-export const defaultState = (): TemplatesState => ({
-  communityTemplateToInstall: {
+const defaultCommunityTemplate = (): CommunityTemplate => {
+  return {
+    sources: [],
+    stackID: '',
     summary: {},
     diff: {},
-  } as CommunityTemplate,
+  }
+}
+
+export const defaultState = (): TemplatesState => ({
+  communityTemplateToInstall: defaultCommunityTemplate(),
   status: RemoteDataState.NotStarted,
   byID: {},
   allIDs: [],
@@ -69,9 +75,9 @@ export const templatesReducer = (
       case SET_COMMUNITY_TEMPLATE_TO_INSTALL: {
         const {template} = action
 
-        const communityTemplateToInstall: CommunityTemplate = {
-          diff: template.diff || {},
-          summary: template.summary || {},
+        const communityTemplateToInstall = {
+          ...defaultCommunityTemplate(),
+          ...template,
         }
 
         communityTemplateToInstall.summary.dashboards = (

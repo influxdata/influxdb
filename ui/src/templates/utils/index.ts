@@ -97,6 +97,12 @@ export const getGithubUrlFromTemplateName = (templateName: string): string => {
   return `https://github.com/influxdata/community-templates/tree/master/${templateName}`
 }
 
+export const getRawUrlFromGithub = repoUrl => {
+  return repoUrl
+    .replace('github.com', 'raw.githubusercontent.com')
+    .replace('tree/', '')
+}
+
 const applyTemplates = async params => {
   const resp = await postTemplatesApply(params)
   if (resp.status >= 300) {
