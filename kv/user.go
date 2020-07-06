@@ -442,6 +442,13 @@ func (s *Service) deleteUser(ctx context.Context, tx Tx, id influxdb.ID) error {
 	return nil
 }
 
+func (s *Service) FindPermissionForUser(ctx context.Context, uid influxdb.ID) (influxdb.PermissionSet, error) {
+	return nil, &influxdb.Error{
+		Code: influxdb.EInternal,
+		Msg:  "not implemented",
+	}
+}
+
 func (s *Service) deleteUsersAuthorizations(ctx context.Context, tx Tx, id influxdb.ID) error {
 	authFilter := influxdb.AuthorizationFilter{
 		UserID: &id,

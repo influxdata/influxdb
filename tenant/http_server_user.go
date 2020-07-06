@@ -55,6 +55,7 @@ func NewHTTPUserHandler(log *zap.Logger, userService influxdb.UserService, passw
 			r.Get("/", svr.handleGetUser)
 			r.Patch("/", svr.handlePatchUser)
 			r.Delete("/", svr.handleDeleteUser)
+			r.Get("/permissions", svr.handleGetPermissions)
 			r.Put("/password", svr.handlePutUserPassword)
 			r.Post("/password", svr.handlePostUserPassword)
 		})
@@ -255,6 +256,31 @@ func (h *UserHandler) handleGetUser(w http.ResponseWriter, r *http.Request) {
 	h.log.Debug("User retrieved", zap.String("user", fmt.Sprint(b)))
 
 	h.api.Respond(w, r, http.StatusOK, newUserResponse(b))
+}
+
+func (h *UserHandler) handleGetPermissions(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	if id == "" {
+		err := &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  "url missing id",
+		}
+		h.api.Err(w, r, err)
+		return
+	}
+	var i influxdb.ID
+	if err := i.DecodeFromString(id); err != nil {
+		h.api.Err(w, r, err)
+		return
+	}
+
+	ps, err := h.userSvc.FindPermissionForUser(r.Context(), i)
+	if err != nil {
+		h.api.Err(w, r, err)
+		return
+	}
+
+	h.api.Respond(w, r, http.StatusOK, ps)
 }
 
 type getUserRequest struct {
