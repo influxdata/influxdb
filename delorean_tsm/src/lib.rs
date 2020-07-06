@@ -7,6 +7,7 @@
 )]
 
 pub mod encoders;
+pub mod key;
 pub mod mapper;
 pub mod reader;
 
@@ -15,81 +16,7 @@ use std::error;
 use std::fmt;
 use std::io;
 
-#[derive(Clone, Debug)]
-pub struct ParsedTSMKey {
-    pub measurement: String,
-    pub tagset: Vec<(String, String)>,
-    pub field_key: String,
-}
-
-/// parse_tsm_key parses from the series key the measurement, field key and tag
-/// set.
-///
-/// It does not provide access to the org and bucket ids on the key, these can
-/// be accessed via org_id() and bucket_id() respectively.
-///
-/// TODO: handle escapes in the series key for , = and \t
-///
-fn parse_tsm_key(mut key: Vec<u8>) -> Result<ParsedTSMKey, TSMError> {
-    // skip over org id, bucket id, comma, null byte (measurement) and =
-    // The next n-1 bytes are the measurement name, where the nᵗʰ byte is a `,`.
-    key = key.drain(8 + 8 + 1 + 1 + 1..).collect::<Vec<u8>>();
-    let mut i = 0;
-    // TODO(edd): can we make this work with take_while?
-    while i != key.len() {
-        if key[i] == b',' {
-            break;
-        }
-        i += 1;
-    }
-
-    let mut rem_key = key.drain(i..).collect::<Vec<u8>>();
-    let measurement = String::from_utf8(key).map_err(|e| TSMError {
-        description: e.to_string(),
-    })?;
-
-    let mut tagset = Vec::<(String, String)>::with_capacity(10);
-    let mut reading_key = true;
-    let mut key = String::with_capacity(100);
-    let mut value = String::with_capacity(100);
-
-    // skip the comma separating measurement tag
-    for byte in rem_key.drain(1..) {
-        match byte {
-            44 => {
-                // ,
-                reading_key = true;
-                tagset.push((key, value));
-                key = String::with_capacity(250);
-                value = String::with_capacity(250);
-            }
-            61 => {
-                // =
-                reading_key = false;
-            }
-            _ => {
-                if reading_key {
-                    key.push(byte as char);
-                } else {
-                    value.push(byte as char);
-                }
-            }
-        }
-    }
-
-    // fields are stored on the series keys in TSM indexes as follows:
-    //
-    // <field_key><4-byte delimiter><field_key>
-    //
-    // so we can trim the parsed value.
-    let field_trim_length = (value.len() - 4) / 2;
-    let (field, _) = value.split_at(field_trim_length);
-    Ok(ParsedTSMKey {
-        measurement,
-        tagset,
-        field_key: field.to_string(),
-    })
-}
+pub use key::ParsedTSMKey;
 
 #[derive(Clone, Debug, Copy, PartialEq)]
 pub enum BlockType {
@@ -156,7 +83,7 @@ impl std::fmt::Display for InfluxID {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct TSMError {
     pub description: String,
 }
@@ -193,38 +120,6 @@ impl From<std::str::Utf8Error> for TSMError {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn parse_tsm_key() {
-        //<org_id bucket_id>,\x00=http_api_request_duration_seconds,handler=platform,method=POST,path=/api/v2/setup,status=2XX,user_agent=Firefox,\xff=sum#!~#sum
-        let buf = vec![
-            "05C19117091A100005C19117091A10012C003D68747470",
-            "5F6170695F726571756573745F6475726174696F6E5F73",
-            "65636F6E64732C68616E646C65723D706C6174666F726D",
-            "2C6D6574686F643D504F53542C706174683D2F6170692F",
-            "76322F73657475702C7374617475733D3258582C757365",
-            "725F6167656E743D46697265666F782CFF3D73756D2321",
-            "7E2373756D",
-        ]
-        .join("");
-        let tsm_key = hex::decode(buf).unwrap();
-
-        let parsed_key = super::parse_tsm_key(tsm_key).unwrap();
-        assert_eq!(
-            parsed_key.measurement,
-            String::from("http_api_request_duration_seconds")
-        );
-
-        let exp_tagset = vec![
-            (String::from("handler"), String::from("platform")),
-            (String::from("method"), String::from("POST")),
-            (String::from("path"), String::from("/api/v2/setup")),
-            (String::from("status"), String::from("2XX")),
-            (String::from("user_agent"), String::from("Firefox")),
-        ];
-        assert_eq!(parsed_key.tagset, exp_tagset);
-        assert_eq!(parsed_key.field_key, String::from("sum"));
-    }
 
     #[test]
     fn influx_id() {

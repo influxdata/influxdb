@@ -10,6 +10,7 @@ edition = "2018"
 integer-encoding = "1.0.7"
 snap = "1.0.0"
 log = "0.4.8"
+snafu = "0.6.2"
 
 [dev-dependencies]
 hex = "0.4.2"

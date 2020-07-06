@@ -221,7 +221,7 @@ impl IndexEntry {
     }
 
     pub fn parse_key(&self) -> Result<ParsedTSMKey, TSMError> {
-        parse_tsm_key(self.key.to_vec())
+        key::parse_tsm_key(&self.key)
     }
 }
 
