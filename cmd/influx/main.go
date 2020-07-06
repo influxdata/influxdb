@@ -533,6 +533,16 @@ func setViperOptions() {
 	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 }
 
+func enforceFlagValidation(cmd *cobra.Command) {
+	cmd.FParseErrWhitelist = cobra.FParseErrWhitelist{
+		// disable unknown flags when short flag can conflict with a long flag.
+		// An example here is the --filter flag provided as -filter=foo will overwrite
+		// the -f flag to -f=ilter=foo, which generates a bad filename.
+		// remedies issue: https://github.com/influxdata/influxdb/issues/18850
+		UnknownFlags: false,
+	}
+}
+
 func writeJSON(w io.Writer, v interface{}) error {
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "\t")

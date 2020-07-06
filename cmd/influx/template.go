@@ -121,6 +121,7 @@ func (b *cmdTemplateBuilder) cmdApply() *cobra.Command {
 
 func (b *cmdTemplateBuilder) cmdTemplateApply() *cobra.Command {
 	cmd := b.newCmd("apply", b.applyRunEFn)
+	enforceFlagValidation(cmd)
 	cmd.Aliases = []string{"pkg"}
 	cmd.Short = "Apply a template to manage resources"
 	cmd.Long = `
@@ -473,6 +474,7 @@ func (b *cmdTemplateBuilder) cmdExportAll() *cobra.Command {
 	and
 	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/export/all
 `
+	enforceFlagValidation(cmd)
 
 	cmd.Flags().StringVarP(&b.file, "file", "f", "", "output file for created template; defaults to std out if no file provided; the extension of provided file (.yml/.json) will dictate encoding")
 	cmd.Flags().StringArrayVar(&b.filters, "filter", nil, "Filter exported resources by labelName or resourceKind (format: --filter=labelName=example)")
