@@ -99,6 +99,19 @@ func (l *UserLogger) DeleteUser(ctx context.Context, id influxdb.ID) (err error)
 	return l.userService.DeleteUser(ctx, id)
 }
 
+func (l *UserLogger) FindPermissionForUser(ctx context.Context, id influxdb.ID) (ps influxdb.PermissionSet, err error) {
+	defer func(start time.Time) {
+		dur := zap.Duration("took", time.Since(start))
+		if err != nil {
+			msg := fmt.Sprintf("failed to delete user with ID %v", id)
+			l.logger.Debug(msg, zap.Error(err), dur)
+			return
+		}
+		l.logger.Debug("find permission for user", dur)
+	}(time.Now())
+	return l.userService.FindPermissionForUser(ctx, id)
+}
+
 type PasswordLogger struct {
 	logger     *zap.Logger
 	pwdService influxdb.PasswordsService
