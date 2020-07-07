@@ -107,7 +107,10 @@ describe('Buckets', () => {
             ).click()
           })
           .then(() => {
-            const asc_buckets = buckets.slice().sort().reverse()
+            const asc_buckets = buckets
+              .slice()
+              .sort()
+              .reverse()
             console.log(asc_buckets)
             cy.get('[data-testid*="bucket-card"]').each((val, index) => {
               const testID = val.attr('data-testid')
