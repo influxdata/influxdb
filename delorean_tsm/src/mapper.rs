@@ -59,7 +59,6 @@ impl<R: BufRead + Seek> Iterator for TSMMeasurementMapper<R> {
         try_or_some!(measurement.add_series_data(
             parsed_key.tagset,
             parsed_key.field_key,
-            entry.block_type,
             entry.block
         ));
 
@@ -78,7 +77,6 @@ impl<R: BufRead + Seek> Iterator for TSMMeasurementMapper<R> {
                     try_or_some!(measurement.add_series_data(
                         parsed_key.tagset,
                         parsed_key.field_key,
-                        entry.block_type,
                         entry.block
                     ));
                 }
@@ -160,19 +158,18 @@ impl MeasurementTable {
         &mut self,
         tagset: Vec<(String, String)>,
         field_key: String,
-        block_type: BlockType,
         mut block: Block,
     ) -> Result<(), TSMError> {
         // Invariant: our data model does not support a field column for a
         // measurement table having multiple data types, even though this is
         // supported in InfluxDB.
         if let Some(fk) = self.field_columns.get(&field_key) {
-            if *fk != block_type {
+            if *fk != block.typ {
                 warn!(
                     "Rejected block for field {:?} with type {:?}. \
                     Tagset: {:?}, measurement {:?}. \
                     Field exists with type: {:?}",
-                    &field_key, block_type, tagset, self.name, *fk
+                    &field_key, block.typ, tagset, self.name, *fk
                 );
                 return Ok(());
             }
@@ -181,7 +178,7 @@ impl MeasurementTable {
         // tags will be used as the key to a map, where the value will be a
         // collection of all the field keys for that tagset and the associated
         // blocks.
-        self.field_columns.insert(field_key.clone(), block_type);
+        self.field_columns.insert(field_key.clone(), block.typ);
         for (k, _) in &tagset {
             self.tag_columns.insert(k.clone());
         }
@@ -726,7 +723,6 @@ mod tests {
         table.add_series_data(
             vec![("region".to_string(), "west".to_string())],
             "value".to_string(),
-            BlockType::Float,
             Block {
                 max_time: 0,
                 min_time: 0,
@@ -740,7 +736,6 @@ mod tests {
         table.add_series_data(
             vec![],
             "value".to_string(),
-            BlockType::Integer,
             Block {
                 max_time: 0,
                 min_time: 0,
@@ -766,7 +761,6 @@ mod tests {
         table1.add_series_data(
             vec![("region".to_string(), "west".to_string())],
             "value".to_string(),
-            BlockType::Float,
             Block {
                 min_time: 101,
                 max_time: 150,
@@ -781,7 +775,6 @@ mod tests {
         table2.add_series_data(
             vec![("region".to_string(), "west".to_string())],
             "value".to_string(),
-            BlockType::Float,
             Block {
                 min_time: 0,
                 max_time: 100,
@@ -794,7 +787,6 @@ mod tests {
         table2.add_series_data(
             vec![("server".to_string(), "a".to_string())],
             "temp".to_string(),
-            BlockType::Str,
             Block {
                 min_time: 0,
                 max_time: 50,

@@ -1632,7 +1632,6 @@ mod delorean_ingest_tests {
         table.add_series_data(
             vec![("region".to_string(), "east".to_string())],
             "temp".to_string(),
-            BlockType::Float,
             Block {
                 min_time: 0,
                 max_time: 0,
@@ -1647,7 +1646,6 @@ mod delorean_ingest_tests {
         table.add_series_data(
             vec![("region".to_string(), "east".to_string())],
             "voltage".to_string(),
-            BlockType::Float,
             Block {
                 min_time: 1,
                 max_time: 0,
@@ -1665,7 +1663,6 @@ mod delorean_ingest_tests {
                 ("server".to_string(), "a".to_string()),
             ],
             "temp".to_string(),
-            BlockType::Float,
             Block {
                 min_time: 2,
                 max_time: 0,
@@ -1680,13 +1677,12 @@ mod delorean_ingest_tests {
         table.add_series_data(
             vec![("az".to_string(), "b".to_string())],
             "watts".to_string(),
-            BlockType::Unsigned,
             Block {
                 min_time: 3,
                 max_time: 0,
                 offset: 0,
                 size: 0,
-                typ: BlockType::Float,
+                typ: BlockType::Unsigned,
                 reader_idx: 0,
             },
         )?;
