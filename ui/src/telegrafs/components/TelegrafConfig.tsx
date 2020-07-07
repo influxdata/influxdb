@@ -1,7 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {connect, ConnectedProps} from 'react-redux'
-import {withRouter, RouteComponentProps} from 'react-router-dom'
+import {withRouter, RouteComponentProps, matchPath} from 'react-router-dom'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -13,21 +13,20 @@ import {getTelegrafConfigToml} from 'src/telegrafs/actions/thunks'
 // Types
 import {AppState} from 'src/types'
 
+type Params = {orgID: string; id: string}
 type ReduxProps = ConnectedProps<typeof connector>
 type Props = ReduxProps
 
 @ErrorHandling
-export class TelegrafConfig extends PureComponent<
-  Props & RouteComponentProps<{orgID: string; id: string}>
-> {
+export class TelegrafConfig extends PureComponent<Props & RouteComponentProps> {
   public componentDidMount() {
-    const {
-      match: {
-        params: {id},
-      },
-      getTelegrafConfigToml,
-    } = this.props
-    getTelegrafConfigToml(id)
+    const match = matchPath<Params>(this.props.history.location.pathname, {
+      path: '/orgs/:orgID/load-data/telegrafs/:id/view',
+      exact: true,
+      strict: false,
+    })
+    const id = match.params.id
+    this.props.getTelegrafConfigToml(id)
   }
 
   public render() {
@@ -46,7 +45,7 @@ const mstp = ({resources}: AppState) => ({
 })
 
 const mdtp = {
-  getTelegrafConfigToml: getTelegrafConfigToml,
+  getTelegrafConfigToml,
 }
 
 const connector = connect(mstp, mdtp)
