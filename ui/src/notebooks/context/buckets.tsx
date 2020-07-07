@@ -11,15 +11,7 @@ import {getStatus} from 'src/resources/selectors'
 // Types
 import {AppState, Bucket, ResourceType, RemoteDataState} from 'src/types'
 
-export interface StateProps {
-  loading: RemoteDataState
-  buckets: Bucket[]
-}
-
-export interface DispatchProps {
-  getBuckets: typeof getBuckets
-}
-
+type ReduxProps = ConnectedProps<typeof connector>
 export type Props = ReduxProps
 
 export interface BucketContextType {
@@ -84,5 +76,7 @@ const mstp = (state: AppState) => {
 const mdtp = {
   getBuckets: getBuckets,
 }
+
+const connector = connect(mstp, mdtp)
 
 export default connector(BucketProvider)

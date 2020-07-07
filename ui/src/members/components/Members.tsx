@@ -23,14 +23,7 @@ import {SortTypes} from 'src/shared/utils/sort'
 // Selectors
 import {getAll} from 'src/resources/selectors'
 
-interface StateProps {
-  members: Member[]
-}
-
-interface DispatchProps {
-  onRemoveMember: typeof deleteMember
-}
-
+type ReduxProps = ConnectedProps<typeof connector>
 type Props = ReduxProps
 
 interface State {
@@ -135,5 +128,7 @@ const mstp = (state: AppState) => {
 const mdtp = {
   onRemoveMember: deleteMember,
 }
+
+const connector = connect(mstp, mdtp)
 
 export default connector(withRouter(Members))

@@ -17,11 +17,9 @@ import {getByID} from 'src/resources/selectors'
 // Types
 import {AppState, Organization, ResourceType} from 'src/types'
 
-interface StateProps {
-  org: Organization
-}
-
-type Props = RouteComponentProps<{orgID: string}> & StateProps
+type ReduxProps = ConnectedProps<typeof connector>
+type RouterProps = RouteComponentProps<{orgID: string}>
+type Props = RouterProps & ReduxProps
 
 @ErrorHandling
 class MembersIndex extends Component<Props> {
@@ -48,7 +46,7 @@ class MembersIndex extends Component<Props> {
   }
 }
 
-const mstp = (state: AppState, props: Props) => {
+const mstp = (state: AppState, props: RouterProps) => {
   const org = getByID<Organization>(
     state,
     ResourceType.Orgs,
@@ -59,5 +57,7 @@ const mstp = (state: AppState, props: Props) => {
     org,
   }
 }
+
+const connector = connect(mstp)
 
 export default connector(withRouter(MembersIndex))

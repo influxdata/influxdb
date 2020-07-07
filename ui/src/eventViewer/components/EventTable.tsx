@@ -26,14 +26,11 @@ import {RemoteDataState} from 'src/types'
 // Constants
 import {checkStatusLoading} from 'src/shared/copy/notifications'
 
-type DispatchProps = {
-  notify: typeof notifyAction
-}
-
 type OwnProps = {
   fields: Fields
 }
 
+type ReduxProps = ConnectedProps<typeof connector>
 type Props = EventViewerChildProps & ReduxProps & OwnProps
 
 const EventTable: FC<Props> = ({state, dispatch, loadRows, fields, notify}) => {
@@ -135,5 +132,7 @@ const EventTable: FC<Props> = ({state, dispatch, loadRows, fields, notify}) => {
 const mdtp = {
   notify: notifyAction,
 }
+
+const connector = connect(null, mdtp)
 
 export default connector(EventTable)

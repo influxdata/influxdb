@@ -12,16 +12,9 @@ import {setNotebookMiniMapState} from 'src/shared/actions/app'
 import {event} from 'src/notebooks/shared/event'
 
 // Types
-import {AppState, NotebookMiniMapState} from 'src/types'
+import {AppState} from 'src/types'
 
-interface StateProps {
-  notebookMiniMapState: NotebookMiniMapState
-}
-
-interface DispatchProps {
-  handleSetNotebookMiniMapState: typeof setNotebookMiniMapState
-}
-
+type ReduxProps = ConnectedProps<typeof connector>
 type Props = ReduxProps
 
 const MiniMapToggle: FC<Props> = ({
@@ -74,5 +67,7 @@ const mstp = (state: AppState) => {
 const mdtp = {
   handleSetNotebookMiniMapState: setNotebookMiniMapState,
 }
+
+const connector = connect(mstp, mdtp)
 
 export default connector(MiniMapToggle)

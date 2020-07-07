@@ -1,6 +1,6 @@
 // Libraries
 import React, {FunctionComponent} from 'react'
-import {connect, ConnectedProps} from 'react-redux'
+import {connect} from 'react-redux'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Components
@@ -14,6 +14,7 @@ import {getOrg} from 'src/organizations/selectors'
 
 interface OwnProps {
   title: string
+  children: React.ReactNode
 }
 
 interface StateProps {

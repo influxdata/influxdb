@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect, ConnectedProps} from 'react-redux'
+import {connect} from 'react-redux'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -44,4 +44,4 @@ class LabelsIndex extends PureComponent<StateProps> {
 
 const mstp = (state: AppState) => ({org: getOrg(state)})
 
-export default connect<StateProps, {}, {}>(mstp, null)(LabelsIndex)
+export default connect<StateProps>(mstp)(LabelsIndex)

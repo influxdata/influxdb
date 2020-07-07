@@ -6,15 +6,7 @@ import {timeZone as timeZoneFromState} from 'src/shared/selectors/app'
 
 import {AppState, TimeZone, Organization} from 'src/types'
 
-export interface StateProps {
-  timeZone: TimeZone
-  org: Organization
-}
-
-export interface DispatchProps {
-  onSetTimeZone: typeof setTimeZone
-}
-
+type ReduxProps = ConnectedProps<typeof connector>
 export type Props = ReduxProps
 
 type Modifier = typeof setTimeZone
@@ -62,5 +54,7 @@ const mstp = (state: AppState) => {
 const mdtp = {
   onSetTimeZone: setTimeZone,
 }
+
+const connector = connect(mstp, mdtp)
 
 export default connector(AppSettingProvider)

@@ -1,6 +1,6 @@
 // Libraries
 import React, {FunctionComponent} from 'react'
-import {connect, ConnectedProps} from 'react-redux'
+import {connect} from 'react-redux'
 
 // Components
 import ClientLibraryOverlay from 'src/clientLibraries/components/ClientLibraryOverlay'
@@ -81,4 +81,4 @@ const mstp = (state: AppState) => {
 }
 
 export {ClientJSOverlay}
-export default connect<StateProps, {}, Props>(mstp, null)(ClientJSOverlay)
+export default connect<StateProps, {}, Props>(mstp)(ClientJSOverlay)

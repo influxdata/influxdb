@@ -34,10 +34,6 @@ import {LabelSortKey} from 'src/shared/components/resource_sort_dropdown/generat
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-interface StateProps {
-  labels: Label[]
-}
-
 interface State {
   searchTerm: string
   isOverlayVisible: boolean
@@ -46,12 +42,7 @@ interface State {
   sortType: SortTypes
 }
 
-interface DispatchProps {
-  createLabel: typeof createLabel
-  updateLabel: typeof updateLabel
-  deleteLabel: typeof deleteLabel
-}
-
+type ReduxProps = ConnectedProps<typeof connector>
 type Props = ReduxProps
 
 const FilterLabels = FilterList<Label>()
@@ -215,5 +206,7 @@ const mdtp = {
   updateLabel: updateLabel,
   deleteLabel: deleteLabel,
 }
+
+const connector = connect(mstp, mdtp)
 
 export default connector(Labels)

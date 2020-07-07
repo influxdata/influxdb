@@ -22,11 +22,8 @@ import {AppState} from 'src/types'
 // Selectors
 import {getOrg} from 'src/organizations/selectors'
 
-interface StateProps {
-  orgID: string
-}
-
-type Props = RouteComponentProps & StateProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = RouteComponentProps & ReduxProps
 
 const GettingStarted: FunctionComponent<Props> = ({orgID, history}) => {
   const [loadDataAnimating, setLoadDataAnimation] = useState<boolean>(false)
@@ -133,5 +130,7 @@ const mstp = (state: AppState) => {
     orgID: id,
   }
 }
+
+const connector = connect(mstp)
 
 export default withRouter(connector(GettingStarted))

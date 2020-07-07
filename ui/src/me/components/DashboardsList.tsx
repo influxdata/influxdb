@@ -1,7 +1,7 @@
 // Libraries
 import React, {FC, useState, ChangeEvent} from 'react'
 import {Link} from 'react-router-dom'
-import {connect, ConnectedProps} from 'react-redux'
+import {connect} from 'react-redux'
 import {sortBy} from 'lodash'
 
 // Components
@@ -107,4 +107,4 @@ const mstp = (state: AppState) => {
   }
 }
 
-export default connect<StateProps, {}, {}>(mstp, null)(DashboardList)
+export default connect(mstp)(DashboardList)

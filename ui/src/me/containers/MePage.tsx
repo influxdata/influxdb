@@ -27,12 +27,11 @@ import {AppState} from 'src/types'
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-interface StateProps {
-  me: AppState['me']
-}
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps
 
 @ErrorHandling
-export class MePage extends PureComponent<StateProps> {
+export class MePage extends PureComponent<Props> {
   public render() {
     const {me} = this.props
 
@@ -77,5 +76,7 @@ const mstp = (state: AppState) => {
 
   return {me}
 }
+
+const connector = connect(mstp)
 
 export default connector(MePage)

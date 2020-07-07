@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
-import {connect, ConnectedProps} from 'react-redux'
+import {connect} from 'react-redux'
 
 // Components
 import {Form, Input, Button, Panel, Grid} from '@influxdata/clockface'
@@ -67,4 +67,4 @@ const mstp = ({me}: AppState) => ({
   me,
 })
 
-export default connect<StateProps>(mstp)(Settings)
+export default connect(mstp)(Settings)

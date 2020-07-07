@@ -118,6 +118,7 @@ export const Submit: FC = () => {
       submitButtonDisabled={!hasQueries}
       queryStatus={isLoading}
       onSubmit={submit}
+      onNotify={noop}
     />
   )
 }

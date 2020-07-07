@@ -1,6 +1,6 @@
 // Libraries
 import React, {FC, useContext} from 'react'
-import {connect, ConnectedProps} from 'react-redux'
+import {connect} from 'react-redux'
 
 // Contexts
 import {NotebookContext, PipeMeta} from 'src/notebooks/context/notebook'
