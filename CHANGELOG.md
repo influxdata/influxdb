@@ -1,3 +1,9 @@
+## v2.0.0-beta.15 [unreleased]
+
+### Features
+
+1. [18888](https://github.com/influxdata/influxdb/pull/18888): Add event source to influx stack operations 
+
 ## v2.0.0-beta.14 [2020-07-08]
 
 ### Features

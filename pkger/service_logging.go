@@ -25,7 +25,7 @@ func MWLogging(log *zap.Logger) SVCMiddleware {
 
 var _ SVC = (*loggingMW)(nil)
 
-func (s *loggingMW) InitStack(ctx context.Context, userID influxdb.ID, newStack Stack) (stack Stack, err error) {
+func (s *loggingMW) InitStack(ctx context.Context, userID influxdb.ID, newStack StackCreate) (stack Stack, err error) {
 	defer func(start time.Time) {
 		if err == nil {
 			return

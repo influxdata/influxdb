@@ -76,6 +76,9 @@ func TestService(t *testing.T) {
 		if opt.timeGen != nil {
 			applyOpts = append(applyOpts, WithTimeGenerator(opt.timeGen))
 		}
+		if opt.nameGen != nil {
+			applyOpts = append(applyOpts, withNameGen(opt.nameGen))
+		}
 
 		return NewService(applyOpts...)
 	}
@@ -3454,12 +3457,12 @@ func TestService(t *testing.T) {
 				WithStore(newFakeStore(safeCreateFn)),
 			)
 
-			stack, err := svc.InitStack(context.Background(), 9000, Stack{OrgID: 3333})
+			stack, err := svc.InitStack(context.Background(), 9000, StackCreate{OrgID: 3333})
 			require.NoError(t, err)
 
 			assert.Equal(t, influxdb.ID(3), stack.ID)
 			assert.Equal(t, now, stack.CreatedAt)
-			assert.Equal(t, now, stack.UpdatedAt)
+			assert.Equal(t, now, stack.LatestEvent().UpdatedAt)
 		})
 
 		t.Run("handles unexpected error paths", func(t *testing.T) {
@@ -3517,7 +3520,7 @@ func TestService(t *testing.T) {
 						WithOrganizationService(orgSVC),
 					)
 
-					_, err := svc.InitStack(context.Background(), 9000, Stack{OrgID: 3333})
+					_, err := svc.InitStack(context.Background(), 9000, StackCreate{OrgID: 3333})
 					require.Error(t, err)
 					assert.Equal(t, tt.expectedErrCode, influxdb.ErrorCode(err))
 				}
@@ -3533,20 +3536,25 @@ func TestService(t *testing.T) {
 			tests := []struct {
 				name     string
 				input    StackUpdate
-				expected Stack
+				expected StackEvent
 			}{
 				{
-					name:     "update nothing",
-					input:    StackUpdate{},
-					expected: Stack{},
+					name:  "update nothing",
+					input: StackUpdate{},
+					expected: StackEvent{
+						EventType: StackEventUpdate,
+						UpdatedAt: now,
+					},
 				},
 				{
 					name: "update name",
 					input: StackUpdate{
 						Name: strPtr("name"),
 					},
-					expected: Stack{
-						Name: "name",
+					expected: StackEvent{
+						EventType: StackEventUpdate,
+						Name:      "name",
+						UpdatedAt: now,
 					},
 				},
 				{
@@ -3554,8 +3562,10 @@ func TestService(t *testing.T) {
 					input: StackUpdate{
 						Description: strPtr("desc"),
 					},
-					expected: Stack{
+					expected: StackEvent{
+						EventType:   StackEventUpdate,
 						Description: "desc",
+						UpdatedAt:   now,
 					},
 				},
 				{
@@ -3563,8 +3573,10 @@ func TestService(t *testing.T) {
 					input: StackUpdate{
 						TemplateURLs: []string{"http://example.com"},
 					},
-					expected: Stack{
+					expected: StackEvent{
+						EventType:    StackEventUpdate,
 						TemplateURLs: []string{"http://example.com"},
+						UpdatedAt:    now,
 					},
 				},
 				{
@@ -3574,10 +3586,12 @@ func TestService(t *testing.T) {
 						Description:  strPtr("desc"),
 						TemplateURLs: []string{"http://example.com"},
 					},
-					expected: Stack{
+					expected: StackEvent{
+						EventType:    StackEventUpdate,
 						Name:         "name",
 						Description:  "desc",
 						TemplateURLs: []string{"http://example.com"},
+						UpdatedAt:    now,
 					},
 				},
 				{
@@ -3601,7 +3615,8 @@ func TestService(t *testing.T) {
 							},
 						},
 					},
-					expected: Stack{
+					expected: StackEvent{
+						EventType:    StackEventUpdate,
 						Name:         "name",
 						Description:  "desc",
 						TemplateURLs: []string{"http://example.com"},
@@ -3614,11 +3629,12 @@ func TestService(t *testing.T) {
 							},
 							{
 								APIVersion: APIVersion,
-								ID:         1,
+								ID:         2,
 								Kind:       KindLabel,
-								MetaName:   "collision-1",
+								MetaName:   "collision-1-" + influxdb.ID(333).String()[10:],
 							},
 						},
+						UpdatedAt: now,
 					},
 				},
 				{
@@ -3636,7 +3652,8 @@ func TestService(t *testing.T) {
 							},
 						},
 					},
-					expected: Stack{
+					expected: StackEvent{
+						EventType:    StackEventUpdate,
 						Name:         "name",
 						Description:  "desc",
 						TemplateURLs: []string{"http://example.com"},
@@ -3648,6 +3665,7 @@ func TestService(t *testing.T) {
 								MetaName:   "meta-label",
 							},
 						},
+						UpdatedAt: now,
 					},
 				},
 			}
@@ -3661,6 +3679,12 @@ func TestService(t *testing.T) {
 					}
 
 					svc := newTestService(
+						WithIDGenerator(mock.IDGenerator{
+							IDFn: func() influxdb.ID {
+								return 333
+							},
+						}),
+						withNameGen(nameGenFn),
 						WithTimeGenerator(newTimeGen(now)),
 						WithStore(&fakeStore{
 							readFn: func(ctx context.Context, id influxdb.ID) (Stack, error) {
@@ -3673,7 +3697,6 @@ func TestService(t *testing.T) {
 								return nil
 							},
 						}),
-						withNameGen(nameGenFn),
 					)
 
 					tt.input.ID = 33
@@ -3683,10 +3706,7 @@ func TestService(t *testing.T) {
 					assert.Equal(t, influxdb.ID(33), stack.ID)
 					assert.Equal(t, influxdb.ID(3), stack.OrgID)
 					assert.Zero(t, stack.CreatedAt) // should always zero value in these tests
-					assert.Equal(t, tt.expected.Name, stack.Name)
-					assert.Equal(t, tt.expected.Description, stack.Description)
-					assert.Equal(t, tt.expected.TemplateURLs, stack.TemplateURLs)
-					assert.Equal(t, now, stack.UpdatedAt)
+					assert.Equal(t, tt.expected, stack.LatestEvent())
 				}
 
 				t.Run(tt.name, fn)

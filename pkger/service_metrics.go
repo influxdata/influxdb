@@ -32,7 +32,7 @@ func MWMetrics(reg *prom.Registry) SVCMiddleware {
 	}
 }
 
-func (s *mwMetrics) InitStack(ctx context.Context, userID influxdb.ID, newStack Stack) (Stack, error) {
+func (s *mwMetrics) InitStack(ctx context.Context, userID influxdb.ID, newStack StackCreate) (Stack, error) {
 	rec := s.rec.Record("init_stack")
 	stack, err := s.next.InitStack(ctx, userID, newStack)
 	return stack, rec(err)

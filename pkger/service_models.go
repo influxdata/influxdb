@@ -430,7 +430,7 @@ func (s *stateCoordinator) addStackState(stack Stack) {
 		s.reconcileNotificationDependencies,
 	}
 	for _, reconcileFn := range reconcilers {
-		reconcileFn(stack.Resources)
+		reconcileFn(stack.LatestEvent().Resources)
 	}
 }
 

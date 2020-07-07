@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/go-chi/chi"
 	"github.com/influxdata/influxdb/v2"
@@ -54,14 +55,23 @@ func (s *HTTPServerStacks) Prefix() string {
 type (
 	// RespStack is the response body for a stack.
 	RespStack struct {
-		ID          string              `json:"id"`
-		OrgID       string              `json:"orgID"`
+		ID        string           `json:"id"`
+		OrgID     string           `json:"orgID"`
+		CreatedAt time.Time        `json:"createdAt"`
+		Events    []RespStackEvent `json:"events"`
+
+		// maintain same interface for backward compatability
+		RespStackEvent
+	}
+
+	RespStackEvent struct {
+		EventType   string              `json:"eventType"`
 		Name        string              `json:"name"`
 		Description string              `json:"description"`
 		Resources   []RespStackResource `json:"resources"`
 		Sources     []string            `json:"sources"`
 		URLs        []string            `json:"urls"`
-		influxdb.CRUDLog
+		UpdatedAt   time.Time           `json:"updatedAt"`
 	}
 
 	// RespStackResource is the response for a stack resource. This type exists
@@ -202,7 +212,7 @@ func (s *HTTPServerStacks) createStack(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	stack, err := s.svc.InitStack(r.Context(), auth.GetUserID(), Stack{
+	stack, err := s.svc.InitStack(r.Context(), auth.GetUserID(), StackCreate{
 		OrgID:        reqBody.orgID(),
 		Name:         reqBody.Name,
 		Description:  reqBody.Description,
@@ -325,6 +335,51 @@ func (s *HTTPServerStacks) updateStack(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.api.Respond(w, r, http.StatusOK, convertStackToRespStack(stack))
+}
+
+func convertStackToRespStack(st Stack) RespStack {
+	events := make([]RespStackEvent, 0, len(st.Events))
+	for _, ev := range st.Events {
+		events = append(events, convertStackEvent(ev))
+	}
+
+	return RespStack{
+		ID:             st.ID.String(),
+		OrgID:          st.OrgID.String(),
+		CreatedAt:      st.CreatedAt,
+		RespStackEvent: convertStackEvent(st.LatestEvent()),
+		Events:         events,
+	}
+}
+
+func convertStackEvent(ev StackEvent) RespStackEvent {
+	resources := make([]RespStackResource, 0, len(ev.Resources))
+	for _, r := range ev.Resources {
+		asses := make([]RespStackResourceAssoc, 0, len(r.Associations))
+		for _, a := range r.Associations {
+			asses = append(asses, RespStackResourceAssoc{
+				Kind:     a.Kind,
+				MetaName: a.MetaName,
+			})
+		}
+		resources = append(resources, RespStackResource{
+			APIVersion:   r.APIVersion,
+			ID:           r.ID.String(),
+			Kind:         r.Kind,
+			MetaName:     r.MetaName,
+			Associations: asses,
+		})
+	}
+
+	return RespStackEvent{
+		EventType:   ev.EventType.String(),
+		Name:        ev.Name,
+		Description: ev.Description,
+		Resources:   resources,
+		Sources:     append([]string{}, ev.Sources...),
+		URLs:        append([]string{}, ev.TemplateURLs...),
+		UpdatedAt:   ev.UpdatedAt,
+	}
 }
 
 func stackIDFromReq(r *http.Request) (influxdb.ID, error) {

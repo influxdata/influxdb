@@ -512,6 +512,9 @@ func Test_Template_Commands(t *testing.T) {
 					args: []string{"--org-id=" + influxdb.ID(1).String()},
 					expectedStack: pkger.Stack{
 						OrgID: 1,
+						Events: []pkger.StackEvent{{
+							EventType: pkger.StackEventCreate,
+						}},
 					},
 				},
 				{
@@ -522,7 +525,10 @@ func Test_Template_Commands(t *testing.T) {
 					},
 					expectedStack: pkger.Stack{
 						OrgID: 1,
-						Name:  "foo",
+						Events: []pkger.StackEvent{{
+							EventType: pkger.StackEventCreate,
+							Name:      "foo",
+						}},
 					},
 				},
 				{
@@ -535,13 +541,16 @@ func Test_Template_Commands(t *testing.T) {
 						"--template-url=http://example.com/2",
 					},
 					expectedStack: pkger.Stack{
-						OrgID:       1,
-						Name:        "foo",
-						Description: "desc",
-						TemplateURLs: []string{
-							"http://example.com/1",
-							"http://example.com/2",
-						},
+						OrgID: 1,
+						Events: []pkger.StackEvent{{
+							EventType:   pkger.StackEventCreate,
+							Name:        "foo",
+							Description: "desc",
+							TemplateURLs: []string{
+								"http://example.com/1",
+								"http://example.com/2",
+							},
+						}},
 					},
 				},
 				{
@@ -554,13 +563,16 @@ func Test_Template_Commands(t *testing.T) {
 						"-u=http://example.com/2",
 					},
 					expectedStack: pkger.Stack{
-						OrgID:       1,
-						Name:        "foo",
-						Description: "desc",
-						TemplateURLs: []string{
-							"http://example.com/1",
-							"http://example.com/2",
-						},
+						OrgID: 1,
+						Events: []pkger.StackEvent{{
+							EventType:   pkger.StackEventCreate,
+							Name:        "foo",
+							Description: "desc",
+							TemplateURLs: []string{
+								"http://example.com/1",
+								"http://example.com/2",
+							},
+						}},
 					},
 				},
 			}
@@ -583,9 +595,21 @@ func Test_Template_Commands(t *testing.T) {
 
 					rootCmd := builder.cmd(func(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 						echoSVC := &fakePkgSVC{
-							initStackFn: func(ctx context.Context, userID influxdb.ID, stack pkger.Stack) (pkger.Stack, error) {
-								stack.ID = 9000
-								return stack, nil
+							initStackFn: func(ctx context.Context, userID influxdb.ID, stCreate pkger.StackCreate) (pkger.Stack, error) {
+								return pkger.Stack{
+									ID:    9000,
+									OrgID: stCreate.OrgID,
+									Events: []pkger.StackEvent{
+										{
+											EventType:    pkger.StackEventCreate,
+											Name:         stCreate.Name,
+											Description:  stCreate.Description,
+											Sources:      stCreate.Sources,
+											TemplateURLs: stCreate.TemplateURLs,
+											Resources:    stCreate.Resources,
+										},
+									},
+								}, nil
 							},
 						}
 						return newCmdPkgerBuilder(fakeSVCFn(echoSVC), f, opt).cmdStacks()
@@ -752,7 +776,7 @@ func testPkgWritesToBuffer(newCmdFn func(w io.Writer) *cobra.Command, args templ
 }
 
 type fakePkgSVC struct {
-	initStackFn func(ctx context.Context, userID influxdb.ID, stack pkger.Stack) (pkger.Stack, error)
+	initStackFn func(ctx context.Context, userID influxdb.ID, stack pkger.StackCreate) (pkger.Stack, error)
 	exportFn    func(ctx context.Context, setters ...pkger.ExportOptFn) (*pkger.Template, error)
 	dryRunFn    func(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.ImpactSummary, error)
 	applyFn     func(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.ImpactSummary, error)
@@ -760,7 +784,7 @@ type fakePkgSVC struct {
 
 var _ pkger.SVC = (*fakePkgSVC)(nil)
 
-func (f *fakePkgSVC) InitStack(ctx context.Context, userID influxdb.ID, stack pkger.Stack) (pkger.Stack, error) {
+func (f *fakePkgSVC) InitStack(ctx context.Context, userID influxdb.ID, stack pkger.StackCreate) (pkger.Stack, error) {
 	if f.initStackFn != nil {
 		return f.initStackFn(ctx, userID, stack)
 	}
