@@ -21,8 +21,11 @@ import {getByID} from 'src/resources/selectors'
 import {
   getGithubUrlFromTemplateName,
   getRawUrlFromGithub,
-  reviewTemplate,
 } from 'src/templates/utils'
+
+import {installTemplate, reviewTemplate} from 'src/templates/api'
+
+import {communityTemplateInstallSucceeded} from 'src/shared/copy/notifications'
 
 interface State {
   status: ComponentStatus
@@ -51,7 +54,7 @@ class UnconnectedTemplateImportOverlay extends PureComponent<Props> {
     return (
       <CommunityTemplateInstallerOverlay
         onDismissOverlay={this.onDismiss}
-        onSubmit={this.handleInstallTemplate}
+        onInstall={this.handleInstallTemplate}
         resourceCount={this.props.resourceCount}
         status={this.state.status}
         templateName={this.props.templateName}
@@ -84,8 +87,23 @@ class UnconnectedTemplateImportOverlay extends PureComponent<Props> {
   private updateOverlayStatus = (status: ComponentStatus) =>
     this.setState(() => ({status}))
 
-  private handleInstallTemplate = (importString: string) => {
-    importString
+  private handleInstallTemplate = async () => {
+    const {org, templateName} = this.props
+
+    const yamlLocation = `${getRawUrlFromGithub(
+      getGithubUrlFromTemplateName(templateName)
+    )}/${templateName}.yml`
+
+    try {
+      const summary = await installTemplate(org.id, yamlLocation)
+      this.props.notify(communityTemplateInstallSucceeded(templateName))
+
+      this.onDismiss()
+
+      return summary
+    } catch (err) {
+      console.error('Error installing template', err)
+    }
   }
 }
 

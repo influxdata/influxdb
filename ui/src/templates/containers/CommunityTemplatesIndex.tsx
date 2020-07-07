@@ -11,6 +11,8 @@ import {connect, ConnectedProps} from 'react-redux'
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {CommunityTemplateImportOverlay} from 'src/templates/components/CommunityTemplateImportOverlay'
+import {CommunityTemplatesActivityLog} from 'src/templates/components/CommunityTemplatesActivityLog'
+
 import {
   Bullet,
   Button,
@@ -125,6 +127,7 @@ class UnconnectedTemplatesIndex extends Component<Props> {
                   </div>
                 </Panel.Body>
               </Panel>
+              <CommunityTemplatesActivityLog orgID={org.id} />
             </div>
           </SettingsTabbedPage>
         </Page>
