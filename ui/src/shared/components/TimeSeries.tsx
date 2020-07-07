@@ -54,7 +54,6 @@ import {
   Bucket,
   ResourceType,
   DashboardQuery,
-  VariableAssignment,
   AppState,
   CancelBox,
 } from 'src/types'
@@ -73,7 +72,6 @@ interface QueriesState {
 interface OwnProps {
   className?: string
   style?: CSSProperties
-  variables?: VariableAssignment[]
   queries: DashboardQuery[]
   submitToken: number
   implicitSubmit?: boolean

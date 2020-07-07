@@ -29,10 +29,7 @@ import {
   updateBucket,
   deleteBucket,
 } from 'src/buckets/actions/thunks'
-import {
-  checkBucketLimits as checkBucketLimitsAction,
-  LimitStatus,
-} from 'src/cloud/actions/limits'
+import {checkBucketLimits as checkBucketLimitsAction} from 'src/cloud/actions/limits'
 
 // Utils
 import {extractBucketLimits} from 'src/cloud/utils/limits'
@@ -43,18 +40,6 @@ import {SortTypes} from 'src/shared/utils/sort'
 import {AppState, Bucket, ResourceType, OwnBucket} from 'src/types'
 import {BucketSortKey} from 'src/shared/components/resource_sort_dropdown/generateSortItems'
 
-interface StateProps {
-  buckets: Bucket[]
-  limitStatus: LimitStatus
-}
-
-interface DispatchProps {
-  createBucket: typeof createBucket
-  updateBucket: typeof updateBucket
-  deleteBucket: typeof deleteBucket
-  checkBucketLimits: typeof checkBucketLimitsAction
-}
-
 interface State {
   searchTerm: string
   sortKey: BucketSortKey
@@ -62,6 +47,7 @@ interface State {
   sortType: SortTypes
 }
 
+type ReduxProps = ConnectedProps<typeof connector>
 type Props = ReduxProps
 
 const FilterBuckets = FilterList<Bucket>()
@@ -216,5 +202,7 @@ const mdtp = {
   deleteBucket,
   checkBucketLimits: checkBucketLimitsAction,
 }
+
+const connector = connect(mstp, mdtp)
 
 export default connector(BucketsTab)

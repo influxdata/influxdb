@@ -1,6 +1,6 @@
 // Libraries
 import React, {FC} from 'react'
-import {connect, ConnectedProps} from 'react-redux'
+import {connect} from 'react-redux'
 
 // Components
 import ThresholdCondition from 'src/alerting/components/builder/ThresholdCondition'
@@ -31,4 +31,4 @@ const mstp = ({alertBuilder: {thresholds: thresholdsArray}}: AppState) => {
   return {thresholds}
 }
 
-export default connect<StateProps, {}, {}>(mstp, null)(ThresholdConditions)
+export default connect<StateProps>(mstp)(ThresholdConditions)

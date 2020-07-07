@@ -28,23 +28,16 @@ import {
   CheckStatusLevel,
 } from 'src/types'
 import {ComponentSize} from '@influxdata/clockface'
-import {Table} from '@influxdata/giraffe'
+
+// Constants
 import {LEVEL_COMPONENT_COLORS} from 'src/alerting/constants'
-
-interface StateProps {
-  table: Table
-}
-
-interface DispatchProps {
-  onUpdateThreshold: typeof updateThreshold
-  onRemoveThreshold: typeof removeThreshold
-}
 
 interface OwnProps {
   threshold: Threshold
   level: CheckStatusLevel
 }
 
+type ReduxProps = ConnectedProps<typeof connector>
 type Props = ReduxProps & OwnProps
 
 const defaultThreshold = {
@@ -162,5 +155,7 @@ const mdtp = {
 }
 
 export {ThresholdCondition}
+
+const connector = connect(mstp, mdtp)
 
 export default connector(ThresholdCondition)

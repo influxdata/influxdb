@@ -24,21 +24,8 @@ import {
 // Types
 import {AppState, NoteEditorMode} from 'src/types'
 
-interface StateProps {
-  note: string
-  showNoteWhenEmpty: boolean
-  hasQuery: boolean
-}
-
-interface DispatchProps {
-  onSetIsPreviewing: typeof setIsPreviewing
-  onToggleShowNoteWhenEmpty: typeof toggleShowNoteWhenEmpty
-  onSetNote: typeof setNote
-}
-
-interface OwnProps {}
-
-type Props = ReduxProps & OwnProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps
 
 interface State {
   scrollTop: number
@@ -129,5 +116,7 @@ const mdtp = {
   onToggleShowNoteWhenEmpty: toggleShowNoteWhenEmpty,
   onSetNote: setNote,
 }
+
+const connector = connect(mstp, mdtp)
 
 export default connector(NoteEditor)

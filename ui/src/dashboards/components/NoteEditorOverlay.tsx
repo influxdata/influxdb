@@ -34,21 +34,7 @@ interface OwnProps {
   onClose: () => void
 }
 
-interface StateProps {
-  mode: NoteEditorMode
-  viewsStatus: RemoteDataState
-  cellID?: string
-  dashboardID: string
-}
-
-interface DispatchProps {
-  onCreateNoteCell: typeof createNoteCell
-  onUpdateViewNote: typeof updateViewNote
-  resetNote: typeof resetNoteState
-  onNotify: typeof notify
-  loadNote: typeof loadNote
-}
-
+type ReduxProps = ConnectedProps<typeof connector>
 type Props = OwnProps & ReduxProps
 
 interface State {
@@ -208,5 +194,7 @@ const mdtp = {
   resetNote: resetNoteState,
   loadNote,
 }
+
+const connector = connect(mstp, mdtp)
 
 export default connector(NoteEditorOverlay)

@@ -8,15 +8,7 @@ import {TelegrafEditorPluginType} from 'src/dataLoaders/reducers/telegrafEditor'
 
 const PLUGIN_REGEX = /\[\[\s*(inputs|outputs|processors|aggregators)\.(.+)\s*\]\]/
 
-interface DispatchProps {
-  onSetText: typeof setText
-  onSetActivePlugins: typeof setActivePlugins
-}
-
-interface StateProps {
-  script: string
-}
-
+type ReduxProps = ConnectedProps<typeof connector>
 type Props = ReduxProps
 
 interface InterumMatchFormat {
@@ -149,6 +141,6 @@ const mdtp = {
   onSetText: setText,
 }
 
-export default connect<StateProps, DispatchProps>(mstp, mdtp, null, {
-  withRef: true,
-})(TelegrafEditorMonaco)
+const connector = connect(mstp, mdtp, null, {withRef: true})
+
+export default connector(TelegrafEditorMonaco)

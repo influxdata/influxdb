@@ -30,18 +30,9 @@ interface State {
   bucket: OwnBucket
 }
 
-interface StateProps {
-  startBucket: OwnBucket
-  buckets: Bucket[]
-}
-
-interface DispatchProps {
-  onRenameBucket: typeof renameBucket
-}
-
-type Props = StateProps &
-  ReduxProps &
-  RouteComponentProps<{bucketID: string; orgID: string}>
+type ReduxProps = ConnectedProps<typeof connector>
+type RouterProps = RouteComponentProps<{bucketID: string; orgID: string}>
+type Props = ReduxProps & RouterProps
 
 class RenameBucketForm extends PureComponent<Props, State> {
   public state = {bucket: this.props.startBucket}
@@ -141,7 +132,7 @@ class RenameBucketForm extends PureComponent<Props, State> {
   }
 }
 
-const mstp = (state: AppState, props: Props) => {
+const mstp = (state: AppState, props: RouterProps) => {
   const {bucketID} = props.match.params
 
   const startBucket = getByID<OwnBucket>(state, ResourceType.Buckets, bucketID)
@@ -158,6 +149,8 @@ const mstp = (state: AppState, props: Props) => {
 const mdtp = {
   onRenameBucket: renameBucket,
 }
+
+const connector = connect(mstp, mdtp)
 
 // state mapping requires router
 export default withRouter(connector(RenameBucketForm))

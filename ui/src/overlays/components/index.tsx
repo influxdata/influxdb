@@ -3,35 +3,35 @@ import OverlayHandler, {
 } from 'src/overlays/components/RouteOverlay'
 
 export const AddNoteOverlay = RouteOverlay(
-  OverlayHandler as any,
+  OverlayHandler,
   'add-note',
   (history, params) => {
     history.push(`/orgs/${params.orgID}/dashboards/${params.dashboardID}`)
   }
 )
 export const EditNoteOverlay = RouteOverlay(
-  OverlayHandler as any,
+  OverlayHandler,
   'edit-note',
   (history, params) => {
     history.push(`/orgs/${params.orgID}/dashboards/${params.dashboardID}`)
   }
 )
 export const AllAccessTokenOverlay = RouteOverlay(
-  OverlayHandler as any,
+  OverlayHandler,
   'add-master-token',
   (history, params) => {
     history.push(`/orgs/${params.orgID}/load-data/tokens`)
   }
 )
 export const BucketsTokenOverlay = RouteOverlay(
-  OverlayHandler as any,
+  OverlayHandler,
   'add-token',
   (history, params) => {
     history.push(`/orgs/${params.orgID}/load-data/tokens`)
   }
 )
 export const TelegrafConfigOverlay = RouteOverlay(
-  OverlayHandler as any,
+  OverlayHandler,
   'telegraf-config',
   (history, params) => {
     history.push(`/orgs/${params.orgID}/load-data/telegrafs`)
@@ -39,7 +39,7 @@ export const TelegrafConfigOverlay = RouteOverlay(
 )
 
 export const TelegrafOutputOverlay = RouteOverlay(
-  OverlayHandler as any,
+  OverlayHandler,
   'telegraf-output',
   (history, params) => {
     history.push(`/orgs/${params.orgID}/load-data/telegrafs`)

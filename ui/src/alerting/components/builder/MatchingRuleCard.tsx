@@ -1,6 +1,6 @@
 // Libraries
 import React, {FC} from 'react'
-import {connect, ConnectedProps} from 'react-redux'
+import {connect} from 'react-redux'
 
 // Components
 import {ResourceCard} from '@influxdata/clockface'

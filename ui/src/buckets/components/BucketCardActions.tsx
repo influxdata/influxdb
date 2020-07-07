@@ -2,7 +2,6 @@
 import React, {FC} from 'react'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
 import {connect, ConnectedProps} from 'react-redux'
-import _ from 'lodash'
 
 // Components
 import {
@@ -24,14 +23,7 @@ import {setDataLoadersType} from 'src/dataLoaders/actions/dataLoaders'
 import {Label, OwnBucket} from 'src/types'
 import {DataLoaderType} from 'src/types/dataLoaders'
 
-interface DispatchProps {
-  onAddBucketLabel: typeof addBucketLabel
-  onDeleteBucketLabel: typeof deleteBucketLabel
-  onSetDataLoadersBucket: typeof setBucketInfo
-  onSetDataLoadersType: typeof setDataLoadersType
-}
-
-interface Props {
+interface OwnProps {
   bucket: OwnBucket
   bucketType: 'user' | 'system'
   orgID: string
@@ -39,9 +31,11 @@ interface Props {
   onFilterChange: (searchTerm: string) => void
 }
 
-const BucketCardActions: FC<Props &
-  RouteComponentProps<{orgID: string}> &
-  DispatchProps> = ({
+type ReduxProps = ConnectedProps<typeof connector>
+type RouterProps = RouteComponentProps<{orgID: string}>
+type Props = OwnProps & ReduxProps & RouterProps
+
+const BucketCardActions: FC<Props> = ({
   bucket,
   bucketType,
   orgID,
@@ -141,5 +135,7 @@ const mdtp = {
   onSetDataLoadersBucket: setBucketInfo,
   onSetDataLoadersType: setDataLoadersType,
 }
+
+const connector = connect(null, mdtp)
 
 export default connector(withRouter(BucketCardActions))

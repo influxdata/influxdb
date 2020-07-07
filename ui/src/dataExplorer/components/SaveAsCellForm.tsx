@@ -45,23 +45,11 @@ interface State {
   newDashboardName: string
 }
 
-interface StateProps {
-  dashboards: Dashboard[]
-  view: View
-  orgID: string
-}
-
-interface DispatchProps {
-  onGetDashboards: typeof getDashboards
-  onCreateCellWithView: typeof createCellWithView
-  onCreateDashboardWithView: typeof createDashboardWithView
-  notify: typeof notify
-}
-
 interface OwnProps {
   dismiss: () => void
 }
 
+type ReduxProps = ConnectedProps<typeof connector>
 type Props = ReduxProps & OwnProps
 
 @ErrorHandling
@@ -248,5 +236,7 @@ const mdtp = {
   onCreateDashboardWithView: createDashboardWithView,
   notify,
 }
+
+const connector = connect(mstp, mdtp)
 
 export default connector(SaveAsCellForm)

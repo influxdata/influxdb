@@ -22,21 +22,9 @@ import {CHECK_OFFSET_OPTIONS} from 'src/alerting/constants'
 import {DURATIONS} from 'src/timeMachine/constants/queryBuilder'
 
 // Types
-import {AppState, CheckTagSet} from 'src/types'
+import {AppState} from 'src/types'
 
-interface DispatchProps {
-  onSelectCheckEvery: typeof selectCheckEvery
-  onSetOffset: typeof setOffset
-  onRemoveTagSet: typeof removeTagSet
-  onEditTagSetByIndex: typeof editTagSetByIndex
-}
-
-interface StateProps {
-  tags: CheckTagSet[]
-  offset: string
-  every: string
-}
-
+type ReduxProps = ConnectedProps<typeof connector>
 type Props = ReduxProps
 
 const EMPTY_TAG_SET = {
@@ -119,5 +107,7 @@ const mdtp = {
   onRemoveTagSet: removeTagSet,
   onEditTagSetByIndex: editTagSetByIndex,
 }
+
+const connector = connect(mstp, mdtp)
 
 export default connector(CheckMetaCard)

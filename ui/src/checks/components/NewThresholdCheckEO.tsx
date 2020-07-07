@@ -81,7 +81,7 @@ const mstp = ({alertBuilder: {name, status}}: AppState) => {
 
 const mdtp = {
   onSetActiveTimeMachine: setActiveTimeMachine,
-  onSaveCheckFromTimeMachine: createCheckFromTimeMachine,
+  onSaveCheckFromTimeMachine: createCheckFromTimeMachine as any,
   onResetAlertBuilder: resetAlertBuilder,
   onUpdateAlertBuilderName: updateName,
   onInitializeAlertBuilder: initializeAlertBuilder,

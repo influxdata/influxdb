@@ -18,21 +18,10 @@ import {getViewAndResultsForVEO} from 'src/views/actions/thunks'
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 
 // Types
-import {AppState, RemoteDataState, QueryView, TimeMachineID} from 'src/types'
+import {AppState, RemoteDataState} from 'src/types'
 
-interface DispatchProps {
-  getViewAndResultsForVEO: typeof getViewAndResultsForVEO
-  onSetName: typeof setName
-  onSaveView: typeof saveVEOView
-}
-
-interface StateProps {
-  activeTimeMachineID: TimeMachineID
-  view: QueryView | null
-}
-
+type ReduxProps = ConnectedProps<typeof connector>
 type Props = ReduxProps &
-  StateProps &
   RouteComponentProps<{orgID: string; cellID: string; dashboardID: string}>
 
 const EditViewVEO: FunctionComponent<Props> = ({
@@ -106,5 +95,7 @@ const mdtp = {
   onSetName: setName,
   onSaveView: saveVEOView,
 }
+
+const connector = connect(mstp, mdtp)
 
 export default connector(withRouter(EditViewVEO))

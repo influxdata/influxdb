@@ -16,14 +16,11 @@ import SetOrg from 'src/shared/containers/SetOrg'
 import CreateOrgOverlay from './organizations/components/CreateOrgOverlay'
 
 // Types
-import {AppState, CurrentPage, Theme} from 'src/types'
+import {AppState} from 'src/types'
 
-interface StateProps {
-  inPresentationMode: boolean
-  currentPage: CurrentPage
-  theme: Theme
-}
-type Props = StateProps & RouteComponentProps
+type ReduxProps = ConnectedProps<typeof connector>
+type RouterProps = RouteComponentProps
+type Props = ReduxProps & RouterProps
 
 const App: SFC<Props> = ({inPresentationMode, currentPage, theme}) => {
   const appWrapperClass = classnames('', {
@@ -60,4 +57,6 @@ const mstp = (state: AppState) => {
   return {inPresentationMode, currentPage, theme}
 }
 
-export default connect<StateProps, {}>(mstp, null)(withRouter(App))
+const connector = connect(mstp)
+
+export default connector(withRouter(App))

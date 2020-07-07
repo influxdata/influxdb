@@ -22,22 +22,11 @@ import {
 } from 'src/alerting/actions/alertBuilder'
 
 // Types
-import {CheckStatusLevel, AppState} from 'src/types'
+import {AppState} from 'src/types'
 import DurationInput from 'src/shared/components/DurationInput'
 import {CHECK_OFFSET_OPTIONS} from 'src/alerting/constants'
 
-interface DispatchProps {
-  onSetStaleTime: typeof setStaleTime
-  onSetTimeSince: typeof setTimeSince
-  onSetLevel: typeof setLevel
-}
-
-interface StateProps {
-  staleTime: string
-  timeSince: string
-  level: CheckStatusLevel
-}
-
+type ReduxProps = ConnectedProps<typeof connector>
 type Props = ReduxProps
 
 const DeadmanConditions: FC<Props> = ({
@@ -128,5 +117,7 @@ const mdtp = {
   onSetTimeSince: setTimeSince,
   onSetLevel: setLevel,
 }
+
+const connector = connect(mstp, mdtp)
 
 export default connector(DeadmanConditions)

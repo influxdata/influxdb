@@ -20,17 +20,17 @@ import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
 import {getOrg} from 'src/organizations/selectors'
 
 // Types
-import {AppState, Organization, ResourceType} from 'src/types'
+import {AppState, ResourceType} from 'src/types'
 
-interface StateProps {
-  org: Organization
-}
 import {ORGS, ORG_ID, TOKENS} from 'src/shared/constants/routes'
 
 const tokensPath = `/${ORGS}/${ORG_ID}/load-data/${TOKENS}/generate`
 
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps
+
 @ErrorHandling
-class TokensIndex extends Component<StateProps> {
+class TokensIndex extends Component<Props> {
   public render() {
     const {org} = this.props
 
@@ -60,5 +60,7 @@ class TokensIndex extends Component<StateProps> {
 }
 
 const mstp = (state: AppState) => ({org: getOrg(state)})
+
+const connector = connect(mstp)
 
 export default connector(TokensIndex)

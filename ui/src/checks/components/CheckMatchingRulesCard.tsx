@@ -25,7 +25,6 @@ import {getNotificationRules as apiGetNotificationRules} from 'src/client'
 import {
   NotificationRule,
   AppState,
-  CheckTagSet,
   GenRule,
   NotificationRuleDraft,
 } from 'src/types'
@@ -33,17 +32,10 @@ import {EmptyState, ComponentSize, RemoteDataState} from '@influxdata/clockface'
 import BuilderCard from 'src/timeMachine/components/builderCard/BuilderCard'
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 
-interface StateProps {
-  tags: CheckTagSet[]
-  orgID: string
-  queryResults: string[] | null
-}
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps
 
-const CheckMatchingRulesCard: FC<StateProps> = ({
-  orgID,
-  tags,
-  queryResults,
-}) => {
+const CheckMatchingRulesCard: FC<Props> = ({orgID, tags, queryResults}) => {
   const getMatchingRules = async (): Promise<NotificationRule[]> => {
     const checkTags = tags
       .filter(t => t.key && t.value)
@@ -170,5 +162,7 @@ const mstp = (state: AppState) => {
 
   return {tags, orgID, queryResults: files}
 }
+
+const connector = connect(mstp)
 
 export default connector(CheckMatchingRulesCard)

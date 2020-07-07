@@ -23,13 +23,8 @@ import {
   ResourceType,
 } from 'src/types'
 
-interface StateProps {
-  checks: Check[]
-  rules: NotificationRuleDraft[]
-  endpoints: NotificationEndpoint[]
-}
-
-type Props = StateProps & RouteComponentProps<{orgID: string}>
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps & RouteComponentProps<{orgID: string}>
 
 const ChecksColumn: FunctionComponent<Props> = ({
   checks,
@@ -115,5 +110,7 @@ const mstp = (state: AppState) => {
     endpoints: sortEndpointsByName(endpoints),
   }
 }
+
+const connector = connect(mstp)
 
 export default connector(withRouter(ChecksColumn))

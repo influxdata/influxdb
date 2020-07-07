@@ -32,7 +32,7 @@ import {
 } from 'src/shared/copy/notifications'
 
 // Types
-import {AppState, TelegrafPlugin, ConfigurationState} from 'src/types'
+import {AppState, ConfigurationState} from 'src/types'
 import {InputType, ComponentSize} from '@influxdata/clockface'
 import {influxdbTemplateList} from 'src/templates/constants/defaultTemplates'
 
@@ -40,25 +40,7 @@ import {influxdbTemplateList} from 'src/templates/constants/defaultTemplates'
 import {getOrg} from 'src/organizations/selectors'
 import {getDataLoaders} from 'src/dataLoaders/selectors'
 
-interface DispatchProps {
-  onSetTelegrafConfigName: typeof setTelegrafConfigName
-  onSetTelegrafConfigDescription: typeof setTelegrafConfigDescription
-  onSetActiveTelegrafPlugin: typeof setActiveTelegrafPlugin
-  onSetPluginConfiguration: typeof setPluginConfiguration
-  onIncrementStep: typeof incrementCurrentStepIndex
-  onDecrementStep: typeof decrementCurrentStepIndex
-  notify: typeof notifyAction
-  onSaveTelegrafConfig: typeof createOrUpdateTelegrafConfigAsync
-}
-
-interface StateProps {
-  telegrafConfigName: string
-  telegrafConfigDescription: string
-  telegrafPlugins: TelegrafPlugin[]
-  telegrafConfigID: string
-  orgID: string
-}
-
+type ReduxProps = ConnectedProps<typeof connector>
 type Props = ReduxProps
 
 export class TelegrafPluginInstructions extends PureComponent<Props> {
@@ -234,5 +216,7 @@ const mdtp = {
   onSaveTelegrafConfig: createOrUpdateTelegrafConfigAsync,
   notify: notifyAction,
 }
+
+const connector = connect(mstp, mdtp)
 
 export default connector(TelegrafPluginInstructions)

@@ -39,23 +39,14 @@ const mstp_2 = (state: AppState): PluginStateProps => {
   }
 }
 
-const AllPluginList = connect<PluginStateProps, {}>(mstp_2, null)(PluginList)
-
-interface StateProps {
-  filter: string
-  show: boolean
-}
-
-interface DispatchProps {
-  onSetFilter: typeof setFilter
-  onSetList: typeof setList
-}
+const AllPluginList = connect<PluginStateProps>(mstp_2)(PluginList)
 
 interface OwnProps {
   onJump: (which: TelegrafEditorActivePlugin) => void
   onAdd: (which: TelegrafEditorPlugin) => void
 }
 
+type ReduxProps = ConnectedProps<typeof connector>
 type TelegrafEditorSidebarProps = ReduxProps & OwnProps
 
 class TelegrafEditorSideBar extends PureComponent<TelegrafEditorSidebarProps> {
@@ -130,7 +121,6 @@ const mdtp_3 = {
   onSetFilter: setFilter,
 }
 
-export default connect<StateProps, DispatchProps, {}>(
-  mstp_3,
-  mdtp_3
-)(TelegrafEditorSideBar)
+const connector = connect(mstp_3, mdtp_3)
+
+export default connector(TelegrafEditorSideBar)

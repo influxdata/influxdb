@@ -50,15 +50,6 @@ interface OwnProps {
   onClose: () => void
 }
 
-interface StateProps {
-  buckets: Bucket[]
-  orgID: string
-}
-
-interface DispatchProps {
-  onCreateAuthorization: typeof createAuthorization
-}
-
 interface State {
   description: string
   readBuckets: string[]
@@ -67,6 +58,7 @@ interface State {
   activeTabWrite: BucketTab
 }
 
+type ReduxProps = ConnectedProps<typeof connector>
 type Props = OwnProps & ReduxProps
 
 @ErrorHandling
@@ -288,5 +280,7 @@ const mstp = (state: AppState) => {
 const mdtp = {
   onCreateAuthorization: createAuthorization,
 }
+
+const connector = connect(mstp, mdtp)
 
 export default connector(BucketsTokenOverlay)

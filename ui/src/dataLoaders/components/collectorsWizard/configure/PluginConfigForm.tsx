@@ -23,15 +23,7 @@ interface OwnProps {
   configFields: ConfigFields
 }
 
-interface DispatchProps {
-  onSetActiveTelegrafPlugin: typeof setActiveTelegrafPlugin
-  onSetPluginConfiguration: typeof setPluginConfiguration
-}
-
-interface StateProps {
-  telegrafPlugins: TelegrafPlugin[]
-}
-
+type ReduxProps = ConnectedProps<typeof connector>
 type Props = OwnProps & ReduxProps
 
 export class PluginConfigForm extends PureComponent<Props> {
@@ -109,5 +101,7 @@ const mdtp = {
   onSetActiveTelegrafPlugin: setActiveTelegrafPlugin,
   onSetPluginConfiguration: setPluginConfiguration,
 }
+
+const connector = connect(mstp, mdtp)
 
 export default connector(PluginConfigForm)

@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect, ConnectedProps} from 'react-redux'
+import {connect} from 'react-redux'
 
 // Components
 import {
@@ -112,4 +112,4 @@ const mstp = (state: AppState) => {
   }
 }
 
-export default connect<StateProps, {}>(mstp, null)(RateLimitAlert)
+export default connect<StateProps>(mstp)(RateLimitAlert)

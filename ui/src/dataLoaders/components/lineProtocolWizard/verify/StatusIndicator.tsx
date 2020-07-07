@@ -1,7 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import classnames from 'classnames'
-import {connect, ConnectedProps} from 'react-redux'
+import {connect} from 'react-redux'
 
 // Components
 import {SparkleSpinner} from '@influxdata/clockface'

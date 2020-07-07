@@ -30,10 +30,7 @@ interface OwnProps {
   onClickDescription: (authID: string) => void
 }
 
-interface DispatchProps {
-  onDelete: typeof deleteAuthorization
-  onUpdate: typeof updateAuthorization
-}
+type ReduxProps = ConnectedProps<typeof connector>
 
 type Props = ReduxProps & OwnProps
 
@@ -114,5 +111,7 @@ const mdtp = {
   onDelete: deleteAuthorization,
   onUpdate: updateAuthorization,
 }
+
+const connector = connect(null, mdtp)
 
 export default connector(TokenRow)

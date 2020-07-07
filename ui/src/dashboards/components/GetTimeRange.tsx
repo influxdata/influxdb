@@ -8,17 +8,9 @@ import {getTimeRange} from 'src/dashboards/selectors'
 import * as actions from 'src/dashboards/actions/ranges'
 
 // Types
-import {TimeRange, AppState} from 'src/types'
+import {AppState} from 'src/types'
 
-interface StateProps {
-  timeRange: TimeRange
-}
-
-interface DispatchProps {
-  setDashboardTimeRange: typeof actions.setDashboardTimeRange
-  updateQueryParams: typeof actions.updateQueryParams
-}
-
+type ReduxProps = ConnectedProps<typeof connector>
 type Props = RouteComponentProps<{dashboardID: string}> & ReduxProps
 
 const GetTimeRange: FC<Props> = ({
@@ -57,5 +49,7 @@ const mdtp = {
   updateQueryParams: actions.updateQueryParams,
   setDashboardTimeRange: actions.setDashboardTimeRange,
 }
+
+const connector = connect(mstp, mdtp)
 
 export default withRouter(connector(GetTimeRange))

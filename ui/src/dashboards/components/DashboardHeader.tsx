@@ -45,7 +45,6 @@ import {
   AutoRefresh,
   AutoRefreshStatus,
   Dashboard,
-  Organization,
   ResourceType,
   TimeRange,
 } from 'src/types'
@@ -55,26 +54,8 @@ interface OwnProps {
   onManualRefresh: () => void
 }
 
-interface StateProps {
-  org: Organization
-  dashboard: Dashboard
-  showVariablesControls: boolean
-  timeRange: TimeRange
-}
-
-interface DispatchProps {
-  toggleShowVariablesControls: typeof toggleShowVariablesControlsAction
-  updateDashboard: typeof updateDashboardAction
-  onSetAutoRefreshStatus: typeof setAutoRefreshStatusAction
-  updateQueryParams: typeof updateQueryParamsAction
-  setDashboardTimeRange: typeof setDashboardTimeRangeAction
-  setAutoRefreshInterval: typeof setAutoRefreshIntervalAction
-}
-
-type Props = OwnProps &
-  StateProps &
-  ReduxProps &
-  RouteComponentProps<{orgID: string}>
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = OwnProps & ReduxProps & RouteComponentProps<{orgID: string}>
 
 const DashboardHeader: FC<Props> = ({
   dashboard,
@@ -224,5 +205,7 @@ const mdtp = {
   setDashboardTimeRange: setDashboardTimeRangeAction,
   setAutoRefreshInterval: setAutoRefreshIntervalAction,
 }
+
+const connector = connect(mstp, mdtp)
 
 export default connector(withRouter(DashboardHeader))

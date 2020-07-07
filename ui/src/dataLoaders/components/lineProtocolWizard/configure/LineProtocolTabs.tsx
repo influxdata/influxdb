@@ -1,7 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {connect, ConnectedProps} from 'react-redux'
-import _ from 'lodash'
 
 // Components
 import PrecisionDropdown from 'src/dataLoaders/components/lineProtocolWizard/configure/PrecisionDropdown'
@@ -10,7 +9,6 @@ import TabBody from 'src/dataLoaders/components/lineProtocolWizard/configure/Tab
 
 // Types
 import {AppState, LineProtocolTab} from 'src/types'
-import {WritePrecision} from '@influxdata/influx'
 
 // Actions
 import {
@@ -25,19 +23,8 @@ interface OwnProps {
   org: string
 }
 
+type ReduxProps = ConnectedProps<typeof connector>
 type Props = OwnProps & ReduxProps
-
-interface DispatchProps {
-  setLineProtocolBody: typeof setLineProtocolBody
-  setActiveLPTab: typeof setActiveLPTab
-  setPrecision: typeof setPrecision
-}
-
-interface StateProps {
-  lineProtocolBody: string
-  activeLPTab: LineProtocolTab
-  precision: WritePrecision
-}
 
 interface State {
   urlInput: string
@@ -114,5 +101,7 @@ const mdtp = {
   setActiveLPTab,
   setPrecision,
 }
+
+const connector = connect(mstp, mdtp)
 
 export default connector(LineProtocolTabs)

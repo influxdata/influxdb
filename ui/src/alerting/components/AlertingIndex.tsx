@@ -1,6 +1,6 @@
 // Libraries
 import React, {FunctionComponent, useState} from 'react'
-import {connect, ConnectedProps} from 'react-redux'
+import {connect} from 'react-redux'
 import {Switch, Route} from 'react-router-dom'
 
 //Components
@@ -159,4 +159,4 @@ const mstp = ({cloud: {limits}}: AppState) => {
   }
 }
 
-export default connect(mstp, null)(AlertingIndex)
+export default connect(mstp)(AlertingIndex)

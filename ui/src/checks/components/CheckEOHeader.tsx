@@ -29,16 +29,12 @@ import {DEFAULT_CHECK_NAME, CHECK_NAME_MAX_LENGTH} from 'src/alerting/constants'
 
 // Types
 import {RemoteDataState, AppState} from 'src/types'
-import {
-  createCheckFromTimeMachine,
-  updateCheckFromTimeMachine,
-} from 'src/checks/actions/thunks'
 
 interface OwnProps {
   name: string
   onSetName: (name: string) => void
   onCancel: () => void
-  onSave: typeof createCheckFromTimeMachine | typeof updateCheckFromTimeMachine
+  onSave: () => Promise<void>
 }
 
 type ReduxProps = ConnectedProps<typeof connector>

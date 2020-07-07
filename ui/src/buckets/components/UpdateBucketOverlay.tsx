@@ -38,6 +38,7 @@ interface DispatchProps {
   onNotify: typeof notify
 }
 
+type ReduxProps = ConnectedProps<typeof connector>
 type Props = ReduxProps & RouteComponentProps<{bucketID: string; orgID: string}>
 
 const UpdateBucketOverlay: FunctionComponent<Props> = ({
@@ -159,7 +160,9 @@ const mdtp = {
   onNotify: notify,
 }
 
-export default connect<{}, DispatchProps, {}>(
+const connector = connect(null, mdtp)
+
+export default connect<{}, DispatchProps>(
   null,
   mdtp
 )(withRouter(UpdateBucketOverlay))

@@ -18,21 +18,10 @@ import {saveVEOView} from 'src/dashboards/actions/thunks'
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 
 // Types
-import {AppState, RemoteDataState, View, TimeMachineID} from 'src/types'
+import {AppState, RemoteDataState} from 'src/types'
 
-interface DispatchProps {
-  onSetName: typeof setName
-  onSaveView: typeof saveVEOView
-  onLoadNewVEO: typeof loadNewVEO
-}
-
-interface StateProps {
-  activeTimeMachineID: TimeMachineID
-  view: View
-}
-
+type ReduxProps = ConnectedProps<typeof connector>
 type Props = ReduxProps &
-  StateProps &
   RouteComponentProps<{orgID: string; dashboardID: string}>
 
 const NewViewVEO: FunctionComponent<Props> = ({
@@ -102,5 +91,7 @@ const mdtp = {
   onSaveView: saveVEOView,
   onLoadNewVEO: loadNewVEO,
 }
+
+const connector = connect(mstp, mdtp)
 
 export default connector(withRouter(NewViewVEO))

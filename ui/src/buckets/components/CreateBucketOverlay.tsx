@@ -13,7 +13,7 @@ import {extractBucketMaxRetentionSeconds} from 'src/cloud/utils/limits'
 import {createBucket} from 'src/buckets/actions/thunks'
 
 // Types
-import {Organization, AppState} from 'src/types'
+import {AppState} from 'src/types'
 import {
   createBucketReducer,
   RuleType,
@@ -24,19 +24,11 @@ import {
 // Selectors
 import {getOrg} from 'src/organizations/selectors'
 
-interface StateProps {
-  org: Organization
-  isRetentionLimitEnforced: boolean
-}
-
-interface DispatchProps {
-  createBucket: typeof createBucket
-}
-
 interface OwnProps {
   onClose: () => void
 }
 
+type ReduxProps = ConnectedProps<typeof connector>
 type Props = OwnProps & ReduxProps
 
 const CreateBucketOverlay: FC<Props> = ({
@@ -124,5 +116,7 @@ const mstp = (state: AppState) => {
 const mdtp = {
   createBucket,
 }
+
+const connector = connect(mstp, mdtp)
 
 export default connector(CreateBucketOverlay)

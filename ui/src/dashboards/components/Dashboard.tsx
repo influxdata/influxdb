@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect, ConnectedProps} from 'react-redux'
+import {connect} from 'react-redux'
 
 // Components
 import Cells from 'src/shared/components/cells/Cells'
@@ -59,4 +59,4 @@ const mstp = (state: AppState) => {
   }
 }
 
-export default connect<StateProps, {}, OwnProps>(mstp, null)(DashboardComponent)
+export default connect<StateProps, {}, OwnProps>(mstp)(DashboardComponent)

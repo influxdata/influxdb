@@ -36,15 +36,7 @@ interface OwnProps {
   onFilterChange: (searchTerm: string) => void
 }
 
-interface DispatchProps {
-  onDeleteDashboard: typeof deleteDashboard
-  onCloneDashboard: typeof cloneDashboard
-  onUpdateDashboard: typeof updateDashboard
-  onAddDashboardLabel: typeof addDashboardLabel
-  onRemoveDashboardLabel: typeof removeDashboardLabel
-  onResetViews: typeof resetViews
-}
-
+type ReduxProps = ConnectedProps<typeof connector>
 type Props = OwnProps & ReduxProps & RouteComponentProps<{orgID: string}>
 
 class DashboardCard extends PureComponent<Props> {
@@ -197,5 +189,7 @@ const mdtp = {
   onDeleteDashboard: deleteDashboard,
   onUpdateDashboard: updateDashboard,
 }
+
+const connector = connect(null, mdtp)
 
 export default connector(withRouter(DashboardCard))

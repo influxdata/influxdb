@@ -14,7 +14,7 @@ import {checkDashboardLimits as checkDashboardLimitsAction} from 'src/cloud/acti
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
-import {Dashboard, AppState, RemoteDataState, ResourceType} from 'src/types'
+import {Dashboard, AppState, ResourceType} from 'src/types'
 import {Sort} from '@influxdata/clockface'
 import {getAll} from 'src/resources/selectors'
 import {SortTypes} from 'src/shared/utils/sort'
@@ -29,16 +29,7 @@ interface OwnProps {
   sortKey: DashboardSortKey
 }
 
-interface DispatchProps {
-  retainRangesDashTimeV1: typeof retainRangesDashTimeV1Action
-  checkDashboardLimits: typeof checkDashboardLimitsAction
-}
-
-interface StateProps {
-  dashboards: Dashboard[]
-  limitStatus: RemoteDataState
-}
-
+type ReduxProps = ConnectedProps<typeof connector>
 type Props = ReduxProps & OwnProps
 
 const FilterDashboards = FilterList<Dashboard>()
@@ -104,5 +95,7 @@ const mdtp = {
   retainRangesDashTimeV1: retainRangesDashTimeV1Action,
   checkDashboardLimits: checkDashboardLimitsAction,
 }
+
+const connector = connect(mstp, mdtp)
 
 export default connector(DashboardsIndexContents)

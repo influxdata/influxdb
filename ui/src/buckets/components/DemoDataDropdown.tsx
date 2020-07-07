@@ -15,16 +15,7 @@ import {ComponentColor, Dropdown, Icon, IconFont} from '@influxdata/clockface'
 // Types
 import {AppState, Bucket, ResourceType} from 'src/types'
 
-interface StateProps {
-  ownBucketsByID: {[id: string]: Bucket}
-  demoDataBuckets: Bucket[]
-}
-
-interface DispatchProps {
-  getDemoDataBucketMembership: typeof getDemoDataBucketMembershipAction
-  getDemoDataBuckets: typeof getDemoDataBucketsAction
-}
-
+type ReduxProps = ConnectedProps<typeof connector>
 type Props = ReduxProps
 
 const DemoDataDropdown: FC<Props> = ({
@@ -120,5 +111,7 @@ const mdtp = {
   getDemoDataBucketMembership: getDemoDataBucketMembershipAction,
   getDemoDataBuckets: getDemoDataBucketsAction,
 }
+
+const connector = connect(mstp, mdtp)
 
 export default connector(DemoDataDropdown)

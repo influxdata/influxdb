@@ -28,22 +28,13 @@ import {createDashboard as createDashboardAction} from 'src/dashboards/actions/t
 import {setDashboardSort} from 'src/dashboards/actions/creators'
 
 // Types
-import {AppState, ResourceType, DashboardSortParams} from 'src/types'
+import {AppState, ResourceType} from 'src/types'
 import {LimitStatus} from 'src/cloud/actions/limits'
 import {ComponentStatus, Sort} from '@influxdata/clockface'
 import {SortTypes} from 'src/shared/utils/sort'
 import {DashboardSortKey} from 'src/shared/components/resource_sort_dropdown/generateSortItems'
 
-interface DispatchProps {
-  createDashboard: typeof createDashboardAction
-  setDashboardSort: typeof setDashboardSort
-}
-
-interface StateProps {
-  limitStatus: LimitStatus
-  sortOptions: DashboardSortParams
-}
-
+type ReduxProps = ConnectedProps<typeof connector>
 type Props = ReduxProps & RouteComponentProps<{orgID: string}>
 
 interface State {
@@ -190,5 +181,7 @@ const mdtp = {
   createDashboard: createDashboardAction,
   setDashboardSort,
 }
+
+const connector = connect(mstp, mdtp)
 
 export default connector(DashboardIndex)

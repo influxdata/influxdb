@@ -21,27 +21,10 @@ import {executeQueries} from 'src/timeMachine/actions/queries'
 import {resetAlertBuilder, updateName} from 'src/alerting/actions/alertBuilder'
 
 // Types
-import {AppState, RemoteDataState, TimeMachineID, QueryView} from 'src/types'
+import {AppState, RemoteDataState} from 'src/types'
 
-interface DispatchProps {
-  onSaveCheckFromTimeMachine: typeof updateCheckFromTimeMachine
-  onGetCheckForTimeMachine: typeof getCheckForTimeMachine
-  onExecuteQueries: typeof executeQueries
-  onResetAlertBuilder: typeof resetAlertBuilder
-  onUpdateAlertBuilderName: typeof updateName
-}
-
-interface StateProps {
-  view: QueryView | null
-  status: RemoteDataState
-  activeTimeMachineID: TimeMachineID
-  loadedCheckID: string
-  checkName: string
-}
-
-type Props = RouteComponentProps<{orgID: string; checkID: string}> &
-  ReduxProps &
-  StateProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = RouteComponentProps<{orgID: string; checkID: string}> & ReduxProps
 
 const EditCheckEditorOverlay: FunctionComponent<Props> = ({
   onUpdateAlertBuilderName,
@@ -131,5 +114,7 @@ const mdtp = {
   onResetAlertBuilder: resetAlertBuilder,
   onUpdateAlertBuilderName: updateName,
 }
+
+const connector = connect(mstp, mdtp)
 
 export default connector(withRouter(EditCheckEditorOverlay))

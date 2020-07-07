@@ -19,19 +19,11 @@ import {GlobalAutoRefresher} from 'src/utils/AutoRefresher'
 import {AUTOREFRESH_DEFAULT} from 'src/shared/constants'
 
 // Types
-import {AppState, ResourceType, AutoRefresh, AutoRefreshStatus} from 'src/types'
+import {AppState, ResourceType, AutoRefreshStatus} from 'src/types'
 
 const {Active} = AutoRefreshStatus
 
-interface StateProps {
-  autoRefresh: AutoRefresh
-  dashboard: string
-}
-
-interface DispatchProps {
-  onSetCurrentPage: typeof setCurrentPage
-}
-
+type ReduxProps = ConnectedProps<typeof connector>
 type Props = ReduxProps
 
 const DashboardContainer: FC<Props> = ({
@@ -83,5 +75,7 @@ const mstp = (state: AppState) => {
 const mdtp = {
   onSetCurrentPage: setCurrentPage,
 }
+
+const connector = connect(mstp, mdtp)
 
 export default connector(DashboardContainer)

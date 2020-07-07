@@ -6,7 +6,7 @@ import {connect, ConnectedProps} from 'react-redux'
 import {CLOUD} from 'src/shared/constants'
 
 // Types
-import {AppState, Organization, OrgSetting} from 'src/types'
+import {AppState} from 'src/types'
 
 // Actions
 import {getOrgSettings as getOrgSettingsAction} from 'src/cloud/actions/orgsettings'
@@ -18,14 +18,8 @@ import {updateReportingContext} from 'src/cloud/utils/reporting'
 interface PassedInProps {
   children: React.ReactElement<any>
 }
-interface StateProps {
-  org: Organization
-  settings: OrgSetting[]
-}
-interface DispatchProps {
-  getOrgSettings: typeof getOrgSettingsAction
-}
 
+type ReduxProps = ConnectedProps<typeof connector>
 type Props = ReduxProps & PassedInProps
 
 const OrgSettings: FunctionComponent<Props> = ({
@@ -64,5 +58,7 @@ const mstp = (state: AppState) => ({
 const mdtp = {
   getOrgSettings: getOrgSettingsAction,
 }
+
+const connector = connect(mstp, mdtp)
 
 export default connector(OrgSettings)

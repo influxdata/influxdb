@@ -16,12 +16,8 @@ import {HoverTimeProvider} from 'src/dashboards/utils/hoverTime'
 import {queryBuilderFetcher} from 'src/timeMachine/apis/QueryBuilderFetcher'
 import {readQueryParams} from 'src/shared/utils/queryParams'
 
-interface DispatchProps {
-  onSetActiveTimeMachine: typeof setActiveTimeMachine
-  onSetBuilderBucketIfExists: typeof setBuilderBucketIfExists
-}
-
-type Props = DispatchProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps
 
 const DataExplorer: FC<Props> = ({
   onSetActiveTimeMachine,
@@ -51,4 +47,6 @@ const mdtp = {
   onSetBuilderBucketIfExists: setBuilderBucketIfExists,
 }
 
-export default connect<{}, DispatchProps, {}>(null, mdtp)(DataExplorer)
+const connector = connect(null, mdtp)
+
+export default connector(DataExplorer)

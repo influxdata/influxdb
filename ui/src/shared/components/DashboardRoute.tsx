@@ -8,7 +8,12 @@ import {selectValue} from 'src/variables/actions/thunks'
 import {AppState} from 'src/types'
 
 type ReduxProps = ConnectedProps<typeof connector>
+interface OwnProps {
+  children: React.ReactNode
+}
+
 type Props = ReduxProps &
+  OwnProps &
   RouteComponentProps<{orgID: string; dashboardID: string}>
 
 class DashboardRoute extends PureComponent<Props> {

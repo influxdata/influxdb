@@ -23,19 +23,8 @@ import {extractBucketLimits} from 'src/cloud/utils/limits'
 // Types
 import {AppState} from 'src/types'
 
-interface StateProps {
-  limitStatus: LimitStatus
-}
-
-interface DispatchProps {
-  onShowOverlay: typeof showOverlay
-  onDismissOverlay: typeof dismissOverlay
-  checkBucketLimits: typeof checkBucketLimitsAction
-}
-
-interface OwnProps {}
-
-type Props = OwnProps & ReduxProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps
 
 const CreateBucketButton: FC<Props> = ({
   limitStatus,
@@ -90,5 +79,7 @@ const mdtp = {
   onDismissOverlay: dismissOverlay,
   checkBucketLimits: checkBucketLimitsAction,
 }
+
+const connector = connect(mstp, mdtp)
 
 export default connector(CreateBucketButton)

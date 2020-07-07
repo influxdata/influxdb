@@ -52,15 +52,16 @@ const mdtp = {
 }
 
 const connector = connect(null, mdtp)
+const connectedComponent = connector(withRouter(OverlayHandler))
 
-export default connector(withRouter(OverlayHandler))
+export default connectedComponent
 
 interface RouteOverlayProps {
-  overlayID: string
+  overlayID: OverlayID
 }
 
 export function RouteOverlay<P>(
-  WrappedComponent: ComponentClass<P & RouteOverlayProps>,
+  WrappedComponent: typeof connectedComponent,
   overlayID: string,
   onClose?: OverlayDismissalWithRoute
 ): ComponentClass<P> {

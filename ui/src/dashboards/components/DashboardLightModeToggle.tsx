@@ -9,19 +9,10 @@ import {SelectGroup, ButtonShape, Icon, IconFont} from '@influxdata/clockface'
 import {setTheme} from 'src/shared/actions/app'
 
 // Types
-import {AppState, Theme} from 'src/types'
+import {AppState} from 'src/types'
 
-interface StateProps {
-  theme: Theme
-}
-
-interface DispatchProps {
-  onSetTheme: typeof setTheme
-}
-
-interface OwnProps {}
-
-type Props = OwnProps & ReduxProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps
 
 const DashboardLightModeToggle: FC<Props> = ({theme, onSetTheme}) => {
   return (
@@ -64,5 +55,7 @@ const mstp = (state: AppState) => {
 const mdtp = {
   onSetTheme: setTheme,
 }
+
+const connector = connect(mstp, mdtp)
 
 export default connector(DashboardLightModeToggle)

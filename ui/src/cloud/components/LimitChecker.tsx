@@ -6,11 +6,14 @@ import {CLOUD} from 'src/shared/constants'
 // Actions
 import {getReadWriteCardinalityLimits as getReadWriteCardinalityLimitsAction} from 'src/cloud/actions/limits'
 
-interface DispatchProps {
-  getReadWriteCardinalityLimits: typeof getReadWriteCardinalityLimitsAction
+interface OwnProps {
+  children: React.ReactNode
 }
 
-class LimitChecker extends PureComponent<DispatchProps, {}> {
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = OwnProps & ReduxProps
+
+class LimitChecker extends PureComponent<Props> {
   public componentDidMount() {
     if (CLOUD) {
       this.props.getReadWriteCardinalityLimits()
@@ -26,4 +29,6 @@ const mdtp = {
   getReadWriteCardinalityLimits: getReadWriteCardinalityLimitsAction,
 }
 
-export default connect<{}, DispatchProps, {}>(null, mdtp)(LimitChecker)
+const connector = connect(null, mdtp)
+
+export default connector(LimitChecker)

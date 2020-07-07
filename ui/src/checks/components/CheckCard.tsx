@@ -38,19 +38,11 @@ import {Check, Label} from 'src/types'
 // Utilities
 import {relativeTimestampFormatter} from 'src/shared/utils/relativeTimestampFormatter'
 
-interface DispatchProps {
-  onUpdateCheckDisplayProperties: typeof updateCheckDisplayProperties
-  deleteCheck: typeof deleteCheck
-  onAddCheckLabel: typeof addCheckLabel
-  onRemoveCheckLabel: typeof deleteCheckLabel
-  onCloneCheck: typeof cloneCheck
-  onNotify: typeof notify
-}
-
 interface OwnProps {
   check: Check
 }
 
+type ReduxProps = ConnectedProps<typeof connector>
 type Props = OwnProps & ReduxProps & RouteComponentProps<{orgID: string}>
 
 const CheckCard: FC<Props> = ({
@@ -199,4 +191,6 @@ const mdtp = {
   onNotify: notify,
 }
 
-export default connect<{}, DispatchProps>(null, mdtp)(withRouter(CheckCard))
+const connector = connect(null, mdtp)
+
+export default connector(withRouter(CheckCard))

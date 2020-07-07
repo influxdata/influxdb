@@ -17,14 +17,7 @@ import {setStatusMessageTemplate} from 'src/alerting/actions/alertBuilder'
 // Types
 import {AppState} from 'src/types'
 
-interface DispatchProps {
-  onSetStatusMessageTemplate: typeof setStatusMessageTemplate
-}
-
-interface StateProps {
-  statusMessageTemplate: string
-}
-
+type ReduxProps = ConnectedProps<typeof connector>
 type Props = ReduxProps
 
 const CheckMessageCard: FC<Props> = ({
@@ -98,5 +91,7 @@ const mstp = ({alertBuilder: {statusMessageTemplate}}: AppState) => ({
 const mdtp = {
   onSetStatusMessageTemplate: setStatusMessageTemplate,
 }
+
+const connector = connect(mstp, mdtp)
 
 export default connector(CheckMessageCard)

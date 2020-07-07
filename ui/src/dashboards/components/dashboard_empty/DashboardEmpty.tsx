@@ -1,6 +1,6 @@
 // Libraries
 import React, {Component} from 'react'
-import {connect, ConnectedProps} from 'react-redux'
+import {connect} from 'react-redux'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Components
@@ -30,7 +30,7 @@ class DashboardEmpty extends Component<Props> {
       <div className="dashboard-empty">
         <EmptyState size={ComponentSize.Large}>
           <div className="dashboard-empty--graphic">
-            <div className="dashbpard-empty--graphic-content" />
+            <div className="dashboard-empty--graphic-content" />
           </div>
           <EmptyState.Text>
             This Dashboard doesn't have any <b>Cells</b>, why not add one?
@@ -61,7 +61,4 @@ const mstp = (state: AppState) => {
   }
 }
 
-export default connect<StateProps, {}, {}>(
-  mstp,
-  null
-)(withRouter(DashboardEmpty))
+export default connect<StateProps>(mstp)(withRouter(DashboardEmpty))
