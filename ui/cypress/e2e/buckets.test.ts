@@ -111,7 +111,6 @@ describe('Buckets', () => {
               .slice()
               .sort()
               .reverse()
-            console.log(asc_buckets)
             cy.get('[data-testid*="bucket-card"]').each((val, index) => {
               const testID = val.attr('data-testid')
               expect(testID).to.include(asc_buckets[index])
