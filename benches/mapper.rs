@@ -7,20 +7,20 @@ use std::collections::BTreeMap;
 fn map_field_columns(c: &mut Criterion) {
     let mut group = c.benchmark_group("mapper");
 
-    let mut measurement_table = mapper::MeasurementTable::new("cpu".to_string());
+    let mut measurement_table = mapper::MeasurementTable::new("cpu".to_string(), 0);
 
     // let mut field_blocks: BTreeMap<String, Vec<Block>> = BTreeMap::new();
     measurement_table
         .add_series_data(
             vec![],
             "temp".to_string(),
-            delorean_tsm::BlockType::Float,
             Block {
                 min_time: 0,
                 max_time: 0,
                 offset: 0,
                 size: 0,
                 typ: delorean_tsm::BlockType::Float,
+                reader_idx: 0,
             },
         )
         .unwrap();
@@ -29,13 +29,13 @@ fn map_field_columns(c: &mut Criterion) {
         .add_series_data(
             vec![],
             "temp".to_string(),
-            delorean_tsm::BlockType::Float,
             Block {
                 min_time: 1,
                 max_time: 0,
                 offset: 0,
                 size: 0,
                 typ: delorean_tsm::BlockType::Float,
+                reader_idx: 0,
             },
         )
         .unwrap();
@@ -44,13 +44,13 @@ fn map_field_columns(c: &mut Criterion) {
         .add_series_data(
             vec![],
             "voltage".to_string(),
-            delorean_tsm::BlockType::Integer,
             Block {
                 min_time: 2,
                 max_time: 0,
                 offset: 0,
                 size: 0,
                 typ: delorean_tsm::BlockType::Integer,
+                reader_idx: 0,
             },
         )
         .unwrap();
