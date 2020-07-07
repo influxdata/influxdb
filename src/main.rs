@@ -60,7 +60,7 @@ Examples:
                 .about("Convert one storage format to another")
                 .arg(
                     Arg::with_name("INPUT")
-                        .help("The input filename to read from")
+                        .help("The input files to read from")
                         .required(true)
                         .index(1),
                 )
@@ -112,11 +112,11 @@ Examples:
 
     match matches.subcommand() {
         ("convert", Some(sub_matches)) => {
-            let input_filename = sub_matches.value_of("INPUT").unwrap();
-            let output_filename = sub_matches.value_of("OUTPUT").unwrap();
+            let input_path = sub_matches.value_of("INPUT").unwrap();
+            let output_path = sub_matches.value_of("OUTPUT").unwrap();
             let compression_level =
                 value_t!(sub_matches, "compression_level", CompressionLevel).unwrap();
-            match commands::convert::convert(&input_filename, &output_filename, compression_level) {
+            match commands::convert::convert(&input_path, &output_path, compression_level) {
                 Ok(()) => debug!("Conversion completed successfully"),
                 Err(e) => {
                     eprintln!("Conversion failed: {}", e);
