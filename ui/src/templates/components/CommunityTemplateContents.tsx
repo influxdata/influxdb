@@ -97,7 +97,8 @@ class CommunityTemplateContentsUnconnected extends PureComponent<Props> {
             summary.buckets.map(bucket => {
               return (
                 <CommunityTemplateListItem
-                  shouldInstall={bucket.shouldInstall}
+                  shouldDisableToggle={true}
+                  shouldInstall={true}
                   handleToggle={() => {
                     this.props.toggleTemplateResourceInstall(
                       'buckets',
@@ -143,7 +144,8 @@ class CommunityTemplateContentsUnconnected extends PureComponent<Props> {
             summary.variables.map(variable => {
               return (
                 <CommunityTemplateListItem
-                  shouldInstall={variable.shouldInstall}
+                  shouldDisableToggle={true}
+                  shouldInstall={true}
                   handleToggle={() => {
                     this.props.toggleTemplateResourceInstall(
                       'variables',

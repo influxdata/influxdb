@@ -23,6 +23,7 @@ interface Props {
   children?: ReactNode
   handleToggle: () => void
   shouldInstall: boolean
+  shouldDisableToggle?: boolean
 }
 
 const CommunityTemplateListItem: FC<Props> = ({
@@ -31,6 +32,7 @@ const CommunityTemplateListItem: FC<Props> = ({
   description,
   handleToggle,
   shouldInstall = true,
+  shouldDisableToggle = false,
 }) => {
   const descriptionClassName = classnames(
     'community-templates--item-description',
@@ -55,6 +57,7 @@ const CommunityTemplateListItem: FC<Props> = ({
           checked={shouldInstall}
           icon={IconFont.Checkmark}
           color={ComponentColor.Success}
+          disabled={shouldDisableToggle}
         />
         <FlexBox
           alignItems={AlignItems.FlexStart}
