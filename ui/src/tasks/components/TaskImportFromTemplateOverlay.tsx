@@ -54,7 +54,7 @@ class TaskImportFromTemplateOverlay extends PureComponent<
 
   render() {
     return (
-      <Overlay visible={true}>
+      <Overlay visible={true} testID="task-import-template--overlay">
         <GetResources resources={[ResourceType.Templates]}>
           <Overlay.Container maxWidth={900}>
             <Overlay.Header
@@ -119,8 +119,8 @@ class TaskImportFromTemplateOverlay extends PureComponent<
   }
 
   private onDismiss = () => {
-    const {history} = this.props
-    history.goBack()
+    const {history, match} = this.props
+    history.push(`/orgs/${match.params.orgID}/tasks`)
   }
 
   private onSubmit = () => {

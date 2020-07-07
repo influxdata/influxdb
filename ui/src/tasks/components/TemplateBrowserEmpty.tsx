@@ -46,7 +46,7 @@ class TemplateBrowserEmpty extends PureComponent<Props> {
   private handleButtonClick = (): void => {
     const {history, org} = this.props
 
-    history.push(`/orgs/${org.id}/tasks/import`)
+    history.push(`/orgs/${org.id}/settings/templates/import`)
   }
 }
 

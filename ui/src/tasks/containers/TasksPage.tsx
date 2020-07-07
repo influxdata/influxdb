@@ -157,12 +157,12 @@ class TasksPage extends PureComponent<Props, State> {
             component={TaskExportOverlay}
           />
           <Route
-            path="/orgs/:orgID/tasks/import"
-            component={TaskImportOverlay}
+            path="/orgs/:orgID/tasks/import-template"
+            component={TaskImportFromTemplateOverlay}
           />
           <Route
-            path="/orgs/:orgID/tasks/import/template"
-            component={TaskImportFromTemplateOverlay}
+            path="/orgs/:orgID/tasks/import"
+            component={TaskImportOverlay}
           />
         </Switch>
       </>
@@ -208,7 +208,7 @@ class TasksPage extends PureComponent<Props, State> {
       },
     } = this.props
 
-    history.push(`/orgs/${orgID}/tasks/import/template`)
+    history.push(`/orgs/${orgID}/tasks/import-template`)
   }
 
   private summonImportOverlay = (): void => {

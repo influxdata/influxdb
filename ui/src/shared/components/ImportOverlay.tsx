@@ -55,7 +55,7 @@ class ImportOverlay extends PureComponent<Props, State> {
     const {selectedImportOption} = this.state
 
     return (
-      <Overlay visible={isVisible}>
+      <Overlay visible={isVisible} testID="task-import--overlay">
         <Overlay.Container maxWidth={800}>
           <Form onSubmit={this.submit}>
             <Overlay.Header
