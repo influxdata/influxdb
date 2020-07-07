@@ -59,9 +59,10 @@ class TimeMachineQueryBuilder extends PureComponent<Props, State> {
                 <BuilderCard.Header title="From" />
                 <BucketsSelector />
               </BuilderCard>
-              {range(tagFiltersLength).map(i => (
-                <TagSelector key={i} index={i} />
-              ))}
+              {tagFiltersLength &&
+                range(tagFiltersLength).map(i => (
+                  <TagSelector key={i} index={i} />
+                ))}
               {this.addButton}
             </div>
           </DapperScrollbars>
@@ -101,6 +102,14 @@ const mstp = (state: AppState): StateProps => {
   const {
     alertBuilder: {type: checkType},
   } = state
+
+  if (!tags.length) {
+    return {
+      tagFiltersLength,
+      moreTags: false,
+      checkType,
+    }
+  }
 
   const {keys, keysStatus} = tags[tags.length - 1]
 
