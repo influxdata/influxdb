@@ -28,7 +28,7 @@ func MWAuth(authAgent AuthAgent) SVCMiddleware {
 	}
 }
 
-func (s *authMW) InitStack(ctx context.Context, userID influxdb.ID, newStack Stack) (Stack, error) {
+func (s *authMW) InitStack(ctx context.Context, userID influxdb.ID, newStack StackCreate) (Stack, error) {
 	err := s.authAgent.IsWritable(ctx, newStack.OrgID, ResourceTypeStack)
 	if err != nil {
 		return Stack{}, err

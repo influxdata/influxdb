@@ -19,6 +19,7 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/cmd/influx/internal"
 	ihttp "github.com/influxdata/influxdb/v2/http"
 	ierror "github.com/influxdata/influxdb/v2/kit/errors"
 	"github.com/influxdata/influxdb/v2/pkger"
@@ -710,7 +711,7 @@ func (b *cmdTemplateBuilder) stackInitRunEFn(cmd *cobra.Command, args []string) 
 	}
 
 	const fakeUserID = 0 // is 0 because user is pulled from token...
-	stack, err := templateSVC.InitStack(context.Background(), fakeUserID, pkger.Stack{
+	stack, err := templateSVC.InitStack(context.Background(), fakeUserID, pkger.StackCreate{
 		OrgID:        orgID,
 		Name:         b.name,
 		Description:  b.description,
@@ -778,20 +779,7 @@ func (b *cmdTemplateBuilder) stackListRunEFn(cmd *cobra.Command, args []string) 
 	defer tabW.Flush()
 
 	tabW.HideHeaders(b.hideHeaders)
-	tabW.WriteHeaders("ID", "OrgID", "Name", "Description", "Num Resources", "Sources", "URLs", "Created At")
-
-	for _, stack := range stacks {
-		tabW.Write(map[string]interface{}{
-			"ID":            stack.ID,
-			"OrgID":         stack.OrgID,
-			"Name":          stack.Name,
-			"Description":   stack.Description,
-			"Num Resources": len(stack.Resources),
-			"Sources":       stack.Sources,
-			"URLs":          stack.TemplateURLs,
-			"Created At":    stack.CreatedAt,
-		})
-	}
+	writeStackRows(tabW, stacks...)
 
 	return nil
 }
@@ -850,19 +838,7 @@ func (b *cmdTemplateBuilder) stackRemoveRunEFn(cmd *cobra.Command, args []string
 		}()
 
 		tabW.HideHeaders(b.hideHeaders)
-
-		tabW.WriteHeaders("ID", "OrgID", "Name", "Description", "Num Resources", "Sources", "URLs", "Created At")
-		tabW.Write(map[string]interface{}{
-			"ID":            stack.ID,
-			"OrgID":         stack.OrgID,
-			"Name":          stack.Name,
-			"Description":   stack.Description,
-			"Num Resources": len(stack.Resources),
-			"Sources":       stack.Sources,
-			"URLs":          stack.TemplateURLs,
-			"Created At":    stack.CreatedAt,
-		})
-
+		writeStackRows(tabW, stack)
 		return nil
 	}
 
@@ -1012,18 +988,7 @@ func (b *cmdTemplateBuilder) writeStack(stack pkger.Stack) error {
 	defer tabW.Flush()
 
 	tabW.HideHeaders(b.hideHeaders)
-
-	tabW.WriteHeaders("ID", "OrgID", "Name", "Description", "Num Resources", "Sources", "URLs", "Created At")
-	tabW.Write(map[string]interface{}{
-		"ID":            stack.ID,
-		"OrgID":         stack.OrgID,
-		"Name":          stack.Name,
-		"Description":   stack.Description,
-		"Num Resources": len(stack.Resources),
-		"Sources":       stack.Sources,
-		"URLs":          stack.TemplateURLs,
-		"Created At":    stack.CreatedAt,
-	})
+	writeStackRows(tabW, stack)
 
 	return nil
 }
@@ -1805,6 +1770,25 @@ func (b *cmdTemplateBuilder) printTemplateSummary(stackID influxdb.ID, sum pkger
 func (b *cmdTemplateBuilder) tablePrinterGen() func(table string, headers []string, count int, rowFn func(i int) []string) {
 	return func(table string, headers []string, count int, rowFn func(i int) []string) {
 		tablePrinter(b.w, table, headers, count, !b.disableColor, !b.disableTableBorders, rowFn)
+	}
+}
+
+func writeStackRows(tabW *internal.TabWriter, stacks ...pkger.Stack) {
+	tabW.WriteHeaders("ID", "OrgID", "Active", "Name", "Description", "Num Resources", "Sources", "URLs", "Created At", "Updated At")
+	for _, stack := range stacks {
+		latest := stack.LatestEvent()
+		tabW.Write(map[string]interface{}{
+			"ID":            stack.ID,
+			"OrgID":         stack.OrgID,
+			"Active":        latest.EventType != pkger.StackEventDelete,
+			"Name":          latest.Name,
+			"Description":   latest.Description,
+			"Num Resources": len(latest.Resources),
+			"Sources":       latest.Sources,
+			"URLs":          latest.TemplateURLs,
+			"Created At":    stack.CreatedAt,
+			"Updated At":    latest.UpdatedAt,
+		})
 	}
 }
 

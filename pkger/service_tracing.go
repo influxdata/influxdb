@@ -21,7 +21,7 @@ func MWTracing() SVCMiddleware {
 
 var _ SVC = (*traceMW)(nil)
 
-func (s *traceMW) InitStack(ctx context.Context, userID influxdb.ID, newStack Stack) (Stack, error) {
+func (s *traceMW) InitStack(ctx context.Context, userID influxdb.ID, newStack StackCreate) (Stack, error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 	return s.next.InitStack(ctx, userID, newStack)
