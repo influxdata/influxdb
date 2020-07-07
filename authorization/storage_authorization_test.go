@@ -24,6 +24,7 @@ func TestAuth(t *testing.T) {
 				Token:  fmt.Sprintf("randomtoken%d", i),
 				OrgID:  influxdb.ID(i),
 				UserID: influxdb.ID(i),
+				Status: influxdb.Active,
 			})
 
 			if err != nil {
@@ -32,41 +33,11 @@ func TestAuth(t *testing.T) {
 		}
 	}
 
-	/*setupForUpdateTest := func(t *testing.T, store *authorization.Store, tx kv.Tx) {
-		err := store.CreateAuthorization(context.Background(), tx, &influxdb.Authorization{ //shud match with expecteddummyAuth
-			ID:     influxdb.ID(1),
-			Token:  fmt.Sprintf("randomtoken%d", 1),
-			Status: influxdb.Active, //when updated should change to inactive
-			//Description: "Testing1",
-			OrgID:  influxdb.ID(1),
-			UserID: influxdb.ID(1),
-		})
-
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		auth, err := store.GetAuthorizationByID(context.Background(), tx, influxdb.ID(1))
-
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		_, err2 := store.UpdateAuthorization(context.Background(), tx, influxdb.ID(1), auth)
-
-		//fmt.Printf("My status: %v", myAuth.Status)
-
-		if err2 != nil {
-			t.Fatal(err)
-		}
-	}*/
-
 	tt := []struct {
-		name               string
-		setup              func(*testing.T, *authorization.Store, kv.Tx)
-		setupForUpdateTest func(t *testing.T, store *authorization.Store, tx kv.Tx)
-		update             func(*testing.T, *authorization.Store, kv.Tx)
-		results            func(*testing.T, *authorization.Store, kv.Tx)
+		name    string
+		setup   func(*testing.T, *authorization.Store, kv.Tx)
+		update  func(*testing.T, *authorization.Store, kv.Tx)
+		results func(*testing.T, *authorization.Store, kv.Tx)
 	}{
 		{
 			name:  "create",
@@ -74,14 +45,14 @@ func TestAuth(t *testing.T) {
 			results: func(t *testing.T, store *authorization.Store, tx kv.Tx) {
 				auths, err := store.ListAuthorizations(context.Background(), tx, influxdb.AuthorizationFilter{})
 				if err != nil {
-					t.Fatal(err) //the setup created 10 auths. This is listing them out
+					t.Fatal(err)
 				}
 
-				if len(auths) != 10 { //making sure those auths are of count 10
+				if len(auths) != 10 {
 					t.Fatalf("expected 10 authorizations, got: %d", len(auths))
 				}
 
-				expected := []*influxdb.Authorization{} //dummy
+				expected := []*influxdb.Authorization{}
 				for i := 1; i <= 10; i++ {
 					expected = append(expected, &influxdb.Authorization{
 						ID:     influxdb.ID(i),
@@ -91,7 +62,7 @@ func TestAuth(t *testing.T) {
 						Status: "active",
 					})
 				}
-				if !reflect.DeepEqual(auths, expected) { //checking that setup and expected gave same stuff
+				if !reflect.DeepEqual(auths, expected) {
 					t.Fatalf("expected identical authorizations: \n%+v\n%+v", auths, expected)
 				}
 
@@ -111,53 +82,32 @@ func TestAuth(t *testing.T) {
 			name:  "read",
 			setup: setup,
 			results: func(t *testing.T, store *authorization.Store, tx kv.Tx) {
-				/*auths, err := store.ListAuthorizations(context.Background(), tx, influxdb.AuthorizationFilter{})
-				if err != nil {
-					t.Fatal(err)
-				}
-
-				if len(auths) != 10 {
-					t.Fatalf("expected 10 authorizations, got: %d", len(auths))
-				}
-
-				expected := []*influxdb.Authorization{}
 				for i := 1; i <= 10; i++ {
-					expected = append(expected, &influxdb.Authorization{
+					expectedAuth := &influxdb.Authorization{
 						ID:     influxdb.ID(i),
 						Token:  fmt.Sprintf("randomtoken%d", i),
 						OrgID:  influxdb.ID(i),
 						UserID: influxdb.ID(i),
-						Status: "active",
-					})
-				}
-				if !reflect.DeepEqual(auths, expected) {
-					t.Fatalf("expected identical authorizations: \n%+v\n%+v", auths, expected)
-				}*/
+						Status: influxdb.Active,
+					}
 
-				expectedAuth := &influxdb.Authorization{
-					ID:     influxdb.ID(1),
-					Token:  fmt.Sprintf("randomtoken%d", 1),
-					OrgID:  influxdb.ID(1),
-					UserID: influxdb.ID(1),
-					Status: influxdb.Active,
-				}
+					authByID, err := store.GetAuthorizationByID(context.Background(), tx, influxdb.ID(i))
+					if err != nil {
+						t.Fatalf("Unexpectedly could not acquire Authorization by ID [Error]: %v", err)
+					}
 
-				authByID, err := store.GetAuthorizationByID(context.Background(), tx, influxdb.ID(1))
-				if err != nil {
-					t.Fatal("Unexpectedly could not acquire Authorization by ID")
-				}
+					if !reflect.DeepEqual(authByID, expectedAuth) {
+						t.Fatalf("ID TEST: expected identical authorizations:\n[Expected]: %+#v\n[Got]: %+#v", expectedAuth, authByID)
+					}
 
-				if !reflect.DeepEqual(authByID, expectedAuth) {
-					t.Fatalf("ID TEST: expected identical authorizations: \n%+#v\n%+#v", authByID, expectedAuth)
-				}
+					authByToken, err := store.GetAuthorizationByToken(context.Background(), tx, fmt.Sprintf("randomtoken%d", i))
+					if err != nil {
+						t.Fatalf("cannot get authorization by Token [Error]: %v", err)
+					}
 
-				authByToken, err := store.GetAuthorizationByToken(context.Background(), tx, fmt.Sprintf("randomtoken%d", 1))
-				if err != nil {
-					t.Fatal("cannot get authorization by Token")
-				}
-
-				if !reflect.DeepEqual(authByToken, expectedAuth) {
-					t.Fatalf("TOKEN TEST: expected identical authorizations: \n%+#v\n%+#v", authByToken, expectedAuth)
+					if !reflect.DeepEqual(authByToken, expectedAuth) {
+						t.Fatalf("TOKEN TEST: expected identical authorizations:\n[Expected]: %+#v\n[Got]: %+#v", expectedAuth, authByToken)
+					}
 				}
 
 			},
@@ -165,65 +115,60 @@ func TestAuth(t *testing.T) {
 		{
 			name:  "update",
 			setup: setup,
-			results: func(t *testing.T, store *authorization.Store, tx kv.Tx) {
-				/*auths, err := store.ListAuthorizations(context.Background(), tx, influxdb.AuthorizationFilter{})
-				if err != nil {
-					t.Fatal(err)
-				}
-
-				if len(auths) != 10 {
-					t.Fatalf("expected 10 authorizations, got: %d", len(auths))
-				}
-
-				expected := []*influxdb.Authorization{}
+			update: func(t *testing.T, store *authorization.Store, tx kv.Tx) {
 				for i := 1; i <= 10; i++ {
-					expected = append(expected, &influxdb.Authorization{
+					auth, err := store.GetAuthorizationByID(context.Background(), tx, influxdb.ID(i))
+					if err != nil {
+						t.Fatalf("Could not get authorization [Error]: %v", err)
+					}
+
+					auth.Status = influxdb.Inactive
+
+					_, err = store.UpdateAuthorization(context.Background(), tx, influxdb.ID(i), auth)
+					if err != nil {
+						t.Fatalf("Could not get updated authorization [Error]: %v", err)
+					}
+				}
+			},
+			results: func(t *testing.T, store *authorization.Store, tx kv.Tx) {
+
+				for i := 1; i <= 10; i++ {
+					auth, err := store.GetAuthorizationByID(context.Background(), tx, influxdb.ID(i))
+					if err != nil {
+						t.Fatalf("Could not get authorization [Error]: %v", err)
+					}
+
+					expectedAuth := &influxdb.Authorization{
 						ID:     influxdb.ID(i),
 						Token:  fmt.Sprintf("randomtoken%d", i),
 						OrgID:  influxdb.ID(i),
 						UserID: influxdb.ID(i),
-						Status: "active",
-					})
+						Status: influxdb.Inactive,
+					}
+
+					if !reflect.DeepEqual(auth, expectedAuth) {
+						t.Fatalf("expected identical authorizations:\n[Expected] %+#v\n[Got] %+#v", expectedAuth, auth)
+					}
 				}
-				if !reflect.DeepEqual(auths, expected) {
-					t.Fatalf("expected identical authorizations: \n%+v\n%+v", auths, expected)
-				} */
-
-				//Process: 1) setup: an auth is created, get, and then update. 2) Here in results, I get that auth and check if
-				//it's the same as what I expect it to be. I can mainly check by the 'status'
-
-				auth, err := store.GetAuthorizationByID(context.Background(), tx, influxdb.ID(1))
-
-				//t.Fatalf("This here: %+#v", auth)
-
-				if err != nil {
-					t.Fatal("Could not get authorization")
+			},
+		},
+		{
+			name:  "delete",
+			setup: setup,
+			update: func(t *testing.T, store *authorization.Store, tx kv.Tx) {
+				for i := 1; i <= 10; i++ {
+					err := store.DeleteAuthorization(context.Background(), tx, influxdb.ID(i))
+					if err != nil {
+						t.Fatalf("Could not delete authorization [Error]: %v", err)
+					}
 				}
-
-				authUpdated, err := store.UpdateAuthorization(context.Background(), tx, influxdb.ID(1), auth)
-
-				t.Fatalf("This: %+#v", authUpdated)
-
-				if err != nil {
-					t.Fatal("Could not get updated authorization")
-				}
-
-				expectedUpdatedAuth := &influxdb.Authorization{
-					ID:     influxdb.ID(1),
-					Token:  fmt.Sprintf("randomtoken%d", 1),
-					OrgID:  influxdb.ID(1),
-					UserID: influxdb.ID(1),
-					Status: influxdb.Inactive,
-				}
-
-				//Did not use reflect.DeepEqual() because can't be sure description will be the same ~
-
-				/*if expectedUpdatedAuth.Status != authFromSetupUpdated.Status {
-					t.Fatalf("Status did not update properly - Expected: %s , Got: %s", expectedUpdatedAuth.Status, authFromSetupUpdated.Status)
-				}*/
-
-				if !reflect.DeepEqual(authUpdated, expectedUpdatedAuth) {
-					t.Fatalf("expected identical authorizations: \n [Expected] %+#v \n [Got] %+#v", expectedUpdatedAuth, authUpdated)
+			},
+			results: func(t *testing.T, store *authorization.Store, tx kv.Tx) {
+				for i := 1; i <= 10; i++ {
+					_, err := store.GetAuthorizationByID(context.Background(), tx, influxdb.ID(i))
+					if err == nil {
+						t.Fatalf("Authorization was not deleted correctly [Error]: %v", err)
+					}
 				}
 			},
 		},
