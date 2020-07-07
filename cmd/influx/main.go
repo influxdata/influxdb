@@ -31,10 +31,14 @@ const maxTCPConnections = 10
 var (
 	version = "dev"
 	commit  = "none"
-	date    = time.Now().UTC().Format(time.RFC3339)
+	date    = ""
 )
 
 func main() {
+	if len(date) == 0 {
+		date = time.Now().UTC().Format(time.RFC3339)
+	}
+
 	influxCmd := influxCmd()
 	if err := influxCmd.Execute(); err != nil {
 		seeHelp(influxCmd, nil)
