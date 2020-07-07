@@ -70,7 +70,7 @@ describe('Buckets', () => {
     })
 
     describe('Searching and Sorting', () => {
-      it('can sort by name and retention', () => {
+      it.only('can sort by name and retention', () => {
         const buckets = ['defbuck', '_tasks', '_monitoring']
         cy.getByTestID('resource-sorter--button')
           .click()
@@ -93,6 +93,22 @@ describe('Buckets', () => {
           })
           .then(() => {
             const asc_buckets = buckets.slice().sort()
+            cy.get('[data-testid*="bucket-card"]').each((val, index) => {
+              const testID = val.attr('data-testid')
+              expect(testID).to.include(asc_buckets[index])
+            })
+          })
+
+        cy.getByTestID('resource-sorter--button')
+          .click()
+          .then(() => {
+            cy.getByTestID(
+              'resource-sorter--retentionRules[0].everySeconds-asc'
+            ).click()
+          })
+          .then(() => {
+            const asc_buckets = buckets.slice().sort().reverse()
+            console.log(asc_buckets)
             cy.get('[data-testid*="bucket-card"]').each((val, index) => {
               const testID = val.attr('data-testid')
               expect(testID).to.include(asc_buckets[index])
