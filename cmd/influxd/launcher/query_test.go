@@ -1648,8 +1648,6 @@ from(bucket: v.bucket)
 			l := launcher.RunTestLauncherOrFail(t, ctx, mock.NewFlagger(map[feature.Flag]interface{}{
 				feature.PushDownWindowAggregateCount(): true,
 				feature.PushDownWindowAggregateSum():   true,
-				feature.PushDownWindowAggregateFirst(): true,
-				feature.PushDownWindowAggregateLast():  true,
 			}))
 
 			l.SetupOrFail(t)
