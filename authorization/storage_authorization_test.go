@@ -165,7 +165,7 @@ func TestAuth(t *testing.T) {
 				for i := 1; i <= 10; i++ {
 					_, err := store.GetAuthorizationByID(context.Background(), tx, influxdb.ID(i))
 					if err == nil {
-						t.Fatalf("Authorization was not deleted correctly [Error]: %v", err)
+						t.Fatal("Authorization was not deleted correctly")
 					}
 				}
 			},
