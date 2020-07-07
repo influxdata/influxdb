@@ -27,7 +27,8 @@ enum ReturnCode {
     ServerExitedAbnormally = 4,
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let help = r#"Delorean server and command line tools
 
 Examples:
@@ -145,7 +146,7 @@ Examples:
         }
         ("server", Some(_)) | (_, _) => {
             println!("Starting delorean server...");
-            match commands::server::main() {
+            match commands::server::main().await {
                 Ok(()) => eprintln!("Shutdown OK"),
                 Err(e) => {
                     error!("Server shutdown with error: {:?}", e);

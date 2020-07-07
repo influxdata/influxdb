@@ -30,7 +30,6 @@ fn warn_if_db_dir_does_not_exist(path: &std::path::Path) {
     }
 }
 
-#[tokio::main]
 /// Main entrypoint of the Delorean server loop
 pub async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     dotenv::dotenv().ok();
