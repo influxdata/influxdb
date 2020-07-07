@@ -70,7 +70,7 @@ describe('Buckets', () => {
     })
 
     describe('Searching and Sorting', () => {
-      it.only('can sort by name and retention', () => {
+      it('can sort by name and retention', () => {
         const buckets = ['defbuck', '_tasks', '_monitoring']
         cy.getByTestID('resource-sorter--button')
           .click()
