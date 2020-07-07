@@ -53,6 +53,7 @@ pub struct Block {
     pub offset: u64,
     pub size: u32,
     pub typ: BlockType,
+    pub reader_idx: usize,
 }
 
 // MAX_BLOCK_VALUES is the maximum number of values a TSM block can store.

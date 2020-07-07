@@ -24,14 +24,15 @@ where
     R: BufRead + Seek,
 {
     iter: Peekable<TSMIndexReader<R>>,
+    reader_idx: usize,
 }
 
 impl<R> TSMMeasurementMapper<R>
 where
     R: BufRead + Seek,
 {
-    pub fn new(iter: Peekable<TSMIndexReader<R>>) -> Self {
-        Self { iter }
+    pub fn new(iter: Peekable<TSMIndexReader<R>>, reader_idx: usize) -> Self {
+        Self { iter, reader_idx }
     }
 }
 
@@ -53,7 +54,8 @@ impl<R: BufRead + Seek> Iterator for TSMMeasurementMapper<R> {
         let entry = try_or_some!(self.iter.next()?);
 
         let parsed_key = try_or_some!(entry.parse_key());
-        let mut measurement: MeasurementTable = MeasurementTable::new(parsed_key.measurement);
+        let mut measurement: MeasurementTable =
+            MeasurementTable::new(parsed_key.measurement, self.reader_idx);
         try_or_some!(measurement.add_series_data(
             parsed_key.tagset,
             parsed_key.field_key,
@@ -100,7 +102,7 @@ pub type FieldKeyBlocks = BTreeMap<String, Vec<Block>>;
 ///
 /// A MeasurementTable can be combined with another `MeasurementTable` as long
 /// as `other` refers to the same measurement name.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct MeasurementTable {
     pub name: String,
     // Tagset for key --> map of fields with that tagset to their blocks.
@@ -123,15 +125,21 @@ pub struct MeasurementTable {
 
     tag_columns: BTreeSet<String>,
     field_columns: BTreeMap<String, BlockType>,
+
+    // reader_idx can be set when mapping multiple TSM files; it is used to
+    // specify which block reader should be used when decoding blocks for this
+    // measurement table.
+    reader_idx: usize,
 }
 
 impl MeasurementTable {
-    pub fn new(name: String) -> Self {
+    pub fn new(name: String, reader_idx: usize) -> Self {
         Self {
             name,
             tag_set_fields_blocks: BTreeMap::new(),
             tag_columns: BTreeSet::new(),
             field_columns: BTreeMap::new(),
+            reader_idx,
         }
     }
 
@@ -153,7 +161,7 @@ impl MeasurementTable {
         tagset: Vec<(String, String)>,
         field_key: String,
         block_type: BlockType,
-        block: Block,
+        mut block: Block,
     ) -> Result<(), TSMError> {
         // Invariant: our data model does not support a field column for a
         // measurement table having multiple data types, even though this is
@@ -180,6 +188,8 @@ impl MeasurementTable {
 
         let field_key_blocks = self.tag_set_fields_blocks.entry(tagset).or_default();
         let blocks = field_key_blocks.entry(field_key).or_default();
+
+        block.reader_idx = self.reader_idx;
         blocks.push(block);
 
         Ok(())
@@ -212,7 +222,8 @@ impl MeasurementTable {
     ///
     /// `other` must be associated with the same measurement, otherwise an error
     /// will be returned. If any blocks for the same field key and tagset overlap
-    /// then `merge` will return an error.
+    /// then `merge` will return an error. The caller must provide an index
+    /// associated with the block reader for the other measurement table.
     ///
     /// TODO(edd): Add support for block merging.
     ///
@@ -228,13 +239,13 @@ impl MeasurementTable {
         self.tag_columns.append(&mut other.tag_columns);
         self.field_columns.append(&mut other.field_columns);
 
-        for (other_tagset, other_field_key_blocks) in &other.tag_set_fields_blocks {
+        for (other_tagset, other_field_key_blocks) in &mut other.tag_set_fields_blocks {
             let field_key_blocks = self
                 .tag_set_fields_blocks
                 .entry(other_tagset.clone())
                 .or_default();
 
-            for (other_field_key, other_blocks) in other_field_key_blocks {
+            for (other_field_key, other_blocks) in other_field_key_blocks.iter_mut() {
                 match field_key_blocks.get_mut(other_field_key) {
                     Some(blocks) => {
                         assert!(
@@ -625,7 +636,7 @@ mod tests {
 
         let reader =
             TSMIndexReader::try_new(BufReader::new(Cursor::new(buf)), TSM_FIXTURE_SIZE).unwrap();
-        let mapper = TSMMeasurementMapper::new(reader.peekable());
+        let mapper = TSMMeasurementMapper::new(reader.peekable(), 0);
 
         // Although there  are over 2,000 series keys in the TSM file, there are
         // only 121 unique measurements.
@@ -641,7 +652,7 @@ mod tests {
 
         let index_reader =
             TSMIndexReader::try_new(BufReader::new(Cursor::new(&buf)), TSM_FIXTURE_SIZE).unwrap();
-        let mut mapper = TSMMeasurementMapper::new(index_reader.peekable());
+        let mut mapper = TSMMeasurementMapper::new(index_reader.peekable(), 0);
 
         let mut block_reader = TSMBlockReader::new(BufReader::new(Cursor::new(&buf)));
 
@@ -684,7 +695,7 @@ mod tests {
 
         let reader =
             TSMIndexReader::try_new(BufReader::new(Cursor::new(buf)), TSM_FIXTURE_SIZE).unwrap();
-        let mut mapper = TSMMeasurementMapper::new(reader.peekable());
+        let mut mapper = TSMMeasurementMapper::new(reader.peekable(), 0);
 
         let cpu = mapper
             .find(|table| table.as_ref().unwrap().name == "cpu")
@@ -711,7 +722,7 @@ mod tests {
 
     #[test]
     fn conflicting_field_types() -> Result<(), TSMError> {
-        let mut table = MeasurementTable::new("cpu".to_string());
+        let mut table = MeasurementTable::new("cpu".to_string(), 0);
         table.add_series_data(
             vec![("region".to_string(), "west".to_string())],
             "value".to_string(),
@@ -722,6 +733,7 @@ mod tests {
                 offset: 0,
                 size: 0,
                 typ: BlockType::Float,
+                reader_idx: 0,
             },
         )?;
 
@@ -735,6 +747,7 @@ mod tests {
                 offset: 0,
                 size: 0,
                 typ: BlockType::Integer,
+                reader_idx: 0,
             },
         )?;
 
@@ -749,7 +762,7 @@ mod tests {
 
     #[test]
     fn merge_measurement_table() -> Result<(), TSMError> {
-        let mut table1 = MeasurementTable::new("cpu".to_string());
+        let mut table1 = MeasurementTable::new("cpu".to_string(), 0);
         table1.add_series_data(
             vec![("region".to_string(), "west".to_string())],
             "value".to_string(),
@@ -760,10 +773,11 @@ mod tests {
                 offset: 0,
                 size: 0,
                 typ: BlockType::Float,
+                reader_idx: 0,
             },
         )?;
 
-        let mut table2 = MeasurementTable::new("cpu".to_string());
+        let mut table2 = MeasurementTable::new("cpu".to_string(), 1);
         table2.add_series_data(
             vec![("region".to_string(), "west".to_string())],
             "value".to_string(),
@@ -774,6 +788,7 @@ mod tests {
                 offset: 0,
                 size: 0,
                 typ: BlockType::Float,
+                reader_idx: 0,
             },
         )?;
         table2.add_series_data(
@@ -786,6 +801,7 @@ mod tests {
                 offset: 0,
                 size: 0,
                 typ: BlockType::Str,
+                reader_idx: 0,
             },
         )?;
 
@@ -808,6 +824,7 @@ mod tests {
                     offset: 0,
                     size: 0,
                     typ: BlockType::Float,
+                    reader_idx: 1, // index updated to reflect using other block reader
                 },
                 Block {
                     min_time: 101,
@@ -815,6 +832,7 @@ mod tests {
                     offset: 0,
                     size: 0,
                     typ: BlockType::Float,
+                    reader_idx: 0,
                 },
             ],
         );
@@ -828,6 +846,7 @@ mod tests {
                 offset: 0,
                 size: 0,
                 typ: BlockType::Str,
+                reader_idx: 1, // index updated to reflect using other block reader
             }],
         );
 
