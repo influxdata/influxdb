@@ -1,7 +1,7 @@
 // Libraries
 import React, {SFC} from 'react'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import classnames from 'classnames'
 import {Switch, Route} from 'react-router-dom'
 
@@ -48,7 +48,7 @@ const App: SFC<Props> = ({inPresentationMode, currentPage, theme}) => {
   )
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const {
     app: {
       ephemeral: {inPresentationMode},

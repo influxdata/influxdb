@@ -2,7 +2,7 @@
 import React, {PureComponent} from 'react'
 // Libraries
 import {isEmpty} from 'lodash'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Components
@@ -31,7 +31,7 @@ interface DispatchProps {
   onRemoveMember: typeof deleteMember
 }
 
-type Props = StateProps & DispatchProps
+type Props = ReduxProps
 
 interface State {
   searchTerm: string
@@ -127,16 +127,13 @@ class Members extends PureComponent<
   }
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const members = getAll<Member>(state, ResourceType.Members)
   return {members}
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onRemoveMember: deleteMember,
 }
 
-export default connect<StateProps, DispatchProps, {}>(
-  mstp,
-  mdtp
-)(withRouter(Members))
+export default connector(withRouter(Members))

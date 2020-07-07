@@ -1,6 +1,6 @@
 // Libraries
 import React, {FC, useEffect} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Components
@@ -73,7 +73,7 @@ interface DispatchProps {
 
 type Props = OwnProps &
   StateProps &
-  DispatchProps &
+  ReduxProps &
   RouteComponentProps<{orgID: string}>
 
 const DashboardHeader: FC<Props> = ({
@@ -197,7 +197,7 @@ const DashboardHeader: FC<Props> = ({
   )
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const {showVariablesControls} = state.userSettings
   const dashboard = getByID<Dashboard>(
     state,
@@ -216,7 +216,7 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   toggleShowVariablesControls: toggleShowVariablesControlsAction,
   updateDashboard: updateDashboardAction,
   onSetAutoRefreshStatus: setAutoRefreshStatusAction,
@@ -225,7 +225,4 @@ const mdtp: DispatchProps = {
   setAutoRefreshInterval: setAutoRefreshIntervalAction,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
-  mstp,
-  mdtp
-)(withRouter(DashboardHeader))
+export default connector(withRouter(DashboardHeader))

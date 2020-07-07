@@ -1,6 +1,6 @@
 // Libraries
 import React, {useMemo, FC} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import {Page} from '@influxdata/clockface'

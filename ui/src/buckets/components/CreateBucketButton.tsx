@@ -1,6 +1,6 @@
 // Libraries
 import React, {FC, useEffect} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import {
@@ -35,7 +35,7 @@ interface DispatchProps {
 
 interface OwnProps {}
 
-type Props = OwnProps & StateProps & DispatchProps
+type Props = OwnProps & ReduxProps
 
 const CreateBucketButton: FC<Props> = ({
   limitStatus,
@@ -79,19 +79,16 @@ const CreateBucketButton: FC<Props> = ({
   )
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   return {
     limitStatus: extractBucketLimits(state.cloud.limits),
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onShowOverlay: showOverlay,
   onDismissOverlay: dismissOverlay,
   checkBucketLimits: checkBucketLimitsAction,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
-  mstp,
-  mdtp
-)(CreateBucketButton)
+export default connector(CreateBucketButton)

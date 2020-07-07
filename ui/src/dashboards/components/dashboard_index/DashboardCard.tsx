@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Components
@@ -45,7 +45,7 @@ interface DispatchProps {
   onResetViews: typeof resetViews
 }
 
-type Props = OwnProps & DispatchProps & RouteComponentProps<{orgID: string}>
+type Props = OwnProps & ReduxProps & RouteComponentProps<{orgID: string}>
 
 class DashboardCard extends PureComponent<Props> {
   public render() {
@@ -189,7 +189,7 @@ class DashboardCard extends PureComponent<Props> {
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onAddDashboardLabel: addDashboardLabel,
   onRemoveDashboardLabel: removeDashboardLabel,
   onResetViews: resetViews,
@@ -198,7 +198,4 @@ const mdtp: DispatchProps = {
   onUpdateDashboard: updateDashboard,
 }
 
-export default connect<{}, DispatchProps, OwnProps>(
-  null,
-  mdtp
-)(withRouter(DashboardCard))
+export default connector(withRouter(DashboardCard))

@@ -1,6 +1,6 @@
 // Libraries
 import React, {FC, useEffect} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import TimeMachine from 'src/timeMachine/components/TimeMachine'
@@ -46,7 +46,7 @@ const DataExplorer: FC<Props> = ({
   )
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onSetActiveTimeMachine: setActiveTimeMachine,
   onSetBuilderBucketIfExists: setBuilderBucketIfExists,
 }

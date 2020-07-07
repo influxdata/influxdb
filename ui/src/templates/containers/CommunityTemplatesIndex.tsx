@@ -1,9 +1,16 @@
 import React, {Component} from 'react'
-import {withRouter, RouteComponentProps, matchPath} from 'react-router-dom'
-import {connect} from 'react-redux'
+import {
+  withRouter,
+  matchPath,
+  RouteComponentProps,
+  Switch,
+  Route,
+} from 'react-router-dom'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
+import {CommunityTemplateImportOverlay} from 'src/templates/components/CommunityTemplateImportOverlay'
 import {
   Bullet,
   Button,
@@ -32,18 +39,15 @@ import {
 } from 'src/templates/utils'
 
 // Types
-import {AppState, Organization} from 'src/types'
+import {AppState} from 'src/types'
 
 const communityTemplatesUrl =
   'https://github.com/influxdata/community-templates#templates'
-
-interface StateProps {
-  org: Organization
-}
+const templatesPath = '/orgs/:orgID/settings/templates'
 
 type Params = {params: {templateName: string}}
-
-type Props = StateProps & RouteComponentProps<{templateName: string}>
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps & RouteComponentProps<{templateName: string}>
 
 @ErrorHandling
 class UnconnectedTemplatesIndex extends Component<Props> {
@@ -67,7 +71,7 @@ class UnconnectedTemplatesIndex extends Component<Props> {
   }
 
   public render() {
-    const {org, children} = this.props
+    const {org} = this.props
     return (
       <>
         <Page titleTag={pageTitleSuffixer(['Templates', 'Settings'])}>
@@ -124,7 +128,12 @@ class UnconnectedTemplatesIndex extends Component<Props> {
             </div>
           </SettingsTabbedPage>
         </Page>
-        {children}
+        <Switch>
+          <Route
+            path={`${templatesPath}/import/:templateName`}
+            component={CommunityTemplateImportOverlay}
+          />
+        </Switch>
       </>
     )
   }
@@ -150,12 +159,14 @@ class UnconnectedTemplatesIndex extends Component<Props> {
   }
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   return {
     org: getOrg(state),
   }
 }
 
-export const CommunityTemplatesIndex = connect<StateProps>(mstp)(
+const connector = connect(mstp)
+
+export const CommunityTemplatesIndex = connector(
   withRouter(UnconnectedTemplatesIndex)
 )

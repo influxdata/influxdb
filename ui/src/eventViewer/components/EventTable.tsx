@@ -1,6 +1,6 @@
 // Libraries
 import React, {useLayoutEffect, FC, useEffect, useState} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {AutoSizer, InfiniteLoader, List} from 'react-virtualized'
 
 // Components
@@ -34,7 +34,7 @@ type OwnProps = {
   fields: Fields
 }
 
-type Props = EventViewerChildProps & DispatchProps & OwnProps
+type Props = EventViewerChildProps & ReduxProps & OwnProps
 
 const EventTable: FC<Props> = ({state, dispatch, loadRows, fields, notify}) => {
   const rowCount = getRowCount(state)
@@ -132,8 +132,8 @@ const EventTable: FC<Props> = ({state, dispatch, loadRows, fields, notify}) => {
   )
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   notify: notifyAction,
 }
 
-export default connect<{}, DispatchProps, OwnProps>(null, mdtp)(EventTable)
+export default connector(EventTable)

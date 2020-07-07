@@ -1,7 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import classnames from 'classnames'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import {SparkleSpinner} from '@influxdata/clockface'
@@ -70,7 +70,7 @@ const mstp = ({
   dataLoading: {
     dataLoaders: {lpStatus, lpError},
   },
-}: AppState): StateProps => ({
+}: AppState) => ({
   status: lpStatus,
   errorMessage: lpError,
 })

@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import Cells from 'src/shared/components/cells/Cells'
@@ -52,7 +52,7 @@ class DashboardComponent extends PureComponent<Props> {
   }
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   return {
     cells: getCells(state, state.currentDashboard.id),
     status: state.resources.cells.status,

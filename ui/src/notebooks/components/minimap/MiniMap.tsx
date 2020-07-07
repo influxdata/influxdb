@@ -1,6 +1,6 @@
 // Libraries
 import React, {FC, useContext} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Contexts
 import {NotebookContext, PipeMeta} from 'src/notebooks/context/notebook'
@@ -60,7 +60,7 @@ const MiniMap: FC<StateProps> = ({notebookMiniMapState}) => {
   )
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const {
     app: {
       persisted: {notebookMiniMapState},

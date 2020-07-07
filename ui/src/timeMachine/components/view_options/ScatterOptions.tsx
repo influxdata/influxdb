@@ -1,6 +1,6 @@
 // Libraries
 import React, {SFC} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import {Form, Input, Grid, MultiSelectDropdown} from '@influxdata/clockface'
@@ -43,30 +43,6 @@ import HexColorSchemeDropdown from 'src/shared/components/HexColorSchemeDropdown
 import AutoDomainInput from 'src/shared/components/AutoDomainInput'
 import ColumnSelector from 'src/shared/components/ColumnSelector'
 
-interface StateProps {
-  fillColumns: string[]
-  symbolColumns: string[]
-  availableGroupColumns: string[]
-  xColumn: string
-  yColumn: string
-  numericColumns: string[]
-  timeFormat: string
-}
-
-interface DispatchProps {
-  onSetFillColumns: typeof setFillColumns
-  onSetSymbolColumns: typeof setSymbolColumns
-  onSetColors: typeof setColorHexes
-  onSetYAxisLabel: typeof setYAxisLabel
-  onSetXAxisLabel: typeof setXAxisLabel
-  onUpdateAxisSuffix: typeof setAxisSuffix
-  onUpdateAxisPrefix: typeof setAxisPrefix
-  onSetYDomain: typeof setYDomain
-  onSetXColumn: typeof setXColumn
-  onSetYColumn: typeof setYColumn
-  onSetTimeFormat: typeof setTimeFormat
-}
-
 interface OwnProps {
   xColumn: string
   yColumn: string
@@ -84,7 +60,8 @@ interface OwnProps {
   showNoteWhenEmpty: boolean
 }
 
-type Props = OwnProps & DispatchProps & StateProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = OwnProps & ReduxProps
 
 const ScatterOptions: SFC<Props> = props => {
   const {
@@ -221,7 +198,7 @@ const ScatterOptions: SFC<Props> = props => {
   )
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const availableGroupColumns = getGroupableColumns(state)
   const fillColumns = getFillColumnsSelection(state)
   const symbolColumns = getSymbolColumnsSelection(state)
@@ -258,7 +235,5 @@ const mdtp = {
   onSetTimeFormat: setTimeFormat,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
-  mstp,
-  mdtp
-)(ScatterOptions)
+const connector = connect(mstp, mdtp)
+export default connector(ScatterOptions)

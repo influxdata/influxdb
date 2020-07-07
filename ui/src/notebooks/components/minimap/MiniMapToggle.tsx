@@ -1,6 +1,6 @@
 // Libraries
 import React, {FC} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import {Icon, IconFont} from '@influxdata/clockface'
@@ -22,7 +22,7 @@ interface DispatchProps {
   handleSetNotebookMiniMapState: typeof setNotebookMiniMapState
 }
 
-type Props = StateProps & DispatchProps
+type Props = ReduxProps
 
 const MiniMapToggle: FC<Props> = ({
   notebookMiniMapState,
@@ -59,7 +59,7 @@ const MiniMapToggle: FC<Props> = ({
   )
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const {
     app: {
       persisted: {notebookMiniMapState},
@@ -71,8 +71,8 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   handleSetNotebookMiniMapState: setNotebookMiniMapState,
 }
 
-export default connect<StateProps, DispatchProps>(mstp, mdtp)(MiniMapToggle)
+export default connector(MiniMapToggle)

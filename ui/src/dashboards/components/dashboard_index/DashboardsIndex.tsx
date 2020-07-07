@@ -1,7 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {RouteComponentProps} from 'react-router-dom'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {Switch, Route} from 'react-router-dom'
 
 // Decorators
@@ -44,7 +44,7 @@ interface StateProps {
   sortOptions: DashboardSortParams
 }
 
-type Props = DispatchProps & StateProps & RouteComponentProps<{orgID: string}>
+type Props = ReduxProps & RouteComponentProps<{orgID: string}>
 
 interface State {
   searchTerm: string
@@ -174,7 +174,7 @@ class DashboardIndex extends PureComponent<Props, State> {
   }
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const {
     cloud: {limits},
   } = state
@@ -186,9 +186,9 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   createDashboard: createDashboardAction,
   setDashboardSort,
 }
 
-export default connect<StateProps, DispatchProps>(mstp, mdtp)(DashboardIndex)
+export default connector(DashboardIndex)

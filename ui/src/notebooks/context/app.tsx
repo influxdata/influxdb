@@ -1,5 +1,5 @@
 import React, {FC} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {getOrg} from 'src/organizations/selectors'
 import {setTimeZone} from 'src/shared/actions/app'
 import {timeZone as timeZoneFromState} from 'src/shared/selectors/app'
@@ -15,7 +15,7 @@ export interface DispatchProps {
   onSetTimeZone: typeof setTimeZone
 }
 
-export type Props = StateProps & DispatchProps
+export type Props = ReduxProps
 
 type Modifier = typeof setTimeZone
 export interface AppSettingContextType {
@@ -50,7 +50,7 @@ export const AppSettingProvider: FC<Props> = React.memo(
   }
 )
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const org = getOrg(state)
 
   return {
@@ -59,11 +59,8 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onSetTimeZone: setTimeZone,
 }
 
-export default connect<StateProps, DispatchProps>(
-  mstp,
-  mdtp
-)(AppSettingProvider)
+export default connector(AppSettingProvider)

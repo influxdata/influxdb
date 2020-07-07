@@ -1,7 +1,6 @@
 // Libraries
 import React, {PureComponent, FormEvent} from 'react'
-import _ from 'lodash'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Components
@@ -39,18 +38,9 @@ interface State {
   hasValidArgs: boolean
 }
 
-interface StateProps {
-  variables: Variable[]
-  startVariable: Variable
-}
-
-interface DispatchProps {
-  onUpdateVariable: typeof updateVariable
-}
-
-type Props = StateProps &
-  DispatchProps &
-  RouteComponentProps<{orgID: string; id: string}>
+type RouterProps = RouteComponentProps<{orgID: string; id: string}>
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = RouterProps & ReduxProps
 
 class UpdateVariableOverlay extends PureComponent<Props, State> {
   public state: State = {
@@ -258,17 +248,17 @@ class UpdateVariableOverlay extends PureComponent<Props, State> {
   }
 }
 
-const mstp = (state: AppState, {match}: Props): StateProps => {
+const mstp = (state: AppState, {match}: RouterProps) => {
   const variables = getVariables(state)
   const startVariable = variables.find(v => v.id === match.params.id)
 
   return {variables, startVariable}
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onUpdateVariable: updateVariable,
 }
 
-export default withRouter(
-  connect<StateProps, DispatchProps>(mstp, mdtp)(UpdateVariableOverlay)
-)
+const connector = connect(mstp, mdtp)
+
+export default withRouter(connector(UpdateVariableOverlay))

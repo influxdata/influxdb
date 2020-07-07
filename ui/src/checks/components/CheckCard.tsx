@@ -1,6 +1,6 @@
 // Libraries
 import React, {FC} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Components
@@ -51,7 +51,7 @@ interface OwnProps {
   check: Check
 }
 
-type Props = OwnProps & DispatchProps & RouteComponentProps<{orgID: string}>
+type Props = OwnProps & ReduxProps & RouteComponentProps<{orgID: string}>
 
 const CheckCard: FC<Props> = ({
   onRemoveCheckLabel,
@@ -190,7 +190,7 @@ const CheckCard: FC<Props> = ({
   )
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onUpdateCheckDisplayProperties: updateCheckDisplayProperties,
   deleteCheck: deleteCheck,
   onAddCheckLabel: addCheckLabel,

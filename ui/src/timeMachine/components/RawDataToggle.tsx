@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import {SlideToggle, InputLabel, ComponentSize} from '@influxdata/clockface'
@@ -14,15 +14,8 @@ import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 // Types
 import {AppState} from 'src/types'
 
-interface StateProps {
-  isViewingRawData: boolean
-}
-
-interface DispatchProps {
-  onSetIsViewingRawData: typeof setIsViewingRawData
-}
-
-type Props = StateProps & DispatchProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps
 
 class TimeMachineQueries extends PureComponent<Props> {
   public render() {
@@ -58,7 +51,6 @@ const mdtp = {
   onSetIsViewingRawData: setIsViewingRawData,
 }
 
-export default connect<StateProps, DispatchProps>(
-  mstp,
-  mdtp
-)(TimeMachineQueries)
+const connector = connect(mstp, mdtp)
+
+export default connector(TimeMachineQueries)

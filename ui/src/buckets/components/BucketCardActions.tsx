@@ -1,7 +1,7 @@
 // Libraries
 import React, {FC} from 'react'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import _ from 'lodash'
 
 // Components
@@ -135,14 +135,11 @@ const BucketCardActions: FC<Props &
   )
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onAddBucketLabel: addBucketLabel,
   onDeleteBucketLabel: deleteBucketLabel,
   onSetDataLoadersBucket: setBucketInfo,
   onSetDataLoadersType: setDataLoadersType,
 }
 
-export default connect<{}, DispatchProps>(
-  null,
-  mdtp
-)(withRouter(BucketCardActions))
+export default connector(withRouter(BucketCardActions))

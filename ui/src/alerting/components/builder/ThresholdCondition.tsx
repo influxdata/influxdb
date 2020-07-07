@@ -1,6 +1,6 @@
 // Libraries
 import React, {FC, useState, useEffect} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {get} from 'lodash'
 
 // Components
@@ -45,7 +45,7 @@ interface OwnProps {
   level: CheckStatusLevel
 }
 
-type Props = StateProps & DispatchProps & OwnProps
+type Props = ReduxProps & OwnProps
 
 const defaultThreshold = {
   type: 'greater' as 'greater',
@@ -148,7 +148,7 @@ const ThresholdCondition: FC<Props> = ({
   )
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const giraffeResult = getVisTable(state)
 
   return {
@@ -156,14 +156,11 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onUpdateThreshold: updateThreshold,
   onRemoveThreshold: removeThreshold,
 }
 
 export {ThresholdCondition}
 
-export default connect<StateProps, DispatchProps, {}>(
-  mstp,
-  mdtp
-)(ThresholdCondition)
+export default connector(ThresholdCondition)

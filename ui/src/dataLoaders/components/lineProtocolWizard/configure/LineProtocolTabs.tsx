@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import _ from 'lodash'
 
 // Components
@@ -25,7 +25,7 @@ interface OwnProps {
   org: string
 }
 
-type Props = OwnProps & DispatchProps & StateProps
+type Props = OwnProps & ReduxProps
 
 interface DispatchProps {
   setLineProtocolBody: typeof setLineProtocolBody
@@ -109,13 +109,10 @@ const mstp = ({
   return {lineProtocolBody, activeLPTab, precision}
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   setLineProtocolBody,
   setActiveLPTab,
   setPrecision,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
-  mstp,
-  mdtp
-)(LineProtocolTabs)
+export default connector(LineProtocolTabs)

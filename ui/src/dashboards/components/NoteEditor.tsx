@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent, MouseEvent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import {
@@ -38,7 +38,7 @@ interface DispatchProps {
 
 interface OwnProps {}
 
-type Props = StateProps & DispatchProps & OwnProps
+type Props = ReduxProps & OwnProps
 
 interface State {
   scrollTop: number
@@ -130,7 +130,4 @@ const mdtp = {
   onSetNote: setNote,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
-  mstp,
-  mdtp
-)(NoteEditor)
+export default connector(NoteEditor)

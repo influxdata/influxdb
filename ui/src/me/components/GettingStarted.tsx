@@ -1,7 +1,7 @@
 // Libraries
 import React, {FunctionComponent, useState} from 'react'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import {
@@ -127,11 +127,11 @@ const GettingStarted: FunctionComponent<Props> = ({orgID, history}) => {
   )
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const {id} = getOrg(state)
   return {
     orgID: id,
   }
 }
 
-export default withRouter(connect<StateProps>(mstp, null)(GettingStarted))
+export default withRouter(connector(GettingStarted))

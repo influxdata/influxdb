@@ -1,7 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import VariableFormContext from 'src/variables/components/VariableFormContext'
@@ -36,7 +36,7 @@ class SaveAsVariable extends PureComponent<
   }
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const activeQuery = getActiveQuery(state)
 
   return {

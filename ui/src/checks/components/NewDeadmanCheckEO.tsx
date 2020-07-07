@@ -1,6 +1,6 @@
 // Libraries
 import React, {FunctionComponent, useEffect} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Components
@@ -36,7 +36,7 @@ interface StateProps {
   status: RemoteDataState
 }
 
-type Props = DispatchProps & StateProps & RouteComponentProps<{orgID: string}>
+type Props = ReduxProps & RouteComponentProps<{orgID: string}>
 
 const NewCheckOverlay: FunctionComponent<Props> = ({
   match: {
@@ -87,11 +87,11 @@ const NewCheckOverlay: FunctionComponent<Props> = ({
   )
 }
 
-const mstp = ({alertBuilder: {name, status}}: AppState): StateProps => {
+const mstp = ({alertBuilder: {name, status}}: AppState) => {
   return {checkName: name, status}
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onSetActiveTimeMachine: setActiveTimeMachine,
   onSaveCheckFromTimeMachine: createCheckFromTimeMachine,
   onResetAlertBuilder: resetAlertBuilder,
@@ -99,7 +99,4 @@ const mdtp: DispatchProps = {
   onInitializeAlertBuilder: initializeAlertBuilder,
 }
 
-export default connect<StateProps, DispatchProps, {}>(
-  mstp,
-  mdtp
-)(withRouter(NewCheckOverlay))
+export default connector(withRouter(NewCheckOverlay))

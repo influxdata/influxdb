@@ -45,11 +45,9 @@ class CompletionAdvancedButton extends PureComponent<Props> {
   }
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   return {
     orgID: state.onboarding.orgID,
   }
 }
-export default connect<StateProps, {}>(mstp)(
-  withRouter(CompletionAdvancedButton)
-)
+export default connect<StateProps>(mstp)(withRouter(CompletionAdvancedButton))

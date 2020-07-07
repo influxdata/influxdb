@@ -1,6 +1,6 @@
 // Libraries
 import React, {Component} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {Switch, Route} from 'react-router-dom'
 
 // Components
@@ -28,19 +28,12 @@ import {getByID} from 'src/resources/selectors'
 import {AppState, AutoRefresh, ResourceType, Dashboard} from 'src/types'
 import {ManualRefreshProps} from 'src/shared/components/ManualRefresh'
 
-interface DispatchProps {
-  resetCachedQueryResults: typeof resetCachedQueryResults
-}
-
-interface StateProps {
-  dashboard: Dashboard
-}
-
 interface OwnProps {
   autoRefresh: AutoRefresh
 }
 
-type Props = OwnProps & StateProps & ManualRefreshProps & DispatchProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = OwnProps & ManualRefreshProps & ReduxProps
 
 import {
   ORGS,
@@ -96,7 +89,7 @@ class DashboardPage extends Component<Props> {
   }
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const dashboard = getByID<Dashboard>(
     state,
     ResourceType.Dashboards,
@@ -112,7 +105,6 @@ const mdtp = {
   resetCachedQueryResults: resetCachedQueryResults,
 }
 
-export default connect<StateProps, DispatchProps>(
-  mstp,
-  mdtp
-)(ManualRefresh<OwnProps>(DashboardPage))
+const connector = connect(mstp, mdtp)
+
+export default connector(ManualRefresh<OwnProps>(DashboardPage))

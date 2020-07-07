@@ -1,7 +1,7 @@
 // Libraries
 import React, {FC, useRef, RefObject, useState} from 'react'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {get} from 'lodash'
 import classnames from 'classnames'
 
@@ -26,18 +26,14 @@ import {deleteCell, createCellWithView} from 'src/cells/actions/thunks'
 // Types
 import {Cell, View} from 'src/types'
 
-interface DispatchProps {
-  onDeleteCell: typeof deleteCell
-  onCloneCell: typeof createCellWithView
-}
-
 interface OwnProps {
   cell: Cell
   view: View
   onCSVDownload: () => void
 }
 
-type Props = OwnProps & DispatchProps & RouteComponentProps<{orgID: string}>
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = OwnProps & ReduxProps & RouteComponentProps<{orgID: string}>
 
 const CellContext: FC<Props> = ({
   view,
@@ -172,9 +168,11 @@ const CellContext: FC<Props> = ({
   )
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onDeleteCell: deleteCell,
   onCloneCell: createCellWithView,
 }
 
-export default withRouter(connect<{}, DispatchProps>(null, mdtp)(CellContext))
+const connector = connect(null, mdtp)
+
+export default withRouter(connector(CellContext))

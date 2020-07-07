@@ -1,6 +1,6 @@
 // Libraries
 import React, {FC} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import {SelectGroup, ButtonShape, Icon, IconFont} from '@influxdata/clockface'
@@ -21,7 +21,7 @@ interface DispatchProps {
 
 interface OwnProps {}
 
-type Props = OwnProps & StateProps & DispatchProps
+type Props = OwnProps & ReduxProps
 
 const DashboardLightModeToggle: FC<Props> = ({theme, onSetTheme}) => {
   return (
@@ -51,7 +51,7 @@ const DashboardLightModeToggle: FC<Props> = ({theme, onSetTheme}) => {
   )
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const {
     app: {
       persisted: {theme},
@@ -61,11 +61,8 @@ const mstp = (state: AppState): StateProps => {
   return {theme}
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onSetTheme: setTheme,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
-  mstp,
-  mdtp
-)(DashboardLightModeToggle)
+export default connector(DashboardLightModeToggle)

@@ -1,6 +1,6 @@
 // Libraries
 import React, {Component} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Components
@@ -54,7 +54,7 @@ class DashboardEmpty extends Component<Props> {
   }
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   return {
     org: getOrg(state).id,
     dashboard: state.currentDashboard.id,

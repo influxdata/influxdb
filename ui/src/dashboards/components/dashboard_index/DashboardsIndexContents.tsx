@@ -1,6 +1,6 @@
 // Libraries
 import React, {Component} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import Table from 'src/dashboards/components/dashboard_index/Table'
@@ -39,7 +39,7 @@ interface StateProps {
   limitStatus: RemoteDataState
 }
 
-type Props = DispatchProps & StateProps & OwnProps
+type Props = ReduxProps & OwnProps
 
 const FilterDashboards = FilterList<Dashboard>()
 
@@ -87,7 +87,7 @@ class DashboardsIndexContents extends Component<Props> {
   }
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const {
     cloud: {
       limits: {status},
@@ -100,12 +100,9 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   retainRangesDashTimeV1: retainRangesDashTimeV1Action,
   checkDashboardLimits: checkDashboardLimitsAction,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
-  mstp,
-  mdtp
-)(DashboardsIndexContents)
+export default connector(DashboardsIndexContents)

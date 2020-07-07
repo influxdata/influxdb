@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import {Form, DapperScrollbars} from '@influxdata/clockface'
@@ -73,7 +73,7 @@ const mstp = ({
     steps: {bucket, org},
   },
   me: {name},
-}: AppState): StateProps => ({
+}: AppState) => ({
   username: name,
   telegrafConfigID,
   bucket,

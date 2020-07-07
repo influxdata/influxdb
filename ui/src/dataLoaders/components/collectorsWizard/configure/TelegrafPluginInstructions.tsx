@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {includes, get} from 'lodash'
 
 // Components
@@ -59,7 +59,7 @@ interface StateProps {
   orgID: string
 }
 
-type Props = DispatchProps & StateProps
+type Props = ReduxProps
 
 export class TelegrafPluginInstructions extends PureComponent<Props> {
   public render() {
@@ -205,7 +205,7 @@ export class TelegrafPluginInstructions extends PureComponent<Props> {
   }
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const {
     telegrafConfigName,
     telegrafConfigDescription,
@@ -224,7 +224,7 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onSetTelegrafConfigName: setTelegrafConfigName,
   onSetTelegrafConfigDescription: setTelegrafConfigDescription,
   onIncrementStep: incrementCurrentStepIndex,
@@ -235,7 +235,4 @@ const mdtp: DispatchProps = {
   notify: notifyAction,
 }
 
-export default connect<StateProps, DispatchProps, {}>(
-  mstp,
-  mdtp
-)(TelegrafPluginInstructions)
+export default connector(TelegrafPluginInstructions)

@@ -1,6 +1,6 @@
 // Libraries
 import React, {Component} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import DecimalPlacesOption from 'src/timeMachine/components/view_options/DecimalPlaces'
@@ -50,19 +50,11 @@ interface StateProps {
   tableOptions: ViewTableOptions
 }
 
-interface DispatchProps {
-  onSetColors: typeof setColors
-  onSetTimeFormat: typeof setTimeFormat
-  onSetFieldOptions: typeof setFieldOptions
-  onUpdateFieldOption: typeof updateFieldOption
-  onSetTableOptions: typeof setTableOptions
-  onSetDecimalPlaces: typeof setDecimalPlaces
-}
-
-type Props = DispatchProps & StateProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = StateProps & ReduxProps
 
 @ErrorHandling
-export class TableOptions extends Component<Props, {}> {
+export class TableOptions extends Component<Props> {
   public render() {
     const {
       timeFormat,
@@ -187,7 +179,7 @@ const mstp = (state: AppState) => {
   return {colors, decimalPlaces, fieldOptions, tableOptions, timeFormat}
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onSetDecimalPlaces: setDecimalPlaces,
   onSetColors: setColors,
   onSetFieldOptions: setFieldOptions,
@@ -196,4 +188,6 @@ const mdtp: DispatchProps = {
   onSetTimeFormat: setTimeFormat,
 }
 
-export default connect<StateProps, DispatchProps>(mstp, mdtp)(TableOptions)
+const connector = connect(mstp, mdtp)
+
+export default connector(TableOptions)

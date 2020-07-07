@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {get} from 'lodash'
 
 // Components
@@ -49,7 +49,7 @@ interface DispatchProps {
   loadNote: typeof loadNote
 }
 
-type Props = OwnProps & StateProps & DispatchProps
+type Props = OwnProps & ReduxProps
 
 interface State {
   savingStatus: RemoteDataState
@@ -190,7 +190,7 @@ class NoteEditorOverlay extends PureComponent<Props, State> {
   }
 }
 
-const mstp = ({noteEditor, resources, overlays}: AppState): StateProps => {
+const mstp = ({noteEditor, resources, overlays}: AppState) => {
   const {params} = overlays
   const {mode} = noteEditor
   const {status} = resources.views
@@ -209,7 +209,4 @@ const mdtp = {
   loadNote,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
-  mstp,
-  mdtp
-)(NoteEditorOverlay)
+export default connector(NoteEditorOverlay)

@@ -2,7 +2,7 @@
 import React, {PureComponent} from 'react'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
 import {isEmpty} from 'lodash'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import ImportOverlay from 'src/shared/components/ImportOverlay'
@@ -27,13 +27,8 @@ interface State {
   status: ComponentStatus
 }
 
-interface DispatchProps {
-  createDashboardFromTemplate: typeof createDashboardFromTemplateAction
-  notify: typeof notifyAction
-  populateDashboards: typeof getDashboards
-}
-
-type Props = RouteComponentProps<{orgID: string}> & DispatchProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = RouteComponentProps<{orgID: string}> & ReduxProps
 
 class DashboardImportOverlay extends PureComponent<Props> {
   public state: State = {
@@ -84,13 +79,12 @@ class DashboardImportOverlay extends PureComponent<Props> {
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   notify: notifyAction,
   populateDashboards: getDashboards,
   createDashboardFromTemplate: createDashboardFromTemplateAction,
 }
 
-export default connect<{}, DispatchProps>(
-  null,
-  mdtp
-)(withRouter(DashboardImportOverlay))
+const connector = connect(null, mdtp)
+
+export default connector(withRouter(DashboardImportOverlay))

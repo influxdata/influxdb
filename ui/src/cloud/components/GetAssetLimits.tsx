@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Actions
 import {getAssetLimits as getAssetLimitsAction} from 'src/cloud/actions/limits'
@@ -26,7 +26,7 @@ interface DispatchProps {
   getAssetLimits: typeof getAssetLimitsAction
 }
 
-type Props = StateProps & DispatchProps
+type Props = ReduxProps
 
 class GetAssetLimits extends PureComponent<Props> {
   public componentDidMount() {
@@ -52,11 +52,8 @@ const mstp = ({
   cloud: {
     limits: {status},
   },
-}: AppState): StateProps => ({status})
+}: AppState) => ({status})
 
-const mdtp: DispatchProps = {getAssetLimits: getAssetLimitsAction}
+const mdtp = {getAssetLimits: getAssetLimitsAction}
 
-export default connect<StateProps, DispatchProps, {}>(
-  mstp,
-  mdtp
-)(GetAssetLimits)
+export default connector(GetAssetLimits)

@@ -168,7 +168,7 @@ class TelegrafOutputOverlay extends PureComponent<Props> {
   }
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const {name, id} = getOrg(state)
   const server = window.location.origin
   const buckets = getAll<Bucket>(state, ResourceType.Buckets)
@@ -182,4 +182,4 @@ const mstp = (state: AppState): StateProps => {
 }
 
 export {TelegrafOutputOverlay}
-export default connect<StateProps, {}, {}>(mstp, null)(TelegrafOutputOverlay)
+export default connect<StateProps>(mstp)(TelegrafOutputOverlay)

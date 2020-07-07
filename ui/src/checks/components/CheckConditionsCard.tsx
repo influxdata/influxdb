@@ -1,6 +1,6 @@
 // Libraries
 import React, {FC} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import {
@@ -55,7 +55,7 @@ const CheckConditionsCard: FC<Props> = ({checkType}) => {
   )
 }
 
-const mstp = ({alertBuilder: {type}}: AppState): StateProps => {
+const mstp = ({alertBuilder: {type}}: AppState) => {
   return {checkType: type}
 }
 

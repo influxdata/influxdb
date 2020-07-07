@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import memoizeOne from 'memoize-one'
 
 // Components
@@ -25,16 +25,8 @@ interface OwnProps {
   onFilterChange: (searchTerm: string) => void
 }
 
-interface StateProps {
-  collectors: Telegraf[]
-}
-
-interface DispatchProps {
-  onUpdateTelegraf: typeof updateTelegraf
-  onDeleteTelegraf: typeof deleteTelegraf
-}
-
-type Props = OwnProps & StateProps & DispatchProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = OwnProps & ReduxProps
 
 class CollectorList extends PureComponent<Props> {
   private memGetSortedResources = memoizeOne<typeof getSortedResources>(
@@ -87,16 +79,14 @@ class CollectorList extends PureComponent<Props> {
   }
 }
 
-const mstp = (state: AppState): StateProps => ({
+const mstp = (state: AppState) => ({
   collectors: getAll<Telegraf>(state, ResourceType.Telegrafs),
 })
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onUpdateTelegraf: updateTelegraf,
   onDeleteTelegraf: deleteTelegraf,
 }
-
-connect<StateProps, DispatchProps, OwnProps>(mstp, mdtp)(CollectorList)
 
 type FilteredOwnProps = OwnProps & {
   searchTerm: string
@@ -141,9 +131,8 @@ class FilteredCollectorList extends PureComponent<FilteredProps> {
   }
 }
 
-const FilteredList = connect<StateProps, DispatchProps, FilteredOwnProps>(
-  mstp,
-  mdtp
-)(FilteredCollectorList)
+const connector = connect(mstp, mdtp)
+
+const FilteredList = connector(FilteredCollectorList)
 
 export {FilteredCollectorList, FilteredList}

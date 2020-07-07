@@ -1,7 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // APIs
 import {client} from 'src/utils/api'
@@ -32,11 +32,8 @@ interface State {
   status: RemoteDataState
 }
 
-interface DispatchProps {
-  dismissAllNotifications: typeof dismissAllNotifications
-}
-
-type Props = RouteComponentProps & DispatchProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = RouteComponentProps & ReduxProps
 @ErrorHandling
 class SigninPage extends PureComponent<Props, State> {
   constructor(props) {
@@ -92,7 +89,10 @@ class SigninPage extends PureComponent<Props, State> {
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   dismissAllNotifications,
 }
-export default connect(null, mdtp)(withRouter(SigninPage))
+
+const connector = connect(null, mdtp)
+
+export default connector(withRouter(SigninPage))

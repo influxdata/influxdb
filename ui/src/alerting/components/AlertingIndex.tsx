@@ -1,6 +1,6 @@
 // Libraries
 import React, {FunctionComponent, useState} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {Switch, Route} from 'react-router-dom'
 
 //Components
@@ -152,7 +152,7 @@ const AlertingIndex: FunctionComponent<StateProps> = ({
   )
 }
 
-const mstp = ({cloud: {limits}}: AppState): StateProps => {
+const mstp = ({cloud: {limits}}: AppState) => {
   return {
     limitStatus: extractMonitoringLimitStatus(limits),
     limitedResources: extractLimitedMonitoringResources(limits),

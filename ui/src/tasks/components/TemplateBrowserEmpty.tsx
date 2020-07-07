@@ -50,7 +50,7 @@ class TemplateBrowserEmpty extends PureComponent<Props> {
   }
 }
 
-const mstp = (state: AppState): StateProps => ({
+const mstp = (state: AppState) => ({
   org: getOrg(state),
 })
 

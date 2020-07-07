@@ -1,6 +1,6 @@
 // Libraries
 import React, {FunctionComponent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import ClientLibraryOverlay from 'src/clientLibraries/components/ClientLibraryOverlay'
@@ -91,7 +91,7 @@ const ClientRubyOverlay: FunctionComponent<Props> = props => {
   )
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const {id} = getOrg(state)
 
   return {

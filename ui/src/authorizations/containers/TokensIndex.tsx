@@ -1,6 +1,6 @@
 // Libraries
 import React, {Component} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {Switch, Route} from 'react-router-dom'
 
 // Components
@@ -61,4 +61,4 @@ class TokensIndex extends Component<StateProps> {
 
 const mstp = (state: AppState) => ({org: getOrg(state)})
 
-export default connect<StateProps>(mstp, null)(TokensIndex)
+export default connector(TokensIndex)

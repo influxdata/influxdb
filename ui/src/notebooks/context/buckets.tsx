@@ -1,5 +1,5 @@
 import React, {FC, useEffect} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Actions
 import {getBuckets} from 'src/buckets/actions/thunks'
@@ -20,7 +20,7 @@ export interface DispatchProps {
   getBuckets: typeof getBuckets
 }
 
-export type Props = StateProps & DispatchProps
+export type Props = ReduxProps
 
 export interface BucketContextType {
   loading: RemoteDataState
@@ -71,7 +71,7 @@ export const BucketProvider: FC<Props> = React.memo(
   }
 )
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const buckets = getSortedBuckets(state)
   const loading = getStatus(state, ResourceType.Buckets)
 
@@ -81,8 +81,8 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   getBuckets: getBuckets,
 }
 
-export default connect<StateProps, DispatchProps>(mstp, mdtp)(BucketProvider)
+export default connector(BucketProvider)

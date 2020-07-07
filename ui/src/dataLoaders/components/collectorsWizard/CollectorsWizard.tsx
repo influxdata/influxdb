@@ -1,7 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import Loadable from 'react-loadable'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Components
@@ -89,7 +89,7 @@ interface StateProps {
   org: Organization
 }
 
-type Props = StateProps & DispatchProps
+type Props = ReduxProps
 type AllProps = Props & RouteComponentProps<{orgID: string}>
 
 @ErrorHandling
@@ -164,7 +164,7 @@ class CollectorsWizard extends PureComponent<AllProps> {
   }
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const {
     links,
     dataLoading: {
@@ -196,7 +196,7 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   notify: notifyAction,
   onSetBucketInfo: setBucketInfo,
   onIncrementCurrentStepIndex: incrementCurrentStepIndex,
@@ -209,7 +209,4 @@ const mdtp: DispatchProps = {
   onSetPluginConfiguration: setPluginConfiguration,
 }
 
-export default connect<StateProps, DispatchProps, {}>(
-  mstp,
-  mdtp
-)(withRouter(CollectorsWizard))
+export default connector(withRouter(CollectorsWizard))

@@ -2,7 +2,7 @@
 import React, {FC} from 'react'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
 import CopyToClipboard from 'react-copy-to-clipboard'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Constants
 import {
@@ -137,7 +137,7 @@ const DemoDataBucketCard: FC<Props &
   )
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   removeBucket: deleteDemoDataBucketMembership,
   notify: notifyAction,
 }

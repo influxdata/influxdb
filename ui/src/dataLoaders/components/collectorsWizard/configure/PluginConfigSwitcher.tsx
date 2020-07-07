@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import _ from 'lodash'
 
 // Components
@@ -55,8 +55,8 @@ const mstp = ({
   dataLoading: {
     dataLoaders: {telegrafPlugins},
   },
-}: AppState): StateProps => ({
+}: AppState) => ({
   telegrafPlugins,
 })
 
-export default connect<StateProps>(mstp, null)(PluginConfigSwitcher)
+export default connector(PluginConfigSwitcher)

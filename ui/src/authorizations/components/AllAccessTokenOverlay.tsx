@@ -1,5 +1,5 @@
 import React, {PureComponent, ChangeEvent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import {
@@ -46,7 +46,7 @@ interface State {
   description: string
 }
 
-type Props = OwnProps & StateProps & DispatchProps
+type Props = OwnProps & ReduxProps
 
 @ErrorHandling
 class AllAccessTokenOverlay extends PureComponent<Props, State> {
@@ -129,17 +129,14 @@ class AllAccessTokenOverlay extends PureComponent<Props, State> {
   }
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   return {
     orgID: getOrg(state).id,
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onCreateAuthorization: createAuthorization,
 }
 
-export default connect<StateProps, DispatchProps, {}>(
-  mstp,
-  mdtp
-)(AllAccessTokenOverlay)
+export default connector(AllAccessTokenOverlay)

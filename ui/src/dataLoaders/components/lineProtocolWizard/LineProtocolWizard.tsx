@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Components
@@ -40,24 +40,8 @@ interface OwnProps {
   startingStep?: number
 }
 
-interface DispatchProps {
-  notify: typeof notifyAction
-  onSetBucketInfo: typeof setBucketInfo
-  onIncrementCurrentStepIndex: typeof incrementCurrentStepIndex
-  onDecrementCurrentStepIndex: typeof decrementCurrentStepIndex
-  onSetCurrentStepIndex: typeof setCurrentStepIndex
-  onClearDataLoaders: typeof clearDataLoaders
-  onClearSteps: typeof clearSteps
-}
-
-interface StateProps {
-  currentStepIndex: number
-  username: string
-  bucket: string
-  buckets: Bucket[]
-}
-
-type Props = OwnProps & StateProps & DispatchProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = OwnProps & ReduxProps
 
 @ErrorHandling
 class LineProtocolWizard extends PureComponent<
@@ -132,7 +116,7 @@ class LineProtocolWizard extends PureComponent<
   }
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const {
     dataLoading: {
       steps: {currentStep, bucket},
@@ -150,7 +134,7 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   notify: notifyAction,
   onSetBucketInfo: setBucketInfo,
   onIncrementCurrentStepIndex: incrementCurrentStepIndex,
@@ -160,7 +144,6 @@ const mdtp: DispatchProps = {
   onClearSteps: clearSteps,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
-  mstp,
-  mdtp
-)(withRouter(LineProtocolWizard))
+const connector = connect(mstp, mdtp)
+
+export default connector(withRouter(LineProtocolWizard))

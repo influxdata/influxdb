@@ -1,6 +1,6 @@
 // Libraries
 import React, {FC} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Constants
@@ -21,18 +21,9 @@ import {NotificationEndpoint, AppState, ResourceType} from 'src/types'
 // Utils
 import {getByID} from 'src/resources/selectors'
 
-interface DispatchProps {
-  onUpdateEndpoint: typeof updateEndpoint
-  onNotify: typeof notify
-}
-
-interface StateProps {
-  endpoint: NotificationEndpoint
-}
-
-type Props = RouteComponentProps<{orgID: string; endpointID: string}> &
-  DispatchProps &
-  StateProps
+type ReduxProps = ConnectedProps<typeof connector>
+type RouterProps = RouteComponentProps<{orgID: string; endpointID: string}>
+type Props = RouterProps & ReduxProps
 
 const EditEndpointOverlay: FC<Props> = ({
   match,
@@ -82,7 +73,7 @@ const mdtp = {
   onNotify: notify,
 }
 
-const mstp = (state: AppState, {match}: Props): StateProps => {
+const mstp = (state: AppState, {match}: RouterProps) => {
   const endpoint = getByID<NotificationEndpoint>(
     state,
     ResourceType.NotificationEndpoints,
@@ -92,6 +83,6 @@ const mstp = (state: AppState, {match}: Props): StateProps => {
   return {endpoint}
 }
 
-export default withRouter(
-  connect<StateProps, DispatchProps, Props>(mstp, mdtp)(EditEndpointOverlay)
-)
+const connector = connect(mstp, mdtp)
+
+export default withRouter(connector(EditEndpointOverlay))

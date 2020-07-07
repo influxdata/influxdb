@@ -1,5 +1,5 @@
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {AppState} from 'src/types'
 import Editor from 'src/shared/components/TomlMonacoEditor'
 import * as monacoEditor from 'monaco-editor/esm/vs/editor/editor.api'
@@ -17,7 +17,7 @@ interface StateProps {
   script: string
 }
 
-type Props = StateProps & DispatchProps
+type Props = ReduxProps
 
 interface InterumMatchFormat {
   name: string
@@ -122,7 +122,7 @@ class TelegrafEditorMonaco extends PureComponent<Props> {
 
 export {TelegrafEditorMonaco}
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const map = state.telegrafEditorPlugins.reduce((prev, curr) => {
     prev[curr.name] = curr
     return prev
@@ -144,7 +144,7 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onSetActivePlugins: setActivePlugins,
   onSetText: setText,
 }

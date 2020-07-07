@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {isEmpty} from 'lodash'
 import classnames from 'classnames'
 
@@ -47,7 +47,7 @@ interface State {
   initialLoading: RemoteDataState
 }
 
-type Props = StateProps & DispatchProps
+type Props = ReduxProps
 
 @ErrorHandling
 class VariablesControlBar extends PureComponent<Props, State> {
@@ -149,7 +149,7 @@ const mdtp = {
   moveVariable,
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const dashboardID = state.currentDashboard.id
   const variables = getVariables(state)
   const variablesStatus = getDashboardVariablesStatus(state)
@@ -174,6 +174,4 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-export default withDragDropContext(
-  connect<StateProps, DispatchProps>(mstp, mdtp)(VariablesControlBar)
-)
+export default withDragDropContext(connector(VariablesControlBar))

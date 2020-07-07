@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import {
@@ -72,10 +72,10 @@ export class MePage extends PureComponent<StateProps> {
   }
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const {me} = state
 
   return {me}
 }
 
-export default connect<StateProps>(mstp, null)(MePage)
+export default connector(MePage)

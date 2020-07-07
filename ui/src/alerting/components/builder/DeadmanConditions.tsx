@@ -1,6 +1,6 @@
 // Libraries
 import React, {FC} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import {
@@ -38,7 +38,7 @@ interface StateProps {
   level: CheckStatusLevel
 }
 
-type Props = DispatchProps & StateProps
+type Props = ReduxProps
 
 const DeadmanConditions: FC<Props> = ({
   staleTime,
@@ -117,17 +117,16 @@ const DeadmanConditions: FC<Props> = ({
   )
 }
 
-const mstp = ({
-  alertBuilder: {staleTime, timeSince, level},
-}: AppState): StateProps => ({staleTime, timeSince, level})
+const mstp = ({alertBuilder: {staleTime, timeSince, level}}: AppState) => ({
+  staleTime,
+  timeSince,
+  level,
+})
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onSetStaleTime: setStaleTime,
   onSetTimeSince: setTimeSince,
   onSetLevel: setLevel,
 }
 
-export default connect<StateProps, DispatchProps, {}>(
-  mstp,
-  mdtp
-)(DeadmanConditions)
+export default connector(DeadmanConditions)

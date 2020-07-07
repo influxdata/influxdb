@@ -1,7 +1,7 @@
 // Libraries
 import React, {FunctionComponent, useEffect} from 'react'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {get} from 'lodash'
 
 // Components
@@ -40,7 +40,7 @@ interface StateProps {
 }
 
 type Props = RouteComponentProps<{orgID: string; checkID: string}> &
-  DispatchProps &
+  ReduxProps &
   StateProps
 
 const EditCheckEditorOverlay: FunctionComponent<Props> = ({
@@ -107,7 +107,7 @@ const EditCheckEditorOverlay: FunctionComponent<Props> = ({
   )
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const {
     timeMachines: {activeTimeMachineID},
     alertBuilder: {status, name, id},
@@ -124,7 +124,7 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onGetCheckForTimeMachine: getCheckForTimeMachine,
   onSaveCheckFromTimeMachine: updateCheckFromTimeMachine,
   onExecuteQueries: executeQueries,
@@ -132,7 +132,4 @@ const mdtp: DispatchProps = {
   onUpdateAlertBuilderName: updateName,
 }
 
-export default connect<StateProps, DispatchProps, {}>(
-  mstp,
-  mdtp
-)(withRouter(EditCheckEditorOverlay))
+export default connector(withRouter(EditCheckEditorOverlay))

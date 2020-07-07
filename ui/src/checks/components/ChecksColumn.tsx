@@ -1,7 +1,7 @@
 // Libraries
 import React, {FunctionComponent} from 'react'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Selectors
 import {getAll} from 'src/resources/selectors'
@@ -116,4 +116,4 @@ const mstp = (state: AppState) => {
   }
 }
 
-export default connect<StateProps>(mstp, null)(withRouter(ChecksColumn))
+export default connector(withRouter(ChecksColumn))

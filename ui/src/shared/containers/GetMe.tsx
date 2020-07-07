@@ -1,7 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {Switch, Route} from 'react-router-dom'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
@@ -16,15 +16,12 @@ import {getMe} from 'src/shared/actions/me'
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-interface ConnectDispatchProps {
-  getMe: typeof getMe
-}
-
 interface State {
   loading: RemoteDataState
 }
 
-type Props = ConnectDispatchProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps
 
 @ErrorHandling
 class GetMe extends PureComponent<Props, State> {
@@ -58,4 +55,6 @@ const mdtp = {
   getMe,
 }
 
-export default connect<{}, ConnectDispatchProps>(null, mdtp)(GetMe)
+const connector = connect(null, mdtp)
+
+export default connector(GetMe)

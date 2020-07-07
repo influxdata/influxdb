@@ -7,7 +7,7 @@ import {
   IconFont,
   SelectDropdown,
 } from '@influxdata/clockface'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import SearchableDropdown from 'src/shared/components/SearchableDropdown'
@@ -18,7 +18,7 @@ import {Filter} from 'src/types'
 // Actions
 import {setValuesByKey} from 'src/shared/actions/predicates'
 
-interface Props {
+interface OwnProps {
   bucket: string
   filter: Filter
   keys: string[]
@@ -28,11 +28,10 @@ interface Props {
   values: (string | number)[]
 }
 
-interface DispatchProps {
-  setValuesByKey: typeof setValuesByKey
-}
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = OwnProps & ReduxProps
 
-const FilterRow: FC<Props & DispatchProps> = ({
+const FilterRow: FC<Props> = ({
   bucket,
   filter: {key, equality, value},
   keys,
@@ -123,4 +122,6 @@ const FilterRow: FC<Props & DispatchProps> = ({
 
 const mdtp = {setValuesByKey}
 
-export default connect<{}, DispatchProps>(null, mdtp)(FilterRow)
+const connector = connect(null, mdtp)
+
+export default connector(FilterRow)

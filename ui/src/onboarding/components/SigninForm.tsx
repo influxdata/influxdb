@@ -1,8 +1,8 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
-import {connect} from 'react-redux'
-import _, {get} from 'lodash'
+import {connect, ConnectedProps} from 'react-redux'
+import {get} from 'lodash'
 
 // Components
 import {Form, Input, Button, Grid} from '@influxdata/clockface'
@@ -40,7 +40,8 @@ interface State {
   password: string
 }
 
-type Props = OwnProps & RouteComponentProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = OwnProps & RouteComponentProps & ReduxProps
 
 @ErrorHandling
 class SigninForm extends PureComponent<Props, State> {
@@ -158,4 +159,6 @@ const mdtp = {
   notify: notifyAction,
 }
 
-export default connect(mstp, mdtp)(withRouter(SigninForm))
+const connector = connect(mstp, mdtp)
+
+export default connector(withRouter(SigninForm))

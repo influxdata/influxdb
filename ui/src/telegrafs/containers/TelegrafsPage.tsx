@@ -24,14 +24,14 @@ import OverlayHandler, {
 } from 'src/overlays/components/RouteOverlay'
 
 const TelegrafConfigOverlay = RouteOverlay(
-  OverlayHandler,
+  OverlayHandler as any,
   'telegraf-config',
   (history, params) => {
     history.push(`/orgs/${params.orgID}/load-data/telegrafs`)
   }
 )
 const TelegrafOutputOverlay = RouteOverlay(
-  OverlayHandler,
+  OverlayHandler as any,
   'telegraf-output',
   (history, params) => {
     history.push(`/orgs/${params.orgID}/load-data/telegrafs`)

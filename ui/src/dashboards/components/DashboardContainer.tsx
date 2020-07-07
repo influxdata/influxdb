@@ -1,6 +1,6 @@
 // Libraries
 import React, {FC, useEffect} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import GetResource from 'src/resources/components/GetResource'
@@ -32,7 +32,7 @@ interface DispatchProps {
   onSetCurrentPage: typeof setCurrentPage
 }
 
-type Props = StateProps & DispatchProps
+type Props = ReduxProps
 
 const DashboardContainer: FC<Props> = ({
   autoRefresh,
@@ -71,7 +71,7 @@ const DashboardContainer: FC<Props> = ({
   )
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const dashboard = state.currentDashboard.id
   const autoRefresh = state.autoRefresh[dashboard] || AUTOREFRESH_DEFAULT
   return {
@@ -80,11 +80,8 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onSetCurrentPage: setCurrentPage,
 }
 
-export default connect<StateProps, DispatchProps>(
-  mstp,
-  mdtp
-)(DashboardContainer)
+export default connector(DashboardContainer)

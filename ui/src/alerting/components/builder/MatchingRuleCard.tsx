@@ -1,6 +1,6 @@
 // Libraries
 import React, {FC} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import {ResourceCard} from '@influxdata/clockface'
@@ -41,7 +41,7 @@ const MatchingRuleCard: FC<Props> = ({rule, endpoints}) => {
   )
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const endpoints = getAll<NotificationEndpoint>(
     state,
     ResourceType.NotificationEndpoints

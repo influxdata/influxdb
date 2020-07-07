@@ -1,6 +1,6 @@
 // Libraries
 import React, {FC, useState, useEffect} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {uniq} from 'lodash'
 import {fromFlux} from '@influxdata/giraffe'
 
@@ -158,7 +158,7 @@ const CheckMatchingRulesCard: FC<StateProps> = ({
   )
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const {
     alertBuilder: {tags},
   } = state
@@ -171,4 +171,4 @@ const mstp = (state: AppState): StateProps => {
   return {tags, orgID, queryResults: files}
 }
 
-export default connect<StateProps>(mstp, null)(CheckMatchingRulesCard)
+export default connector(CheckMatchingRulesCard)

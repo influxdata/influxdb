@@ -1,5 +1,5 @@
 import React, {FC, useEffect, useState} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {getDashboards} from 'src/dashboards/actions/thunks'
 import {
   createCellWithView,
@@ -39,25 +39,14 @@ import {event} from 'src/notebooks/shared/event'
 // Actions
 import {notify as notifyAction} from 'src/shared/actions/notifications'
 
-interface StateProps {
-  dashboards: Dashboard[]
-  orgID: string
-}
-
-interface DispatchProps {
-  loadDashboards: typeof getDashboards
-  createViewAndDashboard: typeof createDashboardWithView
-  createView: typeof createCellWithView
-  notify: typeof notifyAction
-}
-
 interface OwnProps {
   query: string
   properties: ViewProperties
   onClose: () => void
 }
 
-type Props = StateProps & DispatchProps & OwnProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps & OwnProps
 
 const ExportConfirmationNotification = (
   dashboardName: string
@@ -212,7 +201,7 @@ const DashboardList: FC<Props> = ({
 
 export {DashboardList}
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const dashboards = getAll<Dashboard>(state, ResourceType.Dashboards)
   const orgID = getOrg(state).id
 
@@ -222,14 +211,13 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   loadDashboards: getDashboards,
   createView: createCellWithView,
   createViewAndDashboard: createDashboardWithView,
   notify: notifyAction,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
-  mstp,
-  mdtp
-)(DashboardList)
+const connector = connect(mstp, mdtp)
+
+export default connector(DashboardList)

@@ -1,6 +1,6 @@
 // Libraries
 import {PureComponent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {CLOUD} from 'src/shared/constants'
 
 // Actions
@@ -22,7 +22,7 @@ class LimitChecker extends PureComponent<DispatchProps, {}> {
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   getReadWriteCardinalityLimits: getReadWriteCardinalityLimitsAction,
 }
 

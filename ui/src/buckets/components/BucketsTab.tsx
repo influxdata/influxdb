@@ -1,7 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {isEmpty} from 'lodash'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -62,7 +62,7 @@ interface State {
   sortType: SortTypes
 }
 
-type Props = DispatchProps & StateProps
+type Props = ReduxProps
 
 const FilterBuckets = FilterList<Bucket>()
 
@@ -202,7 +202,7 @@ class BucketsTab extends PureComponent<Props, State> {
   }
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const buckets = getAll<Bucket>(state, ResourceType.Buckets)
   return {
     buckets,
@@ -210,11 +210,11 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   createBucket,
   updateBucket,
   deleteBucket,
   checkBucketLimits: checkBucketLimitsAction,
 }
 
-export default connect<StateProps, DispatchProps, {}>(mstp, mdtp)(BucketsTab)
+export default connector(BucketsTab)

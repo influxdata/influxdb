@@ -1,6 +1,6 @@
 // Libraries
 import React, {FC} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import ThresholdCondition from 'src/alerting/components/builder/ThresholdCondition'
@@ -23,9 +23,7 @@ const ThresholdConditions: FC<StateProps> = ({thresholds}) => {
   )
 }
 
-const mstp = ({
-  alertBuilder: {thresholds: thresholdsArray},
-}: AppState): StateProps => {
+const mstp = ({alertBuilder: {thresholds: thresholdsArray}}: AppState) => {
   const thresholds = {}
   thresholdsArray.forEach(t => {
     thresholds[t.level] = t

@@ -1,7 +1,7 @@
 // Library
 import React, {Component, RefObject, CSSProperties} from 'react'
 import {isEqual} from 'lodash'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
 import {
   default as fromFlux,
@@ -54,7 +54,6 @@ import {
   Bucket,
   ResourceType,
   DashboardQuery,
-  Variable,
   VariableAssignment,
   AppState,
   CancelBox,
@@ -71,12 +70,6 @@ interface QueriesState {
   statuses: StatusRow[][]
 }
 
-interface StateProps {
-  queryLink: string
-  buckets: Bucket[]
-  variables: Variable[]
-}
-
 interface OwnProps {
   className?: string
   style?: CSSProperties
@@ -88,15 +81,8 @@ interface OwnProps {
   check?: Partial<Check>
 }
 
-interface DispatchProps {
-  notify: typeof notifyAction
-  onSetQueryResultsByQueryID: typeof setQueryResultsByQueryID
-}
-
-type Props = StateProps &
-  OwnProps &
-  DispatchProps &
-  RouteComponentProps<{orgID: string}>
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = OwnProps & ReduxProps & RouteComponentProps<{orgID: string}>
 
 interface State {
   loading: RemoteDataState
@@ -339,7 +325,7 @@ class TimeSeries extends Component<Props, State> {
   }
 }
 
-const mstp = (state: AppState, props: OwnProps): StateProps => {
+const mstp = (state: AppState, props: OwnProps) => {
   const timeRange = getTimeRange(state)
 
   // NOTE: cannot use getAllVariables here because the TimeSeries
@@ -365,12 +351,11 @@ const mstp = (state: AppState, props: OwnProps): StateProps => {
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   notify: notifyAction,
   onSetQueryResultsByQueryID: setQueryResultsByQueryID,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
-  mstp,
-  mdtp
-)(withRouter(TimeSeries))
+const connector = connect(mstp, mdtp)
+
+export default connector(withRouter(TimeSeries))

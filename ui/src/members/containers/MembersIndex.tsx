@@ -1,6 +1,6 @@
 import React, {Component} from 'react'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -60,4 +60,4 @@ const mstp = (state: AppState, props: Props) => {
   }
 }
 
-export default connect<StateProps>(mstp, null)(withRouter(MembersIndex))
+export default connector(withRouter(MembersIndex))

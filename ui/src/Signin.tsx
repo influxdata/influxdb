@@ -1,7 +1,7 @@
 // Libraries
 import React, {ReactElement, PureComponent} from 'react'
 import {Switch, Route, RouteComponentProps} from 'react-router-dom'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 import {client} from 'src/utils/api'
 
@@ -36,11 +36,8 @@ interface OwnProps {
   children: ReactElement<any>
 }
 
-interface DispatchProps {
-  notify: typeof notifyAction
-}
-
-type Props = OwnProps & RouteComponentProps & DispatchProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = OwnProps & RouteComponentProps & ReduxProps
 
 const FETCH_WAIT = 60000
 
@@ -77,7 +74,7 @@ export class Signin extends PureComponent<Props, State> {
       <SpinnerContainer loading={loading} spinnerComponent={<TechnoSpinner />}>
         {auth && (
           <Switch>
-            <Route render={props => <GetMe {...props} />} />
+            <Route component={GetMe} />
           </Switch>
         )}
       </SpinnerContainer>
@@ -126,8 +123,10 @@ export class Signin extends PureComponent<Props, State> {
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   notify: notifyAction,
 }
 
-export default connect(null, mdtp)(Signin)
+const connector = connect(null, mdtp)
+
+export default connector(Signin)

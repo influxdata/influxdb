@@ -52,4 +52,4 @@ class OrgProfilePage extends Component<StateProps> {
 
 const mstp = (state: AppState) => ({org: getOrg(state)})
 
-export default connect<StateProps, {}, {}>(mstp, null)(OrgProfilePage)
+export default connect<StateProps>(mstp)(OrgProfilePage)

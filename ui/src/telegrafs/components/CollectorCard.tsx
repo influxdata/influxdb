@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent, MouseEvent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {withRouter, RouteComponentProps, Link} from 'react-router-dom'
 
 // Components
@@ -22,7 +22,7 @@ import {getOrg} from 'src/organizations/selectors'
 import {DEFAULT_COLLECTOR_NAME} from 'src/dashboards/constants'
 
 // Types
-import {AppState, Organization, Label, Telegraf} from 'src/types'
+import {AppState, Label, Telegraf} from 'src/types'
 
 interface OwnProps {
   collector: Telegraf
@@ -31,16 +31,8 @@ interface OwnProps {
   onFilterChange: (searchTerm: string) => void
 }
 
-interface StateProps {
-  org: Organization
-}
-
-interface DispatchProps {
-  onAddLabels: typeof addTelegrafLabelsAsync
-  onRemoveLabels: typeof removeTelegrafLabelsAsync
-}
-
-type Props = OwnProps & StateProps & DispatchProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = OwnProps & ReduxProps
 
 class CollectorRow extends PureComponent<
   Props & RouteComponentProps<{orgID: string}>
@@ -156,18 +148,17 @@ class CollectorRow extends PureComponent<
   }
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const org = getOrg(state)
 
   return {org}
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onAddLabels: addTelegrafLabelsAsync,
   onRemoveLabels: removeTelegrafLabelsAsync,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
-  mstp,
-  mdtp
-)(withRouter(CollectorRow))
+const connector = connect(mstp, mdtp)
+
+export default connector(withRouter(CollectorRow))

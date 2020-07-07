@@ -1,6 +1,6 @@
 // Libraries
 import React, {FC} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import {SquareButton, IconFont} from '@influxdata/clockface'
@@ -8,13 +8,10 @@ import {SquareButton, IconFont} from '@influxdata/clockface'
 // Actions
 import {delayEnablePresentationMode} from 'src/shared/actions/app'
 
-interface DispatchProps {
-  handleClickPresentationButton: typeof delayEnablePresentationMode
-}
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps
 
-const PresentationModeToggle: FC<DispatchProps> = ({
-  handleClickPresentationButton,
-}) => (
+const PresentationModeToggle: FC<Props> = ({handleClickPresentationButton}) => (
   <SquareButton
     icon={IconFont.ExpandA}
     testID="presentation-mode-toggle"
@@ -22,11 +19,10 @@ const PresentationModeToggle: FC<DispatchProps> = ({
   />
 )
 
-const mdtp: DispatchProps = {
+const mdtp = {
   handleClickPresentationButton: delayEnablePresentationMode,
 }
 
-export default connect<{}, DispatchProps, {}>(
-  null,
-  mdtp
-)(PresentationModeToggle)
+const connector = connect(null, mdtp)
+
+export default connector(PresentationModeToggle)

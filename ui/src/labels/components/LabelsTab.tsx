@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import {Button, EmptyState} from '@influxdata/clockface'
@@ -52,7 +52,7 @@ interface DispatchProps {
   deleteLabel: typeof deleteLabel
 }
 
-type Props = DispatchProps & StateProps
+type Props = ReduxProps
 
 const FilterLabels = FilterList<Label>()
 @ErrorHandling
@@ -205,15 +205,15 @@ class Labels extends PureComponent<Props, State> {
   }
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const labels = getAll<Label>(state, ResourceType.Labels)
   return {labels}
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   createLabel: createLabel,
   updateLabel: updateLabel,
   deleteLabel: deleteLabel,
 }
 
-export default connect(mstp, mdtp)(Labels)
+export default connector(Labels)

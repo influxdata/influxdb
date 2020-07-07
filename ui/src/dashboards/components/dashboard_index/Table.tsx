@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
 import _ from 'lodash'
 
@@ -42,7 +42,7 @@ interface DispatchProps {
 
 type Props = OwnProps &
   StateProps &
-  DispatchProps &
+  ReduxProps &
   RouteComponentProps<{orgID: string}>
 
 class DashboardsTable extends PureComponent<Props> {
@@ -106,7 +106,7 @@ class DashboardsTable extends PureComponent<Props> {
   }
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const status = state.resources.dashboards.status
 
   return {
@@ -114,13 +114,10 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   getDashboards: getDashboards,
   onCreateDashboard: createDashboard,
   getLabels: getLabels,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
-  mstp,
-  mdtp
-)(withRouter(DashboardsTable))
+export default connector(withRouter(DashboardsTable))

@@ -69,8 +69,8 @@ class VariablesIndex extends Component<StateProps> {
   }
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   return {org: state.resources.orgs.org}
 }
 
-export default connect<StateProps, {}, {}>(mstp, null)(VariablesIndex)
+export default connect<StateProps>(mstp)(VariablesIndex)

@@ -1,5 +1,5 @@
 import React, {FC, useContext, useMemo} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {AppState, Variable, Organization} from 'src/types'
 import {runQuery} from 'src/shared/apis/query'
 import {getWindowVars} from 'src/variables/utils/getWindowVars'
@@ -73,7 +73,7 @@ interface StateProps {
   org: Organization
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const variables = getVariables(state)
   const org = getOrg(state)
 
