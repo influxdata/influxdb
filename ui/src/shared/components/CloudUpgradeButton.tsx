@@ -1,6 +1,5 @@
 // Libraries
 import React, {FC} from 'react'
-import {Link} from 'react-router-dom'
 import {connect} from 'react-redux'
 import {get, find} from 'lodash'
 
@@ -24,15 +23,15 @@ interface StateProps {
 const CloudUpgradeButton: FC<StateProps> = ({inView}) => {
   return (
     <CloudOnly>
-      {inView ? (
-        <Link
+      {inView && (
+        <a
           className="cf-button cf-button-sm cf-button-success upgrade-payg--button"
-          to={`${CLOUD_URL}${CLOUD_CHECKOUT_PATH}`}
+          href={`${CLOUD_URL}${CLOUD_CHECKOUT_PATH}`}
           target="_self"
         >
           Upgrade Now
-        </Link>
-      ) : null}
+        </a>
+      )}
     </CloudOnly>
   )
 }

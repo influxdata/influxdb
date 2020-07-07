@@ -1,6 +1,5 @@
 // Libraries
 import React, {FC} from 'react'
-import {Link} from 'react-router-dom'
 import {connect} from 'react-redux'
 import {get, find} from 'lodash'
 
@@ -34,7 +33,7 @@ interface StateProps {
 const CloudUpgradeNavBanner: FC<StateProps> = ({inView}) => {
   return (
     <>
-      {inView ? (
+      {inView && (
         <CloudOnly>
           <Panel
             gradient={Gradients.HotelBreakfast}
@@ -49,25 +48,25 @@ const CloudUpgradeNavBanner: FC<StateProps> = ({inView}) => {
               </Heading>
             </Panel.Header>
             <Panel.Footer size={ComponentSize.ExtraSmall}>
-              <Link
+              <a
                 className="cf-button cf-button-md cf-button-primary cf-button-stretch cloud-upgrade-banner--button"
-                to={`${CLOUD_URL}${CLOUD_CHECKOUT_PATH}`}
+                href={`${CLOUD_URL}${CLOUD_CHECKOUT_PATH}`}
                 target="_self"
               >
                 Upgrade Now
-              </Link>
+              </a>
             </Panel.Footer>
           </Panel>
-          <Link
+          <a
             className="cloud-upgrade-banner__collapsed"
-            to={`${CLOUD_URL}${CLOUD_CHECKOUT_PATH}`}
+            href={`${CLOUD_URL}${CLOUD_CHECKOUT_PATH}`}
             target="_self"
           >
             <Icon glyph={IconFont.Star} />
             <Heading element={HeadingElement.H5}>Upgrade Now</Heading>
-          </Link>
+          </a>
         </CloudOnly>
-      ) : null}
+      )}
     </>
   )
 }
