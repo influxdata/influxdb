@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {range} from 'lodash'
 
 // Components
@@ -19,21 +19,11 @@ import {getActiveQuery, getActiveTimeMachine} from 'src/timeMachine/selectors'
 import {reportSimpleQueryPerformanceEvent} from 'src/cloud/utils/reporting'
 
 // Types
-import {CheckType, AppState} from 'src/types'
+import {AppState} from 'src/types'
 import {RemoteDataState} from 'src/types'
 
-interface StateProps {
-  tagFiltersLength: number
-  moreTags: boolean
-  checkType: CheckType
-}
-
-interface DispatchProps {
-  onLoadBuckets: typeof loadBuckets
-  onAddTagSelector: () => void
-}
-
-type Props = StateProps & DispatchProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps
 
 interface State {}
 
@@ -93,7 +83,7 @@ class TimeMachineQueryBuilder extends PureComponent<Props, State> {
   }
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const tagFiltersLength = getActiveQuery(state).builderConfig.tags.length
   const {
     queryBuilder: {tags},
@@ -125,7 +115,6 @@ const mdtp = {
   onAddTagSelector: addTagSelector,
 }
 
-export default connect<StateProps, DispatchProps>(
-  mstp,
-  mdtp
-)(TimeMachineQueryBuilder)
+const connector = connect(mstp, mdtp)
+
+export default connector(TimeMachineQueryBuilder)

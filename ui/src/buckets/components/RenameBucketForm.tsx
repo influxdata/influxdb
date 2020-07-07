@@ -1,7 +1,7 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import {ComponentStatus} from 'src/clockface'
@@ -30,18 +30,9 @@ interface State {
   bucket: OwnBucket
 }
 
-interface StateProps {
-  startBucket: OwnBucket
-  buckets: Bucket[]
-}
-
-interface DispatchProps {
-  onRenameBucket: typeof renameBucket
-}
-
-type Props = StateProps &
-  DispatchProps &
-  RouteComponentProps<{bucketID: string; orgID: string}>
+type ReduxProps = ConnectedProps<typeof connector>
+type RouterProps = RouteComponentProps<{bucketID: string; orgID: string}>
+type Props = ReduxProps & RouterProps
 
 class RenameBucketForm extends PureComponent<Props, State> {
   public state = {bucket: this.props.startBucket}
@@ -141,7 +132,7 @@ class RenameBucketForm extends PureComponent<Props, State> {
   }
 }
 
-const mstp = (state: AppState, props: Props): StateProps => {
+const mstp = (state: AppState, props: RouterProps) => {
   const {bucketID} = props.match.params
 
   const startBucket = getByID<OwnBucket>(state, ResourceType.Buckets, bucketID)
@@ -155,11 +146,11 @@ const mstp = (state: AppState, props: Props): StateProps => {
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onRenameBucket: renameBucket,
 }
 
+const connector = connect(mstp, mdtp)
+
 // state mapping requires router
-export default withRouter(
-  connect<StateProps, DispatchProps>(mstp, mdtp)(RenameBucketForm)
-)
+export default withRouter(connector(RenameBucketForm))

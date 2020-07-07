@@ -1,5 +1,5 @@
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
 import _ from 'lodash'
 
@@ -14,27 +14,15 @@ import {
 } from 'src/templates/actions/thunks'
 
 // Types
-import {DocumentCreate} from '@influxdata/influx'
 import {AppState} from 'src/types'
-import {RemoteDataState} from 'src/types'
 
 interface OwnProps {
   match: {id: string}
 }
 
-interface DispatchProps {
-  convertToTemplate: typeof convertToTemplateAction
-  clearExportTemplate: typeof clearExportTemplateAction
-}
-
-interface StateProps {
-  exportTemplate: DocumentCreate
-  status: RemoteDataState
-}
-
+type ReduxProps = ConnectedProps<typeof connector>
 type Props = OwnProps &
-  StateProps &
-  DispatchProps &
+  ReduxProps &
   RouteComponentProps<{orgID: string; id: string}>
 
 @ErrorHandling
@@ -78,17 +66,16 @@ class TemplateExportOverlay extends PureComponent<Props> {
   }
 }
 
-const mstp = (state: AppState): StateProps => ({
+const mstp = (state: AppState) => ({
   exportTemplate: state.resources.templates.exportTemplate.item,
   status: state.resources.templates.exportTemplate.status,
 })
 
-const mdtp: DispatchProps = {
+const mdtp = {
   convertToTemplate: convertToTemplateAction,
   clearExportTemplate: clearExportTemplateAction,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
-  mstp,
-  mdtp
-)(withRouter(TemplateExportOverlay))
+const connector = connect(mstp, mdtp)
+
+export default connector(withRouter(TemplateExportOverlay))

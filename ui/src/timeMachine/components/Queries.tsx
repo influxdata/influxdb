@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import TimeMachineFluxEditor from 'src/timeMachine/components/TimeMachineFluxEditor'
@@ -33,27 +33,10 @@ import {
 import {getTimeRange} from 'src/dashboards/selectors'
 
 // Types
-import {
-  AppState,
-  DashboardQuery,
-  TimeRange,
-  AutoRefresh,
-  AutoRefreshStatus,
-} from 'src/types'
+import {AppState, TimeRange, AutoRefreshStatus} from 'src/types'
 
-interface StateProps {
-  activeQuery: DashboardQuery
-  timeRange: TimeRange
-  autoRefresh: AutoRefresh
-  isInCheckOverlay: boolean
-}
-
-interface DispatchProps {
-  onSetTimeRange: typeof setTimeRange
-  onSetAutoRefresh: typeof setAutoRefresh
-}
-
-type Props = StateProps & DispatchProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps
 
 class TimeMachineQueries extends PureComponent<Props> {
   public render() {
@@ -142,7 +125,6 @@ const mdtp = {
   onSetAutoRefresh: setAutoRefresh,
 }
 
-export default connect<StateProps, DispatchProps>(
-  mstp,
-  mdtp
-)(TimeMachineQueries)
+const connector = connect(mstp, mdtp)
+
+export default connector(TimeMachineQueries)

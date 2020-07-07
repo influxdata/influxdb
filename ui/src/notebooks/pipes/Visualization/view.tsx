@@ -103,7 +103,7 @@ const Visualization: FC<PipeProp> = ({
 
   const updateType = (type: ViewType) => {
     event('Notebook Visualization Type Changed', {
-      type: type as string,
+      type,
     })
 
     updateVisualizationType(type, results.parsed, onUpdate)
@@ -113,7 +113,7 @@ const Visualization: FC<PipeProp> = ({
     <>
       <ViewTypeDropdown
         viewType={data.properties.type}
-        onUpdateType={updateType}
+        onUpdateType={updateType as any}
       />
       <ExportVisualizationButton disabled={!results.source}>
         {onHidePopover => (

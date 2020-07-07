@@ -1,7 +1,7 @@
 // Libraries
 import React, {FC, Component, ComponentClass, useEffect} from 'react'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {OverlayID} from 'src/overlays/reducers/overlays'
 
 // Actions
@@ -20,12 +20,8 @@ interface OwnProps {
   onClose: OverlayDismissalWithRoute
 }
 
-interface DispatchProps {
-  onShowOverlay: typeof showOverlay
-  onDismissOverlay: typeof dismissOverlay
-}
-
-type OverlayHandlerProps = OwnProps & DispatchProps & RouteComponentProps
+type ReduxProps = ConnectedProps<typeof connector>
+type OverlayHandlerProps = OwnProps & ReduxProps & RouteComponentProps
 
 const OverlayHandler: FC<OverlayHandlerProps> = props => {
   const {
@@ -50,22 +46,22 @@ const OverlayHandler: FC<OverlayHandlerProps> = props => {
   return null
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onShowOverlay: showOverlay,
   onDismissOverlay: dismissOverlay,
 }
 
-export default connect<{}, DispatchProps, OwnProps>(
-  null,
-  mdtp
-)(withRouter(OverlayHandler))
+const connector = connect(null, mdtp)
+const connectedComponent = connector(withRouter(OverlayHandler))
+
+export default connectedComponent
 
 interface RouteOverlayProps {
-  overlayID: string
+  overlayID: OverlayID
 }
 
 export function RouteOverlay<P>(
-  WrappedComponent: ComponentClass<P & RouteOverlayProps>,
+  WrappedComponent: typeof connectedComponent,
   overlayID: string,
   onClose?: OverlayDismissalWithRoute
 ): ComponentClass<P> {

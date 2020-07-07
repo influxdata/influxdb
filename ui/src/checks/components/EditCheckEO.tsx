@@ -1,7 +1,7 @@
 // Libraries
 import React, {FunctionComponent, useEffect} from 'react'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {get} from 'lodash'
 
 // Components
@@ -21,27 +21,10 @@ import {executeQueries} from 'src/timeMachine/actions/queries'
 import {resetAlertBuilder, updateName} from 'src/alerting/actions/alertBuilder'
 
 // Types
-import {AppState, RemoteDataState, TimeMachineID, QueryView} from 'src/types'
+import {AppState, RemoteDataState} from 'src/types'
 
-interface DispatchProps {
-  onSaveCheckFromTimeMachine: typeof updateCheckFromTimeMachine
-  onGetCheckForTimeMachine: typeof getCheckForTimeMachine
-  onExecuteQueries: typeof executeQueries
-  onResetAlertBuilder: typeof resetAlertBuilder
-  onUpdateAlertBuilderName: typeof updateName
-}
-
-interface StateProps {
-  view: QueryView | null
-  status: RemoteDataState
-  activeTimeMachineID: TimeMachineID
-  loadedCheckID: string
-  checkName: string
-}
-
-type Props = RouteComponentProps<{orgID: string; checkID: string}> &
-  DispatchProps &
-  StateProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = RouteComponentProps<{orgID: string; checkID: string}> & ReduxProps
 
 const EditCheckEditorOverlay: FunctionComponent<Props> = ({
   onUpdateAlertBuilderName,
@@ -107,7 +90,7 @@ const EditCheckEditorOverlay: FunctionComponent<Props> = ({
   )
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const {
     timeMachines: {activeTimeMachineID},
     alertBuilder: {status, name, id},
@@ -124,7 +107,7 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onGetCheckForTimeMachine: getCheckForTimeMachine,
   onSaveCheckFromTimeMachine: updateCheckFromTimeMachine,
   onExecuteQueries: executeQueries,
@@ -132,7 +115,6 @@ const mdtp: DispatchProps = {
   onUpdateAlertBuilderName: updateName,
 }
 
-export default connect<StateProps, DispatchProps, {}>(
-  mstp,
-  mdtp
-)(withRouter(EditCheckEditorOverlay))
+const connector = connect(mstp, mdtp)
+
+export default connector(withRouter(EditCheckEditorOverlay))

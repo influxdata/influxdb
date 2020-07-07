@@ -157,4 +157,4 @@ const mstp = (state: AppState) => ({
   tokens: getAll<Authorization>(state, ResourceType.Authorizations),
 })
 
-export default connect<StateProps, {}, {}>(mstp, null)(withRouter(TokensTab))
+export default connect<StateProps>(mstp)(withRouter(TokensTab))

@@ -95,7 +95,7 @@ const DashboardList: FC<Props> = ({dashboards, org}) => {
   )
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   // map names and sort via a selector
   const dashboards = getSortedDashboardNames(
     getAll<Dashboard>(state, ResourceType.Dashboards)
@@ -107,4 +107,4 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-export default connect<StateProps, {}, {}>(mstp, null)(DashboardList)
+export default connect(mstp)(DashboardList)

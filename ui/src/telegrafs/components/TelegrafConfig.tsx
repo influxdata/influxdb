@@ -1,12 +1,11 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import Editor from 'src/shared/components/TomlMonacoEditor'
-import {RemoteDataState} from '@influxdata/clockface'
 
 // Actions
 import {getTelegrafConfigToml} from 'src/telegrafs/actions/thunks'
@@ -14,16 +13,8 @@ import {getTelegrafConfigToml} from 'src/telegrafs/actions/thunks'
 // Types
 import {AppState} from 'src/types'
 
-interface DispatchProps {
-  getTelegrafConfigToml: typeof getTelegrafConfigToml
-}
-
-interface StateProps {
-  telegrafConfig: string
-  status: RemoteDataState
-}
-
-type Props = StateProps & DispatchProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps
 
 @ErrorHandling
 export class TelegrafConfig extends PureComponent<
@@ -49,16 +40,15 @@ export class TelegrafConfig extends PureComponent<
   }
 }
 
-const mstp = ({resources}: AppState): StateProps => ({
+const mstp = ({resources}: AppState) => ({
   telegrafConfig: resources.telegrafs.currentConfig.item,
   status: resources.telegrafs.currentConfig.status,
 })
 
-const mdtp: DispatchProps = {
+const mdtp = {
   getTelegrafConfigToml: getTelegrafConfigToml,
 }
 
-export default connect<StateProps, DispatchProps, {}>(
-  mstp,
-  mdtp
-)(withRouter(TelegrafConfig))
+const connector = connect(mstp, mdtp)
+
+export default connector(withRouter(TelegrafConfig))

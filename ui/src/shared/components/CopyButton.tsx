@@ -1,7 +1,7 @@
 // Libraries
 import React, {PureComponent, MouseEvent} from 'react'
 import CopyToClipboard from 'react-copy-to-clipboard'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import {Button, ComponentColor, ComponentSize} from '@influxdata/clockface'
@@ -24,11 +24,8 @@ interface OwnProps {
   onCopyText?: (text: string, status: boolean) => Notification
 }
 
-interface DispatchProps {
-  notify: typeof notifyAction
-}
-
-type Props = OwnProps & DispatchProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = OwnProps & ReduxProps
 
 class CopyButton extends PureComponent<Props> {
   public static defaultProps = {
@@ -80,8 +77,10 @@ class CopyButton extends PureComponent<Props> {
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   notify: notifyAction,
 }
 
-export default connect<{}, DispatchProps, OwnProps>(null, mdtp)(CopyButton)
+const connector = connect(null, mdtp)
+
+export default connector(CopyButton)

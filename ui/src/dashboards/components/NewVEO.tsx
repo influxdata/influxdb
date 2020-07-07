@@ -1,7 +1,7 @@
 // Libraries
 import React, {FunctionComponent, useEffect} from 'react'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {get} from 'lodash'
 
 // Components
@@ -18,21 +18,10 @@ import {saveVEOView} from 'src/dashboards/actions/thunks'
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 
 // Types
-import {AppState, RemoteDataState, View, TimeMachineID} from 'src/types'
+import {AppState, RemoteDataState} from 'src/types'
 
-interface DispatchProps {
-  onSetName: typeof setName
-  onSaveView: typeof saveVEOView
-  onLoadNewVEO: typeof loadNewVEO
-}
-
-interface StateProps {
-  activeTimeMachineID: TimeMachineID
-  view: View
-}
-
-type Props = DispatchProps &
-  StateProps &
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps &
   RouteComponentProps<{orgID: string; dashboardID: string}>
 
 const NewViewVEO: FunctionComponent<Props> = ({
@@ -90,20 +79,19 @@ const NewViewVEO: FunctionComponent<Props> = ({
   )
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const {activeTimeMachineID} = state.timeMachines
   const {view} = getActiveTimeMachine(state)
 
   return {view, activeTimeMachineID}
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onSetName: setName,
   onSaveView: saveVEOView,
   onLoadNewVEO: loadNewVEO,
 }
 
-export default connect<StateProps, DispatchProps, {}>(
-  mstp,
-  mdtp
-)(withRouter(NewViewVEO))
+const connector = connect(mstp, mdtp)
+
+export default connector(withRouter(NewViewVEO))

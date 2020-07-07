@@ -1,6 +1,6 @@
 // Libraries
 import React, {useEffect, FunctionComponent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {Route, Switch} from 'react-router-dom'
 
 // Components
@@ -15,15 +15,8 @@ import {RemoteDataState, AppState} from 'src/types'
 import {getOrganizations as getOrganizationsAction} from 'src/organizations/actions/thunks'
 import RouteToOrg from './RouteToOrg'
 
-interface DispatchProps {
-  getOrganizations: typeof getOrganizationsAction
-}
-
-interface StateProps {
-  status: RemoteDataState
-}
-
-type Props = StateProps & DispatchProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps
 
 const GetOrganizations: FunctionComponent<Props> = ({
   status,
@@ -50,8 +43,10 @@ const mdtp = {
   getOrganizations: getOrganizationsAction,
 }
 
-const mstp = ({resources}: AppState): StateProps => ({
+const mstp = ({resources}: AppState) => ({
   status: resources.orgs.status,
 })
 
-export default connect<StateProps, DispatchProps>(mstp, mdtp)(GetOrganizations)
+const connector = connect(mstp, mdtp)
+
+export default connector(GetOrganizations)

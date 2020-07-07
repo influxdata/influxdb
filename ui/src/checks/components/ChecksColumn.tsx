@@ -1,7 +1,7 @@
 // Libraries
 import React, {FunctionComponent} from 'react'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Selectors
 import {getAll} from 'src/resources/selectors'
@@ -23,13 +23,8 @@ import {
   ResourceType,
 } from 'src/types'
 
-interface StateProps {
-  checks: Check[]
-  rules: NotificationRuleDraft[]
-  endpoints: NotificationEndpoint[]
-}
-
-type Props = StateProps & RouteComponentProps<{orgID: string}>
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps & RouteComponentProps<{orgID: string}>
 
 const ChecksColumn: FunctionComponent<Props> = ({
   checks,
@@ -116,4 +111,6 @@ const mstp = (state: AppState) => {
   }
 }
 
-export default connect<StateProps>(mstp, null)(withRouter(ChecksColumn))
+const connector = connect(mstp)
+
+export default connector(withRouter(ChecksColumn))

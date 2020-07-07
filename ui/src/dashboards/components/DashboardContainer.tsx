@@ -1,6 +1,6 @@
 // Libraries
 import React, {FC, useEffect} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import GetResource from 'src/resources/components/GetResource'
@@ -19,20 +19,12 @@ import {GlobalAutoRefresher} from 'src/utils/AutoRefresher'
 import {AUTOREFRESH_DEFAULT} from 'src/shared/constants'
 
 // Types
-import {AppState, ResourceType, AutoRefresh, AutoRefreshStatus} from 'src/types'
+import {AppState, ResourceType, AutoRefreshStatus} from 'src/types'
 
 const {Active} = AutoRefreshStatus
 
-interface StateProps {
-  autoRefresh: AutoRefresh
-  dashboard: string
-}
-
-interface DispatchProps {
-  onSetCurrentPage: typeof setCurrentPage
-}
-
-type Props = StateProps & DispatchProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps
 
 const DashboardContainer: FC<Props> = ({
   autoRefresh,
@@ -71,7 +63,7 @@ const DashboardContainer: FC<Props> = ({
   )
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const dashboard = state.currentDashboard.id
   const autoRefresh = state.autoRefresh[dashboard] || AUTOREFRESH_DEFAULT
   return {
@@ -80,11 +72,10 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onSetCurrentPage: setCurrentPage,
 }
 
-export default connect<StateProps, DispatchProps>(
-  mstp,
-  mdtp
-)(DashboardContainer)
+const connector = connect(mstp, mdtp)
+
+export default connector(DashboardContainer)

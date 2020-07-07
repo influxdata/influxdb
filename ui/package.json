@@ -72,7 +72,7 @@
     "@types/react-dnd-html5-backend": "^2.1.9",
     "@types/react-dom": "^16.8.1",
     "@types/react-grid-layout": "^0.16.5",
-    "@types/react-redux": "^6.0.9",
+    "@types/react-redux": "^7.1.9",
     "@types/react-router-dom": "^5.1.5",
     "@types/react-virtualized": "^9.18.3",
     "@types/text-encoding": "^0.0.32",

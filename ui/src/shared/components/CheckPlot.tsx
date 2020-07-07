@@ -1,6 +1,6 @@
 // Libraries
 import React, {FunctionComponent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {Config, Table} from '@influxdata/giraffe'
 import {flatMap} from 'lodash'
 
@@ -31,10 +31,6 @@ import {updateThresholds} from 'src/alerting/actions/alertBuilder'
 const X_COLUMN = '_time'
 const Y_COLUMN = '_value'
 
-interface DispatchProps {
-  onUpdateThresholds: typeof updateThresholds
-}
-
 interface OwnProps {
   table: Table
   checkType: CheckType
@@ -46,7 +42,8 @@ interface OwnProps {
   statuses: StatusRow[][]
 }
 
-type Props = OwnProps & DispatchProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = OwnProps & ReduxProps
 
 const CheckPlot: FunctionComponent<Props> = ({
   table,
@@ -157,8 +154,10 @@ const CheckPlot: FunctionComponent<Props> = ({
   )
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onUpdateThresholds: updateThresholds,
 }
 
-export default connect<{}, DispatchProps, {}>(null, mdtp)(CheckPlot)
+const connector = connect(null, mdtp)
+
+export default connector(CheckPlot)

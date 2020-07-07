@@ -1,6 +1,6 @@
 // Libraries
 import React, {FC, useState, useEffect} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {uniq} from 'lodash'
 import {fromFlux} from '@influxdata/giraffe'
 
@@ -25,7 +25,6 @@ import {getNotificationRules as apiGetNotificationRules} from 'src/client'
 import {
   NotificationRule,
   AppState,
-  CheckTagSet,
   GenRule,
   NotificationRuleDraft,
 } from 'src/types'
@@ -33,17 +32,10 @@ import {EmptyState, ComponentSize, RemoteDataState} from '@influxdata/clockface'
 import BuilderCard from 'src/timeMachine/components/builderCard/BuilderCard'
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 
-interface StateProps {
-  tags: CheckTagSet[]
-  orgID: string
-  queryResults: string[] | null
-}
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps
 
-const CheckMatchingRulesCard: FC<StateProps> = ({
-  orgID,
-  tags,
-  queryResults,
-}) => {
+const CheckMatchingRulesCard: FC<Props> = ({orgID, tags, queryResults}) => {
   const getMatchingRules = async (): Promise<NotificationRule[]> => {
     const checkTags = tags
       .filter(t => t.key && t.value)
@@ -158,7 +150,7 @@ const CheckMatchingRulesCard: FC<StateProps> = ({
   )
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const {
     alertBuilder: {tags},
   } = state
@@ -171,4 +163,6 @@ const mstp = (state: AppState): StateProps => {
   return {tags, orgID, queryResults: files}
 }
 
-export default connect<StateProps>(mstp, null)(CheckMatchingRulesCard)
+const connector = connect(mstp)
+
+export default connector(CheckMatchingRulesCard)

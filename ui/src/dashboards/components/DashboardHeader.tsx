@@ -1,6 +1,6 @@
 // Libraries
 import React, {FC, useEffect} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Components
@@ -45,7 +45,6 @@ import {
   AutoRefresh,
   AutoRefreshStatus,
   Dashboard,
-  Organization,
   ResourceType,
   TimeRange,
 } from 'src/types'
@@ -55,26 +54,8 @@ interface OwnProps {
   onManualRefresh: () => void
 }
 
-interface StateProps {
-  org: Organization
-  dashboard: Dashboard
-  showVariablesControls: boolean
-  timeRange: TimeRange
-}
-
-interface DispatchProps {
-  toggleShowVariablesControls: typeof toggleShowVariablesControlsAction
-  updateDashboard: typeof updateDashboardAction
-  onSetAutoRefreshStatus: typeof setAutoRefreshStatusAction
-  updateQueryParams: typeof updateQueryParamsAction
-  setDashboardTimeRange: typeof setDashboardTimeRangeAction
-  setAutoRefreshInterval: typeof setAutoRefreshIntervalAction
-}
-
-type Props = OwnProps &
-  StateProps &
-  DispatchProps &
-  RouteComponentProps<{orgID: string}>
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = OwnProps & ReduxProps & RouteComponentProps<{orgID: string}>
 
 const DashboardHeader: FC<Props> = ({
   dashboard,
@@ -197,7 +178,7 @@ const DashboardHeader: FC<Props> = ({
   )
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const {showVariablesControls} = state.userSettings
   const dashboard = getByID<Dashboard>(
     state,
@@ -216,7 +197,7 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   toggleShowVariablesControls: toggleShowVariablesControlsAction,
   updateDashboard: updateDashboardAction,
   onSetAutoRefreshStatus: setAutoRefreshStatusAction,
@@ -225,7 +206,6 @@ const mdtp: DispatchProps = {
   setAutoRefreshInterval: setAutoRefreshIntervalAction,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
-  mstp,
-  mdtp
-)(withRouter(DashboardHeader))
+const connector = connect(mstp, mdtp)
+
+export default connector(withRouter(DashboardHeader))

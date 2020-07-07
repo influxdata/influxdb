@@ -2,7 +2,7 @@
 import React, {FC} from 'react'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
 import CopyToClipboard from 'react-copy-to-clipboard'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Constants
 import {
@@ -32,18 +32,14 @@ import {notify as notifyAction} from 'src/shared/actions/notifications'
 // Types
 import {DemoBucket} from 'src/types'
 
-interface DispatchProps {
-  removeBucket: typeof deleteDemoDataBucketMembership
-  notify: typeof notifyAction
-}
-
-interface Props {
+interface OwnProps {
   bucket: DemoBucket
 }
+type ReduxProps = ConnectedProps<typeof connector>
+type RouterProps = RouteComponentProps<{orgID: string}>
+type Props = OwnProps & ReduxProps & RouterProps
 
-const DemoDataBucketCard: FC<Props &
-  RouteComponentProps<{orgID: string}> &
-  DispatchProps> = ({
+const DemoDataBucketCard: FC<Props> = ({
   bucket,
   history,
   match: {
@@ -137,12 +133,11 @@ const DemoDataBucketCard: FC<Props &
   )
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   removeBucket: deleteDemoDataBucketMembership,
   notify: notifyAction,
 }
 
-export default connect<{}, DispatchProps, {}>(
-  null,
-  mdtp
-)(withRouter(DemoDataBucketCard))
+const connector = connect(null, mdtp)
+
+export default connector(withRouter(DemoDataBucketCard))

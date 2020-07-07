@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {downloadTextFile} from 'src/shared/utils/download'
 import {ComponentColor, Button} from '@influxdata/clockface'
 import {isFlagEnabled} from 'src/shared/utils/featureFlag'
@@ -10,13 +10,8 @@ interface OwnProps {
   onDismiss: () => void
 }
 
-interface StateProps {
-  script: string
-}
-
-interface DispatchProps {}
-
-type Props = StateProps & DispatchProps & OwnProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps & OwnProps
 
 export class TelegrafEditorFooter extends PureComponent<Props> {
   public render() {
@@ -49,7 +44,7 @@ export class TelegrafEditorFooter extends PureComponent<Props> {
   }
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const script = state.telegrafEditor.text
 
   return {
@@ -57,9 +52,6 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-const mdtp: DispatchProps = {}
+const connector = connect(mstp)
 
-export default connect<StateProps, DispatchProps, OwnProps>(
-  mstp,
-  mdtp
-)(TelegrafEditorFooter)
+export default connector(TelegrafEditorFooter)

@@ -1,7 +1,7 @@
 // Libraries
 import _ from 'lodash'
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Components
@@ -44,21 +44,8 @@ import {TelegrafSortKey} from 'src/shared/components/resource_sort_dropdown/gene
 import {getOrg} from 'src/organizations/selectors'
 import {getAll} from 'src/resources/selectors'
 
-interface StateProps {
-  hasTelegrafs: boolean
-  orgName: string
-  buckets: Bucket[]
-}
-
-interface DispatchProps {
-  onSetTelegrafConfigID: typeof setTelegrafConfigID
-  onSetTelegrafConfigName: typeof setTelegrafConfigName
-  onClearDataLoaders: typeof clearDataLoaders
-  onUpdateTelegraf: typeof updateTelegraf
-  onDeleteTelegraf: typeof deleteTelegraf
-}
-
-type Props = DispatchProps & StateProps & RouteComponentProps<{orgID: string}>
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps & RouteComponentProps<{orgID: string}>
 
 interface State {
   dataLoaderOverlay: OverlayState
@@ -266,7 +253,7 @@ class Collectors extends PureComponent<Props, State> {
     this.setState({searchTerm})
   }
 }
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const {telegrafs} = state.resources
   const orgName = getOrg(state).name
   const buckets = getAll<Bucket>(state, ResourceType.Buckets)
@@ -279,7 +266,7 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onSetTelegrafConfigID: setTelegrafConfigID,
   onSetTelegrafConfigName: setTelegrafConfigName,
   onClearDataLoaders: clearDataLoaders,
@@ -287,7 +274,6 @@ const mdtp: DispatchProps = {
   onDeleteTelegraf: deleteTelegraf,
 }
 
-export default connect<StateProps, DispatchProps>(
-  mstp,
-  mdtp
-)(withRouter(Collectors))
+const connector = connect(mstp, mdtp)
+
+export default connector(withRouter(Collectors))

@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import {Form, Overlay} from '@influxdata/clockface'
@@ -20,7 +20,6 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 // Types
 import {LineProtocolTab} from 'src/types/dataLoaders'
 import {AppState} from 'src/types/index'
-import {WritePrecision} from '@influxdata/influx'
 import {RemoteDataState} from 'src/types'
 import {LineProtocolStepProps} from 'src/dataLoaders/components/lineProtocolWizard/LineProtocolWizard'
 
@@ -29,19 +28,8 @@ import {getOrg} from 'src/organizations/selectors'
 
 type OwnProps = LineProtocolStepProps
 
-interface StateProps {
-  lineProtocolBody: string
-  precision: WritePrecision
-  bucket: string
-  org: string
-}
-
-interface DispatchProps {
-  setLPStatus: typeof setLPStatusAction
-  writeLineProtocolAction: typeof writeLineProtocolAction
-}
-
-type Props = OwnProps & StateProps & DispatchProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = OwnProps & ReduxProps
 
 @ErrorHandling
 export class LineProtocol extends PureComponent<Props> {
@@ -84,7 +72,7 @@ export class LineProtocol extends PureComponent<Props> {
   }
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const {dataLoading} = state
   const {
     dataLoaders: {lineProtocolBody, precision},
@@ -95,12 +83,11 @@ const mstp = (state: AppState): StateProps => {
   return {lineProtocolBody, precision, bucket, org}
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   setLPStatus: setLPStatusAction,
   writeLineProtocolAction,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
-  mstp,
-  mdtp
-)(LineProtocol)
+const connector = connect(mstp, mdtp)
+
+export default connector(LineProtocol)

@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {isEmpty} from 'lodash'
 import classnames from 'classnames'
 
@@ -23,7 +23,7 @@ import {filterUnusedVars} from 'src/shared/utils/filterUnusedVars'
 import {moveVariable} from 'src/variables/actions/thunks'
 
 // Types
-import {AppState, Variable} from 'src/types'
+import {AppState} from 'src/types'
 import {ComponentSize} from '@influxdata/clockface'
 
 // Decorators
@@ -32,28 +32,18 @@ import {RemoteDataState} from 'src/types'
 import DraggableDropdown from 'src/dashboards/components/variablesControlBar/DraggableDropdown'
 import withDragDropContext from 'src/shared/decorators/withDragDropContext'
 
-interface StateProps {
-  variables: Variable[]
-  variablesStatus: RemoteDataState
-  inPresentationMode: boolean
-  show: boolean
-}
-
-interface DispatchProps {
-  moveVariable: typeof moveVariable
-}
-
 interface State {
   initialLoading: RemoteDataState
 }
 
-type Props = StateProps & DispatchProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps
 
 @ErrorHandling
 class VariablesControlBar extends PureComponent<Props, State> {
   public state: State = {initialLoading: RemoteDataState.Loading}
 
-  static getDerivedStateFromProps(props, state) {
+  static getDerivedStateFromProps(props: Props, state: State) {
     if (
       props.variablesStatus === RemoteDataState.Done &&
       state.initialLoading !== RemoteDataState.Done
@@ -149,7 +139,7 @@ const mdtp = {
   moveVariable,
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const dashboardID = state.currentDashboard.id
   const variables = getVariables(state)
   const variablesStatus = getDashboardVariablesStatus(state)
@@ -174,6 +164,6 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-export default withDragDropContext(
-  connect<StateProps, DispatchProps>(mstp, mdtp)(VariablesControlBar)
-)
+const connector = connect(mstp, mdtp)
+
+export default withDragDropContext(connector(VariablesControlBar))

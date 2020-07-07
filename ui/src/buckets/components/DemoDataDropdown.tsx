@@ -1,6 +1,6 @@
 // Libraries
 import React, {FC, useEffect} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {get, sortBy} from 'lodash'
 
 // Actions
@@ -15,17 +15,8 @@ import {ComponentColor, Dropdown, Icon, IconFont} from '@influxdata/clockface'
 // Types
 import {AppState, Bucket, ResourceType} from 'src/types'
 
-interface StateProps {
-  ownBucketsByID: {[id: string]: Bucket}
-  demoDataBuckets: Bucket[]
-}
-
-interface DispatchProps {
-  getDemoDataBucketMembership: typeof getDemoDataBucketMembershipAction
-  getDemoDataBuckets: typeof getDemoDataBucketsAction
-}
-
-type Props = DispatchProps & StateProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps
 
 const DemoDataDropdown: FC<Props> = ({
   ownBucketsByID,
@@ -111,17 +102,16 @@ const DemoDataDropdown: FC<Props> = ({
   )
 }
 
-const mstp = (state: AppState): StateProps => ({
+const mstp = (state: AppState) => ({
   ownBucketsByID: state.resources[ResourceType.Buckets].byID,
   demoDataBuckets: get(state, 'cloud.demoData.buckets', []) as Bucket[],
 })
 
-const mdtp: DispatchProps = {
+const mdtp = {
   getDemoDataBucketMembership: getDemoDataBucketMembershipAction,
   getDemoDataBuckets: getDemoDataBucketsAction,
 }
 
-export default connect<StateProps, DispatchProps, {}>(
-  mstp,
-  mdtp
-)(DemoDataDropdown)
+const connector = connect(mstp, mdtp)
+
+export default connector(DemoDataDropdown)

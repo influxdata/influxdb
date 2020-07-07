@@ -1,6 +1,6 @@
 // Libraries
 import React, {FC} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Components
@@ -38,20 +38,12 @@ import {Check, Label} from 'src/types'
 // Utilities
 import {relativeTimestampFormatter} from 'src/shared/utils/relativeTimestampFormatter'
 
-interface DispatchProps {
-  onUpdateCheckDisplayProperties: typeof updateCheckDisplayProperties
-  deleteCheck: typeof deleteCheck
-  onAddCheckLabel: typeof addCheckLabel
-  onRemoveCheckLabel: typeof deleteCheckLabel
-  onCloneCheck: typeof cloneCheck
-  onNotify: typeof notify
-}
-
 interface OwnProps {
   check: Check
 }
 
-type Props = OwnProps & DispatchProps & RouteComponentProps<{orgID: string}>
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = OwnProps & ReduxProps & RouteComponentProps<{orgID: string}>
 
 const CheckCard: FC<Props> = ({
   onRemoveCheckLabel,
@@ -190,7 +182,7 @@ const CheckCard: FC<Props> = ({
   )
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onUpdateCheckDisplayProperties: updateCheckDisplayProperties,
   deleteCheck: deleteCheck,
   onAddCheckLabel: addCheckLabel,
@@ -199,4 +191,6 @@ const mdtp: DispatchProps = {
   onNotify: notify,
 }
 
-export default connect<{}, DispatchProps>(null, mdtp)(withRouter(CheckCard))
+const connector = connect(null, mdtp)
+
+export default connector(withRouter(CheckCard))

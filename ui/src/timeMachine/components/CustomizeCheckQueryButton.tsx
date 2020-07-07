@@ -28,7 +28,7 @@ const CustomizeCheckQueryButton: FC<DispatchProps> = ({
   )
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onLoadCustomCheckQueryState: loadCustomCheckQueryState,
 }
 

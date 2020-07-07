@@ -23,9 +23,7 @@ const ThresholdConditions: FC<StateProps> = ({thresholds}) => {
   )
 }
 
-const mstp = ({
-  alertBuilder: {thresholds: thresholdsArray},
-}: AppState): StateProps => {
+const mstp = ({alertBuilder: {thresholds: thresholdsArray}}: AppState) => {
   const thresholds = {}
   thresholdsArray.forEach(t => {
     thresholds[t.level] = t
@@ -33,4 +31,4 @@ const mstp = ({
   return {thresholds}
 }
 
-export default connect<StateProps, {}, {}>(mstp, null)(ThresholdConditions)
+export default connect<StateProps>(mstp)(ThresholdConditions)

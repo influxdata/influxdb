@@ -140,7 +140,7 @@ class RefreshingView extends PureComponent<Props, State> {
   }
 }
 
-const mstp = (state: AppState, ownProps: OwnProps): StateProps => {
+const mstp = (state: AppState, ownProps: OwnProps) => {
   const timeRange = getTimeRange(state)
   const ranges = getActiveTimeRange(timeRange, ownProps.properties.queries)
   const {timeZone, theme} = state.app.persisted

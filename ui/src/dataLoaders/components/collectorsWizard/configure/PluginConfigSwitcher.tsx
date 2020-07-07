@@ -1,7 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
-import _ from 'lodash'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import PluginConfigForm from 'src/dataLoaders/components/collectorsWizard/configure/PluginConfigForm'
@@ -15,11 +14,8 @@ import {TelegrafPlugin, ConfigFields} from 'src/types/dataLoaders'
 import {AppState} from 'src/types'
 import TelegrafPluginInstructions from 'src/dataLoaders/components/collectorsWizard/configure/TelegrafPluginInstructions'
 
-interface StateProps {
-  telegrafPlugins: TelegrafPlugin[]
-}
-
-type Props = StateProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps
 
 export class PluginConfigSwitcher extends PureComponent<Props> {
   public render() {
@@ -55,8 +51,10 @@ const mstp = ({
   dataLoading: {
     dataLoaders: {telegrafPlugins},
   },
-}: AppState): StateProps => ({
+}: AppState) => ({
   telegrafPlugins,
 })
 
-export default connect<StateProps>(mstp, null)(PluginConfigSwitcher)
+const connector = connect(mstp)
+
+export default connector(PluginConfigSwitcher)

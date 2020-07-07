@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Components
@@ -24,12 +24,8 @@ interface OwnProps {
   onFilterChange: (searchTerm: string) => void
 }
 
-interface DispatchProps {
-  onAddVariableLabel: typeof addVariableLabelAsync
-  onRemoveVariableLabel: typeof removeVariableLabelAsync
-}
-
-type Props = OwnProps & DispatchProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = OwnProps & ReduxProps
 
 class VariableCard extends PureComponent<
   Props & RouteComponentProps<{orgID: string}>
@@ -112,12 +108,11 @@ class VariableCard extends PureComponent<
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onAddVariableLabel: addVariableLabelAsync,
   onRemoveVariableLabel: removeVariableLabelAsync,
 }
 
-export default connect<{}, DispatchProps, OwnProps>(
-  null,
-  mdtp
-)(withRouter(VariableCard))
+const connector = connect(null, mdtp)
+
+export default connector(withRouter(VariableCard))

@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent, MouseEvent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Components
@@ -38,12 +38,8 @@ interface PassedProps {
   onFilterChange: (searchTerm: string) => void
 }
 
-interface DispatchProps {
-  onAddTaskLabel: typeof addTaskLabel
-  onDeleteTaskLabel: typeof deleteTaskLabel
-}
-
-type Props = PassedProps & DispatchProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = PassedProps & ReduxProps
 
 export class TaskCard extends PureComponent<
   Props & RouteComponentProps<{orgID: string}>
@@ -239,12 +235,11 @@ export class TaskCard extends PureComponent<
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onAddTaskLabel: addTaskLabel,
   onDeleteTaskLabel: deleteTaskLabel,
 }
 
-export default connect<{}, DispatchProps, PassedProps>(
-  null,
-  mdtp
-)(withRouter(TaskCard))
+const connector = connect(null, mdtp)
+
+export default connector(withRouter(TaskCard))

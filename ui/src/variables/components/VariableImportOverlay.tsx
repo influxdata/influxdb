@@ -1,6 +1,6 @@
 import React, {PureComponent} from 'react'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import ImportOverlay from 'src/shared/components/ImportOverlay'
@@ -25,13 +25,8 @@ interface State {
   status: ComponentStatus
 }
 
-interface DispatchProps {
-  createVariableFromTemplate: typeof createVariableFromTemplateAction
-  getVariables: typeof getVariablesAction
-  notify: typeof notifyAction
-}
-
-type Props = DispatchProps & RouteComponentProps<{orgID: string}>
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = RouteComponentProps<{orgID: string}> & ReduxProps
 
 class VariableImportOverlay extends PureComponent<Props> {
   public state: State = {
@@ -79,13 +74,12 @@ class VariableImportOverlay extends PureComponent<Props> {
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   createVariableFromTemplate: createVariableFromTemplateAction,
   getVariables: getVariablesAction,
   notify: notifyAction,
 }
 
-export default connect<{}, DispatchProps, Props>(
-  null,
-  mdtp
-)(withRouter(VariableImportOverlay))
+const connector = connect(null, mdtp)
+
+export default connector(withRouter(VariableImportOverlay))

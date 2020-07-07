@@ -37,6 +37,7 @@ export const TelegrafConfigOverlay = RouteOverlay(
     history.push(`/orgs/${params.orgID}/load-data/telegrafs`)
   }
 )
+
 export const TelegrafOutputOverlay = RouteOverlay(
   OverlayHandler,
   'telegraf-output',

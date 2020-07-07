@@ -1,6 +1,6 @@
 import React, {PureComponent} from 'react'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import {CommunityTemplateInstallerOverlay} from 'src/templates/components/CommunityTemplateInstallerOverlay'
@@ -11,8 +11,6 @@ import {createTemplate as createTemplateAction} from 'src/templates/actions/thun
 import {notify as notifyAction} from 'src/shared/actions/notifications'
 
 import {getTotalResourceCount} from 'src/templates/selectors'
-
-import {FlagMap} from 'src/shared/reducers/flags'
 
 // Types
 import {AppState, Organization, ResourceType} from 'src/types'
@@ -30,22 +28,9 @@ interface State {
   status: ComponentStatus
 }
 
-interface DispatchProps {
-  createTemplate: typeof createTemplateAction
-  notify: typeof notifyAction
-  setCommunityTemplateToInstall: typeof setCommunityTemplateToInstall
-}
-
-interface StateProps {
-  flags: FlagMap
-  org: Organization
-  templateName: string
-  resourceCount: number
-}
-
-type Props = DispatchProps &
-  RouteComponentProps<{orgID: string; templateName: string}> &
-  StateProps
+type ReduxProps = ConnectedProps<typeof connector>
+type RouterProps = RouteComponentProps<{orgID: string; templateName: string}>
+type Props = ReduxProps & RouterProps
 
 class UnconnectedTemplateImportOverlay extends PureComponent<Props> {
   public state: State = {
@@ -104,7 +89,7 @@ class UnconnectedTemplateImportOverlay extends PureComponent<Props> {
   }
 }
 
-const mstp = (state: AppState, props: Props): StateProps => {
+const mstp = (state: AppState, props: RouterProps) => {
   const org = getByID<Organization>(
     state,
     ResourceType.Orgs,
@@ -121,17 +106,14 @@ const mstp = (state: AppState, props: Props): StateProps => {
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   createTemplate: createTemplateAction,
   notify: notifyAction,
   setCommunityTemplateToInstall,
 }
 
-export const CommunityTemplateImportOverlay = connect<
-  StateProps,
-  DispatchProps,
-  Props
->(
-  mstp,
-  mdtp
-)(withRouter(UnconnectedTemplateImportOverlay))
+const connector = connect(mstp, mdtp)
+
+export const CommunityTemplateImportOverlay = connector(
+  withRouter(UnconnectedTemplateImportOverlay)
+)

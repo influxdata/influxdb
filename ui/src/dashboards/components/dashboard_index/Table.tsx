@@ -1,12 +1,11 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
-import _ from 'lodash'
 
 // Components
 import DashboardCards from 'src/dashboards/components/dashboard_index/DashboardCards'
-import DashobardsTableEmpty from 'src/dashboards/components/dashboard_index/DashboardsTableEmpty'
+import DashboardsTableEmpty from 'src/dashboards/components/dashboard_index/DashboardsTableEmpty'
 
 // Utilities
 import {getLabels} from 'src/labels/actions/thunks'
@@ -30,20 +29,8 @@ interface OwnProps {
   sortType: SortTypes
 }
 
-interface StateProps {
-  status: RemoteDataState
-}
-
-interface DispatchProps {
-  getDashboards: typeof getDashboards
-  onCreateDashboard: typeof createDashboard
-  getLabels: typeof getLabels
-}
-
-type Props = OwnProps &
-  StateProps &
-  DispatchProps &
-  RouteComponentProps<{orgID: string}>
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = OwnProps & ReduxProps & RouteComponentProps<{orgID: string}>
 
 class DashboardsTable extends PureComponent<Props> {
   public componentDidMount() {
@@ -65,7 +52,7 @@ class DashboardsTable extends PureComponent<Props> {
 
     if (status === RemoteDataState.Done && !dashboards.length) {
       return (
-        <DashobardsTableEmpty
+        <DashboardsTableEmpty
           searchTerm={searchTerm}
           onCreateDashboard={onCreateDashboard}
           summonImportFromTemplateOverlay={this.summonImportFromTemplateOverlay}
@@ -106,7 +93,7 @@ class DashboardsTable extends PureComponent<Props> {
   }
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const status = state.resources.dashboards.status
 
   return {
@@ -114,13 +101,12 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   getDashboards: getDashboards,
-  onCreateDashboard: createDashboard,
+  onCreateDashboard: createDashboard as any,
   getLabels: getLabels,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
-  mstp,
-  mdtp
-)(withRouter(DashboardsTable))
+const connector = connect(mstp, mdtp)
+
+export default connector(withRouter(DashboardsTable))

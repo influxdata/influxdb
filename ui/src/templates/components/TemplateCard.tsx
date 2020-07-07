@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent, MouseEvent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {get, capitalize} from 'lodash'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
 import {
@@ -31,7 +31,7 @@ import {getOrg} from 'src/organizations/selectors'
 
 // Types
 import {ComponentColor} from '@influxdata/clockface'
-import {AppState, Organization, Label, TemplateSummary} from 'src/types'
+import {AppState, Label, TemplateSummary} from 'src/types'
 
 // Constants
 import {DEFAULT_TEMPLATE_NAME} from 'src/templates/constants'
@@ -41,20 +41,8 @@ interface OwnProps {
   onFilterChange: (searchTerm: string) => void
 }
 
-interface DispatchProps {
-  onDelete: typeof deleteTemplate
-  onClone: typeof cloneTemplate
-  onUpdate: typeof updateTemplate
-  onCreateFromTemplate: typeof createResourceFromTemplate
-  onAddTemplateLabels: typeof addTemplateLabelsAsync
-  onRemoveTemplateLabels: typeof removeTemplateLabelsAsync
-}
-
-interface StateProps {
-  org: Organization
-}
-
-type Props = DispatchProps & OwnProps & StateProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps & OwnProps
 
 class TemplateCard extends PureComponent<
   Props & RouteComponentProps<{orgID: string}>
@@ -198,13 +186,13 @@ class TemplateCard extends PureComponent<
   }
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   return {
     org: getOrg(state),
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onDelete: deleteTemplate,
   onClone: cloneTemplate,
   onUpdate: updateTemplate,
@@ -213,7 +201,6 @@ const mdtp: DispatchProps = {
   onRemoveTemplateLabels: removeTemplateLabelsAsync,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
-  mstp,
-  mdtp
-)(withRouter(TemplateCard))
+const connector = connect(mstp, mdtp)
+
+export default connector(withRouter(TemplateCard))

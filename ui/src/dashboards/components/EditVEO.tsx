@@ -1,7 +1,7 @@
 // Libraries
 import React, {FunctionComponent, useEffect} from 'react'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {get} from 'lodash'
 
 // Components
@@ -18,21 +18,10 @@ import {getViewAndResultsForVEO} from 'src/views/actions/thunks'
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 
 // Types
-import {AppState, RemoteDataState, QueryView, TimeMachineID} from 'src/types'
+import {AppState, RemoteDataState} from 'src/types'
 
-interface DispatchProps {
-  getViewAndResultsForVEO: typeof getViewAndResultsForVEO
-  onSetName: typeof setName
-  onSaveView: typeof saveVEOView
-}
-
-interface StateProps {
-  activeTimeMachineID: TimeMachineID
-  view: QueryView | null
-}
-
-type Props = DispatchProps &
-  StateProps &
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps &
   RouteComponentProps<{orgID: string; cellID: string; dashboardID: string}>
 
 const EditViewVEO: FunctionComponent<Props> = ({
@@ -94,20 +83,19 @@ const EditViewVEO: FunctionComponent<Props> = ({
   )
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const {activeTimeMachineID} = state.timeMachines
   const {view} = getActiveTimeMachine(state)
 
   return {view, activeTimeMachineID}
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   getViewAndResultsForVEO: getViewAndResultsForVEO,
   onSetName: setName,
   onSaveView: saveVEOView,
 }
 
-export default connect<StateProps, DispatchProps, {}>(
-  mstp,
-  mdtp
-)(withRouter(EditViewVEO))
+const connector = connect(mstp, mdtp)
+
+export default connector(withRouter(EditViewVEO))

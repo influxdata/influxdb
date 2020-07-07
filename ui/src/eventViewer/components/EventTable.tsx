@@ -1,6 +1,6 @@
 // Libraries
 import React, {useLayoutEffect, FC, useEffect, useState} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {AutoSizer, InfiniteLoader, List} from 'react-virtualized'
 
 // Components
@@ -26,15 +26,12 @@ import {RemoteDataState} from 'src/types'
 // Constants
 import {checkStatusLoading} from 'src/shared/copy/notifications'
 
-type DispatchProps = {
-  notify: typeof notifyAction
-}
-
 type OwnProps = {
   fields: Fields
 }
 
-type Props = EventViewerChildProps & DispatchProps & OwnProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = EventViewerChildProps & ReduxProps & OwnProps
 
 const EventTable: FC<Props> = ({state, dispatch, loadRows, fields, notify}) => {
   const rowCount = getRowCount(state)
@@ -132,8 +129,10 @@ const EventTable: FC<Props> = ({state, dispatch, loadRows, fields, notify}) => {
   )
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   notify: notifyAction,
 }
 
-export default connect<{}, DispatchProps, OwnProps>(null, mdtp)(EventTable)
+const connector = connect(null, mdtp)
+
+export default connector(EventTable)

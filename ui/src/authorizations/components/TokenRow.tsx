@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Actions
 import {
@@ -30,12 +30,9 @@ interface OwnProps {
   onClickDescription: (authID: string) => void
 }
 
-interface DispatchProps {
-  onDelete: typeof deleteAuthorization
-  onUpdate: typeof updateAuthorization
-}
+type ReduxProps = ConnectedProps<typeof connector>
 
-type Props = DispatchProps & OwnProps
+type Props = ReduxProps & OwnProps
 
 class TokenRow extends PureComponent<Props> {
   public render() {
@@ -115,4 +112,6 @@ const mdtp = {
   onUpdate: updateAuthorization,
 }
 
-export default connect<{}, DispatchProps, OwnProps>(null, mdtp)(TokenRow)
+const connector = connect(null, mdtp)
+
+export default connector(TokenRow)

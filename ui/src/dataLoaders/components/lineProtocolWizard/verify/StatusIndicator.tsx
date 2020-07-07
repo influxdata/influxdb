@@ -70,7 +70,7 @@ const mstp = ({
   dataLoading: {
     dataLoaders: {lpStatus, lpError},
   },
-}: AppState): StateProps => ({
+}: AppState) => ({
   status: lpStatus,
   errorMessage: lpError,
 })

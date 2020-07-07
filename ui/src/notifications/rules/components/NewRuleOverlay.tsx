@@ -1,7 +1,7 @@
 // Libraries
 import React, {useMemo, FC} from 'react'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Actions
 import {createRule} from 'src/notifications/rules/actions/thunks'
@@ -17,11 +17,8 @@ import {initRuleDraft} from 'src/notifications/rules/utils'
 // Types
 import {NotificationRuleDraft} from 'src/types'
 
-interface DispatchProps {
-  onCreateRule: (rule: Partial<NotificationRuleDraft>) => Promise<void>
-}
-
-type Props = RouteComponentProps<{orgID: string}> & DispatchProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = RouteComponentProps<{orgID: string}> & ReduxProps
 
 const NewRuleOverlay: FC<Props> = ({
   match: {
@@ -64,10 +61,9 @@ const NewRuleOverlay: FC<Props> = ({
 }
 
 const mdtp = {
-  onCreateRule: createRule as any,
+  onCreateRule: createRule,
 }
 
-export default connect<{}, DispatchProps>(
-  null,
-  mdtp
-)(withRouter(NewRuleOverlay))
+const connector = connect(null, mdtp)
+
+export default connector(withRouter(NewRuleOverlay))

@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {RouteComponentProps, withRouter} from 'react-router-dom'
 
 import {sample, startCase} from 'lodash'
@@ -21,11 +21,8 @@ import {createOrgWithBucket} from 'src/organizations/actions/thunks'
 
 interface OwnProps {}
 
-interface DispatchProps {
-  createOrgWithBucket: typeof createOrgWithBucket
-}
-
-type Props = OwnProps & DispatchProps & RouteComponentProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = OwnProps & ReduxProps & RouteComponentProps
 
 interface State {
   org: Organization
@@ -193,7 +190,6 @@ const mdtp = {
   createOrgWithBucket,
 }
 
-export default connect<{}, DispatchProps, OwnProps>(
-  null,
-  mdtp
-)(withRouter(CreateOrgOverlay))
+const connector = connect(null, mdtp)
+
+export default connector(withRouter(CreateOrgOverlay))

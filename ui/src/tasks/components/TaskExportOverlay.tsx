@@ -1,6 +1,6 @@
 import React, {PureComponent} from 'react'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import ExportOverlay from 'src/shared/components/ExportOverlay'
@@ -11,22 +11,9 @@ import {clearExportTemplate as clearExportTemplateAction} from 'src/templates/ac
 
 // Types
 import {AppState} from 'src/types'
-import {DocumentCreate} from '@influxdata/influx'
-import {RemoteDataState} from 'src/types'
 
-interface DispatchProps {
-  convertToTemplate: typeof convertToTemplateAction
-  clearExportTemplate: typeof clearExportTemplateAction
-}
-
-interface StateProps {
-  taskTemplate: DocumentCreate
-  status: RemoteDataState
-}
-
-type Props = StateProps &
-  DispatchProps &
-  RouteComponentProps<{orgID: string; id: string}>
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps & RouteComponentProps<{orgID: string; id: string}>
 
 class TaskExportOverlay extends PureComponent<Props> {
   public componentDidMount() {
@@ -61,17 +48,16 @@ class TaskExportOverlay extends PureComponent<Props> {
   }
 }
 
-const mstp = (state: AppState): StateProps => ({
+const mstp = (state: AppState) => ({
   taskTemplate: state.resources.templates.exportTemplate.item,
   status: state.resources.templates.exportTemplate.status,
 })
 
-const mdtp: DispatchProps = {
+const mdtp = {
   convertToTemplate: convertToTemplateAction,
   clearExportTemplate: clearExportTemplateAction,
 }
 
-export default connect<StateProps, DispatchProps>(
-  mstp,
-  mdtp
-)(withRouter(TaskExportOverlay))
+const connector = connect(mstp, mdtp)
+
+export default connector(withRouter(TaskExportOverlay))

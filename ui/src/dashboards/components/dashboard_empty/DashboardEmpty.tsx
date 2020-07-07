@@ -30,7 +30,7 @@ class DashboardEmpty extends Component<Props> {
       <div className="dashboard-empty">
         <EmptyState size={ComponentSize.Large}>
           <div className="dashboard-empty--graphic">
-            <div className="dashbpard-empty--graphic-content" />
+            <div className="dashboard-empty--graphic-content" />
           </div>
           <EmptyState.Text>
             This Dashboard doesn't have any <b>Cells</b>, why not add one?
@@ -54,14 +54,11 @@ class DashboardEmpty extends Component<Props> {
   }
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   return {
     org: getOrg(state).id,
     dashboard: state.currentDashboard.id,
   }
 }
 
-export default connect<StateProps, {}, {}>(
-  mstp,
-  null
-)(withRouter(DashboardEmpty))
+export default connect<StateProps>(mstp)(withRouter(DashboardEmpty))

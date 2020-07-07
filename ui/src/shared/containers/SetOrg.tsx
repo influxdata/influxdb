@@ -1,6 +1,6 @@
 // Libraries
 import React, {useEffect, useState, FC} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {Route, Switch} from 'react-router-dom'
 
 // Components
@@ -52,22 +52,12 @@ import {
 // Selectors
 import {getAll} from 'src/resources/selectors'
 
-interface PassedInProps {
+interface OwnProps {
   children: React.ReactElement<any>
 }
 
-interface DispatchProps {
-  setOrg: typeof setOrgAction
-}
-
-interface StateProps {
-  orgs: Organization[]
-}
-
-type Props = StateProps &
-  DispatchProps &
-  PassedInProps &
-  RouteComponentProps<{orgID: string}>
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps & OwnProps & RouteComponentProps<{orgID: string}>
 
 const SetOrg: FC<Props> = ({
   match: {
@@ -193,13 +183,12 @@ const mdtp = {
   setOrg: setOrgAction,
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const orgs = getAll<Organization>(state, ResourceType.Orgs)
 
   return {orgs}
 }
 
-export default connect<StateProps, DispatchProps, PassedInProps>(
-  mstp,
-  mdtp
-)(SetOrg)
+const connector = connect(mstp, mdtp)
+
+export default connector(SetOrg)

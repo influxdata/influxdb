@@ -1,6 +1,6 @@
 // Libraries
 import React, {FC} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Components
@@ -39,19 +39,12 @@ import {NotificationRuleDraft, Label, AlertHistoryType} from 'src/types'
 // Utilities
 import {relativeTimestampFormatter} from 'src/shared/utils/relativeTimestampFormatter'
 
-interface DispatchProps {
-  onUpdateRuleProperties: typeof updateRuleProperties
-  deleteNotificationRule: typeof deleteRule
-  onAddRuleLabel: typeof addRuleLabel
-  onRemoveRuleLabel: typeof deleteRuleLabel
-  onCloneRule: typeof cloneRule
-}
-
 interface OwnProps {
   rule: NotificationRuleDraft
 }
 
-type Props = OwnProps & RouteComponentProps<{orgID: string}> & DispatchProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = OwnProps & RouteComponentProps<{orgID: string}> & ReduxProps
 
 const RuleCard: FC<Props> = ({
   rule,
@@ -188,7 +181,7 @@ const RuleCard: FC<Props> = ({
   )
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onUpdateRuleProperties: updateRuleProperties,
   deleteNotificationRule: deleteRule,
   onAddRuleLabel: addRuleLabel,
@@ -196,4 +189,6 @@ const mdtp: DispatchProps = {
   onCloneRule: cloneRule,
 }
 
-export default connect<{}, DispatchProps>(null, mdtp)(withRouter(RuleCard))
+const connector = connect(null, mdtp)
+
+export default connector(withRouter(RuleCard))

@@ -1,6 +1,6 @@
 // Libraries
 import React, {FC} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import {Button, IconFont, ComponentColor} from '@influxdata/clockface'
@@ -18,11 +18,8 @@ interface StateProps {
   isViewingVisOptions: boolean
 }
 
-interface DispatchProps {
-  onToggleVisOptions: typeof toggleVisOptions
-}
-
-type Props = StateProps & DispatchProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = StateProps & ReduxProps
 
 export const VisOptionsButton: FC<Props> = ({
   isViewingVisOptions,
@@ -43,14 +40,16 @@ export const VisOptionsButton: FC<Props> = ({
   )
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const {isViewingVisOptions} = getActiveTimeMachine(state)
 
   return {isViewingVisOptions}
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onToggleVisOptions: toggleVisOptions,
 }
 
-export default connect<StateProps, DispatchProps>(mstp, mdtp)(VisOptionsButton)
+const connector = connect(mstp, mdtp)
+
+export default connector(VisOptionsButton)

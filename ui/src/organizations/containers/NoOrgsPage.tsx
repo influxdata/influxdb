@@ -2,16 +2,13 @@
 import React, {FC} from 'react'
 import {FunnelPage, Button, ComponentColor} from '@influxdata/clockface'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Types
 import {AppState} from 'src/types'
 
-interface DispatchProps {
-  me: AppState['me']
-}
-
-type Props = DispatchProps & RouteComponentProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps & RouteComponentProps
 
 const NoOrgsPage: FC<Props> = ({history, me}) => {
   const handleClick = () => {
@@ -46,4 +43,6 @@ const mstp = ({me}: AppState) => {
   return {me}
 }
 
-export default connect(mstp)(withRouter(NoOrgsPage))
+const connector = connect(mstp)
+
+export default connector(withRouter(NoOrgsPage))

@@ -1,6 +1,6 @@
 // Libraries
 import React, {FC, useState} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import FluxEditor from 'src/shared/components/FluxMonacoEditor'
@@ -21,25 +21,14 @@ import {
 import {AppState, FluxToolbarFunction, EditorType} from 'src/types'
 import * as monacoEditor from 'monaco-editor/esm/vs/editor/editor.api'
 
-interface StateProps {
-  activeQueryText: string
-  activeTab: string
-  skipFocus?: boolean
-}
-
-interface DispatchProps {
-  onSetActiveQueryText: typeof setActiveQueryText | ((text: string) => void)
-  onSubmitQueries: typeof saveAndExecuteQueries | (() => void)
-}
-
-type Props = StateProps & DispatchProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps
 
 const TimeMachineFluxEditor: FC<Props> = ({
   activeQueryText,
   onSubmitQueries,
   onSetActiveQueryText,
   activeTab,
-  skipFocus,
 }) => {
   const [editorInstance, setEditorInstance] = useState<EditorType>(null)
 
@@ -146,7 +135,6 @@ const TimeMachineFluxEditor: FC<Props> = ({
           onChangeScript={onSetActiveQueryText}
           onSubmitScript={onSubmitQueries}
           setEditorInstance={setEditorInstance}
-          skipFocus={skipFocus}
         />
       </div>
       <div className="flux-editor--right-panel">
@@ -174,7 +162,6 @@ const mdtp = {
   onSubmitQueries: saveAndExecuteQueries,
 }
 
-export default connect<StateProps, DispatchProps, {}>(
-  mstp,
-  mdtp
-)(TimeMachineFluxEditor)
+const connector = connect(mstp, mdtp)
+
+export default connector(TimeMachineFluxEditor)

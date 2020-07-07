@@ -1,7 +1,7 @@
 // Libraries
 import React, {FC} from 'react'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Actions
 import {
@@ -36,19 +36,12 @@ import {NotificationEndpoint, Label, AlertHistoryType} from 'src/types'
 // Utilities
 import {relativeTimestampFormatter} from 'src/shared/utils/relativeTimestampFormatter'
 
-interface DispatchProps {
-  onDeleteEndpoint: typeof deleteEndpoint
-  onAddEndpointLabel: typeof addEndpointLabel
-  onRemoveEndpointLabel: typeof deleteEndpointLabel
-  onUpdateEndpointProperties: typeof updateEndpointProperties
-  onCloneEndpoint: typeof cloneEndpoint
-}
-
 interface OwnProps {
   endpoint: NotificationEndpoint
 }
 
-type Props = OwnProps & RouteComponentProps<{orgID: string}> & DispatchProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = OwnProps & RouteComponentProps<{orgID: string}> & ReduxProps
 
 const EndpointCard: FC<Props> = ({
   history,
@@ -161,7 +154,7 @@ const EndpointCard: FC<Props> = ({
   )
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onDeleteEndpoint: deleteEndpoint,
   onAddEndpointLabel: addEndpointLabel,
   onRemoveEndpointLabel: deleteEndpointLabel,
@@ -169,7 +162,6 @@ const mdtp: DispatchProps = {
   onCloneEndpoint: cloneEndpoint,
 }
 
-export default connect<{}, DispatchProps, {}>(
-  null,
-  mdtp
-)(withRouter(EndpointCard))
+const connector = connect(null, mdtp)
+
+export default connector(withRouter(EndpointCard))

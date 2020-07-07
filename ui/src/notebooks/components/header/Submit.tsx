@@ -6,6 +6,7 @@ import QueryProvider, {QueryContext} from 'src/notebooks/context/query'
 import {NotebookContext, PipeMeta} from 'src/notebooks/context/notebook'
 import {TimeContext} from 'src/notebooks/context/time'
 import {IconFont} from '@influxdata/clockface'
+import {notify} from 'src/shared/actions/notifications'
 
 // Utils
 import {event} from 'src/notebooks/shared/event'
@@ -15,6 +16,8 @@ import {RemoteDataState} from 'src/types'
 
 const PREVIOUS_REGEXP = /__PREVIOUS_RESULT__/g
 const COMMENT_REMOVER = /(\/\*([\s\S]*?)\*\/)|(\/\/(.*)$)/gm
+
+const fakeNotify = notify
 
 export const Submit: FC = () => {
   const {query} = useContext(QueryContext)
@@ -118,6 +121,7 @@ export const Submit: FC = () => {
       submitButtonDisabled={!hasQueries}
       queryStatus={isLoading}
       onSubmit={submit}
+      onNotify={fakeNotify}
     />
   )
 }

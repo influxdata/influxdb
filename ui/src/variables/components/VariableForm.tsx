@@ -197,7 +197,7 @@ export default class VariableForm extends PureComponent<Props, State> {
       selected,
       name,
       arguments: this.activeVariable,
-    })
+    } as any)
 
     onHideOverlay()
   }

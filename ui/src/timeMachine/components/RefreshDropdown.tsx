@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {isEqual} from 'lodash'
 
 // Components
@@ -11,20 +11,12 @@ import {AutoRefresher} from 'src/utils/AutoRefresher'
 
 // Actions
 import {executeQueries} from 'src/timeMachine/actions/queries'
-import {AutoRefreshStatus, AutoRefresh, AppState} from 'src/types'
+import {AutoRefreshStatus, AppState} from 'src/types'
 import {setAutoRefresh} from 'src/timeMachine/actions'
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 
-interface DispatchProps {
-  onExecuteQueries: typeof executeQueries
-  onSetAutoRefresh: typeof setAutoRefresh
-}
-
-interface StateProps {
-  autoRefresh: AutoRefresh
-}
-
-type Props = StateProps & DispatchProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps
 
 class TimeMachineRefreshDropdown extends PureComponent<Props> {
   private autoRefresher = new AutoRefresher()
@@ -92,18 +84,17 @@ class TimeMachineRefreshDropdown extends PureComponent<Props> {
   }
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const {autoRefresh} = getActiveTimeMachine(state)
 
   return {autoRefresh}
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onExecuteQueries: executeQueries,
   onSetAutoRefresh: setAutoRefresh,
 }
 
-export default connect<StateProps, DispatchProps>(
-  mstp,
-  mdtp
-)(TimeMachineRefreshDropdown)
+const connector = connect(mstp, mdtp)
+
+export default connector(TimeMachineRefreshDropdown)

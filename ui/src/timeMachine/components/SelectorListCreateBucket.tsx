@@ -7,7 +7,7 @@ import React, {
   useRef,
   useReducer,
 } from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import {
@@ -33,7 +33,7 @@ import {
 import {createBucket} from 'src/buckets/actions/thunks'
 
 // Types
-import {Organization, AppState} from 'src/types'
+import {AppState} from 'src/types'
 import {
   createBucketReducer,
   RuleType,
@@ -44,20 +44,9 @@ import {
 // Selectors
 import {getOrg} from 'src/organizations/selectors'
 
-interface StateProps {
-  org: Organization
-  isRetentionLimitEnforced: boolean
-  limitStatus: LimitStatus
-}
-
-interface DispatchProps {
-  createBucket: typeof createBucket
-  checkBucketLimits: typeof checkBucketLimitsAction
-}
-
 interface OwnProps {}
-
-type Props = OwnProps & StateProps & DispatchProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = OwnProps & ReduxProps
 
 const SelectorListCreateBucket: FC<Props> = ({
   org,
@@ -167,7 +156,7 @@ const SelectorListCreateBucket: FC<Props> = ({
   )
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const org = getOrg(state)
   const isRetentionLimitEnforced = !!extractBucketMaxRetentionSeconds(
     state.cloud.limits
@@ -181,12 +170,11 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   createBucket,
   checkBucketLimits: checkBucketLimitsAction,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
-  mstp,
-  mdtp
-)(SelectorListCreateBucket)
+const connector = connect(mstp, mdtp)
+
+export default connector(SelectorListCreateBucket)

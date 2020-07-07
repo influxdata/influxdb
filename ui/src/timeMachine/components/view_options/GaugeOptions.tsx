@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import {Grid} from '@influxdata/clockface'
@@ -33,16 +33,8 @@ interface OwnProps {
   tickSuffix: string
 }
 
-interface DispatchProps {
-  onUpdatePrefix: (prefix: string) => void
-  onUpdateTickPrefix: (tickPrefix: string) => void
-  onUpdateSuffix: (suffix: string) => void
-  onUpdateTickSuffix: (tickSuffix: string) => void
-  onUpdateDecimalPlaces: (decimalPlaces: DecimalPlaces) => void
-  onUpdateColors: (colors: Color[]) => void
-}
-
-type Props = OwnProps & DispatchProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = OwnProps & ReduxProps
 
 class GaugeOptions extends PureComponent<Props> {
   public render() {
@@ -105,7 +97,7 @@ class GaugeOptions extends PureComponent<Props> {
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onUpdatePrefix: setPrefix,
   onUpdateTickPrefix: setTickPrefix,
   onUpdateSuffix: setSuffix,
@@ -114,4 +106,6 @@ const mdtp: DispatchProps = {
   onUpdateColors: setColors,
 }
 
-export default connect<{}, DispatchProps, OwnProps>(null, mdtp)(GaugeOptions)
+const connector = connect(null, mdtp)
+
+export default connector(GaugeOptions)

@@ -7,7 +7,7 @@ import React, {
   FormEvent,
 } from 'react'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {get} from 'lodash'
 
 // Components
@@ -38,8 +38,8 @@ interface DispatchProps {
   onNotify: typeof notify
 }
 
-type Props = DispatchProps &
-  RouteComponentProps<{bucketID: string; orgID: string}>
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps & RouteComponentProps<{bucketID: string; orgID: string}>
 
 const UpdateBucketOverlay: FunctionComponent<Props> = ({
   onUpdateBucket,
@@ -155,12 +155,14 @@ const UpdateBucketOverlay: FunctionComponent<Props> = ({
   )
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onUpdateBucket: updateBucket,
   onNotify: notify,
 }
 
-export default connect<{}, DispatchProps, {}>(
+const connector = connect(null, mdtp)
+
+export default connect<{}, DispatchProps>(
   null,
   mdtp
 )(withRouter(UpdateBucketOverlay))

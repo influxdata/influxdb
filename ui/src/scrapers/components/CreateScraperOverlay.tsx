@@ -1,7 +1,7 @@
 // Libraries
 import React, {PureComponent, ChangeEvent, FormEvent} from 'react'
 import {get} from 'lodash'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Components
@@ -22,17 +22,9 @@ interface OwnProps {
   visible: boolean
 }
 
-interface StateProps {
-  buckets: Bucket[]
-}
-
-interface DispatchProps {
-  onCreateScraper: typeof createScraper
-}
-
+type ReduxProps = ConnectedProps<typeof connector>
 type Props = OwnProps &
-  StateProps &
-  DispatchProps &
+  ReduxProps &
   RouteComponentProps<{orgID: string; bucketID: string}>
 
 interface State {
@@ -127,15 +119,14 @@ class CreateScraperOverlay extends PureComponent<Props, State> {
   }
 }
 
-const mstp = (state: AppState): StateProps => ({
+const mstp = (state: AppState) => ({
   buckets: getAll<Bucket>(state, ResourceType.Buckets),
 })
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onCreateScraper: createScraper,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
-  mstp,
-  mdtp
-)(withRouter(CreateScraperOverlay))
+const connector = connect(mstp, mdtp)
+
+export default connector(withRouter(CreateScraperOverlay))

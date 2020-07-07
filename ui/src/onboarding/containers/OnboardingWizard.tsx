@@ -1,7 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -51,22 +51,8 @@ interface OwnProps {
   onSetCurrentStepIndex: (stepNumber: number) => void
 }
 
-interface DispatchProps {
-  notify: typeof notifyAction
-  onSetSetupParams: typeof setSetupParams
-  onSetStepStatus: typeof setStepStatus
-  onSetupAdmin: typeof setupAdmin
-}
-
-interface StateProps {
-  links: Links
-  stepStatuses: StepStatus[]
-  setupParams: ISetupParams
-  orgID: string
-  bucketID: string
-}
-
-type Props = OwnProps & StateProps & DispatchProps & RouteComponentProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = OwnProps & ReduxProps & RouteComponentProps
 
 @ErrorHandling
 class OnboardingWizard extends PureComponent<Props> {
@@ -175,7 +161,7 @@ class OnboardingWizard extends PureComponent<Props> {
 const mstp = ({
   links,
   onboarding: {stepStatuses, setupParams, orgID, bucketID},
-}: AppState): StateProps => ({
+}: AppState) => ({
   links,
   stepStatuses,
   setupParams,
@@ -183,14 +169,13 @@ const mstp = ({
   bucketID,
 })
 
-const mdtp: DispatchProps = {
+const mdtp = {
   notify: notifyAction,
   onSetSetupParams: setSetupParams,
   onSetStepStatus: setStepStatus,
   onSetupAdmin: setupAdmin,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
-  mstp,
-  mdtp
-)(withRouter(OnboardingWizard))
+const connector = connect(mstp, mdtp)
+
+export default connector(withRouter(OnboardingWizard))

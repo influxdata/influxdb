@@ -1,6 +1,6 @@
 // Libraries
 import React, {FC, useEffect} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import TimeMachine from 'src/timeMachine/components/TimeMachine'
@@ -16,12 +16,8 @@ import {HoverTimeProvider} from 'src/dashboards/utils/hoverTime'
 import {queryBuilderFetcher} from 'src/timeMachine/apis/QueryBuilderFetcher'
 import {readQueryParams} from 'src/shared/utils/queryParams'
 
-interface DispatchProps {
-  onSetActiveTimeMachine: typeof setActiveTimeMachine
-  onSetBuilderBucketIfExists: typeof setBuilderBucketIfExists
-}
-
-type Props = DispatchProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps
 
 const DataExplorer: FC<Props> = ({
   onSetActiveTimeMachine,
@@ -46,9 +42,11 @@ const DataExplorer: FC<Props> = ({
   )
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onSetActiveTimeMachine: setActiveTimeMachine,
   onSetBuilderBucketIfExists: setBuilderBucketIfExists,
 }
 
-export default connect<{}, DispatchProps, {}>(null, mdtp)(DataExplorer)
+const connector = connect(null, mdtp)
+
+export default connector(DataExplorer)

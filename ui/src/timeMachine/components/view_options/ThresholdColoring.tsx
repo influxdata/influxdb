@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {get} from 'lodash'
 
 // Components
@@ -29,12 +29,8 @@ interface StateProps {
   colors: Color[]
 }
 
-interface DispatchProps {
-  onSetBackground: typeof setBackgroundThresholdColoring
-  onSetText: typeof setTextThresholdColoring
-}
-
-type Props = StateProps & DispatchProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = StateProps & ReduxProps
 
 class ThresholdColoring extends PureComponent<Props> {
   public render() {
@@ -97,4 +93,6 @@ const mdtp = {
   onSetText: setTextThresholdColoring,
 }
 
-export default connect<StateProps, DispatchProps>(mstp, mdtp)(ThresholdColoring)
+const connector = connect(mstp, mdtp)
+
+export default connector(ThresholdColoring)

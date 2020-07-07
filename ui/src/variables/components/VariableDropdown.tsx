@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import {
@@ -18,23 +18,14 @@ import {getVariable, normalizeValues} from 'src/variables/selectors'
 // Types
 import {AppState, RemoteDataState} from 'src/types'
 
-interface StateProps {
-  values: string[]
-  selectedValue: string
-  status: RemoteDataState
-}
-
-interface DispatchProps {
-  onSelectValue: typeof selectValue
-}
-
 interface OwnProps {
   variableID: string
   testID?: string
   onSelect?: () => void
 }
 
-type Props = StateProps & DispatchProps & OwnProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = OwnProps & ReduxProps
 
 class VariableDropdown extends PureComponent<Props> {
   render() {
@@ -127,7 +118,7 @@ class VariableDropdown extends PureComponent<Props> {
   }
 }
 
-const mstp = (state: AppState, props: OwnProps): StateProps => {
+const mstp = (state: AppState, props: OwnProps) => {
   const {variableID} = props
   const variable = getVariable(state, variableID)
   const selected =
@@ -144,7 +135,6 @@ const mdtp = {
   onSelectValue: selectValue,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
-  mstp,
-  mdtp
-)(VariableDropdown)
+const connector = connect(mstp, mdtp)
+
+export default connector(VariableDropdown)

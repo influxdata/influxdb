@@ -55,7 +55,7 @@ const OrgSwitcherOverlay: FC<Props> = ({orgs, onClose, currentOrg}) => {
   )
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const orgs = getAll<Organization>(state, ResourceType.Orgs)
   const currentOrg = getOrg(state)
 

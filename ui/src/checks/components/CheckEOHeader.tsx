@@ -1,6 +1,6 @@
 // Libraries
 import React, {useState, FC, MouseEvent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import RenamablePageTitle from 'src/pageLayout/components/RenamablePageTitle'
@@ -28,38 +28,17 @@ import {setActiveTab} from 'src/timeMachine/actions'
 import {DEFAULT_CHECK_NAME, CHECK_NAME_MAX_LENGTH} from 'src/alerting/constants'
 
 // Types
-import {
-  CheckType,
-  TimeMachineTab,
-  RemoteDataState,
-  AppState,
-  DashboardDraftQuery,
-  Threshold,
-} from 'src/types'
-import {
-  createCheckFromTimeMachine,
-  updateCheckFromTimeMachine,
-} from 'src/checks/actions/thunks'
+import {RemoteDataState, AppState} from 'src/types'
 
 interface OwnProps {
   name: string
   onSetName: (name: string) => void
   onCancel: () => void
-  onSave: typeof createCheckFromTimeMachine | typeof updateCheckFromTimeMachine
+  onSave: () => Promise<void>
 }
 
-interface StateProps {
-  activeTab: TimeMachineTab
-  draftQueries: DashboardDraftQuery[]
-  checkType: CheckType
-  thresholds: Threshold[]
-}
-
-interface DispatchProps {
-  setActiveTab: typeof setActiveTab
-}
-
-type Props = OwnProps & StateProps & DispatchProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = OwnProps & ReduxProps
 
 const saveButtonClass = 'veo-header--save-cell-button'
 
@@ -150,7 +129,7 @@ const CheckEOHeader: FC<Props> = ({
   )
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const {activeTab, draftQueries} = getActiveTimeMachine(state)
   const {
     alertBuilder: {type, thresholds},
@@ -159,8 +138,10 @@ const mstp = (state: AppState): StateProps => {
   return {activeTab, draftQueries, checkType: type, thresholds}
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   setActiveTab: setActiveTab,
 }
 
-export default connect<StateProps, DispatchProps>(mstp, mdtp)(CheckEOHeader)
+const connector = connect(mstp, mdtp)
+
+export default connector(CheckEOHeader)

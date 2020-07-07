@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent, MouseEvent, RefObject, createRef} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import classnames from 'classnames'
 
 // Components
@@ -23,24 +23,13 @@ import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 import {AppState} from 'src/types'
 import {DashboardDraftQuery} from 'src/types/dashboards'
 
-interface StateProps {
-  activeQueryIndex: number
-  queryCount: number
-}
-
-interface DispatchProps {
-  onSetActiveQueryIndex: typeof setActiveQueryIndex
-  onRemoveQuery: typeof removeQuery
-  onUpdateActiveQueryName: typeof updateActiveQueryName
-  onToggleQuery: typeof toggleQuery
-}
-
 interface OwnProps {
   queryIndex: number
   query: DashboardDraftQuery
 }
 
-type Props = StateProps & DispatchProps & OwnProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps & OwnProps
 
 interface State {
   isEditingName: boolean
@@ -199,7 +188,5 @@ const mdtp = {
   onToggleQuery: toggleQuery,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
-  mstp,
-  mdtp
-)(TimeMachineQueryTab)
+const connector = connect(mstp, mdtp)
+export default connector(TimeMachineQueryTab)
