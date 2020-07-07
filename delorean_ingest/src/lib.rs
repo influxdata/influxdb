@@ -522,24 +522,79 @@ impl TSMFileConverter {
         }
     }
 
-    /// Processes a TSM file's index and writes each measurement to a Parquet
-    /// writer.
-    pub fn convert(
+    /// Given one or more sets of readers, converts the underlying TSM data into
+    /// a set of Parquet files segmented by measurement name.
+    pub fn convert<R>(
         &mut self,
-        index_stream: impl BufRead + Seek,
-        index_stream_size: usize,
-        block_stream: impl BufRead + Seek,
-    ) -> Result<(), Error> {
-        let index_reader =
-            TSMIndexReader::try_new(index_stream, index_stream_size).context(TSMProcessing)?;
-        let mut block_reader = TSMBlockReader::new(block_stream);
+        index_readers: Vec<(R, usize)>,
+        mut block_readers: Vec<R>,
+    ) -> Result<(), Error>
+    where
+        R: BufRead + Seek,
+    {
+        if index_readers.is_empty() {
+            return Err(Error::TSMProcessing {
+                source: TSMError {
+                    description: "at least one reader required".to_string(),
+                },
+            });
+        } else if index_readers.len() != block_readers.len() {
+            return Err(Error::TSMProcessing {
+                source: TSMError {
+                    description: "different number of readers".to_string(),
+                },
+            });
+        }
 
-        let mapper = TSMMeasurementMapper::new(index_reader.peekable());
+        let mut dst = vec![None; index_readers.len()];
+        let mut mappers = Vec::new();
 
-        for measurement in mapper {
-            let mut m = measurement.context(TSMProcessing)?;
+        for (i, (reader, size)) in index_readers.into_iter().enumerate() {
+            let index_reader = TSMIndexReader::try_new(reader, size).context(TSMProcessing)?;
+            mappers.push(TSMMeasurementMapper::new(index_reader.peekable(), i));
+        }
+
+        // track all the block readers for each file, so that the correct reader
+        // can be used to decode each block
+        let mut block_reader = TSMBlockReader::new(block_readers.remove(0));
+        for reader in block_readers.into_iter() {
+            block_reader.add_reader(reader);
+        }
+
+        loop {
+            dst = Self::refill_table_buffer(&mut mappers, dst)?;
+
+            let mut dst_map: BTreeMap<String, Vec<MeasurementTable>> = BTreeMap::new();
+            for table in &mut dst {
+                if let Some(table) = table.take() {
+                    let v = dst_map.entry(table.name.clone()).or_default();
+                    v.push(table);
+                }
+            }
+
+            // pop the first set of measurements off of the map. Guaranteed to
+            // be the next measurement to process.
+            let mut first_measurement: MeasurementTable;
+            if let Some((_, min_measurements)) = dst_map.into_iter().next() {
+                let mut iter = min_measurements.into_iter();
+                first_measurement = iter.next().unwrap();
+
+                // if there are multiple tables for this measurement merge them
+                // into the first one.
+                for mut next_measurement in iter {
+                    // TODO(edd): perf - could calculate a more efficient merge
+                    // order.
+                    first_measurement
+                        .merge(&mut next_measurement)
+                        .context(TSMProcessing)?;
+                }
+            } else {
+                break; // no measurements to process; all inputs drained
+            }
+
+            // convert (potentially merged) measurement..
             let (schema, packed_columns) =
-                Self::process_measurement_table(&mut block_reader, &mut m)?;
+                Self::process_measurement_table(&mut block_reader, &mut first_measurement)?;
 
             let mut table_writer = self
                 .table_writer_source
@@ -550,8 +605,39 @@ impl TSMFileConverter {
                 .write_batch(&packed_columns)
                 .context(WriterCreation)?;
             table_writer.close().context(WriterCreation)?;
+
+            // mark any measurement tables that were processed as None so
+            // candidate buffer can be refilled.
+            for table in &mut dst {
+                if let Some(mt) = table {
+                    if mt.name == first_measurement.name {
+                        *table = None;
+                    }
+                }
+            }
         }
+
         Ok(())
+    }
+
+    // refill_table_buffer ensures that the destination vector has the next
+    // measurement table for each input iterator.
+    fn refill_table_buffer(
+        inputs: &mut Vec<impl Iterator<Item = Result<MeasurementTable, TSMError>>>,
+        mut dst: Vec<Option<MeasurementTable>>,
+    ) -> Result<Vec<Option<MeasurementTable>>, Error> {
+        for (input, dst) in inputs.iter_mut().zip(dst.iter_mut()) {
+            if dst.is_none() {
+                match input.next() {
+                    Some(res) => {
+                        let table = res.context(TSMProcessing)?;
+                        *dst = Some(table);
+                    }
+                    None => continue,
+                }
+            }
+        }
+        Ok(dst)
     }
 
     // Given a measurement table `process_measurement_table` produces an
@@ -1541,7 +1627,7 @@ mod delorean_ingest_tests {
         // | NULL |  west  |    a   | 99.5  |  NULL   |   NULL  | 3000 |
         // | NULL |  west  |    a   | 100.3 |  NULL   |   NULL  | 4000 |
 
-        let mut table = MeasurementTable::new("cpu".to_string());
+        let mut table = MeasurementTable::new("cpu".to_string(), 0);
         // cpu region=east temp=<all the block data for this key>
         table.add_series_data(
             vec![("region".to_string(), "east".to_string())],
@@ -1553,6 +1639,7 @@ mod delorean_ingest_tests {
                 offset: 0,
                 size: 0,
                 typ: BlockType::Float,
+                reader_idx: 0,
             },
         )?;
 
@@ -1567,6 +1654,7 @@ mod delorean_ingest_tests {
                 offset: 0,
                 size: 0,
                 typ: BlockType::Float,
+                reader_idx: 0,
             },
         )?;
 
@@ -1584,6 +1672,7 @@ mod delorean_ingest_tests {
                 offset: 0,
                 size: 0,
                 typ: BlockType::Float,
+                reader_idx: 0,
             },
         )?;
 
@@ -1598,6 +1687,7 @@ mod delorean_ingest_tests {
                 offset: 0,
                 size: 0,
                 typ: BlockType::Float,
+                reader_idx: 0,
             },
         )?;
 
@@ -1759,8 +1849,8 @@ mod delorean_ingest_tests {
     }
 
     #[test]
-    fn conversion_tsm_files() -> Result<(), Error> {
-        let file = File::open("../tests/fixtures/000000000000462-000000002.tsm.gz");
+    fn conversion_tsm_file_single() -> Result<(), Error> {
+        let file = File::open("../tests/fixtures/merge-tsm/merge_a.tsm.gz");
         let mut decoder = gzip::Decoder::new(file.unwrap()).unwrap();
         let mut buf = Vec::new();
         decoder.read_to_end(&mut buf).unwrap();
@@ -1770,7 +1860,7 @@ mod delorean_ingest_tests {
         let index_steam = BufReader::new(Cursor::new(&buf));
         let block_stream = BufReader::new(Cursor::new(&buf));
         converter
-            .convert(index_steam, 236_029, block_stream)
+            .convert(vec![(index_steam, 39475)], vec![block_stream])
             .unwrap();
 
         // CPU columns: - tags: cpu, host. (2)
@@ -1788,10 +1878,65 @@ mod delorean_ingest_tests {
             get_events(&log),
             vec![
                 "Created writer for measurement cpu",
-                "[cpu] Wrote batch of 13 cols, 8568 rows",
+                "[cpu] Wrote batch of 13 cols, 85 rows",
                 "[cpu] Closed",
                 "Created writer for measurement disk",
-                "[disk] Wrote batch of 13 cols, 3535 rows",
+                "[disk] Wrote batch of 13 cols, 36 rows",
+                "[disk] Closed"
+            ],
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn conversion_tsm_files_none_overlapping() -> Result<(), Error> {
+        let mut index_streams = Vec::new();
+        let mut block_streams = Vec::new();
+
+        let file_a = File::open("../tests/fixtures/merge-tsm/merge_a.tsm.gz");
+        let mut decoder_a = gzip::Decoder::new(file_a.unwrap()).unwrap();
+        let mut buf_a = Vec::new();
+        decoder_a.read_to_end(&mut buf_a).unwrap();
+        index_streams.push((BufReader::new(Cursor::new(&buf_a)), 39475));
+        block_streams.push(BufReader::new(Cursor::new(&buf_a)));
+
+        let file_b = File::open("../tests/fixtures/merge-tsm/merge_b.tsm.gz");
+        let mut decoder_b = gzip::Decoder::new(file_b.unwrap()).unwrap();
+        let mut buf_b = Vec::new();
+        decoder_b.read_to_end(&mut buf_b).unwrap();
+        index_streams.push((BufReader::new(Cursor::new(&buf_b)), 45501));
+        block_streams.push(BufReader::new(Cursor::new(&buf_b)));
+
+        let log = Arc::new(Mutex::new(WriterLog::new()));
+        let mut converter = TSMFileConverter::new(NoOpWriterSource::new(log.clone()));
+
+        converter.convert(index_streams, block_streams).unwrap();
+
+        // CPU columns: - tags: cpu, host. (2)
+        //                fields: usage_guest, usage_guest_nice
+        //                        usage_idle, usage_iowait, usage_irq,
+        //                        usage_nice, usage_softirq, usage_steal,
+        //                        usage_system, usage_user (10)
+        //                timestamp (1)
+        //
+        // disk columns: - tags: device, fstype, host, mode, path (5)
+        //                 fields: free, inodes_free, inodes_total, inodes_used,
+        //                         total, used, used_percent (7)
+        //                 timestamp (1)
+        //
+        // In this case merge_a.tsm has 85 rows of data for cpu measurement and
+        // merge_b.tsm 340.
+        //
+        // For the disk measurement merge_a.tsm has 36 rows and merge_b.tsm 126
+        assert_eq!(
+            get_events(&log),
+            vec![
+                "Created writer for measurement cpu",
+                "[cpu] Wrote batch of 13 cols, 425 rows",
+                "[cpu] Closed",
+                "Created writer for measurement disk",
+                "[disk] Wrote batch of 13 cols, 162 rows",
                 "[disk] Closed"
             ],
         );
