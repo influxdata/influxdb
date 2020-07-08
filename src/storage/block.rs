@@ -177,8 +177,8 @@ use std::{u16, u32};
 pub enum Error {
     #[snafu(display("Block encoding error: {}", source))]
     EncodingError { source: Box<dyn std::error::Error> },
-    #[snafu(display("Block can not find summary / empty block"))]
-    CanNotFindSummary {},
+    #[snafu(display("Block cannot find summary / empty block"))]
+    CannotFindSummary {},
 
     #[snafu(display("Block encoder I/O error while writing: {}", source))]
     WritingError { source: std::io::Error },
@@ -371,7 +371,7 @@ where
         // There are some experimental APIs to do that here: https://doc.rust-lang.org/std/io/trait.Seek.html#method.stream_position
         // But I'm not sure how to proceed in the meantime...
 
-        let summary = self.summary().context(CanNotFindSummary)?;
+        let summary = self.summary().context(CannotFindSummary)?;
 
         // hasher is used to compute a checksum, which will be written to the
         // front of the Block when it's serialised.
