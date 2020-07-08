@@ -547,7 +547,7 @@ impl TSMFileConverter {
         }
 
         let mut dst = vec![None; index_readers.len()];
-        let mut mappers = Vec::new();
+        let mut mappers = Vec::with_capacity(index_readers.len());
 
         for (i, (reader, size)) in index_readers.into_iter().enumerate() {
             let index_reader = TSMIndexReader::try_new(reader, size).context(TSMProcessing)?;
