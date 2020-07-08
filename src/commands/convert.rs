@@ -116,16 +116,11 @@ pub fn convert(
         let files: Vec<_> = fs::read_dir(input_path)
             .unwrap()
             .filter_map(Result::ok)
-            .filter(|f| {
-                if let Some(x) = f
+            .filter(|filename| {
+                filename
                     .path()
-                    .as_path()
                     .extension()
-                    .and_then(std::ffi::OsStr::to_str)
-                {
-                    return x == "tsm";
-                }
-                false
+                    .map_or(false, |x| x == "tsm")
             })
             .collect();
 
