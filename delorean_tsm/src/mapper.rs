@@ -193,6 +193,13 @@ impl MeasurementTable {
     }
 
     // Process the MeasurementTable in sections.
+    //
+    // Each call to `porcess` emits a `TableSection`, which is a partial section
+    // of the final table. Each section contains the data for all columns
+    // in the table, though not all of that data will necessarily be
+    // materialised.
+    //
+    // `process` expects a closure to process each section.
     pub fn process<F>(
         &mut self,
         mut block_reader: impl BlockDecoder,

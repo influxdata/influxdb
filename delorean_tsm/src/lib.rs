@@ -53,6 +53,9 @@ pub struct Block {
     pub offset: u64,
     pub size: u32,
     pub typ: BlockType,
+
+    // This index is used to track an associated reader needed to decode the
+    // data this block holds.
     pub reader_idx: usize,
 }
 

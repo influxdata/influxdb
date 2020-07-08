@@ -116,13 +116,13 @@ pub fn convert(
         let files: Vec<_> = fs::read_dir(input_path)
             .unwrap()
             .filter_map(Result::ok)
-            .filter(|filename| {
-                filename
-                    .path()
-                    .extension()
-                    .map_or(false, |x| x == "tsm")
-            })
+            .filter(|filename| filename.path().extension().map_or(false, |x| x == "tsm"))
             .collect();
+
+        if files.is_empty() {
+            warn!("No TSM files found");
+            return Ok(());
+        }
 
         let mut index_readers = Vec::with_capacity(files.len());
         let mut block_readers = Vec::with_capacity(files.len());
@@ -133,11 +133,6 @@ pub fn convert(
 
             index_readers.push((BufReader::new(index_handle), index_size as usize));
             block_readers.push(BufReader::new(block_handle));
-        }
-
-        if block_readers.is_empty() {
-            warn!("No TSM files found");
-            return Ok(());
         }
 
         // setup writing

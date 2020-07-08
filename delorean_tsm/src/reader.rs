@@ -482,7 +482,7 @@ where
                 }
             }
             None => Err(TSMError {
-                description: "cannot decode block with no associated decoder".to_string(),
+                description: format!("cannot decode block {:?} with no associated decoder", block),
             }),
         }
     }

@@ -9,7 +9,6 @@ fn map_field_columns(c: &mut Criterion) {
 
     let mut measurement_table = mapper::MeasurementTable::new("cpu".to_string(), 0);
 
-    // let mut field_blocks: BTreeMap<String, Vec<Block>> = BTreeMap::new();
     measurement_table
         .add_series_data(
             vec![],

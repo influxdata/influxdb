@@ -676,15 +676,9 @@ impl TSMFileConverter {
             .collect::<BTreeMap<String, usize>>();
 
         // Process the measurement to build out a table.
-        // The MeasurementTable emits `TableSection`s, which are partial sections
-        // of the final table. Each section contains the data for all columns
-        // in the table, though not all of that data will necessarily be
-        // materialised.
         //
-        // `process` expects a closure that processes each table section as it's
-        // emitted from the `MeasurementTable`.
+        // The processing function we supply to `process` does the following:
         //
-        // As sections are emitted we do the following:
         //  - Append the timestamp column to the packer timestamp column
         //  - Materialise the same tag value for any tag key columns where the
         //    emitted section has a none-null value for that column.
