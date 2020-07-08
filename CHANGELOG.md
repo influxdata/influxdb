@@ -1,12 +1,19 @@
-## v2.0.0-beta.14 [unreleased]
+## v2.0.0-beta.14 [2020-07-08]
 
 ### Features
 
 1. [18758](https://github.com/influxdata/influxdb/pull/18758): Extend influx stacks update cmd with ability to add resources without apply template
 1. [18793](https://github.com/influxdata/influxdb/pull/18793): Normalize InfluxDB templates under new /api/v2/templates and /api/v2/stacks public API 
 1. [18818](https://github.com/influxdata/influxdb/pull/18818): Extend template Summary and Diff nested types with kind identifiers 
+1. [18857](https://github.com/influxdata/influxdb/pull/18857): Flux updated to v0.71.1
+1. [18805](https://github.com/influxdata/influxdb/pull/18805): Added static builds for Linux
 
 ### Bug Fixes
+
+1. [18878](https://github.com/influxdata/influxdb/pull/18878): Don't overwrite build date set via ldflags
+1. [18842](https://github.com/influxdata/influxdb/pull/18842): Fixed an issue where define query was unusable after importing a Check
+1. [18845](https://github.com/influxdata/influxdb/pull/18845): Update documentation links
+
 
 ## v2.0.0-beta.13 [2020-06-25]
 
