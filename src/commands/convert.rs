@@ -110,7 +110,7 @@ pub fn convert(
     compression_level: CompressionLevel,
 ) -> Result<()> {
     info!("convert starting");
-    debug!("Reading from input file {}", input_path);
+    debug!("Reading from input path {}", input_path);
 
     if is_directory(input_path) {
         let files: Vec<_> = fs::read_dir(input_path)
