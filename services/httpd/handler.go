@@ -34,7 +34,6 @@ import (
 	"github.com/influxdata/influxdb/monitor"
 	"github.com/influxdata/influxdb/monitor/diagnostics"
 	"github.com/influxdata/influxdb/prometheus"
-	"github.com/influxdata/influxdb/prometheus/remote"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/services/storage"
@@ -45,6 +44,7 @@ import (
 	"github.com/influxdata/influxql"
 	prom "github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/prometheus/prometheus/prompb"
 	"go.uber.org/zap"
 )
 
@@ -1146,7 +1146,7 @@ func (h *Handler) servePromWrite(w http.ResponseWriter, r *http.Request, user me
 	}
 
 	// Convert the Prometheus remote write request to Influx Points
-	var req remote.WriteRequest
+	var req prompb.WriteRequest
 	if err := proto.Unmarshal(reqBuf, &req); err != nil {
 		h.httpError(w, err.Error(), http.StatusBadRequest)
 		return
@@ -1217,7 +1217,7 @@ func (h *Handler) servePromRead(w http.ResponseWriter, r *http.Request, user met
 		return
 	}
 
-	var req remote.ReadRequest
+	var req prompb.ReadRequest
 	if err := proto.Unmarshal(reqBuf, &req); err != nil {
 		h.httpError(w, err.Error(), http.StatusBadRequest)
 		return
@@ -1244,7 +1244,7 @@ func (h *Handler) servePromRead(w http.ResponseWriter, r *http.Request, user met
 		return
 	}
 
-	respond := func(resp *remote.ReadResponse) {
+	respond := func(resp *prompb.ReadResponse) {
 		data, err := proto.Marshal(resp)
 		if err != nil {
 			h.httpError(w, err.Error(), http.StatusInternalServerError)
@@ -1270,8 +1270,8 @@ func (h *Handler) servePromRead(w http.ResponseWriter, r *http.Request, user met
 		return
 	}
 
-	resp := &remote.ReadResponse{
-		Results: []*remote.QueryResult{{}},
+	resp := &prompb.ReadResponse{
+		Results: []*prompb.QueryResult{{}},
 	}
 
 	if rs == nil {
@@ -1291,7 +1291,7 @@ func (h *Handler) servePromRead(w http.ResponseWriter, r *http.Request, user met
 		var unsupportedCursor string
 		switch cur := cur.(type) {
 		case tsdb.FloatArrayCursor:
-			var series *remote.TimeSeries
+			var series *prompb.TimeSeries
 			for {
 				a := cur.Next()
 				if a.Len() == 0 {
@@ -1300,15 +1300,15 @@ func (h *Handler) servePromRead(w http.ResponseWriter, r *http.Request, user met
 
 				// We have some data for this series.
 				if series == nil {
-					series = &remote.TimeSeries{
+					series = &prompb.TimeSeries{
 						Labels: prometheus.ModelTagsToLabelPairs(tags),
 					}
 				}
 
 				for i, ts := range a.Timestamps {
-					series.Samples = append(series.Samples, &remote.Sample{
-						TimestampMs: ts / int64(time.Millisecond),
-						Value:       a.Values[i],
+					series.Samples = append(series.Samples, prompb.Sample{
+						Timestamp: ts / int64(time.Millisecond),
+						Value:     a.Values[i],
 					})
 				}
 			}

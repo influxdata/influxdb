@@ -36,7 +36,6 @@ import (
 	"github.com/influxdata/influxdb/monitor"
 	"github.com/influxdata/influxdb/monitor/diagnostics"
 	"github.com/influxdata/influxdb/pkg/testing/assert"
-	"github.com/influxdata/influxdb/prometheus/remote"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/services/httpd"
 	"github.com/influxdata/influxdb/services/meta"
@@ -44,6 +43,7 @@ import (
 	"github.com/influxdata/influxdb/storage/reads/datatypes"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxql"
+	"github.com/prometheus/prometheus/prompb"
 )
 
 // Ensure the handler returns results from a query (including nil results).
@@ -752,17 +752,17 @@ func TestHandler_Debug_ErrAuthorize(t *testing.T) {
 
 // Ensure the prometheus remote write works with valid values.
 func TestHandler_PromWrite(t *testing.T) {
-	req := &remote.WriteRequest{
-		Timeseries: []*remote.TimeSeries{
+	req := &prompb.WriteRequest{
+		Timeseries: []prompb.TimeSeries{
 			{
-				Labels: []*remote.LabelPair{
+				Labels: []prompb.Label{
 					{Name: "host", Value: "a"},
 					{Name: "region", Value: "west"},
 				},
-				Samples: []*remote.Sample{
-					{TimestampMs: 1, Value: 1.2},
-					{TimestampMs: 3, Value: 14.5},
-					{TimestampMs: 6, Value: 222.99},
+				Samples: []prompb.Sample{
+					{Timestamp: 1, Value: 1.2},
+					{Timestamp: 3, Value: 14.5},
+					{Timestamp: 6, Value: 222.99},
 				},
 			},
 		},
@@ -795,9 +795,9 @@ func TestHandler_PromWrite(t *testing.T) {
 		}
 
 		expTS := []int64{
-			req.Timeseries[0].Samples[0].TimestampMs * int64(time.Millisecond),
-			req.Timeseries[0].Samples[1].TimestampMs * int64(time.Millisecond),
-			req.Timeseries[0].Samples[2].TimestampMs * int64(time.Millisecond),
+			req.Timeseries[0].Samples[0].Timestamp * int64(time.Millisecond),
+			req.Timeseries[0].Samples[1].Timestamp * int64(time.Millisecond),
+			req.Timeseries[0].Samples[2].Timestamp * int64(time.Millisecond),
 		}
 
 		for i, point := range points {
@@ -835,23 +835,23 @@ func TestHandler_PromWrite(t *testing.T) {
 
 // Ensure the prometheus remote write works with invalid values.
 func TestHandler_PromWrite_Dropped(t *testing.T) {
-	req := &remote.WriteRequest{
-		Timeseries: []*remote.TimeSeries{
+	req := &prompb.WriteRequest{
+		Timeseries: []prompb.TimeSeries{
 			{
-				Labels: []*remote.LabelPair{
+				Labels: []prompb.Label{
 					{Name: "host", Value: "a"},
 					{Name: "region", Value: "west"},
 				},
-				Samples: []*remote.Sample{
-					{TimestampMs: 1, Value: 1.2},
-					{TimestampMs: 2, Value: math.NaN()},
-					{TimestampMs: 3, Value: 14.5},
-					{TimestampMs: 4, Value: math.Inf(-1)},
-					{TimestampMs: 5, Value: math.Inf(1)},
-					{TimestampMs: 6, Value: 222.99},
-					{TimestampMs: 7, Value: math.Inf(-1)},
-					{TimestampMs: 8, Value: math.Inf(1)},
-					{TimestampMs: 9, Value: math.Inf(1)},
+				Samples: []prompb.Sample{
+					{Timestamp: 1, Value: 1.2},
+					{Timestamp: 2, Value: math.NaN()},
+					{Timestamp: 3, Value: 14.5},
+					{Timestamp: 4, Value: math.Inf(-1)},
+					{Timestamp: 5, Value: math.Inf(1)},
+					{Timestamp: 6, Value: 222.99},
+					{Timestamp: 7, Value: math.Inf(-1)},
+					{Timestamp: 8, Value: math.Inf(1)},
+					{Timestamp: 9, Value: math.Inf(1)},
 				},
 			},
 		},
@@ -884,9 +884,9 @@ func TestHandler_PromWrite_Dropped(t *testing.T) {
 		}
 
 		expTS := []int64{
-			req.Timeseries[0].Samples[0].TimestampMs * int64(time.Millisecond),
-			req.Timeseries[0].Samples[2].TimestampMs * int64(time.Millisecond),
-			req.Timeseries[0].Samples[5].TimestampMs * int64(time.Millisecond),
+			req.Timeseries[0].Samples[0].Timestamp * int64(time.Millisecond),
+			req.Timeseries[0].Samples[2].Timestamp * int64(time.Millisecond),
+			req.Timeseries[0].Samples[5].Timestamp * int64(time.Millisecond),
 		}
 
 		for i, point := range points {
@@ -931,12 +931,12 @@ func mustMakeBigString(sz int) string {
 }
 
 func TestHandler_PromWrite_Error(t *testing.T) {
-	req := &remote.WriteRequest{
-		Timeseries: []*remote.TimeSeries{
+	req := &prompb.WriteRequest{
+		Timeseries: []prompb.TimeSeries{
 			{
 				// Invalid tag key
-				Labels:  []*remote.LabelPair{{Name: mustMakeBigString(models.MaxKeyLength), Value: "a"}},
-				Samples: []*remote.Sample{{TimestampMs: 1, Value: 1.2}},
+				Labels:  []prompb.Label{{Name: mustMakeBigString(models.MaxKeyLength), Value: "a"}},
+				Samples: []prompb.Sample{{Timestamp: 1, Value: 1.2}},
 			},
 		},
 	}
@@ -977,11 +977,11 @@ func TestHandler_PromWrite_Error(t *testing.T) {
 // Ensure Prometheus remote read requests are converted to the correct InfluxQL query and
 // data is returned
 func TestHandler_PromRead(t *testing.T) {
-	req := &remote.ReadRequest{
-		Queries: []*remote.Query{{
-			Matchers: []*remote.LabelMatcher{
+	req := &prompb.ReadRequest{
+		Queries: []*prompb.Query{{
+			Matchers: []*prompb.LabelMatcher{
 				{
-					Type:  remote.MatchType_EQUAL,
+					Type:  prompb.LabelMatcher_EQ,
 					Name:  "__name__",
 					Value: "value",
 				},
@@ -1042,34 +1042,34 @@ func TestHandler_PromRead(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var resp remote.ReadResponse
+	var resp prompb.ReadResponse
 	if err := proto.Unmarshal(reqBuf, &resp); err != nil {
 		t.Fatal(err)
 	}
 
-	expResults := []*remote.QueryResult{
+	expResults := []*prompb.QueryResult{
 		{
-			Timeseries: []*remote.TimeSeries{
+			Timeseries: []*prompb.TimeSeries{
 				{
-					Labels: []*remote.LabelPair{
+					Labels: []prompb.Label{
 						{Name: "host", Value: "server-1"},
 					},
-					Samples: []*remote.Sample{
-						{TimestampMs: 22, Value: 2.3},
-						{TimestampMs: 10000, Value: 2992.33},
-						{TimestampMs: 44, Value: 2.3},
-						{TimestampMs: 20000, Value: 2992.33},
+					Samples: []prompb.Sample{
+						{Timestamp: 22, Value: 2.3},
+						{Timestamp: 10000, Value: 2992.33},
+						{Timestamp: 44, Value: 2.3},
+						{Timestamp: 20000, Value: 2992.33},
 					},
 				},
 				{
-					Labels: []*remote.LabelPair{
+					Labels: []prompb.Label{
 						{Name: "host", Value: "server-2"},
 					},
-					Samples: []*remote.Sample{
-						{TimestampMs: 22, Value: 2.3},
-						{TimestampMs: 10000, Value: 2992.33},
-						{TimestampMs: 44, Value: 2.3},
-						{TimestampMs: 20000, Value: 2992.33},
+					Samples: []prompb.Sample{
+						{Timestamp: 22, Value: 2.3},
+						{Timestamp: 10000, Value: 2992.33},
+						{Timestamp: 44, Value: 2.3},
+						{Timestamp: 20000, Value: 2992.33},
 					},
 				},
 			},
@@ -1082,10 +1082,10 @@ func TestHandler_PromRead(t *testing.T) {
 }
 
 func TestHandler_PromRead_NoResults(t *testing.T) {
-	req := &remote.ReadRequest{Queries: []*remote.Query{&remote.Query{
-		Matchers: []*remote.LabelMatcher{
+	req := &prompb.ReadRequest{Queries: []*prompb.Query{&prompb.Query{
+		Matchers: []*prompb.LabelMatcher{
 			{
-				Type:  remote.MatchType_EQUAL,
+				Type:  prompb.LabelMatcher_EQ,
 				Name:  "__name__",
 				Value: "value",
 			},
@@ -1111,17 +1111,17 @@ func TestHandler_PromRead_NoResults(t *testing.T) {
 		t.Fatal(err.Error())
 	}
 
-	var resp remote.ReadResponse
+	var resp prompb.ReadResponse
 	if err := proto.Unmarshal(reqBuf, &resp); err != nil {
 		t.Fatal(err.Error())
 	}
 }
 
 func TestHandler_PromRead_UnsupportedCursors(t *testing.T) {
-	req := &remote.ReadRequest{Queries: []*remote.Query{&remote.Query{
-		Matchers: []*remote.LabelMatcher{
+	req := &prompb.ReadRequest{Queries: []*prompb.Query{&prompb.Query{
+		Matchers: []*prompb.LabelMatcher{
 			{
-				Type:  remote.MatchType_EQUAL,
+				Type:  prompb.LabelMatcher_EQ,
 				Name:  "__name__",
 				Value: "value",
 			},
@@ -1167,7 +1167,7 @@ func TestHandler_PromRead_UnsupportedCursors(t *testing.T) {
 			t.Fatal(err.Error())
 		}
 
-		var resp remote.ReadResponse
+		var resp prompb.ReadResponse
 		if err := proto.Unmarshal(reqBuf, &resp); err != nil {
 			t.Fatal(err.Error())
 		}
@@ -1195,11 +1195,11 @@ func TestHandler_Flux_DisabledByDefault(t *testing.T) {
 }
 
 func TestHandler_PromRead_NilResultSet(t *testing.T) {
-	req := &remote.ReadRequest{
-		Queries: []*remote.Query{{
-			Matchers: []*remote.LabelMatcher{
+	req := &prompb.ReadRequest{
+		Queries: []*prompb.Query{{
+			Matchers: []*prompb.LabelMatcher{
 				{
-					Type:  remote.MatchType_EQUAL,
+					Type:  prompb.LabelMatcher_EQ,
 					Name:  "__name__",
 					Value: "value",
 				},
@@ -1241,14 +1241,14 @@ func TestHandler_PromRead_NilResultSet(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	resp := new(remote.ReadResponse)
+	resp := new(prompb.ReadResponse)
 	err = proto.Unmarshal(decompressed, resp)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	expected := &remote.ReadResponse{
-		Results: []*remote.QueryResult{{}},
+	expected := &prompb.ReadResponse{
+		Results: []*prompb.QueryResult{{}},
 	}
 	if !reflect.DeepEqual(resp, expected) {
 		t.Fatalf("Results differ:\n%v", cmp.Diff(expected, resp))

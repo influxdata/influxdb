@@ -21,8 +21,8 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/coordinator"
 	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/prometheus/remote"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/prometheus/prometheus/prompb"
 )
 
 // Global server used by benchmarks
@@ -9564,28 +9564,28 @@ func TestServer_Prometheus_Read(t *testing.T) {
 		t.Fatalf("test init failed: %s", err)
 	}
 
-	req := &remote.ReadRequest{
-		Queries: []*remote.Query{{
-			Matchers: []*remote.LabelMatcher{
+	req := &prompb.ReadRequest{
+		Queries: []*prompb.Query{{
+			Matchers: []*prompb.LabelMatcher{
 				{
-					Type:  remote.MatchType_EQUAL,
+					Type:  prompb.LabelMatcher_EQ,
 					Name:  "__name__",
 					Value: "mem",
 				},
 				// TODO(edd): awaiting negation bugfix in tsdb.IndexSet.
 				// {
-				// 	Type: remote.MatchType_NOT_EQUAL,
+				// 	Type: prompb.LabelMatcher_NOT_EQUAL,
 				// 	Name: "host",
 				// 	Value: "server-2",
 				// },
 				{
-					Type:  remote.MatchType_REGEX_MATCH,
+					Type:  prompb.LabelMatcher_RE,
 					Name:  "host",
 					Value: "server-1$",
 				},
 				// TODO(edd): awaiting negation bugfix in tsdb.IndexSet.
 				// {
-				// 	Type: remote.MatchType_REGEX_NO_MATCH,
+				// 	Type: prompb.LabelMatcher_REGEX_NO_MATCH,
 				// 	Name: "region",
 				// 	Value: "south",
 				// },
@@ -9616,31 +9616,31 @@ func TestServer_Prometheus_Read(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var promResp remote.ReadResponse
+	var promResp prompb.ReadResponse
 	if err := proto.Unmarshal(reqBuf, &promResp); err != nil {
 		t.Fatal(err.Error())
 	}
 
-	expResults := []*remote.QueryResult{
+	expResults := []*prompb.QueryResult{
 		{
-			Timeseries: []*remote.TimeSeries{
+			Timeseries: []*prompb.TimeSeries{
 				{
-					Labels: []*remote.LabelPair{
+					Labels: []prompb.Label{
 						{Name: "host", Value: "server-1"},
 						{Name: "region", Value: "south"},
 					},
-					Samples: []*remote.Sample{
-						{TimestampMs: 120000, Value: 121.2},
+					Samples: []prompb.Sample{
+						{Timestamp: 120000, Value: 121.2},
 					},
 				},
 				{
-					Labels: []*remote.LabelPair{
+					Labels: []prompb.Label{
 						{Name: "host", Value: "server-1"},
 						{Name: "region", Value: "west"},
 					},
-					Samples: []*remote.Sample{
-						{TimestampMs: 119000, Value: 2.34},
-						{TimestampMs: 119500, Value: 988.00},
+					Samples: []prompb.Sample{
+						{Timestamp: 119000, Value: 2.34},
+						{Timestamp: 119500, Value: 988.00},
 					},
 				},
 			},
@@ -9671,24 +9671,24 @@ func TestServer_Prometheus_Write(t *testing.T) {
 		},
 	)
 
-	req := &remote.WriteRequest{
-		Timeseries: []*remote.TimeSeries{
+	req := &prompb.WriteRequest{
+		Timeseries: []prompb.TimeSeries{
 			{
-				Labels: []*remote.LabelPair{
+				Labels: []prompb.Label{
 					{Name: "__name__", Value: "cpu"},
 					{Name: "host", Value: "a"},
 				},
-				Samples: []*remote.Sample{
-					{TimestampMs: now.UnixNano() / int64(time.Millisecond), Value: 100.0},
+				Samples: []prompb.Sample{
+					{Timestamp: now.UnixNano() / int64(time.Millisecond), Value: 100.0},
 				},
 			},
 			{
-				Labels: []*remote.LabelPair{
+				Labels: []prompb.Label{
 					{Name: "__name__", Value: "cpu"},
 					{Name: "host", Value: "b"},
 				},
-				Samples: []*remote.Sample{
-					{TimestampMs: now.UnixNano()/int64(time.Millisecond) + 10, Value: 200.0},
+				Samples: []prompb.Sample{
+					{Timestamp: now.UnixNano()/int64(time.Millisecond) + 10, Value: 200.0},
 				},
 			},
 		},
