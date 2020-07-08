@@ -1,12 +1,11 @@
 #![deny(rust_2018_idioms)]
 
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 
 use delorean::generated_types::{delorean_server::DeloreanServer, storage_server::StorageServer};
 use delorean::storage::database::Database;
 
 use std::env::VarError;
-use std::fs;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
@@ -16,19 +15,6 @@ use hyper::Server;
 use crate::server::http_routes;
 use crate::server::rpc::GrpcServer;
 use crate::server::App;
-
-fn warn_if_db_dir_does_not_exist(path: &std::path::Path) {
-    match fs::metadata(path) {
-        Ok(metadata) => {
-            if metadata.is_file() {
-                warn!("{:?} seems to be a file, not a directory as needed", path);
-            }
-        }
-        Err(e) => {
-            warn!("Can't read db_dir {:?}: {}", path, e);
-        }
-    }
-}
 
 /// Main entrypoint of the Delorean server loop
 pub async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -40,8 +26,6 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             // default database path is $HOME/.delorean
             let mut path = dirs::home_dir().unwrap();
             path.push(".delorean/");
-            warn_if_db_dir_does_not_exist(&path);
-
             path.into_os_string().into_string().unwrap()
         }
     };
