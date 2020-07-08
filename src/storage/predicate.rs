@@ -3,7 +3,6 @@ use crate::generated_types::{
     Node, Predicate,
 };
 
-use crate::storage::StorageError;
 use croaring::Treemap;
 use snafu::Snafu;
 use std::iter::Peekable;
@@ -18,15 +17,6 @@ pub enum Error {
     Evaluation { description: String },
 }
 
-// TODO: remove once we have made all modules have their own errors
-impl From<Error> for StorageError {
-    fn from(e: Error) -> Self {
-        Self {
-            description: e.to_string(),
-        }
-    }
-}
-
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 pub fn parse_predicate(val: &str) -> Result<Predicate> {
@@ -36,7 +26,6 @@ pub fn parse_predicate(val: &str) -> Result<Predicate> {
     let node = parse_node(&mut chars)?;
     predicate.root = Some(node);
 
-    // Err(StorageError{description: "couldn't parse".to_string()})
     Ok(predicate)
 }
 

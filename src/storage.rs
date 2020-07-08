@@ -1,7 +1,4 @@
 use std::convert::TryFrom;
-use std::error;
-use std::fmt;
-use std::io;
 
 pub mod block;
 pub mod database;
@@ -56,56 +53,6 @@ impl TryFrom<u8> for SeriesDataType {
             v if v == I64 as u8 => Ok(I64),
             v if v == F64 as u8 => Ok(F64),
             _ => Err(other),
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct StorageError {
-    pub description: String,
-}
-
-impl fmt::Display for StorageError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.description)
-    }
-}
-
-impl error::Error for StorageError {
-    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
-        // Generic error, underlying cause isn't tracked.
-        None
-    }
-}
-
-impl From<io::Error> for StorageError {
-    fn from(e: io::Error) -> Self {
-        Self {
-            description: format!("TODO - io error: {} ({:?})", e, e),
-        }
-    }
-}
-
-impl From<std::str::Utf8Error> for StorageError {
-    fn from(e: std::str::Utf8Error) -> Self {
-        Self {
-            description: format!("TODO - utf8 error: {} ({:?})", e, e),
-        }
-    }
-}
-
-impl From<delorean_wal::Error> for StorageError {
-    fn from(e: delorean_wal::Error) -> Self {
-        Self {
-            description: format!("WAL error: {} ({:?})", e, e),
-        }
-    }
-}
-
-impl From<serde_json::Error> for StorageError {
-    fn from(e: serde_json::Error) -> Self {
-        Self {
-            description: format!("JSON error: {} ({:?})", e, e),
         }
     }
 }
