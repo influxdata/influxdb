@@ -6,7 +6,7 @@ v1.8.1 [2020-07-08]
 
 ### Features
 
--	[#18457](https://github.com/influxdata/influxdb/pull/18457): feat(query): Parallelize field iterator planning. 
+-	[#18457](https://github.com/influxdata/influxdb/pull/18457): feat(query): Parallelize field iterator planning.
 -	[#18886](https://github.com/influxdata/influxdb/pull/18886): feat(http): Allow user supplied HTTP headers.
 
 ### Bugfixes
