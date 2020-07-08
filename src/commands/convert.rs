@@ -129,9 +129,8 @@ pub fn convert(
             })
             .collect();
 
-        let mut index_readers: Vec<(BufReader<std::fs::File>, usize)> =
-            Vec::with_capacity(files.len());
-        let mut block_readers: Vec<BufReader<std::fs::File>> = Vec::with_capacity(files.len());
+        let mut index_readers = Vec::with_capacity(files.len());
+        let mut block_readers = Vec::with_capacity(files.len());
         for file in &files {
             let index_handle = File::open(file.path()).unwrap();
             let index_size = index_handle.metadata().unwrap().len();
