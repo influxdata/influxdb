@@ -1,12 +1,13 @@
-import React, {FC, useMemo} from 'react'
+import React, {FC, useMemo, useContext} from 'react'
+import {PipeContext} from 'src/notebooks/context/pipe'
 
 interface Props {
-  uri: string
   visible: boolean
 }
 
-const Embedded: FC<Props> = ({uri, visible}) => {
-  const parts = uri.split(':')
+const Embedded: FC<Props> = ({visible}) => {
+  const {data} = useContext(PipeContext)
+  const parts = data.uri.split(':')
 
   if (!visible) {
     return null
@@ -22,7 +23,7 @@ const Embedded: FC<Props> = ({uri, visible}) => {
         allow="encrypted-media"
       />
     ),
-    [uri]
+    [data.uri]
   )
 }
 

@@ -1,9 +1,8 @@
 // Libraries
 import React, {FC, useContext, useState, useEffect} from 'react'
 import {SubmitQueryButton} from 'src/timeMachine/components/SubmitQueryButton'
-import {BothResults} from 'src/notebooks'
 import QueryProvider, {QueryContext} from 'src/notebooks/context/query'
-import {NotebookContext, PipeMeta} from 'src/notebooks/context/notebook'
+import {NotebookContext} from 'src/notebooks/context/notebook'
 import {TimeContext} from 'src/notebooks/context/time'
 import {IconFont} from '@influxdata/clockface'
 
@@ -34,7 +33,7 @@ export const Submit: FC = () => {
     Promise.all(
       pipes
         .reduce((stages, pipe, index) => {
-          updateMeta(index, {loading: RemoteDataState.Loading} as PipeMeta)
+          updateMeta(index, {loading: RemoteDataState.Loading})
 
           if (pipe.type === 'query') {
             let text = pipe.queries[pipe.activeQuery].text.replace(
@@ -81,16 +80,16 @@ export const Submit: FC = () => {
           return query(queryText)
             .then(response => {
               queryStruct.instances.forEach(index => {
-                updateMeta(index, {loading: RemoteDataState.Done} as PipeMeta)
+                updateMeta(index, {loading: RemoteDataState.Done})
                 updateResult(index, response)
               })
             })
             .catch(e => {
               queryStruct.instances.forEach(index => {
-                updateMeta(index, {loading: RemoteDataState.Error} as PipeMeta)
+                updateMeta(index, {loading: RemoteDataState.Error})
                 updateResult(index, {
                   error: e.message,
-                } as BothResults)
+                })
               })
             })
         })

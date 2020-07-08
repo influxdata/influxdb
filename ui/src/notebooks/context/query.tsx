@@ -10,15 +10,15 @@ import {getOrg} from 'src/organizations/selectors'
 import {NotebookContext} from 'src/notebooks/context/notebook'
 import {TimeContext} from 'src/notebooks/context/time'
 import {fromFlux as parse} from '@influxdata/giraffe'
-import {BothResults} from 'src/notebooks'
+import {FluxResult} from 'src/notebooks'
 import {reportSimpleQueryPerformanceEvent} from 'src/cloud/utils/reporting'
 
 export interface QueryContextType {
-  query: (text: string) => Promise<BothResults>
+  query: (text: string) => Promise<FluxResult>
 }
 
 export const DEFAULT_CONTEXT: QueryContextType = {
-  query: () => Promise.resolve({} as BothResults),
+  query: () => Promise.resolve({} as FluxResult),
 }
 
 export const QueryContext = React.createContext<QueryContextType>(

@@ -1,5 +1,5 @@
 // Libraries
-import React, {FC, useMemo} from 'react'
+import React, {FC, useMemo, useContext} from 'react'
 
 // Types
 import {PipeProp} from 'src/notebooks'
@@ -9,11 +9,14 @@ import BucketSelector from 'src/notebooks/pipes/Data/BucketSelector'
 import TimeSelector from 'src/notebooks/pipes/Data/TimeSelector'
 import {FlexBox, ComponentSize} from '@influxdata/clockface'
 import BucketProvider from 'src/notebooks/context/buckets'
+import {PipeContext} from 'src/notebooks/context/pipe'
 
 // Styles
 import 'src/notebooks/pipes/Query/style.scss'
 
-const DataSource: FC<PipeProp> = ({data, onUpdate, Context}) => {
+const DataSource: FC<PipeProp> = ({Context}) => {
+  const {data} = useContext(PipeContext)
+
   return useMemo(
     () => (
       <BucketProvider>
@@ -23,8 +26,8 @@ const DataSource: FC<PipeProp> = ({data, onUpdate, Context}) => {
             stretchToFitWidth={true}
             className="data-source"
           >
-            <BucketSelector onUpdate={onUpdate} data={data} />
-            <TimeSelector onUpdate={onUpdate} data={data} />
+            <BucketSelector />
+            <TimeSelector />
           </FlexBox>
         </Context>
       </BucketProvider>

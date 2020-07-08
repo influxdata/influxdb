@@ -1,8 +1,8 @@
 // Libraries
-import React, {FC, useContext, useCallback} from 'react'
+import React, {FC, useContext} from 'react'
 
 // Contexts
-import {NotebookContext} from 'src/notebooks/context/notebook'
+import {NotebookContext} from 'src/notebooks/context/notebook.current'
 import {ScrollContext} from 'src/notebooks/context/scroll'
 
 // Components
@@ -11,25 +11,16 @@ import EmptyPipeList from 'src/notebooks/components/EmptyPipeList'
 import {DapperScrollbars} from '@influxdata/clockface'
 
 const PipeList: FC = () => {
-  const {id, pipes, updatePipe, results, meta} = useContext(NotebookContext)
   const {scrollPosition} = useContext(ScrollContext)
-  const update = useCallback(updatePipe, [id])
+  const {notebook} = useContext(NotebookContext)
+  const {data} = notebook
 
-  if (!pipes.length) {
+  if (!data || !data.allIDs.length) {
     return <EmptyPipeList />
   }
 
-  const _pipes = pipes.map((_, index) => {
-    return (
-      <NotebookPipe
-        key={`pipe-${id}-${index}`}
-        index={index}
-        data={pipes[index]}
-        onUpdate={update}
-        results={results[index]}
-        loading={meta[index].loading}
-      />
-    )
+  const _pipes = data.allIDs.map(id => {
+    return <NotebookPipe key={`pipe-${id}`} id={id} />
   })
 
   return (

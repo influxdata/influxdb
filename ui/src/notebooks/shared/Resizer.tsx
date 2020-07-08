@@ -1,13 +1,20 @@
 // Libraries
-import React, {FC, useRef, useEffect, ReactNode, useState} from 'react'
+import React, {
+  FC,
+  useRef,
+  useEffect,
+  useContext,
+  ReactNode,
+  useState,
+} from 'react'
 import classnames from 'classnames'
 
 // Components
 import ResizerHeader from 'src/notebooks/shared/ResizerHeader'
+import {PipeContext} from 'src/notebooks/context/pipe'
 
 // Types
 import {IconFont} from '@influxdata/clockface'
-import {PipeData} from 'src/notebooks/index'
 
 // Styles
 import 'src/notebooks/shared/Resizer.scss'
@@ -15,8 +22,6 @@ import 'src/notebooks/shared/Resizer.scss'
 export type Visibility = 'visible' | 'hidden'
 
 interface Props {
-  data: PipeData
-  onUpdate: (data: PipeData) => void
   children: ReactNode
   /** If true the resizer can be toggled between Hidden & Visible */
   toggleVisibilityEnabled: boolean
@@ -37,8 +42,6 @@ interface Props {
 const MINIMUM_RESIZER_HEIGHT = 180
 
 const Resizer: FC<Props> = ({
-  data,
-  onUpdate,
   children,
   emptyIcon = IconFont.Zap,
   emptyText,
@@ -48,6 +51,7 @@ const Resizer: FC<Props> = ({
   additionalControls,
   toggleVisibilityEnabled,
 }) => {
+  const {data, update} = useContext(PipeContext)
   const height = data.panelHeight
   const visibility = data.panelVisibility
 
@@ -69,11 +73,11 @@ const Resizer: FC<Props> = ({
   }
 
   const handleUpdateVisibility = (panelVisibility: Visibility): void => {
-    onUpdate({panelVisibility})
+    update({panelVisibility})
   }
 
   const handleUpdateHeight = (panelHeight: number): void => {
-    onUpdate({panelHeight})
+    update({panelHeight})
   }
 
   // Ensure results renders with proper height on initial render

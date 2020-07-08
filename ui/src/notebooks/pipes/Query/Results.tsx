@@ -1,6 +1,5 @@
 // Libraries
-import React, {FC, useEffect, useState, useMemo} from 'react'
-import {BothResults} from 'src/notebooks'
+import React, {FC, useEffect, useState, useContext, useMemo} from 'react'
 import {AutoSizer} from 'react-virtualized'
 
 // Components
@@ -9,19 +8,13 @@ import {ROW_HEIGHT} from 'src/timeMachine/components/RawFluxDataGrid'
 import Resizer from 'src/notebooks/shared/Resizer'
 import ResultsPagination from 'src/notebooks/pipes/Query/ResultsPagination'
 
-// Types
-import {PipeData} from 'src/notebooks/index'
+import {PipeContext} from 'src/notebooks/context/pipe'
 
 // Utils
 import {event} from 'src/notebooks/shared/event'
 
-interface Props {
-  data: PipeData
-  results: BothResults
-  onUpdate: (data: any) => void
-}
-
-const Results: FC<Props> = ({results, onUpdate, data}) => {
+const Results: FC = () => {
+  const {data, results} = useContext(PipeContext)
   const resultsExist = !!results.raw && !!results.parsed.table.length
 
   const rows = useMemo(() => (results.raw || '').split('\n'), [results.raw])
@@ -60,8 +53,6 @@ const Results: FC<Props> = ({results, onUpdate, data}) => {
 
   return (
     <Resizer
-      data={data}
-      onUpdate={onUpdate}
       resizingEnabled={resultsExist}
       emptyText="Run the Flow to see Results"
       hiddenText="Results hidden"

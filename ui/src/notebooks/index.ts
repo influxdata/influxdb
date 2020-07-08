@@ -2,13 +2,6 @@ import {FunctionComponent, ComponentClass, ReactNode} from 'react'
 import {RemoteDataState} from 'src/types'
 import {FromFluxResult} from '@influxdata/giraffe'
 
-export interface BothResults {
-  source: string
-  parsed: FromFluxResult
-  raw: string
-  error?: string
-}
-
 export interface PipeContextProps {
   children?: ReactNode
   controls?: ReactNode
@@ -16,15 +9,53 @@ export interface PipeContextProps {
 
 export type PipeData = any
 
-export interface PipeProp {
-  data: PipeData
-  onUpdate: (data: PipeData) => void
-  results?: BothResults
+export interface PipeMeta {
+  title: string
+  visible: boolean
   loading: RemoteDataState
+  error?: string
+  focus: boolean
+}
 
+export interface PipeProp {
   Context:
     | FunctionComponent<PipeContextProps>
     | ComponentClass<PipeContextProps>
+}
+
+export interface FluxResult {
+  source: string // the query that was used to generate the flux
+  raw: string // the result from the API
+  parsed: FromFluxResult // the parsed result
+  error?: string // any error that might have happend while fetching
+}
+
+export type DataID<_T> = string
+
+interface DataLookup<T> {
+  [key: DataID<T>]: T
+}
+
+export interface Resource<T> {
+  byID: DataLookup<T>
+  allIDs: DataID<T>[]
+  get: (id: DataID<T>) => T
+  update: (id: DataID<T>, data: Partial<T>) => void
+  remove: (id: DataID<T>) => void
+  indexOf: (id: DataID<T>) => number
+  move: (id: DataID<T>, index: number) => void
+}
+
+export interface Notebook {
+  data: Resource<PipeData>
+  meta: Resource<PipeMeta>
+  results?: FluxResult
+}
+
+export interface NotebookList {
+  notebooks: {
+    [key: DataID<Notebook>]: Resource<Notebook>
+  }
 }
 
 // NOTE: keep this interface as small as possible and
