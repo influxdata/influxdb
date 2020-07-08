@@ -562,67 +562,79 @@ impl TSMFileConverter {
         }
 
         loop {
-            dst = Self::refill_table_buffer(&mut mappers, dst)?;
+            dst = Self::refill_input_tables(&mut mappers, dst)?;
+            let res = Self::merge_input_tables(dst)?;
+            let next_measurement = res.0;
+            dst = res.1;
 
-            let mut dst_map: BTreeMap<String, Vec<MeasurementTable>> = BTreeMap::new();
-            for table in &mut dst {
-                if let Some(table) = table.take() {
-                    let v = dst_map.entry(table.name.clone()).or_default();
-                    v.push(table);
+            match next_measurement {
+                Some(mut table) => {
+                    // convert (potentially merged) measurement..
+                    let (schema, packed_columns) =
+                        Self::process_measurement_table(&mut block_reader, &mut table)?;
+                    let mut table_writer = self
+                        .table_writer_source
+                        .next_writer(&schema)
+                        .context(WriterCreation)?;
+
+                    table_writer
+                        .write_batch(&packed_columns)
+                        .context(WriterCreation)?;
+                    table_writer.close().context(WriterCreation)?;
                 }
-            }
-
-            // pop the first set of measurements off of the map. Guaranteed to
-            // be the next measurement to process.
-            let mut first_measurement: MeasurementTable;
-            if let Some((_, min_measurements)) = dst_map.into_iter().next() {
-                let mut iter = min_measurements.into_iter();
-                first_measurement = iter.next().unwrap();
-
-                // if there are multiple tables for this measurement merge them
-                // into the first one.
-                for mut next_measurement in iter {
-                    // TODO(edd): perf - could calculate a more efficient merge
-                    // order.
-                    first_measurement
-                        .merge(&mut next_measurement)
-                        .context(TSMProcessing)?;
-                }
-            } else {
-                break; // no measurements to process; all inputs drained
-            }
-
-            // convert (potentially merged) measurement..
-            let (schema, packed_columns) =
-                Self::process_measurement_table(&mut block_reader, &mut first_measurement)?;
-
-            let mut table_writer = self
-                .table_writer_source
-                .next_writer(&schema)
-                .context(WriterCreation)?;
-
-            table_writer
-                .write_batch(&packed_columns)
-                .context(WriterCreation)?;
-            table_writer.close().context(WriterCreation)?;
-
-            // mark any measurement tables that were processed as None so
-            // candidate buffer can be refilled.
-            for table in &mut dst {
-                if let Some(mt) = table {
-                    if mt.name == first_measurement.name {
-                        *table = None;
-                    }
-                }
+                None => break,
             }
         }
-
         Ok(())
     }
 
-    // refill_table_buffer ensures that the destination vector has the next
+    // Given a set of input tables, identifies the next table (lexicographically)
+    // and then merges any identical tables into the first one.
+    //
+    // Returns the merged table and the remaining set of inputs to be
+    // subsequently processed.
+    fn merge_input_tables(
+        mut inputs: Vec<Option<MeasurementTable>>,
+    ) -> Result<(Option<MeasurementTable>, Vec<Option<MeasurementTable>>), Error> {
+        // track each table's position in the input vector. If tables are chosen
+        // they will be moved out of the input vector later on.
+        let mut input_map: BTreeMap<String, Vec<usize>> = BTreeMap::new();
+        for (i, table) in inputs.iter().enumerate() {
+            if let Some(table) = table {
+                let v = input_map.entry(table.name.clone()).or_default();
+                v.push(i);
+            }
+        }
+
+        // tables are now organised together by the table's measurement name and
+        // ordered lexicographically. The first item in the sorted map is the
+        // next measurement that needs to be merged and processed.
+        if let Some((_, table_indexes)) = input_map.into_iter().next() {
+            let mut iter = table_indexes.into_iter(); // merge each of these into first one
+
+            // unwrap is safe because the indexes in iter all point to none-none
+            // tables.
+            let mut first_table =
+                std::mem::replace(&mut inputs[iter.next().unwrap()], None).unwrap();
+
+            // if there are multiple tables for this measurement merge them
+            // into the first one.
+            for idx in iter {
+                // TODO(edd): perf - could calculate a more efficient merge
+                // order.
+                let mut next_table = std::mem::replace(&mut inputs[idx], None).unwrap();
+                first_table.merge(&mut next_table).context(TSMProcessing)?;
+            }
+            return Ok((Some(first_table), inputs));
+        }
+
+        // no measurements to process; all inputs drained
+        Ok((None, inputs))
+    }
+
+    // Ensures that the destination vector has the next
     // measurement table for each input iterator.
-    fn refill_table_buffer(
+    fn refill_input_tables(
         inputs: &mut Vec<impl Iterator<Item = Result<MeasurementTable, TSMError>>>,
         mut dst: Vec<Option<MeasurementTable>>,
     ) -> Result<Vec<Option<MeasurementTable>>, Error> {
@@ -919,6 +931,10 @@ mod delorean_ingest_tests {
     };
     use delorean_table_schema::ColumnDefinition;
     use delorean_test_helpers::approximately_equal;
+    use delorean_tsm::{
+        reader::{BlockData, MockBlockDecoder},
+        Block,
+    };
 
     use libflate::gzip;
     use std::fs::File;
@@ -1582,11 +1598,6 @@ mod delorean_ingest_tests {
 
     #[test]
     fn process_measurement_table() -> Result<(), Box<dyn std::error::Error>> {
-        use delorean_tsm::{
-            reader::{BlockData, MockBlockDecoder},
-            Block,
-        };
-
         // Input data - in line protocol format
         //
         // cpu,region=east temp=1.2 0
@@ -1835,6 +1846,59 @@ mod delorean_ingest_tests {
             ]))
         );
 
+        Ok(())
+    }
+
+    fn empty_block() -> Block {
+        Block {
+            min_time: 0,
+            max_time: 0,
+            offset: 0,
+            size: 0,
+            typ: BlockType::Float,
+            reader_idx: 0,
+        }
+    }
+
+    #[test]
+    fn merge_input_tables() -> Result<(), Box<dyn std::error::Error>> {
+        let mut inputs: Vec<Option<MeasurementTable>> = vec![];
+        let mut table = MeasurementTable::new("cpu".to_string(), 0);
+        table.add_series_data(
+            vec![("region".to_string(), "east".to_string())],
+            "temp".to_string(),
+            empty_block(),
+        )?;
+        inputs.push(Some(table.clone()));
+
+        table = MeasurementTable::new("cpu".to_string(), 1);
+        table.add_series_data(
+            vec![("server".to_string(), "a".to_string())],
+            "temp".to_string(),
+            empty_block(),
+        )?;
+        inputs.push(Some(table.clone()));
+
+        table = MeasurementTable::new("disk".to_string(), 2);
+        table.add_series_data(
+            vec![("region".to_string(), "west".to_string())],
+            "temp".to_string(),
+            empty_block(),
+        )?;
+        inputs.push(Some(table));
+
+        let mut res = TSMFileConverter::merge_input_tables(inputs)?;
+        let mut merged = res.0.unwrap();
+        inputs = res.1;
+        assert_eq!(merged.name, "cpu".to_string());
+        assert_eq!(merged.tag_columns(), vec!["region", "server"]);
+        assert_eq!(inputs[0], None);
+        assert_eq!(inputs[1], None);
+
+        res = TSMFileConverter::merge_input_tables(inputs)?;
+        merged = res.0.unwrap();
+        assert_eq!(merged.name, "disk".to_string());
+        assert_eq!(res.1, vec![None, None, None]);
         Ok(())
     }
 
