@@ -1,5 +1,4 @@
-use crate::TSMError;
-use snafu::Snafu;
+use snafu::{OptionExt, ResultExt, Snafu};
 
 #[derive(Clone, Debug)]
 pub struct ParsedTSMKey {
@@ -8,10 +7,54 @@ pub struct ParsedTSMKey {
     pub field_key: String,
 }
 
+/// Public error type that wraps the underlying data parsing error
+/// with the actual key value being parsed.
 #[derive(Debug, Snafu, PartialEq)]
 pub enum Error {
+    #[snafu(display(r#"Error while parsing tsm tag key '{}': {}"#, key, source))]
+    ParsingTSMKey { key: String, source: DataError },
+}
+
+#[derive(Debug, Snafu, PartialEq)]
+pub enum DataError {
+    #[snafu(display(r#"No measurement found (expected to find in tag field \x00)"#))]
+    NoMeasurement {},
+
+    #[snafu(display(r#"No field key (expected to find in tag field \xff)"#))]
+    NoFieldKey {},
+
+    #[snafu(display(
+        r#"Found new measurement '{}' after the first '{}'"#,
+        new_measurement,
+        old_measurement
+    ))]
+    MultipleMeasurements {
+        new_measurement: String,
+        old_measurement: String,
+    },
+
+    #[snafu(display(
+        r#"Found new field key '{}' after the first '{}'"#,
+        new_field,
+        old_field
+    ))]
+    MultipleFields {
+        new_field: String,
+        old_field: String,
+    },
+
     #[snafu(display(r#"Error parsing tsm tag key: {}"#, description))]
-    ParsingTSMKey { description: String },
+    ParsingTSMTagKey { description: String },
+
+    #[snafu(display(
+        r#"Error parsing tsm tag value for key '{}': {}"#,
+        tag_key,
+        description
+    ))]
+    ParsingTSMTagValue {
+        tag_key: String,
+        description: String,
+    },
 
     #[snafu(display(r#"Error parsing tsm field key: {}"#, description))]
     ParsingTSMFieldKey { description: String },
@@ -37,7 +80,14 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 ///    measurement = "http_api_request"
 ///    tags = [("status", "2XX")]
 ///    field = "sum"
-pub fn parse_tsm_key(key: &[u8]) -> Result<ParsedTSMKey, TSMError> {
+pub fn parse_tsm_key(key: &[u8]) -> Result<ParsedTSMKey, Error> {
+    // Wrap in an internal function to translate error types and add key context
+    parse_tsm_key_internal(key).context(ParsingTSMKey {
+        key: String::from_utf8_lossy(key),
+    })
+}
+
+fn parse_tsm_key_internal(key: &[u8]) -> Result<ParsedTSMKey, DataError> {
     // skip over org id, bucket id, comma
     // The next n-1 bytes are the measurement name, where the nᵗʰ byte is a `,`.
     let mut rem_key = key.iter().copied().skip(8 + 8 + 1);
@@ -47,45 +97,34 @@ pub fn parse_tsm_key(key: &[u8]) -> Result<ParsedTSMKey, TSMError> {
     let mut field_key = None;
 
     loop {
-        let key = parse_tsm_tag_key(&mut rem_key).map_err(|e| TSMError {
-            description: e.to_string(),
-        })?;
-        let (has_more_tags, tag_value) =
-            parse_tsm_tag_value(&mut rem_key).map_err(|e| TSMError {
-                description: e.to_string(),
-            })?;
+        let tag_key = parse_tsm_tag_key(&mut rem_key)?;
+        let (has_more_tags, tag_value) = parse_tsm_tag_value(&tag_key, &mut rem_key)?;
 
-        match key {
+        match tag_key {
             KeyType::Tag(tag_key) => {
                 tagset.push((tag_key, tag_value));
             }
 
             KeyType::Measurement => match measurement {
                 Some(measurement) => {
-                    return Err(TSMError {
-                        description: format!(
-                            "found second measurement '{}' after first '{}'",
-                            tag_value, measurement
-                        ),
-                    });
+                    return MultipleMeasurements {
+                        new_measurement: tag_value,
+                        old_measurement: measurement,
+                    }
+                    .fail()
                 }
                 None => measurement = Some(tag_value),
             },
 
             KeyType::Field => match field_key {
                 Some(field_key) => {
-                    return Err(TSMError {
-                        description: format!(
-                            "found second field key '{}' after first '{}'",
-                            tag_value, field_key
-                        ),
-                    });
+                    return MultipleFields {
+                        old_field: field_key,
+                        new_field: tag_value,
+                    }
+                    .fail()
                 }
-                None => {
-                    field_key = Some(parse_tsm_field_key(&tag_value).map_err(|e| TSMError {
-                        description: e.to_string(),
-                    })?);
-                }
+                None => field_key = Some(parse_tsm_field_key(&tag_value)?),
             },
         };
 
@@ -95,13 +134,9 @@ pub fn parse_tsm_key(key: &[u8]) -> Result<ParsedTSMKey, TSMError> {
     }
 
     Ok(ParsedTSMKey {
-        measurement: measurement.ok_or(TSMError {
-            description: "No measurement name found in index".into(),
-        })?,
+        measurement: measurement.context(NoMeasurement)?,
         tagset,
-        field_key: field_key.ok_or(TSMError {
-            description: "No field key found in index".into(),
-        })?,
+        field_key: field_key.context(NoFieldKey)?,
     })
 }
 
@@ -111,7 +146,7 @@ pub fn parse_tsm_key(key: &[u8]) -> Result<ParsedTSMKey, TSMError> {
 /// <field_key><4-byte delimiter><field_key>
 ///
 /// Example: sum#!~#sum means 'sum' field key
-fn parse_tsm_field_key(value: &str) -> Result<String> {
+fn parse_tsm_field_key(value: &str) -> Result<String, DataError> {
     const DELIM: &str = "#!~#";
 
     if value.len() < 6 {
@@ -169,9 +204,19 @@ enum KeyType {
     Field,
 }
 
+impl std::convert::From<&KeyType> for String {
+    fn from(item: &KeyType) -> Self {
+        match item {
+            KeyType::Tag(s) => s.clone(),
+            KeyType::Measurement => "<measurement>".to_string(),
+            KeyType::Field => "<field>".to_string(),
+        }
+    }
+}
+
 /// Parses bytes from the `rem_key` input stream until the end of the
 /// next key value (=). Consumes the '='
-fn parse_tsm_tag_key(rem_key: impl Iterator<Item = u8>) -> Result<KeyType> {
+fn parse_tsm_tag_key(rem_key: impl Iterator<Item = u8>) -> Result<KeyType, DataError> {
     enum State {
         Data,
         Measurement,
@@ -196,13 +241,13 @@ fn parse_tsm_tag_key(rem_key: impl Iterator<Item = u8>) -> Result<KeyType> {
                 }
                 b'=' => return Ok(KeyType::Tag(key)),
                 b',' => {
-                    return ParsingTSMKey {
+                    return ParsingTSMTagKey {
                         description: "unescaped comma",
                     }
                     .fail();
                 }
                 b' ' => {
-                    return ParsingTSMKey {
+                    return ParsingTSMTagKey {
                         description: "unescaped space",
                     }
                     .fail();
@@ -215,7 +260,7 @@ fn parse_tsm_tag_key(rem_key: impl Iterator<Item = u8>) -> Result<KeyType> {
                     return Ok(KeyType::Measurement);
                 }
                 _ => {
-                    return ParsingTSMKey {
+                    return ParsingTSMTagKey {
                         description: "extra data after special 0x00",
                     }
                     .fail();
@@ -226,7 +271,7 @@ fn parse_tsm_tag_key(rem_key: impl Iterator<Item = u8>) -> Result<KeyType> {
                     return Ok(KeyType::Field);
                 }
                 _ => {
-                    return ParsingTSMKey {
+                    return ParsingTSMTagKey {
                         description: "extra data after special 0xff",
                     }
                     .fail();
@@ -239,7 +284,7 @@ fn parse_tsm_tag_key(rem_key: impl Iterator<Item = u8>) -> Result<KeyType> {
         }
     }
 
-    ParsingTSMKey {
+    ParsingTSMTagKey {
         description: "unexpected end of data",
     }
     .fail()
@@ -254,7 +299,10 @@ fn parse_tsm_tag_key(rem_key: impl Iterator<Item = u8>) -> Result<KeyType> {
 ///
 /// "val1,tag2=val --> Ok((true, "val1")));
 /// "val1" --> Ok((False, "val1")));
-fn parse_tsm_tag_value(rem_key: impl Iterator<Item = u8>) -> Result<(bool, String)> {
+fn parse_tsm_tag_value(
+    tag_key: &KeyType,
+    rem_key: impl Iterator<Item = u8>,
+) -> Result<(bool, String), DataError> {
     #[derive(Debug)]
     enum State {
         Start,
@@ -274,20 +322,23 @@ fn parse_tsm_tag_value(rem_key: impl Iterator<Item = u8>) -> Result<(bool, Strin
                     // An unescaped equals sign is an invalid tag value.
                     // cpu,tag={'=', 'fo=o'}
                     b'=' => {
-                        return ParsingTSMKey {
+                        return ParsingTSMTagValue {
+                            tag_key,
                             description: "invalid unescaped '='",
                         }
                         .fail()
                     }
                     // An unescaped space is an invalid tag value.
                     b' ' => {
-                        return ParsingTSMKey {
+                        return ParsingTSMTagValue {
+                            tag_key,
                             description: "invalid unescaped ' '",
                         }
                         .fail()
                     }
                     b',' => {
-                        return ParsingTSMKey {
+                        return ParsingTSMTagValue {
+                            tag_key,
                             description: "missing tag value",
                         }
                         .fail()
@@ -304,14 +355,16 @@ fn parse_tsm_tag_value(rem_key: impl Iterator<Item = u8>) -> Result<(bool, Strin
                     // An unescaped equals sign is an invalid tag value.
                     // cpu,tag={'=', 'fo=o'}
                     b'=' => {
-                        return ParsingTSMKey {
+                        return ParsingTSMTagValue {
+                            tag_key,
                             description: "invalid unescaped '='",
                         }
                         .fail()
                     }
                     // An unescaped space is an invalid tag value.
                     b' ' => {
-                        return ParsingTSMKey {
+                        return ParsingTSMTagValue {
+                            tag_key,
                             description: "invalid unescaped ' '",
                         }
                         .fail()
@@ -334,11 +387,13 @@ fn parse_tsm_tag_value(rem_key: impl Iterator<Item = u8>) -> Result<(bool, Strin
 
     // Tag value cannot be empty.
     match state {
-        State::Start => ParsingTSMKey {
+        State::Start => ParsingTSMTagValue {
+            tag_key,
             description: "missing tag value",
         }
         .fail(),
-        State::Escaped => ParsingTSMKey {
+        State::Escaped => ParsingTSMTagValue {
+            tag_key,
             description: "tag value ends in escape",
         }
         .fail(),
@@ -354,139 +409,88 @@ mod tests {
     fn test_parse_tsm_field_key() {
         // test the operation of parse_tsm_field_key
         assert_eq!(parse_tsm_field_key("sum#!~#sum"), Ok("sum".into()));
-        assert_eq!(
-            parse_tsm_field_key("#!~#"),
-            Err(Error::ParsingTSMFieldKey {
-                description: "field key too short".into()
-            })
+
+        let err_str = parse_tsm_field_key("#!~#")
+            .err()
+            .expect("expect parsing error")
+            .to_string();
+        assert!(err_str.find("field key too short") != None, err_str);
+
+        let err_str = parse_tsm_field_key("foo#!~#fpp")
+            .err()
+            .expect("expect parsing error")
+            .to_string();
+        assert!(
+            err_str.find("Invalid field key format \'foo#!~#fpp\', expected \'foo#!~#foo\'")
+                != None,
+            err_str
         );
-        assert_eq!(
-            parse_tsm_field_key("foo#!~#fpp"),
-            Err(Error::ParsingTSMFieldKey {
-                description: "Invalid field key format \'foo#!~#fpp\', expected \'foo#!~#foo\'"
-                    .into()
-            })
+
+        let err_str = parse_tsm_field_key("foo#!~#naaa")
+            .err()
+            .expect("expect parsing error")
+            .to_string();
+        assert!(
+            err_str.find("Invalid field key format \'foo#!~#naaa\', expected \'foo#!~#foo\'")
+                != None,
+            err_str
         );
-        assert_eq!(
-            parse_tsm_field_key("foo#!~#naaa"),
-            Err(Error::ParsingTSMFieldKey {
-                description: "Invalid field key format \'foo#!~#naaa\', expected \'foo#!~#foo\'"
-                    .into()
-            })
-        );
-        assert_eq!(
-            parse_tsm_field_key("foo#!~#"),
-            Err(Error::ParsingTSMFieldKey {
-                description: "Invalid field key format \'foo#!~#\', expected \'f#!~#f\'".into()
-            })
-        );
-        assert_eq!(
-            parse_tsm_field_key("foo####foo"),
-            Err(Error::ParsingTSMFieldKey {
-                description: "Invalid field key format \'foo####foo\', expected \'foo#!~#foo\'"
-                    .into()
-            })
+
+        let err_str = parse_tsm_field_key("foo#!~#")
+            .err()
+            .expect("expect parsing error")
+            .to_string();
+        assert!(err_str.find("Invalid field key format \'foo#!~#\', expected \'f#!~#f\'") != None,);
+
+        let err_str = parse_tsm_field_key("foo####foo")
+            .err()
+            .expect("expect parsing error")
+            .to_string();
+        assert!(
+            err_str.find("Invalid field key format \'foo####foo\', expected \'foo#!~#foo\'")
+                != None,
+            err_str
         );
     }
 
     #[test]
     fn test_parse_tsm_tag_key() {
-        do_test_parse_tsm_tag_key(
-            "",
-            "",
-            Err(Error::ParsingTSMKey {
-                description: "unexpected end of data".into(),
-            }),
-        );
-        do_test_parse_tsm_tag_key("foo=bar", "bar", Ok(KeyType::Tag("foo".into())));
-        do_test_parse_tsm_tag_key("foo=", "", Ok(KeyType::Tag("foo".into())));
-        do_test_parse_tsm_tag_key(
-            "foo",
-            "",
-            Err(Error::ParsingTSMKey {
-                description: "unexpected end of data".into(),
-            }),
-        );
-        do_test_parse_tsm_tag_key(
-            "foo,=bar",
-            "=bar",
-            Err(Error::ParsingTSMKey {
-                description: "unescaped comma".into(),
-            }),
-        );
-        do_test_parse_tsm_tag_key(
-            "foo =bar",
-            "=bar",
-            Err(Error::ParsingTSMKey {
-                description: "unescaped space".into(),
-            }),
-        );
+        do_test_parse_tsm_tag_key_error("", "", "unexpected end of data");
+        do_test_parse_tsm_tag_key_good("foo=bar", "bar", KeyType::Tag("foo".into()));
+        do_test_parse_tsm_tag_key_good("foo=", "", KeyType::Tag("foo".into()));
+        do_test_parse_tsm_tag_key_error("foo", "", "unexpected end of data");
+        do_test_parse_tsm_tag_key_error("foo,=bar", "=bar", "unescaped comma");
+        do_test_parse_tsm_tag_key_error("foo =bar", "=bar", "unescaped space");
 
-        do_test_parse_tsm_tag_key(r"\ foo=bar", "bar", Ok(KeyType::Tag(" foo".into())));
-        do_test_parse_tsm_tag_key(r"\=foo=bar", "bar", Ok(KeyType::Tag("=foo".into())));
-        do_test_parse_tsm_tag_key(r"\,foo=bar", "bar", Ok(KeyType::Tag(",foo".into())));
-        do_test_parse_tsm_tag_key(r"\foo=bar", "bar", Ok(KeyType::Tag("foo".into())));
-        do_test_parse_tsm_tag_key(r"\\foo=bar", "bar", Ok(KeyType::Tag(r"\foo".into())));
+        do_test_parse_tsm_tag_key_good(r"\ foo=bar", "bar", KeyType::Tag(" foo".into()));
+        do_test_parse_tsm_tag_key_good(r"\=foo=bar", "bar", KeyType::Tag("=foo".into()));
+        do_test_parse_tsm_tag_key_good(r"\,foo=bar", "bar", KeyType::Tag(",foo".into()));
+        do_test_parse_tsm_tag_key_good(r"\foo=bar", "bar", KeyType::Tag("foo".into()));
+        do_test_parse_tsm_tag_key_good(r"\\foo=bar", "bar", KeyType::Tag(r"\foo".into()));
 
-        do_test_parse_tsm_tag_key(r"f\ oo=bar", "bar", Ok(KeyType::Tag("f oo".into())));
-        do_test_parse_tsm_tag_key(r"f\=oo=bar", "bar", Ok(KeyType::Tag("f=oo".into())));
-        do_test_parse_tsm_tag_key(r"f\,oo=bar", "bar", Ok(KeyType::Tag("f,oo".into())));
-        do_test_parse_tsm_tag_key(r"f\oo=bar", "bar", Ok(KeyType::Tag("foo".into())));
+        do_test_parse_tsm_tag_key_good(r"f\ oo=bar", "bar", KeyType::Tag("f oo".into()));
+        do_test_parse_tsm_tag_key_good(r"f\=oo=bar", "bar", KeyType::Tag("f=oo".into()));
+        do_test_parse_tsm_tag_key_good(r"f\,oo=bar", "bar", KeyType::Tag("f,oo".into()));
+        do_test_parse_tsm_tag_key_good(r"f\oo=bar", "bar", KeyType::Tag("foo".into()));
     }
 
     #[test]
     fn test_parse_tsm_tag_value() {
-        do_test_parse_tsm_tag_value(
-            "",
-            "",
-            Err(Error::ParsingTSMKey {
-                description: "missing tag value".into(),
-            }),
-        );
-        do_test_parse_tsm_tag_value(
+        do_test_parse_tsm_tag_value_error("", "", "missing tag value");
+        do_test_parse_tsm_tag_value_good(
             "val1,tag2=val2 value=1",
             "tag2=val2 value=1",
-            Ok((true, "val1".into())),
+            (true, "val1".into()),
         );
-        do_test_parse_tsm_tag_value("val1", "", Ok((false, "val1".into())));
-        do_test_parse_tsm_tag_value(r"\ val1", "", Ok((false, " val1".into())));
-        do_test_parse_tsm_tag_value(r"val\ 1", "", Ok((false, "val 1".into())));
-        do_test_parse_tsm_tag_value(r"val1\ ", "", Ok((false, "val1 ".into())));
-        do_test_parse_tsm_tag_value(
-            r"val1\",
-            "",
-            Err(Error::ParsingTSMKey {
-                description: "tag value ends in escape".into(),
-            }),
-        );
-        do_test_parse_tsm_tag_value(
-            r"=b",
-            "b",
-            Err(Error::ParsingTSMKey {
-                description: "invalid unescaped '='".into(),
-            }),
-        );
-        do_test_parse_tsm_tag_value(
-            r"f=b",
-            "b",
-            Err(Error::ParsingTSMKey {
-                description: "invalid unescaped '='".into(),
-            }),
-        );
-        do_test_parse_tsm_tag_value(
-            r" v",
-            "v",
-            Err(Error::ParsingTSMKey {
-                description: "invalid unescaped ' '".into(),
-            }),
-        );
-        do_test_parse_tsm_tag_value(
-            r"v ",
-            "",
-            Err(Error::ParsingTSMKey {
-                description: "invalid unescaped ' '".into(),
-            }),
-        );
+        do_test_parse_tsm_tag_value_good("val1", "", (false, "val1".into()));
+        do_test_parse_tsm_tag_value_good(r"\ val1", "", (false, " val1".into()));
+        do_test_parse_tsm_tag_value_good(r"val\ 1", "", (false, "val 1".into()));
+        do_test_parse_tsm_tag_value_good(r"val1\ ", "", (false, "val1 ".into()));
+        do_test_parse_tsm_tag_value_error(r"val1\", "", "tag value ends in escape");
+        do_test_parse_tsm_tag_value_error(r"=b", "b", "invalid unescaped '='");
+        do_test_parse_tsm_tag_value_error(r"f=b", "b", "invalid unescaped '='");
+        do_test_parse_tsm_tag_value_error(r" v", "v", "invalid unescaped ' '");
+        do_test_parse_tsm_tag_value_error(r"v ", "", "invalid unescaped ' '");
     }
 
     // create key in this form:
@@ -544,17 +548,35 @@ mod tests {
     }
 
     #[test]
+    fn parse_tsm_error_has_key() {
+        //<org_id bucket_id>,\x00=<measurement>,<tag_keys_str>
+        let key = make_tsm_key_prefix("m", "tag1=val1,tag2=val2");
+
+        let err_str = parse_tsm_key(&key)
+            .err()
+            .expect("expect parsing error")
+            .to_string();
+        // expect that a representation of the actual TSM key is in the error message
+        assert!(
+            err_str
+                .find("Error while parsing tsm tag key '1234567887654321, =m,tag1=val1,tag2=val2':")
+                != None,
+            err_str
+        );
+    }
+
+    #[test]
     fn parse_tsm_key_no_field() {
         //<org_id bucket_id>,\x00=<measurement>,<tag_keys_str>
         let key = make_tsm_key_prefix("m", "tag1=val1,tag2=val2");
 
-        assert_eq!(
-            super::parse_tsm_key(&key)
-                .err()
-                .expect("expect parsing error"),
-            TSMError {
-                description: "No field key found in index".into()
-            }
+        let err_str = parse_tsm_key(&key)
+            .err()
+            .expect("expect parsing error")
+            .to_string();
+        assert!(
+            err_str.find("No field key (expected to find in tag field \\xff)") != None,
+            err_str
         );
     }
 
@@ -565,18 +587,18 @@ mod tests {
         key = add_field_key(key, "f");
         key = add_field_key(key, "f2");
 
-        assert_eq!(
-            super::parse_tsm_key(&key)
-                .err()
-                .expect("expect parsing error"),
-            TSMError {
-                description: "found second field key \'f2#!~#f2\' after first \'f\'".into()
-            }
+        let err_str = parse_tsm_key(&key)
+            .err()
+            .expect("expect parsing error")
+            .to_string();
+        assert!(
+            err_str.find("Found new field key 'f2#!~#f2' after the first 'f'") != None,
+            err_str
         );
     }
 
     #[test]
-    fn parse_tsm_key() {
+    fn test_parse_tsm_key() {
         //<org_id bucket_id>,\x00=http_api_request_duration_seconds,handler=platform,method=POST,path=/api/v2/setup,status=2XX,user_agent=Firefox,\xff=sum#!~#sum
         let buf = "05C19117091A100005C19117091A10012C003D68747470\
              5F6170695F726571756573745F6475726174696F6E5F73\
@@ -648,10 +670,10 @@ mod tests {
         assert_eq!(parsed_key.field_key, String::from("responseSize"));
     }
 
-    fn do_test_parse_tsm_tag_key(
+    fn do_test_parse_tsm_tag_key_good(
         input: &str,
         expected_remaining_input: &str,
-        expected_result: Result<KeyType>,
+        expected_tag_key: KeyType,
     ) {
         let mut iter = input.bytes();
 
@@ -660,24 +682,15 @@ mod tests {
             String::from_utf8(iter.collect()).expect("can not find remaining input");
 
         match result {
-            Ok(tag_key) => match expected_result {
-                Ok(expected_tag_key) => {
-                    assert_eq!(tag_key, expected_tag_key, "while parsing input '{}'", input)
-                }
-                Err(expected_err) => panic!(
-                    "Got parsed key {:?}, expected failure {} while parsing input '{}'",
-                    tag_key, expected_err, input
-                ),
-            },
-            Err(err) => match expected_result {
-                Ok(expected_tag_key) => panic!(
+            Ok(tag_key) => {
+                assert_eq!(tag_key, expected_tag_key, "while parsing input '{}'", input);
+            }
+            Err(err) => {
+                panic!(
                     "Got error '{}', expected parsed tag key: '{:?}' while parsing '{}'",
                     err, expected_tag_key, input
-                ),
-                Err(expected_err) => {
-                    assert_eq!(err, expected_err, "while parsing input '{}'", input)
-                }
-            },
+                );
+            }
         }
         assert_eq!(
             remaining_input, expected_remaining_input,
@@ -686,39 +699,104 @@ mod tests {
         );
     }
 
-    fn do_test_parse_tsm_tag_value(
+    fn do_test_parse_tsm_tag_key_error(
         input: &str,
         expected_remaining_input: &str,
-        expected_result: Result<(bool, String)>,
+        expected_error: &str,
     ) {
         let mut iter = input.bytes();
 
-        let result = parse_tsm_tag_value(&mut iter);
+        let result = parse_tsm_tag_key(&mut iter);
         let remaining_input =
             String::from_utf8(iter.collect()).expect("can not find remaining input");
 
         match result {
-            Ok(tag_value) => match expected_result {
-                Ok(expected_tag_value) => assert_eq!(
+            Ok(tag_key) => {
+                panic!(
+                    "Got parsed key {:?}, expected failure {} while parsing input '{}'",
+                    tag_key, expected_error, input
+                );
+            }
+            Err(err) => {
+                let err_str = err.to_string();
+                assert!(
+                    err_str.find(expected_error) != None,
+                    "Did not find expected error '{}' in actual error '{}'",
+                    expected_error,
+                    err_str
+                );
+            }
+        }
+        assert_eq!(
+            remaining_input, expected_remaining_input,
+            "remaining input was not correct while parsing input '{}'",
+            input
+        );
+    }
+
+    fn do_test_parse_tsm_tag_value_good(
+        input: &str,
+        expected_remaining_input: &str,
+        expected_tag_value: (bool, String),
+    ) {
+        let mut iter = input.bytes();
+
+        let result = parse_tsm_tag_value(&KeyType::Field, &mut iter);
+        let remaining_input =
+            String::from_utf8(iter.collect()).expect("can not find remaining input");
+
+        match result {
+            Ok(tag_value) => {
+                assert_eq!(
                     tag_value, expected_tag_value,
                     "while parsing input '{}'",
                     input
-                ),
-                Err(expected_err) => panic!(
-                    "Got parsed tag_value {:?}, expected failure {} while parsing input '{}'",
-                    tag_value, expected_err, input
-                ),
-            },
-            Err(err) => match expected_result {
-                Ok(expected_tag_value) => panic!(
+                );
+            }
+            Err(err) => {
+                panic!(
                     "Got error '{}', expected parsed tag_value: '{:?}' while parsing input '{}",
                     err, expected_tag_value, input
-                ),
-                Err(expected_err) => {
-                    assert_eq!(err, expected_err, "while parsing input '{}'", input)
-                }
-            },
+                );
+            }
         }
+
+        assert_eq!(
+            remaining_input, expected_remaining_input,
+            "remaining input was not correct while parsing input '{}'",
+            input
+        );
+    }
+
+    fn do_test_parse_tsm_tag_value_error(
+        input: &str,
+        expected_remaining_input: &str,
+        expected_error: &str,
+    ) {
+        let mut iter = input.bytes();
+
+        let result = parse_tsm_tag_value(&KeyType::Field, &mut iter);
+        let remaining_input =
+            String::from_utf8(iter.collect()).expect("can not find remaining input");
+
+        match result {
+            Ok(tag_value) => {
+                panic!(
+                    "Got parsed tag_value {:?}, expected failure {} while parsing input '{}'",
+                    tag_value, expected_error, input
+                );
+            }
+            Err(err) => {
+                let err_str = err.to_string();
+                assert!(
+                    err_str.find(expected_error) != None,
+                    "Did not find expected error '{}' in actual error '{}'",
+                    expected_error,
+                    err_str
+                );
+            }
+        }
+
         assert_eq!(
             remaining_input, expected_remaining_input,
             "remaining input was not correct while parsing input '{}'",
