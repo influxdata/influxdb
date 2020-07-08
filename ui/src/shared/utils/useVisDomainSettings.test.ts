@@ -56,7 +56,6 @@ describe('getValidRange', () => {
 })
 
 describe('getRemainingRange', () => {
-  // const startTime: string = 'Nov 07 2019 02:46:51 GMT-0800'
   const startTime: string = '2019-11-07T02:46:51Z'
   const unixStart: number = 1573094811000
   const endTime: string = '2019-11-28T14:46:51Z'
@@ -72,24 +71,158 @@ describe('getRemainingRange', () => {
     }
     expect(getRemainingRange([], timeRange, [null, null])).toEqual(null)
   })
-  it("should return the min y-axis if it's set", () => {
+  describe('should return a valid number from the stored domain as the min y-axis', () => {
     const timeRange: CustomTimeRange = {
       type: 'custom',
       lower: startTime,
       upper: endTime,
     }
-    const setMin = unixStart - 10
-    const [start] = getRemainingRange(data, timeRange, [setMin, null])
-    expect(start).toEqual(setMin)
+    it('should handle a positive integer', () => {
+      const setMin = unixStart - 10
+      const [start] = getRemainingRange(data, timeRange, [setMin, null])
+      expect(start).toEqual(setMin)
+    })
+    it('should handle a negative integer', () => {
+      const setMin = -10
+      const [start] = getRemainingRange(data, timeRange, [setMin, null])
+      expect(start).toEqual(setMin)
+    })
+    it('should handle a positive float', () => {
+      const setMin = Math.PI
+      const [start] = getRemainingRange(data, timeRange, [setMin, null])
+      expect(start).toEqual(setMin)
+    })
+    it('should handle a negative float', () => {
+      const setMin = -35.67
+      const [start] = getRemainingRange(data, timeRange, [setMin, null])
+      expect(start).toEqual(setMin)
+    })
+    it('should handle zero', () => {
+      const setMin = 0
+      const [start] = getRemainingRange(data, timeRange, [setMin, null])
+      expect(start).toEqual(setMin)
+    })
+    it('should handle positive zero', () => {
+      const setMin = +0
+      const [start] = getRemainingRange(data, timeRange, [setMin, null])
+      expect(start).toEqual(setMin)
+    })
+    it('should handle negative zero', () => {
+      const setMin = -0
+      const [start] = getRemainingRange(data, timeRange, [setMin, null])
+      expect(start).toEqual(setMin)
+    })
   })
-  it("should return the max y-axis if it's set", () => {
-    const timeRange: CustomTimeRange = {
-      type: 'custom',
-      lower: startTime,
-      upper: endTime,
-    }
-    const setMax = unixEnd + 10
-    const range = getRemainingRange(data, timeRange, [null, setMax])
-    expect(range[1]).toEqual(setMax)
+  describe('should return the min value of the data set if stored domain is not set to valid number', () => {
+    let dummyData = [6, 1, 10, 20]
+    let timeRange = null
+    it('should handle NaN', () => {
+      const setMin = NaN
+      const [start] = getRemainingRange(dummyData, timeRange, [setMin, null])
+      expect(start).toEqual(Math.min(...dummyData))
+    })
+    it('should handle Infinity', () => {
+      const setMin = Infinity
+      const [start] = getRemainingRange(dummyData, timeRange, [setMin, null])
+      expect(start).toEqual(Math.min(...dummyData))
+    })
+    it('should handle positive Infinity', () => {
+      const setMin = +Infinity
+      const [start] = getRemainingRange(dummyData, timeRange, [setMin, null])
+      expect(start).toEqual(Math.min(...dummyData))
+    })
+    it('should handle negative Infinity', () => {
+      const setMin = -Infinity
+      const [start] = getRemainingRange(dummyData, timeRange, [setMin, null])
+      expect(start).toEqual(Math.min(...dummyData))
+    })
+    it('should include time range for determining min value', () => {
+      timeRange = {
+        type: 'custom',
+        lower: startTime,
+        upper: endTime,
+      } as CustomTimeRange
+      const startTimeValue = Date.parse(startTime)
+      const endTimeValue = Date.parse(endTime)
+      dummyData = [startTimeValue + 10, endTimeValue - 10]
+      const setMin = NaN
+      const [start] = getRemainingRange(dummyData, timeRange, [setMin, null])
+      expect(start).toEqual(startTimeValue)
+    })
+  })
+  describe('should return a valid number from the stored domain as the max y-axis', () => {
+    const timeRange = null
+    it('should handle a positive integer', () => {
+      const setMax = unixStart - 10
+      const range = getRemainingRange(data, timeRange, [null, setMax])
+      expect(range[1]).toEqual(setMax)
+    })
+    it('should handle a negative integer', () => {
+      const setMax = -10
+      const range = getRemainingRange(data, timeRange, [null, setMax])
+      expect(range[1]).toEqual(setMax)
+    })
+    it('should handle a positive float', () => {
+      const setMax = Math.PI
+      const range = getRemainingRange(data, timeRange, [null, setMax])
+      expect(range[1]).toEqual(setMax)
+    })
+    it('should handle a negative float', () => {
+      const setMax = -35.67
+      const range = getRemainingRange(data, timeRange, [null, setMax])
+      expect(range[1]).toEqual(setMax)
+    })
+    it('should handle zero', () => {
+      const setMax = 0
+      const range = getRemainingRange(data, timeRange, [null, setMax])
+      expect(range[1]).toEqual(setMax)
+    })
+    it('should handle positive zero', () => {
+      const setMax = +0
+      const range = getRemainingRange(data, timeRange, [null, setMax])
+      expect(range[1]).toEqual(setMax)
+    })
+    it('should handle negative zero', () => {
+      const setMax = -0
+      const range = getRemainingRange(data, timeRange, [null, setMax])
+      expect(range[1]).toEqual(setMax)
+    })
+  })
+  describe('should return the max value of the data set if stored domain is not set to valid number', () => {
+    let dummyData = [6, 100, 10, 20]
+    let timeRange = null
+    it('should handle NaN', () => {
+      const setMax = NaN
+      const range = getRemainingRange(dummyData, timeRange, [null, setMax])
+      expect(range[1]).toEqual(Math.max(...dummyData))
+    })
+    it('should handle Infinity', () => {
+      const setMax = Infinity
+      const range = getRemainingRange(dummyData, timeRange, [null, setMax])
+      expect(range[1]).toEqual(Math.max(...dummyData))
+    })
+    it('should handle positive Infinity', () => {
+      const setMax = +Infinity
+      const range = getRemainingRange(dummyData, timeRange, [null, setMax])
+      expect(range[1]).toEqual(Math.max(...dummyData))
+    })
+    it('should handle negative Infinity', () => {
+      const setMax = -Infinity
+      const range = getRemainingRange(dummyData, timeRange, [null, setMax])
+      expect(range[1]).toEqual(Math.max(...dummyData))
+    })
+    it('should include time range for determining max value', () => {
+      timeRange = {
+        type: 'custom',
+        lower: startTime,
+        upper: endTime,
+      } as CustomTimeRange
+      const startTimeValue = Date.parse(startTime)
+      const endTimeValue = Date.parse(endTime)
+      dummyData = [startTimeValue + 10, endTimeValue - 10]
+      const setMax = NaN
+      const range = getRemainingRange(dummyData, timeRange, [null, setMax])
+      expect(range[1]).toEqual(endTimeValue)
+    })
   })
 })
