@@ -5,8 +5,8 @@ use crate::id::Id;
 use crate::line_parser::PointType;
 use crate::storage::{
     memdb::MemDB,
-    partitioned_store::{Partition, PartitionStore, ReadBatch},
-    SeriesDataType, StorageError,
+    partitioned_store::{Error as PartitionError, Partition, PartitionStore, ReadBatch},
+    SeriesDataType,
 };
 
 use futures::StreamExt;
@@ -34,16 +34,8 @@ pub enum Error {
     #[snafu(display("Bucket {} not found for organization {}", org_id, bucket_id))]
     BucketNotFound { org_id: String, bucket_id: String },
 
-    // TODO remove when we have removed generic StorageError
-    #[snafu(display("Database error due to underlying storyage error: {}'", source))]
-    UnderlyingStorageError { source: StorageError },
-}
-
-// TODO: remove once we have made all modules have their own errors
-impl From<StorageError> for Error {
-    fn from(e: StorageError) -> Self {
-        Self::UnderlyingStorageError { source: e }
-    }
+    #[snafu(display("Database partition error: {}'", source))]
+    UnderlyingPartitionError { source: PartitionError },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -158,7 +150,9 @@ impl BucketData {
         let partition_id = bucket.name.clone();
         let store = PartitionStore::MemDB(Box::new(MemDB::new(partition_id)));
         let partition = match wal_dir {
-            Some(dir) => Partition::new_with_wal(store, dir).await?,
+            Some(dir) => Partition::new_with_wal(store, dir)
+                .await
+                .context(UnderlyingPartitionError)?,
             None => Partition::new_without_wal(store),
         };
 
@@ -169,7 +163,9 @@ impl BucketData {
     }
 
     async fn restore_from_wal(bucket: Bucket, bucket_dir: PathBuf) -> Result<Self> {
-        let partition = Partition::restore_memdb_from_wal(&bucket.name, bucket_dir).await?;
+        let partition = Partition::restore_memdb_from_wal(&bucket.name, bucket_dir)
+            .await
+            .context(UnderlyingPartitionError)?;
 
         Ok(Self {
             config: bucket,
@@ -183,7 +179,7 @@ impl BucketData {
             .await
             .write_points(points)
             .await
-            .context(UnderlyingStorageError)
+            .context(UnderlyingPartitionError)
     }
 
     async fn read_points(
@@ -192,7 +188,10 @@ impl BucketData {
         range: &TimestampRange,
     ) -> Result<Vec<ReadBatch>> {
         let p = self.partition.read().await;
-        let stream = p.read_points(Self::BATCH_SIZE, predicate, range).await?;
+        let stream = p
+            .read_points(Self::BATCH_SIZE, predicate, range)
+            .await
+            .context(UnderlyingPartitionError)?;
         Ok(stream.collect().await)
     }
 
@@ -202,7 +201,10 @@ impl BucketData {
         range: Option<&TimestampRange>,
     ) -> Result<Vec<String>> {
         let p = self.partition.read().await;
-        let stream = p.get_tag_keys(predicate, range).await?;
+        let stream = p
+            .get_tag_keys(predicate, range)
+            .await
+            .context(UnderlyingPartitionError)?;
         Ok(stream.collect().await)
     }
 
@@ -213,13 +215,19 @@ impl BucketData {
         range: Option<&TimestampRange>,
     ) -> Result<Vec<String>> {
         let p = self.partition.read().await;
-        let stream = p.get_tag_values(tag_key, predicate, range).await?;
+        let stream = p
+            .get_tag_values(tag_key, predicate, range)
+            .await
+            .context(UnderlyingPartitionError)?;
         Ok(stream.collect().await)
     }
 
     async fn get_measurement_names(&self, range: Option<&TimestampRange>) -> Result<Vec<String>> {
         let p = self.partition.read().await;
-        let stream = p.get_measurement_names(range).await?;
+        let stream = p
+            .get_measurement_names(range)
+            .await
+            .context(UnderlyingPartitionError)?;
         Ok(stream.collect().await)
     }
 
@@ -232,7 +240,8 @@ impl BucketData {
         let p = self.partition.read().await;
         let stream = p
             .get_measurement_tag_keys(measurement, predicate, range)
-            .await?;
+            .await
+            .context(UnderlyingPartitionError)?;
         Ok(stream.collect().await)
     }
 
@@ -246,7 +255,8 @@ impl BucketData {
         let p = self.partition.read().await;
         let stream = p
             .get_measurement_tag_values(measurement, tag_key, predicate, range)
-            .await?;
+            .await
+            .context(UnderlyingPartitionError)?;
         Ok(stream.collect().await)
     }
 
@@ -259,7 +269,8 @@ impl BucketData {
         let p = self.partition.read().await;
         let stream = p
             .get_measurement_fields(measurement, predicate, range)
-            .await?;
+            .await
+            .context(UnderlyingPartitionError)?;
         Ok(stream.collect().await)
     }
 }

@@ -1,12 +1,13 @@
 use crate::generated_types::{Node, Predicate, TimestampRange};
-use crate::line_parser::{self, index_pairs, Point, PointType};
+use crate::line_parser::{self, index_pairs, Error as LineParserError, Point, PointType};
 use crate::storage::partitioned_store::{ReadBatch, ReadValues};
 use crate::storage::predicate::{Error as PredicateError, Evaluate, EvaluateVisitor};
-use crate::storage::{ReadPoint, SeriesDataType, StorageError};
+use crate::storage::{ReadPoint, SeriesDataType};
 
 use croaring::Treemap;
 use futures::stream::{self, BoxStream};
 use futures::StreamExt;
+use snafu::{ResultExt, Snafu};
 use std::collections::{btree_map::Entry, BTreeMap, BTreeSet, HashMap};
 
 /// memdb implements an in memory database for the Partition trait. It currently assumes that
@@ -15,6 +16,20 @@ use std::collections::{btree_map::Entry, BTreeMap, BTreeSet, HashMap};
 /// stop writing into a given MemDB.
 
 // TODO: return errors if trying to insert data out of order in an individual series
+
+#[derive(Debug, Snafu)]
+pub enum Error {
+    #[snafu(display("MemDB error parsing line protocol metadata {}", source))]
+    ParsingLPMetadataError { source: LineParserError },
+
+    #[snafu(display("MemDB expected root node to evaluate"))]
+    EvaluatingPredicateRootError {},
+
+    #[snafu(display("MemDB error evaluating predicate: {}", source))]
+    EvaluatingPredicateError { source: PredicateError },
+}
+
+pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Debug, Default, Clone)]
 pub struct MemDB {
@@ -191,11 +206,11 @@ impl MemDB {
         self.series_data.current_size + self.series_map.current_size
     }
 
-    pub fn write_points(&mut self, points: &mut [PointType]) -> Result<(), StorageError> {
+    pub fn write_points(&mut self, points: &mut [PointType]) -> Result<()> {
         for p in points {
-            self.series_map.insert_series(p).map_err(|e| StorageError {
-                description: format!("error parsing line protocol metadata {}", e),
-            })?;
+            self.series_map
+                .insert_series(p)
+                .context(ParsingLPMetadataError)?;
             p.write(&mut self.series_data);
         }
 
@@ -206,7 +221,7 @@ impl MemDB {
         &self,
         _predicate: Option<&Predicate>,
         _range: Option<&TimestampRange>,
-    ) -> Result<BoxStream<'_, String>, StorageError> {
+    ) -> Result<BoxStream<'_, String>> {
         let keys = self.series_map.tag_keys.keys().cloned();
         Ok(stream::iter(keys).boxed())
     }
@@ -216,7 +231,7 @@ impl MemDB {
         tag_key: &str,
         _predicate: Option<&Predicate>,
         _range: Option<&TimestampRange>,
-    ) -> Result<BoxStream<'_, String>, StorageError> {
+    ) -> Result<BoxStream<'_, String>> {
         match self.series_map.tag_keys.get(tag_key) {
             Some(values) => {
                 let values = values.iter().cloned();
@@ -231,17 +246,13 @@ impl MemDB {
         _batch_size: usize,
         predicate: &Predicate,
         range: &TimestampRange,
-    ) -> Result<BoxStream<'_, ReadBatch>, StorageError> {
+    ) -> Result<BoxStream<'_, ReadBatch>> {
         let root = match &predicate.root {
             Some(r) => r,
-            None => {
-                return Err(StorageError {
-                    description: "expected root node to evaluate".to_string(),
-                })
-            }
+            None => return EvaluatingPredicateRootError {}.fail(),
         };
 
-        let map = evaluate_node(&self.series_map, &root)?;
+        let map = evaluate_node(&self.series_map, &root).context(EvaluatingPredicateError)?;
         let mut read_batches = Vec::with_capacity(map.cardinality() as usize);
 
         for id in map.iter() {
@@ -278,7 +289,7 @@ impl MemDB {
     pub fn get_measurement_names(
         &self,
         _range: Option<&TimestampRange>,
-    ) -> Result<BoxStream<'_, String>, StorageError> {
+    ) -> Result<BoxStream<'_, String>> {
         match self.series_map.tag_keys.get("_m") {
             Some(values) => {
                 let values = values.iter().cloned();
@@ -293,7 +304,7 @@ impl MemDB {
         measurement: &str,
         _predicate: Option<&Predicate>,
         _range: Option<&TimestampRange>,
-    ) -> Result<BoxStream<'_, String>, StorageError> {
+    ) -> Result<BoxStream<'_, String>> {
         let prefix = format!("{},", measurement);
         let mut tag_keys = BTreeSet::new();
 
@@ -318,7 +329,7 @@ impl MemDB {
         tag_key: &str,
         _predicate: Option<&Predicate>,
         _range: Option<&TimestampRange>,
-    ) -> Result<BoxStream<'_, String>, StorageError> {
+    ) -> Result<BoxStream<'_, String>> {
         let prefix = format!("{},", measurement);
         let mut tag_values = BTreeSet::new();
 
@@ -345,7 +356,7 @@ impl MemDB {
         measurement: &str,
         _predicate: Option<&Predicate>,
         range: Option<&TimestampRange>,
-    ) -> Result<BoxStream<'_, (String, SeriesDataType, i64)>, StorageError> {
+    ) -> Result<BoxStream<'_, (String, SeriesDataType, i64)>> {
         let prefix = format!("{},", measurement);
 
         let mut fields = BTreeMap::new();
