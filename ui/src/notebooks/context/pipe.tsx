@@ -1,6 +1,7 @@
 import React, {FC, useContext} from 'react'
 import {DataID, PipeData, FluxResult} from 'src/notebooks'
 import {NotebookContext} from 'src/notebooks/context/notebook.current'
+import {ResultsContext} from 'src/notebooks/context/results'
 import {RemoteDataState} from 'src/types'
 
 export interface PipeContextType {
@@ -29,17 +30,25 @@ interface PipeContextProps {
 
 export const PipeProvider: FC<PipeContextProps> = ({id, children}) => {
   const {notebook} = useContext(NotebookContext)
+  const results = useContext(ResultsContext)
   const updater = (_data: PipeData) => {
     notebook.data.update(id, _data)
   }
 
-  //TODO add results in here too
+  let _result
+
+  try {
+    _result = results.get(id)
+  } catch (_e) {
+    _result = {...DEFAULT_CONTEXT.results}
+  }
+
   return (
     <PipeContext.Provider
       value={{
         data: notebook.data.get(id),
         update: updater,
-        results: notebook.results,
+        results: _result,
         loading: notebook.meta.get(id).loading,
       }}
     >

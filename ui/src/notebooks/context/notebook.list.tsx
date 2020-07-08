@@ -4,11 +4,13 @@ import {v4 as UUID} from 'uuid'
 import {
   NotebookList,
   Notebook,
+  NotebookState,
   DataID,
   Resource,
   PipeData,
   PipeMeta,
 } from 'src/notebooks'
+import useResource from 'src/notebooks/context/resource.hook'
 
 // const useNotebookListState = createPersistedState('notebooks')
 /*
@@ -25,7 +27,7 @@ export interface NotebookListContextType extends NotebookList {
   remove: (id: DataID<Notebook>) => void
 }
 
-export const EMPTY_NOTEBOOK: Notebook = {
+export const EMPTY_NOTEBOOK: NotebookState = {
   data: {
     byID: {},
     allIDs: [],
@@ -53,16 +55,22 @@ export const NotebookListProvider: FC = ({children}) => {
 
   const add = (notebook?: Notebook): string => {
     const id = UUID()
+    let _notebook
 
     if (!notebook) {
-      notebook = {
+      _notebook = {
         ...EMPTY_NOTEBOOK,
+      }
+    } else {
+      _notebook = {
+        data: notebook.data.serialize(),
+        meta: notebook.meta.serialize(),
       }
     }
 
     setNotebooks({
       ...notebooks,
-      [id]: notebook,
+      [id]: _notebook,
     })
 
     return id
@@ -79,8 +87,8 @@ export const NotebookListProvider: FC = ({children}) => {
     setNotebooks({
       ...notebooks,
       [id]: {
-        ...notebooks[id],
-        ...notebook,
+        data: notebook.data.serialize(),
+        meta: notebook.meta.serialize(),
       },
     })
   }
@@ -95,10 +103,36 @@ export const NotebookListProvider: FC = ({children}) => {
     setNotebooks(_notebooks)
   }
 
+  const notebookList = Object.keys(notebooks).reduce((acc, curr) => {
+    const stateUpdater = (field, data) => {
+      const _notebook = {
+        ...notebooks[curr],
+      }
+
+      _notebook[field] = data
+
+      setNotebooks({
+        ...notebooks,
+        [curr]: _notebook,
+      })
+    }
+
+    acc[curr] = {
+      data: useResource(notebooks[curr].data, data => {
+        stateUpdater('data', data)
+      }),
+      meta: useResource(notebooks[curr].meta, data => {
+        stateUpdater('meta', data)
+      }),
+    } as Notebook
+
+    return acc
+  }, {})
+
   return (
     <NotebookListContext.Provider
       value={{
-        notebooks,
+        notebooks: notebookList,
         add,
         update,
         remove,

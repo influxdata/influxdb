@@ -86,6 +86,9 @@ const NotebookPanel: FC<Props> = ({id, children, controls}) => {
   })
 
   const updatePanelFocus = (focus: boolean): void => {
+    if (isFocused === focus) {
+      return
+    }
     notebook.meta.update(id, {focus})
   }
 

@@ -7,13 +7,12 @@ import React, {
   useState,
 } from 'react'
 //import createPersistedState from 'use-persisted-state'
-import {Notebook, DataID, PipeData, PipeMeta} from 'src/notebooks'
+import {Notebook, DataID, PipeData} from 'src/notebooks'
 import {
   NotebookListContext,
   NotebookListProvider,
 } from 'src/notebooks/context/notebook.list'
 import {v4 as UUID} from 'uuid'
-import useResource from 'src/notebooks/context/resource.hook'
 import {RemoteDataState} from 'src/types'
 
 //const useNotebookCurrentState = createPersistedState('current-notebook')
@@ -22,7 +21,7 @@ export interface NotebookContextType {
   id: DataID<Notebook> | null
   notebook: Notebook | null
   change: (id: DataID<Notebook>) => void
-  add: (data: Partial<PipeData>, index?: number) => void
+  add: (data: Partial<PipeData>, index?: number) => string
   update: (notebook: Partial<Notebook>) => void
   remove: () => void
 }
@@ -30,7 +29,7 @@ export interface NotebookContextType {
 export const DEFAULT_CONTEXT: NotebookContextType = {
   id: null,
   notebook: null,
-  add: () => {},
+  add: () => '',
   change: () => {},
   update: () => {},
   remove: () => {},
@@ -63,28 +62,6 @@ export const NotebookProvider: FC = ({children}) => {
   //    const [currentID, setCurrentID] = useNotebookCurrentState(null)
   const [currentID, setCurrentID] = useState(null)
   const {notebooks, add, update, remove} = useContext(NotebookListContext)
-  const data = useResource<PipeData>(
-    ((notebooks || {})[currentID] || {}).data,
-    resource => {
-      update(currentID, {
-        ...(notebooks[currentID] || {}),
-        ...{
-          data: {...resource},
-        },
-      })
-    }
-  )
-  const meta = useResource<PipeMeta>(
-    ((notebooks || {})[currentID] || {}).meta,
-    resource => {
-      update(currentID, {
-        ...(notebooks[currentID] || {}),
-        ...{
-          meta: {...resource},
-        },
-      })
-    }
-  )
 
   const change = useCallback(
     (id: DataID<Notebook>) => {
@@ -108,20 +85,19 @@ export const NotebookProvider: FC = ({children}) => {
     remove(currentID)
   }, [currentID])
 
-  const addPipe = useCallback(
-    (initial: PipeData, _index?: number) => {
-      const id = UUID()
+  const addPipe = (initial: PipeData, _index?: number) => {
+    const id = UUID()
 
-      data.add(id, initial)
-      meta.add(id, {
-        title: getHumanReadableName(initial.type),
-        visible: true,
-        loading: RemoteDataState.NotStarted,
-        focus: false,
-      })
-    },
-    [currentID, data]
-  )
+    notebooks[currentID].data.add(id, initial)
+    notebooks[currentID].meta.add(id, {
+      title: getHumanReadableName(initial.type),
+      visible: true,
+      loading: RemoteDataState.NotStarted,
+      focus: false,
+    })
+
+    return id
+  }
 
   useEffect(() => {
     if (!currentID) {
@@ -140,11 +116,7 @@ export const NotebookProvider: FC = ({children}) => {
       <NotebookContext.Provider
         value={{
           id: currentID,
-          notebook: {
-            ...notebooks[currentID],
-            data,
-            meta,
-          },
+          notebook: notebooks[currentID],
           add: addPipe,
           update: updateCurrent,
           remove: removeCurrent,

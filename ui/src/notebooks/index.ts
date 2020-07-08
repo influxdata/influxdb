@@ -39,22 +39,45 @@ interface DataLookup<T> {
 export interface Resource<T> {
   byID: DataLookup<T>
   allIDs: DataID<T>[]
+}
+
+export type ResourceGenerator<T> = () => T | T
+export type ResourceUpdater<T> = (resource: Resource<T>) => void
+
+export interface ResourceManipulator<T> {
   get: (id: DataID<T>) => T
+  add: (id: DataID<T>, data?: T) => void
   update: (id: DataID<T>, data: Partial<T>) => void
   remove: (id: DataID<T>) => void
   indexOf: (id: DataID<T>) => number
   move: (id: DataID<T>, index: number) => void
+
+  serialize: () => Resource<T>
+
+  allIDs: DataID<T>[]
+  all: T[]
+}
+
+export interface NotebookState {
+  data: Resource<PipeData>
+  meta: Resource<PipeMeta>
 }
 
 export interface Notebook {
-  data: Resource<PipeData>
-  meta: Resource<PipeMeta>
+  data: ResourceManipulator<PipeData>
+  meta: ResourceManipulator<PipeMeta>
   results?: FluxResult
+}
+
+export interface NotebookListState {
+  notebooks: {
+    [key: DataID<Notebook>]: Resource<NotebookState>
+  }
 }
 
 export interface NotebookList {
   notebooks: {
-    [key: DataID<Notebook>]: Resource<Notebook>
+    [key: DataID<Notebook>]: ResourceManipulator<Notebook>
   }
 }
 

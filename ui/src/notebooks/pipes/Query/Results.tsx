@@ -15,15 +15,17 @@ import {event} from 'src/notebooks/shared/event'
 
 const Results: FC = () => {
   const {data, results} = useContext(PipeContext)
-  const resultsExist = !!results.raw && !!results.parsed.table.length
+  const resultsExist =
+    !!results && !!results.raw && !!results.parsed.table.length
+  const raw = (results || {}).raw || ''
 
-  const rows = useMemo(() => (results.raw || '').split('\n'), [results.raw])
+  const rows = useMemo(() => raw.split('\n'), [raw])
   const [startRow, setStartRow] = useState<number>(0)
   const [pageSize, setPageSize] = useState<number>(0)
 
   useEffect(() => {
     setStartRow(0)
-  }, [results.raw])
+  }, [raw])
 
   const prevDisabled = startRow <= 0
   const nextDisabled = startRow + pageSize >= rows.length
