@@ -204,7 +204,7 @@ enum KeyType {
     Field,
 }
 
-impl std::convert::From<&KeyType> for String {
+impl From<&KeyType> for String {
     fn from(item: &KeyType) -> Self {
         match item {
             KeyType::Tag(s) => s.clone(),
@@ -411,44 +411,39 @@ mod tests {
         assert_eq!(parse_tsm_field_key("sum#!~#sum"), Ok("sum".into()));
 
         let err_str = parse_tsm_field_key("#!~#")
-            .err()
-            .expect("expect parsing error")
+            .expect_err("expect parsing error")
             .to_string();
-        assert!(err_str.find("field key too short") != None, err_str);
+        assert!(err_str.contains("field key too short"), err_str);
 
         let err_str = parse_tsm_field_key("foo#!~#fpp")
-            .err()
-            .expect("expect parsing error")
+            .expect_err("expect parsing error")
             .to_string();
         assert!(
-            err_str.find("Invalid field key format \'foo#!~#fpp\', expected \'foo#!~#foo\'")
-                != None,
+            err_str.contains("Invalid field key format \'foo#!~#fpp\', expected \'foo#!~#foo\'"),
             err_str
         );
 
         let err_str = parse_tsm_field_key("foo#!~#naaa")
-            .err()
-            .expect("expect parsing error")
+            .expect_err("expect parsing error")
             .to_string();
         assert!(
-            err_str.find("Invalid field key format \'foo#!~#naaa\', expected \'foo#!~#foo\'")
-                != None,
+            err_str.contains("Invalid field key format \'foo#!~#naaa\', expected \'foo#!~#foo\'"),
             err_str
         );
 
         let err_str = parse_tsm_field_key("foo#!~#")
-            .err()
-            .expect("expect parsing error")
-            .to_string();
-        assert!(err_str.find("Invalid field key format \'foo#!~#\', expected \'f#!~#f\'") != None,);
-
-        let err_str = parse_tsm_field_key("foo####foo")
-            .err()
-            .expect("expect parsing error")
+            .expect_err("expect parsing error")
             .to_string();
         assert!(
-            err_str.find("Invalid field key format \'foo####foo\', expected \'foo#!~#foo\'")
-                != None,
+            err_str.contains("Invalid field key format \'foo#!~#\', expected \'f#!~#f\'"),
+            err_str
+        );
+
+        let err_str = parse_tsm_field_key("foo####foo")
+            .expect_err("expect parsing error")
+            .to_string();
+        assert!(
+            err_str.contains("Invalid field key format \'foo####foo\', expected \'foo#!~#foo\'"),
             err_str
         );
     }
@@ -553,14 +548,13 @@ mod tests {
         let key = make_tsm_key_prefix("m", "tag1=val1,tag2=val2");
 
         let err_str = parse_tsm_key(&key)
-            .err()
-            .expect("expect parsing error")
+            .expect_err("expect parsing error")
             .to_string();
         // expect that a representation of the actual TSM key is in the error message
         assert!(
-            err_str
-                .find("Error while parsing tsm tag key '1234567887654321, =m,tag1=val1,tag2=val2':")
-                != None,
+            err_str.contains(
+                "Error while parsing tsm tag key '1234567887654321, =m,tag1=val1,tag2=val2':"
+            ),
             err_str
         );
     }
@@ -571,11 +565,10 @@ mod tests {
         let key = make_tsm_key_prefix("m", "tag1=val1,tag2=val2");
 
         let err_str = parse_tsm_key(&key)
-            .err()
-            .expect("expect parsing error")
+            .expect_err("expect parsing error")
             .to_string();
         assert!(
-            err_str.find("No field key (expected to find in tag field \\xff)") != None,
+            err_str.contains("No field key (expected to find in tag field \\xff)"),
             err_str
         );
     }
@@ -588,11 +581,10 @@ mod tests {
         key = add_field_key(key, "f2");
 
         let err_str = parse_tsm_key(&key)
-            .err()
-            .expect("expect parsing error")
+            .expect_err("expect parsing error")
             .to_string();
         assert!(
-            err_str.find("Found new field key 'f2#!~#f2' after the first 'f'") != None,
+            err_str.contains("Found new field key 'f2#!~#f2' after the first 'f'"),
             err_str
         );
     }
@@ -720,7 +712,7 @@ mod tests {
             Err(err) => {
                 let err_str = err.to_string();
                 assert!(
-                    err_str.find(expected_error) != None,
+                    err_str.contains(expected_error),
                     "Did not find expected error '{}' in actual error '{}'",
                     expected_error,
                     err_str
@@ -789,7 +781,7 @@ mod tests {
             Err(err) => {
                 let err_str = err.to_string();
                 assert!(
-                    err_str.find(expected_error) != None,
+                    err_str.contains(expected_error),
                     "Did not find expected error '{}' in actual error '{}'",
                     expected_error,
                     err_str
