@@ -113,7 +113,7 @@ pub fn convert(
     debug!("Reading from input file {}", input_path);
 
     if is_directory(input_path) {
-        let files: Vec<fs::DirEntry> = fs::read_dir(input_path)
+        let files: Vec<_> = fs::read_dir(input_path)
             .unwrap()
             .filter_map(Result::ok)
             .filter(|f| {
