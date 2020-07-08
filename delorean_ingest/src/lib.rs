@@ -754,7 +754,7 @@ impl TSMFileConverter {
                     .tag_cols
                     .iter()
                     .map(|pair| pair.0.clone())
-                    .collect::<BTreeSet<String>>();
+                    .collect::<BTreeSet<_>>();
                 for key in &tks {
                     if tag_keys.contains(key) {
                         continue;
