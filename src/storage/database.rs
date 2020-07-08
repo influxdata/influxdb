@@ -10,8 +10,43 @@ use crate::storage::{
 };
 
 use futures::StreamExt;
+use snafu::{OptionExt, ResultExt, Snafu};
 use std::{collections::HashMap, convert::TryInto, fs, fs::DirBuilder, path::PathBuf, sync::Arc};
 use tokio::sync::RwLock;
+
+#[derive(Debug, Snafu)]
+pub enum Error {
+    #[snafu(display("Database error creating directory '{:?}': {}", path, source))]
+    CreatingDirectory {
+        path: PathBuf,
+        source: std::io::Error,
+    },
+
+    #[snafu(display("Database error reading path '{:?}': {}", path, source))]
+    ReadingPath {
+        path: PathBuf,
+        source: std::io::Error,
+    },
+
+    #[snafu(display("Organization {} not found", org_id))]
+    OrgNotFound { org_id: Id },
+
+    #[snafu(display("Bucket {} not found for organization {}", org_id, bucket_id))]
+    BucketNotFound { org_id: String, bucket_id: String },
+
+    // TODO remove when we have removed generic StorageError
+    #[snafu(display("Database error due to underlying storyage error: {}'", source))]
+    UnderlyingStorageError { source: StorageError },
+}
+
+// TODO: remove once we have made all modules have their own errors
+impl From<StorageError> for Error {
+    fn from(e: StorageError) -> Self {
+        Self::UnderlyingStorageError { source: e }
+    }
+}
+
+pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Debug)]
 struct Organization {
@@ -26,7 +61,7 @@ impl Organization {
         &mut self,
         mut bucket: Bucket,
         wal_root_dir: Option<PathBuf>,
-    ) -> Result<Id, StorageError> {
+    ) -> Result<Id> {
         match self.bucket_name_to_id.get(&bucket.name) {
             Some(id) => Ok(*id),
             None => {
@@ -36,7 +71,10 @@ impl Organization {
 
                 let wal_dir = if let Some(root) = wal_root_dir {
                     let path = root.join(self.id.to_string()).join(bucket.name.clone());
-                    DirBuilder::new().recursive(true).create(&path)?;
+                    DirBuilder::new()
+                        .recursive(true)
+                        .create(&path)
+                        .context(CreatingDirectory { path: path.clone() })?;
                     Some(path)
                 } else {
                     None
@@ -58,7 +96,7 @@ impl Organization {
         }
     }
 
-    async fn restore_from_wal(org_dir: &PathBuf) -> Result<Self, StorageError> {
+    async fn restore_from_wal(org_dir: &PathBuf) -> Result<Self> {
         let org_id: Id = org_dir
             .file_name()
             .expect("Path should not end in ..")
@@ -68,8 +106,11 @@ impl Organization {
             .expect("Should have been able to parse Organization WAL dir into Organization Id");
         let mut org = Self::new(org_id);
 
-        for bucket_dir in fs::read_dir(org_dir)? {
-            let bucket_dir = bucket_dir?.path();
+        let dirs = fs::read_dir(org_dir).context(ReadingPath { path: org_dir })?;
+
+        for dir in dirs {
+            let bucket_dir = dir.context(ReadingPath { path: org_dir })?.path();
+
             info!("Restoring bucket from WAL path: {:?}", bucket_dir);
 
             let bucket_name = bucket_dir
@@ -113,7 +154,7 @@ struct BucketData {
 impl BucketData {
     const BATCH_SIZE: usize = 100_000;
 
-    async fn new(bucket: Bucket, wal_dir: Option<PathBuf>) -> Result<Self, StorageError> {
+    async fn new(bucket: Bucket, wal_dir: Option<PathBuf>) -> Result<Self> {
         let partition_id = bucket.name.clone();
         let store = PartitionStore::MemDB(Box::new(MemDB::new(partition_id)));
         let partition = match wal_dir {
@@ -127,7 +168,7 @@ impl BucketData {
         })
     }
 
-    async fn restore_from_wal(bucket: Bucket, bucket_dir: PathBuf) -> Result<Self, StorageError> {
+    async fn restore_from_wal(bucket: Bucket, bucket_dir: PathBuf) -> Result<Self> {
         let partition = Partition::restore_memdb_from_wal(&bucket.name, bucket_dir).await?;
 
         Ok(Self {
@@ -136,15 +177,20 @@ impl BucketData {
         })
     }
 
-    async fn write_points(&self, points: &mut [PointType]) -> Result<(), StorageError> {
-        self.partition.write().await.write_points(points).await
+    async fn write_points(&self, points: &mut [PointType]) -> Result<()> {
+        self.partition
+            .write()
+            .await
+            .write_points(points)
+            .await
+            .context(UnderlyingStorageError)
     }
 
     async fn read_points(
         &self,
         predicate: &Predicate,
         range: &TimestampRange,
-    ) -> Result<Vec<ReadBatch>, StorageError> {
+    ) -> Result<Vec<ReadBatch>> {
         let p = self.partition.read().await;
         let stream = p.read_points(Self::BATCH_SIZE, predicate, range).await?;
         Ok(stream.collect().await)
@@ -154,7 +200,7 @@ impl BucketData {
         &self,
         predicate: Option<&Predicate>,
         range: Option<&TimestampRange>,
-    ) -> Result<Vec<String>, StorageError> {
+    ) -> Result<Vec<String>> {
         let p = self.partition.read().await;
         let stream = p.get_tag_keys(predicate, range).await?;
         Ok(stream.collect().await)
@@ -165,16 +211,13 @@ impl BucketData {
         tag_key: &str,
         predicate: Option<&Predicate>,
         range: Option<&TimestampRange>,
-    ) -> Result<Vec<String>, StorageError> {
+    ) -> Result<Vec<String>> {
         let p = self.partition.read().await;
         let stream = p.get_tag_values(tag_key, predicate, range).await?;
         Ok(stream.collect().await)
     }
 
-    async fn get_measurement_names(
-        &self,
-        range: Option<&TimestampRange>,
-    ) -> Result<Vec<String>, StorageError> {
+    async fn get_measurement_names(&self, range: Option<&TimestampRange>) -> Result<Vec<String>> {
         let p = self.partition.read().await;
         let stream = p.get_measurement_names(range).await?;
         Ok(stream.collect().await)
@@ -185,7 +228,7 @@ impl BucketData {
         measurement: &str,
         predicate: Option<&Predicate>,
         range: Option<&TimestampRange>,
-    ) -> Result<Vec<String>, StorageError> {
+    ) -> Result<Vec<String>> {
         let p = self.partition.read().await;
         let stream = p
             .get_measurement_tag_keys(measurement, predicate, range)
@@ -199,7 +242,7 @@ impl BucketData {
         tag_key: &str,
         predicate: Option<&Predicate>,
         range: Option<&TimestampRange>,
-    ) -> Result<Vec<String>, StorageError> {
+    ) -> Result<Vec<String>> {
         let p = self.partition.read().await;
         let stream = p
             .get_measurement_tag_values(measurement, tag_key, predicate, range)
@@ -212,7 +255,7 @@ impl BucketData {
         measurement: &str,
         predicate: Option<&Predicate>,
         range: Option<&TimestampRange>,
-    ) -> Result<Vec<(String, SeriesDataType, i64)>, StorageError> {
+    ) -> Result<Vec<(String, SeriesDataType, i64)>> {
         let p = self.partition.read().await;
         let stream = p
             .get_measurement_fields(measurement, predicate, range)
@@ -244,13 +287,15 @@ impl Database {
         }
     }
 
-    pub async fn restore_from_wal(&self) -> Result<(), StorageError> {
+    pub async fn restore_from_wal(&self) -> Result<()> {
         // TODO: Instead of looking on disk, look in a Partition that holds org+bucket config
         if let Some(wal_dir) = &self.dir {
             let mut orgs = self.organizations.write().await;
 
-            for org_dir in fs::read_dir(wal_dir)? {
-                let org_dir = org_dir?;
+            let dirs = fs::read_dir(wal_dir).context(ReadingPath { path: wal_dir })?;
+
+            for org_dir in dirs {
+                let org_dir = org_dir.context(ReadingPath { path: wal_dir })?;
                 let org = Organization::restore_from_wal(&org_dir.path()).await?;
                 orgs.insert(org.id, RwLock::new(org));
             }
@@ -264,17 +309,13 @@ impl Database {
         org_id: Id,
         bucket_id: Id,
         points: &mut [PointType],
-    ) -> Result<(), StorageError> {
+    ) -> Result<()> {
         let bucket_data = self.bucket_data(org_id, bucket_id).await?;
 
         bucket_data.write_points(points).await
     }
 
-    pub async fn get_bucket_id_by_name(
-        &self,
-        org_id: Id,
-        bucket_name: &str,
-    ) -> Result<Option<Id>, StorageError> {
+    pub async fn get_bucket_id_by_name(&self, org_id: Id, bucket_name: &str) -> Result<Option<Id>> {
         let orgs = self.organizations.read().await;
 
         let org = match orgs.get(&org_id) {
@@ -290,11 +331,7 @@ impl Database {
         Ok(id)
     }
 
-    pub async fn create_bucket_if_not_exists(
-        &self,
-        org_id: Id,
-        bucket: Bucket,
-    ) -> Result<Id, StorageError> {
+    pub async fn create_bucket_if_not_exists(&self, org_id: Id, bucket: Bucket) -> Result<Id> {
         let mut orgs = self.organizations.write().await;
         let org = orgs
             .entry(org_id)
@@ -312,7 +349,7 @@ impl Database {
         bucket_id: Id,
         predicate: &Predicate,
         range: &TimestampRange,
-    ) -> Result<Vec<ReadBatch>, StorageError> {
+    ) -> Result<Vec<ReadBatch>> {
         let bucket_data = self.bucket_data(org_id, bucket_id).await?;
 
         bucket_data.read_points(predicate, range).await
@@ -324,7 +361,7 @@ impl Database {
         bucket_id: Id,
         predicate: Option<&Predicate>,
         range: Option<&TimestampRange>,
-    ) -> Result<Vec<String>, StorageError> {
+    ) -> Result<Vec<String>> {
         let bucket_data = self.bucket_data(org_id, bucket_id).await?;
 
         bucket_data.get_tag_keys(predicate, range).await
@@ -337,7 +374,7 @@ impl Database {
         tag_key: &str,
         predicate: Option<&Predicate>,
         range: Option<&TimestampRange>,
-    ) -> Result<Vec<String>, StorageError> {
+    ) -> Result<Vec<String>> {
         let bucket_data = self.bucket_data(org_id, bucket_id).await?;
 
         bucket_data.get_tag_values(tag_key, predicate, range).await
@@ -348,7 +385,7 @@ impl Database {
         org_id: Id,
         bucket_id: Id,
         range: Option<&TimestampRange>,
-    ) -> Result<Vec<String>, StorageError> {
+    ) -> Result<Vec<String>> {
         let bucket_data = self.bucket_data(org_id, bucket_id).await?;
 
         bucket_data.get_measurement_names(range).await
@@ -361,7 +398,7 @@ impl Database {
         measurement: &str,
         predicate: Option<&Predicate>,
         range: Option<&TimestampRange>,
-    ) -> Result<Vec<String>, StorageError> {
+    ) -> Result<Vec<String>> {
         let bucket_data = self.bucket_data(org_id, bucket_id).await?;
 
         bucket_data
@@ -377,7 +414,7 @@ impl Database {
         tag_key: &str,
         predicate: Option<&Predicate>,
         range: Option<&TimestampRange>,
-    ) -> Result<Vec<String>, StorageError> {
+    ) -> Result<Vec<String>> {
         let bucket_data = self.bucket_data(org_id, bucket_id).await?;
 
         bucket_data
@@ -392,7 +429,7 @@ impl Database {
         measurement: &str,
         predicate: Option<&Predicate>,
         range: Option<&TimestampRange>,
-    ) -> Result<Vec<(String, SeriesDataType, i64)>, StorageError> {
+    ) -> Result<Vec<(String, SeriesDataType, i64)>> {
         let bucket_data = self.bucket_data(org_id, bucket_id).await?;
 
         bucket_data
@@ -400,7 +437,7 @@ impl Database {
             .await
     }
 
-    pub async fn buckets(&self, org_id: Id) -> Result<Vec<Bucket>, StorageError> {
+    pub async fn buckets(&self, org_id: Id) -> Result<Vec<Bucket>> {
         Ok(match self.organizations.read().await.get(&org_id) {
             None => vec![],
             Some(org) => org
@@ -413,23 +450,15 @@ impl Database {
         })
     }
 
-    async fn bucket_data(
-        &self,
-        org_id: Id,
-        bucket_id: Id,
-    ) -> Result<Arc<BucketData>, StorageError> {
+    async fn bucket_data(&self, org_id: Id, bucket_id: Id) -> Result<Arc<BucketData>> {
         let orgs = self.organizations.read().await;
-        let org = orgs.get(&org_id).ok_or_else(|| StorageError {
-            description: format!("org {} not found", org_id),
-        })?;
+        let org = orgs.get(&org_id).context(OrgNotFound { org_id })?;
 
         let org = org.read().await;
 
         match org.bucket_data.get(&bucket_id) {
             Some(b) => Ok(Arc::clone(b)),
-            None => Err(StorageError {
-                description: format!("bucket {} not found", bucket_id),
-            }),
+            None => BucketNotFound { org_id, bucket_id }.fail(),
         }
     }
 }

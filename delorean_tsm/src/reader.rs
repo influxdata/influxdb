@@ -221,7 +221,9 @@ impl IndexEntry {
     }
 
     pub fn parse_key(&self) -> Result<ParsedTSMKey, TSMError> {
-        key::parse_tsm_key(&self.key)
+        key::parse_tsm_key(&self.key).map_err(|e| TSMError {
+            description: e.to_string(),
+        })
     }
 }
 

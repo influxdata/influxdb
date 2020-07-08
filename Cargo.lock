@@ -220,9 +220,9 @@ checksum = "53d1ccbaf7d9ec9537465a97bf19edc1a4e158ecb49fc16178202238c569cc42"
 
 [[package]]
 name = "bindgen"
-version = "0.52.0"
+version = "0.53.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f1c85344eb535a31b62f0af37be84441ba9e7f0f4111eb0530f43d15e513fe57"
+checksum = "c72a978d268b1d70b0e963217e60fdabd9523a941457a6c42a7315d15c7e89e5"
 dependencies = [
  "bitflags",
  "cexpr",
@@ -376,11 +376,11 @@ dependencies = [
 
 [[package]]
 name = "cexpr"
-version = "0.3.6"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fce5b5fb86b0c57c20c834c1b412fd09c77c8a59b9473f86272709e78874cd1d"
+checksum = "f4aedb84272dbe89af497cf81375129abda4fc0a9e7c5d317498c15cc30c0d27"
 dependencies = [
- "nom 4.2.3",
+ "nom",
 ]
 
 [[package]]
@@ -403,9 +403,9 @@ dependencies = [
 
 [[package]]
 name = "clang-sys"
-version = "0.28.1"
+version = "0.29.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "81de550971c976f176130da4b2978d3b524eaa0fd9ac31f3ceb5ae1231fb4853"
+checksum = "fe6837df1d5cba2397b835c8530f51723267e16abbf83892e9e5af4f0e5dd10a"
 dependencies = [
  "glob 0.3.0",
  "libc",
@@ -514,9 +514,9 @@ dependencies = [
 
 [[package]]
 name = "croaring"
-version = "0.4.4"
+version = "0.4.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "52e9057c1caf8e9debd6f938a12ff24028f3c7f85d24f502f46f3c9601905464"
+checksum = "8ea5e3e6aced0d4a2da69e3d5372a4e52c495afa8d78050f48e6314ddac0a2eb"
 dependencies = [
  "byteorder",
  "croaring-sys",
@@ -525,9 +525,9 @@ dependencies = [
 
 [[package]]
 name = "croaring-sys"
-version = "0.4.4"
+version = "0.4.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b7d3b66d75dc466ec547604de0517eb4e1a51fd79a83eaff4409f81167dacdc8"
+checksum = "bf8df0e3c85ace1f7cbcfb0b26c244647ad8c316c6170d9256822dee9ce1f866"
 dependencies = [
  "bindgen",
  "cc",
@@ -700,7 +700,7 @@ dependencies = [
  "delorean_test_helpers",
  "either",
  "log",
- "nom 5.1.1",
+ "nom",
  "smallvec",
  "snafu",
 ]
@@ -916,7 +916,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d371106cc88ffdfb1eabd7111e432da544f16f3e2d7bf1dfe8bf575f1df045cd"
 dependencies = [
  "backtrace",
- "version_check 0.9.2",
+ "version_check",
 ]
 
 [[package]]
@@ -1622,23 +1622,13 @@ checksum = "72ef4a56884ca558e5ddb05a1d1e7e1bfd9a68d9ed024c21704cc98872dae1bb"
 
 [[package]]
 name = "nom"
-version = "4.2.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2ad2a91a8e869eeb30b9cb3119ae87773a8f4ae617f41b1eb9c154b2905f7bd6"
-dependencies = [
- "memchr",
- "version_check 0.1.5",
-]
-
-[[package]]
-name = "nom"
 version = "5.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b471253da97532da4b61552249c521e01e736071f71c1a4f7ebbfbf0a06aad6"
 dependencies = [
  "lexical-core",
  "memchr",
- "version_check 0.9.2",
+ "version_check",
 ]
 
 [[package]]
@@ -1977,7 +1967,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
- "version_check 0.9.2",
+ "version_check",
 ]
 
 [[package]]
@@ -1990,7 +1980,7 @@ dependencies = [
  "quote",
  "syn",
  "syn-mid",
- "version_check 0.9.2",
+ "version_check",
 ]
 
 [[package]]
@@ -2670,7 +2660,7 @@ version = "0.2.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b0437cfb83762844799a60e1e3b489d5ceb6a650fbacb86437badc1b6d87b246"
 dependencies = [
- "version_check 0.9.2",
+ "version_check",
 ]
 
 [[package]]
@@ -2891,7 +2881,7 @@ dependencies = [
  "standback",
  "stdweb",
  "time-macros",
- "version_check 0.9.2",
+ "version_check",
  "winapi 0.3.8",
 ]
 
@@ -3329,7 +3319,7 @@ version = "2.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "50f37be617794602aabbeee0be4f259dc1778fabe05e2d67ee8f79326d5cb4f6"
 dependencies = [
- "version_check 0.9.2",
+ "version_check",
 ]
 
 [[package]]
@@ -3396,12 +3386,6 @@ name = "vec_map"
 version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f1bddf1187be692e79c5ffeab891132dfb0f236ed36a43c7ed39f1165ee20191"
-
-[[package]]
-name = "version_check"
-version = "0.1.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "914b1a6776c4c929a602fafd8bc742e06365d4bcbe48c30f9cca5824f70dc9dd"
 
 [[package]]
 name = "version_check"
