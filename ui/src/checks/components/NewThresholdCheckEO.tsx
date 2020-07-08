@@ -1,6 +1,6 @@
 // Libraries
 import React, {FunctionComponent, useEffect} from 'react'
-import {connect, ConnectedProps} from 'react-redux'
+import {connect, ConnectedProps, useDispatch} from 'react-redux'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Components
@@ -34,18 +34,20 @@ const NewCheckOverlay: FunctionComponent<Props> = ({
   checkName,
   history,
   onSaveCheckFromTimeMachine,
-  onSetActiveTimeMachine,
   onResetAlertBuilder,
   onUpdateAlertBuilderName,
-  onInitializeAlertBuilder,
 }) => {
+  const dispatch = useDispatch()
+
   useEffect(() => {
     const view = createView<CheckViewProperties>('threshold')
-    onInitializeAlertBuilder('threshold')
-    onSetActiveTimeMachine('alerting', {
-      view,
-    })
-  }, [])
+    dispatch(initializeAlertBuilder('threshold'))
+    dispatch(
+      setActiveTimeMachine('alerting', {
+        view,
+      })
+    )
+  }, [dispatch])
 
   const handleClose = () => {
     history.push(`/orgs/${orgID}/alerting`)
@@ -80,11 +82,9 @@ const mstp = ({alertBuilder: {name, status}}: AppState) => {
 }
 
 const mdtp = {
-  onSetActiveTimeMachine: setActiveTimeMachine,
   onSaveCheckFromTimeMachine: createCheckFromTimeMachine as any,
   onResetAlertBuilder: resetAlertBuilder,
   onUpdateAlertBuilderName: updateName,
-  onInitializeAlertBuilder: initializeAlertBuilder,
 }
 
 const connector = connect(mstp, mdtp)

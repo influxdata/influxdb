@@ -166,5 +166,5 @@ export const useLoadTimeReporting = (event: string) => {
       fields: {},
       tags: {event},
     })
-  }, [])
+  }, [event, loadStartTime])
 }

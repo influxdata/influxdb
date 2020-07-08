@@ -1,6 +1,6 @@
 // Libraries
 import React, {FunctionComponent, useEffect} from 'react'
-import {connect, ConnectedProps} from 'react-redux'
+import {connect, ConnectedProps, useDispatch} from 'react-redux'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
 import {get} from 'lodash'
 
@@ -33,24 +33,23 @@ const DeleteDataOverlay: FunctionComponent<Props> = ({
   },
   bucketNameFromDE,
   timeRangeFromDE,
-  resetPredicateState,
-  setTimeRange,
-  setBucketAndKeys,
 }) => {
+  const dispatch = useDispatch()
+
   useEffect(() => {
     if (bucketNameFromDE) {
-      setBucketAndKeys(bucketNameFromDE)
+      dispatch(setBucketAndKeys(bucketNameFromDE))
     }
-  }, [bucketNameFromDE])
+  }, [dispatch, bucketNameFromDE])
 
   useEffect(() => {
     if (timeRangeFromDE) {
-      setTimeRange(convertTimeRangeToCustom(timeRangeFromDE))
+      dispatch(setTimeRange(convertTimeRangeToCustom(timeRangeFromDE)))
     }
-  }, [timeRangeFromDE])
+  }, [dispatch, timeRangeFromDE])
 
   const handleDismiss = () => {
-    resetPredicateState()
+    dispatch(resetPredicateState())
     history.push(`/orgs/${orgID}/data-explorer`)
   }
 
@@ -80,12 +79,6 @@ const mstp = (state: AppState) => {
   }
 }
 
-const mdtp = {
-  resetPredicateState,
-  setTimeRange,
-  setBucketAndKeys,
-}
-
-const connector = connect(mstp, mdtp)
+const connector = connect(mstp)
 
 export default connector(withRouter(DeleteDataOverlay))

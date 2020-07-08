@@ -1,6 +1,6 @@
 // Libraries
 import React, {FC, useEffect} from 'react'
-import {connect, ConnectedProps} from 'react-redux'
+import {connect, ConnectedProps, useDispatch} from 'react-redux'
 
 // Components
 import GetResource from 'src/resources/components/GetResource'
@@ -26,11 +26,8 @@ const {Active} = AutoRefreshStatus
 type ReduxProps = ConnectedProps<typeof connector>
 type Props = ReduxProps
 
-const DashboardContainer: FC<Props> = ({
-  autoRefresh,
-  dashboard,
-  onSetCurrentPage,
-}) => {
+const DashboardContainer: FC<Props> = ({autoRefresh, dashboard}) => {
+  const dispatch = useDispatch()
   useEffect(() => {
     if (autoRefresh.status === Active) {
       GlobalAutoRefresher.poll(autoRefresh.interval)
@@ -45,11 +42,11 @@ const DashboardContainer: FC<Props> = ({
   }, [autoRefresh.status, autoRefresh.interval])
 
   useEffect(() => {
-    onSetCurrentPage('dashboard')
+    dispatch(setCurrentPage('dashboard'))
     return () => {
-      onSetCurrentPage('not set')
+      dispatch(setCurrentPage('not set'))
     }
-  }, [])
+  }, [dispatch])
 
   return (
     <DashboardRoute>
@@ -72,10 +69,6 @@ const mstp = (state: AppState) => {
   }
 }
 
-const mdtp = {
-  onSetCurrentPage: setCurrentPage,
-}
-
-const connector = connect(mstp, mdtp)
+const connector = connect(mstp)
 
 export default connector(DashboardContainer)

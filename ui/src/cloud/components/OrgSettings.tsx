@@ -1,6 +1,6 @@
 // Libraries
-import {FunctionComponent, useEffect, useState} from 'react'
-import {connect, ConnectedProps} from 'react-redux'
+import {FC, useEffect, useState} from 'react'
+import {connect, ConnectedProps, useDispatch} from 'react-redux'
 
 // Constants
 import {CLOUD} from 'src/shared/constants'
@@ -22,21 +22,18 @@ interface PassedInProps {
 type ReduxProps = ConnectedProps<typeof connector>
 type Props = ReduxProps & PassedInProps
 
-const OrgSettings: FunctionComponent<Props> = ({
-  org,
-  getOrgSettings,
-  settings,
-  children,
-}) => {
+const OrgSettings: FC<Props> = ({org, settings, children}) => {
+  const dispatch = useDispatch()
   const [hasFetchedOrgSettings, setHasFetchedOrgSettings] = useState<boolean>(
     false
   )
+
   useEffect(() => {
     if (CLOUD && org && !hasFetchedOrgSettings) {
       setHasFetchedOrgSettings(true)
-      getOrgSettings()
+      dispatch(getOrgSettingsAction())
     }
-  }, [org])
+  }, [dispatch, org, hasFetchedOrgSettings])
 
   useEffect(() => {
     updateReportingContext(

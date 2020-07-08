@@ -1,6 +1,6 @@
 // Libraries
 import React, {useLayoutEffect, FC, useEffect, useState} from 'react'
-import {connect, ConnectedProps} from 'react-redux'
+import {useDispatch} from 'react-redux'
 import {AutoSizer, InfiniteLoader, List} from 'react-virtualized'
 
 // Components
@@ -11,7 +11,7 @@ import FooterRow from 'src/eventViewer/components/FooterRow'
 import ErrorRow from 'src/eventViewer/components/ErrorRow'
 
 // Actions
-import {notify as notifyAction} from 'src/shared/actions/notifications'
+import {notify} from 'src/shared/actions/notifications'
 
 // Utils
 import {
@@ -30,19 +30,22 @@ type OwnProps = {
   fields: Fields
 }
 
-type ReduxProps = ConnectedProps<typeof connector>
-type Props = EventViewerChildProps & ReduxProps & OwnProps
+type Props = EventViewerChildProps & OwnProps
 
-const EventTable: FC<Props> = ({state, dispatch, loadRows, fields, notify}) => {
+const rowLoadedFn = state => ({index}) => !!state.rows[index]
+
+const EventTable: FC<Props> = ({state, dispatch, loadRows, fields}) => {
   const rowCount = getRowCount(state)
 
-  const isRowLoaded = ({index}) => !!state.rows[index]
+  const isRowLoaded = rowLoadedFn(state)
 
   const isRowLoadedBoolean = !!state.rows[0]
 
   const loadMoreRows = () => loadNextRows(state, dispatch, loadRows)
 
   const [isLongRunningQuery, setIsLongRunningQuery] = useState(false)
+
+  const reduxDispatch = useDispatch()
 
   useEffect(() => {
     setTimeout(() => {
@@ -52,9 +55,9 @@ const EventTable: FC<Props> = ({state, dispatch, loadRows, fields, notify}) => {
 
   useEffect(() => {
     if (isLongRunningQuery && !isRowLoadedBoolean) {
-      notify(checkStatusLoading)
+      reduxDispatch(notify(checkStatusLoading))
     }
-  }, [isLongRunningQuery, isRowLoaded])
+  }, [reduxDispatch, isLongRunningQuery, isRowLoadedBoolean, isRowLoaded])
 
   const rowRenderer = ({key, index, style}) => {
     const isLastRow = index === state.rows.length
@@ -129,10 +132,4 @@ const EventTable: FC<Props> = ({state, dispatch, loadRows, fields, notify}) => {
   )
 }
 
-const mdtp = {
-  notify: notifyAction,
-}
-
-const connector = connect(null, mdtp)
-
-export default connector(EventTable)
+export default EventTable

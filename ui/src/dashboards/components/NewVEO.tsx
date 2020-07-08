@@ -1,7 +1,7 @@
 // Libraries
 import React, {FunctionComponent, useEffect} from 'react'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
-import {connect, ConnectedProps} from 'react-redux'
+import {connect, ConnectedProps, useDispatch} from 'react-redux'
 import {get} from 'lodash'
 
 // Components
@@ -26,7 +26,6 @@ type Props = ReduxProps &
 
 const NewViewVEO: FunctionComponent<Props> = ({
   activeTimeMachineID,
-  onLoadNewVEO,
   onSaveView,
   onSetName,
   match: {
@@ -35,9 +34,10 @@ const NewViewVEO: FunctionComponent<Props> = ({
   history,
   view,
 }) => {
+  const dispatch = useDispatch()
   useEffect(() => {
-    onLoadNewVEO()
-  }, [dashboardID])
+    dispatch(loadNewVEO())
+  }, [dispatch, dashboardID])
 
   const handleClose = () => {
     history.push(`/orgs/${orgID}/dashboards/${dashboardID}`)
@@ -47,7 +47,9 @@ const NewViewVEO: FunctionComponent<Props> = ({
     try {
       onSaveView(dashboardID)
       handleClose()
-    } catch (e) {}
+    } catch (error) {
+      console.error(error)
+    }
   }
 
   let loadingState = RemoteDataState.Loading
@@ -89,7 +91,6 @@ const mstp = (state: AppState) => {
 const mdtp = {
   onSetName: setName,
   onSaveView: saveVEOView,
-  onLoadNewVEO: loadNewVEO,
 }
 
 const connector = connect(mstp, mdtp)

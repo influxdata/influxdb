@@ -1,7 +1,7 @@
 // Libraries
 import React, {FunctionComponent, useEffect} from 'react'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
-import {connect, ConnectedProps} from 'react-redux'
+import {connect, ConnectedProps, useDispatch} from 'react-redux'
 import {get} from 'lodash'
 
 // Components
@@ -26,7 +26,6 @@ type Props = ReduxProps &
 
 const EditViewVEO: FunctionComponent<Props> = ({
   activeTimeMachineID,
-  getViewAndResultsForVEO,
   onSaveView,
   onSetName,
   match: {
@@ -35,12 +34,13 @@ const EditViewVEO: FunctionComponent<Props> = ({
   history,
   view,
 }) => {
+  const dispatch = useDispatch()
   useEffect(() => {
     // TODO split this up into "loadView" "setActiveTimeMachine"
     // and something to tell the component to pull from the context
     // of the dashboardID
-    getViewAndResultsForVEO(dashboardID, cellID, 'veo')
-  }, [])
+    dispatch(getViewAndResultsForVEO(dashboardID, cellID, 'veo'))
+  }, [dispatch, dashboardID, cellID])
 
   const handleClose = () => {
     history.push(`/orgs/${orgID}/dashboards/${dashboardID}`)
@@ -91,7 +91,6 @@ const mstp = (state: AppState) => {
 }
 
 const mdtp = {
-  getViewAndResultsForVEO: getViewAndResultsForVEO,
   onSetName: setName,
   onSaveView: saveVEOView,
 }

@@ -56,12 +56,12 @@ const ThresholdCondition: FC<Props> = ({
     get(threshold, 'max', 100),
   ])
 
+  const min = get(threshold, 'value') || get(threshold, 'min', inputs[0])
+  const max = get(threshold, 'max', inputs[1])
+
   useEffect(() => {
-    changeInputs([
-      get(threshold, 'value') || get(threshold, 'min', inputs[0]),
-      get(threshold, 'max', inputs[1]),
-    ])
-  }, [threshold])
+    changeInputs([min, max])
+  }, [min, max])
 
   const [yDomain] = useCheckYDomain(table.getColumn('_value', 'number'), [])
 

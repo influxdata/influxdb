@@ -1,12 +1,12 @@
 // Libraries
 import React, {FC, useEffect} from 'react'
-import {connect, ConnectedProps} from 'react-redux'
+import {connect, ConnectedProps, useDispatch} from 'react-redux'
 import {get, sortBy} from 'lodash'
 
 // Actions
 import {
   getDemoDataBucketMembership as getDemoDataBucketMembershipAction,
-  getDemoDataBuckets as getDemoDataBucketsAction,
+  getDemoDataBuckets,
 } from 'src/cloud/actions/demodata'
 
 // Components
@@ -22,11 +22,11 @@ const DemoDataDropdown: FC<Props> = ({
   ownBucketsByID,
   demoDataBuckets,
   getDemoDataBucketMembership,
-  getDemoDataBuckets,
 }) => {
+  const dispatch = useDispatch()
   useEffect(() => {
-    getDemoDataBuckets()
-  }, [])
+    dispatch(getDemoDataBuckets())
+  }, [dispatch])
 
   if (!demoDataBuckets.length) {
     return null
@@ -109,7 +109,6 @@ const mstp = (state: AppState) => ({
 
 const mdtp = {
   getDemoDataBucketMembership: getDemoDataBucketMembershipAction,
-  getDemoDataBuckets: getDemoDataBucketsAction,
 }
 
 const connector = connect(mstp, mdtp)
