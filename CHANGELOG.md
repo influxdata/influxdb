@@ -1,5 +1,24 @@
-v1.8.1 [unreleased]
+v1.8.2 [unreleased]
 -------------------
+
+v1.8.1 [2020-07-08]
+-------------------
+
+### Features
+
+-	[#18457](https://github.com/influxdata/influxdb/pull/18457): feat(query): Parallelize field iterator planning. 	
+-	[#18886](https://github.com/influxdata/influxdb/pull/18886): feat(http): Allow user supplied HTTP headers.
+
+### Bugfixes
+
+-	[#17319](https://github.com/influxdata/influxdb/pull/17319): fix(flux): buckets call no longer panics.
+-	[#18212](https://github.com/influxdata/influxdb/pull/18212): fix(tsdb): Defer closing of underlying SeriesIDSetIterators.
+-	[#18286](https://github.com/influxdata/influxdb/pull/18286): fix(tsdb): Disable series id set cache size by default.
+-	[#18299](https://github.com/influxdata/influxdb/pull/18299): refactor(http): Simplify Authorizer.
+-	[#18694](https://github.com/influxdata/influxdb/pull/18694): fix(tsi1): wait deleting epoch before dropping shard.
+-	[#18687](https://github.com/influxdata/influxdb/pull/18687): perf(tsi1): batch write tombstone entries when dropping/deleting.
+-	[#18826](https://github.com/influxdata/influxdb/pull/18826): fix: gracefully handle errors when creating snapshots.
+-	[#18849](https://github.com/influxdata/influxdb/pull/18849): chore(build): remove all of the go1.12 references from build.
 
 v1.8.0 [2020-04-11]
 -------------------
