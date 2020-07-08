@@ -6,7 +6,9 @@ use delorean::generated_types::{Bucket, TimestampRange};
 use delorean::id::Id;
 use delorean::line_parser;
 use delorean::line_parser::index_pairs;
-use delorean::storage::{partitioned_store::ReadValues, predicate, StorageError};
+use delorean::storage::{
+    database::Error as DatabaseError, partitioned_store::ReadValues, predicate,
+};
 use delorean::time::{parse_duration, time_as_i64_nanos};
 
 use std::sync::Arc;
@@ -34,7 +36,7 @@ pub enum ApplicationError {
     BucketByName {
         org: String,
         bucket_name: String,
-        source: StorageError,
+        source: DatabaseError,
     },
 
     #[snafu(display(
@@ -46,7 +48,7 @@ pub enum ApplicationError {
     WritingPoints {
         org: String,
         bucket_name: String,
-        source: StorageError,
+        source: DatabaseError,
     },
 
     #[snafu(display(
@@ -58,7 +60,7 @@ pub enum ApplicationError {
     ReadingPoints {
         org: String,
         bucket_name: String,
-        source: StorageError,
+        source: DatabaseError,
     },
 
     #[snafu(display(
@@ -82,7 +84,7 @@ pub enum ApplicationError {
     CreatingBucket {
         org: String,
         bucket_name: String,
-        source: StorageError,
+        source: DatabaseError,
     },
 
     // Application level errors

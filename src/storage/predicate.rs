@@ -18,6 +18,7 @@ pub enum Error {
     Evaluation { description: String },
 }
 
+// TODO: remove once we have made all modules have their own errors
 impl From<Error> for StorageError {
     fn from(e: Error) -> Self {
         Self {
