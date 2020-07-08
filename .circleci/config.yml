@@ -92,8 +92,8 @@ jobs:
       - cache_restore
       - rust_nightly
       - run:
-          name: Cargo release build
-          command: cargo build --release
+          name: Cargo release build with target arch set for CRoaring
+          command: ROARING_ARCH=x86-64 cargo build --release
       - setup_remote_docker:
           docker_layer_caching: true
       - run: |
