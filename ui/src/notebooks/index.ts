@@ -61,12 +61,14 @@ export interface ResourceManipulator<T> {
 export interface NotebookState {
   data: Resource<PipeData>
   meta: Resource<PipeMeta>
+  readOnly?: boolean
 }
 
 export interface Notebook {
   data: ResourceManipulator<PipeData>
   meta: ResourceManipulator<PipeMeta>
-  results?: FluxResult
+  results: FluxResult
+  readOnly?: boolean
 }
 
 export interface NotebookListState {

@@ -29,6 +29,7 @@ export const EMPTY_NOTEBOOK: NotebookState = {
     byID: {},
     allIDs: [],
   } as Resource<PipeMeta>,
+  readOnly: false,
 }
 
 export const DEFAULT_CONTEXT: NotebookListContextType = {
@@ -59,6 +60,7 @@ export const NotebookListProvider: FC = ({children}) => {
       _notebook = {
         data: notebook.data.serialize(),
         meta: notebook.meta.serialize(),
+        readOnly: notebook.readOnly,
       }
     }
 
@@ -80,6 +82,7 @@ export const NotebookListProvider: FC = ({children}) => {
       [id]: {
         data: notebook.data.serialize(),
         meta: notebook.meta.serialize(),
+        readOnly: notebook.readOnly,
       },
     })
   }
@@ -115,6 +118,7 @@ export const NotebookListProvider: FC = ({children}) => {
       meta: useResource(notebooks[curr].meta, data => {
         stateUpdater('meta', data)
       }),
+      readOnly: notebooks[curr].readOnly,
     } as Notebook
 
     return acc

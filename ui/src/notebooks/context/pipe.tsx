@@ -9,6 +9,7 @@ export interface PipeContextType {
   update: (data: PipeData) => void
   loading: RemoteDataState
   results: FluxResult
+  readOnly: boolean
 }
 
 export const DEFAULT_CONTEXT: PipeContextType = {
@@ -20,6 +21,7 @@ export const DEFAULT_CONTEXT: PipeContextType = {
     raw: '',
     parsed: {},
   } as FluxResult,
+  readOnly: false,
 }
 
 export const PipeContext = React.createContext<PipeContextType>(DEFAULT_CONTEXT)
@@ -50,6 +52,7 @@ export const PipeProvider: FC<PipeContextProps> = ({id, children}) => {
         update: updater,
         results: _result,
         loading: notebook.meta.get(id).loading,
+        readOnly: notebook.readOnly,
       }}
     >
       {children}

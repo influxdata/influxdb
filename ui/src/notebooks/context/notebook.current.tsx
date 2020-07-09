@@ -68,7 +68,10 @@ export const NotebookProvider: FC = ({children}) => {
 
   const updateCurrent = useCallback(
     (notebook: Notebook) => {
-      update(currentID, notebook)
+      update(currentID, {
+        ...notebooks[currentID],
+        ...notebook,
+      })
     },
     [currentID]
   )

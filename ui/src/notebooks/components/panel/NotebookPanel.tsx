@@ -46,6 +46,10 @@ const NotebookPanelHeader: FC<HeaderProps> = ({id, controls}) => {
     ? () => notebook.data.move(id, index + 1)
     : null
 
+  if (notebook.readOnly) {
+    return null
+  }
+
   return (
     <div className="notebook-panel--header">
       <FlexBox
@@ -101,6 +105,12 @@ const NotebookPanel: FC<Props> = ({id, children, controls}) => {
     updatePanelFocus(false)
   }
 
+  if (
+    notebook.readOnly &&
+    !/^(visualization|markdown)$/.test(notebook.data.get(id).type)
+  ) {
+    return null
+  }
   return (
     <>
       <ClickOutside onClickOutside={handleClickOutside}>
@@ -109,7 +119,7 @@ const NotebookPanel: FC<Props> = ({id, children, controls}) => {
           <div className="notebook-panel--body">{children}</div>
         </div>
       </ClickOutside>
-      <InsertCellButton id={id} />
+      {!notebook.readOnly && <InsertCellButton id={id} />}
     </>
   )
 }
