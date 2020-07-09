@@ -83,9 +83,6 @@ export const NotebookListProvider: FC = ({children}) => {
       throw new Error('Notebook not found')
     }
 
-    console.log('updating', id, {...notebooks[id], ...notebook})
-    //console.trace()
-
     setNotebooks({
       ...notebooks,
       [id]: {
