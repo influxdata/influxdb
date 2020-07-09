@@ -285,7 +285,16 @@ func (e *Engine) tagKeysNoTime(ctx context.Context, orgID, bucketID influxdb.ID,
 
 		var tagsReuse models.Tags
 
-		for {
+		for i := 0; ; i++ {
+			// to keep cache scans fast, check context every 'cancelCheckInterval' iterations
+			if i%cancelCheckInterval == 0 {
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				default:
+				}
+			}
+
 			elem, err := sitr.Next()
 			if err != nil {
 				return err
