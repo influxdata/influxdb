@@ -92,7 +92,10 @@ describe('Buckets', () => {
             ).click()
           })
           .then(() => {
-            const asc_buckets = buckets.slice().sort()
+            const asc_buckets = buckets
+              .slice()
+              .sort((a, b) => a.localeCompare(b))
+
             cy.get('[data-testid*="bucket-card"]').each((val, index) => {
               const testID = val.attr('data-testid')
               expect(testID).to.include(asc_buckets[index])
@@ -109,7 +112,8 @@ describe('Buckets', () => {
           .then(() => {
             const asc_buckets = buckets
               .slice()
-              .sort()
+              .sort((a, b) => a.localeCompare(b))
+
               .reverse()
             cy.get('[data-testid*="bucket-card"]').each((val, index) => {
               const testID = val.attr('data-testid')
