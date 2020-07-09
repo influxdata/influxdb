@@ -264,7 +264,7 @@ func (e *Engine) measurementNamesPredicate(ctx context.Context, orgID, bucketID 
 //
 // MeasurementTagValues will always return a StringIterator if there is no error.
 //
-// If the context is canceled before TagValues has finished processing, a non-nil
+// If the context is canceled before MeasurementTagValues has finished processing, a non-nil
 // error will be returned along with statistics for the already scanned data.
 func (e *Engine) MeasurementTagValues(ctx context.Context, orgID, bucketID influxdb.ID, measurement, tagKey string, start, end int64, predicate influxql.Expr) (cursors.StringIterator, error) {
 	if predicate == nil {
@@ -297,7 +297,7 @@ func (e *Engine) MeasurementTagKeys(ctx context.Context, orgID, bucketID influxd
 
 // MeasurementFields returns an iterator which enumerates the field schema for the given
 // bucket and measurement, filtered using the optional the predicate and limited to the
-//// time range [start, end].
+// time range [start, end].
 //
 // MeasurementFields will always return a MeasurementFieldsIterator if there is no error.
 //
