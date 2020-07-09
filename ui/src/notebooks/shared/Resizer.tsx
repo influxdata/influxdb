@@ -31,6 +31,8 @@ interface Props {
   emptyIcon?: IconFont
   /** Text to display when resizing is disabled */
   emptyText: string
+  /** Text to display when there is an error with the results */
+  error?: string
   /** Text to display when the resizer is collapsed */
   hiddenText?: string
   /** When resizing is enabled the panel cannot be resized below this amount */
@@ -43,8 +45,9 @@ const MINIMUM_RESIZER_HEIGHT = 180
 
 const Resizer: FC<Props> = ({
   children,
-  emptyIcon = IconFont.Zap,
+  emptyIcon,
   emptyText,
+  error,
   hiddenText = 'Hidden',
   minimumHeight = MINIMUM_RESIZER_HEIGHT,
   resizingEnabled,
@@ -63,6 +66,13 @@ const Resizer: FC<Props> = ({
   const bodyClassName = classnames('panel-resizer--body', {
     [`panel-resizer--body__${visibility}`]: resizingEnabled && visibility,
   })
+
+  let _emptyIcon = emptyIcon
+  if (error) {
+    _emptyIcon = IconFont.AlertTriangle
+  } else {
+    _emptyIcon = emptyIcon || IconFont.Zap
+  }
 
   const updateResultsStyle = (): void => {
     if (bodyRef.current && resizingEnabled && visibility === 'visible') {
@@ -149,18 +159,26 @@ const Resizer: FC<Props> = ({
 
   let body = children
 
-  if (!resizingEnabled) {
-    body = <div className="panel-resizer--empty">{emptyText}</div>
+  if (error) {
+    body = <div className="panel-resizer--error">{error}</div>
+  } else {
+    if (!resizingEnabled) {
+      body = <div className="panel-resizer--empty">{emptyText}</div>
+    }
+
+    if (resizingEnabled && visibility === 'hidden') {
+      body = <div className="panel-resizer--empty">{hiddenText}</div>
+    }
   }
 
-  if (resizingEnabled && visibility === 'hidden') {
-    body = <div className="panel-resizer--empty">{hiddenText}</div>
-  }
+  const klass = classnames('panel-resizer', {
+    'panel-resizer--error-state': error,
+  })
 
   return (
-    <div className="panel-resizer">
+    <div className={klass}>
       <ResizerHeader
-        emptyIcon={emptyIcon}
+        emptyIcon={_emptyIcon}
         visibility={visibility}
         onStartDrag={handleMouseDown}
         dragHandleRef={dragHandleRef}

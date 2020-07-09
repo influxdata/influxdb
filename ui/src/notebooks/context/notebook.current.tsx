@@ -53,7 +53,6 @@ const getHumanReadableName = (type: string): string => {
 
 export const NotebookProvider: FC = ({children}) => {
   const [currentID, setCurrentID] = useNotebookCurrentState(null)
-  //const [currentID, setCurrentID] = useState(null)
   const {notebooks, add, update, remove} = useContext(NotebookListContext)
 
   const change = useCallback(

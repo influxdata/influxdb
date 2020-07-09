@@ -13,13 +13,6 @@ import {
 import useResource from 'src/notebooks/context/resource.hook'
 
 const useNotebookListState = createPersistedState('notebooks')
-/*
-() => {
-    return (initial) => {
-        return [ output, setter ]
-    }
-}
- */
 
 export interface NotebookListContextType extends NotebookList {
   add: (notebook?: Notebook) => string
@@ -53,7 +46,6 @@ export const NotebookListProvider: FC = ({children}) => {
   const [notebooks, setNotebooks] = useNotebookListState(
     DEFAULT_CONTEXT.notebooks
   )
-  // const [notebooks, setNotebooks] = useState(DEFAULT_CONTEXT.notebooks)
 
   const add = (notebook?: Notebook): string => {
     const id = UUID()

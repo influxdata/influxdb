@@ -13,6 +13,11 @@ $panel-resizer--drag-handle: 30px;
   background-color: $g2-kevlar;
   border-radius: $cf-radius 0 0 $cf-radius;
 }
+.panel-resizer--error-state {
+  .panel-resizer--header {
+    color: $c-dreamsicle
+  }
+}
 
 .panel-resizer--header {
   color: $g15-platinum;
@@ -72,7 +77,8 @@ $panel-resizer--drag-handle: 30px;
 }
 
 .panel-resizer--body,
-.panel-resizer--empty {
+.panel-resizer--empty,
+.panel-resizer--error {
   position: relative;
   flex: 1 0 0;
 }
@@ -86,12 +92,17 @@ $panel-resizer--drag-handle: 30px;
   display: block;
 }
 
+.panel-resizer--error,
 .panel-resizer--empty {
   color: $g15-platinum;
   user-select: none;
   padding: $cf-marg-b 0;
   font-weight: $cf-font-weight--medium;
   height: 30px;
+}
+
+.panel-resizer--error {
+  color: $c-dreamsicle;
 }
 
 .panel-resizer--drag-handle {

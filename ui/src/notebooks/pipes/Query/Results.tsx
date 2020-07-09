@@ -9,12 +9,13 @@ import Resizer from 'src/notebooks/shared/Resizer'
 import ResultsPagination from 'src/notebooks/pipes/Query/ResultsPagination'
 
 import {PipeContext} from 'src/notebooks/context/pipe'
+import {RemoteDataState} from 'src/types'
 
 // Utils
 import {event} from 'src/notebooks/shared/event'
 
 const Results: FC = () => {
-  const {data, results} = useContext(PipeContext)
+  const {data, results, loading} = useContext(PipeContext)
   const resultsExist =
     !!results && !!results.raw && !!results.parsed.table.length
   const raw = (results || {}).raw || ''
@@ -53,10 +54,20 @@ const Results: FC = () => {
     setStartRow(index)
   }
 
+  let emptyText
+  if (loading === RemoteDataState.NotStarted) {
+    emptyText = 'Run the Flow to See Results'
+  } else if (loading === RemoteDataState.Loading) {
+    emptyText = 'Loading'
+  } else {
+    emptyText = 'No Data Returned'
+  }
+
   return (
     <Resizer
       resizingEnabled={resultsExist}
-      emptyText="Run the Flow to see Results"
+      emptyText={emptyText}
+      error={results.error}
       hiddenText="Results hidden"
       toggleVisibilityEnabled={true}
     >
