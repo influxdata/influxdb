@@ -1,12 +1,5 @@
-import React, {
-  FC,
-  useContext,
-  useEffect,
-  useCallback,
-  useMemo,
-  useState,
-} from 'react'
-//import createPersistedState from 'use-persisted-state'
+import React, {FC, useContext, useEffect, useCallback, useMemo} from 'react'
+import createPersistedState from 'use-persisted-state'
 import {Notebook, DataID, PipeData} from 'src/notebooks'
 import {
   NotebookListContext,
@@ -15,7 +8,7 @@ import {
 import {v4 as UUID} from 'uuid'
 import {RemoteDataState} from 'src/types'
 
-//const useNotebookCurrentState = createPersistedState('current-notebook')
+const useNotebookCurrentState = createPersistedState('current-notebook')
 
 export interface NotebookContextType {
   id: DataID<Notebook> | null
@@ -59,8 +52,8 @@ const getHumanReadableName = (type: string): string => {
 }
 
 export const NotebookProvider: FC = ({children}) => {
-  //    const [currentID, setCurrentID] = useNotebookCurrentState(null)
-  const [currentID, setCurrentID] = useState(null)
+  const [currentID, setCurrentID] = useNotebookCurrentState(null)
+  //const [currentID, setCurrentID] = useState(null)
   const {notebooks, add, update, remove} = useContext(NotebookListContext)
 
   const change = useCallback(

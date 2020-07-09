@@ -1,5 +1,5 @@
-import React, {FC, useState} from 'react'
-//import createPersistedState from 'use-persisted-state'
+import React, {FC} from 'react'
+import createPersistedState from 'use-persisted-state'
 import {v4 as UUID} from 'uuid'
 import {
   NotebookList,
@@ -12,7 +12,7 @@ import {
 } from 'src/notebooks'
 import useResource from 'src/notebooks/context/resource.hook'
 
-// const useNotebookListState = createPersistedState('notebooks')
+const useNotebookListState = createPersistedState('notebooks')
 /*
 () => {
     return (initial) => {
@@ -50,8 +50,10 @@ export const NotebookListContext = React.createContext<NotebookListContextType>(
 )
 
 export const NotebookListProvider: FC = ({children}) => {
-  //    const [notebooks, setNotebooks] = useNotebookListState(DEFAULT_CONTEXT.notebooks)
-  const [notebooks, setNotebooks] = useState(DEFAULT_CONTEXT.notebooks)
+  const [notebooks, setNotebooks] = useNotebookListState(
+    DEFAULT_CONTEXT.notebooks
+  )
+  // const [notebooks, setNotebooks] = useState(DEFAULT_CONTEXT.notebooks)
 
   const add = (notebook?: Notebook): string => {
     const id = UUID()
