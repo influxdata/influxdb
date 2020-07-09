@@ -357,3 +357,136 @@ m00,tag00=v00,tag10=v20 b=true 210
 		assert.Equal(t, cursors.MeasurementFieldsIteratorFlatMap(iter), fldL(t, "b", cursors.Boolean, "f", cursors.Float, "i", cursors.String))
 	})
 }
+
+func TestEngine_MeasurementTagKeysNoTime(t *testing.T) {
+	e, err := NewEngine(tsm1.NewConfig(), t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := e.Open(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	defer e.Close()
+
+	orgs := []struct {
+		org, bucket influxdb.ID
+	}{
+		{
+			org:    0x5020,
+			bucket: 0x5100,
+		},
+		{
+			org:    0x6000,
+			bucket: 0x6100,
+		},
+	}
+
+	// this org will require escaping the 0x20 byte
+	e.MustWritePointsString(orgs[0].org, orgs[0].bucket, `
+cpuA,host=0A,os=linux value=1.1 101
+cpuA,host=AA,os=linux value=1.2 102
+cpuA,host=AA,os=linux value=1.3 104
+cpuA,host=CA,os=linux value=1.3 104
+cpuA,host=CA,os=linux value=1.3 105
+cpuA,host=DA,os=macOS,release=10.15 value=1.3 106
+memA,host=DA,os=macOS,release=10.15 value=1.3 101`)
+	e.MustWritePointsString(orgs[1].org, orgs[1].bucket, `
+cpuB,host=0B,os=linux value=1.1 101
+cpuB,host=AB,os=linux value=1.2 102
+cpuB,host=AB,os=linux value=1.3 104
+cpuB,host=CB,os=linux value=1.3 104
+cpuB,host=CB,os=linux value=1.3 105
+cpuB,host=DB,os=macOS,release=10.15 value=1.3 106
+memB,host=DB,os=macOS,release=10.15 value=1.3 101`)
+
+	t.Run("before snapshot", func(t *testing.T) {
+		t.Run("cpuA", func(t *testing.T) {
+			t.Run("measurement name returns all keys", func(t *testing.T) {
+				iter, err := e.MeasurementTagKeysNoTime(context.Background(), orgs[0].org, orgs[0].bucket, "cpuA", nil)
+				require.NoError(t, err)
+				assert.Equal(t, strL("\x00", "host", "os", "release", "\xff"), cursors.StringIteratorToSlice(iter))
+			})
+		})
+	})
+
+	e.MustDeleteBucketRange(orgs[0].org, orgs[0].bucket, 102, 105)
+
+	t.Run("before snapshot after delete", func(t *testing.T) {
+		t.Run("cpuA", func(t *testing.T) {
+			t.Run("measurement name returns all keys", func(t *testing.T) {
+				iter, err := e.MeasurementTagKeysNoTime(context.Background(), orgs[0].org, orgs[0].bucket, "cpuA", nil)
+				require.NoError(t, err)
+				assert.Equal(t, strL("\x00", "host", "os", "release", "\xff"), cursors.StringIteratorToSlice(iter))
+			})
+
+			t.Run("measurement name returns subset with predicate", func(t *testing.T) {
+				iter, err := e.MeasurementTagKeysNoTime(context.Background(), orgs[0].org, orgs[0].bucket, "cpuA", influxql.MustParseExpr("os = 'linux'"))
+				require.NoError(t, err)
+				assert.Equal(t, strL("\x00", "host", "os", "\xff"), cursors.StringIteratorToSlice(iter))
+			})
+		})
+	})
+
+	// send some points to TSM data
+	e.MustWriteSnapshot()
+
+	// leave some points in the cache
+	e.MustWritePointsString(orgs[0].org, orgs[0].bucket, `
+cpuA,host=0A,os=linux value=1.1 201
+cpuA,host=AA,os=linux value=1.2 202
+cpuA,host=AA,os=linux value=1.3 204
+cpuA,host=BA,os=macOS,release=10.15,shell=zsh value=1.3 204
+cpuA,host=BA,os=macOS,release=10.15,shell=zsh value=1.3 205
+cpuA,host=EA,os=linux value=1.3 206
+memA,host=EA,os=linux value=1.3 201`)
+	e.MustWritePointsString(orgs[1].org, orgs[1].bucket, `
+cpuB,host=0B,os=linux value=1.1 201
+cpuB,host=AB,os=linux value=1.2 202
+cpuB,host=AB,os=linux value=1.3 204
+cpuB,host=BB,os=linux value=1.3 204
+cpuB,host=BB,os=linux value=1.3 205
+cpuB,host=EB,os=macOS,release=10.15,shell=zsh value=1.3 206
+memB,host=EB,os=macOS,release=10.15,shell=zsh value=1.3 201`)
+
+	t.Run("after snapshot", func(t *testing.T) {
+		t.Run("cpuA", func(t *testing.T) {
+			t.Run("measurement name returns all keys", func(t *testing.T) {
+				iter, err := e.MeasurementTagKeysNoTime(context.Background(), orgs[0].org, orgs[0].bucket, "cpuA", nil)
+				require.NoError(t, err)
+				assert.Equal(t, strL("\x00", "host", "os", "release", "shell", "\xff"), cursors.StringIteratorToSlice(iter))
+			})
+
+			t.Run("measurement name returns subset with predicate", func(t *testing.T) {
+				iter, err := e.MeasurementTagKeysNoTime(context.Background(), orgs[0].org, orgs[0].bucket, "cpuA", influxql.MustParseExpr("os = 'linux'"))
+				require.NoError(t, err)
+				assert.Equal(t, strL("\x00", "host", "os", "\xff"), cursors.StringIteratorToSlice(iter))
+			})
+
+			t.Run("measurement name returns subset with composite predicate", func(t *testing.T) {
+				iter, err := e.MeasurementTagKeysNoTime(context.Background(), orgs[0].org, orgs[0].bucket, "cpuA", influxql.MustParseExpr("os = 'linux' AND host = 'AA'"))
+				require.NoError(t, err)
+				assert.Equal(t, strL("\x00", "host", "os", "\xff"), cursors.StringIteratorToSlice(iter))
+			})
+
+			t.Run("measurement name returns no results with bad predicate", func(t *testing.T) {
+				iter, err := e.MeasurementTagKeysNoTime(context.Background(), orgs[0].org, orgs[0].bucket, "cpuA", influxql.MustParseExpr("os = 'darwin'"))
+				require.NoError(t, err)
+				assert.Equal(t, strL(), cursors.StringIteratorToSlice(iter))
+			})
+
+			t.Run("bad measurement name returns no results", func(t *testing.T) {
+				iter, err := e.MeasurementTagKeysNoTime(context.Background(), orgs[0].org, orgs[0].bucket, "cpuC", nil)
+				require.NoError(t, err)
+				assert.Equal(t, strL(), cursors.StringIteratorToSlice(iter))
+			})
+		})
+	})
+
+	e.MustDeleteBucketRange(orgs[0].org, orgs[0].bucket, 0, 1000)
+
+	t.Run("returns no data after deleting everything", func(t *testing.T) {
+		iter, err := e.MeasurementTagKeysNoTime(context.Background(), orgs[0].org, orgs[0].bucket, "cpuA", nil)
+		require.NoError(t, err)
+		assert.Equal(t, strL(), cursors.StringIteratorToSlice(iter))
+	})
+}
