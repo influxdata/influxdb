@@ -760,6 +760,25 @@ func TestQueryPushDowns(t *testing.T) {
 		want  string
 	}{
 		{
+			name: "range last single point start time",
+			data: []string{
+				"m,tag=a f=1i 1",
+			},
+			query: `
+from(bucket: v.bucket)
+	|> range(start: 1970-01-01T00:00:00.000000001Z, stop: 1970-01-01T01:00:00Z)
+	|> last()
+`,
+			op: "readWindow(last)",
+			want: `
+#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,long,string,string,string
+#group,false,false,true,true,false,false,true,true,true
+#default,_result,,,,,,,,
+,result,table,_start,_stop,_time,_value,_field,_measurement,tag
+,,0,1970-01-01T00:00:00.000000001Z,1970-01-01T01:00:00Z,1970-01-01T00:00:00.000000001Z,1,f,m,a
+`,
+		},
+		{
 			name: "window last",
 			data: []string{
 				"m0,k=k0 f=0i 0",
