@@ -148,6 +148,7 @@ where
             offset,
             typ,
             size,
+            reader_idx: 0,
         })
     }
 }
@@ -373,7 +374,7 @@ pub struct TSMBlockReader<R>
 where
     R: BufRead + Seek,
 {
-    r: R,
+    readers: Vec<R>,
 }
 
 impl<R> TSMBlockReader<R>
@@ -381,7 +382,11 @@ where
     R: BufRead + Seek,
 {
     pub fn new(r: R) -> Self {
-        Self { r }
+        Self { readers: vec![r] }
+    }
+
+    pub fn add_reader(&mut self, r: R) {
+        self.readers.push(r);
     }
 }
 
@@ -395,75 +400,90 @@ where
     /// The components of the returned `BlockData` are guaranteed to have
     /// identical lengths.
     fn decode(&mut self, block: &Block) -> Result<BlockData, TSMError> {
-        self.r.seek(SeekFrom::Start(block.offset))?;
+        match self.readers.get_mut(block.reader_idx) {
+            Some(r) => {
+                r.seek(SeekFrom::Start(block.offset))?;
 
-        let mut data: Vec<u8> = vec![0; block.size as usize];
-        self.r.read_exact(&mut data)?;
+                let mut data: Vec<u8> = vec![0; block.size as usize];
+                r.read_exact(&mut data)?;
 
-        // TODO(edd): skip 32-bit CRC checksum at beginning of block for now
-        let mut idx = 4;
+                // TODO(edd): skip 32-bit CRC checksum at beginning of block for now
+                let mut idx = 4;
 
-        // determine the block type
-        let block_type = BlockType::try_from(data[idx])?;
-        idx += 1;
+                // determine the block type
+                let block_type = BlockType::try_from(data[idx])?;
+                idx += 1;
 
-        // first decode the timestamp block.
-        let mut ts = Vec::with_capacity(MAX_BLOCK_VALUES); // 1000 is the max block size
-        let (len, n) = u64::decode_var(&data[idx..]); // size of timestamp block
-        idx += n;
-        encoders::timestamp::decode(&data[idx..idx + (len as usize)], &mut ts).map_err(|e| {
-            TSMError {
-                description: e.to_string(),
-            }
-        })?;
-        idx += len as usize;
-
-        match block_type {
-            BlockType::Float => {
-                // values will be same length as time-stamps.
-                let mut values = Vec::with_capacity(ts.len());
-                encoders::float::decode_influxdb(&data[idx..], &mut values).map_err(|e| {
-                    TSMError {
+                // first decode the timestamp block.
+                let mut ts = Vec::with_capacity(MAX_BLOCK_VALUES); // 1000 is the max block size
+                let (len, n) = u64::decode_var(&data[idx..]); // size of timestamp block
+                idx += n;
+                encoders::timestamp::decode(&data[idx..idx + (len as usize)], &mut ts).map_err(
+                    |e| TSMError {
                         description: e.to_string(),
+                    },
+                )?;
+                idx += len as usize;
+
+                match block_type {
+                    BlockType::Float => {
+                        // values will be same length as time-stamps.
+                        let mut values = Vec::with_capacity(ts.len());
+                        encoders::float::decode_influxdb(&data[idx..], &mut values).map_err(
+                            |e| TSMError {
+                                description: e.to_string(),
+                            },
+                        )?;
+
+                        Ok(BlockData::Float { i: 0, ts, values })
                     }
-                })?;
+                    BlockType::Integer => {
+                        // values will be same length as time-stamps.
+                        let mut values = Vec::with_capacity(ts.len());
+                        encoders::integer::decode(&data[idx..], &mut values).map_err(|e| {
+                            TSMError {
+                                description: e.to_string(),
+                            }
+                        })?;
 
-                Ok(BlockData::Float { i: 0, ts, values })
-            }
-            BlockType::Integer => {
-                // values will be same length as time-stamps.
-                let mut values = Vec::with_capacity(ts.len());
-                encoders::integer::decode(&data[idx..], &mut values).map_err(|e| TSMError {
-                    description: e.to_string(),
-                })?;
+                        Ok(BlockData::Integer { i: 0, ts, values })
+                    }
+                    BlockType::Bool => {
+                        // values will be same length as time-stamps.
+                        let mut values = Vec::with_capacity(ts.len());
+                        encoders::boolean::decode(&data[idx..], &mut values).map_err(|e| {
+                            TSMError {
+                                description: e.to_string(),
+                            }
+                        })?;
 
-                Ok(BlockData::Integer { i: 0, ts, values })
+                        Ok(BlockData::Bool { i: 0, ts, values })
+                    }
+                    BlockType::Str => {
+                        // values will be same length as time-stamps.
+                        let mut values = Vec::with_capacity(ts.len());
+                        encoders::string::decode(&data[idx..], &mut values).map_err(|e| {
+                            TSMError {
+                                description: e.to_string(),
+                            }
+                        })?;
+                        Ok(BlockData::Str { i: 0, ts, values })
+                    }
+                    BlockType::Unsigned => {
+                        // values will be same length as time-stamps.
+                        let mut values = Vec::with_capacity(ts.len());
+                        encoders::unsigned::decode(&data[idx..], &mut values).map_err(|e| {
+                            TSMError {
+                                description: e.to_string(),
+                            }
+                        })?;
+                        Ok(BlockData::Unsigned { i: 0, ts, values })
+                    }
+                }
             }
-            BlockType::Bool => {
-                // values will be same length as time-stamps.
-                let mut values = Vec::with_capacity(ts.len());
-                encoders::boolean::decode(&data[idx..], &mut values).map_err(|e| TSMError {
-                    description: e.to_string(),
-                })?;
-
-                Ok(BlockData::Bool { i: 0, ts, values })
-            }
-            BlockType::Str => {
-                // values will be same length as time-stamps.
-                let mut values = Vec::with_capacity(ts.len());
-                encoders::string::decode(&data[idx..], &mut values).map_err(|e| TSMError {
-                    description: e.to_string(),
-                })?;
-                Ok(BlockData::Str { i: 0, ts, values })
-            }
-            BlockType::Unsigned => {
-                // values will be same length as time-stamps.
-                let mut values = Vec::with_capacity(ts.len());
-                encoders::unsigned::decode(&data[idx..], &mut values).map_err(|e| TSMError {
-                    description: e.to_string(),
-                })?;
-                Ok(BlockData::Unsigned { i: 0, ts, values })
-            }
+            None => Err(TSMError {
+                description: format!("cannot decode block {:?} with no associated decoder", block),
+            }),
         }
     }
 }
@@ -562,6 +582,7 @@ mod tests {
                 offset: 5339,
                 size: 153,
                 typ: BlockType::Float,
+                reader_idx: 0,
             },
             super::Block {
                 min_time: 1590585520000000000,
@@ -569,6 +590,7 @@ mod tests {
                 offset: 190770,
                 size: 30,
                 typ: BlockType::Integer,
+                reader_idx: 0,
             },
         ];
 

@@ -11,7 +11,8 @@ use snafu::{ResultExt, Snafu};
 use std::{
     convert::TryInto,
     fs,
-    io::Read,
+    fs::File,
+    io::{BufReader, Read},
     path::{Path, PathBuf},
 };
 
@@ -104,38 +105,83 @@ pub fn is_directory(p: impl AsRef<Path>) -> bool {
 }
 
 pub fn convert(
-    input_filename: &str,
-    output_name: &str,
+    input_path: &str,
+    output_path: &str,
     compression_level: CompressionLevel,
 ) -> Result<()> {
     info!("convert starting");
-    debug!("Reading from input file {}", input_filename);
+    debug!("Reading from input path {}", input_path);
 
-    let input_reader = InputReader::new(input_filename).context(OpenInput)?;
+    if is_directory(input_path) {
+        let files: Vec<_> = fs::read_dir(input_path)
+            .unwrap()
+            .filter_map(Result::ok)
+            .filter(|filename| filename.path().extension().map_or(false, |x| x == "tsm"))
+            .collect();
+
+        if files.is_empty() {
+            warn!("No TSM files found");
+            return Ok(());
+        }
+
+        let mut index_readers = Vec::with_capacity(files.len());
+        let mut block_readers = Vec::with_capacity(files.len());
+        for file in &files {
+            let index_handle = File::open(file.path()).unwrap();
+            let index_size = index_handle.metadata().unwrap().len();
+            let block_handle = File::open(file.path()).unwrap();
+
+            index_readers.push((BufReader::new(index_handle), index_size as usize));
+            block_readers.push(BufReader::new(block_handle));
+        }
+
+        // setup writing
+        let writer_source: Box<dyn DeloreanTableWriterSource> = if is_directory(&output_path) {
+            info!("Writing to output directory {:?}", output_path);
+            Box::new(ParquetDirectoryWriterSource {
+                compression_level,
+                output_dir_path: PathBuf::from(output_path),
+            })
+        } else {
+            info!("Writing to output file {}", output_path);
+            Box::new(ParquetFileWriterSource {
+                compression_level,
+                output_filename: String::from(output_path),
+                made_file: false,
+            })
+        };
+
+        let mut converter = TSMFileConverter::new(writer_source);
+        return converter
+            .convert(index_readers, block_readers)
+            .context(UnableToCloseTableWriter);
+    }
+
+    let input_reader = InputReader::new(input_path).context(OpenInput)?;
     info!(
         "Preparing to convert {} bytes from {}",
         input_reader.len(),
-        input_filename
+        input_path
     );
 
     match input_reader.file_type() {
         FileType::LineProtocol => convert_line_protocol_to_parquet(
-            input_filename,
+            input_path,
             input_reader,
             compression_level,
-            output_name,
+            output_path,
         ),
         FileType::TSM => {
             // TODO(edd): we can remove this when I figure out the best way to share
             // the reader between the TSM index reader and the Block decoder.
-            let input_block_reader = InputReader::new(input_filename).context(OpenInput)?;
+            let input_block_reader = InputReader::new(input_path).context(OpenInput)?;
             let len = input_reader.len() as usize;
             convert_tsm_to_parquet(
                 input_reader,
                 len,
                 compression_level,
                 input_block_reader,
-                output_name,
+                output_path,
             )
         }
         FileType::Parquet => ParquetNotImplemented.fail(),
@@ -222,7 +268,7 @@ fn convert_tsm_to_parquet(
 
     let mut converter = TSMFileConverter::new(writer_source);
     converter
-        .convert(index_stream, index_stream_size, block_stream)
+        .convert(vec![(index_stream, index_stream_size)], vec![block_stream])
         .context(UnableToCloseTableWriter)
 }
 
