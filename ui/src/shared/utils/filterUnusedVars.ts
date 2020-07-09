@@ -30,11 +30,10 @@ export const filterUnusedVars = (variables: Variable[], views: View[]) => {
 }
 
 export const createdUsedVarsCache = (variables: Variable[]) => {
-  const cache = {}
-  variables.forEach((vari: Variable) => {
-    cache[vari.name] = true
-  })
-  return cache
+  return variables.reduce((cache, curr) => {
+    cache[curr.name] = true
+    return cache
+  }, {})
 }
 
 export const getAllUsedVars = (
@@ -43,18 +42,19 @@ export const getAllUsedVars = (
   cache: {[name: string]: boolean}
 ) => {
   const vars = usedVars.slice()
+  let varsInUse = []
   usedVars.forEach((vari: Variable) => {
     if (vari.arguments.type === 'query') {
       const queryText = get(vari, 'arguments.values.query', '')
-      const varsInUse = variables.filter(variable =>
-        isInQuery(queryText, variable)
-      )
-      varsInUse.forEach((v: Variable) => {
-        if (!cache[v.name]) {
-          vars.push(v)
-          cache[v.name] = true
-        }
-      })
+      const usedV = variables.filter(variable => isInQuery(queryText, variable))
+      varsInUse = varsInUse.concat(usedV)
+    }
+  })
+
+  varsInUse.forEach((v: Variable) => {
+    if (!cache[v.name]) {
+      vars.push(v)
+      cache[v.name] = true
     }
   })
 
