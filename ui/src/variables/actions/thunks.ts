@@ -112,6 +112,10 @@ export const getVariables = () => async (
         variables.entities.variables[v.id].status = RemoteDataState.NotStarted
       })
 
+    // TODO: don't overwrite selected variables from context here
+    // we would need to modify the variables that are being passed in
+    // to respect variable values that are already set in the resource variable values
+
     await dispatch(setVariables(RemoteDataState.Done, variables))
   } catch (error) {
     console.error(error)
@@ -434,6 +438,8 @@ export const selectValue = (variableID: string, selected: string) => async (
   // Validate that we can make this selection
   const vals = normalizeValues(variable)
   if (!vals.includes(selected)) {
+    // TODO: there is an issue that's causing non-state set values to
+    // return with no results and not respect query params
     return
   }
 

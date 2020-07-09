@@ -1,4 +1,5 @@
 // Utils
+import {get} from 'lodash'
 import {isInQuery} from 'src/variables/utils/hydrateVars'
 
 // Types
@@ -26,4 +27,40 @@ export const filterUnusedVars = (variables: Variable[], views: View[]) => {
   )
 
   return varsInUse
+}
+
+export const createdUsedVarsCache = (variables: Variable[]) => {
+  const cache = {}
+  variables.forEach((vari: Variable) => {
+    cache[vari.name] = true
+  })
+  return cache
+}
+
+export const getAllUsedVars = (
+  variables: Variable[],
+  usedVars: Variable[],
+  cache: {[name: string]: boolean}
+) => {
+  const vars = usedVars.slice()
+  usedVars.forEach((vari: Variable) => {
+    if (vari.arguments.type === 'query') {
+      const queryText = get(vari, 'arguments.values.query', '')
+      const varsInUse = variables.filter(variable =>
+        isInQuery(queryText, variable)
+      )
+      varsInUse.forEach((v: Variable) => {
+        if (!cache[v.name]) {
+          vars.push(v)
+          cache[v.name] = true
+        }
+      })
+    }
+  })
+
+  if (vars.length !== usedVars.length) {
+    return getAllUsedVars(variables, vars, cache)
+  }
+
+  return vars
 }
