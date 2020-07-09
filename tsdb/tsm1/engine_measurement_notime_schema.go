@@ -326,7 +326,6 @@ func (e *Engine) tagKeysNoTime(ctx context.Context, orgID, bucketID influxdb.ID,
 	for _, v := range km.Get() {
 		vals = append(vals, string(v))
 	}
-	sort.Strings(vals)
 
 	return cursors.NewStringSliceIterator(vals), nil
 }
