@@ -1862,7 +1862,7 @@ mod delorean_ingest_tests {
 
     #[test]
     fn merge_input_tables() -> Result<(), Box<dyn std::error::Error>> {
-        let mut inputs: Vec<Option<MeasurementTable>> = vec![];
+        let mut inputs = vec![];
         let mut table = MeasurementTable::new("cpu".to_string(), 0);
         table.add_series_data(
             vec![("region".to_string(), "east".to_string())],
