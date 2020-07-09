@@ -21,7 +21,6 @@ function useResource<T>(
     },
     add: (id: DataID<T>, data?: T) => {
       if (data) {
-        console.log('resource add', id, data)
         resource.byID[id] = data
         resource.allIDs.push(id)
         onChange(resource)
@@ -38,7 +37,6 @@ function useResource<T>(
       if (!_data) {
         throw new Error(`No valid data when adding [${id}]`)
       }
-      console.log('resource add', id, _data)
 
       resource.byID[id] = _data
       resource.allIDs.push(id)
@@ -48,8 +46,6 @@ function useResource<T>(
       if (!resource.byID.hasOwnProperty(id)) {
         throw new Error(`Could not update resource [${id}]`)
       }
-
-      console.log('resource update', id, data)
 
       resource.byID = {
         ...resource.byID,
@@ -82,8 +78,11 @@ function useResource<T>(
     indexOf: (id: DataID<T>): number => {
       return resource.allIDs.indexOf(id)
     },
-    move: (_id: DataID<T>, _index: number) => {
-      throw new Error('Not implemented')
+    move: (id: DataID<T>, index: number) => {
+        const _index = ((index % resource.allIDs.length) + resource.allIDs.length) % resource.allIDs.length
+
+        resource.allIDs.splice(_index, 0, resource.allIDs.splice(resource.allIDs.indexOf(id), 1)[0])
+        onChange(resource)
     },
 
     serialize: () => {
