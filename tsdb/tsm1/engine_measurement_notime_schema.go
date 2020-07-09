@@ -9,6 +9,7 @@ import (
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/tsdb"
 	"github.com/influxdata/influxdb/v2/tsdb/cursors"
+	"github.com/influxdata/influxdb/v2/tsdb/seriesfile"
 	"github.com/influxdata/influxql"
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/log"
@@ -239,4 +240,83 @@ func (e *Engine) fieldsNoTime(ctx context.Context, orgID, bucketID influxdb.ID, 
 	}
 
 	return cursors.NewMeasurementFieldsSliceIterator([]cursors.MeasurementFields{{Fields: vals}}), nil
+}
+
+// MeasurementTagKeysNoTime returns an iterator which enumerates the tag keys
+// for the given bucket, measurement and tag key and filtered using the optional
+// the predicate.
+//
+// MeasurementTagKeysNoTime will always return a StringIterator if there is no error.
+//
+// If the context is canceled before MeasurementTagKeysNoTime has finished
+// processing, a non-nil error will be returned along with statistics for the
+// already scanned data.
+func (e *Engine) MeasurementTagKeysNoTime(ctx context.Context, orgID, bucketID influxdb.ID, measurement string, predicate influxql.Expr) (cursors.StringIterator, error) {
+	predicate = AddMeasurementToExpr(measurement, predicate)
+	return e.tagKeysNoTime(ctx, orgID, bucketID, predicate)
+}
+
+func (e *Engine) tagKeysNoTime(ctx context.Context, orgID, bucketID influxdb.ID, predicate influxql.Expr) (cursors.StringIterator, error) {
+	if err := ValidateTagPredicate(predicate); err != nil {
+		return nil, err
+	}
+
+	orgBucket := tsdb.EncodeName(orgID, bucketID)
+
+	vals := make([]string, 0, 128)
+
+	span := opentracing.SpanFromContext(ctx)
+	if span != nil {
+		defer func() {
+			span.LogFields(
+				log.Int("values_count", len(vals)),
+			)
+		}()
+	}
+
+	keyset := map[string]struct{}{}
+
+	if err := func() error {
+		sitr, err := e.index.MeasurementSeriesByExprIterator(orgBucket[:], predicate)
+		if err != nil {
+			return err
+		}
+		defer sitr.Close()
+
+		var tagsReuse models.Tags
+
+		for {
+			elem, err := sitr.Next()
+			if err != nil {
+				return err
+			} else if elem.SeriesID.IsZero() {
+				return nil
+			}
+
+			sf := e.index.SeriesFile()
+			if sf == nil {
+				return nil
+			}
+
+			skey := sf.SeriesKey(elem.SeriesID)
+			if len(skey) == 0 {
+				continue
+			}
+
+			_, tags := seriesfile.ParseSeriesKeyInto(skey, tagsReuse[:0])
+			for _, t := range tags {
+				keyset[string(t.Key)] = struct{}{}
+			}
+		}
+		return nil
+	}(); err != nil {
+		return cursors.NewStringSliceIterator(nil), err
+	}
+
+	for k := range keyset {
+		vals = append(vals, k)
+	}
+	sort.Strings(vals)
+
+	return cursors.NewStringSliceIterator(vals), nil
 }
