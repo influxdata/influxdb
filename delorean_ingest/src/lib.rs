@@ -622,7 +622,7 @@ impl TSMFileConverter {
             for idx in iter {
                 // TODO(edd): perf - could calculate a more efficient merge
                 // order.
-                let mut next_table = std::mem::replace(&mut inputs[idx], None).unwrap();
+                let mut next_table = inputs[idx].take().unwrap();
                 first_table.merge(&mut next_table).context(TSMProcessing)?;
             }
             return Ok((Some(first_table), inputs));
