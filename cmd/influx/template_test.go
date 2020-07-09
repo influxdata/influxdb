@@ -795,6 +795,10 @@ func (f *fakePkgSVC) ListStacks(ctx context.Context, orgID influxdb.ID, filter p
 	panic("not implemented")
 }
 
+func (f *fakePkgSVC) UninstallStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) (pkger.Stack, error) {
+	panic("not implemeted")
+}
+
 func (f *fakePkgSVC) DeleteStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) error {
 	panic("not implemented")
 }

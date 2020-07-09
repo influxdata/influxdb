@@ -1350,6 +1350,10 @@ func (f *fakeSVC) InitStack(ctx context.Context, userID influxdb.ID, stack pkger
 	return f.initStackFn(ctx, userID, stack)
 }
 
+func (f *fakeSVC) UninstallStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) (pkger.Stack, error) {
+	panic("not implemented")
+}
+
 func (f *fakeSVC) DeleteStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) error {
 	panic("not implemented yet")
 }
