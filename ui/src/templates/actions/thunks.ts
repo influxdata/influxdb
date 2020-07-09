@@ -3,6 +3,7 @@ import {normalize} from 'normalizr'
 
 // APIs
 import {client} from 'src/utils/api'
+import {fetchStacks} from 'src/templates/api'
 import {createDashboardFromTemplate} from 'src/dashboards/actions/thunks'
 import {createVariableFromTemplate} from 'src/variables/actions/thunks'
 import {createTaskFromTemplate} from 'src/tasks/actions/thunks'
@@ -14,10 +15,11 @@ import {templateSchema, arrayOfTemplates} from 'src/schemas/templates'
 import {notify, Action as NotifyAction} from 'src/shared/actions/notifications'
 import {
   addTemplateSummary,
+  setStacks,
   populateTemplateSummaries,
+  removeTemplateSummary,
   setExportTemplate,
   setTemplatesStatus,
-  removeTemplateSummary,
   setTemplateSummary,
   Action as TemplateAction,
 } from 'src/templates/actions/creators'
@@ -274,5 +276,16 @@ export const removeTemplateLabelsAsync = (
   } catch (error) {
     console.error(error)
     dispatch(notify(copy.removeTemplateLabelFailed()))
+  }
+}
+
+export const fetchAndSetStacks = (orgID: string) => async (
+  dispatch: Dispatch<Action>
+): Promise<void> => {
+  try {
+    const stacks = await fetchStacks(orgID)
+    dispatch(setStacks(stacks))
+  } catch (error) {
+    console.error(error)
   }
 }
