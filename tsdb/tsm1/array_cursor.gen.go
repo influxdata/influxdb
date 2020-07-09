@@ -293,9 +293,11 @@ func (c *floatArrayDescendingCursor) Next() *cursors.FloatArray {
 		}
 	}
 
-	if pos > 0 && c.res.Timestamps[pos-1] <= c.end {
+	// If the earliest timestamp is strictly earlier than
+	// the end time, remove it from the result and repeat.
+	if pos > 0 && c.res.Timestamps[pos-1] < c.end {
 		pos -= 2
-		for pos >= 0 && c.res.Timestamps[pos] <= c.end {
+		for pos >= 0 && c.res.Timestamps[pos] < c.end {
 			pos--
 		}
 		pos++
@@ -603,9 +605,11 @@ func (c *integerArrayDescendingCursor) Next() *cursors.IntegerArray {
 		}
 	}
 
-	if pos > 0 && c.res.Timestamps[pos-1] <= c.end {
+	// If the earliest timestamp is strictly earlier than
+	// the end time, remove it from the result and repeat.
+	if pos > 0 && c.res.Timestamps[pos-1] < c.end {
 		pos -= 2
-		for pos >= 0 && c.res.Timestamps[pos] <= c.end {
+		for pos >= 0 && c.res.Timestamps[pos] < c.end {
 			pos--
 		}
 		pos++
@@ -913,9 +917,11 @@ func (c *unsignedArrayDescendingCursor) Next() *cursors.UnsignedArray {
 		}
 	}
 
-	if pos > 0 && c.res.Timestamps[pos-1] <= c.end {
+	// If the earliest timestamp is strictly earlier than
+	// the end time, remove it from the result and repeat.
+	if pos > 0 && c.res.Timestamps[pos-1] < c.end {
 		pos -= 2
-		for pos >= 0 && c.res.Timestamps[pos] <= c.end {
+		for pos >= 0 && c.res.Timestamps[pos] < c.end {
 			pos--
 		}
 		pos++
@@ -1225,9 +1231,11 @@ func (c *stringArrayDescendingCursor) Next() *cursors.StringArray {
 		}
 	}
 
-	if pos > 0 && c.res.Timestamps[pos-1] <= c.end {
+	// If the earliest timestamp is strictly earlier than
+	// the end time, remove it from the result and repeat.
+	if pos > 0 && c.res.Timestamps[pos-1] < c.end {
 		pos -= 2
-		for pos >= 0 && c.res.Timestamps[pos] <= c.end {
+		for pos >= 0 && c.res.Timestamps[pos] < c.end {
 			pos--
 		}
 		pos++
@@ -1537,9 +1545,11 @@ func (c *booleanArrayDescendingCursor) Next() *cursors.BooleanArray {
 		}
 	}
 
-	if pos > 0 && c.res.Timestamps[pos-1] <= c.end {
+	// If the earliest timestamp is strictly earlier than
+	// the end time, remove it from the result and repeat.
+	if pos > 0 && c.res.Timestamps[pos-1] < c.end {
 		pos -= 2
-		for pos >= 0 && c.res.Timestamps[pos] <= c.end {
+		for pos >= 0 && c.res.Timestamps[pos] < c.end {
 			pos--
 		}
 		pos++
