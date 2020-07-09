@@ -37,6 +37,20 @@ func (s *HTTPRemoteService) InitStack(ctx context.Context, userID influxdb.ID, s
 	return convertRespStackToStack(respBody)
 }
 
+func (s *HTTPRemoteService) UninstallStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) (Stack, error) {
+	var respBody RespStack
+	err := s.Client.
+		Post(httpc.BodyEmpty, RoutePrefixStacks, identifiers.StackID.String(), "/uninstall").
+		QueryParams([2]string{"orgID", identifiers.OrgID.String()}).
+		DecodeJSON(&respBody).
+		Do(ctx)
+	if err != nil {
+		return Stack{}, err
+	}
+
+	return convertRespStackToStack(respBody)
+}
+
 func (s *HTTPRemoteService) DeleteStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) error {
 	return s.Client.
 		Delete(RoutePrefixStacks, identifiers.StackID.String()).
@@ -290,8 +304,8 @@ func convertRespStackEvent(ev RespStackEvent) (StackEvent, error) {
 
 	eventType := StackEventCreate
 	switch ev.EventType {
-	case "delete":
-		eventType = StackEventDelete
+	case "uninstall", "delete": // delete is included to maintain backwards compatibility
+		eventType = StackEventUninstalled
 	case "update":
 		eventType = StackEventUpdate
 	}

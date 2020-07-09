@@ -4725,7 +4725,7 @@ paths:
       operationId: UpdateStack
       tags:
         - InfluxDB Templates
-      summary: Update a an InfluxDB Stack
+      summary: Update an InfluxDB Stack
       parameters:
         - in: path
           name: stack_id
@@ -4795,6 +4795,32 @@ paths:
       responses:
         "204":
           description: Stack and all its associated resources are deleted
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /stacks/{stack_id}/uninstall:
+    post:
+      operationId: UninstallStack
+      tags:
+        - InfluxDB Templates
+      summary: Uninstall an InfluxDB Stack
+      parameters:
+        - in: path
+          name: stack_id
+          required: true
+          schema:
+            type: string
+          description: The stack id
+      responses:
+        "200":
+          description: Influx stack uninstalled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Stack"
         default:
           description: Unexpected error
           content:

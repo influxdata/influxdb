@@ -104,15 +104,15 @@ type StackEventType uint
 const (
 	StackEventCreate StackEventType = iota
 	StackEventUpdate
-	StackEventDelete
+	StackEventUninstalled
 )
 
 func (e StackEventType) String() string {
 	switch e {
 	case StackEventCreate:
 		return "create"
-	case StackEventDelete:
-		return "delete"
+	case StackEventUninstalled:
+		return "uninstall"
 	case StackEventUpdate:
 		return "update"
 	default:
@@ -125,6 +125,7 @@ const ResourceTypeStack influxdb.ResourceType = "stack"
 // SVC is the packages service interface.
 type SVC interface {
 	InitStack(ctx context.Context, userID influxdb.ID, stack StackCreate) (Stack, error)
+	UninstallStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) (Stack, error)
 	DeleteStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) error
 	ListStacks(ctx context.Context, orgID influxdb.ID, filter ListFilter) ([]Stack, error)
 	ReadStack(ctx context.Context, id influxdb.ID) (Stack, error)
@@ -386,17 +387,45 @@ func (s *Service) InitStack(ctx context.Context, userID influxdb.ID, stCreate St
 	return newStack, nil
 }
 
+// UninstallStack will remove all resources associated with the stack.
+func (s *Service) UninstallStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) (Stack, error) {
+	uninstalledStack, err := s.uninstallStack(ctx, identifiers)
+	if err != nil {
+		return Stack{}, err
+	}
+
+	ev := uninstalledStack.LatestEvent()
+	ev.EventType = StackEventUninstalled
+	ev.Resources = nil
+	ev.UpdatedAt = s.timeGen.Now()
+
+	uninstalledStack.Events = append(uninstalledStack.Events, ev)
+	if err := s.store.UpdateStack(ctx, uninstalledStack); err != nil {
+		s.log.Error("unable to update stack after uninstalling resources", zap.Error(err))
+	}
+	return uninstalledStack, nil
+}
+
 // DeleteStack removes a stack and all the resources that have are associated with the stack.
 func (s *Service) DeleteStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) (e error) {
-	stack, err := s.store.ReadStackByID(ctx, identifiers.StackID)
+	deletedStack, err := s.uninstallStack(ctx, identifiers)
 	if influxdb.ErrorCode(err) == influxdb.ENotFound {
 		return nil
 	}
 	if err != nil {
 		return err
 	}
+
+	return s.store.DeleteStack(ctx, deletedStack.ID)
+}
+
+func (s *Service) uninstallStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) (_ Stack, e error) {
+	stack, err := s.store.ReadStackByID(ctx, identifiers.StackID)
+	if err != nil {
+		return Stack{}, err
+	}
 	if stack.OrgID != identifiers.OrgID {
-		return &influxdb.Error{
+		return Stack{}, &influxdb.Error{
 			Code: influxdb.EConflict,
 			Msg:  "you do not have access to given stack ID",
 		}
@@ -405,7 +434,7 @@ func (s *Service) DeleteStack(ctx context.Context, identifiers struct{ OrgID, Us
 	// providing empty template will remove all applied resources
 	state, err := s.dryRun(ctx, identifiers.OrgID, new(Template), applyOptFromOptFns(ApplyWithStackID(identifiers.StackID)))
 	if err != nil {
-		return err
+		return Stack{}, err
 	}
 
 	coordinator := newRollbackCoordinator(s.log, s.applyReqLimit)
@@ -413,14 +442,9 @@ func (s *Service) DeleteStack(ctx context.Context, identifiers struct{ OrgID, Us
 
 	err = s.applyState(ctx, coordinator, identifiers.OrgID, identifiers.UserID, state, nil)
 	if err != nil {
-		return err
+		return Stack{}, err
 	}
-
-	stack.Events = append(stack.Events, StackEvent{
-		EventType: StackEventDelete,
-		UpdatedAt: s.timeGen.Now(),
-	})
-	return s.store.UpdateStack(ctx, stack)
+	return stack, nil
 }
 
 // ListFilter are filter options for filtering stacks from being returned.

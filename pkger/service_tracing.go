@@ -27,6 +27,12 @@ func (s *traceMW) InitStack(ctx context.Context, userID influxdb.ID, newStack St
 	return s.next.InitStack(ctx, userID, newStack)
 }
 
+func (s *traceMW) UninstallStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) (Stack, error) {
+	span, ctx := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+	return s.next.UninstallStack(ctx, identifiers)
+}
+
 func (s *traceMW) DeleteStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) error {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()

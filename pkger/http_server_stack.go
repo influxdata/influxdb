@@ -40,6 +40,7 @@ func NewHTTPServerStacks(log *zap.Logger, svc SVC) *HTTPServerStacks {
 			r.Get("/", svr.readStack)
 			r.Delete("/", svr.deleteStack)
 			r.Patch("/", svr.updateStack)
+			r.Post("/uninstall", svr.uninstallStack)
 		})
 	}
 
@@ -244,11 +245,10 @@ func (s *HTTPServerStacks) deleteStack(w http.ResponseWriter, r *http.Request) {
 		s.api.Err(w, r, err)
 		return
 	}
-	userID := auth.GetUserID()
 
 	err = s.svc.DeleteStack(r.Context(), struct{ OrgID, UserID, StackID influxdb.ID }{
 		OrgID:   orgID,
-		UserID:  userID,
+		UserID:  auth.GetUserID(),
 		StackID: stackID,
 	})
 	if err != nil {
@@ -257,6 +257,38 @@ func (s *HTTPServerStacks) deleteStack(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.api.Respond(w, r, http.StatusNoContent, nil)
+}
+
+func (s *HTTPServerStacks) uninstallStack(w http.ResponseWriter, r *http.Request) {
+	orgID, err := getRequiredOrgIDFromQuery(r.URL.Query())
+	if err != nil {
+		s.api.Err(w, r, err)
+		return
+	}
+
+	stackID, err := stackIDFromReq(r)
+	if err != nil {
+		s.api.Err(w, r, err)
+		return
+	}
+
+	auth, err := pctx.GetAuthorizer(r.Context())
+	if err != nil {
+		s.api.Err(w, r, err)
+		return
+	}
+
+	stack, err := s.svc.UninstallStack(r.Context(), struct{ OrgID, UserID, StackID influxdb.ID }{
+		OrgID:   orgID,
+		UserID:  auth.GetUserID(),
+		StackID: stackID,
+	})
+	if err != nil {
+		s.api.Err(w, r, err)
+		return
+	}
+
+	s.api.Respond(w, r, http.StatusOK, convertStackToRespStack(stack))
 }
 
 func (s *HTTPServerStacks) readStack(w http.ResponseWriter, r *http.Request) {

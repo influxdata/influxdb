@@ -3,6 +3,7 @@
 ### Features
 
 1. [18888](https://github.com/influxdata/influxdb/pull/18888): Add event source to influx stack operations
+1. [18910](https://github.com/influxdata/influxdb/pull/18910): Add uninstall functionality for stacks
 
 ### Bug Fixes
 

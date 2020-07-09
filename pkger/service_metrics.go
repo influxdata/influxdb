@@ -38,6 +38,12 @@ func (s *mwMetrics) InitStack(ctx context.Context, userID influxdb.ID, newStack 
 	return stack, rec(err)
 }
 
+func (s *mwMetrics) UninstallStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) (Stack, error) {
+	rec := s.rec.Record("uninstall_stack")
+	stack, err := s.next.UninstallStack(ctx, identifiers)
+	return stack, rec(err)
+}
+
 func (s *mwMetrics) DeleteStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) error {
 	rec := s.rec.Record("delete_stack")
 	return rec(s.next.DeleteStack(ctx, identifiers))

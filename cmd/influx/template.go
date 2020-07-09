@@ -1780,7 +1780,7 @@ func writeStackRows(tabW *internal.TabWriter, stacks ...pkger.Stack) {
 		tabW.Write(map[string]interface{}{
 			"ID":            stack.ID,
 			"OrgID":         stack.OrgID,
-			"Active":        latest.EventType != pkger.StackEventDelete,
+			"Active":        latest.EventType != pkger.StackEventUninstalled,
 			"Name":          latest.Name,
 			"Description":   latest.Description,
 			"Num Resources": len(latest.Resources),
