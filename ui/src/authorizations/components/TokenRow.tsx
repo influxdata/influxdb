@@ -40,12 +40,16 @@ class TokenRow extends PureComponent<Props> {
     const {auth} = this.props
     const labelText = this.isTokenEnabled ? 'Active' : 'Inactive'
     return (
-      <ResourceCard contextMenu={this.contextMenu}>
+      <ResourceCard
+        contextMenu={this.contextMenu}
+        testID={`token-card ${auth.description}`}
+      >
         <ResourceCard.EditableName
           onUpdate={this.handleUpdateName}
           onClick={this.handleClickDescription}
           name={description}
           noNameString={DEFAULT_TOKEN_DESCRIPTION}
+          testID={`token-name ${auth.description}`}
         />
         <ResourceCard.Meta>
           {[<>Created at: {auth.createdAt}</>]}
