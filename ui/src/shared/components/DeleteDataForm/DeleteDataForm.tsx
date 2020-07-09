@@ -83,7 +83,7 @@ const DeleteDataForm: FC<Props> = ({
     if (filters.every(filter => filter.key !== '' && filter.value !== '')) {
       handleDeleteDataPreview()
     }
-  }, [filters])
+  }, [filters]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const formatPredicatesForPreview = (predicates: Filter[]) => {
     let result = ''

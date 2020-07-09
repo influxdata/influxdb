@@ -31,7 +31,7 @@ const CreateBucketButton: FC<Props> = ({
   const dispatch = useDispatch()
   useEffect(() => {
     // Check bucket limits when component mounts
-    checkBucketLimits()
+    dispatch(checkBucketLimits())
   }, [dispatch])
 
   const limitExceeded = limitStatus === LimitStatus.EXCEEDED

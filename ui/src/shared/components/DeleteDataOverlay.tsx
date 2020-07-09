@@ -1,6 +1,6 @@
 // Libraries
 import React, {FunctionComponent, useEffect} from 'react'
-import {connect, ConnectedProps} from 'react-redux'
+import {connect, ConnectedProps, useDispatch} from 'react-redux'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
 import {Overlay, SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
 
@@ -26,19 +26,19 @@ const DeleteDataOverlay: FunctionComponent<Props> = ({
   match: {
     params: {orgID, bucketID},
   },
-  resetPredicateState,
-  setBucketAndKeys,
 }) => {
+  const dispatch = useDispatch()
   const bucket = buckets.find(bucket => bucket.id === bucketID)
+  const bucketName = bucket?.name
 
   useEffect(() => {
-    if (bucket) {
-      setBucketAndKeys(bucket.name)
+    if (bucketName) {
+      dispatch(setBucketAndKeys(bucketName))
     }
-  }, [])
+  }, [bucketName, dispatch])
 
   const handleDismiss = () => {
-    resetPredicateState()
+    dispatch(resetPredicateState())
     history.push(`/orgs/${orgID}/load-data/buckets/`)
   }
 
@@ -65,11 +65,6 @@ const mstp = (state: AppState) => {
   }
 }
 
-const mdtp = {
-  resetPredicateState,
-  setBucketAndKeys,
-}
-
-const connector = connect(mstp, mdtp)
+const connector = connect(mstp)
 
 export default connector(withRouter(DeleteDataOverlay))

@@ -1,5 +1,5 @@
 // Libraries
-import React, {FC, useContext, useState, useEffect, useCallback} from 'react'
+import React, {FC, useContext, useState, useEffect} from 'react'
 import {SubmitQueryButton} from 'src/timeMachine/components/SubmitQueryButton'
 import {BothResults} from 'src/notebooks'
 import QueryProvider, {QueryContext} from 'src/notebooks/context/query'

@@ -7,22 +7,21 @@ interface Props {
 
 const Embedded: FC<Props> = ({uri, visible}) => {
   const parts = uri.split(':')
-
-  if (!visible) {
-    return null
-  }
+  const p1 = parts[1]
+  const p2 = parts[2]
 
   return useMemo(
-    () => (
-      <iframe
-        src={`https://open.spotify.com/embed/${parts[1]}/${parts[2]}`}
-        width="600"
-        height="80"
-        frameBorder="0"
-        allow="encrypted-media"
-      />
-    ),
-    [uri]
+    () =>
+      visible && (
+        <iframe
+          src={`https://open.spotify.com/embed/${p1}/${p2}`}
+          width="600"
+          height="80"
+          frameBorder="0"
+          allow="encrypted-media"
+        />
+      ),
+    [visible, p1, p2]
   )
 }
 

@@ -7,7 +7,7 @@ import React, {
   useRef,
   useReducer,
 } from 'react'
-import {connect, ConnectedProps} from 'react-redux'
+import {connect, ConnectedProps, useDispatch} from 'react-redux'
 
 // Components
 import {
@@ -26,10 +26,7 @@ import {
 } from 'src/cloud/utils/limits'
 
 // Actions
-import {
-  checkBucketLimits as checkBucketLimitsAction,
-  LimitStatus,
-} from 'src/cloud/actions/limits'
+import {checkBucketLimits, LimitStatus} from 'src/cloud/actions/limits'
 import {createBucket} from 'src/buckets/actions/thunks'
 
 // Types
@@ -53,8 +50,8 @@ const SelectorListCreateBucket: FC<Props> = ({
   createBucket,
   isRetentionLimitEnforced,
   limitStatus,
-  checkBucketLimits,
 }) => {
+  const reduxDispatch = useDispatch()
   const triggerRef = useRef<HTMLButtonElement>(null)
   const [state, dispatch] = useReducer(
     createBucketReducer,
@@ -63,8 +60,8 @@ const SelectorListCreateBucket: FC<Props> = ({
 
   useEffect(() => {
     // Check bucket limits when component mounts
-    checkBucketLimits()
-  }, [])
+    reduxDispatch(checkBucketLimits())
+  }, [reduxDispatch])
 
   const limitExceeded = limitStatus === LimitStatus.EXCEEDED
 
@@ -172,7 +169,6 @@ const mstp = (state: AppState) => {
 
 const mdtp = {
   createBucket,
-  checkBucketLimits: checkBucketLimitsAction,
 }
 
 const connector = connect(mstp, mdtp)
