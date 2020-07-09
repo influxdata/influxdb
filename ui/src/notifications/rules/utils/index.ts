@@ -48,8 +48,13 @@ export const getRuleVariantDefaults = (
     }
 
     case 'telegram': {
+      // wrap all variable values into `` to prevent telegram's markdown errors
+      const messageTemplate = defaultMessage.replace(
+        /\$\{[^\}]+\}/g,
+        x => `\`${x}\``
+      )
       return {
-        messageTemplate: defaultMessage,
+        messageTemplate: messageTemplate,
         channel: '',
         parseMode: 'MarkdownV2',
         disableWebPagePreview: false,
