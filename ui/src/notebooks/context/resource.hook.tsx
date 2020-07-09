@@ -79,10 +79,16 @@ function useResource<T>(
       return resource.allIDs.indexOf(id)
     },
     move: (id: DataID<T>, index: number) => {
-        const _index = ((index % resource.allIDs.length) + resource.allIDs.length) % resource.allIDs.length
+      const _index =
+        ((index % resource.allIDs.length) + resource.allIDs.length) %
+        resource.allIDs.length
 
-        resource.allIDs.splice(_index, 0, resource.allIDs.splice(resource.allIDs.indexOf(id), 1)[0])
-        onChange(resource)
+      resource.allIDs.splice(
+        _index,
+        0,
+        resource.allIDs.splice(resource.allIDs.indexOf(id), 1)[0]
+      )
+      onChange(resource)
     },
 
     serialize: () => {

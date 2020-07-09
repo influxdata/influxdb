@@ -85,7 +85,7 @@ export const NotebookProvider: FC = ({children}) => {
     remove(currentID)
   }, [currentID])
 
-  const addPipe = (initial: PipeData, _index?: number) => {
+  const addPipe = (initial: PipeData, index?: number) => {
     const id = UUID()
 
     notebooks[currentID].data.add(id, initial)
@@ -95,6 +95,10 @@ export const NotebookProvider: FC = ({children}) => {
       loading: RemoteDataState.NotStarted,
       focus: false,
     })
+
+    if (typeof index !== 'undefined') {
+      notebooks[currentID].data.move(id, index + 1)
+    }
 
     return id
   }
