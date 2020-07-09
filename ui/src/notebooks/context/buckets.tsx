@@ -48,7 +48,7 @@ export const BucketProvider: FC<Props> = React.memo(
       }
 
       lockAndLoad(getBuckets)
-    }, [loading])
+    }, [loading, getBuckets])
 
     return (
       <BucketContext.Provider

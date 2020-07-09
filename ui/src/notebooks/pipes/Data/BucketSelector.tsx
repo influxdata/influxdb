@@ -1,5 +1,5 @@
 // Libraries
-import React, {FC, useEffect, useContext} from 'react'
+import React, {FC, useEffect, useContext, useCallback} from 'react'
 
 // Components
 import {
@@ -24,9 +24,12 @@ const BucketSelector: FC<Props> = ({onUpdate, data}) => {
   const selectedBucketName = data.bucketName
   const {buckets, loading} = useContext(BucketContext)
 
-  const updateBucket = (updatedBucket: Bucket): void => {
-    onUpdate({bucketName: updatedBucket.name})
-  }
+  const updateBucket = useCallback(
+    (updatedBucket: Bucket): void => {
+      onUpdate({bucketName: updatedBucket.name})
+    },
+    [onUpdate]
+  )
 
   useEffect(() => {
     // selectedBucketName will only evaluate false on the initial render
@@ -34,7 +37,7 @@ const BucketSelector: FC<Props> = ({onUpdate, data}) => {
     if (!!buckets.length && !selectedBucketName) {
       updateBucket(buckets[0])
     }
-  }, [buckets])
+  }, [buckets, selectedBucketName, updateBucket])
 
   let body
 

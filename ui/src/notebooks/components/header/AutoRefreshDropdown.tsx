@@ -11,7 +11,7 @@ const AutoRefreshDropdown: FC<TimeContextProps> = ({context, update}) => {
   const {refresh} = context
 
   const updateRefresh = useCallback(
-    () => (interval: number) => {
+    (interval: number) => {
       const status =
         interval === 0 ? AutoRefreshStatus.Paused : AutoRefreshStatus.Active
 
