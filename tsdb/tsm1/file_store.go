@@ -230,6 +230,7 @@ type FileStat struct {
 	Path             string
 	HasTombstone     bool
 	Size             uint32
+	CreatedAt        int64
 	LastModified     int64
 	MinTime, MaxTime int64
 	MinKey, MaxKey   []byte
