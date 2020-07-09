@@ -318,7 +318,6 @@ func (e *Engine) tagKeysNoTime(ctx context.Context, orgID, bucketID influxdb.ID,
 			keys = parseSeriesKeys(skey, keys)
 			km.MergeKeys(keys)
 		}
-		return nil
 	}(); err != nil {
 		return cursors.NewStringSliceIterator(nil), err
 	}
