@@ -10,7 +10,7 @@ import (
 	"github.com/influxdata/influxdb/v2/models"
 )
 
-func TestkeyMerger_MergeTagKeys(t *testing.T) {
+func TestKeyMerger_MergeTagKeys(t *testing.T) {
 	tests := []struct {
 		name string
 		tags []models.Tags
@@ -73,7 +73,7 @@ func TestkeyMerger_MergeTagKeys(t *testing.T) {
 
 var commaB = []byte(",")
 
-func TestkeyMerger_MergeKeys(t *testing.T) {
+func TestKeyMerger_MergeKeys(t *testing.T) {
 
 	tests := []struct {
 		name string
@@ -135,7 +135,7 @@ func TestkeyMerger_MergeKeys(t *testing.T) {
 	}
 }
 
-func BenchmarkkeyMerger_MergeKeys(b *testing.B) {
+func BenchmarkKeyMerger_MergeKeys(b *testing.B) {
 	keys := [][][]byte{
 		bytes.Split([]byte("tag00,tag01,tag02"), commaB),
 		bytes.Split([]byte("tag00,tag01,tag02"), commaB),
@@ -169,7 +169,7 @@ func BenchmarkkeyMerger_MergeKeys(b *testing.B) {
 	}
 }
 
-func BenchmarkkeyMerger_MergeTagKeys(b *testing.B) {
+func BenchmarkKeyMerger_MergeTagKeys(b *testing.B) {
 	tags := []models.Tags{
 		models.ParseTags([]byte("foo,tag00=v0,tag01=v0,tag02=v0")),
 		models.ParseTags([]byte("foo,tag00=v0,tag01=v0,tag02=v0")),
