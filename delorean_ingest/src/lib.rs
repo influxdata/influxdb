@@ -612,10 +612,11 @@ impl TSMFileConverter {
         if let Some((_, table_indexes)) = input_map.into_iter().next() {
             let mut iter = table_indexes.into_iter(); // merge each of these into first one
 
-            // unwrap is safe because the indexes in iter all point to none-none
+            // unwrap is safe because all hashmap entries have at least one table index.
+            let first_table_index = iter.next().unwrap();
+            // unwrap is safe because the indexes in iter all point to non-none
             // tables.
-            let mut first_table =
-                std::mem::replace(&mut inputs[iter.next().unwrap()], None).unwrap();
+            let mut first_table = inputs[first_table_index].take().unwrap();
 
             // if there are multiple tables for this measurement merge them
             // into the first one.
