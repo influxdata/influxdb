@@ -10,10 +10,11 @@ import {event} from 'src/notebooks/shared/event'
 interface Props {
   onClick?: () => void
   direction: 'up' | 'down'
+  active: boolean
 }
 
-const MovePanelUpButton: FC<Props> = ({onClick, direction}) => {
-  const status = onClick ? ComponentStatus.Default : ComponentStatus.Disabled
+const MovePanelUpButton: FC<Props> = ({onClick, direction, active}) => {
+  const status = active ? ComponentStatus.Default : ComponentStatus.Disabled
   const icon = direction === 'up' ? IconFont.CaretUp : IconFont.CaretDown
 
   const handleClick = (e: MouseEvent<HTMLButtonElement>): void => {

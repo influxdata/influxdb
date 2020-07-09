@@ -1,7 +1,7 @@
 // Libraries
 import {FC, useEffect} from 'react'
-import {connect, ConnectedProps} from 'react-redux'
-import {withRouter, RouteComponentProps} from 'react-router-dom'
+import {useDispatch} from 'react-redux'
+import {RouteComponentProps} from 'react-router-dom'
 
 // APIs
 import {postSignout} from 'src/client'
@@ -12,36 +12,31 @@ import {CLOUD, CLOUD_URL, CLOUD_LOGOUT_PATH} from 'src/shared/constants'
 // Components
 import {reset} from 'src/shared/actions/flags'
 
-type ReduxProps = ConnectedProps<typeof connector>
-type Props = ReduxProps & RouteComponentProps
+type Props = RouteComponentProps
 
-const Logout: FC<Props> = ({history, resetFeatureFlags}) => {
-  const handleSignOut = async () => {
-    if (CLOUD) {
-      window.location.href = `${CLOUD_URL}${CLOUD_LOGOUT_PATH}`
-      return
-    } else {
-      const resp = await postSignout({})
-
-      if (resp.status !== 204) {
-        throw new Error(resp.data.message)
-      }
-
-      history.push(`/signin`)
-    }
-  }
+const Logout: FC<Props> = ({history}) => {
+  const dispatch = useDispatch()
 
   useEffect(() => {
-    resetFeatureFlags()
+    const handleSignOut = async () => {
+      if (CLOUD) {
+        window.location.href = `${CLOUD_URL}${CLOUD_LOGOUT_PATH}`
+        return
+      } else {
+        const resp = await postSignout({})
+
+        if (resp.status !== 204) {
+          throw new Error(resp.data.message)
+        }
+
+        history.push(`/signin`)
+      }
+    }
+    dispatch(reset())
     handleSignOut()
-  }, [])
+  }, [dispatch, history])
+
   return null
 }
 
-const mdtp = {
-  resetFeatureFlags: reset,
-}
-
-const connector = connect(null, mdtp)
-
-export default connector(withRouter(Logout))
+export default Logout

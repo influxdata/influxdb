@@ -1,6 +1,6 @@
 // Libraries
 import React, {useState, useEffect, FunctionComponent} from 'react'
-import {connect, ConnectedProps} from 'react-redux'
+import {connect, ConnectedProps, useDispatch} from 'react-redux'
 
 // Components
 import FluxToolbarSearch from 'src/timeMachine/components/FluxToolbarSearch'
@@ -30,14 +30,14 @@ type Props = OwnProps & ReduxProps
 const VariableToolbar: FunctionComponent<Props> = ({
   variables,
   onClickVariable,
-  hydrateVariables,
 }) => {
+  const dispatch = useDispatch()
   const [searchTerm, setSearchTerm] = useState('')
   const filteredVariables = variables.filter(v => v.name.includes(searchTerm))
 
   useEffect(() => {
-    hydrateVariables()
-  }, [])
+    dispatch(hydrateVariables())
+  }, [dispatch])
 
   let content: JSX.Element | JSX.Element[] = (
     <EmptyState size={ComponentSize.ExtraSmall}>
@@ -72,10 +72,6 @@ const mstp = (state: AppState) => {
   return {variables: sortVariablesByName(variables)}
 }
 
-const mdtp = {
-  hydrateVariables: hydrateVariables,
-}
-
-const connector = connect(mstp, mdtp)
+const connector = connect(mstp)
 
 export default connector(VariableToolbar)

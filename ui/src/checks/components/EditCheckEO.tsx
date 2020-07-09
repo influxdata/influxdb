@@ -1,7 +1,7 @@
 // Libraries
 import React, {FunctionComponent, useEffect} from 'react'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
-import {connect, ConnectedProps} from 'react-redux'
+import {connect, ConnectedProps, useDispatch} from 'react-redux'
 import {get} from 'lodash'
 
 // Components
@@ -30,8 +30,6 @@ const EditCheckEditorOverlay: FunctionComponent<Props> = ({
   onUpdateAlertBuilderName,
   onResetAlertBuilder,
   onSaveCheckFromTimeMachine,
-  onExecuteQueries,
-  onGetCheckForTimeMachine,
   activeTimeMachineID,
   status,
   history,
@@ -42,13 +40,16 @@ const EditCheckEditorOverlay: FunctionComponent<Props> = ({
   loadedCheckID,
   view,
 }) => {
-  useEffect(() => {
-    onGetCheckForTimeMachine(checkID)
-  }, [checkID])
+  const dispatch = useDispatch()
+  const query = get(view, 'properties.queries[0]', null)
 
   useEffect(() => {
-    onExecuteQueries()
-  }, [get(view, 'properties.queries[0]', null)])
+    dispatch(getCheckForTimeMachine(checkID))
+  }, [dispatch, checkID])
+
+  useEffect(() => {
+    dispatch(executeQueries())
+  }, [dispatch, query])
 
   const handleClose = () => {
     history.push(`/orgs/${orgID}/alerting`)
@@ -108,9 +109,7 @@ const mstp = (state: AppState) => {
 }
 
 const mdtp = {
-  onGetCheckForTimeMachine: getCheckForTimeMachine,
   onSaveCheckFromTimeMachine: updateCheckFromTimeMachine,
-  onExecuteQueries: executeQueries,
   onResetAlertBuilder: resetAlertBuilder,
   onUpdateAlertBuilderName: updateName,
 }

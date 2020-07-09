@@ -47,7 +47,7 @@ export const useVisXDomainSettings = (
     }
 
     return getValidRange(data, timeRange)
-  }, [storedDomain, data])
+  }, [storedDomain, data]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const [domain, setDomain] = useOneWayState(initialDomain)
   const resetDomain = () => setDomain(initialDomain)
@@ -95,7 +95,7 @@ export const useVisYDomainSettings = (
       return getRemainingRange(data, timeRange, storedDomain)
     }
     return storedDomain
-  }, [storedDomain, data])
+  }, [storedDomain, data]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const [domain, setDomain] = useOneWayState(initialDomain)
   const resetDomain = () => setDomain(initialDomain)

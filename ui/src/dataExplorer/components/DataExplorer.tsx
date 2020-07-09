@@ -1,6 +1,6 @@
 // Libraries
 import React, {FC, useEffect} from 'react'
-import {connect, ConnectedProps} from 'react-redux'
+import {useDispatch} from 'react-redux'
 
 // Components
 import TimeMachine from 'src/timeMachine/components/TimeMachine'
@@ -16,19 +16,15 @@ import {HoverTimeProvider} from 'src/dashboards/utils/hoverTime'
 import {queryBuilderFetcher} from 'src/timeMachine/apis/QueryBuilderFetcher'
 import {readQueryParams} from 'src/shared/utils/queryParams'
 
-type ReduxProps = ConnectedProps<typeof connector>
-type Props = ReduxProps
+const DataExplorer: FC = () => {
+  const dispatch = useDispatch()
 
-const DataExplorer: FC<Props> = ({
-  onSetActiveTimeMachine,
-  onSetBuilderBucketIfExists,
-}) => {
   useEffect(() => {
     const bucketQP = readQueryParams()['bucket']
-    onSetActiveTimeMachine('de')
+    dispatch(setActiveTimeMachine('de'))
     queryBuilderFetcher.clearCache()
-    onSetBuilderBucketIfExists(bucketQP)
-  }, [])
+    dispatch(setBuilderBucketIfExists(bucketQP))
+  }, [dispatch])
 
   return (
     <LimitChecker>
@@ -42,11 +38,4 @@ const DataExplorer: FC<Props> = ({
   )
 }
 
-const mdtp = {
-  onSetActiveTimeMachine: setActiveTimeMachine,
-  onSetBuilderBucketIfExists: setBuilderBucketIfExists,
-}
-
-const connector = connect(null, mdtp)
-
-export default connector(DataExplorer)
+export default DataExplorer

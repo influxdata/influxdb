@@ -74,7 +74,7 @@ const DashboardHeader: FC<Props> = ({
 }) => {
   useEffect(() => {
     fireDashboardViewedEvent(dashboard.name)
-  }, [dashboard.id])
+  }, [dashboard.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleAddNote = () => {
     history.push(`/orgs/${org.id}/dashboards/${dashboard.id}/notes/new`)

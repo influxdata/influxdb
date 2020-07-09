@@ -94,7 +94,7 @@ const CheckMatchingRulesCard: FC<Props> = ({orgID, tags, queryResults}) => {
     })
 
     getMatchingRules()
-  }, [tags, queryResults])
+  }, [tags, queryResults]) // eslint-disable-line react-hooks/exhaustive-deps
 
   let contents: JSX.Element
 

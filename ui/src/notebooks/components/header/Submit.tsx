@@ -25,12 +25,13 @@ export const Submit: FC = () => {
   const {timeContext} = useContext(TimeContext)
   const [isLoading, setLoading] = useState(RemoteDataState.NotStarted)
   const time = timeContext[id]
+  const tr = !!time && time.range
 
   useEffect(() => {
     submit()
-  }, [!!time && time.range])
+  }, [tr]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const submit = () => {
+  const submit = async () => {
     event('Notebook Submit Button Clicked')
 
     setLoading(RemoteDataState.Loading)
@@ -90,7 +91,9 @@ export const Submit: FC = () => {
             })
             .catch(e => {
               queryStruct.instances.forEach(index => {
-                updateMeta(index, {loading: RemoteDataState.Error} as PipeMeta)
+                updateMeta(index, {
+                  loading: RemoteDataState.Error,
+                } as PipeMeta)
                 updateResult(index, {
                   error: e.message,
                 } as BothResults)

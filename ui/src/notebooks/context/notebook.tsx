@@ -79,9 +79,9 @@ export const NotebookProvider: FC = ({children}) => {
   const [meta, setMeta] = useState(DEFAULT_CONTEXT.meta)
   const [results, setResults] = useState(DEFAULT_CONTEXT.results)
 
-  const _setPipes = useCallback(setPipes, [id])
-  const _setMeta = useCallback(setMeta, [id])
-  const _setResults = useCallback(setResults, [id])
+  const _setPipes = useCallback(setPipes, [id, setPipes])
+  const _setMeta = useCallback(setMeta, [id, setMeta])
+  const _setResults = useCallback(setResults, [id, setResults])
 
   const addPipe = useCallback(
     (pipe: PipeData, insertAtIndex?: number) => {
@@ -141,7 +141,7 @@ export const NotebookProvider: FC = ({children}) => {
         _setPipes(add(pipe))
       }
     },
-    [id, pipes, meta, results]
+    [pipes, meta, results, _setPipes, _setMeta, _setResults]
   )
 
   const updatePipe = useCallback(
@@ -154,7 +154,7 @@ export const NotebookProvider: FC = ({children}) => {
         return pipes.slice()
       })
     },
-    [id, pipes]
+    [_setPipes]
   )
 
   const updateMeta = useCallback(
@@ -167,7 +167,7 @@ export const NotebookProvider: FC = ({children}) => {
         return pipes.slice()
       })
     },
-    [id, meta]
+    [_setMeta]
   )
 
   const updateResult = useCallback(
@@ -179,7 +179,7 @@ export const NotebookProvider: FC = ({children}) => {
         return pipes.slice()
       })
     },
-    [id, results]
+    [_setResults]
   )
 
   const movePipe = useCallback(
@@ -201,7 +201,7 @@ export const NotebookProvider: FC = ({children}) => {
       _setMeta(move)
       _setResults(move)
     },
-    [id]
+    [_setPipes, _setResults, _setMeta]
   )
 
   const removePipe = useCallback(
@@ -214,7 +214,7 @@ export const NotebookProvider: FC = ({children}) => {
       _setMeta(remove)
       _setResults(remove)
     },
-    [id]
+    [_setPipes, _setMeta, _setResults]
   )
 
   return (

@@ -1,6 +1,6 @@
 // Libraries
 import React, {useEffect, useState, FC} from 'react'
-import {connect, ConnectedProps} from 'react-redux'
+import {connect, ConnectedProps, useDispatch} from 'react-redux'
 import {Route, Switch} from 'react-router-dom'
 
 // Components
@@ -35,7 +35,7 @@ import {AppState, Organization, ResourceType} from 'src/types'
 import {CLOUD} from 'src/shared/constants'
 
 // Actions
-import {setOrg as setOrgAction} from 'src/organizations/actions/creators'
+import {setOrg} from 'src/organizations/actions/creators'
 
 // Utils
 import {updateReportingContext} from 'src/cloud/utils/reporting'
@@ -65,15 +65,16 @@ const SetOrg: FC<Props> = ({
   },
   orgs,
   history,
-  setOrg,
 }) => {
   const [loading, setLoading] = useState(RemoteDataState.Loading)
+  const dispatch = useDispatch()
+  const foundOrg = orgs.find(o => o.id === orgID)
+  const firstOrgID = orgs[0]?.id
 
   useEffect(() => {
     // does orgID from url match any orgs that exist
-    const foundOrg = orgs.find(o => o.id === orgID)
     if (foundOrg) {
-      setOrg(foundOrg)
+      dispatch(setOrg(foundOrg))
       updateReportingContext({orgID: orgID})
       setLoading(RemoteDataState.Done)
       return
@@ -86,8 +87,8 @@ const SetOrg: FC<Props> = ({
     }
 
     // else default to first org
-    history.push(`/orgs/${orgs[0].id}`)
-  }, [orgID, orgs.length])
+    history.push(`/orgs/${firstOrgID}`)
+  }, [orgID, firstOrgID, foundOrg, dispatch, history, orgs.length])
 
   const orgPath = '/orgs/:orgID'
 
@@ -179,16 +180,12 @@ const SetOrg: FC<Props> = ({
   )
 }
 
-const mdtp = {
-  setOrg: setOrgAction,
-}
-
 const mstp = (state: AppState) => {
   const orgs = getAll<Organization>(state, ResourceType.Orgs)
 
   return {orgs}
 }
 
-const connector = connect(mstp, mdtp)
+const connector = connect(mstp)
 
 export default connector(SetOrg)

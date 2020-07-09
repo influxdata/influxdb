@@ -1,5 +1,5 @@
 import React, {FC, useEffect, useState} from 'react'
-import {connect, ConnectedProps} from 'react-redux'
+import {connect, ConnectedProps, useDispatch} from 'react-redux'
 import {getDashboards} from 'src/dashboards/actions/thunks'
 import {
   createCellWithView,
@@ -66,16 +66,16 @@ const DashboardList: FC<Props> = ({
   properties,
   onClose,
   dashboards,
-  loadDashboards,
   createView,
   createViewAndDashboard,
 }) => {
+  const dispatch = useDispatch()
   const [selectedDashboard, setSelectedDashboard] = useState(null)
   const [newName, setNewName] = useState(DEFAULT_DASHBOARD_NAME)
 
   useEffect(() => {
-    loadDashboards()
-  }, [])
+    dispatch(getDashboards())
+  }, [dispatch])
 
   const isEditingName =
     selectedDashboard && selectedDashboard.id === DashboardTemplate.id
@@ -212,7 +212,6 @@ const mstp = (state: AppState) => {
 }
 
 const mdtp = {
-  loadDashboards: getDashboards,
   createView: createCellWithView,
   createViewAndDashboard: createDashboardWithView,
   notify: notifyAction,

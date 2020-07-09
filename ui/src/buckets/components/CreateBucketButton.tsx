@@ -1,6 +1,6 @@
 // Libraries
 import React, {FC, useEffect} from 'react'
-import {connect, ConnectedProps} from 'react-redux'
+import {connect, ConnectedProps, useDispatch} from 'react-redux'
 
 // Components
 import {
@@ -11,10 +11,7 @@ import {
 } from '@influxdata/clockface'
 
 // Actions
-import {
-  checkBucketLimits as checkBucketLimitsAction,
-  LimitStatus,
-} from 'src/cloud/actions/limits'
+import {checkBucketLimits, LimitStatus} from 'src/cloud/actions/limits'
 import {showOverlay, dismissOverlay} from 'src/overlays/actions/overlays'
 
 // Utils
@@ -28,14 +25,14 @@ type Props = ReduxProps
 
 const CreateBucketButton: FC<Props> = ({
   limitStatus,
-  checkBucketLimits,
   onShowOverlay,
   onDismissOverlay,
 }) => {
+  const dispatch = useDispatch()
   useEffect(() => {
     // Check bucket limits when component mounts
-    checkBucketLimits()
-  }, [])
+    dispatch(checkBucketLimits())
+  }, [dispatch])
 
   const limitExceeded = limitStatus === LimitStatus.EXCEEDED
   const text = 'Create Bucket'
@@ -77,7 +74,6 @@ const mstp = (state: AppState) => {
 const mdtp = {
   onShowOverlay: showOverlay,
   onDismissOverlay: dismissOverlay,
-  checkBucketLimits: checkBucketLimitsAction,
 }
 
 const connector = connect(mstp, mdtp)
