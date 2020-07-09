@@ -13,10 +13,11 @@ import {
 
 interface Props {
   token: string
+  channel: string
   onChange: (e: ChangeEvent<HTMLInputElement>) => void
 }
 
-const EndpointOptionsTelegram: FC<Props> = ({token, onChange}) => {
+const EndpointOptionsTelegram: FC<Props> = ({token, channel, onChange}) => {
   return (
     <Panel>
       <Panel.Header>
@@ -33,6 +34,15 @@ const EndpointOptionsTelegram: FC<Props> = ({token, onChange}) => {
                   testID="token"
                   onChange={onChange}
                   type={InputType.Password}
+                />
+              </FormElement>
+              <FormElement label="Chat ID">
+                <Input
+                  name="channel"
+                  value={channel}
+                  testID="channel"
+                  onChange={onChange}
+                  type={InputType.Text}
                 />
               </FormElement>
             </Grid.Column>

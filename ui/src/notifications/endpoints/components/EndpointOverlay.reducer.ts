@@ -64,6 +64,7 @@ export const reducer = (
               ...baseProps,
               type: 'telegram',
               token: '',
+              channel: '',
             }
         }
       }

@@ -63,11 +63,10 @@ const RuleMessageContents: FC<Props> = ({rule}) => {
       )
     }
     case 'telegram': {
-      const {messageTemplate, channel} = rule
+      const {messageTemplate} = rule
       return (
         <TelegramMessage
           messageTemplate={messageTemplate}
-          channel={channel}
           onChange={onChange}
         />
       )

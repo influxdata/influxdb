@@ -14,7 +14,6 @@ import (
 type Telegram struct {
 	Base
 	MessageTemplate       string `json:"messageTemplate"`
-	Channel               string `json:"channel"`
 	ParseMode             string `json:"parseMode"`
 	DisableWebPagePreview bool   `json:"disableWebPagePreview"`
 }
@@ -52,7 +51,7 @@ func (s *Telegram) generateFluxASTBody(e *endpoint.Telegram) []ast.Statement {
 	statements = append(statements, s.generateFluxASTNotificationDefinition(e))
 	statements = append(statements, s.generateFluxASTStatuses())
 	statements = append(statements, s.generateLevelChecks()...)
-	statements = append(statements, s.generateFluxASTNotifyPipe())
+	statements = append(statements, s.generateFluxASTNotifyPipe(e))
 
 	return statements
 }
@@ -77,9 +76,9 @@ func (s *Telegram) generateFluxASTEndpoint(e *endpoint.Telegram) ast.Statement {
 	return flux.DefineVariable("telegram_endpoint", call)
 }
 
-func (s *Telegram) generateFluxASTNotifyPipe() ast.Statement {
+func (s *Telegram) generateFluxASTNotifyPipe(e *endpoint.Telegram) ast.Statement {
 	endpointProps := []*ast.Property{}
-	endpointProps = append(endpointProps, flux.Property("channel", flux.String(s.Channel)))
+	endpointProps = append(endpointProps, flux.Property("channel", flux.String(e.Channel)))
 	endpointProps = append(endpointProps, flux.Property("text", flux.String(s.MessageTemplate)))
 	endpointProps = append(endpointProps, flux.Property("silent", s.generateSilent()))
 	endpointFn := flux.Function(flux.FunctionParams("r"), flux.Object(endpointProps...))
@@ -130,12 +129,6 @@ func (s Telegram) Valid() error {
 		return &influxdb.Error{
 			Code: influxdb.EInvalid,
 			Msg:  "Telegram MessageTemplate is invalid",
-		}
-	}
-	if s.Channel == "" {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
-			Msg:  "Telegram Channel is invalid",
 		}
 	}
 	return nil

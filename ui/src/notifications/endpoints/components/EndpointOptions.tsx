@@ -43,8 +43,14 @@ const EndpointOptions: FC<Props> = ({
       )
     }
     case 'telegram': {
-      const {token} = endpoint as TelegramNotificationEndpoint
-      return <EndpointOptionsTelegram token={token} onChange={onChange} />
+      const {token, channel} = endpoint as TelegramNotificationEndpoint
+      return (
+        <EndpointOptionsTelegram
+          token={token}
+          channel={channel}
+          onChange={onChange}
+        />
+      )
     }
     case 'http': {
       const {

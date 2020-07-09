@@ -55,7 +55,6 @@ export const getRuleVariantDefaults = (
       )
       return {
         messageTemplate: messageTemplate,
-        channel: '',
         parseMode: 'MarkdownV2',
         disableWebPagePreview: false,
         type: 'telegram',

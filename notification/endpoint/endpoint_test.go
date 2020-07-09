@@ -62,7 +62,8 @@ func TestValidEndpoint(t *testing.T) {
 					OrgID:  influxTesting.MustIDBase16Ptr(id3),
 					Status: influxdb.Active,
 				},
-				Token: influxdb.SecretField{Key: id1 + "-token"},
+				Token:   influxdb.SecretField{Key: id1 + "-token"},
+				Channel: "-1001406363649",
 			},
 			err: &influxdb.Error{
 				Code: influxdb.EInvalid,
@@ -146,10 +147,22 @@ func TestValidEndpoint(t *testing.T) {
 			},
 		},
 		{
-			name: "valid telegram token",
+			name: "empty telegram channel",
 			src: &endpoint.Telegram{
 				Base:  goodBase,
 				Token: influxdb.SecretField{Key: id1 + "-token"},
+			},
+			err: &influxdb.Error{
+				Code: influxdb.EInvalid,
+				Msg:  "empty telegram channel",
+			},
+		},
+		{
+			name: "valid telegram token",
+			src: &endpoint.Telegram{
+				Base:    goodBase,
+				Token:   influxdb.SecretField{Key: id1 + "-token"},
+				Channel: "-1001406363649",
 			},
 			err: nil,
 		},

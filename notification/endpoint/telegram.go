@@ -15,6 +15,8 @@ type Telegram struct {
 	Base
 	// Token is the telegram bot token, see https://core.telegram.org/bots#creating-a-new-bot
 	Token influxdb.SecretField `json:"token"`
+	// Channel is an ID of the telegram channel, see https://core.telegram.org/bots/api#sendmessage
+	Channel string `json:"channel"`
 }
 
 // BackfillSecretKeys fill back the secret field key during the unmarshalling
@@ -43,6 +45,12 @@ func (s Telegram) Valid() error {
 		return &influxdb.Error{
 			Code: influxdb.EInvalid,
 			Msg:  "empty telegram bot token",
+		}
+	}
+	if s.Channel == "" {
+		return &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  "empty telegram channel",
 		}
 	}
 	return nil

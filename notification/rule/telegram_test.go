@@ -31,7 +31,6 @@ func TestTelegram_GenerateFlux(t *testing.T) {
 			},
 			rule: &rule.Telegram{
 				MessageTemplate: "blah",
-				Channel:         "-12345",
 				Base: rule.Base{
 					ID:         1,
 					EndpointID: 3,
@@ -69,11 +68,11 @@ func TestTelegram_GenerateFlux(t *testing.T) {
 					ID:   idPtr(3),
 					Name: "foo",
 				},
-				Token: influxdb.SecretField{Key: "3-key"},
+				Token:   influxdb.SecretField{Key: "3-key"},
+				Channel: "-12345",
 			},
 			rule: &rule.Telegram{
 				MessageTemplate: "blah",
-				Channel:         "-12345",
 				Base: rule.Base{
 					ID:         1,
 					EndpointID: 3,
@@ -139,11 +138,11 @@ all_statuses
 					ID:   idPtr(3),
 					Name: "foo",
 				},
-				Token: influxdb.SecretField{Key: "3-key"},
+				Token:   influxdb.SecretField{Key: "3-key"},
+				Channel: "-12345",
 			},
 			rule: &rule.Telegram{
 				MessageTemplate:       "blah",
-				Channel:               "-12345",
 				DisableWebPagePreview: true,
 				ParseMode:             "HTML",
 				Base: rule.Base{
@@ -233,7 +232,6 @@ func TestTelegram_Valid(t *testing.T) {
 			name: "valid template",
 			rule: &rule.Telegram{
 				MessageTemplate: "blah",
-				Channel:         "-12345",
 				Base: rule.Base{
 					ID:         1,
 					EndpointID: 3,
@@ -255,7 +253,6 @@ func TestTelegram_Valid(t *testing.T) {
 			name: "missing MessageTemplate",
 			rule: &rule.Telegram{
 				MessageTemplate: "",
-				Channel:         "-12345",
 				Base: rule.Base{
 					ID:         1,
 					EndpointID: 3,
@@ -280,7 +277,6 @@ func TestTelegram_Valid(t *testing.T) {
 			name: "missing EndpointID",
 			rule: &rule.Telegram{
 				MessageTemplate: "",
-				Channel:         "-12345",
 				Base: rule.Base{
 					ID: 1,
 					// EndpointID: 3,
@@ -299,30 +295,6 @@ func TestTelegram_Valid(t *testing.T) {
 			err: &influxdb.Error{
 				Code: influxdb.EInvalid,
 				Msg:  "Notification Rule EndpointID is invalid",
-			},
-		},
-		{
-			name: "missing Channel",
-			rule: &rule.Telegram{
-				MessageTemplate: "blah",
-				Base: rule.Base{
-					ID:         1,
-					EndpointID: 3,
-					OwnerID:    4,
-					OrgID:      5,
-					Name:       "foo",
-					Every:      mustDuration("1h"),
-					StatusRules: []notification.StatusRule{
-						{
-							CurrentLevel: notification.Critical,
-						},
-					},
-					TagRules: []notification.TagRule{},
-				},
-			},
-			err: &influxdb.Error{
-				Code: influxdb.EInvalid,
-				Msg:  "Telegram Channel is invalid",
 			},
 		},
 	}

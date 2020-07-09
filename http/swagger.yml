@@ -11616,9 +11616,6 @@ components:
         messageTemplate:
           description: The message template as a flux interpolated string.
           type: string
-        channel:
-          description: Id of the telegram channel.
-          type: string
         parseMode:
           description: Parse mode of the message text per https://core.telegram.org/bots/api#formatting-options . Defaults to "MarkdownV2" .
           type: string
@@ -11778,9 +11775,13 @@ components:
       allOf:
         - $ref: "#/components/schemas/NotificationEndpointBase"
         - type: object
+          required: [token, channel]
           properties:
             token:
               description: Specifies the Telegram bot token. See https://core.telegram.org/bots#creating-a-new-bot .
+              type: string
+            channel:
+              description: ID of the telegram channel, a chat_id in https://core.telegram.org/bots/api#sendmessage .
               type: string
     NotificationEndpointType:
       type: string

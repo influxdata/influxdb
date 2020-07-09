@@ -353,7 +353,6 @@ func TestJSON(t *testing.T) {
 						UpdatedAt: timeGen2.Now(),
 					},
 				},
-				Channel:         "channel1",
 				MessageTemplate: "blah",
 			},
 		},
