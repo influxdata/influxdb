@@ -252,7 +252,9 @@ func (e *Engine) fieldsNoTime(ctx context.Context, orgID, bucketID influxdb.ID, 
 // processing, a non-nil error will be returned along with statistics for the
 // already scanned data.
 func (e *Engine) MeasurementTagKeysNoTime(ctx context.Context, orgID, bucketID influxdb.ID, measurement string, predicate influxql.Expr) (cursors.StringIterator, error) {
-	predicate = AddMeasurementToExpr(measurement, predicate)
+	if measurement != "" {
+		predicate = AddMeasurementToExpr(measurement, predicate)
+	}
 	return e.tagKeysNoTime(ctx, orgID, bucketID, predicate)
 }
 
@@ -263,7 +265,7 @@ func (e *Engine) tagKeysNoTime(ctx context.Context, orgID, bucketID influxdb.ID,
 
 	orgBucket := tsdb.EncodeName(orgID, bucketID)
 
-	vals := make([]string, 0, 128)
+	vals := make([]string, 0, 32)
 
 	span := opentracing.SpanFromContext(ctx)
 	if span != nil {
@@ -274,7 +276,10 @@ func (e *Engine) tagKeysNoTime(ctx context.Context, orgID, bucketID influxdb.ID,
 		}()
 	}
 
-	keyset := map[string]struct{}{}
+	var (
+		km   keyMerger
+		keys = make([][]byte, 0, 32)
+	)
 
 	if err := func() error {
 		sitr, err := e.index.MeasurementSeriesByExprIterator(orgBucket[:], predicate)
@@ -282,8 +287,6 @@ func (e *Engine) tagKeysNoTime(ctx context.Context, orgID, bucketID influxdb.ID,
 			return err
 		}
 		defer sitr.Close()
-
-		var tagsReuse models.Tags
 
 		for i := 0; ; i++ {
 			// to keep cache scans fast, check context every 'cancelCheckInterval' iterations
@@ -312,20 +315,38 @@ func (e *Engine) tagKeysNoTime(ctx context.Context, orgID, bucketID influxdb.ID,
 				continue
 			}
 
-			_, tags := seriesfile.ParseSeriesKeyInto(skey, tagsReuse[:0])
-			for _, t := range tags {
-				keyset[string(t.Key)] = struct{}{}
-			}
+			keys = parseSeriesKeys(skey, keys)
+			km.MergeKeys(keys)
 		}
 		return nil
 	}(); err != nil {
 		return cursors.NewStringSliceIterator(nil), err
 	}
 
-	for k := range keyset {
-		vals = append(vals, k)
+	for _, v := range km.Get() {
+		vals = append(vals, string(v))
 	}
 	sort.Strings(vals)
 
 	return cursors.NewStringSliceIterator(vals), nil
+}
+
+// parseSeriesKeys is adapted from seriesfile.ParseSeriesKeyInto. Instead of
+// returning the full tag information, it only returns the keys.
+func parseSeriesKeys(data []byte, dst [][]byte) [][]byte {
+	_, data = seriesfile.ReadSeriesKeyLen(data)
+	_, data = seriesfile.ReadSeriesKeyMeasurement(data)
+	tagN, data := seriesfile.ReadSeriesKeyTagN(data)
+
+	if cap(dst) < tagN {
+		dst = make([][]byte, tagN)
+	} else {
+		dst = dst[:tagN]
+	}
+
+	for i := 0; i < tagN; i++ {
+		dst[i], _, data = seriesfile.ReadSeriesKeyTag(data)
+	}
+
+	return dst
 }
