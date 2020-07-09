@@ -402,7 +402,7 @@ describe('tokens', () => {
         cy.getByTestID('resource-sorter--description-asc').click()
       })
       .then(() => {
-        let sortedtoken = testTokens.sort((a, b) =>
+        const sortedtoken = testTokens.sort((a, b) =>
           a.description > b.description ? 1 : -1
         )
         cy.get('[data-testid*="token-card"]').each((val, index) => {
@@ -418,7 +418,7 @@ describe('tokens', () => {
         cy.getByTestID('resource-sorter--description-desc').click()
       })
       .then(() => {
-        let sortedtoken = testTokens
+        const sortedtoken = testTokens
           .sort((a, b) => (a.description > b.description ? 1 : -1))
           .reverse()
         cy.get('[data-testid*="token-card"]').each((val, index) => {
@@ -434,7 +434,7 @@ describe('tokens', () => {
         cy.getByTestID('resource-sorter--status-asc').click()
       })
       .then(() => {
-        let sortedtoken = testTokens.sort((a, b) =>
+        const sortedtoken = testTokens.sort((a, b) =>
           a.status > b.status ? 1 : -1
         )
         cy.get('[data-testid*="token-card"]').each((val, index) => {
@@ -450,7 +450,7 @@ describe('tokens', () => {
         cy.getByTestID('resource-sorter--status-desc').click()
       })
       .then(() => {
-        let sortedtoken = testTokens
+        const sortedtoken = testTokens
           .sort((a, b) => (a.status > b.status ? 1 : -1))
           .reverse()
         cy.get('[data-testid*="token-card"]').each((val, index) => {
