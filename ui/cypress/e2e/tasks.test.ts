@@ -179,58 +179,52 @@ http.post(
 
     it('can delete a task', () => {
       cy.getByTestID('task-card')
-          .first()
-          .trigger('mouseover')
-          .then(() => {
-            cy.getByTestID('context-delete-menu')
+        .first()
+        .trigger('mouseover')
+        .then(() => {
+          cy.getByTestID('context-delete-menu')
+            .click()
+            .then(() => {
+              cy.getByTestID('context-delete-task')
                 .click()
                 .then(() => {
-                  cy.getByTestID('context-delete-task')
-                      .click()
-                      .then(() => {
-                        cy.getByTestID('empty-tasks-list').should('exist')
-                      })
+                  cy.getByTestID('empty-tasks-list').should('exist')
                 })
-          })
-
+            })
+        })
     })
 
     //based on issue #18478
     //skipping until the issue #18478 is resolved
     it.skip('can clone a task', () => {
-      cy.getByTestID('task-card')
+      cy.getByTestID('task-card').then(() => {
+        cy.get('.context-menu--container')
+          .eq(1)
+          .click()
           .then(() => {
-            cy.get('.context-menu--container')
-                .eq(1)
-                .click()
-                .then(() => {
-                  cy.getByTestID('context-menu-item')
-                      .contains('Clone')
-                      .click()
-
-                })
+            cy.getByTestID('context-menu-item')
+              .contains('Clone')
+              .click()
           })
+      })
 
       cy.getByTestID('task-card--slide-toggle')
-          .eq(0)
-          .should('have.class', 'active')
-          .then(() => {
-            cy.getByTestID('task-card--slide-toggle')
+        .eq(0)
+        .should('have.class', 'active')
+        .then(() => {
+          cy.getByTestID('task-card--slide-toggle')
+            .eq(0)
+            .click()
+            .then(() => {
+              cy.getByTestID('task-card--slide-toggle')
                 .eq(0)
-                .click()
-                .then(() => {
-                  cy.getByTestID('task-card--slide-toggle').eq(0).should(
-                      'not.have.class',
-                      'active'
-                  )
-                  cy.getByTestID('task-card--slide-toggle').eq(1).should(
-                      'have.class',
-                      'active'
-                  )
-                })
-          })
+                .should('not.have.class', 'active')
+              cy.getByTestID('task-card--slide-toggle')
+                .eq(1)
+                .should('have.class', 'active')
+            })
+        })
     })
-
   })
 
   describe('Searching and filtering', () => {
