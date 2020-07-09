@@ -300,9 +300,11 @@ func (c *{{$type}}) Next() {{$arrayType}} {
 		}
 	}
 
-	if pos > 0 && c.res.Timestamps[pos-1] <= c.end {
+	// If the earliest timestamp is strictly earlier than
+	// the end time, remove it from the result and repeat.
+	if pos > 0 && c.res.Timestamps[pos-1] < c.end {
 		pos -= 2
-		for pos >= 0 && c.res.Timestamps[pos] <= c.end {
+		for pos >= 0 && c.res.Timestamps[pos] < c.end {
 			pos--
 		}
 		pos++
