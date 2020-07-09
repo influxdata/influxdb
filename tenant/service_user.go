@@ -131,6 +131,38 @@ func (s *Service) DeleteUser(ctx context.Context, id influxdb.ID) error {
 	return err
 }
 
+// FindPermissionForUser gets the full set of permission for a specified user id
+func (s *Service) FindPermissionForUser(ctx context.Context, uid influxdb.ID) (influxdb.PermissionSet, error) {
+	mappings, _, err := s.FindUserResourceMappings(ctx, influxdb.UserResourceMappingFilter{UserID: uid}, influxdb.FindOptions{Limit: 100})
+	if err != nil {
+		return nil, err
+	}
+
+	permissions, err := permissionFromMapping(mappings)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(mappings) >= 100 {
+		// if we got 100 mappings we probably need to pull more pages
+		// account for paginated results
+		for i := len(mappings); len(mappings) > 0; i += len(mappings) {
+			mappings, _, err = s.FindUserResourceMappings(ctx, influxdb.UserResourceMappingFilter{UserID: uid}, influxdb.FindOptions{Offset: i, Limit: 100})
+			if err != nil {
+				return nil, err
+			}
+			pms, err := permissionFromMapping(mappings)
+			if err != nil {
+				return nil, err
+			}
+			permissions = append(permissions, pms...)
+		}
+	}
+
+	permissions = append(permissions, influxdb.MePermissions(uid)...)
+	return permissions, nil
+}
+
 // SetPassword overrides the password of a known user.
 func (s *Service) SetPassword(ctx context.Context, userID influxdb.ID, password string) error {
 	if len(password) < 8 {
