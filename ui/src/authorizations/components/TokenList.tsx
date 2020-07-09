@@ -52,7 +52,10 @@ export default class TokenList extends PureComponent<Props, State> {
     return (
       <>
         <ResourceList>
-          <ResourceList.Body emptyState={this.props.emptyState}>
+          <ResourceList.Body
+            emptyState={this.props.emptyState}
+            testID="token-list"
+          >
             {this.rows}
           </ResourceList.Body>
         </ResourceList>

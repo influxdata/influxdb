@@ -73,6 +73,7 @@ class AllAccessTokenOverlay extends PureComponent<Props, State> {
                   placeholder="Describe this new token"
                   value={description}
                   onChange={this.handleInputChange}
+                  testID="all-access-token-input"
                 />
               </Form.Element>
 
@@ -85,6 +86,7 @@ class AllAccessTokenOverlay extends PureComponent<Props, State> {
 
                 <Button
                   text="Save"
+                  testID="button--save"
                   icon={IconFont.Checkmark}
                   color={ComponentColor.Success}
                   type={ButtonType.Submit}
