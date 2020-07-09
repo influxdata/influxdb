@@ -1,16 +1,23 @@
 import React, {PureComponent} from 'react'
+import {connect, ConnectedProps} from 'react-redux'
 
+// Components
 import {Table} from '@influxdata/clockface'
 
-import {getStacks, Stack, TemplateKind} from 'src/client'
+// Redux
+import {fetchAndSetStacks} from 'src/templates/actions/thunks'
 
-interface Props {
+// Types
+import {AppState} from 'src/types'
+import {TemplateKind} from 'src/client'
+
+interface OwnProps {
   orgID: string
 }
 
-interface State {
-  stacks: Stack[]
-}
+type ReduxProps = ConnectedProps<typeof connector>
+
+type Props = OwnProps & ReduxProps
 
 interface Resource {
   apiVersion?: string
@@ -23,18 +30,10 @@ interface Resource {
   }[]
 }
 
-export class CommunityTemplatesActivityLog extends PureComponent<Props, State> {
-  state = {
-    stacks: [],
-  }
-
-  public async componentDidMount() {
+class CommunityTemplatesActivityLogUnconnected extends PureComponent<Props> {
+  public componentDidMount() {
     try {
-      // todo: move the stacks reponse into redux
-      const resp = await getStacks({query: {orgID: this.props.orgID}})
-
-      const stacks = (resp.data as any).stacks
-      this.setState({stacks})
+      this.props.fetchAndSetStacks(this.props.orgID)
     } catch (err) {
       console.error('error getting stacks', err)
     }
@@ -66,7 +65,7 @@ export class CommunityTemplatesActivityLog extends PureComponent<Props, State> {
   }
 
   render() {
-    if (!this.state.stacks.length) {
+    if (!this.props.stacks.length) {
       return <h4>You haven't installed any templates yet</h4>
     }
 
@@ -83,7 +82,7 @@ export class CommunityTemplatesActivityLog extends PureComponent<Props, State> {
             </Table.Row>
           </Table.Header>
           <Table.Body>
-            {this.state.stacks.map(stack => {
+            {this.props.stacks.map(stack => {
               return (
                 <Table.Row key={`stack-${stack.id}`}>
                   <Table.Cell>{stack.name}</Table.Cell>
@@ -105,3 +104,21 @@ export class CommunityTemplatesActivityLog extends PureComponent<Props, State> {
     )
   }
 }
+
+const mstp = (state: AppState) => {
+  return {
+    stacks: state.resources.templates.stacks.filter(
+      stack => stack.eventType !== 'delete'
+    ),
+  }
+}
+
+const mdtp = {
+  fetchAndSetStacks,
+}
+
+const connector = connect(mstp, mdtp)
+
+export const CommunityTemplatesActivityLog = connector(
+  CommunityTemplatesActivityLogUnconnected
+)

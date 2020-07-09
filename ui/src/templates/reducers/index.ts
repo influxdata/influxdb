@@ -9,6 +9,7 @@ import {
   SET_TEMPLATE_SUMMARY,
   SET_TEMPLATES_STATUS,
   TOGGLE_TEMPLATE_RESOURCE_INSTALL,
+  SET_STACKS,
 } from 'src/templates/actions/creators'
 import {
   CommunityTemplate,
@@ -42,6 +43,7 @@ export const defaultState = (): TemplatesState => ({
     status: RemoteDataState.NotStarted,
     item: null,
   },
+  stacks: [],
 })
 
 export const templatesReducer = (
@@ -201,6 +203,14 @@ export const templatesReducer = (
         })
 
         draftState.communityTemplateToInstall = templateToInstall
+        return
+      }
+
+      case SET_STACKS: {
+        const {stacks} = action
+
+        draftState.stacks = stacks
+        return
       }
     }
   })

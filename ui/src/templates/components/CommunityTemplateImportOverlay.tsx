@@ -7,8 +7,8 @@ import {CommunityTemplateInstallerOverlay} from 'src/templates/components/Commun
 
 // Actions
 import {setCommunityTemplateToInstall} from 'src/templates/actions/creators'
-import {createTemplate as createTemplateAction} from 'src/templates/actions/thunks'
-import {notify as notifyAction} from 'src/shared/actions/notifications'
+import {createTemplate, fetchAndSetStacks} from 'src/templates/actions/thunks'
+import {notify} from 'src/shared/actions/notifications'
 
 import {getTotalResourceCount} from 'src/templates/selectors'
 
@@ -98,6 +98,8 @@ class UnconnectedTemplateImportOverlay extends PureComponent<Props> {
       const summary = await installTemplate(org.id, yamlLocation)
       this.props.notify(communityTemplateInstallSucceeded(templateName))
 
+      this.props.fetchAndSetStacks(org.id)
+
       this.onDismiss()
 
       return summary
@@ -125,9 +127,10 @@ const mstp = (state: AppState, props: RouterProps) => {
 }
 
 const mdtp = {
-  createTemplate: createTemplateAction,
-  notify: notifyAction,
+  createTemplate,
+  notify,
   setCommunityTemplateToInstall,
+  fetchAndSetStacks,
 }
 
 const connector = connect(mstp, mdtp)

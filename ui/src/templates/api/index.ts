@@ -34,8 +34,9 @@ import {
   postDashboardsLabel as apiPostDashboardsLabel,
   postDashboardsCell as apiPostDashboardsCell,
   patchDashboardsCellsView as apiPatchDashboardsCellsView,
-  Error as PkgError,
   postTemplatesApply,
+  getStacks,
+  Error as PkgError,
   TemplateSummary,
 } from 'src/client'
 import {addDashboardDefaults} from 'src/schemas/dashboards'
@@ -46,6 +47,7 @@ import {
   DashboardTemplate,
   Dashboard,
   TemplateType,
+  InstalledStack,
   Cell,
   CellIncluded,
   LabelIncluded,
@@ -491,4 +493,14 @@ export const installTemplate = async (orgID: string, templateUrl: string) => {
   }
 
   return applyTemplates(params)
+}
+
+export const fetchStacks = async (orgID: string) => {
+  const resp = await getStacks({query: {orgID}})
+
+  if (resp.status >= 300) {
+    throw new Error((resp.data as PkgError).message)
+  }
+
+  return (resp.data as {stacks: InstalledStack[]}).stacks
 }
