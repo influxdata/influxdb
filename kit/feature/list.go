@@ -240,6 +240,20 @@ func SimpleTaskOptionsExtraction() BoolFlag {
 	return simpleTaskOptionsExtraction
 }
 
+var useUserPermission = MakeBoolFlag(
+	"Use User Permission",
+	"useUserPermission",
+	"Lyon Hill",
+	false,
+	Temporary,
+	false,
+)
+
+// UseUserPermission - When enabled we will use the new user service permission function
+func UseUserPermission() BoolFlag {
+	return useUserPermission
+}
+
 var all = []Flag{
 	appMetrics,
 	backendExample,
@@ -258,6 +272,7 @@ var all = []Flag{
 	memoryOptimizedSchemaMutation,
 	urmFreeTasks,
 	simpleTaskOptionsExtraction,
+	useUserPermission,
 }
 
 var byKey = map[string]Flag{
@@ -278,4 +293,5 @@ var byKey = map[string]Flag{
 	"memoryOptimizedSchemaMutation": memoryOptimizedSchemaMutation,
 	"urmFreeTasks":                  urmFreeTasks,
 	"simpleTaskOptionsExtraction":   simpleTaskOptionsExtraction,
+	"useUserPermission":             useUserPermission,
 }

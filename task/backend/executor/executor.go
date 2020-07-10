@@ -11,6 +11,7 @@ import (
 	"github.com/influxdata/flux/runtime"
 	"github.com/influxdata/influxdb/v2"
 	icontext "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/kit/feature"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"github.com/influxdata/influxdb/v2/query"
 	"github.com/influxdata/influxdb/v2/task/backend"
@@ -55,6 +56,7 @@ type executorConfig struct {
 	maxWorkers             int
 	systemBuildCompiler    CompilerBuilderFunc
 	nonSystemBuildCompiler CompilerBuilderFunc
+	flagger                feature.Flagger
 }
 
 type executorOption func(*executorConfig)
@@ -87,6 +89,13 @@ func WithNonSystemCompilerBuilder(builder CompilerBuilderFunc) executorOption {
 	}
 }
 
+// WithFlagger is an Executor option that allows us to use a feature flagger in the executor
+func WithFlagger(flagger feature.Flagger) executorOption {
+	return func(o *executorConfig) {
+		o.flagger = flagger
+	}
+}
+
 // NewExecutor creates a new task executor
 func NewExecutor(log *zap.Logger, qs query.QueryService, us PermissionService, ts influxdb.TaskService, tcs backend.TaskControlService, opts ...executorOption) (*Executor, *ExecutorMetrics) {
 	cfg := &executorConfig{
@@ -111,6 +120,7 @@ func NewExecutor(log *zap.Logger, qs query.QueryService, us PermissionService, t
 		limitFunc:              func(*influxdb.Task, *influxdb.Run) error { return nil }, // noop
 		systemBuildCompiler:    cfg.systemBuildCompiler,
 		nonSystemBuildCompiler: cfg.nonSystemBuildCompiler,
+		flagger:                cfg.flagger,
 	}
 
 	e.metrics = NewExecutorMetrics(e)
@@ -148,6 +158,7 @@ type Executor struct {
 
 	nonSystemBuildCompiler CompilerBuilderFunc
 	systemBuildCompiler    CompilerBuilderFunc
+	flagger                feature.Flagger
 }
 
 // SetLimitFunc sets the limit func for this task executor
@@ -281,9 +292,16 @@ func (e *Executor) createPromise(ctx context.Context, run *influxdb.Run) (*promi
 		return nil, err
 	}
 
-	perm, err := e.ps.FindPermissionForUser(ctx, t.OwnerID)
-	if err != nil {
-		return nil, err
+	var perm influxdb.PermissionSet
+	if e.flagger != nil && feature.UseUserPermission().Enabled(ctx, e.flagger) {
+		perm, err = e.ps.FindPermissionForUser(ctx, t.OwnerID)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if perm == nil {
+		perm = t.Authorization.Permissions
 	}
 
 	ctx, cancel := context.WithCancel(ctx)

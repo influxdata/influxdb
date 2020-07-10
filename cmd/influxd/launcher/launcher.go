@@ -755,6 +755,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 			ts.UserSvc,
 			combinedTaskService,
 			combinedTaskService,
+			executor.WithFlagger(m.flagger),
 		)
 		m.executor = executor
 		m.reg.MustRegister(executorMetrics.PrometheusCollectors()...)
