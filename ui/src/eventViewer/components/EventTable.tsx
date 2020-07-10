@@ -48,16 +48,17 @@ const EventTable: FC<Props> = ({state, dispatch, loadRows, fields}) => {
   const reduxDispatch = useDispatch()
 
   useEffect(() => {
-    setTimeout(() => {
+    const timeoutID = setTimeout(() => {
       setIsLongRunningQuery(true)
     }, 5000)
-  })
+    return () => clearTimeout(timeoutID)
+  }, [setIsLongRunningQuery])
 
   useEffect(() => {
     if (isLongRunningQuery && !isRowLoadedBoolean) {
       reduxDispatch(notify(checkStatusLoading))
     }
-  }, [reduxDispatch, isLongRunningQuery, isRowLoadedBoolean, isRowLoaded])
+  }, [isLongRunningQuery, isRowLoadedBoolean, reduxDispatch])
 
   const rowRenderer = ({key, index, style}) => {
     const isLastRow = index === state.rows.length
