@@ -12,13 +12,12 @@ var _ platform.UserService = (*UserService)(nil)
 // also makes it a suitable mock to use wherever an platform.UserService is required.
 type UserService struct {
 	// Methods for a platform.UserService
-	FindUserByIDFn          func(context.Context, platform.ID) (*platform.User, error)
-	FindUsersFn             func(context.Context, platform.UserFilter, ...platform.FindOptions) ([]*platform.User, int, error)
-	CreateUserFn            func(context.Context, *platform.User) error
-	DeleteUserFn            func(context.Context, platform.ID) error
-	FindUserFn              func(context.Context, platform.UserFilter) (*platform.User, error)
-	UpdateUserFn            func(context.Context, platform.ID, platform.UserUpdate) (*platform.User, error)
-	FindPermissionForUserFn func(context.Context, platform.ID) (platform.PermissionSet, error)
+	FindUserByIDFn func(context.Context, platform.ID) (*platform.User, error)
+	FindUsersFn    func(context.Context, platform.UserFilter, ...platform.FindOptions) ([]*platform.User, int, error)
+	CreateUserFn   func(context.Context, *platform.User) error
+	DeleteUserFn   func(context.Context, platform.ID) error
+	FindUserFn     func(context.Context, platform.UserFilter) (*platform.User, error)
+	UpdateUserFn   func(context.Context, platform.ID, platform.UserUpdate) (*platform.User, error)
 }
 
 // NewUserService returns a mock of UserService where its methods will return zero values.
@@ -32,7 +31,6 @@ func NewUserService() *UserService {
 		FindUsersFn: func(context.Context, platform.UserFilter, ...platform.FindOptions) ([]*platform.User, int, error) {
 			return nil, 0, nil
 		},
-		FindPermissionForUserFn: func(context.Context, platform.ID) (platform.PermissionSet, error) { return nil, nil },
 	}
 }
 
@@ -64,8 +62,4 @@ func (s *UserService) FindUser(ctx context.Context, filter platform.UserFilter) 
 // UpdateUser updates a user
 func (s *UserService) UpdateUser(ctx context.Context, id platform.ID, upd platform.UserUpdate) (*platform.User, error) {
 	return s.UpdateUserFn(ctx, id, upd)
-}
-
-func (s *UserService) FindPermissionForUser(ctx context.Context, uid platform.ID) (platform.PermissionSet, error) {
-	return s.FindPermissionForUserFn(ctx, uid)
 }

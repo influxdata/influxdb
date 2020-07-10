@@ -126,19 +126,6 @@ func (s *UserClientService) DeleteUser(ctx context.Context, id influxdb.ID) erro
 		Do(ctx)
 }
 
-// FindUserByID returns a single user by ID.
-func (s *UserClientService) FindPermissionForUser(ctx context.Context, id influxdb.ID) (influxdb.PermissionSet, error) {
-	var ps influxdb.PermissionSet
-	err := s.Client.
-		Get(prefixUsers, id.String(), "permissions").
-		DecodeJSON(&ps).
-		Do(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return ps, nil
-}
-
 // PasswordClientService is an http client to speak to the password service.
 type PasswordClientService struct {
 	Client *httpc.Client

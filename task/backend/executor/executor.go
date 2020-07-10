@@ -25,10 +25,6 @@ const (
 
 var _ scheduler.Executor = (*Executor)(nil)
 
-type PermissionService interface {
-	FindPermissionForUser(ctx context.Context, UserID influxdb.ID) (influxdb.PermissionSet, error)
-}
-
 type Promise interface {
 	ID() influxdb.ID
 	Cancel(ctx context.Context)
@@ -88,7 +84,7 @@ func WithNonSystemCompilerBuilder(builder CompilerBuilderFunc) executorOption {
 }
 
 // NewExecutor creates a new task executor
-func NewExecutor(log *zap.Logger, qs query.QueryService, us PermissionService, ts influxdb.TaskService, tcs backend.TaskControlService, opts ...executorOption) (*Executor, *ExecutorMetrics) {
+func NewExecutor(log *zap.Logger, qs query.QueryService, as influxdb.AuthorizationService, ts influxdb.TaskService, tcs backend.TaskControlService, opts ...executorOption) (*Executor, *ExecutorMetrics) {
 	cfg := &executorConfig{
 		maxWorkers:             defaultMaxWorkers,
 		systemBuildCompiler:    NewASTCompiler,
@@ -103,7 +99,7 @@ func NewExecutor(log *zap.Logger, qs query.QueryService, us PermissionService, t
 		ts:  ts,
 		tcs: tcs,
 		qs:  qs,
-		ps:  us,
+		as:  as,
 
 		currentPromises:        sync.Map{},
 		promiseQueue:           make(chan *promise, maxPromises),
@@ -130,7 +126,7 @@ type Executor struct {
 	tcs backend.TaskControlService
 
 	qs query.QueryService
-	ps PermissionService
+	as influxdb.AuthorizationService
 
 	metrics *ExecutorMetrics
 
@@ -280,24 +276,16 @@ func (e *Executor) createPromise(ctx context.Context, run *influxdb.Run) (*promi
 	if err != nil {
 		return nil, err
 	}
-
-	perm, err := e.ps.FindPermissionForUser(ctx, t.OwnerID)
-	if err != nil {
-		return nil, err
+	if !t.Authorization.GetUserID().Valid() {
+		t.Authorization.UserID = t.OwnerID
 	}
 
 	ctx, cancel := context.WithCancel(ctx)
 	// create promise
 	p := &promise{
-		run:  run,
-		task: t,
-		auth: &influxdb.Authorization{
-			Status:      influxdb.Active,
-			UserID:      t.OwnerID,
-			ID:          influxdb.ID(1),
-			OrgID:       t.OrganizationID,
-			Permissions: perm,
-		},
+		run:        run,
+		task:       t,
+		auth:       t.Authorization,
 		createdAt:  time.Now().UTC(),
 		done:       make(chan struct{}),
 		ctx:        ctx,
@@ -454,7 +442,7 @@ func (w *worker) executeQuery(p *promise) {
 	// start
 	w.start(p)
 
-	ctx = icontext.SetAuthorizer(ctx, p.auth)
+	ctx = icontext.SetAuthorizer(ctx, p.task.Authorization)
 
 	buildCompiler := w.systemBuildCompiler
 	if p.task.Type != influxdb.TaskSystemType {

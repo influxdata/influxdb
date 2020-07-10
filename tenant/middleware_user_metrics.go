@@ -63,12 +63,6 @@ func (m *UserMetrics) DeleteUser(ctx context.Context, id influxdb.ID) error {
 	return rec(err)
 }
 
-func (m *UserMetrics) FindPermissionForUser(ctx context.Context, id influxdb.ID) (influxdb.PermissionSet, error) {
-	rec := m.rec.Record("find_permission_for_user")
-	ps, err := m.userService.FindPermissionForUser(ctx, id)
-	return ps, rec(err)
-}
-
 type PasswordMetrics struct {
 	// RED metrics
 	rec *metric.REDClient
