@@ -56,6 +56,9 @@ const EmptyEndpointList: FC<{searchTerm: string}> = ({searchTerm}) => {
   if (isFlagEnabled('notification-endpoint-telegram')) {
     conditionalEndpoints.push('Telegram')
   }
+  if (isFlagEnabled('notification-endpoint-teams')) {
+    conditionalEndpoints.push('Teams')
+  }
 
   return (
     <EmptyState size={ComponentSize.Small} className="alert-column--empty">

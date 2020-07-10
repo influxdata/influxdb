@@ -41,6 +41,7 @@ const types: EndpointType[] = [
   {name: 'Slack', type: 'slack', id: 'slack'},
   {name: 'Pagerduty', type: 'pagerduty', id: 'pagerduty'},
   {name: 'Telegram', type: 'telegram', id: 'telegram'},
+  {name: 'Teams', type: 'teams', id: 'teams'},
 ]
 
 const EndpointTypeDropdown: FC<Props> = ({

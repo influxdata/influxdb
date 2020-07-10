@@ -74,6 +74,7 @@ export const DEFAULT_ENDPOINT_URLS = {
   slack: 'https://hooks.slack.com/services/X/X/X',
   pagerduty: 'https://events.pagerduty.com/v2/enqueue',
   http: 'https://www.example.com/endpoint',
+  teams: 'https://office.outlook.com/hook/XXXX',
 }
 
 export const NEW_ENDPOINT_DRAFT: NotificationEndpoint = {

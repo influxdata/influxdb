@@ -34,6 +34,8 @@ export const reducer = (
           'headers',
           'clientURL',
           'routingKey',
+          'channel',
+          'secretURLSuffix',
         ])
 
         switch (endpoint.type) {
@@ -65,6 +67,13 @@ export const reducer = (
               type: 'telegram',
               token: '',
               channel: '',
+            }
+          case 'teams':
+            return {
+              ...baseProps,
+              type: 'teams',
+              url: DEFAULT_ENDPOINT_URLS.teams,
+              token: '',
             }
         }
       }

@@ -32,6 +32,9 @@ const EndpointsColumn: FC<Props> = ({history, match, endpoints, tabIndex}) => {
   if (isFlagEnabled('notification-endpoint-telegram')) {
     conditionalEndpoints.push('Telegram')
   }
+  if (isFlagEnabled('notification-endpoint-teams')) {
+    conditionalEndpoints.push('Teams')
+  }
 
   const tooltipContents = (
     <>
