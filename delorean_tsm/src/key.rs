@@ -43,6 +43,9 @@ pub enum DataError {
         old_field: String,
     },
 
+    #[snafu(display(r#"Error parsing field key: {}"#, details))]
+    ParsingFieldKey { details: String },
+
     #[snafu(display(r#"Error parsing tsm tag key: {}"#, description))]
     ParsingTSMTagKey { description: String },
 
@@ -98,34 +101,44 @@ fn parse_tsm_key_internal(key: &[u8]) -> Result<ParsedTSMKey, DataError> {
 
     loop {
         let tag_key = parse_tsm_tag_key(&mut rem_key)?;
-        let (has_more_tags, tag_value) = parse_tsm_tag_value(&tag_key, &mut rem_key)?;
 
-        match tag_key {
+        let has_more_tags = match tag_key {
             KeyType::Tag(tag_key) => {
+                let (has_more_tags, tag_value) = parse_tsm_tag_value(&tag_key, &mut rem_key)?;
                 tagset.push((tag_key, tag_value));
+                has_more_tags
             }
 
-            KeyType::Measurement => match measurement {
-                Some(measurement) => {
-                    return MultipleMeasurements {
-                        new_measurement: tag_value,
-                        old_measurement: measurement,
+            KeyType::Measurement => {
+                let (has_more_tags, tag_value) = parse_tsm_tag_value("Measurement", &mut rem_key)?;
+                match measurement {
+                    Some(measurement) => {
+                        return MultipleMeasurements {
+                            new_measurement: tag_value,
+                            old_measurement: measurement,
+                        }
+                        .fail()
                     }
-                    .fail()
+                    None => {
+                        measurement = Some(tag_value);
+                        has_more_tags
+                    }
                 }
-                None => measurement = Some(tag_value),
-            },
+            }
+            KeyType::Field => {
+                // since parse_tsm_field_key consumes the rest of the iterator, it
+                // is some kind of logic error if we already have a field key
+                assert!(field_key.is_none(), "second field key found while parsing");
 
-            KeyType::Field => match field_key {
-                Some(field_key) => {
-                    return MultipleFields {
-                        old_field: field_key,
-                        new_field: tag_value,
-                    }
-                    .fail()
-                }
-                None => field_key = Some(parse_tsm_field_key(&tag_value)?),
-            },
+                let parsed_value = parse_tsm_field_key_value(&mut rem_key)?;
+                assert!(
+                    rem_key.next().is_none(),
+                    "parsing field key value did not consume remaining index entry"
+                );
+
+                field_key = Some(parsed_value);
+                false
+            }
         };
 
         if !has_more_tags {
@@ -140,40 +153,118 @@ fn parse_tsm_key_internal(key: &[u8]) -> Result<ParsedTSMKey, DataError> {
     })
 }
 
-/// Parses the field value stored in a TSM key into a field name.
+/// Parses the field value stored in a TSM field key into a field name.
 /// fields are stored on the series keys in TSM indexes as follows:
 ///
 /// <field_key><4-byte delimiter><field_key>
 ///
 /// Example: sum#!~#sum means 'sum' field key
-fn parse_tsm_field_key(value: &str) -> Result<String, DataError> {
-    const DELIM: &str = "#!~#";
+///
+/// It also turns out that the data after the delimiter does not necessairly escape the data.
+///
+/// So for example, the following is a valid field key value (for the
+/// field named "Code Cache"):
+///
+/// {\xff>=Code\ Cache#!~#Code Cache
+fn parse_tsm_field_key_value(rem_key: impl Iterator<Item = u8>) -> Result<String, DataError> {
+    #[derive(Debug)]
+    enum State {
+        Data,
+        Escape, //
+        Key1,   // saw #
+        Key2,   // saw #!
+        Key3,   // saw #!~
+        Done,
+    };
 
-    if value.len() < 6 {
-        return ParsingTSMFieldKey {
-            description: "field key too short",
+    let mut field_name = String::with_capacity(100);
+    let mut state = State::Data;
+
+    // return the next byte if its value is not a valid unless escaped
+    fn check_next_byte(byte: u8) -> Result<u8, DataError> {
+        match byte {
+            b'=' => ParsingTSMFieldKey {
+                description: "invalid unescaped '='",
+            }
+            .fail(),
+            // An unescaped space is an invalid tag value.
+            b' ' => ParsingTSMFieldKey {
+                description: "invalid unescaped ' '",
+            }
+            .fail(),
+            b',' => ParsingTSMFieldKey {
+                description: "invalid unescaped ','",
+            }
+            .fail(),
+            _ => Ok(byte),
         }
-        .fail();
     }
 
-    let field_trim_length = (value.len() - 4) / 2;
-    let (field, _) = value.split_at(field_trim_length);
+    // Determines what hte next state is when in the middle of parsing a
+    // delimiter.
+    fn next_key_state(
+        byte: u8,
+        next_delim_byte: u8,
+        next_delim_state: State,
+        delim_so_far: &str,
+        field_name: &mut String,
+    ) -> Result<State, DataError> {
+        // If the next_delim_byte is the next part of the delimiter
+        if byte == next_delim_byte {
+            Ok(next_delim_state)
+        }
+        // otherwise it was data that happened to be the same first
+        // few bytes as delimiter. Add the part of the delimiter seen
+        // so far and go back to data
+        else {
+            field_name.push_str(delim_so_far);
+            // start of delimiter again
+            match byte {
+                b'#' => Ok(State::Key1),
+                b'\\' => Ok(State::Escape),
+                _ => {
+                    field_name.push(check_next_byte(byte)? as char);
+                    Ok(State::Data)
+                }
+            }
+        }
+    };
 
-    let (a, b) = value.split_at(field.len());
-    let (b, c) = b.split_at(DELIM.len());
+    // loop over input byte by byte and once we are at the end of the field key,
+    // consume the rest of the key stream (ignoring all remaining characters)
+    for byte in rem_key {
+        match state {
+            State::Data => match byte {
+                b'#' => state = State::Key1,
+                b'\\' => state = State::Escape,
+                _ => field_name.push(check_next_byte(byte)? as char),
+            },
+            State::Escape => {
+                field_name.push(byte as char);
+                state = State::Data
+            }
+            State::Key1 => state = next_key_state(byte, b'!', State::Key2, "#", &mut field_name)?,
+            State::Key2 => state = next_key_state(byte, b'~', State::Key3, "#!", &mut field_name)?,
+            State::Key3 => state = next_key_state(byte, b'#', State::Done, "#!~", &mut field_name)?,
+            State::Done => {} // ignore all data after delimiter
+        };
+    }
 
-    // Expect exactly <field><delim><field>
-    if !a.starts_with(field) || !b.starts_with(DELIM) || !c.starts_with(field) {
-        return ParsingTSMFieldKey {
-            description: format!(
-                "Invalid field key format '{}', expected '{}{}{}'",
-                value, field, DELIM, field
+    match state {
+        State::Done if !field_name.is_empty() => Ok(field_name),
+        State::Done => ParsingFieldKey {
+            details: "field key too short",
+        }
+        .fail(),
+        _ => ParsingFieldKey {
+            details: format!(
+                "Delimiter not found before end of stream reached. \
+                                  Still in state {:?}",
+                state
             ),
         }
-        .fail();
+        .fail(),
     }
-
-    Ok(field.into())
 }
 
 #[derive(Debug, PartialEq)]
@@ -300,14 +391,14 @@ fn parse_tsm_tag_key(rem_key: impl Iterator<Item = u8>) -> Result<KeyType, DataE
 /// "val1,tag2=val --> Ok((true, "val1")));
 /// "val1" --> Ok((False, "val1")));
 fn parse_tsm_tag_value(
-    tag_key: &KeyType,
+    tag_key: &str,
     rem_key: impl Iterator<Item = u8>,
 ) -> Result<(bool, String), DataError> {
     #[derive(Debug)]
     enum State {
         Start,
         Data,
-        Escaped,
+        Escape,
     };
 
     let mut state = State::Start;
@@ -343,7 +434,7 @@ fn parse_tsm_tag_value(
                         }
                         .fail()
                     }
-                    b'\\' => state = State::Escaped,
+                    b'\\' => state = State::Escape,
                     _ => {
                         state = State::Data;
                         tag_value.push(byte as char);
@@ -372,13 +463,13 @@ fn parse_tsm_tag_value(
                     // cpu,tag=foo,
                     b',' => return Ok((true, tag_value)),
                     // start of escape value
-                    b'\\' => state = State::Escaped,
+                    b'\\' => state = State::Escape,
                     _ => {
                         tag_value.push(byte as char);
                     }
                 }
             }
-            State::Escaped => {
+            State::Escape => {
                 tag_value.push(byte as char);
                 state = State::Data;
             }
@@ -392,7 +483,7 @@ fn parse_tsm_tag_value(
             description: "missing tag value",
         }
         .fail(),
-        State::Escaped => ParsingTSMTagValue {
+        State::Escape => ParsingTSMTagValue {
             tag_key,
             description: "tag value ends in escape",
         }
@@ -406,46 +497,66 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_parse_tsm_field_key() {
-        // test the operation of parse_tsm_field_key
-        assert_eq!(parse_tsm_field_key("sum#!~#sum"), Ok("sum".into()));
+    fn test_parse_tsm_field_key_value() {
+        // test the operation of parse_tsm_field_key_value
+        do_test_parse_tsm_field_key_value_good("sum#!~#sum", "sum");
+        do_test_parse_tsm_field_key_value_bad("#!~#", "field key too short");
 
-        let err_str = parse_tsm_field_key("#!~#")
-            .expect_err("expect parsing error")
-            .to_string();
-        assert!(err_str.contains("field key too short"), err_str);
+        do_test_parse_tsm_field_key_value_good("foo#!~#fpp", "foo");
+        do_test_parse_tsm_field_key_value_good("foo#!~#", "foo");
 
-        let err_str = parse_tsm_field_key("foo#!~#fpp")
-            .expect_err("expect parsing error")
-            .to_string();
-        assert!(
-            err_str.contains("Invalid field key format \'foo#!~#fpp\', expected \'foo#!~#foo\'"),
-            err_str
+        // escaped values
+        do_test_parse_tsm_field_key_value_good(r#"foo\ bar#!~#foo bar"#, "foo bar");
+        do_test_parse_tsm_field_key_value_good(r#"foo\,bar#!~#foo,bar"#, "foo,bar");
+
+        // unescaped values
+        do_test_parse_tsm_field_key_value_bad("foo bar#!~#foo bar", "invalid unescaped ' '");
+        do_test_parse_tsm_field_key_value_bad("foo,bar#!~#foo,bar", "invalid unescaped ','");
+
+        do_test_parse_tsm_field_key_value_good("foo##!~#foo", "foo#");
+        do_test_parse_tsm_field_key_value_good("fo#o#!~#foo", "fo#o");
+
+        // partial delimiters
+        do_test_parse_tsm_field_key_value_good("foo#!#!~#foo", "foo#!");
+        do_test_parse_tsm_field_key_value_good("fo#!o#!~#foo", "fo#!o");
+        do_test_parse_tsm_field_key_value_good(r#"fo#!\ o#!~#foo"#, "fo#! o");
+        do_test_parse_tsm_field_key_value_good(r#"fo#!\,o#!~#foo"#, "fo#!,o");
+        do_test_parse_tsm_field_key_value_good(r#"fo#!\=o#!~#foo"#, "fo#!=o");
+
+        do_test_parse_tsm_field_key_value_good("foo#!~o#!~#foo", "foo#!~o");
+        do_test_parse_tsm_field_key_value_good("fo#!~o#!~#foo", "fo#!~o");
+        do_test_parse_tsm_field_key_value_good(r#"fo#!~\ #!~#foo"#, "fo#!~ ");
+
+        do_test_parse_tsm_field_key_value_good("foo#!~#!~#foo", "foo"); // matches!
+        do_test_parse_tsm_field_key_value_good("fo#!~o#!~#foo", "fo#!~o");
+        do_test_parse_tsm_field_key_value_good(r#"fo#!~\ #!~#foo"#, "fo#!~ ");
+
+        // test partial delimiters
+        do_test_parse_tsm_field_key_value_bad(
+            "foo",
+            "Delimiter not found before end of stream reached",
+        );
+        do_test_parse_tsm_field_key_value_bad(
+            "foo#",
+            "Delimiter not found before end of stream reached",
+        );
+        do_test_parse_tsm_field_key_value_bad(
+            "foo#!",
+            "Delimiter not found before end of stream reached",
+        );
+        do_test_parse_tsm_field_key_value_bad(
+            "foo#!~",
+            "Delimiter not found before end of stream reached",
         );
 
-        let err_str = parse_tsm_field_key("foo#!~#naaa")
-            .expect_err("expect parsing error")
-            .to_string();
-        assert!(
-            err_str.contains("Invalid field key format \'foo#!~#naaa\', expected \'foo#!~#foo\'"),
-            err_str
-        );
-
-        let err_str = parse_tsm_field_key("foo#!~#")
-            .expect_err("expect parsing error")
-            .to_string();
-        assert!(
-            err_str.contains("Invalid field key format \'foo#!~#\', expected \'f#!~#f\'"),
-            err_str
-        );
-
-        let err_str = parse_tsm_field_key("foo####foo")
-            .expect_err("expect parsing error")
-            .to_string();
-        assert!(
-            err_str.contains("Invalid field key format \'foo####foo\', expected \'foo#!~#foo\'"),
-            err_str
-        );
+        // test unescaped ' ', '=' and ',' before and after the delimiters
+        do_test_parse_tsm_field_key_value_bad("foo bar#!~#foo bar", "invalid unescaped ' '");
+        do_test_parse_tsm_field_key_value_bad("foo,bar#!~#foo,bar", "invalid unescaped ','");
+        do_test_parse_tsm_field_key_value_bad("foo=bar#!~#foo=bar", "invalid unescaped '='");
+        // but escaped before the delimiter is fine
+        do_test_parse_tsm_field_key_value_good(r#"foo\ bar#!~#foo bar"#, "foo bar");
+        do_test_parse_tsm_field_key_value_good(r#"foo\,bar#!~#foo,bar"#, "foo,bar");
+        do_test_parse_tsm_field_key_value_good(r#"foo\=bar#!~#foo=bar"#, "foo=bar");
     }
 
     #[test]
@@ -580,12 +691,13 @@ mod tests {
         key = add_field_key(key, "f");
         key = add_field_key(key, "f2");
 
-        let err_str = parse_tsm_key(&key)
-            .expect_err("expect parsing error")
-            .to_string();
-        assert!(
-            err_str.contains("Found new field key 'f2#!~#f2' after the first 'f'"),
-            err_str
+        // Now we just ignore all content after the field key
+        let parsed_key = parse_tsm_key(&key).expect("parsed");
+        assert_eq!(
+            parsed_key.field_key,
+            "f",
+            "while parsing {}",
+            String::from_utf8_lossy(&key)
         );
     }
 
@@ -662,6 +774,49 @@ mod tests {
         assert_eq!(parsed_key.field_key, String::from("responseSize"));
     }
 
+    fn do_test_parse_tsm_field_key_value_good(input: &str, expected_field_key: &str) {
+        let mut iter = input.bytes();
+        let result = parse_tsm_field_key_value(&mut iter);
+        match result {
+            Ok(field_key) => {
+                assert_eq!(
+                    field_key, expected_field_key,
+                    "Unexpected field key parsing '{}'",
+                    input
+                );
+            }
+            Err(e) => panic!(
+                "Unexpected error while parsing field key '{}', got '{}', expected '{}'",
+                input, e, expected_field_key
+            ),
+        }
+    }
+
+    fn do_test_parse_tsm_field_key_value_bad(input: &str, expected_error: &str) {
+        let mut iter = input.bytes();
+        let result = parse_tsm_field_key_value(&mut iter);
+        match result {
+            Ok(field_key) => {
+                panic!(
+                    "Unexpected success parsing field key '{}'. \
+                        Expected error '{}', got  '{}'",
+                    input, expected_error, field_key
+                );
+            }
+            Err(err) => {
+                let err_str = err.to_string();
+                assert!(
+                    err_str.contains(expected_error),
+                    "Did not find expected error while parsing '{}'. \
+                     Expected '{}' but actual error was '{}'",
+                    input,
+                    expected_error,
+                    err_str
+                );
+            }
+        }
+    }
+
     fn do_test_parse_tsm_tag_key_good(
         input: &str,
         expected_remaining_input: &str,
@@ -733,7 +888,7 @@ mod tests {
     ) {
         let mut iter = input.bytes();
 
-        let result = parse_tsm_tag_value(&KeyType::Field, &mut iter);
+        let result = parse_tsm_tag_value("Unknown", &mut iter);
         let remaining_input =
             String::from_utf8(iter.collect()).expect("can not find remaining input");
 
@@ -767,7 +922,7 @@ mod tests {
     ) {
         let mut iter = input.bytes();
 
-        let result = parse_tsm_tag_value(&KeyType::Field, &mut iter);
+        let result = parse_tsm_tag_value("Unknown", &mut iter);
         let remaining_input =
             String::from_utf8(iter.collect()).expect("can not find remaining input");
 
