@@ -113,7 +113,7 @@ pub fn convert(
     debug!("Reading from input path {}", input_path);
 
     if is_directory(input_path) {
-        let files: Vec<_> = fs::read_dir(input_path)
+        let mut files: Vec<_> = fs::read_dir(input_path)
             .unwrap()
             .filter_map(Result::ok)
             .filter(|filename| filename.path().extension().map_or(false, |x| x == "tsm"))
@@ -123,6 +123,10 @@ pub fn convert(
             warn!("No TSM files found");
             return Ok(());
         }
+
+        // Sort files by their TSM generation to ensure any duplicate block
+        // data is appropriately deduplicated.
+        files.sort_by(|a, b| a.file_name().cmp(&b.file_name()));
 
         let mut index_readers = Vec::with_capacity(files.len());
         let mut block_readers = Vec::with_capacity(files.len());
