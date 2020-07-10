@@ -133,7 +133,7 @@ func (m *Variable) Valid() error {
 		fmt.Printf(inValidNames[x])
 
 		if m.Name == inValidNames[x] {
-			return fmt.Errorf("Protected variable name")
+			return fmt.Errorf("protected variable name")
 		}
 	}
 
