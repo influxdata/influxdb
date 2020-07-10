@@ -1,5 +1,12 @@
 // Libraries
-import React, {FC, useContext, ReactNode, MouseEvent, useRef} from 'react'
+import React, {
+  FC,
+  useContext,
+  useEffect,
+  ReactNode,
+  MouseEvent,
+  useRef,
+} from 'react'
 import classnames from 'classnames'
 
 // Components
@@ -21,6 +28,7 @@ import {PipeContextProps, DataID, PipeData} from 'src/notebooks'
 
 // Contexts
 import {NotebookContext} from 'src/notebooks/context/notebook.current'
+import {RefContext} from 'src/notebooks/context/refs'
 
 export interface Props extends PipeContextProps {
   id: DataID<PipeData>
@@ -78,10 +86,11 @@ const NotebookPanelHeader: FC<HeaderProps> = ({id, controls}) => {
 
 const NotebookPanel: FC<Props> = ({id, children, controls}) => {
   const {notebook} = useContext(NotebookContext)
+  const refs = useContext(RefContext)
   const panelRef = useRef<HTMLDivElement>(null)
 
   const isVisible = notebook.meta.get(id).visible
-  const isFocused = notebook.meta.get(id).focus
+  const isFocused = refs.get(id).focus
 
   const panelClassName = classnames('notebook-panel', {
     [`notebook-panel__visible`]: isVisible,
@@ -89,11 +98,15 @@ const NotebookPanel: FC<Props> = ({id, children, controls}) => {
     'notebook-panel__focus': isFocused,
   })
 
+  useEffect(() => {
+    refs.update(id, {panel: panelRef})
+  }, [])
+
   const updatePanelFocus = (focus: boolean): void => {
     if (isFocused === focus) {
       return
     }
-    notebook.meta.update(id, {focus})
+    refs.update(id, {focus})
   }
 
   const handleClick = (e: MouseEvent<HTMLDivElement>): void => {

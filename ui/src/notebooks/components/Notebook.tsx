@@ -4,6 +4,7 @@ import React, {FC} from 'react'
 // Components
 import {Page} from '@influxdata/clockface'
 import {ResultsProvider} from 'src/notebooks/context/results'
+import {RefProvider} from 'src/notebooks/context/refs'
 import CurrentNotebook from 'src/notebooks/context/notebook.current'
 import {ScrollProvider} from 'src/notebooks/context/scroll'
 import Header from 'src/notebooks/components/header'
@@ -19,21 +20,23 @@ const NotebookPage: FC = () => {
   return (
     <CurrentNotebook>
       <ResultsProvider>
-        <ScrollProvider>
-          <Page titleTag="Flows">
-            <Header />
-            <Page.Contents
-              fullWidth={true}
-              scrollable={false}
-              className="notebook-page"
-            >
-              <div className="notebook">
-                <MiniMap />
-                <PipeList />
-              </div>
-            </Page.Contents>
-          </Page>
-        </ScrollProvider>
+        <RefProvider>
+          <ScrollProvider>
+            <Page titleTag="Flows">
+              <Header />
+              <Page.Contents
+                fullWidth={true}
+                scrollable={false}
+                className="notebook-page"
+              >
+                <div className="notebook">
+                  <MiniMap />
+                  <PipeList />
+                </div>
+              </Page.Contents>
+            </Page>
+          </ScrollProvider>
+        </RefProvider>
       </ResultsProvider>
     </CurrentNotebook>
   )

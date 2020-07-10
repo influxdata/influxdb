@@ -3,7 +3,8 @@ import React, {FC, useContext} from 'react'
 import {connect} from 'react-redux'
 
 // Contexts
-import {NotebookContext, PipeMeta} from 'src/notebooks/context/notebook'
+import {NotebookContext} from 'src/notebooks/context/notebook.current'
+import {RefContext} from 'src/notebooks/context/refs'
 import {ScrollContext} from 'src/notebooks/context/scroll'
 
 // Components
@@ -22,7 +23,8 @@ interface StateProps {
 }
 
 const MiniMap: FC<StateProps> = ({notebookMiniMapState}) => {
-  const {meta, updateMeta} = useContext(NotebookContext)
+  const {notebook} = useContext(NotebookContext)
+  const refs = useContext(RefContext)
   const {scrollToPipe} = useContext(ScrollContext)
 
   if (notebookMiniMapState === 'collapsed') {
@@ -33,22 +35,23 @@ const MiniMap: FC<StateProps> = ({notebookMiniMapState}) => {
     )
   }
 
-  const handleClick = (idx: number): void => {
-    const {panelRef} = meta[idx]
-    scrollToPipe(panelRef)
-    updateMeta(idx, {focus: true} as PipeMeta)
-  }
+  const pipes = notebook.data.allIDs.map(id => {
+    const {title, visible} = notebook.meta.get(id)
+    const {panel, focus} = refs.get(id)
 
-  const pipes = meta.map((pipe, index) => (
-    <MiniMapItem
-      key={`minimap-${pipe.title}-${index}`}
-      title={pipe.title}
-      focus={pipe.focus}
-      visible={pipe.visible}
-      index={index}
-      onClick={handleClick}
-    />
-  ))
+    return (
+      <MiniMapItem
+        key={`minimap-${id}`}
+        title={title}
+        focus={focus}
+        visible={visible}
+        onClick={() => {
+          scrollToPipe(panel)
+          refs.update(id, {focus: true})
+        }}
+      />
+    )
+  })
 
   return (
     <div className="notebook-minimap">

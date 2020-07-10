@@ -88,7 +88,6 @@ export const NotebookProvider: FC = ({children}) => {
       title: getHumanReadableName(initial.type),
       visible: true,
       loading: RemoteDataState.NotStarted,
-      focus: false,
     })
 
     if (typeof index !== 'undefined') {
