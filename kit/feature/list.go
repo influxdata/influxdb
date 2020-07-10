@@ -254,6 +254,20 @@ func UseUserPermission() BoolFlag {
 	return useUserPermission
 }
 
+var mergeFilterRule = MakeBoolFlag(
+	"Push Down Merged Filters",
+	"mergeFilterRule",
+	"Query Team",
+	false,
+	Temporary,
+	false,
+)
+
+// PushDownMergedFilters - Create one filter combining multiple single return statements
+func PushDownMergedFilters() BoolFlag {
+	return mergeFilterRule
+}
+
 var all = []Flag{
 	appMetrics,
 	backendExample,
@@ -273,6 +287,7 @@ var all = []Flag{
 	urmFreeTasks,
 	simpleTaskOptionsExtraction,
 	useUserPermission,
+	mergeFilterRule,
 }
 
 var byKey = map[string]Flag{
@@ -294,4 +309,5 @@ var byKey = map[string]Flag{
 	"urmFreeTasks":                  urmFreeTasks,
 	"simpleTaskOptionsExtraction":   simpleTaskOptionsExtraction,
 	"useUserPermission":             useUserPermission,
+	"mergeFilterRule":               mergeFilterRule,
 }

@@ -15,6 +15,7 @@ import (
 	"github.com/influxdata/flux/plan"
 	"github.com/influxdata/flux/plan/plantest"
 	"github.com/influxdata/flux/semantic"
+	fluxinfluxdb "github.com/influxdata/flux/stdlib/influxdata/influxdb"
 	"github.com/influxdata/flux/stdlib/universe"
 	"github.com/influxdata/flux/values"
 	"github.com/influxdata/influxdb/v2/kit/feature"
@@ -203,8 +204,7 @@ func TestPushDownFilterRule(t *testing.T) {
 
 	makeResolvedFilterFn := func(expr *semantic.FunctionExpression) interpreter.ResolvedFunction {
 		return interpreter.ResolvedFunction{
-			Scope: nil,
-			Fn:    expr,
+			Fn: expr,
 		}
 	}
 
@@ -3068,6 +3068,91 @@ func TestSwitchFillImplRule(t *testing.T) {
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
 			plantest.PhysicalRuleTestHelper(t, &tc)
+		})
+	}
+}
+
+func TestMergeFilterRule(t *testing.T) {
+	flaggerOn := mock.NewFlagger(map[feature.Flag]interface{}{
+		feature.PushDownMergedFilters(): true,
+	})
+	flaggerOff := mock.NewFlagger(map[feature.Flag]interface{}{
+		feature.PushDownMergedFilters(): false,
+	})
+
+	withFlagger, _ := feature.Annotate(context.Background(), flaggerOn)
+	withOutFlagger, _ := feature.Annotate(context.Background(), flaggerOff)
+
+	from := &fluxinfluxdb.FromProcedureSpec{}
+	filter0 := func() *universe.FilterProcedureSpec {
+		return &universe.FilterProcedureSpec{
+			Fn: interpreter.ResolvedFunction{
+				Fn: executetest.FunctionExpression(t, `(r) => r._field == "usage_idle"`),
+			},
+		}
+	}
+	filter1 := func() *universe.FilterProcedureSpec {
+		return &universe.FilterProcedureSpec{
+			Fn: interpreter.ResolvedFunction{
+				Fn: executetest.FunctionExpression(t, `(r) => r._measurement == "cpu"`),
+			},
+		}
+	}
+	filterMerge := func() *universe.FilterProcedureSpec {
+		return &universe.FilterProcedureSpec{
+			Fn: interpreter.ResolvedFunction{
+				Fn: executetest.FunctionExpression(t, `(r) => r._measurement == "cpu" and r._field == "usage_idle"`),
+			},
+		}
+	}
+
+	testcases := []plantest.RuleTestCase{
+		{
+			Context: withFlagger,
+			Name:    "merge filter on",
+			Rules:   []plan.Rule{influxdb.MergeFilterRule{}},
+			Before: &plantest.PlanSpec{
+				Nodes: []plan.Node{
+					plan.CreatePhysicalNode("from", from),
+					plan.CreatePhysicalNode("filter0", filter0()),
+					plan.CreatePhysicalNode("filter1", filter1()),
+				},
+				Edges: [][2]int{
+					{0, 1},
+					{1, 2},
+				},
+			},
+			After: &plantest.PlanSpec{
+				Nodes: []plan.Node{
+					plan.CreatePhysicalNode("from", from),
+					plan.CreatePhysicalNode("filter0", filterMerge()),
+				},
+				Edges: [][2]int{{0, 1}},
+			},
+		},
+		{
+			Context: withOutFlagger,
+			Name:    "merge filter off",
+			Rules:   []plan.Rule{influxdb.MergeFilterRule{}},
+			Before: &plantest.PlanSpec{
+				Nodes: []plan.Node{
+					plan.CreatePhysicalNode("from", from),
+					plan.CreatePhysicalNode("filter0", filter0()),
+					plan.CreatePhysicalNode("filter1", filter1()),
+				},
+				Edges: [][2]int{
+					{0, 1},
+					{1, 2},
+				},
+			},
+			NoChange: true,
+		},
+	}
+	for _, tc := range testcases {
+		tc := tc
+		t.Run(tc.Name, func(t *testing.T) {
+			t.Parallel()
+			plantest.LogicalRuleTestHelper(t, &tc)
 		})
 	}
 }
