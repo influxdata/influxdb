@@ -32,6 +32,7 @@ fn validate_parquet_file(p: &Path) {
 fn convert_bad_input_filename() {
     let mut cmd = Command::cargo_bin("delorean").unwrap();
     let assert = cmd
+        .arg("-v")
         .arg("convert")
         .arg("non_existent_input.lp")
         .arg("non_existent_output")
@@ -50,6 +51,7 @@ fn convert_bad_input_filename() {
 fn convert_bad_compression_level() {
     let mut cmd = Command::cargo_bin("delorean").unwrap();
     let assert = cmd
+        .arg("-v")
         .arg("convert")
         .arg("--compression-level")
         .arg("maxxx")
@@ -75,6 +77,7 @@ fn convert_line_protocol_good_input_filename() {
     let parquet_filename_string = parquet_path.to_string_lossy().to_string();
 
     let assert = cmd
+        .arg("-v")
         .arg("convert")
         .arg("--compression-level")
         .arg("compatibility")
@@ -163,6 +166,7 @@ fn convert_multiple_measurements() {
     let parquet_output_dir_path = parquet_output_path.path().to_string_lossy().to_string();
 
     let assert = cmd
+        .arg("-v")
         .arg("convert")
         .arg("tests/fixtures/lineproto/air_and_water.lp")
         .arg(&parquet_output_dir_path)
