@@ -127,6 +127,14 @@ func (m *Variable) Valid() error {
 		return fmt.Errorf("invalid arguments type")
 	}
 
+	inValidNames := [11]string{"and", "import", "not", "return", "option", "test", "empty", "in", "or", "package", "builtin"}
+
+	for x := 0; x < len(inValidNames); x++ {
+		if m.Name == inValidNames[x] {
+			return fmt.Errorf("Protected variable name, invalid variable name")
+		}
+	}
+
 	return nil
 }
 
