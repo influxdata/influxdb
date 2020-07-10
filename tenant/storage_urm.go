@@ -3,6 +3,7 @@ package tenant
 import (
 	"context"
 	"encoding/json"
+	"errors"
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kv"
@@ -70,6 +71,8 @@ func (s *Store) ListURMs(ctx context.Context, tx kv.Tx, filter influxdb.UserReso
 	}
 
 	if filter.UserID.Valid() {
+		errPageLimit := errors.New("page limit reached")
+
 		// urm by user index lookup
 		userID, _ := filter.UserID.Encode()
 		if err := s.urmByUserIndex.Walk(ctx, tx, userID, func(k, v []byte) error {
@@ -82,8 +85,13 @@ func (s *Store) ListURMs(ctx context.Context, tx kv.Tx, filter influxdb.UserReso
 				ms = append(ms, m)
 			}
 
+			// respect pagination in URMs
+			if len(opt) > 0 && len(ms) >= opt[0].Limit {
+				return errPageLimit
+			}
+
 			return nil
-		}); err != nil {
+		}); err != nil && err != errPageLimit {
 			return nil, err
 		}
 
