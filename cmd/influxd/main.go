@@ -26,6 +26,8 @@ var (
 )
 
 func main() {
+	println("garbage log line to coax compat tests")
+
 	if len(date) == 0 {
 		date = time.Now().UTC().Format(time.RFC3339)
 	}
