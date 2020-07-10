@@ -14,7 +14,7 @@ We will work, over time, to migrate the rest of the codebase to use these patter
 
 At a high level there are two different kinds of work the server does:
 
-1. Responding to external (I/O) requests (aka responding to `GET /ping`, `POST /api/v2/write`, or the various gpc APIs).
+1. Responding to external (I/O) requests (aka responding to `GET /ping`, `POST /api/v2/write`, or the various gRPC APIs).
 
 2. CPU heavy tasks such data parsing, format conversion, or query processing
 
@@ -60,4 +60,4 @@ The standard pattern to run CPU heavy tasks from async code is:
 While this definitely avoids tying up all I/O handling threads, it can also result in a large number of threads when the system is under load and has more work coming in than it can complete.
 
 ### Use the main tokio::task::spawn for all  work
-While this  likely results in the best possible efficiency, it can mean that I/O requests (such as responding to `/ping` are not handled in a timely manner)
+While this  likely results in the best possible efficiency, it can mean that I/O requests (such as responding to `/ping`) are not handled in a timely manner.
