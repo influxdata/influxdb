@@ -182,6 +182,24 @@ func TestValidEndpoint(t *testing.T) {
 			},
 			err: nil,
 		},
+		{
+			name: "empty teams url",
+			src: &endpoint.Teams{
+				Base: goodBase,
+			},
+			err: &influxdb.Error{
+				Code: influxdb.EInvalid,
+				Msg:  "empty teams URL",
+			},
+		},
+		{
+			name: "empty teams SecretURLSuffix",
+			src: &endpoint.Teams{
+				Base: goodBase,
+				URL:  "http://localhost",
+			},
+			err: nil,
+		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -286,6 +304,39 @@ func TestJSON(t *testing.T) {
 					},
 				},
 				Token: influxdb.SecretField{Key: "token-key-1"},
+			},
+		},
+		{
+			name: "teams with secretURLSuffix",
+			src: &endpoint.Teams{
+				Base: endpoint.Base{
+					ID:     influxTesting.MustIDBase16Ptr(id1),
+					Name:   "name1",
+					OrgID:  influxTesting.MustIDBase16Ptr(id3),
+					Status: influxdb.Active,
+					CRUDLog: influxdb.CRUDLog{
+						CreatedAt: timeGen1.Now(),
+						UpdatedAt: timeGen2.Now(),
+					},
+				},
+				URL:             "https://outlook.office.com/webhook/",
+				SecretURLSuffix: influxdb.SecretField{Key: "token-key-1"},
+			},
+		},
+		{
+			name: "teams without secretURLSuffix",
+			src: &endpoint.Slack{
+				Base: endpoint.Base{
+					ID:     influxTesting.MustIDBase16Ptr(id1),
+					Name:   "name1",
+					OrgID:  influxTesting.MustIDBase16Ptr(id3),
+					Status: influxdb.Active,
+					CRUDLog: influxdb.CRUDLog{
+						CreatedAt: timeGen1.Now(),
+						UpdatedAt: timeGen2.Now(),
+					},
+				},
+				URL: "https://outlook.office.com/webhook/0acbc9c2-c262-11ea-b3de-0242ac130004",
 			},
 		},
 	}
@@ -461,6 +512,42 @@ func TestBackFill(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "simple Teams",
+			src: &endpoint.Teams{
+				Base: endpoint.Base{
+					ID:     influxTesting.MustIDBase16Ptr(id1),
+					Name:   "name1",
+					OrgID:  influxTesting.MustIDBase16Ptr(id3),
+					Status: influxdb.Active,
+					CRUDLog: influxdb.CRUDLog{
+						CreatedAt: timeGen1.Now(),
+						UpdatedAt: timeGen2.Now(),
+					},
+				},
+				URL: "https://outlook.office.com/webhook/",
+				SecretURLSuffix: influxdb.SecretField{
+					Value: strPtr("token-value"),
+				},
+			},
+			target: &endpoint.Teams{
+				Base: endpoint.Base{
+					ID:     influxTesting.MustIDBase16Ptr(id1),
+					Name:   "name1",
+					OrgID:  influxTesting.MustIDBase16Ptr(id3),
+					Status: influxdb.Active,
+					CRUDLog: influxdb.CRUDLog{
+						CreatedAt: timeGen1.Now(),
+						UpdatedAt: timeGen2.Now(),
+					},
+				},
+				URL: "https://outlook.office.com/webhook/",
+				SecretURLSuffix: influxdb.SecretField{
+					Key:   id1 + "-token",
+					Value: strPtr("token-value"),
+				},
+			},
+		},
 	}
 	for _, c := range cases {
 		c.src.BackfillSecretKeys()
@@ -577,6 +664,32 @@ func TestSecretFields(t *testing.T) {
 					},
 				},
 				Token: influxdb.SecretField{
+					Key:   id1 + "-token",
+					Value: strPtr("token-value"),
+				},
+			},
+			secrets: []influxdb.SecretField{
+				{
+					Key:   id1 + "-token",
+					Value: strPtr("token-value"),
+				},
+			},
+		},
+		{
+			name: "simple Teams",
+			src: &endpoint.Teams{
+				Base: endpoint.Base{
+					ID:     influxTesting.MustIDBase16Ptr(id1),
+					Name:   "name1",
+					OrgID:  influxTesting.MustIDBase16Ptr(id3),
+					Status: influxdb.Active,
+					CRUDLog: influxdb.CRUDLog{
+						CreatedAt: timeGen1.Now(),
+						UpdatedAt: timeGen2.Now(),
+					},
+				},
+				URL: "https://outlook.office.com/webhook/",
+				SecretURLSuffix: influxdb.SecretField{
 					Key:   id1 + "-token",
 					Value: strPtr("token-value"),
 				},
