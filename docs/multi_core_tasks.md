@@ -14,7 +14,7 @@ We will work, over time, to migrate the rest of the codebase to use these patter
 
 At a high level there are two different kinds of work the server does:
 
-1. Responding to external (I/O) requests (a.k.a. responding to `GET /ping`, `POST /api/v2/write`, or the various gRPC APIs).
+1. Responding to external I/O requests (a.k.a. responding to `GET /ping`, `POST /api/v2/write`, or the various gRPC APIs), or making internal I/O requests such as to read or write to a local file.
 
 2. CPU heavy tasks such data parsing, format conversion, or query processing
 
@@ -37,7 +37,7 @@ The above desires, leads us to the following guidelines:
 
 **Rationale**: This ensures that we do not tie up threads which are servicing I/O requests with blocking functions.
 
-This can not always be done (e.g. with a library such as parquet writer which is not `async`).
+This can not always be done (e.g. with a library such as parquet writer which is not `async`). In such cases, using `tokio::task::spawn_blocking` should be used to perform the file I/O.
 
 ### All CPU heavy work should be done on the single app level worker pool, separate from the tokio runtime
 
