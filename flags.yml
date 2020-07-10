@@ -128,3 +128,9 @@
   default: false
   contact: Brett Buddin
   lifetime: temporary
+
+- name: Push Down Merged Filters
+  description: Create one filter combining multiple single return statements
+  key: mergeFilterRule
+  default: false
+  contact: Query Team
