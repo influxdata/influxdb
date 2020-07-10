@@ -24,7 +24,8 @@ We wish to have the following properties in the runtime:
 
 1. Incoming requests are always processed and responded to in a "timely" manner, even while the server is load / overloaded. For example, even if the server is currently consuming 100% of the CPU doing useful work (converting data, running queries, etc), it still must be able to answer a `/ping` request to tell observers that it is still alive and not be taken out of a load balancer rotation or killed by kubernetes.
 
-2. Ability to (eventually) control the priority of CPU heavy tasks, so we can prioritize certain tasks over others (e.g. query requests over background data rearrangement)
+2. Ability to (eventually) control the priority of CPU heavy tasks, so we can prioritize certain tasks over others (e.g. query requests over background data rearrangement). This document focuses on the split between I/O and CPU tasks, not the priority scheduling for CPU heavy tasks, which is deferred to a future document.
+
 
 ## Guidelines
 
@@ -47,6 +48,35 @@ This can not always be done (e.g. with a library such as parquet writer which is
 There will, of course, always be a judgment call to be made of where "CPU bound work" starts and "work acceptable for I/O processing"  ends. A reasonable rule of thumb is if a job will *always* be completed in less than 100ms then that is probably fine for an I/O thread). This number may be revised as we tune the system.
 
 ## Examples
+
+### Worked Exampless
+
+In this section, we show how this design would be applied to a hypothetical 4 core system. For the purposes of illustration, we ignore CPU needs of other processes and the Operating System itself. We examine the following two configurations that an operator might desire and their effect on overall CPU utilization and ping response latency.
+
+*Minimal Response Latency*: To achieve minimal response latency, the operator could configure the system with 3 threads in the CPU threadpool and 1 thread in the tokio I/O task pool. This division will ensure there is always at least one core available to respond to ping requests.
+
+*Maximum CPU Utilization*: To achieve maximum CPU utilization (all cores are busy if there is work to do), the operator could configure the system with 4 threads in the CPU threadpool and 1 thread in the tokio I/O task pool. Given 5 threads and 4 cores, while there will always be a thread available to handle I/O requests, it will be multiplexed by the operating system with the threads doing CPU heavy work.
+
+**Note**: In this document, we assume a simple implementation where there is a single threadpool used for both high and low priority CPU heavy work. While more sophisticated designs are possible (e.g.  segregated threadpools, task spilling, etc.), this document focuses on the split between I/O and CPU, not priority for CPU heavy tasks which is tracked, along with other resource management needs, [here](https://github.com/influxdata/delorean/issues/241)
+
+#### Heavy Query Processing
+
+In this scenario, 10 concurrent request for CPU heavy queries come in. The I/O thread handles the query requests and passes the processing to the CPU threads.
+
+*Minimal Response Latency*: 3 CPU heavy threads process the queries and the I/O thread remains ready for new requests. The system will appear 75% utilized (using 3 of 4 cores). The remaining core is available to handle ping requests with minimal additional latency.
+
+*Maximum CPU Utilization*: In this case, 4 CPU heavy threads process the queries and the I/O thread still remains available for new requests. The system cores will be 100% utilized. Incoming requests will be handled by the I/O thread, but that thread will only be have ~80% of a CPU core available and thus ping responses may be delayed.
+
+
+#### Query Processing with Low Priority Background Work
+
+In this scenario, 10 concurrent requests for CPU heavy queries come in while there are 2 background jobs (e.g. storage reorganization) running at "low" priority. The I/O thread handles the query requests and passes the processing to the CPU threads as before.
+
+With a little hand waving, in either configuration, the CPU heavy threads eventually pause their background work and begin processing the higher priority query loads. The details of how priority scheduling of CPU tasks is handled is deferred to another document.
+
+In both the *Minimal Response Latency* and *Maximum CPU Utilization* configurations there are respectively 1 or 2 CPU heavy threads available immediately to work on queries, and when the 2 background tasks can yield, the remaining 2 CPU heavy threads begin working on queries. The system response latency and CPU utilization is the same as described in the *Heavy Query Processing* configuration above.
+
+## Code Examples
 
 TODO: picture of how async + CPU heavy threads interact
 
