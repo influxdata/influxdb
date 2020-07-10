@@ -34,7 +34,6 @@ type Props = OwnProps & ReduxProps
 
 const DELAYTIME = 2000
 
-
 class SubmitQueryButton extends PureComponent<Props> {
   public static defaultProps = {
     text: 'Submit',
@@ -116,7 +115,7 @@ class SubmitQueryButton extends PureComponent<Props> {
     // In order to allow for requests after cancellations:
     // https://stackoverflow.com/a/56548348/7963795
 
-    this.timer = setTimeout(() =>{
+    this.timer = setTimeout(() => {
       this.setState({timer: true})
     }, DELAYTIME)
     this.abortController = new AbortController()
