@@ -294,3 +294,4 @@ CI also runs end-to-end tests. These test the integration between the influx ser
 
 - Start the server in "testing mode" by running `make run-e2e`.
 - Run the tests with `make e2e`.
+nothing
