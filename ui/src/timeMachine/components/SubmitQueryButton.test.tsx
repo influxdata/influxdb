@@ -199,8 +199,9 @@ describe('TimeMachine.Components.SubmitQueryButton', () => {
       const {type, value: error} = mocked(fetch).mock.results[0] as any
       expect(type).toBe('throw')
       expect(error.name).toBe('AbortError')
-
-      expect(getByTitle('Submit')).toBeTruthy()
     }, DELAYTIME)
+    
+      expect(getByTitle('Submit')).toBeTruthy()
+    
   })
 })
