@@ -268,7 +268,7 @@ impl BlockDecoder for MockBlockDecoder {
 
 /// `BlockData` describes the various types of block data that can be held within
 /// a TSM file.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum BlockData {
     Float {
         i: usize,
@@ -298,6 +298,77 @@ pub enum BlockData {
 }
 
 impl BlockData {
+    pub fn reserve_exact(&mut self, additional: usize) {
+        match self {
+            Self::Float { i: _, ts, values } => {
+                ts.reserve_exact(additional);
+                values.reserve_exact(additional);
+            }
+            Self::Integer { i: _, ts, values } => {
+                ts.reserve_exact(additional);
+                values.reserve_exact(additional);
+            }
+            Self::Bool { i: _, ts, values } => {
+                ts.reserve_exact(additional);
+                values.reserve_exact(additional);
+            }
+            Self::Str { i: _, ts, values } => {
+                ts.reserve_exact(additional);
+                values.reserve_exact(additional);
+            }
+            Self::Unsigned { i: _, ts, values } => {
+                ts.reserve_exact(additional);
+                values.reserve_exact(additional);
+            }
+        }
+    }
+
+    /// Pushes the provided time-stamp value tuple onto the block data.
+    pub fn push(&mut self, pair: ValuePair) {
+        match pair {
+            ValuePair::F64((t, v)) => {
+                if let Self::Float { i: _, ts, values } = self {
+                    ts.push(t);
+                    values.push(v);
+                } else {
+                    panic!("unsupported variant for BlockData::Float");
+                }
+            }
+            ValuePair::I64((t, v)) => {
+                if let Self::Integer { i: _, ts, values } = self {
+                    ts.push(t);
+                    values.push(v);
+                } else {
+                    panic!("unsupported variant for BlockData::Integer");
+                }
+            }
+            ValuePair::Bool((t, v)) => {
+                if let Self::Bool { i: _, ts, values } = self {
+                    ts.push(t);
+                    values.push(v);
+                } else {
+                    panic!("unsupported variant for BlockData::Bool");
+                }
+            }
+            ValuePair::Str((t, v)) => {
+                if let Self::Str { i: _, ts, values } = self {
+                    ts.push(t);
+                    values.push(v); // TODO(edd): figure out
+                } else {
+                    panic!("unsupported variant for BlockData::Str");
+                }
+            }
+            ValuePair::U64((t, v)) => {
+                if let Self::Unsigned { i: _, ts, values } = self {
+                    ts.push(t);
+                    values.push(v);
+                } else {
+                    panic!("unsupported variant for BlockData::Unsigned");
+                }
+            }
+        }
+    }
+
     pub fn next_pair(&mut self) -> Option<ValuePair> {
         if self.is_empty() {
             return None;
@@ -341,10 +412,171 @@ impl BlockData {
             Self::Unsigned { i, ts, values: _ } => *i == ts.len(),
         }
     }
+
+    pub fn len(&self) -> usize {
+        match &self {
+            Self::Float {
+                i: _,
+                ts,
+                values: _,
+            } => ts.len(),
+            Self::Integer {
+                i: _,
+                ts,
+                values: _,
+            } => ts.len(),
+            Self::Bool {
+                i: _,
+                ts,
+                values: _,
+            } => ts.len(),
+            Self::Str {
+                i: _,
+                ts,
+                values: _,
+            } => ts.len(),
+            Self::Unsigned {
+                i: _,
+                ts,
+                values: _,
+            } => ts.len(),
+        }
+    }
+
+    /// Merges multiple blocks of data together.
+    ///
+    /// For values within the block that have identical timestamps, `merge`
+    /// overwrites previous values. Therefore, in order to have "last write wins"
+    /// semantics it is important that the provided vector of blocks is ordered
+    /// by the wall-clock time the blocks were created.
+    pub fn merge(mut blocks: Vec<Self>) -> Self {
+        if blocks.is_empty() {
+            panic!("merge called with zero blocks");
+        } else if blocks.len() == 1 {
+            return blocks.remove(0); // only one block; no merging.
+        }
+
+        // The merged output block data to be returned
+        let mut block_data: Self;
+        let first = blocks.first().unwrap();
+        match first {
+            Self::Float {
+                i: _,
+                ts: _,
+                values: _,
+            } => {
+                block_data = Self::Float {
+                    i: 0,
+                    ts: Vec::with_capacity(first.len()),
+                    values: Vec::with_capacity(first.len()),
+                }
+            }
+            Self::Integer {
+                i: _,
+                ts: _,
+                values: _,
+            } => {
+                block_data = Self::Integer {
+                    i: 0,
+                    ts: Vec::with_capacity(first.len()),
+                    values: Vec::with_capacity(first.len()),
+                }
+            }
+            Self::Bool {
+                i: _,
+                ts: _,
+                values: _,
+            } => {
+                block_data = Self::Bool {
+                    i: 0,
+                    ts: Vec::with_capacity(first.len()),
+                    values: Vec::with_capacity(first.len()),
+                }
+            }
+            Self::Str {
+                i: _,
+                ts: _,
+                values: _,
+            } => {
+                block_data = Self::Str {
+                    i: 0,
+                    ts: Vec::with_capacity(first.len()),
+                    values: Vec::with_capacity(first.len()),
+                }
+            }
+            Self::Unsigned {
+                i: _,
+                ts: _,
+                values: _,
+            } => {
+                block_data = Self::Unsigned {
+                    i: 0,
+                    ts: Vec::with_capacity(first.len()),
+                    values: Vec::with_capacity(first.len()),
+                }
+            }
+        }
+
+        // buf will hold the next candidates from each of the sorted input
+        // blocks.
+        let mut buf: Vec<Option<ValuePair>> = Vec::new();
+        buf.resize_with(blocks.len(), || None);
+
+        // TODO(edd): perf - this simple iterator approach will likely be sped
+        // up by batch merging none-overlapping sections of candidate inputs.
+        loop {
+            match Self::refill_buffer(&mut blocks, &mut buf) {
+                Some(min_ts) => {
+                    let mut next_pair: Option<ValuePair> = None;
+                    // deduplicate points that have same timestamp.
+                    for pair in &mut buf {
+                        if let Some(vp) = pair {
+                            if vp.timestamp() == min_ts {
+                                // remove the data from the candidate buffer so it
+                                // can be refilled next time around
+                                next_pair = pair.take();
+                            }
+                        }
+                    }
+
+                    if let Some(vp) = next_pair {
+                        block_data.push(vp);
+                    } else {
+                        // TODO(edd): it feels like we should be able to re-jig
+                        // this so the compiler can prove that there is always
+                        // a next_pair.
+                        panic!("value pair missing from buffer");
+                    }
+                }
+                None => return block_data, // all inputs drained
+            }
+        }
+    }
+
+    fn refill_buffer(blocks: &mut [Self], dst: &mut Vec<Option<ValuePair>>) -> Option<i64> {
+        let mut min_ts: Option<i64> = None;
+        for (block, dst) in blocks.iter_mut().zip(dst) {
+            if dst.is_none() {
+                *dst = block.next_pair();
+            }
+
+            if let Some(pair) = dst {
+                match min_ts {
+                    Some(min) => {
+                        if pair.timestamp() < min {
+                            min_ts = Some(pair.timestamp());
+                        }
+                    }
+                    None => min_ts = Some(pair.timestamp()),
+                }
+            };
+        }
+        min_ts
+    }
 }
 
 // ValuePair represents a single timestamp-value pair from a TSM block.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum ValuePair {
     F64((i64, f64)),
     I64((i64, i64)),
@@ -354,7 +586,7 @@ pub enum ValuePair {
 }
 
 impl ValuePair {
-    // returns the timestamp associated with the value pair.
+    // The timestamp associated with the value pair.
     pub fn timestamp(&self) -> i64 {
         match *self {
             Self::F64((ts, _)) => ts,
@@ -652,5 +884,59 @@ mod tests {
     #[test]
     fn check_tsm_000000000000005_000000002() {
         walk_index_and_check_for_errors("../tests/fixtures/000000000000005-000000002.tsm.gz");
+    }
+
+    #[test]
+    fn refill_buffer() {
+        let mut buf: Vec<Option<ValuePair>> = Vec::new();
+        buf.resize(2, None);
+        let mut blocks = vec![
+            BlockData::Float {
+                i: 0,
+                ts: vec![1, 2, 3],
+                values: vec![1.2, 2.3, 4.4],
+            },
+            BlockData::Float {
+                i: 0,
+                ts: vec![2],
+                values: vec![20.2],
+            },
+        ];
+
+        let mut min_ts = BlockData::refill_buffer(&mut blocks, &mut buf);
+        assert_eq!(min_ts.unwrap(), 1);
+        assert_eq!(buf[0].take().unwrap(), ValuePair::F64((1, 1.2)));
+        assert_eq!(buf[1].take().unwrap(), ValuePair::F64((2, 20.2)));
+
+        // input buffer drained via take calls above - refill
+        min_ts = BlockData::refill_buffer(&mut blocks, &mut buf);
+        assert_eq!(min_ts.unwrap(), 2);
+        assert_eq!(buf[0].take().unwrap(), ValuePair::F64((2, 2.3)));
+        assert_eq!(buf[1].take(), None);
+    }
+
+    #[test]
+    fn merge_blocks() {
+        let res = BlockData::merge(vec![
+            BlockData::Integer {
+                i: 0,
+                ts: vec![1, 2, 3],
+                values: vec![10, 20, 30],
+            },
+            BlockData::Integer {
+                i: 0,
+                ts: vec![2, 4],
+                values: vec![200, 300],
+            },
+        ]);
+
+        assert_eq!(
+            res,
+            BlockData::Integer {
+                i: 0,
+                ts: vec![1, 2, 3, 4],
+                values: vec![10, 200, 30, 300],
+            },
+        );
     }
 }
