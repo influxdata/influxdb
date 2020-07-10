@@ -16,7 +16,7 @@ use delorean_table::{
 };
 use delorean_table_schema::{DataType, Schema, SchemaBuilder};
 use delorean_tsm::{
-    mapper::{map_field_columns, ColumnData, MeasurementTable, TSMMeasurementMapper},
+    mapper::{ColumnData, MeasurementTable, TSMMeasurementMapper},
     reader::{BlockDecoder, TSMBlockReader, TSMIndexReader},
     BlockType, TSMError,
 };
@@ -522,36 +522,135 @@ impl TSMFileConverter {
         }
     }
 
-    /// Processes a TSM file's index and writes each measurement to a Parquet
-    /// writer.
-    pub fn convert(
+    /// Given one or more sets of readers, converts the underlying TSM data into
+    /// a set of Parquet files segmented by measurement name.
+    pub fn convert<R>(
         &mut self,
-        index_stream: impl BufRead + Seek,
-        index_stream_size: usize,
-        block_stream: impl BufRead + Seek,
-    ) -> Result<(), Error> {
-        let index_reader =
-            TSMIndexReader::try_new(index_stream, index_stream_size).context(TSMProcessing)?;
-        let mut block_reader = TSMBlockReader::new(block_stream);
+        index_readers: Vec<(R, usize)>,
+        mut block_readers: Vec<R>,
+    ) -> Result<(), Error>
+    where
+        R: BufRead + Seek,
+    {
+        if index_readers.is_empty() {
+            return Err(Error::TSMProcessing {
+                source: TSMError {
+                    description: "at least one reader required".to_string(),
+                },
+            });
+        } else if index_readers.len() != block_readers.len() {
+            return Err(Error::TSMProcessing {
+                source: TSMError {
+                    description: "different number of readers".to_string(),
+                },
+            });
+        }
 
-        let mapper = TSMMeasurementMapper::new(index_reader.peekable());
+        let mut dst = vec![None; index_readers.len()];
+        let mut mappers = Vec::with_capacity(index_readers.len());
 
-        for measurement in mapper {
-            let mut m = measurement.context(TSMProcessing)?;
-            let (schema, packed_columns) =
-                Self::process_measurement_table(&mut block_reader, &mut m)?;
+        for (i, (reader, size)) in index_readers.into_iter().enumerate() {
+            let index_reader = TSMIndexReader::try_new(reader, size).context(TSMProcessing)?;
+            mappers.push(TSMMeasurementMapper::new(index_reader.peekable(), i));
+        }
 
-            let mut table_writer = self
-                .table_writer_source
-                .next_writer(&schema)
-                .context(WriterCreation)?;
+        // track all the block readers for each file, so that the correct reader
+        // can be used to decode each block
+        let mut block_reader = TSMBlockReader::new(block_readers.remove(0));
+        for reader in block_readers.into_iter() {
+            block_reader.add_reader(reader);
+        }
 
-            table_writer
-                .write_batch(&packed_columns)
-                .context(WriterCreation)?;
-            table_writer.close().context(WriterCreation)?;
+        loop {
+            dst = Self::refill_input_tables(&mut mappers, dst)?;
+            let res = Self::merge_input_tables(dst)?;
+            let next_measurement = res.0;
+            dst = res.1;
+
+            match next_measurement {
+                Some(mut table) => {
+                    // convert (potentially merged) measurement..
+                    let (schema, packed_columns) =
+                        Self::process_measurement_table(&mut block_reader, &mut table)?;
+                    let mut table_writer = self
+                        .table_writer_source
+                        .next_writer(&schema)
+                        .context(WriterCreation)?;
+
+                    table_writer
+                        .write_batch(&packed_columns)
+                        .context(WriterCreation)?;
+                    table_writer.close().context(WriterCreation)?;
+                }
+                None => break,
+            }
         }
         Ok(())
+    }
+
+    // Given a set of input tables, identifies the next table (lexicographically)
+    // and then merges any identical tables into the first one.
+    //
+    // Returns the merged table and the remaining set of inputs to be
+    // subsequently processed.
+    fn merge_input_tables(
+        mut inputs: Vec<Option<MeasurementTable>>,
+    ) -> Result<(Option<MeasurementTable>, Vec<Option<MeasurementTable>>), Error> {
+        // track each table's position in the input vector. If tables are chosen
+        // they will be moved out of the input vector later on.
+        let mut input_map: BTreeMap<String, Vec<usize>> = BTreeMap::new();
+        for (i, table) in inputs.iter().enumerate() {
+            if let Some(table) = table {
+                let v = input_map.entry(table.name.clone()).or_default();
+                v.push(i);
+            }
+        }
+
+        // tables are now organised together by the table's measurement name and
+        // ordered lexicographically. The first item in the sorted map is the
+        // next measurement that needs to be merged and processed.
+        if let Some((_, table_indexes)) = input_map.into_iter().next() {
+            let mut iter = table_indexes.into_iter(); // merge each of these into first one
+
+            // unwrap is safe because all hashmap entries have at least one table index.
+            let first_table_index = iter.next().unwrap();
+            // unwrap is safe because the indexes in iter all point to non-none
+            // tables.
+            let mut first_table = inputs[first_table_index].take().unwrap();
+
+            // if there are multiple tables for this measurement merge them
+            // into the first one.
+            for idx in iter {
+                // TODO(edd): perf - could calculate a more efficient merge
+                // order.
+                let mut next_table = inputs[idx].take().unwrap();
+                first_table.merge(&mut next_table).context(TSMProcessing)?;
+            }
+            return Ok((Some(first_table), inputs));
+        }
+
+        // no measurements to process; all inputs drained
+        Ok((None, inputs))
+    }
+
+    // Ensures that the destination vector has the next
+    // measurement table for each input iterator.
+    fn refill_input_tables(
+        inputs: &mut Vec<impl Iterator<Item = Result<MeasurementTable, TSMError>>>,
+        mut dst: Vec<Option<MeasurementTable>>,
+    ) -> Result<Vec<Option<MeasurementTable>>, Error> {
+        for (input, dst) in inputs.iter_mut().zip(dst.iter_mut()) {
+            if dst.is_none() {
+                match input.next() {
+                    Some(res) => {
+                        let table = res.context(TSMProcessing)?;
+                        *dst = Some(table);
+                    }
+                    None => continue,
+                }
+            }
+        }
+        Ok(dst)
     }
 
     // Given a measurement table `process_measurement_table` produces an
@@ -589,180 +688,230 @@ impl TSMFileConverter {
             .map(|c| (c.name.clone(), c.index as usize))
             .collect::<BTreeMap<String, usize>>();
 
-        // For each tagset combination in the measurement build out a table.
-        // Then, for each column in that table convert it to a Packer<T> and
-        // append it to the relevant packer_column.
-        for (i, (tag_set_pair, blocks)) in m.tag_set_fields_blocks().iter_mut().enumerate() {
-            let (ts, field_cols) =
-                map_field_columns(&mut block_reader, blocks).context(TSMProcessing)?;
+        // Process the measurement to build out a table.
+        //
+        // The processing function we supply to `process` does the following:
+        //
+        //  - Append the timestamp column to the packer timestamp column
+        //  - Materialise the same tag value for any tag key columns where the
+        //    emitted section has a none-null value for that column.
+        //  - Materialise NULL values for any tag key columns that we don't have
+        //    data for in the emitted section.
+        //  - Append the field columns to the packer field columns. The emitted
+        //    section will already have fully materialised the data for these
+        //    columns, including any NULL entries.
+        //  - Materialise NULL values for any field columns that the emitted
+        //    section does not have any data for.
+        //
+        m.process(
+            &mut block_reader,
+            |section: delorean_tsm::mapper::TableSection| -> Result<(), TSMError> {
+                // number of rows in each column in this table section.
+                let col_len = section.len();
 
-            // Start with the timestamp column.
-            let col_len = ts.len();
-            let ts_idx = name_packer
-                .get(schema.timestamp())
-                .context(CouldNotFindTsColumn)?;
+                // if this is the first section of the table then we can avoid
+                // extending slices and just move the slice over to the packer
+                // vector.
+                //
+                // TODO(edd): will the compiler just figure this out for us w.r.t
+                // `extend_from_slice`??
+                let first_table_section = section.is_first();
 
-            if i == 0 {
-                packed_columns[*ts_idx] = Packers::from(ts);
-            } else {
-                packed_columns[*ts_idx]
-                    .i64_packer_mut()
-                    .extend_from_slice(&ts);
-            }
+                // Process the timestamp column.
+                let ts_idx = name_packer
+                    .get(schema.timestamp())
+                    .context(CouldNotFindTsColumn)
+                    .map_err(|e| TSMError {
+                        description: e.to_string(),
+                    })?;
 
-            // Next let's pad out all of the tag columns we know have
-            // repeated values.
-            for (tag_key, tag_value) in tag_set_pair {
-                let idx = name_packer.get(tag_key).context(CouldNotFindColumn)?;
-
-                // this will create a column of repeated values.
-                if i == 0 {
-                    packed_columns[*idx] = Packers::from_elem_str(tag_value, col_len);
+                if section.is_first() {
+                    packed_columns[*ts_idx] = Packers::from(section.ts);
                 } else {
-                    packed_columns[*idx]
-                        .str_packer_mut()
-                        .extend_from_slice(&vec![ByteArray::from(tag_value.as_ref()); col_len]);
-                }
-            }
-
-            // Next let's write out NULL values for any tag columns
-            // on the measurement that we don't have values for
-            // because they're not part of this tagset.
-            let tag_keys = tag_set_pair
-                .iter()
-                .map(|pair| pair.0.clone())
-                .collect::<BTreeSet<String>>();
-            for key in &tks {
-                if tag_keys.contains(key) {
-                    continue;
+                    packed_columns[*ts_idx]
+                        .i64_packer_mut()
+                        .extend_from_slice(&section.ts);
                 }
 
-                let idx = name_packer.get(key).context(CouldNotFindColumn)?;
+                // Process any tag columns that this section has values for.
+                // We have to materialise the values for the column, which are
+                // guaranteed to be the same.
+                for (tag_key, tag_value) in &section.tag_cols {
+                    let idx = name_packer
+                        .get(tag_key)
+                        .context(CouldNotFindColumn)
+                        .map_err(|e| TSMError {
+                            description: e.to_string(),
+                        })?;
 
-                if i == 0 {
-                    // creates a column of repeated None values.
-                    let col: Vec<Option<Vec<u8>>> = vec![None; col_len];
-                    packed_columns[*idx] = Packers::from(col);
-                } else {
-                    // pad out column with None values because we don't have a
-                    // value for it.
-                    packed_columns[*idx]
-                        .str_packer_mut()
-                        .fill_with_null(col_len);
-                }
-            }
-
-            // Next let's write out all of the field column data.
-            let mut got_field_cols = Vec::new();
-            for (field_key, field_values) in field_cols {
-                let idx = name_packer.get(&field_key).context(CouldNotFindColumn)?;
-
-                if i == 0 {
-                    match field_values {
-                        ColumnData::Float(v) => packed_columns[*idx] = Packers::from(v),
-                        ColumnData::Integer(v) => packed_columns[*idx] = Packers::from(v),
-                        ColumnData::Str(v) => packed_columns[*idx] = Packers::from(v),
-                        ColumnData::Bool(v) => packed_columns[*idx] = Packers::from(v),
-                        ColumnData::Unsigned(v) => packed_columns[*idx] = Packers::from(v),
-                    }
-                } else {
-                    match field_values {
-                        ColumnData::Float(v) => packed_columns[*idx]
-                            .f64_packer_mut()
-                            .extend_from_option_slice(&v),
-                        ColumnData::Integer(v) => packed_columns[*idx]
-                            .i64_packer_mut()
-                            .extend_from_option_slice(&v),
-                        ColumnData::Str(values) => {
-                            let col = packed_columns[*idx].str_packer_mut();
-                            for value in values {
-                                match value {
-                                    Some(v) => col.push(ByteArray::from(v)),
-                                    None => col.push_option(None),
-                                }
-                            }
-                        }
-                        ColumnData::Bool(v) => packed_columns[*idx]
-                            .bool_packer_mut()
-                            .extend_from_option_slice(&v),
-                        ColumnData::Unsigned(values) => {
-                            let col = packed_columns[*idx].i64_packer_mut();
-                            for value in values {
-                                match value {
-                                    Some(v) => col.push(v as i64),
-                                    None => col.push_option(None),
-                                }
-                            }
-                        }
+                    // this will create a column of repeated values.
+                    if first_table_section {
+                        packed_columns[*idx] = Packers::from_elem_str(tag_value, col_len);
+                    } else {
+                        packed_columns[*idx]
+                            .str_packer_mut()
+                            .extend_from_slice(&vec![ByteArray::from(tag_value.as_ref()); col_len]);
                     }
                 }
-                got_field_cols.push(field_key);
-            }
 
-            // Finally let's write out all of the field columns that
-            // we don't have values for here.
-            for (key, field_type) in &fks {
-                if got_field_cols.contains(key) {
-                    continue;
+                // Not all tag columns may be present in the section. For those
+                // that are not present we need to materialise NULL values for
+                // every row.
+                let tag_keys = section
+                    .tag_cols
+                    .iter()
+                    .map(|pair| pair.0.clone())
+                    .collect::<BTreeSet<_>>();
+                for key in &tks {
+                    if tag_keys.contains(key) {
+                        continue;
+                    }
+
+                    let idx = name_packer
+                        .get(key)
+                        .context(CouldNotFindColumn)
+                        .map_err(|e| TSMError {
+                            description: e.to_string(),
+                        })?;
+
+                    if first_table_section {
+                        // creates a column of repeated None values.
+                        let col: Vec<Option<Vec<u8>>> = vec![None; col_len];
+                        packed_columns[*idx] = Packers::from(col);
+                    } else {
+                        // pad out column with None values because we don't have a
+                        // value for it.
+                        packed_columns[*idx]
+                            .str_packer_mut()
+                            .fill_with_null(col_len);
+                    }
                 }
 
-                let idx = name_packer.get(key).context(CouldNotFindColumn)?;
+                // Next we will write out all of the field columns for this
+                // section.
+                let mut got_field_cols = Vec::new();
+                for (field_key, field_values) in section.field_cols {
+                    let idx = name_packer
+                        .get(&field_key)
+                        .context(CouldNotFindColumn)
+                        .map_err(|e| TSMError {
+                            description: e.to_string(),
+                        })?;
 
-                // this will create a column of repeated None values.
-                if i == 0 {
-                    match field_type {
-                        BlockType::Float => {
-                            let col: Vec<Option<f64>> = vec![None; col_len];
-                            packed_columns[*idx] = Packers::from(col);
+                    if first_table_section {
+                        match field_values {
+                            ColumnData::Float(v) => packed_columns[*idx] = Packers::from(v),
+                            ColumnData::Integer(v) => packed_columns[*idx] = Packers::from(v),
+                            ColumnData::Str(v) => packed_columns[*idx] = Packers::from(v),
+                            ColumnData::Bool(v) => packed_columns[*idx] = Packers::from(v),
+                            ColumnData::Unsigned(v) => packed_columns[*idx] = Packers::from(v),
                         }
-                        BlockType::Integer => {
-                            let col: Vec<Option<i64>> = vec![None; col_len];
-                            packed_columns[*idx] = Packers::from(col);
-                        }
-                        BlockType::Bool => {
-                            let col: Vec<Option<bool>> = vec![None; col_len];
-                            packed_columns[*idx] = Packers::from(col);
-                        }
-                        BlockType::Str => {
-                            let col: Vec<Option<Vec<u8>>> = vec![None; col_len];
-                            packed_columns[*idx] = Packers::from(col);
-                        }
-                        BlockType::Unsigned => {
-                            let col: Vec<Option<u64>> = vec![None; col_len];
-                            packed_columns[*idx] = Packers::from(col);
-                        }
-                    }
-                } else {
-                    match field_type {
-                        BlockType::Float => {
-                            packed_columns[*idx]
+                    } else {
+                        match field_values {
+                            ColumnData::Float(v) => packed_columns[*idx]
                                 .f64_packer_mut()
-                                .fill_with_null(col_len);
-                        }
-                        BlockType::Integer => {
-                            packed_columns[*idx]
+                                .extend_from_option_slice(&v),
+                            ColumnData::Integer(v) => packed_columns[*idx]
                                 .i64_packer_mut()
-                                .fill_with_null(col_len);
-                        }
-                        BlockType::Bool => {
-                            packed_columns[*idx]
+                                .extend_from_option_slice(&v),
+                            ColumnData::Str(values) => {
+                                let col = packed_columns[*idx].str_packer_mut();
+                                for value in values {
+                                    match value {
+                                        Some(v) => col.push(ByteArray::from(v)),
+                                        None => col.push_option(None),
+                                    }
+                                }
+                            }
+                            ColumnData::Bool(v) => packed_columns[*idx]
                                 .bool_packer_mut()
-                                .fill_with_null(col_len);
+                                .extend_from_option_slice(&v),
+                            ColumnData::Unsigned(values) => {
+                                let col = packed_columns[*idx].i64_packer_mut();
+                                for value in values {
+                                    match value {
+                                        Some(v) => col.push(v as i64),
+                                        None => col.push_option(None),
+                                    }
+                                }
+                            }
                         }
-                        BlockType::Str => {
-                            packed_columns[*idx]
-                                .str_packer_mut()
-                                .fill_with_null(col_len);
+                    }
+                    got_field_cols.push(field_key);
+                }
+
+                // Finally, materialise NULL values for all of the field columns
+                // that this section does not have any values for
+                for (key, field_type) in &fks {
+                    if got_field_cols.contains(key) {
+                        continue;
+                    }
+
+                    let idx = name_packer
+                        .get(key)
+                        .context(CouldNotFindColumn)
+                        .map_err(|e| TSMError {
+                            description: e.to_string(),
+                        })?;
+
+                    // this will create a column of repeated None values.
+                    if first_table_section {
+                        match field_type {
+                            BlockType::Float => {
+                                let col: Vec<Option<f64>> = vec![None; col_len];
+                                packed_columns[*idx] = Packers::from(col);
+                            }
+                            BlockType::Integer => {
+                                let col: Vec<Option<i64>> = vec![None; col_len];
+                                packed_columns[*idx] = Packers::from(col);
+                            }
+                            BlockType::Bool => {
+                                let col: Vec<Option<bool>> = vec![None; col_len];
+                                packed_columns[*idx] = Packers::from(col);
+                            }
+                            BlockType::Str => {
+                                let col: Vec<Option<Vec<u8>>> = vec![None; col_len];
+                                packed_columns[*idx] = Packers::from(col);
+                            }
+                            BlockType::Unsigned => {
+                                let col: Vec<Option<u64>> = vec![None; col_len];
+                                packed_columns[*idx] = Packers::from(col);
+                            }
                         }
-                        BlockType::Unsigned => {
-                            packed_columns[*idx]
-                                .i64_packer_mut()
-                                .fill_with_null(col_len);
+                    } else {
+                        match field_type {
+                            BlockType::Float => {
+                                packed_columns[*idx]
+                                    .f64_packer_mut()
+                                    .fill_with_null(col_len);
+                            }
+                            BlockType::Integer => {
+                                packed_columns[*idx]
+                                    .i64_packer_mut()
+                                    .fill_with_null(col_len);
+                            }
+                            BlockType::Bool => {
+                                packed_columns[*idx]
+                                    .bool_packer_mut()
+                                    .fill_with_null(col_len);
+                            }
+                            BlockType::Str => {
+                                packed_columns[*idx]
+                                    .str_packer_mut()
+                                    .fill_with_null(col_len);
+                            }
+                            BlockType::Unsigned => {
+                                packed_columns[*idx]
+                                    .i64_packer_mut()
+                                    .fill_with_null(col_len);
+                            }
                         }
                     }
                 }
-            }
-        }
+                Ok(())
+            },
+        )
+        .context(TSMProcessing)?;
         Ok((schema, packed_columns))
     }
 }
@@ -783,6 +932,10 @@ mod delorean_ingest_tests {
     };
     use delorean_table_schema::ColumnDefinition;
     use delorean_test_helpers::approximately_equal;
+    use delorean_tsm::{
+        reader::{BlockData, MockBlockDecoder},
+        Block,
+    };
 
     use libflate::gzip;
     use std::fs::File;
@@ -1446,11 +1599,6 @@ mod delorean_ingest_tests {
 
     #[test]
     fn process_measurement_table() -> Result<(), Box<dyn std::error::Error>> {
-        use delorean_tsm::{
-            reader::{BlockData, MockBlockDecoder},
-            Block,
-        };
-
         // Input data - in line protocol format
         //
         // cpu,region=east temp=1.2 0
@@ -1485,18 +1633,18 @@ mod delorean_ingest_tests {
         // | NULL |  west  |    a   | 99.5  |  NULL   |   NULL  | 3000 |
         // | NULL |  west  |    a   | 100.3 |  NULL   |   NULL  | 4000 |
 
-        let mut table = MeasurementTable::new("cpu".to_string());
+        let mut table = MeasurementTable::new("cpu".to_string(), 0);
         // cpu region=east temp=<all the block data for this key>
         table.add_series_data(
             vec![("region".to_string(), "east".to_string())],
             "temp".to_string(),
-            BlockType::Float,
             Block {
                 min_time: 0,
                 max_time: 0,
                 offset: 0,
                 size: 0,
                 typ: BlockType::Float,
+                reader_idx: 0,
             },
         )?;
 
@@ -1504,13 +1652,13 @@ mod delorean_ingest_tests {
         table.add_series_data(
             vec![("region".to_string(), "east".to_string())],
             "voltage".to_string(),
-            BlockType::Float,
             Block {
                 min_time: 1,
                 max_time: 0,
                 offset: 0,
                 size: 0,
                 typ: BlockType::Float,
+                reader_idx: 0,
             },
         )?;
 
@@ -1521,13 +1669,13 @@ mod delorean_ingest_tests {
                 ("server".to_string(), "a".to_string()),
             ],
             "temp".to_string(),
-            BlockType::Float,
             Block {
                 min_time: 2,
                 max_time: 0,
                 offset: 0,
                 size: 0,
                 typ: BlockType::Float,
+                reader_idx: 0,
             },
         )?;
 
@@ -1535,13 +1683,13 @@ mod delorean_ingest_tests {
         table.add_series_data(
             vec![("az".to_string(), "b".to_string())],
             "watts".to_string(),
-            BlockType::Unsigned,
             Block {
                 min_time: 3,
                 max_time: 0,
                 offset: 0,
                 size: 0,
-                typ: BlockType::Float,
+                typ: BlockType::Unsigned,
+                reader_idx: 0,
             },
         )?;
 
@@ -1702,9 +1850,62 @@ mod delorean_ingest_tests {
         Ok(())
     }
 
+    fn empty_block() -> Block {
+        Block {
+            min_time: 0,
+            max_time: 0,
+            offset: 0,
+            size: 0,
+            typ: BlockType::Float,
+            reader_idx: 0,
+        }
+    }
+
     #[test]
-    fn conversion_tsm_files() -> Result<(), Error> {
-        let file = File::open("../tests/fixtures/000000000000462-000000002.tsm.gz");
+    fn merge_input_tables() -> Result<(), Box<dyn std::error::Error>> {
+        let mut inputs = vec![];
+        let mut table = MeasurementTable::new("cpu".to_string(), 0);
+        table.add_series_data(
+            vec![("region".to_string(), "east".to_string())],
+            "temp".to_string(),
+            empty_block(),
+        )?;
+        inputs.push(Some(table.clone()));
+
+        table = MeasurementTable::new("cpu".to_string(), 1);
+        table.add_series_data(
+            vec![("server".to_string(), "a".to_string())],
+            "temp".to_string(),
+            empty_block(),
+        )?;
+        inputs.push(Some(table.clone()));
+
+        table = MeasurementTable::new("disk".to_string(), 2);
+        table.add_series_data(
+            vec![("region".to_string(), "west".to_string())],
+            "temp".to_string(),
+            empty_block(),
+        )?;
+        inputs.push(Some(table));
+
+        let mut res = TSMFileConverter::merge_input_tables(inputs)?;
+        let mut merged = res.0.unwrap();
+        inputs = res.1;
+        assert_eq!(merged.name, "cpu".to_string());
+        assert_eq!(merged.tag_columns(), vec!["region", "server"]);
+        assert_eq!(inputs[0], None);
+        assert_eq!(inputs[1], None);
+
+        res = TSMFileConverter::merge_input_tables(inputs)?;
+        merged = res.0.unwrap();
+        assert_eq!(merged.name, "disk".to_string());
+        assert_eq!(res.1, vec![None, None, None]);
+        Ok(())
+    }
+
+    #[test]
+    fn conversion_tsm_file_single() -> Result<(), Error> {
+        let file = File::open("../tests/fixtures/merge-tsm/merge_a.tsm.gz");
         let mut decoder = gzip::Decoder::new(file.unwrap()).unwrap();
         let mut buf = Vec::new();
         decoder.read_to_end(&mut buf).unwrap();
@@ -1714,7 +1915,7 @@ mod delorean_ingest_tests {
         let index_steam = BufReader::new(Cursor::new(&buf));
         let block_stream = BufReader::new(Cursor::new(&buf));
         converter
-            .convert(index_steam, 236_029, block_stream)
+            .convert(vec![(index_steam, 39475)], vec![block_stream])
             .unwrap();
 
         // CPU columns: - tags: cpu, host. (2)
@@ -1732,10 +1933,65 @@ mod delorean_ingest_tests {
             get_events(&log),
             vec![
                 "Created writer for measurement cpu",
-                "[cpu] Wrote batch of 13 cols, 8568 rows",
+                "[cpu] Wrote batch of 13 cols, 85 rows",
                 "[cpu] Closed",
                 "Created writer for measurement disk",
-                "[disk] Wrote batch of 13 cols, 3535 rows",
+                "[disk] Wrote batch of 13 cols, 36 rows",
+                "[disk] Closed"
+            ],
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn conversion_tsm_files_none_overlapping() -> Result<(), Error> {
+        let mut index_streams = Vec::new();
+        let mut block_streams = Vec::new();
+
+        let file_a = File::open("../tests/fixtures/merge-tsm/merge_a.tsm.gz");
+        let mut decoder_a = gzip::Decoder::new(file_a.unwrap()).unwrap();
+        let mut buf_a = Vec::new();
+        decoder_a.read_to_end(&mut buf_a).unwrap();
+        index_streams.push((BufReader::new(Cursor::new(&buf_a)), 39475));
+        block_streams.push(BufReader::new(Cursor::new(&buf_a)));
+
+        let file_b = File::open("../tests/fixtures/merge-tsm/merge_b.tsm.gz");
+        let mut decoder_b = gzip::Decoder::new(file_b.unwrap()).unwrap();
+        let mut buf_b = Vec::new();
+        decoder_b.read_to_end(&mut buf_b).unwrap();
+        index_streams.push((BufReader::new(Cursor::new(&buf_b)), 45501));
+        block_streams.push(BufReader::new(Cursor::new(&buf_b)));
+
+        let log = Arc::new(Mutex::new(WriterLog::new()));
+        let mut converter = TSMFileConverter::new(NoOpWriterSource::new(log.clone()));
+
+        converter.convert(index_streams, block_streams).unwrap();
+
+        // CPU columns: - tags: cpu, host. (2)
+        //                fields: usage_guest, usage_guest_nice
+        //                        usage_idle, usage_iowait, usage_irq,
+        //                        usage_nice, usage_softirq, usage_steal,
+        //                        usage_system, usage_user (10)
+        //                timestamp (1)
+        //
+        // disk columns: - tags: device, fstype, host, mode, path (5)
+        //                 fields: free, inodes_free, inodes_total, inodes_used,
+        //                         total, used, used_percent (7)
+        //                 timestamp (1)
+        //
+        // In this case merge_a.tsm has 85 rows of data for cpu measurement and
+        // merge_b.tsm 340.
+        //
+        // For the disk measurement merge_a.tsm has 36 rows and merge_b.tsm 126
+        assert_eq!(
+            get_events(&log),
+            vec![
+                "Created writer for measurement cpu",
+                "[cpu] Wrote batch of 13 cols, 425 rows",
+                "[cpu] Closed",
+                "Created writer for measurement disk",
+                "[disk] Wrote batch of 13 cols, 162 rows",
                 "[disk] Closed"
             ],
         );

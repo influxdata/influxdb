@@ -45,7 +45,7 @@ impl TryFrom<u8> for BlockType {
 }
 
 /// `Block` holds information about location and time range of a block of data.
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 #[allow(dead_code)]
 pub struct Block {
     pub min_time: i64,
@@ -53,6 +53,10 @@ pub struct Block {
     pub offset: u64,
     pub size: u32,
     pub typ: BlockType,
+
+    // This index is used to track an associated reader needed to decode the
+    // data this block holds.
+    pub reader_idx: usize,
 }
 
 // MAX_BLOCK_VALUES is the maximum number of values a TSM block can store.

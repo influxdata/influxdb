@@ -1,43 +1,60 @@
 use criterion::{criterion_group, criterion_main, Criterion};
+use delorean_tsm::mapper::*;
 use delorean_tsm::reader::*;
 use delorean_tsm::*;
 use std::collections::BTreeMap;
 
 fn map_field_columns(c: &mut Criterion) {
     let mut group = c.benchmark_group("mapper");
-    let mut field_blocks: BTreeMap<String, Vec<Block>> = BTreeMap::new();
 
-    field_blocks.insert(
-        "temp".to_string(),
-        vec![
+    let mut measurement_table = mapper::MeasurementTable::new("cpu".to_string(), 0);
+
+    measurement_table
+        .add_series_data(
+            vec![],
+            "temp".to_string(),
             Block {
                 min_time: 0,
                 max_time: 0,
                 offset: 0,
                 size: 0,
                 typ: delorean_tsm::BlockType::Float,
+                reader_idx: 0,
             },
+        )
+        .unwrap();
+
+    measurement_table
+        .add_series_data(
+            vec![],
+            "temp".to_string(),
             Block {
                 min_time: 1,
                 max_time: 0,
                 offset: 0,
                 size: 0,
                 typ: delorean_tsm::BlockType::Float,
+                reader_idx: 0,
             },
-        ],
-    );
+        )
+        .unwrap();
 
-    field_blocks.insert(
-        "voltage".to_string(),
-        vec![Block {
-            min_time: 2,
-            max_time: 0,
-            offset: 0,
-            size: 0,
-            typ: delorean_tsm::BlockType::Integer,
-        }],
-    );
+    measurement_table
+        .add_series_data(
+            vec![],
+            "voltage".to_string(),
+            Block {
+                min_time: 2,
+                max_time: 0,
+                offset: 0,
+                size: 0,
+                typ: delorean_tsm::BlockType::Integer,
+                reader_idx: 0,
+            },
+        )
+        .unwrap();
 
+    // setup mock block decoder
     let block0 = BlockData::Float {
         i: 0,
         values: vec![100.0; 1000],
@@ -64,10 +81,14 @@ fn map_field_columns(c: &mut Criterion) {
 
     group.bench_function("map field columns", move |b| {
         b.iter_batched(
-            || (decoder.clone(), field_blocks.clone()),
-            |(mut data, mut field_blocks)| {
-                let res = mapper::map_field_columns(&mut data, &mut field_blocks).unwrap();
-                assert_eq!(res.0.len(), 1800);
+            || (decoder.clone(), measurement_table.clone()),
+            |(mut data, mut measurement_table)| {
+                measurement_table
+                    .process(&mut data, |section: TableSection| -> Result<(), TSMError> {
+                        assert_eq!(section.len(), 1800);
+                        Ok(())
+                    })
+                    .unwrap();
             },
             criterion::BatchSize::LargeInput,
         )

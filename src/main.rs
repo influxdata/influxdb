@@ -60,7 +60,7 @@ Examples:
                 .about("Convert one storage format to another")
                 .arg(
                     Arg::with_name("INPUT")
-                        .help("The input filename to read from")
+                        .help("The input files to read from")
                         .required(true)
                         .index(1),
                 )
@@ -102,21 +102,21 @@ Examples:
                 ),
         )
         .subcommand(SubCommand::with_name("server").about("Runs in server mode (default)"))
-        .arg(Arg::with_name("verbose").short("v").long("verbose").help(
-            "Enables verbose logging. You can also set log level via \
+        .arg(Arg::with_name("verbose").short("v").long("verbose").multiple(true).help(
+            "Enables verbose logging (use 'vv' for even more verbosity). You can also set log level via \
                        the environment variable RUST_LOG=<value>",
         ))
         .get_matches();
 
-    setup_logging(matches.is_present("verbose"));
+    setup_logging(matches.occurrences_of("verbose"));
 
     match matches.subcommand() {
         ("convert", Some(sub_matches)) => {
-            let input_filename = sub_matches.value_of("INPUT").unwrap();
-            let output_filename = sub_matches.value_of("OUTPUT").unwrap();
+            let input_path = sub_matches.value_of("INPUT").unwrap();
+            let output_path = sub_matches.value_of("OUTPUT").unwrap();
             let compression_level =
                 value_t!(sub_matches, "compression_level", CompressionLevel).unwrap();
-            match commands::convert::convert(&input_filename, &output_filename, compression_level) {
+            match commands::convert::convert(&input_path, &output_path, compression_level) {
                 Ok(()) => debug!("Conversion completed successfully"),
                 Err(e) => {
                     eprintln!("Conversion failed: {}", e);
@@ -161,32 +161,35 @@ Examples:
 /// some especially noisy low level libraries
 const DEFAULT_DEBUG_LOG_LEVEL: &str = "debug,h2=info";
 
-// Default log level is info level for all components
-const DEFAULT_LOG_LEVEL: &str = "info";
+// Default verbose log level is info level for all components
+const DEFAULT_VERBOSE_LOG_LEVEL: &str = "info";
+
+// Default log level is warn level for all components
+const DEFAULT_LOG_LEVEL: &str = "warn";
 
 /// Configures logging in the following precedence:
 ///
 /// 1. If RUST_LOG environment variable is set, use that value
-/// 2. if `verbose_requested`, use DEFAULT_DEBUG_LOG_LEVEL
-/// 3. otherwise, use DEFAULT_LOG_LEVEL
-fn setup_logging(verbose_requested: bool) {
+/// 2. if `-vv` (multiple instances of verbose), use DEFAULT_DEBUG_LOG_LEVEL
+/// 2. if `-v` (single instances of verbose), use DEFAULT_VERBOSE_LOG_LEVEL
+/// 3. Otherwise use DEFAULT_LOG_LEVEL
+fn setup_logging(num_verbose: u64) {
     let rust_log_env = std::env::var("RUST_LOG");
 
-    if verbose_requested {
-        match rust_log_env {
-            Ok(lvl) => {
+    match rust_log_env {
+        Ok(lvl) => {
+            if num_verbose > 0 {
                 eprintln!(
-                    "WARNING: Using RUST_LOG='{}' environment, ignoring request for -v",
+                    "WARNING: Using RUST_LOG='{}' environment, ignoring -v command line",
                     lvl
                 );
             }
-            Err(_) => std::env::set_var("RUST_LOG", DEFAULT_DEBUG_LOG_LEVEL),
         }
-    } else {
-        match rust_log_env {
-            Ok(_) => {}
-            Err(_) => std::env::set_var("RUST_LOG", DEFAULT_LOG_LEVEL),
-        }
+        Err(_) => match num_verbose {
+            0 => std::env::set_var("RUST_LOG", DEFAULT_LOG_LEVEL),
+            1 => std::env::set_var("RUST_LOG", DEFAULT_VERBOSE_LOG_LEVEL),
+            _ => std::env::set_var("RUST_LOG", DEFAULT_DEBUG_LOG_LEVEL),
+        },
     }
 
     env_logger::init();

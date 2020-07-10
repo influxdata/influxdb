@@ -24,14 +24,15 @@ where
     R: BufRead + Seek,
 {
     iter: Peekable<TSMIndexReader<R>>,
+    reader_idx: usize,
 }
 
 impl<R> TSMMeasurementMapper<R>
 where
     R: BufRead + Seek,
 {
-    pub fn new(iter: Peekable<TSMIndexReader<R>>) -> Self {
-        Self { iter }
+    pub fn new(iter: Peekable<TSMIndexReader<R>>, reader_idx: usize) -> Self {
+        Self { iter, reader_idx }
     }
 }
 
@@ -53,11 +54,11 @@ impl<R: BufRead + Seek> Iterator for TSMMeasurementMapper<R> {
         let entry = try_or_some!(self.iter.next()?);
 
         let parsed_key = try_or_some!(entry.parse_key());
-        let mut measurement: MeasurementTable = MeasurementTable::new(parsed_key.measurement);
+        let mut measurement: MeasurementTable =
+            MeasurementTable::new(parsed_key.measurement, self.reader_idx);
         try_or_some!(measurement.add_series_data(
             parsed_key.tagset,
             parsed_key.field_key,
-            entry.block_type,
             entry.block
         ));
 
@@ -76,7 +77,6 @@ impl<R: BufRead + Seek> Iterator for TSMMeasurementMapper<R> {
                     try_or_some!(measurement.add_series_data(
                         parsed_key.tagset,
                         parsed_key.field_key,
-                        entry.block_type,
                         entry.block
                     ));
                 }
@@ -88,11 +88,19 @@ impl<R: BufRead + Seek> Iterator for TSMMeasurementMapper<R> {
     }
 }
 
-// FieldKeyBlocks is a mapping between a set of field keys and all of the blocks
-// for those keys.
+/// FieldKeyBlocks is a mapping between a set of field keys and all of the blocks
+/// for those keys.
 pub type FieldKeyBlocks = BTreeMap<String, Vec<Block>>;
 
-#[derive(Clone, Debug)]
+/// A collection of related blocks, fields and tag-sets for a single measurement.
+///
+/// A `MeasurementTable` should be derived from a single TSM index (file).
+/// Given a single series key, an invariant is that none of the blocks for that
+/// key have overlapping timestamps.
+///
+/// A MeasurementTable can be combined with another `MeasurementTable` as long
+/// as `other` refers to the same measurement name.
+#[derive(Debug, Clone, PartialEq)]
 pub struct MeasurementTable {
     pub name: String,
     // Tagset for key --> map of fields with that tagset to their blocks.
@@ -115,21 +123,25 @@ pub struct MeasurementTable {
 
     tag_columns: BTreeSet<String>,
     field_columns: BTreeMap<String, BlockType>,
+
+    // reader_idx can be set when mapping multiple TSM files; it is used to
+    // specify which block reader should be used when decoding blocks for this
+    // measurement table.
+    reader_idx: usize,
 }
 
 impl MeasurementTable {
-    pub fn new(name: String) -> Self {
+    pub fn new(name: String, reader_idx: usize) -> Self {
         Self {
             name,
             tag_set_fields_blocks: BTreeMap::new(),
             tag_columns: BTreeSet::new(),
             field_columns: BTreeMap::new(),
+            reader_idx,
         }
     }
 
-    pub fn tag_set_fields_blocks(
-        &mut self,
-    ) -> &mut BTreeMap<Vec<(String, String)>, FieldKeyBlocks> {
+    fn tag_set_fields_blocks(&mut self) -> &mut BTreeMap<Vec<(String, String)>, FieldKeyBlocks> {
         &mut self.tag_set_fields_blocks
     }
 
@@ -146,19 +158,18 @@ impl MeasurementTable {
         &mut self,
         tagset: Vec<(String, String)>,
         field_key: String,
-        block_type: BlockType,
-        block: Block,
+        mut block: Block,
     ) -> Result<(), TSMError> {
         // Invariant: our data model does not support a field column for a
         // measurement table having multiple data types, even though this is
         // supported in InfluxDB.
         if let Some(fk) = self.field_columns.get(&field_key) {
-            if *fk != block_type {
+            if *fk != block.typ {
                 warn!(
                     "Rejected block for field {:?} with type {:?}. \
                     Tagset: {:?}, measurement {:?}. \
                     Field exists with type: {:?}",
-                    &field_key, block_type, tagset, self.name, *fk
+                    &field_key, block.typ, tagset, self.name, *fk
                 );
                 return Ok(());
             }
@@ -167,15 +178,114 @@ impl MeasurementTable {
         // tags will be used as the key to a map, where the value will be a
         // collection of all the field keys for that tagset and the associated
         // blocks.
-        self.field_columns.insert(field_key.clone(), block_type);
+        self.field_columns.insert(field_key.clone(), block.typ);
         for (k, _) in &tagset {
             self.tag_columns.insert(k.clone());
         }
 
         let field_key_blocks = self.tag_set_fields_blocks.entry(tagset).or_default();
         let blocks = field_key_blocks.entry(field_key).or_default();
+
+        block.reader_idx = self.reader_idx;
         blocks.push(block);
 
+        Ok(())
+    }
+
+    // Process the MeasurementTable in sections.
+    //
+    // Each call to `porcess` emits a `TableSection`, which is a partial section
+    // of the final table. Each section contains the data for all columns
+    // in the table, though not all of that data will necessarily be
+    // materialised.
+    //
+    // `process` expects a closure to process each section.
+    pub fn process<F>(
+        &mut self,
+        mut block_reader: impl BlockDecoder,
+        mut apply_fn: F,
+    ) -> Result<(), TSMError>
+    where
+        F: FnMut(TableSection) -> Result<(), TSMError>,
+    {
+        for (i, (tag_set_pair, blocks)) in self.tag_set_fields_blocks().iter_mut().enumerate() {
+            let (ts, field_cols) = map_field_columns(&mut block_reader, blocks)?;
+
+            let col_set = TableSection {
+                i,
+                ts,
+                field_cols,
+                tag_cols: tag_set_pair.clone(),
+            };
+            apply_fn(col_set)?;
+        }
+        Ok(())
+    }
+
+    /// Merge another `MeasurementTable` into this one.
+    ///
+    /// `other` must be associated with the same measurement, otherwise an error
+    /// will be returned. If any blocks for the same field key and tagset overlap
+    /// then `merge` will return an error. The caller must provide an index
+    /// associated with the block reader for the other measurement table.
+    ///
+    /// TODO(edd): Add support for block merging.
+    ///
+    pub fn merge(&mut self, other: &mut Self) -> Result<(), TSMError> {
+        if self.name != other.name {
+            return Err(TSMError {
+                description: format!(
+                    "cannot merge measurement {:?} into {:?}",
+                    self.name, other.name
+                ),
+            });
+        }
+        self.tag_columns.append(&mut other.tag_columns);
+        self.field_columns.append(&mut other.field_columns);
+
+        for (other_tagset, other_field_key_blocks) in &mut other.tag_set_fields_blocks {
+            let field_key_blocks = self
+                .tag_set_fields_blocks
+                .entry(other_tagset.clone())
+                .or_default();
+
+            for (other_field_key, other_blocks) in other_field_key_blocks.iter_mut() {
+                match field_key_blocks.get_mut(other_field_key) {
+                    Some(blocks) => {
+                        assert!(
+                            !other_blocks.is_empty(),
+                            "tried to merge field with no blocks"
+                        );
+
+                        assert!(
+                            !blocks.is_empty(),
+                            "MeasurementTable has field with no blocks"
+                        );
+
+                        // Invariant: blocks are already sorted by time range
+                        // and each argument set of blocks (self's and other's)
+                        // do not overlap.
+
+                        // happy path - all other blocks after ours
+                        if other_blocks[0].min_time > blocks[blocks.len() - 1].max_time {
+                            blocks.extend_from_slice(other_blocks);
+                            break;
+                        }
+
+                        // less happy path
+                        blocks.extend_from_slice(other_blocks);
+                        blocks.sort_by(|a, b| {
+                            let overlapping = a.min_time <= b.max_time && b.min_time <= a.max_time;
+                            assert!(!overlapping, "Block {:?} overlapping with block {:?}", a, b);
+                            a.min_time.cmp(&b.min_time)
+                        })
+                    }
+                    None => {
+                        field_key_blocks.insert(other_field_key.clone(), other_blocks.clone());
+                    }
+                }
+            }
+        }
         Ok(())
     }
 }
@@ -205,6 +315,37 @@ impl Display for MeasurementTable {
             writeln!(f)?;
         }
         Ok(())
+    }
+}
+
+/// A partial collection of columns belonging to the same table.
+///
+/// A TableSection always contains a column of timestamps, which indicates how many
+/// rows each column has. Each field column is the same length as the timestamp
+/// column, but may contain values or NULL for each entry.
+///
+/// Tag columns all have the same value in their column within this column set.
+/// It is up to the caller to materialise these column vectors when required.
+#[derive(Debug)]
+pub struct TableSection {
+    i: usize, // indicates previous number of column sets for measurement table.
+    pub ts: Vec<i64>,
+    pub tag_cols: Vec<(String, String)>,
+    pub field_cols: BTreeMap<String, ColumnData>,
+}
+
+impl TableSection {
+    pub fn len(&self) -> usize {
+        self.ts.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    // Determines if this is the first column set for a table.
+    pub fn is_first(&self) -> bool {
+        self.i == 0
     }
 }
 
@@ -267,7 +408,7 @@ pub enum ColumnData {
 // for a field we can decode and pull the next block for the field and continue
 // to build the output.
 //
-pub fn map_field_columns(
+fn map_field_columns(
     mut decoder: impl BlockDecoder,
     field_blocks: &mut FieldKeyBlocks,
 ) -> Result<(Vec<i64>, BTreeMap<String, ColumnData>), TSMError> {
@@ -499,7 +640,7 @@ mod tests {
 
         let reader =
             TSMIndexReader::try_new(BufReader::new(Cursor::new(buf)), TSM_FIXTURE_SIZE).unwrap();
-        let mapper = TSMMeasurementMapper::new(reader.peekable());
+        let mapper = TSMMeasurementMapper::new(reader.peekable(), 0);
 
         // Although there  are over 2,000 series keys in the TSM file, there are
         // only 121 unique measurements.
@@ -515,7 +656,7 @@ mod tests {
 
         let index_reader =
             TSMIndexReader::try_new(BufReader::new(Cursor::new(&buf)), TSM_FIXTURE_SIZE).unwrap();
-        let mut mapper = TSMMeasurementMapper::new(index_reader.peekable());
+        let mut mapper = TSMMeasurementMapper::new(index_reader.peekable(), 0);
 
         let mut block_reader = TSMBlockReader::new(BufReader::new(Cursor::new(&buf)));
 
@@ -558,7 +699,7 @@ mod tests {
 
         let reader =
             TSMIndexReader::try_new(BufReader::new(Cursor::new(buf)), TSM_FIXTURE_SIZE).unwrap();
-        let mut mapper = TSMMeasurementMapper::new(reader.peekable());
+        let mut mapper = TSMMeasurementMapper::new(reader.peekable(), 0);
 
         let cpu = mapper
             .find(|table| table.as_ref().unwrap().name == "cpu")
@@ -585,39 +726,141 @@ mod tests {
 
     #[test]
     fn conflicting_field_types() -> Result<(), TSMError> {
-        let mut table = MeasurementTable::new("cpu".to_string());
+        let mut table = MeasurementTable::new("cpu".to_string(), 0);
         table.add_series_data(
             vec![("region".to_string(), "west".to_string())],
             "value".to_string(),
-            BlockType::Float,
             Block {
                 max_time: 0,
                 min_time: 0,
                 offset: 0,
                 size: 0,
                 typ: BlockType::Float,
+                reader_idx: 0,
             },
         )?;
 
         table.add_series_data(
             vec![],
             "value".to_string(),
-            BlockType::Integer,
             Block {
                 max_time: 0,
                 min_time: 0,
                 offset: 0,
                 size: 0,
                 typ: BlockType::Integer,
+                reader_idx: 0,
             },
         )?;
 
-        // The block type for the value field should be Float becuase the
+        // The block type for the value field should be Float because the
         // conflicting integer field should be ignored.
         assert_eq!(
             *table.field_columns().get("value").unwrap(),
             BlockType::Float,
         );
+        Ok(())
+    }
+
+    #[test]
+    fn merge_measurement_table() -> Result<(), TSMError> {
+        let mut table1 = MeasurementTable::new("cpu".to_string(), 0);
+        table1.add_series_data(
+            vec![("region".to_string(), "west".to_string())],
+            "value".to_string(),
+            Block {
+                min_time: 101,
+                max_time: 150,
+                offset: 0,
+                size: 0,
+                typ: BlockType::Float,
+                reader_idx: 0,
+            },
+        )?;
+
+        let mut table2 = MeasurementTable::new("cpu".to_string(), 1);
+        table2.add_series_data(
+            vec![("region".to_string(), "west".to_string())],
+            "value".to_string(),
+            Block {
+                min_time: 0,
+                max_time: 100,
+                offset: 0,
+                size: 0,
+                typ: BlockType::Float,
+                reader_idx: 0,
+            },
+        )?;
+        table2.add_series_data(
+            vec![("server".to_string(), "a".to_string())],
+            "temp".to_string(),
+            Block {
+                min_time: 0,
+                max_time: 50,
+                offset: 0,
+                size: 0,
+                typ: BlockType::Str,
+                reader_idx: 0,
+            },
+        )?;
+
+        table1.merge(&mut table2).unwrap();
+        assert_eq!(table1.name, "cpu");
+        assert_eq!(table1.tag_columns(), vec!["region", "server"]);
+
+        let mut exp_fields: BTreeMap<String, BlockType> = BTreeMap::new();
+        exp_fields.insert("temp".to_string(), BlockType::Str);
+        exp_fields.insert("value".to_string(), BlockType::Float);
+        assert_eq!(table1.field_columns(), &exp_fields);
+
+        let mut field_blocks_value: BTreeMap<String, Vec<Block>> = BTreeMap::new();
+        field_blocks_value.insert(
+            "value".to_string(),
+            vec![
+                Block {
+                    min_time: 0,
+                    max_time: 100,
+                    offset: 0,
+                    size: 0,
+                    typ: BlockType::Float,
+                    reader_idx: 1, // index updated to reflect using other block reader
+                },
+                Block {
+                    min_time: 101,
+                    max_time: 150,
+                    offset: 0,
+                    size: 0,
+                    typ: BlockType::Float,
+                    reader_idx: 0,
+                },
+            ],
+        );
+
+        let mut field_blocks_temp: BTreeMap<String, Vec<Block>> = BTreeMap::new();
+        field_blocks_temp.insert(
+            "temp".to_string(),
+            vec![Block {
+                min_time: 0,
+                max_time: 50,
+                offset: 0,
+                size: 0,
+                typ: BlockType::Str,
+                reader_idx: 1, // index updated to reflect using other block reader
+            }],
+        );
+
+        let mut exp_tag_set_field_blocks: BTreeMap<Vec<(String, String)>, FieldKeyBlocks> =
+            BTreeMap::new();
+        exp_tag_set_field_blocks.insert(
+            vec![("region".to_string(), "west".to_string())],
+            field_blocks_value,
+        );
+        exp_tag_set_field_blocks.insert(
+            vec![("server".to_string(), "a".to_string())],
+            field_blocks_temp,
+        );
+        assert_eq!(table1.tag_set_fields_blocks, exp_tag_set_field_blocks);
+
         Ok(())
     }
 
