@@ -103,27 +103,8 @@ func newCmdPkgerBuilder(svcFn templateSVCsFn, f *globalFlags, opts genericCLIOpt
 }
 
 func (b *cmdTemplateBuilder) cmdApply() *cobra.Command {
-	cmd := b.cmdTemplateApply()
-
-	deprecatedCmds := []*cobra.Command{
-		b.cmdExport(),
-		b.cmdTemplateSummary(),
-		b.cmdStackDeprecated(),
-		b.cmdTemplateValidate(),
-	}
-	for i := range deprecatedCmds {
-		deprecatedCmds[i].Hidden = true
-	}
-
-	cmd.AddCommand(deprecatedCmds...)
-
-	return cmd
-}
-
-func (b *cmdTemplateBuilder) cmdTemplateApply() *cobra.Command {
 	cmd := b.newCmd("apply", b.applyRunEFn)
 	enforceFlagValidation(cmd)
-	cmd.Aliases = []string{"pkg"}
 	cmd.Short = "Apply a template to manage resources"
 	cmd.Long = `
 	The apply command applies InfluxDB template(s). Use the command to create new
@@ -572,19 +553,6 @@ func (b *cmdTemplateBuilder) exportStackRunEFn(cmd *cobra.Command, args []string
 }
 
 func (b *cmdTemplateBuilder) cmdTemplate() *cobra.Command {
-	cmd := b.newTemplateCmd("template")
-	cmd.Short = "Summarize the provided template"
-	cmd.AddCommand(b.cmdTemplateValidate())
-	return cmd
-}
-
-func (b *cmdTemplateBuilder) cmdTemplateSummary() *cobra.Command {
-	cmd := b.newTemplateCmd("summary")
-	cmd.Short = "Summarize the provided template"
-	return cmd
-}
-
-func (b *cmdTemplateBuilder) newTemplateCmd(usage string) *cobra.Command {
 	runE := func(cmd *cobra.Command, args []string) error {
 		template, _, err := b.readTemplate()
 		if err != nil {
@@ -594,11 +562,13 @@ func (b *cmdTemplateBuilder) newTemplateCmd(usage string) *cobra.Command {
 		return b.printTemplateSummary(0, template.Summary())
 	}
 
-	cmd := b.genericCLIOpts.newCmd(usage, runE, false)
+	cmd := b.genericCLIOpts.newCmd("template", runE, false)
 
 	b.registerTemplateFileFlags(cmd)
 	b.registerTemplatePrintOpts(cmd)
+	cmd.Short = "Summarize the provided template"
 
+	cmd.AddCommand(b.cmdTemplateValidate())
 	return cmd
 }
 
@@ -620,7 +590,13 @@ func (b *cmdTemplateBuilder) cmdTemplateValidate() *cobra.Command {
 }
 
 func (b *cmdTemplateBuilder) cmdStacks() *cobra.Command {
-	cmd := b.newCmdStackList("stacks")
+	cmd := b.newCmd("stacks [flags]", b.stackListRunEFn)
+	cmd.Flags().StringArrayVar(&b.stackIDs, "stack-id", nil, "Stack ID to filter by")
+	cmd.Flags().StringArrayVar(&b.names, "stack-name", nil, "Stack name to filter by")
+	registerPrintOptions(cmd, &b.hideHeaders, &b.json)
+
+	b.org.register(cmd, false)
+
 	cmd.Short = "List stack(s) and associated templates. Subcommands manage stacks."
 	cmd.Long = `
 	List stack(s) and associated templates. Subcommands manage stacks.
@@ -650,18 +626,6 @@ func (b *cmdTemplateBuilder) cmdStacks() *cobra.Command {
 		b.cmdStackInit(),
 		b.cmdStackRemove(),
 		b.cmdStackUpdate(),
-	)
-	return cmd
-}
-
-// TODO(jsteenb2): nuke the deprecated command here after OSS beta13 release.
-func (b *cmdTemplateBuilder) cmdStackDeprecated() *cobra.Command {
-	cmd := b.genericCLIOpts.newCmd("stack", nil, false)
-	cmd.Short = "Stack management commands"
-	cmd.AddCommand(
-		b.cmdStackInit(),
-		b.cmdStackList(),
-		b.cmdStackRemove(),
 	)
 	return cmd
 }
@@ -722,25 +686,6 @@ func (b *cmdTemplateBuilder) stackInitRunEFn(cmd *cobra.Command, args []string) 
 	}
 
 	return b.writeStack(stack)
-}
-
-func (b *cmdTemplateBuilder) cmdStackList() *cobra.Command {
-	cmd := b.newCmdStackList("list")
-	cmd.Short = "List stack(s) and associated resources"
-	cmd.Aliases = []string{"ls"}
-	return cmd
-}
-
-func (b *cmdTemplateBuilder) newCmdStackList(cmdName string) *cobra.Command {
-	usage := fmt.Sprintf("%s [flags]", cmdName)
-	cmd := b.newCmd(usage, b.stackListRunEFn)
-	cmd.Flags().StringArrayVar(&b.stackIDs, "stack-id", nil, "Stack ID to filter by")
-	cmd.Flags().StringArrayVar(&b.names, "stack-name", nil, "Stack name to filter by")
-	registerPrintOptions(cmd, &b.hideHeaders, &b.json)
-
-	b.org.register(cmd, false)
-
-	return cmd
 }
 
 func (b *cmdTemplateBuilder) stackListRunEFn(cmd *cobra.Command, args []string) error {
