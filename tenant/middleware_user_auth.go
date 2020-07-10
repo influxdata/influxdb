@@ -79,13 +79,6 @@ func (s *AuthedUserService) DeleteUser(ctx context.Context, id influxdb.ID) erro
 	return s.s.DeleteUser(ctx, id)
 }
 
-func (s *AuthedUserService) FindPermissionForUser(ctx context.Context, id influxdb.ID) (influxdb.PermissionSet, error) {
-	if _, _, err := authorizer.AuthorizeReadResource(ctx, influxdb.UsersResourceType, id); err != nil {
-		return nil, err
-	}
-	return s.s.FindPermissionForUser(ctx, id)
-}
-
 // AuthedPasswordService is a new authorization middleware for a password service.
 type AuthedPasswordService struct {
 	s influxdb.PasswordsService
