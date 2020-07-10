@@ -22,7 +22,7 @@ At a high level there are two different kinds of work the server does:
 
 We wish to have the following properties in the runtime:
 
-1. Incoming requests are always processed and responded to in a "timely" manner, even while the server is load / overloaded. For example, even if the server is currently consuming 100% of the CPU doing useful work (converting data, running queries, etc), it still must be able to answer a `/ping` request to tell observers that it is still alive and not be taken out of a load balancer rotation or killed by kubernetes.
+1. Incoming requests are always processed and responded to in a "timely" manner, even while the server is load / overloaded. For example, even if the server is currently consuming 100% of the CPU doing useful work (converting data, running queries, etc.), it still must be able to answer a `/ping` request to tell observers that it is still alive and not be taken out of a load balancer rotation or killed by Kubernetes.
 
 2. Ability to (eventually) control the priority of CPU heavy tasks, so we can prioritize certain tasks over others (e.g. query requests over background data rearrangement). This document focuses on the split between I/O and CPU tasks, not the priority scheduling for CPU heavy tasks, which is deferred to a future document.
 
