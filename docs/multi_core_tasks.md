@@ -14,7 +14,7 @@ We will work, over time, to migrate the rest of the codebase to use these patter
 
 At a high level there are two different kinds of work the server does:
 
-1. Responding to external (I/O) requests (aka responding to `GET /ping`, `POST /api/v2/write`, or the various gRPC APIs).
+1. Responding to external (I/O) requests (a.k.a. responding to `GET /ping`, `POST /api/v2/write`, or the various gRPC APIs).
 
 2. CPU heavy tasks such data parsing, format conversion, or query processing
 
@@ -65,7 +65,7 @@ In this scenario, 10 concurrent request for CPU heavy queries come in. The I/O t
 
 *Minimal Response Latency*: 3 CPU heavy threads process the queries and the I/O thread remains ready for new requests. The system will appear 75% utilized (using 3 of 4 cores). The remaining core is available to handle ping requests with minimal additional latency.
 
-*Maximum CPU Utilization*: In this case, 4 CPU heavy threads process the queries and the I/O thread still remains available for new requests. The system cores will be 100% utilized. Incoming requests will be handled by the I/O thread, but that thread will only be have ~80% of a CPU core available and thus ping responses may be delayed.
+*Maximum CPU Utilization*: In this case, 4 CPU heavy threads process the queries and the I/O thread still remains available for new requests. The system cores will be 100% utilized. Incoming requests will be handled by the I/O thread, but that thread will only have ~80% of a CPU core available and thus ping responses may be delayed.
 
 
 #### Query Processing with Low Priority Background Work
@@ -81,7 +81,7 @@ In both the *Minimal Response Latency* and *Maximum CPU Utilization* configurati
 TODO: picture of how async + CPU heavy threads interact
 
 The standard pattern to run CPU heavy tasks from async code is:
-* Launch the cpu heavy tasks on the thread pool using `spawn_with_handle`
+* Launch the CPU heavy tasks on the thread pool using `spawn_with_handle`
 * `await` their completion using `join_all` or some other similar `Future` combinator.
 
 ## Alternatives Considered
