@@ -11259,6 +11259,7 @@ components:
         - $ref: "#/components/schemas/PagerDutyNotificationRule"
         - $ref: "#/components/schemas/HTTPNotificationRule"
         - $ref: "#/components/schemas/TelegramNotificationRule"
+        - $ref: "#/components/schemas/TeamsNotificationRule"
       discriminator:
         propertyName: type
         mapping:
@@ -11267,6 +11268,7 @@ components:
           pagerduty: "#/components/schemas/PagerDutyNotificationRule"
           http: "#/components/schemas/HTTPNotificationRule"
           telegram: "#/components/schemas/TelegramNotificationRule"
+          teams: "#/components/schemas/TeamsNotificationRule"
     NotificationRule:
       allOf:
         - $ref: "#/components/schemas/NotificationRuleDiscriminator"
@@ -11438,6 +11440,27 @@ components:
       allOf:
         - $ref: "#/components/schemas/NotificationRuleBase"
         - $ref: "#/components/schemas/SlackNotificationRuleBase"
+    TeamsNotificationRule:
+      allOf:
+        - $ref: "#/components/schemas/NotificationRuleBase"
+        - $ref: "#/components/schemas/TeamsNotificationRuleBase"
+    TeamsNotificationRuleBase:
+      type: object
+      required: [type, title, messageTemplate]
+      properties:
+        type:
+          description: The discriminator between other types of notification rules is "teams".
+          type: string
+          enum: [teams]
+        title:
+          description: The message title as a flux interpolated string.
+          type: string
+        messageTemplate:
+          description: The message template as a flux interpolated string.
+          type: string
+        summary:
+          description: The message summary as a flux interpolated string.
+          type: string
     SMTPNotificationRule:
       allOf:
         - $ref: "#/components/schemas/NotificationRuleBase"
@@ -11512,6 +11535,7 @@ components:
         - $ref: "#/components/schemas/PagerDutyNotificationEndpoint"
         - $ref: "#/components/schemas/HTTPNotificationEndpoint"
         - $ref: "#/components/schemas/TelegramNotificationEndpoint"
+        - $ref: "#/components/schemas/TeamsNotificationEndpoint"
       discriminator:
         propertyName: type
         mapping:
@@ -11519,6 +11543,7 @@ components:
           pagerduty: "#/components/schemas/PagerDutyNotificationEndpoint"
           http: "#/components/schemas/HTTPNotificationEndpoint"
           telegram: "#/components/schemas/TelegramNotificationEndpoint"
+          teams: "#/components/schemas/TeamsNotificationEndpoint"
     NotificationEndpoint:
       allOf:
         - $ref: "#/components/schemas/NotificationEndpointDiscrimator"
@@ -11650,9 +11675,22 @@ components:
             channel:
               description: ID of the telegram channel, a chat_id in https://core.telegram.org/bots/api#sendmessage .
               type: string
+    TeamsNotificationEndpoint:
+      type: object
+      allOf:
+        - $ref: "#/components/schemas/NotificationEndpointBase"
+        - type: object
+          required: [url]
+          properties:
+            url:
+              description: Teams incoming webhook URL, see https://docs.microsoft.com/en-us/microsoftteams/platform/webhooks-and-connectors/how-to/connectors-using#setting-up-a-custom-incoming-webhook .
+              type: string
+            secretURLSuffix:
+              description: A secret suffix that is appended to teams incoming webhook URL.
+              type: string
     NotificationEndpointType:
       type: string
-      enum: ["slack", "pagerduty", "http", "telegram"]
+      enum: ["slack", "pagerduty", "http", "telegram", "teams"]
     DBRP:
       required:
         - orgID
