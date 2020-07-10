@@ -27,8 +27,6 @@ type Props = ReduxProps &
 
 const EditViewVEO: FunctionComponent<Props> = ({
   activeTimeMachineID,
-  getViewAndResultsForVEO,
-  onDisableUpdatedTimeRangeInVEO,
   onSaveView,
   onSetName,
   match: {
@@ -47,7 +45,7 @@ const EditViewVEO: FunctionComponent<Props> = ({
 
   const handleClose = () => {
     history.push(`/orgs/${orgID}/dashboards/${dashboardID}`)
-    onDisableUpdatedTimeRangeInVEO()
+    dispatch(disableUpdatedTimeRangeInVEO())
   }
 
   const handleSave = () => {
@@ -95,8 +93,6 @@ const mstp = (state: AppState) => {
 }
 
 const mdtp = {
-  getViewAndResultsForVEO: getViewAndResultsForVEO,
-  onDisableUpdatedTimeRangeInVEO: disableUpdatedTimeRangeInVEO,
   onSetName: setName,
   onSaveView: saveVEOView,
 }
