@@ -3,17 +3,20 @@
 use crate::generated_types::{wal, Predicate, TimestampRange};
 use crate::line_parser::{self, PointType};
 use crate::storage::{
-    memdb::MemDB, remote_partition::RemotePartition, s3_partition::S3Partition, ReadPoint,
-    SeriesDataType, StorageError,
+    memdb::{Error as MemDBError, MemDB},
+    remote_partition::RemotePartition,
+    s3_partition::S3Partition,
+    ReadPoint, SeriesDataType,
 };
 
-use delorean_wal::{Wal, WalBuilder};
+use delorean_wal::{Error as WalError, Wal, WalBuilder};
 use futures::{
     channel::mpsc,
     stream::{BoxStream, Stream},
     FutureExt, SinkExt, StreamExt,
 };
 use serde::{Deserialize, Serialize};
+use snafu::{ResultExt, Snafu};
 use std::{
     cmp::Ordering,
     collections::BTreeMap,
@@ -27,6 +30,32 @@ use std::{
 };
 use tokio::task;
 use tracing::debug;
+
+#[derive(Debug, Snafu)]
+pub enum Error {
+    #[snafu(display("Cannot restore from WAL; unknown format"))]
+    UnknownWalFormat {},
+
+    #[snafu(display("Partition error with WAL: {}", source))]
+    UnderlyingWalError { source: WalError },
+
+    #[snafu(display("Partition error writing to WAL: {}", source))]
+    WrtitingToWal { source: std::io::Error },
+
+    #[snafu(display("Partition error with MemDB: {}", source))]
+    UnderlyingMemDBError { source: MemDBError },
+
+    #[snafu(display("Error serializing metadata: {}", source))]
+    SerializeMetadata { source: serde_json::error::Error },
+
+    #[snafu(display("Error writing metadata to '{:?}': {}", metadata_path, source))]
+    WritingMetadata {
+        metadata_path: PathBuf,
+        source: std::io::Error,
+    },
+}
+
+pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Debug, Clone)]
 pub enum PartitionStore {
@@ -62,9 +91,14 @@ struct WalDetails {
 }
 
 impl WalDetails {
-    async fn write_metadata(&self) -> Result<(), StorageError> {
+    async fn write_metadata(&self) -> Result<()> {
         let metadata_path = self.wal.metadata_path();
-        Ok(tokio::fs::write(metadata_path, serde_json::to_string(&self.metadata)?).await?)
+        Ok(tokio::fs::write(
+            metadata_path.clone(),
+            serde_json::to_string(&self.metadata).context(SerializeMetadata)?,
+        )
+        .await
+        .context(WritingMetadata { metadata_path })?)
     }
 }
 
@@ -76,10 +110,7 @@ impl Partition {
         }
     }
 
-    pub async fn new_with_wal(
-        store: PartitionStore,
-        wal_dir: PathBuf,
-    ) -> Result<Self, StorageError> {
+    pub async fn new_with_wal(store: PartitionStore, wal_dir: PathBuf) -> Result<Self> {
         let wal_builder = WalBuilder::new(wal_dir);
         let wal_details = start_wal_sync_task(wal_builder).await?;
         wal_details.write_metadata().await?;
@@ -90,10 +121,7 @@ impl Partition {
         })
     }
 
-    pub async fn restore_memdb_from_wal(
-        bucket_name: &str,
-        bucket_dir: PathBuf,
-    ) -> Result<Self, StorageError> {
+    pub async fn restore_memdb_from_wal(bucket_name: &str, bucket_dir: PathBuf) -> Result<Self> {
         let partition_id = bucket_name.to_string();
         let mut db = MemDB::new(partition_id);
         let wal_builder = WalBuilder::new(bucket_dir);
@@ -101,16 +129,14 @@ impl Partition {
         debug!("Wal details {:?}", wal_details);
 
         match wal_details.metadata.format {
-            WalFormat::Unknown => {
-                return Err(StorageError {
-                    description: "Cannot restore from WAL; unknown format".into(),
-                })
-            }
+            WalFormat::Unknown => return UnknownWalFormat {}.fail(),
             WalFormat::FlatBuffers => {
                 let mut points = Vec::new();
 
-                for entry in wal_builder.entries()? {
-                    let entry = entry?;
+                let entries = wal_builder.entries().context(UnderlyingWalError)?;
+
+                for entry in entries {
+                    let entry = entry.context(UnderlyingWalError)?;
                     let bytes = entry.as_data();
 
                     let entry = flatbuffers::get_root::<wal::Entry<'_>>(&bytes);
@@ -131,7 +157,7 @@ impl Partition {
                     points.len(),
                     bucket_name
                 );
-                db.write_points(&mut points)?;
+                db.write_points(&mut points).context(UnderlyingMemDBError)?;
             }
         }
 
@@ -144,7 +170,7 @@ impl Partition {
         })
     }
 
-    pub async fn write_points(&mut self, points: &mut [PointType]) -> Result<(), StorageError> {
+    pub async fn write_points(&mut self, points: &mut [PointType]) -> Result<()> {
         // TODO: Allow each kind of PartitionWithWal to configure the guarantees around when this
         // function returns and the state of data in regards to the WAL
 
@@ -153,7 +179,8 @@ impl Partition {
 
             let mut w = wal.append();
             let flatbuffer = points_to_flatbuffer(&points);
-            w.write_all(flatbuffer.finished_data())?;
+            w.write_all(flatbuffer.finished_data())
+                .context(WrtitingToWal)?;
             w.finalize(ingest_done_tx).expect("TODO handle errors");
 
             ingest_done_rx
@@ -164,7 +191,7 @@ impl Partition {
         }
 
         match &mut self.store {
-            PartitionStore::MemDB(db) => db.write_points(points),
+            PartitionStore::MemDB(db) => db.write_points(points).context(UnderlyingMemDBError),
             PartitionStore::S3(_) => panic!("s3 partition not implemented!"),
             PartitionStore::Remote(_) => panic!("remote partition not implemented!"),
         }
@@ -190,9 +217,11 @@ impl Partition {
         &self,
         predicate: Option<&Predicate>,
         range: Option<&TimestampRange>,
-    ) -> Result<BoxStream<'_, String>, StorageError> {
+    ) -> Result<BoxStream<'_, String>> {
         match &self.store {
-            PartitionStore::MemDB(db) => db.get_tag_keys(predicate, range),
+            PartitionStore::MemDB(db) => db
+                .get_tag_keys(predicate, range)
+                .context(UnderlyingMemDBError),
             PartitionStore::S3(_) => panic!("s3 partition not implemented!"),
             PartitionStore::Remote(_) => panic!("remote partition not implemented!"),
         }
@@ -203,9 +232,11 @@ impl Partition {
         tag_key: &str,
         predicate: Option<&Predicate>,
         range: Option<&TimestampRange>,
-    ) -> Result<BoxStream<'_, String>, StorageError> {
+    ) -> Result<BoxStream<'_, String>> {
         match &self.store {
-            PartitionStore::MemDB(db) => db.get_tag_values(tag_key, predicate, range),
+            PartitionStore::MemDB(db) => db
+                .get_tag_values(tag_key, predicate, range)
+                .context(UnderlyingMemDBError),
             PartitionStore::S3(_) => panic!("s3 partition not implemented!"),
             PartitionStore::Remote(_) => panic!("remote partition not implemented!"),
         }
@@ -216,9 +247,11 @@ impl Partition {
         batch_size: usize,
         predicate: &Predicate,
         range: &TimestampRange,
-    ) -> Result<BoxStream<'_, ReadBatch>, StorageError> {
+    ) -> Result<BoxStream<'_, ReadBatch>> {
         match &self.store {
-            PartitionStore::MemDB(db) => db.read_points(batch_size, predicate, range),
+            PartitionStore::MemDB(db) => db
+                .read_points(batch_size, predicate, range)
+                .context(UnderlyingMemDBError),
             PartitionStore::S3(_) => panic!("s3 partition not implemented!"),
             PartitionStore::Remote(_) => panic!("remote partition not implemented!"),
         }
@@ -227,9 +260,11 @@ impl Partition {
     pub async fn get_measurement_names(
         &self,
         range: Option<&TimestampRange>,
-    ) -> Result<BoxStream<'_, String>, StorageError> {
+    ) -> Result<BoxStream<'_, String>> {
         match &self.store {
-            PartitionStore::MemDB(db) => db.get_measurement_names(range),
+            PartitionStore::MemDB(db) => db
+                .get_measurement_names(range)
+                .context(UnderlyingMemDBError),
             PartitionStore::S3(_) => panic!("s3 partition not implemented!"),
             PartitionStore::Remote(_) => panic!("remote partition not implemented!"),
         }
@@ -240,9 +275,11 @@ impl Partition {
         measurement: &str,
         predicate: Option<&Predicate>,
         range: Option<&TimestampRange>,
-    ) -> Result<BoxStream<'_, String>, StorageError> {
+    ) -> Result<BoxStream<'_, String>> {
         match &self.store {
-            PartitionStore::MemDB(db) => db.get_measurement_tag_keys(measurement, predicate, range),
+            PartitionStore::MemDB(db) => db
+                .get_measurement_tag_keys(measurement, predicate, range)
+                .context(UnderlyingMemDBError),
             PartitionStore::S3(_) => panic!("s3 partition not implemented!"),
             PartitionStore::Remote(_) => panic!("remote partition not implemented!"),
         }
@@ -254,11 +291,11 @@ impl Partition {
         tag_key: &str,
         predicate: Option<&Predicate>,
         range: Option<&TimestampRange>,
-    ) -> Result<BoxStream<'_, String>, StorageError> {
+    ) -> Result<BoxStream<'_, String>> {
         match &self.store {
-            PartitionStore::MemDB(db) => {
-                db.get_measurement_tag_values(measurement, tag_key, predicate, range)
-            }
+            PartitionStore::MemDB(db) => db
+                .get_measurement_tag_values(measurement, tag_key, predicate, range)
+                .context(UnderlyingMemDBError),
             PartitionStore::S3(_) => panic!("s3 partition not implemented!"),
             PartitionStore::Remote(_) => panic!("remote partition not implemented!"),
         }
@@ -269,17 +306,21 @@ impl Partition {
         measurement: &str,
         predicate: Option<&Predicate>,
         range: Option<&TimestampRange>,
-    ) -> Result<BoxStream<'_, (String, SeriesDataType, i64)>, StorageError> {
+    ) -> Result<BoxStream<'_, (String, SeriesDataType, i64)>> {
         match &self.store {
-            PartitionStore::MemDB(db) => db.get_measurement_fields(measurement, predicate, range),
+            PartitionStore::MemDB(db) => db
+                .get_measurement_fields(measurement, predicate, range)
+                .context(UnderlyingMemDBError),
             PartitionStore::S3(_) => panic!("s3 partition not implemented!"),
             PartitionStore::Remote(_) => panic!("remote partition not implemented!"),
         }
     }
 }
 
-async fn start_wal_sync_task(wal_builder: WalBuilder) -> Result<WalDetails, StorageError> {
-    let wal = wal_builder.wal::<mpsc::Sender<_>>()?;
+async fn start_wal_sync_task(wal_builder: WalBuilder) -> Result<WalDetails> {
+    let wal = wal_builder
+        .wal::<mpsc::Sender<_>>()
+        .context(UnderlyingWalError)?;
 
     let metadata = tokio::fs::read_to_string(wal.metadata_path())
         .await
