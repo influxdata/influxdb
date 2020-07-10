@@ -16,11 +16,11 @@ import (
 	"github.com/influxdata/influxql"
 )
 
-// cancelCheckInterval represents the period at which TagKeys and TagValues
-// will check for a canceled context. Specifically after every 64 series
-// scanned, the query context will be checked for cancellation, and if canceled,
-// the calls will immediately return.
-const cancelCheckInterval = 64
+// cancelCheckInterval represents the period at which various schema calls
+// will check for a canceled context. It is important this
+// is not too frequent, or it could cause expensive context switches in
+// tight loops.
+const cancelCheckInterval = 5000
 
 // TagValues returns an iterator which enumerates the values for the specific
 // tagKey in the given bucket matching the predicate within the
