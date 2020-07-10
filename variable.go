@@ -129,11 +129,10 @@ func (m *Variable) Valid() error {
 
 	inValidNames := [11]string{"and", "import", "not", "return", "option", "test", "empty", "in", "or", "package", "builtin"}
 
-	for x := 0; x < len(inValidNames); x++ {
-		fmt.Printf(inValidNames[x])
+	for x := range inValidNames {
 
 		if m.Name == inValidNames[x] {
-			return fmt.Errorf("protected variable name")
+			return fmt.Errorf("%q is a protected variable name", inValidNames[x])
 		}
 	}
 
