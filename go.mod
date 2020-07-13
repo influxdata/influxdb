@@ -37,8 +37,8 @@ require (
 	github.com/spf13/cast v1.3.0
 	github.com/stretchr/testify v1.5.1
 	github.com/tinylib/msgp v1.1.0
-	github.com/willf/bitset v1.1.9 // indirect
 	github.com/xlab/treeprint v0.0.0-20180616005107-d6fb6747feb6
+	go.etcd.io/bbolt v1.3.3
 	go.uber.org/zap v1.14.1
 	golang.org/x/crypto v0.0.0-20200510223506-06a226fb4e37
 	golang.org/x/sync v0.0.0-20200317015054-43a5402ce75a

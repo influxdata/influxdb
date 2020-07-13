@@ -8,8 +8,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi"
-	"github.com/influxdata/influxdb/v2"
-	"github.com/influxdata/influxdb/v2/kit/tracing"
+	influxdb "github.com/influxdata/influxdb/servicesv2"
 	ua "github.com/mileusna/useragent"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -75,10 +74,7 @@ func SkipOptions(next http.Handler) http.Handler {
 func Trace(name string) Middleware {
 	return func(next http.Handler) http.Handler {
 		fn := func(w http.ResponseWriter, r *http.Request) {
-			span, r := tracing.ExtractFromHTTPRequest(r, name)
-			defer span.Finish()
-
-			span.LogKV("user_agent", UserAgent(r))
+			//span.LogKV("user_agent", UserAgent(r))
 			for k, v := range r.Header {
 				if len(v) == 0 {
 					continue
@@ -89,7 +85,7 @@ func Trace(name string) Middleware {
 				}
 
 				// If header has multiple values, only the first value will be logged on the trace.
-				span.LogKV(k, v[0])
+				//span.LogKV(k, v[0])
 			}
 
 			next.ServeHTTP(w, r)
