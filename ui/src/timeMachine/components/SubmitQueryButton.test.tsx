@@ -193,9 +193,9 @@ describe('TimeMachine.Components.SubmitQueryButton', () => {
     setTimeout(() => {
       const CancelBtn = getByTitle('Cancel')
       fireEvent.click(CancelBtn)
-
-      await window.flushAllPromises()
     }, DELAYTIME)
+
+    await window.flushAllPromises()
 
     const {type, value: error} = mocked(fetch).mock.results[0] as any
     expect(type).toBe('throw')
