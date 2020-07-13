@@ -17,11 +17,7 @@ import {
   getVariables,
   getDashboardVariablesStatus,
 } from 'src/variables/selectors'
-import {
-  filterUnusedVars,
-  getAllUsedVars,
-  createdUsedVarsCache,
-} from 'src/shared/utils/filterUnusedVars'
+import {filterUnusedVars} from 'src/shared/utils/filterUnusedVars'
 
 // Actions
 import {moveVariable} from 'src/variables/actions/thunks'
@@ -155,16 +151,12 @@ const mstp = (state: AppState) => {
     },
   } = state
 
-  const usedVariables = filterUnusedVars(
+  const varsInUse = filterUnusedVars(
     variables,
     Object.values(state.resources.views.byID).filter(
       variable => variable.dashboardID === dashboardID
     )
   )
-
-  const usedVarsCache = createdUsedVarsCache(usedVariables)
-
-  const varsInUse = getAllUsedVars(variables, usedVariables, usedVarsCache)
 
   return {
     variables: varsInUse,
