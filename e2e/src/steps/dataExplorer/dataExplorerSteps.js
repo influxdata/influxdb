@@ -365,6 +365,105 @@ class dataExplorerSteps extends influxSteps {
         await this.clickAndWait(await this.dePage.getSelectorListFunction(funct));
     }
 
+    async clickSaveAsButton(){
+        await this.clickAndWait(await this.dePage.getSaveAsButton());
+    }
+
+    async verifySaveAsOverlayVisible(){
+        await this.assertVisible(await this.dePage.getSaveAsOverlayHeader());
+    }
+
+    async clickTargetDashboardDropdown(){
+        await this.clickAndWait(await this.dePage.getTargetDashboardDropdown());
+    }
+
+    async selectTargetDashboardDropdownItem(){
+        await this.clickAndWait(await this.dePage.getTargetDashboardDropdownItem());
+    }
+
+    async setNewDashboardName(name){
+        await this.dePage.getNewDashboardNameInput().then(async elem => {
+            //await elem.clear(); //clear() doesn't work properly
+            await this.clearInputText(await this.dePage.getNewDashboardNameInput());
+            await elem.sendKeys(name);
+        });
+    }
+
+    async setCellName(name){
+        await this.dePage.getCellNameInput().then(async elem => {
+            await this.clearInputText(await this.dePage.getCellNameInput());
+            await elem.sendKeys(name);
+        });
+    }
+
+    async clickSaveAsDashboardCellButton(){
+        await this.clickAndWait(await this.dePage.getSaveAsDashboardCellButton());
+    }
+
+    async clickSaveAsPopupTab(tab,
+                              wait = async () => { await this.driver.sleep((await this.driver.manage().getTimeouts()).implicit/20); }){
+        await this.clickAndWait(await this.getSaveAsPopupTab(tab), wait);
+    }
+
+    async getSaveAsPopupTab(tab){
+        let elem = undefined;
+        switch(tab.toLowerCase()){
+            case 'dashboard cell':
+                elem = await this.dePage.getSaveAsPopupTabCell();
+                break;
+            case 'task':
+                elem = await this.dePage.getSaveAsPopupTabTask();
+                break;
+            case 'variable':
+                elem = await this.dePage.getSaveAsPopupTabVar();
+                break;
+            default:
+                throw `Unkown menu item ${item}`;
+        }
+
+        return elem;
+    }
+
+    async setTaskName(name){
+        await this.dePage.getTaskNameInput().then(async elem => {
+            await this.clearInputText(await this.dePage.getTaskNameInput());
+            await elem.sendKeys(name);
+        });
+    }
+
+    async setTaskInterval(interval){
+        await this.dePage.getTaskIntervalInput().then(async elem => {
+            await this.clearInputText(await this.dePage.getTaskIntervalInput());
+            await elem.sendKeys(interval);
+        });
+    }
+
+    async setTaskOffset(offset){
+        await this.dePage.getTaskOffsetInput().then(async elem => {
+            await this.clearInputText(await this.dePage.getTaskOffsetInput());
+            await elem.sendKeys(offset);
+        });
+    }
+
+    async clickSaveAsTaskButton(){
+        await this.clickAndWait(await this.dePage.getSaveAsTaskButton());
+    }
+
+    async setVariableName(name){
+        await this.dePage.getVariableNameInput().then(async elem => {
+            await elem.clear();
+            await elem.sendKeys(name);
+        });
+    }
+
+    async clickSaveAsVariableButton(){
+        //await this.clickAndWait(await this.dePage.getSaveAsVariableButton());
+
+        await this.dePage.getSaveAsVariableButton().then(async elem => {
+            await this.clickAndWait(await this.dePage.getSaveAsVariableButton());
+        });
+    }
+
 
 
 }

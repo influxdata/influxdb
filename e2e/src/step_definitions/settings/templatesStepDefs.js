@@ -68,7 +68,7 @@ Then(/^there is a template card named "(.*)"$/, async name => {
     await tpltSteps.verifyTemplateCardVisibility(name);
 });
 
-When(/^paste contents of "(.*)" to template textarea$/, {timeout: 30000 }, async filepath => {
+When(/^paste contents of "(.*)" to template textarea$/, {timeout: 60000 }, async filepath => {
     await tpltSteps.copyFileContentsToTemplateTextare(filepath);
 });
 
