@@ -338,10 +338,11 @@ func (t *ToTransformation) Process(id execute.DatasetID, tbl flux.Table) error {
 	if t.implicitTagColumns {
 
 		// If no tag columns are specified, by default we exclude
-		// _field and _value from being tag columns.
+		// _field, _value and _measurement from being tag columns.
 		excludeColumns := map[string]bool{
 			execute.DefaultValueColLabel: true,
 			defaultFieldColLabel:         true,
+			DefaultMeasurementColLabel:   true,
 		}
 
 		// If a field function is specified then we exclude any column that
@@ -354,7 +355,9 @@ func (t *ToTransformation) Process(id execute.DatasetID, tbl flux.Table) error {
 			// Walk the field function expression and record which columns
 			// are referenced. None of these columns will be used as tag columns.
 			semantic.Walk(colVisitor, exprNode)
-			excludeColumns = colVisitor.captured
+			for k, v := range colVisitor.captured {
+				excludeColumns[k] = v
+			}
 		}
 
 		addTagsFromTable(t.spec.Spec, tbl, excludeColumns)
