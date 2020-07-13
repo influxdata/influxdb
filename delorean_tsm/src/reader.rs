@@ -538,7 +538,7 @@ impl BlockData {
     }
 
     fn refill_buffer(blocks: &mut [Self], dst: &mut Vec<Option<ValuePair>>) -> Option<i64> {
-        let mut min_ts: Option<i64> = None;
+        let mut min_ts = None;
         for (block, dst) in blocks.iter_mut().zip(dst) {
             if dst.is_none() {
                 *dst = block.next_pair();
