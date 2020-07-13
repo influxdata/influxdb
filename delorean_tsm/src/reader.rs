@@ -347,7 +347,7 @@ impl BlockData {
 
     pub fn reserve_exact(&mut self, additional: usize) {
         match self {
-            Self::Float { i: _, ts, values } => {
+            Self::Float { ts, values, .. } => {
                 ts.reserve_exact(additional);
                 values.reserve_exact(additional);
             }
