@@ -128,3 +128,10 @@
   default: false
   contact: Brett Buddin
   lifetime: temporary
+
+- name: Use User Permission
+  description: When enabled we will use the new user service permission function
+  key: useUserPermission
+  default: false
+  contact: Lyon Hill
+  lifetime: temporary

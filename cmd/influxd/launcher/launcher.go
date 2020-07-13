@@ -752,9 +752,10 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		executor, executorMetrics := executor.NewExecutor(
 			m.log.With(zap.String("service", "task-executor")),
 			query.QueryServiceBridge{AsyncQueryService: m.queryController},
-			authSvc,
+			ts.UserSvc,
 			combinedTaskService,
 			combinedTaskService,
+			executor.WithFlagger(m.flagger),
 		)
 		m.executor = executor
 		m.reg.MustRegister(executorMetrics.PrometheusCollectors()...)

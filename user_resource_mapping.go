@@ -143,28 +143,57 @@ type UserResourceMappingFilter struct {
 }
 
 func (m *UserResourceMapping) ownerPerms() ([]Permission, error) {
-	ps := []Permission{}
-	// TODO(desa): how to grant access to specific resources.
-
 	if m.ResourceType == OrgsResourceType {
-		ps = append(ps, OwnerPermissions(m.ResourceID)...)
+		return OwnerPermissions(m.ResourceID), nil
 	}
 
+	ps := []Permission{
+		// TODO: Uncomment these once the URM system is no longer being used for find lookups for:
+		// 	Telegraf
+		// 	DashBoard
+		// 	notification rule
+		// 	notification endpoint
+		// Permission{
+		// 	Action: ReadAction,
+		// 	Resource: Resource{
+		// 		Type: m.ResourceType,
+		// 		ID:   &m.ResourceID,
+		// 	},
+		// },
+		// Permission{
+		// 	Action: WriteAction,
+		// 	Resource: Resource{
+		// 		Type: m.ResourceType,
+		// 		ID:   &m.ResourceID,
+		// 	},
+		// },
+	}
 	return ps, nil
 }
 
 func (m *UserResourceMapping) memberPerms() ([]Permission, error) {
-	ps := []Permission{}
-	// TODO(desa): how to grant access to specific resources.
-
 	if m.ResourceType == OrgsResourceType {
-		ps = append(ps, MemberPermissions(m.ResourceID)...)
+		return MemberPermissions(m.ResourceID), nil
 	}
 
 	if m.ResourceType == BucketsResourceType {
-		ps = append(ps, MemberBucketPermission(m.ResourceID))
+		return []Permission{MemberBucketPermission(m.ResourceID)}, nil
 	}
 
+	ps := []Permission{
+		// TODO: Uncomment these once the URM system is no longer being used for find lookups for:
+		// 	Telegraf
+		// 	DashBoard
+		// 	notification rule
+		// 	notification endpoint
+		// Permission{
+		// 	Action: ReadAction,
+		// 	Resource: Resource{
+		// 		Type: m.ResourceType,
+		// 		ID:   &m.ResourceID,
+		// 	},
+		// },
+	}
 	return ps, nil
 }
 
