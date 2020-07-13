@@ -46,11 +46,11 @@ class TemplateBrowserEmpty extends PureComponent<Props> {
   private handleButtonClick = (): void => {
     const {history, org} = this.props
 
-    history.push(`/orgs/${org.id}/tasks/import`)
+    history.push(`/orgs/${org.id}/settings/templates/import`)
   }
 }
 
-const mstp = (state: AppState): StateProps => ({
+const mstp = (state: AppState) => ({
   org: getOrg(state),
 })
 

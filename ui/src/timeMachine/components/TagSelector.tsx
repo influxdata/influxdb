@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import {
@@ -51,36 +51,12 @@ const SEARCH_DEBOUNCE_MS = 500
 // We don't show these columns in results but they're able to be grouped on for most queries
 const ADDITIONAL_GROUP_BY_COLUMNS = ['_start', '_stop', '_time']
 
-interface StateProps {
-  aggregateFunctionType: BuilderAggregateFunctionType
-  emptyText: string
-  keys: string[]
-  keysStatus: RemoteDataState
-  selectedKey: string
-  values: string[]
-  valuesStatus: RemoteDataState
-  selectedValues: string[]
-  valuesSearchTerm: string
-  keysSearchTerm: string
-  isInCheckOverlay: boolean
-}
-
-interface DispatchProps {
-  onRemoveTagSelector: typeof removeTagSelector
-  onSearchKeys: typeof searchTagKeys
-  onSearchValues: typeof searchTagValues
-  onSelectTag: typeof selectTagKey
-  onSelectValue: typeof selectTagValue
-  onSetBuilderAggregateFunctionType: typeof setBuilderAggregateFunctionType
-  onSetKeysSearchTerm: typeof setKeysSearchTerm
-  onSetValuesSearchTerm: typeof setValuesSearchTerm
-}
-
 interface OwnProps {
   index: number
 }
 
-type Props = StateProps & DispatchProps & OwnProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps & OwnProps
 
 @ErrorHandling
 class TagSelector extends PureComponent<Props> {
@@ -297,7 +273,7 @@ class TagSelector extends PureComponent<Props> {
   }
 }
 
-const mstp = (state: AppState, ownProps: OwnProps): StateProps => {
+const mstp = (state: AppState, ownProps: OwnProps) => {
   const activeQueryBuilder = getActiveTimeMachine(state).queryBuilder
 
   const {
@@ -354,7 +330,6 @@ const mdtp = {
   onSetValuesSearchTerm: setValuesSearchTerm,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
-  mstp,
-  mdtp
-)(TagSelector)
+const connector = connect(mstp, mdtp)
+
+export default connector(TagSelector)

@@ -128,34 +128,6 @@ func PushDownWindowAggregateMean() BoolFlag {
 	return pushDownWindowAggregateMean
 }
 
-var pushDownWindowAggregateFirst = MakeBoolFlag(
-	"Push Down Window Aggregate First",
-	"pushDownWindowAggregateFirst",
-	"Query Team",
-	false,
-	Temporary,
-	false,
-)
-
-// PushDownWindowAggregateFirst - Enable First variant of PushDownWindowAggregateRule and PushDownBareAggregateRule
-func PushDownWindowAggregateFirst() BoolFlag {
-	return pushDownWindowAggregateFirst
-}
-
-var pushDownWindowAggregateLast = MakeBoolFlag(
-	"Push Down Window Aggregate Last",
-	"pushDownWindowAggregateLast",
-	"Query Team",
-	false,
-	Temporary,
-	false,
-)
-
-// PushDownWindowAggregateLast - Enable Last variant of PushDownWindowAggregateRule and PushDownBareAggregateRule
-func PushDownWindowAggregateLast() BoolFlag {
-	return pushDownWindowAggregateLast
-}
-
 var groupWindowAggregateTranspose = MakeBoolFlag(
 	"Group Window Aggregate Transpose",
 	"groupWindowAggregateTranspose",
@@ -278,8 +250,6 @@ var all = []Flag{
 	pushDownWindowAggregateMin,
 	pushDownWindowAggregateMax,
 	pushDownWindowAggregateMean,
-	pushDownWindowAggregateFirst,
-	pushDownWindowAggregateLast,
 	groupWindowAggregateTranspose,
 	newAuth,
 	newLabels,
@@ -300,8 +270,6 @@ var byKey = map[string]Flag{
 	"pushDownWindowAggregateMin":    pushDownWindowAggregateMin,
 	"pushDownWindowAggregateMax":    pushDownWindowAggregateMax,
 	"pushDownWindowAggregateMean":   pushDownWindowAggregateMean,
-	"pushDownWindowAggregateFirst":  pushDownWindowAggregateFirst,
-	"pushDownWindowAggregateLast":   pushDownWindowAggregateLast,
 	"groupWindowAggregateTranspose": groupWindowAggregateTranspose,
 	"newAuth":                       newAuth,
 	"newLabels":                     newLabels,

@@ -70,7 +70,7 @@ const TestFlux: FC<PipeProp> = ({Context}) => {
     <>
       <ViewTypeDropdown
         viewType={data.properties.type}
-        onUpdateType={updateType}
+        onUpdateType={updateType as any}
       />
       <SquareButton
         icon={IconFont.Import}

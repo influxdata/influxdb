@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import {
@@ -23,23 +23,14 @@ import {queryCancelRequest} from 'src/shared/copy/notifications'
 // Types
 import {AppState, RemoteDataState} from 'src/types'
 
-interface StateProps {
-  submitButtonDisabled: boolean
-  queryStatus: RemoteDataState
-}
-
-interface DispatchProps {
-  onSubmit: typeof saveAndExecuteQueries | (() => void)
-  onNotify?: typeof notify
-}
-
 interface OwnProps {
   text?: string
   icon?: IconFont
   testID?: string
 }
 
-type Props = OwnProps & StateProps & DispatchProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = OwnProps & ReduxProps
 
 class SubmitQueryButton extends PureComponent<Props> {
   public static defaultProps = {
@@ -128,4 +119,6 @@ const mdtp = {
   onNotify: notify,
 }
 
-export default connect<StateProps, DispatchProps>(mstp, mdtp)(SubmitQueryButton)
+const connector = connect(mstp, mdtp)
+
+export default connector(SubmitQueryButton)

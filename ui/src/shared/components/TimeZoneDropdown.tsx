@@ -1,6 +1,6 @@
 // Libraries
 import React, {FunctionComponent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {SelectDropdown, IconFont} from '@influxdata/clockface'
 
 // Actions & Selectors
@@ -11,17 +11,10 @@ import {getTimeZone} from 'src/dashboards/selectors'
 import {TIME_ZONES} from 'src/shared/constants/timeZones'
 
 // Types
-import {AppState, TimeZone} from 'src/types'
+import {AppState} from 'src/types'
 
-interface StateProps {
-  timeZone: TimeZone
-}
-
-interface DispatchProps {
-  onSetTimeZone: typeof setTimeZone | ((timeZone: TimeZone) => void)
-}
-
-type Props = StateProps & DispatchProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps
 
 const TimeZoneDropdown: FunctionComponent<Props> = ({
   timeZone: selectedTimeZone,
@@ -40,10 +33,12 @@ const TimeZoneDropdown: FunctionComponent<Props> = ({
 
 export {TimeZoneDropdown}
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   return {timeZone: getTimeZone(state)}
 }
 
 const mdtp = {onSetTimeZone: setTimeZone}
 
-export default connect<StateProps, DispatchProps>(mstp, mdtp)(TimeZoneDropdown)
+const connector = connect(mstp, mdtp)
+
+export default connector(TimeZoneDropdown)

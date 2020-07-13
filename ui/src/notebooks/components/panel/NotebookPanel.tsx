@@ -2,6 +2,7 @@
 import React, {
   FC,
   useContext,
+  useCallback,
   useEffect,
   ReactNode,
   MouseEvent,
@@ -49,14 +50,19 @@ const NotebookPanelHeader: FC<HeaderProps> = ({id, controls}) => {
   const canBeMovedUp = index > 0
   const canBeMovedDown = index < notebook.data.allIDs.length - 1
 
-  const moveUp = canBeMovedUp ? () => notebook.data.move(id, index - 1) : null
-  const moveDown = canBeMovedDown
-    ? () => notebook.data.move(id, index + 1)
-    : null
+  const moveUp = useCallback(() => {
+    if (canBeMovedUp) {
+      notebook.data.move(id, index - 1)
+    }
+  }, [index, canBeMovedUp, notebook.data])
 
-  if (notebook.readOnly) {
-    return null
-  }
+  const moveDown = useCallback(() => {
+    if (canBeMovedDown) {
+      notebook.data.move(id, index + 1)
+    }
+  }, [index, canBeMovedDown, notebook.data])
+
+  const remove = useCallback(() => removePipe(), [removePipe, id])
 
   return (
     <div className="notebook-panel--header">
@@ -75,10 +81,18 @@ const NotebookPanelHeader: FC<HeaderProps> = ({id, controls}) => {
         justifyContent={JustifyContent.FlexEnd}
       >
         {controls}
-        <MovePanelButton direction="up" onClick={moveUp} />
-        <MovePanelButton direction="down" onClick={moveDown} />
+        <MovePanelButton
+          direction="up"
+          onClick={moveUp}
+          active={canBeMovedUp}
+        />
+        <MovePanelButton
+          direction="down"
+          onClick={moveDown}
+          active={canBeMovedDown}
+        />
         <PanelVisibilityToggle id={id} />
-        <RemovePanelButton onRemove={removePipe} />
+        <RemovePanelButton onRemove={remove} />
       </FlexBox>
     </div>
   )
@@ -100,14 +114,14 @@ const NotebookPanel: FC<Props> = ({id, children, controls}) => {
 
   useEffect(() => {
     refs.update(id, {panel: panelRef})
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const updatePanelFocus = (focus: boolean): void => {
-    if (isFocused === focus) {
-      return
-    }
-    refs.update(id, {focus})
-  }
+  const updatePanelFocus = useCallback(
+    (focus: boolean): void => {
+      refs.update(id, {focus})
+    },
+    [id, refs] // eslint-disable-line react-hooks/exhaustive-deps
+  )
 
   const handleClick = (e: MouseEvent<HTMLDivElement>): void => {
     e.stopPropagation()

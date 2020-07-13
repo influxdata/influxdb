@@ -25,21 +25,45 @@ import (
 // APIVersion marks the current APIVersion for influx packages.
 const APIVersion = "influxdata.com/v2alpha1"
 
+// Stack is an identifier for stateful application of a package(s). This stack
+// will map created resources from the template(s) to existing resources on the
+// platform. This stack is updated only after side effects of applying a template.
+// If the template is applied, and no changes are had, then the stack is not updated.
+type Stack struct {
+	ID        influxdb.ID
+	OrgID     influxdb.ID
+	CreatedAt time.Time `json:"createdAt"`
+	Events    []StackEvent
+}
+
+func (s Stack) LatestEvent() StackEvent {
+	if len(s.Events) == 0 {
+		return StackEvent{}
+	}
+	sort.Slice(s.Events, func(i, j int) bool {
+		return s.Events[i].UpdatedAt.Before(s.Events[j].UpdatedAt)
+	})
+	return s.Events[len(s.Events)-1]
+}
+
 type (
-	// Stack is an identifier for stateful application of a package(s). This stack
-	// will map created resources from the template(s) to existing resources on the
-	// platform. This stack is updated only after side effects of applying a template.
-	// If the template is applied, and no changes are had, then the stack is not updated.
-	Stack struct {
-		ID           influxdb.ID
+	StackEvent struct {
+		EventType    StackEventType
+		Name         string
+		Description  string
+		Sources      []string
+		TemplateURLs []string
+		Resources    []StackResource
+		UpdatedAt    time.Time `json:"updatedAt"`
+	}
+
+	StackCreate struct {
 		OrgID        influxdb.ID
 		Name         string
 		Description  string
 		Sources      []string
 		TemplateURLs []string
 		Resources    []StackResource
-
-		influxdb.CRUDLog
 	}
 
 	// StackResource is a record for an individual resource side effect genereated from
@@ -75,11 +99,33 @@ type (
 	}
 )
 
+type StackEventType uint
+
+const (
+	StackEventCreate StackEventType = iota
+	StackEventUpdate
+	StackEventUninstalled
+)
+
+func (e StackEventType) String() string {
+	switch e {
+	case StackEventCreate:
+		return "create"
+	case StackEventUninstalled:
+		return "uninstall"
+	case StackEventUpdate:
+		return "update"
+	default:
+		return "unknown"
+	}
+}
+
 const ResourceTypeStack influxdb.ResourceType = "stack"
 
 // SVC is the packages service interface.
 type SVC interface {
-	InitStack(ctx context.Context, userID influxdb.ID, stack Stack) (Stack, error)
+	InitStack(ctx context.Context, userID influxdb.ID, stack StackCreate) (Stack, error)
+	UninstallStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) (Stack, error)
 	DeleteStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) error
 	ListStacks(ctx context.Context, orgID influxdb.ID, filter ListFilter) ([]Stack, error)
 	ReadStack(ctx context.Context, id influxdb.ID) (Stack, error)
@@ -305,44 +351,81 @@ func NewService(opts ...ServiceSetterFn) *Service {
 // InitStack will create a new stack for the given user and its given org. The stack can be created
 // with urls that point to the location of packages that are included as part of the stack when
 // it is applied.
-func (s *Service) InitStack(ctx context.Context, userID influxdb.ID, stack Stack) (Stack, error) {
-	if err := validURLs(stack.TemplateURLs); err != nil {
+func (s *Service) InitStack(ctx context.Context, userID influxdb.ID, stCreate StackCreate) (Stack, error) {
+	if err := validURLs(stCreate.TemplateURLs); err != nil {
 		return Stack{}, err
 	}
 
-	if _, err := s.orgSVC.FindOrganizationByID(ctx, stack.OrgID); err != nil {
+	if _, err := s.orgSVC.FindOrganizationByID(ctx, stCreate.OrgID); err != nil {
 		if influxdb.ErrorCode(err) == influxdb.ENotFound {
-			msg := fmt.Sprintf("organization dependency does not exist for id[%q]", stack.OrgID.String())
+			msg := fmt.Sprintf("organization dependency does not exist for id[%q]", stCreate.OrgID.String())
 			return Stack{}, influxErr(influxdb.EConflict, msg)
 		}
 		return Stack{}, internalErr(err)
 	}
 
-	stack.ID = s.idGen.ID()
 	now := s.timeGen.Now()
-	stack.CRUDLog = influxdb.CRUDLog{
+	newStack := Stack{
+		ID:        s.idGen.ID(),
+		OrgID:     stCreate.OrgID,
 		CreatedAt: now,
-		UpdatedAt: now,
+		Events: []StackEvent{
+			{
+				EventType:    StackEventCreate,
+				Name:         stCreate.Name,
+				Description:  stCreate.Description,
+				Resources:    stCreate.Resources,
+				TemplateURLs: stCreate.TemplateURLs,
+				UpdatedAt:    now,
+			},
+		},
 	}
-
-	if err := s.store.CreateStack(ctx, stack); err != nil {
+	if err := s.store.CreateStack(ctx, newStack); err != nil {
 		return Stack{}, internalErr(err)
 	}
 
-	return stack, nil
+	return newStack, nil
+}
+
+// UninstallStack will remove all resources associated with the stack.
+func (s *Service) UninstallStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) (Stack, error) {
+	uninstalledStack, err := s.uninstallStack(ctx, identifiers)
+	if err != nil {
+		return Stack{}, err
+	}
+
+	ev := uninstalledStack.LatestEvent()
+	ev.EventType = StackEventUninstalled
+	ev.Resources = nil
+	ev.UpdatedAt = s.timeGen.Now()
+
+	uninstalledStack.Events = append(uninstalledStack.Events, ev)
+	if err := s.store.UpdateStack(ctx, uninstalledStack); err != nil {
+		s.log.Error("unable to update stack after uninstalling resources", zap.Error(err))
+	}
+	return uninstalledStack, nil
 }
 
 // DeleteStack removes a stack and all the resources that have are associated with the stack.
 func (s *Service) DeleteStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) (e error) {
-	stack, err := s.store.ReadStackByID(ctx, identifiers.StackID)
+	deletedStack, err := s.uninstallStack(ctx, identifiers)
 	if influxdb.ErrorCode(err) == influxdb.ENotFound {
 		return nil
 	}
 	if err != nil {
 		return err
 	}
+
+	return s.store.DeleteStack(ctx, deletedStack.ID)
+}
+
+func (s *Service) uninstallStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) (_ Stack, e error) {
+	stack, err := s.store.ReadStackByID(ctx, identifiers.StackID)
+	if err != nil {
+		return Stack{}, err
+	}
 	if stack.OrgID != identifiers.OrgID {
-		return &influxdb.Error{
+		return Stack{}, &influxdb.Error{
 			Code: influxdb.EConflict,
 			Msg:  "you do not have access to given stack ID",
 		}
@@ -351,7 +434,7 @@ func (s *Service) DeleteStack(ctx context.Context, identifiers struct{ OrgID, Us
 	// providing empty template will remove all applied resources
 	state, err := s.dryRun(ctx, identifiers.OrgID, new(Template), applyOptFromOptFns(ApplyWithStackID(identifiers.StackID)))
 	if err != nil {
-		return err
+		return Stack{}, err
 	}
 
 	coordinator := newRollbackCoordinator(s.log, s.applyReqLimit)
@@ -359,10 +442,9 @@ func (s *Service) DeleteStack(ctx context.Context, identifiers struct{ OrgID, Us
 
 	err = s.applyState(ctx, coordinator, identifiers.OrgID, identifiers.UserID, state, nil)
 	if err != nil {
-		return err
+		return Stack{}, err
 	}
-
-	return s.store.DeleteStack(ctx, identifiers.StackID)
+	return stack, nil
 }
 
 // ListFilter are filter options for filtering stacks from being returned.
@@ -397,16 +479,18 @@ func (s *Service) UpdateStack(ctx context.Context, upd StackUpdate) (Stack, erro
 }
 
 func (s *Service) applyStackUpdate(existing Stack, upd StackUpdate) Stack {
+	ev := existing.LatestEvent()
+	ev.EventType = StackEventUpdate
+	ev.UpdatedAt = s.timeGen.Now()
 	if upd.Name != nil {
-		existing.Name = *upd.Name
+		ev.Name = *upd.Name
 	}
 	if upd.Description != nil {
-		existing.Description = *upd.Description
+		ev.Description = *upd.Description
 	}
 	if upd.TemplateURLs != nil {
-		existing.TemplateURLs = upd.TemplateURLs
+		ev.TemplateURLs = upd.TemplateURLs
 	}
-	existing.UpdatedAt = s.timeGen.Now()
 
 	type key struct {
 		k  Kind
@@ -414,11 +498,13 @@ func (s *Service) applyStackUpdate(existing Stack, upd StackUpdate) Stack {
 	}
 	mExistingResources := make(map[key]bool)
 	mExistingNames := make(map[string]bool)
-	for _, r := range existing.Resources {
+	for _, r := range ev.Resources {
 		k := key{k: r.Kind, id: r.ID}
 		mExistingResources[k] = true
 		mExistingNames[r.MetaName] = true
 	}
+
+	var out []StackResource
 	for _, r := range upd.AdditionalResources {
 		k := key{k: r.Kind, id: r.ID}
 		if mExistingResources[k] {
@@ -433,12 +519,15 @@ func (s *Service) applyStackUpdate(existing Stack, upd StackUpdate) Stack {
 
 		metaName := r.MetaName
 		if metaName == "" || mExistingNames[metaName] {
-			metaName = uniqMetaName(s.nameGen, mExistingNames)
+			metaName = uniqMetaName(s.nameGen, s.idGen, mExistingNames)
 		}
 		mExistingNames[metaName] = true
 		sr.MetaName = metaName
-		existing.Resources = append(existing.Resources, sr)
+
+		out = append(out, sr)
 	}
+	ev.Resources = out
+	existing.Events = append(existing.Events, ev)
 	return existing
 }
 
@@ -525,7 +614,7 @@ func (s *Service) Export(ctx context.Context, setters ...ExportOptFn) (*Template
 		}
 
 		var opts []ExportOptFn
-		for _, r := range stack.Resources {
+		for _, r := range stack.LatestEvent().Resources {
 			opts = append(opts, ExportWithExistingResources(ResourceToClone{
 				Kind:     r.Kind,
 				ID:       r.ID,
@@ -1409,7 +1498,7 @@ func (s *Service) Apply(ctx context.Context, orgID, userID influxdb.ID, opts ...
 	stackID := opt.StackID
 	// if stackID is not provided, a stack will be provided for the application.
 	if stackID == 0 {
-		newStack, err := s.InitStack(ctx, userID, Stack{OrgID: orgID})
+		newStack, err := s.InitStack(ctx, userID, StackCreate{OrgID: orgID})
 		if err != nil {
 			return ImpactSummary{}, err
 		}
@@ -2910,8 +2999,9 @@ func (s *Service) getStackRemoteTemplates(ctx context.Context, stackID influxdb.
 		return nil, err
 	}
 
+	lastEvent := stack.LatestEvent()
 	var remotes []*Template
-	for _, rawURL := range stack.TemplateURLs {
+	for _, rawURL := range lastEvent.TemplateURLs {
 		u, err := url.Parse(rawURL)
 		if err != nil {
 			return nil, &influxdb.Error{
@@ -3062,10 +3152,12 @@ func (s *Service) updateStackAfterSuccess(ctx context.Context, stackID influxdb.
 			Associations: stateLabelsToStackAssociations(v.labels()),
 		})
 	}
-	stack.Resources = stackResources
-
-	stack.Sources = sources
-	stack.UpdatedAt = time.Now()
+	ev := stack.LatestEvent()
+	ev.EventType = StackEventUpdate
+	ev.Resources = stackResources
+	ev.Sources = sources
+	ev.UpdatedAt = s.timeGen.Now()
+	stack.Events = append(stack.Events, ev)
 	return s.store.UpdateStack(ctx, stack)
 }
 
@@ -3083,10 +3175,11 @@ func (s *Service) updateStackAfterRollback(ctx context.Context, stackID influxdb
 		return key{k: k, metaName: metaName}
 	}
 
+	latestEvent := stack.LatestEvent()
 	existingResources := make(map[key]*StackResource)
-	for i := range stack.Resources {
-		res := stack.Resources[i]
-		existingResources[newKey(res.Kind, res.MetaName)] = &stack.Resources[i]
+	for i := range latestEvent.Resources {
+		res := latestEvent.Resources[i]
+		existingResources[newKey(res.Kind, res.MetaName)] = &latestEvent.Resources[i]
 	}
 
 	hasChanges := false
@@ -3182,7 +3275,10 @@ func (s *Service) updateStackAfterRollback(ctx context.Context, stackID influxdb
 		return nil
 	}
 
-	stack.UpdatedAt = time.Now()
+	latestEvent.EventType = StackEventUpdate
+	latestEvent.Sources = sources
+	latestEvent.UpdatedAt = s.timeGen.Now()
+	stack.Events = append(stack.Events, latestEvent)
 	return s.store.UpdateStack(ctx, stack)
 }
 

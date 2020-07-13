@@ -1,6 +1,6 @@
 // Libraries
 import React, {useEffect, FunctionComponent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps, useDispatch} from 'react-redux'
 import {Route, Switch} from 'react-router-dom'
 
 // Components
@@ -12,28 +12,19 @@ import App from 'src/App'
 import {RemoteDataState, AppState} from 'src/types'
 
 // Actions
-import {getOrganizations as getOrganizationsAction} from 'src/organizations/actions/thunks'
+import {getOrganizations} from 'src/organizations/actions/thunks'
 import RouteToOrg from './RouteToOrg'
 
-interface DispatchProps {
-  getOrganizations: typeof getOrganizationsAction
-}
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps
 
-interface StateProps {
-  status: RemoteDataState
-}
-
-type Props = StateProps & DispatchProps
-
-const GetOrganizations: FunctionComponent<Props> = ({
-  status,
-  getOrganizations,
-}) => {
+const GetOrganizations: FunctionComponent<Props> = ({status}) => {
+  const dispatch = useDispatch()
   useEffect(() => {
     if (status === RemoteDataState.NotStarted) {
-      getOrganizations()
+      dispatch(getOrganizations())
     }
-  }, [])
+  }, [dispatch, status])
 
   return (
     <SpinnerContainer loading={status} spinnerComponent={<TechnoSpinner />}>
@@ -46,12 +37,10 @@ const GetOrganizations: FunctionComponent<Props> = ({
   )
 }
 
-const mdtp = {
-  getOrganizations: getOrganizationsAction,
-}
-
-const mstp = ({resources}: AppState): StateProps => ({
+const mstp = ({resources}: AppState) => ({
   status: resources.orgs.status,
 })
 
-export default connect<StateProps, DispatchProps>(mstp, mdtp)(GetOrganizations)
+const connector = connect(mstp)
+
+export default connector(GetOrganizations)

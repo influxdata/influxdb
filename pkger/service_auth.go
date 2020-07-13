@@ -28,12 +28,20 @@ func MWAuth(authAgent AuthAgent) SVCMiddleware {
 	}
 }
 
-func (s *authMW) InitStack(ctx context.Context, userID influxdb.ID, newStack Stack) (Stack, error) {
+func (s *authMW) InitStack(ctx context.Context, userID influxdb.ID, newStack StackCreate) (Stack, error) {
 	err := s.authAgent.IsWritable(ctx, newStack.OrgID, ResourceTypeStack)
 	if err != nil {
 		return Stack{}, err
 	}
 	return s.next.InitStack(ctx, userID, newStack)
+}
+
+func (s *authMW) UninstallStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) (Stack, error) {
+	err := s.authAgent.IsWritable(ctx, identifiers.OrgID, ResourceTypeStack)
+	if err != nil {
+		return Stack{}, err
+	}
+	return s.next.UninstallStack(ctx, identifiers)
 }
 
 func (s *authMW) DeleteStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) error {

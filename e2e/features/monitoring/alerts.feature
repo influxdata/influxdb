@@ -456,7 +456,7 @@ ${ r._check_name } is: ${ r._level } value was ${string(v: r.val)}
 
   Scenario: Deadman Check history - basic
     When stop live data generator
-    When wait "40" seconds
+    When wait "60" seconds
     When hover over the name of the check card "Deadman Critical Check"
     When click open history of the check card "Deadman Critical Check"
     When click open history confirm of the check card "Deadman Critical Check"

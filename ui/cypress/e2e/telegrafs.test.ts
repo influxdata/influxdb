@@ -137,7 +137,7 @@ describe('Collectors', () => {
         cy.getByTestID('resource-card').should('have.length', 1)
       })
 
-      it('can view setup instructions for a config', () => {
+      it('can view setup instructions & config text', () => {
         cy.getByTestID('resource-card').should('have.length', 1)
 
         cy.getByTestID('setup-instructions-link').click()
@@ -149,6 +149,10 @@ describe('Collectors', () => {
           .click()
 
         cy.getByTestID('setup-instructions').should('not.exist')
+
+        cy.getByTestID('collector-card--name').click()
+
+        cy.getByTestID('toml-editor').should('exist')
       })
 
       it('can delete a label from config', () => {

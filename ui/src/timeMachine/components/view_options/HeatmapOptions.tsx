@@ -1,6 +1,6 @@
 // Libraries
 import React, {FunctionComponent, ChangeEvent, useState} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {VIRIDIS, MAGMA, INFERNO, PLASMA} from '@influxdata/giraffe'
 import {
   Form,
@@ -53,27 +53,6 @@ const HEATMAP_COLOR_SCHEMES = [
   {name: 'Plasma', colors: PLASMA},
 ]
 
-interface StateProps {
-  xColumn: string
-  yColumn: string
-  numericColumns: string[]
-  timeFormat: string
-}
-
-interface DispatchProps {
-  onSetXColumn: typeof setXColumn
-  onSetYColumn: typeof setYColumn
-  onSetBinSize: typeof setBinSize
-  onSetColors: typeof setColorHexes
-  onSetXDomain: typeof setXDomain
-  onSetYDomain: typeof setYDomain
-  onSetXAxisLabel: typeof setXAxisLabel
-  onSetYAxisLabel: typeof setYAxisLabel
-  onSetPrefix: typeof setAxisPrefix
-  onSetSuffix: typeof setAxisSuffix
-  onSetTimeFormat: typeof setTimeFormat
-}
-
 interface OwnProps {
   xDomain: number[]
   yDomain: number[]
@@ -87,7 +66,8 @@ interface OwnProps {
   binSize: number
 }
 
-type Props = StateProps & DispatchProps & OwnProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps & OwnProps
 
 const HeatmapOptions: FunctionComponent<Props> = props => {
   const [binInputStatus, setBinInputStatus] = useState(ComponentStatus.Default)
@@ -234,7 +214,6 @@ const mdtp = {
   onSetTimeFormat: setTimeFormat,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
-  mstp,
-  mdtp
-)(HeatmapOptions)
+const connector = connect(mstp, mdtp)
+
+export default connector(HeatmapOptions)

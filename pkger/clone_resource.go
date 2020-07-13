@@ -394,16 +394,16 @@ func (ex *resourceExporter) getEndpointRule(ctx context.Context, id influxdb.ID)
 }
 
 func (ex *resourceExporter) uniqName() string {
-	return uniqMetaName(ex.nameGen, ex.mPkgNames)
+	return uniqMetaName(ex.nameGen, idGenerator, ex.mPkgNames)
 }
 
-func uniqMetaName(nameGen NameGenerator, existingNames map[string]bool) string {
-	uuid := strings.ToLower(idGenerator.ID().String())
+func uniqMetaName(nameGen NameGenerator, idGen influxdb.IDGenerator, existingNames map[string]bool) string {
+	uuid := strings.ToLower(idGen.ID().String())
 	name := uuid
 	for i := 1; i < 250; i++ {
 		name = fmt.Sprintf("%s-%s", nameGen(), uuid[10:])
 		if !existingNames[name] {
-			return name
+			break
 		}
 	}
 	return name

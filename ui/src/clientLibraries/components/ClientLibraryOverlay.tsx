@@ -14,6 +14,7 @@ import {getOrg} from 'src/organizations/selectors'
 
 interface OwnProps {
   title: string
+  children: React.ReactNode
 }
 
 interface StateProps {
@@ -44,7 +45,7 @@ const ClientLibraryOverlay: FunctionComponent<Props> = ({
   )
 }
 
-const mstp = (state: AppState): StateProps => ({
+const mstp = (state: AppState) => ({
   org: getOrg(state),
 })
 

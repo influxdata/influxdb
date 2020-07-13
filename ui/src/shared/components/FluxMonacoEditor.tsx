@@ -27,7 +27,6 @@ export interface EditorProps {
   script: string
   onChangeScript: OnChangeScript
   onSubmitScript?: () => void
-  skipFocus?: boolean
   autogrow?: boolean
 }
 
@@ -40,7 +39,6 @@ const FluxEditorMonaco: FC<Props> = ({
   onChangeScript,
   onSubmitScript,
   setEditorInstance,
-  skipFocus,
   autogrow,
 }) => {
   const lspServer = useRef<LSPServer>(null)
@@ -83,14 +81,12 @@ const FluxEditorMonaco: FC<Props> = ({
       updateDiagnostics(diagnostics)
 
       if (isFlagEnabled('cursorAtEOF')) {
-        if (!skipFocus) {
-          const lines = (script || '').split('\n')
-          editor.setPosition({
-            lineNumber: lines.length,
-            column: lines[lines.length - 1].length + 1,
-          })
-          editor.focus()
-        }
+        const lines = (script || '').split('\n')
+        editor.setPosition({
+          lineNumber: lines.length,
+          column: lines[lines.length - 1].length + 1,
+        })
+        editor.focus()
       } else {
         editor.focus()
       }

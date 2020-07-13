@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import _ from 'lodash'
 
 // Components
@@ -26,14 +26,8 @@ interface OwnProps {
   telegrafPlugin: TelegrafPlugin
 }
 
-interface DispatchProps {
-  onUpdateTelegrafPluginConfig: typeof updateTelegrafPluginConfig
-  onAddConfigValue: typeof addConfigValue
-  onRemoveConfigValue: typeof removeConfigValue
-  onSetConfigArrayValue: typeof setConfigArrayValue
-}
-
-type Props = OwnProps & DispatchProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = OwnProps & ReduxProps
 
 export class ConfigFieldHandler extends PureComponent<Props> {
   public render() {
@@ -108,14 +102,13 @@ export class ConfigFieldHandler extends PureComponent<Props> {
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onUpdateTelegrafPluginConfig: updateTelegrafPluginConfig,
   onAddConfigValue: addConfigValue,
   onRemoveConfigValue: removeConfigValue,
   onSetConfigArrayValue: setConfigArrayValue,
 }
 
-export default connect<null, DispatchProps, OwnProps>(
-  null,
-  mdtp
-)(ConfigFieldHandler)
+const connector = connect(null, mdtp)
+
+export default connector(ConfigFieldHandler)

@@ -1,6 +1,6 @@
 // Libraries
 import React, {SFC} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import _ from 'lodash'
 
 // Components
@@ -41,23 +41,6 @@ import {Color} from 'src/types/colors'
 import {AppState} from 'src/types'
 import ColumnSelector from 'src/shared/components/ColumnSelector'
 
-interface StateProps {
-  xColumn: string
-  fillColumns: string[]
-  numericColumns: string[]
-  availableGroupColumns: string[]
-}
-
-interface DispatchProps {
-  onSetXColumn: typeof setXColumn
-  onSetFillColumns: typeof setFillColumns
-  onSetBinCount: typeof setBinCount
-  onSetPosition: typeof setHistogramPosition
-  onSetColors: typeof setColors
-  onSetXDomain: typeof setXDomain
-  onSetXAxisLabel: typeof setXAxisLabel
-}
-
 interface OwnProps {
   position: HistogramPosition
   binCount: number
@@ -66,7 +49,8 @@ interface OwnProps {
   xAxisLabel: string
 }
 
-type Props = OwnProps & DispatchProps & StateProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = OwnProps & ReduxProps
 
 const HistogramOptions: SFC<Props> = props => {
   const {
@@ -194,7 +178,6 @@ const mdtp = {
   onSetXAxisLabel: setXAxisLabel,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
-  mstp,
-  mdtp
-)(HistogramOptions)
+const connector = connect(mstp, mdtp)
+
+export default connector(HistogramOptions)

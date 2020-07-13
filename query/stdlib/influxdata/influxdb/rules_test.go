@@ -1211,8 +1211,6 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 		feature.PushDownWindowAggregateMin():   true,
 		feature.PushDownWindowAggregateMax():   true,
 		feature.PushDownWindowAggregateMean():  true,
-		feature.PushDownWindowAggregateFirst(): true,
-		feature.PushDownWindowAggregateLast():  true,
 	})
 
 	withFlagger, _ := feature.Annotate(context.Background(), flagger)
@@ -1926,8 +1924,6 @@ func TestTransposeGroupToWindowAggregateRule(t *testing.T) {
 		feature.PushDownWindowAggregateMin():    true,
 		feature.PushDownWindowAggregateMax():    true,
 		feature.PushDownWindowAggregateMean():   true,
-		feature.PushDownWindowAggregateFirst():  true,
-		feature.PushDownWindowAggregateLast():   true,
 	})
 
 	rules := []plan.Rule{
@@ -2438,8 +2434,6 @@ func TestPushDownBareAggregateRule(t *testing.T) {
 	flagger := mock.NewFlagger(map[feature.Flag]interface{}{
 		feature.PushDownWindowAggregateCount(): true,
 		feature.PushDownWindowAggregateSum():   true,
-		feature.PushDownWindowAggregateFirst(): true,
-		feature.PushDownWindowAggregateLast():  true,
 	})
 
 	withFlagger, _ := feature.Annotate(context.Background(), flagger)

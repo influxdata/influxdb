@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent, SyntheticEvent, ChangeEvent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import classnames from 'classnames'
 
 // Components
@@ -39,24 +39,15 @@ const mstp_2 = (state: AppState): PluginStateProps => {
   }
 }
 
-const AllPluginList = connect<PluginStateProps, {}>(mstp_2, null)(PluginList)
-
-interface StateProps {
-  filter: string
-  show: boolean
-}
-
-interface DispatchProps {
-  onSetFilter: typeof setFilter
-  onSetList: typeof setList
-}
+const AllPluginList = connect<PluginStateProps>(mstp_2)(PluginList)
 
 interface OwnProps {
   onJump: (which: TelegrafEditorActivePlugin) => void
   onAdd: (which: TelegrafEditorPlugin) => void
 }
 
-type TelegrafEditorSidebarProps = StateProps & DispatchProps & OwnProps
+type ReduxProps = ConnectedProps<typeof connector>
+type TelegrafEditorSidebarProps = ReduxProps & OwnProps
 
 class TelegrafEditorSideBar extends PureComponent<TelegrafEditorSidebarProps> {
   private renderPlugins() {
@@ -115,7 +106,7 @@ class TelegrafEditorSideBar extends PureComponent<TelegrafEditorSidebarProps> {
   }
 }
 
-const mstp_3 = (state: AppState): StateProps => {
+const mstp_3 = (state: AppState) => {
   const filter = state.telegrafEditor.filter
   const show = state.telegrafEditor.showList
 
@@ -125,12 +116,11 @@ const mstp_3 = (state: AppState): StateProps => {
   }
 }
 
-const mdtp_3: DispatchProps = {
+const mdtp_3 = {
   onSetList: setList,
   onSetFilter: setFilter,
 }
 
-export default connect<StateProps, DispatchProps, {}>(
-  mstp_3,
-  mdtp_3
-)(TelegrafEditorSideBar)
+const connector = connect(mstp_3, mdtp_3)
+
+export default connector(TelegrafEditorSideBar)

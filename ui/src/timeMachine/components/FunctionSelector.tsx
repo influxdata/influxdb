@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import {
@@ -38,23 +38,12 @@ import {
 } from 'src/timeMachine/constants/queryBuilder'
 
 // Types
-import {AppState, BuilderConfig} from 'src/types'
+import {AppState} from 'src/types'
 
 const FUNCTION_NAMES = FUNCTIONS.map(f => f.name)
 
-interface StateProps {
-  autoWindowPeriod: number | null
-  aggregateWindow: BuilderConfig['aggregateWindow']
-  selectedFunctions: BuilderConfig['functions']
-  isInCheckOverlay: boolean
-}
-
-interface DispatchProps {
-  onSelectFunction: typeof selectBuilderFunction
-  onSelectAggregateWindow: typeof selectAggregateWindow
-}
-
-type Props = StateProps & DispatchProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps
 
 interface State {
   searchTerm: string
@@ -179,7 +168,7 @@ class FunctionSelector extends PureComponent<Props, State> {
     input == 'none' || input == this.autoLabel
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const {builderConfig} = getActiveQuery(state)
   const {functions: selectedFunctions, aggregateWindow} = builderConfig
 
@@ -196,4 +185,6 @@ const mdtp = {
   onSelectAggregateWindow: selectAggregateWindow,
 }
 
-export default connect<StateProps, DispatchProps>(mstp, mdtp)(FunctionSelector)
+const connector = connect(mstp, mdtp)
+
+export default connector(FunctionSelector)

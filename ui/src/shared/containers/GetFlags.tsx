@@ -1,6 +1,6 @@
 // Libraries
 import React, {useEffect, FC} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps, useDispatch} from 'react-redux'
 import {Switch, Route} from 'react-router-dom'
 import GetOrganizations from 'src/shared/containers/GetOrganizations'
 
@@ -9,32 +9,24 @@ import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
 
 // Types
 import {RemoteDataState, AppState} from 'src/types'
-import {FlagMap} from 'src/shared/reducers/flags'
 
 // Actions
-import {getFlags as getFlagsAction} from 'src/shared/actions/flags'
+import {getFlags} from 'src/shared/actions/flags'
 
 // Utils
 import {activeFlags} from 'src/shared/selectors/flags'
 import {updateReportingContext} from 'src/cloud/utils/reporting'
 
-interface DispatchProps {
-  getFlags: typeof getFlagsAction
-}
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps
 
-interface StateProps {
-  status: RemoteDataState
-  flags: FlagMap
-}
-
-type Props = StateProps & DispatchProps
-
-const GetFlags: FC<Props> = ({status, getFlags, flags}) => {
+const GetFlags: FC<Props> = ({status, flags}) => {
+  const dispatch = useDispatch()
   useEffect(() => {
     if (status === RemoteDataState.NotStarted) {
-      getFlags()
+      dispatch(getFlags())
     }
-  }, [])
+  }, [dispatch, status])
 
   useEffect(() => {
     updateReportingContext(
@@ -55,13 +47,11 @@ const GetFlags: FC<Props> = ({status, getFlags, flags}) => {
   )
 }
 
-const mdtp = {
-  getFlags: getFlagsAction,
-}
-
-const mstp = (state: AppState): StateProps => ({
+const mstp = (state: AppState) => ({
   flags: activeFlags(state),
   status: state.flags.status || RemoteDataState.NotStarted,
 })
 
-export default connect<StateProps, DispatchProps>(mstp, mdtp)(GetFlags)
+const connector = connect(mstp)
+
+export default connector(GetFlags)

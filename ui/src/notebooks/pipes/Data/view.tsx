@@ -32,7 +32,7 @@ const DataSource: FC<PipeProp> = ({Context}) => {
         </Context>
       </BucketProvider>
     ),
-    [data.bucketName, data.timeStart, data.timeStop]
+    [data]
   )
 }
 

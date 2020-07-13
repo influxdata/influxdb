@@ -24,6 +24,7 @@ fs.mkdirSync(__screenShotDir,  { recursive: true });
 var common = '--require "src/step_definitions/**/*.js" --require hooks.js --require-module babel-core/register ';
 
 let caps = new Capabilities();
+caps.set('pageLoadStrategy', 'normal');
 
 let chromeUserPreferences = { 'download.prompt_for_download': false, "download.default_directory": __basedir };
 let windowSize = { "width": 1024, "height": 768 };
@@ -47,7 +48,6 @@ if(__config.sel_docker){
 
 if(__config.headless) {
     caps.set('applicationCacheEnabled', false);
-    caps.set('pageLoadStrategy', 'none');
 
     switch (__config.browser.toLowerCase()) {
         case "chrome":

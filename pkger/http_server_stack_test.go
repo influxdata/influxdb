@@ -40,11 +40,21 @@ func TestPkgerHTTPServerStacks(t *testing.T) {
 	t.Run("create a stack", func(t *testing.T) {
 		t.Run("should successfully return with valid req body", func(t *testing.T) {
 			svc := &fakeSVC{
-				initStackFn: func(ctx context.Context, userID influxdb.ID, stack pkger.Stack) (pkger.Stack, error) {
-					stack.ID = 3
-					stack.CreatedAt = time.Now()
-					stack.UpdatedAt = time.Now()
-					return stack, nil
+				initStackFn: func(ctx context.Context, userID influxdb.ID, stackCr pkger.StackCreate) (pkger.Stack, error) {
+					return pkger.Stack{
+						ID:    2,
+						OrgID: stackCr.OrgID,
+						Events: []pkger.StackEvent{
+							{
+								Name:         stackCr.Name,
+								Description:  stackCr.Description,
+								Sources:      stackCr.Sources,
+								TemplateURLs: stackCr.TemplateURLs,
+								UpdatedAt:    time.Now(),
+							},
+						},
+						CreatedAt: time.Now(),
+					}, nil
 				},
 			}
 			pkgHandler := pkger.NewHTTPServerStacks(zap.NewNop(), svc)
@@ -67,11 +77,13 @@ func TestPkgerHTTPServerStacks(t *testing.T) {
 					decodeBody(t, buf, &resp)
 
 					assert.NotZero(t, resp.ID)
+					assert.Equal(t, pkger.StackEventCreate.String(), resp.EventType)
 					assert.Equal(t, reqBody.OrgID, resp.OrgID)
 					assert.Equal(t, reqBody.Name, resp.Name)
 					assert.Equal(t, reqBody.Description, resp.Description)
 					assert.Equal(t, reqBody.URLs, resp.URLs)
-					assert.NotZero(t, resp.CRUDLog)
+					assert.NotZero(t, resp.CreatedAt)
+					assert.NotZero(t, resp.UpdatedAt)
 				})
 
 		})
@@ -102,7 +114,7 @@ func TestPkgerHTTPServerStacks(t *testing.T) {
 					name:    "translates svc conflict error",
 					reqBody: pkger.ReqCreateStack{OrgID: influxdb.ID(3).String()},
 					svc: &fakeSVC{
-						initStackFn: func(ctx context.Context, userID influxdb.ID, stack pkger.Stack) (pkger.Stack, error) {
+						initStackFn: func(ctx context.Context, userID influxdb.ID, stack pkger.StackCreate) (pkger.Stack, error) {
 							return pkger.Stack{}, &influxdb.Error{Code: influxdb.EConflict}
 						},
 					},
@@ -112,7 +124,7 @@ func TestPkgerHTTPServerStacks(t *testing.T) {
 					name:    "translates svc internal error",
 					reqBody: pkger.ReqCreateStack{OrgID: influxdb.ID(3).String()},
 					svc: &fakeSVC{
-						initStackFn: func(ctx context.Context, userID influxdb.ID, stack pkger.Stack) (pkger.Stack, error) {
+						initStackFn: func(ctx context.Context, userID influxdb.ID, stack pkger.StackCreate) (pkger.Stack, error) {
 							return pkger.Stack{}, &influxdb.Error{Code: influxdb.EInternal}
 						},
 					},
@@ -125,8 +137,8 @@ func TestPkgerHTTPServerStacks(t *testing.T) {
 					svc := tt.svc
 					if svc == nil {
 						svc = &fakeSVC{
-							initStackFn: func(ctx context.Context, userID influxdb.ID, stack pkger.Stack) (pkger.Stack, error) {
-								return stack, nil
+							initStackFn: func(ctx context.Context, userID influxdb.ID, stack pkger.StackCreate) (pkger.Stack, error) {
+								return pkger.Stack{}, nil
 							},
 						}
 					}
@@ -162,7 +174,11 @@ func TestPkgerHTTPServerStacks(t *testing.T) {
 							stacks = append(stacks, pkger.Stack{
 								ID:    influxdb.ID(i + 1),
 								OrgID: expectedOrgID,
-								Name:  name,
+								Events: []pkger.StackEvent{
+									{
+										Name: name,
+									},
+								},
 							})
 						}
 						return stacks, nil
@@ -172,8 +188,9 @@ func TestPkgerHTTPServerStacks(t *testing.T) {
 						var stacks []pkger.Stack
 						for _, stackID := range filter.StackIDs {
 							stacks = append(stacks, pkger.Stack{
-								ID:    stackID,
-								OrgID: expectedOrgID,
+								ID:     stackID,
+								OrgID:  expectedOrgID,
+								Events: []pkger.StackEvent{{}},
 							})
 						}
 						return stacks, nil
@@ -182,10 +199,13 @@ func TestPkgerHTTPServerStacks(t *testing.T) {
 					return []pkger.Stack{{
 						ID:    1,
 						OrgID: expectedOrgID,
-						Name:  "stack_1",
+						Events: []pkger.StackEvent{{
+							Name: "stack_1",
+						}},
 					}}, nil
 				},
 			}
+
 			pkgHandler := pkger.NewHTTPServerStacks(zap.NewNop(), svc)
 			svr := newMountedHandler(pkgHandler, 1)
 
@@ -198,12 +218,24 @@ func TestPkgerHTTPServerStacks(t *testing.T) {
 					name:      "with org ID that has stacks",
 					queryArgs: "orgID=" + expectedOrgID.String(),
 					expectedStacks: []pkger.RespStack{{
-						ID:        influxdb.ID(1).String(),
-						OrgID:     expectedOrgID.String(),
-						Name:      "stack_1",
-						Resources: []pkger.RespStackResource{},
-						Sources:   []string{},
-						URLs:      []string{},
+						ID:    influxdb.ID(1).String(),
+						OrgID: expectedOrgID.String(),
+						RespStackEvent: pkger.RespStackEvent{
+							EventType: pkger.StackEventCreate.String(),
+							Name:      "stack_1",
+							Resources: []pkger.RespStackResource{},
+							Sources:   []string{},
+							URLs:      []string{},
+						},
+						Events: []pkger.RespStackEvent{
+							{
+								EventType: pkger.StackEventCreate.String(),
+								Name:      "stack_1",
+								Resources: []pkger.RespStackResource{},
+								Sources:   []string{},
+								URLs:      []string{},
+							},
+						},
 					}},
 				},
 				{
@@ -213,23 +245,47 @@ func TestPkgerHTTPServerStacks(t *testing.T) {
 				},
 				{
 					name:      "with names",
-					queryArgs: "name=name_stack&name=threeve&orgID=" + influxdb.ID(expectedOrgID).String(),
+					queryArgs: "name=name_stack&name=threeve&orgID=" + expectedOrgID.String(),
 					expectedStacks: []pkger.RespStack{
 						{
-							ID:        influxdb.ID(1).String(),
-							OrgID:     expectedOrgID.String(),
-							Name:      "name_stack",
-							Resources: []pkger.RespStackResource{},
-							Sources:   []string{},
-							URLs:      []string{},
+							ID:    influxdb.ID(1).String(),
+							OrgID: expectedOrgID.String(),
+							RespStackEvent: pkger.RespStackEvent{
+								EventType: pkger.StackEventCreate.String(),
+								Name:      "name_stack",
+								Resources: []pkger.RespStackResource{},
+								Sources:   []string{},
+								URLs:      []string{},
+							},
+							Events: []pkger.RespStackEvent{
+								{
+									EventType: pkger.StackEventCreate.String(),
+									Name:      "name_stack",
+									Resources: []pkger.RespStackResource{},
+									Sources:   []string{},
+									URLs:      []string{},
+								},
+							},
 						},
 						{
-							ID:        influxdb.ID(2).String(),
-							OrgID:     expectedOrgID.String(),
-							Name:      "threeve",
-							Resources: []pkger.RespStackResource{},
-							Sources:   []string{},
-							URLs:      []string{},
+							ID:    influxdb.ID(2).String(),
+							OrgID: expectedOrgID.String(),
+							RespStackEvent: pkger.RespStackEvent{
+								EventType: pkger.StackEventCreate.String(),
+								Name:      "threeve",
+								Resources: []pkger.RespStackResource{},
+								Sources:   []string{},
+								URLs:      []string{},
+							},
+							Events: []pkger.RespStackEvent{
+								{
+									EventType: pkger.StackEventCreate.String(),
+									Name:      "threeve",
+									Resources: []pkger.RespStackResource{},
+									Sources:   []string{},
+									URLs:      []string{},
+								},
+							},
 						},
 					},
 				},
@@ -238,18 +294,40 @@ func TestPkgerHTTPServerStacks(t *testing.T) {
 					queryArgs: fmt.Sprintf("stackID=%s&stackID=%s&orgID=%s", influxdb.ID(1), influxdb.ID(2), influxdb.ID(expectedOrgID)),
 					expectedStacks: []pkger.RespStack{
 						{
-							ID:        influxdb.ID(1).String(),
-							OrgID:     expectedOrgID.String(),
-							Resources: []pkger.RespStackResource{},
-							Sources:   []string{},
-							URLs:      []string{},
+							ID:    influxdb.ID(1).String(),
+							OrgID: expectedOrgID.String(),
+							RespStackEvent: pkger.RespStackEvent{
+								EventType: pkger.StackEventCreate.String(),
+								Resources: []pkger.RespStackResource{},
+								Sources:   []string{},
+								URLs:      []string{},
+							},
+							Events: []pkger.RespStackEvent{
+								{
+									EventType: pkger.StackEventCreate.String(),
+									Resources: []pkger.RespStackResource{},
+									Sources:   []string{},
+									URLs:      []string{},
+								},
+							},
 						},
 						{
-							ID:        influxdb.ID(2).String(),
-							OrgID:     expectedOrgID.String(),
-							Resources: []pkger.RespStackResource{},
-							Sources:   []string{},
-							URLs:      []string{},
+							ID:    influxdb.ID(2).String(),
+							OrgID: expectedOrgID.String(),
+							RespStackEvent: pkger.RespStackEvent{
+								EventType: pkger.StackEventCreate.String(),
+								Resources: []pkger.RespStackResource{},
+								Sources:   []string{},
+								URLs:      []string{},
+							},
+							Events: []pkger.RespStackEvent{
+								{
+									EventType: pkger.StackEventCreate.String(),
+									Resources: []pkger.RespStackResource{},
+									Sources:   []string{},
+									URLs:      []string{},
+								},
+							},
 						},
 					},
 				},
@@ -287,35 +365,60 @@ func TestPkgerHTTPServerStacks(t *testing.T) {
 				{
 					name: "for stack that has all fields available",
 					stub: pkger.Stack{
-						ID:           1,
-						OrgID:        expectedOrgID,
-						Name:         "name",
-						Description:  "desc",
-						Sources:      []string{"threeve"},
-						TemplateURLs: []string{"http://example.com"},
-						Resources: []pkger.StackResource{
+						ID:    1,
+						OrgID: expectedOrgID,
+						Events: []pkger.StackEvent{
 							{
-								APIVersion: pkger.APIVersion,
-								ID:         3,
-								Kind:       pkger.KindBucket,
-								MetaName:   "rucketeer",
+								Name:         "name",
+								Description:  "desc",
+								Sources:      []string{"threeve"},
+								TemplateURLs: []string{"http://example.com"},
+								Resources: []pkger.StackResource{
+									{
+										APIVersion: pkger.APIVersion,
+										ID:         3,
+										Kind:       pkger.KindBucket,
+										MetaName:   "rucketeer",
+									},
+								},
 							},
 						},
 					},
 					expectedStack: pkger.RespStack{
-						ID:          influxdb.ID(1).String(),
-						OrgID:       expectedOrgID.String(),
-						Name:        "name",
-						Description: "desc",
-						Sources:     []string{"threeve"},
-						URLs:        []string{"http://example.com"},
-						Resources: []pkger.RespStackResource{
+						ID:    influxdb.ID(1).String(),
+						OrgID: expectedOrgID.String(),
+						RespStackEvent: pkger.RespStackEvent{
+							EventType:   pkger.StackEventCreate.String(),
+							Name:        "name",
+							Description: "desc",
+							Sources:     []string{"threeve"},
+							URLs:        []string{"http://example.com"},
+							Resources: []pkger.RespStackResource{
+								{
+									APIVersion:   pkger.APIVersion,
+									ID:           influxdb.ID(3).String(),
+									Kind:         pkger.KindBucket,
+									MetaName:     "rucketeer",
+									Associations: []pkger.RespStackResourceAssoc{},
+								},
+							},
+						},
+						Events: []pkger.RespStackEvent{
 							{
-								APIVersion:   pkger.APIVersion,
-								ID:           influxdb.ID(3).String(),
-								Kind:         pkger.KindBucket,
-								MetaName:     "rucketeer",
-								Associations: []pkger.RespStackResourceAssoc{},
+								EventType:   pkger.StackEventCreate.String(),
+								Name:        "name",
+								Description: "desc",
+								Sources:     []string{"threeve"},
+								URLs:        []string{"http://example.com"},
+								Resources: []pkger.RespStackResource{
+									{
+										APIVersion:   pkger.APIVersion,
+										ID:           influxdb.ID(3).String(),
+										Kind:         pkger.KindBucket,
+										MetaName:     "rucketeer",
+										Associations: []pkger.RespStackResourceAssoc{},
+									},
+								},
 							},
 						},
 					},
@@ -323,33 +426,62 @@ func TestPkgerHTTPServerStacks(t *testing.T) {
 				{
 					name: "for stack that has missing resources urls and sources",
 					stub: pkger.Stack{
-						ID:          1,
-						OrgID:       expectedOrgID,
-						Name:        "name",
-						Description: "desc",
+						ID:    1,
+						OrgID: expectedOrgID,
+						Events: []pkger.StackEvent{
+							{
+								Name:        "name",
+								Description: "desc",
+							},
+						},
 					},
 					expectedStack: pkger.RespStack{
-						ID:          influxdb.ID(1).String(),
-						OrgID:       expectedOrgID.String(),
-						Name:        "name",
-						Description: "desc",
-						Sources:     []string{},
-						URLs:        []string{},
-						Resources:   []pkger.RespStackResource{},
+						ID:    influxdb.ID(1).String(),
+						OrgID: expectedOrgID.String(),
+						RespStackEvent: pkger.RespStackEvent{
+							EventType:   pkger.StackEventCreate.String(),
+							Name:        "name",
+							Description: "desc",
+							Sources:     []string{},
+							URLs:        []string{},
+							Resources:   []pkger.RespStackResource{},
+						},
+						Events: []pkger.RespStackEvent{
+							{
+								EventType:   pkger.StackEventCreate.String(),
+								Name:        "name",
+								Description: "desc",
+								Sources:     []string{},
+								URLs:        []string{},
+								Resources:   []pkger.RespStackResource{},
+							},
+						},
 					},
 				},
 				{
 					name: "for stack that has no set fields",
 					stub: pkger.Stack{
-						ID:    1,
-						OrgID: expectedOrgID,
+						ID:     1,
+						OrgID:  expectedOrgID,
+						Events: []pkger.StackEvent{{}},
 					},
 					expectedStack: pkger.RespStack{
-						ID:        influxdb.ID(1).String(),
-						OrgID:     expectedOrgID.String(),
-						Sources:   []string{},
-						URLs:      []string{},
-						Resources: []pkger.RespStackResource{},
+						ID:    influxdb.ID(1).String(),
+						OrgID: expectedOrgID.String(),
+						RespStackEvent: pkger.RespStackEvent{
+							EventType: pkger.StackEventCreate.String(),
+							Sources:   []string{},
+							URLs:      []string{},
+							Resources: []pkger.RespStackResource{},
+						},
+						Events: []pkger.RespStackEvent{
+							{
+								EventType: pkger.StackEventCreate.String(),
+								Sources:   []string{},
+								URLs:      []string{},
+								Resources: []pkger.RespStackResource{},
+							},
+						},
 					},
 				},
 			}
@@ -409,8 +541,8 @@ func TestPkgerHTTPServerStacks(t *testing.T) {
 					svc := tt.svc
 					if svc == nil {
 						svc = &fakeSVC{
-							initStackFn: func(ctx context.Context, userID influxdb.ID, stack pkger.Stack) (pkger.Stack, error) {
-								return stack, nil
+							initStackFn: func(ctx context.Context, userID influxdb.ID, stack pkger.StackCreate) (pkger.Stack, error) {
+								return pkger.Stack{}, nil
 							},
 						}
 					}
@@ -445,12 +577,24 @@ func TestPkgerHTTPServerStacks(t *testing.T) {
 						Name: strPtr("name"),
 					},
 					expectedStack: pkger.RespStack{
-						ID:        influxdb.ID(1).String(),
-						OrgID:     expectedOrgID.String(),
-						Name:      "name",
-						Sources:   []string{},
-						URLs:      []string{},
-						Resources: []pkger.RespStackResource{},
+						ID:    influxdb.ID(1).String(),
+						OrgID: expectedOrgID.String(),
+						RespStackEvent: pkger.RespStackEvent{
+							EventType: pkger.StackEventUpdate.String(),
+							Name:      "name",
+							Sources:   []string{},
+							URLs:      []string{},
+							Resources: []pkger.RespStackResource{},
+						},
+						Events: []pkger.RespStackEvent{
+							{
+								EventType: pkger.StackEventUpdate.String(),
+								Name:      "name",
+								Sources:   []string{},
+								URLs:      []string{},
+								Resources: []pkger.RespStackResource{},
+							},
+						},
 					},
 				},
 				{
@@ -459,12 +603,24 @@ func TestPkgerHTTPServerStacks(t *testing.T) {
 						Description: strPtr("desc"),
 					},
 					expectedStack: pkger.RespStack{
-						ID:          influxdb.ID(1).String(),
-						OrgID:       expectedOrgID.String(),
-						Description: "desc",
-						Sources:     []string{},
-						URLs:        []string{},
-						Resources:   []pkger.RespStackResource{},
+						ID:    influxdb.ID(1).String(),
+						OrgID: expectedOrgID.String(),
+						RespStackEvent: pkger.RespStackEvent{
+							EventType:   pkger.StackEventUpdate.String(),
+							Description: "desc",
+							Sources:     []string{},
+							URLs:        []string{},
+							Resources:   []pkger.RespStackResource{},
+						},
+						Events: []pkger.RespStackEvent{
+							{
+								EventType:   pkger.StackEventUpdate.String(),
+								Description: "desc",
+								Sources:     []string{},
+								URLs:        []string{},
+								Resources:   []pkger.RespStackResource{},
+							},
+						},
 					},
 				},
 				{
@@ -473,11 +629,22 @@ func TestPkgerHTTPServerStacks(t *testing.T) {
 						TemplateURLs: []string{"http://example.com"},
 					},
 					expectedStack: pkger.RespStack{
-						ID:        influxdb.ID(1).String(),
-						OrgID:     expectedOrgID.String(),
-						Sources:   []string{},
-						URLs:      []string{"http://example.com"},
-						Resources: []pkger.RespStackResource{},
+						ID:    influxdb.ID(1).String(),
+						OrgID: expectedOrgID.String(),
+						RespStackEvent: pkger.RespStackEvent{
+							EventType: pkger.StackEventUpdate.String(),
+							Sources:   []string{},
+							URLs:      []string{"http://example.com"},
+							Resources: []pkger.RespStackResource{},
+						},
+						Events: []pkger.RespStackEvent{
+							{
+								EventType: pkger.StackEventUpdate.String(),
+								Sources:   []string{},
+								URLs:      []string{"http://example.com"},
+								Resources: []pkger.RespStackResource{},
+							},
+						},
 					},
 				},
 				{
@@ -488,13 +655,26 @@ func TestPkgerHTTPServerStacks(t *testing.T) {
 						TemplateURLs: []string{"http://example.com"},
 					},
 					expectedStack: pkger.RespStack{
-						ID:          influxdb.ID(1).String(),
-						OrgID:       expectedOrgID.String(),
-						Name:        "name",
-						Description: "desc",
-						Sources:     []string{},
-						URLs:        []string{"http://example.com"},
-						Resources:   []pkger.RespStackResource{},
+						ID:    influxdb.ID(1).String(),
+						OrgID: expectedOrgID.String(),
+						RespStackEvent: pkger.RespStackEvent{
+							EventType:   pkger.StackEventUpdate.String(),
+							Name:        "name",
+							Description: "desc",
+							Sources:     []string{},
+							URLs:        []string{"http://example.com"},
+							Resources:   []pkger.RespStackResource{},
+						},
+						Events: []pkger.RespStackEvent{
+							{
+								EventType:   pkger.StackEventUpdate.String(),
+								Name:        "name",
+								Description: "desc",
+								Sources:     []string{},
+								URLs:        []string{"http://example.com"},
+								Resources:   []pkger.RespStackResource{},
+							},
+						},
 					},
 				},
 			}
@@ -513,15 +693,17 @@ func TestPkgerHTTPServerStacks(t *testing.T) {
 								ID:    *id,
 								OrgID: expectedOrgID,
 							}
+							ev := pkger.StackEvent{EventType: pkger.StackEventUpdate}
 							if upd.Name != nil {
-								st.Name = *upd.Name
+								ev.Name = *upd.Name
 							}
 							if upd.Description != nil {
-								st.Description = *upd.Description
+								ev.Description = *upd.Description
 							}
 							if upd.TemplateURLs != nil {
-								st.TemplateURLs = upd.TemplateURLs
+								ev.TemplateURLs = upd.TemplateURLs
 							}
+							st.Events = append(st.Events, ev)
 							return st, nil
 						},
 					}
@@ -573,8 +755,8 @@ func TestPkgerHTTPServerStacks(t *testing.T) {
 					svc := tt.svc
 					if svc == nil {
 						svc = &fakeSVC{
-							initStackFn: func(ctx context.Context, userID influxdb.ID, stack pkger.Stack) (pkger.Stack, error) {
-								return stack, nil
+							initStackFn: func(ctx context.Context, userID influxdb.ID, stack pkger.StackCreate) (pkger.Stack, error) {
+								return pkger.Stack{}, nil
 							},
 						}
 					}

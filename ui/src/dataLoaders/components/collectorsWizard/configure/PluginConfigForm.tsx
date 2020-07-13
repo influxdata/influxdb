@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import _ from 'lodash'
 
 // Components
@@ -23,16 +23,8 @@ interface OwnProps {
   configFields: ConfigFields
 }
 
-interface DispatchProps {
-  onSetActiveTelegrafPlugin: typeof setActiveTelegrafPlugin
-  onSetPluginConfiguration: typeof setPluginConfiguration
-}
-
-interface StateProps {
-  telegrafPlugins: TelegrafPlugin[]
-}
-
-type Props = OwnProps & StateProps & DispatchProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = OwnProps & ReduxProps
 
 export class PluginConfigForm extends PureComponent<Props> {
   public render() {
@@ -101,16 +93,15 @@ const mstp = ({
   dataLoading: {
     dataLoaders: {telegrafPlugins},
   },
-}: AppState): StateProps => ({
+}: AppState) => ({
   telegrafPlugins,
 })
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onSetActiveTelegrafPlugin: setActiveTelegrafPlugin,
   onSetPluginConfiguration: setPluginConfiguration,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
-  mstp,
-  mdtp
-)(PluginConfigForm)
+const connector = connect(mstp, mdtp)
+
+export default connector(PluginConfigForm)

@@ -29,7 +29,7 @@ const Buttons: FC = () => {
     (data: TimeBlock) => {
       updateTimeContext(id, data)
     },
-    [id]
+    [id, updateTimeContext]
   )
 
   if (!timeContext.hasOwnProperty(id)) {

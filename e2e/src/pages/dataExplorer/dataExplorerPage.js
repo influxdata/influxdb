@@ -44,6 +44,23 @@ const rawDataTable = '[data-testid=raw-data-table]';
 
 const functionSearchInput = '//*[@data-testid=\'function-selector\'][.//*[contains(@class,\'tag-selector--search\')]]';
 
+const saveAsOverlayHeader = '[data-testid=save-as-overlay--header]';
+const targetDashboardDropdown = '[data-testid=save-as-dashboard-cell--dropdown]';
+const targetDashboardDropdownItem = '[data-testid=save-as-dashboard-cell--create-new-dash]';
+const newDashboardNameInput = '[data-testid=save-as-dashboard-cell--dashboard-name]';
+const cellNameInput = '[data-testid=save-as-dashboard-cell--cell-name]';
+const saveAsDashboardCellButton = '[data-testid=save-as-dashboard-cell--submit]';
+const saveAsPopupTabCell = '[data-testid=\'cell-radio-button\']';
+const saveAsPopupTabTask = '[data-testid=\'task--radio-button\']';
+const saveAsPopupTabVar = '[data-testid=\'variable-radio-button\']';
+
+const taskNameInput = '[data-testid=\'task-form-name\']';
+const taskIntervalInput = '[data-testid=\'task-form-schedule-input\']';
+const taskOffsetInput = '[data-testid=\'task-form-offset-input\']';
+const saveAsTaskButton = '[data-testid=task-form-save]';
+
+const variableNameInput = '[data-testid=\'input-field\'][placeholder=\'Give your variable a name\']';
+const saveAsVariableButton = '//*[@data-testid=\'button\'][.//*[text()=\'Save as Variable\']]';
 
 
 
@@ -152,7 +169,7 @@ class dataExplorerPage extends influxPage {
     }
 
     //async getRefreshDropdownItem(item){
-     //   return await this.driver.findElement(By.css(`[data-testid='dropdown-item'][id='auto-refresh-${item}']`));
+    //   return await this.driver.findElement(By.css(`[data-testid='dropdown-item'][id='auto-refresh-${item}']`));
     //}
 
     async getRefreshDropdownItem(item){
@@ -215,6 +232,65 @@ class dataExplorerPage extends influxPage {
         return await this.driver.findElement(By.css(`[data-testid='selector-list ${funct}']`));
     }
 
+    async getSaveAsOverlayHeader(){
+        return await this.driver.findElement(By.css(saveAsOverlayHeader));
+    }
+
+    async getTargetDashboardDropdown(){
+        return await this.driver.findElement(By.css(targetDashboardDropdown));
+    }
+
+    async getTargetDashboardDropdownItem(){
+        return await this.driver.findElement(By.css(targetDashboardDropdownItem));
+    }
+
+    async getNewDashboardNameInput(){
+        return await this.driver.findElement(By.css(newDashboardNameInput));
+    }
+
+    async getCellNameInput(){
+        return await this.driver.findElement(By.css(cellNameInput));
+    }
+
+    async getSaveAsDashboardCellButton(){
+        return await this.driver.findElement(By.css(saveAsDashboardCellButton));
+    }
+
+    async getSaveAsPopupTabCell(){
+        return await this.driver.findElement(By.css(saveAsPopupTabCell));
+    }
+
+    async getSaveAsPopupTabTask(){
+        return await this.driver.findElement(By.css(saveAsPopupTabTask));
+    }
+
+    async getSaveAsPopupTabVar(){
+        return await this.driver.findElement(By.css(saveAsPopupTabVar));
+    }
+
+    async getTaskNameInput(){
+        return await this.driver.findElement(By.css(taskNameInput));
+    }
+
+    async getTaskIntervalInput(){
+        return await this.driver.findElement(By.css(taskIntervalInput));
+    }
+
+    async getTaskOffsetInput(){
+        return await this.driver.findElement(By.css(taskOffsetInput));
+    }
+
+    async getSaveAsTaskButton(){
+        return await this.driver.findElement(By.css(saveAsTaskButton));
+    }
+
+    async getVariableNameInput(){
+        return await this.driver.findElement(By.css(variableNameInput));
+    }
+
+    async getSaveAsVariableButton(){
+        return await this.driver.findElement(By.xpath(saveAsVariableButton));
+    }
 
 
 

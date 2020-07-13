@@ -1,5 +1,5 @@
 import React, {PureComponent, ChangeEvent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import {
@@ -50,15 +50,6 @@ interface OwnProps {
   onClose: () => void
 }
 
-interface StateProps {
-  buckets: Bucket[]
-  orgID: string
-}
-
-interface DispatchProps {
-  onCreateAuthorization: typeof createAuthorization
-}
-
 interface State {
   description: string
   readBuckets: string[]
@@ -67,7 +58,8 @@ interface State {
   activeTabWrite: BucketTab
 }
 
-type Props = OwnProps & DispatchProps & StateProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = OwnProps & ReduxProps
 
 @ErrorHandling
 class BucketsTokenOverlay extends PureComponent<Props, State> {
@@ -278,18 +270,17 @@ class BucketsTokenOverlay extends PureComponent<Props, State> {
   }
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   return {
     orgID: getOrg(state).id,
     buckets: getAll<Bucket>(state, ResourceType.Buckets),
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onCreateAuthorization: createAuthorization,
 }
 
-export default connect<StateProps, DispatchProps, {}>(
-  mstp,
-  mdtp
-)(BucketsTokenOverlay)
+const connector = connect(mstp, mdtp)
+
+export default connector(BucketsTokenOverlay)

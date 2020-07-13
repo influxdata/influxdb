@@ -69,7 +69,7 @@ class ClientLibrariesPage extends PureComponent<StateProps> {
   }
 }
 
-const mstp = (state: AppState): StateProps => ({
+const mstp = (state: AppState) => ({
   org: getOrg(state),
 })
 

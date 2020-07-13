@@ -32,7 +32,7 @@ const AlertHistoryQueryParams: FC<Props & RouteComponentProps> = ({
       },
       history
     )
-  }, [searchInput, historyType])
+  }, [searchInput, historyType, history])
 
   return null
 }

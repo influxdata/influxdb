@@ -1,7 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {RouteComponentProps} from 'react-router-dom'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {Switch, Route} from 'react-router-dom'
 
 // Decorators
@@ -28,23 +28,14 @@ import {createDashboard as createDashboardAction} from 'src/dashboards/actions/t
 import {setDashboardSort} from 'src/dashboards/actions/creators'
 
 // Types
-import {AppState, ResourceType, DashboardSortParams} from 'src/types'
+import {AppState, ResourceType} from 'src/types'
 import {LimitStatus} from 'src/cloud/actions/limits'
 import {ComponentStatus, Sort} from '@influxdata/clockface'
 import {SortTypes} from 'src/shared/utils/sort'
 import {DashboardSortKey} from 'src/shared/components/resource_sort_dropdown/generateSortItems'
 
-interface DispatchProps {
-  createDashboard: typeof createDashboardAction
-  setDashboardSort: typeof setDashboardSort
-}
-
-interface StateProps {
-  limitStatus: LimitStatus
-  sortOptions: DashboardSortParams
-}
-
-type Props = DispatchProps & StateProps & RouteComponentProps<{orgID: string}>
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps & RouteComponentProps<{orgID: string}>
 
 interface State {
   searchTerm: string
@@ -174,7 +165,7 @@ class DashboardIndex extends PureComponent<Props, State> {
   }
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const {
     cloud: {limits},
   } = state
@@ -186,9 +177,11 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   createDashboard: createDashboardAction,
   setDashboardSort,
 }
 
-export default connect<StateProps, DispatchProps>(mstp, mdtp)(DashboardIndex)
+const connector = connect(mstp, mdtp)
+
+export default connector(DashboardIndex)

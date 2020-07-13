@@ -1,9 +1,9 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Types
-import {AppState, CommunityTemplate} from 'src/types'
+import {AppState} from 'src/types'
 
 // Components
 import {
@@ -20,15 +20,8 @@ import CommunityTemplateListGroup from 'src/templates/components/CommunityTempla
 import {toggleTemplateResourceInstall} from 'src/templates/actions/creators'
 import {getResourceInstallCount} from 'src/templates/selectors'
 
-interface StateProps {
-  summary: CommunityTemplate
-}
-
-interface DispatchProps {
-  toggleTemplateResourceInstall: typeof toggleTemplateResourceInstall
-}
-
-type Props = StateProps & DispatchProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps
 
 class CommunityTemplateContentsUnconnected extends PureComponent<Props> {
   render() {
@@ -104,7 +97,8 @@ class CommunityTemplateContentsUnconnected extends PureComponent<Props> {
             summary.buckets.map(bucket => {
               return (
                 <CommunityTemplateListItem
-                  shouldInstall={bucket.shouldInstall}
+                  shouldDisableToggle={true}
+                  shouldInstall={true}
                   handleToggle={() => {
                     this.props.toggleTemplateResourceInstall(
                       'buckets',
@@ -150,7 +144,8 @@ class CommunityTemplateContentsUnconnected extends PureComponent<Props> {
             summary.variables.map(variable => {
               return (
                 <CommunityTemplateListItem
-                  shouldInstall={variable.shouldInstall}
+                  shouldDisableToggle={true}
+                  shouldInstall={true}
                   handleToggle={() => {
                     this.props.toggleTemplateResourceInstall(
                       'variables',
@@ -223,7 +218,7 @@ class CommunityTemplateContentsUnconnected extends PureComponent<Props> {
   }
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   return {summary: state.resources.templates.communityTemplateToInstall.summary}
 }
 
@@ -231,7 +226,8 @@ const mdtp = {
   toggleTemplateResourceInstall,
 }
 
-export const CommunityTemplateContents = connect<StateProps, DispatchProps>(
-  mstp,
-  mdtp
-)(CommunityTemplateContentsUnconnected)
+const connector = connect(mstp, mdtp)
+
+export const CommunityTemplateContents = connector(
+  CommunityTemplateContentsUnconnected
+)

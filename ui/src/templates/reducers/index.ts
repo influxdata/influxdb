@@ -9,6 +9,7 @@ import {
   SET_TEMPLATE_SUMMARY,
   SET_TEMPLATES_STATUS,
   TOGGLE_TEMPLATE_RESOURCE_INSTALL,
+  SET_STACKS,
 } from 'src/templates/actions/creators'
 import {
   CommunityTemplate,
@@ -24,11 +25,17 @@ import {
   setResourceAtID,
 } from 'src/resources/reducers/helpers'
 
-export const defaultState = (): TemplatesState => ({
-  communityTemplateToInstall: {
+const defaultCommunityTemplate = (): CommunityTemplate => {
+  return {
+    sources: [],
+    stackID: '',
     summary: {},
     diff: {},
-  } as CommunityTemplate,
+  }
+}
+
+export const defaultState = (): TemplatesState => ({
+  communityTemplateToInstall: defaultCommunityTemplate(),
   status: RemoteDataState.NotStarted,
   byID: {},
   allIDs: [],
@@ -36,6 +43,7 @@ export const defaultState = (): TemplatesState => ({
     status: RemoteDataState.NotStarted,
     item: null,
   },
+  stacks: [],
 })
 
 export const templatesReducer = (
@@ -69,9 +77,9 @@ export const templatesReducer = (
       case SET_COMMUNITY_TEMPLATE_TO_INSTALL: {
         const {template} = action
 
-        const communityTemplateToInstall: CommunityTemplate = {
-          diff: template.diff || {},
-          summary: template.summary || {},
+        const communityTemplateToInstall = {
+          ...defaultCommunityTemplate(),
+          ...template,
         }
 
         communityTemplateToInstall.summary.dashboards = (
@@ -195,6 +203,14 @@ export const templatesReducer = (
         })
 
         draftState.communityTemplateToInstall = templateToInstall
+        return
+      }
+
+      case SET_STACKS: {
+        const {stacks} = action
+
+        draftState.stacks = stacks
+        return
       }
     }
   })

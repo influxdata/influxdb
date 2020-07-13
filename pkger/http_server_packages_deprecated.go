@@ -138,7 +138,7 @@ func (s *HTTPServerPackages) createStack(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	stack, err := s.svc.InitStack(r.Context(), auth.GetUserID(), Stack{
+	stack, err := s.svc.InitStack(r.Context(), auth.GetUserID(), StackCreate{
 		OrgID:        reqBody.orgID(),
 		Name:         reqBody.Name,
 		Description:  reqBody.Description,
@@ -429,36 +429,5 @@ func (s *HTTPServerPackages) encResp(w http.ResponseWriter, r *http.Request, enc
 			Code: influxdb.EInternal,
 			Err:  err,
 		})
-	}
-}
-
-func convertStackToRespStack(st Stack) RespStack {
-	resources := make([]RespStackResource, 0, len(st.Resources))
-	for _, r := range st.Resources {
-		asses := make([]RespStackResourceAssoc, 0, len(r.Associations))
-		for _, a := range r.Associations {
-			asses = append(asses, RespStackResourceAssoc{
-				Kind:     a.Kind,
-				MetaName: a.MetaName,
-			})
-		}
-		resources = append(resources, RespStackResource{
-			APIVersion:   r.APIVersion,
-			ID:           r.ID.String(),
-			Kind:         r.Kind,
-			MetaName:     r.MetaName,
-			Associations: asses,
-		})
-	}
-
-	return RespStack{
-		ID:          st.ID.String(),
-		OrgID:       st.OrgID.String(),
-		Name:        st.Name,
-		Description: st.Description,
-		Resources:   resources,
-		Sources:     append([]string{}, st.Sources...),
-		URLs:        append([]string{}, st.TemplateURLs...),
-		CRUDLog:     st.CRUDLog,
 	}
 }

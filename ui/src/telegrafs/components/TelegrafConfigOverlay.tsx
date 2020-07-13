@@ -93,7 +93,7 @@ class TelegrafConfigOverlay extends PureComponent<Props> {
   }
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const {overlays, resources} = state
   const {status, currentConfig} = resources.telegrafs
   const {id} = overlays.params
@@ -106,4 +106,4 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-export default connect<StateProps, {}, {}>(mstp, null)(TelegrafConfigOverlay)
+export default connect<StateProps>(mstp)(TelegrafConfigOverlay)

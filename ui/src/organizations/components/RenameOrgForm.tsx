@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {RouteComponentProps, withRouter} from 'react-router-dom'
 
 // Components
@@ -28,16 +28,8 @@ import {AppState, Organization, ResourceType} from 'src/types'
 // Selectors
 import {getAll} from 'src/resources/selectors'
 
-interface StateProps {
-  startOrg: Organization
-  orgNames: string[]
-}
-
-interface DispatchProps {
-  onRenameOrg: typeof renameOrg
-}
-
-type Props = StateProps & DispatchProps & RouteComponentProps<{orgID: string}>
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps & RouteComponentProps<{orgID: string}>
 
 interface State {
   org: Organization
@@ -168,7 +160,6 @@ const mdtp = {
   onRenameOrg: renameOrg,
 }
 
-export default connect<StateProps, DispatchProps>(
-  mstp,
-  mdtp
-)(withRouter(RenameOrgForm))
+const connector = connect(mstp, mdtp)
+
+export default connector(withRouter(RenameOrgForm))

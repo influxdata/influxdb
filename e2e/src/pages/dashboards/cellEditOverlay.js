@@ -4,7 +4,7 @@ const { By } = require('selenium-webdriver');
 const timeMachineOverlay = '[data-testid=overlay]';
 //const cellTitle = '[data-testid=overlay] [data-testid=page-header--left] [data-testid=page-title]';
 const cellTitle = '[data-testid=overlay] [data-testid=page-header] [data-testid=page-title]';
-const cellNameInput = '[data-testid=overlay] [data-testid=page-header] [data-testid=input-field]';
+const cellNameInput = ' [data-testid=renamable-page-title--input]';
 //const viewTypeDropdown = '[data-testid=overlay] [data-testid=page-header--right] [data-testid=\'view-type--dropdown\']';
 const viewTypeDropdown = '[data-testid=overlay] [data-testid=page-control-bar--left] [data-testid=\'view-type--dropdown\']';
 const viewTypeListContents = '[data-testid=\'view-type--dropdown\'] [data-testid=dropdown-menu--contents]';

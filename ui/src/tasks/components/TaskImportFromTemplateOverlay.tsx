@@ -1,7 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {sortBy} from 'lodash'
 
 // Components
@@ -25,7 +25,6 @@ import {
   Template,
   TemplateType,
   AppState,
-  RemoteDataState,
   TaskTemplate,
   ResourceType,
 } from 'src/types'
@@ -33,21 +32,13 @@ import {
 // Selectors
 import {getAll} from 'src/resources/selectors/getAll'
 
-interface StateProps {
-  templates: TemplateSummary[]
-  templateStatus: RemoteDataState
-}
-
-interface DispatchProps {
-  createTaskFromTemplate: typeof createTaskFromTemplateAction
-}
-
 interface State {
   selectedTemplateSummary: TemplateSummary
   selectedTemplate: Template
 }
 
-type Props = DispatchProps & StateProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps
 
 class TaskImportFromTemplateOverlay extends PureComponent<
   Props & RouteComponentProps<{orgID: string}>,
@@ -63,7 +54,7 @@ class TaskImportFromTemplateOverlay extends PureComponent<
 
   render() {
     return (
-      <Overlay visible={true}>
+      <Overlay visible={true} testID="task-import-template--overlay">
         <GetResources resources={[ResourceType.Templates]}>
           <Overlay.Container maxWidth={900}>
             <Overlay.Header
@@ -128,8 +119,8 @@ class TaskImportFromTemplateOverlay extends PureComponent<
   }
 
   private onDismiss = () => {
-    const {history} = this.props
-    history.goBack()
+    const {history, match} = this.props
+    history.push(`/orgs/${match.params.orgID}/tasks`)
   }
 
   private onSubmit = () => {
@@ -141,7 +132,7 @@ class TaskImportFromTemplateOverlay extends PureComponent<
   }
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const {
     resources: {
       templates: {status},
@@ -162,11 +153,10 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   createTaskFromTemplate: createTaskFromTemplateAction,
 }
 
-export default connect<StateProps>(
-  mstp,
-  mdtp
-)(withRouter(TaskImportFromTemplateOverlay))
+const connector = connect(mstp, mdtp)
+
+export default connector(withRouter(TaskImportFromTemplateOverlay))

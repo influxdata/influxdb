@@ -731,7 +731,7 @@ func canPushWindowedAggregate(ctx context.Context, fnNode plan.Node) bool {
 			return false
 		}
 	case universe.FirstKind:
-		if !feature.PushDownWindowAggregateFirst().Enabled(ctx) || !caps.HaveFirst() {
+		if !caps.HaveFirst() {
 			return false
 		}
 		firstSpec := fnNode.ProcedureSpec().(*universe.FirstProcedureSpec)
@@ -739,7 +739,7 @@ func canPushWindowedAggregate(ctx context.Context, fnNode plan.Node) bool {
 			return false
 		}
 	case universe.LastKind:
-		if !feature.PushDownWindowAggregateLast().Enabled(ctx) || !caps.HaveLast() {
+		if !caps.HaveLast() {
 			return false
 		}
 		lastSpec := fnNode.ProcedureSpec().(*universe.LastProcedureSpec)

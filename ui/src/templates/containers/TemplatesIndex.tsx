@@ -1,6 +1,6 @@
 import React, {Component} from 'react'
 import {RouteComponentProps} from 'react-router-dom'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {Switch, Route} from 'react-router-dom'
 
 // Components
@@ -23,33 +23,20 @@ import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
 import {getOrg} from 'src/organizations/selectors'
 
 // Types
-import {AppState, Organization, ResourceType} from 'src/types'
-import {FlagMap} from 'src/shared/reducers/flags'
+import {AppState, ResourceType} from 'src/types'
 
-interface StateProps {
-  flags: FlagMap
-  org: Organization
-}
-
-type Props = RouteComponentProps & StateProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = RouteComponentProps & ReduxProps
 
 const templatesPath = '/orgs/:orgID/settings/templates'
+export const communityTemplatesImportPath = `${templatesPath}/import/:templateName`
 
 @ErrorHandling
 class TemplatesIndex extends Component<Props> {
   public render() {
     const {org, flags} = this.props
     if (flags.communityTemplates) {
-      return (
-        <CommunityTemplatesIndex>
-          <Switch>
-            <Route
-              path={`${templatesPath}/import/:templateName`}
-              component={CommunityTemplateImportOverlay}
-            />
-          </Switch>
-        </CommunityTemplatesIndex>
-      )
+      return <CommunityTemplatesIndex />
     }
 
     return (
@@ -94,11 +81,13 @@ class TemplatesIndex extends Component<Props> {
   }
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   return {
     org: getOrg(state),
     flags: state.flags.original,
   }
 }
 
-export default connect<StateProps, {}, {}>(mstp, null)(TemplatesIndex)
+const connector = connect(mstp)
+
+export default connector(TemplatesIndex)

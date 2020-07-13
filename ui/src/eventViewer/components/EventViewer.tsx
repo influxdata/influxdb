@@ -28,13 +28,17 @@ const EventViewer: FC<Props> = ({loadRows, children, initialState}) => {
 
   useEffect(() => {
     loadNextRows(state, dispatch, loadRows, Date.now())
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useMountedLayoutEffect(() => {
     refresh(state, dispatch, loadRows)
   }, [loadRows])
 
-  return children({state, dispatch, loadRows})
+  return children({
+    state,
+    dispatch,
+    loadRows,
+  })
 }
 
 export default EventViewer

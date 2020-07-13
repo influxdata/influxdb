@@ -6,6 +6,7 @@ import React, {
   useContext,
   ReactNode,
   useState,
+  useCallback,
 } from 'react'
 import classnames from 'classnames'
 
@@ -86,27 +87,17 @@ const Resizer: FC<Props> = ({
     update({panelVisibility})
   }
 
-  const handleUpdateHeight = (panelHeight: number): void => {
-    update({panelHeight})
-  }
+  const handleUpdateHeight = useCallback(
+    (panelHeight: number): void => {
+      update({panelHeight})
+    },
+    [update]
+  )
 
-  // Ensure results renders with proper height on initial render
+  // Ensure styles update when state & props update
   useEffect(() => {
     updateResultsStyle()
-  }, [])
-
-  // Update results height when associated props change
-  useEffect(() => {
-    updateResultsStyle()
-  }, [size, visibility, resizingEnabled])
-
-  // Update local height when context height changes
-  // so long as it is a different value
-  useEffect(() => {
-    if (height !== size) {
-      updateSize(height)
-    }
-  }, [height])
+  }, [updateResultsStyle])
 
   // Handle changes in drag state
   useEffect(() => {
@@ -124,7 +115,7 @@ const Resizer: FC<Props> = ({
         )
       handleUpdateHeight(size)
     }
-  }, [isDragging])
+  }, [isDragging, size, handleUpdateHeight])
 
   const handleMouseMove = (e: MouseEvent): void => {
     if (!bodyRef.current) {

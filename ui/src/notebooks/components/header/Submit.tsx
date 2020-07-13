@@ -6,6 +6,7 @@ import {NotebookContext} from 'src/notebooks/context/notebook.current'
 import {ResultsContext} from 'src/notebooks/context/results'
 import {TimeContext} from 'src/notebooks/context/time'
 import {IconFont} from '@influxdata/clockface'
+import {notify} from 'src/shared/actions/notifications'
 
 // Utils
 import {event} from 'src/notebooks/shared/event'
@@ -16,6 +17,8 @@ import {RemoteDataState} from 'src/types'
 const PREVIOUS_REGEXP = /__PREVIOUS_RESULT__/g
 const COMMENT_REMOVER = /(\/\*([\s\S]*?)\*\/)|(\/\/(.*)$)/gm
 
+const fakeNotify = notify
+
 export const Submit: FC = () => {
   const {query} = useContext(QueryContext)
   const {id, notebook} = useContext(NotebookContext)
@@ -23,10 +26,11 @@ export const Submit: FC = () => {
   const {timeContext} = useContext(TimeContext)
   const [isLoading, setLoading] = useState(RemoteDataState.NotStarted)
   const time = timeContext[id]
+  const tr = !!time && time.range
 
   useEffect(() => {
     submit()
-  }, [!!time && time.range])
+  }, [tr]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const forceUpdate = (id, data) => {
     try {
@@ -137,6 +141,7 @@ export const Submit: FC = () => {
       submitButtonDisabled={!hasQueries}
       queryStatus={isLoading}
       onSubmit={submit}
+      onNotify={fakeNotify}
     />
   )
 }

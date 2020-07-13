@@ -1,7 +1,7 @@
 // Libraries
 import React, {SFC} from 'react'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import classnames from 'classnames'
 import {Switch, Route} from 'react-router-dom'
 
@@ -16,14 +16,11 @@ import SetOrg from 'src/shared/containers/SetOrg'
 import CreateOrgOverlay from './organizations/components/CreateOrgOverlay'
 
 // Types
-import {AppState, CurrentPage, Theme} from 'src/types'
+import {AppState} from 'src/types'
 
-interface StateProps {
-  inPresentationMode: boolean
-  currentPage: CurrentPage
-  theme: Theme
-}
-type Props = StateProps & RouteComponentProps
+type ReduxProps = ConnectedProps<typeof connector>
+type RouterProps = RouteComponentProps
+type Props = ReduxProps & RouterProps
 
 const App: SFC<Props> = ({inPresentationMode, currentPage, theme}) => {
   const appWrapperClass = classnames('', {
@@ -48,7 +45,7 @@ const App: SFC<Props> = ({inPresentationMode, currentPage, theme}) => {
   )
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const {
     app: {
       ephemeral: {inPresentationMode},
@@ -60,4 +57,6 @@ const mstp = (state: AppState): StateProps => {
   return {inPresentationMode, currentPage, theme}
 }
 
-export default connect<StateProps, {}>(mstp, null)(withRouter(App))
+const connector = connect(mstp)
+
+export default connector(withRouter(App))

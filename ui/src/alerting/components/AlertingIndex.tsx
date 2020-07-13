@@ -152,11 +152,11 @@ const AlertingIndex: FunctionComponent<StateProps> = ({
   )
 }
 
-const mstp = ({cloud: {limits}}: AppState): StateProps => {
+const mstp = ({cloud: {limits}}: AppState) => {
   return {
     limitStatus: extractMonitoringLimitStatus(limits),
     limitedResources: extractLimitedMonitoringResources(limits),
   }
 }
 
-export default connect(mstp, null)(AlertingIndex)
+export default connect(mstp)(AlertingIndex)

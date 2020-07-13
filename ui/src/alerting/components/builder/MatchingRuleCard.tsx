@@ -41,7 +41,7 @@ const MatchingRuleCard: FC<Props> = ({rule, endpoints}) => {
   )
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const endpoints = getAll<NotificationEndpoint>(
     state,
     ResourceType.NotificationEndpoints

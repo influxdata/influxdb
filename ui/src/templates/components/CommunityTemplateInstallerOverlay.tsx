@@ -14,7 +14,7 @@ import {ComponentStatus} from '@influxdata/clockface'
 interface OwnProps {
   isVisible?: boolean
   onDismissOverlay: () => void
-  onSubmit: (importString: string, orgID: string) => void
+  onInstall: () => void
   resourceCount: number
   status?: ComponentStatus
   templateName: string
@@ -47,7 +47,7 @@ class CommunityTemplateInstallerOverlayUnconnected extends PureComponent<
   }
 
   public render() {
-    const {isVisible, resourceCount, templateName} = this.props
+    const {isVisible, onInstall, resourceCount, templateName} = this.props
 
     return (
       <Overlay visible={isVisible}>
@@ -60,7 +60,7 @@ class CommunityTemplateInstallerOverlayUnconnected extends PureComponent<
             <CommunityTemplateName
               templateName={templateName}
               resourceCount={resourceCount}
-              // onClickInstall={() => {}}
+              onClickInstall={onInstall}
             />
             <Tabs.Container orientation={Orientation.Horizontal}>
               <Tabs.Tabs alignment={Alignment.Center}>

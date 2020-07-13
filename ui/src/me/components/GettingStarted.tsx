@@ -1,7 +1,7 @@
 // Libraries
 import React, {FunctionComponent, useState} from 'react'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import {
@@ -22,11 +22,8 @@ import {AppState} from 'src/types'
 // Selectors
 import {getOrg} from 'src/organizations/selectors'
 
-interface StateProps {
-  orgID: string
-}
-
-type Props = RouteComponentProps & StateProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = RouteComponentProps & ReduxProps
 
 const GettingStarted: FunctionComponent<Props> = ({orgID, history}) => {
   const [loadDataAnimating, setLoadDataAnimation] = useState<boolean>(false)
@@ -127,11 +124,13 @@ const GettingStarted: FunctionComponent<Props> = ({orgID, history}) => {
   )
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const {id} = getOrg(state)
   return {
     orgID: id,
   }
 }
 
-export default withRouter(connect<StateProps>(mstp, null)(GettingStarted))
+const connector = connect(mstp)
+
+export default withRouter(connector(GettingStarted))

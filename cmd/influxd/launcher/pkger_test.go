@@ -47,7 +47,7 @@ func TestLauncher_Pkger(t *testing.T) {
 		require.NoError(t, err, "failed to delete stack and its associated resources")
 	}
 
-	newStackFn := func(t *testing.T, stack pkger.Stack) (pkger.Stack, func()) {
+	newStackFn := func(t *testing.T, stack pkger.StackCreate) (pkger.Stack, func()) {
 		t.Helper()
 
 		if stack.OrgID == 0 {
@@ -58,15 +58,17 @@ func TestLauncher_Pkger(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.Equal(t, l.Org.ID, newStack.OrgID)
-		assert.Equal(t, stack.Name, newStack.Name)
-		assert.Equal(t, stack.Description, newStack.Description)
-		assert.NotNil(t, newStack.Resources, "failed to match stack resources")
+		ev := newStack.LatestEvent()
+		assert.Equal(t, stack.Name, ev.Name)
+		assert.Equal(t, stack.Description, ev.Description)
+		assert.NotNil(t, ev.Resources, "failed to match stack resources")
 		expectedURLs := stack.TemplateURLs
 		if expectedURLs == nil {
 			expectedURLs = []string{}
 		}
-		assert.Equal(t, expectedURLs, newStack.TemplateURLs, "failed to match stack URLs")
-		assert.NotZero(t, newStack.CRUDLog)
+		assert.Equal(t, expectedURLs, ev.TemplateURLs, "failed to match stack URLs")
+		assert.NotZero(t, newStack.CreatedAt)
+		assert.NotZero(t, ev.UpdatedAt)
 
 		return newStack, func() {
 			// deletes are idempotent, so any error encountered here is not a not found error
@@ -248,18 +250,67 @@ func TestLauncher_Pkger(t *testing.T) {
 		return obj
 	}
 
+	validateAllResourcesRemoved := func(t *testing.T, summary pkger.Summary) {
+		t.Helper()
+
+		for _, b := range summary.Buckets {
+			_, err := resourceCheck.getBucket(t, bySafeID(b.ID))
+			assertErrorCode(t, influxdb.ENotFound, err)
+		}
+
+		for _, c := range summary.Checks {
+			_, err := resourceCheck.getCheck(t, byID(c.Check.GetID()))
+			assert.Error(t, err)
+		}
+
+		for _, d := range summary.Dashboards {
+			_, err := resourceCheck.getDashboard(t, bySafeID(d.ID))
+			assertErrorCode(t, influxdb.ENotFound, err)
+		}
+
+		for _, l := range summary.Labels {
+			_, err := resourceCheck.getLabel(t, bySafeID(l.ID))
+			assertErrorCode(t, influxdb.ENotFound, err)
+		}
+
+		for _, e := range summary.NotificationEndpoints {
+			_, err := resourceCheck.getEndpoint(t, byID(e.NotificationEndpoint.GetID()))
+			assert.Error(t, err)
+		}
+
+		for _, r := range summary.NotificationRules {
+			_, err := resourceCheck.getRule(t, bySafeID(r.ID))
+			assert.Error(t, err)
+		}
+
+		for _, ta := range summary.Tasks {
+			_, err := resourceCheck.getTask(t, bySafeID(ta.ID))
+			assert.Error(t, err)
+		}
+
+		for _, te := range summary.TelegrafConfigs {
+			_, err := resourceCheck.getTelegrafConfig(t, byID(te.TelegrafConfig.ID))
+			assert.Error(t, err)
+		}
+
+		for _, v := range summary.Variables {
+			_, err := resourceCheck.getVariable(t, bySafeID(v.ID))
+			assertErrorCode(t, influxdb.ENotFound, err)
+		}
+	}
+
 	t.Run("managing pkg lifecycle with stacks", func(t *testing.T) {
 		t.Run("list stacks", func(t *testing.T) {
 			stacks, err := svc.ListStacks(ctx, l.Org.ID, pkger.ListFilter{})
 			require.NoError(t, err)
 			require.Empty(t, stacks)
 
-			newStack1, cleanup1 := newStackFn(t, pkger.Stack{
+			newStack1, cleanup1 := newStackFn(t, pkger.StackCreate{
 				Name: "first stack",
 			})
 			defer cleanup1()
 
-			newStack2, cleanup2 := newStackFn(t, pkger.Stack{
+			newStack2, cleanup2 := newStackFn(t, pkger.StackCreate{
 				Name: "second stack",
 			})
 			defer cleanup2()
@@ -293,7 +344,7 @@ func TestLauncher_Pkger(t *testing.T) {
 
 			t.Run("filter stacks by names", func(t *testing.T) {
 				stacks, err := svc.ListStacks(ctx, l.Org.ID, pkger.ListFilter{
-					Names: []string{newStack2.Name},
+					Names: []string{newStack2.LatestEvent().Name},
 				})
 				require.NoError(t, err)
 				require.Len(t, stacks, 1)
@@ -302,7 +353,7 @@ func TestLauncher_Pkger(t *testing.T) {
 		})
 
 		t.Run("creating a stack", func(t *testing.T) {
-			_, cleanup := newStackFn(t, pkger.Stack{
+			_, cleanup := newStackFn(t, pkger.StackCreate{
 				OrgID:        l.Org.ID,
 				Name:         "first stack",
 				Description:  "desc",
@@ -311,9 +362,72 @@ func TestLauncher_Pkger(t *testing.T) {
 			cleanup()
 		})
 
+		t.Run("uninstall a stack", func(t *testing.T) {
+			t.Run("should remove all resources associated with it", func(t *testing.T) {
+				newStack, cleanup := newStackFn(t, pkger.StackCreate{})
+				defer cleanup()
+
+				newEndpointPkgName := "non-existent-endpoint"
+				allResourcesPkg := newTemplate(
+					newBucketObject("non-existent-bucket", "", ""),
+					newCheckDeadmanObject(t, "non-existent-check", "", time.Minute),
+					newDashObject("non-existent-dash", "", ""),
+					newEndpointHTTP(newEndpointPkgName, "", ""),
+					newLabelObject("non-existent-label", "", "", ""),
+					newRuleObject(t, "non-existent-rule", "", newEndpointPkgName, ""),
+					newTaskObject("non-existent-task", "", ""),
+					newTelegrafObject("non-existent-tele", "", ""),
+					newVariableObject("non-existent-var", "", ""),
+				)
+
+				impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID,
+					pkger.ApplyWithTemplate(allResourcesPkg),
+					pkger.ApplyWithStackID(newStack.ID),
+				)
+				require.NoError(t, err)
+
+				sum := impact.Summary
+
+				require.Len(t, sum.Buckets, 1)
+				assert.NotZero(t, sum.Buckets[0].ID)
+				require.Len(t, sum.Checks, 1)
+				assert.NotZero(t, sum.Checks[0].Check.GetID())
+				require.Len(t, sum.Dashboards, 1)
+				assert.NotZero(t, sum.Dashboards[0].ID)
+				require.Len(t, sum.Labels, 1)
+				assert.NotZero(t, sum.Labels[0].ID)
+				require.Len(t, sum.NotificationEndpoints, 1)
+				assert.NotZero(t, sum.NotificationEndpoints[0].NotificationEndpoint.GetID())
+				require.Len(t, sum.NotificationRules, 1)
+				assert.NotZero(t, sum.NotificationRules[0].ID)
+				require.Len(t, sum.Tasks, 1)
+				assert.NotZero(t, sum.Tasks[0].ID)
+				require.Len(t, sum.TelegrafConfigs, 1)
+				assert.NotZero(t, sum.TelegrafConfigs[0].TelegrafConfig.ID)
+				require.Len(t, sum.Variables, 1)
+				assert.NotZero(t, sum.Variables[0].ID)
+
+				_, err = svc.UninstallStack(ctx, struct{ OrgID, UserID, StackID influxdb.ID }{
+					OrgID:   l.Org.ID,
+					UserID:  l.User.ID,
+					StackID: newStack.ID,
+				})
+				require.NoError(t, err)
+
+				matchingStack, err := svc.ReadStack(ctx, newStack.ID)
+				require.NoError(t, err)
+
+				ev := matchingStack.LatestEvent()
+				assert.Equal(t, pkger.StackEventUninstalled, ev.EventType)
+				assert.Empty(t, ev.Resources)
+
+				validateAllResourcesRemoved(t, sum)
+			})
+		})
+
 		t.Run("delete a stack", func(t *testing.T) {
 			t.Run("should delete the stack and all resources associated with it", func(t *testing.T) {
-				newStack, cleanup := newStackFn(t, pkger.Stack{})
+				newStack, cleanup := newStackFn(t, pkger.StackCreate{})
 				defer cleanup()
 
 				newEndpointPkgName := "non-existent-endpoint"
@@ -363,42 +477,11 @@ func TestLauncher_Pkger(t *testing.T) {
 				})
 				require.NoError(t, err)
 
-				matchingStacks, err := svc.ListStacks(ctx, l.Org.ID, pkger.ListFilter{
-					StackIDs: []influxdb.ID{newStack.ID},
-				})
-				require.NoError(t, err)
-				require.Empty(t, matchingStacks)
-
-				_, err = resourceCheck.getBucket(t, byID(influxdb.ID(sum.Buckets[0].ID)))
-				assert.Error(t, err)
-
-				_, err = resourceCheck.getCheck(t, byID(sum.Checks[0].Check.GetID()))
-				assert.Error(t, err)
-
-				_, err = resourceCheck.getDashboard(t, byID(influxdb.ID(sum.Dashboards[0].ID)))
-				assert.Error(t, err)
-
-				_, err = resourceCheck.getLabel(t, byID(influxdb.ID(sum.Labels[0].ID)))
-				assert.Error(t, err)
-
-				_, err = resourceCheck.getEndpoint(t, byID(sum.NotificationEndpoints[0].NotificationEndpoint.GetID()))
-				assert.Error(t, err)
-
-				_, err = resourceCheck.getRule(t, byID(influxdb.ID(sum.NotificationRules[0].ID)))
-				assert.Error(t, err)
-
-				_, err = resourceCheck.getTask(t, byID(influxdb.ID(sum.Tasks[0].ID)))
-				assert.Error(t, err)
-
-				_, err = resourceCheck.getTelegrafConfig(t, byID(sum.TelegrafConfigs[0].TelegrafConfig.ID))
-				assert.Error(t, err)
-
-				_, err = resourceCheck.getVariable(t, byID(influxdb.ID(sum.Variables[0].ID)))
-				assert.Error(t, err)
+				validateAllResourcesRemoved(t, sum)
 			})
 
 			t.Run("that has already been deleted should be successful", func(t *testing.T) {
-				newStack, cleanup := newStackFn(t, pkger.Stack{})
+				newStack, cleanup := newStackFn(t, pkger.StackCreate{})
 				defer cleanup()
 
 				err := svc.DeleteStack(ctx, struct{ OrgID, UserID, StackID influxdb.ID }{
@@ -429,16 +512,12 @@ func TestLauncher_Pkger(t *testing.T) {
 		})
 
 		t.Run("read a stack", func(t *testing.T) {
-			stacks, err := svc.ListStacks(ctx, l.Org.ID, pkger.ListFilter{})
-			require.NoError(t, err)
-			require.Empty(t, stacks)
-
-			newStack1, cleanup1 := newStackFn(t, pkger.Stack{
+			newStack1, cleanup1 := newStackFn(t, pkger.StackCreate{
 				Name: "first stack",
 			})
 			defer cleanup1()
 
-			newStack2, cleanup2 := newStackFn(t, pkger.Stack{
+			newStack2, cleanup2 := newStackFn(t, pkger.StackCreate{
 				Name: "second stack",
 			})
 			defer cleanup2()
@@ -456,7 +535,7 @@ func TestLauncher_Pkger(t *testing.T) {
 		})
 
 		t.Run("updating a stack", func(t *testing.T) {
-			stack, cleanup := newStackFn(t, pkger.Stack{
+			stack, cleanup := newStackFn(t, pkger.StackCreate{
 				OrgID:        l.Org.ID,
 				Name:         "first name",
 				Description:  "first desc",
@@ -467,9 +546,10 @@ func TestLauncher_Pkger(t *testing.T) {
 			assertStack := func(t *testing.T, st pkger.Stack) {
 				t.Helper()
 				assert.Equal(t, stack.ID, st.ID)
-				assert.Equal(t, "2nd name", st.Name)
-				assert.Equal(t, "2nd desc", st.Description)
-				assert.Equal(t, []string{"http://example.com"}, st.TemplateURLs)
+				ev := st.LatestEvent()
+				assert.Equal(t, "2nd name", ev.Name)
+				assert.Equal(t, "2nd desc", ev.Description)
+				assert.Equal(t, []string{"http://example.com"}, ev.TemplateURLs)
 				resources := []pkger.StackResource{
 					{
 						APIVersion: pkger.APIVersion,
@@ -478,8 +558,8 @@ func TestLauncher_Pkger(t *testing.T) {
 						MetaName:   "bucket-meta",
 					},
 				}
-				assert.Equal(t, resources, st.Resources)
-				assert.True(t, st.UpdatedAt.After(stack.UpdatedAt))
+				assert.Equal(t, resources, ev.Resources)
+				assert.True(t, ev.UpdatedAt.After(stack.LatestEvent().UpdatedAt))
 			}
 
 			updStack, err := svc.UpdateStack(ctx, pkger.StackUpdate{
@@ -533,7 +613,7 @@ func TestLauncher_Pkger(t *testing.T) {
 				"file://" + f.Name(),
 			}
 
-			newStack, cleanup := newStackFn(t, pkger.Stack{
+			newStack, cleanup := newStackFn(t, pkger.StackCreate{
 				TemplateURLs: expectedURLs,
 			})
 			defer cleanup()
@@ -565,7 +645,7 @@ func TestLauncher_Pkger(t *testing.T) {
 			require.NoError(t, err)
 
 			require.Len(t, stacks, 1)
-			assert.Equal(t, expectedURLs, stacks[0].Sources)
+			assert.Equal(t, expectedURLs, stacks[0].LatestEvent().Sources)
 		})
 
 		t.Run("apply a pkg with a stack and associations", func(t *testing.T) {
@@ -656,7 +736,7 @@ func TestLauncher_Pkger(t *testing.T) {
 			testAssociationFn := func(t *testing.T) (pkger.Summary, pkger.Stack, func()) {
 				t.Helper()
 
-				stack, cleanup := newStackFn(t, pkger.Stack{})
+				stack, cleanup := newStackFn(t, pkger.StackCreate{})
 				defer func() {
 					if t.Failed() {
 						// if test fails in setup, then we attempt to clean it up
@@ -765,7 +845,7 @@ func TestLauncher_Pkger(t *testing.T) {
 			testStackApplyFn := func(t *testing.T) (pkger.Summary, pkger.Stack, func()) {
 				t.Helper()
 
-				stack, cleanup := newStackFn(t, pkger.Stack{})
+				stack, cleanup := newStackFn(t, pkger.StackCreate{})
 				defer func() {
 					if t.Failed() {
 						cleanup()
@@ -1231,7 +1311,7 @@ func TestLauncher_Pkger(t *testing.T) {
 			initializeStackPkg := func(t *testing.T, pkg *pkger.Template) (influxdb.ID, func(), pkger.Summary) {
 				t.Helper()
 
-				stack, cleanup := newStackFn(t, pkger.Stack{})
+				stack, cleanup := newStackFn(t, pkger.StackCreate{})
 				defer func() {
 					if t.Failed() {
 						cleanup()
@@ -1607,7 +1687,7 @@ func TestLauncher_Pkger(t *testing.T) {
 		})
 
 		t.Run("applying updates to existing variable should be successful", func(t *testing.T) {
-			stack, cleanup := newStackFn(t, pkger.Stack{})
+			stack, cleanup := newStackFn(t, pkger.StackCreate{})
 			defer cleanup()
 
 			impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID,
@@ -1821,7 +1901,7 @@ func TestLauncher_Pkger(t *testing.T) {
 
 			for _, tt := range tests {
 				fn := func(t *testing.T) {
-					stack, cleanup := newStackFn(t, pkger.Stack{})
+					stack, cleanup := newStackFn(t, pkger.StackCreate{})
 					defer cleanup()
 
 					impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID,
@@ -1844,7 +1924,7 @@ func TestLauncher_Pkger(t *testing.T) {
 			testStackApplyFn := func(t *testing.T) (pkger.Summary, pkger.Stack, func()) {
 				t.Helper()
 
-				stack, cleanup := newStackFn(t, pkger.Stack{})
+				stack, cleanup := newStackFn(t, pkger.StackCreate{})
 				defer func() {
 					if t.Failed() {
 						cleanup()
@@ -2092,7 +2172,7 @@ func TestLauncher_Pkger(t *testing.T) {
 				newLabelAssociationTestFn := func(t *testing.T) (pkger.Stack, pkger.Summary, func()) {
 					t.Helper()
 
-					stack, cleanup := newStackFn(t, pkger.Stack{})
+					stack, cleanup := newStackFn(t, pkger.StackCreate{})
 					defer func() {
 						if t.Failed() {
 							cleanup()
@@ -2252,9 +2332,9 @@ func TestLauncher_Pkger(t *testing.T) {
 		require.NoError(t, err)
 		assert.Empty(t, vars)
 
-		stacks, err = svc.ListStacks(ctx, l.Org.ID, pkger.ListFilter{})
+		afterStacks, err := svc.ListStacks(ctx, l.Org.ID, pkger.ListFilter{})
 		require.NoError(t, err)
-		require.Empty(t, stacks)
+		require.Empty(t, afterStacks)
 	})
 
 	hasLabelAssociations := func(t *testing.T, associations []pkger.SummaryLabel, numAss int, expectedNames ...string) {
@@ -3418,7 +3498,7 @@ spec:
 	})
 
 	t.Run("applying a template with an invalid template returns parser errors", func(t *testing.T) {
-		stack, cleanup := newStackFn(t, pkger.Stack{})
+		stack, cleanup := newStackFn(t, pkger.StackCreate{})
 		defer cleanup()
 
 		template := newTemplate(newTelegrafObject("with_underscore-is-bad", "", ""))
@@ -3456,9 +3536,10 @@ spec:
 		require.NoError(t, err)
 
 		require.Len(t, stacks, 1)
-		require.Len(t, stacks[0].Resources, 1)
-		assert.Equal(t, stacks[0].Resources[0].MetaName, "room")
-		assert.Equal(t, influxdb.ID(impact.Summary.Buckets[0].ID), stacks[0].Resources[0].ID)
+		ev := stacks[0].LatestEvent()
+		require.Len(t, ev.Resources, 1)
+		assert.Equal(t, ev.Resources[0].MetaName, "room")
+		assert.Equal(t, influxdb.ID(impact.Summary.Buckets[0].ID), ev.Resources[0].ID)
 	})
 
 	t.Run("apply a package with env refs", func(t *testing.T) {
@@ -3983,6 +4064,12 @@ func (f *fakeRuleStore) CreateNotificationRule(ctx context.Context, nr influxdb.
 	return f.NotificationRuleStore.CreateNotificationRule(ctx, nr, userID)
 }
 
+func assertErrorCode(t *testing.T, expected string, err error) {
+	t.Helper()
+	assert.Error(t, err)
+	assert.Equal(t, expected, influxdb.ErrorCode(err))
+}
+
 type resourceChecker struct {
 	tl *TestLauncher
 }
@@ -4009,6 +4096,12 @@ func byID(id influxdb.ID) getResourceOptFn {
 func byName(name string) getResourceOptFn {
 	return func() getResourceOpt {
 		return getResourceOpt{name: name}
+	}
+}
+
+func bySafeID(id pkger.SafeID) getResourceOptFn {
+	return func() getResourceOpt {
+		return getResourceOpt{id: influxdb.ID(id)}
 	}
 }
 

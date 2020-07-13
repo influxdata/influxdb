@@ -8,7 +8,11 @@ import {Button, ComponentSize} from '@influxdata/clockface'
 const LogoutButton: SFC = () => (
   <>
     <Link to="/logout">
-      <Button text="Logout" size={ComponentSize.ExtraSmall} />
+      <Button
+        text="Logout"
+        size={ComponentSize.ExtraSmall}
+        testID="logout--button"
+      />
     </Link>
   </>
 )

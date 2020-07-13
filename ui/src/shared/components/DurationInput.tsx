@@ -41,7 +41,7 @@ const DurationInput: FC<Props> = ({
     if (value != inputValue) {
       setInputValue(value)
     }
-  }, [value])
+  }, [value, inputValue])
 
   const handleClickSuggestion = (suggestion: string) => {
     setInputValue(suggestion)

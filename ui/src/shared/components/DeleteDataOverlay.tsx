@@ -1,6 +1,6 @@
 // Libraries
 import React, {FunctionComponent, useEffect} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps, useDispatch} from 'react-redux'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
 import {Overlay, SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
 
@@ -17,18 +17,8 @@ import {
 import {Bucket, AppState, RemoteDataState, ResourceType} from 'src/types'
 import {getAll} from 'src/resources/selectors'
 
-interface StateProps {
-  buckets: Bucket[]
-}
-
-interface DispatchProps {
-  resetPredicateState: typeof resetPredicateState
-  setBucketAndKeys: typeof setBucketAndKeys
-}
-
-type Props = RouteComponentProps<{orgID: string; bucketID: string}> &
-  DispatchProps &
-  StateProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = RouteComponentProps<{orgID: string; bucketID: string}> & ReduxProps
 
 const DeleteDataOverlay: FunctionComponent<Props> = ({
   buckets,
@@ -36,19 +26,19 @@ const DeleteDataOverlay: FunctionComponent<Props> = ({
   match: {
     params: {orgID, bucketID},
   },
-  resetPredicateState,
-  setBucketAndKeys,
 }) => {
+  const dispatch = useDispatch()
   const bucket = buckets.find(bucket => bucket.id === bucketID)
+  const bucketName = bucket?.name
 
   useEffect(() => {
-    if (bucket) {
-      setBucketAndKeys(bucket.name)
+    if (bucketName) {
+      dispatch(setBucketAndKeys(bucketName))
     }
-  }, [])
+  }, [bucketName, dispatch])
 
   const handleDismiss = () => {
-    resetPredicateState()
+    dispatch(resetPredicateState())
     history.push(`/orgs/${orgID}/load-data/buckets/`)
   }
 
@@ -69,18 +59,12 @@ const DeleteDataOverlay: FunctionComponent<Props> = ({
   )
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   return {
     buckets: getAll<Bucket>(state, ResourceType.Buckets),
   }
 }
 
-const mdtp: DispatchProps = {
-  resetPredicateState,
-  setBucketAndKeys,
-}
+const connector = connect(mstp)
 
-export default connect<StateProps, DispatchProps>(
-  mstp,
-  mdtp
-)(withRouter(DeleteDataOverlay))
+export default connector(withRouter(DeleteDataOverlay))

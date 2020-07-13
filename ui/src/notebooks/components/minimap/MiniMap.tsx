@@ -63,7 +63,7 @@ const MiniMap: FC<StateProps> = ({notebookMiniMapState}) => {
   )
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const {
     app: {
       persisted: {notebookMiniMapState},

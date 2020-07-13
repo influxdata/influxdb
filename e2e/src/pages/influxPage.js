@@ -35,7 +35,10 @@ class influxPage extends basePage {
         return await this.driver.findElement(By.css(navMenu));
     }
 
-    async getPageHeader(){
+    async getPageHeader(page = ''){
+        if(page !== ''){
+            return await this.driver.findElement(By.css(    `[data-testid=${page.toLowerCase()}--header]`))
+        }
         return await this.driver.findElement(By.css(pageHeader));
     }
 
@@ -57,19 +60,22 @@ class influxPage extends basePage {
                 //{type: 'css', selector: navMenuAlerting}, //N.B. only available with alerting on
                 {type: 'css', selector: navMenuLoadData},
                 {type: 'css', selector: navMenuSettings},
-                {type: 'css', selector: navMenuUser},
+                {type: 'css', selector: navMenuUser}
             //    {type: 'css', selector: navMenuOrg}, // TODO - reactivate when certain orgs should be in menu
-                {type: 'css', selector: pageHeader}
+                //TODO - reactivate when pages are stable
+             //   {type: 'css', selector: pageHeader} // 1.7.20 - some pages no longer use generic header e.g. LoadData
             ], urlCtx);
             return;
         }
 
         if(url){
-            await super.isLoaded(selectors.concat([{type: 'css', selector: navMenu},
-                {type: 'css', selector: pageHeader}]),url);
+            await super.isLoaded(selectors.concat([{type: 'css', selector: navMenu}]), url);
+             // TODO - reactivate when page header refactoring finished
+               // {type: 'css', selector: pageHeader}]),url); // 1.7.20 - some pages no longer use generic header
         }else{
-            await super.isLoaded(selectors.concat([{type: 'css', selector: navMenu},
-                {type: 'css', selector: pageHeader}]), urlCtx);
+            await super.isLoaded(selectors.concat([{type: 'css', selector: navMenu}]), url);
+            // TODO - reactivate when page header refactoring finished
+                //{type: 'css', selector: pageHeader}]), urlCtx); // 1.7.20 - some pages no longer use generic header
         }
     }
 

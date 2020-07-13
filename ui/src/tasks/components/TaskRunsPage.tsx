@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Components
@@ -9,7 +9,7 @@ import TaskRunsList from 'src/tasks/components/TaskRunsList'
 import CloudUpgradeButton from 'src/shared/components/CloudUpgradeButton'
 
 // Types
-import {AppState, RemoteDataState, Task, Run} from 'src/types'
+import {AppState, Run} from 'src/types'
 import {
   SpinnerContainer,
   TechnoSpinner,
@@ -26,20 +26,8 @@ import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
 // Types
 import {SortTypes} from 'src/shared/utils/sort'
 
-interface DispatchProps {
-  getRuns: typeof getRuns
-  onRunTask: typeof runTask
-}
-
-interface StateProps {
-  runs: Run[]
-  runStatus: RemoteDataState
-  currentTask: Task
-}
-
-type Props = DispatchProps &
-  StateProps &
-  RouteComponentProps<{id: string; orgID: string}>
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps & RouteComponentProps<{id: string; orgID: string}>
 
 interface State {
   sortKey: SortKey
@@ -146,7 +134,7 @@ class TaskRunsPage extends PureComponent<Props, State> {
   }
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const {runs, runStatus, currentTask} = state.resources.tasks
 
   return {
@@ -156,12 +144,11 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   getRuns: getRuns,
   onRunTask: runTask,
 }
 
-export default connect<StateProps, DispatchProps>(
-  mstp,
-  mdtp
-)(withRouter(TaskRunsPage))
+const connector = connect(mstp, mdtp)
+
+export default connector(withRouter(TaskRunsPage))

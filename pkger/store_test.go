@@ -5,13 +5,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/inmem"
 	"github.com/influxdata/influxdb/v2/kv/migration/all"
+	"go.uber.org/zap/zaptest"
+
+	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/pkger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap/zaptest"
 )
 
 func TestStoreKV(t *testing.T) {
@@ -29,32 +30,35 @@ func TestStoreKV(t *testing.T) {
 			"http://abc.gov",
 		}
 		return pkger.Stack{
-			ID:          id,
-			OrgID:       orgID,
-			Name:        "threeve",
-			Description: "desc",
-			CRUDLog: influxdb.CRUDLog{
-				CreatedAt: now,
-				UpdatedAt: now.Add(time.Hour),
-			},
-			Sources:      urls,
-			TemplateURLs: urls,
-			Resources: []pkger.StackResource{
+			ID:        id,
+			OrgID:     orgID,
+			CreatedAt: now,
+			Events: []pkger.StackEvent{
 				{
-					APIVersion: pkger.APIVersion,
-					ID:         9000,
-					Kind:       pkger.KindBucket,
-					MetaName:   "buzz lightyear",
-					Associations: []pkger.StackResourceAssociation{{
-						Kind:     pkger.KindLabel,
-						MetaName: "foo_label",
-					}},
-				},
-				{
-					APIVersion: pkger.APIVersion,
-					ID:         333,
-					Kind:       pkger.KindBucket,
-					MetaName:   "beyond",
+					EventType:    pkger.StackEventCreate,
+					Name:         "threeve",
+					Description:  "desc",
+					UpdatedAt:    now.Add(time.Hour),
+					Sources:      urls,
+					TemplateURLs: urls,
+					Resources: []pkger.StackResource{
+						{
+							APIVersion: pkger.APIVersion,
+							ID:         9000,
+							Kind:       pkger.KindBucket,
+							MetaName:   "buzz lightyear",
+							Associations: []pkger.StackResourceAssociation{{
+								Kind:     pkger.KindLabel,
+								MetaName: "foo_label",
+							}},
+						},
+						{
+							APIVersion: pkger.APIVersion,
+							ID:         333,
+							Kind:       pkger.KindBucket,
+							MetaName:   "beyond",
+						},
+					},
 				},
 			},
 		}
@@ -103,22 +107,30 @@ func TestStoreKV(t *testing.T) {
 			pkger.Stack{
 				ID:    1,
 				OrgID: orgID1,
-				Name:  "first_name",
+				Events: []pkger.StackEvent{{
+					Name: "first_name",
+				}},
 			},
 			pkger.Stack{
 				ID:    2,
 				OrgID: orgID2,
-				Name:  "first_name",
+				Events: []pkger.StackEvent{{
+					Name: "first_name",
+				}},
 			},
 			pkger.Stack{
 				ID:    3,
 				OrgID: orgID1,
-				Name:  "second_name",
+				Events: []pkger.StackEvent{{
+					Name: "second_name",
+				}},
 			},
 			pkger.Stack{
 				ID:    4,
 				OrgID: orgID2,
-				Name:  "second_name",
+				Events: []pkger.StackEvent{{
+					Name: "second_name",
+				}},
 			},
 		)
 
@@ -135,12 +147,16 @@ func TestStoreKV(t *testing.T) {
 					{
 						ID:    1,
 						OrgID: orgID1,
-						Name:  "first_name",
+						Events: []pkger.StackEvent{{
+							Name: "first_name",
+						}},
 					},
 					{
 						ID:    3,
 						OrgID: orgID1,
-						Name:  "second_name",
+						Events: []pkger.StackEvent{{
+							Name: "second_name",
+						}},
 					},
 				},
 			},
@@ -154,12 +170,16 @@ func TestStoreKV(t *testing.T) {
 					{
 						ID:    1,
 						OrgID: orgID1,
-						Name:  "first_name",
+						Events: []pkger.StackEvent{{
+							Name: "first_name",
+						}},
 					},
 					{
 						ID:    3,
 						OrgID: orgID1,
-						Name:  "second_name",
+						Events: []pkger.StackEvent{{
+							Name: "second_name",
+						}},
 					},
 				},
 			},
@@ -172,7 +192,9 @@ func TestStoreKV(t *testing.T) {
 				expected: []pkger.Stack{{
 					ID:    1,
 					OrgID: orgID1,
-					Name:  "first_name",
+					Events: []pkger.StackEvent{{
+						Name: "first_name",
+					}},
 				}},
 			},
 			{
@@ -184,7 +206,9 @@ func TestStoreKV(t *testing.T) {
 				expected: []pkger.Stack{{
 					ID:    1,
 					OrgID: orgID1,
-					Name:  "first_name",
+					Events: []pkger.StackEvent{{
+						Name: "first_name",
+					}},
 				}},
 			},
 			{
@@ -196,7 +220,9 @@ func TestStoreKV(t *testing.T) {
 				expected: []pkger.Stack{{
 					ID:    1,
 					OrgID: orgID1,
-					Name:  "first_name",
+					Events: []pkger.StackEvent{{
+						Name: "first_name",
+					}},
 				}},
 			},
 			{
@@ -210,12 +236,16 @@ func TestStoreKV(t *testing.T) {
 					{
 						ID:    1,
 						OrgID: orgID1,
-						Name:  "first_name",
+						Events: []pkger.StackEvent{{
+							Name: "first_name",
+						}},
 					},
 					{
 						ID:    3,
 						OrgID: orgID1,
-						Name:  "second_name",
+						Events: []pkger.StackEvent{{
+							Name: "second_name",
+						}},
 					},
 				},
 			},
@@ -265,18 +295,22 @@ func TestStoreKV(t *testing.T) {
 		seedEntities(t, storeKV, expected)
 
 		t.Run("with valid ID updates stack successfully", func(t *testing.T) {
-			updateStack := expected
-			updateStack.Resources = append(updateStack.Resources, pkger.StackResource{
+			expected := stackStub(id, orgID)
+			event := expected.LatestEvent()
+			event.EventType = pkger.StackEventUpdate
+			event.UpdatedAt = event.UpdatedAt.Add(time.Hour)
+			event.Resources = append(event.Resources, pkger.StackResource{
 				APIVersion: pkger.APIVersion,
 				ID:         333,
 				Kind:       pkger.KindBucket,
 				MetaName:   "beyond",
 			})
+			expected.Events = append(expected.Events, event)
 
-			err := storeKV.UpdateStack(context.Background(), updateStack)
+			err := storeKV.UpdateStack(context.Background(), expected)
 			require.NoError(t, err)
 
-			readStackEqual(t, storeKV, updateStack)
+			readStackEqual(t, storeKV, expected)
 		})
 
 		t.Run("when no match found fails with not found error", func(t *testing.T) {

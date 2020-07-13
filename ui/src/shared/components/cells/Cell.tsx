@@ -111,7 +111,7 @@ class CellComponent extends Component<Props, State> {
   }
 }
 
-const mstp = (state: AppState, ownProps: OwnProps): StateProps => {
+const mstp = (state: AppState, ownProps: OwnProps) => {
   const view = getByID<View>(state, ResourceType.Views, ownProps.cell.id)
 
   return {view}

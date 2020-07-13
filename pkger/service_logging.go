@@ -25,7 +25,7 @@ func MWLogging(log *zap.Logger) SVCMiddleware {
 
 var _ SVC = (*loggingMW)(nil)
 
-func (s *loggingMW) InitStack(ctx context.Context, userID influxdb.ID, newStack Stack) (stack Stack, err error) {
+func (s *loggingMW) InitStack(ctx context.Context, userID influxdb.ID, newStack StackCreate) (stack Stack, err error) {
 	defer func(start time.Time) {
 		if err == nil {
 			return
@@ -41,6 +41,24 @@ func (s *loggingMW) InitStack(ctx context.Context, userID influxdb.ID, newStack 
 		)
 	}(time.Now())
 	return s.next.InitStack(ctx, userID, newStack)
+}
+
+func (s *loggingMW) UninstallStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) (_ Stack, err error) {
+	defer func(start time.Time) {
+		if err == nil {
+			return
+		}
+
+		s.logger.Error(
+			"failed to uninstall stack",
+			zap.Error(err),
+			zap.Stringer("orgID", identifiers.OrgID),
+			zap.Stringer("userID", identifiers.OrgID),
+			zap.Stringer("stackID", identifiers.StackID),
+			zap.Duration("took", time.Since(start)),
+		)
+	}(time.Now())
+	return s.next.UninstallStack(ctx, identifiers)
 }
 
 func (s *loggingMW) DeleteStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) (err error) {

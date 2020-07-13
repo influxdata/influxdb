@@ -7,7 +7,7 @@ import React, {
   useRef,
   useReducer,
 } from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps, useDispatch} from 'react-redux'
 
 // Components
 import {
@@ -26,14 +26,11 @@ import {
 } from 'src/cloud/utils/limits'
 
 // Actions
-import {
-  checkBucketLimits as checkBucketLimitsAction,
-  LimitStatus,
-} from 'src/cloud/actions/limits'
+import {checkBucketLimits, LimitStatus} from 'src/cloud/actions/limits'
 import {createBucket} from 'src/buckets/actions/thunks'
 
 // Types
-import {Organization, AppState} from 'src/types'
+import {AppState} from 'src/types'
 import {
   createBucketReducer,
   RuleType,
@@ -44,28 +41,17 @@ import {
 // Selectors
 import {getOrg} from 'src/organizations/selectors'
 
-interface StateProps {
-  org: Organization
-  isRetentionLimitEnforced: boolean
-  limitStatus: LimitStatus
-}
-
-interface DispatchProps {
-  createBucket: typeof createBucket
-  checkBucketLimits: typeof checkBucketLimitsAction
-}
-
 interface OwnProps {}
-
-type Props = OwnProps & StateProps & DispatchProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = OwnProps & ReduxProps
 
 const SelectorListCreateBucket: FC<Props> = ({
   org,
   createBucket,
   isRetentionLimitEnforced,
   limitStatus,
-  checkBucketLimits,
 }) => {
+  const reduxDispatch = useDispatch()
   const triggerRef = useRef<HTMLButtonElement>(null)
   const [state, dispatch] = useReducer(
     createBucketReducer,
@@ -74,8 +60,8 @@ const SelectorListCreateBucket: FC<Props> = ({
 
   useEffect(() => {
     // Check bucket limits when component mounts
-    checkBucketLimits()
-  }, [])
+    reduxDispatch(checkBucketLimits())
+  }, [reduxDispatch])
 
   const limitExceeded = limitStatus === LimitStatus.EXCEEDED
 
@@ -167,7 +153,7 @@ const SelectorListCreateBucket: FC<Props> = ({
   )
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const org = getOrg(state)
   const isRetentionLimitEnforced = !!extractBucketMaxRetentionSeconds(
     state.cloud.limits
@@ -181,12 +167,10 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   createBucket,
-  checkBucketLimits: checkBucketLimitsAction,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
-  mstp,
-  mdtp
-)(SelectorListCreateBucket)
+const connector = connect(mstp, mdtp)
+
+export default connector(SelectorListCreateBucket)

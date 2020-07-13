@@ -1,6 +1,6 @@
 // Libraries
 import React, {FC} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {
   Button,
   ComponentColor,
@@ -19,7 +19,7 @@ import CopyButton from 'src/shared/components/CopyButton'
 // Actions
 import {generateTelegrafToken} from 'src/dataLoaders/actions/dataLoaders'
 
-export interface Props {
+export interface OwnProps {
   configID: string
   label: string
   onCopyText?: (text: string, status: boolean) => Notification
@@ -28,11 +28,10 @@ export interface Props {
   token: string
 }
 
-interface DispatchProps {
-  onGenerateTelegrafToken: typeof generateTelegrafToken
-}
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = OwnProps & ReduxProps
 
-const TokenCodeSnippet: FC<Props & DispatchProps> = ({
+const TokenCodeSnippet: FC<Props> = ({
   configID,
   onCopyText,
   label = 'Code Snippet',
@@ -83,8 +82,9 @@ const TokenCodeSnippet: FC<Props & DispatchProps> = ({
   )
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onGenerateTelegrafToken: generateTelegrafToken,
 }
 
-export default connect<{}, DispatchProps>(null, mdtp)(TokenCodeSnippet)
+const connector = connect(null, mdtp)
+export default connector(TokenCodeSnippet)

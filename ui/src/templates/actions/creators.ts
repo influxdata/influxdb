@@ -7,6 +7,8 @@ import {
 import {DocumentCreate} from '@influxdata/influx'
 import {NormalizedSchema} from 'normalizr'
 
+import {InstalledStack} from 'src/types'
+
 export const ADD_TEMPLATE_SUMMARY = 'ADD_TEMPLATE_SUMMARY'
 export const GET_TEMPLATE_SUMMARIES_FOR_ORG = 'GET_TEMPLATE_SUMMARIES_FOR_ORG'
 export const POPULATE_TEMPLATE_SUMMARIES = 'POPULATE_TEMPLATE_SUMMARIES'
@@ -19,6 +21,8 @@ export const SET_TEMPLATES_STATUS = 'SET_TEMPLATES_STATUS'
 export const TOGGLE_TEMPLATE_RESOURCE_INSTALL =
   'TOGGLE_TEMPLATE_RESOURCE_INSTALL'
 
+export const SET_STACKS = 'SET_STACKS'
+
 export type Action =
   | ReturnType<typeof addTemplateSummary>
   | ReturnType<typeof populateTemplateSummaries>
@@ -28,6 +32,7 @@ export type Action =
   | ReturnType<typeof setTemplateSummary>
   | ReturnType<typeof setCommunityTemplateToInstall>
   | ReturnType<typeof toggleTemplateResourceInstall>
+  | ReturnType<typeof setStacks>
 
 type TemplateSummarySchema<R extends string | string[]> = NormalizedSchema<
   TemplateSummaryEntities,
@@ -100,4 +105,10 @@ export const toggleTemplateResourceInstall = (
     resourceType,
     templateMetaName,
     shouldInstall,
+  } as const)
+
+export const setStacks = (stacks: InstalledStack[]) =>
+  ({
+    type: SET_STACKS,
+    stacks,
   } as const)

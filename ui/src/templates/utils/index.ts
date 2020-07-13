@@ -8,12 +8,6 @@ import {
   Variable,
 } from 'src/types'
 
-import {
-  Error as PkgError,
-  postTemplatesApply,
-  TemplateSummary,
-} from 'src/client'
-
 export function findIncludedsFromRelationships<
   T extends {id: string; type: TemplateType}
 >(
@@ -97,36 +91,8 @@ export const getGithubUrlFromTemplateName = (templateName: string): string => {
   return `https://github.com/influxdata/community-templates/tree/master/${templateName}`
 }
 
-const applyTemplates = async params => {
-  const resp = await postTemplatesApply(params)
-  if (resp.status >= 300) {
-    throw new Error((resp.data as PkgError).message)
-  }
-
-  const summary = resp.data as TemplateSummary
-  return summary
-}
-
-export const reviewTemplate = async (orgID: string, templateUrl: string) => {
-  const params = {
-    data: {
-      dryRun: true,
-      orgID,
-      remotes: [{url: templateUrl}],
-    },
-  }
-
-  return applyTemplates(params)
-}
-
-export const installTemplate = async (orgID: string, templateUrl: string) => {
-  const params = {
-    data: {
-      dryRun: false,
-      orgID,
-      remotes: [{url: templateUrl}],
-    },
-  }
-
-  return applyTemplates(params)
+export const getRawUrlFromGithub = repoUrl => {
+  return repoUrl
+    .replace('github.com', 'raw.githubusercontent.com')
+    .replace('tree/', '')
 }

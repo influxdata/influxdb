@@ -1,6 +1,6 @@
 // Libraries
 import React, {FC} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import TimeMachineQueryTab from 'src/timeMachine/components/QueryTab'
@@ -21,18 +21,10 @@ import {
 } from 'src/timeMachine/selectors'
 
 // Types
-import {AppState, DashboardDraftQuery} from 'src/types'
+import {AppState} from 'src/types'
 
-interface StateProps {
-  draftQueries: DashboardDraftQuery[]
-  isInCheckOverlay: boolean
-}
-
-interface DispatchProps {
-  onAddQuery: () => any
-}
-
-type Props = StateProps & DispatchProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps
 
 const QueryTabs: FC<Props> = ({draftQueries, isInCheckOverlay, onAddQuery}) => {
   return (
@@ -57,7 +49,7 @@ const QueryTabs: FC<Props> = ({draftQueries, isInCheckOverlay, onAddQuery}) => {
   )
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const {draftQueries} = getActiveTimeMachine(state)
   const isInCheckOverlay = getIsInCheckOverlay(state)
 
@@ -68,4 +60,6 @@ const mdtp = {
   onAddQuery: addQuery,
 }
 
-export default connect<StateProps, DispatchProps>(mstp, mdtp)(QueryTabs)
+const connector = connect(mstp, mdtp)
+
+export default connector(QueryTabs)

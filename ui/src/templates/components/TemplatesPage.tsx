@@ -1,7 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import _ from 'lodash'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import FilterList from 'src/shared/components/FilterList'
@@ -42,11 +42,8 @@ interface OwnProps {
   onImport: () => void
 }
 
-interface StateProps {
-  templates: TemplateSummary[]
-}
-
-type Props = OwnProps & StateProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = OwnProps & ReduxProps
 
 interface State {
   searchTerm: string
@@ -213,8 +210,10 @@ class TemplatesPage extends PureComponent<Props, State> {
     this.setState({searchTerm})
   }
 }
-const mstp = (state: AppState): StateProps => ({
+const mstp = (state: AppState) => ({
   templates: getAll(state, ResourceType.Templates),
 })
 
-export default connect<StateProps>(mstp, null)(TemplatesPage)
+const connector = connect(mstp)
+
+export default connector(TemplatesPage)

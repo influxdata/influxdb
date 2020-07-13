@@ -34,6 +34,10 @@ import {
   postDashboardsLabel as apiPostDashboardsLabel,
   postDashboardsCell as apiPostDashboardsCell,
   patchDashboardsCellsView as apiPatchDashboardsCellsView,
+  postTemplatesApply,
+  getStacks,
+  Error as PkgError,
+  TemplateSummary,
 } from 'src/client'
 import {addDashboardDefaults} from 'src/schemas/dashboards'
 
@@ -43,6 +47,7 @@ import {
   DashboardTemplate,
   Dashboard,
   TemplateType,
+  InstalledStack,
   Cell,
   CellIncluded,
   LabelIncluded,
@@ -454,4 +459,48 @@ export const createVariableFromTemplate = async (
   } catch (error) {
     console.error(error)
   }
+}
+
+const applyTemplates = async params => {
+  const resp = await postTemplatesApply(params)
+  if (resp.status >= 300) {
+    throw new Error((resp.data as PkgError).message)
+  }
+
+  const summary = resp.data as TemplateSummary
+  return summary
+}
+
+export const reviewTemplate = async (orgID: string, templateUrl: string) => {
+  const params = {
+    data: {
+      dryRun: true,
+      orgID,
+      remotes: [{url: templateUrl}],
+    },
+  }
+
+  return applyTemplates(params)
+}
+
+export const installTemplate = async (orgID: string, templateUrl: string) => {
+  const params = {
+    data: {
+      dryRun: false,
+      orgID,
+      remotes: [{url: templateUrl}],
+    },
+  }
+
+  return applyTemplates(params)
+}
+
+export const fetchStacks = async (orgID: string) => {
+  const resp = await getStacks({query: {orgID}})
+
+  if (resp.status >= 300) {
+    throw new Error((resp.data as PkgError).message)
+  }
+
+  return (resp.data as {stacks: InstalledStack[]}).stacks
 }

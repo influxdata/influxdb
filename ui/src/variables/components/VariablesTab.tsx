@@ -1,7 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import _ from 'lodash'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Utils
@@ -25,15 +24,8 @@ import {ComponentSize} from '@influxdata/clockface'
 import {SortTypes} from 'src/shared/utils/sort'
 import {VariableSortKey} from 'src/shared/components/resource_sort_dropdown/generateSortItems'
 
-interface StateProps {
-  variables: Variable[]
-}
-
-interface DispatchProps {
-  onDeleteVariable: typeof deleteVariable
-}
-
-type Props = StateProps & DispatchProps & RouteComponentProps<{orgID: string}>
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = RouteComponentProps<{orgID: string}> & ReduxProps
 
 interface State {
   searchTerm: string
@@ -171,17 +163,16 @@ class VariablesTab extends PureComponent<Props, State> {
   }
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const variables = getVariables(state)
 
   return {variables}
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onDeleteVariable: deleteVariable,
 }
 
-export default connect<StateProps, DispatchProps, {}>(
-  mstp,
-  mdtp
-)(withRouter(VariablesTab))
+const connector = connect(mstp, mdtp)
+
+export default connector(withRouter(VariablesTab))

@@ -36,7 +36,7 @@ class SaveAsVariable extends PureComponent<
   }
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const activeQuery = getActiveQuery(state)
 
   return {

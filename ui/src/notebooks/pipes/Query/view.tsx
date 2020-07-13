@@ -39,7 +39,7 @@ const Query: FC<PipeProp> = ({Context}) => {
         <Results />
       </Context>
     ),
-    [query.text, results, data.panelVisibility, data.panelHeight]
+    [query.text, results, data.panelVisibility, data.panelHeight] // eslint-disable-line react-hooks/exhaustive-deps
   )
 }
 

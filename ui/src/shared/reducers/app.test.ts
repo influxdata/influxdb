@@ -14,6 +14,7 @@ describe('Shared.Reducers.appReducer', () => {
   const initialState: AppPresentationState = {
     ephemeral: {
       inPresentationMode: false,
+      hasUpdatedTimeRangeInVEO: false,
     },
     persisted: {
       autoRefresh: 0,

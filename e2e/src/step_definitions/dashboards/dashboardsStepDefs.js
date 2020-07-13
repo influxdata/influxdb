@@ -195,7 +195,7 @@ Then(/^the Import Dashboard file upload control is not present$/, async () => {
     await dbdsSteps.verifyImportDashboardFileUploadNotPresent();
 });
 
-When(/^paste contents of file "(.*)" into the JSON textarea$/, {timeout: 40000}, async filepath => {
+When(/^paste contents of file "(.*)" into the JSON textarea$/, {timeout: 90000}, async filepath => {
     await dbdsSteps.pasteFileContentsImportDashboardTextarea(filepath);
 });
 

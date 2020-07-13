@@ -1,6 +1,6 @@
 // Libraries
 import React, {FC} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import classnames from 'classnames'
 
 // Components
@@ -10,25 +10,14 @@ import {SquareButton, IconFont, ComponentSize} from '@influxdata/clockface'
 import {setLookup} from 'src/dataLoaders/actions/telegrafEditor'
 
 // Types
-import {
-  TelegrafEditorActivePluginState,
-  TelegrafEditorActivePlugin,
-} from 'src/dataLoaders/reducers/telegrafEditor'
-
-interface PluginStateProps {
-  plugins: TelegrafEditorActivePluginState
-  show: boolean
-}
+import {TelegrafEditorActivePlugin} from 'src/dataLoaders/reducers/telegrafEditor'
 
 interface OwnProps {
   onJump: (which: TelegrafEditorActivePlugin) => void
 }
 
-interface PluginDispatchProps {
-  onChangeLookup: typeof setLookup
-}
-
-type Props = OwnProps & PluginStateProps & PluginDispatchProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = OwnProps & ReduxProps
 
 const TelegrafEditorSideBar: FC<Props> = ({
   plugins,
@@ -60,18 +49,17 @@ const TelegrafEditorSideBar: FC<Props> = ({
   )
 }
 
-const mstp = (state: AppState): PluginStateProps => {
+const mstp = (state: AppState) => {
   const plugins = state.telegrafEditorActivePlugins || []
   const show = state.telegrafEditor.showLookup
 
   return {plugins, show}
 }
 
-const mdtp: PluginDispatchProps = {
+const mdtp = {
   onChangeLookup: setLookup,
 }
 
-export default connect<PluginStateProps, PluginDispatchProps>(
-  mstp,
-  mdtp
-)(TelegrafEditorSideBar)
+const connector = connect(mstp, mdtp)
+
+export default connector(TelegrafEditorSideBar)

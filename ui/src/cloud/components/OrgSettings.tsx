@@ -1,12 +1,12 @@
 // Libraries
-import {FunctionComponent, useEffect, useState} from 'react'
-import {connect} from 'react-redux'
+import {FC, useEffect, useState} from 'react'
+import {connect, ConnectedProps, useDispatch} from 'react-redux'
 
 // Constants
 import {CLOUD} from 'src/shared/constants'
 
 // Types
-import {AppState, Organization, OrgSetting} from 'src/types'
+import {AppState} from 'src/types'
 
 // Actions
 import {getOrgSettings as getOrgSettingsAction} from 'src/cloud/actions/orgsettings'
@@ -18,31 +18,22 @@ import {updateReportingContext} from 'src/cloud/utils/reporting'
 interface PassedInProps {
   children: React.ReactElement<any>
 }
-interface StateProps {
-  org: Organization
-  settings: OrgSetting[]
-}
-interface DispatchProps {
-  getOrgSettings: typeof getOrgSettingsAction
-}
 
-type Props = StateProps & DispatchProps & PassedInProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps & PassedInProps
 
-const OrgSettings: FunctionComponent<Props> = ({
-  org,
-  getOrgSettings,
-  settings,
-  children,
-}) => {
+const OrgSettings: FC<Props> = ({org, settings, children}) => {
+  const dispatch = useDispatch()
   const [hasFetchedOrgSettings, setHasFetchedOrgSettings] = useState<boolean>(
     false
   )
+
   useEffect(() => {
     if (CLOUD && org && !hasFetchedOrgSettings) {
       setHasFetchedOrgSettings(true)
-      getOrgSettings()
+      dispatch(getOrgSettingsAction())
     }
-  }, [org])
+  }, [dispatch, org, hasFetchedOrgSettings])
 
   useEffect(() => {
     updateReportingContext(
@@ -56,16 +47,15 @@ const OrgSettings: FunctionComponent<Props> = ({
   return children
 }
 
-const mstp = (state: AppState): StateProps => ({
+const mstp = (state: AppState) => ({
   org: getOrg(state),
   settings: getOrgSettings(state),
 })
 
-const mdtp: DispatchProps = {
+const mdtp = {
   getOrgSettings: getOrgSettingsAction,
 }
 
-export default connect<StateProps, DispatchProps, PassedInProps>(
-  mstp,
-  mdtp
-)(OrgSettings)
+const connector = connect(mstp, mdtp)
+
+export default connector(OrgSettings)

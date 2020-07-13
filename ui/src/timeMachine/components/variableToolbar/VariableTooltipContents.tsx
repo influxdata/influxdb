@@ -1,6 +1,6 @@
 // Libraries
 import React, {FunctionComponent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Actions
 import {executeQueries} from 'src/timeMachine/actions/queries'
@@ -9,15 +9,13 @@ import {executeQueries} from 'src/timeMachine/actions/queries'
 import {Form} from '@influxdata/clockface'
 import VariableDropdown from 'src/variables/components/VariableDropdown'
 
-interface DispatchProps {
-  execute: typeof executeQueries
-}
-
 interface OwnProps {
   variableID: string
 }
 
-type Props = DispatchProps & OwnProps
+type ReduxProps = ConnectedProps<typeof connector>
+
+type Props = ReduxProps & OwnProps
 
 const VariableTooltipContents: FunctionComponent<Props> = ({
   variableID,
@@ -46,7 +44,6 @@ const mdtp = {
   execute: executeQueries,
 }
 
-export default connect<{}, DispatchProps, OwnProps>(
-  null,
-  mdtp
-)(VariableTooltipContents)
+const connector = connect(null, mdtp)
+
+export default connector(VariableTooltipContents)

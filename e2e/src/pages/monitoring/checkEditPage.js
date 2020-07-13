@@ -7,7 +7,7 @@ const overlay = '[data-testid=overlay]';
 const dismissButton = '[data-testid=page-control-bar] [data-testid=square-button]';
 const saveCellButton = '[data-testid=overlay] [data-testid=save-cell--button]';
 const pageCheckEditTitle = '[data-testid=overlay] [data-testid=page-header] [data-testid=page-title]';
-const pageCheckEditTitleInput = '[data-testid=\'page-header\'] [data-testid=\'input-field\']';
+const pageCheckEditTitleInput = '[data-testid=\'renamable-page-title--input\' ]';
 const queriesToggle = '[data-testid=overlay] [data-testid=select-group--option][title=queries]';
 const configureCheckToggle = '[data-testid=overlay] [data-testid=\'checkeo--header alerting-tab\']';
 const defineQueryToggle = '[data-testid=select-group--option]';

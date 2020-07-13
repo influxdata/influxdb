@@ -17,7 +17,7 @@ type HTTPRemoteService struct {
 
 var _ SVC = (*HTTPRemoteService)(nil)
 
-func (s *HTTPRemoteService) InitStack(ctx context.Context, userID influxdb.ID, stack Stack) (Stack, error) {
+func (s *HTTPRemoteService) InitStack(ctx context.Context, userID influxdb.ID, stack StackCreate) (Stack, error) {
 	reqBody := ReqCreateStack{
 		OrgID:       stack.OrgID.String(),
 		Name:        stack.Name,
@@ -28,6 +28,20 @@ func (s *HTTPRemoteService) InitStack(ctx context.Context, userID influxdb.ID, s
 	var respBody RespStack
 	err := s.Client.
 		PostJSON(reqBody, RoutePrefixStacks).
+		DecodeJSON(&respBody).
+		Do(ctx)
+	if err != nil {
+		return Stack{}, err
+	}
+
+	return convertRespStackToStack(respBody)
+}
+
+func (s *HTTPRemoteService) UninstallStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) (Stack, error) {
+	var respBody RespStack
+	err := s.Client.
+		Post(httpc.BodyEmpty, RoutePrefixStacks, identifiers.StackID.String(), "/uninstall").
+		QueryParams([2]string{"orgID", identifiers.OrgID.String()}).
 		DecodeJSON(&respBody).
 		Do(ctx)
 	if err != nil {
@@ -252,14 +266,64 @@ func (s *HTTPRemoteService) apply(ctx context.Context, orgID influxdb.ID, dryRun
 
 func convertRespStackToStack(respStack RespStack) (Stack, error) {
 	newStack := Stack{
-		Name:         respStack.Name,
-		Description:  respStack.Description,
-		Sources:      respStack.Sources,
-		TemplateURLs: respStack.URLs,
-		Resources:    make([]StackResource, 0, len(respStack.Resources)),
-		CRUDLog:      respStack.CRUDLog,
+		CreatedAt: respStack.CreatedAt,
 	}
-	for _, r := range respStack.Resources {
+	id, err := influxdb.IDFromString(respStack.ID)
+	if err != nil {
+		return Stack{}, err
+	}
+	newStack.ID = *id
+
+	orgID, err := influxdb.IDFromString(respStack.OrgID)
+	if err != nil {
+		return Stack{}, err
+	}
+	newStack.OrgID = *orgID
+
+	events := respStack.Events
+	if len(events) == 0 && !respStack.UpdatedAt.IsZero() {
+		events = append(events, respStack.RespStackEvent)
+	}
+
+	for _, respEv := range events {
+		ev, err := convertRespStackEvent(respEv)
+		if err != nil {
+			return Stack{}, err
+		}
+		newStack.Events = append(newStack.Events, ev)
+	}
+
+	return newStack, nil
+}
+
+func convertRespStackEvent(ev RespStackEvent) (StackEvent, error) {
+	res, err := convertRespStackResources(ev.Resources)
+	if err != nil {
+		return StackEvent{}, err
+	}
+
+	eventType := StackEventCreate
+	switch ev.EventType {
+	case "uninstall", "delete": // delete is included to maintain backwards compatibility
+		eventType = StackEventUninstalled
+	case "update":
+		eventType = StackEventUpdate
+	}
+
+	return StackEvent{
+		EventType:    eventType,
+		Name:         ev.Name,
+		Description:  ev.Description,
+		Resources:    res,
+		Sources:      ev.Sources,
+		TemplateURLs: ev.URLs,
+		UpdatedAt:    ev.UpdatedAt,
+	}, nil
+}
+
+func convertRespStackResources(resources []RespStackResource) ([]StackResource, error) {
+	out := make([]StackResource, 0, len(resources))
+	for _, r := range resources {
 		sr := StackResource{
 			APIVersion: r.APIVersion,
 			MetaName:   r.MetaName,
@@ -278,27 +342,14 @@ func convertRespStackToStack(respStack RespStack) (Stack, error) {
 
 		resID, err := influxdb.IDFromString(r.ID)
 		if err != nil {
-			return Stack{}, influxErr(influxdb.EInternal, err)
+			return nil, influxErr(influxdb.EInternal, err)
 		}
 		sr.ID = *resID
 
 		if sr.MetaName == "" && r.PkgName != nil {
 			sr.MetaName = *r.PkgName
 		}
-		newStack.Resources = append(newStack.Resources, sr)
+		out = append(out, sr)
 	}
-
-	id, err := influxdb.IDFromString(respStack.ID)
-	if err != nil {
-		return Stack{}, err
-	}
-	newStack.ID = *id
-
-	orgID, err := influxdb.IDFromString(respStack.OrgID)
-	if err != nil {
-		return Stack{}, err
-	}
-	newStack.OrgID = *orgID
-
-	return newStack, nil
+	return out, nil
 }

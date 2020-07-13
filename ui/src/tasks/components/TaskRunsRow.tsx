@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import moment from 'moment'
 
 // Components
@@ -12,7 +12,7 @@ import {getLogs} from 'src/tasks/actions/thunks'
 
 // Types
 import {ComponentSize, ComponentColor, Button} from '@influxdata/clockface'
-import {AppState, LogEvent, Run} from 'src/types'
+import {AppState, Run} from 'src/types'
 import {DEFAULT_TIME_FORMAT} from 'src/shared/constants'
 
 interface OwnProps {
@@ -20,15 +20,8 @@ interface OwnProps {
   run: Run
 }
 
-interface DispatchProps {
-  getLogs: typeof getLogs
-}
-
-interface StateProps {
-  logs: LogEvent[]
-}
-
-type Props = OwnProps & DispatchProps & StateProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = OwnProps & ReduxProps
 
 interface State {
   isImportOverlayVisible: boolean
@@ -101,15 +94,13 @@ class TaskRunsRow extends PureComponent<Props, State> {
   }
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const {logs} = state.resources.tasks
 
   return {logs}
 }
 
-const mdtp: DispatchProps = {getLogs: getLogs}
+const mdtp = {getLogs: getLogs}
 
-export default connect<StateProps, DispatchProps, OwnProps>(
-  mstp,
-  mdtp
-)(TaskRunsRow)
+const connector = connect(mstp, mdtp)
+export default connector(TaskRunsRow)

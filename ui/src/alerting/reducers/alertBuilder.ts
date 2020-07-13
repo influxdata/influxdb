@@ -84,7 +84,7 @@ export default (
         status: RemoteDataState.Done,
         id,
         name,
-        query,
+        query: {...query},
         type,
       }
 
@@ -100,7 +100,6 @@ export default (
           tags,
           thresholds,
         } = action.payload.check
-
         return {
           ...newState,
           every,

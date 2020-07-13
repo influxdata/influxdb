@@ -24,7 +24,7 @@ export const useMountedEffect = (
     }
 
     return effect()
-  }, inputs)
+  }, inputs) // eslint-disable-line react-hooks/exhaustive-deps
 }
 
 export const useMountedLayoutEffect = (
@@ -41,5 +41,5 @@ export const useMountedLayoutEffect = (
     }
 
     return effect()
-  }, inputs)
+  }, inputs) // eslint-disable-line react-hooks/exhaustive-deps
 }

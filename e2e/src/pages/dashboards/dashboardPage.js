@@ -2,7 +2,7 @@ const influxPage = require(__srcdir + '/pages/influxPage.js');
 const { By } = require('selenium-webdriver');
 
 const pageTitle = '[data-testid=page-title]';
-const nameInput = '[data-testid=page-header] [data-testid=input-field]';
+const nameInput = '[data-testid=renamable-page-title--input]';
 //const graphToolTips = '[data-testid=page-header--right] [data-testid=graphtips-question-mark]';
 const graphToolTips = '[data-testid=page-control-bar] [data-testid=graphtips-question-mark]';
 //const addCellButtonHeader = '//*[@data-testid=\'page-header--right\']//*[@data-testid=\'button\'][.//*[text()=\'Add Cell\']]';
@@ -10,7 +10,7 @@ const addCellButtonHeader = '//*[@data-testid=\'page-control-bar--left\']//*[@da
 //const addNoteButton = '//*[@data-testid=\'page-header--right\']//*[@data-testid=\'button\'][.//*[text()=\'Add Note\']]';
 const addNoteButton = '[data-testid=add-note--button]';
 //const variablesButton = '//*[@data-testid=\'page-header--right\']//*[@data-testid=\'button\'][.//*[text()=\'Variables\']]';
-const variablesButton = '//*[@data-testid=\'page-control-bar--left\']//*[@data-testid=\'button\'][.//*[text()=\'Variables\']]';
+const variablesButton = '[data-testid=variables--button]';
 //const timeLocaleDropdown = '//*[@data-testid=\'page-header--right\']//*[@data-testid=\'dropdown--button\'][.//*[contains(@class,\'annotate\')]]';
 const timeLocaleDropdown = '//*[@data-testid=\'page-control-bar--right\']//*[@data-testid=\'dropdown--button\'][.//*[contains(@class,\'annotate\')]]';
 //const autorefresh = '//*[@data-testid=\'page-header--right\']/*[contains(@class,\'autorefresh-dropdown\')]';
@@ -70,7 +70,7 @@ const notePopupSave = '[data-testid=overlay--footer] button[title=Save]';
 const notePopover = '[data-testid=popover--dialog]';
 const notePopoverContents = '[data-testid=popover--dialog] .markdown-format';
 
-const noteCellMarkdownTag = '[data-testid=cell--view-empty]  .markdown-format %TAG%';
+const noteCellMarkdownTag = '[data-testid=\'cell--view-empty markdown\' ]  .markdown-format %TAG%';
 const noteCellContextEdit = '[data-testid=cell-context--note]';
 
 const urlCtx = 'dashboards';
@@ -86,7 +86,7 @@ class dashboardPage extends influxPage {
             {type: 'css', selector: graphToolTips},
             {type: 'xpath', selector: addCellButtonHeader},
             {type: 'css', selector: addNoteButton},
-            {type: 'xpath', selector: variablesButton},
+            {type: 'css', selector: variablesButton},
             {type: 'xpath', selector: timeLocaleDropdown},
             {type: 'xpath', selector: autorefresh},
             {type: 'xpath', selector: timeRangeDropdown},
@@ -128,7 +128,7 @@ class dashboardPage extends influxPage {
     }
 
     async getVariablesButton(){
-        return await this.driver.findElement(By.xpath(variablesButton));
+        return await this.driver.findElement(By.css(variablesButton));
     }
 
     async getTimeLocaleDropdown(){

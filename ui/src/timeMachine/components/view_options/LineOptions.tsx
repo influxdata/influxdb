@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {capitalize} from 'lodash'
 
 // Components
@@ -63,30 +63,8 @@ interface OwnProps {
   position: LinePosition
 }
 
-interface StateProps {
-  xColumn: string
-  yColumn: string
-  numericColumns: string[]
-  timeFormat: string
-}
-
-interface DispatchProps {
-  onUpdateYAxisLabel: typeof setYAxisLabel
-  onUpdateAxisPrefix: typeof setAxisPrefix
-  onUpdateAxisSuffix: typeof setAxisSuffix
-  onUpdateYAxisBounds: typeof setYAxisBounds
-  onUpdateYAxisBase: typeof setYAxisBase
-  onUpdateColors: typeof setColors
-  onSetShadeBelow: typeof setShadeBelow
-  onSetXColumn: typeof setXColumn
-  onSetYColumn: typeof setYColumn
-  onSetGeom: typeof setGeom
-  onSetPosition: typeof setLinePosition
-  onSetTimeFormat: typeof setTimeFormat
-  onSetHoverDimension: typeof SetHoverDimension
-}
-
-type Props = OwnProps & DispatchProps & StateProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = OwnProps & ReduxProps
 
 class LineOptions extends PureComponent<Props> {
   public render() {
@@ -285,7 +263,7 @@ const mstp = (state: AppState) => {
   return {xColumn, yColumn, numericColumns, timeFormat}
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onUpdateYAxisLabel: setYAxisLabel,
   onUpdateAxisPrefix: setAxisPrefix,
   onUpdateAxisSuffix: setAxisSuffix,
@@ -301,7 +279,6 @@ const mdtp: DispatchProps = {
   onSetHoverDimension: SetHoverDimension,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
-  mstp,
-  mdtp
-)(LineOptions)
+const connector = connect(mstp, mdtp)
+
+export default connector(LineOptions)
