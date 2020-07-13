@@ -4,7 +4,7 @@ As discussed on https://github.com/influxdata/delorean/pull/221 and https://gith
 
 ## TLDR;
 
-1. Use only async I/O via `tokio` -- do not use blocking I/O calls (in new code).
+1. Use only async I/O via `tokio` for socket communication. It is ok to use either blocking (e.g. `std::fs::File`) or async APIs (e.g. `tokio::fs::File`) for local File I/O.
 
 2. All CPU bound tasks should be scheduled on the separate application level `thread_pool` not with `tokio::task::spawn` nor `tokio::task::spawn_blocking` nor a new threadpool.
 
@@ -31,11 +31,13 @@ We wish to have the following properties in the runtime:
 
 The above desires, leads us to the following guidelines:
 
-### Do not use blocking I/O.
+### Do not use blocking I/O for network.
 
-**What**: All I/O should be done with `async` functions / tokio extensions (aka use `tokio::fs::File` rather than `std::fs::File`, etc.)
+**What**: All socket I/O should be done with `async` functions in tokio. It is ok to use either blocking (e.g. `std::fs::File`) or async APIs (e.g. `tokio::fs::File`) for local File I/O.
 
-**Rationale**: This ensures that we do not tie up threads which are servicing I/O requests with blocking functions.
+**Rationale**: Using async functions in tokio ensures that we do not tie up threads which are servicing I/O requests while blocking on the network. At the time of this writing, our assumption is that on systems where delorean will be deployed, Filesystem I/O bandwidth and IOPS will be sufficient to avoid significant blocking, even under high load.
+
+It is ok to use either blocking (e.g. `std::fs::File`) or  async APIs for local File I/O.
 
 This can not always be done (e.g. with a library such as parquet writer which is not `async`). In such cases, using `tokio::task::spawn_blocking` should be used to perform the file I/O.
 
@@ -47,9 +49,12 @@ This can not always be done (e.g. with a library such as parquet writer which is
 
 There will, of course, always be a judgment call to be made of where "CPU bound work" starts and "work acceptable for I/O processing"  ends. A reasonable rule of thumb is if a job will *always* be completed in less than 100ms then that is probably fine for an I/O thread). This number may be revised as we tune the system.
 
+The following is a specific example of why it is important to be cautious when receiving RPC work and ensuring only minimal CPU work is done before handing off to a pool of workers. In some versions of InfluxDB, the `/write` HTTP handlers read, parse, allocate and forward the points to the InfluxDB TSM engine for writing to the WAL. The WAL is the first place where back pressure appears. The problem with this approach is you can have 1,000s of HTTP requests in flight parsing, allocating, consuming huge amounts of memory and CPU resources, causing servers to fall over. This situation can be avoided by forwarding the work to a work queue (from parsing onwards).
+
+
 ## Examples
 
-### Worked Exampless
+### Worked Examples
 
 In this section, we show how this design would be applied to a hypothetical 4 core system. For the purposes of illustration, we ignore CPU needs of other processes and the Operating System itself. We examine the following two configurations that an operator might desire and their effect on overall CPU utilization and ping response latency.
 
@@ -76,7 +81,7 @@ With a little hand waving, in either configuration, the CPU heavy threads eventu
 
 In both the *Minimal Response Latency* and *Maximum CPU Utilization* configurations there are respectively 1 or 2 CPU heavy threads available immediately to work on queries, and when the 2 background tasks can yield, the remaining 2 CPU heavy threads begin working on queries. The system response latency and CPU utilization is the same as described in the *Heavy Query Processing* configuration above.
 
-## Code Examples
+## Code Examples (TODO)
 
 TODO: picture of how async + CPU heavy threads interact
 
@@ -87,7 +92,7 @@ The standard pattern to run CPU heavy tasks from async code is:
 ## Alternatives Considered
 
 ###  Use tokio::task::spawn_blocking for all CPU heavy work
-While this definitely avoids tying up all I/O handling threads, it can also result in a large number of threads when the system is under load and has more work coming in than it can complete.
+While this definitely avoids tying up all I/O handling threads, it can also result in a large number of threads when the system is under load and has more work coming in than it can complete (aka there is no intrinsic backpressure)
 
 ### Use the main tokio::task::spawn for all  work
-While this  likely results in the best possible efficiency, it can mean that I/O requests (such as responding to `/ping`) are not handled in a timely manner.
+While this  likely results in the best possible efficiency (1:1 match with thread to core), it can mean that I/O requests (such as responding to `/ping`) are not handled in a timely manner.
