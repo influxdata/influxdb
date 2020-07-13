@@ -10,7 +10,7 @@ import {
   PipeData,
   PipeMeta,
 } from 'src/notebooks'
-import useResource as _asResource from 'src/notebooks/context/resource.hook'
+import { default as _asResource} from 'src/notebooks/context/resource.hook'
 
 const useNotebookListState = createPersistedState('notebooks')
 

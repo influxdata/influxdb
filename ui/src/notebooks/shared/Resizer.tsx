@@ -75,14 +75,6 @@ const Resizer: FC<Props> = ({
     _emptyIcon = emptyIcon || IconFont.Zap
   }
 
-  const updateResultsStyle = (): void => {
-    if (bodyRef.current && resizingEnabled && visibility === 'visible') {
-      bodyRef.current.setAttribute('style', `height: ${size}px`)
-    } else {
-      bodyRef.current.setAttribute('style', '')
-    }
-  }
-
   const handleUpdateVisibility = (panelVisibility: Visibility): void => {
     update({panelVisibility})
   }
@@ -96,8 +88,12 @@ const Resizer: FC<Props> = ({
 
   // Ensure styles update when state & props update
   useEffect(() => {
-    updateResultsStyle()
-  }, [updateResultsStyle])
+    if (bodyRef.current && resizingEnabled && visibility === 'visible') {
+      bodyRef.current.setAttribute('style', `height: ${size}px`)
+    } else {
+      bodyRef.current.setAttribute('style', '')
+    }
+  }, [])
 
   // Handle changes in drag state
   useEffect(() => {
