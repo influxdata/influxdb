@@ -21,8 +21,6 @@ const REPORT_DECAY = 500 // number of miliseconds to wait after last event befor
 const REPORT_MAX_WAIT = 5000 // max number of miliseconds to wait between sends
 const REPORT_MAX_LENGTH = 300 // max number of events to queue before sending
 
-export const toNano = (ms: number) => Math.round(ms * 1000000)
-
 interface KeyValue {
   [key: string]: string
 }
@@ -164,7 +162,7 @@ export const event = (
 }
 
 export const useLoadTimeReporting = (eventName: string) => {
-  const [loadStartTime] = useState(toNano(Date.now()))
+  const [loadStartTime] = useState(Date.now())
   useEffect(() => {
     event(eventName, {
       time: loadStartTime,
