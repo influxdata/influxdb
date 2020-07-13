@@ -511,7 +511,7 @@ impl BlockData {
         loop {
             match Self::refill_buffer(&mut blocks, &mut buf) {
                 Some(min_ts) => {
-                    let mut next_pair: Option<ValuePair> = None;
+                    let mut next_pair = None;
                     // deduplicate points that have same timestamp.
                     for pair in &mut buf {
                         if let Some(vp) = pair {
