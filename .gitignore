@@ -6,6 +6,9 @@ src/
 
 config.json
 /bin/
+.cgo_ldflags
+.vscode
+
 
 /query/a.out*
 
