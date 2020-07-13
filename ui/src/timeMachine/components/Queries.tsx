@@ -1,6 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {connect, ConnectedProps} from 'react-redux'
+import {withRouter, RouteComponentProps} from 'react-router'
 
 // Components
 import TimeMachineFluxEditor from 'src/timeMachine/components/TimeMachineFluxEditor'
@@ -23,6 +24,7 @@ import {
 // Actions
 import {setAutoRefresh} from 'src/timeMachine/actions'
 import {setTimeRange} from 'src/timeMachine/actions'
+import {enableUpdatedTimeRangeInVEO} from 'src/shared/actions/app'
 
 // Utils
 import {
@@ -36,7 +38,12 @@ import {getTimeRange} from 'src/dashboards/selectors'
 import {AppState, TimeRange, AutoRefreshStatus} from 'src/types'
 
 type ReduxProps = ConnectedProps<typeof connector>
-type Props = ReduxProps
+type RouterProps = RouteComponentProps<{
+  cellID: string
+  dashboardID: string
+  orgID: string
+}>
+type Props = ReduxProps & RouterProps
 
 class TimeMachineQueries extends PureComponent<Props> {
   public render() {
@@ -74,8 +81,22 @@ class TimeMachineQueries extends PureComponent<Props> {
   }
 
   private handleSetTimeRange = (timeRange: TimeRange) => {
-    const {autoRefresh, onSetAutoRefresh, onSetTimeRange} = this.props
+    const {
+      autoRefresh,
+      location: {pathname},
+      onEnableUpdatedTimeRangeInVEO,
+      onSetAutoRefresh,
+      onSetTimeRange,
+      match: {
+        params: {cellID, dashboardID, orgID},
+      },
+    } = this.props
 
+    const inVEOMode =
+      pathname === `orgs/${orgID}/dashboards/${dashboardID}/cell/${cellID}/edit`
+    if (inVEOMode) {
+      onEnableUpdatedTimeRangeInVEO()
+    }
     onSetTimeRange(timeRange)
 
     if (timeRange.type === 'custom') {
@@ -122,9 +143,10 @@ const mstp = (state: AppState) => {
 
 const mdtp = {
   onSetTimeRange: setTimeRange,
+  onEnableUpdatedTimeRangeInVEO: enableUpdatedTimeRangeInVEO,
   onSetAutoRefresh: setAutoRefresh,
 }
 
 const connector = connect(mstp, mdtp)
 
-export default connector(TimeMachineQueries)
+export default connector(withRouter(TimeMachineQueries))

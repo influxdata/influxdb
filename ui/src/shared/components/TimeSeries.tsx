@@ -42,9 +42,10 @@ import {
 } from 'src/shared/copy/notifications'
 import {TIME_RANGE_START, TIME_RANGE_STOP} from 'src/variables/constants'
 
-// Actions
+// Actions & Selectors
 import {notify as notifyAction} from 'src/shared/actions/notifications'
 import {setQueryResultsByQueryID} from 'src/queryCache/actions'
+import {hasUpdatedTimeRangeInVEO} from 'src/shared/selectors/app'
 
 // Types
 import {
@@ -303,6 +304,17 @@ class TimeSeries extends Component<Props, State> {
   }
 
   private shouldReload(prevProps: Props) {
+    if (this.props.hasUpdatedTimeRangeInVEO) {
+      return false
+    }
+
+    if (
+      prevProps.hasUpdatedTimeRangeInVEO &&
+      !this.props.hasUpdatedTimeRangeInVEO
+    ) {
+      return true
+    }
+
     if (prevProps.submitToken !== this.props.submitToken) {
       return true
     }
@@ -343,6 +355,7 @@ const mstp = (state: AppState, props: OwnProps) => {
   ]
 
   return {
+    hasUpdatedTimeRangeInVEO: hasUpdatedTimeRangeInVEO(state),
     queryLink: state.links.query.self,
     buckets: getAll<Bucket>(state, ResourceType.Buckets),
     variables,
