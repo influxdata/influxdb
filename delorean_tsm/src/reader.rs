@@ -462,11 +462,7 @@ impl BlockData {
 
     pub fn len(&self) -> usize {
         match &self {
-            Self::Float {
-                i: _,
-                ts,
-                values: _,
-            } => ts.len(),
+            Self::Float { ts, .. } => ts.len(),
             Self::Integer {
                 i: _,
                 ts,
