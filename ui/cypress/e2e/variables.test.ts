@@ -203,6 +203,21 @@ describe('Variables', () => {
     )
   })
 
+  it('Can upload variable file',()=>{
+    cy.getByTestID('add-resource-dropdown--button').click()
+
+    cy.getByTestID('add-resource-dropdown--import').click()
+
+    const yourFixturePath = 'data-for-variable.json';
+    cy.get('.drag-and-drop').attachFile(yourFixturePath, { subjectType: 'drag-n-drop' });
+
+    cy.getByTestID('submit-button Variable').click()
+
+    cy.getByTestID('resource-card variable')
+    .should('have.length', 2)
+    .contains('agent_host')
+  })
+
   it('keeps user input in text area when attempting to import invalid JSON', () => {
     cy.getByTestID('tabbed-page--header').within(() => {
       cy.contains('Create').click()
