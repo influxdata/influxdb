@@ -872,8 +872,7 @@ mod tests {
 
     #[test]
     fn refill_buffer() {
-        let mut buf: Vec<Option<ValuePair>> = Vec::new();
-        buf.resize(2, None);
+        let mut buf = vec![None; 2];
         let mut blocks = vec![
             BlockData::Float {
                 i: 0,
