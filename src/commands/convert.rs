@@ -124,7 +124,7 @@ pub fn convert(
             return Ok(());
         }
 
-        // Sort files by their TSM generation to ensure any duplicate block
+        // Sorting files by name also sorts by their TSM generation, which ensures any duplicate block
         // data is appropriately deduplicated.
         files.sort_by(|a, b| a.file_name().cmp(&b.file_name()));
 
