@@ -301,11 +301,7 @@ impl BlockData {
     /// Initialise an empty `BlockData` with capacity `other.len()` values.
     fn new_from_data(other: &Self) -> Self {
         match other {
-            Self::Float {
-                i: _,
-                ts: _,
-                values: _,
-            } => Self::Float {
+            Self::Float { .. } => Self::Float {
                 i: 0,
                 ts: Vec::with_capacity(other.len()),
                 values: Vec::with_capacity(other.len()),
