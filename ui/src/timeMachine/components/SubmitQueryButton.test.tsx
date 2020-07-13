@@ -83,7 +83,6 @@ const stateOverride = {
 }
 
 describe('TimeMachine.Components.SubmitQueryButton', () => {
-
   it('it changes the Submit button to Cancel when the request is in flight, then back to Submit after the request has resolved', async () => {
     const fakeReader = {
       cancel: jest.fn(),
@@ -169,7 +168,7 @@ describe('TimeMachine.Components.SubmitQueryButton', () => {
     expect(getByTitle('Submit')).toBeTruthy()
   })
 
-  it.skip("cancels the query after submission if the query hasn't finished and resolved", (done) => {
+  it.skip("cancels the query after submission if the query hasn't finished and resolved", done => {
     mocked(fetchMock).mockResponse(() => {
       return new Promise((resolve, _reject) => {
         setTimeout(() => {
