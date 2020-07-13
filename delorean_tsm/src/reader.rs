@@ -298,6 +298,57 @@ pub enum BlockData {
 }
 
 impl BlockData {
+    /// Initialise an empty `BlockData` with capacity `other.len()` values.
+    fn new_from_data(other: &Self) -> Self {
+        match other {
+            Self::Float {
+                i: _,
+                ts: _,
+                values: _,
+            } => Self::Float {
+                i: 0,
+                ts: Vec::with_capacity(other.len()),
+                values: Vec::with_capacity(other.len()),
+            },
+            Self::Integer {
+                i: _,
+                ts: _,
+                values: _,
+            } => Self::Integer {
+                i: 0,
+                ts: Vec::with_capacity(other.len()),
+                values: Vec::with_capacity(other.len()),
+            },
+            Self::Bool {
+                i: _,
+                ts: _,
+                values: _,
+            } => Self::Bool {
+                i: 0,
+                ts: Vec::with_capacity(other.len()),
+                values: Vec::with_capacity(other.len()),
+            },
+            Self::Str {
+                i: _,
+                ts: _,
+                values: _,
+            } => Self::Str {
+                i: 0,
+                ts: Vec::with_capacity(other.len()),
+                values: Vec::with_capacity(other.len()),
+            },
+            Self::Unsigned {
+                i: _,
+                ts: _,
+                values: _,
+            } => Self::Unsigned {
+                i: 0,
+                ts: Vec::with_capacity(other.len()),
+                values: Vec::with_capacity(other.len()),
+            },
+        }
+    }
+
     pub fn reserve_exact(&mut self, additional: usize) {
         match self {
             Self::Float { i: _, ts, values } => {
@@ -457,65 +508,7 @@ impl BlockData {
         }
 
         // The merged output block data to be returned
-        let mut block_data: Self;
-        let first = blocks.first().unwrap();
-        match first {
-            Self::Float {
-                i: _,
-                ts: _,
-                values: _,
-            } => {
-                block_data = Self::Float {
-                    i: 0,
-                    ts: Vec::with_capacity(first.len()),
-                    values: Vec::with_capacity(first.len()),
-                }
-            }
-            Self::Integer {
-                i: _,
-                ts: _,
-                values: _,
-            } => {
-                block_data = Self::Integer {
-                    i: 0,
-                    ts: Vec::with_capacity(first.len()),
-                    values: Vec::with_capacity(first.len()),
-                }
-            }
-            Self::Bool {
-                i: _,
-                ts: _,
-                values: _,
-            } => {
-                block_data = Self::Bool {
-                    i: 0,
-                    ts: Vec::with_capacity(first.len()),
-                    values: Vec::with_capacity(first.len()),
-                }
-            }
-            Self::Str {
-                i: _,
-                ts: _,
-                values: _,
-            } => {
-                block_data = Self::Str {
-                    i: 0,
-                    ts: Vec::with_capacity(first.len()),
-                    values: Vec::with_capacity(first.len()),
-                }
-            }
-            Self::Unsigned {
-                i: _,
-                ts: _,
-                values: _,
-            } => {
-                block_data = Self::Unsigned {
-                    i: 0,
-                    ts: Vec::with_capacity(first.len()),
-                    values: Vec::with_capacity(first.len()),
-                }
-            }
-        }
+        let mut block_data = Self::new_from_data(&blocks.first().unwrap());
 
         // buf will hold the next candidates from each of the sorted input
         // blocks.
