@@ -10,7 +10,7 @@ import {
   PipeData,
   PipeMeta,
 } from 'src/notebooks'
-import useResource from 'src/notebooks/context/resource.hook'
+import useResource as _asResource from 'src/notebooks/context/resource.hook'
 
 const useNotebookListState = createPersistedState('notebooks')
 
@@ -112,10 +112,10 @@ export const NotebookListProvider: FC = ({children}) => {
     }
 
     acc[curr] = {
-      data: useResource(notebooks[curr].data, data => {
+      data: _asResource(notebooks[curr].data, data => {
         stateUpdater('data', data)
       }),
-      meta: useResource(notebooks[curr].meta, data => {
+      meta: _asResource(notebooks[curr].meta, data => {
         stateUpdater('meta', data)
       }),
       readOnly: notebooks[curr].readOnly,
