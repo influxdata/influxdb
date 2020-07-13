@@ -1589,10 +1589,6 @@ func (is IndexSet) measurementNamesByTagFilter(auth query.Authorizer, op influxq
 // measurementAuthorizedSeries determines if the measurement contains a series
 // that is authorized to be read.
 func (is IndexSet) measurementAuthorizedSeries(auth query.Authorizer, name []byte) bool {
-	if query.AuthorizerIsOpen(auth) {
-		return true
-	}
-
 	sitr, err := is.measurementSeriesIDIterator(name)
 	if err != nil || sitr == nil {
 		return false
@@ -1608,6 +1604,10 @@ func (is IndexSet) measurementAuthorizedSeries(auth query.Authorizer, name []byt
 
 		if series.SeriesID == 0 {
 			return false // End of iterator
+		}
+
+		if query.AuthorizerIsOpen(auth) {
+			return true
 		}
 
 		name, tags := is.SeriesFile.Series(series.SeriesID)
