@@ -504,8 +504,7 @@ impl BlockData {
 
         // buf will hold the next candidates from each of the sorted input
         // blocks.
-        let mut buf: Vec<Option<ValuePair>> = Vec::new();
-        buf.resize_with(blocks.len(), || None);
+        let mut buf = vec![None; blocks.len()];
 
         // TODO(edd): perf - this simple iterator approach will likely be sped
         // up by batch merging none-overlapping sections of candidate inputs.
