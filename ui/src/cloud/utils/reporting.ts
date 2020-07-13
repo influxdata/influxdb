@@ -40,7 +40,7 @@ const cleanTags = (data: Point): Point => {
         return acc
       }
 
-      if (!isNaN(parseFloat(val))) {
+      if (!isNaN(parseFloat(val as any))) {
         acc[key] = '' + val
         return acc
       }
@@ -51,14 +51,14 @@ const cleanTags = (data: Point): Point => {
   }
 }
 
-const pooledEvent = ({timestamp, eventName, fields, tags}: Point) => {
+const pooledEvent = ({timestamp, measurement, fields, tags}: Point) => {
   if (isEmpty(fields)) {
     fields = {source: 'ui'}
   }
 
   reportingPoints.push(
     cleanTags({
-      measurement: eventName,
+      measurement,
       tags: {...reportingTags, ...tags},
       fields,
       timestamp,
@@ -123,7 +123,7 @@ export const gaEvent = (event: string, payload: object = {}) => {
 }
 
 export const event = (
-  eventName: string,
+  measurement: string,
   meta: PointTags = {},
   values: PointFields = {}
 ): void => {
@@ -137,7 +137,7 @@ export const event = (
 
   if (isFlagEnabled('streamEvents')) {
     /* eslint-disable no-console */
-    console.log(`Event:  [ ${eventName} ]`)
+    console.log(`Event:  [ ${measurement} ]`)
     if (Object.keys(meta).length) {
       console.log(
         Object.entries(meta)
@@ -148,11 +148,11 @@ export const event = (
     /* eslint-enable no-console */
   }
 
-  gaEvent(eventName, {...values, ...meta})
+  gaEvent(measurement, {...values, ...meta})
 
   pooledEvent({
     timestamp: time,
-    eventName,
+    measurement,
     fields: {
       source: 'ui',
       ...values,
@@ -161,10 +161,10 @@ export const event = (
   })
 }
 
-export const useLoadTimeReporting = (eventName: string) => {
+export const useLoadTimeReporting = (measurement: string) => {
   const [loadStartTime] = useState(Date.now())
   useEffect(() => {
-    event(eventName, {
+    event(measurement, {
       time: loadStartTime,
     })
   }, [event, loadStartTime])
