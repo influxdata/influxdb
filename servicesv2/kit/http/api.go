@@ -125,6 +125,10 @@ type (
 	}
 )
 
+func (a *API) WithLogger(logger *zap.Logger) {
+	a.logger = logger
+}
+
 func (a *API) decode(encoding string, dec decoder, v interface{}) error {
 	if err := dec.Decode(v); err != nil {
 		if a != nil && a.unmarshalErrFn != nil {

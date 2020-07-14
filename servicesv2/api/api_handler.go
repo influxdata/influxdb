@@ -2,6 +2,7 @@ package api
 
 import (
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"sync"
@@ -12,21 +13,32 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
+	influxlogger "github.com/influxdata/influxdb/logger"
+	influxdb "github.com/influxdata/influxdb/servicesv2"
 	kithttp "github.com/influxdata/influxdb/servicesv2/kit/http"
 )
 
 // ApiHandler a modular generic api handling mechanizm
-type ApiHandler struct {
+type APIHandler struct {
+	bindAddr string
+	api      *kithttp.API
+
+	httpServer *http.Server
 	chi.Router
 }
 
 // NewAPIHandler constructs all api handlers beneath it and returns an APIHandler
-func NewAPIHandler(middlewares ...kithttp.Middleware) *APIHandler {
+func NewAPIHandler(bindAddr string, middlewares ...kithttp.Middleware) *APIHandler {
+	api := kithttp.NewAPI()
 	h := &APIHandler{
-		Router: NewBaseChiRouter(kithttp.NewAPI(kithttp.WithLog(b.Logger))),
+		bindAddr: bindAddr,
+		api:      api,
+		Router:   NewBaseChiRouter(api),
 	}
 
-	h.Use(middlewares...)
+	for _, middleware := range middlewares {
+		h.Use(middleware)
+	}
 	return h
 }
 
@@ -36,32 +48,41 @@ func (h *APIHandler) WithResourceHandler(resHandler kithttp.ResourceHandler) {
 }
 
 func (h *APIHandler) WithLogger(log *zap.Logger) {
+	h.api.WithLogger(log)
 }
 
 func (h *APIHandler) Open() error {
 	// generate a listener ??? port
+	ln, err := net.Listen("tcp", h.bindAddr)
+	if err != nil {
+		return err
+	}
+
 	// assign listener to chi
-	// start doing things???
-	return nil
+	h.httpServer = &http.Server{
+		Addr:    h.bindAddr,
+		Handler: h.Router,
+	}
+
+	return h.httpServer.Serve(ln)
 }
 
 func (h *APIHandler) Close() error {
-	// undo  the things up here ^
-	return nil
+	return h.httpServer.Close()
 }
 
 // NewBaseChiRouter returns a new chi router with a 404 handler, a 405 handler, and a panic handler.
 func NewBaseChiRouter(api *kithttp.API) chi.Router {
 	router := chi.NewRouter()
 	router.NotFound(func(w http.ResponseWriter, r *http.Request) {
-		api.Err(w, r, &platform.Error{
-			Code: platform.ENotFound,
+		api.Err(w, r, &influxdb.Error{
+			Code: influxdb.ENotFound,
 			Msg:  "path not found",
 		})
 	})
 	router.MethodNotAllowed(func(w http.ResponseWriter, r *http.Request) {
-		api.Err(w, r, &platform.Error{
-			Code: platform.EMethodNotAllowed,
+		api.Err(w, r, &influxdb.Error{
+			Code: influxdb.EMethodNotAllowed,
 			Msg:  fmt.Sprintf("allow: %s", w.Header().Get("Allow")),
 		})
 	})
@@ -83,8 +104,8 @@ func panicMW(api *kithttp.API) func(http.Handler) http.Handler {
 					return
 				}
 
-				pe := &platform.Error{
-					Code: platform.EInternal,
+				pe := &influxdb.Error{
+					Code: influxdb.EInternal,
 					Msg:  "a panic has occurred",
 					Err:  fmt.Errorf("%s: %v", r.URL.String(), panicErr),
 				}
