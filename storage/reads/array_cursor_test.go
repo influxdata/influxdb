@@ -1236,6 +1236,310 @@ func TestIntegerSumArrayCursor(t *testing.T) {
 	}
 }
 
+func TestWindowMinArrayCursor(t *testing.T) {
+	testcases := []aggArrayCursorTest{
+		{
+			name:  "no window",
+			every: 0,
+			inputArrays: []*cursors.IntegerArray{
+				makeIntegerArray(
+					60,
+					mustParseTime("2010-01-01T00:00:00Z"), time.Minute,
+					func(i int64) int64 { return 100 + i },
+				),
+			},
+			want: []*cursors.IntegerArray{
+				makeIntegerArray(1, mustParseTime("2010-01-01T00:00:00Z"), 0, func(int64) int64 { return 100 }),
+			},
+		},
+		{
+			name:  "no window min int",
+			every: 0,
+			inputArrays: []*cursors.IntegerArray{
+				makeIntegerArray(
+					60,
+					mustParseTime("2010-01-01T00:00:00Z"), time.Minute,
+					func(i int64) int64 {
+						if i%2 == 0 {
+							return math.MinInt64
+						}
+						return 0
+					},
+				),
+			},
+			want: []*cursors.IntegerArray{
+				makeIntegerArray(1, mustParseTime("2010-01-01T00:00:00Z"), 0, func(int64) int64 { return math.MinInt64 }),
+			},
+		},
+		{
+			name:  "no window max int",
+			every: 0,
+			inputArrays: []*cursors.IntegerArray{
+				makeIntegerArray(
+					60,
+					mustParseTime("2010-01-01T00:00:00Z"), time.Minute,
+					func(i int64) int64 {
+						if i%2 == 0 {
+							return math.MaxInt64
+						}
+						return 0
+					},
+				),
+			},
+			want: []*cursors.IntegerArray{
+				makeIntegerArray(1, mustParseTime("2010-01-01T00:01:00Z"), 0, func(int64) int64 { return 0 }),
+			},
+		},
+		{
+			name:  "window",
+			every: time.Hour,
+			inputArrays: []*cursors.IntegerArray{
+				makeIntegerArray(
+					16,
+					mustParseTime("2010-01-01T00:00:00Z"), 15*time.Minute,
+					func(i int64) int64 {
+						base := (i / 4) * 100
+						m := (i % 4) * 15
+						return base + m
+					},
+				),
+			},
+			want: []*cursors.IntegerArray{
+				makeIntegerArray(4, mustParseTime("2010-01-01T00:00:00Z"), time.Hour,
+					func(i int64) int64 { return i * 100 }),
+			},
+		},
+		{
+			name:  "window desc values",
+			every: time.Hour,
+			inputArrays: []*cursors.IntegerArray{
+				makeIntegerArray(
+					16,
+					mustParseTime("2010-01-01T00:00:00Z"), 15*time.Minute,
+					func(i int64) int64 {
+						base := (i / 4) * 100
+						m := 60 - (i%4)*15
+						return base + m
+					},
+				),
+			},
+			want: []*cursors.IntegerArray{
+				makeIntegerArray(4, mustParseTime("2010-01-01T00:45:00Z"), time.Hour,
+					func(i int64) int64 { return i*100 + 15 }),
+			},
+		},
+		{
+			name:  "window min int",
+			every: time.Hour,
+			inputArrays: []*cursors.IntegerArray{
+				makeIntegerArray(
+					16,
+					mustParseTime("2010-01-01T00:00:00Z"), 15*time.Minute,
+					func(i int64) int64 {
+						return math.MinInt64
+					},
+				),
+			},
+			want: []*cursors.IntegerArray{
+				makeIntegerArray(4, mustParseTime("2010-01-01T00:00:00Z"), time.Hour,
+					func(i int64) int64 { return math.MinInt64 }),
+			},
+		},
+		{
+			name:  "window max int",
+			every: time.Hour,
+			inputArrays: []*cursors.IntegerArray{
+				makeIntegerArray(
+					16,
+					mustParseTime("2010-01-01T00:00:00Z"), 15*time.Minute,
+					func(i int64) int64 {
+						return math.MaxInt64
+					},
+				),
+			},
+			want: []*cursors.IntegerArray{
+				makeIntegerArray(4, mustParseTime("2010-01-01T00:00:00Z"), time.Hour,
+					func(i int64) int64 { return math.MaxInt64 }),
+			},
+		},
+		{
+			name:  "empty window",
+			every: 15 * time.Minute,
+			inputArrays: []*cursors.IntegerArray{
+				makeIntegerArray(
+					2,
+					mustParseTime("2010-01-01T00:05:00Z"), 30*time.Minute,
+					func(i int64) int64 {
+						return 100 + i
+					},
+				),
+			},
+			want: []*cursors.IntegerArray{
+				makeIntegerArray(2, mustParseTime("2010-01-01T00:05:00Z"), 30*time.Minute,
+					func(i int64) int64 { return 100 + i }),
+			},
+		},
+	}
+	for _, tc := range testcases {
+		tc.createCursorFn = func(cur cursors.IntegerArrayCursor, every int64) cursors.IntegerArrayCursor {
+			return newIntegerWindowMinArrayCursor(cur, every)
+		}
+		tc.run(t)
+	}
+}
+
+func TestWindowMaxArrayCursor(t *testing.T) {
+	testcases := []aggArrayCursorTest{
+		{
+			name:  "no window",
+			every: 0,
+			inputArrays: []*cursors.IntegerArray{
+				makeIntegerArray(
+					60,
+					mustParseTime("2010-01-01T00:00:00Z"), time.Minute,
+					func(i int64) int64 { return 100 + i },
+				),
+			},
+			want: []*cursors.IntegerArray{
+				makeIntegerArray(1, mustParseTime("2010-01-01T00:59:00Z"), 0, func(int64) int64 { return 159 }),
+			},
+		},
+		{
+			name:  "no window min int",
+			every: 0,
+			inputArrays: []*cursors.IntegerArray{
+				makeIntegerArray(
+					60,
+					mustParseTime("2010-01-01T00:00:00Z"), time.Minute,
+					func(i int64) int64 {
+						if i%2 == 0 {
+							return math.MinInt64
+						}
+						return 0
+					},
+				),
+			},
+			want: []*cursors.IntegerArray{
+				makeIntegerArray(1, mustParseTime("2010-01-01T00:01:00Z"), 0, func(int64) int64 { return 0 }),
+			},
+		},
+		{
+			name:  "no window max int",
+			every: 0,
+			inputArrays: []*cursors.IntegerArray{
+				makeIntegerArray(
+					60,
+					mustParseTime("2010-01-01T00:00:00Z"), time.Minute,
+					func(i int64) int64 {
+						if i%2 == 0 {
+							return math.MaxInt64
+						}
+						return 0
+					},
+				),
+			},
+			want: []*cursors.IntegerArray{
+				makeIntegerArray(1, mustParseTime("2010-01-01T00:00:00Z"), 0, func(int64) int64 { return math.MaxInt64 }),
+			},
+		},
+		{
+			name:  "window",
+			every: time.Hour,
+			inputArrays: []*cursors.IntegerArray{
+				makeIntegerArray(
+					16,
+					mustParseTime("2010-01-01T00:00:00Z"), 15*time.Minute,
+					func(i int64) int64 {
+						base := (i / 4) * 100
+						m := (i % 4) * 15
+						return base + m
+					},
+				),
+			},
+			want: []*cursors.IntegerArray{
+				makeIntegerArray(4, mustParseTime("2010-01-01T00:45:00Z"), time.Hour,
+					func(i int64) int64 { return i*100 + 45 }),
+			},
+		},
+		{
+			name:  "window desc values",
+			every: time.Hour,
+			inputArrays: []*cursors.IntegerArray{
+				makeIntegerArray(
+					16,
+					mustParseTime("2010-01-01T00:00:00Z"), 15*time.Minute,
+					func(i int64) int64 {
+						base := (i / 4) * 100
+						m := 60 - (i%4)*15
+						return base + m
+					},
+				),
+			},
+			want: []*cursors.IntegerArray{
+				makeIntegerArray(4, mustParseTime("2010-01-01T00:00:00Z"), time.Hour,
+					func(i int64) int64 { return i*100 + 60 }),
+			},
+		},
+		{
+			name:  "window min int",
+			every: time.Hour,
+			inputArrays: []*cursors.IntegerArray{
+				makeIntegerArray(
+					16,
+					mustParseTime("2010-01-01T00:00:00Z"), 15*time.Minute,
+					func(i int64) int64 {
+						return math.MinInt64
+					},
+				),
+			},
+			want: []*cursors.IntegerArray{
+				makeIntegerArray(4, mustParseTime("2010-01-01T00:00:00Z"), time.Hour,
+					func(i int64) int64 { return math.MinInt64 }),
+			},
+		},
+		{
+			name:  "window max int",
+			every: time.Hour,
+			inputArrays: []*cursors.IntegerArray{
+				makeIntegerArray(
+					16,
+					mustParseTime("2010-01-01T00:00:00Z"), 15*time.Minute,
+					func(i int64) int64 {
+						return math.MaxInt64
+					},
+				),
+			},
+			want: []*cursors.IntegerArray{
+				makeIntegerArray(4, mustParseTime("2010-01-01T00:00:00Z"), time.Hour,
+					func(i int64) int64 { return math.MaxInt64 }),
+			},
+		},
+		{
+			name:  "empty window",
+			every: 15 * time.Minute,
+			inputArrays: []*cursors.IntegerArray{
+				makeIntegerArray(
+					2,
+					mustParseTime("2010-01-01T00:05:00Z"), 30*time.Minute,
+					func(i int64) int64 {
+						return 100 + i
+					},
+				),
+			},
+			want: []*cursors.IntegerArray{
+				makeIntegerArray(2, mustParseTime("2010-01-01T00:05:00Z"), 30*time.Minute,
+					func(i int64) int64 { return 100 + i }),
+			},
+		},
+	}
+	for _, tc := range testcases {
+		tc.createCursorFn = func(cur cursors.IntegerArrayCursor, every int64) cursors.IntegerArrayCursor {
+			return newIntegerWindowMaxArrayCursor(cur, every)
+		}
+		tc.run(t)
+	}
+}
+
 type MockExpression struct {
 	EvalBoolFunc func(v Valuer) bool
 }
