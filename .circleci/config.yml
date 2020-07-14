@@ -341,7 +341,6 @@ jobs:
           keys:
             - influxdb-gomod-{{ checksum "go.sum" }} # Matches based on go.sum checksum.
       - run: ./scripts/ci/lint/flags.bash
-      - skip_if_not_master
       - save_cache:
           name: Saving GOCACHE
           key: influxdb-gocache-{{ .Branch }}-{{ .Revision }}
