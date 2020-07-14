@@ -35,20 +35,22 @@ process.argv.slice(2).forEach((val) => {
     let pair = val.split('=');
 
     switch(pair[0]){
-    case 'headless': //overrides value in config file
-        //config.headless = (pair[1] === 'true');
-        setHeadless = true;
-        newHeadless = (pair[1] === 'true');
-        break;
-    case 'sel_docker':
-    case 'selDocker':
-        //config.sel_docker = (pair[1] === 'true');
-        selDocker = (pair[1] === 'true');
-        break;
+        case 'headless': //overrides value in config file
+            setHeadless = true;
+            newHeadless = (pair[1] === 'true');
+        // Need to pop our args out, otherwise they will interfere with cucumber ArgvParser
+            process.argv.splice(process.argv.indexOf(val), 1);
+            break;
+        case 'sel_docker':
+        case 'selDocker':
+            selDocker = (pair[1] === 'true');
+            process.argv.splice(process.argv.indexOf(val), 1);
+            break;
     case 'activeConf':
     case 'active_conf':
-        //config = require(__basedir + '/e2e.conf.json')[pair[1]];
-        active_config = pair[1];
+            active_config = pair[1];
+            process.argv.splice(process.argv.indexOf(val), 1);
+            break;
     }
 });
 

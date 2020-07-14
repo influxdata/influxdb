@@ -6,6 +6,7 @@ INFLUX2_CONTAINER=influx2_solo
 E2E_MAP_DIR=/tmp/e2e
 INFLUX2_HOST=$(sudo docker inspect -f "{{ .NetworkSettings.IPAddress }}" ${INFLUX2_CONTAINER})
 TAGS="@influx-influx"
+ACTIVE_CONF=development
 
 echo "------ Targeting influx container ${INFLUX2_CONTAINER} at ${INFLUX2_HOST} ------"
 
@@ -19,6 +20,12 @@ case $key in
    TAGS="$2"
    shift; # past argument
    shift; # past val
+   ;;
+   -c| --config)
+   ACTIVE_CONF="$2"
+   shift;
+   shift;
+   ;;
 esac
 done
 
@@ -71,11 +78,11 @@ sudo docker build -t e2e-${TEST_CONTAINER} -f scripts/Dockerfile.experim .
 sudo docker run -it -v `pwd`/report:/home/e2e/report -v `pwd`/screenshots:/home/e2e/screenshots \
      -v /tmp/e2e/etc:/home/e2e/etc -v /tmp/e2e/downloads:/home/e2e/downloads \
      -e SELENIUM_REMOTE_URL="http://${SELENOID_HOST}:4444/wd/hub" \
-     -e E2E_DEVELOPMENT_INFLUX_URL="http://${INFLUX2_HOST}:9999" --detach \
+     -e E2E_${ACTIVE_CONF^^}_INFLUX_URL="http://${INFLUX2_HOST}:9999" --detach \
      --name ${TEST_CONTAINER} e2e-${TEST_CONTAINER}:latest
 
 
-sudo docker exec ${TEST_CONTAINER} npm test -- --tags "$TAGS"
+sudo docker exec ${TEST_CONTAINER} npm test -- activeConf=${ACTIVE_CONF} --tags "$TAGS"
 
 sudo docker exec ${TEST_CONTAINER} npm run report:html
 sudo docker exec ${TEST_CONTAINER} npm run report:junit
