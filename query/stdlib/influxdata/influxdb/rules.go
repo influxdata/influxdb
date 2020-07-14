@@ -754,7 +754,8 @@ func isPushableWindow(windowSpec *universe.WindowProcedureSpec) bool {
 	// every and period must be equal
 	// every.months must be zero
 	// every.isNegative must be false
-	// offset: must be zero
+	// offset.months must be zero
+	// offset.isNegative must be false
 	// timeColumn: must be "_time"
 	// startColumn: must be "_start"
 	// stopColumn: must be "_stop"
@@ -764,7 +765,8 @@ func isPushableWindow(windowSpec *universe.WindowProcedureSpec) bool {
 		window.Every.Months() == 0 &&
 		!window.Every.IsNegative() &&
 		!window.Every.IsZero() &&
-		window.Offset.IsZero() &&
+		window.Offset.Months() == 0 &&
+		!window.Offset.IsNegative() &&
 		windowSpec.TimeColumn == "_time" &&
 		windowSpec.StartColumn == "_start" &&
 		windowSpec.StopColumn == "_stop"
@@ -790,6 +792,7 @@ func (PushDownWindowAggregateRule) Rewrite(ctx context.Context, pn plan.Node) (p
 		ReadRangePhysSpec: *fromSpec.Copy().(*ReadRangePhysSpec),
 		Aggregates:        []plan.ProcedureKind{fnNode.Kind()},
 		WindowEvery:       windowSpec.Window.Every.Nanoseconds(),
+		Offset:            windowSpec.Window.Offset.Nanoseconds(),
 		CreateEmpty:       windowSpec.CreateEmpty,
 	}), true, nil
 }
@@ -949,6 +952,7 @@ func (p GroupWindowAggregateTransposeRule) Rewrite(ctx context.Context, pn plan.
 		ReadRangePhysSpec: *fromSpec.ReadRangePhysSpec.Copy().(*ReadRangePhysSpec),
 		Aggregates:        []plan.ProcedureKind{fnNode.Kind()},
 		WindowEvery:       windowSpec.Window.Every.Nanoseconds(),
+		Offset:            windowSpec.Window.Offset.Nanoseconds(),
 		CreateEmpty:       windowSpec.CreateEmpty,
 	})
 
