@@ -818,6 +818,44 @@ from(bucket: v.bucket)
 `,
 		},
 		{
+			name: "window offset last",
+			data: []string{
+				"m0,k=k0 f=0i 0",
+				"m0,k=k0 f=1i 1000000000",
+				"m0,k=k0 f=2i 2000000000",
+				"m0,k=k0 f=3i 3000000000",
+				"m0,k=k0 f=4i 4000000000",
+				"m0,k=k0 f=5i 5000000000",
+				"m0,k=k0 f=6i 6000000000",
+				"m0,k=k0 f=5i 7000000000",
+				"m0,k=k0 f=0i 8000000000",
+				"m0,k=k0 f=6i 9000000000",
+				"m0,k=k0 f=6i 10000000000",
+				"m0,k=k0 f=7i 11000000000",
+				"m0,k=k0 f=5i 12000000000",
+				"m0,k=k0 f=8i 13000000000",
+				"m0,k=k0 f=9i 14000000000",
+				"m0,k=k0 f=5i 15000000000",
+			},
+			query: `
+from(bucket: v.bucket)
+	|> range(start: 1970-01-01T00:00:05Z, stop: 1970-01-01T00:00:20Z)
+	|> window(every: 3s, offset: 2s)
+	|> last()
+`,
+			op: "readWindow(last)",
+			want: `
+#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,long,string,string,string
+#group,false,false,true,true,false,false,true,true,true
+#default,_result,,,,,,,,
+,result,table,_start,_stop,_time,_value,_field,_measurement,k
+,,0,1970-01-01T00:00:05Z,1970-01-01T00:00:08Z,1970-01-01T00:00:07Z,5,f,m0,k0
+,,1,1970-01-01T00:00:08Z,1970-01-01T00:00:11Z,1970-01-01T00:00:10Z,6,f,m0,k0
+,,2,1970-01-01T00:00:11Z,1970-01-01T00:00:14Z,1970-01-01T00:00:13Z,8,f,m0,k0
+,,3,1970-01-01T00:00:14Z,1970-01-01T00:00:17Z,1970-01-01T00:00:15Z,5,f,m0,k0
+`,
+		},
+		{
 			name: "bare last",
 			data: []string{
 				"m0,k=k0 f=0i 0",
@@ -875,6 +913,51 @@ from(bucket: v.bucket)
 from(bucket: v.bucket)
 	|> range(start: 1969-12-31T23:00:00Z, stop: 1970-01-01T02:00:00Z)
 	|> window(every: 1h, createEmpty: true)
+	|> last()
+`,
+			op: "readWindow(last)",
+			want: `
+#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,long,string,string,string
+#group,false,false,true,true,false,false,true,true,true
+#default,_result,0,1969-12-31T23:00:00Z,1970-01-01T00:00:00Z,,,f,m0,k0
+,result,table,_start,_stop,_time,_value,_field,_measurement,k
+
+#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,long,string,string,string
+#group,false,false,true,true,false,false,true,true,true
+#default,_result,,,,,,,,
+,result,table,_start,_stop,_time,_value,_field,_measurement,k
+,,1,1970-01-01T00:00:00Z,1970-01-01T01:00:00Z,1970-01-01T00:00:15Z,5,f,m0,k0
+
+#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,long,string,string,string
+#group,false,false,true,true,false,false,true,true,true
+#default,_result,2,1970-01-01T01:00:00Z,1970-01-01T02:00:00Z,,,f,m0,k0
+,result,table,_start,_stop,_time,_value,_field,_measurement,k
+`,
+		},
+		{
+			name: "window empty offset last",
+			data: []string{
+				"m0,k=k0 f=0i 0",
+				"m0,k=k0 f=1i 1000000000",
+				"m0,k=k0 f=2i 2000000000",
+				"m0,k=k0 f=3i 3000000000",
+				"m0,k=k0 f=4i 4000000000",
+				"m0,k=k0 f=5i 5000000000",
+				"m0,k=k0 f=6i 6000000000",
+				"m0,k=k0 f=5i 7000000000",
+				"m0,k=k0 f=0i 8000000000",
+				"m0,k=k0 f=6i 9000000000",
+				"m0,k=k0 f=6i 10000000000",
+				"m0,k=k0 f=7i 11000000000",
+				"m0,k=k0 f=5i 12000000000",
+				"m0,k=k0 f=8i 13000000000",
+				"m0,k=k0 f=9i 14000000000",
+				"m0,k=k0 f=5i 15000000000",
+			},
+			query: `
+from(bucket: v.bucket)
+	|> range(start: 1969-12-31T23:00:00Z, stop: 1970-01-01T02:00:00Z)
+	|> window(every: 1h, offset: 1h, createEmpty: true)
 	|> last()
 `,
 			op: "readWindow(last)",
@@ -1176,6 +1259,44 @@ from(bucket: v.bucket)
 `,
 		},
 		{
+			name: "window offset count",
+			data: []string{
+				"m0,k=k0 f=0i 0",
+				"m0,k=k0 f=1i 1000000000",
+				"m0,k=k0 f=2i 2000000000",
+				"m0,k=k0 f=3i 3000000000",
+				"m0,k=k0 f=4i 4000000000",
+				"m0,k=k0 f=5i 5000000000",
+				"m0,k=k0 f=6i 6000000000",
+				"m0,k=k0 f=5i 7000000000",
+				"m0,k=k0 f=0i 8000000000",
+				"m0,k=k0 f=6i 9000000000",
+				"m0,k=k0 f=6i 10000000000",
+				"m0,k=k0 f=7i 11000000000",
+				"m0,k=k0 f=5i 12000000000",
+				"m0,k=k0 f=8i 13000000000",
+				"m0,k=k0 f=9i 14000000000",
+				"m0,k=k0 f=5i 15000000000",
+			},
+			query: `
+from(bucket: v.bucket)
+	|> range(start: 1970-01-01T00:00:00Z, stop: 1970-01-01T00:00:15Z)
+	|> window(every: 5s, offset: 2s)
+	|> count()
+`,
+			op: "readWindow(count)",
+			want: `
+#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,long,string,string,string
+#group,false,false,true,true,false,true,true,true
+#default,_result,,,,,,,
+,result,table,_start,_stop,_value,_field,_measurement,k
+,,0,1970-01-01T00:00:00Z,1970-01-01T00:00:02Z,2,f,m0,k0
+,,1,1970-01-01T00:00:02Z,1970-01-01T00:00:07Z,5,f,m0,k0
+,,2,1970-01-01T00:00:07Z,1970-01-01T00:00:12Z,5,f,m0,k0
+,,3,1970-01-01T00:00:12Z,1970-01-01T00:00:15Z,3,f,m0,k0
+`,
+		},
+		{
 			name: "count with nulls",
 			data: []string{
 				"m0,k=k0 f=0i 0",
@@ -1301,6 +1422,44 @@ from(bucket: v.bucket)
 ,,0,1970-01-01T00:00:05Z,10,f,m0,k0
 ,,0,1970-01-01T00:00:10Z,22,f,m0,k0
 ,,0,1970-01-01T00:00:15Z,35,f,m0,k0
+`,
+		},
+		{
+			name: "window offset sum",
+			data: []string{
+				"m0,k=k0 f=0i 0",
+				"m0,k=k0 f=1i 1000000000",
+				"m0,k=k0 f=2i 2000000000",
+				"m0,k=k0 f=3i 3000000000",
+				"m0,k=k0 f=4i 4000000000",
+				"m0,k=k0 f=5i 5000000000",
+				"m0,k=k0 f=6i 6000000000",
+				"m0,k=k0 f=5i 7000000000",
+				"m0,k=k0 f=0i 8000000000",
+				"m0,k=k0 f=6i 9000000000",
+				"m0,k=k0 f=6i 10000000000",
+				"m0,k=k0 f=7i 11000000000",
+				"m0,k=k0 f=5i 12000000000",
+				"m0,k=k0 f=8i 13000000000",
+				"m0,k=k0 f=9i 14000000000",
+				"m0,k=k0 f=5i 15000000000",
+			},
+			query: `
+from(bucket: v.bucket)
+	|> range(start: 1970-01-01T00:00:00Z, stop: 1970-01-01T00:00:15Z)
+	|> window(every: 5s, offset: 2s)
+	|> sum()
+`,
+			op: "readWindow(sum)",
+			want: `
+#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,long,string,string,string
+#group,false,false,true,true,false,true,true,true
+#default,_result,,,,,,,
+,result,table,_start,_stop,_value,_field,_measurement,k
+,,0,1970-01-01T00:00:00Z,1970-01-01T00:00:02Z,1,f,m0,k0
+,,1,1970-01-01T00:00:02Z,1970-01-01T00:00:07Z,20,f,m0,k0
+,,2,1970-01-01T00:00:07Z,1970-01-01T00:00:12Z,24,f,m0,k0
+,,3,1970-01-01T00:00:12Z,1970-01-01T00:00:15Z,22,f,m0,k0
 `,
 		},
 		{
