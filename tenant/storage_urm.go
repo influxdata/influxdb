@@ -91,7 +91,7 @@ func (s *Store) ListURMs(ctx context.Context, tx kv.Tx, filter influxdb.UserReso
 			}
 
 			// respect pagination in URMs
-			if len(opt) > 0 && len(ms) >= opt[0].Limit {
+			if len(opt) > 0 && opt[0].Limit > 0 && len(ms) >= opt[0].Limit {
 				return errPageLimit
 			}
 
@@ -134,7 +134,7 @@ func (s *Store) ListURMs(ctx context.Context, tx kv.Tx, filter influxdb.UserReso
 			ms = append(ms, m)
 		}
 
-		if len(opt) > 0 && len(ms) >= opt[0].Limit {
+		if len(opt) > 0 && opt[0].Limit > 0 && len(ms) >= opt[0].Limit {
 			break
 		}
 	}

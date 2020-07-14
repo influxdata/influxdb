@@ -147,7 +147,6 @@ func (s *Service) RenewSession(ctx context.Context, session *influxdb.Session, n
 }
 
 func (s *Service) getPermissionSet(ctx context.Context, uid influxdb.ID) ([]influxdb.Permission, error) {
-
 	mappings, _, err := s.urmService.FindUserResourceMappings(ctx, influxdb.UserResourceMappingFilter{UserID: uid}, influxdb.FindOptions{Limit: 100})
 	if err != nil {
 		return nil, err
