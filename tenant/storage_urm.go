@@ -73,6 +73,7 @@ func (s *Store) ListURMs(ctx context.Context, tx kv.Tx, filter influxdb.UserReso
 	if filter.UserID.Valid() {
 		errPageLimit := errors.New("page limit reached")
 
+		i := 0
 		// urm by user index lookup
 		userID, _ := filter.UserID.Encode()
 		if err := s.urmByUserIndex.Walk(ctx, tx, userID, func(k, v []byte) error {
@@ -82,6 +83,10 @@ func (s *Store) ListURMs(ctx context.Context, tx kv.Tx, filter influxdb.UserReso
 			}
 
 			if filterFn(m) {
+				if len(opt) > 0 && opt[0].Offset != 0 && i < opt[0].Offset {
+					i++
+					return nil
+				}
 				ms = append(ms, m)
 			}
 
@@ -116,6 +121,7 @@ func (s *Store) ListURMs(ctx context.Context, tx kv.Tx, filter influxdb.UserReso
 	}
 	defer cur.Close()
 
+	i := 0
 	for k, v := cur.Next(); k != nil; k, v = cur.Next() {
 		m := &influxdb.UserResourceMapping{}
 		if err := json.Unmarshal(v, m); err != nil {
@@ -124,6 +130,10 @@ func (s *Store) ListURMs(ctx context.Context, tx kv.Tx, filter influxdb.UserReso
 
 		// check to see if it matches the filter
 		if filterFn(m) {
+			if len(opt) > 0 && opt[0].Offset != 0 && i < opt[0].Offset {
+				i++
+				continue
+			}
 			ms = append(ms, m)
 		}
 
