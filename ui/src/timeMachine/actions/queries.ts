@@ -32,7 +32,6 @@ import {
   isDemoDataAvailabilityError,
   demoDataError,
 } from 'src/cloud/utils/demoDataErrors'
-import {reportSimpleQueryPerformanceEvent} from 'src/cloud/utils/reporting'
 import {event} from 'src/cloud/utils/reporting'
 
 // Types
@@ -227,7 +226,7 @@ export const executeQueries = (abortController?: AbortController) => async (
 
       const extern = buildVarsOption(variableAssignments)
 
-      reportSimpleQueryPerformanceEvent('runQuery', {context: 'timeMachine'})
+      event('runQuery', {context: 'timeMachine'})
       return runQuery(orgID, text, extern, abortController)
     })
     const results = await Promise.all(pendingResults.map(r => r.promise))

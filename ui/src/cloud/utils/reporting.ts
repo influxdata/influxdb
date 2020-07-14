@@ -29,6 +29,8 @@ export const updateReportingContext = (properties: KeyValue) => {
   reportingTags = {...reportingTags, ...properties}
 }
 
+export const toNano = (ms: number) => Math.round(ms * 1000000)
+
 // NOTE: typescript can't follow the API results for flags,
 // so we need to convert them to strings here
 const cleanTags = (data: Point): Point => {
@@ -151,7 +153,7 @@ export const event = (
   gaEvent(measurement, {...values, ...meta})
 
   pooledEvent({
-    timestamp: time,
+    timestamp: toNano(time),
     measurement,
     fields: {
       source: 'ui',
