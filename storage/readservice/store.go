@@ -32,12 +32,13 @@ func NewStore(viewer reads.Viewer) reads.Store {
 			Max:   true,
 		},
 		windowCap: WindowAggregateCapability{
-			Count: true,
-			Sum:   true,
-			First: true,
-			Last:  true,
-			Min:   true,
-			Max:   true,
+			Count:  true,
+			Sum:    true,
+			First:  true,
+			Last:   true,
+			Min:    true,
+			Max:    true,
+			Offset: true,
 		},
 	}
 }
@@ -223,19 +224,21 @@ func (c GroupCapability) HaveMin() bool   { return c.Min }
 func (c GroupCapability) HaveMax() bool   { return c.Max }
 
 type WindowAggregateCapability struct {
-	Min   bool
-	Max   bool
-	Mean  bool
-	Count bool
-	Sum   bool
-	First bool
-	Last  bool
+	Min    bool
+	Max    bool
+	Mean   bool
+	Count  bool
+	Sum    bool
+	First  bool
+	Last   bool
+	Offset bool
 }
 
-func (w WindowAggregateCapability) HaveMin() bool   { return w.Min }
-func (w WindowAggregateCapability) HaveMax() bool   { return w.Max }
-func (w WindowAggregateCapability) HaveMean() bool  { return w.Mean }
-func (w WindowAggregateCapability) HaveCount() bool { return w.Count }
-func (w WindowAggregateCapability) HaveSum() bool   { return w.Sum }
-func (w WindowAggregateCapability) HaveFirst() bool { return w.First }
-func (w WindowAggregateCapability) HaveLast() bool  { return w.Last }
+func (w WindowAggregateCapability) HaveMin() bool    { return w.Min }
+func (w WindowAggregateCapability) HaveMax() bool    { return w.Max }
+func (w WindowAggregateCapability) HaveMean() bool   { return w.Mean }
+func (w WindowAggregateCapability) HaveCount() bool  { return w.Count }
+func (w WindowAggregateCapability) HaveSum() bool    { return w.Sum }
+func (w WindowAggregateCapability) HaveFirst() bool  { return w.First }
+func (w WindowAggregateCapability) HaveLast() bool   { return w.Last }
+func (w WindowAggregateCapability) HaveOffset() bool { return w.Offset }

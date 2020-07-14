@@ -676,17 +676,10 @@ func (rule PushDownWindowAggregateRule) Pattern() plan.Pattern {
 }
 
 func canPushWindowedAggregate(ctx context.Context, fnNode plan.Node) bool {
-	// Check Capabilities
-	reader := GetStorageDependencies(ctx).FromDeps.Reader
-	windowAggregateReader, ok := reader.(query.WindowAggregateReader)
+	caps, ok := capabilities(ctx)
 	if !ok {
 		return false
 	}
-	caps := windowAggregateReader.GetWindowAggregateCapability(ctx)
-	if caps == nil {
-		return false
-	}
-
 	// Check the aggregate function spec. Require the operation on _value
 	// and check the feature flag associated with the aggregate function.
 	switch fnNode.Kind() {
@@ -772,6 +765,16 @@ func isPushableWindow(windowSpec *universe.WindowProcedureSpec) bool {
 		windowSpec.StopColumn == "_stop"
 }
 
+func capabilities(ctx context.Context) (query.WindowAggregateCapability, bool) {
+	reader := GetStorageDependencies(ctx).FromDeps.Reader
+	windowAggregateReader, ok := reader.(query.WindowAggregateReader)
+	if !ok {
+		return nil, false
+	}
+	caps := windowAggregateReader.GetWindowAggregateCapability(ctx)
+	return caps, caps != nil
+}
+
 func (PushDownWindowAggregateRule) Rewrite(ctx context.Context, pn plan.Node) (plan.Node, bool, error) {
 	fnNode := pn
 	if !canPushWindowedAggregate(ctx, fnNode) {
@@ -784,6 +787,10 @@ func (PushDownWindowAggregateRule) Rewrite(ctx context.Context, pn plan.Node) (p
 	fromSpec := fromNode.ProcedureSpec().(*ReadRangePhysSpec)
 
 	if !isPushableWindow(windowSpec) {
+		return pn, false, nil
+	}
+
+	if caps, ok := capabilities(ctx); !ok || windowSpec.Window.Offset.IsPositive() && !caps.HaveOffset() {
 		return pn, false, nil
 	}
 
@@ -932,6 +939,10 @@ func (p GroupWindowAggregateTransposeRule) Rewrite(ctx context.Context, pn plan.
 	windowSpec := windowNode.ProcedureSpec().(*universe.WindowProcedureSpec)
 
 	if !isPushableWindow(windowSpec) {
+		return pn, false, nil
+	}
+
+	if caps, ok := capabilities(ctx); !ok || windowSpec.Window.Offset.IsPositive() && !caps.HaveOffset() {
 		return pn, false, nil
 	}
 

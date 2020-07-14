@@ -63,13 +63,14 @@ func (r *windowAggregateResultSet) Next() bool {
 func (r *windowAggregateResultSet) Cursor() cursors.Cursor {
 	agg := r.req.Aggregate[0]
 	every := r.req.WindowEvery
+	offset := r.req.Offset
 	cursor := r.arrayCursors.createCursor(*r.seriesRow)
 
 	if every == math.MaxInt64 {
 		// This means to aggregate over whole series for the query's time range
 		return newAggregateArrayCursor(r.ctx, agg, cursor)
 	} else {
-		return newWindowAggregateArrayCursor(r.ctx, agg, every, cursor)
+		return newWindowAggregateArrayCursor(r.ctx, agg, every, offset, cursor)
 	}
 }
 

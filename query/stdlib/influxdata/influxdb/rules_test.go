@@ -60,13 +60,14 @@ type mockWAC struct {
 	Have bool
 }
 
-func (m mockWAC) HaveMin() bool   { return m.Have }
-func (m mockWAC) HaveMax() bool   { return m.Have }
-func (m mockWAC) HaveMean() bool  { return m.Have }
-func (m mockWAC) HaveCount() bool { return m.Have }
-func (m mockWAC) HaveSum() bool   { return m.Have }
-func (m mockWAC) HaveFirst() bool { return m.Have }
-func (m mockWAC) HaveLast() bool  { return m.Have }
+func (m mockWAC) HaveMin() bool    { return m.Have }
+func (m mockWAC) HaveMax() bool    { return m.Have }
+func (m mockWAC) HaveMean() bool   { return m.Have }
+func (m mockWAC) HaveCount() bool  { return m.Have }
+func (m mockWAC) HaveSum() bool    { return m.Have }
+func (m mockWAC) HaveFirst() bool  { return m.Have }
+func (m mockWAC) HaveLast() bool   { return m.Have }
+func (m mockWAC) HaveOffset() bool { return m.Have }
 
 func fluxTime(t int64) flux.Time {
 	return flux.Time{
