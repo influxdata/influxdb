@@ -60,7 +60,6 @@ const Resizer: FC<Props> = ({
   const visibility = data.panelVisibility
 
   const [size, updateSize] = useState<number>(height)
-  console.log('beans', size, height)
   const [isDragging, updateDragging] = useState<boolean>(false)
   const bodyRef = useRef<HTMLDivElement>(null)
   const dragHandleRef = useRef<HTMLDivElement>(null)
@@ -95,7 +94,7 @@ const Resizer: FC<Props> = ({
   // Ensure styles update when state & props update
   useEffect(() => {
     updateResultsStyle()
-  }, [size, resizingEnabled, visibility])
+  }, [size, resizingEnabled, visibility, updateResultsStyle])
 
   // Handle changes in drag state
   useEffect(() => {
@@ -113,7 +112,7 @@ const Resizer: FC<Props> = ({
         )
       handleUpdateHeight(size)
     }
-  }, [isDragging])
+  }, [isDragging]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleMouseMove = (e: MouseEvent): void => {
     if (!bodyRef.current) {
