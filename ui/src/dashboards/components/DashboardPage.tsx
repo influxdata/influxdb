@@ -46,6 +46,10 @@ const dashRoute = `/${ORGS}/${ORG_ID}/${DASHBOARDS}/${DASHBOARD_ID}`
 
 @ErrorHandling
 class DashboardPage extends Component<Props> {
+  public componentDidmount() {
+    this.props.resetCachedQueryResults()
+  }
+
   public componentWillUnmount() {
     this.props.resetCachedQueryResults()
   }

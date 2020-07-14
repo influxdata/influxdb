@@ -1,3 +1,6 @@
+// Libraries
+import {get, sortBy} from 'lodash'
+
 // Constants
 import {FLUX_RESPONSE_BYTES_LIMIT, API_BASE_PATH} from 'src/shared/constants'
 import {
@@ -5,9 +8,14 @@ import {
   RATE_LIMIT_ERROR_TEXT,
 } from 'src/cloud/constants'
 
+// Utils
+import {hashCode} from 'src/queryCache/actions'
+import {asAssignment, getAllVariables} from 'src/variables/selectors'
+import {buildVarsOption} from 'src/variables/utils/buildVarsOption'
+
 // Types
 import {CancelBox} from 'src/types/promises'
-import {File, Query, CancellationError} from 'src/types'
+import {AppState, File, Query, CancellationError, Variable} from 'src/types'
 
 export type RunQueryResult =
   | RunQuerySuccessResult
@@ -31,6 +39,42 @@ export interface RunQueryErrorResult {
   type: 'UNKNOWN_ERROR'
   message: string
   code?: string
+}
+
+const asSimplyKeyValueVariables = (vari: Variable) => {
+  return {
+    [vari.name]: vari.selected || [],
+  }
+}
+
+export const getRunQueryResults = (
+  orgID: string,
+  query: string,
+  state: AppState,
+  abortController?: AbortController
+): {queryID: string; results: CancelBox<RunQueryResult>} => {
+  const variables = sortBy(getAllVariables(state), ['name'])
+  const simplifiedVariables = variables.map(v => asSimplyKeyValueVariables(v))
+  const stringifiedVars = JSON.stringify(simplifiedVariables)
+  // create the queryID based on the query & vars
+  const queryID = `${hashCode(query)}_${hashCode(stringifiedVars)}`
+  // check the cache based on text & vars
+  const cacheResults: CancelBox<RunQueryResult> = get(
+    state,
+    ['queryCache', 'queryResultsByQueryID', queryID],
+    undefined
+  )
+  // here we know has resolved.
+  if (cacheResults) {
+    return {queryID, results: cacheResults}
+  }
+  const variableAssignments = variables
+    .map(v => asAssignment(v))
+    .filter(v => !!v)
+  // otherwise query & set results
+  const extern = buildVarsOption(variableAssignments)
+  const results = runQuery(orgID, query, extern, abortController)
+  return {queryID, results}
 }
 
 export const runQuery = (

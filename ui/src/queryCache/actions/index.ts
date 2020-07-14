@@ -1,3 +1,7 @@
+// Types
+import {CancelBox} from 'src/types/promises'
+import {RunQueryResult} from 'src/shared/apis/query'
+
 export type Action =
   | ReturnType<typeof resetCachedQueryResults>
   | ReturnType<typeof setQueryResultsByQueryID>
@@ -20,11 +24,14 @@ export const hashCode = (queryText: string): string => {
   return `${hash}`
 }
 
-export const setQueryResultsByQueryID = (queryID: string, files: string[]) =>
+export const setQueryResultsByQueryID = (
+  queryID: string,
+  queryPromise: CancelBox<RunQueryResult>
+) =>
   ({
     type: 'SET_QUERY_RESULTS_BY_QUERY',
     queryID,
-    files,
+    queryPromise,
   } as const)
 
 export const resetCachedQueryResults = () =>
