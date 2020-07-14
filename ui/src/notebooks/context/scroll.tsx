@@ -21,7 +21,6 @@ export const ScrollProvider: FC = ({children}) => {
   )
 
   const scrollToPipe = (panelRef: RefObject<HTMLDivElement>) => {
-    console.log('NEAT', panelRef)
     if (panelRef && panelRef.current) {
       const {offsetTop} = panelRef.current
       setListScrollPosition(offsetTop)
