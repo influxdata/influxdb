@@ -328,31 +328,8 @@ jobs:
     working_directory: /go/src/github.com/influxdata/influxdb
     steps:
       - checkout
-      # Populate GOCACHE.
-      - restore_cache:
-          name: Restoring GOCACHE
-          keys:
-            - influxdb-gocache-{{ .Branch }}-{{ .Revision }} # Matches when retrying a single run.
-            - influxdb-gocache-{{ .Branch }}- # Matches a new commit on an existing branch.
-            - influxdb-gocache- # Matches a new branch.
-      # Populate GOPATH/pkg.
-      - restore_cache:
-          name: Restoring GOPATH/pkg/mod
-          keys:
-            - influxdb-gomod-{{ checksum "go.sum" }} # Matches based on go.sum checksum.
       - run: ./scripts/ci/lint/flags.bash
-      - save_cache:
-          name: Saving GOCACHE
-          key: influxdb-gocache-{{ .Branch }}-{{ .Revision }}
-          paths:
-            - /tmp/go-cache
-          when: always
-      - save_cache:
-          name: Saving GOPATH/pkg/mod
-          key: influxdb-gomod-{{ checksum "go.sum" }}
-          paths:
-            - /go/pkg/mod
-          when: always
+
   golint:
     docker:
       - image: circleci/golang:1.13
@@ -363,19 +340,6 @@ jobs:
     working_directory: /go/src/github.com/influxdata/influxdb
     steps:
       - checkout
-
-      # Populate GOCACHE.
-      - restore_cache:
-          name: Restoring GOCACHE
-          keys:
-            - influxdb-gocache-{{ .Branch }}-{{ .Revision }} # Matches when retrying a single run.
-            - influxdb-gocache-{{ .Branch }}- # Matches a new commit on an existing branch.
-            - influxdb-gocache- # Matches a new branch.
-      # Populate GOPATH/pkg.
-      - restore_cache:
-          name: Restoring GOPATH/pkg/mod
-          keys:
-            - influxdb-gomod-{{ checksum "go.sum" }} # Matches based on go.sum checksum.
       - run: sudo apt-get install -y bzr
       - install_rust_compiler
       - run: mkdir -p $TEST_RESULTS
@@ -395,18 +359,6 @@ jobs:
       - run: GO111MODULE=on go mod vendor # staticcheck looks in vendor for dependencies.
       - run: GO111MODULE=on go install honnef.co/go/tools/cmd/staticcheck # Install staticcheck from the version we specify in go.mod.
       - run: GO111MODULE=on ./env staticcheck ./...
-      - save_cache:
-          name: Saving GOCACHE
-          key: influxdb-gocache-{{ .Branch }}-{{ .Revision }}
-          paths:
-            - /tmp/go-cache
-          when: always
-      - save_cache:
-          name: Saving GOPATH/pkg/mod
-          key: influxdb-gomod-{{ checksum "go.sum" }}
-          paths:
-            - /go/pkg/mod
-          when: always
       - store_artifacts:
           path: /tmp/test-results
           destination: raw-test-output
