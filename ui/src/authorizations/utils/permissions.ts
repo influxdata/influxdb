@@ -31,7 +31,9 @@ const allPermissionTypes: PermissionTypes[] = [
 // if all allowable PermissionTypes generated in the client
 // generatedRoutes are not included in the switch statement BUT
 // they will need to be added to both the switch statement AND the allPermissionTypes array.
-const ensureT = (orgID: string) => (t: PermissionTypes): Permission[] => {
+const ensureT = (orgID: string, userID: string) => (
+  t: PermissionTypes
+): Permission[] => {
   switch (t) {
     case 'authorizations':
     case 'buckets':
@@ -47,7 +49,6 @@ const ensureT = (orgID: string) => (t: PermissionTypes): Permission[] => {
     case 'sources':
     case 'tasks':
     case 'telegrafs':
-    case 'users':
     case 'variables':
     case 'views':
       return [
@@ -69,13 +70,27 @@ const ensureT = (orgID: string) => (t: PermissionTypes): Permission[] => {
           resource: {type: t, id: orgID},
         },
       ]
+    case 'users':
+      return [
+        {
+          action: 'read' as 'read',
+          resource: {type: t, id: userID},
+        },
+        {
+          action: 'write' as 'write',
+          resource: {type: t, id: userID},
+        },
+      ]
     default:
       return assertNever(t)
   }
 }
 
-export const allAccessPermissions = (orgID: string): Permission[] => {
-  const withOrgID = ensureT(orgID)
+export const allAccessPermissions = (
+  orgID: string,
+  userID: string
+): Permission[] => {
+  const withOrgID = ensureT(orgID, userID)
   return allPermissionTypes.flatMap(withOrgID)
 }
 

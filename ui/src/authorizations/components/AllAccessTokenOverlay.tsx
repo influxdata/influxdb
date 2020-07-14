@@ -23,6 +23,7 @@ import {createAuthorization} from 'src/authorizations/actions/thunks'
 // Utils
 import {allAccessPermissions} from 'src/authorizations/utils/permissions'
 import {getOrg} from 'src/organizations/selectors'
+import {getMe} from 'src/me/selectors'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -100,12 +101,12 @@ class AllAccessTokenOverlay extends PureComponent<Props, State> {
   }
 
   private handleSave = () => {
-    const {orgID, onCreateAuthorization} = this.props
+    const {orgID, meID, onCreateAuthorization} = this.props
 
     const token: Authorization = {
       orgID,
       description: this.state.description,
-      permissions: allAccessPermissions(orgID),
+      permissions: allAccessPermissions(orgID, meID),
     }
 
     onCreateAuthorization(token)
@@ -127,6 +128,7 @@ class AllAccessTokenOverlay extends PureComponent<Props, State> {
 const mstp = (state: AppState) => {
   return {
     orgID: getOrg(state).id,
+    meID: getMe(state).id,
   }
 }
 
