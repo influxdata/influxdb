@@ -14,7 +14,7 @@ func TestLegacyOpen(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	os.RemoveAll(dir)
+	defer os.RemoveAll(dir)
 
 	sfile := seriesfile.NewSeriesFile(dir)
 	if err := sfile.Open(context.Background()); err != nil {
