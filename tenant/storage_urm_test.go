@@ -242,6 +242,72 @@ func TestURM(t *testing.T) {
 			},
 		},
 		{
+			name: "list by user with limit and offset",
+			setup: func(t *testing.T, store *tenant.Store, tx kv.Tx) {
+				uid := influxdb.ID(1)
+				err := store.CreateUser(context.Background(), tx, &influxdb.User{
+					ID:   uid,
+					Name: "user",
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				for i := 1; i <= 25; i++ {
+					// User must exist to create urm.
+					err = store.CreateURM(context.Background(), tx, &influxdb.UserResourceMapping{
+						UserID:       uid,
+						UserType:     influxdb.Owner,
+						MappingType:  influxdb.UserMappingType,
+						ResourceType: influxdb.OrgsResourceType,
+						ResourceID:   influxdb.ID(i + 1),
+					})
+					if err != nil {
+						t.Fatal(err)
+					}
+				}
+			},
+			results: func(t *testing.T, store *tenant.Store, tx kv.Tx) {
+				urms, err := store.ListURMs(
+					context.Background(),
+					tx,
+					influxdb.UserResourceMappingFilter{
+						UserID: influxdb.ID(1)},
+					influxdb.FindOptions{
+						Offset: 10,
+						Limit:  10,
+					},
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				if len(urms) != 10 {
+					t.Fatalf("when setting the limit to 10 we got: %d", len(urms))
+				}
+				var expected []*influxdb.UserResourceMapping
+				for i := 11; i <= 20; i++ {
+					expected = append(expected, &influxdb.UserResourceMapping{
+						UserID:       influxdb.ID(1),
+						UserType:     influxdb.Owner,
+						MappingType:  influxdb.UserMappingType,
+						ResourceType: influxdb.OrgsResourceType,
+						ResourceID:   influxdb.ID(i + 1),
+					})
+				}
+				sort.Slice(expected, func(i, j int) bool {
+					irid, _ := expected[i].ResourceID.Encode()
+					iuid, _ := expected[i].UserID.Encode()
+					jrid, _ := expected[j].ResourceID.Encode()
+					juid, _ := expected[j].UserID.Encode()
+					return string(irid)+string(iuid) < string(jrid)+string(juid)
+				})
+
+				if !reflect.DeepEqual(urms, expected) {
+					t.Fatalf("expected identical urms: \n%s", cmp.Diff(urms, expected))
+				}
+			},
+		},
+		{
 			name:  "delete",
 			setup: simpleSetup,
 			update: func(t *testing.T, store *tenant.Store, tx kv.Tx) {
