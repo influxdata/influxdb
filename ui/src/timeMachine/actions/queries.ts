@@ -1,6 +1,6 @@
 // Libraries
 import {parse} from 'src/external/parser'
-import {get} from 'lodash'
+import {get, sortBy} from 'lodash'
 
 // API
 import {

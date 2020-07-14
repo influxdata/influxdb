@@ -41,6 +41,9 @@ export const sortDashboardByName = (dashboards: Dashboard[]): Dashboard[] =>
     a.name.toLowerCase() > b.name.toLowerCase() ? 1 : -1
   )
 
+export const isDashboardActive = (state: AppState): boolean =>
+  state.currentPage === 'dashboard'
+
 // The purpose of this function is to set a user's custom time range selection
 // from the local time to the same time in UTC if UTC is selected from the
 // timezone dropdown. This is feature was original requested here:
